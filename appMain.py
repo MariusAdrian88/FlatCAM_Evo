@@ -34,7 +34,7 @@ from io import StringIO
 import gc
 
 from multiprocessing.connection import Listener, Client
-from multiprocessing import Pool
+from multiprocessing import Pool, current_process
 import socket
 
 import tkinter as tk
@@ -63,6 +63,7 @@ from appGUI.themes import dark_style_sheet, light_style_sheet
 # Various
 from appCommon.Common import ExclusionAreas
 from appCommon.Common import AppLogging
+from appCommon.StartDir import resolve_user_path
 from appCommon.RegisterFileKeywords import RegisterFK, Extensions, KeyWords
 
 from appHandlers.appIO import appIO
@@ -216,6 +217,21 @@ class App(QtCore.QObject):
             cmd_line_shellfile = arg
         elif opt == '--shellvar':
             cmd_line_shellvar = arg
+
+    # The application does os.chdir() into its own folder when it starts, so a relative file name would no longer be
+    # found. Make the --shellfile absolute here and refuse to start on a file that cannot be read: a failure later in
+    # the startup (after the GUI and the process pool exist) does not end the application cleanly.
+    # The pool workers (spawn) import this module too, with the command line of the main process but with the working
+    # directory of the main process after its chdir(): they must not check the file.
+    if cmd_line_shellfile:
+        cmd_line_shellfile = resolve_user_path(cmd_line_shellfile)
+        if current_process().name == 'MainProcess' and not (os.path.isfile(cmd_line_shellfile) and
+                                                            os.access(cmd_line_shellfile, os.R_OK)):
+            print("ERROR: The --shellfile '%s' is not a readable file." % cmd_line_shellfile, file=sys.stderr)
+            sys.exit(2)
+
+    # The same for the files to open, given as arguments. The words that are no file (quit, save ...) stay as they are.
+    args = [resolve_user_path(a) if os.path.exists(resolve_user_path(a)) else a for a in args]
 
     # ################################### Version and VERSION DATE ##################################################
     # version = "Unstable"
