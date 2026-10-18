@@ -87,6 +87,11 @@ Plot 3D:
 - the Plot 3D tab shows the toolpath, the tool and the height map of the GRBL job
 - the 3D toolpath shows the line index of each move
 
+Tcl and command line:
+
+- fixed: a relative file name in a Tcl command (write_gcode, save_project, open_gerber, export_svg ...) was resolved against the application folder, because the application changes into it at startup; for a packaged application that wrote into the application bundle and broke its code signature. It is now resolved against the folder FlatCAM was started from (the home folder when that is the root folder, or the application itself); a leading ~ is expanded
+- fixed: a relative --shellfile or a relative file to open given on the command line was not found for the same reason; an unreadable --shellfile now ends the program with an error before the GUI starts (it started the GUI and then crashed on exit)
+
 16.10.2026
 
 Rendering and compatibility:
