@@ -8,7 +8,7 @@
 from PyQt6 import QtWidgets, QtGui
 from appTool import AppTool
 from appGUI.GUIElements import VerticalScrollArea, FCLabel, FCButton, FCFrame, GLay, FCComboBox, FCCheckBox, \
-    FCComboBox2, RadioSet, FCDoubleSpinner, FCSpinner, FCMessageBox
+    FCComboBox2, RadioSet, FCDoubleSpinner, FCSpinner
 
 from copy import deepcopy
 import numpy as np
@@ -25,8 +25,7 @@ import builtins
 from rasterio import open as rasterio_open
 from rasterio.features import shapes
 
-from svgtrace import trace
-from pyppeteer.chromium_downloader import check_chromium
+from appCommon.imagetrace import trace
 from lxml import etree as ET
 
 from appParsers.ParseSVG import svgparselength, svgparse_viewbox, getsvggeo, getsvgtext
@@ -172,35 +171,6 @@ class ToolImage(AppTool):
         mode = self.ui.image_type.get_value()
         min_area = self.ui.min_area_entry.get_value()
 
-        if import_mode == 'trace':
-            # check if Chromium is present, if not issue a warning
-            res = check_chromium()
-            if res is False:
-                msgbox = FCMessageBox(parent=self.app.ui)
-                title = _("Import warning")
-                txt = _("The tracing require Chromium,\n"
-                        "but it was not detected.\n"
-                        "\n"
-                        "Do you want to download it (about 300MB)?")
-                msgbox.setWindowTitle(title)  # taskbar still shows it
-                msgbox.setWindowIcon(QtGui.QIcon(self.app.resource_location + '/app128.png'))
-                msgbox.setText('<b>%s</b>' % title)
-                msgbox.setInformativeText(txt)
-                msgbox.setIcon(QtWidgets.QMessageBox.Icon.Warning)
-
-                bt_yes = msgbox.addButton(_('Yes'), QtWidgets.QMessageBox.ButtonRole.YesRole)
-                bt_no = msgbox.addButton(_('No'), QtWidgets.QMessageBox.ButtonRole.NoRole)
-
-                msgbox.setDefaultButton(bt_yes)
-                msgbox.exec()
-                response = msgbox.clickedButton()
-
-                if response == bt_no:
-                    self.app.inform.emit('[WARNING_NOTCL] %s' % _("Cancelled."))
-                    return
-                self.app.inform.emit(_("Please be patient. Chromium is being downloaded in the background.\n"
-                                       "The app will resume after it is installed."))
-
         _filter = "Image Files(*.BMP *.PNG *.JPG *.JPEG);;" \
                   "Bitmap File (*.BMP);;" \
                   "PNG File (*.PNG);;" \
@@ -226,7 +196,11 @@ class ToolImage(AppTool):
         else:
             if import_mode == 'trace':
                 # there are thread issues so I process this outside
-                svg_text = trace(filename, blackAndWhite=True if mode == 'black' else False, mode=trace_options)
+                try:
+                    svg_text = trace(filename, blackAndWhite=True if mode == 'black' else False, mode=trace_options)
+                except ImportError as err:  # quickjs-ng is not installed
+                    self.app.inform.emit('[ERROR_NOTCL] %s' % str(err))
+                    return
             else:
                 svg_text = None
             if threaded is True:

@@ -16,7 +16,6 @@ dependencies:
 - pip
 - pre-commit
 - pyopengl
-- pyppeteer
 - pyserial>=3.4
 - qrcode>=6.1
 - rasterio
@@ -30,4 +29,5 @@ dependencies:
 - pip:
   - ortools>=7.0
   - pyqt6>=6.1.0
-  - svgtrace
+  - 'quickjs-ng; sys_platform != "darwin" or platform_machine != "x86_64"'
+  - 'quickjs; sys_platform == "darwin" and platform_machine == "x86_64"'
