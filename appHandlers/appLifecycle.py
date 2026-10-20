@@ -475,6 +475,10 @@ class AppLifecycle(QtCore.QObject):
 
         # quit app directly - do NOT call back to App
         QtWidgets.QApplication.quit()
+        # The --shellfile of the command line runs inside App.__init__(), before app.exec() starts, and quit() does
+        # nothing while no event loop is running: ask again as soon as the loop starts. When the loop is already
+        # running, the call above ends it and this one is never delivered.
+        QtCore.QTimer.singleShot(0, QtWidgets.QApplication.quit)
         return True
 
     # --------------------------------------------------------------------------
