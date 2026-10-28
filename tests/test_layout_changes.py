@@ -59,6 +59,28 @@ def layout_app(tmp_path, monkeypatch):
     qapp.processEvents()
 
 
+@pytest.mark.parametrize('resources', ['assets/resources', 'assets/resources/dark_resources'])
+def test_view_restore_layout_restores_hidden_toolbars(layout_app, resources):
+    app, group, settings = layout_app
+    app.resource_location = resources
+    window = MainGUI(app)
+    try:
+        app.ui = window
+        app.on_layout('standard')
+        window.toolbaredit.hide()
+        window.toolbarview.hide()
+        action = next(action for action in window.menuview.actions() if action.text() == 'Restore Layout')
+        assert not action.icon().isNull()
+        action.trigger()
+        assert not window.toolbaredit.isHidden()
+        assert not window.toolbarview.isHidden()
+    finally:
+        # a full MainGUI left to the interpreter exit crashes the process (0xC0000409)
+        window.close()
+        window.deleteLater()
+        QtCore.QCoreApplication.sendPostedEvents(None, QtCore.QEvent.Type.DeferredDelete.value)
+
+
 @pytest.mark.parametrize('index,layout', [(0, 'standard'), (1, 'compact'), (2, 'minimal')])
 def test_ui_layout_activation_and_restoration(layout_app, index, layout):
     app, group, settings = layout_app

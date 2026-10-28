@@ -625,6 +625,9 @@ class MainGUI(QtWidgets.QMainWindow):
         # ################################## View # ###################################################################
         # #############################################################################################################
         self.menuview = self.menu.addMenu(_('View'))
+        self.menuview.addAction(QtGui.QIcon(self.app.resource_location + '/restore_layout.png'),
+                                _('Restore Layout')).triggered.connect(lambda: self.app.on_layout())
+        self.menuview.addSeparator()
         self.menuviewenable = self.menuview.addAction(
             QtGui.QIcon(self.app.resource_location + '/replot16.png'),
             '%s\t%s' % (_('Enable all'), _('Alt+1')))
@@ -670,7 +673,6 @@ class MainGUI(QtWidgets.QMainWindow):
         self.menuview_toggle_notebook = self.menuview.addAction(
             QtGui.QIcon(self.app.resource_location + '/notebook32.png'),
             '%s\t%s' % (_("Toggle Project/Properties/Tool"), _('`')))
-
         self.menuview.addSeparator()
         self.menuview_toggle_grid = self.menuview.addAction(
             QtGui.QIcon(self.app.resource_location + '/grid32.png'),
