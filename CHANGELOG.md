@@ -23,7 +23,7 @@ PDF import:
 - repeated colors return to their original layer instead of creating duplicate layers; white clears and later islands keep their paint order across the color layers
 - repeated equal solids are removed unless an intervening clear requires the later copy to restore material; empty Gerber layers and empty drill groups no longer create objects
 - fixed: stray delimiters could leave the tokenizer in an endless loop; text-heavy fill processing reads ring coordinates once and skips rings that cannot affect the winding number
-- fixed: Stop did not cancel a long PDF parse: the parser kept the value of the abort flag at the start of the application; it now reads the flag while it parses, and a stopped file no longer leaves a promise that held back the rendering of the next PDF import
+- fixed: Stop did not cancel a long PDF parse: the parser kept the value of the abort flag at the start of the application; it now reads the flag while it parses, and a stopped file no longer leaves a promise that held back the rendering of the next PDF import (merged PR #72 from ErkanGench)
 
 Gerber editor:
 
@@ -32,13 +32,13 @@ Gerber editor:
 - Track: hold Space for a grid ten times finer while routing; releasing Space restores the normal grid and refreshes the live preview
 - rectangular and obround apertures now have separate Width and Height fields; both dimensions must be finite and positive
 - fixed: aperture, feature and Select All table selections now respect the Zoom checkbox
-- fixed: Pad placed nothing (although it showed "Done.") and Pad Array failed with an obround ('O') aperture, as KiCad writes the oval pads; both now place the obround of the aperture, and the aperture table shows and edits the width and height of an 'O' aperture
-- fixed: editing the Dims of a rectangular ('R') aperture grew its tracks (also the clear ones) by the whole new size instead of half of the change: a 1 x 1 track edited to 1.2, 1.2 became 3.4 wide
-- fixed: Mark Area -> Clear, then Mark Area opened again -> Delete deleted the shapes of the cleared marking; Clear and the opening of the tool now forget the marked shapes
-- fixed: Esc in the Transform tool (Alt+R) logged an error and left the editor in the Transform tool; it now clears the selection and returns to the Select tool
-- fixed: Space in the Pad Array tool ("Toggle array direction" in the shortcut list) logged an error and did nothing; it now switches the direction of a linear array X -> Y -> Angle -> X
-- fixed: SemiDisc stopped responding until Esc after three points on one line (Point1 -> Point3 -> Point2 mode) or two equal chord ends (Start -> Stop -> Center mode), with an error in the log; such a point is now refused with "Choose distinct, non-collinear arc points." and the tool waits for another one
-- fixed: the Gerber editor Simplification menu item was in the Geometry Editor menu (a second "Simplification" entry there that did nothing); it is now in the Gerber Editor menu after Buffer and opens the Simplification tool
+- fixed: Pad placed nothing (although it showed "Done.") and Pad Array failed with an obround ('O') aperture, as KiCad writes the oval pads; both now place the obround of the aperture, and the aperture table shows and edits the width and height of an 'O' aperture (merged PR #59 from ErkanGench)
+- fixed: editing the Dims of a rectangular ('R') aperture grew its tracks (also the clear ones) by the whole new size instead of half of the change: a 1 x 1 track edited to 1.2, 1.2 became 3.4 wide (merged PR #59 from ErkanGench)
+- fixed: Mark Area -> Clear, then Mark Area opened again -> Delete deleted the shapes of the cleared marking; Clear and the opening of the tool now forget the marked shapes (merged PR #59 from ErkanGench)
+- fixed: Esc in the Transform tool (Alt+R) logged an error and left the editor in the Transform tool; it now clears the selection and returns to the Select tool (merged PR #61 from ErkanGench)
+- fixed: Space in the Pad Array tool ("Toggle array direction" in the shortcut list) logged an error and did nothing; it now switches the direction of a linear array X -> Y -> Angle -> X (merged PR #61 from ErkanGench)
+- fixed: SemiDisc stopped responding until Esc after three points on one line (Point1 -> Point3 -> Point2 mode) or two equal chord ends (Start -> Stop -> Center mode), with an error in the log; such a point is now refused with "Choose distinct, non-collinear arc points." and the tool waits for another one (merged PR #61 from ErkanGench)
+- fixed: the Gerber editor Simplification menu item was in the Geometry Editor menu (a second "Simplification" entry there that did nothing); it is now in the Gerber Editor menu after Buffer and opens the Simplification tool (merged PR #61 from ErkanGench)
 
 Canvas and Jump:
 
@@ -51,8 +51,8 @@ Projects:
 - new: Import... in the project context menu (right-click on the project combobox) opens an Import dialog; the left side lists all the imports in groups (vector files, raster images, PCB boards) with a search box, the right side shows the file type, the created objects and a description; Import... runs the selected import with its own file dialog
 - new: Close All Projects in the project context menu, after a separator below Close Project; each project with unsaved changes asks first, a Cancel or a failed save stops the remaining closes, and 1 empty project stays at the end
 - new: Preferences -> General -> "Project Caching" (off by default); a switch hides the plot shapes of the inactive project instead of releasing them and keeps the plugin widgets, so a switch back does not plot again; a change of the object or the plot options plots the objects again, and closing a project or turning the option off releases the kept shapes
-- fixed: with a Document object in the project, every project save (and autosave) failed with "Failed." and the file was not written: the Document listed an 'options' attribute to save that FlatCAM objects do not have; a Document is now saved and loaded like the other objects
-- fixed: a new project made while an editor was open (the Tcl commands new and open_project) made new editors and left the old ones in memory, still connected to the menu and toolbar actions; later in the Geometry Editor, Union, Intersection and Subtract also ran in the old editor and showed "A selection of minimum two items is required."; the editors are now kept, as after a close by hand
+- fixed: with a Document object in the project, every project save (and autosave) failed with "Failed." and the file was not written: the Document listed an 'options' attribute to save that FlatCAM objects do not have; a Document is now saved and loaded like the other objects (merged PR #56 from ErkanGench)
+- fixed: a new project made while an editor was open (the Tcl commands new and open_project) made new editors and left the old ones in memory, still connected to the menu and toolbar actions; later in the Geometry Editor, Union, Intersection and Subtract also ran in the old editor and showed "A selection of minimum two items is required."; the editors are now kept, as after a close by hand (merged PR #66 from ErkanGench)
 
 Proteus PCB import:
 
@@ -68,333 +68,333 @@ Circle resolution:
 
 CNC Job:
 
-- fixed: Edit -> Flip on X / Y axis, Rotate and Skew (also the X and Y keys) on a CNCJob changed the plot but not the saved G-code: Save CNC Code wrote the job as it was before; the saved code now follows the transform, also after Undo / Redo
-- fixed: a CNCJob moved with the Move tool (M key) exported its G-code with the old coordinates; the exported code now has the moved ones, also after Undo / Redo
-- fixed: an object name with parentheses (a Windows file name like "board (1)-F_Cu.gbr") ended the "(Name: ...)" comment of the G-code header early: GRBL, FluidNC and LinuxCNC read the rest of the line as G-code and stopped the job at about line 2; in a "( ... )" comment the name now has "[" and "]" (also in the probing G-code of the Levelling tool and in the Solder Paste G-code)
-- fixed: a G-code save (Save CNC Code, Tcl write_gcode) that failed half way, for example on a full or a removed SD card, left a cut file without its end code under the final name, and any error other than "no such file" or "permission denied" opened the crash dialog; the G-code is now written in 1 write to a temporary file that replaces the file only after a complete write, and the error is shown in the status bar
-- fixed: the changes saved in the G-code Editor were lost without a message: a new Properties panel, an opened project, the undo of a delete and the "Use CNC Code Snippets" checkbox made the G-code again from the tools; the edited G-code is now kept by the job and saved in the project, the checkbox asks before it discards the changes, and a move or an origin change (the G-code must follow the new coordinates) says that they are lost
-- fixed: with the "Use CNC Code Snippets" checkbox unchecked, the G-code still had the prepend / append snippets of the Preferences (also after a move or an origin change, and for a job of an opened project that was made without snippets); unchecked now means no snippet. View Source and the Tcl write_gcode without -preamble / -postamble still use the snippets of the Preferences
+- fixed: Edit -> Flip on X / Y axis, Rotate and Skew (also the X and Y keys) on a CNCJob changed the plot but not the saved G-code: Save CNC Code wrote the job as it was before; the saved code now follows the transform, also after Undo / Redo (merged PR #48 from ErkanGench)
+- fixed: a CNCJob moved with the Move tool (M key) exported its G-code with the old coordinates; the exported code now has the moved ones, also after Undo / Redo (merged PR #48 from ErkanGench)
+- fixed: an object name with parentheses (a Windows file name like "board (1)-F_Cu.gbr") ended the "(Name: ...)" comment of the G-code header early: GRBL, FluidNC and LinuxCNC read the rest of the line as G-code and stopped the job at about line 2; in a "( ... )" comment the name now has "[" and "]" (also in the probing G-code of the Levelling tool and in the Solder Paste G-code) (merged PR #48 from ErkanGench)
+- fixed: a G-code save (Save CNC Code, Tcl write_gcode) that failed half way, for example on a full or a removed SD card, left a cut file without its end code under the final name, and any error other than "no such file" or "permission denied" opened the crash dialog; the G-code is now written in 1 write to a temporary file that replaces the file only after a complete write, and the error is shown in the status bar (merged PR #49 from ErkanGench)
+- fixed: the changes saved in the G-code Editor were lost without a message: a new Properties panel, an opened project, the undo of a delete and the "Use CNC Code Snippets" checkbox made the G-code again from the tools; the edited G-code is now kept by the job and saved in the project, the checkbox asks before it discards the changes, and a move or an origin change (the G-code must follow the new coordinates) says that they are lost (merged PR #49 from ErkanGench)
+- fixed: with the "Use CNC Code Snippets" checkbox unchecked, the G-code still had the prepend / append snippets of the Preferences (also after a move or an origin change, and for a job of an opened project that was made without snippets); unchecked now means no snippet. View Source and the Tcl write_gcode without -preamble / -postamble still use the snippets of the Preferences (merged PR #49 from ErkanGench)
 
 Save dialog:
 
-- fixed: the extension of the selected filter was added when the name had it in another case or had another extension of the same filter: saving over 'board_cnc.nc' from View Source (filter "*.NC") wrote 'board_cnc.nc.NC' and left the old file unchanged; the name is now kept when it ends with any extension of the filter, in any case
+- fixed: the extension of the selected filter was added when the name had it in another case or had another extension of the same filter: saving over 'board_cnc.nc' from View Source (filter "*.NC") wrote 'board_cnc.nc.NC' and left the old file unchanged; the name is now kept when it ends with any extension of the filter, in any case (merged PR #49 from ErkanGench)
 Exclusion areas:
 
-- fixed: with the 'Over' strategy the tool went over an area at its Over Z also when the Over Z was below the travel Z; with the defaults (Over Z 1.0, Travel Z 2.0) the drilling, milling and Tcl G-code moved the tool down from Z2 to Z1 to cross the area; the tool now stays at the travel Z when the Over Z is lower
-- fixed: with grid snap off, the first corner of a rectangular exclusion area was converted from screen to model coordinates twice, so the rubber band and the area started at a wrong point
-- fixed: Escape while drawing an exclusion area raised an error (it called area_disconnect() on the active object) and the canvas stayed in the area drawing mode; Escape now ends the drawing, drops only the area being drawn and keeps the areas added before
+- fixed: with the 'Over' strategy the tool went over an area at its Over Z also when the Over Z was below the travel Z; with the defaults (Over Z 1.0, Travel Z 2.0) the drilling, milling and Tcl G-code moved the tool down from Z2 to Z1 to cross the area; the tool now stays at the travel Z when the Over Z is lower (merged PR #50 from ErkanGench)
+- fixed: with grid snap off, the first corner of a rectangular exclusion area was converted from screen to model coordinates twice, so the rubber band and the area started at a wrong point (merged PR #50 from ErkanGench)
+- fixed: Escape while drawing an exclusion area raised an error (it called area_disconnect() on the active object) and the canvas stayed in the area drawing mode; Escape now ends the drawing, drops only the area being drawn and keeps the areas added before (merged PR #50 from ErkanGench)
 Drilling:
 
-- fixed: a Travel Z of zero or below made every move between the holes with the bit in or on the material, and a Feedrate Z of zero wrote "G01 F0"; the job is now refused with an error that names the tool (not for the laser preprocessors)
-- fixed: Multi-Depth with a depth per pass of zero never ended and filled the memory (also Tcl drillcncjob -dpp 0); it now drills in one pass, as the milling does, and a negative depth per pass is used as positive
+- fixed: a Travel Z of zero or below made every move between the holes with the bit in or on the material, and a Feedrate Z of zero wrote "G01 F0"; the job is now refused with an error that names the tool (not for the laser preprocessors) (merged PR #51 from ErkanGench)
+- fixed: Multi-Depth with a depth per pass of zero never ended and filled the memory (also Tcl drillcncjob -dpp 0); it now drills in one pass, as the milling does, and a negative depth per pass is used as positive (merged PR #51 from ErkanGench)
 
 Milling:
 
-- fixed: every tool with a Custom offset was cut with the offset of the selected row of the tool table; each tool now uses its own offset value
-- fixed: Extra Cut with a length: after the start point of a closed path the tool went straight to a later point of the path (across a corner, into a small pad) and back, instead of going on along the path; it now goes on along the path and back
+- fixed: every tool with a Custom offset was cut with the offset of the selected row of the tool table; each tool now uses its own offset value (merged PR #51 from ErkanGench)
+- fixed: Extra Cut with a length: after the start point of a closed path the tool went straight to a later point of the path (across a corner, into a small pad) and back, instead of going on along the path; it now goes on along the path and back (merged PR #51 from ErkanGench)
 Application updater:
 
-- fixed: Import Preferences (File -> Backup) took the update source (provider, GitHub repository, Digi share) from the file, so a received preferences file could point Check for Updates and the updater to another repository; the import now keeps the update source set in Preferences
+- fixed: Import Preferences (File -> Backup) took the update source (provider, GitHub repository, Digi share) from the file, so a received preferences file could point Check for Updates and the updater to another repository; the import now keeps the update source set in Preferences (merged PR #52 from ErkanGench)
 
 CNC Job:
 
-- fixed: Save in the project context menu with several CNC jobs selected used the job names as they are for the file names, so a name from a project file such as '..\..\x' wrote the G-code into another folder, over a file with that name; each name is now a plain file name in the chosen folder (the characters that a Windows file name can not hold become '_', a device name such as NUL gets a '_' in front, and 2 names that become the same get 2 files)
+- fixed: Save in the project context menu with several CNC jobs selected used the job names as they are for the file names, so a name from a project file such as '..\..\x' wrote the G-code into another folder, over a file with that name; each name is now a plain file name in the chosen folder (the characters that a Windows file name can not hold become '_', a device name such as NUL gets a '_' in front, and 2 names that become the same get 2 files) (merged PR #52 from ErkanGench)
 File loading:
 
-- fixed: a Gerber or HPGL2 file with a letter that is not ASCII in a comment or an attribute (for example a UTF-8 'Ş') failed with "An internal error has occurred" when the code page of the system could not decode it (cp1254 on a Turkish Windows); these files are now read as UTF-8 and a byte that is not UTF-8 is replaced, the geometry is not affected
+- fixed: a Gerber or HPGL2 file with a letter that is not ASCII in a comment or an attribute (for example a UTF-8 'Ş') failed with "An internal error has occurred" when the code page of the system could not decode it (cp1254 on a Turkish Windows); these files are now read as UTF-8 and a byte that is not UTF-8 is replaced, the geometry is not affected (merged PR #53 from ErkanGench)
 
 DXF and SVG Import:
 
-- fixed: a UTF-8 SVG with a letter such as 'Ş' (on a cp1254 system) or an ANSI DXF with such a letter (any system) was parsed, then the import failed with "Import failed." and made no object, because the file was read again for its source text with the code page of the system (SVG) or as strict UTF-8 (DXF); the source text is now read as UTF-8 and a byte that is not UTF-8 is replaced
+- fixed: a UTF-8 SVG with a letter such as 'Ş' (on a cp1254 system) or an ANSI DXF with such a letter (any system) was parsed, then the import failed with "Import failed." and made no object, because the file was read again for its source text with the code page of the system (SVG) or as strict UTF-8 (DXF); the source text is now read as UTF-8 and a byte that is not UTF-8 is replaced (merged PR #53 from ErkanGench)
 Preferences:
 
-- fixed: the preferences file was written in place at each exit and each save; a failure while writing (a full disk, a crash or a power loss) left a cut file, and the next start used the factory values for all the preferences; the file is now written to a temporary file and then replaces the old one, so a failed save keeps the old file and reports the error
+- fixed: the preferences file was written in place at each exit and each save; a failure while writing (a full disk, a crash or a power loss) left a cut file, and the next start used the factory values for all the preferences; the file is now written to a temporary file and then replaces the old one, so a failed save keeps the old file and reports the error (merged PR #54 from ErkanGench)
 
 Tools Database:
 
-- fixed: after an ordinary Preferences Apply, the saved tools were skipped as invalid, so Isolation, Milling, Drilling, NCC, Paint and Cutout added default tools instead of the saved ones; the Apply changes the type of some values ('0.1' becomes 0.1, '0.0, 0.0' becomes (0.0, 0.0), 'no' becomes 0) and each record was checked against the type of the current value; a record value now passes in every form the Preferences give to that key, and a wrong type (a text for a feedrate, an unknown tool order) is still refused
+- fixed: after an ordinary Preferences Apply, the saved tools were skipped as invalid, so Isolation, Milling, Drilling, NCC, Paint and Cutout added default tools instead of the saved ones; the Apply changes the type of some values ('0.1' becomes 0.1, '0.0, 0.0' becomes (0.0, 0.0), 'no' becomes 0) and each record was checked against the type of the current value; a record value now passes in every form the Preferences give to that key, and a wrong type (a text for a feedrate, an unknown tool order) is still refused (merged PR #54 from ErkanGench)
 
 GUI:
 
-- fixed: the number fields committed each prefix of a typed number; a number over the maximum (1500 with a maximum of 1000) left the last prefix in the range (150) in a feed, speed or power field; the typed number is now committed on Enter or when the field loses the focus, and a number out of the range gives back the previous value
-- fixed: a drag in a tool table (Isolation, Drilling, Milling, NCC, Paint, the Geometry object, Bookmarks) that was dropped outside the table or cancelled with Esc left the signals of the table blocked, so the later diameter edits and row clicks were ignored; the signals are unblocked when the drag leaves the table and when it ends
+- fixed: the number fields committed each prefix of a typed number; a number over the maximum (1500 with a maximum of 1000) left the last prefix in the range (150) in a feed, speed or power field; the typed number is now committed on Enter or when the field loses the focus, and a number out of the range gives back the previous value (merged PR #54 from ErkanGench)
+- fixed: a drag in a tool table (Isolation, Drilling, Milling, NCC, Paint, the Geometry object, Bookmarks) that was dropped outside the table or cancelled with Esc left the signals of the table blocked, so the later diameter edits and row clicks were ignored; the signals are unblocked when the drag leaves the table and when it ends (merged PR #54 from ErkanGench)
 Tcl:
 
-- fixed: drillcncjob without -startz (and without a Start Z in the Preferences) used the Travel Z of the Preferences as the Start Z, so the first tool change was made at that height instead of -toolchangez and, without toolchange, the first travel was made at it instead of -travelz; there is now no start Z move, as in the Drilling plugin
-- fixed: a drillcncjob job with toolchange kept its tools in the order of the Excellon object, not in the order they are drilled; when a bigger tool had a lower number (or with the spot drilling pass) the exported G-code had the end code in the middle, ended with the spindle on and had the spot pass at the end; the tools are now kept in the order they are drilled
-- fixed: export_gcode returned only the G-code that the job keeps for itself, without the start code; for a multi-tool job of the Milling tool this is only the last tool, so a script that wrote the result to a file lost the first tools and the start block; it now returns the text that write_gcode writes to a file
+- fixed: drillcncjob without -startz (and without a Start Z in the Preferences) used the Travel Z of the Preferences as the Start Z, so the first tool change was made at that height instead of -toolchangez and, without toolchange, the first travel was made at it instead of -travelz; there is now no start Z move, as in the Drilling plugin (merged PR #55 from ErkanGench)
+- fixed: a drillcncjob job with toolchange kept its tools in the order of the Excellon object, not in the order they are drilled; when a bigger tool had a lower number (or with the spot drilling pass) the exported G-code had the end code in the middle, ended with the spindle on and had the spot pass at the end; the tools are now kept in the order they are drilled (merged PR #55 from ErkanGench)
+- fixed: export_gcode returned only the G-code that the job keeps for itself, without the start code; for a multi-tool job of the Milling tool this is only the last tool, so a script that wrote the result to a file lost the first tools and the start block; it now returns the text that write_gcode writes to a file (merged PR #55 from ErkanGench)
 Code Editor:
 
-- fixed: Replace All searched from the cursor, so the matches at and above the current selection (after a Find: the first match) kept their old value; it also left the text document in an open edit block, so later edits no longer marked the text as not saved and one Undo removed them together with the replacement; Replace All now replaces every match from the start of the text in one Undo step
-- fixed: Exit Editor -> Yes with another Plot Area tab after the Code Editor tab (for example Preferences) gave a Critical Error dialog and left the app in the editor mode; closing the Code Editor tab with its X also closed the next tab (without the unsaved changes question of Preferences); only the Code Editor tab is closed now, once, and the editor mode ends
+- fixed: Replace All searched from the cursor, so the matches at and above the current selection (after a Find: the first match) kept their old value; it also left the text document in an open edit block, so later edits no longer marked the text as not saved and one Undo removed them together with the replacement; Replace All now replaces every match from the start of the text in one Undo step (merged PR #56 from ErkanGench)
+- fixed: Exit Editor -> Yes with another Plot Area tab after the Code Editor tab (for example Preferences) gave a Critical Error dialog and left the app in the editor mode; closing the Code Editor tab with its X also closed the next tab (without the unsaved changes question of Preferences); only the Code Editor tab is closed now, once, and the editor mode ends (merged PR #56 from ErkanGench)
 Preprocessors:
 
-- fixed: with a laser power of 0 (the default) the Marlin laser preprocessors turned the laser on without a power: Marlin_laser_FAN_pin wrote a bare M106 (full output, 255), Marlin_laser_Spindle_pin and Marlin_laser_z a bare M3 / M4 (the startup power of Marlin); they now write an explicit S0, like the GRBL laser preprocessors; a set power does not change
-- fixed: Roland_MDX_20 and Roland_MDX_540 set the XY feedrate in the down code, over the Z feedrate set just before it, so a milling plunge ran at the XY feedrate (with 600 / 60 mm/min at 10 mm/s instead of 1 mm/s), which can break a V-bit; the plunge now uses the Z feedrate; the drilling G-code does not change
-- fixed: an error in a preprocessor method only dropped the G-code of that call (with one status bar warning) and the CNC job was still made, with missing lines; for example a Bed Skew with a Bed Size of 0 divided by zero in every position, so a laser job had no X-Y moves and fired at one spot and a drill job drilled all the holes at one place; the CNC job now fails with the preprocessor method and the error in the message (the solder paste job keeps its own error), and a Bed Skew with a Bed Size of 0 gives "Bed-skew correction needs a non-zero bed size."
+- fixed: with a laser power of 0 (the default) the Marlin laser preprocessors turned the laser on without a power: Marlin_laser_FAN_pin wrote a bare M106 (full output, 255), Marlin_laser_Spindle_pin and Marlin_laser_z a bare M3 / M4 (the startup power of Marlin); they now write an explicit S0, like the GRBL laser preprocessors; a set power does not change (merged PR #57 from ErkanGench)
+- fixed: Roland_MDX_20 and Roland_MDX_540 set the XY feedrate in the down code, over the Z feedrate set just before it, so a milling plunge ran at the XY feedrate (with 600 / 60 mm/min at 10 mm/s instead of 1 mm/s), which can break a V-bit; the plunge now uses the Z feedrate; the drilling G-code does not change (merged PR #57 from ErkanGench)
+- fixed: an error in a preprocessor method only dropped the G-code of that call (with one status bar warning) and the CNC job was still made, with missing lines; for example a Bed Skew with a Bed Size of 0 divided by zero in every position, so a laser job had no X-Y moves and fired at one spot and a drill job drilled all the holes at one place; the CNC job now fails with the preprocessor method and the error in the message (the solder paste job keeps its own error), and a Bed Skew with a Bed Size of 0 gives "Bed-skew correction needs a non-zero bed size." (merged PR #57 from ErkanGench)
 Geometry editor:
 
-- fixed: Explode removed every selected shape but made lines only from closed outlines and Multi shapes: open paths and polygons were deleted, and a Multi shape threw away the lines of the shapes selected before it; open paths now explode into their segments, polygons into the segments of their outlines, and a shape that gives no lines (a single segment) is kept
-- fixed: Transform -> Buffer D buffered the outline of a polygon (the editor keeps a polygon as its outline) as a line: a positive distance made a band with 2 outlines and a negative one deleted the shape; the area inside the outline is now buffered and its outline kept, as in the Buffer tool, and an erosion that would leave nothing is refused with a message
-- fixed: a rectangle added from the Rectangle panel with Round or Bevel corners was larger than requested when the corner radius was more than half of a side (with the default radius 1, 10 x 1 gave 10 x 3) or when a size was negative (-10 x 4 gave 14 x 4); corners that do not fit are now square, as for a rectangle drawn with the mouse
-- fixed: Add in the Circle panel failed with "Enter positive finite radii ..." in the default (circle) mode, because the disabled Y radius field does not follow the radius and stayed 0; a circle now uses only its radius, as when it is typed in with Enter
-- fixed: an ellipse added or applied from the Circle panel was rotated clockwise by the Angle field, the opposite of the preview and of the ellipse drawn with the mouse, which writes its counter-clockwise angle in that field; Apply on a drawn ellipse made its mirror image
+- fixed: Explode removed every selected shape but made lines only from closed outlines and Multi shapes: open paths and polygons were deleted, and a Multi shape threw away the lines of the shapes selected before it; open paths now explode into their segments, polygons into the segments of their outlines, and a shape that gives no lines (a single segment) is kept (merged PR #58 from ErkanGench)
+- fixed: Transform -> Buffer D buffered the outline of a polygon (the editor keeps a polygon as its outline) as a line: a positive distance made a band with 2 outlines and a negative one deleted the shape; the area inside the outline is now buffered and its outline kept, as in the Buffer tool, and an erosion that would leave nothing is refused with a message (merged PR #58 from ErkanGench)
+- fixed: a rectangle added from the Rectangle panel with Round or Bevel corners was larger than requested when the corner radius was more than half of a side (with the default radius 1, 10 x 1 gave 10 x 3) or when a size was negative (-10 x 4 gave 14 x 4); corners that do not fit are now square, as for a rectangle drawn with the mouse (merged PR #58 from ErkanGench)
+- fixed: Add in the Circle panel failed with "Enter positive finite radii ..." in the default (circle) mode, because the disabled Y radius field does not follow the radius and stayed 0; a circle now uses only its radius, as when it is typed in with Enter (merged PR #58 from ErkanGench)
+- fixed: an ellipse added or applied from the Circle panel was rotated clockwise by the Angle field, the opposite of the preview and of the ellipse drawn with the mouse, which writes its counter-clockwise angle in that field; Apply on a drawn ellipse made its mirror image (merged PR #58 from ErkanGench)
 Excellon Editor:
 
-- fixed: the 'Add' button of Drill Array used the size, pitch, direction and angles of the last mouse move over the canvas, not the values in the panel; it now reads the panel, like Slot Array
-- fixed: Drill Array and Slot Array, Circular: a mouse move over the canvas before the center click set the Radius to 0, so the 'Add' button failed with "Invalid array size, angle or radius."; the radius is now shown only after the center click
-- fixed: Copy in the Array mode with the Circular type showed no preview and made no copies, unless a Linear preview was shown before; the circular preview now needs only the reference point
-- fixed: Copy: a typed length (Projection) and Enter stopped with an error; the copy is now made at that distance from the reference point, towards the cursor, and the editor goes back to Select
-- fixed: Enter with the Move tool stopped with an AttributeError (the key handler read a Move panel that the Excellon editor does not have); Enter now clicks at the cursor, as with the other tools
-- fixed: the 'Add' button of the Copy panel was connected to nothing; it is hidden, the copy is made with the clicks on the canvas
+- fixed: the 'Add' button of Drill Array used the size, pitch, direction and angles of the last mouse move over the canvas, not the values in the panel; it now reads the panel, like Slot Array (merged PR #60 from ErkanGench)
+- fixed: Drill Array and Slot Array, Circular: a mouse move over the canvas before the center click set the Radius to 0, so the 'Add' button failed with "Invalid array size, angle or radius."; the radius is now shown only after the center click (merged PR #60 from ErkanGench)
+- fixed: Copy in the Array mode with the Circular type showed no preview and made no copies, unless a Linear preview was shown before; the circular preview now needs only the reference point (merged PR #60 from ErkanGench)
+- fixed: Copy: a typed length (Projection) and Enter stopped with an error; the copy is now made at that distance from the reference point, towards the cursor, and the editor goes back to Select (merged PR #60 from ErkanGench)
+- fixed: Enter with the Move tool stopped with an AttributeError (the key handler read a Move panel that the Excellon editor does not have); Enter now clicks at the cursor, as with the other tools (merged PR #60 from ErkanGench)
+- fixed: the 'Add' button of the Copy panel was connected to nothing; it is hidden, the copy is made with the clicks on the canvas (merged PR #60 from ErkanGench)
 G-code Editor:
 
-- fixed: each session of the G-code Editor and each Code Review of a CNC job kept its closed tab, with a whole copy of the G-code, in memory until the app was closed (a 9 MB G-code: about 85 MB more for each session); the closed tab is now deleted
-- fixed: a name typed in the Name field of the G-code Editor was ignored and the CNC job kept its old name; Save now renames the job (with or without Enter in the field), in the same Edit step of the history as the G-code
-- fixed: Go to Line (Ctrl+G) in the code editors (G-code Editor, Source Editor, Code Review) counted each wrapped part of a long line as a line, so it stopped above the wanted line (in a narrow editor with long comments, line 500 gave line 417); a text that is not a line number went to line 1 without a message; it now goes to the line with that number in the number bar, and a wrong or out of range entry only shows a warning
+- fixed: each session of the G-code Editor and each Code Review of a CNC job kept its closed tab, with a whole copy of the G-code, in memory until the app was closed (a 9 MB G-code: about 85 MB more for each session); the closed tab is now deleted (merged PR #62 from ErkanGench)
+- fixed: a name typed in the Name field of the G-code Editor was ignored and the CNC job kept its old name; Save now renames the job (with or without Enter in the field), in the same Edit step of the history as the G-code (merged PR #62 from ErkanGench)
+- fixed: Go to Line (Ctrl+G) in the code editors (G-code Editor, Source Editor, Code Review) counted each wrapped part of a long line as a line, so it stopped above the wanted line (in a narrow editor with long comments, line 500 gave line 417); a text that is not a line number went to line 1 without a message; it now goes to the line with that number in the number bar, and a wrong or out of range entry only shows a warning (merged PR #62 from ErkanGench)
 Geometry editor:
 
-- fixed: Paint accepted a tool diameter of zero or below; with a negative diameter the Standard method never ended (each pass larger than the last, until Abort), with zero it failed or Seed added only the outline; Paint now refuses it with a message
-- fixed: Paint did not start with the method set in Preferences (Standard gave Seed, Seed and Lines gave Standard); the preference is an index and is now used as one
-- fixed: loading a Geometry into the editor switched the grid snap on and set the tool diameter from the worker thread, and Union, Intersection, Subtract and Cut Path with less than two shapes selected went back to the Select tool from there; these widget changes are now made in the GUI thread (Qt widgets are not thread safe: rare random crashes)
-- fixed: Paint with the Lines method painted nothing and still said "Done." (the scan lines read a constant of camlib Geometry through the editor, which is not a Geometry)
+- fixed: Paint accepted a tool diameter of zero or below; with a negative diameter the Standard method never ended (each pass larger than the last, until Abort), with zero it failed or Seed added only the outline; Paint now refuses it with a message (merged PR #63 from ErkanGench)
+- fixed: Paint did not start with the method set in Preferences (Standard gave Seed, Seed and Lines gave Standard); the preference is an index and is now used as one (merged PR #63 from ErkanGench)
+- fixed: loading a Geometry into the editor switched the grid snap on and set the tool diameter from the worker thread, and Union, Intersection, Subtract and Cut Path with less than two shapes selected went back to the Select tool from there; these widget changes are now made in the GUI thread (Qt widgets are not thread safe: rare random crashes) (merged PR #63 from ErkanGench)
+- fixed: Paint with the Lines method painted nothing and still said "Done." (the scan lines read a constant of camlib Geometry through the editor, which is not a Geometry) (merged PR #63 from ErkanGench)
 
 Editors:
 
-- fixed: in the Geometry, Gerber and Excellon editors '-' zoomed in and '=' zoomed out, the opposite of the main canvas and of the View menu; they now zoom out and in as everywhere else
-- fixed: Ctrl+E in the Gerber editor selected all the apertures instead of opening the Eraser (in the Excellon editor it selected all the tools), and Ctrl+A from the Project tab did not select all; the Select All key test checked E instead of A
+- fixed: in the Geometry, Gerber and Excellon editors '-' zoomed in and '=' zoomed out, the opposite of the main canvas and of the View menu; they now zoom out and in as everywhere else (merged PR #63 from ErkanGench)
+- fixed: Ctrl+E in the Gerber editor selected all the apertures instead of opening the Eraser (in the Excellon editor it selected all the tools), and Ctrl+A from the Project tab did not select all; the Select All key test checked E instead of A (merged PR #63 from ErkanGench)
 File associations:
 
-- fixed: the first start registered no Gerber, Excellon or G-code extension (it read the Preferences lists before they were filled) and then removed the registry key of every extension in the saved lists, also of extensions that another program opens; Apply now removes an extension that left the list only where it still points to FlatCAM
-- fixed: the default G-code association list had 'h' and 'i', so a C header (.h) or a preprocessed C file (.i) opened in FlatCAM after Apply; they are no longer in the default list nor in its Restore (a G-code file with these extensions still opens from the file dialog). The first start no longer takes an extension that another program opens (Windows) and no longer makes FlatCAM the default program of the Gerber, Excellon and G-code extensions (macOS, duti); Apply still does
+- fixed: the first start registered no Gerber, Excellon or G-code extension (it read the Preferences lists before they were filled) and then removed the registry key of every extension in the saved lists, also of extensions that another program opens; Apply now removes an extension that left the list only where it still points to FlatCAM (merged PR #64 from ErkanGench)
+- fixed: the default G-code association list had 'h' and 'i', so a C header (.h) or a preprocessed C file (.i) opened in FlatCAM after Apply; they are no longer in the default list nor in its Restore (a G-code file with these extensions still opens from the file dialog). The first start no longer takes an extension that another program opens (Windows) and no longer makes FlatCAM the default program of the Gerber, Excellon and G-code extensions (macOS, duti); Apply still does (merged PR #64 from ErkanGench)
 
 Tcl Shell:
 
-- fixed: adding, deleting, restoring or clearing the autocomplete keywords in Preferences -> Utilities removed the names of the open objects from the auto-completer of the Tcl Shell
+- fixed: adding, deleting, restoring or clearing the autocomplete keywords in Preferences -> Utilities removed the names of the open objects from the auto-completer of the Tcl Shell (merged PR #64 from ErkanGench)
 
 Opening files:
 
-- fixed: a .tap G-code file opened by a double-click, from the command line or dropped on the window opened as an Excellon object, and dropped on the plot area it opened twice (as Excellon and as G-code); 'tap' is in the Excellon and in the G-code list, so the start of the file now decides (an M48 header or a tool definition: Excellon)
+- fixed: a .tap G-code file opened by a double-click, from the command line or dropped on the window opened as an Excellon object, and dropped on the plot area it opened twice (as Excellon and as G-code); 'tap' is in the Excellon and in the G-code list, so the start of the file now decides (an M48 header or a tool definition: Excellon) (merged PR #64 from ErkanGench)
 
 Preferences:
 
-- fixed: the preferences of an older build (current_defaults_<version>.FlatConfig) were never taken over: the start made an empty current_defaults.FlatConfig before it looked for them, so all the preferences went back to the factory values; an empty file now counts as no file
+- fixed: the preferences of an older build (current_defaults_<version>.FlatConfig) were never taken over: the start made an empty current_defaults.FlatConfig before it looked for them, so all the preferences went back to the factory values; an empty file now counts as no file (merged PR #64 from ErkanGench)
 
 Bookmarks:
 
-- fixed: Export wrote the bookmarks as '1:[title, link]', so importing the exported file added bookmarks named 1, 2 ... with unusable links; it now writes 'title:link'. Import keeps the spaces of the titles and skips blank lines, which stopped it with an IndexError
+- fixed: Export wrote the bookmarks as '1:[title, link]', so importing the exported file added bookmarks named 1, 2 ... with unusable links; it now writes 'title:link'. Import keeps the spaces of the titles and skips blank lines, which stopped it with an IndexError (merged PR #64 from ErkanGench)
 Preferences:
 
-- fixed: after a fill colour typed with 6 digits (#FF0000) was saved, the Preferences did not open any more (an error dialog at each try, also after a restart); a colour without a readable alpha now opens with an opaque or the factory alpha, a 6-digit colour is saved with the alpha of the saved colour, and a text that is not a colour keeps the saved colour
-- fixed: choosing the left to right selection fill colour (Preferences -> General -> GUI) stored only its alpha ('bf'); each selection box then failed with an error, and when the Preferences were closed with 'No' (or left open) the value was saved at the exit and the Preferences did not open after a restart; the chosen colour is now stored with its alpha
-- fixed: each opening of the Preferences set the right to left selection transparency to the left to right one, and changed the right to left selection colours without a notice; the slider now shows the right to left alpha
-- fixed: closing the Preferences with the Preferences button of the status bar did not ask to save the edits and kept them in the form; a later Save of another value stored them too (for example a mistyped Cut Z); the button now closes the Preferences as the close button of the tab does, with the same question
-- fixed: an alpha of 1 to 15 on an alpha slider (Gerber, Excellon, CNC Job travel and selection colours) gave a 7-digit colour that the canvas rejects, so for example a CNC job was not drawn and no message was shown; also, Save or Apply put the old alpha back; the alpha has now always 2 digits and the slider also sets the colour fields that Save stores
-- fixed: the Restore Defaults button of Preferences -> Excellon -> General set the zeros to LZ, while the factory value is TZ; after a Save, the Excellon files with no zeros information in the header and no decimal point (old Eagle files) were read with wrong coordinates, for example 1.25 in as 12.5 in, and drilled at wrong positions; the button now sets the factory values
-- fixed: with "Update Export settings" unchecked (Preferences -> Excellon -> General), a change of the Excellon units still changed the units and the format of the Excellon export; each new check of the box also connected the update once more; the box now stops the update of the units too
-- fixed: File -> Export Preferences failed with an error and wrote no file (the project options have no write()); it now writes the preferences in effect, the same content as the preferences file; edits in the Preferences tab that are not saved are not exported
+- fixed: after a fill colour typed with 6 digits (#FF0000) was saved, the Preferences did not open any more (an error dialog at each try, also after a restart); a colour without a readable alpha now opens with an opaque or the factory alpha, a 6-digit colour is saved with the alpha of the saved colour, and a text that is not a colour keeps the saved colour (merged PR #65 from ErkanGench)
+- fixed: choosing the left to right selection fill colour (Preferences -> General -> GUI) stored only its alpha ('bf'); each selection box then failed with an error, and when the Preferences were closed with 'No' (or left open) the value was saved at the exit and the Preferences did not open after a restart; the chosen colour is now stored with its alpha (merged PR #65 from ErkanGench)
+- fixed: each opening of the Preferences set the right to left selection transparency to the left to right one, and changed the right to left selection colours without a notice; the slider now shows the right to left alpha (merged PR #65 from ErkanGench)
+- fixed: closing the Preferences with the Preferences button of the status bar did not ask to save the edits and kept them in the form; a later Save of another value stored them too (for example a mistyped Cut Z); the button now closes the Preferences as the close button of the tab does, with the same question (merged PR #65 from ErkanGench)
+- fixed: an alpha of 1 to 15 on an alpha slider (Gerber, Excellon, CNC Job travel and selection colours) gave a 7-digit colour that the canvas rejects, so for example a CNC job was not drawn and no message was shown; also, Save or Apply put the old alpha back; the alpha has now always 2 digits and the slider also sets the colour fields that Save stores (merged PR #65 from ErkanGench)
+- fixed: the Restore Defaults button of Preferences -> Excellon -> General set the zeros to LZ, while the factory value is TZ; after a Save, the Excellon files with no zeros information in the header and no decimal point (old Eagle files) were read with wrong coordinates, for example 1.25 in as 12.5 in, and drilled at wrong positions; the button now sets the factory values (merged PR #65 from ErkanGench)
+- fixed: with "Update Export settings" unchecked (Preferences -> Excellon -> General), a change of the Excellon units still changed the units and the format of the Excellon export; each new check of the box also connected the update once more; the box now stops the update of the units too (merged PR #65 from ErkanGench)
+- fixed: File -> Export Preferences failed with an error and wrote no file (the project options have no write()); it now writes the preferences in effect, the same content as the preferences file; edits in the Preferences tab that are not saved are not exported (merged PR #65 from ErkanGench)
 Main Window:
 
-- fixed: with the Plot Area closed (View -> Toggle Plot Area, Ctrl+F10) and no other tab open, Ctrl+S in the Project tab did not save the project and gave a Critical Error dialog; Ctrl+C, Ctrl+G, Delete and T did the same
-- fixed: Escape did not leave the full screen mode (View -> Toggle FullScreen, Alt+F10); the window stayed full screen without its toolbars
-- fixed: Preferences -> Clear GUI Settings answered with No set the light theme in the GUI settings; with the dark theme, the panels and plots made later in the session got light theme colors
+- fixed: with the Plot Area closed (View -> Toggle Plot Area, Ctrl+F10) and no other tab open, Ctrl+S in the Project tab did not save the project and gave a Critical Error dialog; Ctrl+C, Ctrl+G, Delete and T did the same (merged PR #66 from ErkanGench)
+- fixed: Escape did not leave the full screen mode (View -> Toggle FullScreen, Alt+F10); the window stayed full screen without its toolbars (merged PR #66 from ErkanGench)
+- fixed: Preferences -> Clear GUI Settings answered with No set the light theme in the GUI settings; with the dark theme, the panels and plots made later in the session got light theme colors (merged PR #66 from ErkanGench)
 Application:
 
-- fixed: Set Origin stayed armed until the replot ended, so a second click (or a double click) moved all the objects again, possibly at the same time in another worker; 1 click now sets the origin 1 time
-- fixed: a rename (Project tree, the name field in Properties, the G-code export that names the CNC job after the file) could give an object the name of another object; the Objects menu, Tcl and the plugin lists then used the first object of that name; the name now gets a number as for a new object (top_1), and an empty name is not used
-- fixed: each project opened in the GUI made a new Tcl Shell and kept the old one hidden in memory with its Tcl interpreter and its text; the auto-completer kept updating the first, hidden shell, so the visible shell completed no object names or Tcl commands; the old shell is now deleted and the new one gets the keywords
-- fixed: Ctrl+Alt+X (abort) with no task running left the abort flag set until a process ended, so the next file opened or the next G-code or geometry generation was cancelled with "The current task was gracefully closed on user request..."; the flag is now set only while a Tcl script, a process or a worker task runs
-- fixed: the timer that ends a project save was made in the worker thread of the save, so a long task queued after the save on the same worker (an NCC, for example) kept the save "in progress" until it ended; closing FlatCAM and switching projects waited that long; the timer now runs in the GUI thread
+- fixed: Set Origin stayed armed until the replot ended, so a second click (or a double click) moved all the objects again, possibly at the same time in another worker; 1 click now sets the origin 1 time (merged PR #67 from ErkanGench)
+- fixed: a rename (Project tree, the name field in Properties, the G-code export that names the CNC job after the file) could give an object the name of another object; the Objects menu, Tcl and the plugin lists then used the first object of that name; the name now gets a number as for a new object (top_1), and an empty name is not used (merged PR #67 from ErkanGench)
+- fixed: each project opened in the GUI made a new Tcl Shell and kept the old one hidden in memory with its Tcl interpreter and its text; the auto-completer kept updating the first, hidden shell, so the visible shell completed no object names or Tcl commands; the old shell is now deleted and the new one gets the keywords (merged PR #67 from ErkanGench)
+- fixed: Ctrl+Alt+X (abort) with no task running left the abort flag set until a process ended, so the next file opened or the next G-code or geometry generation was cancelled with "The current task was gracefully closed on user request..."; the flag is now set only while a Tcl script, a process or a worker task runs (merged PR #67 from ErkanGench)
+- fixed: the timer that ends a project save was made in the worker thread of the save, so a long task queued after the save on the same worker (an NCC, for example) kept the save "in progress" until it ended; closing FlatCAM and switching projects waited that long; the timer now runs in the GUI thread (merged PR #67 from ErkanGench)
 Tcl:
 
-- fixed: a Tcl command that made an object with a name already in use (a script run again in the same session) gave the new object another name (name_1) without a message, and the next commands that use the name took the old object, so write_gcode could write the G-code of the first run; the command now warns and gives the name of the new object
-- fixed: with a laser preprocessor and neither -las_power nor -spindlespeed, drillcncjob and cncjob of a single-geometry object made the job at the power 0 (M3 S0, nothing burns); they now use the laser power of each tool or of the object, as the Drilling and Milling plugins and cncjob of a multi-geometry object do
-- fixed: save_sys did not save the project settings changed by set_sys (units, tools_mill_*, ...): it wrote the preferences without the current options; it now saves them, as File -> Save Defaults does
-- fixed: aligndrillgrid gave its tool the text id '1'; a drillcncjob of the grid with toolchange had no tool change block (no T1, M6, M0), only the warning "Preprocessor error, G-code is missing"; the tool now has the id 1, as in every Excellon
+- fixed: a Tcl command that made an object with a name already in use (a script run again in the same session) gave the new object another name (name_1) without a message, and the next commands that use the name took the old object, so write_gcode could write the G-code of the first run; the command now warns and gives the name of the new object (merged PR #68 from ErkanGench)
+- fixed: with a laser preprocessor and neither -las_power nor -spindlespeed, drillcncjob and cncjob of a single-geometry object made the job at the power 0 (M3 S0, nothing burns); they now use the laser power of each tool or of the object, as the Drilling and Milling plugins and cncjob of a multi-geometry object do (merged PR #68 from ErkanGench)
+- fixed: save_sys did not save the project settings changed by set_sys (units, tools_mill_*, ...): it wrote the preferences without the current options; it now saves them, as File -> Save Defaults does (merged PR #68 from ErkanGench)
+- fixed: aligndrillgrid gave its tool the text id '1'; a drillcncjob of the grid with toolchange had no tool change block (no T1, M6, M0), only the warning "Preprocessor error, G-code is missing"; the tool now has the id 1, as in every Excellon (merged PR #68 from ErkanGench)
 
 Updater:
 
-- fixed: in a frozen (Windows) build, accepting an update or "revert to the previous version" always ended with "The updater could not be started.": the job file had runtime_dir "None" (a frozen build has no runtime copy per job) and FlatCAMUpdater.exe rejected the job before it started; the key is now left out when there is no runtime copy
+- fixed: in a frozen (Windows) build, accepting an update or "revert to the previous version" always ended with "The updater could not be started.": the job file had runtime_dir "None" (a frozen build has no runtime copy per job) and FlatCAMUpdater.exe rejected the job before it started; the key is now left out when there is no runtime copy (merged PR #68 from ErkanGench)
 Object Distance:
 
-- fixed: after one Shift+M with a wrong selection (not 2 objects), a Reset Tool or a change of the distance type, Shift+M did nothing for the rest of the session
-- fixed: the Measure button left the previous pair's distance, deltas and angle on screen when the new result was 0 (touching or overlapping objects); a 0 is now shown
+- fixed: after one Shift+M with a wrong selection (not 2 objects), a Reset Tool or a change of the distance type, Shift+M did nothing for the rest of the session (merged PR #69 from ErkanGench)
+- fixed: the Measure button left the previous pair's distance, deltas and angle on screen when the new result was 0 (touching or overlapping objects); a 0 is now shown (merged PR #69 from ErkanGench)
 
 Find Optimal:
 
-- fixed: a click on the empty line after the last entry of 'Gerber distances' (or in the empty box) showed the 'Critical Error' dialog
-- fixed: the search set the 'Determined' and 'Occurring' fields from the worker thread (Qt widgets are not thread-safe: a rare random crash); they are now set in the GUI thread
-- fixed: on a Gerber with a multi-part solid element (for example a shape split in two by Etch Compensation with a negative offset) the search stopped without a message; the NCC Optimal button said "Could not find a safe tool diameter." and an NCC run with Check validity failed. The parts are now measured one by one
+- fixed: a click on the empty line after the last entry of 'Gerber distances' (or in the empty box) showed the 'Critical Error' dialog (merged PR #69 from ErkanGench)
+- fixed: the search set the 'Determined' and 'Occurring' fields from the worker thread (Qt widgets are not thread-safe: a rare random crash); they are now set in the GUI thread (merged PR #69 from ErkanGench)
+- fixed: on a Gerber with a multi-part solid element (for example a shape split in two by Etch Compensation with a negative offset) the search stopped without a message; the NCC Optimal button said "Could not find a safe tool diameter." and an NCC run with Check validity failed. The parts are now measured one by one (merged PR #69 from ErkanGench)
 
 PcbWizard Import:
 
-- fixed: loading the INF file set the format fields (units, integral and fractional digits) from the worker thread; they are now set in the GUI thread
-- fixed: Import used the format, units and zeros of the moment both files were loaded, so a correction made after loading was ignored (drills at wrong positions and sizes); a second Import found no geometry. The file is now built at each Import from the current form
+- fixed: loading the INF file set the format fields (units, integral and fractional digits) from the worker thread; they are now set in the GUI thread (merged PR #69 from ErkanGench)
+- fixed: Import used the format, units and zeros of the moment both files were loaded, so a correction made after loading was ignored (drills at wrong positions and sizes); a second Import found no geometry. The file is now built at each Import from the current form (merged PR #69 from ErkanGench)
 Cutout:
 
-- fixed: after "Search and Add" or "Pick from DB" the Gaps field and the Generate Geometry button disappeared and the manual buttons showed, while the radio still said Automatic
+- fixed: after "Search and Add" or "Pick from DB" the Gaps field and the Generate Geometry button disappeared and the manual buttons showed, while the radio still said Automatic (merged PR #70 from ErkanGench)
 
 2-Sided:
 
-- fixed: "Create Excellon Object" made alignment holes that the pins do not fit after the board is flipped (the Type of the holes differed from the Mirror axis) without a word; it now warns and names the Type to use
+- fixed: "Create Excellon Object" made alignment holes that the pins do not fit after the board is flipped (the Type of the holes differed from the Mirror axis) without a word; it now warns and names the Type to use (merged PR #70 from ErkanGench)
 
 Align Objects:
 
-- fixed: after an alignment (manual or automatic) View Source and Save source gave the file as it was before the alignment; the source of an aligned Gerber or Excellon object is now written again, as after a Transform
+- fixed: after an alignment (manual or automatic) View Source and Save source gave the file as it was before the alignment; the source of an aligned Gerber or Excellon object is now written again, as after a Transform (merged PR #70 from ErkanGench)
 
 Film:
 
-- fixed: a positive film punched at the pad centers failed with "Punch hole size is bigger than some of the apertures" for any Gerber with macro (AM) pads, such as the KiCad rounded rectangles, and for an aperture used only for tracks that is thinner than the punch; only the flashed pads are checked now, a macro or polygon pad by the width of the pad at its center
+- fixed: a positive film punched at the pad centers failed with "Punch hole size is bigger than some of the apertures" for any Gerber with macro (AM) pads, such as the KiCad rounded rectangles, and for an aperture used only for tracks that is thinner than the punch; only the flashed pads are checked now, a macro or polygon pad by the width of the pad at its center (merged PR #70 from ErkanGench)
 
 Drilling and Milling:
 
-- fixed: the preprocessor list offered the solder paste preprocessors (Paste_GRBL, Paste_Marlin; in Milling also Paste_1) and Generate then failed with an AttributeError; they are left out, as in the Preferences lists
+- fixed: the preprocessor list offered the solder paste preprocessors (Paste_GRBL, Paste_Marlin; in Milling also Paste_1) and Generate then failed with an AttributeError; they are left out, as in the Preferences lists (merged PR #70 from ErkanGench)
 Code Editor:
 
-- fixed: Save as PDF read the text as markup: a text with '<' (for example 'a<b' in a Tcl script) gave a Critical Error dialog and no PDF, a '<T1>' comment was left out of the PDF; the text is now escaped, and any other error of the save is shown as a message
+- fixed: Save as PDF read the text as markup: a text with '<' (for example 'a<b' in a Tcl script) gave a Critical Error dialog and no PDF, a '<T1>' comment was left out of the PDF; the text is now escaped, and any other error of the save is shown as a message (merged PR #71 from ErkanGench)
 
 Tcl Shell:
 
-- fixed: Find in the right-click menu of the shell output did nothing (only Ctrl+F worked); PageUp / PageDown in the command line and the navigation keys in the output did not scroll the output
+- fixed: Find in the right-click menu of the shell output did nothing (only Ctrl+F worked); PageUp / PageDown in the command line and the navigation keys in the output did not scroll the output (merged PR #71 from ErkanGench)
 
 Plotting:
 
-- fixed: a color change of an object (Project menu: Color, Opacity, Default) froze the GUI in a large project: each shape of the shared shape collection was looked up in the list of the object's shapes (O(N*M)); measured with 40000 + 20000 shapes, the color change of the 20000 shapes took 10 s and now takes 1 to 3 s; the same in update_visibility() of the collection
-- fixed: the path numbers (annotations) of a CNCJob stayed on the canvas when the object was hidden through its visible property (for example the source CNCJob that Levelling hides): the first text group of a text collection has the key 0, which the visibility setter took for "no texts"
+- fixed: a color change of an object (Project menu: Color, Opacity, Default) froze the GUI in a large project: each shape of the shared shape collection was looked up in the list of the object's shapes (O(N*M)); measured with 40000 + 20000 shapes, the color change of the 20000 shapes took 10 s and now takes 1 to 3 s; the same in update_visibility() of the collection (merged PR #71 from ErkanGench)
+- fixed: the path numbers (annotations) of a CNCJob stayed on the canvas when the object was hidden through its visible property (for example the source CNCJob that Levelling hides): the first text group of a text collection has the key 0, which the visibility setter took for "no texts" (merged PR #71 from ErkanGench)
 
 Exclusion areas:
 
-- fixed: the right click that ends the drawing made the union of the whole object geometry again for each area, on the GUI thread (6 areas and 5000 polygons: 14 s, now 2 s), and 1 area over the object geometry deleted all the areas, also the ones added before; now only the areas over the object geometry are deleted and the exclusion tables show the areas that are left
+- fixed: the right click that ends the drawing made the union of the whole object geometry again for each area, on the GUI thread (6 areas and 5000 polygons: 14 s, now 2 s), and 1 area over the object geometry deleted all the areas, also the ones added before; now only the areas over the object geometry are deleted and the exclusion tables show the areas that are left (merged PR #71 from ErkanGench)
 
 Tools Database:
 
-- fixed: the Min and Max of the diameter tolerance were free, so a Min typed for a new tool (Max still 0.0) made Save DB fail, and the tab could not be closed or a tool transferred without losing the edits; a Min typed above Max now moves Max up to it, a Max typed below Min moves Min down to it
-- fixed: 'Add Tool in DB' did nothing and showed no message when the Milling "Tools Dia" preference was not a number (for example '0,1a'), and an empty value or 0 gave a Critical Error dialog; it now shows which preference to correct
+- fixed: the Min and Max of the diameter tolerance were free, so a Min typed for a new tool (Max still 0.0) made Save DB fail, and the tab could not be closed or a tool transferred without losing the edits; a Min typed above Max now moves Max up to it, a Max typed below Min moves Min down to it (merged PR #71 from ErkanGench)
+- fixed: 'Add Tool in DB' did nothing and showed no message when the Milling "Tools Dia" preference was not a number (for example '0,1a'), and an empty value or 0 gave a Critical Error dialog; it now shows which preference to correct (merged PR #71 from ErkanGench)
 DXF, SVG and HPGL2 Import:
 
-- fixed: with a list of diameters in the Milling "Tools Dia" preference (for example "0.3, 1.0", as its tooltip asks) the SVG, DXF and HPGL2 import as Geometry failed with "could not convert string to float" and made no object; the tool of the new Geometry now gets the first diameter of the list, as the other Geometry objects do
+- fixed: with a list of diameters in the Milling "Tools Dia" preference (for example "0.3, 1.0", as its tooltip asks) the SVG, DXF and HPGL2 import as Geometry failed with "could not convert string to float" and made no object; the tool of the new Geometry now gets the first diameter of the list, as the other Geometry objects do (merged PR #72 from ErkanGench)
 
 CNCJob:
 
-- fixed: Set Origin, Move and Scale of a large CNC job took long and looked hung: the G-code text grew line by line with the decimals options read for each line, and the paths of each tool were joined in a union only for the bounding box (also in Rotate, Mirror and Skew); the text is now joined once and the paths are kept as they are; for 400 000 lines (13.7 MB) a move takes about 2.3 s instead of 11 s, the G-code text is the same
-- fixed: with the autolevelling segment sizes (seg_x / seg_y) set, a long path failed the CNC job with RecursionError (for example a 300 mm line in steps of 0.25 mm), because each new segment point was one more level of recursion; the line is now split in a loop, with the same points
+- fixed: Set Origin, Move and Scale of a large CNC job took long and looked hung: the G-code text grew line by line with the decimals options read for each line, and the paths of each tool were joined in a union only for the bounding box (also in Rotate, Mirror and Skew); the text is now joined once and the paths are kept as they are; for 400 000 lines (13.7 MB) a move takes about 2.3 s instead of 11 s, the G-code text is the same (merged PR #72 from ErkanGench)
+- fixed: with the autolevelling segment sizes (seg_x / seg_y) set, a long path failed the CNC job with RecursionError (for example a 300 mm line in steps of 0.25 mm), because each new segment point was one more level of recursion; the line is now split in a loop, with the same points (merged PR #72 from ErkanGench)
 
 HPGL2 Import:
 
-- fixed: a file with 2 arcs one after the other (AA) failed with a TypeError, any 3-point arc (AT) stopped the parsing, a file that draws before it selects a pen (no SP) failed with KeyError, and the usual plotter driver output with the commands on one line ("IN;SP1;PU0,0;PD4000,0;...") imported nothing; the commands are now split at ';', PU / PD / PA take a list of points, the pen position follows the arcs (AT ends at its end point), a drawing without SP goes to pen 1, the last path of the file is kept and a pen selected again keeps its paths
+- fixed: a file with 2 arcs one after the other (AA) failed with a TypeError, any 3-point arc (AT) stopped the parsing, a file that draws before it selects a pen (no SP) failed with KeyError, and the usual plotter driver output with the commands on one line ("IN;SP1;PU0,0;PD4000,0;...") imported nothing; the commands are now split at ';', PU / PD / PA take a list of points, the pen position follows the arcs (AT ends at its end point), a drawing without SP goes to pen 1, the last path of the file is kept and a pen selected again keeps its paths (merged PR #72 from ErkanGench)
 
 Tests:
 
 - added Proteus 8 / 9 projects and CAM reference fixtures, PDF samples and regression checks for imports, copper pours, track snapping, aperture dimensions, Jump precision, zoom preservation and notebook resizing
-- regression tests for the saved G-code of a CNCJob after Edit -> Flip, Rotate and Skew (tests/test_geometry_transforms.py)
-- regression test for the exported G-code of a CNCJob moved with the Move tool (tests/test_move_tool.py)
-- regression tests for an object name with parentheses in the header comments of the CNC job, probing and solder paste G-code (tests/test_cncjob_export_gcode.py, tests/test_levelling_controller_regressions.py, tests/test_solderpaste.py)
-- added checks that a failed G-code save keeps the old file and leaves no partial or temporary file, and that the G-code is written in 1 write
-- added checks that the G-code saved in the G-code Editor survives a new Properties panel, a project save and open and the undo of a delete, and that a job that was not edited is made again as before
-- added checks of the name that the save dialog gives for names with and without an extension of the selected filter
-- added checks that the G-code of a job has no snippet while the snippets checkbox is unchecked
-- tests/test_exclusion_area_travel.py: the Drilling and Milling travel over an exclusion area never goes below the travel Z
-- tests/test_exclusion_area_travel.py: the first corner of a rectangular exclusion area, with and without grid snap
-- tests/test_exclusion_area_travel.py: Escape while drawing a rectangle or a polygon exclusion area
-- test_drilling_gen: the Drilling job is refused for a Travel Z of zero or below and for a Feedrate Z of zero
-- test_drilling_gen: Multi-Depth drilling with a zero or negative depth per pass ends (plugin and Tcl)
-- test_milling_lifecycle: each tool with a Custom offset is cut with its own value (single and multi geometry)
-- test_cncjob_gcode_speed: the Extra Cut goes on along the path after the start point and stays out of the pad
-- added a check that Import Preferences keeps the update source
-- added a check that saving several CNC jobs writes each file in the chosen folder
-- tests/test_gerber_parser.py: a Gerber and an HPGL2 file with letters that are not ASCII in a comment or an attribute, saved as UTF-8 and as cp1254
-- tests/test_geo_editor_source.py: the SVG and DXF import of a UTF-8 SVG and an ANSI (cp1254) DXF with letters that are not ASCII
-- test_defaults_persistence: a save that fails (a value that cannot be saved, a full disk) keeps the old preferences file and leaves no temporary file
-- test_tools_database: the records saved before and after a Preferences Apply load with the options of both; wrong value types are still skipped
-- test_gui_elements_input (new): a number over the maximum keeps the previous value of a number field and no prefix is committed; the keypad Enter slots get the typed number; test_tools_database commits the typed parameters with Enter
-- test_gui_elements_input: a tool table drag that leaves the table or ends without a drop leaves the signals of the table unblocked
-- new unit tests for the heights of the first tool change and the first travel of drillcncjob without -startz (tests/test_tcl_drillcncjob.py)
-- new unit test for the order of the tools of a drillcncjob job (tests/test_tcl_drillcncjob.py)
-- new unit test for the text that the Tcl export_gcode returns, the same as the file of write_gcode (tests/test_tcl_audit_contracts.py)
-- new unit tests for Replace All of the code editor (tests/test_lazy_highlight.py)
-- new unit test for the project save and load of a Document object (tests/test_object_construction.py)
-- new unit tests for the exit of the Code Editor with its tab between other Plot Area tabs (tests/test_editor_save_modes.py)
-- new unit test for the zero power activation of the Marlin laser preprocessors (tests/test_laser_safety.py)
-- new unit test for the plunge feedrate of the Roland preprocessors (tests/test_preprocessors_no_swallowed_errors.py)
-- new unit test for the CNC job that fails on a preprocessor error (Bed Skew with a Bed Size of 0); the test jobs of tests/test_laser_safety.py and tests/test_cncjob_gcode_speed.py get the bounds and the tool diameter that the start code reads
-- added a Geometry editor check that Explode replaces every selected shape by its lines
-- added Geometry editor checks that Transform -> Buffer D moves a polygon outline by the distance and keeps a shape it would erode away
-- added a Geometry editor check of the rectangle size from the Rectangle panel with corners that do not fit
-- added a Geometry editor check that the Circle panel adds a circle with the Y radius field left at 0
-- added a Geometry editor check that the Circle panel rotates an ellipse like the Circle tool
-- Gerber editor: Pad and Pad Array place obround pads, and the aperture table shows the dimensions of an 'O' aperture
-- Gerber editor: the Dims edit of an 'R' aperture changes its tracks by half of the change
-- Gerber editor: Mark Area Delete removes only the shapes marked now
-- test_exc_editor_defects: the 'Add' button of Drill Array uses the values changed in the panel after the last mouse move
-- test_exc_editor_defects: a circular Drill Array or Slot Array from the 'Add' button keeps the typed radius after a mouse move over the canvas
-- test_exc_editor_defects: Copy as a circular array shows the preview and makes the copies without an earlier Linear preview
-- test_exc_editor_defects: Copy with a typed length and Enter copies at that distance towards the cursor, and warns without a reference point
-- test_exc_editor_defects: Enter with the Move tool moves the selected drill to the cursor
-- test_exc_editor_defects: the Copy panel hides its unconnected 'Add' button
-- regression test for Esc in the Gerber editor Transform tool (tests/test_grb_editor_transform.py)
-- regression test for Space in the Gerber editor Pad Array tool (tests/test_gerber_editor_features.py)
-- regression tests for SemiDisc points that make no arc (tests/test_gerber_action_parity.py)
-- regression tests for the Gerber editor Simplification menu item and the menu of each editor menu item (tests/test_gerber_editor_defects.py)
-- new unit tests for the closed tabs of the G-code Editor and the Code Review (tests/test_editor_save_modes.py)
-- new unit test for the name typed in the G-code Editor (tests/test_editor_save_modes.py)
-- new unit tests for Go to Line in a code editor with wrapped lines (tests/test_lazy_highlight.py)
-- test_geo_editor_performance: the editor's Paint refuses a tool diameter of zero or below
-- test_geo_editor_performance: the editor's Paint starts with the method of the Paint preference
-- test_geo_editor_history: the editor load and the boolean operations change the widgets in the GUI thread, not in the worker
-- test_app_history_keys: '-' zooms out and '=' zooms in, in the editors as on the main canvas
-- test_app_history_keys: Ctrl+E opens the Gerber editor's Eraser; Ctrl+A selects all in the Gerber and Excellon editors
-- test_geo_editor_performance: the editor's Paint with the Lines method paints the scan lines
-- test_file_associations: the first start registers the extension lists of the options; Apply removes only the extensions that point to FlatCAM
-- test_file_associations: no .h / .i in the default and restored G-code lists; the first start leaves the extensions of other programs and runs no duti for the extensions
-- test_rename_completer: editing the autocomplete keywords keeps the object names, also the new name of a renamed object
-- test_startup_args: a .tap file opens as G-code or as Excellon by its content, also dropped on the plot area (once)
-- test_defaults_persistence: the start loads the preferences of an older build over the empty current_defaults.FlatConfig, and not over saved ones
-- test_defaults_audit_regressions: exported bookmarks import as the same bookmarks, also with a blank line
-- test_preferences_project_keys: colours without a readable alpha do not stop the Preferences; a 6-digit colour is saved with the stored alpha
-- test_preferences_project_keys: the selection fill colour is stored with its alpha
-- test_preferences_project_keys: opening the Preferences keeps the right to left selection alpha
-- test_preferences_project_keys: closing the Preferences with the status bar button asks to save, and edits not saved are not shown again
-- test_preferences_project_keys: the alpha sliders give a valid colour that Save keeps
-- test_preferences_project_keys: the Excellon Restore Defaults button sets the factory format and zeros
-- test_preferences_project_keys: the Excellon units change the export units only when "Update Export settings" is checked
-- test_defaults_persistence: File -> Export Preferences writes the preferences in effect
-- new unit tests for the Project tab keys with the Plot Area closed (tests/test_app_history_keys.py)
-- new unit tests for Escape in the full screen mode (tests/test_app_history_keys.py)
-- new unit tests for Clear GUI Settings answered with No or Yes (tests/test_theme_color_scheme.py)
-- new unit test for New Project with an open editor (tests/test_projects_appio.py)
-- added a regression check that a double click on Set Origin moves the objects once
-- added regression checks that a rename gives the name of another object a number
-- added a regression check that a Tcl reset deletes the old shell and gives the new one the auto-completer keywords
-- added a regression check that an abort with nothing running does not cancel the next task
-- added regression checks that a close during a save does not wait for the next task of the save worker
-- new unit test for the warning of a Tcl command whose new object was renamed because its name was in use (tests/test_tcl_audit_regressions.py)
-- new unit test for the laser power of drillcncjob and cncjob without -las_power (tests/test_tcl_laser_power.py)
-- new unit test for the settings that save_sys saves after set_sys (tests/test_tcl_small_commands.py)
-- new unit test for the tool change of a drillcncjob of an aligndrillgrid grid (tests/test_tcl_drillcncjob.py); the aligndrillgrid tool id test of tests/test_excellon_add_tool.py now expects the id 1
-- new unit test that the update and rollback jobs of a frozen build pass the job check of the updater (tests/updater/test_updater_apply.py)
-- test_tool_distance_snap: Object Distance measures again with Shift+M after a wrong selection and after Reset Tool
-- test_tool_distance_snap: the Object Distance Measure button shows 0 for touching objects after a pair 3 mm apart
-- test_isolation_optimal_tooldia: a click on the empty last line of the Find Optimal distances
-- test_isolation_optimal_tooldia, test_excellon_parser: Find Optimal and the PcbWizard INF loading set their fields in the GUI thread
-- test_excellon_parser: PcbWizard Import uses the format corrected after loading, also on a second Import
-- test_isolation_optimal_tooldia, test_ncc_rest_machining: Find Optimal and the NCC gap check on a Gerber with a MultiPolygon solid
-- Cutout: a tool added from the search or from the Tools Database keeps the Automatic widgets and shows the widgets of its gap type
-- 2-Sided: a warning when the alignment holes do not fit the pins after the flip, none for a hole on the Mirror axis
-- Align Objects: the source of an aligned Gerber and Excellon object parses back to the aligned geometry
-- Film: pad-center punching of a macro pad next to a thin track aperture, and a punch as wide as a pad
-- Drilling and Milling: no solder paste preprocessor in the preprocessor lists of the plugins
-- new unit tests for the PDF save of the code editor (tests/test_object_construction.py)
-- new unit tests for the Find menu and the PageUp / PageDown keys of the shell output (tests/test_headless_console.py)
-- new unit test for the color change and the visibility of the shapes of a group in a shared shape collection (tests/test_plot_visibility_toggle.py)
-- new unit test for the annotations of a hidden object (tests/test_plot_visibility_toggle.py)
-- tests/test_exclusion_area_travel.py: an exclusion area over the object geometry is the only area removed at the end of the drawing
-- new unit test for the typed Min and Max of the tolerance in the Tools Database (tests/test_tools_database.py)
-- new unit test for 'Add Tool in DB' with a bad Milling "Tools Dia" preference (tests/test_tools_database.py)
-- tests/test_svg_import.py, tests/test_dxf_import.py, tests/test_gerber_parser.py: the SVG, DXF and HPGL2 import as Geometry with a list of diameters in the "Tools Dia" preference
-- tests/test_geometry_transforms.py: the move and the scale of a native CNC job read the decimals once and keep the paths of the tools for the bounding box
-- tests/test_cncjob_gcode_speed.py: the autolevelling segments of a 300 mm line in steps of 0.25 mm
-- tests/test_gerber_parser.py: HPGL2 arcs one after the other, a 3-point arc, a file without SP and the commands on one line
-- tests/test_pdf_hole_detection.py: Stop while a PDF file is parsed
+- regression tests for the saved G-code of a CNCJob after Edit -> Flip, Rotate and Skew (tests/test_geometry_transforms.py) (merged PR #48 from ErkanGench)
+- regression test for the exported G-code of a CNCJob moved with the Move tool (tests/test_move_tool.py) (merged PR #48 from ErkanGench)
+- regression tests for an object name with parentheses in the header comments of the CNC job, probing and solder paste G-code (tests/test_cncjob_export_gcode.py, tests/test_levelling_controller_regressions.py, tests/test_solderpaste.py) (merged PR #48 from ErkanGench)
+- added checks that a failed G-code save keeps the old file and leaves no partial or temporary file, and that the G-code is written in 1 write (merged PR #49 from ErkanGench)
+- added checks that the G-code saved in the G-code Editor survives a new Properties panel, a project save and open and the undo of a delete, and that a job that was not edited is made again as before (merged PR #49 from ErkanGench)
+- added checks of the name that the save dialog gives for names with and without an extension of the selected filter (merged PR #49 from ErkanGench)
+- added checks that the G-code of a job has no snippet while the snippets checkbox is unchecked (merged PR #49 from ErkanGench)
+- tests/test_exclusion_area_travel.py: the Drilling and Milling travel over an exclusion area never goes below the travel Z (merged PR #50 from ErkanGench)
+- tests/test_exclusion_area_travel.py: the first corner of a rectangular exclusion area, with and without grid snap (merged PR #50 from ErkanGench)
+- tests/test_exclusion_area_travel.py: Escape while drawing a rectangle or a polygon exclusion area (merged PR #50 from ErkanGench)
+- test_drilling_gen: the Drilling job is refused for a Travel Z of zero or below and for a Feedrate Z of zero (merged PR #51 from ErkanGench)
+- test_drilling_gen: Multi-Depth drilling with a zero or negative depth per pass ends (plugin and Tcl) (merged PR #51 from ErkanGench)
+- test_milling_lifecycle: each tool with a Custom offset is cut with its own value (single and multi geometry) (merged PR #51 from ErkanGench)
+- test_cncjob_gcode_speed: the Extra Cut goes on along the path after the start point and stays out of the pad (merged PR #51 from ErkanGench)
+- added a check that Import Preferences keeps the update source (merged PR #52 from ErkanGench)
+- added a check that saving several CNC jobs writes each file in the chosen folder (merged PR #52 from ErkanGench)
+- tests/test_gerber_parser.py: a Gerber and an HPGL2 file with letters that are not ASCII in a comment or an attribute, saved as UTF-8 and as cp1254 (merged PR #53 from ErkanGench)
+- tests/test_geo_editor_source.py: the SVG and DXF import of a UTF-8 SVG and an ANSI (cp1254) DXF with letters that are not ASCII (merged PR #53 from ErkanGench)
+- test_defaults_persistence: a save that fails (a value that cannot be saved, a full disk) keeps the old preferences file and leaves no temporary file (merged PR #54 from ErkanGench)
+- test_tools_database: the records saved before and after a Preferences Apply load with the options of both; wrong value types are still skipped (merged PR #54 from ErkanGench)
+- test_gui_elements_input (new): a number over the maximum keeps the previous value of a number field and no prefix is committed; the keypad Enter slots get the typed number; test_tools_database commits the typed parameters with Enter (merged PR #54 from ErkanGench)
+- test_gui_elements_input: a tool table drag that leaves the table or ends without a drop leaves the signals of the table unblocked (merged PR #54 from ErkanGench)
+- new unit tests for the heights of the first tool change and the first travel of drillcncjob without -startz (tests/test_tcl_drillcncjob.py) (merged PR #55 from ErkanGench)
+- new unit test for the order of the tools of a drillcncjob job (tests/test_tcl_drillcncjob.py) (merged PR #55 from ErkanGench)
+- new unit test for the text that the Tcl export_gcode returns, the same as the file of write_gcode (tests/test_tcl_audit_contracts.py) (merged PR #55 from ErkanGench)
+- new unit tests for Replace All of the code editor (tests/test_lazy_highlight.py) (merged PR #56 from ErkanGench)
+- new unit test for the project save and load of a Document object (tests/test_object_construction.py) (merged PR #56 from ErkanGench)
+- new unit tests for the exit of the Code Editor with its tab between other Plot Area tabs (tests/test_editor_save_modes.py) (merged PR #56 from ErkanGench)
+- new unit test for the zero power activation of the Marlin laser preprocessors (tests/test_laser_safety.py) (merged PR #57 from ErkanGench)
+- new unit test for the plunge feedrate of the Roland preprocessors (tests/test_preprocessors_no_swallowed_errors.py) (merged PR #57 from ErkanGench)
+- new unit test for the CNC job that fails on a preprocessor error (Bed Skew with a Bed Size of 0); the test jobs of tests/test_laser_safety.py and tests/test_cncjob_gcode_speed.py get the bounds and the tool diameter that the start code reads (merged PR #57 from ErkanGench)
+- added a Geometry editor check that Explode replaces every selected shape by its lines (merged PR #58 from ErkanGench)
+- added Geometry editor checks that Transform -> Buffer D moves a polygon outline by the distance and keeps a shape it would erode away (merged PR #58 from ErkanGench)
+- added a Geometry editor check of the rectangle size from the Rectangle panel with corners that do not fit (merged PR #58 from ErkanGench)
+- added a Geometry editor check that the Circle panel adds a circle with the Y radius field left at 0 (merged PR #58 from ErkanGench)
+- added a Geometry editor check that the Circle panel rotates an ellipse like the Circle tool (merged PR #58 from ErkanGench)
+- Gerber editor: Pad and Pad Array place obround pads, and the aperture table shows the dimensions of an 'O' aperture (merged PR #59 from ErkanGench)
+- Gerber editor: the Dims edit of an 'R' aperture changes its tracks by half of the change (merged PR #59 from ErkanGench)
+- Gerber editor: Mark Area Delete removes only the shapes marked now (merged PR #59 from ErkanGench)
+- test_exc_editor_defects: the 'Add' button of Drill Array uses the values changed in the panel after the last mouse move (merged PR #60 from ErkanGench)
+- test_exc_editor_defects: a circular Drill Array or Slot Array from the 'Add' button keeps the typed radius after a mouse move over the canvas (merged PR #60 from ErkanGench)
+- test_exc_editor_defects: Copy as a circular array shows the preview and makes the copies without an earlier Linear preview (merged PR #60 from ErkanGench)
+- test_exc_editor_defects: Copy with a typed length and Enter copies at that distance towards the cursor, and warns without a reference point (merged PR #60 from ErkanGench)
+- test_exc_editor_defects: Enter with the Move tool moves the selected drill to the cursor (merged PR #60 from ErkanGench)
+- test_exc_editor_defects: the Copy panel hides its unconnected 'Add' button (merged PR #60 from ErkanGench)
+- regression test for Esc in the Gerber editor Transform tool (tests/test_grb_editor_transform.py) (merged PR #61 from ErkanGench)
+- regression test for Space in the Gerber editor Pad Array tool (tests/test_gerber_editor_features.py) (merged PR #61 from ErkanGench)
+- regression tests for SemiDisc points that make no arc (tests/test_gerber_action_parity.py) (merged PR #61 from ErkanGench)
+- regression tests for the Gerber editor Simplification menu item and the menu of each editor menu item (tests/test_gerber_editor_defects.py) (merged PR #61 from ErkanGench)
+- new unit tests for the closed tabs of the G-code Editor and the Code Review (tests/test_editor_save_modes.py) (merged PR #62 from ErkanGench)
+- new unit test for the name typed in the G-code Editor (tests/test_editor_save_modes.py) (merged PR #62 from ErkanGench)
+- new unit tests for Go to Line in a code editor with wrapped lines (tests/test_lazy_highlight.py) (merged PR #62 from ErkanGench)
+- test_geo_editor_performance: the editor's Paint refuses a tool diameter of zero or below (merged PR #63 from ErkanGench)
+- test_geo_editor_performance: the editor's Paint starts with the method of the Paint preference (merged PR #63 from ErkanGench)
+- test_geo_editor_history: the editor load and the boolean operations change the widgets in the GUI thread, not in the worker (merged PR #63 from ErkanGench)
+- test_app_history_keys: '-' zooms out and '=' zooms in, in the editors as on the main canvas (merged PR #63 from ErkanGench)
+- test_app_history_keys: Ctrl+E opens the Gerber editor's Eraser; Ctrl+A selects all in the Gerber and Excellon editors (merged PR #63 from ErkanGench)
+- test_geo_editor_performance: the editor's Paint with the Lines method paints the scan lines (merged PR #63 from ErkanGench)
+- test_file_associations: the first start registers the extension lists of the options; Apply removes only the extensions that point to FlatCAM (merged PR #64 from ErkanGench)
+- test_file_associations: no .h / .i in the default and restored G-code lists; the first start leaves the extensions of other programs and runs no duti for the extensions (merged PR #64 from ErkanGench)
+- test_rename_completer: editing the autocomplete keywords keeps the object names, also the new name of a renamed object (merged PR #64 from ErkanGench)
+- test_startup_args: a .tap file opens as G-code or as Excellon by its content, also dropped on the plot area (once) (merged PR #64 from ErkanGench)
+- test_defaults_persistence: the start loads the preferences of an older build over the empty current_defaults.FlatConfig, and not over saved ones (merged PR #64 from ErkanGench)
+- test_defaults_audit_regressions: exported bookmarks import as the same bookmarks, also with a blank line (merged PR #64 from ErkanGench)
+- test_preferences_project_keys: colours without a readable alpha do not stop the Preferences; a 6-digit colour is saved with the stored alpha (merged PR #65 from ErkanGench)
+- test_preferences_project_keys: the selection fill colour is stored with its alpha (merged PR #65 from ErkanGench)
+- test_preferences_project_keys: opening the Preferences keeps the right to left selection alpha (merged PR #65 from ErkanGench)
+- test_preferences_project_keys: closing the Preferences with the status bar button asks to save, and edits not saved are not shown again (merged PR #65 from ErkanGench)
+- test_preferences_project_keys: the alpha sliders give a valid colour that Save keeps (merged PR #65 from ErkanGench)
+- test_preferences_project_keys: the Excellon Restore Defaults button sets the factory format and zeros (merged PR #65 from ErkanGench)
+- test_preferences_project_keys: the Excellon units change the export units only when "Update Export settings" is checked (merged PR #65 from ErkanGench)
+- test_defaults_persistence: File -> Export Preferences writes the preferences in effect (merged PR #65 from ErkanGench)
+- new unit tests for the Project tab keys with the Plot Area closed (tests/test_app_history_keys.py) (merged PR #66 from ErkanGench)
+- new unit tests for Escape in the full screen mode (tests/test_app_history_keys.py) (merged PR #66 from ErkanGench)
+- new unit tests for Clear GUI Settings answered with No or Yes (tests/test_theme_color_scheme.py) (merged PR #66 from ErkanGench)
+- new unit test for New Project with an open editor (tests/test_projects_appio.py) (merged PR #66 from ErkanGench)
+- added a regression check that a double click on Set Origin moves the objects once (merged PR #67 from ErkanGench)
+- added regression checks that a rename gives the name of another object a number (merged PR #67 from ErkanGench)
+- added a regression check that a Tcl reset deletes the old shell and gives the new one the auto-completer keywords (merged PR #67 from ErkanGench)
+- added a regression check that an abort with nothing running does not cancel the next task (merged PR #67 from ErkanGench)
+- added regression checks that a close during a save does not wait for the next task of the save worker (merged PR #67 from ErkanGench)
+- new unit test for the warning of a Tcl command whose new object was renamed because its name was in use (tests/test_tcl_audit_regressions.py) (merged PR #68 from ErkanGench)
+- new unit test for the laser power of drillcncjob and cncjob without -las_power (tests/test_tcl_laser_power.py) (merged PR #68 from ErkanGench)
+- new unit test for the settings that save_sys saves after set_sys (tests/test_tcl_small_commands.py) (merged PR #68 from ErkanGench)
+- new unit test for the tool change of a drillcncjob of an aligndrillgrid grid (tests/test_tcl_drillcncjob.py); the aligndrillgrid tool id test of tests/test_excellon_add_tool.py now expects the id 1 (merged PR #68 from ErkanGench)
+- new unit test that the update and rollback jobs of a frozen build pass the job check of the updater (tests/updater/test_updater_apply.py) (merged PR #68 from ErkanGench)
+- test_tool_distance_snap: Object Distance measures again with Shift+M after a wrong selection and after Reset Tool (merged PR #69 from ErkanGench)
+- test_tool_distance_snap: the Object Distance Measure button shows 0 for touching objects after a pair 3 mm apart (merged PR #69 from ErkanGench)
+- test_isolation_optimal_tooldia: a click on the empty last line of the Find Optimal distances (merged PR #69 from ErkanGench)
+- test_isolation_optimal_tooldia, test_excellon_parser: Find Optimal and the PcbWizard INF loading set their fields in the GUI thread (merged PR #69 from ErkanGench)
+- test_excellon_parser: PcbWizard Import uses the format corrected after loading, also on a second Import (merged PR #69 from ErkanGench)
+- test_isolation_optimal_tooldia, test_ncc_rest_machining: Find Optimal and the NCC gap check on a Gerber with a MultiPolygon solid (merged PR #69 from ErkanGench)
+- Cutout: a tool added from the search or from the Tools Database keeps the Automatic widgets and shows the widgets of its gap type (merged PR #70 from ErkanGench)
+- 2-Sided: a warning when the alignment holes do not fit the pins after the flip, none for a hole on the Mirror axis (merged PR #70 from ErkanGench)
+- Align Objects: the source of an aligned Gerber and Excellon object parses back to the aligned geometry (merged PR #70 from ErkanGench)
+- Film: pad-center punching of a macro pad next to a thin track aperture, and a punch as wide as a pad (merged PR #70 from ErkanGench)
+- Drilling and Milling: no solder paste preprocessor in the preprocessor lists of the plugins (merged PR #70 from ErkanGench)
+- new unit tests for the PDF save of the code editor (tests/test_object_construction.py) (merged PR #71 from ErkanGench)
+- new unit tests for the Find menu and the PageUp / PageDown keys of the shell output (tests/test_headless_console.py) (merged PR #71 from ErkanGench)
+- new unit test for the color change and the visibility of the shapes of a group in a shared shape collection (tests/test_plot_visibility_toggle.py) (merged PR #71 from ErkanGench)
+- new unit test for the annotations of a hidden object (tests/test_plot_visibility_toggle.py) (merged PR #71 from ErkanGench)
+- tests/test_exclusion_area_travel.py: an exclusion area over the object geometry is the only area removed at the end of the drawing (merged PR #71 from ErkanGench)
+- new unit test for the typed Min and Max of the tolerance in the Tools Database (tests/test_tools_database.py) (merged PR #71 from ErkanGench)
+- new unit test for 'Add Tool in DB' with a bad Milling "Tools Dia" preference (tests/test_tools_database.py) (merged PR #71 from ErkanGench)
+- tests/test_svg_import.py, tests/test_dxf_import.py, tests/test_gerber_parser.py: the SVG, DXF and HPGL2 import as Geometry with a list of diameters in the "Tools Dia" preference (merged PR #72 from ErkanGench)
+- tests/test_geometry_transforms.py: the move and the scale of a native CNC job read the decimals once and keep the paths of the tools for the bounding box (merged PR #72 from ErkanGench)
+- tests/test_cncjob_gcode_speed.py: the autolevelling segments of a 300 mm line in steps of 0.25 mm (merged PR #72 from ErkanGench)
+- tests/test_gerber_parser.py: HPGL2 arcs one after the other, a 3-point arc, a file without SP and the commands on one line (merged PR #72 from ErkanGench)
+- tests/test_pdf_hole_detection.py: Stop while a PDF file is parsed (merged PR #72 from ErkanGench)
 
 25.10.2026
 RELEASE FlatCAM Evo 1.0
