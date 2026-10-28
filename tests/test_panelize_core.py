@@ -3,6 +3,7 @@ files are only parsed to get realistic input)."""
 
 from copy import deepcopy
 
+import numpy as np
 import pytest
 import shapely
 from shapely import affinity
@@ -46,7 +47,7 @@ def moved(geo, offset):
 class TestGrid:
     def test_grid_offsets_2x3(self):
         offs = pc.grid_offsets((1.0, 2.0, 11.0, 5.0), 2, 3, 5.0, 5.0)
-        assert offs == pytest.approx([(0, 0), (15, 0), (30, 0), (0, 8), (15, 8), (30, 8)])
+        assert offs == pytest.approx(np.array([(0, 0), (15, 0), (30, 0), (0, 8), (15, 8), (30, 8)]))
 
     def test_constrain_reduces(self):
         # width of n columns: 10n + 5(n-1): 3 -> 40, 2 -> 25; height of n rows: 2 -> 25, 3 -> 40
@@ -79,7 +80,7 @@ class TestGerber:
     def build(self, app, path):
         src = make_gerber(app, name='g') if path is None else make_gerber(app, path, name='g')
         offs = pc.grid_offsets(src.bounds(), ROWS, COLS, SPACING, SPACING)
-        assert offs == pytest.approx(expected_offsets(src.bounds()))
+        assert offs == pytest.approx(np.array(expected_offsets(src.bounds())))
         return src, offs
 
     def test_every_feature_appears_once_per_offset(self, app, path):
@@ -274,9 +275,9 @@ def test_excellon_core_equals_tcl(app):
     assert list(pan.tools) == list(tools)
     for tid, tool in tools.items():
         assert pan.tools[tid]['tooldia'] == tool['tooldia']
-        assert [(p.x, p.y) for p in pan.tools[tid]['drills']] == pytest.approx([(p.x, p.y) for p in tool['drills']])
+        assert [(p.x, p.y) for p in pan.tools[tid]['drills']] == pytest.approx(np.array([(p.x, p.y) for p in tool['drills']]))
         assert [(a.x, a.y, b.x, b.y) for a, b in pan.tools[tid]['slots']] == \
-            pytest.approx([(a.x, a.y, b.x, b.y) for a, b in tool['slots']])
+            pytest.approx(np.array([(a.x, a.y, b.x, b.y) for a, b in tool['slots']]))
 
 
 # ---------------------------------------------------------------------------------------------------------------

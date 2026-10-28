@@ -22,6 +22,7 @@ from tests.helpers_objects import (  # noqa: F401,E402
     make_gerber_0b, make_same_diameter_excellon, polygon_union, pts, reparse_excellon, slot_coords, slot_flat,
     slot_xy, snapshot_excellon, TRANSFORM_NAMES,
 )
+import numpy as np
 import pytest
 from tclCommands.TclCommandBuffer import TclCommandBuffer
 
@@ -200,8 +201,8 @@ class TestExcellonFileRoundTrip:
         assert sorted(again.tools) == [1, 2, 3]
         for t, tool in exc.tools.items():
             assert again.tools[t]['tooldia'] == pytest.approx(tool['tooldia'], abs=1e-9)
-            assert pts(again.tools[t]['drills']) == pytest.approx(pts(tool['drills']), abs=1e-9)
-            assert slot_flat(again.tools[t]['slots']) == pytest.approx(slot_flat(tool['slots']), abs=1e-9)
+            assert pts(again.tools[t]['drills']) == pytest.approx(np.array(pts(tool['drills'])), abs=1e-9)
+            assert slot_flat(again.tools[t]['slots']) == pytest.approx(np.array(slot_flat(tool['slots'])), abs=1e-9)
         assert_poly_equiv(again.solid_geometry, exc.solid_geometry, rel=1e-6, abs_tol=1e-6, msg='excellon file')
 
 
@@ -225,7 +226,7 @@ class TestExcellonScaleUnits_0B3:
         ex.scale(factor, factor, point=(0, 0))
         assert ex.tools[1]['tooldia'] == pytest.approx(1.0)
         assert [(d.x, d.y) for d in ex.tools[1]['drills']] == pytest.approx(
-            [(x * factor, y * factor) for x, y in before])
+            np.array([(x * factor, y * factor) for x, y in before]))
         minx, _, maxx, _ = ex.tools[1]['solid_geometry'][0].bounds
         assert maxx - minx == pytest.approx(1.0, abs=1e-3)
 
@@ -398,16 +399,16 @@ def test_matrix_undo_redo_keeps_excellon_source_and_plot_in_sync(app, tmp_path):
 
     assert history.undo() is True
     undone = reparse_excellon(app, obj.source_file, tmp_path, 'undone')
-    assert pts(undone.tools[1]['drills']) == pytest.approx(pts(before_tools[1]['drills']), abs=1e-9)
+    assert pts(undone.tools[1]['drills']) == pytest.approx(np.array(pts(before_tools[1]['drills'])), abs=1e-9)
     assert slot_coords(undone.tools[2]['slots']) == pytest.approx(
-        slot_coords(before_tools[2]['slots']), abs=1e-9)
+        np.array(slot_coords(before_tools[2]['slots'])), abs=1e-9)
     assert obj.shapes.data[0].bounds == pytest.approx((4.5, 4.5, 5.5, 5.5), abs=1e-6)
 
     assert history.redo() is True
     redone = reparse_excellon(app, obj.source_file, tmp_path, 'redone')
-    assert pts(redone.tools[1]['drills']) == pytest.approx(pts(scaled_tools[1]['drills']), abs=1e-9)
+    assert pts(redone.tools[1]['drills']) == pytest.approx(np.array(pts(scaled_tools[1]['drills'])), abs=1e-9)
     assert slot_coords(redone.tools[2]['slots']) == pytest.approx(
-        slot_coords(scaled_tools[2]['slots']), abs=1e-9)
+        np.array(slot_coords(scaled_tools[2]['slots'])), abs=1e-9)
     assert obj.shapes.data[0].bounds == pytest.approx((9.5, 4.5, 10.5, 5.5), abs=1e-6)
 
 

@@ -5,6 +5,7 @@ init callback on a real, empty object. The plugin and the Tcl command must give 
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+import numpy as np
 import pytest
 from PyQt6 import QtCore
 from shapely.geometry import LineString, box
@@ -128,7 +129,7 @@ def test_excellon_plugin_equals_tcl(app):
     for tid in ref.tools:
         assert_coords_close(pan.tools[tid]['drills'], ref.tools[tid]['drills'])
         assert [(a.x, a.y, b.x, b.y) for a, b in pan.tools[tid]['slots']] == \
-            pytest.approx([(a.x, a.y, b.x, b.y) for a, b in ref.tools[tid]['slots']])
+            pytest.approx(np.array([(a.x, a.y, b.x, b.y) for a, b in ref.tools[tid]['slots']]))
     assert pan.bounds() == pytest.approx(ref.bounds())
     assert pan.source_file.startswith('M48')
 

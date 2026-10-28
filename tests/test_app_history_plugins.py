@@ -583,7 +583,11 @@ def test_dblsided_process_is_one_undo_and_survives_reload(fc, no_plot):
     restored_drills = [p.coords[0] for t in drills.tools.values() for p in t['drills']]
     assert len(restored_drills) == 43
     assert np.asarray(restored_drills[40:]) == pytest.approx(holes)
-    assert [obj.source_file for obj in (top, bottom, drills)] == sources
+    # the export header holds the time of the export ("Created on ... at HH:MM"): compare without it
+    def undated(text):
+        return [line for line in (text or '').splitlines() if 'Created on' not in line]
+
+    assert [undated(obj.source_file) for obj in (top, bottom, drills)] == [undated(s) for s in sources]
     bottom.offset((4, -7))
     tool.on_process()
     _wait_dbl(tool)

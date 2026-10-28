@@ -3,6 +3,7 @@
 
 from unittest.mock import patch
 
+import numpy as np
 import pytest
 import ezdxf
 from PyQt6 import QtWidgets
@@ -53,7 +54,7 @@ def test_excellon_regenerated_text_parses_back_to_the_same_geometry(app, tmp_pat
     assert exc.source_file.startswith('M48')
     again = reparse_excellon(app, exc.source_file, tmp_path)
     for t, tool in exc.tools.items():
-        assert pts(again.tools[t]['drills']) == pytest.approx(pts(tool['drills']), abs=1e-3)
+        assert pts(again.tools[t]['drills']) == pytest.approx(np.array(pts(tool['drills'])), abs=1e-3)
 
 
 def test_local_use_export_runs_without_a_thread_and_writes_no_file(app):

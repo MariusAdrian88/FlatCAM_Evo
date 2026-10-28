@@ -267,9 +267,9 @@ def assert_same_tools(old, new, kind):
             elif field == 'solid_geometry':
                 assert_coords_close(other[field], value, atol=2e-6, msg='%s solid' % key)
             elif field == 'drills':
-                assert pts(other[field]) == pytest.approx(pts(value), abs=2e-6)
+                assert pts(other[field]) == pytest.approx(np.array(pts(value)), abs=2e-6)
             elif field == 'slots':
-                assert slot_flat(other[field]) == pytest.approx(slot_flat(value), abs=2e-6)
+                assert slot_flat(other[field]) == pytest.approx(np.array(slot_flat(value)), abs=2e-6)
             elif isinstance(value, float):
                 assert other[field] == pytest.approx(value), (key, field)
             else:
