@@ -77,7 +77,9 @@ def gcode_job(pp_name, app=None):
     app.preprocessors[pp_name] = getattr(module, pp_name)()
     app.exc_areas = SimpleNamespace(travel_coordinates=lambda **kw: [(None, kw['end_point'])])
     job = CNCjob(app, pp_geometry_name=pp_name)
-    job.obj_options = {'name': 'job', 'type': 'Geometry'}
+    # the start code reads the bounds and the tool diameter (the CNC job tools set them before the G-code is made)
+    job.obj_options = {'name': 'job', 'type': 'Geometry', 'xmin': 0, 'ymin': 0, 'xmax': 10, 'ymax': 10,
+                       'tool_dia': 0.1}
     job.coords_decimals = 4
     job.fr_decimals = 2
     job.z_cut = -0.1

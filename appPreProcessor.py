@@ -123,6 +123,8 @@ class PreProc(object, metaclass=ABCPreProcRegister):
         y = float(p.y if y is None else y)
         x_pos = x + float(p._bed_offset_x)
         y_pos = y + float(p._bed_offset_y)
+        if p._bed_skew_x and not p._bed_limit_y or p._bed_skew_y and not p._bed_limit_x:
+            raise ValueError('Bed-skew correction needs a non-zero bed size.')
         if p._bed_skew_x:
             x_pos += (y / float(p._bed_limit_y)) * float(p._bed_skew_x)
         if p._bed_skew_y:

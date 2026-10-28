@@ -74,7 +74,8 @@ class Marlin_laser_Spindle_pin(PreProc):
         if p.spindlespeed:
             return '%s S%s' % (str(p.laser_on_code).replace("0", ""), str(p.spindlespeed))
         else:
-            return str(p.laser_on_code)
+            # without S Marlin turns the laser on at its startup power
+            return '%s S0' % str(p.laser_on_code).replace("0", "")
 
     def toolchange_code(self, p):
         return ''
@@ -113,7 +114,8 @@ class Marlin_laser_Spindle_pin(PreProc):
         if p.spindlespeed:
             return '%s S%s' % (str(p.laser_on_code).replace("0", ""), str(p.spindlespeed))
         else:
-            return str(p.laser_on_code).replace("0", "")
+            # without S Marlin turns the laser on at its startup power
+            return '%s S0' % str(p.laser_on_code).replace("0", "")
 
     def dwell_code(self, p):
         return ''

@@ -57,7 +57,8 @@ class Roland_MDX_20(PreProc):
         return gcode
 
     def down_code(self, p):
-        gcode = self.feedrate_code(p) + '\n'
+        # the plunge is made at the Z feedrate
+        gcode = self.z_feedrate_code(p) + '\n'
         gcode += self.position_code(p) + ',' + str(self.to_rml(p, p.z_cut)) + ';'
         return gcode
 

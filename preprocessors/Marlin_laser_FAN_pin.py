@@ -80,7 +80,8 @@ class Marlin_laser_FAN_pin(PreProc):
         if p.spindlespeed:
             return 'M106 S%d' % power_255(p.spindlespeed)
         else:
-            return 'M106'
+            # a bare M106 runs the pin at full output (255)
+            return 'M106 S0'
 
     def toolchange_code(self, p):
         return ''
@@ -119,7 +120,8 @@ class Marlin_laser_FAN_pin(PreProc):
         if p.spindlespeed:
             return 'M106 S%d' % power_255(p.spindlespeed)
         else:
-            return 'M106'
+            # a bare M106 runs the pin at full output (255)
+            return 'M106 S0'
 
     def dwell_code(self, p):
         return ''

@@ -3301,17 +3301,10 @@ class CNCjob(Geometry):
             self.app.log.error('Exception occurred within a preprocessor: ' + traceback.format_exc())
             if getattr(self, 'pp_solderpaste_name', None):
                 raise
-            # the G-code of this call is missing: tell the user once for each preprocessor method of the job
+            # a G-code with a missing line is not safe to run (a laser that is not turned off, a move or a tool change
+            # that is not made): the CNC job fails, with the preprocessor method in the message
             method = getattr(fun, '__qualname__', str(fun))
-            warned = self.__dict__.setdefault('pp_errors_warned', set())
-            if method not in warned:
-                warned.add(method)
-                try:
-                    self.app.inform.emit('[WARNING] %s: %s - %s' % (
-                        _("Preprocessor error, G-code is missing"), method, str(err)))
-                except Exception:
-                    pass
-            return ''
+            raise RuntimeError('%s: %s - %s' % (_("Preprocessor error, G-code is missing"), method, str(err))) from err
 
     def parse_custom_toolchange_code(self, data):
         """

@@ -1,9 +1,9 @@
 """
 Tests for the output of the preprocessors: no swallowed errors and correct G-code.
 
-A preprocessor that raises is not noticed by the user: CNCjob.doformat2() logs
-"Exception occurred within a preprocessor" and returns '' for that part of the G-code. The Tcl command and the GUI go
-on as if nothing had happened.
+A preprocessor that raised was not noticed by the user: CNCjob.doformat2() logged
+"Exception occurred within a preprocessor" and returned '' for that part of the G-code. The Tcl command and the GUI went
+on as if nothing had happened. Now the CNC job fails with the preprocessor method in the message.
 
   * Line_xyz.start_code() read ``p['end_xy']``; the attribute of the job is ``xy_end`` (every other preprocessor reads
     that one). The whole start block was lost: no units (G21), no absolute mode (G90), no feed-rate mode (G94).
@@ -14,17 +14,19 @@ on as if nothing had happened.
     position it raised a TypeError.
   * Roland_MDX_20/540 and hpgl: the plotter units are integers, the feedrate is clamped to the plotter range, and the
     HPGL position is offset, scaled, then clamped.
+  * The Roland plunge is made at the Z feedrate, not at the XY feedrate.
   * ISEL_CNC selects G70 for an inch job; ISEL_ICP_CNC writes the inch z moves and feedrates in micrometres.
   * An inch job drives the same machine position as the mm job (Roland, hpgl, ISEL_ICP_CNC).
   * The end move writes the end X-Y and the end Z in order and lifts before it moves at a low end Z (eleks,
     ISEL_ICP_CNC, NCCAD9, Line_xyz, solder paste).
-  * A preprocessor error is told to the user (once per method); a method with nothing to emit writes no empty line.
+  * A preprocessor error fails the CNC job instead of dropping the line (a solder paste job keeps the error of the
+    preprocessor); a method with nothing to emit writes no empty line.
   * The extra cut of a multi-pass ring is made at the depth of the pass, not at the final Cut Z (Line_xyz).
   * The laser and solder paste end X-Y are printed with coords_decimals, not as raw floats.
   * The tool change moves to the tool change X-Y (a zero coordinate included); a drill job gets its tool change; the
     spindle stops before the operator pause; a machine without ATC names the tool in the message.
   * The probe tool change stops the spindle, retracts, changes the tool, then waits.
-  * The bed offset and skew shift the position.
+  * The bed offset and skew shift the position; a skew with a bed size of 0 fails the job.
   * The dwell is in the unit of the machine (Marlin S is seconds, P is milliseconds; GRBL P is seconds).
   * The fan speed is clamped to 0..255; a laser without speed is at zero power.
   * The laser_z start block shows the feedrate and power, also when a tool misses keys.
@@ -41,10 +43,12 @@ from decimal import Decimal
 from unittest.mock import Mock
 
 import pytest
+from shapely.geometry import LineString
 
 import appPreProcessor
 import preprocessors
 from camlib import AttrDict, CNCjob
+from defaults import AppDefaults
 from tests.helpers_objects import make_app_0b as make_app  # noqa: F401,E402
 
 for _module in pkgutil.iter_modules(preprocessors.__path__):
@@ -130,6 +134,16 @@ def test_plotter_units_position_and_feedrate():
     assert pp.position_code(params(x=10.0, y=5.0, _bed_offset_x=5.0)) == 'PA600,200;'
     assert pp.position_code(params(x=1000.0, y=-1000.0)) == 'PA32767,-32768;'
     assert pp.position_code(params(x=800.0, y=5.0, _bed_offset_x=100.0)) == 'PA32767,200;'
+
+
+def test_roland_plunges_at_the_z_feedrate():
+    # the down code set the XY feedrate over the Z feedrate set just before it: the plunge ran at the XY feed
+    for name, res in (('Roland_MDX_20', 40), ('Roland_MDX_540', 100)):
+        pp = PREPROCESSORS[name]
+        p = params(feedrate=600.0, z_feedrate=60.0, z_cut=-0.1)
+        assert pp.down_code(p) == 'V1.0;\nZ%d,%d,%d;' % (res, 2 * res, round(-0.1 * res))
+        # the cut moves keep the XY feedrate
+        assert pp.linear_code(p).startswith('V10.0;\n')
 
 
 def test_isel_units_and_micrometres():
@@ -310,16 +324,33 @@ def test_no_preprocessor_swallows_an_exception():
 
 def test_preprocessor_error_is_told_to_the_user_once_and_empty_methods_write_no_line():
     app, job = _job('Geometry', 'default')
-    app.inform = Mock()
 
     def broken(p):
         raise KeyError('missing')
 
-    assert job.doformat(broken) == '' and job.doformat(broken) == ''
-    warnings = [c for c in app.inform.emit.call_args_list if 'G-code is missing' in str(c)]
-    assert len(warnings) == 1
+    # the line is not dropped from the G-code: the job fails with the preprocessor method in the message
+    with pytest.raises(RuntimeError, match=r"G-code is missing: .*broken - 'missing'"):
+        job.doformat(broken)
+    # a solder paste job keeps the error of the preprocessor
+    job.pp_solderpaste_name = 'Paste_1'
+    with pytest.raises(KeyError):
+        job.doformat(broken)
     # the tool change of a laser preprocessor returns '': no empty line in the G-code
     assert job.doformat(lambda p: '') == ''
+
+
+def test_bed_skew_with_a_zero_bed_size_fails_the_job():
+    # the skew divided by the bed size 0 in every position: these lines were dropped and the job was made without its
+    # X-Y moves (the laser went on and off at one spot)
+    app, job = _job('Geometry', 'GRBL_laser')
+    job._bed_skew_x, job._bed_limit_y = 0.5, 0
+    data = dict(AppDefaults.factory_defaults)
+    data.update(tools_mill_ppname_g='GRBL_laser', tools_mill_tooldia=0.1, tools_mill_spindlespeed=500,
+                tools_mill_optimization_type='R')
+    tools = {1: {'data': data, 'tooldia': 0.1, 'solid_geometry': [LineString([(0, 0), (2, 1)])]}}
+
+    with pytest.raises(RuntimeError, match=r'GRBL_laser\.rapid_code - Bed-skew correction needs a non-zero bed size'):
+        job.geometry_tool_gcode_gen(1, tools, (0, 0), (0, 0), 0.001)
 
 
 def test_extra_cut_of_a_multi_pass_is_made_at_the_pass_depth():
