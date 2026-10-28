@@ -1,6 +1,6 @@
 """Committed editor operations, not previews, own history entries."""
 from contextlib import nullcontext
-from threading import Event, Thread, Timer
+from threading import Event, Thread, Timer, get_ident
 from types import SimpleNamespace
 from unittest.mock import Mock, MagicMock
 
@@ -10,6 +10,7 @@ from shapely.geometry import LineString, MultiLineString, Polygon, box
 from shapely.ops import unary_union
 
 from appEditors.appGeoEditor import AppGeoEditor, DrawToolShape, DrawToolUtilityShape, FCMove, FCExplode, FCEraser, FCShapeTool
+from camlib import Geometry
 from appGUI.MainGUI import MainGUI
 from appGUI.GUIElements import FCTree
 from appEditors.geo_plugins.GeoCirclePlugin import CircleEditorTool
@@ -654,3 +655,57 @@ def test_preview_and_load_are_not_history_and_reset_clears_redo():
     assert editor.undo()
     editor.reset_history()
     assert not editor.redo()
+
+
+def run_queued_jobs_in_a_thread(editor):
+    """Runs the jobs queued with app.worker_task in a worker thread, like the app's WorkerStack."""
+    for call in editor.app.worker_task.emit.call_args_list:
+        job = call.args[0]
+        worker = Thread(target=job['fcn'], args=job['params'])
+        worker.start()
+        worker.join(10)
+
+
+def test_editor_load_sets_the_grid_and_the_tool_diameter_in_the_gui_thread(monkeypatch):
+    monkeypatch.setattr(DrawToolShape, 'tolerance', DrawToolShape.tolerance)
+    widget_threads = []
+    editor = editor_with_history()
+    for name in ('deactivate', 'activate', 'set_editor_ui', 'select_tool'):
+        setattr(editor, name, Mock(return_value=None))
+    editor.flatten = lambda geometry, **kwargs: list(geometry)
+    editor.app.decimals = 4
+    editor.app.ui = SimpleNamespace(grid_snap_btn=SimpleNamespace(
+        isChecked=lambda: False, trigger=Mock(side_effect=lambda: widget_threads.append(('grid', get_ident())))))
+    editor.ui = SimpleNamespace(tooldia_entry=SimpleNamespace(
+        set_value=lambda value: widget_threads.append((value, get_ident()))))
+    # the signal from the worker is queued: its slot runs later in the GUI thread
+    queued = []
+    editor.load_done = SimpleNamespace(emit=lambda *args: queued.append(args))
+    geometry = Geometry.__new__(Geometry)
+    geometry.solid_geometry = [LineString([(0, 0), (1, 0)])]
+    geometry.tools, geometry.obj_options = {}, {'tools_mill_tooldia': '0.8'}
+    geometry.drawing_tolerance, geometry.visible = 0.01, True
+
+    AppGeoEditor.edit_geometry(editor, geometry)
+    run_queued_jobs_in_a_thread(editor)
+    for args in queued:
+        AppGeoEditor.on_load_done(editor, *args)
+
+    assert len(list(editor.storage.get_objects())) == 1
+    assert widget_threads == [('grid', get_ident()), (0.8, get_ident())]
+
+
+def test_boolean_operation_with_one_shape_goes_back_to_select_in_the_gui_thread():
+    for operation in ('union', 'intersection', 'intersection_2', 'subtract', 'subtract_2', 'cutpath'):
+        shape = DrawToolShape(box(0, 0, 1, 1))
+        editor = editor_with_history([shape], [shape])
+        select_threads = []
+        editor.select_tool = Mock(side_effect=lambda name: select_threads.append(get_ident()))
+
+        getattr(AppGeoEditor, operation)(editor)
+        run_queued_jobs_in_a_thread(editor)
+
+        # select_tool() changes widgets: it must not run in the worker thread
+        assert select_threads == [get_ident()], operation
+        assert 'minimum two' in editor.app.inform.emit.call_args.args[0]
+        assert list(editor.storage.get_objects()) == [shape]

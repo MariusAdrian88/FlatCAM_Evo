@@ -287,6 +287,8 @@ class AppGeoEditor(QtCore.QObject):
     clear_tree_sig = QtCore.pyqtSignal()
     source_save_done = QtCore.pyqtSignal(object)
     history_changed = QtCore.pyqtSignal()
+    # the worker of edit_geometry() has loaded the shapes; the tool diameter of the edited geometry
+    load_done = QtCore.pyqtSignal(float)
 
     draw_shape_idx = -1
 
@@ -298,6 +300,7 @@ class AppGeoEditor(QtCore.QObject):
 
         self.app = app
         self.source_save_done.connect(self.on_source_save_done, Qt.ConnectionType.QueuedConnection)
+        self.load_done.connect(self.on_load_done, Qt.ConnectionType.QueuedConnection)
         self._history_lock = RLock()
         self.reset_history()
         self.canvas = app.plotcanvas
@@ -3555,10 +3558,6 @@ class AppGeoEditor(QtCore.QObject):
                 editor_obj.units = self.app.app_units.upper()
                 editor_obj.decimals = self.app.decimals
 
-                # start with GRID toolbar activated
-                if editor_obj.app.ui.grid_snap_btn.isChecked() is False:
-                    editor_obj.app.ui.grid_snap_btn.trigger()
-
                 # trigger a build of the UI
                 self.build_ui_sig.emit()
 
@@ -3571,12 +3570,27 @@ class AppGeoEditor(QtCore.QObject):
                             str(fcgeometry.tools[self.multigeo_tool]['tooldia'])
                         )
                     )
-                    self.ui.tooldia_entry.set_value(
-                        float(fcgeometry.tools[self.multigeo_tool]['data']['tools_mill_tooldia']))
+                    tooldia = float(fcgeometry.tools[self.multigeo_tool]['data']['tools_mill_tooldia'])
                 else:
-                    self.ui.tooldia_entry.set_value(float(fcgeometry.obj_options['tools_mill_tooldia']))
+                    tooldia = float(fcgeometry.obj_options['tools_mill_tooldia'])
+                # the grid button and the tool diameter entry are widgets: on_load_done() sets them in the GUI thread
+                self.load_done.emit(tooldia)
 
         AppGeoEditor.submit_worker(self, worker_job, [self], record=False)
+
+    def on_load_done(self, tooldia):
+        """
+        The GUI part of edit_geometry(), called in the GUI thread when its worker has loaded the shapes (Qt widgets
+        must not be used from the worker thread).
+
+        :param tooldia: the tool diameter of the edited geometry
+        :return:        None
+        """
+        # start with GRID toolbar activated
+        if self.app.ui.grid_snap_btn.isChecked() is False:
+            self.app.ui.grid_snap_btn.trigger()
+
+        self.ui.tooldia_entry.set_value(tooldia)
 
     def update_editor_geometry(self, fcgeometry, on_complete=None):
         """
@@ -3762,6 +3776,19 @@ class AppGeoEditor(QtCore.QObject):
 
         return AppGeoEditor.submit_worker(self, work_task, [self])
 
+    def check_two_selected(self):
+        """
+        Checks, in the GUI thread, that at least two shapes are selected for a boolean operation. Done before the
+        operation is queued to the worker, because select_tool() changes widgets (they are not thread safe).
+
+        :return:    True if at least two shapes are selected; else False, after a warning and the Select tool
+        """
+        if len(self.get_selected()) < 2:
+            self.app.inform.emit('[WARNING_NOTCL] %s' % _("A selection of minimum two items is required."))
+            self.select_tool('select')
+            return False
+        return True
+
     def union(self):
         """
         Makes union of selected polygons. Original polygons
@@ -3769,16 +3796,12 @@ class AppGeoEditor(QtCore.QObject):
 
         :return: None.
         """
+        if not AppGeoEditor.check_two_selected(self):
+            return
 
         def work_task(editor_self):
             with editor_self.app.proc_container.new(_("Working...")):
                 selected = editor_self.get_selected()
-
-                if len(selected) < 2:
-                    editor_self.app.inform.emit('[WARNING_NOTCL] %s' %
-                                                _("A selection of minimum two items is required."))
-                    editor_self.select_tool('select')
-                    return
 
                 results = unary_union([t.geo for t in selected])
                 if results.geom_type == 'MultiLineString':
@@ -3799,18 +3822,14 @@ class AppGeoEditor(QtCore.QObject):
 
         :return: None
         """
+        if not AppGeoEditor.check_two_selected(self):
+            return
 
         def work_task(editor_self):
             editor_self.app.log.debug("AppGeoEditor.intersection_2()")
 
             with editor_self.app.proc_container.new(_("Working...")):
                 selected = editor_self.get_selected()
-
-                if len(selected) < 2:
-                    editor_self.app.inform.emit('[WARNING_NOTCL] %s' %
-                                                _("A selection of minimum two items is required."))
-                    editor_self.select_tool('select')
-                    return
 
                 target = selected[0].geo
                 if target.is_ring:
@@ -3842,6 +3861,8 @@ class AppGeoEditor(QtCore.QObject):
 
         :return: None
         """
+        if not AppGeoEditor.check_two_selected(self):
+            return
 
         def work_task(editor_self):
             editor_self.app.log.debug("AppGeoEditor.intersection()")
@@ -3850,12 +3871,6 @@ class AppGeoEditor(QtCore.QObject):
                 selected = editor_self.get_selected()
                 results = []
                 intact = []
-
-                if len(selected) < 2:
-                    editor_self.app.inform.emit('[WARNING_NOTCL] %s' %
-                                                _("A selection of minimum two items is required."))
-                    editor_self.select_tool('select')
-                    return
 
                 intersector = selected[0].geo
                 if intersector.is_ring:
@@ -3898,14 +3913,12 @@ class AppGeoEditor(QtCore.QObject):
         AppGeoEditor.submit_worker(self, work_task, [self])
 
     def subtract(self):
+        if not AppGeoEditor.check_two_selected(self):
+            return
+
         def work_task(editor_self):
             with editor_self.app.proc_container.new(_("Working...")):
                 selected = editor_self.get_selected()
-                if len(selected) < 2:
-                    editor_self.app.inform.emit('[WARNING_NOTCL] %s' %
-                                                _("A selection of minimum two items is required."))
-                    editor_self.select_tool('select')
-                    return
 
                 try:
                     target = selected[0].geo
@@ -3928,14 +3941,12 @@ class AppGeoEditor(QtCore.QObject):
         AppGeoEditor.submit_worker(self, work_task, [self])
 
     def subtract_2(self):
+        if not AppGeoEditor.check_two_selected(self):
+            return
+
         def work_task(editor_self):
             with editor_self.app.proc_container.new(_("Working...")):
                 selected = editor_self.get_selected()
-                if len(selected) < 2:
-                    editor_self.app.inform.emit('[WARNING_NOTCL] %s' %
-                                                _("A selection of minimum two items is required."))
-                    editor_self.select_tool('select')
-                    return
 
                 try:
                     target = selected[0].geo
@@ -3957,14 +3968,12 @@ class AppGeoEditor(QtCore.QObject):
         AppGeoEditor.submit_worker(self, work_task, [self])
 
     def cutpath(self):
+        if not AppGeoEditor.check_two_selected(self):
+            return
+
         def work_task(editor_self):
             with editor_self.app.proc_container.new(_("Working...")):
                 selected = editor_self.get_selected()
-                if len(selected) < 2:
-                    editor_self.app.inform.emit('[WARNING_NOTCL] %s' %
-                                                _("A selection of minimum two items is required."))
-                    editor_self.select_tool('select')
-                    return
 
                 tools = selected[1:]
                 toolgeo = unary_union([

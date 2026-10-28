@@ -1906,7 +1906,7 @@ class Geometry(object):
                         last_update = monotonic()
 
                     if band is None or y < band_end:
-                        band_end = y - self.SCAN_BAND_LINES * step
+                        band_end = y - Geometry.SCAN_BAND_LINES * step
                         band = shapely.clip_by_rect(margin_poly, left - 1, band_end - step, right + 1, y + step)
                     line = LineString([(left, y), (right, y)])
                     line = line.intersection(band)
@@ -1950,7 +1950,7 @@ class Geometry(object):
                         last_update = monotonic()
 
                     if band is None or x > band_end:
-                        band_end = x + self.SCAN_BAND_LINES * step
+                        band_end = x + Geometry.SCAN_BAND_LINES * step
                         band = shapely.clip_by_rect(margin_poly, x - step, bot - 1, band_end + step, top + 1)
                     line = LineString([(x, top), (x, bot)])
                     line = line.intersection(band)

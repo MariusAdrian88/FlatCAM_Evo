@@ -150,6 +150,17 @@ G-code Editor:
 - fixed: each session of the G-code Editor and each Code Review of a CNC job kept its closed tab, with a whole copy of the G-code, in memory until the app was closed (a 9 MB G-code: about 85 MB more for each session); the closed tab is now deleted
 - fixed: a name typed in the Name field of the G-code Editor was ignored and the CNC job kept its old name; Save now renames the job (with or without Enter in the field), in the same Edit step of the history as the G-code
 - fixed: Go to Line (Ctrl+G) in the code editors (G-code Editor, Source Editor, Code Review) counted each wrapped part of a long line as a line, so it stopped above the wanted line (in a narrow editor with long comments, line 500 gave line 417); a text that is not a line number went to line 1 without a message; it now goes to the line with that number in the number bar, and a wrong or out of range entry only shows a warning
+Geometry editor:
+
+- fixed: Paint accepted a tool diameter of zero or below; with a negative diameter the Standard method never ended (each pass larger than the last, until Abort), with zero it failed or Seed added only the outline; Paint now refuses it with a message
+- fixed: Paint did not start with the method set in Preferences (Standard gave Seed, Seed and Lines gave Standard); the preference is an index and is now used as one
+- fixed: loading a Geometry into the editor switched the grid snap on and set the tool diameter from the worker thread, and Union, Intersection, Subtract and Cut Path with less than two shapes selected went back to the Select tool from there; these widget changes are now made in the GUI thread (Qt widgets are not thread safe: rare random crashes)
+- fixed: Paint with the Lines method painted nothing and still said "Done." (the scan lines read a constant of camlib Geometry through the editor, which is not a Geometry)
+
+Editors:
+
+- fixed: in the Geometry, Gerber and Excellon editors '-' zoomed in and '=' zoomed out, the opposite of the main canvas and of the View menu; they now zoom out and in as everywhere else
+- fixed: Ctrl+E in the Gerber editor selected all the apertures instead of opening the Eraser (in the Excellon editor it selected all the tools), and Ctrl+A from the Project tab did not select all; the Select All key test checked E instead of A
 
 Tests:
 
@@ -206,6 +217,12 @@ Tests:
 - new unit tests for the closed tabs of the G-code Editor and the Code Review (tests/test_editor_save_modes.py)
 - new unit test for the name typed in the G-code Editor (tests/test_editor_save_modes.py)
 - new unit tests for Go to Line in a code editor with wrapped lines (tests/test_lazy_highlight.py)
+- test_geo_editor_performance: the editor's Paint refuses a tool diameter of zero or below
+- test_geo_editor_performance: the editor's Paint starts with the method of the Paint preference
+- test_geo_editor_history: the editor load and the boolean operations change the widgets in the GUI thread, not in the worker
+- test_app_history_keys: '-' zooms out and '=' zooms in, in the editors as on the main canvas
+- test_app_history_keys: Ctrl+E opens the Gerber editor's Eraser; Ctrl+A selects all in the Gerber and Excellon editors
+- test_geo_editor_performance: the editor's Paint with the Lines method paints the scan lines
 
 25.10.2026
 RELEASE FlatCAM Evo 1.0

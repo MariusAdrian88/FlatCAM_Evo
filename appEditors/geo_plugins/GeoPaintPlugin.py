@@ -123,20 +123,21 @@ class PaintOptionsTool(AppToolEditor):
         else:
             self.ui.paintmargin_entry.set_value(0.0)
 
-        if self.app.options.get(
+        # the preference is the index of the method in the Preferences list (Standard, Seed, Lines, Laser_lines,
+        # Combo); the first three are the items here, the others are not in the editor and use Standard
+        method = self.app.options.get(
+            "tools_paint_method",
+            self.app.defaults.get(
                 "tools_paint_method",
-                self.app.defaults.get(
-                    "tools_paint_method",
-                    self.app.defaults.factory_defaults.get("tools_paint_method")
-                )):
-            self.ui.paintmethod_combo.set_value(self.app.options.get(
-                "tools_paint_method",
-                self.app.defaults.get(
-                    "tools_paint_method",
-                    self.app.defaults.factory_defaults.get("tools_paint_method")
-                )))
-        else:
-            self.ui.paintmethod_combo.set_value(_("Seed"))
+                self.app.defaults.factory_defaults.get("tools_paint_method")
+            ))
+        try:
+            method_idx = int(method)
+        except (TypeError, ValueError):
+            method_idx = self.ui.paintmethod_combo.findText(str(method))
+        if not 0 <= method_idx < self.ui.paintmethod_combo.count():
+            method_idx = 0
+        self.ui.paintmethod_combo.setCurrentIndex(method_idx)
 
         if self.app.options.get(
                 "tools_paint_connect",
@@ -174,6 +175,10 @@ class PaintOptionsTool(AppToolEditor):
             return
 
         tooldia = self.ui.painttooldia_entry.get_value()
+        # with a zero or negative diameter the passes do not move inwards and the Paint may never end
+        if not tooldia > 0:
+            self.app.inform.emit('[WARNING_NOTCL] %s' % _("The tool diameter must be a number greater than zero."))
+            return
         overlap = self.ui.paintoverlap_entry.get_value() / 100.0
         margin = self.ui.paintmargin_entry.get_value()
 
