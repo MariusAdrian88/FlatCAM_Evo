@@ -7,7 +7,7 @@ from camlib import list_total_bounds, Geometry, arc, arc_angle, ApertureMacro, g
     ADAPTIVE_MIN_STEPS
 
 from appParsers.clipper_fuse import fuse_parts
-from appParsers.DXF import dxf_to_shapes
+from appParsers.DXF import dxf_to_shapes, scale_to_app_units
 from appParsers.SVG import svg_to_shapes, SvgImportError
 
 import numpy as np
@@ -2331,6 +2331,7 @@ class Gerber(Geometry):
 
         # trying to optimize the resulting geometry by merging contiguous lines
         geos = list(self.flatten_list(geos))
+        geos = scale_to_app_units(geos, dxf, units, self.app)
         geos_polys = []
         geos_lines = []
         for g in geos:

@@ -1144,14 +1144,20 @@ class appIO(QtCore.QObject):
                 """
         self.log.debug("on_file_export_dxf()")
 
-        obj = self.app.collection.get_active()
-        if obj is None:
+        selected = list(self.app.collection.get_selected())
+        if not selected:
+            active = self.app.collection.get_active()
+            selected = [active] if active is not None else []
+        if not selected:
             self.inform.emit('[ERROR_NOTCL] %s' % _("No object is selected."))
             return
 
         # Check for more compatible types and add as required
-        if obj.kind != 'geometry':
-            msg = _("Only Geometry objects can be used.")
+        objs = [o for o in selected if o.kind in ('gerber', 'excellon', 'geometry', 'cncjob')]
+        if objs and len(objs) < len(selected):
+            self.inform.emit('[WARNING_NOTCL] %s' % _("Unsupported objects were skipped."))
+        if not objs:
+            msg = _("Only Gerber, Excellon, Geometry and CNCJob objects can be exported as DXF.")
             msgbox = FCMessageBox(parent=self.app.ui)
             msgbox.setWindowTitle(msg)  # taskbar still shows it
             msgbox.setWindowIcon(QtGui.QIcon(self.app.resource_location + '/app128.png'))
@@ -1161,13 +1167,13 @@ class appIO(QtCore.QObject):
 
             msgbox.setIcon(QtWidgets.QMessageBox.Icon.Warning)
 
-            msgbox.setInformativeText(msg)
             bt_ok = msgbox.addButton(_('Ok'), QtWidgets.QMessageBox.ButtonRole.AcceptRole)
             msgbox.setDefaultButton(bt_ok)
             msgbox.exec()
             return
 
-        name = self.app.collection.get_active().obj_options["name"]
+        names = [o.obj_options["name"] for o in objs]
+        name = names[0] if names else "export"
 
         _filter_ = "DXF File .dxf (*.DXF);;All Files (*.*)"
         try:
@@ -1186,10 +1192,8 @@ class appIO(QtCore.QObject):
             self.inform.emit('[WARNING_NOTCL] %s' % _("Cancelled."))
             return
         else:
-            self.export_dxf(name, filename)
-            if self.app.options.get("global_open_style", self.app.defaults.get("global_open_style")) is False:
-                self.app.file_opened.emit("DXF", filename)
-            self.app.file_saved.emit("DXF", filename)
+            # export_dxf emits file_opened / file_saved itself, on a real save only
+            self.export_dxf(names if len(names) > 1 else name, filename)
 
     def on_file_import_svg(self, type_of_obj):
         """
@@ -2454,17 +2458,33 @@ class appIO(QtCore.QObject):
 
         self.log.debug("export_dxf()")
 
+        objs = None
         if local_use is None:
             try:
-                obj = self.app.collection.get_by_name(str(obj_name))
+                if isinstance(obj_name, (list, tuple)):
+                    objs = [self.app.collection.get_by_name(str(n)) for n in obj_name]
+                    obj = objs[0]
+                else:
+                    obj = self.app.collection.get_by_name(str(obj_name))
             except Exception:
                 return 'fail'
         else:
             obj = local_use
 
+        def build_doc():
+            if not objs or len(objs) < 2:
+                return obj.export_dxf()
+            from appParsers.DXF.writer import build_dxf
+            layers = []
+            for o in objs:
+                layers += o.dxf_layers()
+            opt = self.app.options
+            return build_dxf(layers, self.app.app_units, opt.get('geometry_dxf_format'),
+                             fit_arcs=opt.get('geometry_dxf_arcs', True))
+
         def make_dxf():
             try:
-                dxf_code = obj.export_dxf()
+                dxf_code = build_doc()
                 if dxf_code is None:
                     return 'fail'
                 if local_use is None:
@@ -2503,7 +2523,7 @@ class appIO(QtCore.QObject):
             ret = make_dxf()
             if ret == 'fail':
                 self.inform.emit('[WARNING_NOTCL] %s' % _('Could not export.'))
-                return
+                return 'fail' if local_use is None else None
             if local_use is not None:
                 return ret
 

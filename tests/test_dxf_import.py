@@ -1,18 +1,27 @@
 """Tests for the appParsers.DXF importer; run directly: python tests/test_dxf_import.py"""
 
 import math
+import os
+import shutil
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 import ezdxf
+from shapely.geometry import Polygon
 from shapely.ops import unary_union
 
 from appParsers.DXF import dxf_to_shapes, text_entity_to_shapes
 from appParsers.DXF import text as dxf_text
+from appParsers.DXF.writer import build_dxf
+from appParsers.ParseGerber import Gerber
+from camlib import Geometry
 
 
 def new_doc():
@@ -212,6 +221,94 @@ class DxfImportTest(unittest.TestCase):
                 geo.import_dxf_as_geo(path, units='MM')
                 self.assertEqual(geo.tools[1]['tooldia'], dia)
                 self.assertEqual([g.length for g in geo.tools[1]['solid_geometry']], [10])
+
+    # --- units scaling: the import scales DXF geometry from $INSUNITS to the app units ---
+
+    @staticmethod
+    def _units_doc(insunits):
+        doc, msp = new_doc()
+        doc.header['$INSUNITS'] = insunits
+        return doc, msp
+
+    def _save(self, doc):
+        folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, folder, True)
+        path = os.path.join(folder, 'in.dxf')
+        doc.saveas(path)
+        return path
+
+    @staticmethod
+    def _fake_app():
+        return SimpleNamespace(log=Mock(), app_units='MM', decimals=4)
+
+    def _import_geo(self, path, units):
+        obj = Geometry.__new__(Geometry)
+        obj.app = self._fake_app()
+        obj._app_option = lambda key, *a, **kw: '0.1'
+        obj.decimals = 4
+        obj.obj_options = {'name': 'g'}
+        obj.tools = {}
+        obj.solid_geometry = None
+        obj.import_dxf_as_geo(path, units=units)
+        return unary_union(obj.solid_geometry)
+
+    def _import_gerber(self, path, units):
+        obj = Gerber.__new__(Gerber)
+        obj.app = self._fake_app()
+        obj.multigeo = False
+        obj.solid_geometry = None
+        obj.follow_geometry = None
+        obj.tools = {}
+        obj.import_dxf_as_gerber(path, units=units)
+        return unary_union([e['solid'] for e in obj.tools[0]['geometry']])
+
+    def test_geometry_import_inch_dxf_into_mm_app(self):
+        doc, msp = self._units_doc(1)
+        msp.add_line((0, 0), (1, 0))
+        geo = self._import_geo(self._save(doc), 'MM')
+        self.assertAlmostEqual(geo.bounds[0], 0, places=9)
+        self.assertAlmostEqual(geo.bounds[2], 25.4, places=9)
+
+    def test_geometry_import_mm_dxf_into_inch_app(self):
+        doc, msp = self._units_doc(4)
+        msp.add_line((0, 0), (1, 0))
+        geo = self._import_geo(self._save(doc), 'IN')
+        self.assertAlmostEqual(geo.bounds[2], 1 / 25.4, places=9)
+
+    def test_geometry_import_same_units_or_unitless_unchanged(self):
+        for insunits in (4, 0):
+            with self.subTest(insunits=insunits):
+                doc, msp = self._units_doc(insunits)
+                msp.add_line((0, 0), (1, 0))
+                geo = self._import_geo(self._save(doc), 'MM')
+                self.assertAlmostEqual(geo.bounds[2], 1, places=9)
+
+    def test_geometry_import_cm_circle_into_mm_app(self):
+        doc, msp = self._units_doc(5)
+        msp.add_circle((2, 0), 1)
+        geo = self._import_geo(self._save(doc), 'MM')
+        self.assertAlmostEqual(geo.centroid.x, 20, delta=0.01)
+        self.assertAlmostEqual(geo.area / (math.pi * 100), 1, delta=0.005)
+
+    def test_geometry_import_inch_writer_output_into_mm_app(self):
+        square = Polygon([(0, 0), (10, 0), (10, 10), (0, 10)])
+        doc = build_dxf([{'name': 'L', 'geometry': [square]}], 'IN', 'R2010')
+        self.assertIsNotNone(doc)
+        minx, miny, maxx, maxy = self._import_geo(self._save(doc), 'MM').bounds
+        self.assertAlmostEqual(maxx - minx, 254, places=6)
+        self.assertAlmostEqual(maxy - miny, 254, places=6)
+
+    def test_gerber_import_inch_dxf_into_mm_app(self):
+        doc, msp = self._units_doc(1)
+        msp.add_lwpolyline([(0, 0), (10, 0), (10, 10), (0, 10)], close=True)
+        minx, _, maxx, _ = self._import_gerber(self._save(doc), 'MM').bounds
+        self.assertAlmostEqual(maxx - minx, 254, places=6)
+
+    def test_geometry_import_ignores_units_that_make_the_drawing_huge(self):
+        doc, msp = self._units_doc(6)
+        msp.add_lwpolyline([(0, 0), (10, 0), (10, 10), (0, 10)], close=True)
+        minx, _, maxx, _ = self._import_geo(self._save(doc), 'MM').bounds
+        self.assertAlmostEqual(maxx - minx, 10, places=9)
 
 
 if __name__ == '__main__':

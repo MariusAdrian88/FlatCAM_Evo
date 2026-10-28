@@ -35,6 +35,7 @@ from functools import reduce
 
 from appHandlers.appHistory import history_of
 import gettext
+from appParsers.DXF.writer import build_dxf
 import appTranslation as fcTranslate
 import builtins
 
@@ -595,63 +596,39 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
             # self.ui.geo_tools_table.item(row, 0).setSelected(True)
             self.ui.geo_tools_table.setCurrentItem(self.ui.geo_tools_table.item(row, 0))
 
+    def dxf_layers(self):
+        """DXF layers: one for the object, or one per tool ("<name>_T<id>") of a multi-geo object in tool mode."""
+        name = self.obj_options.get('name') or 'geometry'
+        color = self._app_option(self.plot_default_line_option or 'geometry_plot_line', None)
+        if self.multigeo and self._app_option('geometry_dxf_layers', 'tool') != 'object':
+            layers = []
+            for tool_id, tool in self.tools.items():
+                geometry = tool.get('solid_geometry')
+                if geometry is None or (hasattr(geometry, 'is_empty') and geometry.is_empty) or \
+                        (isinstance(geometry, (list, tuple)) and not geometry):
+                    continue
+                try:
+                    weight = float(tool.get('tooldia') or 0.0) or None
+                except (TypeError, ValueError):
+                    weight = None
+                layers.append({'name': "%s_T%s" % (name, tool_id), 'geometry': geometry, 'color': color,
+                               'lineweight': weight})
+            return layers
+        if self.multigeo:
+            geometry = [tool.get('solid_geometry') for tool in self.tools.values()
+                        if tool.get('solid_geometry') is not None]
+        else:
+            geometry = self.solid_geometry
+        return [{'name': name, 'geometry': geometry, 'color': color}]
+
     def export_dxf(self):
-        """Return a complete DXF drawing, or None on failure (never a partial drawing)."""
-        dwg = None
-        dxf_format = self._app_option('geometry_dxf_format')
-
+        """Return a complete DXF drawing of the object on layers, or None on failure."""
         try:
-            dwg = ezdxf.new(dxf_format)
-            msp = dwg.modelspace()
-
-            # add units
-            dwg.units = ezdxf.InsertUnits(4) if self.app.app_units.lower() == 'mm' else ezdxf.InsertUnits(1)
-            dwg.header['$MEASUREMENT'] = 1 if self.app.app_units.lower() == 'mm' else 0
-
-            def g2dxf(dxf_space, geo_obj):
-                if isinstance(geo_obj, MultiPolygon):
-                    for poly in geo_obj.geoms:
-                        ext_points = list(poly.exterior.coords)
-                        dxf_space.add_lwpolyline(ext_points, close=True)
-                        for interior in poly.interiors:
-                            dxf_space.add_lwpolyline(list(interior.coords), close=True)
-                if isinstance(geo_obj, Polygon):
-                    ext_points = list(geo_obj.exterior.coords)
-                    dxf_space.add_lwpolyline(ext_points, close=True)
-                    for interior in geo_obj.interiors:
-                        dxf_space.add_lwpolyline(list(interior.coords), close=True)
-                if isinstance(geo_obj, MultiLineString):
-                    for line in geo_obj.geoms:
-                        dxf_space.add_lwpolyline(list(line.coords), close=line.is_closed)
-                if isinstance(geo_obj, LineString) or isinstance(geo_obj, LinearRing):
-                    dxf_space.add_lwpolyline(list(geo_obj.coords), close=geo_obj.is_closed)
-
-            multigeo_solid = []
-            if self.multigeo:
-                for tool in self.tools:
-                    w_geo_list = list(self.tools[tool]['solid_geometry'].geoms) if \
-                        isinstance(self.tools[tool]['solid_geometry'], (MultiPolygon, MultiLineString)) else \
-                        self.tools[tool]['solid_geometry']
-                    multigeo_solid += w_geo_list
-            else:
-                multigeo_solid = self.solid_geometry
-
-            w_geo = multigeo_solid.geoms \
-                if isinstance(multigeo_solid, (MultiPolygon, MultiLineString)) else multigeo_solid
-            for geo in w_geo:
-                if isinstance(geo, list):
-                    for g in geo:
-                        g2dxf(msp, g)
-                else:
-                    g2dxf(msp, geo)
-
-                # points = GeometryObject.get_pts(geo)
-                # msp.add_lwpolyline(points)
+            return build_dxf(self.dxf_layers(), self.app.app_units, self._app_option('geometry_dxf_format'),
+                             fit_arcs=bool(self._app_option('geometry_dxf_arcs', True)))
         except Exception as e:
-            self.app.log.error(str(e))
+            self.app.log.error("%s.export_dxf() -> %s" % (type(self).__name__, str(e)))
             return None
-
-        return dwg
 
     def mtool_gen_cncjob(self, outname=None, tools_dict=None, seg_x=None, seg_y=None,
                          plot=True, use_thread=True):

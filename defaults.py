@@ -441,6 +441,10 @@ class AppDefaults:
 
         # Geometry Export
         "geometry_dxf_format": 'R2010',
+        "geometry_dxf_layers": 'tool',
+        "geometry_dxf_gerber_traces": 'outline',
+        "geometry_dxf_travel": True,
+        "geometry_dxf_arcs": True,
         "geometry_paths_only": True,
 
         # Geometry Editor

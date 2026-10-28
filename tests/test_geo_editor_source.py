@@ -325,3 +325,52 @@ def test_busy_app_exit_does_not_regenerate_or_close():
     assert App.on_editing_finished(app) == 'fail'
     obj.regenerate_source.assert_not_called()
     editor.deactivate.assert_not_called()
+
+
+def test_export_of_two_objects_writes_one_file_with_both_layers(tmp_path):
+    app, first = make_geometry()
+    second = GeometryObject('other', app)
+    first.dxf_layers = lambda: [{'name': 'first', 'geometry': Polygon([(0, 0), (1, 0), (1, 1)])}]
+    second.dxf_layers = lambda: [{'name': 'second', 'geometry': LineString([(2, 2), (3, 3)])}]
+    app.collection.get_by_name.side_effect = lambda name: {'geo': first, 'other': second}[name]
+    filename = tmp_path / 'both.dxf'
+    app.f_handlers.export_dxf(['geo', 'other'], str(filename), use_thread=False)
+    layers = {layer.dxf.name for layer in ezdxf.readfile(filename).layers}
+    assert {'first', 'second'} <= layers
+    app.file_saved.emit.assert_called_once()
+
+
+def test_failed_multi_export_does_not_report_a_save(tmp_path):
+    app, first = make_geometry()
+    first.dxf_layers = lambda: [{'name': 'first', 'geometry': LineString([(0, 0), (1, 1)])}]
+    broken = GeometryObject('broken', app)
+    broken.dxf_layers = Mock(side_effect=ValueError('no layers'))
+    app.collection.get_by_name.side_effect = lambda name: {'geo': first, 'broken': broken}[name]
+    filename = tmp_path / 'bad.dxf'
+    assert app.f_handlers.export_dxf(['geo', 'broken'], str(filename), use_thread=False) == 'fail'
+    assert not filename.exists()
+    app.file_saved.emit.assert_not_called()
+
+
+def test_tcl_export_dxf_name_list_and_default_extension():
+    from tclCommands.TclCommandExportDXF import TclCommandExportDXF
+    from test_tcl_audit_generation import factory_app
+    app = factory_app(None)
+    app.f_handlers = Mock()
+    app.options['global_last_save_folder'] = 'D:/save'
+    app.f_handlers.export_dxf.return_value = None
+    cmd = TclCommandExportDXF(app)
+    assert cmd.execute({'name': 'a,b', 'filename': 'D:/out'}, []) is None
+    kwargs = app.f_handlers.export_dxf.call_args.kwargs
+    assert kwargs['obj_name'] == ['a', 'b'] and kwargs['filename'] == 'D:/out.dxf'
+    app.f_handlers.export_dxf.return_value = 'fail'
+    assert cmd.execute({'name': 'a'}, []) == 'fail'
+    assert app.f_handlers.export_dxf.call_args.kwargs['filename'].endswith('/a.dxf')
+
+
+def test_dxf_export_defaults_exist():
+    from defaults import AppDefaults
+    import inspect
+    source = inspect.getsource(AppDefaults)
+    for key in ('geometry_dxf_layers', 'geometry_dxf_gerber_traces', 'geometry_dxf_travel', 'geometry_dxf_arcs'):
+        assert '"%s"' % key in source

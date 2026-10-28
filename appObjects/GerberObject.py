@@ -21,6 +21,7 @@ from camlib import flatten_shapely_geometry, isolation_leftover_paths, clip_path
 
 from shapely import MultiLineString, LinearRing, MultiPolygon, Polygon, LineString, Point
 from shapely.ops import unary_union
+from appParsers.DXF.writer import build_dxf
 
 import numpy as np
 from copy import deepcopy
@@ -1204,6 +1205,75 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
             self.clear_plot_apertures()
 
         self.ui_connect()
+
+    def dxf_layers(self):
+        """
+        DXF layers. Mode 'object': one layer "<name>" with the solid geometry (outline); in centerline mode the
+        tracks go to one layer "<name>_W<width>" per distinct aperture size, flashes and regions stay on "<name>".
+        Mode 'tool': one layer "<name>_D<code>" per aperture (centerline tracks drawn with the aperture size as
+        width, their flashes/regions on "<name>_D<code>_flash"). Centerline mode puts clear geometry on "<name>_clear".
+        An object without aperture geometry falls back to solid_geometry on one layer.
+        Outline mode cuts each aperture with solid_geometry, so the clear geometry stays subtracted.
+        """
+        name = self.obj_options.get('name') or 'gerber'
+        color = self._app_option(self.plot_default_line_option or 'gerber_plot_line', None)
+        per_tool = self._app_option('geometry_dxf_layers', 'tool') != 'object'
+        centerline = self._app_option('geometry_dxf_gerber_traces', 'outline') == 'centerline'
+        tools = self.tools or {}
+        if not any(tool.get('geometry') for tool in tools.values()) or not (per_tool or centerline):
+            return [{'name': name, 'geometry': self.solid_geometry, 'color': color}]
+        copper = None if centerline else unary_union(flatten_shapely_geometry(self.solid_geometry))
+
+        def usable(geo):
+            return geo is not None and not (hasattr(geo, 'is_empty') and geo.is_empty) and \
+                not (isinstance(geo, (list, tuple)) and not geo)
+
+        layers = []
+        clear = []
+        flash_all = []
+        widths = {}
+        for code, tool in tools.items():
+            track = tool.get('type') in ('C', 'R', 'O')
+            width = tool.get('size') or min(tool.get('width') or 0.0, tool.get('height') or 0.0) or None
+            solids, lines = [], []
+            for element in tool.get('geometry') or []:
+                if usable(element.get('clear')):
+                    clear.append(element['clear'])
+                follow, solid = element.get('follow'), element.get('solid')
+                if centerline and track and width and follow is not None and \
+                        getattr(follow, 'geom_type', '') in ('LineString', 'MultiLineString') and usable(follow):
+                    lines.append(follow)
+                elif usable(solid):
+                    solids.append(solid)
+            if copper is not None and solids:
+                solids = [unary_union(solids).intersection(copper)]
+            if per_tool:
+                if lines:
+                    layers.append({'name': "%s_D%s" % (name, code), 'geometry': lines, 'color': color, 'width': width})
+                if solids:
+                    suffix = "_flash" if lines else ""
+                    layers.append({'name': "%s_D%s%s" % (name, code, suffix), 'geometry': solids, 'color': color})
+            else:
+                flash_all += solids
+                if lines:
+                    widths.setdefault(width, []).extend(lines)
+        if not per_tool:
+            if flash_all or not widths:
+                layers.append({'name': name, 'geometry': flash_all, 'color': color})
+            for width, lines in widths.items():
+                layers.append({'name': "%s_W%g" % (name, width), 'geometry': lines, 'color': color, 'width': width})
+        if centerline and clear:
+            layers.append({'name': "%s_clear" % name, 'geometry': clear, 'color': color})
+        return layers
+
+    def export_dxf(self):
+        """Return a complete DXF drawing of the object on layers, or None on failure."""
+        try:
+            return build_dxf(self.dxf_layers(), self.app.app_units, self._app_option('geometry_dxf_format'),
+                             fit_arcs=bool(self._app_option('geometry_dxf_arcs', True)))
+        except Exception as e:
+            self.app.log.error("%s.export_dxf() -> %s" % (type(self).__name__, str(e)))
+            return None
 
     def export_gerber(self, whole, fract, g_zeros='L', factor=1):
         """

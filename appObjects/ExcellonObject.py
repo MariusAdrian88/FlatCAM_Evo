@@ -23,6 +23,7 @@ import numpy as np
 from copy import deepcopy
 
 import shapely
+from appParsers.DXF.writer import build_dxf
 from shapely import LineString
 
 from camlib import object_circle_steps
@@ -839,6 +840,29 @@ class ExcellonObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Excellon):
 
     def on_milling_button_clicked(self):
         self.app.milling_tool.run(toggle=True)
+
+    def dxf_layers(self):
+        """DXF layers: "<name>" in object mode, else one layer "<name>_T<id>" per tool with its drills and slots."""
+        name = self.obj_options.get('name') or 'excellon'
+        color = self._app_option(self.plot_default_line_option or 'excellon_plot_line', None)
+        per_tool = [(tool_id, tool.get('solid_geometry')) for tool_id, tool in self.tools.items()
+                    if tool.get('solid_geometry')]
+        if self._app_option('geometry_dxf_layers', 'tool') != 'object' and per_tool:
+            return [{'name': "%s_T%s" % (name, tool_id), 'geometry': geometry, 'color': color}
+                    for tool_id, geometry in per_tool]
+        geometry = self.solid_geometry
+        if not geometry:
+            geometry = [geo for _, geo in per_tool]
+        return [{'name': name, 'geometry': geometry, 'color': color}]
+
+    def export_dxf(self):
+        """Return a complete DXF drawing of the object on layers, or None on failure."""
+        try:
+            return build_dxf(self.dxf_layers(), self.app.app_units, self._app_option('geometry_dxf_format'),
+                             fit_arcs=bool(self._app_option('geometry_dxf_arcs', True)))
+        except Exception as e:
+            self.app.log.error("%s.export_dxf() -> %s" % (type(self).__name__, str(e)))
+            return None
 
     def export_excellon(self, whole, fract, e_zeros=None, form='dec', factor=1, slot_type='routing'):
         """

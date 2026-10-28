@@ -17,6 +17,7 @@ from appObjects.AppObjectTemplate import FlatCAMObj, PropertiesPanelMixin, Objec
 from appGUI.GUIElements import FCFileSaveDialog, FCCheckBox, FCMessageBox
 from appGUI.ObjectUI import CNCObjectUI
 from camlib import CNCjob
+from appParsers.DXF.writer import build_dxf
 
 import os
 import sys
@@ -26,7 +27,7 @@ import re
 from io import StringIO
 from datetime import datetime as dt
 from copy import deepcopy
-from shapely import affinity
+from shapely import affinity, Point
 
 from appHandlers.appHistory import history_of
 from appParsers.ParseGCode import safe_comment_text
@@ -1337,6 +1338,58 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
         :return:            The modified GCode
         """
         return CNCJobObject.export_gcode(self, preamble=preamble, postamble=postamble, to_file=True).getvalue()
+
+    def dxf_layers(self):
+        """
+        DXF layers of the toolpaths: "<name>_cut" ("<name>_T<id>_cut" per tool in tool mode, lineweight = tool
+        diameter) and "<name>_travel" (grey, only when the 'geometry_dxf_travel' option is on). The drills of an
+        Excellon job are written as POINT entities on the cut layer.
+        """
+        name = self.obj_options.get('name') or 'cncjob'
+        color = self._app_option('cncjob_plot_line', None)
+        travel_on = bool(self._app_option('geometry_dxf_travel', True))
+        drills = getattr(self, 'kind', None) == 'excellon'
+        per_tool = self._app_option('geometry_dxf_layers', 'tool') != 'object'
+
+        sources = []   # (tool id or None, diameter, parsed list)
+        for tool_id, tool in (self.tools or {}).items():
+            if isinstance(tool, dict) and tool.get('gcode_parsed'):
+                sources.append((tool_id, self._tool_dia(tool), tool['gcode_parsed']))
+        if not sources:
+            sources.append((None, float(self.tooldia or 0.0), self.gcode_parsed or []))
+        if not per_tool:
+            sources = [(None, sources[0][1] if len(sources) == 1 else 0.0, [i for s in sources for i in s[2]])]
+
+        layers, travel = [], []
+        for tool_id, dia, parsed in sources:
+            cut = []
+            for item in parsed:
+                geom = item.get('geom')
+                if geom is None or geom.is_empty:
+                    continue
+                if str(item.get('kind', 'C'))[:1] == 'T':
+                    travel.append(geom)
+                elif drills and geom.geom_type in ('LinearRing', 'Polygon') or \
+                        (drills and geom.geom_type == 'LineString' and geom.is_closed):
+                    cut.append(Point(geom.centroid.x, geom.centroid.y))
+                else:
+                    cut.append(geom)
+            if cut:
+                prefix = name if tool_id is None else "%s_T%s" % (name, tool_id)
+                layers.append({'name': prefix + '_cut', 'geometry': cut, 'color': color,
+                               'lineweight': dia or None})
+        if travel and travel_on:
+            layers.append({'name': name + '_travel', 'geometry': travel, 'color': '#808080'})
+        return layers
+
+    def export_dxf(self):
+        """Return a complete DXF drawing of the object on layers, or None on failure."""
+        try:
+            return build_dxf(self.dxf_layers(), self.app.app_units, self._app_option('geometry_dxf_format'),
+                             fit_arcs=bool(self._app_option('geometry_dxf_arcs', True)))
+        except Exception as e:
+            self.app.log.error("%s.export_dxf() -> %s" % (type(self).__name__, str(e)))
+            return None
 
     def get_svg(self):
         # we need this to be able get_svg separately for shell command export_svg

@@ -1,7 +1,7 @@
 
 from PyQt6 import QtWidgets, QtCore
 
-from appGUI.GUIElements import FCLabel, FCComboBox, GLay, FCFrame, FCCheckBox
+from appGUI.GUIElements import FCLabel, FCComboBox, GLay, FCFrame, FCCheckBox, RadioSet
 from appGUI.preferences.OptionsGroupUI import OptionsGroupUI
 
 import gettext
@@ -50,11 +50,45 @@ class GeometryExpPrefGroupUI(OptionsGroupUI):
         export_grid.addWidget(self.dxf_format_label, 0, 0)
         export_grid.addWidget(self.dxf_format_combo, 0, 1)
 
+        # DXF layers
+        self.dxf_layers_label = FCLabel("%s:" % _("Layers"))
+        self.dxf_layers_label.setToolTip(
+            _("How the DXF layers are named.\n"
+              "Tool: one layer per tool.\n"
+              "Object: one layer per object.")
+        )
+        self.dxf_layers_radio = RadioSet([{'label': _('Tool'), 'value': 'tool'},
+                                          {'label': _('Object'), 'value': 'object'}], compact=True)
+        export_grid.addWidget(self.dxf_layers_label, 1, 0)
+        export_grid.addWidget(self.dxf_layers_radio, 1, 1)
+
+        # Gerber traces
+        self.dxf_traces_label = FCLabel("%s:" % _("Gerber"))
+        self.dxf_traces_label.setToolTip(
+            _("How Gerber traces are exported.\n"
+              "Outline: the copper shape.\n"
+              "Centerline: the trace axis.")
+        )
+        self.dxf_traces_radio = RadioSet([{'label': _('Outline'), 'value': 'outline'},
+                                          {'label': _('Centerline'), 'value': 'centerline'}], compact=True)
+        export_grid.addWidget(self.dxf_traces_label, 2, 0)
+        export_grid.addWidget(self.dxf_traces_radio, 2, 1)
+
+        # CNCJob travel moves
+        self.dxf_travel_cb = FCCheckBox(_("Travel moves"))
+        self.dxf_travel_cb.setToolTip(_("Export the travel moves of a CNCJob."))
+        export_grid.addWidget(self.dxf_travel_cb, 3, 0, 1, 2)
+
+        # Arcs and circles
+        self.dxf_arcs_cb = FCCheckBox(_("Arcs and circles"))
+        self.dxf_arcs_cb.setToolTip(_("Export arcs and circles as DXF arcs and circles, not as polylines."))
+        export_grid.addWidget(self.dxf_arcs_cb, 4, 0, 1, 2)
+
         # SVG format
         self.svg_paths_only_cb = FCCheckBox(_("SVG Paths-Only"))
         self.svg_paths_only_cb.setToolTip(
             _("SVG Format. When checked it will export only paths.")
         )
-        export_grid.addWidget(self.svg_paths_only_cb, 2, 0, 1, 2)
+        export_grid.addWidget(self.svg_paths_only_cb, 5, 0, 1, 2)
 
         self.layout.addStretch()

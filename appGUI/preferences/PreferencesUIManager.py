@@ -302,6 +302,10 @@ class PreferencesUIManager(QtCore.QObject):
 
             # Geometry Export
             "geometry_dxf_format":      self.ui.geo_pref_form.geometry_exp_group.dxf_format_combo,
+            "geometry_dxf_layers":      self.ui.geo_pref_form.geometry_exp_group.dxf_layers_radio,
+            "geometry_dxf_gerber_traces": self.ui.geo_pref_form.geometry_exp_group.dxf_traces_radio,
+            "geometry_dxf_travel":      self.ui.geo_pref_form.geometry_exp_group.dxf_travel_cb,
+            "geometry_dxf_arcs":        self.ui.geo_pref_form.geometry_exp_group.dxf_arcs_cb,
             "geometry_paths_only":      self.ui.geo_pref_form.geometry_exp_group.svg_paths_only_cb,
 
             # Geometry Editor

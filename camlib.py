@@ -18,7 +18,8 @@ from appCommon import RouteSolver
 # from scipy.spatial import Delaunay
 
 from appParsers.SVG import svg_to_shapes, SvgImportError
-from appParsers.DXF import dxf_to_shapes
+from appParsers.DXF import dxf_to_shapes, scale_to_app_units
+from appParsers.DXF.writer import build_dxf
 
 from numpy.linalg import solve
 
@@ -1433,6 +1434,7 @@ class Geometry(object):
 
         # trying to optimize the resulting geometry by merging contiguous lines
         geos = list(self.flatten_list(geos))
+        geos = scale_to_app_units(geos, dxf, units, self.app)
         geos_polys = []
         geos_lines = []
         for g in geos:
@@ -8380,6 +8382,18 @@ class CNCjob(Geometry):
         px, py = point
 
         self._transform(affine_rotate_matrix(angle, (px, py)))
+
+
+def geometry_to_dxf(geometry, units, dxf_format):
+    """
+    Build a DXF drawing from a Shapely geometry or a (nested) list of them.
+
+    :param geometry:    Shapely geometry or (nested) list of Shapely geometries
+    :param units:       'MM' or 'IN' (case insensitive)
+    :param dxf_format:  the ezdxf version name, e.g. 'R2010'
+    :return:            the ezdxf drawing, or None on failure (never a partial drawing)
+    """
+    return build_dxf([{'name': '0', 'geometry': geometry}], units, dxf_format)
 
 
 def list_total_bounds(obj, nested=True):
