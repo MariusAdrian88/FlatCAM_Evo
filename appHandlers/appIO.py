@@ -102,6 +102,10 @@ class appIO(QtCore.QObject):
         self.worker_task = self.app.worker_task
         self.options = self.app.options
         self.pagesize = {}
+        self._pcb_import = None
+        self._pcb_timer = QtCore.QTimer(self)
+        self._pcb_timer.setInterval(50)
+        self._pcb_timer.timeout.connect(self._advance_pcb_import)
         self._proteus_import = None
         self._proteus_timer = QtCore.QTimer(self)
         self._proteus_timer.setInterval(50)
@@ -194,6 +198,9 @@ class appIO(QtCore.QObject):
         return 'eagle_brd'
 
     def _import_pcb_file(self, kind, name, parse_fcn):
+        if self._pcb_import is not None or self._proteus_import is not None or self.app.projects.is_busy():
+            self.app.projects.inform_busy()
+            return
         if name is None:
             pcb_format = self.PCB_FORMATS[kind]
             name, _filter = QtWidgets.QFileDialog.getOpenFileName(
@@ -206,9 +213,6 @@ class appIO(QtCore.QObject):
         self._import_pcb_file('pcbdoc', name, self.parse_pcbdoc)
 
     def on_file_import_proteus(self, name=None):
-        if self._proteus_import is not None or self.app.projects.is_busy():
-            self.app.projects.inform_busy()
-            return
         self._import_pcb_file('proteus', name, self.parse_proteus)
 
     def parse_proteus(self, filename):
@@ -339,6 +343,9 @@ class appIO(QtCore.QObject):
         if self.app.abort_flag:
             return
         kind = self._pcb_source_kind(filename)
+        if self._pcb_import is not None:
+            self.app.projects.inform_busy()
+            return
         if kind == 'proteus' and hasattr(parsed, 'boards'):
             if self._proteus_import is not None:
                 self.app.projects.inform_busy()
@@ -409,8 +416,29 @@ class appIO(QtCore.QObject):
         if kind == 'proteus':
             return selected_layers, selected_drills
         if selected_layers or selected_drills:
-            self.worker_task.emit({'fcn': self.import_pcbdoc_objects,
-                                   'params': [filename, parsed, selected_layers, selected_drills]})
+            self._pcb_import = [filename, parsed, selected_layers, selected_drills]
+            self._advance_pcb_import()
+
+    def _advance_pcb_import(self):
+        if self._pcb_import is None:
+            return
+        if self.app.abort_flag:
+            self._pcb_timer.stop()
+            self._pcb_import = None
+            return
+        if self.app.projects.is_busy():
+            self._pcb_timer.start()
+            return
+        active = self.app.projects.active
+        if (active.collection.get_list() or self.app.project_filename or self.app.should_we_save) and \
+                self.app.projects.new() is None:
+            self._pcb_timer.stop()
+            self._pcb_import = None
+            return
+        params = self._pcb_import
+        self._pcb_import = None
+        self._pcb_timer.stop()
+        self.worker_task.emit({'fcn': self.import_pcbdoc_objects, 'params': params})
 
     def import_pcbdoc_objects(self, filename, parsed, selected_layers, selected_drills, firmware=()):
         if self.app.abort_flag or not (selected_layers or selected_drills):

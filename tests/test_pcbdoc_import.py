@@ -23,6 +23,9 @@ class TestPcbDocImport(unittest.TestCase):
         self.app = SimpleNamespace(log=Mock(), inform=Mock(), splash=None, worker_task=Mock(),
                                    options={}, app_units='MM', new_project_signal=Mock(),
                                    abort_flag=False, app_obj=Mock(), plot_all=Mock(), file_opened=Mock())
+        self.app.projects = SimpleNamespace(is_busy=lambda: False,
+                                            active=SimpleNamespace(collection=SimpleNamespace(get_list=lambda: [])))
+        self.app.project_filename, self.app.should_we_save = None, False
         self.io = appIO(self.app)
         polygon = Polygon([(-25.4, 0), (25.4, 0), (25.4, 25.4), (-25.4, 25.4)],
                           [[(-5, 5), (5, 5), (5, 10), (-5, 10)]])
@@ -110,6 +113,62 @@ class TestPcbDocImport(unittest.TestCase):
             self.io.save_source_file.assert_called_once_with('Power Board.GTL', 'C:/output/Power Board.GTL')
             self.io.on_file_export_gerber()
             self.assertEqual(self.io.export_gerber.call_args.args, ('Power Board.GTL', 'C:/output/Power Board.GTL'))
+
+    def test_sprint_and_kicad_boards_import_into_separate_projects(self):
+        from PyQt6.QtTest import QTest
+        from test_projects_manager import make_manager
+
+        app, projects = make_manager()
+        app.projects = projects
+        app.app_units = 'MM'
+        app.abort_flag = False
+        app.new_project_signal = Mock()
+        app.worker_task = Mock()
+        app.file_opened = Mock()
+        app.plot_all = Mock()
+        app.ui = QtWidgets.QWidget()
+        app.ui.set_ui_title = Mock()
+        app.app_obj = Mock()
+        app.app_obj.load_batches = set()
+        jobs = []
+        busy = [True]
+        app.workers.pending_count.side_effect = lambda: int(busy[0])
+        app.worker_task.emit.side_effect = jobs.append
+        io = appIO(app)
+        io.export_gerber = self.io.export_gerber
+        io.export_excellon = self.io.export_excellon
+
+        def create(kind, name, initialize, **kwargs):
+            obj = SimpleNamespace(obj_options={'name': name}, create_geometry=Mock())
+            if initialize(obj, app) == 'fail':
+                return 'fail'
+            app.collection.objects.append(obj)
+            return obj
+
+        app.app_obj.new_object.side_effect = create
+        first = projects.active
+        with patch.object(QtWidgets.QDialog, 'exec', return_value=QtWidgets.QDialog.DialogCode.Accepted):
+            for filename in ('cata.lay6', 'Easyduino_RP2040.kicad_pcb'):
+                busy[0] = True
+                io.on_pcbdoc_parsed(filename, self.parsed)
+                QTest.qWait(70)
+                self.assertIs(projects.active, first)
+                busy[0] = False
+                QTest.qWait(100)
+                job = jobs.pop(0)
+                job['fcn'](*job['params'])
+                jobs.clear()  # the low-priority plotting job
+
+        self.assertEqual(len(projects.contexts), 2)
+        self.assertIs(projects.contexts[0], first)
+        self.assertTrue(all(obj.obj_options['name'].startswith('cata_') for obj in first.collection.objects))
+        self.assertTrue(first.collection.objects)
+        self.assertTrue(projects.active.collection.objects)
+        self.assertTrue(all(obj.obj_options['name'].startswith('Easyduino_RP2040_')
+                            for obj in projects.active.collection.objects))
+        with patch.object(QtWidgets.QDialog, 'exec', return_value=QtWidgets.QDialog.DialogCode.Rejected):
+            io.on_pcbdoc_parsed('cancelled.kicad_pcb', self.parsed)
+        self.assertEqual(len(projects.contexts), 2)
 
     def test_proteus_boards_stay_in_separate_projects_until_insertion_and_plots_finish(self):
         self._import_proteus_projects()

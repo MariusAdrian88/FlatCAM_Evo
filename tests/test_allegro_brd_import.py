@@ -31,6 +31,9 @@ class TestAllegroBrdImport(unittest.TestCase):
                                    options={}, app_units='MM', new_project_signal=Mock(),
                                    abort_flag=False, app_obj=Mock(), plot_all=Mock(), file_opened=Mock(),
                                    ui=QtWidgets.QWidget(), get_last_folder=Mock(return_value=''))
+        self.app.projects = SimpleNamespace(is_busy=lambda: False,
+                                            active=SimpleNamespace(collection=SimpleNamespace(get_list=lambda: [])))
+        self.app.project_filename, self.app.should_we_save = None, False
         self.io = appIO(self.app)
         self.objects = []
 
