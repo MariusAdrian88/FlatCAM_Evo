@@ -25,6 +25,9 @@ from appCommon.Headless import HeadlessExit
 class AppLifecycle(QtCore.QObject):
     """Handler for app lifecycle methods: startup, shutdown, version check."""
 
+    # start_delayed_quit() called in a worker thread: the timer is made in the GUI thread (delay, filename, should_quit)
+    delayed_quit_requested = QtCore.pyqtSignal(int, str, object)
+
     def __init__(self, app):
         """Cache only dependencies available during early construction.
 
@@ -37,6 +40,9 @@ class AppLifecycle(QtCore.QObject):
         self.inform = app.inform
         self.defaults = app.defaults
         self.options = app.options
+
+        # queued when emitted in a worker thread: this object lives in the GUI thread
+        self.delayed_quit_requested.connect(self.start_delayed_quit)
 
     # --------------------------------------------------------------------------
     # Method 1: on_options_value_changed
@@ -693,6 +699,12 @@ class AppLifecycle(QtCore.QObject):
         :return:
         """
         from PyQt6.QtCore import QTimer
+
+        if QtCore.QThread.currentThread() is not self.thread():
+            # the save task calls this in a worker: a timer of the worker thread fires only when that worker is free
+            # again, so a long task queued after the save kept the save in progress (no close, no project switch)
+            self.delayed_quit_requested.emit(int(delay), str(filename), should_quit)
+            return
 
         to_quit = should_quit
         self.app.save_timer = QTimer()

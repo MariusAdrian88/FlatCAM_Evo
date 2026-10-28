@@ -24,6 +24,7 @@ from appObjects.ExcellonObject import ExcellonObject
 from appObjects.GeometryObject import GeometryObject
 from appObjects.GerberObject import GerberObject
 from appObjects.ObjectDispatch import dispatch_attr
+from appObjects.ProjectContext import unique_name
 from appObjects.ScriptObject import ScriptObject
 
 import sys
@@ -755,9 +756,14 @@ class ObjectCollection(QtCore.QAbstractItemModel):
                 old_name = deepcopy(obj.obj_options['name'])
                 new_name = str(data)
                 if old_name != new_name and new_name != '':
+                    # the name of another object gets a number, as in append(): a lookup by name finds only the
+                    # first object with that name
+                    new_name = unique_name(new_name, {other.obj_options['name'] for other in self.get_list()
+                                                      if other is not obj})
+                if old_name != new_name and new_name != '':
                     # rename the object
                     history_of(self.app).record_rename(obj, old_name, new_name)
-                    obj.obj_options["name"] = deepcopy(data)
+                    obj.obj_options["name"] = new_name
 
                     self.app.object_status_changed.emit(obj, 'rename', old_name)
 
@@ -780,10 +786,18 @@ class ObjectCollection(QtCore.QAbstractItemModel):
             return False
 
     def rename_object(self, obj, new_name):
-        """Rename as the Project tree does (the keyword list, the status signal), without a history step."""
+        """
+        Rename as the Project tree does (the keyword list, the status signal, a number for the name of another
+        object), without a history step.
+
+        :return:    the name of the object after the call
+        """
         old_name = obj.obj_options['name']
+        if old_name != new_name and new_name != '':
+            new_name = unique_name(new_name, {other.obj_options['name'] for other in self.get_list()
+                                              if other is not obj})
         if old_name == new_name or new_name == '':
-            return
+            return old_name
         obj.obj_options['name'] = new_name
         self.app.object_status_changed.emit(obj, 'rename', old_name)
         try:
@@ -792,6 +806,7 @@ class ObjectCollection(QtCore.QAbstractItemModel):
         except Exception as e:
             self.app.log.error("rename_object() --> could not update the auto-completer: %s" % str(e))
         self.update_view()
+        return new_name
 
     def supportedDropActions(self):
         return Qt.DropAction.MoveAction

@@ -17,6 +17,7 @@ from appGUI.ObjectUI import ObjectUI
 from appCommon.Common import LoudDict
 from camlib import app_option, Geometry, affine_translate_matrix, affine_scale_matrix
 from appHandlers.appObjectOps import history_guard
+from appObjects.ProjectContext import unique_name
 from appGUI.VisPyVisuals import ShapeCollection
 
 from shapely.ops import unary_union
@@ -598,6 +599,15 @@ class FlatCAMObj(QtCore.QObject):
         if new_name is None:
             new_name = self.ui.name_entry.get_value()
 
+        if new_name == '':
+            # no object without a name (the Project tree does not allow it either)
+            new_name = old_name
+        elif new_name != old_name:
+            # the name of another object gets a number, as for a new object (ObjectCollection.append()): the lookups
+            # by name (the Objects menu, Tcl, the plugin combos) find only the first object with a name
+            new_name = unique_name(new_name, {obj.obj_options['name'] for obj in self.app.collection.get_list()
+                                              if obj is not self})
+
         if new_name != old_name:
             # update the SHELL auto-completer model data
             try:
@@ -621,6 +631,12 @@ class FlatCAMObj(QtCore.QObject):
                     _("Name changed from"), str(old_name), _("to"), str(new_name)
                 )
                                      )
+        else:
+            # the entry shows the name that the object keeps
+            try:
+                self.ui.name_entry.set_value(old_name)
+            except (AttributeError, RuntimeError):
+                pass
 
     def on_offset_button_click(self):
         self.app.defaults.report_usage("obj_on_offset_button")

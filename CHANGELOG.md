@@ -197,6 +197,13 @@ Main Window:
 - fixed: with the Plot Area closed (View -> Toggle Plot Area, Ctrl+F10) and no other tab open, Ctrl+S in the Project tab did not save the project and gave a Critical Error dialog; Ctrl+C, Ctrl+G, Delete and T did the same
 - fixed: Escape did not leave the full screen mode (View -> Toggle FullScreen, Alt+F10); the window stayed full screen without its toolbars
 - fixed: Preferences -> Clear GUI Settings answered with No set the light theme in the GUI settings; with the dark theme, the panels and plots made later in the session got light theme colors
+Application:
+
+- fixed: Set Origin stayed armed until the replot ended, so a second click (or a double click) moved all the objects again, possibly at the same time in another worker; 1 click now sets the origin 1 time
+- fixed: a rename (Project tree, the name field in Properties, the G-code export that names the CNC job after the file) could give an object the name of another object; the Objects menu, Tcl and the plugin lists then used the first object of that name; the name now gets a number as for a new object (top_1), and an empty name is not used
+- fixed: each project opened in the GUI made a new Tcl Shell and kept the old one hidden in memory with its Tcl interpreter and its text; the auto-completer kept updating the first, hidden shell, so the visible shell completed no object names or Tcl commands; the old shell is now deleted and the new one gets the keywords
+- fixed: Ctrl+Alt+X (abort) with no task running left the abort flag set until a process ended, so the next file opened or the next G-code or geometry generation was cancelled with "The current task was gracefully closed on user request..."; the flag is now set only while a Tcl script, a process or a worker task runs
+- fixed: the timer that ends a project save was made in the worker thread of the save, so a long task queued after the save on the same worker (an NCC, for example) kept the save "in progress" until it ended; closing FlatCAM and switching projects waited that long; the timer now runs in the GUI thread
 
 Tests:
 
@@ -277,6 +284,11 @@ Tests:
 - new unit tests for Escape in the full screen mode (tests/test_app_history_keys.py)
 - new unit tests for Clear GUI Settings answered with No or Yes (tests/test_theme_color_scheme.py)
 - new unit test for New Project with an open editor (tests/test_projects_appio.py)
+- added a regression check that a double click on Set Origin moves the objects once
+- added regression checks that a rename gives the name of another object a number
+- added a regression check that a Tcl reset deletes the old shell and gives the new one the auto-completer keywords
+- added a regression check that an abort with nothing running does not cancel the next task
+- added regression checks that a close during a save does not wait for the next task of the save worker
 
 25.10.2026
 RELEASE FlatCAM Evo 1.0

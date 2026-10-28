@@ -2074,8 +2074,18 @@ class App(QtCore.QObject):
 
         if init_tcl:
             # Tcl "Shell" tool has to be initialized always first because other tools print messages in the Shell Dock
+            old_shell = self.shell
             self.shell = FCShell(app=self, version=self.version)
             self.log.debug("TCL was re-instantiated. TCL variables are reset.")
+            if old_shell is not None:
+                # the dock only hides the replaced shell: delete it, and free its Tcl interpreter here, in the GUI
+                # thread
+                old_shell.tcl = None
+                old_shell.deleteLater()
+            if self.regFK is not None:
+                # the auto-completer keywords (Tcl commands, object names) go to the new shell
+                self.regFK.shell = self.shell
+                self.regFK.register_keywords()
 
         self.distance_tool = Distance(self)
         self.distance_tool.install(icon=QtGui.QIcon(self.resource_location + '/distance16.png'), pos=self.ui.menuedit,
@@ -3788,7 +3798,10 @@ class App(QtCore.QObject):
         if self.abort_flag is False:
             msg = "%s %s" % (_("Aborting."), _("The current task will be gracefully closed as soon as possible..."))
             self.inform.emit(msg)
-            self.abort_flag = True
+            # only the end of a process clears the flag (app_is_idle()): set while no Tcl script, process or worker
+            # task runs, it would cancel the next task that the user starts
+            self.abort_flag = interrupt is not None or self.proc_container.get_procs_count() > 0 or \
+                self.workers.pending_count() > 0
             self.cleanup.emit()  # noqa
 
     def app_is_idle(self):

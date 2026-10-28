@@ -178,6 +178,22 @@ def test_script_cannot_execute_against_another_active_project():
     assert app.shell.tcl.eval('info exists wrong_project') == '0'
 
 
+def test_abort_with_nothing_running_does_not_cancel_the_next_task():
+    from appMain import App
+    app = SimpleNamespace(abort_flag=False, script_interrupt=None, inform=Mock(), cleanup=Mock(),
+                          proc_container=Mock(get_procs_count=Mock(return_value=0)),
+                          workers=Mock(pending_count=Mock(return_value=0)))
+    App.abort_all_tasks(app)    # Ctrl+Alt+X while idle
+    assert app.abort_flag is False
+    app.cleanup.emit.assert_called_once_with()  # the plugins are still reset (the G-code sender disconnects)
+    # a running process is aborted, and its end clears the flag
+    app.proc_container.get_procs_count.return_value = 1
+    App.abort_all_tasks(app)
+    assert app.abort_flag is True
+    App.app_is_idle(app)
+    assert app.abort_flag is False
+
+
 def _native_interrupt_child():
     import time
     import threading

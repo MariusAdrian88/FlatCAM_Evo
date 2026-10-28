@@ -1,10 +1,11 @@
 """User Exit actions share the guarded window-close and lifecycle path."""
 
+import threading
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
-from PyQt6 import QtCore, QtGui, QtWidgets
+from PyQt6 import QtCore, QtGui, QtTest, QtWidgets
 
 from appGUI.MainGUI import MainGUI
 from appGUI.GUIElements import AppSystemTray
@@ -143,6 +144,45 @@ def test_close_during_a_save_closes_the_app_when_the_save_ends(shutdown, tmp_pat
     s.final_save.assert_called_once_with()
     assert s.settings.setValue.called
     s.lifecycle.quit_application.assert_called_once_with()
+
+
+def test_close_during_a_save_does_not_wait_for_the_next_task_of_the_worker(shutdown, tmp_path):
+    s = shutdown
+    project = tmp_path / 'Board.FlatPrj'
+    project.write_bytes(b'{}')
+    s.app.should_we_save = False
+    s.app.save_in_progress = True
+    s.action.trigger()
+    assert s.app.close_after_save is True
+    entered, release = threading.Event(), threading.Event()
+
+    class SaveWorker(QtCore.QThread):
+        def run(self):
+            # the end of save_project() in the worker, then a long task (an NCC) that waits behind the save
+            s.lifecycle.start_delayed_quit(delay=10, filename=str(project), should_quit=False)
+            entered.set()
+            release.wait(5)
+
+    worker = SaveWorker()
+    worker.start()
+    try:
+        assert entered.wait(5)
+        elapsed = QtCore.QElapsedTimer()
+        elapsed.start()
+        while s.window.isVisible() and elapsed.elapsed() < 3000:
+            QtTest.QTest.qWait(10)
+        assert s.app.save_in_progress is False
+        s.lifecycle.quit_application.assert_called_once_with()
+    finally:
+        release.set()
+        assert worker.wait(5000)
+
+
+def test_save_timer_started_in_the_gui_thread_runs_at_once(shutdown, tmp_path):
+    # the project switch (ProjectManager) saves in the GUI thread and stops this timer right after the save
+    shutdown.lifecycle.start_delayed_quit(delay=500, filename=str(tmp_path / 'Board.FlatPrj'))
+    assert isinstance(shutdown.app.save_timer, QtCore.QTimer) and shutdown.app.save_timer.isActive()
+    shutdown.app.save_timer.stop()
 
 
 def test_close_during_a_failed_save_keeps_the_app_open(shutdown, tmp_path):

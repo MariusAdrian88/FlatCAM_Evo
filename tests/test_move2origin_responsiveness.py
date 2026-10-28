@@ -3,7 +3,7 @@
 import threading
 from contextlib import nullcontext
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock
 
 import pytest
 from PyQt6 import QtCore, QtGui, QtWidgets, QtTest
@@ -119,3 +119,43 @@ def test_move_error_reports_after_worker_and_does_not_fit(qt_app):
     ops.on_move2origin(use_thread=False)
     app.plotcanvas.fit_view.assert_not_called()
     assert 'export failed' in app.inform.emit.call_args.args[0]
+
+
+class ClickCanvas:
+    """The mouse_release handlers of the canvas (graph_event_connect / graph_event_disconnect) and a click."""
+
+    def __init__(self):
+        self.handlers = []
+
+    def graph_event_connect(self, name, callback):
+        self.handlers.append((name, callback))
+
+    def graph_event_disconnect(self, name, callback=None):
+        self.handlers = [handler for handler in self.handlers if handler != (name, callback)]
+
+    def translate_coords(self, pos):
+        return pos
+
+    def click(self, button, pos):
+        for name, callback in list(self.handlers):
+            if name == 'mouse_release':
+                callback(SimpleNamespace(button=button, pos=pos))
+
+
+def test_set_origin_moves_the_objects_once_for_a_double_click(qt_app):
+    app = make_app()
+    app.defaults = Mock()
+    app.replot_signal = MagicMock()
+    app.grid_status.return_value = False
+    app.plotcanvas = ClickCanvas()
+    tasks = []
+    app.worker_task.emit.side_effect = tasks.append
+    AppObjectOps(app).on_set_origin()
+    # the second click comes before the worker task of the first click has run
+    app.plotcanvas.click(1, (3.0, 4.0))
+    app.plotcanvas.click(1, (3.0, 4.0))
+    assert len(tasks) == 1
+    layer = Layer(10.0, [], [])
+    app.collection.get_list.return_value = [layer]
+    tasks[0]['fcn'](*tasks[0]['params'])
+    assert layer.x == 7.0

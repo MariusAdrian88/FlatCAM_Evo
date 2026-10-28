@@ -92,6 +92,8 @@ class TestLocalizedGeometryFixes(unittest.TestCase):
         app = make_app()
         app.regFK, app.ui = Mock(), Mock()
         app.file_opened, app.file_saved = Mock(), Mock()
+        # no other object in the project: a rename keeps the name
+        app.collection.get_list.return_value = []
         with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
             job = CNCJobObject('own_job', app)
         job.source_file = 'G0 X1\nM2\n'
