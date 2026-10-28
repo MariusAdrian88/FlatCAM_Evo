@@ -14,6 +14,9 @@ _NUM = re.compile(r'[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?')
 _UNIT_PX = {'': 1.0, 'px': 1.0, 'pt': 96.0 / 72.0, 'pc': 16.0, 'mm': 96.0 / 25.4, 'cm': 96.0 / 2.54,
             'in': 96.0, 'q': 96.0 / 101.6}
 _ALIGN = {'min': 0.0, 'mid': 0.5, 'max': 1.0}
+_PHYSICAL_UNITS = ('mm', 'cm', 'in', 'pt', 'pc', 'q')
+# the units of stDim:unit; the pixels of Illustrator are points (72 per inch)
+_XMP_UNITS = {'millimeters': 'mm', 'inches': 'in', 'points': 'pt', 'pixels': 'pt'}
 
 
 def parse_length(text, ref=0.0, font_size=16.0):
@@ -92,16 +95,55 @@ def _absolute(text):
     return v if v and v > 0 else None
 
 
-def root_setup(root, units, user_units, flip):
+def _physical(text):
+    """:return: length in user units when the text has a physical unit (mm, cm, in, pt, pc, q), else None"""
+    m = _LEN.match(text) if text else None
+    if not m or m.group(2).lower() not in _PHYSICAL_UNITS:
+        return None
+    return _absolute(text)
+
+
+def xmp_page_size(root):
+    """
+    :param root: root svg element
+    :return: (width, height) in user units (px) of the Illustrator XMP page size (xmpTPg:MaxPageSize with
+             stDim:w, stDim:h and stDim:unit, as attributes or as child elements) or None when missing or malformed
+    """
+    for el in root.iter():
+        if not isinstance(el.tag, str) or el.tag.rpartition('}')[2] != 'MaxPageSize':
+            continue
+        vals = {k.rpartition('}')[2]: v for k, v in el.attrib.items()}
+        for child in el:
+            if isinstance(child.tag, str):
+                vals[child.tag.rpartition('}')[2]] = child.text or ''
+        try:
+            factor = _UNIT_PX[_XMP_UNITS[vals['unit'].strip().lower()]]
+            w, h = float(vals['w']) * factor, float(vals['h']) * factor
+        except (KeyError, ValueError):
+            continue
+        if w > 0 and h > 0:
+            return w, h
+    return None
+
+
+def root_setup(root, units, user_units, flip, warn=None):
     """
     :param root: root svg element
     :param units: 'MM' or 'IN' (ignored with user_units)
     :param user_units: skip the viewport conversion
     :param flip: Y points up
+    :param warn: optional function(kind) called with 'size' when the physical size is unknown
     :return: (matrix, (vp_w, vp_h) in user units, out_scale px->output units)
     """
     vb = parse_viewbox(root.get('viewBox'))
     width, height = _absolute(root.get('width')), _absolute(root.get('height'))
+    if not user_units and _physical(root.get('width')) is None and _physical(root.get('height')) is None:
+        # no width/height with a unit: the Illustrator page size gives the physical size
+        page = xmp_page_size(root)
+        if page:
+            width, height = page
+        elif warn:
+            warn('size')
     if vb:
         if width is None and height is None:
             width, height = vb[2], vb[3]

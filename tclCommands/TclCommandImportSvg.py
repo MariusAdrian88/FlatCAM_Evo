@@ -64,8 +64,11 @@ class TclCommandImportSvg(TclCommandSignaled):
             if not isinstance(geo_obj, Geometry):
                 self.raise_tcl_error('Expected Geometry or Gerber, got %s %s.' % (outname, type(geo_obj)))
 
-            return geo_obj.import_svg(filename, obj_type, units=self.app.app_units.upper())
+            res = geo_obj.import_svg(filename, obj_type, units=self.app.app_units.upper())
+            drills.extend(getattr(geo_obj, 'svg_drills', None) or [])
+            return res
 
+        drills = []
         filename = args['filename']
 
         if 'outname' in args:
@@ -87,6 +90,9 @@ class TclCommandImportSvg(TclCommandSignaled):
             result = self.app.app_obj.new_object(obj_type, outname, obj_init, plot=False)
             if result == 'fail' or result is False:
                 return 'fail'
+
+            # the drill markers of the SVG file (never plotted from Tcl)
+            self.app.f_handlers.import_svg_drills(drills, outname, plot=False)
 
             # Register recent file
             self.app.file_opened.emit("svg", filename)

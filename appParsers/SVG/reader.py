@@ -1,4 +1,6 @@
 """Entry point: loads the document, walks the tree once and collects Shapely geometries."""
+import builtins
+import gettext
 import io
 import logging
 import math
@@ -7,6 +9,7 @@ import re
 
 import numpy as np
 from lxml import etree
+from shapely.geometry import Polygon
 
 from . import paint
 from .batch import FillSlot, FillBatch
@@ -14,9 +17,13 @@ from .document import parse_length, parse_viewbox, root_setup, viewbox_matrix
 from .errors import SvgImportError
 from .pathdata import is_batchable, parse_path, polylines_of
 from .shapes import Geo, shape_polylines
-from .style import STYLE_DEFAULTS, StyleEngine, StyleSheet, fill_active, is_zero, stroke_paint_active
+from .style import STYLE_DEFAULTS, StyleEngine, StyleSheet, fill_active, is_dark_paint, is_white_paint, is_zero, \
+    opacity_value, stroke_paint_active
 from .text import FontService, layout_text
 from .transform import around, mean_scale, parse_css_transform, parse_transform, translation
+
+if '_' not in builtins.__dict__:
+    _ = gettext.gettext
 
 SVG_NS = 'http://www.w3.org/2000/svg'
 XLINK_HREF = '{http://www.w3.org/1999/xlink}href'
@@ -26,6 +33,8 @@ _SHAPES = frozenset(('path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'p
 _RENDERABLE = _CONTAINERS | _SHAPES | {'switch', 'svg', 'use', 'text'}
 _XML_DECL = re.compile(r'^\s*<\?xml[^>]*\?>')
 _ORIGIN_KEYWORDS = {'left': 0.0, 'top': 0.0, 'center': 50.0, 'right': 100.0, 'bottom': 100.0}
+# the diameters (mm) of a drill marker: a white circle with a dark stroke
+DRILL_MIN_MM, DRILL_MAX_MM = 0.2, 6.0
 
 
 def _parse_bytes(data):
@@ -102,8 +111,11 @@ def _passes_conditions(el):
 class _Importer:
     """One import run."""
 
-    def __init__(self, root, object_type, units, resolution, flip, include_text, app, user_units):
+    def __init__(self, root, object_type, units, resolution, flip, include_text, app, user_units, drills=None):
         self.root = root
+        # drills: None = no detection, else a list that gets (x, y, diameter) in the output units of each drill marker
+        self.drills = drills
+        self.warned = set()
         self.gerber = object_type == 'gerber'
         self.units = units
         # circle steps count the whole circle, the internal code works per quarter circle: `resolution` is a fixed
@@ -136,10 +148,21 @@ class _Importer:
         """
         return max(math.ceil(int(self._steps(abs(radius))) / 4), 2)
 
+    def warn(self, kind):
+        """One shell warning of each kind for an import."""
+        if kind in self.warned:
+            return
+        self.warned.add(kind)
+        msg = _("The SVG has no physical size (width/height with a unit or a page size), the scale can be wrong.")
+        self.log.warning('SVG import: %s' % msg)
+        inform = getattr(self.app, 'inform', None)
+        if inform is not None:
+            inform.emit('[WARNING_NOTCL] %s' % msg)
+
     def run(self):
         sheet = StyleSheet(self._css_texts())
         self.engine = StyleEngine(sheet)
-        m, vp, out_scale = root_setup(self.root, self.units, self.user_units, self.flip)
+        m, vp, out_scale = root_setup(self.root, self.units, self.user_units, self.flip, self.warn)
         self.base_scale = out_scale
         if not self.user_units:
             tol_mm = min(max(0.005 * 16.0 / self.resolution, 0.001), 0.02)
@@ -312,6 +335,8 @@ class _Importer:
         fs = style['font-size']
         flags = self._style_flags(style, ctx.vp, fs)
         tol = self.tol_out / scale
+        if self.drills is not None and self._drill(local, el, own, ctx, style, m, scale, tol):
+            return
         # radii inside the element are in user units, the steps are chosen for the radius in output units
         segs = lambda radius: self.quad(radius * scale)
         if local == 'path':
@@ -332,6 +357,50 @@ class _Importer:
             self.out.extend(paint.element_geometries(polylines, style, own, m, self.gerber, ctx.vp, fs,
                                                      self.quad, self.base_scale))
 
+    def _drill(self, local, el, own, ctx, style, m, scale, tol):
+        """
+        Take a drill marker out of the output: a circle (a <circle> or a closed path that passes the circle test) with
+        a white fill and a visible dark stroke; the circle itself (without the stroke width) is the drill.
+
+        :return: True when the element is a drill marker (it is added to self.drills and not drawn)
+        """
+        if local not in ('circle', 'path') or self.user_units:
+            return False
+        if not (is_white_paint(style['fill'], style['color']) and opacity_value(style['fill-opacity']) >= 0.9 and
+                is_dark_paint(style['stroke'], style['color']) and opacity_value(style['stroke-opacity']) >= 0.5):
+            return False
+        fs = style['font-size']
+        if paint.stroke_width(style, ctx.vp, fs) <= 0:
+            return False
+        a, t = m[:2, :2], m[:2, 2]
+        sv = np.linalg.svd(a, compute_uv=False)
+        if sv[1] <= 0 or sv[0] / sv[1] > 1.02:
+            # a skewed or non-uniformly scaled circle is an ellipse
+            return False
+        if local == 'circle':
+            geo = Geo(el, own, ctx.vp, fs)
+            r = geo.length('r', 'r')
+            if r <= 0:
+                return False
+            x, y = a @ np.array([geo.length('cx', 'x'), geo.length('cy', 'y')]) + t
+            dia = 2.0 * r * scale
+        else:
+            d = el.get('d')
+            polylines = polylines_of(parse_path(d), tol, lambda radius: self.quad(radius * scale)) if d else []
+            if len(polylines) != 1 or not polylines[0][1] or len(polylines[0][0]) < 8:
+                return False
+            # lazy: appJoinConvert imports camlib, which imports this package
+            from appHandlers.appJoinConvert import classify_hole
+            hole = classify_hole(Polygon(polylines[0][0] @ a.T + t))
+            if hole is None or hole[0] != 'drill':
+                return False
+            x, y, dia = hole[1].x, hole[1].y, hole[2]
+        mm = dia if str(self.units).upper() == 'MM' else dia * 25.4
+        if not DRILL_MIN_MM <= mm <= DRILL_MAX_MM:
+            return False
+        self.drills.append((float(x), float(y), float(dia)))
+        return True
+
     def _text(self, el, own, ctx, style, frame, m):
         if style['visibility'] in ('hidden', 'collapse') or mean_scale(m) <= 0:
             return
@@ -347,7 +416,7 @@ class _Importer:
 
 
 def svg_to_shapes(source, object_type='geometry', units='MM', resolution=64, flip=True,
-                  include_text=True, app=None, user_units=False):
+                  include_text=True, app=None, user_units=False, drills=None):
     """
     Convert an SVG document into flat Shapely geometries.
 
@@ -362,9 +431,11 @@ def svg_to_shapes(source, object_type='geometry', units='MM', resolution=64, fli
     :param include_text: render text elements
     :param app: optional application (ParseFont, log)
     :param user_units: output raw SVG user units (flip becomes y' = -y)
+    :param drills: a list turns the drill detection on: each drill marker (a circle of 0.2 to 6 mm with a white fill and
+                   a dark stroke) is not in the result, its (x, y, diameter) in the output units is added to the list
     :return: list of valid non-empty Polygons / LineStrings
     :raises SvgImportError: when the document cannot be read
     """
     root = load_root(source)
-    importer = _Importer(root, object_type, units, resolution, flip, include_text, app, user_units)
+    importer = _Importer(root, object_type, units, resolution, flip, include_text, app, user_units, drills)
     return importer.run()

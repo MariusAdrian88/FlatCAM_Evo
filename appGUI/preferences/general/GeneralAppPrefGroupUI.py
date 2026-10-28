@@ -88,6 +88,12 @@ class GeneralAppPrefGroupUI(OptionsGroupUI):
             "Uses more RAM. Closing a project releases its cached shapes."))
         grid1.addWidget(self.project_caching_cb, 3, 0, 1, 2)
 
+        self.svg_drill_detect_cb = FCCheckBox(_("SVG drill detection"))
+        self.svg_drill_detect_cb.setToolTip(_(
+            "At SVG import, white circles with a dark stroke (0.2 to 6 mm) become an Excellon object\n"
+            "named '<svg name>_drills' and are left out of the imported object."))
+        grid1.addWidget(self.svg_drill_detect_cb, 5, 0, 1, 2)
+
         # separator_line = QtWidgets.QFrame()
         # separator_line.setFrameShape(QtWidgets.QFrame.Shape.HLine)
         # separator_line.setFrameShadow(QtWidgets.QFrame.Shadow.Sunken)

@@ -1341,8 +1341,11 @@ class Geometry(object):
         res = lambda radius: object_circle_steps(options, 'geometry', radius, units)
 
         # Parse into a flat list of shapely objects (units conversion, flip and text are handled by the importer)
+        # the drill markers (white circles with a dark stroke) are left out and kept for the Excellon object
+        self.svg_drills = [] if (options or {}).get('svg_drill_detect', True) else None
         try:
-            geos = svg_to_shapes(filename, object_type, units=units, resolution=res, flip=flip, app=self.app)
+            geos = svg_to_shapes(filename, object_type, units=units, resolution=res, flip=flip, app=self.app,
+                                 drills=self.svg_drills)
         except SvgImportError as e:
             self.app.log.error("camlib.Geometry.import_svg(). %s" % str(e))
             self.app.inform.emit("[ERROR_NOTCL] %s" % _("Failed."))

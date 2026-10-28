@@ -2257,8 +2257,11 @@ class Gerber(Geometry):
         res = lambda radius: gerber_circle_steps(options, radius, units)
 
         # Parse into a flat list of shapely Polygons (units conversion, flip and text are handled by the importer)
+        # the drill markers (white circles with a dark stroke) are left out and kept for the Excellon object
+        self.svg_drills = [] if (options or {}).get('svg_drill_detect', True) else None
         try:
-            geos = svg_to_shapes(filename, 'gerber', units=units, resolution=res, flip=flip, app=self.app)
+            geos = svg_to_shapes(filename, 'gerber', units=units, resolution=res, flip=flip, app=self.app,
+                                 drills=self.svg_drills)
         except SvgImportError as e:
             self.app.log.error("ParseGerber.import_svg(). %s" % str(e))
             return 'fail'

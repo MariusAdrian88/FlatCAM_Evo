@@ -63,8 +63,11 @@ class TclCommandOpenSVG(TclCommandSignaled):
             # if geo_obj.kind != 'geometry' or geo_obj.kind != 'gerber':
             #     self.raise_tcl_error('Expected Geometry or Gerber, got %s %s.' % (outname, type(geo_obj)))
 
-            return geo_obj.import_svg(filename, obj_type, units=units)
+            res = geo_obj.import_svg(filename, obj_type, units=units)
+            drills[:] = getattr(geo_obj, 'svg_drills', None) or []
+            return res
 
+        drills = []
         filename = args['filename']
 
         if 'outname' in args:
@@ -93,6 +96,9 @@ class TclCommandOpenSVG(TclCommandSignaled):
                     return 'fail'
             if ret_val is False:
                 return 'fail'
+
+            # the drill markers of the SVG file (never plotted from Tcl)
+            self.app.f_handlers.import_svg_drills(drills, outname, plot=False)
 
             # Register recent file
             self.app.file_opened.emit("svg", filename)

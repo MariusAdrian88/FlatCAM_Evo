@@ -63,6 +63,17 @@ class TestShapes(unittest.TestCase):
         self.assertAlmostEqual(e[0].area, math.pi * 300 * 0.25, delta=0.01 * e[0].area)
         self.assertAlmostEqual(e[0].centroid.x, 50.0, places=4)
 
+    def test_steps_function_follows_the_radius(self):
+        from camlib import object_circle_steps
+        steps = lambda r: object_circle_steps(None, 'geometry', r, 'MM')
+        small, big = run('<circle cx="20" cy="20" r="0.5"/><circle cx="100" cy="50" r="20"/>', resolution=steps)
+        # viewBox 200 wide on 100 mm: 1 user unit = 0.5 mm
+        self.assertEqual(len(small.exterior.coords) - 1, steps(0.25))
+        self.assertEqual(len(big.exterior.coords) - 1, steps(10.0))
+        self.assertLess(len(small.exterior.coords), len(big.exterior.coords))
+        fixed, = run('<circle cx="20" cy="20" r="0.5"/>', resolution=64)
+        self.assertEqual(len(fixed.exterior.coords) - 1, 64)
+
     def test_units(self):
         for attrs in ('width="96px" height="96px"', 'width="1in" height="1in" viewBox="0 0 96 96"',
                       'width="72pt" height="72pt" viewBox="0 0 10 10"'):
@@ -258,6 +269,110 @@ class TestText(unittest.TestCase):
         # baseline at y=50, glyph grows upwards (smaller y) without flip
         self.assertAlmostEqual(h10[3], 50.0, delta=0.3)
 
+
+def near(geoms, x, y, tol=0.05):
+    return [g for g in geoms if abs(g.centroid.x - x) < tol and abs(g.centroid.y - y) < tol]
+
+
+DRILL_BOARD = (
+    '<rect x="0" y="0" width="50" height="40" fill="black"/>'
+    '<circle cx="5" cy="5" r="0.5" fill="#fff" stroke="#000" stroke-width="0.1"/>'
+    '<circle cx="10" cy="5" r="0.5" fill="white" stroke="black" stroke-width="0.1"/>'
+    '<circle cx="15" cy="5" r="1.0" fill="rgb(255,255,255)" stroke="#111" stroke-width="0.1"/>'
+    '<ellipse cx="20" cy="5" rx="1" ry="0.5" fill="#fff" stroke="#000" stroke-width="0.1"/>'
+    '<circle cx="25" cy="5" r="0.7" fill="#000" stroke="#000" stroke-width="0.1"/>'
+    '<circle cx="30" cy="5" r="0.7" fill="#fff"/>'
+    '<circle cx="35" cy="5" r="10" fill="#fff" stroke="#000" stroke-width="0.1"/>'
+    '<path d="M 40 10 m -0.8 0 a 0.8 0.8 0 1 0 1.6 0 a 0.8 0.8 0 1 0 -1.6 0 z" '
+    'fill="#fff" stroke="#000" stroke-width="0.1"/>')
+DRILL_DOC = 'width="50mm" height="40mm" viewBox="0 0 50 40"'
+
+
+class TestDrillMarkers(unittest.TestCase):
+    ACCEPTED = [(5.0, 5.0, 1.0), (10.0, 5.0, 1.0), (15.0, 5.0, 2.0), (40.0, 10.0, 1.6)]
+    # (x, y, area) of the shapes that must stay in the output
+    REJECTED = [(20.0, 5.0, math.pi * 1.0 * 0.5), (25.0, 5.0, math.pi * 0.49),
+                (30.0, 5.0, math.pi * 0.49), (35.0, 5.0, math.pi * 100.0)]
+
+    def test_drill_markers_taken_out_and_rest_kept(self):
+        drills = []
+        shapes = run(DRILL_BOARD, DRILL_DOC, flip=False, drills=drills)
+        self.assertEqual(len(drills), len(self.ACCEPTED))
+        for got, exp in zip(sorted(drills), self.ACCEPTED):
+            for a, b in zip(got, exp):
+                self.assertAlmostEqual(a, b, places=3)
+        for x, y, _ in self.ACCEPTED:
+            self.assertEqual(near(shapes, x, y), [], (x, y))
+        for x, y, area in self.REJECTED:
+            found = near(shapes, x, y)
+            self.assertEqual(len(found), 1, (x, y))
+            self.assertAlmostEqual(found[0].area, area, delta=0.02 * area)
+
+    def test_detection_off_keeps_every_shape(self):
+        on = run(DRILL_BOARD, DRILL_DOC, flip=False, drills=[])
+        off = run(DRILL_BOARD, DRILL_DOC, flip=False)
+        self.assertEqual(len(off), len(on) + len(self.ACCEPTED))
+        for x, y, _ in self.ACCEPTED:
+            self.assertEqual(len(near(off, x, y)), 1, (x, y))
+
+
+XMP_NS = ('xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" '
+          'xmlns:xmpTPg="http://ns.adobe.com/xap/1.0/t/pg/" xmlns:stDim="http://ns.adobe.com/xap/1.0/sType/Dimensions#"')
+
+
+def illustrator(w='200', h='100', unit='Millimeters', with_xmp=True):
+    """Illustrator-like SVG without width/height; the page size is only in the XMP metadata."""
+    meta = ''
+    if with_xmp:
+        meta = ('<metadata><x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF><rdf:Description>'
+                '<xmpTPg:MaxPageSize rdf:parseType="Resource"><stDim:w>%s</stDim:w><stDim:h>%s</stDim:h>'
+                '<stDim:unit>%s</stDim:unit></xmpTPg:MaxPageSize></rdf:Description></rdf:RDF>'
+                '</x:xmpmeta></metadata>' % (w, h, unit))
+    return ('<svg xmlns="http://www.w3.org/2000/svg" %s viewBox="0 0 100 50">%s'
+            '<rect x="0" y="0" width="100" height="50"/></svg>' % (XMP_NS, meta))
+
+
+class TestPageSizeFromXmp(unittest.TestCase):
+    def test_xmp_page_size_sets_the_scale_and_malformed_falls_back(self):
+        g = svg_to_shapes(illustrator(), 'geometry', units='MM', flip=False)
+        for a, b in zip(bounds(g), (0.0, 0.0, 200.0, 100.0)):
+            self.assertAlmostEqual(a, b, places=3)
+        old = svg_to_shapes(illustrator(with_xmp=False), 'geometry', units='MM', flip=False)
+        bad = svg_to_shapes(illustrator(w='abc'), 'geometry', units='MM', flip=False)
+        for a, b in zip(bounds(bad), bounds(old)):
+            self.assertAlmostEqual(a, b, places=6)
+
+
+class TestSvgDrills(unittest.TestCase):
+    @staticmethod
+    def import_drills(drills):
+        from types import SimpleNamespace
+        from appHandlers.appIO import appIO
+        made = {}
+
+        def new_object(kind, name, init, **kw):
+            obj = SimpleNamespace(tools={}, create_geometry=lambda: None,
+                                  regenerate_source=lambda name=None: True)
+            init(obj, None)
+            made[name] = obj
+            return name
+
+        app = SimpleNamespace(app_units='MM', decimals=4, app_obj=SimpleNamespace(new_object=new_object))
+        io = SimpleNamespace(app=app, inform=SimpleNamespace(emit=lambda msg: None))
+        return appIO.import_svg_drills(io, drills, 'board.svg', plot=False), made
+
+    def test_drills_grouped_by_diameter_in_one_excellon(self):
+        name, made = self.import_drills([(5, 35, 1.00001), (10, 35, 1.0), (15, 35, 2.0)])
+        self.assertEqual(name, 'board.svg_drills')
+        tools = sorted((round(t['tooldia'], 4), len(t['drills'])) for t in made[name].tools.values())
+        self.assertEqual(tools, [(1.0, 2), (2.0, 1)])
+
+    def test_empty_list_creates_nothing(self):
+        name, made = self.import_drills([])
+        self.assertIsNone(name)
+        self.assertEqual(made, {})
+
+
 def bench_doc():
     """20 000 elements: rect, circle, bezier path and rotated polygon, 5000 each."""
     parts = []
@@ -274,18 +389,6 @@ def bench_doc():
             parts.append('<polygon points="%d,%d %d,%d %d,%d" transform="rotate(15 %d %d)"/>' % (
                 x, y, x + 3, y, x, y + 3, x, y))
     return svg(''.join(parts), 'width="1000mm" height="1000mm" viewBox="0 0 1000 1000"')
-
-
-    def test_steps_function_follows_the_radius(self):
-        from camlib import object_circle_steps
-        steps = lambda r: object_circle_steps(None, 'geometry', r, 'MM')
-        small, big = run('<circle cx="20" cy="20" r="0.5"/><circle cx="100" cy="50" r="20"/>', resolution=steps)
-        # viewBox 200 wide on 100 mm: 1 user unit = 0.5 mm
-        self.assertEqual(len(small.exterior.coords) - 1, steps(0.25))
-        self.assertEqual(len(big.exterior.coords) - 1, steps(10.0))
-        self.assertLess(len(small.exterior.coords), len(big.exterior.coords))
-        fixed, = run('<circle cx="20" cy="20" r="0.5"/>', resolution=64)
-        self.assertEqual(len(fixed.exterior.coords) - 1, 64)
 
 
 if __name__ == '__main__':

@@ -196,6 +196,8 @@ class AppDefaults:
 
         "pdf_python_parser": True,
 
+        "svg_drill_detect": True,  # SVG import: white circles with a dark stroke become an Excellon object
+
         # General GUI Preferences
         "global_appearance": 'light',
         "global_styling": 'default',

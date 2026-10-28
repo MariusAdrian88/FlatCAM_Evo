@@ -1,5 +1,6 @@
 
 from appHandlers.appHistory import history_of
+from appHandlers.appJoinConvert import HoleTools
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtCore import Qt
 
@@ -2732,6 +2733,37 @@ class appIO(QtCore.QObject):
             if local_use is not None:
                 return ret
 
+    def import_svg_drills(self, drills, svg_name, plot=True):
+        """
+        Creates the Excellon object '<svg_name>_drills' with the drill markers found in an SVG file.
+
+        :param drills:      [(x, y, diameter)] in the app units
+        :param svg_name:    The name of the Geometry or Gerber object of the SVG file
+        :param plot:        If True then the resulting object will be plotted on canvas
+        :return:            the name of the Excellon object or None if there is no drill
+        """
+        if not drills:
+            return None
+        units = self.app.app_units.upper()
+        name = '%s_drills' % svg_name
+        holes = HoleTools(self.app.decimals)
+        for x, y, dia in drills:
+            holes.drill(Point(x, y), dia)
+
+        def initialize(obj, app_obj):
+            obj.units = units
+            obj.tools = holes.tools
+            if obj.create_geometry() == 'fail':
+                return 'fail'
+            if not obj.regenerate_source(name=name):
+                return 'fail'
+
+        ret = self.app.app_obj.new_object("excellon", name, initialize, autoselected=False, plot=plot)
+        if ret is None or ret == 'fail':
+            self.inform.emit('[ERROR_NOTCL] %s' % _("The drills of the SVG file could not be created."))
+            return None
+        return name
+
     def import_svg(self, filename, geo_type='geometry', outname=None, plot=True):
         """
         Adds a new Geometry Object to the projects and populates
@@ -2759,12 +2791,14 @@ class appIO(QtCore.QObject):
             return
 
         units = self.app_units.upper()
+        drills = []
 
         def obj_init(geo_obj, app_obj):
             res = geo_obj.import_svg(filename, obj_type, units=units)
             if res == 'fail':
                 return 'fail'
 
+            drills.extend(getattr(geo_obj, 'svg_drills', None) or [])
             geo_obj.multigeo = True
 
             # the text of the parsed file, for the source view and the project: a byte that is not UTF-8 is
@@ -2786,6 +2820,8 @@ class appIO(QtCore.QObject):
             if ret == 'fail':
                 self.inform.emit('[ERROR_NOTCL]%s' % _('Import failed.'))
                 return 'fail'
+
+            self.import_svg_drills(drills, name, plot=plot)
 
             # Register recent file
             self.app.file_opened.emit("svg", filename)

@@ -327,3 +327,58 @@ def stroke_paint_active(style):
     :return: True when the stroke paint is set (ignoring width)
     """
     return not paint_is_none(style['stroke'], style['color']) and not is_zero(style['stroke-opacity'])
+
+
+_NAMED_RGB = {'white': (255, 255, 255), 'black': (0, 0, 0), 'gray': (128, 128, 128), 'grey': (128, 128, 128),
+              'darkgray': (169, 169, 169), 'darkgrey': (169, 169, 169), 'dimgray': (105, 105, 105),
+              'dimgrey': (105, 105, 105), 'navy': (0, 0, 128), 'darkblue': (0, 0, 139), 'maroon': (128, 0, 0),
+              'darkgreen': (0, 100, 0), 'red': (255, 0, 0), 'green': (0, 128, 0), 'blue': (0, 0, 255)}
+
+
+def paint_rgb(value, color='black', depth=0):
+    """
+    :param value: fill/stroke value
+    :param color: computed ``color`` for currentColor
+    :return: (r, g, b) 0..255 of a hex, rgb() or basic named color, else None (gradients, hsl(), other names)
+    """
+    v = value.strip().lower()
+    if v == 'currentcolor':
+        return paint_rgb(color, 'black', 1) if depth == 0 else None
+    if v.startswith('#'):
+        h = v[1:]
+        if len(h) in (3, 4):
+            h = ''.join(c * 2 for c in h)
+        try:
+            return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+        except ValueError:
+            return None
+    m = _FUNC_COLOR.match(v)
+    if m and m.group(1).startswith('rgb'):
+        args = [a for a in _ARG_SPLIT.split(m.group(2).strip()) if a][:3]
+        try:
+            vals = [float(a[:-1]) * 2.55 if a.endswith('%') else float(a) for a in args]
+        except ValueError:
+            return None
+        return tuple(min(max(int(round(x)), 0), 255) for x in vals) if len(vals) == 3 else None
+    return _NAMED_RGB.get(v)
+
+
+def is_white_paint(value, color='black'):
+    """:return: True when the paint is white (a small tolerance for 254, 250 ...)"""
+    rgb = paint_rgb(value, color)
+    return rgb is not None and min(rgb) >= 245
+
+
+def is_dark_paint(value, color='black'):
+    """:return: True when the paint is dark (luminance up to 40 %)"""
+    rgb = paint_rgb(value, color)
+    return rgb is not None and 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2] <= 102.0
+
+
+def opacity_value(value):
+    """:return: opacity-like string (``0.5``, ``50%``) as a float, 1.0 when unparsable"""
+    try:
+        v = value.strip()
+        return float(v[:-1]) / 100.0 if v.endswith('%') else float(v)
+    except (ValueError, AttributeError):
+        return 1.0
