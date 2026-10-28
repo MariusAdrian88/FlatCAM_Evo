@@ -6,6 +6,8 @@ Run from the repository root:
 """
 import importlib
 import re
+import sys
+from contextlib import contextmanager
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -400,6 +402,43 @@ def test_plugin_refuses_drill_points_inside_a_drilling_exclusion_area(fc, plugin
     assert any('Drill points inside the exclusion zones' in m for m in msgs)
 
 
+GOOD_Z = dict(tools_drill_travelz=2.0, tools_drill_feedrate_z=300.0)
+
+
+def test_plugin_refuses_a_travel_z_or_a_feedrate_z_that_is_not_above_zero(fc, plugin, monkeypatch):
+    # a Travel Z of zero or below makes the moves between the holes with the bit in the board; F0 is no feed
+    for name, data, value in (('gen_k1', dict(tools_drill_travelz=-2.0), 'Travel Z'),
+                              ('gen_k2', dict(tools_drill_travelz=0.0), 'Travel Z'),
+                              ('gen_k3', dict(tools_drill_feedrate_z=0.0), 'Feedrate Z')):
+        open_plugin(fc, plugin, name, selected=[1], tools_drill_toolchange=False, **dict(GOOD_Z, **data))
+        job, msgs = generate(fc, plugin, monkeypatch)
+        assert job is None
+        assert any(m.startswith('[ERROR_NOTCL]') and value in m and m.endswith('(tool 1)') for m in msgs)
+    # with a toolchange every tool uses its own data: the error names the tool
+    open_plugin(fc, plugin, 'gen_k4', selected=[1, 2, 3], tools_drill_toolchange=True, **GOOD_Z)
+    plugin.excellon_tools[3]['data']['tools_drill_travelz'] = -1.0
+    job, msgs = generate(fc, plugin, monkeypatch)
+    assert job is None
+    assert [m.endswith('(tool 3)') for m in msgs if m.startswith('[ERROR_NOTCL]')] == [True]
+
+
+def test_plugin_job_check_leaves_out_the_data_the_job_does_not_use(fc, plugin, monkeypatch):
+    # without a toolchange the data of the first tool drill all the holes: the Travel Z of tool 3 is not used
+    open_plugin(fc, plugin, 'gen_k5', selected=[1, 3], tools_drill_toolchange=False, **GOOD_Z)
+    plugin.excellon_tools[3]['data']['tools_drill_travelz'] = -1.0
+    job, __ = generate(fc, plugin, monkeypatch)
+    assert job is not None and 'G00 Z2.0000' in job.gcode and 'G00 Z-1.0000' not in job.gcode
+    # for a laser the Travel Z is the focus height and there is no Z feed
+    open_plugin(fc, plugin, 'gen_k6', selected=[1], tools_drill_toolchange=False, tools_drill_travelz=0.0,
+                tools_drill_feedrate_z=0.0)
+    plugin.ui.pp_excellon_name_cb.set_value('GRBL_laser')
+    try:
+        job, __ = generate(fc, plugin, monkeypatch)
+    finally:
+        plugin.ui.pp_excellon_name_cb.set_value('default')
+    assert job is not None
+
+
 # ---------------------------------------------------------------------------------------------------------------------
 # peck drilling, dwell at the bottom, spindle direction
 # ---------------------------------------------------------------------------------------------------------------------
@@ -439,6 +478,49 @@ def test_a_peck_deeper_than_the_cut_drills_the_hole_in_one_move():
     __, __, (gcode, __, __) = gui_run([(5.0, 5.0)], **dict(PECK, tools_drill_peck_depth=5.0))
     assert z_moves(gcode)[:2] == ['G01 Z-3.0000', 'G00 Z2.0000']
     assert 'G00 Z-0.7000' not in gcode
+
+
+@contextmanager
+def endless_loop_guard(limit=20000):
+    """An error after `limit` lines in calculate_depths(): a loop that never ends fails quickly, without the memory."""
+    count = [0]
+
+    def lines(frame, event, arg):
+        count[0] += event == 'line'
+        if count[0] > limit:
+            raise RuntimeError('calculate_depths() does not end')
+        return lines
+
+    old = sys.gettrace()
+    sys.settrace(lambda frame, event, arg: lines if frame.f_code.co_name == 'calculate_depths' else None)
+    try:
+        yield
+    finally:
+        sys.settrace(old)
+
+
+def plunges(gcode):
+    return [line for line in gcode.splitlines() if line.startswith('G01 Z-')]
+
+
+def test_multidepth_with_a_zero_depth_per_pass_drills_in_one_pass():
+    # before, the depths of a hole were never done and filled the memory (also Tcl drillcncjob -dpp 0)
+    holes = [(1.0, 1.0), (5.0, 1.0), (5.0, 5.0)]
+    with endless_loop_guard():
+        __, __, (gcode, __, __) = gui_run(holes, tools_drill_cutz=-1.5, tools_drill_multidepth=True,
+                                          tools_drill_depthperpass=0.0)
+        __, __, __, tcl_code = tcl_run({1: (0.8, holes, ())}, args={'drillz': -1.5, 'dpp': 0.0},
+                                       options=dict(tools_drill_toolchange=False))
+    assert plunges(gcode) == ['G01 Z-1.5000'] * 3
+    assert plunges(tcl_code) == ['G01 Z-1.5000'] * 3
+
+
+def test_multidepth_with_a_negative_depth_per_pass_uses_it_as_positive():
+    data = dict(tools_drill_cutz=-1.5, tools_drill_multidepth=True)
+    with endless_loop_guard():
+        __, __, (gcode, __, __) = gui_run([(1.0, 1.0)], tools_drill_depthperpass=-0.5, **data)
+    assert plunges(gcode) == ['G01 Z-0.5000', 'G01 Z-1.0000', 'G01 Z-1.5000']
+    assert gcode == gui_run([(1.0, 1.0)], tools_drill_depthperpass=0.5, **data)[2][0]
 
 
 def test_dwell_at_the_bottom_is_done_once_at_the_final_depth_of_every_hole():

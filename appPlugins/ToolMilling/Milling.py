@@ -3155,7 +3155,8 @@ class ToolMilling(Geometry, AppTool):
             toolchange = options['tools_mill_toolchange'] if from_tcl else self.ui.toolchange_cb.get_value()
         overrides = {}
         if not from_tcl:
-            fields = {'tools_mill_offset_value': 'offset_entry'}
+            # not the custom offset: the form shows only the value of the selected row, each tool keeps its own value
+            fields = {}
             if geo_obj.multigeo:
                 fields.update({
                     'tools_mill_toolchangez': 'toolchangez_entry',
@@ -3167,9 +3168,6 @@ class ToolMilling(Geometry, AppTool):
                     'tools_mill_area_strategy': 'strategy_radio', 'tools_mill_area_overz': 'over_z_entry',
                     'tools_mill_ppname_g': 'pp_geo_name_cb'})
             for key, widget in fields.items():
-                if key == 'tools_mill_offset_value' and not any(
-                        tool['data']['tools_mill_offset_type'] == 3 for tool in tools_dict.values()):
-                    continue
                 try:
                     overrides[key] = deepcopy(getattr(self.ui, widget).get_value())
                 except AttributeError:
@@ -3258,9 +3256,7 @@ class ToolMilling(Geometry, AppTool):
             offset_type = dia_cnc_dict['data']['tools_mill_offset_type']
             tool_offset = MillingGen.milling_offset(offset_type, tooldia_val, 0.0)
             if offset_type == 3:
-                offset_value = data['tools_mill_offset_value'] if context['from_tcl'] else \
-                    context['overrides']['tools_mill_offset_value']
-                offset_value = self._custom_offset(app_obj, offset_value)
+                offset_value = self._custom_offset(app_obj, data['tools_mill_offset_value'])
                 if offset_value is None:
                     return 'fail'
                 tool_offset = MillingGen.milling_offset(offset_type, tooldia_val, offset_value)
@@ -3379,14 +3375,11 @@ class ToolMilling(Geometry, AppTool):
                 self.app.log.debug("Finished painting the polished area ...")
 
             # Keep the original shared-storage updates after the per-tool copy and polishing.
-            data.update({key: value for key, value in context['overrides'].items()
-                         if key != 'tools_mill_offset_value'})
+            data.update(context['overrides'])
             offset_type = dia_cnc_dict['data']['tools_mill_offset_type']
             tool_offset = MillingGen.milling_offset(offset_type, tooldia_val, 0.0)
             if offset_type == 3:
-                offset_value = data['tools_mill_offset_value'] if context['from_tcl'] else \
-                    context['overrides']['tools_mill_offset_value']
-                offset_value = self._custom_offset(app_obj, offset_value)
+                offset_value = self._custom_offset(app_obj, data['tools_mill_offset_value'])
                 if offset_value is None:
                     return 'fail'
                 tool_offset = MillingGen.milling_offset(offset_type, tooldia_val, offset_value)

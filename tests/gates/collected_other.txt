@@ -927,6 +927,7 @@ tests/test_cncjob_gcode_speed.py::TestLinear2Gcode::test_cut_lines_same_as_dofor
 tests/test_cncjob_gcode_speed.py::TestMillingGcodeFixes::test_dwell_with_zero_time_makes_no_dwell_line
 tests/test_cncjob_gcode_speed.py::TestMillingGcodeFixes::test_exclusion_flag_of_tool_is_honored[False]
 tests/test_cncjob_gcode_speed.py::TestMillingGcodeFixes::test_exclusion_flag_of_tool_is_honored[True]
+tests/test_cncjob_gcode_speed.py::TestMillingGcodeFixes::test_extra_cut_goes_on_along_the_path_after_the_start_point
 tests/test_cncjob_gcode_speed.py::TestMillingGcodeFixes::test_first_tool_uses_start_z_by_position_not_by_uid
 tests/test_cncjob_gcode_speed.py::TestMillingGcodeFixes::test_multi_depth_with_zero_step_cuts_in_one_pass
 tests/test_cncjob_gcode_speed.py::TestMillingGcodeFixes::test_multi_pass_with_zero_step_ends[0]
@@ -2806,6 +2807,9 @@ tests/test_milling_lifecycle.py::test_milling_cnc_offset_modes[False-2-0.4-False
 tests/test_milling_lifecycle.py::test_milling_cnc_offset_modes[False-2-0.4-True]
 tests/test_milling_lifecycle.py::test_milling_cnc_offset_modes[False-3-0.125-False]
 tests/test_milling_lifecycle.py::test_milling_cnc_offset_modes[False-3-0.125-True]
+tests/test_milling_lifecycle.py::test_milling_custom_offset_of_each_tool_is_used[False]
+tests/test_milling_lifecycle.py::test_milling_custom_offset_of_each_tool_is_used[True]
+tests/test_milling_lifecycle.py::test_milling_custom_offset_of_zero_is_told_and_makes_no_job
 tests/test_milling_lifecycle.py::test_milling_drills_equal_bit_tolerance_small_hole_and_circle_steps
 tests/test_milling_lifecycle.py::test_milling_empty_multigeometry_returns_failure
 tests/test_milling_lifecycle.py::test_milling_excellon_extracted_paint_matches_per_feature_reference[0-both]

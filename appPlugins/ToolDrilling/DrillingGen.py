@@ -104,6 +104,30 @@ def diameter_conflicts(tools):
     return conflicts
 
 
+def tool_setting_problems(data, laser):
+    """
+    The settings of a drilling tool that make dangerous or wrong G-code: a list of messages, empty when the job can be
+    made. A laser preprocessor is not checked: its Travel Z is the focus height and it has no Z feed.
+    """
+    def number(key):
+        try:
+            return float(data[key])
+        except (KeyError, TypeError, ValueError):
+            return None
+
+    problems = []
+    if laser:
+        return problems
+    travelz = number('tools_drill_travelz')
+    if travelz is not None and travelz <= 0:
+        problems.append(_("Travel Z must be above zero: the moves between the holes would be made with the bit in "
+                          "or on the material."))
+    feedrate_z = number('tools_drill_feedrate_z')
+    if feedrate_z is not None and feedrate_z <= 0:
+        problems.append(_("Feedrate Z must be above zero."))
+    return problems
+
+
 def merge_object_tools(main_tools, extra_tools_list):
     """
     The tools of a job over more Excellon objects, merged by diameter. The tool ids of the main object stay; a tool of

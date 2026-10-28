@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 import shapely
 from shapely import LinearRing, LineString, MultiLineString, Point
+from shapely.ops import substring
 
 import camlib
 from camlib import CNCjob, deepcopy_keep_geometry, simplify_paths
@@ -301,6 +302,24 @@ class TestMillingGcodeFixes:
         gcode, __ = run_with_deadline(
             lambda: job.create_gcode_multi_pass(TWO_LINES[0], 0.1, False, 0.0, 0, job.pp_geometry, 2.0))
         assert 'Z-0.1000' in gcode
+
+    def test_extra_cut_goes_on_along_the_path_after_the_start_point(self):
+        # the isolation ring of a 0.3 x 0.3 mm pad for a 0.1 mm tool, Extra Cut 1.0: before, the tool went from the
+        # start point straight to a later vertex (across the corner, into the pad) and walked back
+        pad = shapely.box(0, 0, 0.3, 0.3)
+        ring = LinearRing(pad.buffer(0.05).exterior.coords)
+        job = gcode_job('default')
+        job.z_cut = -0.05
+        lines = job.linear2gcode_extra(ring, 0.1, 1.0, up=False).splitlines()
+        # the extra cut: from the rapid move to its start, after the cut of the whole path
+        extra = lines[max(i for i, line in enumerate(lines) if line.startswith('G00 X')):]
+        cut = LineString([tuple(map(float, xy)) for line in extra
+                          for xy in re.findall(r'X(-?[\d.]+) Y(-?[\d.]+)', line)])
+        assert ring.buffer(2e-4).contains(cut)
+        assert cut.distance(pad) >= 0.05 - 2e-4
+        assert substring(ring, 0, 0.5).difference(cut.buffer(2e-4)).length < 1e-6
+        # it ends at the start point, where the next pass of a multi-depth cut goes on
+        assert cut.coords[-1] == pytest.approx(ring.coords[0], abs=2e-4)
 
     def test_dwell_with_zero_time_makes_no_dwell_line(self):
         job, gcode = multi_geo_gcode([TWO_LINES[0]], data=dict(tools_mill_dwell=True, tools_mill_dwelltime=0.0))

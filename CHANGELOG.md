@@ -73,6 +73,15 @@ Exclusion areas:
 - fixed: with the 'Over' strategy the tool went over an area at its Over Z also when the Over Z was below the travel Z; with the defaults (Over Z 1.0, Travel Z 2.0) the drilling, milling and Tcl G-code moved the tool down from Z2 to Z1 to cross the area; the tool now stays at the travel Z when the Over Z is lower
 - fixed: with grid snap off, the first corner of a rectangular exclusion area was converted from screen to model coordinates twice, so the rubber band and the area started at a wrong point
 - fixed: Escape while drawing an exclusion area raised an error (it called area_disconnect() on the active object) and the canvas stayed in the area drawing mode; Escape now ends the drawing, drops only the area being drawn and keeps the areas added before
+Drilling:
+
+- fixed: a Travel Z of zero or below made every move between the holes with the bit in or on the material, and a Feedrate Z of zero wrote "G01 F0"; the job is now refused with an error that names the tool (not for the laser preprocessors)
+- fixed: Multi-Depth with a depth per pass of zero never ended and filled the memory (also Tcl drillcncjob -dpp 0); it now drills in one pass, as the milling does, and a negative depth per pass is used as positive
+
+Milling:
+
+- fixed: every tool with a Custom offset was cut with the offset of the selected row of the tool table; each tool now uses its own offset value
+- fixed: Extra Cut with a length: after the start point of a closed path the tool went straight to a later point of the path (across a corner, into a small pad) and back, instead of going on along the path; it now goes on along the path and back
 
 Tests:
 
@@ -87,6 +96,10 @@ Tests:
 - tests/test_exclusion_area_travel.py: the Drilling and Milling travel over an exclusion area never goes below the travel Z
 - tests/test_exclusion_area_travel.py: the first corner of a rectangular exclusion area, with and without grid snap
 - tests/test_exclusion_area_travel.py: Escape while drawing a rectangle or a polygon exclusion area
+- test_drilling_gen: the Drilling job is refused for a Travel Z of zero or below and for a Feedrate Z of zero
+- test_drilling_gen: Multi-Depth drilling with a zero or negative depth per pass ends (plugin and Tcl)
+- test_milling_lifecycle: each tool with a Custom offset is cut with its own value (single and multi geometry)
+- test_cncjob_gcode_speed: the Extra Cut goes on along the path after the start point and stays out of the pad
 
 25.10.2026
 RELEASE FlatCAM Evo 1.0

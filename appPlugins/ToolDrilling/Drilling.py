@@ -2317,6 +2317,17 @@ class ToolDrilling(Geometry, AppTool):
                 points[spot_id] = [pt for t_id in gen_ids for pt in points[t_id]]
                 gen_ids = [spot_id] + gen_ids
 
+        # a value that makes dangerous or wrong G-code refuses the job; without a toolchange only the data of the first
+        # tool is used
+        laser = 'laser' in str(self.ui.pp_excellon_name_cb.get_value()).lower()
+        refused = False
+        for t_id in (gen_ids if has_toolchange else gen_ids[:1]):
+            for message in DrillingGen.tool_setting_problems(gen_tools[t_id]['data'], laser):
+                refused = True
+                self.app.inform.emit('[ERROR_NOTCL] %s (%s %s)' % (message, _("tool"), t_id))
+        if refused:
+            return
+
         # #############################################################################################################
         # General Parameters
         # #############################################################################################################

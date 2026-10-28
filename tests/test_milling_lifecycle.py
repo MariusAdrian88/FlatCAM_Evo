@@ -218,6 +218,31 @@ def test_milling_cnc_offset_modes(multigeo, offset_type, expected, disable_offse
 
 
 @pytest.mark.parametrize('multigeo', [False, True])
+def test_milling_custom_offset_of_each_tool_is_used(multigeo):
+    # the form shows the offset of the selected row (0.125); tool 2 has a Custom offset of its own
+    milling, _, _, created, calls, _ = _cnc_harness(multigeo)
+    milling.sel_tools[2]['data']['tools_mill_offset_value'] = -0.2
+    milling.generate_cnc_job_handler(use_thread=False)
+    job = created[0][0]
+    assert job.tools[7]['data']['tools_mill_offset_value'] == 0.125
+    assert job.tools[2]['data']['tools_mill_offset_value'] == -0.2
+    if multigeo:
+        # geometry_tool_gcode_gen() reads the offset from the tool data
+        assert milling.sel_tools[2]['data']['tools_mill_offset_value'] == -0.2
+    else:
+        assert [kwargs['offset'] for _, kwargs in calls] == [0.125, -0.2]
+
+
+def test_milling_custom_offset_of_zero_is_told_and_makes_no_job():
+    # before, the tool took the offset of the selected row without a message
+    milling, _, _, created, calls, events = _cnc_harness(True)
+    milling.sel_tools[2]['data']['tools_mill_offset_value'] = 0.0
+    milling.generate_cnc_job_handler(use_thread=False)
+    assert created[0][2] == 'fail'
+    assert any('Tool Offset is selected' in str(event) for event in events)
+
+
+@pytest.mark.parametrize('multigeo', [False, True])
 def test_milling_real_cnc_generation_matches_deferred_submission(qapp, multigeo):
     from camlib import CNCjob
     from preprocessors.default import default
