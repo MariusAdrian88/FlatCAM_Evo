@@ -141,8 +141,14 @@ class RectangleEditorTool(AppToolEditor):
         if corner_radius == 0.0:
             corner_type = 's'
         if corner_type in ['r', 'b']:
-            length -= 2 * corner_radius
-            width -= 2 * corner_radius
+            if abs(length) < 2 * corner_radius or abs(width) < 2 * corner_radius:
+                # the corners do not fit: square corners, as for a rectangle drawn with the mouse (the reduced size
+                # went negative and the buffer made the shape larger: 10 x 1 with radius 1 gave 10 x 3)
+                corner_type = 's'
+            else:
+                # the sign of a size only sets the side of the anchor (used above); a negative size grew by 4 radii
+                length = abs(length) - 2 * corner_radius
+                width = abs(width) - 2 * corner_radius
 
         minx = cx - (length / 2)
         miny = cy - (width / 2)

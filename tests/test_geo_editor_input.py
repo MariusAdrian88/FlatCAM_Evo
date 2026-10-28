@@ -5,7 +5,7 @@ from unittest.mock import Mock
 import pytest
 from PyQt6 import QtCore, QtWidgets
 from shapely import STRtree
-from shapely.geometry import LineString, box
+from shapely.geometry import LineString, Polygon, box
 
 from appEditors.cursor_text import show_cursor_text, hide_cursor_text
 from appEditors.appGeoEditor import AppGeoEditor, DrawToolShape, DrawToolUtilityShape, FCPath, FCCircle, FCRectangle, FCMove, FCCopy
@@ -325,9 +325,9 @@ def test_geo_text_apply_clears_the_previous_geometry_on_failure():
     assert tool.app.inform.emit.called
 
 
-def transformation_tool():
+def transformation_tool(geometry=None):
     from appEditors.geo_plugins.GeoTransformationPlugin import TransformEditorTool
-    shape = DrawToolShape(box(2, 3, 6, 9))
+    shape = DrawToolShape(box(2, 3, 6, 9) if geometry is None else geometry)
     editor = editor_with_history([shape], [shape])
     editor.transform_shapes = lambda *a, **kw: AppGeoEditor.transform_shapes(editor, *a, **kw)
     editor.app.decimals, editor.app.app_units = 4, 'MM'
@@ -398,3 +398,56 @@ def test_transform_rotation_is_clockwise_and_mirror_reflects_opposite_coordinate
         getattr(tool, method)(ref=0)
     run_worker(editor)
     assert editor.selected[0].geo.bounds == pytest.approx(expected)
+
+
+def test_transform_buffer_offsets_a_polygon_outline():
+    # the editor loads a polygon as its outline (a closed line): 'Buffer D' moves the outline by the distance
+    for distance, expected in ((1, (1, 2, 7, 10)), (-1, (3, 4, 5, 8))):
+        editor, tool, shape = transformation_tool(box(2, 3, 6, 9).exterior)
+        assert tool.on_buffer_action(distance, 2) is None
+        assert list(editor.storage.get_objects()) == editor.selected
+        assert len(editor.selected) == 1 and editor.selected[0].geo.geom_type == 'LinearRing'
+        assert editor.selected[0].geo.bounds == pytest.approx(expected)
+
+
+def test_transform_buffer_that_erodes_a_shape_away_keeps_it():
+    editor, tool, shape = transformation_tool(box(2, 3, 6, 9).exterior)
+    assert tool.on_buffer_action(-3, 2) == 'fail'
+    assert list(editor.storage.get_objects()) == [shape] and editor.selected == [shape]
+    assert not any('[success]' in c.args[0] for c in editor.app.inform.emit.call_args_list)
+
+
+def panel_add(cls, linked=True, **values):
+    editor = editor_with_history()
+    ui = SimpleNamespace(**{name: value(number) for name, number in values.items()})
+    ui.radius_link_btn = SimpleNamespace(isChecked=lambda: linked)
+    cls.on_add(SimpleNamespace(draw_app=editor, app=editor.app, ui=ui, mode='add'))
+    return [shape.geo for shape in editor.storage.get_objects()]
+
+
+def test_rectangle_panel_keeps_the_size_when_the_corner_radius_does_not_fit():
+    # the default corners are Round with radius 1; when they do not fit the corners are square (as with the mouse)
+    for length, width, rounded in ((10, 1, False), (-10, 4, True), (10, 4, True)):
+        added = panel_add(RectangleEditorTool, anchor_radio='c', x_entry=0, y_entry=0, corner_radio='r',
+                          radius_entry=1, length_entry=length, width_entry=width)
+        assert len(added) == 1
+        assert added[0].bounds == pytest.approx((-5, -width / 2, 5, width / 2))
+        assert (Polygon(added[0]).area < 10 * width) == rounded
+
+
+def test_circle_panel_adds_a_circle_with_the_y_radius_field_left_at_0():
+    # in the default (linked) circle mode the Y radius field is disabled and does not follow the X field
+    circle = dict(x_entry=10, y_entry=10, radius_y_entry=0, angle_entry=0)
+    added = panel_add(CircleEditorTool, radius_x_entry=5, **circle)
+    assert len(added) == 1 and added[0].bounds == pytest.approx((5, 5, 15, 15))
+    assert panel_add(CircleEditorTool, radius_x_entry=0, **circle) == []
+
+
+def test_circle_panel_rotates_an_ellipse_like_the_circle_tool():
+    from shapely import Point
+    from shapely.affinity import rotate, scale
+    added = panel_add(CircleEditorTool, linked=False, x_entry=0, y_entry=0, radius_x_entry=4, radius_y_entry=1,
+                      angle_entry=30)
+    # the preview and the Enter path of FCCircle, which write the angle field, rotate by +angle (counter-clockwise)
+    expected = rotate(scale(Point(0, 0).buffer(1), 4, 1), 30)
+    assert len(added) == 1 and Polygon(added[0]).symmetric_difference(expected).area < 1e-9

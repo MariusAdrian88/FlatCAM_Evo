@@ -106,6 +106,10 @@ class CircleEditorTool(AppToolEditor):
         radius_y = self.ui.radius_y_entry.get_value()
         angle = self.ui.angle_entry.get_value()
         is_circle = True if self.ui.radius_link_btn.isChecked() else False
+        if is_circle:
+            # a circle has one radius, as in the Enter path of the Circle tool; the disabled Y field does not follow
+            # the X field (it stays 0 unless typed in) and Add failed with "Enter positive finite radii"
+            radius_y = radius_x
 
         try:
             valid = all(math.isfinite(v) for v in (origin_x, origin_y, radius_x, radius_y, angle))
@@ -123,7 +127,9 @@ class CircleEditorTool(AppToolEditor):
             circle_geo = Point((origin_x, origin_y)).buffer(1)
             geo = scale(circle_geo, radius_x, radius_y)
             if angle != 0:
-                geo = rotate(geo, -angle)
+                # counter-clockwise, as the preview and the Enter path of the Circle tool, which write this field
+                # (-angle made the mirror image of a drawn ellipse on Apply)
+                geo = rotate(geo, angle)
 
         added_shapes = []
         self.draw_app._collect_shape(geo.exterior, added_shapes)

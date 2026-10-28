@@ -123,6 +123,13 @@ Preprocessors:
 - fixed: with a laser power of 0 (the default) the Marlin laser preprocessors turned the laser on without a power: Marlin_laser_FAN_pin wrote a bare M106 (full output, 255), Marlin_laser_Spindle_pin and Marlin_laser_z a bare M3 / M4 (the startup power of Marlin); they now write an explicit S0, like the GRBL laser preprocessors; a set power does not change
 - fixed: Roland_MDX_20 and Roland_MDX_540 set the XY feedrate in the down code, over the Z feedrate set just before it, so a milling plunge ran at the XY feedrate (with 600 / 60 mm/min at 10 mm/s instead of 1 mm/s), which can break a V-bit; the plunge now uses the Z feedrate; the drilling G-code does not change
 - fixed: an error in a preprocessor method only dropped the G-code of that call (with one status bar warning) and the CNC job was still made, with missing lines; for example a Bed Skew with a Bed Size of 0 divided by zero in every position, so a laser job had no X-Y moves and fired at one spot and a drill job drilled all the holes at one place; the CNC job now fails with the preprocessor method and the error in the message (the solder paste job keeps its own error), and a Bed Skew with a Bed Size of 0 gives "Bed-skew correction needs a non-zero bed size."
+Geometry editor:
+
+- fixed: Explode removed every selected shape but made lines only from closed outlines and Multi shapes: open paths and polygons were deleted, and a Multi shape threw away the lines of the shapes selected before it; open paths now explode into their segments, polygons into the segments of their outlines, and a shape that gives no lines (a single segment) is kept
+- fixed: Transform -> Buffer D buffered the outline of a polygon (the editor keeps a polygon as its outline) as a line: a positive distance made a band with 2 outlines and a negative one deleted the shape; the area inside the outline is now buffered and its outline kept, as in the Buffer tool, and an erosion that would leave nothing is refused with a message
+- fixed: a rectangle added from the Rectangle panel with Round or Bevel corners was larger than requested when the corner radius was more than half of a side (with the default radius 1, 10 x 1 gave 10 x 3) or when a size was negative (-10 x 4 gave 14 x 4); corners that do not fit are now square, as for a rectangle drawn with the mouse
+- fixed: Add in the Circle panel failed with "Enter positive finite radii ..." in the default (circle) mode, because the disabled Y radius field does not follow the radius and stayed 0; a circle now uses only its radius, as when it is typed in with Enter
+- fixed: an ellipse added or applied from the Circle panel was rotated clockwise by the Angle field, the opposite of the preview and of the ellipse drawn with the mouse, which writes its counter-clockwise angle in that field; Apply on a drawn ellipse made its mirror image
 
 Tests:
 
@@ -158,6 +165,11 @@ Tests:
 - new unit test for the zero power activation of the Marlin laser preprocessors (tests/test_laser_safety.py)
 - new unit test for the plunge feedrate of the Roland preprocessors (tests/test_preprocessors_no_swallowed_errors.py)
 - new unit test for the CNC job that fails on a preprocessor error (Bed Skew with a Bed Size of 0); the test jobs of tests/test_laser_safety.py and tests/test_cncjob_gcode_speed.py get the bounds and the tool diameter that the start code reads
+- added a Geometry editor check that Explode replaces every selected shape by its lines
+- added Geometry editor checks that Transform -> Buffer D moves a polygon outline by the distance and keeps a shape it would erode away
+- added a Geometry editor check of the rectangle size from the Rectangle panel with corners that do not fit
+- added a Geometry editor check that the Circle panel adds a circle with the Y radius field left at 0
+- added a Geometry editor check that the Circle panel rotates an ellipse like the Circle tool
 
 25.10.2026
 RELEASE FlatCAM Evo 1.0

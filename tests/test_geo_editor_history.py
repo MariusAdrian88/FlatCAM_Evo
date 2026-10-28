@@ -6,7 +6,7 @@ from unittest.mock import Mock, MagicMock
 
 import pytest
 from PyQt6 import QtCore, QtGui, QtWidgets
-from shapely.geometry import LineString, box
+from shapely.geometry import LineString, MultiLineString, Polygon, box
 from shapely.ops import unary_union
 
 from appEditors.appGeoEditor import AppGeoEditor, DrawToolShape, DrawToolUtilityShape, FCMove, FCExplode, FCEraser, FCShapeTool
@@ -462,6 +462,31 @@ def test_explode_is_one_delete_plus_add_operation():
     assert editor.redo()
     assert set(editor.storage.get_objects()) == set(segments)
     assert editor.selected == segments
+
+
+def test_explode_replaces_every_selected_shape_by_its_lines():
+    # a ring before a MultiLineString (its segments were thrown away), an open path and a polygon (both were
+    # removed with nothing in their place) and a single segment (kept as it is)
+    segment = DrawToolShape(LineString([(9, 0), (9, 1)]))
+    originals = [DrawToolShape(box(0, 0, 1, 1).exterior),
+                 DrawToolShape(MultiLineString([[(3, 0), (4, 0)], [(3, 1), (4, 1)]])),
+                 DrawToolShape(LineString([(5, 0), (6, 0), (6, 1)])),
+                 DrawToolShape(Polygon(box(10, 0, 14, 4).exterior.coords, [box(11, 1, 12, 2).exterior.coords])),
+                 segment]
+    editor = editor_with_history(originals, originals)
+    editor.app.options['geometry_editor_milling_type'] = 'cv'
+    editor.delete_utility_geometry = lambda: AppGeoEditor.delete_utility_geometry(editor)
+    tool = FCExplode.__new__(FCExplode)
+    tool.draw_app = editor
+    editor.active_tool = tool
+    tool.make()
+    shapes = list(editor.storage.get_objects())
+    assert segment in shapes and not set(originals[:-1]) & set(shapes)
+    assert len(shapes) == 4 + 2 + 2 + 8 + 1
+    assert unary_union([s.geo for s in shapes]).equals(unary_union([s.geo.boundary if s.geo.geom_type == 'Polygon'
+                                                                    else s.geo for s in originals]))
+    assert editor.undo()
+    assert set(editor.storage.get_objects()) == set(originals)
 
 
 def test_replay_restores_real_tree_rows_and_selection():
