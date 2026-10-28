@@ -3349,6 +3349,10 @@ class MainGUI(QtWidgets.QMainWindow):
                     else:
                         self.app.f_handlers.on_file_open_gerber()
 
+                # Import file
+                if key == QtCore.Qt.Key.Key_I or key == 'I':
+                    self.app.project_selector.on_import()
+
                 # Distance Tool
                 if key == QtCore.Qt.Key.Key_M:
                     self.app.distance_tool.run()
@@ -5214,6 +5218,10 @@ class ShortcutsTab(QtWidgets.QWidget):
                         <td height="20"><strong>%s</strong></td>
                         <td>&nbsp;%s</td>
                     </tr>
+                    <tr height="20">
+                        <td height="20"><strong>%s</strong></td>
+                        <td>&nbsp;%s</td>
+                    </tr>
                 </tbody>
             </table>
         """ % (
@@ -5223,6 +5231,7 @@ class ShortcutsTab(QtWidgets.QWidget):
             _('Ctrl+D'), _("Open Tools Database"),
             _('Ctrl+E'), _("Open Excellon File"),
             _('Ctrl+G'), _("Open Gerber File"),
+            _('Ctrl+I'), _("Import File"),
             _('Ctrl+M'), _("Distance Tool"),
             _('Ctrl+N'), _("New Project"),
             _('Ctrl+O'), _("Open Project"),

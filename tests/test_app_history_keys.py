@@ -30,6 +30,12 @@ def press(key, modifiers, source='app', in_text=False, options=None):
     return gui
 
 
+class TestAppImportKey(unittest.TestCase):
+    def test_ctrl_i_opens_import(self):
+        gui = press(QtCore.Qt.Key.Key_I, CTRL)
+        gui.app.project_selector.on_import.assert_called_once()
+
+
 class TestAppHistoryKeys(unittest.TestCase):
     def test_ctrl_z_undo(self):
         gui = press(QtCore.Qt.Key.Key_Z, CTRL)
