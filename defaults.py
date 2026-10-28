@@ -819,7 +819,7 @@ class AppDefaults:
         "tools_transform_ref_object": _("Gerber"),
         "tools_transform_ref_point": "0, 0",
 
-        "tools_transform_rotate": 90,
+        "tools_transform_rotate": 45,
         "tools_transform_skew_x": 0.0,
         "tools_transform_skew_y": 0.0,
         "tools_transform_skew_link": True,

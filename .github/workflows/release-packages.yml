@@ -34,9 +34,6 @@ jobs:
           - os: macos-15
             platform: macos
             arch: arm64
-          - os: macos-15-intel
-            platform: macos
-            arch: x86_64
     defaults:
       run:
         shell: bash -el {0}
