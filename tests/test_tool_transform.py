@@ -335,6 +335,21 @@ class TransformTest(unittest.TestCase):
                     self.assertTrue(any('not executed' in call.args[0].lower()
                                         for call in app.inform.emit.call_args_list))
 
+    def test_offset_of_an_opened_gcode_job_moves_its_exported_text(self):
+        """Offset through ToolTransform: the exported text (source_file) of a G-code job holds the moved coordinates."""
+        import pathlib
+        import tempfile
+        from tests.test_cncjob_export_gcode import MILL_FILE, _open_gcode
+
+        with tempfile.TemporaryDirectory() as tmp:
+            _job_app, job = _open_gcode(pathlib.Path(tmp), MILL_FILE)
+        self.assertIn('G0 X1 Y1', job.source_file)
+        app = make_app([job])
+        ToolTransform.on_offset(SimpleNamespace(app=app), 'X', 10.0)
+
+        self.assertIn('X11', job.source_file)
+        self.assertNotIn('X1 Y1', job.source_file)
+
 
 class TransformUiTest(unittest.TestCase):
 

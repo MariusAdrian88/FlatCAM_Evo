@@ -80,6 +80,8 @@ def gcode_job(pp_name, app=None):
     # the start code reads the bounds and the tool diameter (the CNC job tools set them before the G-code is made)
     job.obj_options = {'name': 'job', 'type': 'Geometry', 'xmin': 0, 'ymin': 0, 'xmax': 10, 'ymax': 10,
                        'tool_dia': 0.1}
+    # as CNCJobObject sets it; GRBL_laser_z reads it in its start code
+    job.multigeo = False
     job.coords_decimals = 4
     job.fr_decimals = 2
     job.z_cut = -0.1
@@ -284,6 +286,50 @@ def run_with_deadline(function, seconds=15):
 
 
 class TestMillingGcodeFixes:
+    def test_estimates_include_z_and_only_the_emitted_end_move(self):
+        job = gcode_job('default')
+        single_path_gcode(job, [LineString([(0, 0), (10, 0)])], endxy=None)
+        assert job.travel_distance == pytest.approx(2 + 2.1 + 10 + 2.1)
+        assert job.routing_time == pytest.approx(2 / 1000 + 2.1 / 100 + 10 / 300 + 2.1 / 1000)
+
+    @pytest.mark.parametrize('pp_name', ['default', 'Marlin', 'Line_xyz', 'Check_points', 'GRBL_laser',
+                                        'GRBL_laser_z', 'hpgl',
+                                        'Roland_MDX_20', 'ISEL_ICP_CNC'])
+    def test_generated_estimate_counts_motion_and_supported_dwell(self, pp_name):
+        job, code = multi_geo_gcode([LineString([(0, 0), (10, 0)])], pp_name=pp_name,
+                                    data={'tools_mill_dwell': True, 'tools_mill_dwelltime': 30,
+                                          'tools_mill_endxy': None, 'tools_mill_endz': 2,
+                                          'tools_mill_feedrate_z': 100, 'tools_mill_feedrate_rapid': 600})
+        if pp_name in ('hpgl', 'GRBL_laser'):
+            assert job.travel_distance == pytest.approx(20)
+            assert job.routing_time == pytest.approx(10 / 300 + 10 / 600)
+        elif pp_name == 'GRBL_laser_z':
+            assert job.travel_distance == pytest.approx(22)
+        elif pp_name == 'Check_points':
+            assert job.travel_distance == pytest.approx(25.9)
+            assert job.routing_time == pytest.approx(23.95 / 600 + 1.95 / 100)
+        elif pp_name == 'Roland_MDX_20':
+            assert job.travel_distance == pytest.approx(26.1, abs=0.001)
+            # The MDX-20 clamps all three configured rates to 15 mm/s, even in an inch job.
+            assert job.routing_time == pytest.approx(26.1 / (900 / 25.4), abs=0.001)
+        else:
+            assert job.travel_distance == pytest.approx(26.1)
+            assert job.routing_time == pytest.approx(14.05 / 600 + 2.05 / 100 + 10 / 300 + 0.5)
+
+    @pytest.mark.parametrize('changes', [
+        {'multidepth': True, 'depthpercut': 0.04},
+        {'extracut': True, 'extracut_length': 0.5},
+        {'toolchange': True, 'toolchangexy': (3, 4), 'startz': 5, 'endxy': (2, 1), 'endz': 1},
+    ])
+    def test_estimate_follows_multi_pass_extra_cut_and_toolchange_moves(self, changes):
+        from appParsers.ParseGCode import parse_gcode
+
+        job = gcode_job('default')
+        code = single_path_gcode(job, [LinearRing([(0, 0), (10, 0), (10, 5), (0, 0)])], **changes)
+        result = parse_gcode('G20\nG0 X0 Y0 Z0\n' + code, feedrate_rapid=1000, target_units=job.units)
+        assert job.travel_distance == pytest.approx(result['travel_distance'])
+        assert job.routing_time == pytest.approx(result['routing_time'])
+
     @pytest.mark.parametrize('multidepth', [False, True])
     def test_single_geometry_negative_travel_z_lifts_up(self, multidepth):
         job = gcode_job('default')

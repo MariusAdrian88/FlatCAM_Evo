@@ -196,7 +196,7 @@ def test_flow_control():
     # GOTO loop draws squares
     text = ("G21 G90\n#1=0\nN10 IF [#1 GE 3] GOTO 20\nG0 X[#1*10] Y0\nG91 G1 F10 X5\nY5\nX-5\nY-5\nG90\n"
             "#1=#1+1\nGOTO 10\nN20 M30\n")
-    res = parse_gcode(text)
+    res = parse_gcode(text, feedrate_rapid=1000)
     assert len(_cut_lines(res)) == 3
     assert _cut_bounds(res) == (0.0, 0.0, 25.0, 5.0)
     assert res['warnings'] == []
@@ -358,6 +358,31 @@ def test_tool_headers_blocks_and_travel():
     assert res['tools'][1]['travel_distance'] == pytest.approx(14.0)
 
 
+def test_dwell_in_seconds_is_included_in_estimated_time():
+    res = parse_gcode('G21\nG0 X0 Y0\nG1 X10 F60\nG4 S30\n')
+    assert res['routing_time'] == pytest.approx(10 / 60 + 30 / 60)
+
+
+@pytest.mark.parametrize('preprocessor, expected', [('default', 0.5), ('Marlin', 0.0005),
+                                                  ('Repetier', 0.0005)])
+def test_dwell_p_uses_the_known_controller_units(preprocessor, expected):
+    res = parse_gcode('(Preprocessor Geometry: %s)\nG21\nG4 P30\n' % preprocessor)
+    assert res['routing_time'] == pytest.approx(expected)
+
+
+def test_unknown_rapid_rate_and_dwell_units_report_partial_estimates():
+    res = parse_gcode('G21\nG0 X0 Y0\nG0 X10\nG4 P30\n')
+    assert res['warnings']
+    assert any('rapid' in w.lower() for w in res['warnings'])
+    assert any('dwell' in w.lower() for w in res['warnings'])
+
+
+def test_known_z_motion_counts_before_the_first_xy_position():
+    res = parse_gcode('G21\nG0 Z5\nG1 Z-2 F60\nG0 X0 Y0\n', feedrate_rapid=600)
+    assert res['travel_distance'] == pytest.approx(7)
+    assert res['routing_time'] == pytest.approx(7 / 60)
+
+
 # ---------------------------------------------------------------- transform_gcode
 
 OFFSET = (1, 0, 0, 1, 5, 7)
@@ -408,3 +433,208 @@ def test_transform_of_arcs():
     rotated = shapely.affinity.affine_transform(old['tools'][1]['gcode_parsed'][-1]['geom'], ROT90)
     assert new['tools'][1]['gcode_parsed'][-1]['geom'].bounds == pytest.approx(rotated.bounds, abs=1e-3)
     assert new['travel_distance'] == pytest.approx(old['travel_distance'], rel=1e-3)
+
+
+# ---------------------------------------------------------------- CNCjob native transforms
+
+_WORD = re.compile(r'([XYZIJF])(-?\d+(?:\.\d+)?)')
+
+
+def _native_words(line):
+    return {k: float(v) for k, v in _WORD.findall(line)}
+
+
+def _native_job(text, multitool):
+    """A CNCjob holding ``text`` as native (not imported) G-code, single tool or multitool."""
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+    import shapely.geometry
+    import camlib
+    from appParsers.ParseGCode import parse_gcode
+
+    app = SimpleNamespace(
+        decimals=4, app_units='MM',
+        plotcanvas=SimpleNamespace(new_shape_collection=lambda layers=1: None),
+        options={'cncjob_steps_per_circle': 64, 'cncjob_coords_type': 'G90', 'cncjob_bed_max_x': 0,
+                 'cncjob_bed_max_y': 0, 'cncjob_bed_offset_x': 0, 'cncjob_bed_offset_y': 0,
+                 'cncjob_bed_skew_x': 0, 'cncjob_bed_skew_y': 0},
+        preprocessors={'default': object()}, inform=MagicMock(), log=MagicMock(),
+        proc_container=SimpleNamespace(new_text=''),
+    )
+    job = camlib.CNCjob(app=app, units='MM', pp_geometry_name='default', pp_excellon_name='default',
+                        steps_per_circle=64)
+    job.obj_options = {'type': 'Geometry', 'name': 'job1'}
+    job.gcode_imported = False
+    job.gc_start = job.prepend_snippet = job.append_snippet = ''
+    job.is_segmented_gcode = True
+    parsed = parse_gcode(text, steps_per_circle=64)['tools'][1]['gcode_parsed']
+    job.gcode = text
+    job.gcode_parsed = parsed
+    job.solid_geometry = shapely.geometry.LineString([(0, 0), (1, 1)])
+    job.multitool = multitool
+    if multitool:
+        job.tools = {1: {'gcode': text, 'gcode_parsed': parsed, 'solid_geometry': job.solid_geometry,
+                         'tooldia': 0.4, 'data': {}}}
+        job.used_tools = [1]
+    else:
+        job.tools = {}
+        job.used_tools = []
+    return job
+
+
+def _native_text(job):
+    return job.tools[1]['gcode'] if job.multitool else job.gcode
+
+
+@pytest.mark.parametrize('multitool', [False, True])
+def test_native_scale_moves_xy_about_the_point_and_keeps_z_and_feed(multitool):
+    old = "G21 G90\nG0 X0 Y0 Z5 F600\nG1 X2 Y3 Z-0.1 F100\nG1 X-1 Y4\nG0 Z5\n"
+    job = _native_job(old, multitool)
+    job.scale(2, 3, point=(1, 1))
+    new_lines = _native_text(job).splitlines()
+    old_lines = old.splitlines()
+    assert len(new_lines) == len(old_lines)
+    for o, n in zip(old_lines, new_lines):
+        wo, wn = _native_words(o), _native_words(n)
+        assert set(wn) == set(wo)
+        if 'X' in wo:
+            assert wn['X'] == pytest.approx(1 + 2 * (wo['X'] - 1))
+        if 'Y' in wo:
+            assert wn['Y'] == pytest.approx(1 + 3 * (wo['Y'] - 1))
+        for k in 'ZF':
+            if k in wo:
+                assert wn[k] == pytest.approx(wo[k])
+
+
+@pytest.mark.parametrize('multitool', [False, True])
+def test_native_scale_doubles_arc_offsets_and_non_uniform_scale_linearizes_the_arc(multitool):
+    text = "G21 G90\nG0 X0 Y0\nG2 X2 Y0 I1 J0 F100\n"
+    job = _native_job(text, multitool)
+    job.scale(2, 2, point=(0, 0))
+    arc = _native_text(job).splitlines()[2]
+    assert re.search(r'\bG2\b', arc)
+    w = _native_words(arc)
+    assert w['X'] == pytest.approx(4) and w['Y'] == pytest.approx(0)
+    assert w['I'] == pytest.approx(2) and w['J'] == pytest.approx(0)
+    assert w['F'] == pytest.approx(100)
+
+    job = _native_job(text, multitool)
+    job.scale(2, 1, point=(0, 0))
+    out_lines = _native_text(job).splitlines()
+    assert not any(re.search(r'\bG[23]\b', line) for line in out_lines)
+    last = _native_words(out_lines[-1])
+    assert last['X'] == pytest.approx(4) and last['Y'] == pytest.approx(0)
+
+
+@pytest.mark.parametrize('multitool', [False, True])
+def test_native_offset_moves_absolute_xy_and_nothing_else(multitool):
+    text = "G21 G90\nG0 X0 Y0\nG1 X5 Y5 F100\nG91\nG1 X1 Y1\nG90\nG53 G0 X0 Y0\n(X1.0 Y2.0)\n"
+    # (source line, expected words after the offset; None = the line must stay byte for byte)
+    cases = [
+        ("G21 G90", None),
+        ("G0 X0 Y0", {'X': 10, 'Y': 5}),
+        ("G1 X5 Y5 F100", {'X': 15, 'Y': 10, 'F': 100}),
+        ("G91", None),
+        ("G1 X1 Y1", {'X': 1, 'Y': 1}),          # incremental: the offset must not touch it
+        ("G90", None),
+        ("G53 G0 X0 Y0", {'X': 0, 'Y': 0}),      # machine coordinates: not shifted
+        ("(X1.0 Y2.0)", None),
+    ]
+    job = _native_job(text, multitool)
+    job.offset((10, 5))
+    out_lines = _native_text(job).splitlines()
+    assert len(out_lines) == len(cases)
+    for line, (src, want) in zip(out_lines, cases):
+        if want is None:
+            assert line == src
+            continue
+        got = _native_words(line)
+        assert set(got) == set(want)
+        for k in want:
+            assert got[k] == pytest.approx(want[k])
+
+
+def test_native_convert_units_in_to_mm_scales_lengths_and_feed_and_switches_g20():
+    text = "G20\n(Spindle Speed: 1000)\nG1 X1 Y2 Z-0.1 F10\nG2 X2 Y2 I0.5 J0\n"
+    job = _native_job(text, multitool=False)
+    job.units = 'IN'
+    job.convert_units('MM')
+    out = job.gcode
+    lines = out.splitlines()
+    assert re.search(r'\bG21\b', lines[0]) and not re.search(r'\bG20\b', out)
+    assert lines[1] == "(Spindle Speed: 1000)"
+    g1 = _native_words(lines[2])
+    assert g1 == pytest.approx({'X': 25.4, 'Y': 50.8, 'Z': -2.54, 'F': 254}, abs=1e-3)
+    g2 = _native_words(lines[3])
+    assert g2 == pytest.approx({'X': 50.8, 'Y': 50.8, 'I': 12.7, 'J': 0}, abs=1e-3)
+
+
+@pytest.mark.parametrize('transform', ['rotate', 'offset'])
+def test_native_transforms_keep_the_toolchange_and_end_positions(transform):
+    text = "G21 G90\nG00 X5 Y6\nM6\nG00 X1 Y2\nG1 Z-0.1 F50\nG1 X3 Y4 F100\nG00 Z5\nG00 X-7 Y8\n"
+    job = _native_job(text, multitool=False)
+    job.xy_toolchange = [5, 6]
+    job.xy_end = [-7, 8]
+    if transform == 'rotate':
+        job.rotate(90, (0, 0))
+        moved = lambda x, y: (-y, x)
+    else:
+        job.offset((10, 5))
+        moved = lambda x, y: (x + 10, y + 5)
+    lines = job.gcode.splitlines()
+    assert len(lines) == 8
+    tc = _native_words(lines[1])
+    assert tc['X'] == pytest.approx(5) and tc['Y'] == pytest.approx(6)
+    end = _native_words(lines[7])
+    assert end['X'] == pytest.approx(-7) and end['Y'] == pytest.approx(8)
+    # the approach move after the tool change and the cut follow the transform
+    for idx, (x, y) in ((3, (1, 2)), (5, (3, 4))):
+        w = _native_words(lines[idx])
+        ex, ey = moved(x, y)
+        assert w['X'] == pytest.approx(ex) and w['Y'] == pytest.approx(ey)
+
+
+_SQUARE_TWO_PASSES = (
+    "G21 G90\nG00 Z1\nG00 X0 Y0\nG01 Z-0.1 F50\nG01 X4 Y0 F100\nG01 X4 Y4\nG01 X0 Y4\nG01 X0 Y0\nG00 Z1\n"
+    "G00 X0 Y0\nG01 Z-0.2 F50\nG01 X4 Y0 F100\nG01 X4 Y4\nG01 X0 Y4\nG01 X0 Y0\nG00 Z5\nG00 X0 Y0\nM05\n"
+)
+
+
+def test_native_transform_moves_every_approach_move_before_a_cut():
+    # the end position is the start of the closed path, as when End X,Y is empty (xy_end = last point)
+    job = _native_job(_SQUARE_TWO_PASSES, multitool=False)
+    job.xy_toolchange = None
+    job.xy_end = [0, 0]
+    job.offset((10, 5))
+    lines = _native_text(job).splitlines()
+    approach, cut_xy = [], []
+    for i, line in enumerate(lines):
+        words = _native_words(line)
+        if line.startswith('G00') and ('X' in words or 'Y' in words):
+            nxt = next((n for n in lines[i + 1:] if re.search(r'[XYZ]', n)), '')
+            if nxt.startswith('G01') and 'Z' in nxt and 'X' not in nxt and 'Y' not in nxt:
+                approach.append(words)
+        if line.startswith('G01') and ('X' in line or 'Y' in line):
+            cut_xy.append((words['X'], words['Y']))
+    # both approach moves (before each plunge) are shifted
+    assert len(approach) == 2
+    for w in approach:
+        assert w['X'] == pytest.approx(10) and w['Y'] == pytest.approx(5)
+    # every cut move is shifted
+    expected = [(4, 0), (4, 4), (0, 4), (0, 0)] * 2
+    assert len(cut_xy) == len(expected)
+    for (x, y), (ex, ey) in zip(cut_xy, expected):
+        assert x == pytest.approx(ex + 10) and y == pytest.approx(ey + 5)
+    # the end move after the last cut keeps the end position
+    assert lines[-1] == 'M05' and lines[-2].startswith('G00')
+    end = _native_words(lines[-2])
+    assert end['X'] == pytest.approx(0) and end['Y'] == pytest.approx(0)
+    # the plot follows the text: the cuts are on the shifted square, the last travel goes to the end position
+    corners = [(10, 5), (14, 5), (14, 9), (10, 9)]
+    cuts = [g['geom'] for g in job.gcode_parsed if g['kind'][0] == 'C']
+    travels = [g['geom'] for g in job.gcode_parsed if g['kind'][0] == 'T']
+    assert cuts
+    for geom in cuts:
+        for x, y in geom.coords:
+            assert any(abs(x - cx) < 1e-6 and abs(y - cy) < 1e-6 for cx, cy in corners)
+    assert travels and tuple(travels[-1].coords[-1][:2]) == pytest.approx((0, 0))

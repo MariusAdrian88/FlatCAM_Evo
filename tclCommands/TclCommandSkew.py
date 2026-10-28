@@ -23,7 +23,7 @@ class TclCommandSkew(TclCommand):
     # List of all command aliases, to be able use old names for backward compatibility (add_poly, add_polygon)
     aliases = ['skew']
 
-    description = '%s %s' % ("--", "Will deform (skew) the geometry of a named object. Does not create a new object.")
+    description = '%s %s' % ("--", "Will deform (skew) the geometry of a named object (Gerber, Excellon, Geometry or CNCJob). Does not create a new object.")
 
     # Dictionary of types from Tcl command, needs to be ordered
     arg_names = collections.OrderedDict([
@@ -47,6 +47,7 @@ class TclCommandSkew(TclCommand):
         'main': "Shear/Skew an object along x and y dimensions, having a specified skew origin"
                 "The names of the objects to be scaled will be entered after the command,\n"
                 "separated by spaces. See the example below.\n"
+                "Works on Gerber, Excellon, Geometry and CNCJob objects (the G-code of a CNCJob is rewritten).\n"
                 "WARNING: if the name of an object has spaces, enclose the name with quotes.",
         'args': collections.OrderedDict([
             ('x', 'Angle in degrees by which to skew on the X axis. If it is not used it will be assumed to be 0.0'),
@@ -146,8 +147,12 @@ class TclCommandSkew(TclCommand):
             if obj is None or obj == '':
                 self.app.log.error("Object not found: %s" % name)
                 return "fail"
-            if obj.kind not in ('geometry', 'gerber', 'excellon'):
-                self.raise_tcl_error('Only Gerber, Excellon and Geometry objects can be skewed.')
+            if obj.kind not in ('geometry', 'gerber', 'excellon', 'cncjob'):
+                self.raise_tcl_error('Only Gerber, Excellon, Geometry and CNCJob objects can be skewed.')
+            # an imported G-code with macros or subprograms can not be rewritten: an error, not a silent no-op
+            blocked = obj.gcode_flow_blocked('transform') if obj.kind == 'cncjob' else None
+            if blocked:
+                self.raise_tcl_error(blocked.replace('[ERROR_NOTCL] ', '', 1))
             objects[name] = obj
             a, b, c, d = obj.bounds()
             minx_lst.append(a)
@@ -210,6 +215,10 @@ class TclCommandSkew(TclCommand):
                 angle_y = math.degrees(math.atan(dist_y/width)) if dist_y else 0.0
 
             obj_to_skew.skew(angle_x, angle_y, point=ref_point)
+            # the exported text (source_file) must follow the geometry
+            regenerate = getattr(obj_to_skew, 'regenerate_source', None)
+            if regenerate is not None and regenerate() is False:
+                self.raise_tcl_error('Source regeneration failed: %s' % name)
 
             # use other names: xmin, ymin, xmax, ymax are the bounds of all objects, used for the next object
             try:

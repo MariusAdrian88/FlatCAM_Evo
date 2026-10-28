@@ -12,7 +12,8 @@ class TclCommandMirror(TclCommandSignaled):
     # old names for backward compatibility (add_poly, add_polygon)
     aliases = ['mirror']
 
-    description = '%s %s' % ("--", "Will mirror the geometry of a named object. Does not create a new object.")
+    description = '%s %s' % ("--", "Will mirror the geometry of a named object (Gerber, Excellon, Geometry or CNCJob). "
+                                   "Does not create a new object.")
 
     # Dictionary of types from Tcl command, needs to be ordered.
     # For positional arguments
@@ -36,6 +37,7 @@ class TclCommandMirror(TclCommandSignaled):
         'main': "Will mirror the geometry of a named object. Does not create a new object.\n"
                 "The names of the objects to be scaled will be entered after the command,\n"
                 "separated by spaces. See the example below.\n"
+                "Works on Gerber, Excellon, Geometry and CNCJob objects (the G-code of a CNCJob is rewritten).\n"
                 "WARNING: if the name of an object has spaces, enclose the name with quotes.",
         'args': collections.OrderedDict([
             ('axis', 'Mirror axis parallel to the X or Y axis.'),
@@ -80,8 +82,12 @@ class TclCommandMirror(TclCommandSignaled):
             if obj is None or obj == '':
                 self.app.log.error("Object not found: %s" % name)
                 return "fail"
-            if obj.kind not in ('geometry', 'gerber', 'excellon'):
-                self.raise_tcl_error('Only Gerber, Excellon and Geometry objects can be mirrored.')
+            if obj.kind not in ('geometry', 'gerber', 'excellon', 'cncjob'):
+                self.raise_tcl_error('Only Gerber, Excellon, Geometry and CNCJob objects can be mirrored.')
+            # an imported G-code with macros or subprograms can not be rewritten: an error, not a silent no-op
+            blocked = obj.gcode_flow_blocked('transform') if obj.kind == 'cncjob' else None
+            if blocked:
+                self.raise_tcl_error(blocked.replace('[ERROR_NOTCL] ', '', 1))
             objects[name] = obj
             a, b, c, d = obj.bounds()
             minx_lst.append(a)
@@ -105,8 +111,8 @@ class TclCommandMirror(TclCommandSignaled):
                 self.app.log.error("Object not found: %s" % name)
                 return "fail"
 
-            if obj.kind != 'gerber' and obj.kind != 'geometry' and obj.kind != 'excellon':
-                self.app.log.error("ERROR: Only Gerber, Excellon and Geometry objects can be mirrored.")
+            if obj.kind not in ('geometry', 'gerber', 'excellon', 'cncjob'):
+                self.app.log.error("ERROR: Only Gerber, Excellon, Geometry and CNCJob objects can be mirrored.")
                 return "fail"
 
             # Axis
@@ -171,6 +177,10 @@ class TclCommandMirror(TclCommandSignaled):
             except Exception as e:
                 self.app.log.error("Operation failed: %s" % str(e))
                 return "fail"
+            # the exported text (source_file) must follow the geometry
+            regenerate = getattr(obj, 'regenerate_source', None)
+            if regenerate is not None and regenerate() is False:
+                self.raise_tcl_error('Source regeneration failed: %s' % name)
 
             # use other names: xmin, ymin, xmax, ymax are the bounds of all objects, used for the next object
             try:

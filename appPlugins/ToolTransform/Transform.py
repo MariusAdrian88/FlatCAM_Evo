@@ -13,7 +13,7 @@ from appGUI.GUIElements import VerticalScrollArea
 from defaults import AppDefaults
 from appCommon.SafeEval import safe_eval
 from appPlugins.ToolTransform.TransformUI import TransformUI
-from appPlugins.ToolTransform.TransformGen import alt_bounds, bounds_center, SUPPORTED_KINDS
+from appPlugins.ToolTransform.TransformGen import alt_bounds, bounds_center, SUPPORTED_KINDS, AFFINE_KINDS
 
 import logging
 import math
@@ -170,14 +170,14 @@ class ToolTransform(AppTool):
             _("Gerber"): "Gerber", _("Excellon"): "Excellon", _("Geometry"): "Geometry"
         }[self.ui.type_obj_combo.get_value()]
 
-    def on_calculate_reference(self):
+    def on_calculate_reference(self, kinds=SUPPORTED_KINDS):
         ref_val = self.ui.ref_combo.currentIndex()
         if ref_val == 0:    # "Origin" reference
             return 0, 0
         elif ref_val == 1:  # "Selection" reference
             sel_list = self.app.collection.get_selected()
             if sel_list:
-                xmin, ymin, xmax, ymax = self.alt_bounds(obj_list=sel_list)
+                xmin, ymin, xmax, ymax = alt_bounds(sel_list, kinds)
                 if not ToolTransform._is_finite(xmin, ymin, xmax, ymax):
                     self.app.inform.emit('[ERROR_NOTCL] %s' % _("The selected objects have no geometry."))
                     return "fail"
@@ -239,13 +239,13 @@ class ToolTransform(AppTool):
         return str(getattr(obj, 'kind', '')).lower()
 
     @staticmethod
-    def _supported_selection(obj_list):
+    def _supported_selection(obj_list, kinds=SUPPORTED_KINDS):
         supported = []
         skipped = []
         for obj in obj_list:
             if getattr(obj, 'deleted', False):
                 continue
-            if ToolTransform._object_kind(obj) in SUPPORTED_KINDS:
+            if ToolTransform._object_kind(obj) in kinds:
                 supported.append(obj)
             else:
                 skipped.append(obj)
@@ -265,10 +265,10 @@ class ToolTransform(AppTool):
                                  (_("Only Gerber, Excellon and Geometry objects can be transformed. Skipped"),
                                   ", ".join(ToolTransform._obj_name(obj) for obj in others)))
 
-    def _selected_objects(self):
+    def _selected_objects(self, kinds=SUPPORTED_KINDS):
         """The selection at the moment of the click; the worker must not read the GUI selection model."""
         selected = list(self.app.collection.get_selected())
-        supported, skipped = ToolTransform._supported_selection(selected)
+        supported, skipped = ToolTransform._supported_selection(selected, kinds)
         ToolTransform._warn_skipped(self, skipped)
         if not supported and not skipped:
             self.app.inform.emit('[WARNING_NOTCL] %s' % _("No object is selected."))
@@ -310,30 +310,30 @@ class ToolTransform(AppTool):
         if math.isclose(value % 360.0, 0.0, abs_tol=1e-12):
             self.app.inform.emit('[WARNING_NOTCL] %s' % _("Rotate transformation would not change anything."))
             return
-        point = self.on_calculate_reference()
+        point = self.on_calculate_reference(AFFINE_KINDS)
         if point == 'fail':
             return
-        objs = self._selected_objects()
+        objs = self._selected_objects(AFFINE_KINDS)
         if not objs:
             return
         self._queue(self.on_rotate_action, [value, point, objs])
 
     def on_flipx(self):
         axis = 'Y'
-        point = self.on_calculate_reference()
+        point = self.on_calculate_reference(AFFINE_KINDS)
         if point == 'fail':
             return
-        objs = self._selected_objects()
+        objs = self._selected_objects(AFFINE_KINDS)
         if not objs:
             return
         self._queue(self.on_flip, [axis, point, objs])
 
     def on_flipy(self):
         axis = 'X'
-        point = self.on_calculate_reference()
+        point = self.on_calculate_reference(AFFINE_KINDS)
         if point == 'fail':
             return
-        objs = self._selected_objects()
+        objs = self._selected_objects(AFFINE_KINDS)
         if not objs:
             return
         self._queue(self.on_flip, [axis, point, objs])
@@ -349,10 +349,10 @@ class ToolTransform(AppTool):
         else:
             yvalue = 0
         axis = 'X'
-        point = self.on_calculate_reference()
+        point = self.on_calculate_reference(AFFINE_KINDS)
         if point == 'fail':
             return
-        objs = self._selected_objects()
+        objs = self._selected_objects(AFFINE_KINDS)
         if not objs:
             return
         self._queue(self.on_skew, [axis, xvalue, yvalue, point, objs])
@@ -365,10 +365,10 @@ class ToolTransform(AppTool):
         if yvalue == 0:
             return
         axis = 'Y'
-        point = self.on_calculate_reference()
+        point = self.on_calculate_reference(AFFINE_KINDS)
         if point == 'fail':
             return
-        objs = self._selected_objects()
+        objs = self._selected_objects(AFFINE_KINDS)
         if not objs:
             return
         self._queue(self.on_skew, [axis, xvalue, yvalue, point, objs])
@@ -383,10 +383,10 @@ class ToolTransform(AppTool):
             yvalue = self._entry_number(self.ui.skewy_entry, _("Y angle"))
             if yvalue is None:
                 return
-        point = self.on_calculate_reference()
+        point = self.on_calculate_reference(AFFINE_KINDS)
         if point == 'fail':
             return
-        objs = self._selected_objects()
+        objs = self._selected_objects(AFFINE_KINDS)
         if not objs:
             return
         self._queue(self.on_skew, ['XY', xvalue, yvalue, point, objs])
@@ -404,10 +404,10 @@ class ToolTransform(AppTool):
         else:
             yvalue = 1
         axis = 'X'
-        point = self.on_calculate_reference()
+        point = self.on_calculate_reference(AFFINE_KINDS)
         if point == 'fail':
             return
-        objs = self._selected_objects()
+        objs = self._selected_objects(AFFINE_KINDS)
         if not objs:
             return
         self._queue(self.on_scale, [axis, xvalue, yvalue, point, objs])
@@ -422,10 +422,10 @@ class ToolTransform(AppTool):
                                  _("Scale transformation can not be done for a factor of 0 or 1."))
             return
         axis = 'Y'
-        point = self.on_calculate_reference()
+        point = self.on_calculate_reference(AFFINE_KINDS)
         if point == 'fail':
             return
-        objs = self._selected_objects()
+        objs = self._selected_objects(AFFINE_KINDS)
         if not objs:
             return
         self._queue(self.on_scale, [axis, xvalue, yvalue, point, objs])
@@ -447,10 +447,10 @@ class ToolTransform(AppTool):
         if xvalue == 1 and yvalue == 1:
             self.app.inform.emit('[WARNING_NOTCL] %s' % _("Scale transformation would not change anything."))
             return
-        point = self.on_calculate_reference()
+        point = self.on_calculate_reference(AFFINE_KINDS)
         if point == 'fail':
             return
-        objs = self._selected_objects()
+        objs = self._selected_objects(AFFINE_KINDS)
         if not objs:
             return
         self._queue(self.on_scale, ['XY', xvalue, yvalue, point, objs])
@@ -463,7 +463,7 @@ class ToolTransform(AppTool):
             self.app.inform.emit('[WARNING_NOTCL] %s' % _("Offset transformation can not be done for a value of 0."))
             return
         axis = 'X'
-        objs = self._selected_objects()
+        objs = self._selected_objects(AFFINE_KINDS)
         if not objs:
             return
         self._queue(self.on_offset, [axis, value, objs])
@@ -476,7 +476,7 @@ class ToolTransform(AppTool):
             self.app.inform.emit('[WARNING_NOTCL] %s' % _("Offset transformation can not be done for a value of 0."))
             return
         axis = 'Y'
-        objs = self._selected_objects()
+        objs = self._selected_objects(AFFINE_KINDS)
         if not objs:
             return
         self._queue(self.on_offset, [axis, value, objs])
@@ -491,7 +491,7 @@ class ToolTransform(AppTool):
         if xvalue == 0 and yvalue == 0:
             self.app.inform.emit('[WARNING_NOTCL] %s' % _("Offset transformation can not be done for a value of 0."))
             return
-        objs = self._selected_objects()
+        objs = self._selected_objects(AFFINE_KINDS)
         if not objs:
             return
         self._queue(self.on_offsetxy_action, [xvalue, yvalue, objs])
@@ -525,7 +525,7 @@ class ToolTransform(AppTool):
         self._queue(self.on_buffer_action, [value, join, factor, objs])
 
     def _transform_selected(self, title, cncjob_msg, apply_fn, matrix, meta_fn, done_msg, set_offset=True,
-                            selected=None):
+                            selected=None, kinds=SUPPORTED_KINDS):
         """
         Runs one affine action on the selected objects (called from a worker thread). Per object: apply_fn(obj) does
         the transform, meta_fn(obj) stores the metadata in obj_options, then a queued signal fills the Offset field on
@@ -540,11 +540,12 @@ class ToolTransform(AppTool):
         :param done_msg:    success message
         :param set_offset:  update the Offset field in the Properties tab
         :param selected:    the selection captured on the GUI thread; None: read the collection (direct call)
+        :param kinds:       the object kinds that this action can transform
         :return:            None
         """
         try:
             obj_list = list(selected) if selected is not None else list(self.app.collection.get_selected())
-            obj_list, skipped = ToolTransform._supported_selection(obj_list)
+            obj_list, skipped = ToolTransform._supported_selection(obj_list, kinds)
             if selected is None:
                 # a direct call did not filter on the GUI thread; report what its transform cannot handle
                 ToolTransform._warn_skipped(self, skipped, cncjob_msg)
@@ -583,6 +584,10 @@ class ToolTransform(AppTool):
                             except AttributeError:
                                 option_callback = None
                         try:
+                            flow_blocked = getattr(sel_obj, 'gcode_flow_blocked', None)
+                            if callable(flow_blocked) and flow_blocked('transform'):
+                                # an imported program with macros or subprograms can not be rewritten
+                                raise ValueError('The G-code can not be transformed')
                             result = apply_fn(sel_obj)
                             if result == 'fail':
                                 raise ValueError('Object transformation failed')
@@ -638,7 +643,7 @@ class ToolTransform(AppTool):
 
     def _after_change(self, sel_obj, matrix, set_offset=True):
         """Source, notification, Offset field and plot after a geometry change."""
-        if matrix is not None and ToolTransform._object_kind(sel_obj) in ('gerber', 'excellon'):
+        if matrix is not None and ToolTransform._object_kind(sel_obj) in ('gerber', 'excellon', 'cncjob'):
             # the project file and Save source use source_file, so it must follow the geometry
             if getattr(sel_obj, 'regenerate_source', None) is not None and sel_obj.regenerate_source() is False:
                 raise ValueError('Object source regeneration failed')
@@ -669,7 +674,7 @@ class ToolTransform(AppTool):
         ToolTransform._transform_selected(self,
             _("Rotating"), _("CNCJob objects can't be rotated."),
             lambda o: o.rotate(-num, point=(px, py)), matrix, meta, '[success] %s...' % _('Rotate done'),
-            selected=objs)
+            selected=objs, kinds=AFFINE_KINDS)
 
     def on_flip(self, axis, point, objs=None):
         px, py = point
@@ -689,7 +694,7 @@ class ToolTransform(AppTool):
             msg = '[success] %s...' % _('Flip on X axis done')
         ToolTransform._transform_selected(self,
             _("Flipping"), _("CNCJob objects can't be mirrored/flipped."),
-            lambda o: o.mirror(axis, (px, py)), matrix, meta, msg, selected=objs)
+            lambda o: o.mirror(axis, (px, py)), matrix, meta, msg, selected=objs, kinds=AFFINE_KINDS)
 
     @staticmethod
     def _skew_angle_is_singular(angle):
@@ -724,7 +729,7 @@ class ToolTransform(AppTool):
             msg = '[success] %s %s %s...' % (_('Skew on the'), str(axis), _("axis done"))
         ToolTransform._transform_selected(self,
             _("Skewing"), _("CNCJob objects can't be skewed."),
-            lambda o: o.skew(xvalue, yvalue, point=(px, py)), matrix, meta, msg, selected=objs)
+            lambda o: o.skew(xvalue, yvalue, point=(px, py)), matrix, meta, msg, selected=objs, kinds=AFFINE_KINDS)
 
     def on_scale(self, axis, xfactor, yfactor, point=None, objs=None):
         px, py = (0, 0) if point is None else point
@@ -740,7 +745,8 @@ class ToolTransform(AppTool):
             msg = '[success] %s %s %s...' % (_('Scale on the'), str(axis), _('axis done'))
         ToolTransform._transform_selected(self,
             _("Scaling"), _("CNCJob objects can't be scaled."),
-            lambda o: o.scale(xfactor, yfactor, point=(px, py)), matrix, meta, msg, selected=objs)
+            lambda o: o.scale(xfactor, yfactor, point=(px, py)), matrix, meta, msg, selected=objs,
+            kinds=AFFINE_KINDS)
 
     def on_offset(self, axis, num, objs=None):
         vect = (num, 0) if axis == 'X' else (0, num)
@@ -752,7 +758,8 @@ class ToolTransform(AppTool):
         ToolTransform._transform_selected(self,
             _("Offsetting"), _("CNCJob objects can't be offset."),
             lambda o: o.offset(vect), matrix, meta,
-            '[success] %s %s %s...' % (_('Offset on the'), str(axis), _('axis done')), selected=objs)
+            '[success] %s %s %s...' % (_('Offset on the'), str(axis), _('axis done')), selected=objs,
+            kinds=AFFINE_KINDS)
 
     def on_offsetxy_action(self, xvalue, yvalue, objs=None):
         vect = (xvalue, yvalue)
@@ -765,7 +772,7 @@ class ToolTransform(AppTool):
         ToolTransform._transform_selected(self,
             _("Offsetting"), _("CNCJob objects can't be offset."),
             lambda o: o.offset(vect), matrix, meta,
-            '[success] %s...' % _('Offset on both axes done'), selected=objs)
+            '[success] %s...' % _('Offset on both axes done'), selected=objs, kinds=AFFINE_KINDS)
 
     def on_buffer_action(self, value, join, factor=None, objs=None):
         # The buffer is not affine: every object is plotted again.

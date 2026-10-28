@@ -2572,26 +2572,8 @@ class ToolDrilling(Geometry, AppTool):
             if cnc_job_obj.xy_end is None:
                 cnc_job_obj.xy_end = [cnc_job_obj.oldx, cnc_job_obj.oldy]
 
-            cnc_job_obj.measured_distance += abs(distance_euclidian(
-                cnc_job_obj.oldx, cnc_job_obj.oldy, cnc_job_obj.xy_end[0], cnc_job_obj.xy_end[1])
-            )
             app_obj.log.debug("The total travel distance including travel to end position is: %s" %
-                              str(cnc_job_obj.measured_distance) + '\n')
-            cnc_job_obj.travel_distance = cnc_job_obj.measured_distance
-
-            # I use the value of self.feedrate_rapid for the feadrate in case of the measure_lift_distance and for
-            # traveled_time because it is not always possible to determine the feedrate that the CNC machine uses
-            # for G0 move (the fastest speed available to the CNC router). Although self.feedrate_rapids is used only
-            # with Marlin preprocessor and derivatives.
-            # A feedrate of zero adds no time (no division by zero)
-            z_feed = cnc_job_obj.z_feedrate
-            rapid_feed = cnc_job_obj.feedrate_rapid
-            routing_time = 0.0
-            if z_feed:
-                routing_time += (cnc_job_obj.measured_down_distance + cnc_job_obj.measured_up_to_zero_distance) / z_feed
-            if rapid_feed:
-                routing_time += (cnc_job_obj.measured_lift_distance + cnc_job_obj.measured_distance) / rapid_feed
-            cnc_job_obj.routing_time = routing_time
+                              str(cnc_job_obj.travel_distance) + '\n')
 
         # To be run in separate thread
         def job_thread(a_obj):

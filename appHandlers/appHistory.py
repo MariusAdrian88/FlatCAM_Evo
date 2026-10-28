@@ -873,7 +873,7 @@ class HistoryManager:
             self.app.app_obj.object_changed.emit(obj)
         except Exception as e:
             log.debug("HistoryManager.after_change() object_changed --> %s" % str(e))
-        if (matrix is not None and str(getattr(obj, 'kind', '')).lower() in ('gerber', 'excellon') and
+        if (matrix is not None and str(getattr(obj, 'kind', '')).lower() in ('gerber', 'excellon', 'cncjob') and
                 getattr(self.app, 'f_handlers', None) is not None):
             # the source text is not part of a matrix step: make it again for the geometry that is shown now
             if obj.regenerate_source() is False:

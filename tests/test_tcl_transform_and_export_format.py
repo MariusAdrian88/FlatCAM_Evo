@@ -14,6 +14,7 @@ import pytest
 import tests.helpers_objects as char
 from appObjects.GerberObject import GerberObject
 from tclCommands.TclCommandMirror import TclCommandMirror
+from tclCommands.TclCommandOffset import TclCommandOffset
 from tclCommands.TclCommandSkew import TclCommandSkew
 from tests.helpers_objects import (  # noqa: F401,E402
     assert_xy_close, drill_xy, make_app_0b as make_app, make_excellon_0b as make_excellon,
@@ -212,3 +213,25 @@ class TestTclScale_0B5:
         _tcl_scale({'a': a, 'b': b}, '-x', '2', '-y', '2')
         assert_xy_close(drill_xy(a), [(-2.0, 0.0)])
         assert_xy_close(drill_xy(b), [(6.0, 0.0)])
+
+
+@pytest.mark.parametrize('cmd_cls, argv, moved', [
+    (TclCommandOffset, ('-x', '10', '-y', '5'), r'G0 X11(\.0*)? Y6'),
+    (TclCommandMirror, ('-axis', 'X', '-origin', 'origin'), r'G0 X-1(\.0*)? Y1'),
+    (TclCommandScale, ('-x', '2', '-origin', 'origin'), r'G0 X2(\.0*)? Y1'),
+    (TclCommandSkew, ('-x', '10', '-y', '0', '-origin', 'origin'), r'G0 X1\.17\d* Y1'),
+])
+def test_tcl_transform_of_a_gcode_job_moves_its_exported_text(cmd_cls, argv, moved, tmp_path):
+    """A Tcl transform of an opened G-code job: source_file (the exported text) holds the moved coordinates."""
+    import re
+    from tests.test_cncjob_export_gcode import MILL_FILE, _open_gcode
+
+    app, job = _open_gcode(tmp_path, MILL_FILE)
+    assert 'G0 X1 Y1' in job.source_file
+    app.collection.get_by_name.side_effect = lambda n: {'job': job}.get(n)
+    cmd = cmd_cls(app)
+    args, unnamed = cmd.check_args(('job',) + argv)
+    cmd.execute(args, unnamed)
+
+    assert re.search(moved, job.source_file), job.source_file
+    assert 'G0 X1 Y1' not in job.source_file

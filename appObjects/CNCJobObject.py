@@ -192,22 +192,6 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
 
         self.annotations_dict = {}
 
-        # used for parsing the GCode lines to adjust the GCode when the GCode is offseted or scaled
-        gcodex_re_string = r'(?=.*(X[-\+]?\d*\.\d*))'
-        self.g_x_re = re.compile(gcodex_re_string)
-        gcodey_re_string = r'(?=.*(Y[-\+]?\d*\.\d*))'
-        self.g_y_re = re.compile(gcodey_re_string)
-        gcodez_re_string = r'(?=.*(Z[-\+]?\d*\.\d*))'
-        self.g_z_re = re.compile(gcodez_re_string)
-
-        gcodef_re_string = r'(?=.*(F[-\+]?\d*\.\d*))'
-        self.g_f_re = re.compile(gcodef_re_string)
-        gcodet_re_string = r'(?=.*(\=\s*[-\+]?\d*\.\d*))'
-        self.g_t_re = re.compile(gcodet_re_string)
-
-        gcodenr_re_string = r'([+-]?\d*\.\d+)'
-        self.g_nr_re = re.compile(gcodenr_re_string)
-
         self.text_col = self.app.plotcanvas.new_text_collection()
         self.text_col.enabled = True
         self.annotation = self.app.plotcanvas.new_text_group(collection=self.text_col)

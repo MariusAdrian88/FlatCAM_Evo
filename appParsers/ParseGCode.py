@@ -31,6 +31,8 @@ TYPE_RE = re.compile(r'TYPE:\s*G-CODE FROM\s+(\w+)', re.I)
 PREPROC_RE = re.compile(r'PREPROCESSOR\s+(?:GEOMETRY|EXCELLON)\s*:\s*(\S+)', re.I)
 TOOL_DIA_RE = re.compile(r'\b(?:TOOL|T)\s*[:#]?\s*(\d+)\b.*?\b(?:DIAMETER|DIA|D)\s*[=:]?\s*(\d*\.?\d+)')
 DIA_ONLY_RE = re.compile(r'^\s*(?:DIAMETER|DIA|D)\s*[=:]?\s*(\d*\.?\d+)\s*$')
+HEADER_DIA_RE = re.compile(r'^\s*TOOL\s+DIAMETER\s*:\s*(\d*\.?\d+)\s*(MM|IN)?\b')
+CHANGE_DIA_RE = re.compile(r'\b(?:CHANGE(?:D)? TO|DRILLING WITH)\s+TOOL(?:\s+T\d+\s+WITH\s+TOOL)?\s+DIA\s*=\s*(\d*\.?\d+)')
 TOOL_ZCUT_RE = re.compile(r'\bTOOL\s*[:#]?\s*(\d+)\s*->\s*Z_CUT\s*:\s*(-?\d*\.?\d+)')
 
 MOTION = frozenset((0.0, 1.0, 2.0, 3.0))
@@ -75,6 +77,10 @@ def _prepare(text):
     active = None
     macro = False
     for i, line in enumerate(lines):
+        if line.lstrip().lower().startswith('@pause '):
+            comments.append((i, line))
+            words.append(())
+            continue
         if '(' in line or ';' in line:
             for m in COMMENT_TEXT_RE.finditer(line):
                 txt = m.group(1) if m.group(1) is not None else m.group(2)
@@ -250,6 +256,7 @@ class _Interpreter:
         self.plane = 17
         self.motion = None
         self.f = None
+        self.dwell_p_scale = None
         self.g99 = False
         self.cyc_r = None
         self.cyc_z = None
@@ -282,14 +289,23 @@ class _Interpreter:
                 w[letter] = float(val)
         if 'F' in w:
             self.f = w['F']
-        if 'S' in w and acc['spindle'] is None:
+        if 'S' in w and 4.0 not in gl and acc['spindle'] is None:
             acc['spindle'] = w['S']
 
         move_ok = True
         cycle_start = False
         motion = self.motion
         for g in gl:
-            if g in MOTION:
+            if g == 4.0:
+                if 'S' in w:
+                    acc['ftime'] += max(0.0, w['S']) / 60.0
+                elif 'P' in w:
+                    if self.dwell_p_scale is None:
+                        self.warn('Dwell P units are unknown: estimated time excludes this dwell.')
+                    else:
+                        acc['ftime'] += max(0.0, w['P']) * self.dwell_p_scale / 60.0
+                move_ok = False
+            elif g in MOTION:
                 motion = g
                 self.motion = g
             elif g in CANNED:
@@ -362,6 +378,16 @@ class _Interpreter:
             # the XY start of the move is not known (the start position of the machine): no segment and no
             # assumed origin. A move with an X or Y word takes 0 for the other axis if it is not known yet; a Z-only
             # move keeps X and Y unknown but its height counts.
+            acc = self.acc[self.blk]
+            length = math.sqrt(sum((b - a) ** 2 for a, b in zip(self.cur, t)
+                                   if a is not None and b is not None))
+            acc['dist'] += length
+            if g == 0.0:
+                acc['rapid'] += length
+            elif self.f and self.f > 0:
+                acc['ftime'] += length / self.f
+            elif length:
+                self.warn('Feedrate is unavailable: estimated time excludes some feed moves.')
             if 'X' in w or 'Y' in w:
                 t = [v if v is not None or i == 2 else 0.0 for i, v in enumerate(t)]
                 self._bound(t[0], t[1])
@@ -443,8 +469,10 @@ class _Interpreter:
             if e[2] is not None and (acc['z_move'] is None or e[2] > acc['z_move']):
                 acc['z_move'] = e[2]
         else:
-            if self.f:
+            if self.f and self.f > 0:
                 acc['ftime'] += length / self.f
+            elif length:
+                self.warn('Feedrate is unavailable: estimated time excludes some feed moves.')
             if e[2] is not None and (acc['z_cut'] is None or e[2] < acc['z_cut']):
                 acc['z_cut'] = e[2]
             if xy:
@@ -580,9 +608,10 @@ class _Interpreter:
         self._flush()
 
 
-def _tool_comments(comments, words):
+def _tool_comments(comments, words, blocks):
     """Header and tool metadata from the comments."""
-    meta = {'type': None, 'flatcam': False, 'preprocessor': None, 'dia': {}, 'zcut': {}}
+    meta = {'type': None, 'flatcam': False, 'preprocessor': None, 'dia': {}, 'zcut': {}, 'header_dia': None}
+    starts = [block[0] for block in blocks]
     for i, txt in comments:
         up = txt.upper()
         if 'FLATCAM' in up:
@@ -603,6 +632,15 @@ def _tool_comments(comments, words):
         m = TOOL_DIA_RE.search(up)
         if m:
             meta['dia'].setdefault(int(m.group(1)), float(m.group(2)))
+            continue
+        m = HEADER_DIA_RE.match(up)
+        if m:
+            meta['header_dia'] = (float(m.group(1)), m.group(2))
+            continue
+        m = CHANGE_DIA_RE.search(up)
+        if m:
+            tool = blocks[max(bisect.bisect_right(starts, i) - 1, 0)][1]
+            meta['dia'].setdefault(tool, float(m.group(1)))
             continue
         m = DIA_ONLY_RE.match(up)
         if m:
@@ -1464,9 +1502,12 @@ def parse_gcode(text, steps_per_circle=64, default_tooldia=0.4, feedrate_rapid=N
              travel_distance, routing_time, warnings, motion_count
     """
     lines, words, comments, blocks, macro = _prepare(text)
-    meta = _tool_comments(comments, words)
+    meta = _tool_comments(comments, words, blocks)
 
     it = _Interpreter(len(blocks), steps_per_circle)
+    preprocessor = (meta['preprocessor'] or '').lower()
+    if preprocessor:
+        it.dwell_p_scale = 0.001 if 'marlin' in preprocessor or 'repetier' in preprocessor else 1.0
     flow = False
     if '#' in text or '[' in text or SUBPROGRAM_RE.search(text.upper()):
         feats = program_features(text)
@@ -1514,6 +1555,9 @@ def parse_gcode(text, steps_per_circle=64, default_tooldia=0.4, feedrate_rapid=N
         gtype = 'Geometry'
 
     q = max(1, int(steps_per_circle) // 4)
+    if (not feedrate_rapid or feedrate_rapid <= 0) and any(a['rapid'] for a in it.acc):
+        it.warn('Rapid feedrate is unavailable: estimated time excludes rapid moves.')
+        feedrate_rapid = None
     slices = _block_slices(lines, blocks)
     spindle0 = next((a['spindle'] for a in it.acc if a['spindle'] is not None), None)
     tools = {}
@@ -1522,6 +1566,13 @@ def parse_gcode(text, steps_per_circle=64, default_tooldia=0.4, feedrate_rapid=N
         acc = it.acc[n]
         dia = meta['dia'].get(tnum)
         dia = dia * factor if dia is not None else None
+        if dia is None and len(blocks) == 1 and meta['header_dia']:
+            dia, dia_units = meta['header_dia']
+            destination = (target_units or units or dia_units or '').upper()
+            if dia_units and destination and dia_units != destination:
+                dia *= MM_PER_IN if dia_units == 'IN' else 1.0 / MM_PER_IN
+            elif not dia_units:
+                dia *= factor
         zc = acc['z_cut']
         if zc is None and tnum in meta['zcut']:
             zc = meta['zcut'][tnum]
@@ -1590,14 +1641,105 @@ def _case(letter, ref):
     return letter.lower() if ref.islower() else letter
 
 
+def fixed_rapid_lines(lines, fixed_points, decimals):
+    """
+    Pre-scan of a G-code text: the indexes of the lines whose X/Y a transform must keep. A line is kept when it is an
+    absolute G0 to one of the fixed points and
+      (a) it is not the last X/Y line before the next feed move (G1/G2/G3 or a canned cycle, a Z-only plunge too):
+          the approach to a cut always follows the transform, and
+      (b) its non-cutting window (between two feed moves) has no previous feed move (program start), or no next feed
+          move (program end), or holds a tool change (a T word or M6).
+
+    :param lines:           the lines of the text (comments are excluded here)
+    :param fixed_points:    [(x, y)]
+    :param decimals:        the tolerance of the point match is 10 ** -decimals
+    :return:                set of line indexes
+    """
+    keep = set()
+    fixed = [(float(x), float(y)) for x, y in fixed_points]
+    if not fixed:
+        return keep
+    tol = 10.0 ** -max(int(decimals), 0)
+    absolute = True
+    motion = None
+    cur = [None, None]
+    state = {'prev_feed': False, 'cands': [], 'last_xy': None, 'tc': False}
+
+    def close(next_feed):
+        for i in state['cands']:
+            if next_feed and i == state['last_xy']:
+                continue
+            if not state['prev_feed'] or not next_feed or state['tc']:
+                keep.add(i)
+        state.update(cands=[], last_xy=None, tc=False)
+
+    for idx, raw in enumerate(lines):
+        body = raw.rstrip('\r\n')
+        if body.lstrip()[:1] == '%':
+            continue
+        masked = COMMENT_RE.sub(lambda m: ' ' * len(m.group(0)), body)
+        if '#' in masked or '[' in masked:
+            continue
+        gl = []
+        w = {}
+        for m in WORD_ANY_RE.finditer(masked):
+            letter, val = m.group(1).upper(), float(m.group(2))
+            if letter == 'G':
+                gl.append(val)
+            elif letter == 'T' or (letter == 'M' and val == 6.0):
+                state['tc'] = True
+            elif letter in 'XYZIJKR' and letter not in w:
+                w[letter] = val
+
+        skip = point_only = False
+        for g in gl:
+            ig = int(g)
+            if g == 90.0:
+                absolute = True
+            elif g == 91.0:
+                absolute = False
+            elif g in MOTION or g in CANNED:
+                motion = g
+            elif g == 80.0:
+                motion = None
+            elif g == 92.0:
+                skip = True
+                if 'X' in w or 'Y' in w:
+                    cur = [w.get('X', cur[0]), w.get('Y', cur[1])]
+            elif ig in (4, 10, 28, 30, 53):
+                skip = True
+            elif ig == 38:
+                point_only = True
+        if skip or (motion is None and not point_only) or not w:
+            continue
+
+        rapid = motion == 0.0 and not point_only
+        if 'X' in w or 'Y' in w:
+            cx, cy = cur[0] or 0.0, cur[1] or 0.0
+            tx = (w['X'] if absolute else cx + w['X']) if 'X' in w else cx
+            ty = (w['Y'] if absolute else cy + w['Y']) if 'Y' in w else cy
+            cur = [tx, ty]
+            if rapid:
+                state['last_xy'] = idx
+                if absolute and any(abs(tx - fx) <= tol and abs(ty - fy) <= tol for fx, fy in fixed):
+                    state['cands'].append(idx)
+        if not rapid:
+            close(True)
+            state['prev_feed'] = True
+    close(False)
+    return keep
+
+
 class _Transformer:
     """
     Rewrites the lines of a G-code text under an affine matrix, keeping the modal state of the program (G90/G91,
     G90.1/G91.1, motion mode, plane, position) to know what every X Y I J R word means.
     """
 
-    def __init__(self, matrix, decimals, steps):
+    def __init__(self, matrix, decimals, steps, keep_lines=()):
         self.a, self.b, self.d, self.e, self.xo, self.yo = matrix
+        self.keep = frozenset(keep_lines)       # indexes of the rapid moves that keep their X/Y
+        self.idx = -1                           # index of the line being transformed
         self.dec = max(int(decimals), 0)
         self.steps = max(int(steps), 4)
         self.mixing = self.b != 0.0 or self.d != 0.0
@@ -1656,12 +1798,17 @@ class _Transformer:
         return (0.0 if cx is None else cx) + (w['X'][0] if hx else 0.0), \
             (0.0 if cy is None else cy) + (w['Y'][0] if hy else 0.0)
 
-    def _endpoint(self, body, w, edits, absolute):
-        """Transforms the X Y words of a move (point when absolute, vector when incremental)."""
+    def _endpoint(self, body, w, edits, absolute, rapid=False):
+        """
+        Transforms the X Y words of a move (point when absolute, vector when incremental). An absolute rapid move
+        that the pre-scan chose (a tool change or end position of the job) keeps its words.
+        """
         t = self._target(w, absolute)
         if t is None:
             return
-        if absolute:
+        if absolute and rapid and self.idx in self.keep:
+            pass
+        elif absolute:
             self._put(body, w, edits, 'X', 'Y', *self.pt(*t))
         else:
             cx, cy = self.cur[0] or 0.0, self.cur[1] or 0.0
@@ -1769,7 +1916,7 @@ class _Transformer:
             self.warn('An arc in the G18/G19 planes starts at an unknown position: it is not transformed.')
             is_arc = False
         if not is_arc:
-            self._endpoint(body, w, edits, self.absolute)
+            self._endpoint(body, w, edits, self.absolute, rapid=(motion == 0.0 and not point_only))
             self._z(w, motion in CANNED)
             return self._apply(body, eol, edits, [])
 
@@ -1901,7 +2048,7 @@ class _Transformer:
         return body + eol
 
 
-def transform_gcode(text, matrix, decimals=4, steps_per_circle=64):
+def transform_gcode(text, matrix, decimals=4, steps_per_circle=64, fixed_points=(), kept_lines=None):
     """
     Applies an affine transform to the X/Y coordinates of a G-code text. Comments, line endings, line order and
     every word that is not a coordinate of the transform are kept as they are.
@@ -1911,14 +2058,62 @@ def transform_gcode(text, matrix, decimals=4, steps_per_circle=64):
                             x' = a*x + b*y + xoff, y' = d*x + e*y + yoff (in the units of the G-code)
     :param decimals:        decimals of the rewritten coordinates
     :param steps_per_circle: segments of a whole circle for an arc that has to be replaced by straight segments
+    :param fixed_points:    [(x, y)] positions (the toolchange and end positions of a native job): the absolute rapid
+                            moves to one of them that fixed_rapid_lines() selects are not transformed
+    :param kept_lines:      optional list: receives the indexes of the lines that kept their X/Y
     :return:                (new text, [warning])
     """
     m = tuple(float(v) for v in matrix)
     if m == AFFINE_ID:
         return text, []
-    tr = _Transformer(m, decimals, steps_per_circle)
     parts = text.split('\n')
-    out = [tr.line(p + '\n') for p in parts[:-1]]
-    if parts[-1]:
-        out.append(tr.line(parts[-1]))
+    keep = fixed_rapid_lines(parts, fixed_points, decimals) if fixed_points else ()
+    if kept_lines is not None:
+        kept_lines.extend(sorted(keep))
+    tr = _Transformer(m, decimals, steps_per_circle, keep)
+    out = []
+    for i, p in enumerate(parts):
+        tr.idx = i
+        if i < len(parts) - 1:
+            out.append(tr.line(p + '\n'))
+        elif p:
+            out.append(tr.line(p))
     return ''.join(out), tr.warnings
+
+
+# the words that hold a length (G-code units): the canned cycle depth Q is one too, P (dwell), S, T, M, G, N are not
+LENGTH_WORDS = frozenset('XYZIJKRFQ')
+
+
+def convert_gcode_units(text, factor, to_units, decimals=4):
+    """
+    Converts the G-code text to other units: every length word (X Y Z I J K R F and the Q of the canned cycles) is
+    multiplied by the factor and G20/G21 is set to the new units. Comments and line endings are kept as they are.
+
+    :param text:        the G-code
+    :param factor:      units factor (25.4 for IN -> MM)
+    :param to_units:    'MM' or 'IN'
+    :param decimals:    decimals of the rewritten words
+    :return:            the new text
+    """
+    dec = max(int(decimals), 0)
+    g_new = 21 if str(to_units).upper() == 'MM' else 20
+    out = []
+    for raw in text.splitlines(True):
+        body = raw.rstrip('\r\n')
+        eol = raw[len(body):]
+        if body.lstrip()[:1] == '%':
+            out.append(raw)
+            continue
+        masked = COMMENT_RE.sub(lambda m: ' ' * len(m.group(0)), body)
+        edits = []
+        for m in WORD_ANY_RE.finditer(masked):
+            letter, val = m.group(1).upper(), float(m.group(2))
+            if letter in LENGTH_WORDS:
+                edits.append((m.start(), m.end(), body[m.start()] + _fmt(val * factor, dec)))
+            elif letter == 'G' and val in (20.0, 21.0):
+                edits.append((m.start(), m.end(), body[m.start()] + str(g_new)))
+        for s, e, t in sorted(edits, reverse=True):
+            body = body[:s] + t + body[e:]
+        out.append(body + eol)
+    return ''.join(out)

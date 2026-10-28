@@ -22,7 +22,8 @@ class TclCommandScale(TclCommand):
     # List of all command aliases, to be able use old names for backward compatibility (add_poly, add_polygon)
     aliases = ['scale']
 
-    description = '%s %s' % ("--", "Will scale the geometry of named objects. Does not create a new object.")
+    description = '%s %s' % ("--", "Will scale the geometry of named objects (Gerber, Excellon, Geometry or CNCJob). "
+                                   "Does not create a new object.")
 
     # Dictionary of types from Tcl command, needs to be ordered
     arg_names = collections.OrderedDict([
@@ -45,6 +46,7 @@ class TclCommandScale(TclCommand):
         'main': "Resizes objects by a factor on X axis and a factor on Y axis, having a specified scale origin\n"
                 "The names of the objects to be scaled will be entered after the command,\n"
                 "separated by spaces. See the example below.\n"
+                "Works on Gerber, Excellon, Geometry and CNCJob objects (the G-code of a CNCJob is rewritten).\n"
                 "WARNING: if the name of an object has spaces, enclose the name with quotes.",
         'args': collections.OrderedDict([
             ('factor', 'Fraction by which to scale on both axis.'),
@@ -92,8 +94,12 @@ class TclCommandScale(TclCommand):
             if obj is None or obj == '':
                 self.app.log.error("Object not found: %s" % name)
                 return "fail"
-            if obj.kind not in ('geometry', 'gerber', 'excellon'):
-                self.raise_tcl_error('Only Gerber, Excellon and Geometry objects can be scaled.')
+            if obj.kind not in ('geometry', 'gerber', 'excellon', 'cncjob'):
+                self.raise_tcl_error('Only Gerber, Excellon, Geometry and CNCJob objects can be scaled.')
+            # an imported G-code with macros or subprograms can not be rewritten: an error, not a silent no-op
+            blocked = obj.gcode_flow_blocked('transform') if obj.kind == 'cncjob' else None
+            if blocked:
+                self.raise_tcl_error(blocked.replace('[ERROR_NOTCL] ', '', 1))
             objects[name] = obj
             a, b, c, d = obj.bounds()
             minx_lst.append(a)
@@ -158,6 +164,11 @@ class TclCommandScale(TclCommand):
                 f_x = float(args['x'])
                 f_y = float(args['y'])
                 obj_to_scale.scale(f_x, f_y, point=point)
+
+            # the exported text (source_file) must follow the geometry
+            regenerate = getattr(obj_to_scale, 'regenerate_source', None)
+            if regenerate is not None and regenerate() is False:
+                self.raise_tcl_error('Source regeneration failed: %s' % name)
 
             try:
                 o_xmin, o_ymin, o_xmax, o_ymax = obj_to_scale.bounds()

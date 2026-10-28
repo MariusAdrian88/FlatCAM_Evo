@@ -14,7 +14,8 @@ class TclCommandOffset(TclCommand):
     # List of all command aliases, to be able use old names for backward compatibility (add_poly, add_polygon)
     aliases = ['offset']
 
-    description = '%s %s' % ("--", "Will offset the geometry of named objects. Does not create a new object.")
+    description = '%s %s' % ("--", "Will offset the geometry of named objects (Gerber, Excellon, Geometry or CNCJob). "
+                                   "Does not create a new object.")
 
     # Dictionary of types from Tcl command, needs to be ordered
     arg_names = collections.OrderedDict([
@@ -35,6 +36,7 @@ class TclCommandOffset(TclCommand):
         'main': "Changes the position of the named object(s) on X and/or Y axis.\n"
                 "The names of the objects to be offset will be entered after the command,\n"
                 "separated by spaces. See the example below.\n"
+                "Works on Gerber, Excellon, Geometry and CNCJob objects (the G-code of a CNCJob is rewritten).\n"
                 "WARNING: if the name of an object has spaces, enclose the name with quotes.",
         'args': collections.OrderedDict([
             ('x', 'Offset distance in the X axis. If it is not used it will be assumed to be 0.0'),
@@ -71,12 +73,20 @@ class TclCommandOffset(TclCommand):
             if obj is None or obj == '':
                 self.app.log.error("Object not found: %s" % name)
                 return "fail"
-            if obj.kind not in ('geometry', 'gerber', 'excellon'):
-                self.raise_tcl_error('Only Gerber, Excellon and Geometry objects can be offset.')
+            if obj.kind not in ('geometry', 'gerber', 'excellon', 'cncjob'):
+                self.raise_tcl_error('Only Gerber, Excellon, Geometry and CNCJob objects can be offset.')
+            # an imported G-code with macros or subprograms can not be rewritten: an error, not a silent no-op
+            blocked = obj.gcode_flow_blocked('transform') if obj.kind == 'cncjob' else None
+            if blocked:
+                self.raise_tcl_error(blocked.replace('[ERROR_NOTCL] ', '', 1))
             objects.append(obj)
 
         for obj in objects:
             obj.offset((x, y))
+            # the exported text (source_file) must follow the geometry
+            regenerate = getattr(obj, 'regenerate_source', None)
+            if regenerate is not None and regenerate() is False:
+                self.raise_tcl_error('Source regeneration failed: %s' % obj.obj_options.get('name', ''))
 
             try:
                 xmin, ymin, xmax, ymax = obj.bounds()

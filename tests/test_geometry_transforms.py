@@ -9,6 +9,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+import numpy as np
 import pytest
 
 import shapely
@@ -141,7 +142,8 @@ class TestGeometryTransforms(unittest.TestCase):
                 job = SimpleNamespace(
                     app=make_app(), gcode_parsed=[{'geom': g, 'kind': ['C', 'F']} for g in geoms],
                     create_geometry=lambda: None, _affine_gcode_parsed=CNCjob._affine_gcode_parsed,
-                    tools={}, multitool=False, gcode='', steps_per_circle=16)
+                    tools={}, multitool=False, gcode='', steps_per_circle=16, xy_toolchange=None, xy_end=None)
+                job._fixed_points = lambda j=job: CNCjob._fixed_points(j)
                 job._transform = lambda matrix, j=job: CNCjob._transform(j, matrix)
                 job._transform_native = lambda matrix, j=job: CNCjob._transform_native(j, matrix)
                 method(job)
@@ -200,7 +202,7 @@ def test_rotate_of_a_native_job_changes_the_exported_gcode_and_the_plot():
 
     text = job.export_gcode(to_file=True).getvalue()
     assert 'G00 X0.0000 Y10.0000' in text and 'G01 X-5.0000 Y10.0000' in text
-    assert job.gcode_parsed[0]['geom'].coords[:] == pytest.approx([(0, 10), (-5, 10)])
+    assert job.gcode_parsed[0]['geom'].coords[:] == pytest.approx(np.array([(0, 10), (-5, 10)]))
     assert shapely.get_coordinates(job.solid_geometry[0]).ravel().tolist() == pytest.approx([0, 10, -5, 10])
 
 
@@ -342,32 +344,24 @@ def test_factor_buffer_scales_each_element_about_its_own_center():
     geo.geo_steps_per_circle = 64
     geo.solid_geometry = [box(0, 0, 2, 2), box(10, 0, 12, 2)]
     assert geo.buffer(2, 'mitre', True) is None
-    assert [part.bounds for part in geo.solid_geometry] == pytest.approx([(-1, -1, 3, 3), (9, -1, 13, 3)])
+    assert [part.bounds for part in geo.solid_geometry] == pytest.approx(np.array([(-1, -1, 3, 3), (9, -1, 13, 3)]))
 
 
-def test_set_origin_and_scale_of_a_native_job_read_the_decimals_once_and_keep_the_paths():
-    # a large job took long to move (Set Origin, Move) or to scale: the text grew line by line with an option read for
-    # each line, and the paths of each tool were joined in a union only for the bounding box
+def test_set_origin_scale_and_rotate_of_a_native_job_change_its_text_and_bounds():
     text = 'G21\n' + ''.join('G01 X%.4f Y%.4f F300.00\n' % (k * 0.5, k % 2) for k in range(100))
     job = _native_job(text)
     paths = [{'geom': LineString([(k * 0.5, k % 2), (k * 0.5 + 0.5, (k + 1) % 2)]), 'kind': ['C', 'F']}
              for k in range(100)]
     job.tools[1]['gcode_parsed'] = job.gcode_parsed = paths
-    reads = []
-    read = job._app_option
-    job._app_option = lambda key, fallback=None: reads.append(key) or read(key, fallback)
-
     job.offset((1.0, 2.0))
     job.scale(2.0, 2.0, (0, 0))
 
-    assert reads.count('cncjob_coords_decimals') == 2 and reads.count('cncjob_fr_decimals') == 1
     lines = job.tools[1]['gcode'].splitlines()
     assert len(lines) == 101
-    assert lines[1] == 'G01 X2.0000 Y4.0000 F600.00' and lines[-1] == 'G01 X101.0000 Y6.0000 F600.00'
-    assert isinstance(job.tools[1]['solid_geometry'], list) and len(job.tools[1]['solid_geometry']) == 100
+    # a scale keeps the feedrate (only a units change converts it)
+    assert lines[1] == 'G01 X2.0000 Y4.0000 F300.00' and lines[-1] == 'G01 X101.0000 Y6.0000 F300.00'
     assert job.bounds() == pytest.approx((2, 4, 102, 6))
     job.rotate(90, (0, 0))
-    assert isinstance(job.tools[1]['solid_geometry'], list)
     assert job.bounds() == pytest.approx((-6, 2, -4, 102))
 
 

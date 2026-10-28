@@ -9,11 +9,13 @@ def bounds_center(bounds):
 
 
 SUPPORTED_KINDS = ('gerber', 'excellon', 'geometry')
+# the kinds that scale and offset also move: the G-code of a CNCJob is rewritten with the geometry
+AFFINE_KINDS = SUPPORTED_KINDS + ('cncjob',)
 
 
-def alt_bounds(obj_list):
-    """Return the bounds of the supported objects, skipping deleted objects, CNC jobs and objects without
-    finite geometry."""
+def alt_bounds(obj_list, kinds=SUPPORTED_KINDS):
+    """Return the bounds of the objects of the given kinds, skipping deleted objects, other kinds and objects
+    without finite geometry."""
     def bounds_rec(lst):
         minx = np.inf
         miny = np.inf
@@ -24,7 +26,7 @@ def alt_bounds(obj_list):
                 minx_, miny_, maxx_, maxy_ = bounds_rec(obj)
             elif getattr(obj, 'deleted', False):
                 continue
-            elif str(getattr(obj, 'kind', '')).lower() in SUPPORTED_KINDS:
+            elif str(getattr(obj, 'kind', '')).lower() in kinds:
                 try:
                     minx_, miny_, maxx_, maxy_ = obj.bounds()
                 except Exception:

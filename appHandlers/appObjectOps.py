@@ -129,6 +129,8 @@ class AppObjectOps(QtCore.QObject):
                             self._regenerate_cnc_source(obj)
                         history_of(self.app).record_matrix(
                             label, [(obj, affine_mirror_matrix('X', (px, py)), before)])
+                        # the exported text (source_file) must follow the geometry
+                        obj.regenerate_source()
                         obj.plot()
                         self.app.app_obj.object_changed.emit(obj)
                 self.inform.emit('[success] %s.' % _("Flip on Y axis done"))
@@ -181,6 +183,7 @@ class AppObjectOps(QtCore.QObject):
                             self._regenerate_cnc_source(obj)
                         history_of(self.app).record_matrix(
                             label, [(obj, affine_mirror_matrix('Y', (px, py)), before)])
+                        obj.regenerate_source()
                         obj.plot()
                         self.app.app_obj.object_changed.emit(obj)
                 self.inform.emit('[success] %s.' % _("Flip on X axis done"))
@@ -246,6 +249,7 @@ class AppObjectOps(QtCore.QObject):
                                 sel_obj.rotate(-float(num), point=(px, py))
                                 self._regenerate_cnc_source(sel_obj)
                             history_of(self.app).record_matrix(label, [(sel_obj, matrix, before)])
+                            sel_obj.regenerate_source()
                             sel_obj.plot()
                             self.app.app_obj.object_changed.emit(sel_obj)
                     self.inform.emit('[success] %s' % _("Rotation done."))
@@ -294,6 +298,7 @@ class AppObjectOps(QtCore.QObject):
                             obj.skew(num, 0, point=(xminimal, yminimal))
                             self._regenerate_cnc_source(obj)
                         history_of(self.app).record_matrix(label, [(obj, matrix, before)])
+                        obj.regenerate_source()
 
                         # make sure to update the Offset field in Properties Tab
                         try:
@@ -346,6 +351,7 @@ class AppObjectOps(QtCore.QObject):
                             obj.skew(0, num, point=(xminimal, yminimal))
                             self._regenerate_cnc_source(obj)
                         history_of(self.app).record_matrix(label, [(obj, matrix, before)])
+                        obj.regenerate_source()
 
                         # make sure to update the Offset field in Properties Tab
                         try:

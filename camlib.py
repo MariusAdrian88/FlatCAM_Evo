@@ -3108,6 +3108,10 @@ class CNCjob(Geometry):
         self.travel_distance = 0.0
         # here store the routing time
         self.routing_time = 0.0
+        # Generated jobs start at the job origin; imported files keep their unknown initial position.
+        self._motion_position = (0.0, 0.0, 0.0)
+        self._motion_feed = 0.0
+        self._motion_rate_warned = False
 
         # store here the Excellon source object tools to be accessible locally
         self.exc_tools = {}
@@ -3151,7 +3155,7 @@ class CNCjob(Geometry):
         if getattr(self, 'gcode_imported', False):
             factor = self.convert_units_imported(units)
         else:
-            factor = Geometry.convert_units(self, units)
+            factor = self.convert_units_native(units)
 
         self.z_cut = float(self.z_cut) * factor
         self.z_move *= factor
@@ -3163,6 +3167,51 @@ class CNCjob(Geometry):
         self.z_end *= factor
         self.z_depthpercut = float(self.z_depthpercut) * factor
 
+        return factor
+
+    def convert_units_native(self, units):
+        """
+        Units change of a native job: the G-code text (every length word, G20/G21), the parsed geometry and the
+        toolchange and end positions are scaled about (0, 0). The user scale is not used: it keeps Z and feedrate.
+
+        :param units:   "MM" or "IN"
+        :return:        the scaling factor
+        """
+        from appParsers.ParseGCode import convert_gcode_units
+
+        if units.upper() == self.units.upper():
+            return 1.0
+        factor = {"MM": 25.4, "IN": 1 / 25.4}.get(units.upper())
+        if factor is None:
+            self.app.log.error("Unsupported units: %s" % str(units))
+            return 1.0
+
+        self.units = units
+        decimals = getattr(self, 'coords_decimals', None) or 4
+        if self.multitool:
+            for v in self.tools.values():
+                if isinstance(v.get('gcode'), str) and v['gcode']:
+                    v['gcode'] = convert_gcode_units(v['gcode'], factor, units, decimals)
+        elif isinstance(self.gcode, str) and self.gcode:
+            self.gcode = convert_gcode_units(self.gcode, factor, units, decimals)
+
+        # the same dict can be in the list of the job and in the list of a tool: scale it once
+        unique = {}
+        for parsed in [self.gcode_parsed] + [v.get('gcode_parsed') or [] for v in (self.tools or {}).values()]:
+            for item in parsed or ():
+                unique[id(item)] = item
+        self._affine_gcode_parsed(list(unique.values()), affine_scale_matrix(factor, factor, (0, 0)))
+        for v in (self.tools or {}).values():
+            if v.get('gcode_parsed'):
+                v['solid_geometry'] = unary_union([geo['geom'] for geo in v['gcode_parsed']])
+
+        for name in ('xy_toolchange', 'xy_end'):
+            pos = getattr(self, name, None)
+            if isinstance(pos, (list, tuple)) and len(pos) == 2:
+                setattr(self, name, [float(pos[0]) * factor, float(pos[1]) * factor])
+
+        self.create_geometry()
+        self.file_units_factor = factor
         return factor
 
     def convert_units_imported(self, units):
@@ -3257,7 +3306,13 @@ class CNCjob(Geometry):
         attributes = AttrDict()
         attributes.update(self.postdata)
         attributes.update(kwargs)
+        return self._format_motion(fun, attributes)
+
+    def _format_motion(self, fun, attributes):
+        """Format and measure a command using an already prepared set of preprocessor parameters."""
         line = self.doformat_attributes(fun, attributes)
+        if line:
+            self._record_motion(fun, attributes, line)
         # a preprocessor method with nothing to emit (e.g. dwell with a zero time, the tool change of a laser) returns
         # None or '': no line at all, not an empty line
         return line + "\n" if line else ""
@@ -3279,7 +3334,161 @@ class CNCjob(Geometry):
         attributes.update(self.postdata)
         attributes.update(kwargs)
         ret = self.doformat_attributes(fun, attributes)
+        if ret:
+            self._record_motion(fun, attributes, ret)
         return '' if ret is None else ret
+
+    def _add_motion(self, target, rapid=False, length=None):
+        """Accumulate tool-tip distance and minutes without rounding intermediate results."""
+        length = math.dist(self._motion_position, target) if length is None else length
+        self._motion_position = target
+        self.travel_distance += length
+        if not length:
+            return
+        rate = self.feedrate_rapid if rapid else self._motion_feed
+        if not rate or rate <= 0:
+            # A missing controller rapid rate isn't a zero-duration move. Use the configured feed as an estimate.
+            rate = next((r for r in (self._motion_feed, self.feedrate, self.z_feedrate)
+                         if r and r > 0), None)
+            if not self._motion_rate_warned:
+                self.app.inform.emit('[WARNING] %s' % _(
+                    'Motion rate unavailable: estimated time uses the configured feedrate where possible.'))
+                self._motion_rate_warned = True
+        if rate:
+            pp = self._motion_preprocessor
+            if pp.__class__.__name__.startswith('Roland'):
+                factor = 25.4 if self.units.upper() == 'IN' else 1
+                rate = min(max(rate * factor / 60, pp.feed_min), pp.feed_max) * 60 / factor
+            self.routing_time += length / rate
+
+    def _motion_xy(self, p, x, y):
+        """Apply the same bed transform and device limits as the preprocessor, in job units."""
+        pp = self._motion_preprocessor
+        x, y = pp.bed_xy(p, x, y)
+        if pp.__class__.__name__ == 'hpgl':
+            scale = 40 * (25.4 if self.units.upper() == 'IN' else 1)
+            x = max(-32768, min(32767, round(x * scale))) / scale
+            y = max(-32768, min(32767, round(y * scale))) / scale
+        return x, y
+
+    def _record_motion(self, fun, p, code):
+        """Record numeric generation moves. Only short composite start/toolchange/end blocks need decoding."""
+        if not hasattr(getattr(fun, '__self__', None), 'bed_xy'):
+            return
+        name = fun.__name__
+        self._motion_preprocessor = fun.__self__
+        if name == 'start_code':
+            self.travel_distance = self.routing_time = 0.0
+            self._motion_position = (0.0, 0.0, 0.0)
+            self._motion_feed = 0.0
+            self._motion_rate_warned = False
+        if name in ('feedrate_code', 'z_feedrate_code'):
+            self._motion_feed = p.feedrate if name == 'feedrate_code' else p.z_feedrate
+            return
+        if name == 'dwell_code':
+            self.routing_time += max(0.0, p.dwelltime or 0.0) / 60.0
+            return
+        if name == 'startz_code' or self._motion_preprocessor.__class__.__name__ == 'grbl_laser_eleks_drd':
+            self._record_motion_block(code, p)
+            return
+        if name in ('rapid_code', 'linear_code', 'lift_code', 'down_code', 'up_to_zero_code', 'startz_code'):
+            # Laser on/off and HPGL pen up/down don't specify a physical Z displacement.
+            rml = self._motion_preprocessor.__class__.__name__.startswith('Roland') and '\nZ' in code
+            xy = name in ('rapid_code', 'linear_code') or ' X' in code or code.startswith('Z') or rml
+            z = ' Z' in code or code.startswith(('G0Z', 'G1Z', 'Z')) or rml
+            if not xy and not z:
+                return
+            x, y, height = self._motion_position
+            if xy:
+                x, y = self._motion_xy(p, p['x'], p['y'])
+            if z:
+                if name == 'up_to_zero_code':
+                    height = 0.0
+                else:
+                    height = p['z_cut'] if name in ('linear_code', 'down_code') else p['z_move']
+                if name == 'down_code' and self._motion_preprocessor.__class__.__name__ == 'Check_points':
+                    height = abs(height)
+            rapid = name in ('rapid_code', 'lift_code', 'startz_code')
+            if code.lstrip().startswith(('G0 ', 'G00 ', 'FASTABS')):
+                rapid = True
+            if not rapid and (' F' in code or rml):
+                self._motion_feed = p['z_feedrate'] if name in ('down_code', 'up_to_zero_code') and not rml \
+                    else p['feedrate']
+            self._add_motion((x, y, height), rapid=rapid)
+            return
+        self._record_motion_block(code, p)
+
+    def _record_motion_block(self, code, p):
+        """Decode the few moves inside a composite preprocessor block, never the generated program."""
+        pp_name = self._motion_preprocessor.__class__.__name__
+        for line in code.splitlines():
+            line = re.sub(r'\([^)]*\)', '', line).split(';', 1)[0].strip()
+            if not line:
+                continue
+            if pp_name == 'hpgl':
+                match = re.search(r'PA(-?\d+),(-?\d+)', line)
+                if match:
+                    scale = 40 * (25.4 if self.units.upper() == 'IN' else 1)
+                    self._add_motion((float(match[1]) / scale, float(match[2]) / scale,
+                                      self._motion_position[2]), rapid=True)
+                continue
+            if pp_name.startswith('Roland'):
+                match = re.match(r'Z(-?\d+),(-?\d+),(-?\d+)', line)
+                if match:
+                    scale = self._motion_preprocessor.units_per_mm * (25.4 if self.units.upper() == 'IN' else 1)
+                    self._add_motion(tuple(float(v) / scale for v in match.groups()), rapid=True)
+                continue
+            if not re.match(r'(?:G0?[0123](?:\s|[XYZF])|FASTABS\s|MOVEABS\s)', line):
+                continue
+            words = dict((a, float(v)) for a, v in re.findall(r'([XYZFIJKR])\s*([-+]?\d*\.?\d+)', line))
+            factor = (25400 if self.units.upper() == 'IN' else 1000) if pp_name == 'ISEL_ICP_CNC' else 1
+            if 'F' in words:
+                self._motion_feed = words['F']
+            if any(a in words for a in 'XYZ'):
+                target = tuple(words[a] / factor if a in words else self._motion_position[i]
+                               for i, a in enumerate('XYZ'))
+                rapid = bool(re.match(r'G0?0(?:\s|[XYZ])|FASTABS', line))
+                length = None
+                if re.match(r'G0?[23](?:\s|[XYZ])', line):
+                    from appParsers.ParseGCode import _arc_points_3d
+                    points = _arc_points_3d(line.startswith(('G2', 'G02')), 17, self._motion_position,
+                                           target, words, False, self.steps_per_circle, (0, 0, 0))
+                    if points:
+                        length = sum(math.dist(a, b) for a, b in
+                                     zip([self._motion_position] + points, points))
+                self._add_motion(target, rapid=rapid, length=length)
+
+    def _record_cut_path(self, linear, path, p, parts):
+        """Account for a dense XY path in one batch, keeping the per-segment formatter hot loop unchanged."""
+        if not all(parts) or self.pp_geometry.__class__.__name__ == 'grbl_laser_eleks_drd':
+            for pt, line in zip(path[1:], parts):
+                if line:
+                    p['x'], p['y'] = pt[:2]
+                    self._record_motion(self.pp_geometry.linear_code, p, line)
+            return
+        self._motion_preprocessor = self.pp_geometry
+        if ' F' in parts[0] or self.pp_geometry.__class__.__name__.startswith('Roland'):
+            self._motion_feed = p.feedrate
+        height = p.z_cut if ' Z' in parts[0] or '\nZ' in parts[0] or parts[0].startswith('Z') \
+            else self._motion_position[2]
+        rapid = parts[0].startswith(('G0 ', 'G00 ', 'FASTABS'))
+        if len(path) == 2:
+            x, y = self._motion_xy(p, path[-1][0], path[-1][1])
+            self._add_motion((x, y, height), rapid=rapid)
+            return
+        if p['_bed_skew_x'] or p['_bed_skew_y'] or self.pp_geometry.__class__.__name__ == 'hpgl':
+            xy = [self._motion_xy(p, pt[0], pt[1]) for pt in path]
+            length = sum(math.dist(a, b) for a, b in zip(xy, xy[1:]))
+            first, second, last = xy[0], xy[1], xy[-1]
+        else:
+            length = linear.length
+            dx, dy = p['_bed_offset_x'], p['_bed_offset_y']
+            first = (path[0][0] + dx, path[0][1] + dy)
+            second = (path[1][0] + dx, path[1][1] + dy)
+            last = (path[-1][0] + dx, path[-1][1] + dy)
+        # Some preprocessors combine XYZ in the first cutting move (including a simultaneous depth change).
+        length += math.dist(self._motion_position, (*second, height)) - math.dist(first, second)
+        self._add_motion((*last, height), rapid=rapid, length=length)
 
     def doformat_attributes(self, fun, attributes):
         """
@@ -3640,6 +3849,8 @@ class CNCjob(Geometry):
 
         :return:    (list of depths, True if the list is made of pecks)
         """
+        # The drilling settings are fixed for this tool; XY-independent hole sequences can be reused.
+        self._drill_hole_cache = None
         try:
             step = abs(float(self.peck_depth))
         except (TypeError, ValueError):
@@ -3667,6 +3878,20 @@ class CNCjob(Geometry):
         :param counters:    dict with 'down', 'up_to_zero' and 'lift' that receive the distances
         :return:            list of str
         """
+        key = (self._motion_position[2], self.z_move, self._motion_feed, up_to_zero)
+        cached = getattr(self, '_drill_hole_cache', None)
+        if cached is not None and key == cached[0]:
+            __, parts, length, minutes, end_z, z_cut, distances = cached
+            self.travel_distance += length
+            self.routing_time += minutes
+            self._motion_position = (*self._motion_position[:2], end_z)
+            self.z_cut = z_cut
+            for kind, value in distances.items():
+                counters[kind] += value
+            return parts
+
+        before_distance, before_time = self.travel_distance, self.routing_time
+        before_counters = dict(counters)
         parts = []
         base_z_move = self.z_move
         last = len(depths) - 1
@@ -3696,6 +3921,12 @@ class CNCjob(Geometry):
                 counters['lift'] += abs(self.z_cut) + abs(self.z_move)
 
             parts.append(self.doformat(p.lift_code, x=locx, y=locy))
+        # Pure vertical sequences are identical for every hole at the same incoming height. Preprocessors emitting
+        # XY (Line_xyz, Roland, laser hole contours) still format and measure every move independently.
+        if not any('X' in part or 'Y' in part for part in parts) and not getattr(self, 'pp_errors_warned', None):
+            self._drill_hole_cache = (key, parts, self.travel_distance - before_distance,
+                                      self.routing_time - before_time, self._motion_position[2], self.z_cut,
+                                      {kind: counters[kind] - value for kind, value in before_counters.items()})
         return parts
 
     def excellon_tool_gcode_gen(self, tool, points, tools, first_pt, is_first=False, is_last=False, opt_type='T',
@@ -4422,10 +4653,6 @@ class CNCjob(Geometry):
         else:
             self.app.log.debug("camlib.CNCJob.geometry_tool_gcode_gen() -> Multidepth ON -> Multiple Pass")
 
-        # Measurements
-        total_travel = 0.0
-        total_cut = 0.0
-
         # Start GCode
         start_gcode = ''
         if is_first:
@@ -4493,9 +4720,6 @@ class CNCjob(Geometry):
 
             # ---------- Single depth/pass --------
             if not self.multidepth:
-                # calculate the cut distance
-                total_cut = total_cut + geo.length
-
                 if simplified is None:
                     gcode_parts.append(self.create_gcode_single_pass(geo, current_tooldia, self.extracut,
                                                                      self.extracut_length, self.tolerance,
@@ -4507,19 +4731,11 @@ class CNCjob(Geometry):
 
             # --------- Multi-pass ---------
             else:
-                # calculate the cut distance
-                # due of the number of cuts (multi depth) it has to multiplied by the number of cuts
-                nr_cuts = self.count_depth_passes()
-
-                total_cut += (geo.length * nr_cuts)
-
                 gc, geo = self.create_gcode_multi_pass(geo, current_tooldia, self.extracut,
                                                        self.extracut_length, self.tolerance,
                                                        z_move=self.z_move, postproc=p, old_point=current_pt)
                 gcode_parts.append(gc)
 
-            # calculate the total distance
-            total_travel = total_travel + abs(distance(pt1=current_pt, pt2=pt))
             current_pt = geo.coords[-1]
 
             disp_number = int(np.interp(path_count, [0, geo_len], [0, 100]))
@@ -4529,11 +4745,6 @@ class CNCjob(Geometry):
 
         t_gcode = ''.join(gcode_parts)
         self.app.log.debug("Finished G-Code... %s paths traced." % path_count)
-
-        # add move to end position
-        total_travel += abs(distance_euclidian(current_pt[0], current_pt[1], 0, 0))
-        self.travel_distance += total_travel + total_cut
-        self.routing_time += total_cut / self.feedrate
 
         # Finish
         if is_last:
@@ -5142,27 +5353,14 @@ class CNCjob(Geometry):
         else:
             self.app.log.debug("The total travel distance with with no optimization is: %s" % str(measured_distance))
 
-        gcode += self.doformat(p.spindle_stop_code)
-        # Move to End position
-        gcode += self.doformat(p.end_code, x=0, y=0)
+        # The end block is shared with the last tool, not generated (and measured) a second time.
+        gcode += end_gcode
 
         # #############################################################################################################
         # ############################# Calculate DISTANCE and ESTIMATED TIME #########################################
         # #############################################################################################################
-        measured_distance += abs(distance_euclidian(self.oldx, self.oldy, 0, 0))
         self.app.log.debug("The total travel distance including travel to end position is: %s" %
-                           str(measured_distance) + '\n')
-        self.travel_distance = measured_distance
-
-        # I use the value of self.feedrate_rapid for the feadrate in case of the measure_lift_distance and for
-        # traveled_time because it is not always possible to determine the feedrate that the CNC machine uses
-        # for G0 move (the fastest speed available to the CNC router). Although self.feedrate_rapids is used only with
-        # Marlin preprocessor and derivatives. A feedrate of zero adds no time (no division by zero).
-        self.routing_time = 0.0
-        if self.feedrate:
-            self.routing_time += (counters['down'] + counters['up_to_zero']) / self.feedrate
-        if self.feedrate_rapid:
-            self.routing_time += (counters['lift'] + measured_distance) / self.feedrate_rapid
+                           str(self.travel_distance) + '\n')
 
         # #############################################################################################################
         # ############################# Store the GCODE for further usage ############################################
@@ -5501,9 +5699,6 @@ class CNCjob(Geometry):
             if self.dwell is True:
                 self.gcode += self.doformat(p.dwell_code)  # Dwell time
 
-        total_travel = 0.0
-        total_cut = 0.0
-
         # ## Iterate over geometry paths getting the nearest each time.
         self.app.log.debug("Starting G-Code...")
         self.app.inform.emit('%s...' % _("Starting G-Code"))
@@ -5546,31 +5741,16 @@ class CNCjob(Geometry):
 
                 # ---------- Single depth/pass --------
                 if not multidepth:
-                    # calculate the cut distance
-                    total_cut = total_cut + geo.length
-
                     path_parts.append(self.create_gcode_single_pass(geo, current_tooldia, extracut, extracut_length,
                                                                     tolerance, z_move=z_move, old_point=current_pt))
 
                 # --------- Multi-pass ---------
                 else:
-                    # calculate the cut distance
-                    # due of the number of cuts (multi depth) it has to multiplied by the number of cuts
-                    nr_cuts = 0
-                    depth = abs(self.z_cut)
-                    while depth > 0:
-                        nr_cuts += 1
-                        depth -= float(self.z_depthpercut)
-
-                    total_cut += (geo.length * nr_cuts)
-
                     gc, geo = self.create_gcode_multi_pass(geo, current_tooldia, extracut, extracut_length,
                                                            tolerance,  z_move=z_move, postproc=p,
                                                            old_point=current_pt)
                     path_parts.append(gc)
 
-                # calculate the total distance
-                total_travel = total_travel + abs(distance(pt1=current_pt, pt2=pt))
                 current_pt = geo.coords[-1]
 
                 pt, geo = storage.nearest(current_pt)  # Next
@@ -5584,11 +5764,6 @@ class CNCjob(Geometry):
         self.gcode += ''.join(path_parts)
 
         self.app.log.debug("Finished G-Code... %s paths traced." % path_count)
-
-        # add move to end position
-        total_travel += abs(distance_euclidian(current_pt[0], current_pt[1], 0, 0))
-        self.travel_distance += total_travel + total_cut
-        self.routing_time += total_cut / self.feedrate
 
         # Finish
         self.gcode += self.doformat(p.spindle_stop_code)
@@ -6041,9 +6216,6 @@ class CNCjob(Geometry):
                 # for laser this will disable the laser
                 self.gcode += self.doformat(p.lift_code, x=self.oldx, y=self.oldy)  # Move (up) to travel height
 
-        total_travel = 0.0
-        total_cut = 0.0
-
         # Iterate over geometry paths getting the nearest each time.
         self.app.log.debug("Starting G-Code...")
         self.app.inform.emit('%s...' % _("Starting G-Code"))
@@ -6082,26 +6254,16 @@ class CNCjob(Geometry):
 
             # ---------- Single depth/pass --------
             if not multidepth:
-                # calculate the cut distance
-                total_cut += geo.length
                 path_parts.append(self.create_gcode_single_pass(geo, current_tooldia, extracut, self.extracut_length,
                                                                 tolerance, z_move=self.z_move, old_point=current_pt))
 
             # --------- Multi-pass ---------
             else:
-                # calculate the cut distance
-                # due of the number of cuts (multi depth) it has to multiplied by the number of cuts
-                nr_cuts = self.count_depth_passes()
-
-                total_cut += (geo.length * nr_cuts)
-
                 gc, geo = self.create_gcode_multi_pass(geo, current_tooldia, extracut, self.extracut_length,
                                                        tolerance, z_move=self.z_move, postproc=p,
                                                        old_point=current_pt)
                 path_parts.append(gc)
 
-            # calculate the travel distance
-            total_travel += abs(distance(pt1=current_pt, pt2=pt))
             # the next travel starts where this path ends
             current_pt = geo.coords[-1]
 
@@ -6113,11 +6275,6 @@ class CNCjob(Geometry):
         self.gcode += ''.join(path_parts)
 
         self.app.log.debug("Finishing G-Code... %s paths traced." % path_count)
-
-        # add move to end position
-        total_travel += abs(distance_euclidian(current_pt[0], current_pt[1], 0, 0))
-        self.travel_distance += total_travel + total_cut
-        self.routing_time += total_cut / self.feedrate
 
         # Finish
         if 'laser' not in self.pp_geometry_name:
@@ -7367,22 +7524,26 @@ class CNCjob(Geometry):
 
             # gcode += self.doformat(p.rapid_code, x=first_x, y=first_y)  # Move to first point
 
+        # The parameters are shared by the plunge, feed settings and cutting points of this path.
+        attributes = AttrDict()
+        attributes.update(self.postdata)
+        attributes.update(x=first_x, y=first_y, z_cut=z_cut)
+
         # Move down to cutting depth
         if down:
             # Different feedrate for vertical cut?
-            gcode += self.doformat(p.z_feedrate_code)
+            gcode += self._format_motion(p.z_feedrate_code, attributes)
             # gcode += self.doformat(p.feedrate_code)
-            gcode += self.doformat(p.down_code, x=first_x, y=first_y, z_cut=z_cut)
-            gcode += self.doformat(p.feedrate_code, feedrate=feedrate)
+            gcode += self._format_motion(p.down_code, attributes)
+            attributes['feedrate'] = feedrate
+            gcode += self._format_motion(p.feedrate_code, attributes)
+            attributes['feedrate'] = self.feedrate
 
         # Cutting...
         prev_x = first_x
         prev_y = first_y
         # the attributes are copied once for the path and only x, y change from a point to the next one (doformat()
         # copies all the attributes of this object for every line)
-        attributes = AttrDict()
-        attributes.update(self.postdata)
-        attributes['z_cut'] = z_cut
         # the chunks are joined 1 time: a str += in a loop copies the whole string each time
         cut_parts = []
         for pt in path[1:]:
@@ -7409,6 +7570,9 @@ class CNCjob(Geometry):
             prev_x = pt[0]
             prev_y = pt[1]
         gcode += ''.join(cut_parts)
+
+        if len(path) > 1:
+            self._record_cut_path(target_linear, path, attributes, cut_parts)
 
         # Up to travelling height.
         if up:
@@ -8002,8 +8166,22 @@ class CNCjob(Geometry):
             (self.obj_options['xmin'], self.obj_options['ymin'],
              self.obj_options['xmax'], self.obj_options['ymax']) = res['bounds']
 
+    def _fixed_points(self):
+        """The toolchange and end positions of a native job, as [(x, y)]: a transform keeps them where they are."""
+        points = []
+        for pos in (self.xy_toolchange, self.xy_end):
+            try:
+                x, y = pos
+                points.append((float(x), float(y)))
+            except (TypeError, ValueError):
+                pass
+        return points
+
     def _transform_native(self, matrix):
-        """Native job: the text of every tool (or of the job) and the geometry follow the matrix."""
+        """
+        Native job: the text of every tool (or of the job) and the geometry follow the matrix. The rapid moves to the
+        toolchange and end positions keep their place in the text and in the plot.
+        """
         from appParsers.ParseGCode import transform_gcode
 
         pp_names = (str(getattr(self, 'pp_geometry_name', '')) + str(getattr(self, 'pp_excellon_name', ''))).lower()
@@ -8012,14 +8190,23 @@ class CNCjob(Geometry):
             self.app.inform.emit('[WARNING_NOTCL] %s' % _("The machine code of the Roland/HPGL preprocessors is not "
                                                           "transformed, only the plot is. Generate the job again."))
         decimals = getattr(self, 'coords_decimals', None) or 4
+        fixed = self._fixed_points()
+        # (text holder, tool dict or None) of every text that kept lines at a fixed point
+        kept_in = []
         if self.multitool:
             texts = [v for v in self.tools.values() if isinstance(v.get('gcode'), str) and v['gcode']]
             for v in texts:
-                v['gcode'], warns = transform_gcode(v['gcode'], matrix, decimals, self.steps_per_circle)
+                kept = []
+                v['gcode'], warns = transform_gcode(v['gcode'], matrix, decimals, self.steps_per_circle, fixed, kept)
+                if kept:
+                    kept_in.append(v)
                 for msg in warns:
                     self.app.log.warning("CNCjob transform: %s" % msg)
         elif isinstance(self.gcode, str) and self.gcode:
-            self.gcode, warns = transform_gcode(self.gcode, matrix, decimals, self.steps_per_circle)
+            kept = []
+            self.gcode, warns = transform_gcode(self.gcode, matrix, decimals, self.steps_per_circle, fixed, kept)
+            if kept:
+                kept_in.append(None)
             for msg in warns:
                 self.app.log.warning("CNCjob transform: %s" % msg)
 
@@ -8029,10 +8216,41 @@ class CNCjob(Geometry):
             for item in parsed or ():
                 unique[id(item)] = item
         CNCjob._affine_gcode_parsed(list(unique.values()), matrix)
+
+        # Lines that kept their X/Y are not an affine image of the old plot: the plot is parsed again from the new
+        # text with the parser that built it, so it matches the text. Without kept lines the affine path is exact.
+        for holder in kept_in:
+            old = (holder if holder is not None else {'gcode_parsed': self.gcode_parsed}).get('gcode_parsed') or []
+            start_pt = (0, 0)
+            if old and getattr(old[0].get('geom'), 'coords', None):
+                start_pt = tuple(old[0]['geom'].coords[0][:2])
+            text = holder['gcode'] if holder is not None else self.gcode
+            fresh = self._reparse_native(text, holder, start_pt)
+            if fresh is None:
+                continue
+            if holder is not None:
+                holder['gcode_parsed'] = fresh
+            else:
+                self.gcode_parsed = fresh
+        if self.multitool and kept_in:
+            self.gcode_parsed = [item for v in self.tools.values() for item in (v.get('gcode_parsed') or [])]
         for v in (self.tools or {}).values():
             if v.get('gcode_parsed'):
                 # for the bounding box: the paths as they are (a union of all the paths takes long)
                 v['solid_geometry'] = [geo['geom'] for geo in v['gcode_parsed']]
+
+    def _reparse_native(self, text, tool, start_pt):
+        """The gcode_parsed list of a native text, built by the parser that built the original (None: it failed)."""
+        if str((getattr(self, 'obj_options', None) or {}).get('type', '')).lower() == 'excellon':
+            result = self.excellon_tool_gcode_parse((tool or {}).get('tooldia') or 0.0, text, start_pt=start_pt)
+        else:
+            saved = self.gcode
+            self.gcode = text
+            try:
+                result = self.gcode_parse(tool_data=tool.get('data') if tool is not None else None)
+            finally:
+                self.gcode = saved
+        return result if isinstance(result, list) else None
 
     def gcode_flow_blocked(self, action):
         """
@@ -8098,147 +8316,11 @@ class CNCjob(Geometry):
         else:
             px, py = point
 
-        if getattr(self, 'gcode_imported', False):
-            self._transform(affine_scale_matrix(xfactor, yfactor, (px, py)))
-            return
-
-        def scale_g(g):
-            """
-
-            :param g: 'g' parameter it's a gcode string
-            :return:  scaled gcode string
-            """
-
-            # the lines are joined once at the end and the options are read once: a text that grew line by line
-            # and the option reads for each line were slow for a large job
-            temp_gcode = []
-            header_start = False
-            header_stop = False
-            units = self.app.app_units.upper()
-            coords_decimals = self._app_option("cncjob_coords_decimals")
-            fr_decimals = self._app_option("cncjob_fr_decimals")
-
-            lines = StringIO(g)
-            for line in lines:
-
-                # this changes the GCODE header ---- UGLY HACK
-                if "TOOL DIAMETER" in line or "Feedrate:" in line:
-                    header_start = True
-
-                if "G20" in line or "G21" in line:
-                    header_start = False
-                    header_stop = True
-
-                if header_start is True:
-                    header_stop = False
-                    if "in" in line:
-                        if units == 'MM':
-                            line = line.replace("in", "mm")
-                    if "mm" in line:
-                        if units == 'IN':
-                            line = line.replace("mm", "in")
-
-                    # find any float number in header (even multiple on the same line) and convert it
-                    numbers_in_header = re.findall(self.g_nr_re, line)
-                    if numbers_in_header:
-                        for nr in numbers_in_header:
-                            new_nr = float(nr) * xfactor
-                            # replace the updated string
-                            line = line.replace(nr, ('%.*f' % (coords_decimals, new_nr))
-                                                )
-
-                # this scales all the X and Y and Z and F values and also the Tool Dia in the toolchange message
-                if header_stop is True:
-                    if "G20" in line:
-                        if units == 'MM':
-                            line = line.replace("G20", "G21")
-                    if "G21" in line:
-                        if units == 'IN':
-                            line = line.replace("G21", "G20")
-
-                    # find the X group
-                    match_x = self.g_x_re.search(line)
-                    if match_x:
-                        if match_x.group(1) is not None:
-                            new_x = float(match_x.group(1)[1:]) * xfactor
-                            # replace the updated string
-                            line = line.replace(
-                                match_x.group(1),
-                                'X%.*f' % (coords_decimals, new_x)
-                            )
-                    # find the Y group
-                    match_y = self.g_y_re.search(line)
-                    if match_y:
-                        if match_y.group(1) is not None:
-                            new_y = float(match_y.group(1)[1:]) * yfactor
-                            line = line.replace(
-                                match_y.group(1),
-                                'Y%.*f' % (coords_decimals, new_y)
-                            )
-                    # find the Z group
-                    match_z = self.g_z_re.search(line)
-                    if match_z:
-                        if match_z.group(1) is not None:
-                            new_z = float(match_z.group(1)[1:]) * xfactor
-                            line = line.replace(
-                                match_z.group(1),
-                                'Z%.*f' % (coords_decimals, new_z)
-                            )
-
-                    # find the F group
-                    match_f = self.g_f_re.search(line)
-                    if match_f:
-                        if match_f.group(1) is not None:
-                            new_f = float(match_f.group(1)[1:]) * xfactor
-                            line = line.replace(
-                                match_f.group(1),
-                                'F%.*f' % (fr_decimals, new_f)
-                            )
-                    # find the T group (tool dia on toolchange)
-                    match_t = self.g_t_re.search(line)
-                    if match_t:
-                        if match_t.group(1) is not None:
-                            new_t = float(match_t.group(1)[1:]) * xfactor
-                            line = line.replace(
-                                match_t.group(1),
-                                '= %.*f' % (coords_decimals, new_t)
-                            )
-
-                temp_gcode.append(line)
-            lines.close()
-            # header_stop = False
-            return ''.join(temp_gcode)
-
-        if self.multitool is False:
-            # offset Gcode
-            self.gcode = scale_g(self.gcode)
-
-            # scale geometry
-            CNCjob._affine_gcode_parsed(self.gcode_parsed, affine_scale_matrix(xfactor, yfactor, (px, py)))
-
-            self.create_geometry()
-        else:
-            # for CNCJob objects made from Geometry objects
-            for k, v in self.tools.items():
-                # scale Gcode
-                v['gcode'] = scale_g(v['gcode'])
-
-                # scale gcode_parsed
-                CNCjob._affine_gcode_parsed(v['gcode_parsed'], affine_scale_matrix(xfactor, yfactor, (px, py)))
-
-                # for the bounding box: the paths as they are (a union of all the paths takes long)
-                v['solid_geometry'] = [geo['geom'] for geo in v['gcode_parsed']]
-        self.create_geometry()
-        self.app.proc_container.new_text = ''
+        self._transform(affine_scale_matrix(xfactor, yfactor, (px, py)))
 
     def offset(self, vect):
         """
-        Offsets all the geometry on the XY plane in the object by the
-        given vector.
-        Offsets all the GCODE on the XY plane in the object by the
-        given vector.
-
-        g_offsetx_re, g_offsety_re, multitool, cnnc_tools are attributes of FlatCAMCNCJob class in camlib
+        Offsets the G-code and the geometry of the job on the XY plane by the given vector.
 
         :param vect:    (x, y) offset vector.
         :type vect:     tuple
@@ -8248,102 +8330,7 @@ class CNCjob(Geometry):
 
         dx, dy = vect
 
-        if getattr(self, 'gcode_imported', False):
-            self._transform(affine_translate_matrix(dx, dy))
-            return
-
-        def offset_g(g):
-            """
-
-            :param g: 'g' parameter it's a gcode string
-            :return:  offseted gcode string
-            """
-
-            # the lines are joined once at the end and the option is read once: a text that grew line by line and
-            # the option reads for each line were slow for a large job
-            temp_gcode = []
-            coords_decimals = self._app_option("cncjob_coords_decimals")
-            lines = StringIO(g)
-            for line in lines:
-                # find the X group
-                match_x = self.g_x_re.search(line)
-                if match_x:
-                    if match_x.group(1) is not None:
-                        # get the coordinate and add X offset
-                        new_x = float(match_x.group(1)[1:]) + dx
-                        # replace the updated string
-                        line = line.replace(
-                            match_x.group(1),
-                            'X%.*f' % (coords_decimals, new_x)
-                        )
-                match_y = self.g_y_re.search(line)
-                if match_y:
-                    if match_y.group(1) is not None:
-                        new_y = float(match_y.group(1)[1:]) + dy
-                        line = line.replace(
-                            match_y.group(1),
-                            'Y%.*f' % (coords_decimals, new_y)
-                        )
-                temp_gcode.append(line)
-            lines.close()
-            return ''.join(temp_gcode)
-
-        if self.multitool is False:
-            # offset Gcode
-            self.gcode = offset_g(self.gcode)
-
-            # Vectorized geometry translation using Shapely 2.0+
-            # Check for empty or None gcode_parsed
-            if self.gcode_parsed:
-                try:
-                    geoms = np.array([g['geom'] for g in self.gcode_parsed], dtype=object)
-                    coords = shapely.get_coordinates(geoms)
-                    if coords.size > 0:
-                        coords[:, 0] += dx
-                        coords[:, 1] += dy
-                        translated = shapely.set_coordinates(geoms, coords)
-                        for g, new_geom in zip(self.gcode_parsed, translated):
-                            g['geom'] = new_geom
-                except Exception as e:
-                    self.app.log.error('CNCjob.offset() vectorized translation failed: %s' % str(e))
-                    self.app.proc_container.new_text = ''
-                    return
-
-            # Show completion
-            self.app.proc_container.update_view_text(' %d%%' % 100)
-
-            self.create_geometry()
-        else:
-            # for CNCJob objects made from Gerber or Geometry objects
-            for k, v in self.tools.items():
-                # offset Gcode
-                v['gcode'] = offset_g(v['gcode'])
-
-                # Vectorized geometry translation using Shapely 2.0+
-                # Check for empty or None gcode_parsed
-                if v.get('gcode_parsed'):
-                    try:
-                        geoms = np.array([g['geom'] for g in v['gcode_parsed']], dtype=object)
-                        coords = shapely.get_coordinates(geoms)
-                        if coords.size > 0:
-                            coords[:, 0] += dx
-                            coords[:, 1] += dy
-                            translated = shapely.set_coordinates(geoms, coords)
-                            for g, new_geom in zip(v['gcode_parsed'], translated):
-                                g['geom'] = new_geom
-                    except Exception as e:
-                        self.app.log.error('CNCjob.offset() multitool vectorized translation failed: %s' % str(e))
-                        self.app.proc_container.new_text = ''
-                        return
-
-                # for the bounding box: the paths as they are (a union of all the paths takes long)
-                if v.get('gcode_parsed'):
-                    v['solid_geometry'] = [geo['geom'] for geo in v['gcode_parsed']]
-
-                # Show completion per tool
-                self.app.proc_container.update_view_text(' %d%%' % 100)
-
-        self.app.proc_container.new_text = ''
+        self._transform(affine_translate_matrix(dx, dy))
 
     def mirror(self, axis, point):
         """

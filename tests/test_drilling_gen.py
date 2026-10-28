@@ -225,10 +225,43 @@ def test_tcl_positive_drillz_is_drilled_as_negative_with_a_warning():
 
 
 def test_tcl_zero_feedrate_does_not_divide_by_zero():
-    __, job, ret, __ = tcl_run({1: (0.8, [(1.0, 1.0)], ())},
+    app, job, ret, __ = tcl_run({1: (0.8, [(1.0, 1.0)], ())},
                                options=dict(tools_drill_toolchange=False, tools_drill_feedrate_rapid=0))
     assert ret != 'fail'
-    assert job.routing_time >= 0
+    assert job.routing_time > 0
+    assert any('rate' in m.lower() for m in warnings(app))
+
+
+@pytest.mark.parametrize('generator', ['gui', 'tcl'])
+def test_estimates_count_complete_drilling_motion(generator):
+    data = dict(tools_drill_toolchange=False, tools_drill_travelz=2.0, tools_drill_cutz=-1.0,
+                tools_drill_endz=15.0, tools_drill_endxy=(0, 0), tools_drill_feedrate_z=60.0,
+                tools_drill_feedrate_rapid=600.0, tools_drill_dwell=True, tools_drill_dwelltime=30)
+    if generator == 'gui':
+        __, job, result = gui_run([(5, 0)], **data)
+        assert result[0] != 'fail'
+    else:
+        __, job, ret, code = tcl_run({1: (0.8, [(5, 0)], ())}, options=data)
+        assert ret != 'fail'
+    # From assumed job origin: lift 2, XY 5, plunge 3, feed retract 1, lift 2, park Z 13, XY 5.
+    assert job.travel_distance == pytest.approx(31)
+    assert job.routing_time == pytest.approx(27 / 600 + 4 / 60 + 30 / 60)
+
+
+@pytest.mark.parametrize('data', [
+    {'tools_drill_peck': True, 'tools_drill_peck_depth': 0.4, 'tools_drill_peck_retract': 0.1},
+    {'tools_drill_multidepth': True, 'tools_drill_depthperpass': 0.4},
+    {'tools_drill_f_retract': True, 'tools_drill_dwell_bottom': True, 'tools_drill_dwelltime': 2},
+])
+def test_drilling_estimate_follows_retract_and_bottom_dwell(data):
+    from appParsers.ParseGCode import parse_gcode
+
+    __, job, result = gui_run([(5, 0), (5, 4)], tools_drill_cutz=-1.0, tools_drill_feedrate_z=60,
+                            tools_drill_feedrate_rapid=600, **data)
+    code = '(Preprocessor Excellon: default)\nG20\nG0 X0 Y0 Z0\n' + result[0]
+    expected = parse_gcode(code, feedrate_rapid=600, target_units=job.units)
+    assert job.travel_distance == pytest.approx(expected['travel_distance'])
+    assert job.routing_time == pytest.approx(expected['routing_time'])
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -589,6 +622,12 @@ def test_plugin_spot_pass_comes_first_over_all_the_holes_with_its_own_tool_numbe
     assert 'Dia = 0.5' in job.gcode and 'Total drills for tool T4 = 6' in job.gcode
     assert job.used_tools[0] == 4 and job.tools[4]['nr_drills'] == 6 and job.tools[4]['tooldia'] == 0.5
     assert sorted(job.tools) == [1, 2, 3, 4]
+    from appParsers.ParseGCode import parse_gcode
+    expected = parse_gcode('(Preprocessor Excellon: default)\n' +
+                           ('G20\n' if job.units.upper() == 'IN' else 'G21\n') +
+                           'G0 X0 Y0 Z0\n' + job.gcode, feedrate_rapid=job.feedrate_rapid, target_units=job.units)
+    assert job.travel_distance == pytest.approx(expected['travel_distance'])
+    assert job.routing_time == pytest.approx(expected['routing_time'])
 
 
 def test_plugin_spot_pass_does_not_peck_and_is_off_by_default(fc, plugin, monkeypatch):
