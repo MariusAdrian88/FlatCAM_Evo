@@ -744,6 +744,9 @@ class AppGCodeEditor(QtCore.QObject):
         :rtype:
         """
         my_gcode = self.ui.gcode_editor_tab.code_editor.toPlainText()
+        if my_gcode != self.gcode_obj.source_file:
+            # the job (and its project) keeps the changed G-code instead of making it again from its tools
+            self.gcode_obj.edited_source_file = my_gcode
         self.gcode_obj.source_file = my_gcode
         self.deactivate()
 

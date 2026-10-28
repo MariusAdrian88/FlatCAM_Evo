@@ -3,6 +3,8 @@
 Tests for the open-file dialog filters. On Linux the Qt file dialog matches the filter patterns case-sensitive,
 so each pattern must also be there in upper case (EasyEDA writes e.g. 'board.GTL', 'board.DRL').
 Also the Gerber save dialog: each file type needs a '*.ext' pattern and 'All Files (*.*)' must be the last group.
+And the name that the save dialog gives: the extension of the chosen filter is added only to a name that has none
+of the extensions of that filter, in any case.
 
 Run: python tests/test_file_filters.py
 """
@@ -124,6 +126,31 @@ class GerberSaveFilterTests(unittest.TestCase):
         # .art is the last file type; it was joined to 'All Files' and saved 'board' without an extension
         for file_type, filename in (('Gerber File .gtl ', 'board.gtl'), ('Gerber File .art ', 'board.art')):
             self.assertEqual(filename, self.export(self.make_stub(), file_type)[1])
+
+
+class SaveDialogExtensionTests(unittest.TestCase):
+    """FCFileSaveDialog adds the extension of the chosen filter only to a name that has none of its extensions."""
+
+    @staticmethod
+    def saved_name(picked, chosen_filter):
+        from appGUI.GUIElements import FCFileSaveDialog
+        with patch.object(QtWidgets.QFileDialog, 'getSaveFileName', return_value=(picked, chosen_filter)):
+            return FCFileSaveDialog.get_saved_filename(caption='Export Code ...', ext_filter=chosen_filter)[0]
+
+    def test_a_name_with_an_extension_of_the_filter_in_any_case_is_kept(self):
+        # View Source of a CNC job saves with "(*.NC)": over 'board_cnc.nc' it wrote 'board_cnc.nc.NC'
+        for picked, chosen_filter in (('C:/w/board_cnc.nc', 'GCode Files .nc (*.NC)'),
+                                      ('C:/w/TOP.NC', 'G-Code Files .nc (*.nc)'),
+                                      ('C:/w/board.gbr', 'Gerber Files (*.gbr *.GBR)')):
+            self.assertEqual(picked, self.saved_name(picked, chosen_filter))
+
+    def test_other_names_get_the_extension_as_before(self):
+        for picked, chosen_filter, expected in (('C:/w/board', 'GCode Files .nc (*.NC)', 'C:/w/board.NC'),
+                                                ('C:/w/top.gcode', 'G-Code Files .nc (*.nc)', 'C:/w/top.gcode.nc'),
+                                                ('C:/w/board.txt', 'All Files (*.*)', 'C:/w/board.txt'),
+                                                ('', 'G-Code Files .nc (*.nc)', '')):
+            self.assertEqual(expected, self.saved_name(picked, chosen_filter))
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

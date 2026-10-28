@@ -5704,8 +5704,11 @@ class FCFileSaveDialog(QtWidgets.QFileDialog):
             return filename, _filter
 
         extension = '.' + _filter.strip(')').rpartition('.')[2]
+        # the extensions of all the patterns of the selected filter, e.g. "Gerber Files (*.gbr *.GBR)", in any case:
+        # an existing 'board.nc' picked with the filter "(*.NC)" is not saved as 'board.nc.NC'
+        extensions = [p[1:].lower() for p in _filter.rpartition('(')[2].strip(')').split() if p.startswith('*.')]
 
-        if filename.endswith(extension) or extension == '.*':
+        if extension == '.*' or filename.lower().endswith(tuple(extensions)):
             return filename, _filter
         else:
             filename += extension

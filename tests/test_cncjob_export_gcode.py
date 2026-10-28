@@ -11,12 +11,13 @@ import importlib
 import pkgutil
 import re
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
 import appPreProcessor
 import preprocessors
+from appGUI.ObjectUI import CNCObjectUI
 from appObjects.CNCJobObject import CNCJobObject
 
 for _module in pkgutil.iter_modules(preprocessors.__path__):
@@ -252,3 +253,243 @@ def test_gcode_without_tool_data_opens_with_defaults_and_warns_once(tmp_path, co
     warnings = [c.args[0] for c in app.inform.emit.call_args_list
                 if c.args[0].startswith('[WARNING_NOTCL]') and 'tool data' in c.args[0]]
     assert len(warnings) == 1 and '%g' % default in warnings[0] and 'G20/G21' in warnings[0]
+
+
+# ------------------------------------------------------------------------------------------------------------
+# The G-code file: Save CNC Code (export_gcode_handler) and the Tcl write_gcode (export_gcode with a file name)
+# ------------------------------------------------------------------------------------------------------------
+
+BODY = 'G0 X1 Y1\nG1 Z-0.1 F100\nG1 X10 Y1 F200\nG0 Z2\nM5\n'
+OLD_FILE = b'OLD G-CODE, STILL GOOD\r\n'
+
+
+def _ui_app(**options):
+    from tests.helpers_objects import make_app_0b
+
+    app = make_app_0b(**options)
+    app.preprocessors = PREPROCESSORS
+    app.version, app.version_date = 'test', 'test'
+    app.ui = MagicMock()
+    app.resource_location = 'assets/resources'
+    app.file_opened, app.file_saved = Mock(), Mock()
+    app.dec_format = round
+    return app
+
+
+def _ui_job(app, init=None):
+    """A Milling job as AppObject.new_object() makes it: the init function, then set_ui()."""
+    from PyQt6 import QtWidgets
+
+    # the Properties panel needs a QApplication; it is kept (a collected one ends the process)
+    _ui_job.qapp = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
+        job = CNCJobObject('job', app)
+    job.obj_options['type'] = 'Geometry'
+    job.multitool = True
+    job.used_tools = [1]
+    job.tools = {1: {'tooldia': 0.1, 'data': {'tools_mill_ppname_g': 'default'}, 'gcode': BODY}}
+    job.gc_start = 'G21\nG90\n'
+    if init is not None:
+        init(job)
+    job.set_ui(CNCObjectUI(app=app))
+    return job
+
+
+def _save_both_ways(job, folder):
+    """Save CNC Code into 'button.nc' and the Tcl write_gcode into 'tcl.nc': their results."""
+    return (job.export_gcode_handler(str(folder / 'button.nc'), rename_object=False),
+            job.export_gcode(filename=str(folder / 'tcl.nc')))
+
+
+def test_a_failed_gcode_save_keeps_the_old_file_and_says_why(tmp_path):
+    import errno
+    import appObjects.CNCJobObject as cnc_module
+
+    real_open = open
+
+    def full_card_open(file, *args, **kwargs):
+        # the SD card is full after a few characters
+        handle = real_open(file, *args, **kwargs)
+        real_write = handle.write
+
+        def write(text):
+            real_write(text[:20])
+            raise OSError(errno.ENOSPC, 'No space left on device')
+
+        handle.write = write
+        return handle
+
+    job = _ui_job(_ui_app())
+    for name in ('button.nc', 'tcl.nc'):
+        (tmp_path / name).write_bytes(OLD_FILE)
+
+    with patch.object(cnc_module, 'open', full_card_open, create=True):
+        assert _save_both_ways(job, tmp_path) == ('fail', 'fail')
+
+    # before: the files were cut (the end code was missing) and the error went to the crash dialog
+    assert sorted(p.name for p in tmp_path.iterdir()) == ['button.nc', 'tcl.nc']
+    assert (tmp_path / 'button.nc').read_bytes() == OLD_FILE and (tmp_path / 'tcl.nc').read_bytes() == OLD_FILE
+    errors = [c.args[0] for c in job.app.inform.emit.call_args_list if c.args[0].startswith('[ERROR_NOTCL]')]
+    assert len(errors) == 2 and all('Could not save the file' in e and 'No space' in e for e in errors)
+    job.app.file_saved.emit.assert_not_called()
+
+
+def test_the_gcode_file_is_written_in_one_write(tmp_path):
+    import appObjects.CNCJobObject as cnc_module
+
+    real_open = open
+    writes = []
+
+    def counting_open(file, *args, **kwargs):
+        handle = real_open(file, *args, **kwargs)
+        real_write = handle.write
+        handle.write = lambda text: (writes.append(len(text)), real_write(text))[1]
+        return handle
+
+    job = _ui_job(_ui_app())
+    with patch.object(cnc_module, 'open', counting_open, create=True):
+        assert _save_both_ways(job, tmp_path) == (None, None)
+
+    # before: 1 write() per character (Save CNC Code) or per line (Tcl), seconds for a big file
+    assert writes == [len(job.source_file)] * 2
+    assert sorted(p.name for p in tmp_path.iterdir()) == ['button.nc', 'tcl.nc']
+    assert (tmp_path / 'button.nc').read_text() == (tmp_path / 'tcl.nc').read_text() == job.source_file
+
+
+# ------------------------------------------------------------------------------------------------------------
+# The G-code saved in the G-code Editor is what the job exports, until the user makes the G-code again
+# ------------------------------------------------------------------------------------------------------------
+
+EDIT = '\nM5 (laser off, added in the editor)\n'
+
+
+def _editor_save(job, text):
+    """The save of the G-code Editor (App.on_editing_finished -> AppGCodeEditor.update_fcgcode)."""
+    from appEditors.appGCodeEditor import AppGCodeEditor
+
+    editor = SimpleNamespace(app=job.app, gcode_obj=job, ui=MagicMock(), deactivate=Mock())
+    editor.ui.gcode_editor_tab.code_editor.toPlainText.return_value = text
+    AppGCodeEditor.update_fcgcode(editor, job)
+
+
+def test_gcode_saved_in_the_editor_survives_a_new_panel_the_project_and_undo(tmp_path):
+    from appCommon.ProjectFile import load_project_file, save_project_file
+    from appHandlers.appHistory import object_state, restore_object_state
+    from camlib import dict2obj, geometry_wkt_cache, project_json_default
+
+    job = _ui_job(_ui_app())
+    edited = job.source_file + EDIT
+    _editor_save(job, edited)
+
+    # before: set_ui() made the G-code again from the tools; the panel is made again when Qt deleted it
+    job.set_ui(CNCObjectUI(app=job.app))
+    assert job.source_file == edited
+    assert job.export_gcode_handler(str(tmp_path / 'out.nc'), rename_object=False) is None
+    assert (tmp_path / 'out.nc').read_text() == edited
+
+    # project save and open (appIO.open_project), and the undo of a delete (HistoryManager.rebuild)
+    data = {'objs': [job.to_dict()]}
+    path = str(tmp_path / 'project.FlatPrj')
+    save_project_file(path, data, default=project_json_default(geometry_wkt_cache(data)))
+    entry = load_project_file(path, object_hook=dict2obj)['objs'][0]
+    state = object_state(job)
+
+    def open_init(new_job):
+        new_job.from_dict(entry)
+        new_job.tools = {int(k): v for k, v in new_job.tools.items()}
+        new_job.is_loaded_from_project = True
+
+    def undo_init(new_job):
+        restore_object_state(new_job, state)
+        new_job.is_loaded_from_project = True
+
+    for init in (open_init, undo_init):
+        assert _ui_job(_ui_app(), init).source_file == edited, init.__name__
+
+
+def test_making_the_edited_gcode_again_asks_first_or_says_that_the_edits_are_lost():
+    job = _ui_job(_ui_app())
+    edited = job.source_file + EDIT
+    _editor_save(job, edited)
+    job.prepend_snippet = '(PRE)'
+
+    # the snippets checkbox: No keeps the edits and puts the box back, Yes makes the G-code again
+    job.ask_to_discard_edited_gcode = Mock(return_value=False)
+    job.ui.snippets_cb.set_value(True)
+    assert job.source_file == edited
+    assert job.ui.snippets_cb.get_value() is False and job.snippets_enabled is False
+    job.ask_to_discard_edited_gcode = Mock(return_value=True)
+    job.ui.snippets_cb.set_value(True)
+    assert '(PRE)' in job.source_file and EDIT not in job.source_file
+
+    # a move (Set Origin, Move to Origin): the G-code must follow the new coordinates, the user is told
+    _editor_save(job, edited)
+    job.tools[1]['gcode'] = BODY.replace('X1 ', 'X6 ')
+    assert job.regenerate_source() is True
+    assert 'X6 ' in job.source_file and EDIT not in job.source_file
+    warnings = [c.args[0] for c in job.app.inform.emit.call_args_list if c.args[0].startswith('[WARNING]')]
+    assert len(warnings) == 1 and 'GCode Editor' in warnings[0]
+
+
+def test_a_job_that_was_not_edited_is_made_again_from_its_tools():
+    job = _ui_job(_ui_app())
+    # a save of the editor without a change
+    _editor_save(job, job.source_file)
+    assert job.to_dict().get('edited_source_file', '') == ''
+
+    job.tools[1]['gcode'] = BODY + 'G1 X20\n'
+    job.set_ui(CNCObjectUI(app=job.app))
+    assert 'G1 X20' in job.source_file
+
+    # the snippets checkbox does not ask and a move gives no warning
+    job.ask_to_discard_edited_gcode = Mock()
+    job.prepend_snippet = '(PRE)'
+    job.ui.snippets_cb.set_value(True)
+    job.ask_to_discard_edited_gcode.assert_not_called()
+    assert '(PRE)' in job.source_file
+    assert job.regenerate_source() is True
+    assert not any(c.args[0].startswith('[WARNING]') for c in job.app.inform.emit.call_args_list)
+
+
+# ------------------------------------------------------------------------------------------------------------
+# 'Use CNC Code Snippets' unchecked: no prepend / append snippet in the G-code
+# ------------------------------------------------------------------------------------------------------------
+
+PRE, POST = '(PREPEND: G28 home)', '(APPEND: M30)'
+
+
+def test_no_snippets_in_the_gcode_while_the_snippets_checkbox_is_off():
+    job = _ui_job(_ui_app(cncjob_prepend=PRE, cncjob_append=POST))
+    assert job.ui.snippets_cb.get_value() is True and PRE in job.source_file and POST in job.source_file
+
+    # before: an empty snippet was replaced by the one of the Preferences, so they stayed
+    job.ui.snippets_cb.set_value(False)
+    assert PRE not in job.source_file and POST not in job.source_file and BODY in job.source_file
+    # a move, in a worker: snippets_enabled is the state of the box
+    assert job.regenerate_source() is True
+    assert PRE not in job.source_file and POST not in job.source_file
+    job.ui.snippets_cb.set_value(True)
+    assert PRE in job.source_file and POST in job.source_file
+
+    # a job of an opened project made without snippets, now that the Preferences have snippets
+    made = _ui_job(_ui_app())
+    entry = made.to_dict()
+
+    def open_init(new_job):
+        new_job.from_dict(entry)
+        new_job.is_loaded_from_project = True
+
+    opened = _ui_job(_ui_app(cncjob_prepend=PRE, cncjob_append=POST), open_init)
+    assert opened.ui.snippets_cb.get_value() is False and opened.source_file == made.source_file
+
+
+def test_view_source_and_tcl_write_gcode_still_use_the_snippets_of_the_preferences(tmp_path):
+    job = _ui_job(_ui_app(cncjob_prepend=PRE, cncjob_append=POST))
+    job.ui.snippets_cb.set_value(False)
+
+    # App.on_view_source() and the Tcl write_gcode without -preamble / -postamble
+    text = job.export_gcode(to_file=True).getvalue()
+    assert PRE in text and POST in text
+    job.export_gcode(str(tmp_path / 'tcl.nc'), '', '', from_tcl=True)
+    text = (tmp_path / 'tcl.nc').read_text()
+    assert PRE in text and POST in text

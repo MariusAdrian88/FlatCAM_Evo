@@ -10,11 +10,11 @@
 # File modified by: Marius Stanciu                         #
 # ##########################################################
 
-from PyQt6 import QtCore, QtWidgets
+from PyQt6 import QtCore, QtGui, QtWidgets
 
 from appEditors.appTextEditor import AppTextEditor
 from appObjects.AppObjectTemplate import FlatCAMObj, PropertiesPanelMixin, ObjectDeleted
-from appGUI.GUIElements import FCFileSaveDialog, FCCheckBox
+from appGUI.GUIElements import FCFileSaveDialog, FCCheckBox, FCMessageBox
 from appGUI.ObjectUI import CNCObjectUI
 from camlib import CNCjob
 
@@ -216,6 +216,9 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
         self.gcode_viewer_tab = None
 
         self.source_file = ''
+        # the G-code as it was saved in the G-code Editor, '' when it was not changed there. While it is set, it is
+        # the source_file: set_ui() (also for an opened project) does not make the G-code again from the tools
+        self.edited_source_file = ''
         self.units_found = self.app.app_units
 
         self.prepend_snippet = ''
@@ -240,7 +243,7 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
         # from predecessors.
         self.ser_attrs += [
             'obj_options', 'multitool', 'append_snippet', 'prepend_snippet', 'gc_header', 'gc_start',
-            'multigeo', 'used_tools', 'gcode_imported', 'gcode_encoding'
+            'multigeo', 'used_tools', 'gcode_imported', 'gcode_encoding', 'edited_source_file'
         ]
 
         # this is used, so we don't recreate the GCode for loaded objects in set_ui(), it is already there
@@ -619,12 +622,20 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
             # by being 'serr_attrs' attributes
             pass
 
-        if self.gcode_imported:
+        # as the snippets checkbox is set below: a job of an opened project that was made without snippets does not
+        # get the snippets that the Preferences have now
+        use_snippets = self.append_snippet != '' or self.prepend_snippet != ''
+
+        if self.edited_source_file:
+            # the G-code saved in the G-code Editor is kept: set_ui() runs again when the Properties panel is made
+            # again, and for the objects of an opened project (the edited G-code comes with the project)
+            self.source_file = self.edited_source_file
+        elif self.gcode_imported:
             # the original text; the snippets are added only when the user checks the snippets checkbox
             self.source_file = self.gcode
         else:
             gc = self.export_gcode(preamble=self.prepend_snippet, postamble=self.append_snippet, to_file=True,
-                                   s_code=self.gc_start)
+                                   s_code=self.gc_start, default_snippets=use_snippets)
 
             # set the Source File attribute with the calculated GCode
             try:
@@ -634,10 +645,12 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
                 # gc is text
                 self.source_file = gc
 
-        if not self.gcode_imported and (self.append_snippet != '' or self.prepend_snippet != ''):
-            # the object creation is not a history step of its own
-            with history_of(self.app).suspended():
-                self.ui.snippets_cb.set_value(True)
+        if not self.gcode_imported and use_snippets:
+            # the source_file is made above, with the snippets: no on_update_source_file() (it would make the G-code
+            # again and ask about the G-code saved in the G-code Editor) and no history step
+            self.ui.snippets_cb.blockSignals(True)
+            self.ui.snippets_cb.set_value(True)
+            self.ui.snippets_cb.blockSignals(False)
 
         self.snippets_enabled = bool(self.ui.snippets_cb.get_value())
 
@@ -771,28 +784,7 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
         if self.source_file == '':
             return 'fail'
 
-        try:
-            force_windows_line_endings = self._app_option('cncjob_line_ending')
-            if self.gcode_imported:
-                # the text of the file as it is: no translation of the line endings, the encoding of the file
-                with open(filename, 'w', newline='', encoding=self.gcode_encoding, errors='replace') as f:
-                    f.write(self.source_file)
-            elif force_windows_line_endings and sys.platform != 'win32':
-                with open(filename, 'w', newline='\r\n') as f:
-                    for line in self.source_file:
-                        f.write(line)
-            else:
-                with open(filename, 'w') as f:
-                    for line in self.source_file:
-                        f.write(line)
-        except FileNotFoundError:
-            self.app.inform.emit('[WARNING_NOTCL] %s' % _("No such file or directory"))
-            return
-        except PermissionError:
-            self.app.inform.emit(
-                '[WARNING] %s' % _("Permission denied, saving not possible.\n"
-                                   "Most likely another app is holding the file open and not accessible.")
-            )
+        if self._save_gcode_file(filename, self.source_file) == 'fail':
             return 'fail'
 
         if self._app_option("global_open_style") is False:
@@ -876,7 +868,8 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
             if self.gcode_imported:
                 text = self.imported_text(preamble, postamble)
             else:
-                gco = self.export_gcode(preamble=preamble, postamble=postamble, to_file=True, s_code=self.gc_start)
+                gco = self.export_gcode(preamble=preamble, postamble=postamble, to_file=True, s_code=self.gc_start,
+                                        default_snippets=self.snippets_enabled)
                 text = gco.getvalue() if hasattr(gco, 'getvalue') else gco
         except Exception as err:
             self.app.log.warning("CNCJobObject.regenerate_source() failed, the old source_file is kept: %s" % str(err))
@@ -886,10 +879,46 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
             return False
         if not store:
             return text
+        if self.edited_source_file:
+            # the G-code follows the new coordinates; the changes made in the G-code Editor cannot follow them
+            self.app.inform.emit('[WARNING] %s: %s' % (
+                str(self.obj_options.get('name', '')),
+                _("The G-code was made again. The changes made in the GCode Editor are lost.")))
+            self.edited_source_file = ''
         self.source_file = text
         return True
 
+    def ask_to_discard_edited_gcode(self):
+        """
+        Asks before the G-code saved in the G-code Editor is made again from the tools. A method of its own, so a test
+        can replace it.
+
+        :return:    True when the user lets the changes go
+        """
+        msgbox = FCMessageBox(parent=self.app.ui)
+        title = _("GCode Editor")
+        msgbox.setWindowTitle(title)  # taskbar still shows it
+        msgbox.setWindowIcon(QtGui.QIcon(self.app.resource_location + '/app128.png'))
+        msgbox.setText('<b>%s</b>' % title)
+        msgbox.setInformativeText(_("The G-code was changed in the GCode Editor.\n"
+                                    "Making it again discards these changes.\n\n"
+                                    "Continue?"))
+        msgbox.setIcon(QtWidgets.QMessageBox.Icon.Question)
+        bt_yes = msgbox.addButton(_('Yes'), QtWidgets.QMessageBox.ButtonRole.YesRole)
+        bt_no = msgbox.addButton(_('No'), QtWidgets.QMessageBox.ButtonRole.NoRole)
+        msgbox.setDefaultButton(bt_no)
+        msgbox.exec()
+        return msgbox.clickedButton() == bt_yes
+
     def on_update_source_file(self):
+        if self.edited_source_file and not self.ask_to_discard_edited_gcode():
+            # the G-code saved in the G-code Editor is kept; the checkbox goes back
+            self.ui.snippets_cb.blockSignals(True)
+            self.ui.snippets_cb.set_value(not self.ui.snippets_cb.get_value())
+            self.ui.snippets_cb.blockSignals(False)
+            self.app.inform.emit('[WARNING_NOTCL] %s' % _("Cancelled."))
+            return
+
         preamble = ''
         postamble = ''
         self.snippets_enabled = bool(self.ui.snippets_cb.get_value())
@@ -901,7 +930,9 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
             # the original text, with the snippets only when the checkbox is checked
             text = self.imported_text(preamble, postamble)
         else:
-            gco = self.export_gcode(preamble=preamble, postamble=postamble, to_file=True)
+            # unchecked: no snippet at all (an empty one is not replaced by the snippet of the Preferences)
+            gco = self.export_gcode(preamble=preamble, postamble=postamble, to_file=True,
+                                    default_snippets=self.snippets_enabled)
             if gco == 'fail':
                 self.app.inform.emit(
                     '[ERROR_NOTCL] %s %s...' % (_('Failed.'), _('CNC Machine Code could not be updated')))
@@ -909,6 +940,7 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
             text = gco.getvalue()
         with history_of(self.app).snapshot(_("Update Source File"), [self]):
             self.source_file = text
+            self.edited_source_file = ''
         self.app.inform.emit('[success] %s...' % _('CNC Machine Code was updated'))
 
     def imported_text(self, preamble='', postamble=''):
@@ -1049,7 +1081,7 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
             return 'M02'
 
     def export_gcode(self, filename=None, preamble='', postamble='', to_file=False, from_tcl=False, glob_gcode='',
-                     s_code=''):
+                     s_code='', default_snippets=True):
         """
         This will save the GCode from the Gcode object to a file on the OS filesystem
 
@@ -1059,6 +1091,8 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
         :param to_file:     if False then no actual file is saved but the app will know that a file was created
         :param from_tcl:    True if run from Tcl Shell
         :param glob_gcode:  Passing an object attribute that is used to hold GCode; string
+        :param default_snippets:    True: an empty preamble / postamble is replaced by the snippet of the Preferences;
+                                    False: an empty one means no snippet (the 'Use CNC Code Snippets' checkbox is off)
         :return:            None
         """
 
@@ -1071,9 +1105,9 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
         start_code = self.gc_start if s_code == '' else s_code
         include_header = True
 
-        if preamble == '':
+        if preamble == '' and default_snippets:
             preamble = self._app_option("cncjob_prepend")
-        if postamble == '':
+        if postamble == '' and default_snippets:
             postamble = self._app_option("cncjob_append")
 
         # try:
@@ -1252,29 +1286,7 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
 
         # Write
         if filename is not None:
-            try:
-                force_windows_line_endings = self._app_option('cncjob_line_ending')
-                if getattr(self, 'gcode_imported', False):
-                    # the text of the file as it is: no translation of the line endings, the encoding of the file
-                    with open(filename, 'w', newline='', encoding=getattr(self, 'gcode_encoding', 'utf-8'),
-                              errors='replace') as f:
-                        f.write(g)
-                elif force_windows_line_endings and sys.platform != 'win32':
-                    with open(filename, 'w', newline='\r\n') as f:
-                        for line in lines:
-                            f.write(line)
-                else:
-                    with open(filename, 'w') as f:
-                        for line in lines:
-                            f.write(line)
-            except FileNotFoundError:
-                self.app.inform.emit('[WARNING_NOTCL] %s' % _("No such file or directory"))
-                return 'fail'
-            except PermissionError:
-                self.app.inform.emit(
-                    '[WARNING] %s' % _("Permission denied, saving not possible.\n"
-                                       "Most likely another app is holding the file open and not accessible.")
-                )
+            if CNCJobObject._save_gcode_file(self, filename, g) == 'fail':
                 return 'fail'
         elif to_file is False:
             # Just for adding it to the recent files list.
@@ -1285,6 +1297,49 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
             self.app.inform.emit('[success] %s: %s' % (_("Saved to"), filename))
         else:
             return lines
+
+    def _save_gcode_file(self, filename, text):
+        """
+        Writes the G-code text to the file in 1 write. The text goes to a temporary file in the same folder, which
+        replaces the file only after a complete write: a write that fails (a full or a removed SD card) leaves the old
+        file as it was, not a cut G-code without its end code under the name of the file.
+
+        :param filename:    path of the file
+        :param text:        the G-code text
+        :return:            'fail' when the file is not written (the message is shown), else None
+        """
+        force_windows_line_endings = self._app_option('cncjob_line_ending')
+        if getattr(self, 'gcode_imported', False):
+            # the text of the file as it is: no translation of the line endings, the encoding of the file
+            file_options = {'newline': '', 'encoding': getattr(self, 'gcode_encoding', 'utf-8'), 'errors': 'replace'}
+        elif force_windows_line_endings and sys.platform != 'win32':
+            file_options = {'newline': '\r\n'}
+        else:
+            file_options = {}
+
+        temp_filename = filename + '.tmp'
+        try:
+            with open(temp_filename, 'w', **file_options) as f:
+                f.write(text)
+                # the errors of the drive come here, before the file is replaced
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(temp_filename, filename)
+        except (OSError, UnicodeError) as err:
+            try:
+                os.remove(temp_filename)
+            except OSError:
+                pass
+            if isinstance(err, FileNotFoundError):
+                self.app.inform.emit('[WARNING_NOTCL] %s' % _("No such file or directory"))
+            elif isinstance(err, PermissionError):
+                self.app.inform.emit(
+                    '[WARNING] %s' % _("Permission denied, saving not possible.\n"
+                                       "Most likely another app is holding the file open and not accessible.")
+                )
+            else:
+                self.app.inform.emit('[ERROR_NOTCL] %s: %s' % (_("Could not save the file"), str(err)))
+            return 'fail'
 
     def get_gcode(self, preamble='', postamble=''):
         """
