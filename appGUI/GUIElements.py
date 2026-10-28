@@ -5390,7 +5390,7 @@ class FCTextAreaLineNumber(QtWidgets.QFrame):
                     keywords = ["G", "T"]
                     for word in keywords:
                         # pattern = QtCore.QRegularExpression("\\b" + word + "\\b")
-                        pattern = QtCore.QRegularExpression(r"\\b" + word + r"\d+(\.\d*)?\s?" + r"\\b")
+                        pattern = QtCore.QRegularExpression(r"\b" + word + r"\d+(\.\d*)?" + r"\b")
                         rule = (pattern, keyword)
                         self.highlightingRules.append(rule)
 
@@ -5403,7 +5403,7 @@ class FCTextAreaLineNumber(QtWidgets.QFrame):
                     keywords = ["F"]
                     for word in keywords:
                         # pattern = QtCore.QRegularExpression("\\b" + word + "\\b")
-                        pattern = QtCore.QRegularExpression(r"\\b" + word + r"\d+(\.\d*)?\s?" + r"\\b")
+                        pattern = QtCore.QRegularExpression(r"\b" + word + r"\d+(\.\d*)?" + r"\b")
                         rule = (pattern, keyword1)
                         self.highlightingRules.append(rule)
 
@@ -5417,7 +5417,7 @@ class FCTextAreaLineNumber(QtWidgets.QFrame):
                     keywords = ["M"]
                     for word in keywords:
                         # pattern = QtCore.QRegularExpression("\\b" + word + "\\b")
-                        pattern = QtCore.QRegularExpression(r"\\b" + word + r"\d+(\.\d*)?\s?" + r"\\b")
+                        pattern = QtCore.QRegularExpression(r"\b" + word + r"\d+(\.\d*)?" + r"\b")
                         rule = (pattern, keyword2)
                         self.highlightingRules.append(rule)
 
@@ -5431,7 +5431,7 @@ class FCTextAreaLineNumber(QtWidgets.QFrame):
                     keywords = ["Z"]
                     for word in keywords:
                         # pattern = QtCore.QRegularExpression("\\b" + word + "\\b")
-                        pattern = QtCore.QRegularExpression(r"\\b" + word + r"[\-|\+]?\d+(\.\d*)?\s?" + r"\\b")
+                        pattern = QtCore.QRegularExpression(r"\b" + word + r"[\-|\+]?\d+(\.\d*)?" + r"\b")
                         rule = (pattern, keyword3)
                         self.highlightingRules.append(rule)
 
@@ -5615,8 +5615,6 @@ class FCTextAreaLineNumber(QtWidgets.QFrame):
             hi_selection = QTextEdit.ExtraSelection()
 
             hi_selection.format.setBackground(self.palette().alternateBase())
-            if self.theme not in ['default', 'light']:
-                hi_selection.format.setForeground(QtGui.QColor('black'))
             hi_selection.format.setProperty(QtGui.QTextFormat.Property.FullWidthSelection, True)
             hi_selection.cursor = self.textCursor()
             hi_selection.cursor.clearSelection()

@@ -74,6 +74,12 @@ class EditorCase(unittest.TestCase):
 
 class TestLazyHighlight(EditorCase):
 
+    def test_gcode_commands_and_parameters_are_highlighted(self):
+        self.replace_line(5, 'G01 X1 Y2 Z-1 F100 M03 T1')
+        formats = self.block(5).layout().formats()
+        for position in (0, 11, 15, 20, 24):
+            self.assertTrue(any(item.start <= position < item.start + item.length for item in formats), position)
+
     def test_only_the_lines_shown_are_highlighted_when_the_text_is_set(self):
         self.assertTrue(self.formatted(5))
         self.assertFalse(self.formatted(4000))
