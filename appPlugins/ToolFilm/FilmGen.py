@@ -8,7 +8,7 @@ from shapely import LineString, Point, Polygon, LinearRing
 from shapely.affinity import scale, skew
 from shapely.ops import unary_union
 from camlib import flatten_shapely_geometry
-from reportlab.graphics import renderPDF, renderPM
+from reportlab.graphics import renderPDF
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import inch, mm
 from reportlab.lib.pagesizes import landscape, portrait
@@ -166,14 +166,45 @@ def punch_geometry(solid_geometry, tools, punch_size=None, holes=None):
     return film_geo.difference(punching_geo)
 
 
+svg_size_re = re.compile(r'<svg\b[^>]*?\swidth="([\d.eE+-]+)(mm|in|cm|pt|px)?"[^>]*?\sheight="([\d.eE+-]+)(mm|in|cm|pt|px)?"')
+svg_unit_inches = {'mm': 1 / 25.4, 'cm': 1 / 2.54, 'in': 1.0, 'pt': 1 / 72, 'px': 1 / 96, None: 1 / 96}
+
+
+def render_svg_png(svg_text, filename, dpi=72):
+    """Render the SVG to a white-background PNG with QtSvg at its physical size for the DPI, DPI stored in the file."""
+    from PyQt6 import QtCore, QtGui, QtSvg
+
+    match = svg_size_re.search(svg_text)
+    if match is None:
+        raise ValueError('The SVG has no width and height.')
+    width_in = float(match.group(1)) * svg_unit_inches[match.group(2)]
+    height_in = float(match.group(3)) * svg_unit_inches[match.group(4)]
+    width_px = max(1, int(width_in * dpi + 0.5))
+    height_px = max(1, int(height_in * dpi + 0.5))
+
+    renderer = QtSvg.QSvgRenderer(QtCore.QByteArray(svg_text.encode('utf-8')))
+    if not renderer.isValid():
+        raise ValueError('The SVG cannot be rendered.')
+    image = QtGui.QImage(width_px, height_px, QtGui.QImage.Format.Format_RGB32)
+    image.fill(QtGui.QColor('white'))
+    painter = QtGui.QPainter(image)
+    painter.setRenderHints(QtGui.QPainter.RenderHint.Antialiasing | QtGui.QPainter.RenderHint.SmoothPixmapTransform)
+    renderer.render(painter, QtCore.QRectF(0, 0, width_px, height_px))
+    painter.end()
+    dots_per_meter = int(round(dpi / 0.0254))
+    image.setDotsPerMeterX(dots_per_meter)
+    image.setDotsPerMeterY(dots_per_meter)
+    if not image.save(filename, 'PNG'):
+        raise OSError('Cannot write %s' % filename)
+
+
 def write_output_file(content2save, filename, file_type, page_size, units, box_bounds, dpi=72):
     """Render to disk. The controller owns validation, errors and notifications."""
     if file_type == 'svg':
         with open(filename, 'w') as fp:
             fp.write(content2save)
     elif file_type == 'png':
-        drawing = svg2rlg(StringIO(content2save))
-        renderPM.drawToFile(drawing, fn=filename, fmt='PNG', dpi=dpi)
+        render_svg_png(content2save, filename, dpi)
     else:
         unit = inch if units == 'IN' else mm
         drawing = svg2rlg(StringIO(content2save))

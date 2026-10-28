@@ -14,6 +14,7 @@ from types import SimpleNamespace
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from reportlab.lib.units import mm
+import numpy as np
 from shapely import box, LineString, Point, Polygon, GeometryCollection, MultiPolygon
 from shapely.ops import unary_union
 
@@ -186,6 +187,7 @@ class TestExportFilm(unittest.TestCase):
         return struct.unpack('>II', header[16:24])
 
     def test_png_renders_the_requested_dpi_with_the_border(self):
+        from PIL import Image
         part = FakeObject('part', box(0, 0, 100, 100))
         for dpi, expected in ((96, 454), (192, 907)):
             film = make_film({'part': part}, boundary=10.0)
@@ -194,8 +196,13 @@ class TestExportFilm(unittest.TestCase):
                 filename = os.path.join(tmp, 'film.png')
                 film.export_positive_handler('part', 'part', filename, use_thread=False, ftype='png')
                 width, height = self.png_size(filename)
+                with Image.open(filename) as image:
+                    file_dpi = image.info.get('dpi')
             self.assertAlmostEqual(width, expected, delta=2, msg='%s DPI width' % dpi)
             self.assertEqual(width, height, '%s DPI is square' % dpi)
+            # the file records its DPI: a viewer or a printer shows the 120 mm film at 120 mm
+            self.assertIsNotNone(file_dpi, '%s DPI is in the file' % dpi)
+            self.assertAlmostEqual(width / file_dpi[0] * 25.4, 120.0, delta=0.5, msg='%s DPI size' % dpi)
 
     def test_png_rejects_an_invalid_dpi(self):
         part = FakeObject('part', box(0, 0, 10, 10))
@@ -264,6 +271,33 @@ class TestPadCenterPunch(unittest.TestCase):
         solid, tools = self.board()
         with self.assertRaises(FilmGen.PunchTooBigError):
             FilmGen.punch_geometry(solid, tools, punch_size=1.0)
+
+
+def board_svg(kind, margin):
+    """A 60 x 40 mm board as a positive ('pos') or negative ('neg') film SVG."""
+    frame = box(0, 0, 60, 40)
+    geo = unary_union([Point(15, 20).buffer(8), box(30, 8, 42, 16), LineString([(2, 2), (58, 37)]).buffer(0.5)])
+    svg = FilmGen.create_svg_geometry(geo, 1.0)
+    if kind == 'neg':
+        return FilmGen.create_negative_svg(svg, frame.bounds, False, frame, False, margin, '#000000', 1.0, 'mm')
+    return FilmGen.create_positive_svg(svg, frame.bounds, margin, '#000000', 1.0, 'mm')
+
+
+class TestPngBackends(unittest.TestCase):
+
+    def png(self, svg, dpi):
+        from PIL import Image
+        with tempfile.TemporaryDirectory() as tmp:
+            filename = os.path.join(tmp, 'film.png')
+            FilmGen.write_output_file(svg, filename, 'png', None, 'MM', (0, 0, 60, 40), dpi=dpi)
+            with Image.open(filename) as image:
+                return image.size, image.info.get('dpi'), np.asarray(image.convert('RGB')).astype(int)
+
+    def test_qt_png_has_the_physical_size_and_dpi(self):
+        size, file_dpi, _ = self.png(board_svg('pos', 0.0), 300)
+        self.assertAlmostEqual(size[0], round(60 / 25.4 * 300), delta=1)
+        self.assertAlmostEqual(size[1], round(40 / 25.4 * 300), delta=1)
+        self.assertAlmostEqual(file_dpi[0], 300, delta=0.1)
 
 
 if __name__ == '__main__':

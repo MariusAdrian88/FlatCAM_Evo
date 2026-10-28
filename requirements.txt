@@ -39,6 +39,8 @@ ezdxf>=1.4.5
 olefile>=0.47
 
 reportlab>=3.5
+# images: the Image import, tracing, QR codes and the DPI of the exported PNG files
+Pillow>=9.1
 pyserial>=3.4
 # pikepdf>=2.0  # Optional - for enhanced PDF support. Set pdf_python_parser=false in defaults.py to enable.
 

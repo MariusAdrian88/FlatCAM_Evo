@@ -12,6 +12,7 @@ dependencies:
 - numpy==1.26.4
 - olefile>=0.47
 - pikepdf>=2.0
+- pillow>=9.1
 - pip
 - pre-commit
 - pyopengl

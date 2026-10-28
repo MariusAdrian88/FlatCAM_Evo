@@ -8,5 +8,5 @@ from appPlugins.ToolFilm.FilmUI import (
 )
 from appPlugins.ToolFilm.FilmGen import (
     flatten_shapely_geometry, math, re, LineString, Point, Polygon, LinearRing,
-    scale, skew, unary_union, renderPDF, canvas, renderPM, inch, mm, landscape, portrait, svg2rlg, StringIO
+    scale, skew, unary_union, renderPDF, canvas, inch, mm, landscape, portrait, svg2rlg, StringIO
 )

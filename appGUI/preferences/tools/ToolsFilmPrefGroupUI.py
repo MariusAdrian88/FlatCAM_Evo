@@ -369,7 +369,7 @@ class ToolsFilmPrefGroupUI(OptionsGroupUI):
         # PNG DPI
         self.png_dpi_label = FCLabel('%s:' % "PNG DPI")
         self.png_dpi_label.setToolTip(
-            _("Default value is 96 DPI. Change this value to scale the PNG file.")
+            _("Default value is 300 DPI, the usual resolution for print. Change this value to scale the PNG file.")
         )
         self.png_dpi_spinner = FCSpinner()
         self.png_dpi_spinner.set_range(0, 100000)

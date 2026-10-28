@@ -337,7 +337,8 @@ class FilmUI:
         export_grid.addWidget(self.pagesize_combo, 4, 1)
         self.on_film_type(val='hide')
         self.png_dpi_label = FCLabel('%s:' % "PNG DPI")
-        self.png_dpi_label.setToolTip(_("Default value is 96 DPI. Change this value to scale the PNG file."))
+        self.png_dpi_label.setToolTip(
+            _("Default value is 300 DPI, the usual resolution for print. Change this value to scale the PNG file."))
         self.png_dpi_spinner = FCSpinner(callback=self.confirmation_message_int)
         self.png_dpi_spinner.set_range(0, 100000)
         export_grid.addWidget(self.png_dpi_label, 6, 0)

@@ -789,7 +789,7 @@ class AppDefaults:
         "tools_film_file_type_radio": 'svg',
         "tools_film_orientation": 'p',
         "tools_film_pagesize": 'A4',
-        "tools_film_png_dpi": 96,
+        "tools_film_png_dpi": 300,
 
         # Panel Tool
         "tools_panelize_spacing_columns": 0.0,
@@ -1337,6 +1337,11 @@ class AppDefaults:
         saved_filters = defaults.get('gerber_save_filters')
         if saved_filters is not None and 'All Files (*.*)' not in str(saved_filters).split(';;'):
             defaults.pop('gerber_save_filters')
+
+        # The factory PNG DPI of the Film plugin was 96, too low for print; it was saved at each exit like the filters.
+        # Drop it so the factory value of 300 is used.
+        if defaults.get('tools_film_png_dpi') == 96:
+            defaults.pop('tools_film_png_dpi')
 
         # The Subtract plugin had one 'delete sources' choice (target and subtractor); it is now 2 choices.
         if 'tools_sub_delete_sources' in defaults:
