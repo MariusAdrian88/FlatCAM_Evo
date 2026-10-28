@@ -287,6 +287,7 @@ tests/test_gerber_parser.py::TestGerberParserCorrectness::test_attributes_are_ke
 tests/test_gerber_parser.py::TestGerberParserCorrectness::test_coordinate_formats_and_command_layout
 tests/test_gerber_parser.py::TestGerberParserCorrectness::test_deprecated_image_commands
 tests/test_gerber_parser.py::TestGerberParserCorrectness::test_load_mirror_rotate_scale
+tests/test_gerber_parser.py::TestGerberParserCorrectness::test_non_ascii_comment_and_attribute
 tests/test_gerber_parser.py::TestGerberParserCorrectness::test_regions
 tests/test_gerber_parser.py::TestGerberParserCorrectness::test_step_repeat_and_aperture_blocks
 tests/test_gerber_parser.py::TestGerberParserCorrectness::test_tracks_and_strokes
@@ -307,6 +308,7 @@ tests/test_gerber_parser.py::TestGerberPolarityLayers::test_only_full_clear
 tests/test_gerber_parser.py::TestGerberPolarityLayers::test_repeated_lpd
 tests/test_gerber_parser.py::test_aperture_macro_primitive_geometry
 tests/test_gerber_parser.py::test_aperture_macro_rotation_variables_and_circle_steps
+tests/test_gerber_parser.py::test_hpgl2_non_ascii_comment
 tests/test_gerber_parser.py::test_load_real_gerber_files
 tests/test_gerber_polygon_aperture.py::test_vertices_are_on_the_circumscribed_circle_around_the_flash_point[45-3]
 tests/test_gerber_polygon_aperture.py::test_vertices_are_on_the_circumscribed_circle_around_the_flash_point[45-6]

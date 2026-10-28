@@ -217,6 +217,33 @@ def test_old_project_without_source_still_loads():
     assert again.solid_geometry == obj.solid_geometry
 
 
+def test_svg_and_dxf_import_with_letters_that_are_not_ascii(tmp_path):
+    # the import reads the parsed file again for its source text: a UTF-8 SVG on a cp1254 system and an ANSI
+    # (cp1254) DXF made the import fail there, after a good parse
+    app, _ = make_geometry()
+    svg = tmp_path / 'title.svg'
+    svg.write_text('<svg xmlns="http://www.w3.org/2000/svg" width="20mm" height="10mm" viewBox="0 0 20 10">'
+                   '<title>KARŞI ŞASE</title><rect x="2" y="2" width="10" height="5"/></svg>', encoding='utf-8')
+    dxf = tmp_path / 'ansi.dxf'
+    doc = ezdxf.new('R2000')
+    doc.encoding = 'cp1254'
+    doc.modelspace().add_lwpolyline([(0, 0), (10, 0), (10, 5), (0, 5)], close=True)
+    doc.modelspace().add_text('KARŞI', dxfattribs={'height': 2})
+    doc.saveas(dxf)
+    assert b'KAR\xdeI' in dxf.read_bytes()
+    created = {}
+
+    def new_object(kind, name, initialize, **kwargs):
+        created[name] = GeometryObject(name, app)
+        return initialize(created[name], app)
+
+    app.app_obj.new_object.side_effect = new_object
+    assert app.f_handlers.import_svg(str(svg), outname='svg', plot=False) != 'fail'
+    assert app.f_handlers.import_dxf(str(dxf), outname='dxf', plot=False, text_mode='none') != 'fail'
+    assert created['svg'].solid_geometry and '<title>KARŞI ŞASE</title>' in created['svg'].source_file
+    assert len(created['dxf'].solid_geometry) == 1 and 'ANSI_1254' in created['dxf'].source_file
+
+
 @pytest.mark.parametrize('failure', ['new', 'write'])
 def test_dxf_failure_preserves_good_source_and_does_not_export(tmp_path, monkeypatch, failure):
     app, obj = make_geometry()

@@ -15,6 +15,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from appParsers.ParseGerber import Gerber
+from appParsers.ParseHPGL2 import HPGL2
 from camlib import ApertureMacro, flatten_shapely_geometry
 from unittest import mock
 
@@ -315,7 +316,7 @@ GERBER_HEADER = "%FSLAX24Y24*%\n%MOMM*%\n"
 ONE_MM = 10000
 
 
-def parse_gerber_text(tmp_path, text, steps=128, **opts):
+def parse_gerber_text(tmp_path, text, steps=128, encoding=None, **opts):
     """Parse a Gerber text as a file (the file path splits the text in commands). Returns (Gerber, ret, union)."""
     app = MockApp()
     app.options.update({
@@ -324,7 +325,7 @@ def parse_gerber_text(tmp_path, text, steps=128, **opts):
     })
     app.options.update(opts)
     path = tmp_path / 'case.gbr'
-    path.write_text(text)
+    path.write_text(text, encoding=encoding)
     gbr = Gerber(app)
     ret = gbr.parse_file(str(path))
     solid = gbr.solid_geometry
@@ -539,6 +540,20 @@ class TestGerberParserCorrectness:
         assert not gbr.tools[11].get('attributes')
         assert gbr.file_function == ['Copper', 'L1', 'Top']
 
+    def test_non_ascii_comment_and_attribute(self, tmp_path):
+        # letters that are not ASCII in a comment or an attribute do not stop the parsing, whatever the code page of
+        # the system is: UTF-8 is read as it is, a byte that is not UTF-8 (an older program) is replaced
+        text = (GERBER_HEADER + "%TF.ProjectId,KARŞI_ŞASE,1,rev1*%\nG04 Katman: ÜST ŞASE, Ğ İ ı ü ç*\n"
+                "%ADD10C,1*%\nD10*\nX0Y0D02*\nX100000Y0D01*\nM02*\n")
+        for encoding in ('utf-8', 'cp1254'):
+            gbr, ret, union = parse_gerber_text(tmp_path, text, encoding=encoding)
+            assert ret is None
+            self.check_area(union, 10 + 0.7854, 2e-3)
+            project = gbr.attributes['TF']['.ProjectId']
+            assert project[1:] == ['1', 'rev1'] and project[0].startswith('KAR')
+            if encoding == 'utf-8':
+                assert project[0] == 'KARŞI_ŞASE'
+
 def run_macro(raw, modifiers=(), **kwargs):
     macro = ApertureMacro('M')
     macro.raw = raw
@@ -623,6 +638,21 @@ def test_load_real_gerber_files():
             print(f"[PASS] Loaded {filename}")
         else:
             print(f"[SKIP] {filename} not found")
+
+
+def test_hpgl2_non_ascii_comment(tmp_path):
+    # the HPGL2 parser reads its file like the Gerber parser: a comment that is not ASCII does not stop it
+    text = 'IN;\nCO "ÜST ŞASE";\nSP1;\nPU;\nPA0,0;\nPD;\nPA4000,0;\nPA4000,4000;\nPU;\nPA0,0;\n'
+    for encoding in ('utf-8', 'cp1254'):
+        path = tmp_path / 'case.plt'
+        path.write_text(text, encoding=encoding)
+        app = MockApp()
+        app.options['tools_mill_tooldia'] = 0.1
+        hpgl = HPGL2(app)
+        hpgl.parse_file(str(path))
+        assert list(hpgl.solid_geometry.coords) == [(0, 0), (100, 0), (100, 100)]
+        if encoding == 'utf-8':
+            assert 'CO "ÜST ŞASE";' in hpgl.source_file
 
 
 def run_all_tests():

@@ -174,7 +174,9 @@ class HPGL2:
         :return: None
         """
 
-        with open(filename, 'r') as gfile:
+        # the commands are ASCII: a byte that is not UTF-8 (in a comment or a label) is replaced, it does not stop
+        # the parsing
+        with open(filename, 'r', encoding='utf-8-sig', errors='replace') as gfile:
             glines = [line.rstrip('\n') for line in gfile]
             self.parse_lines(glines=glines)
 

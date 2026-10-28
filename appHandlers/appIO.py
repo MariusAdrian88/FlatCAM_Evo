@@ -2523,7 +2523,9 @@ class appIO(QtCore.QObject):
 
             geo_obj.multigeo = True
 
-            with open(filename) as f:
+            # the text of the parsed file, for the source view and the project: a byte that is not UTF-8 is
+            # replaced, so the code page of the system can not fail the import
+            with open(filename, 'r', encoding='utf-8', errors='replace') as f:
                 file_content = f.read()
             geo_obj.source_file = file_content
 
@@ -2583,7 +2585,9 @@ class appIO(QtCore.QObject):
             else:
                 return "fail"
 
-            with open(filename, 'r', encoding='utf-8') as f:
+            # ezdxf read the file in its own code page ($DWGCODEPAGE); the text kept here for the source view and
+            # the project replaces a byte that is not UTF-8 (an ANSI DXF), it must not fail the import
+            with open(filename, 'r', encoding='utf-8', errors='replace') as f:
                 file_content = f.read()
             geo_obj.source_file = file_content
 

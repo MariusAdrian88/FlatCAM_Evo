@@ -510,7 +510,9 @@ class Gerber(Geometry):
         :return:                None
         """
 
-        with open(filename, 'r') as gfile:
+        # a Gerber file is UTF-8 (the commands are ASCII): a byte that is not UTF-8, in a comment or an attribute
+        # text, is replaced and does not stop the parsing
+        with open(filename, 'r', encoding='utf-8-sig', errors='replace') as gfile:
 
             read_gfile = gfile.read()
 

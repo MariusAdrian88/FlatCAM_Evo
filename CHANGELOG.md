@@ -89,6 +89,13 @@ Application updater:
 CNC Job:
 
 - fixed: Save in the project context menu with several CNC jobs selected used the job names as they are for the file names, so a name from a project file such as '..\..\x' wrote the G-code into another folder, over a file with that name; each name is now a plain file name in the chosen folder (the characters that a Windows file name can not hold become '_', a device name such as NUL gets a '_' in front, and 2 names that become the same get 2 files)
+File loading:
+
+- fixed: a Gerber or HPGL2 file with a letter that is not ASCII in a comment or an attribute (for example a UTF-8 'Ş') failed with "An internal error has occurred" when the code page of the system could not decode it (cp1254 on a Turkish Windows); these files are now read as UTF-8 and a byte that is not UTF-8 is replaced, the geometry is not affected
+
+DXF and SVG Import:
+
+- fixed: a UTF-8 SVG with a letter such as 'Ş' (on a cp1254 system) or an ANSI DXF with such a letter (any system) was parsed, then the import failed with "Import failed." and made no object, because the file was read again for its source text with the code page of the system (SVG) or as strict UTF-8 (DXF); the source text is now read as UTF-8 and a byte that is not UTF-8 is replaced
 
 Tests:
 
@@ -109,6 +116,8 @@ Tests:
 - test_cncjob_gcode_speed: the Extra Cut goes on along the path after the start point and stays out of the pad
 - added a check that Import Preferences keeps the update source
 - added a check that saving several CNC jobs writes each file in the chosen folder
+- tests/test_gerber_parser.py: a Gerber and an HPGL2 file with letters that are not ASCII in a comment or an attribute, saved as UTF-8 and as cp1254
+- tests/test_geo_editor_source.py: the SVG and DXF import of a UTF-8 SVG and an ANSI (cp1254) DXF with letters that are not ASCII
 
 25.10.2026
 RELEASE FlatCAM Evo 1.0
