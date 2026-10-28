@@ -34,6 +34,10 @@ Gerber editor:
 - fixed: Pad placed nothing (although it showed "Done.") and Pad Array failed with an obround ('O') aperture, as KiCad writes the oval pads; both now place the obround of the aperture, and the aperture table shows and edits the width and height of an 'O' aperture
 - fixed: editing the Dims of a rectangular ('R') aperture grew its tracks (also the clear ones) by the whole new size instead of half of the change: a 1 x 1 track edited to 1.2, 1.2 became 3.4 wide
 - fixed: Mark Area -> Clear, then Mark Area opened again -> Delete deleted the shapes of the cleared marking; Clear and the opening of the tool now forget the marked shapes
+- fixed: Esc in the Transform tool (Alt+R) logged an error and left the editor in the Transform tool; it now clears the selection and returns to the Select tool
+- fixed: Space in the Pad Array tool ("Toggle array direction" in the shortcut list) logged an error and did nothing; it now switches the direction of a linear array X -> Y -> Angle -> X
+- fixed: SemiDisc stopped responding until Esc after three points on one line (Point1 -> Point3 -> Point2 mode) or two equal chord ends (Start -> Stop -> Center mode), with an error in the log; such a point is now refused with "Choose distinct, non-collinear arc points." and the tool waits for another one
+- fixed: the Gerber editor Simplification menu item was in the Geometry Editor menu (a second "Simplification" entry there that did nothing); it is now in the Gerber Editor menu after Buffer and opens the Simplification tool
 
 Canvas and Jump:
 
@@ -190,6 +194,10 @@ Tests:
 - test_exc_editor_defects: Copy with a typed length and Enter copies at that distance towards the cursor, and warns without a reference point
 - test_exc_editor_defects: Enter with the Move tool moves the selected drill to the cursor
 - test_exc_editor_defects: the Copy panel hides its unconnected 'Add' button
+- regression test for Esc in the Gerber editor Transform tool (tests/test_grb_editor_transform.py)
+- regression test for Space in the Gerber editor Pad Array tool (tests/test_gerber_editor_features.py)
+- regression tests for SemiDisc points that make no arc (tests/test_gerber_action_parity.py)
+- regression tests for the Gerber editor Simplification menu item and the menu of each editor menu item (tests/test_gerber_editor_defects.py)
 
 25.10.2026
 RELEASE FlatCAM Evo 1.0

@@ -1677,6 +1677,7 @@ tests/test_grb_editor_transform.py::TransformCase::test_rotate
 tests/test_grb_editor_transform.py::TransformCase::test_scale
 tests/test_grb_editor_transform.py::TransformCase::test_skew
 tests/test_grb_editor_transform.py::test_affine_validates_all_keys_before_assigning_any_result
+tests/test_grb_editor_transform.py::test_escape_in_transform_tool_clears_the_selection_and_returns_to_select
 tests/test_grb_editor_transform.py::test_invalid_transform_preserves_selection_and_history[rotate-params1]
 tests/test_grb_editor_transform.py::test_invalid_transform_preserves_selection_and_history[skew-params0]
 tests/test_grb_editor_transform.py::test_rejected_queued_result_never_reports_success[failure]

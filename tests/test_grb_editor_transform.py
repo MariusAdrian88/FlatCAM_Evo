@@ -8,9 +8,10 @@ import time
 import statistics
 import unittest
 import pytest
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from PyQt6 import QtWidgets
+from PyQt6 import QtCore, QtWidgets
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
@@ -347,6 +348,24 @@ def test_standalone_tool_finishes_after_commit_without_losing_targets(kind):
         assert shapes[0].geo['solid'].area == pytest.approx(before.buffer(0.2, quad_segs=16).area)
     assert editor.active_tool.name == 'select'
     assert not any('Wait for' in message for message in host.messages)
+
+
+def test_escape_in_transform_tool_clears_the_selection_and_returns_to_select():
+    from appEditors.appGerberEditor import TransformEditorGrb
+    from appGUI.MainGUI import MainGUI
+    host, editor, shapes = build()
+    with patch.object(editor.transform_tool, 'run'):
+        editor.active_tool = TransformEditorGrb(editor)
+    with QtCore.QSignalBlocker(editor.ui.apertures_table):
+        editor.ui.apertures_table.selectRow(0)
+    editor.app.call_source = 'grb_editor'
+    editor.app.grb_editor = editor
+    # the key event as the canvas sends it (MainGUI.keyPressEvent through the VisPy key callback)
+    gui = SimpleNamespace(app=editor.app, grb_select_btn=SimpleNamespace(isChecked=lambda: False))
+    MainGUI.keyPressEvent(gui, SimpleNamespace(key='Escape', native=SimpleNamespace()))
+    assert editor.selected == []
+    assert editor.ui.apertures_table.selectedItems() == []
+    editor.select_tool.assert_called_once_with('select')
 
 
 

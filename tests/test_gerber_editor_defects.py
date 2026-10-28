@@ -8,13 +8,14 @@ Area.
 The editor is the real AppGerberEditor built by test_gerber_editor_pick.make_editor; the application, the canvas and
 the worker are stand-ins. Everything is headless and does not sleep."""
 
+import ast
 import math
 from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-from PyQt6 import QtCore, QtWidgets
+from PyQt6 import QtCore, QtGui, QtWidgets
 from shapely.geometry import LineString, Point, Polygon, box
 
 from appEditors.appGerberEditor import (AppGerberEditor, ImportEditorGrb, MarkEditorGrb, PadArrayEditorGrb, PadEditorGrb,
@@ -74,7 +75,35 @@ def run_queued_job(editor):
 # 1. Qt signal arguments reach the slots
 
 
-# 2. Scale menu item and the Scale tool connection
+# 2. Scale and Simplification menu items and the Scale tool connection
+
+def test_simplification_menu_item_opens_the_simplify_tool():
+    editor, first, second = scene()
+    connect = editor.app.ui.grb_simplification_menuitem.triggered.connect
+    assert connect.call_count == 1
+    action = QtGui.QAction('Simplification')
+    action.triggered.connect(connect.call_args.args[0])
+    action.trigger()
+    editor.select_tool.assert_called_once_with('simplify')
+
+
+def test_editor_menu_items_are_in_the_menu_of_their_editor():
+    import appGUI.MainGUI as main_gui
+    # MainGUI is not built in a test (it reads and writes the QSettings of the user): read where the items go
+    with open(main_gui.__file__, encoding='utf-8') as f:
+        tree = ast.parse(f.read())
+    misplaced = []
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Attribute) and
+                isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Attribute) and
+                node.value.func.attr == 'addAction'):
+            continue
+        name, menu = node.targets[0].attr, node.value.func.value
+        prefix = name.split('_')[0]
+        if name.endswith('_menuitem') and prefix in ('exc', 'geo', 'grb'):
+            if getattr(menu, 'attr', None) != '%s_editor_menu' % prefix:
+                misplaced.append(name)
+    assert misplaced == []
 
 
 # 3. Translation versus reshape in history

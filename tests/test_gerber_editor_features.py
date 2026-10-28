@@ -1,4 +1,5 @@
-"""Gerber-local snapping, feature selection and range deletion controls."""
+"""Gerber-local snapping, the Space key of the Track and Pad Array tools, feature selection and range deletion
+controls."""
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -7,10 +8,11 @@ from PyQt6 import QtCore, QtWidgets
 from shapely.geometry import LineString, MultiLineString, Point, box
 from shapely.ops import unary_union
 from vispy.geometry.rect import Rect
+from vispy.util import keys
 from vispy.util.event import EventEmitter
 
 from appEditors.appGeoEditor import AppGeoEditor
-from appEditors.appGerberEditor import AppGerberEditor
+from appEditors.appGerberEditor import AppGerberEditor, PadArrayEditorGrb
 from appEditors.grb_plugins.GrbCommon import DrawToolShape
 from appEditors.grb_plugins.GrbTrackPlugin import GrbTrackEditorUI
 from appGUI.MainGUI import MainGUI
@@ -169,6 +171,24 @@ def test_holding_space_refines_live_track_preview_and_committed_endpoint(linked)
         assert options['global_gridx'] == 1.0
         assert options['global_gridy'] == 2.0
     editor.disconnect_canvas_event_handlers()
+
+
+def test_space_cycles_the_pad_array_direction():
+    editor = make_editor({10: {'type': 'C', 'size': 1.0, 'geometry': []}})
+    editor.last_aperture_selected = 10
+    editor.snap_x = editor.snap_y = 0.0
+    editor.last_parray_type, editor.last_parray_lin_dir, editor.last_parray_circ_dir = 'linear', 'X', 'CW'
+    editor.app.call_source = 'grb_editor'
+    editor.app.grb_editor = editor
+    editor.active_tool = PadArrayEditorGrb(editor)
+    ui = editor.active_tool.ui
+    gui = SimpleNamespace(app=editor.app, grb_select_btn=SimpleNamespace(isChecked=lambda: False))
+    seen = []
+    for _ in range(3):
+        MainGUI.keyPressEvent(gui, SimpleNamespace(key=keys.SPACE, native=SimpleNamespace()))
+        seen.append((ui.axis_radio.get_value(), ui.linear_angle_entry.isEnabled()))
+    # the Angle entry follows the direction, like a click on the radio button
+    assert seen == [('Y', False), ('A', True), ('X', False)]
 
 
 @pytest.mark.parametrize('kind', ['R', 'O'])

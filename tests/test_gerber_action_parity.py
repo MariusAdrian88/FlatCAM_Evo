@@ -89,6 +89,26 @@ def test_arc_modes_preview_commit_and_history(mode, points):
     tool.clean_up()
 
 
+@pytest.mark.parametrize('mode,kept,bad', [
+    ('132', [(0, 0), (2, 0)], (1, 0)),  # Point2 on the line of Point1 and Point3
+    ('132', [(0, 0)], (0, 0)),  # Point3 on Point1
+    ('12c', [(1, 1)], (1, 1))])  # the two ends of the chord on one point
+def test_semidisc_refuses_a_point_without_an_arc_and_takes_the_next_one(mode, kept, bad):
+    editor = make_editor({10: aperture([])})
+    editor.last_aperture_selected = 10
+    tool = module.DiscSemiEditorGrb(editor)
+    editor.active_tool = tool
+    tool.mode = mode
+    for point in kept + [bad]:
+        tool.click(point)
+    assert tool.points == kept and not tool.complete
+    assert 'non-collinear' in editor.app.inform.emit.call_args.args[0]
+    for point in [(2, 2), (3, 1)][len(kept) - 1:]:
+        tool.click(point)
+    assert tool.complete
+    assert tool.geometry.geo['solid'].is_valid and not tool.geometry.geo['solid'].is_empty
+
+
 @pytest.mark.parametrize('operation,steps,direction', [('arc', 16, 'cw'), ('arc', 64, 'ccw'), ('difference_keep', 16, 'cw')])
 def test_new_actions_native_export_reparse(app, tmp_path, operation, steps, direction):
     editor = make_editor({10: aperture([])})

@@ -941,7 +941,7 @@ class MainGUI(QtWidgets.QMainWindow):
         self.grb_add_buffer_menuitem = self.grb_editor_menu.addAction(
             QtGui.QIcon(self.app.resource_location + '/buffer32.png'),
             '%s\t%s' % (_('Buffer'), _('B')))
-        self.grb_simplification_menuitem = self.geo_editor_menu.addAction(
+        self.grb_simplification_menuitem = self.grb_editor_menu.addAction(
             QtGui.QIcon(self.app.resource_location + '/simplify32.png'),
             '%s\t%s' % (_("Simplification"), '')
         )
