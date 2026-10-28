@@ -2582,11 +2582,6 @@ class MainGUI(QtWidgets.QMainWindow):
         """
         self.app.log.debug("Clearing the settings in QSettings. GUI settings cleared.")
 
-        theme_settings = QtCore.QSettings("Open Source", "FlatCAM_EVO")
-        theme_settings.setValue('theme', 'light')
-
-        del theme_settings
-
         response = None
         bt_yes = None
         if forced_clear is False:
@@ -2610,6 +2605,7 @@ class MainGUI(QtWidgets.QMainWindow):
             q_settings = QSettings("Open Source", "FlatCAM_EVO")
             for key in q_settings.allKeys():
                 q_settings.remove(key)
+            q_settings.setValue('theme', 'light')
             # This will write the setting to the platform specific storage.
             del q_settings
 
@@ -3324,7 +3320,8 @@ class MainGUI(QtWidgets.QMainWindow):
 
                 # Copy an FlatCAM object
                 if key == QtCore.Qt.Key.Key_C:
-                    widget_name = self.plot_tab_area.currentWidget().objectName()
+                    current_tab = self.plot_tab_area.currentWidget()
+                    widget_name = current_tab.objectName() if current_tab is not None else ''
                     if widget_name == 'database_tab':
                         # Tools DB saved, update flag
                         self.app.tools_db_changed_flag = True
@@ -3343,7 +3340,8 @@ class MainGUI(QtWidgets.QMainWindow):
 
                 # Open Gerber file
                 if key == QtCore.Qt.Key.Key_G:
-                    widget_name = self.plot_tab_area.currentWidget().objectName()
+                    current_tab = self.plot_tab_area.currentWidget()
+                    widget_name = current_tab.objectName() if current_tab is not None else ''
                     if 'editor' in widget_name.lower():
                         self.goto_text_line()
                     else:
@@ -3367,7 +3365,8 @@ class MainGUI(QtWidgets.QMainWindow):
 
                 # Save Project
                 if key == QtCore.Qt.Key.Key_S:
-                    widget_name = self.plot_tab_area.currentWidget().objectName()
+                    current_tab = self.plot_tab_area.currentWidget()
+                    widget_name = current_tab.objectName() if current_tab is not None else ''
                     if widget_name == 'preferences_tab':
                         self.app.preferencesUiManager.on_save_button(save_to_file=False)
                         return
@@ -3624,7 +3623,8 @@ class MainGUI(QtWidgets.QMainWindow):
                 # It's meant to make a difference between delete objects and delete tools in
                 # Geometry Selected tool table
                 if key == QtCore.Qt.Key.Key_Delete:
-                    widget_name = self.plot_tab_area.currentWidget().objectName()
+                    current_tab = self.plot_tab_area.currentWidget()
+                    widget_name = current_tab.objectName() if current_tab is not None else ''
                     if widget_name == 'database_tab':
                         # Tools DB saved, update flag
                         self.app.tools_db_changed_flag = True
@@ -3645,7 +3645,7 @@ class MainGUI(QtWidgets.QMainWindow):
                     self.app.on_deselect_all()
 
                     # if in full screen, exit to normal view
-                    if self.toggle_f_screen is True:
+                    if self.isFullScreen():
                         self.on_full_screen_toggled(disable=True)
 
                     # try to disconnect the slot from Set Origin
@@ -3761,7 +3761,8 @@ class MainGUI(QtWidgets.QMainWindow):
 
                 # Add a Tool from shortcut
                 if key == QtCore.Qt.Key.Key_T:
-                    widget_name = self.plot_tab_area.currentWidget().objectName()
+                    current_tab = self.plot_tab_area.currentWidget()
+                    widget_name = current_tab.objectName() if current_tab is not None else ''
                     if widget_name == 'database_tab':
                         # Tools DB saved, update flag
                         self.app.tools_db_changed_flag = True

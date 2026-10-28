@@ -52,6 +52,91 @@ class TestAppHistoryKeys(unittest.TestCase):
         gui.app.history.redo.assert_not_called()
 
 
+class TestKeysWithoutPlotArea(unittest.TestCase):
+    """View -> Toggle Plot Area (Ctrl+F10) can close the last tab: the keys of the Project tab still work."""
+
+    @staticmethod
+    def press(key, modifiers, tab_name=None):
+        gui = MagicMock()
+        gui.app.call_source = 'app'
+        if tab_name is None:
+            gui.plot_tab_area.currentWidget.return_value = None
+        else:
+            gui.plot_tab_area.currentWidget.return_value.objectName.return_value = tab_name
+        with patch.object(QtWidgets.QApplication, 'keyboardModifiers', return_value=modifiers):
+            # the Project tab sends the key as an int
+            MainGUI.keyPressEvent(gui, int(key))
+        return gui
+
+    def test_ctrl_s_saves_the_project(self):
+        gui = self.press(QtCore.Qt.Key.Key_S, CTRL)
+        gui.app.f_handlers.on_file_save_project.assert_called_once_with()
+
+    def test_copy_open_gerber_delete_and_add_tool_keys(self):
+        no_modifier = QtCore.Qt.KeyboardModifier.NoModifier
+        for key, modifiers, action in ((QtCore.Qt.Key.Key_C, CTRL, 'app.on_copy_command'),
+                                       (QtCore.Qt.Key.Key_G, CTRL, 'app.f_handlers.on_file_open_gerber'),
+                                       (QtCore.Qt.Key.Key_Delete, no_modifier, 'app.on_delete_keypress'),
+                                       (QtCore.Qt.Key.Key_T, no_modifier, 'app.on_tool_add_keypress')):
+            with self.subTest(action=action):
+                gui = self.press(key, modifiers)
+                target = gui
+                for name in action.split('.'):
+                    target = getattr(target, name)
+                target.assert_called_once_with()
+
+    def test_ctrl_s_in_the_preferences_tab_saves_the_preferences(self):
+        gui = self.press(QtCore.Qt.Key.Key_S, CTRL, tab_name='preferences_tab')
+        gui.app.preferencesUiManager.on_save_button.assert_called_once_with(save_to_file=False)
+        gui.app.f_handlers.on_file_save_project.assert_not_called()
+
+
+class TestEscapeLeavesFullScreen(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.qapp = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+
+    def setUp(self):
+        class Window(QtWidgets.QMainWindow):
+            on_full_screen_toggled = MainGUI.on_full_screen_toggled
+
+        self.window = Window()
+        self.window.app = MagicMock()
+        self.window.app.call_source = 'app'
+        self.window.app.options = {}
+        self.window.app.ui = self.window
+        # as MainGUI.__init__ leaves them
+        self.window.toggle_f_screen = False
+        self.window.x_pos = self.window.y_pos = self.window.titlebar_height = None
+        for name in ('coords_toolbar', 'delta_coords_toolbar', 'grid_toolbar', 'status_toolbar'):
+            setattr(self.window, name, MagicMock())
+        self.toolbar = self.window.addToolBar('File')
+        self.addCleanup(self.window.deleteLater)
+        self.addCleanup(self.window.close)
+        self.window.show()
+        self.qapp.processEvents()
+
+    def press_escape(self):
+        no_modifier = QtCore.Qt.KeyboardModifier.NoModifier
+        with patch.object(QtWidgets.QApplication, 'keyboardModifiers', return_value=no_modifier):
+            MainGUI.keyPressEvent(self.window, int(QtCore.Qt.Key.Key_Escape))
+        self.qapp.processEvents()
+
+    def test_escape_after_alt_f10(self):
+        self.window.on_full_screen_toggled()    # View -> Toggle FullScreen, Alt+F10
+        self.assertTrue(self.window.isFullScreen())
+        self.assertFalse(self.toolbar.isVisible())
+        self.press_escape()
+        self.assertFalse(self.window.isFullScreen())
+        self.assertTrue(self.toolbar.isVisible())
+
+    def test_escape_in_a_normal_window_only_deselects(self):
+        self.press_escape()
+        self.window.app.on_deselect_all.assert_called_once_with()
+        self.assertFalse(self.window.isFullScreen())
+        self.assertTrue(self.toolbar.isVisible())
+
+
 class TestViewKeys(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

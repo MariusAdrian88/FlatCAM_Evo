@@ -3,10 +3,6 @@ from appHandlers.appHistory import history_of
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtCore import Qt
 
-from appEditors.appExcEditor import AppExcEditor
-from appEditors.appGeoEditor import AppGeoEditor
-from appEditors.appGerberEditor import AppGerberEditor
-
 from appGUI.GUIElements import FCFileSaveDialog, FCMessageBox, add_case_variants
 from appObjects.ProjectContext import same_path
 from camlib import dict2obj, ParseError, geometry_wkt_cache, project_json_default
@@ -1275,14 +1271,11 @@ class appIO(QtCore.QObject):
 
         t_start_proj = time.time()
 
-        # close any editor that might be open
+        # close any editor that might be open. The editors are kept, as after a close by hand: new ones would leave
+        # the old ones connected to the menu and toolbar actions, so they would still run (and stay in memory)
         if self.app.call_source != 'app':
             if self.app.on_editing_finished(cleanup=True) == 'fail':
                 return 'fail'
-            # ## EDITOR section
-            self.app.geo_editor = AppGeoEditor(self.app)
-            self.app.exc_editor = AppExcEditor(self.app)
-            self.app.grb_editor = AppGerberEditor(self.app)
 
         # The reset is now committed. Only this project's history is no longer replayable.
         history_of(self.app).clear()

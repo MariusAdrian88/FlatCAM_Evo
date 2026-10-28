@@ -181,3 +181,36 @@ def test_theme_preferences_confirm_revert_and_save(tmp_path, monkeypatch, qapp, 
     assert saved[key] == expected
     manager.deleteLater()
     group.deleteLater()
+
+
+def _clear_gui_settings(tmp_path, monkeypatch, answer):
+    """Preferences -> Clear GUI Settings on an ini file (not the user's settings), answered with the given role."""
+    import appGUI.MainGUI as module
+    settings = QtCore.QSettings(str(tmp_path / 'gui.ini'), QtCore.QSettings.Format.IniFormat)
+    settings.setValue('theme', 'dark')
+    settings.setValue('menu_show_text', False)
+    monkeypatch.setattr(module.QtCore, 'QSettings', lambda *args: settings)
+    monkeypatch.setattr(module, 'QSettings', lambda *args: settings)
+    box = MagicMock()
+    box.addButton.side_effect = lambda text, role: role
+    box.clickedButton.return_value = answer
+    monkeypatch.setattr(module, 'FCMessageBox', lambda **kwargs: box)
+    gui = MagicMock()
+    gui.app.resource_location = 'assets/resources'
+    MainGUI.on_gui_clear(gui)
+    box.exec.assert_called_once_with()
+    return settings
+
+
+def test_clear_gui_settings_answered_no_keeps_the_theme(qapp, tmp_path, monkeypatch):
+    # the panels made later (ObjectUI, PlotCanvas, Distance...) read the theme from QSettings
+    settings = _clear_gui_settings(tmp_path, monkeypatch, QtWidgets.QMessageBox.ButtonRole.NoRole)
+    assert settings.value('theme') == 'dark'
+    assert settings.contains('menu_show_text')
+
+
+def test_clear_gui_settings_answered_yes_clears_to_the_light_theme(qapp, tmp_path, monkeypatch):
+    settings = _clear_gui_settings(tmp_path, monkeypatch, QtWidgets.QMessageBox.ButtonRole.YesRole)
+    assert not settings.contains('menu_show_text')
+    # the readers use 'light' when the key is missing
+    assert settings.value('theme', 'light') == 'light'

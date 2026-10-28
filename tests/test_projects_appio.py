@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from contextlib import nullcontext
 from types import SimpleNamespace
-from unittest.mock import MagicMock, Mock
+from unittest.mock import MagicMock, Mock, patch
 
 from PyQt6 import QtCore, QtWidgets
 
@@ -83,6 +83,25 @@ class TestNewAndOpen(AppIOTestBase):
         app.history.clear.assert_not_called()
         app.collection.delete_all.assert_not_called()
         app.collection.delete_by_name.assert_not_called()
+
+    def test_open_editor_is_closed_and_kept(self):
+        # new editors left the old ones connected to the menu and toolbar actions: alive, and each Union ran twice
+        from appEditors.appExcEditor import AppExcEditor
+        from appEditors.appGeoEditor import AppGeoEditor
+        from appEditors.appGerberEditor import AppGerberEditor
+        app = MagicMock()
+        app.call_source = 'geo_editor'
+        app.on_editing_finished.return_value = None
+        app.collection.get_list.return_value = []
+        editors = app.geo_editor, app.exc_editor, app.grb_editor
+        io = appIO(app)
+        with patch.object(AppGeoEditor, '__init__', return_value=None) as new_geo, \
+                patch.object(AppExcEditor, '__init__', return_value=None) as new_exc, \
+                patch.object(AppGerberEditor, '__init__', return_value=None) as new_grb:
+            io.on_file_new_project(cli=True, use_thread=True)
+        app.on_editing_finished.assert_called_once_with(cleanup=True)
+        self.assertEqual((new_geo.call_count, new_exc.call_count, new_grb.call_count), (0, 0, 0))
+        self.assertEqual((app.geo_editor, app.exc_editor, app.grb_editor), editors)
 
     def test_gui_open_stops_when_prepare_open_refuses(self):
         filename = self.path('Board.FlatPrj')

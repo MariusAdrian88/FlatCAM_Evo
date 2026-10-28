@@ -51,6 +51,7 @@ Projects:
 - new: Close All Projects in the project context menu, after a separator below Close Project; each project with unsaved changes asks first, a Cancel or a failed save stops the remaining closes, and 1 empty project stays at the end
 - new: Preferences -> General -> "Project Caching" (off by default); a switch hides the plot shapes of the inactive project instead of releasing them and keeps the plugin widgets, so a switch back does not plot again; a change of the object or the plot options plots the objects again, and closing a project or turning the option off releases the kept shapes
 - fixed: with a Document object in the project, every project save (and autosave) failed with "Failed." and the file was not written: the Document listed an 'options' attribute to save that FlatCAM objects do not have; a Document is now saved and loaded like the other objects
+- fixed: a new project made while an editor was open (the Tcl commands new and open_project) made new editors and left the old ones in memory, still connected to the menu and toolbar actions; later in the Geometry Editor, Union, Intersection and Subtract also ran in the old editor and showed "A selection of minimum two items is required."; the editors are now kept, as after a close by hand
 
 Proteus PCB import:
 
@@ -191,6 +192,11 @@ Preferences:
 - fixed: the Restore Defaults button of Preferences -> Excellon -> General set the zeros to LZ, while the factory value is TZ; after a Save, the Excellon files with no zeros information in the header and no decimal point (old Eagle files) were read with wrong coordinates, for example 1.25 in as 12.5 in, and drilled at wrong positions; the button now sets the factory values
 - fixed: with "Update Export settings" unchecked (Preferences -> Excellon -> General), a change of the Excellon units still changed the units and the format of the Excellon export; each new check of the box also connected the update once more; the box now stops the update of the units too
 - fixed: File -> Export Preferences failed with an error and wrote no file (the project options have no write()); it now writes the preferences in effect, the same content as the preferences file; edits in the Preferences tab that are not saved are not exported
+Main Window:
+
+- fixed: with the Plot Area closed (View -> Toggle Plot Area, Ctrl+F10) and no other tab open, Ctrl+S in the Project tab did not save the project and gave a Critical Error dialog; Ctrl+C, Ctrl+G, Delete and T did the same
+- fixed: Escape did not leave the full screen mode (View -> Toggle FullScreen, Alt+F10); the window stayed full screen without its toolbars
+- fixed: Preferences -> Clear GUI Settings answered with No set the light theme in the GUI settings; with the dark theme, the panels and plots made later in the session got light theme colors
 
 Tests:
 
@@ -267,6 +273,10 @@ Tests:
 - test_preferences_project_keys: the Excellon Restore Defaults button sets the factory format and zeros
 - test_preferences_project_keys: the Excellon units change the export units only when "Update Export settings" is checked
 - test_defaults_persistence: File -> Export Preferences writes the preferences in effect
+- new unit tests for the Project tab keys with the Plot Area closed (tests/test_app_history_keys.py)
+- new unit tests for Escape in the full screen mode (tests/test_app_history_keys.py)
+- new unit tests for Clear GUI Settings answered with No or Yes (tests/test_theme_color_scheme.py)
+- new unit test for New Project with an open editor (tests/test_projects_appio.py)
 
 25.10.2026
 RELEASE FlatCAM Evo 1.0
