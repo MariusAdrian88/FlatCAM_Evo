@@ -305,3 +305,30 @@ class TestLegacyCompatibility:
         assert "global_version_check" in saved_data
         assert "global_update_url" in saved_data
         assert len(saved_data) >= len(AppDefaults.factory_defaults)
+
+
+class TestExportPreferences:
+    """File -> Export Preferences writes the preferences in effect, as the preferences file has them."""
+
+    def test_export_writes_the_preferences(self, tmp_path, monkeypatch):
+        from appHandlers.appIO import appIO
+
+        defaults = AppDefaults(beta=False, version="1.0")
+        defaults["global_gridx"] = 0.25
+        defaults["tools_drill_cutz"] = -2.5
+        target = tmp_path / "exported.FlatConfig"
+        app = MagicMock(defaults=defaults, data_path=str(tmp_path))
+        app.options = AppOptions(version="1.0", baseline=defaults, defaults=defaults)
+        handler = SimpleNamespace(app=app, options=app.options, log=MagicMock(), inform=FakeSignal())
+        monkeypatch.setattr("appHandlers.appIO.FCFileSaveDialog.get_saved_filename",
+                            lambda **kwargs: (str(target), ""))
+
+        appIO.on_export_preferences(handler)
+
+        assert handler.inform.emissions[-1][0].startswith("[success]")
+        app.file_saved.emit.assert_called_once_with("preferences", str(target))
+        app.preferencesUiManager.defaults_read_form.assert_not_called()
+        exported = AppDefaults(beta=False, version="1.0")
+        exported.load(str(target), FakeSignal())
+        assert exported["global_gridx"] == 0.25
+        assert exported["tools_drill_cutz"] == -2.5

@@ -816,14 +816,13 @@ class AppUIActions(QtCore.QObject):
                 pref_open = True
 
         if pref_open:
+            # close it as the close button of the tab does: the unsaved edits are saved or thrown away first, else
+            # they stay in the form and the next Save stores them
+            self.app.preferencesUiManager.on_close_preferences_tab(parent=self.ui)
             for idx in range(self.ui.plot_tab_area.count()):
                 if self.ui.plot_tab_area.tabText(idx) == _("Preferences"):
                     self.ui.plot_tab_area.removeTab(idx)
                     break
-
-            self.log.debug("Preferences GUI was closed.")
-            self.app.preferencesUiManager.clear_preferences_gui()
-            self.ui.pref_status_label.setStyleSheet("")
         else:
             self.on_preferences()
 

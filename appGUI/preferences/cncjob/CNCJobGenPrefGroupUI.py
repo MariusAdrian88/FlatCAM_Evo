@@ -248,12 +248,13 @@ class CNCJobGenPrefGroupUI(OptionsGroupUI):
                                                   _database_option(self.app, 'cncjob_travel_line')[7:9]
 
     def on_cncjob_alpha_changed(self, spinner_value):
-        self.app.options['cncjob_travel_fill'] = \
-            _database_option(self.app, 'cncjob_travel_fill')[:7] + \
-            (hex(spinner_value)[2:] if int(hex(spinner_value)[2:], 16) > 0 else '00')
-        self.app.options['cncjob_travel_line'] = \
-            _database_option(self.app, 'cncjob_travel_line')[:7] + \
-            (hex(spinner_value)[2:] if int(hex(spinner_value)[2:], 16) > 0 else '00')
+        # always 2 digits: hex() gave 1 digit for 1..15, a colour that the canvas cannot draw
+        alpha = '%02x' % spinner_value
+        self.app.options['cncjob_travel_fill'] = _database_option(self.app, 'cncjob_travel_fill')[:7] + alpha
+        self.app.options['cncjob_travel_line'] = _database_option(self.app, 'cncjob_travel_line')[:7] + alpha
+        # Save stores the colour fields, so they get the alpha too
+        self.tfill_color_entry.set_value(self.tfill_color_entry.get_value()[:7] + alpha)
+        self.tline_color_entry.set_value(self.tline_color_entry.get_value()[:7] + alpha)
 
     # ------------------------------------------------------
     # Setting plot colors handlers

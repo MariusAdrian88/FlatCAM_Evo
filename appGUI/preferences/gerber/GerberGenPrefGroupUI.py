@@ -300,12 +300,13 @@ class GerberGenPrefGroupUI(OptionsGroupUI):
         :return:
         :rtype:
         """
-        self.app.options['gerber_plot_fill'] = \
-            _database_option(self.app, 'gerber_plot_fill')[:7] + \
-            (hex(spinner_value)[2:] if int(hex(spinner_value)[2:], 16) > 0 else '00')
-        self.app.options['gerber_plot_line'] = \
-            _database_option(self.app, 'gerber_plot_line')[:7] + \
-            (hex(spinner_value)[2:] if int(hex(spinner_value)[2:], 16) > 0 else '00')
+        # always 2 digits: hex() gave 1 digit for 1..15, a colour that the canvas cannot draw
+        alpha = '%02x' % spinner_value
+        self.app.options['gerber_plot_fill'] = _database_option(self.app, 'gerber_plot_fill')[:7] + alpha
+        self.app.options['gerber_plot_line'] = _database_option(self.app, 'gerber_plot_line')[:7] + alpha
+        # Save stores the colour fields, so they get the alpha too
+        self.fill_color_entry.set_value(self.fill_color_entry.get_value()[:7] + alpha)
+        self.line_color_entry.set_value(self.line_color_entry.get_value()[:7] + alpha)
 
     def on_line_color_changed(self):
         """

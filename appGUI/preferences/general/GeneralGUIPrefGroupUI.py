@@ -593,7 +593,8 @@ class GeneralGUIPrefGroupUI(OptionsGroupUI):
 
     # Setting selection colors (left - right) handlers
     def on_sf_color_entry(self):
-        self.app.options['global_sel_fill'] = _database_option(self.app, 'global_sel_fill')[7:9]
+        self.app.options['global_sel_fill'] = self.sf_color_entry.get_value()[:7] + \
+            _database_option(self.app, 'global_sel_fill')[7:9]
 
     def on_sl_color_entry(self):
         self.app.options['global_sel_line'] = self.sl_color_entry.get_value()[:7] + \
@@ -610,10 +611,13 @@ class GeneralGUIPrefGroupUI(OptionsGroupUI):
         :rtype:
         """
 
-        self.app.options['global_sel_fill'] = _database_option(self.app, 'global_sel_fill')[:7] + \
-            (hex(spinner_value)[2:] if int(hex(spinner_value)[2:], 16) > 0 else '00')
-        self.app.options['global_sel_line'] = _database_option(self.app, 'global_sel_line')[:7] + \
-            (hex(spinner_value)[2:] if int(hex(spinner_value)[2:], 16) > 0 else '00')
+        # always 2 digits: hex() gave 1 digit for 1..15, a colour that the canvas cannot draw
+        alpha = '%02x' % spinner_value
+        self.app.options['global_sel_fill'] = _database_option(self.app, 'global_sel_fill')[:7] + alpha
+        self.app.options['global_sel_line'] = _database_option(self.app, 'global_sel_line')[:7] + alpha
+        # Save stores the colour fields, so they get the alpha too
+        self.sf_color_entry.set_value(self.sf_color_entry.get_value()[:7] + alpha)
+        self.sl_color_entry.set_value(self.sl_color_entry.get_value()[:7] + alpha)
 
     # Setting selection colors (right - left) handlers
     def on_alt_sf_color_entry(self):
@@ -635,10 +639,13 @@ class GeneralGUIPrefGroupUI(OptionsGroupUI):
         :rtype:
         """
 
-        self.app.options['global_alt_sel_fill'] = _database_option(self.app, 'global_alt_sel_fill')[:7] + \
-            (hex(spinner_value)[2:] if int(hex(spinner_value)[2:], 16) > 0 else '00')
-        self.app.options['global_alt_sel_line'] = _database_option(self.app, 'global_alt_sel_line')[:7] + \
-            (hex(spinner_value)[2:] if int(hex(spinner_value)[2:], 16) > 0 else '00')
+        # always 2 digits: hex() gave 1 digit for 1..15, a colour that the canvas cannot draw
+        alpha = '%02x' % spinner_value
+        self.app.options['global_alt_sel_fill'] = _database_option(self.app, 'global_alt_sel_fill')[:7] + alpha
+        self.app.options['global_alt_sel_line'] = _database_option(self.app, 'global_alt_sel_line')[:7] + alpha
+        # Save stores the colour fields, so they get the alpha too
+        self.alt_sf_color_entry.set_value(self.alt_sf_color_entry.get_value()[:7] + alpha)
+        self.alt_sl_color_entry.set_value(self.alt_sl_color_entry.get_value()[:7] + alpha)
 
     # Setting Editor colors
     def on_draw_color_entry(self):

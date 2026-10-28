@@ -2078,13 +2078,11 @@ class appIO(QtCore.QObject):
             self.inform.emit('[WARNING_NOTCL] %s' % _("Cancelled."))
             return 'fail'
 
-        # Update options
-        self.app.preferencesUiManager.defaults_read_form()
-        self.options.propagate_defaults()
-
-        # Save update options
+        # Save the preferences in effect: the content of the preferences file (current_defaults.FlatConfig). The
+        # options have only the project keys and no write(). The form is not read: an export does not apply the edits
+        # that were not saved.
         try:
-            self.options.write(filename=filename)
+            self.app.defaults.write(filename=filename)
         except Exception:
             self.inform.emit('[ERROR_NOTCL] %s %s' % (_("Failed to write defaults to file."), str(filename)))
             return

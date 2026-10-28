@@ -3,6 +3,7 @@ from PyQt6 import QtGui, QtCore, QtWidgets
 from PyQt6.QtCore import QSettings
 
 import os
+import re
 
 from defaults import AppDefaults, is_project_key
 from appGUI.GUIElements import FCMessageBox
@@ -15,8 +16,16 @@ fcTranslate.apply_language('strings')
 if '_' not in builtins.__dict__:
     _ = gettext.gettext
 
+# '#RRGGBB' or '#RRGGBBAA'
+_COLOR_RE = re.compile(r'#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?')
+
 
 class PreferencesUIManager(QtCore.QObject):
+
+    # the colours kept as '#RRGGBBAA': their alpha (the characters 7:9) is set with an alpha slider
+    alpha_color_keys = ('gerber_plot_fill', 'gerber_plot_line', 'excellon_plot_fill', 'excellon_plot_line',
+                        'cncjob_travel_fill', 'cncjob_travel_line', 'global_sel_fill', 'global_sel_line',
+                        'global_alt_sel_fill', 'global_alt_sel_line')
 
     def __init__(self, defaults: AppDefaults, data_path: str, ui, inform, options):
         """
@@ -871,6 +880,29 @@ class PreferencesUIManager(QtCore.QObject):
             return self.ui.app.options
         return self.defaults
 
+    def _pref_alpha(self, key):
+        """
+        Return the alpha (0 to 255) of a colour preference. A '#RRGGBB' colour is opaque. A value that is not a colour
+        gives the alpha of the factory colour: an error here would stop the Preferences tab from opening each time.
+        """
+        for value in (self._pref(key), self.defaults.factory_defaults.get(key)):
+            if isinstance(value, str) and _COLOR_RE.fullmatch(value):
+                return int(value[7:9], 16) if len(value) == 9 else 255
+        return 255
+
+    def _alpha_color(self, key, value):
+        """
+        Return the value to store for a colour of alpha_color_keys. The colour field accepts any hex text: a '#RRGGBB'
+        colour gets the alpha of the stored colour, and a text that is not a colour keeps the stored (or factory)
+        colour.
+        """
+        for color in (value, self._pref(key), self.defaults.factory_defaults.get(key)):
+            if isinstance(color, str) and _COLOR_RE.fullmatch(color):
+                if color is not value:
+                    self.ui.app.log.warning("Preferences: %s %r is not a colour, kept %s" % (key, value, color))
+                return color if len(color) == 9 else color + '%02x' % self._pref_alpha(key)
+        return value
+
     def defaults_read_form(self):
         """
         Will read all the values in the Preferences GUI. An application key is written to the defaults. A project key
@@ -882,6 +914,8 @@ class PreferencesUIManager(QtCore.QObject):
         for option in self.defaults_form_fields:
             try:
                 value = self.defaults_form_fields[option].get_value()
+                if option in self.alpha_color_keys:
+                    value = self._alpha_color(option, value)
                 if not is_project_key(option):
                     self.defaults[option] = value
                 elif option not in options or options[option] != value:
@@ -1169,7 +1203,7 @@ class PreferencesUIManager(QtCore.QObject):
         self.ui.gerber_pref_form.gerber_gen_group.line_color_entry.set_value(self._pref('gerber_plot_line'))
 
         self.ui.gerber_pref_form.gerber_gen_group.gerber_alpha_entry.set_value(
-            int(self._pref('gerber_plot_fill')[7:9], 16))    # alpha
+            self._pref_alpha('gerber_plot_fill'))    # alpha
 
         # Init Excellon Plot Colors
         self.ui.excellon_pref_form.excellon_gen_group.fill_color_entry.set_value(
@@ -1178,7 +1212,7 @@ class PreferencesUIManager(QtCore.QObject):
             self._pref('excellon_plot_line'))
 
         self.ui.excellon_pref_form.excellon_gen_group.excellon_alpha_entry.set_value(
-            int(self._pref('excellon_plot_fill')[7:9], 16))
+            self._pref_alpha('excellon_plot_fill'))
 
         # Init Geometry Plot Colors
         self.ui.geo_pref_form.geometry_gen_group.line_color_entry.set_value(
@@ -1191,7 +1225,7 @@ class PreferencesUIManager(QtCore.QObject):
             self._pref('cncjob_travel_line'))
 
         self.ui.cncjob_pref_form.cncjob_gen_group.cncjob_alpha_entry.set_value(
-            int(self._pref('cncjob_travel_fill')[7:9], 16))      # alpha
+            self._pref_alpha('cncjob_travel_fill'))      # alpha
 
         # Init CNCJob Plot Colors
         self.ui.cncjob_pref_form.cncjob_gen_group.fill_color_entry.set_value(
@@ -1205,7 +1239,7 @@ class PreferencesUIManager(QtCore.QObject):
         self.ui.general_pref_form.general_gui_group.sl_color_entry.set_value(self._pref('global_sel_line'))
 
         self.ui.general_pref_form.general_gui_group.left_right_alpha_entry.set_value(
-            int(self._pref('global_sel_fill')[7:9], 16))
+            self._pref_alpha('global_sel_fill'))
 
         # Init Right-Left Selection colors
         self.ui.general_pref_form.general_gui_group.alt_sf_color_entry.set_value(
@@ -1214,7 +1248,7 @@ class PreferencesUIManager(QtCore.QObject):
             self._pref('global_alt_sel_line'))
 
         self.ui.general_pref_form.general_gui_group.right_left_alpha_entry.set_value(
-            int(self._pref('global_sel_fill')[7:9], 16))
+            self._pref_alpha('global_alt_sel_fill'))
 
         # Init Draw color and Selection Draw Color
         self.ui.general_pref_form.general_gui_group.draw_color_entry.set_value(
