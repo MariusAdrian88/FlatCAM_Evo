@@ -42,6 +42,9 @@ APP_TOOL_KEYS = frozenset((
     'tools_al_controller', 'tools_gcode_fit_view', 'tools_dist_snap_center',
     'tools_opt_precision', 'tools_qrcode_sel_limit', 'tools_qrcode_min_module',
 ))
+# Application keys that Import Preferences (File -> Backup) does not take from the file: the source of the updates. A
+# received preferences file must not point Check for Updates and the updater to another repository or share.
+UPDATE_SOURCE_KEYS = frozenset(('global_update_provider', 'global_update_url', 'global_legacy_update_url'))
 
 
 def is_project_key(key):
@@ -1558,7 +1561,7 @@ class AppOptions:
         :param inform:              a pyqtSignal used to display information's in the StatusBar of the GUI
         :param baseline:            the values used for the keys that the file does not have
         :param include_app_keys:    if defaults are linked, also write the application keys of the file
-                                    into the defaults
+                                    into the defaults, except the update source (UPDATE_SOURCE_KEYS)
         """
 
         # Read in the file
@@ -1596,6 +1599,6 @@ class AppOptions:
             for key, value in options.items():
                 if is_project_key(key):
                     self.options[key] = value
-                elif include_app_keys:
+                elif include_app_keys and key not in UPDATE_SOURCE_KEYS:
                     self[key] = value
         self.current_options = deepcopy(dict(self.options))

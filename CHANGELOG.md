@@ -82,6 +82,13 @@ Milling:
 
 - fixed: every tool with a Custom offset was cut with the offset of the selected row of the tool table; each tool now uses its own offset value
 - fixed: Extra Cut with a length: after the start point of a closed path the tool went straight to a later point of the path (across a corner, into a small pad) and back, instead of going on along the path; it now goes on along the path and back
+Application updater:
+
+- fixed: Import Preferences (File -> Backup) took the update source (provider, GitHub repository, Digi share) from the file, so a received preferences file could point Check for Updates and the updater to another repository; the import now keeps the update source set in Preferences
+
+CNC Job:
+
+- fixed: Save in the project context menu with several CNC jobs selected used the job names as they are for the file names, so a name from a project file such as '..\..\x' wrote the G-code into another folder, over a file with that name; each name is now a plain file name in the chosen folder (the characters that a Windows file name can not hold become '_', a device name such as NUL gets a '_' in front, and 2 names that become the same get 2 files)
 
 Tests:
 
@@ -100,6 +107,8 @@ Tests:
 - test_drilling_gen: Multi-Depth drilling with a zero or negative depth per pass ends (plugin and Tcl)
 - test_milling_lifecycle: each tool with a Custom offset is cut with its own value (single and multi geometry)
 - test_cncjob_gcode_speed: the Extra Cut goes on along the path after the start point and stays out of the pad
+- added a check that Import Preferences keeps the update source
+- added a check that saving several CNC jobs writes each file in the chosen folder
 
 25.10.2026
 RELEASE FlatCAM Evo 1.0

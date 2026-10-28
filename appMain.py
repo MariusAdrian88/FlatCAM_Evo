@@ -110,6 +110,7 @@ from appObjects.ObjectCollection import (
 from appHandlers.appProjects import ProjectManager
 from appGUI.ProjectSelector import ProjectSelector
 from appObjects.AppObject import AppObject
+from appObjects.ProjectContext import safe_file_name, unique_name
 
 # App Parsing files
 from camlib import to_dict
@@ -3975,9 +3976,13 @@ class App(QtCore.QObject):
                 path = filename.rpartition('/')[0]
                 file_extension = filename.rpartition('.')[2]
 
+                used_names = set()
                 for ob in sel_objects:
                     ob.read_form()
-                    fname = os.path.join(path, '%s.%s' % (ob.obj_options['name'], file_extension))
+                    # the name can come from a project file ('..\\..\\job'): only a file name in the chosen folder
+                    file_name = unique_name(safe_file_name(ob.obj_options['name'], 'cncjob'), used_names)
+                    used_names.add(file_name)
+                    fname = os.path.join(path, '%s.%s' % (file_name, file_extension))
                     ob.export_gcode_handler(fname, is_gcode=True, rename_object=False)
                 return
 

@@ -5,6 +5,9 @@ PROJECT_EXT = '.FlatPrj'
 
 # characters that a file name on Windows can not hold
 _INVALID_NAME_CHARS = '\\/:*?"<>|'
+# names that Windows opens as a device and not as a file, also with an extension (NUL.nc)
+_DEVICE_NAMES = frozenset(['CON', 'PRN', 'AUX', 'NUL'] + ['COM%d' % n for n in range(1, 10)] +
+                          ['LPT%d' % n for n in range(1, 10)])
 
 
 class ProjectContext:
@@ -71,3 +74,17 @@ def is_valid_name(name):
     if not name or not name.strip():
         return False
     return not any(char in name for char in _INVALID_NAME_CHARS)
+
+
+def safe_file_name(name, fallback):
+    """
+    The name as a file name without a folder: the characters that a file name on Windows can not hold (also the path
+    separators and the drive colon) and the control characters become '_', and a Windows device name (CON, NUL,
+    COM1...) gets a '_' in front. An empty name gives the fallback.
+    """
+    name = ''.join('_' if char in _INVALID_NAME_CHARS or ord(char) < 32 else char for char in str(name))
+    if not name.strip():
+        return fallback
+    if name.split('.')[0].rstrip(' ').upper() in _DEVICE_NAMES:
+        name = '_' + name
+    return name

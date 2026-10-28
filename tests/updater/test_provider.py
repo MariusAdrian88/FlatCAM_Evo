@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from defaults import AppDefaults
+from defaults import AppDefaults, AppOptions
 from services.updater.digi.checker import UpdateChecker
 from services.updater.digi.transport import DEFAULT_UPDATE_URL as DIGI_URL
 from services.updater.github.checker import GitHubUpdateChecker
@@ -17,6 +17,7 @@ from services.updater.github.transport import DEFAULT_REPOSITORY
 from services.updater.provider import (
     checker_for,
     create_update_checker,
+    provider_url,
     run_provider_check,
     update_provider,
 )
@@ -166,6 +167,31 @@ def test_settings_with_a_provider_keep_their_urls(tmp_path):
 
     for key, value in saved.items():
         assert defaults[key] == value
+
+
+def test_imported_preferences_do_not_change_the_update_source(tmp_path):
+    # the user chose the Digi source and a share in Preferences
+    defaults = AppDefaults(beta=False, version="1.0")
+    options = AppOptions(version="1.0", baseline=defaults, defaults=defaults)
+    options["global_update_provider"] = "digi"
+    options["global_legacy_update_url"] = "https://s.example.invalid/mine"
+    # a received preferences file names another source
+    filename = tmp_path / "received.FlatConfig"
+    filename.write_text(json.dumps({
+        "global_update_provider": "github",
+        "global_update_url": "https://github.com/example/other",
+        "global_legacy_update_url": "https://s.example.invalid/other",
+        "global_version_check": False,
+    }))
+
+    # Import Preferences (File > Backup)
+    options.load(str(filename), MagicMock(), baseline=defaults, include_app_keys=True)
+
+    app = SimpleNamespace(options=options, defaults=defaults)
+    assert defaults["global_version_check"] is False
+    assert update_provider(app) == "digi"
+    assert provider_url(app) == "https://s.example.invalid/mine"
+    assert provider_url(app, "github") == DEFAULT_REPOSITORY
 
 
 def test_download_uses_the_provider_of_the_offer_not_the_current_preference(monkeypatch, tmp_path):
