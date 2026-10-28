@@ -4440,10 +4440,7 @@ class MainGUI(QtWidgets.QMainWindow):
                         # elif self.app.exc_editor.active_tool.name == 'slot_array' \
                         #         and self.app.exc_editor.active_tool.sarray_tool.length != 0.0:
                         #     pass
-                        elif self.app.exc_editor.active_tool.name == 'drill_move' \
-                                and self.app.exc_editor.active_tool.move_tool.length != 0.0 \
-                                and self.app.exc_editor.active_tool.move_tool.width != 0.0:
-                            pass
+                        # 'drill_move' has no panel for a typed distance (no move_tool): Enter clicks at the cursor
                         elif self.app.exc_editor.active_tool.name == 'drill_copy' \
                                 and self.app.exc_editor.active_tool.copy_tool.length != 0.0:
                             pass

@@ -444,6 +444,9 @@ class ExcCopyEditorUI:
         self.add_button = FCButton(_("Add"))
         self.add_button.setIcon(QtGui.QIcon(self.app.resource_location + '/plus16.png'))
         self.layout.addWidget(self.add_button)
+        # nothing is connected to the button: the copy is made with the clicks on the canvas (reference, then target)
+        # and the panel has no coordinates for a button, so it is hidden instead of doing nothing
+        self.add_button.hide()
 
         GLay.set_common_column_size([
             grid0, self.array_grid, self.lin_grid, self.dd_grid, self.circ_grid, self.s_grid, self.o_grid

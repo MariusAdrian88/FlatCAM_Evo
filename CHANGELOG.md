@@ -133,6 +133,14 @@ Geometry editor:
 - fixed: a rectangle added from the Rectangle panel with Round or Bevel corners was larger than requested when the corner radius was more than half of a side (with the default radius 1, 10 x 1 gave 10 x 3) or when a size was negative (-10 x 4 gave 14 x 4); corners that do not fit are now square, as for a rectangle drawn with the mouse
 - fixed: Add in the Circle panel failed with "Enter positive finite radii ..." in the default (circle) mode, because the disabled Y radius field does not follow the radius and stayed 0; a circle now uses only its radius, as when it is typed in with Enter
 - fixed: an ellipse added or applied from the Circle panel was rotated clockwise by the Angle field, the opposite of the preview and of the ellipse drawn with the mouse, which writes its counter-clockwise angle in that field; Apply on a drawn ellipse made its mirror image
+Excellon Editor:
+
+- fixed: the 'Add' button of Drill Array used the size, pitch, direction and angles of the last mouse move over the canvas, not the values in the panel; it now reads the panel, like Slot Array
+- fixed: Drill Array and Slot Array, Circular: a mouse move over the canvas before the center click set the Radius to 0, so the 'Add' button failed with "Invalid array size, angle or radius."; the radius is now shown only after the center click
+- fixed: Copy in the Array mode with the Circular type showed no preview and made no copies, unless a Linear preview was shown before; the circular preview now needs only the reference point
+- fixed: Copy: a typed length (Projection) and Enter stopped with an error; the copy is now made at that distance from the reference point, towards the cursor, and the editor goes back to Select
+- fixed: Enter with the Move tool stopped with an AttributeError (the key handler read a Move panel that the Excellon editor does not have); Enter now clicks at the cursor, as with the other tools
+- fixed: the 'Add' button of the Copy panel was connected to nothing; it is hidden, the copy is made with the clicks on the canvas
 
 Tests:
 
@@ -176,6 +184,12 @@ Tests:
 - Gerber editor: Pad and Pad Array place obround pads, and the aperture table shows the dimensions of an 'O' aperture
 - Gerber editor: the Dims edit of an 'R' aperture changes its tracks by half of the change
 - Gerber editor: Mark Area Delete removes only the shapes marked now
+- test_exc_editor_defects: the 'Add' button of Drill Array uses the values changed in the panel after the last mouse move
+- test_exc_editor_defects: a circular Drill Array or Slot Array from the 'Add' button keeps the typed radius after a mouse move over the canvas
+- test_exc_editor_defects: Copy as a circular array shows the preview and makes the copies without an earlier Linear preview
+- test_exc_editor_defects: Copy with a typed length and Enter copies at that distance towards the cursor, and warns without a reference point
+- test_exc_editor_defects: Enter with the Move tool moves the selected drill to the cursor
+- test_exc_editor_defects: the Copy panel hides its unconnected 'Add' button
 
 25.10.2026
 RELEASE FlatCAM Evo 1.0

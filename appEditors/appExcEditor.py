@@ -674,7 +674,10 @@ class DrillArray(FCShapeTool):
                 radius = 0
             if radius == 0:
                 self.draw_app.delete_utility_geometry()
-            self.ui.radius_entry.set_value(radius)
+            # no radius to show before the center is clicked: a mouse move over the canvas must not set the
+            # radius typed for the 'Add' button to 0
+            if self.origin is not None:
+                self.ui.radius_entry.set_value(radius)
 
             if len(self.pt) >= 1 and radius > 0:
                 try:
@@ -866,7 +869,16 @@ class DrillArray(FCShapeTool):
     @excellon_operation(_('Drill array'))
     def add_drill_array(self, array_pos):
         self.drill_radius = self.ui.radius_entry.get_value()
+
+        # the values in the panel now: utility_geometry() read them at the last mouse move over the canvas
+        self.drill_axis = self.ui.axis_radio.get_value()
+        self.drill_direction = self.ui.array_dir_radio.get_value()
         self.drill_array = self.ui.array_type_radio.get_value()
+
+        self.drill_array_size = int(self.ui.array_size_entry.get_value())
+        self.drill_pitch = float(self.ui.pitch_entry.get_value())
+        self.drill_linear_angle = float(self.ui.linear_angle_entry.get_value())
+        self.drill_angle = float(self.ui.circular_angle_entry.get_value())
 
         curr_pos = self.draw_app.snap(array_pos[0], array_pos[1])
         self.draw_app.snap_x = curr_pos[0]
@@ -1480,7 +1492,10 @@ class SlotArray(FCShapeTool):
                 radius = 0
             if radius == 0:
                 self.draw_app.delete_utility_geometry()
-            self.ui.radius_entry.set_value(radius)
+            # no radius to show before the center is clicked: a mouse move over the canvas must not set the
+            # radius typed for the 'Add' button to 0
+            if self.origin is not None:
+                self.ui.radius_entry.set_value(radius)
 
             if len(self.pt) >= 1 and radius > 0:
                 try:
@@ -2434,7 +2449,8 @@ class CopyEditorExc(FCShapeTool):
         if radius == 0:
             self.draw_app.delete_utility_geometry()
 
-        if len(self.points) >= 1 and radius > 0:
+        # the circle needs only the reference point (origin); self.points is set only by the Linear preview
+        if self.origin is not None and radius > 0:
             try:
                 if cdx < self.origin[0]:
                     radius = -radius
@@ -2532,8 +2548,12 @@ class CopyEditorExc(FCShapeTool):
                     self.copy_tool.length = 0.0
                     return _("Failed.")
 
-                first_pt = self.points[-1]
-                last_pt = self.draw_app.app.mouse
+                # the copy goes at the typed distance from the reference point, towards the cursor; self.points is
+                # not a position here (it is empty, or the offset of the Linear array preview)
+                if self.origin is None:
+                    return '[WARNING_NOTCL] %s' % _("Click on reference location ...")
+                first_pt = self.origin
+                last_pt = self.draw_app.snap_x, self.draw_app.snap_y
 
                 seg_length = math.sqrt((last_pt[0] - first_pt[0]) ** 2 + (last_pt[1] - first_pt[1]) ** 2)
                 if seg_length == 0.0:
@@ -2546,14 +2566,14 @@ class CopyEditorExc(FCShapeTool):
                     self.clean_up()
                     return '[ERROR_NOTCL] %s %s' % (_("Failed."), str(err).capitalize())
 
-                if self.points[-1] != (new_x, new_y):
-                    self.points.append((new_x, new_y))
-                    self.draw_app.app.on_jump_to(custom_location=(new_x, new_y), fit_center=False)
-                    self.destination = (new_x, new_y)
-                    self.make()
-                    self.draw_app.on_shape_complete()
-                    self.draw_app.select_tool("select")
-                    return "Done."
+                self.draw_app.app.on_jump_to(custom_location=(new_x, new_y), fit_center=False)
+                self.destination = (new_x, new_y)
+                # make() adds and plots the copies and gives the message, as for a click
+                self.make()
+
+                # MS: always return to the Select Tool
+                self.draw_app.select_tool("drill_select")
+                return
 
     def clean_up(self):
         self.draw_app.selected.clear()
