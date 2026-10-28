@@ -15,12 +15,14 @@ from PyQt6 import QtCore
 
 import appCommon.RegisterFileKeywords as rfk
 from appCommon.RegisterFileKeywords import RegisterFK
+from defaults import AppDefaults
 
 if not hasattr(builtins, "_"):
     builtins._ = lambda s: s
 
 
 class FakeWinreg:
+    HKEY_CLASSES_ROOT = "HKCR"
     HKEY_CURRENT_USER = "HKCU"
     HKEY_LOCAL_MACHINE = "HKLM"
     KEY_WRITE = 2
@@ -51,6 +53,19 @@ class FakeWinreg:
         del self.keys[(root, path.lower())]
 
 
+class ListText:
+    """The text box of an association list in Preferences -> Utilities."""
+
+    def __init__(self, text=""):
+        self.text = text
+
+    def get_value(self):
+        return self.text
+
+    def set_value(self, text):
+        self.text = text
+
+
 def make_reg():
     reg = RegisterFK.__new__(RegisterFK)
     QtCore.QObject.__init__(reg)
@@ -65,6 +80,18 @@ def make_reg():
         fa_gerber_group=SimpleNamespace(grb_list_text=mock.MagicMock(get_value=lambda: "gbr")))
     reg.ui = SimpleNamespace(util_pref_form=form)
     return reg
+
+
+def first_start():
+    """RegisterFK as App makes it at the first start: before defaults_write_form() fills the Preferences lists."""
+    ui = mock.MagicMock()
+    ui.util_pref_form.fa_excellon_group.exc_list_text = ListText()
+    ui.util_pref_form.fa_gcode_group.gco_list_text = ListText()
+    ui.util_pref_form.fa_gerber_group.grb_list_text = ListText()
+    options = {"first_run": True, "util_autocomplete_keywords": "a, b",
+               "fa_excellon": "drl", "fa_gcode": "nc", "fa_gerber": "gbr, gtl"}
+    return RegisterFK(ui=ui, inform_sig=mock.MagicMock(), options_dict=options, shell=mock.MagicMock(),
+                      log=mock.MagicMock(), keywords=rfk.KeyWords(), extensions=rfk.Extensions())
 
 
 class TestFileAssociations(unittest.TestCase):
@@ -113,6 +140,48 @@ class TestFileAssociations(unittest.TestCase):
         self.fake.keys[("HKCU", "software\\classes\\flatcam.project\\shell\\open\\command")] = '"C:\\other.exe" "%1"'
         self.reg.on_unregister_files('project')
         self.assertIsNotNone(self.val("Software\\Classes\\FlatCAM.Project\\shell\\open\\command"))
+
+    def test_first_run_registers_the_lists_of_the_options(self):
+        first_start()
+        for ext in ("drl", "nc", "gbr", "gtl"):
+            self.assertEqual(self.val("Software\\Classes\\.%s" % ext), "FlatCAM")
+        self.assertIsNotNone(self.val("Software\\Classes\\FlatCAM\\shell\\open\\command"))
+
+    def test_apply_unregisters_only_what_points_to_flatcam(self):
+        # .nc and .gbr are in the saved lists, no longer in the Preferences lists; .nc belongs to another program now
+        self.fake.keys[("HKCU", "software\\classes\\.nc")] = "OtherApp.File"
+        self.fake.keys[("HKCU", "software\\classes\\.gbr")] = "FlatCAM"
+        self.reg.ui.util_pref_form.fa_gcode_group.gco_list_text = ListText()
+        self.reg.ui.util_pref_form.fa_gerber_group.grb_list_text = ListText()
+        self.reg.on_register_files()
+        self.assertEqual(self.val("Software\\Classes\\.nc"), "OtherApp.File")
+        self.assertIsNone(self.val("Software\\Classes\\.gbr"))
+        self.assertEqual(self.val("Software\\Classes\\.drl"), "FlatCAM")
+
+    def test_first_run_leaves_the_extensions_of_other_programs(self):
+        # HKEY_CLASSES_ROOT: the merged view of HKCU and HKLM; .gbr was registered by an older FlatCAM
+        self.fake.keys[("HKCR", ".nc")] = "OtherApp.File"
+        self.fake.keys[("HKCR", ".gbr")] = "FlatCAM"
+        reg = first_start()
+        self.assertIsNone(self.val("Software\\Classes\\.nc"))
+        for ext in ("drl", "gbr", "gtl"):
+            self.assertEqual(self.val("Software\\Classes\\.%s" % ext), "FlatCAM")
+        # Apply is the user's choice: it takes the extension
+        reg.on_register_files("gcode")
+        self.assertEqual(self.val("Software\\Classes\\.nc"), "FlatCAM")
+
+    def test_c_header_and_preprocessed_c_are_not_associated_by_default(self):
+        default = AppDefaults.factory_defaults["fa_gcode"].replace(" ", "").split(",")
+        self.reg.gcode_list = rfk.Extensions.gcode_list
+        self.reg.ui.util_pref_form.fa_gcode_group.gco_list_text = ListText()
+        self.reg.restore_extensions("gcode")
+        restored = self.reg.ui.util_pref_form.fa_gcode_group.gco_list_text.get_value().replace(" ", "").split(",")
+        for exts in (default, restored):
+            self.assertNotIn("h", exts)
+            self.assertNotIn("i", exts)
+            self.assertIn("tap", exts)
+        # a .h or .i G-code file still opens (drop on the plot area, file dialog)
+        self.assertIn("h", rfk.Extensions.gcode_list)
 
 
 class FakeHome(unittest.TestCase):
@@ -222,6 +291,12 @@ class TestMacAssociations(FakeHome):
         self.assertIn("flatcam.py", content)
         self.assertTrue(self.called(self.ls, "-f", self.bundle))
         self.assertTrue(self.called("duti", "-s", "org.flatcam.evo", ".gbr", "all"))
+        self.assertTrue(self.called("duti", "-s", "org.flatcam.evo", "org.flatcam.evo.project", "all"))
+
+    def test_first_run_does_not_make_flatcam_the_default_program(self):
+        first_start()
+        self.assertEqual(self.info()["FlatCAMAssociations"]["gerber"], ["gbr", "gtl"])
+        self.assertFalse([cmd for cmd in self.calls if cmd[0] == "duti" and cmd[3].startswith(".")])
         self.assertTrue(self.called("duti", "-s", "org.flatcam.evo", "org.flatcam.evo.project", "all"))
 
     def test_unregister_last_type_removes_bundle(self):

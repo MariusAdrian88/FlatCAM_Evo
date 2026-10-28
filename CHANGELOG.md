@@ -161,6 +161,26 @@ Editors:
 
 - fixed: in the Geometry, Gerber and Excellon editors '-' zoomed in and '=' zoomed out, the opposite of the main canvas and of the View menu; they now zoom out and in as everywhere else
 - fixed: Ctrl+E in the Gerber editor selected all the apertures instead of opening the Eraser (in the Excellon editor it selected all the tools), and Ctrl+A from the Project tab did not select all; the Select All key test checked E instead of A
+File associations:
+
+- fixed: the first start registered no Gerber, Excellon or G-code extension (it read the Preferences lists before they were filled) and then removed the registry key of every extension in the saved lists, also of extensions that another program opens; Apply now removes an extension that left the list only where it still points to FlatCAM
+- fixed: the default G-code association list had 'h' and 'i', so a C header (.h) or a preprocessed C file (.i) opened in FlatCAM after Apply; they are no longer in the default list nor in its Restore (a G-code file with these extensions still opens from the file dialog). The first start no longer takes an extension that another program opens (Windows) and no longer makes FlatCAM the default program of the Gerber, Excellon and G-code extensions (macOS, duti); Apply still does
+
+Tcl Shell:
+
+- fixed: adding, deleting, restoring or clearing the autocomplete keywords in Preferences -> Utilities removed the names of the open objects from the auto-completer of the Tcl Shell
+
+Opening files:
+
+- fixed: a .tap G-code file opened by a double-click, from the command line or dropped on the window opened as an Excellon object, and dropped on the plot area it opened twice (as Excellon and as G-code); 'tap' is in the Excellon and in the G-code list, so the start of the file now decides (an M48 header or a tool definition: Excellon)
+
+Preferences:
+
+- fixed: the preferences of an older build (current_defaults_<version>.FlatConfig) were never taken over: the start made an empty current_defaults.FlatConfig before it looked for them, so all the preferences went back to the factory values; an empty file now counts as no file
+
+Bookmarks:
+
+- fixed: Export wrote the bookmarks as '1:[title, link]', so importing the exported file added bookmarks named 1, 2 ... with unusable links; it now writes 'title:link'. Import keeps the spaces of the titles and skips blank lines, which stopped it with an IndexError
 
 Tests:
 
@@ -223,6 +243,12 @@ Tests:
 - test_app_history_keys: '-' zooms out and '=' zooms in, in the editors as on the main canvas
 - test_app_history_keys: Ctrl+E opens the Gerber editor's Eraser; Ctrl+A selects all in the Gerber and Excellon editors
 - test_geo_editor_performance: the editor's Paint with the Lines method paints the scan lines
+- test_file_associations: the first start registers the extension lists of the options; Apply removes only the extensions that point to FlatCAM
+- test_file_associations: no .h / .i in the default and restored G-code lists; the first start leaves the extensions of other programs and runs no duti for the extensions
+- test_rename_completer: editing the autocomplete keywords keeps the object names, also the new name of a renamed object
+- test_startup_args: a .tap file opens as G-code or as Excellon by its content, also dropped on the plot area (once)
+- test_defaults_persistence: the start loads the preferences of an older build over the empty current_defaults.FlatConfig, and not over saved ones
+- test_defaults_audit_regressions: exported bookmarks import as the same bookmarks, also with a blank line
 
 25.10.2026
 RELEASE FlatCAM Evo 1.0

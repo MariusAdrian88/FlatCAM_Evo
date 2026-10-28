@@ -68,7 +68,7 @@ from appCommon.Common import AppLogging
 from appCommon.SingleInstance import InstanceServer, FileOpenFilter, add_to_os_recent
 from appCommon.StartDir import resolve_user_path, resolve_existing_paths, local_path_from_url
 from appCommon.DataPath import data_path_from_env, DATA_PATH_ENV
-from appCommon.RegisterFileKeywords import RegisterFK, Extensions, KeyWords
+from appCommon.RegisterFileKeywords import RegisterFK, Extensions, KeyWords, starts_like_excellon
 from appCommon.SafeEval import safe_eval
 
 from appHandlers.appIO import appIO
@@ -932,8 +932,16 @@ class App(QtCore.QObject):
         # current_defaults_path = os.path.join(self.data_path, "current_defaults.FlatConfig")
         current_defaults_path = self.defaults_path()
         
-        # ponytail: legacy compatibility - discover versioned files if stable file doesn't exist
-        if user_defaults and not os.path.isfile(current_defaults_path):
+        # ponytail: legacy compatibility - discover versioned files if stable file doesn't exist. _setup_paths_and_config()
+        # writes an empty stable file ('{}') when there is none, so an empty one holds no preferences either
+        nothing_saved = not os.path.isfile(current_defaults_path)
+        if user_defaults and not nothing_saved:
+            try:
+                with open(current_defaults_path, encoding='utf-8') as stream:
+                    nothing_saved = json.load(stream) == {}
+            except (OSError, ValueError):
+                pass
+        if user_defaults and nothing_saved:
             legacy_path = AppDefaults.find_legacy_defaults_file(self.data_path, str(self.version))
             if legacy_path:
                 self.log.debug(f'Found legacy defaults file: {legacy_path}')
@@ -1921,12 +1929,17 @@ class App(QtCore.QObject):
                 ('fa_gerber_group', 'grb_list_text', 'on_file_open_gerber',
                  _("Open Gerber file failed.")),
             )
+
+            def listed(group_name, list_name):
+                ext_list = getattr(getattr(self.ui.util_pref_form, group_name), list_name).get_value().split(',')
+                return any(ext.replace(' ', '') and '.%s' % ext.replace(' ', '').lower() == arg_ext for ext in ext_list)
+
             try:
+                # an extension of both Excellon and G-code files ('tap', in both default lists): the content decides
+                if listed(*opener[0][:2]) and listed(*opener[1][:2]) and not starts_like_excellon(argument):
+                    opener = (opener[1], opener[0], opener[2])
                 for group_name, list_name, open_name, failed_msg in opener:
-                    ext_list = getattr(getattr(self.ui.util_pref_form, group_name), list_name).get_value().split(',')
-                    known = any(ext.replace(' ', '') and '.%s' % ext.replace(' ', '').lower() == arg_ext
-                                for ext in ext_list)
-                    if not known:
+                    if not listed(group_name, list_name):
                         continue
                     file_name = str(argument)
                     if file_name == "":

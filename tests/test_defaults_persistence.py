@@ -266,6 +266,28 @@ class TestLegacyCompatibility:
         # A custom share saved before the provider choice is kept for the legacy Digi provider.
         assert defaults["global_legacy_update_url"] == "https://custom.example.com"
 
+    @pytest.mark.parametrize("stable,units", [("{}", "IN"), ('{"units": "MM", "global_log_verbose": 1}', "MM")],
+                             ids=["empty", "saved"])
+    def test_startup_loads_legacy_file_over_empty_stable_file(self, tmp_path, monkeypatch, stable, units):
+        """_setup_paths_and_config() writes an empty stable file ('{}') before the discovery; saved ones still win."""
+        import appMain
+
+        (tmp_path / "current_defaults_8.995.FlatConfig").write_text(json.dumps({
+            "units": "IN", "global_log_verbose": 1, "global_version_check": False}))
+        (tmp_path / "current_defaults.FlatConfig").write_text(stable)
+        app = MagicMock()
+        app.version = "1.0"
+        app.beta = False
+        app.data_path = str(tmp_path)
+        app.defaults_path.return_value = str(tmp_path / "current_defaults.FlatConfig")
+        for name in ("AppLifecycle", "AppLogging", "GitHubUpdateChecker", "Pool"):
+            monkeypatch.setattr(appMain, name, MagicMock())
+        monkeypatch.setattr(appMain.darkdetect, "isDark", lambda: False)
+
+        appMain.App._setup_defaults_and_preferences(app)
+        assert app.defaults["units"] == units
+        assert app.defaults["global_version_check"] is (units != "IN")
+
     def test_factory_defaults_file_updated_with_new_keys(self, tmp_path):
         """Factory defaults file is rewritten if missing new keys."""
         factory_file = tmp_path / "factory_defaults.FlatConfig"

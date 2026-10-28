@@ -7,6 +7,7 @@ import ctypes
 from copy import deepcopy
 import os
 import plistlib
+import re
 import shlex
 import shutil
 import subprocess
@@ -295,6 +296,25 @@ class Extensions:
     conf_list = ['flatconfig']
 
 
+# the start of an Excellon file: the header (M48) or a tool definition such as 'T1C0.8' or 'T01F00S00C0.0300'
+EXCELLON_START_RE = re.compile(r'^[ \t]*(?:M48\b|T\d+(?:[FS][\d.]*)*C[\d.]+)', re.MULTILINE | re.IGNORECASE)
+
+
+def starts_like_excellon(path):
+    """
+    For an extension of both Excellon and G-code files ('tap'): True if the file starts like an Excellon file.
+
+    :param path:    path of the file
+    :return:        True for an Excellon file, and for a file that cannot be read (Excellon was always tried first)
+    """
+    try:
+        with open(path, 'r', errors='replace') as f:
+            head = f.read(8192)
+    except OSError:
+        return True
+    return EXCELLON_START_RE.search(head) is not None
+
+
 class RegisterFK(QtCore.QObject):
     """
     Will associate the application with some files with certain extensions. It will also update the Qt autocompleter.
@@ -330,6 +350,10 @@ class RegisterFK(QtCore.QObject):
         self.prj_list = extensions.prj_list
         self.conf_list = extensions.conf_list
 
+        # the names of the objects (prepend_keyword() / remove_keyword()), kept apart: a rebuild of the keywords from
+        # the Preferences must not drop them from the auto-completer
+        self.object_names = []
+
         autocomplete_kw_list = self.options.get('util_autocomplete_keywords').replace(' ', '').split(',')
         self.myKeywords = self.tcl_commands_list + autocomplete_kw_list + self.tcl_keywords
 
@@ -343,7 +367,12 @@ class RegisterFK(QtCore.QObject):
         # ####### Windows: registry; Linux: ~/.local/share (mime + desktop); macOS: ~/Applications app bundle  ########
         # ###########################################################################################################
         if self.options.get("first_run") is True:
-            self.on_register_files()
+            # the registration reads the lists from the Preferences forms, which defaults_write_form() fills only
+            # later: empty, they registered nothing and unregistered every extension of the options
+            for key, (group, widget) in self.ASSOC_WIDGET.items():
+                getattr(getattr(self.ui.util_pref_form, group), widget).set_value(self.options.get('fa_%s' % key))
+            # nobody asked for this registration: an extension that another program opens is left to that program
+            self.on_register_files(keep_foreign=True)
 
     def connect_signals(self):
         # ###########################################################################################################
@@ -404,8 +433,13 @@ class RegisterFK(QtCore.QObject):
         self.myKeywords = keywords
         self.shell.command_line().set_model_data(self.myKeywords)
 
+    def rebuild_keywords(self, kw_list):
+        # the object names first, where prepend_keyword() puts them
+        self.register_keywords(self.object_names + self.tcl_commands_list + kw_list + self.tcl_keywords)
+
     def prepend_keyword(self, kw, update=True):
         self.myKeywords.insert(0, kw)
+        self.object_names.insert(0, kw)
         if update:
             self.register_keywords(self.myKeywords)
 
@@ -420,6 +454,8 @@ class RegisterFK(QtCore.QObject):
         except ValueError:
             # the keyword was never registered; nothing to remove
             pass
+        if kw in self.object_names:
+            self.object_names.remove(kw)
         if update:
             self.register_keywords(self.myKeywords)
 
@@ -444,22 +480,25 @@ class RegisterFK(QtCore.QObject):
         except WindowsError:
             return False
 
-    def on_register_files(self, obj_type=None):
+    def on_register_files(self, obj_type=None, keep_foreign=False):
         """
         Called whenever there is a need to register file extensions with FlatCAM.
         Windows writes the registry; Linux and macOS write only into the home folder of the user.
 
         :param obj_type: the type of object to be register for.
         Can be: 'gerber', 'excellon', 'gcode', 'project' or 'config'. 'geometry' is not used for the moment.
+        :param keep_foreign: True for a registration that the user did not ask for (the first start): a Gerber,
+        Excellon or G-code extension that another program opens (Windows) is not taken and FlatCAM is not made the
+        default program of these extensions (macOS)
 
         :return: None
         """
         self.log.debug("Manufacturing files extensions are registered with FlatCAM.")
 
         if sys.platform == 'win32':
-            self._register_windows(obj_type)
+            self._register_windows(obj_type, keep_foreign)
         elif sys.platform == 'darwin':
-            self._register_macos(obj_type)
+            self._register_macos(obj_type, keep_foreign)
         elif sys.platform.startswith('linux'):
             self._register_linux(obj_type)
 
@@ -476,20 +515,20 @@ class RegisterFK(QtCore.QObject):
         elif sys.platform.startswith('linux'):
             self._unregister_linux(obj_type)
 
-    def _register_windows(self, obj_type=None):
+    def _register_windows(self, obj_type=None, keep_foreign=False):
         root_path = self._root_path()
 
         if obj_type in (None, 'excellon', 'gcode', 'gerber'):
             self.register_progid(root_path, 'FlatCAM', 'FlatCAM')
 
         if obj_type is None or obj_type == 'excellon':
-            self.register_excellon_extension(root_path)
+            self.register_excellon_extension(root_path, keep_foreign)
 
         if obj_type is None or obj_type == 'gcode':
-            self.register_gcode_extension(root_path)
+            self.register_gcode_extension(root_path, keep_foreign)
 
         if obj_type is None or obj_type == 'gerber':
-            self.register_gerber_extension(root_path)
+            self.register_gerber_extension(root_path, keep_foreign)
 
         if obj_type is None or obj_type == 'project':
             self.register_progid(root_path, 'FlatCAM.Project', _("FlatCAM Project"))
@@ -782,7 +821,7 @@ class RegisterFK(QtCore.QObject):
             fh.write('#!/bin/sh\nexec %s "$@"\n' % ' '.join(shlex.quote(a) for a in self.launcher_argv()))
         os.chmod(script, 0o755)
 
-    def _register_macos(self, obj_type=None):
+    def _register_macos(self, obj_type=None, keep_foreign=False):
         bundle = self.mac_bundle_path()
         keys = self.assoc_keys(obj_type)
         state = self.mac_read_state(os.path.join(bundle, 'Contents', 'Info.plist'))
@@ -809,7 +848,7 @@ class RegisterFK(QtCore.QObject):
             self.run_tool(lsregister, '-f', bundle)
         if shutil.which('duti'):
             for key in keys:
-                if key not in state:
+                if key not in state or (keep_foreign and key not in self.ASSOC_UTI):
                     continue
                 targets = [self.ASSOC_UTI[key]] if key in self.ASSOC_UTI else ['.%s' % e for e in state[key]]
                 for target in targets:
@@ -914,7 +953,11 @@ class RegisterFK(QtCore.QObject):
             if self.get_reg(root_path, ext_key) == progid:
                 self.delete_reg(root_pth=root_path, reg_path='', key_to_del=ext_key)
 
-    def register_excellon_extension(self, root_path):
+    def foreign_extension(self, ext):
+        """True if the extension opens with another program (HKEY_CLASSES_ROOT names a class that is not FlatCAM)."""
+        return self.get_reg(winreg.HKEY_CLASSES_ROOT, '.%s' % ext) not in (None, '', 'FlatCAM')
+
+    def register_excellon_extension(self, root_path, keep_foreign=False):
         new_reg_path = 'Software\\Classes\\'
 
         exc_list = \
@@ -923,12 +966,15 @@ class RegisterFK(QtCore.QObject):
 
         # register all keys in the Preferences window
         for ext in exc_list:
+            if keep_foreign and self.foreign_extension(ext):
+                continue
             new_k = new_reg_path + '.%s' % ext
             self.set_reg('', root_pth=root_path, new_reg_path_par=new_k, value='FlatCAM')
 
-        # and unregister those that are no longer in the Preferences windows but are in the file
+        # and unregister those that are no longer in the Preferences windows but are in the file, only where they
+        # still point to FlatCAM (another program may have the extension now)
         for ext in self.options.get("fa_excellon").replace(' ', '').split(','):
-            if ext not in exc_list:
+            if ext not in exc_list and self.get_reg(root_path, new_reg_path + '.%s' % ext) == 'FlatCAM':
                 self.delete_reg(root_pth=root_path, reg_path=new_reg_path, key_to_del='.%s' % ext)
 
         # now write the updated extensions to the self.options
@@ -938,7 +984,7 @@ class RegisterFK(QtCore.QObject):
         # self.options["fa_excellon"] = new_ext
         self.inform.emit('[success] %s' % _("Extensions registered."))  # noqa
 
-    def register_gerber_extension(self, root_path):
+    def register_gerber_extension(self, root_path, keep_foreign=False):
         new_reg_path = 'Software\\Classes\\'
 
         grb_list = self.ui.util_pref_form.fa_gerber_group.grb_list_text.get_value().replace(' ', '').split(',')
@@ -946,17 +992,20 @@ class RegisterFK(QtCore.QObject):
 
         # register all keys in the Preferences window
         for ext in grb_list:
+            if keep_foreign and self.foreign_extension(ext):
+                continue
             new_k = new_reg_path + '.%s' % ext
             self.set_reg('', root_pth=root_path, new_reg_path_par=new_k, value='FlatCAM')
 
-        # and unregister those that are no longer in the Preferences windows but are in the file
+        # and unregister those that are no longer in the Preferences windows but are in the file, only where they
+        # still point to FlatCAM (another program may have the extension now)
         for ext in self.options.get("fa_gerber").replace(' ', '').split(','):
-            if ext not in grb_list:
+            if ext not in grb_list and self.get_reg(root_path, new_reg_path + '.%s' % ext) == 'FlatCAM':
                 self.delete_reg(root_pth=root_path, reg_path=new_reg_path, key_to_del='.%s' % ext)
 
         self.inform.emit('[success] %s' % _("Extensions registered."))  # noqa
 
-    def register_gcode_extension(self, root_path):
+    def register_gcode_extension(self, root_path, keep_foreign=False):
         new_reg_path = 'Software\\Classes\\'
 
         gco_list = self.ui.util_pref_form.fa_gcode_group.gco_list_text.get_value().replace(' ', '').split(',')
@@ -964,12 +1013,15 @@ class RegisterFK(QtCore.QObject):
 
         # register all keys in the Preferences window
         for ext in gco_list:
+            if keep_foreign and self.foreign_extension(ext):
+                continue
             new_k = new_reg_path + '.%s' % ext
             self.set_reg('', root_pth=root_path, new_reg_path_par=new_k, value='FlatCAM')
 
-        # and unregister those that are no longer in the Preferences windows but are in the file
+        # and unregister those that are no longer in the Preferences windows but are in the file, only where they
+        # still point to FlatCAM (another program may have the extension now)
         for ext in self.options.get("fa_gcode").replace(' ', '').split(','):
-            if ext not in gco_list:
+            if ext not in gco_list and self.get_reg(root_path, new_reg_path + '.%s' % ext) == 'FlatCAM':
                 self.delete_reg(root_pth=root_path, reg_path=new_reg_path, key_to_del='.%s' % ext)
 
         self.inform.emit('[success] %s' % _("Extensions registered."))  # noqa
@@ -1041,8 +1093,7 @@ class RegisterFK(QtCore.QObject):
 
         # update the self.myKeywords so the model is updated
         autocomplete_kw_list = self.ui.util_pref_form.kw_group.kw_list_text.get_value().replace(' ', '').split(',')
-        self.myKeywords = self.tcl_commands_list + autocomplete_kw_list + self.tcl_keywords
-        self.register_keywords(self.myKeywords)
+        self.rebuild_keywords(autocomplete_kw_list)
 
     def del_extension(self, ext_type):
         """
@@ -1110,8 +1161,7 @@ class RegisterFK(QtCore.QObject):
 
         # update the self.myKeywords so the model is updated
         autocomplete_kw_list = self.ui.util_pref_form.kw_group.kw_list_text.get_value().replace(' ', '').split(',')
-        self.myKeywords = self.tcl_commands_list + autocomplete_kw_list + self.tcl_keywords
-        self.register_keywords(self.myKeywords)
+        self.rebuild_keywords(autocomplete_kw_list)
 
     def restore_extensions(self, ext_type):
         """
@@ -1132,15 +1182,17 @@ class RegisterFK(QtCore.QObject):
                 pass
             self.ui.util_pref_form.fa_excellon_group.exc_list_text.set_value(', '.join(new_exc_list))
         if ext_type == 'gcode':
-            self.ui.util_pref_form.fa_gcode_group.gco_list_text.set_value(', '.join(self.gcode_list))
+            # don't add 'h' and 'i' to the associations (C header and preprocessed C files) but keep them in the list
+            # for the ability to open G-code files with these extensions
+            self.ui.util_pref_form.fa_gcode_group.gco_list_text.set_value(
+                ', '.join(ext for ext in self.gcode_list if ext not in ('h', 'i')))
         if ext_type == 'gerber':
             self.ui.util_pref_form.fa_gerber_group.grb_list_text.set_value(', '.join(self.grb_list))
         if ext_type == 'keyword':
             self.ui.util_pref_form.kw_group.kw_list_text.set_value(', '.join(self.default_keywords))
 
             # update the self.myKeywords so the model is updated
-            self.myKeywords = self.tcl_commands_list + self.default_keywords + self.tcl_keywords
-            self.shell.command_line().set_model_data(self.myKeywords)
+            self.rebuild_keywords(self.default_keywords)
 
     def delete_all_extensions(self, ext_type):
         """
@@ -1160,5 +1212,4 @@ class RegisterFK(QtCore.QObject):
             self.ui.util_pref_form.kw_group.kw_list_text.set_value('')
 
             # update the self.myKeywords so the model is updated
-            self.myKeywords = self.tcl_commands_list + self.tcl_keywords
-            self.register_keywords(self.myKeywords)
+            self.rebuild_keywords([])

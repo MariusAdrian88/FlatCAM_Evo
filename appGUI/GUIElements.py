@@ -24,6 +24,7 @@ import sys
 import inspect
 
 from appCommon.SafeEval import safe_eval
+from appCommon.RegisterFileKeywords import starts_like_excellon
 
 import gettext
 import appTranslation as fcTranslate
@@ -69,6 +70,12 @@ class PlotTabWithDragDrop(QtWidgets.QWidget):
                     self.app.inform.emit("Cancelled.")
                 else:
                     extension = filename.lower().rpartition('.')[-1]
+                    # an extension of both Excellon and G-code files ('tap') opens once: the content decides as what
+                    is_excellon = extension in self.app.regFK.exc_list
+                    is_gcode = extension in self.app.regFK.gcode_list
+                    if is_excellon and is_gcode:
+                        is_excellon = starts_like_excellon(filename)
+                        is_gcode = not is_excellon
 
                     if extension in self.app.regFK.grb_list:
                         self.app.worker_task.emit({'fcn': self.app.f_handlers.open_gerber,
@@ -76,13 +83,13 @@ class PlotTabWithDragDrop(QtWidgets.QWidget):
                     else:
                         event.ignore()
 
-                    if extension in self.app.regFK.exc_list:
+                    if is_excellon:
                         self.app.worker_task.emit({'fcn': self.app.f_handlers.open_excellon,
                                                    'params': [filename]})
                     else:
                         event.ignore()
 
-                    if extension in self.app.regFK.gcode_list:
+                    if is_gcode:
                         self.app.worker_task.emit({'fcn': self.app.f_handlers.open_gcode,
                                                    'params': [filename]})
                     else:

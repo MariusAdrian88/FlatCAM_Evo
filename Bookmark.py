@@ -204,7 +204,7 @@ class BookmarkManager(QtWidgets.QWidget):
         else:
             link = self.link_entry.get_value()
 
-        if link == 'http://':
+        if link in ('', 'http://'):
             self.app.inform.emit('[ERROR_NOTCL] %s' % _("Web link entry is empty."))
             return 'fail'
 
@@ -331,7 +331,8 @@ class BookmarkManager(QtWidgets.QWidget):
             # Save Bookmarks to a file
             try:
                 with open(filename, "w") as f:
-                    for title, link in self.bm_dict.items():
+                    # 'title:link' lines, as on_import_bookmarks() reads them (the keys only give the order)
+                    for title, link in self.bm_dict.values():
                         line2write = str(title) + ':' + str(link) + '\n'
                         f.write(line2write)
             except Exception:
@@ -359,8 +360,12 @@ class BookmarkManager(QtWidgets.QWidget):
                 return
 
             for line in bookmarks:
-                proc_line = line.replace(' ', '').partition(':')
-                self.on_add_entry(title=proc_line[0], link=proc_line[2])
+                # 'title:link': the first ':' ends the title (the link has one after its scheme); blank lines and
+                # lines without a title or a link are skipped
+                title, sep, link = line.strip().partition(':')
+                if not sep or not title.strip() or not link.strip():
+                    continue
+                self.on_add_entry(title=title.strip(), link=link.strip())
 
             self.app.inform.emit('[success] %s: %s' % (_("Imported Bookmarks from"), filename))
 

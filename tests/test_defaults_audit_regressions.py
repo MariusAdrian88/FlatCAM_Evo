@@ -5,12 +5,14 @@ import os
 import stat
 from copy import deepcopy
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6 import QtWidgets
+import Bookmark as bookmark
 from Bookmark import BookmarkManager
 from defaults import AppDefaults, AppOptions, Excellon, Gerber, Geometry
 
@@ -43,6 +45,32 @@ def test_bookmark_rebuild_preserves_defaults_and_runtime_identity(existing):
     finally:
         manager.close()
         manager.deleteLater()
+        qapp.processEvents()
+
+
+def test_bookmark_export_then_import_gives_the_same_bookmarks(tmp_path, monkeypatch):
+    qapp = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    menu = QtWidgets.QMenu()
+    app = SimpleNamespace(
+        defaults=AppDefaults(beta=False), options=AppOptions(version="1.0"), install_bookmarks=lambda **kwargs: None,
+        inform=Mock(), log=Mock(), resource_location="assets/resources", get_last_save_folder=lambda: str(tmp_path),
+        ui=SimpleNamespace(menuhelp_bookmarks=menu, menuhelp_bookmarks_manager=menu.addAction("Bookmark Manager")))
+    path = tmp_path / "bookmarks.txt"
+    monkeypatch.setattr(bookmark.FCFileSaveDialog, "get_saved_filename", lambda **kwargs: (str(path), ""))
+    monkeypatch.setattr(bookmark.QtWidgets.QFileDialog, "getOpenFileName", lambda **kwargs: (str(path), ""))
+
+    exporter = BookmarkManager(app, {"1": ["FlatCAM", "http://flatcam.org"], "2": ["PCB Shop", "https://ex.com/pcb"]})
+    importer = BookmarkManager(app, {"1": ["FlatCAM", "http://flatcam.org"]})
+    try:
+        exporter.on_export_bookmarks()
+        assert path.read_text() == "FlatCAM:http://flatcam.org\nPCB Shop:https://ex.com/pcb\n"
+        # a blank line (a list written by hand)
+        path.write_text(path.read_text() + "\n")
+        importer.on_import_bookmarks()
+        assert importer.bm_dict == {"1": ["FlatCAM", "http://flatcam.org"], "2": ["PCB Shop", "https://ex.com/pcb"]}
+    finally:
+        for manager in (exporter, importer):
+            manager.deleteLater()
         qapp.processEvents()
 
 
