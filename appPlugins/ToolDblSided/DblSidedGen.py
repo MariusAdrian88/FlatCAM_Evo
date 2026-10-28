@@ -219,3 +219,10 @@ def alignment_drills(holes, align_type, origin):
     elif align_type == "manual":
         drills = [Point(hole) for hole in holes]
     return drills
+
+
+def drills_fit_after_flip(drills, axis, origin, tol):
+    """True if every drill has a drill at its mirror image about the axis ('X' or 'Y') through origin."""
+    xscale, yscale = {"X": (1.0, -1.0), "Y": (-1.0, 1.0)}[axis]
+    return all(any(scale(drill, xscale, yscale, origin=origin).distance(other) <= tol for other in drills)
+               for drill in drills)

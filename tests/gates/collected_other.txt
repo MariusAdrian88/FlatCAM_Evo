@@ -709,6 +709,8 @@ tests/test_align_apply.py::test_apply_and_undo[similarity-excellon]
 tests/test_align_apply.py::test_apply_and_undo[similarity-geometry]
 tests/test_align_apply.py::test_apply_and_undo[similarity-gerber]
 tests/test_align_apply.py::test_excellon_rigid_moves_the_hole_shapes
+tests/test_align_apply.py::test_finish_rewrites_the_source_of_the_aligned_object[excellon]
+tests/test_align_apply.py::test_finish_rewrites_the_source_of_the_aligned_object[gerber]
 tests/test_align_auto.py::TestAutoAlign::test_errors
 tests/test_align_auto.py::TestAutoAlign::test_mirror
 tests/test_align_auto.py::TestAutoAlign::test_outliers_and_missing_pads
@@ -868,6 +870,9 @@ tests/test_app_history_plugins.py::test_dblsided_stale_worker_does_not_move_or_g
 tests/test_app_history_plugins.py::test_dblsided_stale_worker_does_not_move_or_generate[selection]
 tests/test_app_history_plugins.py::test_dblsided_switching_back_to_append_retires_the_separate_output[none]
 tests/test_app_history_plugins.py::test_dblsided_switching_back_to_append_retires_the_separate_output[slot]
+tests/test_app_history_plugins.py::test_dblsided_warns_when_the_pins_do_not_fit_after_the_flip[X-(1,2)-False]
+tests/test_app_history_plugins.py::test_dblsided_warns_when_the_pins_do_not_fit_after_the_flip[Y-(1,2)-True]
+tests/test_app_history_plugins.py::test_dblsided_warns_when_the_pins_do_not_fit_after_the_flip[Y-(3,2)-False]
 tests/test_app_history_plugins.py::test_isolation_generate_buffer_is_a_snapshot_step
 tests/test_app_history_plugins.py::test_manual_cutout_click_is_a_snapshot_step
 tests/test_app_history_plugins.py::test_manual_cutout_session_cancel_and_finish_preserve_history
@@ -1034,6 +1039,7 @@ tests/test_cutout_inner_contours.py::test_panel_of_two_boards
 tests/test_cutout_inner_contours.py::test_production_run_with_option_on
 tests/test_cutout_inner_contours.py::test_region_hole_is_cutout_when_marked
 tests/test_cutout_inner_contours.py::test_ring_without_center_line_never_becomes_a_cutout
+tests/test_cutout_regressions.py::test_added_tool_keeps_the_automatic_widgets_and_shows_its_gap_type
 tests/test_cutout_regressions.py::test_automatic_tab_modes_partition_the_contour[2LR-path2-4]
 tests/test_cutout_regressions.py::test_automatic_tab_modes_partition_the_contour[2TB-path3-4]
 tests/test_cutout_regressions.py::test_automatic_tab_modes_partition_the_contour[4-path4-4]
@@ -1130,6 +1136,7 @@ tests/test_drilling_ui.py::test_peck_dwell_bottom_spindle_and_plunge_fields_are_
 tests/test_drilling_ui.py::test_rebuild_keeps_a_partial_tool_selection
 tests/test_drilling_ui.py::test_renamed_extra_object_stays_in_the_job
 tests/test_drilling_ui.py::test_reset_button_restores_the_defaults_of_the_object
+tests/test_drilling_ui.py::test_solder_paste_preprocessors_are_offered_by_neither_drilling_nor_milling
 tests/test_drilling_ui.py::test_spot_pass_fields_are_job_wide_and_advanced_only
 tests/test_drilling_ui.py::test_toolchange_xy_is_validated_only_when_toolchange_is_on
 tests/test_dxf_without_matplotlib.py::test_dxf_without_matplotlib
@@ -1383,6 +1390,8 @@ tests/test_film.py::TestExportFilm::test_png_and_pdf_files_are_written
 tests/test_film.py::TestExportFilm::test_png_rejects_an_invalid_dpi
 tests/test_film.py::TestExportFilm::test_png_renders_the_requested_dpi_with_the_border
 tests/test_film.py::TestExportFilm::test_positive_film_with_the_object_as_box
+tests/test_film.py::TestPadCenterPunch::test_a_punch_as_wide_as_a_pad_is_refused
+tests/test_film.py::TestPadCenterPunch::test_macro_pads_are_punched_and_track_apertures_are_not_checked
 tests/test_film.py::TestSvgDocument::test_negative_box_polygon_gets_the_margin
 tests/test_film.py::TestSvgDocument::test_nested_collection_is_colored_and_lines_stay_unfilled
 tests/test_film.py::TestSvgDocument::test_single_polygon_gets_the_film_color

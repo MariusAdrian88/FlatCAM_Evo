@@ -660,7 +660,7 @@ class ToolDrilling(Geometry, AppTool):
             pp_list = []
             for name in self.app.preprocessors.keys():
                 # the HPGL preprocessor or Paste_ are not for Excellon job therefore don't add it
-                if name in ['hpgl', 'Paste_1', 'Check_points']:
+                if name in ['hpgl', 'Check_points'] or 'paste' in name.lower():
                     continue
                 pp_list.append(name)
             pp_list.sort()

@@ -734,6 +734,25 @@ def test_dblsided_alignment_drills_use_box_reference_group(fc):
     assert [p.coords[0] for p in output.tools[1]['drills']] == [(1, 2), (1, 38)]
 
 
+@pytest.mark.parametrize('mirror_axis,holes,warned', [('Y', '(1,2)', True), ('X', '(1,2)', False),
+                                                      ('Y', '(3,2)', False)])
+def test_dblsided_warns_when_the_pins_do_not_fit_after_the_flip(mirror_axis, holes, warned):
+    from unittest.mock import Mock
+    tool = Mock(decimals=4)
+    tool.ui.align_type_radio.get_value.return_value = 'X'
+    tool.ui.mirror_axis.get_value.return_value = mirror_axis
+    tool.ui.axis_location.get_value.return_value = 'point'
+    tool.ui.point_entry.get_value.return_value = (3.0, 4.0)
+    tool.ui.drill_dia.get_value.return_value = 1
+    tool.ui.alignment_holes.text.return_value = holes
+    DblSidedTool.on_create_alignment_holes(tool)
+    messages = [c.args[0] for c in tool.app.inform.emit.call_args_list]
+    # the holes are made in each case; a hole on the Mirror axis (x = 3) fits whatever the Type is
+    tool.new_object.assert_called_once()
+    assert messages[0].startswith('[success]')
+    assert any(m.startswith('[WARNING_NOTCL]') for m in messages) == warned
+
+
 @pytest.mark.parametrize('failure', ['geometry', 'export'])
 def test_dblsided_advanced_failed_generation_not_published(fc, no_plot, monkeypatch, failure):
     from unittest.mock import Mock

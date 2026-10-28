@@ -5,7 +5,7 @@ from appGUI.GUIElements import VerticalScrollArea
 from appPlugins.ToolDblSided.DblSidedUI import DsidedUI
 from appPlugins.ToolDblSided.DblSidedGen import alignment_drills, valid_diameter, validate_holes, \
     bounds_drills, valid_drill_offset, combined_bounds, source_view, replace_generated, alignment_matrices, compose, \
-    has_generated, unowned_features, retire_generated
+    has_generated, unowned_features, retire_generated, drills_fit_after_flip
 from appPlugins.ToolAlignObjects.AlignGen import build_snap_index, SnapIndex, apply_matrix, invert
 from defaults import AppDefaults
 from appParsers.feature_access import iter_features
@@ -419,6 +419,11 @@ class DblSidedTool(AppTool):
             return
 
         drills = alignment_drills(holes, align_type, (px, py))
+        # the board is flipped about the Mirror axis: a Type other than that axis gives holes that the pins do not fit
+        # after the flip, except for holes on the axis, so the holes are checked, not the two settings
+        mirror_axis = self.ui.mirror_axis.get_value()
+        no_fit = align_type in ["X", "Y"] and mirror_axis in ["X", "Y"] and \
+            not drills_fit_after_flip(drills, mirror_axis, (px, py), 10 ** -self.decimals)
 
         def obj_init(obj_inst, app_inst):
             obj_inst.tools = {}
@@ -433,6 +438,11 @@ class DblSidedTool(AppTool):
 
         if not ret_val == 'fail':
             self.app.inform.emit('[success] %s' % _("Excellon object with alignment drills created..."))
+            if no_fit:
+                # after the success message, so it is the one left in the status bar
+                self.app.inform.emit('[WARNING_NOTCL] %s' % (_(
+                    "The alignment holes are not symmetric about the Mirror axis: the pins will not fit after the "
+                    "board is flipped. Set the alignment Type to %s.") % mirror_axis))
 
     def on_pick_hole(self):
 

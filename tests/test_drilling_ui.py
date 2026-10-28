@@ -465,3 +465,15 @@ def test_exclusion_areas_steer_the_travels_only_when_the_tool_uses_them(fc, monk
     tool = _open(fc, 'e_job_on')
     tool.change_level('a')
     assert _generate(fc, monkeypatch, tool).gcode != plain
+
+
+def test_solder_paste_preprocessors_are_offered_by_neither_drilling_nor_milling(fc):
+    # they have no feed rate, spindle or start Z code: Generate failed with an AttributeError
+    assert {'Paste_1', 'Paste_GRBL', 'Paste_Marlin'} <= set(fc.preprocessors)
+    _load(fc, 'e_ui_pp')
+    drilling = _open(fc, 'e_ui_pp')
+    fc.milling_tool.set_tool_ui()
+    for combo in (drilling.ui.pp_excellon_name_cb, fc.milling_tool.ui.pp_geo_name_cb):
+        names = [combo.itemText(index) for index in range(combo.count())]
+        assert {'default', 'GRBL_11', 'Marlin'} <= set(names)
+        assert [name for name in names if 'paste' in name.lower()] == []

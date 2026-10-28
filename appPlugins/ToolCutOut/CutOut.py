@@ -410,7 +410,8 @@ class CutOut(AppTool):
         self.ui.margin.set_value(float(tool_dict["tools_cutout_margin"]))
         self.ui.gapsize.set_value(float(tool_dict["tools_cutout_gapsize"]))
         self.ui.gaptype_combo.set_value(tool_dict["tools_cutout_gap_type"])
-        self.on_cutout_type(self.ui.gaptype_combo.get_value())
+        # the widgets of the gap type; on_cutout_type() takes the Automatic / Manual value, not this index
+        self.ui.on_gap_type_radio(self.ui.gaptype_combo.get_value())
 
         self.ui.thin_depth_entry.set_value(float(tool_dict["tools_cutout_gap_depth"]))
         self.ui.mb_dia_entry.set_value(float(tool_dict["tools_cutout_mb_dia"]))

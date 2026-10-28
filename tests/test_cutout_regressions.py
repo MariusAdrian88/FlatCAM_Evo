@@ -373,6 +373,22 @@ def test_beginner_generates_basic_bridges_from_visible_defaults(cutout_app, gap_
     assert cutout_app.ui.convex_box_cb.get_value()
 
 
+def test_added_tool_keeps_the_automatic_widgets_and_shows_its_gap_type(cutout_app):
+    ui = cutout_app.ui
+    ui.cutout_type_radio.set_value('a')
+    cutout_app.on_cutout_type('a')
+    # 'Search and Add' of a diameter that is not in the Tools Database, then 'Pick from DB' with Mouse Bites
+    cutout_app.on_tool_default_add(dia=2.4, muted=True)
+    data = dict(cutout_app.default_data, tool_target=6, tools_cutout_gap_type=2)
+    cutout_app.on_cutout_tool_add_from_db_executed({'tooldia': 3.0, 'data': data})
+    shown = {name: not getattr(ui, name).isHidden() for name in (
+        'generate_cutout_btn', 'gaps', 'man_geo_creation_btn', 'man_gaps_creation_btn', 'mb_dia_entry',
+        'thin_depth_entry')}
+    assert ui.cutout_type_radio.get_value() == 'a' and ui.gaptype_combo.get_value() == 2
+    assert shown == {'generate_cutout_btn': True, 'gaps': True, 'man_geo_creation_btn': False,
+                     'man_gaps_creation_btn': False, 'mb_dia_entry': True, 'thin_depth_entry': False}
+
+
 @pytest.mark.parametrize('source_kind,kind', [
     ('geometry', 'single'), ('geometry', 'panel'), ('gerber', 'single'), ('gerber', 'panel'),
 ])

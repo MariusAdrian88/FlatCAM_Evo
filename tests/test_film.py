@@ -14,10 +14,10 @@ from types import SimpleNamespace
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from reportlab.lib.units import mm
-from shapely import box, LineString, Polygon, GeometryCollection, MultiPolygon
+from shapely import box, LineString, Point, Polygon, GeometryCollection, MultiPolygon
 from shapely.ops import unary_union
 
-from appPlugins.ToolFilm import Film
+from appPlugins.ToolFilm import Film, FilmGen
 
 SVG_NS = '{http://www.w3.org/2000/svg}'
 
@@ -235,6 +235,35 @@ class TestExportFilm(unittest.TestCase):
     def test_missing_object_returns_a_message(self):
         film = make_film({})
         self.assertIn('Could not retrieve', film.export_positive_handler('none', 'none', 'x.svg', use_thread=False))
+
+
+class TestPadCenterPunch(unittest.TestCase):
+    """FilmGen.punch_geometry() on the apertures as the Gerber parser stores them."""
+
+    @staticmethod
+    def board():
+        track = LineString([(5, 0), (15, 0)])
+        tools = {
+            # a KiCad rounded rectangle pad, 1.0 x 1.5: an AM macro aperture has no width and height
+            10: {'type': 'AM', 'macro': None, 'modifiers': [],
+                 'geometry': [{'solid': box(-0.35, -0.6, 0.35, 0.6).buffer(0.15), 'follow': Point(0, 0)}]},
+            11: {'type': 'C', 'size': 1.7, 'geometry': [{'solid': Point(20, 0).buffer(0.85), 'follow': Point(20, 0)}]},
+            # an aperture used only for a track, thinner than the punch
+            12: {'type': 'C', 'size': 0.25, 'geometry': [{'solid': track.buffer(0.125), 'follow': track}]},
+        }
+        return unary_union([elem['solid'] for tool in tools.values() for elem in tool['geometry']]), tools
+
+    def test_macro_pads_are_punched_and_track_apertures_are_not_checked(self):
+        solid, tools = self.board()
+        punched = FilmGen.punch_geometry(solid, tools, punch_size=0.6)
+        self.assertAlmostEqual(solid.area - punched.area, 2 * Point(0, 0).buffer(0.3).area, places=6)
+        self.assertFalse(punched.contains(Point(0, 0)) or punched.contains(Point(20, 0)))
+        self.assertTrue(punched.contains(Point(10, 0)))
+
+    def test_a_punch_as_wide_as_a_pad_is_refused(self):
+        solid, tools = self.board()
+        with self.assertRaises(FilmGen.PunchTooBigError):
+            FilmGen.punch_geometry(solid, tools, punch_size=1.0)
 
 
 if __name__ == '__main__':

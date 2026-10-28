@@ -538,6 +538,10 @@ class AlignObjects(AppTool):
             obj.set_offset_values(bounds=obj.bounds())
         except Exception as e:
             log.debug("AlignObjects._after_apply() set_offset_values --> %s" % str(e))
+        if str(getattr(obj, 'kind', '')).lower() in ('gerber', 'excellon'):
+            # View Source, Save source and the project file use source_file: it must follow the aligned geometry, as
+            # in the Transform plugin (a failed export keeps the old text and logs a warning)
+            obj.regenerate_source()
         try:
             self.app.app_obj.object_changed.emit(obj)
         except Exception as e:

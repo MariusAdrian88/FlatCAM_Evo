@@ -826,6 +826,9 @@ class ToolMilling(Geometry, AppTool):
         self.ui.pp_geo_name_cb.clear()
         # populate Geometry (milling) preprocessor combobox list
         for name in list(self.app.preprocessors.keys()):
+            # the 'Paste' preprocessors are only for the Solder Paste plugin (as in the Preferences list)
+            if 'paste' in name.lower():
+                continue
             self.ui.pp_geo_name_cb.addItem(name)
         # and add ToolTips (useful when names are too long)
         for it in range(self.ui.pp_geo_name_cb.count()):

@@ -229,6 +229,25 @@ PcbWizard Import:
 
 - fixed: loading the INF file set the format fields (units, integral and fractional digits) from the worker thread; they are now set in the GUI thread
 - fixed: Import used the format, units and zeros of the moment both files were loaded, so a correction made after loading was ignored (drills at wrong positions and sizes); a second Import found no geometry. The file is now built at each Import from the current form
+Cutout:
+
+- fixed: after "Search and Add" or "Pick from DB" the Gaps field and the Generate Geometry button disappeared and the manual buttons showed, while the radio still said Automatic
+
+2-Sided:
+
+- fixed: "Create Excellon Object" made alignment holes that the pins do not fit after the board is flipped (the Type of the holes differed from the Mirror axis) without a word; it now warns and names the Type to use
+
+Align Objects:
+
+- fixed: after an alignment (manual or automatic) View Source and Save source gave the file as it was before the alignment; the source of an aligned Gerber or Excellon object is now written again, as after a Transform
+
+Film:
+
+- fixed: a positive film punched at the pad centers failed with "Punch hole size is bigger than some of the apertures" for any Gerber with macro (AM) pads, such as the KiCad rounded rectangles, and for an aperture used only for tracks that is thinner than the punch; only the flashed pads are checked now, a macro or polygon pad by the width of the pad at its center
+
+Drilling and Milling:
+
+- fixed: the preprocessor list offered the solder paste preprocessors (Paste_GRBL, Paste_Marlin; in Milling also Paste_1) and Generate then failed with an AttributeError; they are left out, as in the Preferences lists
 
 Tests:
 
@@ -325,6 +344,11 @@ Tests:
 - test_isolation_optimal_tooldia, test_excellon_parser: Find Optimal and the PcbWizard INF loading set their fields in the GUI thread
 - test_excellon_parser: PcbWizard Import uses the format corrected after loading, also on a second Import
 - test_isolation_optimal_tooldia, test_ncc_rest_machining: Find Optimal and the NCC gap check on a Gerber with a MultiPolygon solid
+- Cutout: a tool added from the search or from the Tools Database keeps the Automatic widgets and shows the widgets of its gap type
+- 2-Sided: a warning when the alignment holes do not fit the pins after the flip, none for a hole on the Mirror axis
+- Align Objects: the source of an aligned Gerber and Excellon object parses back to the aligned geometry
+- Film: pad-center punching of a macro pad next to a thin track aperture, and a punch as wide as a pad
+- Drilling and Milling: no solder paste preprocessor in the preprocessor lists of the plugins
 
 25.10.2026
 RELEASE FlatCAM Evo 1.0

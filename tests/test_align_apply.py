@@ -63,3 +63,20 @@ def test_excellon_rigid_moves_the_hole_shapes(app):
         for g0, g1 in zip(old, tool['solid_geometry']):
             assert g0.equals_exact(g1, 1e-6)
 
+
+@pytest.mark.parametrize('kind', ['gerber', 'excellon'])
+def test_finish_rewrites_the_source_of_the_aligned_object(app, kind, tmp_path):
+    """View Source and Save source write source_file: it has to be the aligned object, not the loaded file."""
+    from appHandlers.appIO import appIO
+    from appPlugins.ToolAlignObjects.Align import AlignObjects
+    from tests.helpers_objects import reparse_excellon, reparse_gerber
+    app.f_handlers = appIO(app)
+    obj = _make(app, kind)
+    assert obj.regenerate_source() is True
+    obj.plot_transformed = Mock()
+    tool = Mock(start_points=[(0, 0), (10, 0)], dest_points=[(3, 4), (3, 14)], aligned_obj=obj, decimals=4)
+    tool._solve = solve_rigid
+    tool._after_apply = lambda aligned, matrix: AlignObjects._after_apply(tool, aligned, matrix)
+    AlignObjects.finish(tool)
+    again = (reparse_gerber if kind == 'gerber' else reparse_excellon)(app, obj.source_file, tmp_path)
+    assert np.array(again.bounds()) == pytest.approx(np.array(obj.bounds()), abs=1e-3)

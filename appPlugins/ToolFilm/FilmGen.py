@@ -144,16 +144,22 @@ def punch_geometry(solid_geometry, tools, punch_size=None, holes=None):
         aperture_type = aperture.get('type', '')
         if aperture_type == 'REG':
             continue
+        # only the flashed pads are punched, so an aperture used only for tracks is not checked
+        flashes = [elem for elem in aperture.get('geometry', []) if isinstance(elem.get('follow'), Point)]
+        if not flashes:
+            continue
         if aperture_type == 'C':
             too_big = punch_size >= float(aperture.get('size', 0.0))
+        elif 'width' in aperture and 'height' in aperture:
+            too_big = punch_size >= float(aperture['width']) or punch_size >= float(aperture['height'])
         else:
-            too_big = punch_size >= float(aperture.get('width', 0.0)) or \
-                      punch_size >= float(aperture.get('height', 0.0))
+            # a macro (AM) or polygon (P) aperture has no width / height: the hole has to fit in each flashed pad
+            too_big = any(punch_size >= 2 * elem['solid'].boundary.distance(elem['follow']) for elem in flashes
+                          if elem.get('solid') is not None and elem['solid'].contains(elem['follow']))
         if too_big:
             raise PunchTooBigError('Punch hole size is bigger than an aperture')
-        for elem in aperture.get('geometry', []):
-            if isinstance(elem.get('follow'), Point):
-                punching_geo.append(elem['follow'].buffer(punch_size / 2))
+        for elem in flashes:
+            punching_geo.append(elem['follow'].buffer(punch_size / 2))
     punching_geo = unary_union(punching_geo)
     if punching_geo.is_empty or not film_geo.intersects(punching_geo):
         return None
