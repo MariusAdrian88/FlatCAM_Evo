@@ -248,6 +248,27 @@ Film:
 Drilling and Milling:
 
 - fixed: the preprocessor list offered the solder paste preprocessors (Paste_GRBL, Paste_Marlin; in Milling also Paste_1) and Generate then failed with an AttributeError; they are left out, as in the Preferences lists
+Code Editor:
+
+- fixed: Save as PDF read the text as markup: a text with '<' (for example 'a<b' in a Tcl script) gave a Critical Error dialog and no PDF, a '<T1>' comment was left out of the PDF; the text is now escaped, and any other error of the save is shown as a message
+
+Tcl Shell:
+
+- fixed: Find in the right-click menu of the shell output did nothing (only Ctrl+F worked); PageUp / PageDown in the command line and the navigation keys in the output did not scroll the output
+
+Plotting:
+
+- fixed: a color change of an object (Project menu: Color, Opacity, Default) froze the GUI in a large project: each shape of the shared shape collection was looked up in the list of the object's shapes (O(N*M)); measured with 40000 + 20000 shapes, the color change of the 20000 shapes took 10 s and now takes 1 to 3 s; the same in update_visibility() of the collection
+- fixed: the path numbers (annotations) of a CNCJob stayed on the canvas when the object was hidden through its visible property (for example the source CNCJob that Levelling hides): the first text group of a text collection has the key 0, which the visibility setter took for "no texts"
+
+Exclusion areas:
+
+- fixed: the right click that ends the drawing made the union of the whole object geometry again for each area, on the GUI thread (6 areas and 5000 polygons: 14 s, now 2 s), and 1 area over the object geometry deleted all the areas, also the ones added before; now only the areas over the object geometry are deleted and the exclusion tables show the areas that are left
+
+Tools Database:
+
+- fixed: the Min and Max of the diameter tolerance were free, so a Min typed for a new tool (Max still 0.0) made Save DB fail, and the tab could not be closed or a tool transferred without losing the edits; a Min typed above Max now moves Max up to it, a Max typed below Min moves Min down to it
+- fixed: 'Add Tool in DB' did nothing and showed no message when the Milling "Tools Dia" preference was not a number (for example '0,1a'), and an empty value or 0 gave a Critical Error dialog; it now shows which preference to correct
 
 Tests:
 
@@ -349,6 +370,13 @@ Tests:
 - Align Objects: the source of an aligned Gerber and Excellon object parses back to the aligned geometry
 - Film: pad-center punching of a macro pad next to a thin track aperture, and a punch as wide as a pad
 - Drilling and Milling: no solder paste preprocessor in the preprocessor lists of the plugins
+- new unit tests for the PDF save of the code editor (tests/test_object_construction.py)
+- new unit tests for the Find menu and the PageUp / PageDown keys of the shell output (tests/test_headless_console.py)
+- new unit test for the color change and the visibility of the shapes of a group in a shared shape collection (tests/test_plot_visibility_toggle.py)
+- new unit test for the annotations of a hidden object (tests/test_plot_visibility_toggle.py)
+- tests/test_exclusion_area_travel.py: an exclusion area over the object geometry is the only area removed at the end of the drawing
+- new unit test for the typed Min and Max of the tolerance in the Tools Database (tests/test_tools_database.py)
+- new unit test for 'Add Tool in DB' with a bad Milling "Tools Dia" preference (tests/test_tools_database.py)
 
 25.10.2026
 RELEASE FlatCAM Evo 1.0

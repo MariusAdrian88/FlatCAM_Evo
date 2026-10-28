@@ -484,20 +484,27 @@ class ExclusionAreas(QtCore.QObject):
             # only the current object therefore it will not guarantee success
             self.app.inform.emit("%s" % _("Exclusion areas added. Checking overlap with the object geometry ..."))
 
-            for el in self.exclusion_areas_storage:
-                if el["shape"].intersects(unary_union(self.solid_geometry)):
-                    self.on_clear_area_click()
-                    self.app.inform.emit(
-                        "[ERROR_NOTCL] %s" % _("Failed. Exclusion areas intersects the object geometry ..."))
-                    return
+            # the union of the object geometry is made once, not again for each area (seconds for a large object)
+            object_geo = unary_union(self.solid_geometry)
+            prepare(object_geo)
+            overlapping = [idx for idx, el in enumerate(self.exclusion_areas_storage)
+                           if object_geo.intersects(el["shape"])]
+            if overlapping:
+                # only the areas over the object geometry are deleted, the other areas stay
+                self.delete_sel_shapes(overlapping)
+                self.app.inform.emit(
+                    "[ERROR_NOTCL] %s" % _("Failed. Exclusion areas intersects the object geometry ..."))
+            else:
+                self.app.inform.emit("[success] %s" % _("Exclusion areas added."))
 
-            self.app.inform.emit("[success] %s" % _("Exclusion areas added."))
-            self.cnc_button.bold = True
-            self.cnc_button.color = 'orange'
-            self.cnc_button.setToolTip(
-                '%s %s' % (_("Generate the CNC Job object."), _("With Exclusion areas."))
-            )
+            if self.exclusion_areas_storage:
+                self.cnc_button.bold = True
+                self.cnc_button.color = 'orange'
+                self.cnc_button.setToolTip(
+                    '%s %s' % (_("Generate the CNC Job object."), _("With Exclusion areas."))
+                )
 
+            # the exclusion tables of the plugins show the areas that are left
             self.e_shape_modified.emit()
 
     def area_disconnect(self):

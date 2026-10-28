@@ -156,3 +156,48 @@ def test_script_utf8_atomic_save_origin_and_plain_export(tmp_path, monkeypatch, 
                         lambda **kwargs: (str(tmp_path / 'missing' / 'bad.tcl'), ''))
     assert appIO.on_file_save_script(io) == 'fail'
     app.file_saved.emit.assert_not_called()
+
+
+def _code_editor_saving_to(output, monkeypatch, text):
+    from appEditors.appTextEditor import AppTextEditor
+    from tests.helpers_objects import make_app as editor_app
+    app = editor_app()
+    # kept for the whole test: the widgets need a QApplication
+    app.qt_app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    app.resource_location = 'assets/resources'
+    app.regFK = SimpleNamespace(myKeywords=[])
+    app.plotcanvas = SimpleNamespace(pagesize_dict={'A4': (210, 297)})
+    app.options['global_workspaceT'] = 'A4'
+    editor = AppTextEditor(app=app, plain_text=True)
+    editor.code_editor.setPlainText(text)
+    monkeypatch.setattr('appEditors.appTextEditor.FCFileSaveDialog.get_saved_filename',
+                        lambda **kwargs: (str(output), ''))
+    return app, editor
+
+
+def test_code_editor_pdf_keeps_the_markup_characters_of_the_text(tmp_path, monkeypatch):
+    # reportlab's Paragraph reads its text as markup: 'a<b' raised "paraparser: syntax error" (a Critical Error
+    # dialog and no PDF), a '<T1>' comment was left out of the PDF
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import Paragraph
+    text = 'G1 X1 (a<b)\n(tool <T1> 0.8 mm & more)\nif {$x < 5} {puts ok}'
+    output = tmp_path / 'code.pdf'
+    app, editor = _code_editor_saving_to(output, monkeypatch, text)
+    markups = []
+    monkeypatch.setattr('appEditors.appTextEditor.Paragraph',
+                        lambda markup, style: markups.append(markup) or Paragraph(markup, style))
+    editor.handleSaveGCode(name='code')
+    assert output.read_bytes().startswith(b'%PDF')
+    frags = Paragraph(markups[0], getSampleStyleSheet()['Normal']).frags
+    assert ''.join('\n' if getattr(frag, 'lineBreak', False) else frag.text for frag in frags) == text
+    app.file_saved.emit.assert_called_once_with('cncjob', str(output))
+
+
+def test_code_editor_pdf_failure_is_a_message(tmp_path, monkeypatch):
+    output = tmp_path / 'code.pdf'
+    app, editor = _code_editor_saving_to(output, monkeypatch, 'G0 X0')
+    monkeypatch.setattr('appEditors.appTextEditor.SimpleDocTemplate.build', Mock(side_effect=RuntimeError('no room')))
+    editor.handleSaveGCode(name='code')
+    assert app.inform.emit.call_args.args[0].startswith('[ERROR_NOTCL]')
+    assert 'no room' in app.inform.emit.call_args.args[0]
+    app.file_saved.emit.assert_not_called()

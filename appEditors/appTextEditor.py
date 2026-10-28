@@ -12,6 +12,7 @@ from appGUI.GUIElements import FCFileSaveDialog, FCEntry, FCTextAreaExtended, FC
 from reportlab.platypus import SimpleDocTemplate, Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch, mm
+from xml.sax.saxutils import escape
 
 # from io import StringIO
 
@@ -341,7 +342,9 @@ class AppTextEditor(QtWidgets.QWidget):
                     )
 
                     # add new line after each line
-                    lined_gcode = my_gcode.replace("\n", "<br />")
+                    # Paragraph reads its text as markup: the '<', '>' and '&' of the text ('a<b' in a Tcl script,
+                    # a '<T1>' comment) are escaped first, or the PDF fails or loses text; the '<br />' come after
+                    lined_gcode = escape(my_gcode).replace("\n", "<br />")
 
                     styles = getSampleStyleSheet()
                     styleN = styles['Normal']
@@ -433,6 +436,11 @@ class AppTextEditor(QtWidgets.QWidget):
                 self.app.inform.emit('[WARNING] %s' %
                                      _("Permission denied, saving not possible.\n"
                                        "Most likely another app is holding the file open and not accessible."))
+                return
+            except Exception as err:
+                # e.g. an error of reportlab while the PDF is made: a message, not the Critical Error dialog
+                self.app.log.error("AppTextEditor.handleSaveGCode() --> %s" % str(err))
+                self.app.inform.emit('[ERROR_NOTCL] %s: %s' % (_("Could not save the file"), str(err)))
                 return
 
         # Just for adding it to the recent files list.

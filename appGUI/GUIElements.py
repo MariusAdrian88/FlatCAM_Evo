@@ -4874,7 +4874,8 @@ class _BrowserTextEdit(QTextEdit):
         # Find
         self.find_action = QAction('%s\t%s' % (_("Find"), _('Ctrl+F')), self)
         self.menu.addAction(self.find_action)
-        self.find_action.triggered.connect(self.find_text)
+        # find_text is replaced later by the owner (the Tcl shell): look it up when the action runs
+        self.find_action.triggered.connect(self.on_find_action)
 
         self.menu.addSeparator()
 
@@ -4907,6 +4908,9 @@ class _BrowserTextEdit(QTextEdit):
     def on_redo_available(self, state):
         self.isRedoAvailable = state
 
+    def on_find_action(self):
+        self.find_text()
+
     def contextMenuEvent(self, event):
         # self.menu = self.createStandardContextMenu(event.pos())
         tcursor = self.textCursor()
@@ -4934,6 +4938,12 @@ class _BrowserTextEdit(QTextEdit):
     def keyPressEvent(self, event) -> None:
         modifiers = QtWidgets.QApplication.keyboardModifiers()
         key = event.key()
+
+        # the navigation keys scroll the output as in any read-only text; the command line sends PageUp / PageDown here
+        if key in (QtCore.Qt.Key.Key_PageUp, QtCore.Qt.Key.Key_PageDown, QtCore.Qt.Key.Key_Up, QtCore.Qt.Key.Key_Down,
+                   QtCore.Qt.Key.Key_Left, QtCore.Qt.Key.Key_Right, QtCore.Qt.Key.Key_Home, QtCore.Qt.Key.Key_End):
+            super().keyPressEvent(event)
+            return
 
         if modifiers == QtCore.Qt.KeyboardModifier.ControlModifier:
             # Select All

@@ -2430,16 +2430,22 @@ class ToolsDB2(QtWidgets.QWidget):
 
         dict_elem = {'name': new_name}
         tool_diameter = _database_option(self.app, "tools_mill_tooldia")
-        if isinstance(tool_diameter, (int, float)) and not isinstance(tool_diameter, bool):
-            dict_elem['tooldia'] = tool_diameter
-        else:
-            try:
+        try:
+            if isinstance(tool_diameter, (int, float)) and not isinstance(tool_diameter, bool):
+                tools_diameters = [tool_diameter]
+            else:
                 tools_string = tool_diameter.split(",")
-                tools_diameters = [safe_eval(a) for a in tools_string if a != '']
-                dict_elem['tooldia'] = tools_diameters[0] if tools_diameters else 0.0
-            except Exception as e:
-                self.app.log.error("ToolDB.on_tool_add() --> %s" % str(e))
-                return
+                tools_diameters = [safe_eval(a) for a in tools_string if a.strip() != '']
+            # the first diameter: a number above zero, or normalize_tools_database() below raises
+            dict_elem['tooldia'] = _finite_database_number(tools_diameters[0], 'tools_mill_tooldia')
+            if dict_elem['tooldia'] <= 0:
+                raise ValueError('tools_mill_tooldia: the diameter must be greater than zero')
+        except Exception as e:
+            self.app.log.error("ToolDB.on_tool_add() --> %s" % str(e))
+            # name the preference to correct: without a message the button seemed to do nothing
+            self.app.inform.emit('[ERROR_NOTCL] %s > %s > %s: %s' % (
+                _("Preferences"), _("Milling Plugin"), _("Tools Dia"), _("Wrong value format entered, use a number.")))
+            return
 
         dict_elem['data'] = default_data
         default_data['tool_target'] = self.context_target or self.ui.filter_combo.currentData() or 0
@@ -2672,6 +2678,8 @@ class ToolsDB2(QtWidgets.QWidget):
 
         self.ui.name_entry.editingFinished.connect(self.update_tree_name)
         self.ui.dia_entry.editingFinished.connect(self.update_tree_tooldia)
+        self.ui.tol_min_entry.editingFinished.connect(self.on_tolerance_edited)
+        self.ui.tol_max_entry.editingFinished.connect(self.on_tolerance_edited)
 
         for key in self.form_fields:
             wdg = self.form_fields[key]
@@ -2712,6 +2720,11 @@ class ToolsDB2(QtWidgets.QWidget):
             self.ui.dia_entry.editingFinished.disconnect(self.update_tree_tooldia)
         except (TypeError, AttributeError):
             pass
+        for tol_entry in (self.ui.tol_min_entry, self.ui.tol_max_entry):
+            try:
+                tol_entry.editingFinished.disconnect(self.on_tolerance_edited)
+            except (TypeError, AttributeError):
+                pass
 
         try:
             self.ui.mill_shape_combo.currentIndexChanged.disconnect(self.on_calculate_tooldia)
@@ -2779,6 +2792,19 @@ class ToolsDB2(QtWidgets.QWidget):
 
     def update_tree_tooldia(self):
         self.model.update_tool(self.current_toolid)
+
+    def on_tolerance_edited(self):
+        """
+        Keep Min <= Max for the diameter tolerance, which the save requires: a Min typed above Max moves Max up to
+        it, a Max typed below Min moves Min down to it. The other spinner then updates the storage.
+        """
+        tol_min, tol_max = self.ui.tol_min_entry, self.ui.tol_max_entry
+        if tol_min.get_value() <= tol_max.get_value():
+            return
+        if self.sender() is tol_max:
+            tol_min.set_value(tol_max.get_value())
+        else:
+            tol_max.set_value(tol_min.get_value())
 
     def update_storage(self):
         """

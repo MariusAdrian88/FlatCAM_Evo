@@ -542,3 +542,45 @@ def test_new_object_failure_or_abort_releases_the_promise(failure):
     messages = ' '.join(str(c.args[0]) for c in app.inform.emit.call_args_list)
     if failure == 'abort':
         assert 'WARNING_NOTCL' in messages and 'internal error' not in messages and 'Traceback' not in messages
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# The right click that ends the drawing checks the areas against the object geometry
+# ---------------------------------------------------------------------------------------------------------------
+
+def test_an_area_over_the_object_removes_only_that_area(monkeypatch):
+    # the union of the object geometry was made again for each area (seconds for each area of a large object, on
+    # the GUI thread), and 1 area over the object deleted all the areas, also the ones added before
+    import appCommon.Common as common
+    from shapely.ops import unary_union
+    unions = []
+    monkeypatch.setattr(common, 'unary_union', lambda geo: unions.append(geo) or unary_union(geo))
+    app = SimpleNamespace(app_units='MM', log=Mock(), inform=Mock(), plotcanvas=Mock(), call_source='app',
+                          grid_status=lambda: False, delete_selection_shape=Mock(), on_mouse_click_over_plot=Mock(),
+                          on_mouse_move_over_plot=Mock(), on_mouse_click_release_over_plot=Mock())
+    app.plotcanvas.translate_coords = lambda pos: pos
+    exc = ExclusionAreas(app)
+    modified = []
+    exc.e_shape_modified.connect(lambda: modified.append(len(exc.exclusion_areas_storage)))
+    cnc_button = Mock()
+    pads = [box(x, 0, x + 1, 1) for x in range(0, 20, 2)]
+
+    def draw_rectangles(*rectangles):
+        exc.on_add_area_click(shape_button=SimpleNamespace(get_value=lambda: 'square'),
+                              overz_button=SimpleNamespace(get_value=lambda: OVER_Z),
+                              strategy_radio=SimpleNamespace(get_value=lambda: 'over'), cnc_button=cnc_button,
+                              solid_geo=pads, obj_type='geometry')
+        for corner, end in rectangles:
+            exc.on_mouse_release(SimpleNamespace(pos=corner, button=1))
+            exc.on_mouse_release(SimpleNamespace(pos=end, button=1))
+        exc.on_mouse_release(SimpleNamespace(pos=(0, 0), button=2))
+
+    draw_rectangles(((30, 0), (32, 2)), ((40, 0), (42, 2)))
+    assert [area['shape'].bounds for area in exc.exclusion_areas_storage] == [(30, 0, 32, 2), (40, 0, 42, 2)]
+    assert len(unions) == 1 and modified == [2]
+
+    draw_rectangles(((5.5, 0.5), (7, 3)))    # over the pad at x 6 .. 7
+    assert [area['shape'].bounds for area in exc.exclusion_areas_storage] == [(30, 0, 32, 2), (40, 0, 42, 2)]
+    assert app.inform.emit.call_args.args[0].startswith('[ERROR_NOTCL]')
+    assert len(unions) == 2 and modified == [2, 2]
+    assert cnc_button.color == 'orange'
