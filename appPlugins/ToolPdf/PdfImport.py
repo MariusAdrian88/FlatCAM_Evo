@@ -75,7 +75,8 @@ class ToolPDF(AppTool):
                                         self.app.defaults.factory_defaults.get("gerber_circle_steps")
                                     )
                                 ),
-                                abort=self.app.abort_flag,
+                                # read while a file is parsed, so the Stop button can cancel a long parse
+                                abort=lambda: self.app.abort_flag,
                                 hole_detection_mode='both',  # Default: detect on both stroke and fill
                                 options=self.app.options)
 
@@ -150,6 +151,7 @@ class ToolPDF(AppTool):
 
         if self.app.abort_flag:
             # graceful abort requested by the user
+            self.parsing_promises.remove(short_name)
             raise grace
 
         with self.app.proc_container.new('%s...' % _("Parsing")):
@@ -175,7 +177,14 @@ class ToolPDF(AppTool):
                 self.parsing_promises.remove(short_name)
                 return
 
-            self.pdf_parsed[short_name]['pdf'] = self.parser.parse_pdf(pdf_content=self.pdf_decompressed[short_name])
+            try:
+                self.pdf_parsed[short_name]['pdf'] = self.parser.parse_pdf(
+                    pdf_content=self.pdf_decompressed[short_name])
+            except grace:
+                # Stop: this file is not imported; without its promise the rendering of a next import can start
+                self.parsing_promises.remove(short_name)
+                self.pdf_decompressed[short_name] = None
+                raise
             unsupported = getattr(self.parser, 'unsupported_features', set())
             if unsupported:
                 self.app.inform.emit('[WARNING_NOTCL] %s: %s' %

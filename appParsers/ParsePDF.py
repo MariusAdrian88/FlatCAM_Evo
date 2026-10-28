@@ -6,7 +6,7 @@
 # ##########################################################
 
 from dataclasses import dataclass, field
-from typing import List, Tuple, Dict, Any, Optional
+from typing import List, Tuple, Dict, Any, Optional, Callable
 
 from appCommon.Common import GracefulException as grace
 
@@ -56,7 +56,7 @@ class PdfParser:
     DETECT_FILL_ONLY = 'fill_only' # Detect on fill color change only
     DETECT_STROKE_ONLY = 'stroke_only'  # Detect on stroke color change only
 
-    def __init__(self, units: str, resolution: int, abort: bool,
+    def __init__(self, units: str, resolution: int, abort: bool | Callable[[], bool],
                  hole_detection_mode: str = 'both', options: dict | None = None) -> None:
         """
         Initialize PDF Parser.
@@ -65,7 +65,8 @@ class PdfParser:
             units: 'MM' or 'INCH'
             resolution: Steps per circle for arc approximation (the points of a curve; the round ends of the
                         strokes when there are no options)
-            abort: Abort flag for graceful termination
+            abort: Abort flag for graceful termination; a function that returns the flag of the application is
+                   read while the parsing runs (a bool is only the value it had when the parser was made)
             options: the application options: the round ends of the strokes follow the Gerber circle preference
             hole_detection_mode: How to detect excellon holes from PDF
                                  'both' (default) - detect on both stroke and fill color change
@@ -113,6 +114,10 @@ class PdfParser:
         self.unsupported_features = set()
 
         self.point_to_unit_factor = 0.01388888888
+
+    def _aborted(self) -> bool:
+        """True when the user asked to stop (the Stop button sets the abort flag of the application)."""
+        return bool(self.abort_flag()) if callable(self.abort_flag) else bool(self.abort_flag)
 
     def _quad_segs(self, radius: float) -> int:
         """The Shapely quad_segs of a round stroke end of this radius (the Gerber circle preference)."""
@@ -267,7 +272,7 @@ class PdfParser:
         self.unsupported_features = set()
 
         for token in self._tokenize_pdf(pdf_content):
-            if self.abort_flag:
+            if self._aborted():
                 raise grace
 
             if isinstance(token, float):
@@ -442,7 +447,7 @@ class PdfParser:
 
         return self._finalize_object_dict(
             ctx.object_dict, ctx.apertures_dict, ctx.clear_apertures_dict,
-            ctx.layer_nr, self.abort_flag
+            ctx.layer_nr, self._aborted()
         )
 
     def _tokenize_pdf(self, content: str):

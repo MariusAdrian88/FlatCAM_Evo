@@ -41,6 +41,7 @@ tests/test_dxf_import.py::DxfImportTest::test_arc
 tests/test_dxf_import.py::DxfImportTest::test_bad_entity_does_not_stop
 tests/test_dxf_import.py::DxfImportTest::test_circle
 tests/test_dxf_import.py::DxfImportTest::test_ellipse
+tests/test_dxf_import.py::DxfImportTest::test_geometry_import_takes_the_first_of_several_tool_diameters
 tests/test_dxf_import.py::DxfImportTest::test_hatch_hole
 tests/test_dxf_import.py::DxfImportTest::test_insert_transform
 tests/test_dxf_import.py::DxfImportTest::test_invisible_entity_skipped
@@ -323,6 +324,9 @@ tests/test_gerber_parser.py::test_aperture_macro_primitive_geometry
 tests/test_gerber_parser.py::test_aperture_macro_rotation_variables_and_circle_steps
 tests/test_gerber_parser.py::test_hpgl2_non_ascii_comment
 tests/test_gerber_parser.py::test_load_real_gerber_files
+tests/test_gerber_parser.py::test_read_hpgl2_arcs_one_after_the_other
+tests/test_gerber_parser.py::test_read_hpgl2_with_several_tool_diameters
+tests/test_gerber_parser.py::test_read_hpgl2_without_pen_select_and_with_commands_on_one_line
 tests/test_gerber_polygon_aperture.py::test_vertices_are_on_the_circumscribed_circle_around_the_flash_point[45-3]
 tests/test_gerber_polygon_aperture.py::test_vertices_are_on_the_circumscribed_circle_around_the_flash_point[45-6]
 tests/test_gerber_polygon_aperture.py::test_vertices_are_on_the_circumscribed_circle_around_the_flash_point[None-3]
@@ -549,6 +553,7 @@ tests/test_pdf_hole_detection.py::test_gerber_export_roundtrip_keeps_holes_and_i
 tests/test_pdf_hole_detection.py::test_hole_detection_modes
 tests/test_pdf_hole_detection.py::test_parser_even_odd_and_nonzero_winding
 tests/test_pdf_hole_detection.py::test_parser_nested_q_q_transforms
+tests/test_pdf_hole_detection.py::test_stop_cancels_a_long_pdf_parse
 tests/test_pdf_hole_detection.py::test_unsupported_pdf_filter_is_reported
 tests/test_sprint_layout_e2e.py::TestSprintLayoutFixture::test_board_outline_bounds_match_reference
 tests/test_sprint_layout_e2e.py::TestSprintLayoutFixture::test_copper_matches_reference_gerbers
@@ -579,6 +584,7 @@ tests/test_svg_import.py::TestFillRules::test_evenodd_makes_hole
 tests/test_svg_import.py::TestFillRules::test_figure_eight
 tests/test_svg_import.py::TestFillRules::test_nonzero_same_direction_fills
 tests/test_svg_import.py::TestModern::test_errors
+tests/test_svg_import.py::TestModern::test_geometry_import_takes_the_first_of_several_tool_diameters
 tests/test_svg_import.py::TestModern::test_inputs
 tests/test_svg_import.py::TestPaint::test_fill_and_stroke_union
 tests/test_svg_import.py::TestPaint::test_gerber_only_polygons

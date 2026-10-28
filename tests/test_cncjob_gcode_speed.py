@@ -493,3 +493,19 @@ class TestImportedJobParse:
         job.convert_units('IN')
         assert job.gcode == text
         assert max(x for x, __ in points_of(job)) == pytest.approx(10 / 25.4)
+
+
+def test_long_line_is_segmented_for_autolevelling():
+    # the autolevelling segments were made by a recursion, one level for each new point: a 300 mm line in steps of
+    # 0.25 mm failed with RecursionError and the CNC job was not made
+    job = gcode_job('default')
+    job.seg_x = job.seg_y = 0.25
+    gcode = job.linear2gcode(LineString([(0, 0), (300, 0)]), 0.1, tolerance=0)
+    xs = [float(x) for x in re.findall(r'G01 X([-\d.]+) Y0\.0000', gcode)]
+    assert len(xs) == 1200 and xs[-1] == 300.0
+    assert np.diff([0.0] + xs) == pytest.approx(0.25)
+    # a short line keeps its points
+    assert np.array(job.segment([(0, 0), (1, 0.6)])) == pytest.approx(
+        np.array([(0, 0), (0.25, 0.15), (0.5, 0.3), (0.75, 0.45), (1, 0.6)]))
+    assert np.array(job.segment([(0, 0), (0.3, -1.2)])) == pytest.approx(
+        np.array([(0, 0), (0.0625, -0.25), (0.125, -0.5), (0.1875, -0.75), (0.24375, -0.975), (0.3, -1.2)]))

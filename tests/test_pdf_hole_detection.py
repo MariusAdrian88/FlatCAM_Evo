@@ -397,5 +397,38 @@ def test_encrypted_pdf_is_rejected(tmp_path):
         PurePythonPdfParser().extract_content_streams(str(path))
 
 
+def test_stop_cancels_a_long_pdf_parse(tmp_path):
+    # the parser of the plugin kept the value of the abort flag at the plugin install (False): Stop could not cancel
+    # a long parse
+    from PyQt6 import QtWidgets
+    from appCommon.Common import GracefulException
+    from appPlugins.ToolPdf.PdfImport import ToolPDF
+    from tests.helpers_objects import make_app_0b
+
+    global _QT_APP
+    _QT_APP = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    app = make_app_0b()
+    tool = ToolPDF(app)
+    path = tmp_path / 'board.pdf'
+    path.write_bytes(b'%PDF-1.4')
+
+    def extract(filename, stop):
+        app.abort_flag = stop     # the user presses Stop while the file is read
+        return '0 0 10 10 re f\n' * 2000
+
+    for stop in (True, False):
+        app.abort_flag = False    # (the application resets it when it is idle again)
+        tool.pdf_stream_parser = SimpleNamespace(name='test', is_available=lambda: True,
+                                                 extract_content_streams=lambda filename: extract(filename, stop))
+        if stop:
+            with pytest.raises(GracefulException):
+                tool.open_pdf(str(path))
+        else:
+            tool.open_pdf(str(path))
+            assert _all_solids(tool.pdf_parsed['board.pdf']['pdf']).area == pytest.approx(100 * (25.4 / 72) ** 2)
+        # the promise is gone: the rendering of the files (also of a next import) can start
+        assert tool.parsing_promises == []
+
+
 if __name__ == '__main__':
     sys.exit(pytest.main([__file__]))

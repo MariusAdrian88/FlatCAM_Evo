@@ -6,7 +6,7 @@
 # MIT Licence                                                #
 # ############################################################
 
-from camlib import arc, three_point_circle, grace, object_circle_steps, circle_quad_segs
+from camlib import arc, three_point_circle, grace, object_circle_steps, circle_quad_segs, first_tool_dia
 
 import numpy as np
 import re
@@ -47,6 +47,56 @@ class HPGL2:
         """How to approximate a circle with lines: the segments of a full circle of this radius (in the file units),
         as the preferences "Circles" of Geometry set them."""
         return object_circle_steps(self.app.options, 'geometry', radius, self.units)
+
+    def _new_tool(self):
+        """The storage of one pen (tool) of the file."""
+        return {
+            'tooldia': float('%.*f' % (self.decimals, first_tool_dia(self._get_app_option('tools_mill_tooldia')))),
+            'offset': 'Path',
+            'offset_value': 0.0,
+            'type': 'Iso',
+            'tool_type': 'C1',
+            'data': deepcopy(self.default_data),
+            'solid_geometry': list()
+        }
+
+    def _commands(self, glines):
+        """
+        Yields (line number, command) for each command of the lines and keeps the lines in source_file.
+
+        A plotter driver writes many commands on one line, each ended by ';'. PU, PD and PA can carry a list of
+        absolute points: they are yielded as the pen command (PU, PD) followed by one PA move for each point, the form
+        that parse_lines() reads. The relative points (PR) are not supported, they are yielded as they are.
+
+        :param glines:  the lines of the HPGL2 file
+        :return:        generator of (int, str)
+        """
+        relative = False
+        for line_num, gline in enumerate(glines, start=1):
+            self.source_file += gline + '\n'
+
+            for cmd in gline.split(';'):
+                cmd = cmd.strip(' \t\r\n')
+                if not cmd:
+                    continue
+
+                match = self.point_list_re.search(cmd)
+                if not match:
+                    yield line_num, cmd
+                    continue
+
+                op = match.group(1)
+                if op in ('PA', 'PR'):
+                    relative = op == 'PR'
+                numbers = [nr.lstrip('+') for nr in self.number_re.findall(match.group(2))]
+                if relative or not numbers or len(numbers) % 2:
+                    yield line_num, cmd
+                    continue
+
+                if op != 'PA':
+                    yield line_num, op
+                for i in range(0, len(numbers), 2):
+                    yield line_num, 'PA%s,%s' % (numbers[i], numbers[i + 1])
 
     def __init__(self, app):
         """
@@ -163,6 +213,10 @@ class HPGL2:
         # Arc interpolation with 3 points
         self.arc_3pt_re = re.compile(r"^AT\s*([+-]?\d+),?\s*([+-]?\d+),?\s*([+-]?\d+),?\s*([+-]?\d+);?$")
 
+        # pen up / pen down / absolute / relative move with a list of points (PD10,10,20,10)
+        self.point_list_re = re.compile(r"^(PU|PD|PA|PR)\s*([-+\d.,\s]*)$")
+        self.number_re = re.compile(r"[-+]?\d+\.?\d*")
+
         self.init_done = None
 
     def parse_file(self, filename):
@@ -210,19 +264,25 @@ class HPGL2:
         # store the current tool here
         current_tool = None
 
+        def tool_geometry():
+            # a file can draw before it selects a pen (no SP): that drawing goes to pen 1
+            nonlocal current_tool
+            if current_tool is None:
+                current_tool = '1'
+                if current_tool not in self.tools:
+                    self.tools[current_tool] = self._new_tool()
+            return self.tools[current_tool]['solid_geometry']
+
         # ### Parsing starts here ## ##
         line_num = 0
         gline = ""
 
         self.app.inform.emit('%s %d %s.' % (_("HPGL2 processing. Parsing"), len(glines), _("Lines").lower()))
         try:
-            for gline in glines:
+            for line_num, gline in self._commands(glines):
                 if self.app.abort_flag:
                     # graceful abort requested by the user
                     raise grace
-
-                line_num += 1
-                self.source_file += gline + '\n'
 
                 # Cleanup #
                 gline = gline.strip(' \r\n')
@@ -248,30 +308,17 @@ class HPGL2:
                     match = self.sp_re.search(gline)
                     if match:
                         tool = match.group(1)
-                        # self.tools[tool] = {}
-                        self.tools.update({
-                            tool: {
-                                'tooldia': float('%.*f' %
-                                                 (
-                                                     self.decimals,
-                                                     float(self._get_app_option('tools_mill_tooldia'))
-                                                 )
-                                                 ),
-                                'offset': 'Path',
-                                'offset_value': 0.0,
-                                'type': 'Iso',
-                                'tool_type': 'C1',
-                                'data': deepcopy(self.default_data),
-                                'solid_geometry': list()
-                            }
-                        })
 
-                        if current_tool:
-                            if path:
-                                geo = LineString(path)
-                                self.tools[current_tool]['solid_geometry'].append(geo)
-                                geo_buffer.append(geo)
-                                path[:] = []
+                        # the path drawn so far belongs to the pen used until now; the pen stays where it is
+                        if len(path) > 1:
+                            geo = LineString(path)
+                            tool_geometry().append(geo)
+                            geo_buffer.append(geo)
+                            path[:] = [path[-1]]
+
+                        # a pen selected again keeps what it drew before
+                        if tool not in self.tools:
+                            self.tools[tool] = self._new_tool()
 
                         current_tool = tool
                         continue
@@ -303,7 +350,7 @@ class HPGL2:
                             # if linear_x or linear_y are None, ignore those
                             if current_x is not None and current_y is not None:
                                 # only add the point if it's a new one otherwise skip it (harder to process)
-                                if path[-1] != [current_x, current_y]:
+                                if not path or path[-1] != [current_x, current_y]:
                                     path.append([current_x, current_y])
                             else:
                                 self.app.inform.emit('[WARNING] %s: %s' %
@@ -312,7 +359,7 @@ class HPGL2:
                         elif pen_status == 'up':
                             if len(path) > 1:
                                 geo = LineString(path)
-                                self.tools[current_tool]['solid_geometry'].append(geo)
+                                tool_geometry().append(geo)
                                 geo_buffer.append(geo)
                                 path[:] = []
 
@@ -331,7 +378,7 @@ class HPGL2:
                     if match:
                         if len(path) > 1:
                             geo = LineString(path)
-                            self.tools[current_tool]['solid_geometry'].append(geo)
+                            tool_geometry().append(geo)
                             geo_buffer.append(geo)
                             path[:] = []
 
@@ -347,7 +394,7 @@ class HPGL2:
                             geo = Point((current_x, current_y)).buffer(
                                 radius, circle_quad_segs(self.circle_steps(radius)))
                             geo_line = geo.exterior
-                            self.tools[current_tool]['solid_geometry'].append(geo_line)
+                            tool_geometry().append(geo_line)
                             geo_buffer.append(geo_line)
                             continue
 
@@ -356,7 +403,7 @@ class HPGL2:
                     if match:
                         if len(path) > 1:
                             geo = LineString(path)
-                            self.tools[current_tool]['solid_geometry'].append(geo)
+                            tool_geometry().append(geo)
                             geo_buffer.append(geo)
                             path[:] = []
 
@@ -379,12 +426,13 @@ class HPGL2:
 
                             geo = LineString(arc(center, radius, startangle, stopangle, arcdir,
                                                  self.circle_steps(radius)))
-                            self.tools[current_tool]['solid_geometry'].append(geo)
+                            tool_geometry().append(geo)
                             geo_buffer.append(geo)
 
-                            line_coords = list(geo.coords)
-                            current_x = line_coords[0]
-                            current_y = line_coords[1]
+                            # the pen is now at the end of the arc: a next arc or move starts there
+                            current_x, current_y = geo.coords[-1]
+                            linear_x, linear_y = current_x, current_y
+                            path = [[current_x, current_y]]
                             continue
 
                     # Arc interpolation with 3 points
@@ -392,7 +440,7 @@ class HPGL2:
                     if match:
                         if len(path) > 1:
                             geo = LineString(path)
-                            self.tools[current_tool]['solid_geometry'].append(geo)
+                            tool_geometry().append(geo)
                             geo_buffer.append(geo)
                             path[:] = []
 
@@ -404,32 +452,44 @@ class HPGL2:
                                                  (_("Coordinates missing, line ignored"), str(gline)))
 
                         if current_x is not None and current_y is not None:
-                            p1 = [current_x, current_y]
-                            p3 = [parse_number(match.group(1)), parse_number(match.group(2))]
-                            p2 = [parse_number(match.group(3)), parse_number(match.group(4))]
+                            # AT: the intermediate point, then the end point
+                            p1 = np.array([current_x, current_y])
+                            p_inter = np.array([parse_number(match.group(1)), parse_number(match.group(2))])
+                            p_end = np.array([parse_number(match.group(3)), parse_number(match.group(4))])
 
-                            try:
-                                center, radius, t = three_point_circle(p1, p2, p3)
-                            except TypeError:
-                                return
+                            circle = three_point_circle(p1, p_inter, p_end)
+                            if circle is None:
+                                # the 3 points are on one line: a line to the end point
+                                geo = LineString([p1, p_end])
+                            else:
+                                center, radius, __ = circle
+                                # 3 points in their order along a counterclockwise arc turn counterclockwise
+                                turn = ((p_inter[0] - p1[0]) * (p_end[1] - p1[1]) -
+                                        (p_inter[1] - p1[1]) * (p_end[0] - p1[0]))
+                                direction = 'ccw' if turn > 0 else 'cw'
 
-                            direction = 'cw' if np.sign(t) > 0 else 'ccw'
+                                startangle = np.arctan2(p1[1] - center[1], p1[0] - center[0])
+                                stopangle = np.arctan2(p_end[1] - center[1], p_end[0] - center[0])
 
-                            startangle = np.arctan2(p1[1] - center[1], p1[0] - center[0])
-                            stopangle = np.arctan2(p3[1] - center[1], p3[0] - center[0])
-
-                            geo = LineString(arc(center, radius, startangle, stopangle,
-                                                 direction, self.circle_steps(radius)))
-                            self.tools[current_tool]['solid_geometry'].append(geo)
+                                geo = LineString(arc(center, radius, startangle, stopangle,
+                                                     direction, self.circle_steps(radius)))
+                            tool_geometry().append(geo)
                             geo_buffer.append(geo)
 
-                            # p2 is the end point for the 3-pt circle
-                            current_x = p2[0]
-                            current_y = p2[1]
+                            # the pen is now at the end point: a next arc or move starts there
+                            current_x, current_y = float(p_end[0]), float(p_end[1])
+                            linear_x, linear_y = current_x, current_y
+                            path = [[current_x, current_y]]
                             continue
 
                 # ## Line did not match any pattern. Warn user.
                 self.app.log.warning("Line ignored (%d): %s" % (line_num, gline))
+
+            # the last path, when the file ends without a pen up move after it
+            if len(path) > 1:
+                geo = LineString(path)
+                tool_geometry().append(geo)
+                geo_buffer.append(geo)
 
             if not geo_buffer and not self.solid_geometry:
                 self.app.log.error("Object is not HPGL2 file or empty. Aborting Object creation.")

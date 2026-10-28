@@ -622,6 +622,54 @@ def test_aperture_macro_rotation_variables_and_circle_steps():
     assert unrotated.bounds == pytest.approx((-0.6, -0.6, 0.6, 0.6), abs=1e-9)
 
 
+def test_read_hpgl2_with_several_tool_diameters():
+    # the Milling "Tools Dia" preference is a list of diameters ("0.3, 1.0"); float() of it failed the import
+    from appParsers.ParseHPGL2 import HPGL2
+    for value, dia in (('0.3, 1.0', 0.3), (2.4, 2.4)):
+        app = MockApp()
+        app.options['tools_mill_tooldia'] = value
+        hpgl = HPGL2(app)
+        hpgl.parse_lines(['IN;', 'SP1;', 'PU;', 'PA0,0;', 'PD;', 'PA4000,0;', 'PU;', 'PA0,0;'])
+        assert hpgl.tools['1']['tooldia'] == dia
+        assert list(hpgl.solid_geometry.coords) == [(0, 0), (100, 0)]
+
+
+def read_hpgl2(lines):
+    from appParsers.ParseHPGL2 import HPGL2
+    app = MockApp()
+    app.options['tools_mill_tooldia'] = 0.1
+    hpgl = HPGL2(app)
+    hpgl.parse_lines(lines)
+    return hpgl
+
+
+def test_read_hpgl2_arcs_one_after_the_other():
+    # after an AA arc the pen position was the first 2 points of the arc (a TypeError at the next arc), and an AT arc
+    # failed always: the import made no object
+    hpgl = read_hpgl2(['IN;', 'SP1;', 'PU;', 'PA0,0;', 'PD;', 'PA4000,0;', 'AA4000,400,90;', 'AA4800,400,-90;',
+                       'PA4800,1600;', 'AT6000,2800,7200,1600;', 'PU;', 'PA0,0;'])
+    # a line, 2 quarter circles of r = 10, a line and a half circle of r = 30 above (120, 40)-(180, 40)
+    assert hpgl.solid_geometry.bounds == pytest.approx((0, 0, 180, 70), abs=1e-6)
+    assert hpgl.solid_geometry.length == pytest.approx(100 + 2 * 5 * math.pi + 20 + 30 * math.pi, rel=0.005)
+    end_points = [line.coords[-1] for line in hpgl.tools['1']['solid_geometry']]
+    expected = [(100, 0), (110, 10), (120, 20), (120, 40), (180, 40)]
+    assert len(end_points) == len(expected)
+    for point, expected_point in zip(end_points, expected):
+        assert point == pytest.approx(expected_point, abs=1e-6)
+
+
+def test_read_hpgl2_without_pen_select_and_with_commands_on_one_line():
+    # a file that draws before any SP failed with KeyError(None); commands on one line, the usual output of the
+    # plotter drivers, were never split and nothing was imported
+    for lines in (['IN;', 'PU;', 'PA0,0;', 'PD;', 'PA4000,0;', 'PA4000,4000;', 'PU;', 'PA0,0;'],
+                  ['IN;SP1;PU0,0;PD4000,0,4000,4000;PU;SP0;'],
+                  ['IN;PU0,0', 'PD4000,0;PD4000,4000']):
+        hpgl = read_hpgl2(lines)
+        assert list(hpgl.solid_geometry.coords) == [(0, 0), (100, 0), (100, 100)], lines
+        assert len(hpgl.tools['1']['solid_geometry']) == 1
+        assert hpgl.source_file == ''.join(line + '\n' for line in lines)
+
+
 def test_load_real_gerber_files():
     """Test loading actual Gerber files from test_files directory."""
     test_dir = os.path.dirname(os.path.abspath(__file__))

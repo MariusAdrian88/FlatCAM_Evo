@@ -196,6 +196,23 @@ class DxfImportTest(unittest.TestCase):
         self.assertAlmostEqual(big.area, math.pi * 400, delta=0.5)
         self.assertAlmostEqual(point.area, math.pi * 0.01 ** 2, places=4)
 
+    def test_geometry_import_takes_the_first_of_several_tool_diameters(self):
+        # the Milling "Tools Dia" preference is a list of diameters ("0.3, 1.0"); float() of it failed the import
+        import tempfile
+        from camlib import Geometry
+        from tests.helpers_objects import make_app_0b
+        doc, msp = new_doc()
+        msp.add_line((0, 0), (10, 0))
+        with tempfile.TemporaryDirectory() as d:
+            path = str(Path(d) / 'a.dxf')
+            doc.saveas(path)
+            for value, dia in (('0.3, 1.0', 0.3), ('1.0', 1.0), (2.4, 2.4)):
+                geo = Geometry(make_app_0b(tools_mill_tooldia=value))
+                geo.obj_options = {'name': 'a.dxf'}
+                geo.import_dxf_as_geo(path, units='MM')
+                self.assertEqual(geo.tools[1]['tooldia'], dia)
+                self.assertEqual([g.length for g in geo.tools[1]['solid_geometry']], [10])
+
 
 if __name__ == '__main__':
     unittest.main()

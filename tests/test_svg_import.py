@@ -214,6 +214,21 @@ class TestModern(unittest.TestCase):
         with self.assertRaises(SvgImportError):
             svg_to_shapes(12345)
 
+    def test_geometry_import_takes_the_first_of_several_tool_diameters(self):
+        # the Milling "Tools Dia" preference is a list of diameters ("0.3, 1.0"); float() of it failed the import
+        from camlib import Geometry
+        from tests.helpers_objects import make_app_0b
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, 'a.svg')
+            with open(p, 'w', encoding='utf-8') as f:
+                f.write(svg('<rect x="10" y="10" width="40" height="20" fill="none" stroke="black"/>'))
+            for value, dia in (('0.3, 1.0', 0.3), ('1.0', 1.0), (2.4, 2.4)):
+                geo = Geometry(make_app_0b(tools_mill_tooldia=value))
+                geo.obj_options = {'name': 'a.svg'}
+                geo.import_svg(p, 'geometry', units='MM')
+                self.assertEqual(geo.tools[1]['tooldia'], dia)
+                self.assertTrue(geo.tools[1]['solid_geometry'])
+
 
 def _fonts_available():
     try:
