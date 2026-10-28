@@ -194,6 +194,11 @@ class TestDragReorder(unittest.TestCase):
         excellon_row = self.col.index(0, 0, excellon)
         self.assertIsNone(self.col.mimeData([self.col.index(0, 0, self._group_index("gerber")), excellon_row]))
 
+    def test_objects_of_a_later_category_can_be_dragged(self):
+        data = self.col.mimeData([self.col.index(0, 0, self._group_index("excellon"))])
+        excellon = self._group_index("excellon")
+        self.assertTrue(self.col.canDropMimeData(data, QtCore.Qt.DropAction.MoveAction, 0, -1, excellon))
+
 
 class TestScriptEditorOwnership(unittest.TestCase):
     def test_delete_routes_close_only_the_owned_editor_after_rename(self):

@@ -831,7 +831,8 @@ class ObjectCollection(QtCore.QAbstractItemModel):
         if len(groups) != 1:
             return None
 
-        kind = next(k for k, group in self.group_items.items() if group is groups.pop())
+        dragged_group = groups.pop()
+        kind = next(k for k, group in self.group_items.items() if group is dragged_group)
         mime = QtCore.QMimeData()
         mime.setData(ObjectCollection.PROJECT_MIME,
                      QtCore.QByteArray(json.dumps({"kind": kind, "rows": sorted(rows)}).encode()))
