@@ -13,7 +13,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
-from shapely import Point, Polygon
+from shapely import Point, Polygon, box
 from shapely.ops import unary_union
 
 from appParsers.ParsePDF import PdfParser
@@ -419,15 +419,223 @@ def test_stop_cancels_a_long_pdf_parse(tmp_path):
     for stop in (True, False):
         app.abort_flag = False    # (the application resets it when it is idle again)
         tool.pdf_stream_parser = SimpleNamespace(name='test', is_available=lambda: True,
-                                                 extract_content_streams=lambda filename: extract(filename, stop))
+                                                 extract_page_streams=lambda filename: [extract(filename, stop)])
         if stop:
             with pytest.raises(GracefulException):
                 tool.open_pdf(str(path))
         else:
             tool.open_pdf(str(path))
-            assert _all_solids(tool.pdf_parsed['board.pdf']['pdf']).area == pytest.approx(100 * (25.4 / 72) ** 2)
+            page = tool.pdf_parsed['board.pdf']['pages'][0]
+            assert _all_solids(page).area == pytest.approx(100 * (25.4 / 72) ** 2)
         # the promise is gone: the rendering of the files (also of a next import) can start
         assert tool.parsing_promises == []
+
+
+def _reportlab_pdf(path, kinds):
+    """A 200 x 200 pt PDF with one page per kind: 'rect' (red), 'circle' (green at 100, 100, r 20) or 'blank'."""
+    from reportlab.pdfgen import canvas
+
+    c = canvas.Canvas(str(path), pagesize=(200, 200))
+    for kind in kinds:
+        if kind == 'rect':
+            c.setFillColorRGB(1, 0, 0)
+            c.rect(10, 10, 50, 50, fill=1, stroke=0)
+        elif kind == 'circle':
+            c.setFillColorRGB(0, 1, 0)
+            c.circle(100, 100, 20, fill=1, stroke=0)
+        c.showPage()
+    c.save()
+    return str(path)
+
+
+def _open_pdf(filename, parser=None):
+    """Open and render a PDF with the stub app of _make_tool; returns {object name: object}."""
+    tool, _ = _make_tool()
+    named = {}
+    orig_new_object = tool.app.app_obj.new_object
+
+    def new_object(kind, name, init, **kwargs):
+        obj = orig_new_object(kind, name, init, **kwargs)
+        named[name] = obj
+        return obj
+
+    from appParsers.ParsePDF import PdfParser
+
+    tool.app.app_obj.new_object = new_object
+    tool.app.abort_flag = False
+    tool.app.worker_task = SimpleNamespace(emit=lambda d: d['fcn'](*d['params']))
+    tool.parsing_promises = []
+    tool.pdf_parsed = {}
+    tool.pdf_decompressed = {}
+    tool.parser = PdfParser(units='MM', resolution=64, abort=False)
+    tool.pdf_stream_parser = parser or PurePythonPdfParser()
+    tool.check_thread = SimpleNamespace(stop=lambda: None)
+    tool.open_pdf(filename)
+    tool.periodic_check_handler()
+    return named
+
+
+@pytest.mark.parametrize('parser_class', [PurePythonPdfParser, PikePdfParser])
+def test_every_page_is_extracted_in_order(tmp_path, parser_class):
+    parser = parser_class()
+    if not parser.is_available():
+        pytest.skip('pikepdf is not installed')
+    pages = parser.extract_page_streams(_reportlab_pdf(tmp_path / 'three.pdf', ['rect', 'blank', 'circle']))
+    assert len(pages) == 3
+    # reportlab writes only a transform on a blank page: no path is painted there
+    assert ' re' not in pages[1]
+    assert ' re' in pages[0]
+    assert pages[2].strip() and ' re' not in pages[2]
+
+
+def test_single_page_pdf_gets_plain_layer_names(tmp_path):
+    named = _open_pdf(_reportlab_pdf(tmp_path / 'one.pdf', ['rect']))
+    assert named
+    assert all(name.startswith('one.pdf_') and '_p' not in name for name in named)
+
+
+def test_each_page_gets_its_suffix_and_a_blank_page_gives_nothing(tmp_path):
+    named = _open_pdf(_reportlab_pdf(tmp_path / 'three.pdf', ['rect', 'blank', 'circle']))
+    assert any('_p1' in name for name in named)
+    assert any('_p3' in name for name in named)
+    assert not any('_p2' in name for name in named)
+    page3 = [obj for name, obj in named.items() if '_p3' in name]
+    assert len(page3) == 1
+    # the circle of page 3 (80..120 pt on both axes) in mm
+    assert unary_union(page3[0].solid_geometry).bounds == pytest.approx(
+        (80 * 25.4 / 72, 80 * 25.4 / 72, 120 * 25.4 / 72, 120 * 25.4 / 72), abs=0.05)
+
+
+def test_failing_page_does_not_stop_the_other_pages(tmp_path):
+    class FailingFirstPage(PurePythonPdfParser):
+        def extract_page_streams(self, filename):
+            pages = super().extract_page_streams(filename)
+            pages[0] = PdfParserError('boom')
+            return pages
+
+    named = _open_pdf(_reportlab_pdf(tmp_path / 'three.pdf', ['rect', 'blank', 'circle']), FailingFirstPage())
+    assert any('_p3' in name for name in named)
+    assert not any('_p1' in name for name in named)
+
+
+def _mm(*values_pt):
+    return tuple(value * 25.4 / 72 for value in values_pt)
+
+
+def test_stroke_is_cut_to_the_clip_rectangle():
+    # a 100 mm line under a clip rectangle that spans the 40..60 mm band
+    stream = '0 0 0 RG 2 w q 113.3858 -20 56.6929 40 re W n 0 0 m 283.4646 0 l S Q'
+    min_x, _, max_x, _ = _all_solids(_parse(stream, units='MM')).bounds
+    assert (min_x, max_x) == pytest.approx((40.0, 60.0), abs=1e-3)
+
+
+def test_clip_ends_at_q_and_clipped_fill_is_the_intersection():
+    # A is filled 0..20 under a 0..10 clip: only the 10 x 10 overlap stays; B is drawn after Q
+    stream = 'q 0 0 10 10 re W n 0 0 20 20 re f Q 50 50 10 10 re f'
+    solid = _all_solids(_parse(stream, units='MM'))
+    expected = unary_union([box(*_mm(0, 0, 10, 10)), box(*_mm(50, 50, 60, 60))])
+    assert solid.symmetric_difference(expected).area == pytest.approx(0.0, abs=1e-6)
+
+
+def test_even_odd_clip_leaves_only_the_frame():
+    stream = 'q 0 0 20 20 re 5 5 10 10 re W* n 0 0 100 100 re f Q'
+    solid = _all_solids(_parse(stream))
+    assert solid.area * 72 ** 2 == pytest.approx(300.0, abs=1e-6)
+    assert solid.covers(Point(2 / 72, 2 / 72))
+    assert not solid.intersects(Point(10 / 72, 10 / 72))
+
+
+@pytest.mark.parametrize('parser_class', [PurePythonPdfParser, PikePdfParser])
+def test_form_xobject_clip_is_scoped_to_the_form(tmp_path, parser_class):
+    parser = parser_class()
+    if not parser.is_available():
+        pytest.skip('pikepdf is not installed')
+    # P0 is painted under a clip set outside it; P1 sets its own clip, which must end with P1
+    page = b'q 0 0 10 10 re W n /P0 Do Q /P1 Do 60 60 10 10 re f'
+    pdf = _xref_pdf({
+        1: b'<</Type/Catalog/Pages 2 0 R>>',
+        2: b'<</Type/Pages/Count 1/Kids [3 0 R]>>',
+        3: b'<</Type/Page/Parent 2 0 R/MediaBox [0 0 100 100]'
+           b'/Resources <</XObject <</P0 5 0 R/P1 6 0 R>>>>/Contents 4 0 R>>',
+        4: _stream(b'', page),
+        5: _stream(b'/Type/XObject/Subtype/Form/BBox [0 0 100 100]', b'0 0 30 30 re f'),
+        6: _stream(b'/Type/XObject/Subtype/Form/BBox [0 0 100 100]',
+                   b'50 50 5 5 re W n 50 50 8 8 re f'),
+    })
+    path = tmp_path / 'form_clip.pdf'
+    path.write_bytes(pdf)
+    solid = _all_solids(_parse(parser.extract_content_streams(str(path))))
+    # 10 x 10 of P0 + 5 x 5 of P1 + the 10 x 10 square after both forms
+    assert solid.area * 72 ** 2 == pytest.approx(225.0, abs=1e-6)
+
+
+def _layered_pdf(path, content, config, props=b'', xobjects=b'', extra=None):
+    """One page with the OCGs Top (5 0 R) and Notes (6 0 R); config is the body of the /D dictionary."""
+    direct = {
+        1: b'<</Type/Catalog/Pages 2 0 R/OCProperties <</OCGs [5 0 R 6 0 R]/D ' + config + b'>>>>',
+        2: b'<</Type/Pages/Count 1/Kids [3 0 R]>>',
+        3: b'<</Type/Page/Parent 2 0 R/MediaBox [0 0 100 100]/Contents 4 0 R'
+           b'/Resources <</Properties <</Top 5 0 R/Notes 6 0 R' + props + b'>>' + xobjects + b'>>>>',
+        4: _stream(b'', content),
+        5: b'<</Type/OCG/Name (Top)>>',
+        6: b'<</Type/OCG/Name (Notes)>>',
+    }
+    direct.update(extra or {})
+    path.write_bytes(_xref_pdf(direct))
+    return str(path)
+
+
+def _drawn(named):
+    geometries = []
+    for obj in named.values():
+        geometries.extend(obj.solid_geometry if isinstance(obj.solid_geometry, list) else [obj.solid_geometry])
+    return unary_union(geometries)
+
+
+@pytest.mark.parametrize('config', [
+    b'<</BaseState/ON/OFF [6 0 R]>>',
+    b'<</BaseState/OFF/ON [5 0 R]>>',
+], ids=['notes-off', 'base-off'])
+def test_hidden_layer_content_is_not_imported(tmp_path, config):
+    content = b'/OC /Top BDC 10 10 30 30 re f EMC /OC /Notes BDC 60 60 20 20 re f EMC'
+    named = _open_pdf(_layered_pdf(tmp_path / 'layers.pdf', content, config))
+    assert _drawn(named).bounds == pytest.approx(_mm(10, 10, 40, 40), abs=1e-3)
+
+
+def test_hidden_outer_layer_hides_the_nested_one(tmp_path):
+    # Top is hidden and Notes is visible: the Notes square is still inside a hidden layer
+    content = b'10 10 30 30 re f /OC /Top BDC /OC /Notes BDC 60 60 20 20 re f EMC EMC'
+    named = _open_pdf(_layered_pdf(tmp_path / 'nested.pdf', content, b'<</BaseState/ON/OFF [5 0 R]>>'))
+    assert _drawn(named).bounds == pytest.approx(_mm(10, 10, 40, 40), abs=1e-3)
+
+
+@pytest.mark.parametrize('policy, visible', [(b'/AnyOn', True), (b'/AllOn', False)])
+def test_membership_dictionary_policy_decides_visibility(tmp_path, policy, visible):
+    # Top is on and Notes is off
+    extra = {7: b'<</Type/OCMD/OCGs [5 0 R 6 0 R]/P ' + policy + b'>>'}
+    content = b'/OC /Both BDC 60 60 20 20 re f EMC'
+    named = _open_pdf(_layered_pdf(tmp_path / 'ocmd.pdf', content, b'<</BaseState/ON/OFF [6 0 R]>>',
+                                   props=b'/Both 7 0 R', extra=extra))
+    drawn = _drawn(named)
+    if visible:
+        assert drawn.bounds == pytest.approx(_mm(60, 60, 80, 80), abs=1e-3)
+    else:
+        assert drawn.is_empty
+
+
+def test_form_xobject_with_a_hidden_oc_is_skipped(tmp_path):
+    form = _stream(b'/Type/XObject/Subtype/Form/BBox [0 0 100 100]/OC 6 0 R', b'60 60 20 20 re f')
+    content = b'10 10 30 30 re f /F Do'
+    named = _open_pdf(_layered_pdf(tmp_path / 'form_oc.pdf', content, b'<</BaseState/ON/OFF [6 0 R]>>',
+                                   xobjects=b'/XObject <</F 8 0 R>>', extra={8: form}))
+    assert _drawn(named).bounds == pytest.approx(_mm(10, 10, 40, 40), abs=1e-3)
+
+
+def test_unresolvable_marked_content_stays_visible(tmp_path):
+    # /Missing names no property, so its square is kept; Notes (off) is hidden
+    content = b'/OC /Missing BDC 60 60 20 20 re f EMC /OC /Notes BDC 10 10 30 30 re f EMC'
+    named = _open_pdf(_layered_pdf(tmp_path / 'missing.pdf', content, b'<</BaseState/ON/OFF [6 0 R]>>'))
+    assert _drawn(named).bounds == pytest.approx(_mm(60, 60, 80, 80), abs=1e-3)
 
 
 if __name__ == '__main__':

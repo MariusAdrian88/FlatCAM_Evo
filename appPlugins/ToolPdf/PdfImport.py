@@ -143,11 +143,12 @@ class ToolPDF(AppTool):
         self.parsing_promises.append(short_name)
 
         self.pdf_parsed[short_name] = {
-            'pdf': {},
+            'pages': [],
+            'page_count': 0,
             'filename': filename
         }
 
-        self.pdf_decompressed[short_name] = ''
+        self.pdf_decompressed[short_name] = []
 
         if self.app.abort_flag:
             # graceful abort requested by the user
@@ -157,9 +158,9 @@ class ToolPDF(AppTool):
         with self.app.proc_container.new('%s...' % _("Parsing")):
             # Use pluggable parser instead of direct pikepdf
             try:
-                decomp_file = self.pdf_stream_parser.extract_content_streams(filename)
-                self.pdf_decompressed[short_name] = decomp_file
-                
+                # one entry for each page: the content text or the error of that page
+                self.pdf_decompressed[short_name] = self.pdf_stream_parser.extract_page_streams(filename)
+
             except PdfParserError as e:
                 self.app.log.error(f"PDF parsing failed: {str(e)}")
                 self.app.inform.emit('[ERROR_NOTCL] %s: %s' % (_("Failed to open PDF"), str(e)))
@@ -171,27 +172,69 @@ class ToolPDF(AppTool):
                 self.parsing_promises.remove(short_name)
                 return
 
-            if self.pdf_decompressed[short_name] == '':
-                self.app.inform.emit('[ERROR_NOTCL] %s: %s' % (_("Failed to open"), str(filename)))
-                self.app.log.debug("ToolPDF.open_pdf().obj_init() --> Empty file or error on decompression")
+            pages = self.pdf_decompressed[short_name]
+            page_count = len(pages)
+            if not any(isinstance(page, str) and page.strip() for page in pages):
+                # no page has content: report the error of the first page, like a single page PDF
+                for page in pages:
+                    if isinstance(page, PdfParserError):
+                        self.app.log.error(f"PDF parsing failed: {str(page)}")
+                        self.app.inform.emit('[ERROR_NOTCL] %s: %s' % (_("Failed to open PDF"), str(page)))
+                        break
+                else:
+                    self.app.inform.emit('[ERROR_NOTCL] %s: %s' % (_("Failed to open"), str(filename)))
+                    self.app.log.debug("ToolPDF.open_pdf().obj_init() --> Empty file or error on decompression")
+                self.pdf_decompressed[short_name] = None
                 self.parsing_promises.remove(short_name)
                 return
 
+            # every page is parsed on its own, with a fresh state
+            parsed_pages = []
+            unsupported = set()
             try:
-                self.pdf_parsed[short_name]['pdf'] = self.parser.parse_pdf(
-                    pdf_content=self.pdf_decompressed[short_name])
+                for page_nr, page in enumerate(pages, start=1):
+                    if self.app.abort_flag:
+                        # graceful abort requested by the user
+                        raise grace
+
+                    if isinstance(page, PdfParserError):
+                        self.app.log.error(f"PDF page {page_nr} parsing failed: {str(page)}")
+                        self.app.inform.emit('[WARNING_NOTCL] %s %d: %s' %
+                                             (_("Failed to read PDF page"), page_nr, str(page)))
+                        parsed_pages.append({})
+                        continue
+                    if not page.strip():
+                        parsed_pages.append({})
+                        continue
+
+                    try:
+                        parsed_pages.append(self.parser.parse_pdf(pdf_content=page))
+                    except grace:
+                        raise
+                    except Exception as e:
+                        self.app.log.error(f"PDF page {page_nr} parsing failed: {str(e)}")
+                        self.app.inform.emit('[WARNING_NOTCL] %s %d: %s' %
+                                             (_("Failed to read PDF page"), page_nr, str(e)))
+                        parsed_pages.append({})
+                        continue
+                    unsupported |= set(getattr(self.parser, 'unsupported_features', set()))
             except grace:
                 # Stop: this file is not imported; without its promise the rendering of a next import can start
                 self.parsing_promises.remove(short_name)
                 self.pdf_decompressed[short_name] = None
                 raise
-            unsupported = getattr(self.parser, 'unsupported_features', set())
+
+            self.pdf_parsed[short_name]['pages'] = parsed_pages
+            self.pdf_parsed[short_name]['page_count'] = page_count
+            hidden_layers = list(getattr(self.pdf_stream_parser, 'hidden_layers', ()))
+            if hidden_layers:
+                self.app.inform.emit('[WARNING_NOTCL] %d %s: %s' % (
+                    len(hidden_layers), _("hidden layer(s) skipped"), ', '.join(hidden_layers)))
             if unsupported:
                 self.app.inform.emit('[WARNING_NOTCL] %s: %s' %
                                      (_("Unsupported PDF content"), ', '.join(sorted(unsupported))))
             # we used it, now we delete it
-            if self.pdf_decompressed[short_name]:
-                self.pdf_decompressed[short_name] = None
+            self.pdf_decompressed[short_name] = None
 
         # removal from list is done in a multithreaded way therefore not always the removal can be done
         # try to remove until it's done
@@ -203,8 +246,8 @@ class ToolPDF(AppTool):
             self.app.log.error("ToolPDF.open_pdf() --> %s" % str(e))
         self.app.inform.emit('[success] %s: %s' % (_("Opened"),  str(filename)))
 
-    def layer_rendering_as_excellon(self, filename, ap_dict, layer_nr):
-        outname = filename.split('/')[-1].split('\\')[-1] + "_%s" % str(layer_nr)
+    def layer_rendering_as_excellon(self, filename, ap_dict, layer_nr, page_suffix=''):
+        outname = filename.split('/')[-1].split('\\')[-1] + "_%s" % str(layer_nr) + page_suffix
         ap_dict = _normalize_ap_dict(ap_dict)
         points = drill_points(ap_dict, getattr(self.app, 'app_units', 'MM'))
         if not points:
@@ -248,8 +291,8 @@ class ToolPDF(AppTool):
             # GUI feedback
             self.app.inform.emit('[success] %s: %s' % (_("Rendered"),  outname))
 
-    def layer_rendering_as_gerber(self, filename, ap_dict, layer_nr):
-        outname = filename.split('/')[-1].split('\\')[-1] + "_%s" % str(layer_nr)
+    def layer_rendering_as_gerber(self, filename, ap_dict, layer_nr, page_suffix=''):
+        outname = filename.split('/')[-1].split('\\')[-1] + "_%s" % str(layer_nr) + page_suffix
         ap_dict = _normalize_ap_dict(ap_dict)
         poly_buff, follow_buf = _replay_paint_order(ap_dict)
         if poly_buff.is_empty:
@@ -331,23 +374,29 @@ class ToolPDF(AppTool):
                             raise grace
 
                         filename = deepcopy(self.pdf_parsed[object_name]['filename'])
-                        pdf_content = deepcopy(self.pdf_parsed[object_name]['pdf'])
+                        pages = deepcopy(self.pdf_parsed[object_name]['pages'])
+                        page_count = self.pdf_parsed[object_name].get('page_count', len(pages))
                         obj_to_delete.append(object_name)
-                        for k in pdf_content:
-                            if self.app.abort_flag:
-                                # graceful abort requested by the user
-                                raise grace
+                        for page_nr, pdf_content in enumerate(pages, start=1):
+                            # a PDF with one page keeps the plain names; more pages get a "_p<N>" suffix
+                            page_suffix = '_p%d' % page_nr if page_count > 1 else ''
+                            for k in pdf_content:
+                                if self.app.abort_flag:
+                                    # graceful abort requested by the user
+                                    raise grace
 
-                            ap_dict = pdf_content[k]
+                                ap_dict = pdf_content[k]
 
-                            if ap_dict:
-                                layer_nr = k
-                                if k == 0:
-                                    self.app.worker_task.emit({'fcn': self.layer_rendering_as_excellon,
-                                                               'params': [filename, ap_dict, layer_nr]})
-                                else:
-                                    self.app.worker_task.emit({'fcn': self.layer_rendering_as_gerber,
-                                                               'params': [filename, ap_dict, layer_nr]})
+                                if ap_dict:
+                                    layer_nr = k
+                                    if k == 0:
+                                        self.app.worker_task.emit({'fcn': self.layer_rendering_as_excellon,
+                                                                   'params': [filename, ap_dict, layer_nr,
+                                                                              page_suffix]})
+                                    else:
+                                        self.app.worker_task.emit({'fcn': self.layer_rendering_as_gerber,
+                                                                   'params': [filename, ap_dict, layer_nr,
+                                                                              page_suffix]})
                     # delete the object already processed, so it will not be processed again for other objects
                     # that were opened at the same time; like in drag & drop on appGUI
                     for obj_name in obj_to_delete:

@@ -10,7 +10,7 @@ from typing import List, Tuple, Dict, Any, Optional, Callable
 
 from appCommon.Common import GracefulException as grace
 
-from shapely import Polygon, LineString, MultiPolygon
+from shapely import Polygon, LineString, MultiPolygon, box
 from shapely.affinity import affine_transform
 from shapely.ops import polygonize, unary_union
 
@@ -111,6 +111,9 @@ class PdfParser:
 
         self.gs = {'transform': [], 'line_width': []}
         self._geometry_order = 0
+        # The active clip: None (the whole page) or (shape, bounds); bounds is set when the shape is a
+        # rectangle, so that a shape inside it needs no intersection
+        self._clip = None
         self.unsupported_features = set()
 
         self.point_to_unit_factor = 0.01388888888
@@ -258,8 +261,12 @@ class PdfParser:
             'fill_color': (0.0, 0.0, 0.0),
             'stroke_clear': False,
             'fill_clear': False,
+            'clip': None,
         }
         state_stack = []
+        self._clip = None
+        # 'W' or 'W*' seen: the path becomes a clip after the next painting operator
+        pending_clip = None
 
         # A PDF path is a list of subpaths. Each subpath keeps its own CTM because a path
         # may be built under one q/Q state and painted under another.
@@ -282,10 +289,12 @@ class PdfParser:
             op = token
 
             if op == 'q':
-                state_stack.append(deepcopy(state))
+                # the values are tuples, numbers and immutable shapes: a shallow copy is enough
+                state_stack.append(dict(state))
             elif op == 'Q':
                 if state_stack:
                     state = state_stack.pop()
+                    self._clip = state['clip']
             elif op == 'cm':
                 if len(operands) >= 6:
                     state['ctm'] = self._multiply_ctm(tuple(operands[-6:]), state['ctm'])
@@ -419,13 +428,19 @@ class PdfParser:
                         state['line_width'], state['fill_color'], state['stroke_color'],
                         ctx, aperture
                     )
+                if pending_clip:
+                    # the path is painted with the old clip; the new one applies from now on
+                    self._intersect_clip(state, subpaths, pending_clip == 'W*')
+                    pending_clip = None
             elif op in ('W', 'W*'):
-                # Clipping is not represented by FlatCAM geometry. Report it instead of
-                # silently pretending the clipped artwork was imported correctly.
-                if 'clipping' not in self.unsupported_features:
-                    log.warning("parse_pdf() --> clipping path (W/W*) is not supported; clip is ignored.")
-                self.unsupported_features.add('clipping')
+                pending_clip = op
             elif op == 'n':
+                if pending_clip:
+                    subpaths = list(path)
+                    if current is not None and current['points']:
+                        subpaths.append(current)
+                    self._intersect_clip(state, subpaths, pending_clip == 'W*')
+                    pending_clip = None
                 path = []
                 current = None
             elif op == 'Do':
@@ -449,6 +464,47 @@ class PdfParser:
             ctx.object_dict, ctx.apertures_dict, ctx.clear_apertures_dict,
             ctx.layer_nr, self._aborted()
         )
+
+    def _intersect_clip(self, state: dict, subpaths: List[dict], even_odd: bool) -> None:
+        """Make the path the new clip: the old clip intersected with the area of the path."""
+        if not subpaths:
+            return
+        area = self._build_fill_geometry(subpaths, even_odd)
+        if not area.is_valid:
+            area = area.buffer(0)
+        if state['clip'] is not None:
+            area = self._polygonal(state['clip'][0].intersection(area))
+        bounds = None
+        if isinstance(area, Polygon) and not area.is_empty and not area.interiors and \
+                len(area.exterior.coords) == 5 and area.equals(box(*area.bounds)):
+            bounds = area.bounds
+        state['clip'] = self._clip = (area, bounds)
+
+    @staticmethod
+    def _polygonal(geometry):
+        """The polygons of a geometry; an intersection may also leave lines and points."""
+        if isinstance(geometry, (Polygon, MultiPolygon)):
+            return geometry
+        polygons = [part for part in getattr(geometry, 'geoms', []) if isinstance(part, (Polygon, MultiPolygon))]
+        return unary_union(polygons) if polygons else Polygon()
+
+    def _clip_geometry(self, geometry):
+        """Cut a painted shape to the active clip; an empty result means nothing is painted."""
+        if self._clip is None or geometry.is_empty:
+            return geometry
+        clip, bounds = self._clip
+        if clip.is_empty:
+            return Polygon()
+        if bounds is not None:
+            min_x, min_y, max_x, max_y = geometry.bounds
+            if min_x >= bounds[0] and min_y >= bounds[1] and max_x <= bounds[2] and max_y <= bounds[3]:
+                return geometry
+        try:
+            result = geometry.intersection(clip)
+        except Exception:
+            # an invalid shape: repair it and try once more
+            result = geometry.buffer(0).intersection(clip)
+        return self._polygonal(result)
 
     def _tokenize_pdf(self, content: str):
         """Yield PDF numbers as floats and operators/names as strings.
@@ -718,6 +774,8 @@ class PdfParser:
 
     def _store_stroke_geometry(self, geometries: List, clear_geo: bool, ctx: ParsingContext,
                                aperture: int, applied_size: float, color=None) -> int:
+        if self._clip is not None:
+            geometries = [clipped for clipped in map(self._clip_geometry, geometries) if not clipped.is_empty]
         if not geometries:
             return aperture
 
@@ -742,6 +800,7 @@ class PdfParser:
 
     def _store_fill_geometry(self, geometry, clear_geo: bool, ctx: ParsingContext,
                              applied_size: float, color=None) -> None:
+        geometry = self._clip_geometry(geometry)
         if geometry.is_empty:
             return
 

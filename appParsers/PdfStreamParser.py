@@ -27,7 +27,7 @@ Why pure-python is default:
     - Latest pikepdf versions crash on import even with try/except
     - Lazy import of pikepdf only when explicitly enabled
     
-Note: Only the first page of PDFs is extracted (existing FlatCAM behavior).
+Note: extract_page_streams() returns every page; extract_content_streams() the first one.
 """
 
 from abc import ABC, abstractmethod
@@ -50,24 +50,42 @@ class PdfStreamParserBase(ABC):
     that can be parsed by ParsePDF.py
     """
     
+    # The names of the Optional Content groups that are off by default and whose content was
+    # skipped by the last extract_page_streams()
+    hidden_layers = ()
+
     @abstractmethod
-    def extract_content_streams(self, filename: str) -> str:
+    def extract_page_streams(self, filename: str) -> list:
         """
-        Extract and decompress content streams from a PDF file.
-        
-        Only extracts from the first page (existing FlatCAM behavior).
-        
+        Extract and decompress the content streams of every page of a PDF file.
+
         Args:
             filename: Path to the PDF file
-            
+
         Returns:
-            Decompressed content stream text (PDF operators as text)
-            
+            One entry for each page, in page order: the decompressed content stream text
+            (PDF operators as text, '' for a page without content) or the PdfParserError
+            of a page that cannot be read. Each page keeps its own resources.
+
         Raises:
-            PdfParserError: If parsing fails
+            PdfParserError: If the file as a whole cannot be read
         """
         pass
-    
+
+    def extract_content_streams(self, filename: str) -> str:
+        """
+        Extract and decompress the content streams of the first page.
+
+        Raises:
+            PdfParserError: If parsing fails or the first page has no content
+        """
+        first = self.extract_page_streams(filename)[0]
+        if isinstance(first, PdfParserError):
+            raise first
+        if not first.strip():
+            raise PdfParserError("No valid content streams found")
+        return first
+
     @abstractmethod
     def is_available(self) -> bool:
         """
@@ -90,11 +108,33 @@ class PdfParserError(Exception):
     pass
 
 
+def off_groups(groups, on, off, base_off: bool) -> set:
+    """The Optional Content groups that are hidden by the default configuration (/D).
+
+    With /BaseState /OFF only the groups of the /ON array are visible; otherwise only the
+    groups of the /OFF array are hidden.
+    """
+    return (set(groups) | set(off)) - set(on) if base_off else set(off)
+
+
+def membership_visible(policy: str, hidden_flags: list) -> bool:
+    """The visibility of a membership dictionary (OCMD) from the hidden flag of each of its groups."""
+    if not hidden_flags:
+        return True
+    if policy == 'AllOn':
+        return not any(hidden_flags)
+    if policy == 'AnyOff':
+        return any(hidden_flags)
+    if policy == 'AllOff':
+        return all(hidden_flags)
+    return not all(hidden_flags)
+
+
 class PurePythonPdfParser(PdfStreamParserBase):
     """
     PDF parser using only Python standard library.
 
-    Resolves the first page object's /Contents references and decodes those streams
+    Resolves the /Contents references of each page object and decodes those streams
     only. Supports FlateDecode, ASCIIHexDecode and ASCII85Decode. Objects stored in
     compressed object streams (PDF 1.5+) are unpacked, Form XObjects drawn with ``Do``
     go inline into the page content and ExtGState line widths become ``w`` operators.
@@ -123,6 +163,16 @@ class PurePythonPdfParser(PdfStreamParserBase):
     
     # Pattern to find BDC/EMC layer markers (PDF 1.2+)
     LAYER_PATTERN = re.compile(rb'BDC(.*?)EMC', re.DOTALL)
+
+    # The marked-content operators; a string is matched too, so that it is skipped
+    MARKED_CONTENT = re.compile(
+        rb'\((?:\\.|[^\\()])*\)'
+        rb'|/OC\s*/(?P<oc>[^\s/\[\]<>()%]+)\s*BDC\b'
+        rb'|/[^\s/\[\]<>()%]+\s*(?:/[^\s/\[\]<>()%]+|<<.*?>>)?\s*(?P<other>BDC|BMC)\b'
+        rb'|\b(?P<end>EMC)\b', re.DOTALL)
+
+    # The Optional Content groups that are off (object references)
+    _oc_off = frozenset()
     
     @property
     def name(self) -> str:
@@ -132,9 +182,9 @@ class PurePythonPdfParser(PdfStreamParserBase):
         # Always available - uses only standard library
         return True
     
-    def extract_content_streams(self, filename: str) -> str:
+    def extract_page_streams(self, filename: str) -> list:
         """
-        Extract the content streams of the first page using only the standard library.
+        Extract the content streams of every page using only the standard library.
 
         The page object's ``/Contents`` references are resolved in order. Unrelated
         streams (fonts, images, metadata) are not concatenated into the geometry stream.
@@ -143,29 +193,25 @@ class PurePythonPdfParser(PdfStreamParserBase):
             filename: Path to PDF file
 
         Returns:
-            Decompressed content stream text
+            One entry for each page, in page order: the decompressed content stream
+            text ('' for a page without content) or the PdfParserError of that page
 
         Raises:
-            PdfParserError: If parsing fails or an unsupported feature is found
+            PdfParserError: If the file as a whole cannot be read
         """
         try:
             with open(filename, "rb") as f:
                 pdf_data = f.read()
 
-            result = self._extract_first_page_streams(pdf_data)
-
-            if not result.strip():
-                raise PdfParserError("No valid content streams found")
-
-            return result
+            return self._extract_pages_streams(pdf_data)
 
         except PdfParserError:
             raise
         except Exception as e:
             raise PdfParserError(f"pure-python parsing failed: {str(e)}")
 
-    def _extract_first_page_streams(self, pdf_data: bytes) -> str:
-        """Resolve the first page object and decode its /Contents streams in order."""
+    def _extract_pages_streams(self, pdf_data: bytes) -> list:
+        """Resolve the page objects and decode the /Contents streams of each, in order."""
         if re.search(rb'/Encrypt\s+(\d+\s+\d+\s+R|<<)', pdf_data):
             raise PdfParserError(
                 "Encrypted PDFs are not supported by the pure-python parser"
@@ -181,16 +227,30 @@ class PurePythonPdfParser(PdfStreamParserBase):
             )
 
         self._expand_object_streams(objects)
+        self.hidden_layers = []
+        self._load_optional_content(objects)
 
-        page_ref = self._first_page_ref(objects)
-        if page_ref is None:
+        page_refs = self._page_refs(objects)
+        if not page_refs:
             raise PdfParserError("Could not locate the first page")
 
+        pages = []
+        for page_ref in page_refs:
+            try:
+                pages.append(self._page_streams(objects, page_ref))
+            except PdfParserError as e:
+                pages.append(e)
+            except Exception as e:
+                pages.append(PdfParserError(f"pure-python parsing failed: {str(e)}"))
+        return pages
+
+    def _page_streams(self, objects: dict, page_ref: tuple) -> str:
+        """Decode the /Contents streams of one page in order; '' if it has none."""
         content_refs = self._resolve_content_refs(
             objects, self._content_refs(objects[page_ref]['dict'])
         )
         if not content_refs:
-            raise PdfParserError("The first page has no content stream")
+            return ''
 
         parts = []
         for ref in content_refs:
@@ -201,7 +261,7 @@ class PurePythonPdfParser(PdfStreamParserBase):
                 )
             parts.append(self._decode_stream(content_obj['dict'], content_obj['stream']))
 
-        content =self._expand_forms(objects, b'\n'.join(parts),
+        content = self._expand_forms(objects, b'\n'.join(parts),
                                      self._page_resources(objects, page_ref))
         return content.decode('utf-8', errors='replace')
 
@@ -398,6 +458,107 @@ class PurePythonPdfParser(PdfStreamParserBase):
                            simple_encoding=True)
         return None
 
+    @classmethod
+    def _refs(cls, objects: dict, value: Optional[bytes]) -> list:
+        """The references of an array, given directly or as a reference to an array object."""
+        ref = re.fullmatch(rb'(\d+)\s+(\d+)\s+R', value or b'')
+        if ref and objects.get((int(ref.group(1)), int(ref.group(2)))) is not None:
+            array = objects[(int(ref.group(1)), int(ref.group(2)))]['dict']
+            if array.lstrip().startswith(b'['):
+                value = array
+        return [(int(number), int(generation))
+                for number, generation in re.findall(rb'(\d+)\s+(\d+)\s+R', value or b'')]
+
+    def _load_optional_content(self, objects: dict) -> None:
+        """Find the Optional Content groups that are off by default (catalog /OCProperties)."""
+        self._oc_off = frozenset()
+        try:
+            for obj in objects.values():
+                if re.search(rb'/Type\s*/Catalog\b', obj['dict']):
+                    properties = self._resolve(objects, self._dict_entry(obj['dict'], b'OCProperties'))
+                    if properties:
+                        config = self._resolve(objects, self._dict_entry(properties, b'D')) or b''
+                        self._oc_off = frozenset(off_groups(
+                            self._refs(objects, self._dict_entry(properties, b'OCGs')),
+                            self._refs(objects, self._dict_entry(config, b'ON')),
+                            self._refs(objects, self._dict_entry(config, b'OFF')),
+                            self._dict_entry(config, b'BaseState') == b'/OFF'))
+                    break
+        except Exception as e:
+            log.warning(f"PDF layers cannot be read, all content stays visible: {e}")
+
+    def _group_name(self, objects: dict, ref: tuple) -> str:
+        """The /Name of an Optional Content group."""
+        match = re.search(rb'/Name\s*(?:\(((?:\\.|[^\\()])*)\)|<([0-9A-Fa-f\s]*)>)',
+                          objects.get(ref, {}).get('dict', b''))
+        if match:
+            try:
+                raw = match.group(1) if match.group(1) is not None else \
+                    bytes.fromhex(re.sub(rb'\s', b'', match.group(2)).decode())
+                raw = re.sub(rb'\\(.)', rb'\1', raw)
+                return raw[2:].decode('utf-16-be') if raw[:2] == b'\xfe\xff' else raw.decode('latin-1')
+            except ValueError:
+                pass
+        return f"OCG {ref[0]}"
+
+    def _hidden_groups(self, objects: dict, value: Optional[bytes]) -> list:
+        """The names of the hidden groups that hide content marked with this /OC value.
+
+        value is an Optional Content group or a membership dictionary (OCMD), as a reference
+        or directly. An empty list means visible, also for a value that cannot be resolved.
+        """
+        if not value or not self._oc_off:
+            return []
+        ref = re.fullmatch(rb'(\d+)\s+(\d+)\s+R', value)
+        members = [(int(ref.group(1)), int(ref.group(2)))] if ref else []
+        if members and members[0] not in self._oc_off:
+            dictionary = self._resolve(objects, value)
+            if not dictionary or self._dict_entry(dictionary, b'Type') != b'/OCMD':
+                return []
+            members = self._refs(objects, self._dict_entry(dictionary, b'OCGs'))
+            policy = (self._dict_entry(dictionary, b'P') or b'/AnyOn').lstrip(b'/').decode('latin-1')
+            if membership_visible(policy, [member in self._oc_off for member in members]):
+                return []
+        hidden = [self._group_name(objects, member) for member in members
+                  if member in self._oc_off] or [self._group_name(objects, member) for member in members]
+        self.hidden_layers = [*self.hidden_layers, *(name for name in dict.fromkeys(hidden)
+                                                     if name not in self.hidden_layers)]
+        return hidden
+
+    def _hide_marked_content(self, objects: dict, content: bytes, resources: bytes) -> bytes:
+        """Remove the content of the hidden Optional Content groups: /OC /Name BDC ... EMC.
+
+        The markers nest; the content is hidden while any open /OC marker is hidden.
+        """
+        if not self._oc_off:
+            return content
+        properties = self._resolve(objects, self._dict_entry(resources, b'Properties'))
+        if not properties:
+            return content
+
+        kept, position, hidden_levels, hidden = [], 0, [], 0
+        for match in self.MARKED_CONTENT.finditer(content):
+            if match.group('end'):
+                if not hidden_levels:
+                    continue
+                was_hidden, flag = hidden > 0, hidden_levels.pop()
+                hidden -= flag
+            elif match.group('oc') or match.group('other'):
+                was_hidden = hidden > 0
+                flag = 1 if match.group('oc') and self._hidden_groups(
+                    objects, self._dict_entry(properties, match.group('oc'))) else 0
+                hidden_levels.append(flag)
+                hidden += flag
+            else:
+                continue
+            if hidden and not was_hidden:
+                kept.append(content[position:match.start()])
+            elif was_hidden and not hidden:
+                position = match.end()
+        if not hidden:
+            kept.append(content[position:])
+        return b''.join(kept)
+
     def _expand_forms(self, objects: dict, content: bytes, resources: Optional[bytes],
                       depth: int = 0) -> bytes:
         """Resolve the resource operators that ParsePDF cannot read from the resources.
@@ -410,6 +571,7 @@ class PurePythonPdfParser(PdfStreamParserBase):
         """
         if not resources:
             return content
+        content = self._hide_marked_content(objects, content, resources)
         content = text_to_paths(content, self._font_getter(objects, resources))
         xobject_dict = self._resolve(objects, self._dict_entry(resources, b'XObject'))
         ext_gstate_dict = self._resolve(objects, self._dict_entry(resources, b'ExtGState'))
@@ -431,6 +593,8 @@ class PurePythonPdfParser(PdfStreamParserBase):
             if match.group(2) == b'gs':
                 return line_width(match)
             obj = objects.get(xobjects.get(match.group(1)))
+            if obj is not None and self._hidden_groups(objects, self._dict_entry(obj['dict'], b'OC')):
+                return b''
             if obj is None or obj['stream'] is None or depth >= self.MAX_FORM_DEPTH or \
                     self._dict_entry(obj['dict'], b'Subtype') != b'/Form':
                 return match.group(0)
@@ -544,43 +708,40 @@ class PurePythonPdfParser(PdfStreamParserBase):
         return int(match.group(1)) if match else None
 
     @staticmethod
-    def _walk_pages(objects: dict, ref: tuple, seen: set):
-        """Depth-first walk of the page tree; return the first /Page reference."""
+    def _walk_pages(objects: dict, ref: tuple, seen: set, pages: list) -> None:
+        """Depth-first walk of the page tree; append the /Page references in page order."""
         if ref in seen or ref not in objects:
-            return None
+            return
         seen.add(ref)
 
         dictionary = objects[ref]['dict']
         if re.search(rb'/Type\s*/Page\b', dictionary):
-            return ref
-        if re.search(rb'/Type\s*/Pages\b', dictionary):
+            pages.append(ref)
+        elif re.search(rb'/Type\s*/Pages\b', dictionary):
             kids = re.search(rb'/Kids\s*\[(.*?)\]', dictionary, re.DOTALL)
             if kids:
                 for number, generation in re.findall(rb'(\d+)\s+(\d+)\s+R', kids.group(1)):
-                    found = PurePythonPdfParser._walk_pages(
-                        objects, (int(number), int(generation)), seen
+                    PurePythonPdfParser._walk_pages(
+                        objects, (int(number), int(generation)), seen, pages
                     )
-                    if found:
-                        return found
-        return None
 
     @classmethod
-    def _first_page_ref(cls, objects: dict):
-        """Find the first page through the catalog/page tree, with a file-order fallback."""
+    def _page_refs(cls, objects: dict) -> list:
+        """Find all pages through the catalog/page tree, with a file-order fallback."""
         for ref, obj in objects.items():
             if re.search(rb'/Type\s*/Catalog\b', obj['dict']):
-                pages = re.search(rb'/Pages\s+(\d+)\s+(\d+)\s+R', obj['dict'])
-                if pages:
-                    page = cls._walk_pages(
-                        objects, (int(pages.group(1)), int(pages.group(2))), set()
+                root = re.search(rb'/Pages\s+(\d+)\s+(\d+)\s+R', obj['dict'])
+                if root:
+                    pages = []
+                    cls._walk_pages(
+                        objects, (int(root.group(1)), int(root.group(2))), set(), pages
                     )
-                    if page:
-                        return page
+                    if pages:
+                        return pages
                 break
 
-        pages = [ref for ref, obj in objects.items()
-                 if re.search(rb'/Type\s*/Page\b', obj['dict'])]
-        return sorted(pages)[0] if pages else None
+        return sorted(ref for ref, obj in objects.items()
+                      if re.search(rb'/Type\s*/Page\b', obj['dict']))
 
     @staticmethod
     def _content_refs(dictionary: bytes) -> list:
@@ -753,6 +914,8 @@ class PikePdfParser(PdfStreamParserBase):
         self._pikepdf = None
         self._available = None
         self.unsupported_features = set()
+        self.hidden_layers = []
+        self._oc_off = {}
         self._try_import()
     
     def _try_import(self) -> None:
@@ -772,6 +935,7 @@ class PikePdfParser(PdfStreamParserBase):
                 'Pdf': Pdf,
                 'parse_content_stream': parse_content_stream,
                 'Operator': pikepdf.Operator,
+                'Array': pikepdf.Array,
                 # pikepdf versions without it fall back to unparse() of each operand
                 'unparse_content_stream': getattr(pikepdf, 'unparse_content_stream', None),
             }
@@ -790,20 +954,19 @@ class PikePdfParser(PdfStreamParserBase):
         """Check if pikepdf was successfully imported."""
         return self._available is True
     
-    def extract_content_streams(self, filename: str) -> str:
+    def extract_page_streams(self, filename: str) -> list:
         """
-        Extract content streams using pikepdf.
-        
-        Only extracts from the first page (existing FlatCAM behavior).
-        
+        Extract the content streams of every page using pikepdf.
+
         Args:
             filename: Path to PDF file
-            
+
         Returns:
-            Decompressed content stream text
-            
+            One entry for each page, in page order: the content stream text ('' for a
+            page without content) or the PdfParserError of that page
+
         Raises:
-            PdfParserError: If pikepdf is not available or parsing fails
+            PdfParserError: If pikepdf is not available or the file cannot be read
         """
         if not self.is_available():
             raise PdfParserError(
@@ -813,6 +976,7 @@ class PikePdfParser(PdfStreamParserBase):
             )
 
         self.unsupported_features = set()
+        self.hidden_layers = []
 
         try:
             Pdf = self._pikepdf['Pdf']
@@ -821,19 +985,73 @@ class PikePdfParser(PdfStreamParserBase):
             with open(filename, "rb") as f:
                 pdf = Pdf.open(f)
 
-                # Extract FIRST PAGE ONLY (existing FlatCAM behavior)
-                page = pdf.pages[0]
-                decomp_file = self._content_lines(
-                    page, parse_content_stream, self._page_resources(page), 0
-                )
+                if not len(pdf.pages):
+                    raise PdfParserError("Could not locate the first page")
 
-                if not decomp_file.strip():
-                    raise PdfParserError("Empty content stream or parsing error")
-                
-                return decomp_file
-                
+                self._load_optional_content(pdf)
+                pages = []
+                for page in pdf.pages:
+                    try:
+                        pages.append(self._content_lines(
+                            page, parse_content_stream, self._page_resources(page), 0
+                        ))
+                    except Exception as e:
+                        pages.append(PdfParserError(f"pikepdf parsing failed: {str(e)}"))
+                return pages
+
         except Exception as e:
             raise PdfParserError(f"pikepdf parsing failed: {str(e)}")
+
+    def _load_optional_content(self, pdf) -> None:
+        """Find the Optional Content groups that are off by default (catalog /OCProperties).
+
+        self._oc_off maps the object number and generation of each of them to its name.
+        """
+        self._oc_off = {}
+        try:
+            properties = pdf.Root.get('/OCProperties')
+            if properties is None:
+                return
+            config = properties.get('/D')
+            config = config if config is not None else {}
+            groups = list(properties.get('/OCGs', []))
+            on = list(config.get('/ON', []))
+            off = list(config.get('/OFF', []))
+            hidden = off_groups([group.objgen for group in groups], [group.objgen for group in on],
+                                [group.objgen for group in off], str(config.get('/BaseState')) == '/OFF')
+            for group in groups + on + off:
+                if group.objgen in hidden:
+                    self._oc_off[group.objgen] = str(group.get('/Name', f"OCG {group.objgen[0]}"))
+        except Exception as e:
+            log.warning(f"PDF layers cannot be read, all content stays visible: {e}")
+            self._oc_off = {}
+
+    def _hidden_groups(self, value) -> list:
+        """The names of the hidden groups that hide content marked with this /OC value (group or OCMD).
+
+        An empty list means visible, also for a value that cannot be resolved.
+        """
+        if value is None or not self._oc_off:
+            return []
+        try:
+            if value.objgen in self._oc_off:
+                members = [value]
+            elif str(value.get('/Type')) == '/OCMD':
+                groups = value.get('/OCGs')
+                members = [] if groups is None else \
+                    list(groups) if isinstance(groups, self._pikepdf['Array']) else [groups]
+                policy = str(value.get('/P', '/AnyOn')).lstrip('/')
+                if membership_visible(policy, [member.objgen in self._oc_off for member in members]):
+                    return []
+            else:
+                return []
+            hidden = [self._oc_off.get(member.objgen, str(member.get('/Name'))) for member in members
+                      if member.objgen in self._oc_off] or [str(member.get('/Name')) for member in members]
+        except Exception:
+            return []
+        self.hidden_layers = [*self.hidden_layers, *(name for name in dict.fromkeys(hidden)
+                                                     if name not in self.hidden_layers)]
+        return hidden
 
     @staticmethod
     def _page_resources(page):
@@ -858,10 +1076,26 @@ class PikePdfParser(PdfStreamParserBase):
         reads the line width only from 'w'.
         """
         text = ''
+        # one flag for each open marked-content level: is it a hidden Optional Content group
+        marked, hidden = [], 0
         for operands, command in parse_content_stream(owner):
             command = str(command)
+            if command in ('BDC', 'BMC'):
+                flag = 1 if command == 'BDC' and len(operands) >= 2 and str(operands[0]) == '/OC' and \
+                    self._hidden_groups(self._resource(resources, '/Properties', operands[1])) else 0
+                marked.append(flag)
+                hidden += flag
+                continue
+            if command == 'EMC':
+                if marked:
+                    hidden -= marked.pop()
+                continue
+            if hidden:
+                continue
             if command == 'Do' and operands:
                 form = self._resource(resources, '/XObject', operands[0])
+                if form is not None and self._hidden_groups(form.get('/OC')):
+                    continue
                 if form is not None and str(form.get('/Subtype')) == '/Form' and \
                         depth < PurePythonPdfParser.MAX_FORM_DEPTH:
                     matrix = form.get('/Matrix')
@@ -873,8 +1107,6 @@ class PikePdfParser(PdfStreamParserBase):
                     text += 'Q\n'
                     continue
                 self.unsupported_features.add('XObject')
-            elif command in ('W', 'W*'):
-                self.unsupported_features.add('clipping')
 
             text += self._unparse(operands, command) + '\n'
 
@@ -1050,12 +1282,12 @@ def parse_pdf_content_streams(
     """
     Extract content streams from a PDF file.
     
-    Only extracts from the first page (existing FlatCAM behavior).
-    
+    Only extracts the first page; use get_pdf_parser().extract_page_streams() for all.
+
     Args:
         filename: Path to PDF file
         app_defaults: Application defaults dict
-        
+
     Returns:
         Decompressed content stream text
         
