@@ -620,7 +620,7 @@ class appEditor(QtCore.QObject):
 
         def initialize(exc_obj, app):
             ExcellonObject.merge(exc_list=objs, exc_final=exc_obj, decimals=self.decimals, fuse_tools=fuse_tools,
-                                 log=app.log)
+                                 log=app.log, inform=app.inform.emit)
             app.inform.emit('[success] %s.' % _("Excellon merging finished"))
 
         self.app_obj.new_object("excellon", 'Combo_Excellon', initialize)

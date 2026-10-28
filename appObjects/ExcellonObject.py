@@ -18,6 +18,7 @@ from appGUI.GUIElements import FCCheckBox
 from appGUI.ObjectUI import ExcellonObjectUI
 
 import itertools
+import math
 import numpy as np
 from copy import deepcopy
 
@@ -33,6 +34,87 @@ import builtins
 fcTranslate.apply_language('strings')
 if '_' not in builtins.__dict__:
     _ = gettext.gettext
+
+
+def dedupe_joined_holes(tools, sources, decimals):
+    """
+    Check the holes of the tools of a join: drills (and slots) of different source objects.
+
+    An exact duplicate (same center, or same start and stop, after rounding to decimals) with the same diameter is
+    removed from the tools (the first one stays). Other conflicts are kept and returned: a duplicate with another
+    diameter and a drill that overlaps a drill of another source (center distance < r1 + r2, tangent is allowed).
+    The drills are searched in a grid of the size of the largest diameter, so the time grows linearly.
+
+    :param tools:       {tool id: tool dict with 'tooldia', 'drills' (Points) and 'slots' ((Point, Point))}, changed
+    :param sources:     {tool id: index of the source object of the tool}
+    :param decimals:    the decimals of the diameters and of the coordinates
+    :return:            (number of removed duplicates, [(x, y)] of the kept conflicts, drills before slots)
+    """
+    removed = 0
+    seen = {}
+    drills = []     # (x, y, radius, source)
+    slot_conflicts = []
+    slot_dias = {}
+
+    for tid, tool in tools.items():
+        src = sources.get(tid)
+        dia = round(float(tool.get('tooldia', 0.0)), decimals)
+
+        # drills: keep a drill unless a kept one of another source has the same center and diameter
+        kept = []
+        for drill in tool.get('drills') or []:
+            x, y = drill.x, drill.y
+            key = ('d', round(x, decimals), round(y, decimals), dia)
+            if any(s != src for s in seen.get(key, ())):
+                removed += 1
+                continue
+            seen.setdefault(key, []).append(src)
+            kept.append(drill)
+            drills.append((x, y, float(tool['tooldia']) / 2.0, src))
+        if 'drills' in tool:
+            tool['drills'] = kept
+
+        kept = []
+        for slot in tool.get('slots') or []:
+            ends = sorted(((round(p.x, decimals), round(p.y, decimals)) for p in slot))
+            key = ('s', ends[0], ends[1], dia)
+            if any(s != src for s in seen.get(key, ())):
+                removed += 1
+                continue
+            seen.setdefault(key, []).append(src)
+            kept.append(slot)
+            # the same slot with another diameter
+            if any(d != dia and s != src for d, s in slot_dias.get(key[:3], ())):
+                slot_conflicts.append((slot[0].x, slot[0].y))
+            slot_dias.setdefault(key[:3], []).append((dia, src))
+        if 'slots' in tool:
+            tool['slots'] = kept
+
+    conflicts = []
+    if len(drills) > 1:
+        cell = 2.0 * max(d[2] for d in drills)
+        if cell > 0:
+            tol = 10.0 ** -decimals
+            grid = {}
+            for i, (x, y, r, src) in enumerate(drills):
+                cx, cy = int(x // cell), int(y // cell)
+                hit = False
+                for gx in (cx - 1, cx, cx + 1):
+                    for gy in (cy - 1, cy, cy + 1):
+                        for j in grid.get((gx, gy), ()):
+                            ox, oy, orad, osrc = drills[j]
+                            if osrc != src and math.hypot(x - ox, y - oy) < r + orad - tol:
+                                hit = True
+                                break
+                        if hit:
+                            break
+                    if hit:
+                        break
+                if hit:
+                    conflicts.append((x, y))
+                grid.setdefault((cx, cy), []).append(i)
+
+    return removed, conflicts + slot_conflicts
 
 
 class ExcellonObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Excellon):
@@ -1235,7 +1317,7 @@ class ExcellonObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Excellon):
                 tool['slots'] = [tuple(slot) for slot in tool['slots']]
 
     @staticmethod
-    def merge(exc_list, exc_final, decimals=None, fuse_tools=True, log=None):
+    def merge(exc_list, exc_final, decimals=None, fuse_tools=True, log=None, inform=None):
         """
         Merge Excellon objects found in exc_list parameter into exc_final object.
         Options are always copied from source .
@@ -1261,6 +1343,7 @@ class ExcellonObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Excellon):
         :param fuse_tools:  If True will try to fuse tools of the same diameter for the Excellon objects
         :type fuse_tools:   bool
         :param log:         the logging object used
+        :param inform:      optional callable that gets the shell message of the duplicate and overlap check
         :return:            None
         """
 
@@ -1279,7 +1362,8 @@ class ExcellonObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Excellon):
         new_tools = {}
         total_geo = []
         toolid = 0
-        for exc in flattened_list:
+        tool_sources = {}
+        for src_index, exc in enumerate(flattened_list):
             # copy options of the current excellon obj to the final excellon obj
             # only the last object options will survive
             for option in exc.obj_options:
@@ -1293,6 +1377,7 @@ class ExcellonObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Excellon):
             for tool in exc.tools:
                 toolid += 1
                 new_tools[toolid] = deepcopy(exc.tools[tool])
+                tool_sources[toolid] = src_index
 
             exc_final.tools = deepcopy(new_tools)
             # add the zeros and units to the exc_final object
@@ -1301,6 +1386,24 @@ class ExcellonObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Excellon):
             total_geo += exc.solid_geometry
 
         exc_final.solid_geometry = deepcopy(total_geo)
+
+        # duplicates and overlaps between the holes of different source objects
+        if len(flattened_list) > 1 and exc_final.tools:
+            removed, conflicts = dedupe_joined_holes(exc_final.tools, tool_sources, decimals_exc)
+            if removed:
+                msg = _("Excellon join: duplicate holes removed") + ": %d" % removed
+                if log:
+                    log.info(msg)
+                if inform:
+                    inform('[success] %s' % msg)
+            if conflicts:
+                where = ", ".join("(%.*f, %.*f)" % (decimals_exc, x, decimals_exc, y) for x, y in conflicts[:5])
+                msg = _("Excellon join: holes that overlap or duplicate with another diameter") + \
+                    ": %d. %s: %s%s" % (len(conflicts), _("First"), where, " ..." if len(conflicts) > 5 else "")
+                if log:
+                    log.warning(msg)
+                if inform:
+                    inform('[WARNING_NOTCL] %s' % msg)
 
         if exc_final.tools and fuse_tools:
             fused_tools_dict = {}

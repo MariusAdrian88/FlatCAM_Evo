@@ -236,3 +236,45 @@ class TestExcellonMerge:
         assert sum(len(t['slots']) for t in final.tools.values()) == 6
         assert len(excellon.tools[1]['drills']) == 3
         assert len(other.tools[1]['drills']) == 3
+
+
+def join(app, objs, inform=None):
+    final = ExcellonObject('combo', app)
+    ExcellonObject.merge(objs, final, decimals=4, fuse_tools=True, log=Mock(), inform=inform)
+    return final
+
+
+def placed(final):
+    """(tool diameter, x, y) of every drill of the joined object, sorted."""
+    return sorted((round(t['tooldia'], 4), x, y) for t in final.tools.values() for x, y in pts(t['drills']))
+
+
+class TestJoinDuplicateCheck:
+    def test_same_drill_from_two_sources_is_kept_once(self, app):
+        a = make_exc(app, 'a', [(1.0, [(0, 0), (5, 0)], [], DATA_A)])
+        b = make_exc(app, 'b', [(1.0, [(0, 0), (10, 0)], [], DATA_A)])
+        assert placed(join(app, [a, b])) == [(1.0, 0, 0), (1.0, 5, 0), (1.0, 10, 0)]
+
+    def test_same_center_other_diameter_keeps_both_and_informs(self, app):
+        a = make_exc(app, 'a', [(1.0, [(0, 0)], [], DATA_A)])
+        b = make_exc(app, 'b', [(0.8, [(0, 0)], [], DATA_B)])
+        inform = Mock()
+        assert placed(join(app, [a, b], inform=inform)) == [(0.8, 0, 0), (1.0, 0, 0)]
+        assert inform.called
+
+    def test_tangent_drills_are_silent_and_overlapping_drills_inform(self, app):
+        a = make_exc(app, 'a', [(1.0, [(0, 0)], [], DATA_A)])
+        tangent = make_exc(app, 'b', [(1.0, [(1.0, 0)], [], DATA_A)])
+        inform = Mock()
+        assert placed(join(app, [a, tangent], inform=inform)) == [(1.0, 0, 0), (1.0, 1.0, 0)]
+        assert not inform.called
+
+        overlap = make_exc(app, 'c', [(1.0, [(0.9, 0)], [], DATA_A)])
+        inform = Mock()
+        assert placed(join(app, [a, overlap], inform=inform)) == [(1.0, 0, 0), (1.0, 0.9, 0)]
+        assert inform.called
+
+    def test_duplicates_inside_one_source_are_kept(self, app):
+        a = make_exc(app, 'a', [(1.0, [(0, 0), (0, 0)], [], DATA_A)])
+        b = make_exc(app, 'b', [(1.0, [(5, 0)], [], DATA_A)])
+        assert placed(join(app, [a, b])) == [(1.0, 0, 0), (1.0, 0, 0), (1.0, 5, 0)]
