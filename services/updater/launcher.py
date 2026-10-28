@@ -361,8 +361,10 @@ def launch_update(app, manifest, archive_path, *, relaunch_argv=None) -> bool:
             "relaunch_argv": relaunch,
             "startup_ack_path": str(ack),
             "log_path": str(job_root / "updater.log"),
-            "runtime_dir": str(runtime),
         }
+        # a frozen build has no runtime copy per job (runtime None): the updater rejects runtime_dir "None"
+        if runtime is not None:
+            job["runtime_dir"] = str(runtime)
         job_path = job_root / "update_job.json"
         _write_json(job_path, job)
         ack.unlink(missing_ok=True)
@@ -430,8 +432,10 @@ def launch_rollback(app, *, relaunch_argv=None) -> bool:
             "relaunch_argv": relaunch,
             "startup_ack_path": str(ack),
             "log_path": str(job_root / "updater.log"),
-            "runtime_dir": str(runtime),
         }
+        # a frozen build has no runtime copy per job (runtime None): the updater rejects runtime_dir "None"
+        if runtime is not None:
+            job["runtime_dir"] = str(runtime)
         job_path = job_root / "rollback_job.json"
         _write_json(job_path, job)
         ack.unlink(missing_ok=True)

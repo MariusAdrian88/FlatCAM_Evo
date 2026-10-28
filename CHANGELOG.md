@@ -204,6 +204,16 @@ Application:
 - fixed: each project opened in the GUI made a new Tcl Shell and kept the old one hidden in memory with its Tcl interpreter and its text; the auto-completer kept updating the first, hidden shell, so the visible shell completed no object names or Tcl commands; the old shell is now deleted and the new one gets the keywords
 - fixed: Ctrl+Alt+X (abort) with no task running left the abort flag set until a process ended, so the next file opened or the next G-code or geometry generation was cancelled with "The current task was gracefully closed on user request..."; the flag is now set only while a Tcl script, a process or a worker task runs
 - fixed: the timer that ends a project save was made in the worker thread of the save, so a long task queued after the save on the same worker (an NCC, for example) kept the save "in progress" until it ended; closing FlatCAM and switching projects waited that long; the timer now runs in the GUI thread
+Tcl:
+
+- fixed: a Tcl command that made an object with a name already in use (a script run again in the same session) gave the new object another name (name_1) without a message, and the next commands that use the name took the old object, so write_gcode could write the G-code of the first run; the command now warns and gives the name of the new object
+- fixed: with a laser preprocessor and neither -las_power nor -spindlespeed, drillcncjob and cncjob of a single-geometry object made the job at the power 0 (M3 S0, nothing burns); they now use the laser power of each tool or of the object, as the Drilling and Milling plugins and cncjob of a multi-geometry object do
+- fixed: save_sys did not save the project settings changed by set_sys (units, tools_mill_*, ...): it wrote the preferences without the current options; it now saves them, as File -> Save Defaults does
+- fixed: aligndrillgrid gave its tool the text id '1'; a drillcncjob of the grid with toolchange had no tool change block (no T1, M6, M0), only the warning "Preprocessor error, G-code is missing"; the tool now has the id 1, as in every Excellon
+
+Updater:
+
+- fixed: in a frozen (Windows) build, accepting an update or "revert to the previous version" always ended with "The updater could not be started.": the job file had runtime_dir "None" (a frozen build has no runtime copy per job) and FlatCAMUpdater.exe rejected the job before it started; the key is now left out when there is no runtime copy
 
 Tests:
 
@@ -289,6 +299,11 @@ Tests:
 - added a regression check that a Tcl reset deletes the old shell and gives the new one the auto-completer keywords
 - added a regression check that an abort with nothing running does not cancel the next task
 - added regression checks that a close during a save does not wait for the next task of the save worker
+- new unit test for the warning of a Tcl command whose new object was renamed because its name was in use (tests/test_tcl_audit_regressions.py)
+- new unit test for the laser power of drillcncjob and cncjob without -las_power (tests/test_tcl_laser_power.py)
+- new unit test for the settings that save_sys saves after set_sys (tests/test_tcl_small_commands.py)
+- new unit test for the tool change of a drillcncjob of an aligndrillgrid grid (tests/test_tcl_drillcncjob.py); the aligndrillgrid tool id test of tests/test_excellon_add_tool.py now expects the id 1
+- new unit test that the update and rollback jobs of a frozen build pass the job check of the updater (tests/updater/test_updater_apply.py)
 
 25.10.2026
 RELEASE FlatCAM Evo 1.0

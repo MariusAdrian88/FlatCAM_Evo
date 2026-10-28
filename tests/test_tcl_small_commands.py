@@ -1,4 +1,4 @@
-"""Small Tcl commands: help, open_gerber argument check and set_sys."""
+"""Small Tcl commands: help, open_gerber argument check, set_sys and save_sys."""
 import os
 import sys
 import unittest
@@ -11,6 +11,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from defaults import AppDefaults, AppOptions
+from tclCommands.TclCommandSaveSys import TclCommandSaveSys
 from tclCommands.TclCommandSetSys import TclCommandSetSys
 
 
@@ -54,6 +55,17 @@ class TestTclSetSys(unittest.TestCase):
         self.assertEqual(options['units'], 'IN' if before == 'MM' else 'MM')
         self.assertEqual(defaults['units'], before)
         command.raise_tcl_error.assert_not_called()
+
+    def test_save_sys_saves_the_project_key_that_set_sys_changed(self):
+        command, defaults, options = make_set_sys_command()
+        other = 'IN' if defaults['units'] == 'MM' else 'MM'
+        TclCommandSetSys.execute(command, {'name': 'units', 'value': other.lower()}, [])
+        TclCommandSetSys.execute(command, {'name': 'global_gridx', 'value': 2.5}, [])
+        written = {}
+        command.app.preferencesUiManager = SimpleNamespace(
+            save_defaults=lambda: written.update(units=defaults['units'], global_gridx=defaults['global_gridx']))
+        TclCommandSaveSys.execute(command, {}, [])
+        self.assertEqual(written, {'units': other, 'global_gridx': 2.5})
 
 # ---- check_rules --------------------------------------------------------------------------------------------------
 def make_check_rules(tmp_objects):

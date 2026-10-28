@@ -114,7 +114,9 @@ class TclCommandAlignDrillGrid(TclCommandSignaled):
                 currenty = currenty + args['gridy']
 
             init_obj.tools = {}
-            init_obj.add_tool(tooldia, drills=drills, tool_id='1')
+            # the int tool id 1, as in every Excellon: the toolchange code of the preprocessors reads
+            # p['tools'][int(p['tool'])], so the text id '1' lost the tool change block of a drillcncjob
+            init_obj.add_tool(tooldia, drills=drills, tool_id=1)
             init_obj.create_geometry()
 
             init_obj.regenerate_source(name=outname)

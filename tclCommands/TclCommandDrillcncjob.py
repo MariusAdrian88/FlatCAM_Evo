@@ -112,7 +112,8 @@ class TclCommandDrillcncjob(TclCommandSignaled):
             ('feedrate_z', 'Drilling feed rate. It is the speed on the Z axis.'),
             ('feedrate_rapid', 'Rapid drilling feed rate.'),
             ('spindlespeed', 'Speed of the spindle in rpm (example: 4000). Laser preprocessors use -las_power; '
-                             'without -las_power, -spindlespeed is the laser power, default 0.0.'),
+                             'without -las_power, -spindlespeed is the laser power. Without both, each tool uses '
+                             'its own value (tools_drill_spindlespeed).'),
             ('toolchangez', 'Z distance for toolchange (example: 30.0). Enables toolchange; '
                             'bare -toolchangez uses object tools_drill_toolchangez.'),
             ('toolchangexy', 'The X,Y coordinates at Toolchange event in format (x, y) (example: (30.0, 15.2) or '
@@ -484,10 +485,11 @@ class TclCommandDrillcncjob(TclCommandSignaled):
             if 'laser' not in pp_excellon_name:
                 if args.get("spindlespeed") is not None:
                     cnc_job_obj.spindlespeed = overrides['tools_drill_spindlespeed'] = float(args["spindlespeed"])
-            else:
-                # the laser power; without -las_power use -spindlespeed, as the scripts of older versions do
+            elif "las_power" in args or args.get("spindlespeed") is not None:
+                # the laser power; without -las_power use -spindlespeed, as the scripts of older versions do. Without
+                # both, each tool keeps its own laser power, as in the Drilling plugin and as for a spindle speed
                 cnc_job_obj.spindlespeed = overrides['tools_drill_spindlespeed'] = \
-                    float(args["las_power"]) if "las_power" in args else float(args.get("spindlespeed", 0.0))
+                    float(args["las_power"]) if "las_power" in args else float(args["spindlespeed"])
 
             # laser minimum power and the code that turns the laser on
             cnc_job_obj.laser_min_power = self._app_option("tools_drill_min_power", 0.0)

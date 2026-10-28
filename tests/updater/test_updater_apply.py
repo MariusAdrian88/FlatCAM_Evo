@@ -192,6 +192,41 @@ class TestLauncher(unittest.TestCase):
         self.assertEqual(str(install / "updater" / "FlatCAMUpdater.exe"), popen_calls[0][0][0])
         self.assertEqual(0x208 if sys.platform == "win32" else 0, popen_calls[0][1]["creationflags"])
 
+    def test_frozen_update_and_rollback_jobs_pass_the_job_check_of_the_updater(self):
+        """A frozen build has no runtime copy per job: the launcher wrote runtime_dir "None", which the updater
+        rejects ("runtime_dir must be absolute") before it acknowledges the start, so the app said "The updater could
+        not be started." The fake updater checks the job as updater_app.main() does before the acknowledgement."""
+        root = Path(tempfile.mkdtemp(prefix="flatcam-frozen-job-"))
+        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+        install = _install(root, frozen=True)
+        data = root / "data"
+        data.mkdir()
+        app = SimpleNamespace(data_path=str(data))
+        archive = root / "release.zip"
+        _write_archive(archive, {"flatcam.py": b"new"})
+        manifest = _manifest(archive, {"flatcam.py": b"new"})
+        rejected = []
+
+        def frozen_updater(argv, **kwargs):
+            job_path = Path(argv[2])
+            job = updater_app.load_job(str(job_path))
+            try:
+                updater_app._validate_job(job, job_path)
+            except ValueError as exc:
+                rejected.append(str(exc))  # main() returns 3 without the acknowledgement
+                return
+            updater_app._write_startup_ack(job)
+
+        exe = str(install / "FlatCAM.exe")
+        with patch.object(sys, "frozen", True, create=True), patch.object(sys, "executable", exe), patch(
+            "services.updater.launcher.subprocess.Popen", frozen_updater
+        ), patch.object(launcher_mod, "_wait_for_startup_ack", lambda ack: ack.is_file()):
+            self.assertTrue(launch_update(app, manifest, archive, relaunch_argv=[exe]), rejected)
+            # a restore point of this installation, as an applied update leaves it
+            restore = restore_dir_for_install(data.resolve(), Path(exe).resolve().parent)
+            self.assertEqual(0, _run_job(root, _job(root, install, archive, manifest, restore_dir=str(restore))))
+            self.assertTrue(launch_rollback(app, relaunch_argv=[exe]), rejected)
+
     def test_source_launch_copies_helper_outside_install(self):
         root = Path(tempfile.mkdtemp(prefix="flatcam-ticket2-source-"))
         self.addCleanup(shutil.rmtree, root, ignore_errors=True)

@@ -188,6 +188,33 @@ def test_toolchange_argument_turns_the_toolchange_on_and_off():
     assert 'M6' in run(TWO, options=dict(tools_drill_toolchange=True))[2]
 
 
+def test_the_holes_of_aligndrillgrid_are_drilled_with_the_tool_change():
+    """aligndrillgrid gave its tool the id '1' (text): the toolchange code of the preprocessors reads
+    p['tools'][int(p['tool'])], so the tool change block was left out with 'Preprocessor error, G-code is missing'."""
+    from tclCommands.TclCommandAlignDrillGrid import TclCommandAlignDrillGrid
+    app = make_app()
+    made = []
+
+    def create(kind, name, init, **kwargs):
+        grid = Excellon(app)
+        grid.units = 'MM'
+        grid.obj_options = {'name': name}
+        grid.regenerate_source = Mock()
+        init(grid, app)
+        made.append(grid)
+
+    app.app_obj.new_object.side_effect = create
+    command = TclCommandAlignDrillGrid(app)
+    command.execute(*command.check_args(('-dia', '3', '-gridx', '10', '-gridy', '10', '-columns', '2', '-rows', '1')))
+    grid, = made
+    tools = {tid: (tool['tooldia'], [(p.x, p.y) for p in tool['drills']], (), {}) for tid, tool in grid.tools.items()}
+
+    app, __, code = run(tools, ['-toolchange', 1, '-toolchangez', 30])
+    assert [line for line in code.splitlines() if line in ('T1', 'M6')] == ['T1', 'M6']
+    assert sorted(drilled_positions(code)) == [(0.0, 0.0), (10.0, 0.0)]
+    assert not any('G-code is missing' in str(c.args[0]) for c in app.inform.emit.call_args_list)
+
+
 def test_plunge_to_travel_z_after_the_toolchange():
     tools = {1: (0.8, [(1.0, 1.0)], (), {})}
     argv = ['-toolchange', 1, '-travelz', 2, '-toolchangez', 30]

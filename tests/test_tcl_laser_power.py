@@ -48,21 +48,26 @@ def laser_on_lines(gcode):
     return {line for line in gcode.splitlines() if line.startswith('M03')}
 
 
-def cncjob_gcode(*argv):
+def cncjob_gcode(*argv, power=None):
     app, jobs = laser_app()
     source = GeometryObject('src', app)
     source.solid_geometry = [LineString([(0, 0), (10, 0), (10, 10)])]
     source.multigeo = False
     source.obj_options.update(zip(('xmin', 'ymin', 'xmax', 'ymax'), source.bounds()))
+    if power is not None:
+        source.obj_options['tools_mill_spindlespeed'] = power
     app.collection.get_by_name = Mock(return_value=source)
     run(TclCommandCncjob, app, '-dia', '0.1', '-z_cut', '0', '-feedrate', '1000', *argv)
     return jobs[0].source_file
 
 
-def drillcncjob_gcode(*argv):
+def drillcncjob_gcode(*argv, power=None):
     app, jobs = laser_app()
     source = make_excellon(app, name='src')
     source.obj_options.update(zip(('xmin', 'ymin', 'xmax', 'ymax'), source.bounds()))
+    if power is not None:
+        for tool in source.tools.values():
+            tool['data']['tools_drill_spindlespeed'] = power
     app.collection.get_by_name = Mock(return_value=source)
     run(TclCommandDrillcncjob, app, '-drillz', '-1', '-travelz', '2', '-feedrate_z', '100', *argv)
     return jobs[0].source_file
@@ -85,6 +90,16 @@ def test_cncjob_laser_power(argv, expected):
 ], ids=['spindlespeed', 'las_power_first', 'no_power'])
 def test_drillcncjob_laser_power(argv, expected):
     assert laser_on_lines(drillcncjob_gcode(*argv)) == expected
+
+
+def test_without_las_power_the_laser_power_of_the_object_or_of_each_tool_is_used():
+    """With neither -las_power nor -spindlespeed the job was made at power 0 (nothing burns), while the GUI and a
+    multi-geometry object use the laser power of the object or of each tool."""
+    assert laser_on_lines(cncjob_gcode(power=800)) == {'M03 S800'}
+    assert laser_on_lines(drillcncjob_gcode(power=800)) == {'M03 S800'}
+    # a power given in the command still wins
+    assert laser_on_lines(cncjob_gcode('-las_power', '300', power=800)) == {'M03 S300'}
+    assert laser_on_lines(drillcncjob_gcode('-las_power', '300', power=800)) == {'M03 S300.0'}
 
 
 def test_cncjob_multigeo_laser_power_from_spindlespeed():

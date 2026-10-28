@@ -958,6 +958,7 @@ class ObjectCollection(QtCore.QAbstractItemModel):
             obj.history_uid = uuid.uuid4().hex
 
         # Prevent same name
+        requested_name = name
         while name in names:
             # ## Create a new name
             # Ends with number?
@@ -970,6 +971,9 @@ class ObjectCollection(QtCore.QAbstractItemModel):
             else:  # No: add a number!
                 name += "_1"
         obj.obj_options["name"] = name
+        # the name the object was made with when it was in use (None: the object has it); a Tcl command reports it,
+        # because the next commands of a script find the old object by that name
+        obj.requested_name = requested_name if name != requested_name else None
 
         # ############################################################################################################
         # update the KeyWords list with the name of the file

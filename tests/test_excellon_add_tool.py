@@ -164,7 +164,7 @@ class TestTclSites:
         assert new['data'] == _option_data(app)
         assert set(new) == {'tooldia', 'drills', 'slots', 'data', 'solid_geometry'}
 
-    def test_aligndrillgrid_creates_one_tool_with_string_id(self):
+    def test_aligndrillgrid_creates_one_tool_with_int_id(self):
         app = _tcl_app()
         created = []
 
@@ -185,7 +185,7 @@ class TestTclSites:
         obj, = created
         drills = [(1, 4), (3, 4), (5, 4), (1, 7), (3, 7), (5, 7)]
         got = snap(obj.tools)
-        assert [tid for tid, _ in got] == ['1']
+        assert [tid for tid, _ in got] == [1]
         tool = got[0][1]
         assert tool['tooldia'] == 1.5 and tool['drills'] == [Point(p).wkt for p in drills]
         assert tool['solid_geometry'] == _geo(1.5, drills)

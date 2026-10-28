@@ -50,4 +50,6 @@ class TclCommandSaveSys(TclCommandSignaled):
         :return: None or exception
         """
 
+        # as File -> Save Defaults: set_sys of a project key (units, tools_mill_*, ...) changes only the options
+        self.app.defaults.update(self.app.options)
         return self.app.preferencesUiManager.save_defaults()

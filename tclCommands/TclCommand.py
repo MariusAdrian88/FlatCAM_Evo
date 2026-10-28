@@ -365,10 +365,21 @@ class TclCommand(object):
                         cannot be reused by a new object
         :return:        the result; the name of the new object; or a tuple of names (a Tcl list)
         """
-        if self.returns_value or result is not None:
+        if self.returns_value:
             return result
         known = {id(obj) for obj in before}
-        names = [obj.obj_options['name'] for obj in self._collection_objects() if id(obj) not in known]
+        new_objects = [obj for obj in self._collection_objects() if id(obj) not in known]
+        for obj in new_objects:
+            requested = getattr(obj, 'requested_name', None)
+            if requested:
+                # the collection renamed it: the next commands of a script that use the name get the old object, so
+                # a script run again in the same session would write the G-code of its first run
+                self.app.inform.emit('[WARNING_NOTCL] %s' % (
+                    _("An object named '%s' already exists. The new object is named '%s'; "
+                      "the commands that use '%s' get the old one.") % (requested, obj.obj_options['name'], requested)))
+        if result is not None:
+            return result
+        names = [obj.obj_options['name'] for obj in new_objects]
         for name in names:
             if name.lower() in ('fail', 'failed'):
                 self.app.inform.emit('[WARNING_NOTCL] %s' % (

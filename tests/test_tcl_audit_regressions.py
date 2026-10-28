@@ -302,3 +302,31 @@ def test_a_command_with_returns_value_or_its_own_result_keeps_it():
     command.names = ['x']
     assert command.execute_wrapper() == 'mine'
 
+
+
+def test_a_command_warns_when_the_name_of_its_new_object_was_in_use(qt_app):
+    """A script run again in the same session: the collection renames the new object (top_iso_1), and the next commands
+    that use the name get the object of the first run. The command says so."""
+    from appObjects.ObjectCollection import ObjectCollection
+    app = make_app()
+    app.inform = Mock()
+    app.collection = ObjectCollection(Mock(resource_location='.', options={
+        'global_allow_edit_in_project_tab': False,
+        'global_proj_item_color_dark': '#FFFFFFFF', 'global_proj_item_dis_color_dark': '#808080FF',
+        'global_proj_item_color_light': '#000000FF', 'global_proj_item_dis_color_light': '#808080FF'}))
+
+    class Isolate(MakeObjects):
+        def execute(self, args, unnamed_args):
+            for name in self.names:
+                self.app.collection.append(SimpleNamespace(kind='geometry', obj_options={'name': name, 'plot': True},
+                                                           ui_type=Mock(), set_ui=Mock(), build_ui=Mock()))
+
+    command = Isolate(app)
+    command.names = ['top_iso']
+    assert command.execute_wrapper() == 'top_iso'
+    assert app.inform.emit.call_args_list == []
+
+    assert command.execute_wrapper() == 'top_iso_1'
+    warned, = [call.args[0] for call in app.inform.emit.call_args_list]
+    assert warned.startswith('[WARNING_NOTCL]') and "'top_iso'" in warned and "'top_iso_1'" in warned
+    assert app.collection.get_by_name('top_iso').requested_name is None

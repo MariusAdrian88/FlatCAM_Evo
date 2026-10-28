@@ -99,7 +99,8 @@ class TclCommandCncjob(TclCommandSignaled):
                       'like: 0.3,1.0). WARNING: no spaces allowed in the value.'),
             ('spindlespeed', 'Spindle speed in rpm (example: 4000). Bare or omitted -spindlespeed uses None '
                             'for nonlaser preprocessors. Laser preprocessors use -las_power; without -las_power, '
-                            '-spindlespeed is the laser power, default 0.0.'),
+                            '-spindlespeed is the laser power (bare: 0.0). Without both, the laser power of the '
+                            'object (tools_mill_spindlespeed) or of each tool is used.'),
             ('dwelltime', 'Spindle startup pause time. Enables dwell; bare -dwelltime uses object '
                           'tools_mill_dwelltime with application fallback. If the option is omitted, '
                           'application tools_mill_dwell and tools_mill_dwelltime are used.'),
@@ -249,9 +250,13 @@ class TclCommandCncjob(TclCommandSignaled):
         # Spindle speed
         if 'laser' not in args["pp"]:
             args["spindlespeed"] = args.get('spindlespeed')
-        else:
+        elif "las_power" in args or "spindlespeed" in args:
             # the laser power; without -las_power use -spindlespeed, as the scripts of older versions do
             args["spindlespeed"] = args["las_power"] if "las_power" in args else (args.get('spindlespeed') or 0.0)
+        else:
+            # neither option: the laser power of the object, as in the Milling plugin and as each tool of a
+            # multi-geometry object keeps its own
+            args["spindlespeed"] = obj.obj_options.get('tools_mill_spindlespeed') or 0.0
 
         # Laser minimum power
         args["las_min_pwr"] = args["las_min_pwr"] if "las_min_pwr" in args else 0.0

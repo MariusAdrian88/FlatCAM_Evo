@@ -439,3 +439,4 @@ tests/test_startup_args.py::TestOrderAndErrors::test_load_that_never_ends_does_n
 tests/test_tcl_audit_regressions.py::test_timeout_is_error_and_late_completion_cannot_replace_new_output  # flaky (order-dependent QTimer dispatch); removed on the owner's request
 tests/test_gerber_editor_clear.py::TestEditorSaveWithClear::test_loaded_as_regions_keeps_the_composed_geometry  # parametrized by the Gerber Editor load mode ([False] regions, [True] apertures)
 tests/test_plotcanvas3d.py::TestPlotCanvas3d::test_plot_grid_toggle_keeps_axis_and_loaded_collection  # flaky under the parallel gate (pixels of a real OpenGL render); removed on the owner's request
+tests/test_excellon_add_tool.py::TestTclSites::test_aligndrillgrid_creates_one_tool_with_string_id  # Renamed to test_aligndrillgrid_creates_one_tool_with_int_id: aligndrillgrid now gives its tool the int id 1.
