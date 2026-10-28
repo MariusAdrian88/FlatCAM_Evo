@@ -43,6 +43,11 @@ def parse_length(text, ref=0.0, font_size=16.0):
     return value * _UNIT_PX.get(unit, 1.0)
 
 
+# namespace and attribute that the SVG export of FlatCAM writes on the root element
+FLATCAM_NS = 'https://github.com/MariusAdrian88/FlatCAM_Evo/svg'
+FLATCAM_ORIGIN = '{%s}origin' % FLATCAM_NS
+
+
 def parse_viewbox(text):
     """
     :param text: viewBox attribute
@@ -109,7 +114,12 @@ def root_setup(root, units, user_units, flip):
         return (scaling(1, -1) if flip else np.eye(3)), vp, 1.0
     out = 25.4 / 96.0 if str(units).upper() == 'MM' else 1.0 / 96.0
     base = viewbox_matrix(vb, root.get('preserveAspectRatio'), width, height) if vb else np.eye(3)
+    # a FlatCAM export: the viewBox coordinates are the real coordinates, the viewBox corner is not moved to 0,0
+    keep_origin = bool(vb) and root.get(FLATCAM_ORIGIN) == 'viewbox'
+    if keep_origin:
+        base[0, 2] = base[1, 2] = 0.0
     m = scaling(out, out) @ base
     if flip:
-        m = np.array([[1.0, 0.0, 0.0], [0.0, -1.0, (height or 0.0) * out], [0.0, 0.0, 1.0]]) @ m
+        m = np.array([[1.0, 0.0, 0.0], [0.0, -1.0, 0.0 if keep_origin else (height or 0.0) * out],
+                      [0.0, 0.0, 1.0]]) @ m
     return m, vp, out

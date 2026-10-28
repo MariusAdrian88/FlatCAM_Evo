@@ -607,7 +607,8 @@ class ObjectCollection(QtCore.QAbstractItemModel):
 
         entries = [ui.menuprojectenable, ui.menuprojectdisable, ui.menuprojectcolor.menuAction(),
                    ui.menuprojectviewsource, ui.menuprojectedit, ui.menuprojectcopy, ui.menuprojectdelete,
-                   ui.menuprojectsave, ui.menuprojectproperties]
+                   ui.menuprojectsave, ui.menuprojectexport.menuAction(), ui.menuprojectjoin.menuAction(),
+                   ui.menuprojectproperties]
         for entry in entries:
             entry.setEnabled(sel)
             # set again on each request: the entries hidden for a Script or a Document stayed hidden for the next
@@ -632,6 +633,11 @@ class ObjectCollection(QtCore.QAbstractItemModel):
             ui.menuprojectviewsource.setVisible(plotted and single is not None and self.has_source(single))
             ui.menuprojectedit.setVisible(plotted and single is not None)
             ui.menuprojectsave.setVisible(single is not None or all_cncjob)
+            ui.menuprojectexport.menuAction().setVisible(
+                single is not None and single.kind in ('gerber', 'excellon', 'geometry'))
+            # Join converts and joins several Gerber, Excellon and Geometry objects
+            ui.menuprojectjoin.menuAction().setVisible(
+                single is None and all(obj.kind in ('gerber', 'excellon', 'geometry') for obj in obj_selection))
             ui.menuprojectproperties.setVisible(plotted)
 
             if single is None and all_cncjob:

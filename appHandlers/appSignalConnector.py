@@ -196,7 +196,14 @@ class AppSignalConnector(QtCore.QObject):
 
         self.ui.menuprojectdelete.triggered.connect(self.app.on_delete)
         self.ui.menuprojectsave.triggered.connect(self.app.on_project_context_save)
+        self.ui.menuprojectexport_dxf.triggered.connect(self.app.f_handlers.on_file_export_dxf)
+        self.ui.menuprojectexport_svg.triggered.connect(self.app.f_handlers.on_file_export_svg)
+        self.ui.menuprojectexport_png.triggered.connect(self.app.f_handlers.on_file_export_object_png)
+        self.ui.menuprojectexport_pdf.triggered.connect(self.app.f_handlers.on_file_export_object_pdf)
         self.ui.menuprojectproperties.triggered.connect(self.app.obj_properties)
+        self.ui.menuprojectjoin_gerber.triggered.connect(lambda: self.app.edit_class.on_join_as('gerber'))
+        self.ui.menuprojectjoin_excellon.triggered.connect(lambda: self.app.edit_class.on_join_as('excellon'))
+        self.ui.menuprojectjoin_geometry.triggered.connect(lambda: self.app.edit_class.on_join_as('geometry'))
 
         # Project Context Menu -> Color Setting
         for act in self.ui.menuprojectcolor.actions():

@@ -9,9 +9,11 @@ from camlib import dict2obj, ParseError, geometry_wkt_cache, project_json_defaul
 from defaults import project_options, clean_project_options, normalize_units
 from appParsers.ParseHPGL2 import HPGL2
 from appParsers.ParseGerber import Gerber
+from appParsers.SVG.document import FLATCAM_NS
 
 from appObjects.ObjectCollection import GerberObject, ExcellonObject, GeometryObject, ScriptObject, CNCJobObject
 from appObjects.AppObject import ObjectLoadBatch
+from appPlugins.ToolFilm import FilmGen
 
 from reportlab.graphics import renderPDF
 from reportlab.pdfgen import canvas
@@ -779,6 +781,77 @@ class appIO(QtCore.QObject):
             self.inform.emit('[WARNING_NOTCL] %s' % _("Cancelled."))
         else:
             self.open_config_file(filename)
+
+    def _export_object_image_dialog(self, ftype):
+        """
+        Shared body of the Project context menu Export > PNG / PDF of one Gerber, Excellon or Geometry object.
+
+        :param ftype:   'png' or 'pdf'
+        :return:        None
+        """
+        obj = self.app.collection.get_active()
+        if obj is None:
+            self.inform.emit('[ERROR_NOTCL] %s' % _("No object is selected."))
+            return
+
+        if obj.kind not in ('gerber', 'excellon', 'geometry'):
+            msg = _("Only Gerber, Excellon and Geometry objects can be exported as an image.")
+            msgbox = FCMessageBox(parent=self.app.ui)
+            msgbox.setWindowTitle(msg)  # taskbar still shows it
+            msgbox.setWindowIcon(QtGui.QIcon(self.app.resource_location + '/app128.png'))
+
+            msgbox.setInformativeText(msg)
+            msgbox.setIconPixmap(QtGui.QPixmap(self.app.resource_location + '/waning.png'))
+
+            bt_ok = msgbox.addButton(_('Ok'), QtWidgets.QMessageBox.ButtonRole.AcceptRole)
+            msgbox.setDefaultButton(bt_ok)
+            msgbox.exec()
+            return
+
+        name = obj.obj_options["name"]
+
+        if ftype == 'png':
+            _filter = "PNG File (*.png);;All Files (*.*)"
+            caption = _("Export PNG")
+        else:
+            _filter = "PDF File (*.pdf);;All Files (*.*)"
+            caption = _("Export PDF")
+
+        try:
+            filename, _f = FCFileSaveDialog.get_saved_filename(
+                caption=caption,
+                directory=self.app.get_last_save_folder() + '/' + str(name) + '_' + ftype,
+                ext_filter=_filter)
+        except TypeError:
+            filename, _f = FCFileSaveDialog.get_saved_filename(
+                caption=caption,
+                ext_filter=_filter)
+
+        filename = str(filename)
+
+        if filename == "":
+            self.inform.emit('[WARNING_NOTCL] %s' % _("Cancelled."))
+            return
+
+        self.export_object_image(name, filename, ftype)
+
+    def on_file_export_object_png(self):
+        """
+        Callback for the Project context menu Export > PNG (one Gerber, Excellon or Geometry object).
+
+        :return: None
+        """
+        self.log.debug("on_file_export_object_png()")
+        self._export_object_image_dialog('png')
+
+    def on_file_export_object_pdf(self):
+        """
+        Callback for the Project context menu Export > PDF (one Gerber, Excellon or Geometry object).
+
+        :return: None
+        """
+        self.log.debug("on_file_export_object_pdf()")
+        self._export_object_image_dialog('pdf')
 
     def on_file_export_svg(self):
         """
@@ -1976,6 +2049,167 @@ class appIO(QtCore.QObject):
 
         self.inform.emit('[success] %s: %s' % (_("PDF file saved to"), file_name))
 
+    def make_svg_document(self, obj, scale_stroke_factor=0.00):
+        """
+        Builds the SVG document of an object: header with viewBox, the group that flips the Y axis, pretty XML.
+
+        A Gerber or an Excellon is exported as black fills of its copper or holes, at their real size; the other
+        objects as their outlines.
+
+        :param obj:                     the FlatCAM object (Gerber, Excellon, Geometry, CNCJob)
+        :param scale_stroke_factor:     factor by which to change/scale the thickness of the features; not used for
+                                        the fills of a Gerber or an Excellon
+        :return:                        the SVG text
+        """
+        if obj.kind in ('gerber', 'excellon'):
+            exported_svg = self.make_fills_svg(obj.flatten())
+        else:
+            exported_svg = obj.export_svg(scale_stroke_factor=scale_stroke_factor)
+
+        # Determine bounding area for svg export
+        bounds = obj.bounds()
+        size = obj.size()
+
+        # Convert everything to strings for use in the xml doc
+        svg_width = str(size[0])
+        svg_height = str(size[1])
+        minx = str(bounds[0])
+        # the content is inside the group that flips the Y axis: it spans y from -ymax to -ymin
+        miny = str(-bounds[3])
+        uom = obj.units.lower()
+
+        # Add an SVG Header and footer to the svg output from shapely
+        # The transform flips the Y Axis so that everything renders
+        # properly within svg apps such as inkscape
+        svg_header = '<svg xmlns="http://www.w3.org/2000/svg" ' \
+                     'version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" '
+        # the viewBox holds the real coordinates of the object: only the FlatCAM import reads this and keeps them
+        svg_header += 'xmlns:flatcam="' + FLATCAM_NS + '" flatcam:origin="viewbox" '
+        svg_header += 'width="' + svg_width + uom + '" '
+        svg_header += 'height="' + svg_height + uom + '" '
+        svg_header += 'viewBox="' + minx + ' ' + miny + ' ' + svg_width + ' ' + svg_height + '">'
+        svg_header += '<g transform="scale(1,-1)">'
+        svg_footer = '</g> </svg>'
+        svg_elem = svg_header + exported_svg + svg_footer
+
+        # Parse the xml through a xml parser just to add line feeds
+        # and to make it look more pretty for the output
+        svg_code = parse_xml_string(svg_elem)
+        return svg_code.toprettyxml()
+
+    @staticmethod
+    def make_fills_svg(flat_geo, line_scale_factor=0.01):
+        """
+        The SVG elements of a geometry: its polygons filled in black without a stroke, so that the copper and the
+        holes keep their real size and a narrow clearance stays open; a line, if any, gets a black stroke.
+
+        :param flat_geo:            the flat list of the shapes of an object
+        :param line_scale_factor:   shapely makes the stroke of a line 2 x this factor wide
+        :return:                    the SVG elements as text
+        """
+        polygons = unary_union([geo for geo in flat_geo if isinstance(geo, Polygon)])
+        lines = unary_union([geo for geo in flat_geo if not isinstance(geo, Polygon)])
+
+        svg_elements = ''
+        if not polygons.is_empty:
+            svg_elements += FilmGen.svg_style_re.sub(
+                lambda match: {'fill': ' fill="#000000"', 'stroke': ' stroke="none"'}.get(match.group(1),
+                                                                                          ' opacity="1.0"'),
+                polygons.svg())
+        if not lines.is_empty:
+            svg_elements += FilmGen.svg_style_re.sub(
+                lambda match: ' %s="#000000"' % match.group(1) if match.group(1) else ' opacity="1.0"',
+                lines.svg(scale_factor=line_scale_factor))
+        return svg_elements
+
+    # the resolution of the PNG of Export > PNG at the least: the usual resolution for print
+    IMAGE_MIN_DPI = 300
+
+    def make_image_document(self, obj, dpi):
+        """
+        Builds the SVG document of the Project context menu Export > PNG / PDF: the shapes of the object filled in
+        black on white, with a margin of 1 mm. The SVG export makes outlines only, too thin and pale for an image.
+
+        :param obj:     a Gerber, Excellon or Geometry object
+        :param dpi:     the resolution asked for; it is raised to IMAGE_MIN_DPI if it is lower
+        :return:        (the SVG text, the resolution)
+        """
+        if obj.kind == 'geometry' and obj.multigeo:
+            flat_geo = []
+            for tool in obj.tools.values():
+                flat_geo += obj.flatten(tool['solid_geometry'])
+        else:
+            flat_geo = obj.flatten()
+        geo = unary_union(flat_geo)
+        if geo.is_empty:
+            raise ValueError("the object has no geometry")
+
+        units_per_inch = 1.0 if obj.units.upper() == 'IN' else 25.4
+        margin = units_per_inch / 25.4
+        dpi = max(int(dpi), self.IMAGE_MIN_DPI)
+
+        # the lines of a Geometry get a stroke of 2 pixels to be visible; the polygons get none
+        svg_geo = self.make_fills_svg(flat_geo, line_scale_factor=units_per_inch / dpi)
+        svg_code = FilmGen.create_positive_svg(svg_geo, geo.bounds, margin, '#000000', 1.0, obj.units.lower())
+        return svg_code, dpi
+
+    def export_object_image(self, obj_name, filename, ftype, dpi=None, use_thread=True):
+        """
+        Exports a Gerber, Excellon or Geometry object to a PNG or PDF file: filled black shapes on white.
+
+        :param obj_name:    the name of the FlatCAM object to be saved
+        :param filename:    Path to the file to save to.
+        :param ftype:       'png' or 'pdf'
+        :param dpi:         resolution for PNG; None means the "tools_film_png_dpi" option; raised to
+                            IMAGE_MIN_DPI if it is lower
+        :param use_thread:  if to be run in a separate thread
+        :return:            'fail' on failure
+        """
+        if ftype not in ('png', 'pdf'):
+            return 'fail'
+
+        self.log.debug("export_object_image()")
+
+        try:
+            obj = self.app.collection.get_by_name(str(obj_name))
+        except Exception:
+            return 'fail'
+
+        if dpi is None:
+            dpi = self.app.options.get("tools_film_png_dpi",
+                                       self.app.defaults.get("tools_film_png_dpi", 300))
+
+        def make_image():
+            try:
+                svg_code, image_dpi = self.make_image_document(obj, dpi)
+                FilmGen.write_output_file(svg_code, filename, ftype, None, obj.units, obj.bounds(), dpi=image_dpi)
+            except PermissionError:
+                self.inform.emit('[WARNING] %s' %
+                                 _("Permission denied, saving not possible.\n"
+                                   "Most likely another app is holding the file open and not accessible."))
+                return 'fail'
+            except Exception as e:
+                self.log.error("App.export_object_image.make_image() --> %s" % str(e))
+                return 'fail'
+
+            if self.app.options.get("global_open_style", self.app.defaults.get("global_open_style")) is False:
+                self.app.file_opened.emit(ftype.upper(), filename)
+            self.app.file_saved.emit(ftype.upper(), filename)
+            self.inform.emit('[success] %s: %s' % (_("%s file exported to") % ftype.upper(), filename))
+
+        if use_thread is True:
+            with self.app.proc_container.new(_("Exporting ...")):
+
+                def job_thread_exc(app_obj):
+                    if make_image() == 'fail':
+                        app_obj.inform.emit('[WARNING_NOTCL] %s' % _('Could not export.'))
+
+                self.worker_task.emit({'fcn': job_thread_exc, 'params': [self]})
+        else:
+            if make_image() == 'fail':
+                self.inform.emit('[WARNING_NOTCL] %s' % _('Could not export.'))
+                return 'fail'
+
     def export_svg(self, obj_name, filename, scale_stroke_factor=0.00):
         """
         Exports a Geometry Object to an SVG file.
@@ -1998,36 +2232,7 @@ class appIO(QtCore.QObject):
             return 'fail'
 
         with self.app.proc_container.new(_("Exporting ...")):
-            exported_svg = obj.export_svg(scale_stroke_factor=scale_stroke_factor)
-
-            # Determine bounding area for svg export
-            bounds = obj.bounds()
-            size = obj.size()
-
-            # Convert everything to strings for use in the xml doc
-            svg_width = str(size[0])
-            svg_height = str(size[1])
-            minx = str(bounds[0])
-            # the content is inside the group that flips the Y axis: it spans y from -ymax to -ymin
-            miny = str(-bounds[3])
-            uom = obj.units.lower()
-
-            # Add an SVG Header and footer to the svg output from shapely
-            # The transform flips the Y Axis so that everything renders
-            # properly within svg apps such as inkscape
-            svg_header = '<svg xmlns="http://www.w3.org/2000/svg" ' \
-                         'version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" '
-            svg_header += 'width="' + svg_width + uom + '" '
-            svg_header += 'height="' + svg_height + uom + '" '
-            svg_header += 'viewBox="' + minx + ' ' + miny + ' ' + svg_width + ' ' + svg_height + '">'
-            svg_header += '<g transform="scale(1,-1)">'
-            svg_footer = '</g> </svg>'
-            svg_elem = svg_header + exported_svg + svg_footer
-
-            # Parse the xml through a xml parser just to add line feeds
-            # and to make it look more pretty for the output
-            svg_code = parse_xml_string(svg_elem)
-            svg_code = svg_code.toprettyxml()
+            svg_code = self.make_svg_document(obj, scale_stroke_factor=scale_stroke_factor)
 
             try:
                 with open(filename, 'w') as fp:

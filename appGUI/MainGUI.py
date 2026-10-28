@@ -1049,6 +1049,20 @@ class MainGUI(QtWidgets.QMainWindow):
             QtGui.QIcon(self.app.resource_location + '/delete32.png'), _('Delete'))
         self.menuprojectsave = self.menuproject.addAction(
             QtGui.QIcon(self.app.resource_location + '/save_as.png'), _('Save'))
+        self.menuprojectexport = self.menuproject.addMenu(
+            QtGui.QIcon(self.app.resource_location + '/export.png'), _('Export'))
+        self.menuprojectexport_dxf = self.menuprojectexport.addAction(_('DXF'))
+        self.menuprojectexport_svg = self.menuprojectexport.addAction(_('SVG'))
+        self.menuprojectexport_png = self.menuprojectexport.addAction(_('PNG'))
+        self.menuprojectexport_pdf = self.menuprojectexport.addAction(_('PDF'))
+        self.menuprojectjoin = self.menuproject.addMenu(
+            QtGui.QIcon(self.app.resource_location + '/join16.png'), _('Join'))
+        self.menuprojectjoin_gerber = self.menuprojectjoin.addAction(
+            QtGui.QIcon(self.app.resource_location + '/gerber16_project.png'), _('As Gerber'))
+        self.menuprojectjoin_excellon = self.menuprojectjoin.addAction(
+            QtGui.QIcon(self.app.resource_location + '/excellon16_project.png'), _('As Excellon'))
+        self.menuprojectjoin_geometry = self.menuprojectjoin.addAction(
+            QtGui.QIcon(self.app.resource_location + '/geometry16_project.png'), _('As Geometry'))
         self.menuproject.addSeparator()
 
         self.menuprojectproperties = self.menuproject.addAction(

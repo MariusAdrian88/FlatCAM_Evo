@@ -5,6 +5,7 @@ from PyQt6 import QtCore, QtGui
 from appObjects.ObjectCollection import GeometryObject, GerberObject, ExcellonObject
 from appGUI.GUIElements import DialogBoxChoice
 from appCommon.SafeEval import safe_eval
+from appHandlers.appJoinConvert import JOIN_KINDS, join_sources
 from appHandlers.appObjectOps import _finish_origin_move, history_guard
 from camlib import affine_translate_matrix
 
@@ -652,6 +653,80 @@ class appEditor(QtCore.QObject):
             app.inform.emit('[success] %s.' % _("Gerber merging finished"))
 
         self.app_obj.new_object("gerber", 'Combo_Gerber', initialize)
+        self.app.should_we_save = True
+
+    def on_join_as(self, kind):
+        """
+        Callback for Project context menu -> Join -> As Gerber / As Excellon / As Geometry. Joins the selected Gerber,
+        Excellon and Geometry objects into a new object of the kind. The objects of another kind are converted first
+        (see appJoinConvert); the selected objects do not change.
+
+        :param kind:    'gerber', 'excellon' or 'geometry'
+        :return:        'fail' on failure, else None
+        """
+        self.defaults.report_usage("on_join_as()")
+
+        objs = self.collection.get_selected()
+
+        if len(objs) < 2:
+            self.inform.emit('[ERROR_NOTCL] %s: %d' %
+                             (_("At least two objects are required for join. Objects currently selected"), len(objs)))
+            return 'fail'
+
+        if any(obj.kind not in JOIN_KINDS for obj in objs):
+            self.inform.emit('[ERROR_NOTCL] %s' % _("Failed. Only Gerber, Excellon and Geometry objects can be joined."))
+            return 'fail'
+
+        def option(key):
+            return self.options.get(key, self.defaults.get(key, self.defaults.factory_defaults.get(key)))
+
+        geo_tools = {}
+        default_data = {}
+        if kind == 'geometry':
+            built = self.build_geometry_tool_table()
+            if built is None:
+                return 'fail'
+            default_data, geo_tools, __ = built
+
+        sources, skipped, multigeo = join_sources(objs, kind, decimals=self.decimals,
+                                                  quad_segs=max(1, int(option("gerber_circle_steps")) // 4),
+                                                  geo_tools=geo_tools)
+
+        if skipped:
+            self.inform.emit('[WARNING_NOTCL] %s: %d' % (_("Shapes that can not be converted and are not joined"),
+                                                         skipped))
+        if not sources:
+            self.inform.emit('[ERROR_NOTCL] %s' % _("Failed. Nothing to join."))
+            return 'fail'
+
+        if kind == 'gerber':
+            name = 'Combo_Gerber'
+
+            def initialize(new_obj, app):
+                GerberObject.merge(grb_list=sources, grb_final=new_obj, log=app.log)
+        elif kind == 'excellon':
+            name = 'Combo_Excellon'
+
+            def initialize(new_obj, app):
+                for source in sources:
+                    if source.zeros is None:
+                        source.zeros = new_obj.zeros
+                        source.units = new_obj.units
+                ExcellonObject.merge(exc_list=sources, exc_final=new_obj, decimals=self.decimals,
+                                     fuse_tools=option("excellon_merge_fuse_tools"), log=app.log,
+                                     inform=app.inform.emit)
+        else:
+            name = 'Combo_MultiGeo' if multigeo else 'Combo_SingleGeo'
+
+            def initialize(new_obj, app):
+                new_obj.obj_options.update(deepcopy(default_data))
+                GeometryObject.merge(geo_list=sources, geo_final=new_obj, multi_geo=multigeo,
+                                     fuse_tools=option("geometry_merge_fuse_tools"), log=app.log)
+                for tool_data in new_obj.tools.values():
+                    if isinstance(tool_data.get('data'), dict):
+                        tool_data['data']['name'] = name
+
+        self.app_obj.new_object(kind, name, initialize)
         self.app.should_we_save = True
 
     def on_custom_origin(self, use_thread=True):

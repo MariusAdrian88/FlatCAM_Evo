@@ -35,6 +35,12 @@ def make_ui():
     ui.menuprojectdelete = menu.addAction('Delete')
     ui.menuprojectsave = menu.addAction('Save')
     ui.menuprojectproperties = menu.addAction('Properties')
+    ui.menuprojectexport = menu.addMenu('Export')
+    ui.menuprojectexport_dxf = ui.menuprojectexport.addAction('DXF')
+    ui.menuprojectexport_svg = ui.menuprojectexport.addAction('SVG')
+    ui.menuprojectexport_png = ui.menuprojectexport.addAction('PNG')
+    ui.menuprojectexport_pdf = ui.menuprojectexport.addAction('PDF')
+    ui.menuprojectjoin = menu.addMenu('Join')
     return ui
 
 
@@ -106,6 +112,126 @@ class TestMenuRequest(unittest.TestCase):
         self.request(obj('gerber', 'a', plot=False), obj('gerber', 'b', plot=False))
         self.assertIn('enable', self.shown())
         self.assertNotIn('disable', self.shown())
+
+    def test_export_submenu_for_one_gerber_excellon_or_geometry(self):
+        for kind in ('gerber', 'excellon', 'geometry'):
+            with self.subTest(kind=kind):
+                self.request(obj(kind))
+                self.assertTrue(self.ui.menuprojectexport.menuAction().isVisible())
+
+    def test_export_submenu_hidden_for_a_cncjob_and_for_several_objects(self):
+        self.request(obj('cncjob'))
+        self.assertFalse(self.ui.menuprojectexport.menuAction().isVisible())
+        self.request(obj('gerber', 'a'), obj('gerber', 'b'))
+        self.assertFalse(self.ui.menuprojectexport.menuAction().isVisible())
+
+    def test_join_submenu_only_for_several_gerber_excellon_geometry_objects(self):
+        join = self.ui.menuprojectjoin.menuAction()
+        self.request(obj('gerber', 'a'), obj('excellon', 'b'), obj('geometry', 'c'))
+        self.assertTrue(join.isVisible())
+        self.request(obj('gerber', 'a'))
+        self.assertFalse(join.isVisible())
+        self.request(obj('gerber', 'a'), obj('cncjob', 'b'))
+        self.assertFalse(join.isVisible())
+
+
+def shapes_of(tools, key):
+    return [g for t in tools.values() for g in t.get(key) or []]
+
+
+class TestJoinAs(unittest.TestCase):
+    """Project context menu -> Join -> As Gerber / As Excellon / As Geometry on a mixed selection."""
+
+    def join(self, kind, *selected):
+        from appHandlers.appEdit import appEditor
+        from appParsers.ParseExcellon import Excellon
+        from tests.helpers_objects import make_app_0b
+
+        app = make_app_0b(geometry_merge_fuse_tools=False, excellon_merge_fuse_tools=False)
+        app.collection.get_selected = lambda: list(selected)
+        made = {}
+
+        def new_object(obj_kind, name, initialize, *args, **kwargs):
+            if obj_kind == 'excellon':
+                target = Excellon(app)
+                target.obj_options = {}
+            else:
+                target = SimpleNamespace(kind=obj_kind, solid_geometry=None, tools={}, obj_options={},
+                                         multigeo=False)
+            initialize(target, app)
+            made.update(kind=obj_kind, obj=target)
+
+        app.app_obj.new_object = new_object
+        appEditor(app).on_join_as(kind)
+        self.assertEqual(made.get('kind'), kind)
+        return app, made['obj']
+
+    def test_as_excellon(self):
+        from shapely.geometry import LineString, Point, box
+
+        grb = obj('gerber', 'grb', tools={
+            10: {'type': 'C', 'size': 1.0, 'geometry': [
+                {'solid': Point(0, 0).buffer(0.5), 'follow': Point(0, 0)},
+                {'solid': LineString([(0, 5), (4, 5), (4, 9)]).buffer(0.5),
+                 'follow': LineString([(0, 5), (4, 5), (4, 9)])}]},
+            11: {'type': 'O', 'size': 0.8, 'geometry': [
+                {'solid': LineString([(10, 0), (12, 0)]).buffer(0.4), 'follow': Point(11, 0)}]},
+            0: {'type': 'REG', 'size': 0.0, 'geometry': [{'solid': box(20, 0, 22, 1)}]},
+        })
+        geo = obj('geometry', 'geo', multigeo=False,
+                  solid_geometry=[Point(30, 0).buffer(1.5), LineString([(40, 0), (42, 0)])],
+                  tools={1: {'tooldia': 0.5, 'data': {}, 'solid_geometry': []}})
+        app, exc = self.join('excellon', grb, geo)
+
+        drills = sorted((round(t['tooldia'], 3), round(p.x, 3), round(p.y, 3))
+                        for t in exc.tools.values() for p in t['drills'])
+        slots = sorted((round(t['tooldia'], 3), round(a.x, 3), round(a.y, 3), round(b.x, 3), round(b.y, 3))
+                       for t in exc.tools.values() for a, b in t['slots'])
+        self.assertEqual(drills, [(1.0, 0.0, 0.0), (3.0, 30.0, 0.0)])
+        self.assertEqual(slots, [(0.5, 40.0, 0.0, 42.0, 0.0), (0.8, 10.0, 0.0, 12.0, 0.0),
+                                 (1.0, 0.0, 5.0, 4.0, 5.0), (1.0, 4.0, 5.0, 4.0, 9.0)])
+        # the rectangle is no drill and no slot: the user is told
+        self.assertTrue(any('[WARNING' in c[0][0] for c in app.inform.emit.call_args_list))
+
+    def test_as_gerber(self):
+        from shapely.geometry import LineString, Point, box
+
+        exc = obj('excellon', 'exc', tools={1: {'tooldia': 1.0, 'drills': [Point(0, 0)],
+                                                'slots': [(Point(0, 2), Point(4, 2))],
+                                                'solid_geometry': [Point(0, 0).buffer(0.5)]}})
+        geo = obj('geometry', 'geo', multigeo=True, solid_geometry=[],
+                  tools={1: {'tooldia': 0.2, 'data': {},
+                             'solid_geometry': [LineString([(0, 10), (5, 10)]), box(20, 0, 22, 1)]}})
+        grb = obj('gerber', 'grb', solid_geometry=[box(30, 0, 31, 1)], follow_geometry=[],
+                  tools={10: {'type': 'C', 'size': 0.3, 'geometry': [{'solid': box(30, 0, 31, 1)}]}})
+        __, res = self.join('gerber', exc, geo, grb)
+
+        follows = sorted((ap['type'], round(ap['size'], 3), el['follow'].geom_type)
+                         for ap in res.tools.values() for el in ap['geometry'] if 'follow' in el)
+        self.assertIn(('C', 1.0, 'Point'), follows)
+        self.assertIn(('C', 1.0, 'LineString'), follows)
+        self.assertIn(('C', 0.2, 'LineString'), follows)
+        self.assertTrue(any(ap['type'] == 'REG' for ap in res.tools.values()))
+        for x, y in ((0, 0), (2, 2), (2.5, 10), (21, 0.5), (30.5, 0.5)):
+            self.assertTrue(res.solid_geometry.contains(Point(x, y)), (x, y))
+
+    def test_as_geometry_keeps_single_and_multi_geo_shapes(self):
+        from shapely.geometry import LineString, Point, box
+        from shapely import unary_union
+
+        data = {'tools_mill_job_type': 'Rough', 'tools_mill_tool_shape': 'C1'}
+        single = obj('geometry', 'single', multigeo=False, solid_geometry=[LineString([(0, 0), (5, 0)])],
+                     tools={1: {'tooldia': 0.5, 'data': dict(data), 'solid_geometry': []}})
+        multi = obj('geometry', 'multi', multigeo=True, solid_geometry=[],
+                    tools={1: {'tooldia': 1.0, 'data': dict(data), 'solid_geometry': [box(10, 0, 11, 1)]}})
+        grb = obj('gerber', 'grb', solid_geometry=[box(20, 0, 21, 1)], tools={})
+        __, res = self.join('geometry', single, multi, grb)
+
+        self.assertTrue(res.multigeo)
+        joined = unary_union(shapes_of(res.tools, 'solid_geometry'))
+        for x, y in ((2.5, 0), (10.5, 0.5), (20.5, 0.5)):
+            self.assertTrue(joined.intersects(Point(x, y)), (x, y))
+
 
 class TestCategoryMenu(unittest.TestCase):
 
