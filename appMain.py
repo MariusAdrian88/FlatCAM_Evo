@@ -4234,6 +4234,7 @@ class App(QtCore.QObject):
             "sprint_lay6": self.resource_location + "/flatcam_icon16.png",
             "eagle_brd": self.resource_location + "/flatcam_icon16.png",
             "allegro_brd": self.resource_location + "/flatcam_icon16.png",
+            "diptrace": self.resource_location + "/flatcam_icon16.png",
             "excellon": self.resource_location + "/drill16.png",
             'geometry': self.resource_location + "/geometry16.png",
             "cncjob": self.resource_location + "/cnc16.png",
@@ -4264,6 +4265,7 @@ class App(QtCore.QObject):
             'sprint_lay6': self.f_handlers.on_file_import_sprint_layout,
             'eagle_brd': self.f_handlers.on_file_import_eagle_brd,
             'allegro_brd': self.f_handlers.on_file_import_allegro_brd,
+            'diptrace': self.f_handlers.on_file_import_diptrace,
             'gerber': lambda fname: self.worker_task.emit({
                 'fcn': self.f_handlers.open_gerber,
                 'params': [fname]

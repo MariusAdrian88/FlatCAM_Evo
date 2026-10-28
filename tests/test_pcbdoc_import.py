@@ -5,6 +5,8 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+import pytest
+
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
 from PyQt6 import QtCore, QtWidgets
@@ -52,6 +54,177 @@ class TestPcbDocImport(unittest.TestCase):
 
     def tearDown(self):
         self.qapp.processEvents()
+
+    @pytest.mark.diptrace
+    def test_diptrace_chooser_imports_selected_native_layers_and_holes_in_project_units(self):
+        from pathlib import Path
+        from appGUI.ImportDialog import ImportDialog
+
+        filename = str(Path(__file__).parent / 'fixtures' / 'diptrace' / 'STM-32_GPSDO_v1.0.dip')
+        self.app.ui = QtWidgets.QWidget()
+        self.app.get_last_folder = Mock(return_value='')
+        self.app.resource_location = 'assets/resources'
+        self.app.f_handlers = self.io
+        self.app.pdf_tool = self.app.image_tool = None
+        dialog = ImportDialog(self.app)
+        dialog.select('diptrace')
+        self.assertEqual(dialog.ext_label.text(), '.dip')
+        dialog.accept()
+        with patch.object(QtWidgets.QFileDialog, 'getOpenFileName', return_value=(filename, '')):
+            dialog.run_selected()
+        job = self.app.worker_task.emit.call_args.args[0]
+        with patch.object(self.io, 'pcbdoc_parsed') as signal:
+            job['fcn'](*job['params'])
+        source, parsed = signal.emit.call_args.args
+        self.assertEqual(source, filename)
+
+        def choose(selection):
+            self.assertEqual(selection.windowTitle(), 'Import DipTrace PCB')
+            selected = {'Top (0)', 'Board Outline (Outline)', 'Top Mask (Top Mask)',
+                        'Top Paste (Top Paste)', 'Top Silk (Top Silk)', 'PTH', 'NPTH'}
+            checkboxes = selection.findChildren(QtWidgets.QCheckBox)
+            self.assertTrue(selected.issubset({checkbox.text() for checkbox in checkboxes}))
+            for checkbox in checkboxes:
+                checkbox.setChecked(checkbox.text() in selected)
+            return QtWidgets.QDialog.DialogCode.Accepted
+
+        self.app.app_units = 'IN'
+        # Its two routed vias ask the via choice; the preselected Tent needs no reparse.
+        with patch.object(QtWidgets.QDialog, 'exec', choose), \
+                patch.object(QtWidgets.QInputDialog, 'getItem',
+                             side_effect=lambda parent, title, label, items, current, editable:
+                             (items[current], True)) as via_prompt:
+            self.io.on_pcbdoc_parsed(filename, parsed)
+        via_prompt.assert_called_once()
+        job = self.app.worker_task.emit.call_args.args[0]
+        job['fcn'](*job['params'])
+        self.assertEqual([kind for kind, obj in self.objects], ['gerber'] * 5 + ['excellon'] * 2)
+        copper, outline, mask, silk, paste, plated, unplated = [obj for kind, obj in self.objects]
+        self.assertTrue(copper.obj_options['name'].endswith('_0_Top'))
+        self.assertTrue(all(obj.units == 'IN' and obj.source_file for kind, obj in self.objects))
+        self.assertAlmostEqual(unary_union(copper.solid_geometry).area,
+                               unary_union(parsed.layers[0]['solid_geometry']).area / 25.4 ** 2)
+        for obj, layer in ((mask, 'Top Mask'), (silk, 'Top Silk'), (paste, 'Top Paste')):
+            self.assertTrue(obj.obj_options['name'].endswith('_%s_%s' % (layer, layer)))
+            self.assertAlmostEqual(unary_union(obj.solid_geometry).area,
+                                   unary_union(parsed.layers[layer]['solid_geometry']).area / 25.4 ** 2)
+        self.assertEqual(sum(len(t['slots']) for t in plated.tools.values()), 3)
+        self.assertEqual(sum(len(t['drills']) for t in unplated.tools.values()), 3)
+        self.assertAlmostEqual(next(t['tooldia'] for t in plated.tools.values() if t['slots']), 1 / 25.4)
+        self.qapp.processEvents()
+        self.app.file_opened.emit.assert_called_once_with('diptrace', filename)
+
+    @pytest.mark.diptrace
+    def test_legacy_diptrace_source_export_values_create_missing_mask_and_paste(self):
+        from pathlib import Path
+        from appParsers.ParseDipTrace import DipTraceParser
+        from shapely.geometry import box
+
+        filename = str(Path(__file__).parent / 'fixtures' / 'diptrace' / 'DAP42v2.dip')
+        self.app.ui = QtWidgets.QWidget()
+        parsed = DipTraceParser().parse_file(filename)
+        values = iter((0.1, -0.05))
+        # Respect the real dialog's bounds so a clamped negative value changes
+        # the imported paste geometry instead of passing through a permissive mock.
+        with patch.object(QtWidgets.QInputDialog, 'getDouble',
+                          side_effect=lambda parent, title, label, value, lower, upper, decimals:
+                          (max(lower, min(upper, next(values))), True)), \
+                patch.object(QtWidgets.QInputDialog, 'getItem',
+                             side_effect=lambda parent, title, label, items, current, editable:
+                             (items[1 - current], True)), \
+                patch.object(QtWidgets.QDialog, 'exec', return_value=QtWidgets.QDialog.DialogCode.Rejected):
+            self.io.on_pcbdoc_parsed(filename, parsed)
+        self.assertTrue(self.app.worker_task.emit.called)
+        job = self.app.worker_task.emit.call_args.args[0]
+        with patch.object(self.io, 'pcbdoc_parsed') as signal:
+            job['fcn'](*job['params'])
+        source, resolved = signal.emit.call_args.args
+        self.assertEqual(source, filename)
+        region = box(16.4, 15.1, 17.9, 16.6)
+        for layer, offset in (('Top Mask', 0.1), ('Top Paste', 0.05)):
+            expected = box(16.645 - offset, 15.325 - offset, 17.645 + offset, 16.425 + offset)
+            self.assertLess(unary_union(resolved.layers[layer]['solid_geometry']).intersection(region)
+                            .symmetric_difference(expected).area, 1e-8)
+        # A resolved reparse must reach layer selection without another prompt.
+        with patch.object(QtWidgets.QInputDialog, 'getDouble', side_effect=AssertionError('Repeated settings prompt')), \
+                patch.object(QtWidgets.QInputDialog, 'getItem', side_effect=AssertionError('Repeated via prompt')), \
+                patch.object(QtWidgets.QDialog, 'exec', return_value=QtWidgets.QDialog.DialogCode.Rejected):
+            self.io.on_pcbdoc_parsed(filename, resolved)
+        # Declining unknown source settings must not invent openings or requeue
+        # the same incomplete board indefinitely.
+        self.app.worker_task.emit.reset_mock()
+        with patch.object(QtWidgets.QInputDialog, 'getDouble', return_value=(0, False)), \
+                patch.object(QtWidgets.QInputDialog, 'getItem',
+                             side_effect=lambda parent, title, label, items, current, editable:
+                             (items[current], False)), \
+                patch.object(QtWidgets.QDialog, 'exec', return_value=QtWidgets.QDialog.DialogCode.Rejected):
+            self.io.on_pcbdoc_parsed(filename, parsed)
+        self.app.worker_task.emit.assert_not_called()
+        self.assertNotIn('Top Mask', parsed.layers)
+        self.assertEqual(self.objects, [])
+
+        # With explicit pad swells only the tented routed vias inherit the swell:
+        # choosing Open must still ask it, then open them on both sides.
+        inherit = (1000000000 - 10000000).to_bytes(4, 'big')
+        data = Path(filename).read_bytes().replace(inherit * 2, (1000000000 + 3000).to_bytes(4, 'big') + inherit)
+        with tempfile.TemporaryDirectory() as directory:
+            board = os.path.join(directory, 'DAP42v2.dip')
+            Path(board).write_bytes(data)
+            with patch.object(QtWidgets.QInputDialog, 'getDouble', return_value=(0.1, True)), \
+                    patch.object(QtWidgets.QInputDialog, 'getItem',
+                                 side_effect=lambda parent, title, label, items, current, editable:
+                                 (items[1 - current], True)), \
+                    patch.object(QtWidgets.QDialog, 'exec', return_value=QtWidgets.QDialog.DialogCode.Rejected):
+                self.io.on_pcbdoc_parsed(board, DipTraceParser().parse_file(board))
+                job = self.app.worker_task.emit.call_args.args[0]
+                with patch.object(self.io, 'pcbdoc_parsed') as signal:
+                    job['fcn'](*job['params'])
+        resolved = signal.emit.call_args.args[1]
+        for side in ('Top Mask', 'Bottom Mask'):
+            mask = unary_union(resolved.layers[side]['solid_geometry'])
+            for via in ((-2.54, 13.6525), (-10.59, 10.16)):
+                self.assertLess(Point(via).buffer(0.6).difference(mask).area, 1e-6)
+
+    def test_diptrace_corrupt_input_reports_failure_without_publishing_a_board(self):
+        with tempfile.TemporaryDirectory() as directory:
+            filename = os.path.join(directory, 'bad.dip')
+            with open(filename, 'wb') as handle:
+                handle.write(b'\x07DTBOARD')
+            with patch.object(self.io, 'pcbdoc_parsed') as signal:
+                self.assertEqual(self.io.parse_diptrace(filename), 'fail')
+            signal.emit.assert_not_called()
+        self.assertIn('[ERROR_NOTCL]', self.app.inform.emit.call_args.args[0])
+        self.assertEqual(self.objects, [])
+
+    def test_diptrace_file_menu_and_recent_file_reopen_the_native_importer(self):
+        import json
+        from appMain import App
+        from appHandlers.appSignalConnector import AppSignalConnector
+        from PyQt6.QtGui import QAction
+
+        app = QtCore.QObject()
+        app.ui = Mock()
+        app.ui.menufileimportdiptrace = QAction('DipTrace', app)
+        app.ui.recent = QtWidgets.QMenu()
+        app.ui.recent_projects = QtWidgets.QMenu()
+        app.log = Mock()
+        app.f_handlers = Mock()
+        app.resource_location = ''
+        app.image_tool = Mock()
+        app.worker_task = Mock()
+        AppSignalConnector(app).connect_filemenu_signals()
+        app.ui.menufileimportdiptrace.trigger()
+        app.f_handlers.on_file_import_diptrace.assert_called_once_with()
+        app.f_handlers.on_file_import_diptrace.reset_mock()
+        with tempfile.TemporaryDirectory() as folder:
+            app.data_path = folder
+            for name, contents in (('recent.json', [{'kind': 'diptrace', 'filename': 'board.DIP'}]),
+                                   ('recent_projects.json', [])):
+                with open(os.path.join(folder, name), 'w') as handle:
+                    json.dump(contents, handle)
+            App.setup_recent_items(app)
+            app.ui.recent.actions()[0].trigger()
+        app.f_handlers.on_file_import_diptrace.assert_called_once_with('board.DIP')
 
     def test_current_units_tools_geometry_drills_slots_and_selection(self):
         self.app.app_units = 'IN'

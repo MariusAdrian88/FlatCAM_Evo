@@ -13,3 +13,6 @@ tests/test_grbl_view3d.py::SenderLifecycle3dTest::test_replacing_visible_or_hidd
 tests/test_grbl_view3d.py::SenderLifecycle3dTest::test_toggle_off_closes_view_without_reopening_sender  # ToolGCodeSender.run() is disabled until the tool is finished (TODO in Sender.py run())
 tests/test_grbl_view3d.py::SenderLifecycle3dTest::test_reopen_after_cleanup_uses_new_canvas  # ToolGCodeSender.run() is disabled until the tool is finished (TODO in Sender.py run())
 tests/test_grbl_view3d.py::SenderLifecycle3dTest::test_cleanup_after_manual_3d_close_keeps_replacement_canvas  # ToolGCodeSender.run() is disabled until the tool is finished (TODO in Sender.py run())
+tests/test_pcbdoc_parser.py::TestDipTraceBoard  # opt-in DipTrace tests (FLATCAM_TEST_DIPTRACE=1)
+tests/test_pcbdoc_import.py::TestPcbDocImport::test_diptrace_chooser_imports_selected_native_layers_and_holes_in_project_units  # opt-in DipTrace test (FLATCAM_TEST_DIPTRACE=1)
+tests/test_pcbdoc_import.py::TestPcbDocImport::test_legacy_diptrace_source_export_values_create_missing_mask_and_paste  # opt-in DipTrace test (FLATCAM_TEST_DIPTRACE=1)

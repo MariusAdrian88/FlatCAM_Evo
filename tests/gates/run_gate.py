@@ -23,7 +23,7 @@ tests/gates/test_budget.json.
 Targeted compare uses only the collected ids (a baseline id that was not collected is not treated as removed).
 
 removed_tests.txt and allowed_skips.txt: one line per test, ``<test id>  # <reason>``. Blank lines and lines that
-start with ``#`` are ignored.
+start with ``#`` are ignored. An allowed_skips.txt line can also name a file or a class: it covers all its tests.
 
 Exit codes: 0 gate passed, 1 gate failed or the run is not trustworthy.
 """
@@ -196,6 +196,11 @@ def expand_patterns(patterns):
     return files
 
 
+def _allowed(node_id, allowed):
+    """True if allowed_skips.txt names the test, or its file or class (an opt-in group such as DipTrace)."""
+    return node_id in allowed or any(node_id.startswith(entry + '::') for entry in allowed)
+
+
 def compare(current, baseline, removed, allowed, full):
     """Return the list of failure lines. Print each change of outcome."""
     failures = []
@@ -206,13 +211,13 @@ def compare(current, baseline, removed, allowed, full):
             print('  change  %s: %s -> %s' % (node_id, was or 'new', now))
         if was is None:
             # a new test may skip only if allowed_skips.txt names it (a platform or opt-in skip)
-            if now != 'passed' and not (now in ('skipped', 'xfailed') and node_id in allowed):
+            if now != 'passed' and not (now in ('skipped', 'xfailed') and _allowed(node_id, allowed)):
                 failures.append('new test does not pass (%s): %s' % (now, node_id))
         elif now in ('failed', 'error', 'collect_error'):
             if now != was:
                 failures.append('%s (was %s): %s' % (now, was, node_id))
         elif now in ('skipped', 'xfailed'):
-            if now != was and node_id not in allowed:
+            if now != was and not _allowed(node_id, allowed):
                 failures.append('%s (was %s) and not in allowed_skips.txt: %s' % (now, was, node_id))
         elif now == 'passed' and was == 'passed':
             pass

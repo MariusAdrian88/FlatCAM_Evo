@@ -155,6 +155,9 @@ class appIO(QtCore.QObject):
         'allegro_brd': {
             'ext': '.brd', 'filter': 'OrCAD / Allegro Board (*.brd)',
             'log': 'Allegro Board', 'name_first': False},
+        'diptrace': {
+            'ext': '.dip', 'filter': 'DipTrace PCB (*.dip *.DIP)',
+            'log': 'DipTrace PCB', 'name_first': True},
     }
 
     @staticmethod
@@ -170,13 +173,15 @@ class appIO(QtCore.QObject):
             return _('Import Eagle Board')
         if kind == 'allegro_brd':
             return _('Import OrCAD/Allegro Board')
+        if kind == 'diptrace':
+            return _('Import DipTrace PCB')
         return _('Import Altium PCB')
 
     @staticmethod
     def _pcb_source_kind(filename):
         """
         Which native PCB format a file imported through the PcbDoc pipeline is: a key of PCB_FORMATS.
-        Anything that is not KiCad, Sprint Layout, Eagle or Allegro is Altium. Eagle and Allegro boards both use
+        Unrecognized extensions are Altium. Eagle and Allegro boards both use
         the .brd extension, so the content decides: an Eagle board is XML, an Allegro board starts with a binary
         magic number. A file that cannot be read stays an Eagle board.
         """
@@ -299,6 +304,9 @@ class appIO(QtCore.QObject):
     def on_file_import_allegro_brd(self, name=None):
         self._import_pcb_file('allegro_brd', name, self.parse_allegro_brd)
 
+    def on_file_import_diptrace(self, name=None):
+        self._import_pcb_file('diptrace', name, self.parse_diptrace)
+
     def _parse_pcb_file(self, kind, filename, make_parser):
         if self.app.abort_flag:
             return
@@ -341,6 +349,12 @@ class appIO(QtCore.QObject):
             return AllegroBrdParser(app=self.app)
         return self._parse_pcb_file('allegro_brd', filename, make_parser)
 
+    def parse_diptrace(self, filename, opening_defaults=None):
+        def make_parser():
+            from appParsers.ParseDipTrace import DipTraceParser
+            return DipTraceParser(app=self.app, opening_defaults=opening_defaults)
+        return self._parse_pcb_file('diptrace', filename, make_parser)
+
     @QtCore.pyqtSlot(str, object)
     def on_pcbdoc_parsed(self, filename, parsed):
         if self.app.abort_flag:
@@ -349,6 +363,38 @@ class appIO(QtCore.QObject):
         if self._pcb_import is not None:
             self.app.projects.inform_busy()
             return
+        if kind == 'diptrace' and getattr(parsed, 'opening_defaults', None) is None:
+            opening_defaults = {}
+            missing = set(getattr(parsed, 'missing_opening_defaults', ()))
+            if 'vias' in missing:
+                # Via tenting is a DipTrace export setting; the parse used Tent.
+                choices = [_('Tent vias'), _('Open vias')]
+                choice, accepted = QtWidgets.QInputDialog.getItem(
+                    self.app.ui, self._pcb_title(kind),
+                    _('The board does not store via tenting (a DipTrace export setting).'),
+                    choices, 0, False)
+                if self.app.abort_flag:
+                    return
+                if accepted and choice == choices[1]:
+                    opening_defaults['vias'] = 'open'
+                    # The Tent parse didn't need the offsets that open vias use.
+                    missing |= set(getattr(parsed, 'via_opening_defaults', ()))
+            for key, label in (('mask', _('Solder-mask swell')), ('paste', _('Paste-mask shrink'))):
+                if key not in missing:
+                    continue
+                value, accepted = QtWidgets.QInputDialog.getDouble(
+                    self.app.ui, self._pcb_title(kind),
+                    _('This older board does not store its inherited export settings.\n'
+                      'Enter the value used in the source DipTrace installation (mm).\n'
+                      'Cancel leaves affected openings unimported.\n\n') + label,
+                    0.0, -9.999999, 9.999999, 6)
+                if self.app.abort_flag:
+                    return
+                if accepted:
+                    opening_defaults[key] = value
+            if opening_defaults:
+                self.worker_task.emit({'fcn': self.parse_diptrace, 'params': [filename, opening_defaults]})
+                return
         if kind == 'proteus' and hasattr(parsed, 'boards'):
             if self._proteus_import is not None:
                 self.app.projects.inform_busy()

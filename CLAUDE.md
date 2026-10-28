@@ -20,6 +20,10 @@ Tests run with pytest from the `.venv` (on Windows use PowerShell; Git Bash cann
 .venv\Scripts\python.exe tests/gates/run_gate.py                                 # full gate: before a push
 ```
 
+The DipTrace importer tests (`@pytest.mark.diptrace`) take minutes and are skipped by default. Run them only for a
+change of `appParsers/ParseDipTrace.py` or its import path: set `FLATCAM_TEST_DIPTRACE=1`, and also
+`DIPTRACE_V38_EXAMPLES=D:\1.Development\DipTrace_corpus` for the tests on the public corpus.
+
 ## Test Policy
 
 TDD is the method, not the archive. Write the failing test first. When the task is done:

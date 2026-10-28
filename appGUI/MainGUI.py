@@ -333,6 +333,10 @@ class MainGUI(QtWidgets.QMainWindow):
             QtGui.QIcon(self.app.resource_location + '/import.png'),
             '%s...' % _('OrCAD/Allegro Board (.brd)'), self)
         self.menufileimport.addAction(self.menufileimportallegro)
+        self.menufileimportdiptrace = QtGui.QAction(
+            QtGui.QIcon(self.app.resource_location + '/import.png'),
+            '%s...' % _('DipTrace PCB (.dip)'), self)
+        self.menufileimport.addAction(self.menufileimportdiptrace)
         self.menufileimport.addSeparator()
 
         # Export ...

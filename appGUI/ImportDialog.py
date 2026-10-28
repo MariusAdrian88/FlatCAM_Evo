@@ -92,6 +92,11 @@ def import_entries(app):
         {'key': 'allegro_brd', 'title': _('OrCAD/Allegro Board'), 'ext': '.brd',
          'text': _('Reads a native OrCAD or Allegro board, the binary format.'),
          'run': lambda: handlers.on_file_import_allegro_brd()},
+        {'key': 'diptrace', 'title': _('DipTrace PCB'), 'ext': '.dip',
+         'text': _('Reads supported native DipTrace boards, including multilayer designs. '
+                   'Imports saved copper, pads, vias, drilling, outlines, mask, paste and documentation layers. '
+                   'Unsupported records and unavailable artwork are reported during import.'),
+         'run': lambda: handlers.on_file_import_diptrace()},
     ]
     for entry in boards:
         entry['icon'] = res + '/import.png'
