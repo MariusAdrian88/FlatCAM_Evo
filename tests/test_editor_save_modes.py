@@ -440,7 +440,8 @@ def test_gcode_editor_save_renames_the_job_with_the_typed_name():
     editor.app = MagicMock(resource_location='')
     # the rename of the Project tree, without a history step: the Edit step of the save has the name
     editor.app.collection.rename_object = MethodType(ObjectCollection.rename_object,
-                                                     SimpleNamespace(app=editor.app, update_view=Mock()))
+                                                     SimpleNamespace(app=editor.app, update_view=Mock(),
+                                                                     get_list=lambda: [job]))
     job = SimpleNamespace(obj_options={'name': 'job'}, source_file='G0 X0')
     editor.gcode_obj = job
     editor.ui = SimpleNamespace(name_entry=FCEntry(), gcode_editor_tab=SimpleNamespace(
