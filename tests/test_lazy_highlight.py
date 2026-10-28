@@ -113,6 +113,63 @@ class TestLazyHighlight(EditorCase):
         self.assertIn('F1000.00', self.block(1001).text())
         self.assertTrue(self.formatted(1001))
 
+
+class TestGotoLine(unittest.TestCase):
+    """Go to Line (Ctrl+G, MainGUI.goto_text_line) goes to the line with that number in the number bar."""
+
+    def setUp(self):
+        rows = []
+        for k, row in enumerate(gcode(300).split('\n')):
+            if k % 10 == 0:
+                # a long comment: it wraps in a 400 px wide editor
+                rows.append('(%s)' % ('a long comment that wraps in a narrow editor ' * 4))
+            rows.append(row)
+        self.frame = FCTextAreaLineNumber(theme='default')
+        self.frame.resize(400, 300)
+        self.frame.show()
+        self.edit = self.frame.edit
+        pump()
+        self.edit.setPlainText('\n'.join(rows))
+        pump()
+
+    def tearDown(self):
+        self.frame.close()
+        self.frame.deleteLater()
+        pump()
+
+    def goto(self, text, ok=True):
+        """Go to Line from line 100 with `text` in the dialog; returns the line of the cursor and the messages."""
+        from types import SimpleNamespace
+        from unittest.mock import Mock, patch
+        from appGUI.MainGUI import MainGUI
+
+        self.edit.setTextCursor(QtGui.QTextCursor(self.edit.document().findBlockByNumber(99)))
+        inform = Mock()
+        editor_tab = SimpleNamespace(code_editor=self.edit)
+        gui = SimpleNamespace(plot_tab_area=SimpleNamespace(currentWidget=lambda: editor_tab),
+                              app=SimpleNamespace(resource_location='', inform=SimpleNamespace(emit=inform)))
+        with patch('appGUI.MainGUI.Dialog_box', return_value=SimpleNamespace(location=text, ok=ok)):
+            MainGUI.goto_text_line(gui)
+        return self.edit.textCursor().blockNumber() + 1, [call.args[0] for call in inform.call_args_list]
+
+    def test_goes_to_the_numbered_line_when_long_lines_wrap(self):
+        # the wrapped parts of the long lines were counted as lines: Go to Line 200 stopped above line 200
+        self.assertNotEqual(self.edit.document().findBlockByLineNumber(199).blockNumber(), 199)
+        self.assertEqual(self.goto('200'), (200, []))
+        last = self.edit.document().blockCount()
+        self.assertEqual(self.goto(str(last)), (last, []))
+
+    def test_wrong_line_warns_and_keeps_the_cursor(self):
+        # a text that is not a line number went to line 1 without a message
+        for text in ('abc', '', '0', '100000'):
+            line, messages = self.goto(text)
+            self.assertEqual(line, 100, text)
+            self.assertEqual(len(messages), 1, text)
+            self.assertTrue(messages[0].startswith('[WARNING_NOTCL]'), text)
+        # Cancel
+        self.assertEqual(self.goto('200', ok=False), (100, []))
+
+
 class TestPrint(EditorCase):
     LINES = 400
 

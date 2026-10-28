@@ -4857,21 +4857,29 @@ class MainGUI(QtWidgets.QMainWindow):
                              label='%s:' % _("Line"),
                              icon=QtGui.QIcon(self.app.resource_location + '/jump_to32.png'),
                              initial_text='')
+        if not dia_box.ok:
+            return
+
+        # get the document() of the AppTextEditor
+        doc = c_editor.document()
         try:
             line = int(dia_box.location) - 1
         except (ValueError, TypeError):
-            line = 0
+            self.app.inform.emit('[WARNING_NOTCL] %s' % _("Wrong value format entered, use a number."))
+            return
+        if not 0 <= line < doc.blockCount():
+            self.app.inform.emit('[WARNING_NOTCL] %s: [%d, %d]' % (_("Edited value is out of range"), 1,
+                                                                   doc.blockCount()))
+            return
 
-        if dia_box.ok:
-            # make sure to move first the cursor at the end so after finding the line, the line will be positioned
-            # at the top of the window
-            c_editor.moveCursor(QTextCursor.MoveOperation.End)
-            # get the document() of the AppTextEditor
-            doc = c_editor.document()
-            # create a Text Cursor based on the searched line
-            cursor = QTextCursor(doc.findBlockByLineNumber(line))
-            # set cursor of the code editor with the cursor at the searched line
-            c_editor.setTextCursor(cursor)
+        # make sure to move first the cursor at the end so after finding the line, the line will be positioned
+        # at the top of the window
+        c_editor.moveCursor(QTextCursor.MoveOperation.End)
+        # create a Text Cursor based on the searched line: the line numbers shown are the block numbers, while
+        # findBlockByLineNumber() counts each wrapped part of a long line as a line
+        cursor = QTextCursor(doc.findBlockByNumber(line))
+        # set cursor of the code editor with the cursor at the searched line
+        c_editor.setTextCursor(cursor)
 
     def normalGeometry(self):
         title_bar = getattr(self, 'title_bar', None)

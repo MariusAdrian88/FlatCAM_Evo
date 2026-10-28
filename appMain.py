@@ -3804,8 +3804,8 @@ class App(QtCore.QObject):
     def on_geometry_tool_add_from_db_executed(self, tool):
         return self.ui_actions.on_geometry_tool_add_from_db_executed(tool)
 
-    def on_plot_area_tab_closed(self, tab_obj_name):
-        self.ui_actions.on_plot_area_tab_closed(tab_obj_name)
+    def on_plot_area_tab_closed(self, tab_obj_name, index=None):
+        self.ui_actions.on_plot_area_tab_closed(tab_obj_name, index)
 
     def on_plot_area_tab_double_clicked(self):
         self.ui_actions.on_plot_area_tab_double_clicked()

@@ -748,6 +748,11 @@ class AppGCodeEditor(QtCore.QObject):
             # the job (and its project) keeps the changed G-code instead of making it again from its tools
             self.gcode_obj.edited_source_file = my_gcode
         self.gcode_obj.source_file = my_gcode
+
+        # the name in the Name field (also when Enter was not pressed); no history step of its own, the Edit step of
+        # the save has the name too
+        self.edited_obj_name = self.ui.name_entry.get_value()
+        self.app.collection.rename_object(self.gcode_obj, self.edited_obj_name)
         self.deactivate()
 
         self.ui.gcode_editor_tab.buttonSave.setStyleSheet("")

@@ -1084,13 +1084,19 @@ class AppUIActions(QtCore.QObject):
     # Plot Area Tab Management
     # --------------------------------------------------------------------------
 
-    def on_plot_area_tab_closed(self, tab_obj_name):
+    def on_plot_area_tab_closed(self, tab_obj_name, index=None):
         """
         Executed whenever a QTab is closed in the Plot Area.
 
         :param tab_obj_name: The objectName of the Tab that was closed. This objectName is assigned on Tab creation
+        :param index:        The index of the closed Tab; the Tab is still in the Plot Area when this runs
         :return:
         """
+
+        # the widget of the closed tab, taken now: the exit of the G-code Editor below closes its tab itself
+        closed_widget = self.ui.plot_tab_area.widget(index) if index is not None else None
+        if closed_widget is not None and closed_widget.objectName() != tab_obj_name:
+            closed_widget = None
 
         if tab_obj_name == "preferences_tab":
             self.app.preferencesUiManager.on_close_preferences_tab(parent=self.ui)
@@ -1109,6 +1115,13 @@ class AppUIActions(QtCore.QObject):
             self.app.area_3d_tab = QtWidgets.QWidget()
         elif tab_obj_name == "gcode_editor_tab":
             self.app.on_editing_finished()
+            # the G-code Editor and the Code Review make a new tab each time and removeTab() does not delete the
+            # widget, which holds the whole G-code: delete it (not when the editor did not exit)
+            if closed_widget is not None and self.app.call_source != 'gcode_editor':
+                closed_widget.deleteLater()
+        elif tab_obj_name == "code_editor_tab":
+            if closed_widget is not None:
+                closed_widget.deleteLater()
         else:
             pass
 
