@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 from shapely import GeometryCollection, LineString, Point, Polygon, box
 from shapely.geometry.base import BaseGeometry
 
+from appHandlers.appJoinConvert import classify_hole, is_closed
+
 KINDS = ('circular', 'oblong', 'square', 'rectangular', 'other')
 _SCALAR_TYPES = (int, float, str, bool, type(None))
 
@@ -17,6 +19,7 @@ ERR_BAD_DIAMETER = 'bad_diameter'
 ERR_BAD_THICKNESS = 'bad_thickness'
 ERR_NO_GEOMETRY = 'no_geometry'
 ERR_EMPTY_SHAPE = 'empty_shape'
+ERR_NO_CIRCLES = 'no_circles'
 
 # skip reasons (ExtractResult.skipped)
 SKIP_NON_POSITIVE = 'non_positive'
@@ -198,6 +201,69 @@ def extract_drills(sources, mode, kinds, decimals, fixed_dia=0.0, rings=None, fa
             tool['drills'].append(point)
         else:
             tool['slots'].append((start, stop))
+    res.tools = {num: by_dia[dia] for num, dia in enumerate(sorted(by_dia), 1)}
+    return res
+
+
+def geometry_circles(shapes):
+    """[(center Point, diameter)] of the circular shapes: a closed path or the exterior of a polygon."""
+    circles = []
+    for shape in shapes:
+        if isinstance(shape, Polygon):
+            ring = shape.exterior
+        elif isinstance(shape, LineString) and is_closed(shape):
+            ring = shape
+        else:
+            continue
+        if len(ring.coords) < 4:
+            continue
+        hole = classify_hole(Polygon(ring))
+        if hole is not None and hole[0] == 'drill':
+            circles.append((hole[1], hole[2]))
+    return circles
+
+
+def extract_drills_geometry(shapes, mode, decimals, fixed_dia=0.0, ring=0.0, factor=1.0):
+    """
+    Drill tools from the circular shapes of a Geometry object. The measured diameter of a circle is the pad:
+    fixed -> fixed_dia, ring -> diameter - 2 * ring, prop -> diameter * factor.
+    """
+    res = ExtractResult('excellon')
+    if mode == 'fixed' and not fixed_dia > 0:
+        res.error = ERR_BAD_DIAMETER
+        return res
+
+    circles = geometry_circles(shapes)
+    if not circles:
+        res.error = ERR_NO_CIRCLES
+        return res
+
+    entries = {}        # rounded (x, y) -> [dia, drill_point]
+    for center, measured in circles:
+        if mode == 'fixed':
+            dia = float(fixed_dia)
+        elif mode == 'ring':
+            dia = measured - 2 * ring
+        else:
+            dia = measured * factor
+        dia = round(dia, decimals)
+        if dia <= 0:
+            _skip(res.skipped, SKIP_NON_POSITIVE)
+            continue
+        key = (round(center.x, decimals), round(center.y, decimals))
+        old = entries.get(key)
+        if old is not None:
+            _skip(res.skipped, SKIP_DUPLICATE)
+            if old[0] >= dia:
+                continue
+        entries[key] = [dia, Point(center.x, center.y)]
+
+    if not entries:
+        res.error = ERR_NO_PADS
+        return res
+    by_dia = {}
+    for dia, point in entries.values():
+        by_dia.setdefault(dia, {'tooldia': dia, 'drills': [], 'slots': []})['drills'].append(point)
     res.tools = {num: by_dia[dia] for num, dia in enumerate(sorted(by_dia), 1)}
     return res
 

@@ -33,6 +33,12 @@ class ExtractUI:
         self.grb_label = FCLabel('%s' % _("Source Object"), color='darkorange', bold=True)
         self.grb_label.setToolTip('%s.' % _("Gerber object from which to extract drill holes or soldermask."))
         self.tools_box.addWidget(self.grb_label)
+        self.type_obj_radio = RadioSet([{'label': _("Gerber"), 'value': 'grb'},
+                                        {'label': _("Geometry"), 'value': 'geo'}], compact=True)
+        self.type_obj_radio.setToolTip(
+            _("The type of the source object.\n"
+              "Geometry: only Extract Drills, from the circles of the object."))
+        self.tools_box.addWidget(self.type_obj_radio)
         self.gerber_object_combo = FCComboBox()
         self.gerber_object_combo.setModel(self.app.collection)
         self.gerber_object_combo.setRootModelIndex(self.app.collection.index(0, 0, QtCore.QModelIndex()))
@@ -48,7 +54,7 @@ class ExtractUI:
               "disable the Rectangular aperture.")
         )
         self.tools_box.addWidget(self.padt_label)
-        pads_frame = FCFrame()
+        self.pads_frame = pads_frame = FCFrame()
         self.tools_box.addWidget(pads_frame)
         grid_lay = GLay(v_spacing=5, h_spacing=3)
         grid_lay.setColumnStretch(0, 1)
@@ -336,6 +342,20 @@ class ExtractUI:
             self.ring_frame.hide()
             self.prop_label.show()
             self.prop_frame.show()
+
+    def set_source_type(self, val):
+        """Geometry source: no pad types and no apertures, one ring value, no slots, no soldermask and no cutout."""
+        gerber = val == 'grb'
+        for widget in (self.padt_label, self.pads_frame, self.oblong_slots_cb, self.extract_sm_label, self.es_frame,
+                       self.e_sm_button, self.extract_cut_label, self.ec_frame, self.e_cut_button):
+            widget.setVisible(gerber)
+        for label, entry in ((self.oblong_ring_label, self.oblong_ring_entry),
+                             (self.square_ring_label, self.square_ring_entry),
+                             (self.rectangular_ring_label, self.rectangular_ring_entry),
+                             (self.other_ring_label, self.other_ring_entry)):
+            label.setVisible(gerber)
+            entry.setVisible(gerber)
+        self.circular_ring_label.setText('%s:' % (_("Circular") if gerber else _("Ring")))
 
     def enabled_kinds(self):
         """The pad kinds whose checkbox is on."""

@@ -7,6 +7,7 @@ import builtins
 
 from tclCommands.TclCommand import TclCommand
 from appPlugins.ToolExtract import ExtractGen
+from appHandlers.appJoinConvert import geometry_shapes
 
 fcTranslate.apply_language('strings')
 if '_' not in builtins.__dict__:
@@ -60,7 +61,7 @@ class TclCommandExtract(TclCommand):
                 "pads of a Gerber object (the Extract plugin). The values that are not given are taken from the "
                 "Extract plugin defaults.",
         'args': collections.OrderedDict([
-            ('object', 'Name of the Gerber object. Required.'),
+            ('object', 'Name of the Gerber object (a Geometry object for drills: its circles). Required.'),
             ('type', 'drills, soldermask or cutout. Required.'),
             ('method', 'drills: fixed, ring or prop (proportional to the pad size).'),
             ('dia', 'drills, fixed method: the hole diameter.'),
@@ -87,6 +88,7 @@ class TclCommandExtract(TclCommand):
         ExtractGen.ERR_NO_PADS: "No pads were found for the selected apertures and pad kinds.",
         ExtractGen.ERR_BAD_DIAMETER: "The hole diameter must be greater than zero.",
         ExtractGen.ERR_BAD_THICKNESS: "The thickness must be greater than zero.",
+        ExtractGen.ERR_NO_CIRCLES: "The object has no circular shapes.",
         ExtractGen.ERR_NO_GEOMETRY: "The object has no geometry.",
         ExtractGen.ERR_EMPTY_SHAPE: "The resulting outline is empty.",
     }
@@ -167,14 +169,26 @@ class TclCommandExtract(TclCommand):
         if gerber is None:
             self.raise_tcl_error('%s: %s' % (_("Object not found"), name))
             return 'fail'
-        if getattr(gerber, 'kind', None) != 'gerber':
+        from_geometry = getattr(gerber, 'kind', None) == 'geometry' and kind_type == 'drills'
+        if getattr(gerber, 'kind', None) != 'gerber' and not from_geometry:
             self.raise_tcl_error('%s: %s' % (_("Expected a Gerber object"), name))
             return 'fail'
 
         decimals = getattr(self.app, 'decimals', 4)
         outname = str(args.get('outname') or ExtractGen.out_name(name, SUFFIXES[kind_type]))
 
-        if kind_type == 'cutout':
+        if from_geometry:
+            method = str(args.get('method') or self._app_option('tools_extract_hole_type', 'fixed')).lower()
+            if method not in METHODS:
+                self.raise_tcl_error('%s: %s' % (_("Unknown method, use fixed, ring or prop"), method))
+                return 'fail'
+            shapes = [shape for _dia, parts in geometry_shapes(gerber) for shape in parts]
+            result = ExtractGen.extract_drills_geometry(
+                shapes, method, decimals,
+                fixed_dia=self._number(args, 'dia', 'tools_extract_hole_fixed_dia', 0.5),
+                ring=self._number(args, 'ring', 'tools_extract_circular_ring', 0.2),
+                factor=self._number(args, 'factor', 'tools_extract_hole_prop_factor', 80.0) / 100.0)
+        elif kind_type == 'cutout':
             margin = self._number(args, 'margin', 'tools_extract_cut_margin', 0.1)
             thickness = self._number(args, 'thickness', 'tools_extract_cut_thickness', 0.1)
             shape = str(args.get('shape') or self._app_option('tools_extract_cut_shape', 'rect')).lower()

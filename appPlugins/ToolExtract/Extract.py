@@ -12,6 +12,7 @@ from appObjects.ProjectContext import unique_name
 from defaults import AppDefaults
 from appPlugins.ToolExtract.ExtractUI import ExtractUI
 from appPlugins.ToolExtract import ExtractGen
+from appHandlers.appJoinConvert import geometry_shapes
 
 import logging
 import traceback
@@ -173,6 +174,7 @@ class ToolExtract(AppTool):
         # ## Signals
         ui = self.ui
         ui.method_radio.activated_custom.connect(self.on_extract_drills_method_changed)
+        ui.type_obj_radio.activated_custom.connect(self.on_type_obj_changed)
 
         for cb in ui.pad_boxes + (ui.include_regions_cb,):
             cb.stateChanged.connect(self.on_type_changed)
@@ -187,8 +189,22 @@ class ToolExtract(AppTool):
         ui.gerber_object_combo.currentIndexChanged.connect(self.on_object_combo_changed)
 
     def update_ring_entries(self):
+        if self.ui.type_obj_radio.get_value() == 'geo':
+            self.ui.circular_ring_entry.setEnabled(True)
+            return
         for cb, entry in zip(self.ui.pad_boxes, self.ui.ring_entries):
             entry.setEnabled(cb.get_value())
+
+    def on_type_obj_changed(self, val):
+        """The source type changed: the combo lists the objects of that type, the Gerber only options are hidden."""
+        self.ui.gerber_object_combo.setRootModelIndex(
+            self.app.collection.index({'grb': 0, 'geo': 2}[val], 0, QtCore.QModelIndex()))
+        self.ui.gerber_object_combo.setCurrentIndex(0)
+        self.ui.gerber_object_combo.obj_type = {'grb': 'Gerber', 'geo': 'Geometry'}[val]
+        self.ui.set_source_type(val)
+        self.update_ring_entries()
+        if not self._loading:
+            self.select_source()
 
     def on_type_changed(self, *args):
         """A pad type (or Include regions) was toggled: the table is rebuilt once, the selection is kept."""
@@ -243,6 +259,10 @@ class ToolExtract(AppTool):
             obj = self.app.collection.get_active()
             if obj:
                 if obj.kind == 'gerber':
+                    ui.gerber_object_combo.set_value(obj.obj_options['name'])
+                elif obj.kind == 'geometry':
+                    ui.type_obj_radio.set_value('geo')
+                    self.on_type_obj_changed('geo')
                     ui.gerber_object_combo.set_value(obj.obj_options['name'])
             else:
                 # take first available Gerber file, if any
@@ -393,11 +413,23 @@ class ToolExtract(AppTool):
         if obj is None:
             self._warning(_("No object is selected."))
             return None
+        ui = self.ui
+        if ui.type_obj_radio.get_value() == 'geo':
+            if task != 'drills' or getattr(obj, 'kind', None) != 'geometry':
+                self._warning(_("The source object is not a Geometry."))
+                return None
+            params = {'task': task, 'obj': obj, 'name': obj.obj_options['name']}
+            params['mode'] = ui.method_radio.get_value()
+            params['fixed_dia'] = float(ui.dia_entry.get_value())
+            params['ring'] = float(ui.circular_ring_entry.get_value())
+            params['factor'] = float(ui.factor_entry.get_value()) / 100.0
+            params['shapes'] = [shape for _dia, shapes in geometry_shapes(obj) for shape in shapes]
+            params['outname'] = ExtractGen.out_name(params['name'], 'extracted')
+            return params
         if getattr(obj, 'kind', None) != 'gerber':
             self._warning(_("The source object is not a Gerber."))
             return None
 
-        ui = self.ui
         params = {'task': task, 'obj': obj, 'name': obj.obj_options['name']}
         if task == 'cutout':
             params['margin'] = float(ui.margin_cut_entry.get_value())
@@ -456,7 +488,11 @@ class ToolExtract(AppTool):
         try:
             with self.app.proc_container.new('%s...' % _("Working")):
                 task = params['task']
-                if task == 'drills':
+                if 'shapes' in params:
+                    res = ExtractGen.extract_drills_geometry(
+                        params['shapes'], params['mode'], self.decimals, fixed_dia=params['fixed_dia'],
+                        ring=params['ring'], factor=params['factor'])
+                elif task == 'drills':
                     res = ExtractGen.extract_drills(
                         params['sources'], params['mode'], params['kinds'], self.decimals,
                         fixed_dia=params['fixed_dia'], rings=params['rings'], factor=params['factor'],
@@ -495,6 +531,7 @@ class ToolExtract(AppTool):
             ExtractGen.ERR_NO_PADS: _("The selected apertures have no pads to extract."),
             ExtractGen.ERR_BAD_DIAMETER: _("The fixed diameter must be above zero."),
             ExtractGen.ERR_BAD_THICKNESS: _("The thickness must be above zero."),
+            ExtractGen.ERR_NO_CIRCLES: _("The source object has no circular shapes."),
             ExtractGen.ERR_NO_GEOMETRY: _("The source object has no geometry."),
             ExtractGen.ERR_EMPTY_SHAPE: _("The cutout shape is empty. Try a different margin."),
         }.get(code, code)
@@ -554,6 +591,7 @@ class ToolExtract(AppTool):
 
     def on_extract_drills_method_changed(self, val):
         ExtractUI.set_drill_method(self.ui, val)
+        self.update_ring_entries()
 
     def on_mark_cb_click_table(self):
         """
@@ -622,5 +660,8 @@ class ToolExtract(AppTool):
                 wdg.set_value(False)
 
     def reset_fields(self):
+        self.ui.type_obj_radio.set_value('grb')
+        self.ui.set_source_type('grb')
+        self.ui.gerber_object_combo.obj_type = 'Gerber'
         self.ui.gerber_object_combo.setRootModelIndex(self.app.collection.index(0, 0, QtCore.QModelIndex()))
         self.ui.gerber_object_combo.setCurrentIndex(0)

@@ -5,7 +5,8 @@ Behavior only: Shapely geometry in, ExtractResult / counts out. No Qt, no app.
 
 import pytest
 from shapely import LineString, Point
-from shapely.geometry import box
+from shapely.affinity import scale
+from shapely.geometry import LinearRing, Polygon, box
 
 from appPlugins.ToolExtract import ExtractGen as eg
 
@@ -165,6 +166,44 @@ def test_cutout_errors(geometry, margin, thickness, error):
     assert res.error == error
 
 
+def circle(x, y, dia):
+    return Point(x, y).buffer(dia / 2, quad_segs=16)
+
+
+def test_geometry_circles_become_drills_at_their_centres():
+    shapes = [
+        circle(5, 5, 1.0),                                   # polygon
+        LinearRing(circle(10, 0, 0.6).exterior.coords),      # ring
+        LineString(circle(20, 0, 0.4).exterior.coords),      # closed path
+        box(0, 0, 1, 1),                                     # square: not a circle
+        scale(circle(30, 0, 1.0), 2.0, 1.0),                 # ellipse: not a circle
+        LineString([(0, 10), (5, 10)]),                      # open path
+    ]
+    res = eg.extract_drills_geometry(shapes, 'fixed', 4, fixed_dia=0.8)
+    assert res.error == ''
+    centres = sorted((round(p.x, 3), round(p.y, 3)) for p in res.tools[1]['drills'])
+    assert centres == [(5, 5), (10, 0), (20, 0)]
+
+
+@pytest.mark.parametrize('mode, kwargs, dias', [
+    ('fixed', {'fixed_dia': 0.8}, [0.8]),
+    ('ring', {'ring': 0.1}, [0.2, 0.4, 0.8]),
+    ('prop', {'factor': 0.5}, [0.2, 0.3, 0.5]),
+])
+def test_geometry_drill_diameter_by_mode(mode, kwargs, dias):
+    shapes = [circle(0, 0, 1.0), LinearRing(circle(5, 0, 0.6).exterior.coords),
+              LineString(circle(10, 0, 0.4).exterior.coords)]
+    res = eg.extract_drills_geometry(shapes, mode, 4, **kwargs)
+    assert res.error == ''
+    assert sorted(t['tooldia'] for t in res.tools.values()) == pytest.approx(dias, abs=2e-3)
+
+
+def test_geometry_without_circles_is_an_error():
+    res = eg.extract_drills_geometry([box(0, 0, 1, 1), LineString([(0, 0), (2, 0)])], 'fixed', 4, fixed_dia=0.8)
+    assert res.error == eg.ERR_NO_CIRCLES
+    assert res.tools == {}
+
+
 # ---- Tcl command: extract ----------------------------------------------------------------------------------------
 def _extract_command(**tools):
     from types import SimpleNamespace
@@ -199,6 +238,19 @@ def test_tcl_extract_drills_makes_an_excellon_with_one_hole_per_pad():
     name, new = _run_init(app, 'excellon')
     assert name == 'board_extracted'
     assert new.tools[1]['tooldia'] == pytest.approx(0.6)
+    assert len(new.tools[1]['drills']) == 2
+
+
+def test_tcl_extract_drills_from_a_geometry_object_uses_its_circles():
+    from types import SimpleNamespace
+    command, app = _extract_command()
+    geo = SimpleNamespace(kind='geometry', multigeo=False, obj_options={'name': 'circles.geo', 'units': 'MM'},
+                          tools={}, solid_geometry=[circle(0, 0, 1.0), circle(5, 0, 1.0), box(10, 0, 11, 1)])
+    app.collection.get_by_name.side_effect = {'circles.geo': geo}.get
+    command.execute({'object': 'circles.geo', 'type': 'drills', 'method': 'fixed', 'dia': 0.8}, [])
+    name, new = _run_init(app, 'excellon')
+    assert name == 'circles_extracted'
+    assert new.tools[1]['tooldia'] == pytest.approx(0.8)
     assert len(new.tools[1]['drills']) == 2
 
 
