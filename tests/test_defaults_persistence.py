@@ -6,13 +6,14 @@ version changes, and all reads use .get() with factory-default fallbacks.
 
 from __future__ import annotations
 
+import errno
 import json
 import os
 import stat
 import sys
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -99,6 +100,47 @@ class TestVersionIndependentPreferences:
         assert defaults["global_worker_number"] == 0
         assert defaults["global_last_folder"] == ""
         assert defaults["units"] == "IN"
+
+
+class TestPreferencesFileWrite:
+    """A save that fails keeps the old preferences file; a cut file would reset all preferences at the next start."""
+
+    @staticmethod
+    def _saved_preferences(tmp_path):
+        filename = tmp_path / "current_defaults.FlatConfig"
+        defaults = AppDefaults(beta=False, version="1.0")
+        defaults["units"] = "IN"
+        defaults.write(str(filename))
+        defaults["units"] = "MM"
+        return defaults, filename
+
+    def test_value_that_cannot_be_saved_keeps_the_old_file(self, tmp_path):
+        defaults, filename = self._saved_preferences(tmp_path)
+        before = filename.read_bytes()
+        defaults["zz_not_saveable"] = {1, 2}  # sorted last, so the save fails at the end of the file
+
+        with pytest.raises((TypeError, ValueError)):
+            defaults.write(str(filename))
+
+        assert filename.read_bytes() == before
+        assert [path.name for path in tmp_path.iterdir()] == [filename.name]
+        loaded = AppDefaults(beta=False, version="1.0")
+        inform = FakeSignal()
+        loaded.load(str(filename), inform)
+        assert inform.emissions == []
+        assert loaded["units"] == "IN"
+
+    def test_full_disk_keeps_the_old_file(self, tmp_path):
+        defaults, filename = self._saved_preferences(tmp_path)
+        before = filename.read_bytes()
+
+        with patch("defaults.os.fsync", side_effect=OSError(errno.ENOSPC, "No space left on device")):
+            with pytest.raises(OSError):
+                defaults.write(str(filename))
+
+        assert filename.read_bytes() == before
+        assert [path.name for path in tmp_path.iterdir()] == [filename.name]
+
 
 class TestSafeGetFallbacks:
     """All defaults/options reads must use .get() with factory-default fallbacks."""

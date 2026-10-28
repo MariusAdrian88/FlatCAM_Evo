@@ -200,7 +200,8 @@ class EditorChecks(DatabaseCase):
                 widget.setFocus()
                 widget.selectAll()
                 QTest.keyClicks(widget, text)
-                QTest.keyClick(widget, QtCore.Qt.Key.Key_Tab)
+                # the spinners commit the typed text on Enter or focus out; the test window never gets the focus
+                QTest.keyClick(widget, QtCore.Qt.Key.Key_Return)
                 self.assertEqual(expected, db.db_tool_dict['7']['data'][key])
         for target, key, expected in ((1, 'tools_mill_feedrate', 150.0),
                                       (2, 'tools_drill_spindlespeed', 14000)):
@@ -446,6 +447,50 @@ class EditorChecks(DatabaseCase):
                 invalid['7'][field] = value
                 with self.assertRaises(ValueError):
                     normalize(invalid, self.app.options)
+
+    def preferences_after_apply(self):
+        # an Apply evaluates these fields: '0.1' -> 0.1, '0.0, 0.0' -> (0.0, 0.0), 'no' -> 0, None -> (10.0, 10.0)
+        applied = dict(self.app.options)
+        applied.update(tools_iso_tooldia=0.1, tools_mill_toolchangexy=(0.0, 0.0), tools_drill_toolchangexy=(0.0, 0.0),
+                       tools_drill_tool_order=0, tools_mill_endxy=(10.0, 10.0), tools_mill_startz=5.0)
+        return applied
+
+    def test_records_load_after_a_preferences_apply_changes_the_option_types(self):
+        import appDatabase
+        applied = self.preferences_after_apply()
+        records = {'1': record(1), '2': record(2), '3': record(3)}  # saved before the Apply
+        for tool_id in ('4', '5', '6'):  # saved after the Apply (the tuples are lists in the file)
+            records[tool_id] = record(int(tool_id) - 3)
+            records[tool_id]['data'].update((key, applied[key]) for key in applied
+                                            if applied[key] != self.app.options[key])
+        records['7'] = record(2)
+        records['7']['data']['tools_drill_tool_order'] = 'sideways'
+        destination = self.path.with_suffix('.sqlite3')
+        appDatabase.write_tools_database(destination, records, units='MM')
+
+        for options in (applied, self.app.options):
+            with self.subTest(applied=options is applied):
+                skipped = {}
+                loaded = appDatabase.load_tools_database(destination, options, skipped=skipped)
+                self.assertEqual(['1', '2', '3', '4', '5', '6'], sorted(loaded))
+                self.assertEqual(['7'], list(skipped))
+                self.assertEqual('0.1', loaded['3']['data']['tools_iso_tooldia'])
+                self.assertEqual([10.0, 10.0], loaded['6']['data']['tools_mill_endxy'])
+
+    def test_records_with_wrong_option_types_are_still_skipped(self):
+        import appDatabase
+        wrong = {'7': ('tools_mill_feedrate', '120'), '8': ('tools_mill_toolchangexy', [float('nan'), 0.0]),
+                 '9': ('tools_mill_endxy', {'x': 1.0}), '10': ('tools_mill_multidepth', 1),
+                 '11': ('tools_mill_startz', True)}
+        records = {}
+        for tool_id, (key, value) in wrong.items():
+            records[tool_id] = record(1)
+            records[tool_id]['data'][key] = value
+
+        for options in (self.preferences_after_apply(), self.app.options):
+            skipped = {}
+            self.assertEqual({}, appDatabase.normalize_tools_database(records, options, skipped=skipped))
+            self.assertEqual(sorted(wrong), sorted(skipped))
 
     def test_load_accepts_utf8_bom_and_rejects_import_transactionally(self):
         import appDatabase

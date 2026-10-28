@@ -1199,6 +1199,9 @@ class FCSpinner(QtWidgets.QSpinBox):
     def __init__(self, suffix=None, alignment=None, parent=None, callback=None, policy=True):
         super(FCSpinner, self).__init__(parent)
         self.readyToEdit = True
+        # commit only the typed number on Enter or focus out, not each prefix of it: typing 1500 with a maximum of
+        # 1000 kept 150 (the last prefix in range) instead of the previous value
+        self.setKeyboardTracking(False)
 
         self.editingFinished.connect(self.on_edit_finished)
         if callback:
@@ -1241,6 +1244,7 @@ class FCSpinner(QtWidgets.QSpinBox):
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Enter:
+            self.interpretText()  # commit the typed text before the slots read the value
             self.returnPressed.emit()
             self.clearFocus()
         else:
@@ -1445,6 +1449,8 @@ class FCDoubleSpinner(QtWidgets.QDoubleSpinBox):
         super(FCDoubleSpinner, self).__init__(parent)
         self.cursor_pos = None
         self.readyToEdit = True
+        # commit only the typed number on Enter or focus out, not each prefix of it (see FCSpinner)
+        self.setKeyboardTracking(False)
 
         self.editingFinished.connect(self.on_edit_finished)
         if callback:
@@ -1498,6 +1504,7 @@ class FCDoubleSpinner(QtWidgets.QDoubleSpinBox):
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Enter:
+            self.interpretText()  # commit the typed text before the slots read the value
             self.returnPressed.emit()
             self.clearFocus()
         else:
@@ -4467,6 +4474,19 @@ class FCTable(QtWidgets.QTableWidget):
             e.accept()
         else:
             e.ignore()
+
+    def dragLeaveEvent(self, e: QtGui.QDragLeaveEvent) -> None:
+        # a drag that leaves the table (dropped elsewhere or cancelled with Esc) never reaches dropEvent, which
+        # unblocks the signals that dragEnterEvent blocked; blocked, the table ignores the tool edits and row clicks
+        self.blockSignals(False)
+        super().dragLeaveEvent(e)
+
+    def startDrag(self, supported_actions) -> None:
+        # the drag ends here in every case, also when no drop or leave event came
+        try:
+            super().startDrag(supported_actions)
+        finally:
+            self.blockSignals(False)
 
     # def dropEvent(self, event):
     #     """

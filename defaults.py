@@ -1208,8 +1208,26 @@ class AppDefaults:
         # ponytail: strip obsolete 'version' field before saving
         data = dict(self.defaults)
         data.pop('version', None)
-        with open(filename, "w") as file:
-            json.dump(data, file, default=to_dict, indent=2, sort_keys=True)
+        # Write a temporary file in the same folder, then replace the old file with it. A value that cannot be
+        # saved, a full disk, a crash or a power loss then leaves the old file as it was, instead of a cut file that
+        # makes the next start use the factory values. The error goes on to the caller, which reports it.
+        text = json.dumps(data, default=to_dict, indent=2, sort_keys=True)
+        temp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(mode='w', dir=os.path.dirname(os.path.abspath(filename)),
+                                             prefix='.defaults_tmp_', delete=False) as tmp_f:
+                temp_path = tmp_f.name
+                tmp_f.write(text)
+                tmp_f.flush()
+                os.fsync(tmp_f.fileno())
+            os.replace(temp_path, filename)
+            temp_path = None  # replace consumed the temp file
+        finally:
+            if temp_path is not None:
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
 
     @staticmethod
     def find_legacy_defaults_file(data_path: str, current_version: str) -> str:

@@ -7,6 +7,7 @@ from appCommon.SafeEval import safe_eval
 from appCommon.ToolDatabase import read_database, read_library, write_database, matching_tools, OPERATION_PREFIXES, \
     UnitsMismatchError
 from appGUI.ToolLibrary import ToolLibraryModel, ToolLibraryFilter, operation_names
+from defaults import AppDefaults
 
 import sys
 import json
@@ -73,7 +74,35 @@ def _database_option(app, key):
     return fallback
 
 
+def _evaluated_preference(field):
+    """True for a key whose factory value is None or a text of numbers ('0.1', '0.0, 0.0'). The Preferences form
+    evaluates such a field on Apply and stores a number, a tuple (a list after a restart) or None instead."""
+    if field not in AppDefaults.factory_defaults:
+        return False
+    factory = AppDefaults.factory_defaults[field]
+    if factory is None:
+        return True
+    if not isinstance(factory, str):
+        return False
+    try:
+        return all(math.isfinite(float(part)) for part in factory.split(','))
+    except ValueError:
+        return False
+
+
+def _evaluated_preference_value(value):
+    """True for None, a text, a finite number or a list of finite numbers: the forms of an evaluated preference."""
+    if value is None or isinstance(value, str):
+        return True
+    items = value if isinstance(value, (list, tuple)) else [value]
+    return all(isinstance(item, (int, float)) and not isinstance(item, bool) and math.isfinite(item) for item in items)
+
+
 def _validate_database_option(value, default, field):
+    # A record keeps the form of the moment it was saved, and the Preferences change the form of these keys on Apply.
+    if _evaluated_preference(field) and _evaluated_preference_value(value):
+        return value
+
     if value is None:
         if default is None:
             return value
@@ -118,6 +147,7 @@ def normalize_tools_database(records, defaults, skipped=None):
                   ('Isolation', _('Isolation')), ('Polishing', _('Polishing'))]
     offset_labels = [('Path', _('Path')), ('In', _('In')), ('Out', _('Out')), ('Custom', _('Custom'))]
     gap_labels = [('Bridge', _('Bridge')), ('Thin', _('Thin')), ('M-Bites', _('M-Bites'))]
+    order_labels = [('no',), ('fwd',), ('rev',)]
 
     for tool_id, tool in list(normalized.items()):
         try:
@@ -176,6 +206,9 @@ def normalize_tools_database(records, defaults, skipped=None):
             if gap_value in ('b', 'bt', 'mb'):
                 gap_value = {'b': 0, 'bt': 1, 'mb': 2}[gap_value]
             data['tools_cutout_gap_type'] = _database_enum(gap_value, gap_labels, 'tools_cutout_gap_type')
+            if 'tools_drill_tool_order' in data:
+                # the factory value is 'no', the Preferences store the index of the Order combo
+                _database_enum(data['tools_drill_tool_order'], order_labels, 'tools_drill_tool_order')
 
             for bound in ('tol_min', 'tol_max'):
                 value = data.get(bound, 0.0)
@@ -185,7 +218,7 @@ def normalize_tools_database(records, defaults, skipped=None):
 
             enum_options = {
                 'tools_mill_tool_shape', 'tools_mill_job_type',
-                'tools_mill_offset_type', 'tools_cutout_gap_type'
+                'tools_mill_offset_type', 'tools_cutout_gap_type', 'tools_drill_tool_order'
             }
             for option, value in data.items():
                 if option in enum_options or option in ('tool_target', 'tol_min', 'tol_max'):

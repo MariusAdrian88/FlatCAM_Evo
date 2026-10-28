@@ -96,6 +96,18 @@ File loading:
 DXF and SVG Import:
 
 - fixed: a UTF-8 SVG with a letter such as 'Ş' (on a cp1254 system) or an ANSI DXF with such a letter (any system) was parsed, then the import failed with "Import failed." and made no object, because the file was read again for its source text with the code page of the system (SVG) or as strict UTF-8 (DXF); the source text is now read as UTF-8 and a byte that is not UTF-8 is replaced
+Preferences:
+
+- fixed: the preferences file was written in place at each exit and each save; a failure while writing (a full disk, a crash or a power loss) left a cut file, and the next start used the factory values for all the preferences; the file is now written to a temporary file and then replaces the old one, so a failed save keeps the old file and reports the error
+
+Tools Database:
+
+- fixed: after an ordinary Preferences Apply, the saved tools were skipped as invalid, so Isolation, Milling, Drilling, NCC, Paint and Cutout added default tools instead of the saved ones; the Apply changes the type of some values ('0.1' becomes 0.1, '0.0, 0.0' becomes (0.0, 0.0), 'no' becomes 0) and each record was checked against the type of the current value; a record value now passes in every form the Preferences give to that key, and a wrong type (a text for a feedrate, an unknown tool order) is still refused
+
+GUI:
+
+- fixed: the number fields committed each prefix of a typed number; a number over the maximum (1500 with a maximum of 1000) left the last prefix in the range (150) in a feed, speed or power field; the typed number is now committed on Enter or when the field loses the focus, and a number out of the range gives back the previous value
+- fixed: a drag in a tool table (Isolation, Drilling, Milling, NCC, Paint, the Geometry object, Bookmarks) that was dropped outside the table or cancelled with Esc left the signals of the table blocked, so the later diameter edits and row clicks were ignored; the signals are unblocked when the drag leaves the table and when it ends
 
 Tests:
 
@@ -118,6 +130,10 @@ Tests:
 - added a check that saving several CNC jobs writes each file in the chosen folder
 - tests/test_gerber_parser.py: a Gerber and an HPGL2 file with letters that are not ASCII in a comment or an attribute, saved as UTF-8 and as cp1254
 - tests/test_geo_editor_source.py: the SVG and DXF import of a UTF-8 SVG and an ANSI (cp1254) DXF with letters that are not ASCII
+- test_defaults_persistence: a save that fails (a value that cannot be saved, a full disk) keeps the old preferences file and leaves no temporary file
+- test_tools_database: the records saved before and after a Preferences Apply load with the options of both; wrong value types are still skipped
+- test_gui_elements_input (new): a number over the maximum keeps the previous value of a number field and no prefix is committed; the keypad Enter slots get the typed number; test_tools_database commits the typed parameters with Enter
+- test_gui_elements_input: a tool table drag that leaves the table or ends without a drop leaves the signals of the table unblocked
 
 25.10.2026
 RELEASE FlatCAM Evo 1.0
