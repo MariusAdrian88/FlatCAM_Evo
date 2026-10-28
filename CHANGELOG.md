@@ -68,6 +68,11 @@ CNC Job:
 Save dialog:
 
 - fixed: the extension of the selected filter was added when the name had it in another case or had another extension of the same filter: saving over 'board_cnc.nc' from View Source (filter "*.NC") wrote 'board_cnc.nc.NC' and left the old file unchanged; the name is now kept when it ends with any extension of the filter, in any case
+Exclusion areas:
+
+- fixed: with the 'Over' strategy the tool went over an area at its Over Z also when the Over Z was below the travel Z; with the defaults (Over Z 1.0, Travel Z 2.0) the drilling, milling and Tcl G-code moved the tool down from Z2 to Z1 to cross the area; the tool now stays at the travel Z when the Over Z is lower
+- fixed: with grid snap off, the first corner of a rectangular exclusion area was converted from screen to model coordinates twice, so the rubber band and the area started at a wrong point
+- fixed: Escape while drawing an exclusion area raised an error (it called area_disconnect() on the active object) and the canvas stayed in the area drawing mode; Escape now ends the drawing, drops only the area being drawn and keeps the areas added before
 
 Tests:
 
@@ -79,6 +84,9 @@ Tests:
 - added checks that the G-code saved in the G-code Editor survives a new Properties panel, a project save and open and the undo of a delete, and that a job that was not edited is made again as before
 - added checks of the name that the save dialog gives for names with and without an extension of the selected filter
 - added checks that the G-code of a job has no snippet while the snippets checkbox is unchecked
+- tests/test_exclusion_area_travel.py: the Drilling and Milling travel over an exclusion area never goes below the travel Z
+- tests/test_exclusion_area_travel.py: the first corner of a rectangular exclusion area, with and without grid snap
+- tests/test_exclusion_area_travel.py: Escape while drawing a rectangle or a polygon exclusion area
 
 25.10.2026
 RELEASE FlatCAM Evo 1.0

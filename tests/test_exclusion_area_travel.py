@@ -236,6 +236,65 @@ def test_generated_gcode_keeps_multi_area_clearance(pp_name, strategy):
     assert_safe_clearance(exc, (0, 0), end, travels)
 
 
+# 'Over' never takes the tool below the travel Z: the factory defaults are Over Z 1.0 and Travel Z 2.0, and the G-code
+# went down from Z2 to Z1 over the area. The area x 4..6 is grown to x 3.4..6.6 and crossed by the travel.
+WIDE_AREA = box(4, -2, 6, 8)
+
+
+def drilling_lines(overz, travelz):
+    """The Drilling plugin G-code (excellon_tool_gcode_gen) of the holes (0, 6) and (10, 6), from (0, 0)."""
+    from test_drilling_gen import make_app as make_gen_app, tool_dict
+
+    app = make_gen_app(excellon_search_time=1)
+    app.exc_areas = exclusion_areas(WIDE_AREA)
+    app.exc_areas.exclusion_areas_storage[0].update(overz=overz, owner='drilling')
+    job = CNCjob(app, pp_excellon_name='default')
+    job.obj_options = {'name': 'job', 'type': 'Excellon', 'xmin': 0, 'xmax': 10, 'ymin': 0, 'ymax': 6}
+    job.coords_decimals = 4
+    job.fr_decimals = 2
+    holes = [(0.0, 6.0), (10.0, 6.0)]
+    tools = {1: tool_dict(TOOLDIA, holes, tools_drill_area_exclusion=True, tools_drill_travelz=travelz)}
+    job.tools = {1: {'nr_drills': len(holes)}}
+    job.tool = 1
+    gcode = job.excellon_tool_gcode_gen(1, [Point(h) for h in holes], tools, (0.0, 0.0), is_first=True,
+                                        is_last=True, opt_type='R', exclusion_owner='drilling')[0]
+    return gcode.splitlines()
+
+
+def milling_lines(overz, travelz):
+    """The Milling G-code (linear2gcode) of the path (10, 0) -> (11, 0), from (0, 0)."""
+    job = gcode_job('default')
+    job.app.exc_areas = exclusion_areas(WIDE_AREA)
+    job.app.exc_areas.exclusion_areas_storage[0]['overz'] = overz
+    job.z_move = travelz
+    return job.linear2gcode(LineString([(10, 0), (11, 0)]), TOOLDIA, old_point=(0, 0)).splitlines()
+
+
+def over_the_area(lines, y):
+    i = lines.index('G00 X3.4000 Y%.4f' % y)
+    return lines[i:i + 5]
+
+
+@pytest.mark.parametrize('kind, lines, y', [('drill', drilling_lines, 6), ('mill', milling_lines, 0)],
+                         ids=['drilling', 'milling'])
+def test_default_over_z_never_goes_below_the_travel_z(kind, lines, y):
+    from defaults import AppDefaults
+
+    defaults = AppDefaults.factory_defaults
+    assert defaults['tools_%s_area_strategy' % kind] == 'over'
+    gcode = lines(defaults['tools_%s_area_overz' % kind], defaults['tools_%s_travelz' % kind])
+
+    # 1.0: G00 Z1.0000 after the first line
+    assert over_the_area(gcode, y) == ['G00 X3.4000 Y%.4f' % y, 'G00 Z2.0000', 'G00 X6.6000 Y%.4f' % y,
+                                       'G00 Z2.0000', 'G00 X10.0000 Y%.4f' % y]
+
+
+def test_over_z_above_the_travel_z_is_unchanged():
+    for lines, y in ((drilling_lines, 6), (milling_lines, 0)):
+        assert over_the_area(lines(5.0, 2.0), y) == ['G00 X3.4000 Y%.4f' % y, 'G00 Z5.0000', 'G00 X6.6000 Y%.4f' % y,
+                                                     'G00 Z2.0000', 'G00 X10.0000 Y%.4f' % y]
+
+
 # ---------------------------------------------------------------------------------------------------------------
 # Edits of the areas, idx, many travels
 # ---------------------------------------------------------------------------------------------------------------
@@ -314,6 +373,108 @@ def test_drilling_job_ignores_a_milling_area_over_a_hole():
     assert drilling_only[0] != 'fail' and 'G00 X4.5000 Y0.0000' in drilling_only[0]
     # the Over Z lift of the Milling area is in the travel only when the area is seen
     assert 'Z%.4f' % OVER_Z in with_all[0] and 'Z%.4f' % OVER_Z not in drilling_only[0]
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# Drawing the areas
+# ---------------------------------------------------------------------------------------------------------------
+
+def button(value):
+    return Mock(get_value=Mock(return_value=value))
+
+
+def drawing_app(shape='square', grid=False, active=None):
+    """An app that draws areas; its canvas converts a pixel (x, y) to the model point (x / 10 - 3, 40 - y / 10)."""
+    app = Mock()
+    app.app_units = 'MM'
+    app.call_source = 'app'
+    app.plotcanvas.translate_coords.side_effect = lambda pos: (pos[0] / 10.0 - 3.0, 40.0 - pos[1] / 10.0)
+    app.grid_status.return_value = grid
+    app.geo_editor.snap.side_effect = lambda x, y: (float(round(x)), float(round(y)))
+    app.collection.get_active.return_value = active
+    app.exc_areas = ExclusionAreas(app)
+    start_drawing(app, shape)
+    return app
+
+
+def start_drawing(app, shape='square'):
+    app.exc_areas.on_add_area_click(button(shape), button(5.0), button('over'), Mock(), [box(500, 500, 501, 501)],
+                                    'excellon', owner='drilling')
+
+
+def click(app, pos, which=1):
+    app.exc_areas.on_mouse_release(SimpleNamespace(pos=pos, button=which, is_dragging=False))
+
+
+def test_first_corner_of_a_rectangle_is_the_clicked_point():
+    # grid snap off: 1.0 converted the first click from pixels to model units twice
+    app = drawing_app()
+    click(app, (100, 50))
+    assert app.exc_areas.cursor_pos == pytest.approx((7.0, 35.0))       # 1.0: (-2.3, 36.5)
+    app.exc_areas.on_mouse_move(SimpleNamespace(pos=(200, 100), button=None, is_dragging=False))
+    assert app.draw_moving_selection_shape.call_args.kwargs['old_coords'] == pytest.approx((7.0, 35.0))
+    click(app, (300, 150))
+    assert app.exc_areas.exclusion_areas_storage[0]['shape'].bounds == pytest.approx((7.0, 25.0, 27.0, 35.0))
+
+    # grid snap on: the snapped points
+    app = drawing_app(grid=True)
+    click(app, (104, 53))
+    click(app, (296, 148))
+    assert app.exc_areas.exclusion_areas_storage[0]['shape'].bounds == (7.0, 25.0, 27.0, 35.0)
+
+
+def px(x, y):
+    """The pixel of the model point (x, y) on the canvas of drawing_app()."""
+    return (x + 3.0) * 10.0, (40.0 - y) * 10.0
+
+
+def escape(app, monkeypatch):
+    from PyQt6 import QtCore, QtWidgets
+    from appGUI.MainGUI import MainGUI
+
+    monkeypatch.setattr(QtWidgets.QApplication, 'keyboardModifiers',
+                        staticmethod(lambda: QtCore.Qt.KeyboardModifier.NoModifier))
+    MainGUI.keyPressEvent(SimpleNamespace(app=app), SimpleNamespace(key='Escape', native=SimpleNamespace()))
+    # the drawing ended: the mouse events are back with the app
+    assert app.call_source == 'app'
+    app.plotcanvas.graph_event_disconnect.assert_any_call('mouse_release', app.exc_areas.on_mouse_release)
+    app.plotcanvas.graph_event_connect.assert_any_call('mouse_release', app.on_mouse_click_release_over_plot)
+
+
+def test_escape_during_a_rectangle_keeps_the_added_areas(monkeypatch):
+    # 1.0: Escape called area_disconnect() of the active object (AttributeError), and area_disconnect() emptied the
+    # stored areas while they stayed drawn
+    app = drawing_app(active=SimpleNamespace(kind='excellon'))
+    modified = []
+    app.exc_areas.e_shape_modified.connect(lambda: modified.append(True))
+    for point in ((0, 0), (2, 3), (10, 10)):        # an area, then the first corner of the next one
+        click(app, px(*point))
+
+    escape(app, monkeypatch)
+
+    exc = app.exc_areas
+    assert [area['shape'].bounds for area in exc.exclusion_areas_storage] == [pytest.approx((0, 0, 2, 3))]
+    assert modified == [True]
+    # the next drawing starts with a new first corner
+    start_drawing(app)
+    click(app, px(20, 20))
+    click(app, px(22, 21))
+    assert exc.exclusion_areas_storage[1]['shape'].bounds == pytest.approx((20, 20, 22, 21))
+
+
+def test_escape_during_a_polygon_drops_only_the_polygon_being_drawn(monkeypatch):
+    app = drawing_app(shape='polygon')              # no active object
+    for point in ((0, 0), (4, 0), (4, 4)):
+        click(app, px(*point))
+    click(app, px(4, 4), which=2)                   # the polygon is added
+    for point in ((10, 10), (14, 10)):
+        click(app, px(*point))                      # the next polygon is being drawn
+
+    escape(app, monkeypatch)
+
+    exc = app.exc_areas
+    assert [area['shape'].bounds for area in exc.exclusion_areas_storage] == [pytest.approx((0, 0, 4, 4))]
+    assert exc.points == [] and exc.poly_drawn is False
 
 
 # ---------------------------------------------------------------------------------------------------------------

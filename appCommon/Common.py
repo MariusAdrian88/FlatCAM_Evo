@@ -348,7 +348,8 @@ class ExclusionAreas(QtCore.QObject):
                     self.first_click = True
                     self.app.inform.emit('[WARNING_NOTCL] %s' % _("Click the end point of the area."))
 
-                    self.cursor_pos = self.app.plotcanvas.translate_coords(event_pos)
+                    # event_pos is already in model coordinates (translated above)
+                    self.cursor_pos = (event_pos[0], event_pos[1])
                     if self.app.grid_status():
                         self.cursor_pos = self.app.geo_editor.snap(event_pos[0], event_pos[1])
                 else:
@@ -501,8 +502,9 @@ class ExclusionAreas(QtCore.QObject):
 
     def area_disconnect(self):
         """
-        Will do the cleanup. Will disconnect the mouse events for the custom handlers in this class and initialize
-        certain class attributes.
+        Will do the cleanup (Escape while drawing). Will disconnect the mouse events for the custom handlers in this
+        class and drop the area that is being drawn. The areas added before stay: they are drawn on the canvas and
+        the CNC jobs use them.
 
         :return:    None
         :rtype:
@@ -515,13 +517,16 @@ class ExclusionAreas(QtCore.QObject):
         self.app.plotcanvas.graph_event_connect('mouse_release', self.app.on_mouse_click_release_over_plot)
         self.points = []
         self.poly_drawn = False
-        self.exclusion_areas_storage = []
+        # a rectangle started but not finished: the next area starts with a new first corner
+        self.first_click = False
 
         AppTool.delete_moving_selection_shape(self)
         # AppTool.delete_tool_selection_shape(self, shapes_storage=self.exclusion_shapes)
 
         self.app.call_source = "app"
         self.app.inform.emit("[WARNING_NOTCL] %s" % _("Cancelled. Area exclusion drawing was interrupted."))
+        # the exclusion tables of the plugins show the areas added before Escape
+        self.e_shape_modified.emit()
 
     def on_mouse_move(self, event):
         """
@@ -737,7 +742,7 @@ class ExclusionAreas(QtCore.QObject):
             return None
         return line_crossing(line, around)
 
-    def travel_coordinates(self, start_point, end_point, tooldia, owner=None):
+    def travel_coordinates(self, start_point, end_point, tooldia, owner=None, travel_z=None):
         """
         WIll create a path the go around the exclusion areas on the shortest path when travelling (at a Z above the
         material).
@@ -749,6 +754,9 @@ class ExclusionAreas(QtCore.QObject):
         :param tooldia:         THe tool diameter used and which generates the travel lines
         :type tooldia           float
         :param owner:           only the areas of this owner ('drilling'); None: all the areas (Milling)
+        :param travel_z:        the travel Z of the job: the tool never goes over an 'over' area below it (an Over Z
+                                lower than the travel Z is replaced by the travel Z); None: the Over Z of the areas
+        :type travel_z:         float
         :return:                A list of x,y tuples that describe the avoiding path
         :rtype:                 list
         :raises ValueError:     when no path around the grown 'around' areas is possible
@@ -822,7 +830,11 @@ class ExclusionAreas(QtCore.QObject):
                 crossing = line_crossing(leg, grown_shape)
                 if crossing is not None:
                     entry_distance, entry_pt, exit_pt = crossing
-                    intervals.append([offset + entry_distance, offset + leg.project(exit_pt), float(area['overz']),
+                    over_z = float(area['overz'])
+                    if travel_z is not None:
+                        # going 'over' an area never takes the tool down: below the travel Z it stays at the travel Z
+                        over_z = max(over_z, float(travel_z))
+                    intervals.append([offset + entry_distance, offset + leg.project(exit_pt), over_z,
                                       (entry_pt.x, entry_pt.y), (exit_pt.x, exit_pt.y)])
             offset += leg.length
             route_points.append((offset, last))

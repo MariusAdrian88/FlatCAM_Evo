@@ -3241,15 +3241,17 @@ class CNCjob(Geometry):
         except Exception as e:
             self.app.log.error("camlib.CNCJob.warn_cut_through_exclusion() --> %s" % str(e))
 
-    def milling_travels(self, start_point, end_point, tooldia):
+    def milling_travels(self, start_point, end_point, tooldia, travel_z=None):
         """
         The XY route of a travel move of the milling: around the exclusion areas if the tool uses them, else straight.
 
-        :return:    list of [Z or None, (x, y)] as AppExclusionAreas.travel_coordinates()
+        :param travel_z:    the travel Z of the move; the tool never goes over an area below it
+        :return:            list of [Z or None, (x, y)] as AppExclusionAreas.travel_coordinates()
         """
         if not self.area_exclusion:
             return [(None, (end_point[0], end_point[1]))]
-        return self.app.exc_areas.travel_coordinates(start_point=start_point, end_point=end_point, tooldia=tooldia)
+        return self.app.exc_areas.travel_coordinates(start_point=start_point, end_point=end_point, tooldia=tooldia,
+                                                     travel_z=travel_z)
 
     def doformat(self, fun, **kwargs):
         attributes = AttrDict()
@@ -3949,7 +3951,8 @@ class CNCjob(Geometry):
                 if self.area_exclusion:
                     travels = self.app.exc_areas.travel_coordinates(start_point=(temp_locx, temp_locy),
                                                                     end_point=(locx, locy),
-                                                                    tooldia=current_tooldia, owner=exclusion_owner)
+                                                                    tooldia=current_tooldia, owner=exclusion_owner,
+                                                                    travel_z=base_z_move)
                 else:
                     travels = [(None, (locx, locy))]
                 prev_z = None
@@ -5195,7 +5198,7 @@ class CNCjob(Geometry):
             # Tcl drillcncjob has no plugin that draws areas: it uses every stored area (owner None)
             travels = self.app.exc_areas.travel_coordinates(start_point=(self.oldx, self.oldy),
                                                             end_point=(locx, locy),
-                                                            tooldia=tooldia, owner=None)
+                                                            tooldia=tooldia, owner=None, travel_z=base_z_move)
             prev_z = None
             for travel in travels:
                 locx = travel[1][0]
@@ -7325,7 +7328,8 @@ class CNCjob(Geometry):
         # Move fast to 1st point
         if not cont:
             current_tooldia = dia
-            travels = self.milling_travels((old_point[0], old_point[1]), (first_x, first_y), current_tooldia)
+            travels = self.milling_travels((old_point[0], old_point[1]), (first_x, first_y), current_tooldia,
+                                           travel_z=z_move)
             prev_z = None
             for travel in travels:
                 locx = travel[1][0]
@@ -7479,7 +7483,8 @@ class CNCjob(Geometry):
         # Move fast to 1st point
         if not cont:
             current_tooldia = dia
-            travels = self.milling_travels((old_point[0], old_point[1]), (first_x, first_y), current_tooldia)
+            travels = self.milling_travels((old_point[0], old_point[1]), (first_x, first_y), current_tooldia,
+                                           travel_z=z_move)
             prev_z = None
             for travel in travels:
                 locx = travel[1][0]
@@ -7694,7 +7699,8 @@ class CNCjob(Geometry):
             first_y = path[0][1]
 
         current_tooldia = dia
-        travels = self.milling_travels((old_point[0], old_point[1]), (first_x, first_y), current_tooldia)
+        travels = self.milling_travels((old_point[0], old_point[1]), (first_x, first_y), current_tooldia,
+                                       travel_z=z_move)
         prev_z = None
         for travel in travels:
             locx = travel[1][0]

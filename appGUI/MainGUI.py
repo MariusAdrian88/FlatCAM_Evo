@@ -4782,11 +4782,8 @@ class MainGUI(QtWidgets.QMainWindow):
             # NO MODIFIER
             elif modifiers == QtCore.Qt.KeyboardModifier.NoModifier:
                 if key == QtCore.Qt.Key.Key_Escape or key == 'Escape':
-                    sel_obj = self.app.collection.get_active()
-                    assert sel_obj.kind == 'geometry' or sel_obj.kind == 'excellon', \
-                        "Expected a Geometry or Excellon Object, got %s" % type(sel_obj)
-
-                    sel_obj.area_disconnect()
+                    # the drawing belongs to the Exclusion Areas of the app, not to the active object
+                    self.app.exc_areas.area_disconnect()
                     return
 
                 if key == QtCore.Qt.Key.Key_G or key == 'G':
