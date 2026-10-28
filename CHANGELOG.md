@@ -214,6 +214,21 @@ Tcl:
 Updater:
 
 - fixed: in a frozen (Windows) build, accepting an update or "revert to the previous version" always ended with "The updater could not be started.": the job file had runtime_dir "None" (a frozen build has no runtime copy per job) and FlatCAMUpdater.exe rejected the job before it started; the key is now left out when there is no runtime copy
+Object Distance:
+
+- fixed: after one Shift+M with a wrong selection (not 2 objects), a Reset Tool or a change of the distance type, Shift+M did nothing for the rest of the session
+- fixed: the Measure button left the previous pair's distance, deltas and angle on screen when the new result was 0 (touching or overlapping objects); a 0 is now shown
+
+Find Optimal:
+
+- fixed: a click on the empty line after the last entry of 'Gerber distances' (or in the empty box) showed the 'Critical Error' dialog
+- fixed: the search set the 'Determined' and 'Occurring' fields from the worker thread (Qt widgets are not thread-safe: a rare random crash); they are now set in the GUI thread
+- fixed: on a Gerber with a multi-part solid element (for example a shape split in two by Etch Compensation with a negative offset) the search stopped without a message; the NCC Optimal button said "Could not find a safe tool diameter." and an NCC run with Check validity failed. The parts are now measured one by one
+
+PcbWizard Import:
+
+- fixed: loading the INF file set the format fields (units, integral and fractional digits) from the worker thread; they are now set in the GUI thread
+- fixed: Import used the format, units and zeros of the moment both files were loaded, so a correction made after loading was ignored (drills at wrong positions and sizes); a second Import found no geometry. The file is now built at each Import from the current form
 
 Tests:
 
@@ -304,6 +319,12 @@ Tests:
 - new unit test for the settings that save_sys saves after set_sys (tests/test_tcl_small_commands.py)
 - new unit test for the tool change of a drillcncjob of an aligndrillgrid grid (tests/test_tcl_drillcncjob.py); the aligndrillgrid tool id test of tests/test_excellon_add_tool.py now expects the id 1
 - new unit test that the update and rollback jobs of a frozen build pass the job check of the updater (tests/updater/test_updater_apply.py)
+- test_tool_distance_snap: Object Distance measures again with Shift+M after a wrong selection and after Reset Tool
+- test_tool_distance_snap: the Object Distance Measure button shows 0 for touching objects after a pair 3 mm apart
+- test_isolation_optimal_tooldia: a click on the empty last line of the Find Optimal distances
+- test_isolation_optimal_tooldia, test_excellon_parser: Find Optimal and the PcbWizard INF loading set their fields in the GUI thread
+- test_excellon_parser: PcbWizard Import uses the format corrected after loading, also on a second Import
+- test_isolation_optimal_tooldia, test_ncc_rest_machining: Find Optimal and the NCC gap check on a Gerber with a MultiPolygon solid
 
 25.10.2026
 RELEASE FlatCAM Evo 1.0

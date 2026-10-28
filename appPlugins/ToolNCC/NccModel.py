@@ -61,7 +61,9 @@ def smallest_gerber_gap(apertures, decimals, check_abort=None):
             solid = geo_el.get('solid')
             if solid is not None and solid.is_valid:
                 total_geo.append(solid)
-    total_geo = flatten_shapely_geometry(MultiPolygon(total_geo).buffer(0)) if total_geo else []
+    # the parts of a MultiPolygon solid one by one: MultiPolygon() refuses a list that holds one
+    total_geo = flatten_shapely_geometry(MultiPolygon(flatten_shapely_geometry(total_geo)).buffer(0)) \
+        if total_geo else []
     if len(total_geo) <= 1:
         return _('Too few polygons in the Gerber object to determine distances.'), np.inf
     min_dist = min(polygon_gap_pairs(total_geo, decimals))

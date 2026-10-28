@@ -31,6 +31,8 @@ class ToolOptimal(AppTool):
 
     update_text = QtCore.pyqtSignal(list)
     update_sec_distances = QtCore.pyqtSignal(dict)
+    # (safe tool diameter, how many times the minimum distance occurs): the entries are set in the GUI thread
+    update_result = QtCore.pyqtSignal(str, str)
 
     def __init__(self, app):
         AppTool.__init__(self, app)
@@ -116,6 +118,7 @@ class ToolOptimal(AppTool):
     def connect_signals_at_init(self):
         self.update_text.connect(self.on_update_text)
         self.update_sec_distances.connect(self.on_update_sec_distances_txt)
+        self.update_result.connect(self.on_update_result)
 
         self.ui.calculate_button.clicked.connect(self.find_minimum_distance)
         self.ui.locate_button.clicked.connect(self.on_locate_position)
@@ -135,6 +138,11 @@ class ToolOptimal(AppTool):
 
         try:
             self.update_sec_distances.disconnect(self.on_update_sec_distances_txt)
+        except (TypeError, AttributeError):
+            pass
+
+        try:
+            self.update_result.disconnect(self.on_update_result)
         except (TypeError, AttributeError):
             pass
 
@@ -279,11 +287,11 @@ class ToolOptimal(AppTool):
                     app_obj.inform.emit('[ERROR_NOTCL] %s' % _("Could not find a safe tool diameter."))
                     return 'fail'
                 min_dist_string = str(safe_dia)
-                plugin_instance.ui.result_entry.set_value(min_dist_string)
 
                 freq = len(plugin_instance.min_dict[min_dist])
                 freq = '%d' % int(freq)
-                plugin_instance.ui.freq_entry.set_value(freq)
+                # this runs in a worker thread: the widgets are changed only in the GUI thread
+                self.update_result.emit(min_dist_string, freq)
 
                 min_locations = plugin_instance.min_dict.pop(min_dist)
 
@@ -329,6 +337,10 @@ class ToolOptimal(AppTool):
     def on_update_text(self, data):
         self.ui.on_update_text(data)
 
+    def on_update_result(self, min_dist_string, freq):
+        self.ui.result_entry.set_value(min_dist_string)
+        self.ui.freq_entry.set_value(freq)
+
     def on_textbox_clicked(self):
         self.selected_text = self.ui.highlight_current_line(self.ui.locations_textb)
 
@@ -337,7 +349,13 @@ class ToolOptimal(AppTool):
 
     def on_distances_textb_clicked(self):
         distance_text = self.ui.highlight_current_line(self.ui.distances_textb)
-        key_in_min_dict = safe_eval(distance_text)
+        # the empty line after the last distance (or an empty box) is no distance
+        try:
+            key_in_min_dict = safe_eval(distance_text)
+        except ValueError:
+            return
+        if key_in_min_dict not in self.min_dict:
+            return
         self.on_update_locations_text(dist=key_in_min_dict)
 
     def on_update_locations_text(self, dist):

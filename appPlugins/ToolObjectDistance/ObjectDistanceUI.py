@@ -169,7 +169,7 @@ class ObjectDistanceUI:
         return dec_format(pt.x, decimals), dec_format(pt.y, decimals)
 
     def display_angle(self, val, dec_format, decimals):
-        if val:
+        if val is not None:
             self.angle_entry.set_value(str(dec_format(val, decimals)))
 
     def display_start(self, val):
@@ -181,13 +181,14 @@ class ObjectDistanceUI:
             self.stop_entry.set_value(str(val))
 
     def display_deltas(self, dx, dy, dec_format, decimals):
-        if dx:
+        if dx is not None:
             self.distance_x_entry.set_value(str(dec_format(abs(dx), decimals)))
-        if dy:
+        if dy is not None:
             self.distance_y_entry.set_value(str(dec_format(abs(dy), decimals)))
 
     def display_distance(self, val, decimals):
-        if val:
+        # a 0 (touching objects) is written too: the previous pair's distance stayed on screen
+        if val is not None:
             self.total_distance_entry.set_value('%.*f' % (decimals, abs(val)))
 
     def display_half_distance(self, val, dec_format, decimals):

@@ -95,11 +95,17 @@ class ObjectDistance(AppTool):
         # Switch notebook to tool page
         self.app.ui.notebook.setCurrentWidget(self.app.ui.plugin_tab)
 
-        self.set_tool_ui()
-        self.app.ui.notebook.setTabText(2, _("Object Distance"))
+        # the flag is cleared also when the measuring fails (not two objects selected): a flag left set made
+        # Shift+M do nothing for the rest of the session
+        self.active = True
+        try:
+            self.set_tool_ui()
+            self.app.ui.notebook.setTabText(2, _("Object Distance"))
 
-        # activate the plugin
-        self.activate_measure_tool()
+            # activate the plugin
+            self.activate_measure_tool()
+        finally:
+            self.active = False
 
     def install(self, icon=None, separator=None, **kwargs):
         AppTool.install(self, icon, separator, shortcut='Shift+M', **kwargs)
@@ -118,7 +124,6 @@ class ObjectDistance(AppTool):
 
     def init_plugin(self):
         ObjectDistanceUI.reset_measurement(self.ui)
-        self.active = True
 
     def on_didstance_type_changed(self):
         self.init_plugin()
@@ -192,8 +197,6 @@ class ObjectDistance(AppTool):
                 self.app.inform.emit(msg)
         else:
             self.display_half_distance(self.h_point)
-
-        self.active = False
 
     def measure_nearest_in_app(self):
         selected_objs = self.app.collection.get_selected()

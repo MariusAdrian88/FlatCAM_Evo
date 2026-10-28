@@ -311,3 +311,46 @@ def test_pending_gerber_transform_updates_measurement_snap_and_history(measuring
     measuring.on_start_measuring()
     assert measuring.resolve_snap((.2, .2)) == (0, 0)
     assert measuring.resolve_snap((5.2, .2)) == (5.2, .2)
+
+
+@pytest.fixture
+def object_distance(_headless_qt):
+    from appPlugins.ToolObjectDistance import ObjectDistance
+
+    fake_app = MagicMock()
+    fake_app.decimals = 4
+    fake_app.app_units = 'MM'
+    fake_app.resource_location = 'assets/resources'
+    fake_app.call_source = 'app'
+    fake_app.plugin_tab_locked = False
+    fake_app.dec_format.side_effect = lambda value, decimals: round(value, decimals)
+    fake_app.ui.notebook.count.return_value = 0
+    tool = ObjectDistance(fake_app)
+    yield tool
+    tool.deleteLater()
+
+
+def object_distance_shift_m(tool, *selected):
+    tool.app.collection.get_selected.return_value = list(selected)
+    tool.run()
+    return float(tool.ui.total_distance_entry.get_value())
+
+
+def test_object_distance_shift_m_works_after_a_wrong_selection_and_a_reset(object_distance):
+    first, second, third = flash((0, 0)), flash((5, 0)), flash((0, 4))
+    # 1 object selected: only a warning, but the plugin stayed flagged as running and Shift+M did nothing after it
+    object_distance_shift_m(object_distance, first)
+    assert object_distance_shift_m(object_distance, first, second) == pytest.approx(3)
+    # Reset Tool flagged it as running too
+    object_distance.ui.reset_button.click()
+    assert object_distance_shift_m(object_distance, first, third) == pytest.approx(2)
+
+
+def test_object_distance_measure_button_shows_zero_for_touching_objects(object_distance):
+    first, second, overlapping = flash((0, 0)), flash((0, 5)), flash((1.5, 0))
+    assert object_distance_shift_m(object_distance, first, second) == pytest.approx(3)
+    # the Measure button does not reset the fields: the 0 results were not written and the 3 mm stayed
+    object_distance.app.collection.get_selected.return_value = [first, overlapping]
+    object_distance.ui.measure_btn.click()
+    ui = object_distance.ui
+    assert [float(e.get_value()) for e in (ui.total_distance_entry, ui.distance_y_entry, ui.angle_entry)] == [0, 0, 0]

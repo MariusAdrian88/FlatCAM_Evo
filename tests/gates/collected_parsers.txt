@@ -95,6 +95,8 @@ tests/test_excellon_parser.py::test_parse_result[incremental coordinates]
 tests/test_excellon_parser.py::test_parse_result[repeat with decimal coordinates]
 tests/test_excellon_parser.py::test_parse_result[route then drills with another tool]
 tests/test_excellon_parser.py::test_parse_result[units switch in the body converts what was read]
+tests/test_excellon_parser.py::test_pcbwizard_import_uses_the_format_corrected_after_loading
+tests/test_excellon_parser.py::test_pcbwizard_inf_format_is_set_in_the_gui_thread
 tests/test_excellon_parser.py::test_plated_flag_per_tool
 tests/test_excellon_parser.py::test_route_half_circle_is_cut_as_short_segments
 tests/test_font_parser.py::test_bidi_run_is_placed_in_visual_order

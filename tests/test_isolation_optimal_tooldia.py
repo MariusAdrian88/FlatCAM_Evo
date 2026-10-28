@@ -9,6 +9,7 @@ of the last decimal larger than the real gap (0.15996 -> 0.16). The tests build 
 import functools
 import os
 import sys
+import threading
 from copy import deepcopy
 from unittest.mock import MagicMock
 
@@ -18,8 +19,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from PyQt6 import QtWidgets  # noqa: E402
-from shapely import box  # noqa: E402
+from PyQt6 import QtCore, QtGui, QtWidgets  # noqa: E402
+from shapely import MultiPolygon, box  # noqa: E402
 
 from appMain import App  # noqa: E402
 from defaults import AppDefaults  # noqa: E402
@@ -183,3 +184,66 @@ def test_isolation_runs_after_the_check_even_if_tasks_are_reordered(qapp):
     # a 5 mm tool does not fit between the copper features: the object is not selected
     assert any(m.startswith('[WARNING]') for m in messages(t))
     assert app.app_obj.new_object.call_args.kwargs['autoselected'] is False
+
+
+def standalone_optimal(tools):
+    # the Find Optimal plugin with the job run in place of the worker thread
+    app = make_tool_app()
+    app.dec_format = functools.partial(App.dec_format, app)
+    app.worker_task.emit.side_effect = lambda task: task['fcn'](*task['params'])
+    t = ToolOptimal(app)
+    t.ui.precision_spinner.set_value(DEC)
+    app.collection = MagicMock()
+    obj = app.collection.index.return_value.internalPointer.return_value.obj
+    obj.kind = 'gerber'
+    obj.tools = tools
+    return t
+
+
+def click_line(text_box, move):
+    with QtCore.QSignalBlocker(text_box):
+        text_box.moveCursor(move)
+
+
+def test_standalone_optimal_click_on_the_empty_last_line_of_the_distances(qapp):
+    t = standalone_optimal(gerber_tools(0.2))
+    t.find_minimum_distance()
+    distances = t.ui.distances_textb
+    assert distances.toPlainText().endswith('\n')
+    click_line(distances, QtGui.QTextCursor.MoveOperation.Start)
+    t.on_distances_textb_clicked()
+    shown = t.ui.locations_sec_textb.toPlainText()
+    assert shown.count('\n') == 1
+    # the empty line after the last distance raised ValueError: the 'Critical Error' dialog
+    click_line(distances, QtGui.QTextCursor.MoveOperation.End)
+    t.on_distances_textb_clicked()
+    assert t.ui.locations_sec_textb.toPlainText() == shown
+
+
+def test_standalone_optimal_sets_the_result_entries_in_the_gui_thread(qapp):
+    t = standalone_optimal(gerber_tools(0.2))
+    tasks = []
+    t.app.worker_task.emit.side_effect = tasks.append
+    t.find_minimum_distance()
+    threads = []
+    for entry in (t.ui.result_entry, t.ui.freq_entry):
+        entry.set_value = lambda value, set_value=entry.set_value: (
+            threads.append(threading.current_thread()), set_value(value))
+    worker = threading.Thread(target=tasks[0]['fcn'], args=tasks[0]['params'])
+    worker.start()
+    worker.join()
+    qapp.processEvents()
+    # Qt widgets are not thread-safe: the job set the entries from the worker thread
+    assert threads == [threading.main_thread()] * 2
+    assert 0 < float(t.ui.result_entry.get_value()) < 0.2
+    assert t.ui.freq_entry.get_value() == '1'
+
+
+def test_standalone_optimal_with_a_multi_part_solid(qapp):
+    # a shape split by a negative Etch Compensation is 1 MultiPolygon solid: the search stopped without a message
+    tools = gerber_tools(0.2)
+    tools[10]['geometry'].append({'solid': MultiPolygon([box(0, 5, 1, 6), box(1.15, 5, 2, 6)])})
+    t = standalone_optimal(tools)
+    t.find_minimum_distance()
+    assert (t.ui.result_entry.get_value(), t.ui.freq_entry.get_value()) == ('0.1499', '1')
+    assert any(m.startswith('[success]') for m in messages(t))

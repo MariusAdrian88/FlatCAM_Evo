@@ -405,6 +405,14 @@ def test_check_validity_names_the_tools_that_are_too_big():
     assert NccModel.check_tools_fit(source.tools, [0.5, 0.6], [], 4)[::2] == ('error', [0.5, 0.6])
 
 
+def test_check_validity_with_a_multi_part_solid():
+    # a shape split by a negative Etch Compensation is 1 MultiPolygon solid: MultiPolygon(list) raised ValueError
+    solids = [box(0, 0, 1, 1), MultiPolygon([box(0, 2, 1, 3), box(1.15, 2, 2, 3)])]
+    apertures = {10: {'geometry': [{'solid': solid} for solid in solids]}}
+    assert NccModel.smallest_gerber_gap(apertures, 4) == (None, pytest.approx(0.1499))
+    assert NccModel.check_tools_fit(apertures, [0.1], [0.2], 4)[::2] == ('error', [0.2])
+
+
 def test_check_validity_stops_the_job_before_the_generation():
     gen, output = run_rest(MultiPolygon([box(0, 0, 10, 10)]), [0.5], lambda **kw: pytest.fail('cleared'),
                            source=gerber_with_gap(0.3), rest=False, handler_kwargs={'check_validity': True})

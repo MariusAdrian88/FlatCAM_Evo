@@ -30,6 +30,8 @@ log = logging.getLogger('base')
 class PcbWizard(AppTool):
 
     file_loaded = QtCore.pyqtSignal(str, str)
+    # (integral digits, fractional digits, units) of the INF file: the form is set in the GUI thread
+    inf_format_loaded = QtCore.pyqtSignal(int, int, str)
 
     def __init__(self, app):
         AppTool.__init__(self, app)
@@ -44,12 +46,12 @@ class PcbWizard(AppTool):
         self.add_object_creation_controls(has_source=False)
         self.pluginName = self.ui.pluginName
         self.connect_signals_at_init()
+        # connected once: the slot sets the form of the current self.ui
+        self.inf_format_loaded.connect(self.on_inf_format_loaded)
 
         self.excellon_loaded = False
         self.inf_loaded = False
         self.process_finished = False
-
-        self.modified_excellon_file = ''
 
         self.units = 'INCH'
         self.zeros = 'LZ'
@@ -123,8 +125,7 @@ class PcbWizard(AppTool):
         # ## Signals
         self.ui.excellon_brn.clicked.connect(self.on_load_excellon_click)
         self.ui.inf_btn.clicked.connect(self.on_load_inf_click)
-        self.ui.import_button.clicked.connect(lambda: self.on_import_excellon(
-            excellon_fileobj=self.modified_excellon_file))
+        self.ui.import_button.clicked.connect(lambda: self.on_import_excellon())
 
         self.file_loaded.connect(self.on_file_loaded)
         self.ui.units_radio.activated_custom.connect(self.ui.on_units_change)
@@ -155,7 +156,6 @@ class PcbWizard(AppTool):
         self.excellon_loaded = False
         self.inf_loaded = False
         self.process_finished = False
-        self.modified_excellon_file = ''
 
         self.build_ui()
 
@@ -223,9 +223,8 @@ class PcbWizard(AppTool):
         tools, formats = parse_inf(inf_file_content)
         self.tools_from_inf.update(tools)
         for self.integral, self.fractional, self.units in formats:
-            self.ui.units_radio.set_value(self.units)
-            self.ui.int_entry.set_value(self.integral)
-            self.ui.frac_entry.set_value(self.fractional)
+            # this runs in a worker thread: the widgets are changed only in the GUI thread
+            self.inf_format_loaded.emit(self.integral, self.fractional, self.units)
 
         if not self.tools_from_inf:
             self.app.inform.emit('[ERROR] %s' %
@@ -242,9 +241,13 @@ class PcbWizard(AppTool):
 
         self.file_loaded.emit("excellon", filename)
 
+    def on_inf_format_loaded(self, integral, fractional, units):
+        self.ui.units_radio.set_value(units)
+        self.ui.int_entry.set_value(integral)
+        self.ui.frac_entry.set_value(fractional)
+
     def on_file_loaded(self, signal, filename):
         self.build_ui()
-        time_str = "{:%A, %d %B %Y at %H:%M}".format(dt.now())
 
         if signal == 'inf':
             self.inf_loaded = True
@@ -256,18 +259,30 @@ class PcbWizard(AppTool):
             self.app.inform.emit('[success] %s' % _("Main PcbWizard Excellon file loaded."))
 
         if self.excellon_loaded and self.inf_loaded:
-            self.update_params()
-            excellon_string = merge_excellon(
-                self.exc_file_content, self.tools_from_inf, self.integral, self.fractional,
-                self.units, self.zeros, self.app.version, self.app.version_date, time_str)
-            self.modified_excellon_file = StringIO(excellon_string)
             self.process_finished = True
 
         # Register recent file
         self.app.options["global_last_folder"] = os.path.split(str(filename))[0]
 
+    def build_modified_excellon(self):
+        """
+        The Excellon file with the format, units, zeros and the INF tool table added after M48. Built at each Import
+        from the form values of that moment: the user may correct them after the files are loaded.
+
+        :return:    a new StringIO (one that was parsed already is at its end)
+        """
+        self.update_params()
+        time_str = "{:%A, %d %B %Y at %H:%M}".format(dt.now())
+        excellon_string = merge_excellon(
+            self.exc_file_content, self.tools_from_inf, self.integral, self.fractional,
+            self.units, self.zeros, self.app.version, self.app.version_date, time_str)
+        return StringIO(excellon_string)
+
     def on_import_excellon(self, excellon_fileobj=None):
         self.app.log.debug("import_2files_excellon()")
+
+        if excellon_fileobj is None and self.process_finished:
+            excellon_fileobj = self.build_modified_excellon()
 
         # How the object should be initialized
         def obj_init(excellon_obj, app_obj):
