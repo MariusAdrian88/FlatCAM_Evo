@@ -6,6 +6,71 @@ Based on FlatCAM:
 
 CHANGELOG for FlatCAM Evo
 
+28.10.2026
+
+CNC jobs:
+
+- new: Offset, Scale, Rotate, Mirror and Skew work on CNC jobs, also from Tcl; they change the G-code, the plot and the saved text together
+- a job from a G-code file with macro variables or subprograms is not changed; a message tells why
+- fixed: a transform keeps the tool change and end positions where they are
+- fixed: Scale changes X and Y only; a units change converts every length, the feedrate and G20 / G21
+- fixed: Tcl mirror, offset, scale and skew update the exported text of an opened G-code job
+- fixed: the travel distance and the time count the Z moves, the dwells, the tool changes and the end move that the G-code holds, for every preprocessor
+- new: a dwell (G4 S or P) adds its time; an imported G-code file without a rapid or feed rate gets a warning that the estimate is partial
+
+DXF:
+
+- new: Export DXF works for Gerber, Excellon, Geometry and CNCJob objects; more than one selected object goes into one file
+- each tool, aperture or object gets its own layer; arcs, circles, slots and rounded corners are written as true DXF arcs and circles
+- new: DXF export preferences: Layers, Gerber (outline or centerline), Travel moves, Arcs and circles
+- fixed: a failed DXF export no longer reports a saved file
+- Tcl: export_dxf takes a comma separated list of names and adds .dxf when it is missing
+- new: the DXF import reads the units of the file ($INSUNITS) and scales the drawing to the application units; a file without units is not scaled
+- if the scaled drawing is larger than 1 m and the unscaled one is not, the units are ignored and a warning gives both sizes
+
+Project tab, context menu:
+
+- new: Export submenu for a Gerber, Excellon or Geometry object: DXF, SVG, PNG, PDF; PNG and PDF show black shapes on white with a 1 mm margin
+- new: Join submenu for two or more Gerber, Excellon and Geometry objects: As Gerber, As Excellon, As Geometry; the selected objects stay; a warning counts the shapes that can not be converted
+- fixed: an SVG file that FlatCAM exported comes back at its original position
+- fixed: objects of the later categories can be dragged again
+
+SVG import:
+
+- new: an SVG from Illustrator without width and height gets its size from the page size in its metadata; an SVG without a physical size gets a warning
+- new: a white circle of 0.2 to 6 mm with a dark stroke is a drill marker: it is left out of the object and becomes a hole in a new Excellon object <name>_drills
+- new: preference "SVG drill detection" (on by default); the Tcl commands import_svg and open_svg use it too
+
+PDF import:
+
+- new: clipping paths (W, W*) cut the painted shapes; nested, even-odd and Form XObject clips end where they must
+- new: every page is imported; the layers of a multi-page PDF get the suffix _p1, _p2 ...; a page that can not be read gives a warning and the other pages are still imported
+- new: the content of a layer that is off in the PDF is skipped; a warning lists the names of these layers
+
+Excellon:
+
+- new: Join removes a hole that two objects share (same position and diameter) and warns about overlapping holes and about holes with the same position and another diameter
+
+Extract plugin:
+
+- new: Source type Gerber / Geometry; with Geometry, Extract Drills makes holes at the centers of the circles, with the diameter of the Fixed, Ring or Proportional method; Tcl extract -type drills accepts a Geometry object
+
+Film plugin:
+
+- fixed: the PNG file shows the film at its real size and stores its DPI
+- the default PNG resolution is 300 DPI; a saved old default of 96 DPI becomes 300 DPI, other values stay
+
+PCB import:
+
+- fixed: a second PCB import waits until the project is free
+- a board imported into a project that has objects opens in a new project; Cancel keeps the current project
+
+GUI:
+
+- new: View -> Restore Layout shows the hidden toolbars and panels again and sets the standard layout
+- new: Ctrl+I opens the Import dialog
+- fixed: the Code Editor highlights the G-code commands and parameters again; the text of the current line stays readable in the dark theme
+
 26.10.2026
 
 Proteus PCB import:
