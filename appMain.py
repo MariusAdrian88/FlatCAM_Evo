@@ -2758,10 +2758,11 @@ class App(QtCore.QObject):
                         self.ui.plugin_scroll_area.takeWidget()
                         edited_obj.build_ui()
 
-                        # close the open tab
+                        # close the open tab (once: after the close the indexes of the next tabs are shifted)
                         for idx in range(self.ui.plot_tab_area.count()):
                             if self.ui.plot_tab_area.widget(idx).objectName() == 'gcode_editor_tab':
                                 self.ui.plot_tab_area.closeTab(idx)
+                                break
                         self.inform.emit('[success] %s' % _("Editor exited. Editor content saved."))
 
                     else:

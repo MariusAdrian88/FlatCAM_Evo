@@ -43,6 +43,7 @@ Projects:
 - new: Import... in the project context menu (right-click on the project combobox) opens an Import dialog; the left side lists all the imports in groups (vector files, raster images, PCB boards) with a search box, the right side shows the file type, the created objects and a description; Import... runs the selected import with its own file dialog
 - new: Close All Projects in the project context menu, after a separator below Close Project; each project with unsaved changes asks first, a Cancel or a failed save stops the remaining closes, and 1 empty project stays at the end
 - new: Preferences -> General -> "Project Caching" (off by default); a switch hides the plot shapes of the inactive project instead of releasing them and keeps the plugin widgets, so a switch back does not plot again; a change of the object or the plot options plots the objects again, and closing a project or turning the option off releases the kept shapes
+- fixed: with a Document object in the project, every project save (and autosave) failed with "Failed." and the file was not written: the Document listed an 'options' attribute to save that FlatCAM objects do not have; a Document is now saved and loaded like the other objects
 
 Proteus PCB import:
 
@@ -113,6 +114,10 @@ Tcl:
 - fixed: drillcncjob without -startz (and without a Start Z in the Preferences) used the Travel Z of the Preferences as the Start Z, so the first tool change was made at that height instead of -toolchangez and, without toolchange, the first travel was made at it instead of -travelz; there is now no start Z move, as in the Drilling plugin
 - fixed: a drillcncjob job with toolchange kept its tools in the order of the Excellon object, not in the order they are drilled; when a bigger tool had a lower number (or with the spot drilling pass) the exported G-code had the end code in the middle, ended with the spindle on and had the spot pass at the end; the tools are now kept in the order they are drilled
 - fixed: export_gcode returned only the G-code that the job keeps for itself, without the start code; for a multi-tool job of the Milling tool this is only the last tool, so a script that wrote the result to a file lost the first tools and the start block; it now returns the text that write_gcode writes to a file
+Code Editor:
+
+- fixed: Replace All searched from the cursor, so the matches at and above the current selection (after a Find: the first match) kept their old value; it also left the text document in an open edit block, so later edits no longer marked the text as not saved and one Undo removed them together with the replacement; Replace All now replaces every match from the start of the text in one Undo step
+- fixed: Exit Editor -> Yes with another Plot Area tab after the Code Editor tab (for example Preferences) gave a Critical Error dialog and left the app in the editor mode; closing the Code Editor tab with its X also closed the next tab (without the unsaved changes question of Preferences); only the Code Editor tab is closed now, once, and the editor mode ends
 
 Tests:
 
@@ -142,6 +147,9 @@ Tests:
 - new unit tests for the heights of the first tool change and the first travel of drillcncjob without -startz (tests/test_tcl_drillcncjob.py)
 - new unit test for the order of the tools of a drillcncjob job (tests/test_tcl_drillcncjob.py)
 - new unit test for the text that the Tcl export_gcode returns, the same as the file of write_gcode (tests/test_tcl_audit_contracts.py)
+- new unit tests for Replace All of the code editor (tests/test_lazy_highlight.py)
+- new unit test for the project save and load of a Document object (tests/test_object_construction.py)
+- new unit tests for the exit of the Code Editor with its tab between other Plot Area tabs (tests/test_editor_save_modes.py)
 
 25.10.2026
 RELEASE FlatCAM Evo 1.0

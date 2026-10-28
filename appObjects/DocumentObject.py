@@ -152,7 +152,6 @@ class DocumentObject(FlatCAMObj):
         # #######################################################################
 
         # self.document_editor_tab.handleTextChanged()
-        self.ser_attrs = ['options', 'kind', 'source_file']
 
         try:
             if QtGui.Qt.mightBeRichText(self.source_file):

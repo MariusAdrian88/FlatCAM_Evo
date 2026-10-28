@@ -7,7 +7,7 @@ not create a Script or a Document object.
 
 import pytest
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock
 from PyQt6 import QtWidgets
 
 from appObjects.CNCJobObject import CNCJobObject
@@ -85,6 +85,39 @@ def test_script_edits_survive_load_serialization_and_copy(tmp_path, monkeypatch,
                         lambda **kwargs: (str(tmp_path / 'unexpected.tcl'), ''))
     obj.script_editor_tab.buttonSave.click()
     assert output.read_text(encoding='utf-8') == 'set a 4'
+    app.ui.close()
+
+
+def test_document_survives_a_project_save_and_load(tmp_path, no_shape_collection):  # noqa: F811
+    # DocumentObject.set_ui() replaced ser_attrs with an 'options' attribute that FlatCAM objects do not have: with a
+    # Document in the project, to_dict() raised and every project save (and autosave) failed with "Failed."
+    from appCommon.ProjectFile import load_project_file
+    from appGUI.ObjectUI import DocumentObjectUI
+    from appHandlers.appIO import appIO
+    from camlib import dict2obj
+    from tests.helpers_objects import make_app as editor_app
+    qapp = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])  # noqa: F841
+    app = editor_app()
+    app.inform = MagicMock()
+    app.resource_location = 'assets/resources'
+    app.regFK = SimpleNamespace(myKeywords=[])
+    app.ui = QtWidgets.QWidget()
+    app.ui.plot_tab_area = QtWidgets.QTabWidget(app.ui)
+    app.ui.properties_scroll_area = QtWidgets.QScrollArea(app.ui)
+    doc = DocumentObject('notes', app)
+    doc.source_file = 'Drill with 0.8 mm'
+    doc.set_ui(DocumentObjectUI(app=app))
+    app.collection.get_list.return_value = [doc]
+    app.collection.get_active.return_value = None
+    path = str(tmp_path / 'project.FlatPrj')
+    assert appIO(app).save_project(path, silent=True) is True
+    entry = load_project_file(path, object_hook=dict2obj)['objs'][0]
+    restored = DocumentObject('restored', app)
+    restored.from_dict(entry)
+    assert restored.kind == 'document'
+    assert restored.obj_options['name'] == 'notes'
+    restored.set_ui(DocumentObjectUI(app=app))
+    assert restored.document_editor_tab.code_editor.toPlainText() == 'Drill with 0.8 mm'
     app.ui.close()
 
 

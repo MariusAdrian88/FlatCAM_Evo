@@ -4157,7 +4157,11 @@ class FCDetachableTab2(FCDetachableTab):
         self.tab_closed_signal.emit(tab_name, currentIndex)
 
         if self._auto_remove_closed_tab:
-            super().removeTab(currentIndex)
+            # a handler of the signal may already have closed the tab (the exit of the Code Editor closes its tab):
+            # look the tab up again, the old index can now be the one of the next tab
+            index = self.indexOf(widget)
+            if index != -1:
+                super().removeTab(index)
         return True
 
 

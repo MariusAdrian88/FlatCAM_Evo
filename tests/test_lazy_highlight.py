@@ -2,6 +2,7 @@
 The code editor of FCTextAreaLineNumber (Source Editor, G-code editor) highlights only the lines that are shown; the
 other lines are highlighted when they are scrolled into view. Qt highlighted every line when the text was set: the
 View Source of a G-code of 94000 lines took 11 s.
+Replace All of the editor (AppTextEditor) replaces every match in one Undo step.
 
     python tests/test_lazy_highlight.py
 """
@@ -10,12 +11,15 @@ import os
 import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
 from PyQt6 import QtGui, QtWidgets                        # noqa: E402
 
+from appEditors.appTextEditor import AppTextEditor         # noqa: E402
 from appGUI.GUIElements import FCTextAreaLineNumber        # noqa: E402
 
 APP = QtWidgets.QApplication.instance() or QtWidgets.QApplication(sys.argv)
@@ -124,6 +128,50 @@ class TestPrint(EditorCase):
         # the highlighting of the lines shown goes on
         self.assertIs(self.edit.highlighter.editor, self.edit)
         self.assertFalse(self.edit.highlighting_shown)
+
+
+class TestReplaceAll(unittest.TestCase):
+    """Replace All of AppTextEditor (G-code editor): every match from the document start, in one Undo step."""
+
+    def setUp(self):
+        app = SimpleNamespace(options={'global_theme': 'default'}, defaults=Mock(),
+                              resource_location='assets/resources', regFK=SimpleNamespace(myKeywords=[]))
+        self.editor = AppTextEditor(app=app, plain_text=True)
+        self.edit = self.editor.code_editor
+
+    def tearDown(self):
+        self.editor.deleteLater()
+        pump()
+
+    def replace_all(self, old, new):
+        self.editor.entryFind.set_value(old)
+        self.editor.entryReplace.set_value(new)
+        self.editor.sel_all_cb.setChecked(True)
+        self.editor.handleReplaceGCode()
+
+    def test_replace_all_after_find_replaces_every_match_in_one_undo_step(self):
+        self.editor.load_text('G1 S100\nG1 S100\nG1 S100', move_to_start=True)
+        self.editor.entryFind.set_value('S100')
+        # Find selects the first match: Replace All left it (and every match above the cursor) unchanged
+        self.editor.handleFindGCode()
+        self.replace_all('S100', 'S500')
+        self.assertEqual(self.edit.toPlainText(), 'G1 S500\nG1 S500\nG1 S500')
+        # a later edit still marks the text as not saved (an open edit block stopped the textChanged signal) and it
+        # is an Undo step of its own
+        self.editor.buttonSave.setStyleSheet('')
+        self.edit.moveCursor(QtGui.QTextCursor.MoveOperation.End)
+        self.edit.insertPlainText('\nG0 X1')
+        self.assertIn('red', self.editor.buttonSave.styleSheet())
+        self.edit.undo()
+        self.assertEqual(self.edit.toPlainText(), 'G1 S500\nG1 S500\nG1 S500')
+        self.edit.undo()
+        self.assertEqual(self.edit.toPlainText(), 'G1 S100\nG1 S100\nG1 S100')
+
+    def test_replace_all_with_the_find_text_inside_the_new_text(self):
+        self.editor.load_text('S1 S1', move_to_start=True)
+        self.replace_all('S1', 'S10')
+        self.assertEqual(self.edit.toPlainText(), 'S10 S10')
+
 
 if __name__ == '__main__':
     unittest.main()

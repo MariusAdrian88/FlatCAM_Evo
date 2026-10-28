@@ -483,21 +483,25 @@ class AppTextEditor(QtWidgets.QWidget):
         new = self.entryReplace.get_value()
 
         if self.sel_all_cb.isChecked():
+            if str(old) == '':
+                return
+            # Search the document from its start (the find() of the editor starts after its cursor and selection, so
+            # the matches above them were skipped) and make every replacement in ONE edit block: one Undo step, and
+            # no edit block is left open (the document then sent no more change signals).
+            doc = self.code_editor.document()
+            flags = QtGui.QTextDocument.FindFlag.FindCaseSensitively
+            cursor = QtGui.QTextCursor(doc)
+            cursor.beginEditBlock()
+            found = QtGui.QTextCursor(doc)
             while True:
-                cursor = self.code_editor.textCursor()
-                cursor.beginEditBlock()
-                flags = QtGui.QTextDocument.FindFlag.FindCaseSensitively
-                # self.ui.editor is the QPlainTextEdit
-                r = self.code_editor.find(str(old), flags)
-                if r:
-                    qc = self.code_editor.textCursor()
-                    if qc.hasSelection():
-                        qc.insertText(new)
-                else:
-                    self.code_editor.moveCursor(QtGui.QTextCursor.MoveOperation.Start)
+                found = doc.find(str(old), found, flags)
+                if found.isNull():
                     break
+                # the cursor is left after the new text: a find text inside the new text is not found again
+                found.insertText(new)
             # Mark end of undo block
             cursor.endEditBlock()
+            self.code_editor.moveCursor(QtGui.QTextCursor.MoveOperation.Start)
         else:
             cursor = self.code_editor.textCursor()
             cursor.beginEditBlock()

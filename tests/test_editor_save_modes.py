@@ -1,14 +1,16 @@
-"""Exit Editor: Save (in place) and Save as New for the Geometry, Gerber and Excellon editors. Headless."""
+"""Exit Editor: Save (in place) and Save as New for the Geometry, Gerber and Excellon editors, and the exit of the
+Code Editor (CNCJob) with its tab. Headless."""
 
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-from PyQt6 import QtCore
+from PyQt6 import QtCore, QtWidgets
 from shapely.geometry import Point, box
 
 from appEditors.appExcEditor import AppExcEditor, match_tool_data, tools_with_data
 from appEditors.appGerberEditor import AppGerberEditor, edit_copy_name, get_finite_bounds
+from appGUI.GUIElements import FCDetachableTab2
 from appHandlers.appIO import appIO
 from appMain import App
 from appObjects.GeometryObject import GeometryObject
@@ -165,6 +167,60 @@ def test_geometry_save_as_new_removes_the_copy_when_the_save_is_rejected():
     app_stub.geo_editor.update_editor_geometry.return_value = 'fail'
     assert finish(app_stub, 'Save as New') == 'fail'
     app_stub.collection.delete_by_name.assert_called_once_with('obj_edit')
+
+
+def gcode_editor_tabs(app_stub):
+    """A real Plot Area with the Code Editor tab between 2 other tabs."""
+    tabs = FCDetachableTab2()
+    for name in ('plot_area_tab', 'gcode_editor_tab', 'preferences_tab'):
+        page = QtWidgets.QWidget()
+        page.setObjectName(name)
+        tabs.addTab(page, name)
+    app_stub.ui.plot_tab_area = tabs
+    app_stub.call_source = 'gcode_editor'
+
+    # leaving the editor (update_fcgcode() for Yes, _deactivate_editor() for No) sets call_source back to 'app'
+    def leave(*args):
+        app_stub.call_source = 'app'
+    app_stub.gcode_editor.update_fcgcode.side_effect = leave
+    app_stub._deactivate_editor.side_effect = leave
+    return tabs
+
+
+def tab_names(tabs):
+    return [tabs.widget(idx).objectName() for idx in range(tabs.count())]
+
+
+def test_cncjob_exit_editor_yes_with_a_tab_after_the_code_editor():
+    # the loop that closed the Code Editor tab went on over the old tab count: widget(idx) was None, an
+    # AttributeError (Critical Error dialog) and the app stayed in the editor mode (no post_edit_sig)
+    app_stub, _obj = editor_app('cncjob')
+    tabs = gcode_editor_tabs(app_stub)
+    finish(app_stub, 'Yes')
+    assert tab_names(tabs) == ['plot_area_tab', 'preferences_tab']
+    app_stub.post_edit_sig.emit.assert_called_once()
+
+
+@pytest.mark.parametrize('click', ['Yes', 'No'])
+def test_cncjob_closing_the_code_editor_tab_closes_only_that_tab(click):
+    # the X of the Code Editor tab: the handler of tab_closed_signal exits the editor, which closes the tab itself;
+    # closeTab() then removed the tab at the old index, which was the next tab (here Preferences)
+    app_stub, _obj = editor_app('cncjob')
+    tabs = gcode_editor_tabs(app_stub)
+    errors = []
+
+    def on_closed(tab_name, index):
+        # as App.on_plot_area_tab_closed(); FlatCAM shows an exception of a slot as a Critical Error
+        if tab_name == 'gcode_editor_tab':
+            try:
+                finish(app_stub, click)
+            except Exception as err:
+                errors.append(err)
+    tabs.tab_closed_signal.connect(on_closed)
+    assert tabs.closeTab(1) is True
+    assert errors == []
+    assert tab_names(tabs) == ['plot_area_tab', 'preferences_tab']
+    app_stub.post_edit_sig.emit.assert_called_once()
 
 
 # ---------------------------------------------------------------------------------------------------------------
