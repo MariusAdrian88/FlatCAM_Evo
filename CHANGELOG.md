@@ -108,6 +108,11 @@ GUI:
 
 - fixed: the number fields committed each prefix of a typed number; a number over the maximum (1500 with a maximum of 1000) left the last prefix in the range (150) in a feed, speed or power field; the typed number is now committed on Enter or when the field loses the focus, and a number out of the range gives back the previous value
 - fixed: a drag in a tool table (Isolation, Drilling, Milling, NCC, Paint, the Geometry object, Bookmarks) that was dropped outside the table or cancelled with Esc left the signals of the table blocked, so the later diameter edits and row clicks were ignored; the signals are unblocked when the drag leaves the table and when it ends
+Tcl:
+
+- fixed: drillcncjob without -startz (and without a Start Z in the Preferences) used the Travel Z of the Preferences as the Start Z, so the first tool change was made at that height instead of -toolchangez and, without toolchange, the first travel was made at it instead of -travelz; there is now no start Z move, as in the Drilling plugin
+- fixed: a drillcncjob job with toolchange kept its tools in the order of the Excellon object, not in the order they are drilled; when a bigger tool had a lower number (or with the spot drilling pass) the exported G-code had the end code in the middle, ended with the spindle on and had the spot pass at the end; the tools are now kept in the order they are drilled
+- fixed: export_gcode returned only the G-code that the job keeps for itself, without the start code; for a multi-tool job of the Milling tool this is only the last tool, so a script that wrote the result to a file lost the first tools and the start block; it now returns the text that write_gcode writes to a file
 
 Tests:
 
@@ -134,6 +139,9 @@ Tests:
 - test_tools_database: the records saved before and after a Preferences Apply load with the options of both; wrong value types are still skipped
 - test_gui_elements_input (new): a number over the maximum keeps the previous value of a number field and no prefix is committed; the keypad Enter slots get the typed number; test_tools_database commits the typed parameters with Enter
 - test_gui_elements_input: a tool table drag that leaves the table or ends without a drop leaves the signals of the table unblocked
+- new unit tests for the heights of the first tool change and the first travel of drillcncjob without -startz (tests/test_tcl_drillcncjob.py)
+- new unit test for the order of the tools of a drillcncjob job (tests/test_tcl_drillcncjob.py)
+- new unit test for the text that the Tcl export_gcode returns, the same as the file of write_gcode (tests/test_tcl_audit_contracts.py)
 
 25.10.2026
 RELEASE FlatCAM Evo 1.0

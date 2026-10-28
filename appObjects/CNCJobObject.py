@@ -1345,11 +1345,14 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
         """
         We need this to be able to get_gcode separately for shell command export_gcode
 
+        The whole G-code of the job, as export_gcode() writes it to a file (the Tcl write_gcode): the start code and
+        the G-code of every tool. self.gcode alone is not the job: for a multi-tool job it can hold only the last tool.
+
         :param preamble:    Extra GCode added to the beginning of the GCode
         :param postamble:   Extra GCode added at the end of the GCode
         :return:            The modified GCode
         """
-        return preamble + '\n' + self.gcode + "\n" + postamble
+        return CNCJobObject.export_gcode(self, preamble=preamble, postamble=postamble, to_file=True).getvalue()
 
     def get_svg(self):
         # we need this to be able get_svg separately for shell command export_svg

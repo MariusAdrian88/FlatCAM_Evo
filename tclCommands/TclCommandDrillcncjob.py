@@ -118,7 +118,8 @@ class TclCommandDrillcncjob(TclCommandSignaled):
             ('toolchangexy', 'The X,Y coordinates at Toolchange event in format (x, y) (example: (30.0, 15.2) or '
                              'without parenthesis like: 0.3,1.0). WARNING: no spaces allowed in the value.'),
             ('startz', 'Z coordinate at job start. Bare or omitted -startz uses application tools_drill_startz '
-                       'if truthy, otherwise tools_drill_travelz.'),
+                       'if truthy, otherwise there is no start Z move (as in the Drilling plugin): the first '
+                       'toolchange is made at the toolchange Z and the first travel at the travel Z.'),
             ('endz', 'Z coordinate at job end. Bare or omitted -endz uses application tools_drill_endz.'),
             ('endxy', 'The X,Y coordinates at job end in format (x, y) (example: (2.0, 1.2) or without parenthesis'
                       'like: 0.3,1.0). WARNING: no spaces allowed in the value.'),
@@ -606,7 +607,10 @@ class TclCommandDrillcncjob(TclCommandSignaled):
                 if self._app_option("tools_drill_startz"):
                     cnc_job_obj.startz = self._app_option("tools_drill_startz")
                 else:
-                    cnc_job_obj.startz = self._app_option("tools_drill_travelz")
+                    # no start Z move, as in the Drilling plugin: the preprocessors make the first toolchange at the
+                    # Start Z, so the Travel Z of the Preferences put it (and, without toolchange, the first travel)
+                    # at that height instead of the toolchange Z (the travel Z) of the job
+                    cnc_job_obj.startz = None
             # end Z
             cnc_job_obj.z_end = float(endz)
             # end X-Y location

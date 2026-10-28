@@ -4734,7 +4734,9 @@ class CNCjob(Geometry):
         # fill the data into the self.tools dictionary attribute of Excellon object
         # #############################################################################################################
         # #############################################################################################################
-        for it in all_tools:
+        # in the order of the drilling: the export joins the G-code of the tools in the order of self.tools, and the
+        # end code is in the G-code of the last drilled tool
+        for it in sorted_tools:
             to_ol = it[0]
             if to_ol not in tools:
                 continue
@@ -4869,7 +4871,7 @@ class CNCjob(Geometry):
                 points[spot_id] = [pt for t_id in tools for pt in points.get(t_id, [])]
                 spot_points = np.empty(len(points[spot_id]), dtype=object)
                 spot_points[:] = points[spot_id]
-                self.tools[spot_id] = {
+                spot_cnc_tool = {
                     'tooldia':          spot['tooldia'],
                     'nr_drills':        len(points[spot_id]),
                     'nr_slots':         0,
@@ -4881,6 +4883,8 @@ class CNCjob(Geometry):
                     'solid_geometry':   list(shapely.buffer(spot_points, spot['tooldia'] / 2.0,
                                                             quad_segs=circle_quad_segs(self.geo_steps_per_circle)))
                 }
+                # the spot pass is drilled first: its tool is the first one of self.tools too
+                self.tools = {spot_id: spot_cnc_tool, **self.tools}
                 tools = [spot_id] + tools
                 self.spot_tool_id = spot_id
 

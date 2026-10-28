@@ -47,6 +47,31 @@ def test_write_gcode_propagates_explicit_failure():
     assert TclCommandWriteGCode(app).execute({'name': 'job', 'filename': 'output'}, []) == 'fail'
 
 
+def test_export_gcode_returns_the_text_that_write_gcode_writes(tmp_path):
+    # export_gcode returned preamble + job.gcode + postamble: no start code, and for a multi-tool job of the Milling
+    # tool job.gcode holds only the code of the last tool
+    from types import MethodType, SimpleNamespace
+    from appObjects.CNCJobObject import CNCJobObject
+    from preprocessors.default import default
+    from tclCommands.TclCommandExportGcode import TclCommandExportGcode
+    from tclCommands.TclCommandWriteGCode import TclCommandWriteGCode
+    options = {'cncjob_footer': False, 'cncjob_prepend': '', 'cncjob_append': '', 'cncjob_line_ending': False}
+    job = SimpleNamespace(
+        kind='cncjob', app=SimpleNamespace(preprocessors={'default': default()}), multitool=True,
+        obj_options={'type': 'Geometry', 'name': 'job'}, gc_header='', gc_start='START_CODE\n', gcode='BODY_TOOL_2\n',
+        tools={uid: {'data': {'tools_mill_ppname_g': 'default'}, 'gcode': 'BODY_TOOL_%d\n' % uid} for uid in (1, 2)},
+        _app_option=lambda key, fallback=None: options.get(key, fallback), gcode_footer=lambda: '')
+    job.get_gcode = MethodType(CNCJobObject.get_gcode, job)
+    job.export_gcode = MethodType(CNCJobObject.export_gcode, job)
+    app = factory_app(job)
+    app.collection.has_promises.return_value = False
+    snippets = {'preamble': '(PRE)', 'postamble': '(POST)'}
+    text = TclCommandExportGcode(app).execute(dict(snippets, name='job'), [])
+    TclCommandWriteGCode(app).execute(dict(snippets, name='job', filename=str(tmp_path / 'job.nc')), [])
+    assert text == (tmp_path / 'job.nc').read_text()
+    assert text.index('START_CODE') < text.index('(PRE)') < text.index('BODY_TOOL_1') < text.index('BODY_TOOL_2')
+
+
 @pytest.mark.parametrize('suffix,method,kind', [('NewGeometry', 'new_geometry_object', 'geometry'),
                                               ('NewExcellon', 'new_excellon_object', 'excellon'),
                                               ('NewGerber', 'new_gerber_object', 'gerber')])

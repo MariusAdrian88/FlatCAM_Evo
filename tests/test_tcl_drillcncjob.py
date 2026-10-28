@@ -171,6 +171,17 @@ def test_the_tools_are_drilled_in_the_order_asked(order, expected):
     assert re.findall(r'^T(\d+)$', code, re.M) == expected
 
 
+def test_the_tools_of_the_job_are_in_the_order_they_are_drilled():
+    # T1 is bigger than T2: T2 is drilled first, after the spot pass (T3). The export (CNCJobObject.export_gcode())
+    # joins the G-code of the tools in the order of job.tools: the end code was in the middle of the file, the file
+    # ended with the spindle on and the spot pass was the last one
+    tools = {1: (1.0, [(5.0, 5.0)], (), {}), 2: (0.4, [(1.0, 1.0)], (), {})}
+    __, job, code = run(tools, ['-toolchange', 1, '-spot', 1])
+    exported = ''.join(tool['gcode'] for tool in job.tools.values())
+    assert [t for t, __ in blocks(exported)] == [3, 2, 1]
+    assert job.gc_start + exported == code
+
+
 def test_toolchange_argument_turns_the_toolchange_on_and_off():
     assert 'M6' in run(TWO, ['-toolchange', 1])[2]
     assert 'M6' not in run(TWO, ['-toolchange', 0], options=dict(tools_drill_toolchange=True))[2]
@@ -183,6 +194,29 @@ def test_plunge_to_travel_z_after_the_toolchange():
     without = run(tools, argv)[2]
     with_plunge = run(tools, argv + ['-f_plunge', 1])[2]
     assert with_plunge.count('G00 Z2.0000') == without.count('G00 Z2.0000') + 1
+
+
+TOOLCHANGE_Z_RE = re.compile(r'^M5\nG00 Z(\S+)\nT\d+$', re.M)
+
+
+def start_z_moves(code):
+    """The Z moves of the G-code before the first travel."""
+    return re.findall(r'^G00 Z(\S+)$', code.split('\nG00 X', 1)[0], re.M)
+
+
+def test_without_startz_the_first_toolchange_and_travel_are_at_the_heights_of_the_job():
+    # no -startz and no Start Z in the Preferences: no start Z move, as in the Drilling plugin. The Travel Z of the
+    # Preferences (2.0) was the Start Z: the T1 toolchange and the first travel were 2 mm above the material
+    code = run(TWO, ['-toolchange', 1, '-toolchangez', 30, '-travelz', 10])[2]
+    assert TOOLCHANGE_Z_RE.findall(code) == ['30.0000', '30.0000']
+    assert start_z_moves(run(TWO, ['-toolchange', 0, '-travelz', 10])[2]) == ['10.0000']
+
+
+def test_the_startz_argument_or_preference_is_still_the_start_height():
+    code = run(TWO, ['-toolchange', 1, '-toolchangez', 30, '-startz', 5])[2]
+    assert TOOLCHANGE_Z_RE.findall(code) == ['5.0000', '30.0000']
+    code = run(TWO, ['-toolchange', 0, '-travelz', 10], options=dict(tools_drill_startz=3.0))[2]
+    assert start_z_moves(code) == ['10.0000', '3.0000']
 
 
 def test_retract_option_decides_the_up_to_zero_move():
