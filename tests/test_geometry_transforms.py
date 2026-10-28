@@ -234,6 +234,68 @@ def test_regenerate_source_after_a_move_gives_the_moved_coordinates(tmp_path, im
         assert text == job.gcode
 
 
+def _menu_job(history=False):
+    """
+    A native job selected in a stub app and the AppObjectOps of that app (Edit -> Flip / Rotate / Skew). The path is
+    an L: (10, 0) -> (10, 5) -> (14, 5), bounding box center (12, 2.5), lower left corner (10, 0).
+    """
+    from unittest.mock import MagicMock
+    from appHandlers.appHistory import HistoryManager
+    from appHandlers.appObjectOps import AppObjectOps
+
+    path = [(10, 0), (10, 5), (14, 5)]
+    job = _native_job('G00 X10.0000 Y0.0000\nG01 X10.0000 Y5.0000\nG01 X14.0000 Y5.0000\n')
+    job.gcode_parsed = job.tools[1]['gcode_parsed'] = [{'geom': LineString(path), 'kind': ['C', 'S']}]
+    job.tools[1]['solid_geometry'] = [LineString(path)]
+    job.plot = Mock()
+    job.set_offset_values = Mock()
+    assert job.regenerate_source() is True
+    app = job.app
+    app.collection = SimpleNamespace(get_selected=lambda: [job], get_list=lambda: [job])
+    app.ui, app.resource_location = MagicMock(), ''
+    if history:
+        app.headless, app.projects = False, SimpleNamespace(is_busy=lambda: False)
+        app.history = HistoryManager(app, collection=app.collection)
+    return job, AppObjectOps(app)
+
+
+def test_menu_flip_of_a_cncjob_updates_the_saved_gcode_also_after_undo_redo():
+    # 'Save CNC Code' writes source_file: it must follow the flip, and the Undo step must keep the matching text
+    job, ops = _menu_job(history=True)
+    old = job.source_file
+
+    ops.on_flipy()
+    flipped = job.source_file
+    assert 'G01 X14.0000 Y0.0000' in job.tools[1]['gcode']
+    assert 'G01 X14.0000 Y0.0000' in flipped and flipped == job.regenerate_source(store=False)
+
+    assert job.app.history.undo() and job.source_file == old
+    assert job.app.history.redo() and job.source_file == flipped
+
+
+def test_menu_rotate_and_skew_of_a_cncjob_update_the_saved_gcode(monkeypatch):
+    import appGUI.GUIElements as gui
+
+    class Spinner:
+        def __init__(self, *a, **k):
+            pass
+
+        def setWindowIcon(self, *a):
+            pass
+
+        def get_value(self):
+            return 45.0, True
+
+    monkeypatch.setattr(gui, 'FCInputDoubleSpinner', Spinner)
+    # the last move of the L after the transform; the menu rotates clockwise
+    for handler, kwargs, last in (('on_rotate', {'silent': True, 'preset': 90}, 'G01 X14.5000 Y0.5000'),
+                                  ('on_skewx', {}, 'G01 X19.0000 Y5.0000'),
+                                  ('on_skewy', {}, 'G01 X14.0000 Y9.0000')):
+        job, ops = _menu_job()
+        getattr(ops, handler)(**kwargs)
+        assert last in job.tools[1]['gcode'] and last in job.source_file, handler
+
+
 
 def test_an_erosion_that_removes_everything_fails_without_a_change():
     geo = Geometry(make_app())

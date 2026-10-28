@@ -5,6 +5,8 @@
 # ##########################################################
 """Probing G-code generation from explicit data, without application or UI state."""
 
+from appParsers.ParseGCode import safe_comment_text
+
 
 def generate_probing_gcode(coords, units, controller, travel, depth, feedrate,
                            coords_decimals, fr_decimals, name, version, version_date, time_str):
@@ -13,7 +15,7 @@ def generate_probing_gcode(coords, units, controller, travel, depth, feedrate,
              (str(version), str(version_date)) + '\n'
     header += '(This is a autolevelling probing GCode.)\n' \
               '(Make sure that before you start the job you first do a zero for all axis.)\n\n'
-    header += '(Name: ' + str(name) + ')\n'
+    header += '(Name: ' + safe_comment_text(name) + ')\n'
     header += '(Type: ' + "Autolevelling Probing GCode " + ')\n'
     header += '(Units: ' + units.upper() + ')\n'
     header += '(Created on ' + time_str + ')\n'

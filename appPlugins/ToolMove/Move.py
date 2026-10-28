@@ -225,6 +225,9 @@ class ToolMove(AppTool):
             try:
                 if sel_obj.offset((dx, dy)) == 'fail':
                     error = 'Object movement failed'
+                elif sel_obj.kind == 'cncjob' and sel_obj.regenerate_source() is False:
+                    # 'Export G-Code' writes source_file; it is in the Undo snapshot of a CNCJob, so make it here
+                    error = 'Source regeneration failed'
             except Exception as err:
                 self.app.log.exception('ToolMove.move_handler()')
                 error = str(err)

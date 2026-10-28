@@ -56,9 +56,18 @@ Circle resolution:
 - the native board imports (Altium, KiCad, Eagle, OrCAD/Allegro, Sprint Layout, Proteus) use the Gerber "Circle Steps" preference for the radius of each circle instead of a fixed 128 steps
 - the SVG, DXF and Image (trace) imports (also the DXF POINT disks and filled circles) give each circle, arc and stroke the steps of its own radius instead of the steps of a typical 5 mm feature; the DXF import uses the preferences of the target object (Gerber or Geometry)
 
+CNC Job:
+
+- fixed: Edit -> Flip on X / Y axis, Rotate and Skew (also the X and Y keys) on a CNCJob changed the plot but not the saved G-code: Save CNC Code wrote the job as it was before; the saved code now follows the transform, also after Undo / Redo
+- fixed: a CNCJob moved with the Move tool (M key) exported its G-code with the old coordinates; the exported code now has the moved ones, also after Undo / Redo
+- fixed: an object name with parentheses (a Windows file name like "board (1)-F_Cu.gbr") ended the "(Name: ...)" comment of the G-code header early: GRBL, FluidNC and LinuxCNC read the rest of the line as G-code and stopped the job at about line 2; in a "( ... )" comment the name now has "[" and "]" (also in the probing G-code of the Levelling tool and in the Solder Paste G-code)
+
 Tests:
 
 - added Proteus 8 / 9 projects and CAM reference fixtures, PDF samples and regression checks for imports, copper pours, track snapping, aperture dimensions, Jump precision, zoom preservation and notebook resizing
+- regression tests for the saved G-code of a CNCJob after Edit -> Flip, Rotate and Skew (tests/test_geometry_transforms.py)
+- regression test for the exported G-code of a CNCJob moved with the Move tool (tests/test_move_tool.py)
+- regression tests for an object name with parentheses in the header comments of the CNC job, probing and solder paste G-code (tests/test_cncjob_export_gcode.py, tests/test_levelling_controller_regressions.py, tests/test_solderpaste.py)
 
 25.10.2026
 RELEASE FlatCAM Evo 1.0

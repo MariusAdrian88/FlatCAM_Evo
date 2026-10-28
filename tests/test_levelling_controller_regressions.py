@@ -96,6 +96,17 @@ def test_probing_code_has_no_bare_prose(controller):
             assert '(' not in line[1:-1] and ')' not in line[1:-1]
 
 
+def test_probing_code_keeps_a_name_with_parentheses_inside_its_comment():
+    # a ')' in the object name ended the '(Name: ...)' comment early; the rest of the line was read as G-code
+    tool = gcode_tool('LinuxCNC')
+    tool.app.collection.get_by_name.return_value.obj_options = {'name': 'board (1)-F_Cu.gbr_iso_cnc'}
+    text = tool.probing_gcode(storage=storage())
+    assert '(Name: board [1]-F_Cu.gbr_iso_cnc)\n' in text
+    for line in text.splitlines():
+        if line.startswith('('):
+            assert '(' not in line[1:-1] and ')' not in line[1:-1]
+
+
 # ---------------------------------------------------------------- defect 4
 @pytest.mark.parametrize('new', ['LinuxCNC', 'MACH4'])
 def test_controller_change_drops_old_controller_code(new):

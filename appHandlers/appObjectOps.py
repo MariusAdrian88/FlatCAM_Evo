@@ -77,6 +77,14 @@ class AppObjectOps(QtCore.QObject):
         self.ui = app.ui
         self.move_origin_finished.connect(self._on_move_origin_finished)
 
+    def _regenerate_cnc_source(self, obj):
+        """
+        After a flip, rotate or skew of a CNCJob: its G-code was transformed, but 'Save CNC Code' writes source_file.
+        Make it again, as Set Origin does. Called inside the history guard, so Undo / Redo keep the matching text.
+        """
+        if str(getattr(obj, 'kind', '')).lower() == 'cncjob' and obj.regenerate_source() is False:
+            self.inform.emit('[ERROR_NOTCL] %s %s...' % (_('Failed.'), _('CNC Machine Code could not be updated')))
+
     def on_flipy(self):
         """
         Executed when the menu entry in Options -> Flip on Y axis is clicked.
@@ -118,6 +126,7 @@ class AppObjectOps(QtCore.QObject):
                     for obj in obj_list:
                         with history_guard(history_of(self.app), label, obj) as before:
                             obj.mirror('X', [px, py])
+                            self._regenerate_cnc_source(obj)
                         history_of(self.app).record_matrix(
                             label, [(obj, affine_mirror_matrix('X', (px, py)), before)])
                         obj.plot()
@@ -169,6 +178,7 @@ class AppObjectOps(QtCore.QObject):
                     for obj in obj_list:
                         with history_guard(history_of(self.app), label, obj) as before:
                             obj.mirror('Y', [px, py])
+                            self._regenerate_cnc_source(obj)
                         history_of(self.app).record_matrix(
                             label, [(obj, affine_mirror_matrix('Y', (px, py)), before)])
                         obj.plot()
@@ -234,6 +244,7 @@ class AppObjectOps(QtCore.QObject):
                         for sel_obj in obj_list:
                             with history_guard(history_of(self.app), label, sel_obj) as before:
                                 sel_obj.rotate(-float(num), point=(px, py))
+                                self._regenerate_cnc_source(sel_obj)
                             history_of(self.app).record_matrix(label, [(sel_obj, matrix, before)])
                             sel_obj.plot()
                             self.app.app_obj.object_changed.emit(sel_obj)
@@ -281,6 +292,7 @@ class AppObjectOps(QtCore.QObject):
                     for obj in obj_list:
                         with history_guard(history_of(self.app), label, obj) as before:
                             obj.skew(num, 0, point=(xminimal, yminimal))
+                            self._regenerate_cnc_source(obj)
                         history_of(self.app).record_matrix(label, [(obj, matrix, before)])
 
                         # make sure to update the Offset field in Properties Tab
@@ -332,6 +344,7 @@ class AppObjectOps(QtCore.QObject):
                     for obj in obj_list:
                         with history_guard(history_of(self.app), label, obj) as before:
                             obj.skew(0, num, point=(xminimal, yminimal))
+                            self._regenerate_cnc_source(obj)
                         history_of(self.app).record_matrix(label, [(obj, matrix, before)])
 
                         # make sure to update the Offset field in Properties Tab

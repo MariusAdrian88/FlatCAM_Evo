@@ -121,6 +121,12 @@ class SolderPasteTests(unittest.TestCase):
         self.assertFalse(any(line.startswith('T') for line in code.splitlines()))
         self.assertFalse(any(line.startswith('(') for line in code.splitlines()))
 
+    def test_header_keeps_a_name_with_parentheses_inside_its_comment(self):
+        from appPlugins.ToolSolderPaste.SolderPasteGen import gcode_header
+        # a ')' in the name ended the '(Name: ...)' comment early; the rest of the line was read as G-code
+        header = gcode_header('1', '1', 'board (1)-F_Cu.gbr_paste', 'Geometry', 'MM', 'today', 'Paste_GRBL')
+        self.assertIn('(Name: board [1]-F_Cu.gbr_paste)\n', header)
+
     def test_split_pad_paths_generate_separate_dispensing_moves(self):
         pad = Polygon(box(0, 0, 4, 2).exterior.coords, [box(1.5, 0.5, 2.5, 1.5).exterior.coords])
         tool = make_tool([pad])

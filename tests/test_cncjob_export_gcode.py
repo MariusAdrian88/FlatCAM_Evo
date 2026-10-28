@@ -9,6 +9,7 @@ code and no drill moves at all.
 
 import importlib
 import pkgutil
+import re
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -101,6 +102,26 @@ def test_unknown_preprocessor_of_a_saved_job_exports_with_the_default_one(kind):
 
     assert 'BODY_TOOL_1' in text and 'BODY_TOOL_2' in text
     assert 'Gone_Machine' in job.app.inform.emit.call_args[0][0]
+
+
+def test_a_name_with_parentheses_stays_inside_the_header_comment():
+    # GRBL, FluidNC and LinuxCNC end a '( ... )' comment at the first ')': 'board (1)' left G-code text on the line
+    def header(name, ppname):
+        job = _job('Geometry', ppname)
+        job.obj_options['name'] = name
+        job.units = 'MM'
+        job.app.version = job.app.version_date = '1'
+        return CNCJobObject.gcode_header(job)
+
+    for ppname in ('default', 'Toolchange_Probe_MACH3'):
+        for name, written in (('board (1)-F_Cu.gbr_iso_cnc', 'board [1]-F_Cu.gbr_iso_cnc'),
+                              ('job\nG0 X0', 'job G0 X0')):
+            text = header(name, ppname)
+            assert '(Name: %s)\n' % written in text
+            # what the controller reads outside the comments
+            assert [line for line in text.splitlines() if re.sub(r'\([^)]*\)', '', line).strip()] == []
+    # a ';' comment runs to the end of the line: it keeps the name as it is
+    assert ';Name: board (1)\n' in header('board (1)', 'Marlin')
 
 
 

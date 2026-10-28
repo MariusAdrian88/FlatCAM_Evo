@@ -158,6 +158,39 @@ def test_move_failure_is_reported_and_moved_geometry_is_replotted(tool, failure)
     QtTest.QTest.qWait(20)
 
 
+def test_moved_cncjob_exports_the_moved_gcode_also_after_undo_redo(tool):
+    # 'Export G-Code' writes source_file: the move makes it again, inside the Undo snapshot of the CNCJob
+    from appHandlers.appHistory import HistoryManager
+    from appObjects.CNCJobObject import CNCJobObject
+    from tests.helpers_objects import make_app_0b
+
+    path = [(10, 0), (10, 5), (14, 5)]
+    with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
+        job = CNCJobObject('job', make_app_0b())
+    job.multitool, job.obj_options['type'] = True, 'Geometry'
+    job.gcode_parsed = [{'geom': LineString(path), 'kind': ['C', 'S']}]
+    job.tools = {1: {'gcode': 'G00 X10.0000 Y0.0000\nG01 X10.0000 Y5.0000\nG01 X14.0000 Y5.0000\n',
+                     'gcode_parsed': job.gcode_parsed, 'solid_geometry': [LineString(path)],
+                     'data': {'tools_mill_ppname_g': 'default'}}}
+    job.plot, job.set_offset_values = Mock(), Mock()
+    assert job.regenerate_source() is True
+    old = job.source_file
+    tool.app.headless, tool.app.call_source = False, 'app'
+    tool.app.projects = SimpleNamespace(is_busy=lambda: False)
+    tool.app.history = HistoryManager(tool.app, collection=SimpleNamespace(get_list=lambda: [job]))
+
+    tool.move_handler((3, -5), objects=[job])
+    run_worker(tool)
+    QtTest.QTest.qWait(20)
+
+    moved = job.source_file
+    assert 'G01 X17.0000 Y0.0000' in job.tools[1]['gcode']
+    assert 'G01 X17.0000 Y0.0000' in moved and moved == job.regenerate_source(store=False)
+    assert any('[success]' in call.args[0] for call in tool.app.inform.emit.call_args_list)
+    assert tool.app.history.undo() and job.source_file == old
+    assert tool.app.history.redo() and job.source_file == moved
+
+
 @pytest.mark.parametrize('offset', [(float('nan'), 2), (1, 2, 3)])
 def test_invalid_move_offset_is_rejected_before_any_change(tool, offset):
     layer = make_layer([], [])

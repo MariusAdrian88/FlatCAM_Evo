@@ -40,6 +40,17 @@ TWO_PI = 2.0 * math.pi
 MM_PER_IN = 25.4
 
 
+def safe_comment_text(text):
+    """
+    Text for the inside of a '( ... )' comment that FlatCAM writes, like the object name in the header. The comment
+    ends at the first ')' and can not be nested (GRBL, FluidNC, LinuxCNC, COMMENT_RE), so a name like 'board (1)'
+    would end it early and the rest of the line would be read as G-code: '(' and ')' become '[' and ']'. A control
+    character (a line break) would end the line: it becomes a space.
+    """
+    text = str(text).replace('(', '[').replace(')', ']')
+    return ''.join(' ' if ch < ' ' or ch == '\x7f' else ch for ch in text)
+
+
 def _split_lines(text):
     parts = text.split('\n')
     lines = [p + '\n' for p in parts[:-1]]
