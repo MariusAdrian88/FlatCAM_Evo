@@ -13,7 +13,6 @@ Translations:
 - updated all language translations (de, es, fr, it, pt_BR, ro, ru, tr, zh)
 - added icons in the Export submenu in the Project items context menu
 - update the splash images and version strings
-- RELEASE 1.01
 
 Updater:
 
@@ -22,6 +21,8 @@ Updater:
 - the rollback runs a copy of the installed updater and also restores the old updater; an update can not delete updater files
 - the app removes the job folders of earlier updates that are older than 1 day
 - note: FlatCAM 1.0 can not update itself; install 1.01 with the installer once
+
+- RELEASE 1.01
 
 28.10.2026
 
