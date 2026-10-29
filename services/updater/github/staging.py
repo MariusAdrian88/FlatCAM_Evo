@@ -31,7 +31,7 @@ from ..manifest import (
     sha256_file,
     validate_relative_path,
 )
-from ..recovery import validate_relative_path as validate_installer_path
+from ..recovery import is_protected_deletion, validate_relative_path as validate_installer_path
 from .checker import _is_appimage, _is_frozen, _is_x64, _platform_name
 from .transport import DELETIONS_ASSET_NAME, GitHubReleaseTransport, is_windows_asset_name
 
@@ -499,7 +499,7 @@ def _deletion_path(value, platform: str) -> str:
             normalized = validate_windows_relative_path(normalized)
         except ManifestError as exc:
             raise StagingError(f"Deletion path is not valid on Windows: {value!r}.") from exc
-    if normalized.rsplit("/", 1)[-1].casefold() in _CONTROL_METADATA_NAMES:
+    if normalized.rsplit("/", 1)[-1].casefold() in _CONTROL_METADATA_NAMES or is_protected_deletion(normalized):
         raise StagingError(f"Deletion path is protected: {value!r}.")
     return normalized
 

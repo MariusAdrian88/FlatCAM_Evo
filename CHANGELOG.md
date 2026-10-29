@@ -15,6 +15,14 @@ Translations:
 - update the splash images and version strings
 - RELEASE 1.01
 
+Updater:
+
+- fixed: the update stopped with "The updater could not be started." because a library folder named "config" (lib/fontTools/config) was taken for the user config folder; only the top-level config folder is protected now
+- new: an update also replaces the updater; the app runs the updater of the new release from a copy in the data folder, so a bug of the installed updater can not block the release that fixes it (Windows and Linux source installs)
+- the rollback runs a copy of the installed updater and also restores the old updater; an update can not delete updater files
+- the app removes the job folders of earlier updates that are older than 1 day
+- note: FlatCAM 1.0 can not update itself; install 1.01 with the installer once
+
 28.10.2026
 
 DipTrace PCB import:

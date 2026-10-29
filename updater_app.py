@@ -1,7 +1,8 @@
 """Standalone stdlib-only FlatCAM update applier.
 
-The source launcher copies this file and ``recovery.py`` to a temporary
-directory before starting it.  No GUI or application imports are allowed here.
+The launcher copies this file and ``recovery.py`` (or, frozen, the updater/
+runtime) to a temporary directory before starting it, so the apply step can
+replace the installed copy.  No GUI or application imports are allowed here.
 """
 
 from __future__ import annotations
@@ -25,7 +26,7 @@ from pathlib import Path
 try:
     from services.updater.recovery import (
         blocked_release_path,
-        is_protected_path,
+        is_protected_deletion,
         is_release_blocked,
         load_restore_point,
         safe_join,
@@ -34,7 +35,7 @@ try:
 except ImportError:  # source helper copied beside recovery.py
     from recovery import (  # type: ignore[no-redef]
         blocked_release_path,
-        is_protected_path,
+        is_protected_deletion,
         is_release_blocked,
         load_restore_point,
         safe_join,
@@ -230,6 +231,8 @@ def _validate_manifest(raw) -> dict:
         if not isinstance(entry, dict) or "path" not in entry or "version" not in entry:
             raise ValueError("manifest deletion entry is malformed")
         path = validate_relative_path(entry["path"])
+        if is_protected_deletion(path):
+            raise ValueError("path is protected")
         if path.casefold() in seen:
             raise ValueError("manifest file and deletion paths overlap")
         seen.add(path.casefold())
@@ -799,6 +802,10 @@ def _consume_restore_point(restore: Path) -> Path:
 
 def _cleanup_tree(path: Path | None) -> None:
     if path is None:
+        return
+    # a frozen updater runs from its runtime copy: a partial delete can remove modules it still loads.
+    # The launcher removes the old job folder at the next update.
+    if getattr(sys, "frozen", False) and _paths_overlap(Path(sys.executable), path):
         return
     try:
         if path.exists() and not path.is_symlink():

@@ -49,7 +49,8 @@ _EXCLUDED_FILES = frozenset(
     }
 )
 _EXCLUDED_SUFFIXES = (".flatconfig", ".flatprj")
-_PROTECTED_ROOT_NAMES = frozenset({"config", "updater"})
+# updater/ is managed: the launcher runs the updater from a copy, so an update can replace it
+_PROTECTED_ROOT_NAMES = frozenset({"config"})
 
 
 @dataclass(frozen=True)

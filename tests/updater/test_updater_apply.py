@@ -166,13 +166,16 @@ class TestRecovery(unittest.TestCase):
                 load_restore_point(restore, install, verify_files=False)
 
 class TestLauncher(unittest.TestCase):
-    def test_frozen_launch_requires_protected_updater_and_waits_for_ack(self):
+    def test_frozen_launch_runs_a_copy_of_the_release_updater_and_waits_for_ack(self):
+        """The updater of the new release does the install, from a copy outside the installation: the installed
+        updater/ is not locked, and a bug of the installed updater does not block the release that fixes it."""
         root = Path(tempfile.mkdtemp(prefix="flatcam-ticket2-frozen-"))
         self.addCleanup(shutil.rmtree, root, ignore_errors=True)
         install = _install(root, frozen=True)
         archive = root / "release.zip"
-        _write_archive(archive, {"flatcam.py": b"new"})
-        manifest = _manifest(archive, {"flatcam.py": b"new"})
+        files = {"flatcam.py": b"new", "updater/FlatCAMUpdater.exe": b"new updater", "updater/lib/x.pyc": b"lib"}
+        _write_archive(archive, files)
+        manifest = _manifest(archive, files)
         app = SimpleNamespace(data_path=str(root / "data"))
         (root / "data").mkdir(exist_ok=True)
         popen_calls = []
@@ -189,7 +192,10 @@ class TestLauncher(unittest.TestCase):
         ):
             self.assertTrue(launch_update(app, manifest, archive, relaunch_argv=["FlatCAM.exe"]))
 
-        self.assertEqual(str(install / "updater" / "FlatCAMUpdater.exe"), popen_calls[0][0][0])
+        runner = Path(popen_calls[0][0][0])
+        self.assertNotIn(install.resolve(), runner.resolve().parents)
+        self.assertEqual(b"new updater", runner.read_bytes())
+        self.assertEqual(b"lib", (runner.parent / "lib" / "x.pyc").read_bytes())
         self.assertEqual(0x208 if sys.platform == "win32" else 0, popen_calls[0][1]["creationflags"])
 
     def test_frozen_update_and_rollback_jobs_pass_the_job_check_of_the_updater(self):
@@ -203,8 +209,11 @@ class TestLauncher(unittest.TestCase):
         data.mkdir()
         app = SimpleNamespace(data_path=str(data))
         archive = root / "release.zip"
-        _write_archive(archive, {"flatcam.py": b"new"})
-        manifest = _manifest(archive, {"flatcam.py": b"new"})
+        # a frozen build holds library packages named "config" (fontTools.config); only the top-level config/ is protected
+        files = {"flatcam.py": b"new", "lib/fontTools/config/__init__.pyc": b"pkg", "lib/config/configuration.txt": b"c",
+                 "updater/FlatCAMUpdater.exe": b"new updater"}
+        _write_archive(archive, files)
+        manifest = _manifest(archive, files)
         rejected = []
 
         def frozen_updater(argv, **kwargs):
@@ -225,9 +234,11 @@ class TestLauncher(unittest.TestCase):
             # a restore point of this installation, as an applied update leaves it
             restore = restore_dir_for_install(data.resolve(), Path(exe).resolve().parent)
             self.assertEqual(0, _run_job(root, _job(root, install, archive, manifest, restore_dir=str(restore))))
+            self.assertEqual(b"new updater", (install / "updater" / "FlatCAMUpdater.exe").read_bytes())
+            # the rollback runs a copy of the installed updater, so it can restore the old updater/
             self.assertTrue(launch_rollback(app, relaunch_argv=[exe]), rejected)
 
-    def test_source_launch_copies_helper_outside_install(self):
+    def test_source_launch_runs_a_copy_of_the_release_helper_outside_install(self):
         root = Path(tempfile.mkdtemp(prefix="flatcam-ticket2-source-"))
         self.addCleanup(shutil.rmtree, root, ignore_errors=True)
         install = root / "install"
@@ -236,8 +247,9 @@ class TestLauncher(unittest.TestCase):
         (install / "services" / "updater" / "launcher.py").write_text("# launcher", encoding="utf-8")
         (install / "services" / "updater" / "recovery.py").write_text("# recovery", encoding="utf-8")
         archive = root / "release.zip"
-        _write_archive(archive, {"flatcam.py": b"new"})
-        manifest = _manifest(archive, {"flatcam.py": b"new"})
+        files = {"flatcam.py": b"new", "updater_app.py": b"# new helper", "services/updater/recovery.py": b"# new"}
+        _write_archive(archive, files)
+        manifest = _manifest(archive, files)
         data = root / "data"
         data.mkdir()
         app = SimpleNamespace(data_path=str(data))
@@ -259,7 +271,8 @@ class TestLauncher(unittest.TestCase):
         helper = Path(command[1] if command[1] != "-m" else command[3])
         self.assertEqual(sys.executable, command[0])
         self.assertNotIn(install.resolve(), helper.resolve().parents)
-        self.assertTrue((helper.parent / "recovery.py").exists())
+        self.assertEqual(b"# new helper", helper.read_bytes())
+        self.assertEqual(b"# new", (helper.parent / "recovery.py").read_bytes())
 
 class TestUpdaterApplication(unittest.TestCase):
     def test_archive_checksum_failure_and_zip_slip_do_not_mutate_install(self):

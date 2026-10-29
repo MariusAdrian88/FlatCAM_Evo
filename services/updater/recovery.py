@@ -44,7 +44,6 @@ PROTECTED_DIR_NAMES = frozenset(
         "freeze",
         "settings",
         "tests",
-        "updater",
         "user_data",
         "user-settings",
         "user_settings",
@@ -63,6 +62,7 @@ PROTECTED_FILE_NAMES = frozenset(
     }
 )
 PROTECTED_SUFFIXES = (".flatconfig", ".flatprj")
+UPDATER_RUNTIME_DIR = "updater"
 
 
 def restore_dir_for_install(data_path, install_dir) -> Path:
@@ -109,9 +109,9 @@ def is_protected_path(value: str) -> bool:
         return True
     protected_names = {name.casefold() for name in PROTECTED_DIR_NAMES}
     for index, part in enumerate(parts[:-1]):
-        # ``services/updater`` is managed source code. The protected frozen
-        # runtime is the top-level ``updater`` directory beside FlatCAM.exe.
-        if part == "updater" and index > 0:
+        # The user ``config`` is top-level; ``lib/fontTools/config`` is a
+        # library package of the frozen build.
+        if part == "config" and index > 0:
             continue
         if part in protected_names:
             return True
@@ -119,6 +119,16 @@ def is_protected_path(value: str) -> bool:
     if filename in {name.casefold() for name in PROTECTED_DIR_NAMES | PROTECTED_FILE_NAMES}:
         return True
     return filename.endswith(PROTECTED_SUFFIXES)
+
+
+def is_protected_deletion(value: str) -> bool:
+    """Return whether a deletion path is protected.
+
+    An update replaces the files of the frozen updater runtime (the top-level
+    ``updater`` directory beside FlatCAM.exe), but it never deletes them.
+    """
+    normalized = str(value).replace("\\", "/").casefold()
+    return is_protected_path(normalized) or normalized.split("/")[0] == UPDATER_RUNTIME_DIR
 
 
 def _resolve(path: Path, label: str) -> Path:

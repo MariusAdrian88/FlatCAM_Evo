@@ -406,9 +406,10 @@ def test_protected_and_excluded_members_never_reach_the_payload(monkeypatch, tmp
     )
 
     paths = [entry.path for entry in parse_manifest(result.manifest).files]
+    # the updater runtime is managed: the launcher runs it from a copy, so the apply step can replace it
+    assert "updater/FlatCAMUpdater.exe" in paths
     for forbidden in (
         "config/settings.json",
-        "updater/FlatCAMUpdater.exe",
         ".git/config",
         "tests/test_x.py",
         "user_data/project.flatprj",

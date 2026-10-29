@@ -13,15 +13,25 @@ import sys
 import tempfile
 import time
 import uuid
+import zipfile
 from pathlib import Path
 
 from .manifest import manifest_to_json, parse_manifest
-from .recovery import is_protected_path, load_restore_point, restore_dir_for_install
+from .recovery import (
+    UPDATER_RUNTIME_DIR,
+    is_protected_deletion,
+    is_protected_path,
+    load_restore_point,
+    restore_dir_for_install,
+    safe_join,
+)
 
 
-UPDATER_DIR_NAME = "updater"
+UPDATER_DIR_NAME = UPDATER_RUNTIME_DIR
 UPDATER_EXE_NAME = "FlatCAMUpdater.exe"
 _STARTUP_ACK_TIMEOUT = 5.0
+_STALE_JOB_AGE = 24 * 3600
+_JOB_PREFIXES = ("flatcam-update-", "flatcam-rollback-")
 _log = logging.getLogger(__name__)
 
 
@@ -225,12 +235,79 @@ def _new_job_root(storage_root: Path, install_root: Path, prefix: str) -> Path:
     if update_root.is_symlink() or storage_root.is_symlink():
         raise ValueError("updater work directory must not use symlinks")
     update_root.mkdir(parents=True, exist_ok=True)
+    _remove_stale_jobs(update_root)
     return Path(tempfile.mkdtemp(prefix=prefix, dir=str(update_root)))
 
 
-def _copy_source_runtime(job_root: Path) -> tuple[Path, Path]:
+def _remove_stale_jobs(update_root: Path) -> None:
+    """Remove the job folders of earlier updates: a frozen updater cannot delete the runtime copy it runs from."""
+    cutoff = time.time() - _STALE_JOB_AGE
+    for path in update_root.iterdir():
+        try:
+            if (path.name.startswith(_JOB_PREFIXES) and path.is_dir() and not path.is_symlink()
+                    and path.stat().st_mtime < cutoff):
+                shutil.rmtree(path, ignore_errors=True)
+        except OSError:
+            continue
+
+
+def _extract_release_runtime(runtime: Path, archive: Path, manifest: dict, members: dict[str, str]) -> None:
+    """Write release files from the verified job archive below ``runtime``.
+
+    ``members`` maps an archive path of the manifest to its path below ``runtime``.
+    """
+    entries = {entry["path"].casefold(): entry for entry in manifest["files"]}
+    with zipfile.ZipFile(archive) as source:
+        names = {name.casefold(): name for name in source.namelist()}
+        for path, target_path in members.items():
+            entry = entries.get(path.casefold())
+            name = names.get(path.casefold())
+            if entry is None or name is None:
+                raise ValueError(f"release runtime file is missing: {path}")
+            data = source.read(name)
+            if len(data) != entry["size"] or hashlib.sha256(data).hexdigest() != entry["sha256"].lower():
+                raise ValueError(f"release runtime file does not match manifest: {path}")
+            target = safe_join(runtime, target_path, label="runtime path")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
+
+
+def _copy_frozen_runtime(app, job_root: Path, archive: Path | None = None,
+                         manifest: dict | None = None) -> tuple[Path, Path]:
+    """Copy the frozen updater out of the installation; return the runtime directory and the executable.
+
+    The updater of the new release runs if the release has one, else (and for a rollback) the installed one.
+    A copy runs, so the apply step can replace the installed updater/.
+    """
     runtime = job_root / "runtime"
     runtime.mkdir()
+    prefix = UPDATER_DIR_NAME + "/"
+    members = {
+        entry["path"]: entry["path"][len(prefix):]
+        for entry in (manifest or {}).get("files", ())
+        if entry["path"].casefold().startswith(prefix)
+    }
+    if UPDATER_EXE_NAME.casefold() in {path.casefold() for path in members.values()}:
+        _extract_release_runtime(runtime, archive, manifest, members)
+    else:
+        installed = _validate_runtime(app, "launch")
+        if installed is None:
+            raise FileNotFoundError("protected updater executable is missing")
+        shutil.copytree(installed[1], runtime, dirs_exist_ok=True)
+    return runtime, runtime / UPDATER_EXE_NAME
+
+
+def _copy_source_runtime(job_root: Path, archive: Path | None = None,
+                         manifest: dict | None = None) -> tuple[Path, Path]:
+    """Copy the source helper out of the installation: the one of the new release if it has one."""
+    runtime = job_root / "runtime"
+    runtime.mkdir()
+    helper = runtime / "updater_app.py"
+    members = {"updater_app.py": "updater_app.py", "services/updater/recovery.py": "recovery.py"}
+    released = {entry["path"].casefold() for entry in (manifest or {}).get("files", ())}
+    if all(path.casefold() in released for path in members):
+        _extract_release_runtime(runtime, archive, manifest, members)
+        return runtime, helper
     source_root = Path(__file__).resolve().parents[2]
     helper_source = source_root / "updater_app.py"
     recovery_source = Path(__file__).resolve().with_name("recovery.py")
@@ -241,21 +318,9 @@ def _copy_source_runtime(job_root: Path) -> tuple[Path, Path]:
         or not recovery_source.is_file()
     ):
         raise FileNotFoundError("source updater helper or recovery runtime is missing")
-    helper = runtime / "updater_app.py"
     shutil.copy2(helper_source, helper)
     shutil.copy2(recovery_source, runtime / "recovery.py")
     return runtime, helper
-
-
-def _runtime(app, install_root: Path) -> tuple[Path, Path, Path | None, Path | None]:
-    """Return command cwd, command executable, runtime directory, helper."""
-    if _is_frozen():
-        runtime = _validate_runtime(app, "launch")
-        if runtime is None:
-            raise FileNotFoundError("protected updater executable is missing")
-        _, updater_dir, updater_exe = runtime
-        return updater_dir, updater_exe, None, None
-    raise RuntimeError("source runtime is created per job")
 
 
 def _detached_kwargs() -> dict:
@@ -320,7 +385,7 @@ def launch_update(app, manifest, archive_path, *, relaunch_argv=None) -> bool:
         manifest_data = json.loads(manifest_to_json(parse_manifest(_manifest_dict(manifest))))
         if any(is_protected_path(entry["path"]) for entry in manifest_data["files"]):
             raise ValueError("manifest contains a protected managed path")
-        if any(is_protected_path(entry["path"]) for entry in manifest_data["deletions"]):
+        if any(is_protected_deletion(entry["path"]) for entry in manifest_data["deletions"]):
             raise ValueError("manifest contains a protected deletion path")
         _validate_archive_reference(archive_path, manifest_data)
         if _paths_overlap(archive_path, install_root):
@@ -335,14 +400,16 @@ def launch_update(app, manifest, archive_path, *, relaunch_argv=None) -> bool:
         _validate_archive_reference(job_archive, manifest_data)
         mode = "frozen" if _is_frozen() else "source"
         if mode == "frozen":
-            cwd, executable, runtime, helper = _runtime(app, install_root)
             exe_name = Path(sys.executable).name
             if exe_name.casefold() != "flatcam.exe":
                 raise ValueError("frozen application executable must be FlatCAM.exe")
+            runtime, executable = _copy_frozen_runtime(app, job_root, job_archive, manifest_data)
+            helper = None
         else:
-            runtime, helper = _copy_source_runtime(job_root)
-            cwd, executable = runtime, Path(sys.executable)
+            runtime, helper = _copy_source_runtime(job_root, job_archive, manifest_data)
+            executable = Path(sys.executable)
             exe_name = ""
+        cwd = runtime
         job = {
             "schema": 1,
             "action": "update",
@@ -361,10 +428,8 @@ def launch_update(app, manifest, archive_path, *, relaunch_argv=None) -> bool:
             "relaunch_argv": relaunch,
             "startup_ack_path": str(ack),
             "log_path": str(job_root / "updater.log"),
+            "runtime_dir": str(runtime),
         }
-        # a frozen build has no runtime copy per job (runtime None): the updater rejects runtime_dir "None"
-        if runtime is not None:
-            job["runtime_dir"] = str(runtime)
         job_path = job_root / "update_job.json"
         _write_json(job_path, job)
         ack.unlink(missing_ok=True)
@@ -410,14 +475,16 @@ def launch_rollback(app, *, relaunch_argv=None) -> bool:
         )
         mode = "frozen" if _is_frozen() else "source"
         if mode == "frozen":
-            cwd, executable, runtime, helper = _runtime(app, install_root)
             if Path(sys.executable).name.casefold() != "flatcam.exe":
                 raise ValueError("frozen application executable must be FlatCAM.exe")
             exe_name = Path(sys.executable).name
+            runtime, executable = _copy_frozen_runtime(app, job_root)
+            helper = None
         else:
             runtime, helper = _copy_source_runtime(job_root)
-            cwd, executable = runtime, Path(sys.executable)
+            executable = Path(sys.executable)
             exe_name = ""
+        cwd = runtime
         job = {
             "schema": 1,
             "action": "rollback",
@@ -432,10 +499,8 @@ def launch_rollback(app, *, relaunch_argv=None) -> bool:
             "relaunch_argv": relaunch,
             "startup_ack_path": str(ack),
             "log_path": str(job_root / "updater.log"),
+            "runtime_dir": str(runtime),
         }
-        # a frozen build has no runtime copy per job (runtime None): the updater rejects runtime_dir "None"
-        if runtime is not None:
-            job["runtime_dir"] = str(runtime)
         job_path = job_root / "rollback_job.json"
         _write_json(job_path, job)
         ack.unlink(missing_ok=True)

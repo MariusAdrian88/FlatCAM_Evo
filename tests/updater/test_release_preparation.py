@@ -295,7 +295,7 @@ def test_end_to_end_preparation_has_four_verified_platform_upload_files(monkeypa
         with zipfile.ZipFile(archive_path) as archive:
             names = set(archive.namelist())
         assert "make_freeze.py" not in names
-        assert not any(name.startswith(("updater/", "tests/", "docs/", ".git/", ".venv/", "user_config/")) for name in names)
+        assert not any(name.startswith(("tests/", "docs/", ".git/", ".venv/", "user_config/")) for name in names)
         assert names == {entry.path for entry in manifest.files}
 
 

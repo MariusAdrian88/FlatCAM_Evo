@@ -118,7 +118,7 @@ class TestMakeFreeze(unittest.TestCase):
         self.assertTrue((build_dir / "updater" / "lib" / "library.zip").is_file())
         self.assertFalse((build_dir / "FlatCAMUpdater.exe").exists())
 
-    def test_release_zip_excludes_build_script_and_stable_updater_runtime(self):
+    def test_release_zip_excludes_build_script_and_keeps_updater_runtime(self):
         root = Path(self._tempdir.name) / "release-root"
         root.mkdir()
         (root / "flatcam.py").write_text("payload", encoding="utf-8")
@@ -137,7 +137,7 @@ class TestMakeFreeze(unittest.TestCase):
         self.assertNotIn("make_freeze.py", names)
         self.assertNotIn("make_freezed.py", names)
         self.assertNotIn("build.py", names)
-        self.assertNotIn("updater/FlatCAMUpdater.exe", names)
+        self.assertIn("updater/FlatCAMUpdater.exe", names)
 
 
     def setUp(self):
