@@ -345,19 +345,19 @@ class MainGUI(QtWidgets.QMainWindow):
         self.menufileexport.setToolTipsVisible(True)
 
         self.menufileexportsvg = QtGui.QAction(
-            QtGui.QIcon(self.app.resource_location + '/export.png'),
+            QtGui.QIcon(self.app.resource_location + '/project_export_svg32.png'),
             '%s...\t%s' % (_('Export SVG'), ''), self)
         self.menufileexport.addAction(self.menufileexportsvg)
 
         self.menufileexportdxf = QtGui.QAction(
-            QtGui.QIcon(self.app.resource_location + '/export.png'),
+            QtGui.QIcon(self.app.resource_location + '/project_export_dxf32.png'),
             '%s...\t%s' % (_('Export DXF'), ''), self)
         self.menufileexport.addAction(self.menufileexportdxf)
 
         self.menufileexport.addSeparator()
 
         self.menufileexportpng = QtGui.QAction(
-            QtGui.QIcon(self.app.resource_location + '/export_png32.png'),
+            QtGui.QIcon(self.app.resource_location + '/project_export_png32.png'),
             '%s...\t%s' % (_('Export PNG'), ''), self)
         self.menufileexportpng.setToolTip(
             _("Will export an image in PNG format,\n"
@@ -369,7 +369,7 @@ class MainGUI(QtWidgets.QMainWindow):
         self.menufileexport.addSeparator()
 
         self.menufileexportexcellon = QtGui.QAction(
-            QtGui.QIcon(self.app.resource_location + '/drill32.png'),
+            QtGui.QIcon(self.app.resource_location + '/project_export_excellon32.png'),
             '%s...\t%s' % (_('Export Excellon'), ''), self)
         self.menufileexportexcellon.setToolTip(
             _("Will export an Excellon Object as Excellon file,\n"
@@ -379,7 +379,7 @@ class MainGUI(QtWidgets.QMainWindow):
         self.menufileexport.addAction(self.menufileexportexcellon)
 
         self.menufileexportgerber = QtGui.QAction(
-            QtGui.QIcon(self.app.resource_location + '/flatcam_icon32.png'),
+            QtGui.QIcon(self.app.resource_location + '/project_export_gerber32.png'),
             '%s...\t%s' % (_('Export Gerber'), ''), self)
         self.menufileexportgerber.setToolTip(
             _("Will export an Gerber Object as Gerber file,\n"
@@ -1055,10 +1055,24 @@ class MainGUI(QtWidgets.QMainWindow):
             QtGui.QIcon(self.app.resource_location + '/save_as.png'), _('Save'))
         self.menuprojectexport = self.menuproject.addMenu(
             QtGui.QIcon(self.app.resource_location + '/export.png'), _('Export'))
-        self.menuprojectexport_dxf = self.menuprojectexport.addAction(_('DXF'))
-        self.menuprojectexport_svg = self.menuprojectexport.addAction(_('SVG'))
-        self.menuprojectexport_png = self.menuprojectexport.addAction(_('PNG'))
-        self.menuprojectexport_pdf = self.menuprojectexport.addAction(_('PDF'))
+
+        self.menuprojectexport_dxf = self.menuprojectexport.addAction(
+            QtGui.QIcon(self.app.resource_location + '/project_export_dxf32.png'),
+            _('DXF')
+        )
+        self.menuprojectexport_svg = self.menuprojectexport.addAction(
+            QtGui.QIcon(self.app.resource_location + '/project_export_svg32.png'),
+            _('SVG')
+        )
+        self.menuprojectexport_png = self.menuprojectexport.addAction(
+            QtGui.QIcon(self.app.resource_location + '/project_export_png32.png'),
+            _('PNG')
+        )
+        self.menuprojectexport_pdf = self.menuprojectexport.addAction(
+            QtGui.QIcon(self.app.resource_location + '/project_export_pdf32.png'),
+            _('PDF')
+        )
+
         self.menuprojectjoin = self.menuproject.addMenu(
             QtGui.QIcon(self.app.resource_location + '/join16.png'), _('Join'))
         self.menuprojectjoin_gerber = self.menuprojectjoin.addAction(

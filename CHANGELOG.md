@@ -11,11 +11,9 @@ CHANGELOG for FlatCAM Evo
 Translations:
 
 - updated all language translations (de, es, fr, it, pt_BR, ro, ru, tr, zh)
-
-Tests:
-
-- consolidated the test suite: removed tests that only drove the design, folded behavior tests into the existing topical files
-- added removed_tests.txt documenting the tests that were removed and why
+- added icons in the Export submenu in the Project items context menu
+- update the splash images and version strings
+- RELEASE 1.01
 
 28.10.2026
 
