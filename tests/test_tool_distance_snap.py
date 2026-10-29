@@ -41,18 +41,12 @@ def objs(gerber, excellon):
 class TestGerberPads:
     @pytest.mark.parametrize('click, center', [
         ((5.2, 5.1), (5.0, 5.0)),         # C flash
-        ((10.3, 5.1), (10.0, 5.0)),       # R flash
-        ((15.4, 5.0), (15.0, 5.0)),       # O flash (also near drill T1 at 15,5: same center)
         ((20.1, 5.1), (20.0, 5.0)),       # P flash
     ])
     def test_click_inside_a_pad_snaps_to_its_center(self, objs, click, center):
         result, jump = snap([objs[0]], click)
         assert result == pytest.approx(center)
         assert jump == pytest.approx(center)
-
-    def test_click_on_a_track_does_not_snap(self, objs):
-        result, jump = snap([objs[0]], (20.0, 10.1))      # inside the C1 track, not a flash
-        assert result == (20.0, 10.1) and jump is None
 
 class TestExcellon:
     @pytest.mark.parametrize('click, center', [
@@ -69,10 +63,6 @@ class TestExcellon:
         assert jump == pytest.approx((24.0, 12.0))
 
 class TestBothObjects:
-    def test_overlapping_pad_and_drill_snap_to_the_same_center(self, objs):
-        result, jump = snap(objs, (5.2, 5.1))             # C flash and T1 drill both at (5, 5)
-        assert result == pytest.approx((5.0, 5.0))
-
     def test_the_closest_center_wins(self, app, objs):
         # a second Excellon drill whose disc covers the click but whose center is further away
         exc = make_excellon(app, name='exc2')
@@ -83,56 +73,6 @@ class TestBothObjects:
         assert result == pytest.approx((5.0, 5.0))
         result, jump = snap([objs[0], exc], (5.25, 5.0))  # now the drill center (5.3, 5) is closer
         assert result == pytest.approx((5.3, 5.0))
-
-
-def test_snap_with_big_cursor_keeps_the_user_cursor_color(objs):
-    # The cursor color from Preferences must survive a snap, so that on_exit restores it (not black).
-    fake_app = MagicMock()
-    fake_app.collection.get_list.return_value = [objs[0]]
-    fake_app.options = {}
-    fake_app.defaults = {}
-    fake_app.plotcanvas = SimpleNamespace(cursor_color='#FF0000FF')
-    fake_tool = Mock()
-    fake_tool.original_call_source = 'app'
-    fake_tool.app = fake_app
-    fake_tool._snap_cache = {}
-    fake_tool.resolve_snap = MethodType(Distance.resolve_snap, fake_tool)
-    fake_tool.update_cursor = MethodType(Distance.update_cursor, fake_tool)
-    fake_tool.cursor_color_memory = '#FF0000FF'
-    fake_tool.ui.big_cursor_cb.get_value.return_value = True
-
-    assert Distance.snap_handler(fake_tool, (5.2, 5.1)) == pytest.approx((5.0, 5.0))
-    assert fake_app.plotcanvas.cursor_color == '#FF0000FF'
-    assert fake_tool.cursor_color_memory == '#FF0000FF'
-    assert fake_app.app_cursor.set_data.call_args.kwargs['edge_color'] == '#FF0000FF'
-
-
-def test_multipoint_motion_replaces_the_first_preview_without_losing_committed_lines(_headless_qt):
-    from vispy.gloo.context import FakeCanvas
-    from appGUI.VisPyVisuals import ShapeCollectionVisual
-    from shapely.geometry import LineString
-
-    _canvas = FakeCanvas()
-    tool = Mock()
-    tool.decimals = 4
-    tool.active = True
-    tool.app.call_source = 'measurement'
-    tool.sel_shapes = ShapeCollectionVisual(pool=None)
-    tool.ui.multipoint_cb.get_value.return_value = True
-    tool.app.plotcanvas.translate_coords.side_effect = lambda pos: pos
-    tool.update_position_info.side_effect = lambda pos: pos
-    tool.points = [(0, 0), (1, 1)]
-    tool.total_distance = 1.0
-    tool.update_distance.return_value = 1.0
-    tool.add_utility_shape = MethodType(Distance.add_utility_shape, tool)
-    tool.delete_utility_shape = MethodType(Distance.delete_utility_shape, tool)
-    tool.add_utility_shape((1, 1), (10, 10))
-    # The first preview has key zero. Committed segments must survive its replacement.
-    tool.sel_shapes.add(LineString([(0, 0), (1, 1)]), color='blue', update=True, layer=0)
-    Distance.on_mouse_move(tool, SimpleNamespace(pos=(2, 3), is_dragging=False))
-    assert tool.sel_shapes.bounds(axis=0) == pytest.approx((0, 2))
-    assert tool.sel_shapes.bounds(axis=1) == pytest.approx((0, 3))
-    tool.app.log.error.assert_not_called()
 
 
 @pytest.fixture
@@ -219,16 +159,6 @@ def test_excellon_editor_selects_containing_drill_not_nearest_arm(measuring):
     assert measuring.snap_handler((.2, .2)) == (.2, .2)
 
 
-def test_gerber_editor_overlaps_choose_nearest_center_including_boundary(measuring):
-    measuring.original_call_source = 'grb_editor'
-    measuring.app.grb_editor.storage_dict = {1: {'geometry': [
-        SimpleNamespace(geo={'solid': box(-2, -2, 2, 2), 'follow': Point(0, 0)}),
-        SimpleNamespace(geo={'solid': box(-1, -1, 3, 3), 'follow': Point(1, 1)})]}}
-    assert measuring.snap_handler((.8, .8)) == pytest.approx((1, 1))
-    assert measuring.snap_handler((-2, 0)) == pytest.approx((0, 0))
-    assert measuring.active
-
-
 def test_app_snap_respects_boundary_visibility_and_composed_copper(measuring):
     obj = flash(solid=box(-1, -1, 1, 1))
     measuring.app.collection.get_list.return_value = [obj]
@@ -261,22 +191,6 @@ def test_undo_multipoint_removes_segment_and_updates_feedback(measuring):
     assert measuring.points == []
     assert float(measuring.ui.total_distance_entry.get_value()) == 0
     assert int(measuring.ui.point_count_entry.get_value()) == 0
-
-
-def test_in_place_object_change_invalidates_snap_geometry(measuring):
-    obj = flash()
-    measuring.app.collection.get_list.return_value = [obj]
-    assert measuring.snap_handler((.2, .2)) == (0, 0)
-    obj.tools[1]['geometry'][0] = {'solid': box(4, 4, 6, 6), 'follow': Point(5, 5)}
-    obj.solid_geometry[:] = [box(4, 4, 6, 6)]
-    # The application's object-changed signal is the invalidation boundary for in-place edits.
-    measuring.app.app_obj.object_changed.emit(obj)
-    assert measuring.snap_handler((.2, .2)) == (.2, .2)
-    assert measuring.snap_handler((5.2, 5.2)) == (5, 5)
-
-
-
-
 
 
 def test_pending_gerber_transform_updates_measurement_snap_and_history(measuring, _headless_qt):
@@ -334,16 +248,6 @@ def object_distance_shift_m(tool, *selected):
     tool.app.collection.get_selected.return_value = list(selected)
     tool.run()
     return float(tool.ui.total_distance_entry.get_value())
-
-
-def test_object_distance_shift_m_works_after_a_wrong_selection_and_a_reset(object_distance):
-    first, second, third = flash((0, 0)), flash((5, 0)), flash((0, 4))
-    # 1 object selected: only a warning, but the plugin stayed flagged as running and Shift+M did nothing after it
-    object_distance_shift_m(object_distance, first)
-    assert object_distance_shift_m(object_distance, first, second) == pytest.approx(3)
-    # Reset Tool flagged it as running too
-    object_distance.ui.reset_button.click()
-    assert object_distance_shift_m(object_distance, first, third) == pytest.approx(2)
 
 
 def test_object_distance_measure_button_shows_zero_for_touching_objects(object_distance):

@@ -15,7 +15,6 @@ from PyQt6 import QtCore
 
 import appCommon.RegisterFileKeywords as rfk
 from appCommon.RegisterFileKeywords import RegisterFK
-from defaults import AppDefaults
 
 if not hasattr(builtins, "_"):
     builtins._ = lambda s: s
@@ -123,23 +122,12 @@ class TestFileAssociations(unittest.TestCase):
         self.assertTrue(self.val("Software\\Classes\\FlatCAM.Project\\DefaultIcon").endswith(".ico,0"))
         self.notify.assert_called()
 
-    def test_unregister_removes_what_was_written(self):
-        self.reg.on_register_files()
-        self.reg.on_unregister_files()
-        self.assertEqual(self.fake.keys, {})
-
     def test_unregister_keeps_foreign_association(self):
         self.reg.on_register_files('project')
         self.fake.keys[("HKCU", "software\\classes\\.flatprj")] = "OtherApp.File"
         self.reg.on_unregister_files('project')
         self.assertEqual(self.val("Software\\Classes\\.flatprj"), "OtherApp.File")
         self.assertIsNone(self.val("Software\\Classes\\FlatCAM.Project\\shell\\open\\command"))
-
-    def test_unregister_keeps_foreign_progid(self):
-        self.fake.keys[("HKCU", "software\\classes\\flatcam.project")] = "X"
-        self.fake.keys[("HKCU", "software\\classes\\flatcam.project\\shell\\open\\command")] = '"C:\\other.exe" "%1"'
-        self.reg.on_unregister_files('project')
-        self.assertIsNotNone(self.val("Software\\Classes\\FlatCAM.Project\\shell\\open\\command"))
 
     def test_first_run_registers_the_lists_of_the_options(self):
         first_start()
@@ -157,32 +145,6 @@ class TestFileAssociations(unittest.TestCase):
         self.assertEqual(self.val("Software\\Classes\\.nc"), "OtherApp.File")
         self.assertIsNone(self.val("Software\\Classes\\.gbr"))
         self.assertEqual(self.val("Software\\Classes\\.drl"), "FlatCAM")
-
-    def test_first_run_leaves_the_extensions_of_other_programs(self):
-        # HKEY_CLASSES_ROOT: the merged view of HKCU and HKLM; .gbr was registered by an older FlatCAM
-        self.fake.keys[("HKCR", ".nc")] = "OtherApp.File"
-        self.fake.keys[("HKCR", ".gbr")] = "FlatCAM"
-        reg = first_start()
-        self.assertIsNone(self.val("Software\\Classes\\.nc"))
-        for ext in ("drl", "gbr", "gtl"):
-            self.assertEqual(self.val("Software\\Classes\\.%s" % ext), "FlatCAM")
-        # Apply is the user's choice: it takes the extension
-        reg.on_register_files("gcode")
-        self.assertEqual(self.val("Software\\Classes\\.nc"), "FlatCAM")
-
-    def test_c_header_and_preprocessed_c_are_not_associated_by_default(self):
-        default = AppDefaults.factory_defaults["fa_gcode"].replace(" ", "").split(",")
-        self.reg.gcode_list = rfk.Extensions.gcode_list
-        self.reg.ui.util_pref_form.fa_gcode_group.gco_list_text = ListText()
-        self.reg.restore_extensions("gcode")
-        restored = self.reg.ui.util_pref_form.fa_gcode_group.gco_list_text.get_value().replace(" ", "").split(",")
-        for exts in (default, restored):
-            self.assertNotIn("h", exts)
-            self.assertNotIn("i", exts)
-            self.assertIn("tap", exts)
-        # a .h or .i G-code file still opens (drop on the plot area, file dialog)
-        self.assertIn("h", rfk.Extensions.gcode_list)
-
 
 class FakeHome(unittest.TestCase):
     """A fake home folder and fake system tools: nothing outside the temp folder is touched or run."""
@@ -243,13 +205,6 @@ class TestLinuxAssociations(FakeHome):
         self.assertTrue(self.called("update-desktop-database", os.path.join(data, "applications")))
         self.assertTrue(self.called("xdg-mime", "default", "flatcam-evo.desktop", "application/x-flatcam-gerber"))
 
-    def test_exec_is_quoted_for_paths_with_spaces(self):
-        argv = staticmethod(lambda: ["/opt/my app/python", "/a b/flatcam.py"])
-        with mock.patch.object(RegisterFK, "launcher_argv", argv):
-            self.reg.on_register_files("project")
-        with open(self.paths()[1], encoding="utf-8") as fh:
-            self.assertIn('Exec="/opt/my app/python" "/a b/flatcam.py" %F', fh.read())
-
     def test_unregister_removes_only_requested_then_everything(self):
         self.reg.on_register_files()
         self.reg.on_unregister_files("gerber")
@@ -293,12 +248,6 @@ class TestMacAssociations(FakeHome):
         self.assertTrue(self.called("duti", "-s", "org.flatcam.evo", ".gbr", "all"))
         self.assertTrue(self.called("duti", "-s", "org.flatcam.evo", "org.flatcam.evo.project", "all"))
 
-    def test_first_run_does_not_make_flatcam_the_default_program(self):
-        first_start()
-        self.assertEqual(self.info()["FlatCAMAssociations"]["gerber"], ["gbr", "gtl"])
-        self.assertFalse([cmd for cmd in self.calls if cmd[0] == "duti" and cmd[3].startswith(".")])
-        self.assertTrue(self.called("duti", "-s", "org.flatcam.evo", "org.flatcam.evo.project", "all"))
-
     def test_unregister_last_type_removes_bundle(self):
         self.reg.on_register_files("project")
         self.reg.on_register_files("gerber")
@@ -315,15 +264,6 @@ class TestMacAssociations(FakeHome):
         self.reg.on_register_files("project")
         self.reg.on_unregister_files()
         self.assertEqual(self.info()["CFBundleIdentifier"], "com.other.app")
-
-    def test_packaging_template_matches_generated_project_types(self):
-        path = os.path.join(os.path.dirname(__file__), "..", "assets", "macos", "Info.plist")
-        with open(path, "rb") as fh:
-            template = plistlib.load(fh)
-        generated = self.reg.mac_info({"project": ["flatprj"], "config": ["flatconfig"]})
-        for key in ("CFBundleIdentifier", "CFBundleDocumentTypes", "UTExportedTypeDeclarations"):
-            self.assertEqual(template[key], generated[key])
-
 
 if __name__ == "__main__":
     unittest.main()

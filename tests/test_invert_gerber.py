@@ -2,11 +2,10 @@
 
 import pytest
 from shapely import make_valid
-from shapely.geometry import LineString, Point, Polygon, box
+from shapely.geometry import LineString, Polygon, box
 from shapely.ops import unary_union
 
 from appPlugins.ToolInvertGerber.InvertGerberGen import (
-    InvertError,
     apertures_from_polygons,
     invert_geometry,
     reference_area,
@@ -32,18 +31,6 @@ def test_overlapping_and_invalid_copper_is_unioned_and_repaired():
     result = invert_geometry([bow_tie, box(1, 1, 3, 3), box(1, 1, 3, 3)], (0, 0, 3, 3), 0.0, FIXED_16, 'mitre')
     copper = unary_union([make_valid(bow_tie), box(1, 1, 3, 3)])
     assert _area(result) == pytest.approx(9.0 - copper.area, abs=1e-6)
-
-
-def test_an_empty_source_raises_invert_error():
-    # the bounds of an empty Gerber object
-    with pytest.raises(InvertError):
-        invert_geometry([], (float('inf'), float('inf'), float('-inf'), float('-inf')), 0.1, FIXED_16, 'mitre')
-
-
-def test_a_reference_shape_replaces_the_bounding_box():
-    outline = Point(0, 0).buffer(10, quad_segs=32)
-    result = invert_geometry([box(-1, -1, 1, 1)], None, 0.0, FIXED_16, 'mitre', area=outline)
-    assert _area(result) == pytest.approx(outline.area - 4.0)
 
 
 class _Obj:

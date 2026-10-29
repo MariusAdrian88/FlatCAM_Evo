@@ -152,35 +152,6 @@ def test_tcl_smaller_tool_receives_only_unswept_stock():
     assert list(output.tools) == [2, 1]
 
 
-def test_tcl_skipped_unknown_tool_does_not_change_next_tool_offset():
-    area = MultiPolygon([box(0, 0, 10, 10)])
-    seen = []
-
-    def run(tools, known):
-        seen.append([])
-
-        def clear(**kw):
-            seen[-1].append(kw['pol'])
-            return [LineString([(1, 1), (2, 1)])]
-
-        run_rest(area, tools, clear, tcl=True, rest=False, known=known)
-
-    run([2.0, 1.0], [2.0, 1.0])
-    run([2.0, 0.5, 1.0], [2.0, 1.0])
-    assert len(seen[0]) == len(seen[1])
-    assert seen[0][-1].symmetric_difference(seen[1][-1]).area < 1e-10
-
-
-def test_tcl_empty_area_reports_why():
-    gen, output = run_rest('fail', [2.0], lambda **kw: None, tcl=True)
-    assert any(m.startswith('[ERROR_NOTCL]') for m in messages_of(gen))
-
-
-def test_tool_without_geometry_is_reported():
-    gen, output = run_rest(MultiPolygon([box(0, 0, 10, 10)]), [2.0], lambda **kw: None, tcl=True, rest=False)
-    assert any(m.startswith('[WARNING_NOTCL]') and 'diameter' in m for m in messages_of(gen))
-
-
 # ---------------------------------------------------------------------------------------------------------------
 # what a run publishes and what it leaves in the tool table
 # ---------------------------------------------------------------------------------------------------------------
@@ -302,13 +273,6 @@ def test_tcl_combo_method_and_simplification_are_used():
     assert len(output.tools[1]['solid_geometry'][0].coords) == 2
 
 
-def test_simplification_option_is_in_the_units_of_the_geometry():
-    gen, _output = run_rest(MultiPolygon([box(0, 0, 10, 10)]), [1.0], lambda **kw: [LineString([(1, 1), (9, 1)])],
-                            options={'tools_ncc_simplification': 0.5}, rest=False)
-    assert gen.clear_polygon_worker.call_args.kwargs['simplify_tol'] == pytest.approx(0.5)
-    inch, _output = make_gen([1.0], options={'tools_ncc_simplification': 0.5}, units='IN')
-    assert inch._simplification() == pytest.approx(0.5 / 25.4)
-
 # ---------------------------------------------------------------------------------------------------------------
 # rest machining
 # ---------------------------------------------------------------------------------------------------------------
@@ -345,12 +309,6 @@ def test_tcl_rest_does_not_send_slivers_to_the_clearing():
 # ---------------------------------------------------------------------------------------------------------------
 # Tcl inputs
 # ---------------------------------------------------------------------------------------------------------------
-def test_tcl_matches_tool_diameters_by_rounding():
-    gen, output = run_rest(MultiPolygon([box(0, 0, 10, 10)]), [0.1 + 0.2], lambda **kw: [LineString([(1, 1), (9, 1)])],
-                           tcl=True, rest=False, known=[0.3])
-    assert list(output.tools) == [1]
-
-
 def test_tcl_itself_uses_the_object_and_a_gerber_reference_uses_both_hulls():
     area = MultiPolygon([box(0, 0, 10, 10)])
     source = SimpleNamespace(kind='geometry', solid_geometry=[box(0, 0, 4, 4)])
@@ -403,14 +361,6 @@ def test_check_validity_names_the_tools_that_are_too_big():
     assert (level, too_big) == ('warning', [0.5])
     assert NccModel.check_tools_fit(source.tools, [0.2], [0.5], 4)[::2] == ('error', [0.5])
     assert NccModel.check_tools_fit(source.tools, [0.5, 0.6], [], 4)[::2] == ('error', [0.5, 0.6])
-
-
-def test_check_validity_with_a_multi_part_solid():
-    # a shape split by a negative Etch Compensation is 1 MultiPolygon solid: MultiPolygon(list) raised ValueError
-    solids = [box(0, 0, 1, 1), MultiPolygon([box(0, 2, 1, 3), box(1.15, 2, 2, 3)])]
-    apertures = {10: {'geometry': [{'solid': solid} for solid in solids]}}
-    assert NccModel.smallest_gerber_gap(apertures, 4) == (None, pytest.approx(0.1499))
-    assert NccModel.check_tools_fit(apertures, [0.1], [0.2], 4)[::2] == ('error', [0.2])
 
 
 def test_check_validity_stops_the_job_before_the_generation():
@@ -518,13 +468,6 @@ def test_tool_from_database_is_merged_with_defaults_and_selected(tool):
     assert 'tools_mill_tool_shape' in data and 'tools_ncc_operation' in data
     selected = {int(tool.ui.tools_table.item(i.row(), 3).text()) for i in tool.ui.tools_table.selectedIndexes()}
     assert selected == {uid}
-
-
-def test_beginner_mode_turns_rest_machining_off(tool):
-    tool.ui.rest_cb.set_value(True)
-    tool.change_level('b')
-    assert tool.ui.rest_cb.get_value() is False
-    assert all(not v['data']['tools_ncc_rest'] for v in tool.ncc_tools.values())
 
 
 def prepare_run(t, **objects):

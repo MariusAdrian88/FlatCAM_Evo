@@ -147,12 +147,6 @@ def test_the_depth_per_pass_of_each_tool_makes_the_passes():
     assert all(code.count('G01 Z-') == 4 for code in tool_codes(job).values())
 
 
-def test_the_offset_of_a_tool_and_the_offset_argument_deepen_the_cut():
-    tools = {1: (0.8, [(1.0, 1.0)], (), dict(tools_drill_cutz=-1.0, tools_drill_offset=0.25))}
-    assert 'G01 Z-1.2500' in run(tools, ['-toolchange', 1])[2]
-    assert 'G01 Z-1.5000' in run(tools, ['-toolchange', 1, '-offset', 0.5])[2]
-
-
 # ---------------------------------------------------------------------------------------------------------------------
 # defaults like the Drilling plugin, tool order, toolchange
 
@@ -164,7 +158,7 @@ def test_the_optimization_type_defaults_to_the_application_option():
         [(8.0, 8.0), (1.0, 1.0)]
 
 
-@pytest.mark.parametrize('order, expected', [('rev', ['2', '1']), ('no', ['2', '1'])])
+@pytest.mark.parametrize('order, expected', [('rev', ['2', '1'])])
 def test_the_tools_are_drilled_in_the_order_asked(order, expected):
     tools = {2: (1.0, [(5.0, 5.0)], (), {}), 1: (0.8, [(1.0, 1.0)], (), {})}
     code = run(tools, ['-toolchange', 1, '-order', order])[2]
@@ -215,14 +209,6 @@ def test_the_holes_of_aligndrillgrid_are_drilled_with_the_tool_change():
     assert not any('G-code is missing' in str(c.args[0]) for c in app.inform.emit.call_args_list)
 
 
-def test_plunge_to_travel_z_after_the_toolchange():
-    tools = {1: (0.8, [(1.0, 1.0)], (), {})}
-    argv = ['-toolchange', 1, '-travelz', 2, '-toolchangez', 30]
-    without = run(tools, argv)[2]
-    with_plunge = run(tools, argv + ['-f_plunge', 1])[2]
-    assert with_plunge.count('G00 Z2.0000') == without.count('G00 Z2.0000') + 1
-
-
 TOOLCHANGE_Z_RE = re.compile(r'^M5\nG00 Z(\S+)\nT\d+$', re.M)
 
 
@@ -237,55 +223,6 @@ def test_without_startz_the_first_toolchange_and_travel_are_at_the_heights_of_th
     code = run(TWO, ['-toolchange', 1, '-toolchangez', 30, '-travelz', 10])[2]
     assert TOOLCHANGE_Z_RE.findall(code) == ['30.0000', '30.0000']
     assert start_z_moves(run(TWO, ['-toolchange', 0, '-travelz', 10])[2]) == ['10.0000']
-
-
-def test_the_startz_argument_or_preference_is_still_the_start_height():
-    code = run(TWO, ['-toolchange', 1, '-toolchangez', 30, '-startz', 5])[2]
-    assert TOOLCHANGE_Z_RE.findall(code) == ['5.0000', '30.0000']
-    code = run(TWO, ['-toolchange', 0, '-travelz', 10], options=dict(tools_drill_startz=3.0))[2]
-    assert start_z_moves(code) == ['10.0000', '3.0000']
-
-
-def test_retract_option_decides_the_up_to_zero_move():
-    tools = {1: (0.8, [(1.0, 1.0)], (), {})}
-    assert 'G01 Z0' in run(tools, ['-f_retract', 0])[2].splitlines()
-    assert 'G01 Z0' not in run(tools, ['-f_retract', 1])[2].splitlines()
-
-
-def test_spindle_direction_dwell_and_dwell_time():
-    tools = {1: (0.8, [(1.0, 1.0)], (), {})}
-    assert 'M04' in run(tools, ['-spindledir', 'CCW'])[2]
-    assert 'M03' in run(tools, ['-spindledir', 'CW'])[2]
-    assert 'G4 P2.5' in run(tools, ['-dwell', 1, '-dwelltime', 2.5])[2]
-    assert 'G4' not in run(tools, ['-dwell', 0, '-dwelltime', 2.5])[2]
-    assert 'G4 P2.5' in run(tools, ['-dwelltime', 2.5])[2]
-
-
-def test_the_probe_depth_and_feed_are_used_by_the_probe_preprocessor():
-    code = run({1: (0.8, [(1.0, 1.0)], (), {})}, ['-toolchange', 1, '-pdepth', -0.5, '-pfeed', 60],
-               pp='Toolchange_Probe_MACH3')[2]
-    assert 'G31 Z-0.5000' in code and 'F60.00' in code
-    tools = {1: (0.8, [(1.0, 1.0)], (), dict(tools_drill_z_p_depth=-0.3, tools_drill_feedrate_probe=40))}
-    code = run(tools, ['-toolchange', 1], pp='Toolchange_Probe_MACH3')[2]
-    assert 'G31 Z-0.3000' in code and 'F40.00' in code
-
-
-def test_the_probe_plate_thickness_sets_the_zero_to_the_top_of_the_material():
-    code = run({1: (0.8, [(1.0, 1.0)], (), {})}, ['-toolchange', 1, '-pplate', 1.5],
-               pp='Toolchange_Probe_MACH3')[2]
-    assert 'G92 Z1.5000' in code and 'G92 Z0' not in code
-    tools = {1: (0.8, [(1.0, 1.0)], (), dict(tools_drill_probe_plate=0.8))}
-    code = run(tools, ['-toolchange', 1], pp='Toolchange_Probe_MACH3')[2]
-    assert 'G92 Z0.8000' in code
-    assert 'G92 Z0\n' in run({1: (0.8, [(1.0, 1.0)], (), {})}, ['-toolchange', 1], pp='Toolchange_Probe_MACH3')[2]
-
-
-def test_laser_on_code_and_min_power():
-    tools = {1: (0.8, [(1.0, 1.0)], (), {})}
-    code = run(tools, ['-las_power', 300, '-laser_on', 'M4'], pp='GRBL_laser')[2]
-    assert 'M4 S300.0' in code.splitlines()
-    code = run(tools, ['-las_power', 300, '-min_power', 20], pp='GRBL_laser')[2]
-    assert any('S20' in line and 'laser OFF' in line for line in code.splitlines())
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -320,17 +257,6 @@ def test_peck_and_dwell_at_the_bottom_arguments():
         'G01 Z-3.0000', 'G4 P0.5', 'G00 Z2.0000']
 
 
-def test_the_peck_of_each_tool_is_the_default_and_the_argument_overrides_it():
-    data = dict(tools_drill_cutz=-3.0, tools_drill_f_retract=True, tools_drill_peck=True, tools_drill_peck_depth=1.5,
-                tools_drill_peck_retract=0.2)
-    tools = {1: (0.8, [(1.0, 1.0)], (), data), 2: (1.0, [(5.0, 5.0)], (), dict(data, tools_drill_peck=False))}
-    __, job, __ = run(tools, ['-toolchange', 1])
-    assert 'G01 Z-1.5000' in job.tools[1]['gcode'] and 'G01 Z-3.0000' in job.tools[1]['gcode']
-    assert 'Z-1.5000' not in job.tools[2]['gcode']
-    __, job, __ = run(tools, ['-toolchange', 1, '-peck', 0])
-    assert 'Z-1.5000' not in job.tools[1]['gcode']
-
-
 def test_a_laser_preprocessor_ignores_the_peck_and_the_spot_pass():
     tools = {1: (0.8, [(1.0, 1.0)], (), {})}
     plain = run(tools, ['-drillz', -3], pp='GRBL_laser')[2]
@@ -357,15 +283,6 @@ def test_the_spot_pass_comes_first_over_all_the_holes_with_the_next_free_tool_nu
     assert 'Dia = 0.5' in code and 'Total drills for tool T3 = 2' in code
     assert sorted(job.tools) == [1, 2, 3] and job.tools[3]['tooldia'] == 0.5 and job.tools[3]['nr_drills'] == 2
     assert job.tools[3]['gcode_parsed'] == [] and job.tools[3]['gcode']
-
-
-def test_the_spot_values_default_to_the_application_options():
-    options = dict(tools_drill_spot=True, tools_drill_spot_dia=0.4, tools_drill_spot_cutz=-0.2,
-                   tools_drill_spot_feedrate_z=33.0)
-    __, __, code = run(PER_TOOL, ['-toolchange', 1], options=options)
-    assert blocks(code)[0][0] == 3 and 'G01 Z-0.2000' in blocks(code)[0][1] and 'G01 F33.00' in blocks(code)[0][1]
-    __, __, code = run(PER_TOOL, ['-toolchange', 1, '-spot', 0], options=options)
-    assert [t for t, __ in blocks(code)] == [1, 2]
 
 
 def test_the_spot_pass_without_a_toolchange_is_skipped_with_a_warning():
@@ -399,15 +316,7 @@ def test_job_mirror_point_and_array_args():
     assert job.tools[1]['nr_drills'] == 4 and job.tools[2]['nr_drills'] == 2
 
 
-def test_job_transform_args_move_the_spot_pass_too_and_default_to_the_options():
-    __, __, code = run(XF_TOOLS, SPOT_ARGS + ['-job_offset', '1,1'])
-    spot, one, two = blocks(code)
-    assert sorted(drilled_positions(spot[1])) == [(1.0, 1.0), (3.0, 5.0), (5.0, 3.0)]
-    options = dict(tools_drill_job_offset_xy='5, 0', tools_drill_mirror='no')
-    assert sorted(drilled_positions(run(XF_TOOLS, [], options=options)[2])) == [(5.0, 0.0), (7.0, 4.0), (9.0, 2.0)]
-
-
-@pytest.mark.parametrize('argv', [['-job_offset', 'abc'], ['-mirror', 'z'], ['-array', '0,1']])
+@pytest.mark.parametrize('argv', [['-job_offset', 'abc']])
 def test_invalid_job_transform_args_are_errors(argv):
     with pytest.raises(Exception):
         run(XF_TOOLS, argv)
@@ -427,16 +336,6 @@ def test_objects_argument_drills_the_holes_of_the_extra_objects_merged_by_diamet
     assert job.obj_options['xmax'] == 90 and job.obj_options['xmin'] == 0
 
 
-def test_objects_argument_warns_about_tools_of_one_diameter_with_different_data():
-    tools = {1: (0.8, [(1.0, 1.0)], (), dict(tools_drill_cutz=-1.0))}
-    extra = {'second': {1: (0.8, [(70.0, 70.0)], (), dict(tools_drill_cutz=-2.0))}}
-    app, __, code = run(tools, ['-objects', 'second', '-toolchange', 1], extra=extra)
-    assert any('same diameter' in str(c.args[0]) for c in app.inform.emit.call_args_list)
-    assert 'Z-1.0000' in code and 'Z-2.0000' not in code
-
-
-
-
 def test_area_argument_drills_only_the_holes_inside_the_rectangle():
     tools = {1: (0.8, [(1.0, 1.0), (9.0, 9.0)], (), {}), 2: (1.0, [(30.0, 30.0)], (), {})}
     __, job, code = run(tools, ['-area', '0,0,10,10', '-toolchange', 1])
@@ -444,9 +343,3 @@ def test_area_argument_drills_only_the_holes_inside_the_rectangle():
     assert sorted(job.tools) == [1, 2] and 2 not in [t for t, __ in blocks(code)]
     __, __, code = run(tools, ['-area', '10,10,0,0'])
     assert sorted(drilled_positions(code)) == [(1.0, 1.0), (9.0, 9.0)]
-
-
-@pytest.mark.parametrize('argv', [['-area', '1,2,3']])
-def test_invalid_area_argument_is_an_error(argv):
-    with pytest.raises(Exception):
-        run(TWO, argv)

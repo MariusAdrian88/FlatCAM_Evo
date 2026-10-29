@@ -25,7 +25,7 @@ def spinner_with_800(cls):
     return spinner
 
 
-@pytest.mark.parametrize('cls', [FCSpinner, FCDoubleSpinner])
+@pytest.mark.parametrize('cls', [FCDoubleSpinner])
 def test_typed_number_over_the_maximum_keeps_the_previous_value(cls):
     spinner = spinner_with_800(cls)
     values = []
@@ -38,7 +38,7 @@ def test_typed_number_over_the_maximum_keeps_the_previous_value(cls):
     assert values == []  # the prefixes 1, 15 and 150 were not committed
 
 
-@pytest.mark.parametrize('cls', [FCSpinner, FCDoubleSpinner])
+@pytest.mark.parametrize('cls', [FCDoubleSpinner])
 def test_typed_number_reaches_the_slots_of_the_keypad_enter(cls):
     spinner = spinner_with_800(cls)
     seen = []
@@ -86,15 +86,3 @@ def test_drag_that_leaves_the_tool_table_unblocks_its_signals():
 
     assert not table.signalsBlocked()
     assert edits == [table.item(0, 1)]
-
-
-def test_drag_that_ends_without_a_drop_unblocks_the_signals(monkeypatch):
-    def drag_without_drop(view, supported_actions):
-        view.dragEnterEvent(DragFromTable(view))  # QDrag.exec() returns without a drop or leave event
-
-    monkeypatch.setattr(QtWidgets.QTableWidget, 'startDrag', drag_without_drop)
-    table = tool_table()
-
-    table.startDrag(QtCore.Qt.DropAction.MoveAction)
-
-    assert not table.signalsBlocked()

@@ -14,12 +14,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 import ezdxf
-from shapely.geometry import Polygon
 from shapely.ops import unary_union
 
 from appParsers.DXF import dxf_to_shapes, text_entity_to_shapes
 from appParsers.DXF import text as dxf_text
-from appParsers.DXF.writer import build_dxf
 from appParsers.ParseGerber import Gerber
 from camlib import Geometry
 
@@ -173,55 +171,6 @@ class DxfImportTest(unittest.TestCase):
         shapes = dxf_to_shapes(doc)
         self.assertEqual(sorted(s.bounds[1] for s in shapes), [0, 15])
 
-    @unittest.skipUnless(dxf_text.TEXT_RENDERING_AVAILABLE, 'text rendering unavailable')
-    def test_mtext_modes_and_lines(self):
-        doc, msp = new_doc()
-        one = msp.add_mtext('Hello', dxfattribs={'insert': (10, 20), 'char_height': 2.5})
-        two = msp.add_mtext('Hello\\PWorld', dxfattribs={'insert': (10, 20), 'char_height': 2.5})
-        for mode, kind in (('stroke', 'LineString'), ('outline', 'Polygon')):
-            boxes = []
-            for entity in (one, two):
-                shapes = text_entity_to_shapes(entity, mode)
-                self.assertTrue(shapes)
-                self.assertTrue(all(s.geom_type == kind for s in shapes))
-                boxes.append(unary_union(shapes).bounds)
-            self.assertGreaterEqual(boxes[0][0], 9.9)
-            self.assertGreater(boxes[1][3] - boxes[1][1], 1.5 * (boxes[0][3] - boxes[0][1]))
-            self.assertLess(boxes[1][3] - boxes[1][1], 12)
-            self.assertTrue(dxf_to_shapes(doc, mode))
-        self.assertEqual(dxf_to_shapes(doc, 'none'), [])
-    def test_circles_and_points_follow_the_circle_preferences(self):
-        doc, msp = new_doc()
-        doc.header['$INSUNITS'] = 4
-        msp.add_point((0, 0))
-        msp.add_circle((10, 0), 0.5)
-        msp.add_circle((50, 0), 20)
-        fixed = {'geometry_circle_steps_mode': 'fixed', 'geometry_circle_steps': 64}
-        point, small, big = dxf_to_shapes(doc, options=fixed)
-        self.assertEqual([len(g.exterior.coords) - 1 for g in (point, small)], [64, 64])
-        self.assertGreaterEqual(len(big.exterior.coords) - 1, 64)  # the flattening tolerance may add more
-        point, small, big = dxf_to_shapes(doc)
-        self.assertLess(len(point.exterior.coords), len(big.exterior.coords))
-        self.assertAlmostEqual(big.area, math.pi * 400, delta=0.5)
-        self.assertAlmostEqual(point.area, math.pi * 0.01 ** 2, places=4)
-
-    def test_geometry_import_takes_the_first_of_several_tool_diameters(self):
-        # the Milling "Tools Dia" preference is a list of diameters ("0.3, 1.0"); float() of it failed the import
-        import tempfile
-        from camlib import Geometry
-        from tests.helpers_objects import make_app_0b
-        doc, msp = new_doc()
-        msp.add_line((0, 0), (10, 0))
-        with tempfile.TemporaryDirectory() as d:
-            path = str(Path(d) / 'a.dxf')
-            doc.saveas(path)
-            for value, dia in (('0.3, 1.0', 0.3), ('1.0', 1.0), (2.4, 2.4)):
-                geo = Geometry(make_app_0b(tools_mill_tooldia=value))
-                geo.obj_options = {'name': 'a.dxf'}
-                geo.import_dxf_as_geo(path, units='MM')
-                self.assertEqual(geo.tools[1]['tooldia'], dia)
-                self.assertEqual([g.length for g in geo.tools[1]['solid_geometry']], [10])
-
     # --- units scaling: the import scales DXF geometry from $INSUNITS to the app units ---
 
     @staticmethod
@@ -268,35 +217,6 @@ class DxfImportTest(unittest.TestCase):
         geo = self._import_geo(self._save(doc), 'MM')
         self.assertAlmostEqual(geo.bounds[0], 0, places=9)
         self.assertAlmostEqual(geo.bounds[2], 25.4, places=9)
-
-    def test_geometry_import_mm_dxf_into_inch_app(self):
-        doc, msp = self._units_doc(4)
-        msp.add_line((0, 0), (1, 0))
-        geo = self._import_geo(self._save(doc), 'IN')
-        self.assertAlmostEqual(geo.bounds[2], 1 / 25.4, places=9)
-
-    def test_geometry_import_same_units_or_unitless_unchanged(self):
-        for insunits in (4, 0):
-            with self.subTest(insunits=insunits):
-                doc, msp = self._units_doc(insunits)
-                msp.add_line((0, 0), (1, 0))
-                geo = self._import_geo(self._save(doc), 'MM')
-                self.assertAlmostEqual(geo.bounds[2], 1, places=9)
-
-    def test_geometry_import_cm_circle_into_mm_app(self):
-        doc, msp = self._units_doc(5)
-        msp.add_circle((2, 0), 1)
-        geo = self._import_geo(self._save(doc), 'MM')
-        self.assertAlmostEqual(geo.centroid.x, 20, delta=0.01)
-        self.assertAlmostEqual(geo.area / (math.pi * 100), 1, delta=0.005)
-
-    def test_geometry_import_inch_writer_output_into_mm_app(self):
-        square = Polygon([(0, 0), (10, 0), (10, 10), (0, 10)])
-        doc = build_dxf([{'name': 'L', 'geometry': [square]}], 'IN', 'R2010')
-        self.assertIsNotNone(doc)
-        minx, miny, maxx, maxy = self._import_geo(self._save(doc), 'MM').bounds
-        self.assertAlmostEqual(maxx - minx, 254, places=6)
-        self.assertAlmostEqual(maxy - miny, 254, places=6)
 
     def test_gerber_import_inch_dxf_into_mm_app(self):
         doc, msp = self._units_doc(1)

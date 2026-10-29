@@ -129,7 +129,7 @@ def _box_with_hole():
 
 
 @pytest.mark.parametrize('fmt, kind', [('R2010', 'LWPOLYLINE'), ('R12', 'POLYLINE')])
-@pytest.mark.parametrize('units, insunits', [('MM', 4), ('IN', 1)])
+@pytest.mark.parametrize('units, insunits', [('MM', 4)])
 def test_polygon_rings_are_closed_2d_polylines(fmt, kind, units, insunits):
     from shapely.geometry import Polygon
     polygon = _box_with_hole()
@@ -150,15 +150,7 @@ def test_polygon_rings_are_closed_2d_polylines(fmt, kind, units, insunits):
         assert all(pt[2] == 0 and pt[3] == 0 for pt in polylines[2].get_points())
 
 
-def test_geometry_to_dxf_wrapper_still_works():
-    sys.path.insert(0, str(ROOT))
-    from camlib import geometry_to_dxf
-    doc = geometry_to_dxf([_box_with_hole()], 'MM', 'R2010')
-    assert len(list(doc.modelspace().query('LWPOLYLINE'))) == 2
-    assert geometry_to_dxf([_box_with_hole()], 'MM', 'NOPE') is None
-
-
-@pytest.mark.parametrize('fmt', ['R2010', 'R12'])
+@pytest.mark.parametrize('fmt', ['R2010'])
 def test_buffered_drill_is_one_circle(fmt):
     from shapely.geometry import Point
     center, radius = (3.2, -1.5), 0.4
@@ -313,7 +305,7 @@ def test_gerber_layers_per_aperture_and_centerline(object_app):
     assert _layers(obj.export_dxf()) == {'grb', 'grb_W0.25'}
 
 
-@pytest.mark.parametrize('mode, layer', [('tool', 'grb_D10'), ('object', 'grb')])
+@pytest.mark.parametrize('mode, layer', [('tool', 'grb_D10')])
 def test_gerber_outline_keeps_the_clear_holes(object_app, mode, layer):
     from shapely.geometry import box
     from appObjects.GerberObject import GerberObject

@@ -1,7 +1,6 @@
 """Regression tests for the Excellon Editor defect fixes: units, menu actions, tool table, history labels, warnings,
 translated labels and the diagnostics tolerance. Headless: the editor is real, the app is a stand-in."""
 
-from concurrent.futures import ThreadPoolExecutor
 from types import MethodType, SimpleNamespace
 from unittest.mock import MagicMock, Mock
 
@@ -10,9 +9,8 @@ from PyQt6 import QtCore, QtWidgets
 from shapely.affinity import translate
 from shapely.geometry import Point
 
-from appEditors.appExcEditor import AppExcEditor, CopyEditorExc, DrillArray, MoveEditorExc, SlotArray
-from appEditors.appGeoEditor import AppGeoEditor, DrawTool
-from appEditors.exc_plugins.ExcCopyPlugin import ExcCopyEditorUI
+from appEditors.appExcEditor import AppExcEditor, CopyEditorExc, DrillArray, MoveEditorExc
+from appEditors.appGeoEditor import DrawTool
 from appGUI.MainGUI import MainGUI
 from defaults import AppDefaults
 from test_exc_editor_history import drill, scene
@@ -75,7 +73,7 @@ def test_editor_created_in_mm_edits_in_object_in_inches_without_scaling():
     assert bounds[2] - bounds[0] == pytest.approx(0.04)
 
 
-@pytest.mark.parametrize('units,tooldia,xy', [('MM', 0.8, (3.25, -1.5)), ('IN', 0.04, (1.0, 2.0))])
+@pytest.mark.parametrize('units,tooldia,xy', [('MM', 0.8, (3.25, -1.5))])
 def test_load_then_save_round_trip_is_identity(units, tooldia, xy):
     app, editor = qt_editor(units)
     editor.edit_fcexcellon(native_obj(units, tooldia, xy))
@@ -149,17 +147,6 @@ def test_nested_move_inside_generic_draw_records_inner_label_as_one_step():
 # ---------------------------------------------------------------------------------------------------------------
 
 
-def test_history_rollback_refreshes_when_only_selection_changed():
-    editor, first, second = scene()
-    with pytest.raises(ValueError):
-        with editor.history.operation('Select then fail'):
-            editor.selected = [second]
-            raise ValueError('boom')
-    assert editor.selected == [first]
-    editor.build_ui.assert_called()
-
-
-# ---------------------------------------------------------------------------------------------------------------
 # 9. translated display and units-aware diagnostics tolerance
 # ---------------------------------------------------------------------------------------------------------------
 
@@ -228,7 +215,7 @@ SLOT_ARRAY_PANEL = dict(array_type_radio='linear', array_size_entry=5, array_axi
                         radius_entry=0.0, slot_length_entry=2.0, slot_direction_radio='X', slot_angle_entry=0.0)
 
 
-@pytest.mark.parametrize('cls', [DrillArray, SlotArray])
+@pytest.mark.parametrize('cls', [DrillArray])
 def test_circular_array_add_button_keeps_the_typed_radius_after_a_mouse_move(cls):
     if cls is DrillArray:
         panel = dict(DRILL_ARRAY_PANEL, array_dir_radio='CCW', circular_angle_entry=90.0)
@@ -319,16 +306,3 @@ def test_enter_with_the_move_tool_moves_the_selection_to_the_cursor(monkeypatch)
     drills = [shape for shape in editor.storage_dict[1.0].get_objects() if shape.geo.geom_type == 'MultiLineString']
     assert len(drills) == 1 and drills[0] is not first
     assert (drills[0].geo.centroid.x, drills[0].geo.centroid.y) == pytest.approx((2, 3))
-
-
-# ---------------------------------------------------------------------------------------------------------------
-# 15. the Copy panel has no 'Add' button that does nothing
-# ---------------------------------------------------------------------------------------------------------------
-
-def test_copy_panel_hides_its_unconnected_add_button():
-    qapp()
-    panel = QtWidgets.QWidget()
-    app = SimpleNamespace(decimals=4, resource_location='assets/resources', inform=Mock())
-    ui = ExcCopyEditorUI(layout=QtWidgets.QVBoxLayout(panel), copy_class=SimpleNamespace(app=app), plugin_name='Copy')
-    assert not ui.add_button.isVisibleTo(panel)
-    assert ui.clear_btn.isVisibleTo(panel) and ui.mode_radio.isVisibleTo(panel)

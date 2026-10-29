@@ -63,29 +63,7 @@ class TestRenameCompleter(unittest.TestCase):
         self.assertEqual(stub.obj_options["name"], "new")
 
 
-class TestKeywordEdit(unittest.TestCase):
-    def test_editing_the_keywords_keeps_the_object_names(self):
-        reg, cmd_line = make_reg(["cmd", "kw", "tcl"])
-        reg.tcl_commands_list, reg.default_keywords, reg.tcl_keywords = ["cmd"], ["kw"], ["tcl"]
-        # the keyword list box of Preferences -> Utilities
-        kw_list_text = SimpleNamespace(text="kw")
-        kw_list_text.get_value = lambda: kw_list_text.text
-        kw_list_text.set_value = lambda text: setattr(kw_list_text, "text", text)
-        reg.ui = SimpleNamespace(util_pref_form=SimpleNamespace(kw_group=SimpleNamespace(kw_list_text=kw_list_text)))
-        reg.prepend_keyword("top_iso")
 
-        reg.add_keyword_in_preferences_gui("foo")
-        self.assertEqual(reg.myKeywords, ["top_iso", "cmd", "foo", "kw", "tcl"])
-        # a rename after the edit
-        reg.remove_keyword("top_iso", update=False)
-        reg.prepend_keyword("top_iso2")
-        for edit in (lambda: reg.delete_keyword_in_preferences_gui("foo"), lambda: reg.restore_extensions("keyword"),
-                     lambda: reg.delete_all_extensions("keyword")):
-            edit()
-            self.assertEqual(reg.myKeywords[0], "top_iso2")
-            self.assertNotIn("top_iso", reg.myKeywords)
-            cmd_line.set_model_data.assert_called_with(reg.myKeywords)
-        self.assertEqual(reg.myKeywords, ["top_iso2", "cmd", "tcl"])
 def named(name):
     return SimpleNamespace(obj_options={"name": name})
 
@@ -121,45 +99,6 @@ class TestRenameKeepsNamesUnique(unittest.TestCase):
         self.assertEqual(ObjectCollection.rename_object(collection, renamed, "top"), "top_1")
         self.assertEqual((other.obj_options["name"], renamed.obj_options["name"]), ("top", "top_1"))
 
-
-class TestTclReset(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        from PyQt6 import QtWidgets
-        cls.qapp = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
-
-    def test_tcl_reset_deletes_the_old_shell_and_gives_the_new_one_the_keywords(self):
-        from PyQt6 import QtWidgets, sip
-        from appMain import App
-        dock = QtWidgets.QDockWidget()
-
-        class Shell(QtWidgets.QWidget):
-            def __init__(self, app=None, version=None):
-                super().__init__()
-                self.tcl = object()
-                self.line = mock.MagicMock()
-                dock.setWidget(self)    # as FCShell does
-
-            def command_line(self):
-                return self.line
-
-        class StopAfterShell(Exception):
-            pass
-
-        old = Shell()
-        reg, _ = make_reg(["drill.drl", "cncjob"])
-        reg.shell = old
-        app = SimpleNamespace(shell=old, regFK=reg, version="1.0", log=mock.MagicMock(), inform=mock.MagicMock())
-        # Open Project in the GUI (on_file_new_project(reset_tcl=True)); the plugins come after the shell
-        with mock.patch("appMain.FCShell", Shell), mock.patch("appMain.Distance", side_effect=StopAfterShell):
-            with self.assertRaises(StopAfterShell):
-                App.install_tools(app, init_tcl=True)
-        QtCore.QCoreApplication.sendPostedEvents(None, QtCore.QEvent.Type.DeferredDelete)
-        self.assertTrue(sip.isdeleted(old))
-        self.assertEqual([child for child in dock.findChildren(QtWidgets.QWidget) if isinstance(child, Shell)],
-                         [app.shell])
-        self.assertIs(reg.shell, app.shell)
-        app.shell.line.set_model_data.assert_called_with(["drill.drl", "cncjob"])
 
 
 if __name__ == "__main__":

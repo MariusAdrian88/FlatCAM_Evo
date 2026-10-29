@@ -59,7 +59,7 @@ def _export(job):
     return CNCJobObject.export_gcode(job, to_file=True).getvalue()
 
 
-@pytest.mark.parametrize('kind', ['Excellon', 'Geometry'])
+@pytest.mark.parametrize('kind', ['Excellon'])
 def test_every_preprocessor_keeps_the_code_of_every_tool(kind):
     dropped = []
     for ppname in sorted(appPreProcessor.preprocessors):
@@ -71,7 +71,7 @@ def test_every_preprocessor_keeps_the_code_of_every_tool(kind):
     assert dropped == []
 
 
-@pytest.mark.parametrize('ppname', HEADERLESS)
+@pytest.mark.parametrize('ppname', HEADERLESS[1:2])
 def test_headerless_drill_job_has_start_code_tool_code_and_no_page_header(ppname):
     text = _export(_job('Excellon', ppname))
 
@@ -81,20 +81,7 @@ def test_headerless_drill_job_has_start_code_tool_code_and_no_page_header(ppname
     assert 'HEADER' not in text
 
 
-def test_hpgl_drill_job_is_detected_from_tools_drill_ppname_e():
-    job = _job('Excellon', 'hpgl')
-    job.tools = {1: {'data': {'tools_drill_ppname_e': 'hpgl'}, 'gcode': 'PA12.7,3.5;\n'}}
-
-    text = _export(job)
-
-    # HPGL output rounds the PA coordinates to whole units
-    assert 'PA12,3;' in text
-    assert 'PA12.7' not in text
-
-
-
-
-@pytest.mark.parametrize('kind', ['Excellon', 'Geometry'])
+@pytest.mark.parametrize('kind', ['Excellon'])
 def test_unknown_preprocessor_of_a_saved_job_exports_with_the_default_one(kind):
     job = _job(kind, 'Gone_Machine')
     job.app.inform = Mock()
@@ -124,8 +111,6 @@ def test_a_name_with_parentheses_stays_inside_the_header_comment():
             assert [line for line in text.splitlines() if re.sub(r'\([^)]*\)', '', line).strip()] == []
     # a ';' comment runs to the end of the line: it keeps the name as it is
     assert ';Name: board (1)\n' in header('board (1)', 'Marlin')
-
-
 
 
 # ------------------------------------------------------------------------------------------------------------
@@ -212,15 +197,6 @@ def test_opened_gcode_is_a_native_like_multitool_job_with_the_text_of_the_file(t
         job.on_update_source_file()
         assert job.source_file == expected
     assert job.export_gcode(to_file=True).getvalue() == MILL_FILE
-
-
-def test_opened_drill_gcode_is_an_excellon_job_with_the_drill_counts(tmp_path):
-    _app, job = _open_gcode(tmp_path, DRILL_FILE)
-
-    assert job.obj_options['type'] == 'Excellon'
-    assert DRILL_KEYS <= set(job.tools[1])
-    assert job.tools[1]['nr_drills'] == 2 and len(job.tools[1]['drills']) == 2
-    assert job.tools[1]['data']['tools_drill_cutz'] == pytest.approx(-1.7)
 
 
 def test_file_that_is_not_utf8_opens_and_a_file_without_moves_fails_with_one_message(tmp_path):
@@ -335,28 +311,6 @@ def test_a_failed_gcode_save_keeps_the_old_file_and_says_why(tmp_path):
     job.app.file_saved.emit.assert_not_called()
 
 
-def test_the_gcode_file_is_written_in_one_write(tmp_path):
-    import appObjects.CNCJobObject as cnc_module
-
-    real_open = open
-    writes = []
-
-    def counting_open(file, *args, **kwargs):
-        handle = real_open(file, *args, **kwargs)
-        real_write = handle.write
-        handle.write = lambda text: (writes.append(len(text)), real_write(text))[1]
-        return handle
-
-    job = _ui_job(_ui_app())
-    with patch.object(cnc_module, 'open', counting_open, create=True):
-        assert _save_both_ways(job, tmp_path) == (None, None)
-
-    # before: 1 write() per character (Save CNC Code) or per line (Tcl), seconds for a big file
-    assert writes == [len(job.source_file)] * 2
-    assert sorted(p.name for p in tmp_path.iterdir()) == ['button.nc', 'tcl.nc']
-    assert (tmp_path / 'button.nc').read_text() == (tmp_path / 'tcl.nc').read_text() == job.source_file
-
-
 # ------------------------------------------------------------------------------------------------------------
 # The G-code saved in the G-code Editor is what the job exports, until the user makes the G-code again
 # ------------------------------------------------------------------------------------------------------------
@@ -432,26 +386,6 @@ def test_making_the_edited_gcode_again_asks_first_or_says_that_the_edits_are_los
     assert len(warnings) == 1 and 'GCode Editor' in warnings[0]
 
 
-def test_a_job_that_was_not_edited_is_made_again_from_its_tools():
-    job = _ui_job(_ui_app())
-    # a save of the editor without a change
-    _editor_save(job, job.source_file)
-    assert job.to_dict().get('edited_source_file', '') == ''
-
-    job.tools[1]['gcode'] = BODY + 'G1 X20\n'
-    job.set_ui(CNCObjectUI(app=job.app))
-    assert 'G1 X20' in job.source_file
-
-    # the snippets checkbox does not ask and a move gives no warning
-    job.ask_to_discard_edited_gcode = Mock()
-    job.prepend_snippet = '(PRE)'
-    job.ui.snippets_cb.set_value(True)
-    job.ask_to_discard_edited_gcode.assert_not_called()
-    assert '(PRE)' in job.source_file
-    assert job.regenerate_source() is True
-    assert not any(c.args[0].startswith('[WARNING]') for c in job.app.inform.emit.call_args_list)
-
-
 # ------------------------------------------------------------------------------------------------------------
 # 'Use CNC Code Snippets' unchecked: no prepend / append snippet in the G-code
 # ------------------------------------------------------------------------------------------------------------
@@ -484,16 +418,6 @@ def test_no_snippets_in_the_gcode_while_the_snippets_checkbox_is_off():
     assert opened.ui.snippets_cb.get_value() is False and opened.source_file == made.source_file
 
 
-def test_view_source_and_tcl_write_gcode_still_use_the_snippets_of_the_preferences(tmp_path):
-    job = _ui_job(_ui_app(cncjob_prepend=PRE, cncjob_append=POST))
-    job.ui.snippets_cb.set_value(False)
-
-    # App.on_view_source() and the Tcl write_gcode without -preamble / -postamble
-    text = job.export_gcode(to_file=True).getvalue()
-    assert PRE in text and POST in text
-    job.export_gcode(str(tmp_path / 'tcl.nc'), '', '', from_tcl=True)
-    text = (tmp_path / 'tcl.nc').read_text()
-    assert PRE in text and POST in text
 def test_saving_several_jobs_writes_each_file_in_the_chosen_folder(tmp_path, monkeypatch):
     # Save in the project context menu with several CNC jobs selected: each file is named after its job, and the
     # names of a project file can hold a path

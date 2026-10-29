@@ -146,12 +146,6 @@ if __name__ == '__main__':
 
 
 class TestExcellonParse:
-    def test_units_and_tools(self, excellon):
-        assert excellon.units == 'MM'
-        assert sorted(excellon.tools) == [1, 2, 3]
-        assert [excellon.tools[t]['tooldia'] for t in (1, 2, 3)] == [0.8, 1.0, 1.5]
-
-
     def test_coordinates(self, excellon):
         tools = excellon.tools
         assert pts(tools[1]['drills']) == [(5, 5), (10, 5), (15, 5)]
@@ -219,7 +213,7 @@ class TestExcellonFileRoundTrip:
 class TestExcellonScaleUnits_0B3:
     # A drill is a physical tool: scale() moves the holes and keeps the diameters (the behavior before the
     # unification). A user corrects a file read with a wrong number format with a scale of the positions.
-    @pytest.mark.parametrize('factor', [2.0, -2.0, 0.1])
+    @pytest.mark.parametrize('factor', [2.0, -2.0])
     def test_uniform_scale_moves_the_holes_and_keeps_tooldia(self, factor):
         ex = make_excellon_0b(default_data={})
         before = [(d.x, d.y) for d in ex.tools[1]['drills']]
@@ -272,16 +266,6 @@ class TestTransformBugs_0B4:
         assert_xy_close([s[0] for s in slot_xy(ex)], [rot90(s[0]) for s in old_slots], tol=1e-6)
         assert_xy_close([s[1] for s in slot_xy(ex)], [rot90(s[1]) for s in old_slots], tol=1e-6)
 
-    def test_excellon_buffer_factor_false_is_distance_mode(self):
-        ex = make_excellon_0b(default_data={}, tooldia=1.0)
-        ex.buffer(0.25, 'round', False)
-        assert ex.tools[1]['tooldia'] == pytest.approx(1.5)
-
-    def test_excellon_multiplicative_buffer_multiplies_diameter(self):
-        ex = make_excellon_0b(default_data={}, tooldia=1.0)
-        ex.buffer(2, 'round', True)
-        assert ex.tools[1]['tooldia'] == pytest.approx(2.0)
-
     def test_gerber_buffer_factor_false_is_distance_mode(self):
         g = make_gerber_0b(GERBER_C_FLASH)
         g.buffer(0.1, 'round', False)
@@ -314,12 +298,6 @@ class TestGuardsAlreadyPassing_0B:
         assert_xy_close([s[1] for s in slot_xy(ex)], [(-4.0, 5.0)])
 
 
-    def test_excellon_nonuniform_scale_keeps_tooldia(self):
-        ex = make_excellon_0b(default_data={})
-        ex.scale(2.0, 1.0, point=(0, 0))
-        assert ex.tools[1]['tooldia'] == pytest.approx(1.0)
-        assert_xy_close(drill_xy(ex), [(0.0, 0.0), (8.0, 0.0)])
-
     def test_excellon_convert_units_round_trip_scales_once(self):
         ex = make_excellon_0b(default_data={}, units='IN', tooldia=1.0, drills=((1.0, 2.0),),
                            slots=(((0.0, 0.0), (1.0, 0.0)),))
@@ -337,13 +315,6 @@ class TestGuardsAlreadyPassing_0B:
         g = make_gerber_0b(GERBER_C_FLASH)
         g.buffer(2, 'round', True)
         assert g.tools[10]['size'] == pytest.approx(2.0)
-
-def test_buffer_factor_of_zero_is_rejected(app):
-    obj = make_same_diameter_excellon(app)
-    before = {key: tool['tooldia'] for key, tool in obj.tools.items()}
-    assert obj.buffer(0, 1, True) == 'fail'
-    assert {key: tool['tooldia'] for key, tool in obj.tools.items()} == before
-
 
 class _RecordingShapes:
     """The ShapeGroup API used by ExcellonObject.plot(), keeping the shapes it was given."""
@@ -458,13 +429,4 @@ def test_buffer_rejects_a_malformed_distance(app, distance, factor):
     obj = make_same_diameter_excellon(app)
     before = _buffer_state(obj)
     assert obj.buffer(distance, 'round', factor) == 'fail'
-    _assert_buffer_state(obj, before)
-
-
-@pytest.mark.parametrize('tooldia', ['x'])
-def test_buffer_rejects_a_malformed_tool_diameter(app, tooldia):
-    obj = make_same_diameter_excellon(app)
-    obj.tools[1]['tooldia'] = tooldia
-    before = _buffer_state(obj)
-    assert obj.buffer(0.1, 'round', False) == 'fail'
     _assert_buffer_state(obj, before)

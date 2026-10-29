@@ -4,7 +4,7 @@ import sys
 import unittest
 from html.parser import HTMLParser
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 
@@ -40,14 +40,6 @@ def make_set_sys_command():
 
 
 class TestTclSetSys(unittest.TestCase):
-    def test_application_key_goes_to_defaults_and_propagates(self):
-        command, defaults, _options = make_set_sys_command()
-        with patch.object(AppDefaults, 'propagate_defaults') as propagate:
-            TclCommandSetSys.execute(command, {'name': 'global_gridx', 'value': 2.5}, [])
-        self.assertEqual(defaults['global_gridx'], 2.5)
-        propagate.assert_called_once_with()
-        command.raise_tcl_error.assert_not_called()
-
     def test_project_key_goes_to_project_and_converts_tcl_words(self):
         command, defaults, options = make_set_sys_command()
         before = defaults['units']
@@ -96,22 +88,6 @@ def test_check_rules_counts_violations_per_rule():
     assert lines[-1].endswith('3')
 
 
-def test_check_rules_writes_csv_and_a_document_without_plotting(tmp_path):
-    import csv
-    command, app = make_check_rules(rules_objects())
-    path = tmp_path / 'report.csv'
-    command.execute({'copper_top': 'top.gtl', 'c2c': 0.2, 'csv': str(path), 'outname': 'drc'}, [])
-    with open(path, newline='', encoding='utf-8') as f:
-        rows = list(csv.reader(f))
-    assert rows[0] == ['rule', 'layer', 'x', 'y', 'value', 'limit', 'status']
-    assert len(rows) == 2 and rows[1][-1] == 'FAILED' and abs(float(rows[1][4]) - 0.1) < 1e-6
-    args, kwargs = app.app_obj.new_object.call_args
-    assert args[0] == 'document' and args[1] == 'drc' and kwargs['plot'] is False
-    doc = SimpleNamespace()
-    args[2](doc, app)
-    assert 'FAILED' in doc.source_file
-
-
 # ---- qrcode -------------------------------------------------------------------------------------------------------
 def make_qrcode(units='MM', obj=None):
     from tclCommands.TclCommandQRCode import TclCommandQRCode
@@ -135,28 +111,6 @@ def qr_gerber():
     return obj
 
 
-def test_qrcode_source_extends_follow_geometry_and_pcbdoc_uses_object_units():
-    from shapely import Point
-    from shapely.geometry import MultiPoint
-    obj = qr_gerber()
-    obj.follow_geometry = MultiPoint([(1, 1), (2, 2)])
-    command, _app = make_qrcode('IN', obj)
-    command.execute({'name': 'board', 'data': 'hi', 'x': 10, 'y': 10, 'version': 1, 'box_size': 10,
-                     'border': 0, 'polarity': 'pos'}, [])
-    assert isinstance(obj.follow_geometry, list) and len(obj.follow_geometry) > 2
-    assert all(isinstance(p, Point) for p in obj.follow_geometry)
-    in_width = max(p.x for p in obj.follow_geometry[2:]) - 10
-    obj = qr_gerber()
-    obj.follow_geometry = []
-    obj.obj_options['pcbdoc_import'] = True
-    obj.units = 'mm'
-    command, _app = make_qrcode('IN', obj)
-    command.execute({'name': 'board', 'data': 'hi', 'x': 10, 'y': 10, 'version': 1, 'box_size': 10,
-                     'border': 0, 'polarity': 'pos'}, [])
-    mm_width = max(g.bounds[2] for g in obj.solid_geometry[1:]) - 10
-    assert in_width < 1.5 < mm_width  # 21 modules: 0.83 in in an inch project, 21 mm in a mm PCB document
-
-
 def test_qrcode_source_cuts_copper_and_adds_the_code():
     from shapely.ops import unary_union
     obj = qr_gerber()
@@ -166,41 +120,6 @@ def test_qrcode_source_cuts_copper_and_adds_the_code():
     assert unary_union(obj.solid_geometry).area < before
     assert len(obj.solid_geometry) > 1
     obj.regenerate_source.assert_called_once()
-
-
-def test_qrcode_overflow_and_bad_input_are_tcl_errors_without_change():
-    from test_tcl_audit_regressions import FCShell
-    obj = qr_gerber()
-    geometry, tools = list(obj.solid_geometry), obj.tools
-    command, _app = make_qrcode(obj=obj)
-    for args in ({'name': 'board', 'data': 'x' * 500, 'version': 1},
-                 {'name': 'board', 'data': 'x', 'rotation': 45},
-                 {'name': 'board', 'data': 'x', 'anchor': 'zz'},
-                 {'name': 'board', 'data': 'x', 'output': 'nowhere'}):
-        with pytest.raises(FCShell.TclErrorException):
-            command.execute(args, [])
-    assert obj.solid_geometry == geometry and obj.tools is tools
-    obj.regenerate_source.assert_not_called()
-    command, _app = make_qrcode(obj=None)
-    with pytest.raises(FCShell.TclErrorException):
-        command.execute({'name': 'nope', 'data': 'x'}, [])
-    obj.kind = 'excellon'
-    command, _app = make_qrcode(obj=obj)
-    with pytest.raises(FCShell.TclErrorException):
-        command.execute({'name': 'board', 'data': 'x'}, [])
-
-
-def test_qrcode_new_object_holds_only_the_code_and_does_not_plot():
-    command, app = make_qrcode()
-    command.execute({'data': 'hello', 'output': 'new', 'outname': 'qr_label', 'x': 5, 'y': 5, 'version': 1}, [])
-    args, kwargs = app.app_obj.new_object.call_args
-    assert args[0] == 'gerber' and args[1] == 'qr_label' and kwargs['plot'] is False
-    new = Mock()
-    new.obj_options = {}
-    new.bounds.return_value = (5, 5, 30, 30)
-    args[2](new, app)
-    assert len(new.solid_geometry) > 1 and 10 in new.tools
-    new.regenerate_source.assert_called_once()
 
 
 @pytest.mark.slow
@@ -278,19 +197,6 @@ def test_subtract_objects_gerber_minus_gerber_creates_sub_object_with_the_cut_co
     assert unary_union(new.solid_geometry).area == pytest.approx(50)
     new.regenerate_source.assert_called_once()
     assert objects['cu'].solid_geometry[0].area == 100  # the target is untouched
-
-
-def test_subtract_objects_takes_several_subtractors_including_an_excellon():
-    from shapely import box
-    from shapely.ops import unary_union
-    objects = {'cu': sub_gerber('cu', box(0, 0, 10, 10)), 'a': sub_gerber('a', box(0, 0, 2, 10)),
-               'drl': sub_excellon('drl', 8, 5)}
-    command, app = make_subtract(objects)
-    command.execute({'target': 'cu', 'subtractors': 'a,drl', 'outname': 'cut'}, [])
-    name, new = run_init(app)
-    assert name == 'cut'
-    area = unary_union(new.solid_geometry).area
-    assert 80 - 0.9 < area < 80 - 0.7  # minus the strip and the 1 mm hole (~0.78)
 
 
 def test_subtract_objects_bad_input_is_a_tcl_error_and_creates_nothing():

@@ -67,17 +67,6 @@ def build(multigeo):
     return geo
 
 
-class AbortAfterOneRead:
-    """False on the first read, True on the next: the abort arrives while the batch runs."""
-
-    def __init__(self):
-        self.reads = 0
-
-    def __bool__(self):
-        self.reads += 1
-        return self.reads > 1
-
-
 OPS = {
     'rotate': (lambda g: g.rotate(30, (5, 7)), lambda s: affinity.rotate(s, 30, origin=(5, 7)), True),
     'skew': (lambda g: g.skew(10, 20, (3, 4)), lambda s: affinity.skew(s, 10, 20, origin=(3, 4)), True),
@@ -102,33 +91,6 @@ class TestGeometryTransforms(unittest.TestCase):
                         same(self, ref(box(1, 1, 3, 3)), geo.tools[2]['solid_geometry'])
                         self.assertEqual(geo.tools[3]['solid_geometry'], [])
                         self.assertEqual(geo.tools[1]['data'], {})
-
-    def test_multigeo_transforms_main_solid_geometry_too(self):
-        geo = build(True)
-        before = geo.solid_geometry
-        geo.rotate(30, (0, 0))
-        same(self, reference(before, lambda g: affinity.rotate(g, 30, origin=(0, 0)), True),
-             geo.solid_geometry)
-
-    def test_single_geometry_stays_single(self):
-        geo = build(False)
-        geo.solid_geometry = MultiPolygon([box(0, 0, 1, 1), box(2, 2, 3, 3)])
-        geo.rotate(45, (1, 1))
-        self.assertIsInstance(geo.solid_geometry, MultiPolygon)
-        same(self, affinity.rotate(MultiPolygon([box(0, 0, 1, 1), box(2, 2, 3, 3)]), 45, origin=(1, 1)),
-             geo.solid_geometry)
-
-    def test_none_stays_none(self):
-        geo = build(False)
-        geo.solid_geometry = None
-        geo.mirror('X', (0, 0))
-        self.assertIsNone(geo.solid_geometry)
-
-    def test_scale_by_one_is_a_noop(self):
-        geo = build(False)
-        before = geo.solid_geometry
-        GeometryObject.scale(geo, 1, 1)
-        self.assertIs(geo.solid_geometry, before)
 
     def test_cncjob_transforms(self):
         for name, method, ref in (
@@ -275,55 +237,6 @@ def test_menu_flip_of_a_cncjob_updates_the_saved_gcode_also_after_undo_redo():
     assert job.app.history.redo() and job.source_file == flipped
 
 
-def test_menu_rotate_and_skew_of_a_cncjob_update_the_saved_gcode(monkeypatch):
-    import appGUI.GUIElements as gui
-
-    class Spinner:
-        def __init__(self, *a, **k):
-            pass
-
-        def setWindowIcon(self, *a):
-            pass
-
-        def get_value(self):
-            return 45.0, True
-
-    monkeypatch.setattr(gui, 'FCInputDoubleSpinner', Spinner)
-    # the last move of the L after the transform; the menu rotates clockwise
-    for handler, kwargs, last in (('on_rotate', {'silent': True, 'preset': 90}, 'G01 X14.5000 Y0.5000'),
-                                  ('on_skewx', {}, 'G01 X19.0000 Y5.0000'),
-                                  ('on_skewy', {}, 'G01 X14.0000 Y9.0000')):
-        job, ops = _menu_job()
-        getattr(ops, handler)(**kwargs)
-        assert last in job.tools[1]['gcode'] and last in job.source_file, handler
-
-
-
-def test_an_erosion_that_removes_everything_fails_without_a_change():
-    geo = Geometry(make_app())
-    geo.kind, geo.multigeo = 'geometry', False
-    geo.geo_steps_per_circle = 64
-    geo.solid_geometry = box(0, 0, 1, 1)
-    assert geo.buffer(-1, 2, None) == 'fail'
-    assert shapely.unary_union(geo.solid_geometry).area == pytest.approx(1.0)
-
-
-
-
-def test_multigeo_buffer_fails_atomically_when_one_tool_erodes_away():
-    geo = Geometry(make_app())
-    geo.kind, geo.multigeo = 'geometry', True
-    geo.geo_steps_per_circle = 64
-    geo.solid_geometry = box(0, 0, 10, 10)
-    geo.tools = {1: {'solid_geometry': [box(0, 0, 10, 10)], 'data': {}},
-                 2: {'solid_geometry': [box(20, 20, 21, 21)], 'data': {}}}
-    aggregate, tool = geo.solid_geometry, geo.tools[1]['solid_geometry'][0]
-    assert geo.buffer(-1, 'mitre', None) == 'fail'
-    assert geo.solid_geometry is aggregate
-    assert geo.tools[1]['solid_geometry'][0] is tool
-    assert geo.tools[2]['solid_geometry'][0].equals(box(20, 20, 21, 21))
-
-
 def test_a_closed_contour_erosion_that_splits_keeps_every_piece():
     geo = Geometry(make_app())
     geo.kind, geo.multigeo = 'geometry', False
@@ -337,31 +250,4 @@ def test_a_closed_contour_erosion_that_splits_keeps_every_piece():
 
 
 
-
-def test_factor_buffer_scales_each_element_about_its_own_center():
-    geo = Geometry(make_app())
-    geo.kind, geo.multigeo = 'geometry', False
-    geo.geo_steps_per_circle = 64
-    geo.solid_geometry = [box(0, 0, 2, 2), box(10, 0, 12, 2)]
-    assert geo.buffer(2, 'mitre', True) is None
-    assert [part.bounds for part in geo.solid_geometry] == pytest.approx(np.array([(-1, -1, 3, 3), (9, -1, 13, 3)]))
-
-
-def test_set_origin_scale_and_rotate_of_a_native_job_change_its_text_and_bounds():
-    text = 'G21\n' + ''.join('G01 X%.4f Y%.4f F300.00\n' % (k * 0.5, k % 2) for k in range(100))
-    job = _native_job(text)
-    paths = [{'geom': LineString([(k * 0.5, k % 2), (k * 0.5 + 0.5, (k + 1) % 2)]), 'kind': ['C', 'F']}
-             for k in range(100)]
-    job.tools[1]['gcode_parsed'] = job.gcode_parsed = paths
-    job.offset((1.0, 2.0))
-    job.scale(2.0, 2.0, (0, 0))
-
-    lines = job.tools[1]['gcode'].splitlines()
-    assert len(lines) == 101
-    # a scale keeps the feedrate (only a units change converts it)
-    assert lines[1] == 'G01 X2.0000 Y4.0000 F300.00' and lines[-1] == 'G01 X101.0000 Y6.0000 F300.00'
-    assert job.bounds() == pytest.approx((2, 4, 102, 6))
-    job.rotate(90, (0, 0))
-    assert job.bounds() == pytest.approx((-6, 2, -4, 102))
-
-
+

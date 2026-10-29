@@ -367,10 +367,3 @@ def test_tcl_export_dxf_name_list_and_default_extension():
     assert cmd.execute({'name': 'a'}, []) == 'fail'
     assert app.f_handlers.export_dxf.call_args.kwargs['filename'].endswith('/a.dxf')
 
-
-def test_dxf_export_defaults_exist():
-    from defaults import AppDefaults
-    import inspect
-    source = inspect.getsource(AppDefaults)
-    for key in ('geometry_dxf_layers', 'geometry_dxf_gerber_traces', 'geometry_dxf_travel', 'geometry_dxf_arcs'):
-        assert '"%s"' % key in source

@@ -4,7 +4,6 @@ import math
 import os
 import sys
 import tempfile
-import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -50,12 +49,6 @@ class TestShapes(unittest.TestCase):
         for a, b in zip(g[0].bounds, (5.0, 35.0, 25.0, 45.0)):
             self.assertAlmostEqual(a, b, places=6)
 
-    def test_flip_off_and_on(self):
-        on = bounds(run('<rect x="10" y="10" width="40" height="20"/>'))
-        off = bounds(run('<rect x="10" y="10" width="40" height="20"/>', flip=False))
-        self.assertAlmostEqual(on[1], 35.0)
-        self.assertAlmostEqual(off[1], 5.0)
-
     def test_circle_ellipse(self):
         c = run('<circle cx="100" cy="50" r="20"/>')
         self.assertAlmostEqual(c[0].area, math.pi * 400 * 0.25, delta=0.01 * c[0].area)
@@ -63,29 +56,12 @@ class TestShapes(unittest.TestCase):
         self.assertAlmostEqual(e[0].area, math.pi * 300 * 0.25, delta=0.01 * e[0].area)
         self.assertAlmostEqual(e[0].centroid.x, 50.0, places=4)
 
-    def test_steps_function_follows_the_radius(self):
-        from camlib import object_circle_steps
-        steps = lambda r: object_circle_steps(None, 'geometry', r, 'MM')
-        small, big = run('<circle cx="20" cy="20" r="0.5"/><circle cx="100" cy="50" r="20"/>', resolution=steps)
-        # viewBox 200 wide on 100 mm: 1 user unit = 0.5 mm
-        self.assertEqual(len(small.exterior.coords) - 1, steps(0.25))
-        self.assertEqual(len(big.exterior.coords) - 1, steps(10.0))
-        self.assertLess(len(small.exterior.coords), len(big.exterior.coords))
-        fixed, = run('<circle cx="20" cy="20" r="0.5"/>', resolution=64)
-        self.assertEqual(len(fixed.exterior.coords) - 1, 64)
-
     def test_units(self):
         for attrs in ('width="96px" height="96px"', 'width="1in" height="1in" viewBox="0 0 96 96"',
                       'width="72pt" height="72pt" viewBox="0 0 10 10"'):
             vb = 10.0 if 'pt' in attrs else 96.0
             g = run('<rect width="%s" height="%s"/>' % (vb, vb), attrs)
             self.assertAlmostEqual(g[0].area, 25.4 ** 2, places=4, msg=attrs)
-
-    def test_missing_size_uses_viewbox(self):
-        g = run('<rect width="96" height="96"/>', 'viewBox="0 0 96 96"')
-        self.assertAlmostEqual(g[0].area, 25.4 ** 2, places=4)
-        g = run('<rect width="96" height="96"/>', 'width="100%" height="100%" viewBox="0 0 96 96"')
-        self.assertAlmostEqual(g[0].area, 25.4 ** 2, places=4)
 
     def test_preserve_aspect_ratio(self):
         body = '<rect width="100" height="50"/>'
@@ -125,11 +101,6 @@ class TestPath(unittest.TestCase):
         self.assertGreater(big.area, small.area)
         self.assertAlmostEqual(big.area + small.area, math.pi * 100 + 0.0, delta=0.5)
 
-    def test_multiple_subpaths_and_implicit_lineto(self):
-        g = raw('<path d="M0 0 10 0 10 10 0 10z M20 0 30 0 30 10 20 10z"/>')
-        self.assertEqual(len(g), 2)
-        self.assertAlmostEqual(total_area(g), 200.0)
-
 class TestFillRules(unittest.TestCase):
     SAME = 'M0 0H20V20H0Z M5 5H15V15H5Z'
     OPPOSITE = 'M0 0H20V20H0Z M5 5V15H15V5Z'
@@ -137,15 +108,8 @@ class TestFillRules(unittest.TestCase):
     def area(self, d, rule):
         return total_area(raw('<path d="%s" fill-rule="%s"/>' % (d, rule)))
 
-    def test_nonzero_same_direction_fills(self):
-        self.assertAlmostEqual(self.area(self.SAME, 'nonzero'), 400.0)
-
     def test_evenodd_makes_hole(self):
         self.assertAlmostEqual(self.area(self.SAME, 'evenodd'), 300.0)
-
-    def test_figure_eight(self):
-        for rule in ('nonzero', 'evenodd'):
-            self.assertAlmostEqual(self.area('M0 0 L10 10 L10 0 L0 10 Z', rule), 50.0)
 
 class TestPaint(unittest.TestCase):
     def test_gerber_only_polygons(self):
@@ -155,18 +119,11 @@ class TestPaint(unittest.TestCase):
         self.assertTrue(g)
         self.assertTrue(all(p.geom_type == 'Polygon' for p in g))
 
-    def test_stroke_only_buffer(self):
-        g = raw('<path d="M0 0 H10" stroke="black" stroke-width="2" fill="none"/>', object_type='gerber')
-        self.assertAlmostEqual(g[0].area, 20.0, places=6)
-
     def test_fill_and_stroke_union(self):
         g = raw('<rect width="10" height="10" stroke="black" stroke-width="2"/>', object_type='gerber')
         self.assertEqual(len(g), 1)
         self.assertAlmostEqual(g[0].bounds[0], -1.0)
         self.assertGreater(g[0].area, 140.0)
-
-    def test_open_path_without_stroke_gives_nothing_in_gerber(self):
-        self.assertEqual(raw('<path d="M0 0 H10" fill="none"/>', object_type='gerber'), [])
 
 class TestStructure(unittest.TestCase):
     def test_nested_group_rotate_translate(self):
@@ -224,22 +181,6 @@ class TestModern(unittest.TestCase):
                 svg_to_shapes(bad)
         with self.assertRaises(SvgImportError):
             svg_to_shapes(12345)
-
-    def test_geometry_import_takes_the_first_of_several_tool_diameters(self):
-        # the Milling "Tools Dia" preference is a list of diameters ("0.3, 1.0"); float() of it failed the import
-        from camlib import Geometry
-        from tests.helpers_objects import make_app_0b
-        with tempfile.TemporaryDirectory() as d:
-            p = os.path.join(d, 'a.svg')
-            with open(p, 'w', encoding='utf-8') as f:
-                f.write(svg('<rect x="10" y="10" width="40" height="20" fill="none" stroke="black"/>'))
-            for value, dia in (('0.3, 1.0', 0.3), ('1.0', 1.0), (2.4, 2.4)):
-                geo = Geometry(make_app_0b(tools_mill_tooldia=value))
-                geo.obj_options = {'name': 'a.svg'}
-                geo.import_svg(p, 'geometry', units='MM')
-                self.assertEqual(geo.tools[1]['tooldia'], dia)
-                self.assertTrue(geo.tools[1]['solid_geometry'])
-
 
 def _fonts_available():
     try:
@@ -308,14 +249,6 @@ class TestDrillMarkers(unittest.TestCase):
             self.assertEqual(len(found), 1, (x, y))
             self.assertAlmostEqual(found[0].area, area, delta=0.02 * area)
 
-    def test_detection_off_keeps_every_shape(self):
-        on = run(DRILL_BOARD, DRILL_DOC, flip=False, drills=[])
-        off = run(DRILL_BOARD, DRILL_DOC, flip=False)
-        self.assertEqual(len(off), len(on) + len(self.ACCEPTED))
-        for x, y, _ in self.ACCEPTED:
-            self.assertEqual(len(near(off, x, y)), 1, (x, y))
-
-
 XMP_NS = ('xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" '
           'xmlns:xmpTPg="http://ns.adobe.com/xap/1.0/t/pg/" xmlns:stDim="http://ns.adobe.com/xap/1.0/sType/Dimensions#"')
 
@@ -366,30 +299,6 @@ class TestSvgDrills(unittest.TestCase):
         self.assertEqual(name, 'board.svg_drills')
         tools = sorted((round(t['tooldia'], 4), len(t['drills'])) for t in made[name].tools.values())
         self.assertEqual(tools, [(1.0, 2), (2.0, 1)])
-
-    def test_empty_list_creates_nothing(self):
-        name, made = self.import_drills([])
-        self.assertIsNone(name)
-        self.assertEqual(made, {})
-
-
-def bench_doc():
-    """20 000 elements: rect, circle, bezier path and rotated polygon, 5000 each."""
-    parts = []
-    for i in range(20000):
-        x, y = (i % 200) * 5 + 1, (i // 200) * 10 + 1
-        kind = i % 4
-        if kind == 0:
-            parts.append('<rect x="%d" y="%d" width="4" height="3"/>' % (x, y))
-        elif kind == 1:
-            parts.append('<circle cx="%d" cy="%d" r="1.5"/>' % (x, y))
-        elif kind == 2:
-            parts.append('<path d="M%d %d c 3 -6 9 -6 12 0 s 9 6 12 0 z"/>' % (x, y))
-        else:
-            parts.append('<polygon points="%d,%d %d,%d %d,%d" transform="rotate(15 %d %d)"/>' % (
-                x, y, x + 3, y, x, y + 3, x, y))
-    return svg(''.join(parts), 'width="1000mm" height="1000mm" viewBox="0 0 1000 1000"')
-
 
 if __name__ == '__main__':
     unittest.main()

@@ -6,6 +6,17 @@ Based on FlatCAM:
 
 CHANGELOG for FlatCAM Evo
 
+29.10.2026
+
+Translations:
+
+- updated all language translations (de, es, fr, it, pt_BR, ro, ru, tr, zh)
+
+Tests:
+
+- consolidated the test suite: removed tests that only drove the design, folded behavior tests into the existing topical files
+- added removed_tests.txt documenting the tests that were removed and why
+
 28.10.2026
 
 DipTrace PCB import:

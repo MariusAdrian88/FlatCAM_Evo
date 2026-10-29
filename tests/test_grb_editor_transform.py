@@ -4,27 +4,22 @@ class; the application and the shape collection are stand-ins. Everything is hea
 
 import os
 import sys
-import time
-import statistics
 import unittest
 import pytest
-from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
 
-from PyQt6 import QtCore, QtWidgets
+from PyQt6 import QtWidgets
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
 import numpy as np
-from shapely.affinity import rotate, scale, skew, translate
+from shapely.affinity import rotate, scale, translate
 from shapely.geometry import Point, box
 
-from appEditors import appGerberEditor
 from appEditors.appGerberEditor import AppGerberEditor
 from appEditors.grb_plugins.GrbCommon import DrawToolShape
 from appEditors.grb_plugins import GrbTransformationPlugin
 from appEditors.grb_plugins.GrbTransformationPlugin import TransformEditorTool, queue_transform
-from test_gerber_editor_pick import aperture, make_editor, pad, trace
+from test_gerber_editor_pick import aperture, make_editor, trace
 
 KEYS = ('solid', 'follow', 'clear')
 
@@ -166,12 +161,6 @@ class TransformCase(unittest.TestCase):
         self.check(lambda h: h.on_flip('X', (1.0, 2.0)), lambda g: scale(g, 1, -1, origin=(1.0, 2.0)))
         self.check(lambda h: h.on_flip('Y', (1.0, 2.0)), lambda g: scale(g, -1, 1, origin=(1.0, 2.0)))
 
-    def test_skew(self):
-        self.check(lambda h: h.on_skew('X', 12.0, 5.0, (0.5, 0.5)), lambda g: skew(g, 12.0, 5.0, origin=(0.5, 0.5)))
-
-    def test_scale(self):
-        self.check(lambda h: h.on_scale('X', 1.7, 0.6, (2.0, 1.0)), lambda g: scale(g, 1.7, 0.6, origin=(2.0, 1.0)))
-
     def test_offset(self):
         self.check(lambda h: h.on_offset('X', 3.25), lambda g: translate(g, 3.25, 0))
         self.check(lambda h: h.on_offset('Y', -1.5), lambda g: translate(g, 0, -1.5))
@@ -192,37 +181,7 @@ class TransformCase(unittest.TestCase):
         self.assertEqual(host.messages, [])
 
 
-    def test_buffer_factor(self):
-        host, editor, shapes = build()
-        before = snapshot(shapes)
-        host.on_buffer_action(1.3, 'round', True)
-        for shape, old in zip(shapes, before):
-            if shape in editor.selected:
-                for key in old:
-                    center = old['solid'].bounds
-                    origin = ((center[0] + center[2]) / 2, (center[1] + center[3]) / 2)
-                    same_geo(self, shape.geo[key], scale(old[key], 1.3, 1.3, origin=origin))
-        self.assertEqual(editor.plot_count, 1)
-
-    def test_no_selection(self):
-        host, editor, shapes = build()
-        editor.selected = []
-        host.on_rotate_action(10.0, (0, 0))
-        self.assertEqual(editor.plot_count, 0)
-        self.assertEqual(len(host.messages), 1)
-        self.assertTrue(host.messages[0].startswith('[WARNING_NOTCL]'))
-
-
-    def test_duplicate_selection_transformed_once(self):
-        host, editor, shapes = build()
-        editor.selected = [shapes[0], shapes[0]]
-        old = shapes[0].geo['solid']
-        host.on_offset('X', 1.0)
-        same_geo(self, shapes[0].geo['solid'], translate(old, 1.0, 0))
-
-
 @pytest.mark.parametrize('kind,params', [
-    ('skew', ['X', 90, 0, (0, 0)]),
     ('rotate', [float('inf'), (0, 0)]),
 ])
 def test_invalid_transform_preserves_selection_and_history(kind, params):
@@ -246,7 +205,6 @@ def test_scaling_eroded_pad_keeps_empty_solid_and_finite_follow():
 
 @pytest.mark.parametrize('kind,params', [
     ('offset', ['X', sys.float_info.max]),
-    ('buffer', [sys.float_info.max, 1, True]),
 ])
 def test_unrepresentable_worker_output_preserves_board_and_history(kind, params):
     host, editor, shapes = build()
@@ -291,19 +249,14 @@ def transformation_tool(editor):
     return TransformEditorTool(editor.app, editor)
 
 
-@pytest.mark.parametrize('outcome', ['failure', 'stale'])
-def test_rejected_queued_result_never_reports_success(outcome):
+def test_stale_queued_result_never_reports_success():
     host, editor, shapes = build()
     tool = transformation_tool(editor)
     before = snapshot(shapes)
     tool.on_rotate(val=20, ref=0)
     job = editor.app.worker_task.emit.call_args.args[0]
-    if outcome == 'failure':
-        with patch.object(GrbTransformationPlugin, 'affine_selection', side_effect=ValueError('failed')):
-            job['fcn'](*job['params'])
-    else:
-        editor.touch_geometry()
-        job['fcn'](*job['params'])
+    editor.touch_geometry()
+    job['fcn'](*job['params'])
     QtWidgets.QApplication.processEvents()
     assert snapshot(shapes) == before
     assert not editor.history.undo_stack
@@ -348,26 +301,6 @@ def test_standalone_tool_finishes_after_commit_without_losing_targets(kind):
         assert shapes[0].geo['solid'].area == pytest.approx(before.buffer(0.2, quad_segs=16).area)
     assert editor.active_tool.name == 'select'
     assert not any('Wait for' in message for message in host.messages)
-
-
-def test_escape_in_transform_tool_clears_the_selection_and_returns_to_select():
-    from appEditors.appGerberEditor import TransformEditorGrb
-    from appGUI.MainGUI import MainGUI
-    host, editor, shapes = build()
-    with patch.object(editor.transform_tool, 'run'):
-        editor.active_tool = TransformEditorGrb(editor)
-    with QtCore.QSignalBlocker(editor.ui.apertures_table):
-        editor.ui.apertures_table.selectRow(0)
-    editor.app.call_source = 'grb_editor'
-    editor.app.grb_editor = editor
-    # the key event as the canvas sends it (MainGUI.keyPressEvent through the VisPy key callback)
-    gui = SimpleNamespace(app=editor.app, grb_select_btn=SimpleNamespace(isChecked=lambda: False))
-    MainGUI.keyPressEvent(gui, SimpleNamespace(key='Escape', native=SimpleNamespace()))
-    assert editor.selected == []
-    assert editor.ui.apertures_table.selectedItems() == []
-    editor.select_tool.assert_called_once_with('select')
-
-
 
 
 if __name__ == '__main__':

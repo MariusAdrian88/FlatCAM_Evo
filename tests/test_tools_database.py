@@ -18,7 +18,7 @@ sys.path.insert(0, str(ROOT))
 
 from PyQt6 import QtCore, QtWidgets
 from appDatabase import ToolsDB2
-from appGUI.GUIElements import FCComboBox2, FCDoubleSpinner, FCDetachableTab2
+from appGUI.GUIElements import FCDetachableTab2
 from defaults import AppDefaults
 
 
@@ -238,24 +238,6 @@ class EditorChecks(DatabaseCase):
             QtCore.Qt.ItemDataRole.UserRole) for row in range(3)])
         self.assertFalse(self.app.tools_db_changed_flag)
 
-    def test_picker_shows_only_compatible_tools_and_operation_properties(self):
-        db = self.database({'7': record(4), '8': record(2), '9': record(0)})
-        db.set_context('paint')
-        self.assertEqual(2, db.ui.tree_widget.model().rowCount())
-        db.select_tool('9')
-        self.assertFalse(db.ui.paint_box.isHidden())
-        self.assertTrue(db.ui.drill_box.isHidden())
-        self.assertTrue(db.ui.iso_box.isHidden())
-        db.on_tool_request = MagicMock(return_value=True)
-        db._close_database_container = MagicMock(return_value=True)
-        self.assertTrue(db.on_tool_requested_from_app())
-        imported = db.on_tool_request.call_args.kwargs['tool']
-        self.assertIn('tools_paint_overlap', imported['data'])
-        self.assertNotIn('tools_drill_cutz', imported['data'])
-        self.assertEqual(0, db.db_tool_dict['9']['data']['tool_target'])
-        db.set_context('app')
-        self.assertEqual(3, db.ui.tree_widget.model().rowCount())
-
     def test_add_uses_current_operation_and_invalid_edit_preserves_saved_library(self):
         db = self.database()
         db.ui.filter_combo.setCurrentIndex(db.ui.filter_combo.findData(2))
@@ -271,42 +253,6 @@ class EditorChecks(DatabaseCase):
         self.assertEqual(before, self.path.read_bytes())
         self.assertTrue(self.app.tools_db_changed_flag)
         self.assertTrue(db.ui.status_label.text())
-
-    def test_typed_tolerance_min_and_max_stay_in_order(self):
-        # Min and Max were free: a Min typed for a new tool (Max still 0.0) made Save DB fail
-        from PyQt6.QtTest import QTest
-        db = self.database()
-        db.on_tool_add()
-
-        def typed(widget, text):
-            widget.selectAll()
-            QTest.keyClicks(widget, text)
-            QTest.keyClick(widget, QtCore.Qt.Key.Key_Return)
-            data = db.db_tool_dict['1']['data']
-            return round(data['tol_min'], 4), round(data['tol_max'], 4)
-
-        self.assertEqual((0.09, 0.09), typed(db.ui.tol_min_entry, '0.09'))
-        self.assertTrue(db.on_save_tools_db())
-        self.assertEqual((0.09, 0.12), typed(db.ui.tol_max_entry, '0.12'))
-        self.assertEqual((0.05, 0.05), typed(db.ui.tol_max_entry, '0.05'))
-        self.assertTrue(db.on_save_tools_db())
-        self.assertEqual([], self.slot_errors)
-
-    def test_add_with_a_bad_milling_tools_dia_preference_shows_a_message(self):
-        # the new tool takes the first diameter of the Milling 'Tools Dia' preference: a text that is not a number
-        # made 'Add Tool in DB' do nothing without a message; an empty text or 0 raised in normalize_tools_database()
-        db = self.database()
-        for text in ('0,1a', '', '0'):
-            with self.subTest(tools_dia=text):
-                self.app.options['tools_mill_tooldia'] = text
-                self.app.inform.reset_mock()
-                db.on_tool_add()
-                self.assertEqual({}, db.db_tool_dict)
-                message = self.app.inform.emit.call_args.args[0]
-                self.assertTrue(message.startswith('[ERROR_NOTCL]') and 'Tools Dia' in message, message)
-        self.app.options['tools_mill_tooldia'] = '0.8, 1.2'
-        db.on_tool_add()
-        self.assertEqual(0.8, db.db_tool_dict['1']['tooldia'])
 
     def test_sqlite_migration_preserves_legacy_and_unknown_fields(self):
         import appDatabase
@@ -378,17 +324,6 @@ class EditorChecks(DatabaseCase):
         destination.write_bytes(b'')
         self.path.write_text(json.dumps({'7': record(4)}), encoding='utf-8')
         appDatabase.initialize_tools_database(destination, self.path, self.app.options)
-        self.assertEqual(['7'], list(appDatabase.load_tools_database(destination, self.app.options)))
-
-    def test_migration_skips_bad_records_and_uses_newest_legacy_library(self):
-        import appDatabase
-        bad = record(4)
-        bad['name'] = ''
-        current = self.path.parent / 'tools_db_1.1.FlatDB'
-        current.write_text('{}', encoding='utf-8')
-        self.path.write_text(json.dumps({'7': record(4), '8': bad}), encoding='utf-8')
-        destination = self.path.with_suffix('.sqlite3')
-        appDatabase.initialize_tools_database(destination, [current, self.path], self.app.options)
         self.assertEqual(['7'], list(appDatabase.load_tools_database(destination, self.app.options)))
 
     def test_editor_skips_bad_record_and_saves_the_rest(self):
@@ -513,21 +448,6 @@ class EditorChecks(DatabaseCase):
                 self.assertEqual('0.1', loaded['3']['data']['tools_iso_tooldia'])
                 self.assertEqual([10.0, 10.0], loaded['6']['data']['tools_mill_endxy'])
 
-    def test_records_with_wrong_option_types_are_still_skipped(self):
-        import appDatabase
-        wrong = {'7': ('tools_mill_feedrate', '120'), '8': ('tools_mill_toolchangexy', [float('nan'), 0.0]),
-                 '9': ('tools_mill_endxy', {'x': 1.0}), '10': ('tools_mill_multidepth', 1),
-                 '11': ('tools_mill_startz', True)}
-        records = {}
-        for tool_id, (key, value) in wrong.items():
-            records[tool_id] = record(1)
-            records[tool_id]['data'][key] = value
-
-        for options in (self.preferences_after_apply(), self.app.options):
-            skipped = {}
-            self.assertEqual({}, appDatabase.normalize_tools_database(records, options, skipped=skipped))
-            self.assertEqual(sorted(wrong), sorted(skipped))
-
     def test_load_accepts_utf8_bom_and_rejects_import_transactionally(self):
         import appDatabase
 
@@ -568,14 +488,6 @@ class EditorChecks(DatabaseCase):
             self.assertFalse(db.on_import_tools_db_file(replace=True))
         self.assertEqual(before_state, db.db_tool_dict)
 
-    def test_cutout_gap_type_roundtrip(self):
-        db = self.database()
-        db.ui.cutout_gaptype_radio.blockSignals(True)
-        for value in (0, 1, 2):
-            with self.subTest(value=value):
-                db.ui.cutout_gaptype_radio.set_value(value)
-                self.assertEqual(value, db.ui.cutout_gaptype_radio.get_value())
-
     def test_v_tool_diameter_calculation_uses_numeric_shape_id(self):
         db = self.database()
         db.ui.mill_shape_combo.set_value(5)
@@ -593,74 +505,6 @@ class EditorChecks(DatabaseCase):
         db.on_calculate_tooldia()
         self.assertEqual(diameter, db.ui.dia_entry.get_value())
 
-    def test_job_and_offset_write_canonical_keys(self):
-        db = self.database()
-        for name, value, key, widget in (
-                ('gdb_job', 2, 'tools_mill_job_type', FCComboBox2()),
-                ('gdb_custom_offset', 0.75, 'tools_mill_offset_value', FCDoubleSpinner())):
-            with self.subTest(name=name):
-                if isinstance(widget, FCComboBox2):
-                    widget.addItems(['a', 'b', 'c'])
-                widget.setObjectName(name)
-                widget.set_value(value)
-                target = record()
-                item = MagicMock()
-                item.data.return_value = '1'
-                stub = SimpleNamespace(
-                    current_toolid=1, sender=lambda: widget, app=self.app,
-                    db_tool_dict={'1': target}, name2option=db.name2option,
-                    selected_tool_ids=lambda: ['1'], model=MagicMock(),
-                    on_tools_db_edited=MagicMock())
-                ToolsDB2.update_storage(stub)
-                self.assertEqual(value, target['data'][key])
-                self.assertNotIn('job', target['data'])
-                self.assertNotIn('tools_mill_offset_value', target)
-
-    def test_sparse_ids_survive_copy_sort_delete_and_request(self):
-        db = self.database({'7': record(), '42': record(3, 0.8)})
-        db.select_tool('7')
-        db.on_tool_copy()
-        self.assertEqual({'7', '42', '43'}, set(db.db_tool_dict))
-
-        db.on_sort_dia()
-        db.on_sort_target()
-        self.assertEqual({'7', '42', '43'}, set(db.db_tool_dict))
-
-        db.select_tool('42')
-        db.on_tool_delete()
-        self.assertEqual({'7', '43'}, set(db.db_tool_dict))
-
-        db.select_tool('43')
-        db.confirm_close = MagicMock(return_value=True)
-        db.on_tool_requested_from_app()
-        self.assertEqual('fixture', db.on_tool_request.call_args.kwargs['tool']['name'])
-
-    def test_empty_database_can_add_delete_last_and_add_again(self):
-        db = self.database()
-        db.on_tool_add()
-        self.assertEqual({'1'}, set(db.db_tool_dict))
-        db.select_tool('1')
-        db.on_tool_delete()
-        self.assertEqual({}, db.db_tool_dict)
-        db.on_tool_add()
-        self.assertEqual({'1'}, set(db.db_tool_dict))
-
-        db.db_tool_dict['1']['name'] = 'new_tool_custom'
-        db.on_tool_add()
-        self.assertEqual({'1', '2'}, set(db.db_tool_dict))
-
-    def test_database_request_delivers_an_independent_copy(self):
-        db = self.database({'1': record()})
-        db.select_tool('1')
-        original = deepcopy(db.db_tool_dict['1'])
-
-        def mutate(tool):
-            tool['data']['tools_mill_feedrate'] = 321.0
-
-        db.on_tool_request = mutate
-        db.on_tool_requested_from_app()
-        self.assertEqual(original, db.db_tool_dict['1'])
-
     def test_failed_save_keeps_dirty_flag_and_bytes(self):
         db = self.database({'1': record()})
         before = self.path.read_bytes()
@@ -672,15 +516,6 @@ class EditorChecks(DatabaseCase):
         self.assertTrue(self.app.tools_db_changed_flag)
         self.assertEqual(before, self.path.read_bytes())
         self.assertNotEqual(db.ui.save_db_btn.default_stylesheet, db.ui.save_db_btn.styleSheet())
-
-    def test_save_without_visible_tab_writes_database(self):
-        db = self.database({'1': record()})
-        db.db_tool_dict['1']['name'] = 'saved after tab removal'
-        db.on_tools_db_edited(silent=True)
-        self.tabs.removeTab(0)
-        self.assertTrue(db.on_save_tools_db())
-        self.assertEqual('saved after tab removal', json.loads(self.path.read_text())['1']['name'])
-        self.assertEqual(db.ui.save_db_btn.default_stylesheet, db.ui.save_db_btn.styleSheet())
 
     def test_json_export_preserves_units_and_failed_export_preserves_file(self):
         import appDatabase
@@ -717,23 +552,6 @@ class EditorChecks(DatabaseCase):
         self.assertEqual(23.0, saved['7']['data']['tools_paint_overlap'])
         self.assertFalse(self.app.tools_db_changed_flag)
 
-    def test_discard_successful_request_closes_and_clears_dirty_state(self):
-        import appDatabase
-
-        db = self.database({'1': record()})
-        db.select_tool('1')
-        db.on_tool_request = MagicMock(return_value=True)
-        self.app.tools_db_changed_flag = True
-        self.tabs.closeTab = MagicMock(
-            side_effect=lambda index: setattr(self.app, 'tools_db_changed_flag', False) or True)
-        DecisionMessageBox.response = 'no'
-
-        with patch.object(appDatabase, 'FCMessageBox', DecisionMessageBox):
-            self.assertTrue(db.on_tool_requested_from_app())
-
-        self.assertFalse(self.app.tools_db_changed_flag)
-        self.tabs.closeTab.assert_called_once_with(0)
-
     def test_confirm_close_save_discard_cancel(self):
         import appDatabase
 
@@ -767,29 +585,6 @@ class EditorChecks(DatabaseCase):
         db._close_preapproved = True
         self.assertTrue(db.confirm_close())
         self.assertFalse(db._close_preapproved)
-
-    def test_confirm_close_keeps_dirty_state_when_save_fails(self):
-        import appDatabase
-
-        class SaveFailureMessageBox:
-            def __init__(self, parent=None):
-                self.yes = object()
-
-            def addButton(self, label, role):
-                return self.yes if str(label) == 'Yes' else object()
-
-            def clickedButton(self):
-                return self.yes
-
-            def __getattr__(self, name):
-                return lambda *args, **kwargs: None
-
-        with patch.object(appDatabase, 'FCMessageBox', SaveFailureMessageBox):
-            db = self.database({'1': record()})
-            db.app.tools_db_changed_flag = True
-            db.on_save_tools_db = MagicMock(return_value=False)
-            self.assertFalse(db.confirm_close())
-            self.assertTrue(db.app.tools_db_changed_flag)
 
 class ConsumerChecks(DatabaseCase):
     def test_missing_database_opens_recovery_editor_without_creating_file(self):

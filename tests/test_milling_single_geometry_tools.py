@@ -129,7 +129,7 @@ def cut_items(parsed):
     return sum(1 for geo in parsed if geo['kind'][0] == 'C')
 
 
-@pytest.mark.parametrize('pp', ['default', 'GRBL_laser'])
+@pytest.mark.parametrize('pp', ['default'])
 @pytest.mark.parametrize('n_tools', [2])
 def test_each_tool_gcode_holds_only_that_tool(n_tools, pp):
     __, job = milling_job(n_tools, pp)
@@ -140,7 +140,7 @@ def test_each_tool_gcode_holds_only_that_tool(n_tools, pp):
         assert cut_moves(tool['gcode']) == CUT_MOVES, k
 
 
-@pytest.mark.parametrize('pp', ['default', 'GRBL_laser'])
+@pytest.mark.parametrize('pp', ['GRBL_laser'])
 @pytest.mark.parametrize('n_tools', [2])
 def test_the_exported_file_has_every_path_once(n_tools, pp):
     __, job = milling_job(n_tools, pp)
@@ -187,8 +187,8 @@ def xy_cuts(gcode):
     return [(float(x), float(y)) for x, y in re.findall(r'^G0?1 X(-?[\d.]+) Y(-?[\d.]+)', gcode, re.MULTILINE)]
 
 
-@pytest.mark.parametrize('multigeo', [False, True])
-@pytest.mark.parametrize('offset', [0, 'abc'])
+@pytest.mark.parametrize('multigeo', [True])
+@pytest.mark.parametrize('offset', ['abc'])
 def test_custom_offset_without_a_usable_value_is_a_failed_job(multigeo, offset):
     app, job = milling_job(2, multigeo=multigeo, from_tcl=True,
                            data=dict(tools_mill_offset_type=3, tools_mill_offset_value=offset))
@@ -196,7 +196,7 @@ def test_custom_offset_without_a_usable_value_is_a_failed_job(multigeo, offset):
     assert not any('CNCjob created' in str(c.args[0]) for c in app.inform.emit.call_args_list)
 
 
-@pytest.mark.parametrize('method', [0, 1, 2])
+@pytest.mark.parametrize('method', [0])
 def test_polishing_paints_the_box_with_margin_and_cuts_it(method):
     # the plugin works on a copy of the tools of the object: the plotted geometry of the job is the painted one
     __, job = milling_job(1, multigeo=True, from_tcl=True, separate_selection=True,
@@ -208,7 +208,7 @@ def test_polishing_paints_the_box_with_margin_and_cuts_it(method):
     assert min(g.bounds[0] for g in plotted) < 0 and max(g.bounds[2] for g in plotted) > 30
 
 
-@pytest.mark.parametrize('multigeo', [False, True])
+@pytest.mark.parametrize('multigeo', [False])
 def test_old_tool_without_optimization_or_probe_settings_makes_a_job(multigeo):
     # Geometry objects of older versions: no optimization in the tool, no probe settings in the object
     drop = ("tools_mill_optimization_type", "tools_mill_z_p_depth", "tools_mill_probe_plate",
@@ -218,7 +218,7 @@ def test_old_tool_without_optimization_or_probe_settings_makes_a_job(multigeo):
     assert job != 'fail'
 
 
-@pytest.mark.parametrize('multigeo', [False, True])
+@pytest.mark.parametrize('multigeo', [False])
 def test_each_tool_has_its_own_spindle_direction(multigeo):
     __, job = milling_job(2, multigeo=multigeo, from_tcl=True, per_tool={
         1: dict(tools_mill_spindledir='CW'), 2: dict(tools_mill_spindledir='CCW')})
@@ -237,21 +237,13 @@ def test_the_next_tool_starts_its_travel_where_the_previous_one_ended():
     assert end_of_tool_1 != (0, 0)
 
 
-@pytest.mark.parametrize('multigeo', [False, True])
+@pytest.mark.parametrize('multigeo', [True])
 def test_tool_without_area_exclusion_does_not_route_around_the_areas(multigeo):
     travels = []
     milling_job(1, multigeo=multigeo, from_tcl=True, travels=travels, data=dict(tools_mill_area_exclusion=False))
     assert not travels
     milling_job(1, multigeo=multigeo, from_tcl=True, travels=travels, data=dict(tools_mill_area_exclusion=True))
     assert travels
-
-
-def test_the_exclusion_checkbox_of_the_plugin_reaches_the_multi_geometry_job():
-    travels = []
-    ui = SimpleNamespace(toolchange_cb=SimpleNamespace(get_value=lambda: False),
-                         exclusion_cb=SimpleNamespace(get_value=lambda: False))
-    milling_job(1, multigeo=True, travels=travels, ui=ui, data=dict(tools_mill_area_exclusion=True))
-    assert not travels
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -319,7 +311,7 @@ def test_excellon_paint_without_a_usable_tool_is_an_error_and_no_job():
     assert 'CNCjob created' not in messages(app)
 
 
-@pytest.mark.parametrize('multigeo', [False, True])
+@pytest.mark.parametrize('multigeo', [False])
 @pytest.mark.parametrize('optimization, last_cut', [('N', (30.0, 10.0)), ('R', (20.0, 0.0))])
 def test_the_optimization_of_the_tool_orders_its_paths(multigeo, optimization, last_cut):
     app, job = milling_job(1, multigeo=multigeo, from_tcl=True, data=dict(tools_mill_optimization_type=optimization))

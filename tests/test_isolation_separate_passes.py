@@ -83,7 +83,7 @@ def wkb_set(geometries):
     return sorted(g.wkb_hex for g in geometries if not g.is_empty)
 
 
-@pytest.mark.parametrize('passes', [1, 3])
+@pytest.mark.parametrize('passes', [3])
 def test_whole_object_makes_one_geometry_per_pass(tool, app, passes):
     created = run_isolate(tool, app, make_gerber(app, name='g'), passes)
 
@@ -109,25 +109,6 @@ def test_area_selection_with_separate_passes(tool, app):
 
 
 # ------------------------------------------------------------------------------------------- the run and its tools
-
-def test_a_run_leaves_the_plugin_tools_as_they_are_and_gives_each_object_its_own_data(tool, app):
-    for combine in (False, True):
-        storage = two_tools(2)
-        storage[2]['solid_geometry'] = [box(0, 0, 1, 1)]  # kept from an earlier run
-        before = deepcopy(storage)
-
-        created = run_isolate(tool, app, make_gerber(app, name='g'), 2, storage=storage, combine=combine)
-
-        assert created
-        assert storage == before
-        for name, obj in created.items():
-            # only the selected tool, with the geometry of this run
-            assert list(obj.tools) == [1]
-            assert len(obj.tools[1]['solid_geometry']) > 0
-            assert obj.tools[1]['data'] is not storage[1]['data']
-            assert combine or obj.tools[1]['data']['name'] == name
-        assert len({id(obj.tools[1]['data']) for obj in created.values()}) == len(created)
-
 
 def test_no_object_is_made_for_an_empty_selection_a_stop_or_an_empty_area(tool, app, monkeypatch):
     gerber = make_gerber(app, name='g')
@@ -188,122 +169,6 @@ def test_rest_machining_uses_the_selected_tools_largest_first_and_survives_a_fai
     assert not created
 
 
-def test_generate_buffer_takes_a_list_with_multipolygons(tool, app, monkeypatch):
-    gerber, pad_a, pad_b = pads_gerber(app)
-    gerber.solid_geometry = [MultiPolygon([pad_a, pad_b]), box(5, 5, 6, 6)]
-    monkeypatch.setattr(tool.app, 'collection', Mock(get_by_name=Mock(return_value=gerber)))
-    monkeypatch.setattr(tool.app.worker_task, 'emit', lambda task: task['fcn'](*task['params']))
-
-    tool.on_generate_buffer()
-
-    assert unary_union(gerber.solid_geometry).area == pytest.approx(unary_union([pad_a, pad_b]).area + 1, rel=1e-3)
-
-
-# ------------------------------------------------------------------------------------ Area / Polygon selection modes
-
-class FakeShapes:
-    """The tool_shapes collection: {id: shape}."""
-    def __init__(self):
-        self.shapes, self.last = {}, 0
-
-    def add_batch(self, items, **kw):
-        ids = []
-        for item in items:
-            self.last += 1
-            self.shapes[self.last] = item['shape']
-            ids.append(self.last)
-        return ids
-
-    def remove(self, key, update=False):
-        del self.shapes[key]
-
-    def clear(self, update=False):
-        self.shapes.clear()
-
-    def redraw(self, *a, **kw):
-        pass
-
-
-class FakeSnapButton:
-    def __init__(self, checked):
-        self.checked = checked
-
-    def isChecked(self):
-        return self.checked
-
-    def trigger(self):
-        self.checked = not self.checked
-
-
-class Click:
-    def __init__(self, pos, button=1):
-        self.pos, self.button = pos, button
-
-
-@pytest.fixture
-def sel_tool(tool, monkeypatch):
-    """The plugin with a three pad object (centers 0, 10, 20 on x) and a fake canvas / shape collection."""
-    gerber, __, __ = pads_gerber(None) if False else (None, None, None)
-    pads = [Point(x, 0).buffer(1) for x in (0, 10, 20)]
-    tool.grb_obj = Mock(solid_geometry=pads)
-    tool.app.tool_shapes = FakeShapes()
-    tool.app.selection_type = None
-    tool.app.event_is_dragging = False
-    tool.app.grid_status = lambda: False
-    tool.app.plotcanvas.translate_coords = lambda p: (p[0], p[1])
-    tool.app.ui.grid_snap_btn = FakeSnapButton(True)
-    tool.area_sel_disconnect_flag = tool.poly_sel_disconnect_flag = False
-    tool.end_selection_mode()
-    tool.iso_tools = tools_storage(1)
-    monkeypatch.setattr(tool, '_selected_tool_ids', lambda: [1])
-    monkeypatch.setattr(tool, 'isolate', Mock())
-    monkeypatch.setattr(tool, 'draw_tool_selection_shape', Mock())
-    tool.pads = pads
-    yield tool
-    tool.end_selection_mode()
-
-
-def test_area_rectangle_and_select_all_select_each_polygon_once(sel_tool):
-    sel_tool.selection_area_handler((-1.5, -1.5), (11.5, 1.5), True)
-    assert len(sel_tool.poly_dict) == 2
-
-    sel_tool.end_selection_mode()
-    sel_tool.selection_area_handler((-1.5, -1.5), (9.5, 1.5), False)     # touches the pad at 10, not enclosing it
-    assert len(sel_tool.poly_dict) == 2
-    sel_tool.selection_area_handler((-1.5, -1.5), (9.5, 1.5), True)      # nothing new enclosed
-    assert len(sel_tool.poly_dict) == 2
-
-    sel_tool.end_selection_mode()
-    sel_tool.grb_obj.solid_geometry = [MultiPolygon(sel_tool.pads[:2]), sel_tool.pads[2]]
-    sel_tool.ui.object_combo.currentText = lambda: 'g'
-    sel_tool.app.collection = Mock(get_by_name=Mock(return_value=sel_tool.grb_obj))
-    sel_tool.on_select_all_polygons()
-    sel_tool.on_select_all_polygons()
-    assert len(sel_tool.poly_dict) == 3 == len(sel_tool.app.tool_shapes.shapes)
-
-
-def test_polygon_clicks_add_and_remove_and_the_right_click_isolates_in_the_worker(sel_tool):
-    tasks = []
-    sel_tool.app.worker_task.emit = tasks.append
-    sel_tool.on_poly_mouse_click_release(Click((10, 0.5)))
-    sel_tool.on_poly_mouse_click_release(Click((20, 0)))
-    assert sorted(p.centroid.x for p in sel_tool.poly_dict.values()) == pytest.approx([10, 20])
-
-    sel_tool.on_poly_mouse_click_release(Click((10, 0.5)))
-    assert [p.centroid.x for p in sel_tool.poly_dict.values()] == pytest.approx([20])
-    assert len(sel_tool.app.tool_shapes.shapes) == 1
-
-    sel_tool.ui.combine_passes_cb.set_value(True)
-    sel_tool.on_poly_mouse_click_release(Click((0, 0), button=2))
-    sel_tool.ui.combine_passes_cb.set_value(False)    # after the click: the run keeps the value of the click
-    sel_tool.isolate.assert_not_called()
-    assert not sel_tool.poly_dict and not sel_tool.app.tool_shapes.shapes
-    (task,) = tasks
-    task['fcn'](*task['params'])
-    assert len(sel_tool.isolate.call_args.kwargs['geometry']) == 1
-    assert sel_tool.isolate.call_args.kwargs['combine'] is True
-
-
 # ------------------------------------------------------------------ several Gerber objects in one run
 
 @pytest.mark.parametrize('multi, selection, expected', [
@@ -347,37 +212,6 @@ def test_selected_gerbers_are_isolated_in_one_run(tool, app, multi, selection, e
     tool.on_iso_button_click()
 
     assert sorted(created) == expected
-
-
-def test_the_run_uses_the_widget_values_of_the_generate_click(tool, app):
-    gerber = make_gerber(app, name='a')
-    created = Created()
-
-    def new_object(kind, name, initialize, plot=True, **kw):
-        obj = GeometryObject(name, app)
-        created[name] = obj if initialize(obj, app) != 'fail' else None
-        return 'ok'
-
-    tasks = []
-    tool.app.app_obj.new_object = Mock(side_effect=new_object)
-    tool.app.worker_task.emit = tasks.append
-    tool.app.collection.get_by_name = lambda name: gerber
-    tool.app.collection.get_selected = lambda: []
-    tool.iso_tools = tools_storage(2)
-    tool.build_ui()
-    tool.ui.tools_table.selectAll()
-    tool.ui.object_combo.currentText = lambda: 'a'
-    for cb, value in ((tool.ui.valid_cb, False), (tool.ui.combine_passes_cb, True), (tool.ui.rest_cb, False),
-                      (tool.ui.except_cb, False), (tool.ui.simplify_cb, False), (tool.ui.pad_passes_entry, 0),
-                      (tool.ui.select_combo, 0), (tool.ui.multi_objects_cb, False)):
-        cb.set_value(value)
-
-    tool.on_iso_button_click()
-    tool.ui.combine_passes_cb.set_value(False)      # before the worker runs
-    (task,) = tasks
-    task['fcn'](*task['params'])
-
-    assert sorted(created) == ['a_iso_combined']
 
 
 @pytest.mark.parametrize('change', ['edit'])

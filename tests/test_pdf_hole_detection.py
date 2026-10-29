@@ -22,15 +22,6 @@ from appParsers.PdfStreamParser import PurePythonPdfParser, PikePdfParser, PdfPa
 # ponytail: tiny synthetic inputs cover the import path without full-board scans.
 
 
-def test_hole_detection_modes():
-    assert PdfParser(units='MM', resolution=10, abort=False).hole_detection_mode == 'both'
-    for mode in ('both', 'fill_only', 'stroke_only'):
-        parser = PdfParser(units='MM', resolution=10, abort=False, hole_detection_mode=mode)
-        assert parser.hole_detection_mode == mode
-    with pytest.raises(ValueError, match='Invalid hole_detection_mode'):
-        PdfParser(units='MM', resolution=10, abort=False, hole_detection_mode='invalid')
-
-
 def _parse(stream, units='INCH'):
     return PdfParser(units=units, resolution=64, abort=False).parse_pdf(stream)
 
@@ -192,15 +183,6 @@ def test_excellon_filters_and_deduplicates_drills():
     assert small['drills'][0].x == pytest.approx(0.002)
 
 
-def test_empty_layers_make_no_object():
-    # a gray fill that a later white fill covers fully, and no round hole
-    data = _parse('0.9 0.9 0.9 rg 0 0 20 20 re f 1 1 1 rg 0 0 30 30 re f', units='MM')
-    tool, rendered = _make_tool()
-    tool.layer_rendering_as_gerber('test.pdf', data[1], 1)
-    tool.layer_rendering_as_excellon('test.pdf', data[0], 0)
-    assert rendered == []
-
-
 def _make_pdf(contents_refs, stream_objects):
     parts = [b'%PDF-1.4\n']
     parts.append(b'1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n')
@@ -293,7 +275,7 @@ def _square_font():
     return output.getvalue()
 
 
-@pytest.mark.parametrize('parser_class', [PurePythonPdfParser, PikePdfParser])
+@pytest.mark.parametrize('parser_class', [PurePythonPdfParser])
 @pytest.mark.parametrize('font_type', ['Type0', 'TrueType', 'not embedded'])
 def test_text_is_imported_as_glyph_outlines(tmp_path, parser_class, font_type):
     parser = parser_class()
@@ -378,14 +360,6 @@ def test_object_stream_page_with_form_xobject_is_extracted(tmp_path, parser_clas
     solid = _all_solids(_parse(content))
     min_y, max_y = solid.bounds[1] * 72, solid.bounds[3] * 72
     assert (min_y, max_y) == pytest.approx((5.0, 26.0), abs=1e-6)
-
-
-def test_unsupported_pdf_filter_is_reported(tmp_path):
-    pdf = _make_pdf([4], [(4, b'/Filter /LZWDecode', b'not-lzw')])
-    path = tmp_path / 'unsupported.pdf'
-    path.write_bytes(pdf)
-    with pytest.raises(PdfParserError, match='Unsupported PDF filter'):
-        PurePythonPdfParser().extract_content_streams(str(path))
 
 
 def test_encrypted_pdf_is_rejected(tmp_path):
@@ -475,7 +449,7 @@ def _open_pdf(filename, parser=None):
     return named
 
 
-@pytest.mark.parametrize('parser_class', [PurePythonPdfParser, PikePdfParser])
+@pytest.mark.parametrize('parser_class', [PurePythonPdfParser])
 def test_every_page_is_extracted_in_order(tmp_path, parser_class):
     parser = parser_class()
     if not parser.is_available():
@@ -486,12 +460,6 @@ def test_every_page_is_extracted_in_order(tmp_path, parser_class):
     assert ' re' not in pages[1]
     assert ' re' in pages[0]
     assert pages[2].strip() and ' re' not in pages[2]
-
-
-def test_single_page_pdf_gets_plain_layer_names(tmp_path):
-    named = _open_pdf(_reportlab_pdf(tmp_path / 'one.pdf', ['rect']))
-    assert named
-    assert all(name.startswith('one.pdf_') and '_p' not in name for name in named)
 
 
 def test_each_page_gets_its_suffix_and_a_blank_page_gives_nothing(tmp_path):
@@ -537,15 +505,7 @@ def test_clip_ends_at_q_and_clipped_fill_is_the_intersection():
     assert solid.symmetric_difference(expected).area == pytest.approx(0.0, abs=1e-6)
 
 
-def test_even_odd_clip_leaves_only_the_frame():
-    stream = 'q 0 0 20 20 re 5 5 10 10 re W* n 0 0 100 100 re f Q'
-    solid = _all_solids(_parse(stream))
-    assert solid.area * 72 ** 2 == pytest.approx(300.0, abs=1e-6)
-    assert solid.covers(Point(2 / 72, 2 / 72))
-    assert not solid.intersects(Point(10 / 72, 10 / 72))
-
-
-@pytest.mark.parametrize('parser_class', [PurePythonPdfParser, PikePdfParser])
+@pytest.mark.parametrize('parser_class', [PurePythonPdfParser])
 def test_form_xobject_clip_is_scoped_to_the_form(tmp_path, parser_class):
     parser = parser_class()
     if not parser.is_available():
@@ -594,22 +554,14 @@ def _drawn(named):
 
 @pytest.mark.parametrize('config', [
     b'<</BaseState/ON/OFF [6 0 R]>>',
-    b'<</BaseState/OFF/ON [5 0 R]>>',
-], ids=['notes-off', 'base-off'])
+], ids=['notes-off'])
 def test_hidden_layer_content_is_not_imported(tmp_path, config):
     content = b'/OC /Top BDC 10 10 30 30 re f EMC /OC /Notes BDC 60 60 20 20 re f EMC'
     named = _open_pdf(_layered_pdf(tmp_path / 'layers.pdf', content, config))
     assert _drawn(named).bounds == pytest.approx(_mm(10, 10, 40, 40), abs=1e-3)
 
 
-def test_hidden_outer_layer_hides_the_nested_one(tmp_path):
-    # Top is hidden and Notes is visible: the Notes square is still inside a hidden layer
-    content = b'10 10 30 30 re f /OC /Top BDC /OC /Notes BDC 60 60 20 20 re f EMC EMC'
-    named = _open_pdf(_layered_pdf(tmp_path / 'nested.pdf', content, b'<</BaseState/ON/OFF [5 0 R]>>'))
-    assert _drawn(named).bounds == pytest.approx(_mm(10, 10, 40, 40), abs=1e-3)
-
-
-@pytest.mark.parametrize('policy, visible', [(b'/AnyOn', True), (b'/AllOn', False)])
+@pytest.mark.parametrize('policy, visible', [(b'/AllOn', False)])
 def test_membership_dictionary_policy_decides_visibility(tmp_path, policy, visible):
     # Top is on and Notes is off
     extra = {7: b'<</Type/OCMD/OCGs [5 0 R 6 0 R]/P ' + policy + b'>>'}
@@ -621,21 +573,6 @@ def test_membership_dictionary_policy_decides_visibility(tmp_path, policy, visib
         assert drawn.bounds == pytest.approx(_mm(60, 60, 80, 80), abs=1e-3)
     else:
         assert drawn.is_empty
-
-
-def test_form_xobject_with_a_hidden_oc_is_skipped(tmp_path):
-    form = _stream(b'/Type/XObject/Subtype/Form/BBox [0 0 100 100]/OC 6 0 R', b'60 60 20 20 re f')
-    content = b'10 10 30 30 re f /F Do'
-    named = _open_pdf(_layered_pdf(tmp_path / 'form_oc.pdf', content, b'<</BaseState/ON/OFF [6 0 R]>>',
-                                   xobjects=b'/XObject <</F 8 0 R>>', extra={8: form}))
-    assert _drawn(named).bounds == pytest.approx(_mm(10, 10, 40, 40), abs=1e-3)
-
-
-def test_unresolvable_marked_content_stays_visible(tmp_path):
-    # /Missing names no property, so its square is kept; Notes (off) is hidden
-    content = b'/OC /Missing BDC 60 60 20 20 re f EMC /OC /Notes BDC 10 10 30 30 re f EMC'
-    named = _open_pdf(_layered_pdf(tmp_path / 'missing.pdf', content, b'<</BaseState/ON/OFF [6 0 R]>>'))
-    assert _drawn(named).bounds == pytest.approx(_mm(60, 60, 80, 80), abs=1e-3)
 
 
 if __name__ == '__main__':

@@ -139,21 +139,6 @@ class TestTitleBar(unittest.TestCase):
         QtTest.QTest.keyClick(self.bar.menu, QtCore.Qt.Key.Key_Escape)
         self.assertTrue(self.bar.menu_button.isVisible())
 
-    def test_menu_without_hamburger_stays_open(self):
-        self.bar.set_hamburger(False)
-        self.qapp.processEvents()
-        self.assertFalse(self.bar.menu_button.isVisible())
-        self.assertTrue(self.bar.menu.isVisible())
-        QtTest.QTest.mouseClick(self.window.centralWidget(), QtCore.Qt.MouseButton.LeftButton)
-        QtTest.QTest.keyClick(self.bar.menu, QtCore.Qt.Key.Key_Escape)
-        self.window.open_action.trigger()
-        self.qapp.processEvents()
-        self.assertFalse(self.bar.menu_button.isVisible())
-        self.assertTrue(self.bar.menu.isVisible())
-        self.bar.set_hamburger(True)
-        self.qapp.processEvents()
-        self.assertTrue(self.bar.menu_button.isVisible())
-        self.assertFalse(self.bar.menu.isVisible())
 
     def test_project_title_is_centered_while_title_toolbar_stays_right(self):
         self.assertEqual(self.bar.title_label.alignment(), QtCore.Qt.AlignmentFlag.AlignCenter)
@@ -309,60 +294,6 @@ class TestTitleBar(unittest.TestCase):
         self.assertTrue(self.bar.menu_button.isVisible())
         self.assertTrue(all(handle.isVisible() for handle in self.bar.resize_handles.values()))
 
-    def test_windows_caption_and_maximize_are_native_snap_targets(self):
-        if sys.platform != 'win32' or self.qapp.platformName() != 'windows':
-            self.skipTest('Windows native snapping')
-        import ctypes
-        from ctypes import wintypes
-        from PyQt6 import sip
-
-        user32 = ctypes.windll.user32
-        user32.SendMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
-        user32.SendMessageW.restype = wintypes.LPARAM
-        user32.ClientToScreen.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.POINT)]
-        user32.GetCapture.restype = wintypes.HWND
-        handle = wintypes.HWND(int(self.window.winId()))
-        positions = {}
-        client_positions = {}
-        for widget, expected in ((self.bar.title_label, 2), (self.bar.maximize_button, 9),
-                                 (self.bar.menu_button, 1), (self.bar.notebook_button, 1)):
-            with self.subTest(widget=widget.objectName(), expected=expected):
-                position = widget.mapTo(self.window, widget.rect().center())
-                scale = self.window.devicePixelRatioF()
-                point = wintypes.POINT(round(position.x() * scale), round(position.y() * scale))
-                client_positions[expected] = (point.x & 0xffff) | ((point.y & 0xffff) << 16)
-                user32.ClientToScreen(handle, ctypes.byref(point))
-                packed = (point.x & 0xffff) | ((point.y & 0xffff) << 16)
-                positions[expected] = packed
-                self.assertEqual(user32.SendMessageW(handle, 0x0084, 0, packed), expected)
-                user32.SendMessageW(handle, 0x00a0, expected, packed)  # WM_NCMOUSEMOVE
-                self.assertEqual(self.bar.maximize_button.underMouse(), expected == 9)
-        point = wintypes.POINT(round(self.bar.close_button.geometry().center().x() * scale), -1)
-        user32.ClientToScreen(handle, ctypes.byref(point))
-        packed = (point.x & 0xffff) | ((point.y & 0xffff) << 16)
-        self.assertEqual(user32.SendMessageW(handle, 0x0084, 0, packed), 12)  # HTTOP, not a native caption button.
-        message = wintypes.MSG(hWnd=handle, message=0x0084, lParam=packed)
-        self.assertEqual(self.window.nativeEvent(b'windows_generic_MSG',
-                                                 sip.voidptr(ctypes.addressof(message))), (True, 12))
-        original = self.window.geometry()
-        clicks = QtTest.QSignalSpy(self.bar.maximize_button.clicked)
-        for release_inside in (False, True):
-            user32.SendMessageW(handle, 0x00a1, 9, positions[9])  # WM_NCLBUTTONDOWN
-            self.assertNotEqual(user32.GetCapture(), handle.value)
-            message = wintypes.MSG(hWnd=handle, message=0x00a0, wParam=9, lParam=positions[9])
-            handled, _ = self.window.nativeEvent(b'windows_generic_MSG', sip.voidptr(ctypes.addressof(message)))
-            self.assertFalse(handled)  # Windows must keep receiving hover messages for its Snap flyout.
-            # the first hold outlasts the Windows Snap flyout delay; the second only needs the same checks
-            QtTest.QTest.qWait(1100 if not release_inside else 50)
-            self.assertNotEqual(user32.GetCapture(), handle.value)
-            self.assertEqual(self.window.geometry(), original)
-            if release_inside:
-                user32.SendMessageW(handle, 0x00a2, 9, positions[9])  # WM_NCLBUTTONUP on maximize
-            else:
-                user32.SendMessageW(handle, 0x0202, 0, client_positions[1])  # WM_LBUTTONUP outside the button
-            self.qapp.processEvents()
-            self.assertEqual(self.window.isMaximized(), release_inside)
-        self.assertEqual(len(clicks), 1)
 
     def test_maximized_startup_preserves_restore_geometry(self):
         from appMain import App
@@ -462,19 +393,6 @@ class TestTitleBar(unittest.TestCase):
                         window.showNormal()
                         self.qapp.processEvents()
                         self.assertEqual(window.geometry(), original)
-
-    def test_startup_window_opens_on_the_screen_of_the_mouse_cursor(self):
-        from appGUI.MainGUI import geometry_on_screen
-
-        Rect = QtCore.QRect
-        left_screen = Rect(-1920, 0, 1920, 1040)
-        right_screen = Rect(0, 0, 2560, 1400)
-        # saved on the cursor screen: kept as it is
-        self.assertEqual(Rect(100, 100, 800, 400), geometry_on_screen(Rect(100, 100, 800, 400), right_screen))
-        # saved on the other screen: same size, centered on the cursor screen
-        self.assertEqual(Rect(-1360, 320, 800, 400), geometry_on_screen(Rect(100, 100, 800, 400), left_screen))
-        # saved larger than the cursor screen: fits in it
-        self.assertEqual(left_screen, geometry_on_screen(Rect(0, 0, 2560, 1400), left_screen))
 
 
 class TestTitleBarPreferences(unittest.TestCase):

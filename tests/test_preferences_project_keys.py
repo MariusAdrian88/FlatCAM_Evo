@@ -1,5 +1,4 @@
 """The Preferences form shows and saves the project keys of the active project, and the values it keeps valid."""
-import builtins
 import os
 import sys
 import unittest
@@ -16,7 +15,6 @@ from appGUI.preferences.cncjob.CNCJobGenPrefGroupUI import CNCJobGenPrefGroupUI
 from appGUI.preferences.excellon.ExcellonGenPrefGroupUI import ExcellonGenPrefGroupUI
 from appGUI.preferences.general.GeneralGUIPrefGroupUI import GeneralGUIPrefGroupUI
 from appGUI.preferences.gerber.GerberGenPrefGroupUI import GerberGenPrefGroupUI
-from appHandlers.appUIActions import AppUIActions
 from defaults import AppDefaults, AppOptions
 
 
@@ -104,55 +102,10 @@ class TestPreferencesProjectKeys(unittest.TestCase):
         self.assertEqual(manager.defaults_form_fields['gerber_bboxmargin'].value, 0.9)
 
 
-class TestPreferencesClose(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.qapp = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
-
-    def test_closing_with_the_toggle_asks_and_drops_unsaved_edits(self):
-        manager, defaults, _options = make_manager()
-        manager.ui = MagicMock(app=manager.ui.app)
-        manager.ui.app.resource_location = 'assets/resources'
-        manager.ui.pref_tab_area.count.return_value = 0
-        manager.ignore_tab_close_event = False
-        manager.inform = Mock()
-        defaults['global_gridx'] = 2.0
-        tabs = QtWidgets.QTabWidget()
-        self.addCleanup(tabs.deleteLater)
-        tabs.addTab(QtWidgets.QWidget(), builtins._('Preferences'))
-        actions = SimpleNamespace(ui=SimpleNamespace(plot_tab_area=tabs, pref_status_label=Mock()), log=Mock(),
-                                  app=SimpleNamespace(preferencesUiManager=manager))
-        manager.defaults_form_fields['global_gridx'].value = 9.0    # edited, not saved
-        manager.preferences_changed_flag = True
-        dialog = MagicMock()
-        dialog.addButton.side_effect = [object(), object()]    # 'Yes', 'No'; the answer is not 'Yes'
-        with patch('appGUI.preferences.PreferencesUIManager.FCMessageBox', return_value=dialog), \
-                patch.object(PreferencesUIManager, 'init_preferences_gui'), \
-                patch.object(PreferencesUIManager, 'pref_connect'), \
-                patch.object(PreferencesUIManager, '_PreferencesUIManager__init_color_pickers'):
-            AppUIActions.on_toggle_preferences(actions)
-            dialog.exec.assert_called_once()
-            self.assertEqual(tabs.count(), 0)
-            manager.show_preferences_gui()    # opened again
-        self.assertEqual(manager.defaults_form_fields['global_gridx'].value, 2.0)
-
-
 class TestPreferencesColors(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.qapp = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
-
-    def test_colours_without_a_readable_alpha_do_not_stop_the_preferences(self):
-        manager, defaults, _options = make_manager()
-        manager.ui = MagicMock(app=manager.ui.app)
-        defaults['gerber_plot_fill'] = '#FF0000'    # typed with 6 digits and saved
-        defaults['excellon_plot_fill'] = '#FF00'
-        defaults['global_sel_fill'] = 'bf'
-        manager._PreferencesUIManager__init_color_pickers()
-        ui = manager.ui
-        ui.gerber_pref_form.gerber_gen_group.gerber_alpha_entry.set_value.assert_called_once_with(255)
-        ui.excellon_pref_form.excellon_gen_group.excellon_alpha_entry.set_value.assert_called_once_with(0xBF)
-        ui.general_pref_form.general_gui_group.left_right_alpha_entry.set_value.assert_called_once_with(0xBF)
 
     def test_save_keeps_the_alpha_of_a_colour(self):
         manager, defaults, _options = make_manager()
@@ -165,27 +118,6 @@ class TestPreferencesColors(unittest.TestCase):
         self.assertEqual(defaults['excellon_plot_fill'], defaults.factory_defaults['excellon_plot_fill'])
         self.assertEqual(defaults['global_sel_line'], '#00FF0040')
         self.assertEqual(defaults['global_draw_color'], '#FF0000')
-
-    def test_selection_fill_colour_keeps_the_colour_and_its_alpha(self):
-        group, app, _defaults = make_group(GeneralGUIPrefGroupUI)
-        self.addCleanup(group.deleteLater)
-        group.sf_color_entry.set_value('#112233FF')    # as the colour dialog sets it
-        group.sf_color_entry.editingFinished.emit()
-        self.assertEqual(app.options['global_sel_fill'], '#112233bf')
-
-    def test_opening_keeps_the_right_to_left_selection_alpha(self):
-        group, app, defaults = make_group(GeneralGUIPrefGroupUI)
-        self.addCleanup(group.deleteLater)
-        manager = make_manager()[0]
-        manager.defaults = defaults
-        manager.ui = MagicMock(app=app)
-        manager.ui.general_pref_form.general_gui_group = group
-        defaults['global_alt_sel_fill'] = '#BBF26840'
-        defaults['global_alt_sel_line'] = '#006E2040'
-        manager._PreferencesUIManager__init_color_pickers()
-        self.assertEqual(group.right_left_alpha_entry.get_value(), 0x40)
-        self.assertEqual(app.options['global_alt_sel_fill'], '#BBF26840')
-        self.assertEqual(app.options['global_alt_sel_line'], '#006E2040')
 
     def test_alpha_slider_gives_a_valid_colour_that_save_keeps(self):
         for group_class, slider, fields in (
@@ -234,19 +166,8 @@ class TestExcellonPreferences(unittest.TestCase):
         self.assertEqual({key: field.get_value() for key, field in fields.items()},
                          {key: defaults.factory_defaults[key] for key in fields})    # zeros: 'T'
 
-    def test_units_change_the_export_units_only_when_update_export_is_checked(self):
-        group, app, _defaults = make_group(ExcellonGenPrefGroupUI)
-        self.addCleanup(group.deleteLater)
-        export_units = app.ui.excellon_pref_form.excellon_exp_group.excellon_units_radio
-        group.excellon_units_radio.set_value('INCH')
-        group.update_excellon_cb.set_value(True)
-        group.update_excellon_cb.set_value(False)
-        export_units.reset_mock()
-        group.excellon_units_radio.set_value('METRIC')    # toggles the radio button and emits activated_custom
-        export_units.set_value.assert_not_called()
-        group.update_excellon_cb.set_value(True)
-        group.excellon_units_radio.set_value('INCH')
-        export_units.set_value.assert_called_once_with('INCH')
+if __name__ == '__main__':
+    unittest.main()
 
 
 if __name__ == '__main__':

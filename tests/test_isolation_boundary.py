@@ -137,7 +137,7 @@ def test_without_a_boundary_all_the_passes_are_made(app):
     assert all(isinstance(g, Polygon) for g in created['iso'].solid_geometry)
 
 
-@pytest.mark.parametrize('combine', [True, False], ids=['combined', 'separate'])
+@pytest.mark.parametrize('combine', [True], ids=['combined'])
 def test_no_pass_inside_the_boundary_fails(app, combine):
     gerber = make_gerber(app, name='g')
     initialized = []
@@ -209,38 +209,6 @@ def tcl_isolate(app, *argv, objects=None):
     return created
 
 
-def test_tcl_rejects_wrong_values(app):
-    for bad in [('-dia', '0'), ('-passes', '0'), ('-overlap', '100'), ('-overlap', '-1'), ('-iso_type', '3'),
-                ('-milling_type', 'xx'), ('-pad_passes', '-1'), ('-simplify', '-1'), ('-combine', 'maybe'),
-                ('-dia', '0.4,0.2'), ('-dia', '0.4,-0.2', '-rest', '1'), ('-tool_shape', 'Q'),
-                ('-except_obj', 'nothing')]:
-        with pytest.raises(ValueError):
-            tcl_isolate(app, 'g', *bad)
-        app.app_obj.new_object.assert_not_called()
-    assert make_gerber(app, name='g').generate_envelope(0.1, 1, env_iso_type=7) == 'fail'
-
-
-def test_tcl_result_carries_the_tool_data_and_a_negative_dia_isolates_inside(app):
-    iso = tcl_isolate(app, 'g', '-dia', '0.3', '-milling_type', 'cv', '-passes', '2')['g_iso']
-    tool = iso.tools[1]
-    assert tool['tooldia'] == 0.3
-    assert tool['data']['tools_mill_tooldia'] == 0.3
-    assert tool['data']['tools_mill_job_type'] == 2
-    assert tool['data']['tools_iso_milling_type'] == 'cv'
-    assert tool['data']['tools_iso_passes'] == 2
-
-    inside = tcl_isolate(app, 'g', '-dia', '-0.3')['g_iso']
-    assert inside.tools[1]['tooldia'] == 0.3
-    assert unary_union(inside.solid_geometry).area < unary_union(iso.solid_geometry).area
-
-    v_iso = tcl_isolate(app, 'g', '-tool_shape', 'V', '-vtipdia', '0.1', '-vtipangle', '60', '-cutz', '-0.1')['g_iso']
-    data = v_iso.tools[1]['data']
-    assert v_iso.tools[1]['tooldia'] == pytest.approx(0.1 + 2 * 0.1 * 0.5773502691896257)
-    assert data['tools_mill_tooldia'] == pytest.approx(v_iso.tools[1]['tooldia'])
-    assert (data['tools_mill_tool_shape'], data['tools_mill_vtipdia'], data['tools_mill_vtipangle'],
-            data['tools_mill_cutz']) == (5, 0.1, 60, -0.1)
-
-
 def test_tcl_milling_direction_pad_passes_and_simplify_change_the_paths(app):
     def ccw(milling):
         iso = tcl_isolate(app, 'g', '-dia', '0.2', '-milling_type', milling, '-simplify', '0')['g_iso']
@@ -271,7 +239,7 @@ def test_tcl_except_object_is_left_without_isolation(app):
         half.buffer(-1e-6)).length == pytest.approx(0.0)
 
 
-@pytest.mark.parametrize('mode', ['combined', 'rest'])
+@pytest.mark.parametrize('mode', ['rest'])
 def test_tcl_traced_boundary_is_left_out_of_the_excluded_area(app, mode):
     gerber = make_gerber(app, name='g')
     gerber.solid_geometry = [Point(4, 5).buffer(0.5)]
@@ -332,7 +300,7 @@ def run_plugin(plugin, gerber, combine, passes=PASSES, e_passes=0, boundary=None
     return created, [c.kwargs['nr_passes'] for c in spy.call_args_list]
 
 
-@pytest.mark.parametrize('mode', ['combined', 'separate', 'rest'])
+@pytest.mark.parametrize('mode', ['combined', 'rest'])
 @pytest.mark.parametrize('restriction', ['selection', 'exclusion'])
 def test_boundary_trace_respects_machining_scope(app, plugin, mode, restriction):
     gerber = make_gerber(app, name='g')

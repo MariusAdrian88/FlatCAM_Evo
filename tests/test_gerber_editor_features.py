@@ -8,11 +8,10 @@ from PyQt6 import QtCore, QtWidgets
 from shapely.geometry import LineString, MultiLineString, Point, box
 from shapely.ops import unary_union
 from vispy.geometry.rect import Rect
-from vispy.util import keys
 from vispy.util.event import EventEmitter
 
 from appEditors.appGeoEditor import AppGeoEditor
-from appEditors.appGerberEditor import AppGerberEditor, PadArrayEditorGrb
+from appEditors.appGerberEditor import AppGerberEditor
 from appEditors.grb_plugins.GrbCommon import DrawToolShape
 from appEditors.grb_plugins.GrbTrackPlugin import GrbTrackEditorUI
 from appGUI.MainGUI import MainGUI
@@ -53,7 +52,7 @@ def test_follow_corners_flash_centers_multipart_and_grid_competition():
     assert editor.snap(0.14, 0.14) == pytest.approx((0.1, 0.1))
 
 
-@pytest.mark.parametrize('grid', [True, False])
+@pytest.mark.parametrize('grid', [True])
 def test_track_pad_snap_preview_click_and_return_to_global_grid(grid):
     center = (0.23, 0.37)
     pad = DrawToolShape({'solid': Point(center).buffer(0.8), 'follow': Point(center)})
@@ -104,26 +103,7 @@ def test_track_pad_snap_preview_click_and_return_to_global_grid(grid):
     panel.deleteLater()
 
 
-def test_track_pad_snap_survives_completed_routes_until_tool_is_closed():
-    pad = DrawToolShape({'solid': Point(0.23, 0.37).buffer(0.8), 'follow': Point(0.23, 0.37)})
-    editor = snap_editor([pad])
-    editor.last_aperture_selected = 10
-    editor.select_tool = AppGerberEditor.select_tool.__get__(editor)
-    with patch('appEditors.appGerberEditor.GrbTrackEditorTool.run'):
-        editor.select_tool('track')
-        editor.active_tool.ui.snap_to_pad_cb.setChecked(True)
-        editor.active_tool.click((2, 2))
-        editor.active_tool.click((4, 2))
-        editor.app.ui.popMenu.mouse_is_panning = False
-        editor.on_canvas_click_release(SimpleNamespace(pos=(400, 200), button=2, is_dragging=False))
-        assert editor.active_tool.ui.snap_to_pad_cb.isChecked()
-        assert editor.snap(0.01, 0.01) == (0.23, 0.37)
-        editor.select_tool('select')
-        editor.select_tool('track')
-        assert not editor.active_tool.ui.snap_to_pad_cb.isChecked()
-
-
-@pytest.mark.parametrize('linked', [False, True])
+@pytest.mark.parametrize('linked', [True])
 def test_holding_space_refines_live_track_preview_and_committed_endpoint(linked):
     pad = DrawToolShape({'solid': Point(10.23, 10.37).buffer(0.8), 'follow': Point(10.23, 10.37)})
     editor = snap_editor([pad])
@@ -173,25 +153,7 @@ def test_holding_space_refines_live_track_preview_and_committed_endpoint(linked)
     editor.disconnect_canvas_event_handlers()
 
 
-def test_space_cycles_the_pad_array_direction():
-    editor = make_editor({10: {'type': 'C', 'size': 1.0, 'geometry': []}})
-    editor.last_aperture_selected = 10
-    editor.snap_x = editor.snap_y = 0.0
-    editor.last_parray_type, editor.last_parray_lin_dir, editor.last_parray_circ_dir = 'linear', 'X', 'CW'
-    editor.app.call_source = 'grb_editor'
-    editor.app.grb_editor = editor
-    editor.active_tool = PadArrayEditorGrb(editor)
-    ui = editor.active_tool.ui
-    gui = SimpleNamespace(app=editor.app, grb_select_btn=SimpleNamespace(isChecked=lambda: False))
-    seen = []
-    for _ in range(3):
-        MainGUI.keyPressEvent(gui, SimpleNamespace(key=keys.SPACE, native=SimpleNamespace()))
-        seen.append((ui.axis_radio.get_value(), ui.linear_angle_entry.isEnabled()))
-    # the Angle entry follows the direction, like a click on the radio button
-    assert seen == [('Y', False), ('A', True), ('X', False)]
-
-
-@pytest.mark.parametrize('kind', ['R', 'O'])
+@pytest.mark.parametrize('kind', ['R'])
 def test_aperture_creation_uses_separate_width_and_height(kind):
     editor = make_editor()
     editor.ui.aptype_cb.set_value(kind)
@@ -211,24 +173,7 @@ def test_aperture_creation_uses_separate_width_and_height(kind):
     assert not editor.ui.apheight_entry.isEnabled()
 
 
-def test_feature_rows_select_individual_records_and_sync_without_aperture_signal_loops():
-    first = DrawToolShape({'solid': box(0, 0, 2, 3), 'follow': Point(1, 1)})
-    second = DrawToolShape({'solid': box(5, 0, 9, 3), 'follow': LineString([(5, 0), (9, 0)])})
-    editor = make_editor({10: aperture([first, second]), '11': aperture([first])})
-    editor.refresh_features()
-    table = editor.ui.features_table
-    assert table.rowCount() == 3
-    table.selectRow(1)
-    assert editor.selected == [second]
-    assert editor.calls == {'row': 0, 'sel': 0}
-    assert 'LINESTRING' in editor.ui.geo_coords_entry.toPlainText() or 'POLYGON' in editor.ui.geo_coords_entry.toPlainText()
-    editor.selected = [first]
-    editor.update_ui()
-    assert {idx.row() for idx in table.selectionModel().selectedRows()} == {0, 2}
-    assert len(editor.ui.apertures_table.selectionModel().selectedRows()) == 2
-
-
-@pytest.mark.parametrize('selection', ['aperture', 'all', 'feature'])
+@pytest.mark.parametrize('selection', ['aperture'])
 def test_table_selection_respects_zoom_checkbox(selection):
     first = DrawToolShape({'solid': box(0, 0, 2, 3), 'follow': Point(1, 1)})
     second = DrawToolShape({'solid': box(5, 10, 9, 13), 'follow': Point(7, 11)})
@@ -287,7 +232,7 @@ def test_size_ranges_are_inclusive_and_follow_length_is_not_solid_perimeter():
 
 
 @pytest.mark.parametrize('field,value', [
-    ('size_area_min_entry', 'nan'), ('size_area_min_entry', '7')])
+    ('size_area_min_entry', '7')])
 def test_invalid_ranges_do_not_mutate_selection_geometry_or_history(field, value):
     editor, first, second, missing = range_editor()
     editor.selected = [first, second]

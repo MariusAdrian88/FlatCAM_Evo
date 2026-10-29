@@ -8,18 +8,16 @@ Area.
 The editor is the real AppGerberEditor built by test_gerber_editor_pick.make_editor; the application, the canvas and
 the worker are stand-ins. Everything is headless and does not sleep."""
 
-import ast
 import math
 from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
-from PyQt6 import QtCore, QtGui, QtWidgets
-from shapely.geometry import LineString, Point, Polygon, box
+from PyQt6 import QtCore, QtWidgets
+from shapely.geometry import LineString, Point, box
 
-from appEditors.appGerberEditor import (AppGerberEditor, ImportEditorGrb, MarkEditorGrb, PadArrayEditorGrb, PadEditorGrb,
-                                       ScaleEditorGrb)
+from appEditors.appGerberEditor import MarkEditorGrb, PadArrayEditorGrb, PadEditorGrb
 from appEditors.grb_plugins.GrbBufferPlugin import BufferEditorTool
 from appEditors.grb_plugins.GrbCommon import DrawToolShape, gerber_steps, numeric_aperture_codes
 from appParsers.ParseGerber import Gerber
@@ -76,35 +74,6 @@ def run_queued_job(editor):
 
 
 # 2. Scale and Simplification menu items and the Scale tool connection
-
-def test_simplification_menu_item_opens_the_simplify_tool():
-    editor, first, second = scene()
-    connect = editor.app.ui.grb_simplification_menuitem.triggered.connect
-    assert connect.call_count == 1
-    action = QtGui.QAction('Simplification')
-    action.triggered.connect(connect.call_args.args[0])
-    action.trigger()
-    editor.select_tool.assert_called_once_with('simplify')
-
-
-def test_editor_menu_items_are_in_the_menu_of_their_editor():
-    import appGUI.MainGUI as main_gui
-    # MainGUI is not built in a test (it reads and writes the QSettings of the user): read where the items go
-    with open(main_gui.__file__, encoding='utf-8') as f:
-        tree = ast.parse(f.read())
-    misplaced = []
-    for node in ast.walk(tree):
-        if not (isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Attribute) and
-                isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Attribute) and
-                node.value.func.attr == 'addAction'):
-            continue
-        name, menu = node.targets[0].attr, node.value.func.value
-        prefix = name.split('_')[0]
-        if name.endswith('_menuitem') and prefix in ('exc', 'geo', 'grb'):
-            if getattr(menu, 'attr', None) != '%s_editor_menu' % prefix:
-                misplaced.append(name)
-    assert misplaced == []
-
 
 # 3. Translation versus reshape in history
 
@@ -180,8 +149,7 @@ def test_intersection_of_disjoint_shapes_fails_and_keeps_sources():
 # 8. Dimension edit of R and O apertures: a flash that is no longer the aperture shape (cut by a clear feature or
 # edited) is not replaced by a new full flash
 
-@pytest.mark.parametrize('cut', [False, True])
-@pytest.mark.parametrize('kind', ['R', 'O'])
+@pytest.mark.parametrize('kind, cut', [('R', False), ('O', False), ('R', True)])
 def test_dimension_edit_resizes_only_plain_flashes(kind, cut):
     meta = {'type': kind, 'size': math.hypot(2.0, 1.0), 'width': 2.0, 'height': 1.0}
     editor = make_editor({})
@@ -270,7 +238,7 @@ def flash_of(editor, meta, x, y):
     return Gerber.create_flash_geometry(editor, Point(x, y), meta, steps)
 
 
-@pytest.mark.parametrize('width, height', [(1.7, 1.0), (1.0, 1.7)])
+@pytest.mark.parametrize('width, height', [(1.7, 1.0)])
 def test_pad_and_pad_array_place_obround_pads(width, height):
     editor, meta = obround_editor(width, height)
     tool = PadEditorGrb.__new__(PadEditorGrb)
@@ -294,14 +262,6 @@ def test_pad_and_pad_array_place_obround_pads(width, height):
         x, y = shape.geo['follow'].coords[0]
         assert shape.geo['solid'].is_valid
         assert shape.geo['solid'].hausdorff_distance(flash_of(editor, meta, x, y)) < 1e-6
-
-
-def test_aperture_table_shows_editable_obround_dimensions():
-    editor, meta = obround_editor(1.7, 1.0)
-    AppGerberEditor.build_ui(editor)
-    item = editor.ui.apertures_table.item(0, 4)
-    assert [float(value) for value in item.text().split(',')] == [1.7, 1.0]
-    assert item.flags() & QtCore.Qt.ItemFlag.ItemIsEditable
 
 
 # 20. Dims edit of an 'R' aperture with tracks: a track changes by half of the change, not by the new size

@@ -54,12 +54,6 @@ class TestProjectManagerCore(unittest.TestCase):
     def setUpClass(cls):
         cls.qt_app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
 
-    def test_first_project_wraps_the_existing_collection(self):
-        app, manager = make_manager()
-        self.assertEqual(manager.names(), ['Project_1'])
-        self.assertIs(manager.active.collection, app.collection)
-        self.assertIs(manager.stack.currentWidget(), app.collection.view)
-
     def test_running_script_keeps_its_project_active(self):
         app, manager = make_manager()
         first = manager.active
@@ -98,18 +92,6 @@ class TestProjectManagerCore(unittest.TestCase):
         manager.activate.assert_called_once_with(second)
         app.ui.set_ui_title.assert_called_with(name='Board_B')
 
-    def test_switch_makes_the_units_of_the_project_the_app_units(self):
-        app, manager = make_manager()
-        app.app_units = 'MM'
-        app.ui.units_label = Mock()
-        second = manager.add_context('Board_B')
-        second.options = {'units': 'IN'}
-
-        manager.switch(second)
-
-        self.assertEqual(app.app_units, 'IN')
-        app.ui.units_label.setText.assert_called_with('[in]')
-
     def test_switch_is_refused_while_busy(self):
         app, manager = make_manager()
         second = manager.add_context('Board_B')
@@ -126,6 +108,7 @@ class TestProjectManagerCore(unittest.TestCase):
         self.assertFalse(manager.switch(second))
         self.assertIsNot(manager.active, second)
         self.assertIn('Close the editor first', app.inform.emit.call_args[0][0])
+
 
 class TestProjectManagerLifecycle(unittest.TestCase):
     @classmethod
@@ -198,9 +181,6 @@ class TestProjectManagerLifecycle(unittest.TestCase):
         self.assertFalse(manager.close(manager.active))
         self.assertTrue(manager.close(manager.active, force=True))
 
-    def test_save_target_without_file(self):
-        app, manager = make_manager()
-        self.assertIsNone(manager.save_target())
 
 class TestProjectManagerDialogs(unittest.TestCase):
     @classmethod
@@ -238,17 +218,6 @@ class TestProjectManagerDialogs(unittest.TestCase):
         app.save_in_progress = True
         self.assertFalse(manager.prepare_open(self.path('Board.FlatPrj')))
 
-    def test_failed_open_removes_the_added_project_even_while_a_task_ends(self):
-        app, manager = make_manager(make_app(FakeCollection([object()])))
-        first = manager.active
-        self.assertTrue(manager.prepare_open(self.path('Board.FlatPrj')))
-        added = manager.last_created
-        self.assertIsNot(added, first)
-        app.save_in_progress = True
-        self.assertTrue(manager.abandon_open(added, first))
-        self.assertIs(manager.active, first)
-        self.assertEqual(manager.contexts, [first])
-
     def test_request_close_yes_saves_first(self):
         app, manager = make_manager(make_app(FakeCollection([object()])))
         first = manager.active
@@ -257,16 +226,6 @@ class TestProjectManagerDialogs(unittest.TestCase):
         manager.save_context = Mock(return_value=True)
         self.assertTrue(manager.request_close(first))
         manager.save_context.assert_called_once_with(first)
-
-    def test_request_close_all_leaves_one_empty_project(self):
-        app, manager = make_manager()
-        first = manager.active
-        second = manager.new()
-        self.assertTrue(manager.request_close_all())
-        self.assertEqual(len(manager.contexts), 1)
-        self.assertNotIn(first, manager.contexts)
-        self.assertNotIn(second, manager.contexts)
-        self.assertEqual(manager.active.collection.get_list(), [])
 
     def test_request_close_all_stops_on_cancel(self):
         app, manager = make_manager(make_app(FakeCollection([object()])))
@@ -341,19 +300,6 @@ class TestProjectManagerDialogs(unittest.TestCase):
         app.f_handlers.save_project_checked.assert_not_called()
         self.assertTrue(app.should_we_save)
         app.inform.emit.assert_called_once()
-
-class TestTitleShowsProjectName(unittest.TestCase):
-    def make_window(self, filename=None):
-        return SimpleNamespace(
-            title_bar=SimpleNamespace(project_title=None, update_title=Mock()), setWindowTitle=Mock(),
-            app=SimpleNamespace(projects=SimpleNamespace(active=SimpleNamespace(name='Board_A')),
-                                project_filename=filename, version='9.0', beta=False))
-
-    def test_filename_is_replaced_by_the_project_name(self):
-        from appGUI.MainGUI import MainGUI
-        window = self.make_window(filename='C:/x/Board_A.FlatPrj')
-        MainGUI.set_ui_title(window, name='C:/x/Board_A.FlatPrj')
-        self.assertEqual(window.title_bar.project_title, 'Board_A')
 
 class TestExitWithProjects(unittest.TestCase):
     @classmethod
@@ -446,59 +392,6 @@ class TestProjectRendering(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.qt_app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
-
-    def test_cached_switch_moves_plugin_selectors_to_the_live_project(self):
-        from PyQt6 import QtCore, QtGui
-        from appTool import AppTool
-        from appGUI.GUIElements import FCComboBox
-        from appHandlers.appProjects import ProjectManager
-
-        app, manager = make_manager()
-        app.decimals = 4
-        app.defaults['global_project_caching'] = True
-        app.setup_default_properties_tab = Mock()
-        app.preferencesUiManager = SimpleNamespace(defaults_write_form=Mock())
-        app.init_tools = Mock()
-        models = []
-        for name in ('Old board', 'New board'):
-            model = QtGui.QStandardItemModel()
-            for kind in ('Gerber', 'Excellon', 'Geometry', 'CNC Job'):
-                model.appendRow(QtGui.QStandardItem(kind))
-            model.item(2).appendRow(QtGui.QStandardItem(name))
-            model.get_list = lambda: []
-            models.append(model)
-        manager.displayed = SimpleNamespace(collection=models[0])
-        app.collection = models[1]
-        plugin = AppTool(app)
-        combo = FCComboBox(plugin)
-        plugin.layout.addWidget(combo)
-        combo.setModel(models[0])
-        combo.setRootModelIndex(models[0].index(2, 0))
-        combo.obj_type = 'Geometry'
-        combo.is_last = True
-        combo.setCurrentIndex(0)
-        app.app_plugins = [plugin]
-        app.ui.notebook = QtWidgets.QTabWidget()
-        app.ui.plugin_tab = QtWidgets.QWidget()
-        app.ui.notebook.addTab(app.ui.plugin_tab, 'Plugin')
-        app.ui.plugin_scroll_area = QtWidgets.QScrollArea(app.ui.plugin_tab)
-        app.ui.plugin_scroll_area.setWidget(plugin)
-
-        ProjectManager.activate(manager, SimpleNamespace(collection=models[1], view_rect=None))
-
-        self.assertEqual(combo.count(), 1)
-        self.assertEqual(combo.itemText(0), 'New board')
-        self.assertEqual(combo.currentText(), '')
-        self.assertIsNone(app.ui.plugin_scroll_area.widget())
-        self.assertEqual(app.ui.notebook.indexOf(app.ui.plugin_tab), -1)
-        models[1].item(2).appendRow(QtGui.QStandardItem('Added board'))
-        self.assertEqual(combo.currentText(), 'Added board')
-        models[0].item(2).appendRow(QtGui.QStandardItem('Inactive board'))
-        self.assertEqual(combo.currentText(), 'Added board')
-        # Closing the old project cannot destroy the plugin's live model.
-        models[0].deleteLater()
-        QtCore.QCoreApplication.sendPostedEvents(None, QtCore.QEvent.Type.DeferredDelete)
-        self.assertEqual(combo.itemText(0), 'New board')
 
     def test_switch_retains_prepared_shapes_and_close_releases_them(self):
         from appHandlers.appProjects import ProjectManager

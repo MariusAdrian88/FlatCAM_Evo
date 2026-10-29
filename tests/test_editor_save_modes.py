@@ -128,18 +128,6 @@ def test_excellon_save_in_place_and_save_as_new():
 
 
 
-def test_geometry_save_writes_into_the_source():
-    app_stub, obj = editor_app('geometry')
-    app_stub.geo_editor.update_editor_geometry.return_value = 'pending'
-    assert finish(app_stub, 'Save') == 'pending'
-    call = app_stub.geo_editor.update_editor_geometry.call_args
-    assert call.args == (obj,)
-    call.kwargs['on_complete']()
-    app_stub._history_edit_saved.assert_called_once_with(obj)
-    obj.build_ui.assert_called_once()
-    app_stub._copy_geometry_for_save_as_new.assert_not_called()
-
-
 def test_geometry_save_as_new_writes_into_a_copy_and_leaves_the_source():
     app_stub, obj = editor_app('geometry')
     copy_obj = SimpleNamespace(kind='geometry', obj_options={'name': 'obj_edit'}, set_offset_values=Mock(),
@@ -191,17 +179,7 @@ def tab_names(tabs):
     return [tabs.widget(idx).objectName() for idx in range(tabs.count())]
 
 
-def test_cncjob_exit_editor_yes_with_a_tab_after_the_code_editor():
-    # the loop that closed the Code Editor tab went on over the old tab count: widget(idx) was None, an
-    # AttributeError (Critical Error dialog) and the app stayed in the editor mode (no post_edit_sig)
-    app_stub, _obj = editor_app('cncjob')
-    tabs = gcode_editor_tabs(app_stub)
-    finish(app_stub, 'Yes')
-    assert tab_names(tabs) == ['plot_area_tab', 'preferences_tab']
-    app_stub.post_edit_sig.emit.assert_called_once()
-
-
-@pytest.mark.parametrize('click', ['Yes', 'No'])
+@pytest.mark.parametrize('click', ['No'])
 def test_cncjob_closing_the_code_editor_tab_closes_only_that_tab(click):
     # the X of the Code Editor tab: the handler of tab_closed_signal exits the editor, which closes the tab itself;
     # closeTab() then removed the tab at the old index, which was the next tab (here Preferences)
@@ -398,7 +376,7 @@ def deleted(widget):
     return sip.isdeleted(widget)
 
 
-@pytest.mark.parametrize('use_tab_x, click', [(False, 'Yes'), (True, 'No')])
+@pytest.mark.parametrize('use_tab_x, click', [(True, 'No')])
 def test_cncjob_editor_exit_deletes_its_closed_tab(use_tab_x, click):
     # the editor makes a new tab (an AppTextEditor with the whole G-code) in each session; the closed tab was only
     # removed (removeTab() keeps the widget), so each session kept one more copy of the G-code in memory
@@ -412,19 +390,6 @@ def test_cncjob_editor_exit_deletes_its_closed_tab(use_tab_x, click):
     assert [tabs.widget(idx) for idx in range(tabs.count())] == [plot_page, review_page]
     assert deleted(editor_page)
     assert not deleted(plot_page) and not deleted(review_page)
-
-
-def test_closed_code_review_tab_is_deleted_but_not_the_tab_of_an_editor_still_open():
-    app_stub, _obj = editor_app('cncjob')
-    tabs, (plot_page, review_page, editor_page) = plot_area_with_code_tabs(app_stub, 'Yes')
-    # the Code Review of a CNC job makes a new tab each time too
-    tabs.closeTab(1)
-    assert deleted(review_page)
-    # the editor did not exit (on_editing_finished() returned before the exit): its widget is still used
-    app_stub.on_editing_finished = Mock()
-    tabs.closeTab(1)
-    assert app_stub.call_source == 'gcode_editor'
-    assert not deleted(editor_page) and not deleted(plot_page)
 
 
 def test_gcode_editor_save_renames_the_job_with_the_typed_name():

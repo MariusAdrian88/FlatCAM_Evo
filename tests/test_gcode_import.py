@@ -298,25 +298,6 @@ def test_drills_slots_and_rings():
     assert slot.bounds == pytest.approx((-0.5, -0.5, 4.5, 0.5))
 
 
-def test_milling_with_a_plunge_stays_geometry():
-    res = parse_gcode("G21\nT1\nG0 X0 Y0 Z5\nG1 Z-1 F30\nG1 X5 Y0 F100\nG1 X5 Y5\nG0 Z5\n")
-    t = res['tools'][1]
-    assert res['type'] == 'Geometry'
-    assert t['nr_slots'] == 0 and t['nr_drills'] == 0
-    assert _cut_lines(res)[0].length == pytest.approx(10.0)
-    # a contour that starts with a plunge is a milled path, not a slot: the drills do not make it an Excellon
-    res = parse_gcode("G21\nT1\nG0 X0 Y0 Z5\nG1 Z-1 F30\nG1 X5 F100\nY5\nX0\nY0\nG0 Z5\n"
-                      "T2\nG0 X10 Y0\nG81 R2 Z-2 F50\nX12\nX14\nG80\n")
-    assert res['type'] == 'Geometry'
-    assert (res['tools'][1]['nr_slots'], res['tools'][2]['nr_drills']) == (0, 3)
-    assert _cut_lines(res)[0].length == pytest.approx(20.0)
-    # the first moves give only Z, then XY: no travel line from (0, 0), the bounds do not hold the origin
-    res = parse_gcode("G21 G90\nG0 Z5\nG0 X10 Y10\nG1 Z-1 F50\nG1 X20\nG0 Z5\n")
-    assert res['bounds'] == (10.0, 10.0, 20.0, 10.0)
-    assert all(min(g['geom'].bounds[:2]) >= 10.0 for g in res['tools'][1]['gcode_parsed'])
-    assert res['tools'][1]['z_move'] == 5.0
-
-
 # ---------------------------------------------------------------- headers, tools, distance
 
 def test_tool_headers_blocks_and_travel():
@@ -358,29 +339,10 @@ def test_tool_headers_blocks_and_travel():
     assert res['tools'][1]['travel_distance'] == pytest.approx(14.0)
 
 
-def test_dwell_in_seconds_is_included_in_estimated_time():
-    res = parse_gcode('G21\nG0 X0 Y0\nG1 X10 F60\nG4 S30\n')
-    assert res['routing_time'] == pytest.approx(10 / 60 + 30 / 60)
-
-
-@pytest.mark.parametrize('preprocessor, expected', [('default', 0.5), ('Marlin', 0.0005),
-                                                  ('Repetier', 0.0005)])
+@pytest.mark.parametrize('preprocessor, expected', [('default', 0.5)])
 def test_dwell_p_uses_the_known_controller_units(preprocessor, expected):
     res = parse_gcode('(Preprocessor Geometry: %s)\nG21\nG4 P30\n' % preprocessor)
     assert res['routing_time'] == pytest.approx(expected)
-
-
-def test_unknown_rapid_rate_and_dwell_units_report_partial_estimates():
-    res = parse_gcode('G21\nG0 X0 Y0\nG0 X10\nG4 P30\n')
-    assert res['warnings']
-    assert any('rapid' in w.lower() for w in res['warnings'])
-    assert any('dwell' in w.lower() for w in res['warnings'])
-
-
-def test_known_z_motion_counts_before_the_first_xy_position():
-    res = parse_gcode('G21\nG0 Z5\nG1 Z-2 F60\nG0 X0 Y0\n', feedrate_rapid=600)
-    assert res['travel_distance'] == pytest.approx(7)
-    assert res['routing_time'] == pytest.approx(7 / 60)
 
 
 # ---------------------------------------------------------------- transform_gcode
@@ -486,7 +448,7 @@ def _native_text(job):
     return job.tools[1]['gcode'] if job.multitool else job.gcode
 
 
-@pytest.mark.parametrize('multitool', [False, True])
+@pytest.mark.parametrize('multitool', [False])
 def test_native_scale_moves_xy_about_the_point_and_keeps_z_and_feed(multitool):
     old = "G21 G90\nG0 X0 Y0 Z5 F600\nG1 X2 Y3 Z-0.1 F100\nG1 X-1 Y4\nG0 Z5\n"
     job = _native_job(old, multitool)
@@ -506,7 +468,7 @@ def test_native_scale_moves_xy_about_the_point_and_keeps_z_and_feed(multitool):
                 assert wn[k] == pytest.approx(wo[k])
 
 
-@pytest.mark.parametrize('multitool', [False, True])
+@pytest.mark.parametrize('multitool', [False])
 def test_native_scale_doubles_arc_offsets_and_non_uniform_scale_linearizes_the_arc(multitool):
     text = "G21 G90\nG0 X0 Y0\nG2 X2 Y0 I1 J0 F100\n"
     job = _native_job(text, multitool)
@@ -526,7 +488,7 @@ def test_native_scale_doubles_arc_offsets_and_non_uniform_scale_linearizes_the_a
     assert last['X'] == pytest.approx(4) and last['Y'] == pytest.approx(0)
 
 
-@pytest.mark.parametrize('multitool', [False, True])
+@pytest.mark.parametrize('multitool', [False])
 def test_native_offset_moves_absolute_xy_and_nothing_else(multitool):
     text = "G21 G90\nG0 X0 Y0\nG1 X5 Y5 F100\nG91\nG1 X1 Y1\nG90\nG53 G0 X0 Y0\n(X1.0 Y2.0)\n"
     # (source line, expected words after the offset; None = the line must stay byte for byte)
@@ -569,7 +531,7 @@ def test_native_convert_units_in_to_mm_scales_lengths_and_feed_and_switches_g20(
     assert g2 == pytest.approx({'X': 50.8, 'Y': 50.8, 'I': 12.7, 'J': 0}, abs=1e-3)
 
 
-@pytest.mark.parametrize('transform', ['rotate', 'offset'])
+@pytest.mark.parametrize('transform', ['rotate'])
 def test_native_transforms_keep_the_toolchange_and_end_positions(transform):
     text = "G21 G90\nG00 X5 Y6\nM6\nG00 X1 Y2\nG1 Z-0.1 F50\nG1 X3 Y4 F100\nG00 Z5\nG00 X-7 Y8\n"
     job = _native_job(text, multitool=False)

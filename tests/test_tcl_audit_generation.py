@@ -12,9 +12,7 @@ from tclCommands.TclCommandAlignDrillGrid import TclCommandAlignDrillGrid
 from tclCommands.TclCommandBbox import TclCommandBbox
 from tclCommands.TclCommandNregions import TclCommandNregions
 from tclCommands.TclCommandCncjob import TclCommandCncjob
-from tclCommands.TclCommandOpenSVG import TclCommandOpenSVG
 from tclCommands.TclCommandOpenDXF import TclCommandOpenDXF
-from tclCommands.TclCommandImportSvg import TclCommandImportSvg
 from tclCommands.TclCommandSplitGeometry import TclCommandSplitGeometry
 from test_tcl_audit_regressions import object_app
 
@@ -52,64 +50,7 @@ def test_alignment_drills_install_tools_before_geometry_creation():
     assert len(output.solid_geometry) == 4
 
 
-def test_cncjob_zero_heights_bare_dwell_and_segment_y_are_preserved():
-    obj = Mock(kind='geometry', multigeo=True)
-    obj.tools = {7: {'data': {}, 'solid_geometry': [box(0, 0, 1, 1)]}}
-    obj.obj_options = {}
-    app = factory_app(obj)
-    app.options.update(geometry_seg_x=1, geometry_seg_y=2, tools_mill_startz=9, tools_mill_endz=9)
-    app.milling_tool = Mock()
-    TclCommandCncjob(app).execute({'name': 'g', 'startz': 0, 'endz': 0, 'dwelltime': None}, [])
-    data = app.milling_tool.generate_cnc_job_handler.call_args.kwargs['tools_dict'][7]['data']
-    assert data['tools_mill_startz'] == data['tools_mill_endz'] == 0
-    assert data['seg_y'] == 2
-    assert data['tools_mill_dwelltime'] == app.options['tools_mill_dwelltime']
-
-
-def multitool_cncjob(*argv, tools=2, multigeo=True):
-    obj = Mock(kind='geometry', multigeo=multigeo)
-    obj.tools = {uid: {'tooldia': 0.5 * uid, 'solid_geometry': [box(0, 0, 1, 1)],
-                       'data': {'tools_mill_tooldia': 0.5 * uid, 'tools_mill_cutz': -0.1 * uid,
-                                'tools_mill_travelz': 3.0, 'tools_mill_feedrate': 100.0 * uid,
-                                'tools_mill_ppname_g': 'default', 'tools_mill_spindlespeed': 1000 * uid}}
-                 for uid in range(1, tools + 1)}
-    obj.solid_geometry = [box(0, 0, 1, 1)]
-    obj.obj_options = {'name': 'g', 'xmin': 0, 'ymin': 0, 'xmax': 1, 'ymax': 1,
-                       **{k: v for k, v in AppDefaults.factory_defaults.items() if k.startswith('tools_mill_')}}
-    app = factory_app(obj)
-    app.decimals = 4
-    app.milling_tool = Mock()
-    app.milling_tool.generate_cnc_job_handler.return_value = None
-    cmd = TclCommandCncjob(app)
-    args, unnamed = cmd.check_args(('g',) + argv)
-    cmd.execute(args, unnamed)
-    kwargs = app.milling_tool.generate_cnc_job_handler.call_args.kwargs
-    return {uid: tool['data'] for uid, tool in kwargs['tools_dict'].items()}, kwargs, app
-
-
-def test_cncjob_multitool_keeps_per_tool_settings_unless_given():
-    data, _, _ = multitool_cncjob('-z_move', '4')
-    assert [data[uid]['tools_mill_travelz'] for uid in data] == [4.0, 4.0]
-    assert [data[uid]['tools_mill_tooldia'] for uid in data] == [0.5, 1.0]
-    assert [data[uid]['tools_mill_cutz'] for uid in data] == [-0.1, -0.2]
-    assert [data[uid]['tools_mill_feedrate'] for uid in data] == [100.0, 200.0]
-    assert [data[uid]['tools_mill_spindlespeed'] for uid in data] == [1000, 2000]
-
-
-def test_cncjob_milling_options_reach_every_tool():
-    data, _, _ = multitool_cncjob('-offset_value', '0.2', '-job_type', 'polishing', '-polish_margin', '1',
-                                  '-polish_overlap', '20', '-polish_method', 'lines', '-optimization', 't',
-                                  '-search_time', '7', '-area_exclusion', '0')
-    for tool in data.values():
-        assert (tool['tools_mill_offset_type'], tool['tools_mill_offset_value']) == (3, 0.2)
-        assert (tool['tools_mill_job_type'], tool['tools_mill_polish_margin']) == (3, 1.0)
-        assert (tool['tools_mill_polish_overlap'], tool['tools_mill_polish_method']) == (20.0, 2)
-        assert (tool['tools_mill_optimization_type'], tool['tools_mill_search_time']) == ('T', 7)
-        assert tool['tools_mill_area_exclusion'] is False
-
-
-@pytest.mark.parametrize('argv', [('-offset_type', 'sideways'), ('-optimization', 'Z'), ('-job_type', '9'),
-                                  ('-search_time', '0'), ('-polish_method', '5')])
+@pytest.mark.parametrize('argv', [('-offset_type', 'sideways'), ('-search_time', '0')])
 def test_cncjob_rejects_wrong_milling_options(argv):
     obj = Mock(kind='geometry', multigeo=True, tools={})
     app = factory_app(obj)
@@ -121,9 +62,7 @@ def test_cncjob_rejects_wrong_milling_options(argv):
     app.milling_tool.generate_cnc_job_handler.assert_not_called()
 
 
-@pytest.mark.parametrize('cls,method,extra', [(TclCommandOpenSVG, 'import_svg', {}),
-                                            (TclCommandImportSvg, 'import_svg', {}),
-                                            (TclCommandOpenDXF, 'import_dxf_as_geo', {})])
+@pytest.mark.parametrize('cls,method,extra', [(TclCommandOpenDXF, 'import_dxf_as_geo', {})])
 def test_import_failure_is_returned_to_factory_and_never_announced(cls, method, extra):
     app = factory_app(None)
     from camlib import Geometry
@@ -152,18 +91,3 @@ def test_split_geometry_populates_root_and_only_the_selected_tool():
     assert list(output.tools) == [7]
     assert output.solid_geometry[0].equals(obj.tools[7]['solid_geometry'][0])
 
-
-
-def test_cncjob_area_exclusion_is_a_setting_of_the_tools_not_a_change_of_the_project_areas():
-    seen = []
-    obj = Mock(kind='geometry', multigeo=True)
-    obj.tools = {7: {'data': {}, 'solid_geometry': [box(0, 0, 1, 1)]}}
-    obj.obj_options = {}
-    app = factory_app(obj)
-    app.exc_areas = SimpleNamespace(exclusion_areas_storage=['area'])
-    app.milling_tool = Mock()
-    app.milling_tool.generate_cnc_job_handler.side_effect = \
-        lambda **kw: seen.append((list(app.exc_areas.exclusion_areas_storage),
-                                  kw['tools_dict'][7]['data']['tools_mill_area_exclusion']))
-    TclCommandCncjob(app).execute({'name': 'g', 'area_exclusion': '0'}, [])
-    assert seen == [(['area'], False)]

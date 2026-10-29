@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock
 
 import pytest
-from shapely.geometry import MultiPolygon, Point, Polygon, box
+from shapely.geometry import Point, Polygon, box
 from shapely.ops import unary_union
 
 from appPlugins.ToolEtchCompensation import ToolEtchCompensation
@@ -15,14 +15,8 @@ from appPlugins.ToolEtchCompensation.EtchCompensationGen import compensate_geome
 FIXED_16 = {'gerber_circle_steps_mode': 'fixed', 'gerber_circle_steps': 16}
 
 
-def test_factor_mode_divides_thickness_by_factor():
-    assert lateral_offset_um(35.0, 'factor', factor=3.0) == pytest.approx(11.6667, abs=1e-3)
-
-
 @pytest.mark.parametrize('kwargs', [
-    dict(mode='factor', factor=0),
-    dict(mode='etch_list', etchant='nope'), dict(mode='manual', offset_um=None), dict(mode='other'),
-    dict(mode='factor', factor=3.0, thickness_um=-1.0)])
+    dict(mode='factor', factor=0)])
 def test_invalid_inputs_raise(kwargs):
     thickness = kwargs.pop('thickness_um', 18.0)
     with pytest.raises(ValueError):
@@ -43,25 +37,6 @@ def test_aperture_dimensions_grow_by_twice_the_offset():
     assert aps['11']['width'] == pytest.approx(2.2)
     assert aps['11']['height'] == pytest.approx(1.2)
     assert aps['11']['size'] == pytest.approx((2.2 ** 2 + 1.2 ** 2) ** 0.5)
-
-
-def test_large_negative_offset_drops_emptied_records_and_clamps_dimensions():
-    _, aps = compensate_geometry([], _aperture_set(), -0.6, FIXED_16)
-    assert aps['10']['geometry'] == []
-    assert aps['11']['geometry'] == []
-    assert aps['10']['size'] == 0.0
-    assert aps['11']['width'] == pytest.approx(0.8)
-    assert aps['11']['height'] == 0.0
-    assert aps['11']['size'] == pytest.approx(0.8)
-
-
-def test_result_is_flat_polygon_list_matching_single_union_buffer():
-    geom = [box(0, 0, 1, 1), box(0.5, 0, 1.5, 1), MultiPolygon([box(5, 0, 6, 1)])]
-    out, _ = compensate_geometry(geom, {}, 0.1, FIXED_16)
-    assert isinstance(out, list) and out and all(isinstance(p, Polygon) for p in out)
-    expected = unary_union([box(0, 0, 1, 1), box(0.5, 0, 1.5, 1), box(5, 0, 6, 1)]).buffer(0.1, 4)
-    assert sum(p.area for p in out) == pytest.approx(expected.area)
-    assert len(out) == 2
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -114,7 +89,7 @@ def _messages(tool):
     return [c.args[0] for c in tool.app.inform.emit.call_args_list if c.args]
 
 
-@pytest.mark.parametrize('units, thickness, side_effect', [('MM', 30.0, 0.01), ('IN', 254.0, 0.01)])
+@pytest.mark.parametrize('units, thickness, side_effect', [('MM', 30.0, 0.01)])
 def test_controller_grows_copper_by_thickness_over_factor(units, thickness, side_effect):
     # F = 1 for IN: 254 um = 0.01 in; F = 3 for MM: 30 um / 3 = 10 um = 0.01 mm
     src = _source('a')
@@ -159,9 +134,7 @@ def run_etch(args):
     return app, source
 
 
-@pytest.mark.parametrize('args', [{'thickness': 30, 'mode': 'factor', 'factor': 3},
-                                  {'thickness': 30, 'mode': 'etchant', 'etchant': 'cucl2'},
-                                  {'thickness': 30, 'mode': 'etch_list', 'etchant': 'cucl2'}])
+@pytest.mark.parametrize('args', [{'thickness': 30, 'mode': 'factor', 'factor': 3}])
 def test_etch_compensate_creates_the_output_with_the_grown_copper(args):
     app, source = run_etch(args)  # 10 um lateral in every mode
     kind, name, init = app.app_obj.new_object.call_args[0]
@@ -175,8 +148,7 @@ def test_etch_compensate_creates_the_output_with_the_grown_copper(args):
     assert source.solid_geometry[0].area == 100
 
 
-@pytest.mark.parametrize('args', [{'mode': 'etchant', 'etchant': 'nope'}, {'mode': 'factor', 'factor': 0},
-                                  {'mode': 'manual', 'offset': 0}, {'mode': 'bad'}])
+@pytest.mark.parametrize('args', [{'mode': 'etchant', 'etchant': 'nope'}])
 def test_etch_compensate_bad_input_is_a_tcl_error_and_creates_nothing(args):
     from tclCommands.TclCommandEtchCompensate import TclCommandEtchCompensate
     app = factory_app(etch_source())

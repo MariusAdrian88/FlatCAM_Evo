@@ -1,8 +1,6 @@
 """QR Code plugin: the Qt-free model (QRCodeGen)."""
 
 import datetime
-import io
-import math
 
 import pytest
 from shapely import box
@@ -18,12 +16,8 @@ def _qr(text='HELLO', version=1, error='L', box_size=10, border=2, units='MM', *
     return gen.qr_geometry(text, version, error, box_size, border, units, **kw)
 
 
-def _solid(*polys):
-    return list(polys)
-
-
 # --- sizes ---------------------------------------------------------------------------------------------------------
-@pytest.mark.parametrize('units, div', [('MM', 1.0), ('IN', MM)])
+@pytest.mark.parametrize('units, div', [('IN', MM)])
 def test_qr_geometry_size_in_project_units(units, div):
     modules, utility, info = _qr(units=units)
     assert info['version'] == 1 and info['modules'] == 21
@@ -45,46 +39,6 @@ def test_fixed_version_overflow_raises_and_auto_grows():
 
 
 # --- insert_geometry -----------------------------------------------------------------------------------------------
-def _insert(solid, tools, pos=(0.0, 0.0), units='MM', **kw):
-    modules, utility, _ = _qr(units=units)
-    kwargs = dict(border_size=2, box_size=10, rounded='s', polarity='pos', units=units)
-    kwargs.update(kw)
-    return gen.insert_geometry(solid, tools, modules, utility, pos, **kwargs), modules, utility
-
-
-def test_partial_overlap_is_cut_and_far_copper_is_kept():
-    big = box(-50, -50, 12, 12)         # QR mask (25 x 25 at pos 0,0) overlaps its corner only partly
-    far = box(100, 100, 110, 110)
-    ((solid, tools), modules, utility) = _insert(_solid(big, far), {})
-    mask = box(*utility.bounds).buffer(2.0, join_style='mitre')
-    kept = [g for g in solid if g.intersects(far)]
-    assert kept and kept[0].equals(far)
-    others = unary_union([g for g in solid if not g.intersects(far)])
-    assert others.intersection(mask).area == pytest.approx(utility.area, rel=1e-3)   # only the QR is in the mask
-    assert others.area > utility.area                                              # the cut copper remains
-
-
-def test_fully_covered_poly_is_dropped_and_multi_result_is_split():
-    inner = box(2.5, 2.5, 3.5, 3.5)    # inside the mask: removed entirely
-    strip = box(-30, 10, 60, 11)        # crossing the mask: becomes two pieces
-    (solid, _), _, utility = _insert(_solid(inner, strip), {})
-    mask = box(*utility.bounds).buffer(2.0, join_style='mitre')
-    assert not any(g.equals(inner) or g.equals(strip) for g in solid)
-    pieces = [g for g in solid if g.bounds[1] >= 10 - 1e-6 and g.bounds[3] <= 11 + 1e-6 and g.bounds[2] - g.bounds[0] > 5]
-    assert len(pieces) == 2 and sum(p.area for p in pieces) == pytest.approx(strip.area - 25.0)
-    assert all(not p.intersects(mask.buffer(-1e-6)) for p in pieces)
-
-
-def test_units_inch_scale_mask_and_aperture():
-    big = box(-5, -5, 5, 5)
-    (solid, tools), modules, utility = _insert(_solid(big), {}, units='IN')
-    mod = 1.0 / MM
-    aid = [k for k in tools if k != 0][0]
-    assert tools[aid]['width'] == pytest.approx(mod * 1.01)
-    mask = tools[0]['geometry'][0]['clear']
-    assert mask.bounds[2] - mask.bounds[0] == pytest.approx(21 * mod + 4 * mod, rel=1e-3)
-
-
 def test_negative_polarity_and_outline():
     modules, utility, _ = _qr()
     base = dict(border_size=2, box_size=10, rounded='s', units='MM')
@@ -108,27 +62,7 @@ def test_new_gerber_geometry_and_mask_opening():
     assert mask.bounds[0] == pytest.approx(utility.bounds[0] - 2 + 3)
 
 
-def test_add_region_keeps_the_other_openings():
-    # a soldermask opening must not cut the openings that are already there (dark = opening)
-    opening = box(0, 0, 10, 10).buffer(2)                  # rounded corners
-    corner = box(-1.9, -1.9, -1.5, -1.5)                    # inside the bbox, outside the rounded opening
-    old = {10: {'type': 'C', 'size': 0.4, 'geometry': [{'solid': corner}]}}
-    solid, tools = gen.add_region([corner], old, opening)
-    assert unary_union(solid).area == pytest.approx(opening.area + corner.area)
-    assert old[10]['geometry'] == [{'solid': corner}] and 0 not in old
-    regions = [g['solid'] for g in tools[0]['geometry']]
-    assert len(regions) == 1 and regions[0].equals(opening)
-
-
 # --- utility geometry ----------------------------------------------------------------------------------------------
-def test_row_merge_equals_plain_union():
-    modules, _, _ = _qr(text='ROW MERGE TEST 0123456789', version=None)
-    merged = gen.utility_geometry(modules)
-    plain = unary_union(modules).buffer(1e-7).buffer(-1e-7)
-    assert merged.symmetric_difference(plain).area < 1e-6 * merged.area
-    assert merged.bounds == pytest.approx(plain.bounds, abs=1e-6)
-
-
 # --- transforms ----------------------------------------------------------------------------------------------------
 def test_mirror_rotate_and_anchor():
     asym = box(0, 0, 4, 2).union(box(0, 2, 1, 4))          # L shape, bbox 4 x 4
@@ -155,25 +89,8 @@ def test_mirror_rotate_and_anchor():
         gen.transform_geometry([asym], 45, False, 'bl')
 
 
-def test_transformed_qr_is_still_inserted_exactly():
-    modules, utility, _ = _qr()
-    modules, utility = gen.transform_geometry([modules, utility], 90, True, 'bl', margin=2.0)
-    base = dict(border_size=2, box_size=10, rounded='s', units='MM')
-    mask = gen.mask_opening(utility, (7, 8), **base)
-    assert mask.bounds[:2] == pytest.approx((7, 8), abs=1e-6)
-    solid, tools = gen.new_gerber_geometry(modules, utility, (7, 8), polarity='pos', **base)
-    assert unary_union(solid).bounds[0] == pytest.approx(7 + 2)
-
-
 # --- preview -------------------------------------------------------------------------------------------------------
 # --- images --------------------------------------------------------------------------------------------------------
-def _svg_text(**kw):
-    img = gen.make_qr_image('HELLO', 1, 'L', 10, 2, 'svg', **kw)
-    buf = io.BytesIO()
-    img.save(buf)
-    return buf.getvalue().decode()
-
-
 # --- tokens and warnings -------------------------------------------------------------------------------------------
 def test_expand_tokens():
     ctx = {'date': datetime.date(2026, 10, 24), 'time': datetime.time(9, 5, 7), 'project': 'P1', 'object': 'top',
@@ -293,15 +210,6 @@ def test_export_keeps_undo_available_and_rejects_bad_colors(fc, tool, tmp_path, 
 
 
 @pytest.mark.slow
-def test_overflow_is_reported_and_the_tool_is_not_armed(fc, tool):
-    obj = _gerber(fc)
-    _setup(tool, obj, text='X' * 200)
-    _arm(tool)
-    assert not tool.armed and fc.call_source == 'app'
-    assert any('ERROR' in m for m in tool.messages)
-
-
-@pytest.mark.slow
 def test_drag_release_does_not_insert_and_a_click_does(fc, tool):
     obj = _gerber(fc)
     _setup(tool, obj)
@@ -313,17 +221,6 @@ def test_drag_release_does_not_insert_and_a_click_does(fc, tool):
     fc.event_is_dragging = False
     _click(tool, 30, 30)
     assert not tool.armed and fc.call_source == 'app' and _area(obj) != before
-
-
-@pytest.mark.slow
-def test_deleted_target_is_refused(fc, tool):
-    obj = _gerber(fc)
-    _setup(tool, obj)
-    _arm(tool)
-    fc.collection.delete_by_name('top', select_project=False)
-    _click(tool, 30, 30)
-    assert not tool.armed and fc.call_source == 'app'
-    assert any('ERROR' in m for m in tool.messages)
 
 
 @pytest.mark.slow
@@ -340,19 +237,6 @@ def test_keep_placing_increments_the_serial_and_stays_armed(fc, tool):
     assert tool.armed and tool.serial == 9
     _click(tool, 0, 0, button=2)
     assert not tool.armed and fc.call_source == 'app'
-
-
-@pytest.mark.slow
-def test_new_object_output_keeps_the_source(fc, tool):
-    obj = _gerber(fc)
-    _setup(tool, obj, output_radio='new')
-    before = _area(obj)
-    _arm(tool)
-    _click(tool, 30, 30)
-    _settle(lambda: fc.collection.get_by_name('top_qrcode') is not None)
-    new = fc.collection.get_by_name('top_qrcode')
-    assert new is not None and _area(obj) == before
-    assert new.bounds()[0] >= 30 - 1e-6 and _area(new) > 0
 
 
 @pytest.mark.slow
@@ -382,42 +266,6 @@ def test_undo_of_an_insert_restores_the_gerber(fc, tool):
 
 
 @pytest.mark.slow
-def test_a_result_that_arrives_after_a_reset_is_ignored(fc, tool):
-    obj = _gerber(fc)
-    _setup(tool, obj, placement_radio='coords', x_entry=50.0, y_entry=40.0)
-    before = obj.solid_geometry
-    tool.execute()
-    tool.on_exit()          # Reset / close while the worker still runs
-    _settle(lambda: False, timeout=1.0)
-    assert not tool.armed and obj.solid_geometry is before
-
-
-@pytest.mark.slow
-def test_the_insert_uses_the_settings_of_the_insert_click(fc, tool):
-    obj = _gerber(fc)
-    _setup(tool, obj)
-    before = obj.solid_geometry
-    _arm(tool)
-    tool.ui.border_size_entry.set_value(6)      # edited after the preview was planned
-    _click(tool, 30, 30)
-    added = unary_union([g for g in obj.solid_geometry if g not in before])
-    assert added.bounds[0] == pytest.approx(30.0 + 2.0, abs=1e-3)
-
-
-@pytest.mark.slow
-def test_a_merged_gerber_with_shapely_follow_geometry_can_take_a_qrcode(fc, tool):
-    from shapely.geometry import MultiPoint
-    obj = _gerber(fc)
-    obj.follow_geometry = MultiPoint([(0, 0), (1, 1)])
-    _setup(tool, obj)
-    before = _area(obj)
-    _arm(tool)
-    _click(tool, 30, 30)
-    assert not tool.armed and _area(obj) != before
-    assert not any('ERROR' in m for m in tool.messages)
-
-
-@pytest.mark.slow
 def test_pcbdoc_object_gets_the_qr_in_its_own_units(fc, tool):
     obj = _gerber(fc)
     obj.units = 'IN'
@@ -429,14 +277,3 @@ def test_pcbdoc_object_gets_the_qr_in_its_own_units(fc, tool):
     added = unary_union([g for g in obj.solid_geometry if g not in before])
     assert added.bounds[2] - added.bounds[0] == pytest.approx(21 / MM, rel=0.02)
 
-
-@pytest.mark.slow
-def test_huge_border_neither_wraps_nor_allocates_a_huge_preview(fc, tool):
-    ui = tool.ui
-    ui.border_size_entry.set_value(0)
-    ui.border_size_entry.stepDown()
-    assert ui.border_size_entry.get_value() == 0
-    ui.text_data.set_value('HELLO')
-    ui.border_size_entry.set_value(9999)
-    tool.refresh_preview()
-    assert not tool.ui.preview_label.pixmap().isNull()

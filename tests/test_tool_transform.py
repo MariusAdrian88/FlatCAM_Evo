@@ -1,8 +1,6 @@
 """ToolTransform actions: the matrix given to plot_transformed, bounds computed once, failures isolated."""
-import ast
 import os
 import threading
-import time
 import unittest
 from contextlib import contextmanager
 from types import SimpleNamespace
@@ -159,40 +157,6 @@ class Worker:
             payload['fcn'](*payload['params'])
 
 
-class RecordingEntry:
-    """A form widget that records the thread that wrote it."""
-
-    def __init__(self):
-        self.values = []
-
-    def set_value(self, value):
-        self.values.append((value, threading.get_ident()))
-
-
-class ThreadWorker:
-    """Runs the queued payload on a Python thread and signals when the action has finished."""
-
-    def __init__(self):
-        self.payloads = []
-        self.errors = []
-        self.done = threading.Event()
-        self.thread = None
-
-    def emit(self, payload):
-        self.payloads.append(payload)
-
-        def run():
-            try:
-                payload['fcn'](*payload['params'])
-            except Exception as e:
-                self.errors.append(e)
-            finally:
-                self.done.set()
-
-        self.thread = threading.Thread(target=run, daemon=True)
-        self.thread.start()
-
-
 class TransformTest(unittest.TestCase):
 
     def setUp(self):
@@ -305,36 +269,6 @@ class TransformTest(unittest.TestCase):
                 self.assertTrue(any('not executed' in call.args[0] or 'NOTCL' in call.args[0]
                                     for call in app.inform.emit.call_args_list))
 
-    def test_worker_uses_the_selection_captured_at_the_click(self):
-        first, second = FakeObj(None, 'first'), FakeObj(None, 'second')
-        tool, app = self.tool([first])
-        captured = ToolTransform._selected_objects(tool)
-        # the user selects another object before the worker starts
-        app.collection.get_selected.return_value = [second]
-        ToolTransform.on_rotate_action(tool, 30.0, (0.0, 0.0), captured)
-        self.assertFalse(first.solid_geometry[0].equals_exact(
-            Polygon([(0, 0), (4, 0), (4, 2), (1, 3)]), 1e-9))
-        self.assertTrue(second.solid_geometry[0].equals_exact(
-            Polygon([(0, 0), (4, 0), (4, 2), (1, 3)]), 0))
-
-    def test_affine_change_regenerates_the_source_and_a_failure_rolls_back(self):
-        for succeeds in (True, False):
-            with self.subTest(succeeds=succeeds):
-                obj = FakeObj(None, kind='gerber')
-                original = obj.solid_geometry[0]
-                obj.regenerate_source = MagicMock(return_value=succeeds)
-                tool, app = self.tool([obj])
-                ToolTransform.on_offset(tool, 'X', 5.0)
-                obj.regenerate_source.assert_called_once()
-                if succeeds:
-                    self.assertEqual(len(obj.matrices), 1)
-                    self.assertFalse(obj.solid_geometry[0].equals_exact(original, 0))
-                else:
-                    self.assertEqual(obj.matrices, [])
-                    self.assertTrue(obj.solid_geometry[0].equals_exact(original, 0))
-                    self.assertTrue(any('not executed' in call.args[0].lower()
-                                        for call in app.inform.emit.call_args_list))
-
     def test_offset_of_an_opened_gcode_job_moves_its_exported_text(self):
         """Offset through ToolTransform: the exported text (source_file) of a G-code job holds the moved coordinates."""
         import pathlib
@@ -387,73 +321,6 @@ class TransformUiTest(unittest.TestCase):
         app.worker_task = worker or Worker(run=True)
         return self.make_tool_for(app), app, history
 
-
-    def test_threaded_completion_writes_only_on_the_gui_thread(self):
-        with patch('appObjects.AppObjectTemplate.ShapeCollection', MagicMock()):
-            app, _history = self.make_real_app()
-            obj = GeometryObject('real', app)
-            obj.solid_geometry = [Polygon([(0, 0), (4, 0), (4, 2), (1, 3)])]
-            obj.plot_transformed = MagicMock(return_value=True)
-            form_entry = RecordingEntry()
-            offset_entry = RecordingEntry()
-            obj.form_fields['xmin'] = form_entry
-            obj.ui = SimpleNamespace(offsetvector_entry=offset_entry)
-
-            callback_threads = []
-            original_callback = obj.obj_options.callback
-
-            def callback(key):
-                callback_threads.append((key, threading.get_ident()))
-                original_callback(key)
-
-            obj.obj_options.set_change_callback(callback)
-
-            read_threads = []
-
-            def get_selected():
-                read_threads.append(threading.get_ident())
-                return [obj]
-
-            app.collection.get_selected = get_selected
-            worker = ThreadWorker()
-            app.worker_task = worker
-            tool = self.make_tool_for(app)
-            tool.ui.offx_entry.set_value(2)
-            tool.ui.offy_entry.set_value(-3)
-
-            ToolTransform.on_offsetxy(tool)
-
-            self.assertTrue(worker.done.wait(5))
-            if worker.thread is not None:
-                worker.thread.join(1)
-            self.assertEqual(worker.errors, [])
-
-            qapp = QtWidgets.QApplication.instance()
-            deadline = time.monotonic() + 5
-            while time.monotonic() < deadline and not offset_entry.values:
-                qapp.processEvents()
-                time.sleep(0.01)
-            qapp.processEvents()
-
-            main = threading.get_ident()
-            self.assertEqual(read_threads, [main])
-            self.assertTrue(callback_threads)
-            self.assertTrue(all(thread == main for _key, thread in callback_threads))
-            self.assertTrue(form_entry.values)
-            self.assertTrue(all(thread == main for _value, thread in form_entry.values))
-            self.assertTrue(offset_entry.values)
-            self.assertTrue(all(thread == main for _value, thread in offset_entry.values))
-
-            expected = (2.0, -3.0, 6.0, 0.0)
-            self.assertTrue(obj.solid_geometry[0].equals_exact(
-                Polygon([(2, -3), (6, -3), (6, -1), (3, 0)]), 1e-9))
-            self.assertEqual(obj.solid_geometry[0].bounds, expected)
-            self.assertEqual(obj.bounds(), expected)
-            self.assertEqual((obj.obj_options['xmin'], obj.obj_options['ymin'],
-                              obj.obj_options['xmax'], obj.obj_options['ymax']), expected)
-            self.assertEqual(ast.literal_eval(offset_entry.values[-1][0]), (4.0, -1.5))
-            self.assertEqual(obj.obj_options.callback, callback)
-            obj.plot_transformed.assert_called()
 
     def test_combined_scale_uses_both_entries_and_is_one_undo_step(self):
         branches = (

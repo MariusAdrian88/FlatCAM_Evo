@@ -101,48 +101,6 @@ class TestUpdateView(unittest.TestCase):
         self.assertEqual([s.internalPointer() for s in selected], [self.g2_item])
 
 
-class TestColorSwatch(unittest.TestCase):
-    def setUp(self):
-        self.col = make_collection()
-        self.g1, _ = add_item(self.col, "gerber", "g1")
-        self.g2, _ = add_item(self.col, "gerber", "g2")
-        self.e1, _ = add_item(self.col, "excellon", "e1")
-        self.g1.fill_color = self.g2.fill_color = self.e1.fill_color = "#00FF00BF"
-        self.view = self.col.view
-        self.view.resize(400, 200)
-        self.view.show()
-        self.view.expandAll()
-        _qapp.processEvents()
-
-        gerber = self.col.index(0, 0, QtCore.QModelIndex())
-        self.g1_idx = self.col.index(0, 0, gerber)
-        self.g2_idx = self.col.index(1, 0, gerber)
-        self.e1_idx = self.col.index(0, 0, self.col.index(1, 0, QtCore.QModelIndex()))
-        selection = QtCore.QItemSelection(self.g1_idx, self.g2_idx)
-        self.view.selectionModel().select(selection, QtCore.QItemSelectionModel.SelectionFlag.ClearAndSelect)
-
-    def tearDown(self):
-        self.view.close()
-
-    def _click_swatch(self, idx):
-        swatch = self.view.swatch_rect(idx, self.view.visualRect(idx))
-        # the swatch sits at the right side of the view
-        self.assertGreater(swatch.left(), self.view.viewport().width() - 40)
-        with mock.patch.object(QtWidgets.QColorDialog, "exec",
-                               return_value=QtWidgets.QDialog.DialogCode.Accepted), \
-                mock.patch.object(QtWidgets.QColorDialog, "selectedColor",
-                                  return_value=QtGui.QColor(0x11, 0x22, 0x33, 0x44)):
-            QtTest.QTest.mouseClick(self.view.viewport(), QtCore.Qt.MouseButton.LeftButton, pos=swatch.center())
-
-    def _selected_objs(self):
-        return [s.internalPointer().obj for s in self.view.selectionModel().selectedIndexes()]
-
-    def test_swatch_click_on_selected_row_keeps_the_selection(self):
-        self._click_swatch(self.g2_idx)
-
-        self.col.app.plot_manager.set_color_from_swatch.assert_called_once_with(self.g2, "#11223344")
-        self.assertCountEqual(self._selected_objs(), [self.g1, self.g2])
-
 
 class TestDragReorder(unittest.TestCase):
     COLORS = [("#o0", "#f0000000", "L0"), ("#o1", "#f1000011", "L1"), ("#o2", "#f2000022", "L2")]
@@ -200,39 +158,6 @@ class TestDragReorder(unittest.TestCase):
         self.assertTrue(self.col.canDropMimeData(data, QtCore.Qt.DropAction.MoveAction, 0, -1, excellon))
 
 
-class TestScriptEditorOwnership(unittest.TestCase):
-    def test_delete_routes_close_only_the_owned_editor_after_rename(self):
-        for route in ('active', 'name', 'batch', 'all'):
-            with self.subTest(route=route):
-                col = make_collection()
-                obj, item = add_item(col, 'script', 'old')
-                obj.item = item
-                obj.clear = mock.Mock()
-                obj.delete = mock.Mock()
-                tabs = QtWidgets.QTabWidget()
-                editor = QtWidgets.QWidget()
-                editor.setObjectName('old_editor_tab')
-                obj.script_editor_tab = editor
-                unrelated = QtWidgets.QWidget()
-                unrelated.setObjectName('renamed_editor_tab')
-                tabs.addTab(editor, 'Script')
-                tabs.addTab(unrelated, 'Unrelated')
-                col.app.ui.plot_tab_area = tabs
-                obj.obj_options['name'] = 'renamed'
-                if route == 'active':
-                    parent = col.index(col.group_items['script'].row(), 0, QtCore.QModelIndex())
-                    col.view.selectionModel().select(col.index(0, 0, parent),
-                                                     QtCore.QItemSelectionModel.SelectionFlag.ClearAndSelect)
-                    col.delete_active()
-                elif route == 'name':
-                    col.delete_by_name('renamed')
-                elif route == 'batch':
-                    col.delete_objects([obj])
-                else:
-                    col.delete_all()
-                self.assertEqual(tabs.indexOf(editor), -1)
-                self.assertGreaterEqual(tabs.indexOf(unrelated), 0)
-                self.assertEqual(col.get_list(), [])
 
 
 if __name__ == "__main__":

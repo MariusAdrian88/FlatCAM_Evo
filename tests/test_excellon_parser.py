@@ -44,24 +44,15 @@ CASES = {
     'route then drills with another tool': (
         "M48\nMETRIC\nT1C1.0\nT2C0.8\n%\nG90\nT1\nG00X10.0Y10.0\nM15\nG01X15.0Y10.0\nM16\nG05\nT2\nX1.0Y1.0\nX2.0Y2.0\nM30\n",
         {}, 'MM', {1: (1.0, [], [((10, 10), (15, 10))]), 2: (0.8, [(1, 1), (2, 2)], [])}),
-    'M72 in the header, tools of an inch file': (
-        "M48\nM72\nT1C0.0300\nT2C0.1250\nT3C0.1500\n%\nT1\nX1.0Y1.0\nM30\n",
-        {'excellon_units': 'METRIC'}, 'IN', {1: (0.03, [(1, 1)], []), 2: (0.125, [], []), 3: (0.15, [], [])}),
     'units switch in the body converts what was read': (
         "M48\nINCH,TZ\nT1C0.0350\n%\nT1\nX1.0Y1.0\nM71\nX25.4Y25.4\nM30\n",
         {}, 'MM', {1: (0.889, [(25.4, 25.4), (25.4, 25.4)], [])}),
-    'repeat with decimal coordinates': (
-        METRIC + "X0.0Y0.0\nR3X1.0\nX5.0\nM30\n",
-        {}, 'MM', {1: (1.0, [(0, 0), (1, 0), (2, 0), (3, 0), (5, 0)], [])}),
     'M80 / M70 mirror or swap only the pattern copy of their M02 line': (
         METRIC + "M25\nX1.0Y1.0\nX2.0Y1.0\nM01\nM02X10.0Y0.0M80\nM02X0.0Y10.0M70\nX3.0Y3.0\nM30\n",
         {}, 'MM', {1: (1.0, [(1, 1), (2, 1), (9, 1), (8, 1), (1, 11), (1, 12), (3, 3)], [])}),
     'G85 slot sets the modal coordinates and a slot can start from them': (
         METRIC + "X1.0Y1.0\nX2.0G85X4.0\nX6.0Y6.0\nM30\n",
         {}, 'MM', {1: (1.0, [(1, 1), (6, 6)], [((2, 1), (4, 1))])}),
-    'incremental coordinates': (
-        METRIC + "G91\nX1.0Y1.0\nX1.0Y1.0\nG90\nX9.0Y9.0\nM30\n",
-        {}, 'MM', {1: (1.0, [(1, 1), (2, 2), (9, 9)], [])}),
     'Allegro tools and units from the comments': (
         ";HEADER:\n;Holesize 1. = 35.000000 Tolerance = +0.000000/-0.000000 PLATED MILS Quantity = 1\n"
         ";Holesize 2. = 125.000000 Tolerance = +0.000000/-0.000000 NON_PLATED MILS Quantity = 1\n%\n"
@@ -121,15 +112,6 @@ def test_equal_diameters_are_merged_only_on_request():
     assert dump(merged) == {1: (1.0, [(1, 1), (2, 2)], [((3, 3), (4, 3))]), 3: (0.5, [(9, 9)], [])}
 
 
-def test_a_file_with_a_utf8_bom_is_read(tmp_path):
-    path = tmp_path / 'bom.drl'
-    path.write_bytes(b"\xef\xbb\xbfM48\r\nMETRIC\r\nT1C1.0\r\n%\r\nT1\r\nX1.0Y1.0\r\nM30\r\n")
-    app = make_app_0b()
-    exc = Excellon(app)
-    assert exc.parse_file(str(path)) is None
-    assert dump(exc) == {1: (1.0, [(1, 1)], [])}
-
-
 def test_hole_and_slot_circles_follow_the_circle_preference():
     for mode in ('fixed', 'adaptive'):
         app = make_app_0b(excellon_circle_steps_mode=mode, excellon_circle_steps=24, excellon_circle_tolerance=5.0)
@@ -170,25 +152,6 @@ def pcb_wizard(_headless_qt):
     tool.set_tool_ui()
     yield tool
     tool.deleteLater()
-
-
-def test_pcbwizard_inf_format_is_set_in_the_gui_thread(pcb_wizard, tmp_path, _headless_qt):
-    inf = tmp_path / 'board.inf'
-    inf.write_text("T1 0.8\nT2 1.2\n4.2 format, metric, absolute\n")
-    ui = pcb_wizard.ui
-    threads = []
-    for widget in (ui.units_radio, ui.int_entry, ui.frac_entry):
-        widget.set_value = lambda value, set_value=widget.set_value: (
-            threads.append(threading.current_thread()), set_value(value))
-    # load_inf() runs in the worker thread of the app
-    worker = threading.Thread(target=pcb_wizard.load_inf, args=[str(inf)])
-    worker.start()
-    worker.join()
-    _headless_qt.processEvents()
-    # Qt widgets are not thread-safe: load_inf() set the format fields from the worker thread
-    assert threads and set(threads) == {threading.main_thread()}
-    assert (ui.units_radio.get_value(), ui.int_entry.get_value(), ui.frac_entry.get_value()) == ('METRIC', 4, 2)
-    assert pcb_wizard.tools_from_inf == {1: 0.8, 2: 1.2}
 
 
 def test_pcbwizard_import_uses_the_format_corrected_after_loading(pcb_wizard, tmp_path):

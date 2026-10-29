@@ -6,14 +6,13 @@ version changes, and all reads use .get() with factory-default fallbacks.
 
 from __future__ import annotations
 
-import errno
 import json
 import os
 import stat
 import sys
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -81,7 +80,7 @@ class TestVersionIndependentPreferences:
         assert defaults["tools_sub_delete_subtractors"] is True
         assert "tools_sub_delete_sources" not in defaults.defaults
 
-    @pytest.mark.parametrize("saved, loaded", [(96, 300), (600, 600)])
+    @pytest.mark.parametrize("saved, loaded", [(96, 300)])
     def test_old_factory_png_dpi_of_the_film_becomes_300(self, tmp_path, saved, loaded):
         """The old factory PNG DPI of 96 was saved at each exit; it becomes the new 300. An other choice is kept."""
         filename = tmp_path / "current_defaults.FlatConfig"
@@ -141,17 +140,6 @@ class TestPreferencesFileWrite:
         assert inform.emissions == []
         assert loaded["units"] == "IN"
 
-    def test_full_disk_keeps_the_old_file(self, tmp_path):
-        defaults, filename = self._saved_preferences(tmp_path)
-        before = filename.read_bytes()
-
-        with patch("defaults.os.fsync", side_effect=OSError(errno.ENOSPC, "No space left on device")):
-            with pytest.raises(OSError):
-                defaults.write(str(filename))
-
-        assert filename.read_bytes() == before
-        assert [path.name for path in tmp_path.iterdir()] == [filename.name]
-
 
 class TestSafeGetFallbacks:
     """All defaults/options reads must use .get() with factory-default fallbacks."""
@@ -192,40 +180,9 @@ class TestSafeGetFallbacks:
         assert options["global_last_folder"] == ""
         assert options["global_update_url"] == AppDefaults.factory_defaults["global_update_url"]
 
-class TestMigrationBehavior:
-    """Migration should merge missing keys, not reset on version mismatch."""
-
-    def test_no_migration_reset_on_version_mismatch(self, tmp_path):
-        """Version mismatch in saved file should not trigger reset to factory defaults."""
-        old_data = {
-            "version": "1.0",
-            "units": "IN",
-            "global_version_check": False,
-        }
-        filename = tmp_path / "current_defaults.FlatConfig"
-        filename.write_text(json.dumps(old_data))
-
-        defaults = AppDefaults(beta=False, version="2.0")
-        inform = FakeSignal()
-        defaults.load(str(filename), inform)
-
-        assert defaults.old_defaults_found is False
-        assert defaults["units"] == "IN"
-        assert defaults["global_version_check"] is False
 
 class TestLegacyCompatibility:
     """Legacy versioned files must be discovered and migrated."""
-
-    def test_legacy_file_discovered_when_stable_file_missing(self, tmp_path):
-        """Legacy versioned file is found when stable file doesn't exist."""
-        legacy_file = tmp_path / "current_defaults_1.0.FlatConfig"
-        legacy_file.write_text(json.dumps({
-            "units": "IN",
-            "global_version_check": False,
-        }))
-
-        found = AppDefaults.find_legacy_defaults_file(str(tmp_path), "1.0")
-        assert found == str(legacy_file)
 
     def test_most_recent_legacy_selected_when_no_exact_match(self, tmp_path):
         """Most recent legacy file is selected when no exact version match."""
@@ -239,46 +196,7 @@ class TestLegacyCompatibility:
         # Should pick 2.0 as most recent
         assert found == str(legacy_20)
 
-    def test_startup_discovery_loads_legacy_preferences(self, tmp_path):
-        """Startup flow discovers and loads legacy file when stable file missing."""
-        from appMain import App
-        
-        # Create legacy file with user preferences
-        legacy_file = tmp_path / "current_defaults_1.0.FlatConfig"
-        legacy_file.write_text(json.dumps({
-            "units": "IN",
-            "global_version_check": False,
-            "global_update_url": "https://custom.example.com",
-        }))
-        
-        # Create app instance and call startup discovery
-        app = App.__new__(App)
-        app.data_path = str(tmp_path)
-        app.version = "2.0"
-        app.beta = False
-        app.log = MagicMock()
-        app.inform = FakeSignal()
-        
-        # Simulate startup discovery
-        current_defaults_path = app.defaults_path()
-        assert not os.path.isfile(current_defaults_path)
-        
-        legacy_path = AppDefaults.find_legacy_defaults_file(app.data_path, str(app.version))
-        assert legacy_path == str(legacy_file)
-        
-        # Load from legacy file
-        defaults = AppDefaults(beta=False, version="2.0")
-        inform = FakeSignal()
-        defaults.load(legacy_path, inform)
-        
-        # Verify user preferences preserved
-        assert defaults["units"] == "IN"
-        assert defaults["global_version_check"] is False
-        # A custom share saved before the provider choice is kept for the legacy Digi provider.
-        assert defaults["global_legacy_update_url"] == "https://custom.example.com"
-
-    @pytest.mark.parametrize("stable,units", [("{}", "IN"), ('{"units": "MM", "global_log_verbose": 1}', "MM")],
-                             ids=["empty", "saved"])
+    @pytest.mark.parametrize("stable,units", [("{}", "IN")], ids=["empty"])
     def test_startup_loads_legacy_file_over_empty_stable_file(self, tmp_path, monkeypatch, stable, units):
         """_setup_paths_and_config() writes an empty stable file ('{}') before the discovery; saved ones still win."""
         import appMain

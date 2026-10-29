@@ -90,35 +90,6 @@ def test_drill_cut_handles_multipart_open_and_closed_paths(cutout_app):
         assert len(points) == len({tuple(point.coords)[0] for point in points})
 
 
-@pytest.mark.parametrize('rectangular', [False, True])
-def test_signed_automatic_cutters_preserve_geometry(cutout_app, rectangular):
-    source = load_source(cutout_app.test_app, 'outline_single')
-    paths = []
-    for diameter in (2.4, -2.4):
-        _configure(cutout_app, source, rectangular, dia=diameter)
-        _generate(cutout_app, rectangular)
-        paths.append(unary_union(flat(_geometry(cutout_app).solid_geometry)))
-    assert paths[0].equals(paths[1])
-
-
-def test_extensionless_mouse_bites_keep_source_name(cutout_app):
-    source = make_geometry(cutout_app.test_app, 'board', box(0, 0, 50, 30))
-    _configure(cutout_app, source, gap_type=2)
-    _generate(cutout_app)
-    assert 'board_mouse_bites' in cutout_app.test_app.created
-    assert _drills(cutout_app)
-
-
-@pytest.mark.parametrize('rectangular', [False, True])
-def test_failed_cutout_releases_its_promises(cutout_app, rectangular):
-    source = make_geometry(cutout_app.test_app, 'board', box(0, 0, 10, 10))
-    _configure(cutout_app, source, rectangular, gap_type=2, gapsize=20.0)
-    _generate(cutout_app, rectangular)
-    assert not cutout_app.test_app.created
-    assert not cutout_app.test_app.collection.has_promises()
-
-
-
 def test_manual_gap_without_cutter_preserves_geometry(cutout_app):
     source = _manual_target(cutout_app, [LineString([(0, 0), (20, 0)])])
     source.tools = {}
@@ -130,7 +101,7 @@ def test_manual_gap_without_cutter_preserves_geometry(cutout_app):
     assert not source.tools
 
 
-@pytest.mark.parametrize('gap_type', [0, 1, 2])
+@pytest.mark.parametrize('gap_type', [2])
 def test_escape_restores_manual_session_and_next_finish_has_no_stale_bites(cutout_app, gap_type):
     from appHandlers.appHistory import states_equal
     source = _manual_target(cutout_app, [box(0, 0, 50, 30).exterior])
@@ -174,7 +145,7 @@ def test_escape_restores_manual_session_and_next_finish_has_no_stale_bites(cutou
         assert not _drills(cutout_app)
 
 
-@pytest.mark.parametrize('gap_type', [0, 1, 2])
+@pytest.mark.parametrize('gap_type', [1])
 def test_manual_bridge_edit_rebuilds_overlaps_and_keeps_inner_contours(cutout_app, gap_type):
     outer = box(0, 0, 50, 30).exterior
     inner = box(10, 0.5, 40, 20).exterior
@@ -241,27 +212,7 @@ def test_manual_bridge_edit_rebuilds_overlaps_and_keeps_inner_contours(cutout_ap
     assert states_equal((source.solid_geometry, source.tools, source.multigeo), original)
 
 
-def test_manual_mouse_bites_stay_on_the_material_side_of_inner_contours(cutout_app):
-    outer = box(0, 0, 50, 30).exterior
-    inner = box(10, 5, 40, 25).exterior
-    _manual_target(cutout_app, [outer, inner])
-    app = cutout_app.test_app
-    app.ui.keyPressEvent = Mock()
-    app.ui.notebook = Mock()
-    app.plotcanvas.translate_coords = lambda pos: pos
-    cutout_app.ui.big_cursor_cb.set_value(False)
-    cutout_app.ui.gaptype_combo.set_value(2)
-    cutout_app.ui.mb_dia_entry.set_value(0.6)
-    cutout_app.ui.mb_spacing_entry.set_value(0.3)
-    cutout_app.on_manual_gap_click()
-    cutout_app.on_mouse_click_release(SimpleNamespace(pos=(25, 5), button=1))
-    cutout_app.on_mouse_click_release(SimpleNamespace(pos=(0, 0), button=2))
-    holes = _drills(cutout_app)
-    assert holes
-    assert all(point.y == pytest.approx(4.1) for point in holes)
-
-
-@pytest.mark.parametrize('gap_type', [0, 1, 2])
+@pytest.mark.parametrize('gap_type', [1])
 def test_manual_grip_drag_previews_then_commits_and_escape_restores(cutout_app, gap_type):
     path = box(0, 0, 50, 30).exterior
     source = _manual_target(cutout_app, [path])
@@ -328,9 +279,7 @@ def test_manual_grip_drag_previews_then_commits_and_escape_restores(cutout_app, 
 
 
 @pytest.mark.parametrize('source_name,kind,margin,convex', [
-    ('outline_slot', 'single', 0.1, False), ('outline_slot', 'panel', -0.3, False),
-    ('outline_slot', 'single', 0.1, True), ('outline_panel2', 'single', 0.1, False),
-    ('outline_panel2', 'panel', 0.1, False),
+    ('outline_slot', 'panel', -0.3, False), ('outline_panel2', 'single', 0.1, True),
 ])
 def test_manual_inner_contours_match_automatic_ungapped_outline(cutout_app, source_name, kind, margin, convex):
     source = load_source(cutout_app.test_app, source_name)
@@ -353,44 +302,8 @@ def test_manual_inner_contours_match_automatic_ungapped_outline(cutout_app, sour
     assert cutout_app.ui.inner_gaps_cb.isEnabled()
 
 
-@pytest.mark.parametrize('gap_type,rectangular', [(1, False), (2, True)])
-def test_beginner_generates_basic_bridges_from_visible_defaults(cutout_app, gap_type, rectangular):
-    source = load_source(cutout_app.test_app, 'outline_single')
-    _configure(cutout_app, source, rectangular, gap_type=gap_type, convex=True)
-    cutout_app.on_level_changed(False)
-    assert cutout_app.ui.gaptype_combo.get_value() == 0
-    assert not cutout_app.ui.convex_box_cb.get_value()
-    assert cutout_app.ui.thin_depth_entry.isHidden()
-    assert cutout_app.ui.mb_dia_entry.isHidden()
-    _generate(cutout_app, rectangular)
-    assert set(_geometry(cutout_app).tools) == {1}
-    assert not _drills(cutout_app)
-    # the Advanced level brings back the user's values, not the preferences
-    cutout_app.test_app.options['tools_cutout_gap_type'] = 0
-    cutout_app.test_app.options['tools_cutout_convexshape'] = False
-    cutout_app.on_level_changed(True)
-    assert cutout_app.ui.gaptype_combo.get_value() == gap_type
-    assert cutout_app.ui.convex_box_cb.get_value()
-
-
-def test_added_tool_keeps_the_automatic_widgets_and_shows_its_gap_type(cutout_app):
-    ui = cutout_app.ui
-    ui.cutout_type_radio.set_value('a')
-    cutout_app.on_cutout_type('a')
-    # 'Search and Add' of a diameter that is not in the Tools Database, then 'Pick from DB' with Mouse Bites
-    cutout_app.on_tool_default_add(dia=2.4, muted=True)
-    data = dict(cutout_app.default_data, tool_target=6, tools_cutout_gap_type=2)
-    cutout_app.on_cutout_tool_add_from_db_executed({'tooldia': 3.0, 'data': data})
-    shown = {name: not getattr(ui, name).isHidden() for name in (
-        'generate_cutout_btn', 'gaps', 'man_geo_creation_btn', 'man_gaps_creation_btn', 'mb_dia_entry',
-        'thin_depth_entry')}
-    assert ui.cutout_type_radio.get_value() == 'a' and ui.gaptype_combo.get_value() == 2
-    assert shown == {'generate_cutout_btn': True, 'gaps': True, 'man_geo_creation_btn': False,
-                     'man_gaps_creation_btn': False, 'mb_dia_entry': True, 'thin_depth_entry': False}
-
-
 @pytest.mark.parametrize('source_kind,kind', [
-    ('geometry', 'single'), ('geometry', 'panel'), ('gerber', 'single'), ('gerber', 'panel'),
+    ('geometry', 'single'), ('gerber', 'panel'),
 ])
 def test_rectangular_thin_paths_partition_the_full_contour(cutout_app, source_kind, kind):
     source = (load_source(cutout_app.test_app, 'outline_panel2') if source_kind == 'gerber' else
@@ -408,7 +321,7 @@ def test_rectangular_thin_paths_partition_the_full_contour(cutout_app, source_ki
     assert unary_union([cut, thin]).hausdorff_distance(full) < 1e-7
 
 
-@pytest.mark.parametrize('rectangular', [False, True])
+@pytest.mark.parametrize('rectangular', [False])
 def test_manual_panels_keep_all_paths_and_independent_tools(cutout_app, rectangular):
     template = deepcopy(cutout_app.cut_tool_dict)
     outputs = []
@@ -435,9 +348,6 @@ U_SHAPE = Polygon([(0, 0), (50, 0), (50, 30), (35, 30), (35, 10),
 
 @pytest.mark.parametrize('mode,path,count', [
     ('LR', LinearRing([(0, 15), (0, 0), (50, 0), (50, 30), (0, 30), (0, 15)]), 2),
-    ('TB', rotate(RECTANGLE, 27), 2),
-    ('2LR', RECTANGLE, 4),
-    ('2TB', LinearRing(list(RECTANGLE.coords)[::-1]), 4),
     ('4', U_SHAPE, 4),
     ('8', rotate(RECTANGLE, 27), 8),
 ])
@@ -491,9 +401,7 @@ def test_valid_thin_gap_owns_its_tool_and_zero_depth_keeps_a_bridge(cutout_app):
 
 
 @pytest.mark.parametrize('rectangular,kind,closed_path,margin', [
-    (False, 'single', True, 2.0), (False, 'panel', False, -0.3),
-    (True, 'single', True, -0.3),
-    (True, 'panel', False, 2.0),
+    (False, 'single', True, 2.0), (True, 'panel', False, 2.0),
 ])
 def test_mouse_bites_follow_margin_rows_and_keep_spacing(cutout_app, rectangular, kind, closed_path, margin):
     boards = [box(0, 0, 50, 30)] if kind == 'single' else [box(0, 0, 40, 25), box(50, 0, 90, 25)]

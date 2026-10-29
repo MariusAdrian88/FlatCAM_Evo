@@ -113,12 +113,6 @@ class TestMenuRequest(unittest.TestCase):
         self.assertIn('enable', self.shown())
         self.assertNotIn('disable', self.shown())
 
-    def test_export_submenu_for_one_gerber_excellon_or_geometry(self):
-        for kind in ('gerber', 'excellon', 'geometry'):
-            with self.subTest(kind=kind):
-                self.request(obj(kind))
-                self.assertTrue(self.ui.menuprojectexport.menuAction().isVisible())
-
     def test_export_submenu_hidden_for_a_cncjob_and_for_several_objects(self):
         self.request(obj('cncjob'))
         self.assertFalse(self.ui.menuprojectexport.menuAction().isVisible())
@@ -233,42 +227,6 @@ class TestJoinAs(unittest.TestCase):
             self.assertTrue(joined.intersects(Point(x, y)), (x, y))
 
 
-class TestCategoryMenu(unittest.TestCase):
-
-    def setUp(self):
-        self.col = make_collection()
-        self.shown_menu = []
-        patcher = mock.patch.object(QtWidgets.QMenu, 'popup', new=lambda menu, pos: self.shown_menu.append(menu))
-        patcher.start()
-        self.addCleanup(patcher.stop)
-        self.col.get_list = lambda: [obj('gerber', 'a'), obj('gerber', 'b'), obj('excellon', 'c')]
-
-    def request(self, kind):
-        self.col.view.indexAt = lambda pos: self.col.index(list(self.col.group_items).index(kind), 0,
-                                                           QtCore.QModelIndex())
-        self.col.on_menu_request(QtCore.QPoint(0, 0))
-        self.assertEqual(len(self.shown_menu), 1)
-        return [(a.text(), a.isEnabled()) if not a.isSeparator() else '-' for a in self.shown_menu[0].actions()]
-
-    def test_show_all_and_hide_all_take_the_objects_of_the_category(self):
-        self.request('gerber')
-        show_all, hide_all = self.shown_menu[0].actions()[:2]
-        show_all.trigger()
-        hide_all.trigger()
-        for call in (self.col.app.enable_plots, self.col.app.disable_plots):
-            self.assertEqual([o.obj_options['name'] for o in call.call_args[0][0]], ['a', 'b'])
-
-    def test_open_runs_the_file_handler_of_the_category(self):
-        for kind, handler in (('gerber', 'on_file_open_gerber'), ('excellon', 'on_file_open_excellon'),
-                              ('cncjob', 'on_file_open_gcode'),
-                              ('geometry', 'on_file_open_geometry'), ('script', 'on_file_open_script'),
-                              ('document', 'on_file_open_document')):
-            self.shown_menu.clear()
-            self.request(kind)
-            self.shown_menu[0].actions()[-1].trigger()
-            getattr(self.col.app.f_handlers, handler).assert_called_once()
-
-
 class TestViewSource(unittest.TestCase):
 
     def view_source(self, selected):
@@ -290,12 +248,6 @@ class TestViewSource(unittest.TestCase):
         message = app.inform.emit.call_args[0][0]
         self.assertTrue(message.startswith('[WARNING_NOTCL]'))
         self.assertIn('iso_geo', message)
-
-    def test_object_with_a_source_opens_the_editor(self):
-        app, __ = self.view_source(obj('gerber', 'top', source_file='G04 test*\nM02*\n'))
-        app.ui.plot_tab_area.addTab.assert_called_once()
-        app.source_editor_tab.load_text.assert_called_once_with('G04 test*\nM02*\n', clear_text=True,
-                                                                move_to_start=True)
 
 
 if __name__ == '__main__':

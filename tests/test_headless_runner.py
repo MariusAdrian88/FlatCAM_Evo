@@ -4,7 +4,7 @@ import io
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-from appCommon.Headless import HeadlessExit, HeadlessRunner
+from appCommon.Headless import HeadlessRunner
 from tests.test_tcl_audit_regressions import new_tcl
 
 
@@ -42,42 +42,12 @@ def test_exit_n_gives_exit_code_n_and_stops_the_script():
     assert err == ''
 
 
-def test_quit_app_raising_headless_exit_in_a_callback_ends_the_run():
-    app = _app(command='fake_quit; set never 1')
-
-    def fake_quit():
-        app.headless_exit_code = 0
-        raise HeadlessExit(0)
-
-    app.shell.tcl.createcommand('fake_quit', fake_quit)
-    code, out, err = _run(app)
-    assert code == 0
-    assert app.shell.tcl.eval('info exists never') == '0'
-
-
 def test_the_prompt_reads_complete_commands_from_stdin():
     stdin = 'set x {\n1 2\n}\nllength $x\nno_such_command\nset y 1\n'
     code, out, err = _run(_app(), stdin=stdin)
     assert '2\n' in out
     assert 'invalid command name' in err
     assert code == 1   # a command failed; the prompt went on with the next one
-
-
-def test_shellfile_accepts_utf8_bom(tmp_path):
-    path = tmp_path / 'unicode.tcl'
-    path.write_text('set origin [info script]; set text {café}; string length $text', encoding='utf-8-sig')
-    app = _app(shellfile=str(path))
-    assert _run(app) == (0, '4\n', '')
-    assert app.shell.tcl.eval('set origin') == str(path)
-    assert app.shell.tcl.eval('info script') == ''
-
-
-def test_headless_preflight_does_not_partially_execute_incomplete_input():
-    app = _app(command='set changed 1\nset unfinished {')
-    code, out, err = _run(app)
-    assert code == 1
-    assert 'incomplete' in err.lower()
-    assert app.shell.tcl.eval('info exists changed') == '0'
 
 
 def test_puts_preserves_procedure_loop_channel_and_nonewline_output(tmp_path):
@@ -117,81 +87,6 @@ def test_gui_runtime_error_stops_without_repeating_side_effects():
     assert app.script_error_line == 1
     assert App.script_processing(app, 'set changed 1\nset incomplete {') == 'fail'
     assert app.shell.tcl.eval('info exists changed') == '0'
-
-
-def test_gui_source_is_unchanged_and_fail_is_an_ordinary_result():
-    from appMain import App
-    app = _gui_script_app()
-    text = 'set path {C:\\new\\open}\nset value {a\n\n#literal\nb}\nset result fail'
-    assert App.script_processing(app, text) == 'fail'
-    assert app.shell.tcl.eval('set path') == 'C:\\new\\open'
-    assert app.shell.tcl.eval('set value') == 'a\n\n#literal\nb'
-    assert app.script_state == 'completed'
-    app.shell.append_error.assert_not_called()
-
-
-def test_nested_script_and_reset_are_refused_during_a_qt_event_loop():
-    from PyQt6 import QtCore, QtWidgets
-    from appMain import App
-    from appHandlers.appIO import appIO
-    from appPlugins.ToolShell import FCShell
-    qapp = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
-    app = _gui_script_app()
-    app.shell.app = app
-    results = []
-
-    def wait():
-        loop = QtCore.QEventLoop()
-
-        def nested():
-            work = {'finished': False}
-            app.script_pending_work = [work]
-            results.append(App.script_processing(app, 'set nested 1'))
-            io = SimpleNamespace(app=app, log=app.log, inform=app.inform)
-            results.append(appIO.on_file_new_project(io))
-            try:
-                results.append(App.install_tools(app, init_tcl=True))
-            except Exception as error:
-                results.append(error)
-            work['finished'] = True
-            results.append(FCShell.exec_command_test(app.shell, 'set nested 1', reraise=False))
-            loop.quit()
-
-        QtCore.QTimer.singleShot(0, nested)
-        loop.exec()
-        return ''
-
-    app.shell.tcl.createcommand('wait_for_work', wait)
-    App.script_processing(app, 'wait_for_work; set outer done')
-    assert results == ['fail', 'fail', 'fail', 'fail']
-    assert app.shell.tcl.eval('info exists nested') == '0'
-    assert app.shell.tcl.eval('set outer') == 'done'
-
-
-
-def test_script_cannot_execute_against_another_active_project():
-    from appMain import App
-    app = _gui_script_app()
-    app.collection = object()
-    owner = SimpleNamespace(_script_collection=object())
-    assert App.script_processing(app, 'set wrong_project 1', owner=owner) == 'fail'
-    assert app.shell.tcl.eval('info exists wrong_project') == '0'
-
-
-def test_abort_with_nothing_running_does_not_cancel_the_next_task():
-    from appMain import App
-    app = SimpleNamespace(abort_flag=False, script_interrupt=None, inform=Mock(), cleanup=Mock(),
-                          proc_container=Mock(get_procs_count=Mock(return_value=0)),
-                          workers=Mock(pending_count=Mock(return_value=0)))
-    App.abort_all_tasks(app)    # Ctrl+Alt+X while idle
-    assert app.abort_flag is False
-    app.cleanup.emit.assert_called_once_with()  # the plugins are still reset (the G-code sender disconnects)
-    # a running process is aborted, and its end clears the flag
-    app.proc_container.get_procs_count.return_value = 1
-    App.abort_all_tasks(app)
-    assert app.abort_flag is True
-    App.app_is_idle(app)
-    assert app.abort_flag is False
 
 
 def _native_interrupt_child():

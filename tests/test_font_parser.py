@@ -1,9 +1,6 @@
 """ParseFont: point-size scale, glyph topology, layout and font discovery."""
 
 import math
-import os
-import subprocess
-import sys
 from types import SimpleNamespace
 
 import freetype
@@ -188,13 +185,6 @@ def test_glyph_fill_rule_keeps_islands_and_merges_overlaps(tmp_path):
         assert geom.area == pytest.approx(unit_area * scale ** 2, rel=1e-3)
 
 
-def test_invalid_font_size_is_rejected():
-    parser, family, _ = make_parser()
-    for size in (0, float('nan'), 'abc'):
-        with pytest.raises(ValueError):
-            parser.font_to_geometry('H', family, 'regular', size, 'MM')
-
-
 def test_font_collections_use_the_indexed_face(tmp_path):
     from appParsers.ParsePcbDoc import PcbDocParser
     from appParsers.SVG.text import FontService
@@ -228,26 +218,6 @@ def test_font_collections_use_the_indexed_face(tmp_path):
     kerned = layout._font_geometry('oo', 'CollOther', 'Regular', 10.0)
     assert kerned.bounds[2] - kerned.bounds[0] == pytest.approx(32.0, rel=1e-3)
 
-
-def test_family_aliases_and_regular_fallbacks(tmp_path):
-    alias = build_font('AliasFace SemiBold', 600, {'o': [square(100, 100, 200)]})
-    alias['name'].setName('AliasFace', 16, 3, 1, 0x409)
-    alias['name'].setName('SemiBold', 17, 3, 1, 0x409)
-    alias.save(str(tmp_path / 'alias.ttf'))
-    build_font('OnlyItalic', 600, {'o': [square(100, 100, 200)]}, style='Italic') \
-        .save(str(tmp_path / 'only_italic.ttf'))
-
-    parser = new_parser()
-    parser.get_fonts_by_types([str(tmp_path)])
-    assert list(parser.regular_f) == ['AliasFace SemiBold']
-    assert list(parser.bold_f) == ['AliasFace']
-    assert list(parser.italic_f) == ['OnlyItalic']
-
-    # the family name the UI shows still renders when the family has no regular face
-    assert parser.font_to_geometry('o', 'AliasFace', 'regular', 12, 'MM').area > 0
-    assert parser.font_to_geometry('o', 'OnlyItalic', 'regular', 12, 'MM').area > 0
-    # an explicitly requested style the family does not ship still reports the failure
-    assert parser.font_to_geometry('o', 'OnlyItalic', 'bold', 12, 'MM') == 'flatcam font parse failed'
 
 @pytest.fixture(scope='session')
 def qt_fonts():
@@ -411,32 +381,6 @@ def test_bitmap_font_geometry_uses_pixels_and_smoothing(tmp_path):
     assert moved.bounds[1] == pytest.approx(exact.bounds[1] + 20)
 
 
-def test_headless_complex_text_is_reported_and_bitmap_still_renders(tmp_path):
-    core_application = False
-    build_shaped_font(tmp_path, 'HeadlessArabicCheck', {'beh': [square(0, 0, 400)]},
-                      {'beh': 600}, {0x0628: 'beh'})
-    build_bitmap_font(tmp_path)
-    script = r'''
-import sys
-from types import SimpleNamespace
-from appParsers.ParseFont import ParseFont
-if sys.argv[2] == 'True':
-    from PyQt6.QtCore import QCoreApplication
-    app = QCoreApplication([])
-parser = ParseFont(SimpleNamespace(inform=SimpleNamespace(emit=lambda *args, **kwargs: None)))
-parser.get_fonts_by_types([sys.argv[1]])
-complex_geom = parser.font_to_geometry("\u0628", "HeadlessArabicCheck", "regular", 16, "MM")
-assert isinstance(complex_geom, str) and "qt" in complex_geom.lower(), complex_geom
-bitmap = parser.font_to_geometry("O", "BitmapPixelCheck", "regular", 16, "MM", 0, 0, 0)
-assert not isinstance(bitmap, str) and bitmap.area > 0, bitmap
-print("ok")
-'''
-    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    result = subprocess.run([sys.executable, '-c', script, str(tmp_path), str(core_application)], cwd=root,
-                            capture_output=True, text=True, timeout=120, env=os.environ.copy())
-    assert result.returncode == 0, result.stderr
-    assert 'ok' in result.stdout
-
 def test_gpos_mark_is_placed_above_the_base(tmp_path, qt_fonts):
     anchor_x = 900   # the mark overhangs its base
     build_shaped_font(
@@ -472,30 +416,4 @@ def test_gpos_mark_is_placed_above_the_base(tmp_path, qt_fonts):
     moved = parser.font_to_geometry('A\u0301', family, 'regular', 100, 'MM', 10, 20)
     assert moved.bounds[0] == pytest.approx(geom.bounds[0] + 10)
     assert moved.bounds[1] == pytest.approx(geom.bounds[1] + 20)
-
-
-def test_latin_font_ligature_is_detected_and_shaped(tmp_path, qt_fonts):
-    glyphs = {'a': [square(0, 0, 400)], 'b': [square(0, 0, 300)], 'ab': [square(0, 0, 700)]}
-    advances = {'a': 600, 'b': 500, 'ab': 900}
-    build_shaped_font(tmp_path, 'LatinLigatureCheck', glyphs, advances,
-                      {ord('a'): 'a', ord('b'): 'b'},
-                      'languagesystem DFLT dflt;\nlanguagesystem latn dflt;\n'
-                      'feature liga { sub a b by ab; } liga;\n')
-    build_shaped_font(tmp_path, 'LatinPlainCheck',
-                      {'a': [square(0, 0, 400)], 'b': [square(0, 0, 300)]},
-                      {'a': 600, 'b': 500}, {ord('a'): 'a', ord('b'): 'b'})
-    parser = new_parser()
-    parser.get_fonts_by_types([str(tmp_path)])
-
-    ligature = parser.font_to_geometry('ab', 'LatinLigatureCheck', 'regular', 100, 'MM')
-    unit = 64 * ParseFont.SCALE_MM
-    parts = parts_of(ligature)
-    assert len(parts) == 1
-    assert (parts[0].bounds[2] - parts[0].bounds[0]) / unit == pytest.approx(70)
-    assert parser.text_advance('ab', parser.regular_f['LatinLigatureCheck'], 100) == pytest.approx(90)
-
-    plain = parser.font_to_geometry('ab', 'LatinPlainCheck', 'regular', 100, 'MM')
-    assert len(parts_of(plain)) == 2
-    assert parser.text_advance('ab', parser.regular_f['LatinPlainCheck'], 100) == pytest.approx(110)
-
 

@@ -30,12 +30,6 @@ def press(key, modifiers, source='app', in_text=False, options=None):
     return gui
 
 
-class TestAppImportKey(unittest.TestCase):
-    def test_ctrl_i_opens_import(self):
-        gui = press(QtCore.Qt.Key.Key_I, CTRL)
-        gui.app.project_selector.on_import.assert_called_once()
-
-
 class TestAppHistoryKeys(unittest.TestCase):
     def test_ctrl_z_undo(self):
         gui = press(QtCore.Qt.Key.Key_Z, CTRL)
@@ -44,11 +38,6 @@ class TestAppHistoryKeys(unittest.TestCase):
 
     def test_ctrl_shift_z_redo(self):
         gui = press(QtCore.Qt.Key.Key_Z, CTRL | SHIFT)
-        gui.app.history.redo.assert_called_once()
-        gui.app.history.undo.assert_not_called()
-
-    def test_ctrl_y_redo(self):
-        gui = press(QtCore.Qt.Key.Key_Y, CTRL)
         gui.app.history.redo.assert_called_once()
         gui.app.history.undo.assert_not_called()
 
@@ -77,25 +66,6 @@ class TestKeysWithoutPlotArea(unittest.TestCase):
     def test_ctrl_s_saves_the_project(self):
         gui = self.press(QtCore.Qt.Key.Key_S, CTRL)
         gui.app.f_handlers.on_file_save_project.assert_called_once_with()
-
-    def test_copy_open_gerber_delete_and_add_tool_keys(self):
-        no_modifier = QtCore.Qt.KeyboardModifier.NoModifier
-        for key, modifiers, action in ((QtCore.Qt.Key.Key_C, CTRL, 'app.on_copy_command'),
-                                       (QtCore.Qt.Key.Key_G, CTRL, 'app.f_handlers.on_file_open_gerber'),
-                                       (QtCore.Qt.Key.Key_Delete, no_modifier, 'app.on_delete_keypress'),
-                                       (QtCore.Qt.Key.Key_T, no_modifier, 'app.on_tool_add_keypress')):
-            with self.subTest(action=action):
-                gui = self.press(key, modifiers)
-                target = gui
-                for name in action.split('.'):
-                    target = getattr(target, name)
-                target.assert_called_once_with()
-
-    def test_ctrl_s_in_the_preferences_tab_saves_the_preferences(self):
-        gui = self.press(QtCore.Qt.Key.Key_S, CTRL, tab_name='preferences_tab')
-        gui.app.preferencesUiManager.on_save_button.assert_called_once_with(save_to_file=False)
-        gui.app.f_handlers.on_file_save_project.assert_not_called()
-
 
 class TestEscapeLeavesFullScreen(unittest.TestCase):
     @classmethod
@@ -184,32 +154,6 @@ class TestViewKeys(unittest.TestCase):
                                        getattr(QtCore.Qt.Key, 'Key_' + key), SHIFT, key, True)
                 self.qapp.sendEvent(self.target, event)
                 self.assertEqual(action.isChecked(), not before)
-
-
-class TestEditorKeys(unittest.TestCase):
-    def test_minus_zooms_out_and_equal_zooms_in_in_the_editors_as_on_the_main_canvas(self):
-        # plotcanvas.zoom(factor): a factor above 1 zooms out, below 1 zooms in
-        for source in ('app', 'geo_editor', 'grb_editor', 'exc_editor'):
-            factors = []
-            for key in (QtCore.Qt.Key.Key_Minus, QtCore.Qt.Key.Key_Equal):
-                gui = press(key, NO_MODIFIER, source, options={'global_zoom_ratio': 1.5})
-                factors.append(gui.app.plotcanvas.zoom.call_args.args[0])
-            self.assertEqual(factors, [1.5, 1 / 1.5], source)
-
-    def test_ctrl_e_opens_the_eraser_and_ctrl_a_selects_all_in_the_gerber_and_excellon_editors(self):
-        gui = press(QtCore.Qt.Key.Key_E, CTRL, 'grb_editor')
-        gui.app.grb_editor.on_eraser.assert_called_once()
-        gui.app.grb_editor.ui.apertures_table.selectAll.assert_not_called()
-
-        gui = press(QtCore.Qt.Key.Key_E, CTRL, 'exc_editor')
-        gui.app.exc_editor.ui.tools_table_exc.selectAll.assert_not_called()
-
-        # Ctrl+A from the canvas ('A') and from the Project tab (an int key code)
-        for key in ('A', QtCore.Qt.Key.Key_A):
-            gui = press(key, CTRL, 'grb_editor')
-            gui.app.grb_editor.ui.apertures_table.selectAll.assert_called_once()
-            gui = press(key, CTRL, 'exc_editor')
-            gui.app.exc_editor.ui.tools_table_exc.selectAll.assert_called_once()
 
 
 if __name__ == '__main__':

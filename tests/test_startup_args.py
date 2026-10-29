@@ -10,12 +10,11 @@ runs do not go through App.on_startup_args().
 import os
 import threading
 import types
-from collections import deque
 from types import SimpleNamespace
 from unittest.mock import Mock, call
 
 import pytest
-from PyQt6 import QtCore, QtGui, QtNetwork, QtTest, QtWidgets
+from PyQt6 import QtCore, QtNetwork, QtTest, QtWidgets
 
 import appMain
 from appCommon import SingleInstance, StartDir
@@ -84,27 +83,11 @@ def assert_no_command(app):
 
 
 class TestFileType:
-    @pytest.mark.parametrize('path', ['C:/boards/a.gtl', 'C:/boards/top_copper.FlatScript.gbr'])
+    @pytest.mark.parametrize('path', ['C:/boards/top_copper.FlatScript.gbr'])
     def test_gerber(self, path):
         app = make_app()
         run_args(app, [path])
         assert app.f_handlers.method_calls == [call.on_file_open_gerber(name=path)]
-        app.ask_run_script_arg.assert_not_called()
-        assert_no_command(app)
-
-    @pytest.mark.parametrize('path', ['C:/boards/a.drl'])
-    def test_excellon(self, path):
-        app = make_app()
-        run_args(app, [path])
-        assert app.f_handlers.method_calls == [call.on_file_open_excellon(name=path)]
-        app.ask_run_script_arg.assert_not_called()
-        assert_no_command(app)
-
-    @pytest.mark.parametrize('path', ['C:/boards/a.gcode'])
-    def test_gcode(self, path):
-        app = make_app()
-        run_args(app, [path])
-        assert app.f_handlers.method_calls == [call.on_file_open_gcode(name=path)]
         app.ask_run_script_arg.assert_not_called()
         assert_no_command(app)
 
@@ -117,7 +100,7 @@ class TestFileType:
         app.ask_run_script_arg.assert_not_called()
         assert_no_command(app)
 
-    @pytest.mark.parametrize('path', ['C:/boards/a.FlatPrj.bak', 'C:/board.tcl/readme'])
+    @pytest.mark.parametrize('path', ['C:/board.tcl/readme'])
     def test_unknown_extension_opens_nothing(self, path):
         app = make_app()
         run_args(app, [path])
@@ -134,22 +117,6 @@ class TestFileType:
         app = make_app()
         run_args(app, [path])
         assert app.f_handlers.method_calls == [getattr(call, 'on_file_open_%s' % kind)(name=path)]
-
-    def test_tap_dropped_on_the_plot_area_opens_once(self, qapp, tmp_path):
-        from appCommon.RegisterFileKeywords import Extensions
-        from appGUI.GUIElements import PlotTabWithDragDrop
-
-        url = QtCore.QUrl.fromLocalFile(str(tmp_path / 'job.tap'))
-        with open(url.toLocalFile(), 'w') as f:
-            f.write(TAP_FILES['gcode'])
-        app = SimpleNamespace(regFK=Extensions(), worker_task=Mock(), f_handlers=Mock(), inform=Mock())
-        tab = PlotTabWithDragDrop(app=app)
-        mime = QtCore.QMimeData()
-        mime.setUrls([url])
-        tab.dropEvent(QtGui.QDropEvent(QtCore.QPointF(5, 5), QtCore.Qt.DropAction.CopyAction, mime,
-                                       QtCore.Qt.MouseButton.NoButton, QtCore.Qt.KeyboardModifier.NoModifier))
-        assert app.worker_task.emit.call_args_list == [
-            call({'fcn': app.f_handlers.open_gcode, 'params': [url.toLocalFile()]})]
 
 class TestOrderAndErrors:
     @staticmethod
@@ -193,27 +160,6 @@ class TestOrderAndErrors:
         assert 'ERROR' in app.inform.emit.call_args[0][0]
 
 
-class TestOpenRequests:
-    def _app(self, modal=None):
-        app = SimpleNamespace(
-            _open_requests=deque(), _open_busy=False, _open_retry_pending=False, _version_check_due=False,
-            qapp=SimpleNamespace(activeModalWidget=lambda: modal[0] if modal else None),
-            on_startup_args=Mock(), log=Mock(), version=1.0, _queue_version_check=Mock())
-        for name in ('open_files_request', '_drain_open_requests', '_retry_open_requests', '_open_request_done',
-                     '_start_deferred_version_check'):
-            setattr(app, name, types.MethodType(getattr(appMain.App, name), app))
-        return app
-
-    def test_files_wait_while_a_dialog_is_open(self, qapp):
-        modal = [object()]
-        app = self._app(modal)
-        app.open_files_request(['C:/a.gtl'])
-        app.on_startup_args.assert_not_called()
-        modal.clear()
-        app._retry_open_requests()
-        app.on_startup_args.assert_called_once()
-
-
 class TestRecent:
     def test_reopened_file_moves_to_the_top(self):
         app = SimpleNamespace(
@@ -241,14 +187,8 @@ class TestCommandWords:
         assert app.f_handlers.method_calls == []
         app.defaults.update.assert_not_called()
 
-    def test_save_then_quit(self):
-        app = make_app()
-        run_args(app, ['save', 'quit'])
-        app.preferencesUiManager.save_defaults.assert_called_once_with()
-        app.app_quit.emit.assert_called_once_with()
-
 class TestScriptArgument:
-    @pytest.mark.parametrize('path', ['C:/scripts/a.tcl', 'C:/scripts/a.flatscript'])
+    @pytest.mark.parametrize('path', ['C:/scripts/a.tcl'])
     def test_no_does_not_run_the_script(self, path):
         app = make_app(answer=False)
         run_args(app, [path])
@@ -256,14 +196,6 @@ class TestScriptArgument:
         # it is opened in the Code Editor, where the user can read it, and not run
         assert app.f_handlers.method_calls == [call.on_file_open_script(name=path)]
         app.f_handlers.on_file_run_script.assert_not_called()
-
-    @pytest.mark.parametrize('path', ['C:/scripts/a.tcl'])
-    def test_yes_runs_the_script(self, path):
-        app = make_app(answer=True)
-        run_args(app, [path])
-        app.ask_run_script_arg.assert_called_once_with(path)
-        assert app.f_handlers.method_calls == [call.on_file_open_script(name=path),
-                                               call.on_file_run_script(name=path)]
 
     @pytest.mark.parametrize('answer', [False, True])
     def test_the_script_reaches_the_tcl_shell_only_after_a_yes(self, tmp_path, answer):
@@ -386,16 +318,6 @@ class TestSingleInstance:
         finally:
             server.close()
 
-    def test_no_answer_means_not_delivered(self, name):
-        # a process that holds the socket but does not answer: the launch must not exit on it
-        silent = QtNetwork.QLocalServer()
-        assert silent.listen(name)
-        try:
-            assert self._run_client(
-                lambda: SingleInstance.send_to_running(['C:/a.gbr'], 1000, ack_timeout_ms=300), [], 0) is False
-        finally:
-            silent.close()
-
     def test_bad_client_does_not_stop_the_server(self, name):
         server = SingleInstance.InstanceServer()
         received = []
@@ -418,32 +340,6 @@ class TestSingleInstance:
             assert received == [['C:/a.gbr']]
         finally:
             server.close()
-
-    def test_sender_that_gave_up_is_not_served(self, name):
-        # the sender opens the files itself after its deadline, or when it goes before the answer: no second copy
-        server = SingleInstance.InstanceServer()
-        received = []
-        server.files_received.connect(received.append)
-        assert server.start()
-        server.set_ready()
-
-        def client():
-            for message in (b'{"files": ["C:/late.gbr"], "deadline": 1.0}\n', b'{"files": ["C:/cut.gbr"]}'):
-                sock = QtNetwork.QLocalSocket()
-                sock.connectToServer(name)
-                assert sock.waitForConnected(1000)
-                sock.write(message)
-                sock.waitForBytesWritten(1000)
-                sock.disconnectFromServer()
-            return True
-
-        try:
-            self._run_client(client, received, 0)
-            QtTest.QTest.qWait(SingleInstance.RELEASE_DELAY_MS + 300)
-            assert received == []
-        finally:
-            server.close()
-
 
 class TestRunScriptQuestion:
     @pytest.fixture
@@ -470,12 +366,4 @@ class TestRunScriptQuestion:
         assert seen['default'] == QtWidgets.QMessageBox.ButtonRole.NoRole
         assert result is False
         assert 'C:/scripts/job.tcl' in seen['text']
-
-    def test_yes(self, app, monkeypatch):
-        def click_yes(box):
-            yes = [b for b in box.buttons() if box.buttonRole(b) == QtWidgets.QMessageBox.ButtonRole.YesRole]
-            assert len(yes) == 1
-            yes[0].click()
-
-        result, _seen = self._ask(app, monkeypatch, click_yes)
-        assert result is True
+

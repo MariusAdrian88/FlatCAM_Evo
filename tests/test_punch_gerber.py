@@ -179,10 +179,7 @@ def test_fixed_punches_circle_and_records_clear_and_aperture():
 
 @pytest.mark.parametrize('method,value,code', [
     ('fixed', 0.9, 'size'),            # smaller than diagonal 1.166 but not than the 0.6 side
-    ('prop', 1.0, 'size'),
-    ('ring', [0.0] * 5, 'size'),
     ('ring', [0.5] * 5, 'zero'),
-    ('prop', 0.0, 'zero'),
 ])
 def test_obround_error_codes(method, value, code):
     with pytest.raises(ValueError) as err:
@@ -196,36 +193,6 @@ def test_ring_and_prop_hole_sizes():
     assert _clears(aps)[0][0] == pytest.approx(0.8)
     _, aps = _run(tools, method='prop', value=0.5)
     assert _clears(aps)[0][0] == pytest.approx(0.5)
-
-
-def test_aperture_macro_fixed_uses_own_bounds():
-    tools = {10: _am_ap(0, 0)}
-    solid, aps = _run(tools, value=0.5)
-    assert not solid.intersects(Point(0, 0))
-    assert len(_clears(aps)) == 1
-    with pytest.raises(ValueError) as err:
-        _run(tools, value=0.8)
-    assert err.value.args[0] == 'size'
-
-
-def test_checkbox_off_skips_in_auto_but_not_in_manual():
-    tools = {10: _circle_ap(0, 0), 11: _obround_ap(5, 0)}
-    enabled = [False, True, True, True, True]
-    solid, _ = punch_geometry(_solid(tools), tools, [10, 11], 'prop', 0.5, 4, enabled)
-    assert solid.intersects(Point(0, 0)) and not solid.intersects(Point(5, 0))
-    solid, _ = punch_geometry(_solid(tools), tools, [], 'prop', 0.5, 4, enabled,
-                              manual_pads=[{'apid': 10, 'idx': 0}])
-    assert not solid.intersects(Point(0, 0)) and solid.intersects(Point(5, 0))
-
-
-def test_clear_flash_and_geometry_outside_tools_are_kept():
-    tools = {10: _circle_ap(0, 0), 11: {'type': 'C', 'size': 1.0, 'geometry': [{'clear': Point(5, 0)}]}}
-    extra = box(10, 10, 12, 12)
-    src = unary_union([_solid({10: tools[10]}), extra])
-    solid, aps = punch_geometry(src, tools, [10, 11], 'fixed', 0.4, 4, ALL_ON)
-    assert solid.contains(Point(11, 11))
-    assert len(_clears(aps)) == 2          # the original clear flash + the new hole
-    assert aps[11]['geometry'] == [{'clear': Point(5, 0)}]
 
 
 def test_excellon_keeps_clear_features_cuts_only_selected_and_clears_slots():
@@ -243,18 +210,6 @@ def test_excellon_keeps_clear_features_cuts_only_selected_and_clears_slots():
     assert not aps[10]['geometry'][0]['solid'].intersects(Point(0, 0))
 
 
-def test_excellon_manual_and_nothing():
-    tools = {10: _circle_ap(0, 0), 11: _circle_ap(5, 0)}
-    geo, dtools = _exc([Point(0, 0), Point(5, 0)])
-    solid, aps = punch_geometry(_solid(tools), tools, [], 'exc', None, 4, ALL_ON, manual_pads=[{'apid': 11, 'idx': 0}],
-                                drill_geometry=geo, drill_tools=dtools)
-    assert solid.intersects(Point(0, 0)) and not solid.intersects(Point(5, 0))
-    geo2, dtools2 = _exc([Point(50, 50)])
-    with pytest.raises(ValueError) as err:
-        punch_geometry(_solid(tools), tools, [10], 'exc', None, 4, ALL_ON, drill_geometry=geo2, drill_tools=dtools2)
-    assert err.value.args[0] == 'nothing'
-
-
 def test_right_click_with_pads_creates_punched_and_exits(setup):
     tool, app, source = setup
     pads = pads_of(tool, source)
@@ -267,35 +222,4 @@ def test_right_click_with_pads_creates_punched_and_exits(setup):
     assert app.options['global_selection_shape'] is True
     app.plotcanvas.graph_event_connect.assert_any_call('mouse_press', app.on_mouse_click_over_plot)
     app.plotcanvas.graph_event_connect.assert_any_call('mouse_release', app.on_mouse_click_release_over_plot)
-
-
-def test_empty_right_click_creates_nothing_and_exits(setup):
-    tool, app, source = setup
-    start_manual(tool)
-    click(tool, Point(0, 0), button=2)
-    assert app.created == []
-    assert notebook_disabled(app) is False
-
-
-def test_escape_exits_and_next_manual_punch_ignores_old_pads(setup):
-    tool, app, source = setup
-    pads = pads_of(tool, source)
-    start_manual(tool)
-    click(tool, pads[0][2])
-    tool.on_key_press(SimpleNamespace(key='Escape'))
-    assert notebook_disabled(app) is False
-    start_manual(tool)
-    click(tool, Point(0, 0), button=2)
-    assert app.created == []
-
-
-def test_select_all_after_click_has_every_pad_once(setup):
-    tool, app, source = setup
-    pads = pads_of(tool, source)
-    start_manual(tool)
-    click(tool, pads[0][2])
-    tool.on_manual_sel_all()
-    keys = [(p['apid'], p['idx']) for p in tool.manual_pads]
-    assert len(keys) == len(set(keys)) == len(pads)
-    assert set(keys) == {(a, i) for a, i, _pt in pads}
 

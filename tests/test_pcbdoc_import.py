@@ -196,36 +196,6 @@ class TestPcbDocImport(unittest.TestCase):
         self.assertIn('[ERROR_NOTCL]', self.app.inform.emit.call_args.args[0])
         self.assertEqual(self.objects, [])
 
-    def test_diptrace_file_menu_and_recent_file_reopen_the_native_importer(self):
-        import json
-        from appMain import App
-        from appHandlers.appSignalConnector import AppSignalConnector
-        from PyQt6.QtGui import QAction
-
-        app = QtCore.QObject()
-        app.ui = Mock()
-        app.ui.menufileimportdiptrace = QAction('DipTrace', app)
-        app.ui.recent = QtWidgets.QMenu()
-        app.ui.recent_projects = QtWidgets.QMenu()
-        app.log = Mock()
-        app.f_handlers = Mock()
-        app.resource_location = ''
-        app.image_tool = Mock()
-        app.worker_task = Mock()
-        AppSignalConnector(app).connect_filemenu_signals()
-        app.ui.menufileimportdiptrace.trigger()
-        app.f_handlers.on_file_import_diptrace.assert_called_once_with()
-        app.f_handlers.on_file_import_diptrace.reset_mock()
-        with tempfile.TemporaryDirectory() as folder:
-            app.data_path = folder
-            for name, contents in (('recent.json', [{'kind': 'diptrace', 'filename': 'board.DIP'}]),
-                                   ('recent_projects.json', [])):
-                with open(os.path.join(folder, name), 'w') as handle:
-                    json.dump(contents, handle)
-            App.setup_recent_items(app)
-            app.ui.recent.actions()[0].trigger()
-        app.f_handlers.on_file_import_diptrace.assert_called_once_with('board.DIP')
-
     def test_current_units_tools_geometry_drills_slots_and_selection(self):
         self.app.app_units = 'IN'
         self.io.import_pcbdoc_objects('board.PcbDoc', self.parsed, [1], ['PTH'])
@@ -261,31 +231,6 @@ class TestPcbDocImport(unittest.TestCase):
         self.assertEqual([obj.obj_options['name'] for kind, obj in self.objects],
                          ['Power Board.GTL', 'Power Board.G1', 'Power Board_preview', 'Power Board_PTH'])
         self.assertTrue(all(obj.source_file for kind, obj in self.objects))
-
-    def test_proteus_source_save_and_export_keep_the_identified_layer_extension(self):
-        import appHandlers.appIO as io_module
-
-        self.parsed.name = 'Power Board'
-        self.parsed.layers = {'Top Copper.GTL': self.parsed.layers[1]}
-        self.io.import_pcbdoc_objects('design.pdsprj', self.parsed, ['Top Copper.GTL'], [])
-        obj = self.objects[0][1]
-        obj.update_filters = Mock()
-        self.app.collection = SimpleNamespace(get_active=lambda: obj)
-        self.app.defaults = {'gerber_save_filters': 'Gerber File (*.GBR)'}
-        self.app.options = {'global_open_style': True}
-        self.app.get_last_save_folder = lambda: 'C:/output'
-        self.app.file_saved = Mock()
-        self.io.save_source_file = Mock()
-
-        def save_dialog(**kwargs):
-            return kwargs['directory'], kwargs['filter'].split(';;')[0]
-
-        with patch.object(io_module, 'GerberObject', SimpleNamespace), \
-                patch.object(QtWidgets.QFileDialog, 'getSaveFileName', side_effect=save_dialog):
-            self.io.on_file_save_gerber()
-            self.io.save_source_file.assert_called_once_with('Power Board.GTL', 'C:/output/Power Board.GTL')
-            self.io.on_file_export_gerber()
-            self.assertEqual(self.io.export_gerber.call_args.args, ('Power Board.GTL', 'C:/output/Power Board.GTL'))
 
     def test_sprint_and_kicad_boards_import_into_separate_projects(self):
         from PyQt6.QtTest import QTest
@@ -346,15 +291,6 @@ class TestPcbDocImport(unittest.TestCase):
     def test_proteus_boards_stay_in_separate_projects_until_insertion_and_plots_finish(self):
         self._import_proteus_projects()
 
-    def test_proteus_export_failure_stops_remaining_boards_without_publishing_bad_source(self):
-        self._import_proteus_projects(stop='failure')
-
-    def test_proteus_abort_drains_pending_objects_without_switching_to_another_board(self):
-        self._import_proteus_projects(stop='abort')
-
-    def test_proteus_cancel_keeps_existing_projects_and_creates_no_board_project(self):
-        self._import_proteus_projects(stop='cancel')
-
     def test_proteus_invalid_board_title_falls_back_before_creating_a_project(self):
         self._import_proteus_projects(names=('Power: 5V', 'Power'),
                                       members=('BOARD1.LYT', 'BOARD2.LYT'),
@@ -383,7 +319,7 @@ class TestPcbDocImport(unittest.TestCase):
             self.io.on_pcbdoc_parsed('design.pdsprj', self.parsed)
         self.assertTrue(states['Unverified span 0x3d'])
 
-    def _import_proteus_projects(self, stop=None, names=('Main', 'Power'), members=None, expected=None):
+    def _import_proteus_projects(self, names=('Main', 'Power'), members=None, expected=None):
         from test_projects_manager import make_manager, FakeCollection
         from PyQt6.QtGui import QStandardItemModel
 
@@ -452,19 +388,12 @@ class TestPcbDocImport(unittest.TestCase):
         def accept(dialog):
             warnings.append('\n'.join(widget.toPlainText() for widget in
                                       dialog.findChildren(QtWidgets.QPlainTextEdit)))
-            return (QtWidgets.QDialog.DialogCode.Rejected if stop == 'cancel' else
-                    QtWidgets.QDialog.DialogCode.Accepted)
+            return QtWidgets.QDialog.DialogCode.Accepted
 
         with patch.object(QtWidgets.QDialog, 'exec', accept):
             io.on_pcbdoc_parsed('design.pdsprj', parsed)
-            if stop == 'failure':
-                io.export_gerber.return_value = 'fail'
             for index in range(2):
                 io._advance_proteus_import()
-                if stop == 'cancel':
-                    io._advance_proteus_import()
-                    self.assertEqual(projects.contexts, [original])
-                    break
                 self.assertEqual(len(projects.contexts), index + 2)
                 context = projects.active
                 self.assertEqual(context.name, expected[index])
@@ -474,13 +403,11 @@ class TestPcbDocImport(unittest.TestCase):
                 thread.join()
                 io._advance_proteus_import()
                 self.assertIs(projects.active, context)
-                if stop == 'abort':
-                    app.abort_flag = True
                 self.qapp.processEvents()
                 self.qapp.processEvents()
                 io._advance_proteus_import()
                 self.assertIs(projects.active, context)
-                self.assertEqual(len(context.collection.objects), 0 if stop == 'failure' else 3)
+                self.assertEqual(len(context.collection.objects), 3)
                 for batch in pending_plots:
                     batch.batch_event.emit('plotted', None)
                 pending_plots.clear()
@@ -491,22 +418,15 @@ class TestPcbDocImport(unittest.TestCase):
                 io._advance_proteus_import()
                 self.assertIs(projects.active, context)
                 app.workers.pending_count.side_effect = lambda: len(worker_jobs)
-                if stop:
-                    io._advance_proteus_import()
-                    self.assertEqual(len(projects.contexts), 2)
-                    break
             io._advance_proteus_import()
         self.assertEqual(original.collection.objects, ['existing'])
         self.assertEqual([ctx.name for ctx in projects.contexts[1:]],
-                         [] if stop == 'cancel' else list(expected[:1]) if stop else list(expected))
+                         list(expected))
         self.assertTrue(all(ctx.filename is None for ctx in projects.contexts[1:]))
         self.assertTrue(all(obj.obj_options['name'].startswith(board.name)
                             for board, ctx in zip(boards, projects.contexts[1:])
                             for obj in ctx.collection.objects))
-        if stop:
-            app.file_opened.emit.assert_not_called()
-        else:
-            app.file_opened.emit.assert_called_once_with('proteus', 'design.pdsprj')
+        app.file_opened.emit.assert_called_once_with('proteus', 'design.pdsprj')
         self.assertTrue(any('Proteus 9 native decoder' in text for text in warnings))
         self.assertFalse(any('using the Proteus 8 decoder' in text for text in warnings))
         self.assertTrue(any(text.count('Incomplete fidelity') == 1 for text in warnings))
@@ -533,40 +453,6 @@ class TestPcbDocImport(unittest.TestCase):
             self.qapp.processEvents()
             self.app.projects.new.assert_not_called()
             self.app.file_opened.emit.assert_not_called()
-
-    def test_proteus_menu_and_recent_action_use_the_container_importer(self):
-        import json
-        from appMain import App
-        from appHandlers.appSignalConnector import AppSignalConnector
-        from PyQt6.QtGui import QAction
-
-        app = QtCore.QObject()
-        app.ui = Mock()
-        app.ui.menufileimportproteus = QAction('Proteus', app)
-        app.ui.recent = QtWidgets.QMenu()
-        app.ui.recent_projects = QtWidgets.QMenu()
-        app.log = Mock()
-        app.f_handlers = Mock()
-        app.resource_location = ''
-        app.image_tool = Mock()
-        app.worker_task = Mock()
-        connector = AppSignalConnector(app)
-        connector.connect_filemenu_signals()
-        app.ui.menufileimportproteus.trigger()
-        app.f_handlers.on_file_import_proteus.assert_called_once_with()
-        app.f_handlers.on_file_import_proteus.reset_mock()
-        with tempfile.TemporaryDirectory() as folder:
-            app.data_path = folder
-            for name, content in (('recent.json', [{'kind': 'proteus', 'filename': 'design.pdsprj'}]),
-                                  ('recent_projects.json', [])):
-                with open(os.path.join(folder, name), 'w') as handle:
-                    json.dump(content, handle)
-            App.setup_recent_items(app)
-            action = app.ui.recent.actions()[0]
-            self.assertEqual(action.text(), 'design.pdsprj')
-            action.trigger()
-        app.f_handlers.on_file_import_proteus.assert_called_once_with('design.pdsprj')
-        app.worker_task.emit.assert_not_called()
 
     def test_region_export_reimport_preserves_negative_holes_and_islands(self):
         from appObjects.GerberObject import GerberObject

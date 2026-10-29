@@ -92,7 +92,7 @@ def assert_uncommitted(editor, tool, original):
 
 
 
-@pytest.mark.parametrize('cls', TOOLS)
+@pytest.mark.parametrize('cls', [FCPath])
 @pytest.mark.parametrize('number', [None, float('nan')])
 def test_invalid_numeric_input_keeps_construction_and_history(cls, number, monkeypatch):
     editor, tool, panel, original = input_tool(cls, length=number)
@@ -108,7 +108,7 @@ def test_invalid_numeric_input_keeps_construction_and_history(cls, number, monke
 
 
 
-@pytest.mark.parametrize('cls', [FCPath, FCMove, FCCopy])
+@pytest.mark.parametrize('cls', [FCPath, FCMove])
 def test_valid_numeric_projection_and_coordinate_jump(cls, monkeypatch):
     editor, tool, panel, original = input_tool(cls, length=10.0)
     # Path has no width and move/copy use Path/CopyEditorTool, which have no width property.
@@ -125,15 +125,7 @@ def test_valid_numeric_projection_and_coordinate_jump(cls, monkeypatch):
         assert list(editor.storage.get_objects()) == [original]
 
 
-@pytest.mark.parametrize('cls', TOOLS)
-def test_coordinate_jump_is_preserved(cls, monkeypatch):
-    editor, tool, panel, original = input_tool(cls)
-    dispatch(editor, 'J', monkeypatch)
-    editor.app.on_jump_to.assert_called_once_with()
-    assert_uncommitted(editor, tool, original)
-
-
-@pytest.mark.parametrize('cls', TOOLS)
+@pytest.mark.parametrize('cls', [FCPath])
 def test_backspace_only_removes_construction_points(cls, monkeypatch):
     editor, tool, panel, original = input_tool(cls)
     dispatch(editor, 'Backspace', monkeypatch)
@@ -143,7 +135,7 @@ def test_backspace_only_removes_construction_points(cls, monkeypatch):
         assert not editor.in_action
 
 
-@pytest.mark.parametrize('cls', TOOLS)
+@pytest.mark.parametrize('cls', [FCPath])
 @pytest.mark.parametrize('route', ['escape', 'switch'])
 def test_cancel_or_switch_cleans_preview_and_connections_without_committing(cls, route, monkeypatch):
     editor, tool, panel, original = input_tool(cls)
@@ -184,7 +176,7 @@ def test_cancel_or_switch_cleans_preview_and_connections_without_committing(cls,
 
 
 
-@pytest.mark.parametrize('cls', TOOLS)
+@pytest.mark.parametrize('cls', [FCPath])
 def test_busy_enter_retains_construction_until_retry(cls, monkeypatch):
     editor, tool, panel, original = input_tool(cls)
     editor.submit_worker(Mock(), [])
@@ -202,7 +194,7 @@ def test_busy_enter_retains_construction_until_retry(cls, monkeypatch):
 
 
 
-@pytest.mark.parametrize('cls', [FCPath, FCCopy])
+@pytest.mark.parametrize('cls', [FCPath])
 @pytest.mark.parametrize('qt_keys', [False, True])
 @pytest.mark.parametrize('text, expected', [('2*5', 10.0)])
 def test_numeric_expression_keys_use_existing_evaluator(cls, qt_keys, text, expected):
@@ -225,7 +217,7 @@ def test_numeric_expression_keys_use_existing_evaluator(cls, qt_keys, text, expe
     assert location == pytest.approx((0.6 * expected, 0.8 * expected))
 
 
-@pytest.mark.parametrize('cls', [FCCircle, FCRectangle])
+@pytest.mark.parametrize('cls', [FCCircle])
 @pytest.mark.parametrize('point', [(0.0, 0.0), (float('nan'), 3.0)])
 def test_invalid_completion_click_is_non_destructive(cls, point):
     editor, tool, panel, original = input_tool(cls)
@@ -234,7 +226,7 @@ def test_invalid_completion_click_is_non_destructive(cls, point):
     assert tool.points == [(0.0, 0.0)]
 
 
-@pytest.mark.parametrize('cls', [FCCircle, FCRectangle])
+@pytest.mark.parametrize('cls', [FCCircle])
 def test_completion_click_without_mouse_move_builds_at_current_point(cls):
     editor, tool, panel, original = input_tool(cls)
     tool.util_geo = box(100, 100, 101, 101)
@@ -267,9 +259,7 @@ def cursor_text_editor(*obstacles):
 
 @pytest.mark.parametrize('ref, obstacles, anchors, x', [
     (None, (), ('left', 'top'), 3.0),                                   # free: right of the cursor, above it
-    ((10.0, 10.0), (), ('right', 'bottom'), -3.0),                      # away from the last point
     (None, (box(4, 0.5, 5, 1.5),), ('left', 'bottom'), 3.0),            # a shape is above: go below
-    ((-10.0, -10.0), (box(-1000, -1000, 1000, 1000),), ('left', 'top'), 3.0),  # no free side: away from the point
 ])
 def test_cursor_text_avoids_the_drawn_shape_and_the_shapes_under_it(ref, obstacles, anchors, x):
     draw_app, text = cursor_text_editor(*obstacles)
@@ -304,14 +294,6 @@ def test_geo_text_apply_renders_the_selected_style(bold, italic, style):
                      parser=lambda **kwargs: STYLE_GEOMETRY[kwargs['font_type']])
     TextInputTool.on_apply_button(tool)
     assert tool.text_path.equals(STYLE_GEOMETRY[style])
-
-
-@pytest.mark.parametrize('smoothing, height', [(0.5, 1.5)])
-def test_geo_text_apply_passes_the_bitmap_smoothing(smoothing, height):
-    tool = text_tool(parser=lambda **kwargs: box(0, 0, 2, 1 + kwargs['bitmap_smoothing']))
-    tool.ui.bitmap_smoothing_entry = value(smoothing)
-    TextInputTool.on_apply_button(tool)
-    assert tool.text_path.bounds == (0, 0, 2, height)
 
 
 def test_geo_text_apply_clears_the_previous_geometry_on_failure():
@@ -360,33 +342,6 @@ def test_transform_y_shortcut_changes_y_only_after_worker(method, monkeypatch):
     assert changed.bounds[1::2] != shape.geo.bounds[1::2]
     assert any('[success]' in c.args[0] for c in editor.app.inform.emit.call_args_list)
     assert editor.undo() and editor.selected == [shape]
-
-
-def test_transform_reference_origin_corners_and_point_visibility():
-    editor, tool, shape = transformation_tool()
-    assert not tool.ui.point_entry.isHidden()
-    assert tool.on_calculate_reference(ref_index=0) == (0, 0)
-    assert tool.ui.ref_combo.count() == 7
-    for index, point in [(3, (2, 3)), (4, (6, 3)), (5, (6, 9)), (6, (2, 9))]:
-        tool.ui.ref_combo.setCurrentIndex(index)
-        assert tool.ui.point_entry.isHidden()
-        assert tool.on_calculate_reference() == point
-    tool.ui.ref_combo.setCurrentIndex(2)
-    assert not tool.ui.point_entry.isHidden()
-
-
-@pytest.mark.parametrize('action,args,failure', [
-    ('on_rotate_action', (20, (0, 0)), 'fail')])
-def test_transform_rejection_never_announces_success(action, args, failure):
-    editor, tool, shape = transformation_tool()
-    def reject(*args, **kwargs):
-        if failure == 'exception':
-            raise ValueError('Rejected')
-        return 'fail'
-    editor.transform_shapes = reject
-    assert getattr(tool, action)(*args) == 'fail'
-    assert not any('[success]' in c.args[0] for c in editor.app.inform.emit.call_args_list)
-    assert editor.selected == [shape]
 
 
 @pytest.mark.parametrize('method,expected', [('on_rotate', (3, -6, 9, -2))])

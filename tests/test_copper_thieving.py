@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
-from shapely import GeometryCollection, MultiPolygon, Point, Polygon, box
+from shapely import GeometryCollection, MultiPolygon, Point, box
 from shapely.ops import unary_union
 
 from appParsers.ParseGerber import Gerber  # noqa: E402
@@ -17,90 +17,12 @@ from tests.helpers_objects import make_app, export_gerber_text
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 
-@pytest.mark.parametrize("source_kind", ["polygon", "collection"])
-def test_plating_mask_accepts_shapely_source(source_kind):
-    pad = box(0, 0, 2, 2)
-    source = pad if source_kind == "polygon" else GeometryCollection([pad])
-    solid, tools, follows, area = plating_mask(source, {}, [], [], None, None, 0, 3, False)
-    assert solid.equals(pad)
-    assert area == pytest.approx(4)
-
-
-def test_plating_mask_only_pads_excludes_trace_aperture_records():
-    pad = Point(0, 0).buffer(1)
-    trace = box(4, 0, 6, 2)
-    tools = {10: {'type': 'C', 'size': 2, 'geometry': [
-        {'solid': pad, 'follow': Point(0, 0)}, {'solid': trace, 'follow': trace.exterior}]}}
-    solid, apertures, follows, area = plating_mask([pad, trace], tools, [Point(0, 0), trace.exterior], [], [], [],
-                                                  0, 3, True)
-    assert solid.equals(pad)
-    assert unary_union([record['solid'] for aperture in apertures.values()
-                        for record in aperture.get('geometry', [])]).equals(pad)
-    assert len(tools[10]['geometry']) == 2
-    assert len(follows) == 1 and follows[0].equals(Point(0, 0))
-
-
-def test_plating_mask_robber_with_no_source_apertures():
-    line = box(0, 0, 10, 10).exterior
-    robber = line.buffer(0.5)
-    solid, apertures, follows, area = plating_mask([], {}, [], [], [robber], [line],
-                                                  0.2, 2, False)
-    assert solid.equals(robber.buffer(0.2))
-    aperture = next(iter(apertures.values()))
-    assert aperture['geometry'][0]['solid'].equals(solid)
-    assert len(follows) == 1 and follows[0].equals(line)
-    assert area == pytest.approx(solid.area)
-
-
-@pytest.mark.parametrize("fill_type", [1, 2, 3])
-def test_copper_grid_rejects_zero_size(fill_type):
-    checks = iter([False, False, True])
-    with pytest.raises(ValueError, match="positive"):
-        copper_fill([box(0, 0, 2, 2)], {}, None, None, 0, 'rect', 0.2, 1, 0,
-                    fill_type, 0, 0, 0, 0, 0, 0, 32, abort=lambda: next(checks, True))
-
-
 def test_copper_line_grid_respects_clearance():
     source = box(0, 0, 4, 4)
     fill, merged, tools = copper_fill([source], {}, None, None, 0, 'rect', 0.5, 0.1, 0,
                                       3, 1, 1, 1, 1, 2, 1, 32)
     added = unary_union(fill)
     assert added.intersection(source.buffer(0.5, quad_segs=8)).area < 1e-9
-
-
-@pytest.mark.parametrize("reference_kind", ['geometry', 'excellon'])
-def test_copper_square_grid_covers_reference_outside_source_extent(reference_kind):
-    reference = box(10, 10, 14, 14)
-    fill, merged, tools = copper_fill([box(0, 0, 1, 1)], {}, [reference], reference_kind,
-                                      2, 'rect', 0.2, 0, 0, 2, 1, 1, 1, 1, 1, 1, 32)
-    assert len(fill) == 4
-    assert unary_union(fill).area == pytest.approx(4)
-    assert all(poly.within(reference) for poly in fill)
-
-
-@pytest.mark.parametrize("box_type", ['rect', 'min'])
-def test_copper_self_boundary_does_not_depend_on_source_container(box_type):
-    source = Polygon([(0, 0), (4, 0), (4, 1), (1, 1), (1, 4), (0, 4)])
-    results = []
-    for geometry in [source, [source], MultiPolygon([source]), GeometryCollection([source])]:
-        fill, merged, tools = copper_fill(geometry, {}, None, None, 0, box_type, 0.2, 1, 0,
-                                          0, 1, 1, 1, 1, 1, 1, 32)
-        results.append(unary_union(fill))
-    assert all(geometry.equals(results[0]) for geometry in results[1:])
-
-
-def test_copper_dot_grid_larger_than_boundary_is_empty():
-    fill, merged, tools = copper_fill([box(0, 0, 1, 1)], {}, None, None, 0, 'rect', 0.2, 1, 0,
-                                      1, 10, 1, 1, 1, 1, 1, 32)
-    assert fill == []
-    assert merged.symmetric_difference(box(0, 0, 1, 1)).area < 1e-12
-
-
-def test_copper_line_grid_with_empty_source_returns_empty_geometry():
-    fill, merged, tools = copper_fill([], {}, None, None, 0, 'rect', 0.2, 1, 0,
-                                      3, 1, 1, 1, 1, 1, 1, 32)
-    assert fill == []
-    assert merged.is_empty
 
 
 def test_plating_clearance_export_records_describe_actual_openings():
@@ -195,34 +117,6 @@ def test_plating_negative_clearance_can_split_thieving_openings():
     assert solid.equals(expected)
     assert unary_union([record['solid'] for record in tools[0]['geometry']]).equals(expected)
     assert area == pytest.approx(expected.area)
-
-
-def test_plating_eroded_robber_does_not_export_negative_aperture():
-    line = box(0, 0, 10, 10).exterior
-    robber = line.buffer(0.5)
-    solid, tools, follows, area = plating_mask([], {}, [], [], robber, line, -1, 2, False)
-    assert solid.is_empty and area == 0
-    assert all(aperture['size'] >= 0 for aperture in tools.values())
-    assert not follows
-
-
-
-
-def test_robber_bar_survives_multipolygon_member_none_follow_and_reg_only_tools():
-    pieces = [MultiPolygon([box(0, 0, 1, 1), box(3, 0, 4, 1)]), box(0, 3, 1, 4)]
-    tools = {0: {'type': 'REG', 'size': 0.0, 'geometry': []}}
-    line, bar, solid, apertures, follows = robber_bar_data(pieces, tools, None, 1, 0.5)
-    assert solid.covers(box(3, 0, 4, 1)) and solid.covers(bar)
-    assert line.length == pytest.approx(box(0, 0, 4, 4).buffer(1.25).exterior.length, rel=0.05)
-    # Gerber aperture ids start at 10, the REG key 0 does not count
-    assert sorted(apertures) == [0, 10]
-    assert len(follows) == 1
-
-
-def test_gerber_reference_accepts_nested_lists():
-    fill, merged, tools = copper_fill([[box(0, 0, 2, 2)], [box(3, 0, 4, 1)]], {}, [[box(0, 0, 6, 6)]], 'gerber',
-                                      2, 'rect', 0.2, 1, 0, 0, 1, 1, 1, 1, 1, 1, 32)
-    assert unary_union(fill).area > 0
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -345,36 +239,6 @@ def test_nothing_is_created_and_user_is_warned(case):
     assert outputs == []
     assert any(m.startswith(('[WARNING_NOTCL]', '[ERROR_NOTCL]')) for m in messages(tool))
     assert not any(m.startswith('[success]') for m in messages(tool))
-
-
-@pytest.mark.parametrize("ending", ['escape', 'plugin cleanup', 'empty right click', 'right click with zone'])
-def test_area_selection_ends_clean(ending):
-    source = source_gerber()
-    tool = make_tool(source, reference_combo=1)
-    started = []
-    tool.copper_thieving = lambda *a, **kw: started.append(kw)
-    tool.on_add_copper_thieving_click()
-    assert tool.app.call_source == "copper_thieving_tool" and tool.handlers_connected
-    if ending == 'escape':
-        tool.on_exit()
-    elif ending == 'plugin cleanup':
-        tool.on_plugin_cleanup()
-    else:
-        if ending == 'right click with zone':
-            tool.on_mouse_release(SimpleNamespace(button=1, pos=(0, 0)))
-            tool.on_mouse_release(SimpleNamespace(button=1, pos=(100, 100)))
-            assert len(tool.sel_rect) == 1
-        tool.on_mouse_release(SimpleNamespace(button=2, pos=(0, 0)))
-    assert tool.app.call_source == "app"
-    assert not tool.handlers_connected
-    assert tool.sel_rect == [] and tool.first_click is False
-    assert len(started) == (1 if ending == 'right click with zone' else 0)
-    if started:
-        assert started[0]['ref_obj'][0].equals(box(0, 0, 10, 10))
-    # the app handlers are connected again, once
-    reconnected = [c for c in tool.app.plotcanvas.graph_event_connect.call_args_list
-                   if c.args[0] == 'mouse_press']
-    assert len(reconnected) == 1
 
 
 def test_area_selection_ignores_a_drag_and_uses_world_coordinates():

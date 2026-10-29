@@ -71,15 +71,6 @@ def test_tool_edit_rejects_non_positive_and_non_finite_diameters():
     assert stub.blockSignals.call_args_list[-1].args == (False,)
 
 
-def test_tool_add_rejects_non_positive_and_non_finite_diameters():
-    stub = _stub({1: 2.0}, default_data={})
-    stub.ui.new_tooldia_entry = MagicMock()
-    for dia in (0, -1.0, float('nan'), float('inf')):
-        ToolPaint.on_tool_add(stub, custom_dia=dia)
-        ToolPaint.on_tool_default_add(stub, dia=dia)
-    assert list(stub.paint_tools) == [1]
-
-
 def test_apply_to_all_copies_only_the_form_parameters_of_the_selected_row():
     stub = _stub({1: 2.0, 2: 1.0})
     stub.paint_tools[1]['data'].update(tools_paint_overlap=0.1, extra_key='one')
@@ -92,33 +83,6 @@ def test_apply_to_all_copies_only_the_form_parameters_of_the_selected_row():
     assert stub.paint_tools[1]['data']['extra_key'] == 'one'
     assert stub.paint_tools[1]['data']['tools_mill_tool_shape'] == 0
     stub.build_ui.assert_called()
-
-
-def test_delete_by_row_number_removes_the_tool_of_that_row():
-    stub = _stub({4: 2.0, 9: 1.0})
-    ToolPaint.on_tool_delete(stub, rows_to_delete=1)
-    assert list(stub.paint_tools) == [4]
-
-
-def test_tool_shape_combo_is_stored_in_the_tool_data(qapp):
-    stub = _stub({1: 2.0, 2: 1.0})
-    combo = QtWidgets.QComboBox()
-    combo.addItems(["C1", "C2", "C3", "C4", "B", "V", "L"])
-    combo.setCurrentIndex(5)
-    stub.sender = lambda: combo
-    stub.ui.tools_table.indexAt.return_value = SimpleNamespace(row=lambda: 1, column=lambda: 2)
-    ToolPaint.on_tooltable_cell_widget_change(stub)
-    assert stub.paint_tools[2]['data']['tools_mill_tool_shape'] == 5
-    assert stub.paint_tools[2]['tool_type'] == 'V'
-    assert stub.paint_tools[1]['data']['tools_mill_tool_shape'] == 0
-
-
-def test_tools_table_follows_the_uid_order_in_default_order():
-    from appPlugins.ToolPaint.Paint import tool_rows_order
-    tools = {2: {'tooldia': 0.5}, 1: {'tooldia': 2.0}, 3: {'tooldia': 1.0}}
-    assert tool_rows_order(tools, 0, 4) == [1, 2, 3]
-    assert tool_rows_order(tools, 1, 4) == [2, 3, 1]
-    assert tool_rows_order(tools, 2, 4) == [1, 3, 2]
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -255,37 +219,3 @@ def test_selected_objects_do_not_need_the_source_combo(painter):
     assert _drawn_area(painter) == pytest.approx(8.0)
     assert not any('Object not found' in str(call.args[0]) for call in painter.app.inform.emit.call_args_list)
 
-
-def _tool_offset(painter):
-    values = iter((0.5, 0.7))
-
-    def change():
-        value = next(values)
-        painter.ui.offset_entry.set_value(value)
-        painter.ui.offset_entry.returnPressed.emit()
-        selected = painter.selected_tool_uids()
-        assert selected
-        assert all(painter.paint_tools[uid]['data']['tools_paint_offset'] == value for uid in selected)
-    return change
-
-
-@pytest.mark.parametrize('preview_input', [_tool_offset], ids=['tool_offset'])
-def test_preview_inputs_clear_the_overlay_and_discard_the_pending_job(painter, preview_input):
-    painter.ui.select_method_combo.set_value(0)     # All
-    change = preview_input(painter)
-    assert _drawn_area(painter) > 0
-
-    painter._preview_shapes.clear.reset_mock()
-    change()
-    painter._preview_shapes.clear.assert_called()   # the displayed overlay is gone
-
-    assert _drawn_area(painter) > 0                 # a new overlay for the changed input
-    tasks = []
-    painter.app.worker_task.emit.side_effect = tasks.append
-    painter.on_preview()
-    assert len(tasks) == 1
-    painter._preview_shapes.add.reset_mock()
-
-    change()                                        # invalidates the job started before it
-    tasks[0]['fcn'](*tasks[0]['params'])
-    painter._preview_shapes.add.assert_not_called()

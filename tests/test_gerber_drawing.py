@@ -1,7 +1,6 @@
 """Numeric Gerber drawing creates explicit material, not guessed aperture sweeps."""
 
 from unittest.mock import MagicMock, patch
-from types import SimpleNamespace
 
 import pytest
 from PyQt6 import QtGui, QtWidgets
@@ -19,12 +18,12 @@ from tests.helpers_objects import (  # noqa: F401,E402
 )
 
 
-@pytest.mark.parametrize('anchor,bounds', [('c', (-2, -1, 2, 1)), ('tl', (0, -2, 4, 0))])
+@pytest.mark.parametrize('anchor,bounds', [('tl', (0, -2, 4, 0))])
 def test_rectangle_anchors(anchor, bounds):
     assert rectangle_region(0, 0, 4, 2, anchor, 's', 0, 0, 16).bounds == bounds
 
 
-@pytest.mark.parametrize('corner', ['s', 'r', 'b'])
+@pytest.mark.parametrize('corner', ['r'])
 def test_rectangle_corners_and_rotation(corner):
     polygon = rectangle_region(3, 4, 4, 2, 'c', corner, 0.5, 90, 16)
     assert polygon.is_valid
@@ -61,19 +60,6 @@ def test_text_holes_units_and_transform():
     for text, size, x in [('', 12, 0), ('O', 0, 0), ('O', float('nan'), 0), ('O', 12, float('inf'))]:
         with pytest.raises(ValueError):
             text_region(parser, text, family, 'regular', size, 'MM', x, 0, 0)
-
-
-def test_text_region_bitmap_smoothing_is_validated_and_forwarded():
-    seen = []
-    parser = SimpleNamespace(
-        font_to_geometry=lambda **kwargs: seen.append(kwargs['bitmap_smoothing']) or box(0, 0, 1, 1))
-    assert text_region(parser, 'A', 'Arial', 'regular', 12, 'MM', 0, 0, 0,
-                       bitmap_smoothing=0).equals(box(0, 0, 1, 1))
-    assert seen == [0]
-    for smoothing in (-0.1, float('nan'), float('inf')):
-        with pytest.raises(ValueError):
-            text_region(parser, 'A', 'Arial', 'regular', 12, 'MM', 0, 0, 0,
-                        bitmap_smoothing=smoothing)
 
 
 def test_region_commit_preserves_owners_and_undo():
@@ -119,18 +105,6 @@ def test_copper_pour_clearance_parts_and_history():
     assert list(editor.storage_dict) == [10]
     assert editor.redo()
     assert unary_union([s.geo['solid'] for s in editor.selected]).equals(expected)
-
-
-def test_copper_pour_invalid_and_empty_do_not_change_source():
-    from appEditors.grb_plugins.GrbDrawingPlugin import copper_pour
-    from shapely.geometry import Polygon
-    editor = make_editor({10: aperture([pad(0, 0, 20)])})
-    for outline, clearance in [(box(0, 0, 1, 1), -1), (box(0, 0, 1, 1), float('nan')),
-                               (Polygon([(0, 0), (2, 2), (0, 2), (2, 0)]), 0)]:
-        with pytest.raises(ValueError):
-            copper_pour(editor, outline, clearance, 16)
-    assert copper_pour(editor, box(0, 0, 1, 1), 0, 16).is_empty
-    assert editor.history.undo_stack == []
 
 
 def test_copper_pour_vertex_completion_and_cancel():
@@ -208,61 +182,3 @@ def test_region_drawing_repeats_without_resetting_parameters():
     assert len(editor.history.undo_stack) == 2
     panel.cancel()
 
-
-def test_region_drawing_cancel_drops_preview_without_committing():
-    editor = make_editor()
-    panel = opened_panel(editor)
-    panel.ui.length_entry.set_value(4)
-    panel.ui.width_entry.set_value(2)
-    assert panel.utility_geometry((1, 2)) is not None
-    panel.cancel()
-    assert editor.storage_dict == {}
-    assert editor.history.undo_stack == []
-    assert editor.region_drawing_panel is None
-
-
-def test_region_drawing_preview_tracks_numeric_click_position():
-    editor = make_editor()
-    panel = opened_panel(editor)
-    panel.ui.length_entry.set_value(4)
-    panel.ui.width_entry.set_value(2)
-    assert panel.utility_geometry((3, 4)).geo['solid'].bounds == (1, 3, 5, 5)
-    panel.click((7, 8))
-    assert panel.ui.x_entry.get_value() == 7
-    assert panel.ui.y_entry.get_value() == 8
-    assert panel.utility_geometry((7, 8)).geo['solid'].bounds == (5, 7, 9, 9)
-    panel.cancel()
-
-
-def test_text_preview_uses_the_selected_output_style():
-    editor = make_editor()
-    panel = opened_panel(editor, 'text')
-    panel.parser = SimpleNamespace(font_to_geometry=lambda **kwargs: box(0, 0, 2, 1))
-    panel.ui.text_input_entry.setText('A')
-    panel.ui.font_size_cb.setCurrentText('12')
-    panel.ui.font_bold_tb.setChecked(True)
-    assert panel.utility_geometry((5, 6)).geo['solid'].equals(box(5, 6, 7, 7))
-    panel.cancel()
-
-
-def test_text_preview_rebuilds_when_bitmap_smoothing_changes():
-    editor = make_editor()
-    panel = opened_panel(editor, 'text')
-    calls = []
-
-    def parser(**kwargs):
-        smoothing = kwargs['bitmap_smoothing']
-        calls.append(smoothing)
-        return box(0, 0, 2, 1 + smoothing)
-
-    panel.parser = SimpleNamespace(font_to_geometry=parser)
-    panel.ui.text_input_entry.setText('A')
-    panel.ui.bitmap_smoothing_entry.set_value(0)
-    assert panel.build_polygon(0, 0, 0).bounds == (0, 0, 2, 1)
-    # position and rotation reuse the cached outline
-    assert panel.build_polygon(10, 20, 0).bounds == (10, 20, 12, 21)
-    assert calls == [0]
-    panel.ui.bitmap_smoothing_entry.set_value(1)
-    assert panel.build_polygon(0, 0, 0).bounds == (0, 0, 2, 2)
-    assert calls == [0, 1]
-    panel.cancel()

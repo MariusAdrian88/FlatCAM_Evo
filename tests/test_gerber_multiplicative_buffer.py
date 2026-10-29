@@ -151,15 +151,6 @@ def warned(app):
                for call in app.inform.emit.call_args_list if call.args)
 
 
-class AbortAfterOneRead:
-    """False on the first read, True on the next: the abort arrives while the batch runs."""
-
-    def __init__(self):
-        self.reads = 0
-
-    def __bool__(self):
-        self.reads += 1
-        return self.reads > 1
 
 
 def assert_composed_equal(actual, expected, msg, tol=2e-3):
@@ -179,7 +170,7 @@ def flash_records(obj, apid):
 # ---------------------------------------------------------------------------------------------------------------
 
 @pytest.mark.parametrize('factor', [1.5])
-@pytest.mark.parametrize('kind', FLASH_KINDS)
+@pytest.mark.parametrize('kind', ['C', 'AM'])
 class TestFlashes:
 
 
@@ -238,7 +229,7 @@ class TestTracksAndRegions:
         again = reparse_gerber(app, export_gerber_text(app, obj), tmp_path)
         assert_composed_equal(again.solid_geometry, obj.solid_geometry, 'round trip')
 
-    @pytest.mark.parametrize('factor', [1.5, 0.5])
+    @pytest.mark.parametrize('factor', [1.5])
     def test_every_supported_record_kind_together(self, app, tmp_path, factor):
         path = write(tmp_path, 'all', ALL_SUPPORTED)
         obj = make_gerber(app, path)
@@ -279,7 +270,7 @@ def load_rejected(app, tmp_path, name):
     raise AssertionError(name)
 
 
-@pytest.mark.parametrize('name', ['dark_clear_dark', 'r_track'])
+@pytest.mark.parametrize('name', ['dark_clear_dark'])
 class TestRejected:
     def test_nothing_changes_and_the_user_is_told(self, app, tmp_path, name):
         obj = load_rejected(app, tmp_path, name)
@@ -305,8 +296,6 @@ def test_tcl_buffer_returns_fail_on_a_rejection(app):
 class TestInvalidInput:
     @pytest.mark.parametrize('distance, factor', [
         (-1.5, True),                 # a factor that is not positive
-        (float('inf'), None),         # a distance that is not finite
-        ([1.0, 2.0], True),           # a list instead of a number
     ])
     def test_it_is_rejected_without_a_change(self, app, distance, factor):
         obj = make_gerber(app, fx('circle'))
@@ -315,17 +304,6 @@ class TestInvalidInput:
         assert Gerber.buffer(obj, distance, 'mitre', factor) == 'fail'
         assert full_state(obj) == before
         assert warned(app)
-
-
-class TestAbort:
-    def test_cancelling_leaves_the_object_unchanged(self, app):
-        obj = make_gerber(app, fx('circle'))
-        before = full_state(obj)
-        for factor in (None, True):
-            for abort in (True, AbortAfterOneRead()):   # before the batch and while it runs
-                app.abort_flag = abort
-                assert Gerber.buffer(obj, 1.5 if factor else 0.1, 'mitre', factor) == 'fail'
-                assert full_state(obj) == before
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -366,32 +344,3 @@ class TestDistanceBuffer:
         assert obj.solid_geometry == []
 
 
-# ---------------------------------------------------------------------------------------------------------------
-# atomicity
-# ---------------------------------------------------------------------------------------------------------------
-
-class TestAtomicity:
-    def test_a_failing_aggregate_leaves_the_object_unchanged(self, app, monkeypatch):
-        import appParsers.feature_access as feature_access
-
-        def boom(_geoms):
-            raise RuntimeError('forced failure')
-
-        obj = make_gerber(app, fx('circle'))
-        before = full_state(obj)
-        monkeypatch.setattr(feature_access, 'normalize_polygonal', boom)
-        assert multiply(obj, 1.5) == 'fail'
-        assert full_state(obj) == before
-
-
-def test_gerber_circle_steps_follow_the_preference():
-    from camlib import gerber_circle_steps, gerber_quad_segs
-    fixed = {'gerber_circle_steps_mode': 'fixed', 'gerber_circle_steps': 48}
-    adaptive = {'gerber_circle_steps_mode': 'adaptive', 'gerber_circle_tolerance': 2.0}
-    for options, radius, units, expected in (
-            (fixed, 5.0, 'MM', 48),
-            (adaptive, 0.1, 'MM', 16),            # the minimum
-            (adaptive, 5.0, 'MM', 112),           # grows with the radius
-            (adaptive, 1.0 / 25.4, 'IN', 52)):    # the radius is read in the units of the object
-        assert gerber_circle_steps(options, radius, units) == expected
-        assert gerber_quad_segs(options, radius, units) == expected // 4

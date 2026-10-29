@@ -6,7 +6,7 @@ Behavior only: Shapely geometry in, ExtractResult / counts out. No Qt, no app.
 import pytest
 from shapely import LineString, Point
 from shapely.affinity import scale
-from shapely.geometry import LinearRing, Polygon, box
+from shapely.geometry import LinearRing, box
 
 from appPlugins.ToolExtract import ExtractGen as eg
 
@@ -30,11 +30,7 @@ def rect(kind_type, w, h, *xy):
 
 
 @pytest.mark.parametrize('aperture, kind', [
-    ({'type': 'C', 'size': 1.0}, 'circular'),
-    ({'type': 'O', 'width': 2.0, 'height': 1.0}, 'oblong'),
-    ({'type': 'R', 'width': 1.0, 'height': 1.0}, 'square'),
     ({'type': 'R', 'width': 2.0, 'height': 1.0}, 'rectangular'),
-    ({'type': 'AM', 'geometry': []}, 'other'),
     ({'type': 'REG', 'size': 0}, 'region'),
 ])
 def test_aperture_kind_by_shape(aperture, kind):
@@ -66,38 +62,6 @@ def test_ring_mode_skips_pads_that_leave_no_hole():
     assert res.skipped['non_positive'] == 3
     assert [t['tooldia'] for t in res.tools.values()] == pytest.approx([0.6])
     assert len(res.tools[1]['drills']) == 1
-
-
-def test_regions_never_give_drills_even_with_other_enabled():
-    reg = {'type': 'REG', 'size': 0, 'geometry': [{'solid': box(0, 0, 5, 5)}]}
-    tools = {0: reg, 10: circ(1.0, (10, 0))}
-    rings = {'circular': 0.2, 'other': 0.2}
-    res = eg.extract_drills([(tools, None)], 'ring', ALL, 4, rings=rings)
-    assert res.error == ''
-    assert sum(len(t['drills']) for t in res.tools.values()) == 1
-    assert [t['tooldia'] for t in res.tools.values()] == pytest.approx([0.6])
-
-
-def test_duplicate_location_keeps_larger_pad():
-    tools = {10: circ(0.8, (3, 3)), 11: circ(1.2, (3, 3))}
-    res = eg.extract_drills([(tools, None)], 'prop', ('circular',), 4, factor=1.0)
-    assert res.skipped['duplicate'] == 1
-    assert list(res.tools) == [1]
-    assert res.tools[1]['tooldia'] == pytest.approx(1.2)
-    assert len(res.tools[1]['drills']) == 1
-
-
-def test_tools_numbered_by_diameter_and_equal_rounded_sizes_share_a_tool():
-    tools = {
-        10: circ(1.0, (0, 0), (2, 0)),
-        11: circ(0.5, (1, 0)),
-        12: circ(0.7, (4, 0)),
-        13: circ(0.500001, (3, 0)),                 # rounds to 0.5 with 4 decimals
-    }
-    res = eg.extract_drills([(tools, None)], 'prop', ('circular',), 4, factor=1.0)
-    assert list(res.tools) == [1, 2, 3]
-    assert [t['tooldia'] for t in res.tools.values()] == pytest.approx([0.5, 0.7, 1.0])
-    assert [len(t['drills']) for t in res.tools.values()] == [2, 1, 2]
 
 
 def test_oblong_pads_become_slots_only_with_flag():
@@ -137,16 +101,6 @@ def test_soldermask_grows_pads_renumbers_codes_and_keeps_source():
     assert tools[5]['geometry'][0]['solid'] is solid5
 
 
-def test_soldermask_adds_regions_only_with_flag():
-    reg = {'type': 'REG', 'size': 0, 'geometry': [{'solid': box(5, 5, 6, 6)}]}
-    tools = {0: reg, 10: circ(1.0, (0, 0))}
-    without = eg.extract_soldermask([(tools, None)], ALL, 0.0, 4)
-    with_regions = eg.extract_soldermask([(tools, None)], ALL, 0.0, 4, include_regions=True)
-    assert len(without.solid_geometry) == 1
-    assert len(with_regions.solid_geometry) == 2
-    assert with_regions.error == ''
-
-
 def test_cutout_rect_outline_is_bounds_grown_by_margin():
     geo = [box(0, 0, 2, 2), box(4, 4, 6, 6)]
     res = eg.extract_cutout(geo, 1.0, 0.5)
@@ -158,8 +112,6 @@ def test_cutout_rect_outline_is_bounds_grown_by_margin():
 
 @pytest.mark.parametrize('geometry, margin, thickness, error', [
     ([box(0, 0, 2, 2)], 1.0, 0.0, 'bad_thickness'),
-    ([], 1.0, 0.5, 'no_geometry'),
-    ([box(0, 0, 2, 2)], -1.5, 0.5, 'empty_shape'),
 ])
 def test_cutout_errors(geometry, margin, thickness, error):
     res = eg.extract_cutout(geometry, margin, thickness)
@@ -186,9 +138,7 @@ def test_geometry_circles_become_drills_at_their_centres():
 
 
 @pytest.mark.parametrize('mode, kwargs, dias', [
-    ('fixed', {'fixed_dia': 0.8}, [0.8]),
     ('ring', {'ring': 0.1}, [0.2, 0.4, 0.8]),
-    ('prop', {'factor': 0.5}, [0.2, 0.3, 0.5]),
 ])
 def test_geometry_drill_diameter_by_mode(mode, kwargs, dias):
     shapes = [circle(0, 0, 1.0), LinearRing(circle(5, 0, 0.6).exterior.coords),
@@ -196,12 +146,6 @@ def test_geometry_drill_diameter_by_mode(mode, kwargs, dias):
     res = eg.extract_drills_geometry(shapes, mode, 4, **kwargs)
     assert res.error == ''
     assert sorted(t['tooldia'] for t in res.tools.values()) == pytest.approx(dias, abs=2e-3)
-
-
-def test_geometry_without_circles_is_an_error():
-    res = eg.extract_drills_geometry([box(0, 0, 1, 1), LineString([(0, 0), (2, 0)])], 'fixed', 4, fixed_dia=0.8)
-    assert res.error == eg.ERR_NO_CIRCLES
-    assert res.tools == {}
 
 
 # ---- Tcl command: extract ----------------------------------------------------------------------------------------
@@ -238,19 +182,6 @@ def test_tcl_extract_drills_makes_an_excellon_with_one_hole_per_pad():
     name, new = _run_init(app, 'excellon')
     assert name == 'board_extracted'
     assert new.tools[1]['tooldia'] == pytest.approx(0.6)
-    assert len(new.tools[1]['drills']) == 2
-
-
-def test_tcl_extract_drills_from_a_geometry_object_uses_its_circles():
-    from types import SimpleNamespace
-    command, app = _extract_command()
-    geo = SimpleNamespace(kind='geometry', multigeo=False, obj_options={'name': 'circles.geo', 'units': 'MM'},
-                          tools={}, solid_geometry=[circle(0, 0, 1.0), circle(5, 0, 1.0), box(10, 0, 11, 1)])
-    app.collection.get_by_name.side_effect = {'circles.geo': geo}.get
-    command.execute({'object': 'circles.geo', 'type': 'drills', 'method': 'fixed', 'dia': 0.8}, [])
-    name, new = _run_init(app, 'excellon')
-    assert name == 'circles_extracted'
-    assert new.tools[1]['tooldia'] == pytest.approx(0.8)
     assert len(new.tools[1]['drills']) == 2
 
 

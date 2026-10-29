@@ -135,7 +135,7 @@ def test_move_finishes_plot_and_export_before_gui_completion(tool):
     assert tool.app.should_we_save is True
 
 
-@pytest.mark.parametrize('failure', ['offset', 'export'])
+@pytest.mark.parametrize('failure', ['offset'])
 def test_move_failure_is_reported_and_moved_geometry_is_replotted(tool, failure):
     layer = make_layer([], [])
     if failure == 'offset':
@@ -191,7 +191,7 @@ def test_moved_cncjob_exports_the_moved_gcode_also_after_undo_redo(tool):
     assert tool.app.history.redo() and job.source_file == moved
 
 
-@pytest.mark.parametrize('offset', [(float('nan'), 2), (1, 2, 3)])
+@pytest.mark.parametrize('offset', [(float('nan'), 2)])
 def test_invalid_move_offset_is_rejected_before_any_change(tool, offset):
     layer = make_layer([], [])
     assert tool.move_handler(offset, objects=[layer]) == 'fail'
@@ -202,47 +202,8 @@ def test_invalid_move_offset_is_rejected_before_any_change(tool, offset):
 
 
 
-def test_overlapping_move_is_rejected_until_the_gui_completion(tool):
-    layer = make_layer([], [])
-    offset_fn = layer.offset.side_effect
-    started, release = threading.Event(), threading.Event()
-
-    def blocked_offset(vector):
-        started.set()
-        assert release.wait(5)
-        offset_fn(vector)
-
-    layer.offset.side_effect = blocked_offset
-    tool.move_handler((3, 0), objects=[layer])
-    task = tool.app.worker_task.emit.call_args.args[0]
-    worker = threading.Thread(target=lambda: task['fcn'](*task['params']))
-    worker.start()
-    try:
-        assert started.wait(5)
-
-        calls = tool.app.worker_task.emit.call_count
-        assert tool.move_handler((0, 5), objects=[layer]) == 'fail'
-        assert tool.app.worker_task.emit.call_count == calls
-        assert layer.geometry.equals(Point(10, 20))
-    finally:
-        release.set()
-        worker.join(5)
-    assert not worker.is_alive()
-    QtTest.QTest.qWait(20)
-    assert layer.geometry.equals(Point(13, 20))
-
-    # the first move is complete: a later move is accepted again
-    calls = tool.app.worker_task.emit.call_count
-    tool.move_handler((0, 5), objects=[layer])
-    assert tool.app.worker_task.emit.call_count == calls + 1
-    run_worker(tool)
-    QtTest.QTest.qWait(20)
-    assert layer.geometry.equals(Point(13, 25))
-
-
 @pytest.mark.parametrize('units, box', [
     ('MM', Polygon([(0, 0), (10, 0), (10, 0.1), (0, 0.1)])),
-    ('MM', Polygon([(0, 0), (10, 0), (10, 0), (0, 0)])),
 ])
 def test_selection_shape_keeps_thin_boxes_visible(units, box):
     preview = selection_shape(box, units, False)

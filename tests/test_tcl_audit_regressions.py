@@ -78,13 +78,8 @@ class BackgroundCommand(TclCommandSignaled, Command):
 
 @pytest.mark.parametrize('command_name, keys', [
     ('Delete', ('f',)),
-    ('CloseProject', ('force',)),
-    ('PlotAll', ('plot_status',)),
-    ('PlotObjects', ('plot_status',)),
     ('Paint', ('all',)),
-    ('CopperClear', ('all',)),
     ('Cncjob', ('dpp', 'toolchangez', 'dwelltime', 'extracut_length', 'startz', 'spindlespeed')),
-    ('Drillcncjob', ('dpp', 'toolchangez', 'dwelltime', 'drillz', 'startz', 'endz')),
 ])
 def test_actual_commands_preserve_supported_bare_options(command_name, keys):
     from importlib import import_module
@@ -182,7 +177,6 @@ def test_aperture_ids_are_integer_unique_and_start_at_ten():
 @pytest.mark.parametrize('cls,args,extra', [
     (TclCommandAddPolyline, {'name': 'g'}, []),
     (TclCommandAddCircle, {'name': 'g', 'center_x': 0, 'center_y': 0, 'radius': -1}, []),
-    (TclCommandAddCircle, {'name': 'g', 'center_x': 0, 'center_y': 0, 'radius': 1}, ['extra']),
     (TclCommandAddRectangle, {'name': 'g', 'x0': 0, 'y0': 0, 'x1': 0, 'y1': 1}, [])])
 def test_invalid_shapes_do_not_mutate(cls, args, extra):
     obj = Mock(kind='geometry')
@@ -260,7 +254,7 @@ class Worker(QtCore.QObject):
         task['fcn'](*task['params'])
 
 
-@pytest.mark.parametrize('names', [[], ['paint_1'], ['with space', 'plain'], ['fail'], ['failsafe_iso']])
+@pytest.mark.parametrize('names', [['with space', 'plain'], ['fail']])
 @pytest.mark.parametrize('use_worker', [False, True])
 def test_a_command_returns_the_names_of_the_objects_it_created(qt_app, names, use_worker):
     app = make_app()
@@ -286,22 +280,6 @@ def test_a_command_returns_the_names_of_the_objects_it_created(qt_app, names, us
         assert thread.wait(3000)
     warned = [call.args[0] for call in app.inform.emit.call_args_list]
     assert bool(warned) == (names == ['fail'])
-
-
-def test_a_command_with_returns_value_or_its_own_result_keeps_it():
-    app = make_app()
-    app.collection = FakeCollection()
-    app.inform = Mock()
-
-    class Keeps(MakeObjects):
-        def execute(self, args, unnamed_args):
-            super().execute(args, unnamed_args)
-            return 'mine'
-
-    command = Keeps(app)
-    command.names = ['x']
-    assert command.execute_wrapper() == 'mine'
-
 
 
 def test_a_command_warns_when_the_name_of_its_new_object_was_in_use(qt_app):

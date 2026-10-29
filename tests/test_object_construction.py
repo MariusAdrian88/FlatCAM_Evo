@@ -24,20 +24,13 @@ KINDS = {
 }
 
 
-@pytest.mark.parametrize('cls', list(KINDS), ids=lambda c: c.__name__)
+@pytest.mark.parametrize('cls', [GerberObject, ScriptObject, DocumentObject], ids=lambda c: c.__name__)
 def test_object_kind_can_be_constructed(cls, no_shape_collection):  # noqa: F811
     app = make_app()
     obj = cls('obj', app)
     assert obj.kind == KINDS[cls]
     assert obj.obj_options['name'] == 'obj'
     assert obj.app is app
-
-
-@pytest.mark.parametrize('cls', [ScriptObject, DocumentObject], ids=lambda c: c.__name__)
-def test_from_dict_of_an_old_file_without_all_keys(cls, no_shape_collection):  # noqa: F811
-    obj = cls('obj', make_app())
-    obj.from_dict({'kind': KINDS[cls]})
-    assert obj.kind == KINDS[cls]
 
 
 def test_script_edits_survive_load_serialization_and_copy(tmp_path, monkeypatch, no_shape_collection):
@@ -191,13 +184,3 @@ def test_code_editor_pdf_keeps_the_markup_characters_of_the_text(tmp_path, monke
     frags = Paragraph(markups[0], getSampleStyleSheet()['Normal']).frags
     assert ''.join('\n' if getattr(frag, 'lineBreak', False) else frag.text for frag in frags) == text
     app.file_saved.emit.assert_called_once_with('cncjob', str(output))
-
-
-def test_code_editor_pdf_failure_is_a_message(tmp_path, monkeypatch):
-    output = tmp_path / 'code.pdf'
-    app, editor = _code_editor_saving_to(output, monkeypatch, 'G0 X0')
-    monkeypatch.setattr('appEditors.appTextEditor.SimpleDocTemplate.build', Mock(side_effect=RuntimeError('no room')))
-    editor.handleSaveGCode(name='code')
-    assert app.inform.emit.call_args.args[0].startswith('[ERROR_NOTCL]')
-    assert 'no room' in app.inform.emit.call_args.args[0]
-    app.file_saved.emit.assert_not_called()

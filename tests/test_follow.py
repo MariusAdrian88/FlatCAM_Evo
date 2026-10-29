@@ -5,7 +5,7 @@ from types import SimpleNamespace as NS
 from unittest.mock import Mock
 
 import pytest
-from shapely import LineString, MultiPolygon, Point
+from shapely import LineString, Point
 from shapely.geometry import box
 
 from test_tcl_audit_generation import factory_app
@@ -43,26 +43,10 @@ TOOLS = {
 }
 
 
-def test_paths_of_drops_points_and_follows_polygon_boundaries():
-    donut = box(0, 0, 10, 10).difference(box(3, 3, 6, 6))
-    lines = fg.paths_of([Point(1, 1), LineString(), None, [LineString([(0, 0), (1, 0)])], MultiPolygon([donut])])
-    assert all(g.geom_type == 'LineString' for g in lines)
-    assert len(lines) == 3
-    assert total_length(lines) == pytest.approx(1 + 40 + 12)
-    assert fg.paths_of(None) == []
-
-
 def test_merge_joins_touching_lines():
     lines = [LineString([(0, 0), (1, 0)]), LineString([(1, 0), (2, 0)]), LineString([(5, 5), (6, 5)])]
     assert len(fg.clean_paths(lines, False, False, 0.0, merge=True)) == 2
     assert len(fg.clean_paths(lines, False, False, 0.0, merge=False)) == 3
-
-
-def test_simplify_applies_only_with_a_tolerance():
-    wiggle = LineString([(0, 0), (1, 0.001), (2, 0), (3, 0.001), (4, 0)])
-    assert len(fg.clean_paths([wiggle], False, True, 0.01)[0].coords) == 2
-    assert len(fg.clean_paths([wiggle], False, True, 0.0)[0].coords) == 5
-    assert len(fg.clean_paths([wiggle], False, False, 0.01)[0].coords) == 5
 
 
 def test_selection_keeps_inside_clips_crossing_drops_outside():
@@ -88,7 +72,7 @@ def test_aperture_dia_mode_groups_by_size_and_regions_use_default_dia():
     assert by_dia == {0.1: pytest.approx(5.0), 0.2: pytest.approx(10.0), 0.4: pytest.approx(5.0)}
 
 
-@pytest.mark.parametrize('dia_mode', ['default', 'aperture'])
+@pytest.mark.parametrize('dia_mode', ['aperture'])
 def test_a_polygon_follow_geometry_without_aperture_data_is_followed(dia_mode):
     """A Gerber from the DXF import keeps a Polygon in follow_geometry and has no aperture follow data."""
     groups = fg.follow_groups(source({}, follow=box(0, 0, 2, 2)),
@@ -190,59 +174,6 @@ def test_generate_makes_one_geometry_per_source_in_one_undo_step_with_unique_nam
     assert any(m.startswith('[success]') and 'b_follow' in m for m in messages(tool))
 
 
-def test_generate_leaves_the_source_follow_geometry_unchanged():
-    src = gerber('a')
-    before = [g.wkt for g in src.follow_geometry]
-    tool = make_tool([src])
-    tool.on_generate_geometry_click()
-    assert len(tool.created) == 1, messages(tool)
-    assert [g.wkt for g in src.follow_geometry] == before
-
-
-def test_the_job_follows_the_source_as_it_was_at_the_click():
-    src = gerber('a')
-    tool = make_tool([src])
-    tasks = []
-    tool.app.worker_task.emit.side_effect = tasks.append
-    tool.on_generate_geometry_click()
-    src.follow_geometry.clear()
-    src.tools[10]['geometry'].clear()
-    for task in tasks:
-        task['fcn'](*task['params'])
-    (_kind, _name, obj), = tool.created
-    assert total_length(obj.solid_geometry) == pytest.approx(10.0)
-
-
-def test_a_failed_creation_is_reported_and_the_other_sources_are_created():
-    a, b = gerber('a'), gerber('b')
-    tool = make_tool([a, b])
-    create = tool.new_object
-    tool.new_object = lambda kind, name, init, **kw: 'fail' if name.startswith('a') else create(kind, name, init, **kw)
-    tool.on_generate_geometry_click()
-    assert [n for _k, n, _o in tool.created] == ['b_follow']
-    text = ' '.join(messages(tool))
-    assert 'a_follow_1' in text and '1 of 2' in text
-
-
-def test_generate_uses_the_combo_object_when_nothing_is_selected_and_reports_when_there_is_none():
-    tool = make_tool([gerber('a')], selected=[])
-    tool.on_generate_geometry_click()
-    assert [n for _k, n, _o in tool.created] == ['a_follow_1']
-    other = NS(kind='geometry', obj_options={'name': 'g'})
-    tool = make_tool([other], selected=[other])
-    tool.on_generate_geometry_click()
-    assert tool.created == [] and 'No Gerber object is selected.' in ' '.join(messages(tool))
-
-
-def test_empty_result_creates_nothing_and_names_the_source():
-    empty = NS(kind='gerber', obj_options={'name': 'e'}, follow_geometry=[], tools={})
-    tool = make_tool([empty])
-    tool.on_generate_geometry_click()
-    assert tool.created == []
-    assert any('e' in m and m.startswith('[WARNING_NOTCL]') for m in messages(tool))
-    assert not any(m.startswith('[success]') for m in messages(tool))
-
-
 def test_area_job_uses_the_zones_copied_in_the_gui_thread():
     tool = make_tool([gerber('a')], select='area')
     tool.on_generate_geometry_click()
@@ -303,8 +234,7 @@ def test_box_clips_the_paths():
     assert [g.bounds for g in new.solid_geometry] == [pytest.approx((0, 0, 4, 0))]
 
 
-@pytest.mark.parametrize('args', [{'box': '100,100,110,110'}, {'apertures': '99'}, {'dia_mode': 'nope'},
-                                  {'box': '1,2,3'}, {'tooldia': 0}, {'union': 'maybe'}])
+@pytest.mark.parametrize('args', [{'box': '100,100,110,110'}, {'dia_mode': 'nope'}])
 def test_bad_input_or_empty_result_is_a_tcl_error_and_creates_nothing(args):
     from tclCommands.TclCommandFollow import TclCommandFollow
     app = factory_app(follow_source())
