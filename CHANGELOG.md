@@ -6,6 +6,37 @@ Based on FlatCAM:
 
 CHANGELOG for FlatCAM Evo
 
+30.10.2026
+
+Excellon (XNC format, Ucamco 2019.02):
+
+- new: the .xnc files open from the Open Excellon dialog, by drag and drop and by the file associations
+- fixed: a G01 / G02 / G03 after a tool up (M16) cut a slot; now it only moves the tool until the next tool down (M15). The files without M15 / M16 cut as before
+- fixed: a G02 / G03 without a radius made a straight slot; now it uses the last radius (A) of the file
+- fixed: the lines after the end of file (M30) made holes; now they are ignored
+- fixed: in a file with decimal coordinates and no number format, X8Y8 was read with the format digits; now it is 8, 8
+- new: the XNC attributes (; #@! TF, TA, TO, TD) are kept with the Excellon object and saved in the project: the file attributes, the attributes of each tool and the object attributes (net, component, pin) of each hole
+- the object attributes of the holes stay with the holes in the Excellon editor, Panelize, the 2-Sided tool, Join, Copy and the Tcl commands add_drill / add_slot
+- the Excellon export writes the attributes; an object without attributes exports as before
+- the Object Report shows an Attributes section for an Excellon object
+
+Gerber (specification 2021.11):
+
+- fixed: aperture macros with numbers with leading zeros, the inner disc of the moire primitive
+- fixed: LM / LR / LS end the open path; SR copies in the Y direction first; the G54 / G55 prefix is accepted
+- fixed: a zero-length arc in single quadrant mode (G74) is a dot; M00 / M02 end the file; a bare D01 is a zero-length draw
+- fixed: the rectangular hole of a standard aperture does not rotate; MI mirrors the coordinates; OF before IR; AS swaps the axes
+- fixed: a zero-size aperture makes no image; a redefined D-code or macro shows a warning; a G04 comment ends at the first '*'
+- new: the X2 / X3 attributes (TF, TA, TO, TD) of each object, with the file function; the Gerber editor keeps them; the export writes them
+- the Object Report shows an Attributes section for a Gerber object
+
+Other:
+
+- the file associations get the new application icon at the first start of a new version
+- Windows: a FlatCAM started from a source install (pythonw.exe) has its own taskbar button with the FlatCAM icon
+- fixed: a test run changed the settings of the user (the layout was reset to 'standard'); the tests now use their own settings file
+- README updated with the new imports, the G-code import, the exports and the updater
+
 29.10.2026
 
 Translations:

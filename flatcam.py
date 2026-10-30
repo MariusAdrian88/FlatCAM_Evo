@@ -209,6 +209,16 @@ if __name__ == '__main__':
         # the Qt warnings are about widgets nobody sees; only the critical and fatal messages reach stderr
         QtCore.qInstallMessageHandler(headless_qt_message_handler)
 
+    if sys.platform == 'win32' and not getattr(sys, 'frozen', False):
+        # Started by pythonw.exe (a double click on an associated file), the window got the taskbar button of
+        # pythonw.exe, without the FlatCAM icon. An own AppUserModelID gives it a FlatCAM button with the window icon.
+        # Not for FlatCAM.exe: it has the icon, and the ID would split a pinned shortcut from the running window.
+        try:
+            import ctypes
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('FlatCAM.EVO')
+        except (AttributeError, OSError):
+            pass
+
     app = QtWidgets.QApplication(sys.argv)
     app.aboutToQuit.connect(_install_shutdown_message_handler)
 

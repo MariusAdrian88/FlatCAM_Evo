@@ -1178,6 +1178,11 @@ class App(QtCore.QObject):
         self.log.debug("StartDate: %s" % self.date)
         self.log.debug("TCL Shell has been initialized.")
 
+        # the first start of a new version does the one-time tasks of an update (the icon of the file associations)
+        q_settings = QSettings("Open Source", "FlatCAM_EVO")
+        self.new_version_start = q_settings.value('last_started_version', '', type=str) != str(self.version)
+        q_settings.setValue('last_started_version', str(self.version))
+
         # ####################################### Auto-complete KEYWORDS ############################################
         # ######################## Setup after the Defaults class was instantiated ##################################
         self.regFK = RegisterFK(
@@ -1187,7 +1192,8 @@ class App(QtCore.QObject):
             shell=self.shell,
             log=self.log,
             keywords=KeyWords(),
-            extensions=Extensions()
+            extensions=Extensions(),
+            new_version=self.new_version_start
         )
 
         # ##################################### UPDATE PREFERENCES GUI FORMS ########################################

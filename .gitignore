@@ -22,3 +22,7 @@ nul
 
 # Freeze build script (local only)
 make_freeze*.py
+
+# Local research notes and reports (not published)
+reports/
+research_notes/

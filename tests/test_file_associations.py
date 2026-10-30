@@ -81,16 +81,17 @@ def make_reg():
     return reg
 
 
-def first_start():
+def first_start(first_run=True, new_version=False):
     """RegisterFK as App makes it at the first start: before defaults_write_form() fills the Preferences lists."""
     ui = mock.MagicMock()
     ui.util_pref_form.fa_excellon_group.exc_list_text = ListText()
     ui.util_pref_form.fa_gcode_group.gco_list_text = ListText()
     ui.util_pref_form.fa_gerber_group.grb_list_text = ListText()
-    options = {"first_run": True, "util_autocomplete_keywords": "a, b",
+    options = {"first_run": first_run, "util_autocomplete_keywords": "a, b",
                "fa_excellon": "drl", "fa_gcode": "nc", "fa_gerber": "gbr, gtl"}
     return RegisterFK(ui=ui, inform_sig=mock.MagicMock(), options_dict=options, shell=mock.MagicMock(),
-                      log=mock.MagicMock(), keywords=rfk.KeyWords(), extensions=rfk.Extensions())
+                      log=mock.MagicMock(), keywords=rfk.KeyWords(), extensions=rfk.Extensions(),
+                      new_version=new_version)
 
 
 class TestFileAssociations(unittest.TestCase):
@@ -119,8 +120,21 @@ class TestFileAssociations(unittest.TestCase):
         command = self.val("Software\\Classes\\FlatCAM.Project\\shell\\open\\command")
         self.assertTrue(command.endswith('"%1"'))
         self.assertIn("flatcam.py", command)
-        self.assertTrue(self.val("Software\\Classes\\FlatCAM.Project\\DefaultIcon").endswith(".ico,0"))
+        icon = self.val("Software\\Classes\\FlatCAM.Project\\DefaultIcon")
+        self.assertTrue(icon.endswith("app256.ico,0"), icon)  # the application icon, not the old FlatCAM one
+        self.assertTrue(os.path.isfile(icon[:-2]))
         self.notify.assert_called()
+
+    def test_first_start_of_a_new_version_moves_an_earlier_registration_to_the_new_icon(self):
+        self.reg.on_register_files('project')
+        icon_key = ("HKCU", "software\\classes\\flatcam.project\\defaulticon")
+        old_icon = "C:\\FlatCAM\\assets\\resources\\flatcam_icon256.ico,0"  # written by 1.0
+        self.fake.keys[icon_key] = old_icon
+        first_start(first_run=False, new_version=False)  # a usual start does not touch the registry
+        self.assertEqual(old_icon, self.fake.keys[icon_key])
+        first_start(first_run=False, new_version=True)
+        self.assertTrue(self.fake.keys[icon_key].endswith("app256.ico,0"))
+        self.assertIsNone(self.val("Software\\Classes\\FlatCAM.Config\\DefaultIcon"))  # not registered: not made
 
     def test_unregister_keeps_foreign_association(self):
         self.reg.on_register_files('project')

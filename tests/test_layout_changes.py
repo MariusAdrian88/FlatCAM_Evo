@@ -59,6 +59,14 @@ def layout_app(tmp_path, monkeypatch):
     qapp.processEvents()
 
 
+def test_tests_do_not_write_the_settings_of_the_user():
+    """A test run reset the layout of the user to 'standard': the tests wrote to the real QSettings (registry)."""
+    from PyQt6.QtCore import QSettings
+    settings = QSettings("Open Source", "FlatCAM_EVO")
+    assert settings.format() == QSettings.Format.IniFormat
+    assert 'HKEY_' not in settings.fileName()
+
+
 @pytest.mark.parametrize('resources', ['assets/resources', 'assets/resources/dark_resources'])
 def test_view_restore_layout_restores_hidden_toolbars(layout_app, resources):
     app, group, settings = layout_app

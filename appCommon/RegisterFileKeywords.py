@@ -327,7 +327,12 @@ class RegisterFK(QtCore.QObject):
                  shell: 'appMain.FCShell',
                  log: ('appMain.AppLogging', 'appMain.logging'),
                  keywords: KeyWords,
-                 extensions: Extensions):
+                 extensions: Extensions,
+                 new_version: bool = False):
+        """
+        :param new_version: True at the first start of a new version: the file associations that an earlier
+        version registered get the current icon
+        """
 
         super().__init__()
         self.ui = ui
@@ -373,6 +378,8 @@ class RegisterFK(QtCore.QObject):
                 getattr(getattr(self.ui.util_pref_form, group), widget).set_value(self.options.get('fa_%s' % key))
             # nobody asked for this registration: an extension that another program opens is left to that program
             self.on_register_files(keep_foreign=True)
+        elif new_version and sys.platform == 'win32':
+            self.refresh_windows_icons()
 
     def connect_signals(self):
         # ###########################################################################################################
@@ -618,7 +625,7 @@ class RegisterFK(QtCore.QObject):
     @staticmethod
     def png_icon_path():
         base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        return os.path.join(base, 'assets', 'resources', 'flatcam_icon256.png')
+        return os.path.join(base, 'assets', 'resources', 'app256.png')
 
     @staticmethod
     def run_tool(name, *args):
@@ -915,7 +922,8 @@ class RegisterFK(QtCore.QObject):
     @staticmethod
     def icon_path():
         base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        return os.path.join(base, 'assets', 'resources', 'flatcam_icon256.ico')
+        # made from app256.png, as the icon of FlatCAM.exe (make_freeze.make_app_icon)
+        return os.path.join(base, 'assets', 'resources', 'app256.ico')
 
     @staticmethod
     def notify_assoc_changed():
@@ -930,6 +938,24 @@ class RegisterFK(QtCore.QObject):
         self.set_reg('', root_pth=root_path, new_reg_path_par=base + '\\DefaultIcon', value=self.icon_path() + ',0')
         self.set_reg('', root_pth=root_path, new_reg_path_par=base + '\\shell\\open\\command',
                      value=self.launcher_command())
+
+    def refresh_windows_icons(self):
+        """
+        Point the FlatCAM file types that this installation registered to the current icon: an earlier version
+        wrote the old FlatCAM icon. A file type that another installation registered is not changed.
+        """
+        root_path = self._root_path()
+        icon = self.icon_path() + ',0'
+        changed = False
+        for progid in ('FlatCAM', 'FlatCAM.Project', 'FlatCAM.Config'):
+            base = 'Software\\Classes\\' + progid
+            if self.get_reg(root_path, base + '\\shell\\open\\command') != self.launcher_command():
+                continue
+            if self.get_reg(root_path, base + '\\DefaultIcon') != icon:
+                self.set_reg('', root_pth=root_path, new_reg_path_par=base + '\\DefaultIcon', value=icon)
+                changed = True
+        if changed:
+            self.notify_assoc_changed()
 
     def unregister_progid(self, root_path, progid):
         base = 'Software\\Classes\\' + progid

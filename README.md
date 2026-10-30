@@ -6,7 +6,8 @@
 ![Platforms](https://img.shields.io/badge/Platforms-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)
 
 **FlatCAM Evo** is a free, open-source 2D CAM program for PCB manufacturing. It reads the files that a PCB design
-program makes (Gerber, Excellon, board files of Altium, KiCad, Eagle, OrCAD/Allegro and Sprint Layout) and makes the
+program makes (Gerber, Excellon, board files of Altium, KiCad, Eagle, OrCAD/Allegro, DipTrace, Proteus and Sprint
+Layout) and makes the
 G-code that a CNC router, a CNC mill or a laser needs to make the board: isolation routing, copper clearing, drilling,
 slot milling, board cutout, solder paste dispensing and more.
 
@@ -45,8 +46,8 @@ OpenGL canvas, many new plugins and a Tcl scripting shell for automation.
 The workflow has 4 steps:
 
 1. **Load** the manufacturing files of the board: Gerber layers (copper, solder mask, silkscreen, outline) and
-   Excellon drill files. You can also import a complete board file (Altium, KiCad, Eagle, OrCAD/Allegro, Sprint
-   Layout 6), or SVG, DXF, PDF, HPGL2 and images.
+   Excellon drill files. You can also import a complete board file (Altium, KiCad, Eagle, OrCAD/Allegro, DipTrace,
+   Proteus, Sprint Layout 6), or SVG, DXF, PDF, HPGL2, images and G-code files.
 2. **Prepare** the objects: move, mirror (for 2-sided boards), rotate, scale, panelize, join, or edit them in the
    built-in editors.
 3. **Generate** the toolpaths with a plugin: isolation routing around the tracks, removal of the copper that is not
@@ -61,11 +62,16 @@ The program keeps all objects of a job in 1 **project** file (`.FlatPrj`).
 
 ## Main features
 
-- Native parsers for **Gerber** (RS-274X, with aperture macros, regions, polarity changes and step and repeat) and
-  **Excellon** (drills, routed and drilled slots, all number formats).
-- **Direct import of PCB board files**: Altium `.PcbDoc`, KiCad `.kicad_pcb`, Eagle `.brd`, OrCAD/Allegro `.brd`
-  and Sprint Layout 6 `.lay6`. Each copper or mask layer becomes a Gerber object, and each drill group becomes an
-  Excellon object.
+- Native parsers for **Gerber** (RS-274X and X2, with aperture macros, aperture blocks, regions, polarity changes,
+  step and repeat, load mirror, rotation and scale) and **Excellon** (drills, routed and drilled slots, pattern
+  repeat, incremental coordinates, the plated flag of each tool, all number formats).
+- **Direct import of PCB board files**: Altium `.PcbDoc`, KiCad `.kicad_pcb`, Eagle `.brd`, OrCAD/Allegro `.brd`,
+  DipTrace `.dip`, Proteus `.pdsprj` and Sprint Layout 6 `.lay6`. Each copper or mask layer becomes a Gerber
+  object, and each drill group becomes an Excellon object. `Ctrl+I` opens an Import dialog with all the imports in
+  groups and a search box.
+- **G-code import**: any G-code file becomes a CNCJob object with its tools, toolpaths, drill hits and estimated
+  time. The parser reads arcs, canned drill cycles, subprograms and macro variables, and keeps the text of the file.
+- **Transforms of CNC jobs**: move, rotate, scale, mirror and skew change the G-code text and the plot together.
 - **Isolation routing** with many passes, rest machining, V-shape tools and area selection.
 - **Non-copper clearing (NCC)** and **Paint** with the Standard, Seed, Lines and Combo methods.
 - **Drilling** and **milling** of holes and slots, with tool change, many depths per cut, exclusion areas and laser
@@ -83,7 +89,8 @@ The program keeps all objects of a job in 1 **project** file (`.FlatPrj`).
 - **Path optimization** of the drill and mill paths (Rtree, Google OR-Tools, travelling salesman).
 - **27 G-code preprocessors**: GRBL, Marlin, Repetier, MACH3-compatible controllers, Roland, ISEL, Berta, NCCAD,
   HPGL, lasers and solder paste dispensers. You can add your own.
-- **Tcl shell** with 75 commands, script files and command-line options for automatic jobs.
+- **Export** to Gerber, Excellon, G-code, SVG, PNG, PDF and DXF (with layers, also for CNC jobs).
+- **Tcl shell** with 85 commands, script files, command-line options and a headless mode for automatic jobs.
 - **Tools Database** for your tools and their cutting parameters.
 - **Light and dark themes**, a fast **OpenGL (VisPy)** canvas, and
   translations in 9 languages.
@@ -263,6 +270,12 @@ provide working OpenGL, use a previous release that includes the Legacy backend 
 
 ### Update
 
+**Help > Check for Updates** finds a new release, downloads it and installs it. The updater also replaces itself.
+If a release does not work for you, **Help > Revert to Previous Version** restores the previous installation.
+FlatCAM Evo 1.0 cannot update itself: install 1.01 or newer with the installer 1 time.
+
+For a Git checkout, you can also update with Git:
+
 ```bash
 git pull
 python -m pip install -r requirements.txt   # or: mamba env update -f environment.yml
@@ -318,13 +331,17 @@ plugin.
 | **Gerber** | Copper, mask, silkscreen or outline layer, with its apertures | Show it solid or as outlines, in 1 color or in many colors; mark apertures on the canvas; open the Gerber Editor; buffer the geometry; make the non-copper regions or a bounding box as a Geometry; start Isolation, Cutout, NCC, Film or Follow. |
 | **Excellon** | Drills and slots, grouped by tool diameter | See the tools, the drill and slot counts; show or hide each tool; open the Excellon Editor; start Drilling or Milling; make a Geometry that mills the drills or the slots with a smaller tool. |
 | **Geometry** | Toolpaths and shapes (lines and polygons), with a tool table | Single-geometry or multi-geometry (1 set of paths for each tool); open the Geometry Editor; simplify the paths; start Milling, Paint or NCC. |
-| **CNCJob** | Machine code made from a Geometry or an Excellon | See the paths of each tool, the travel distance and the estimated time; show annotations; edit the G-code; add code snippets; start Levelling; save the G-code. |
+| **CNCJob** | Machine code made from a Geometry or an Excellon, or opened from a G-code file | See the paths of each tool, the travel distance and the estimated time (with the dwells); show annotations; edit the G-code; add code snippets; move, rotate, scale, mirror or skew the job (the G-code text changes too); start Levelling; save the G-code. |
 | **Script** | A Tcl script | Edit the script with auto-complete and run it. |
 | **Document** | A text document | Edit the text with font, color and alignment settings. The Check Rules plugin writes its report into a Document. |
 
 The **Edit** menu converts and combines objects: convert single-geometry to multi-geometry and back, convert any
 object to a Geometry, Gerber or Excellon object, join Gerber, Excellon or Geometry objects, copy, delete, set the
 origin, move to the origin and jump to a location.
+
+The context menu of the **Project** tab has an **Export** submenu (DXF, SVG, PNG, PDF) for a Gerber, Excellon or
+Geometry object, and a **Join** submenu (As Gerber, As Excellon, As Geometry) for 2 or more selected objects. A
+right-click on the project selector opens a menu with **Import...** and **Close All Projects**.
 
 ---
 
@@ -343,7 +360,8 @@ of the object that they use.
   isolation type (full, exterior only or interior only). Options: rest machining (each next tool cuts only where the
   previous tool could not go), combine the passes into 1 Geometry, check the validity of the result, simplify the
   paths, exclude the area of another object, and isolate only a part of the board (all, an area, selected polygons,
-  or the area of a reference object). Output: a Geometry object.
+  or the area of a reference object). "Selected objects" isolates all the selected Gerber objects with the same
+  tools. Output: a Geometry object.
 - **NCC (Non-Copper Clearing)** — Removes all the copper that is not part of a track or a pad, for example to
   reduce the etch time or to make a board with large insulated areas. Input: a Gerber or Geometry object. It uses a
   tool table with many tools and rest machining, and the methods Standard, Seed and Lines. Options: connect the
@@ -354,7 +372,8 @@ of the object that they use.
   You can paint all polygons, selected polygons, an area or the area of a reference object. Output: a Geometry
   object.
 - **Follow** — Makes a Geometry that follows the center lines of the Gerber tracks, for example for a pen plotter or
-  for traces cut with a 1-pass tool. Options: simplify, union, and all or an area. Output: a Geometry object.
+  for traces cut with a 1-pass tool (`Alt+Y`). Options: simplify, union, and all or an area. Output: a Geometry
+  object.
 - **Cutout** — Cuts the board out of the stock along its outline. Input: a Gerber or Geometry object, as 1 board or
   a panel. Parameters: tool diameter, cut depth, many depths per cut, margin, and a convex or rectangular shape. The
   gaps (tabs) that hold the board can be bridges, thin gaps with their own depth, or mouse bites (a row of drills).
@@ -368,8 +387,10 @@ of the object that they use.
 - **Drilling** — Makes a CNCJob that drills the holes of an Excellon object. Each tool has its own cut depth, many
   depths per cut, travel height, feed rates, spindle speed or laser power, dwell and Z offset. Slots can be drilled
   as a row of holes with an overlap. Common parameters: tool change on or off with its Z and X-Y position, start
-  and end heights, probe depth, preprocessor, path optimization and exclusion areas (move over them or around them).
-  Output: a CNCJob object.
+  and end heights, probe depth and probe plate thickness, preprocessor, path optimization and exclusion areas (move
+  over them or around them). Options: peck drilling with a full retract, a spot drill pass, the spindle direction,
+  fast plunge and retract, an X-Y offset, mirror and array of the job, drill only inside drawn areas, and more
+  Excellon objects in 1 job. Output: a CNCJob object.
 - **SolderPaste** — Makes the paths and the G-code for a solder paste dispenser from the paste mask Gerber. It uses
   a table of nozzles, with the dispense heights, the feed rates, the forward and reverse speeds of the dispenser and
   the dwells. Outputs: a Geometry object and a CNCJob object (preprocessors `Paste_*`).
@@ -377,7 +398,8 @@ of the object that they use.
   board that is not flat. You define the probe points manually or as a grid (with an option to avoid the drill
   holes), set the probe parameters, and select the interpolation (Voronoi or bilinear). It can talk to a GRBL
   controller on a serial port (jog, send commands, read the height map), save a probing G-code for MACH3, MACH4,
-  LinuxCNC or GRBL, or import a height map. Output: a levelled CNCJob object.
+  LinuxCNC or GRBL, or import a height map. It also levels an imported G-code file. Output: a levelled CNCJob
+  object.
 
 ### Double-sided boards and panels
 
@@ -408,7 +430,8 @@ of the object that they use.
   Useful to align a board on the machine.
 - **Extract** — Makes new objects from the pads of a Gerber object: an Excellon with a drill in each pad (fixed
   diameter, proportional to the pad, or a fixed annular ring), a solder mask Gerber with a clearance, or a cutout
-  Gerber. You can select the pad types (circular, oblong, square, rectangular, other).
+  Gerber. You can select the pad types (circular, oblong, square, rectangular, other). With the Geometry source,
+  it makes a drill at the center of each circle of a Geometry object.
 - **Punch Gerber** — Makes a hole in the center of the pads of a Gerber object, as a guide for a manual drill. The
   hole comes from an Excellon object, or has a fixed diameter, a size proportional to the pad, or a fixed annular
   ring. Output: a Gerber object.
@@ -416,13 +439,17 @@ of the object that they use.
   becomes copper. Output: a Gerber object.
 - **Etch Compensation** — Makes the tracks of a Gerber object wider, so that they have the correct width after a
   chemical etch. The offset comes from the copper thickness and an etch factor, from a list of etchants, or is set
-  manually. It includes oz-to-micron and mil-to-micron converters. Output: a Gerber object.
+  manually. It includes oz-to-micron and mil-to-micron converters, a Preview of the result, and 1 output for each
+  selected Gerber object. Output: a Gerber object.
 - **QRCode** — Adds a QR code with your text or link to a Gerber object, with the version, the error correction,
-  the box size, the border and the polarity. It can also export the QR code as SVG or PNG.
+  the box size, the border, the polarity, the rotation and the mirror. You place it with a click or with
+  coordinates, also many times with a serial number. The text can hold the variables `{date}`, `{time}`,
+  `{project}`, `{object}` and `{serial}`. It can also open the solder mask and export the QR code as SVG or PNG.
 - **Film** — Makes a film for a photo process (UV exposure) from a Gerber or Geometry object: positive or negative,
   with a border, scale, skew and mirror corrections and punched holes for the pads. It exports SVG, PNG or PDF.
-- **Subtract** — Subtracts a Gerber object from another Gerber object, or a Geometry object from another Geometry
-  object. Output: a new object.
+- **Subtract** — Subtracts the area of 1 or more objects from a Gerber, Geometry or Excellon object. The operation
+  can also be Intersect or XOR, with a margin and a Preview. In the Advanced mode you select the apertures or tools
+  that change. Output: a new object, or the changed target.
 
 ### Measurement and analysis
 
@@ -434,8 +461,8 @@ of the object that they use.
   distances with how often they occur. Use it to select the largest isolation tool that can cut between all tracks.
 - **Check Rules** — A design rule check of the Gerber and Excellon layers of a board: trace width, copper to copper
   clearance, copper to outline clearance, minimum annular ring, silkscreen to silkscreen, silkscreen to solder mask,
-  silkscreen to outline, minimum solder mask sliver, hole to hole clearance and hole size. The report is a Document
-  object.
+  silkscreen to outline, minimum solder mask sliver, hole to hole clearance, hole size, minimum slot width, hole to
+  outline, hole to copper, and copper gap against the isolation tool. The report is a Document object.
 - **Calculators** — A unit converter (mm/inch and more), a V-shape tool calculator (the cut width from the tip
   diameter, the angle and the cut depth), an electroplating calculator (current and time) and a tinning solution
   calculator.
@@ -485,12 +512,13 @@ Each editor has its own Undo / Redo history (buttons and a history list in the s
 A step keeps only the changed shapes, so the history stays small on a large board.
 
 - **Gerber Editor** — Pad, pad array, track and region tools with 5 corner modes and arc modes; Rectangle Region
-  and Text Regions with typed values; polygonize, semi-disc and disc shapes; buffer, simplify, scale, mark an area,
+  and Text Regions with typed values and a live preview; Copper Pour with a clearance from the copper;
+  polygonize, semi-disc and disc shapes; join track sections; buffer, simplify, scale, mark an area,
   eraser and transformation; select, move and copy. Vertex grips, arc grips and an Edit vertices dialog; move a
   track bend; split and join FOLLOW paths; resize circular flashes; select and delete by size; a Features list;
   snaps to the FOLLOW endpoints, bends, midpoints and segments; a read-only inspection of the selected geometry.
-  New pads and tracks use the aperture that you select in the aperture table. An object with clear (negative)
-  features is loaded as its final geometry.
+  New pads and tracks use the aperture that you select in the aperture table. Preferences > Gerber > Editor >
+  "Load" sets how an object with clear (negative) features opens: as regions (its final geometry) or by apertures.
 - **Excellon Editor** — Drill, drill array, slot and slot array tools; resize drills; copy, move and delete;
   rotate, mirror, scale and offset of the selected features; edit or drag the endpoints of a slot; filter, select
   and delete by type, diameter and size; a read-only inspection; a second click at the same place selects the next
@@ -498,9 +526,10 @@ A step keeps only the changed shapes, so the history stays small on a large boar
 - **Geometry Editor** — Circle, arc, rectangle, polygon, path and text tools (5 corner modes for path and polygon);
   union, intersection, subtraction and cut path operations; buffer, simplify, paint and transformation; copy, move
   and delete; Import of shapes from other objects; Select by Size; Resize Circles; vertex grips and arc grips on the
-  selected shape; Edit vertices; Split path and Join paths; a read-only inspection of the selected geometry; snap to
-  the grid, to corners, to segment midpoints and to the nearest segment. A save also writes a DXF source of the
-  geometry.
+  selected shape; Edit vertices; Split path, Join paths and Polygonize; a read-only inspection of the selected
+  geometry; snap to the grid, to corners, to segment midpoints and to the nearest segment. The text tool uses
+  TrueType, OpenType, font collections (`.ttc`, `.otc`) and bitmap fonts (`.bdf`, `.pcf`, `.fon`, `.fnt`), with
+  more lines of text. A save also writes a DXF source of the geometry.
 - **G-code Editor** — Opens the G-code of a CNCJob object as text, so that you can change it before you save it.
 
 ---
@@ -513,7 +542,7 @@ A step keeps only the changed shapes, so the history stays small on a large boar
 |---|---|---|
 | Gerber (`.gbr`, `.gtl`, `.gbl`, `.gts`, `.gto`, `.gko`, `.cmp`, `.sol`, `.art`, `.pho` and many more) | File > Open > Open Gerber | Gerber |
 | Excellon (`.drl`, `.txt`, `.xln`, `.drd`, `.tap`, `.exc`, `.ncd`) | File > Open > Open Excellon | Excellon |
-| G-code (`.nc`, `.gcode`, `.cnc`, `.tap` and more) | File > Open > Open G-Code | CNCJob |
+| G-code (`.nc`, `.gcode`, `.cnc`, `.tap` and more), from FlatCAM or any other program | File > Open > Open G-Code | CNCJob |
 | FlatCAM project (`.FlatPrj`) | File > Open > Open Project | all objects |
 | Tcl script (`.FlatScript`, `.tcl`, `.txt`) | File > Scripting | Script |
 | SVG | File > Import | Geometry or Gerber |
@@ -526,11 +555,26 @@ A step keeps only the changed shapes, so the history stays small on a large boar
 | KiCad PCB (`.kicad_pcb`) | File > Import | Gerber and Excellon objects |
 | Eagle board (`.brd`, XML) | File > Import | Gerber and Excellon objects |
 | OrCAD/Allegro board (`.brd`) | File > Import | Gerber and Excellon objects |
+| DipTrace PCB (`.dip`) | File > Import | Gerber and Excellon objects |
+| Proteus PCB (`.pdsprj`) | File > Import | Gerber and Excellon objects, firmware files as Documents |
 | Sprint Layout 6 (`.lay6`) | File > Import | Gerber and Excellon objects |
 
-The board file imports show a dialog where you select the layers and drill groups. OrCAD/Allegro boards saved by
-Allegro 17.2 and 24.1 are fully checked. Boards from 17.4 to 19.0 are read with a warning. Boards from 16.x are
-refused: save them again in Allegro 17.2 or newer.
+The board file imports show a dialog where you select the layers and drill groups. A board that you import into a
+project that has objects opens in a new project. Some limits apply:
+
+- **OrCAD/Allegro**: boards saved by Allegro 17.2 and 24.1 are fully checked. Boards from 17.4 to 19.0 are read
+  with a warning. Boards from 16.x are refused: save them again in Allegro 17.2 or newer.
+- **DipTrace**: file versions 37 to 60 (DipTrace 3.x to 5.x), also multilayer boards. The import asks if the vias
+  are tented or open, because the `.dip` file does not hold this setting. Net classes, design rules and pour
+  refills are not imported.
+- **Proteus**: Proteus 8 and 9 projects. Each board of a project goes into its own project.
+
+The other imports also have these features:
+
+- **DXF** reads the units of the file (`$INSUNITS`) and scales the drawing to the units of the program.
+- **SVG** gets the page size from the Illustrator metadata. A white circle with a dark stroke (0.2 to 6 mm) can
+  become a hole of a new Excellon object (preference "SVG drill detection").
+- **PDF** imports all pages, applies the clipping paths, and skips the layers that are off in the file.
 
 You can also drag and drop files on the window. The file extensions that the program opens as Gerber, Excellon or
 G-code are set in **Preferences > Utilities** (file associations).
@@ -542,8 +586,10 @@ G-code are set in **Preferences > Utilities** (file associations).
 | G-code | Save button of a CNCJob object; Tcl `write_gcode` |
 | Gerber | File > Export > Export Gerber (format and units from Preferences > Gerber > Export) |
 | Excellon | File > Export > Export Excellon (format, zeros, units and slot type from Preferences > Excellon > Export) |
-| SVG, DXF | File > Export |
+| SVG | File > Export; Export submenu of the Project tab |
+| DXF (Gerber, Excellon, Geometry and CNCJob objects, more than 1 object in 1 file) | File > Export; Export submenu of the Project tab; Tcl `export_dxf` |
 | PNG (image of the canvas) | File > Export > Export PNG |
+| PNG, PDF of 1 object (black on white) | Export submenu of the Project tab |
 | PDF | File > Print (PDF) (`Ctrl+P`) |
 | Film (SVG, PNG, PDF) | Film plugin |
 | Project (`.FlatPrj`) | File > Save Project |
@@ -552,6 +598,10 @@ G-code are set in **Preferences > Utilities** (file associations).
 The Gerber export writes the apertures of the object when it can. If the object has aperture macros, polygon
 apertures, clear (negative) features, or a transform that the apertures cannot follow, the export writes the final
 geometry as regions, with all holes and islands kept.
+
+The DXF export puts each tool, aperture or object on its own layer, and writes arcs, circles and slots as true DXF
+arcs and circles. Preferences set the layers, the Gerber mode (outline or centerline), the travel moves, and the
+arcs and circles.
 
 ---
 
@@ -698,17 +748,19 @@ apt-get install -y libgl1 libegl1 libglu1-mesa libxkbcommon0 libfontconfig1 libd
 
 | Area | Commands |
 |---|---|
-| Projects and files | `new`, `open_project`, `save_project`, `open_gerber`, `open_excellon`, `open_gcode`, `open_svg`, `open_dxf`, `import_svg`, `open_folder`, `get_path`, `set_path` |
+| Projects and files | `new`, `open_project`, `save_project`, `close_project`, `list_projects`, `select_project`, `open_gerber`, `open_excellon`, `open_gcode`, `open_svg`, `open_dxf`, `import_svg`, `open_folder`, `get_path`, `set_path` |
 | Export | `export_grb`, `export_exc`, `export_svg`, `export_dxf`, `export_gcode`, `write_gcode` |
 | Objects | `new_gerber`, `new_excellon`, `new_geometry`, `delete`, `get_names`, `get_active`, `set_active`, `options`, `get_bounds`, `plot_all`, `plot_objects` |
 | Create geometry | `add_aperture`, `add_drill`, `add_slot`, `add_circle`, `add_rect`, `add_polygon`, `add_polyline`, `subtract_poly`, `subtract_rectangle`, `bounding_box`, `exteriors`, `interiors`, `non_copper_regions` |
 | Transform | `offset`, `scale`, `mirror`, `skew`, `buffer`, `set_origin` |
 | Combine and split | `join_gerber`, `join_excellon`, `join_geometries`, `geo_union`, `split_geometries`, `panelize` |
 | Toolpaths | `isolate`, `ncc_clear`, `paint`, `follow`, `cutout`, `geocutout`, `milldrills`, `millslots`, `aligndrill`, `aligndrillgrid` |
+| Board preparation and checks | `extract`, `invert_gerber`, `etch_compensate`, `qrcode`, `subtract_objects`, `check_rules` |
 | CNC jobs | `cncjob`, `drillcncjob`, `list_pp` |
 | Settings and program | `get_sys`, `set_sys`, `list_sys`, `save_sys`, `help`, `version`, `clear`, `quit_app` |
 
-There are 75 commands. Some have short aliases, for example `bbox`, `ncc`, `pan`, `ee`, `egr` and `geoc`.
+There are 85 commands. Some have short aliases, for example `bbox`, `ncc`, `pan`, `ee`, `egr` and `geoc`. The
+transforms (`offset`, `scale`, `mirror`, `skew`) also work on CNCJob objects.
 
 ---
 
@@ -727,6 +779,13 @@ There are 75 commands. Some have short aliases, for example `bbox`, `ncc`, `pan`
 - **Disable parallel shape processing** (Preferences > General): processes shapes synchronously instead of using
   parallel workers. The compatibility key `global_graphic_engine_3d_no_mp` is preserved; this checkbox does not
   select another renderer and does not remove the OpenGL requirement.
+- **Circles** (Preferences > Gerber, Excellon and Geometry): **Adaptive** (default) gives each circle the number
+  of segments that keeps it inside the "Max Deviation" from the true circle. **Fixed** uses the "Circle Steps"
+  value for every circle.
+- **Project Caching** (Preferences > General, off by default): a switch to another project hides the plots of the
+  inactive project and does not release them, so a switch back does not plot the objects again.
+- **Hamburger Menu** (Preferences > GUI Preferences, on by default): when it is off, the custom title bar shows the
+  full menu bar. **View > Restore Layout** shows the hidden toolbars and panels again.
 - **Themes**: default, automatic (follows the system), light and dark, with an optional dark canvas.
 - **Languages**: English, Brazilian Portuguese, Chinese (Simplified), French, German, Italian, Romanian, Russian,
   Spanish and Turkish.
@@ -756,6 +815,16 @@ python -m pytest tests -q -n 8 --dist loadfile
 ```
 
 Without `pytest-xdist`, omit `-n 8 --dist loadfile` (1 process, about 10 minutes).
+
+The gates are the test sets for a change:
+
+```bash
+python -m pytest tests/test_<area>.py -q   # the tests of the changed area
+python tests/gates/run_core.py             # the core gate: before each commit
+python tests/gates/run_gate.py             # the full gate: before a push
+```
+
+The DipTrace import tests are slow and do not run by default. Set `FLATCAM_TEST_DIPTRACE=1` to run them.
 
 [`tests/README_gates.md`](tests/README_gates.md) describes the test areas and the faster subsets.
 
