@@ -189,6 +189,8 @@ class ApertureMacro:
             # Blanks are not significant; 'x' (or 'X') is the multiplication
             part = re.sub(r'\s+', '', part)
             part = re.sub(r'[xX]', "*", part)
+            # a number may have leading zeros ("02" is 2)
+            part = re.sub(r'(?<![\w.$])0+(?=\d)', '', part)
 
             # ## Variables
             # These are variables defined locally inside the macro. They can be
@@ -454,7 +456,11 @@ class ApertureMacro:
             # ## a disk. Then stop.
             while len(ring.interiors) > 0 and i < nrings:
                 r -= thickness + gap
+                if r + thickness / 2.0 <= 0:
+                    break
                 if r <= 0:
+                    # the ring does not fit: what is left inside is a full disc
+                    result = unary_union([result, Point((x, y)).buffer(r + thickness / 2.0, quad_segs=quad_segs)])
                     break
                 ring = Point((x, y)).buffer(r, quad_segs=quad_segs).exterior.buffer(thickness / 2.0,
                                                                                     quad_segs=quad_segs)

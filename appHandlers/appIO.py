@@ -10,6 +10,7 @@ from camlib import dict2obj, ParseError, geometry_wkt_cache, project_json_defaul
 from defaults import project_options, clean_project_options, normalize_units
 from appParsers.ParseHPGL2 import HPGL2
 from appParsers.ParseGerber import Gerber
+from appParsers.gerber_attributes import attribute_changes, file_attribute_lines
 from appParsers.SVG.document import FLATCAM_NS
 
 from appObjects.ObjectCollection import GerberObject, ExcellonObject, GeometryObject, ScriptObject, CNCJobObject
@@ -2588,8 +2589,22 @@ class appIO(QtCore.QObject):
                 header += '%%FS%sAX%s%sY%s%s*%%\n' % (g_zeros, g_whole, g_fract, g_whole, g_fract)
                 header += "%MO{units}*%\n".format(units=g_units)
 
+                # X2/X3 file attributes of the object (none for a file without them)
+                # vars(): getattr() of a Qt object without its __init__ raises a RuntimeError
+                tf = (vars(obj).get('attributes') or {}).get('TF') or {}
+                for line in file_attribute_lines(tf, 'EVO', str(self.app.version),
+                                                 datetime.now().astimezone().isoformat(timespec='seconds')):
+                    header += line + '\n'
+
                 # the region export writes the composed geometry only, so it declares no aperture
+                ta_state = {}
                 for apid in ({} if use_regions else obj.tools):
+                    if obj.tools[apid]['type'] in ('C', 'R', 'O'):
+                        ta = obj.tools[apid].get('attributes') or {}
+                        for line in attribute_changes('TA', ta_state, ta):
+                            header += line + '\n'
+                        ta_state = ta
+
                     if obj.tools[apid]['type'] == 'C':
                         header += "%ADD{apid}{type},{size}*%\n".format(
                             apid=str(apid),

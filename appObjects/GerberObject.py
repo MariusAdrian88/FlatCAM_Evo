@@ -14,6 +14,7 @@ from PyQt6 import QtWidgets, QtCore
 from appGUI.GUIElements import FCCheckBox
 from appGUI.ObjectUI import GerberObjectUI
 from appParsers.ParseGerber import Gerber, drop_placeholder_record_keys
+from appParsers.gerber_attributes import attribute_changes, merge_to_table, remap_to_ids
 from appObjects.AppObjectTemplate import FlatCAMObj, OffsetUiMixin, PropertiesPanelMixin, ObjectDeleted, ValidationError
 
 from camlib import flatten_shapely_geometry, isolation_leftover_paths, clip_paths_to_area, area_outline_paths, \
@@ -155,6 +156,10 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
         self.aperture_macros = deepcopy(getattr(src, 'aperture_macros', self.aperture_macros))
         self.source_file = deepcopy(getattr(src, 'source_file', self.source_file))
         self.export_as_regions = bool(getattr(src, 'export_as_regions', False))
+        # the X2 / X3 attributes: the 'to' ids of the copied records refer to the table
+        for name in ('attributes', 'to_attributes', 'file_attributes'):
+            if hasattr(src, name):
+                setattr(self, name, deepcopy(getattr(src, name)))
         self.multigeo = getattr(src, 'multigeo', self.multigeo)
         self.int_digits = getattr(src, 'int_digits', self.int_digits)
         self.frac_digits = getattr(src, 'frac_digits', self.frac_digits)
@@ -1319,6 +1324,7 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
 
         def region_code(parts, geo_elem, where):
             # the elements of the 0 aperture and of the AM and P apertures are written as regions
+            parts.append(to_code(geo_elem))
             if 'solid' in geo_elem:
                 geo = geo_elem['solid']
                 if not geo.is_empty and not isinstance(geo, (LineString, MultiLineString, Point)):
@@ -1348,6 +1354,17 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
                     parts.append(path_code(geo.exterior.coords))
                     parts.append('D02*\nG37*\n%LPD*%\n')
 
+        # TO: the object attributes are written when the state of the next object differs from the current one
+        to_table = {int(ident): state for ident, state in (vars(self).get('to_attributes') or {}).items()}
+        to_state = {}
+
+        def to_code(geo_elem):
+            nonlocal to_state
+            new_state = to_table.get(int(geo_elem.get('to') or 0), {})
+            lines = attribute_changes('TO', to_state, new_state)
+            to_state = new_state
+            return ''.join(line + '\n' for line in lines)
+
         # Gerber code is stored here
         gerber_parts = []
 
@@ -1371,6 +1388,7 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
                 gerber_parts.append('D%s*\n' % str(apid))
                 if 'geometry' in self.tools[apid]:
                     for geo_elem in self.tools[apid]['geometry']:
+                        gerber_parts.append(to_code(geo_elem))
                         try:
                             if 'follow' in geo_elem:
                                 geo = geo_elem['follow']
@@ -1465,9 +1483,18 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
                     else:
                         grb_final.follow_geometry.append(follow_src)
 
+                # the 'to' ids of the records of grb are renumbered in the table of grb_final
+                src_to = getattr(grb, 'to_attributes', None)
+                to_map = {}
+                if src_to:
+                    if not isinstance(getattr(grb_final, 'to_attributes', None), dict):
+                        grb_final.to_attributes = {}
+                    to_map = merge_to_table(grb_final.to_attributes, src_to)
+
                 for ap in grb.tools:
                     if ap not in grb_final.tools:
                         grb_final.tools[ap] = deepcopy(grb.tools[ap])
+                        remap_to_ids(grb_final.tools[ap], to_map)
                     else:
                         # create a list of integers out of the grb.tools keys and find the max of that value
                         # then, the aperture duplicate is assigned an id value incremented with 1,
@@ -1477,6 +1504,7 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
 
                         for k, v in grb.tools[ap].items():
                             grb_final.tools[max_ap][k] = deepcopy(v)
+                        remap_to_ids(grb_final.tools[max_ap], to_map)
 
         # once the aperture metadata of a source can't describe its geometry, it can't describe the merge either
         grb_final.export_as_regions = bool(getattr(grb_final, 'export_as_regions', False) or

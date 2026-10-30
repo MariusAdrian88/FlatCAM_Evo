@@ -258,10 +258,14 @@ def copy_gerber_attributes(dst, src) -> None:
     """
     The Gerber-level state a panel inherits from its source: ``export_as_regions`` (Stage 0C: the apertures of a
     region-exported object do not describe its geometry, so the panel must export regions too) and the
-    ``aperture_macros`` that the 'AM' apertures refer to.
+    ``aperture_macros`` that the 'AM' apertures refer to. The X2 / X3 attributes are copied too: the records of the
+    panel keep their 'to' ids, so the table of the ids must go with them.
     """
     dst.export_as_regions = bool(getattr(src, 'export_as_regions', False))
     dst.aperture_macros = deepcopy(getattr(src, 'aperture_macros', {}))
+    for name, default in (('attributes', {'TF': {}, 'TA': {}, 'TO': {}}), ('to_attributes', {}),
+                          ('file_attributes', {})):
+        setattr(dst, name, deepcopy(getattr(src, name, default)))
 
 
 # ---------------------------------------------------------------------------------------------------------------

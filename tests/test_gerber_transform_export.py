@@ -826,3 +826,95 @@ class TestRegressionGerberFileRoundTripFixedInStage0C:
         # in a different order than they were drawn and the cut lands on different copper
         assert_poly_equiv(again.solid_geometry, grb.solid_geometry, rel=1e-6, abs_tol=1e-4,
                           msg='composed geometry after export')
+
+
+X2_GBR = """%TF.GenerationSoftware,KiCad,Pcbnew,7.0*%
+%TF.CreationDate,2020-01-01T00:00:00+00:00*%
+%TF.ProjectId,demo,00000000-0000-0000-0000-000000000000,rev1*%
+%TF.FileFunction,Copper,L1,Top*%
+%TF.FilePolarity,Positive*%
+%TF.MD5,00000000000000000000000000000000*%
+%FSLAX46Y46*%
+%MOMM*%
+%TA.AperFunction,SMDPad,CuDef*%
+%ADD10R,1.0X0.5*%
+%TA.AperFunction,Conductor*%
+%ADD11C,0.2*%
+%TD*%
+G01*
+%LPD*%
+D10*
+%TO.P,R1,1*%
+%TO.N,Net\\u002CA*%
+X1000000Y1000000D03*
+%TO.N,GND*%
+X5000000Y1000000D03*
+%TD*%
+D11*
+X0Y0D02*
+X5000000Y0D01*
+M02*
+"""
+
+
+def x2_records(grb):
+    """[(aperture, bounds, nets)] of every record: the nets are the .N values of the TO state of the record."""
+    out = []
+    for apid, tool in sorted(grb.tools.items()):
+        for rec in tool.get('geometry', []):
+            nets = grb.to_attributes[rec['to']].get('.N') if rec.get('to') else None
+            out.append((apid, tuple(round(c, 4) for c in rec['follow'].bounds), nets))
+    return sorted(out, key=repr)
+
+
+class TestGerberAttributeExport:
+    """X2/X3 attributes are written by the Gerber export and read back unchanged."""
+
+    @pytest.fixture
+    def x2(self, app, tmp_path):
+        path = tmp_path / 'x2.gbr'
+        path.write_text(X2_GBR)
+        grb = GerberObject('x2', app)
+        assert grb.parse_file(str(path)) is None
+        return grb
+
+    def test_file_attributes_are_kept_and_stamped(self, app, tmp_path, x2):
+        text = export_gerber_text(app, x2)
+        again = reparse_gerber(app, text, tmp_path)
+        tf = again.attributes['TF']
+        assert tf['.FileFunction'] == ['Copper', 'L1', 'Top']
+        assert tf['.FilePolarity'] == ['Positive']
+        assert tf['.ProjectId'] == x2.attributes['TF']['.ProjectId']
+        assert tf['.GenerationSoftware'][:2] == ['FlatCAM', 'EVO']
+        assert tf['.CreationDate'] != ['2020-01-01T00:00:00+00:00']
+        assert '.MD5' not in tf
+        assert text.index('%TF.FileFunction') < text.index('%ADD10')
+
+    def test_aperture_attributes_do_not_leak(self, app, tmp_path, x2):
+        again = reparse_gerber(app, export_gerber_text(app, x2), tmp_path)
+        assert again.tools[10]['attributes']['.AperFunction'] == ['SMDPad', 'CuDef']
+        assert again.tools[11]['attributes']['.AperFunction'] == ['Conductor']
+
+    def test_object_attributes_stay_on_their_objects(self, app, tmp_path, x2):
+        again = reparse_gerber(app, export_gerber_text(app, x2), tmp_path)
+        before = x2_records(x2)
+        assert [r[2] for r in before if r[0] == 10 and r[2]] != []
+        assert x2_records(again) == before
+
+    def test_escaped_value_round_trips(self, app, tmp_path, x2):
+        text = export_gerber_text(app, x2)
+        assert '%TO.N,Net\\u002CA*%' in text
+        again = reparse_gerber(app, text, tmp_path)
+        assert ['Net,A'] in [r[2] for r in x2_records(again)]
+
+    def test_escape_helpers(self):
+        from appParsers.gerber_attributes import escape_attribute_value, format_attribute, split_attribute
+        raw = 'a,b*c%d\\e é\U0001F600'
+        assert escape_attribute_value(raw) == 'a\\u002Cb\\u002Ac\\u0025d\\u005Ce \\u00E9\\U0001F600'
+        line = format_attribute('TO', '.N', [raw, 'x'])
+        assert line.startswith('%TO.N,') and line.endswith('*%')
+        assert split_attribute(line[3:-2]) == ('.N', [raw, 'x'])
+
+    def test_file_without_attributes_gets_none(self, app):
+        text = export_gerber_text(app, make_gerber(app, NATIVE_GBR))
+        assert not [ln for ln in text.splitlines() if ln.startswith(('%TF', '%TA', '%TO', '%TD'))]

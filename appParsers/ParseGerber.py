@@ -8,6 +8,7 @@ from camlib import list_total_bounds, Geometry, arc, arc_angle, ApertureMacro, g
 
 from appParsers.clipper_fuse import fuse_parts
 from appParsers.DXF import dxf_to_shapes, scale_to_app_units
+from appParsers.gerber_attributes import AttributeState, check_mandatory, file_attributes
 from appParsers.SVG import svg_to_shapes, SvgImportError
 
 import numpy as np
@@ -104,6 +105,8 @@ class Gerber(Geometry):
     _sr_rec: Optional[list] = None
     # the stack of the open aperture blocks (each a dict with its records), None when there is none
     _blocks: Optional[list] = None
+    # True when the file has an object of zero size (valid, it makes no image)
+    _zero_size_seen: bool = False
     # True while parse_file() feeds the commands: the X2 attributes are then read as attributes, not reported
     _from_file: bool = False
 
@@ -196,13 +199,18 @@ class Gerber(Geometry):
         # X2 / X3 attributes: the file attributes (TF) and the attributes that were set last (TA for the apertures,
         # TO for the objects), each {name: [values]}. The attributes of an aperture are in tools[id]['attributes'].
         self.attributes: dict[str, dict[str, list]] = {'TF': {}, 'TA': {}, 'TO': {}}
+        # The object attributes of the file by id: {id: {name: [values]}}. A record of the geometry list of an
+        # aperture has the id of the TO state it was made in under the key 'to' (no key: no object attributes).
+        # A project saved before these attributes existed loads with the defaults.
+        self.to_attributes: dict[int, dict[str, list]] = {}
+        # The typed view of the file attributes (see gerber_attributes.file_attributes())
+        self.file_attributes: dict = {}
+        # The attribute state while a file is read
+        self._attr_state: Optional[AttributeState] = None
 
         # #############################################################################################################
         # ################################# Parser patterns ###########################################################
         # #############################################################################################################
-
-        # Detect Gerber x2 format
-        self.gx2_re = re.compile(r'%TF\.FileFunction.*')
 
         # FS - Format Specification
         # The format of X and Y must be the same!
@@ -308,7 +316,7 @@ class Gerber(Geometry):
         self.export_as_regions: bool = False
 
         self.ser_attrs += ['int_digits', 'frac_digits', 'aperture_macros', 'source_file', 'export_as_regions',
-                           'attributes']
+                           'attributes', 'to_attributes', 'file_attributes']
 
         self._Gerber_inited = True
 
@@ -412,6 +420,8 @@ class Gerber(Geometry):
         # Found some Gerber with a leading zero in the aperture id and the
         # referenced it without the zero, so this is a hack to handle that.
         apid = int(apertureId)
+        if apid in self.tools:
+            self.app.log.warning("Aperture D%d is defined again, the last definition is used." % apid)
 
         # Could be empty for aperture macros
         paramList = [] if apParameters is None or apParameters == "" else apParameters.split('X')
@@ -530,6 +540,14 @@ class Gerber(Geometry):
                 ret_val = self.parse_lines(processed_lines)
             finally:
                 self._from_file = False
+
+            # the file function of the parsed attributes: a later %TF replaces an earlier one (the text above is
+            # the fallback when the parser stopped before it read the attributes)
+            parsed_function = self.attributes['TF'].get('.FileFunction')
+            if parsed_function is not None:
+                self.file_function = [item for item in parsed_function if item]
+                if isinstance(obj_options, dict):
+                    obj_options['file_function'] = list(self.file_function)
 
             if ret_val == 'fail':
                 return 'fail'
@@ -734,6 +752,8 @@ class Gerber(Geometry):
 
         # How to interpret circular interpolation: SINGLE or MULTI
         quadrant_mode = None
+        # SINGLE taken for an old file that sets no quadrant mode: an arc with start == end stays a full circle
+        quadrant_implied = False
 
         # Indicates we are parsing an aperture macro
         current_macro = None
@@ -763,10 +783,14 @@ class Gerber(Geometry):
 
         # The state of the features that are rare in a file
         self.attributes = {'TF': {}, 'TA': {}, 'TO': {}}
-        self.image_domain = None     # the bounds inside which a negative image (IPNEG) was inverted
+        self.to_attributes = {}
+        self.file_attributes = {}
+        self._attr_state = AttributeState()
+        self.image_domain = None    # the bounds inside which a negative image (IPNEG) was inverted
         self._xform = None
         self._sr_rec = None
         self._blocks = None
+        self._zero_size_seen = False
         # the load transformation as [mirror (N, X, Y or XY), rotation in degrees, scale]
         load_xform: list = ['N', 0.0, 1.0]
         # the open step and repeat: (nx, ny, di, dj) or None
@@ -775,6 +799,9 @@ class Gerber(Geometry):
         image_negative = False
         image_scale = (1.0, 1.0)
         image_mirror = (False, False)
+        # the factor of the coordinate data: SF scale and MI mirror (they act on the coordinates only)
+        coord_factor = (1.0, 1.0)
+        image_swap = False
         image_rotation = 0
         image_offset = (0.0, 0.0)
         # the warning about decimal points is made once
@@ -812,8 +839,9 @@ class Gerber(Geometry):
             self._sr_rec = None
             sr_params = None
             end_polarity = current_polarity
-            for iy in range(ny):
-                for ix in range(nx):
+            # the copies are made in Y first, then in X
+            for ix in range(nx):
+                for iy in range(ny):
                     if ix == 0 and iy == 0:
                         continue
                     dx, dy = ix * di, iy * dj
@@ -821,7 +849,8 @@ class Gerber(Geometry):
                         polarity = 'C' if is_clear else 'D'
                         if polarity != current_polarity:
                             change_polarity(polarity)
-                        moved = {key: _translate_shape(geo, dx, dy) for key, geo in geo_dict.items()}
+                        moved = {key: geo if key == 'to' else _translate_shape(geo, dx, dy)
+                                 for key, geo in geo_dict.items()}
                         if 'follow' in moved:
                             follow_buffer.append(moved['follow'])
                         poly = moved.get('clear') if is_clear else moved.get('solid')
@@ -833,6 +862,46 @@ class Gerber(Geometry):
 
         def set_load_transform() -> None:
             self._xform = _load_matrix(*load_xform)
+
+        def flash_object(x: float, y: float, aperture_id: Optional[int]) -> None:
+            """
+            Flash the aperture at (x, y). A block flashed clear, or flashed inside another block, makes its objects
+            again, in order: the polarity of each one is its own polarity toggled by the polarity of the flash
+            (spec 4.11.1), also through nested blocks. A block flashed dark outside a block is its composed shape.
+            """
+            aperture = self.tools.get(aperture_id)
+            if not (isinstance(aperture, dict) and aperture.get('type') == 'AB' and aperture.get('records')
+                    and (self.is_lpc or self._blocks)):
+                self._add_flash_to_buffers(x, y, aperture_id, poly_buffer, follow_buffer, steps)
+                return
+
+            flash_clear = self.is_lpc
+            start_polarity = current_polarity
+            location = Point([x, y])
+            follow_buffer.append(location)
+            self.export_as_regions = True
+            first = True
+            for _, record, record_clear in aperture['records']:
+                polarity = 'D' if record_clear == flash_clear else 'C'
+                geo = record.get('clear' if record_clear else 'solid')
+                if geo is None or geo.is_empty:
+                    continue
+                if polarity != current_polarity:
+                    change_polarity(polarity)
+                if self._xform is not None:
+                    geo = affinity.affine_transform(geo, (self._xform[0], self._xform[1], self._xform[2],
+                                                          self._xform[3], 0.0, 0.0))
+                geo = _translate_shape(geo, x, y)
+                poly_buffer.append(geo)
+                new_record = {'clear' if polarity == 'C' else 'solid': geo}
+                if first:
+                    new_record['follow'] = location
+                    first = False
+                if 'to' in record:
+                    new_record['to'] = record['to']
+                self._store(aperture_id, new_record)
+            if current_polarity != start_polarity:
+                change_polarity(start_polarity)
 
         self.app.inform.emit('%s %d %s.' % (_("Gerber processing. Parsing"), len(glines), _("Lines").lower()))
         try:
@@ -868,27 +937,15 @@ class Gerber(Geometry):
                 # ################   Ignored lines   ############################
                 # ################     Comments      ############################
                 # ###############################################################
+                # the deprecated G54 / G55 in front of a word has no effect
+                if gline[:3] in ('G54', 'G55') and gline[3:4] not in ('', '*'):
+                    gline = gline[3:]
+
                 # first character and '%' presence select the patterns to try (most lines are coordinates)
                 first_char = gline[:1]
                 has_pct = '%' in gline
                 match = self.comm_re.search(gline) if first_char == 'G' else None
                 if match:
-                    continue
-
-                # ######################################################################################################
-                # ######## Detect GERBER X2 format #####################################################################
-                # ######################################################################################################
-                match = self.gx2_re.search(gline) if has_pct and not self._from_file else None
-                if match:
-                    self.app.log.warning('Gerber X2 format detected !!!')
-                    self.app.inform.emit(
-                        '[WARNING] %s' % _('Gerber X2 format detected. Parsing may not be done correctly.'))
-                    if 'Drill' in gline:
-                        self.app.log.warning('Drill file in Gerber X2 format detected !!!')
-                        self.app.inform.emit(
-                            '[WARNING] %s' % _('Drill file Gerber X2 format detected. '
-                                               'Parsing may not be done correctly.'))
-                        is_excellon_gx2 = True
                     continue
 
                 # ###############################################################
@@ -968,7 +1025,12 @@ class Gerber(Geometry):
                             minx, miny, maxx, maxy = shape.bounds if not shape.is_empty else (0, 0, 0, 0)
                             self.tools[block['id']] = {
                                 'type': 'AB', 'shape': shape,
-                                'size': max(maxx - minx, maxy - miny, 10 ** -self.decimals)}
+                                'size': max(maxx - minx, maxy - miny, 10 ** -self.decimals),
+                                # the objects of the block, to be flashed again with the polarity of the flash
+                                'records': block['records']}
+                            if self._attr_state.ta:
+                                self.tools[block['id']]['attributes'] = {
+                                    name: list(values) for name, values in self._attr_state.ta_snapshot().items()}
                             if not self._blocks:
                                 self._blocks = None
                         else:
@@ -976,6 +1038,11 @@ class Gerber(Geometry):
                         continue
 
                     elif key in ('LM', 'LR', 'LS'):
+                        # the open path is drawn with the transformation it was made under
+                        if len(path) > 1 and not making_region:
+                            self._add_path_geometry_to_buffers(
+                                path, last_path_aperture, poly_buffer, follow_buffer, steps)
+                            path = [path[-1]]
                         try:
                             if key == 'LM':
                                 if body not in ('N', 'X', 'Y', 'XY'):
@@ -1007,6 +1074,8 @@ class Gerber(Geometry):
                             else:
                                 image_scale = (first if first is not None else 1.0,
                                                second if second is not None else 1.0)
+                                coord_factor = (image_scale[0] * (-1.0 if image_mirror[0] else 1.0),
+                                                image_scale[1] * (-1.0 if image_mirror[1] else 1.0))
                             self.app.log.warning("Deprecated image command %s used. (%d)" % (key, line_num))
                         else:
                             self.app.log.warning("Invalid command ignored. (%d): %s" % (line_num, gline))
@@ -1015,7 +1084,10 @@ class Gerber(Geometry):
                     elif key == 'MI':
                         match = _MI_RE.match(body)
                         if match:
+                            # only the coordinate data are mirrored, not the apertures nor the step and repeat steps
                             image_mirror = (match.group(1) == '1', match.group(2) == '1')
+                            coord_factor = (image_scale[0] * (-1.0 if image_mirror[0] else 1.0),
+                                            image_scale[1] * (-1.0 if image_mirror[1] else 1.0))
                             self.app.log.warning("Deprecated image command MI used. (%d)" % line_num)
                         continue
 
@@ -1028,8 +1100,12 @@ class Gerber(Geometry):
                         continue
 
                     elif key == 'AS':
-                        self.app.log.warning("Deprecated axis select (AS) is not supported and it is ignored. (%d)" %
-                                             line_num)
+                        # applied last: the X and Y data axes of the image are swapped
+                        if body in ('AXBY', 'AYBX'):
+                            image_swap = body == 'AYBX'
+                            self.app.log.warning("Deprecated image command AS used. (%d)" % line_num)
+                        else:
+                            self.app.log.warning("Invalid axis select ignored. (%d): %s" % (line_num, gline))
                         continue
 
                 # ################################################################
@@ -1099,6 +1175,7 @@ class Gerber(Geometry):
                 # ################################################################
                 match = self.fmt_re_orcad.search(gline) if has_pct else None
                 if match:
+                    quadrant_implied = False
                     if match.group(1) == 'G74':
                         quadrant_mode = 'SINGLE'
                     elif match.group(1) == 'G75':
@@ -1158,6 +1235,9 @@ class Gerber(Geometry):
                     if match:
                         self.app.log.debug("Starting macro. Line %d: %s" % (line_num, gline))
                         current_macro = match.group(1)
+                        if current_macro in self.aperture_macros:
+                            self.app.log.warning("Aperture macro %s is defined again, the last definition is used. "
+                                                 "(%d)" % (current_macro, line_num))
                         self.aperture_macros[current_macro] = ApertureMacro(name=current_macro)
                         if match.group(2):  # Append
                             self.aperture_macros[current_macro].append(match.group(2))
@@ -1185,9 +1265,9 @@ class Gerber(Geometry):
                 if match:
                     # log.info("Found aperture definition. Line %d: %s" % (line_num, gline))
                     apid = self.aperture_parse(match.group(1), match.group(2), match.group(3))
-                    if apid is not None and self.attributes['TA']:
-                        self.tools[apid]['attributes'] = {name: list(values)
-                                                          for name, values in self.attributes['TA'].items()}
+                    if apid is not None and self._attr_state.ta:
+                        self.tools[apid]['attributes'] = {name: list(values) for name, values
+                                                          in self._attr_state.ta_snapshot().items()}
                     continue
 
                 # ################################################################
@@ -1205,10 +1285,7 @@ class Gerber(Geometry):
                         # --- Buffered ---
                         try:
                             # self.app.log.debug("Bare op-code %d." % current_operation_code)
-                            self._add_flash_to_buffers(
-                                current_x, current_y, current_aperture,
-                                poly_buffer, follow_buffer, steps
-                            )
+                            flash_object(current_x, current_y, current_aperture)
 
                         except IndexError:
                             self.app.log.warning("Line %d: %s -> Nothing there to flash!" % (line_num, gline))
@@ -1221,6 +1298,13 @@ class Gerber(Geometry):
                             self._add_path_geometry_to_buffers(
                                 path, last_path_aperture, poly_buffer, follow_buffer, steps)
                         path = [path[-1]]
+
+                    elif current_operation_code == 1 and not making_region and current_aperture is not None:
+                        # D01 without coordinates: a zero-length draw at the current point
+                        if not path:
+                            path = [[current_x, current_y]]
+                        path.append([current_x, current_y])
+                        last_path_aperture = current_aperture
 
                     continue
 
@@ -1241,7 +1325,10 @@ class Gerber(Geometry):
                     # we should not test for "size" key as it does not exist in this case.
                     if current_aperture in self.tools and self.tools[current_aperture]["type"] != "AM":
                         if self.tools[current_aperture]["size"] == 0:
+                            # the stored size stays non-zero for the code that reads it; the objects make no image
                             self.tools[current_aperture]["size"] = 10 ** -self.decimals
+                            if self.tools[current_aperture]["type"] == 'C':
+                                self.tools[current_aperture]["zero_size"] = True
 
                     # if the detected aperture is not detected already then it means that we have a
                     if current_aperture not in self.tools:
@@ -1319,7 +1406,7 @@ class Gerber(Geometry):
                     # Parse coordinates, incremental ones are added to the current point
                     if match.group(2) is not None:
                         linear_x = parse_gerber_number(match.group(2),
-                                                       self.int_digits, self.frac_digits, self.gerber_zeros) * image_scale[0]
+                                                       self.int_digits, self.frac_digits, self.gerber_zeros) * coord_factor[0]
                         if not abs_coords:
                             linear_x += start_x
                         current_x = linear_x
@@ -1327,7 +1414,7 @@ class Gerber(Geometry):
                         linear_x = current_x
                     if match.group(3) is not None:
                         linear_y = parse_gerber_number(match.group(3),
-                                                       self.int_digits, self.frac_digits, self.gerber_zeros) * image_scale[1]
+                                                       self.int_digits, self.frac_digits, self.gerber_zeros) * coord_factor[1]
                         if not abs_coords:
                             linear_y += start_y
                         current_y = linear_y
@@ -1356,10 +1443,7 @@ class Gerber(Geometry):
                             if current_aperture is not None and not making_region:
                                 # --- BUFFERED ---
                                 # Draw the flash using helper
-                                self._add_flash_to_buffers(
-                                    current_x, current_y, current_aperture,
-                                    poly_buffer, follow_buffer, steps
-                                )
+                                flash_object(current_x, current_y, current_aperture)
 
                         if current_aperture != "failure":
                             last_path_aperture = current_aperture
@@ -1396,10 +1480,7 @@ class Gerber(Geometry):
 
                         # --- BUFFERED ---
                         # Draw the flash
-                        self._add_flash_to_buffers(
-                            linear_x, linear_y, current_aperture,
-                            poly_buffer, follow_buffer, steps
-                        )
+                        flash_object(linear_x, linear_y, current_aperture)
 
                     # maybe those lines are not exactly needed,
                     # but it is easier to read the program as those coordinates
@@ -1415,6 +1496,7 @@ class Gerber(Geometry):
                 # ################################################################
                 match = self.quad_re.search(gline) if first_char == 'G' else None
                 if match:
+                    quadrant_implied = False
                     if match.group(1) == '4':
                         quadrant_mode = 'SINGLE'
                     else:
@@ -1430,12 +1512,15 @@ class Gerber(Geometry):
                 match = self.circ_re.search(gline) if first_char in ('G', 'X', 'Y', 'I', 'J') else None
                 if match and current_aperture != "failure":
                     arcdir = [None, None, "cw", "ccw"]
+                    if image_mirror[0] != image_mirror[1]:
+                        # a mirrored coordinate system turns the direction of the arcs
+                        arcdir = [None, None, "ccw", "cw"]
 
                     mode, circular_x, circular_y, i, j, d = match.groups()
 
                     try:
                         circular_x = parse_gerber_number(circular_x,
-                                                         self.int_digits, self.frac_digits, self.gerber_zeros) * image_scale[0]
+                                                         self.int_digits, self.frac_digits, self.gerber_zeros) * coord_factor[0]
                         if not abs_coords:
                             circular_x += current_x
                     except Exception:
@@ -1443,7 +1528,7 @@ class Gerber(Geometry):
 
                     try:
                         circular_y = parse_gerber_number(circular_y,
-                                                         self.int_digits, self.frac_digits, self.gerber_zeros) * image_scale[1]
+                                                         self.int_digits, self.frac_digits, self.gerber_zeros) * coord_factor[1]
                         if not abs_coords:
                             circular_y += current_y
                     except Exception:
@@ -1452,12 +1537,12 @@ class Gerber(Geometry):
                     # According to Gerber specification i and j are not modal, which means that when i or j are missing,
                     # they are to be interpreted as being zero
                     try:
-                        i = parse_gerber_number(i, self.int_digits, self.frac_digits, self.gerber_zeros) * image_scale[0]
+                        i = parse_gerber_number(i, self.int_digits, self.frac_digits, self.gerber_zeros) * coord_factor[0]
                     except Exception:
                         i = 0
 
                     try:
-                        j = parse_gerber_number(j, self.int_digits, self.frac_digits, self.gerber_zeros) * image_scale[1]
+                        j = parse_gerber_number(j, self.int_digits, self.frac_digits, self.gerber_zeros) * coord_factor[1]
                     except Exception:
                         j = 0
 
@@ -1467,6 +1552,7 @@ class Gerber(Geometry):
                             "Found arc without preceding quadrant specification G74 or G75, "
                             "using single quadrant. (%d)" % line_num)
                         quadrant_mode = 'SINGLE'
+                        quadrant_implied = True
 
                     if mode is None and current_interpolation_mode not in [2, 3]:
                         self.app.log.error("Found arc without circular interpolation mode defined. (%d)" % line_num)
@@ -1542,6 +1628,12 @@ class Gerber(Geometry):
 
                         continue
 
+                    if quadrant_mode == 'SINGLE' and not quadrant_implied and current_x == circular_x and current_y == circular_y:
+                        # the arc has length zero (0 degrees): a zero-length draw, a dot of the aperture
+                        path.append([current_x, current_y])
+                        last_path_aperture = current_aperture
+                        continue
+
                     if quadrant_mode == 'SINGLE':
 
                         center_candidates = [
@@ -1598,8 +1690,14 @@ class Gerber(Geometry):
                 # ######### EOF - END OF FILE ####################################
                 # ################################################################
                 match = self.eof_re.search(gline)
-                if match:
-                    continue
+                if match or gline == 'M00*':
+                    # M02 and the deprecated M00 end the file: what follows is not read
+                    rest = [line for line in glines[line_num:] if line.strip(' \r\n')]
+                    if rest:
+                        self.app.log.warning("%d commands after the end of the file (%s) are ignored. (%d)" %
+                                             (len(rest), gline, line_num))
+                    source_lines.extend(glines[line_num:])
+                    break
 
                 # ################################################################
                 # ######### Line did not match any pattern. Warn user.  ##########
@@ -1619,6 +1717,14 @@ class Gerber(Geometry):
                 self.app.log.warning("Aperture block without an end at the end of the file.")
                 self._blocks = None
             finish_step_repeat()
+
+            # The object attributes by id and the typed view of the file attributes
+            self.to_attributes = self._attr_state.to_table()
+            self.file_attributes = file_attributes(self._attr_state.tf)
+            if self._attr_state.tf:
+                missing = check_mandatory(self._attr_state.tf)
+                if missing:
+                    self.app.log.info("Gerber attributes: the file has no %s" % ', '.join(missing))
 
             # Build source_file from accumulated lines
             self.source_file = '\n'.join(source_lines) + '\n'
@@ -1654,7 +1760,8 @@ class Gerber(Geometry):
 
             try:
                 assert isinstance(self.solid_geometry, BaseGeometry)
-                if buff_length == 0 and sol_geo_length in [0, 1] and self.solid_geometry.area == 0:
+                if buff_length == 0 and sol_geo_length in [0, 1] and self.solid_geometry.area == 0 and \
+                        not self._zero_size_seen:
                     self.app.log.error("Object is not Gerber file or empty. Aborting Object creation.")
                     return 'fail'
             except TypeError as e:
@@ -1745,10 +1852,10 @@ class Gerber(Geometry):
 
             # The deprecated image commands: mirror, rotation and offset of the whole image (SF scaled only the
             # coordinates, when they were read), then the negative image
-            image_matrix = _image_matrix(image_mirror, image_rotation, image_offset)
+            image_matrix = _image_matrix(image_rotation, image_offset, image_swap)
             if image_matrix is not None:
                 self._affine_all(image_matrix)
-                if image_mirror != (False, False) or image_rotation:
+                if image_mirror != (False, False) or image_rotation or image_swap:
                     self.export_as_regions = True
             if image_negative:
                 # IPNEG: the dark and the clear areas of the image are swapped. The specification does not limit the
@@ -1849,7 +1956,9 @@ class Gerber(Geometry):
         # Create solid geometry
         geo_s = None
         aperture = self.tools.get(aperture_id)
-        if aperture is not None:
+        if aperture is not None and _is_zero_size(aperture):
+            self._zero_size_seen = True
+        elif aperture is not None:
             try:
                 geo_s = _stroke_geometry(self, path, aperture, steps, self._xform)
             except Exception as e:
@@ -1910,14 +2019,18 @@ class Gerber(Geometry):
             self.app.log.warning(f"Flash at ({x}, {y}) failed: undefined aperture {aperture_id}")
             return geo_dict
 
+        if _is_zero_size(aperture):
+            # a zero-size object is valid and makes no image
+            self._zero_size_seen = True
+            return geo_dict
+
         try:
             if self._xform is None:
                 flash = self.create_flash_geometry(location, aperture, steps)
             else:
                 # the aperture is mirrored, rotated and scaled about its origin, then moved to the point
-                shape = _flash_shape(self, aperture, steps)
-                flash = None if shape is None else affinity.affine_transform(
-                    shape, (self._xform[0], self._xform[1], self._xform[2], self._xform[3], x, y))
+                shape = _loaded_shape(self, aperture, self._xform, steps)
+                flash = None if shape is None else _translate_shape(shape, x, y)
                 self.export_as_regions = True
 
             if flash is not None and not flash.is_empty:
@@ -1942,6 +2055,11 @@ class Gerber(Geometry):
         block are also kept in its list, for the copies. The objects of an aperture block belong to the block (they
         are its image) and not to the apertures that made them.
         """
+        state = self._attr_state
+        if state is not None and 'to' not in geo_dict:
+            to_id = state.to_id
+            if to_id:
+                geo_dict['to'] = to_id
         record = (aperture_id, geo_dict, self.is_lpc)
         if self._sr_rec is not None:
             self._sr_rec.append(record)
@@ -1955,16 +2073,15 @@ class Gerber(Geometry):
         Read an attribute command (TF, TA, TO, TD) in self.attributes. ``body`` is what follows the 2 letters up to
         the closing '*', for example ``.FileFunction,Copper,L1,Top``.
         """
-        name, *values = [part.strip() for part in body.split(',')]
-        if key == 'TD':
-            # delete one aperture or object attribute, or all of them (the file attributes can not be deleted)
-            for kind in ('TA', 'TO'):
-                if name:
-                    self.attributes[kind].pop(name, None)
-                else:
-                    self.attributes[kind].clear()
-        elif name:
-            self.attributes[key][name] = values
+        state = self._attr_state
+        if state is None:
+            state = self._attr_state = AttributeState()
+        state.apply(key, body)
+        # self.attributes keeps the values stripped, as it always did (the state keeps them as the spec says)
+        kinds = ('TA', 'TO') if key == 'TD' else (key,)
+        for kind in kinds:
+            self.attributes[kind] = {name: [value.strip() for value in values]
+                                     for name, values in getattr(state, kind.lower()).items()}
 
     def _ensure_region_tool(self) -> None:
         """Create the 'aperture' 0 (type REG) that holds the regions, if it does not exist."""
@@ -3338,6 +3455,9 @@ def _build_origin_shape(owner: Any, aperture: Dict[str, Any], steps_override: Op
     if kind == 'R':
         width = aperture['width']
         height = aperture['height']
+        if width <= 0 or height <= 0:
+            # a zero-size rectangle makes no image
+            return Polygon()
         return shply_box(-width / 2, -height / 2, width / 2, height / 2).buffer(0.0000001)
 
     if kind == 'O':
@@ -3437,6 +3557,32 @@ def _flash_shape(owner: Any, aperture: Dict[str, Any], steps_override: Optional[
     return shape
 
 
+def _is_zero_size(aperture: Dict[str, Any]) -> bool:
+    """Tell if the objects of the aperture make no image: a C aperture of size 0 or an R aperture with a zero side."""
+    if aperture.get('zero_size'):
+        return True
+    return aperture['type'] == 'R' and (aperture['width'] <= 0 or aperture['height'] <= 0)
+
+
+def _loaded_shape(owner: Any, aperture: Dict[str, Any], xform: tuple, steps_override: Optional[int] = None
+                  ) -> Optional[BaseGeometry]:
+    """
+    The origin-centered shape of an aperture after the load transformation (a, b, d, e). A rectangular hole (deprecated)
+    does not rotate with the aperture: it stays axis-aligned and is only scaled.
+    """
+    matrix = (xform[0], xform[1], xform[2], xform[3], 0.0, 0.0)
+    hole = aperture.get('hole')
+    if hole is None or len(hole) != 2 or aperture['type'] not in ('C', 'R', 'O', 'P'):
+        shape = _flash_shape(owner, aperture, steps_override)
+        return None if shape is None else affinity.affine_transform(shape, matrix)
+    shape = _flash_shape(owner, {key: value for key, value in aperture.items() if key != 'hole'}, steps_override)
+    if shape is None:
+        return None
+    half_x = hole[0] * float(np.hypot(xform[0], xform[2])) / 2
+    half_y = hole[1] * float(np.hypot(xform[0], xform[2])) / 2
+    return affinity.affine_transform(shape, matrix).difference(shply_box(-half_x, -half_y, half_x, half_y))
+
+
 def _translate_shape(shape: BaseGeometry, x: float, y: float) -> BaseGeometry:
     """A copy of the shape moved by (x, y)."""
     if x == 0.0 and y == 0.0:
@@ -3466,18 +3612,23 @@ def _load_matrix(mirror: str, rotation: float, scale: float) -> Optional[Tuple[f
     return (scale * cosa * mirror_x, -scale * sina * mirror_y, scale * sina * mirror_x, scale * cosa * mirror_y)
 
 
-def _image_matrix(mirror: Tuple[bool, bool], rotation: int,
-                  offset: Tuple[float, float]) -> Optional[Tuple[float, float, float, float, float, float]]:
+def _image_matrix(rotation: int, offset: Tuple[float, float],
+                  swap: bool = False) -> Optional[Tuple[float, float, float, float, float, float]]:
     """
-    The matrix (a, b, d, e, xoff, yoff) of the deprecated image commands MI, IR and OF: the image is
-    mirrored, rotated counter-clockwise about the origin and offset, in this order. None if there is no change.
+    The matrix (a, b, d, e, xoff, yoff) of the deprecated image commands OF, IR and AS: the image is offset, rotated
+    counter-clockwise about the origin (the offset is rotated too) and its X and Y axes are swapped (AS), in this
+    order. MI and SF are not here: they act on the coordinate data. None if there is no change.
     """
-    if mirror == (False, False) and not rotation and offset == (0.0, 0.0):
+    if not rotation and offset == (0.0, 0.0) and not swap:
         return None
-    sx = -1.0 if mirror[0] else 1.0
-    sy = -1.0 if mirror[1] else 1.0
     cosa, sina = {0: (1.0, 0.0), 90: (0.0, 1.0), 180: (-1.0, 0.0), 270: (0.0, -1.0)}[rotation]
-    return cosa * sx, -sina * sy, sina * sx, cosa * sy, offset[0], offset[1]
+    a, b, d, e = cosa, -sina, sina, cosa
+    xoff = a * offset[0] + b * offset[1]
+    yoff = d * offset[0] + e * offset[1]
+    if swap:
+        a, b, d, e = d, e, a, b
+        xoff, yoff = yoff, xoff
+    return a, b, d, e, xoff, yoff
 
 
 def _compose_records(records: list) -> BaseGeometry:
@@ -3553,6 +3704,13 @@ def split_gerber_commands(text: str) -> List[str]:
                 buf = buf[end + 1:]
                 continue
             star = buf.find('*')
+            if _COMMENT_WORD_RE.match(buf):
+                # a comment ends at its first '*', a '%' in it is text
+                if star < 0:
+                    break
+                items.append(buf[:star + 1])
+                buf = buf[star + 1:]
+                continue
             percent = buf.find('%')
             if star >= 0 and (percent < 0 or star < percent):
                 items.append(buf[:star + 1])
@@ -3622,11 +3780,12 @@ def _stroke_geometry(owner: Any, path: List[List[float]], aperture: Dict[str, An
             radius *= float(np.hypot(xform[0], xform[2]))
         return LineString(path).buffer(radius, circle_quad_segs(_circle_steps_of(owner, radius, steps_override)))
 
-    shape = _flash_shape(owner, aperture, steps_override)
+    if xform is None:
+        shape = _flash_shape(owner, aperture, steps_override)
+    else:
+        shape = _loaded_shape(owner, aperture, xform, steps_override)
     if shape is None or shape.is_empty:
         return None
-    if xform is not None:
-        shape = affinity.affine_transform(shape, (xform[0], xform[1], xform[2], xform[3], 0.0, 0.0))
 
     shape_points = shapely.get_coordinates(shape)
     points = np.asarray(path, dtype=float)

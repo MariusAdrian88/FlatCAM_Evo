@@ -368,6 +368,29 @@ class ReportUI:
 
         self.treeWidget.addChild(separator, [''])
 
+    def show_attributes(self, rows):
+        parent = self.treeWidget.invisibleRootItem()
+        font = QtGui.QFont()
+        font.setBold(True)
+        app_defaults = getattr(self.app, "defaults", None) or AppDefaults.factory_defaults
+        p_color = QtGui.QColor("#000000") if self.app.options.get(
+            'global_theme', app_defaults.get('global_theme', AppDefaults.factory_defaults.get('global_theme'))
+        ) in ['default', 'light']             else QtGui.QColor("#FFFFFF")
+
+        titles = {
+            'apertures': _('Functions'),
+            'nets': _('Nets'),
+            'components': _('Components'),
+        }
+        top = self.treeWidget.addParent(parent, _('Attributes'), expanded=True, color=p_color, font=font)
+        sections = {'attributes': top}
+        for section, name, value in rows:
+            if section not in sections:
+                sections[section] = self.treeWidget.addParent(
+                    top, titles.get(section, section), expanded=False, color=p_color, font=font)
+            self.treeWidget.addChild(sections[section], [str(name), str(value)], True)
+        self.treeWidget.resize_sig.emit()
+
     def show_area_chull(self, area, length, width, chull_area, copper_area, location):
 
         # add dimensions

@@ -9,7 +9,7 @@ from PyQt6 import QtWidgets, QtCore
 from appTool import AppTool
 from appGUI.GUIElements import VerticalScrollArea
 from appPlugins.ToolReport.ReportUI import ReportUI
-from appPlugins.ToolReport.ReportGen import calculate_dimensions
+from appPlugins.ToolReport.ReportGen import calculate_dimensions, gerber_attribute_rows
 
 import gettext
 import appTranslation as fcTranslate
@@ -24,6 +24,7 @@ class ObjectReport(AppTool):
     pluginName = _("Object Report")
 
     calculations_finished = QtCore.pyqtSignal(float, float, float, float, float, object)
+    attributes_found = QtCore.pyqtSignal(object)
 
     def __init__(self, app):
         AppTool.__init__(self, app)
@@ -34,6 +35,7 @@ class ObjectReport(AppTool):
         self.info_box = self.ui.info_box
         self.treeWidget = self.ui.treeWidget
         self.calculations_finished.connect(self.show_area_chull)
+        self.attributes_found.connect(self.show_attributes)
 
     def run(self, toggle=True):
         self.app.defaults.report_usage("ToolReport()")
@@ -118,9 +120,16 @@ class ObjectReport(AppTool):
             for error in errors:
                 self.app.log.error(error)
             self.calculations_finished.emit(*values, dims)
+            if str(obj_prop.kind).lower() == 'gerber':
+                rows = gerber_attribute_rows(obj_prop)
+                if rows:
+                    self.attributes_found.emit(rows)
 
         self.app.worker_task.emit({'fcn': job_thread, 'params': [obj]})
 
     def show_area_chull(self, area, length, width, chull_area, copper_area, location):
         self.ui.decimals = self.decimals
         self.ui.show_area_chull(area, length, width, chull_area, copper_area, location)
+
+    def show_attributes(self, rows):
+        self.ui.show_attributes(rows)

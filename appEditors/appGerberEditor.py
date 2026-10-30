@@ -2609,7 +2609,9 @@ class MoveEditorGrb(ShapeToolEditorGrb):
                 if remove_source:
                     # slice assignment: storage_dict keeps a reference to this list
                     storage[:] = [shape for shape in storage if id(shape) not in shape_ids]
-                moved = [DrawToolShape(geo_el) for geo_el in self.translated_elements(shapes, dx, dy)]
+                # the moved (or copied) record keeps the object attributes (TO id) of its source
+                moved = [DrawToolShape(dict(geo_el, **({'to': shape.geo['to']} if 'to' in shape.geo else {})))
+                         for shape, geo_el in zip(shapes, self.translated_elements(shapes, dx, dy))]
                 storage.extend(moved)
                 # a pure translation keeps the flash semantics of the records: no export re-validation
                 history = getattr(self.draw_app, 'history', None)
@@ -2773,6 +2775,8 @@ class EraserEditorGrb(ShapeToolEditorGrb):
                         continue
 
                     new_geo_el = {'solid': deepcopy(geos)}
+                    if 'to' in geo_el.geo:
+                        new_geo_el['to'] = geo_el.geo['to']
                     follow_data = geo_el.geo.get('follow')
                     if follow_data is not None:
                         if eraser_sel_shapes.intersects(follow_data):
@@ -5661,6 +5665,9 @@ class AppGerberEditor(QtCore.QObject):
         source.export_as_regions = export_as_regions
         source.multigeo = False
         source.follow = False
+        for attr in ('to_attributes', 'attributes', 'file_attributes'):
+            if getattr(edited, attr, None):
+                setattr(source, attr, getattr(edited, attr))
         if edited.source_file:
             source.source_file = edited.source_file
         # the aperture table and the aperture marks belong to the old apertures
@@ -5772,11 +5779,17 @@ class AppGerberEditor(QtCore.QObject):
                             new_geo_el['clear'] = geometric_data['clear']
 
                         if new_geo_el:
+                            if geometric_data.get('to') is not None:
+                                new_geo_el['to'] = geometric_data['to']
                             grb_obj.tools[storage_apcode][k].append(deepcopy(new_geo_el))
                 else:
                     grb_obj.tools[storage_apcode][k] = val
 
         grb_obj.aperture_macros = deepcopy(self.gerber_obj.aperture_macros)
+        # the X2/X3 attributes of the source: the ids of the kept records still point into this table
+        for attr in ('to_attributes', 'attributes', 'file_attributes'):
+            if getattr(self.gerber_obj, attr, None):
+                setattr(grb_obj, attr, deepcopy(getattr(self.gerber_obj, attr)))
         # the rebuilt records don't prove that they represent the edited result: keep the flag
         # an object loaded as regions (it had clear features) is saved through the region export too: it keeps
         # the holes and the islands of the regions in any order
@@ -7574,7 +7587,10 @@ class AppGerberEditor(QtCore.QObject):
         if any(not polygon.is_valid for polygon in polygons):
             self.app.inform.emit('[WARNING_NOTCL] %s' % _("The operation produced invalid geometry. Nothing was changed."))
             return 'fail'
-        replacements = [DrawToolShape({'solid': polygon, 'follow': LineString(polygon.exterior.coords)})
+        # a merged record keeps the object attributes (TO id) only if all the merged records have the same id
+        to_ids = {shape.geo.get('to') for shape in shapes}
+        to_extra = {'to': next(iter(to_ids))} if len(to_ids) == 1 and None not in to_ids else {}
+        replacements = [DrawToolShape({'solid': polygon, 'follow': LineString(polygon.exterior.coords), **to_extra})
                         for polygon in polygons]
         cutters = shapes[1:] if operation == 'difference_keep' else []
         removed = {shapes[0]} if cutters else selected

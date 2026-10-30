@@ -385,3 +385,55 @@ def test_save_as_new_detached_build_commits_reparseable_copy_without_changing_so
     assert parsed.parse_lines(saved.source_file.splitlines()) is None
     assert parsed.solid_geometry
     editor.deactivate_grb_editor.assert_called_once()
+
+
+def test_save_keeps_the_object_attributes_of_unchanged_and_moved_records_but_not_of_new_ones(app):
+    source = make_gerber(app, NATIVE_GBR, name='board')
+    source.to_attributes = {1: {'.N': ['GND']}, 2: {'.N': ['VCC']}}
+    source.file_attributes = {'.FileFunction': ['Copper']}
+    records = [rec for tool in source.tools.values() for rec in tool['geometry']]
+    for number, rec in enumerate(records):
+        rec['to'] = 1 + number % 2
+    storage = gerber_storage(source)
+    first = next(iter(storage))
+    storage[first]['geometry'].append(SimpleNamespace(geo={'solid': Point(30, 30).buffer(1), 'follow': Point(30, 30)}))
+    AppGerberEditor.build_edited_gerber(gerber_stand_in(app, source, storage), 'board', storage)
+    saved = app.custom_signal.emit.call_args.args[0]['obj']
+    assert saved.to_attributes == source.to_attributes
+    assert saved.file_attributes == source.file_attributes
+    saved_to = [[rec.get('to') for rec in saved.tools[ap]['geometry']] for ap in storage]
+    expected = [[rec.get('to') for rec in source.tools[ap]['geometry']] for ap in storage]
+    expected[0].append(None)
+    assert saved_to == expected
+
+
+@pytest.mark.parametrize('family', ['move', 'copy'])
+def test_move_and_copy_keep_the_to_id_and_undo_restores_it(family):
+    editor, first, second = scene()
+    first.geo['to'] = 3
+    editor.selected = [first]
+    editor.sync_aperture_rows({10})
+    tool =(MoveEditorGrb if family == 'move' else CopyEditorGrb)(editor)
+    editor.active_tool = tool
+    tool.origin, tool.destination = (0, 0), (0, 5)
+    tool.make()
+    shapes = editor.storage_dict[10]['geometry']
+    assert len(shapes) == (1 if family == 'move' else 2)
+    assert shapes[-1].geo['to'] == 3
+    assert shapes[-1].geo['follow'].equals(Point(0.5, 5.5))
+    assert 'to' not in second.geo
+    assert editor.undo()
+    assert [shape.geo.get('to') for shape in editor.storage_dict[10]['geometry']] == [3]
+
+
+def test_region_union_keeps_the_to_id_only_when_all_the_merged_records_have_it():
+    for ids, expected in (((4, 4), 4), ((4, 5), None), ((4, None), None)):
+        editor, first, second = scene()
+        second.geo['solid'] = box(0.5, 0, 11, 1)
+        editor.selected = [first, second]
+        for shape, to in zip((first, second), ids):
+            if to is not None:
+                shape.geo['to'] = to
+        assert editor.apply_region_operation('union') != 'fail'
+        merged = [shape for aperture in editor.storage_dict.values() for shape in aperture['geometry']]
+        assert [shape.geo.get('to') for shape in merged] == [expected]
