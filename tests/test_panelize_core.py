@@ -169,6 +169,17 @@ class TestExcellon:
                     assert (new_start.x, new_start.y, new_stop.x, new_stop.y) == \
                         pytest.approx((start.x + dx, start.y + dy, stop.x + dx, stop.y + dy))
 
+    def test_each_copy_of_a_hole_keeps_its_object_attribute_id(self):
+        tools = {1: {'tooldia': 1.0, 'drills': [Point(0, 0), Point(1, 0)], 'slots': [(Point(0, 1), Point(1, 1))],
+                     'drills_to': [2, 0], 'slots_to': [3]},
+                 2: {'tooldia': 2.0, 'drills': [Point(5, 5)], 'slots': []}}
+        new = pc.panelize_excellon(tools, [(0.0, 0.0), (10.0, 0.0), (20.0, 0.0)])
+        assert new[1]['drills_to'] == [2, 0] * 3 and new[1]['slots_to'] == [3] * 3
+        assert len(new[1]['drills']) == 6
+        # a tool without ids gets no keys; the source is not changed
+        assert 'drills_to' not in new[2] and 'slots_to' not in new[2]
+        assert tools[1]['drills_to'] == [2, 0]
+
     def test_tool_data_kept_and_independent(self, app):
         src, offs = self.build(app)
         src.tools[1]['data'] = {'cutz': -1.7, 'tag': 'first'}

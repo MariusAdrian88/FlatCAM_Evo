@@ -278,3 +278,36 @@ class TestJoinDuplicateCheck:
         a = make_exc(app, 'a', [(1.0, [(0, 0), (0, 0)], [], DATA_A)])
         b = make_exc(app, 'b', [(1.0, [(5, 0)], [], DATA_A)])
         assert placed(join(app, [a, b])) == [(1.0, 0, 0), (1.0, 0, 0), (1.0, 5, 0)]
+
+
+class TestJoinKeepsHoleAttributes:
+    TEXT = "M48\nMETRIC\nT1C1.0\n%%\nG05\nT1\n; #@! TO.C,%s\nX%s.0Y1.0\n; #@! TD\nX%s.0Y2.0\nM30\n"
+
+    def obj(self, app, name, comp, x1, x2):
+        from appParsers.ParseExcellon import Excellon  # noqa: F401
+        exc = ExcellonObject(name, app)
+        assert exc.parse_lines((self.TEXT % (comp, x1, x2)).splitlines(keepends=True)) is None
+        exc.create_geometry()
+        return exc
+
+    def state_at(self, final):
+        from appParsers.ParseExcellon import hole_ids, to_state
+        tool = final.tools[1]
+        ids = hole_ids(tool, 'drills')
+        return {(p.x, p.y): to_state(final.to_attributes, i) for p, i in zip(tool['drills'], ids)}
+
+    def test_join_keeps_each_hole_component_and_the_ids_follow_the_dedupe(self, app):
+        a = self.obj(app, 'a', 'R1', 1, 2)
+        b = self.obj(app, 'b', 'R2', 3, 2)      # its hole at (2, 2) duplicates one of a and is removed
+        got = self.state_at(join(app, [a, b]))
+        assert got == {(1.0, 1.0): {'.C': ['R1']}, (2.0, 2.0): None, (3.0, 1.0): {'.C': ['R2']}}
+
+    def test_object_without_ids_stays_without_keys_and_the_tf_is_dropped_when_it_differs(self, app):
+        a = make_exc(app, 'a', [(1.0, [(0, 0)], [], DATA_A)])
+        b = make_exc(app, 'b', [(1.0, [(5, 0)], [], DATA_A)])
+        final = join(app, [a, b])
+        assert 'drills_to' not in final.tools[1] and not final.to_attributes
+        c = self.obj(app, 'c', 'R1', 7, 8)
+        d = self.obj(app, 'd', 'R1', 9, 9)
+        c.attributes['TF'] = {'FileFunction': ['Plated']}
+        assert join(app, [c, d]).attributes['TF'] == {}

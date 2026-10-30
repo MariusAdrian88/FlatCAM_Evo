@@ -3,6 +3,7 @@ from tclCommands.TclCommand import TclCommand
 
 import logging
 import collections
+from copy import deepcopy
 
 import gettext
 import appTranslation as fcTranslate
@@ -175,6 +176,10 @@ class TclCommandPanelize(TclCommand):
                 obj_fin.multitool = True
                 obj_fin.tools = panelize_core.panelize_excellon(obj.tools, offsets, abort=abort)
                 obj_fin.solid_geometry = []
+                # the holes keep their TO ids, so the table of the ids goes with them
+                for name in ('attributes', 'file_attributes', 'to_attributes'):
+                    if name in vars(obj):
+                        setattr(obj_fin, name, deepcopy(vars(obj)[name]))
 
                 for option in obj.obj_options:
                     if option != 'name':

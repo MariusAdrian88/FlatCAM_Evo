@@ -385,6 +385,10 @@ class Panelize(AppTool):
                     obj_fin.tools = panelize_core.panelize_excellon(
                         panel_source_obj.tools, offsets, abort=abort, progress=progress)
                     obj_fin.solid_geometry = []
+                    # the holes keep their TO ids, so the table of the ids goes with them
+                    for name in ('attributes', 'file_attributes', 'to_attributes'):
+                        if name in vars(panel_source_obj):
+                            setattr(obj_fin, name, deepcopy(vars(panel_source_obj)[name]))
 
                     for option in panel_source_obj.obj_options:
                         if option != 'name':

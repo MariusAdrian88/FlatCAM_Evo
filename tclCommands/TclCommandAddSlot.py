@@ -116,6 +116,8 @@ class TclCommandAddSlot(TclCommandSignaled):
         elif new_dia in list(dia_tool_dict.keys()):
             if new_slot not in obj.tools[dia_tool_dict[new_dia]]['slots']:
                 obj.tools[dia_tool_dict[new_dia]]['slots'].append(new_slot)
+                if 'slots_to' in obj.tools[dia_tool_dict[new_dia]]:
+                    obj.tools[dia_tool_dict[new_dia]]['slots_to'].append(0)
             else:
                 return TclCommandFailure('Slot with the given coordinates is already in the object.')
 

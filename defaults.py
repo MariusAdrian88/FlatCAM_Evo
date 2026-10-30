@@ -1051,7 +1051,7 @@ class AppDefaults:
 
         # Utilities
         # file associations
-        "fa_excellon": 'drd, drill, drl, exc, ncd, tap, xln',
+        "fa_excellon": 'drd, drill, drl, exc, ncd, tap, xln, xnc',
         "fa_gcode": 'cnc, din, dnc, ecs, eia, fan, fgc, fnc, gc, gcd, gcode, hnc, min, mpf, mpr, nc, ncc, '
                     'ncg, ncp, ngc, out, ply, rol, sbp, tap, xpi',
         "fa_gerber": 'art, bot, bsm, cmp, crc, crs, dim, gb0, gb1, gb2, gb3, gb4, gb5, gb6, gb7, gb8, gb9, gbd, '

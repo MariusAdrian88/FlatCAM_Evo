@@ -107,6 +107,8 @@ class TclCommandAddDrill(TclCommandSignaled):
         elif new_dia in list(dia_tool_dict.keys()):
             if drill_point not in obj.tools[dia_tool_dict[new_dia]]['drills']:
                 obj.tools[dia_tool_dict[new_dia]]['drills'].append(drill_point)
+                if 'drills_to' in obj.tools[dia_tool_dict[new_dia]]:
+                    obj.tools[dia_tool_dict[new_dia]]['drills_to'].append(0)
             else:
                 return TclCommandFailure('Drill with the given coordinates is already in the object.')
 

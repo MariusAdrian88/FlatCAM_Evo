@@ -120,7 +120,7 @@ class ObjectReport(AppTool):
             for error in errors:
                 self.app.log.error(error)
             self.calculations_finished.emit(*values, dims)
-            if str(obj_prop.kind).lower() == 'gerber':
+            if str(obj_prop.kind).lower() in ('gerber', 'excellon'):
                 rows = gerber_attribute_rows(obj_prop)
                 if rows:
                     self.attributes_found.emit(rows)

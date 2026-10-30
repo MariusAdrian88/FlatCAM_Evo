@@ -26,6 +26,7 @@ from appGUI.GUIElements import FCEntry, FCTable, FCDoubleSpinner, FCButton, FCLa
 from appEditors.appGeoEditor import (FCShapeTool, DrawTool, DrawToolShape, DrawToolUtilityShape, AppGeoEditor,
                                      PICK_TOLERANCE_PX, CLICK_DRAG_THRESHOLD_PX)
 from appEditors.appGerberEditor import edit_copy_name, get_finite_bounds
+from appParsers.ParseExcellon import hole_ids
 
 from shapely import LineString, LinearRing, MultiLineString, Polygon, MultiPolygon, Point, STRtree, box
 from shapely.geometry.base import BaseGeometry
@@ -54,6 +55,15 @@ EDITOR_ACTION_PROPERTY = 'exc_editor_action'
 
 # tool key and feature tag of the drills a plugin generated and owns (DblSidedGen.GENERATED): a save must keep it
 GENERATED_DRILLS = '_2sided_generated'
+# feature tag: the object attribute (TO) id of a hole; absent = 0. Copied, moved and resized holes keep it
+TO_ID = '_exc_to_id'
+
+
+def keep_to_id(target, source):
+    """Give the replacement shape the TO id of its source shape."""
+    ident = getattr(source, TO_ID, 0)
+    if ident:
+        setattr(target, TO_ID, ident)
 
 # display text of the internal feature types
 FEATURE_TYPE_LABELS = {'drill': _('Drill'), 'slot': _('Slot')}
@@ -2597,6 +2607,7 @@ def translated_exc_shape(source, geometry):
         shape.exc_source_diameter = source.exc_source_diameter
     if getattr(source, GENERATED_DRILLS, False):
         setattr(shape, GENERATED_DRILLS, True)
+    keep_to_id(shape, source)
     native = getattr(source, 'exc_slot', None)
     if native is not None and getattr(source, 'exc_slot_geometry', None) is source.geo:
         dx = geometry.centroid.x - source.geo.centroid.x
@@ -3501,6 +3512,7 @@ class AppExcEditor(QtCore.QObject):
                     replacement.exc_source_diameter = getattr(shape, 'exc_source_diameter', diameter)
                     if getattr(shape, GENERATED_DRILLS, False):
                         setattr(replacement, GENERATED_DRILLS, True)
+                    keep_to_id(replacement, shape)
                     removed.setdefault(diameter, []).append(shape)
                     inserted.setdefault(target, []).append(replacement)
                     replacements.append(replacement)
@@ -3595,6 +3607,7 @@ class AppExcEditor(QtCore.QObject):
                 new_shape.exc_source_diameter = getattr(shape, 'exc_source_diameter', source_dia)
                 if getattr(shape, GENERATED_DRILLS, False):
                     setattr(new_shape, GENERATED_DRILLS, True)
+                keep_to_id(new_shape, shape)
                 changes.setdefault(source_dia, []).append(shape)
                 replacements.append(new_shape)
         if found != selected:
@@ -4122,12 +4135,17 @@ class AppExcEditor(QtCore.QObject):
         self.points_edit = {}
         # build the self.points_edit dict {dimaters: [point_list]}, with the ownership flags of each drill
         generated_edit = {}
+        # the TO id of each drill / slot, parallel to the points (a tool without ids: 0)
+        drill_to_edit = {}
+        slot_to_edit = {}
         for tool, tool_dict in native_tools.items():
             tool_dia = self.dec_format(tool_dict['tooldia'])
             generated = set(tool_dict.get(GENERATED_DRILLS, ()))
+            drill_to = hole_ids(tool_dict, 'drills')
 
             if 'drills' in tool_dict and tool_dict['drills']:
                 for index, drill in enumerate(tool_dict['drills']):
+                    drill_to_edit.setdefault(tool_dia, []).append(drill_to[index] if drill_to else 0)
                     try:
                         self.points_edit[tool_dia].append(drill)
                         generated_edit[tool_dia].append(index in generated)
@@ -4139,9 +4157,11 @@ class AppExcEditor(QtCore.QObject):
         # build the self.slot_points_edit dict {dimaters: {"start": Point, "stop": Point}}
         for tool, tool_dict in native_tools.items():
             tool_dia = float('%.*f' % (self.decimals, tool_dict['tooldia']))
+            slot_to = hole_ids(tool_dict, 'slots')
 
             if 'slots' in tool_dict and tool_dict['slots']:
-                for slot in tool_dict['slots']:
+                for index, slot in enumerate(tool_dict['slots']):
+                    slot_to_edit.setdefault(tool_dia, []).append(slot_to[index] if slot_to else 0)
                     try:
                         self.slot_points_edit[tool_dia].append({
                             "start": slot[0],
@@ -4176,6 +4196,7 @@ class AppExcEditor(QtCore.QObject):
             storage_elem = AppGeoEditor.make_storage()
             drill_shapes = []
             generated = generated_edit.get(tool_dia, ())
+            drill_to = drill_to_edit.get(tool_dia, ())
             for index, point in enumerate(self.points_edit[tool_dia]):
                 # make a '+' sign, the line length is the tool diameter
                 start_hor_line = ((point.x - (tool_dia / 2)), point.y)
@@ -4187,6 +4208,8 @@ class AppExcEditor(QtCore.QObject):
                     shape = DrawToolShape(shape_geo)
                     if index < len(generated) and generated[index]:
                         setattr(shape, GENERATED_DRILLS, True)
+                    if index < len(drill_to) and drill_to[index]:
+                        setattr(shape, TO_ID, drill_to[index])
                     drill_shapes.append(shape)
             # 1 batch for each tool
             self.add_exc_shape(drill_shapes, storage_elem)
@@ -4196,7 +4219,8 @@ class AppExcEditor(QtCore.QObject):
         for tool_dia in self.slot_points_edit:
             buf_value = float(tool_dia) / 2
             slot_shapes = []
-            for elem_dict in self.slot_points_edit[tool_dia]:
+            slot_to = slot_to_edit.get(tool_dia, ())
+            for index, elem_dict in enumerate(self.slot_points_edit[tool_dia]):
 
                 line_geo = LineString([elem_dict['start'], elem_dict['stop']])
                 shape_geo = line_geo.buffer(buf_value, circle_quad_segs_of(self, buf_value))
@@ -4209,6 +4233,8 @@ class AppExcEditor(QtCore.QObject):
                     shape = DrawToolShape(shape_geo)
                     shape.exc_slot = (tuple(elem_dict['start'].coords[0]), tuple(elem_dict['stop'].coords[0]))
                     shape.exc_slot_geometry = shape_geo
+                    if index < len(slot_to) and slot_to[index]:
+                        setattr(shape, TO_ID, slot_to[index])
                     slot_shapes.append(shape)
             # 1 batch for each tool
             if slot_shapes:
@@ -4252,6 +4278,11 @@ class AppExcEditor(QtCore.QObject):
         edited_points = {}
         # per-diameter flags of the drills a plugin generated: a save must keep that ownership
         generated_points = {}
+        # per-diameter TO ids of the drills (0 = none), parallel to edited_points
+        to_points = {}
+        # the TO ids are written only when the edited object had them (an object without ids gets no keys)
+        had_ids = any(hole_ids(tool, kind) is not None for tool in vars(exc_obj).get('tools', {}).values()
+                      if isinstance(tool, dict) for kind in ('drills', 'slots'))
 
         """
          - this dictionary will contain tooldia's as keys and a list of another dicts as values
@@ -4275,9 +4306,11 @@ class AppExcEditor(QtCore.QObject):
                         edited_points.setdefault(storage_tooldia, []).append(record['center'])
                         generated_points.setdefault(storage_tooldia, []).append(
                             bool(getattr(record['shape'], GENERATED_DRILLS, False)))
+                        to_points.setdefault(storage_tooldia, []).append(getattr(record['shape'], TO_ID, 0))
                     else:
                         start, stop = record['endpoints']
-                        edited_slot_points.setdefault(storage_tooldia, []).append({'start': start, 'stop': stop})
+                        edited_slot_points.setdefault(storage_tooldia, []).append(
+                            {'start': start, 'stop': stop, 'to': getattr(shape, TO_ID, 0)})
         except ValueError as error:
             self.app.log.error('Excellon editor save --> %s' % str(error))
             self.app.inform.emit('[ERROR_NOTCL] %s' % _(
@@ -4309,6 +4342,7 @@ class AppExcEditor(QtCore.QObject):
             if el[0] in edited_points:
                 edited_points.setdefault(el[1], []).extend(edited_points.pop(el[0]))
                 generated_points.setdefault(el[1], []).extend(generated_points.pop(el[0]))
+                to_points.setdefault(el[1], []).extend(to_points.pop(el[0]))
             if el[0] in edited_slot_points:
                 edited_slot_points.setdefault(el[1], []).extend(edited_slot_points.pop(el[0]))
 
@@ -4333,7 +4367,11 @@ class AppExcEditor(QtCore.QObject):
 
             # create the self.drills for the new Excellon object (the one with edited content)
             generated = generated_points.get(tool_dia[0], ())
+            drill_to = to_points.get(tool_dia[0], ())
             for index, point in enumerate(tool_dia[1]):
+                if had_ids:
+                    self.new_tools[current_tool].setdefault('drills_to', []).append(
+                        drill_to[index] if index < len(drill_to) else 0)
                 try:
                     self.new_tools[current_tool]['drills'].append(Point(point))
                 except KeyError:
@@ -4376,6 +4414,8 @@ class AppExcEditor(QtCore.QObject):
                     Point(coord_dict['start']),
                     Point(coord_dict['stop'])
                 )
+                if had_ids:
+                    self.new_tools[current_tool].setdefault('slots_to', []).append(coord_dict.get('to', 0))
                 try:
                     self.new_tools[current_tool]['slots'].append(slot)
                 except KeyError:
@@ -4390,6 +4430,9 @@ class AppExcEditor(QtCore.QObject):
         for values in self.new_tools.values():
             values.setdefault('drills', [])
             values.setdefault('slots', [])
+            if had_ids:
+                values.setdefault('drills_to', [])
+                values.setdefault('slots_to', [])
         if in_place:
             return self._save_excellon_in_place(exc_obj, on_complete)
 
@@ -4403,20 +4446,31 @@ class AppExcEditor(QtCore.QObject):
         factor = 1.0 if source.units.upper() == units else (25.4 if units == 'MM' else 1 / 25.4)
         # Splits inherit machining data. A merged diameter keeps its first owner's data.
         source_data = {}
+        source_ta = {}
         for values in source.tools.values():
             source_data.setdefault(round(values['tooldia'] * factor, self.decimals), values.get('data'))
+            if values.get('attributes'):
+                source_ta.setdefault(round(values['tooldia'] * factor, self.decimals), values['attributes'])
         for values in tools.values():
             storage = self.storage_dict.get(values['tooldia'])
             first = next(iter(storage.get_objects()), None) if storage is not None else None
             diameter = getattr(first, 'exc_source_diameter', values['tooldia'])
             if source_data.get(round(diameter, self.decimals)):
                 values['data'] = deepcopy(source_data[round(diameter, self.decimals)])
+            # the tool attributes (TA) stay with the tool of the same source diameter
+            if source_ta.get(round(diameter, self.decimals)):
+                values['attributes'] = deepcopy(source_ta[round(diameter, self.decimals)])
         options = {key: deepcopy(value) for key, value in source.obj_options.items()}
         attrs = {key: deepcopy(getattr(source, key)) for key in (
             'units', 'zeros', 'excellon_format_upper_mm', 'excellon_format_lower_mm',
             'excellon_format_upper_in', 'excellon_format_lower_in', 'excellon_units', '_fixed_steps'
         ) if hasattr(source, key)}
         attrs['units'] = units
+        # the XNC attributes of the source: the ids of the kept holes still point into the TO table
+        # (vars().get: getattr on a Qt object without __init__ raises RuntimeError)
+        for key in ('attributes', 'to_attributes', 'file_attributes'):
+            if vars(source).get(key):
+                attrs[key] = deepcopy(vars(source)[key])
         object_type, app = type(source), self.app
 
         def build():

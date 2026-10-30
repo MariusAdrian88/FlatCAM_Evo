@@ -6,7 +6,7 @@ from copy import deepcopy
 import math
 from concurrent.futures import ThreadPoolExecutor
 
-from appParsers.ParseExcellon import Excellon
+from appParsers.ParseExcellon import Excellon, hole_ids
 from appPlugins.ToolAlignObjects.AlignGen import AlignError, bounded_align, is_ambiguous, invert
 
 import gettext
@@ -126,6 +126,12 @@ def bounds_drills(bounds, diameter, offset, turn='L-R', failsafe=True):
 def _remove_generated(tools):
     for tool in tools.values():
         indices = set(tool.pop(GENERATED, []))
+        # the TO ids leave with their holes (ids out of step with the drills are dropped)
+        ids = hole_ids(tool, 'drills')
+        if ids is not None:
+            tool['drills_to'] = [t for i, t in enumerate(ids) if i not in indices]
+        else:
+            tool.pop('drills_to', None)
         tool['drills'] = [p for i, p in enumerate(tool.get('drills', [])) if i not in indices]
 
 
@@ -185,6 +191,8 @@ def replace_generated(obj, diameter, drills, decimals):
     tool = obj.tools[tool_id]
     start = len(tool['drills'])
     tool['drills'].extend(drills)
+    if 'drills_to' in tool:
+        tool['drills_to'].extend([0] * len(drills))
     tool[GENERATED] = list(range(start, len(tool['drills'])))
     # Empty tools left by changing our diameter needn't leak into the export.
     obj.tools = {key: t for key, t in obj.tools.items() if t.get('drills') or t.get('slots')}

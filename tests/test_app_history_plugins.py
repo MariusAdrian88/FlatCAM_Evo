@@ -218,6 +218,21 @@ def test_dblsided_editor_round_trip_keeps_generated_holes_owned(fc, no_plot):
     assert _drill_count(gen.source_view(drills)) == 41
 
 
+def test_dblsided_regeneration_keeps_the_object_attribute_ids_of_the_user_holes():
+    from types import SimpleNamespace
+    from appPlugins.ToolDblSided import DblSidedGen as gen
+    tool = {'tooldia': 0.8, 'drills': [Point(0, 0), Point(1, 1), Point(2, 2)], 'slots': [],
+            'drills_to': [4, 0, 5], gen.GENERATED: [1]}
+    plain = {'tooldia': 1.0, 'drills': [Point(9, 9)], 'slots': []}
+    obj = SimpleNamespace(tools={1: tool, 2: plain}, obj_options={}, bounds=lambda: (0, 0, 1, 1),
+                          create_geometry=lambda: None, regenerate_source=lambda: True)
+    gen.replace_generated(obj, 0.8, [Point(7, 7), Point(8, 8)], 4)
+    assert [p.x for p in tool['drills']] == [0, 2, 7, 8]
+    # the removed generated hole took its id, the added holes have none, a tool without ids gets no key
+    assert tool['drills_to'] == [4, 5, 0, 0]
+    assert 'drills_to' not in plain
+
+
 def test_dblsided_alignment_stages_all_sources_and_rejects_ambiguity():
     from appPlugins.ToolDblSided import DblSidedGen as gen
     from appPlugins.ToolAlignObjects.AlignGen import SnapIndex, AlignError, apply_matrix

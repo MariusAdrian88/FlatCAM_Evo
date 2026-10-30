@@ -12,7 +12,8 @@
 
 from PyQt6 import QtWidgets, QtCore, QtGui
 
-from appParsers.ParseExcellon import Excellon
+from appParsers.ParseExcellon import Excellon, hole_ids, to_state
+from appParsers.gerber_attributes import format_attribute, merge_to_table
 from appObjects.AppObjectTemplate import FlatCAMObj, OffsetUiMixin, PropertiesPanelMixin, ObjectDeleted
 from appGUI.GUIElements import FCCheckBox
 from appGUI.ObjectUI import ExcellonObjectUI
@@ -62,8 +63,11 @@ def dedupe_joined_holes(tools, sources, decimals):
         dia = round(float(tool.get('tooldia', 0.0)), decimals)
 
         # drills: keep a drill unless a kept one of another source has the same center and diameter
+        # the TO ids of the holes (None: the tool has none) follow the kept holes
+        ids = hole_ids(tool, 'drills')
         kept = []
-        for drill in tool.get('drills') or []:
+        kept_ids = []
+        for i, drill in enumerate(tool.get('drills') or []):
             x, y = drill.x, drill.y
             key = ('d', round(x, decimals), round(y, decimals), dia)
             if any(s != src for s in seen.get(key, ())):
@@ -71,12 +75,20 @@ def dedupe_joined_holes(tools, sources, decimals):
                 continue
             seen.setdefault(key, []).append(src)
             kept.append(drill)
+            if ids is not None:
+                kept_ids.append(ids[i])
             drills.append((x, y, float(tool['tooldia']) / 2.0, src))
         if 'drills' in tool:
             tool['drills'] = kept
+        if ids is not None:
+            tool['drills_to'] = kept_ids
+        else:
+            tool.pop('drills_to', None)
 
+        ids = hole_ids(tool, 'slots')
         kept = []
-        for slot in tool.get('slots') or []:
+        kept_ids = []
+        for i, slot in enumerate(tool.get('slots') or []):
             ends = sorted(((round(p.x, decimals), round(p.y, decimals)) for p in slot))
             key = ('s', ends[0], ends[1], dia)
             if any(s != src for s in seen.get(key, ())):
@@ -84,12 +96,18 @@ def dedupe_joined_holes(tools, sources, decimals):
                 continue
             seen.setdefault(key, []).append(src)
             kept.append(slot)
+            if ids is not None:
+                kept_ids.append(ids[i])
             # the same slot with another diameter
             if any(d != dia and s != src for d, s in slot_dias.get(key[:3], ())):
                 slot_conflicts.append((slot[0].x, slot[0].y))
             slot_dias.setdefault(key[:3], []).append((dia, src))
         if 'slots' in tool:
             tool['slots'] = kept
+        if ids is not None:
+            tool['slots_to'] = kept_ids
+        else:
+            tool.pop('slots_to', None)
 
     conflicts = []
     if len(drills) > 1:
@@ -244,6 +262,10 @@ class ExcellonObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Excellon):
         self.excellon_format_upper_in = getattr(src, 'excellon_format_upper_in', self.excellon_format_upper_in)
         self.excellon_format_lower_in = getattr(src, 'excellon_format_lower_in', self.excellon_format_lower_in)
         self.excellon_units = getattr(src, 'excellon_units', self.excellon_units)
+        # the XNC attributes (the tool TO ids are copied with the tools and need the table)
+        for name in ('attributes', 'file_attributes', 'to_attributes'):
+            if name in vars(src):
+                setattr(self, name, deepcopy(vars(src)[name]))
         if self.tools and not self.solid_geometry:
             self.create_geometry()
 
@@ -938,13 +960,50 @@ class ExcellonObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Excellon):
                 slots_in_file = 1
                 break
 
+        # the object attributes (TO) of the holes: a comment before the first hole of each id, "; #@! TD" after
+        to_table = vars(self).get('to_attributes') or {}
+
+        def hole_runs(tool_data, kind):
+            # [(id, start, stop)] of the runs of the same id; a single run of id 0 when the tool has no usable ids
+            count = len(tool_data[kind])
+            ids = hole_ids(tool_data, kind) if to_table else None
+            if not ids or not any(ids):
+                return [(0, 0, count)]
+            runs = []
+            start = 0
+            for pos in range(1, count + 1):
+                if pos == count or ids[pos] != ids[start]:
+                    runs.append((ids[start], start, pos))
+                    start = pos
+            return runs
+
+        def to_comments(ident, active):
+            # the comment lines that turn the active TO into the one of ident; returns (text, active)
+            state = to_state(to_table, ident)
+            text = '; #@! TD\n' if active else ''
+            if not state:
+                return text, False
+            for name, values in state.items():
+                text += '; #@! ' + format_attribute('TO', name, values)[1:-2] + '\n'
+            return text, True
+
         # drills processing
         if has_drills:
             for tool in self.tools:
                 excellon_parts.append('T0%s\n' % str(tool) if int(tool) < 10 else 'T%s\n' % str(tool))
 
                 try:
-                    excellon_parts.append(lines_code(drill_fmt, point_coords(self.tools[tool]['drills'])))
+                    drills = self.tools[tool]['drills']
+                    parts = []
+                    active = False
+                    for ident, start, stop in hole_runs(self.tools[tool], 'drills'):
+                        if ident or active:
+                            text, active = to_comments(ident, active)
+                            parts.append(text)
+                        parts.append(lines_code(drill_fmt, point_coords(drills[start:stop])))
+                    if active:
+                        parts.append('; #@! TD\n')
+                    excellon_parts.append(''.join(parts))
                 except Exception as e:
                     self.app.log.error('ExcellonObject.export_excellon() drills "%s" -> %s' % (
                         'dec' if form == 'dec' else e_zeros, str(e)))
@@ -963,9 +1022,18 @@ class ExcellonObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Excellon):
                 if slot_fmt is None or not slots:
                     continue
                 try:
-                    starts = point_coords([slot[0] for slot in slots])
-                    stops = point_coords([slot[1] for slot in slots])
-                    excellon_parts.append(lines_code(slot_fmt, np.hstack((starts, stops))))
+                    parts = []
+                    active = False
+                    for ident, start, stop in hole_runs(self.tools[tool], 'slots'):
+                        if ident or active:
+                            text, active = to_comments(ident, active)
+                            parts.append(text)
+                        starts = point_coords([slot[0] for slot in slots[start:stop]])
+                        stops = point_coords([slot[1] for slot in slots[start:stop]])
+                        parts.append(lines_code(slot_fmt, np.hstack((starts, stops))))
+                    if active:
+                        parts.append('; #@! TD\n')
+                    excellon_parts.append(''.join(parts))
                 except Exception as err:
                     self.app.log.error('ExcellonObject.export_excellon() slots "%s" -> %s' % (
                         'dec' if form == 'dec' else e_zeros, str(err)))
@@ -1387,6 +1455,7 @@ class ExcellonObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Excellon):
         total_geo = []
         toolid = 0
         tool_sources = {}
+        to_table = None
         for src_index, exc in enumerate(flattened_list):
             # copy options of the current excellon obj to the final excellon obj
             # only the last object options will survive
@@ -1398,10 +1467,25 @@ class ExcellonObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Excellon):
                         if log:
                             log.warning("Failed to copy option.", option)
 
+            # the TO ids of the holes: a table per source, merged into one, the ids of the tools follow
+            src_table = vars(exc).get('to_attributes') or {}
+            if src_table:
+                if not to_table:
+                    to_table = {}
+                to_map = merge_to_table(to_table, src_table)
+            else:
+                to_map = {}
+
             for tool in exc.tools:
                 toolid += 1
                 new_tools[toolid] = deepcopy(exc.tools[tool])
                 tool_sources[toolid] = src_index
+                for kind in ('drills', 'slots'):
+                    ids = hole_ids(new_tools[toolid], kind)
+                    if ids is not None and src_table:
+                        new_tools[toolid][kind + '_to'] = [to_map.get(int(i), i) if i else 0 for i in ids]
+                    else:
+                        new_tools[toolid].pop(kind + '_to', None)
 
             exc_final.tools = deepcopy(new_tools)
             # add the zeros and units to the exc_final object
@@ -1410,6 +1494,24 @@ class ExcellonObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Excellon):
             total_geo += exc.solid_geometry
 
         exc_final.solid_geometry = deepcopy(total_geo)
+
+        # the object attributes: the TF stays only when all the sources have the same one
+        tfs = [(vars(exc).get('attributes') or {}).get('TF') or {} for exc in flattened_list]
+        if flattened_list and all(tf == tfs[0] for tf in tfs):
+            exc_final.attributes = {'TF': deepcopy(tfs[0]), 'TA': {}, 'TO': {}}
+            exc_final.file_attributes = deepcopy(vars(flattened_list[0]).get('file_attributes') or {})
+        else:
+            exc_final.attributes = {'TF': {}, 'TA': {}, 'TO': {}}
+            exc_final.file_attributes = {}
+        if to_table:
+            exc_final.to_attributes = to_table
+
+        # a final object with ids: the tools without ids get zeros, so all the holes have an id
+        if any(k + '_to' in t for t in exc_final.tools.values() for k in ('drills', 'slots')):
+            for tool in exc_final.tools.values():
+                for kind in ('drills', 'slots'):
+                    if tool.get(kind) is not None and kind + '_to' not in tool:
+                        tool[kind + '_to'] = [0] * len(tool[kind])
 
         # duplicates and overlaps between the holes of different source objects
         if len(flattened_list) > 1 and exc_final.tools:
@@ -1430,6 +1532,7 @@ class ExcellonObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Excellon):
                     inform('[WARNING_NOTCL] %s' % msg)
 
         if exc_final.tools and fuse_tools:
+            with_ids = any(k + '_to' in t for t in exc_final.tools.values() for k in ('drills', 'slots'))
             fused_tools_dict = {}
             for tool_dict in exc_final.tools.values():
                 current_tooldia = float('%.*f' % (decimals_exc, tool_dict['tooldia']))
@@ -1442,10 +1545,13 @@ class ExcellonObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Excellon):
                         break
 
                 if target is not None:
-                    if tool_dict.get('drills'):
-                        target.setdefault('drills', []).extend(tool_dict['drills'])
-                    if tool_dict.get('slots'):
-                        target.setdefault('slots', []).extend(tool_dict['slots'])
+                    for kind in ('drills', 'slots'):
+                        if tool_dict.get(kind):
+                            if with_ids:
+                                own = hole_ids(target, kind) or [0] * len(target.get(kind) or [])
+                                target[kind + '_to'] = list(own) + list(hole_ids(tool_dict, kind) or
+                                                                         [0] * len(tool_dict[kind]))
+                            target.setdefault(kind, []).extend(tool_dict[kind])
                     if tool_dict.get('solid_geometry'):
                         target.setdefault('solid_geometry', []).extend(tool_dict['solid_geometry'])
                 else:

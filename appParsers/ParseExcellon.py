@@ -20,6 +20,8 @@ import logging
 import traceback
 from copy import deepcopy
 
+from appParsers.gerber_attributes import AttributeState, file_attributes
+
 # import AppTranslation as fcTranslate
 
 import gettext
@@ -29,6 +31,27 @@ if '_' not in builtins.__dict__:
     _ = gettext.gettext
 
 log = logging.getLogger('base')
+
+
+def hole_ids(tool, kind):
+    """
+    The object attribute (TO) ids of the holes of a tool, parallel to tool['drills'] (kind 'drills') or to
+    tool['slots'] (kind 'slots'); 0 is a hole without object attributes. None: the tool has no ids, or the ids are
+    not in step with the holes any more (a code path that changed the holes and not the ids), so they are not used.
+    """
+    ids = tool.get(kind + '_to')
+    holes = tool.get(kind)
+    if ids is None or holes is None or len(ids) != len(holes):
+        return None
+    return ids
+
+
+def to_state(to_attributes, ident):
+    """The object attributes {name: [values]} of an id; a project file (JSON) has the ids as strings."""
+    if not ident or not to_attributes:
+        return None
+    state = to_attributes.get(ident)
+    return state if state is not None else to_attributes.get(str(ident))
 
 
 class _ParseState:
@@ -66,6 +89,15 @@ class _ParseState:
         self.file_plated = None         # plated flag for the whole file
         self.aper_plated = None         # plated flag for the tools defined next
 
+        self.tool_down = None           # M15 / M16: None until the file uses them (then every G01 .. G03 cuts)
+        self.arc_radius = None          # the modal radius of G02 / G03 (the last A)
+        self.ended = False              # M30 was read: no more data is used
+
+        self.attrs = AttributeState()   # the attributes of the comments "#@! TF.", "TA.", "TO.", "TD"
+        self.drills_to = {}             # tool -> [TO id of each drill]
+        self.slots_to = {}              # tool -> [TO id of each slot]
+        self.any_to = False             # at least one hole has an object attribute
+
         self.ignored = 0                # lines that were not understood
         self.dropped = 0                # holes that could not be made
 
@@ -100,6 +132,10 @@ class Excellon(Geometry):
         "excellon_units": 'INCH',
         "excellon_circle_steps": '32'
     }
+
+    # the XNC coordinates without a period are decimal numbers when the file has no number format (see _axis_value)
+    _seen_period = False
+    _fmt_declared = False
 
     def __init__(self, app, zeros=None, excellon_format_upper_mm=None, excellon_format_lower_mm=None,
                  excellon_format_upper_in=None, excellon_format_lower_in=None, excellon_units=None,
@@ -165,11 +201,17 @@ class Excellon(Geometry):
         # detected Excellon format is stored here:
         self.excellon_format = None
 
+        # The attributes of the file (XNC chapter 4), same names as in Gerber
+        self.attributes = {'TF': {}, 'TA': {}, 'TO': {}}
+        self.to_attributes = {}
+        self.file_attributes = {}
+
         # Attributes to be included in serialization
         # Always append to it because it carries contents
         # from Geometry.
         self.ser_attrs += ['zeros', 'excellon_format_upper_mm', 'excellon_format_lower_mm',
-                           'excellon_format_upper_in', 'excellon_format_lower_in', 'excellon_units', 'source_file']
+                           'excellon_format_upper_in', 'excellon_format_lower_in', 'excellon_units', 'source_file',
+                           'attributes', 'to_attributes', 'file_attributes']
 
         # ### Patterns ####
         # Regex basics:
@@ -238,6 +280,9 @@ class Excellon(Geometry):
         # KiCad: "; FORMAT={3:3/ absolute / metric / decimal}"
         self.kicad_format_re = re.compile(r'^;\s*FORMAT\s*=\s*\{\s*(\d+)\s*:\s*(\d+)', re.IGNORECASE)
 
+        # Attribute comments: "; #@! TF.FileFunction,Plated,1,2,PTH", TA., TO., TD
+        self.attr_re = re.compile(r'^;\s*#@!\s*(T[FAOD])(\..*)?$', re.IGNORECASE)
+
         # Plated / non plated tags in comments:
         # KiCad "; #@! TF.FileFunction,Plated,1,2,PTH", "; #@! TA.AperFunction,NonPlated,NPTH,..." and "; #@! TD"
         self.attr_plated_re = re.compile(r'^;\s*#@!\s*T([FA])\.(?:FileFunction|AperFunction),\s*(Non)?Plated',
@@ -298,6 +343,8 @@ class Excellon(Geometry):
         """
 
         st = _ParseState()
+        self._seen_period = False
+        self._fmt_declared = False
 
         # ## Parsing starts here ## ##
         line_num = 0  # Line number
@@ -313,6 +360,13 @@ class Excellon(Geometry):
 
                     line_num += 1
                     src_parts.append(eline)
+
+                    if st.ended:
+                        # no data is allowed after M30 (XNC 3.15): the lines are kept in the source only
+                        text = eline.strip()
+                        if text and not text.startswith(';'):
+                            self.app.log.warning("Excellon: data after M30 is ignored. Line %d: %s" % (line_num, text))
+                        continue
 
                     if self._parse_line(st, eline):
                         stopped = True
@@ -422,6 +476,11 @@ class Excellon(Geometry):
         A comment line. Some CAM programs hide information in them: Allegro tools and units, the Altium / KiCad
         number format, the plated / non plated tags. The rest is ignored.
         """
+        # attributes: TF, TA, TO, TD (the plated flags are read below too)
+        match = self.attr_re.match(eline)
+        if match:
+            st.attrs.apply(match.group(1).upper(), (match.group(2) or '').strip())
+
         # Allegro header
         if self.allegro_hbegin_re.match(eline):
             st.in_header = True
@@ -456,6 +515,7 @@ class Excellon(Geometry):
         # search for Altium Excellon Format / Sprint Layout who is included as a comment
         match = self.altium_format.search(eline)
         if match:
+            self._fmt_declared = True
             self.excellon_format_upper_mm = match.group(1)
             self.excellon_format_lower_mm = match.group(2)
 
@@ -468,6 +528,7 @@ class Excellon(Geometry):
         match = self.kicad_format_re.match(eline)
         if match:
             upper, lower = match.group(1), match.group(2)
+            self._fmt_declared = True
             text = eline.upper()
             if 'METRIC' in text or 'INCH' not in text:
                 self.excellon_format_upper_mm = upper
@@ -585,7 +646,10 @@ class Excellon(Geometry):
         # a bare INCH / METRIC does not say anything about the zeros
         if match.group(2):
             self.zeros = match.group(2)  # "T" or "L"
+            self._fmt_declared = True
         self.excellon_format = match.group(3)
+        if self.excellon_format:
+            self._fmt_declared = True
         if self.excellon_format:
             upper = len(self.excellon_format.partition('.')[0])
             lower = len(self.excellon_format.partition('.')[2])
@@ -652,6 +716,7 @@ class Excellon(Geometry):
         match = re.search(r'[LT]Z', eline)
         if match:
             self.zeros = match.group()
+            self._fmt_declared = True
             self.app.log.warning("Type of ZEROS found: %s" % self.zeros)
             return
 
@@ -683,6 +748,8 @@ class Excellon(Geometry):
             tool = self.tools[key] = {'tooldia': dia, 'solid_geometry': []}
             if st.aper_plated is not None:
                 tool['plated'] = st.aper_plated
+            if st.attrs.ta:
+                tool['attributes'] = {name: list(values) for name, values in st.attrs.ta.items()}
         else:
             tool['tooldia'] = dia
         self.app.log.debug("Tool definition: %s %s" % (key, dia))
@@ -748,6 +815,11 @@ class Excellon(Geometry):
             self.app.log.debug("Tool change: %s" % st.tool)
             return
 
+        # ## End of file ###
+        if eline == 'M30':
+            st.ended = True
+            return
+
         # ## Allegro Type Tool change ###
         if st.allegro is True:
             if self.absinc_re.search(eline) or self.stop_re.search(eline):
@@ -784,9 +856,10 @@ class Excellon(Geometry):
         # ## M codes ##
         for code in mcodes:
             if code == 15:
-                pass    # tool down: the cut is done by the G01 / G02 / G03
+                st.tool_down = True     # the cut is done by the G01 / G02 / G03
             elif code == 16 or code == 17:
                 # tool up: end of the route
+                st.tool_down = False
                 st.mode = 0
             elif code == 25:
                 st.recording = []
@@ -852,11 +925,17 @@ class Excellon(Geometry):
             self._route_line(st, pre)
 
     def _axis_value(self, token):
-        """The value of a coordinate token: a number with a period is used literally, the others by the format."""
+        """
+        The value of a coordinate token: a number with a period is used literally, the others by the format.
+        A file without a number format that already had a period uses the others as plain decimals (XNC: X8Y8).
+        """
         if not token:
             return None
         try:
             if '.' in token:
+                self._seen_period = True
+                return float(token)
+            if self._seen_period and not self._fmt_declared:
                 return float(token)
             return self.parse_number(token)
         except ValueError:
@@ -913,14 +992,20 @@ class Excellon(Geometry):
             return
         self._put_drill(st, tool, x, y)
 
-    def _put_drill(self, st, tool, x, y):
+    def _put_drill(self, st, tool, x, y, to=None):
+        if to is None:
+            to = st.attrs.to_id if st.attrs.to else 0
+        if to:
+            st.any_to = True
         drills = st.drills.get(tool)
         if drills is None:
             st.drills[tool] = [(x, y)]
+            st.drills_to[tool] = [to]
         else:
             drills.append((x, y))
+            st.drills_to[tool].append(to)
         if st.recording is not None:
-            st.recording.append((tool, x, y))
+            st.recording.append((tool, x, y, to))
 
     def _emit_slot(self, st, x0, y0, x1, y1):
         tool = self._use_tool(st)
@@ -929,14 +1014,20 @@ class Excellon(Geometry):
             return
         self._put_slot(st, tool, x0, y0, x1, y1)
 
-    def _put_slot(self, st, tool, x0, y0, x1, y1):
+    def _put_slot(self, st, tool, x0, y0, x1, y1, to=None):
+        if to is None:
+            to = st.attrs.to_id if st.attrs.to else 0
+        if to:
+            st.any_to = True
         slots = st.slots.get(tool)
         if slots is None:
             st.slots[tool] = [(x0, y0, x1, y1)]
+            st.slots_to[tool] = [to]
         else:
             slots.append((x0, y0, x1, y1))
+            st.slots_to[tool].append(to)
         if st.recording is not None:
-            st.recording.append((tool, x0, y0, x1, y1))
+            st.recording.append((tool, x0, y0, x1, y1, to))
 
     def _slot_line(self, st, pre, post):
         """Drilled slot: X01125Y0022244G85Y0027756 (the start before the G85, the stop after it)."""
@@ -970,13 +1061,13 @@ class Excellon(Geometry):
         dx = self._axis_value(pre.get('X')) or 0
         dy = self._axis_value(pre.get('Y')) or 0
         for event in list(st.pattern):
-            if len(event) == 3:
+            if len(event) == 4:
                 x, y = self._orient(st, orient, event[1], event[2]) if orient else (event[1], event[2])
-                self._put_drill(st, event[0], x + dx, y + dy)
+                self._put_drill(st, event[0], x + dx, y + dy, event[3])
             else:
                 x0, y0 = self._orient(st, orient, event[1], event[2]) if orient else (event[1], event[2])
                 x1, y1 = self._orient(st, orient, event[3], event[4]) if orient else (event[3], event[4])
-                self._put_slot(st, event[0], x0 + dx, y0 + dy, x1 + dx, y1 + dy)
+                self._put_slot(st, event[0], x0 + dx, y0 + dy, x1 + dx, y1 + dy, event[5])
 
     def _route_line(self, st, pre):
         """
@@ -989,7 +1080,7 @@ class Excellon(Geometry):
             st.dropped += 1
             self.app.log.error("Missing coordinates")
             return
-        if st.gmode == 0 or x0 is None or y0 is None:
+        if st.gmode == 0 or st.tool_down is False or x0 is None or y0 is None:
             return
 
         if st.gmode == 1:
@@ -1000,6 +1091,10 @@ class Excellon(Geometry):
         di = self._axis_value(pre.get('I'))
         dj = self._axis_value(pre.get('J'))
         radius = self._axis_value(pre.get('A'))
+        if radius:
+            st.arc_radius = radius
+        elif di is None and dj is None:
+            radius = st.arc_radius      # the radius is modal
         if di is not None or dj is not None:
             center = (x0 + (di or 0.0), y0 + (dj or 0.0))
         elif radius:
@@ -1075,6 +1170,10 @@ class Excellon(Geometry):
 
         self._store_holes(st)
 
+        self.attributes = st.attrs.as_legacy()
+        self.to_attributes = st.attrs.to_table()
+        self.file_attributes = file_attributes(st.attrs.tf)
+
         if st.file_plated is not None:
             for tool in self.tools.values():
                 tool.setdefault('plated', st.file_plated)
@@ -1106,6 +1205,10 @@ class Excellon(Geometry):
                 self.tools[tool]['drills'] = []
             if 'slots' not in self.tools[tool]:
                 self.tools[tool]['slots'] = []
+            if st.any_to:
+                # the TO ids, parallel to the drills and the slots (0: no object attribute)
+                self.tools[tool]['drills_to'] = list(st.drills_to.get(tool, []))
+                self.tools[tool]['slots_to'] = list(st.slots_to.get(tool, []))
 
     def merge_equal_diameter_tools(self):
         """
@@ -1122,6 +1225,9 @@ class Excellon(Geometry):
                 continue
             self.tools[keeper]['drills'].extend(tool['drills'])
             self.tools[keeper]['slots'].extend(tool['slots'])
+            for key_to in ('drills_to', 'slots_to'):
+                if key_to in self.tools[keeper] and key_to in tool:
+                    self.tools[keeper][key_to].extend(tool[key_to])
             del self.tools[key]
 
     def parse_number(self, number_str):

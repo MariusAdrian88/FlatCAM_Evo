@@ -317,6 +317,20 @@ def test_report_rows_show_attributes_and_net_counts():
     assert by[('components', 'R1')] == '10k, 0603, 90.0'
 
 
+def test_report_rows_of_an_excellon_count_nets_from_the_hole_ids():
+    from appPlugins.ToolReport.ReportGen import gerber_attribute_rows
+    obj = _report_obj(
+        attributes={'TF': {'.FileFunction': ['Plated', '1', '2', 'PTH']}},
+        to_attributes={1: {'.N': ['GND']}, '2': {'.N': ['VCC']}},
+        tools={1: {'attributes': {'.AperFunction': ['Plated', 'PTH', 'ViaDrill']}, 'drills': [0, 0, 0],
+                   'drills_to': [1, 1, 0], 'slots': [0], 'slots_to': [2]},
+               2: {'drills': [0], 'slots': []}})
+    by = {(s, n): v for s, n, v in gerber_attribute_rows(obj)}
+    assert by[('attributes', '.FileFunction')] == 'Plated,1,2,PTH'
+    assert by[('apertures', 'Plated')] == '1'
+    assert by[('nets', 'GND')] == '2' and by[('nets', 'VCC')] == '1'
+
+
 def test_report_rows_empty_without_attributes():
     from appPlugins.ToolReport.ReportGen import gerber_attribute_rows
     assert gerber_attribute_rows(_report_obj(file_attributes={'part': None})) == []

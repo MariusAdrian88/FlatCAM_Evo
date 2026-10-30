@@ -58,6 +58,12 @@ CASES = {
         ";Holesize 2. = 125.000000 Tolerance = +0.000000/-0.000000 NON_PLATED MILS Quantity = 1\n%\n"
         "G90\nX01000Y01000\nT02\nX02000Y02000\nM30\n",
         {}, 'IN', {1: (0.035, [(1, 1)], []), 2: (0.125, [(2, 2)], [])}),
+    'M15 / M16 tool down and up: a G01 after M16 cuts nothing': (
+        METRIC + "G00X0Y0\nM15\nG01X10.0Y0\nM16\nG01X10.0Y10.0\nM15\nG01X0Y10.0\nM16\nM30\n",
+        {}, 'MM', {1: (1.0, [], [((0, 0), (10, 0)), ((10, 10), (0, 10))])}),
+    'decimal file: coordinates without a period are whole millimetres': (
+        "M48\nMETRIC\nT1C1.0\n%\nG05\nT1\nX1.5Y2.5\nX8Y8\nX0Y-3\nM30\n",
+        {}, 'MM', {1: (1.0, [(1.5, 2.5), (8, 8), (0, -3)], [])}),
 }
 
 
@@ -178,3 +184,60 @@ def test_pcbwizard_import_uses_the_format_corrected_after_loading(pcb_wizard, tm
     pcb_wizard.ui.import_button.click()
     pcb_wizard.ui.import_button.click()
     assert imported == [(None, 'MM', {1: (0.8, [(10, 20)], [])})] * 2
+
+
+def test_modal_arc_radius_is_reused_without_a():
+    # the second G03 has no A: it keeps radius 1 and is a half circle centred on (1, 0) over the top
+    exc, _app = parse(METRIC + "G00X0Y0\nM15\nG03X2.0Y0A1.0\nG03X0Y0\nM16\nM30\n")
+    slots = exc.tools[1]['slots']
+    points = [p for seg in slots for p in seg]
+    assert (round(slots[-1][1].x, 9), round(slots[-1][1].y, 9)) == (0, 0)
+    for p in points:
+        assert abs(math.hypot(p.x - 1, p.y) - 1) < 1e-6
+    assert min(p.y for p in points) < -0.9
+    assert max(p.y for p in points) > 0.9
+
+
+def test_m30_ends_the_file():
+    exc, _app = parse(METRIC + "X1.0Y1.0\nM30\nX2.0Y2.0\n")
+    assert dump(exc)[1][1] == [(1, 1)]
+    assert "X2.0Y2.0" in exc.source_file
+
+
+def test_spec_example_2_8():
+    text = ("M48\nMETRIC\nT01C0.6\nT02C0.7\nT03C0.8\nT04C1.0\n%\nG05\nT01\nX9.01Y3.3375\nX9.01Y4.3125\n"
+            "T02\nX8.01Y4.8\nX8.01Y2.85\nX6.54Y2.85\nX6.45Y4.8\nT03\nG00X8.01Y3.825\nM15\nG01X6.54Y3.825\nM16\n"
+            "T04\nG00X5.0Y2.6\nM15\nG03X6.0Y1.6A1.0\nG01X11.0Y1.6\nG01X11.0Y5.0\nG03X10.0Y6.0A1.0\nG01X5.0Y6.0\n"
+            "G01X5.0Y2.6\nM16\nG05\nT03\nX8.0Y8.0\nM30\n")
+    exc, _app = parse(text)
+    assert exc.units == 'MM'
+    tools = dump(exc)
+    assert tools[1] == (0.6, [(9.01, 3.3375), (9.01, 4.3125)], [])
+    assert tools[2] == (0.7, [(8.01, 4.8), (8.01, 2.85), (6.54, 2.85), (6.45, 4.8)], [])
+    assert tools[3] == (0.8, [(8, 8)], [((8.01, 3.825), (6.54, 3.825))])
+    dia, drills, slots = tools[4]
+    assert (dia, drills) == (1.0, [])
+    assert slots[0][0] == (5, 2.6) and slots[-1][1] == (5, 2.6)
+    for line in [((6, 1.6), (11, 1.6)), ((11, 1.6), (11, 5)), ((10, 6), (5, 6)), ((5, 6), (5, 2.6))]:
+        assert line in slots
+    vertices = [(5, 2.6), (6, 1.6), (11, 1.6), (11, 5), (10, 6), (5, 6)]
+    for a, b in exc.tools[4]['slots']:
+        for p in (a, b):
+            on_circle = min(abs(math.hypot(p.x - 6, p.y - 2.6) - 1), abs(math.hypot(p.x - 10, p.y - 5) - 1))
+            assert on_circle < 1e-6 or any(math.hypot(p.x - x, p.y - y) < 1e-6 for x, y in vertices)
+
+
+def test_attributes_of_header_tools_and_drills():
+    text = ("M48\n; #@! TF.FileFunction,Plated,1,4,PTH\n; #@! TF.GenerationSoftware,Ucamco,UcamX,2017.04\nMETRIC\n"
+            "; #@! TA.AperFunction,ViaDrill\nT01C0.300\n; #@! TA.AperFunction,ComponentDrill\nT02C0.900\n%\nG05\n"
+            "T01\nX008.150Y012.050\nT02\n; #@! TO.C,R1\nX030.790Y078.415\n; #@! TD\nX030.790Y080.955\nM30\n")
+    exc, _app = parse(text)
+    assert exc.file_attributes['generation_software'] == {'vendor': 'Ucamco', 'application': 'UcamX', 'version': '2017.04'}
+    assert exc.attributes['TF']['.FileFunction'] == ['Plated', '1', '4', 'PTH']
+    assert exc.tools[1]['attributes'] == {'.AperFunction': ['ViaDrill']}
+    assert exc.tools[2]['attributes'] == {'.AperFunction': ['ComponentDrill']}
+    assert exc.tools[1]['plated'] and exc.tools[2]['plated']
+    assert exc.tools[1]['drills_to'] == [0]
+    first, second = exc.tools[2]['drills_to']
+    assert first != 0 and second == 0
+    assert exc.to_attributes[first] == {'.C': ['R1']}

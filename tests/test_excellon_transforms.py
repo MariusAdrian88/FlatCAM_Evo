@@ -200,6 +200,22 @@ class TestExcellonFileRoundTrip:
         assert_poly_equiv(again.solid_geometry, exc.solid_geometry, rel=1e-6, abs_tol=1e-6, msg='excellon file')
 
 
+    def test_excellon_attributes_survive_the_export(self, app, tmp_path):
+        text = ("M48\n; #@! TF.FileFunction,Plated,1,2,PTH\nMETRIC\n; #@! TA.AperFunction,Plated,PTH,ViaDrill\n"
+                "T1C0.300\n; #@! TD\nT2C0.800\n%\nG05\nT1\nX1.0Y1.0\n; #@! TO.C,R1\n; #@! TO.N,GND\nX2.0Y2.0\n"
+                "X3.0Y3.0\n; #@! TD\nX4.0Y4.0\nT2\n; #@! TO.C,R2\nX5.0Y5.0\nM30\n")
+        src = reparse_excellon(app, text, tmp_path, 'src')
+        exported = export_excellon_text(app, src)
+        assert exported.splitlines()[1] == '; #@! TF.FileFunction,Plated,1,2,PTH'
+        again = reparse_excellon(app, exported, tmp_path)
+        assert again.attributes['TF'] == src.attributes['TF'] and again.file_attributes == src.file_attributes
+        assert again.tools[1]['attributes'] == src.tools[1]['attributes'] != {}
+        assert not again.tools[2].get('attributes')
+        for key in (1, 2):
+            assert again.tools[key]['drills_to'] == src.tools[key]['drills_to']
+        assert again.tools[1]['drills_to'].count(0) == 2
+        assert {n: s for n, s in again.to_attributes.items()} == src.to_attributes
+
     def test_excellon_equal_diameter_tools_stay_separate_in_the_file(self, app, tmp_path):
         exc = make_same_diameter_excellon(app)
         again = reparse_excellon(app, export_excellon_text(app, exc), tmp_path)

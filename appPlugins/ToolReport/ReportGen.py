@@ -129,7 +129,7 @@ def _flat(value):
 
 
 def gerber_attribute_rows(obj):
-    """Rows (section, name, value) with the Gerber X2/X3 attributes of obj; [] when it has none. No Qt.
+    """Rows (section, name, value) with the Gerber X2/X3 (or Excellon XNC) attributes of obj; [] when it has none. No Qt.
 
     Sections: attributes, apertures, nets, components. Values are strings.
     """
@@ -171,6 +171,13 @@ def gerber_attribute_rows(obj):
     if to_table:
         used = {}
         for tool in tools.values():
+            if 'drills' in tool or 'slots' in tool:     # Excellon: the ids of the holes
+                from appParsers.ParseExcellon import hole_ids
+                for kind in ('drills', 'slots'):
+                    for ident in hole_ids(tool, kind) or ():
+                        if ident:
+                            used[int(ident)] = used.get(int(ident), 0) + 1
+                continue
             for rec in tool.get('geometry') or ():
                 ident = rec.get('to') if isinstance(rec, dict) else None
                 if ident is not None:

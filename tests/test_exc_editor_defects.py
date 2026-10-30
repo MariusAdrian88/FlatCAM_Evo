@@ -82,6 +82,31 @@ def test_load_then_save_round_trip_is_identity(units, tooldia, xy):
     tool = editor.new_tools[1]
     assert tool['tooldia'] == pytest.approx(tooldia)
     assert (tool['drills'][0].x, tool['drills'][0].y) == pytest.approx(xy)
+    # an object without object attribute ids gets no ids and no attribute keys
+    assert 'drills_to' not in tool and 'slots_to' not in tool
+
+
+def test_object_attribute_ids_follow_the_holes_through_edit_and_save():
+    app, editor = qt_editor('MM')
+    obj = native_obj('MM', 1.0, (1.0, 1.0))
+    obj.tools[1].update(drills=[Point(1, 1), Point(2, 2), Point(3, 3)], slots=[(Point(5, 5), Point(6, 5))],
+                        drills_to=[7, 8, 0], slots_to=[9])
+    editor.edit_fcexcellon(obj)
+    storage = editor.storage_dict[1.0]
+    gone = next(s for s in storage.get_objects() if getattr(s, 'exc_slot', None) is None
+                and s.geo.centroid.coords[0] == pytest.approx((1.0, 1.0)))
+    storage.replace(removed=[gone], inserted=[])
+    mover = next(s for s in storage.get_objects() if getattr(s, 'exc_slot', None) is None
+                 and s.geo.centroid.coords[0] == pytest.approx((2.0, 2.0)))
+    editor.selected = [mover]
+    assert editor.transform_features('rotate', 90) != 'fail'
+    editor._save_excellon_in_place = Mock()
+    editor.update_fcexcellon(obj, in_place=True)
+    tool = editor.new_tools[1]
+    by_xy = {(round(p.x, 3), round(p.y, 3)): i for p, i in zip(tool['drills'], tool['drills_to'])}
+    # the deleted hole dropped its id, the rotated one keeps 8, the untouched one keeps 0; the slot keeps 9
+    assert sorted(by_xy.values()) == [0, 8] and by_xy[(3.0, 3.0)] == 0
+    assert tool['slots_to'] == [9]
 
 
 # ---------------------------------------------------------------------------------------------------------------

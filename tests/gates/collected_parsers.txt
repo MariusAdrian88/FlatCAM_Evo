@@ -85,17 +85,23 @@ tests/test_eagle_brd_parser.py::TestEagleWiresAndVias::test_curved_wire_is_an_ar
 tests/test_eagle_brd_parser.py::TestEagleWiresAndVias::test_full_span_via_on_a_multilayer_board_is_pth
 tests/test_eagle_brd_parser.py::TestEagleWiresAndVias::test_via_on_top_and_bottom_is_a_pth_hole
 tests/test_eagle_brd_parser.py::TestEagleWiresAndVias::test_wire_with_width_and_round_caps_on_top
+tests/test_excellon_parser.py::test_attributes_of_header_tools_and_drills
 tests/test_excellon_parser.py::test_convert_units_moves_holes_and_diameters
 tests/test_excellon_parser.py::test_equal_diameters_are_merged_only_on_request
 tests/test_excellon_parser.py::test_hole_and_slot_circles_follow_the_circle_preference
+tests/test_excellon_parser.py::test_m30_ends_the_file
+tests/test_excellon_parser.py::test_modal_arc_radius_is_reused_without_a
 tests/test_excellon_parser.py::test_parse_result[Allegro tools and units from the comments]
 tests/test_excellon_parser.py::test_parse_result[G85 slot sets the modal coordinates and a slot can start from them]
+tests/test_excellon_parser.py::test_parse_result[M15 / M16 tool down and up: a G01 after M16 cuts nothing]
 tests/test_excellon_parser.py::test_parse_result[M80 / M70 mirror or swap only the pattern copy of their M02 line]
+tests/test_excellon_parser.py::test_parse_result[decimal file: coordinates without a period are whole millimetres]
 tests/test_excellon_parser.py::test_parse_result[route then drills with another tool]
 tests/test_excellon_parser.py::test_parse_result[units switch in the body converts what was read]
 tests/test_excellon_parser.py::test_pcbwizard_import_uses_the_format_corrected_after_loading
 tests/test_excellon_parser.py::test_plated_flag_per_tool
 tests/test_excellon_parser.py::test_route_half_circle_is_cut_as_short_segments
+tests/test_excellon_parser.py::test_spec_example_2_8
 tests/test_font_parser.py::test_bidi_run_is_placed_in_visual_order
 tests/test_font_parser.py::test_bitmap_font_geometry_uses_pixels_and_smoothing
 tests/test_font_parser.py::test_cubic_outlines_keep_their_true_size_and_area
@@ -161,6 +167,7 @@ tests/test_gerber_attributes.py::test_parse_file_function_layers[values0-expect0
 tests/test_gerber_attributes.py::test_parse_file_function_layers[values1-expect1]
 tests/test_gerber_attributes.py::test_parse_file_function_profile_and_empty
 tests/test_gerber_attributes.py::test_report_rows_empty_without_attributes
+tests/test_gerber_attributes.py::test_report_rows_of_an_excellon_count_nets_from_the_hole_ids
 tests/test_gerber_attributes.py::test_report_rows_show_attributes_and_net_counts
 tests/test_gerber_attributes.py::test_split_attribute[.N,a//u002Cb,//u00A9,//U0001F600,//uD83D//uDE00-expected1]
 tests/test_gerber_attributes.py::test_split_attribute[.N,bad//uZZZZ-expected2]

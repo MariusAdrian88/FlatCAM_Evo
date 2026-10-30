@@ -33,6 +33,7 @@ from shapely.geometry import LineString, MultiLineString, MultiPolygon, Polygon
 from shapely.ops import linemerge, snap, unary_union
 
 from camlib import grace, new_rtree_index, translate_geometry
+from appParsers.ParseExcellon import hole_ids
 
 Offset = Tuple[float, float]
 
@@ -170,10 +171,15 @@ def panelize_excellon(src_tools: Dict[Any, dict], offsets: Iterable[Offset],
     """
     tools = {}
     for tid, tool in src_tools.items():
-        new_tool = {k: deepcopy(v) for k, v in tool.items() if k not in ('drills', 'slots', 'solid_geometry')}
+        new_tool = {k: deepcopy(v) for k, v in tool.items()
+                    if k not in ('drills', 'slots', 'solid_geometry', 'drills_to', 'slots_to')}
         new_tool['solid_geometry'] = []
         new_tool['drills'] = []
         new_tool['slots'] = []
+        # the TO ids follow the holes: each copy of a hole has the id of its source (ids out of step are dropped)
+        for kind in ('drills', 'slots'):
+            if hole_ids(tool, kind) is not None:
+                new_tool[kind + '_to'] = []
         tools[tid] = new_tool
 
     total_drills = sum(len(t.get('drills') or ()) for t in src_tools.values())
@@ -187,6 +193,8 @@ def panelize_excellon(src_tools: Dict[Any, dict], offsets: Iterable[Offset],
             drills = tool.get('drills') or []
             if drills:
                 tools[tid]['drills'].extend(translate_geometry(list(drills), dx, dy))
+                if 'drills_to' in tools[tid]:
+                    tools[tid]['drills_to'].extend(tool['drills_to'])
                 done_drills += len(drills)
                 _report(progress, element, done_drills, total_drills, 'D:')
 
@@ -195,6 +203,8 @@ def panelize_excellon(src_tools: Dict[Any, dict], offsets: Iterable[Offset],
                 starts = translate_geometry([slot[0] for slot in slots], dx, dy)
                 stops = translate_geometry([slot[1] for slot in slots], dx, dy)
                 tools[tid]['slots'].extend(zip(starts, stops))
+                if 'slots_to' in tools[tid]:
+                    tools[tid]['slots_to'].extend(tool['slots_to'])
                 done_slots += len(slots)
                 _report(progress, element, done_slots, total_slots, 'S:')
     return tools

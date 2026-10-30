@@ -81,3 +81,18 @@ def make_geometry(app, multigeo):
     src.tools = {1: {'tooldia': 1.0, 'data': {}, 'solid_geometry': [LineString([(0, 0), (10, 0)])]}}
     return src
 
+
+
+def test_excellon_panel_keeps_the_table_of_the_hole_ids(app):
+    from appParsers.ParseExcellon import hole_ids, to_state
+    src = ExcellonObject('e', app)
+    text = "M48\nMETRIC\nT1C1.0\n%\nG05\nT1\n; #@! TO.C,R1\nX1.0Y1.0\n; #@! TD\nX2.0Y2.0\nM30\n"
+    assert src.parse_lines(text.splitlines(keepends=True)) is None
+    src.create_geometry()
+    src.obj_options['name'] = 'e'
+    res, created = run_panelize(app, src, 'e', '-rows', '1', '-columns', '2', '-outname', 'p')
+    pan = created['p']
+    ids = hole_ids(pan.tools[1], 'drills')
+    assert ids is not None and len(ids) == 4
+    assert [to_state(pan.to_attributes, i) for i in ids].count({'.C': ['R1']}) == 2
+    assert pan.to_attributes == src.to_attributes and pan.to_attributes is not src.to_attributes

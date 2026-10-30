@@ -223,3 +223,15 @@ class TestPluginPatterns:
         assert snap(new.tools) == snap(old.tools)
 
 
+
+
+def test_add_drill_to_a_tool_with_hole_ids_keeps_the_ids_in_step():
+    from appParsers.ParseExcellon import hole_ids
+    app = _tcl_app()
+    obj = _tcl_obj(app, {1: (0.8, [(0, 0)], [])})
+    obj.tools[1]['drills_to'] = [1]
+    obj.to_attributes = {1: {'C': ['R1']}}
+    _run_tcl(TclCommandAddDrill, app, obj, '-dia', '0.8', '-x', '1', '-y', '2')
+    assert hole_ids(obj.tools[1], 'drills') == [1, 0]
+    _run_tcl(TclCommandAddDrill, app, obj, '-dia', '1.2', '-x', '5', '-y', '5')
+    assert 'drills_to' not in obj.tools[2]
