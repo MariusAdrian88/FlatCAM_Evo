@@ -8,7 +8,7 @@ import logging
 from shapely import Polygon, MultiPolygon
 from shapely.ops import unary_union
 from shapely.geometry.base import BaseGeometry
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Literal, Union
 
 import gettext
 import appTranslation as fcTranslate
@@ -765,7 +765,7 @@ class NccGen:
             overlap=None,
             connect=None,
             contour=None,
-            order=None,
+            order: Literal[0, 1, 2, "no", "fwd", "rev"] | None=None,
             method=None,
             rest=None,
             tools_storage=None,
@@ -791,7 +791,12 @@ class NccGen:
         connect = bool(connect if connect is not None else self._option('tools_ncc_connect', False))
         contour = bool(contour if contour is not None else self._option('tools_ncc_contour', True))
         method = int(method if method is not None else self._option('tools_ncc_method', 0))
-        order = int(order if order is not None else self._option('tools_ncc_order', 0))
+        order: Literal["no", "fwd", "rev"] = {
+            0: "no",
+            1: "fwd", 
+            2: "rev",
+            None: self._option('tools_ncc_order', "no")
+        }[order]
         rest = bool(rest if rest is not None else self._option('tools_ncc_rest', False))
         has_offset = bool(has_offset if has_offset is not None else self._option('tools_ncc_offset_choice', False))
         offset = float(offset if offset is not None else self._option('tools_ncc_offset_value', 0.0))
@@ -807,9 +812,9 @@ class NccGen:
             diameters = list(ncc_tooldia) if isinstance(ncc_tooldia, list) else [float(ncc_tooldia)]
         if not diameters:
             return 'fail'
-        if rest or order == 2:
+        if rest or order == "rev":
             diameters.sort(reverse=True)
-        elif order == 1:
+        elif order == "fwd":
             diameters.sort()
         for value in snapshot.values():
             if NccModel.in_diameters(value['tooldia'], diameters, self.decimals):
