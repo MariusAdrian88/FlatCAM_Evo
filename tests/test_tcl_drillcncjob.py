@@ -17,6 +17,7 @@ from camlib import CNCjob
 from preprocessors.GRBL_laser import GRBL_laser
 from preprocessors.Toolchange_Probe_MACH3 import Toolchange_Probe_MACH3
 from tclCommands.TclCommandDrillcncjob import TclCommandDrillcncjob
+from tclCommands.TclCommandMillDrills import TclCommandMillDrills
 from defaults import AppDefaults
 from tests.helpers_objects import make_app_0b
 
@@ -343,3 +344,34 @@ def test_area_argument_drills_only_the_holes_inside_the_rectangle():
     assert sorted(job.tools) == [1, 2] and 2 not in [t for t, __ in blocks(code)]
     __, __, code = run(tools, ['-area', '10,10,0,0'])
     assert sorted(drilled_positions(code)) == [(1.0, 1.0), (9.0, 9.0)]
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# the diameters of -drilled_dias / -milled_dias: the matching tools are processed, no match is a failure
+
+def milled_tools(dias):
+    obj = Mock(kind='excellon', decimals=4)
+    obj.tools = {tid: {'tooldia': dia} for tid, dia in {1: 0.8, 2: 1.0}.items()}
+    obj.generate_milling_drills = Mock(
+        side_effect=lambda **kw: (True, '') if kw['tools'] else (False, 'Error: No tools.'))
+    app = make_app()
+    app.collection.get_by_name.side_effect = lambda n: obj
+    app.collection.has_promises.return_value = False
+    command = TclCommandMillDrills(app)
+    args, unnamed = command.check_args(('board', '-milled_dias', dias, '-tooldia', '0.1'))
+    command.execute(args, unnamed)
+    return obj.generate_milling_drills.call_args.kwargs['tools']
+
+
+@pytest.mark.parametrize('dias, tools', [('0.8,3.0', {1}), ('1.0,0.8,3.0', {1, 2})])
+def test_drilled_dias_superset_processes_only_the_matching_tools(dias, tools):
+    __, job, __ = run(TWO, ['-toolchange', 1, '-drilled_dias', dias])
+    assert set(tool_codes(job)) == tools
+    assert milled_tools(dias) == tools
+
+
+def test_drilled_dias_without_a_match_fails():
+    with pytest.raises(Exception):
+        run(TWO, ['-drilled_dias', '3.0'])
+    with pytest.raises(Exception):
+        milled_tools('3.0')

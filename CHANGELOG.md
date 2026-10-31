@@ -25,6 +25,13 @@ G-code Sender (grblHAL):
 - fixed: a camera that did not start showed no message and the Preview button stayed pressed
 - the removal of a registration pair asks for confirmation
 
+Tcl commands:
+
+- changed: drillcncjob -drilled_dias and milldrills -milled_dias accept diameters that are not in the Excellon object; the matching tools are processed and the others are written as a warning in the log; with no matching diameter the command still fails (merged PR #73 from michaelosthege)
+- changed: the NCC Tcl command accepts the tool order as a number or as a name (merged PR #73 from michaelosthege)
+- fixed: the NCC Tcl command without -order did not use the tool order of the preferences (the default is Reverse); an unknown order now shows an error
+- fixed: the drilling and milling warning about the Excellon tools that were not selected never showed
+
 Other:
 
 - tests: the design tests of the G-code Sender work and 2 tests that failed under load were removed

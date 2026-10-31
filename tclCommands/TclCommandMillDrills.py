@@ -122,14 +122,18 @@ class TclCommandMillDrills(TclCommandSignaled):
                                 matched_diameters.add(req_dia)
 
                 extra_dias = set(diameters) - matched_diameters
-                skipped_dias = matched_diameters - set(diameters)
+                skipped_dias = sorted(
+                    f"{float(obj.tools[t]['tooldia']):.{obj.decimals}f}" for t in obj.tools if t not in req_tools
+                )
                 if extra_dias:
                     self.log.warning(
-                        f"Some milling tool diameters passed to the TclCommand are not found in the Exellon object: {extra_dias}"
+                        "Some milling tool diameters passed to the TclCommand are not found in the Excellon object: "
+                        f"{sorted(extra_dias)}"
                     )
                 if skipped_dias:
                     self.log.warning(
-                        f"Some milling tool diameters in the Excellon object were not passed to the TclCommand and will be skipped: {skipped_dias}"
+                        "Some milling tool diameters in the Excellon object were not passed to the TclCommand and "
+                        f"will be skipped: {skipped_dias}"
                     )
 
                 args['tools'] = req_tools

@@ -791,12 +791,12 @@ class NccGen:
         connect = bool(connect if connect is not None else self._option('tools_ncc_connect', False))
         contour = bool(contour if contour is not None else self._option('tools_ncc_contour', True))
         method = int(method if method is not None else self._option('tools_ncc_method', 0))
-        order: Literal["no", "fwd", "rev"] = {
-            0: "no",
-            1: "fwd", 
-            2: "rev",
-            None: self._option('tools_ncc_order', "no")
-        }[order]
+        if order is None:
+            order = self._option('tools_ncc_order', 0)
+        order = {"0": 0, "1": 1, "2": 2, "no": 0, "fwd": 1, "rev": 2}.get(str(order).strip().lower())
+        if order is None:
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _("The order must be no, fwd or rev."))
+            return 'fail'
         rest = bool(rest if rest is not None else self._option('tools_ncc_rest', False))
         has_offset = bool(has_offset if has_offset is not None else self._option('tools_ncc_offset_choice', False))
         offset = float(offset if offset is not None else self._option('tools_ncc_offset_value', 0.0))
@@ -812,9 +812,9 @@ class NccGen:
             diameters = list(ncc_tooldia) if isinstance(ncc_tooldia, list) else [float(ncc_tooldia)]
         if not diameters:
             return 'fail'
-        if rest or order == "rev":
+        if rest or order == 2:
             diameters.sort(reverse=True)
-        elif order == "fwd":
+        elif order == 1:
             diameters.sort()
         for value in snapshot.values():
             if NccModel.in_diameters(value['tooldia'], diameters, self.decimals):

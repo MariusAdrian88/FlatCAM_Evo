@@ -152,6 +152,17 @@ def test_tcl_smaller_tool_receives_only_unswept_stock():
     assert list(output.tools) == [2, 1]
 
 
+@pytest.mark.parametrize("order, preference, expected", [
+    (None, 2, [2, 1]), ("fwd", 2, [1, 2]), ("rev", 0, [2, 1]), (1, 2, [1, 2]),
+])
+def test_tcl_order_accepts_names_numbers_and_the_preference(order, preference, expected):
+    area = MultiPolygon([box(0, 0, 10, 10)])
+    gen, output = run_rest(
+        area, [1.0, 2.0], lambda **kw: [LineString([(1, 1), (2, 1)])], tcl=True, rest=False,
+        options={'tools_ncc_order': preference}, order=order)
+    assert list(output.tools) == expected
+
+
 # ---------------------------------------------------------------------------------------------------------------
 # what a run publishes and what it leaves in the tool table
 # ---------------------------------------------------------------------------------------------------------------

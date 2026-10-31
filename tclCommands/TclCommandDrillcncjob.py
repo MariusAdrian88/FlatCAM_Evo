@@ -333,14 +333,18 @@ class TclCommandDrillcncjob(TclCommandSignaled):
                         )
 
                     extra_dias = set(diameters) - matched_diameters
-                    skipped_dias = matched_diameters - set(diameters)
+                    skipped_dias = sorted(
+                        f"{float(src_tools[t]['tooldia']):.{obj.decimals}f}" for t in src_tools if str(t) not in req_tools
+                    )
                     if extra_dias:
                         app_obj.log.warning(
-                            f"Some tool diameters passed to the TclCommand are not found in the Exellon object: {extra_dias}"
+                            "Some tool diameters passed to the TclCommand are not found in the Excellon object: "
+                            f"{sorted(extra_dias)}"
                         )
                     if skipped_dias:
                         app_obj.log.warning(
-                            f"Some tool diameters in the Excellon object were not passed to the TclCommand and will be skipped: {skipped_dias}"
+                            "Some tool diameters in the Excellon object were not passed to the TclCommand and will be "
+                            f"skipped: {skipped_dias}"
                         )
 
                     # make a string of diameters separated by comma; this is what tcl_gcode_from_excellon_by_tool() is
