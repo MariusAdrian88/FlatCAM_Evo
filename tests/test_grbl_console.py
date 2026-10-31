@@ -53,7 +53,7 @@ class TestGrblConsole(unittest.TestCase):
         self.assertTrue(console.program_view.isReadOnly())
         self.assertEqual(console.program_view.toPlainText(), 'G21\nG1 X2')
         self.assertEqual(console.log_view.toPlainText(), 'ok')
-        self.assertIs(console.program_area.number_bar.edit, console.program_view)
+        self.assertIs(console.program_view.gutter.edit, console.program_view)
         console.cmd_entry.setText('  $G  ')
         console.send_btn.click()
         console.tool.send_console_command.assert_called_once_with('$G')

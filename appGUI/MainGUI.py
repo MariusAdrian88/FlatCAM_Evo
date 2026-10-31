@@ -4913,6 +4913,10 @@ class MainGUI(QtWidgets.QMainWindow):
                                                                    doc.blockCount()))
             return
 
+        if hasattr(c_editor, 'goto_line'):
+            c_editor.goto_line(line + 1)
+            return
+
         # make sure to move first the cursor at the end so after finding the line, the line will be positioned
         # at the top of the window
         c_editor.moveCursor(QTextCursor.MoveOperation.End)

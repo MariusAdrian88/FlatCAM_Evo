@@ -23,7 +23,8 @@ from appTool import AppTool
 from appCommon import MachineSafety
 from defaults import AppDefaults
 from appGUI.GUIElements import (
-    VerticalScrollArea, FCFileSaveDialog, FCMessageBox, FCTextAreaLineNumber, RadioSet, FCSpinner)
+    VerticalScrollArea, FCFileSaveDialog, FCMessageBox, RadioSet, FCSpinner)
+from appEditors.text_editor.code_edit import CodeEdit
 from camlib import CNCjob, flatten_shapely_geometry
 
 from appPlugins.Common.levelling_core import LevellingCoreMixin
@@ -96,8 +97,8 @@ class GrblConsole(QtWidgets.QWidget):
         program_header.addWidget(self.program_status, 1)
         program_header.addWidget(self.follow_cb)
         program_lay.addLayout(program_header)
-        self.program_area = FCTextAreaLineNumber(theme=tool.app.options.get('global_theme', 'default'))
-        self.program_view = self.program_area.edit
+        self.program_view = CodeEdit(theme=tool.app.options.get('global_theme', 'default'))
+        self.program_area = self.program_view
         self.program_view.setReadOnly(True)
         self.program_view.setUndoRedoEnabled(False)
         self.program_view.setLineWrapMode(QtWidgets.QPlainTextEdit.LineWrapMode.NoWrap)

@@ -194,6 +194,13 @@ class AppDefaults:
         "global_tpdf_lmargin": 20.0,
         "global_tpdf_rmargin": 20.0,
 
+        "text_editor_font_family": "",  # empty = the system fixed font
+        "text_editor_font_size": 10,
+        "text_editor_wrap": False,
+        "text_editor_show_whitespace": False,
+        "text_editor_minimap": False,
+        "text_editor_tab_width": 4,
+
         "pdf_python_parser": True,
 
         "svg_drill_detect": True,  # SVG import: white circles with a dark stroke become an Excellon object
