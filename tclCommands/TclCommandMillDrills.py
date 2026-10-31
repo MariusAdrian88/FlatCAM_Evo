@@ -121,9 +121,16 @@ class TclCommandMillDrills(TclCommandSignaled):
                                 req_tools.add(tool)
                                 matched_diameters.add(req_dia)
 
-                if not diameters or len(matched_diameters) != len(set(diameters)):
-                    self.raise_tcl_error("One or more tool diameters of the drills to be milled passed to the "
-                                         "TclCommand are not actual tool diameters in the Excellon object.")
+                extra_dias = set(diameters) - matched_diameters
+                skipped_dias = matched_diameters - set(diameters)
+                if extra_dias:
+                    self.log.warning(
+                        f"Some milling tool diameters passed to the TclCommand are not found in the Exellon object: {extra_dias}"
+                    )
+                if skipped_dias:
+                    self.log.warning(
+                        f"Some milling tool diameters in the Excellon object were not passed to the TclCommand and will be skipped: {skipped_dias}"
+                    )
 
                 args['tools'] = req_tools
 
