@@ -796,7 +796,7 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
         #     self.app.gcode_edited = gco
         self.app.gcode_edited = self.source_file
 
-        self.gcode_editor_tab = AppTextEditor(app=self.app, plain_text=True)
+        self.gcode_editor_tab = AppTextEditor(app=self.app, plain_text=True, language='gcode')
 
         # add the tab if it was closed
         self.app.ui.plot_tab_area.addTab(self.gcode_editor_tab, '%s' % _("Code Review"))

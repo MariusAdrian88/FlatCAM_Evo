@@ -1107,7 +1107,7 @@ class SolderPaste(AppTool):
             self.app.inform.emit('[WARNING_NOTCL] %s' % _("Selected object cannot be used."))
             return
 
-        self.text_editor_tab = AppTextEditor(app=self.app, plain_text=True)
+        self.text_editor_tab = AppTextEditor(app=self.app, plain_text=True, language='gcode')
 
         # add the tab if it was closed
         self.app.ui.plot_tab_area.addTab(self.text_editor_tab, _("GCode Editor"))

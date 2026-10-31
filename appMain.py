@@ -4048,7 +4048,7 @@ class App(QtCore.QObject):
     # ###############################################################################################################
     def init_code_editor(self, name):
 
-        self.text_editor_tab = AppTextEditor(app=self, plain_text=True)
+        self.text_editor_tab = AppTextEditor(app=self, plain_text=True, language=None)
 
         # add the tab if it was closed
         self.ui.plot_tab_area.addTab(self.text_editor_tab, '%s' % name)
@@ -4106,7 +4106,9 @@ class App(QtCore.QObject):
         elif obj.kind == 'cncjob':
             flt = "GCode Files .nc (*.NC);;PDF Files .pdf (*.PDF);;All Files (*.*)"
 
-        self.source_editor_tab = AppTextEditor(app=self, plain_text=True)
+        self.source_editor_tab = AppTextEditor(
+            app=self, plain_text=True,
+            language={'gerber': 'gerber', 'excellon': 'excellon', 'cncjob': 'gcode'}.get(obj.kind))
 
         # add the tab if it was closed
         self.ui.plot_tab_area.addTab(self.source_editor_tab, '%s' % _("Source Editor"))

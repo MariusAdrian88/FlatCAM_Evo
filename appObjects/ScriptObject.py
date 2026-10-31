@@ -107,7 +107,7 @@ class ScriptObject(FlatCAMObj):
         app_mode = self._app_option("global_app_level")
         self.change_level(app_mode)
 
-        self.script_editor_tab = AppTextEditor(app=self.app, plain_text=True, parent=self.app.ui)
+        self.script_editor_tab = AppTextEditor(app=self.app, plain_text=True, parent=self.app.ui, language='tcl')
         self.script_editor_tab.script_owner = self
         self.script_editor_tab.code_editor.textChanged.connect(self.on_source_changed)
 

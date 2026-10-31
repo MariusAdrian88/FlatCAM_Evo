@@ -510,7 +510,7 @@ class ToolLevelling(LevellingCoreMixin, CNCjob, AppTool):
             self.app.inform.emit('[WARNING_NOTCL] %s...' % _('There is nothing to view'))
             return
 
-        self.gcode_viewer_tab = AppTextEditor(app=self.app, plain_text=True)
+        self.gcode_viewer_tab = AppTextEditor(app=self.app, plain_text=True, language='gcode')
 
         # add the tab if it was closed
         self.app.ui.plot_tab_area.addTab(self.gcode_viewer_tab, '%s' % _("Code Viewer"))

@@ -69,7 +69,7 @@ class AppGCodeEditor(QtCore.QObject):
         # #############################################################################################################
         # ############# ADD a new TAB in the PLot Tab Area
         # #############################################################################################################
-        self.ui.gcode_editor_tab = AppTextEditor(app=self.app, plain_text=True)
+        self.ui.gcode_editor_tab = AppTextEditor(app=self.app, plain_text=True, language='gcode')
         self.edit_area = self.ui.gcode_editor_tab.code_editor
 
         # add the Exit Editor action to the context menu
