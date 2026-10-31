@@ -36,6 +36,8 @@ from appPlugins.Common.grbl.grbl_protocol import (
     parse_grbl_status_state,
     parse_grbl_status_report,
     grbl_modes_confirmed,
+    parse_grbl_identity,
+    grbl_capabilities,
 )
 from appPlugins.Common.levelling_interp import match_nearest_point
 
@@ -52,11 +54,25 @@ GRBL_MAX_LINE = 80
 # the startup banner of the E-Cut USB adapter (appPlugins/Common/ecut); it is not a GRBL banner
 ECUT_BANNER = "E-Cut host adapter 1.0 ['$' for help]"
 
+# grblHAL NEWOPT RT-: the printable real-time commands are off, only the top-bit-set forms are read
+GRBL_TOP_BIT_REALTIME = {b'?': b'\x80', b'~': b'\x81', b'!': b'\x82'}
+
 
 def is_controller_banner(line):
-    """True for a controller startup banner: a GRBL banner or the E-Cut adapter banner."""
+    """True for a controller startup banner: a GRBL or grblHAL banner, or the E-Cut adapter banner."""
     text = (line or '').strip().lower()
-    return text.startswith('grbl ') or text.startswith('e-cut host adapter ')
+    return text.startswith('grbl ') or text.startswith('grblhal ') or text.startswith('e-cut host adapter ')
+
+
+def is_grblhal_banner(line):
+    """True for the grblHAL startup banner. A grblHAL build at a higher compatibility level prints 'Grbl '."""
+    return (line or '').strip().lower().startswith('grblhal ')
+
+
+def is_native_jog_banner(line):
+    """True for the banner of a controller with the $J jog command: GRBL 1.1 and grblHAL."""
+    text = (line or '').strip()
+    return is_grblhal_banner(text) or (text.startswith('Grbl 1.1') and len(text) > 8 and text[8].isalpha())
 
 
 _GCODE_WORD_RE = re.compile(r'([A-Za-z])\s*([+-]?(?:\d+\.?\d*|\.\d+))')
@@ -95,6 +111,18 @@ def spindle_state_of_line(line):
     return state
 
 
+def is_tool_change_line(line):
+    """
+    :param line: 1 line of G-Code.
+    :return: True for M6, including a block that also contains motion.
+    """
+    text = _GCODE_COMMENT_RE.sub('', (line or '').split(';', 1)[0])
+    if text.lstrip().startswith('$'):
+        return False
+    words = _GCODE_WORD_RE.findall(text)
+    return any(letter.upper() == 'M' and float(value) == 6.0 for letter, value in words)
+
+
 def validate_stream_lines(lines, rx_size=GRBL_RX_BUFFER):
     """
     :param lines:   list of str, no line ends.
@@ -127,7 +155,9 @@ def dwell_seconds(line):
 
 def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, check_mode=False,
                  on_progress=None, on_line=None, poll_status=False, poll_interval=0.2,
-                 on_status=None, clock=time.monotonic, stall_timeout=30.0):
+                 on_status=None, clock=time.monotonic, stall_timeout=30.0,
+                 status_request=b'?', write_control=None, tool_change_ack=False,
+                 on_tool_change=None, tool_command=None, on_tool_command_done=None):
     """
     Send `lines` to GRBL with the character-counting protocol: a new line
     is written only while the bytes of the lines in flight (each line + '\\n')
@@ -141,7 +171,7 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, check_mode=Fals
 
     :param lines:        list of str, no line ends, no empty lines.
     :param write:        callable(data: bytes) -> 'ok', 'cancelled', 'port_error' or 'stale'.
-        The streamer calls it for each job line and for each b'?'. On any status
+        The streamer calls it for each job line and for each status request. On any status
         but 'ok', the streamer returns that status at once and writes nothing more.
     :param readline:     callable() -> bytes, 1 line (or a part of it, or b'' on a read timeout).
         An exception (serial.SerialException, OSError) gives 'port_error'.
@@ -149,17 +179,29 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, check_mode=Fals
     :param check_mode:   True in $C mode: an error does not stop the stream, it is counted.
     :param on_progress:  callable(done, total), after each acknowledged line.
     :param on_line:      callable(text), for each job line written and each reply line read
-        (not for '?' and not for status reports).
-    :param poll_status:  True to send '?' every poll_interval s.
+        (not for the status request and not for status reports).
+    :param poll_status:  True to send a status request every poll_interval s.
     :param on_status:    callable(text), for each status report line.
     :param clock:        callable() -> seconds (monotonic).
     :param stall_timeout: seconds without progress while lines are in flight -> 'timeout'.
         Only these events are progress: an 'ok' or 'error:N'; a status report with the
-        state Hold, Door, Jog or Home; a Run report whose position is not the same as in
+        state Hold, Door, Jog, Home or Tool; a Run report whose position is not the same as in
         the last report. An Idle report or an unchanged Run report is not progress.
         A G4 line gets dwell_seconds(line) more seconds, 1 time for that line: with
         poll_status=True when a status report shows Idle while the G4 is the oldest line
         in flight, else when the G4 becomes the oldest line in flight.
+    :param status_request: the byte written to request a status report ('?', or 0x80 on a grblHAL
+        that reports RT-).
+    :param write_control: callable(data: bytes) -> status, for the real-time bytes; by default `write`.
+    :param tool_change_ack: True to acknowledge the grblHAL Tool state (a manual M6) with 0xA3.
+        No job line is written while the state is Tool: the controller accepts no motion until
+        the tool change is completed by a Cycle Start.
+    :param on_tool_change: callable(), once after 0xA3 and the temporary stream's $G reply fence.
+    :param tool_command: callable() -> a queued touch-off/jog command or None, read after the fence in Tool.
+        Temporary commands have separate acknowledgements; finish them before issuing Cycle Start.
+    :param on_tool_command_done: callable(text), only after a successful touch-off/jog acknowledgement.
+        A temporary command/fence error returns 'error' with 'tool_command' and 'last_text', without
+        unblocking the caller's busy state before it latches recovery.
     :return: dict: 'status' ('finished', 'error', 'alarm', 'timeout', 'port_error',
         'cancelled', 'stale', 'line_too_long' or 'unexpected_reset'), 'done' (acknowledged lines),
         'errors' (list of (line index, reply text)), 'last_text' (the last reply line),
@@ -179,6 +221,18 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, check_mode=Fals
     dwell_index = None      # the line that got its dwell extension
     dwell_until = None
     next_poll = clock()
+    tool_wait = False       # the controller waits in the Tool state (a manual M6)
+    tool_index = None       # M6 barrier: acknowledgement plus completion status, never a timed bypass
+    tool_acked = False
+    tool_ready = False      # the $G marker and its ok fence off any early M6 reply
+    tool_fence_marker = False
+    tool_fence_deadline = None
+    tool_status_requested = False
+    poll_pending = False
+    poll_sent_at = None     # a lost status reply must not stop polling forever
+    manual_command = None
+    manual_deadline = None
+    control = write if write_control is None else write_control
 
     def result(status, **extra):
         res = {'status': status, 'done': done, 'errors': errors, 'last_text': last_text,
@@ -199,9 +253,12 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, check_mode=Fals
     if bad_index is not None:
         return result('line_too_long', line_index=bad_index)
 
-    while done < total:
-        # write while the next line fits
-        while sent < total:
+    while done < total or tool_index is not None or tool_wait or manual_command is not None:
+        # write while the next line fits; the Tool state of a manual M6 takes no motion
+        while not tool_wait and tool_index is None and manual_command is None and sent < total:
+            changing_tool = tool_change_ack and not check_mode and is_tool_change_line(lines[sent])
+            if changing_tool and (in_flight or poll_pending or buf):
+                break  # retire every earlier acknowledgement before sending M6
             data = (lines[sent] + '\n').encode('utf-8')
             if used + len(data) > rx_size:
                 break
@@ -216,17 +273,52 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, check_mode=Fals
             if on_line is not None:
                 on_line(lines[sent])
             sent += 1
+            if changing_tool:
+                # grblHAL flushes its input buffer when the tool change is acknowledged: a line written
+                # after the M6 would be dropped, so none is written until the tool change is done
+                tool_index = sent - 1
+                tool_acked = tool_status_requested = False
+                tool_ready = tool_fence_marker = False
+                tool_fence_deadline = None
+                break
         if not poll_status:
             arm_dwell()
 
-        if poll_status and clock() >= next_poll:
+        if (tool_wait and tool_ready and not buf and
+                manual_command is None and tool_command is not None):
+            manual_command = tool_command()
+            if manual_command is not None:
+                if validate_stream_lines([manual_command], rx_size) is not None:
+                    return result('error', last_text='Tool change command is too long.')
+                try:
+                    status = write((manual_command + '\n').encode('utf-8'))
+                except (serial.SerialException, OSError):
+                    return result('port_error')
+                if status != 'ok':
+                    return result(status)
+                manual_deadline = clock() + stall_timeout
+                if on_line is not None:
+                    on_line(manual_command)
+
+        if (poll_status and poll_pending and poll_sent_at is not None and
+                clock() - poll_sent_at > max(poll_interval * 5.0, 1.0)):
+            # the status reply is lost: drop the request so polling and a queued M6 can resume
+            poll_pending = False
+            poll_sent_at = None
+        # Don't solicit asynchronous parser-state reports while the $G fence is pending.
+        if (poll_status and (not tool_change_ack or not poll_pending) and clock() >= next_poll and
+                tool_fence_deadline is None):
             try:
-                status = write(b'?')
+                status = write(status_request)
             except (serial.SerialException, OSError):
                 return result('port_error')
             if status != 'ok':
                 return result(status)
             next_poll = clock() + poll_interval
+            poll_pending = True
+            poll_sent_at = clock()
+            if tool_acked or tool_ready:
+                tool_status_requested = True
 
         try:
             chunk = readline()
@@ -240,6 +332,8 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, check_mode=Fals
             if not text:
                 continue
             if text.startswith('<'):
+                poll_pending = False
+                poll_sent_at = None
                 if on_status is not None:
                     on_status(text)
                 report = parse_grbl_status_report(text)
@@ -247,7 +341,11 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, check_mode=Fals
                     continue
                 position = report.get('mpos', report.get('wpos'))
                 state = report['state']
-                if state in ('Hold', 'Door', 'Jog', 'Home'):
+                if state == 'Alarm':
+                    return result('alarm')
+                if report.get('mpg') or ',' in report.get('sd', '') or report.get('sd') == 'Pending':
+                    return result('error', last_text='External SD/MPG execution owns the controller.')
+                if state in ('Hold', 'Door', 'Jog', 'Home', 'Tool'):
                     last_progress = clock()
                 elif state == 'Run' and position is not None and position != last_position:
                     last_progress = clock()
@@ -255,6 +353,40 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, check_mode=Fals
                     arm_dwell()
                 if position is not None:
                     last_position = position
+                if state == 'Tool':
+                    # a manual M6 of grblHAL: no job line until the tool change is done, after the acknowledge
+                    if not tool_wait:
+                        tool_wait = True
+                        if tool_change_ack and not tool_ready and tool_fence_deadline is None:
+                            try:
+                                status = control(b'\xa3')
+                            except (serial.SerialException, OSError):
+                                return result('port_error')
+                            if status != 'ok':
+                                return result(status)
+                            # $G is permitted in Tool. Its synchronous [GC:...] then ok establishes
+                            # reply ownership without assuming that an empty serial read drained M6.
+                            try:
+                                status = write(b'$G\n')
+                            except (serial.SerialException, OSError):
+                                return result('port_error', tool_command='$G')
+                            if status != 'ok':
+                                return result(status, tool_command='$G')
+                            tool_fence_deadline = clock() + stall_timeout
+                            if on_line is not None:
+                                on_line('$G')
+                        elif not tool_change_ack and on_tool_change is not None:
+                            on_tool_change()
+                elif (state == 'Idle' and not report.get('tool_pending') and
+                      (tool_status_requested or not tool_change_ack)):
+                    # a backend without a manual acknowledgement (ATC / E-Cut) clears on Idle alone
+                    if tool_fence_deadline is not None:
+                        return result('error', tool_command='$G',
+                                      last_text='Tool change completed before the reply fence.')
+                    tool_wait = False
+                    if tool_acked:
+                        tool_index = None
+                        tool_ready = False
                 continue
             last_text = text
             if on_line is not None:
@@ -262,16 +394,47 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, check_mode=Fals
             lowered = text.lower()
             if lowered.startswith('alarm:'):
                 return result('alarm')
-            if lowered.startswith('grbl '):
+            if is_controller_banner(text):
                 # An unexpected controller reset mid-stream: the banner discards all pending
                 # replies and leaves Check mode. Stop writing job lines; the caller must recover.
                 return result('unexpected_reset')
+            if text.startswith('[GC:') and tool_fence_deadline is not None:
+                if tool_fence_marker or re.fullmatch(r'\[GC:[^\[\]]+\]', text) is None:
+                    return result('error', tool_command='$G', last_text='Ambiguous tool change reply fence.')
+                tool_fence_marker = True
+                continue
             if lowered == 'ok' or lowered.startswith('error:'):
+                if tool_fence_deadline is not None:
+                    if lowered.startswith('error:'):
+                        return result('error', tool_command='$G')
+                    if tool_fence_marker:
+                        tool_fence_deadline = None
+                        tool_ready = True
+                        last_progress = clock()
+                        if on_tool_change is not None:
+                            on_tool_change()
+                        continue
+                    if tool_acked or not in_flight or in_flight[0][0] != tool_index:
+                        return result('error', tool_command='$G', last_text='Missing tool change reply fence marker.')
+                    # Before [GC:...] only the original program M6 may retire.
+                if manual_command is not None:
+                    if lowered.startswith('error:'):
+                        return result('error', tool_command=manual_command)
+                    manual_command = None
+                    manual_deadline = None
+                    last_progress = clock()
+                    if on_tool_command_done is not None:
+                        on_tool_command_done(text)
+                    continue
                 if not in_flight:
                     continue
                 index, size = in_flight.pop(0)
                 used -= size
                 done += 1
+                if index == tool_index:
+                    tool_acked = True
+                    if not poll_status:
+                        return result('error', last_text='M6 requires status polling.')
                 last_progress = clock()
                 if dwell_index == index:
                     dwell_index = None
@@ -283,12 +446,16 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, check_mode=Fals
                 if on_progress is not None:
                     on_progress(done, total)
 
-        if in_flight:
+        if tool_fence_deadline is not None and clock() > tool_fence_deadline:
+            return result('timeout', tool_command='$G', last_text='Tool change reply fence did not acknowledge.')
+        if in_flight or tool_index is not None or tool_wait or sent < total:
             deadline = last_progress + stall_timeout
             if dwell_until is not None and dwell_until > deadline:
                 deadline = dwell_until
             if clock() > deadline:
                 return result('timeout')
+        if manual_deadline is not None and clock() > manual_deadline:
+            return result('timeout', last_text='Tool change command did not acknowledge.')
     return result('finished')
 
 
@@ -358,6 +525,23 @@ class GrblClientMixin:
         # True from the first write of a stream until a confirmed completion or the reset banner:
         # GRBL can still hold lines (and their ok replies) of the stopped job
         self._grbl_stream_dirty = False
+
+        # grblHAL: its own banner was seen, and the answer of $I+ and what it allows
+        self._grbl_grblhal = False
+        self._grbl_identity = None
+        self._grbl_caps = None
+        # grblHAL NEWOPT RT-: write the top-bit-set real-time commands
+        self._grbl_top_bit_realtime = False
+        # text that blocks motion (an unsupported grblHAL configuration), or None
+        self._grbl_motion_blocked = None
+        # True while the controller waits in the Tool state for a manual M6
+        self._grbl_tool_change_pending = False
+        self._grbl_identity_pending = False
+        self._grbl_tool_commands = []
+        self._grbl_tool_command_busy = False
+        # True while an MPG pendant has taken the input stream (grblHAL |MPG:1)
+        self._grbl_mpg_owned = False
+        self._grbl_sd_owned = False
 
         self.grbl_ser_port = None
 
@@ -518,6 +702,27 @@ class GrblClientMixin:
                         name == 'home' and self._grbl_recovery == 'needs_reset' and self._grbl_reset_pending))):
                 self.app.inform.emit('[ERROR_NOTCL] %s' % self._grbl_recovery_text())
                 return None
+            # an unsupported controller configuration (for example more than the X, Y and Z axes) takes no motion
+            blocked = self.__dict__.get('_grbl_motion_blocked')
+            if motion and self.__dict__.get('_grbl_identity_pending'):
+                self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                    "Controller discovery is incomplete. Wait, or reconnect after the external job finishes."))
+                return None
+            if motion and blocked:
+                self.app.inform.emit('[ERROR_NOTCL] %s' % blocked)
+                return None
+            # a pendant that has taken the input stream would run our motion under its own control
+            if motion and self.__dict__.get('_grbl_mpg_owned'):
+                self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                    "The MPG pendant has control of the input stream. Release it in the pendant."))
+                return None
+            if motion and self.__dict__.get('_grbl_sd_owned'):
+                self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                    "An SD job owns the controller. Finish or stop it at its source before sending motion."))
+                return None
+            if name == 'probe' and (self.__dict__.get('_grbl_caps') or {}).get('probe') is False:
+                self.app.inform.emit('[ERROR_NOTCL] %s' % _("The controller has no probe input. Probing is unavailable."))
+                return None
             op = _GrblOperation(name, motion)
             op.safety_generation = self._grbl_safety_generation
             op.port = self.grbl_ser_port
@@ -595,7 +800,7 @@ class GrblClientMixin:
                 else:
                     # Never send the old operation's hold to a replacement controller.
                     try:
-                        op.port.write(b'!')
+                        op.port.write(self._grbl_realtime_byte(b'!'))
                     except (serial.SerialException, OSError) as err:
                         self.app.log.error("ToolLevelling._grbl_failure_locked() -> %s" % str(err))
 
@@ -707,6 +912,18 @@ class GrblClientMixin:
                     return False
             time.sleep(0.05)
 
+    def _grbl_realtime_byte(self, data):
+        """
+        The real-time command byte to write: the printable form, or its top-bit-set form on a grblHAL
+        that reported RT- (its printable real-time commands are off).
+
+        :param data: b'?', b'!' or b'~' (another byte is returned unchanged).
+        :return: bytes
+        """
+        if self.__dict__.get('_grbl_top_bit_realtime', False):
+            return GRBL_TOP_BIT_REALTIME.get(data, data)
+        return data
+
     def _grbl_write_realtime_locked(self, data):
         """
         Write a GRBL real-time command (1 byte, no newline, no reply read).
@@ -717,13 +934,13 @@ class GrblClientMixin:
         if self.__dict__.get('_simulation') is not None or not self._grbl_port_ready():
             return False
         try:
-            self.grbl_ser_port.write(data)
+            self.grbl_ser_port.write(self._grbl_realtime_byte(data))
         except (serial.SerialException, OSError) as err:
             self.app.log.error("ToolLevelling._grbl_write_realtime_locked() -> %s" % str(err))
             return False
         return True
 
-    def _grbl_transact(self, op, command, timeout=10.0, echo=True):
+    def _grbl_transact(self, op, command, timeout=10.0, echo=True, guard=None):
         """
         Send 1 line to GRBL for the operation `op`, and read the reply until
         'ok', 'error:N' or 'ALARM:N', the time limit, a stop of `op`, or a port error.
@@ -737,6 +954,9 @@ class GrblClientMixin:
             status: 'ok', 'error', 'timeout', 'cancelled' or 'port_error'.
         """
         cmd = command.strip()
+        if (self.__dict__.get('_grbl_caps') or {}).get('probe') is False and re.search(
+                r'G\s*38\.[2345](?!\d)', cmd, re.IGNORECASE):
+            return _("The controller has no probe input. Probing is unavailable."), 'error'
         with self._grbl_op_lock:
             if not self._grbl_active_locked(op) or self._grbl_reset_pending:
                 return '', 'cancelled'
@@ -744,6 +964,9 @@ class GrblClientMixin:
             text, status = self._grbl_prepare_locked(op, port)
             if status is not None:
                 return text, status
+            # Tool measurements must also retire changed settings/requests at the write boundary.
+            if guard is not None:
+                guard()
             try:
                 self._grbl_reply_pending = True
                 self._grbl_stale_notified = False
@@ -806,6 +1029,13 @@ class GrblClientMixin:
             self._grbl_failure_locked(op, 'timeout')
         return '\n'.join(decoded_lines), 'timeout'
 
+    def _grbl_update_ownership(self, report):
+        """Regular status reports identify an external input owner, not just its transport."""
+        if 'mpg' in report:
+            self._grbl_mpg_owned = report['mpg']
+        sd = report.get('sd', '')
+        self._grbl_sd_owned = sd == 'Pending' or ',' in sd
+
     def _grbl_query_status(self, op, timeout=2.0):
         """Request a fresh status report, preserving async alarm and cancellation evidence."""
         with self._grbl_op_lock:
@@ -816,7 +1046,9 @@ class GrblClientMixin:
             if status is not None:
                 return None
             try:
-                port.write(b'?')
+                port.write(self._grbl_realtime_byte(b'?'))
+                if self.__dict__.get('_grbl_identity_pending'):
+                    port.write(b'\x80')
             except (serial.SerialException, OSError) as err:
                 self.app.log.error("ToolLevelling._grbl_query_status() -> %s" % str(err))
                 self._grbl_failure_locked(op, 'port_error')
@@ -844,6 +1076,18 @@ class GrblClientMixin:
                     raw_line, self._grbl_rx_buffer = self._grbl_rx_buffer.split(b'\n', 1)
                     line = raw_line.decode('utf-8', errors='replace').strip()
                     if line.startswith('<'):
+                        report = parse_grbl_status_report(line)
+                        if report is None and op.motion:
+                            self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                                "Invalid controller position report. Only finite XYZ reports are supported; "
+                                "check the controller axis configuration."))
+                            return None
+                        if report is not None:
+                            self._grbl_update_ownership(report)
+                            if op.motion and (self.__dict__.get('_grbl_mpg_owned') or self._grbl_sd_owned):
+                                self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                                    "External SD/MPG execution owns the controller. Release it at its source first."))
+                                return None
                         state = parse_grbl_status_state(line)
                         if state is None:
                             self._grbl_failure_locked(op, 'probe_invalid')
@@ -925,7 +1169,7 @@ class GrblClientMixin:
         if op.failed:
             return True
         try:
-            op.port.write(b'!')
+            op.port.write(self._grbl_realtime_byte(b'!'))
         except (serial.SerialException, OSError) as err:
             self.app.log.error("ToolGcodeSender._grbl_abort_stream_locked() -> %s" % str(err))
         self._grbl_recovery = 'needs_reset'
@@ -977,7 +1221,7 @@ class GrblClientMixin:
                 return None
             port = self.grbl_ser_port
             try:
-                port.write(b'?')
+                port.write(self._grbl_realtime_byte(b'?'))
             except (serial.SerialException, OSError) as err:
                 self.app.log.error("ToolGcodeSender._grbl_post_reset_state() -> %s" % str(err))
                 self._grbl_failure_locked(op, 'port_error')
@@ -1068,6 +1312,7 @@ class GrblClientMixin:
         A complete result goes to the GUI thread through al_result_ready_sig.
         """
         modes_ok = False
+        offset = None
         staged = {}
         evidence = {'context': context, 'operation': op, 'safety_generation': op.safety_generation}
         precision = getattr(op, 'precision_inputs', ())
@@ -1170,7 +1415,7 @@ class GrblClientMixin:
             if precision:
                 self._grbl_hold_for_recovery()
                 self.app.inform.emit('[ERROR_NOTCL] %s' % self._grbl_recovery_text())
-            else:
+            elif offset is not None:
                 self._grbl_retract(op, travel_z)
             self.al_result_ready_sig.emit(dict(evidence, kind='failed'))
             return False

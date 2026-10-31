@@ -3221,12 +3221,14 @@ class MainGUI(QtWidgets.QMainWindow):
 
     def on_grbl_console_closed(self):
         """The user closed the GRBL console dock with its own button."""
-        self.grbl_console_dock.hide()
-        try:
-            self.app.options["tools_grbl_console_visible"] = False
-            self.app.grbl_sender_tool.ui.console_cb.set_value(False)
-        except AttributeError:
-            pass
+        sender = getattr(self.app, 'grbl_sender_tool', None)
+        if sender is None:
+            self.grbl_console_dock.hide()
+        else:
+            sender.hide_console()
+        self.app.options["tools_grbl_console_visible"] = False
+        if sender is not None and sender.ui is not None:
+            sender.ui.console_cb.set_value(False)
 
     def toggle_shell_ui(self):
         """

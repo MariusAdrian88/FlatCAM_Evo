@@ -48,6 +48,10 @@ class AppLifecycle(QtCore.QObject):
     # Method 1: on_options_value_changed
     # --------------------------------------------------------------------------
     def on_options_value_changed(self, key_changed):
+        if key_changed == 'units' or key_changed.startswith('tools_grbl_toolchange_'):
+            sender = getattr(self.app, 'grbl_sender_tool', None)
+            if sender is not None:
+                sender._toolchange_settings_changed()
         # when changing those properties the associated keys change, so we get an updated Properties default Tab
         if key_changed in [
             "global_grid_lines", "global_grid_snap", "global_axis", "global_workspace", "global_workspaceT",

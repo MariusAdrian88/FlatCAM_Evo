@@ -455,6 +455,11 @@ class PreferencesUIManager(QtCore.QObject):
             "tools_al_controller":       self.ui.plugin_eng_pref_form.tools_level_group.al_controller_combo,
 
             # GRBL Sender Plugin
+            "tools_grbl_controller":     self.ui.plugin_eng_pref_form.tools_grbl_group.controller_radio,
+            "tools_grbl_connection":     self.ui.plugin_eng_pref_form.tools_grbl_group.connection_radio,
+            "tools_grbl_serial_port":    self.ui.plugin_eng_pref_form.tools_grbl_group.serial_port_entry,
+            "tools_grbl_network_host":   self.ui.plugin_eng_pref_form.tools_grbl_group.network_host_entry,
+            "tools_grbl_network_port":   self.ui.plugin_eng_pref_form.tools_grbl_group.network_port_entry,
             "tools_grbl_jog_step":       self.ui.plugin_eng_pref_form.tools_grbl_group.jog_step_entry,
             "tools_grbl_jog_fr":         self.ui.plugin_eng_pref_form.tools_grbl_group.jog_fr_entry,
             "tools_grbl_travelz":        self.ui.plugin_eng_pref_form.tools_grbl_group.jog_travelz_entry,
@@ -463,6 +468,17 @@ class PreferencesUIManager(QtCore.QObject):
             "tools_grbl_arc_segment":    self.ui.plugin_eng_pref_form.tools_grbl_group.arc_segment_entry,
             "tools_grbl_seg_len":        self.ui.plugin_eng_pref_form.tools_grbl_group.seg_len_entry,
             "tools_grbl_status_ms":      self.ui.plugin_eng_pref_form.tools_grbl_group.status_ms_entry,
+            "tools_grbl_toolchange_plate": self.ui.plugin_eng_pref_form.tools_grbl_group.toolchange_plate_radio,
+            "tools_grbl_toolchange_probe_distance":
+                self.ui.plugin_eng_pref_form.tools_grbl_group.toolchange_distance_entry,
+            "tools_grbl_toolchange_clearance":
+                self.ui.plugin_eng_pref_form.tools_grbl_group.toolchange_clearance_entry,
+            "tools_grbl_toolchange_probe_feed":
+                self.ui.plugin_eng_pref_form.tools_grbl_group.toolchange_feed_entry,
+            "tools_grbl_toolchange_xy_tolerance":
+                self.ui.plugin_eng_pref_form.tools_grbl_group.toolchange_xy_entry,
+            "tools_grbl_toolchange_thickness":
+                self.ui.plugin_eng_pref_form.tools_grbl_group.toolchange_thickness_entry,
 
             # Drilling Tool
             "tools_drill_tool_order":   self.ui.plugin_pref_form.tools_drill_group.order_combo,
@@ -929,6 +945,9 @@ class PreferencesUIManager(QtCore.QObject):
                     self.defaults[option] = value
             except Exception as e:
                 self.ui.app.log.error("App.defaults_read_form() --> %s" % str(e))
+        if ('tools_grbl_toolchange_thickness' in self.defaults_form_fields and
+                self.defaults.get('tools_grbl_toolchange_units', 'MM') in ('MM', 'IN')):
+            self.defaults['tools_grbl_toolchange_units'] = 'MM'
 
     def defaults_write_form(self, factor=None, fl_units=None, source_dict=None):
         """
@@ -964,8 +983,14 @@ class PreferencesUIManager(QtCore.QObject):
 
         try:
             value = self._pref(field, def_dict)
+            if field == 'tools_grbl_toolchange_plate' and value in (None, 'none'):
+                value = 'disabled'
+            if (field.startswith('tools_grbl_toolchange_') and isinstance(value, (int, float)) and
+                    self._pref('tools_grbl_toolchange_units', def_dict) == 'IN'):
+                value *= 25.4
             # log.debug("value is " + str(value) + " and factor is "+str(factor))
-            if factor is not None and not isinstance(value, str):
+            if (factor is not None and not isinstance(value, str) and
+                    not field.startswith('tools_grbl_toolchange_')):
                 value *= factor
 
             form_field = self.defaults_form_fields[field]

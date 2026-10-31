@@ -55,7 +55,7 @@ class KeyWords:
     default_keywords = [
         'Berta_CNC', 'Check_points', 'Default_no_M6', 'Desktop', 'Documents', 'FlatConfig', 'FlatPrj',
         'False', 'GRBL_11', 'GRBL_11_no_M6', 'GRBL_laser', 'grbl_laser_eleks_drd',
-        'GRBL_laser_z', 'ISEL_CNC', 'ISEL_ICP_CNC',
+        'GRBL_laser_z', 'grblHAL', 'grblHAL_no_M6', 'grblHAL_laser', 'grblHAL_laser_z', 'ISEL_CNC', 'ISEL_ICP_CNC',
         'Line_xyz', 'Marlin',
         'Marlin_laser_FAN_pin', 'Marlin_laser_Spindle_pin', 'Marlin_laser_z', 'NCCAD9', 'Marius', 'My Documents',
         'Paste_1', 'Paste_GRBL', 'Paste_Marlin', 'default_laser', 'Repetier', 'Roland_MDX_20', 'Roland_MDX_540',

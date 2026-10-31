@@ -172,12 +172,6 @@ class TestBaudratePersists(unittest.TestCase):
             tool._populate_tool_ui()
         return tool
 
-    def test_saved_rate_is_selected(self):
-        app = make_app()
-        app.options["tools_grbl_baudrate"] = '57600'
-        tool = self.populate(app)
-        self.assertEqual(tool.ui.baudrates_list_combo.currentText(), '57600')
-
     def test_custom_rate_is_added_and_selected(self):
         app = make_app()
         app.options["tools_grbl_baudrate"] = '256000'

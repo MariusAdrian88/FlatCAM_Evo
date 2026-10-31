@@ -626,11 +626,11 @@ def test_connection_banner_cannot_confirm_reset_from_new_epoch():
     attempt = object()
     tool._grbl_connect_attempt = attempt
 
-    def read_then_reset():
+    def read_then_reset(size):
         tool.on_grbl_reset()
-        return [ResetConfirmationGrbl.BANNER]
+        return ResetConfirmationGrbl.BANNER
 
-    with patch.object(fake, 'readlines', side_effect=read_then_reset):
+    with patch.object(fake, 'read', side_effect=read_then_reset):
         tool._grbl_connect_finish('COM3', fake, attempt)
     assert tool._grbl_recovery == 'needs_reset'
     assert tool._grbl_reset_pending

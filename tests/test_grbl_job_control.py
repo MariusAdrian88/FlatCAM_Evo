@@ -578,5 +578,251 @@ class TestSenderRestart(unittest.TestCase):
         self.assertNotIn(tool.job_lines[7], commands)
 
 
+class ToolChangeFake(CheckFake):
+    """A grblHAL at M6: the M6 waits in the Tool state for the 0xA3 acknowledge, then for a Cycle Start (~)."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.acknowledged = False
+        self.tool_waiting = False
+
+    def write(self, data):
+        self.written.append(data)
+        if data == b'\xa3':
+            self.acknowledged = True
+            return
+        self._answer(data.decode('utf-8', errors='replace').strip())
+
+    def _answer(self, cmd):
+        if cmd == 'M6':
+            # the M6 line is not acknowledged until the tool change is done
+            self.tool_waiting = True
+            self.state = 'Tool'
+            return
+        if cmd == '~' and self.tool_waiting:
+            self.tool_waiting = False
+            self.state = 'Idle'
+            self._send('ok')
+            return
+        super()._answer(cmd)
+
+
+class HighBitRealtimeFake(CheckFake):
+    """An RT- grblHAL: the printable real-time commands are ignored, only the top-bit-set forms answer."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.unknown = []
+
+    def write(self, data):
+        self.written.append(data)
+        if data == b'\x80':
+            self._send('<Idle|MPos:0.000,0.000,0.000|FS:0,0>')
+            return
+        if data in (b'?', b'!', b'~'):
+            self.unknown.append(data)
+            return
+        self._answer(data.decode('utf-8', errors='replace').strip())
+
+
+class TestGrblHalController(unittest.TestCase):
+    def test_automatic_tool_wait_refuses_operator_commands_without_claiming_touch_off(self):
+        fake = CheckFake()
+        tool = make_stream_tool(fake, source='M6\n')
+        tool._grbl_caps = {'automatic_tool_change': True}
+        answer = fake._answer
+        polls = []
+        attempted = []
+
+        def automatic(command):
+            if command == 'M6':
+                fake.state = 'Tool'
+            elif command == '?' and fake.state == 'Tool':
+                polls.append(True)
+                if len(polls) < 4:
+                    fake._send('<Tool|MPos:0,0,0>')
+                else:
+                    fake.state = 'Idle'
+                    fake._send('<Idle|MPos:0,0,0>')
+                    fake._send('ok')
+            else:
+                answer(command)
+
+        def operator():
+            if tool.__dict__.get('_grbl_tool_change_pending') and not attempted:
+                attempted.append(True)
+                tool.ui.grbl_command_entry.get_value.return_value = '$J=G91 X1 F100'
+                tool.on_grbl_send_command()
+
+        fake._answer = automatic
+        fake.read_hook = operator
+        tool.on_start()
+        self.assertTrue(attempted)
+        self.assertTrue(any('unavailable' in text.lower() for text in emitted(tool)))
+        self.assertEqual(ended_how(tool), 'finished')
+        self.assertNotIn(b'$J=G91 X1 F100\n', fake.written)
+        self.assertNotIn(b'\xa3', fake.written)
+        self.assertFalse(any('jog/touch off' in text for text in emitted(tool)))
+
+    def test_external_sd_and_mpg_preflight_refuse_even_when_idle(self):
+        for field in ('SD:Pending', 'SD:10.0,job.nc', 'MPG:1'):
+            with self.subTest(field=field):
+                fake = CheckFake(replies={'?': ['<Idle|MPos:0,0,0|%s>' % field]})
+                tool = make_stream_tool(fake, source='G1 X1\n')
+                tool.on_start()
+                self.assertNotIn(b'G1 X1\n', fake.written)
+                self.assertTrue(any('SD' in text or 'MPG' in text for text in emitted(tool)))
+
+    def test_m6_waits_for_the_acknowledge_and_a_cycle_start(self):
+        fake = ToolChangeFake()
+        tool = make_stream_tool(fake, source='G21\nM6\nG1 X1.000 Y1.000\n')
+
+        def operator():
+            if (fake.tool_waiting and tool.__dict__.get('_grbl_tool_change_pending') and
+                    not tool.__dict__.get('_grbl_tool_command_busy')):
+                tool._on_resume_button()
+        fake.read_hook = operator
+        tool.on_start()
+
+        self.assertEqual(ended_how(tool), 'finished')
+        written = fake.written
+        ack, start, motion = written.index(b'\xa3'), written.index(b'~'), written.index(b'G1 X1.000 Y1.000\n')
+        self.assertLess(written.index(b'M6\n'), ack)
+        # no job line is written while the controller waits for the new tool
+        self.assertTrue(all(line in (b'?', b'$G\n') for line in written[ack + 1:start]), written)
+        self.assertEqual(written[ack + 1:start].count(b'$G\n'), 1)
+        self.assertLess(written.index(b'$$\n'), written.index(b'M6\n'))
+        self.assertLess(start, motion)
+        self.assertTrue(any('Cycle Start' in text for text in emitted(tool)))
+
+    def test_adjacent_manual_m6_requires_a_fresh_second_reply_fence(self):
+        for fail_second in (False, True):
+            with self.subTest(fail_second=fail_second):
+                fake = ToolChangeFake()
+                tool = make_stream_tool(fake, source='M6\nM6\nG1 X1\n')
+                answer = fake._answer
+                premature = []
+                stages = []
+
+                def controller(command):
+                    if command == '$G' and fake.written.count(b'\xa3') == 2 and fail_second:
+                        fake._send('error:20')
+                    else:
+                        answer(command)
+
+                def try_resume():
+                    before = len(fake.written)
+                    tool._on_resume_button()
+                    tool.on_grbl_pause_resume(False)
+                    premature.extend(fake.written[before:])
+
+                def operator():
+                    if fake.commands().count('M6') == 2 and fake.written.count(b'\xa3') < 2:
+                        return  # let the second Tool report reach the stream reader first
+                    if (fake.tool_waiting and fake.written.count(b'\xa3') == 2 and
+                            len(stages) < (1 if fail_second else 2)):
+                        # Pause before the second fence's [GC:] marker and terminal ok.
+                        stages.append(len(stages))
+                        try_resume()
+                    elif fake.tool_waiting and tool.__dict__.get('_grbl_tool_change_pending'):
+                        tool._on_resume_button()
+
+                def reply(text):
+                    if text == 'error:20':
+                        try_resume()  # the caller hasn't latched recovery yet
+
+                fake._answer = controller
+                fake.read_hook = operator
+                tool.console_line_sig.emit.side_effect = reply
+                tool.on_start()
+                self.assertNotIn(b'~', premature)
+                self.assertEqual(len(stages), 1 if fail_second else 2)
+                self.assertEqual(fake.written.count(b'\xa3'), 2)
+                self.assertEqual(fake.written.count(b'~'), 1 if fail_second else 2)
+                if fail_second:
+                    self.assertEqual(ended_how(tool), 'error')
+                    self.assertEqual(tool._grbl_recovery, 'needs_reset')
+                    self.assertNotIn(b'G1 X1\n', fake.written)
+                else:
+                    self.assertEqual(ended_how(tool), 'finished')
+                    second_start = len(fake.written) - 1 - fake.written[::-1].index(b'~')
+                    self.assertLess(second_start, fake.written.index(b'G1 X1\n'))
+
+    def test_manual_m6_fence_and_temporary_errors_never_release_resume(self):
+        for command in ('$G', 'G49'):
+            with self.subTest(command=command):
+                fake = ToolChangeFake(replies={command: ['error:20']})
+                tool = make_stream_tool(fake, source='M6\nG1 X1\n')
+                attempted = []
+                errors = []
+
+                def reply(text):
+                    if text == 'error:20':
+                        errors.append(text)
+                        # The reader has the error, but its caller hasn't latched recovery yet.
+                        tool._on_resume_button()
+                        tool.on_grbl_pause_resume(False)
+
+                def operator():
+                    if fake.acknowledged:
+                        if tool.__dict__.get('_grbl_tool_change_pending') and not attempted:
+                            attempted.append(tool._grbl_queue_tool_command('G49'))
+                        tool._on_resume_button()
+                        tool.on_grbl_pause_resume(False)
+
+                fake.read_hook = operator
+                tool.console_line_sig.emit.side_effect = reply
+                tool.on_start()
+                tool._on_resume_button()
+                self.assertNotIn(b'~', fake.written)
+                self.assertNotIn(b'G1 X1\n', fake.written)
+                self.assertEqual(ended_how(tool), 'error')
+                self.assertEqual(tool._grbl_recovery, 'needs_reset')
+                self.assertEqual(b'G49\n' in fake.written, command == 'G49')
+                self.assertTrue(errors)
+
+    def test_healthy_hold_resumes_through_both_sender_controls(self):
+        fake = CheckFake()
+        tool = make_stream_tool(fake)
+        op = tool._grbl_reserve('stream', motion=True)
+        self.assertIsNotNone(op)
+        tool._grbl_stream_dirty = True
+        fake.state = 'Hold'
+        tool._on_resume_button()
+        tool._grbl_release(op)
+        tool._grbl_stream_dirty = False
+        tool.on_grbl_pause_resume(False)
+        self.assertEqual(fake.written, [b'~', b'~'])
+
+    def test_rt_minus_uses_the_top_bit_realtime_commands(self):
+        fake = HighBitRealtimeFake()
+        tool = make_stream_tool(fake)
+        tool._grbl_top_bit_realtime = True
+        op = tool._grbl_reserve('frame')
+        self.assertIsNotNone(op)
+        line = tool._grbl_query_status(op, timeout=0.2)
+        tool._grbl_realtime(b'!')
+        tool._grbl_release(op)
+
+        self.assertTrue(line and line.startswith('<Idle'))
+        self.assertIn(b'\x80', fake.written)
+        self.assertIn(b'\x82', fake.written)
+        self.assertEqual(fake.unknown, [])
+
+    def test_a_four_axis_grblhal_is_refused(self):
+        fake = CheckFake(replies={'$I+': ['[OPT:VN,35,128,4,0]', '[AXS:4:XYZU]', '[NEWOPT:RT+,TC]',
+                                         '[FIRMWARE:grblHAL]', 'ok']})
+        tool = make_stream_tool(fake)
+        tool._grbl_grblhal = True
+        op = tool._grbl_reserve('units')
+        tool._grbl_read_after_connect(op)
+        tool._grbl_release(op)
+
+        self.assertTrue(tool._grbl_motion_blocked)
+        self.assertTrue(any('X, Y and Z' in text for text in emitted(tool)))
+        self.assertIsNone(tool._grbl_reserve('stream', motion=True))
+        self.assertIsNotNone(tool._grbl_reserve('status', motion=False))
+
+
 if __name__ == '__main__':
     unittest.main()

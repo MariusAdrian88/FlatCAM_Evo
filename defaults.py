@@ -679,6 +679,11 @@ class AppDefaults:
         "tools_al_controller": 'MACH3',
 
         # GRBL Sender Plugin
+        "tools_grbl_controller": 'grbl',
+        "tools_grbl_connection": 'serial',
+        "tools_grbl_serial_port": '',
+        "tools_grbl_network_host": '',
+        "tools_grbl_network_port": 23,
         "tools_grbl_jog_step": 5,
         "tools_grbl_jog_fr": 1500,
         "tools_grbl_travelz": 15.0,
@@ -689,6 +694,36 @@ class AppDefaults:
         "tools_grbl_arc_segment": 0.5,
         "tools_grbl_seg_len": 1.0,
         "tools_grbl_status_ms": 200,
+        "tools_grbl_toolchange_plate": 'disabled',
+        # Distances and feed are stored in these units, independently of project/application units.
+        "tools_grbl_toolchange_units": 'MM',
+        "tools_grbl_toolchange_probe_distance": 2.0,
+        "tools_grbl_toolchange_clearance": 2.0,
+        "tools_grbl_toolchange_probe_feed": 50.0,
+        "tools_grbl_toolchange_xy_tolerance": 1.0,
+        "tools_grbl_toolchange_thickness": 1.0,
+
+        # Camera calibration of the GRBL Sender (drill-referenced camera offset)
+        "tools_camera_device": '',
+        "tools_camera_rotation": 0,
+        "tools_camera_mirror": False,
+        "tools_camera_calibrated": False,
+        "tools_camera_offset_x": 0.0,
+        "tools_camera_offset_y": 0.0,
+        "tools_camera_view_z": 0.0,
+        "tools_camera_reference_x": 0.0,
+        "tools_camera_reference_y": 0.0,
+        "tools_camera_units": None,
+        "tools_camera_cal_device": '',
+        "tools_camera_cal_rotation": 0,
+        "tools_camera_cal_mirror": False,
+        # user-selected verification limits, stored in tools_camera_tolerance_units
+        "tools_camera_verify_tolerance": 0.05,
+        "tools_camera_view_tolerance": 0.5,
+        "tools_camera_tolerance_units": 'MM',
+        # board registration acceptance tolerance, with its independent units key
+        "tools_camera_alignment_tolerance": 0.1,
+        "tools_camera_alignment_tolerance_units": 'MM',
 
         # NCC Plugin
         "tools_ncc_tools": "0.5",
@@ -1061,6 +1096,7 @@ class AppDefaults:
         "util_autocomplete_keywords": 'Berta_CNC, Check_points, Default_no_M6, Desktop, Documents, FlatConfig, '
                                       'FlatPrj, False, '
                                       'GRBL_11, GRBL_11_no_M6, GRBL_laser, grbl_laser_eleks_drd, GRBL_laser_z, '
+                                      'grblHAL, grblHAL_no_M6, grblHAL_laser, grblHAL_laser_z, '
                                       'ISEL_CNC, ISEL_ICP_CNC, '
                                       'Line_xyz, Marlin, Marlin_laser_FAN_pin, '
                                       'Marlin_laser_Spindle_pin, Marlin_laser_z, NCCAD9, '

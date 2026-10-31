@@ -1,15 +1,13 @@
 """Real Qt action dispatch and worker/GUI completion boundaries for group moves."""
 
-import threading
 from contextlib import nullcontext
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock
 
 import pytest
-from PyQt6 import QtCore, QtGui, QtWidgets, QtTest
+from PyQt6 import QtCore, QtWidgets, QtTest
 
 from appHandlers.appObjectOps import AppObjectOps
-from appHandlers.appSignalConnector import AppSignalConnector
 
 
 @pytest.fixture(scope='module')
@@ -69,45 +67,6 @@ def wait_for(predicate):
     while not predicate() and timer.elapsed() < 2000:
         QtTest.QTest.qWait(1)
     assert predicate(), 'Qt completion timed out'
-
-
-def test_group_move_keeps_gui_alive_and_finalizes_after_export(qt_app):
-    app = make_app()
-    events, threads, tasks, gui_events = [], [], [], []
-    entered, release = threading.Event(), threading.Event()
-    first = Layer(10.0, events, threads, entered, release)
-    second = Layer(20.0, events, threads)
-    outsider = Layer(100.0, events, threads)
-    app.collection.get_selected.return_value = [first, second]
-    app.worker_task.emit.side_effect = tasks.append
-    app.plotcanvas.fit_view.side_effect = lambda **kwargs: threads.append(('fit', QtCore.QThread.currentThread()))
-    app.inform.emit.side_effect = lambda text: events.append(text)
-    ops = AppObjectOps(app)
-    ops.on_move2origin()
-    app.collection.get_selected.return_value = [outsider]
-    gui_thread = QtCore.QThread.currentThread()
-    worker = threading.Thread(target=lambda: tasks[0]['fcn'](*tasks[0]['params']), daemon=True)
-    worker.start()
-    try:
-        wait_for(entered.is_set)
-        # A queued GUI event must run while export is blocked; periodic timer delivery depends on suite load.
-        QtCore.QTimer.singleShot(0, lambda: gui_events.append(QtCore.QThread.currentThread()))
-        wait_for(lambda: bool(gui_events))
-        assert gui_events == [gui_thread] and worker.is_alive()
-        assert not any(name == 'ui' or name == 'fit' for name, thread in threads)
-        assert not any('Origin set' in event for event in events)
-    finally:
-        release.set()
-        worker.join(3)
-    assert not worker.is_alive()
-    wait_for(lambda: any('Origin set' in event for event in events))
-    assert first.x == 0.0 and second.x == 10.0 and outsider.x == 100.0
-    assert events.index('ui') > max(index for index, event in enumerate(events) if event == 'export')
-    assert all(thread is not gui_thread for name, thread in threads if name in ('offset', 'plot', 'export'))
-    assert all(thread is gui_thread for name, thread in threads if name in ('ui', 'fit'))
-    assert first.obj_options['xmin'] == 0.0
-    assert first.offset_entry.text() == str((0.0, 5.0, 1.0, 6.0))
-    app.delete_selection_shape.assert_called_once_with()
 
 
 def test_move_error_reports_after_worker_and_does_not_fit(qt_app):

@@ -16,19 +16,11 @@ def make_sender():
     return tool
 
 
-def test_port_search_preserves_serial_ports_and_offers_ecut_usb():
-    tool = make_sender()
-    tool.on_grbl_list_serial_ports = lambda: ['COM7']
-    tool.on_grbl_search_ports(muted=True)
-    values = [tool.ui.com_list_combo.itemText(i) for i in range(tool.ui.com_list_combo.count())]
-    assert 'COM7' in values and 'SH-9001 E-Cut USB' in values
-
 
 def test_ecut_connection_uses_python_adapter_without_dtr_or_serial_port():
     tool = make_sender()
-    tool.ui.com_list_combo.clear()
-    tool.ui.com_list_combo.addItem('SH-9001 E-Cut USB')
-    tool.ui.baudrates_list_combo.setCurrentText('')
+    tool.ui.controller_combo.setCurrentIndex(tool.ui.controller_combo.findData('ecut'))
+    assert tool.ui.controller_combo.currentData() == 'ecut'
     connection = MagicMock()
     factory = MagicMock(return_value=connection)
     module = SimpleNamespace(EcutSenderPort=factory)
@@ -83,13 +75,16 @@ def test_whole_job_preparation_is_only_for_ecut_and_preserves_completion(ecut,ch
     port = SimpleNamespace()
     if ecut:
         port.prepare_program = MagicMock()
-    op = SimpleNamespace(port=port,cancel=threading.Event())
+    op = SimpleNamespace(port=port,cancel=threading.Event(),failed=False)
     tool = SimpleNamespace(_grbl_op_lock=threading.RLock(),_grbl_active_locked=lambda op:True,
+                           _grbl_op=op,grbl_ser_port=port,
                            _grbl_query_status=lambda op:'<Idle|MPos:0,0,0>',
                            _grbl_read_report_units=lambda op:'ok',
                            _grbl_enter_check_mode=lambda op:None,
                            _grbl_prepare_locked=lambda op,port:('',None),
                            _grbl_stream_io=lambda op,req:(lambda data:'ok',lambda:b''),
+                           _grbl_realtime_byte=lambda data:data,
+                           _grbl_stream_control=lambda op,data:'ok',
                            _grbl_stream_finish=MagicMock(return_value='finished'),
                            stream_progress_sig=MagicMock(),console_line_sig=MagicMock(),
                            status_report_sig=MagicMock())

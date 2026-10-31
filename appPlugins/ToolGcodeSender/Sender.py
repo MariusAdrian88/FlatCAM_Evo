@@ -6,8 +6,10 @@
 # ##########################################################
 
 import logging
+import ipaddress
 import math
 import random
+import re
 import threading
 import time
 from pathlib import Path
@@ -27,15 +29,24 @@ from camlib import CNCjob, flatten_shapely_geometry
 from appPlugins.Common.levelling_core import LevellingCoreMixin
 from appPlugins.Common.grbl.grbl_protocol import (
     parse_grbl_status_state, parse_grbl_setting, parse_grbl_active_wcs, grbl_reply_error, probe_timeout_s,
-    parse_grbl_status_report, work_position, grbl_report_scale)
+    parse_grbl_status_report, work_position, grbl_report_scale, grbl_modes_confirmed,
+    parse_grbl_probe_output, parse_grbl_offsets)
 from appPlugins.Common.gcode_segment import split_long_moves, parse_toolpath, _words, _g_key
 from appPlugins.Common.levelling_interp import build_bilinear_grid
 from appPlugins.ToolGcodeSender import SenderGen
 from appPlugins.Common.grbl.grbl_client import (
-    GrblClientMixin, STATUS_POLL, is_controller_banner, stream_lines, validate_stream_lines)
+    GrblClientMixin, STATUS_POLL, is_controller_banner, is_grblhal_banner, is_native_jog_banner,
+    stream_lines, validate_stream_lines, _GrblProbeAbort)
+from appPlugins.Common.grbl.grbl_protocol import parse_grbl_identity, grbl_capabilities
 from appPlugins.ToolGcodeSender.SenderUI import GcodeSenderUI
 from appPlugins.ToolGcodeSender.SenderSimulation import SimulationDialog, VirtualGrbl
 from appPlugins.ToolGcodeSender.SenderView3d import SenderView3d, TOOL_COLOR
+from appPlugins.ToolGcodeSender.CameraCalibration import (
+    CameraCalibration, CAMERA_NONE, CAMERA_STORED, CAMERA_STALE, CAMERA_Z_MISMATCH)
+from appPlugins.ToolGcodeSender.ToolChange import (
+    plate_mode, ToolChangeSettings, ToolChangeMeasurement, probe_target, check_contact,
+    PLATE_NONE, PLATE_FIXED, PLATE_REMOVABLE,
+    STATE_OFF, STATE_NO_REFERENCE, STATE_REFERENCE, STATE_MEASURED, STATE_NEEDS_REMOVAL, STATE_READY)
 
 import gettext
 import appTranslation as fcTranslate
@@ -59,7 +70,7 @@ def _qt_deleted(obj):
 
 
 class GrblConsole(QtWidgets.QWidget):
-    """The prepared program, GRBL acknowledgements, and the command console."""
+    """The prepared program, GRBL acknowledgements, the command console and the Jog page."""
 
     program_line_selected = QtCore.pyqtSignal(object)
 
@@ -98,6 +109,7 @@ class GrblConsole(QtWidgets.QWidget):
         self.tabs.addTab(program_tab, _("Program"))
 
         console_tab = QtWidgets.QWidget()
+        self.console_tab = console_tab
         console_lay = QtWidgets.QVBoxLayout(console_tab)
         console_lay.setContentsMargins(0, 0, 0, 0)
         self.log_view = QtWidgets.QPlainTextEdit()
@@ -113,16 +125,89 @@ class GrblConsole(QtWidgets.QWidget):
         h_lay.addWidget(self.send_btn)
         console_lay.addLayout(h_lay)
         self.tabs.addTab(console_tab, _("Console"))
+        # the Sender UI mounts its only jog controls here at the first use
+        self.jog_page = QtWidgets.QWidget()
+        QtWidgets.QVBoxLayout(self.jog_page).setContentsMargins(0, 0, 0, 0)
+        self.tabs.addTab(self.jog_page, _("Jog"))
         self.cmd_entry.returnPressed.connect(self.on_send)
         self.send_btn.clicked.connect(self.on_send)
         self.follow_cb.toggled.connect(self._follow_program)
+        self.tabs.currentChanged.connect(self._tab_changed)
         self.program_line_selected.connect(lambda index: self.tool.on_program_line_selected(index))
         self.set_program([])
+
+    def set_jog_page(self, page):
+        """Mount the Sender's jog controls: a rebuilt Sender UI replaces the previous page."""
+        if page is None or page is self.jog_page:
+            return
+        old = self.jog_page
+        was_current = self.tabs.currentWidget() is old
+        index = self.tabs.indexOf(old)
+        if index >= 0:
+            self.tabs.removeTab(index)
+            old.setParent(None)
+            old.deleteLater()
+        self.jog_page = page
+        self.tabs.addTab(page, _("Jog"))
+        if was_current:
+            self.tabs.setCurrentWidget(page)
+
+    def set_console_enabled(self, enabled):
+        """The raw command entry stays gated while the camera workflow owns the dock."""
+        index = self.tabs.indexOf(self.console_tab)
+        if index >= 0:
+            self.tabs.tabBar().setTabEnabled(index, enabled)
+
+    def _tab_changed(self, index):
+        # a continuous jog never survives leaving its page
+        if self.tabs.widget(index) is not self.__dict__.get('jog_page'):
+            stop = getattr(self.tool, '_stop_continuous_jog', None)
+            if callable(stop):
+                stop()
+
+    def _jog_shortcut(self, obj, event):
+        """A plain Tab in the Sender page opens the dock on Jog, or hides a shown Jog."""
+        if event.key() != QtCore.Qt.Key.Key_Tab or event.isAutoRepeat():
+            return False
+        if event.modifiers() != QtCore.Qt.KeyboardModifier.NoModifier:
+            return False
+        if (QtWidgets.QApplication.activeModalWidget() is not None
+                or QtWidgets.QApplication.activePopupWidget() is not None):
+            return False
+        if self._is_editing(QtWidgets.QApplication.focusWidget()) or self._is_editing(obj):
+            return False
+        tool = self.tool
+        if not tool.__dict__.get('_plugin_active', False):
+            return False
+        ui = getattr(getattr(tool, 'app', None), 'ui', None)
+        try:
+            dock = ui.grbl_console_dock
+            windows = (ui.notebook.window(), dock.window())
+            if not isinstance(obj, QtWidgets.QWidget) or obj.window() not in windows:
+                return False
+            focus = QtWidgets.QApplication.focusWidget()
+            if focus is not None and focus.window() not in windows:
+                return False
+            return ui.notebook.currentWidget() is ui.plugin_tab
+        except (AttributeError, RuntimeError):
+            return False
+
+    @staticmethod
+    def _is_editing(widget):
+        if not isinstance(widget, QtWidgets.QWidget):
+            return False
+        if isinstance(widget, (QtWidgets.QLineEdit, QtWidgets.QTextEdit, QtWidgets.QPlainTextEdit)):
+            return not widget.isReadOnly()
+        return isinstance(widget, (QtWidgets.QAbstractSpinBox, QtWidgets.QComboBox,
+                                   QtWidgets.QAbstractItemView, QtWidgets.QKeySequenceEdit))
 
     def eventFilter(self, obj, event):
         view = self.__dict__.get('program_view')
         if view is None:
             return False
+        if event.type() == QtCore.QEvent.Type.KeyPress and self._jog_shortcut(obj, event):
+            self.tool.toggle_jog_page()
+            return True
         if event.type() == QtCore.QEvent.Type.MouseButtonPress and self.isVisible() \
                 and isinstance(obj, QtWidgets.QWidget) \
                 and obj is not self.program_area and not self.program_area.isAncestorOf(obj):
@@ -320,6 +405,19 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     ecut_tool_change_sig = QtCore.pyqtSignal(object, int, object)
     ecut_motion_result_sig = QtCore.pyqtSignal(object)
     ecut_connect_result_sig = QtCore.pyqtSignal(object)
+    network_connect_result_sig = QtCore.pyqtSignal(object)
+    # a fresh status query for a camera capture or observation, from a worker
+    camera_capture_sig = QtCore.pyqtSignal(object)
+    # the calibrated spindle-equivalent position of a camera-centered point
+    camera_observation_sig = QtCore.pyqtSignal(object)
+    # a fresh no-motion reference check before a board registration is applied
+    camera_reference_sig = QtCore.pyqtSignal(object)
+    # the request token of an observation or reference, so the tab can match its answer
+    camera_request_sig = QtCore.pyqtSignal(str, int)
+    # session, zero/home/reset, camera or calibration changed: a pending registration is old
+    camera_context_changed_sig = QtCore.pyqtSignal(str)
+    # the answer of a tool-change measurement or apply, from a worker
+    toolchange_result_sig = QtCore.pyqtSignal(object)
 
     @property
     def view3d(self):
@@ -372,11 +470,27 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self._preview_generation = 0
         self._probe_start_op = None
         self._plugin_active = False
+        # the public launchers run the sender only for the camera calibration workflow
+        self._camera_public_mode = False
         self._last_wco = None
         # what the stream worker tells the GUI thread with stream_ended_sig: {'done', 'last_text', 'errors'}
         self._stream_result = {}
         self._simulation = None
         self._controller_state = 'Idle'
+        # drill-referenced camera calibration: stored values, per-session verification and
+        # the fresh machine position of the last camera capture
+        self.camera_calibration = CameraCalibration.from_options(self.app.options)
+        self._camera_session_id = 0
+        self._camera_last_z = None
+        # the token of the newest camera status request; an older worker answer is stale
+        self._camera_request_id = 0
+
+        # calibrated manual tool change: a session-only fixed reference and 1 measurement
+        self.toolchange = ToolChangeMeasurement()
+        self._toolchange_session_id = 0
+        self._toolchange_request_id = 0
+        self._toolchange_busy = False
+        self._toolchange_action = None
 
         self.ui = GcodeSenderUI(layout=self.layout, app=self.app)
         self.ui.spindle_button.setChecked(self.__dict__.get('_spindle_on', False))
@@ -411,9 +525,6 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         AppTool.install(self, icon, separator, shortcut='', **kwargs)
 
     def run(self, toggle=True):
-        self.app.inform.emit("[WARNING_NOTCL] Cancelled. This tool is not ready yet. ")
-        return # TODO re-enable after it is finished
-
         if self.app.plugin_tab_locked is True:
             return
         self.app.defaults.report_usage("ToolGcodeSender()")
@@ -467,15 +578,44 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             if self.app.ui.splitter.sizes()[0] == 0:
                 self.app.ui.splitter.setSizes([1, 1])
 
+        self._camera_public_mode = True
+        # the camera workflow owns no Sender console and needs no CNCJob program preview
+        self.hide_console()
         self._plugin_active = True
         super().run()
         self.set_tool_ui()
 
         self.app.ui.notebook.setTabText(2, self.pluginName)
 
-        self._reload_console_program(self._target())
-        self.show_console_if_wanted()
-        self._schedule_3d_preview()
+    def _apply_camera_public_mode(self):
+        """The public camera workflow: Connect, Camera and manual positioning only."""
+        if not self.__dict__.get('_camera_public_mode', False):
+            return
+        ui = self.ui
+        # the source CNCJob program, console and the job/probe surfaces stay out
+        ui.obj_combo_label.hide()
+        ui.object_combo.hide()
+        ui.fit_view_cb.hide()
+        ui.level.hide()
+        ui.console_cb.blockSignals(True)
+        ui.console_cb.set_value(False)
+        ui.console_cb.blockSignals(False)
+        ui.console_cb.hide()
+        ui.run_label.hide()
+        ui.run_frame.hide()
+        ui.al_group_label.hide()
+        ui.autolevel_frame.hide()
+        ui.gr_send_tab.hide()
+        index = ui.al_toolbar.indexOf(ui.gr_send_tab)
+        if index >= 0:
+            ui.al_toolbar.tabBar.setTabEnabled(index, False)
+        # manual positioning lives in the dock's Jog page; the camera page keeps its two workflows
+        self._console().set_console_enabled(False)
+        ui.pause_frame.hide()
+        ui.zero_title_label.hide()
+        for button in (ui.zero_axs_wdg.grbl_zerox_button, ui.zero_axs_wdg.grbl_zeroy_button,
+                       ui.zero_axs_wdg.grbl_zeroz_button, ui.zero_axs_wdg.grbl_zero_all_button):
+            button.hide()
 
     def set_project_collection(self, old_collection, collection):
         if old_collection is collection:
@@ -496,11 +636,14 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self.ecut_tool_change_sig.connect(self._on_ecut_tool_change)
             self.ecut_motion_result_sig.connect(self._on_ecut_motion_result)
             self.ecut_connect_result_sig.connect(self._on_ecut_connect_result)
+            self.network_connect_result_sig.connect(self._on_network_connect_result)
             self.al_result_ready_sig.connect(self._on_al_result_ready)
             self.build_al_table_sig.connect(self.build_al_table)
             self.show_probing_geo_sig.connect(self._on_show_probing_geo_sig)
             self.stream_progress_sig.connect(self._on_stream_progress)
             self.status_report_sig.connect(self._on_status_report)
+            self.camera_capture_sig.connect(self._on_camera_capture)
+            self.toolchange_result_sig.connect(self._on_toolchange_result)
             self.spindle_state_sig.connect(self._on_spindle_state)
             self.stream_ended_sig.connect(self._on_stream_ended)
             self.frame_ready_sig.connect(self._on_frame_ready)
@@ -546,6 +689,13 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self.ui.baudrates_list_combo.currentTextChanged.connect(self.on_baudrate_changed)
         self.ui.controller_reset_button.clicked.connect(lambda: self.on_grbl_reset())
         self.ui.com_connect_button.clicked.connect(self.on_grbl_connect)
+        for widget, signal in ((getattr(self.ui, 'controller_combo', None), 'currentIndexChanged'),
+                               (getattr(self.ui, 'connection_combo', None), 'currentIndexChanged'),
+                               (self.ui.com_list_combo, 'currentIndexChanged'),
+                               (getattr(self.ui, 'network_host_entry', None), 'editingFinished'),
+                               (getattr(self.ui, 'network_port_entry', None), 'valueChanged')):
+            if widget is not None:
+                getattr(widget, signal).connect(self._save_connection_settings)
         self.ui.grbl_send_button.clicked.connect(self.on_grbl_send_command)
         self.ui.grbl_command_entry.returnPressed.connect(self.on_grbl_send_command)
         self.ui.ecut_motion_button.clicked.connect(self.on_ecut_motion_settings)
@@ -564,6 +714,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                                    self._on_jog_clicked(button, direction))
         self.ui.continuous_jog_cb.toggled.connect(
             lambda checked: None if checked else self._stop_continuous_jog())
+        self.ui.jog_stop_button.clicked.connect(self.on_grbl_stop)
         self.ui.jog_wdg.jog_origin_button.clicked.connect(lambda: self.on_grbl_jog(direction='origin'))
 
         # Zero
@@ -586,6 +737,37 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         # Reset Tool
         self.ui.reset_button.clicked.connect(self.on_reset_tool)
 
+        # Camera calibration
+        camera_ui = getattr(self.ui, 'camera_widget', None)
+        if camera_ui is not None:
+            camera_ui.capture_spindle_sig.connect(self.on_camera_capture_spindle)
+            camera_ui.capture_camera_sig.connect(self.on_camera_capture_camera)
+            camera_ui.verify_sig.connect(self.on_camera_verify)
+            camera_ui.clear_sig.connect(self.on_camera_clear)
+            camera_ui.device_changed_sig.connect(self._camera_settings_changed)
+            camera_ui.orientation_changed_sig.connect(self._camera_settings_changed)
+            camera_ui.tolerance_changed_sig.connect(self._camera_tolerances_changed)
+            camera_ui.preview_available_sig.connect(self._camera_preview_available)
+
+        registration_ui = getattr(self.ui, 'registration_widget', None)
+        if registration_ui is not None:
+            registration_ui.capture_sig.connect(self.request_camera_observation)
+            registration_ui.validate_sig.connect(self.request_camera_reference)
+            registration_ui.stop_sig.connect(self.on_grbl_stop)
+            self.camera_observation_sig.connect(registration_ui.on_camera_observation)
+            self.camera_reference_sig.connect(registration_ui.on_camera_reference)
+            self.camera_request_sig.connect(registration_ui.on_camera_request)
+            self.camera_context_changed_sig.connect(registration_ui.on_context_changed)
+
+        toolchange_ui = getattr(self.ui, 'toolchange_widget', None)
+        if toolchange_ui is not None:
+            toolchange_ui.calibrate_sig.connect(self.on_toolchange_calibrate)
+            toolchange_ui.measure_sig.connect(self.on_toolchange_measure)
+            toolchange_ui.apply_sig.connect(self.on_toolchange_apply)
+            toolchange_ui.acknowledge_sig.connect(self.on_toolchange_acknowledge)
+            toolchange_ui.clear_sig.connect(self.on_toolchange_clear)
+            toolchange_ui.stop_sig.connect(self.on_grbl_stop)
+
         self.ui.console_cb.toggled.connect(self.on_console_toggled)
         self.ui.fit_view_cb.toggled.connect(self.on_fit_view_toggled)
         self.ui.start_button.clicked.connect(self.on_start)
@@ -606,13 +788,23 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self.set_tool_ui()
 
     def set_tool_ui(self):
+        if self.__dict__.get('_toolchange_busy', False):
+            self.on_grbl_stop()
+        self._toolchange_new_session('ui')
         self._stop_continuous_jog()
+        self._camera_stop_preview()
         # closing or resetting the tool while adding manual points must give
         # the canvas events back to the app
         if self.__dict__.get('_simulation') is not None:
             self._simulation.close()
         self._preview_generation = getattr(self, '_preview_generation', 0) + 1
         self._release_manual_mouse_events()
+        old_registration = getattr(getattr(self, 'ui', None), 'registration_widget', None)
+        if old_registration is not None:
+            try:
+                old_registration.shutdown()
+            except (AttributeError, RuntimeError):
+                pass
 
         self.units = self.app.app_units.upper()
         self.al_heights_valid = bool(getattr(self, 'al_heights_valid', False)) and \
@@ -630,7 +822,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         finally:
             self.ui.al_method_radio.blockSignals(method_blocked)
             self.ui.al_mode_radio.blockSignals(mode_blocked)
-        if self.view3d is not None:
+        self._toolchange_settings_changed()
+        if self.view3d is not None and not self.__dict__.get('_camera_public_mode', False):
             self._schedule_3d_preview()
 
     def _populate_tool_ui(self):
@@ -678,6 +871,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self.to_form()
         self.on_grbl_search_ports(muted=True)
         self._restore_baudrate(app_defaults)
+        self._restore_connection_settings()
 
         self.ui.plot_probing_pts_cb.set_value(
             self.app.options.get(
@@ -758,7 +952,17 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             "tools_grbl_console_visible",
             app_defaults.get("tools_grbl_console_visible", False))))
         self.ui.autolevel_cb.set_value(False)
+        camera_ui = getattr(self.ui, 'camera_widget', None)
+        if camera_ui is not None:
+            camera_ui.restore(self.app.options)
+            # a rebuilt UI must not keep a verification made under other limits
+            self.camera_calibration.tolerances_changed(*self._camera_tolerances())
+        registration_ui = getattr(self.ui, 'registration_widget', None)
+        if registration_ui is not None:
+            registration_ui.restore(self.app.options)
+        self._camera_refresh_ui()
         self._grbl_set_ui_connected(self._grbl_port_ready())
+        self._apply_camera_public_mode()
 
     def on_object_changed(self):
         # first: a pending levelled Start request is old before the new target is published
@@ -833,15 +1037,95 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                             pass
 
     def on_grbl_search_ports(self, muted=None):
+        selected = self.app.options.get('tools_grbl_serial_port', '')
+        if selected == 'SH-9001 E-Cut USB':
+            selected = ''  # the legacy adapter sentinel isn't an OS serial endpoint
         port_list = self.on_grbl_list_serial_ports()
-        port_list.append('SH-9001 E-Cut USB')
+        if selected and selected not in port_list:
+            port_list.insert(0, selected)
+        blocked = self.ui.com_list_combo.blockSignals(True)
         self.ui.com_list_combo.clear()
         self.ui.com_list_combo.addItems(port_list)
+        if selected:
+            self.ui.com_list_combo.setCurrentText(selected)
+        self.ui.com_list_combo.blockSignals(blocked)
         if muted is not True:
             self.app.inform.emit('[WARNING_NOTCL] %s' % _("COM list updated ..."))
 
+    def _connection_controls(self):
+        update = getattr(self.ui, 'update_connection_controls', None)
+        if callable(update):
+            update(locked=self.grbl_ser_port is not None or
+                   self.__dict__.get('_grbl_connect_attempt') is not None)
+
+    def _save_connection_settings(self, *_args):
+        if self.grbl_ser_port is None and self.__dict__.get('_grbl_connect_attempt') is None:
+            for key, widget, method in (
+                    ('controller', 'controller_combo', 'currentData'),
+                    ('connection', 'connection_combo', 'currentData'),
+                    ('serial_port', 'com_list_combo', 'currentText'),
+                    ('network_host', 'network_host_entry', 'get_value'),
+                    ('network_port', 'network_port_entry', 'get_value')):
+                field = getattr(self.ui, widget, None)
+                if field is None:
+                    continue
+                value = getattr(field, method)()
+                if isinstance(value, (str, int)):
+                    self.app.options['tools_grbl_' + key] = value
+        self._connection_controls()
+
+    def _restore_connection_settings(self):
+        # a legacy E-Cut save stored the USB adapter as the serial port; the port alone fails the
+        # serial check, so a controller left at its factory default follows the saved port
+        legacy_ecut = (self.app.options.get('tools_grbl_serial_port') == 'SH-9001 E-Cut USB' and
+                       self.app.options.get('tools_grbl_controller',
+                                            AppDefaults.factory_defaults['tools_grbl_controller']) ==
+                       AppDefaults.factory_defaults['tools_grbl_controller'])
+        for key, widget in (('controller', 'controller_combo'), ('connection', 'connection_combo'),
+                            ('network_host', 'network_host_entry'), ('network_port', 'network_port_entry')):
+            field = getattr(self.ui, widget, None)
+            if field is None:
+                continue
+            value = 'ecut' if key == 'controller' and legacy_ecut else self.app.options.get(
+                'tools_grbl_' + key, AppDefaults.factory_defaults.get('tools_grbl_' + key))
+            blocked = field.blockSignals(True)
+            try:
+                if key in ('controller', 'connection'):
+                    index = field.findData(value)
+                    field.setCurrentIndex(index if index >= 0 else field.findData(
+                        AppDefaults.factory_defaults['tools_grbl_' + key]))
+                else:
+                    field.set_value(value)
+            finally:
+                field.blockSignals(blocked)
+        self._connection_controls()
+
+    @staticmethod
+    def _network_endpoint(host, port):
+        if not isinstance(host, str) or any(ord(char) < 32 or ord(char) == 127 for char in host):
+            raise ValueError(_("Invalid network host"))
+        host = host.strip()
+        if not host or any(char.isspace() or char in '/\\?@#%' or not char.isascii() for char in host):
+            raise ValueError(_("Enter a hostname or IP address, not a URL"))
+        if ':' in host:
+            address = host[1:-1] if host.startswith('[') and host.endswith(']') else host
+            host = '[%s]' % ipaddress.IPv6Address(address)
+        elif not all(char.isalnum() or char in '.-_' for char in host):
+            raise ValueError(_("Enter a hostname or IPv4 address, not a URL"))
+        if isinstance(port, bool) or not str(port).isdigit() or not 1 <= int(port) <= 65535:
+            raise ValueError(_("Invalid network port"))
+        return 'socket://%s:%d' % (host, int(port))
+
     def on_grbl_connect(self):
         if self.__dict__.get('_simulation') is not None:
+            return
+        if self.__dict__.get('_grbl_connect_attempt') is not None and not self._grbl_connected:
+            self._grbl_disconnect()
+            self._connection_controls()
+            return
+        if self.__dict__.get('_continuous_jog') is not None and self.grbl_ser_port is not None:
+            self._stop_continuous_jog()
+            self._grbl_disconnect()
             return
         if self._grbl_op is not None or self._grbl_close_pending:
             self.app.inform.emit('[WARNING_NOTCL] %s' % _("GRBL is busy. Wait until the running operation stops."))
@@ -856,11 +1140,28 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         if " (" in port_name:
             port_name = port_name.rpartition(" (")[0]
 
-        ecut = port_name == 'SH-9001 E-Cut USB'
+        controller_widget = getattr(self.ui, 'controller_combo', None)
+        controller = controller_widget.currentData() if controller_widget is not None else None
+        explicit = controller in ('grbl', 'grblhal', 'ecut')
+        if isinstance(controller_widget, QtWidgets.QComboBox) and not explicit:
+            controller, explicit = 'grbl', True
+        # a legacy E-Cut save leaves the controller at grbl; the USB adapter port is not a serial port
+        ecut = controller == 'ecut' or (controller == 'grbl' and port_name == 'SH-9001 E-Cut USB')
+        transport = self.ui.connection_combo.currentData() if controller == 'grblhal' else 'serial'
+        if ecut:
+            port_name = 'SH-9001 E-Cut USB'
+        elif port_name == 'SH-9001 E-Cut USB' and transport != 'network':
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _("Select a serial port."))
+            return
         try:
-            baudrate = 0 if ecut else int(self.ui.baudrates_list_combo.currentText())
-        except ValueError:
-            self.app.inform.emit('[ERROR_NOTCL] %s' % _("Select a valid baudrate."))
+            if transport == 'network':
+                port_name = self._network_endpoint(self.ui.network_host_entry.get_value(),
+                                                   self.ui.network_port_entry.get_value())
+            baudrate = 0 if ecut else (115200 if transport in ('native', 'network')
+                                      else int(self.ui.baudrates_list_combo.currentText()))
+        except ValueError as err:
+            self.app.inform.emit('[ERROR_NOTCL] %s' % (
+                str(err) if transport == 'network' else _("Select a valid baudrate.")))
             return
 
         if ecut:
@@ -879,6 +1180,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                     % (board.vid, board.pid)))
                 return
 
+        self._save_connection_settings()
         attempt = object()
         with self._grbl_op_lock:
             self._start_seq += 1
@@ -887,11 +1189,16 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         # a new controller session: the WCO and the report units of the old one do not apply
         self._last_wco = None
         self._grbl_report_inches = None
+        self._clear_connection_capabilities()
         self._grbl_set_ui_connected(False)
         if ecut:
             self._ecut_connect_start(port_name, attempt)
             return
+        if transport == 'network':
+            self._network_connect_start(port_name, attempt)
+            return
 
+        port = None
         try:
             port = serial.serial_for_url(port_name, baudrate,
                                         bytesize=serial.EIGHTBITS,
@@ -900,7 +1207,15 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                                         timeout=0.1,
                                         write_timeout=1.0,
                                         xonxoff=False,
-                                        rtscts=False)
+                                        rtscts=False,
+                                        do_not_open=True)
+            # Don't reset an already running controller just to discover it.
+            try:
+                port.dtr = False
+                port.rts = False
+            except (OSError, serial.SerialException):
+                pass  # some native USB drivers have no modem control lines
+            port.open()
             with self._grbl_op_lock:
                 if self._grbl_connect_attempt is not attempt:
                     port.close()
@@ -910,27 +1225,79 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 self._grbl_rx_buffer = b''
                 self._grbl_reply_pending = False
 
-            try:
-                port.dtr = False
-            except IOError:
-                pass
-
-            port.reset_input_buffer()
-
-            try:
-                port.dtr = True
-            except IOError:
-                pass
-
-            # wake up GRBL; a timer reads the answer 1 s later, so the GUI does not stop
-            port.write("\r\n\r\n".encode('utf-8'))
+            # Both requests are non-mutating. Legacy GRBL ignores 0x80; RT- ignores '?'.
+            port.write(b'?')
+            port.write(b'\x80')
         except (serial.SerialException, OSError, ValueError) as err:
+            if port is not None and self.grbl_ser_port is not port:
+                port.close()
             self.app.log.error("ToolLevelling.on_grbl_connect() -> %s" % str(err))
             self._grbl_close_port(attempt=attempt)
             self.app.inform.emit("[ERROR_NOTCL] %s: %s" % (_("Could not connect to port"), port_name))
             return
 
         QtCore.QTimer.singleShot(1000, lambda: self._grbl_connect_finish(port_name, port, attempt))
+
+    @staticmethod
+    def _connection_snapshot(port):
+        # A snapshot is bounded even if the peer reports continuously; never use readlines().
+        return port.read(min(65536, max(1, port.in_waiting)))
+
+    def _network_connect_start(self, port_name, attempt):
+        def create_port():
+            port = error = None
+            answer = b''
+            try:
+                with self._grbl_op_lock:
+                    if self._grbl_connect_attempt is not attempt:
+                        return
+                port = serial.serial_for_url(port_name, timeout=0.1, write_timeout=1.0, do_not_open=True)
+                port.open()
+                with self._grbl_op_lock:
+                    if self._grbl_connect_attempt is not attempt:
+                        port.close()
+                        return
+                port.write(b'?')
+                port.write(b'\x80')
+                deadline = time.monotonic() + 1.0
+                while time.monotonic() < deadline and len(answer) < 65536:
+                    with self._grbl_op_lock:
+                        if self._grbl_connect_attempt is not attempt:
+                            port.close()
+                            return
+                    answer += self._connection_snapshot(port)
+            except Exception as failure:
+                error = failure
+                if port is not None:
+                    port.close()
+            try:
+                self.network_connect_result_sig.emit((port_name, attempt, port, answer, error))
+            except RuntimeError:
+                if port is not None:
+                    port.close()  # the plugin was deleted while the worker was connecting
+
+        self.app.worker_task.emit({'fcn': create_port, 'params': []})
+
+    def _on_network_connect_result(self, response):
+        port_name, attempt, port, answer, error = response
+        with self._grbl_op_lock:
+            if self._grbl_connect_attempt is not attempt:
+                if port is not None:
+                    self._close_ecut_port_async(port)
+                return
+            if error is None:
+                self.grbl_ser_port = port
+                self._grbl_rx_port = port
+                self._grbl_rx_buffer = b''
+                self._grbl_reply_pending = False
+                self._network_handshake = (attempt, answer)
+        if error is not None:
+            # The connection worker already closed this failed port; no motion was submitted.
+            self._grbl_close_port(attempt=attempt)
+            self.app.inform.emit('[ERROR_NOTCL] %s: %s' % (_("Could not connect to port"), port_name))
+            self._connection_controls()
+            return
+        self._grbl_connect_finish(port_name, port, attempt)
 
     def _ecut_connect_start(self, port_name, attempt):
         """
@@ -1011,7 +1378,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
         error = None
         try:
-            answer = port.readlines()
+            snapshot = self.__dict__.pop('_network_handshake', None)
+            answer = [snapshot[1] if snapshot is not None and snapshot[0] is attempt
+                      else self._connection_snapshot(port)]
         except (serial.SerialException, OSError) as err:
             error = err
             answer = []
@@ -1022,6 +1391,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 return
             if error is not None:
                 self.app.log.error("ToolLevelling._grbl_connect_finish() -> %s" % str(error))
+                self._grbl_failure_locked(None, 'port_error')
             buffered = self._grbl_rx_buffer if self._grbl_rx_port is port else b''
             # Only complete records are classified. A fragment stays buffered so the
             # transaction reader can finish it, for example the rest of an ALARM line.
@@ -1034,7 +1404,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             # unclassified old records stay buffered, a classified alarm does not
             self._grbl_rx_buffer = (b'' if alarm else buffered[:buffered.rfind(b'\n') + 1]) + suffix
             self._grbl_rx_port = port
-            if banner or any(text.lower() == 'ok' for text in lines):
+            reports = [report for text in lines if (report := parse_grbl_status_report(text)) is not None]
+            if error is None and (banner or reports or any(text.lower() == 'ok' for text in lines)):
                 self._start_seq += 1
                 # Only a startup banner confirms reset; DTR and ok do not.
                 if (banner and not alarm and self._grbl_recovery == 'needs_reset'
@@ -1044,6 +1415,20 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                     self._grbl_reply_pending = False
                     self._grbl_rx_buffer = suffix  # drop the classified part, keep the fragment
                 self._grbl_connected = True
+                # Capability belongs to this handshake's port, never a previous connection.
+                self._native_jog_port = port if any(is_native_jog_banner(text) for text in lines) else None
+                # grblHAL prints its own banner; its capabilities ($I+) belong to this session only
+                self._grbl_grblhal = any(is_grblhal_banner(text) for text in lines)
+                self._grbl_identity_pending = not callable(getattr(port, 'prepare_program', None))
+                self._grbl_identity = None
+                self._grbl_caps = None
+                self._grbl_top_bit_realtime = False
+                self._grbl_motion_blocked = None
+                self._grbl_tool_change_pending = False
+                self._grbl_mpg_owned = False
+                self._grbl_sd_owned = False
+                for report in reports:
+                    self._grbl_update_ownership(report)
                 self._last_wco = None
                 self._grbl_set_ui_connected(True)
                 self.app.inform.emit("%s: %s" % (_("Port connected"), port_name))
@@ -1052,6 +1437,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 connected = True
 
         if connected:
+            self._camera_new_session('connect')
+            self._toolchange_new_session('connect')
             # after this slot ended: the read is a new operation, so the port must be free for the caller
             QtCore.QTimer.singleShot(0, self._grbl_read_units_after_connect)
             return
@@ -1071,23 +1458,77 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self._grbl_report_inches = (value == 1.0) if value in (0.0, 1.0) else None
         return status
 
+    def _grbl_read_after_connect(self, op):
+        """
+        Read the identity of a grblHAL controller ($I+) and the report units ($13): no motion, a worker
+        thread under `op`, no widgets. The capabilities are applied before the first motion is allowed.
+        """
+        self._grbl_grblhal = self.__dict__.get('_grbl_grblhal', False)
+        if not callable(getattr(op.port, 'prepare_program', None)):
+            if self.__dict__.get('_grbl_identity_pending'):
+                report = parse_grbl_status_report(self._grbl_query_status(op))
+                if (report is None or report['state'] not in ('Idle', 'Alarm') or
+                        self._grbl_mpg_owned or self._grbl_sd_owned):
+                    self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                        "Controller discovery refused during external execution or MPG ownership. "
+                        "Reconnect after it finishes; no reset was sent."))
+                    return 'error'
+            text, status = self._grbl_transact(op, '$I+', timeout=5.0, echo=False)
+            if status not in ('ok', 'error'):
+                return status
+            if status == 'ok':
+                identity = parse_grbl_identity(text)
+                self._grbl_identity = identity
+                self._grbl_caps = grbl_capabilities(identity)
+                self._grbl_grblhal = self._grbl_caps['grblhal'] or self.__dict__.get('_grbl_grblhal', False)
+                if self._grbl_grblhal:
+                    self._native_jog_port = op.port
+                self._grbl_apply_capabilities()
+            self._grbl_identity_pending = False
+        return self._grbl_read_report_units(op)
+
+    def _grbl_apply_capabilities(self):
+        """Apply what $I+ reported: the real-time command form, and the configurations that are not supported."""
+        caps = self._grbl_caps or {}
+        self._grbl_top_bit_realtime = caps.get('top_bit_realtime', False)
+        blocked = None
+        if caps.get('xyz_only') is False:
+            blocked = _("This grblHAL controller has more than the X, Y and Z axes. "
+                        "Only XYZ machines are supported.")
+        self._grbl_motion_blocked = blocked
+        if blocked:
+            self.app.inform.emit('[ERROR_NOTCL] %s' % blocked)
+        elif caps.get('probe') is False:
+            self.app.inform.emit('[WARNING_NOTCL] %s' % _(
+                "The controller reports that it has no probe input. Probing and levelling will not work."))
+
     def _grbl_read_units_after_connect(self):
         """
-        Read $13 after the connect, in a non-motion operation (GUI thread). The connect finish holds no
+        Read $I+ and $13 after the connect, in a non-motion operation (GUI thread). The connect finish holds no
         operation, so the read is a new one. It is skipped when GRBL can hold lines of an old job: the
         Start reads $13 again.
         """
         if not self._grbl_port_ready() or self._grbl_stream_dirty or self._grbl_reset_pending:
             return
-        self._grbl_start_op('units', self._grbl_read_report_units)
+        self._grbl_start_op('units', self._grbl_read_after_connect)
 
     def _grbl_set_ui_connected(self, connected):
         """Show the connection state on the Connect button and on the tabs."""
-        self.ui.ecut_motion_button.setVisible(connected and self._ecut_settings_capable(self.grbl_ser_port))
+        self._connection_controls()
+        camera_mode = bool(self.__dict__.get('_camera_public_mode', False))
+        # fixed-step jog and the position readouts need a connected controller in either workflow
+        self.ui.ctrl_grbl_frame.setEnabled(connected)
+        self.ui.ctrl_grbl_frame2.setEnabled(connected)
+        self.ui.ecut_motion_button.setVisible(
+            connected and not camera_mode and self._ecut_settings_capable(self.grbl_ser_port))
         if not connected:
             self._close_ecut_motion_settings()
+        # continuous jog stays visible, explained and disabled unless this controller has native jog
         continuous = connected and self._continuous_jog_capable(self.grbl_ser_port)
-        self.ui.continuous_jog_cb.setVisible(continuous)
+        self.ui.continuous_jog_cb.setEnabled(continuous)
+        self.ui.continuous_jog_cb.setToolTip(
+            _("Press and hold to jog; release to cancel. Native GRBL requires a verified 1.1 connection.")
+            if continuous else _("Continuous jog requires GRBL 1.1 startup identification or native E-Cut support."))
         if not continuous:
             self.ui.continuous_jog_cb.setChecked(False)
             self._stop_continuous_jog()
@@ -1095,23 +1536,53 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self.ui.com_connect_button.setStyleSheet("QPushButton {background-color: %s;}" % color)
         self.ui.com_connect_button.setText(_("Connected") if connected else _("Disconnected"))
         self.ui.controller_reset_button.setDisabled(not connected)
+        camera_ui = getattr(self.ui, 'camera_widget', None)
+        if camera_ui is not None:
+            camera_ui.set_connected(connected)
+        registration_ui = getattr(self.ui, 'registration_widget', None)
+        if registration_ui is not None:
+            registration_ui.set_connected(connected)
+        toolchange_ui = getattr(self.ui, 'toolchange_widget', None)
+        if toolchange_ui is not None:
+            toolchange_ui.set_connected(connected)
 
         for idx in range(self.ui.al_toolbar.count()):
-            if self.ui.al_toolbar.tabText(idx) == _("Connect"):
+            text = self.ui.al_toolbar.tabText(idx)
+            if text == _("Connect"):
                 self.ui.al_toolbar.tabBar.setTabTextColor(idx, QtGui.QColor(color))
-            if self.ui.al_toolbar.tabText(idx) in (_("Control"), _("Sender")):
-                self.ui.al_toolbar.tabBar.setTabEnabled(idx, connected)
+            if text in (_("Control"), _("Sender"), _("Tool change")):
+                # the camera workflow never releases the Sender page
+                self.ui.al_toolbar.tabBar.setTabEnabled(
+                    idx, connected and not (camera_mode and text == _("Sender")))
 
     def _on_grbl_port_closed(self):
         """Slot of grbl_port_closed_sig (GUI thread)."""
+        if self.grbl_ser_port is not None or self.__dict__.get('_grbl_connect_attempt') is not None:
+            return  # a queued close notification belongs to an older session
+        self._clear_connection_capabilities()
         self._controller_state = 'Idle'
         self._program_paused = False
         self._on_spindle_state(False)
+        self._camera_new_session('disconnect')
+        self._toolchange_new_session('disconnect')
         try:
             self._grbl_set_ui_connected(False)
         except (AttributeError, RuntimeError):
             # the UI can be already deleted when the application ends
             pass
+
+    def _clear_connection_capabilities(self):
+        self._grbl_tool_fence_op = None
+        self._native_jog_port = None
+        self._grbl_identity = None
+        self._grbl_caps = None
+        self._grbl_identity_pending = True
+        self._grbl_grblhal = False
+        self._grbl_top_bit_realtime = False
+        self._grbl_motion_blocked = None
+        self._grbl_tool_change_pending = False
+        self._grbl_mpg_owned = False
+        self._grbl_sd_owned = False
 
     @staticmethod
     def _ecut_settings_capable(port):
@@ -1331,6 +1802,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         cmd = str(self.ui.grbl_command_entry.get_value() or '').strip()
         if not cmd:
             return
+        if self._grbl_queue_tool_command(cmd):
+            return
 
         def task(op):
             return self._grbl_transact(op, cmd, timeout=30.0)[1] == 'ok'
@@ -1407,10 +1880,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
         self._grbl_start_op('parameter', task)
 
-    @staticmethod
-    def _continuous_jog_capable(port):
-        return all(callable(getattr(port, name, None))
-                   for name in ('start_jog', 'refresh_jog', 'stop_jog'))
+    def _continuous_jog_capable(self, port):
+        return (port is not None and port is self.__dict__.get('_native_jog_port')) or all(
+            callable(getattr(port, name, None)) for name in ('start_jog', 'refresh_jog', 'stop_jog'))
 
     def _on_jog_clicked(self, button, direction):
         if self._continuous_jog_click_button is button:
@@ -1421,9 +1893,11 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     def _on_jog_pressed(self, button, direction):
         self._continuous_jog_click_button = None
         port = self.grbl_ser_port
-        if not (self.ui.continuous_jog_cb.isChecked() and self._continuous_jog_capable(port)):
+        if not self.ui.continuous_jog_cb.isChecked():
             return
         self._continuous_jog_click_button = button
+        if not self._continuous_jog_capable(port):
+            return
         if self.ui.check_mode_cb.isChecked():
             self.app.inform.emit('[WARNING_NOTCL] %s' % _("Turn off check mode before jogging."))
             return
@@ -1432,6 +1906,14 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             return
         try:
             feed = self.ui.jog_fr_entry.get_value() * (25.4 if self.units == 'IN' else 1.0)
+            step = self.ui.jog_step_entry.get_value()
+            if (self.units not in ('MM', 'IN') or getattr(self.app, 'app_units', None) != self.units
+                    or not all(math.isfinite(value) and value > 0 for value in (feed, step))):
+                raise ValueError('Invalid jog units, step or feed')
+            self._continuous_jog_units = self.units
+            if port is self.__dict__.get('_native_jog_port'):
+                self._start_native_jog(op, button, direction, feed)
+                return
             port.start_jog('xyz'.index(direction[0]), int(direction.endswith('minus')), feed)
         except (serial.SerialException, OSError, ValueError) as error:
             self._grbl_release(op)
@@ -1452,12 +1934,105 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
         self.app.worker_task.emit({'fcn': wait_for_stop, 'params': []})
 
+    def _start_native_jog(self, op, button, direction, feed):
+        # One 200 ms segment, then confirmed Idle: no planner/serial backlog.
+        state = {'op': op, 'until': time.monotonic() + 0.15, 'stopped': False,
+                 'units': self.units, 'feed': self.ui.jog_fr_entry.get_value(),
+                 'step': self.ui.jog_step_entry.get_value(), 'session': self._start_seq}
+        self._native_jog = state
+        self._continuous_jog = (op.port, button)
+        self.ui.jog_fr_entry.setEnabled(False)
+        self.ui.jog_step_entry.setEnabled(False)
+        self._continuous_jog_timer.start()
+        distance = feed * 0.2 / 60.0 * (-1 if direction.endswith('minus') else 1)
+        command = '$J=G91 G21 %s%.9f F%.9f' % (direction[0].upper(), distance, feed)
+
+        def guard():
+            if (state['stopped'] or time.monotonic() > state['until']
+                    or self.units != state['units']
+                    or getattr(self.app, 'app_units', None) != state['units']
+                    or self._start_seq != state['session']
+                    or op.safety_generation != self._grbl_safety_generation):
+                raise InterruptedError('Jog hold retired')
+
+        def worker():
+            try:
+                if parse_grbl_status_state(self._grbl_query_status(op, timeout=0.5)) != 'Idle':
+                    self.app.inform.emit('[WARNING_NOTCL] %s' % _("GRBL must be Idle before jogging."))
+                    return
+                while True:
+                    with self._grbl_op_lock:
+                        guard()
+                    if self._grbl_transact(op, command, timeout=0.5, echo=False, guard=guard)[1] != 'ok':
+                        break
+                    deadline = time.monotonic() + 2.0
+                    while True:
+                        with self._grbl_op_lock:
+                            guard()
+                        report = self._grbl_query_status(op, timeout=0.5)
+                        status = parse_grbl_status_state(report)
+                        parsed = parse_grbl_status_report(report) if report else None
+                        if parsed is not None:
+                            self.status_report_sig.emit(parsed)
+                        if status == 'Idle':
+                            break
+                        if status != 'Jog' or time.monotonic() >= deadline:
+                            with self._grbl_op_lock:
+                                self._grbl_failure_locked(op, 'probe_invalid')
+                            return
+                        time.sleep(0.02)
+            except InterruptedError:
+                pass
+            except (serial.SerialException, OSError):
+                with self._grbl_op_lock:
+                    self._grbl_failure_locked(op, 'port_error')
+            finally:
+                with self._grbl_op_lock:
+                    if self._grbl_op is op and self.grbl_ser_port is op.port:
+                        if not state['stopped']:
+                            state['stopped'] = True
+                            if not self._grbl_write_realtime_locked(b'\x85'):
+                                self._grbl_failure_locked(op, 'port_error')
+                # Drain the pending acknowledgement and confirm cancellation before reuse.
+                try:
+                    deadline = time.monotonic() + 2.0
+                    while True:
+                        with self._grbl_op_lock:
+                            if not self._grbl_active_locked(op):
+                                break
+                        status = parse_grbl_status_state(self._grbl_query_status(op, timeout=0.5))
+                        if status == 'Idle':
+                            break
+                        if status != 'Jog' or time.monotonic() >= deadline:
+                            with self._grbl_op_lock:
+                                self._grbl_failure_locked(op, 'probe_invalid')
+                            break
+                        time.sleep(0.02)
+                except (serial.SerialException, OSError):
+                    with self._grbl_op_lock:
+                        self._grbl_failure_locked(op, 'port_error')
+                finally:
+                    self._grbl_release(op)
+
+        threading.Thread(target=worker, name='GrblSender-continuous-jog', daemon=True).start()
+
     def _stop_continuous_jog(self):
         active = self.__dict__.get('_continuous_jog')
         if active is None:
             return
         self._continuous_jog = None
         self._continuous_jog_timer.stop()
+        native = self.__dict__.get('_native_jog')
+        if native is not None:
+            with self._grbl_op_lock:
+                if not native['stopped']:
+                    native['stopped'] = True
+                    if self.grbl_ser_port is active[0] and not self._grbl_write_realtime_locked(b'\x85'):
+                        self._grbl_failure_locked(native['op'], 'port_error')
+            self.ui.jog_fr_entry.setEnabled(True)
+            self.ui.jog_step_entry.setEnabled(True)
+            self._native_jog = None
+            return
         active[0].stop_jog()
 
     def _refresh_continuous_jog(self):
@@ -1465,11 +2040,44 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         if active is None:
             return
         port, button = active
+        dock = self.app.ui.grbl_console_dock
+        console = dock.widget()
+        jog_visible = (isinstance(console, GrblConsole) and dock.isVisible()
+                       and console.tabs.currentWidget() is console.jog_page)
+        native = self.__dict__.get('_native_jog')
         if (self.grbl_ser_port is not port or not self._grbl_connected or not button.isDown()
                 or QtWidgets.QApplication.applicationState() != QtCore.Qt.ApplicationState.ApplicationActive
-                or not button.window().isActiveWindow()
-                or not self.ui.continuous_jog_cb.isChecked() or not port.refresh_jog()):
+                or not button.window().isActiveWindow() or not jog_visible
+                or not self.ui.continuous_jog_cb.isChecked()
+                or self.units != self._continuous_jog_units
+                or getattr(self.app, 'app_units', None) != self._continuous_jog_units
+                or (native is not None and (
+                    self._grbl_op is not native['op'] or native['stopped']
+                    or time.monotonic() > native['until']
+                    or self.units != native['units']
+                    or self.ui.jog_fr_entry.get_value() != native['feed']
+                    or self.ui.jog_step_entry.get_value() != native['step']))
+                or (native is None and not port.refresh_jog())):
             self._stop_continuous_jog()
+        elif native is not None:
+            with self._grbl_op_lock:
+                native['until'] = time.monotonic() + 0.15
+
+    def _on_console_dock_visibility(self, visible):
+        if not visible:
+            self._stop_continuous_jog()
+
+    def toggle_jog_page(self):
+        """Tab in the Sender page: show the dock on Jog, or hide a dock that already shows Jog."""
+        dock = self.app.ui.grbl_console_dock
+        console = self._console()
+        if dock.isVisible() and console.tabs.currentWidget() is console.jog_page:
+            self._stop_continuous_jog()
+            dock.hide()
+            return
+        console.tabs.setCurrentWidget(console.jog_page)
+        dock.show()
+        dock.raise_()
 
     def on_grbl_jog(self, direction=None):
         if direction is None:
@@ -1477,13 +2085,18 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
         step = self.ui.jog_step_entry.get_value()
         feedrate = self.ui.jog_fr_entry.get_value()
+        units, port, session = self.units, self.grbl_ser_port, self._start_seq
+        if (units not in ('MM', 'IN') or getattr(self.app, 'app_units', None) != units
+                or not all(math.isfinite(value) and value > 0 for value in (step, feedrate))):
+            self.app.inform.emit('[WARNING_NOTCL] %s' % _("Jog requires positive finite step and feed."))
+            return
         app_defaults = getattr(self.app, "defaults", None) or AppDefaults.factory_defaults
         travelz = float(
             self.app.options.get(
                 "tools_grbl_travelz",
                 app_defaults.get("tools_grbl_travelz", AppDefaults.factory_defaults.get("tools_grbl_travelz")))
         )
-        units_cmd = {'IN': 'G20', 'MM': 'G21'}[self.units]
+        units_cmd = {'IN': 'G20', 'MM': 'G21'}[units]
 
         axis_words = {
             'xplus': 'X%s' % str(step),
@@ -1503,9 +2116,26 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         else:
             return
 
+        if self.__dict__.get('_grbl_tool_change_pending'):
+            if direction == 'origin':
+                self.app.inform.emit('[ERROR_NOTCL] %s' % _("Use single-axis jogs during a native tool change."))
+            else:
+                self._grbl_queue_tool_command(commands[0])
+            return
+
         def task(op):
+            def guard():
+                if (self.units != units or getattr(self.app, 'app_units', None) != units
+                        or self.grbl_ser_port is not port or op.port is not port
+                        or self._start_seq != session
+                        or op.safety_generation != self._grbl_safety_generation):
+                    raise InterruptedError('Jog context changed')
+
             for idx, cmd in enumerate(commands):
-                text, status = self._grbl_transact(op, cmd, timeout=10.0, echo=False)
+                try:
+                    text, status = self._grbl_transact(op, cmd, timeout=10.0, echo=False, guard=guard)
+                except InterruptedError:
+                    return False
                 if status != 'ok':
                     self.app.inform.emit('[ERROR_NOTCL] %s: %s -> %s' % (
                         _("Jog failed"), cmd, grbl_reply_error(text) or status))
@@ -1515,10 +2145,1101 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
         self._grbl_start_op('jog', task, motion=True)
 
+    # #############################################################################################################
+    # Drill-referenced camera calibration
+    # #############################################################################################################
+
+    # a fresh report can need a few frames before it carries WCO; the poll stays inside the operation
+    CAMERA_REPORT_DEADLINE = 1.5
+    CAMERA_REPORT_PAUSE = 0.05
+
+    @staticmethod
+    def _report_machine_position(report, last_wco=None):
+        """:return: the machine XYZ of a status report, or None; work is never assumed to be machine."""
+        if report is None:
+            return None
+        if 'mpos' in report:
+            return report['mpos']
+        wco = report.get('wco', last_wco)
+        if 'wpos' in report and wco is not None:
+            # GRBL reports work position as machine position minus the work offset
+            return tuple(m + o for m, o in zip(report['wpos'], wco))
+        return None
+
+    @staticmethod
+    def _fresh_report_wco(report):
+        """
+        :return: the work offset of THIS report, or None when it does not carry one.
+
+        The report's own WCO wins; otherwise MPos and WPos in the same report give it.
+        A cached offset is never substituted: registration must not invent a frame.
+        """
+        if not isinstance(report, dict):
+            return None
+        raw = report.get('wco')
+        if raw is None and 'mpos' in report and 'wpos' in report:
+            try:
+                raw = tuple(float(m) - float(w) for m, w in zip(report['mpos'], report['wpos']))
+            except (TypeError, ValueError):
+                return None
+        if raw is None:
+            return None
+        try:
+            wco = tuple(float(value) for value in raw[:2])
+        except (TypeError, ValueError):
+            return None
+        return wco if all(math.isfinite(value) for value in wco) else None
+
+    def _camera_report_scale(self):
+        """:return: the factor from the GRBL report units to the application units, or None."""
+        inches = getattr(self, '_grbl_report_inches', None)
+        if inches is None or str(getattr(self, 'units', '')).upper() not in ('MM', 'IN'):
+            return None
+        return grbl_report_scale(self.units, inches)
+
+    def _camera_settings(self):
+        """:return: (camera identity, rotation, mirror) of the camera tab."""
+        camera_ui = getattr(self.ui, 'camera_widget', None)
+        if camera_ui is None:
+            return '', 0, False
+        return camera_ui.current_camera_id(), camera_ui.rotation(), camera_ui.mirror()
+
+    def _camera_tolerances(self):
+        """:return: (repeatability, viewing Z) limits selected by the user, in application units."""
+        camera_ui = getattr(self.ui, 'camera_widget', None)
+        if camera_ui is None:
+            return None, None
+        return camera_ui.verify_tolerance(), camera_ui.view_tolerance()
+
+    def _camera_preview_usable(self):
+        """:return: True only while the camera is delivering current frames."""
+        camera_ui = getattr(self.ui, 'camera_widget', None)
+        return bool(camera_ui is not None and camera_ui.preview_usable())
+
+    def _camera_state_for(self, units, camera_id, rotation, mirror, machine_z=None):
+        tolerance, view_tolerance = self._camera_tolerances()
+        return self.camera_calibration.state(
+            self._camera_session_id, units, camera_id, rotation, mirror, machine_z=machine_z,
+            view_tolerance=view_tolerance, tolerance=tolerance)
+
+    def _camera_invalidate_requests(self):
+        """A queued camera answer belongs to the old state; a newer request supersedes it."""
+        self.__dict__['_camera_request_id'] = self.__dict__.get('_camera_request_id', 0) + 1
+        camera_ui = getattr(self.ui, 'camera_widget', None)
+        if camera_ui is not None:
+            try:
+                camera_ui.set_busy(False)
+            except RuntimeError:
+                pass  # the Qt widget was deleted while the application closes
+
+    def _camera_context_changed(self, reason):
+        """Tell the registration tab that the machine reference is not the previewed one anymore."""
+        try:
+            self.camera_context_changed_sig.emit(str(reason))
+        except (AttributeError, RuntimeError):
+            pass  # a test double or a tool built without the Qt part
+
+    def _camera_stop_preview(self):
+        camera_ui = getattr(getattr(self, 'ui', None), 'camera_widget', None)
+        if camera_ui is not None:
+            try:
+                camera_ui.stop_preview()
+            except (AttributeError, RuntimeError):
+                pass
+
+    def _camera_new_session(self, reason=''):
+        """A new connection or reference: pending captures and the session verification are old."""
+        self.__dict__['_camera_session_id'] = self.__dict__.get('_camera_session_id', 0) + 1
+        self.__dict__['_camera_last_z'] = None
+        self._camera_invalidate_requests()
+        self._camera_context_changed(str(reason or 'session'))
+        calibration = self.__dict__.get('camera_calibration')
+        if calibration is None:
+            # a test double or a tool built without the camera state
+            return
+        had_pending = calibration.pending_spindle is not None
+        was_verified = calibration.verified
+        calibration.start_session(self.__dict__['_camera_session_id'])
+        self._camera_refresh_ui()
+        camera_ui = getattr(self.ui, 'camera_widget', None)
+        if camera_ui is not None and had_pending:
+            camera_ui.set_message(_("The session or reference changed. Capture the spindle reference again."), error=True)
+        elif camera_ui is not None and was_verified:
+            camera_ui.set_message(_("The session or reference changed. Verify the saved calibration again."), error=True)
+
+    def _camera_refresh_ui(self):
+        camera_ui = getattr(self.ui, 'camera_widget', None)
+        calibration = self.__dict__.get('camera_calibration')
+        if camera_ui is None or calibration is None:
+            return
+        camera_id, rotation, mirror = self._camera_settings()
+        state, reason = self._camera_state_for(
+            self.units, camera_id, rotation, mirror, getattr(self, '_camera_last_z', None))
+        try:
+            camera_ui.set_calibration_state(
+                state, reason, calibration.offset, calibration.view_z, calibration.has_calibration)
+        except RuntimeError:
+            # the Qt widget was deleted while the application closes
+            pass
+
+    @staticmethod
+    def _camera_reason_text(reason):
+        messages = {
+            'no_report': _("No fresh status report from the controller."),
+            'not_idle': _("The machine must be idle and stationary before a capture."),
+            'units_unknown': _("The application units are not known."),
+            'report_units_unknown': _("The GRBL report units ($13) are not known. Reconnect."),
+            'no_machine_position': _(
+                "The status report has neither a machine position nor a current work offset. Try again."),
+            'invalid_position': _("The controller reported an invalid position."),
+            'no_spindle_reference': _("Capture the spindle reference first."),
+            'capture_sequence_changed': _("The camera, orientation or units changed. Capture the sequence again."),
+            'no_camera': _("Select a camera before capturing."),
+            'not_connected': _("Connect to the controller first."),
+            'camera_changed': _("The camera or orientation differs from the saved calibration."),
+            'units_changed': _("The units differ from the saved calibration."),
+            'view_z_mismatch': _("The camera is not at the calibrated viewing Z."),
+            'not_verified_this_session': _("Verify the saved calibration at the marked point first."),
+            'repeatability_failed': _("The marked point does not repeat within the tolerance."),
+            'tolerance_changed': _("The verification tolerance changed. Verify the saved calibration again."),
+            'no_calibration': _("No camera calibration is saved."),
+            'no_fresh_z': _("A fresh machine Z is required for a camera measurement."),
+            'invalid_tolerance': _("The selected tolerance is not a positive number."),
+            'camera_preview_unavailable': _("Start the live camera preview and wait for an image first."),
+            'stale_result': _("The camera answer belongs to an older state and was discarded."),
+            'no_work_offset': _(
+                "The controller did not report the current work offset in time. Try again; if it persists check "
+                "that the status report carries WCO."),
+            'work_frame_required': _("The camera observation is not in the work frame. Reconnect and observe again."),
+        }
+        return messages.get(reason, _("The camera operation was refused."))
+
+    def _camera_message(self, text, error=False):
+        camera_ui = getattr(self.ui, 'camera_widget', None)
+        if camera_ui is not None:
+            camera_ui.set_message(text, error=error)
+        self.app.inform.emit(('[ERROR_NOTCL] ' if error else '[success] ') + text)
+
+    def _camera_fresh_machine_xyz(self, payload):
+        """:return: (machine XYZ in application units, None) or (None, reason code)."""
+        report = payload.get('report')
+        if report is None:
+            return None, 'no_report'
+        if str(report.get('state', '')).split(':')[0] != 'Idle':
+            return None, 'not_idle'
+        units = str(payload.get('units', '')).upper()
+        if units not in ('MM', 'IN'):
+            return None, 'units_unknown'
+        inches = payload.get('report_inches')
+        if inches is None:
+            return None, 'report_units_unknown'
+        machine = self._report_machine_position(report)
+        if machine is None:
+            return None, 'no_machine_position'
+        try:
+            scale = grbl_report_scale(units, inches)
+            machine = tuple(float(value) * scale for value in machine)
+        except (TypeError, ValueError):
+            return None, 'invalid_position'
+        if any(not math.isfinite(value) for value in machine):
+            return None, 'invalid_position'
+        return machine, None
+
+    def _camera_wait_report(self, op, need_wco, deadline=None):
+        """
+        A fresh status report from bounded, non-motion polling inside the current operation.
+
+        GRBL omits WCO from most status frames; the frame contract needs 1 report that carries it,
+        or one whose MPos and WPos give it. No cached offset is ever substituted.
+        """
+        end = time.monotonic() + (self.CAMERA_REPORT_DEADLINE if deadline is None else deadline)
+        last = None
+        while True:
+            if op.cancel.is_set() or op.failed:
+                return None
+            remaining = end - time.monotonic()
+            if remaining <= 0.0:
+                return last
+            line = self._grbl_query_status(op, timeout=min(0.5, remaining))
+            if op.cancel.is_set() or op.failed:
+                return None
+            report = parse_grbl_status_report(line) if line else None
+            if report is not None:
+                last = report
+                if (str(report.get('state', '')).split(':')[0] != 'Idle' or
+                        not need_wco or self._fresh_report_wco(report) is not None):
+                    return report
+            time.sleep(min(self.CAMERA_REPORT_PAUSE, max(0.0, end - time.monotonic())))
+
+    def _camera_query(self, role):
+        """Ask for a fresh status report; this is a non-motion operation. Returns its request token."""
+        camera_id, rotation, mirror = self._camera_settings()
+        units = self.units
+        report_inches = getattr(self, '_grbl_report_inches', None)
+        session_id = self._camera_session_id
+        request_id = self.__dict__.get('_camera_request_id', 0) + 1
+        self.__dict__['_camera_request_id'] = request_id
+        need_wco = role in ('observe', 'reference')
+
+        def task(op):
+            report = self._camera_wait_report(op, need_wco)
+            self.camera_capture_sig.emit({
+                'role': role, 'report': report, 'session': session_id, 'units': units,
+                'report_inches': report_inches, 'camera_id': camera_id, 'rotation': rotation,
+                'mirror': mirror, 'wco': None, 'request': request_id,
+            })
+
+        return request_id if self._grbl_start_op('camera', task) else None
+
+    def _camera_capture(self, role):
+        camera_ui = getattr(self.ui, 'camera_widget', None)
+        if not self._grbl_port_ready():
+            self._camera_message(self._camera_reason_text('not_connected'), error=True)
+            return
+        if getattr(self, '_grbl_report_inches', None) is None:
+            self._camera_message(self._camera_reason_text('report_units_unknown'), error=True)
+            return
+        if str(getattr(self, 'units', '')).upper() not in ('MM', 'IN'):
+            self._camera_message(self._camera_reason_text('units_unknown'), error=True)
+            return
+        if not self._camera_settings()[0]:
+            self._camera_message(self._camera_reason_text('no_camera'), error=True)
+            return
+        if role == 'camera' and not self._camera_preview_usable():
+            self._camera_message(self._camera_reason_text('camera_preview_unavailable'), error=True)
+            return
+        if camera_ui is not None:
+            camera_ui.set_busy(True)
+        if not self._camera_query(role) and camera_ui is not None:
+            camera_ui.set_busy(False)
+
+    def on_camera_capture_spindle(self):
+        self._camera_capture('spindle')
+
+    def on_camera_capture_camera(self):
+        self._camera_capture('camera')
+
+    def on_camera_verify(self):
+        camera_ui = getattr(self.ui, 'camera_widget', None)
+        if not self._grbl_port_ready():
+            self._camera_message(self._camera_reason_text('not_connected'), error=True)
+            return
+        if not self.camera_calibration.has_calibration:
+            self._camera_message(self._camera_reason_text('no_calibration'), error=True)
+            return
+        if not self._camera_preview_usable():
+            self._camera_message(self._camera_reason_text('camera_preview_unavailable'), error=True)
+            return
+        if camera_ui is not None:
+            camera_ui.set_busy(True)
+        if not self._camera_query('verify') and camera_ui is not None:
+            camera_ui.set_busy(False)
+
+    def on_camera_clear(self):
+        self._camera_invalidate_requests()
+        self.camera_calibration.reset()
+        self._camera_last_z = None
+        self.camera_calibration.start_session(self._camera_session_id)
+        self.camera_calibration.save(self.app.options)
+        self._camera_refresh_ui()
+        self._camera_context_changed('calibration')
+        self._camera_message(_("Camera calibration cleared."))
+
+    def _camera_settings_changed(self, *args):
+        self._camera_invalidate_requests()
+        camera_id, rotation, mirror = self._camera_settings()
+        self.camera_calibration.settings_changed(camera_id, rotation, mirror)
+        self._camera_refresh_ui()
+        self._camera_context_changed('camera')
+
+    def _camera_tolerances_changed(self, *args):
+        camera_ui = getattr(self.ui, 'camera_widget', None)
+        if camera_ui is not None:
+            camera_ui.remember_settings()
+        self.camera_calibration.tolerances_changed(*self._camera_tolerances())
+        self._camera_invalidate_requests()
+        self._camera_refresh_ui()
+
+    def _camera_preview_available(self, available):
+        """A stopped or failed preview cannot support a camera-centered measurement."""
+        if not available:
+            self._camera_invalidate_requests()
+
+    def _camera_payload_current(self, payload):
+        """:return: True only while the answer belongs to this request, session and settings."""
+        if not payload or payload.get('request') != self.__dict__.get('_camera_request_id'):
+            return False
+        if payload.get('session') != self.__dict__.get('_camera_session_id'):
+            return False
+        if self.__dict__.get('_grbl_connected') is False:
+            return False
+        if str(payload.get('units', '')).upper() != str(getattr(self, 'units', '')).upper():
+            return False
+        if str(payload.get('units', '')).upper() != str(self.app.app_units).upper():
+            return False
+        if payload.get('report_inches') != getattr(self, '_grbl_report_inches', None):
+            return False
+        camera_id, rotation, mirror = self._camera_settings()
+        if (str(payload.get('camera_id', '')) != str(camera_id) or
+                int(payload.get('rotation', 0) or 0) != int(rotation) or
+                bool(payload.get('mirror', False)) != bool(mirror)):
+            return False
+        return True
+
+    def _camera_emit_result(self, payload, role, result):
+        """Emit a registration answer with the request token, so an old answer can be discarded."""
+        if payload and payload.get('request') is not None:
+            result['request'] = payload.get('request')
+        if role == 'observe':
+            self.camera_observation_sig.emit(result)
+        elif role == 'reference':
+            self.camera_reference_sig.emit(result)
+        else:
+            self._camera_message(self._camera_reason_text(result.get('reason')), error=True)
+        return result
+
+    def _on_camera_capture(self, payload):
+        camera_ui = getattr(self.ui, 'camera_widget', None)
+        if not payload:
+            return
+        role = payload.get('role')
+        if str(self.app.app_units).upper() != str(self.units).upper():
+            self._camera_new_session('units_changed')
+        if not self._camera_payload_current(payload):
+            if role in ('observe', 'reference'):
+                state, _state_reason = self._camera_state_for(self.units, *self._camera_settings())
+                self._camera_emit_result(
+                    payload, role, {'ok': False, 'state': state, 'reason': 'stale_result'})
+            return
+        if camera_ui is not None:
+            camera_ui.set_busy(False)
+
+        if role in ('camera', 'verify', 'observe') and not self._camera_preview_usable():
+            # the preview can stop while the status query is in flight
+            if role == 'observe':
+                state, _state_reason = self._camera_state_for(self.units, *self._camera_settings())
+                self._camera_emit_result(
+                    payload, role, {'ok': False, 'state': state, 'reason': 'camera_preview_unavailable'})
+            else:
+                self._camera_message(self._camera_reason_text('camera_preview_unavailable'), error=True)
+            return
+
+        machine, reason = self._camera_fresh_machine_xyz(payload)
+        if machine is None:
+            if role in ('observe', 'reference'):
+                state, _state_reason = self._camera_state_for(
+                    str(payload.get('units', self.units)).upper(), *self._camera_settings())
+                self._camera_emit_result(
+                    payload, role, {'ok': False, 'state': state, 'reason': reason})
+                return
+            self._camera_message(self._camera_reason_text(reason), error=True)
+            return
+        units = str(payload.get('units')).upper()
+        camera_id = payload.get('camera_id', '')
+        rotation = payload.get('rotation', 0)
+        mirror = payload.get('mirror', False)
+        session_id = payload.get('session')
+        tolerance, view_tolerance = self._camera_tolerances()
+
+        if role == 'observe':
+            self._publish_camera_observation(payload, machine, tolerance, view_tolerance)
+            return
+
+        if role == 'reference':
+            self._publish_camera_reference(payload, machine, tolerance, view_tolerance)
+            return
+
+        if role == 'verify':
+            ok, reason, distance = self.camera_calibration.verify(
+                (machine[0], machine[1]), machine[2], units, session_id, camera_id, rotation, mirror,
+                tolerance=tolerance, view_tolerance=view_tolerance)
+            self._camera_last_z = machine[2]
+            self._camera_refresh_ui()
+            if ok:
+                self._camera_message(_(
+                    "Repeatability verified: the predicted spindle position is %.*f %s from the first reference.")
+                    % (self.decimals, distance, units))
+            else:
+                self._camera_message(self._camera_reason_text(reason), error=True)
+            return
+
+        ok, reason = self.camera_calibration.capture(
+            role, machine, units, session_id, camera_id, rotation, mirror)
+        self._camera_last_z = machine[2]
+        if not ok:
+            self._camera_message(self._camera_reason_text(reason), error=True)
+            self._camera_refresh_ui()
+            return
+        if role == 'camera':
+            self.camera_calibration.save(self.app.options)
+            self._camera_context_changed('calibration')
+            text = _("Calibration saved. Offset X %.*f  Y %.*f, viewing Z %.*f.") % (
+                self.decimals, self.camera_calibration.offset[0],
+                self.decimals, self.camera_calibration.offset[1],
+                self.decimals, self.camera_calibration.view_z)
+        else:
+            text = _("Spindle reference captured at X %.*f  Y %.*f. Retract, set the camera viewing height "
+                     "and center the same mark.") % (
+                         self.decimals, machine[0], self.decimals, machine[1])
+        self._camera_refresh_ui()
+        self._camera_message(text)
+
+    def _publish_camera_observation(self, payload, machine, tolerance, view_tolerance):
+        units = str(payload.get('units', self.units)).upper()
+        camera_id = payload.get('camera_id', '')
+        rotation = payload.get('rotation', 0)
+        mirror = payload.get('mirror', False)
+        try:
+            scale = grbl_report_scale(units, payload.get('report_inches'))
+        except (TypeError, ValueError):
+            self._camera_emit_result(
+                payload, 'observe', {'ok': False, 'state': CAMERA_STALE, 'reason': 'report_units_unknown'})
+            return
+        raw_wco = self._fresh_report_wco(payload.get('report'))
+        if raw_wco is None:
+            state, _reason = self._camera_state_for(units, camera_id, rotation, mirror)
+            self._camera_emit_result(
+                payload, 'observe', {'ok': False, 'state': state, 'reason': 'no_work_offset'})
+            return
+        wco = (raw_wco[0] * scale, raw_wco[1] * scale)
+        result = self.camera_calibration.observe(
+            (machine[0], machine[1]), machine[2], units, payload.get('session'),
+            camera_id, rotation, mirror, wco=wco, tolerance=tolerance, view_tolerance=view_tolerance)
+        self._camera_last_z = machine[2]
+        self._camera_emit_result(payload, 'observe', result)
+
+    def _publish_camera_reference(self, payload, machine, tolerance, view_tolerance):
+        """A fresh no-motion check that the work frame and the calibration are still the previewed ones."""
+        units = str(payload.get('units', self.units)).upper()
+        camera_id = payload.get('camera_id', '')
+        rotation = payload.get('rotation', 0)
+        mirror = payload.get('mirror', False)
+        try:
+            scale = grbl_report_scale(units, payload.get('report_inches'))
+        except (TypeError, ValueError):
+            self._camera_emit_result(
+                payload, 'reference', {'ok': False, 'state': CAMERA_STALE, 'reason': 'report_units_unknown'})
+            return
+        raw_wco = self._fresh_report_wco(payload.get('report'))
+        if raw_wco is None:
+            self._camera_emit_result(
+                payload, 'reference',
+                {'ok': False, 'state': self._camera_state_for(units, camera_id, rotation, mirror)[0],
+                 'reason': 'no_work_offset'})
+            return
+        wco = (raw_wco[0] * scale, raw_wco[1] * scale)
+        result = self.camera_calibration.observe(
+            (machine[0], machine[1]), machine[2], units, payload.get('session'),
+            camera_id, rotation, mirror, wco=wco, tolerance=tolerance, view_tolerance=view_tolerance)
+        self._camera_last_z = machine[2]
+        self._camera_emit_result(payload, 'reference', result)
+
+    def camera_observe(self, machine_x, machine_y, machine_z=None, wco=None):
+        """
+        Resolve a camera-centered point to the spindle position, using the verified calibration.
+
+        The caller supplies a fresh machine position and Z (from a status report). A fresh WCO in
+        application units may be supplied with them; the result then uses the work frame, else the
+        machine frame. A cached offset is never substituted. A missing or non-finite Z is refused.
+
+        :return: dict with ok, state, x, y, machine_x, machine_y, frame, units, view_z and
+            the camera identity/orientation. ok is False unless the calibration is verified in
+            this connection session at this viewing Z.
+        """
+        camera_id, rotation, mirror = self._camera_settings()
+        units = self.units
+        if not self._camera_preview_usable():
+            return {'ok': False, 'state': self._camera_state_for(units, camera_id, rotation, mirror)[0],
+                    'reason': 'camera_preview_unavailable'}
+        tolerance, view_tolerance = self._camera_tolerances()
+        return self.camera_calibration.observe(
+            (machine_x, machine_y), machine_z, units, self._camera_session_id,
+            camera_id, rotation, mirror, wco=wco, tolerance=tolerance, view_tolerance=view_tolerance)
+
+    def request_camera_observation(self):
+        """
+        Read a fresh stationary machine position (no motion) and emit camera_observation_sig.
+
+        Task 2 (board fiducial registration) connects to camera_observation_sig, calls this while
+        the fiducial is centered under the crosshair, and receives the calibrated spindle-equivalent
+        position plus the validity state.
+        """
+        camera_id, rotation, mirror = self._camera_settings()
+        # the fresh report decides the viewing Z; a stale last Z must not refuse the request
+        state, reason = self._camera_state_for(self.units, camera_id, rotation, mirror)
+        if not self._grbl_port_ready():
+            self.camera_observation_sig.emit({'ok': False, 'state': state, 'reason': 'not_connected'})
+            return
+        if not self.camera_calibration.has_calibration:
+            self.camera_observation_sig.emit({'ok': False, 'state': CAMERA_NONE, 'reason': 'no_calibration'})
+            return
+        if not self._camera_preview_usable():
+            self.camera_observation_sig.emit(
+                {'ok': False, 'state': state, 'reason': 'camera_preview_unavailable'})
+            return
+        if getattr(self, '_grbl_report_inches', None) is None:
+            self.camera_observation_sig.emit({'ok': False, 'state': state, 'reason': 'report_units_unknown'})
+            return
+        if state != 'verified':
+            self.camera_observation_sig.emit({'ok': False, 'state': state, 'reason': reason})
+            return
+        request = self._camera_query('observe')
+        if request is None:
+            self.camera_observation_sig.emit({'ok': False, 'state': state, 'reason': 'not_connected'})
+            return
+        self.camera_request_sig.emit('observe', request)
+
+    def request_camera_reference(self):
+        """
+        Read a fresh stationary reference (no motion) before applying a board registration.
+
+        The answer carries the current work offset, session, units, camera settings and
+        calibration identity so a fit made under another reference can not be applied.
+        """
+        camera_id, rotation, mirror = self._camera_settings()
+        state, reason = self._camera_state_for(self.units, camera_id, rotation, mirror)
+        if not self._grbl_port_ready():
+            self.camera_reference_sig.emit({'ok': False, 'state': state, 'reason': 'not_connected'})
+            return
+        if not self.camera_calibration.has_calibration:
+            self.camera_reference_sig.emit({'ok': False, 'state': CAMERA_NONE, 'reason': 'no_calibration'})
+            return
+        if getattr(self, '_grbl_report_inches', None) is None:
+            self.camera_reference_sig.emit({'ok': False, 'state': state, 'reason': 'report_units_unknown'})
+            return
+        if state != 'verified':
+            self.camera_reference_sig.emit({'ok': False, 'state': state, 'reason': reason})
+            return
+        request = self._camera_query('reference')
+        if request is None:
+            self.camera_reference_sig.emit({'ok': False, 'state': state, 'reason': 'not_connected'})
+            return
+        self.camera_request_sig.emit('reference', request)
+
+    # ------------------------------------------------------------------
+    # Calibrated manual tool change (GRBL fixed or removable touchplate)
+    # ------------------------------------------------------------------
+    def _toolchange_ui(self):
+        return getattr(self.ui, 'toolchange_widget', None)
+
+    def _toolchange_mode(self):
+        return plate_mode(self.app.options)
+
+    def _toolchange_settings(self):
+        return ToolChangeSettings.from_options(self.app.options, units=str(self.units).upper())
+
+    def _toolchange_levelling_active(self):
+        """An active or loaded height map binds the frame to the old tool length."""
+        return bool(self.__dict__.get('al_heights_valid', False) or
+                    self.__dict__.get('_al_map_frame', None) is not None)
+
+    def _toolchange_message(self, text, error=False):
+        ui = self._toolchange_ui()
+        if ui is not None:
+            try:
+                ui.set_message(text, error=error)
+            except (AttributeError, RuntimeError):
+                pass
+
+    def _toolchange_refresh_ui(self, message='', error=False):
+        ui = self._toolchange_ui()
+        measurement = self.__dict__.get('toolchange')
+        if ui is None or measurement is None:
+            return
+        try:
+            ui.set_mode(self._toolchange_mode(), self._toolchange_settings() is not None)
+            ui.set_connected(self._grbl_port_ready())
+            ui.set_busy(self.__dict__.get('_toolchange_busy', False))
+            ui.set_state(measurement.state())
+            if message:
+                ui.set_message(message, error=error)
+        except (AttributeError, RuntimeError):
+            pass  # the Qt widget was deleted while the application closes
+
+    def _toolchange_new_session(self, reason=''):
+        """Connect, disconnect, reset or home: a fixed reference and a measurement are old."""
+        self.__dict__['_toolchange_session_id'] = self.__dict__.get('_toolchange_session_id', 0) + 1
+        self.__dict__['_toolchange_request_id'] = self.__dict__.get('_toolchange_request_id', 0) + 1
+        self.__dict__['_toolchange_busy'] = False
+        self.__dict__['_toolchange_action'] = None
+        measurement = self.__dict__.get('toolchange')
+        if measurement is not None:
+            measurement.start_session(self.__dict__['_toolchange_session_id'])
+        if reason:
+            self._toolchange_refresh_ui(
+                _("The machine session changed. Measure the tool or calibrate the plate again."), error=True)
+
+    def _toolchange_settings_changed(self):
+        measurement = self.__dict__.get('toolchange')
+        if measurement is None:
+            return
+        changed = measurement.configure(self._toolchange_mode(), self._toolchange_settings())
+        if measurement.units is not None and measurement.units != str(self.app.app_units).upper():
+            changed = True
+        if changed:
+            if self.__dict__.get('_toolchange_busy', False):
+                self.on_grbl_stop()
+            self._toolchange_new_session()
+        message = ''
+        if changed and measurement.session is not None:
+            message = _("The tool-change mode or its settings changed. Measure the tool again.")
+        self._toolchange_refresh_ui(message, error=bool(message))
+
+    def _toolchange_reason_text(self, reason):
+        return {
+            'not_idle': _("GRBL must be Idle before a tool-change measurement."),
+            'unknown_units': _("GRBL did not report setting $13 (report units). The probe was not started."),
+            'modes_not_confirmed': _("The units, G90 or G94 were not confirmed by GRBL. The probe was not started."),
+            'report_units_unknown': _("The GRBL report units are not known. Reconnect, then try again."),
+            'unsupported_offsets': _(
+                "An active G92 offset or tool length offset is set. Clear it before a calibrated tool change."),
+            'invalid_frame': _("The active work coordinate system could not be read."),
+            'already_triggered': _("The probe was already touching at the start. Raise the tool and try again."),
+            'probe_failed': _("The probe did not reach the plate inside the configured distance."),
+            'probe_invalid': _("The probe result was not plausible. The work offset was not changed."),
+            'retract_failed': _("The Z retract could not be verified. No coordinate was changed."),
+            'frame_changed': _("The coordinate frame changed. Check the work offset before continuing."),
+            'apply_not_verified': _("GRBL did not confirm and report the new work offset. Check the value."),
+            'plate_moved': _("The plate was probed too far from the fixed reference position."),
+            'stale_reference': _("The fixed plate reference is from an older session. Calibrate it again."),
+            'stale_measurement': _("The measurement is from an older session. Measure the tool again."),
+            'no_reference': _("Calibrate the fixed plate with the reference tool first."),
+            'no_measurement': _("Measure the installed tool first."),
+            'settings_changed': _("The tool-change settings changed. Measure the tool again."),
+            'cancelled': _("The tool-change operation was stopped."),
+            'invalid_position': _("The reported position is invalid. Check the work offset before continuing."),
+            'no_report': _("GRBL did not send a fresh position report. The probe was not started."),
+            'timeout': _("The tool-change operation timed out. Follow the GRBL recovery message."),
+            'port_error': _("The serial port failed. Check the work offset before continuing."),
+            'spindle_active': _("Stop the spindle before measuring a tool."),
+        }.get(reason, _("The tool-change operation failed: %s") % reason)
+
+    def _toolchange_ready(self):
+        """:return: (mode, settings), or None after showing why the operation can not start."""
+        self._toolchange_settings_changed()
+        mode = self._toolchange_mode()
+        settings = self._toolchange_settings()
+        if mode == PLATE_NONE:
+            self._toolchange_message(_("Calibrated tool-change measurement is disabled in Preferences."), error=True)
+            return None
+        if settings is None:
+            self._toolchange_message(
+                _("The tool-change settings are invalid. Use finite, positive probe limits."), error=True)
+            return None
+        if not self._grbl_port_ready():
+            self._toolchange_message(_("Not connected to a GRBL controller."), error=True)
+            return None
+        if self._ecut_settings_capable(self.grbl_ser_port):
+            self._toolchange_message(
+                _("Calibrated tool-change measurement supports stock GRBL only, not E-Cut."), error=True)
+            return None
+        if self._toolchange_levelling_active():
+            self._toolchange_message(_(
+                "A levelling height map is active. Clear it, or acquire it again after the tool change."), error=True)
+            return None
+        if (str(getattr(self, 'units', '')).upper() not in ('MM', 'IN') or
+                str(self.app.app_units).upper() != str(self.units).upper()):
+            self._toolchange_message(_("The application units are not known."), error=True)
+            return None
+        if self.__dict__.get('_toolchange_busy', False):
+            self._toolchange_message(_("A tool-change operation is already running."), error=True)
+            return None
+        return mode, settings
+
+    def on_toolchange_calibrate(self):
+        self._toolchange_start('reference')
+
+    def on_toolchange_measure(self):
+        self._toolchange_start('measure')
+
+    def _toolchange_start(self, action):
+        if (self.__dict__.get('_grbl_caps') or {}).get('probe') is False:
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _("The controller has no probe input. Probing is unavailable."))
+            return
+        ready = self._toolchange_ready()
+        if ready is None:
+            return
+        mode, settings = ready
+        measurement = self.toolchange
+        measurement.configure(mode, settings)
+        if action == 'reference' and mode != PLATE_FIXED:
+            return
+        if action == 'measure' and mode == PLATE_FIXED and measurement.reference is None:
+            self._toolchange_message(_("Calibrate the fixed plate with the reference tool first."), error=True)
+            return
+        reference = dict(measurement.reference) if action == 'measure' and measurement.reference else None
+        measurement.measurement = None
+        measurement.applied = False
+        measurement.plate_removed = False
+        if action == 'reference':
+            measurement.forget()
+        units = str(self.units).upper()
+        session = self._toolchange_session_id
+        request = self.__dict__.get('_toolchange_request_id', 0) + 1
+        self.__dict__['_toolchange_request_id'] = request
+        self.__dict__['_toolchange_busy'] = True
+        self.__dict__['_toolchange_action'] = action
+        context = self._toolchange_context(mode, settings, units, session, request)
+        ui = self._toolchange_ui()
+        if ui is not None:
+            ui.set_busy(True)
+            ui.set_message(_("Probing the plate..."))
+
+        def task(op):
+            payload = self._toolchange_probe_worker(op, settings, context, reference)
+            payload.update({'kind': 'toolchange', 'action': action, 'request': request,
+                            'mode': mode, 'session': session, 'units': units,
+                            'settings': context['settings'], 'generation': op.safety_generation})
+            self.toolchange_result_sig.emit(payload)
+            return False  # the worker already verified Idle, including on its success path
+
+        if not self._grbl_start_op('tool change', task, motion=True):
+            self.__dict__['_toolchange_busy'] = False
+            self.__dict__['_toolchange_action'] = None
+            if ui is not None:
+                ui.set_busy(False)
+
+    def _toolchange_context(self, mode, settings, units, session, request):
+        return {'mode': mode, 'settings': settings.signature(), 'units': units, 'session': session,
+                'request': request, 'port': self.grbl_ser_port,
+                'stored_units': self.app.options.get('tools_grbl_toolchange_units', 'MM')}
+
+    def _toolchange_guard(self, op, context):
+        """No widgets: also used under the transaction's Stop lock immediately before a write."""
+        settings = self._toolchange_settings()
+        if (op.cancel.is_set() or op.failed or self.__dict__.get('_grbl_op') is not op or
+                context['port'] is not self.grbl_ser_port or not self._grbl_connected or
+                context['request'] != self._toolchange_request_id or
+                context['session'] != self._toolchange_session_id or
+                context['mode'] != self._toolchange_mode() or settings is None or
+                context['settings'] != settings.signature() or
+                context['stored_units'] != self.app.options.get('tools_grbl_toolchange_units', 'MM') or
+                context['units'] != str(self.units).upper() or
+                context['units'] != str(self.app.app_units).upper() or
+                self._toolchange_levelling_active() or self._ecut_settings_capable(self.grbl_ser_port)):
+            raise _GrblProbeAbort('', '', 'cancelled')
+
+    def _toolchange_step(self, op, context, command, timeout=10.0):
+        guard = lambda: self._toolchange_guard(op, context)
+        text, status = self._grbl_transact(op, command, timeout=timeout, guard=guard)
+        if status != 'ok':
+            raise _GrblProbeAbort(command, text, status)
+        guard()
+        return text
+
+    def _toolchange_recovery(self, op):
+        with self._grbl_op_lock:
+            # An old worker must not hold a replacement session's operation.
+            self._grbl_failure_locked(op, 'probe_invalid')
+
+    def _toolchange_frame(self, op, context, expected=None, position=None, probe_clear=False):
+        """Fresh modal, offset and coherent full XYZ status evidence, never cached WCO."""
+        step = lambda command: self._toolchange_step(op, context, command)
+        report_setting = parse_grbl_setting(step('$$'), 13)
+        if report_setting not in (0.0, 1.0):
+            raise _GrblProbeAbort('$$', '', 'unknown_units')
+        units = context['units']
+        scale = grbl_report_scale(units, report_setting == 1.0)
+        # Stock GRBL prints .001 mm or .0001 inch; allow two report quanta plus command rounding.
+        epsilon = 2.0 * (0.0001 if report_setting else 0.001) * scale + 0.00005
+        gc = step('$G')
+        words = gc.replace('[GC:', '').replace(']', '').split()
+        if 'M5' not in words or any(word in words for word in ('M3', 'M4')):
+            raise _GrblProbeAbort('$G', gc, 'spindle_active')
+        if 'G43.1' in words:
+            raise _GrblProbeAbort('$G', gc, 'unsupported_offsets')
+        units_cmd = 'G20' if units == 'IN' else 'G21'
+        if (not grbl_modes_confirmed(gc, units_cmd) or
+                any(word in words for word in ('G91', 'G93', 'G21' if units == 'IN' else 'G20'))):
+            raise _GrblProbeAbort('$G', gc, 'modes_not_confirmed')
+        wcs = parse_grbl_active_wcs(gc)
+        offset_text = step('$#')
+        offsets = parse_grbl_offsets(offset_text)
+        if '[G92:' not in offset_text or '[TLO:' not in offset_text:
+            raise _GrblProbeAbort('$#', '', 'invalid_frame')
+        if wcs not in offsets or 'G92' not in offsets or 'TLO' not in offsets:
+            raise _GrblProbeAbort('$#', '', 'invalid_frame')
+        tlo = offsets['TLO']
+        if (any(value != 0.0 for value in offsets['G92']) or
+                any(value != 0.0 for value in (tlo if isinstance(tlo, tuple) else (tlo,)))):
+            raise _GrblProbeAbort('$#', '', 'unsupported_offsets')
+        offset = tuple(value * scale for value in offsets[wcs])
+        if any(not math.isfinite(value) for value in offset):
+            raise _GrblProbeAbort('$#', '', 'invalid_position')
+        if expected is not None and (wcs != expected['wcs'] or
+                bool(report_setting) != expected['report_inches'] or
+                any(abs(a - b) > epsilon for a, b in zip(offset, expected['offset']))):
+            raise _GrblProbeAbort('$#', '', 'frame_changed')
+        end = time.monotonic() + self.CAMERA_REPORT_DEADLINE
+        while True:
+            self._toolchange_guard(op, context)
+            report = parse_grbl_status_report(self._grbl_query_status(op))
+            self._toolchange_guard(op, context)
+            if report is None:
+                raise _GrblProbeAbort('?', '', 'no_report')
+            if report.get('state') != 'Idle':
+                raise _GrblProbeAbort('?', '', 'not_idle')
+            wco = report.get('wco')
+            if wco is None and 'mpos' in report and 'wpos' in report:
+                wco = tuple(m - w for m, w in zip(report['mpos'], report['wpos']))
+            if wco is not None and len(wco) == 3:
+                break
+            if time.monotonic() >= end:
+                raise _GrblProbeAbort('?', '', 'no_report')
+            time.sleep(self.CAMERA_REPORT_PAUSE)
+        machine = self._report_machine_position(report)
+        if machine is None or any(abs(a * scale - b) > epsilon for a, b in zip(wco, offset)):
+            raise _GrblProbeAbort('?', '', 'invalid_position')
+        machine = tuple(value * scale for value in machine)
+        if any(not math.isfinite(value) for value in machine):
+            raise _GrblProbeAbort('?', '', 'invalid_position')
+        if 'wpos' in report and any(abs(m - w * scale - o) > epsilon for m, w, o in
+                                    zip(machine, report['wpos'], offset)):
+            raise _GrblProbeAbort('?', '', 'invalid_position')
+        if position is not None and any(abs(a - b) > epsilon for a, b in zip(machine, position)):
+            raise _GrblProbeAbort('?', '', 'invalid_position')
+        if probe_clear and 'P' in report.get('pins', ''):
+            raise _GrblProbeAbort('?', '', 'already_triggered')
+        return {'wcs': wcs, 'offset': offset, 'machine': machine,
+                'report_inches': bool(report_setting), 'scale': scale, 'epsilon': epsilon}
+
+    def _toolchange_probe_worker(self, op, settings, context, reference):
+        """Bounded probe; a worker thread that reads no widgets. Returns a result payload."""
+        evidence = {'ok': False, 'reason': 'probe_invalid'}
+        motion_started = False
+        step = lambda command, timeout=10.0: self._toolchange_step(op, context, command, timeout)
+        try:
+            self._toolchange_guard(op, context)
+            state = parse_grbl_status_state(self._grbl_query_status(op))
+            if state != 'Idle':
+                raise _GrblProbeAbort('?', state or _("no answer"), 'not_idle')
+            step('G20' if context['units'] == 'IN' else 'G21')
+            step('G90')
+            step('G94')
+            step('G4 P0', timeout=10.0)
+            frame = self._toolchange_frame(op, context, probe_clear=True)
+            machine, offset = frame['machine'], frame['offset']
+            if reference is not None:
+                if (reference.get('report_inches') != frame['report_inches'] or
+                        reference['wcs'] != frame['wcs'] or any(abs(a - reference[k]) > frame['epsilon']
+                        for a, k in zip(offset, ('offset_x', 'offset_y', 'offset_z')))):
+                    raise _GrblProbeAbort('$#', '', 'frame_changed')
+                if math.hypot(machine[0] - offset[0] - reference['x'],
+                              machine[1] - offset[1] - reference['y']) > settings.xy_tolerance:
+                    raise _GrblProbeAbort('?', '', 'plate_moved')
+            start_work_z = machine[2] - offset[2]
+            target = probe_target(start_work_z, settings)
+            timeout = probe_timeout_s(start_work_z, target, settings.probe_feed)
+            if not all(math.isfinite(value) for value in (start_work_z, target, timeout)):
+                raise _GrblProbeAbort('', '', 'probe_invalid')
+            probe_cmd = 'G38.2 Z{0:.4f} F{1:.4f}'.format(target, settings.probe_feed)
+            if (float('%.4f' % target) >= start_work_z - frame['epsilon'] or
+                    float('%.4f' % settings.probe_feed) <= 0.0):
+                raise _GrblProbeAbort('', '', 'probe_invalid')
+            motion_started = True
+            text = step(probe_cmd, timeout=timeout)
+            try:
+                results = parse_grbl_probe_output(text)
+            except ValueError:
+                if ':0]' in (text or ''):
+                    raise _GrblProbeAbort(probe_cmd, text, 'probe_failed')
+                raise _GrblProbeAbort(probe_cmd, text, 'probe_invalid')
+            if len(results) != 1:
+                raise _GrblProbeAbort(probe_cmd, text, 'probe_invalid')
+
+            contact_machine = tuple(float(value) * frame['scale'] for value in results[0])
+            contact_work = (contact_machine[0] - offset[0], contact_machine[1] - offset[1],
+                            contact_machine[2] - offset[2])
+            start_xy = (machine[0] - offset[0], machine[1] - offset[1])
+            ok, reason = check_contact(start_work_z, target, contact_work[2],
+                                       (contact_work[0], contact_work[1]), start_xy, epsilon=frame['epsilon'])
+            if not ok:
+                raise _GrblProbeAbort(
+                    probe_cmd, text, 'probe_failed' if reason == 'already_triggered' else 'probe_invalid')
+
+            self._toolchange_frame(op, context, expected=frame, position=contact_machine)
+            retract_z = min(start_work_z, contact_work[2] + settings.clearance)
+            retract_z = math.floor(retract_z * 10000.0) / 10000.0
+            # Never lift above the known starting height, even for an oversized clearance.
+            step('G0 Z%.4f' % retract_z)
+            step('G4 P0', timeout=10.0)
+            self._toolchange_frame(op, context, expected=frame,
+                                   position=(machine[0], machine[1], retract_z + offset[2]))
+            return dict(evidence, ok=True, reason='ok',
+                        contact_machine=contact_machine, contact_machine_z=contact_machine[2],
+                        contact_xy=(contact_work[0], contact_work[1]),
+                        offset_z=offset[2], offset_x=offset[0], offset_y=offset[1],
+                        wcs=frame['wcs'], report_inches=frame['report_inches'])
+        except _GrblProbeAbort as abort:
+            # Recovery never retracts: failure means the frame/physical position may be unknown.
+            self._grbl_handle_abort(op, abort, None, False)
+            if motion_started or abort.status not in (
+                    'not_idle', 'unknown_units', 'already_triggered', 'spindle_active',
+                    'unsupported_offsets', 'modes_not_confirmed'):
+                self._toolchange_recovery(op)
+            return dict(evidence, reason=abort.status)
+        except (ValueError, TypeError, KeyError, OSError, serial.SerialException):
+            self._toolchange_recovery(op)
+            return dict(evidence, reason='probe_invalid')
+
+    def on_toolchange_apply(self):
+        ready = self._toolchange_ready()
+        if ready is None:
+            return
+        mode, settings = ready
+        measurement = self.toolchange
+        units = str(self.units).upper()
+        session = self._toolchange_session_id
+        ok, reason, expected = measurement.applied_offset(settings, session, units)
+        if not ok:
+            self._toolchange_refresh_ui(self._toolchange_reason_text(reason), error=True)
+            return
+        wcs = measurement.measurement['wcs']
+        snapshot = dict(measurement.measurement)
+        request = self.__dict__.get('_toolchange_request_id', 0) + 1
+        self.__dict__['_toolchange_request_id'] = request
+        self.__dict__['_toolchange_busy'] = True
+        self.__dict__['_toolchange_action'] = 'apply'
+        context = self._toolchange_context(mode, settings, units, session, request)
+        ui = self._toolchange_ui()
+        if ui is not None:
+            ui.set_busy(True)
+            ui.set_message(_("Writing and verifying the work offset..."))
+
+        def task(op):
+            payload = self._toolchange_apply_worker(op, wcs, expected, snapshot, context)
+            payload.update({'kind': 'toolchange', 'action': 'apply', 'request': request,
+                            'mode': mode, 'session': session, 'units': units,
+                            'settings': context['settings'], 'generation': op.safety_generation})
+            self.toolchange_result_sig.emit(payload)
+            return False
+
+        if not self._grbl_start_op('tool change', task, motion=True):
+            self.__dict__['_toolchange_busy'] = False
+            self.__dict__['_toolchange_action'] = None
+            if ui is not None:
+                ui.set_busy(False)
+
+    def _toolchange_apply_worker(self, op, wcs, expected_offset_z, snapshot, context):
+        """Write the active WCS Z with G10 L2 and verify it against fresh reports. No motion."""
+        step = lambda command, timeout=10.0: self._toolchange_step(op, context, command, timeout)
+        write_attempted = False
+        try:
+            frame = self._toolchange_frame(op, context)
+            current = frame['offset']
+            if (snapshot.get('report_inches') != frame['report_inches'] or wcs != frame['wcs'] or
+                    any(abs(a - snapshot[k]) > frame['epsilon'] for a, k in
+                        zip(current, ('offset_x', 'offset_y', 'offset_z')))):
+                raise _GrblProbeAbort('$#', '', 'frame_changed')
+            p_number = int(wcs[1:]) - 53
+            command = 'G10 L2 P%d Z%.4f' % (p_number, float(expected_offset_z))
+            write_attempted = True
+            self._last_wco = None
+            self._camera_context_changed('toolchange')
+            step(command, timeout=10.0)
+            expected = dict(frame, offset=(current[0], current[1], float(expected_offset_z)))
+            after = self._toolchange_frame(op, context, expected=expected, position=frame['machine'])
+            return {'ok': True, 'reason': 'ok', 'new_offset_z': after['offset'][2], 'wcs': wcs}
+        except _GrblProbeAbort as abort:
+            if write_attempted:
+                self._toolchange_recovery(op)
+            return {'ok': False, 'reason': 'apply_not_verified' if write_attempted else abort.status}
+        except (ValueError, TypeError, KeyError, OSError, serial.SerialException):
+            self._toolchange_recovery(op)
+            return {'ok': False, 'reason': 'apply_not_verified'}
+
+    def on_toolchange_acknowledge(self):
+        self._toolchange_settings_changed()
+        measurement = self.toolchange
+        if measurement.state() != STATE_NEEDS_REMOVAL:
+            return
+        measurement.mark_plate_removed()
+        self._toolchange_refresh_ui(_("The plate is removed. The board Z zero is ready for the job."))
+
+    def on_toolchange_clear(self):
+        if self.__dict__.get('_toolchange_busy', False):
+            self.on_grbl_stop()
+        self._toolchange_new_session()
+        self._toolchange_refresh_ui(_("The tool-change reference was discarded."))
+
+    def _on_toolchange_result(self, payload):
+        if not payload:
+            return
+        measurement = self.__dict__.get('toolchange')
+        if measurement is None:
+            return
+        if payload.get('request') != self.__dict__.get('_toolchange_request_id'):
+            # a queued answer of an older request must not apply an offset or restore a state
+            return
+        self.__dict__['_toolchange_busy'] = False
+        self.__dict__['_toolchange_action'] = None
+        ui = self._toolchange_ui()
+        if ui is not None:
+            ui.set_busy(False)
+
+        mode = self._toolchange_mode()
+        settings = self._toolchange_settings()
+        units = str(getattr(self, 'units', '')).upper()
+        session = self.__dict__.get('_toolchange_session_id')
+        if (payload.get('mode') != mode or payload.get('units') != units or
+                payload.get('session') != session or settings is None or
+                payload.get('settings') != settings.signature() or
+                (payload.get('ok') and
+                 payload.get('generation') != self.__dict__.get('_grbl_safety_generation', 0)) or
+                str(self.app.app_units).upper() != units or
+                self.__dict__.get('_grbl_connected') is False):
+            measurement.forget()
+            self._toolchange_refresh_ui(
+                _("The answer is stale: the mode, the settings, the units or the session changed."), error=True)
+            return
+        if not payload.get('ok'):
+            measurement.forget()
+            self._toolchange_refresh_ui(self._toolchange_reason_text(payload.get('reason')), error=True)
+            return
+
+        action = payload.get('action')
+        if action == 'reference':
+            ok = measurement.record_reference(
+                payload['contact_machine_z'], payload['contact_xy'], payload['offset_z'], payload['wcs'],
+                units, session, settings, offset_xy=(payload['offset_x'], payload['offset_y']))
+            if not ok:
+                self._toolchange_refresh_ui(_("The plate reference position is invalid."), error=True)
+                return
+            measurement.reference['report_inches'] = payload['report_inches']
+            self._toolchange_refresh_ui(
+                _("Fixed plate reference recorded. Install the next tool, then measure it."))
+            return
+        if action == 'measure':
+            ok = measurement.record_measurement(
+                payload['contact_machine_z'], payload['contact_xy'], payload['offset_z'], payload['wcs'],
+                units, session, offset_xy=(payload['offset_x'], payload['offset_y']))
+            if not ok:
+                self._toolchange_refresh_ui(_("The measured position is invalid."), error=True)
+                return
+            measurement.measurement['report_inches'] = payload['report_inches']
+            self._toolchange_refresh_ui(_("Measurement ready. Apply it to set the work offset Z."))
+            return
+        if action == 'apply':
+            new_offset_z = payload.get('new_offset_z')
+            if new_offset_z is None or not math.isfinite(float(new_offset_z)):
+                self._toolchange_refresh_ui(_("The new work offset Z is invalid."), error=True)
+                return
+            if mode == PLATE_FIXED:
+                measurement.mark_applied(new_offset_z)
+                text = _("Work offset Z corrected to %.*f. The next tool is measured against the same plate.") % (
+                    self.decimals, float(new_offset_z))
+            else:
+                measurement.mark_applied(new_offset_z)
+                text = _(
+                    "Board Z zero set to the plate thickness. Remove the plate from the PCB, then confirm.")
+            self._toolchange_refresh_ui(text)
+
     def on_grbl_zero(self, axis):
         axes = {'x': 'X0', 'y': 'Y0', 'z': 'Z0'}.get(axis, 'X0 Y0 Z0')
         # the work offset changes: the next status report that has no WCO must not use the old one
         self._last_wco = None
+        self._camera_new_session('zero')
+        self._toolchange_new_session('zero')
 
         def task(op):
             text, status = self._grbl_transact(op, '$G', timeout=5.0, echo=False)
@@ -1544,6 +3265,10 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self._grbl_start_op('zero', task, motion=True)
 
     def on_grbl_homing(self):
+        self._stop_continuous_jog()
+        self._camera_new_session('home')
+        self._toolchange_new_session('home')
+
         def task(op):
             with self._grbl_op_lock:
                 pending = self._grbl_reset_pending
@@ -1570,6 +3295,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
     def on_grbl_stop(self):
         """Stop the running operation at once: feed hold, and the machine needs recovery."""
+        self._stop_continuous_jog()
+        self._toolchange_new_session('stop')
         if self.__dict__.get('_simulation') is not None:
             self._simulation.stop()
             return
@@ -1598,7 +3325,10 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         """
         if self.__dict__.get('_simulation') is not None:
             return
+        self._stop_continuous_jog()
         self._last_wco = None
+        self._camera_new_session('reset')
+        self._toolchange_new_session('reset')
         with self._grbl_op_lock:
             if keep_position is None:
                 op = self._grbl_op
@@ -1672,12 +3402,18 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self._grbl_start_op('reset', task, allow_in_recovery=True)
 
     def on_grbl_pause_resume(self, checked):
-        if self._grbl_op is not None:
+        # a grblHAL manual M6 holds the job in the Tool state: resume (Cycle Start) completes the tool change
+        if self._grbl_op is not None and not (
+                checked is False and self.__dict__.get('_grbl_tool_change_pending')):
             self.app.inform.emit('[WARNING_NOTCL] %s' % _("An operation runs. Use Stop."))
             return
         if checked is False and self._grbl_recovery is not None:
             # a resume after Stop would continue the held motion
             self.app.inform.emit('[ERROR_NOTCL] %s' % self._grbl_recovery_text())
+            return
+
+        if checked is False:
+            self._on_resume_button()
             return
 
         with self._grbl_op_lock:
@@ -1699,6 +3435,17 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         from latching recovery between the check and the write.
         """
         with self._grbl_op_lock:
+            fence_op = self.__dict__.get('_grbl_tool_fence_op')
+            if fence_op is not None and fence_op is self._grbl_op:
+                self.app.inform.emit('[ERROR_NOTCL] %s' % _("Wait for the tool change reply fence before resuming."))
+                return
+            if self.__dict__.get('_grbl_mpg_owned') or self.__dict__.get('_grbl_sd_owned'):
+                self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                    "External SD/MPG execution owns the controller. Resume it at its source."))
+                return
+            if self.__dict__.get('_grbl_tool_command_busy'):
+                self.app.inform.emit('[ERROR_NOTCL] %s' % _("Wait for the tool change command to finish before resuming."))
+                return
             # Recovery latched (needs_reset or needs_home): block resume
             if self._grbl_recovery is not None:
                 self.app.inform.emit('[ERROR_NOTCL] %s' % self._grbl_recovery_text())
@@ -2433,9 +4180,10 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         :return: (write, readline)
         """
         first_job_line_written = [False]
+        status_request = self._grbl_realtime_byte(b'?')
 
         def write(data):
-            job_line = data != b'?'
+            job_line = data not in (b'?', status_request)
             # the request check, the write and the flag are 1 locked section: an invalidation either gets
             # the lock first (no job line is written) or comes after the first job line (the job runs on)
             with self._grbl_op_lock:
@@ -2467,6 +4215,48 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
         return write, readline
 
+    def _grbl_stream_control(self, op, data):
+        """
+        A real-time byte of the stream worker, under the operation lock: the tool change acknowledge (0xA3).
+
+        :return: 'ok', 'cancelled' or 'port_error'.
+        """
+        with self._grbl_op_lock:
+            if op.cancel.is_set():
+                return 'cancelled'
+            if not self._grbl_active_locked(op):
+                return 'port_error'
+            if not self._grbl_write_realtime_locked(data):
+                return 'port_error'
+            return 'ok'
+
+    def _grbl_queue_tool_command(self, command):
+        """Tool-state commands share the stream reader; never reserve a competing operation."""
+        with self._grbl_op_lock:
+            if not self.__dict__.get('_grbl_tool_change_pending'):
+                return False
+            if (callable(getattr(self.grbl_ser_port, 'prepare_program', None)) or
+                    (self.__dict__.get('_grbl_caps') or {}).get('automatic_tool_change', False)):
+                self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                    "Operator commands are unavailable during an automatic or adapter-owned tool change."))
+                return True
+            op = self._grbl_op
+            if (op is None or op.cancel.is_set() or op.failed or self._grbl_recovery is not None or
+                    self._grbl_reset_pending or self.__dict__.get('_grbl_tool_command_busy')):
+                self.app.inform.emit('[ERROR_NOTCL] %s' % _("Tool change command is busy or recovery is required."))
+                return True
+            # Firmware settings and unrestricted motion aren't part of native touch-off.
+            if ('\n' in command or '\r' in command or validate_stream_lines([command]) is not None or
+                    not re.fullmatch(r'(?:\$(?:TPW|TLR|G|#)|\$J=[A-Z0-9+ .\-]+|'
+                                     r'G43\.1\s+Z[+\-]?(?:\d+(?:\.\d*)?|\.\d+)|G49)',
+                                     command, re.IGNORECASE)):
+                self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                    "During Tool state use axis jogs, $TPW, $TLR, $G, $#, G43.1 Z... or G49 only."))
+                return True
+            self._grbl_tool_commands.append(command)
+            self._grbl_tool_command_busy = True
+            return True
+
     def _grbl_stream_run(self, op, lines, numbers, check_mode, poll_interval, req=None, restart=None):
         """
         The stream worker under 1 operation (a worker thread; it reads no widgets).
@@ -2485,6 +4275,17 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         """
         self._stream_result = {}
         port = op.port
+        with self._grbl_op_lock:
+            if self._grbl_op is not op or op.cancel.is_set() or op.failed:
+                return 'stopped'
+            self._grbl_tool_fence_op = None
+            self._grbl_tool_change_pending = False
+            self._grbl_tool_commands = []
+            self._grbl_tool_command_busy = False
+        if (self.__dict__.get('_grbl_caps') or {}).get('probe') is False and any(
+                re.search(r'G\s*38\.[2345](?!\d)', line, re.IGNORECASE) for line in lines):
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _("The controller has no probe input. Probing is unavailable."))
+            return 'rejected'
 
         # A8.3 step 4.1: the request must be current when the worker starts
         if req is not None:
@@ -2555,6 +4356,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
         program = preamble + resumed
         prepare_program = getattr(port, 'prepare_program', None)
+        tool_change_ack = (not callable(prepare_program) and
+                           not (self.__dict__.get('_grbl_caps') or {}).get('automatic_tool_change', False))
         if program and not check_mode and callable(prepare_program):
             try:
                 prepare_program(program)
@@ -2566,12 +4369,58 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                     self._grbl_abort_stream_locked(op, 'error', str(error))
                 return 'error'
 
+        def on_status(line):
+            report = parse_grbl_status_report(line)
+            with self._grbl_op_lock:
+                if self._grbl_op is not op or op.cancel.is_set() or op.failed or self.grbl_ser_port is not port:
+                    return
+                if report is not None:
+                    if report['state'] == 'Tool' or report.get('tool_pending'):
+                        if not self._grbl_tool_change_pending:
+                            # This callback precedes A3; Resume must wait through the reply fence.
+                            self._grbl_tool_fence_op = op
+                    elif report['state'] in ('Run', 'Idle'):
+                        self._grbl_tool_change_pending = False
+            self.status_report_sig.emit(report)
+
+        def on_tool_change():
+            with self._grbl_op_lock:
+                if (self._grbl_op is not op or op.cancel.is_set() or op.failed or
+                        self.grbl_ser_port is not port or self.__dict__.get('_grbl_tool_fence_op') is not op):
+                    return
+                self._grbl_tool_change_pending = True
+                self._grbl_tool_fence_op = None
+            if not tool_change_ack:
+                self.app.inform.emit('[WARNING_NOTCL] %s' % _(
+                    "Tool change is controlled by the controller or adapter. Operator commands are unavailable."))
+                return
+            self.app.inform.emit('[WARNING_NOTCL] %s' % _(
+                "Tool change: install the tool, jog/touch off with $TPW or set G43.1 Z..., then press Cycle Start."))
+
+        def tool_command():
+            with self._grbl_op_lock:
+                return self._grbl_tool_commands.pop(0) if self._grbl_tool_commands else None
+
+        def tool_command_done(text):
+            with self._grbl_op_lock:
+                if self._grbl_op is not op or op.cancel.is_set() or op.failed or self.grbl_ser_port is not port:
+                    return
+                self._grbl_tool_command_busy = False
+            if text.lower() != 'ok':
+                self.app.inform.emit('[ERROR_NOTCL] %s' % text)
+
         res = stream_lines(
             program, write, readline, check_mode=check_mode,
             on_progress=lambda d, t: self.stream_progress_sig.emit(program_done(d), len(lines)),
             on_line=self.console_line_sig.emit,
             poll_status=True, poll_interval=poll_interval,
-            on_status=lambda line: self.status_report_sig.emit(parse_grbl_status_report(line)))
+            on_status=on_status,
+            status_request=self._grbl_realtime_byte(b'?'),
+            write_control=lambda data: self._grbl_stream_control(op, data),
+            # the E-Cut adapter has its own M6 protocol: prepare_program() gives it the whole job
+            tool_change_ack=tool_change_ack,
+            on_tool_change=on_tool_change, tool_command=tool_command,
+            on_tool_command_done=tool_command_done)
         status = res['status']
 
         def source_number(index):
@@ -3068,7 +4917,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             return
         self._controller_state = report['state'].split(':')[0]
         was_paused = self.__dict__.get('_program_paused') is True
-        self._program_paused = report['state'].split(':')[0] in ('Hold', 'Door')
+        # a grblHAL manual M6 holds the job in the Tool state, like Hold and Door
+        self._program_paused = report['state'].split(':')[0] in ('Hold', 'Door', 'Tool')
         if was_paused and not self._program_paused and report['state'] == 'Run':
             if self.view3d is not None:
                 self.view3d.set_selected_line(None)
@@ -3077,6 +4927,13 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 console._follow_program(console.follow_cb.isChecked())
         if 'wco' in report:
             self._last_wco = report['wco']
+        self._grbl_update_ownership(report)
+        camera_scale = self._camera_report_scale()
+        machine = self._report_machine_position(report, getattr(self, '_last_wco', None))
+        if machine is not None and camera_scale is not None:
+            camera_z = machine[2] * camera_scale
+            if math.isfinite(camera_z):
+                self._camera_last_z = camera_z
         pos = work_position(report, getattr(self, '_last_wco', None))
         text = report['state']
         if pos is not None:
@@ -3088,6 +4945,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             else:
                 pos = tuple(value * scale for value in pos)
                 text += '   X %.3f  Y %.3f  Z %.3f' % pos
+        if 'spindle_actual' in report:
+            # the measured RPM that grblHAL adds to FS when the spindle has an encoder
+            text += '   RPM %d' % round(report['spindle_actual'])
         self.ui.status_label.setText(text)
         if 'ov' in report:
             self.ui.ov_values_label.setText('F: %d%%  R: %d%%  S: %d%%' % report['ov'])
@@ -3096,6 +4956,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self._on_spindle_state('S' in accessory or 'C' in accessory)
         if self.view3d is not None and pos is not None:
             self.view3d.set_tool_position(pos)
+        if self.__dict__.get('camera_calibration') is not None and self.camera_calibration.has_calibration:
+            self._camera_refresh_ui()
 
     def show_probing_geo(self, state, reset=False):
         if self.view3d is not None and (reset or not state):
@@ -3117,6 +4979,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 self.view3d.probing_shapes.clear(update=True)
 
     def _schedule_3d_preview(self):
+        if self.__dict__.get('_camera_public_mode', False):
+            return
         self._preview_generation = getattr(self, '_preview_generation', 0) + 1
         generation = self._preview_generation
 
@@ -3301,6 +5165,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
         :param how: see _grbl_stream_run().
         """
+        self._grbl_tool_change_pending = False
+        self._grbl_tool_commands = []
+        self._grbl_tool_command_busy = False
         self.ui.start_button.setDisabled(False)
         result = self._stream_result or {}
         console = self.app.ui.grbl_console_dock.widget()
@@ -3348,11 +5215,22 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     def _console(self):
         """:return: the GrblConsole in the dock (made at the first call)."""
         dock = self.app.ui.grbl_console_dock
-        if not isinstance(dock.widget(), GrblConsole):
-            dock.setWidget(GrblConsole(self))
-        return dock.widget()
+        console = dock.widget()
+        if not isinstance(console, GrblConsole):
+            console = GrblConsole(self)
+            dock.setWidget(console)
+        # the Sender UI is rebuilt on reset; the dock keeps one set of jog controls
+        jog_page = getattr(getattr(self, 'ui', None), 'jog_page', None)
+        if isinstance(jog_page, QtWidgets.QWidget):
+            console.set_jog_page(jog_page)
+        if not self.__dict__.get('_console_dock_hooked', False):
+            dock.visibilityChanged.connect(self._on_console_dock_visibility)
+            self._console_dock_hooked = True
+        return console
 
     def _reload_console_program(self, target_obj):
+        if self.__dict__.get('_camera_public_mode', False):
+            return
         # A running stream keeps its own program and acknowledgement indexes.
         if self.__dict__.get('_simulation') is not None and self._simulation.running:
             return
@@ -3366,9 +5244,11 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         if checked:
             self.show_console_if_wanted()
         else:
-            self.app.ui.grbl_console_dock.hide()
+            self.hide_console()
 
     def show_console_if_wanted(self):
+        if self.__dict__.get('_camera_public_mode', False):
+            return
         if self.app.options.get("tools_grbl_console_visible", False):
             console = self._console()
             console.tabs.setCurrentIndex(0)
@@ -3377,6 +5257,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             console.program_view.setFocus()
 
     def hide_console(self):
+        self._stop_continuous_jog()
         self.app.ui.grbl_console_dock.hide()
 
     def send_console_command(self, text):
@@ -3385,8 +5266,17 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
     def on_plugin_cleanup(self):
         """The plugin closes: stop and disconnect the controller, release the Plot 3D tab, hide the console."""
+        self._stop_continuous_jog()
+        self._toolchange_new_session('close')
         if self.__dict__.get('_simulation') is not None:
             self._simulation.close()
+        registration_ui = getattr(getattr(self, 'ui', None), 'registration_widget', None)
+        if registration_ui is not None:
+            try:
+                registration_ui.shutdown()
+            except (AttributeError, RuntimeError):
+                pass
+        self._camera_stop_preview()
         self._grbl_shutdown()
         self._plugin_active = False
         self._preview_generation = getattr(self, '_preview_generation', 0) + 1

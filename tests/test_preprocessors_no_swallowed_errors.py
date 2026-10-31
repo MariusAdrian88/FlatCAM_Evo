@@ -230,6 +230,18 @@ def test_tool_change_stops_the_spindle_and_names_the_tool_without_atc():
         assert not re.search(r'^(T\d|M6)', g, re.M)
 
 
+def test_grblhal_tool_change_leaves_the_pause_to_the_firmware():
+    # grblHAL waits in the Tool state at M6 for the sender's acknowledge and a Cycle Start; an M0 after it would
+    # stop again when the tool change is already done
+    native = PREPROCESSORS['grblHAL'].toolchange_code(params(xy_toolchange=[5.0, 7.0]))
+    assert_in_order(native, ['M5', 'G00 Z15.0000', 'G00 X5.0000 Y7.0000', 'T1', 'M6'])
+    assert 'M0' not in native.splitlines()
+    # no M6: the pause is the operator tool change of the sender
+    no_m6 = PREPROCESSORS['grblHAL_no_M6'].toolchange_code(params(xy_toolchange=[5.0, 7.0]))
+    assert_in_order(no_m6, ['M5', 'G00 Z15.0000', 'G00 X5.0000 Y7.0000', 'T1', 'M0'])
+    assert not re.search(r'^M6$', no_m6, re.M)
+
+
 @pytest.mark.parametrize('xy', [None, [5.0, 7.0]])
 def test_probe_tool_change(xy):
     pp = PREPROCESSORS['Toolchange_Probe_MACH3']

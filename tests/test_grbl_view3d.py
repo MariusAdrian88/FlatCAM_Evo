@@ -245,8 +245,6 @@ class ConnectReadsReportUnitsTest(unittest.TestCase):
 
     def test_connect_finish_reads_13_in_a_non_motion_operation(self):
         fake = FakeGrbl(report_inches=True)
-        fake.rx.append(b'ok\r\n')
-        fake.readlines = lambda: [b'ok\r\n']
         tool = make_audit_tool()
         tool.app.worker_task.emit.side_effect = lambda task: task['fcn']()
         attempt = object()
@@ -255,6 +253,7 @@ class ConnectReadsReportUnitsTest(unittest.TestCase):
         tool._last_wco = (1.0, 1.0, 1.0)
         tool._grbl_report_inches = None
         fake.rx.clear()
+        fake.rx.append(b'ok\r\n')
         timers = []
         with patch('appPlugins.ToolGcodeSender.Sender.QtCore.QTimer.singleShot',
                    side_effect=lambda delay, callback: timers.append((delay, callback))):

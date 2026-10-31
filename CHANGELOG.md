@@ -6,6 +6,29 @@ Based on FlatCAM:
 
 CHANGELOG for FlatCAM Evo
 
+31.10.2026
+
+G-code Sender (grblHAL):
+
+- new: a Controller selection (GRBL, grblHAL, E-Cut); grblHAL connects by serial port, by native USB or by the network (host/IP and port)
+- new: the grblHAL banner, options and axes are read at connect; the status reports show the tool, the WCS, the SD and MPG state and the extra axes
+- new: a job that an SD card or an MPG pendant runs on the controller blocks the motion commands of the Sender
+- new: a manual tool change (M6) on grblHAL: the Sender acknowledges the Tool state, lets the user jog and send commands in it and continues the job with Resume
+- new: preprocessors grblHAL, grblHAL_no_M6, grblHAL_laser and grblHAL_laser_z; grblHAL writes no M0 after M6 because M6 already pauses the controller
+- new: a Tool change tab: the tool length is measured on a fixed or a removable touchplate and the new Z offset is written with G10 L2; the probe never moves XY and the retract never goes above the start height
+- new: a Camera tab: the camera offset to the spindle is calibrated with a crosshair, then the board is registered with camera points and the alignment is applied to the chosen objects (with undo)
+- the Tool change and connection settings are in Preferences -> Plugins -> G-code Sender
+- an old E-Cut setting (the E-Cut USB port saved as the serial port) selects the E-Cut controller
+- fixed: a lost status reply stopped the polling and the job ended with a timeout
+- fixed: a failed network connect asked for Reset and Home at the next connect
+- fixed: a jog key pressed when the controller is not Idle asked for Reset and Home; now it only shows a warning
+- fixed: a camera that did not start showed no message and the Preview button stayed pressed
+- the removal of a registration pair asks for confirmation
+
+Other:
+
+- tests: the design tests of the G-code Sender work and 2 tests that failed under load were removed
+
 30.10.2026
 
 Excellon (XNC format, Ucamco 2019.02):

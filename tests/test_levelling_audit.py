@@ -148,6 +148,9 @@ class FakeGrbl:
         self.probe_count = 0
         self.read_hook = read_hook
 
+    def open(self):
+        self.is_open = True
+
     def reset_input_buffer(self):
         self.rx.clear()
 
@@ -724,7 +727,8 @@ class TestGrblConnect(unittest.TestCase):
     def test_finish_without_answer_closes_port(self):
         tool = self._tool()
         port = make_port()
-        port.readlines.return_value = [b'garbage\r\n']
+        port.in_waiting = len(b'garbage\r\n')
+        port.read.return_value = b'garbage\r\n'
         tool.grbl_ser_port = port
         tool._grbl_connect_attempt = object()
         tool._grbl_connect_finish('COM3', port, tool._grbl_connect_attempt)
@@ -736,7 +740,8 @@ class TestGrblConnect(unittest.TestCase):
         for answer in (b'ok\r\n', b"Grbl 1.1h ['$' for help]\r\n"):
             tool = self._tool()
             port = make_port()
-            port.readlines.return_value = [answer]
+            port.in_waiting = len(answer)
+            port.read.return_value = answer
             tool.grbl_ser_port = port
             tool._grbl_connect_attempt = object()
             tool._grbl_connect_finish('COM3', port, tool._grbl_connect_attempt)
@@ -747,7 +752,9 @@ class TestGrblConnect(unittest.TestCase):
         tool = self._tool()
         tool._grbl_recovery = 'needs_reset'
         port = make_port()
-        port.readlines.return_value = [b"Grbl 1.1h ['$' for help]\r\n"]
+        answer = b"Grbl 1.1h ['$' for help]\r\n"
+        port.in_waiting = len(answer)
+        port.read.return_value = answer
         tool.grbl_ser_port = port
         tool._grbl_connect_attempt = object()
         tool._grbl_connect_finish('COM3', port, tool._grbl_connect_attempt)
@@ -942,6 +949,8 @@ class TestGrblCommands(unittest.TestCase):
 
     def test_no_port_blocks_every_command(self):
         tool = make_audit_tool()
+        tool.ui.jog_step_entry.get_value.return_value = 1.0
+        tool.ui.jog_fr_entry.get_value.return_value = 100.0
         tool.ui.grbl_command_entry.get_value.return_value = '?'
         tool.on_grbl_jog(direction='xplus')
         tool.on_grbl_send_command()

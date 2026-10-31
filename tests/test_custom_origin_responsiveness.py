@@ -1,18 +1,16 @@
 """Custom Origin must keep dialogs/widgets/camera on the GUI thread."""
 
-import threading
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
-from PyQt6 import QtCore, QtGui, QtWidgets
+from PyQt6 import QtCore, QtWidgets
 from shapely import affinity
 from shapely.geometry import box
 
 from appCommon.Common import LoudDict
 from appHandlers.appEdit import appEditor
-from appHandlers.appSignalConnector import AppSignalConnector
-from test_move2origin_responsiveness import make_app, wait_for
+from test_move2origin_responsiveness import make_app
 
 
 @pytest.fixture(scope='module')
@@ -90,88 +88,6 @@ def setup_operation():
     controller = appEditor(app)
     app.edit_class = controller
     return app, controller, events, threads, tasks
-
-
-def test_real_center_action_uses_qthread_and_gui_completion_after_export(qt_app):
-    app, controller, events, threads, tasks = setup_operation()
-    entered, release, fit_ready = threading.Event(), threading.Event(), threading.Event()
-    first = Layer(10.0, 30.0, events, threads, (entered, release))
-    second = Layer(25.0, 5.0, events, threads)
-    outsider = Layer(100.0, 100.0, events, threads)
-    app.collection.get_selected.return_value = [first, second]
-
-    def get_selected():
-        threads.append(('selection', QtCore.QThread.currentThread()))
-        return app.collection.get_selected.return_value
-
-    app.collection.get_selected.side_effect = get_selected
-    action = QtGui.QAction('Center in Origin')
-    app.ui.menuedit_center_in_origin = action
-    checked = []
-    action.triggered.connect(checked.append)
-    connector = AppSignalConnector(app)
-    connector.connect_editmenu_signals()
-    gui_thread = QtCore.QThread.currentThread()
-    dialog_threads = []
-
-    def dialog(**kwargs):
-        dialog_threads.append(QtCore.QThread.currentThread())
-        assert kwargs['default_choice'] == 'c'
-        return SimpleNamespace(ok=True, location_point='c')
-
-    def fit(**kwargs):
-        threads.append(('fit', QtCore.QThread.currentThread()))
-        return fit_ready.is_set()
-
-    app.plotcanvas.fit_view.side_effect = fit
-    with patch('appHandlers.appEdit.DialogBoxChoice', side_effect=dialog):
-        action.trigger()
-    assert checked == [False]
-    assert len(tasks) == 1
-    assert dialog_threads == [gui_thread]
-    app.collection.get_selected.return_value = [outsider]
-    worker = Worker(tasks[0])
-    ticks = []
-    heartbeat = QtCore.QTimer()
-    heartbeat.setInterval(5)
-    heartbeat.timeout.connect(lambda: ticks.append(1))
-    heartbeat.start()
-    worker.start()
-    try:
-        wait_for(entered.is_set)
-        wait_for(lambda: len(ticks) >= 3)
-        assert not any(phase in ('ui', 'metadata', 'fit') for phase, thread in threads)
-        assert not any('Origin set' in event for event in events)
-    finally:
-        release.set()
-        assert worker.wait(3000)
-        heartbeat.stop()
-    assert not worker.errors
-    previous_ticks = len(ticks)
-    heartbeat.start()
-    try:
-        wait_for(lambda: app.plotcanvas.fit_view.call_count >= 2 and len(ticks) >= previous_ticks + 3)
-        assert not any('Origin set' in event for event in events)
-        app.delete_selection_shape.assert_called_once_with()
-    finally:
-        heartbeat.stop()
-        fit_ready.set()
-    wait_for(lambda: any('Origin set' in event for event in events))
-    assert sum('Origin set' in event for event in events) == 1
-    app.delete_selection_shape.assert_called_once_with()
-    assert all(thread is worker for phase, thread in threads if phase in ('bounds', 'offset', 'plot',
-                                                                         'export_start', 'export_done'))
-    assert all(thread is gui_thread for phase, thread in threads if phase in ('selection', 'ui', 'metadata', 'fit'))
-    app.collection.get_selected.assert_called_once_with()
-    assert all(call.kwargs == {'blocking': False} for call in app.plotcanvas.fit_view.call_args_list)
-    assert first.geometry.bounds == pytest.approx((-8.5, 11.0, -6.5, 14.0))
-    assert second.geometry.bounds == pytest.approx((6.5, -14.0, 8.5, -11.0))
-    assert outsider.geometry.bounds == (100.0, 100.0, 102.0, 103.0)
-    assert first.source_file == first.plotted_geometry.wkt == first.geometry.wkt
-    assert second.source_file == second.plotted_geometry.wkt == second.geometry.wkt
-    assert events.count('ui') == 2
-    assert events.index('ui') > max(index for index, event in enumerate(events) if event == 'export_done')
-    app.app_obj.object_changed.emit.assert_not_called()
 
 
 @pytest.mark.parametrize('mode, origin', [

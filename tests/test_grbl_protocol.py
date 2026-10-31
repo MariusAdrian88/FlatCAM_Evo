@@ -5,7 +5,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import unittest
 
-from appPlugins.Common.grbl.grbl_protocol import parse_grbl_status_report, work_position
+from appPlugins.Common.grbl.grbl_protocol import (
+    grbl_capabilities, parse_grbl_active_wcs, parse_grbl_identity, parse_grbl_offsets,
+    parse_grbl_status_report, parse_grbl_work_offset, work_position)
 
 
 class TestStatusReport(unittest.TestCase):
@@ -36,6 +38,119 @@ class TestStatusReport(unittest.TestCase):
 
     def test_work_position_unknown(self):
         self.assertIsNone(work_position({'mpos': (1, 2, 3)}))
+
+    def test_tool_state_with_the_tool_change_protocol(self):
+        rep = parse_grbl_status_report('<Tool|MPos:0.000,0.000,0.000|FS:0,0,0|A:T|MPG:0>')
+        self.assertEqual(rep['state'], 'Tool')
+        self.assertTrue(rep['tool_pending'])
+        self.assertEqual(rep['spindle_actual'], 0.0)
+        self.assertFalse(rep['mpg'])
+
+    def test_actual_spindle_alarm_substate_and_extra_axes(self):
+        rep = parse_grbl_status_report('<Run|MPos:0,0,0|FS:500,10000,9800>')
+        self.assertEqual((rep['spindle'], rep['spindle_actual']), (10000.0, 9800.0))
+        rep = parse_grbl_status_report('<Alarm:4|MPos:0,0,0>')
+        self.assertEqual((rep['state'], rep['substate']), ('Alarm', '4'))
+        self.assertIsNone(parse_grbl_status_report('<Idle|MPos:0,0,0,0>'))
+
+
+class TestGrblHalIdentity(unittest.TestCase):
+    ANSWER = ('[OPT:VN,35,128,3,0]\n'
+              '[AXS:3:XYZ]\n'
+              '[NEWOPT:ENUMS,RT-,TC,HOME,SD]\n'
+              '[FIRMWARE:grblHAL]\n'
+              '[SIGNALS:P,D,H,R,S]\n'
+              'ok\n')
+
+    def test_identity_tags_are_read(self):
+        identity = parse_grbl_identity(self.ANSWER)
+        self.assertEqual(identity['firmware'], 'grblHAL')
+        self.assertEqual(identity['axes'], 3)
+        self.assertEqual(identity['axis_letters'], 'XYZ')
+        self.assertIn('TC', identity['options'])
+        self.assertIn('RT-', identity['options'])
+        for text in ('', None, 'error:3', '[MSG:no report]\nok'):
+            self.assertIsNone(parse_grbl_identity(text))
+
+    def test_capabilities_of_an_xyz_manual_tool_change_controller(self):
+        caps = grbl_capabilities(parse_grbl_identity(self.ANSWER))
+        self.assertTrue(caps['grblhal'])
+        self.assertTrue(caps['xyz_only'])
+        self.assertTrue(caps['manual_tool_change'])
+        self.assertFalse(caps['automatic_tool_change'])
+        self.assertTrue(caps['probe'])
+        self.assertTrue(caps['top_bit_realtime'])
+
+    def test_extra_axes_no_probe_and_automatic_tool_change(self):
+        text = '[AXS:4:XYZU]\n[NEWOPT:RT+,NOPROBE,ATC=1]\n[FIRMWARE:grblHAL]\nok\n'
+        caps = grbl_capabilities(parse_grbl_identity(text))
+        self.assertFalse(caps['xyz_only'])
+        self.assertFalse(caps['probe'])
+        self.assertFalse(caps['top_bit_realtime'])
+        self.assertFalse(caps['manual_tool_change'])
+        self.assertTrue(caps['automatic_tool_change'])
+
+    def test_opt_axis_fallback(self):
+        for count, expected in (('3', True), ('4', False), ('2', False),
+                                ('', None), ('bad', None), ('0', None), ('3.0', None)):
+            with self.subTest(count=count):
+                identity = parse_grbl_identity('[OPT:VN,35,128,%s,0]' % count)
+                self.assertIs(grbl_capabilities(identity)['xyz_only'], expected)
+                self.assertFalse(grbl_capabilities(identity)['grblhal'])
+        self.assertIsNone(grbl_capabilities(parse_grbl_identity('[OPT:VN,35,128]'))['xyz_only'])
+        # older builds do not report AXS: the axes are unknown, not 3
+        caps = grbl_capabilities(parse_grbl_identity('[NEWOPT:RT+]\n[FIRMWARE:grblHAL]\nok\n'))
+        self.assertIsNone(caps['xyz_only'])
+
+    def test_malformed_or_conflicting_axis_records_are_not_safe_defaults(self):
+        for text in ('[AXS:bad]\n[OPT:VN,35,128,3,0]',
+                     '[OPT:VN,35,128,3,0]\n[OPT:VN,35,128,4,0]',
+                     '[OPT:VN,35,128,4,0]\n[OPT:VN,35,128,3,0]',
+                     '[OPT:VN,35,128,3,0]trailing',
+                     '[OPT:VN,bad,128,3,0]', '[OPT:VN,35,128,3,bad]',
+                     '[AXS:4:XYZU]\n[AXS:bad]'):
+            with self.subTest(text=text):
+                self.assertIsNot(grbl_capabilities(parse_grbl_identity(text))['xyz_only'], True)
+        for text in ('[OPT:VN,35,128,3,0]\n[AXS:4:XYZU]', '[AXS:3:XYU]\n[OPT:VN,35,128,3,0]',
+                     '[AXS:4:XYZU]\n[AXS:3:XYZ]'):
+            with self.subTest(text=text):
+                self.assertIs(grbl_capabilities(parse_grbl_identity(text))['xyz_only'], False)
+        identity = parse_grbl_identity('[OPT:VN,35,128,4,0]\n[AXS:3:XYZ]')
+        self.assertEqual((identity['axes'], identity['axis_letters']), (3, 'XYZ'))
+
+
+class TestGrblHalOffsets(unittest.TestCase):
+    def test_scalar_and_vector_tlo_work_offsets(self):
+        base = '[G54:10,20,30]\n[G92:1,2,3]\n'
+        for record, tlo, combined in (('', 0.0, (11.0, 22.0, 33.0)),
+                                      ('[TLO:4]', 4.0, (11.0, 22.0, 37.0)),
+                                      ('[TLO:0,0,0]', (0.0, 0.0, 0.0), (11.0, 22.0, 33.0)),
+                                      ('[TLO:4,-5,6]', (4.0, -5.0, 6.0), (15.0, 17.0, 39.0))):
+            with self.subTest(record=record):
+                parsed = parse_grbl_offsets(base + record)['TLO']
+                self.assertEqual(parsed, tlo)
+                self.assertIs(type(parsed), type(tlo))
+                self.assertEqual(parse_grbl_work_offset(base + record), combined)
+
+    def test_invalid_vector_tlo_and_combined_overflow_are_rejected(self):
+        for record in ('[TLO:1,2]', '[TLO:1,2,3,4]', '[TLO:1,,3]', '[TLO:1,no,3]',
+                       '[TLO:nan,0,0]', '[TLO:0,inf,0]', '[TLO:0,0,-inf]',
+                       '[TLO:0,0,0', '[TLO:0,0,0]\n[TLO:0]', '[TLO:0]\n[TLO:0,0,0]'):
+            with self.subTest(record=record), self.assertRaises(ValueError):
+                parse_grbl_offsets(record)
+        for tlo in ('1e308,0,0', '0,1e308,0', '0,0,1e308', '1e308'):
+            with self.subTest(tlo=tlo), self.assertRaises(ValueError):
+                parse_grbl_work_offset('[G54:1e308,1e308,1e308]\n[TLO:%s]' % tlo)
+
+    def test_g59_1_to_3_are_work_coordinate_systems(self):
+        self.assertEqual(parse_grbl_active_wcs('[GC:G0 G59.3 G17 G21 G90 G94 M5]'), 'G59.3')
+        self.assertEqual(parse_grbl_active_wcs('[GC:G0 G59.1 G17 G21 G90 G94 M5]'), 'G59.1')
+        records = parse_grbl_offsets('[G59.1:1.000,2.000,3.000]\n[G59.2:0.000,0.000,0.000]\n'
+                                     '[G59.3:4.000,5.000,6.000]\n[G92:0.000,0.000,0.000]\n[TLO:7.000]\nok')
+        self.assertEqual(records['G59.3'], (4.0, 5.0, 6.0))
+        self.assertEqual(parse_grbl_work_offset(
+            '[G59.1:1.000,2.000,3.000]\n[G92:0.000,0.000,0.000]\n[TLO:0.000]\nok', 'G59.1'),
+            (1.0, 2.0, 3.0))
 
 
 # ---- merged from test_grbl_bicubic.py ----
@@ -463,6 +578,295 @@ def run(port, lines, **kwargs):
 
 
 class TestStream(unittest.TestCase):
+    def test_m6_delayed_reply_is_separated_by_temporary_stream_fence(self):
+        for reply in (b'ok\n', b'error:20\n'):
+            with self.subTest(reply=reply):
+                clock = FakeClock()
+                written, queue, progress, completed = [], [], [], []
+                marker_seen = fence_acked = resumed = False
+
+                def write(data):
+                    nonlocal resumed
+                    written.append(data)
+                    if data == b'?':
+                        queue.append(b'<Idle>\n' if resumed else b'<Tool|A:T>\n')
+                    elif data == b'\xa3':
+                        queue.extend([b'', b'', reply])
+                    elif data == b'$G\n':
+                        queue.extend([b'[GC:G0 G54 G17 G21 G90 G94 M5]\n', b'ok\n'])
+                    elif data == b'~':
+                        resumed = True
+                    elif data != b'M6\n':
+                        queue.append(b'ok\n')
+                    return 'ok'
+
+                def readline():
+                    nonlocal marker_seen, fence_acked
+                    clock.now += 1
+                    self.assertLess(clock.now, 60)
+                    chunk = queue.pop(0) if queue else b''
+                    if chunk.startswith(b'[GC:'):
+                        marker_seen = True
+                    elif marker_seen and chunk == b'ok\n':
+                        fence_acked = True
+                    return chunk
+
+                def tool_command():
+                    self.assertTrue(fence_acked, 'operator command requested before the reply fence')
+                    self.assertEqual(written.count(b'$G\n'), 1)
+                    return 'G10 L20 P1 Z0' if not completed else None
+
+                def command_done(text):
+                    completed.append(text)
+                    self.assertEqual(progress, [(1, 2)])
+                    write(b'~')
+
+                res = stream_lines(['M6', 'G1 X2'], write, readline, tool_change_ack=True,
+                                   poll_status=True, poll_interval=5, clock=clock, stall_timeout=15,
+                                   on_tool_change=lambda: self.assertTrue(fence_acked),
+                                   tool_command=tool_command, on_tool_command_done=command_done,
+                                   on_progress=lambda d, t: progress.append((d, t)))
+                self.assertEqual(res['status'], 'finished' if reply == b'ok\n' else 'error')
+                self.assertEqual(completed, ['ok'] if reply == b'ok\n' else [])
+                if reply.startswith(b'error:'):
+                    self.assertNotIn(b'G10 L20 P1 Z0\n', written)
+                    self.assertNotIn(b'G1 X2\n', written)
+
+    def test_temporary_stream_fence_failure_never_enables_operator_commands(self):
+        for answer, expected in ((b'error:20\n', 'error'),
+                                 (b'[GC:G0 G54 G21 G90 G94]\nerror:20\n', 'error'),
+                                 (b'ok\nok\n', 'error'),
+                                 (b'[GC:G0]\n[GC:G0]\nok\n', 'error'),
+                                 (b'[GC:G0', 'timeout'),
+                                 (b'[GC:G0]\n', 'timeout')):
+            with self.subTest(answer=answer):
+                clock = FakeClock()
+                written, queue, notified, completed = [], [], [], []
+
+                def write(data):
+                    written.append(data)
+                    if data == b'?':
+                        queue.append(b'<Tool|A:T>\n')
+                    elif data == b'$G\n':
+                        queue.append(answer)
+                    return 'ok'
+
+                def readline():
+                    clock.now += 1
+                    return b'ALARM:1\n' if clock.now > 40 else (queue.pop(0) if queue else b'')
+
+                res = stream_lines(['M6', 'G1 X2'], write, readline, tool_change_ack=True,
+                                   poll_status=True, poll_interval=5, clock=clock, stall_timeout=10,
+                                   on_tool_change=lambda: notified.append(True),
+                                   tool_command=lambda: 'G10 L20 P1 Z0',
+                                   on_tool_command_done=completed.append)
+                self.assertEqual(res['status'], expected)
+                self.assertEqual(res.get('tool_command'), '$G')
+                self.assertEqual(notified, [])
+                self.assertEqual(completed, [])
+                self.assertNotIn(b'G10 L20 P1 Z0\n', written)
+                self.assertNotIn(b'G1 X2\n', written)
+
+    def test_temporary_command_error_does_not_unblock_resume(self):
+        clock = FakeClock()
+        written, queue, completed = [], [], []
+
+        def write(data):
+            written.append(data)
+            if data == b'?':
+                queue.append(b'<Tool|A:T>\n')
+            elif data == b'$G\n':
+                queue.append(b'[GC:G0 G54 G17 G21 G90 G94 M5]\nok\n')
+            elif data == b'G10 L20 P1 Z0\n':
+                queue.append(b'error:33\n')
+            return 'ok'
+
+        def readline():
+            clock.now += 1
+            return b'ALARM:1\n' if clock.now > 30 else (queue.pop(0) if queue else b'')
+
+        res = stream_lines(['M6', 'G1 X2'], write, readline, tool_change_ack=True,
+                           poll_status=True, poll_interval=5, clock=clock, stall_timeout=10,
+                           tool_command=lambda: 'G10 L20 P1 Z0',
+                           on_tool_command_done=lambda text: (completed.append(text), write(b'~')))
+        self.assertEqual(res['status'], 'error')
+        self.assertEqual(res['last_text'], 'error:33')
+        self.assertEqual(res.get('tool_command'), 'G10 L20 P1 Z0')
+        self.assertEqual(res['done'], 0)
+        self.assertEqual(completed, [])
+        self.assertNotIn(b'~', written)
+        self.assertNotIn(b'G1 X2\n', written)
+
+    def test_m6_temporary_commands_before_cycle_start(self):
+        for ack_timing in ('after_resume', 'before_tool', 'after_a3', 'missing'):
+            with self.subTest(ack_timing=ack_timing):
+                early_ack = ack_timing in ('before_tool', 'after_a3')
+                missing_ack = ack_timing == 'missing'
+                clock = FakeClock()
+                written, queue, progress, completed = [], [], [], []
+                commands = ['$J=G91 G21 Z1 F100', 'G10 L20 P1 Z0']
+                changing = False
+                resumed = False
+                notified = []
+
+                def write(data):
+                    nonlocal changing, resumed
+                    written.append(data)
+                    if data == b'?':
+                        state = 'Tool' if changing and not resumed else 'Idle'
+                        queue.append(('<%s|MPos:0,0,0>\n' % state).encode())
+                    elif data == b'\xa3':
+                        self.assertTrue(changing)
+                        if ack_timing == 'after_a3':
+                            queue.extend([b'o', b'k\n'])
+                    elif data == b'$G\n':
+                        queue.extend([b'[GC:G0 G54 G17 G21 G90 G94 M5]\n', b'o', b'k\n'])
+                    elif data == b'~':
+                        resumed = True
+                        if not early_ack and not missing_ack:
+                            queue.extend([b'o', b'k\n'])
+                    elif data == b'M6\n':
+                        self.assertEqual(progress, [(1, 3)])
+                        changing = True
+                        if ack_timing == 'before_tool':
+                            queue.extend([b'o', b'k\n'])
+                    else:
+                        if data == b'G1 X2\n':
+                            self.assertTrue(resumed)
+                            self.assertFalse(missing_ack)
+                        elif changing:
+                            self.assertIn(b'\xa3', written)
+                            self.assertFalse(resumed)
+                            if data.startswith(b'$J='):
+                                queue.extend([b'<Jog|MPos:0,0,1|A:T>\n', b'<Tool|A:T>\n'])
+                            else:
+                                queue.append(b'<Idle|MPos:0,0,1|A:T>\n')
+                        queue.extend([b'o', b'k\n'])
+                    return 'ok'
+
+                def readline():
+                    clock.now += 1
+                    if clock.now > 80:
+                        return b'ALARM:1\n'
+                    return queue.pop(0) if queue else b''
+
+                def tool_command():
+                    self.assertEqual(len(notified), 1)
+                    return commands.pop(0) if commands else None
+
+                def command_done(text):
+                    completed.append(text)
+                    self.assertEqual(progress, [(1, 3), (2, 3)] if early_ack else [(1, 3)])
+                    if len(completed) == 2:
+                        write(b'~')
+
+                res = stream_lines(['G1 X1', 'M6', 'G1 X2'], write, readline,
+                                   tool_change_ack=True, poll_status=True, poll_interval=5,
+                                   clock=clock, stall_timeout=10, tool_command=tool_command,
+                                   on_tool_change=lambda: notified.append(True),
+                                   on_tool_command_done=command_done,
+                                   on_progress=lambda d, t: progress.append((d, t)))
+                self.assertEqual(completed, ['ok', 'ok'])
+                self.assertEqual(written.count(b'\xa3'), 1)
+                self.assertEqual(res['status'], 'timeout' if missing_ack else 'finished')
+                self.assertEqual(res['done'], 1 if missing_ack else 3)
+                if missing_ack:
+                    self.assertNotIn(b'G1 X2\n', written)
+
+    def test_m6_drains_earlier_lines_and_waits_after_early_ok(self):
+        clock = FakeClock()
+        written, queue = [], []
+        pending = []
+        acknowledged = False
+
+        def write(data):
+            nonlocal acknowledged
+            written.append(data)
+            if data == b'?':
+                if b'M6\n' in written:
+                    state = 'Tool' if clock.now < 12 else 'Idle'
+                    queue.append(('<%s|MPos:0,0,0>\n' % state).encode())
+                else:
+                    queue.append(b'<Run|MPos:0,0,0>\n')
+            elif data == b'\xa3':
+                acknowledged = True
+            elif data == b'$G\n':
+                queue.append(b'[GC:G0 G54 G17 G21 G90 G94 M5]\nok\n')
+            else:
+                if data == b'M6\n':
+                    self.assertFalse(pending)
+                if data == b'G1 X2\n':
+                    self.assertTrue(acknowledged)
+                    self.assertGreaterEqual(clock.now, 12)
+                pending.append(data)
+            return 'ok'
+
+        def readline():
+            clock.now += 1
+            self.assertLess(clock.now, 50)
+            if pending and (pending[0] != b'G1 X1\n' or clock.now >= 8):
+                pending.pop(0)
+                return b'ok\n'
+            return queue.pop(0) if queue else b''
+
+        res = stream_lines(['G1 X1', 'M6', 'G1 X2'], write, readline,
+                           tool_change_ack=True, poll_status=True, clock=clock)
+        self.assertEqual(res['status'], 'finished')
+        self.assertEqual(written.count(b'\xa3'), 1)
+
+    def test_a_lost_status_reply_does_not_stop_polling(self):
+        clock = FakeClock()
+        written, queue, dropped = [], [], []
+
+        def write(data):
+            written.append(data)
+            if data == b'?':
+                if not dropped:
+                    dropped.append(True)  # the first status reply never arrives
+                else:
+                    queue.append(b'<Idle|MPos:0,0,0>\n')
+            else:
+                queue.append(b'ok\n')
+            return 'ok'
+
+        def readline():
+            clock.now += 0.1
+            self.assertLess(clock.now, 100)
+            return queue.pop(0) if queue else b''
+
+        res = stream_lines(['G1 X1', 'M6'], write, readline, poll_status=True, poll_interval=0.2,
+                           clock=clock, stall_timeout=5, tool_change_ack=True)
+        self.assertEqual(res['status'], 'finished')
+        self.assertIn(b'M6\n', written)
+
+    def test_a_tool_state_without_a_manual_ack_clears_on_idle(self):
+        clock = FakeClock()
+        written, queue, notified = [], [], []
+
+        def write(data):
+            written.append(data)
+            if data == b'?':
+                if notified:
+                    queue.append(b'<Idle|MPos:0,0,0>\n')
+                    queue.append(b'ok\n')  # the M6 is acknowledged after the change
+                else:
+                    queue.append(b'<Tool|MPos:0,0,0>\n')
+            elif data != b'M6\n':
+                queue.append(b'ok\n')
+            return 'ok'
+
+        def readline():
+            clock.now += 0.1
+            self.assertLess(clock.now, 100)
+            return queue.pop(0) if queue else b''
+
+        res = stream_lines(['M6', 'G1 X2'], write, readline, poll_status=True, poll_interval=0.2,
+                           clock=clock, stall_timeout=5,
+                           on_tool_change=lambda: notified.append(True))
+        self.assertEqual(res['status'], 'finished')
+        self.assertEqual(notified, [True])
+        self.assertIn(b'G1 X2\n', written)
+
     def test_all_lines_sent_in_order(self):
         lines = ['G1 X%d Y%d F100' % (i, i) for i in range(200)]
         port = FakeStreamPort()

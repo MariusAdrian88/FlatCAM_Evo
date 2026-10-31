@@ -10,8 +10,11 @@ from PyQt6.QtCore import Qt
 
 from appGUI.GUIElements import (
     FCLabel, FCButton, FCFrame, GLay, FCComboBox, FCCheckBox, FCJog, FCDoubleSpinner, FCSpinner,
-    FCDetachableTab, FCZeroAxes, FCSliderWithDoubleSpinner, FCEntry, RotatedToolButton)
+    FCDetachableTab, FCZeroAxes, FCSliderWithDoubleSpinner, FCEntry, RotatedToolButton, VerticalScrollArea)
 from appPlugins.Common.levelling_ui import build_probe_points_ui
+from appPlugins.ToolGcodeSender.SenderCameraUI import SenderCameraUI, CameraView
+from appPlugins.ToolGcodeSender.SenderRegistrationUI import SenderRegistrationUI
+from appPlugins.ToolGcodeSender.SenderToolChangeUI import SenderToolChangeUI
 
 import gettext
 import appTranslation as fcTranslate
@@ -24,6 +27,29 @@ if '_' not in builtins.__dict__:
 
 class GcodeSenderUI:
     pluginName = _("GCode sender")
+
+    def update_connection_controls(self, locked=False):
+        controller = self.controller_combo.currentData()
+        connection = self.connection_combo.currentData()
+        grblhal = controller == 'grblhal'
+        serial = controller == 'grbl' or (grblhal and connection == 'serial')
+        com = controller == 'grbl' or (grblhal and connection in ('serial', 'native'))
+        network = grblhal and connection == 'network'
+        for visible, widgets in (
+                (grblhal, (self.connection_label, self.connection_combo)),
+                (com, (self.com_list_label, self.com_list_combo, self.com_search_button)),
+                (serial, (self.baudrates_list_label, self.baudrates_list_combo, self.new_bd_label,
+                          self.new_baudrate_entry, self.add_bd_button, self.del_bd_button)),
+                (network, (self.network_host_label, self.network_host_entry,
+                           self.network_port_label, self.network_port_entry)),
+                (controller == 'ecut', (self.ecut_usb_label,))):
+            for widget in widgets:
+                widget.setVisible(visible)
+        for widget in (self.controller_combo, self.connection_combo, self.com_list_combo,
+                       self.com_search_button, self.baudrates_list_combo, self.new_baudrate_entry,
+                       self.add_bd_button, self.del_bd_button, self.network_host_entry, self.network_port_entry):
+            widget.setEnabled(not locked)
+        self.com_connect_button.setEnabled(True)
 
     def __init__(self, layout, app):
         self.app = app
@@ -130,12 +156,43 @@ class GcodeSenderUI:
         # self.gr_send_tab_layout.addWidget(self.gr_send_scroll_area)
         self.al_toolbar.addTab(self.gr_send_tab, _("Sender"))
 
+        # CAMERA TAB
+        self.camera_tab = QtWidgets.QWidget()
+        self.camera_tab.setObjectName("camera_tab")
+        self.camera_tab_layout = QtWidgets.QVBoxLayout(self.camera_tab)
+        self.camera_tab_layout.setContentsMargins(2, 2, 2, 2)
+        self.al_toolbar.addTab(self.camera_tab, _("Camera"))
+        self.camera_tabs = QtWidgets.QTabWidget()
+        self.camera_view = CameraView(self.camera_tab)
+        self.camera_widget = SenderCameraUI(self.app, self.camera_tabs, view=self.camera_view)
+        self.camera_tab_layout.addWidget(self.camera_widget.preview_controls)
+        self.camera_tab_layout.addWidget(self.camera_view, stretch=1)
+        self.camera_scroll_area = VerticalScrollArea()
+        self.camera_workflow = QtWidgets.QWidget()
+        self.camera_workflow_layout = QtWidgets.QVBoxLayout(self.camera_workflow)
+        self.camera_workflow_layout.setContentsMargins(0, 0, 0, 0)
+        self.camera_workflow_layout.addWidget(self.camera_tabs)
+        self.camera_scroll_area.setWidget(self.camera_workflow)
+        self.camera_tab_layout.addWidget(self.camera_scroll_area, stretch=1)
+        self.camera_tabs.addTab(self.camera_widget, _("Calibration"))
+        self.registration_widget = SenderRegistrationUI(self.app, self.camera_tabs)
+        self.camera_tabs.addTab(self.registration_widget, _("Board registration"))
+
+        # TOOL CHANGE TAB
+        self.toolchange_tab = QtWidgets.QWidget()
+        self.toolchange_tab.setObjectName("toolchange_tab")
+        self.toolchange_tab_layout = QtWidgets.QVBoxLayout(self.toolchange_tab)
+        self.toolchange_tab_layout.setContentsMargins(2, 2, 2, 2)
+        self.al_toolbar.addTab(self.toolchange_tab, _("Tool change"))
+        self.toolchange_scroll_area = VerticalScrollArea()
+        self.toolchange_widget = SenderToolChangeUI(self.app, self.toolchange_tab)
+        self.toolchange_scroll_area.setWidget(self.toolchange_widget)
+        self.toolchange_tab_layout.addWidget(self.toolchange_scroll_area)
+
         for idx in range(self.al_toolbar.count()):
             if self.al_toolbar.tabText(idx) == _("Connect"):
                 self.al_toolbar.tabBar.setTabTextColor(idx, QtGui.QColor('red'))
-            if self.al_toolbar.tabText(idx) == _("Control"):
-                self.al_toolbar.tabBar.setTabEnabled(idx, False)
-            if self.al_toolbar.tabText(idx) == _("Sender"):
+            if self.al_toolbar.tabText(idx) in (_("Control"), _("Sender"), _("Tool change")):
                 self.al_toolbar.tabBar.setTabEnabled(idx, False)
         # #############################################################################################################
 
@@ -147,6 +204,34 @@ class GcodeSenderUI:
 
         grbl_conn_grid = GLay(v_spacing=5, h_spacing=3, c_stretch=[0, 1, 0])
         self.connect_frame.setLayout(grbl_conn_grid)
+
+        self.controller_label = FCLabel('%s:' % _("Controller"))
+        self.controller_combo = FCComboBox()
+        for label, value in (('GRBL', 'grbl'), ('grblHAL', 'grblhal'), ('E-Cut', 'ecut')):
+            self.controller_combo.addItem(label, value)
+        self.connection_label = FCLabel('%s:' % _("Connection"))
+        self.connection_combo = FCComboBox()
+        for label, value in ((_('USB Serial'), 'serial'), (_('Native USB'), 'native'), (_('Network'), 'network')):
+            self.connection_combo.addItem(label, value)
+        self.connection_combo.setToolTip(_("Native USB uses the operating system's serial CDC port."))
+        grbl_conn_grid.addWidget(self.controller_label, 0, 0)
+        grbl_conn_grid.addWidget(self.controller_combo, 0, 1, 1, 2)
+        grbl_conn_grid.addWidget(self.connection_label, 1, 0)
+        grbl_conn_grid.addWidget(self.connection_combo, 1, 1, 1, 2)
+        self.network_host_label = FCLabel('%s:' % _("Host/IP"))
+        self.network_host_entry = FCEntry()
+        self.network_host_entry.setToolTip(_("grblHAL raw TCP host/IP on a trusted LAN."))
+        self.network_port_label = FCLabel('%s:' % _("Network port"))
+        self.network_port_entry = FCSpinner()
+        self.network_port_entry.set_range(1, 65535)
+        self.network_port_entry.set_value(23)
+        grbl_conn_grid.addWidget(self.network_host_label, 3, 0)
+        grbl_conn_grid.addWidget(self.network_host_entry, 3, 1, 1, 2)
+        grbl_conn_grid.addWidget(self.network_port_label, 5, 0)
+        grbl_conn_grid.addWidget(self.network_port_entry, 5, 1)
+        self.ecut_usb_label = FCLabel(_("Connect the E-Cut USB board directly by USB."))
+        self.ecut_usb_label.setWordWrap(True)
+        grbl_conn_grid.addWidget(self.ecut_usb_label, 7, 0, 1, 3)
 
         # COM list
         self.com_list_label = FCLabel('%s:' % _("COM list"))
@@ -219,34 +304,32 @@ class GcodeSenderUI:
         grbl_conn_grid.addWidget(FCLabel(""), 9, 0, 1, 3)
         grbl_conn_grid.setRowStretch(9, 1)
         grbl_conn_grid.addLayout(ctrl_h_lay, 10, 0, 1, 3)
+        self.controller_combo.currentIndexChanged.connect(lambda _index: self.update_connection_controls())
+        self.connection_combo.currentIndexChanged.connect(lambda _index: self.update_connection_controls())
+        self.update_connection_controls()
 
         # #############################################################################################################
-        # GRBL CONTROL
+        # GRBL JOG
         # #############################################################################################################
+        # The only jog controls; the GCode Console dock mounts this page beside Program and Console.
+        self.jog_page = QtWidgets.QWidget()
+        self.jog_page_layout = QtWidgets.QVBoxLayout(self.jog_page)
+        self.jog_page_layout.setContentsMargins(0, 0, 0, 0)
+
         self.ctrl_grbl_frame = FCFrame()
-        self.gr_ctrl_tab_layout.addWidget(self.ctrl_grbl_frame)
+        self.jog_page_layout.addWidget(self.ctrl_grbl_frame)
         grbl_ctrl_grid = GLay(v_spacing=5, h_spacing=3, c_stretch=[0, 1, 0])
         self.ctrl_grbl_frame.setLayout(grbl_ctrl_grid)
 
         self.ctrl_grbl_frame2 = FCFrame()
-        self.gr_ctrl_tab_layout.addWidget(self.ctrl_grbl_frame2)
+        self.jog_page_layout.addWidget(self.ctrl_grbl_frame2)
         grbl_ctrl2_grid = GLay(v_spacing=5, h_spacing=3)
         self.ctrl_grbl_frame2.setLayout(grbl_ctrl2_grid)
 
-        self.gr_ctrl_tab_layout.addStretch(1)
+        self.jog_page_layout.addStretch(1)
 
         jog_title_label = FCLabel(_("Jog"), bold=True)
-
-        zero_title_label = FCLabel(_("Zero Axes"), bold=True)
-        # zero_title_label.setStyleSheet("""
-        #                         FCLabel
-        #                         {
-        #                             font-weight: bold;
-        #                         }
-        #                         """)
-
         grbl_ctrl_grid.addWidget(jog_title_label, 0, 0)
-        grbl_ctrl_grid.addWidget(zero_title_label, 0, 2)
 
         self.jog_wdg = FCJog(self.app)
         self.jog_wdg.setStyleSheet("""
@@ -256,41 +339,17 @@ class GcodeSenderUI:
                                 border-radius: 5px;
                             }
                             """)
+        grbl_ctrl_grid.addWidget(self.jog_wdg, 1, 0)
 
-        self.zero_axs_wdg = FCZeroAxes(self.app)
-        self.zero_axs_wdg.setStyleSheet("""
-                            FCZeroAxes
-                            {
-                                border: 1px solid lightgray;
-                                border-radius: 5px
-                            }
-                            """)
-        grbl_ctrl_grid.addWidget(self.jog_wdg, 2, 0)
-        grbl_ctrl_grid.addWidget(self.zero_axs_wdg, 2, 2)
-
-        self.pause_resume_button = RotatedToolButton()
-        self.pause_resume_button.setSizePolicy(QtWidgets.QSizePolicy.Policy.Minimum,
-                                               QtWidgets.QSizePolicy.Policy.Expanding)
-        self.pause_resume_button.setText(_("Pause/Resume"))
-        self.pause_resume_button.setCheckable(True)
-        self.pause_resume_button.setStyleSheet("""
-                            RotatedToolButton:checked
-                            {
-                                background-color: red;
-                                color: white;
-                                border: none;
-                            }
-                            """)
-
-        pause_frame = QtWidgets.QFrame()
-        pause_frame.setContentsMargins(0, 0, 0, 0)
-        pause_frame.setSizePolicy(QtWidgets.QSizePolicy.Policy.Ignored, QtWidgets.QSizePolicy.Policy.Expanding)
-        pause_h_lay = QtWidgets.QHBoxLayout()
-        pause_h_lay.setContentsMargins(0, 0, 0, 0)
-
-        pause_h_lay.addWidget(self.pause_resume_button)
-        pause_frame.setLayout(pause_h_lay)
-        grbl_ctrl_grid.addWidget(pause_frame, 2, 1)
+        # STOP
+        self.jog_stop_button = FCButton(_("Stop"))
+        self.jog_stop_button.setToolTip(
+            _("Stop the running GRBL operation now.\n"
+              "GRBL goes into feed hold.\n"
+              "Press Reset, then Home, before more motion.")
+        )
+        self.jog_stop_button.setStyleSheet("QPushButton {background-color: red; color: white;}")
+        grbl_ctrl_grid.addWidget(self.jog_stop_button, 1, 1)
 
         # JOG Step
         self.jog_step_label = FCLabel('%s:' % _("Step"))
@@ -321,15 +380,65 @@ class GcodeSenderUI:
         grbl_ctrl2_grid.addWidget(self.jog_fr_entry, 1, 1)
 
         self.continuous_jog_cb = FCCheckBox(_("Continuous"))
-        self.continuous_jog_cb.setToolTip(_("Hold a jog arrow to move. Release it to brake to a stop."))
+        self.continuous_jog_cb.setToolTip(
+            _("Hold a jog arrow to move. Release it to brake to a stop.\n"
+              "A controller with native jog support (E-Cut) is required.")
+        )
         self.continuous_jog_cb.setChecked(False)
-        self.continuous_jog_cb.hide()
+        self.continuous_jog_cb.setEnabled(False)
         grbl_ctrl2_grid.addWidget(self.continuous_jog_cb, 2, 0, 1, 2)
 
         self.ecut_motion_button = FCButton(_("E-Cut settings"))
         self.ecut_motion_button.setToolTip(_("Motion, motor calibration, spindle and input/output settings."))
         self.ecut_motion_button.hide()
         grbl_ctrl2_grid.addWidget(self.ecut_motion_button, 3, 0, 1, 2)
+
+        # #############################################################################################################
+        # GRBL CONTROL
+        # #############################################################################################################
+        self.control_frame = FCFrame()
+        self.gr_ctrl_tab_layout.addWidget(self.control_frame)
+        control_grid = GLay(v_spacing=5, h_spacing=3, c_stretch=[0, 1, 0])
+        self.control_frame.setLayout(control_grid)
+
+        self.zero_title_label = FCLabel(_("Zero Axes"), bold=True)
+        control_grid.addWidget(self.zero_title_label, 0, 0)
+
+        self.zero_axs_wdg = FCZeroAxes(self.app)
+        self.zero_axs_wdg.setStyleSheet("""
+                            FCZeroAxes
+                            {
+                                border: 1px solid lightgray;
+                                border-radius: 5px
+                            }
+                            """)
+        control_grid.addWidget(self.zero_axs_wdg, 1, 0)
+
+        self.pause_resume_button = RotatedToolButton()
+        self.pause_resume_button.setSizePolicy(QtWidgets.QSizePolicy.Policy.Minimum,
+                                               QtWidgets.QSizePolicy.Policy.Expanding)
+        self.pause_resume_button.setText(_("Pause/Resume"))
+        self.pause_resume_button.setCheckable(True)
+        self.pause_resume_button.setStyleSheet("""
+                            RotatedToolButton:checked
+                            {
+                                background-color: red;
+                                color: white;
+                                border: none;
+                            }
+                            """)
+
+        self.pause_frame = QtWidgets.QFrame()
+        self.pause_frame.setContentsMargins(0, 0, 0, 0)
+        self.pause_frame.setSizePolicy(QtWidgets.QSizePolicy.Policy.Ignored, QtWidgets.QSizePolicy.Policy.Expanding)
+        pause_h_lay = QtWidgets.QHBoxLayout()
+        pause_h_lay.setContentsMargins(0, 0, 0, 0)
+
+        pause_h_lay.addWidget(self.pause_resume_button)
+        self.pause_frame.setLayout(pause_h_lay)
+        control_grid.addWidget(self.pause_frame, 1, 1)
+
+        self.gr_ctrl_tab_layout.addStretch(1)
 
         # #############################################################################################################
         # GRBL SENDER
@@ -414,10 +523,10 @@ class GcodeSenderUI:
 
         self.run_label = FCLabel('%s' % _("Job"), color='green', bold=True)
         self.tools_box.addWidget(self.run_label)
-        run_frame = FCFrame()
-        self.tools_box.addWidget(run_frame)
+        self.run_frame = FCFrame()
+        self.tools_box.addWidget(self.run_frame)
         run_grid = GLay(v_spacing=5, h_spacing=3)
-        run_frame.setLayout(run_grid)
+        self.run_frame.setLayout(run_grid)
 
         self.start_button = FCButton(_("Start"), bold=True)
         self.start_button.setToolTip(_("Stream the G-code of the selected CNCJob to GRBL."))
@@ -576,7 +685,7 @@ class GcodeSenderUI:
             label.color = 'gray' if collapsed else color
 
         for label, frame in ((self.obj_combo_label, self.source_frame),
-                             (self.run_label, run_frame),
+                             (self.run_label, self.run_frame),
                              (self.al_group_label, self.autolevel_frame)):
             label.setCursor(Qt.CursorShape.PointingHandCursor)
             label.clicked.connect(
