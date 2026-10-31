@@ -1578,32 +1578,16 @@ class DocumentObjectUI(ObjectUI):
         self.custom_box.addWidget(self.plot_cb)
         self.plot_cb.hide()
 
-        h_lay = QtWidgets.QHBoxLayout()
-        h_lay.setAlignment(QtCore.Qt.AlignmentFlag.AlignVCenter)
-        self.custom_box.addLayout(h_lay)
-
-        self.autocomplete_cb = FCCheckBox("%s" % _("Auto Completer"))
-        self.autocomplete_cb.setToolTip(
-            _("This selects if the auto completer is enabled in the Document Editor.")
-        )
-        self.autocomplete_cb.setStyleSheet("")
-        h_lay.addWidget(self.autocomplete_cb)
-        h_lay.addStretch()
-
-        param_lbl = FCLabel('%s' % _("Parameters"), color='blue', bold=True)
-        self.custom_box.addWidget(param_lbl)
         # #############################################################################################################
-        # ################################################## Font Frame ###############################################
+        # ################################################ Default Font ###############################################
         # #############################################################################################################
+        font_title_lbl = FCLabel('%s' % _("Default Font"), color='blue', bold=True)
+        self.custom_box.addWidget(font_title_lbl)
         par_frame = FCFrame()
         self.custom_box.addWidget(par_frame)
 
-        # Grid Layout
-        self.grid0 = GLay(v_spacing=5, h_spacing=3, c_stretch=[0, 1, 0])
+        self.grid0 = GLay(v_spacing=5, h_spacing=3, c_stretch=[0, 1])
         par_frame.setLayout(self.grid0)
-
-        font_lbl = FCLabel('%s' % _("Font"), bold=True)
-        self.grid0.addWidget(font_lbl, 0, 0, 1, 2)
 
         # Font
         self.font_type_label = FCLabel('%s:' % _("Type"))
@@ -1619,103 +1603,34 @@ class DocumentObjectUI(ObjectUI):
 
         self.font_type_cb = QtWidgets.QFontComboBox(self)
         self.font_type_cb.setCurrentFont(f_current)
+        self.font_type_cb.setToolTip(_("Font of the whole document."))
 
-        self.grid0.addWidget(self.font_type_label, 2, 0)
-        self.grid0.addWidget(self.font_type_cb, 2, 1)
+        self.grid0.addWidget(self.font_type_label, 0, 0)
+        self.grid0.addWidget(self.font_type_cb, 0, 1)
 
         # Font Size
         self.font_size_label = FCLabel('%s:' % _("Size"))
-
-        size_hlay = QtWidgets.QHBoxLayout()
 
         self.font_size_cb = FCComboBox()
         self.font_size_cb.setEditable(True)
         self.font_size_cb.setMinimumContentsLength(3)
         self.font_size_cb.setSizePolicy(QtWidgets.QSizePolicy.Policy.Minimum,
                                         QtWidgets.QSizePolicy.Policy.MinimumExpanding)
-        # self.font_size_cb.setMaximumWidth(70)
-        size_hlay.addWidget(self.font_size_cb)
+        self.font_size_cb.setToolTip(_("Font size of the whole document."))
 
-        self.font_bold_tb = QtWidgets.QToolButton()
-        self.font_bold_tb.setCheckable(True)
-        self.font_bold_tb.setIcon(QtGui.QIcon(self.resource_loc + '/bold32.png'))
-        size_hlay.addWidget(self.font_bold_tb)
+        self.grid0.addWidget(self.font_size_label, 2, 0)
+        self.grid0.addWidget(self.font_size_cb, 2, 1)
 
-        self.font_italic_tb = QtWidgets.QToolButton()
-        self.font_italic_tb.setCheckable(True)
-        self.font_italic_tb.setIcon(QtGui.QIcon(self.resource_loc + '/italic32.png'))
-        size_hlay.addWidget(self.font_italic_tb)
-        self.font_under_tb = QtWidgets.QToolButton()
-        self.font_under_tb.setCheckable(True)
-        self.font_under_tb.setIcon(QtGui.QIcon(self.resource_loc + '/underline32.png'))
-        size_hlay.addWidget(self.font_under_tb)
-
-        self.grid0.addWidget(self.font_size_label, 4, 0)
-        self.grid0.addLayout(size_hlay, 4, 1)
-
-        # Font Color
-        self.font_color_label = FCLabel('%s:' % _('Font Color'))
-        self.font_color_label.setToolTip(
-            _("Set the font color for the selected text")
-        )
-
-        self.font_color_entry = FCColorEntry(icon=QtGui.QIcon(self.app.resource_location + '/set_colors64.png'))
-
-        self.grid0.addWidget(self.font_color_label, 6, 0)
-        self.grid0.addWidget(self.font_color_entry, 6, 1)
-
-        # Selection Color
-        self.sel_color_label = FCLabel('%s:' % _('Selection Color'))
-        self.sel_color_label.setToolTip(
-            _("Set the selection color when doing text selection.")
-        )
-
-        self.sel_color_entry = FCColorEntry(icon=QtGui.QIcon(self.app.resource_location + '/set_colors64.png'))
-
-        self.grid0.addWidget(self.sel_color_label, 8, 0)
-        self.grid0.addWidget(self.sel_color_entry, 8, 1)
-
-        alignment_title_lbl = FCLabel('%s' % _("Alignment"), bold=True, color='darkorange')
-        self.custom_box.addWidget(alignment_title_lbl)
         # #############################################################################################################
-        # Alignment Choices
+        # ################################################## Editor ###################################################
         # #############################################################################################################
-        a_frame = FCFrame()
-        self.custom_box.addWidget(a_frame)
+        editor_title_lbl = FCLabel('%s' % _("Editor"), color='darkorange', bold=True)
+        self.custom_box.addWidget(editor_title_lbl)
+        e_frame = FCFrame()
+        self.custom_box.addWidget(e_frame)
 
-        # Grid Layout
-        a_grid = GLay(v_spacing=5, h_spacing=3)
-        a_frame.setLayout(a_grid)
-
-        # Alignment Choices
-        self.alignment_label = FCLabel('%s:' % _("Alignment"))
-
-        al_hlay = QtWidgets.QHBoxLayout()
-
-        self.al_left_tb = QtWidgets.QToolButton()
-        self.al_left_tb.setToolTip(_("Align Left"))
-        self.al_left_tb.setIcon(QtGui.QIcon(self.resource_loc + '/align_left32.png'))
-        al_hlay.addWidget(self.al_left_tb)
-
-        self.al_center_tb = QtWidgets.QToolButton()
-        self.al_center_tb.setToolTip(_("Center"))
-        self.al_center_tb.setIcon(QtGui.QIcon(self.resource_loc + '/align_center32.png'))
-        al_hlay.addWidget(self.al_center_tb)
-
-        self.al_right_tb = QtWidgets.QToolButton()
-        self.al_right_tb.setToolTip(_("Align Right"))
-        self.al_right_tb.setIcon(QtGui.QIcon(self.resource_loc + '/align_right32.png'))
-        al_hlay.addWidget(self.al_right_tb)
-
-        self.al_justify_tb = QtWidgets.QToolButton()
-        self.al_justify_tb.setToolTip(_("Justify"))
-        self.al_justify_tb.setIcon(QtGui.QIcon(self.resource_loc + '/align_justify32.png'))
-        al_hlay.addWidget(self.al_justify_tb)
-
-        al_hlay.addStretch()
-
-        a_grid.addWidget(self.alignment_label, 0, 0)
-        a_grid.addLayout(al_hlay, 0, 1)
+        e_grid = GLay(v_spacing=5, h_spacing=3, c_stretch=[0, 1])
+        e_frame.setLayout(e_grid)
 
         # Tab size
         self.tab_size_label = FCLabel('%s:' % _('Tab Size'))
@@ -1725,10 +1640,29 @@ class DocumentObjectUI(ObjectUI):
         self.tab_size_spinner = FCSpinner(callback=self.confirmation_message_int)
         self.tab_size_spinner.set_range(0, 1000)
 
-        a_grid.addWidget(self.tab_size_label, 2, 0)
-        a_grid.addWidget(self.tab_size_spinner, 2, 1)
+        e_grid.addWidget(self.tab_size_label, 0, 0)
+        e_grid.addWidget(self.tab_size_spinner, 0, 1)
 
-        GLay.set_common_column_size([self.grid0, a_grid], 0)
+        # Selection Color
+        self.sel_color_label = FCLabel('%s:' % _('Selection Color'))
+        self.sel_color_label.setToolTip(
+            _("Set the selection color when doing text selection.")
+        )
+
+        self.sel_color_entry = FCColorEntry(icon=QtGui.QIcon(self.app.resource_location + '/set_colors64.png'))
+
+        e_grid.addWidget(self.sel_color_label, 2, 0)
+        e_grid.addWidget(self.sel_color_entry, 2, 1)
+
+        # Auto completer
+        self.autocomplete_cb = FCCheckBox("%s" % _("Auto Completer"))
+        self.autocomplete_cb.setToolTip(
+            _("This selects if the auto completer is enabled in the Document Editor.")
+        )
+        self.autocomplete_cb.setStyleSheet("")
+        e_grid.addWidget(self.autocomplete_cb, 4, 0, 1, 2)
+
+        GLay.set_common_column_size([self.grid0, e_grid], 0)
         self.custom_box.addStretch(1)
 
 # end of file

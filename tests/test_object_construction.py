@@ -81,6 +81,67 @@ def test_script_edits_survive_load_serialization_and_copy(tmp_path, monkeypatch,
     app.ui.close()
 
 
+def _document_with_ui(no_shape_collection_unused=None, **options):
+    from appGUI.ObjectUI import DocumentObjectUI
+    from tests.helpers_objects import make_app as editor_app
+    app = editor_app()
+    app.options.update(options)
+    app.inform = MagicMock()
+    app.resource_location = 'assets/resources'
+    app.regFK = SimpleNamespace(myKeywords=[])
+    app.ui = QtWidgets.QWidget()
+    app.ui.plot_tab_area = QtWidgets.QTabWidget(app.ui)
+    app.ui.properties_scroll_area = QtWidgets.QScrollArea(app.ui)
+    doc = DocumentObject('notes', app)
+    doc.set_ui(DocumentObjectUI(app=app))
+    return app, doc
+
+
+def test_document_saves_flatdoc_with_formatting_and_the_toolbar_follows_the_cursor(tmp_path, monkeypatch,
+                                                                                    no_shape_collection):  # noqa: F811
+    from PyQt6 import QtGui
+    qapp = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])  # noqa: F841
+    app, doc = _document_with_ui()
+    edit = doc.document_editor_tab.code_editor
+    cursor = edit.textCursor()
+    cursor.insertText('plain ')
+    bold = QtGui.QTextCharFormat()
+    bold.setFontWeight(QtGui.QFont.Weight.Bold.value)
+    cursor.insertText('heavy', bold)
+    cursor.insertText(' tail', QtGui.QTextCharFormat())
+
+    toolbar = doc.rich_toolbar
+    cursor.setPosition(9)  # inside "heavy"
+    edit.setTextCursor(cursor)
+    assert toolbar.bold_act.isChecked()
+    cursor.setPosition(2)
+    edit.setTextCursor(cursor)
+    assert not toolbar.bold_act.isChecked()
+
+    output = tmp_path / 'note.FlatDoc'
+    monkeypatch.setattr('appObjects.DocumentObject.FCFileSaveDialog.get_saved_filename',
+                        lambda **kwargs: (str(output), ''))
+    doc.document_editor_tab.buttonSave.click()
+
+    app2, doc2 = _document_with_ui()
+    doc2.document_editor_tab.load_text(output.read_text(encoding='utf-8'), as_html=True)
+    edit2 = doc2.document_editor_tab.code_editor
+    assert edit2.toPlainText() == 'plain heavy tail'
+    probe = edit2.textCursor()
+    probe.setPosition(10)
+    edit2.setTextCursor(probe)
+    assert doc2.rich_toolbar.bold_act.isChecked()
+    app.ui.close()
+    app2.ui.close()
+
+
+def test_document_default_font_size_is_the_saved_option(no_shape_collection):  # noqa: F811
+    qapp = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])  # noqa: F841
+    app, doc = _document_with_ui(document_font_size=10)
+    assert float(doc.ui.font_size_cb.get_value()) == 10
+    app.ui.close()
+
+
 def test_document_survives_a_project_save_and_load(tmp_path, no_shape_collection):  # noqa: F811
     # DocumentObject.set_ui() replaced ser_attrs with an 'options' attribute that FlatCAM objects do not have: with a
     # Document in the project, to_dict() raised and every project save (and autosave) failed with "Failed."

@@ -15,6 +15,8 @@ from copy import deepcopy
 from PyQt6.QtCore import Qt
 
 from appEditors.appTextEditor import AppTextEditor
+from appGUI.GUIElements import FCFileSaveDialog
+from appEditors.text_editor.rich_toolbar import RichTextToolbar
 from appObjects.AppObjectTemplate import *
 from appGUI.ObjectUI import DocumentObjectUI
 
@@ -108,14 +110,19 @@ class DocumentObject(FlatCAMObj):
         self.on_autocomplete_changed(state=self._app_option('document_autocompleter'))
         self.on_tab_size_change(val=self._app_option('document_tab_size'))
 
-        self.ui.font_color_entry.set_value(self._app_option('document_font_color'))
         self.ui.sel_color_entry.set_value(self._app_option('document_sel_color'))
-        self.ui.font_size_cb.setCurrentIndex(int(self._app_option('document_font_size')))
 
+        # the sizes first, then the saved size: an editable combo shows the size even if it is not in the list
         font_sizes = self._app_option('document_font_sizes')
         self.ui.font_size_cb.addItems(font_sizes)
+        self.ui.font_size_cb.setCurrentText(str(self._app_option('document_font_size')))
 
-        flt = "FlatCAM Docs (*.FlatDoc);;All Files (*.*)"
+        self.rich_toolbar = RichTextToolbar(
+            self.document_editor_tab.code_editor, font_sizes=font_sizes, resource_location=self.ui.resource_loc)
+        self.document_editor_tab.add_toolbar_row(self.rich_toolbar)
+
+        flt = "FlatCAM Docs (*.FlatDoc);;HTML Files (*.html *.htm);;Text Files (*.txt);;PDF Files (*.pdf);;" \
+              "All Files (*.*)"
         # ######################################################################
         # ######################## SIGNALS #####################################
         # ######################################################################
@@ -124,28 +131,14 @@ class DocumentObject(FlatCAMObj):
         self.document_editor_tab.buttonOpen.clicked.disconnect()
         self.document_editor_tab.buttonOpen.clicked.connect(lambda: self.document_editor_tab.handleOpen(filt=flt))
         self.document_editor_tab.buttonSave.clicked.disconnect()
-        self.document_editor_tab.buttonSave.clicked.connect(lambda: self.document_editor_tab.handleSaveGCode(filt=flt))
+        self.document_editor_tab.buttonSave.clicked.connect(lambda: self.save_document(filt=flt))
 
         self.document_editor_tab.code_editor.textChanged.connect(self.on_text_changed)
 
-        self.ui.font_type_cb.currentFontChanged.connect(self.font_family)
-        self.ui.font_size_cb.activated.connect(self.font_size)
-        self.ui.font_bold_tb.clicked.connect(self.on_bold_button)
-        self.ui.font_italic_tb.clicked.connect(self.on_italic_button)
-        self.ui.font_under_tb.clicked.connect(self.on_underline_button)
+        self.ui.font_type_cb.currentFontChanged.connect(self.apply_default_font)
+        self.ui.font_size_cb.activated.connect(self.apply_default_font)
 
-        self.ui.font_color_entry.value_changed.connect(self.on_font_color_entry)
         self.ui.sel_color_entry.value_changed.connect(self.on_selection_color_entry)
-
-        self.ui.al_left_tb.clicked.connect(
-            lambda: self.document_editor_tab.code_editor.setAlignment(Qt.AlignmentFlag.AlignLeft))
-        self.ui.al_center_tb.clicked.connect(
-            lambda: self.document_editor_tab.code_editor.setAlignment(Qt.AlignmentFlag.AlignCenter))
-        self.ui.al_right_tb.clicked.connect(
-            lambda: self.document_editor_tab.code_editor.setAlignment(Qt.AlignmentFlag.AlignRight))
-        self.ui.al_justify_tb.clicked.connect(
-            lambda: self.document_editor_tab.code_editor.setAlignment(Qt.AlignmentFlag.AlignJustify)
-        )
 
         self.ui.autocomplete_cb.stateChanged.connect(self.on_autocomplete_changed)
         self.ui.tab_size_spinner.returnPressed.connect(self.on_tab_size_change)
@@ -246,45 +239,78 @@ class DocumentObject(FlatCAMObj):
         self.source_file = self.document_editor_tab.code_editor.toHtml()
         # print(self.source_file)
 
-    def font_family(self, font):
-        # self.document_editor_tab.code_editor.selectAll()
-        font.setPointSize(float(self.ui.font_size_cb.get_value()))
-        self.document_editor_tab.code_editor.setCurrentFont(font)
-        self.font_name = self.ui.font_type_cb.currentFont().family()
+    def apply_default_font(self, *_args):
+        """Apply the font and size of the left panel to the whole document, in one Undo step."""
+        try:
+            size = float(str(self.ui.font_size_cb.get_value()).replace(',', '.'))
+        except ValueError:
+            return
+        if size <= 0:
+            return
+        family = self.ui.font_type_cb.currentFont().family()
+        self.font_name = family
+        self.app.options['document_font_size'] = int(size) if size == int(size) else size
 
-    def font_size(self):
-        # self.document_editor_tab.code_editor.selectAll()
-        self.document_editor_tab.code_editor.setFontPointSize(float(self.ui.font_size_cb.get_value()))
+        editor = self.document_editor_tab.code_editor
+        font = QtGui.QFont(family)
+        font.setPointSizeF(size)
+        editor.document().setDefaultFont(font)
+        fmt = QtGui.QTextCharFormat()
+        fmt.setFontFamilies([family])
+        fmt.setFontPointSize(size)
+        cursor = QtGui.QTextCursor(editor.document())
+        cursor.select(QtGui.QTextCursor.SelectionType.Document)
+        cursor.mergeCharFormat(fmt)
+        self.rich_toolbar.sync()
 
-    def on_bold_button(self):
-        if self.ui.font_bold_tb.isChecked():
-            self.document_editor_tab.code_editor.setFontWeight(QtGui.QFont.Weight.Bold)
-            self.font_bold = True
+    def save_document(self, filt=None):
+        """Save by the extension: .FlatDoc / .html keep the formatting, .txt is plain text, .pdf is printed."""
+        editor = self.document_editor_tab.code_editor
+        try:
+            filename = str(FCFileSaveDialog.get_saved_filename(
+                caption=_("Export Code ..."),
+                directory=str(self.app.options.get('global_last_folder', '')) + '/' + str(self.obj_options['name']),
+                ext_filter=filt or "FlatCAM Docs (*.FlatDoc);;All Files (*.*)")[0])
+        except TypeError:
+            filename = str(FCFileSaveDialog.get_saved_filename(
+                caption=_("Export Code ..."), ext_filter=filt or "FlatCAM Docs (*.FlatDoc);;All Files (*.*)")[0])
+        if not filename:
+            self.app.inform.emit('[WARNING_NOTCL] %s' % _("Cancelled."))
+            return
+
+        ext = filename.rpartition('.')[2].lower()
+        try:
+            if ext == 'pdf':
+                writer = QtGui.QPdfWriter(filename)
+                writer.setPageLayout(self._pdf_page_layout())
+                editor.document().print(writer)
+            elif ext == 'txt':
+                with open(filename, 'w', encoding='utf-8') as f:
+                    f.write(editor.toPlainText())
+            else:
+                with open(filename, 'w', encoding='utf-8') as f:
+                    f.write(editor.toHtml())
+        except OSError as err:
+            self.app.inform.emit('[ERROR_NOTCL] %s: %s' % (_("Could not save the file"), str(err)))
+            return
+
+        self.document_editor_tab.buttonSave.setStyleSheet("")
+        self.document_editor_tab.buttonSave.setIcon(QtGui.QIcon(self.app.resource_location + '/save_as.png'))
+        self.app.file_saved.emit('document', filename)
+        self.app.inform.emit('%s: %s' % (_("Saved to"), filename))
+
+    def _pdf_page_layout(self):
+        """The page of the workspace (mm) and the PDF margins of the Preferences (in the app units)."""
+        page = self.app.plotcanvas.pagesize_dict.get(self._app_option('global_workspaceT'))
+        if page:
+            page_size = QtGui.QPageSize(QtCore.QSizeF(page[0], page[1]), QtGui.QPageSize.Unit.Millimeter)
         else:
-            self.document_editor_tab.code_editor.setFontWeight(QtGui.QFont.Weight.Normal)
-            self.font_bold = False
-
-    def on_italic_button(self):
-        if self.ui.font_italic_tb.isChecked():
-            self.document_editor_tab.code_editor.setFontItalic(True)
-            self.font_italic = True
-        else:
-            self.document_editor_tab.code_editor.setFontItalic(False)
-            self.font_italic = False
-
-    def on_underline_button(self):
-        if self.ui.font_under_tb.isChecked():
-            self.document_editor_tab.code_editor.setFontUnderline(True)
-            self.font_underline = True
-        else:
-            self.document_editor_tab.code_editor.setFontUnderline(False)
-            self.font_underline = False
-
-    # Setting font colors handlers
-    def on_font_color_entry(self, val):
-        self.app.options['document_font_color'] = val
-        new_color = QtGui.QColor(val[:-2])
-        self.document_editor_tab.code_editor.setTextColor(new_color)
+            page_size = QtGui.QPageSize(QtGui.QPageSize.PageSizeId.A4)
+        to_mm = 1.0 if str(self.app.app_units).lower() == 'mm' else 25.4
+        margins = QtCore.QMarginsF(*(float(self._app_option('global_tpdf_%smargin' % side)) * to_mm
+                                     for side in ('l', 't', 'r', 'b')))
+        return QtGui.QPageLayout(page_size, QtGui.QPageLayout.Orientation.Portrait, margins,
+                                 QtGui.QPageLayout.Unit.Millimeter)
 
     # Setting selection colors handlers
     def on_selection_color_entry(self, val):
