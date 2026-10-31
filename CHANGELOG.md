@@ -6,6 +6,32 @@ Based on FlatCAM:
 
 CHANGELOG for FlatCAM Evo
 
+01.11.2026
+
+Text editor (Code Editor, Script Editor, Source Editor, G-code views):
+
+- new: a Find/Replace bar in the editor (Ctrl+F, Ctrl+H) with Match Case, Whole Word and Regex options, a "N of M" count, Previous/Next (Enter, Shift+Enter, F3, Shift+F3) and Replace All in one Undo step; regex groups (\1) work in the replace text
+- new: the search wraps at the end of the text without a dialog; an invalid regex marks the field red
+- new: a status bar with line and column, selection length, line count, language, line ends (LF/CRLF), modified state and zoom
+- new: editing keys: auto-indent, Tab/Shift+Tab on the selected lines, Ctrl+D duplicate line, Alt+Up/Alt+Down move lines, Ctrl+/ comment for the language of the text, Ctrl+wheel and Ctrl+=/Ctrl+-/Ctrl+0 zoom; each command is one Undo step
+- new: bracket matching, word wrap and show whitespace toggles in the editor toolbar
+- new: code folding: G-code header and tool blocks, Excellon header and tools, Gerber macros and regions, Tcl braces; markers in the gutter, Ctrl+Shift+[ / Ctrl+Shift+], Fold All and Unfold All in the context menu; the cursor never stays in a folded part
+- new: a minimap at the right of the text (Map button) for texts of 300 lines or more; a click or a drag scrolls the text
+- new: a syntax highlighter for each format: G-code, Gerber, Excellon and Tcl (with the names of the app Tcl commands); the editor detects the format when the caller does not give it
+- changed: the editor colors come from a light and a dark palette; the dark theme no longer inverts the colors
+- changed: Go to Line (Ctrl+G) uses the editor of the current tab
+- fixed: the highlight of all the matches of a search froze the app (200000 matches: 9.5 s, now 0.2 s)
+- fixed: some highlight rules never matched (D-codes, reserved words, constants)
+
+Document object:
+
+- new: a formatting toolbar above the document: font, size, heading, bold, italic, underline, strikethrough, text color, highlight color, alignment, bullet and numbered lists, clear format; the buttons show the format at the cursor
+- changed: the Properties panel keeps only the document settings: default font and size (applied to the whole document in one Undo step), tab size, selection color and auto completer
+- changed: the default document font size is 12 pt
+- fixed: a document saved as .FlatDoc lost its formatting; .FlatDoc and .html keep it, .txt saves plain text
+- fixed: a document saved as PDF now keeps its formatting and uses the workspace page size and the PDF margins of the Preferences
+- fixed: the saved font size was not selected in the Properties panel
+
 31.10.2026
 
 G-code Sender (grblHAL):
