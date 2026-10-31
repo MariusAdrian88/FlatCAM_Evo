@@ -332,14 +332,16 @@ class TclCommandDrillcncjob(TclCommandSignaled):
                             f" diameters are: {diameters}"
                         )
 
-                    if len(matched_diameters) != len(set(diameters)):
-                        if muted is False:
-                            self.raise_tcl_error("One or more tool diameters of the drills to be drilled passed to the "
-                                                 "TclCommand are not actual tool diameters in the Excellon object.")
-                        else:
-                            app_obj.log.error("One or more tool diameters of the drills to be drilled passed to the "\
-                                              "TclCommand are not actual tool diameters in the Excellon object.")
-                            return "fail"
+                    extra_dias = set(diameters) - matched_diameters
+                    skipped_dias = matched_diameters - set(diameters)
+                    if extra_dias:
+                        app_obj.log.warning(
+                            f"Some tool diameters passed to the TclCommand are not found in the Exellon object: {extra_dias}"
+                        )
+                    if skipped_dias:
+                        app_obj.log.warning(
+                            f"Some tool diameters in the Excellon object were not passed to the TclCommand and will be skipped: {skipped_dias}"
+                        )
 
                     # make a string of diameters separated by comma; this is what tcl_gcode_from_excellon_by_tool() is
                     # expecting as tools parameter
