@@ -367,6 +367,21 @@ class AppDefaults:
         "gerber_editor_buff_f": 0.1,
         "gerber_editor_ma_low": 0.0,
         "gerber_editor_ma_high": 1.0,
+        # dialogs of the CAM Guide operations (lengths in the units of the app when set)
+        # pick distance of the Track Edit tools, in screen pixels (it does not depend on the units or the zoom)
+        "gerber_editor_track_edit_tolerance": 5,
+        "gerber_editor_pads_tolerance": 0.01,
+        "gerber_editor_teardrop_length": 50.0,
+        "gerber_editor_teardrop_width": 80.0,
+        "gerber_editor_snowman_size": 50.0,
+        "gerber_editor_snowman_position": 50.0,
+        "gerber_editor_renumber_start": 10,
+        "gerber_editor_step_repeat_rows": 2,
+        "gerber_editor_step_repeat_columns": 2,
+        "gerber_editor_step_repeat_pitch_x": 10.0,
+        "gerber_editor_step_repeat_pitch_y": 10.0,
+        "gerber_editor_snap_grid_x": 0.1,
+        "gerber_editor_snap_grid_y": 0.1,
 
         # Excellon General
         "excellon_plot": True,

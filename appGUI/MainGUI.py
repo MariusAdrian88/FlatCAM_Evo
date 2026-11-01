@@ -965,6 +965,58 @@ class MainGUI(QtWidgets.QMainWindow):
             '%s\t%s' % (_("Transform"), _('Alt+R')))
         self.grb_editor_menu.addSeparator()
 
+        res = self.app.resource_location
+        self.grb_select_menu = self.grb_editor_menu.addMenu(QtGui.QIcon(res + '/select_all.png'), _("Select"))
+        self.grb_invert_selection_menuitem = self.grb_select_menu.addAction(
+            QtGui.QIcon(res + '/invert32.png'), _("Invert Selection"))
+        self.grb_select_pads_menuitem = self.grb_select_menu.addAction(
+            QtGui.QIcon(res + '/aperture32.png'), _("Pads Only"))
+        self.grb_select_tracks_menuitem = self.grb_select_menu.addAction(
+            QtGui.QIcon(res + '/track32.png'), _("Tracks Only"))
+        self.grb_select_regions_menuitem = self.grb_select_menu.addAction(
+            QtGui.QIcon(res + '/polygon32.png'), _("Regions Only"))
+        self.grb_select_chain_menuitem = self.grb_select_menu.addAction(
+            QtGui.QIcon(res + '/link32.png'), _("Select Chain"))
+        self.grb_step_repeat_menuitem = self.grb_editor_menu.addAction(
+            QtGui.QIcon(res + '/padarray32.png'), _("Step and Repeat"))
+        self.grb_transcode_menuitem = self.grb_editor_menu.addAction(
+            QtGui.QIcon(res + '/replace32.png'), _("Transcode"))
+        self.grb_snap_grid_menuitem = self.grb_editor_menu.addAction(
+            QtGui.QIcon(res + '/grid32.png'), _("Snap to Grid"))
+
+        self.grb_track_edit_menu = self.grb_editor_menu.addMenu(QtGui.QIcon(res + '/track32.png'), _("Track Edit"))
+        self.grb_clip_menuitem = self.grb_track_edit_menu.addAction(
+            QtGui.QIcon(res + '/cut32.png'), _("Clip"))
+        self.grb_clip_pad_menuitem = self.grb_track_edit_menu.addAction(
+            QtGui.QIcon(res + '/aperture32.png'), _("Clip and Replace with Pad"))
+        self.grb_stretch_menuitem = self.grb_track_edit_menu.addAction(
+            QtGui.QIcon(res + '/move32.png'), _("Stretch"))
+        self.grb_elbow_menuitem = self.grb_track_edit_menu.addAction(
+            QtGui.QIcon(res + '/track32.png'), _("Insert Elbow"))
+        self.grb_elbow90_menuitem = self.grb_track_edit_menu.addAction(
+            QtGui.QIcon(res + '/track32.png'), _("Insert 90\u00b0 Elbow"))
+
+        self.grb_aperture_menu = self.grb_editor_menu.addMenu(QtGui.QIcon(res + '/aperture32.png'), _("Apertures"))
+        self.grb_delete_unused_menuitem = self.grb_aperture_menu.addAction(
+            QtGui.QIcon(res + '/deleteshape32.png'), _("Delete Unused"))
+        self.grb_renumber_menuitem = self.grb_aperture_menu.addAction(
+            QtGui.QIcon(res + '/desc_sort32.png'), _("Renumber"))
+        self.grb_merge_duplicates_menuitem = self.grb_aperture_menu.addAction(
+            QtGui.QIcon(res + '/join32.png'), _("Merge Duplicates"))
+        self.grb_round_sizes_menuitem = self.grb_aperture_menu.addAction(
+            QtGui.QIcon(res + '/scale32.png'), _("Round Sizes"))
+        self.grb_select_same_type_menuitem = self.grb_aperture_menu.addAction(
+            QtGui.QIcon(res + '/select_all.png'), _("Select Same Type"))
+
+        self.grb_auto_menu = self.grb_editor_menu.addMenu(QtGui.QIcon(res + '/replace32.png'), _("Automatic"))
+        self.grb_pads_to_flashes_menuitem = self.grb_auto_menu.addAction(
+            QtGui.QIcon(res + '/aperture32.png'), _("Drawn Pads to Flashes"))
+        self.grb_teardrops_menuitem = self.grb_auto_menu.addAction(
+            QtGui.QIcon(res + '/semidisc32.png'), _("Teardrops"))
+        self.grb_snowman_menuitem = self.grb_auto_menu.addAction(
+            QtGui.QIcon(res + '/disc32.png'), _("Snowman Fillets"))
+        self.grb_editor_menu.addSeparator()
+
         self.grb_copy_menuitem = self.grb_editor_menu.addAction(
             QtGui.QIcon(self.app.resource_location + '/copy32.png'),
             '%s\t%s' % (_('Copy'), _('C')))
@@ -2118,6 +2170,13 @@ class MainGUI(QtWidgets.QMainWindow):
 
         self.grb_draw_transformations = self.grb_editor_cmenu.addAction(
             QtGui.QIcon(self.app.resource_location + '/transform.png'), _("Transform"))
+        self.grb_editor_cmenu.addSeparator()
+        # the same menus and actions as in the Gerber Editor menu
+        for submenu in (self.grb_select_menu, self.grb_track_edit_menu, self.grb_aperture_menu, self.grb_auto_menu):
+            self.grb_editor_cmenu.addMenu(submenu)
+        self.grb_editor_cmenu.addAction(self.grb_step_repeat_menuitem)
+        self.grb_editor_cmenu.addAction(self.grb_transcode_menuitem)
+        self.grb_editor_cmenu.addAction(self.grb_snap_grid_menuitem)
 
         self.e_editor_cmenu = self.popMenu.addMenu(
             QtGui.QIcon(self.app.resource_location + '/drill32.png'), _("Exc Editor"))

@@ -9,6 +9,7 @@ from shapely.ops import unary_union
 
 from appEditors.appGerberEditor import AppGerberEditor
 from appEditors.grb_plugins import GrbFollowPlugin as module
+from appEditors.grb_plugins import GrbTrackEditPlugin as track_edit
 from appEditors.grb_plugins.GrbCommon import DrawToolShape
 from appEditors.grb_plugins.GrbTrackBend import sweep_parameters
 from appParsers.ParseGerber import Gerber
@@ -230,3 +231,125 @@ def test_joined_record_can_be_split_and_bend_validated_again():
     assert editor.apply_path_split((7, 0), 0) != 'fail'
 
 
+def test_clip_splits_track_and_selects_inside_records():
+    path, dot = track([(0, 0), (10, 0)]), flash_at(5, 0)
+    editor = editor_for([path, dot])
+    editor.selected = []
+    assert track_edit.apply_clip(editor, (4, -1, 6, 1)) != 'fail'
+    assert coords_of(editor) == [[(0, 0), (4, 0)], [(4, 0), (6, 0)], [(6, 0), (10, 0)]]
+    assert len(editor.selected) == 2
+    assert any(s.geo['follow'].equals(LineString([(4, 0), (6, 0)])) for s in editor.selected)
+    assert any(s.geo['follow'].equals(Point(5, 0)) for s in editor.selected)
+    assert len(editor.history.undo_stack) == 1
+    assert editor.undo()
+    assert coords_of(editor) == [[(0, 0), (10, 0)]]
+    assert editor.redo()
+
+
+def test_clip_splits_region_into_inside_and_outside_pieces():
+    from shapely import Polygon
+    square = Polygon([(0, 0), (10, 0), (10, 10), (0, 10)])
+    editor = make_editor({'REG': {'type': 'REG', 'size': 0, 'geometry': [region(square)]}})
+    editor.loaded_as_regions = False
+    editor.selected = []
+    assert track_edit.apply_clip(editor, (5, -1, 11, 11)) != 'fail'
+    pieces = editor.storage_dict['REG']['geometry']
+    assert len(pieces) == 2
+    assert unary_union([p.geo['solid'] for p in pieces]).equals(square)
+    assert [round(p.geo['solid'].area, 6) for p in pieces] == [50.0, 50.0]
+    assert len(editor.selected) == 1
+    assert editor.selected[0].geo['solid'].bounds == (5, 0, 10, 10)
+
+
+def test_clip_and_replace_removes_inside_part_and_adds_2x2_pad():
+    editor = editor_for([track([(0, 0), (10, 0)])])
+    editor.selected = []
+    assert track_edit.apply_clip_replace_pad(editor, (4, -1, 6, 1)) != 'fail'
+    assert coords_of(editor) == [[(0, 0), (4, 0)], [(6, 0), (10, 0)]]
+    pads = [a for a in editor.storage_dict.values() if a['type'] == 'R']
+    assert len(pads) == 1
+    assert pads[0]['width'] == 2 and pads[0]['height'] == 2
+    assert len(pads[0]['geometry']) == 1
+    assert pads[0]['geometry'][0].geo['solid'].bounds == (4, -1, 6, 1)
+    assert len(editor.history.undo_stack) == 1
+    assert editor.undo()
+    assert coords_of(editor) == [[(0, 0), (10, 0)]]
+    assert list(editor.storage_dict) == [10]
+
+
+def test_stretch_moves_shared_endpoint_and_flash_in_one_undo_step():
+    editor = editor_for([track([(0, 0), (5, 0)]), track([(5, 0), (5, 5)]), flash_at(5, 0)])
+    editor.selected = []
+    assert track_edit.apply_stretch(editor, (4.5, -0.5, 5.5, 0.5), 1, 1) != 'fail'
+    assert coords_of(editor) == [[(0, 0), (6, 1)], [(6, 1), (5, 5)]]
+    points = [s for s in editor.storage_dict[10]['geometry'] if s.geo['follow'].geom_type == 'Point']
+    assert len(points) == 1 and points[0].geo['follow'].equals(Point(6, 1))
+    assert len(editor.history.undo_stack) == 1
+    assert editor.undo()
+    assert coords_of(editor) == [[(0, 0), (5, 0)], [(5, 0), (5, 5)]]
+    assert editor.redo()
+
+
+def test_insert_elbow_adds_vertex_undo_restores_and_a_miss_changes_nothing():
+    path = track([(0, 0), (10, 0)])
+    editor = editor_for([path])
+    revision = editor.geometry_revision
+    # no track near the point: nothing changes
+    assert track_edit.apply_insert_elbow(editor, (5, 5), (5, 8), 0.5) == 'fail'
+    assert coords_of(editor) == [[(0, 0), (10, 0)]]
+    assert editor.selected == [path]
+    assert editor.geometry_revision == revision
+    assert not editor.history.undo_stack
+    assert track_edit.apply_insert_elbow(editor, (5, 0), (5, 3), 0.5) != 'fail'
+    assert coords_of(editor) == [[(0, 0), (5, 3), (10, 0)]]
+    assert len(editor.history.undo_stack) == 1
+    assert editor.undo()
+    assert coords_of(editor) == [[(0, 0), (10, 0)]]
+
+
+def test_orthogonal_elbow_drops_zero_length_parts():
+    for vertex, expected in (((5, 3), [(0, 0), (5, 0), (5, 3), (10, 3), (10, 0)]),
+                             ((0, 3), [(0, 0), (0, 3), (10, 3), (10, 0)])):
+        editor = editor_for([track([(0, 0), (10, 0)])])
+        assert track_edit.apply_insert_elbow(editor, (5, 0), vertex, 0.5, orthogonal=True) != 'fail'
+        assert coords_of(editor) == [expected], vertex
+
+
+def flash_at(x, y, diameter=2):
+    follow = Point(x, y)
+    return DrawToolShape({'follow': follow, 'solid': follow.buffer(diameter / 2, 16)})
+
+
+def region(polygon):
+    return DrawToolShape({'follow': LineString(polygon.exterior.coords), 'solid': polygon})
+
+
+def coords_of(editor, code=10):
+    return sorted(list(s.geo['follow'].coords) for s in editor.storage_dict[code]['geometry']
+                  if s.geo['follow'].geom_type == 'LineString')
+
+
+
+
+def test_clip_replace_pad_saves_rectangular_flashes_as_flashes(app):
+    from appEditors.grb_plugins.GrbSelectionPlugin import flash_geo
+    probe = make_editor({10: {'type': 'C', 'size': 2, 'geometry': []}})
+    pad_aperture = {'type': 'R', 'size': 2.5, 'width': 2, 'height': 1.5, 'geometry': []}
+    pad = DrawToolShape(flash_geo(probe, pad_aperture, Point(0, 0)))
+    pad_aperture['geometry'].append(pad)
+    editor = make_editor({10: {'type': 'C', 'size': 2, 'geometry': [track([(20, 0), (30, 0)])]}, 11: pad_aperture})
+    editor.loaded_as_regions = False
+    editor.selected = []
+    assert track_edit.apply_clip_replace_pad(editor, (19, -3, 25, 3)) != 'fail'
+    assert not editor.loaded_as_regions
+    source = make_gerber(app, NATIVE_GBR, name='board')
+    stand_in = gerber_stand_in(app, source, editor.storage_dict)
+    stand_in.loaded_as_regions = editor.loaded_as_regions
+    AppGerberEditor.build_edited_gerber(stand_in, 'board', editor.storage_dict)
+    result = app.custom_signal.emit.call_args.args[0]
+    assert 'error' not in result
+    assert 'G36' not in result['obj'].source_file
+    parsed = Gerber(app, steps_per_circle=64)
+    assert parsed.parse_lines(result['obj'].source_file.splitlines()) is None
+    assert any(isinstance(record['follow'], Point) for tool in parsed.tools.values()
+               if tool.get('type') in ('R', 'O') for record in tool['geometry'])

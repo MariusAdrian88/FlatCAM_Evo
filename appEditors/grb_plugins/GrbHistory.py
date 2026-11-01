@@ -6,6 +6,8 @@ from functools import wraps
 from threading import get_ident
 import math
 import builtins
+
+from shapely import Point
 import gettext
 
 from appHandlers.appHistory import HistoryManager, geometry_sizes, is_rigid
@@ -26,6 +28,14 @@ def is_translation(matrix):
     """True if the affine matrix (a, b, d, e, xoff, yoff) only moves the geometry."""
     a, b, d, e = matrix[:4]
     return abs(a - 1.0) <= 1e-12 and abs(e - 1.0) <= 1e-12 and abs(b) <= 1e-12 and abs(d) <= 1e-12
+
+
+def mark_flashes(editor, shapes):
+    """Tells the history of the running operation that these records are flashes of their aperture (built with the
+    aperture shape at their Point follow), so they save as flashes also in a new or a changed aperture."""
+    history = getattr(editor, 'history', None)
+    if isinstance(history, GerberHistory):
+        history.flash_shapes.update(shape for shape in shapes if isinstance(shape.geo.get('follow'), Point))
 
 
 def gerber_operation(label, all_apertures=False):
@@ -62,6 +72,9 @@ class GerberHistory:
         # records of the running operation that kept their native form (set again by every outer operation)
         self.native_shapes = set()
         self.translated_shapes = set()
+        # records that the running operation built as a flash of their aperture (the solid is the aperture shape at
+        # the Point follow): they save as flashes, also in a new or a changed aperture
+        self.flash_shapes = set()
         # retained size of the stacks by step id, so a notify does not recompute the steps it already measured
         self.step_sizes = {}
 
@@ -157,6 +170,7 @@ class GerberHistory:
             self.before_geos = {}
             self.native_shapes = set()
             self.translated_shapes = set()
+            self.flash_shapes = set()
             self.failed = False
             self.needs_plot = False
             self.dirty = False
@@ -246,6 +260,8 @@ class GerberHistory:
                     break
                 # a pure translation of a record keeps its flash or track semantics, whatever the aperture type
                 if shape in self.translated_shapes and old_meta == new_meta:
+                    continue
+                if shape in self.flash_shapes and isinstance(follow, Point):
                     continue
                 if new_meta.get('type') != 'C':
                     editor.loaded_as_regions = True

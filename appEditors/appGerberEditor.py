@@ -11,6 +11,8 @@ from appEditors.grb_plugins.GrbCommon import (gerber_steps, gerber_quad, DrawToo
 
 from camlib import distance, arc, three_point_circle, flatten_shapely_geometry, translate_geometry
 from appGUI.GUIElements import *
+from appCommon.ToolDatabase import read_apertures
+from appGUI.ApertureLibrary import open_aperture_library
 
 from appEditors.grb_plugins.GrbPadPlugin import PadEditorTool
 
@@ -19,6 +21,11 @@ from appEditors.grb_plugins.GrbTransformationPlugin import TransformEditorTool, 
 from appEditors.grb_plugins.GrbPadArrayPlugin import GrbPadArrayEditorTool
 from appEditors.grb_plugins.GrbTrackPlugin import GrbTrackEditorTool
 from appEditors.grb_plugins.GrbTrackBend import TrackBendEditorGrb
+from appEditors.grb_plugins import GrbSelectionPlugin, GrbTrackEditPlugin, GrbAperturePlugin, GrbAutoPlugin
+from appEditors.grb_plugins import GrbOperationDialogs
+from appEditors.grb_plugins.GrbSelectionPlugin import ChainSelectEditorGrb
+from appEditors.grb_plugins.GrbTrackEditPlugin import (ClipEditorGrb, ClipPadEditorGrb, StretchEditorGrb,
+                                                        ElbowEditorGrb, Elbow90EditorGrb, TRACK_EDIT_TOOLS)
 from appEditors.grb_plugins.GrbFollowPlugin import (FollowSplitEditorGrb, apply_path_split, apply_path_join,
                                                  apply_resize_circles, circular_aperture)
 from appEditors.grb_plugins.GrbHistory import GerberHistory, gerber_operation, metadata
@@ -3815,6 +3822,23 @@ class AppGerberEditor(QtCore.QObject):
 
         self.app.ui.grb_transform_menuitem.triggered.connect(lambda: self.transform_tool.run())
 
+        ui, dialogs = self.app.ui, GrbOperationDialogs
+        ui.grb_invert_selection_menuitem.triggered.connect(lambda checked=False: self.invert_selection())
+        ui.grb_select_pads_menuitem.triggered.connect(lambda checked=False: self.filter_selection('pad'))
+        ui.grb_select_tracks_menuitem.triggered.connect(lambda checked=False: self.filter_selection('track'))
+        ui.grb_select_regions_menuitem.triggered.connect(lambda checked=False: self.filter_selection('region'))
+        ui.grb_step_repeat_menuitem.triggered.connect(lambda checked=False: dialogs.on_step_repeat(self))
+        ui.grb_transcode_menuitem.triggered.connect(lambda checked=False: dialogs.on_transcode(self))
+        ui.grb_snap_grid_menuitem.triggered.connect(lambda checked=False: dialogs.on_snap_to_grid(self))
+        ui.grb_delete_unused_menuitem.triggered.connect(lambda checked=False: self.apply_delete_unused())
+        ui.grb_renumber_menuitem.triggered.connect(lambda checked=False: dialogs.on_renumber(self))
+        ui.grb_merge_duplicates_menuitem.triggered.connect(lambda checked=False: self.apply_merge_duplicates())
+        ui.grb_round_sizes_menuitem.triggered.connect(lambda checked=False: self.apply_round_sizes())
+        ui.grb_select_same_type_menuitem.triggered.connect(lambda checked=False: self.on_select_same_type())
+        ui.grb_pads_to_flashes_menuitem.triggered.connect(lambda checked=False: dialogs.on_pads_to_flashes(self))
+        ui.grb_teardrops_menuitem.triggered.connect(lambda checked=False: dialogs.on_teardrops(self))
+        ui.grb_snowman_menuitem.triggered.connect(lambda checked=False: dialogs.on_snowman(self))
+
         self.app.ui.grb_copy_menuitem.triggered.connect(self.on_copy_button)
         self.app.ui.grb_delete_menuitem.triggered.connect(self.on_delete_btn)
 
@@ -3893,6 +3917,13 @@ class AppGerberEditor(QtCore.QObject):
             "copy": {"button": self.app.ui.aperture_copy_btn, "constructor": CopyEditorGrb},
             "transform": {"button": self.app.ui.grb_transform_btn, "constructor": TransformEditorGrb},
             "move": {"button": self.app.ui.aperture_move_btn, "constructor": MoveEditorGrb},
+            # the menu actions are the buttons of these tools; they never end themselves (Esc returns to Select)
+            "select_chain": {"button": self.app.ui.grb_select_chain_menuitem, "constructor": ChainSelectEditorGrb},
+            "clip": {"button": self.app.ui.grb_clip_menuitem, "constructor": ClipEditorGrb},
+            "clip_pad": {"button": self.app.ui.grb_clip_pad_menuitem, "constructor": ClipPadEditorGrb},
+            "stretch": {"button": self.app.ui.grb_stretch_menuitem, "constructor": StretchEditorGrb},
+            "elbow": {"button": self.app.ui.grb_elbow_menuitem, "constructor": ElbowEditorGrb},
+            "elbow90": {"button": self.app.ui.grb_elbow90_menuitem, "constructor": Elbow90EditorGrb},
         })
 
         for tool in self.tools_gerber:
@@ -3971,10 +4002,41 @@ class AppGerberEditor(QtCore.QObject):
             return
         self.storage_dict.update(result['storage'])
         self.loaded_as_regions = result['regions']
+        self.autoload_apertures()
         self.touch_geometry()
         self.on_multiprocessing_finished()
         self.history.reset()
         self.is_modified = False
+
+    def autoload_apertures(self):
+        if self.storage_dict or self.gerber_obj.tools or any(
+                not geo.is_empty for geo in flatten_shapely_geometry(self.gerber_obj.solid_geometry)):
+            return
+        try:
+            records = read_apertures(self.app.tools_database_path())
+            storage = {}
+            for code, record in records.items():
+                if not record['autoload']:
+                    continue
+                factor = 1 if record['units'] == self.app.app_units.upper() else (
+                    25.4 if record['units'] == 'IN' else 1 / 25.4)
+                storage[code] = {key: value * factor if key in ('size', 'width', 'height') else value
+                                 for key, value in record.items() if key not in ('units', 'autoload')}
+                storage[code]['geometry'] = []
+            self.storage_dict.update(storage)
+        except (OSError, ValueError, TypeError) as error:
+            self.app.inform.emit('[WARNING_NOTCL] %s: %s' % (_("Could not autoload apertures"), str(error)))
+
+    def on_apertures_database(self, save_selected=False):
+        apertures = None
+        if save_selected:
+            codes = {int(self.ui.apertures_table.item(index.row(), 1).text())
+                     for index in self.ui.apertures_table.selectedIndexes()}
+            if not codes:
+                self.app.inform.emit('[WARNING_NOTCL] %s' % _("Select apertures to save to the database."))
+                return
+            apertures = {code: self.storage_dict[code] for code in codes}
+        open_aperture_library(self.app, parent=self.ui.grb_edit_widget, apertures=apertures)
 
     def update_component_properties(self):
         component = self.ui.diagnostics_component.currentData() or 'solid'
@@ -5854,7 +5916,9 @@ class AppGerberEditor(QtCore.QObject):
         if isinstance(self.active_tool, (ImportEditorGrb, TrackBendEditorGrb, ArcEditorGrb, CopperPourEditorGrb)):
             self.active_tool.clean_up()
 
-        if self.last_aperture_selected is None and current_tool not in ['select', 'disc', 'semidisc', 'region', 'bend', 'split', 'copper_pour']:
+        if self.last_aperture_selected is None and current_tool not in ['select', 'disc', 'semidisc', 'region', 'bend', 'split', 'copper_pour',
+                                                                 'select_chain', 'clip', 'clip_pad', 'stretch',
+                                                                 'elbow', 'elbow90']:
             # self.draw_app.select_tool('select')
             self.complete = True
             current_tool = 'select'
@@ -6430,6 +6494,76 @@ class AppGerberEditor(QtCore.QObject):
     def apply_path_join(self, tolerance):
         return apply_path_join(self, tolerance)
 
+    @property
+    def track_edit_tolerance(self):
+        """The pick tolerance of the Track Edit tools, in app units: the option gerber_editor_track_edit_tolerance
+        (screen pixels) at the current zoom, so it does not depend on the units or the zoom."""
+        pixels = GrbOperationDialogs.stored(self, 'track_edit_tolerance', PICK_TOLERANCE_PX)
+        return float(pixels) * float(self.canvas.pixel_size())
+
+    def invert_selection(self):
+        return GrbSelectionPlugin.invert_selection(self)
+
+    def filter_selection(self, kind):
+        return GrbSelectionPlugin.filter_selection(self, kind)
+
+    def select_chain(self, point, tolerance, branching=False, add=False):
+        return GrbSelectionPlugin.select_chain(self, point, tolerance, branching, add)
+
+    def apply_step_repeat(self, rows, columns, dx, dy):
+        return GrbSelectionPlugin.apply_step_repeat(self, rows, columns, dx, dy)
+
+    def apply_transcode(self, target_code):
+        return GrbSelectionPlugin.apply_transcode(self, target_code)
+
+    def apply_snap_to_grid(self, grid_x, grid_y):
+        return GrbSelectionPlugin.apply_snap_to_grid(self, grid_x, grid_y)
+
+    def apply_clip(self, bounds):
+        return GrbTrackEditPlugin.apply_clip(self, bounds)
+
+    def apply_clip_replace_pad(self, bounds):
+        return GrbTrackEditPlugin.apply_clip_replace_pad(self, bounds)
+
+    def apply_stretch(self, bounds, dx, dy):
+        return GrbTrackEditPlugin.apply_stretch(self, bounds, dx, dy)
+
+    def apply_insert_elbow(self, point, vertex, tolerance, orthogonal=False):
+        return GrbTrackEditPlugin.apply_insert_elbow(self, point, vertex, tolerance, orthogonal)
+
+    def apply_delete_unused(self):
+        return GrbAperturePlugin.apply_delete_unused(self)
+
+    def apply_renumber(self, start=10):
+        return GrbAperturePlugin.apply_renumber(self, start)
+
+    def apply_merge_duplicates(self):
+        return GrbAperturePlugin.apply_merge_duplicates(self)
+
+    def apply_round_sizes(self):
+        return GrbAperturePlugin.apply_round_sizes(self)
+
+    def same_type_codes(self, code):
+        return GrbAperturePlugin.same_type_codes(self, code)
+
+    def on_select_same_type(self):
+        """Select in the Apertures Table the apertures of the type of the selected one."""
+        if self.last_aperture_selected is None:
+            self.app.inform.emit('[WARNING_NOTCL] %s' % _("Select an aperture in the Apertures Table first."))
+            return 'fail'
+        codes = self.same_type_codes(self.last_aperture_selected)
+        self.sync_aperture_rows(codes)
+        return codes
+
+    def apply_pads_to_flashes(self, tolerance):
+        return GrbAutoPlugin.apply_pads_to_flashes(self, tolerance)
+
+    def apply_teardrops(self, length_pct, width_pct):
+        return GrbAutoPlugin.apply_teardrops(self, length_pct, width_pct)
+
+    def apply_snowman(self, size_pct, position_pct):
+        return GrbAutoPlugin.apply_snowman(self, size_pct, position_pct)
+
     def on_join_paths(self):
         return self.apply_path_join(self.ui.join_tolerance_entry.text())
 
@@ -6630,7 +6764,8 @@ class AppGerberEditor(QtCore.QObject):
                 modifiers = QtWidgets.QApplication.keyboardModifiers()
 
                 # If the SHIFT key is pressed when LMB is clicked then the coordinates are copied to clipboard
-                if modifiers == QtCore.Qt.KeyboardModifier.ShiftModifier:
+                if modifiers == QtCore.Qt.KeyboardModifier.ShiftModifier and \
+                        not isinstance(self.active_tool, ChainSelectEditorGrb):  # Shift adds to the chain
                     self.app.clipboard.setText(
                         self.app.options.get(
                             "global_point_clipboard_format",
@@ -6705,7 +6840,7 @@ class AppGerberEditor(QtCore.QObject):
         else:
             pos = raw_pos
 
-        if isinstance(self.active_tool, (TrackBendEditorGrb, FollowSplitEditorGrb)):
+        if isinstance(self.active_tool, (TrackBendEditorGrb, FollowSplitEditorGrb) + TRACK_EDIT_TOOLS):
             if event.button == 1:
                 self.active_tool.click_release(raw_pos)
             elif event.button == right_button and not event.is_dragging:
@@ -6992,7 +7127,8 @@ class AppGerberEditor(QtCore.QObject):
             # I make an exception for RegionEditorGrb and TrackEditorGrb because clicking and dragging while making 
             # regions can create strange issues like missing a point in a track/region
             if isinstance(self.active_tool, (RegionEditorGrb, TrackEditorGrb, TrackBendEditorGrb,
-                                             FollowSplitEditorGrb, ArcEditorGrb, RegionDrawingPanel)):
+                                             FollowSplitEditorGrb, ArcEditorGrb, RegionDrawingPanel)
+                                            + TRACK_EDIT_TOOLS):
                 self.app.selection_type = None
             elif self._is_click_not_drag((pos_canvas[0], pos_canvas[1])):
                 self.app.selection_type = None
@@ -7974,6 +8110,13 @@ class AppGerberEditorUI:
         # Zoom Selection
         self.geo_zoom = FCCheckBox(_("Zoom on selection"))
         ap_grid.addWidget(self.geo_zoom, 4, 0, 1, 2)
+
+        self.apertures_db_btn = FCButton(_("Apertures Database"))
+        self.apertures_db_btn.clicked.connect(lambda: self.app.grb_editor.on_apertures_database())
+        ap_grid.addWidget(self.apertures_db_btn, 5, 0, 1, 2)
+        self.save_apertures_db_btn = FCButton(_("Save Selected to Database"))
+        self.save_apertures_db_btn.clicked.connect(lambda: self.app.grb_editor.on_apertures_database(save_selected=True))
+        ap_grid.addWidget(self.save_apertures_db_btn, 6, 0, 1, 2)
 
         # #############################################################################################################
         # ################################ Advanced sections (hidden in Beginner mode) ################################

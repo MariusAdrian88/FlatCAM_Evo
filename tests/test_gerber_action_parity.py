@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, call
 
 import pytest
 from PyQt6 import QtCore, QtGui, QtWidgets
+from shapely import LineString, Point
 from shapely.geometry import box, MultiPolygon
 from shapely.ops import unary_union
 from camlib import gerber_quad_segs
@@ -12,6 +13,7 @@ from camlib import gerber_quad_segs
 from appEditors import appGerberEditor as module
 from appEditors.grb_plugins.GrbCommon import DrawToolShape
 from appGUI.MainGUI import MainGUI
+from appEditors.grb_plugins.GrbTrackEditPlugin import ClipEditorGrb
 from test_gerber_editor_clear import editor_save
 from test_gerber_editor_pick import make_editor, aperture, pad, event
 from tests.helpers_objects import (  # noqa: F401,E402
@@ -136,3 +138,39 @@ def test_new_actions_native_export_reparse(app, tmp_path, operation, steps, dire
     assert_poly_equiv(again.solid_geometry, expected, abs_tol=1e-4)
 
 
+
+
+NEW_MENU_ACTIONS = ['grb_invert_selection', 'grb_select_pads', 'grb_select_tracks', 'grb_select_regions',
+                    'grb_select_chain', 'grb_step_repeat', 'grb_transcode', 'grb_snap_grid', 'grb_clip',
+                    'grb_clip_pad', 'grb_stretch', 'grb_elbow', 'grb_elbow90', 'grb_delete_unused', 'grb_renumber',
+                    'grb_merge_duplicates', 'grb_round_sizes', 'grb_select_same_type', 'grb_pads_to_flashes',
+                    'grb_teardrops', 'grb_snowman']
+
+
+def test_camguide_menu_actions_reach_the_editor():
+    editor = make_editor({10: aperture([])})
+    for name in NEW_MENU_ACTIONS:
+        assert getattr(editor.app.ui, name + '_menuitem').triggered.connect.called, name
+    # a menu action runs its operation: Invert Selection selects what was not selected
+    first, second = pad(0, 0, 1), pad(5, 0, 1)
+    editor.storage_dict[10]['geometry'] = [first, second]
+    editor.touch_geometry()
+    editor.selected = [first]
+    handler = editor.app.ui.grb_invert_selection_menuitem.triggered.connect.call_args.args[0]
+    handler()
+    assert editor.selected == [second]
+
+
+def test_clip_tool_drag_on_the_canvas_clips_a_track():
+    follow = LineString([(0, 0), (10, 0)])
+    shape = DrawToolShape({'follow': follow, 'solid': follow.buffer(0.5, 16)})
+    editor = make_editor({10: aperture([shape])})
+    editor.loaded_as_regions = False
+    editor.active_tool = ClipEditorGrb(editor)
+    editor.on_canvas_click(event(4, -2))
+    editor.on_canvas_click_release(event(6, 2))
+    # Clip cuts the track at the edges of the rectangle: 3 tracks that meet at x = 4 and x = 6
+    ends = sorted(tuple(sorted(round(x, 6) for x, _y in s.geo['follow'].coords))
+                  for s in editor.storage_dict[10]['geometry'])
+    assert ends == [(0.0, 4.0), (4.0, 6.0), (6.0, 10.0)]
+    assert len(editor.history.undo_stack) == 1
