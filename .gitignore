@@ -26,3 +26,6 @@ make_freeze*.py
 # Local research notes and reports (not published)
 reports/
 research_notes/
+
+# Design specs and plans of the agent sessions (local only)
+docs/superpowers/
