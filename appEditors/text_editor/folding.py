@@ -210,6 +210,32 @@ class FoldModel(QtCore.QObject):
         self._hidden = self._intervals()
         self._hidden_starts = [interval[0] for interval in self._hidden]
 
+    def hidden_intervals(self):
+        """[first, last] block numbers (both included) hidden by the folds, merged and sorted."""
+        return self._hidden
+
+    def visible_count(self):
+        """The number of lines that the folds do not hide."""
+        return self.edit.document().blockCount() - sum(last - first + 1 for first, last in self._hidden)
+
+    def visible_index(self, number):
+        """The index among the visible lines of a visible block (the inverse of block_of_visible)."""
+        hidden = 0
+        for first, last in self._hidden:
+            if first > number:
+                break
+            hidden += min(last, number) - first + 1
+        return number - hidden
+
+    def block_of_visible(self, index):
+        """The block number of the visible line at the index (0 = the first visible line)."""
+        number = index
+        for first, last in self._hidden:
+            if first > number:
+                break
+            number += last - first + 1
+        return number
+
     def next_visible(self, number):
         """The number of the first block at or after `number` that is not hidden by a fold."""
         index = bisect.bisect_right(self._hidden_starts, number) - 1
@@ -246,7 +272,8 @@ class FoldModel(QtCore.QObject):
         edit.gutter.update()
         edit.highlight_shown_blocks()
         if edit.minimap is not None:
-            edit.minimap.update()
+            # (the image has no row for a hidden line: it is made again for the new folds)
+            edit.minimap.schedule()
 
     # ------------------------------------------------------------------------------------------------------------
     # edits

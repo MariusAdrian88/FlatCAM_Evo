@@ -145,10 +145,8 @@ class ScriptObject(FlatCAMObj):
         # #############################################################################
         self.ui.level.toggled.connect(self.on_level_changed)
 
-        self.script_editor_tab.buttonOpen.clicked.disconnect()
-        self.script_editor_tab.buttonOpen.clicked.connect(lambda: self.script_editor_tab.handleOpen(filt=flt))
-        self.script_editor_tab.buttonSave.clicked.disconnect()
-        self.script_editor_tab.buttonSave.clicked.connect(self.handle_save)
+        self.script_editor_tab.set_file_filter(flt)
+        self.script_editor_tab.set_save_handler(self.handle_save)
         save_menu = QtWidgets.QMenu(self.script_editor_tab.buttonSave)
         save_menu.addAction(_('Save As'), lambda: self.script_editor_tab.handleSaveGCode(filt=flt))
         self.script_editor_tab.buttonSave.setMenu(save_menu)

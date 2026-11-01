@@ -16,12 +16,18 @@ Text editor (Code Editor, Script Editor, Source Editor, G-code views):
 - new: editing keys: auto-indent, Tab/Shift+Tab on the selected lines, Ctrl+D duplicate line, Alt+Up/Alt+Down move lines, Ctrl+/ comment for the language of the text, Ctrl+wheel and Ctrl+=/Ctrl+-/Ctrl+0 zoom; each command is one Undo step
 - new: bracket matching, word wrap and show whitespace toggles in the editor toolbar
 - new: code folding: G-code header and tool blocks, Excellon header and tools, Gerber macros and regions, Tcl braces; markers in the gutter, Ctrl+Shift+[ / Ctrl+Shift+], Fold All and Unfold All in the context menu; the cursor never stays in a folded part
-- new: a minimap at the right of the text (Map button) for texts of 300 lines or more; a click or a drag scrolls the text
+- new: a minimap at the right of the text (Map button); a click or a drag scrolls the text; the mouse over the minimap shows a lens with the code under the pointer (15 lines, with colors and line numbers; folded lines are skipped)
 - new: a syntax highlighter for each format: G-code, Gerber, Excellon and Tcl (with the names of the app Tcl commands); the editor detects the format when the caller does not give it
 - changed: the editor colors come from a light and a dark palette; the dark theme no longer inverts the colors
 - changed: Go to Line (Ctrl+G) uses the editor of the current tab
 - fixed: the highlight of all the matches of a search froze the app (200000 matches: 9.5 s, now 0.2 s)
 - fixed: some highlight rules never matched (D-codes, reserved words, constants)
+- fixed: Fold All colored all the lines it hid (200000 lines: 2.6 s, now 1.5 s); the hidden lines get their colors when they are shown
+- fixed: the part shown in the minimap was out of place when lines were folded
+- fixed: the line count of the status bar showed 1 after a text was loaded
+- fixed: the Default theme on a system in dark mode showed the light editor colors on a dark background
+- changed: the Script, Document and Source editors set the file filter and the save action of the Open and Save buttons, no longer reconnect them
+- translations: the new texts of the editor and the Document object in the 9 languages
 
 Document object:
 
@@ -31,6 +37,10 @@ Document object:
 - fixed: a document saved as .FlatDoc lost its formatting; .FlatDoc and .html keep it, .txt saves plain text
 - fixed: a document saved as PDF now keeps its formatting and uses the workspace page size and the PDF margins of the Preferences
 - fixed: the saved font size was not selected in the Properties panel
+
+Project tab:
+
+- new: the right click menu of a category row (Gerber, Excellon, Geometry, Script, Document) has a New action that makes a new object of that category
 
 31.10.2026
 

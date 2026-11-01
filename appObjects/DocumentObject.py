@@ -128,10 +128,8 @@ class DocumentObject(FlatCAMObj):
         # ######################################################################
         self.ui.level.toggled.connect(self.on_level_changed)
 
-        self.document_editor_tab.buttonOpen.clicked.disconnect()
-        self.document_editor_tab.buttonOpen.clicked.connect(lambda: self.document_editor_tab.handleOpen(filt=flt))
-        self.document_editor_tab.buttonSave.clicked.disconnect()
-        self.document_editor_tab.buttonSave.clicked.connect(lambda: self.save_document(filt=flt))
+        self.document_editor_tab.set_file_filter(flt)
+        self.document_editor_tab.set_save_handler(lambda: self.save_document(filt=flt))
 
         self.document_editor_tab.code_editor.textChanged.connect(self.on_text_changed)
 

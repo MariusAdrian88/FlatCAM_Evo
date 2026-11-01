@@ -36,8 +36,10 @@ class LazyHighlighter(QtGui.QSyntaxHighlighter):
     def highlightBlock(self, text):
         if self.editor is not None and self.currentBlockState() == -1:
             first, last = self.editor.shown_blocks
-            if not first <= self.currentBlock().blockNumber() <= last:
-                # never highlighted and not shown: it is highlighted when it is shown (its state stays -1).
+            block = self.currentBlock()
+            if not (first <= block.blockNumber() <= last and block.isVisible()):
+                # never highlighted and not shown (outside the window, or hidden in a fold): it is highlighted when
+                # it is shown (its state stays -1).
                 # A block highlighted before (state 0) is always highlighted here: Qt applies the formats set by
                 # this call, so returning would remove its colors for good.
                 return

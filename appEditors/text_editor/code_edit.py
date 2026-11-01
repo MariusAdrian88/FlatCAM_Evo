@@ -56,7 +56,7 @@ class CodeEdit(FCPlainTextAreaExtended):
         super().__init__(parent)
 
         self.theme = theme
-        self.colors = palette_for(theme)
+        self.colors = palette_for(theme, self._background())
         self.lexer = lexer if lexer is not None else GCodeLexer()
         self.tab_width = tab_width
         self._find_selections = []
@@ -94,13 +94,18 @@ class CodeEdit(FCPlainTextAreaExtended):
     # ------------------------------------------------------------------------------------------------------------
     # theme and language
     # ------------------------------------------------------------------------------------------------------------
+    def _background(self):
+        return self.palette().color(QtGui.QPalette.ColorRole.Base)
+
     def set_theme(self, theme):
         self.theme = theme
-        self.colors = palette_for(theme)
+        self.colors = palette_for(theme, self._background())
         self.highlighter.set_palette(self.colors)
         self.highlighter.rehighlight()
         self.refresh_selections()
         self.gutter.update()
+        if self.minimap is not None:
+            self.minimap.schedule()
 
     def set_lexer(self, lexer):
         self.lexer = lexer
@@ -399,7 +404,8 @@ class CodeEdit(FCPlainTextAreaExtended):
             doc.setModified(False)
         self.undo_flag = False
         self.redo_flag = False
-        self.adjust_gutter_width()
+        # (the signals were blocked: the line count of the status bar, the gutter width and the minimap follow it)
+        self.blockCountChanged.emit(doc.blockCount())
         self.highlight_shown_blocks()
         self.refresh_selections()
         self.gutter.update()
@@ -455,11 +461,16 @@ class CodeEdit(FCPlainTextAreaExtended):
 
     def changeEvent(self, event):
         super().changeEvent(event)
-        if event.type() == QtCore.QEvent.Type.FontChange and hasattr(self, 'gutter'):
+        kind = event.type()
+        if kind == QtCore.QEvent.Type.FontChange and hasattr(self, 'gutter'):
             self.set_tab_width(self.tab_width)
             self._gutter_width = -1
             self.adjust_gutter_width()
             self.gutter.update()
+        elif kind == QtCore.QEvent.Type.PaletteChange and hasattr(self, 'highlighter'):
+            # the system changed to dark or light mode: the colors follow the new background
+            if palette_for(self.theme, self._background()) is not self.colors:
+                self.set_theme(self.theme)
 
     def wheelEvent(self, event):
         if event.modifiers() & Qt.KeyboardModifier.ControlModifier:

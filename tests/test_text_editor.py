@@ -387,12 +387,21 @@ TOKEN_SAMPLES = [
 
 class TestLexers(unittest.TestCase):
 
+    def test_default_theme_on_a_dark_background_takes_the_dark_colors(self):
+        from appEditors.text_editor.themes import DARK, LIGHT
+        edit = CodeEdit(theme='default')
+        for background, expected in (('#ffffff', LIGHT), ('#1e1e1e', DARK), ('#ffffff', LIGHT)):
+            palette = edit.palette()
+            palette.setColor(QtGui.QPalette.ColorRole.Base, QtGui.QColor(background))
+            edit.setPalette(palette)
+            self.assertIs(edit.colors, expected, background)
+        self.assertIs(CodeEdit(theme='dark').colors, DARK)
+
     def test_tokens_have_their_colors(self):
         from appEditors.text_editor.lexers import get_lexer
-        from appEditors.text_editor.themes import palette_for
-        colors = palette_for('default')
         for language, line, expected in TOKEN_SAMPLES:
             edit = CodeEdit(theme='default', lexer=get_lexer(language))
+            colors = edit.colors
             edit.resize(600, 100)
             edit.show()
             edit.load(line)
@@ -517,6 +526,9 @@ class TestFolding(FoldCase):
         self.assertEqual(len(self.hidden()), 2 + 51 * 3)
         fold.unfold_all()
         self.assertEqual(self.hidden(), [])
+        # the lines hidden by the fold get their colors when they are shown again
+        pump()
+        self.assertTrue(self.edit.document().findBlockByNumber(5).layout().formats())
 
     def test_fold_with_the_keys_folds_the_region_of_the_cursor(self):
         self.edit.setTextCursor(QtGui.QTextCursor(self.edit.document().findBlockByNumber(60)))
@@ -608,13 +620,16 @@ class TestMinimap(unittest.TestCase):
         self.editor.deleteLater()
         pump()
 
-    def test_a_short_text_hides_the_minimap_and_a_long_one_shows_it(self):
-        self.editor.button_minimap.setChecked(True)
+    def test_the_map_button_shows_and_hides_the_minimap(self):
+        # a short text too: the button must not look dead (View Source of a small Gerber file)
         self.editor.load_text(gcode(100))
-        self.assertTrue(self.editor.minimap.isHidden())
+        self.editor.button_minimap.setChecked(True)
+        self.assertFalse(self.editor.minimap.isHidden())
         self.editor.load_text(gcode(5000))
         self.assertFalse(self.editor.minimap.isHidden())
         self.assertTrue(self.editor.app.options['text_editor_minimap'])
+        # the status bar counts the lines of the text loaded
+        self.assertEqual(self.editor.status_bar.lines_label.text(), '%d lines' % self.editor.code_editor.blockCount())
         self.editor.button_minimap.setChecked(False)
         self.assertTrue(self.editor.minimap.isHidden())
 
@@ -630,6 +645,43 @@ class TestMinimap(unittest.TestCase):
             QtTest.QTest.mouseClick(minimap, QtCore.Qt.MouseButton.LeftButton, pos=point)
             wanted = fraction * bar.maximum()
             self.assertAlmostEqual(bar.value() / bar.maximum(), wanted / bar.maximum(), delta=0.1)
+
+    def test_hover_shows_the_code_under_the_pointer_in_a_lens(self):
+        self.editor.button_minimap.setChecked(True)
+        self.editor.load_text(tool_gcode(tools=3, moves=100))     # regions (0, 2), (3, 104), (105, 206), (207, 308)
+        pump()
+        edit = self.editor.code_editor
+        edit.fold.rescan()
+        edit.fold.fold(3)           # 101 lines hidden: 208 lines are visible
+        minimap = self.editor.minimap
+        minimap.rebuild()
+        pump()
+        y = minimap._rows * 0.5
+        # (QTest.mouseMove sends no move event to a widget without a button pressed)
+        point = QtCore.QPointF(40, int(y))
+        QtWidgets.QApplication.sendEvent(minimap, QtGui.QMouseEvent(
+            QtCore.QEvent.Type.MouseMove, point, minimap.mapToGlobal(point), QtCore.Qt.MouseButton.NoButton,
+            QtCore.Qt.MouseButton.NoButton, QtCore.Qt.KeyboardModifier.NoModifier))
+        pump()
+        lens = minimap.lens
+        self.assertTrue(lens is not None and lens.isVisible())
+        # the visible line in the middle is block 104 + 104 - 3 = ~205: a line of the 2nd tool, not of the folded 1st
+        center = minimap.block_at_y(y)
+        self.assertGreater(center, 104)
+        self.assertIn(edit.document().findBlockByNumber(center).text(), lens.view.toPlainText().split('\n'))
+        self.assertIn(center + 1, lens.view.numbers)
+        # the lens keeps the colors of the code
+        self.assertTrue(lens.view.document().firstBlock().layout().formats())
+        QtTest.QTest.mouseClick(minimap, QtCore.Qt.MouseButton.LeftButton, pos=QtCore.QPoint(40, int(y)))
+        minimap.leaveEvent(QtCore.QEvent(QtCore.QEvent.Type.Leave))
+        self.assertFalse(lens.isVisible())
+
+    def test_folded_lines_get_no_row(self):
+        # the scroll bar does not count a folded line: a row for it moves the rectangle of the part shown
+        from appEditors.text_editor.minimap import build_density
+        text = '\n'.join(['G1 X1'] * 10)
+        self.assertEqual(build_density(text, 80, 100).shape[0], 10)
+        self.assertEqual(build_density(text, 80, 100, hidden=[[2, 5], [8, 8]]).shape[0], 5)
 
 
 if __name__ == '__main__':

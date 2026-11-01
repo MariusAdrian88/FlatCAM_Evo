@@ -4127,17 +4127,7 @@ class App(QtCore.QObject):
         # Switch plot_area to CNCJob tab
         self.ui.plot_tab_area.setCurrentWidget(self.source_editor_tab)
 
-        try:
-            self.source_editor_tab.buttonOpen.clicked.disconnect()
-        except TypeError:
-            pass
-        self.source_editor_tab.buttonOpen.clicked.connect(lambda: self.source_editor_tab.handleOpen(filt=flt))
-
-        try:
-            self.source_editor_tab.buttonSave.clicked.disconnect()
-        except TypeError:
-            pass
-        self.source_editor_tab.buttonSave.clicked.connect(lambda: self.source_editor_tab.handleSaveGCode(filt=flt))
+        self.source_editor_tab.set_file_filter(flt)
 
         # then append the text from GCode to the text editor
         if obj.kind == 'cncjob':
@@ -4175,17 +4165,6 @@ class App(QtCore.QObject):
 
         if self.toggle_codeeditor is False:
             self.init_code_editor(name=_("Code Editor"))
-
-            try:
-                self.text_editor_tab.buttonOpen.clicked.disconnect()
-            except TypeError:
-                pass
-            self.text_editor_tab.buttonOpen.clicked.connect(self.text_editor_tab.handleOpen)
-            try:
-                self.text_editor_tab.buttonSave.clicked.disconnect()
-            except TypeError:
-                pass
-            self.text_editor_tab.buttonSave.clicked.connect(self.text_editor_tab.handleSaveGCode)
         else:
             for idx in range(self.ui.plot_tab_area.count()):
                 if self.ui.plot_tab_area.widget(idx).objectName() == "text_editor_tab":

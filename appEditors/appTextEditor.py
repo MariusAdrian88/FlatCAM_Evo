@@ -221,7 +221,6 @@ class AppTextEditor(QtWidgets.QWidget):
             show = bool(self._option('text_editor_show_whitespace'))
             self.button_whitespace.setChecked(show)
             self.code_editor.set_show_whitespace(show)
-            # (shown only for a text of 300 lines or more)
             self.minimap = Minimap(self.code_editor)
             show_map = bool(self._option('text_editor_minimap'))
             self.button_minimap.setChecked(show_map)
@@ -233,8 +232,10 @@ class AppTextEditor(QtWidgets.QWidget):
         # ################### SIGNALS #################################################################################
         # #############################################################################################################
         self.code_editor.textChanged.connect(self.handleTextChanged)
-        self.buttonOpen.clicked.connect(self.handleOpen)
-        self.buttonSave.clicked.connect(self.handleSaveGCode)
+        self.file_filter = None     # filter of the Open and Save dialogs; None: the G-code files
+        self.save_handler = None    # called by the Save button instead of handleSaveGCode()
+        self.buttonOpen.clicked.connect(self.on_open_clicked)
+        self.buttonSave.clicked.connect(self.on_save_clicked)
         self.buttonPrint.clicked.connect(self.handlePrint)
         self.buttonPreview.clicked.connect(self.handlePreview)
         self.button_find_toggle.clicked.connect(self.toggle_find_bar)
@@ -329,6 +330,23 @@ class AppTextEditor(QtWidgets.QWidget):
         if self.minimap is not None:
             self.minimap.set_wanted(checked)
         self._set_option('text_editor_minimap', bool(checked))
+
+    def set_file_filter(self, flt):
+        """The file filter of the dialogs of the Open and Save buttons."""
+        self.file_filter = flt
+
+    def set_save_handler(self, handler):
+        """A function without arguments that the Save button calls instead of handleSaveGCode(); None: the default."""
+        self.save_handler = handler
+
+    def on_open_clicked(self):
+        self.handleOpen(filt=self.file_filter)
+
+    def on_save_clicked(self):
+        if self.save_handler is not None:
+            self.save_handler()
+        else:
+            self.handleSaveGCode(filt=self.file_filter)
 
     def set_callback(self, callback):
         self.callback = callback

@@ -67,6 +67,11 @@ DARK = EditorPalette(
 )
 
 
-def palette_for(theme):
-    """The dark palette for the 'dark' theme, the light one for every other theme."""
-    return DARK if theme == 'dark' else LIGHT
+def palette_for(theme, background=None):
+    """
+    The dark palette for the 'dark' theme, the light one for the other themes. A dark background (QColor) also takes
+    the dark palette: the 'default' theme follows the Qt palette, which is dark on a system in dark mode.
+    """
+    if theme == 'dark' or (background is not None and background.lightness() < 128):
+        return DARK
+    return LIGHT

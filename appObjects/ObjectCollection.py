@@ -567,9 +567,26 @@ class ObjectCollection(QtCore.QAbstractItemModel):
             'document': f_handlers.on_file_open_document,
         }
 
+    def category_new_actions(self):
+        """
+        :return: {kind: (icon file, callable)} with the action that makes a new object of each category of the project
+                 tree; a CNCJob object is only made from a Geometry or an Excellon object, so it has none
+        """
+        app_obj = self.app.app_obj
+        f_handlers = self.app.f_handlers
+        res = self.app.resource_location
+        return {
+            'gerber': (res + '/new_file_grb16.png', app_obj.new_gerber_object),
+            'excellon': (res + '/new_file_exc16.png', app_obj.new_excellon_object),
+            'geometry': (res + '/new_file_geo16.png', app_obj.new_geometry_object),
+            'script': (res + '/script_new16.png', f_handlers.on_file_new_script),
+            'document': (res + '/notes16_1.png', app_obj.new_document_object),
+        }
+
     def on_category_menu_request(self, kind, pos):
         """
-        Popup of a category row (Gerber, Excellon, ...): Show All, Hide All of the category and its Open action.
+        Popup of a category row (Gerber, Excellon, ...): Show All, Hide All of the category and its New and Open
+        actions.
         """
         ui = self.app.ui
         objects = [obj for obj in self.get_list() if obj.kind == kind]
@@ -583,9 +600,14 @@ class ObjectCollection(QtCore.QAbstractItemModel):
         show_all.triggered.connect(lambda: self.app.enable_plots(objects))
         hide_all.triggered.connect(lambda: self.app.disable_plots(objects))
 
+        new_action = self.category_new_actions().get(kind)
         open_action = self.category_open_actions().get(kind)
-        if open_action is not None:
+        if new_action is not None or open_action is not None:
             menu.addSeparator()
+        if new_action is not None:
+            new_icon, new_callable = new_action
+            menu.addAction(QtGui.QIcon(new_icon), _('New')).triggered.connect(lambda: new_callable())
+        if open_action is not None:
             menu.addAction(QtGui.QIcon(self.icons[kind]), _('Open')).triggered.connect(lambda: open_action())
 
         menu.popup(self.view.mapToGlobal(pos))
