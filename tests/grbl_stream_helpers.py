@@ -195,3 +195,16 @@ class HookFake(CheckFake):
         while self.pending:
             self.pending.pop(0)()
         return super().readline()
+
+
+def drop_console_event_filters():
+    """Take the application-wide event filter off every live GrblConsole.
+
+    A GrblConsole installs the filter in its constructor and a closed tool does not remove it. A dead filter makes
+    every later Qt event of the process slower (about 0.3 s for each console after a few dozen), so a test that
+    builds many tools calls this in its tear-down.
+    """
+    qapp = QtWidgets.QApplication.instance()
+    for widget in qapp.allWidgets():
+        if type(widget).__name__ == 'GrblConsole':
+            qapp.removeEventFilter(widget)

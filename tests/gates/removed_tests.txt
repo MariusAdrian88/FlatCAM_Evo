@@ -1345,3 +1345,4 @@ tests/test_laser_safety.py::test_grbl_laser_activation_does_not_reuse_previous_p
 tests/test_laser_safety.py::test_grbl_laser_activation_does_not_reuse_previous_power[grblHAL_laser_z]  # 2026-10-31 prune of the TDD/design tests of the grblHAL/tool-change work
 tests/test_laser_safety.py::test_the_warning_follows_the_laser_off_lines_of_each_laser_preprocessor[grblHAL_laser]  # 2026-10-31 prune of the TDD/design tests of the grblHAL/tool-change work
 tests/test_laser_safety.py::test_the_warning_follows_the_laser_off_lines_of_each_laser_preprocessor[grblHAL_laser_z]  # 2026-10-31 prune of the TDD/design tests of the grblHAL/tool-change work
+tests/test_text_editor.py::TestMinimap::test_a_short_text_hides_the_minimap_and_a_long_one_shows_it  # 2026-11-01 the minimap no longer depends on the text length: replaced by test_the_map_button_shows_and_hides_the_minimap

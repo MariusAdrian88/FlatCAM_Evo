@@ -8,7 +8,20 @@ CHANGELOG for FlatCAM Evo
 
 01.11.2026
 
-Text editor (Code Editor, Script Editor, Source Editor, G-code views):
+Gerber Editor (new tools, each action is one Undo step):
+
+- new: Select menu: Invert Selection; Pads Only, Tracks Only, Regions Only (they filter the selection, or select all of that kind when nothing is selected); Select Chain (a click selects the tracks connected end to end; Shift adds, Alt continues through junctions)
+- new: Step and Repeat of the selection (rows, columns, X and Y pitch)
+- new: Transcode: moves the selection to another aperture; a pad takes the shape of the new aperture, a track its width (circular apertures only)
+- new: Snap to Grid: moves the pad centers and the track vertices of the selection to the grid
+- new: Track Edit menu: Clip (a drag rectangle cuts the tracks and regions at its edge and selects the material inside), Clip and Replace with Pad (the material inside becomes 1 rectangular pad), Stretch (moves track ends and pads, the connected tracks follow), Insert Elbow and Insert 90° Elbow
+- new: Apertures menu: Delete Unused, Renumber (from D10, in the order of type and size), Merge Duplicates, Round Sizes (0.01 mm or 1 mil), Select Same Type
+- new: Automatic menu: Drawn Pads to Flashes (drawn circles, rectangles and obrounds become pads of a C, R or O aperture), Teardrops and Snowman Fillets where a track enters a round pad
+
+G-code Sender:
+
+- fixed: after a New Project, the console of the dock still sent its commands and line clicks to the deleted Sender plugin
+- fixed: the console filtered every event of the app also when it was hidden and the Sender was not active (a cost on each mouse move and key press); now its filter is on only while the console is shown or the Sender is active
 
 - new: a Find/Replace bar in the editor (Ctrl+F, Ctrl+H) with Match Case, Whole Word and Regex options, a "N of M" count, Previous/Next (Enter, Shift+Enter, F3, Shift+F3) and Replace All in one Undo step; regex groups (\1) work in the replace text
 - new: the search wraps at the end of the text without a dialog; an invalid regex marks the field red

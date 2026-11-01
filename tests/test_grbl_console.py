@@ -13,7 +13,8 @@ from unittest.mock import MagicMock, patch
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from appPlugins.ToolGcodeSender.Sender import GrblConsole
-from tests.grbl_stream_helpers import CheckFake, make_stream_tool, make_levelled_stream_tool
+from tests.grbl_stream_helpers import CheckFake, make_stream_tool, make_levelled_stream_tool, \
+    drop_console_event_filters
 
 
 _qapp = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
@@ -26,6 +27,7 @@ class TestGrblConsole(unittest.TestCase):
             tool = MagicMock()
             tool.app.options = {}
         console = GrblConsole(tool)
+        self.addCleanup(drop_console_event_filters)
         self.addCleanup(console.deleteLater)
         self.addCleanup(console.close)
         return console
@@ -231,6 +233,51 @@ class TestGrblConsole(unittest.TestCase):
         self.assertEqual(tool.view3d.selected.pos.shape, (0, 3))
         self.assertFalse(tool._program_paused)
         self.assertEqual(console.program_view.toPlainText().splitlines(), tool.job_lines)
+
+    def test_a_new_plugin_takes_over_the_console_of_the_dock(self):
+        from appPlugins.ToolGcodeSender.Sender import ToolGCodeSender
+
+        old_tool, new_tool = MagicMock(), MagicMock()
+        old_tool.app.options = new_tool.app.options = {}
+        dock = QtWidgets.QDockWidget()
+        self.addCleanup(dock.deleteLater)
+        console = self.make_console(old_tool)
+        dock.setWidget(console)
+        new_tool.app.ui.grbl_console_dock = dock
+        new_tool.ui = None
+        # a new project made a new plugin: the console of the dock must work for it, not for the deleted one
+        self.assertIs(ToolGCodeSender._console(new_tool), console)
+        console.program_line_selected.emit(3)
+        new_tool.on_program_line_selected.assert_called_once_with(3)
+        old_tool.on_program_line_selected.assert_not_called()
+
+    def test_a_hidden_console_of_an_inactive_plugin_filters_no_app_event(self):
+        class Counting(GrblConsole):
+            calls = 0
+
+            def eventFilter(self, obj, event):
+                if obj is other:
+                    Counting.calls += 1
+                return super().eventFilter(obj, event)
+
+        other = QtWidgets.QWidget()
+        self.addCleanup(other.deleteLater)
+        tool = MagicMock()
+        tool.app.options = {}
+        console = Counting(tool)
+        self.addCleanup(console.deleteLater)
+        self.addCleanup(drop_console_event_filters)
+        QtWidgets.QApplication.sendEvent(other, QtCore.QEvent(QtCore.QEvent.Type.User))
+        self.assertEqual(Counting.calls, 0)
+        # the active plugin needs the filter (the Tab jog shortcut works with the dock hidden)
+        tool.__dict__['_plugin_active'] = True
+        console.sync_event_filter()
+        QtWidgets.QApplication.sendEvent(other, QtCore.QEvent(QtCore.QEvent.Type.User))
+        self.assertEqual(Counting.calls, 1)
+        tool.__dict__['_plugin_active'] = False
+        console.sync_event_filter()
+        QtWidgets.QApplication.sendEvent(other, QtCore.QEvent(QtCore.QEvent.Type.User))
+        self.assertEqual(Counting.calls, 1)
 
     def test_program_stays_read_only_with_editor_shortcuts(self):
         from PyQt6 import QtCore, QtTest
@@ -511,6 +558,7 @@ class TestDockedJogPage(unittest.TestCase):
         tool.on_plugin_cleanup()
         tool.close()
         tool.deleteLater()
+        drop_console_event_filters()
         _qapp.processEvents()
 
     def console(self):

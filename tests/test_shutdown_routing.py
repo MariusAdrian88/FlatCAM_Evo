@@ -169,7 +169,7 @@ def test_close_during_a_save_does_not_wait_for_the_next_task_of_the_worker(shutd
         assert entered.wait(5)
         elapsed = QtCore.QElapsedTimer()
         elapsed.start()
-        while s.window.isVisible() and elapsed.elapsed() < 3000:
+        while not s.lifecycle.quit_application.called and elapsed.elapsed() < 3000:
             QtTest.QTest.qWait(10)
         assert s.app.save_in_progress is False
         s.lifecycle.quit_application.assert_called_once_with()

@@ -105,7 +105,11 @@ class GrblConsole(QtWidgets.QWidget):
         self.program_view.setFont(QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.SystemFont.FixedFont))
         # Browsing must not replace the stream's line highlight with the text cursor's highlight.
         self.program_view.cursorPositionChanged.disconnect(self.program_view.highlight)
-        QtWidgets.QApplication.instance().installEventFilter(self)
+        # the program view keeps its read-only keys, context menu and line clicks with a local filter (always on);
+        # the application event filter (Tab jog shortcut, outside clicks) is on only while it is needed
+        self.program_view.installEventFilter(self)
+        self.program_view.viewport().installEventFilter(self)
+        self._app_filter_on = False
         program_lay.addWidget(self.program_area)
         self.tabs.addTab(program_tab, _("Program"))
 
@@ -136,6 +140,35 @@ class GrblConsole(QtWidgets.QWidget):
         self.tabs.currentChanged.connect(self._tab_changed)
         self.program_line_selected.connect(lambda index: self.tool.on_program_line_selected(index))
         self.set_program([])
+        self.sync_event_filter()
+
+    def set_tool(self, tool):
+        """A new project makes a new Sender plugin; the dock keeps this console: it then works for the new plugin."""
+        self.tool = tool
+        self.sync_event_filter()
+
+    def sync_event_filter(self):
+        """The application-wide event filter is installed only while the console is shown or its Sender plugin is
+        active (the Tab jog shortcut works with the dock hidden). Otherwise every Qt event of the app would pay a
+        Python call for it."""
+        qt_app = QtWidgets.QApplication.instance()
+        if qt_app is None:
+            return
+        wanted = self.isVisible() or bool(getattr(self.tool, '__dict__', {}).get('_plugin_active', False))
+        if wanted and not self._app_filter_on:
+            qt_app.installEventFilter(self)
+            self._app_filter_on = True
+        elif not wanted and self._app_filter_on:
+            qt_app.removeEventFilter(self)
+            self._app_filter_on = False
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.sync_event_filter()
+
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        self.sync_event_filter()
 
     def set_jog_page(self, page):
         """Mount the Sender's jog controls: a rebuilt Sender UI replaces the previous page."""
@@ -583,6 +616,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         # the camera workflow owns no Sender console and needs no CNCJob program preview
         self.hide_console()
         self._plugin_active = True
+        self._sync_console_filter()
         super().run()
         self.set_tool_ui()
 
@@ -5213,6 +5247,16 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         else:
             self.app.inform.emit('[ERROR_NOTCL] %s%s' % (_("The job did not finish."), recovery))
 
+    def _sync_console_filter(self):
+        """The plugin became active or inactive: the console of the dock (if one exists, none is made) turns its
+        application event filter on or off."""
+        try:
+            console = self.app.ui.grbl_console_dock.widget()
+        except (AttributeError, RuntimeError):
+            return
+        if isinstance(console, GrblConsole) and console.tool is self:
+            console.sync_event_filter()
+
     def _console(self):
         """:return: the GrblConsole in the dock (made at the first call)."""
         dock = self.app.ui.grbl_console_dock
@@ -5220,6 +5264,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         if not isinstance(console, GrblConsole):
             console = GrblConsole(self)
             dock.setWidget(console)
+        elif console.tool is not self:
+            # a new project made a new plugin: the console of the dock must not keep the deleted one
+            console.set_tool(self)
         # the Sender UI is rebuilt on reset; the dock keeps one set of jog controls
         jog_page = getattr(getattr(self, 'ui', None), 'jog_page', None)
         if isinstance(jog_page, QtWidgets.QWidget):
@@ -5280,6 +5327,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self._camera_stop_preview()
         self._grbl_shutdown()
         self._plugin_active = False
+        self._sync_console_filter()
         self._preview_generation = getattr(self, '_preview_generation', 0) + 1
         self._probe_start_op = None
         self._clear_probe_data()

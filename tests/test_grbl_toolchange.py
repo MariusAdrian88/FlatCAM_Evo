@@ -399,6 +399,8 @@ class TestToolChangeWidget(unittest.TestCase):
             self.tool.app.ui.grbl_console_dock.deleteLater()
             self.tool.close()
             self.tool.deleteLater()
+            from tests.grbl_stream_helpers import drop_console_event_filters
+            drop_console_event_filters()
             QtWidgets.QApplication.processEvents()
 
     def make_tool(self, options_data):
