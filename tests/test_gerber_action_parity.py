@@ -174,3 +174,27 @@ def test_clip_tool_drag_on_the_canvas_clips_a_track():
                   for s in editor.storage_dict[10]['geometry'])
     assert ends == [(0.0, 4.0), (4.0, 6.0), (6.0, 10.0)]
     assert len(editor.history.undo_stack) == 1
+
+
+def test_right_click_exits_stretch_clears_preview_and_keeps_geometry():
+    from appEditors.grb_plugins.GrbTrackEditPlugin import StretchEditorGrb
+    from test_gerber_editor_pick import RecordingShapes
+    follow = LineString([(0, 0), (10, 0)])
+    shape = DrawToolShape({'follow': follow, 'solid': follow.buffer(0.5, 16)})
+    editor = make_editor({10: aperture([shape])})
+    editor.select_tool = module.AppGerberEditor.select_tool.__get__(editor)
+    editor.tool_shape = RecordingShapes()
+    tool = StretchEditorGrb(editor)
+    editor.active_tool = tool
+    editor.on_canvas_click(event(10, 0))
+    editor.on_canvas_click_release(event(10, 0))
+    editor.draw_utility_geometry(tool.utility_geometry((12, 2)))
+    assert editor.tool_shape.added
+    # A right-button drag is panning, not cancellation.
+    editor.on_canvas_click_release(event(12, 2, button=2, dragging=1))
+    assert editor.active_tool is tool
+    editor.on_canvas_click_release(event(12, 2, button=2))
+    assert editor.active_tool.name == 'select'
+    assert not editor.tool_shape.added
+    assert editor.storage_dict[10]['geometry'] == [shape]
+    assert not editor.history.undo_stack

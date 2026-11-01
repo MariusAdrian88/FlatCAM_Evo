@@ -6845,6 +6845,9 @@ class AppGerberEditor(QtCore.QObject):
                 self.active_tool.click_release(raw_pos)
             elif event.button == right_button and not event.is_dragging:
                 self.active_tool.clean_up()
+                if isinstance(self.active_tool, TRACK_EDIT_TOOLS):
+                    self.delete_utility_geometry()
+                    self.select_tool('select')
             self.app.selection_type = None
             return
 

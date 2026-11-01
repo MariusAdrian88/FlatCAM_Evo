@@ -2,6 +2,7 @@
 
 from contextlib import contextmanager
 import json
+import math
 from pathlib import Path
 import sqlite3
 
@@ -179,3 +180,60 @@ def matching_tools(records, target=None, diameter=None):
                         if tool['data']['tool_target'] == target}
             candidates = specific or candidates
     return candidates
+
+
+def normalize_apertures(records):
+    """Store plain editor aperture definitions, never board geometry or object attributes."""
+    if not isinstance(records, dict):
+        raise ValueError('Aperture presets must be a dictionary.')
+    normalized = {}
+    for code, aperture in records.items():
+        if type(code) is not int or not 10 <= code <= 2147483647:
+            raise ValueError('Aperture code must be an integer between 10 and 2147483647.')
+        if not isinstance(aperture, dict):
+            raise ValueError('Aperture %s: expected a definition dictionary.' % code)
+        kind = aperture.get('type')
+        if kind not in ('C', 'R', 'O') or aperture.get('hole'):
+            raise ValueError('Aperture %s: only plain C, R and O apertures can be saved as presets.' % code)
+        if aperture.get('units') not in ('MM', 'IN') or type(aperture.get('autoload')) is not bool:
+            raise ValueError('Aperture %s: invalid units or Autoload value.' % code)
+        record = {'type': kind, 'units': aperture['units'], 'autoload': aperture['autoload']}
+        for field in (('size',) if kind == 'C' else ('width', 'height')):
+            value = aperture.get(field)
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
+                raise ValueError('Aperture %s: %s must be finite and positive.' % (code, field))
+            record[field] = value
+        if kind != 'C':
+            record['size'] = math.hypot(record['width'], record['height'])
+            if not math.isfinite(record['size']):
+                raise ValueError('Aperture %s: dimensions are too large.' % code)
+        normalized[code] = record
+    return normalized
+
+
+def _read_apertures(connection):
+    # Existing libraries have no aperture table until the first preset is saved.
+    if not connection.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='apertures'").fetchone():
+        return {}
+    return normalize_apertures({code: json.loads(payload) for code, payload in connection.execute(
+        'SELECT code, record FROM apertures ORDER BY code')})
+
+
+def read_apertures(filename):
+    with _connection(filename) as connection:
+        _check_schema(connection)
+        return _read_apertures(connection)
+
+
+def write_apertures(filename, records, *, expected):
+    records = normalize_apertures(records)
+    rows = [(code, json.dumps(record, separators=(',', ':'), allow_nan=False))
+            for code, record in records.items()]
+    with _connection(filename, write=True) as connection:
+        _check_schema(connection)
+        if _read_apertures(connection) != expected:
+            raise ValueError('The aperture database changed outside this window. Reopen it before saving.')
+        connection.execute('CREATE TABLE IF NOT EXISTS apertures (code INTEGER PRIMARY KEY, record TEXT NOT NULL)')
+        connection.execute('DELETE FROM apertures')
+        connection.executemany('INSERT INTO apertures VALUES (?, ?)', rows)
+    return records

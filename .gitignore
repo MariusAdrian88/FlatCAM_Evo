@@ -29,3 +29,7 @@ research_notes/
 
 # Design specs and plans of the agent sessions (local only)
 docs/superpowers/
+
+# Third-party reference manuals (not ours to publish)
+docs/CAMGuide.pdf
+docs/gerber/

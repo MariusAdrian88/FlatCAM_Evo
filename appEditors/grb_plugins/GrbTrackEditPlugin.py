@@ -77,7 +77,10 @@ def _sweep(editor, apid, shape):
     width = float(aperture.get('size', 0))
     if (aperture.get('type') != 'C' or not math.isfinite(width) or width <= 0 or
             not getattr(shape.geo.get('clear'), 'is_empty', True)):
-        raise ValueError(_("Only circular-aperture tracks without clear geometry can be rebuilt."))
+        raise ValueError(_("Only circular-aperture tracks without clear geometry can be rebuilt. "
+                           "Aperture %(code)s: type=%(type)r, size=%(size)r, clear=%(clear)s.") % {
+                               'code': apid, 'type': aperture.get('type'), 'size': aperture.get('size'),
+                               'clear': not getattr(shape.geo.get('clear'), 'is_empty', True)})
     return width / 2, gerber_quad(editor.app, width / 2)
 
 

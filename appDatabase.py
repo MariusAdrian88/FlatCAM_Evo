@@ -7,6 +7,7 @@ from appCommon.SafeEval import safe_eval
 from appCommon.ToolDatabase import read_database, read_library, write_database, matching_tools, OPERATION_PREFIXES, \
     UnitsMismatchError
 from appGUI.ToolLibrary import ToolLibraryModel, ToolLibraryFilter, operation_names
+from appGUI.ApertureLibrary import open_aperture_library
 from defaults import AppDefaults
 
 import sys
@@ -1734,6 +1735,10 @@ class ToolsDB2UI:
             _("Save the Tools Database information's.")
         )
         self.buttons_box.addWidget(self.save_db_btn)
+
+        self.apertures_db_btn = FCButton(_("Gerber Apertures"))
+        self.apertures_db_btn.clicked.connect(lambda: open_aperture_library(self.app, parent=self.buttons_frame))
+        self.buttons_box.addWidget(self.apertures_db_btn)
 
         self.add_tool_from_db = FCButton(_("Add selected tools"), bold=True, color='green')
         self.add_tool_from_db.setToolTip(

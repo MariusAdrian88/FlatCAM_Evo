@@ -17,6 +17,8 @@ Gerber Editor (new tools, each action is one Undo step):
 - new: Track Edit menu: Clip (a drag rectangle cuts the tracks and regions at its edge and selects the material inside), Clip and Replace with Pad (the material inside becomes 1 rectangular pad), Stretch (moves track ends and pads, the connected tracks follow), Insert Elbow and Insert 90° Elbow
 - new: Apertures menu: Delete Unused, Renumber (from D10, in the order of type and size), Merge Duplicates, Round Sizes (0.01 mm or 1 mil), Select Same Type
 - new: Automatic menu: Drawn Pads to Flashes (drawn circles, rectangles and obrounds become pads of a C, R or O aperture), Teardrops and Snowman Fillets where a track enters a round pad
+- new: a Gerber Apertures database (the "Gerber Apertures" button of the Tools Database): plain C, R and O apertures with their units and an Autoload flag; the Autoload apertures are loaded, in the app units, into a Gerber Editor that opens an empty Gerber object
+- changed: a right click ends a Track Edit tool (Clip, Stretch, Elbow), clears its preview and returns to Select; a right-button drag still pans
 
 G-code Sender:
 
