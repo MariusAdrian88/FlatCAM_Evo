@@ -6,6 +6,51 @@ Based on FlatCAM:
 
 CHANGELOG for FlatCAM Evo
 
+02.11.2026
+
+Paint and NCC clearing (Standard, Seed, Lines, Laser Lines, rest machining):
+
+- fixed: Standard left islands where the insets split, end or meet around a hole (test board: 8.13 mm2 of material left, now 0; squares of 1.5 to 5.4 mm: 14 of 40 kept a part of the center, now 0)
+- fixed: Seed stopped at the first ring that missed the margin (2 pads joined by a neck: 4.00 mm2 left, now 0)
+- fixed: Seed and Lines without contour left material inside the reach of the tool; a local contour now clears these gaps (test board, inside the margin: Seed 1.27 mm2 and Lines 0.51 mm2, now 0); only the band along the edge stays, as before
+- fixed: a slot, a neck or a trace exactly as wide as the tool got no path; now the tool touches both walls (it backs down 0.02% of the radius: 0.1 um for a 1 mm tool)
+- fixed: rest machining: a smaller tool did not reach the stock that is narrower than it, and it dropped thin stock that it can reach; the smaller tool now crosses the cleared area to the stock (test board: 0.10 to 4.99 mm2 left, now 0; slots: 0.60 to 2.28 mm2 left, now 0); NCC rest too
+- fixed: Laser Lines: the lines were shorter than the trace caps, a closed trace lost a part, a multi-part trace failed, sharp bends left material, and a trace with no paths stopped the other traces
+- fixed: the Paint simplification could move a path into the copper of a hole or past the Clearing Error; that path now keeps its original form
+- fixed: in an inch project, the clearing used the mm value of the Geo Tolerance, the residual cleanup and the simplification when the units of the app were stale
+- changed: Standard makes the inner rings coarser and simplified; the contour keeps the full accuracy, and the gaps are checked on the same coarse rings, so no island comes back (vertices: 0.2 mm tool and 60% overlap 213191 -> 18884; 0.4 mm and 15% 34498 -> 14652)
+- changed: the connection of the paths is faster with the same paths (Seed 0.2 mm 0.486 s -> 0.403 s, Lines 0.2 mm 0.373 s -> 0.286 s)
+
+Preferences, General:
+
+- new: Clearing Error: the cut past the outline that the contour of a Paint or NCC clearing can make; shown in micrometers in a mm project and in mils in an inch project; default 2 um; 0 uses the Circle Steps of the object. A smaller value gives a more accurate contour and a slower job
+- new: Clearing Edge: Touch (the contour touches the outline, it cuts past it by up to the Clearing Error) or Strict (the contour never cuts past the outline, it leaves up to the Clearing Error of material along the walls, about 1.4 times at a right-angled corner; no simplification); a slot exactly as wide as the tool still gets its path
+- both are options of the project; they are not in the tool data or the Tools Database
+
+Results against the previous code (test board: 30 x 21 mm with 54 holes of 1.4 mm; 64 circle steps; Clearing Error 2 um; best of 3 runs; the material left is the reach of the tool minus the swept area):
+
+| Case                         | Before             | Now                |
+|------------------------------|--------------------|--------------------|
+| Standard 0.4 mm, 15%         | 0.020 s, 8.13 mm2 left | 0.082 s, 0 left |
+| Standard 0.4 mm, 15%, connect| 0.044 s            | 0.123 s            |
+| Standard 0.2 mm, 60%         | 0.086 s, 213191 vertices | 0.080 s, 18884 vertices |
+| Standard 0.2 mm, 60%, connect| 0.220 s            | 0.144 s            |
+| Seed 0.4 mm, 15%             | 0.077 s            | 0.064 s            |
+| Seed 0.2 mm, 60%, connect    | 0.486 s            | 0.403 s            |
+| Lines 0.4 mm, 15%            | 0.042 s            | 0.045 s            |
+| Lines 0.2 mm, 60%, connect   | 0.373 s            | 0.286 s            |
+| Rest Lines 0.8 + 0.4 mm      | 1.497 s, 0.10 mm2 left | 1.098 s, 0 left |
+| Rest Standard 0.8 + 0.4 mm   | 0.213 s, 4.99 mm2 left | 0.297 s, 0 left |
+
+- Standard 0.4 mm is slower because it now clears the islands that the old code left; Rest Standard is slower because the small tool now clears the stock
+- Strict costs 6 to 12 ms more than the old Strict for each clearing of the test board; it keeps the slots a little wider than the tool
+- a Clearing Error of 0 at 256 circle steps makes the rest 0.32 s slower (0.77 s -> 1.09 s): the stock is checked at 0.085 um
+- the cut past the outline is the same as before on the test board; only an exact-fit slot adds its 0.1 um touch
+
+Assets:
+
+- changed: the GDAL and rasterio wheels for Windows are now GDAL 3.13.3 and rasterio 1.5.1 for Python 3.14 (the Python 3.10 wheels are removed)
+
 01.11.2026
 
 Gerber Editor (new tools, each action is one Undo step):
