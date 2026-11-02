@@ -6,6 +6,11 @@ Based on FlatCAM:
 
 CHANGELOG for FlatCAM Evo
 
+2.11.2026
+
+- version string changed and updated the splash images
+- RELEASE 1.02
+
 02.11.2026
 
 Paint and NCC clearing (Standard, Seed, Lines, Laser Lines, rest machining):
