@@ -1,5 +1,6 @@
 from tclCommands.TclCommand import TclCommand
 from appPlugins.ToolPaint.PaintGen import PaintGen
+from camlib import clearing_simplification
 
 from shapely import box
 
@@ -178,6 +179,8 @@ class TclCommandPaint(TclCommand):
                 simplification /= 25.4
         if not math.isfinite(simplification) or simplification < 0:
             self.raise_tcl_error('Simplification must be a finite number >= 0.')
+        # the strict clearing edge never simplifies: a simplified chord could cut into the copper
+        simplification = clearing_simplification(self.app, simplification)
 
         if 'method' in args:
             methods = {'standard': 0, 'seed': 1, 'lines': 2, 'laser_lines': 3, 'combo': 4}

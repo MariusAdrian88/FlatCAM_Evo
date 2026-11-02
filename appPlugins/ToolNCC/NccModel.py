@@ -11,7 +11,8 @@ from shapely import LineString, LinearRing, MultiLineString, MultiPolygon, Polyg
 from shapely.geometry import base
 from shapely.ops import unary_union
 
-from camlib import flatten_shapely_geometry, grace, polygon_gap_pairs
+from camlib import (clearing_margin, error_quad_segs, flatten_shapely_geometry, grace, polygon_gap_pairs,
+                    rest_area)
 
 log = logging.getLogger('base')
 
@@ -332,7 +333,8 @@ def prepare_area(geometry, boundary, iso_diameters, tools, name, decimals, has_o
 
 def generate_tools(mode, tool_settings, tools_storage, diameters, areas, name, decimals, circle_steps,
                    clear_paths, check_abort, progress, connect=False, contour=True, overlap=0.4,
-                   method=0, simplify_tol=0.0, prog_plot=False, initial_tools=None, tool_progress=None):
+                   method=0, simplify_tol=0.0, prog_plot=False, initial_tools=None, tool_progress=None,
+                   clearing_error=None):
     """Generate the four legacy NCC variants from resolved data.
 
     GUI normal tools each clear their complete domain. Tcl normal retains its
@@ -371,7 +373,12 @@ def generate_tools(mode, tool_settings, tools_storage, diameters, areas, name, d
         if rest:
             if residual is None:
                 residual = domain.buffer(0) if tcl else domain
-            area = residual
+                area = residual
+            else:
+                # The tool crosses the area that is cut already to reach the residual.
+                # at the accuracy of the accepted error, as the swept area
+                segments = error_quad_segs(diameter / 2, clearing_error) if clearing_error else quad_segs(circle_steps)
+                area = MultiPolygon(rest_area(domain, residual, diameter, segments, clearing_error))
         elif tcl:
             offset_a -= diameter - 1e-12
             try:
@@ -393,7 +400,7 @@ def generate_tools(mode, tool_settings, tools_storage, diameters, areas, name, d
             check_abort()
             if polygon is None or polygon.is_empty or (mode == 'gui_rest' and not polygon.is_valid):
                 continue
-            if rest and polygon.buffer(-diameter / 2, quad_segs(circle_steps)).is_empty:
+            if rest and clearing_margin(polygon, diameter / 2, quad_segs(circle_steps)).is_empty:
                 # A sliver that the tool cannot enter stays in the residual for a smaller tool.
                 continue
             parts = flatten_shapely_geometry(polygon.buffer(0)) if mode != 'gui_rest' else [polygon]
@@ -435,8 +442,12 @@ def generate_tools(mode, tool_settings, tools_storage, diameters, areas, name, d
                     value['data']['output_object_name'] = name + '_' + str(diameter) if rest else name
                 generated[target_uid] = copy_tool(value)
             if rest:
-                swept = unary_union([path.buffer(used_diameter / 2, quad_segs(circle_steps)) for path in paths])
-                residual = area.difference(swept)
+                # the chords of the swept area stay within the accepted error: its slivers are not residual
+                segments = (error_quad_segs(used_diameter / 2, clearing_error) if clearing_error
+                            else quad_segs(circle_steps))
+                swept = shapely.union_all(shapely.buffer(flatten_shapely_geometry(paths), used_diameter / 2,
+                                                         quad_segs=segments))
+                residual = residual.difference(swept)
                 residual = MultiPolygon([pol for pol in flatten_shapely_geometry(residual)
                                          if isinstance(pol, Polygon) and pol.is_valid and not pol.is_empty])
             elif tcl:

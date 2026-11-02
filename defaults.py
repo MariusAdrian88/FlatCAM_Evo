@@ -185,6 +185,10 @@ class AppDefaults:
         "global_worker_number": min(4, max(2, int((os.cpu_count()) / 2))) if os.cpu_count() else 2,
         "global_process_number": int((os.cpu_count()) / 4) if os.cpu_count() > 4 else 1,
         "global_tolerance": 0.005,
+        # The contour of a clearing (Paint, NCC, Geometry Editor Paint): the largest error of its arcs in micrometers
+        # (0 uses the circle steps) and 'touch' (may cut past the outline by the error) or 'strict' (never cuts past).
+        "tools_clearing_error": 2.0,
+        "tools_clearing_edge": 'touch',
 
         "global_save_compressed": True,
         "global_compression_level": 3,

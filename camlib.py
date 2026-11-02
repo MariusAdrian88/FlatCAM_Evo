@@ -1553,7 +1553,7 @@ class Geometry(object):
         # as NCC and Milling; display/G-code decimal counts are not tolerances.
         chord_error = tooldia * math.sin(math.pi / (8 * quad_segs)) ** 2
         tolerance = float(getattr(self.app, 'options', {}).get('global_tolerance', 0))
-        if getattr(self.app, 'units', 'MM').upper() == 'IN':
+        if project_units(self.app) == 'IN':
             tolerance /= 20
         if tolerance > 0:
             chord_error = min(chord_error, tolerance)
@@ -1571,7 +1571,9 @@ class Geometry(object):
 
         # Can only result in a Polygon or MultiPolygon
         # NOTE: The resulting polygon can be "empty".
-        current = polygon.buffer((-tooldia / 2), quad_segs=quad_segs)
+        # The contour touches the outline: its arcs follow the clearing error of the Preferences (clearing_edge()).
+        edge_segs, strict = clearing_edge(self.app, tooldia / 2, quad_segs)
+        current = clearing_margin(polygon, tooldia / 2, edge_segs, strict)
         current = flatten_shapely_geometry(current)
 
         for p in current:
@@ -1579,9 +1581,92 @@ class Geometry(object):
             for i in p.interiors:
                 new_paths.append(i)
 
+        # Ring k (the boundary of the inset P_k) covers the points of P_k up to 1 radius inside it. The points
+        # farther inside (P_k eroded by the radius) must be in reach of the next inset P_k+1. If the step is
+        # wider than the radius, the next inset does not reach them where it splits or ends (necks, corners and
+        # the center of a part): the step adapts there, a ring at 1 radius inside P_k covers these gaps. A gap
+        # is less than 1 radius wide (it is outside the opening of the eroded P_k by step - radius), so its
+        # own boundary covers it, and it is inside P_k, so this ring is safe.
+        radius = tooldia / 2.0
+        wide_step = step > radius
+        # Points that stay uncovered by less than this distance are numeric slivers, not material.
+        sliver = max(radius * (1 - math.cos(math.pi / (4 * quad_segs))), chord_error, 1e-9)
+
+        def adapted_rings(parts, next_parts):
+            # The material that the rings of these parts do not reach, measured on the rings as they are cut: a
+            # coarse inner ring cannot hide a gap. The polygon of an erosion is larger than the true erosion and
+            # the polygon of a buffer is smaller than the true one, so a gap is never missed.
+            half = shapely.buffer(shapely.multipolygons(parts), -radius, quad_segs=quad_segs)
+            if half.is_empty:
+                return
+            if next_parts:
+                reach = shapely.buffer(shapely.multipolygons(next_parts), radius + sliver, quad_segs=quad_segs)
+                half = half.difference(reach)
+            gaps = [gap for gap in flatten_shapely_geometry(half)
+                    if isinstance(gap, Polygon) and gap.area > sliver * sliver]
+            if gaps:
+                new_paths.extend(gap_paths(gaps))
+
+        def gap_paths(gaps):
+            # Most gaps are thin lenses between 2 insets that meet: 1 long side (from tip to tip) covers the lens
+            # and the path is half the ring. The cut of each side is checked; else the full ring covers the gap.
+            short, long = [], []
+            for gap in gaps:
+                xy = shapely.get_coordinates(gap.exterior)[:-1]
+                if gap.interiors or not 4 <= len(xy) <= 400:
+                    short.append(None)
+                    long.append(None)
+                    continue
+                far = ((xy[:, None, :] - xy[None, :, :]) ** 2).sum(axis=-1)
+                first, last = sorted(np.unravel_index(int(far.argmax()), far.shape))
+                sides = sorted((xy[first:last + 1], np.vstack((xy[last:], xy[:first + 1]))), key=len)
+                short.append(LineString(sides[0]))
+                long.append(LineString(sides[1]))
+            chosen = np.array([None] * len(gaps), dtype=object)
+            for sides in (np.array(short, dtype=object), np.array(long, dtype=object)):
+                todo = np.flatnonzero(np.equal(chosen, None) & ~np.equal(sides, None))
+                if not len(todo):
+                    continue
+                left = shapely.difference(np.array(gaps, dtype=object)[todo],
+                                          shapely.buffer(sides[todo], radius, quad_segs=quad_segs))
+                done = shapely.is_empty(shapely.buffer(left, -sliver))
+                chosen[todo[done]] = sides[todo[done]]
+            paths = []
+            for gap, side in zip(gaps, chosen):
+                paths.extend([side] if side is not None else [gap.exterior, *gap.interiors])
+            return paths
+
+        # The contour (the margin) touches the outline: it keeps the edge accuracy of the circle steps and of Geo
+        # Tolerance. An inner ring only has to reach the next ring: their sweeps overlap by the overlap width, so a
+        # ring may be off by a quarter of it. Fewer vertices: faster offsets, connection and machine motion.
+        # Ring 1 is 1 step deep: half a step keeps every simplified ring inside the margin at a high overlap.
+        inner_error = max(chord_error, min(tooldia * overlap / 4, step / 2))
+
+        def simplified_parts(parts):
+            # An inner ring copies every vertex of the outline (a round pad has 64): its polygon is simplified by
+            # the inner error. The gap check and the cut use the same simplified polygons. A part whose simplified
+            # rings do not make a valid polygon keeps its rings. A ring stays inside the margin: it is a step deep.
+            if not parts:
+                return parts
+            rings = [[part.exterior, *part.interiors] for part in parts]
+            flat = shapely.simplify([ring for group in rings for ring in group], inner_error, preserve_topology=False)
+            simple, start = [], 0
+            for part, group in zip(parts, rings):
+                exterior, *interiors = flat[start:start + len(group)]
+                start += len(group)
+                candidate = Polygon(exterior, [ring for ring in interiors if not ring.is_empty]) \
+                    if not exterior.is_empty and len(exterior.coords) >= 4 else None
+                simple.append(candidate if candidate is not None and candidate.is_valid and candidate.area > 0
+                              else part)
+            return simple
+
+        def inset_segs(distance):
+            return max(1, math.ceil(3 * math.pi / 8 * math.sqrt(distance / (2 * inner_error))))
+
         last_update = 0.0
         for cl_pol in current:
             pass_index = 1
+            previous_parts = [cl_pol]
             while True:
                 if self.app.abort_flag:
                     # graceful abort requested by the user
@@ -1599,23 +1684,20 @@ class Geometry(object):
                 # 1.5 nominal increments. Combined with 1 - cos(x) <= x*x/2,
                 # this bounds chord error without compounding round-join vertices.
                 distance = pass_index * step
-                inset_quad_segs = max(
-                    quad_segs, math.ceil(3 * math.pi / 8 * math.sqrt(distance / (2 * chord_error))))
-                inset = cl_pol.buffer(-distance, quad_segs=inset_quad_segs)
-                cl_pol_list = flatten_shapely_geometry(inset)
+                # Each inset comes from the margin, not from the previous inset, so the errors do not add.
+                inset = cl_pol.buffer(-distance, quad_segs=inset_segs(distance))
+                cl_pol_list = simplified_parts([part for part in flatten_shapely_geometry(inset)
+                                                if isinstance(part, Polygon) and part.area > 0])
+                if wide_step:
+                    adapted_rings(previous_parts, cl_pol_list)
+                previous_parts = cl_pol_list
 
-                added_flag = False
-                for tiny_pol in cl_pol_list:
-                    if tiny_pol.area > 0:
-                        added_flag = True
-                        new_paths.append(tiny_pol.exterior)
+                added_flag = bool(cl_pol_list)
+                for part in cl_pol_list:
+                    for ring in (part.exterior, *part.interiors):
+                        new_paths.append(ring)
                         if prog_plot:
-                            self.plot_temp_shapes(tiny_pol.exterior)
-
-                        for i in tiny_pol.interiors:
-                            new_paths.append(i)
-                            if prog_plot:
-                                self.plot_temp_shapes(i)
+                            self.plot_temp_shapes(ring)
                 if added_flag is False:
                     break
 
@@ -1723,7 +1805,9 @@ class Geometry(object):
         new_paths = []
 
         # Path margin
-        buffered_margin = polygon_to_clear.buffer(-tooldia / 2, quad_segs=quad_segs)
+        # The contour touches the outline: its arcs follow the clearing error of the Preferences (clearing_edge()).
+        edge_segs, strict = clearing_edge(self.app, tooldia / 2, quad_segs)
+        buffered_margin = clearing_margin(polygon_to_clear, tooldia / 2, edge_segs, strict)
         path_margin = flatten_shapely_geometry(buffered_margin, simplify_tolerance=simplify_tol)
         path_margin = MultiPolygon(path_margin)
 
@@ -1735,8 +1819,7 @@ class Geometry(object):
             seedpoint = path_margin.representative_point()
 
         last_update = 0.0
-        # The rings are made and cut SEED_BAND_RINGS at a time, up to the first one that does not touch the margin
-        # and not beyond the farthest vertex of the margin. The cut of a ring costs O(size of the margin): a large
+        # The rings are made and cut SEED_BAND_RINGS at a time, up to the farthest vertex of the margin. The cut of a ring costs O(size of the margin): a large
         # margin (the area of a board has a hole for each copper feature) is cut without the polygons and holes that
         # no ring of the band can touch (seed_band_margin()). The same paths, bit for bit.
         step = tooldia * (1 - overlap)
@@ -1750,10 +1833,9 @@ class Geometry(object):
         # A ring vertex is on its circle and an edge is inside it by at most 1 - cos(pi / (4 * quad_segs)) of the
         # radius; the simplification moves the edges by at most simplify_tol. tooldia is added as a safe distance.
         inner_ratio = math.cos(math.pi / (4 * quad_segs))
-        touches = True
         # Grow from seed until outside the box. The polygons will
         # never have an interior, so take the exterior LinearRing.
-        while touches:
+        while True:
             if self.app.abort_flag:
                 # graceful abort requested by the user
                 raise grace
@@ -1781,10 +1863,10 @@ class Geometry(object):
                 band = band_margin(radii[0] * inner_ratio - simplify_tol - tooldia, radii[-1] + tooldia)
 
             for path in shapely.intersection(rings, band):
-                # Touches polygon?
+                # A ring can miss the margin and the next ring touch it again: the margin has more than 1 part
+                # (a neck narrower than the tool) or bays. Only the farthest margin vertex ends the rings.
                 if path.is_empty:
-                    touches = False
-                    break
+                    continue
 
                 # path can be a collection of paths.
                 path_geometry = flatten_shapely_geometry(path, simplify_tolerance=simplify_tol)
@@ -1792,6 +1874,10 @@ class Geometry(object):
                     new_paths.append(p)
                     if prog_plot:
                         self.plot_temp_shapes(p)
+
+        # The rings do not reach the corners and bays of the margin that are farther than the ring step.
+        if not contour:
+            new_paths.extend(margin_gap_rings(path_margin, new_paths, tooldia / 2.0, quad_segs))
 
         # Clean inside edges (contours) of the original polygon
         if contour:
@@ -1886,7 +1972,9 @@ class Geometry(object):
         left, bot, right, top = polygon.bounds
 
         try:
-            margin_poly = polygon.buffer(-margin_dist, quad_segs=quad_segs)
+            # The contour touches the outline: its arcs follow the clearing error of the Preferences.
+            edge_segs, strict = clearing_edge(self.app, margin_dist, quad_segs)
+            margin_poly = clearing_margin(polygon, margin_dist, edge_segs, strict)
             margin_poly = margin_poly.simplify(simplify_tol)
         except Exception:
             self.app.log.debug("camlib.Geometry.clear_polygon_lines() --> Could not buffer the Polygon")
@@ -2001,6 +2089,10 @@ class Geometry(object):
             else:
                 self.app.log.debug("camlib.Geometry.clear_polygon_lines(). Not a line: %s" % str(type(line)))
 
+        # The scan grid is global: margin edges parallel to the lines and narrow branches can fall between 2 lines.
+        if not contour:
+            new_paths.extend(margin_gap_rings(margin_poly, new_paths, tooldia / 2.0, quad_segs))
+
         # Add margin (contour) to storage
         if contour:
             margin_poly_geo = flatten_shapely_geometry(margin_poly, simplify_tolerance=simplify_tol)
@@ -2052,9 +2144,17 @@ class Geometry(object):
 
         # log.debug("camlib.fill_with_lines()")
         quad_segs = circle_quad_segs(steps_per_circle)
-        if not isinstance(line, LineString):
+        if isinstance(line, MultiLineString):
+            parts = list(line.geoms)
+        elif isinstance(line, LineString):
+            parts = [line]
+        else:
             self.app.log.debug(
                 "camlib.Geometry.fill_with_lines() --> Not a LineString/MultiLineString but %s" % str(type(line)))
+            return None
+        # simplify(0) removes the repeated points: every segment of a guide has a direction
+        parts = [part.simplify(0) for part in parts if not part.is_empty and part.length > 0]
+        if not parts:
             return None
 
         # The toolpaths
@@ -2062,33 +2162,17 @@ class Geometry(object):
         def get_pts(o):
             return [o.coords[0], o.coords[-1]]
 
-        # def get_extrapolated_line(p1, p2):
-        #     """
-        #     Creates a line extrapolated in p1->p2 direction.
-        #     Get a line that extends the 'line' LineString toward our side.
-        #     """
-        #     EXTRAPOLATION_RATIO = 10
-        #     a = p1
-        #     b = (p1[0] + EXTRAPOLATION_RATIO * (p2[0] - p1[0]), p1[1] + EXTRAPOLATION_RATIO * (p2[1] - p1[1]))
-        #     return [a, b]
-
-        def extend_line(p1: tuple, p2: tuple, extension_distance: float) -> list:
-            # Compute the vector represented by the line
-            vector = (p2[0] - p1[0], p2[1] - p1[1])
-
-            # Compute the length of the vector
-            length = math.sqrt(vector[0] ** 2 + vector[1] ** 2)
-
-            # Normalize the vector
-            normalized_vector = (vector[0] / length, vector[1] / length)
-
-            # Compute extended points
-            extended_point1 = (
-            p1[0] - extension_distance * normalized_vector[0], p1[1] - extension_distance * normalized_vector[1])
-            extended_point2 = (
-            p2[0] + extension_distance * normalized_vector[0], p2[1] + extension_distance * normalized_vector[1])
-
-            return [extended_point1, extended_point2]
+        def extend_line(coords: list, extension_distance: float) -> LineString:
+            # An open follow is extended along its first and last segment, so the lines also clear the round
+            # caps of the trace. A closed follow has no ends.
+            if coords[0] == coords[-1]:
+                return LineString(coords)
+            ends = []
+            for end, inner in ((coords[0], coords[1]), (coords[-1], coords[-2])):
+                dx, dy = end[0] - inner[0], end[1] - inner[1]
+                length = math.hypot(dx, dy)
+                ends.append((end[0] + extension_distance * dx / length, end[1] + extension_distance * dy / length))
+            return LineString([ends[0]] + list(coords) + [ends[1]])
 
         geoms = AppRTreeStorage()
         geoms.get_points = get_pts
@@ -2097,140 +2181,81 @@ class Geometry(object):
 
         lines_trimmed = []
 
-        polygon = line.buffer(aperture_size / 2.0, quad_segs=quad_segs)
-        if isinstance(line, LineString):
-            line_coords = list(line.coords)
-        else:
-            line_coords = []
-            for l in line.geoms:
-                line_coords += list(l.coords)
-
-        # # #### the line (as parameter) needs to be extended by half of tool diameter such that the cleared area will
-        # # include also the rounded part of the trace if the trace diameter is much higher than the clearing diameter
-        # first_line_coords = get_extrapolated_line(line_coords[1], line_coords[0])
-        # second_line_coords = get_extrapolated_line(line_coords[-2], line_coords[-1])
-        #
-        # sum_coords = first_line_coords + line_coords + second_line_coords
-        # sum_set = set(tuple(x) for x in sum_coords)
-        # simplified_coords = [x for x in sum_set]
-        # combo_line = LineString(simplified_coords)
-        # prepared_line = combo_line.intersection(polygon)
-        # if isinstance(prepared_line, MultiLineString):
-        #     prepared_line = linemerge(prepared_line)
-        #     if isinstance(prepared_line, MultiLineString):
-        #         prepared_line = unary_union(prepared_line).simplify(0)
-        #         if isinstance(prepared_line, MultiLineString):
-        #             t_coords = []
-        #             for m_l in prepared_line.geoms:
-        #                 t_coords += list(m_l.coords)
-        #             sum_set = set(tuple(x) for x in t_coords)
-        #             simplified_coords = [x for x in sum_set]
-        #             try:
-        #                 prepared_line = LineString(simplified_coords)
-        #             except Exception as err:
-        #                 print(str(err))
-
-        prepared_line_coords = extend_line(line_coords[0], line_coords[-1], extension_distance=1.5 * tooldia)
-        prepared_line = LineString(prepared_line_coords)
-
-        if isinstance(prepared_line, LineString):
-            prepared_line = prepared_line.simplify(0)
-        # ##########################################################################
+        polygon = unary_union([part.buffer(aperture_size / 2.0, quad_segs=quad_segs) for part in parts])
         try:
-            margin_poly: BaseGeometry | list[BaseGeometry] = polygon.buffer(
-                -tooldia / 2.0, quad_segs=quad_segs)
+            # The contour touches the outline: its arcs follow the clearing error of the Preferences.
+            edge_segs, strict = clearing_edge(self.app, tooldia / 2.0, quad_segs)
+            margin_poly: BaseGeometry | list[BaseGeometry] = clearing_margin(polygon, tooldia / 2.0, edge_segs, strict)
         except Exception:
             self.app.log.debug(
                 "camlib.Geometry.fill_with_lines() --> Could not buffer the Polygon, tool diameter too high")
             return None
 
-        # First line
+        # The lines follow the trace (bends included) at the offsets 0, +-step, +-2 step... from it. The last
+        # lines must lie inside the margin, so they use the margin distance.
+        step = tooldia * (1 - overlap)
+        last = (aperture_size / 2) - (tooldia / 1.99999999)
+        offsets = [0.0]
+        delta = step
+        while delta < last:
+            offsets += [delta, -delta]
+            delta += step
+        if last > 0:
+            offsets += [last, -last]
+
         try:
-            delta = 0
-            while delta < aperture_size / 2:
-                if self.app.abort_flag:
-                    # graceful abort requested by the user
-                    raise grace
+            for part in parts:
+                # past the end of the cap of the trace; the margin trims the lines
+                guide = extend_line(list(part.coords), extension_distance=aperture_size / 2.0 + tooldia)
+                # offset_curve() drops a part of a closed follow: the boundary of the buffered area is exact.
+                area = Polygon(part.coords) if part.is_closed and len(part.coords) > 3 else None
+                if area is not None and not (area.is_valid and area.area > 0):
+                    area = None
+                for delta in offsets:
+                    if self.app.abort_flag:
+                        # graceful abort requested by the user
+                        raise grace
 
-                # provide the app with a way to process the GUI events when in a blocking loop
-                QtWidgets.QApplication.processEvents()
+                    # provide the app with a way to process the GUI events when in a blocking loop
+                    process_gui_events()
+                    if self.app.abort_flag:
+                        raise grace
 
-                new_line = prepared_line.parallel_offset(distance=delta, side='left', resolution=quad_segs)
-                new_line = new_line.intersection(margin_poly)
-                lines_trimmed.append(new_line) if not new_line.is_empty else None
-
-                delta += tooldia * (1 - overlap)
+                    if delta == 0:
+                        new_line = guide
+                    elif area is not None:
+                        new_line = area.buffer(delta, quad_segs=quad_segs).boundary
+                    else:
+                        new_line = guide.offset_curve(delta, quad_segs=quad_segs)
+                    new_line = new_line.intersection(margin_poly)
+                    if not new_line.is_empty:
+                        lines_trimmed.append(new_line)
+                        if prog_plot:
+                            self.plot_temp_shapes(new_line)
                 if prog_plot:
-                    self.plot_temp_shapes(new_line)
                     self.temp_shapes.redraw()
-
-                new_line = prepared_line.parallel_offset(distance=delta, side='right', resolution=quad_segs)
-                new_line = new_line.intersection(margin_poly)
-                lines_trimmed.append(new_line) if not new_line.is_empty else None
-
-                delta += tooldia * (1 - overlap)
-                if prog_plot:
-                    self.plot_temp_shapes(new_line)
-                    self.temp_shapes.redraw()
-
-            # Last line
-            # The last line must lie inside the margin, so it uses the margin distance.
-            delta = (aperture_size / 2) - (tooldia / 1.99999999)
-
-            new_line = prepared_line.parallel_offset(distance=delta, side='left', resolution=quad_segs)
-            new_line = new_line.intersection(margin_poly)
+        except grace:
+            raise
         except Exception as e:
             self.app.log.error('camlib.Geometry.fill_with_lines() Processing poly --> %s' % str(e))
             return None
 
-        if new_line and not new_line.is_empty:
-            lines_geometry = new_line.geoms if isinstance(new_line, MultiLineString) else new_line
-            try:
-                for ll in lines_geometry:
-                    lines_trimmed.append(ll)
-                    if prog_plot:
-                        self.plot_temp_shapes(ll)
-            except TypeError:
-                lines_trimmed.append(lines_geometry)
-                if prog_plot:
-                    self.plot_temp_shapes(lines_geometry)
+        # No union: it would split the lines of 2 parts of a follow at each crossing.
+        for line_g in [g for trimmed in lines_trimmed for g in flatten_shapely_geometry(trimmed)]:
+            if isinstance(line_g, LineString) and not line_g.is_empty:
+                new_paths.append(line_g)
+            elif not line_g.is_empty:
+                self.app.log.debug("camlib.Geometry.fill_with_lines(). Not a line: %s" % str(type(line_g)))
 
-        new_line = prepared_line.parallel_offset(distance=delta, side='right', resolution=quad_segs)
-        new_line = new_line.intersection(margin_poly)
-
-        if new_line and not new_line.is_empty:
-            lines_geometry = new_line.geoms if isinstance(new_line, MultiLineString) else new_line
-            try:
-                for ll in lines_geometry:
-                    lines_trimmed.append(ll)
-                    if prog_plot:
-                        self.plot_temp_shapes(ll)
-            except TypeError:
-                lines_trimmed.append(lines_geometry)
-                if prog_plot:
-                    self.plot_temp_shapes(lines_geometry)
-
-            if prog_plot:
-                self.temp_shapes.redraw()
-
-        lines_trimmed = unary_union(lines_trimmed)
-
-        # Add lines to storage
-        lines_geometry: BaseGeometry | list[BaseGeometry] = (
-            lines_trimmed.geoms
-            if isinstance(lines_trimmed, MultiLineString)
-            else lines_trimmed
-        )
-
-        try:
-            for line_g in lines_geometry:
-                if isinstance(line_g, LineString) or isinstance(line_g, LinearRing):
-                    new_paths.append(line_g)
-                else:
-                    self.app.log.debug("camlib.Geometry.fill_with_lines(). Not a line: %s" % str(type(line_g)))
-        except TypeError:
-            # in case lines_trimmed are not iterable (Linestring, LinearRing)
-            new_paths.append(lines_geometry) if lines_geometry and not lines_geometry.is_empty else None
+        # A cleaning pass: the offsets of a bent follow are farther than 1 radius apart near the bisector of a
+        # sharp bend, and without contour the margin edge stays. The rings cut only there. A straight follow
+        # has no bend.
+        if not contour or any(len(part.coords) > 2 for part in parts):
+            cleaning = list(new_paths)
+            if contour:
+                cleaning += [ring for poly in flatten_shapely_geometry(margin_poly) if isinstance(poly, Polygon)
+                             for ring in [poly.exterior, *poly.interiors]]
+            new_paths.extend(margin_gap_rings(margin_poly, cleaning, tooldia / 2.0, quad_segs))
 
         # Add margin (contour) to storage
         if contour:
@@ -8997,7 +9022,7 @@ def residual_cleanup(app, domain, diameter, circle_steps, previous_tools, genera
     steps = max(16, circle_quad_segs(circle_steps) if physical else circle_steps)
     radius = diameter / 2
     tolerance = float(app.options.get('global_tolerance', 0.005))
-    if app.units.upper() == 'IN':
+    if project_units(app) == 'IN':
         tolerance /= 25.4
 
     def sweep(path, distance, segments=None):
@@ -9402,6 +9427,237 @@ def circle_quad_segs(steps_per_circle) -> int:
     :return:                    the Shapely buffer quad_segs (segments of a quarter circle)
     """
     return max(1, math.ceil(int(steps_per_circle) / 4))
+
+
+def exact_fit(radius):
+    """
+    The distance that a margin backs down at an exact fit: the cutter may touch the outline, never cut past it. The
+    touch cuts 0.02% of the radius deep (0.1 um with a 1 mm tool, 1 step of a G-code with 4 mm decimals). GEOS
+    drops the thinner result of a buffer: at 1e-5 of the radius the region of an exact slot is empty.
+    """
+    return 2e-4 * radius
+
+
+def project_units(app):
+    """
+    The units of the active project, 'MM' or 'IN'. app.app_units follows a project load or a project switch;
+    app.units can be stale, it is only a fallback (and the units of a test double).
+    """
+    units = getattr(app, 'app_units', None) or getattr(app, 'units', None) or 'MM'
+    return str(units).upper()
+
+
+CLEARING_EDGE_TOUCH = 'touch'
+CLEARING_EDGE_STRICT = 'strict'
+
+
+def clearing_edge(app, radius, quad_segs):
+    """
+    The accuracy of the contour of a clearing (the pass that touches the outline), from the Preferences:
+    "tools_clearing_error" (micrometers; 0 uses the circle steps) and "tools_clearing_edge" (touch or strict).
+
+    The contour approximates its arcs (around the corners of the copper) with chords. The chords of 'touch' have their
+    ends on the arc: they cut past the outline by up to the error. The contour of 'strict' never comes closer to the
+    outline than the cutter radius: it leaves up to the error of material at these corners.
+
+    :param app:         the application (its options and units); None uses the circle steps
+    :param radius:      the cutter radius, in the units of the geometry
+    :param quad_segs:   the Shapely segments of a quarter circle from the circle steps
+    :return:            (quad_segs of the contour, strict)
+    """
+    options = getattr(app, 'options', None) or {}
+    strict = options.get('tools_clearing_edge', CLEARING_EDGE_TOUCH) == CLEARING_EDGE_STRICT
+    error = clearing_error(app)
+    if error is not None and radius > 0:
+        quad_segs = error_quad_segs(radius, error)
+    return quad_segs, strict
+
+
+def circle_error(radius, quad_segs):
+    """
+    The largest distance between an arc of this radius and its chords at quad_segs segments for a quarter circle. A
+    chord of the angle a is off its arc by radius * (1 - cos(a / 2)); GEOS can make an arc segment up to 1.5 times the
+    nominal angle (pi / 2) / quad_segs.
+    """
+    return radius * (1 - math.cos(1.5 * math.pi / (4 * max(1, quad_segs))))
+
+
+def error_quad_segs(radius, error):
+    """The fewest segments of a quarter circle whose chords stay within the error of the arc: circle_error() inverted."""
+    half_angle = math.acos(1 - min(error / radius, 1.0))
+    return min(1024, max(1, math.ceil(1.5 * (math.pi / 4) / half_angle)))
+
+
+def accepted_error(error, radius, quad_segs):
+    """The accepted cut past the outline: the Clearing Error (clearing_error()), or the error of the circle steps."""
+    return error if error else circle_error(radius, quad_segs)
+
+
+def clearing_error(app):
+    """
+    The Clearing Error of the Preferences in the units of the project geometry; None if it is 0 (the circle steps).
+    """
+    options = getattr(app, 'options', None) or {}
+    try:
+        error_um = float(options.get('tools_clearing_error', 0.0) or 0.0)
+    except (TypeError, ValueError):
+        return None
+    if error_um <= 0:
+        return None
+    return error_um / (25400.0 if project_units(app) == 'IN' else 1000.0)
+
+
+def clearing_simplification(app, tolerance):
+    """
+    The simplification tolerance of the clearing paths: 0 for the strict clearing edge, where a simplified chord could
+    move a path closer to the outline than the cutter radius.
+    """
+    options = getattr(app, 'options', None) or {}
+    return 0.0 if options.get('tools_clearing_edge', CLEARING_EDGE_TOUCH) == CLEARING_EDGE_STRICT else tolerance
+
+
+def strict_radius(radius, quad_segs):
+    """
+    The erosion distance of a strict margin. The margin is exact along the edges of the outline; around a corner of
+    the copper it is an arc of chords whose ends are on the arc, so the chords come closer to the corner than the
+    radius. Eroded by this distance, the chords of an arc segment (GEOS makes it up to 1.5 times the nominal angle)
+    keep the radius. The edges then keep the radius plus the error of the arcs: material that stays.
+    """
+    return radius / math.cos(1.5 * math.pi / (4 * quad_segs))
+
+
+def strict_margin(polygon, margin, radius, quad_segs):
+    """
+    The margin of the strict clearing edge: no point of it comes closer to the outline than the radius.
+
+    The polygon eroded by strict_radius() is strict, but it is also strict_radius() - radius farther from the straight
+    walls than needed: a slot or a neck a little wider than the cutter vanishes. The plain margin is exact along the
+    walls; only near a vertex of the outline its arcs come closer than the radius. So the parts of the plain margin
+    that the strict erosion loses stay, without the disks of strict_radius() around the vertices near them.
+
+    :param polygon:     Polygon or MultiPolygon
+    :param margin:      the polygon eroded by the radius
+    :param radius:      the cutter radius
+    :param quad_segs:   the Shapely segments of a quarter circle
+    :return:            Polygon or MultiPolygon, can be empty
+    """
+    far = strict_radius(radius, quad_segs)
+    base = polygon.buffer(-far, quad_segs=quad_segs)
+    if base.is_empty:
+        lost = margin
+    else:
+        # A mitred buffer gives back the sharp corners of the margin: only the lost parts and slivers stay. The
+        # buffer goes 25% past the margin: outlines that lie on each other make the overlay about 8 times slower.
+        grown = base.buffer(1.25 * (far - radius), quad_segs=quad_segs, join_style='mitre', mitre_limit=10.0)
+        # Fast path: if the grown base covers the margin, nothing is lost (a predicate is about 10 times faster than
+        # the overlay).
+        if grown.covers(margin):
+            return base
+        lost = margin.difference(grown)
+    small = 0.25 * radius * exact_fit(radius)
+    parts = [part for part in flatten_shapely_geometry(lost) if isinstance(part, Polygon) and part.area > small]
+    if not parts:
+        return base
+    lost = shapely.union_all(parts)
+    shapely.prepare(lost)
+    vertices = shapely.points(shapely.get_coordinates(polygon))
+    near = vertices[shapely.dwithin(lost, vertices, far)]
+    if len(near):
+        # the polygon of a buffer has its vertices on the circle: of far, it covers the disk of the radius
+        lost = lost.difference(shapely.union_all(shapely.buffer(near, far, quad_segs=quad_segs)))
+    parts = [part for part in flatten_shapely_geometry(lost) if isinstance(part, Polygon) and part.area > small]
+    return shapely.union_all([base, *parts]) if parts else base
+
+
+def clearing_margin(polygon, radius, quad_segs, strict=False):
+    """
+    The region of the cutter center: the polygon eroded by the cutter radius. Where the polygon is exactly as wide as
+    the cutter (a slot, a neck) the erosion is empty, but the cutter fits there and touches the outline on both sides:
+    then the margin backs down by exact_fit() and keeps the line of these centers as a thin area.
+
+    :param polygon:     Polygon or MultiPolygon
+    :param radius:      the cutter radius (or the margin distance)
+    :param quad_segs:   the Shapely segments of a quarter circle
+    :param strict:      if True, no chord of the margin comes closer to the outline than the radius (strict_radius());
+                        an exact fit still touches the outline
+    :return:            Polygon or MultiPolygon, can be empty
+    """
+    margin = polygon.buffer(-radius, quad_segs=quad_segs)
+    back = exact_fit(radius)
+    touch = polygon.buffer(-(radius - back), quad_segs=quad_segs)
+    if margin.is_empty:
+        return touch
+    base = strict_margin(polygon, margin, radius, quad_segs) if strict else margin
+    # Without an exact fit the back-down grows the margin by a band 1 back-down wide: its area is at most the
+    # perimeter times the back-down, plus a circle of the back-down for each ring. A slot or a neck of the
+    # exact width adds a strip 2 back-downs wide along its length: then the margin backs down.
+    rings = sum(1 + len(part.interiors) for part in flatten_shapely_geometry(margin) if isinstance(part, Polygon))
+    band = margin.length * back + math.pi * back * back * rings
+    if touch.area - margin.area <= band + 0.25 * radius * back:
+        return base
+    # Only the strips of the exact fits back down: the rest of the margin (Strict around the copper included) stays.
+    # The backed-down margin is within the back-down of the margin elsewhere, so the strips are what is left of it
+    # outside the margin grown by 1.5 back-downs.
+    strips = [part for part in flatten_shapely_geometry(touch.difference(margin.buffer(1.5 * back, quad_segs=quad_segs)))
+              if isinstance(part, Polygon) and part.area > 0.25 * radius * back]
+    return unary_union([base, *strips]) if strips else base
+
+
+def margin_gap_rings(margin, paths, radius, quad_segs):
+    """
+    The rings around the parts of the margin (the region of the cutter center) that no path reaches by the cutter
+    radius: a local contour for a clearing without contour. Points that stay uncovered by less than the tessellation
+    error are not material. A gap is inside the margin, so its rings are safe. The passes are less than 1 cutter
+    diameter apart: a gap is narrow and its own boundary covers it.
+
+    :param margin:     Polygon or MultiPolygon; the cutter center stays inside it
+    :param paths:       the clearing paths
+    :param radius:      the cutter radius
+    :param quad_segs:   the Shapely segments of a quarter circle
+    :return:            list of LinearRing
+    """
+    if margin is None or margin.is_empty:
+        return []
+    sliver = max(radius * (1 - math.cos(math.pi / (4 * quad_segs))), 1e-9)
+    paths = [path for path in paths if path is not None and not path.is_empty]
+    gap = margin
+    if paths:
+        # The polygon of a buffer has its vertices on the circle: it is inside the true sweep.
+        gap = margin.difference(shapely.union_all(shapely.buffer(paths, radius + sliver, quad_segs=quad_segs)))
+    rings = []
+    for part in flatten_shapely_geometry(gap):
+        if isinstance(part, Polygon) and part.area > sliver * sliver:
+            rings.append(part.exterior)
+            rings.extend(part.interiors)
+    return rings
+
+
+def rest_area(domain, stock, diameter, quad_segs=16, error=None):
+    """
+    The area that a rest tool clears to remove the stock that it can reach. The cutter reaches a point of the stock
+    from up to 1 diameter away, across the area that is cut already: the area is the stock grown by the diameter,
+    inside the domain. So a part of the stock that is narrower than the cutter is still in reach. The stock that the
+    cutter cannot reach (the corners of the domain) and the slivers of the tessellation are not grown: the cutter
+    would only cut along the edges again.
+
+    :param domain:      Polygon or MultiPolygon; the cutter must stay inside it
+    :param stock:       Polygon or MultiPolygon; the material that the earlier tools left
+    :param diameter:    the diameter of the rest tool
+    :param quad_segs:   the Shapely segments of a quarter circle
+    :param error:       the Clearing Error in the units of the geometry (clearing_error()): stock thinner than it is
+                        within the accepted error and is not grown; None uses the error of the circle steps
+    :return:            list of Polygon
+    """
+    radius = diameter / 2.0
+    reach = clearing_margin(domain, radius, quad_segs).buffer(radius, quad_segs=quad_segs)
+    # the opening removes the parts thinner than 2 slivers
+    sliver = accepted_error(error, radius, quad_segs) / 2.0
+    # The opening removes the thin portions only: slivers that touch real stock are not grown with it.
+    target = stock.intersection(reach).buffer(-sliver, quad_segs=quad_segs).buffer(sliver, quad_segs=quad_segs)
+    if target.is_empty:
+        return []
+    area = domain.intersection(target.buffer(diameter, quad_segs=quad_segs))
+    return [part for part in flatten_shapely_geometry(area) if isinstance(part, Polygon) and not part.is_empty]
 
 
 ADAPTIVE_MIN_STEPS = 16
@@ -10310,6 +10566,8 @@ class AppRTree(object):
         # Index is index in rtree, value is index of
         # object in self.obj2points
         self.points2obj = []
+        # the x, y of each point id: nearest() and remove_obj() need no Item objects and no coords of the objects
+        self.point_xy = []
 
         self.get_points = lambda go: go.coords
 
@@ -10338,14 +10596,13 @@ class AppRTree(object):
             self.rti.insert(len(self.points2obj), (pt[0], pt[1], pt[0], pt[1]), obj=objid)
             self.obj2points[objid].append(len(self.points2obj))
             self.points2obj.append(objid)
+            self.point_xy.append((pt[0], pt[1]))
 
     def remove_obj(self, objid, obj):
         # Use all ptids to delete from index
-        for i, pt in enumerate(self.get_points(obj)):
-            try:
-                self.rti.delete(self.obj2points[objid][i], (pt[0], pt[1], pt[0], pt[1]))
-            except IndexError:
-                pass
+        for ptid in self.obj2points[objid]:
+            x, y = self.point_xy[ptid]
+            self.rti.delete(ptid, (x, y, x, y))
 
     def nearest(self, pt):
         """
@@ -10481,6 +10738,7 @@ class AppRTreeStorage(AppRTree):
             coords.extend((pt[0], pt[1]) for pt in (self.get_points(obj) if points is None else points))
             self.obj2points.append(list(range(start, len(coords))))
             self.points2obj.extend([objid] * (len(coords) - start))
+        self.point_xy = coords
 
         # the point ids are the positions in points2obj, so the index entries need no object (an object of an entry
         # is pickled, which is the most of the time of a bulk load from a stream)
@@ -10502,11 +10760,11 @@ class AppRTreeStorage(AppRTree):
         """
         # k=1 returns all the points at the smallest distance (ties); the lowest id is the first inserted point, so
         # the result does not depend on how the index was built (insert() or bulk load)
-        tidx = min(self.rti.nearest(pt, 1, objects=True), key=lambda item: item.id, default=None)
-        if tidx is None:
-            raise StopIteration
         # the id of an entry is the point id (an entry of a bulk load has no object)
-        return (tidx.bbox[0], tidx.bbox[1]), self.objects[self.points2obj[tidx.id]]
+        ptid = min(self.rti.nearest(pt, 1, objects=False), default=None)
+        if ptid is None:
+            raise StopIteration
+        return self.point_xy[ptid], self.objects[self.points2obj[ptid]]
 
 # class myO:
 #     def __init__(self, coords):

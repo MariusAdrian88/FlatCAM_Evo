@@ -20,6 +20,7 @@ try:
     import numpy as np
     import shapely
     from shapely import LineString, MultiPolygon, Point, Polygon, box
+    from shapely.ops import unary_union
 finally:
     sys.argv = _saved_argv
 
@@ -64,16 +65,18 @@ def seed_rings_one_by_one(polygon, tooldia, steps, overlap=0.15, simplify_tol=0.
     radius = tooldia / 2 * (1 - overlap)
     margin = margin_of(polygon, tooldia, steps, simplify_tol)
     seedpoint = margin.representative_point()
+    # the rings end past the farthest vertex of the margin, not at the first ring that misses it
+    farthest = max(Point(c).distance(seedpoint) for c in shapely.get_coordinates(margin))
+    inner_ratio = math.cos(math.pi / (4 * quad_segs))
     paths = []
     rings = 0
-    while True:
+    while radius * inner_ratio - simplify_tol - tooldia <= farthest:
         rings += 1
         path = Point(seedpoint).buffer(radius, quad_segs=quad_segs).exterior
         path = path.simplify(simplify_tol)
         path = path.intersection(margin)
-        if path.is_empty:
-            break
-        paths += camlib.flatten_shapely_geometry(path, simplify_tolerance=simplify_tol)
+        if not path.is_empty:
+            paths += camlib.flatten_shapely_geometry(path, simplify_tolerance=simplify_tol)
         radius += tooldia * (1 - overlap)
     return paths, rings
 
@@ -126,17 +129,21 @@ class TestSeedBands(unittest.TestCase):
                     with self.subTest(islands=islands, steps=steps, simplify_tol=simplify_tol,
                                       min_coords=min_coords), band_limit(min_coords):
                         paths = self.seed_paths(polygon, 0.4, steps, simplify_tol)
-                        self.assertEqual([p.wkb for p in paths], [p.wkb for p in expected])
+                        # the rings come first; the rings around the gaps of the margin follow them
+                        self.assertEqual([p.wkb for p in paths[:len(expected)]], [p.wkb for p in expected])
 
-    def test_rings_stop_at_the_first_ring_that_misses_the_margin(self):
-        # 2 areas 3 mm apart: the rings grown in the area of the seed stop in the gap, the other area gets no ring
-        # (the later rings of the same band reach it)
-        polygon = MultiPolygon([box(0, 0, 4, 4), box(7, 0, 11, 4)]).buffer(0)
-        expected, __ = seed_rings_one_by_one(polygon, 0.5, 64)
-        self.assertTrue(all(p.bounds[2] < 5 for p in expected) or all(p.bounds[0] > 6 for p in expected))
-        for min_coords in (SEED_BAND_MIN_COORDS, 0):
-            with self.subTest(min_coords=min_coords), band_limit(min_coords):
-                self.assertEqual([p.wkb for p in self.seed_paths(polygon, 0.5, 64)], [p.wkb for p in expected])
+    def test_rings_go_on_past_a_ring_that_misses_the_margin(self):
+        # 2 areas 3 mm apart, and 2 pockets joined by a neck narrower than the tool: a ring in the gap misses the
+        # margin, the later rings clear the other part.
+        for polygon in (MultiPolygon([box(0, 0, 4, 4), box(7, 0, 11, 4)]).buffer(0),
+                        unary_union([box(0, 0, 4, 4), box(6, 0, 10, 4), box(3.9, 1.8, 6.1, 2.2)])):
+            for min_coords in (SEED_BAND_MIN_COORDS, 0):
+                with self.subTest(parts=len(polygon.geoms) if hasattr(polygon, 'geoms') else 1,
+                                  min_coords=min_coords), band_limit(min_coords):
+                    paths = list(self.geometry.clear_polygon_seed(polygon, 1.0, 64, connect=False).get_objects())
+                    reach = polygon.buffer(-0.5, quad_segs=32).buffer(0.5, quad_segs=32)
+                    swept = unary_union([p.buffer(0.5, quad_segs=32) for p in paths])
+                    self.assertLess(reach.difference(swept).area, 1e-4)
 
     def test_a_large_margin_is_cut_without_the_holes_out_of_the_band(self):
         polygon = board()

@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import test_paint_geometry as paint_cases
+from appPlugins.ToolPaint import PaintModel
 from test_paint_geometry import camlib, PaintGen, storage_of
 from shapely import MultiPolygon, Polygon, Point, box
 
@@ -71,8 +72,58 @@ class TestPaintPerformance(unittest.TestCase):
                         part, 0.4, worker._get_tool_params(2, params.tools_storage), params, None)
                     expected.extend(result.get_objects())
                 actual = run_rest(worker, params, [self.polygon], [1, 0.4])
-                self.assertEqual([p.wkb for p in actual], [p.wkb for p in expected])
-                self.assertTrue(camlib.unary_union(actual).equals(camlib.unary_union(expected)))
+                # The first tool keeps its paths. The second tool covers at least the legacy stock: it also
+                # crosses the cut area to reach the stock that is narrower than it, and stays inside the polygon.
+                self.assertEqual([p.wkb for p in actual[:len(first)]], [p.wkb for p in first])
+                legacy = camlib.unary_union([p.buffer(0.2) for p in expected[len(first):]])
+                new = camlib.unary_union([p.buffer(0.2) for p in actual[len(first):]])
+                self.assertLess(legacy.difference(new).area, 1e-6)
+                self.assertLess(new.difference(self.polygon).area, 1e-4)
+
+    def test_rest_tool_clears_the_stock_that_is_narrower_than_it(self):
+        # The 1.0 tool leaves the corners of the area and strips around the hole; the 0.4 tool crosses the cut area
+        # to reach them and stays inside the area.
+        from test_clearing_paths import make_geometry
+        geometry = make_geometry()
+        geometry.app.units, geometry.app.options = 'MM', {'global_tolerance': 0}
+        area = box(0, 0, 10.6, 10).difference(box(4, 4, 6, 6))
+        storage = {i: {'tooldia': dia, 'data': {'tools_paint_overlap': 20, 'tools_paint_connect': False,
+                                                'tools_paint_contour': True, 'tools_paint_offset': 0}}
+                   for i, dia in ((1, 1.0), (2, 0.4))}
+        for method in ('clear_polygon_shrink', 'clear_polygon_seed', 'clear_polygon_lines'):
+            with self.subTest(method=method):
+                def process(polygon, diameter, settings):
+                    return getattr(geometry, method)(polygon, diameter, 64, overlap=settings['over'], connect=False)
+                tools = PaintModel.generate_rest_paint([area], storage, [1.0, 0.4], 0.0, 4, process)['tools']
+                swept = camlib.unary_union([PaintModel.swept_area(tool['solid_geometry'], tool['tooldia'])
+                                            for tool in tools.values()])
+                reach = area.buffer(-0.2, quad_segs=32).buffer(0.2, quad_segs=32)
+                self.assertLess(reach.difference(swept).area, 1e-3)
+                self.assertLess(swept.difference(area).area, 1e-4)
+
+    def test_rest_tool_a_little_smaller_removes_the_stock_thicker_than_the_error(self):
+        # 1.00 then 0.99 mm: the stock at the corners is about 2.1 um thick, more than a Clearing Error of 2 um and
+        # more than the error of the circle steps (Clearing Error 0).
+        from test_clearing_paths import make_geometry
+        geometry = make_geometry()
+        geometry.app.units, geometry.app.options = 'MM', {'global_tolerance': 0}
+        area = box(0, 0, 6, 6).difference(box(2, 2, 4, 4))
+        storage = {i: {'tooldia': dia, 'data': {'tools_paint_overlap': 20, 'tools_paint_connect': False,
+                                                'tools_paint_contour': True, 'tools_paint_offset': 0}}
+                   for i, dia in ((1, 1.0), (2, 0.99))}
+        for edge_error, steps in ((0.002, 64), (None, 64), (None, 256)):
+            with self.subTest(edge_error=edge_error, steps=steps):
+                def process(polygon, diameter, settings):
+                    return geometry.clear_polygon_shrink(polygon, diameter, steps, overlap=settings['over'],
+                                                         connect=False)
+                tools = PaintModel.generate_rest_paint([area], storage, [1.0, 0.99], 0.0, 4, process,
+                                                       edge_error=edge_error, steps_at=lambda diameter: steps)['tools']
+                # the sweep and the reach at the same resolution: no slivers of the measure itself
+                swept = camlib.unary_union([path.buffer(tool['tooldia'] / 2, quad_segs=64)
+                                            for tool in tools.values() for path in tool['solid_geometry']])
+                left = area.buffer(-0.495, quad_segs=64).buffer(0.495, quad_segs=64).difference(swept)
+                self.assertTrue(tools[2]['solid_geometry'])
+                self.assertTrue(left.buffer(-0.001).is_empty)
 
     def test_rest_rejects_narrow_residuals_without_buffering(self):
         polygons = [self.polygon, box(10, 0, 10.1, 4), box(12, 0, 16, 0.1)]

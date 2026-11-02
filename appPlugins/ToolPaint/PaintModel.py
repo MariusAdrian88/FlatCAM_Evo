@@ -9,9 +9,23 @@ from shapely import LineString, LinearRing, MultiLineString, Point, Polygon, STR
 from shapely.geometry import base
 from shapely.ops import linemerge, unary_union
 
-from camlib import AppRTreeStorage, flatten_shapely_geometry, grace
+from camlib import (AppRTreeStorage, accepted_error, circle_quad_segs, clearing_margin, error_quad_segs,
+                    flatten_shapely_geometry, grace, rest_area)
 
 log = logging.getLogger('base')
+
+
+def tool_quad_segs(steps_at, diameter):
+    """The Shapely segments of a quarter circle of the tool: steps_at(diameter) circle steps, 64 if it is None."""
+    return circle_quad_segs(steps_at(diameter) if steps_at is not None else 64)
+
+
+def sweep_quad_segs(diameter, edge_error, quad_segs):
+    """
+    The segments of the swept area and of the rest area: their chords stay within the accepted error (the Clearing
+    Error, else the error of the circle steps), so the slivers of the sweep are not stock. More would only cost time.
+    """
+    return error_quad_segs(diameter / 2.0, edge_error) if edge_error else quad_segs
 
 
 def polygon_parts(geometry):
@@ -73,8 +87,13 @@ def merge_overlapping(geometry):
 
 def generate_paint(geometry, tools_storage, diameters, ordering, simplification, decimals,
                    process_polygon, check_abort=None, progress=None, tool_started=None,
-                   find_uid=None, get_params=None, buffer=None, simplify=None):
-    """Generate independent tool passes without publishing or changing caller-owned tools."""
+                   find_uid=None, get_params=None, buffer=None, simplify=None, edge_error=None, steps_at=None):
+    """
+    Generate independent tool passes without publishing or changing caller-owned tools.
+
+    :param edge_error:  the Clearing Error in the units of the geometry; None uses the error of the circle steps
+    :param steps_at:    callable: the circle steps of a tool diameter; None uses 64
+    """
     tools = {uid: {**{key: value for key, value in tool.items() if key != 'paint_cleanup_start'},
                    'data': deepcopy(tool.get('data', {})), 'solid_geometry': []}
              for uid, tool in tools_storage.items()}
@@ -117,7 +136,9 @@ def generate_paint(geometry, tools_storage, diameters, ordering, simplification,
                     warnings.append(('skipped', diameter))
                     result = None
                 if result:
-                    cleared.extend(simplify(result.get_objects(), simplification))
+                    cleared.extend(simplified_inside(
+                        result.get_objects(), simplify, simplification, polygon, diameter, edge_error,
+                        tool_quad_segs(steps_at, diameter)))
             except grace:
                 raise
             except Exception as err:
@@ -130,34 +151,66 @@ def generate_paint(geometry, tools_storage, diameters, ordering, simplification,
     return {'tools': tools, 'warnings': warnings, 'last_diameter': last_diameter}
 
 
-def rest_sweep(polygon, diameter, settings, process_polygon, simplify, simplification, keep_stock):
-    """Paint one rest polygon: (status, elements, swept, remainder_parts); status is ok, skipped or failed."""
+def rest_sweep(polygon, diameter, settings, process_polygon, simplify, simplification, keep_stock, edge_error=None,
+               quad_segs=16):
+    """Paint one rest polygon: (status, elements, swept); status is ok, skipped or failed."""
     left, bottom, right, top = polygon.bounds
     if right - left < diameter or top - bottom < diameter:
-        return 'skipped', [], None, []
-    check_buff = polygon.buffer(-diameter / 2.0)
+        return 'skipped', [], None
+    check_buff = clearing_margin(polygon, diameter / 2.0, quad_segs)
     if not check_buff or check_buff.is_empty:
-        return 'skipped', [], None, []
+        return 'skipped', [], None
     result = process_polygon(polygon, diameter, settings)
     if result == 'fail':
         # Not swept, so the polygon stays in the stock handed to the next tool.
-        return 'failed', [], None, []
-    elements = simplify(result.get_objects(), simplification) if result else []
-    swept, remaining = None, []
-    if keep_stock:
-        swept = unary_union(elements).buffer(diameter / 2.0)
-        left_over = polygon.difference(swept)
-        if left_over:
-            remaining = polygon_parts(left_over)
-    return 'ok', elements, swept, remaining
+        return 'failed', [], None
+    elements = simplified_inside(result.get_objects(), simplify, simplification, polygon, diameter,
+                                 edge_error, quad_segs) if result else []
+    swept = swept_area(elements, diameter, sweep_quad_segs(diameter, edge_error, quad_segs)) if keep_stock else None
+    return 'ok', elements, swept
 
+
+def swept_area(paths, diameter, quad_segs=16):
+    """The area that the cutter of this diameter sweeps along the paths."""
+    paths = [path for path in paths if path is not None and not path.is_empty]
+    if not paths:
+        return Polygon()
+    # A buffer for each path, then 1 union: the same area, about 4x faster than the buffer of the union.
+    return shapely.union_all(shapely.buffer(paths, diameter / 2.0, quad_segs=quad_segs))
+
+
+def simplified_inside(paths, simplify, tolerance, polygon, diameter, edge_error=None, quad_segs=16):
+    """
+    The simplified paths; a simplified path that comes closer to the outline of the polygon than the cutter radius
+    minus the edge error (or that leaves the polygon) is replaced by its original path. The simplification moves a
+    path by up to the tolerance: around a hole of the polygon (copper) the cutter would cut into the copper.
+
+    :param edge_error:  the cut past the outline that the clearing allows (the Clearing Error of the Preferences),
+                        in the units of the geometry; None allows the error of the circle steps of the paths
+    :param quad_segs:   the Shapely segments of a quarter circle of the paths (their circle steps)
+    """
+    paths = list(paths)
+    if tolerance <= 0.0 or not paths:
+        return simplify(paths, tolerance)
+    simple = simplify(paths, tolerance)
+    if len(simple) != len(paths):
+        return simple
+    radius = diameter / 2.0
+    edge_error = accepted_error(edge_error, radius, quad_segs)
+    # The distance of a path to the outline is measured on its segments: no tessellation of the cutter.
+    shapely.prepare(polygon)
+    boundary = polygon.boundary
+    shapely.prepare(boundary)
+    inside = shapely.covers(polygon, simple) & ~shapely.dwithin(boundary, simple, max(radius - edge_error, 0.0))
+    return [new if keep else old for old, new, keep in zip(paths, simple, inside.tolist())]
 
 def generate_rest_paint(geometry, tools_storage, diameters, simplification, decimals,
                         process_polygon, check_abort=None, progress=None, tool_started=None,
-                        rest_offset=0, find_uid=None, get_params=None, buffer=None, simplify=None):
+                        rest_offset=0, find_uid=None, get_params=None, buffer=None, simplify=None, edge_error=None,
+                        steps_at=None):
     """Rest passes: the stock left for the next tool is what the swept paths of this tool did not cover.
 
-    Tools always run from the largest diameter to the smallest.
+    Tools always run from the largest diameter to the smallest. edge_error and steps_at: see generate_paint().
     """
     tools = {uid: {**{key: value for key, value in tool.items() if key != 'paint_cleanup_start'},
                    'data': deepcopy(tool.get('data', {})), 'solid_geometry': []}
@@ -174,6 +227,8 @@ def generate_rest_paint(geometry, tools_storage, diameters, simplification, deci
     output_tools = {}
     if not polygons:
         return {'tools': tools, 'output_tools': output_tools, 'warnings': [('empty', None)]}
+    domain = unary_union(polygons)
+    stock = None
     for tool_index, diameter in enumerate(diameters):
         has_next_tool = tool_index + 1 < len(diameters)
         if check_abort is not None:
@@ -184,15 +239,21 @@ def generate_rest_paint(geometry, tools_storage, diameters, simplification, deci
         if uid is None:
             return 'fail'
         settings = get_params(uid, tools)
-        rest_list, cleared, swept_parts, unswept = [], [], [], []
+        quad_segs = tool_quad_segs(steps_at, diameter)
+        if stock is not None:
+            # The tool crosses the area that is cut already to reach the stock.
+            polygons = polygon_parts(rest_area(domain, stock, diameter, sweep_quad_segs(diameter, edge_error, quad_segs),
+                                               edge_error))
+        cleared, swept_parts = [], []
         old_progress = 0
         geo_len = len(polygons)
         for number, polygon in enumerate(polygons, 1):
             if check_abort is not None:
                 check_abort()
             try:
-                status, elements, swept, remaining = rest_sweep(
-                    polygon, diameter, settings, process_polygon, simplify, simplification, has_next_tool)
+                status, elements, swept = rest_sweep(
+                    polygon, diameter, settings, process_polygon, simplify, simplification, has_next_tool,
+                    edge_error, quad_segs)
             except grace:
                 raise
             except Exception as err:
@@ -200,13 +261,10 @@ def generate_rest_paint(geometry, tools_storage, diameters, simplification, deci
                 status = 'error'
             if status == 'ok':
                 cleared += elements
-                rest_list.extend(remaining)
                 if swept is not None and not swept.is_empty:
                     swept_parts.append(swept)
-            else:
-                unswept.append(polygon)
-                if status == 'failed':
-                    warnings.append(('skipped', diameter))
+            elif status == 'failed':
+                warnings.append(('skipped', diameter))
             if progress is not None:
                 old_progress = progress(number, geo_len, old_progress)
         if cleared:
@@ -214,16 +272,13 @@ def generate_rest_paint(geometry, tools_storage, diameters, simplification, deci
             output_tools[uid] = dict(tools[uid])
         if not has_next_tool:
             break
-        # Stock for the next tool: the remainders of the swept polygons plus the polygons that were
-        # not painted (too narrow, failed), minus what the swept area of this tool covers of them.
-        stock = list(rest_list)
-        if unswept:
-            left_over = unary_union(unswept)
-            if swept_parts:
-                left_over = left_over.difference(unary_union(swept_parts))
-            stock.extend(polygon_parts(left_over))
-        polygons = polygon_parts(unary_union(stock)) if stock else []
-        if not polygons:
+        # Stock for the next tool: what the swept area of this tool does not cover of the stock (of the domain
+        # for the first tool), the polygons that were not painted (too narrow, failed) included.
+        stock = domain if stock is None else stock
+        if swept_parts:
+            stock = stock.difference(unary_union(swept_parts))
+        stock = unary_union(polygon_parts(stock))
+        if stock.is_empty:
             break
     if check_abort is not None:
         check_abort()
@@ -335,7 +390,8 @@ def check_tools_fit(geometry, diameters, offsets=None):
         for part in parts:
             left, bottom, right, top = part.bounds
             # the bounds check avoids the buffer for the polygons that are clearly too narrow
-            row.append(min(right - left, top - bottom) > 2 * reach and not part.buffer(-reach).is_empty)
+            # a tool exactly as wide as the polygon fits: it touches the outline, it does not cut past it
+            row.append(min(right - left, top - bottom) >= 2 * reach and not clearing_margin(part, reach, 16).is_empty)
         fits[dia] = row
     narrow = sum(1 for index in range(len(parts)) if not any(fits[dia][index] for dia in diameters))
     unused = [dia for dia in diameters if not any(fits[dia])]
@@ -509,7 +565,8 @@ def laser_lines(poly_g, tool_diameter, over, conn, cont, prog_plot, circle_steps
                     steps = circle_steps if aperture_type == 'C' else geometry_circle_steps
                     paths = clear(element['solid'], tooldia=tool_diameter, steps_per_circle=steps,
                                   overlap=over, contour=True, connect=conn, prog_plot=prog_plot)
-                    pads += [path for path in paths.get_objects() if path]
+                    if paths:
+                        pads += [path for path in paths.get_objects() if path]
     except grace:
         return 'fail'
     except Exception as err:
@@ -527,7 +584,9 @@ def laser_lines(poly_g, tool_diameter, over, conn, cont, prog_plot, circle_steps
                     paths = fill_lines(line, size, tooldia=tool_diameter,
                                        steps_per_circle=geometry_circle_steps, overlap=over,
                                        contour=cont, connect=conn, prog_plot=prog_plot)
-                    copper += [path for path in paths.get_objects() if path]
+                    # A trace that gives no paths (too narrow) must not stop the other traces.
+                    if paths:
+                        copper += [path for path in paths.get_objects() if path]
     except grace:
         return 'fail'
     except Exception as err:

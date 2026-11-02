@@ -26,6 +26,9 @@ from camlib import (
     flatten_shapely_geometry,
     residual_cleanup,
     object_circle_steps,
+    clearing_simplification,
+    clearing_error,
+    project_units,
 )
 from defaults import AppDefaults
 from appParsers.feature_access import fused_solid
@@ -498,10 +501,11 @@ class PaintGen:
         if simplification is None:
             simplification_value = float(self._option("tools_paint_simplification"))
             # Preferences store tolerances in mm; both workers consume geometry units.
-            if self.app.units.upper() == 'IN':
+            if project_units(self.app) == 'IN':
                 simplification_value /= 25.4
         else:
             simplification_value = float(simplification)
+        simplification_value = clearing_simplification(self.app, simplification_value)
         rest_choice = rest if rest is not None else self._ui_value('rest_cb', 'tools_paint_rest')
         if not rest_choice:
             rest_offset_value = 0.0
@@ -688,7 +692,11 @@ class PaintGen:
         try:
             common = dict(check_abort=self._check_abort, progress=self._update_progress, tool_started=self._tool_started,
                           find_uid=self._find_tool_uid, get_params=self._get_tool_params,
-                          buffer=self._buffer_geometry, simplify=self._simplify_geometry)
+                          buffer=self._buffer_geometry, simplify=self._simplify_geometry,
+                          # a simplified path and the rest stock keep the Clearing Error of the Preferences, or
+                          # the error of the circle steps of the tool
+                          edge_error=clearing_error(self.app),
+                          steps_at=lambda diameter: self._steps_at(diameter / 2, painted_object))
             if rest:
                 result = PaintModel.generate_rest_paint(
                     geometry, params.tools_storage, diameters, params.simplification_value, self.decimals,

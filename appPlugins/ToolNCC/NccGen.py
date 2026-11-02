@@ -14,7 +14,8 @@ import gettext
 import appTranslation as fcTranslate
 import builtins
 
-from camlib import grace, flatten_shapely_geometry, residual_cleanup, object_circle_steps
+from camlib import grace, flatten_shapely_geometry, residual_cleanup, object_circle_steps, clearing_simplification, \
+    project_units, clearing_error
 from appParsers.feature_access import fused_solid
 from appCommon.SafeEval import safe_eval
 from appPlugins.ToolNCC import NccModel
@@ -111,9 +112,9 @@ class NccGen:
     def _simplification(self):
         """The simplification tolerance in the units of the geometry (the preference is in millimetres)."""
         value = float(self._option('tools_ncc_simplification', 0.01))
-        if self.app.units.upper() == 'IN':
+        if project_units(self.app) == 'IN':
             value /= 25.4
-        return value
+        return clearing_simplification(self.app, value)
 
     def on_ncc_click(self):
         """
@@ -710,6 +711,7 @@ class NccGen:
                 lambda: NccGen._process_events_and_check_abort(self),
                 self.app.proc_container.update_view_text, connect=connect, contour=contour,
                 simplify_tol=tolerance, prog_plot=prog_plot, initial_tools=staged['tools'],
+                clearing_error=clearing_error(self.app),
                 tool_progress=lambda diameter: self._tool_progress(diameter, units))
             if not rest:
                 self._warn_unused_tools(tool_settings, diameters, generated)
@@ -803,7 +805,9 @@ class NccGen:
         select_method = int(select_method if select_method is not None else self._option('tools_ncc_ref', 0))
         final_cleanup = bool(final_cleanup if final_cleanup is not None else
                              self._option('tools_ncc_final_cleanup', False))
-        simplify_tol = float(simplification) if simplification is not None else self._simplification()
+        # the strict clearing edge never simplifies, also with an explicit Tcl value
+        simplify_tol = clearing_simplification(
+            self.app, float(simplification)) if simplification is not None else self._simplification()
         storage = tools_storage if tools_storage is not None else self.ncc_tools
         snapshot = NccModel.copy_tools(storage)
         try:
@@ -881,7 +885,8 @@ class NccGen:
                 name, self.decimals, self.circle_steps, self.clear_polygon_worker,
                 lambda: NccGen._process_events_and_check_abort(self), self.app.proc_container.update_view_text,
                 connect=connect, contour=contour, overlap=overlap, method=method, simplify_tol=simplify_tol,
-                initial_tools=initial, tool_progress=lambda diameter: self._tool_progress(diameter, units))
+                initial_tools=initial, tool_progress=lambda diameter: self._tool_progress(diameter, units),
+                clearing_error=clearing_error(self.app))
             if not rest:
                 self._warn_unused_tools(snapshot, diameters, generated)
             generated, cleanup_residual = self._cleanup_result(

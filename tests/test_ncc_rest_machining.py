@@ -20,6 +20,7 @@ from shapely.geometry import LineString, MultiPolygon, Polygon, box  # noqa: E40
 from shapely.ops import unary_union  # noqa: E402
 
 from appMain import App  # noqa: E402
+from camlib import rest_area  # noqa: E402
 from appPlugins.ToolNCC import NccModel  # noqa: E402
 from appPlugins.ToolNCC.Ncc import ToolNcc  # noqa: E402
 from appPlugins.ToolNCC.NccGen import NccGen  # noqa: E402
@@ -125,7 +126,9 @@ def test_rest_margin_and_exact_swept_area_are_used():
     gen, output = run_rest(area, [1.0, 2.0], clear, options={'geometry_circle_steps': 32})
     assert gen.apply_margin_to_clipping_region.call_args.kwargs['margin'] == 3
     assert gen.compute_area_to_clear.call_args.kwargs['margin'] == 3
-    assert residuals[0].symmetric_difference(area.difference(line.buffer(1, 8))).area < 1e-10
+    # The smaller tool clears the unswept stock grown by its diameter, inside the area.
+    expected = MultiPolygon(rest_area(area, area.difference(line.buffer(1, 8)), 1.0, 8))
+    assert residuals[0].symmetric_difference(expected).area < 1e-10
     assert list(output.tools) == [2, 1]
 
 
@@ -148,7 +151,8 @@ def test_tcl_smaller_tool_receives_only_unswept_stock():
         return [LineString([(1, 1), (2, 1)])]
 
     gen, output = run_rest(area, [1.0, 2.0], clear, tcl=True, options={'geometry_circle_steps': 32})
-    assert residuals[0].symmetric_difference(area.difference(line.buffer((2 - 1e-12) / 2, 8))).area < 1e-10
+    expected = MultiPolygon(rest_area(area, area.difference(line.buffer((2 - 1e-12) / 2, 8)), 1.0, 8))
+    assert residuals[0].symmetric_difference(expected).area < 1e-10
     assert list(output.tools) == [2, 1]
 
 
