@@ -36,6 +36,47 @@ def bundle_metadata(source=ROOT / 'appMain.py'):
     }
 
 
+def appimage_command():
+    """Return a bdist_appimage that passes the AppDir checks of the current appimagetool.
+
+    cx_Freeze 8.7 writes AppRun with mode 0500, links the icons with symlinks and sets an absolute Icon= path.
+    The current appimagetool refuses the mode and rejects the .DirIcon symlink.
+    """
+    import os
+    import re
+    import shutil
+    import stat
+
+    from cx_Freeze.command.bdist_appimage import bdist_appimage
+
+    class ReleaseAppImage(bdist_appimage):
+        def save_as_file(self, data, outfile, mode='r'):
+            appdir = os.path.dirname(outfile)
+            if outfile.endswith('.desktop'):
+                # A real icon file at the top level, named as Icon=; appimagetool then makes .DirIcon itself.
+                icon = os.path.join(appdir, self.target_name + '.png')
+                source = os.path.realpath(icon)
+                for link in (icon, os.path.join(appdir, '.DirIcon')):
+                    os.unlink(link)
+                shutil.copyfile(source, icon)
+                data = re.sub(r'^Icon=.*$', f'Icon={self.target_name}', data, flags=re.MULTILINE)
+            result = super().save_as_file(data, outfile, mode)
+            if os.path.basename(outfile) == 'AppRun':
+                # AppRun is the last file written: give all users read access, and execute where the owner has it.
+                for root, dirs, files in os.walk(appdir):
+                    for path in [root] + [os.path.join(root, name) for name in files]:
+                        if os.path.islink(path):
+                            continue
+                        mode_bits = os.stat(path).st_mode
+                        add = stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH
+                        if os.path.isdir(path) or mode_bits & stat.S_IXUSR:
+                            add |= stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
+                        os.chmod(path, stat.S_IMODE(mode_bits) | add)
+            return result
+
+    return ReleaseAppImage
+
+
 if __name__ == '__main__':
     from cx_Freeze import Executable, setup
 
@@ -83,6 +124,7 @@ if __name__ == '__main__':
         description='FlatCAM EVO PCB CAM application',
         packages=[],
         options=options,
+        cmdclass={'bdist_appimage': appimage_command()} if sys.platform == 'linux' else {},
         executables=[Executable(str(ROOT / 'flatcam.py'), base='gui', target_name='FlatCAM',
                                 icon=str(icon) if sys.platform == 'linux' else None)],
     )
