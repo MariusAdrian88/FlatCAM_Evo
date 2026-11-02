@@ -19,8 +19,14 @@ import time
 
 from PyQt6 import QtWidgets, QtCore, QtGui
 from PyQt6.QtCore import Qt
-from PyQt6.QtMultimedia import QCamera, QMediaCaptureSession, QMediaDevices
-from PyQt6.QtMultimediaWidgets import QGraphicsVideoItem
+try:
+    from PyQt6.QtMultimedia import QCamera, QMediaCaptureSession, QMediaDevices
+    from PyQt6.QtMultimediaWidgets import QGraphicsVideoItem
+    MULTIMEDIA_ERROR = ''
+except ImportError as multimedia_error:
+    # Qt Multimedia needs system libraries (libpulse on Linux); without them only the camera is lost
+    QCamera = QMediaCaptureSession = QMediaDevices = QGraphicsVideoItem = None
+    MULTIMEDIA_ERROR = str(multimedia_error)
 
 from appGUI.GUIElements import FCLabel, FCButton, FCComboBox2, FCCheckBox, FCDoubleSpinner
 from appPlugins.ToolGcodeSender.CameraCalibration import (
@@ -92,6 +98,8 @@ class CameraView(QtWidgets.QWidget):
         self.overlay = _CrosshairOverlay(self)
 
     def _new_video_item(self):
+        if QGraphicsVideoItem is None:
+            return
         self.video_item = QGraphicsVideoItem()
         self.scene.addItem(self.video_item)
         self._layout_video_item()
@@ -102,9 +110,12 @@ class CameraView(QtWidgets.QWidget):
         if old is not None:
             self.scene.removeItem(old)
             old.deleteLater()
+            self.video_item = None
         self._new_video_item()
 
     def _layout_video_item(self):
+        if self.video_item is None:
+            return
         self.video_item.setSize(QtCore.QSizeF(max(1, self.width()), max(1, self.height())))
         self.video_item.setTransformOriginPoint(self.video_item.boundingRect().center())
         self.view.fitInView(self.video_item, Qt.AspectRatioMode.KeepAspectRatio)
@@ -117,6 +128,8 @@ class CameraView(QtWidgets.QWidget):
         super().resizeEvent(event)
 
     def set_orientation(self, rotation, mirror):
+        if self.video_item is None:
+            return
         self.video_item.setRotation(float(rotation))
         self.video_item.setTransform(QtGui.QTransform().scale(-1 if mirror else 1, 1))
         self.video_item.setTransformOriginPoint(self.video_item.boundingRect().center())
@@ -490,6 +503,10 @@ class SenderCameraUI(QtWidgets.QWidget):
             self._update_buttons()
 
     def start_preview(self):
+        if MULTIMEDIA_ERROR:
+            self.status_label.setText('%s: %s' % (_("Camera support is not available"), MULTIMEDIA_ERROR))
+            self.stop_preview()
+            return False
         if not self._devices:
             self.status_label.setText(_("No camera found. Connect a camera and press Refresh."))
             self.stop_preview()
