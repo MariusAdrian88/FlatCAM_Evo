@@ -6,6 +6,14 @@ Based on FlatCAM:
 
 CHANGELOG for FlatCAM Evo
 
+02.11.2026
+
+Updater:
+
+- fixed: each start read the whole restore point of Help > Revert Update (about 7600 files, 7 to 13 seconds of disk work in the background in 1.02.1); the start and the Revert dialog now read only restore.json (6 ms); the check of each file runs after the Revert is confirmed, and the updater checks the hashes before it restores a file
+- changed: the update dialog shows the release date for people, in the local time and the long date format of the system (2026-11-02T22:11:02Z -> Monday, November 2, 2026, 23:11); a date with no time shows only the date
+- changed: the update dialog renders the release notes as GitHub Markdown (headings, bold, lists, quotes, code, tables) instead of showing the marks; raw HTML in the notes stays text; a link opens in the web browser (http and https only); the notes start at the top
+
 2.11.2026
 
 Updater:

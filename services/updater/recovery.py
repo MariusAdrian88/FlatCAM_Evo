@@ -257,6 +257,32 @@ def _validate_entries(metadata: dict) -> tuple[list[tuple], list[tuple]]:
     return file_entries, delete_paths
 
 
+def read_restore_summary(restore_dir, install_dir) -> dict:
+    """Read the metadata of a restore point for the Revert Update action: no check of each file.
+
+    A restore point of a full release lists thousands of files and their path checks take seconds, so the GUI reads
+    only restore.json. launch_rollback runs load_restore_point, and the updater checks the hashes before it changes
+    a file.
+    """
+    restore_path = Path(restore_dir)
+    metadata_path = restore_path / "restore.json"
+    if metadata_path.is_symlink() or not metadata_path.is_file():
+        raise OSError(f"restore metadata is missing: {metadata_path}")
+    if not (restore_path / "files").is_dir():
+        raise OSError(f"restore files directory is missing: {restore_path}")
+    try:
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError(f"invalid restore metadata: {exc}") from exc
+    if not isinstance(metadata, dict):
+        raise ValueError("restore metadata must be a JSON object")
+    _validate_metadata_fields(metadata)
+    if _path_key(_resolve(Path(metadata["install_dir"]), "install directory")) != _path_key(
+            _resolve(Path(install_dir), "install_dir argument")):
+        raise ValueError("restore metadata installation mismatch")
+    return metadata
+
+
 def load_restore_point(restore_dir, install_dir=None, verify_files=True) -> dict:
     """Load and validate a restore point without changing any files."""
     restore_path = Path(restore_dir)

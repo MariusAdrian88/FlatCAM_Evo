@@ -5,7 +5,7 @@ from __future__ import annotations
 import gettext
 import html
 
-from PyQt6 import QtGui, QtWidgets
+from PyQt6 import QtCore, QtGui, QtWidgets
 
 
 _ = gettext.gettext
@@ -29,6 +29,33 @@ def _human_bytes(value: int) -> str:
             return f"{number:.1f} {unit}"
         number /= 1024
     return f"{number:.1f} TB"
+
+
+def _human_date(value: str) -> str:
+    """Show a release date for people: '2026-11-02T22:11:02Z' becomes the local date and time in the format of the
+    locale, for example '2 November 2026, 23:11'. A date with no time (2026/11/02, 2026-11-02) shows only the date.
+    A value that is not a date stays as it is."""
+    text = value.strip()
+    locale = QtCore.QLocale()
+    moment = QtCore.QDateTime.fromString(text, QtCore.Qt.DateFormat.ISODate)
+    if moment.isValid() and "T" in text:
+        moment = moment.toLocalTime()
+        return "%s, %s" % (locale.toString(moment.date(), QtCore.QLocale.FormatType.LongFormat),
+                           locale.toString(moment.time(), QtCore.QLocale.FormatType.ShortFormat))
+    day = QtCore.QDate.fromString(text.replace("/", "-")[:10], QtCore.Qt.DateFormat.ISODate)
+    if day.isValid():
+        return locale.toString(day, QtCore.QLocale.FormatType.LongFormat)
+    return value
+
+
+# GitHub Markdown, but raw HTML in the notes stays text: the notes come from the network
+_NOTES_MARKDOWN = (QtGui.QTextDocument.MarkdownFeature.MarkdownDialectGitHub
+                   | QtGui.QTextDocument.MarkdownFeature.MarkdownNoHTML)
+
+
+def _open_web_link(url: QtCore.QUrl) -> None:
+    if url.scheme() in ("http", "https"):
+        QtGui.QDesktopServices.openUrl(url)
 
 
 def _release_details(payload: dict) -> dict:
@@ -108,14 +135,18 @@ class UpdateDialog(QtWidgets.QDialog):
         layout.addWidget(archive_size)
 
         if details["published"]:
-            published = QtWidgets.QLabel(_("Published: %s") % details["published"])
+            published = QtWidgets.QLabel(_("Published: %s") % _human_date(details["published"]))
             published.setAccessibleName(_("Release date"))
             layout.addWidget(published)
 
         notes = QtWidgets.QTextBrowser()
         notes.setAccessibleName(_("Release notes"))
-        notes.setOpenExternalLinks(False)
-        notes.setPlainText(details["notes"] or _("No release notes provided."))
+        # a click on a link opens the web browser; the notes never load another page in place
+        notes.setOpenLinks(False)
+        notes.anchorClicked.connect(_open_web_link)
+        notes.document().setMarkdown(details["notes"] or _("No release notes provided."), _NOTES_MARKDOWN)
+        notes.moveCursor(QtGui.QTextCursor.MoveOperation.Start)  # the notes start at the top, not at the end
+        self.setMinimumHeight(480)
         layout.addWidget(notes)
 
         if self._manual:

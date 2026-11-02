@@ -107,15 +107,24 @@ def _manifest_dict():
     }
 
 
-def test_dialog_renders_premanifest_metadata_and_plain_notes(qapp):
+def test_dialog_renders_premanifest_metadata_and_markdown_notes(qapp):
     from appGUI.UpdateDialog import UpdateDialog
 
-    dialog = UpdateDialog(None, _payload())
+    notes = "## Fixes\n\n- **Updater**: a window\n- raw <b>html</b> stays text\n"
+    dialog = UpdateDialog(None, _payload(release_notes=notes))
     texts = " ".join(label.text() for label in dialog.findChildren(QtWidgets.QLabel))
 
     assert "1.1" in texts
     assert "2.0 KB" in texts
-    assert dialog.findChild(QtWidgets.QTextBrowser).toPlainText() == "Plain <b>notes</b>"
+    # the date is for people: no ISO 8601 text such as 2026-09-17T10:00:00Z
+    published = next(label.text() for label in dialog.findChildren(QtWidgets.QLabel)
+                     if label.text().startswith("Published:"))
+    assert "2026" in published and "T10:00:00Z" not in published
+    # the release notes are GitHub Markdown: the marks are rendered, not shown; raw HTML is not run
+    plain = dialog.findChild(QtWidgets.QTextBrowser).toPlainText()
+    assert "##" not in plain and "**" not in plain
+    assert "Fixes" in plain and "Updater: a window" in plain
+    assert "<b>html</b>" in plain
     buttons = {button.text() for button in dialog.findChildren(QtWidgets.QPushButton)}
     assert "Update now" in buttons
 
