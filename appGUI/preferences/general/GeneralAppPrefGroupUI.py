@@ -202,7 +202,7 @@ class GeneralAppPrefGroupUI(OptionsGroupUI):
             "times it in a right-angled corner of the area, more in a sharper one).\n"
             "The path simplification is not used: it could move a path into the copper.\n"
             "In both modes a slot or a neck exactly as wide as the cutter is cleared:\n"
-            "the cutter touches both walls (it cuts 0.02% of its radius past them)."
+            "the cutter touches both walls (it cuts 0.02 percent of its radius past them)."
         ))
         self.clearing_edge_radio = RadioSet([{'label': _('Touch'), 'value': 'touch'},
                                              {'label': _('Strict'), 'value': 'strict'}], compact=True)
