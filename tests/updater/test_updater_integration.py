@@ -358,6 +358,7 @@ def test_rollback_action_requires_valid_restore_point_and_waits_for_ack(monkeypa
 
     app = _fake_app(tmp_path)
     app.ui.menuhelp_revert_update = Action()
+    app.rollback_point_loaded = FakeSignal()
     app._load_rollback_restore_point = MagicMock(
         return_value=(tmp_path / "restore", {
             "version": "2.0",
@@ -367,7 +368,15 @@ def test_rollback_action_requires_valid_restore_point_and_waits_for_ack(monkeypa
         })
     )
     monkeypatch.setattr(sys, "frozen", True, raising=False)
+    # a restore point of a full release holds thousands of files: its check must not freeze the GUI at start
+    threads = []
+    monkeypatch.setattr("appMain.threading.Thread", lambda target, **kwargs: SimpleNamespace(
+        start=lambda: threads.append(target)))
     App.refresh_rollback_action(app)
+    assert app.ui.menuhelp_revert_update.enabled is False
+    app._load_rollback_restore_point.assert_not_called()
+    threads[0]()
+    App._on_rollback_point_loaded(app, app.rollback_point_loaded.emissions[0][0])
     assert app.ui.menuhelp_revert_update.enabled is True
 
     monkeypatch.setattr(

@@ -348,6 +348,8 @@ class App(QtCore.QObject):
     update_staged = QtCore.pyqtSignal(object)
     update_progress = QtCore.pyqtSignal(int, str)
     rollback_ready = QtCore.pyqtSignal(object)
+    # the restore point check of the Revert action: (restore_dir, metadata), or None for no usable point
+    rollback_point_loaded = QtCore.pyqtSignal(object)
     release_prepared = QtCore.pyqtSignal(object)
 
     # Emitted when a shell command is finished(one command only)
@@ -1474,6 +1476,7 @@ class App(QtCore.QObject):
         self.update_staged.connect(self.on_update_staged)
         self.update_progress.connect(self._on_update_progress)
         self.rollback_ready.connect(self.on_rollback_ready)
+        self.rollback_point_loaded.connect(self._on_rollback_point_loaded)
         self.release_prepared.connect(self.on_release_prepared)
         # self.progress.connect(self.set_progress_bar)
 
@@ -3625,21 +3628,39 @@ class App(QtCore.QObject):
             else Path(__file__).resolve().parent
         )
         restore_dir = restore_dir_for_install(self.data_path, install_dir)
-        metadata = load_restore_point(restore_dir, install_dir, verify_files=True)
+        # no file hashes here: the updater checks them before it changes a file
+        metadata = load_restore_point(restore_dir, install_dir, verify_files=False)
         return restore_dir, metadata
 
     def refresh_rollback_action(self):
+        """Check the restore point in a thread: for a full release it holds thousands of files, and the path checks
+        take seconds. The Revert action stays disabled until the check ends."""
         action = getattr(getattr(self, "ui", None), "menuhelp_revert_update", None)
         if action is None:
             return
+        self._rollback_point = None
+        action.setEnabled(False)
         if self._update_operation_active():
-            action.setEnabled(False)
             return
-        try:
-            _restore, metadata = self._load_rollback_restore_point()
-        except (OSError, TypeError, ValueError):
-            action.setEnabled(False)
+
+        def check():
+            try:
+                result = self._load_rollback_restore_point()
+            except Exception:
+                result = None
+            try:
+                self.rollback_point_loaded.emit(result)
+            except RuntimeError:  # the application closed during the check
+                pass
+
+        threading.Thread(target=check, name="FlatCAM-restore-point-check", daemon=True).start()
+
+    def _on_rollback_point_loaded(self, result):
+        action = getattr(getattr(self, "ui", None), "menuhelp_revert_update", None)
+        if action is None or result is None or self._update_operation_active():
             return
+        self._rollback_point = result
+        metadata = result[1]
         action.setEnabled(True)
         action.setToolTip(
             _("Revert to %s (%s)") %
@@ -3649,11 +3670,11 @@ class App(QtCore.QObject):
     def on_revert_update(self):
         if self._update_operation_active():
             return
-        try:
-            _restore, metadata = self._load_rollback_restore_point()
-        except (OSError, TypeError, ValueError):
+        point = getattr(self, "_rollback_point", None)
+        if point is None:
             self.inform.emit('[WARNING_NOTCL] %s' % _("No usable previous version is available."))
             return
+        _restore, metadata = point
 
         answer = QtWidgets.QMessageBox.question(
             self.ui,

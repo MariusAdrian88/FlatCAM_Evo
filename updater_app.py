@@ -2,7 +2,9 @@
 
 The launcher copies this file and ``recovery.py`` (or, frozen, the updater/
 runtime) to a temporary directory before starting it, so the apply step can
-replace the installed copy.  No GUI or application imports are allowed here.
+replace the installed copy.  No application imports are allowed here.  The
+only GUI is the progress window of the standard library (tkinter); without
+tkinter or a display the updater runs with no window.
 """
 
 from __future__ import annotations
@@ -13,11 +15,13 @@ import hashlib
 import json
 import logging
 import os
+import queue
 import shutil
 import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import uuid
 import zipfile
@@ -99,6 +103,61 @@ def setup_logging(log_path: str) -> None:
     handler = logging.FileHandler(log_path, encoding="utf-8")
     handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
     _LOG.addHandler(handler)
+
+
+class _Progress:
+    """Receives the steps of the job and writes them to the log.
+
+    The sink gets ("job", action, version, log_path, install_dir), ("stage", text, total),
+    ("advance", count) and ("finish", code, message). The progress window reads these events.
+    """
+
+    def __init__(self, sink=None):
+        self._sink = sink
+        self._action = "update"
+        self._version = ""
+        self._log_path = ""
+        self.error = ""
+
+    def _post(self, *event) -> None:
+        if self._sink is not None:
+            self._sink(event)
+
+    def job(self, job: dict) -> None:
+        self._action = str(job.get("action", "update"))
+        manifest = job.get("manifest")
+        self._version = str(manifest.get("version", "")) if isinstance(manifest, dict) else ""
+        self._log_path = str(job.get("log_path", ""))
+        self._post("job", self._action, self._version, self._log_path, str(job.get("install_dir", "")))
+
+    def stage(self, text: str, total: int = 0) -> None:
+        _log("info", "%s%s", text, f" ({total})" if total else "")
+        self._post("stage", text, total)
+
+    def advance(self, count: int = 1) -> None:
+        self._post("advance", count)
+
+    def fail(self, text: str) -> None:
+        """Collect the reasons of a failure: the later steps (rollback, relaunch) add their result."""
+        _log("error", "%s", text)
+        self.error = f"{self.error}\n{text}" if self.error else text
+
+    def finish(self, code: int) -> None:
+        if code == 0:
+            if self._action == "rollback":
+                message = "The previous version of FlatCAM is restored. FlatCAM starts again."
+            else:
+                version = f" {self._version}" if self._version else ""
+                message = f"FlatCAM is updated to version{version}. FlatCAM starts again."
+            _log("info", "%s", message)
+        else:
+            message = self.error or f"The updater stopped with code {code}."
+            if self._log_path:
+                message += f"\n\nLog file: {self._log_path}"
+        self._post("finish", code, message)
+
+
+_PROGRESS = _Progress()
 
 
 def load_job(job_path: str) -> dict:
@@ -457,6 +516,7 @@ def _extract_archive(archive_path: Path, staging_dir: Path, manifest: dict) -> N
     members = _archive_members(archive_path, manifest)
     _reset_directory(staging_dir)
     entries = {entry["path"].casefold(): entry for entry in manifest["files"]}
+    _PROGRESS.stage("Extracting files", len(entries))
     with zipfile.ZipFile(archive_path, "r") as archive:
         for key, entry in sorted(entries.items()):
             destination = safe_join(staging_dir, entry["path"], label="staged file path")
@@ -476,6 +536,7 @@ def _extract_archive(archive_path: Path, staging_dir: Path, manifest: dict) -> N
             permissions = (info.external_attr >> 16) & 0o777
             if permissions:
                 os.chmod(destination, permissions)
+            _PROGRESS.advance()
 
 
 def _is_staging_metadata(path: Path) -> bool:
@@ -528,12 +589,14 @@ def _staged_files(staging_dir: Path, expected: dict[str, dict] | None, job_file_
                 raise OSError(f"duplicate staged path: {normalized}")
             result[key] = source
     if expected is not None:
+        _PROGRESS.stage("Checking the extracted files", len(expected))
         for key, entry in expected.items():
             source = result.get(key)
             if source is None:
                 raise OSError(f"expected staged file is missing: {entry['path']}")
             if source.stat().st_size != entry["size"] or _hash_file(source) != entry["sha256"]:
                 raise OSError(f"staged file checksum mismatch: {entry['path']}")
+            _PROGRESS.advance()
     return result
 
 
@@ -617,6 +680,7 @@ def apply_update(
             backup_dir.mkdir(parents=True, exist_ok=True)
 
         all_keys = set(deletes) | set(staged)
+        _PROGRESS.stage("Replacing files", len(all_keys))
         for key in sorted(all_keys):
             rel = expected[key]["path"] if expected and key in expected else staged[key].relative_to(staging_dir).as_posix() if key in staged else deletes[key]
             _copy_or_move_target(
@@ -626,6 +690,7 @@ def apply_update(
                 staged.get(key),
                 completed,
             )
+            _PROGRESS.advance()
         return completed
     except Exception as exc:
         _attach_completed(exc, completed)
@@ -633,6 +698,7 @@ def apply_update(
 
 
 def _verify_final(install_dir: Path, files: list[dict], delete_list: list[str]) -> None:
+    _PROGRESS.stage("Checking the installed files", len(files))
     for entry in files:
         rel = validate_relative_path(entry["path"])
         target = safe_join(install_dir, rel, label="installed path")
@@ -640,6 +706,7 @@ def _verify_final(install_dir: Path, files: list[dict], delete_list: list[str]) 
             raise OSError(f"installed file is missing: {rel}")
         if target.stat().st_size != entry["size"] or _hash_file(target) != entry["sha256"].lower():
             raise OSError(f"installed file checksum mismatch: {rel}")
+        _PROGRESS.advance()
     for raw in delete_list:
         rel = validate_relative_path(raw)
         target = safe_join(install_dir, rel, label="deleted path")
@@ -650,7 +717,9 @@ def _verify_final(install_dir: Path, files: list[dict], delete_list: list[str]) 
 def rollback(install_dir: Path, backup_dir: Path, completed_ops: list[dict]) -> bool:
     """Reverse completed operations in reverse order; false means unsafe to relaunch."""
     success = True
+    _PROGRESS.stage("Restoring the previous files", len(completed_ops))
     for operation in reversed(completed_ops):
+        _PROGRESS.advance()
         target = Path(operation["dst"])
         try:
             if "backup" in operation:
@@ -717,7 +786,9 @@ def retain_restore_point(job: dict, completed_ops: list[dict]) -> None:
         files_root = candidate / "files"
         files_root.mkdir()
         entries = []
+        _PROGRESS.stage("Saving the restore point", len(records))
         for record in sorted(records, key=lambda item: item["path"]):
+            _PROGRESS.advance()
             source = Path(record["source"])
             if source.is_symlink() or not source.is_file():
                 raise OSError(f"restore backup is missing: {source}")
@@ -937,29 +1008,37 @@ def restore_previous_version(job: dict) -> int:
     try:
         validated = _validate_rollback_job(job)
     except (OSError, TypeError, ValueError, RuntimeError) as exc:
+        _PROGRESS.fail(f"The rollback job is not valid: {exc}")
         return 3
     install = validated["install"]
     paths = validated["paths"]
     restore = paths["restore_dir"] if "restore_dir" in paths else Path(job["restore_dir"])
+    _PROGRESS.stage("Checking the restore point")
     try:
         metadata = load_restore_point(restore, install, verify_files=True)
     except (OSError, TypeError, ValueError, RuntimeError) as exc:
-        _log("error", "Could not load restore point: %s", exc)
+        _PROGRESS.fail(f"Could not load the restore point: {exc}")
         return 3
     if job["exe_name"] != metadata["exe_name"]:
+        _PROGRESS.fail("The restore point is for a different executable. Nothing was changed.")
         return 3
     if _rollback_cancelled(job):
+        _PROGRESS.fail("The rollback was cancelled. Nothing was changed.")
         return 2
     try:
+        _PROGRESS.stage("Waiting for FlatCAM to close")
         wait_for_pid_exit(job["wait_pid"], timeout=60)
         if job["wait_pid"] > 0 and _pid_alive(job["wait_pid"]):
+            _PROGRESS.fail("FlatCAM did not close in 60 seconds. Nothing was changed.")
             return 2
         _remove_update_lock(job)
         if job["exe_name"]:
             exe = safe_join(install, job["exe_name"], label="application executable")
             if exe.exists() and not wait_for_file_unlock(exe):
+                _PROGRESS.fail(f"{exe} stays locked by another process. Nothing was changed.")
                 return 2
-    except (OSError, TypeError, ValueError, RuntimeError):
+    except (OSError, TypeError, ValueError, RuntimeError) as exc:
+        _PROGRESS.fail(f"Could not prepare the rollback: {exc}. Nothing was changed.")
         return 2
 
     backup = paths.get("backup_dir") or restore.parent / f"{restore.name}.rollback-{uuid.uuid4().hex}"
@@ -977,12 +1056,16 @@ def restore_previous_version(job: dict) -> int:
         _write_blocked_release_marker(restore, metadata)
         consumed = _consume_restore_point(restore)
     except Exception as exc:
+        _PROGRESS.fail(f"The rollback failed: {exc}")
         completed = getattr(exc, "completed_ops", completed)
         marker_ok = _restore_marker(marker, previous_marker)
         recovery_ok = rollback(install, backup, completed)
         if not (marker_ok and recovery_ok):
             _log("critical", "Rollback recovery failed; refusing relaunch")
+            _PROGRESS.fail("The files of the current version could not be restored. "
+                           "FlatCAM is not started: install it again with the installer.")
             return 1
+        _PROGRESS.fail("The current version is kept.")
         if job["relaunch"]:
             try:
                 relaunch_app(job["relaunch_argv"], install)
@@ -993,9 +1076,11 @@ def restore_previous_version(job: dict) -> int:
     _cleanup_tree(backup)
     _cleanup_tree(consumed)
     if job["relaunch"]:
+        _PROGRESS.stage("Starting FlatCAM")
         try:
             relaunch_app(job["relaunch_argv"], install)
-        except OSError:
+        except OSError as exc:
+            _PROGRESS.fail(f"The previous version is restored, but FlatCAM could not start: {exc}")
             return 1
     return 0
 
@@ -1009,32 +1094,38 @@ def _apply_job(job: dict, job_path: Path) -> int:
     try:
         validated = _validate_job(job, job_path)
     except (OSError, TypeError, ValueError, RuntimeError) as exc:
+        _PROGRESS.fail(f"The update job is not valid: {exc}")
         return 2
     install = validated["install"]
     paths = validated["paths"]
     manifest = validated["manifest"]
     try:
+        _PROGRESS.stage("Checking the update archive")
         _validate_archive(paths["archive_path"], manifest["archive"])
+        _PROGRESS.stage("Waiting for FlatCAM to close")
         wait_for_pid_exit(job["wait_pid"], timeout=60)
         if job["wait_pid"] > 0 and _pid_alive(job["wait_pid"]):
+            _PROGRESS.fail("FlatCAM did not close in 60 seconds. Nothing was changed.")
             _cleanup_tree(paths.get("runtime_dir"))
             return 2
         _remove_update_lock(job)
         if job["mode"] == "frozen":
             executable = safe_join(install, job["exe_name"], label="application executable")
             if not wait_for_file_unlock(executable):
+                _PROGRESS.fail(f"{executable} stays locked by another process. Nothing was changed.")
                 _cleanup_tree(paths.get("runtime_dir"))
                 return 2
         if job["mode"] == "source" and manifest["channel"] == "linux":
             git_marker = install / ".git"
             if git_marker.exists() or git_marker.is_symlink():
-                _log("error", "Refusing to update a Linux source installation that is a Git worktree: %s", git_marker)
+                _PROGRESS.fail(f"Refusing to update a Linux source installation that is a Git worktree: {git_marker}")
                 _cleanup_tree(paths.get("runtime_dir"))
                 return 2
         _extract_archive(paths["archive_path"], paths["staging_dir"], manifest)
         files = manifest["files"]
         deletes = [entry["path"] for entry in manifest["deletions"]]
     except (OSError, TypeError, ValueError, RuntimeError, zipfile.BadZipFile) as exc:
+        _PROGRESS.fail(f"Could not prepare the update: {exc}. Nothing was changed.")
         _cleanup_tree(paths.get("staging_dir"))
         _cleanup_tree(paths.get("runtime_dir"))
         return 2
@@ -1044,8 +1135,14 @@ def _apply_job(job: dict, job_path: Path) -> int:
         completed = apply_update(install, paths["staging_dir"], paths["backup_dir"], deletes, job_path, files)
         _verify_final(install, files, deletes)
     except Exception as exc:
+        _PROGRESS.fail(f"The update failed: {exc}")
         completed = getattr(exc, "completed_ops", completed)
         rollback_ok = rollback(install, paths["backup_dir"], completed)
+        if rollback_ok:
+            _PROGRESS.fail("The previous version is restored.")
+        else:
+            _PROGRESS.fail("The previous version could not be restored. "
+                           "FlatCAM is not started: install it again with the installer.")
         if rollback_ok and job["relaunch"]:
             try:
                 relaunch_app(job["relaunch_argv"], install)
@@ -1063,9 +1160,11 @@ def _apply_job(job: dict, job_path: Path) -> int:
 
     relaunch_ok = True
     if job["relaunch"]:
+        _PROGRESS.stage("Starting FlatCAM")
         try:
             relaunch_app(job["relaunch_argv"], install)
-        except OSError:
+        except OSError as exc:
+            _PROGRESS.fail(f"FlatCAM is updated, but it could not start: {exc}")
             relaunch_ok = False
     _cleanup_tree(paths.get("staging_dir"))
     _cleanup_tree(paths.get("backup_dir"))
@@ -1073,7 +1172,7 @@ def _apply_job(job: dict, job_path: Path) -> int:
     return 0 if relaunch_ok else 1
 
 
-def main(argv=None) -> int:
+def _run(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="updater_app")
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--job", metavar="PATH")
@@ -1088,6 +1187,7 @@ def main(argv=None) -> int:
             job = load_job(str(job_path))
     except (OSError, TypeError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
         print(f"[updater] Failed to load job: {exc}", file=sys.stderr)
+        _PROGRESS.fail(f"Could not load the update job: {exc}")
         return 3
     action = job.get("action", "update")
     try:
@@ -1098,7 +1198,9 @@ def main(argv=None) -> int:
         setup_logging(job["log_path"])
     except (OSError, TypeError, ValueError, RuntimeError) as exc:
         print(f"[updater] Invalid job: {exc}", file=sys.stderr)
+        _PROGRESS.fail(f"The update job is not valid: {exc}")
         return 3
+    _PROGRESS.job(job)
     if action == "rollback":
         try:
             return restore_previous_version(job)
@@ -1107,5 +1209,180 @@ def main(argv=None) -> int:
     return _apply_job(job, job_path)
 
 
+def main(argv=None) -> int:
+    code = 3
+    try:
+        code = _run(argv)
+    except SystemExit as exc:  # argparse
+        code = exc.code if isinstance(exc.code, int) else 3
+        raise
+    except BaseException as exc:
+        _PROGRESS.fail(f"Unexpected updater error: {exc!r}")
+        _LOG.exception("Unexpected updater error")
+        raise
+    finally:
+        _PROGRESS.finish(code)
+    return code
+
+
+_SUCCESS_CLOSE_MS = 4000
+_POLL_MS = 100
+
+
+class _ProgressWindow:
+    """Progress window of the updater: the update has no other visible part while FlatCAM is closed."""
+
+    def __init__(self, tk, ttk):
+        self.tk = tk
+        self.events: queue.Queue = queue.Queue()
+        self.finished = False
+        root = self.root = tk.Tk()
+        root.title("FlatCAM Updater")
+        root.resizable(False, False)
+        root.protocol("WM_DELETE_WINDOW", self._on_close)
+        if getattr(sys, "frozen", False):
+            self._set_icon(sys.executable)
+        frame = ttk.Frame(root, padding=16)
+        frame.grid(sticky="nsew")
+        self.title = ttk.Label(frame, text="Updating FlatCAM", font=("TkDefaultFont", 11, "bold"))
+        self.title.grid(row=0, column=0, sticky="w")
+        self.stage = ttk.Label(frame, text="Starting", width=60)
+        self.stage.grid(row=1, column=0, sticky="w", pady=(8, 4))
+        self.bar = ttk.Progressbar(frame, length=440, mode="indeterminate")
+        self.bar.grid(row=2, column=0, sticky="ew")
+        self.count = ttk.Label(frame, text="")
+        self.count.grid(row=3, column=0, sticky="e", pady=(2, 0))
+        self.message = ttk.Label(frame, text="Do not start FlatCAM until the update is complete.",
+                                 wraplength=440, justify="left")
+        self.message.grid(row=4, column=0, sticky="w", pady=(8, 0))
+        buttons = ttk.Frame(frame)
+        buttons.grid(row=5, column=0, sticky="e", pady=(12, 0))
+        self.open_log = ttk.Button(buttons, text="Open Log", command=self._open_log)
+        self.close = ttk.Button(buttons, text="Close", command=self._on_close, state="disabled")
+        self.close.grid(row=0, column=1, padx=(8, 0))
+        self.log_path = ""
+        self.total = 0
+        self.done = 0
+        self.bar.start(15)
+        root.update_idletasks()
+        x = (root.winfo_screenwidth() - root.winfo_reqwidth()) // 2
+        y = (root.winfo_screenheight() - root.winfo_reqheight()) // 3
+        root.geometry(f"+{max(x, 0)}+{max(y, 0)}")
+        root.lift()
+        root.after(_POLL_MS, self._poll)
+
+    def _set_icon(self, path) -> None:
+        try:
+            self.root.iconbitmap(default=str(path))
+        except Exception:
+            pass
+
+    def _poll(self) -> None:
+        try:
+            while True:
+                self._handle(self.events.get_nowait())
+        except queue.Empty:
+            pass
+        if self.total:
+            self.bar.configure(value=self.done)
+            self.count.configure(text=f"{self.done} / {self.total}")
+        self.root.after(_POLL_MS, self._poll)
+
+    def _handle(self, event) -> None:
+        kind = event[0]
+        if kind == "job":
+            _, action, version, self.log_path, install_dir = event
+            if action == "rollback":
+                self.title.configure(text="Restoring the previous version of FlatCAM")
+            else:
+                self.title.configure(text=f"Updating FlatCAM to version {version}" if version else "Updating FlatCAM")
+            if not getattr(sys, "frozen", False) and install_dir:
+                icon = Path(install_dir) / "assets" / "resources" / "flatcam_icon32.ico"
+                if icon.is_file():
+                    self._set_icon(icon)
+        elif kind == "stage":
+            _, text, total = event
+            self.stage.configure(text=text)
+            self.total, self.done = total, 0
+            if total:
+                self.bar.stop()
+                self.bar.configure(mode="determinate", maximum=total, value=0)
+            else:
+                self.count.configure(text="")
+                self.bar.configure(mode="indeterminate")
+                self.bar.start(15)
+        elif kind == "advance":
+            self.done = min(self.done + event[1], self.total) if self.total else 0
+        elif kind == "finish":
+            self._finish(event[1], event[2])
+
+    def _finish(self, code: int, message: str) -> None:
+        self.finished = True
+        self.bar.stop()
+        self.bar.configure(mode="determinate", maximum=1, value=1 if code == 0 else 0)
+        self.total = 0
+        self.count.configure(text="")
+        self.message.configure(text=message)
+        self.close.configure(state="normal")
+        if code == 0:
+            self.stage.configure(text="Complete")
+            self.root.after(_SUCCESS_CLOSE_MS, self.root.destroy)
+        else:
+            self.stage.configure(text="Stopped")
+            if self.log_path and Path(self.log_path).is_file():
+                self.open_log.grid(row=0, column=0)
+            self.root.deiconify()
+            self.root.lift()
+            self.root.bell()
+
+    def _open_log(self) -> None:
+        try:
+            if _IS_WINDOWS:
+                os.startfile(self.log_path)  # type: ignore[attr-defined]
+            else:
+                subprocess.Popen(["xdg-open", self.log_path], start_new_session=True)
+        except OSError:
+            pass
+
+    def _on_close(self) -> None:
+        # the files must not stay half replaced: the window closes only after the job ends
+        if self.finished:
+            self.root.destroy()
+
+
+def _window_disabled() -> bool:
+    return bool(os.environ.get("FLATCAM_UPDATER_NO_WINDOW"))
+
+
+def run_with_window(argv=None) -> int:
+    """Run the job in a worker thread and show its progress; without tkinter or a display, run it with no window."""
+    global _PROGRESS
+    if _window_disabled():
+        return main(argv)
+    try:
+        import tkinter
+        from tkinter import ttk
+
+        window = _ProgressWindow(tkinter, ttk)
+    except Exception:
+        return main(argv)
+    _PROGRESS = _Progress(window.events.put)
+    result = {"code": 3}
+
+    def work() -> None:
+        try:
+            result["code"] = main(argv)
+        except SystemExit as exc:
+            result["code"] = exc.code if isinstance(exc.code, int) else 3
+        except BaseException:
+            result["code"] = 3
+
+    worker = threading.Thread(target=work, name="flatcam-updater-job", daemon=True)
+    worker.start()
+    window.root.mainloop()
+    worker.join()
+    return result["code"]
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(run_with_window())

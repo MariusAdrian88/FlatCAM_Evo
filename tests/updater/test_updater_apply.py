@@ -285,8 +285,15 @@ class TestUpdaterApplication(unittest.TestCase):
         manifest = _manifest(archive, files)
         manifest["archive"]["sha256"] = "0" * 64
         job = _job(root, install, archive, manifest)
-        self.assertEqual(2, _run_job(root, job))
+        events = []
+        with patch.object(updater_app, "_PROGRESS", updater_app._Progress(events.append)):
+            self.assertEqual(2, _run_job(root, job))
         self.assertEqual(b"old entry", (install / "flatcam.py").read_bytes())
+        # the user sees why the update stopped: in the window and in the log
+        self.assertEqual("finish", events[-1][0])
+        self.assertEqual(2, events[-1][1])
+        self.assertIn("archive hash does not match manifest", events[-1][2])
+        self.assertIn("archive hash does not match manifest", Path(job["log_path"]).read_text(encoding="utf-8"))
 
         evil = root / "evil.zip"
         _write_archive(evil, {"flatcam.py": b"new"}, [(zipfile.ZipInfo("../evil.py"), b"evil")])
@@ -317,10 +324,24 @@ class TestUpdaterApplication(unittest.TestCase):
         _write_archive(archive, files)
         manifest = _manifest(archive, files, deletions=["lib/old.py"])
         job = _job(root, install, archive, manifest)
+        events = []
 
-        with patch.object(updater_app.subprocess, "Popen") as popen:
+        with patch.object(updater_app.subprocess, "Popen") as popen, patch.object(
+            updater_app, "_PROGRESS", updater_app._Progress(events.append)
+        ):
             self.assertEqual(0, _run_job(root, job))
             popen.assert_not_called()
+
+        # the progress window gets each file of the replace step and a final result
+        replace = events.index(("stage", "Replacing files", 3))
+        advanced = 0
+        for event in events[replace + 1:]:
+            if event[0] != "advance":
+                break
+            advanced += event[1]
+        self.assertEqual(3, advanced)
+        self.assertEqual(("finish", 0), events[-1][:2])
+        self.assertIn("2.0", events[-1][2])
 
         self.assertEqual(b"new entry", (install / "flatcam.py").read_bytes())
         self.assertEqual(b"new file", (install / "lib" / "new.py").read_bytes())

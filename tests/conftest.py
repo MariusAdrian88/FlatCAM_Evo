@@ -22,6 +22,9 @@ if sys.platform == 'win32':
 # the FlatCAM window of the user, or to the App of another xdist worker that does not run its event loop.
 os.environ['FLATCAM_INSTANCE_NAME'] = 'FlatCAM_EVO-test-%d' % os.getpid()
 
+# The updater subprocesses of the tests must not show the progress window: a failed job waits for "Close".
+os.environ['FLATCAM_UPDATER_NO_WINDOW'] = '1'
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
