@@ -8,8 +8,6 @@ CHANGELOG for FlatCAM Evo
 
 2.11.2026
 
-- version string changed and updated the splash 
-
 Updater:
 
 - new: the updater shows a progress window: the steps (checking the archive, waiting for FlatCAM to close, extracting, checking, replacing, saving the restore point, starting FlatCAM) with a progress bar and the file count; the window has a taskbar entry with the FlatCAM icon. Before, the updater ran with no window for minutes (7596 files: about 5 minutes)
@@ -22,6 +20,14 @@ Windows build:
 
 - fixed: the build removed the Qt Multimedia backends (plugins/multimedia and the FFmpeg DLLs): Qt printed "No QtMultimedia backends found" and the camera of the G-code Sender showed no video
 - changed: the updater build includes tkinter (Tcl/Tk) for its progress window
+
+- version string changed and updated the splash
+- RELEASE 1.02.1
+
+2.11.2026
+
+- version string changed and updated the splash 
+- RELEASE 1.02
 
 02.11.2026
 
