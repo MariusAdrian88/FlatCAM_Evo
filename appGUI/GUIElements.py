@@ -1703,6 +1703,60 @@ class FCDoubleSpinner(QtWidgets.QDoubleSpinBox):
     #     return QtCore.QSize(EDIT_SIZE_HINT, default_hint_size.height())
 
 
+class FCMicronSpinner(FCDoubleSpinner):
+    """
+    A small length that is stored in micrometers and shown in the units of the project: micrometers (MM) or mils (IN,
+    1 mil = 25.4 um). set_value() and get_value() use micrometers; the units are read when a value is set, so the
+    field follows a units change at the next set_value() (Preferences sets every field when it opens).
+    """
+
+    def __init__(self, units, units_label=None, max_um=1000.0, parent=None):
+        """
+        :param units:           callable that returns the units of the project, 'MM' or 'IN'
+        :param units_label:     FCLabel that shows the units; optional
+        :param max_um:          the largest value, in micrometers
+        """
+        super().__init__(parent=parent)
+        self._units = units
+        self._units_label = units_label
+        self._max_um = float(max_um)
+        self._value_um = 0.0
+        # the units of the shown number: the ones of the last set_value(), also after a units change
+        self._shown_factor = 1.0
+        self.set_precision(3)
+        self.set_range(0.0, self._max_um)
+
+    def _factor(self):
+        # micrometers in one shown unit
+        try:
+            return 25.4 if str(self._units() or 'MM').upper() == 'IN' else 1.0
+        except Exception:
+            return 1.0
+
+    def set_value(self, val):
+        try:
+            value_um = float(val)
+        except Exception as e:
+            log.error(str(e))
+            return
+        factor = self._factor()
+        self._value_um = value_um
+        self._shown_factor = factor
+        self.set_range(0.0, self._max_um / factor)
+        self.setSingleStep(0.5 if factor == 1.0 else 0.02)
+        if self._units_label is not None:
+            self._units_label.setText(_("mils") if factor != 1.0 else _("µm"))
+        self.setValue(value_um / factor)
+
+    def get_value(self):
+        factor = self._shown_factor
+        shown = float(self.value())
+        # a value that the user did not change keeps its micrometers: no rounding through the shown units
+        if round(self._value_um / factor, self.decimals()) == round(shown, self.decimals()):
+            return self._value_um
+        return shown * factor
+
+
 class FCSliderWithDoubleSpinner(QtWidgets.QFrame):
 
     def __init__(self, min=0, max=10000.0000, step=1, precision=4, orientation='horizontal', **kwargs):

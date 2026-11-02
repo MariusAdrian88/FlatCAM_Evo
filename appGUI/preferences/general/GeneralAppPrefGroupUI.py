@@ -4,7 +4,7 @@ import sys
 from PyQt6.QtCore import QSettings
 
 from appGUI.GUIElements import RadioSet, FCSpinner, FCCheckBox, FCComboBox, FCButton, OptionalInputSection, \
-    FCDoubleSpinner, FCLabel, GLay, RadioSetDefaults, FCFrame, FCComboBox2, FCEntry
+    FCDoubleSpinner, FCLabel, GLay, RadioSetDefaults, FCFrame, FCComboBox2, FCEntry, FCMicronSpinner
 from appGUI.preferences.OptionsGroupUI import OptionsGroupUI
 from appDatabase import _database_option
 
@@ -167,6 +167,49 @@ class GeneralAppPrefGroupUI(OptionsGroupUI):
 
         grid1.addWidget(self.verbose_label, 10, 0)
         grid1.addWidget(self.verbose_combo, 10, 1)
+
+        # Clearing accuracy (Paint, NCC, Geometry Editor Paint)
+        clearing_error_label = FCLabel('%s:' % _("Clearing Error"))
+        clearing_error_label.setToolTip(_(
+            "Paint, NCC and the Paint of the Geometry Editor.\n"
+            "The largest error of the arcs of the contour pass, in micrometers\n"
+            "(metric project) or mils (inch project). The contour pass is the pass\n"
+            "along the outline of the area, around the corners of the copper.\n"
+            "A smaller value gives a more accurate contour and more segments (slower).\n"
+            "A larger value gives fewer segments and a faster job.\n"
+            "The inner passes do not use it: they follow the overlap.\n"
+            "Zero uses the Circle Steps of the object."
+        ))
+        # Stored in micrometers, shown in micrometers or mils by the units of the project. A project load changes
+        # options['units'] (and refreshes this field) before app.app_units: the options are read first.
+        clearing_error_units = FCLabel('%s' % _("µm"))
+        self.clearing_error_entry = FCMicronSpinner(
+            units=lambda: app.options.get('units') or getattr(app, 'app_units', None) or 'MM',
+            units_label=clearing_error_units)
+        self.clearing_error_entry.setToolTip(clearing_error_label.toolTip())
+
+        grid1.addWidget(clearing_error_label, 12, 0)
+        grid1.addWidget(self.clearing_error_entry, 12, 1)
+        grid1.addWidget(clearing_error_units, 12, 2)
+
+        clearing_edge_label = FCLabel('%s:' % _("Clearing Edge"))
+        clearing_edge_label.setToolTip(_(
+            "How the contour pass keeps the Clearing Error at the corners of the copper:\n"
+            "- Touch: the cutter touches the outline and can cut past it\n"
+            "by up to the Clearing Error. The area is cleared fully.\n"
+            "- Strict: the cutter never cuts past the outline. It can leave\n"
+            "up to the Clearing Error of material along the outline (about 1.4\n"
+            "times it in a right-angled corner of the area, more in a sharper one).\n"
+            "The path simplification is not used: it could move a path into the copper.\n"
+            "In both modes a slot or a neck exactly as wide as the cutter is cleared:\n"
+            "the cutter touches both walls (it cuts 0.02% of its radius past them)."
+        ))
+        self.clearing_edge_radio = RadioSet([{'label': _('Touch'), 'value': 'touch'},
+                                             {'label': _('Strict'), 'value': 'strict'}], compact=True)
+        self.clearing_edge_radio.setToolTip(clearing_edge_label.toolTip())
+
+        grid1.addWidget(clearing_edge_label, 14, 0)
+        grid1.addWidget(self.clearing_edge_radio, 14, 1, 1, 2)
 
         # #############################################################################################################
         # Grid0 Frame

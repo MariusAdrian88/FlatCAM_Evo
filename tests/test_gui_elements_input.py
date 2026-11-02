@@ -8,7 +8,7 @@ os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtTest import QTest
 
-from appGUI.GUIElements import FCDoubleSpinner, FCSpinner, FCTable
+from appGUI.GUIElements import FCDoubleSpinner, FCLabel, FCMicronSpinner, FCSpinner, FCTable
 
 
 @pytest.fixture(scope='module', autouse=True)
@@ -86,3 +86,23 @@ def test_drag_that_leaves_the_tool_table_unblocks_its_signals():
 
     assert not table.signalsBlocked()
     assert edits == [table.item(0, 1)]
+
+def test_micron_field_shows_the_units_of_the_project_and_keeps_micrometers():
+    units = ['MM']
+    label = FCLabel('')
+    field = FCMicronSpinner(units=lambda: units[0], units_label=label)
+
+    field.set_value(2.0)
+    assert (field.value(), label.text(), field.get_value()) == (2.0, 'µm', 2.0)
+
+    units[0] = 'IN'
+    # the shown number keeps its units until the field is set again
+    assert field.get_value() == 2.0
+    field.set_value(2.0)
+    # 2 um is 0.0787 mils; the value that the user does not change keeps its micrometers
+    assert (round(field.value(), 3), label.text(), field.get_value()) == (0.079, 'mils', 2.0)
+
+    field.lineEdit().selectAll()
+    QTest.keyClicks(field.lineEdit(), '1')
+    QTest.keyClick(field.lineEdit(), QtCore.Qt.Key.Key_Return)
+    assert field.get_value() == pytest.approx(25.4)

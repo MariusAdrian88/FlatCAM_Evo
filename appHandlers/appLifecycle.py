@@ -634,6 +634,9 @@ class AppLifecycle(QtCore.QObject):
         :return:        None
         """
         self.app.preferencesUiManager.defaults_write_form_field(field=field)
+        if field == 'units':
+            # the clearing error is shown in micrometers or mils by the units of the project
+            self.app.preferencesUiManager.defaults_write_form_field(field='tools_clearing_error')
 
     # --------------------------------------------------------------------------
     # Method 9: on_defaults2options

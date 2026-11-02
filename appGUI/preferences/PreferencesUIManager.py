@@ -85,6 +85,8 @@ class PreferencesUIManager(QtCore.QObject):
             "global_worker_number": self.ui.general_pref_form.general_app_group.worker_number_sb,
             "global_process_number": self.ui.general_pref_form.general_app_group.process_number_sb,
             "global_tolerance": self.ui.general_pref_form.general_app_group.tol_entry,
+            "tools_clearing_error": self.ui.general_pref_form.general_app_group.clearing_error_entry,
+            "tools_clearing_edge": self.ui.general_pref_form.general_app_group.clearing_edge_radio,
 
             "global_compression_level": self.ui.general_pref_form.general_app_group.compress_spinner,
             "global_save_compressed": self.ui.general_pref_form.general_app_group.save_type_cb,
