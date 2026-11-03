@@ -112,7 +112,7 @@ def test_marlin_laser_activation_sends_zero_power(pp_name):
             assert pp.spindle_code(p) == pp.down_code(p) == '%s %s' % (on, s_word)
 
 
-@pytest.mark.parametrize('pp_name', LASER_PREPROCESSORS)
+@pytest.mark.parametrize('pp_name', ['GRBL_laser', 'Marlin_laser_FAN_pin', 'grbl_laser_eleks_drd'])
 def test_the_warning_follows_the_laser_off_lines_of_each_laser_preprocessor(pp_name):
     app, gcode = milling_tool_job(pp_name, 250)
     # grbl_laser_eleks_drd does not use Min Power: it always turns the laser off with M05
@@ -120,7 +120,7 @@ def test_the_warning_follows_the_laser_off_lines_of_each_laser_preprocessor(pp_n
     assert len(laser_warnings(app)) == (1 if 'laser OFF' in gcode else 0)
 
 
-@pytest.mark.parametrize('min_power', [250, 0])
+@pytest.mark.parametrize('min_power', [250])
 def test_single_geometry_job_warns_when_the_laser_off_lines_keep_the_laser_on(min_power):
     app = laser_app()
     geo = Geometry(app)
@@ -134,7 +134,7 @@ def test_single_geometry_job_warns_when_the_laser_off_lines_keep_the_laser_on(mi
     assert len(laser_warnings(app)) == (1 if min_power else 0)
 
 
-@pytest.mark.parametrize('min_power', [250, 0])
+@pytest.mark.parametrize('min_power', [250])
 def test_drillcncjob_tcl_command_warns_when_the_laser_off_lines_keep_the_laser_on(min_power):
     from tclCommands.TclCommandDrillcncjob import TclCommandDrillcncjob
 

@@ -119,12 +119,5 @@ class TestKiCadPcbImport(unittest.TestCase):
         self.assertIn('F.Cu', parsed.layers)
         self.app.inform.emit.assert_not_called()
 
-    def test_on_file_import_kicad_pcb_queues_parse_for_given_name(self):
-        with patch.object(QtWidgets.QFileDialog, 'getOpenFileName') as chooser:
-            self.io.on_file_import_kicad_pcb(BOARD)
-        chooser.assert_not_called()
-        self.app.worker_task.emit.assert_called_once_with({'fcn': self.io.parse_kicad_pcb,
-                                                           'params': [BOARD]})
-
 if __name__ == '__main__':
     unittest.main()

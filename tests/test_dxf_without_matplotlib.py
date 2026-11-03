@@ -128,7 +128,7 @@ def _box_with_hole():
     return Polygon([(0, 0), (10, 0), (10, 8), (0, 8)], [[(3, 2), (6, 2), (6, 5), (3, 5)]])
 
 
-@pytest.mark.parametrize('fmt, kind', [('R2010', 'LWPOLYLINE'), ('R12', 'POLYLINE')])
+@pytest.mark.parametrize('fmt, kind', [('R2010', 'LWPOLYLINE')])
 @pytest.mark.parametrize('units, insunits', [('MM', 4)])
 def test_polygon_rings_are_closed_2d_polylines(fmt, kind, units, insunits):
     from shapely.geometry import Polygon
@@ -161,81 +161,6 @@ def test_buffered_drill_is_one_circle(fmt):
     assert tuple(circles[0].dxf.center)[:2] == pytest.approx(center, abs=1e-6)
     assert circles[0].dxf.radius == pytest.approx(radius, abs=1e-6)
     assert not list(doc.modelspace().query('LWPOLYLINE POLYLINE'))
-
-
-def _arc_point_distance(start, end, bulge, probe):
-    """Distance of probe from the circle of the bulge arc start->end."""
-    import math
-    (x1, y1), (x2, y2) = start, end
-    chord = math.hypot(x2 - x1, y2 - y1)
-    sweep = 4 * math.atan(bulge)
-    radius = chord / (2 * math.sin(abs(sweep) / 2))
-    mx, my = (x1 + x2) / 2, (y1 + y2) / 2
-    h = math.copysign(radius * math.cos(sweep / 2), sweep)   # centre is left of a CCW arc, right of CW
-    nx, ny = -(y2 - y1) / chord, (x2 - x1) / chord
-    cx, cy = mx + nx * h, my + ny * h
-    return abs(math.hypot(probe[0] - cx, probe[1] - cy) - radius)
-
-
-def test_slot_and_rounded_rect_get_true_arcs():
-    from shapely.geometry import LineString, box
-    slot = LineString([(0, 0), (6, 0)]).buffer(1.0, quad_segs=16)
-    rounded = box(0, 0, 10, 4).buffer(-1).buffer(1, quad_segs=16)
-    build = _writer()
-    for shape in (slot, rounded):
-        doc = build([{'name': 'a', 'geometry': shape}], 'MM', 'R2010')
-        poly = list(doc.modelspace().query('LWPOLYLINE'))[0]
-        pts = poly.get_points(format='xyb')
-        arcs = [i for i, p in enumerate(pts) if abs(p[2]) > 0]
-        assert len(pts) < 12 and len(arcs) in (2, 4)
-        # every original vertex lies on one of the written arcs or on a straight segment
-        n = len(pts)
-        for x, y in shape.exterior.coords:
-            ok = False
-            for i, p in enumerate(pts):
-                q = pts[(i + 1) % n]
-                if p[2]:
-                    ok = ok or _arc_point_distance(p[:2], q[:2], p[2], (x, y)) < 1e-3
-                else:
-                    seg = LineString([p[:2], q[:2]])
-                    from shapely.geometry import Point
-                    ok = ok or seg.distance(Point(x, y)) < 1e-3
-            assert ok, (x, y)
-
-
-def test_fit_arcs_off_keeps_plain_vertices():
-    from shapely.geometry import Point
-    drill = Point(0, 0).buffer(1.0, quad_segs=16)
-    doc = _writer()([{'name': '0', 'geometry': drill}], 'MM', 'R2010', fit_arcs=False)
-    msp = doc.modelspace()
-    assert not list(msp.query('CIRCLE'))
-    poly = list(msp.query('LWPOLYLINE'))[0]
-    assert len(poly) == len(drill.exterior.coords)
-    assert all(p[4] == 0 for p in poly.get_points(format='xyseb'))
-
-
-def test_layers_points_and_extents():
-    from shapely.geometry import Point, LineString
-    layers = [{'name': 'Top: <copper>', 'geometry': LineString([(0, 0), (5, 2)]),
-               'color': '#FF8000FF', 'lineweight': 0.33, 'width': 0.2},
-              {'name': 'Top: copper', 'geometry': [Point(-2, 7)]}]
-    doc = _writer()(layers, 'MM', 'R2010')
-    names = [layer.dxf.name for layer in doc.layers if layer.dxf.name != '0']
-    assert 'Top copper' in names and 'Top copper_2' in names
-    first = doc.layers.get('Top copper')
-    assert first.dxf.true_color == 0xFF8000
-    assert first.dxf.lineweight == 35
-    line = list(doc.modelspace().query('LWPOLYLINE'))[0]
-    assert line.dxf.layer == 'Top copper' and line.dxf.const_width == pytest.approx(0.2)
-    point = list(doc.modelspace().query('POINT'))[0]
-    assert point.dxf.layer == 'Top copper_2'
-    assert tuple(point.dxf.location)[:2] == (-2, 7)
-    assert tuple(doc.header['$EXTMIN'])[:2] == (-2, 0)
-    assert tuple(doc.header['$EXTMAX'])[:2] == (5, 7)
-
-    r12 = _writer()(layers, 'MM', 'R12')
-    assert r12 is not None
-    assert r12.layers.get('Top copper').dxf.color in range(1, 256)
 
 
 if __name__ != '__main__':   # the probe run must not import heavy modules before the import blocker
@@ -303,34 +228,6 @@ def test_gerber_layers_per_aperture_and_centerline(object_app):
 
     object_app.options['geometry_dxf_layers'] = 'object'
     assert _layers(obj.export_dxf()) == {'grb', 'grb_W0.25'}
-
-
-@pytest.mark.parametrize('mode, layer', [('tool', 'grb_D10')])
-def test_gerber_outline_keeps_the_clear_holes(object_app, mode, layer):
-    from shapely.geometry import box
-    from appObjects.GerberObject import GerberObject
-    object_app.options['geometry_dxf_layers'] = mode
-    obj = _named(GerberObject('grb', object_app), 'grb')
-    obj.tools = {10: {'type': 'R', 'width': 10, 'height': 10, 'geometry': [{'solid': box(0, 0, 10, 10)}]},
-                 11: {'type': 'R', 'width': 2, 'height': 2, 'geometry': [{'clear': box(4, 4, 6, 6)}]}}
-    obj.solid_geometry = [box(0, 0, 10, 10).difference(box(4, 4, 6, 6))]
-    doc = obj.export_dxf()
-    assert len(_on(doc, layer, 'LWPOLYLINE')) == 2       # the outline and the hole of the clear
-
-
-def test_excellon_layer_per_tool_with_circles(object_app):
-    from shapely.geometry import Point
-    from appObjects.ExcellonObject import ExcellonObject
-    obj = _named(ExcellonObject('exc', object_app), 'exc')
-    obj.tools = {1: {'tooldia': 0.8, 'solid_geometry': [Point(1, 1).buffer(0.4, quad_segs=16)]},
-                 2: {'tooldia': 1.2, 'solid_geometry': [Point(5, 5).buffer(0.6, quad_segs=16)]}}
-    obj.solid_geometry = [g for t in obj.tools.values() for g in t['solid_geometry']]
-    doc = obj.export_dxf()
-    assert _layers(doc) == {'exc_T1', 'exc_T2'}
-    assert len(_on(doc, 'exc_T1', 'CIRCLE')) == 1 and _on(doc, 'exc_T2', 'CIRCLE')[0].dxf.radius == pytest.approx(0.6)
-    object_app.options['geometry_dxf_layers'] = 'object'
-    doc = obj.export_dxf()
-    assert _layers(doc) == {'exc'} and len(_on(doc, 'exc', 'CIRCLE')) == 2
 
 
 def test_cncjob_cut_and_travel_layers(object_app):

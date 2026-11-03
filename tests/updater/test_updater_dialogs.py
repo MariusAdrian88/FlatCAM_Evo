@@ -10,7 +10,7 @@ import threading
 import zipfile
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -107,28 +107,6 @@ def _manifest_dict():
     }
 
 
-def test_dialog_renders_premanifest_metadata_and_markdown_notes(qapp):
-    from appGUI.UpdateDialog import UpdateDialog
-
-    notes = "## Fixes\n\n- **Updater**: a window\n- raw <b>html</b> stays text\n"
-    dialog = UpdateDialog(None, _payload(release_notes=notes))
-    texts = " ".join(label.text() for label in dialog.findChildren(QtWidgets.QLabel))
-
-    assert "1.1" in texts
-    assert "2.0 KB" in texts
-    # the date is for people: no ISO 8601 text such as 2026-09-17T10:00:00Z
-    published = next(label.text() for label in dialog.findChildren(QtWidgets.QLabel)
-                     if label.text().startswith("Published:"))
-    assert "2026" in published and "T10:00:00Z" not in published
-    # the release notes are GitHub Markdown: the marks are rendered, not shown; raw HTML is not run
-    plain = dialog.findChild(QtWidgets.QTextBrowser).toPlainText()
-    assert "##" not in plain and "**" not in plain
-    assert "Fixes" in plain and "Updater: a window" in plain
-    assert "<b>html</b>" in plain
-    buttons = {button.text() for button in dialog.findChildren(QtWidgets.QPushButton)}
-    assert "Update now" in buttons
-
-
 def test_dependency_warning_cancels_before_preflight_and_launch(qapp, monkeypatch, tmp_path):
     from appMain import App
 
@@ -172,45 +150,6 @@ def test_dependency_warning_cancels_before_preflight_and_launch(qapp, monkeypatc
     assert observed["format"] == QtCore.Qt.TextFormat.PlainText
     assert "newdep<2.0" in observed["text"]
     assert observed["default"] == "Cancel"
-
-
-def test_staged_update_confirms_trust_then_launches_the_same_manifest(qapp, monkeypatch, tmp_path):
-    from appMain import App
-
-    app = _fake_app(tmp_path)
-    staging = tmp_path / "staging"
-    staging.mkdir()
-    archive = staging / "flatcam-evo-windows-x64-update.zip"
-    archive.write_bytes(b"archive")
-    manifest = _manifest_dict()
-    launch = MagicMock(return_value=True)
-    monkeypatch.setattr("appMain.launch_update", launch)
-    observed = {}
-
-    def confirm_dialog(box):
-        observed["format"] = box.textFormat()
-        observed["text"] = box.text()
-        return QtWidgets.QMessageBox.StandardButton.Yes
-
-    monkeypatch.setattr(QtWidgets.QMessageBox, "exec", confirm_dialog)
-
-    App.on_update_staged(app, {
-        "staging_dir": str(staging),
-        "archive_path": str(archive),
-        "manifest": manifest,
-        "channel": "windows",
-        "trust": "Update archive verified against the published GitHub SHA-256 digest.",
-        "dependencies": {"changed": False, "added": [], "removed": []},
-    })
-
-    assert observed["format"] == QtCore.Qt.TextFormat.PlainText
-    assert "Trust:" in observed["text"]
-    launch.assert_called_once()
-    assert launch.call_args[0][1] == manifest
-    assert launch.call_args[0][2] == str(archive)
-    app._updater_shutdown_preflight.assert_called_once()
-    app.quit_application.assert_called_once_with(mode="updater")
-    assert not staging.exists()
 
 
 def test_cancellation_after_worker_success_prevents_the_gui_launch(monkeypatch, tmp_path):

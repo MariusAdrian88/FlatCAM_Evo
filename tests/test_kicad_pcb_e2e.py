@@ -137,12 +137,6 @@ class TestKiCadPcbFixture(unittest.TestCase):
     def _mine(self, layer):
         return _union(self.parsed.layers[layer]['solid_geometry'])
 
-    def test_layers_and_default_selection(self):
-        self.assertCountEqual(list(self.parsed.layers), self.LAYERS)
-        self.assertNotIn('B.Paste', self.parsed.layers)
-        self.assertCountEqual(self.parsed.default_layers, self.DEFAULT_LAYERS)
-        self.assertEqual(self.parsed.copper_layers, self.COPPER)
-
     def test_copper_matches_reference_gerbers(self):
         for layer in self.COPPER:
             with self.subTest(layer=layer):

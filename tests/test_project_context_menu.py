@@ -63,14 +63,6 @@ def obj(kind, name='obj', plot=True, **attrs):
     return SimpleNamespace(kind=kind, obj_options={'name': name, 'plot': plot}, **attrs)
 
 
-class TestHasSource(unittest.TestCase):
-
-    def test_kinds(self):
-        self.assertTrue(ObjectCollection.has_source(obj('cncjob')))
-        self.assertTrue(ObjectCollection.has_source(obj('gerber', source_file='G04 test*\nM02*\n')))
-        self.assertTrue(ObjectCollection.has_source(obj('excellon', source_file='M48\nM30\n')))
-        self.assertTrue(ObjectCollection.has_source(obj('geometry', source_file='0\nSECTION\n')))
-
 class TestMenuRequest(unittest.TestCase):
 
     def setUp(self):
@@ -100,33 +92,6 @@ class TestMenuRequest(unittest.TestCase):
     def test_geometry_made_by_a_tool_has_no_view_source(self):
         self.request(obj('geometry'))
         self.assertEqual(self.shown(), {'disable', 'edit', 'copy', 'delete', 'save', 'properties'})
-
-    def test_gerber_with_a_source(self):
-        self.request(obj('gerber', source_file='G04 test*\nM02*\n'))
-        self.assertEqual(self.shown(), {'disable', 'color', 'view_source', 'edit', 'copy', 'delete', 'save',
-                                        'properties'})
-
-    def test_enable_and_disable_follow_the_plot_state(self):
-        self.request(obj('gerber', 'a', plot=True), obj('gerber', 'b', plot=False))
-        self.assertTrue({'enable', 'disable'} <= self.shown())
-        self.request(obj('gerber', 'a', plot=False), obj('gerber', 'b', plot=False))
-        self.assertIn('enable', self.shown())
-        self.assertNotIn('disable', self.shown())
-
-    def test_export_submenu_hidden_for_a_cncjob_and_for_several_objects(self):
-        self.request(obj('cncjob'))
-        self.assertFalse(self.ui.menuprojectexport.menuAction().isVisible())
-        self.request(obj('gerber', 'a'), obj('gerber', 'b'))
-        self.assertFalse(self.ui.menuprojectexport.menuAction().isVisible())
-
-    def test_join_submenu_only_for_several_gerber_excellon_geometry_objects(self):
-        join = self.ui.menuprojectjoin.menuAction()
-        self.request(obj('gerber', 'a'), obj('excellon', 'b'), obj('geometry', 'c'))
-        self.assertTrue(join.isVisible())
-        self.request(obj('gerber', 'a'))
-        self.assertFalse(join.isVisible())
-        self.request(obj('gerber', 'a'), obj('cncjob', 'b'))
-        self.assertFalse(join.isVisible())
 
 
 def shapes_of(tools, key):

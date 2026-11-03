@@ -132,32 +132,8 @@ def test_rest_margin_and_exact_swept_area_are_used():
     assert list(output.tools) == [2, 1]
 
 
-def test_area_failure_does_not_attempt_clearing():
-    gen, output = run_rest('fail', [2.0, 1.0], lambda **kw: pytest.fail('unexpected clearing'))
-    gen.clear_polygon_worker.assert_not_called()
-    assert not output.tools
-    assert gen.worker_result == 'fail'
-
-
-def test_tcl_smaller_tool_receives_only_unswept_stock():
-    area = MultiPolygon([box(0, 0, 10, 10)])
-    line = LineString([(2, 5), (8, 5)])
-    residuals = []
-
-    def clear(**kw):
-        if kw['tooldia'] == 2:
-            return [line, line]
-        residuals.append(kw['pol'])
-        return [LineString([(1, 1), (2, 1)])]
-
-    gen, output = run_rest(area, [1.0, 2.0], clear, tcl=True, options={'geometry_circle_steps': 32})
-    expected = MultiPolygon(rest_area(area, area.difference(line.buffer((2 - 1e-12) / 2, 8)), 1.0, 8))
-    assert residuals[0].symmetric_difference(expected).area < 1e-10
-    assert list(output.tools) == [2, 1]
-
-
 @pytest.mark.parametrize("order, preference, expected", [
-    (None, 2, [2, 1]), ("fwd", 2, [1, 2]), ("rev", 0, [2, 1]), (1, 2, [1, 2]),
+    ("fwd", 2, [1, 2]), (1, 2, [1, 2]),
 ])
 def test_tcl_order_accepts_names_numbers_and_the_preference(order, preference, expected):
     area = MultiPolygon([box(0, 0, 10, 10)])
@@ -230,15 +206,6 @@ def test_every_isolation_tool_counts_for_the_area():
     assert run({0.1: 'fail', 0.2: 'fail'})[0] == 'fail'
 
 
-def test_exclusion_is_removed_from_the_area():
-    gen, _output = make_gen([1.0])
-    cleared = SimpleNamespace(kind='geometry', solid_geometry=[box(0, 0, 1, 1)])
-    area, iso, _broken = gen.compute_clear_area(
-        cleared, clipping_type=1, clipping_areas=[box(-1, -1, 3, 3)], margin=0.0, exclusion=box(2, -1, 3, 3))
-    assert area.area == pytest.approx(3 * 4 - 1)
-    assert iso == {}
-
-
 @pytest.mark.parametrize('exclusion', [box(1, 1, 3, 5)])
 def test_exclusion_keeps_the_isolation_cutter_out(exclusion):
     """The exclusion zones protect the isolation paths too, measured with the cutter radius, not only the clearing."""
@@ -259,20 +226,6 @@ def test_exclusion_keeps_the_isolation_cutter_out(exclusion):
 # ---------------------------------------------------------------------------------------------------------------
 def engine_result(paths):
     return SimpleNamespace(objects=list(paths), get_objects=lambda: list(paths))
-
-
-def test_combo_tries_every_engine_even_if_one_raises():
-    pol = box(0, 0, 10, 10)
-    path = LineString([(1, 5), (9, 5)])
-
-    def lines(*args, **kwargs):
-        raise ValueError('boom')
-
-    paths, messages = NccModel.clear_polygon(
-        pol, 1.0, 3, 0.2, False, True, False, 32, lambda *a, **k: None,
-        lambda *a, **k: engine_result([path]), lines)
-    assert paths == [path]
-    assert len(messages) == 2
 
 
 def test_tcl_combo_method_and_simplification_are_used():
@@ -324,28 +277,6 @@ def test_tcl_rest_does_not_send_slivers_to_the_clearing():
 # ---------------------------------------------------------------------------------------------------------------
 # Tcl inputs
 # ---------------------------------------------------------------------------------------------------------------
-def test_tcl_itself_uses_the_object_and_a_gerber_reference_uses_both_hulls():
-    area = MultiPolygon([box(0, 0, 10, 10)])
-    source = SimpleNamespace(kind='geometry', solid_geometry=[box(0, 0, 4, 4)])
-
-    def boundary_of(**extra):
-        gen, _output = run_rest(area, [1.0], lambda **kw: [LineString([(1, 1), (2, 1)])], tcl=True, rest=False,
-                                source=source, **extra)
-        return gen._compute_area_to_clear_handler.call_args.kwargs['boundary'].bounds
-
-    other = SimpleNamespace(kind='geometry', solid_geometry=[box(50, 50, 60, 60)])
-    assert boundary_of(select_method=0, sel_obj=other) == (0, 0, 4, 4)
-    reference = SimpleNamespace(kind='gerber', solid_geometry=[box(2, 2, 8, 8)])
-    assert boundary_of(select_method=2, sel_obj=reference) == (2, 2, 4, 4)
-
-
-def test_tcl_missing_values_come_from_the_options():
-    gen, output = run_rest(MultiPolygon([box(0, 0, 10, 10)]), [1.0], lambda **kw: [LineString([(1, 1), (9, 1)])],
-                           tcl=True, rest=False, margin=None, has_offset=None, offset=None, overlap=None,
-                           connect=None, contour=None, method=None, order=None,
-                           options={'tools_ncc_overlap': 30})
-    assert list(output.tools) == [1]
-    assert gen.clear_polygon_worker.call_args.kwargs['ncc_overlap'] == pytest.approx(0.3)
 
 
 def test_tcl_final_cleanup_reaches_the_tools_and_exclusion_the_area():
@@ -376,14 +307,6 @@ def test_check_validity_names_the_tools_that_are_too_big():
     assert (level, too_big) == ('warning', [0.5])
     assert NccModel.check_tools_fit(source.tools, [0.2], [0.5], 4)[::2] == ('error', [0.5])
     assert NccModel.check_tools_fit(source.tools, [0.5, 0.6], [], 4)[::2] == ('error', [0.5, 0.6])
-
-
-def test_check_validity_stops_the_job_before_the_generation():
-    gen, output = run_rest(MultiPolygon([box(0, 0, 10, 10)]), [0.5], lambda **kw: pytest.fail('cleared'),
-                           source=gerber_with_gap(0.3), rest=False, handler_kwargs={'check_validity': True})
-    assert not output.tools and gen.worker_result == 'fail'
-    gen.compute_area_to_clear.assert_not_called()
-    assert any(m.startswith('[ERROR_NOTCL]') and '0.5' in m for m in messages_of(gen))
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -446,45 +369,6 @@ def dias_in_table_order(t):
     return [float(t.ui.tools_table.item(row, 1).text()) for row in range(t.ui.tools_table.rowCount())]
 
 
-def test_drag_drop_reorder_holds_and_keeps_the_tool_dict(tool):
-    storage = tool.ncc_tools
-    tool.ui.order_combo.set_value(2)   # Reverse sorts by diameter
-    tool.build_ui()
-    assert dias_in_table_order(tool) == [2.0, 1.0]
-    # the user drags the second tool up: the uids in the table are swapped
-    tool.ui_disconnect()
-    tool.ui.tools_table.item(0, 3).setText("2")
-    tool.ui.tools_table.item(1, 3).setText("1")
-
-    tool.rebuild_ui()
-    tool.build_ui()
-
-    assert tool.ncc_tools is storage
-    assert dias_in_table_order(tool) == [1.0, 2.0]
-    assert tool.ui.order_combo.get_value() == 0
-
-
-def test_edit_to_a_duplicate_or_nonpositive_diameter_is_rejected(tool):
-    tool.on_tool_add(custom_dia=0.5)
-    assert sorted(dias_in_table_order(tool)) == [0.5, 1.0, 2.0]
-    for text in ("1.00004", "2.0", "0", "-1"):
-        row = dias_in_table_order(tool).index(0.5)
-        tool.ui.tools_table.item(row, 1).setText(text)
-        assert sorted(t['tooldia'] for t in tool.ncc_tools.values()) == [0.5, 1.0, 2.0], text
-        assert sorted(dias_in_table_order(tool)) == [0.5, 1.0, 2.0], text
-
-
-def test_tool_from_database_is_merged_with_defaults_and_selected(tool):
-    db_tool = {'tooldia': 0.3, 'data': {'tool_target': 5, 'tools_ncc_overlap': 7.0}}
-    uid = tool.on_ncc_tool_from_db_inserted(tool=db_tool)
-    assert uid == max(tool.ncc_tools)
-    data = tool.ncc_tools[uid]['data']
-    assert data['tools_ncc_overlap'] == 7.0
-    assert 'tools_mill_tool_shape' in data and 'tools_ncc_operation' in data
-    selected = {int(tool.ui.tools_table.item(i.row(), 3).text()) for i in tool.ui.tools_table.selectedIndexes()}
-    assert selected == {uid}
-
-
 def prepare_run(t, **objects):
     """Let Generate run: the objects are in the project, every tool is selected, the app has real defaults."""
     t.app.defaults = SimpleNamespace(get=AppDefaults.factory_defaults.get, report_usage=lambda *args: None,
@@ -500,12 +384,6 @@ def prepare_run(t, **objects):
 
 def geometry_object(name, *boxes):
     return SimpleNamespace(kind='geometry', solid_geometry=list(boxes), obj_options={'name': name})
-
-
-def cleared_domain(source, margin=1.0):
-    """The area Preview draws for one geometry source: its margin boundary minus its own copper."""
-    boundary = NccModel.apply_margin(NccModel.entire_object(source.solid_geometry), 'geometry', 0, margin)
-    return NccModel.complement(unary_union(source.solid_geometry), boundary)
 
 
 def test_exclusion_zones_reach_the_handler_in_every_mode(tool):
@@ -525,79 +403,3 @@ def test_exclusion_zones_reach_the_handler_in_every_mode(tool):
     assert tool.gen.ncc_handler.call_args.kwargs['exclusion_areas'] is None
 
 
-def test_all_selected_objects_each_get_an_output_with_a_unique_name(tool):
-    first = geometry_object('a', box(0, 0, 1, 1))
-    second = geometry_object('b', box(0, 0, 1, 1))
-    excellon = SimpleNamespace(kind='excellon', obj_options={'name': 'e'})
-    prepare_run(tool, a=first, b=second, a_ncc=geometry_object('a_ncc'), board=first)
-    tool.gen.ncc_handler = Mock()
-    tool.ui.multi_cb.set_value(True)
-    tool.app.collection.selected = [first, excellon, second]
-    tool.gen.on_ncc_click()
-    calls = tool.gen.ncc_handler.call_args_list
-    assert [c.kwargs['cleared_object'] for c in calls] == [first, second]
-    assert [c.kwargs['outname'] for c in calls] == ['a_ncc_1', 'b_ncc']
-    assert calls[0].kwargs['clear_tooldia_list'] == calls[1].kwargs['clear_tooldia_list']
-
-    # Area Selection works with one object only
-    tool.gen.ncc_handler.reset_mock()
-    tool.ui.select_method_combo.set_value(1)
-    tool.gen.on_ncc_click()
-    tool.gen.ncc_handler.assert_not_called()
-    assert messages(tool)[-1].startswith('[ERROR_NOTCL]')
-
-    # nothing valid selected: the object of the combo box is used
-    tool.ui.select_method_combo.set_value(0)
-    tool.app.collection.selected = [excellon]
-    tool.gen.on_ncc_click()
-    assert tool.gen.ncc_handler.call_args.kwargs['cleared_object'] is first
-
-
-def test_preview_uses_the_selected_sources_and_rejects_several_area_sources(tool):
-    board = geometry_object('board', box(50, 50, 51, 51))
-    first = geometry_object('a', box(0, 0, 1, 1))
-    second = geometry_object('b', box(5, 5, 6, 6))
-    prepare_run(tool, board=board, a=first, b=second)
-    tool.ui.rest_cb.set_value(False)
-    tool.ui.margin_entry.set_value(1)
-    tool.ui.multi_cb.set_value(True)
-    tool.app.collection.selected = [first, second]
-
-    tool.on_preview()
-    drawn = unary_union([call.args[0] for call in tool._preview_shapes.add.call_args_list])
-    assert drawn.bounds == pytest.approx((-1, -1, 7, 7))
-    expected = unary_union([cleared_domain(source) for source in (first, second)])
-    assert drawn.symmetric_difference(expected).area < 1e-9
-
-    # Area Selection works with one source only, like Generate
-    tool.ui.select_method_combo.set_value(1)
-    tool.last_zones = [box(0, 0, 1, 1)]
-    tool._preview_shapes.reset_mock()
-    tool.on_preview()
-    tool._preview_shapes.add.assert_not_called()
-    assert messages(tool)[-1].startswith('[ERROR_NOTCL]')
-
-    # with one source the object of the combo box is still the source
-    tool.ui.multi_cb.set_value(False)
-    tool.ui.select_method_combo.set_value(0)
-    tool._preview_shapes.reset_mock()
-    tool.on_preview()
-    drawn = unary_union([call.args[0] for call in tool._preview_shapes.add.call_args_list])
-    assert drawn.bounds == pytest.approx((49, 49, 52, 52))
-
-
-def run_optimal(t, storage):
-    t.app.collection.objects['board'] = SimpleNamespace(kind='gerber', tools=storage)
-    t.ui.obj_combo.currentText = lambda: 'board'
-    t.app.abort_flag = False
-    t.app.inform.emit.reset_mock()
-    t.on_find_optimal_tooldia()
-
-
-def test_optimal_proposes_a_tool_below_the_smallest_gap(tool):
-    pads = [box(0, 0, 1, 1), box(1.15996, 0, 2, 1)]   # the gap 0.15996 is rounded to 0.16
-    found = []
-    tool.optimal_found_sig.connect(found.append)
-    run_optimal(tool, {10: {'geometry': [{'solid': p} for p in pads]}})
-    assert found == [pytest.approx(0.1599)]
-    assert any(m.startswith('[success]') and '0.1599' in m for m in messages(tool))

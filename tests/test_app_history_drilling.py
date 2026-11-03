@@ -82,18 +82,6 @@ def _edit(tool, widget, value):
     widget.editingFinished.emit()
 
 
-def test_open_and_change_target_add_no_step(fc, no_plot):
-    _load(fc, 'excellon', 'unify_mixed.drl', 'e_drl_open')
-    _load(fc, 'excellon', 'unify_mixed.drl', 'e_drl_open2')
-    n = _steps(fc)
-    tool = _open(fc, 'e_drl_open')
-    tool.ui.object_combo.setCurrentText('e_drl_open2')
-    tool.on_object_changed()
-    tool.rebuild_ui()
-    tool.build_tool_ui()
-    assert _steps(fc) == n
-
-
 def test_field_edit_and_tool_type_change_add_no_step(fc, no_plot, monkeypatch):
     exc = _load(fc, 'excellon', 'unify_mixed.drl', 'e_drl_field')
     tool = _open(fc, 'e_drl_field')

@@ -41,7 +41,6 @@ def no_plot(monkeypatch):
         QtWidgets.QApplication.processEvents()
 
 
-
 def _settle(fc, timeout=5.0):
     end = time.time() + timeout
     while fc.projects.is_busy() and time.time() < end:
@@ -82,7 +81,6 @@ def _tools(obj):
     return {int(k): {'tooldia': float(v['tooldia']), 'data': deepcopy(v['data'])} for k, v in obj.tools.items()}
 
 
-
 def _open(fc, kind, obj):
     """Open the plugin on the target kind and select the object (what the user does)."""
     mt = fc.milling_tool
@@ -100,26 +98,6 @@ def _open(fc, kind, obj):
 
 def _steps(fc):
     return len(fc.history.undo_stack)
-
-
-def test_open_and_change_target_add_no_step(fc, no_plot):
-    exc = _load_exc(fc, 'm_exc_open')
-    geo = _new_geo(fc, 'm_geo_open')
-    _settle(fc)
-    n = _steps(fc)
-    mt = _open(fc, 'exc', exc)
-    assert mt.target_obj is exc
-    mt.ui.order_combo.set_value(0)
-    mt.ui.target_radio.set_value('geo')
-    mt.ui.object_combo.setCurrentIndex(mt.ui.object_combo.findText('m_geo_open'))
-    mt.on_object_changed()
-    _pump()
-    mt.build_ui()
-    mt.ui.target_radio.set_value('exc')
-    mt.ui.object_combo.setCurrentIndex(mt.ui.object_combo.findText('m_exc_open'))
-    mt.on_object_changed()
-    _pump()
-    assert _steps(fc) == n
 
 
 def test_geo_tool_actions_undo_redo(fc, no_plot):

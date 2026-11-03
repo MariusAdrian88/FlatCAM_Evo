@@ -318,8 +318,9 @@ def test_manual_pause_waits_for_the_required_confirmation(tool):
     worker = threading.Thread(target=run)
     worker.start()
     try:
+        # the controller sets the reason first and the PAUSED state after it: wait for both
         deadline = time.monotonic() + 2
-        while api.pause_reason is None and time.monotonic() < deadline:
+        while (api.pause_reason is None or api.state.name != 'PAUSED') and time.monotonic() < deadline:
             time.sleep(.001)
         assert api.pause_reason == ('M0' if tool is None else 'M6')
         assert worker.is_alive()
@@ -504,8 +505,9 @@ def test_prepared_program_manual_pause_and_tool_change(tool):
     worker = threading.Thread(target=run)
     worker.start()
     try:
+        # the controller sets the reason first and the PAUSED state after it: wait for both
         deadline = time.monotonic() + 2
-        while api.pause_reason is None and time.monotonic() < deadline:
+        while (api.pause_reason is None or api.state.name != 'PAUSED') and time.monotonic() < deadline:
             time.sleep(.001)
         assert api.pause_reason == ('M0' if tool is None else 'M6')
         if tool is None:

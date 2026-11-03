@@ -21,8 +21,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from PyQt6 import QtWidgets
 
-from appGUI.GUIElements import add_case_variants
-
 
 def patterns_of(ext_filter):
     """Return the patterns of each filter group, keyed by the group name."""
@@ -39,12 +37,6 @@ def matches(ext_filter, filename):
                for group in patterns_of(ext_filter).values() if '*.*' not in group
                for p in group)
 
-
-class AddCaseVariantsTests(unittest.TestCase):
-
-    def test_adds_upper_case_after_each_pattern(self):
-        result = add_case_variants("Gerber Files (*.gbr *.gtl);;All Files (*.*)")
-        self.assertEqual("Gerber Files (*.gbr *.GBR *.gtl *.GTL);;All Files (*.*)", result)
 
 class DialogFilterTests(unittest.TestCase):
     """Run the real dialog callbacks with a patched QFileDialog and check the filter they pass to Qt."""
@@ -143,8 +135,6 @@ class SaveDialogExtensionTests(unittest.TestCase):
                                       ('C:/w/TOP.NC', 'G-Code Files .nc (*.nc)'),
                                       ('C:/w/board.gbr', 'Gerber Files (*.gbr *.GBR)')):
             self.assertEqual(picked, self.saved_name(picked, chosen_filter))
-
-    def test_other_names_get_the_extension_as_before(self):
         for picked, chosen_filter, expected in (('C:/w/board', 'GCode Files .nc (*.NC)', 'C:/w/board.NC'),
                                                 ('C:/w/top.gcode', 'G-Code Files .nc (*.nc)', 'C:/w/top.gcode.nc'),
                                                 ('C:/w/board.txt', 'All Files (*.*)', 'C:/w/board.txt'),

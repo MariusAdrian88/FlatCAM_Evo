@@ -59,11 +59,6 @@ class TestAddToolContract:
         assert ex.add_tool(0.8) == 6
 
 
-    def test_explicit_id_is_used_as_given(self):
-        ex = fresh()
-        assert ex.add_tool(0.8, tool_id='1') == '1'
-        assert list(ex.tools) == ['1']
-
     def test_existing_id_raises_and_keeps_the_tool(self):
         ex = fresh()
         ex.add_tool(0.8)
@@ -79,12 +74,6 @@ class TestAddToolContract:
         assert ex.tools[tid]['data'] == {'x': {'y': 1}}
         data['x']['y'] = 2
         assert ex.tools[tid]['data']['x']['y'] == 1
-
-    def test_two_tools_do_not_share_data(self):
-        ex = fresh(default_data={'a': [1]})
-        t1, t2 = ex.add_tool(1.0), ex.add_tool(2.0)
-        ex.tools[t1]['data']['a'].append(2)
-        assert ex.tools[t2]['data']['a'] == [1]
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -197,32 +186,6 @@ class TestTclSites:
 # ---------------------------------------------------------------------------------------------------------------------
 # plugin sites: the old hand-made dict against add_tool
 # ---------------------------------------------------------------------------------------------------------------------
-
-def _old_way(default_data, tools):
-    """What the sites did: assign a (deep copied) dict, then create_geometry."""
-    ex = fresh(default_data)
-    ex.tools = deepcopy(tools)
-    ex.create_geometry()
-    return ex
-
-
-def _drop_empty_slots(tools):
-    """The old dicts of some sites had no 'slots' key; add_tool always has the (empty) key."""
-    return [(tid, {k: v for k, v in tool.items() if not (k == 'slots' and v == [])}) for tid, tool in snap(tools)]
-
-
-@pytest.mark.parametrize('default_data', [{}, {'tools_drill_ppname_e': 'default', 'x': 1}])
-class TestPluginPatterns:
-    def test_markers_corner_drills(self, default_data):
-        pts = [Point(1, 1), Point(5, 1)]
-        old = _old_way(default_data, {1: {'tooldia': 0.5, 'drills': pts, 'slots': [], 'data': {},
-                                          'solid_geometry': []}})
-        new = fresh(default_data)
-        new.add_tool(0.5, drills=pts, data={})
-        new.create_geometry()
-        assert snap(new.tools) == snap(old.tools)
-
-
 
 
 def test_add_drill_to_a_tool_with_hole_ids_keeps_the_ids_in_step():

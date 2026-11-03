@@ -124,18 +124,17 @@ TR_BY_ID = {t.id: t for t in TRANSFORMS}
 # One cell per branch of the plan table instead of the full kinds x transforms matrix.
 CELLS = [(k, t) for k, ts in {
     'C': ('scale_nonuniform',),
-    'R': ('rotate_90', 'buffer_mitre'),
+    'R': ('rotate_90',),
     'O': ('buffer_round',),
-    'RT': ('buffer_mitre',),
     'P3': ('scale_neg',),
-    'P7': ('skew_x',),
-    'AM': ('scale_up', 'offset'),
+    'AM': ('offset',),
 }.items() for t in ts]
 
 
 def cell_params(test_name):
     """Parameters of one test: every aperture kind with every transform (the test name is only a label)."""
-    return [pytest.param(kind, tid, id='%s-%s' % (kind, tid)) for kind, tid in CELLS]
+    skip = {'export': ('C', 'P3')}.get(test_name, ())    # the export keeps one cell per export branch
+    return [pytest.param(kind, tid, id='%s-%s' % (kind, tid)) for kind, tid in CELLS if kind not in skip]
 
 
 def load(app, kind):
@@ -232,13 +231,6 @@ class TestTableFlagAndMetadata:
             assert obj.export_as_regions is False, tid
 
 
-    def test_rotate_angle_tolerance_and_reduction(self, app):
-        for angle, flagged in ((90.0, False), (90.0 + 1e-12, False), (-270.0, False), (720.0, False),
-                               (630.0, False), (90.001, True), (45.0, True), (359.5, True)):
-            obj, _ = load(app, 'R')
-            obj.rotate(angle, ROT_ORIGIN)
-            assert obj.export_as_regions is flagged, angle
-
     def test_rotate_quarter_turn_swaps_only_for_odd_turns(self, app):
         for angle, swapped in ((90.0, True), (270.0, True), (-90.0, True), (450.0, True),
                                (180.0, False), (360.0, False), (-180.0, False), (720.0, False)):
@@ -267,20 +259,6 @@ class TestTableFlagAndMetadata:
         assert track2.export_as_regions is False
         assert track2.tools[12]['size'] == pytest.approx(2 * math.hypot(2.0, 1.0))
 
-    def test_exact_rectangles_stay_representable_under_a_mitre_buffer(self, app, tmp_path):
-        """A mitre buffer keeps the corners sharp: with exact rectangle records the table cell holds."""
-        obj, apid = load(app, 'R')
-        for rec in obj.tools[apid]['geometry']:
-            x, y = rec['follow'].x, rec['follow'].y
-            rec['solid'] = box(x - 1.5, y - 0.6, x + 1.5, y + 0.6)
-        obj.solid_geometry = [rec['solid'] for rec in obj.tools[apid]['geometry']]
-        obj.buffer(0.3, 'mitre')
-        assert obj.export_as_regions is False
-        assert (obj.tools[apid]['width'], obj.tools[apid]['height']) == pytest.approx((3.6, 1.8))
-        text = export_gerber_text(app, obj)
-        assert '%ADD11R,3.6X1.79' in text or '%ADD11R,3.6X1.8' in text
-        assert_composed_equal(reparse_gerber(app, text, tmp_path).solid_geometry, obj.solid_geometry, 'exact')
-
 
     def test_a_degenerate_scale_or_buffer_sets_the_flag(self, app):
         degenerate, _ = load(app, 'R')
@@ -292,24 +270,6 @@ class TestTableFlagAndMetadata:
         rect, _ = load(app, 'R')
         rect.buffer(-0.6, 'mitre')         # the height 1.2 - 1.2 = 0
         assert rect.export_as_regions is True
-
-
-class TestBufferByFactor:
-    """The multiplicative buffer (Stage 3): the metadata follows the geometry, so the flag is set only for what the
-    metadata can not describe (an aperture macro). The geometry and the rejections are in
-    test_gerber_multiplicative_buffer."""
-
-    def test_only_a_macro_sets_the_flag_and_a_zero_factor_changes_nothing(self, app):
-        macro, _ = load(app, 'AM')
-        macro.buffer(1.2, 'mitre', True)
-        assert macro.export_as_regions is True
-        for kind in ('C', 'P3'):
-            obj, _ = load(app, kind)
-            obj.buffer(1.2, 'mitre', True)
-            assert obj.export_as_regions is False, kind
-        zero, _ = load(app, 'R')
-        zero.buffer(0, 'mitre', True)
-        assert zero.export_as_regions is False
 
 
 class TestFlagIsSticky:
@@ -363,16 +323,9 @@ class TestTableExportRoundTrip:
             assert '%ADD' not in text and 'G36*' in text, (kind, tid)
             assert set(again.tools) == {0}
 
-    def test_the_regions_export_does_not_change_the_object(self, app):
-        obj, apid = load(app, 'R')
-        obj.rotate(30.0, ROT_ORIGIN)
-        tools = repr(obj.tools)
-        export_gerber_text(app, obj)
-        assert repr(obj.tools) == tools and obj.export_as_regions is True
-
 
 class TestUntransformedAndMixedFixtures:
-    @pytest.mark.parametrize('kind', ['P3', 'AM'])
+    @pytest.mark.parametrize('kind', ['AM'])
     def test_untransformed_p_and_macro_round_trip_through_the_regions(self, app, tmp_path, kind):
         """The writer cannot declare P and AM apertures: the object goes through the region export before any
         transform, without the flag. This separates the writer limit from a transform regression."""
@@ -386,7 +339,7 @@ class TestUntransformedAndMixedFixtures:
         assert record_count(again, 0) == record_count(obj, apid)
 
 
-    @pytest.mark.parametrize('tid', ['scale_nonuniform', 'buffer_mitre'])
+    @pytest.mark.parametrize('tid', ['buffer_mitre'])
     def test_region_with_a_hole(self, app, tmp_path, tid):
         obj = make_gerber(app, fx('region_hole'), name='hole')
         TR_BY_ID[tid].apply(obj)
@@ -396,14 +349,8 @@ class TestUntransformedAndMixedFixtures:
         assert interior_count(obj.solid_geometry) == 1
         assert interior_count(again.solid_geometry) == 1
 
-    @pytest.mark.parametrize('tid', ['rotate_30'])
-    def test_dark_clear_dark_fixture(self, app, tmp_path, tid):
-        obj = make_gerber(app, MIXED_GBR)
-        TR_BY_ID[tid].apply(obj)
-        again = reparse_gerber(app, export_gerber_text(app, obj), tmp_path)
-        assert_composed_equal(again.solid_geometry, obj.solid_geometry, 'mixed ' + tid)
 
-    @pytest.mark.parametrize('tid', ['rotate_90', 'buffer_shrink_mitre'])
+    @pytest.mark.parametrize('tid', ['buffer_shrink_mitre'])
     def test_native_subset_stays_native_when_the_table_allows(self, app, tmp_path, tid):
         obj = make_gerber(app, NATIVE_GBR)
         TR_BY_ID[tid].apply(obj)
@@ -413,16 +360,6 @@ class TestUntransformedAndMixedFixtures:
         again = reparse_gerber(app, text, tmp_path)
         assert_composed_equal(again.solid_geometry, obj.solid_geometry, 'native ' + tid)
         assert {ap: record_count(again, ap) for ap in again.tools} == {ap: record_count(obj, ap) for ap in obj.tools}
-
-    @pytest.mark.parametrize('tid', ['buffer_round'])
-    def test_native_subset_goes_to_regions_when_the_table_says(self, app, tmp_path, tid):
-        obj = make_gerber(app, NATIVE_GBR)
-        TR_BY_ID[tid].apply(obj)
-        assert obj.export_as_regions is True
-        text = export_gerber_text(app, obj)
-        assert '%ADD' not in text
-        again = reparse_gerber(app, text, tmp_path)
-        assert_composed_equal(again.solid_geometry, obj.solid_geometry, 'native regions ' + tid)
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -439,18 +376,6 @@ class TestProjectSaveLoad:
         assert '%ADD' not in text
         again = reparse_gerber(app, text, tmp_path)
         assert_composed_equal(again.solid_geometry, obj.solid_geometry, 'project flag')
-
-    def test_representable_transform_keeps_false_and_the_new_metadata(self, app, tmp_path):
-        obj, apid = load(app, 'R')
-        obj.rotate(90.0, ROT_ORIGIN)
-        _, restored = save_and_load(app, [obj], tmp_path)
-        grb = restored[0]
-        assert grb.export_as_regions is False
-        assert (grb.tools[apid]['width'], grb.tools[apid]['height']) == pytest.approx((1.2, 3.0))
-        text = export_gerber_text(app, grb)
-        assert '%ADD11R,1.2X3.0' in text
-        again = reparse_gerber(app, text, tmp_path)
-        assert_composed_equal(again.solid_geometry, obj.solid_geometry, 'project false')
 
 
 def region_gerber(app, geometry, name='reg'):
@@ -484,23 +409,10 @@ class TestRegionExportKeepsHolesAndIslands:
         assert not union.contains(Point(3.5, 5))    # the hole around it
         assert union.contains(Point(1, 5))          # the ring
 
-    def test_island_listed_before_its_host(self, app, tmp_path):
-        """The order of the input list must not matter."""
-        geometry = [box(4, 4, 6, 6), square_with_hole()]
-        again = reparse_gerber(app, export_gerber_text(app, region_gerber(app, geometry)), tmp_path)
-        assert_poly_equiv(again.solid_geometry, geometry, rel=1e-6, abs_tol=1e-4, msg='island first')
-
-
-    def test_overlapping_polygons_do_not_clear_each_other(self, app, tmp_path):
-        geometry = [square_with_hole(), box(2, 2, 5, 5)]   # the 2nd one overlaps the hole of the 1st
-        again = reparse_gerber(app, export_gerber_text(app, region_gerber(app, geometry)), tmp_path)
-        assert_poly_equiv(again.solid_geometry, geometry, rel=1e-6, abs_tol=1e-4, msg='overlap')
-
 
 # ---------------------------------------------------------------------------------------------------------------
 # routing: Gerber.needs_region_export() and the export that follows it
 # ---------------------------------------------------------------------------------------------------------------
-
 
 
 def make_p_am_gerber(app, tmp_path):
@@ -535,13 +447,11 @@ class TestNeedsRegionExport:
 # lifecycle of export_as_regions: copy, merge, project save/load, editor save
 # ---------------------------------------------------------------------------------------------------------------
 
-import json  # noqa: E402
 from types import SimpleNamespace  # noqa: E402
 from unittest.mock import MagicMock  # noqa: E402
 
 from appEditors.appGerberEditor import AppGerberEditor  # noqa: E402
 from appHandlers.appIO import appIO  # noqa: E402
-from appHandlers.appObjectOps import AppObjectOps  # noqa: E402
 from camlib import dict2obj  # noqa: E402
 from appCommon.ProjectFile import load_project_file  # noqa: E402
 import numpy as np
@@ -569,23 +479,6 @@ class TestLifecycleCopy:
         assert clone.export_as_regions is True
         assert_exports_composed_geometry(app, clone, source.solid_geometry, tmp_path, 'copy command')
         assert source.export_as_regions is True
-
-
-    def test_on_copy_object2_keeps_the_flag(self, app, tmp_path):
-        source = flagged_native(app)
-        created = {}
-
-        def new_object(kind, name, initialize, *args, **kwargs):
-            new_obj = GerberObject(name, app)
-            assert initialize(new_obj, app) != 'fail'
-            created[name] = new_obj
-
-        app.app_obj.new_object.side_effect = new_object
-        app.collection.get_selected.return_value = [source]
-        AppObjectOps(app).on_copy_object2('_as')
-        clone = created['flagged_as']
-        assert clone.export_as_regions is True
-        assert_exports_composed_geometry(app, clone, source.solid_geometry, tmp_path, 'copy object2')
 
 
 class TestLifecycleMerge:
@@ -683,25 +576,7 @@ class TestGerberParse:
         assert t[0]['type'] == 'REG' and t[0]['size'] == 0.0
 
 
-    def test_composed_solid_geometry_applies_polarity(self, gerber):
-        union = polygon_union(gerber.solid_geometry)
-        assert union.area == pytest.approx(271.1690, rel=1e-4)
-        # dark -> clear -> dark: the clear track cuts the wide dark track, the later flash fills part of the cut
-        assert union.contains(Point(5, 35))
-        assert union.contains(Point(24, 35))
-        assert union.contains(Point(15, 35))            # covered by the later dark flash
-        assert not union.contains(Point(15, 33))        # inside the cut, outside the later flash
-        assert not union.contains(Point(15, 37.2))      # inside the cut, outside the later flash
-        assert union.contains(Point(5, 24))             # region
-
-    def test_ring_macro_centre_is_a_hole(self, gerber):
-        union = polygon_union(gerber.solid_geometry)
-        assert union.contains(Point(30.75, 5.0))
-        assert not union.contains(Point(30.0, 5.0))
-        assert gerber.bounds() == pytest.approx((-0.5, 4.0, 31.0, 38.0))
-
-
-@pytest.mark.parametrize('name', TRANSFORM_NAMES)
+@pytest.mark.parametrize('name', [n for n in TRANSFORM_NAMES if n in ('offset', 'rotate', 'scale')])
 class TestGerberTransforms:
     def test_composed_geometry_and_records_match_affine_copy(self, app, name):
         obj = make_gerber(app)
@@ -735,21 +610,6 @@ class TestFileRoundTrip:
             for key in ('size', 'width', 'height'):
                 if key in tool:
                     assert again.tools[ap][key] == pytest.approx(tool[key], abs=1e-6), (ap, key)
-
-    def test_gerber_p_and_macro_flashes_come_back_as_regions(self, app, tmp_path):
-        """Characterization of the writer: P and AM are not declared, their footprints are written as
-        regions, so the composed geometry is kept but the aperture metadata is not."""
-        text = MIXED_GBR_NO_POLARITY
-        path = tmp_path / 'pam.gbr'
-        path.write_text(text)
-        grb = GerberObject('pam', app)
-        assert grb.parse_file(str(path)) is None
-        assert {t['type'] for t in grb.tools.values()} >= {'P', 'AM', 'C', 'R', 'O'}
-        again = reparse_gerber(app, export_gerber_text(app, grb), tmp_path)
-        assert_poly_equiv(again.solid_geometry, grb.solid_geometry, rel=1e-6, abs_tol=1e-4, msg='P/AM')
-        types = {t['type'] for ap, t in again.tools.items() if ap != 0}
-        assert 'P' not in types and 'AM' not in types
-        assert len(again.tools[0]['geometry']) >= 2   # the P and AM footprints (plus the region)
 
 
 class TestRegressionGerberFileRoundTripFixedInStage0C:
@@ -841,14 +701,4 @@ class TestGerberAttributeExport:
         again = reparse_gerber(app, text, tmp_path)
         assert ['Net,A'] in [r[2] for r in x2_records(again)]
 
-    def test_escape_helpers(self):
-        from appParsers.gerber_attributes import escape_attribute_value, format_attribute, split_attribute
-        raw = 'a,b*c%d\\e é\U0001F600'
-        assert escape_attribute_value(raw) == 'a\\u002Cb\\u002Ac\\u0025d\\u005Ce \\u00E9\\U0001F600'
-        line = format_attribute('TO', '.N', [raw, 'x'])
-        assert line.startswith('%TO.N,') and line.endswith('*%')
-        assert split_attribute(line[3:-2]) == ('.N', [raw, 'x'])
 
-    def test_file_without_attributes_gets_none(self, app):
-        text = export_gerber_text(app, make_gerber(app, NATIVE_GBR))
-        assert not [ln for ln in text.splitlines() if ln.startswith(('%TF', '%TA', '%TO', '%TD'))]

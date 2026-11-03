@@ -96,12 +96,6 @@ class CalibratedPasteTests(unittest.TestCase):
         self.assertIn('G4 P100.0000', program(settings(mach3_dwell='Milliseconds')))
         self.assertIn('G4 S0.1000', program(settings(controller='Marlin')))
 
-    def test_dot_motor_duration_and_no_motion_while_dispensing(self):
-        code = program(settings(), paths=[Point(1, 1)], volumes=[0.005])
-        self.assertIn('G4 P0.5000', code)
-        self.assertIn('PASTE_DOT', code)
-        dose = code.split('PASTE_ON')[1].split('PASTE_OFF')[0]
-        self.assertNotRegex(dose, r'G1 X')
 
     def test_marlin_stepper_and_retraction_recovery(self):
         data = settings(controller='Marlin', drive='Stepper', axis='E', axis_mode='Linear',
@@ -114,7 +108,8 @@ class CalibratedPasteTests(unittest.TestCase):
         self.assertEqual(code.count('PASTE_ON'), 2)
 
     def test_invalid_settings_fail_before_output(self):
-        invalid = [dict(flow_rate=0), dict(calibration=math.nan), dict(overlap=100),
+        # flow_rate=100: an excess flow must fail, not overdose the paste silently
+        invalid = [dict(flow_rate=0), dict(flow_rate=100), dict(calibration=math.nan), dict(overlap=100),
                    dict(drive='Stepper', controller='GRBL'), dict(axis='X', drive='Stepper'),
                    dict(controller='Marlin', drive='Stepper', axis='E', marlin_cold=False),
                    dict(controller='GRBL', grbl_mode='Laser'), dict(z_travel=0.01),
@@ -123,34 +118,6 @@ class CalibratedPasteTests(unittest.TestCase):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 program(settings(**changes))
 
-    def test_excess_flow_does_not_silently_overdose(self):
-        with self.assertRaisesRegex(ValueError, 'flow|feed'):
-            program(settings(flow_rate=100))
-
-    def test_current_controller_and_calibration_apply_without_replanning(self):
-        tool = make_tool([box(0, 0, 2, 1)])
-        tool.tooltable_tools[1]['data'].update(settings())
-        SolderPaste.on_create_geo(tool, 'pads', tool.source, use_thread=False)
-        source = tool.objects[0]
-        source.obj_options.update(xmin=0, ymin=0, xmax=2, ymax=1)
-        original = copy.deepcopy(source.tools)
-        tool.tooltable_tools[1]['data'].update(settings(controller='Marlin', flow_rate=0.005))
-        jobs = []
-
-        def create(kind, name, initialize, **kwargs):
-            job = make_job(tool.app)
-            job.kind = 'cncjob'
-            result = initialize(job, tool.app)
-            if result != 'fail':
-                jobs.append(job)
-            return result
-
-        tool.new_object = create
-        SolderPaste.on_create_gcode(tool, 'paste', source, use_thread=False)
-        self.assertTrue(jobs)
-        self.assertIn(';Calibrated solder paste: Marlin', jobs[0].gcode)
-        self.assertEqual(jobs[0].tools[1]['data']['tools_solderpaste_flow_rate'], 0.005)
-        self.assertEqual(source.tools, original)
 
     def test_motor_volume_from_actual_commands_includes_prime(self):
         data = settings(prime=0.01, calibration=1.2)

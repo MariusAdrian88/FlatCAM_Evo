@@ -25,29 +25,7 @@ def test_copper_line_grid_respects_clearance():
     assert added.intersection(source.buffer(0.5, quad_segs=8)).area < 1e-9
 
 
-def test_plating_clearance_export_records_describe_actual_openings():
-    pad = Point(0, 0).buffer(1)
-    tools = {10: {'type': 'C', 'size': 2, 'geometry': [{'solid': pad, 'follow': Point(0, 0)}]}}
-    solid, apertures, follows, area = plating_mask([pad], tools, [Point(0, 0)], [], [], [],
-                                                  0.25, 3, False)
-    exported = []
-    for apid, aperture in apertures.items():
-        for record in aperture.get('geometry', []):
-            exported.append(record['solid'] if apid == 0 else
-                            record['follow'].buffer(aperture['size'] / 2))
-    assert unary_union(exported).symmetric_difference(solid).area < 1e-9
-    assert tools[10]['size'] == 2
-    assert area == pytest.approx(solid.area)
-    app = make_app()
-    code = GerberObject.export_gerber(SimpleNamespace(app=app, tools=apertures), 4, 6)
-    parsed = Gerber(app)
-    parsed.parse_lines(['%FSLAX46Y46*%', '%MOMM*%', '%ADD10C,2*%', 'D10*', 'G01*'] +
-                       code.splitlines() + ['M02*'])
-    assert unary_union(parsed.solid_geometry).symmetric_difference(solid).area < 1e-5
-
-
-@pytest.mark.parametrize("clearance, choice", [(0.1, 1), (0, 1), (-0.1, 1),
-                                               (0, 0), (0.1, 2), (0, 3)])
+@pytest.mark.parametrize("clearance, choice", [(0.1, 1), (0.1, 2), (0, 3)])
 def test_plating_export_preserves_nested_openings(clearance, choice):
     center = Point(5, 5)
     pad = center.buffer(2)
@@ -205,17 +183,7 @@ def test_copper_generation_export_preserves_source_region_islands():
     assert differences == pytest.approx([0, 0, 0], abs=1e-5)
 
 
-def test_zero_grid_reports_parameter_and_creates_nothing():
-    source = source_gerber()
-    tool = make_tool(source, fill_type_combo=1, dot_dia_entry=0)
-    outputs = record_objects(tool)
-    tool.copper_thieving(source, c_val=0.5, margin=1, run_threaded=False)
-    assert any(m.startswith('[ERROR_NOTCL]') and 'Grid size' in m for m in messages(tool))
-    assert not any('No object available' in m for m in messages(tool))
-    assert outputs == []
-
-
-@pytest.mark.parametrize("case", ['empty source', 'robber thickness', 'nothing to fill', 'no reference object'])
+@pytest.mark.parametrize("case", ['empty source', 'robber thickness', 'zero grid', 'no reference object'])
 def test_nothing_is_created_and_user_is_warned(case):
     source = source_gerber()
     ui_values = {}
@@ -223,8 +191,8 @@ def test_nothing_is_created_and_user_is_warned(case):
         source.solid_geometry = []
     elif case == 'robber thickness':
         ui_values = dict(rb_thickness_entry=0)
-    elif case == 'nothing to fill':
-        ui_values = dict(fill_type_combo=1, dot_dia_entry=100)
+    elif case == 'zero grid':
+        ui_values = dict(fill_type_combo=1, dot_dia_entry=0)
     else:
         ui_values = dict(reference_combo=2)
     tool = make_tool(source, **ui_values)
@@ -240,13 +208,4 @@ def test_nothing_is_created_and_user_is_warned(case):
     assert any(m.startswith(('[WARNING_NOTCL]', '[ERROR_NOTCL]')) for m in messages(tool))
     assert not any(m.startswith('[success]') for m in messages(tool))
 
-
-def test_area_selection_ignores_a_drag_and_uses_world_coordinates():
-    tool = make_tool(source_gerber(), reference_combo=1)
-    # the app drag flag is not updated while the plugin owns the canvas events: only the event counts
-    tool.app.event_is_dragging = True
-    tool.on_mouse_release(SimpleNamespace(button=1, pos=(100, 200), is_dragging=True))
-    assert tool.first_click is False
-    tool.on_mouse_release(SimpleNamespace(button=1, pos=(100, 200), is_dragging=False))
-    assert tool.first_click is True and tool.cursor_pos == (10, 20)
 

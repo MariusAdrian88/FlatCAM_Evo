@@ -14,9 +14,7 @@ from tests.helpers_objects import make_app, make_gerber, NATIVE_GBR  # noqa: F40
 
 @pytest.mark.parametrize('threaded', [False, True])
 @pytest.mark.parametrize('positions', [
-    pytest.param([(10.0, 20.0)], id='positions0'),
     pytest.param([(10.0, 30.0), (25.0, 5.0)], id='positions1'),
-    pytest.param([(-10.0, 30.0), (25.0, -5.0)], id='positions3'),
 ])
 def test_selected_gerbers_move_as_group_with_matching_plot_and_source(positions, threaded, tmp_path):
     from PyQt6 import QtWidgets

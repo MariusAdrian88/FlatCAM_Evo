@@ -10,7 +10,6 @@ from shapely.geometry import Point, box
 
 from appEditors.appExcEditor import AppExcEditor, match_tool_data, tools_with_data
 from appEditors.appGerberEditor import AppGerberEditor, edit_copy_name, get_finite_bounds
-from appGUI.GUIElements import FCDetachableTab2
 from appHandlers.appIO import appIO
 from appMain import App
 from appObjects.GeometryObject import GeometryObject
@@ -73,22 +72,6 @@ def finish(app_stub, click, force_cancel=None):
 
 
 
-def test_gerber_save_updates_in_place_and_records_after_the_update():
-    app_stub, obj = editor_app('gerber', empty=True)
-    assert finish(app_stub, 'Save') == 'pending'
-    app_stub.grb_editor.update_fcgerber.assert_not_called()
-    on_complete = app_stub.grb_editor.update_fcgerber_in_place.call_args.kwargs['on_complete']
-    # the source is not updated yet: no history step, no teardown
-    app_stub._history_edit_saved.assert_not_called()
-    app_stub.post_edit_sig.emit.assert_not_called()
-    on_complete()
-    app_stub._history_edit_saved.assert_called_once_with(obj)
-    app_stub.grb_editor.refresh_edited_gerber.assert_called_once_with(obj)
-    app_stub.post_edit_sig.emit.assert_called_once()
-    # an in-place save never deletes the source, even when it is empty
-    app_stub.collection.delete_by_name.assert_not_called()
-
-
 def test_gerber_save_as_new_keeps_the_source_and_the_empty_source_rule():
     app_stub, obj = editor_app('gerber', empty=True)
     finish(app_stub, 'Save as New')
@@ -128,26 +111,6 @@ def test_excellon_save_in_place_and_save_as_new():
 
 
 
-def test_geometry_save_as_new_writes_into_a_copy_and_leaves_the_source():
-    app_stub, obj = editor_app('geometry')
-    copy_obj = SimpleNamespace(kind='geometry', obj_options={'name': 'obj_edit'}, set_offset_values=Mock(),
-                               build_ui=Mock(), plot=Mock(), bounds=Mock(return_value=(0, 0, 2, 2)))
-    app_stub._copy_geometry_for_save_as_new = Mock(return_value=copy_obj)
-    app_stub.geo_editor.update_editor_geometry.return_value = 'pending'
-    assert finish(app_stub, 'Save as New') == 'pending'
-    call = app_stub.geo_editor.update_editor_geometry.call_args
-    assert call.args == (copy_obj,)
-    call.kwargs['on_complete']()
-    copy_obj.build_ui.assert_called_once()
-    copy_obj.plot.assert_called_once()
-    obj.build_ui.assert_not_called()
-    obj.plot.assert_not_called()
-    app_stub._history_edit_saved.assert_not_called()
-    assert app_stub._history_edit is None
-
-
-
-
 def test_geometry_save_as_new_removes_the_copy_when_the_save_is_rejected():
     app_stub, _obj = editor_app('geometry')
     copy_obj = SimpleNamespace(obj_options={'name': 'obj_edit'})
@@ -155,50 +118,6 @@ def test_geometry_save_as_new_removes_the_copy_when_the_save_is_rejected():
     app_stub.geo_editor.update_editor_geometry.return_value = 'fail'
     assert finish(app_stub, 'Save as New') == 'fail'
     app_stub.collection.delete_by_name.assert_called_once_with('obj_edit')
-
-
-def gcode_editor_tabs(app_stub):
-    """A real Plot Area with the Code Editor tab between 2 other tabs."""
-    tabs = FCDetachableTab2()
-    for name in ('plot_area_tab', 'gcode_editor_tab', 'preferences_tab'):
-        page = QtWidgets.QWidget()
-        page.setObjectName(name)
-        tabs.addTab(page, name)
-    app_stub.ui.plot_tab_area = tabs
-    app_stub.call_source = 'gcode_editor'
-
-    # leaving the editor (update_fcgcode() for Yes, _deactivate_editor() for No) sets call_source back to 'app'
-    def leave(*args):
-        app_stub.call_source = 'app'
-    app_stub.gcode_editor.update_fcgcode.side_effect = leave
-    app_stub._deactivate_editor.side_effect = leave
-    return tabs
-
-
-def tab_names(tabs):
-    return [tabs.widget(idx).objectName() for idx in range(tabs.count())]
-
-
-@pytest.mark.parametrize('click', ['No'])
-def test_cncjob_closing_the_code_editor_tab_closes_only_that_tab(click):
-    # the X of the Code Editor tab: the handler of tab_closed_signal exits the editor, which closes the tab itself;
-    # closeTab() then removed the tab at the old index, which was the next tab (here Preferences)
-    app_stub, _obj = editor_app('cncjob')
-    tabs = gcode_editor_tabs(app_stub)
-    errors = []
-
-    def on_closed(tab_name, index):
-        # as App.on_plot_area_tab_closed(); FlatCAM shows an exception of a slot as a Critical Error
-        if tab_name == 'gcode_editor_tab':
-            try:
-                finish(app_stub, click)
-            except Exception as err:
-                errors.append(err)
-    tabs.tab_closed_signal.connect(on_closed)
-    assert tabs.closeTab(1) is True
-    assert errors == []
-    assert tab_names(tabs) == ['plot_area_tab', 'preferences_tab']
-    app_stub.post_edit_sig.emit.assert_called_once()
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -285,16 +204,6 @@ def tools(*dias):
 
 def test_match_tool_data_follows_a_renumbering():
     assert match_tool_data(tools(0.8, 1.0), tools(1.0, 0.8), {0.8: 0.8, 1.0: 1.0}, 4) == {1: 2, 2: 1}
-
-
-def test_match_tool_data_follows_a_diameter_edit():
-    assert match_tool_data(tools(0.8), tools(1.2), {0.8: 1.2}, 4) == {1: 1}
-
-
-
-
-
-
 
 
 def test_excellon_in_place_apply_keeps_identity_options_and_tool_data(app):

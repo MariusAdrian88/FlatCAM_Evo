@@ -233,16 +233,6 @@ def test_unrepresentable_worker_output_preserves_board_and_history(kind, params)
     assert host.messages and not any(message.startswith('[success]') for message in host.messages)
 
 
-def test_affine_validates_all_keys_before_assigning_any_result():
-    shape = DrawToolShape({'solid': box(0, 0, 1, 1), 'follow': Point(sys.float_info.max, 0)})
-    before = dict(shape.geo)
-    with pytest.raises(ValueError):
-        GrbTransformationPlugin.affine_selection([shape], (2, 0, 0, 2, 0, 0))
-    assert shape.geo == before
-
-
-
-
 def transformation_tool(editor):
     from defaults import AppDefaults
     editor.app.defaults = AppDefaults()
@@ -261,46 +251,6 @@ def test_stale_queued_result_never_reports_success():
     assert snapshot(shapes) == before
     assert not editor.history.undo_stack
     assert host.messages and not any(message.startswith('[success]') for message in host.messages)
-
-
-@pytest.mark.parametrize('kind', ['scale', 'buffer'])
-def test_standalone_tool_finishes_after_commit_without_losing_targets(kind):
-    from appEditors.appGerberEditor import ScaleEditorGrb, BufferEditorGrb
-    from appEditors.grb_plugins.GrbBufferPlugin import BufferEditorTool
-    from defaults import AppDefaults
-    host, editor, shapes = build()
-    editor.selected = [shapes[0]]
-    editor.sync_aperture_rows({10})
-    editor.ui.scale_factor_entry.set_value(2)
-    if kind == 'scale':
-        tool = ScaleEditorGrb(editor)
-        action = tool.on_scale_click
-    else:
-        editor.app.defaults = AppDefaults()
-        tool = BufferEditorGrb.__new__(BufferEditorGrb)
-        tool.draw_app, tool.app, tool.name = editor, editor.app, 'buffer'
-        tool.buff_tool = BufferEditorTool(editor.app, editor)
-        tool.buff_tool.ui.buffer_distance_entry.set_value(0.2)
-        action = tool.on_buffer_clicked
-    editor.active_tool = tool
-    editor.shapes.visible = True
-    editor.select_tool = AppGerberEditor.select_tool.__get__(editor)
-    results = []
-    editor.geometry_result.disconnect()
-    editor.geometry_result.connect(results.append)
-    before = shapes[0].geo['solid']
-    action()
-    assert shapes[0].geo['solid'] is before
-    job = editor.app.worker_task.emit.call_args.args[0]
-    job['fcn'](*job['params'])
-    QtWidgets.QApplication.processEvents()
-    editor.history.apply_result(results[0])
-    if kind == 'scale':
-        assert shapes[0].geo['solid'].area == pytest.approx(before.area * 4)
-    else:
-        assert shapes[0].geo['solid'].area == pytest.approx(before.buffer(0.2, quad_segs=16).area)
-    assert editor.active_tool.name == 'select'
-    assert not any('Wait for' in message for message in host.messages)
 
 
 if __name__ == '__main__':

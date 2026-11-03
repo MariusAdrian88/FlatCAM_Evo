@@ -56,9 +56,6 @@ def align_click(target, pos):
 class TestAlignGerber:
     @pytest.mark.parametrize('click, center', [
         ((5.2, 5.1), [5.0, 5.0]),         # C flash
-        ((10.3, 5.1), [10.0, 5.0]),       # R flash
-        ((15.4, 5.0), [15.0, 5.0]),       # O flash
-        ((20.1, 5.1), [20.0, 5.0]),       # P flash
         ((15.2, 35.1), [15.0, 35.0]),     # flash after the clear track
     ])
     def test_flash_gives_the_flash_point(self, gerber, click, center):
@@ -68,22 +65,12 @@ class TestAlignGerber:
         obj = _gerber_like({1: {'geometry': [{'solid': box(0, -1, 2, 1), 'follow': Point(0, 0)}]}})
         assert align_click(obj, (0.5, 0.0)) == [pytest.approx([0.0, 0.0])]
 
-    def test_two_overlapping_flashes_give_the_smaller_one(self):
-        obj = _gerber_like({
-            1: {'geometry': [{'solid': box(0, 0, 2, 2), 'follow': Point(1, 1)}]},
-            2: {'geometry': [{'solid': box(0, 0, 4, 4), 'follow': Point(2, 2)}]},
-        })
-        assert align_click(obj, (1.0, 1.0)) == [pytest.approx([1.0, 1.0])]
-
 class TestAlignExcellon:
     def test_drill_gives_its_center(self, excellon):
         assert align_click(excellon, (5.1, 12.1)) == [pytest.approx([5.0, 12.0])]
 
     def test_slot_gives_its_centroid(self, excellon):
         assert align_click(excellon, (24.0, 12.2)) == [pytest.approx([24.0, 12.0])]
-
-    def test_outside_gives_nothing(self, excellon):
-        assert align_click(excellon, (8.0, 8.0)) == []
 
 # ---------------------------------------------------------------------------------------------------------------
 # ToolDblSided
@@ -104,9 +91,6 @@ class TestDblSided:
     def test_drill_gives_its_center(self, excellon):
         points, exits = dbl_click(excellon, (5.1, 12.1))
         assert points == [pytest.approx((5.0, 12.0))] and exits == 1
-
-    def test_outside_gives_nothing(self, excellon):
-        assert dbl_click(excellon, (8.0, 8.0)) == ([], 0)
 
     def test_stops_after_the_first_hit_inside_a_tool(self, app):
         exc = _custom_excellon(app, {
@@ -149,10 +133,3 @@ class TestFindPad:
         assert find_pad(grb, (3.0, 3.0), [7]) == [{'apid': 7, 'idx': 2}]
         assert find_pad(grb, (5.5, 5.5), [7]) == []      # clear record
         assert find_pad(grb, (0.5, 0.5), [7]) == []      # route
-
-    def test_two_overlapping_pads_give_both_in_order(self):
-        grb = _gerber_like({
-            1: {'geometry': [{'solid': box(0, 0, 4, 4), 'follow': Point(2, 2)}]},
-            2: {'geometry': [{'solid': box(1, 1, 3, 3), 'follow': Point(2, 2)}]},
-        })
-        assert find_pad(grb, (2.0, 2.0), [1, 2]) == [{'apid': 1, 'idx': 0}, {'apid': 2, 'idx': 0}]

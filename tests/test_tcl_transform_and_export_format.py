@@ -17,7 +17,7 @@ from tclCommands.TclCommandMirror import TclCommandMirror
 from tclCommands.TclCommandOffset import TclCommandOffset
 from tclCommands.TclCommandSkew import TclCommandSkew
 from tests.helpers_objects import (  # noqa: F401,E402
-    assert_xy_close, drill_xy, make_app_0b as make_app, make_excellon_0b as make_excellon,
+    app, _headless_qt, assert_xy_close, drill_xy, make_app_0b as make_app, make_excellon_0b as make_excellon,
 )
 from tclCommands.TclCommandScale import TclCommandScale
 
@@ -95,8 +95,7 @@ class TestGerberExportNumberFormat:
     def test_trailing_zeros_keep_the_sign_in_front_of_the_padding(self):
         assert 'X015000Y-022500D03' in _exported_body('T')
 
-    @pytest.mark.parametrize('g_zeros', ['L', 'T'])
-    @pytest.mark.parametrize('whole, fract', [(2, 4), (3, 6), (4, 6)])
+    @pytest.mark.parametrize('g_zeros,whole,fract', [('L', 3, 6), ('T', 2, 4)])
     def test_real_export_round_trips_negative_and_small_coordinates(self, g_zeros, whole, fract, tmp_path):
         """appIO.export_gerber -> parser: the Gerber spec 4.2.2 (L) and 8.2.1.1 (T, deprecated) formats."""
         app = char.make_app()
@@ -122,9 +121,7 @@ class TestExcellonExportNumberFormat:
     LZ: the leading zeros are written, the reader adds the trailing zeros, so the whole part has 'whole' digits;
     TZ: the trailing zeros are written, the reader counts the decimals from the right, so no padding."""
 
-    @pytest.mark.parametrize('slot_type', ['routing', 'drilling'])
-    @pytest.mark.parametrize('e_zeros', ['LZ', 'TZ'])
-    @pytest.mark.parametrize('whole, fract', [(3, 3), (2, 4)])
+    @pytest.mark.parametrize('slot_type,e_zeros,whole,fract', [('routing', 'LZ', 3, 3), ('drilling', 'TZ', 2, 4)])
     def test_real_export_round_trips_negative_and_small_coordinates(self, e_zeros, whole, fract, slot_type,
                                                                      tmp_path):
         app = char.make_app()
@@ -155,7 +152,7 @@ class TestExcellonExportNumberFormat:
 class TestTclBufferJoin:
     """-join 2 / square is the square corner join: the Shapely 'mitre' join ('square' is a cap style)."""
 
-    @pytest.mark.parametrize('join', ['2', 'square', 'mitre'])
+    @pytest.mark.parametrize('join', ['square'])
     def test_square_join_buffers_the_gerber(self, join):
         from appParsers.ParseGerber import Gerber
         from tclCommands.TclCommandBuffer import TclCommandBuffer
@@ -194,18 +191,6 @@ class TestTclScale_0B5:
         assert_xy_close(drill_xy(ex), [(2.0, 1.0), (6.0, 2.0)])
 
 
-    def test_x_and_y_scale_both_axes(self):
-        ex = _scale_target()
-        _tcl_scale({'ex': ex}, '-x', '2', '-y', '3', '-origin', 'origin')
-        assert_xy_close(drill_xy(ex), [(2.0, 3.0), (6.0, 6.0)])
-
-    def test_axis_path_refreshes_bounds_options(self):
-        ex = _scale_target()
-        _tcl_scale({'ex': ex}, '-x', '2', '-y', '2', '-origin', 'origin')
-        assert 'xmax' in ex.obj_options
-        assert ex.obj_options['xmax'] == pytest.approx(ex.bounds()[2])
-
-
     def test_two_objects_axis_path_share_one_center(self):
         # default origin = center of the bounds of ALL named objects, computed once
         a = make_excellon(default_data={}, tooldia=0.2, drills=((0.0, 0.0),), slots=())
@@ -218,7 +203,6 @@ class TestTclScale_0B5:
 @pytest.mark.parametrize('cmd_cls, argv, moved', [
     (TclCommandOffset, ('-x', '10', '-y', '5'), r'G0 X11(\.0*)? Y6'),
     (TclCommandMirror, ('-axis', 'X', '-origin', 'origin'), r'G0 X-1(\.0*)? Y1'),
-    (TclCommandScale, ('-x', '2', '-origin', 'origin'), r'G0 X2(\.0*)? Y1'),
     (TclCommandSkew, ('-x', '10', '-y', '0', '-origin', 'origin'), r'G0 X1\.17\d* Y1'),
 ])
 def test_tcl_transform_of_a_gcode_job_moves_its_exported_text(cmd_cls, argv, moved, tmp_path):
@@ -235,3 +219,40 @@ def test_tcl_transform_of_a_gcode_job_moves_its_exported_text(cmd_cls, argv, mov
 
     assert re.search(moved, job.source_file), job.source_file
     assert 'G0 X1 Y1' not in job.source_file
+
+
+# export_gerber and export_excellon (Tcl) raised TypeError: the commands passed name= to handlers whose parameter is
+# obj_name. These run the real export into a file and read it back with FlatCAM's own parsers.
+
+def run_export(command_class, app, source, *argv):
+    from appHandlers.appIO import appIO
+    app.f_handlers = appIO(app)
+    app.collection.get_by_name = Mock(side_effect=lambda n: source if n == source.obj_options['name'] else None)
+    cmd = command_class(app)
+    args, unnamed = cmd.check_args(tuple(argv))
+    return cmd.execute(args, unnamed)
+
+
+def test_tcl_export_gerber_and_excellon_write_files_that_parse_back(app, tmp_path):
+    from appObjects.ExcellonObject import ExcellonObject
+    from tclCommands.TclCommandExportExcellon import TclCommandExportExcellon
+    from tclCommands.TclCommandExportGerber import TclCommandExportGerber
+
+    source = char.make_gerber(app, name='g')
+    target = tmp_path / 'out.gbr'
+    run_export(TclCommandExportGerber, app, source, 'g', str(target))
+    assert target.exists() and target.stat().st_size > 0
+    again = GerberObject('again', app)
+    assert again.parse_file(str(target)) is None
+    assert again.solid_geometry
+    for got, want in zip(again.bounds(), source.bounds()):
+        assert got == pytest.approx(want, abs=1e-3)
+
+    source = char.make_excellon(app, name='e')
+    target = tmp_path / 'out.drl'
+    run_export(TclCommandExportExcellon, app, source, 'e', str(target))
+    assert target.exists() and target.stat().st_size > 0
+    again = ExcellonObject('again', app)
+    assert again.parse_file(str(target)) is None
+    assert again.create_geometry() is None
+    assert sorted(t['tooldia'] for t in again.tools.values()) == sorted(t['tooldia'] for t in source.tools.values())

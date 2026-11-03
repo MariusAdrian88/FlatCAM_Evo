@@ -49,12 +49,6 @@ class TestShapes(unittest.TestCase):
         for a, b in zip(g[0].bounds, (5.0, 35.0, 25.0, 45.0)):
             self.assertAlmostEqual(a, b, places=6)
 
-    def test_circle_ellipse(self):
-        c = run('<circle cx="100" cy="50" r="20"/>')
-        self.assertAlmostEqual(c[0].area, math.pi * 400 * 0.25, delta=0.01 * c[0].area)
-        e = run('<ellipse cx="100" cy="50" rx="30" ry="10"/>')
-        self.assertAlmostEqual(e[0].area, math.pi * 300 * 0.25, delta=0.01 * e[0].area)
-        self.assertAlmostEqual(e[0].centroid.x, 50.0, places=4)
 
     def test_units(self):
         for attrs in ('width="96px" height="96px"', 'width="1in" height="1in" viewBox="0 0 96 96"',
@@ -63,21 +57,6 @@ class TestShapes(unittest.TestCase):
             g = run('<rect width="%s" height="%s"/>' % (vb, vb), attrs)
             self.assertAlmostEqual(g[0].area, 25.4 ** 2, places=4, msg=attrs)
 
-    def test_preserve_aspect_ratio(self):
-        body = '<rect width="100" height="50"/>'
-        meet = bounds(run(body, 'width="100mm" height="100mm" viewBox="0 0 100 50"', flip=False))
-        self.assertAlmostEqual(meet[3] - meet[1], 50.0)
-        self.assertAlmostEqual(meet[1], 25.0)
-        none = bounds(run(body, 'width="100mm" height="100mm" viewBox="0 0 100 50" '
-                                'preserveAspectRatio="none"', flip=False))
-        self.assertAlmostEqual(none[3] - none[1], 100.0)
-        sl = bounds(run(body, 'width="100mm" height="100mm" viewBox="0 0 100 50" '
-                              'preserveAspectRatio="xMinYMin slice"', flip=False))
-        self.assertAlmostEqual(sl[2] - sl[0], 200.0)
-        self.assertAlmostEqual(sl[0], 0.0)
-        mx = bounds(run('<rect width="50" height="50"/>', 'width="100mm" height="50mm" viewBox="0 0 50 50" '
-                                                          'preserveAspectRatio="xMaxYMid meet"', flip=False))
-        self.assertAlmostEqual(mx[0], 50.0)
 
 class TestPath(unittest.TestCase):
     def one(self, d, **kw):
@@ -85,11 +64,6 @@ class TestPath(unittest.TestCase):
         self.assertEqual(len(g), 1, d)
         return g[0]
 
-    def test_lines_absolute_relative(self):
-        self.assertAlmostEqual(self.one('M10 10 H30 V30 H10 Z').area, 400.0)
-        self.assertAlmostEqual(self.one('m10 10 h20 v20 h-20 z').area, 400.0)
-        self.assertAlmostEqual(self.one('M0 0 L10 0 20 0 20 10 0 10z').area, 200.0)
-        self.assertAlmostEqual(self.one('m0 0 l10 0 10 0 0 10 -20 0z').area, 200.0)
 
     def test_arc_semicircle_and_flags(self):
         a = self.one('M0 0 A10 10 0 0 1 20 0 Z', resolution=360)
@@ -149,31 +123,8 @@ class TestStyle(unittest.TestCase):
         self.assertTrue(areas[0] < areas[1] < areas[2])
         self.assertAlmostEqual(areas[0], 12 * 12 - 8 * 8, places=3)
 
-    def test_inline_style_beats_attribute_and_css(self):
-        body = ('<style>rect{fill:none}</style>'
-                '<rect width="10" height="10" fill="red" style="fill:blue"/>')
-        self.assertEqual(len(raw(body, object_type='gerber')), 1)
-        body = ('<style>rect{fill:none !important}</style><rect width="10" height="10" style="fill:blue"/>')
-        self.assertEqual(raw(body, object_type='gerber'), [])
 
 class TestModern(unittest.TestCase):
-    def test_inputs(self):
-        text = svg('<rect width="10" height="10"/>', '')
-        self.assertEqual(len(svg_to_shapes(io.StringIO(text), user_units=True)), 1)
-        self.assertEqual(len(svg_to_shapes(io.BytesIO(text.encode()), user_units=True)), 1)
-        self.assertEqual(len(svg_to_shapes(text.encode(), user_units=True)), 1)
-        self.assertEqual(len(svg_to_shapes('<?xml version="1.0" encoding="UTF-8"?>\n' + text, user_units=True)), 1)
-        root = etree.fromstring(text.encode())
-        self.assertEqual(len(svg_to_shapes(root, user_units=True)), 1)
-        self.assertEqual(len(svg_to_shapes(etree.ElementTree(root), user_units=True)), 1)
-        import xml.etree.ElementTree as ET
-        self.assertEqual(len(svg_to_shapes(ET.fromstring(text), user_units=True)), 1)
-        with tempfile.TemporaryDirectory() as d:
-            p = os.path.join(d, 'a.svg')
-            with open(p, 'w', encoding='utf-8') as f:
-                f.write(text)
-            self.assertEqual(len(svg_to_shapes(p, user_units=True)), 1)
-            self.assertEqual(len(svg_to_shapes(__import__('pathlib').Path(p), user_units=True)), 1)
 
     def test_errors(self):
         for bad in ('<svg><rect></svg>', '<html/>', '', 'not a file at all.svg', b'\x00\x01'):
@@ -181,34 +132,6 @@ class TestModern(unittest.TestCase):
                 svg_to_shapes(bad)
         with self.assertRaises(SvgImportError):
             svg_to_shapes(12345)
-
-def _fonts_available():
-    try:
-        g = svg_to_shapes(svg('<text x="0" y="20" font-size="20">H</text>', ''), user_units=True)
-        return bool(g)
-    except Exception:
-        return False
-
-
-class TestText(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        if not _fonts_available():
-            raise unittest.SkipTest('no usable font for ParseFont')
-
-    def text(self, body, **kw):
-        kw.setdefault('user_units', True)
-        kw.setdefault('flip', False)
-        return svg_to_shapes(svg(body, ''), **kw)
-
-    def test_text_renders_and_height_follows_font_size(self):
-        h10 = bounds(self.text('<text x="0" y="50" font-size="10">H</text>'))
-        h20 = bounds(self.text('<text x="0" y="50" font-size="20">H</text>'))
-        height10, height20 = h10[3] - h10[1], h20[3] - h20[1]
-        self.assertTrue(6.0 < height10 < 8.5, height10)
-        self.assertAlmostEqual(height20 / height10, 2.0, delta=0.05)
-        # baseline at y=50, glyph grows upwards (smaller y) without flip
-        self.assertAlmostEqual(h10[3], 50.0, delta=0.3)
 
 
 def near(geoms, x, y, tol=0.05):

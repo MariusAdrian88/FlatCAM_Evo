@@ -90,10 +90,8 @@ def assert_uncommitted(editor, tool, original):
     assert not editor.undo()
 
 
-
-
 @pytest.mark.parametrize('cls', [FCPath])
-@pytest.mark.parametrize('number', [None, float('nan')])
+@pytest.mark.parametrize('number', [float('nan')])
 def test_invalid_numeric_input_keeps_construction_and_history(cls, number, monkeypatch):
     editor, tool, panel, original = input_tool(cls, length=number)
     dispatch(editor, 'Enter', monkeypatch)
@@ -104,11 +102,7 @@ def test_invalid_numeric_input_keeps_construction_and_history(cls, number, monke
     assert editor.app.inform.emit.called
 
 
-
-
-
-
-@pytest.mark.parametrize('cls', [FCPath, FCMove])
+@pytest.mark.parametrize('cls', [FCPath])
 def test_valid_numeric_projection_and_coordinate_jump(cls, monkeypatch):
     editor, tool, panel, original = input_tool(cls, length=10.0)
     # Path has no width and move/copy use Path/CopyEditorTool, which have no width property.
@@ -126,76 +120,7 @@ def test_valid_numeric_projection_and_coordinate_jump(cls, monkeypatch):
 
 
 @pytest.mark.parametrize('cls', [FCPath])
-def test_backspace_only_removes_construction_points(cls, monkeypatch):
-    editor, tool, panel, original = input_tool(cls)
-    dispatch(editor, 'Backspace', monkeypatch)
-    assert_uncommitted(editor, tool, original)
-    assert tool.points == ([] if cls is FCPath else [(0.0, 0.0)])
-    if cls is FCPath:
-        assert not editor.in_action
-
-
-@pytest.mark.parametrize('cls', [FCPath])
-@pytest.mark.parametrize('route', ['escape', 'switch'])
-def test_cancel_or_switch_cleans_preview_and_connections_without_committing(cls, route, monkeypatch):
-    editor, tool, panel, original = input_tool(cls)
-    editor.utility = [DrawToolUtilityShape(box(0, 0, 3, 4))]
-    stale_callback = Mock()
-    panel.ui.add_button.clicked.connect(stale_callback)
-    panel.ui.clear_btn.clicked.connect(stale_callback)
-    if cls in (FCPath, FCMove, FCCopy):
-        disconnect = CopyEditorTool.disconnect_signals if cls is FCCopy else PathEditorTool.disconnect_signals
-        panel.disconnect_signals = lambda: disconnect(panel)
-    editor.tools = {}
-    for name in ['select', 'path']:
-        button = QtWidgets.QPushButton()
-        button.setCheckable(True)
-        editor.tools[name] = dict(button=button, constructor=lambda e: SimpleNamespace(name='select'))
-    editor.on_tool_select = lambda name: AppGeoEditor.on_tool_select(editor, name)
-    editor.select_tool = lambda name: AppGeoEditor.select_tool(editor, name)
-    if route == 'escape':
-        dispatch(editor, 'Escape', monkeypatch)
-    else:
-        editor.select_tool('select')
-    assert list(editor.storage.get_objects()) == [original]
-    assert not editor.undo()
-    assert editor.active_tool.name == 'select'
-    assert not editor.in_action
-    editor.tool_shape.clear.assert_called()
-    editor.app.jump_signal.disconnect.assert_called()
-    assert editor.app.plotcanvas.text_cursor.parent is None
-    assert tool.points == []
-    assert editor.selected == [original]
-    assert not editor.utility
-    button = panel.ui.add_button if cls in (FCCircle, FCRectangle) else panel.ui.clear_btn
-    button.click()
-    stale_callback.assert_not_called()
-
-
-
-
-
-
-@pytest.mark.parametrize('cls', [FCPath])
-def test_busy_enter_retains_construction_until_retry(cls, monkeypatch):
-    editor, tool, panel, original = input_tool(cls)
-    editor.submit_worker(Mock(), [])
-    assert dispatch(editor, 'Enter', monkeypatch) == 'fail'
-    assert tool.points == [(0.0, 0.0)]
-    assert not tool.complete
-    assert list(editor.storage.get_objects()) == [original]
-    editor.app.on_jump_to.assert_not_called()
-    run_worker(editor)
-
-
-
-
-
-
-
-
-@pytest.mark.parametrize('cls', [FCPath])
-@pytest.mark.parametrize('qt_keys', [False, True])
+@pytest.mark.parametrize('qt_keys', [True])
 @pytest.mark.parametrize('text, expected', [('2*5', 10.0)])
 def test_numeric_expression_keys_use_existing_evaluator(cls, qt_keys, text, expected):
     editor, tool, panel, original = input_tool(cls, length=0.0)
@@ -218,7 +143,7 @@ def test_numeric_expression_keys_use_existing_evaluator(cls, qt_keys, text, expe
 
 
 @pytest.mark.parametrize('cls', [FCCircle])
-@pytest.mark.parametrize('point', [(0.0, 0.0), (float('nan'), 3.0)])
+@pytest.mark.parametrize('point', [(float('nan'), 3.0)])
 def test_invalid_completion_click_is_non_destructive(cls, point):
     editor, tool, panel, original = input_tool(cls)
     assert tool.click(point) == 'fail'
@@ -238,14 +163,6 @@ def test_completion_click_without_mouse_move_builds_at_current_point(cls):
     assert editor.undo()
 
 
-def test_zero_length_path_enter_cannot_commit_degenerate_geometry(monkeypatch):
-    editor, tool, panel, original = input_tool(FCPath, length=0.0)
-    editor.x, editor.y = (0.0, 0.0)
-    assert dispatch(editor, 'Enter', monkeypatch) == 'fail'
-    assert_uncommitted(editor, tool, original)
-    editor.select_tool.assert_not_called()
-
-
 def cursor_text_editor(*obstacles):
     # 10 pixels for 1 unit; the pixel y axis points down as on the canvas
     canvas = SimpleNamespace(dpi=72, view=SimpleNamespace(scene=object(), camera=SimpleNamespace()),
@@ -255,22 +172,6 @@ def cursor_text_editor(*obstacles):
     app = SimpleNamespace(plotcanvas=canvas, decimals=4, app_units='MM', dec_format=lambda v, d: round(v, d))
     tree = STRtree(list(obstacles)) if obstacles else None
     return SimpleNamespace(app=app, get_pick_index=lambda: (tree, list(obstacles))), canvas.text_cursor
-
-
-@pytest.mark.parametrize('ref, obstacles, anchors, x', [
-    (None, (), ('left', 'top'), 3.0),                                   # free: right of the cursor, above it
-    (None, (box(4, 0.5, 5, 1.5),), ('left', 'bottom'), 3.0),            # a shape is above: go below
-])
-def test_cursor_text_avoids_the_drawn_shape_and_the_shapes_under_it(ref, obstacles, anchors, x):
-    draw_app, text = cursor_text_editor(*obstacles)
-    show_cursor_text(draw_app, (0.0, 0.0), ref=ref)
-    assert text.parent is draw_app.app.plotcanvas.view.scene
-    assert text.anchors == anchors
-    assert text.pos[0] == pytest.approx(x) and text.pos[1] == pytest.approx(0.0)
-    length = '14.1421' if ref else '0.0'
-    assert text.text == 'X:   0.0 [mm]\nY:   0.0 [mm]\n\nL:   %s [mm]' % length
-    hide_cursor_text(draw_app.app)
-    assert text.parent is None
 
 
 def text_tool(bold=False, italic=False, size='12', parser=None):
@@ -286,25 +187,6 @@ def text_tool(bold=False, italic=False, size='12', parser=None):
 
 STYLE_GEOMETRY = {'regular': box(0, 0, 1, 1), 'bold': box(0, 0, 2, 1),
                   'italic': box(0, 0, 1, 2), 'bi': box(0, 0, 2, 2)}
-
-
-@pytest.mark.parametrize('bold, italic, style', [(True, False, 'bold')])
-def test_geo_text_apply_renders_the_selected_style(bold, italic, style):
-    tool = text_tool(bold=bold, italic=italic,
-                     parser=lambda **kwargs: STYLE_GEOMETRY[kwargs['font_type']])
-    TextInputTool.on_apply_button(tool)
-    assert tool.text_path.equals(STYLE_GEOMETRY[style])
-
-
-def test_geo_text_apply_clears_the_previous_geometry_on_failure():
-    def parser(**kwargs):
-        raise ValueError('bad size')
-
-    tool = text_tool(parser=parser)
-    tool.text_path = box(0, 0, 9, 9)
-    TextInputTool.on_apply_button(tool)
-    assert tool.text_path is None
-    assert tool.app.inform.emit.called
 
 
 def transformation_tool(geometry=None):

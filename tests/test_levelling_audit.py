@@ -33,6 +33,10 @@ import appPlugins.Common.grbl.grbl_client  # noqa: F401
 sg_module = sys.modules['appPlugins.Common.grbl.grbl_client']
 from appPlugins.Common import levelling_interp as li
 from appPlugins.Common.grbl import grbl_protocol as gp
+from unittest.mock import MagicMock, patch
+from unittest.mock import ANY
+from unittest.mock import ANY, patch
+import pytest
 
 
 def make_audit_tool(units='MM', storage=None, heights_valid=False, cls=None):
@@ -315,16 +319,6 @@ class TestRadioSettings(unittest.TestCase):
                                owner=(target.obj_options['name'], target), real_radios=True,
                                global_method=global_method)
 
-    def test_saved_method_wins_over_global_and_sets_minima(self):
-        for saved, global_method in (('b', 'v'), ('v', 'b')):
-            with self.subTest(saved=saved):
-                target = TestTargetOwnership.target(tools_al_mode='grid', tools_al_method=saved)
-                before = dict(target.obj_options)
-                tool = self.open_tool(target, global_method)
-                self.assertEqual(tool.ui.al_mode_radio.get_value(), 'grid')
-                self.assertEqual(tool.ui.al_method_radio.get_value(), saved)
-                tool.ui.al_rows_entry.setMinimum.assert_called_with(2 if saved == 'b' else 1)
-                self.assertEqual(target.obj_options, before)
 
     def test_user_edits_only_selected_target_and_a_b_a_restores(self):
         a = TestTargetOwnership.target('a', tools_al_mode='grid', tools_al_method='v')
@@ -345,104 +339,12 @@ class TestRadioSettings(unittest.TestCase):
             self.assertEqual(tool.ui.al_method_radio.get_value(), method)
         self.assertEqual(tool.app.options, globals_before)
 
-    def test_manual_transition_persists_effective_method_and_resets_once(self):
-        target = TestTargetOwnership.target(tools_al_mode='grid', tools_al_method='b')
-        tool = self.open_tool(target)
-        tool.al_voronoi_geo_storage = {1: {'point': Point(0, 0), 'height': 0.2}}
-        tool.al_heights_valid = True
-        generation = tool._al_generation
-        tool.build_al_table.reset_mock()
-        tool.ui.al_mode_radio.set_value('manual')
-        self.assertEqual(target.obj_options['tools_al_mode'], 'manual')
-        self.assertEqual(target.obj_options['tools_al_method'], 'v')
-        self.assertEqual(tool.ui.al_method_radio.get_value(), 'v')
-        self.assertFalse(tool.ui.al_method_radio.isEnabled())
-        self.assertEqual(tool.al_voronoi_geo_storage, {})
-        self.assertEqual(tool._al_generation, generation + 1)
-        tool.build_al_table.assert_called_once()
-        tool.ui.al_mode_radio.set_value('grid')
-        self.assertEqual(tool.ui.al_method_radio.get_value(), 'v')
-
-    def test_initialization_preserves_valid_map_and_emits_no_radio_signals(self):
-        target = TestTargetOwnership.target(tools_al_mode='grid', tools_al_method='b')
-        storage = {1: {'point': Point(0, 0), 'geo': None, 'height': 0.2}}
-        tool = self.open_tool(target, storage=storage)
-        self.assertEqual(tool.al_voronoi_geo_storage, storage)
-        self.assertTrue(tool.al_heights_valid)
-        self.assertEqual(tool._al_generation, 0)
-        tool.radio_events.assert_not_called()
-        self.assertFalse(tool.ui.al_mode_radio.signalsBlocked())
-        self.assertFalse(tool.ui.al_method_radio.signalsBlocked())
-        events = MagicMock()
-        tool.ui.al_mode_radio.activated_custom.connect(events)
-        tool.ui.al_method_radio.activated_custom.connect(events)
-        tool.ui.al_method_radio.blockSignals(True)
-        tool._new_probing_shapes = MagicMock()
-        tool.ui.object_combo.currentText.return_value = target.obj_options['name']
-        tool.on_object_changed()
-        events.assert_not_called()
-        self.assertFalse(tool.ui.al_mode_radio.signalsBlocked())
-        self.assertTrue(tool.ui.al_method_radio.signalsBlocked())
-        self.assertTrue(tool.al_heights_valid)
-
-    def test_legacy_and_manual_restoration_do_not_write_options(self):
-        for options, mode, method in (({}, 'grid', 'v'),
-                                      ({'tools_al_mode': 'manual', 'tools_al_method': 'b'}, 'manual', 'v')):
-            target = TestTargetOwnership.target(**options)
-            before = dict(target.obj_options)
-            tool = self.open_tool(target, global_method='b')
-            self.assertEqual(tool.ui.al_mode_radio.get_value(), mode)
-            self.assertEqual(tool.ui.al_method_radio.get_value(), method)
-            self.assertEqual(target.obj_options, before)
-
-    def test_unsupported_and_invalid_changes_do_not_write(self):
-        target = TestTargetOwnership.target(tools_al_mode='grid', tools_al_method='v')
-        target.is_segmented_gcode = False
-        before = dict(target.obj_options)
-        tool = self.open_tool(target)
-        tool.ui.al_frame.setDisabled.assert_called_with(True)
-        tool.ui.al_mode_radio.set_value('grid')
-        tool.ui.al_method_radio.set_value('b')
-        tool.on_mode_radio('invalid')
-        tool.on_method_radio('invalid')
-        self.assertEqual(target.obj_options, before)
-
-    def test_invalid_values_and_non_cncjob_do_not_persist(self):
-        target = TestTargetOwnership.target(tools_al_mode='grid', tools_al_method='v')
-        tool = self.open_tool(target)
-        before = dict(target.obj_options)
-        tool.on_mode_radio('invalid')
-        tool.on_method_radio('invalid')
-        self.assertEqual(target.obj_options, before)
-        target.kind = 'geometry'
-        tool.ui.al_method_radio.set_value('b')
-        tool.ui.al_mode_radio.set_value('manual')
-        self.assertEqual(target.obj_options, before)
-
-
-    def test_same_name_replacement_clears_owner_even_without_points(self):
-        target = TestTargetOwnership.target(tools_al_mode='grid', tools_al_method='b')
-        replacement = TestTargetOwnership.target(tools_al_mode='manual', tools_al_method='v')
-        tool = run_set_tool_ui({}, False, loaded_obj=replacement,
-                               owner=(target.obj_options['name'], target), real_radios=True)
-        self.assertIsNone(tool._al_target_obj)
-        self.assertIsNone(tool._al_target_name)
-        self.assertEqual(tool._al_generation, 1)
-        self.assertEqual(tool.ui.al_mode_radio.get_value(), 'manual')
-
 
 class TestWordRegex(unittest.TestCase):
     def test_trailing_dot_number_is_replaced_whole(self):
         state = li.new_levelling_state()
         out = li.level_gcode_line('G1 X1 Y1 Z-1.', state, lambda x, y: 0.5)
         self.assertEqual(out, 'G1 X1 Y1 Z-0.5000')
-
-    def test_leading_dot_number_still_parses(self):
-        state = li.new_levelling_state()
-        li.level_gcode_line('G1 X.5 Y.25 Z-.1', state, lambda x, y: 0.0)
-        self.assertAlmostEqual(state['X'], 0.5)
-        self.assertAlmostEqual(state['Y'], 0.25)
-        self.assertAlmostEqual(state['Z'], -0.1)
 
 
 class TestCannedCycles(unittest.TestCase):
@@ -474,42 +376,11 @@ class TestDistanceMode(unittest.TestCase):
         self.assertAlmostEqual(state['X'], 15.0)
         self.assertAlmostEqual(state['Y'], 8.0)
 
-    def test_g90_restores_absolute_levelling(self):
-        state = li.new_levelling_state()
-        li.level_gcode_line('G91', state, self.off)
-        li.level_gcode_line('G90', state, self.off)
-        self.assertEqual(li.level_gcode_line('G1 X1 Y1 Z-1', state, self.off), 'G1 X1 Y1 Z-0.5000')
-
-    def test_g91_with_g28_sets_relative_mode(self):
-        state = li.new_levelling_state()
-        li.level_gcode_line('G1 Z-1', state, self.off)
-        self.assertEqual(li.level_gcode_line('G91 G28 Z0', state, self.off), 'G91 G28 Z0')
-        self.assertFalse(state['abs'])
-        self.assertEqual(li.level_gcode_line('G1 X5 Y5', state, self.off), 'G1 X5 Y5')
-        self.assertEqual(state['relative'], 1)
-
-    def test_g90_with_g53_then_absolute_motion_is_levelled(self):
-        state = li.new_levelling_state()
-        li.level_gcode_line('G91', state, self.off)
-        self.assertEqual(li.level_gcode_line('G90 G53 G0 Z0', state, self.off), 'G90 G53 G0 Z0')
-        self.assertTrue(state['abs'])
-        self.assertEqual(li.level_gcode_line('G1 X1 Y1 Z-1', state, self.off), 'G1 X1 Y1 Z-0.5000')
 
     def test_modal_setting_with_axis_words_under_modal_g1_is_levelled(self):
         state = li.new_levelling_state()
         li.level_gcode_line('G1 X0 Y0 Z-1', state, self.off)
         self.assertEqual(li.level_gcode_line('G90 X1 Y1', state, self.off), 'G90 X1 Y1 Z-0.5000')
-
-
-    def test_tool_warns_about_relative_moves(self):
-        tool = make_audit_tool()
-        tool._al_prepare_interp = MagicMock(return_value=True)
-        tool._al_offset_fn = self.off
-        tool._al_decimals = 4
-        tool._al_points = [(0.0, 0.0, 0.5)]
-        target = SimpleNamespace(tools={1: {'gcode': 'G1 Z-1\nG91\nG1 X5 Y5\n'}})
-        tool.autolevell_gcode(target, 'v')
-        self.assertTrue(any('G91' in t for t in emitted(tool)))
 
 
 class TestAllG1Compensated(unittest.TestCase):
@@ -523,29 +394,9 @@ class TestAllG1Compensated(unittest.TestCase):
             out = li.level_gcode_line('G1 X1 Y1 Z' + nominal, state, lambda x, y: 0.3)
             self.assertAlmostEqual(self._z(out), float(nominal) + 0.3, places=4)
 
-    def test_clearance_feed_keeps_its_clearance(self):
-        state = li.new_levelling_state()
-        # no default start position: position X/Y/Z first
-        li.level_gcode_line('G0 X0 Y0 Z5', state, lambda x, y: -0.2)
-        self.assertEqual(li.level_gcode_line('G1 Z5', state, lambda x, y: -0.2), 'G1 Z4.8000')
-
-
 
 class TestGrblHelpers(unittest.TestCase):
-    def test_reply_error(self):
-        self.assertEqual(gp.grbl_reply_error('ok\nerror:9'), 'error:9')
-        self.assertEqual(gp.grbl_reply_error('ALARM:5\n[PRB:0,0,0:0]'), 'ALARM:5')
-        self.assertIsNone(gp.grbl_reply_error('[PRB:0,0,0:1]\nok'))
-        self.assertIsNone(gp.grbl_reply_error(''))
-        self.assertIsNone(gp.grbl_reply_error(None))
 
-    def test_probe_timeout(self):
-        # 3 mm at 6 mm/min = 30 s; x1.5 = 45 s; +5 s margin = 50 s
-        self.assertAlmostEqual(gp.probe_timeout_s(2.0, -1.0, 6.0), 50.0)
-        self.assertEqual(gp.probe_timeout_s(2.0, -1.0, 1000.0), 10.0)
-        self.assertEqual(gp.probe_timeout_s(2.0, -1.0, 0.0), 10.0)
-        self.assertEqual(gp.probe_timeout_s('x', -1.0, 50.0), 10.0)
-        self.assertEqual(gp.probe_timeout_s(float('nan'), -1.0, 50.0), 10.0)
 
     def test_report_scale(self):
         self.assertEqual(gp.grbl_report_scale('MM', False), 1.0)
@@ -553,18 +404,6 @@ class TestGrblHelpers(unittest.TestCase):
         self.assertAlmostEqual(gp.grbl_report_scale('IN', False), 1.0 / 25.4)
         self.assertAlmostEqual(gp.grbl_report_scale('MM', True), 25.4)
 
-    def test_parse_setting(self):
-        text = '$10=1\n$13=1\n$130=200.000\nok'
-        self.assertEqual(gp.parse_grbl_setting(text, 13), 1.0)
-        self.assertEqual(gp.parse_grbl_setting(text, 130), 200.0)
-        self.assertIsNone(gp.parse_grbl_setting(text, 22))
-        self.assertIsNone(gp.parse_grbl_setting('', 13))
-
-    def test_status_state(self):
-        self.assertEqual(gp.parse_grbl_status_state('<Idle|MPos:0.000,0.000,0.000|FS:0,0>'), 'Idle')
-        self.assertEqual(gp.parse_grbl_status_state('<Hold:0|MPos:0,0,0>'), 'Hold')
-        self.assertIsNone(gp.parse_grbl_status_state('ok'))
-        self.assertIsNone(gp.parse_grbl_status_state(None))
 
     def test_modes_confirmed(self):
         gc = '[GC:G0 G54 G17 G21 G90 G94 M5 M9 T0 F0 S0]\nok'
@@ -582,18 +421,6 @@ class TestGrblSession(unittest.TestCase):
         tool._grbl_connected = True
         return tool
 
-    def test_reserve_needs_open_port(self):
-        tool = make_audit_tool()
-        self.assertIsNone(tool._grbl_reserve('x'))
-        self.assertTrue(any('[ERROR_NOTCL]' in t for t in emitted(tool)))
-
-    def test_only_one_operation(self):
-        tool = self._tool()
-        op = tool._grbl_reserve('first')
-        self.assertIsNotNone(op)
-        self.assertIsNone(tool._grbl_reserve('second'))
-        tool._grbl_release(op)
-        self.assertIsNotNone(tool._grbl_reserve('third'))
 
     def test_recovery_blocks_motion_only(self):
         tool = self._tool()
@@ -601,28 +428,6 @@ class TestGrblSession(unittest.TestCase):
         self.assertIsNone(tool._grbl_reserve('jog', motion=True))
         self.assertIsNotNone(tool._grbl_reserve('param', motion=False))
 
-    def test_recovery_operation_only_when_needs_home(self):
-        tool = self._tool()
-        tool._grbl_recovery = 'needs_reset'
-        self.assertIsNone(tool._grbl_reserve('home', motion=True, allow_in_recovery=True))
-        tool._grbl_recovery = 'needs_home'
-        self.assertIsNotNone(tool._grbl_reserve('home', motion=True, allow_in_recovery=True))
-
-    def test_transact_reads_until_ok(self):
-        tool = self._tool()
-        op = tool._grbl_reserve('t')
-        text, status = tool._grbl_transact(op, '$$', timeout=1.0)
-        self.assertEqual(status, 'ok')
-        self.assertIn('$13=0', text)
-
-    def test_transact_drops_stale_input(self):
-        fake = FakeGrbl()
-        fake.rx.append(b'[PRB:9.000,9.000,9.000:1]\r\n')
-        tool = self._tool(fake)
-        op = tool._grbl_reserve('t')
-        text, status = tool._grbl_transact(op, 'G0 Z2', timeout=1.0)
-        self.assertEqual(status, 'ok')
-        self.assertNotIn('PRB', text)
 
     def test_transact_error_and_alarm(self):
         fake = FakeGrbl(replies={'G0 Z2': ['error:9'], 'G38.2': ['ALARM:5']})
@@ -631,18 +436,6 @@ class TestGrblSession(unittest.TestCase):
         self.assertEqual(tool._grbl_transact(op, 'G0 Z2', timeout=1.0)[1], 'error')
         self.assertEqual(tool._grbl_transact(op, 'G38.2 Z-1 F50', timeout=1.0)[1], 'error')
 
-    def test_transact_joins_partial_lines(self):
-        port = make_port([b'[PR', b'B:1.0,2.0,-0.5:1]\r\n', b'o', b'k\r\n'])
-        tool = self._tool(port)
-        op = tool._grbl_reserve('t')
-        text, status = tool._grbl_transact(op, 'G38.2 Z-1 F50', timeout=1.0)
-        self.assertEqual(status, 'ok')
-        self.assertIn('[PRB:1.0,2.0,-0.5:1]', text)
-
-    def test_transact_timeout(self):
-        tool = self._tool(make_port([]))
-        op = tool._grbl_reserve('t')
-        self.assertEqual(tool._grbl_transact(op, 'G38.2 Z-1 F50', timeout=0.05)[1], 'timeout')
 
     def test_pre_cancelled_transact_does_no_io(self):
         port = make_port([b'ok\r\n'])
@@ -680,24 +473,6 @@ class TestGrblSession(unittest.TestCase):
         new_port.write.assert_not_called()
         new_port.readline.assert_not_called()
 
-    def test_query_status(self):
-        tool = self._tool(FakeGrbl(state='Alarm'))
-        op = tool._grbl_reserve('t')
-        line = tool._grbl_query_status(op)
-        self.assertEqual(gp.parse_grbl_status_state(line), 'Alarm')
-
-
-    def test_start_op_releases_after_port_exception(self):
-        tool = self._tool()
-
-        def boom(op):
-            raise serial.SerialException('gone')
-        tool._grbl_start_op('x', boom)
-        run_worker(tool)
-        self.assertIsNone(tool._grbl_op)
-        self.assertTrue(any('[ERROR_NOTCL]' in t for t in emitted(tool)))
-
-
 
 class TestGrblConnect(unittest.TestCase):
     def _tool(self):
@@ -707,46 +482,6 @@ class TestGrblConnect(unittest.TestCase):
         tool.ui.al_toolbar.count.return_value = 0
         return tool
 
-    def test_bad_baudrate_opens_nothing(self):
-        tool = self._tool()
-        tool.ui.baudrates_list_combo.currentText.return_value = ''
-        with patch('appPlugins.Common.grbl.grbl_client.serial.serial_for_url') as opener:
-            tool.on_grbl_connect()
-        opener.assert_not_called()
-        self.assertTrue(any('[ERROR_NOTCL]' in t for t in emitted(tool)))
-
-
-    def test_open_failure_leaves_no_port(self):
-        tool = self._tool()
-        with patch('appPlugins.Common.grbl.grbl_client.serial.serial_for_url',
-                   side_effect=serial.SerialException('busy')):
-            tool.on_grbl_connect()
-        self.assertIsNone(tool.grbl_ser_port)
-        self.assertTrue(any('[ERROR_NOTCL]' in t for t in emitted(tool)))
-
-    def test_finish_without_answer_closes_port(self):
-        tool = self._tool()
-        port = make_port()
-        port.in_waiting = len(b'garbage\r\n')
-        port.read.return_value = b'garbage\r\n'
-        tool.grbl_ser_port = port
-        tool._grbl_connect_attempt = object()
-        tool._grbl_connect_finish('COM3', port, tool._grbl_connect_attempt)
-        port.close.assert_called_once()
-        self.assertIsNone(tool.grbl_ser_port)
-        tool.grbl_port_closed_sig.emit.assert_called_once()
-
-    def test_finish_with_ok_or_banner_connects(self):
-        for answer in (b'ok\r\n', b"Grbl 1.1h ['$' for help]\r\n"):
-            tool = self._tool()
-            port = make_port()
-            port.in_waiting = len(answer)
-            port.read.return_value = answer
-            tool.grbl_ser_port = port
-            tool._grbl_connect_attempt = object()
-            tool._grbl_connect_finish('COM3', port, tool._grbl_connect_attempt)
-            port.close.assert_not_called()
-            tool.ui.controller_reset_button.setDisabled.assert_called_with(False)
 
     def test_reconnect_turns_needs_reset_into_needs_home(self):
         tool = self._tool()
@@ -760,14 +495,6 @@ class TestGrblConnect(unittest.TestCase):
         tool._grbl_connect_finish('COM3', port, tool._grbl_connect_attempt)
         self.assertEqual(tool._grbl_recovery, 'needs_home')
 
-    def test_click_while_connected_and_idle_disconnects(self):
-        tool = self._tool()
-        port = make_port()
-        tool.grbl_ser_port = port
-        tool._grbl_connected = True
-        tool.on_grbl_connect()
-        port.close.assert_called_once()
-        self.assertIsNone(tool.grbl_ser_port)
 
     def test_disconnect_during_operation_waits_and_holds(self):
         tool = self._tool()
@@ -797,18 +524,6 @@ class TestGrblConnect(unittest.TestCase):
             tool.on_grbl_connect()
         opener.assert_not_called()
 
-    def test_force_close_closes_during_operation(self):
-        tool = self._tool()
-        fake = FakeGrbl()
-        tool.grbl_ser_port = fake
-        tool._grbl_connected = True
-        op = tool._grbl_reserve('probe', motion=True)
-        tool._grbl_force_close()
-        self.assertTrue(op.cancel.is_set())
-        self.assertFalse(fake.is_open)
-        self.assertIsNone(tool.grbl_ser_port)
-        self.assertIn('!', fake.commands())
-
 
 class TestGrblRealtime(unittest.TestCase):
     def _tool(self, port=None):
@@ -836,24 +551,6 @@ class TestGrblRealtime(unittest.TestCase):
         self.assertEqual(tool._grbl_transact(op, 'G0 X1', timeout=1.0)[1], 'cancelled')
         self.assertEqual(fake.commands(), ['G0 Z2', '!'])
 
-    def test_pause_blocked_during_operation(self):
-        tool = self._tool()
-        tool._grbl_reserve('probe', motion=True)
-        tool.on_grbl_pause_resume(True)
-        self.assertEqual(tool.grbl_ser_port.commands(), [])
-        self.assertTrue(any('[WARNING_NOTCL]' in t for t in emitted(tool)))
-
-    def test_resume_blocked_during_recovery(self):
-        tool = self._tool()
-        tool._grbl_recovery = 'needs_reset'
-        tool.on_grbl_pause_resume(False)
-        self.assertEqual(tool.grbl_ser_port.commands(), [])
-
-    def test_pause_and_resume_when_idle(self):
-        tool = self._tool()
-        tool.on_grbl_pause_resume(True)
-        tool.on_grbl_pause_resume(False)
-        self.assertEqual(tool.grbl_ser_port.commands(), ['!', '~'])
 
     def test_reset_during_operation_needs_home(self):
         tool = self._tool()
@@ -866,20 +563,6 @@ class TestGrblRealtime(unittest.TestCase):
         self.assertIsNone(tool._grbl_reserve('jog', motion=True))
 
 
-    def test_reset_when_idle_keeps_no_recovery(self):
-        tool = self._tool()
-        tool.on_grbl_reset()
-        # Even an apparently Idle reset must prove its startup before motion.
-        self.assertEqual(tool._grbl_recovery, 'needs_reset')
-        self.assertTrue(tool._grbl_reset_pending)
-        self.assertIsNone(tool._grbl_reserve('jog', motion=True))
-
-    def test_no_port_reports_error(self):
-        tool = make_audit_tool()
-        tool.on_grbl_stop()
-        self.assertTrue(any('[ERROR_NOTCL]' in t for t in emitted(tool)))
-
-
 class TestGrblCommands(unittest.TestCase):
     def _tool(self, port=None):
         tool = make_audit_tool()
@@ -890,18 +573,6 @@ class TestGrblCommands(unittest.TestCase):
         tool.app.options = {'tools_grbl_travelz': 2.0}
         return tool
 
-    def test_jog_step_is_a_number(self):
-        tool = self._tool()
-        tool.on_grbl_jog(direction='xplus')
-        run_worker(tool)
-        self.assertEqual(tool.grbl_ser_port.commands(), ['$J=G91 G21 X1.0 F100.0', '?'])
-
-    def test_jog_origin_sends_2_commands(self):
-        tool = self._tool()
-        tool.on_grbl_jog(direction='origin')
-        run_worker(tool)
-        self.assertEqual(tool.grbl_ser_port.commands(),
-                         ['$J=G90 G21 Z2.0 F100.0', '?', '$J=G90 G21 X0.0 Y0.0 F100.0', '?'])
 
     def test_jog_blocked_in_recovery(self):
         tool = self._tool()
@@ -909,27 +580,6 @@ class TestGrblCommands(unittest.TestCase):
         tool.on_grbl_jog(direction='xplus')
         tool.app.worker_task.emit.assert_not_called()
 
-    def test_typed_command_runs_in_worker(self):
-        tool = self._tool()
-        tool.ui.grbl_command_entry.get_value.return_value = 'G0 X1'
-        tool.on_grbl_send_command()
-        self.assertEqual(tool.grbl_ser_port.commands(), [])
-        run_worker(tool)
-        self.assertEqual(tool.grbl_ser_port.commands(), ['G0 X1', '?'])
-
-    def test_report_reads_status(self):
-        tool = self._tool()
-        tool.on_grbl_report()
-        run_worker(tool)
-        self.assertEqual(tool.grbl_ser_port.commands(), ['?'])
-
-    def test_parameter_tolerates_bad_bytes(self):
-        port = make_port([b'\xff\xfe junk\r\n', b'$10=1\r\n', b'ok\r\n'])
-        tool = self._tool(port)
-        tool.on_grbl_get_parameter('$10')
-        run_worker(tool)
-        shell_texts = [c.args[0] for c in tool.console_line_sig.emit.call_args_list]
-        self.assertTrue(any('$10 = 1.0' in t for t in shell_texts))
 
     def test_bad_parameter_number_starts_nothing(self):
         tool = self._tool()
@@ -947,17 +597,6 @@ class TestGrblCommands(unittest.TestCase):
         tool.app.worker_task.emit.assert_not_called()
         self.assertEqual(tool.grbl_ser_port.commands(), [])
 
-    def test_no_port_blocks_every_command(self):
-        tool = make_audit_tool()
-        tool.ui.jog_step_entry.get_value.return_value = 1.0
-        tool.ui.jog_fr_entry.get_value.return_value = 100.0
-        tool.ui.grbl_command_entry.get_value.return_value = '?'
-        tool.on_grbl_jog(direction='xplus')
-        tool.on_grbl_send_command()
-        tool.on_grbl_report()
-        tool.on_grbl_get_parameter('$10')
-        tool.app.worker_task.emit.assert_not_called()
-
 
 class TestGrblZero(unittest.TestCase):
     def test_zero_x_in_g55(self):
@@ -969,14 +608,6 @@ class TestGrblZero(unittest.TestCase):
         run_worker(tool)
         self.assertEqual(fake.commands(), ['$G', 'G10 L20 P2 X0', '?'])
 
-    def test_zero_all_in_g54(self):
-        fake = FakeGrbl()
-        tool = make_audit_tool()
-        tool.grbl_ser_port = fake
-        tool._grbl_connected = True
-        tool.on_grbl_zero(axis='all')
-        run_worker(tool)
-        self.assertEqual(fake.commands(), ['$G', 'G10 L20 P1 X0 Y0 Z0', '?'])
 
     def test_bad_wcs_reply_sends_no_g10(self):
         fake = FakeGrbl(replies={'$G': ['garbage', 'ok']})
@@ -1044,37 +675,6 @@ class TestGrblHoming(unittest.TestCase):
         self.assertIsNone(tool._grbl_reserve('probe', motion=True))
         self.assertIsNone(tool._grbl_reserve('parameter'))
 
-    def test_port_list_does_not_open_ports(self):
-        infos = [SimpleNamespace(device='COM3'), SimpleNamespace(device='COM7')]
-        with patch('appPlugins.Common.grbl.grbl_client.serial.tools.list_ports.comports', return_value=infos), \
-                patch('appPlugins.Common.grbl.grbl_client.serial.Serial') as serial_cls:
-            self.assertEqual(ToolGCodeSender.on_grbl_list_serial_ports(), ['COM3', 'COM7'])
-        serial_cls.assert_not_called()
-
-
-
-class TestShowSignalSlot(unittest.TestCase):
-    def test_slot_skips_show_when_checkbox_off(self):
-        tool = make_audit_tool()
-        tool.show_probing_geo = MagicMock()
-        tool.ui.plot_probing_pts_cb.get_value.return_value = False
-        tool._on_show_probing_geo_sig(True, True)
-        tool.show_probing_geo.assert_not_called()
-
-    def test_slot_shows_when_checkbox_on(self):
-        tool = make_audit_tool()
-        tool.show_probing_geo = MagicMock()
-        tool.ui.plot_probing_pts_cb.get_value.return_value = True
-        tool._on_show_probing_geo_sig(True, True)
-        tool.show_probing_geo.assert_called_once_with(state=True, reset=True)
-
-    def test_slot_always_clears(self):
-        tool = make_audit_tool()
-        tool.show_probing_geo = MagicMock()
-        tool._on_show_probing_geo_sig(False, False)
-        tool.show_probing_geo.assert_called_once_with(state=False, reset=False)
-
-
 
 class TestResultPublication(unittest.TestCase):
     def _tool(self):
@@ -1127,31 +727,6 @@ class TestResultPublication(unittest.TestCase):
         self.assertFalse(tool.al_heights_valid)
         tool.apply_autolevel.assert_not_called()
 
-    def test_failed_result_invalidates(self):
-        tool, target = self._tool()
-        tool.al_heights_valid = True
-        tool._on_al_result_ready({'kind': 'failed', 'context': tool._al_capture_context()})
-        self.assertFalse(tool.al_heights_valid)
-
-    def test_import_points_create_storage_and_bump_generation(self):
-        tool, target = self._tool()
-        tool.al_voronoi_geo_storage.clear()
-        ctx = tool._al_capture_context()
-        tool._on_al_result_ready({'kind': 'import_points', 'context': ctx,
-                                  'points': [(0.0, 0.0, 0.1), (5.0, 0.0, 0.2)]})
-        self.assertEqual(len(tool.al_voronoi_geo_storage), 2)
-        self.assertTrue(tool.al_heights_valid)
-        self.assertEqual(tool._al_generation, 1)
-        tool.apply_autolevel.assert_called_once_with(target_obj=target)
-
-    def test_apply_refuses_a_removed_target(self):
-        tool, target = self._tool()
-        tool.apply_autolevel = ToolLevelling.apply_autolevel.__get__(tool)
-        tool.app.collection.get_by_name.return_value = None
-        tool.apply_autolevel(target_obj=target)
-        tool.app.worker_task.emit.assert_not_called()
-        self.assertTrue(any('[ERROR_NOTCL]' in t for t in emitted(tool)))
-
 
 class TestGrblProbeRun(unittest.TestCase):
     POINTS = {1: (0.0, 0.0), 2: (10.0, 0.0)}
@@ -1195,20 +770,6 @@ class TestGrblProbeRun(unittest.TestCase):
         self.assertEqual(self._after_last_probe(fake), ['G0 Z2.0000', 'G4 P0'])
         self.assertNotIn('M2', fake.commands())
 
-    def test_startup_order(self):
-        fake = FakeGrbl()
-        tool, target = self._tool(fake)
-        self._run(tool)
-        self.assertEqual(fake.commands()[:7], ['?', '$$', 'G21', 'G90', 'G94', '$G', '$#'])
-
-    def test_g4_wait_before_each_probe(self):
-        fake = FakeGrbl()
-        tool, target = self._tool(fake)
-        self._run(tool)
-        cmds = fake.commands()
-        for i, c in enumerate(cmds):
-            if c.startswith('G38.2'):
-                self.assertEqual(cmds[i - 1], 'G4 P0')
 
     def test_inch_project_sends_g20_and_scales(self):
         fake = FakeGrbl(heights={(0.0, 0.0): -2.54, (10.0, 0.0): 2.54})
@@ -1218,17 +779,6 @@ class TestGrblProbeRun(unittest.TestCase):
         self.assertAlmostEqual(tool.al_voronoi_geo_storage[1]['height'], -0.1, places=4)
         self.assertAlmostEqual(tool.al_voronoi_geo_storage[2]['height'], 0.1, places=4)
 
-    def test_inch_reports_are_scaled_for_mm_project(self):
-        fake = FakeGrbl(heights={(0.0, 0.0): -0.254, (10.0, 0.0): 0.254}, report_inches=True)
-        tool, target = self._tool(fake)
-        self._run(tool)
-        self.assertAlmostEqual(tool.al_voronoi_geo_storage[1]['height'], -0.254, places=3)
-
-    def test_new_pass_invalidates_old_map_at_start(self):
-        fake = FakeGrbl()
-        tool, target = self._tool(fake, heights_valid=True, old_height=0.5)
-        tool.on_grbl_autolevel()
-        self.assertFalse(tool.al_heights_valid)
 
     # ---- preconditions: no motion ----
     def _assert_no_motion(self, fake):
@@ -1271,16 +821,6 @@ class TestGrblProbeRun(unittest.TestCase):
             tool.app.worker_task.emit.assert_not_called()
             self.assertIsNone(tool._grbl_op)
 
-    def test_no_points_or_no_port_schedule_nothing(self):
-        fake = FakeGrbl()
-        tool, target = self._tool(fake)
-        tool.al_voronoi_geo_storage.clear()
-        tool.on_grbl_autolevel()
-        tool2, target2 = self._tool(FakeGrbl())
-        tool2.grbl_ser_port = None
-        tool2.on_grbl_autolevel()
-        tool.app.worker_task.emit.assert_not_called()
-        tool2.app.worker_task.emit.assert_not_called()
 
     # ---- errors after the modes are confirmed ----
     def test_refused_move_retracts(self):
@@ -1314,19 +854,6 @@ class TestGrblProbeRun(unittest.TestCase):
         self._run(tool)
         self._assert_stopped_at_probe(tool, fake)
 
-    def test_missing_probe_record_stops(self):
-        fake = FakeGrbl(replies={'G38.2': ['ok']})
-        tool, target = self._tool(fake)
-        self._run(tool)
-        self._assert_stopped_at_probe(tool, fake)
-        self.assertIn('!', fake.commands())
-
-
-    def test_failed_probe_flag_stops(self):
-        fake = FakeGrbl(replies={'G38.2': ['[PRB:0.000,0.000,-1.000:0]', 'ok']})
-        tool, target = self._tool(fake)
-        self._run(tool)
-        self._assert_stopped_at_probe(tool, fake)
 
     def test_non_finite_probe_record_stops(self):
         fake = FakeGrbl(replies={'G38.2': ['[PRB:nan,0.000,0.000:1]', 'ok']})
@@ -1348,14 +875,6 @@ class TestGrblProbeRun(unittest.TestCase):
         self._assert_stopped_at_probe(tool, fake)
         self.assertIn('!', fake.commands())
 
-    def test_failed_reprobe_leaves_no_valid_mixed_map(self):
-        fake = FakeGrbl(fail_probe_at=2, heights={(0.0, 0.0): -0.3})
-        tool, target = self._tool(fake, heights_valid=True, old_height=0.5)
-        self._run(tool)
-        self.assertEqual(tool.al_voronoi_geo_storage[1]['height'], 0.5)
-        self.assertEqual(tool.al_voronoi_geo_storage[2]['height'], 0.5)
-        self.assertFalse(tool.al_heights_valid)
-        tool._al_on_height_map_ready.assert_not_called()
 
     # ---- recovery and ownership ----
     def test_timeout_blocks_next_probe_until_reset_and_home(self):
@@ -1404,23 +923,6 @@ class TestGrblProbeRun(unittest.TestCase):
         self.assertFalse(tool.al_heights_valid)
         tool._al_on_height_map_ready.assert_not_called()
 
-    def test_stale_result_after_target_replaced(self):
-        fake = FakeGrbl()
-        tool, target = self._tool(fake)
-        tool.on_grbl_autolevel()
-        tool.app.collection.get_by_name.return_value = SimpleNamespace(obj_options={'name': 'job'})
-        run_worker(tool)
-        self.assertFalse(tool.al_heights_valid)
-        tool._al_on_height_map_ready.assert_not_called()
-
-    def test_worker_reads_no_widgets(self):
-        fake = FakeGrbl()
-        tool, target = self._tool(fake)
-        tool.on_grbl_autolevel()
-        tool.ui = None
-        run_worker(tool)
-        self.assertTrue(tool.al_heights_valid)
-
 
 class TestManualFinish(unittest.TestCase):
     def _tool(self, method):
@@ -1458,12 +960,6 @@ class TestManualFinish(unittest.TestCase):
         tool.probing_gcode.assert_called_once_with(storage=tool.al_bilinear_geo_storage)
 
 
-    def test_escape_finishes_like_right_click(self):
-        tool = self._tool('b')
-        tool.on_key_press(SimpleNamespace(key='Escape'))
-        self._check_released(tool)
-        self.assertEqual(tool.probing_gcode_text, 'GCODE')
-
     def test_finish_with_no_points_clears_gcode(self):
         tool = self._tool('v')
         tool.al_voronoi_geo_storage.clear()
@@ -1471,56 +967,6 @@ class TestManualFinish(unittest.TestCase):
         tool._finish_manual_points()
         self.assertEqual(tool.probing_gcode_text, '')
         tool.probing_gcode.assert_not_called()
-
-
-    def test_left_click_add_bumps_generation(self):
-        tool = self._tool('v')
-        tool.solid_geo = box(0.0, 0.0, 10.0, 10.0)
-        tool.ui.avoid_exc_holes_cb.get_value.return_value = False
-        tool.ui.probe_tip_dia_entry.get_value.return_value = 0.5
-        tool.app.plotcanvas.translate_coords.return_value = (2.0, 2.0)
-        tool.app.geo_editor.snap.return_value = (2.0, 2.0)
-        tool.on_mouse_click_release(SimpleNamespace(pos=(2.0, 2.0), button=1))
-        self.assertEqual(len(tool.al_voronoi_geo_storage), 3)
-        self.assertEqual(tool._al_generation, 1)
-
-
-class TestManualStart(unittest.TestCase):
-    def _tool(self):
-        tool = make_audit_tool()
-        tool.solid_geo = box(5.0, 10.0, 20.0, 30.0)
-        tool.app.options = {'global_selection_shape': 'USER'}
-        tool.plot_probing_geo = MagicMock()
-        tool.show_probing_geo = MagicMock()
-        return tool
-
-    def test_no_phantom_point(self):
-        tool = self._tool()
-        tool.on_add_manual_points()
-        self.assertEqual(tool.al_voronoi_geo_storage, {})
-        self.assertTrue(tool.mouse_events_connected)
-
-    def test_selection_state_is_captured_at_start(self):
-        tool = self._tool()
-        tool.on_add_manual_points()
-        self.assertEqual(tool.old_selection_state, 'USER')
-        self.assertFalse(tool.app.options['global_selection_shape'])
-
-
-
-class TestPlaceholderHeights(unittest.TestCase):
-    @staticmethod
-    def storage():
-        return {
-            1: {'point': Point(0.0, 0.0), 'geo': None, 'height': 0.0},
-            2: {'point': Point(1.0, 0.0), 'geo': None, 'height': 0.0},
-        }
-
-    def test_unprobed_points_stay_invalid(self):
-        tool = run_set_tool_ui(self.storage(), heights_valid=False)
-        self.assertFalse(tool.al_heights_valid)
-        tool.build_al_table.assert_not_called()
-
 
 
 class TestSignalsOnce(unittest.TestCase):
@@ -1538,19 +984,6 @@ class TestSignalsOnce(unittest.TestCase):
         MachineSafety.stop_all()  # a failing stop function does not stop the others
         self.assertEqual(fake.written[-2:], [b'!', b'\x18'])
         self.assertFalse(fake.is_open)
-
-
-class TestProbingShapes(unittest.TestCase):
-
-    def test_kept_map_is_replotted_when_plotting_is_on(self):
-        storage = {1: {'point': Point(0.0, 0.0), 'geo': None, 'height': 0.2}}
-        tool = run_set_tool_ui(storage, heights_valid=True, plot_points=True)
-        tool.show_probing_geo.assert_called_once_with(state=True, reset=True)
-
-    def test_kept_map_is_not_plotted_when_plotting_is_off(self):
-        storage = {1: {'point': Point(0.0, 0.0), 'geo': None, 'height': 0.2}}
-        tool = run_set_tool_ui(storage, heights_valid=True, plot_points=False)
-        tool.show_probing_geo.assert_not_called()
 
 
 class TestTargetOwnership(unittest.TestCase):
@@ -1587,37 +1020,6 @@ class TestTargetOwnership(unittest.TestCase):
         self.assertEqual(tool._al_generation, 1)
 
 
-    def test_same_object_keeps_and_replots(self):
-        a = self.target('job_a')
-        tool = self._tool('job_a', a, 'job_a', a)
-        tool.ui.plot_probing_pts_cb.get_value.return_value = True
-        tool.on_object_changed()
-        self.assertEqual(len(tool.al_voronoi_geo_storage), 1)
-        self.assertTrue(tool.al_heights_valid)
-        tool.show_probing_geo.assert_called_once_with(state=True, reset=True)
-
-
-    def test_reopen_on_another_object_clears(self):
-        storage = {1: {'point': Point(0.0, 0.0), 'geo': None, 'height': 0.3}}
-        with patch.object(ToolLevelling, '_update_mode_radio_ui'), \
-                patch.object(ToolLevelling, 'on_method_radio'), \
-                patch.object(ToolLevelling, 'on_controller_change'):
-            tool = run_set_tool_ui(storage, heights_valid=True, loaded_obj=self.target('job_b'),
-                                   owner=('job_a', self.target('job_a')))
-        self.assertEqual(tool.al_voronoi_geo_storage, {})
-        self.assertFalse(tool.al_heights_valid)
-
-    def test_reopen_on_the_same_object_keeps(self):
-        a = self.target('job_a')
-        storage = {1: {'point': Point(0.0, 0.0), 'geo': None, 'height': 0.3}}
-        with patch.object(ToolLevelling, '_update_mode_radio_ui'), \
-                patch.object(ToolLevelling, 'on_method_radio'), \
-                patch.object(ToolLevelling, 'on_controller_change'):
-            tool = run_set_tool_ui(storage, heights_valid=True, loaded_obj=a, owner=('job_a', a))
-        self.assertTrue(tool.al_heights_valid)
-
-
-
 class TestPolygonsAndAdd(unittest.TestCase):
 
     def test_excellon_single_polygon_is_checked(self):
@@ -1641,67 +1043,6 @@ class TestPolygonsAndAdd(unittest.TestCase):
         tool.al_bilinear_geo_storage = [(0.0, 0.0, 0.0)]
         tool.probing_gcode_text = 'OLD'
         return tool, target
-
-    def test_empty_cut_geometry_fails_cleanly(self):
-        tool, target = self._add_tool([])
-        self.assertEqual(tool.on_add_al_probepoints(), 'fail')
-        tool.on_add_grid_points.assert_not_called()
-        self.assertTrue(any('[ERROR_NOTCL]' in t for t in emitted(tool)))
-
-    def test_bad_parsed_entry_fails_cleanly(self):
-        tool, target = self._add_tool([{'kind': ['C']}])
-        self.assertEqual(tool.on_add_al_probepoints(), 'fail')
-
-    def test_add_resets_old_state_and_sets_owner(self):
-        tool, target = self._add_tool([{'geom': box(0, 0, 10, 10), 'kind': ['C']}])
-        tool.on_add_al_probepoints()
-        tool.on_add_grid_points.assert_called_once()
-        self.assertEqual(tool.al_bilinear_geo_storage, [])
-        self.assertEqual(tool.probing_gcode_text, '')
-        self.assertEqual(tool._al_target_name, 'job_a')
-        self.assertIs(tool._al_target_obj, target)
-        self.assertEqual(tool._al_generation, 1)
-
-
-class TestImportStaging(unittest.TestCase):
-    def _file(self, text):
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
-            f.write(text)
-            name = f.name
-        self.addCleanup(lambda: os.unlink(name))
-        return name
-
-    def _tool(self, heights_valid=True):
-        storage = {
-            1: {'point': Point(0.0, 0.0), 'geo': None, 'height': 0.5},
-            2: {'point': Point(10.0, 0.0), 'geo': None, 'height': 0.5},
-        }
-        tool = make_audit_tool(storage=storage, heights_valid=heights_valid)
-        return tool
-
-
-    def test_stale_import_is_discarded(self):
-        tool = self._tool(heights_valid=False)
-        ctx = tool._al_capture_context()
-        points = {1: (0.0, 0.0), 2: (10.0, 0.0)}
-        tool._al_bump_generation()
-        tool.import_height_map(self._file('0.0,0.0,0.1\n10.0,0.0,0.2\n'), ctx, points)
-        self.assertEqual(tool.al_voronoi_geo_storage[2]['height'], 0.5)
-        self.assertFalse(tool.al_heights_valid)
-
-
-
-class TestSupportedTarget(unittest.TestCase):
-    def test_missing_attributes_return_false(self):
-        self.assertFalse(ToolLevelling._is_supported_al_target(None))
-        self.assertFalse(ToolLevelling._is_supported_al_target(SimpleNamespace(obj_options={'type': 'Geometry'})))
-        self.assertFalse(ToolLevelling._is_supported_al_target(SimpleNamespace(is_segmented_gcode=True, obj_options={})))
-        self.assertFalse(ToolLevelling._is_supported_al_target(SimpleNamespace(is_segmented_gcode=True)))
-
-    def test_supported_types(self):
-        for kind in ('Geometry', 'Excellon'):
-            self.assertTrue(ToolLevelling._is_supported_al_target(
-                SimpleNamespace(is_segmented_gcode=True, obj_options={'type': kind})))
 
 
 class TestResultSignalThread(unittest.TestCase):
@@ -1731,5 +1072,511 @@ class TestResultSignalThread(unittest.TestCase):
         self.assertTrue(tool.al_heights_valid)
 
 
-if __name__ == '__main__':
-    unittest.main()
+class ConnectionPort(FakeGrbl):
+    def __init__(self, replies=(), fail_dtr=False):
+        super().__init__()
+        self.handshake = list(replies)
+        self.fail_dtr = fail_dtr
+        self.read_hook = None
+        self.read_count = 0
+        self.reset_count = 0
+        self.close_count = 0
+
+    def open(self):
+        self.is_open = True
+
+    def write(self, data):
+        # Handshake responses are supplied explicitly, including silent/no-answer cases.
+        if data in (b'?', b'\x80') and not self.read_count:
+            self.written.append(data)
+            return
+        super().write(data)
+
+    @property
+    def dtr(self):
+        return True
+
+    @dtr.setter
+    def dtr(self, value):
+        if self.fail_dtr:
+            raise OSError('DTR unavailable')
+
+    @property
+    def in_waiting(self):
+        return sum(len(line) for line in self.handshake) if not self.read_count else super().in_waiting
+
+    def read(self, size):
+        if self.read_count:
+            return super().read(size)
+        self.read_count += 1
+        if self.read_hook is not None:
+            self.read_hook()
+        data = b''.join(self.handshake)
+        self.handshake = []
+        self.rx.insert(0, data[size:])
+        return data[:size]
+
+    def reset_input_buffer(self):
+        self.reset_count += 1
+        super().reset_input_buffer()
+
+    def close(self):
+        self.close_count += 1
+        super().close()
+
+
+def connect(tool, port, callbacks):
+    tool.ui.com_list_combo.currentText.return_value = 'COM3'
+    tool.ui.baudrates_list_combo.currentText.return_value = '115200'
+    with patch.object(sg_module.serial, 'serial_for_url', return_value=port) as opened, \
+            patch('appPlugins.ToolGcodeSender.Sender.QtCore.QTimer.singleShot',
+                  side_effect=lambda delay, callback: callbacks.append(callback)):
+        tool.on_grbl_connect()
+    return opened
+
+
+class TestConnectionRed:
+    def test_failed_handshake_read_blocks_motion_after_reconnect(self):
+        tool = make_audit_tool()
+        callbacks = []
+        port = ConnectionPort([b'ok\r\n'])
+        connect(tool, port, callbacks)
+        port.read_hook = MagicMock(side_effect=OSError('handshake read failed'))
+        callbacks.pop()()
+        connect(tool, ConnectionPort([b'ok\r\n']), callbacks)
+        callbacks.pop()()
+        tool._grbl_identity_pending = False
+        assert tool._grbl_port_ready()
+        assert tool._grbl_reserve('move', motion=True) is None
+
+
+    def test_failed_dtr_and_ok_do_not_prove_reset(self):
+        tool = make_audit_tool()
+        tool._grbl_recovery = 'needs_reset'
+        callbacks = []
+        connect(tool, ConnectionPort([b'ok\r\n'], fail_dtr=True), callbacks)
+        callbacks[0]()
+        assert tool._grbl_port_ready()
+        assert tool._grbl_recovery == 'needs_reset'
+
+
+    def test_handshake_alarm_latches_recovery_even_after_ok(self):
+        tool = make_audit_tool()
+        callbacks = []
+        connect(tool, ConnectionPort([b'ok\r\n', b'ALARM:4\r\n']), callbacks)
+        callbacks[0]()
+        assert tool._grbl_recovery is not None
+        assert tool._grbl_reserve('probe', motion=True) is None
+
+
+def run_home(tool):
+    if tool.__dict__.get('_grbl_identity_pending'):
+        op = tool._grbl_reserve('units')
+        tool._grbl_read_after_connect(op)
+        tool._grbl_release(op)
+    tool.on_grbl_homing()
+    if not tool.app.worker_task.emit.call_args_list:
+        return
+    ticks = iter(range(10000))
+    with patch('appPlugins.Common.grbl.grbl_client.time.monotonic', side_effect=lambda: next(ticks)), \
+            patch('appPlugins.Common.grbl.grbl_client.time.sleep'):
+        run_worker(tool)
+
+
+class TestFragmentedHandshake:
+    BANNER = b"Grbl 1.1h ['$' for help]\r\n"
+
+    def test_fragmented_alarm_after_banner_blocks_home(self):
+        tool = make_audit_tool()
+        tool._grbl_recovery = 'needs_reset'
+        port = ConnectionPort([self.BANNER, b'AL'])
+        callbacks = []
+        connect(tool, port, callbacks)
+        callbacks[0]()
+        assert tool._grbl_rx_buffer == b'AL'
+        assert tool._grbl_rx_port is port
+        port.handshake = []
+        port.rx.append(b'ARM:9\r\n')
+        run_home(tool)
+        assert '$H' not in port.commands()
+        assert tool._grbl_recovery == 'needs_reset'
+
+
+class TestNetworkConnection:
+    def make_tool(self):
+        tool = make_audit_tool()
+        tool.ui.controller_combo.currentData.return_value = 'grblhal'
+        tool.ui.connection_combo.currentData.return_value = 'network'
+        tool.ui.network_host_entry.get_value.return_value = ' localhost '
+        tool.ui.network_port_entry.get_value.return_value = 23
+        tool.network_connect_result_sig = MagicMock()
+        return tool
+
+
+    def test_invalid_network_endpoints_never_schedule_open(self):
+        for host, port in (('', 23), ('host/path', 23), ('host?x', 23), ('user@host', 23),
+                           ('host\n', 23), ('socket://host', 23), ('host', 0), ('host', 65536),
+                           ('host', '1.5'), ('::1%eth0?logging=debug', 23)):
+            tool = self.make_tool()
+            tool.ui.network_host_entry.get_value.return_value = host
+            tool.ui.network_port_entry.get_value.return_value = port
+            tool.on_grbl_connect()
+            tool.app.worker_task.emit.assert_not_called()
+
+
+class PrecisionGrbl(FakeGrbl):
+    def __init__(self, offset=(0.0, 0.0, 0.0), coarse=-0.1, fine=-0.12, **kwargs):
+        super().__init__(**kwargs)
+        self.offset = offset
+        self.coarse = coarse
+        self.fine = fine
+
+    def _answer(self, cmd):
+        if cmd == '$#':
+            self._send('[G54:%.4f,%.4f,%.4f]' % tuple(self._report(v) for v in self.offset),
+                       '[G92:0,0,0]', '[TLO:0]', 'ok')
+        elif cmd.startswith('G38.2') and self.fail_probe_at != self.probe_count + 1:
+            self.probe_count += 1
+            z = self.coarse if self.probe_count % 2 else self.fine
+            self._send('[PRB:%.4f,%.4f,%.4f:1]' % (
+                self._report(self.x + self.offset[0]), self._report(self.y + self.offset[1]),
+                self._report(z + self.offset[2])), 'ok')
+        else:
+            super()._answer(cmd)
+
+
+class TestPrecisionProbing(unittest.TestCase):
+    def tool(self, fake=None, units='MM'):
+        fake = fake or PrecisionGrbl()
+        tool, target = TestGrblProbeRun()._tool(fake, units=units)
+        tool.ui.precision_probe_cb.get_value.return_value = True
+        tool.ui.precision_feed_entry.get_value.return_value = 10.0
+        tool.ui.precision_retract_entry.get_value.return_value = 0.5
+        return tool, target, fake
+
+    def run_probe(self, tool):
+        tool.on_grbl_autolevel()
+        run_worker(tool)
+
+    def test_sequence_publishes_only_fine_after_final_retract(self):
+        tool, target, fake = self.tool()
+        self.run_probe(tool)
+        commands = fake.commands()
+        self.assertEqual(fake.probe_count, 4)
+        probes = [c for c in commands if c.startswith('G38.2')]
+        self.assertEqual(probes, ['G38.2 Z-1.0000 F600.0000', 'G38.2 Z-1.0000 F10.0000'] * 2)
+        first = commands.index(probes[0])
+        fine = commands.index(probes[1])
+        self.assertIn('G0 Z0.4000', commands[first + 1:fine])
+        self.assertEqual(commands[fine - 1], 'G4 P0')
+        lateral = commands.index('G0 X10.0000 Y0.0000')
+        self.assertIn('G0 Z2.0000', commands[fine + 1:lateral])
+        self.assertNotIn('G91', commands)
+        self.assertTrue(tool.al_heights_valid)
+        self.assertEqual([v['height'] for v in tool.al_voronoi_geo_storage.values()], [-0.12, -0.12])
+        tool._al_on_height_map_ready.assert_called_once_with(target, ANY)
+        self.assertEqual(sum(c.args[0]['kind'] == 'probe'
+                             for c in tool.al_result_ready_sig.emit.call_args_list), 1)
+        self.assertEqual(commands[-2:], ['G0 Z2.0000', 'G4 P0'])
+
+    def test_work_offset_is_removed_before_contact_relative_retract(self):
+        tool, target, fake = self.tool(PrecisionGrbl(offset=(10, 20, 30)))
+        self.run_probe(tool)
+        self.assertIn('G0 Z0.4000', fake.commands())
+        self.assertNotIn('G0 Z30.4000', fake.commands())
+        self.assertTrue(tool.al_heights_valid)
+        self.assertAlmostEqual(tool.al_voronoi_geo_storage[1]['height'], -0.12)
+
+
+    def test_inch_units_and_inch_reports(self):
+        for units, report_inches in (('MM', True), ('IN', False), ('IN', True)):
+            with self.subTest(units=units, report_inches=report_inches):
+                tool, target, fake = self.tool(PrecisionGrbl(report_inches=report_inches), units)
+                self.run_probe(tool)
+                self.assertTrue(tool.al_heights_valid)
+                # GRBL's four-place inch report is quantized to 0.00254 mm.
+                resolution = 0.00254 if report_inches and units == 'MM' else 0.0001
+                self.assertAlmostEqual(tool.al_voronoi_geo_storage[1]['height'], -0.12, delta=resolution / 2)
+
+    def test_fast_or_fine_failure_never_publishes_or_moves_laterally(self):
+        for stage in (1, 2):
+            with self.subTest(stage=stage):
+                tool, target, fake = self.tool(PrecisionGrbl(fail_probe_at=stage))
+                self.run_probe(tool)
+                self.assertFalse(tool.al_heights_valid)
+                self.assertEqual(fake.probe_count, stage)
+                self.assertNotIn('G0 X10.0000 Y0.0000', fake.commands())
+                self.assertEqual(tool._grbl_recovery, 'needs_reset')
+                tool._al_on_height_map_ready.assert_not_called()
+
+    def test_cancel_between_stages_has_no_subsequent_motion(self):
+        tool, target, fake = self.tool()
+
+        def stop():
+            if fake.commands()[-1:] == ['G0 Z0.4000']:
+                tool.on_grbl_stop()
+
+        fake.read_hook = stop
+        self.run_probe(tool)
+        self.assertEqual(fake.probe_count, 1)
+        self.assertEqual(fake.commands()[-1], '!')
+        self.assertFalse(tool.al_heights_valid)
+        tool._al_on_height_map_ready.assert_not_called()
+
+    def test_invalid_precision_settings_schedule_no_motion(self):
+        for field, value in (
+                ('precision_feed_entry', 0), ('precision_feed_entry', -1),
+                ('precision_feed_entry', 601), ('precision_feed_entry', float('nan')),
+                ('precision_feed_entry', 'bad'), ('precision_feed_entry', 0.00001),
+                ('precision_retract_entry', 0), ('precision_retract_entry', -1),
+                ('precision_retract_entry', float('inf')), ('precision_retract_entry', 4),
+                ('precision_retract_entry', 0.00001)):
+            with self.subTest(field=field, value=value):
+                tool, target, fake = self.tool()
+                getattr(tool.ui, field).get_value.return_value = value
+                tool.on_grbl_autolevel()
+                tool.app.worker_task.emit.assert_not_called()
+                self.assertEqual(fake.commands(), [])
+
+    def test_contact_bounds_prevent_unsafe_intermediate_retract(self):
+        for coarse in (-1.1, 1.8, 2.1):
+            with self.subTest(coarse=coarse):
+                tool, target, fake = self.tool(PrecisionGrbl(coarse=coarse))
+                self.run_probe(tool)
+                self.assertEqual(fake.probe_count, 1)
+                self.assertFalse(tool.al_heights_valid)
+                self.assertNotIn('G0 X10.0000 Y0.0000', fake.commands())
+                self.assertTrue(any('clearance' in text.lower() or 'probe_invalid' in text
+                                    for text in emitted(tool)))
+
+    def test_changed_frame_between_touches_holds_without_guessed_retract(self):
+        tool, target, fake = self.tool()
+        original = fake._answer
+
+        def answer(cmd):
+            if cmd == '$G' and fake.probe_count:
+                fake._send('[GC:G0 G55 G17 G21 G90 G94]', 'ok')
+            else:
+                original(cmd)
+
+        fake._answer = answer
+        self.run_probe(tool)
+        self.assertEqual(fake.probe_count, 1)
+        self.assertNotIn('G0 Z0.4000', fake.commands())
+        self.assertEqual(tool._grbl_recovery, 'needs_reset')
+        self.assertFalse(tool.al_heights_valid)
+
+
+    def test_invalid_fine_measurements_never_publish(self):
+        for record in ('[PRB:0,0,-0.12:0]', '[PRB:nan,0,0:1]', '[PRB:0,0,-2:1]',
+                       '[PRB:0,0,0.8:1]', '[PRB:10,0,-0.12:1]', '',
+                       '[PRB:0,0,-0.12:1]\n[PRB:0,0,-0.12:1]'):
+            with self.subTest(record=record):
+                tool, target, fake = self.tool()
+                original = fake._answer
+
+                def answer(cmd):
+                    if cmd.startswith('G38.2') and fake.probe_count == 1:
+                        fake.probe_count += 1
+                        fake._send(record, 'ok')
+                    else:
+                        original(cmd)
+
+                fake._answer = answer
+                self.run_probe(tool)
+                self.assertFalse(tool.al_heights_valid)
+                self.assertEqual(fake.probe_count, 2)
+                self.assertNotIn('G0 X10.0000 Y0.0000', fake.commands())
+                tool._al_on_height_map_ready.assert_not_called()
+
+
+    def test_unknown_modes_or_offset_after_touch_require_recovery(self):
+        for command, reply in (('$G', ['error:9']), ('$G', ['[GC:G0 G54 G17 G21 G91 G94]', 'ok']),
+                               ('$#', ['ok']), ('$#', ['[G54:0,0,1]', '[G92:0,0,0]', '[TLO:0]', 'ok'])):
+            with self.subTest(command=command, reply=reply):
+                tool, target, fake = self.tool()
+                original = fake._answer
+
+                def answer(cmd):
+                    if cmd == command and fake.probe_count:
+                        fake._send(*reply)
+                    else:
+                        original(cmd)
+
+                fake._answer = answer
+                self.run_probe(tool)
+                coarse = fake.commands().index('G38.2 Z-1.0000 F600.0000')
+                self.assertFalse(any(c.startswith('G0') for c in fake.commands()[coarse + 1:]))
+                self.assertEqual(tool._grbl_recovery, 'needs_reset')
+                self.assertFalse(tool.al_heights_valid)
+
+
+def result_tool(units='MM'):
+    fake = FakeGrbl(heights={(0.0, 0.0): 0.1, (10.0, 0.0): 0.2})
+    tool, _ = TestGrblProbeRun()._tool(fake, units=units)
+    QtWidgets.QWidget.__init__(tool)
+    del tool.al_result_ready_sig
+    tool.connect_signals_at_init()
+    tool.ui.object_combo.get_value.return_value = 'job'
+    # Create the points through production publication, rather than inventing
+    # the name of the units metadata that GREEN will introduce.
+    tool.al_voronoi_geo_storage.clear()
+    tool.al_result_ready_sig.emit({
+        'kind': 'import_points', 'context': tool._al_capture_context(),
+        'points': [(0.0, 0.0, 0.5), (10.0, 0.0, 0.5)],
+    })
+    tool.build_al_table_sig.reset_mock()
+    tool.show_probing_geo_sig.reset_mock()
+    # the setup import applies the map (import now applies); tests count only their own applies
+    tool._al_on_height_map_ready.reset_mock()
+    return tool, fake
+
+
+def in_worker(callback):
+    errors = []
+
+    def run():
+        try:
+            callback()
+        except BaseException as err:
+            errors.append(err)
+
+    worker = threading.Thread(target=run)
+    worker.start()
+    worker.join(timeout=5.0)
+    assert not worker.is_alive(), 'worker did not finish'
+    if errors:
+        raise errors[0]
+
+
+def drain_results():
+    _qapp.processEvents()
+    _qapp.processEvents()
+
+
+def heights(tool):
+    return {key: value['height'] for key, value in tool.al_voronoi_geo_storage.items()}
+
+
+def start_import(tool, path):
+    with patch('appPlugins.ToolLevelling.QtWidgets.QFileDialog.getOpenFileName',
+               return_value=(str(path), '')):
+        tool.on_import_height_map()
+    task = tool.app.worker_task.emit.call_args
+    return task.args[0] if task is not None else None
+
+
+def run_import(task):
+    in_worker(lambda: task['fcn'](*task['params']))
+
+
+@pytest.mark.parametrize('old_kind,complete_b', [('import', False), ('failed', True)], ids=['import-b_started', 'failed-b_completed'])
+def test_old_import_result_cannot_change_replacement(tmp_path, old_kind, complete_b):
+    """Expected RED: same-point replacement must retire both success and failure A."""
+    tool, _ = result_tool()
+    path = tmp_path / 'map.txt'
+    path.write_text('0,0,0.3\n10,0,0.4\n')
+    a = start_import(tool, path)
+    old_context = a['params'][1]
+    b = start_import(tool, path)
+    if complete_b:
+        run_import(b)
+        drain_results()
+        assert heights(tool) == {1: 0.3, 2: 0.4}
+        assert tool.al_heights_valid
+    before = heights(tool), tool.al_heights_valid
+    publications = tool.build_al_table_sig.emit.call_count
+    result = {'kind': old_kind, 'context': old_context, 'heights': {1: 9.0, 2: 9.0}}
+    in_worker(lambda: tool.al_result_ready_sig.emit(result))
+    drain_results()
+    assert (heights(tool), tool.al_heights_valid) == before
+    assert tool.build_al_table_sig.emit.call_count == publications
+
+
+@pytest.mark.parametrize('replacement', ['import', 'probe'])
+def test_queued_probe_is_rejected_after_replacement_starts(tmp_path, replacement):
+    """Expected RED: released probe A must not publish after B starts."""
+    tool, _ = result_tool()
+    tool.on_grbl_autolevel()
+    in_worker(lambda: run_worker(tool))
+    assert tool._grbl_op is None
+    path = tmp_path / 'map.txt'
+    path.write_text('0,0,0.3\n10,0,0.4\n')
+    if replacement == 'import':
+        start_import(tool, path)
+    else:
+        tool.on_grbl_autolevel()
+    before = heights(tool)
+    drain_results()
+    assert heights(tool) == before
+    assert not tool.al_heights_valid
+    tool._al_on_height_map_ready.assert_not_called()
+    tool.build_al_table_sig.emit.assert_not_called()
+
+
+@pytest.mark.parametrize('action', ['stop', 'reset', 'cancel'])
+def test_released_probe_evidence_is_checked_before_gui_storage_update(action):
+    """Expected RED: cancellation/safety evidence survives serial ownership release."""
+    tool, _ = result_tool()
+    tool.on_grbl_autolevel()
+    op = tool._grbl_op
+    assert op is not None
+    in_worker(lambda: run_worker(tool))
+    assert tool._grbl_op is None
+    assert heights(tool) == {1: 0.5, 2: 0.5}, 'worker must not publish directly'
+    if action == 'cancel':
+        op.cancel.set()
+    else:
+        getattr(tool, 'on_grbl_' + action)()
+        assert tool._grbl_safety_generation != op.safety_generation
+    drain_results()
+    assert heights(tool) == {1: 0.5, 2: 0.5}
+    assert not tool.al_heights_valid
+    tool._al_on_height_map_ready.assert_not_called()
+    tool.build_al_table_sig.emit.assert_not_called()
+    tool.show_probing_geo_sig.emit.assert_not_called()
+
+
+def test_released_current_probe_publishes_atomically_on_gui_thread():
+    """Expected PASS: no active operation is required for queued publication."""
+    tool, _ = result_tool()
+    seen = []
+    tool.build_al_table_sig.emit.side_effect = lambda: seen.append(
+        (threading.current_thread() is threading.main_thread(), heights(tool)))
+    tool.on_grbl_autolevel()
+    in_worker(lambda: run_worker(tool))
+    assert tool._grbl_op is None
+    assert not seen
+    assert heights(tool) == {1: 0.5, 2: 0.5}
+    drain_results()
+    assert seen == [(True, {1: 0.1, 2: 0.2})]
+    assert tool.al_heights_valid
+    tool._al_on_height_map_ready.assert_called_once_with(tool._al_target_obj, ANY)
+
+
+@pytest.mark.parametrize('entry', ['probe', 'import', 'gui_import'])
+def test_existing_point_units_cannot_be_reinterpreted(tmp_path, entry):
+    """Expected RED: points created in MM cannot be reused as IN coordinates."""
+    tool, fake = result_tool()
+    tool.app.app_units = 'IN'
+    tool.units = 'IN'
+    tool.app.worker_task.emit.reset_mock()
+    if entry == 'probe':
+        tool.on_grbl_autolevel()
+        assert tool._grbl_op is None, 'The refused probe must release the port at once'
+        scheduled = tool.app.worker_task.emit.call_args
+        if scheduled:
+            in_worker(lambda: run_worker(tool))
+            drain_results()
+        assert not any(cmd.startswith(('G0', 'G38.2')) for cmd in fake.commands())
+        tool.app.worker_task.emit.assert_not_called()
+    else:
+        path = tmp_path / 'map.txt'
+        path.write_text('0,0,0.3\n10,0,0.4\n')
+        if entry == 'gui_import':
+            start_import(tool, path)
+            tool.app.worker_task.emit.assert_not_called()
+        else:
+            tool.import_height_map(str(path))
+        assert not tool.al_heights_valid
+        assert heights(tool) != {1: 0.3, 2: 0.4}

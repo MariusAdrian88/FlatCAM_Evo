@@ -86,20 +86,6 @@ class TestEagleBrdImport(unittest.TestCase):
         kind, obj = self.objects[0]
         self.assertEqual(obj.units, 'IN')
 
-    def test_dialog_accept_queues_only_selected_layers_and_drill_groups(self):
-        def accepted(dialog):
-            for box in dialog.findChildren(QtWidgets.QCheckBox):
-                if box.text() == 'Bottom (layer 16)':
-                    box.setChecked(False)
-            return QtWidgets.QDialog.DialogCode.Accepted
-
-        with patch.object(QtWidgets.QDialog, 'exec', accepted):
-            self.io.on_pcbdoc_parsed(BOARD, self.parsed)
-        job = self.app.worker_task.emit.call_args.args[0]
-        self.assertEqual(job['fcn'], self.io.import_pcbdoc_objects)
-        self.assertEqual(job['params'][0], BOARD)
-        self.assertEqual(job['params'][2:], [['Top', 'tStop'], ['PTH', 'NPTH']])
-
     def test_parse_eagle_brd_error_reports_and_returns_fail(self):
         with tempfile.TemporaryDirectory() as directory:
             bad = os.path.join(directory, 'bad.brd')
@@ -112,27 +98,6 @@ class TestEagleBrdImport(unittest.TestCase):
         message = self.app.inform.emit.call_args.args[0]
         self.assertIn('[ERROR_NOTCL]', message)
         self.app.log.error.assert_called_once()
-
-    def test_parse_eagle_brd_success_emits_parsed_board(self):
-        with tempfile.TemporaryDirectory() as directory:
-            good = os.path.join(directory, 'good.brd')
-            with open(good, 'w', encoding='utf-8') as handle:
-                handle.write(GOOD_BOARD)
-            with patch.object(self.io, 'pcbdoc_parsed') as parsed_signal:
-                self.assertIsNone(self.io.parse_eagle_brd(good))
-        parsed_signal.emit.assert_called_once()
-        filename, parsed = parsed_signal.emit.call_args.args
-        self.assertEqual(filename, good)
-        self.assertIsInstance(parsed, EagleBrdParser)
-        self.assertIn('Top', parsed.layers)
-        self.app.inform.emit.assert_not_called()
-
-    def test_on_file_import_eagle_brd_queues_parse_for_given_name(self):
-        with patch.object(QtWidgets.QFileDialog, 'getOpenFileName') as chooser:
-            self.io.on_file_import_eagle_brd(BOARD)
-        chooser.assert_not_called()
-        self.app.worker_task.emit.assert_called_once_with({'fcn': self.io.parse_eagle_brd,
-                                                           'params': [BOARD]})
 
 if __name__ == '__main__':
     unittest.main()

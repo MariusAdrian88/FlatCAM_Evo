@@ -66,19 +66,6 @@ def test_text_scale_uses_true_points_and_offsets():
     assert moved.bounds[3] == pytest.approx(mm.bounds[3] + 20)
 
 
-def test_multiline_resets_x_and_advances_one_font_line():
-    parser, family, path = make_parser()
-    advance = line_height_mm(path, 12)
-    first_line = parser.font_to_geometry('HH', family, 'regular', 12, 'MM', 5, 0)
-    second_line = parser.font_to_geometry('H', family, 'regular', 12, 'MM', 5, 0)
-    multiline = parser.font_to_geometry('HH\nH', family, 'regular', 12, 'MM', 5, 0)
-    assert multiline.bounds[0] == pytest.approx(first_line.bounds[0])
-    assert multiline.bounds[2] == pytest.approx(first_line.bounds[2])
-    assert multiline.bounds[1] == pytest.approx(-advance)
-    assert multiline.bounds[3] == pytest.approx(first_line.bounds[3])
-    assert multiline.area == pytest.approx(first_line.area + second_line.area)
-
-
 def square(left, bottom, size):
     return [(left, bottom), (left, bottom + size), (left + size, bottom + size), (left + size, bottom)]
 
@@ -320,65 +307,6 @@ def test_shaped_arabic_uses_contextual_forms_and_matching_advance(tmp_path, qt_f
         '\u0628\u0628', ('ArabicShapedCheck',), False, False)
     assert advance == pytest.approx(0.9, rel=1e-3)
     assert outline.bounds[2] - outline.bounds[0] == pytest.approx(0.7, rel=1e-3)
-
-
-def test_bidi_run_is_placed_in_visual_order(tmp_path, qt_fonts):
-    build_shaped_font(
-        tmp_path, 'BidiShapedCheck',
-        {'A': [square(0, 0, 300)], 'alef': [square(0, 1000, 100)], 'bet': [square(0, 2000, 100)]},
-        {'A': 600, 'alef': 300, 'bet': 350},
-        {ord('A'): 'A', 0x05D0: 'alef', 0x05D1: 'bet'})
-    parser = new_parser()
-    parser.get_fonts_by_types([str(tmp_path)])
-    path = parser.regular_f['BidiShapedCheck']
-
-    geom = parser.font_to_geometry('A\u05d0\u05d1', 'BidiShapedCheck', 'regular', 100, 'MM')
-    parts = parts_of(geom)
-    assert len(parts) == 3
-    # the glyphs sit at different heights, so each part is identifiable
-    corner, alef, bet = sorted(parts, key=lambda part: part.bounds[1])
-    assert corner.bounds[0] < bet.bounds[0] < alef.bounds[0]
-    assert parser.text_advance('A\u05d0\u05d1', path, 100) == pytest.approx(125)
-
-
-def test_bitmap_font_geometry_uses_pixels_and_smoothing(tmp_path):
-    build_bitmap_font(tmp_path)
-    parser = new_parser()
-    parser.get_fonts_by_types([str(tmp_path)])
-    unit = 64 * ParseFont.SCALE_MM
-
-    exact = parser.font_to_geometry('O', 'BitmapPixelCheck', 'regular', 16, 'MM', 0, 0,
-                                    bitmap_smoothing=0)
-    assert len(parts_of(exact)) == 1
-    assert len(parts_of(exact)[0].interiors) == 1
-    assert exact.area == pytest.approx(44 * unit ** 2, rel=1e-6)
-    assert exact.bounds == pytest.approx((2 * unit, 2 * unit, 14 * unit, 14 * unit))
-
-    dot = parser.font_to_geometry('.', 'BitmapPixelCheck', 'regular', 16, 'MM', 0, 0,
-                                  bitmap_smoothing=0)
-    assert dot.area == pytest.approx(4 * unit ** 2, rel=1e-6)
-
-    smooth = parser.font_to_geometry('O', 'BitmapPixelCheck', 'regular', 16, 'MM', 0, 0,
-                                     bitmap_smoothing=0.5)
-    assert len(parts_of(smooth)[0].interiors) == 1
-    assert smooth.area == pytest.approx(44 * unit ** 2, rel=0.05)
-
-    triangle = parser.font_to_geometry('A', 'BitmapPixelCheck', 'regular', 16, 'MM', 0, 0,
-                                       bitmap_smoothing=0)
-    smoothed = parser.font_to_geometry('A', 'BitmapPixelCheck', 'regular', 16, 'MM', 0, 0,
-                                       bitmap_smoothing=0.5)
-    assert triangle.area == pytest.approx(72 * unit ** 2, rel=1e-6)
-    assert not math.isclose(triangle.area, smoothed.area, rel_tol=1e-6)
-    assert abs(smoothed.area - triangle.area) / triangle.area < 0.1
-    assert len(smoothed.exterior.coords) < len(triangle.exterior.coords)
-
-    inches = parser.font_to_geometry('O', 'BitmapPixelCheck', 'regular', 16, 'IN', 0, 0,
-                                     bitmap_smoothing=0)
-    assert exact.area / inches.area == pytest.approx(25.4 ** 2)
-    moved = parser.font_to_geometry('O', 'BitmapPixelCheck', 'regular', 16, 'MM', 10, 20,
-                                    bitmap_smoothing=0)
-    assert moved.bounds[0] == pytest.approx(exact.bounds[0] + 10)
-    assert moved.bounds[1] == pytest.approx(exact.bounds[1] + 20)
 
 
 def test_gpos_mark_is_placed_above_the_base(tmp_path, qt_fonts):

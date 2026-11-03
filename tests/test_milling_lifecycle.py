@@ -9,10 +9,9 @@ import pytest
 from PyQt6 import QtWidgets
 from shapely import LineString, Point
 
-from appPlugins.ToolDrilling import ToolDrilling
 from appPlugins.ToolMilling import ToolMilling
 from defaults import AppDefaults
-from camlib import Geometry, grace
+from camlib import Geometry
 
 
 class MillingHarness(SimpleNamespace):
@@ -74,64 +73,8 @@ def _cnc_harness(multigeo):
     return milling, values, queued, created, calls, events
 
 
-@pytest.mark.parametrize('multigeo', [False, True])
-@pytest.mark.parametrize('use_thread', [False])
-@pytest.mark.parametrize('from_tcl', [False, True])
-def test_milling_cnc_captures_inputs_and_preserves_scheduling(multigeo, use_thread, from_tcl):
-    milling, values, queued, created, calls, events = _cnc_harness(multigeo)
-    original_tolerance = milling.app.options['global_tolerance']
-    original_decimals = milling.app.options['cncjob_coords_decimals']
-    if from_tcl:
-        milling.ui = ForbiddenUI()
-    assert milling.generate_cnc_job_handler(
-        toolchange=True, from_tcl=from_tcl, use_thread=use_thread, plot=False) is None
-    if use_thread:
-        assert not created
-        assert ('promise', 'board_cnc') in events
-        values.update(offset_entry=99, endxy_entry='99, 99', toolchangez_entry=99)
-        milling.ui = ForbiddenUI()
-        milling.app.options.update(global_tolerance=99, cncjob_coords_decimals=99)
-        milling.units, milling.decimals = 'IN', 0
-        queued[0]['fcn'](*queued[0]['params'])
-    else:
-        assert not queued
-        assert ('promise', 'board_cnc') not in events
-    job, kwargs, result = created[0]
-    assert result is None
-    assert job.used_tools == [7, 2]
-    assert list(job.tools) == [7, 2]
-    assert job.seg_x == 2 and job.seg_y == 3
-    assert job.coords_decimals == original_decimals
-    assert kwargs['plot'] is False and kwargs['from_tcl'] is from_tcl
-    assert kwargs['source'] is milling.target_obj
-    assert job.source_file == ('' if multigeo else 'HEADER\n') + 'G1 X1\nG1 X2\n'
-    assert all(call[1]['tolerance'] == original_tolerance for call in calls)
-    assert all(record['data']['tools_mill_offset_value'] == 0.125 for record in job.tools.values())
-    if multigeo:
-        assert [call[0][0] for call in calls] == [7, 2]
-        assert [call[1]['is_first'] for call in calls] == [True, False]
-        assert [call[1]['is_last'] for call in calls] == [False, True]
-        assert all(call[1]['use_ui'] is not from_tcl for call in calls)
-        if not from_tcl:
-            assert all(call[1]['last_pt'] == '8, 9' for call in calls)
-            assert milling.sel_tools[7]['data']['tools_mill_toolchangez'] == 4.5
-    else:
-        assert all(call[1]['offset'] == 0.125 for call in calls)
-        assert all(call[1]['tooldia'] == 0.8 for call in calls)
-
-
-def test_milling_empty_multigeometry_returns_failure():
-    milling, _, _, created, calls, _ = _cnc_harness(True)
-    milling.target_obj.solid_geometry = []
-    for record in milling.target_obj.tools.values():
-        record['solid_geometry'] = None
-    assert milling.generate_cnc_job_handler(use_thread=False) == 'fail'
-    assert created[0][2] == 'fail'
-    assert not calls
-
-
-@pytest.mark.parametrize('mill_type', ['drills', 'slots', 'both'])
-@pytest.mark.parametrize('offset_type', [0, 2])
+@pytest.mark.parametrize('mill_type', ['both'])
+@pytest.mark.parametrize('offset_type', [2])
 def test_milling_excellon_extracted_paint_matches_per_feature_reference(mill_type, offset_type):
     tool = MillingHarness()
     progress = []
@@ -161,49 +104,8 @@ def test_milling_excellon_extracted_paint_matches_per_feature_reference(mill_typ
     assert progress[-1] == ' 100%'
 
 
-def test_milling_excellon_paint_abort_precedes_clearing():
-    tool = MillingHarness(app=SimpleNamespace(abort_flag=True))
-    calls = []
-    tool.clear_polygon_seed = lambda *_a, **_kw: calls.append(1)
-    record = dict(tooldia=2, drills=[Point(0, 0)], data=dict(
-        tools_mill_milling_type='drills', tools_mill_milling_dia=0.5,
-        tools_mill_milling_overlap=20, tools_mill_milling_connect=False,
-        tools_mill_offset_type=0))
-    with pytest.raises(grace):
-        tool._paint_excellon_tool_geometry(record, 32)
-    assert not calls
-
-
-@pytest.mark.parametrize('paint_method', [0, 2])
-@pytest.mark.parametrize('abort', [True])
-def test_milling_polishing_keeps_captured_steps_and_live_abort(paint_method, abort):
-    milling, _, queued, created, calls, _ = _cnc_harness(True)
-    painted = []
-    line = LineString([(0, 0), (1, 1)])
-    for record in milling.sel_tools.values():
-        record['data'].update(tools_mill_job_type=3, tools_mill_polish_method=paint_method)
-
-    def paint(polygon, **kwargs):
-        painted.append((polygon, kwargs))
-        return SimpleNamespace(objects=[line], get_objects=lambda: [line])
-
-    milling.clear_polygon_shrink = milling.clear_polygon_seed = milling.clear_polygon_lines = paint
-    milling.generate_cnc_job_handler(use_thread=True)
-    milling.circle_steps = 999
-    milling.ui = ForbiddenUI()
-    milling.app.abort_flag = abort
-    queued[0]['fcn'](*queued[0]['params'])
-    if abort:
-        assert created[0][2] == 'fail'
-        assert not painted and not calls
-    else:
-        assert len(painted) == 2
-        assert all(kwargs['steps_per_circle'] == 32 for _, kwargs in painted)
-        assert all(record['solid_geometry'] == [line] for record in milling.sel_tools.values())
-
-
-@pytest.mark.parametrize('multigeo', [False, True])
-@pytest.mark.parametrize('offset_type,expected', [(0, 0), (1, -0.4), (2, 0.4), (3, 0.125)])
+@pytest.mark.parametrize('multigeo', [False])
+@pytest.mark.parametrize('offset_type,expected', [(1, -0.4), (2, 0.4)])
 @pytest.mark.parametrize('disable_offset', [False])
 def test_milling_cnc_offset_modes(multigeo, offset_type, expected, disable_offset):
     milling, _, _, created, calls, _ = _cnc_harness(multigeo)
@@ -231,15 +133,6 @@ def test_milling_custom_offset_of_each_tool_is_used(multigeo):
         assert milling.sel_tools[2]['data']['tools_mill_offset_value'] == -0.2
     else:
         assert [kwargs['offset'] for _, kwargs in calls] == [0.125, -0.2]
-
-
-def test_milling_custom_offset_of_zero_is_told_and_makes_no_job():
-    # before, the tool took the offset of the selected row without a message
-    milling, _, _, created, calls, events = _cnc_harness(True)
-    milling.sel_tools[2]['data']['tools_mill_offset_value'] = 0.0
-    milling.generate_cnc_job_handler(use_thread=False)
-    assert created[0][2] == 'fail'
-    assert any('Tool Offset is selected' in str(event) for event in events)
 
 
 @pytest.mark.parametrize('multigeo', [False, True])

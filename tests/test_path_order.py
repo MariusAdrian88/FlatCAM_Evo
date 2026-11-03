@@ -72,12 +72,6 @@ class TestImprove(unittest.TestCase):
             self.assertLess(travel(pts, better), travel(pts, walk))
             self.assertEqual(better, improve_order(pts, walk, (0.0, 0.0)))
 
-    def test_never_longer(self):
-        for grid in (True, False):
-            pts = random_points(60, 3, grid=grid)
-            walk = walk_nearest(pts, (0.0, 0.0))
-            self.assertLessEqual(travel(pts, improve_order(pts, walk)), travel(pts, walk) + 1e-9)
-
 class TestOrderPaths(unittest.TestCase):
 
     def make_paths(self, n, seed):

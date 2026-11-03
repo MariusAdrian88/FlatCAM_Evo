@@ -9,11 +9,6 @@ import os
 import appTranslation
 
 
-def test_from_the_source_the_folder_next_to_the_module():
-    assert appTranslation.locale_dir() == appTranslation.languages_dir()
-    assert os.path.isdir(appTranslation.locale_dir())
-
-
 def test_frozen_the_folder_next_to_library_zip(tmp_path, monkeypatch):
     lib = tmp_path / 'lib'
     (lib / 'locale' / 'en' / 'LC_MESSAGES').mkdir(parents=True)

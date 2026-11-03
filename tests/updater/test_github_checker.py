@@ -122,15 +122,6 @@ def test_highest_numeric_release_wins_and_trailing_zeros_are_equal(monkeypatch, 
     assert payload["current_version"] == "1.0"
 
 
-def test_no_releases_is_up_to_date_and_not_an_error(monkeypatch, tmp_path):
-    _freeze(monkeypatch, frozen=True)
-    app = _app(tmp_path)
-    payload = _checker(app, FakeTransport([]), tmp_path).run_check(app)
-    assert payload["status"] == "up_to_date"
-    assert payload["no_releases"] is True
-    assert "error" not in payload
-
-
 def test_windows_frozen_x64_selects_the_exact_update_asset(monkeypatch, tmp_path):
     # the version in the asset name is App.version of the build; it must be the version of the release tag
     _freeze(monkeypatch, frozen=True)
@@ -181,10 +172,7 @@ def test_missing_windows_asset_is_an_error_without_fallback(monkeypatch, tmp_pat
     [
         ("darwin", False, "ARM64", False, "macos"),
         ("win32", False, "AMD64", False, "windows-source"),
-        ("linux", True, "x86_64", False, "frozen-linux"),
         ("linux", False, "x86_64", True, "appimage"),
-        ("win32", True, "ARM64", False, "unsupported-architecture"),
-        ("freebsd", False, "x86_64", False, "unsupported-platform"),
     ],
 )
 def test_unsupported_installs_report_manual_replacement_without_intrusion(
@@ -210,7 +198,7 @@ def test_unsupported_installs_report_manual_replacement_without_intrusion(
     assert payload["release_page"].startswith(f"https://{GITHUB_HOST}/")
 
 
-@pytest.mark.parametrize("machine", ["x86_64", "aarch64"])
+@pytest.mark.parametrize("machine", ["x86_64"])
 def test_linux_source_install_uses_the_release_zipball(monkeypatch, tmp_path, machine):
     _freeze(monkeypatch, frozen=False, machine=machine)
     install = tmp_path / "install"

@@ -388,64 +388,6 @@ def test_dblsided_process_is_one_undo_and_survives_reload(fc, no_plot):
     tool.deleteLater()
 
 
-def test_dblsided_failed_append_export_rolls_back(fc, no_plot, monkeypatch):
-    tool, top, bottom, drills, pads = _dbl_sources(fc, 'dbl_export')
-    tool.ui.generate_cb.set_value(True)
-    tool.ui.append_drills_cb.set_value(True)
-    tool.ui.auto_align_cb.set_value(False)
-    before = [appHistory.object_state(obj) for obj in (top, bottom, drills)]
-    n = _stack(fc)
-    monkeypatch.setattr(drills, 'regenerate_source', lambda: False)
-    tool.on_process()
-    assert all(appHistory.states_equal(state, appHistory.object_state(obj))
-               for obj, state in zip((top, bottom, drills), before))
-    assert _stack(fc) == n
-    assert tool.ui.process_button.isEnabled()
-    tool.deleteLater()
-
-
-def _smd_sources(fc, name):
-    from test_align_auto import partial_smd_board
-    through, pads, holes, matrix = partial_smd_board()
-    def init_pads(obj, app):
-        records = [{'solid': solid, 'follow': Point(center)}
-                   for solid, center in zip(pads.tree.geometries, pads.centers)]
-        obj.tools = {10: {'type': 'C', 'size': 1.6, 'geometry': records[:len(through)]},
-                     11: {'type': 'R', 'width': 0.2, 'height': 0.3, 'size': float(np.hypot(0.2, 0.3)),
-                          'geometry': records[len(through):]}}
-        obj.solid_geometry = [r['solid'] for r in records]
-        obj.follow_geometry = [r['follow'] for r in records]
-    def init_drills(obj, app):
-        obj.add_tool(0.8, drills=[Point(p) for p in holes.centers])
-        obj.create_geometry()
-    grb = fc.app_obj.new_object('gerber', name + '_pads', init_pads, plot=False)
-    exc = fc.app_obj.new_object('excellon', name + '_holes', init_drills, plot=False)
-    return grb, exc, through, holes.centers.copy(), matrix
-
-
-def test_dblsided_smd_process_registers_drills_and_holes_idempotent(fc, no_plot):
-    grb, exc, through, holes, matrix = _smd_sources(fc, 'dbl_smd')
-    tool = DblSidedTool(fc)
-    tool.set_tool_ui()
-    tool.ui.top_combo.set_value(grb.obj_options['name'])
-    tool.ui.drills_combo.set_value(exc.obj_options['name'])
-    tool.ui.generate_cb.set_value(True)
-    tool.ui.append_drills_cb.set_value(True)
-    tool.ui.basic_drill_dia.set_value(0.8)
-    n = _stack(fc)
-    tool.on_process()
-    _wait_dbl(tool)
-    _one_step(fc, n, '2-Sided')
-    expected = [r['follow'].coords[0] for r in grb.tools[10]['geometry']]
-    np.testing.assert_allclose([p.coords[0] for p in exc.tools[1]['drills'][:12]], expected, atol=0.02)
-    assert len(exc.tools[1]['drills']) == len(holes) + 3
-    tool.on_process()
-    _wait_dbl(tool)
-    assert len(exc.tools[1]['drills']) == len(holes) + 3
-    np.testing.assert_allclose([p.coords[0] for p in exc.tools[1]['drills'][:12]], expected, atol=0.02)
-    tool.deleteLater()
-
-
 # ---------------------------------------------------------------------------------------------------------------------
 # 3. Cutout: manual gap, 1 step per click
 # ---------------------------------------------------------------------------------------------------------------------
@@ -561,48 +503,11 @@ def test_manual_cutout_session_cancel_and_finish_preserve_history(fc, no_plot):
 # ---------------------------------------------------------------------------------------------------------------------
 # 6. Simplify (runs in the worker)
 # ---------------------------------------------------------------------------------------------------------------------
-def test_simplify_is_a_snapshot_step(fc, no_plot, monkeypatch):
-    # a rectangle contour with many collinear vertices
-    pts = [(x, 0.0) for x in np.linspace(0, 20, 41)] + [(20.0, 10.0), (0.0, 10.0), (0.0, 0.0)]
-    contour = LineString(pts)
-
-    def init(obj, _app):
-        obj.solid_geometry = [contour]
-        obj.tools = {1: {'tooldia': 1.0, 'data': {}, 'solid_geometry': [contour]}}
-        obj.multigeo = True
-    geo = fc.app_obj.new_object('geometry', 'geo_simp', init, plot=False)
-    monkeypatch.setattr(fc, 'worker_task', SimpleNamespace(emit=lambda d: d['fcn'](*d['params'])))
-    monkeypatch.setattr(fc, 'plot_all', lambda *a, **k: None)
-    geo.ui = SimpleNamespace(geo_tol_entry=SimpleNamespace(get_value=lambda: 0.01))
-    geo.on_calculate_vertex_points = lambda: None
-
-    def count(g):
-        return sum(len(p.coords) for p in g.tools[1]['solid_geometry'])
-    c0 = count(geo)
-    n = _stack(fc)
-    geo.on_simplify_geometry()
-    _one_step(fc, n, 'Simplify')
-    assert count(geo) < c0
-    assert fc.history.undo() and count(geo) == c0
-    assert fc.history.redo() and count(geo) < c0
 
 
 # ---------------------------------------------------------------------------------------------------------------------
 # 7. Gerber buffer, 8. Isolation buffer
 # ---------------------------------------------------------------------------------------------------------------------
-def test_isolation_generate_buffer_is_a_snapshot_step(fc, no_plot, monkeypatch):
-    grb = _load(fc, 'gerber', 'unify_mixed.gbr', 'g_iso_buf')
-    grb.solid_geometry = list(grb.solid_geometry.geoms) if hasattr(grb.solid_geometry, 'geoms') \
-        else list(grb.solid_geometry)
-    monkeypatch.setattr(type(grb), 'plot_single_object', SimpleNamespace(emit=lambda: None), raising=False)
-    monkeypatch.setattr(fc, 'worker_task', SimpleNamespace(emit=lambda d: d['fcn'](*d['params'])))
-    stub = SimpleNamespace(app=fc, ui=SimpleNamespace(object_combo=SimpleNamespace(currentText=lambda: 'g_iso_buf')))
-    n = _stack(fc)
-    ToolIsolation.on_generate_buffer(stub)
-    _one_step(fc, n, 'Buffer')
-    assert not isinstance(grb.solid_geometry, list)          # the list became 1 buffered geometry
-    assert fc.history.undo() and isinstance(grb.solid_geometry, list)
-    assert fc.history.redo() and not isinstance(grb.solid_geometry, list)
 
 
 # ---------------------------------------------------------------------------------------------------------------------

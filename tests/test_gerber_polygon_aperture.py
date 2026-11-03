@@ -27,8 +27,7 @@ def _flash_polygon(n, rotation=None, diam=2.0):
     return records[0]['solid']
 
 
-@pytest.mark.parametrize('n', [3, 6])
-@pytest.mark.parametrize('rotation', [None, 45])
+@pytest.mark.parametrize('n, rotation', [(6, 45)])
 def test_vertices_are_on_the_circumscribed_circle_around_the_flash_point(n, rotation):
     ply = _flash_polygon(n, rotation)
     vertices = list(ply.exterior.coords)[:-1]

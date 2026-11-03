@@ -40,21 +40,6 @@ class TestDumpFailurePreservesExisting:
         assert dest.read_bytes() == original_bytes
         assert json.loads(dest.read_text()) == OLD_VALUES
 
-# -- replace failure with existing read-only snapshot -----------------------
-
-class TestReplaceFailurePreservesExisting:
-    """If os.replace raises, the existing snapshot survives and mode is restored."""
-
-    def test_existing_bytes_survive_replace_failure(self, tmp_path):
-        dest = tmp_path / "factory_defaults.FlatConfig"
-        _write_read_only_snapshot(dest, OLD_VALUES)
-        original_bytes = dest.read_bytes()
-
-        with patch("defaults.os.replace", side_effect=OSError("access denied")):
-            AppDefaults.save_factory_defaults(str(dest), "2.0")
-
-        assert dest.read_bytes() == original_bytes
-
 # -- missing destination failure --------------------------------------------
 
 class TestMissingDestinationFailure:

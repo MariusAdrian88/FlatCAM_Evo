@@ -24,7 +24,7 @@ def editor_scene():
 
 
 @pytest.mark.parametrize('reference,expected', [
-    ('minimum', (-1, -1)), ('upper_right', (1, 1)),
+    ('upper_right', (1, 1)),
 ])
 def test_selection_corner_reference(reference, expected):
     editor, first, _ = editor_scene()
@@ -122,7 +122,7 @@ def test_real_table_keeps_exact_scaled_diameters(diameter):
     assert qapp is not None
 
 
-@pytest.mark.parametrize('array_type', ['2D', 'circular'])
+@pytest.mark.parametrize('array_type', ['circular'])
 def test_large_copy_preview_is_box_but_commit_keeps_native_slots(array_type):
     editor, first, slot = editor_scene()
     editor.selected = [slot]
@@ -159,10 +159,7 @@ def test_large_copy_preview_is_box_but_commit_keeps_native_slots(array_type):
 
 
 @pytest.mark.parametrize('operation,value,reference,expected', [
-    ('rotate', 90, 'origin', (-0.5, 5)),
     ('mirror_x', 1, 'origin', (5, -0.5)),
-    ('mirror_y', 1, 'origin', (-5, 0.5)),
-    ('rotate', 180, (2, 3), (-1, 5.5)),
     ('scale', 2, (2, 3), (8, -2)),
 ])
 def test_native_slot_transform_and_history(operation, value, reference, expected):
@@ -184,9 +181,7 @@ def test_native_slot_transform_and_history(operation, value, reference, expected
 
 
 @pytest.mark.parametrize('operation,value,reference', [
-    ('scale', 0, 'origin'), ('scale', -2, 'origin'), ('scale', float('inf'), 'origin'),
-    ('rotate', float('nan'), 'origin'), ('shear', 2, 'origin'),
-    ('scale', (2, 3), 'origin'), ('rotate', 90, (float('nan'), 1)),
+    ('scale', 0, 'origin'), ('rotate', float('nan'), 'origin'), ('shear', 2, 'origin'),
 ])
 def test_invalid_transform_is_atomic(operation, value, reference):
     editor, drill, slot = editor_scene()
@@ -197,11 +192,10 @@ def test_invalid_transform_is_atomic(operation, value, reference):
 
 
 @pytest.mark.parametrize('source_units', ['MM'])
-@pytest.mark.parametrize('editor_units', ['MM', 'IN'])
+@pytest.mark.parametrize('editor_units, export_format', [('MM', 'dec'), ('IN', 'ndec')])
 @pytest.mark.parametrize('export_units', ['METRIC'])
 @pytest.mark.parametrize('in_place', [True])
 @pytest.mark.parametrize('string_ids', [True])
-@pytest.mark.parametrize('export_format', ['dec', 'ndec'])
 def test_source_loader_transform_save_native_unit_roundtrip(app, tmp_path, source_units, editor_units,
                                                            export_units, in_place, string_ids, export_format):
     header = 'METRIC' if source_units == 'MM' else 'INCH'

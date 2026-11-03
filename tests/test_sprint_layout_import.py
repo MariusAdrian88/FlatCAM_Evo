@@ -12,8 +12,6 @@ from PyQt6 import QtWidgets
 from shapely.geometry import LineString, Point, Polygon
 
 from appHandlers.appIO import appIO
-from appParsers.ParseSprintLayout import SprintLayoutParser
-from test_sprint_layout_parser import fu, board, pad_at, sprint_file, BOARD_MM
 
 
 FILE = os.path.join('D:' + os.sep, 'boards', 'cata.lay6')
@@ -86,21 +84,6 @@ class TestSprintLayoutImport(unittest.TestCase):
         self.assertEqual(excellon.units, 'IN')
         self.assertAlmostEqual(excellon.tools[1]['tooldia'], 0.7 / 25.4, places=6)
 
-    def test_dialog_accept_queues_only_selected_layers_and_drill_groups(self):
-        self.app.ui = QtWidgets.QWidget()
-
-        def accepted(dialog):
-            for box in dialog.findChildren(QtWidgets.QCheckBox):
-                if box.text() == 'M1 (Solder Mask Top)':
-                    box.setChecked(False)
-            return QtWidgets.QDialog.DialogCode.Accepted
-
-        with patch.object(QtWidgets.QDialog, 'exec', accepted):
-            self.io.on_pcbdoc_parsed(FILE, self.parsed)
-        job = self.app.worker_task.emit.call_args.args[0]
-        self.assertEqual(job['fcn'], self.io.import_pcbdoc_objects)
-        self.assertEqual(job['params'][0], FILE)
-        self.assertEqual(job['params'][2:], [['C1', 'C2', 'M2', 'S1', 'O'], ['PTH']])
 
     def test_parse_sprint_layout_error_reports_and_returns_fail(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -115,27 +98,6 @@ class TestSprintLayoutImport(unittest.TestCase):
         self.assertIn('[ERROR_NOTCL]', message)
         self.app.log.error.assert_called_once()
 
-    def test_parse_sprint_layout_success_emits_parsed_board(self):
-        data = sprint_file([board([(2, pad_at(10.0, 10.0))], name=b'Test', w=fu(BOARD_MM), h=fu(BOARD_MM))])
-        with tempfile.TemporaryDirectory() as directory:
-            good = os.path.join(directory, 'good.lay6')
-            with open(good, 'wb') as handle:
-                handle.write(data)
-            with patch.object(self.io, 'pcbdoc_parsed') as parsed_signal:
-                self.assertIsNone(self.io.parse_sprint_layout(good))
-        parsed_signal.emit.assert_called_once()
-        filename, parsed = parsed_signal.emit.call_args.args
-        self.assertEqual(filename, good)
-        self.assertIsInstance(parsed, SprintLayoutParser)
-        self.assertIn('C1', parsed.layers)
-        self.app.inform.emit.assert_not_called()
-
-    def test_on_file_import_sprint_layout_queues_parse_for_given_name(self):
-        with patch.object(QtWidgets.QFileDialog, 'getOpenFileName') as chooser:
-            self.io.on_file_import_sprint_layout(FILE)
-        chooser.assert_not_called()
-        self.app.worker_task.emit.assert_called_once_with({'fcn': self.io.parse_sprint_layout,
-                                                           'params': [FILE]})
 
 if __name__ == '__main__':
     unittest.main()

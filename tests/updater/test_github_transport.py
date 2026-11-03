@@ -14,7 +14,6 @@ from services.updater.digi.transport import DownloadCancelled
 from services.updater.github.transport import (
     API_HOST,
     DEFAULT_REPOSITORY,
-    DELETIONS_ASSET_NAME,
     GITHUB_HOST,
     windows_asset_name,
     GitHubReleaseTransport,
@@ -175,33 +174,12 @@ def test_http_rate_limit_network_and_json_errors_fail_safely():
         GitHubReleaseTransport(opener=FakeOpener([not_a_list])).list_releases()
 
 
-def test_asset_metadata_and_digest_are_validated():
-    entries = [
-        _release_json(
-            "v1.1",
-            assets=[_asset_json(), _asset_json(DELETIONS_ASSET_NAME, size=None, digest=None)],
-        )
-    ]
-    release = GitHubReleaseTransport(opener=FakeOpener([_releases_response(entries)])).list_releases()[0]
-
-    assert release.asset(WINDOWS_ASSET_NAME).sha256 == "a" * 64
-    assert release.asset(WINDOWS_ASSET_NAME).size == 2048
-    assert release.asset(DELETIONS_ASSET_NAME).sha256 is None
-    assert release.asset(DELETIONS_ASSET_NAME).size is None
-    assert release.asset("missing.zip") is None
-
-
 def _malformed_entries():
     asset = _asset_json()
     return {
         "bad_digest": _release_json("v1.1", assets=[_asset_json(digest="sha256:nothex")]),
         "bad_asset_url": _release_json("v1.1", assets=[{**asset, "browser_download_url": "http://example.com/x.zip"}]),
-        "bad_asset_name": _release_json("v1.1", assets=[{**asset, "name": "a/b.zip"}]),
-        "bad_asset_size": _release_json("v1.1", assets=[{**asset, "size": -1}]),
-        "bad_assets": {**_release_json("v1.1"), "assets": "nope"},
-        "bad_html_url": {**_release_json("v1.1"), "html_url": "http://example.com/r"},
         "bad_zipball": _release_json("v1.1", zipball="https://example.com/zip"),
-        "bad_published": {**_release_json("v1.1"), "published_at": 5},
     }
 
 

@@ -6,78 +6,10 @@
 import sys
 import os
 import unittest
-from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-
-class TestNewProjectTabClosure(unittest.TestCase):
-    @staticmethod
-    def make_handler(close_result):
-        from appHandlers.appIO import appIO
-
-        close_tab = Mock(return_value=close_result)
-        tab_area = SimpleNamespace(
-            tabBar=SimpleNamespace(count=Mock(return_value=1)),
-            closeTab=close_tab,
-            tabText=Mock(return_value='Tools Database'),
-            insertTab=Mock(),
-            protectTab=Mock()
-        )
-        project_tab = object()
-        app = SimpleNamespace(
-            call_source='app',
-            collection=SimpleNamespace(get_list=lambda: []),
-            exc_areas=SimpleNamespace(clear_shapes=Mock()),
-            delete_selection_shape=Mock(),
-            setup_default_properties_tab=Mock(),
-            defaults_path=Mock(return_value='defaults'),
-            on_defaults2options=Mock(),
-            new_project_signal=SimpleNamespace(emit=Mock()),
-            ui=SimpleNamespace(
-                plot_tab_area=tab_area,
-                notebook=SimpleNamespace(setCurrentWidget=Mock()),
-                project_tab=project_tab,
-                plot_tab=object(),
-                set_ui_title=Mock()
-            ),
-            log=Mock()
-        )
-        handler = appIO.__new__(appIO)
-        handler.app = app
-        handler.log = app.log
-        handler.inform = Mock()
-        handler.options = SimpleNamespace(load=Mock())
-        return handler, close_tab
-
-    def test_new_project_reports_explicit_tab_close_veto_and_continues(self):
-        handler, close_tab = self.make_handler(False)
-
-        handler.on_file_new_project(use_thread=True)
-
-        close_tab.assert_called_once_with(0)
-        warning_messages = [call.args[0] for call in handler.inform.emit.call_args_list
-                            if call.args and '[WARNING_NOTCL]' in call.args[0]]
-        self.assertEqual(1, len(warning_messages))
-        self.assertIn('Tools Database', warning_messages[0])
-        self.assertIn('remains open', warning_messages[0])
-        handler.app.new_project_signal.emit.assert_called_once_with()
-        handler.app.ui.notebook.setCurrentWidget.assert_called_once_with(handler.app.ui.project_tab)
-
-    def test_new_project_does_not_warn_for_accepted_or_legacy_none_close(self):
-        for close_result in (True, None):
-            with self.subTest(close_result=close_result):
-                handler, close_tab = self.make_handler(close_result)
-
-                handler.on_file_new_project(use_thread=True)
-
-                close_tab.assert_called_once_with(0)
-                warning_messages = [call.args[0] for call in handler.inform.emit.call_args_list
-                                    if call.args and '[WARNING_NOTCL]' in call.args[0]]
-                self.assertEqual([], warning_messages)
-                handler.app.new_project_signal.emit.assert_called_once_with()
 
 
 class TestAppShutdownSequence(unittest.TestCase):

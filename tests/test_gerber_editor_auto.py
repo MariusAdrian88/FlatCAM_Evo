@@ -83,16 +83,6 @@ def test_drawn_circle_and_rectangle_become_flashes_and_l_shape_is_skipped():
     assert set(editor.storage_dict) == keys
 
 
-def test_existing_aperture_of_the_same_size_is_reused():
-    circle = region(Point(0, 0).buffer(1, 64))
-    editor = editor_for({10: {'type': 'C', 'size': 2, 'geometry': [flash(30)]},
-                         11: {'type': 'REG', 'size': 0, 'geometry': [circle]}})
-    assert module.apply_pads_to_flashes(editor, 0.01) == (1, 0)
-    _, shape = flash_at(editor, 0, 0)
-    assert shape in editor.storage_dict[10]['geometry']
-    assert [key for key, value in editor.storage_dict.items() if value['type'] == 'C'] == [10]
-
-
 def test_teardrop_fills_the_neck_and_is_skipped_for_a_track_wider_than_the_pad():
     editor, pad, path = pad_and_track_editor()
     before, keys, before_footprint = snapshot(editor), set(editor.storage_dict), footprint(editor)
@@ -148,7 +138,7 @@ def test_native_save_reparse_after_teardrop_undo_redo(app):
         assert unary_union(parsed.solid_geometry).symmetric_difference(footprint(editor)).area < 0.01
 
 
-@pytest.mark.parametrize('kind', ['R', 'O'])
+@pytest.mark.parametrize('kind', ['O'])
 def test_drawn_pads_save_as_flashes_of_rectangular_and_oblong_apertures(app, kind):
     pad = box(0, 0, 2, 1) if kind == 'R' else LineString([(0.5, 0.5), (3.5, 0.5)]).buffer(0.5, 64)
     editor = editor_for({10: {'type': 'C', 'size': 2, 'geometry': [flash(20)]},

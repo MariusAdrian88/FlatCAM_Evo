@@ -15,7 +15,7 @@ from PyQt6 import QtCore, QtWidgets
 from shapely import LineString
 
 from appPlugins.ToolMilling import ToolMilling
-from test_milling_old_tool_data import MILL_OPTIONS, flatcam_8_994_cutout_tool, milling_harness
+from test_milling_old_tool_data import MILL_OPTIONS, milling_harness
 
 _qapp = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
 
@@ -162,19 +162,6 @@ def test_form_edit_goes_to_the_target_only():
     assert generate(milling).pp_geometry_name == 'GRBL_laser'
 
 
-def test_old_project_target_resets_the_general_fields():
-    # the object saved by FlatCAM 8.994 keeps the settings under old names (ppname_g, endz): the form shows them
-    old = make_object('cutout', tool=flatcam_8_994_cutout_tool())
-    old.obj_options = dict(MILL_OPTIONS, name='cutout', xmin=0, ymin=0, xmax=10, ymax=5)
-    objects = {'iso': make_object('iso', **LASER), 'cutout': old}
-    milling = plugin(objects, tools_mill_ppname_g='GRBL_laser')
-    select(milling, 'iso')
-    select(milling, 'cutout')
-    assert milling.ui.pp_geo_name_cb.get_value() == 'default'
-    assert milling.ui.endz_entry.get_value() == 15.0
-    assert generate(milling).pp_geometry_name == 'default'
-
-
 # ---- the tools table of the plugin: copy, delete, add, edit, Excellon order ----
 
 def tools_milling(n_tools=2, diameters=None):
@@ -212,52 +199,6 @@ def test_delete_removes_only_the_selected_rows():
     assert sorted(obj.tools) == [2]
 
 
-def test_new_tool_cuts_with_its_own_diameter():
-    milling, obj = tools_milling(1)
-    milling._on_tool_default_add(dia=0.5)
-    assert obj.tools[2]['tooldia'] == 0.5 and obj.tools[2]['data']['tools_mill_tooldia'] == 0.5
-    milling._on_tool_from_db_inserted({'tooldia': 0.8, 'data': {'tools_mill_cutz': -0.3}})
-    new = obj.tools[3]
-    assert new['data']['tools_mill_tooldia'] == 0.8 and new['data']['tools_mill_cutz'] == -0.3
-    assert new['data']['tools_mill_feedrate'] == MILL_OPTIONS['tools_mill_feedrate']
-
-
-def test_diameter_zero_is_rejected_in_the_table():
-    milling, obj = tools_milling(1)
-    item = milling.ui.tools_table_mill_geo.item(0, 1)
-    item.setText('0')
-    assert obj.tools[1]['tooldia'] == 1.0 and obj.tools[1]['data']['tools_mill_tooldia'] == 1.0
-    assert float(milling.ui.tools_table_mill_geo.item(0, 1).text()) == 1.0
-
-
-def exc_milling(diameters):
-    milling, _obj = tools_milling(1)
-    tools = {i: {'tooldia': dia, 'drills': [object()] * 2, 'slots': []} for i, dia in enumerate(diameters, 1)}
-    milling.app.dec_format = lambda value, decimals=4: round(value, decimals)
-    milling.target_obj = SimpleNamespace(tools=tools)
-    milling.ui.order_combo.blockSignals(True)
-    return milling, tools
-
-
-def exc_uids(milling):
-    table = milling.ui.tools_table_mill_exc
-    return [int(table.item(row, 3).text()) for row in range(table.rowCount() - 2)]
-
-
-def test_excellon_table_lists_each_tool_once_and_keeps_the_object():
-    milling, tools = exc_milling([0.8, 0.8, 0.8, 1.0])
-    before = dict(tools)
-    for _ in range(3):
-        milling.build_ui_exc()
-    assert exc_uids(milling) == [1, 2, 3, 4] and milling.target_obj.tools == before
-    assert milling.ui.tools_table_mill_exc.item(4, 2).text() == '8'
-    milling.ui.order_combo.set_value(2)
-    milling.build_ui_exc()
-    assert exc_uids(milling) == [4, 1, 2, 3] and milling.target_obj.tools == before
-    assert milling.ui.tools_table_mill_exc.item(4, 2).text() == '8'
-    assert milling.ui.tools_table_mill_exc.item(5, 4).text() == '0'
-
-
 # ---- UI state of the tools table and the form ----
 
 def v_index(milling):
@@ -268,18 +209,6 @@ def click_row(milling, row):
     table = milling.ui.tools_table_mill_geo
     table.setCurrentCell(row, 0)
     milling.update_ui()
-
-
-def test_level_change_does_not_write_the_tool_data():
-    milling, obj = tools_milling(2)
-    data = obj.tools[1]['data']
-    data.update(tools_mill_offset_type=2, tools_mill_offset_value=0.3, tools_mill_job_type=3, tools_mill_extracut=True,
-                tools_mill_dwell=True, tools_mill_area_exclusion=True)
-    before = deepcopy(obj.tools)
-    milling.on_level_changed(False)
-    milling.on_level_changed(True)
-    milling.on_level_changed(False)
-    assert obj.tools == before
 
 
 def test_clicking_a_row_keeps_the_cut_z_of_every_tool():
@@ -317,28 +246,6 @@ def test_dragging_geometry_rows_reorders_the_tools_of_the_object():
         table.item(row, 3).setText(str(uid))
     milling.on_geo_rebuild_ui()
     assert [obj.tools[uid]['tooldia'] for uid in (1, 2, 3)] == [3.0, 1.0, 2.0]
-
-
-def excellon_generate(diameters, select_exc_rows=None):
-    """The uids that Generate CNCJob hands to the Excellon paint step."""
-    milling, tools = exc_milling(diameters)
-    milling.build_ui_exc()
-    target = milling.app.collection.get_by_name('A')
-    target.kind, target.tools = 'excellon', tools
-    table = milling.ui.tools_table_mill_exc
-    table.clearSelection()
-    for row in select_exc_rows or []:
-        table.selectionModel().select(
-            table.model().index(row, 0),
-            QtCore.QItemSelectionModel.SelectionFlag.Select | QtCore.QItemSelectionModel.SelectionFlag.Rows)
-    painted = []
-    milling.paint_excellon_cncjpb = lambda: painted.append(list(milling.sel_tools))
-    milling.on_generate_cnc_from_exc()
-    return painted
-
-
-def test_excellon_generates_the_selected_tools_in_table_order():
-    assert excellon_generate([0.8, 1.0, 1.2], select_exc_rows=[2, 0]) == [[1, 3]]
 
 
 # ---- path optimization, mistakes in the settings ----

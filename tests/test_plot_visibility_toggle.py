@@ -43,178 +43,69 @@ def _add_squares(group, n, start=0):
 
 class TestShapeGroupVisibility(unittest.TestCase):
 
-    def setUp(self):
-        from appGUI.VisPyVisuals import ShapeGroup
-        self.collection = _new_collection()
-        self.group = ShapeGroup(self.collection)
-        _add_squares(self.group, 3)
-        self.group.redraw()
-        # layer 1 is the default layer of the shapes
-        self.line = self.collection._lines[1]
-        self.assertTrue(self.line.visible)
-
-    def test_visible_setter_updates_canvas(self):
-        self.group.visible = False
-        self.assertFalse(self.line.visible)
-        self.assertTrue(all(not d['visible'] for d in self.collection.data.values()))
-
-        self.group.visible = True
-        self.assertTrue(self.line.visible)
-
-    def test_update_visibility_with_indexes(self):
-        keys = list(self.group._indexes)
-        self.group.update_visibility(False, indexes=keys[:2])
-        self.assertEqual([self.collection.data[k]['visible'] for k in keys], [False, False, True])
-        self.assertTrue(self.line.visible)
-
-        self.group.update_visibility(False, indexes=keys[2:])
-        self.assertFalse(self.line.visible)
-
-
-class _CountedKeys(list):
-    """The key list of a group that counts the 'key in list' tests."""
-    lookups = 0
-
-    def __contains__(self, key):
-        self.lookups += 1
-        return list.__contains__(self, key)
-
-
-class TestSharedCollectionKeys(unittest.TestCase):
-
-    def test_recolor_and_visibility_look_up_the_group_keys_in_a_set(self):
-        # update_color() and update_visibility() of the collection tested 'key in list' with the key list of the
-        # group, for each shape of the collection that all the objects share: a recolor (Project menu > Color) of
-        # a 20000-shape Gerber in a 60000-shape project took 10 s
+    def test_visible_setter_and_update_visibility_update_canvas(self):
         from appGUI.VisPyVisuals import ShapeGroup
         collection = _new_collection()
-        other, group = ShapeGroup(collection), ShapeGroup(collection)
-        _add_squares(other, 3)
-        _add_squares(group, 2, start=10)
-        collection.redraw()
-        group._indexes = _CountedKeys(group._indexes)
+        group = ShapeGroup(collection)
+        _add_squares(group, 3)
+        group.redraw()
+        line = collection._lines[1]   # layer 1 is the default layer of the shapes
+        self.assertTrue(line.visible)
 
-        group.redraw(update_colors=('#0000FFFF', '#000088FF'))
-        self.assertEqual([collection.data[k]['face_color'] for k in group._indexes], ['#0000FFFF'] * 2)
-        self.assertEqual([collection.data[k]['face_color'] for k in other._indexes], ['#00FF00FF'] * 3)
-        collection.update_visibility(False, group._indexes)
-        self.assertEqual([collection.data[k]['visible'] for k in other._indexes + group._indexes],
-                         [True] * 3 + [False] * 2)
-        self.assertEqual(group._indexes.lookups, 0)
+        group.visible = False
+        self.assertFalse(line.visible)
+        self.assertTrue(all(not d['visible'] for d in collection.data.values()))
+        group.visible = True
+        self.assertTrue(line.visible)
+
+        keys = list(group._indexes)
+        group.update_visibility(False, indexes=keys[:2])
+        self.assertEqual([collection.data[k]['visible'] for k in keys], [False, False, True])
+        self.assertTrue(line.visible)
+        group.update_visibility(False, indexes=keys[2:])
+        self.assertFalse(line.visible)
 
 
 class TestMoveToTop(unittest.TestCase):
 
-    def setUp(self):
-        from appGUI.VisPyVisuals import ShapeGroup
-        self.collection = _new_collection()
-        self.big = ShapeGroup(self.collection)
-        self.small = ShapeGroup(self.collection)
-        _add_squares(self.big, 3)
-        _add_squares(self.small, 2, start=10)
-        self.collection.redraw()
-
     def test_moves_group_to_end_and_keeps_buffers(self):
-        buffers = {k: self.collection.data[k]['mesh_vertices'] for k in self.big._indexes}
-        self.big.move_to_top()
-        self.assertEqual(list(self.collection.data), self.small._indexes + self.big._indexes)
-        for k, v in buffers.items():
-            self.assertIs(self.collection.data[k]['mesh_vertices'], v)
-
-    def test_foreground_overrides_layers_and_restores_previous_group(self):
         from appGUI.VisPyVisuals import ShapeGroup
-        paint = ShapeGroup(self.collection)
-        paint.add(shape=_square(0), color='blue', face_color='blue', layer=2)
-        self.big.move_to_top()
-        self.assertIs(self.collection._subvisuals[-2], self.collection._top_mesh)
-        self.assertIs(self.collection._subvisuals[-1], self.collection._top_line)
-        self.assertEqual(len(self.collection._top_mesh.mesh_data.get_vertices()), 12)
-        paint.move_to_top()
-        self.assertEqual(len(self.collection._top_mesh.mesh_data.get_vertices()), 4)
-        self.assertEqual(len(self.collection._meshes[1].mesh_data.get_vertices()), 20)
-        self.assertTrue(all(self.collection.data[k]['layer'] == 1 for k in self.big._indexes))
-        paint.visible = False
-        self.assertFalse(self.collection._top_line.visible)
-        self.assertFalse(self.collection._top_mesh.visible)
-
-    def test_clear_does_not_promote_reused_keys(self):
-        self.big.move_to_top()
-        self.collection.clear()
-        _add_squares(self.small, 1)
-        self.collection.redraw()
-        self.assertFalse(self.collection._top_mesh.visible)
-        self.assertTrue(self.collection._meshes[1].visible)
-
-
-class TestSelectionRedraw(unittest.TestCase):
-
-    def test_visible_object_types_are_brought_to_top(self):
-        from appHandlers.appPlotManager import AppPlotManager
-        for kind in ('gerber', 'geometry', 'cncjob', 'excellon'):
-            with self.subTest(kind=kind):
-                obj = SimpleNamespace(kind=kind, obj_options={'plot': True},
-                                      bring_to_top=Mock(return_value=True), plot=Mock())
-                manager = SimpleNamespace(collection=SimpleNamespace(
-                    get_selected=lambda: [obj], get_active=lambda: obj), worker_task=Mock())
-                AppPlotManager.gerber_redraw(manager)
-                manager.worker_task.emit.assert_called_once()
-                task = manager.worker_task.emit.call_args[0][0]
-                task['fcn'](*task['params'])
-                obj.bring_to_top.assert_called_once()
-                obj.plot.assert_not_called()
-
-    def test_cncjob_selection_rebuild_preserves_the_plot_filter(self):
-        from appHandlers.appPlotManager import AppPlotManager
-        for kind in ('all', 'cut', 'travel'):
-            with self.subTest(kind=kind):
-                obj = SimpleNamespace(kind='cncjob', obj_options={'plot': True},
-                                      ui=SimpleNamespace(cncplot_method_combo=Mock(
-                                          get_value=Mock(return_value=kind))),
-                                      bring_to_top=Mock(side_effect=[False, True]), plot=Mock())
-                manager = SimpleNamespace(collection=SimpleNamespace(
-                    get_selected=lambda: [obj], get_active=lambda: obj), worker_task=Mock())
-                AppPlotManager.gerber_redraw(manager)
-                task = manager.worker_task.emit.call_args[0][0]
-                task['fcn'](*task['params'])
-                obj.plot.assert_called_once_with(visible=True, kind=kind)
-                self.assertEqual(obj.bring_to_top.call_count, 2)
+        collection = _new_collection()
+        big, small = ShapeGroup(collection), ShapeGroup(collection)
+        _add_squares(big, 3)
+        _add_squares(small, 2, start=10)
+        collection.redraw()
+        buffers = {k: collection.data[k]['mesh_vertices'] for k in big._indexes}
+        big.move_to_top()
+        self.assertEqual(list(collection.data), small._indexes + big._indexes)
+        for k, v in buffers.items():
+            self.assertIs(collection.data[k]['mesh_vertices'], v)
 
 
 class TestShowPlottedShapes(unittest.TestCase):
 
-    def setUp(self):
+    def test_after_full_plot(self):
         from appGUI.VisPyVisuals import ShapeGroup
         from appObjects.AppObjectTemplate import FlatCAMObj
 
-        self.collection = _new_collection()
-        self.obj = SimpleNamespace(app=SimpleNamespace(),
-                                   shapes=ShapeGroup(self.collection),
-                                   _full_plot_sig=None)
+        collection = _new_collection()
+        obj = SimpleNamespace(app=SimpleNamespace(), shapes=ShapeGroup(collection), _full_plot_sig=None)
         for name in ('_shapes_signature', '_has_full_plot', 'mark_full_plot', 'show_plotted_shapes', 'bring_to_top'):
-            setattr(self.obj, name, getattr(FlatCAMObj, name).__get__(self.obj))
+            setattr(obj, name, getattr(FlatCAMObj, name).__get__(obj))
+        _add_squares(obj.shapes, 4)
+        obj.shapes.redraw()
 
-        _add_squares(self.obj.shapes, 4)
-        self.obj.shapes.redraw()
+        def flags():
+            return [collection.data[k]['visible'] for k in obj.shapes._indexes]
 
-    def _visible_flags(self):
-        return [self.collection.data[k]['visible'] for k in self.obj.shapes._indexes]
-
-    def test_after_full_plot(self):
-        buffers = {k: self.collection.data[k]['mesh_vertices'] for k in self.obj.shapes._indexes}
-        self.obj.mark_full_plot()
-        self.assertTrue(self.obj.show_plotted_shapes(False))
-        self.assertEqual(self._visible_flags(), [False] * 4)
-        self.assertTrue(self.obj.show_plotted_shapes(True))
-        self.assertEqual(self._visible_flags(), [True] * 4)
+        buffers = {k: collection.data[k]['mesh_vertices'] for k in obj.shapes._indexes}
+        obj.mark_full_plot()
+        self.assertTrue(obj.show_plotted_shapes(False))
+        self.assertEqual(flags(), [False] * 4)
+        self.assertTrue(obj.show_plotted_shapes(True))
+        self.assertEqual(flags(), [True] * 4)
         for key, vertices in buffers.items():
-            self.assertIs(self.collection.data[key]['mesh_vertices'], vertices)
-
-    def test_partial_plot_after_full_plot(self):
-        # as Geometry and CNCJob do when a row of the tools table is changed
-        self.obj.mark_full_plot()
-        self.obj.shapes.clear()
-        _add_squares(self.obj.shapes, 2)
-        self.assertFalse(self.obj.show_plotted_shapes(False))
+            self.assertIs(collection.data[key]['mesh_vertices'], vertices)
 
 
 class TestHiddenObjectAnnotation(unittest.TestCase):

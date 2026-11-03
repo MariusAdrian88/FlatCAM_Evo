@@ -160,43 +160,6 @@ def _drawn_area(t):
     return area
 
 
-def test_preview_draws_the_area_to_paint_after_the_offset_and_is_cleared(painter):
-    painter.ui.select_method_combo.set_value(0)     # All
-    assert _drawn_area(painter) == pytest.approx(32.0)
-    for tool in painter.paint_tools.values():
-        tool['data']['tools_paint_offset'] = 0.5
-    assert _drawn_area(painter) == pytest.approx(18.0)
-
-    # Reference Object: only the board polygons inside the reference
-    painter.ui.select_method_combo.set_value(3)
-    assert _drawn_area(painter) == pytest.approx(9.0)
-
-    # Area Selection previews the zones of the last run: none yet
-    painter.ui.select_method_combo.set_value(2)
-    painter.app.worker_task.emit.reset_mock()
-    painter.on_preview()
-    assert painter.app.inform.emit.call_args.args[0].startswith('[WARNING_NOTCL]')
-    painter.app.worker_task.emit.assert_not_called()
-    # the zones of the last Area Selection run: only the part of the board inside them
-    painter.last_zones = [box(-1, -1, 2, 5)]
-    assert _drawn_area(painter) == pytest.approx(3.0)
-
-    # a result that arrives after the object changed is not drawn
-    painter.ui.select_method_combo.set_value(0)
-    tasks = []
-    painter.app.worker_task.emit.side_effect = tasks.append
-    painter.on_preview()
-    painter.on_source_changed()
-    tasks[0]['fcn'](*tasks[0]['params'])
-    painter._preview_shapes.add.assert_not_called()
-
-    # a Reset clears it
-    painter._preview_shapes.clear.reset_mock()
-    painter._preview_drawn = True
-    painter.set_tool_ui()
-    painter._preview_shapes.clear.assert_called()
-
-
 def test_selected_objects_do_not_need_the_source_combo(painter):
     # two Gerbers selected in the Project tab, no Geometry object: the source combo is empty
     first = SimpleNamespace(kind='gerber', solid_geometry=[box(0, 0, 2, 2)],

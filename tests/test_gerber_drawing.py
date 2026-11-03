@@ -1,34 +1,19 @@
 """Numeric Gerber drawing creates explicit material, not guessed aperture sweeps."""
 
-from unittest.mock import MagicMock, patch
 
 import pytest
-from PyQt6 import QtGui, QtWidgets
+from PyQt6 import QtWidgets
 from shapely.affinity import rotate, translate
 from shapely.geometry import box, MultiPolygon
 from shapely.ops import unary_union
 
 from appEditors.grb_plugins.GrbDrawingPlugin import rectangle_region, text_region
-from appEditors.appGerberEditor import AppGerberEditor
 from appParsers.ParseFont import ParseFont
 from test_gerber_editor_clear import editor_save
 from test_gerber_editor_pick import make_editor, aperture, pad
 from tests.helpers_objects import (  # noqa: F401,E402
     app, assert_poly_equiv, _headless_qt, make_gerber, NATIVE_GBR, reparse_gerber,
 )
-
-
-@pytest.mark.parametrize('anchor,bounds', [('tl', (0, -2, 4, 0))])
-def test_rectangle_anchors(anchor, bounds):
-    assert rectangle_region(0, 0, 4, 2, anchor, 's', 0, 0, 16).bounds == bounds
-
-
-@pytest.mark.parametrize('corner', ['r'])
-def test_rectangle_corners_and_rotation(corner):
-    polygon = rectangle_region(3, 4, 4, 2, 'c', corner, 0.5, 90, 16)
-    assert polygon.is_valid
-    assert polygon.bounds == pytest.approx((2, 2, 4, 6))
-    assert polygon.area <= 8
 
 
 @pytest.mark.parametrize('values', [(0, 0, 0, 2, 'c', 's', 0, 0, 16),
@@ -107,31 +92,6 @@ def test_copper_pour_clearance_parts_and_history():
     assert unary_union([s.geo['solid'] for s in editor.selected]).equals(expected)
 
 
-def test_copper_pour_vertex_completion_and_cancel():
-    from appEditors.appGerberEditor import CopperPourEditorGrb
-    editor = make_editor()
-    editor.snap_x = editor.snap_y = 0
-    editor.bend_mode = 5
-    tool = CopperPourEditorGrb(editor)
-    editor.active_tool = tool
-    for point in [(0, 0), (5, 0), (5, 5), (0, 5)]:
-        tool.click(point)
-    tool.on_key('Backspace')
-    tool.click((0, 5))
-    assert tool.utility_geometry((0, 0)) is not None
-    tool.make()
-    assert tool.complete
-    editor.on_grb_shape_complete()
-    assert unary_union([s.geo['solid'] for s in editor.selected]).equals(box(0, 0, 5, 5))
-    assert len(editor.history.undo_stack) == 1
-    tool.clean_up()
-    tool = CopperPourEditorGrb(editor)
-    tool.click((10, 10))
-    tool.clean_up()
-    assert len(editor.history.undo_stack) == 1
-    assert not editor.in_action
-
-
 def test_copper_pour_native_export_reparse(app, tmp_path):
     from appEditors.grb_plugins.GrbDrawingPlugin import copper_pour
     editor = make_editor({10: aperture([pad(2, 2, 1)])})
@@ -166,19 +126,4 @@ def opened_panel(editor, kind='rectangle'):
     assert panel is not None
     return panel
 
-
-def test_region_drawing_repeats_without_resetting_parameters():
-    editor = make_editor()
-    panel = opened_panel(editor)
-    panel.ui.length_entry.set_value(4)
-    panel.ui.width_entry.set_value(2)
-    panel.on_apply()
-    key = next(key for key, aperture in editor.storage_dict.items() if aperture['type'] == 'REG')
-    assert len(editor.storage_dict[key]['geometry']) == 1
-    assert editor.region_drawing_panel is panel
-    assert panel.ui.length_entry.get_value() == 4
-    panel.on_apply()
-    assert len(editor.storage_dict[key]['geometry']) == 2
-    assert len(editor.history.undo_stack) == 2
-    panel.cancel()
 

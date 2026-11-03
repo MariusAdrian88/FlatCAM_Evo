@@ -9,8 +9,6 @@ from __future__ import annotations
 import json
 import os
 import stat
-import sys
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -18,7 +16,13 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from defaults import AppDefaults, AppOptions
+from copy import deepcopy
+from unittest.mock import Mock
+
+from PyQt6 import QtWidgets
+import Bookmark as bookmark
+from Bookmark import BookmarkManager
+from defaults import AppDefaults, AppOptions, Excellon, Gerber, Geometry
 
 
 class FakeSignal:
@@ -50,66 +54,32 @@ class TestVersionIndependentPreferences:
         assert defaults_v2["global_version_check"] is False
         assert defaults_v2["global_update_url"] == "https://custom.example.com"
 
-    def test_missing_keys_in_old_file_fall_back_to_factory_defaults(self, tmp_path):
-        """New keys added in later versions fall back to factory defaults without KeyError."""
-        old_data = {
-            "units": "MM",
-            "global_version_check": True,
-        }
+    def test_user_overrides_win_and_missing_keys_fall_back_to_factory_defaults(self, tmp_path):
+        """Falsy user overrides (False, 0, '') are kept; keys missing from an old file get factory values."""
         filename = tmp_path / "current_defaults.FlatConfig"
-        filename.write_text(json.dumps(old_data))
+        filename.write_text(json.dumps({"global_version_check": False, "global_worker_number": 0,
+                                        "global_last_folder": "", "units": "IN"}))
 
         defaults = AppDefaults(beta=False, version="2.0")
-        inform = FakeSignal()
-        defaults.load(str(filename), inform)
+        defaults.load(str(filename), FakeSignal())
 
-        assert defaults["units"] == "MM"
-        assert defaults["global_version_check"] is True
+        assert defaults["global_version_check"] is False
+        assert defaults["global_worker_number"] == 0
+        assert defaults["global_last_folder"] == ""
+        assert defaults["units"] == "IN"
         assert defaults["global_update_url"] == AppDefaults.factory_defaults["global_update_url"]
-        assert defaults["global_worker_number"] == AppDefaults.factory_defaults["global_worker_number"]
 
-    def test_old_subtract_delete_sources_choice_is_kept(self, tmp_path):
-        """The old Subtract 'delete sources' choice becomes 'keep target' off and 'delete subtractors' on."""
+    def test_old_preference_choices_are_migrated(self, tmp_path):
+        """Old 'delete sources' becomes 'keep target' off and 'delete subtractors' on; the old PNG DPI 96 becomes 300."""
         filename = tmp_path / "current_defaults.FlatConfig"
-        filename.write_text(json.dumps({"tools_sub_delete_sources": True}))
+        filename.write_text(json.dumps({"tools_sub_delete_sources": True, "tools_film_png_dpi": 96}))
 
         defaults = AppDefaults(beta=False, version="2.0")
         defaults.load(str(filename), FakeSignal())
 
         assert defaults["tools_sub_keep_target"] is False
         assert defaults["tools_sub_delete_subtractors"] is True
-        assert "tools_sub_delete_sources" not in defaults.defaults
-
-    @pytest.mark.parametrize("saved, loaded", [(96, 300)])
-    def test_old_factory_png_dpi_of_the_film_becomes_300(self, tmp_path, saved, loaded):
-        """The old factory PNG DPI of 96 was saved at each exit; it becomes the new 300. An other choice is kept."""
-        filename = tmp_path / "current_defaults.FlatConfig"
-        filename.write_text(json.dumps({"tools_film_png_dpi": saved}))
-
-        defaults = AppDefaults(beta=False, version="2.0")
-        defaults.load(str(filename), FakeSignal())
-
-        assert defaults["tools_film_png_dpi"] == loaded
-
-    def test_user_overrides_win_over_factory_defaults_including_falsy_values(self, tmp_path):
-        """User overrides (including False, 0, empty strings) must not be replaced by defaults."""
-        saved_data = {
-            "global_version_check": False,
-            "global_worker_number": 0,
-            "global_last_folder": "",
-            "units": "IN",
-        }
-        filename = tmp_path / "current_defaults.FlatConfig"
-        filename.write_text(json.dumps(saved_data))
-
-        defaults = AppDefaults(beta=False, version="2.0")
-        inform = FakeSignal()
-        defaults.load(str(filename), inform)
-
-        assert defaults["global_version_check"] is False
-        assert defaults["global_worker_number"] == 0
-        assert defaults["global_last_folder"] == ""
-        assert defaults["units"] == "IN"
+        assert defaults["tools_film_png_dpi"] == 300
 
 
 class TestPreferencesFileWrite:
@@ -161,25 +131,6 @@ class TestSafeGetFallbacks:
         assert "999" not in other_defaults["document_font_sizes"]
         assert "custom" not in defaults.current_defaults["global_bookmarks"]
 
-    def test_appoptions_load_restores_baseline_before_sparse_overlay(self, tmp_path):
-        """Sparse imports restore missing keys while preserving falsy overrides."""
-        filename = tmp_path / "preferences.FlatConfig"
-        filename.write_text(json.dumps({
-            "global_version_check": False,
-            "global_worker_number": 0,
-            "global_last_folder": "",
-        }))
-
-        baseline = AppDefaults(beta=False, version="1.0")
-        options = AppOptions(version="1.0", baseline=baseline)
-        options["global_update_url"] = "https://stale.example.com"
-        options.load(str(filename), FakeSignal())
-
-        assert options["global_version_check"] is False
-        assert options["global_worker_number"] == 0
-        assert options["global_last_folder"] == ""
-        assert options["global_update_url"] == AppDefaults.factory_defaults["global_update_url"]
-
 
 class TestLegacyCompatibility:
     """Legacy versioned files must be discovered and migrated."""
@@ -217,24 +168,6 @@ class TestLegacyCompatibility:
         assert app.defaults["units"] == units
         assert app.defaults["global_version_check"] is (units != "IN")
 
-    def test_factory_defaults_file_updated_with_new_keys(self, tmp_path):
-        """Factory defaults file is rewritten if missing new keys."""
-        factory_file = tmp_path / "factory_defaults.FlatConfig"
-        
-        # Write incomplete factory defaults (missing some keys)
-        incomplete = {"units": "MM", "first_run": True}
-        factory_file.write_text(json.dumps(incomplete))
-        os.chmod(str(factory_file), stat.S_IWRITE)
-        
-        # Save factory defaults - should rewrite with all keys
-        AppDefaults.save_factory_defaults(str(factory_file), "2.0")
-        
-        saved_data = json.loads(factory_file.read_text())
-        # Should have all factory keys
-        assert "global_version_check" in saved_data
-        assert "global_update_url" in saved_data
-        assert len(saved_data) >= len(AppDefaults.factory_defaults)
-
 
 class TestExportPreferences:
     """File -> Export Preferences writes the preferences in effect, as the preferences file has them."""
@@ -261,3 +194,93 @@ class TestExportPreferences:
         exported.load(str(target), FakeSignal())
         assert exported["global_gridx"] == 0.25
         assert exported["tools_drill_cutz"] == -2.5
+
+
+def test_bookmark_export_then_import_gives_the_same_bookmarks(tmp_path, monkeypatch):
+    qapp = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    menu = QtWidgets.QMenu()
+    app = SimpleNamespace(
+        defaults=AppDefaults(beta=False), options=AppOptions(version="1.0"), install_bookmarks=lambda **kwargs: None,
+        inform=Mock(), log=Mock(), resource_location="assets/resources", get_last_save_folder=lambda: str(tmp_path),
+        ui=SimpleNamespace(menuhelp_bookmarks=menu, menuhelp_bookmarks_manager=menu.addAction("Bookmark Manager")))
+    path = tmp_path / "bookmarks.txt"
+    monkeypatch.setattr(bookmark.FCFileSaveDialog, "get_saved_filename", lambda **kwargs: (str(path), ""))
+    monkeypatch.setattr(bookmark.QtWidgets.QFileDialog, "getOpenFileName", lambda **kwargs: (str(path), ""))
+
+    exporter = BookmarkManager(app, {"1": ["FlatCAM", "http://flatcam.org"], "2": ["PCB Shop", "https://ex.com/pcb"]})
+    importer = BookmarkManager(app, {"1": ["FlatCAM", "http://flatcam.org"]})
+    try:
+        exporter.on_export_bookmarks()
+        assert path.read_text() == "FlatCAM:http://flatcam.org\nPCB Shop:https://ex.com/pcb\n"
+        # a blank line (a list written by hand)
+        path.write_text(path.read_text() + "\n")
+        importer.on_import_bookmarks()
+        assert importer.bm_dict == {"1": ["FlatCAM", "http://flatcam.org"], "2": ["PCB Shop", "https://ex.com/pcb"]}
+    finally:
+        for manager in (exporter, importer):
+            manager.deleteLater()
+        qapp.processEvents()
+
+
+def test_propagation_uses_factory_for_missing_keys_and_keeps_falsy_override(monkeypatch):
+    for cls in (Excellon, Gerber, Geometry):
+        monkeypatch.setattr(cls, "defaults", deepcopy(cls.defaults))
+    Excellon.defaults["excellon_format_lower_in"] = -1
+    defaults = AppDefaults(beta=False)
+    del defaults.defaults["excellon_format_lower_in"]
+    defaults.propagate_defaults()
+    assert Excellon.defaults["excellon_format_lower_in"] == defaults.factory_defaults["excellon_format_lower_in"]
+
+    Geometry.defaults["multidepth"] = True
+    defaults = AppDefaults(beta=False)
+    defaults["excellon_format_lower_in"] = 0
+    defaults.propagate_defaults()
+    assert Excellon.defaults["excellon_format_lower_in"] == 0
+    assert "use_buffer_for_union" not in Gerber.defaults
+    assert Geometry.defaults["multidepth"] is True
+
+
+@pytest.mark.parametrize("change", ["value", "unchanged"])
+def test_factory_snapshot_matches_current_defaults(tmp_path, change):
+    path = tmp_path / "factory_defaults.FlatConfig"
+    saved = deepcopy(AppDefaults.factory_defaults)
+    if change == "value":
+        saved["global_version_check"] = not saved["global_version_check"]
+        saved["obsolete_preference"] = True
+    path.write_text(json.dumps(saved))
+    os.utime(path, (1_700_000_000, 1_700_000_000))
+    original_mtime = path.stat().st_mtime_ns
+    path.chmod(stat.S_IREAD)
+    try:
+        AppDefaults.save_factory_defaults(str(path), "2.0")
+        assert json.loads(path.read_text()) == AppDefaults.factory_defaults
+        if change == "unchanged":
+            assert path.stat().st_mtime_ns == original_mtime
+    finally:
+        path.chmod(stat.S_IWRITE | stat.S_IREAD)
+
+
+def test_load_drops_the_removed_autosave_keys(tmp_path):
+    path = tmp_path / "current_defaults.FlatConfig"
+    path.write_text(json.dumps({"global_autosave": True, "global_autosave_timeout": 1000, "units": "IN"}))
+    defaults = AppDefaults(beta=False)
+    defaults.load(str(path), SimpleNamespace(emit=lambda *args: None))
+    assert "global_autosave" not in defaults
+    assert "global_autosave_timeout" not in defaults
+    assert defaults["units"] == "IN"
+
+
+@pytest.mark.parametrize("saved, kept", [
+    # the default from 2019-11 to 2025-10, as update_filters() left it after a .gtl export
+    ("Gerber File .gtl (*.gtl);;Gerber File .gbr (*.gbr);;Gerber File .art (*.art)All Files (*.*)", False),
+    ("Gerber File .gtl (*.gtl);;Gerber File .gbr (*.gbr);;All Files (*.*)", True),
+], ids=["legacy", "valid"])
+def test_load_replaces_the_broken_gerber_save_filters(tmp_path, saved, kept):
+    path = tmp_path / "current_defaults.FlatConfig"
+    path.write_text(json.dumps({"gerber_save_filters": saved, "units": "IN"}))
+    defaults = AppDefaults(beta=False)
+    defaults.load(str(path), SimpleNamespace(emit=lambda *args: None))
+    expected = saved if kept else AppDefaults.factory_defaults["gerber_save_filters"]
+    assert defaults["gerber_save_filters"] == expected
+    assert "All Files (*.*)" in defaults["gerber_save_filters"].split(";;")
+    assert defaults["units"] == "IN"

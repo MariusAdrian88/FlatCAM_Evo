@@ -31,7 +31,6 @@ def rect(kind_type, w, h, *xy):
 
 @pytest.mark.parametrize('aperture, kind', [
     ({'type': 'R', 'width': 2.0, 'height': 1.0}, 'rectangular'),
-    ({'type': 'REG', 'size': 0}, 'region'),
 ])
 def test_aperture_kind_by_shape(aperture, kind):
     assert eg.aperture_kind(aperture, 4) == kind
@@ -108,14 +107,7 @@ def test_cutout_rect_outline_is_bounds_grown_by_margin():
     assert isinstance(res.follow_geometry[0], LineString)
     assert res.follow_geometry[0].bounds == pytest.approx((-1, -1, 7, 7))
     assert len(res.solid_geometry) == 1
-
-
-@pytest.mark.parametrize('geometry, margin, thickness, error', [
-    ([box(0, 0, 2, 2)], 1.0, 0.0, 'bad_thickness'),
-])
-def test_cutout_errors(geometry, margin, thickness, error):
-    res = eg.extract_cutout(geometry, margin, thickness)
-    assert res.error == error
+    assert eg.extract_cutout(geo, 1.0, 0.0).error == 'bad_thickness'
 
 
 def circle(x, y, dia):

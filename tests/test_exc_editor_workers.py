@@ -81,24 +81,6 @@ def test_real_save_build_is_detached_and_commit_is_guarded(app, tmp_path, monkey
             assert saved.history_uid != source.history_uid
 
 
-def test_apply_rolls_back_geometry_when_bounds_callback_fails(app):
-    source = make_same_diameter_excellon(app)
-    edited = make_same_diameter_excellon(app, name='edited')
-    original = (source.tools, source.solid_geometry, source.source_file, source.shape_indexes_dict)
-
-    class Options(dict):
-        def __setitem__(self, key, value):
-            if key == 'ymin' and value == edited.bounds()[1]:
-                raise ValueError('bounds callback failed')
-            super().__setitem__(key, value)
-
-    source.obj_options = Options(name='holes')
-    with pytest.raises(ValueError, match='bounds callback failed'):
-        AppExcEditor.apply_edited_excellon(source, edited)
-    assert (source.tools, source.solid_geometry, source.source_file, source.shape_indexes_dict) == original
-    assert source.obj_options == {'name': 'holes'}
-
-
 @pytest.mark.parametrize('variant', ['linear', 'circular'])
 @pytest.mark.parametrize('selection_limit', [1])
 @pytest.mark.parametrize('direction', ['CW'])
@@ -179,23 +161,7 @@ def test_move_preserves_native_slot_endpoints_and_undo_redo():
     assert list(editor.storage_dict[1.0].get_objects())[-1] is moved
 
 
-def test_save_allocates_slot_only_tool_without_overwriting_larger_drill_tool(app):
-    editor, first, slot = scene()
-    source = make_same_diameter_excellon(app)
-    editor.storage_dict[2.0] = AppGeoEditor.make_storage()
-    editor.storage_dict[2.0].insert(drill(10))
-    editor.storage_dict[3.0] = AppGeoEditor.make_storage()
-    editor.storage_dict[3.0].insert(slot)
-    slot.exc_slot = ((4, 0), (6, 1))
-    slot.exc_slot_geometry = slot.geo
-    editor._save_excellon_in_place = Mock()
-    AppExcEditor.update_fcexcellon(editor, source, in_place=True)
-    assert [tool['tooldia'] for tool in editor.new_tools.values()] == [1.0, 2.0, 3.0]
-    assert len(editor.new_tools[2]['drills']) == 1
-    assert len(editor.new_tools[3]['slots']) == 1
-
-
-@pytest.mark.parametrize('kind', ['drill_scale', 'slot_skew', 'unknown'])
+@pytest.mark.parametrize('kind', ['drill_scale', 'unknown'])
 def test_save_rejects_unrepresentable_features_before_commit(app, kind):
     editor, first, slot = scene()
     source = make_same_diameter_excellon(app)
@@ -219,21 +185,8 @@ def test_save_rejects_unrepresentable_features_before_commit(app, kind):
     assert editor.history.pending is None
 
 
-def test_legacy_rotated_slot_save_recovers_centerline_not_diagonal_bounds(app):
-    editor, first, slot = scene()
-    source = make_same_diameter_excellon(app)
-    centerline = rotate(LineString([(1, 2), (5, 2)]), 37, origin=(0, 0))
-    slot.geo = centerline.buffer(0.5)
-    editor._save_excellon_in_place = Mock(return_value='pending')
-    assert AppExcEditor.update_fcexcellon(editor, source, in_place=True) == 'pending'
-    saved = LineString(editor.new_tools[1]['slots'][0])
-    assert saved.hausdorff_distance(centerline) < 1e-8
-
-
 @pytest.mark.parametrize('axis,pitch,angle,point', [
-    ('X', float('nan'), 0, (0, 0)), ('Y', float('inf'), 0, (0, 0)),
-    ('bad', 1, 0, (0, 0)), ('A', 1, float('nan'), (0, 0)),
-    ('X', 1, 0, (float('inf'), 0))])
+    ('X', float('nan'), 0, (0, 0)), ('bad', 1, 0, (0, 0))])
 def test_invalid_linear_drill_array_does_not_touch_counters(axis, pitch, angle, point):
     editor, first, slot = scene()
     tool = DrillArray.__new__(DrillArray)

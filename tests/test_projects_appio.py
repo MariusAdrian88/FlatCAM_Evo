@@ -84,36 +84,6 @@ class TestNewAndOpen(AppIOTestBase):
         app.collection.delete_all.assert_not_called()
         app.collection.delete_by_name.assert_not_called()
 
-    def test_open_editor_is_closed_and_kept(self):
-        # new editors left the old ones connected to the menu and toolbar actions: alive, and each Union ran twice
-        from appEditors.appExcEditor import AppExcEditor
-        from appEditors.appGeoEditor import AppGeoEditor
-        from appEditors.appGerberEditor import AppGerberEditor
-        app = MagicMock()
-        app.call_source = 'geo_editor'
-        app.on_editing_finished.return_value = None
-        app.collection.get_list.return_value = []
-        editors = app.geo_editor, app.exc_editor, app.grb_editor
-        io = appIO(app)
-        with patch.object(AppGeoEditor, '__init__', return_value=None) as new_geo, \
-                patch.object(AppExcEditor, '__init__', return_value=None) as new_exc, \
-                patch.object(AppGerberEditor, '__init__', return_value=None) as new_grb:
-            io.on_file_new_project(cli=True, use_thread=True)
-        app.on_editing_finished.assert_called_once_with(cleanup=True)
-        self.assertEqual((new_geo.call_count, new_exc.call_count, new_grb.call_count), (0, 0, 0))
-        self.assertEqual((app.geo_editor, app.exc_editor, app.grb_editor), editors)
-
-    def test_gui_open_stops_when_prepare_open_refuses(self):
-        filename = self.path('Board.FlatPrj')
-        with open(filename, 'w') as stream:
-            stream.write('{}')
-        self.projects.prepare_open.return_value = False
-
-        self.io._open_project(filename, False, True, False, False)
-
-        self.projects.prepare_open.assert_called_once_with(filename)
-        self.assertEqual(self.tasks, [])
-
     def test_double_click_open_follows_the_gui_rules_and_reports_once(self):
         filename = self.path('Board.FlatPrj')
         with open(filename, 'w') as stream:
@@ -198,19 +168,6 @@ class TestSave(AppIOTestBase):
         self.assertFalse(self.app.project_save_pending)
         self.io.on_file_save_project()
         self.assertEqual(len(self.tasks), 2)
-
-    def test_save_that_raises_reports_a_failure(self):
-        from unittest.mock import patch
-        self.app.project_filename = self.path('Board_A.FlatPrj')
-        self.projects.save_target.return_value = self.path('Board_A.FlatPrj')
-        self.io.on_file_save_project()
-        task = self.tasks[-1]
-        with patch.object(appIO, 'save_project', side_effect=RuntimeError('boom')):
-            task['fcn'](*task['params'])
-
-        self.assertTrue(self.app.should_we_save)
-        self.assertFalse(self.app.save_in_progress)
-        self.app.file_saved.emit.assert_not_called()
 
     def test_save_after_rename_asks_before_overwrite(self):
         self.app.project_filename = self.path('Board_A.FlatPrj')

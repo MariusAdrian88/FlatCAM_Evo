@@ -159,13 +159,6 @@ class TestEagleFixture(unittest.TestCase):
             lines += self.parsed.layers[layer]['follow_geometry']
         return unary_union(lines)
 
-    def test_layers_and_default_selection(self):
-        for layer in self.EXPECTED_LAYERS:
-            self.assertIn(layer, self.parsed.layers)
-        self.assertEqual(self.parsed.default_layers, self.DEFAULT_LAYERS)
-        self.assertEqual(self.parsed.copper_layers, ['Top', 'Bottom'])
-        self.assertEqual(self.parsed.version, '8.3.2')
-
     def test_top_and_bottom_copper_match_reference_gerbers(self):
         for layer, reference in (('Top', 'GTL'), ('Bottom', 'GBL')):
             with self.subTest(layer=layer):

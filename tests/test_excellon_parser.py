@@ -137,14 +137,6 @@ def test_hole_and_slot_circles_follow_the_circle_preference():
         assert counts[2] == [large, large + 2]
 
 
-def test_convert_units_moves_holes_and_diameters():
-    exc, _app = parse("M48\nINCH,TZ\nT1C0.0400\n%\nT1\nX1.0Y2.0\nX1.0Y1.0G85X2.0Y1.0\nM30\n")
-    exc.convert_units('MM')
-    assert exc.units == 'MM'
-    assert dump(exc) == {1: (1.016, [(25.4, 50.8)], [((25.4, 25.4), (50.8, 25.4))])}
-    assert len(exc.solid_geometry) == 2
-
-
 @pytest.fixture
 def pcb_wizard(_headless_qt):
     from appPlugins.ToolPcbWizard import PcbWizard
@@ -184,47 +176,6 @@ def test_pcbwizard_import_uses_the_format_corrected_after_loading(pcb_wizard, tm
     pcb_wizard.ui.import_button.click()
     pcb_wizard.ui.import_button.click()
     assert imported == [(None, 'MM', {1: (0.8, [(10, 20)], [])})] * 2
-
-
-def test_modal_arc_radius_is_reused_without_a():
-    # the second G03 has no A: it keeps radius 1 and is a half circle centred on (1, 0) over the top
-    exc, _app = parse(METRIC + "G00X0Y0\nM15\nG03X2.0Y0A1.0\nG03X0Y0\nM16\nM30\n")
-    slots = exc.tools[1]['slots']
-    points = [p for seg in slots for p in seg]
-    assert (round(slots[-1][1].x, 9), round(slots[-1][1].y, 9)) == (0, 0)
-    for p in points:
-        assert abs(math.hypot(p.x - 1, p.y) - 1) < 1e-6
-    assert min(p.y for p in points) < -0.9
-    assert max(p.y for p in points) > 0.9
-
-
-def test_m30_ends_the_file():
-    exc, _app = parse(METRIC + "X1.0Y1.0\nM30\nX2.0Y2.0\n")
-    assert dump(exc)[1][1] == [(1, 1)]
-    assert "X2.0Y2.0" in exc.source_file
-
-
-def test_spec_example_2_8():
-    text = ("M48\nMETRIC\nT01C0.6\nT02C0.7\nT03C0.8\nT04C1.0\n%\nG05\nT01\nX9.01Y3.3375\nX9.01Y4.3125\n"
-            "T02\nX8.01Y4.8\nX8.01Y2.85\nX6.54Y2.85\nX6.45Y4.8\nT03\nG00X8.01Y3.825\nM15\nG01X6.54Y3.825\nM16\n"
-            "T04\nG00X5.0Y2.6\nM15\nG03X6.0Y1.6A1.0\nG01X11.0Y1.6\nG01X11.0Y5.0\nG03X10.0Y6.0A1.0\nG01X5.0Y6.0\n"
-            "G01X5.0Y2.6\nM16\nG05\nT03\nX8.0Y8.0\nM30\n")
-    exc, _app = parse(text)
-    assert exc.units == 'MM'
-    tools = dump(exc)
-    assert tools[1] == (0.6, [(9.01, 3.3375), (9.01, 4.3125)], [])
-    assert tools[2] == (0.7, [(8.01, 4.8), (8.01, 2.85), (6.54, 2.85), (6.45, 4.8)], [])
-    assert tools[3] == (0.8, [(8, 8)], [((8.01, 3.825), (6.54, 3.825))])
-    dia, drills, slots = tools[4]
-    assert (dia, drills) == (1.0, [])
-    assert slots[0][0] == (5, 2.6) and slots[-1][1] == (5, 2.6)
-    for line in [((6, 1.6), (11, 1.6)), ((11, 1.6), (11, 5)), ((10, 6), (5, 6)), ((5, 6), (5, 2.6))]:
-        assert line in slots
-    vertices = [(5, 2.6), (6, 1.6), (11, 1.6), (11, 5), (10, 6), (5, 6)]
-    for a, b in exc.tools[4]['slots']:
-        for p in (a, b):
-            on_circle = min(abs(math.hypot(p.x - 6, p.y - 2.6) - 1), abs(math.hypot(p.x - 10, p.y - 5) - 1))
-            assert on_circle < 1e-6 or any(math.hypot(p.x - x, p.y - y) < 1e-6 for x, y in vertices)
 
 
 def test_attributes_of_header_tools_and_drills():

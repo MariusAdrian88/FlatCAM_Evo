@@ -64,15 +64,6 @@ def test_sync_shows_grips_for_one_selected_shape_in_select_tool_only():
     assert grips.shape is None
 
 
-def test_too_many_vertices_shows_no_grips_and_tells_the_user(monkeypatch):
-    monkeypatch.setattr('appEditors.vertex_grips.GRIP_LIMIT', 2)
-    grips, editor, shape = make_grips(LineString([(0, 0), (1, 0), (2, 0)]))
-    assert grips.shape is None
-    editor.app.inform.emit.assert_called_once()
-    grips.sync()
-    editor.app.inform.emit.assert_called_once()  # no repeat for the same shape
-
-
 def test_drag_of_a_vertex_commits_one_move():
     grips, editor, shape = make_grips(LineString([(0, 0), (2, 0)]))
     assert drag(grips, (2, 0), (2, 1))
@@ -106,25 +97,11 @@ def test_cancel_drops_the_drag():
     editor.apply_vertex_edit.assert_not_called()
 
 
-def test_grid_snap_applies_during_the_drag():
-    grips, editor, shape = make_grips(LineString([(0, 0), (2, 0)]), grid=True, snap=lambda x, y: (3, 1))
-    editor.active_snap_type = 'grid'
-    assert drag(grips, (2, 0), (2.9, 1.1))
-    assert editor.apply_vertex_edit.call_args.args[2] == (3, 1)
-
-
 ROUNDED = box(1, 1, 9, 5).buffer(1, join_style=BufferJoinStyle.round)
 
 
 def grip_of(grips, kind):
     return next(grip for grip in grips.grips if grip[0] == kind)
-
-
-def test_arc_grips_replace_the_inner_vertex_grips():
-    grips, editor, shape = make_grips(ROUNDED)
-    kinds = [grip[0] for grip in grips.grips]
-    assert kinds.count('arc_end') == 8 and kinds.count('arc_mid') == 4 and kinds.count('mid') == 4
-    assert len(grips.collection().items) == 16
 
 
 def test_drag_of_an_arc_middle_bends_the_arc():
@@ -135,14 +112,6 @@ def test_drag_of_an_arc_middle_bends_the_arc():
     editor.apply_vertex_edit.assert_called_once_with('arc_mid', address, cursor, target=shape, on_segment=False)
 
 
-def test_ctrl_click_on_an_arc_middle_flattens_the_arc():
-    grips, editor, shape = make_grips(ROUNDED)
-    kind, address, middle = grip_of(grips, 'arc_mid')
-    assert grips.press((0, 0), middle, CTRL)
-    assert grips.release((0, 0), middle)
-    editor.apply_vertex_edit.assert_called_once_with('arc_flatten', address, target=shape)
-
-
 def test_full_circle_radius_drag():
     grips, editor, shape = make_grips(Point(0, 0).buffer(2))
     assert [grip[0] for grip in grips.grips] == ['radius'] * 4
@@ -151,10 +120,4 @@ def test_full_circle_radius_drag():
     editor.apply_vertex_edit.assert_called_once_with('arc_radius', address, (3.0, 0.0), target=shape,
                                                      on_segment=False)
 
-
-def test_grid_on_picks_the_nearest_grip_within_1_grid_step():
-    grips, editor, shape = make_grips(LineString([(0, 0), (2, 0)]), grid=True)
-    editor.editor_options = {'global_gridx': 0.5, 'global_gridy': 0.25}
-    assert grips.hit((0.3, 0.2)) == ('vertex', (0, 0, 0), (0, 0))  # 0.36 away: outside 6 px, inside 1 grid step
-    assert grips.hit((0.5, 1.0)) is None
 

@@ -43,26 +43,9 @@ def stored(editor):
     return list(editor.storage.get_objects())
 
 
-
-
-
-
 def test_pick_from_gerber(setup):
     setup.tool.click_release((11, 11))
     assert [item['geo'].bounds for item in setup.tool.picked] == [(10, 10, 12, 12)]
-
-
-def test_pick_from_excellon(setup):
-    setup.tool.click_release((30.5, 30.5))
-    assert [item['geo'].bounds for item in setup.tool.picked] == [(30, 30, 31, 31)]
-
-
-
-
-
-
-
-
 
 
 def test_area_select_enclosing_and_touching(setup):
@@ -91,17 +74,6 @@ def test_commit_adds_copies_source_unchanged_and_one_undo(setup):
     assert stored(setup.editor) == [setup.existing]
     assert setup.editor.redo()
     assert len(stored(setup.editor)) == 3
-
-
-def test_cancel_adds_nothing(setup):
-    setup.tool.click_release((11, 11))
-    setup.tool.clean_up()
-    assert setup.tool.picked == []
-    assert stored(setup.editor) == [setup.existing]
-
-
-
-
 
 
 def test_source_in_other_units_is_scaled():

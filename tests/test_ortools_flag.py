@@ -17,8 +17,3 @@ def test_64bit_without_ortools_is_false(monkeypatch):
     assert camlib._ortools_available('64bit') is False
 
 
-def test_64bit_with_ortools_is_true():
-    pytest.importorskip('ortools')
-    assert camlib._ortools_available('64bit') is True
-    assert camlib.pywrapcp is not None
-

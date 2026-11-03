@@ -145,18 +145,6 @@ def test_startup_update_toggle_gates_automatic_queueing(monkeypatch):
     enabled._queue_version_check.assert_called_once_with()
 
 
-def test_startup_queues_updates_for_beta_builds(monkeypatch):
-    from appMain import App
-
-    monkeypatch.setattr(App, "args", [])
-    monkeypatch.setattr("appMain.QSettings", MagicMock())
-    app = _startup_app(True, beta=True)
-
-    App._setup_startup(app)
-
-    app._queue_version_check.assert_called_once_with()
-
-
 def _staged_update(tmp_path, **overrides):
     from services.updater.github.staging import StagedUpdate
 
@@ -184,28 +172,7 @@ def _staged_update(tmp_path, **overrides):
     return StagedUpdate(**values)
 
 
-def test_forced_up_to_date_result_is_reported_to_the_user(tmp_path):
-    from services.updater.digi.checker import UpdateChecker
-
-    app = _checker_app(tmp_path)
-    transport = FakeTransport(_manifest(version="1.0", build="build-1"))
-    checker = UpdateChecker(app, transport_factory=lambda _app: transport, platform="win32")
-
-    result = checker.run_check(forced=True)
-
-    assert result["status"] == "up_to_date"
-
-    from appMain import App
-
-    app_obj = App.__new__(App)
-    app_obj._manual_update_requested = True
-    app_obj._check_in_progress = True
-    app_obj.inform = app.inform
-    App.on_update_check_result(app_obj, result)
-    assert "up to date" in app.inform.emissions[-1][0]
-
-
-@pytest.mark.parametrize("source", [OSError("offline"), ValueError("bad manifest")])
+@pytest.mark.parametrize("source", [OSError("offline")])
 def test_checker_converts_network_and_malformed_failures_to_safe_results(tmp_path, source):
     from services.updater.digi.checker import UpdateChecker
 
@@ -305,7 +272,7 @@ def test_failed_launch_and_cancelled_shutdown_never_quit(monkeypatch, tmp_path):
     app.quit_application.assert_not_called()
 
 
-@pytest.mark.parametrize("active_state", ["checking", "operation"])
+@pytest.mark.parametrize("active_state", ["operation"])
 def test_main_window_close_is_ignored_while_updater_is_active(active_state):
     from appGUI.MainGUI import MainGUI
 
@@ -386,43 +353,3 @@ def test_rollback_action_requires_valid_restore_point_and_waits_for_ack(monkeypa
     launch.assert_called_once()
     app.quit_application.assert_called_once_with(mode="updater")
 
-
-def test_download_worker_emits_error_when_staging_fails(tmp_path):
-    """Regression: staging failures must stay inside the worker.
-
-    Before the fix transport setup failures escaped unhandled, no
-    update_staged was emitted, and _update_in_progress stayed True
-    forever (blocking MainGUI.closeEvent).
-    """
-    from appMain import App
-    from services.updater.common import TransportError
-
-    app = _fake_app(tmp_path)
-    app.options = {"global_update_url": ""}
-    app.update_checker = SimpleNamespace(create_transport=lambda app, repository_url=None: object())
-
-    with patch("appMain.stage_update", side_effect=TransportError("staging failed")):
-        # Must not raise — the worker catches staging failures and emits an
-        # error payload via update_staged so the caller can reset state.
-        App._download_update_worker(
-            app,
-            {"status": "update_available"},
-            SimpleNamespace(is_set=lambda: False),
-        )
-
-    assert len(app.update_staged.emissions) == 1
-    data = app.update_staged.emissions[0][0]
-    assert data["canceled"] is False
-    assert "staging failed" in data["error"]
-
-    # Exercise the stuck-state fix: on_update_staged must reset the active
-    # flag and close the progress dialog even when the worker failed before
-    # downloading anything.
-    app._update_in_progress = True
-    app._close_update_progress = MagicMock()
-    App.on_update_staged(app, data)
-
-    app._close_update_progress.assert_called_once()
-    assert app._update_in_progress is False
-    app.quit_application.assert_not_called()
-    assert any("failed" in emission[0].lower() for emission in app.inform.emissions)

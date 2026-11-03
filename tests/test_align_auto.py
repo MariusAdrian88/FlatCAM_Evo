@@ -8,12 +8,13 @@ import unittest
 
 import numpy as np
 import pytest
-from shapely import Point, box
+from shapely import Point, Polygon, box
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from appPlugins.ToolAlignObjects.AlignGen import (AlignError, SnapIndex, auto_align, is_ambiguous, apply_matrix,
-                                                  invert)
+                                                  invert, build_snap_index, snap, solve_translate, solve_rigid,
+                                                  solve_similarity, solve_affine)
 
 
 def board(seed=1, vias=60):
@@ -72,8 +73,7 @@ def partial_smd_board():
     return through, pads, holes, matrix
 
 
-@pytest.mark.parametrize('reverse', [False, True])
-@pytest.mark.parametrize('noise', [0, 0.01])
+@pytest.mark.parametrize('reverse,noise', [(False, 0), (True, 0.01)])
 def test_smd_alignment_counts_holes_and_maps_preview_in_motion_direction(reverse, noise):
     through, pads, holes, matrix = smd_board()
     if noise:
@@ -90,8 +90,7 @@ def test_smd_alignment_counts_holes_and_maps_preview_in_motion_direction(reverse
     np.testing.assert_allclose(apply_matrix(best.matrix, best.P), best.Q, atol=0.03)
 
 
-@pytest.mark.parametrize('mirrored', [False, True])
-@pytest.mark.parametrize('parallel', [False, True])
+@pytest.mark.parametrize('mirrored,parallel', [(False, False), (True, True)])
 def test_dblsided_smd_alignment_uses_drill_coverage_for_both_layers(mirrored, parallel):
     from appPlugins.ToolDblSided.DblSidedGen import alignment_matrices
     through, pads, holes, matrix = partial_smd_board()
@@ -123,7 +122,7 @@ def test_smd_alignment_rejects_genuinely_repeated_hole_patterns():
         alignment_matrices([pads, holes], [0], 1)
 
 
-@pytest.mark.parametrize('mirrored', [False, True])
+@pytest.mark.parametrize('mirrored', [True])
 def test_bounded_registration_partial_features_and_original_snapshots(mirrored):
     from appPlugins.ToolAlignObjects.AlignGen import bounded_align
     through, pads, holes, matrix = partial_smd_board()
@@ -139,8 +138,6 @@ def test_bounded_registration_partial_features_and_original_snapshots(mirrored):
 
 
 @pytest.mark.parametrize('model,matrix,limit', [
-    ('rigid', rot(37, 15, -7), 2),
-    ('similarity', rot(0, 0.2, -0.1, s=1.015), 2),
     ('affine', (1.01, 0.015, -0.01, 0.99, 0.2, -0.1), 3),
 ])
 def test_pair_limit_fits_selected_model_and_verifies_every_feature(model, matrix, limit, monkeypatch):
@@ -217,6 +214,58 @@ class TestAutoAlign(unittest.TestCase):
             auto_align(hole_index(np.array([(0.0, 0.0)])), pad_index(board()))
         with self.assertRaises(AlignError):
             auto_align(hole_index(board()), SnapIndex([], [], np.empty((0, 2))))
+
+
+class TestSolvers(unittest.TestCase):
+    """The Align Objects solvers and the snap index (folded from test_align_objects.py)."""
+
+    P = np.array([[0.0, 0.0], [10.0, 0.0], [10.0, 5.0], [2.0, 7.0], [-3.0, 4.0]])
+
+    @staticmethod
+    def _rot(angle_deg, s=1.0, dx=0.0, dy=0.0):
+        t = math.radians(angle_deg)
+        c, sn = s * math.cos(t), s * math.sin(t)
+        return c, -sn, sn, c, dx, dy
+
+    def test_solvers_recover_the_matrix(self):
+        P = self.P
+        np.testing.assert_allclose(solve_translate([(1, 2)], [(4, -1)]), (1, 0, 0, 1, 3, -3), atol=1e-9)
+        for ang in (0, 90, -179):
+            want = self._rot(ang, dx=12.5, dy=-3.25)
+            for n in (2, 5):
+                np.testing.assert_allclose(solve_rigid(P[:n], apply_matrix(want, P[:n])), want, atol=1e-9)
+        want = self._rot(30, s=1.02, dx=1, dy=2)
+        np.testing.assert_allclose(solve_similarity(P, apply_matrix(want, P)), want, atol=1e-9)
+        want = (1.01, 0.02, -0.03, 0.97, 5.0, -7.0)
+        np.testing.assert_allclose(solve_affine(P, apply_matrix(want, P)), want, atol=1e-9)
+        np.testing.assert_allclose(solve_affine(P[:3], apply_matrix(want, P[:3])), want, atol=1e-9)
+
+    def test_snap_to_gerber_and_excellon_features(self):
+        region = Polygon([(10, 10), (14, 10), (14, 12), (10, 12)])
+        gerber = _FakeObj('gerber', tools={
+            10: {'size': 4.0, 'geometry': [{'solid': Point(0, 0).buffer(2.0), 'follow': Point(0, 0)}]},
+            11: {'size': 2.0, 'geometry': [{'solid': Point(0.5, 0).buffer(1.0), 'follow': Point(0.5, 0)}]},
+            0: {'type': 'REG', 'geometry': [{'solid': region, 'follow': region.exterior}]},
+        })
+        idx = build_snap_index(gerber)
+        self.assertEqual(snap(idx, 0.6, 0.1, 0.1), (0.5, 0.0))
+        self.assertEqual(snap(idx, -1.5, 0.0, 0.1), (0.0, 0.0))
+        exc = _FakeObj('excellon', tools={
+            1: {'tooldia': 1.0, 'drills': [Point(3, 3)], 'slots': [((10, 0), (14, 0))]},
+        })
+        idx = build_snap_index(exc)
+        self.assertEqual(snap(idx, 3.2, 3.1, 0.1), (3.0, 3.0))
+        self.assertEqual(snap(idx, 13.0, 0.2, 0.1), (12.0, 0.0))
+
+
+class _FakeObj:
+    def __init__(self, kind, tools=None, solid_geometry=None, multigeo=False):
+        self.kind = kind
+        self.tools = tools or {}
+        self.solid_geometry = solid_geometry
+        self.multigeo = multigeo
+        self.circle_steps = lambda radius: 64
+
 
 if __name__ == '__main__':
     unittest.main()

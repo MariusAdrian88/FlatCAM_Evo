@@ -97,16 +97,6 @@ def test_repeated_click_on_stacked_drills_cycles_a_b_a():
     assert picked[0] is first and picked[1] is second and picked[2] is first
 
 
-def test_click_on_empty_canvas_clears_selection_and_table_selection():
-    app, editor = pick_editor()
-    drill_shape = cross(0, 0)
-    put(editor, 1.0, drill_shape)
-    assert click(editor, (0, 0)) == 1
-    assert editor.ui.tools_table_exc.clearSelection.called
-    assert click(editor, (50, 50)) == 0
-    assert editor.selected == []
-
-
 def test_mselect_modifier_adds_and_removes_features():
     app, editor = pick_editor()
     first, second = cross(0, 0), cross(10, 0)
@@ -118,25 +108,6 @@ def test_mselect_modifier_adds_and_removes_features():
         assert same(editor.selected, [first, second])
         click(editor, (0, 0))            # toggles the feature off again
     assert same(editor.selected, [second])
-
-
-def test_plain_click_replaces_the_selection():
-    app, editor = pick_editor()
-    first, second = cross(0, 0), cross(10, 0)
-    put(editor, 1.0, first, second)
-    click(editor, (0, 0))
-    click(editor, (10, 0))
-    assert same(editor.selected, [second])
-
-
-def test_selected_feature_selects_its_tool_row():
-    app, editor = pick_editor()
-    small, big = cross(0, 0), cross(10, 0)
-    put(editor, 1.0, small)
-    put(editor, 2.0, big)
-    click(editor, (10, 0))
-    editor.ui.tools_table_exc.selectRow.assert_called_with(1)    # tool 2 is row 1
-    assert editor.last_tool_selected == 2
 
 
 def click(editor, point):

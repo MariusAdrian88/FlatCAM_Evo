@@ -361,6 +361,12 @@ from shapely.ops import unary_union  # noqa: E402
 import appPlugins.ToolCutOut as cutout_module  # noqa: E402
 from appPlugins.ToolCutOut import _cutout_intervals, freeform_cutout_paths, offset_contours, outline_contours  # noqa: E402
 
+from copy import deepcopy  # noqa: E402
+from shapely.affinity import rotate  # noqa: E402
+from shapely.geometry import LinearRing, Point  # noqa: E402
+from shapely.ops import linemerge  # noqa: E402
+from appPlugins.ToolCutOut import _manual_gap_geometry, _manual_subtract_selected  # noqa: E402
+
 NO_GAPS = {'gaps': 'None'}
 # a small slot needs a small tool and small gaps
 SMALL = {'dia': 0.8, 'margin': 0.0, 'gapsize': 1.0}
@@ -418,12 +424,6 @@ def test_region_hole_is_cutout_when_marked(cutout_app):
     assert close(bounds(inner[0]), (21.3, 14.8, 28.7, 15.2))
 
 
-def test_even_odd_board_slot_island_slot(cutout_app):
-    contours = outline_contours(load_source(cutout_app.test_app, 'outline_nested4'), False, 'panel')
-    assert [c.depth for c in contours] == [3, 2, 1, 0]
-    assert [c.side for c in sorted(contours, key=lambda c: c.depth)] == ['outer', 'inner', 'outer', 'inner']
-
-
 def test_outline_with_slot(cutout_app):
     res = new_paths(cutout_app, 'outline_slot', **NO_GAPS)
     paths = flat(res.solid_geo)
@@ -434,16 +434,6 @@ def test_outline_with_slot(cutout_app):
     assert close(bounds(outer), (-1.4, -1.4, 51.4, 31.4))
     # inside edge of the slot stroke at (20.1, 13.6)-(29.9, 16.4), moved by margin + r into the slot
     assert close(bounds(slot), (21.4, 14.9, 28.6, 15.1))
-
-
-def test_panel_of_two_boards(cutout_app):
-    grb = load_source(cutout_app.test_app, 'outline_panel2')
-    contours = outline_contours(grb, False, 'panel')
-    assert sorted(c.side for c in contours) == ['inner', 'outer', 'outer']
-    inner = [c for c in contours if c.side == 'inner'][0]
-    assert inner.ring.bounds[0] >= 50 and inner.ring.bounds[2] <= 90
-    res = new_paths(cutout_app, None, obj=grb, kind='panel', **NO_GAPS)
-    assert len(flat(res.solid_geo)) == 3
 
 
 def _slot_pieces(res, region=box(20, 13.5, 30, 16.5)):
@@ -460,32 +450,277 @@ def test_gaps_on_slot_when_enabled(cutout_app):
     assert abs((cx[0] + cx[2]) / 2 - 25) < 1e-6 and abs((cx[1] + cx[3]) / 2 - 15) < 1e-6
 
 
-def test_narrow_slot_is_skipped_with_warning(cutout_app):
-    res = new_paths(cutout_app, 'outline_narrow_slot')
-    assert not res.failed
-    assert any('1 inner contours were skipped' in w for w in res.warnings)
-    assert len(flat(res.solid_geo)) >= 1
-    assert not any(box(13, 9.5, 17, 10.5).contains(g) for g in flat(res.solid_geo))
+# ---------------------------------------------------------------------------------------------------------------
+# manual cutout, tabs, bites (folded from test_cutout_regressions.py)
+# ---------------------------------------------------------------------------------------------------------------
+
+def _configure(tool, source, rectangular=False, **overrides):
+    name = source.obj_options['name']
+    tool.test_app.collection.objs[name] = source
+    configure(tool, name, dict(BASE, **overrides))
+    tool.ui.cutout_shape_cb.set_value(rectangular)
+    tool.ui.cutz_entry.set_value(-1.6)
+    tool.test_app.created.clear()
 
 
-def test_production_run_with_option_on(cutout_app):
-    got = run_case(cutout_app, 'outline_slot', {}, after_configure=mark_inner)
-    assert got['solid_geo'] and got['solid_geo'] != load_golden('slot_single')['solid_geo']
-    assert any(box(20, 13.5, 30, 16.5).contains(shapely.from_wkt(w)) for w in got['solid_geo'])
+def _generate(tool, rectangular=False):
+    if rectangular:
+        tool.on_rectangular_cutout()
+    else:
+        tool.on_freeform_cutout()
 
 
-def test_ring_without_center_line_never_becomes_a_cutout():
-    # a ring drawn with a rectangle aperture: the parser keeps no center line for it, only the band
-    band = box(0, 0, 50, 30).difference(box(0.2, 0.2, 49.8, 29.8))
-    grb = SimpleNamespace(kind='gerber', tools={
-        11: {'type': 'R', 'size': 0.2, 'geometry': [{'solid': band, 'follow': band.representative_point()}]}
-    })
-    warnings = []
-    # a real object composes its copper into this same band
-    with patch('appPlugins.ToolCutOut.fused_solid', return_value=band):
-        contours = outline_contours(grb, False, 'single', warnings)
-    # the hole of the band is the board: it must not be read as a cutout
-    assert all(c.side != 'inner' for c in contours)
-    assert contours == []
-    assert any('without a center line' in w and '11' in w for w in warnings)
+def _geometry(tool):
+    return next(obj for obj in tool.test_app.created.values() if obj.kind == 'geometry')
+
+
+def _drills(tool):
+    return [point for obj in tool.test_app.created.values() if obj.kind == 'excellon'
+            for data in obj.tools.values() for point in data['drills']]
+
+
+def _manual_target(tool, geometry, name='manual'):
+    app = tool.test_app
+    source = make_geometry(app, name, geometry)
+    source.tools = {1: deepcopy(tool.cut_tool_dict)}
+    source.plot = Mock()
+    source.build_ui = Mock()
+    tool.man_cutout_obj = source
+    tool.manual_solid_geo = deepcopy(geometry)
+    app.collection.objs[name] = source
+    tool.ui.man_object_combo = SimpleNamespace(currentText=lambda: name)
+    tool.ui.dia.set_value(2.4)
+    tool.ui.gapsize.set_value(4.0)
+    tool.ui.gaptype_combo.set_value(0)
+    tool.ui.cutz_entry.set_value(-1.6)
+    app.geo_editor = SimpleNamespace(snap=lambda x, y: (x, y), tool_shape=Mock())
+    app.plotcanvas.pixel_size = lambda: 0.1
+    app.on_mouse_click_over_plot = Mock()
+    app.on_mouse_click_release_over_plot = Mock()
+    app.on_mouse_move_over_plot = Mock()
+    return source
+
+
+def test_drill_cut_handles_multipart_open_and_closed_paths(cutout_app):
+    app = cutout_app.test_app
+    for geometry, pitch, expected_x in [
+        ([LineString([(0, 0), (10, 0)]), LineString([(20, 0), (30, 0)])], 3.0,
+         [0, 3, 6, 9, 10, 20, 23, 26, 29, 30]),
+        ([box(0, 0, 4, 4), box(10, 0, 14, 4)], 4.0, [0, 0, 4, 4, 10, 10, 14, 14]),
+    ]:
+        source = make_geometry(app, 'drill', geometry)
+        app.collection.objs['drill'] = source
+        cutout_app.ui.drillcut_object_combo = SimpleNamespace(currentText=lambda: 'drill')
+        cutout_app.ui.drill_pitch_entry.set_value(pitch)
+        cutout_app.ui.drill_dia_entry.set_value(0.5)
+        cutout_app.ui.drill_margin_entry.set_value(0.0)
+        app.created.clear()
+        cutout_app.on_drill_cut_click()
+        points = _drills(cutout_app)
+        assert sorted(point.x for point in points) == expected_x
+        assert len(points) == len({tuple(point.coords)[0] for point in points})
+
+
+@pytest.mark.parametrize('gap_type', [2])
+def test_escape_restores_manual_session_and_next_finish_has_no_stale_bites(cutout_app, gap_type):
+    from appHandlers.appHistory import states_equal
+    source = _manual_target(cutout_app, [box(0, 0, 50, 30).exterior])
+    app = cutout_app.test_app
+    app.ui.keyPressEvent = Mock()
+    app.ui.notebook = Mock()
+    cutout_app.ui.big_cursor_cb.set_value(False)
+    cutout_app.ui.gaptype_combo.set_value(gap_type)
+    cutout_app.ui.thin_depth_entry.set_value(-0.8)
+    cutout_app.ui.mb_dia_entry.set_value(0.6)
+    cutout_app.ui.mb_spacing_entry.set_value(0.3)
+    original = deepcopy((source.solid_geometry, source.tools, source.multigeo))
+    cutout_app.on_manual_gap_click()
+    cutout_app.on_manual_cutout((25, 0))
+    cutout_app.on_manual_cutout((50, 15))
+    assert unary_union(flat(source.solid_geometry)).length < 160
+    app.plotcanvas.translate_coords = lambda pos: pos
+    cutout_app.on_mouse_click_release(SimpleNamespace(pos=(25, 0), button=1))
+    cutout_app.on_mouse_click_release(SimpleNamespace(pos=(25, 30), button=1))
+    cutout_app.on_mouse_click_release(SimpleNamespace(pos=(50, 15), button=1))
+    cutout_app.on_key_press(SimpleNamespace(key='Delete'))
+    source.obj_options['session_note'] = 'keep this unrelated edit'
+    source.tools[2] = {'tooldia': 0.5, 'data': {}, 'solid_geometry': []}
+    original[1][2] = deepcopy(source.tools[2])
+    cutout_app.on_key_press(SimpleNamespace(key='Escape'))
+    assert states_equal((source.solid_geometry, source.tools, source.multigeo), original)
+    assert source.obj_options['session_note'] == 'keep this unrelated edit'
+    assert not app.created
+    # A new session must not drill the cancelled gaps when it finishes.
+    cutout_app.on_manual_gap_click()
+    cutout_app.on_mouse_click_release(SimpleNamespace(pos=(0, 0), button=2))
+    assert not _drills(cutout_app)
+    cutout_app.on_manual_gap_click()
+    cutout_app.on_manual_cutout((25, 30))
+    cutout_app.on_mouse_click_release(SimpleNamespace(pos=(0, 0), button=2))
+    assert unary_union(flat(source.solid_geometry)).length == pytest.approx(160 - 6.4)
+    if gap_type == 2:
+        holes = _drills(cutout_app)
+        assert holes and all(point.y == pytest.approx(29.1) for point in holes)
+    else:
+        assert not _drills(cutout_app)
+
+
+@pytest.mark.parametrize('gap_type', [1])
+def test_manual_bridge_edit_rebuilds_overlaps_and_keeps_inner_contours(cutout_app, gap_type):
+    outer = box(0, 0, 50, 30).exterior
+    inner = box(10, 0.5, 40, 20).exterior
+    source = _manual_target(cutout_app, [outer, inner])
+    app = cutout_app.test_app
+    app.ui.keyPressEvent = Mock()
+    app.ui.notebook = Mock()
+    app.plotcanvas.translate_coords = lambda pos: pos
+    cutout_app.ui.big_cursor_cb.set_value(False)
+    cutout_app.ui.gaptype_combo.set_value(gap_type)
+    cutout_app.ui.thin_depth_entry.set_value(-0.8)
+    cutout_app.ui.mb_dia_entry.set_value(0.6)
+    cutout_app.ui.mb_spacing_entry.set_value(0.3)
+    cutout_app.on_manual_gap_click()
+
+    def click(pos):
+        cutout_app.on_mouse_click_release(SimpleNamespace(pos=pos, button=1))
+
+    click((20, 0))
+    # The second bridge overlaps the first but isn't inside its selection footprint.
+    click((24, 0))
+    # A neighboring contour inside that footprint remains available for placement.
+    click((24, 0.5))
+    assert inner.intersection(unary_union(flat(source.solid_geometry))).length == pytest.approx(inner.length - 6.4)
+    click((24, 0.5))
+    cutout_app.on_key_press(SimpleNamespace(key='Delete'))
+    assert inner.difference(unary_union(flat(source.solid_geometry))).length < 1e-7
+    click((20, 0))
+    cutout_app.on_key_press(SimpleNamespace(key='Delete'))
+    selected, gap, _ = _manual_gap_geometry([outer, inner], (24, 0), 2.4, 4.0)
+    expected = _manual_subtract_selected([outer, inner], selected, gap)
+    assert unary_union(flat(source.solid_geometry)).equals(expected)
+    click((24, 0))
+    # Selection doesn't change machining geometry until the destination is accepted.
+    assert unary_union(flat(source.solid_geometry)).equals(expected)
+    click((25, 30))
+    selected, gap, _ = _manual_gap_geometry([outer, inner], (25, 30), 2.4, 4.0)
+    expected = _manual_subtract_selected([outer, inner], selected, gap)
+    assert unary_union(flat(source.solid_geometry)).equals(expected)
+    assert unary_union(flat(source.tools[1]['solid_geometry'])).equals(expected)
+    if gap_type == 1:
+        assert unary_union(flat(source.tools[99]['solid_geometry'])).equals(gap)
+    click((25, 30))
+    click((24, 0))
+    selected, gap, _ = _manual_gap_geometry([outer, inner], (24, 0), 2.4, 4.0)
+    expected = _manual_subtract_selected([outer, inner], selected, gap)
+    click((24, 0))
+    cutout_app.on_mouse_click_release(SimpleNamespace(pos=(0, 0), button=2))
+    assert unary_union(flat(source.solid_geometry)).equals(expected)
+    if gap_type == 2:
+        holes = _drills(cutout_app)
+        assert holes and all(point.y == pytest.approx(0.9) for point in holes)
+    else:
+        assert not _drills(cutout_app)
+    # Removing every new bridge in a later session preserves completed gaps and Thin tools.
+    from appHandlers.appHistory import states_equal
+    original = deepcopy((source.solid_geometry, source.tools, source.multigeo))
+    cutout_app.on_manual_gap_click()
+    click((50, 15))
+    click((50, 15))
+    cutout_app.on_key_press(SimpleNamespace(key='Delete'))
+    assert states_equal((source.solid_geometry, source.tools, source.multigeo), original)
+    cutout_app.on_mouse_click_release(SimpleNamespace(pos=(0, 0), button=2))
+    assert states_equal((source.solid_geometry, source.tools, source.multigeo), original)
+
+
+@pytest.mark.parametrize('source_name,kind,margin,convex', [
+    ('outline_slot', 'panel', -0.3, False), ('outline_panel2', 'single', 0.1, True),
+])
+def test_manual_inner_contours_match_automatic_ungapped_outline(cutout_app, source_name, kind, margin, convex):
+    source = load_source(cutout_app.test_app, source_name)
+    _configure(cutout_app, source, kind=kind, margin=margin, convex=convex, gaps='None')
+    cutout_app.ui.is_outline_cb.set_value(True)
+    cutout_app.ui.inner_cb.set_value(True)
+    _generate(cutout_app)
+    expected = unary_union(flat(_geometry(cutout_app).solid_geometry))
+    cutout_app.test_app.created.clear()
+    cutout_app.ui.cutout_type_radio.set_value('m')
+    cutout_app.on_cutout_type('m')
+    assert cutout_app.ui.inner_cb.isEnabled()
+    assert not cutout_app.ui.inner_gaps_cb.isEnabled()
+    cutout_app.on_manual_geo()
+    actual = unary_union(flat(_geometry(cutout_app).solid_geometry))
+    assert actual.hausdorff_distance(expected) < 1e-7
+    assert actual.length == pytest.approx(expected.length)
+    cutout_app.ui.cutout_type_radio.set_value('a')
+    cutout_app.on_cutout_type('a')
+    assert cutout_app.ui.inner_gaps_cb.isEnabled()
+
+
+@pytest.mark.parametrize('source_kind,kind', [
+    ('geometry', 'single'), ('gerber', 'panel'),
+])
+def test_rectangular_thin_paths_partition_the_full_contour(cutout_app, source_kind, kind):
+    source = (load_source(cutout_app.test_app, 'outline_panel2') if source_kind == 'gerber' else
+              make_geometry(cutout_app.test_app, 'thin', [box(0, 0, 40, 25), box(50, 0, 90, 25)]))
+    _configure(cutout_app, source, True, kind=kind, gaps='None')
+    _generate(cutout_app, True)
+    full = unary_union(flat(_geometry(cutout_app).solid_geometry))
+    _configure(cutout_app, source, True, kind=kind, gap_type=1, thin=-0.8)
+    _generate(cutout_app, True)
+    output = _geometry(cutout_app)
+    cut = unary_union(flat(output.tools[1]['solid_geometry']))
+    thin = unary_union(flat(output.tools[99]['solid_geometry']))
+    assert thin.length == pytest.approx((full.length - cut.length), abs=1e-7)
+    assert thin.intersection(cut).length < 1e-7
+    assert unary_union([cut, thin]).hausdorff_distance(full) < 1e-7
+
+
+RECTANGLE = box(0, 0, 50, 30).exterior
+U_SHAPE = Polygon([(0, 0), (50, 0), (50, 30), (35, 30), (35, 10),
+                   (15, 10), (15, 30), (0, 30)]).exterior
+
+
+@pytest.mark.parametrize('mode,path,count', [
+    ('LR', LinearRing([(0, 15), (0, 0), (50, 0), (50, 30), (0, 30), (0, 15)]), 2),
+    ('4', U_SHAPE, 4),
+    ('8', rotate(RECTANGLE, 27), 8),
+])
+def test_automatic_tab_modes_partition_the_contour(mode, path, count):
+    cut, gaps = _cutout_intervals(path, 2.4, mode, 6.4)
+    gap_union = unary_union(gaps)
+    # Joining the seam pieces counts machining tabs rather than Shapely fragments.
+    assert len(flat(linemerge(gap_union))) == count
+    assert sum(gap.length for gap in gaps) == pytest.approx(count * 6.4)
+    assert sum(part.length for part in cut + gaps) == pytest.approx(path.length)
+    assert unary_union(cut).intersection(gap_union).length < 1e-7
+    assert unary_union(cut + gaps).hausdorff_distance(path) < 1e-7
+
+
+@pytest.mark.parametrize('rectangular,kind,closed_path,margin', [
+    (False, 'single', True, 2.0), (True, 'panel', False, 2.0),
+])
+def test_mouse_bites_follow_margin_rows_and_keep_spacing(cutout_app, rectangular, kind, closed_path, margin):
+    boards = [box(0, 0, 50, 30)] if kind == 'single' else [box(0, 0, 40, 25), box(50, 0, 90, 25)]
+    source = make_geometry(cutout_app.test_app, 'margin',
+                           [board.exterior if closed_path else board for board in boards])
+    _configure(cutout_app, source, rectangular, kind=kind, margin=margin, gap_type=2)
+    _generate(cutout_app, rectangular)
+    holes = _drills(cutout_app)
+    rows = [board.buffer(margin).exterior for board in boards]
+    assert holes
+    assert max(min(row.distance(point) for row in rows) for point in holes) < 2e-6
+    assert len(holes) == 24 * len(boards)
+    for row in rows:
+        xmin, ymin, xmax, ymax = row.bounds
+        centers = [Point(xmin, (ymin + ymax) / 2), Point(xmax, (ymin + ymax) / 2),
+                   Point((xmin + xmax) / 2, ymin), Point((xmin + xmax) / 2, ymax)]
+        groups = [[] for _ in centers]
+        for point in holes:
+            if row.distance(point) < 2e-6:
+                index = min(range(4), key=lambda index: centers[index].distance(point))
+                groups[index].append(point)
+        for index, group in enumerate(groups):
+            values = sorted(point.y if index < 2 else point.x for point in group)
+            assert len(values) == 6
+            assert all(b - a == pytest.approx(0.9) for a, b in zip(values, values[1:]))
 

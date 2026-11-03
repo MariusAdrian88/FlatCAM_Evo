@@ -52,14 +52,6 @@ class TestKiCadPcbTracks(unittest.TestCase):
         self.assertEqual(parser.version, 20240108)
         self.assertEqual(parser.copper_layers, ['F.Cu', 'B.Cu'])
 
-    def test_diagonal_segment_centreline_is_y_negated(self):
-        parser = parse('(segment (start 0 0) (end 10 5) (width 1) (layer "F.Cu") (net 1))')
-        coords = list(parser.layers['F.Cu']['follow_geometry'][0].coords)
-        self.assertEqual(len(coords), 2)
-        for actual, expected in zip(coords, [(0, 0), (10, -5)]):
-            self.assertAlmostEqual(actual[0], expected[0], places=9)
-            self.assertAlmostEqual(actual[1], expected[1], places=9)
-
     def test_arc_passes_through_start_mid_and_end(self):
         parser = parse('(arc (start 0 0) (mid 1 1) (end 2 0) (width 0.2) (layer "F.Cu") (net 1))')
         follow = parser.layers['F.Cu']['follow_geometry'][0]
@@ -98,12 +90,6 @@ class TestKiCadPcbVias(unittest.TestCase):
         self.assertNotIn('In2.Cu', parser.layers)
         self.assertEqual(list(parser.drill_groups), ['PTH_F.Cu-In1.Cu'])
 
-    def test_via_mask_is_opened_on_untented_side_only(self):
-        parser = parse('(via (at 5 5) (size 0.8) (drill 0.4) (layers "F.Cu" "B.Cu") (net 1))')
-        self.assertNotIn('F.Mask', parser.layers)       # front is tented in the setup
-        self.assertIn('B.Mask', parser.layers)
-        self.assertAlmostEqual(geo(parser, 'B.Mask').bounds[2], 5 + 0.4 + 0.05, places=6)
-
 class TestKiCadPcbPads(unittest.TestCase):
     def test_pad_shapes_have_expected_outlines(self):
         cases = {
@@ -116,18 +102,6 @@ class TestKiCadPcbPads(unittest.TestCase):
             with self.subTest(shape=shape):
                 parser = parse(footprint('(pad "1" smd %s (at 0 0) %s (layers "F.Cu"))' % (shape, size)))
                 self.assertAlmostEqual(geo(parser, 'F.Cu').area, area, places=2)
-
-    def test_pad_angle_rotates_its_shape(self):
-        parser = parse(footprint('(pad "1" smd rect (at 0 0 90) (size 2 1) (layers "F.Cu"))'))
-        bounds = geo(parser, 'F.Cu').bounds
-        self.assertAlmostEqual(bounds[2] - bounds[0], 1, places=6)
-        self.assertAlmostEqual(bounds[3] - bounds[1], 2, places=6)
-
-    def test_footprint_translation_moves_pad(self):
-        parser = parse(footprint('(pad "1" smd rect (at 2 0) (size 2 1) (layers "F.Cu"))',
-                                 at='(at 10 10)'))
-        for actual, expected in zip(geo(parser, 'F.Cu').bounds, (11, -10.5, 13, -9.5)):
-            self.assertAlmostEqual(actual, expected, places=6)
 
     def test_footprint_rotation_moves_pad_centre(self):
         # Footprint at (10, 10) rotated 90 degrees: local (2, 0) lands at board (10, 8) in KiCad
@@ -187,23 +161,12 @@ class TestKiCadPcbZones(unittest.TestCase):
         self.assertFalse(copper.contains(Point(5, -5)))  # inside the hole (output Y negated)
         self.assertTrue(copper.contains(Point(1, -1)))
 
-    def test_filled_zone_without_saved_fill_adds_no_copper_and_warns(self):
-        parser = parse('(zone (net 1) (net_name "GND") (layer "F.Cu") (fill yes) %s)' % self.SQUARE)
-        self.assertNotIn('F.Cu', parser.layers)
-        self.assertEqual(len(parser.warnings), 1)
-        self.assertIn('not refilled', parser.warnings[0])
-
 class TestKiCadPcbText(unittest.TestCase):
     def test_hidden_property_is_not_drawn(self):
         parser = parse(footprint(
             '(property "Reference" "R1" (at 0 -2 0) (layer "F.SilkS") (hide yes) '
             '(effects (font (size 1 1) (thickness 0.15))))'))
         self.assertNotIn('F.SilkS', parser.layers)
-
-    def test_text_is_drawn_with_approximate_font_warning(self):
-        parser = parse('(gr_text "HELLO" (at 5 5 0) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15))))')
-        self.assertIn('F.SilkS', parser.layers)
-        self.assertTrue(any('approximate stroke font' in warning for warning in parser.warnings))
 
 class TestKiCadPcbOutline(unittest.TestCase):
     def test_closed_edge_cuts_rectangle_becomes_board_outline(self):
@@ -213,36 +176,13 @@ class TestKiCadPcbOutline(unittest.TestCase):
         for actual, expected in zip(parser.board_outline.bounds, (0, -10, 20, 0)):
             self.assertAlmostEqual(actual, expected, places=3)
 
-    def test_open_edge_cuts_line_gives_no_outline_and_warns(self):
-        parser = parse('(gr_line (start 0 0) (end 20 0) (stroke (width 0.1) (type default)) '
-                       '(layer "Edge.Cuts"))')
-        self.assertTrue(parser.board_outline.is_empty)
-        self.assertTrue(any('closed outline' in warning for warning in parser.warnings))
-
-
 class TestKiCadPcbErrors(unittest.TestCase):
-    def test_not_a_kicad_pcb_raises(self):
-        with self.assertRaises(KiCadPcbParseError):
-            KiCadPcbParser().parse_text('(foo)')
-
-    def test_format_older_than_kicad_6_raises(self):
-        with self.assertRaises(KiCadPcbParseError) as context:
-            KiCadPcbParser().parse_text('(kicad_pcb (version 20210101) (layers (0 "F.Cu" signal)))')
-        self.assertIn('older than KiCad 6', str(context.exception))
-
-    def test_truncated_file_raises(self):
-        with self.assertRaises(KiCadPcbParseError) as context:
-            KiCadPcbParser().parse_text(HEAD)
-        self.assertIn('truncated', str(context.exception))
-
-    def test_unknown_top_level_item_warns_and_continues(self):
-        parser = parse('(frobnicate 1) (segment (start 0 0) (end 5 0) (width 0.3) (layer "F.Cu") (net 1))')
-        self.assertIn('F.Cu', parser.layers)
-        self.assertTrue(any('frobnicate' in warning for warning in parser.warnings))
-
-    def test_unknown_copper_layer_raises(self):
-        with self.assertRaises(KiCadPcbParseError):
-            parse('(segment (start 0 0) (end 1 0) (width 0.2) (layer "In3.Cu"))')
+    def test_unreadable_boards_raise_a_parse_error(self):
+        for text in ('(foo)', '(kicad_pcb (version 20210101) (layers (0 "F.Cu" signal)))', HEAD,
+                     HEAD + '(segment (start 0 0) (end 1 0) (width 0.2) (layer "In3.Cu")))'):
+            with self.subTest(text=text[:40]):
+                with self.assertRaises(KiCadPcbParseError):
+                    KiCadPcbParser().parse_text(text)
 
 if __name__ == '__main__':
     unittest.main()

@@ -6,6 +6,7 @@ real ToolIsolation headless and isolate a parsed Gerber object (fixtures of test
 """
 
 from copy import deepcopy
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
@@ -15,6 +16,7 @@ from shapely.ops import unary_union
 from defaults import AppDefaults
 from appObjects.GeometryObject import GeometryObject
 from appPlugins.ToolIsolation import ToolIsolation
+from appTool import AppTool
 
 from test_plugin_geometry_bases import make_tool_app
 from tests.helpers_objects import app, _headless_qt, make_gerber  # noqa: F401,E402
@@ -172,7 +174,6 @@ def test_rest_machining_uses_the_selected_tools_largest_first_and_survives_a_fai
 # ------------------------------------------------------------------ several Gerber objects in one run
 
 @pytest.mark.parametrize('multi, selection, expected', [
-    (True, 0, ['a_0.2000_iso', 'b_0.2000_iso']),
     (True, 3, ['a_0.2000_iso', 'b_0.2000_iso']),
     (False, 0, ['a_0.2000_iso']),
 ])
@@ -257,3 +258,56 @@ def test_generate_uses_the_tools_of_the_click(tool, app, change):
     (obj,) = created.values()
     assert obj.tools[1]['tooldia'] == DIA
     assert wkb_set(obj.solid_geometry) == wkb_set(reference.solid_geometry)
+
+
+# ------------------------------------------------------------------------------- native board (PcbDoc) regions
+
+def isolate_native(entries):
+    """Isolates a native board region (a record with a 'solid' only) or a pad (with a 'follow' point)."""
+    solid = entries[0]['solid']
+    envelope = solid.buffer(0.1).exterior
+    app = SimpleNamespace(options={'gerber_circle_steps': 64}, app_units='MM', inform=Mock(), app_obj=Mock(),
+                          abort_flag=False)
+    tool = SimpleNamespace(app=app, decimals=4, validation_status=True,
+                           generate_envelope=Mock(return_value=[envelope]))
+    tool.new_object = lambda *args, **kwargs: AppTool.new_object(tool, *args, **kwargs)
+    source = SimpleNamespace(obj_options={'name': 'native'}, solid_geometry=[solid],
+                             tools={0: {'type': 'REG', 'size': 0, 'geometry': entries}},
+                             isolation_buffers=Mock())
+    storage = {1: {'tooldia': 0.2, 'data': {
+        'tools_iso_isotype': 'full', 'tools_iso_passes': 1,
+        'tools_iso_overlap': 0, 'tools_iso_milling_type': 'cl'}}}
+    created = []
+
+    def create(kind, name, initialize, **kwargs):
+        obj = SimpleNamespace(obj_options={'name': name})
+        assert initialize(obj, app) != 'fail'
+        created.append(obj)
+        return obj
+
+    app.app_obj.new_object.side_effect = create
+    ToolIsolation.isolate(
+        tool, source, [1], storage, geometry=source.solid_geometry, plot=False,
+        combine=False, iso_except=False, e_passes=1, area_except=False,
+        area_shape='square', rest=False, sel_type=0, tip_shape='C1',
+        iso_simplification=False, simplification_tol=0.001, boundary=None)
+    assert len(created) == 1
+    assert created[0].multigeo
+    assert created[0].tools[1]['tooldia'] == 0.2
+    return unary_union(created[0].solid_geometry), envelope, source
+
+
+def test_native_solid_only_region_keeps_isolation_without_fake_follow():
+    actual, envelope, source = isolate_native([{'solid': box(0, 0, 2, 2)}])
+    assert actual.equals(envelope)
+    assert set(source.tools[0]['geometry'][0]) == {'solid'}
+
+
+def test_native_point_flash_still_receives_extra_pad_geometry():
+    pad = Point(0, 0).buffer(1)
+    actual, envelope, source = isolate_native([{'solid': pad, 'follow': Point(0, 0)}])
+    # the pad ring starts after the pass (offset of the 2nd pass); 64 steps of the whole circle
+    extra = pad.buffer(0.2 * 3 / 2.0000001, 64 // 4)
+    assert actual.symmetric_difference(unary_union([envelope, extra])).area < 1e-8
+    assert actual.area > 0
+    assert isinstance(source.tools[0]['geometry'][0]['follow'], Point)

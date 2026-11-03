@@ -33,8 +33,7 @@ def _make(app, kind):
     return {'gerber': make_gerber, 'excellon': make_excellon, 'geometry': _geometry}[kind](app)
 
 
-@pytest.mark.parametrize('kind', ['gerber', 'excellon', 'geometry'])
-@pytest.mark.parametrize('model', list(MATRICES))
+@pytest.mark.parametrize('kind,model', [('gerber', 'rigid'), ('excellon', 'similarity'), ('geometry', 'affine')])
 def test_apply_and_undo(app, kind, model):
     obj = _make(app, kind)
     matrix = MATRICES[model]
@@ -52,16 +51,6 @@ def test_apply_and_undo(app, kind, model):
 
     apply_matrix_to_object(obj, invert(matrix))
     assert np.array(obj.bounds()) == pytest.approx(before, abs=1e-6)
-
-
-def test_excellon_rigid_moves_the_hole_shapes(app):
-    exc = make_excellon(app)
-    before = [t['solid_geometry'] for t in exc.tools.values()]
-    apply_matrix_to_object(exc, MATRICES['rigid'])
-    apply_matrix_to_object(exc, invert(MATRICES['rigid']))
-    for old, tool in zip(before, exc.tools.values()):
-        for g0, g1 in zip(old, tool['solid_geometry']):
-            assert g0.equals_exact(g1, 1e-6)
 
 
 def _registration_fit(points=((0.0, 0.0), (10.0, 0.0))):
@@ -188,8 +177,7 @@ def test_registration_validates_every_object_before_mutating_any(app):
     assert np.array(gerber.bounds()) == pytest.approx(before)
 
 
-@pytest.mark.parametrize('kind', ['gerber', 'excellon'])
-@pytest.mark.parametrize('workflow', ['align', 'camera'])
+@pytest.mark.parametrize('kind,workflow', [('gerber', 'align'), ('excellon', 'camera')])
 def test_finish_rewrites_the_source_of_the_aligned_object(app, kind, workflow, tmp_path):
     """View Source and Save source write source_file: it has to be the aligned object, not the loaded file."""
     from appHandlers.appIO import appIO

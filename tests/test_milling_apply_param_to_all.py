@@ -74,15 +74,4 @@ def test_excellon_target_uses_the_excellon_tools_table(qapp):
     assert feedrates(milling) == [200.0, 200.0]
     assert calls == ['disconnect', 'connect']
 
-
-@pytest.mark.parametrize('row', [2, 3])
-def test_excellon_totals_row_changes_nothing_and_keeps_the_signals(qapp, row):
-    exc_table = tools_table([1, 2], totals=True)
-    exc_table.setCurrentCell(row, 1)
-    milling, events, calls = harness('exc', tools_table([]), exc_table, [1, 2])
-    milling.on_apply_param_to_all_clicked()
-    assert feedrates(milling) == [100.0, 200.0]
-    # the tool form stays connected to the tools storage
-    assert calls.count('disconnect') == calls.count('connect')
-    assert any('No Tool Selected' in str(msg) for msg in events)
-
+

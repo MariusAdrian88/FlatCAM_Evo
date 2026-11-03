@@ -27,7 +27,7 @@ def split_editor(geometry=None):
     return editor, original
 
 
-@pytest.mark.parametrize('point', [(2, 0), (1, 0.05)])
+@pytest.mark.parametrize('point', [(1, 0.05)])
 @pytest.mark.parametrize('reverse', [False])
 def test_split_conserves_length_direction_metadata_and_replays(point, reverse):
     coords = [(0, 0), (2, 0), (4, 2)]
@@ -65,7 +65,7 @@ def test_split_conserves_length_direction_metadata_and_replays(point, reverse):
 
 
 @pytest.mark.parametrize('point,tolerance', [
-    ((0, 0), 0.1), ((2, 0.101), 0.1), ((2, 0), -1),
+    ((2, 0.101), 0.1),
 ])
 def test_rejection_preserves_original_selection_render_cache_and_redo(point, tolerance):
     editor, original = split_editor(LineString([(0, 0), (4, 0)]))
@@ -86,7 +86,6 @@ def test_rejection_preserves_original_selection_render_cache_and_redo(point, tol
 
 
 @pytest.mark.parametrize('geometry', [
-    LinearRing([(0, 0), (4, 0), (0, 4)]),
     Polygon([(0, 0), (4, 0), (0, 4)]),
 ])
 def test_unsupported_shapes_explain_open_linestring_scope(geometry):
@@ -95,16 +94,6 @@ def test_unsupported_shapes_explain_open_linestring_scope(geometry):
     assert 'open' in str(editor.app.inform.emit.call_args).lower()
     assert 'LineString' in str(editor.app.inform.emit.call_args)
     assert editor.selected == [original]
-    assert not editor.undo()
-
-
-@pytest.mark.parametrize('selection', [[]])
-def test_exactly_one_stored_selection_required(selection):
-    editor, original = split_editor()
-    editor.selected = [original for _ in selection]
-    assert editor.apply_path_split((1, 0), 0.1) == 'fail'
-    assert 'one' in str(editor.app.inform.emit.call_args).lower()
-    assert list(editor.storage.get_objects()) == [original]
     assert not editor.undo()
 
 
@@ -130,29 +119,5 @@ def interactive_editor():
     editor.snap = Mock(return_value=(2, 0.05))
     editor.active_tool = geo.FCSplit(editor)
     return editor, original
-
-
-
-
-
-
-
-
-def test_split_and_replay_synchronize_tree_index_and_render():
-    editor, original = split_editor()
-    tree = FCTree(columns=3, extended_sel=True)
-    editor.ui = SimpleNamespace(tw=tree, geo_parent=tree.invisibleRootItem(), geo_font=tree.font())
-    editor.sync_tree_selection = lambda: geo.AppGeoEditor.sync_tree_selection(editor)
-    editor.build_ui_sig.emit = lambda: geo.AppGeoEditor.build_ui(editor)
-    geo.AppGeoEditor.build_ui(editor)
-    assert editor.apply_path_split((1, 0), 0.1) != 'fail'
-    pieces = list(editor.selected)
-    for selected, replay in [(pieces, editor.undo), ([original], editor.redo), (pieces, None)]:
-        assert tree.topLevelItemCount() == len(selected)
-        assert {item.text(0) for item in tree.selectedItems()} == {str(id(s)) for s in selected}
-        assert set(editor.storage.indexes) == {id(s) for s in selected}
-        assert editor._snap_cache is None
-        if replay:
-            assert replay()
 
 

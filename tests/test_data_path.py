@@ -11,15 +11,9 @@ import appMain
 from appCommon.DataPath import data_path_from_env
 
 
-@pytest.mark.parametrize('environ', [{}, {'FLATCAM_DATA_PATH': ''}, {'FLATCAM_DATA_PATH': '   '}],
-                         ids=['unset', 'empty', 'blank'])
+@pytest.mark.parametrize('environ', [{}, {'FLATCAM_DATA_PATH': '   '}], ids=['unset', 'blank'])
 def test_not_set_or_empty_gives_no_folder(environ):
     assert data_path_from_env(environ) is None
-
-
-def test_relative_path_is_taken_from_the_working_folder(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    assert data_path_from_env({'FLATCAM_DATA_PATH': 'settings'}) == os.path.join(os.getcwd(), 'settings')
 
 
 class SetupStub:

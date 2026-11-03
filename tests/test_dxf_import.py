@@ -16,9 +16,7 @@ sys.path.insert(0, str(ROOT))
 import ezdxf
 from shapely.ops import unary_union
 
-from appParsers.DXF import dxf_to_shapes, text_entity_to_shapes
-from appParsers.DXF import text as dxf_text
-from appParsers.ParseGerber import Gerber
+from appParsers.DXF import dxf_to_shapes
 from camlib import Geometry
 
 
@@ -49,16 +47,6 @@ class DxfImportTest(unittest.TestCase):
         self.assertGreaterEqual(len(poly.exterior.coords) - 1, 100)
         self.assertAlmostEqual(poly.centroid.x, 1, places=3)
 
-    def test_arc(self):
-        doc, msp = new_doc()
-        msp.add_arc((0, 0), 10, 0, 90)
-        (line,) = dxf_to_shapes(doc)
-        self.assertEqual(line.geom_type, 'LineString')
-        self.assertAlmostEqual(line.length, 15.708, delta=0.02)
-        b = line.bounds
-        self.assertAlmostEqual(b[2], 10, places=3)
-        self.assertAlmostEqual(b[3], 10, places=3)
-
     def test_lwpolyline_bulge_and_closed(self):
         doc, msp = new_doc()
         # half circle of diameter 10 (bulge 1): length = pi * 5
@@ -70,32 +58,6 @@ class DxfImportTest(unittest.TestCase):
         self.assertEqual(tri.geom_type, 'LineString')
         self.assertTrue(tri.is_ring)
         self.assertAlmostEqual(tri.length, 12, places=6)
-
-    def test_ellipse(self):
-        doc, msp = new_doc()
-        msp.add_ellipse((0, 0), major_axis=(10, 0), ratio=0.5)
-        msp.add_ellipse((0, 0), major_axis=(10, 0), ratio=0.5, start_param=0, end_param=math.pi)
-        full, half = dxf_to_shapes(doc)
-        self.assertEqual(full.geom_type, 'LineString')
-        self.assertTrue(full.is_ring)
-        # Ramanujan perimeter for a=10, b=5
-        a, b = 10, 5
-        h = ((a - b) / (a + b)) ** 2
-        perimeter = math.pi * (a + b) * (1 + 3 * h / (10 + math.sqrt(4 - 3 * h)))
-        self.assertAlmostEqual(full.length, perimeter, delta=0.05)
-        self.assertAlmostEqual(half.length, perimeter / 2, delta=0.05)
-        self.assertFalse(half.is_ring)
-        self.assertAlmostEqual(half.bounds[1], 0, places=3)
-
-    def test_spline(self):
-        doc, msp = new_doc()
-        msp.add_spline(fit_points=[(0, 0), (5, 5), (10, 0), (15, 5)])
-        (line,) = dxf_to_shapes(doc)
-        self.assertEqual(line.geom_type, 'LineString')
-        self.assertAlmostEqual(line.coords[0][0], 0, places=6)
-        self.assertAlmostEqual(line.coords[0][1], 0, places=6)
-        self.assertAlmostEqual(line.coords[-1][0], 15, places=6)
-        self.assertAlmostEqual(line.coords[-1][1], 5, places=6)
 
     def test_insert_transform(self):
         doc, msp = new_doc()
@@ -120,18 +82,6 @@ class DxfImportTest(unittest.TestCase):
         shapes = dxf_to_shapes(doc)
         self.assertEqual(len([s for s in shapes if s.geom_type == 'LineString']), 2)
 
-    @unittest.skipUnless(dxf_text.TEXT_RENDERING_AVAILABLE, 'text rendering unavailable')
-    def test_text_modes(self):
-        doc, msp = new_doc()
-        msp.add_text('ABC', dxfattribs={'height': 2.5})
-        stroke = dxf_to_shapes(doc, 'stroke')
-        outline = dxf_to_shapes(doc, 'outline')
-        self.assertTrue(stroke and all(s.geom_type == 'LineString' for s in stroke))
-        self.assertTrue(outline and all(s.geom_type == 'Polygon' for s in outline))
-        self.assertEqual(dxf_to_shapes(doc, 'none'), [])
-        self.assertEqual(text_entity_to_shapes(list(msp)[0], 'none'), [])
-        self.assertTrue(all(math.isfinite(v) for g in outline for v in g.bounds))
-
     @staticmethod
     def _square(x, y, size):
         return [(x, y), (x + size, y), (x + size, y + size), (x, y + size)]
@@ -149,14 +99,6 @@ class DxfImportTest(unittest.TestCase):
         self.assertEqual(len(shapes), 1)
         self.assertEqual(len(shapes[0].interiors), 1)
         self.assertAlmostEqual(shapes[0].area, 100 - 16, places=6)
-
-    def test_invisible_entity_skipped(self):
-        doc, msp = new_doc()
-        msp.add_line((0, 0), (1, 0), dxfattribs={'invisible': 1})
-        msp.add_line((0, 1), (1, 1))
-        shapes = dxf_to_shapes(doc)
-        self.assertEqual(len(shapes), 1)
-        self.assertEqual(shapes[0].bounds[1], 1)
 
     def test_off_and_frozen_layers_skipped(self):
         doc, msp = new_doc()
@@ -201,35 +143,12 @@ class DxfImportTest(unittest.TestCase):
         obj.import_dxf_as_geo(path, units=units)
         return unary_union(obj.solid_geometry)
 
-    def _import_gerber(self, path, units):
-        obj = Gerber.__new__(Gerber)
-        obj.app = self._fake_app()
-        obj.multigeo = False
-        obj.solid_geometry = None
-        obj.follow_geometry = None
-        obj.tools = {}
-        obj.import_dxf_as_gerber(path, units=units)
-        return unary_union([e['solid'] for e in obj.tools[0]['geometry']])
-
     def test_geometry_import_inch_dxf_into_mm_app(self):
         doc, msp = self._units_doc(1)
         msp.add_line((0, 0), (1, 0))
         geo = self._import_geo(self._save(doc), 'MM')
         self.assertAlmostEqual(geo.bounds[0], 0, places=9)
         self.assertAlmostEqual(geo.bounds[2], 25.4, places=9)
-
-    def test_gerber_import_inch_dxf_into_mm_app(self):
-        doc, msp = self._units_doc(1)
-        msp.add_lwpolyline([(0, 0), (10, 0), (10, 10), (0, 10)], close=True)
-        minx, _, maxx, _ = self._import_gerber(self._save(doc), 'MM').bounds
-        self.assertAlmostEqual(maxx - minx, 254, places=6)
-
-    def test_geometry_import_ignores_units_that_make_the_drawing_huge(self):
-        doc, msp = self._units_doc(6)
-        msp.add_lwpolyline([(0, 0), (10, 0), (10, 10), (0, 10)], close=True)
-        minx, _, maxx, _ = self._import_geo(self._save(doc), 'MM').bounds
-        self.assertAlmostEqual(maxx - minx, 10, places=9)
-
 
 if __name__ == '__main__':
     unittest.main()

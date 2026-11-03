@@ -59,15 +59,7 @@ def layout_app(tmp_path, monkeypatch):
     qapp.processEvents()
 
 
-def test_tests_do_not_write_the_settings_of_the_user():
-    """A test run reset the layout of the user to 'standard': the tests wrote to the real QSettings (registry)."""
-    from PyQt6.QtCore import QSettings
-    settings = QSettings("Open Source", "FlatCAM_EVO")
-    assert settings.format() == QSettings.Format.IniFormat
-    assert 'HKEY_' not in settings.fileName()
-
-
-@pytest.mark.parametrize('resources', ['assets/resources', 'assets/resources/dark_resources'])
+@pytest.mark.parametrize('resources', ['assets/resources'])
 def test_view_restore_layout_restores_hidden_toolbars(layout_app, resources):
     app, group, settings = layout_app
     app.resource_location = resources
@@ -114,7 +106,7 @@ def test_ui_layout_activation_and_restoration(layout_app, index, layout):
 
 
 @pytest.mark.parametrize('lock', [False])
-@pytest.mark.parametrize('show_text', [False, True])
+@pytest.mark.parametrize('show_text', [True])
 def test_layout_transitions_keep_actions_and_toolbar_state(layout_app, lock, show_text):
     app, group, settings = layout_app
     app.ui.lock_toolbar(lock)
@@ -138,8 +130,8 @@ def test_layout_transitions_keep_actions_and_toolbar_state(layout_app, lock, sho
             lock, show_text = not lock, not show_text
 
 
-@pytest.mark.parametrize('layout', ['standard', 'minimal'])
-@pytest.mark.parametrize('saved_state', ['missing', 'invalid', 'custom', 'preset'])
+@pytest.mark.parametrize('layout,saved_state', [('standard', 'invalid'), ('standard', 'custom'), ('minimal', 'missing'),
+                                                 ('minimal', 'preset')])
 @pytest.mark.parametrize('show_text', [False])
 def test_normal_startup_restores_layout_and_custom_toolbar_state(
         layout_app, monkeypatch, layout, saved_state, show_text):

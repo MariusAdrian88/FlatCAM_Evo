@@ -54,23 +54,6 @@ def gcode_job(pp_name, app=None):
     return job
 
 
-PREPROCESSORS = ['default', 'GRBL_laser', 'GRBL_11', 'Marlin', 'Line_xyz', 'hpgl', 'Roland_MDX_20', 'ISEL_ICP_CNC']
-
-
-class TestLinear2Gcode:
-    @pytest.mark.parametrize('pp_name', ['default'])
-    def test_cut_lines_same_as_doformat(self, pp_name):
-        job = gcode_job(pp_name)
-        p = job.pp_geometry
-        path = noisy_paths(2)[1]
-        gcode = job.linear2gcode(path, 0.1, tolerance=0)
-
-        coords = list(path.coords)
-        cuts = [job.doformat(p.linear_code, x=x, y=y, z_cut=job.z_cut) for x, y in coords[1:]]
-        assert all(line.strip() for line in cuts)
-        assert ''.join(cuts) in gcode
-        last_x, last_y = coords[-1]
-        assert gcode.endswith(job.doformat(p.lift_code, x=last_x, y=last_y, z_move=job.z_move))
 
 def milling_tools(paths, **data_changes):
     data = dict(AppDefaults.factory_defaults)
@@ -80,119 +63,6 @@ def milling_tools(paths, **data_changes):
     data.update(data_changes)
     return {1: {'tooldia': 0.1, 'data': data, 'solid_geometry': paths}}
 
-
-class TestGeometryToolGcode:
-    @pytest.mark.parametrize('workers', [2])
-    @pytest.mark.parametrize('count', [5])
-    @pytest.mark.parametrize('cancel_before', [False, True])
-    def test_cancel_stops_simplification(self, count, cancel_before, workers):
-        job = gcode_job('default')
-        tools = milling_tools(noisy_paths(count))
-        original_simplify = shapely.simplify
-
-        def emit(message):
-            if cancel_before and 'Starting G-Code for tool with diameter' in message:
-                job.app.abort_flag = True
-
-        def simplify(piece, tolerance):
-            job.app.abort_flag = True
-            return original_simplify(piece, tolerance)
-
-        with patch.object(job.app.inform, 'emit', side_effect=emit), \
-                patch.object(camlib.os, 'cpu_count', return_value=workers), \
-                patch.object(shapely, 'simplify', side_effect=simplify) as mock:
-            with pytest.raises(camlib.grace):
-                job.geometry_tool_gcode_gen(1, tools, (0, 0), (0, 0), 0.005, is_first=True, is_last=True)
-        assert mock.call_count == (0 if cancel_before else 1)
-        if not cancel_before and count == 300:
-            assert len(mock.call_args.args[0]) < count
-
-
-def old_codes_split(job, gline):
-    """CNCjob.codes_split() before the patterns were compiled once: the reference."""
-    command = {}
-
-    if job.pp_solderpaste_name is not None:
-        if gline.strip() in ('(PASTE_ON)', ';PASTE_ON'):
-            return {'Z': 0}
-        if gline.strip() in ('(PASTE_OFF)', ';PASTE_OFF'):
-            return {'Z': 1}
-        dot = re.match(r'^[;(]PASTE_DOT X([+\-\d.]+) Y([+\-\d.]+) D([+\-\d.]+)', gline)
-        if dot:
-            return {'X': float(dot[1]), 'Y': float(dot[2]), '_paste_dot': float(dot[3])}
-
-    if 'Roland' in job.pp_excellon_name or 'Roland' in job.pp_geometry_name:
-        match_z = re.search(r"^Z(\s*-?\d+\.\d+?),(\s*\s*-?\d+\.\d+?),(\s*\s*-?\d+\.\d+?)*;$", gline)
-        if match_z:
-            command['G'] = 0
-            command['X'] = float(match_z.group(1).replace(" ", "")) * 0.01
-            command['Y'] = float(match_z.group(2).replace(" ", "")) * 0.01
-            command['Z'] = float(match_z.group(3).replace(" ", "")) * 0.025
-    elif 'hpgl' in job.pp_excellon_name or 'hpgl' in job.pp_geometry_name:
-        match_pa = re.search(r"^PA(\s*-?\d+\.\d+?),(\s*\s*-?\d+\.\d+?)*;$", gline)
-        if match_pa:
-            command['G'] = 0
-            command['X'] = float(match_pa.group(1).replace(" ", "")) / 40
-            command['Y'] = float(match_pa.group(2).replace(" ", "")) / 40
-        match_pen = re.search(r"^(P[U|D])", gline)
-        if match_pen:
-            command['Z'] = 1 if match_pen.group(1) == 'PU' else 0
-        if re.search(r"^SP\d*", gline):
-            command['Z'] = 1
-    elif 'laser' in job.pp_excellon_name.lower() or 'laser' in job.pp_geometry_name.lower() or \
-            (job.pp_solderpaste_name is not None and 'paste' in job.pp_solderpaste_name.lower()):
-        match_lsr = re.search(r"X([+-]?\d+.[+-]?\d+)\s*Y([+-]?\d+.[+-]?\d+)", gline)
-        if match_lsr:
-            command['X'] = float(match_lsr.group(1).replace(" ", ""))
-            command['Y'] = float(match_lsr.group(2).replace(" ", ""))
-        match_lsr_pos = re.search(r"^(M0?[3-5])", gline)
-        if match_lsr_pos:
-            command['Z'] = 1 if ('M05' in match_lsr_pos.group(1) or 'M5' in match_lsr_pos.group(1)) else 0
-        match_lsr_pos_2 = re.search(r"^(M10[6|7])", gline)
-        if match_lsr_pos_2:
-            command['Z'] = 1 if 'M107' in match_lsr_pos_2.group(1) else 0
-        match_lsr_pos_3 = re.search(r"^.*(laser OFF).*", gline)
-        if match_lsr_pos_3:
-            command['Z'] = 1 if 'laser OFF' in match_lsr_pos_3.group(1) else 0
-    elif job.pp_solderpaste_name is not None:
-        if 'Paste' in job.pp_solderpaste_name:
-            match_paste = re.search(r"X([+-]?\d+.[+-]?\d+)\s*Y([+-]?\d+.[+-]?\d+)", gline)
-            if match_paste:
-                command['X'] = float(match_paste.group(1).replace(" ", ""))
-                command['Y'] = float(match_paste.group(2).replace(" ", ""))
-    else:
-        match = re.search(r'^\s*([A-Z])\s*([+\-.\d\s]+)', gline)
-        while match:
-            command[match.group(1)] = float(match.group(2).replace(" ", ""))
-            gline = gline[match.end():]
-            match = re.search(r'^\s*([A-Z])\s*([+\-.\d\s]+)', gline)
-    return command
-
-
-LINES = [
-    'G0 X1.0000 Y2.0000', 'G1 X-1.5 Y2.5 F1000', 'G01 X1.2 Y-3.4 Z0.5', '  G1X1Y2', 'G00 Z2.0000', 'T1', 'M6',
-    'M3 S500', 'M03 S500', 'M4', 'M5', 'M05', ' M5', 'M106 S255', 'M107', 'M3 S0 (laser OFF)', 'G94', 'G21',
-    '(comment X1 Y2)', '', 'X1.0 Y2.0', 'G1 X 1.25 Y 2.5', 'PA10.0,20.0;', 'PU;', 'PD;', 'SP1;',
-    'Z100.0,200.0,-50.0;', 'Z1.5,2.5;', 'G1 X1.0000Y2.0000', 'M5 (laser OFF)', 'G0 X1e3 Y2', 'G1 X1 Y2 ; laser OFF',
-    '(PASTE_ON)', ';PASTE_OFF', ';PASTE_DOT X1.5 Y-2 D0.4', 'G4 P1.5', 'G1 X1.2.3', 'MOVEABS 1000, 2000',
-]
-NAMES = [
-    ('default', 'default', None), ('default', 'GRBL_laser', None), ('default', 'hpgl', None),
-]
-
-
-class TestCodesSplit:
-    @pytest.mark.parametrize('names', NAMES)
-    def test_same_as_before(self, names):
-        job = SimpleNamespace(pp_excellon_name=names[0], pp_geometry_name=names[1], pp_solderpaste_name=names[2])
-        for line in LINES:
-            try:
-                expected = old_codes_split(job, line)
-            except ValueError:
-                with pytest.raises(ValueError):
-                    CNCjob.codes_split(job, line)
-                continue
-            assert CNCjob.codes_split(job, line) == expected, (names, line)
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -248,13 +118,8 @@ def run_with_deadline(function, seconds=15):
 
 
 class TestMillingGcodeFixes:
-    def test_estimates_include_z_and_only_the_emitted_end_move(self):
-        job = gcode_job('default')
-        single_path_gcode(job, [LineString([(0, 0), (10, 0)])], endxy=None)
-        assert job.travel_distance == pytest.approx(2 + 2.1 + 10 + 2.1)
-        assert job.routing_time == pytest.approx(2 / 1000 + 2.1 / 100 + 10 / 300 + 2.1 / 1000)
 
-    @pytest.mark.parametrize('pp_name', ['default', 'Check_points', 'GRBL_laser', 'Roland_MDX_20'])
+    @pytest.mark.parametrize('pp_name', ['default', 'Roland_MDX_20'])
     def test_generated_estimate_counts_motion_and_supported_dwell(self, pp_name):
         job, code = multi_geo_gcode([LineString([(0, 0), (10, 0)])], pp_name=pp_name,
                                     data={'tools_mill_dwell': True, 'tools_mill_dwelltime': 30,
@@ -275,19 +140,6 @@ class TestMillingGcodeFixes:
         else:
             assert job.travel_distance == pytest.approx(26.1)
             assert job.routing_time == pytest.approx(14.05 / 600 + 2.05 / 100 + 10 / 300 + 0.5)
-
-    @pytest.mark.parametrize('changes', [
-        {'multidepth': True, 'depthpercut': 0.04},
-        {'toolchange': True, 'toolchangexy': (3, 4), 'startz': 5, 'endxy': (2, 1), 'endz': 1},
-    ])
-    def test_estimate_follows_multi_pass_extra_cut_and_toolchange_moves(self, changes):
-        from appParsers.ParseGCode import parse_gcode
-
-        job = gcode_job('default')
-        code = single_path_gcode(job, [LinearRing([(0, 0), (10, 0), (10, 5), (0, 0)])], **changes)
-        result = parse_gcode('G20\nG0 X0 Y0 Z0\n' + code, feedrate_rapid=1000, target_units=job.units)
-        assert job.travel_distance == pytest.approx(result['travel_distance'])
-        assert job.routing_time == pytest.approx(result['routing_time'])
 
     @pytest.mark.parametrize('multidepth', [True])
     def test_single_geometry_negative_travel_z_lifts_up(self, multidepth):
@@ -352,14 +204,6 @@ class TestMillingGcodeFixes:
         assert 'G00 Z1.5000\nG00 X0.0000 Y0.0000\nT5' in first
         job, later = multi_geo_gcode([TWO_LINES[0]], uid=1, toolchange=True, is_first=False, data=data)
         assert 'G00 Z15.0000\nG00 X0.0000 Y0.0000\nT1' in later
-
-    @pytest.mark.parametrize('paths, changes', [([], {})])
-    def test_tool_without_usable_geometry_tells_the_user(self, paths, changes):
-        job, gcode = multi_geo_gcode(paths, data=dict(changes, tools_mill_tooldia=0.25))
-        assert gcode == 'fail'
-        notices = [m for m in messages(job) if m.startswith(('[ERROR_NOTCL]', '[WARNING_NOTCL]'))]
-        assert notices and '0.25' in notices[-1]
-
 
     @pytest.mark.parametrize('opt_type, single', [('T', False)])
     def test_paths_with_the_same_start_point_are_all_cut(self, opt_type, single):

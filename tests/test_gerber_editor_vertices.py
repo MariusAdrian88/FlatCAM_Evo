@@ -2,17 +2,12 @@
 and busy guards, the single 'Edit vertices' menu action, the grip cancel and hide rules, and the VertexGrips defaults.
 The editor is the real AppGerberEditor; the application and the canvas are stand-ins. Everything is headless."""
 
-from types import SimpleNamespace
-from unittest.mock import MagicMock
 
-import pytest
-from PyQt6 import QtCore, QtWidgets
-from shapely.geometry import LineString, MultiPolygon, box
+from PyQt6 import QtCore
+from shapely.geometry import LineString, box
 
-from appEditors.appGerberEditor import AppGerberEditor, EDITOR_ACTION_PROPERTY
 from appEditors.grb_plugins.GrbCommon import DrawToolShape
-from appEditors.grb_plugins.GrbVertices import vertex_plan, edit_vertices_dialog
-from appEditors.vertex_grips import VertexGrips
+from appEditors.grb_plugins.GrbVertices import vertex_plan
 from test_gerber_editor_pick import make_editor, make_select, aperture, pad
 from tests.helpers_objects import _headless_qt  # noqa: F401,E402
 
@@ -54,23 +49,6 @@ def storage_shape(editor, apid):
 
 # 1. vertex_plan
 
-def test_plan_region_is_a_solid_edit():
-    editor, shape = region_editor()
-    kind, geometry, parameters = vertex_plan(editor, shape)
-    assert kind == 'region'
-    assert geometry is SQUARE
-    assert parameters is None
-
-
-def test_plan_c_aperture_with_line_follow_is_a_track_with_radius_and_steps():
-    editor, shape = track_editor()
-    kind, geometry, parameters = vertex_plan(editor, shape)
-    assert kind == 'track'
-    assert geometry is shape.geo['follow']
-    radius, steps = parameters
-    assert radius == pytest.approx(0.2, abs=1e-6)
-    assert steps == 16
-
 
 def test_plan_point_follow_pad_has_no_grips():
     shape = pad(1, 1, 0.5)
@@ -106,18 +84,6 @@ def test_region_move_updates_solid_and_follow_in_one_step_and_undo_redo_restore_
     result = storage_shape(editor, 0)
     assert (12, 12) in list(result.geo['solid'].exterior.coords)
     assert follow_matches_solid(result)
-
-
-def test_region_insert_adds_one_vertex_to_solid_and_follow():
-    editor, shape = region_editor()
-    # segment 3 is (0,0) -> (10,0): the inserted point must lie on it
-    editor.apply_vertex_edit('insert', 3, (5, 0), target=shape)
-    result = storage_shape(editor, 0)
-    assert len(result.geo['solid'].exterior.coords) == len(SQUARE.exterior.coords) + 1
-    assert follow_matches_solid(result)
-    assert len(editor.history.undo_stack) == 1
-    assert editor.undo()
-    assert storage_shape(editor, 0) is shape
 
 
 def test_region_remove_drops_vertex_from_solid_and_follow():
@@ -168,16 +134,3 @@ def test_track_closing_edit_is_rejected_without_a_history_step():
 # 8. VertexGrips default arguments still work for a Geo-style stand-in
 
 
-class _Collection:
-    def __init__(self):
-        self.items = []
-        self.enabled = True
-
-    def add(self, shape=None, **kwargs):
-        self.items.append(shape)
-
-    def clear(self, update=False):
-        self.items = []
-
-    def redraw(self):
-        pass

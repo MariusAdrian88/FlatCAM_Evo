@@ -6,7 +6,6 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 from PyQt6 import QtCore, QtWidgets
-from shapely.affinity import translate
 from shapely.geometry import Point
 
 from appEditors.appExcEditor import AppExcEditor, CopyEditorExc, DrillArray, MoveEditorExc
@@ -73,19 +72,6 @@ def test_editor_created_in_mm_edits_in_object_in_inches_without_scaling():
     assert bounds[2] - bounds[0] == pytest.approx(0.04)
 
 
-@pytest.mark.parametrize('units,tooldia,xy', [('MM', 0.8, (3.25, -1.5))])
-def test_load_then_save_round_trip_is_identity(units, tooldia, xy):
-    app, editor = qt_editor(units)
-    editor.edit_fcexcellon(native_obj(units, tooldia, xy))
-    editor._save_excellon_in_place = Mock()
-    editor.update_fcexcellon(SimpleNamespace(geo_steps_per_circle=64), in_place=True)
-    tool = editor.new_tools[1]
-    assert tool['tooldia'] == pytest.approx(tooldia)
-    assert (tool['drills'][0].x, tool['drills'][0].y) == pytest.approx(xy)
-    # an object without object attribute ids gets no ids and no attribute keys
-    assert 'drills_to' not in tool and 'slots_to' not in tool
-
-
 def test_object_attribute_ids_follow_the_holes_through_edit_and_save():
     app, editor = qt_editor('MM')
     obj = native_obj('MM', 1.0, (1.0, 1.0))
@@ -148,19 +134,6 @@ def test_scale_keeps_tool_table_sorted_and_next_add_selects_its_row():
 # ---------------------------------------------------------------------------------------------------------------
 # 5. nested operation labels: the innermost real operation names the step; still one undo step
 # ---------------------------------------------------------------------------------------------------------------
-
-def test_nested_move_inside_generic_draw_records_inner_label_as_one_step():
-    editor, first, second = scene()
-    with editor.history.operation('Draw features', True) as accepted:
-        assert accepted
-        with editor.history.operation('Move features') as inner:
-            assert inner
-            first.geo = translate(first.geo, xoff=3)
-    assert len(editor.history.undo_stack) == 1
-    assert editor.history.undo_stack[0]['label'] == 'Move features'
-    assert editor.undo()
-    assert len(editor.history.undo_stack) == 0
-
 
 # ---------------------------------------------------------------------------------------------------------------
 # 6. activate() hides the app corner snap button

@@ -8,8 +8,6 @@ from appObjects.ProjectContext import ProjectContext, unique_name, same_path, na
 
 
 class TestProjectContext(unittest.TestCase):
-    def test_unique_name_free(self):
-        self.assertEqual(unique_name('Board', ['Other']), 'Board')
 
     def test_unique_name_adds_number(self):
         self.assertEqual(unique_name('Board', ['Board']), 'Board_1')
@@ -19,8 +17,6 @@ class TestProjectContext(unittest.TestCase):
         self.assertFalse(same_path('a/c.FlatPrj', 'a/d.FlatPrj'))
         self.assertFalse(same_path(None, 'a/d.FlatPrj'))
 
-    def test_name_from_filename(self):
-        self.assertEqual(name_from_filename(os.path.join('x', 'Board_A.FlatPrj')), 'Board_A')
 
     def test_is_valid_name(self):
         self.assertTrue(is_valid_name('Board A'))

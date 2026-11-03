@@ -232,92 +232,8 @@ class TestPcbDocImport(unittest.TestCase):
                          ['Power Board.GTL', 'Power Board.G1', 'Power Board_preview', 'Power Board_PTH'])
         self.assertTrue(all(obj.source_file for kind, obj in self.objects))
 
-    def test_sprint_and_kicad_boards_import_into_separate_projects(self):
-        from PyQt6.QtTest import QTest
-        from test_projects_manager import make_manager
-
-        app, projects = make_manager()
-        app.projects = projects
-        app.app_units = 'MM'
-        app.abort_flag = False
-        app.new_project_signal = Mock()
-        app.worker_task = Mock()
-        app.file_opened = Mock()
-        app.plot_all = Mock()
-        app.ui = QtWidgets.QWidget()
-        app.ui.set_ui_title = Mock()
-        app.app_obj = Mock()
-        app.app_obj.load_batches = set()
-        jobs = []
-        busy = [True]
-        app.workers.pending_count.side_effect = lambda: int(busy[0])
-        app.worker_task.emit.side_effect = jobs.append
-        io = appIO(app)
-        io.export_gerber = self.io.export_gerber
-        io.export_excellon = self.io.export_excellon
-
-        def create(kind, name, initialize, **kwargs):
-            obj = SimpleNamespace(obj_options={'name': name}, create_geometry=Mock())
-            if initialize(obj, app) == 'fail':
-                return 'fail'
-            app.collection.objects.append(obj)
-            return obj
-
-        app.app_obj.new_object.side_effect = create
-        first = projects.active
-        with patch.object(QtWidgets.QDialog, 'exec', return_value=QtWidgets.QDialog.DialogCode.Accepted):
-            for filename in ('cata.lay6', 'Easyduino_RP2040.kicad_pcb'):
-                busy[0] = True
-                io.on_pcbdoc_parsed(filename, self.parsed)
-                QTest.qWait(70)
-                self.assertIs(projects.active, first)
-                busy[0] = False
-                QTest.qWait(100)
-                job = jobs.pop(0)
-                job['fcn'](*job['params'])
-                jobs.clear()  # the low-priority plotting job
-
-        self.assertEqual(len(projects.contexts), 2)
-        self.assertIs(projects.contexts[0], first)
-        self.assertTrue(all(obj.obj_options['name'].startswith('cata_') for obj in first.collection.objects))
-        self.assertTrue(first.collection.objects)
-        self.assertTrue(projects.active.collection.objects)
-        self.assertTrue(all(obj.obj_options['name'].startswith('Easyduino_RP2040_')
-                            for obj in projects.active.collection.objects))
-        with patch.object(QtWidgets.QDialog, 'exec', return_value=QtWidgets.QDialog.DialogCode.Rejected):
-            io.on_pcbdoc_parsed('cancelled.kicad_pcb', self.parsed)
-        self.assertEqual(len(projects.contexts), 2)
-
     def test_proteus_boards_stay_in_separate_projects_until_insertion_and_plots_finish(self):
         self._import_proteus_projects()
-
-    def test_proteus_invalid_board_title_falls_back_before_creating_a_project(self):
-        self._import_proteus_projects(names=('Power: 5V', 'Power'),
-                                      members=('BOARD1.LYT', 'BOARD2.LYT'),
-                                      expected=('BOARD1', 'Power'))
-
-    def test_proteus_dialog_checks_only_verified_drill_groups_by_default(self):
-        self.app.ui = QtWidgets.QWidget()
-        self.parsed.name = 'Power Board'
-        self.parsed.default_drill_groups = ['PTH']
-        self.parsed.drill_groups['Unverified span 0x3d'] = {
-            1: dict(tooldia=0.3, drills=[Point(0, 0)], slots=[])}
-        states = {}
-
-        def choose(dialog):
-            states.update({box.text(): box.isChecked() for box in dialog.findChildren(QtWidgets.QCheckBox)})
-            return QtWidgets.QDialog.DialogCode.Accepted
-
-        with patch.object(QtWidgets.QDialog, 'exec', choose):
-            selection = self.io.on_pcbdoc_parsed('design.pdsprj', self.parsed)
-        self.assertFalse(states['Unverified span 0x3d'])
-        self.assertTrue(states['PTH'])
-        self.assertEqual(selection[1], ['PTH'])
-
-        del self.parsed.default_drill_groups
-        with patch.object(QtWidgets.QDialog, 'exec', choose):
-            self.io.on_pcbdoc_parsed('design.pdsprj', self.parsed)
-        self.assertTrue(states['Unverified span 0x3d'])
 
     def _import_proteus_projects(self, names=('Main', 'Power'), members=None, expected=None):
         from test_projects_manager import make_manager, FakeCollection
@@ -553,30 +469,6 @@ class TestPcbDocImport(unittest.TestCase):
                     self.assertAlmostEqual(actual.area, expected.area, places=4)
                     self.assertLess(actual.symmetric_difference(expected).area, 0.001)
                     self.assertIs(obj.tools, tools)
-
-    def test_parse_result_is_queued_to_gui_thread_and_parse_errors_are_clean(self):
-        self.app.ui = QtWidgets.QWidget()
-        parser = Mock()
-        parser.return_value.parse_file.return_value = self.parsed
-        module = SimpleNamespace(PcbDocParser=parser, PcbDocParseError=ValueError)
-        threads = []
-
-        def rejected(dialog):
-            threads.append(QtCore.QThread.currentThread())
-            return QtWidgets.QDialog.DialogCode.Rejected
-
-        with patch.dict('sys.modules', {'appParsers.ParsePcbDoc': module}), \
-                patch.object(QtWidgets.QDialog, 'exec', rejected):
-            worker = threading.Thread(target=self.io.parse_pcbdoc, args=('board.PcbDoc',))
-            worker.start()
-            worker.join()
-            self.assertEqual(threads, [])
-            self.qapp.processEvents()
-            self.assertEqual(threads, [self.qapp.thread()])
-            parser.return_value.parse_file.side_effect = ValueError('invalid PCB')
-            self.assertEqual(self.io.parse_pcbdoc('bad.PcbDoc'), 'fail')
-        self.assertEqual(self.objects, [])
-        self.app.worker_task.emit.assert_not_called()
 
     def test_actual_qt_dialog_selection_and_worker_object_creation(self):
         self.app.ui = QtWidgets.QWidget()

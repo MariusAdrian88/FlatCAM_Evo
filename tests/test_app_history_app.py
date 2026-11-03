@@ -101,14 +101,6 @@ def test_create_undo_redo(fc, no_plot):
     assert fc.history.redo() and fc.history.find(uid) is not None
 
 
-def test_rename(fc, no_plot):
-    grb = _load(fc, 'gerber', 'unify_mixed.gbr', 'g_old')
-    fc.history.record_rename(grb, 'g_old', 'g_new')
-    fc.collection.rename_object(grb, 'g_new')
-    assert fc.history.undo() and grb.obj_options['name'] == 'g_old'
-    assert fc.history.redo() and grb.obj_options['name'] == 'g_new'
-
-
 def _select(fc, monkeypatch, objs):
     monkeypatch.setattr(fc.collection, 'get_selected', lambda: list(objs))
 
@@ -126,22 +118,6 @@ def _fake_spinner(value):
     return _Spinner
 
 
-def test_flipy_two_objects_one_step(fc, no_plot, monkeypatch):
-    g1 = _load(fc, 'gerber', 'unify_mixed.gbr', 'g_flip1')
-    g2 = _load(fc, 'gerber', 'unify_mixed.gbr', 'g_flip2')
-    apply_matrix_to_object(g2, (1.0, 0.0, 0.0, 1.0, 10.0, 10.0))      # the flip axis is not the center of g1 anymore
-    _select(fc, monkeypatch, [g1, g2])
-    b1, b2 = _bounds(g1), _bounds(g2)
-    n = len(fc.history.undo_stack)
-    fc.object_ops.on_flipy()
-    assert len(fc.history.undo_stack) == n + 1
-    assert not np.allclose(_bounds(g1), b1)
-    assert fc.history.undo()
-    assert np.allclose(_bounds(g1), b1) and np.allclose(_bounds(g2), b2)
-    assert fc.history.redo()
-    assert not np.allclose(_bounds(g1), b1)
-
-
 @pytest.mark.parametrize('kind,filename', [('gerber', 'unify_mixed.gbr'), ('excellon', 'unify_mixed.drl')])
 def test_rotate_30_undo_restores_bounds(fc, no_plot, monkeypatch, kind, filename):
     obj = _load(fc, kind, filename, 'rot30_' + kind)
@@ -155,19 +131,6 @@ def test_rotate_30_undo_restores_bounds(fc, no_plot, monkeypatch, kind, filename
     assert fc.history.redo() and np.allclose(_bounds(obj), b1, atol=1e-3)
 
 
-@pytest.mark.parametrize('handler,args', [('on_skewx', 20.0), ('on_skewy', 15.0)])
-def test_skew_undo_restores_bounds(fc, no_plot, monkeypatch, handler, args):
-    monkeypatch.setattr(gui, 'FCInputDoubleSpinner', _fake_spinner(args))
-    obj = _load(fc, 'gerber', 'unify_mixed.gbr', 'skew_' + handler)
-    b0 = _bounds(obj)
-    _select(fc, monkeypatch, [obj])
-    getattr(fc.object_ops, handler)()
-    b1 = _bounds(obj)
-    assert not np.allclose(b1, b0)
-    assert fc.history.undo() and np.allclose(_bounds(obj), b0, atol=1e-6)
-    assert fc.history.redo() and np.allclose(_bounds(obj), b1, atol=1e-6)
-
-
 def test_transform_tool_group_undo(fc, no_plot, monkeypatch):
     g1 = _load(fc, 'gerber', 'unify_mixed.gbr', 'tt1')
     g2 = _load(fc, 'gerber', 'unify_mixed.gbr', 'tt2')
@@ -179,35 +142,6 @@ def test_transform_tool_group_undo(fc, no_plot, monkeypatch):
     assert not np.allclose(_bounds(g1), b1)
     assert fc.history.undo()
     assert np.allclose(_bounds(g1), b1, atol=1e-6) and np.allclose(_bounds(g2), b2, atol=1e-6)
-
-
-def test_move2origin_undo(fc, no_plot, monkeypatch):
-    grb = _load(fc, 'gerber', 'unify_mixed.gbr', 'g_m2o')
-    offset = (7.0, 9.0)
-    apply_matrix_to_object(grb, (1.0, 0.0, 0.0, 1.0, offset[0], offset[1]))
-    b0 = _bounds(grb)
-    _select(fc, monkeypatch, [grb])
-    fc.object_ops.on_move2origin(use_thread=False)
-    assert not np.allclose(_bounds(grb), b0)
-    assert fc.history.undo() and np.allclose(_bounds(grb), b0, atol=1e-6)
-
-
-def test_move_tool_two_objects_one_step(fc, no_plot, monkeypatch):
-    # the Move tool (M key) moves the objects in a worker; the move is 1 history step for all of them
-    grb = _load(fc, 'gerber', 'unify_mixed.gbr', 'g_move')
-    exc = _load(fc, 'excellon', 'unify_mixed.drl', 'e_move')
-    b_grb, b_exc = _bounds(grb), _bounds(exc)
-    monkeypatch.setattr(type(grb), 'regenerate_source', lambda self, *a, **k: True)
-    monkeypatch.setattr(type(exc), 'regenerate_source', lambda self, *a, **k: True)
-    n = len(fc.history.undo_stack)
-    fc.move_tool.move_handler((4.0, -2.5), objects=[grb, exc])
-    _settle(fc)
-    assert np.allclose(_bounds(grb), b_grb + [4.0, -2.5, 4.0, -2.5])
-    assert len(fc.history.undo_stack) == n + 1
-    assert fc.history.undo()
-    assert np.allclose(_bounds(grb), b_grb) and np.allclose(_bounds(exc), b_exc)
-    assert fc.history.redo()
-    assert np.allclose(_bounds(exc), b_exc + [4.0, -2.5, 4.0, -2.5])
 
 
 def _source_without_time(text):

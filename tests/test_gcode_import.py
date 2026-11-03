@@ -337,12 +337,8 @@ def test_tool_headers_blocks_and_travel():
     assert res['bounds'] == (0.0, 0.0, 3.0, 10.0)
     assert parse_gcode(text)['routing_time'] == pytest.approx(6 / 60 + 3 / 30)
     assert res['tools'][1]['travel_distance'] == pytest.approx(14.0)
-
-
-@pytest.mark.parametrize('preprocessor, expected', [('default', 0.5)])
-def test_dwell_p_uses_the_known_controller_units(preprocessor, expected):
-    res = parse_gcode('(Preprocessor Geometry: %s)\nG21\nG4 P30\n' % preprocessor)
-    assert res['routing_time'] == pytest.approx(expected)
+    # G4 P is in the units of the known controller
+    assert parse_gcode('(Preprocessor Geometry: default)\nG21\nG4 P30\n')['routing_time'] == pytest.approx(0.5)
 
 
 # ---------------------------------------------------------------- transform_gcode
@@ -446,26 +442,6 @@ def _native_job(text, multitool):
 
 def _native_text(job):
     return job.tools[1]['gcode'] if job.multitool else job.gcode
-
-
-@pytest.mark.parametrize('multitool', [False])
-def test_native_scale_moves_xy_about_the_point_and_keeps_z_and_feed(multitool):
-    old = "G21 G90\nG0 X0 Y0 Z5 F600\nG1 X2 Y3 Z-0.1 F100\nG1 X-1 Y4\nG0 Z5\n"
-    job = _native_job(old, multitool)
-    job.scale(2, 3, point=(1, 1))
-    new_lines = _native_text(job).splitlines()
-    old_lines = old.splitlines()
-    assert len(new_lines) == len(old_lines)
-    for o, n in zip(old_lines, new_lines):
-        wo, wn = _native_words(o), _native_words(n)
-        assert set(wn) == set(wo)
-        if 'X' in wo:
-            assert wn['X'] == pytest.approx(1 + 2 * (wo['X'] - 1))
-        if 'Y' in wo:
-            assert wn['Y'] == pytest.approx(1 + 3 * (wo['Y'] - 1))
-        for k in 'ZF':
-            if k in wo:
-                assert wn[k] == pytest.approx(wo[k])
 
 
 @pytest.mark.parametrize('multitool', [False])

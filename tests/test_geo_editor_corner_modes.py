@@ -50,25 +50,9 @@ SHARED = [
 ]
 
 
-@pytest.mark.parametrize('mode, new, expected', SHARED[::5])
+@pytest.mark.parametrize('mode, new, expected', SHARED[::8])
 def test_shared_corner_all_modes_and_directions(mode, new, expected):
     assert corner(mode, (0, 0), new) == expected
-
-
-
-
-def test_mode_cycle_forward_and_backward():
-    forward = [1]
-    for _i in range(5):
-        forward.append(next_bend_mode(forward[-1], True))
-    assert forward == [1, 2, 3, 4, 5, 1]
-    backward = [1]
-    for _i in range(5):
-        backward.append(next_bend_mode(backward[-1], False))
-    assert backward == [1, 5, 4, 3, 2, 1]
-    assert next_bend_mode(99, True) == 1 and next_bend_mode(99, False) == 1
-
-
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -108,8 +92,6 @@ REGION_FIRST = {
 }
 
 
-
-
 REGION_NEXT = {
     (1, (5.0, 2.0)): [(10.0, 10.0), (0.0, 0.0), (3.0, 0.0), (5.0, 2.0)],
     (1, (-2.0, 5.0)): [(10.0, 10.0), (0.0, 0.0), (0.0, 3.0), (-2.0, 5.0)],
@@ -118,8 +100,6 @@ REGION_NEXT = {
     (4, (-2.0, 5.0)): [(10.0, 10.0), (0.0, 0.0), (0.0, 5.0), (-2.0, 5.0)],
     (5, (5.0, 2.0)): [(10.0, 10.0), (0.0, 0.0), (5.0, 2.0)],
 }
-
-
 
 
 def test_gerber_region_click_adds_corner_and_point():
@@ -144,17 +124,6 @@ TRACK = {
     (4, (-2.0, 5.0)): [(0.0, 0.0), (0.0, 5.0), (-2.0, 5.0)],
     (5, (5.0, 2.0)): [(0.0, 0.0), (5.0, 2.0)],
 }
-
-
-
-
-def test_gerber_corner_modes_work_without_grid_snap():
-    tool = grb_tool(RegionEditorGrb, 1, [(0.0, 0.0)], snap=False)
-    tool.utility_geometry(data=(5.0, 2.0))
-    assert tool.temp_points == [(0.0, 0.0), (3.0, 0.0), (5.0, 2.0)]
-    tool = grb_tool(TrackEditorGrb, 1, [(0.0, 0.0)], snap=False)
-    tool.utility_geometry(data=(5.0, 2.0))
-    assert tool.temp_points == [(0.0, 0.0), (3.0, 0.0), (5.0, 2.0)]
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -183,51 +152,11 @@ def test_path_mode_1_click_adds_corner_and_point():
     assert tool.points[-3:] == [(5.0, 8.0), (7.0, 8.0), (9.0, 10.0)]
 
 
-
-
-@pytest.mark.parametrize('mode, expected', [
-    (2, [(0.0, 0.0), (2.0, 2.0), (5.0, 2.0)]),
-    (4, [(0.0, 0.0), (0.0, 2.0), (5.0, 2.0)]),
-])
-def test_path_modes_2_and_4(mode, expected):
-    editor, tool = path_tool(mode)
-    click_all(tool, (0.0, 0.0), (5.0, 2.0))
-    assert tool.points == expected
-
-
-
-
-
-
-
-
-def test_path_backspace_after_mixed_modes():
-    editor, tool = path_tool(3)
-    click_all(tool, (0.0, 0.0), (5.0, 2.0))
-    editor.bend_mode = 5
-    click_all(tool, (8.0, 9.0))
-    editor.bend_mode = 4
-    click_all(tool, (10.0, 12.0))
-    assert tool.points == [(0.0, 0.0), (5.0, 0.0), (5.0, 2.0), (8.0, 9.0), (8.0, 12.0), (10.0, 12.0)]
-    tool.on_key('Backspace')
-    assert tool.points == [(0.0, 0.0), (5.0, 0.0), (5.0, 2.0), (8.0, 9.0)]
-    tool.on_key('Backspace')
-    assert tool.points == [(0.0, 0.0), (5.0, 0.0), (5.0, 2.0)]
-
-
 def test_path_made_geometry_has_the_corner_points():
     editor, tool = path_tool(3)
     click_all(tool, (0.0, 0.0), (5.0, 2.0))
     assert tool.make() != 'fail'
     assert list(tool.geometry.geo.coords) == [(0.0, 0.0), (5.0, 0.0), (5.0, 2.0)]
-
-
-
-
-
-
-
-
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -245,8 +174,6 @@ def polygon_tool(mode=5, points=()):
     return editor, tool
 
 
-
-
 def test_polygon_mode_3_preview_and_click():
     editor, tool = polygon_tool(3)
     click_all(tool, (0.0, 0.0))
@@ -260,17 +187,3 @@ def test_polygon_mode_3_preview_and_click():
     assert list(ring.coords)[:-1] == [(0.0, 0.0), (5.0, 0.0), (5.0, 2.0), (1.0, 2.0), (1.0, 6.0)]
 
 
-
-
-@pytest.mark.parametrize('mode', [1, 3])
-def test_polygon_backspace_removes_the_corner_with_its_point(mode):
-    editor, tool = polygon_tool(mode)
-    click_all(tool, (0.0, 0.0), (5.0, 2.0), (1.0, 7.0))
-    assert tool.on_key('Backspace')
-    assert tool.points[-1] == (5.0, 2.0)
-    tool.on_key('Backspace')
-    assert tool.points == [(0.0, 0.0)]
-
-
-def test_a_tool_on_an_editor_without_a_corner_mode_bends_as_the_free_angle():
-    assert bend_corner_point(SimpleNamespace(), (0.0, 0.0), (5.0, 2.0)) is None

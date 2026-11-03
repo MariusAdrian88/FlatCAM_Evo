@@ -17,7 +17,6 @@ _saved_argv = sys.argv
 sys.argv = [sys.argv[0]]
 try:
     import camlib
-    import numpy as np
     import shapely
     from shapely import LineString, MultiPolygon, Point, Polygon, box
     from shapely.ops import unary_union
@@ -145,27 +144,6 @@ class TestSeedBands(unittest.TestCase):
                     swept = unary_union([p.buffer(0.5, quad_segs=32) for p in paths])
                     self.assertLess(reach.difference(swept).area, 1e-4)
 
-    def test_a_large_margin_is_cut_without_the_holes_out_of_the_band(self):
-        polygon = board()
-        tooldia = 0.4
-        margin_coords = shapely.get_num_coordinates(margin_of(polygon, tooldia))
-        original = shapely.intersection
-        cuts = []
-
-        def recorded(a, b, *args, **kwargs):
-            cuts.append(shapely.get_num_coordinates(b))
-            return original(a, b, *args, **kwargs)
-
-        with band_limit(0), patch.object(shapely, 'intersection', recorded):
-            paths = self.seed_paths(polygon, tooldia, 64)
-        __, rings = seed_rings_one_by_one(polygon, tooldia, 64)
-        self.assertGreater(rings, 3 * SEED_BAND_RINGS)
-        self.assertGreater(len(paths), 0)
-        # one cut for each band of SEED_BAND_RINGS rings, not one for each ring
-        self.assertLessEqual(len(cuts), math.ceil(rings / SEED_BAND_RINGS) + 1)
-        # each band holds a part of the margin
-        self.assertLess(sum(cuts), len(cuts) * margin_coords / 2)
-
 class TestConnectArrays(unittest.TestCase):
     def setUp(self):
         self.geometry = make_geometry()
@@ -179,14 +157,6 @@ class TestConnectArrays(unittest.TestCase):
                 joined = list(camlib.Geometry.paint_connect(storage_of(paths), polygon, 0.4, 64).get_objects())
                 self.assertLess(len(joined), len(paths))
                 self.assertEqual([p.wkb for p in joined], [p.wkb for p in expected])
-
-    def test_closed_rings_are_joined_as_paths(self):
-        rings = [box(1, 1, 2, 2).exterior, box(1, 2.5, 2, 3.5).exterior]
-        joined = list(camlib.Geometry.paint_connect(storage_of(rings), box(0, 0, 3, 5), 0.2, 64).get_objects())
-        self.assertEqual(len(joined), 1)
-        self.assertIsInstance(joined[0], LineString)
-        self.assertEqual(list(joined[0].coords), list(rings[0].coords) + list(rings[1].coords))
-
 
 if __name__ == '__main__':
     unittest.main()

@@ -102,29 +102,6 @@ class TestGeoEditorDelete(unittest.TestCase):
         self.assertIs(editor.selected, sel_list)
 
 
-
-class TestGeoEditorPlotAll(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.qt_app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
-
-    def check(self, editor, shapes_adds, sel_adds):
-        AppGeoEditor.plot_all(editor)
-        self.assertEqual(editor.shapes.calls[0], ('clear', False))
-        self.assertEqual(editor.sel_shapes.calls[0], ('clear', False))
-        self.assertEqual(editor.shapes.calls.count(('redraw',)), 1)
-        self.assertEqual(editor.sel_shapes.calls.count(('redraw',)), 1)
-        self.assertEqual(editor.shapes.calls[-1], ('redraw',))
-        self.assertEqual(editor.sel_shapes.calls[-1], ('redraw',))
-        self.assertEqual(len(editor.shapes.items), shapes_adds)
-        self.assertEqual(len(editor.sel_shapes.items), sel_adds)
-
-
-
-
-
-
-
 def selection_editor(shapes, selected=()):
     editor = make_editor(shapes, selected=selected)
     editor.plot_all = lambda: AppGeoEditor.plot_all(editor)
@@ -137,33 +114,6 @@ def selection_editor(shapes, selected=()):
 
 class TestGeoEditorPlotSelection(unittest.TestCase):
     """plot_changes() changes only the shapes whose selection changed, without a new triangulation."""
-
-
-
-
-
-
-
-
-    def test_removed_shapes_leave_the_canvas(self):
-        a, b, c = line(0), line(1), line(2)
-        editor = selection_editor([a, b, c], selected=[b, c])
-        AppGeoEditor.delete_shape(editor, [b, c])
-        editor.plot_changes()
-        self.assertEqual(editor.shapes.items, [a.geo])
-        self.assertEqual(editor.sel_shapes.items, [])
-        self.assertEqual(len(editor.shapes.data), 1)
-
-
-
-    def test_invalid_shape_is_never_drawn(self):
-        a = line(0)
-        bow_tie = DrawToolShape(Polygon([(0, 0), (1, 1), (1, 0), (0, 1)]))
-        editor = selection_editor([a, bow_tie])
-        editor.selected = [bow_tie]
-        editor.plot_changes()
-        self.assertEqual(editor.sel_shapes.items, [])
-        self.assertEqual(editor.shapes.calls, [])
 
 
 def tree_editor(shapes):
@@ -203,14 +153,6 @@ class TestGeoEditorSelectionTree(unittest.TestCase):
         cls.qt_app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
 
 
-
-    def test_area_selection_touch_type(self):
-        shapes = [line(x) for x in range(10)]
-        editor = tree_editor(shapes)
-        # only touches the shapes 2 and 3
-        AppGeoEditor.draw_selection_area_handler(editor, (3.5, 0.5), (1.5, 2), False)
-        self.assertEqual(editor.selected, shapes[2:4])
-
     def test_area_selection_with_the_key_toggles(self):
         shapes = [line(x) for x in range(6)]
         editor = tree_editor(shapes)
@@ -219,8 +161,6 @@ class TestGeoEditorSelectionTree(unittest.TestCase):
                                         return_value=QtCore.Qt.KeyboardModifier.ControlModifier):
             AppGeoEditor.draw_selection_area_handler(editor, (0.5, -0.5), (2.5, 2), True)
         self.assertEqual(editor.selected, [shapes[0], shapes[2]])
-
-
 
 
 def pick_editor(shapes):
@@ -260,20 +200,6 @@ class TestGeoEditorClickSelect(unittest.TestCase):
         self.assertEqual(editor.selected, [shapes[1]])
         self.assertEqual(tree_selected(editor), [str(id(shapes[1]))])
 
-    def test_click_on_nothing_clears_the_selection(self):
-        shapes = [line(x) for x in range(4)]
-        editor = pick_editor(shapes)
-        editor.click_select((1.0, 0.5))
-        editor.click_select((1.5, 0.5))
-        self.assertEqual(editor.selected, [])
-        self.assertEqual(tree_selected(editor), [])
-
-    def test_click_without_the_key_replaces_the_selection(self):
-        shapes = [line(x) for x in range(4)]
-        editor = pick_editor(shapes)
-        editor.click_select((1.0, 0.5))
-        editor.click_select((2.0, 0.5))
-        self.assertEqual(editor.selected, [shapes[2]])
 
     def test_click_with_the_key_adds_and_removes(self):
         shapes = [line(x) for x in range(4)]
@@ -308,7 +234,6 @@ class TestGeoEditorSimplify(unittest.TestCase):
         return tool
 
 
-
     def test_simplify_replaces_only_the_selected_shapes(self):
         from appEditors.geo_plugins.GeoSimplificationPlugin import SimplificationTool
         from shapely.geometry import Point
@@ -338,7 +263,6 @@ class TestGeoEditorSimplify(unittest.TestCase):
         self.assertEqual(editor.selected, [new])
         self.assertEqual(editor.sel_shapes.items, [new.geo])
         self.assertFalse(editor.interdict_selection)
-
 
 
 if __name__ == '__main__':

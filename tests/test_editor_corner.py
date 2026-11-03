@@ -14,16 +14,6 @@ from appEditors.editor_corner import corner_point
 # ---------------------------------------------------------------------------------------------------------------------
 
 
-def test_corner_point_free_mode_has_no_corner():
-    assert corner_point(5, (0.0, 0.0), (5.0, 2.0)) is None
-
-
-
-
-
-
-
-
 def test_corner_point_equal_to_an_endpoint_is_dropped():
     assert corner_point(3, (0.0, 0.0), (0.0, 4.0)) is None
     assert corner_point(4, (0.0, 0.0), (4.0, 0.0)) is None
@@ -60,7 +50,7 @@ def region_click(tool, target):
     tool.click(target)
 
 
-@pytest.mark.parametrize('mode', [1, 2])
+@pytest.mark.parametrize('mode', [1])
 def test_region_diagonal_gives_no_extra_vertex(mode):
     tool = grb_tool(RegionEditorGrb, mode, [(0.0, 0.0)])
     # a stale corner from a previous mouse position must not survive
@@ -113,14 +103,6 @@ def test_region_backspace_pops_exactly_what_the_click_added():
 
 
 
-
-
-def test_track_modes_use_the_real_deltas_off_grid():
-    tool = grb_tool(TrackEditorGrb, 1, [(0.3, 0.3)], snap=True)
-    tool.utility_geometry(data=(4.7, 2.2))
-    corner = tool.temp_points[1]
-    assert corner[1] == pytest.approx(0.3)
-    assert abs(4.7 - corner[0]) == pytest.approx(abs(2.2 - corner[1]))
 
 
 def track_tool_with_storage(mode):

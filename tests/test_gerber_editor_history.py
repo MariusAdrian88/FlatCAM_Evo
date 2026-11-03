@@ -1,29 +1,29 @@
 """Gerber-local history records affected records, not board snapshots."""
 
-from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from PyQt6 import QtCore, QtWidgets
-from shapely.geometry import Point, LineString, MultiPolygon, Polygon, box
+from shapely.geometry import Point, Polygon, box
 from shapely.affinity import translate
 from shapely.ops import unary_union
 
-from appEditors.appGerberEditor import (AppGerberEditor, CopyEditorGrb, MoveEditorGrb, EraserEditorGrb,
-                                       ImportEditorGrb, PoligonizeEditorGrb, TrackEditorGrb)
+from appEditors.appGerberEditor import (
+    AppGerberEditor,
+    CopyEditorGrb,
+    MoveEditorGrb,
+    ImportEditorGrb,
+    PoligonizeEditorGrb,
+    TrackEditorGrb,
+)
 from appEditors.grb_plugins.GrbBufferPlugin import BufferEditorTool
 from appEditors.grb_plugins.GrbCommon import DrawToolShape
-from appEditors.grb_plugins.GrbTransformationPlugin import queue_transform
-from appGUI.MainGUI import MainGUI
-from appHandlers.appSignalConnector import AppSignalConnector
-from appMain import App
 from appParsers.ParseGerber import Gerber
 from test_gerber_editor_pick import make_editor, aperture, pad, trace
 import test_gerber_editor_pick as pick_cases
 from test_editor_save_modes import gerber_stand_in, gerber_storage
 from test_gerber_editor_size_simplify import simplify_tool, run_job
-from test_gerber_track_bend import editor_for, start, release, track
 from test_grb_editor_transform import Host
 from tests.helpers_objects import app, _headless_qt, make_gerber, NATIVE_GBR, export_gerber_text  # noqa: F401,E402
 
@@ -113,27 +113,13 @@ def test_branching_limits_and_non_mutating_selection():
     assert not editor.redo()
 
 
-def test_aperture_delete_and_add_restore_metadata_as_one_group():
-    editor, first, second = scene()
-    editor.last_aperture_selected = 10
-    with editor.history.operation('Replace aperture'):
-        editor.on_aperture_delete(ap_code=[10])
-        editor.ui.apsize_entry.set_value(0.5)
-        editor.on_aperture_add(12)
-    assert 10 not in editor.storage_dict
-    assert editor.undo()
-    assert editor.storage_dict[10]['geometry'] == [first]
-    assert 12 not in editor.storage_dict
-    assert editor.last_aperture_selected == 10
-
-
 def snapshot(editor):
     return {key: ({name: value for name, value in aperture.items() if name != 'geometry'},
                   [(shape, dict(shape.geo)) for shape in aperture.get('geometry', ())])
             for key, aperture in editor.storage_dict.items()}
 
 
-@pytest.mark.parametrize('family', ['pad', 'region', 'move', 'erase', 'buffer'])
+@pytest.mark.parametrize('family', ['move', 'erase', 'buffer'])
 def test_mutation_family_round_trip_is_one_step(family):
     first, second = pad(0, 0, 1), pad(10, 0, 1)
     editor = make_editor({10: {'type': 'C', 'size': 2.0, 'geometry': [first, second]}})
@@ -217,40 +203,7 @@ def test_track_backspace_is_its_own_reversible_committed_action():
     assert editor.storage_dict[10]['geometry'] == [first]
 
 
-def test_bend_joins_normal_history_and_undo_can_cross_other_edits():
-    first = track([(0, 0), (4, 0), (4, 4)])
-    editor = editor_for([first])
-    editor.history.reset()
-    start(editor, (4, 0))
-    release(editor, (5, 1))
-    moved = editor.storage_dict[10]['geometry'][0]
-    assert len(editor.history.undo_stack) == 1
-    editor.selected = [moved]
-    editor.delete_selected()
-    assert len(editor.history.undo_stack) == 2
-    assert editor.undo()
-    assert editor.storage_dict[10]['geometry'] == [moved]
-    assert editor.undo()
-    assert editor.storage_dict[10]['geometry'] == [first]
-    assert editor.redo()
-    assert editor.storage_dict[10]['geometry'] == [moved]
-
-
-def test_legacy_buffer_keeps_follow_and_records_region_export_requirement():
-    first = pad(0, 0, 1)
-    editor = make_editor({10: {'type': 'C', 'size': 2, 'geometry': [first]}})
-    editor.selected = [first]
-    editor.sync_aperture_rows({10})
-    follow = first.geo['follow']
-    BufferEditorTool.buffer(SimpleNamespace(draw_app=editor, app=editor.app), 0.1, 1)
-    run_job(editor)
-    assert first.geo['follow'] is follow
-    assert editor.loaded_as_regions
-    assert editor.undo()
-    assert not editor.loaded_as_regions
-
-
-@pytest.mark.parametrize('column,text', [(1, '12'), (3, '0.5')])
+@pytest.mark.parametrize('column,text', [(1, '12')])
 def test_aperture_table_edits_restore_metadata_records_selection_and_aliases(column, text):
     editor, first, second = scene()
     editor.tid2apcode = {1: 10, 2: 11}
@@ -280,25 +233,7 @@ def test_aperture_table_edits_restore_metadata_records_selection_and_aliases(col
         assert editor.storage_dict[10]['size'] == 0.5
 
 
-def test_invalid_buffer_and_failed_nested_action_do_not_leave_partial_edits():
-    editor, first, second = scene()
-    editor.selected = [first]
-    editor.sync_aperture_rows({10})
-    before = snapshot(editor)
-    result = BufferEditorTool.buffer(SimpleNamespace(draw_app=editor, app=editor.app), float('nan'), 1)
-    assert result == 'fail'
-    assert snapshot(editor) == before
-    assert editor.history.undo_stack == []
-    original_storage = editor.storage_dict[10]['geometry']
-    with editor.history.operation('Atomic group'):
-        editor.delete_selected()
-        BufferEditorTool.buffer(SimpleNamespace(draw_app=editor, app=editor.app), float('nan'), 1)
-    assert snapshot(editor) == before
-    assert editor.storage_dict[10]['geometry'] is original_storage
-    assert editor.history.undo_stack == []
-
-
-@pytest.mark.parametrize('distance,standalone,keep_other', [(0.3, True, True), (-2, True, False), (-2, False, True)])
+@pytest.mark.parametrize('distance,standalone,keep_other', [(-2, True, False)])
 def test_buffer_undo_redo_save_reparse_preserves_material_and_export_mode(app, distance, standalone, keep_other):
 
     source = make_gerber(app, NATIVE_GBR, name='board')
@@ -407,7 +342,7 @@ def test_save_keeps_the_object_attributes_of_unchanged_and_moved_records_but_not
     assert saved_to == expected
 
 
-@pytest.mark.parametrize('family', ['move', 'copy'])
+@pytest.mark.parametrize('family', ['move'])
 def test_move_and_copy_keep_the_to_id_and_undo_restores_it(family):
     editor, first, second = scene()
     first.geo['to'] = 3

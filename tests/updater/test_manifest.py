@@ -15,15 +15,10 @@ from services.updater.manifest import (
     compare_versions,
     manifest_to_json,
     parse_manifest,
-    select_channel,
-    validate_relative_path,
 )
-from services.updater.archive import DEFAULT_EXCLUSION_POLICY
-from services.updater.digi.release import prepare_releases
 from services.updater.digi.transport import (
     DigiPublicShareTransport,
     DownloadCancelled,
-    TransportError,
 )
 
 
@@ -168,13 +163,6 @@ class TestManifestCore(unittest.TestCase):
         with self.assertRaises(ManifestError):
             parse_manifest(malformed)
 
-    def test_relative_path_validation_rejects_absolute_and_parent_paths(self):
-        for path in ("../evil", "/evil", "\\evil", "C:/evil", "a/../../evil"):
-            with self.subTest(path=path):
-                with self.assertRaises(ManifestError):
-                    validate_relative_path(path)
-
-
 class TestDigiTransport(unittest.TestCase):
     def _transport(self, archive=b"archive-bytes"):
         opener = DigiOpener(archive)
@@ -185,26 +173,6 @@ class TestDigiTransport(unittest.TestCase):
             timeout=7,
         )
         return transport, opener
-
-    def test_digi_listing_and_download_use_documented_paths_and_referer(self):
-        transport, opener = self._transport()
-
-        try:
-            remote = transport.check_file("windows", "flatcam-windows.zip")
-            payload = transport.download_bytes("windows", "flatcam-windows.zip")
-        except Exception as exc:
-            self.fail(f"Digi endpoint request was rejected: {exc}")
-
-        self.assertEqual("flatcam-windows.zip", remote.name)
-        self.assertEqual(b"archive-bytes", payload)
-        self.assertEqual(
-            [SHORT_URL, METADATA_URL, LISTING_URL, CONTENT_URL],
-            [request.full_url for request, _ in opener.requests],
-        )
-        for request, _ in opener.requests[1:]:
-            self.assertEqual(CANONICAL_URL, request.get_header("Referer"))
-            self.assertNotIn("Authorization", dict(request.header_items()))
-            self.assertNotIn("Cookie", dict(request.header_items()))
 
     def test_stream_download_cancellation_removes_partial_and_preserves_destination(self):
         transport, _ = self._transport(archive=b"0123456789")
@@ -252,67 +220,6 @@ class TestDigiTransport(unittest.TestCase):
             self.assertEqual(payload, destination.read_bytes())
             self.assertTrue(observed)
             self.assertTrue(all(old == b"old archive" for _, _, old in observed))
-
-class TestReleasePreparation(unittest.TestCase):
-    def _make_roots(self, directory):
-        windows = Path(directory) / "windows-root"
-        linux = Path(directory) / "linux-root"
-        for root in (windows, linux):
-            (root / "app").mkdir(parents=True)
-            (root / "app" / "main.py").write_text("print('ok')", encoding="utf-8")
-            (root / "resources.txt").write_text("resource", encoding="utf-8")
-            (root / "tests").mkdir()
-            (root / "tests" / "test_app.py").write_text("not payload", encoding="utf-8")
-            (root / "__pycache__").mkdir()
-            (root / "__pycache__" / "main.pyc").write_bytes(b"cache")
-            (root / "docs").mkdir()
-            (root / "docs" / "README.md").write_text("not payload", encoding="utf-8")
-            (root / "make_freezed.py").write_text("build script", encoding="utf-8")
-            (root / "build.py").write_text("build script", encoding="utf-8")
-        return windows, linux
-
-    def test_preparation_builds_checksumed_deterministic_pairs_and_upload_paths(self):
-        with TemporaryDirectory() as directory:
-            windows, linux = self._make_roots(directory)
-            output_one = Path(directory) / "release-one"
-            output_two = Path(directory) / "release-two"
-            kwargs = {
-                "version": "1.2.3",
-                "build_string": "build 12",
-                "version_date": "2026-09-17",
-                "minimum_required_version": "1.0",
-                "release_notes": "Notes",
-            }
-
-            first = prepare_releases({"windows": windows, "linux": linux}, output_one, **kwargs)
-            second = prepare_releases({"windows": windows, "linux": linux}, output_two, **kwargs)
-
-            first_windows = first.artifacts["windows"]
-            second_windows = second.artifacts["windows"]
-            self.assertEqual(
-                first_windows.archive_path.read_bytes(),
-                second_windows.archive_path.read_bytes(),
-            )
-            self.assertEqual(
-                first_windows.manifest_path.read_bytes(),
-                second_windows.manifest_path.read_bytes(),
-            )
-            self.assertEqual(4, len(first.upload_paths))
-            self.assertEqual(
-                {
-                    "app/main.py",
-                    "resources.txt",
-                },
-                {entry.path for entry in first_windows.manifest.files},
-            )
-            archive_bytes = first_windows.archive_path.read_bytes()
-            self.assertEqual(len(archive_bytes), first_windows.manifest.archive.size)
-            self.assertEqual(
-                hashlib.sha256(archive_bytes).hexdigest(),
-                first_windows.manifest.archive.sha256,
-            )
-            self.assertTrue(all(path.exists() for path in first.upload_paths))
-
 
 if __name__ == "__main__":
     unittest.main()

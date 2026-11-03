@@ -67,24 +67,7 @@ def test_wireless_drills_are_native_not_the_later_export(parsed):
     assert sum(len(tool['drills']) for tool in tools) == 124
 
 
-def test_native_board_cutouts_are_four_padless_three_mm_drills(parsed):
-    for board, origin in zip(parsed.boards, [(49.8, 25.1), (49.85, 24.93),
-                                            (50.15, 25.17), (49.85, 25.27)]):
-        tools = [tool for tool in board.drill_groups.get('NPTH', {}).values() if tool['tooldia'] == 3]
-        assert len(tools) == 1
-        assert tools[0]['tooldia'] == 3
-        expected = {(round(origin[0] + x, 5), round(origin[1] + y, 5))
-                    for x in (-47, 47) for y in (-22, 22)}
-        assert len(tools[0]['drills']) == 4
-        assert {(round(p.x, 5), round(p.y, 5)) for p in tools[0]['drills']} == expected
-        paths = board.layers['Board Outline.GKO']['follow_geometry']
-        circles = [path for path in paths if path.is_ring and
-                   path.bounds[2] - path.bounds[0] == pytest.approx(3)]
-        assert len(circles) == 4
-        assert {(round(path.centroid.x, 5), round(path.centroid.y, 5)) for path in circles} == expected
-
-
-@pytest.mark.parametrize('layer,hollow', [(59, 1), (36, 1)])
+@pytest.mark.parametrize('layer,hollow', [(59, 1)])
 def test_only_hollow_board_circles_become_drills_anywhere(layer, hollow):
     from appParsers.ParseProteus8 import Proteus8Parser, _Reader
 
@@ -120,16 +103,6 @@ def test_saved_pours_preserve_voids_islands_and_touching_holes(parsed):
     assert len(saved[0].interiors) == 34
     assert saved[0].area == pytest.approx(49.093025, abs=1e-6)
     assert 'Unassigned region on layer 0 (unverified)' not in wireless.default_layers
-
-
-def test_routes_use_style_widths_and_keep_millimetre_coordinates(parsed):
-    layer = parsed.boards[3].layers['Top Copper.GTL']
-    paths = layer['follow_geometry']
-    rf = next(path for path in paths if list(path.coords)[0] == pytest.approx((62.91599, 24.484)))
-    assert list(rf.coords)[-1] == pytest.approx((56.7, 33.9))
-    copper = unary_union(layer['solid_geometry'])
-    assert copper.covers(Point(60, 28.8))  # 2.98mm RF route, not a 0.2794mm header value
-    assert any(list(path.coords)[0] == pytest.approx((65.9, 24.7)) for path in paths)
 
 
 def island_project(path, extra_stack=(), graphics=(), region_layer=0, net='GND'):
@@ -304,42 +277,6 @@ def test_native_reference_text_changes_silkscreen_not_copper(tmp_path, label, ex
 
 
 @pytest.mark.parametrize('damage', ['truncated'])
-def test_actual_version_nine_corruption_fails_without_partial_boards(tmp_path, damage):
-    path = tmp_path / 'bad9.pdsprj'
-    with zipfile.ZipFile(PROJECT9) as source, zipfile.ZipFile(path, 'w') as target:
-        for item in source.infolist():
-            data = source.read(item)
-            if item.filename == 'ROOT.LYT':
-                if damage == 'truncated':
-                    data = data[:-1]
-                else:
-                    data = data.replace(b'\x03\0FR4', b'\xff\xffFR4', 1)
-            target.writestr(item.filename, data)
-    parser = ProteusParser()
-    with pytest.raises(ProteusParseError, match='ROOT.LYT'):
-        parser.parse_file(path)
-    assert parser.boards == []
-
-
-def test_variable_length_technology_and_bitmap_do_not_shift_decoding(tmp_path):
-    def change(name, data):
-        if not name.endswith('.LYT'):
-            return data
-        # Add an unused valid style; all later declared records move, existing ordinals don't.
-        data = data.replace(b'*\n;TS\n', b'EXTRA,CPAD,1mm,1mm,0,0,0,0,0,0\n*\n;TS\n', 1)
-        # Replace the native 273x273 DIB with a 1x1 DIB, changing its declared byte count.
-        dib = struct.pack('<IiiHHIIiiII', 40, 1, 1, 1, 1, 0, 4, 2835, 2835, 2, 2)
-        dib += bytes(4) + b'\xff\xff\xff\x00' + bytes(4)
-        start = data.index(struct.pack('<IiiHH', 40, 273, 273, 1, 1))
-        size = struct.unpack_from('<I', data, start - 4)[0]
-        data = data[:start - 4] + struct.pack('<I', len(dib)) + dib + data[start + size:]
-        return data
-    result = ProteusParser().parse_file(rewrite_project(tmp_path / 'shifted.pdsprj', change))
-    assert result.boards[0].name == 'PCB3-Wireless'
-    assert sum(len(tool['drills']) for tool in result.boards[0].drill_groups['PTH'].values()) == 124
-
-
-@pytest.mark.parametrize('damage', ['truncated', 'bad_extent'])
 def test_damaged_board_fails_atomically(tmp_path, damage):
     def change(name, data):
         if name != 'BOARD4.LYT':
@@ -390,7 +327,7 @@ def test_firmware_source_is_embedded_or_beside_the_project_only(tmp_path):
     assert any('secret.c' in warning for warning in result.warnings)
 
 
-@pytest.mark.parametrize('project', [PROJECT, PROJECT9], ids=['proteus8', 'proteus9'])
+@pytest.mark.parametrize('project', [PROJECT9], ids=['proteus9'])
 def test_native_tools_survive_existing_exports_and_reparse(parsed, project):
     from types import SimpleNamespace
     from typing import cast

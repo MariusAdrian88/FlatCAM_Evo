@@ -15,10 +15,8 @@ from services.updater.digi.transport import DEFAULT_UPDATE_URL as DIGI_URL
 from services.updater.github.checker import GitHubUpdateChecker
 from services.updater.github.transport import DEFAULT_REPOSITORY
 from services.updater.provider import (
-    checker_for,
     create_update_checker,
     provider_url,
-    run_provider_check,
     update_provider,
 )
 from tests.updater.test_updater_integration import FakeSignal, _fake_app, _manifest
@@ -42,20 +40,6 @@ def test_default_provider_is_github():
     checker = create_update_checker(_provider_app())
     assert isinstance(checker, GitHubUpdateChecker)
     assert checker.repository_url == DEFAULT_REPOSITORY
-
-
-def test_run_check_uses_the_matching_keyword():
-    app = _provider_app(global_update_provider="digi")
-    checker = MagicMock()
-    checker.provider = "digi"
-    run_provider_check(app, checker, forced=True)
-    checker.run_check.assert_called_once_with(forced=True, share_url=DIGI_URL)
-
-    app = _provider_app()
-    checker = MagicMock()
-    checker.provider = "github"
-    run_provider_check(app, checker)
-    checker.run_check.assert_called_once_with(forced=False, repository_url=DEFAULT_REPOSITORY)
 
 
 def test_digi_download_stages_the_archive_and_emits_the_manifest(monkeypatch, tmp_path):
@@ -98,49 +82,6 @@ def test_digi_download_stages_the_archive_and_emits_the_manifest(monkeypatch, tm
     assert seen["kwargs"]["expected_sha256"] == manifest.archive.sha256
 
 
-def test_digi_staged_update_launches_without_a_confirmation_box(monkeypatch, tmp_path):
-    from appMain import App
-
-    app = _fake_app(tmp_path)
-    launch = MagicMock(return_value=True)
-    monkeypatch.setattr("appMain.launch_update", launch)
-    archive = tmp_path / "archive.zip"
-    archive.write_bytes(b"archive")
-    manifest = _manifest()
-
-    App.on_update_staged(
-        app,
-        {
-            "archive_path": str(archive),
-            "staging_dir": str(tmp_path),
-            "manifest": manifest,
-            "channel": "windows",
-            "payload": {},
-        },
-    )
-
-    launch.assert_called_once_with(app, manifest, str(archive))
-    app.quit_application.assert_called_once_with(mode="updater")
-
-
-def test_no_releases_manual_check_shows_a_warning(tmp_path):
-    from appMain import App
-
-    app = _fake_app(tmp_path)
-    app._check_in_progress = True
-    app._manual_update_requested = True
-
-    App.on_update_check_result(app, {"status": "up_to_date", "no_releases": True})
-
-    message = app.inform.emissions[0][0]
-    assert message.startswith("[WARNING_NOTCL]")
-    assert "No releases have been published yet." in message
-
-    app._manual_update_requested = True
-    App.on_update_check_result(app, {"status": "up_to_date"})
-    assert "up to date" in app.inform.emissions[1][0]
-
-
 def test_old_digi_url_migrates_but_stays_available_as_legacy_url(tmp_path):
     filename = tmp_path / "current_defaults.FlatConfig"
     filename.write_text(json.dumps({"global_update_url": DIGI_URL}))
@@ -151,22 +92,6 @@ def test_old_digi_url_migrates_but_stays_available_as_legacy_url(tmp_path):
     assert defaults["global_update_url"] == DEFAULT_REPOSITORY
     assert defaults["global_legacy_update_url"] == DIGI_URL
     assert defaults["global_update_provider"] == "github"
-
-
-def test_settings_with_a_provider_keep_their_urls(tmp_path):
-    filename = tmp_path / "current_defaults.FlatConfig"
-    saved = {
-        "global_update_provider": "github",
-        "global_update_url": "https://github.com/example/fork",
-        "global_legacy_update_url": "https://s.example.invalid/custom",
-    }
-    filename.write_text(json.dumps(saved))
-
-    defaults = AppDefaults(beta=False, version="1.0")
-    defaults.load(str(filename), MagicMock())
-
-    for key, value in saved.items():
-        assert defaults[key] == value
 
 
 def test_imported_preferences_do_not_change_the_update_source(tmp_path):

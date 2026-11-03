@@ -150,12 +150,10 @@ def test_multigeo_and_singlegeo_objects_are_not_joined(app):
     app.app_obj.new_object.assert_not_called()
 
 
-@pytest.mark.parametrize('use_tcl', [True, False], ids=['tcl', 'gui'])
-@pytest.mark.parametrize('parameter,values', [
-    ('tools_mill_cutz', (-0.05, -1.6)),
-    ('tools_mill_feedrate', (100.0, 300.0)),
-    ('tools_mill_ppname_g', ('default', 'GRBL_11')),
-], ids=['depth', 'feedrate', 'preprocessor'])
+@pytest.mark.parametrize('use_tcl,parameter,values', [
+    (True, 'tools_mill_cutz', (-0.05, -1.6)),
+    (False, 'tools_mill_ppname_g', ('default', 'GRBL_11')),
+], ids=['tcl-depth', 'gui-preprocessor'])
 def test_fusion_preserves_different_machining_parameters(app, use_tcl, parameter, values):
     a = single_geo(app, 'a', [box(0, 0, 1, 1)])
     b = single_geo(app, 'b', [box(2, 0, 3, 1)])
@@ -176,8 +174,8 @@ def test_fusion_preserves_different_machining_parameters(app, use_tcl, parameter
     assert tool_geometry(joined) == {1: tool_geometry(a)[1], 2: tool_geometry(b)[1]}
 
 
-@pytest.mark.parametrize('use_tcl', [True, False], ids=['tcl', 'gui'])
-@pytest.mark.parametrize('different_depths', [False, True], ids=['equal', 'different'])
+@pytest.mark.parametrize('use_tcl,different_depths', [(True, True), (False, False)],
+                         ids=['tcl-different', 'gui-equal'])
 def test_fusion_preserves_singlegeo_tools_with_empty_geometry(app, use_tcl, different_depths):
     a = single_geo(app, 'a', [box(0, 0, 1, 1)])
     b = single_geo(app, 'b', [box(2, 0, 3, 1)])
@@ -237,13 +235,7 @@ def test_join_two_gerbers_with_outname(app):
     assert a.bounds() == bounds_a and b.bounds() == bounds_b
 
 
-def test_default_outname(app):
-    a, b = make_gerber(app, name='a'), make_gerber(app, name='b')
-    res, created = run_join_gerber(app, {'a': a, 'b': b}, 'a', 'b')
-    assert res is None and list(created) == ['joined_gerber']
-
-
-@pytest.mark.parametrize('argv', [(), ('a',)])
+@pytest.mark.parametrize('argv', [('a',)])
 def test_fails_with_fewer_than_two_objects(app, argv):
     a = make_gerber(app, name='a')
     res, created = run_join_gerber(app, {'a': a}, *argv)

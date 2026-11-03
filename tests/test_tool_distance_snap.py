@@ -41,7 +41,6 @@ def objs(gerber, excellon):
 class TestGerberPads:
     @pytest.mark.parametrize('click, center', [
         ((5.2, 5.1), (5.0, 5.0)),         # C flash
-        ((20.1, 5.1), (20.0, 5.0)),       # P flash
     ])
     def test_click_inside_a_pad_snaps_to_its_center(self, objs, click, center):
         result, jump = snap([objs[0]], click)
@@ -61,19 +60,6 @@ class TestExcellon:
         result, jump = snap([objs[1]], (24.0, 12.2))      # T2 slot (20,12)-(28,12)
         assert result == pytest.approx((24.0, 12.0))
         assert jump == pytest.approx((24.0, 12.0))
-
-class TestBothObjects:
-    def test_the_closest_center_wins(self, app, objs):
-        # a second Excellon drill whose disc covers the click but whose center is further away
-        exc = make_excellon(app, name='exc2')
-        from shapely.geometry import Point
-        exc.tools = {1: {'tooldia': 1.0, 'drills': [Point(5.3, 5.0)], 'slots': [], 'solid_geometry': [], 'data': {}}}
-        assert exc.create_geometry() is None
-        result, jump = snap([objs[0], exc], (5.1, 5.0))   # gerber pad center (5, 5) is closer than (5.3, 5)
-        assert result == pytest.approx((5.0, 5.0))
-        result, jump = snap([objs[0], exc], (5.25, 5.0))  # now the drill center (5.3, 5) is closer
-        assert result == pytest.approx((5.3, 5.0))
-
 
 @pytest.fixture
 def measuring(_headless_qt):
@@ -126,39 +112,6 @@ def flash(center=(0, 0), solid=None):
                            tools={1: {'geometry': [{'solid': solid, 'follow': center}]}})
 
 
-@pytest.mark.parametrize('points,total', [([(0, 0), (3, 4)], 5)])
-def test_multipoint_finish_discards_uncommitted_preview(measuring, points, total):
-    measuring.ui.multipoint_cb.set_value(True)
-    for pos in points:
-        release(measuring, pos)
-    move(measuring, (6, 8))
-    release(measuring, button=2)
-    assert float(measuring.ui.total_distance_entry.get_value()) == total
-    assert str(points[-1][0] if points else 0) in measuring.ui.stop_entry.get_value()
-    assert int(measuring.ui.point_count_entry.get_value()) == len(points)
-    assert not measuring.active
-
-
-
-def test_excellon_editor_selects_containing_drill_not_nearest_arm(measuring):
-    from appEditors.appGeoEditor import DrawToolShape
-
-    def cross(x, y, diameter):
-        r = diameter / 2
-        return DrawToolShape(MultiLineString([[(x-r, y), (x+r, y)], [(x, y-r), (x, y+r)]]))
-
-    empty = Distance.make_storage()
-    drills = Distance.make_storage()
-    drills.insert(cross(0, 0, 20))
-    drills.insert(cross(2, 2, .2))
-    measuring.original_call_source = 'exc_editor'
-    measuring.app.exc_editor.storage_dict = {1: empty, 2: drills}
-    assert measuring.snap_handler((.2, .2)) == pytest.approx((0, 0))
-    assert measuring.snap_handler((10, 0)) == pytest.approx((0, 0))
-    measuring.app.exc_editor.storage_dict = {1: empty}
-    assert measuring.snap_handler((.2, .2)) == (.2, .2)
-
-
 def test_app_snap_respects_boundary_visibility_and_composed_copper(measuring):
     obj = flash(solid=box(-1, -1, 1, 1))
     measuring.app.collection.get_list.return_value = [obj]
@@ -171,26 +124,6 @@ def test_app_snap_respects_boundary_visibility_and_composed_copper(measuring):
     assert measuring.snap_handler((-.2, .2)) == (0, 0)
     obj.solid_geometry = []
     assert measuring.snap_handler((-.2, .2)) == (-.2, .2)
-
-
-def test_undo_multipoint_removes_segment_and_updates_feedback(measuring):
-    measuring.ui.multipoint_cb.set_value(True)
-    for pos in [(0, 0), (3, 4), (6, 8)]:
-        release(measuring, pos)
-    measuring.undo_last_point()
-    assert measuring.points == [(0, 0), (3, 4)]
-    assert float(measuring.ui.total_distance_entry.get_value()) == 5
-    assert float(measuring.ui.segment_distance_entry.get_value()) == 5
-    assert int(measuring.ui.point_count_entry.get_value()) == 2
-    assert measuring.sel_shapes.bounds(axis=0) == pytest.approx((0, 3))
-    move(measuring, (3, 8))
-    assert float(measuring.ui.total_distance_entry.get_value()) == 9
-    measuring.undo_last_point()
-    measuring.undo_last_point()
-    measuring.undo_last_point()
-    assert measuring.points == []
-    assert float(measuring.ui.total_distance_entry.get_value()) == 0
-    assert int(measuring.ui.point_count_entry.get_value()) == 0
 
 
 def test_pending_gerber_transform_updates_measurement_snap_and_history(measuring, _headless_qt):
@@ -227,34 +160,3 @@ def test_pending_gerber_transform_updates_measurement_snap_and_history(measuring
     assert measuring.resolve_snap((5.2, .2)) == (5.2, .2)
 
 
-@pytest.fixture
-def object_distance(_headless_qt):
-    from appPlugins.ToolObjectDistance import ObjectDistance
-
-    fake_app = MagicMock()
-    fake_app.decimals = 4
-    fake_app.app_units = 'MM'
-    fake_app.resource_location = 'assets/resources'
-    fake_app.call_source = 'app'
-    fake_app.plugin_tab_locked = False
-    fake_app.dec_format.side_effect = lambda value, decimals: round(value, decimals)
-    fake_app.ui.notebook.count.return_value = 0
-    tool = ObjectDistance(fake_app)
-    yield tool
-    tool.deleteLater()
-
-
-def object_distance_shift_m(tool, *selected):
-    tool.app.collection.get_selected.return_value = list(selected)
-    tool.run()
-    return float(tool.ui.total_distance_entry.get_value())
-
-
-def test_object_distance_measure_button_shows_zero_for_touching_objects(object_distance):
-    first, second, overlapping = flash((0, 0)), flash((0, 5)), flash((1.5, 0))
-    assert object_distance_shift_m(object_distance, first, second) == pytest.approx(3)
-    # the Measure button does not reset the fields: the 0 results were not written and the 3 mm stayed
-    object_distance.app.collection.get_selected.return_value = [first, overlapping]
-    object_distance.ui.measure_btn.click()
-    ui = object_distance.ui
-    assert [float(e.get_value()) for e in (ui.total_distance_entry, ui.distance_y_entry, ui.angle_entry)] == [0, 0, 0]

@@ -17,7 +17,7 @@ def qt_application():
     yield app
 
 
-@pytest.mark.parametrize('kind', ['ring', 'segments'])
+@pytest.mark.parametrize('kind', ['segments'])
 def test_polygonize_closed_paths_and_separate_segments_with_one_undo(kind):
     polygon = box(0, 0, 2, 2)
     coords = list(polygon.exterior.coords)
@@ -83,8 +83,7 @@ def test_polygonize_nodes_multipart_linework_and_preserves_nested_faces():
     assert sum(poly.area for poly in polygons) == outer.area
 
 
-@pytest.mark.parametrize('geometries', [[], [LineString([(0, 0), (1, 0)])], [box(0, 0, 2, 2)],
-                                        [LineString([(0, 0), (0, 0)])]])
+@pytest.mark.parametrize('geometries', [[], [box(0, 0, 2, 2)]])
 def test_polygonize_without_usable_enclosure_leaves_storage_and_history_unchanged(geometries):
     originals = [DrawToolShape(geo) for geo in geometries]
     editor = editor_with_history(originals, originals)

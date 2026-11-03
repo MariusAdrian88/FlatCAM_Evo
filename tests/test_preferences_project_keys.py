@@ -64,12 +64,6 @@ class TestPreferencesProjectKeys(unittest.TestCase):
         self.assertEqual(manager.defaults_form_fields['gerber_bboxmargin'].value, 0.5)
         self.assertEqual(manager.defaults_form_fields['global_gridx'].value, 2.0)
 
-    def test_change_of_options_writes_the_project_value(self):
-        manager, defaults, options = make_manager()
-        defaults['gerber_bboxmargin'] = 0.1
-        options['gerber_bboxmargin'] = 0.5
-        manager.defaults_write_form_field('gerber_bboxmargin')
-        self.assertEqual(manager.defaults_form_fields['gerber_bboxmargin'].value, 0.5)
 
     def test_read_form_writes_only_changed_project_keys(self):
         manager, defaults, options = make_manager()
@@ -87,19 +81,6 @@ class TestPreferencesProjectKeys(unittest.TestCase):
         self.assertIs(options['gerber_bboxrounded'], True)
         self.assertIs(defaults['gerber_bboxrounded'], False)
         self.assertEqual(defaults['global_gridx'], 2.5)
-
-    def test_show_writes_the_form_when_there_are_no_edits(self):
-        manager, _defaults, options = make_manager()
-        options['gerber_bboxmargin'] = 0.5
-        with patch.object(PreferencesUIManager, 'init_preferences_gui'), \
-                patch.object(PreferencesUIManager, 'pref_connect'), \
-                patch.object(PreferencesUIManager, '_PreferencesUIManager__init_color_pickers'):
-            manager.show_preferences_gui()
-            self.assertEqual(manager.defaults_form_fields['gerber_bboxmargin'].value, 0.5)
-            manager.defaults_form_fields['gerber_bboxmargin'].value = 0.9
-            manager.preferences_changed_flag = True
-            manager.show_preferences_gui()
-        self.assertEqual(manager.defaults_form_fields['gerber_bboxmargin'].value, 0.9)
 
 
 class TestPreferencesColors(unittest.TestCase):

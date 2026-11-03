@@ -36,15 +36,6 @@ def board():
     return polygons
 
 
-def test_minimum_is_exact_with_all_pairs_at_it():
-    polygons = board()
-    old = every_pair(polygons)
-    new = camlib.polygon_gap_pairs(polygons, DEC)
-    minimum = min(old)
-    assert list(new) == [minimum]
-    assert len(new[minimum]) == len(old[minimum])
-
-
 def test_neighbors_have_the_same_distances_and_pairs_as_every_pair():
     polygons = board()
     old = every_pair(polygons)

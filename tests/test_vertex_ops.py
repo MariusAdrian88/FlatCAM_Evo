@@ -3,9 +3,9 @@ import math
 
 import pytest
 from shapely import BufferJoinStyle
-from shapely.geometry import LineString, LinearRing, Point, Polygon, MultiLineString, MultiPolygon, box
+from shapely.geometry import LineString, LinearRing, Point, Polygon, MultiPolygon, box
 
-from appEditors.vertex_ops import (vertex_grips, vertex_address, ring_after_edit, edit_vertex, check_vertex_result,
+from appEditors.vertex_ops import (vertex_grips, ring_after_edit, edit_vertex, check_vertex_result,
                                    contrast_color, circle_center, arc_middle, arc_points, find_arcs, ring_skeleton,
                                    expand_skeleton)
 
@@ -24,13 +24,6 @@ def test_grips_of_open_line_polygon_hole_and_multipolygon():
     grips = vertex_grips(MultiPolygon([Polygon(SQUARE, [HOLE]), box(10, 10, 11, 11)]))
     rings = {address[:2] for address, __ in kinds(grips, 'vertex')}
     assert rings == {(0, 0), (0, 1), (1, 0)}
-
-
-def test_vertex_address():
-    assert vertex_address(LineString([(0, 0), (1, 0)]), 1) == (0, 0, 1)
-    assert vertex_address(LineString([(0, 0), (1, 0)]), (0, 0, 1)) == (0, 0, 1)
-    with pytest.raises(ValueError, match='LineString'):
-        vertex_address(MultiLineString([[(0, 0), (1, 0)], [(2, 0), (3, 0)]]), 0)
 
 
 def test_edit_open_line_and_hole():
@@ -61,7 +54,10 @@ def test_insert_off_segment_needs_on_segment_false():
 def test_bad_edits_raise():
     short, line = LineString([(0, 0), (1, 0)]), LineString([(0, 0), (2, 0)])
     for geometry, action, address, point in ((short, 'remove', (0, 0, 0), None), (line, 'move', (0, 0, 0), (1,)),
-                                             (line, 'move', (0, 1, 0), (1, 0)), (line, 'unknown', (0, 0, 0), (1, 0))):
+                                             (line, 'move', (0, 1, 0), (1, 0)), (line, 'unknown', (0, 0, 0), (1, 0)),
+                                             (box(0, 0, 4, 4), 'arc_end', (0, 0, 1), (5, 0)),
+                                             (ROUNDED, 'arc_mid', (0, 0, 1), (0, 0)),
+                                             (ROUNDED, 'arc_mid', (0, 0, 1, 17), None)):
         with pytest.raises(ValueError):
             edit_vertex(geometry, action, address, point)
 
@@ -117,14 +113,6 @@ def test_find_arcs_rounded_rectangle_and_s_curve():
     assert len(arcs) == 2
     assert arcs[0].end == arcs[1].start
     assert vertices[arcs[0].end] == (1, 1)
-
-
-def test_find_arcs_finds_no_arc():
-    for vertices, closed in (([(0, 0), (1, 0), (1, 1), (0, 1)], True),                 # a square
-                             ([(0, 0), (4, 0), (5, 2), (3, 5), (0, 3)], True),         # a plain polygon
-                             ([(0, 0), (1, 0), (1.99, 0.14)], False),                  # only 2 equal segments
-                             ([(0, 0), (1, 0), (2, 0), (3, 0), (4, 0)], False)):       # a straight run
-        assert find_arcs(vertices, closed) == []
 
 
 def test_skeleton_round_trip_of_a_rounded_rectangle_and_others():
@@ -195,16 +183,3 @@ def test_arc_mid_and_arc_end_edits():
     assert result.coords[arcs[0].end] == (1.2, 1)
 
 
-def test_arc_radius_scales_a_full_circle():
-    circle = Point(1, 1).buffer(2)
-    result = edit_vertex(circle, 'arc_radius', (0, 0, 0), (4, 1))
-    assert len(result.exterior.coords) == len(circle.exterior.coords)
-    assert all(math.dist(coord, (1, 1)) == pytest.approx(3) for coord in result.exterior.coords)
-
-
-def test_bad_arc_edits_raise():
-    for geometry, action, address, point in ((box(0, 0, 4, 4), 'arc_end', (0, 0, 1), (5, 0)),
-                                             (ROUNDED, 'arc_mid', (0, 0, 1), (0, 0)),
-                                             (ROUNDED, 'arc_mid', (0, 0, 1, 17), None)):
-        with pytest.raises(ValueError):
-            edit_vertex(geometry, action, address, point)

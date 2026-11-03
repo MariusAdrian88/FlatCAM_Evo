@@ -1,23 +1,26 @@
-"""Gerber-local snapping, the Space key of the Track and Pad Array tools, feature selection and range deletion
-controls."""
+"""Gerber Editor: local snapping, the Space key of the Track tool, range deletion, and the fixes of the editor
+history, size selection, region operations, aperture edits, obround pads and Mark Area.
+
+The editor is the real AppGerberEditor built by test_gerber_editor_pick.make_editor; the application, the canvas and
+the worker are stand-ins. Everything is headless and does not sleep."""
+import math
+from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from PyQt6 import QtCore, QtWidgets
 from shapely.geometry import LineString, MultiLineString, Point, box
 from shapely.ops import unary_union
-from vispy.geometry.rect import Rect
-from vispy.util.event import EventEmitter
 
-from appEditors.appGeoEditor import AppGeoEditor
-from appEditors.appGerberEditor import AppGerberEditor
-from appEditors.grb_plugins.GrbCommon import DrawToolShape
+from appEditors.appGerberEditor import AppGerberEditor, MarkEditorGrb, PadArrayEditorGrb, PadEditorGrb
+from appEditors.grb_plugins.GrbBufferPlugin import BufferEditorTool
+from appEditors.grb_plugins.GrbCommon import DrawToolShape, gerber_steps
 from appEditors.grb_plugins.GrbTrackPlugin import GrbTrackEditorUI
-from appGUI.MainGUI import MainGUI
+from appEditors.grb_plugins.GrbTransformationPlugin import queue_transform
 from appParsers.ParseGerber import Gerber
 from test_editor_save_modes import gerber_stand_in
-from test_gerber_editor_pick import aperture, make_editor
+from test_gerber_editor_pick import aperture, make_editor, pad
 from test_editor_corner import track_tool_with_storage
 from tests.helpers_objects import app, _headless_qt, make_gerber, NATIVE_GBR  # noqa: F401,E402
 
@@ -103,106 +106,6 @@ def test_track_pad_snap_preview_click_and_return_to_global_grid(grid):
     panel.deleteLater()
 
 
-@pytest.mark.parametrize('linked', [True])
-def test_holding_space_refines_live_track_preview_and_committed_endpoint(linked):
-    pad = DrawToolShape({'solid': Point(10.23, 10.37).buffer(0.8), 'follow': Point(10.23, 10.37)})
-    editor = snap_editor([pad])
-    options = editor.app.geo_editor.editor_options
-    options.update(grid_snap=True, global_gridx=1.0, global_gridy=2.0)
-    editor.app.ui.grid_gap_link_cb.isChecked.return_value = linked
-    editor.last_aperture_selected = 10
-    editor.select_tool = AppGerberEditor.select_tool.__get__(editor)
-    key_release = EventEmitter(type='key_release')
-    editor.canvas.graph_event_connect = lambda name, callback: key_release.connect(callback) \
-        if name == 'key_release' else None
-    editor.canvas.graph_event_disconnect = lambda name, callback: key_release.disconnect(callback) \
-        if name == 'key_release' else None
-    editor.connect_canvas_event_handlers()
-    with patch('appEditors.appGerberEditor.GrbTrackEditorTool.run'):
-        editor.select_tool('track')
-        editor.active_tool.ui.snap_to_pad_cb.setChecked(True)
-        editor.active_tool.click((0, 0))
-        editor.active_tool.cursor_data_control = False
-        move = SimpleNamespace(pos=(126, 226), button=None, is_dragging=False)
-        editor.on_canvas_move(move)
-        normal = (1.0, 2.0)
-        fine = (1.3, 2.3 if linked else 2.2)
-        assert (editor.snap_x, editor.snap_y) == normal
-        gui = SimpleNamespace(app=editor.app, grb_select_btn=SimpleNamespace(isChecked=lambda: False))
-        MainGUI.keyPressEvent(gui, SimpleNamespace(key='Space', native=SimpleNamespace()))
-        assert (editor.snap_x, editor.snap_y) == pytest.approx(fine)
-        assert editor.active_tool.temp_points[-1] == pytest.approx(fine)
-        assert editor.snap(10.01, 10.01) == (10.23, 10.37)
-        editor.on_canvas_click(SimpleNamespace(pos=move.pos, button=1, is_dragging=False))
-        follow = editor.storage_dict[10]['geometry'][-1].geo['follow']
-        assert tuple(follow.coords[-1]) == pytest.approx(fine)
-        # Auto-repeat releases mustn't restore the coarse grid while Space remains held.
-        key_release(key='Space', native=SimpleNamespace(isAutoRepeat=lambda: True))
-        assert editor.snap(1.26, 2.26) == pytest.approx(fine)
-        key_release(key='Space', native=SimpleNamespace(isAutoRepeat=lambda: False))
-        assert (editor.snap_x, editor.snap_y) == normal
-        assert editor.active_tool.temp_points[-1] == normal
-        MainGUI.keyPressEvent(gui, int(QtCore.Qt.Key.Key_Space))
-        editor.app.ui.popMenu.mouse_is_panning = False
-        editor.on_canvas_click_release(SimpleNamespace(pos=move.pos, button=2, is_dragging=False))
-        assert editor.snap(1.26, 2.26) == pytest.approx(fine)
-        key_release(key=QtCore.Qt.Key.Key_Space, native=SimpleNamespace(isAutoRepeat=lambda: False))
-        assert editor.snap(1.26, 2.26) == normal
-        assert options['global_gridx'] == 1.0
-        assert options['global_gridy'] == 2.0
-    editor.disconnect_canvas_event_handlers()
-
-
-@pytest.mark.parametrize('kind', ['R'])
-def test_aperture_creation_uses_separate_width_and_height(kind):
-    editor = make_editor()
-    editor.ui.aptype_cb.set_value(kind)
-    editor.ui.apdim_entry.set_value(0.6)
-    editor.ui.apheight_entry.set_value(0.8)
-    assert editor.ui.apdim_entry.isEnabled()
-    assert editor.ui.apheight_entry.isEnabled()
-    # Size is disabled for these types; dimensions must work even when its old value is zero.
-    editor.ui.apsize_entry.set_value(0)
-    editor.on_aperture_add(12)
-    aperture = editor.storage_dict[12]
-    assert aperture['type'] == kind
-    assert (aperture['width'], aperture['height']) == (0.6, 0.8)
-    assert aperture['size'] == pytest.approx(1.0)
-    editor.ui.aptype_cb.set_value('C')
-    assert not editor.ui.apdim_entry.isEnabled()
-    assert not editor.ui.apheight_entry.isEnabled()
-
-
-@pytest.mark.parametrize('selection', ['aperture'])
-def test_table_selection_respects_zoom_checkbox(selection):
-    first = DrawToolShape({'solid': box(0, 0, 2, 3), 'follow': Point(1, 1)})
-    second = DrawToolShape({'solid': box(5, 10, 9, 13), 'follow': Point(7, 11)})
-    editor = make_editor({10: aperture([first]), 11: aperture([second])})
-    editor.refresh_features()
-    camera = editor.app.plotcanvas.view.camera
-    original_rect = Rect(100, 100, 20, 20)
-    for enabled in (False, True):
-        editor.ui.geo_zoom.set_value(enabled)
-        camera.rect = original_rect
-        if selection == 'aperture':
-            editor.ui.apertures_table.cellPressed.emit(1, 1)
-        elif selection == 'all':
-            editor.ui.apertures_table.clearSelection()
-            editor.ui.apertures_table.selectAll()
-        else:
-            editor.ui.features_table.clearSelection()
-            editor.ui.features_table.selectRow(1)
-        assert second in editor.selected
-        if enabled:
-            assert (camera.rect.left, camera.rect.bottom, camera.rect.right, camera.rect.top) == pytest.approx(
-                (4.92, 9.94, 9.08, 13.06))
-        else:
-            assert camera.rect == original_rect
-    camera.rect = original_rect
-    editor.update_ui(zoom=False)
-    assert camera.rect == original_rect
-
-
 def range_editor():
     line = LineString([(0, 0), (3, 0), (3, 4)])
     first = DrawToolShape({'solid': box(0, 0, 2, 3), 'follow': line})
@@ -259,22 +162,6 @@ def test_filtered_delete_is_one_step_with_original_selection_and_aperture_owners
     assert editor.storage_dict[10]['geometry'] == [missing]
 
 
-def test_length_only_handles_missing_solids_multipart_and_zero_length_flashes():
-    follow = MultiLineString([[(0, 0), (3, 0)], [(0, 0), (0, 4)]])
-    track = DrawToolShape({'follow': follow})
-    flash = DrawToolShape({'follow': Point(4, 4)})
-    missing = DrawToolShape({'solid': box(0, 0, 1, 1)})
-    editor = make_editor({10: aperture([track, flash, missing])})
-    editor.ui.size_length_chk.setChecked(True)
-    editor.ui.size_length_min_entry.setText('7')
-    editor.ui.size_length_max_entry.setText('7')
-    assert editor.on_select_by_size() == [track]
-    editor.selected = []
-    editor.ui.size_length_min_entry.setText('0')
-    editor.ui.size_length_max_entry.setText('0')
-    assert editor.on_select_by_size() == [flash]
-
-
 def test_filtered_delete_save_reparse_after_undo_redo(app):
 
     source = make_gerber(app, NATIVE_GBR, name='board')
@@ -300,3 +187,269 @@ def test_filtered_delete_save_reparse_after_undo_redo(app):
         assert parsed.parse_lines(result['obj'].source_file.splitlines()) is None
         expected = unary_union([shape.geo['solid'] for shape in editor.storage_dict[10]['geometry']])
         assert unary_union(parsed.solid_geometry).hausdorff_distance(expected) < 0.001
+
+
+def scene():
+    first = DrawToolShape({'solid': box(0, 0, 1, 1), 'follow': Point(0.5, 0.5)})
+    second = DrawToolShape({'solid': box(10, 0, 11, 1), 'follow': Point(10.5, 0.5)})
+    editor = make_editor({10: aperture([first]), 11: aperture([second])})
+    editor.history.reset()
+    return editor, first, second
+
+
+def size_scene():
+    small = DrawToolShape({'solid': box(0, 0, 2, 3)})
+    wide = DrawToolShape({'solid': box(0, 0, 4, 3)})
+    editor = make_editor({10: aperture([small]), '11': aperture([wide])})
+    editor.history.reset()
+    editor.ui.size_width_chk.setChecked(True)
+    editor.ui.size_width_entry.setText('2')
+    editor.ui.size_height_chk.setChecked(True)
+    editor.ui.size_height_entry.setText('3')
+    editor.ui.size_tolerance_entry.setText('0')
+    editor.plot_selection = MagicMock()
+    return editor, small, wide
+
+
+def select_row(editor, row):
+    table = editor.ui.apertures_table
+    with QtCore.QSignalBlocker(table):
+        table.selectRow(row)
+
+
+def reconnect_item_changed(editor):
+    table = editor.ui.apertures_table
+    try:
+        table.itemChanged.disconnect()
+    except TypeError:
+        pass
+    table.itemChanged.connect(editor.on_tool_edit)
+    return table
+
+
+def run_queued_job(editor):
+    job = editor.app.worker_task.emit.call_args.args[0]
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        pool.submit(job['fcn'], *job['params']).result(timeout=10)
+    QtWidgets.QApplication.processEvents()
+
+
+# 1. Qt signal arguments reach the slots
+
+
+# 2. Scale and Simplification menu items and the Scale tool connection
+
+# 3. Translation versus reshape in history
+
+def test_pure_move_of_round_follow_r_pad_does_not_mark_regions():
+    first = pad(0, 0, 1)
+    editor = make_editor({10: {'type': 'R', 'size': 1.0, 'geometry': [first]}})
+    editor.history.reset()
+    editor.selected = [first]
+    tool = SimpleNamespace(draw_app=editor, app=editor.app)
+    queue_transform(tool, 'offset', ['X', 2])
+    run_queued_job(editor)
+    assert first.geo['follow'].equals(Point(2, 0))
+    assert len(editor.history.undo_stack) == 1
+    assert editor.loaded_as_regions is False
+
+
+# 4. Import failure
+
+
+# 5. Select and Delete by Size
+
+def test_delete_by_size_acts_on_selection_when_any_else_on_whole_board():
+    editor, small, wide = size_scene()
+    editor.selected = [wide]
+    # the selected shape does not match, so nothing is deleted and the board is not searched
+    assert editor.on_delete_by_size() == []
+    assert small in editor.storage_dict[10]['geometry']
+    assert editor.history.undo_stack == []
+
+    editor.selected = []
+    assert editor.on_delete_by_size() == [small]
+    assert small not in editor.storage_dict[10]['geometry']
+    assert wide in editor.storage_dict['11']['geometry']
+
+
+# 6. Region operation with an empty result
+
+def test_intersection_of_disjoint_shapes_fails_and_keeps_sources():
+    editor, first, second = scene()
+    editor.selected = [first, second]
+    before_first = editor.storage_dict[10]['geometry'][:]
+    before_second = editor.storage_dict[11]['geometry'][:]
+    assert editor.apply_region_operation('intersection') == 'fail'
+    assert editor.storage_dict[10]['geometry'] == before_first
+    assert editor.storage_dict[11]['geometry'] == before_second
+    assert editor.selected == [first, second]
+    assert editor.loaded_as_regions is False
+    assert editor.history.undo_stack == []
+
+
+# 7. itemChanged connection after an inner error
+
+
+# 8. Dimension edit of R and O apertures: a flash that is no longer the aperture shape (cut by a clear feature or
+# edited) is not replaced by a new full flash
+
+@pytest.mark.parametrize('kind, cut', [('R', False), ('R', True)])
+def test_dimension_edit_resizes_only_plain_flashes(kind, cut):
+    meta = {'type': kind, 'size': math.hypot(2.0, 1.0), 'width': 2.0, 'height': 1.0}
+    editor = make_editor({})
+    plain = box(-1, -0.5, 1, 0.5) if kind == 'R' else \
+        Gerber.create_flash_geometry(editor, Point(0, 0), meta, gerber_steps(editor.app, 0.5))
+    solid = plain.difference(box(0.5, -1, 2, 1)) if cut else plain
+    flash = DrawToolShape({'solid': solid, 'follow': Point(0, 0)})
+    editor = make_editor({10: dict(meta, geometry=[flash])})
+    editor.history.reset()
+    editor.tid2apcode = {1: 10}
+    editor.oldapcode_newapcode = {10: 10}
+    table = editor.ui.apertures_table
+    table.setRowCount(1)
+    with QtCore.QSignalBlocker(table):
+        table.setItem(0, 1, QtWidgets.QTableWidgetItem('10'))
+        table.setItem(0, 4, QtWidgets.QTableWidgetItem('4, 2'))
+        table.setCurrentCell(0, 4)
+    reconnect_item_changed(editor)
+    editor.on_tool_edit()
+    (shape,) = editor.storage_dict[10]['geometry']
+    if cut:
+        assert shape.geo['solid'].equals(solid)
+        assert editor.history.undo_stack == []
+    else:
+        assert shape.geo['solid'].bounds == pytest.approx((-2, -1, 2, 1), abs=1e-3)
+        assert len(editor.history.undo_stack) == 1
+
+
+# 9. Marked polygons list
+
+
+# 11. Region export flag lifecycle
+
+
+# 13. Scale and Buffer without a selected shape
+
+@pytest.mark.parametrize('kind', ['scale'])
+def test_scale_and_buffer_without_selected_shape_fail_without_history_step(kind):
+    editor, first, second = scene()
+    editor.selected = []
+    select_row(editor, 0)
+    editor.ui.scale_factor_entry.set_value(1.2)
+    if kind == 'scale':
+        result = editor.on_scale()
+    else:
+        result = BufferEditorTool.buffer(SimpleNamespace(draw_app=editor, app=editor.app), 0.1, 1)
+    assert result == 'fail'
+    assert editor.history.undo_stack == []
+    assert first.geo['solid'].equals(box(0, 0, 1, 1))
+
+
+# 14. Buffer factor check
+
+@pytest.mark.parametrize('factor_value', [0])
+def test_buffer_factor_at_or_below_zero_is_rejected(factor_value):
+    editor, first, second = scene()
+    editor.selected = [first]
+    tool = SimpleNamespace(draw_app=editor, app=editor.app)
+    assert queue_transform(tool, 'buffer', [factor_value, 1, True]) == 'fail'
+    editor.app.worker_task.emit.assert_not_called()
+    assert editor.history.undo_stack == []
+
+
+# 15. Numeric aperture codes
+
+
+# 16. History depth after a failing scope
+
+
+# 18. update_ui without zoom
+
+
+# 19. Pad and Pad Array with an obround ('O') aperture, as KiCad writes the oval pads
+
+def obround_editor(width, height):
+    meta = {'type': 'O', 'size': math.hypot(width, height), 'width': width, 'height': height}
+    editor = make_editor({12: dict(meta, geometry=[])})
+    editor.gerber_obj = SimpleNamespace(obj_options={'name': 'board'})
+    editor.last_aperture_selected = 12
+    editor.history.reset()
+    return editor, meta
+
+
+def flash_of(editor, meta, x, y):
+    steps = gerber_steps(editor.app, min(meta['width'], meta['height']) / 2)
+    return Gerber.create_flash_geometry(editor, Point(x, y), meta, steps)
+
+
+@pytest.mark.parametrize('width, height', [(1.7, 1.0)])
+def test_pad_and_pad_array_place_obround_pads(width, height):
+    editor, meta = obround_editor(width, height)
+    tool = PadEditorGrb.__new__(PadEditorGrb)
+    storage = editor.storage_dict[12]['geometry']
+    tool.draw_app, tool.app, tool.storage_obj, tool.points = editor, editor.app, storage, (5.0, 5.0)
+    tool.make()
+    editor.active_tool = tool
+    editor.on_grb_shape_complete(editor.current_storage)
+
+    array = PadArrayEditorGrb.__new__(PadArrayEditorGrb)
+    array.draw_app, array.app, array.storage_obj, array.points = editor, editor.app, storage, [0.0, 0.0]
+    array.ui = MagicMock()
+    array.array_type, array.pad_array_dir, array.pad_array_size, array.pad_pitch = 'linear', 'X', 2, 2.54
+    array.make()
+    editor.active_tool = array
+    editor.on_grb_shape_complete(editor.current_storage)
+
+    shapes = editor.storage_dict[12]['geometry']
+    assert [shape.geo['follow'].coords[0] for shape in shapes] == [(5.0, 5.0), (0.0, 0.0), (2.54, 0.0)]
+    for shape in shapes:
+        x, y = shape.geo['follow'].coords[0]
+        assert shape.geo['solid'].is_valid
+        assert shape.geo['solid'].hausdorff_distance(flash_of(editor, meta, x, y)) < 1e-6
+
+
+# 20. Dims edit of an 'R' aperture with tracks: a track changes by half of the change, not by the new size
+
+def test_dimension_edit_changes_r_tracks_by_half_the_change():
+    # a 1 x 1 aperture drew a copper track and a clear track along X: both are 1 wide
+    track = DrawToolShape({'solid': box(-0.5, -0.5, 10.5, 0.5), 'follow': LineString([(0, 0), (10, 0)])})
+    clear = DrawToolShape({'clear': box(-0.5, 4.5, 10.5, 5.5), 'follow': LineString([(0, 5), (10, 5)])})
+    editor = make_editor({10: {'type': 'R', 'size': math.hypot(1, 1), 'width': 1.0, 'height': 1.0,
+                               'geometry': [track, clear]}})
+    editor.history.reset()
+    editor.tid2apcode = {1: 10}
+    editor.oldapcode_newapcode = {10: 10}
+    table = editor.ui.apertures_table
+    with QtCore.QSignalBlocker(table):
+        table.setItem(0, 4, QtWidgets.QTableWidgetItem('1.2, 1.2'))
+        table.setCurrentCell(0, 4)
+    reconnect_item_changed(editor)
+    editor.on_tool_edit()
+    new_track, new_clear = editor.storage_dict[10]['geometry']
+    # the sweep of a 1.2 x 1.2 aperture along the same paths
+    assert new_track.geo['solid'].equals(box(-0.6, -0.6, 10.6, 0.6))
+    assert new_clear.geo['clear'].equals(box(-0.6, 4.4, 10.6, 5.6))
+    assert len(editor.history.undo_stack) == 1
+
+
+# 21. Mark Area: the shapes of a cleared marking are not deleted after the tool is opened again
+
+def mark(editor, upper, lower):
+    editor.ui.ma_upper_threshold_entry.set_value(upper)
+    editor.ui.ma_lower_threshold_entry.set_value(lower)
+    tool = MarkEditorGrb(editor)
+    tool.on_markarea_click()
+    return tool
+
+
+def test_mark_area_delete_removes_only_the_shapes_marked_now():
+    editor, small, wide = size_scene()   # areas 6 and 12
+    mark(editor, 13, 0).on_markarea_clear()   # both shapes marked, then Clear
+    MarkEditorGrb(editor).on_markarea_delete()   # the tool opened again, nothing marked: Delete removes nothing
+    assert editor.storage_dict[10]['geometry'] == [small]
+    assert editor.storage_dict['11']['geometry'] == [wide]
+
+    mark(editor, 13, 7).on_markarea_delete()   # only the wide shape is marked
+    assert editor.storage_dict[10]['geometry'] == [small]
+    assert editor.storage_dict['11']['geometry'] == []

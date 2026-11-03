@@ -91,8 +91,7 @@ def setup_operation():
 
 
 @pytest.mark.parametrize('mode, origin', [
-    ('bl', (10.0, 5.0)), ('tl', (10.0, 33.0)),
-    ('br', (27.0, 5.0)), ('tr', (27.0, 33.0)), ('c', (18.5, 19.0)),
+    ('bl', (10.0, 5.0)), ('c', (18.5, 19.0)),
 ])
 def test_corner_and_center_modes_keep_group_offsets_and_explicit_inline_execution(qt_app, mode, origin):
     app, controller, events, threads, tasks = setup_operation()

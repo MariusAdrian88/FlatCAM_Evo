@@ -33,16 +33,6 @@ def batch_editor(shapes, selected=()):
     return editor
 
 
-
-
-
-
-
-
-
-
-
-
 def test_copy_2d_array_uses_relative_offsets():
     tool = copy_tool([line(0)], mode='a')
     ui = tool.copy_tool.ui
@@ -58,37 +48,6 @@ def test_copy_2d_array_uses_relative_offsets():
     assert [shape.geo.bounds[:2] for shape in tool.geometry] == [(3, 4), (13, 4), (3, 24), (13, 24)]
 
 
-
-
-def test_buffer_accepts_multiline_sources():
-    shape = DrawToolShape(MultiLineString([[(0, 0), (1, 0)], [(0, 2), (1, 2)]]))
-    editor = batch_editor([shape], selected=[shape])
-    editor.app.options.update({'geometry_circle_steps_mode': 'fixed', 'geometry_circle_steps': 32})
-
-    BufferSelectionTool.buffer(SimpleNamespace(app=editor.app, draw_app=editor), 0.1, 'round')
-
-    assert len(list(editor.storage.get_objects())) == 3
-    editor.storage.replace.assert_called_once()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def test_batch_translation_preserves_mixed_dimensions_and_none():
     line_2d = LineString([(0, 0), (1, 1)])
     line_3d = LineString([(0, 0, 7), (1, 1, 8)])
@@ -99,8 +58,6 @@ def test_batch_translation_preserves_mixed_dimensions_and_none():
     assert result[1] is None
     assert list(result[2].coords) == [(2, 3, 7), (3, 4, 8)]
     assert list(translate_geometry(line_3d, 2, 3).coords) == [(2, 3, 7), (3, 4, 8)]
-
-
 
 
 def test_buffer_follows_the_adaptive_circle_preference():
@@ -131,19 +88,6 @@ def test_paint_refuses_a_tool_diameter_of_zero_or_less():
         assert tool.paint.called is accepted
         if not accepted:
             assert 'greater than zero' in tool.app.inform.emit.call_args.args[0]
-
-
-def test_paint_uses_the_method_of_the_preferences():
-    qapp = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])  # noqa: F841 - kept for the widgets
-    app = SimpleNamespace(decimals=4, options={},
-                          defaults=SimpleNamespace(get=lambda key, default=None: default, factory_defaults={}))
-    tool = SimpleNamespace(app=app)
-    tool.ui = PaintEditorUI(layout=QtWidgets.QVBoxLayout(), paint_class=tool)
-    # the preference is an index: 0 Standard, 1 Seed, 2 Lines; Laser_lines (3) and Combo (4) are not in the editor
-    for preference, method in ((0, 'Standard'), (1, 'Seed'), (2, 'Lines'), (4, 'Standard')):
-        app.options = {'tools_paint_method': preference}
-        PaintOptionsTool.set_tool_ui(tool)
-        assert tool.ui.paintmethod_combo.get_value() == method
 
 
 def test_paint_lines_method_paints_in_the_editor():

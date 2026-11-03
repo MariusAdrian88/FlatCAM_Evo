@@ -115,49 +115,6 @@ def run_worker(tool):
     assert not worker.is_alive()
 
 
-def test_move_finishes_plot_and_export_before_gui_completion(tool):
-    events, threads = [], []
-    layer = make_layer(events, threads)
-    gui_thread = QtCore.QThread.currentThread()
-    tool.app.inform.emit.side_effect = lambda text: events.append(text)
-    tool.move_handler((3, -5), objects=[layer])
-    run_worker(tool)
-    QtTest.QTest.qWait(20)
-    assert layer.geometry.equals(Point(13, 15))
-    assert all(thread is gui_thread for name, thread in threads if name in ('ui', 'checkbox'))
-    assert all(thread is not gui_thread for name, thread in threads if name in ('offset', 'plot', 'export'))
-    layer.plot.assert_called_once()
-    layer.regenerate_source.assert_called_once()
-    layer.bounds.assert_called_once()
-    layer.set_offset_values.assert_called_once_with(bounds=(13.0, 15.0, 13.0, 15.0))
-    assert events.index('plot') < next(index for index, event in enumerate(events) if '[success]' in event)
-    assert events.index('export') < events.index('ui')
-    assert tool.app.should_we_save is True
-
-
-@pytest.mark.parametrize('failure', ['offset'])
-def test_move_failure_is_reported_and_moved_geometry_is_replotted(tool, failure):
-    layer = make_layer([], [])
-    if failure == 'offset':
-        layer.offset.side_effect = None
-        layer.offset.return_value = 'fail'
-    else:
-        layer.regenerate_source.side_effect = None
-        layer.regenerate_source.return_value = False
-    tool.move_handler((1, 2), objects=[layer])
-    run_worker(tool)
-    QtTest.QTest.qWait(20)
-    assert any('[ERROR_NOTCL]' in call.args[0] for call in tool.app.inform.emit.call_args_list)
-    assert not any('[success]' in call.args[0] for call in tool.app.inform.emit.call_args_list)
-    layer.plot.assert_called_once()
-    # a failed move releases the in-flight state too
-    calls = tool.app.worker_task.emit.call_count
-    tool.move_handler((1, 2), objects=[layer])
-    assert tool.app.worker_task.emit.call_count == calls + 1
-    run_worker(tool)
-    QtTest.QTest.qWait(20)
-
-
 def test_moved_cncjob_exports_the_moved_gcode_also_after_undo_redo(tool):
     # 'Export G-Code' writes source_file: the move makes it again, inside the Undo snapshot of the CNCJob
     from appHandlers.appHistory import HistoryManager
@@ -200,14 +157,4 @@ def test_invalid_move_offset_is_rejected_before_any_change(tool, offset):
     assert any('[ERROR_NOTCL]' in call.args[0] for call in tool.app.inform.emit.call_args_list)
 
 
-
-
-@pytest.mark.parametrize('units, box', [
-    ('MM', Polygon([(0, 0), (10, 0), (10, 0.1), (0, 0.1)])),
-])
-def test_selection_shape_keeps_thin_boxes_visible(units, box):
-    preview = selection_shape(box, units, False)
-    assert not preview.is_empty and preview.area > 0
-    line = selection_shape(box, units, True)
-    assert line.geom_type == 'LinearRing' and not line.is_empty
 

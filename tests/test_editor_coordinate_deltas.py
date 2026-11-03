@@ -53,10 +53,9 @@ def mouse(pos, button=1):
     return SimpleNamespace(pos=pos, button=button, is_dragging=False)
 
 
-@pytest.mark.parametrize('kind', ['geo', 'grb'])
+@pytest.mark.parametrize('kind, raw_pick', [('geo', False), ('grb', True)])
 @pytest.mark.parametrize('grid', [True])
-@pytest.mark.parametrize('raw_pick', [False, True])
-def test_click_resets_both_readouts_and_motion_measures_from_same_coordinates(editor_factory, kind, grid, raw_pick):
+def test_click_resets_both_readouts_and_motion_measures_from_same_coordinates(editor_factory, kind, raw_pick, grid):
     editor = editor_factory(kind, grid, raw_pick)
     event = mouse((1.2, 2.3))
     editor.on_canvas_click(event)
@@ -78,7 +77,7 @@ def test_click_resets_both_readouts_and_motion_measures_from_same_coordinates(ed
     assert (editor.app.dx, editor.app.dy) == pytest.approx((0, 0))
 
 
-@pytest.mark.parametrize('kind', ['geo', 'exc'])
+@pytest.mark.parametrize('kind', ['geo'])
 def test_right_click_does_not_move_delta_origin(editor_factory, kind):
     editor = editor_factory(kind, False)
     editor.on_canvas_click(mouse((1, 2)))

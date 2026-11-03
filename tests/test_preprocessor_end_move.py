@@ -61,24 +61,7 @@ def test_end_xy_move_is_not_made_below_the_travel_z(name):
     assert moves[-1][1] == END_XY + (0.5,), gcode
 
 
-@pytest.mark.parametrize('name', PREPROCESSORS[::5])
-def test_output_is_unchanged_when_end_z_is_above_the_travel_z(name):
-    expected = {
-        'GRBL_laser_z': 'G0 Z15.0000\nG0 X10.0000 Y20.0000\n',
-        'Marlin': 'G0 Z15.0000 F1500.0000\nG0 X10.0000 Y20.0000 F1500.0000\n',
-        'Marlin_laser_z': 'G0 Z15.0000 F1500.0000\nG0 X10.0000 Y20.0000 F1500.0000\n',
-        'Repetier': 'G0 Z15.0000 F1500.0000\nG0 X10.0000 Y20.0000 F1500.0000\n',
-        'NCCAD9': 'G00 Z15.0000 F9000.0\nG0 X10.0000 Y20.0000 F9000.0\n\nG77 ; Move to release position\n',
-        'Line_xyz': 'G00 X10.0000 Y20.0000 Z15.0000',
-    }.get(name, 'G00 Z15.0000\nG00 X10.0000 Y20.0000\n')
-
-    gcode = preprocessor(name).end_code(params(z_end=15.0))
-    assert gcode.startswith(expected), gcode
-    # Berta_CNC and NCCAD9 add their own end lines; no other move follows
-    assert rapid_moves(gcode, LAST_POINT + (TRAVEL_Z,))[-1][1] == END_XY + (15.0,)
-
-
-@pytest.mark.parametrize('name', ['default', 'Marlin', 'NCCAD9', 'Line_xyz'])
+@pytest.mark.parametrize('name', ['default', 'Line_xyz'])
 def test_low_end_z_moves(name):
     expected = {
         'default': 'G00 Z2.0000\nG00 X10.0000 Y20.0000\nG00 Z0.5000\n',

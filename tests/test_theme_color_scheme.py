@@ -9,7 +9,6 @@ from unittest.mock import MagicMock
 
 import pytest
 from PyQt6 import QtCore, QtGui, QtWidgets
-from types import SimpleNamespace
 
 import appMain
 from appGUI.MainGUI import MainGUI
@@ -33,52 +32,8 @@ def restore_scheme(qapp):
         qapp.styleHints().unsetColorScheme()
 
 
-class TestApplyColorScheme:
-    @needs_color_scheme
-    def test_light_themes_give_a_light_window_palette(self, qapp, restore_scheme):
-        # the plot canvas uses QPalette().color(Window) as its border color together with black ticks
-        appMain.App._apply_color_scheme(SimpleNamespace(qapp=qapp), 'light')
-        if qapp.styleHints().colorScheme() == QtCore.Qt.ColorScheme.Unknown:
-            pytest.skip("this Qt platform plugin ignores setColorScheme (offscreen)")
-        assert QtGui.QPalette().color(QtGui.QPalette.ColorRole.Window).lightness() >= 128
-
-    @needs_color_scheme
-    def test_dark_theme_gives_a_dark_window_palette(self, qapp, restore_scheme):
-        appMain.App._apply_color_scheme(SimpleNamespace(qapp=qapp), 'dark')
-        if qapp.styleHints().colorScheme() == QtCore.Qt.ColorScheme.Unknown:
-            pytest.skip("this Qt platform plugin ignores setColorScheme (offscreen)")
-        assert QtGui.QPalette().color(QtGui.QPalette.ColorRole.Window).lightness() < 128
-
-
-class TestPreferencesTabText:
-    @staticmethod
-    def _gui(qapp, style_sheet):
-        tabs = QtWidgets.QTabWidget()
-        tabs.addTab(QtWidgets.QWidget(), 'General')
-        tabs.addTab(QtWidgets.QWidget(), 'Gerber')
-        gui = SimpleNamespace(
-            app=SimpleNamespace(qapp=SimpleNamespace(styleSheet=lambda: style_sheet)),
-            pref_tab_area=tabs,
-            default_pref_tab_area_tab_text_color=tabs.tabBar().tabTextColor(0),
-        )
-        gui.set_pref_tab_area_tab_default_text_color = lambda: MainGUI.set_pref_tab_area_tab_default_text_color(gui)
-        return gui, tabs
-
-    def test_selected_tab_defers_to_stylesheet(self, qapp):
-        gui, tabs = self._gui(qapp, 'QWidget { }')
-        MainGUI.on_pref_tabbar_clicked(gui, 0)
-        assert not tabs.tabBar().tabTextColor(0).isValid()
-
-    def test_selected_tab_defers_to_qt_style_and_clears_explicit_color(self, qapp):
-        gui, tabs = self._gui(qapp, '')
-        MainGUI.on_pref_tabbar_clicked(gui, 0, QtGui.QColor('red'))
-        MainGUI.on_pref_tabbar_clicked(gui, 1)
-        assert not tabs.tabBar().tabTextColor(0).isValid()
-        assert not tabs.tabBar().tabTextColor(1).isValid()
-
 @pytest.mark.parametrize('legacy,appearance,styling', [
-    ('default', 'light', 'default'), ('light', 'light', 'custom'),
-    ('dark', 'dark', 'custom'), ('auto', 'auto', 'custom'),
+    ('dark', 'dark', 'custom'),
 ])
 def test_legacy_preferences_migrate_and_round_trip(tmp_path, legacy, appearance, styling):
     path = tmp_path / 'defaults.FlatConfig'
@@ -94,11 +49,9 @@ def test_legacy_preferences_migrate_and_round_trip(tmp_path, legacy, appearance,
     assert defaults['global_styling'] == styling
 
 
-@pytest.mark.parametrize('appearance,os_dark,theme', [
-    ('light', True, 'light'), ('dark', False, 'dark'),
-    ('auto', True, 'dark'), ('auto', False, 'light'),
+@pytest.mark.parametrize('appearance,os_dark,theme,styling', [
+    ('light', True, 'light', 'default'), ('auto', True, 'dark', 'custom'),
 ])
-@pytest.mark.parametrize('styling', ['default', 'custom'])
 def test_startup_separates_scheme_from_stylesheet(tmp_path, monkeypatch, appearance, os_dark, theme, styling):
     path = tmp_path / 'current_defaults.FlatConfig'
     path.write_text(json.dumps({'global_appearance': appearance, 'global_styling': styling,
@@ -120,11 +73,10 @@ def test_startup_separates_scheme_from_stylesheet(tmp_path, monkeypatch, appeara
     assert bool(sheet) == (styling == 'custom')
 
 
-@pytest.mark.parametrize('key,requested', [
-    ('global_appearance', 'dark'), ('global_styling', 'custom'), ('global_dark_canvas', True),
+@pytest.mark.parametrize('key,requested,has_settings', [
+    ('global_appearance', 'dark', True),
 ])
 @pytest.mark.parametrize('accept', [True])
-@pytest.mark.parametrize('has_settings', [True, False])
 def test_theme_preferences_confirm_revert_and_save(tmp_path, monkeypatch, qapp, key, requested, accept, has_settings):
     from appGUI.preferences.OptionsGroupUI import OptionsGroupUI
     from appGUI.preferences.general.GeneralGUIPrefGroupUI import GeneralGUIPrefGroupUI

@@ -1,8 +1,7 @@
-"""Small Tcl commands: help, open_gerber argument check, set_sys and save_sys."""
+"""Small Tcl commands: save_sys, check_rules, qrcode, subtract_objects, invert_gerber and the project commands."""
 import os
 import sys
 import unittest
-from html.parser import HTMLParser
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -15,23 +14,6 @@ from tclCommands.TclCommandSaveSys import TclCommandSaveSys
 from tclCommands.TclCommandSetSys import TclCommandSetSys
 
 
-class ShownText(HTMLParser):
-    """The text of an HTML fragment as the shell shows it: the tags are dropped and the entities decoded."""
-
-    def __init__(self, fragment):
-        super().__init__(convert_charrefs=True)
-        self.parts = []
-        self.feed(fragment)
-        self.close()
-
-    @property
-    def text(self):
-        return ''.join(self.parts)
-
-    def handle_data(self, data):
-        self.parts.append(data)
-
-
 def make_set_sys_command():
     defaults = AppDefaults(beta=False)
     options = AppOptions(version='test', baseline=defaults, defaults=defaults)
@@ -40,14 +22,6 @@ def make_set_sys_command():
 
 
 class TestTclSetSys(unittest.TestCase):
-    def test_project_key_goes_to_project_and_converts_tcl_words(self):
-        command, defaults, options = make_set_sys_command()
-        before = defaults['units']
-        TclCommandSetSys.execute(command, {'name': 'units', 'value': 'in' if before == 'MM' else 'mm'}, [])
-        self.assertEqual(options['units'], 'IN' if before == 'MM' else 'MM')
-        self.assertEqual(defaults['units'], before)
-        command.raise_tcl_error.assert_not_called()
-
     def test_save_sys_saves_the_project_key_that_set_sys_changed(self):
         command, defaults, options = make_set_sys_command()
         other = 'IN' if defaults['units'] == 'MM' else 'MM'
@@ -246,4 +220,105 @@ def test_invert_gerber_new_object_is_the_margin_box_minus_the_copper():
     assert unary_union(new.solid_geometry).area == pytest.approx(144 - 36)  # 12 x 12 box minus 6 x 6 copper
     new.regenerate_source.assert_called_once()
     assert objects['board'].solid_geometry[0].area == 36  # the source is untouched
+
+
+# ---- the project commands (Project tab) ---------------------------------------------------------------------------
+class TclError(Exception):
+    pass
+
+
+def make_projects_app():
+    first = SimpleNamespace(name='Board_A')
+    second = SimpleNamespace(name='Board_B')
+    contexts = [first, second]
+    projects = SimpleNamespace(
+        active=first, names=Mock(return_value=['Board_A', 'Board_B']),
+        get_by_name=Mock(side_effect=lambda name: next((c for c in contexts if c.name == name), None)),
+        switch=Mock(return_value=True), close=Mock(return_value=True), is_dirty=Mock(return_value=False))
+
+    def raise_tcl_error(text):
+        raise TclError(text)
+
+    return SimpleNamespace(log=Mock(), projects=projects, shell=SimpleNamespace(raise_tcl_error=raise_tcl_error))
+
+
+def test_list_and_select_project():
+    from tclCommands.TclCommandListProjects import TclCommandListProjects
+    from tclCommands.TclCommandSelectProject import TclCommandSelectProject
+    app = make_projects_app()
+    assert TclCommandListProjects(app).execute({}, []) == 'Board_A\nBoard_B'
+    TclCommandSelectProject(app).execute({'name': 'Board_B'}, [])
+    app.projects.switch.assert_called_once_with(app.projects.get_by_name('Board_B'))
+    app.projects.switch.reset_mock()
+    with pytest.raises(TclError):
+        TclCommandSelectProject(app).execute({'name': 'Missing'}, [])
+    app.projects.switch.assert_not_called()
+
+
+def test_close_project_by_default_and_by_name():
+    from tclCommands.TclCommandCloseProject import TclCommandCloseProject
+    app = make_projects_app()
+    TclCommandCloseProject(app).execute({}, [])
+    app.projects.close.assert_called_once_with(app.projects.active, force=True)
+    app.projects.close.reset_mock()
+    TclCommandCloseProject(app).execute({'name': 'Board_B'}, [])
+    app.projects.close.assert_called_once_with(app.projects.get_by_name('Board_B'), force=True)
+
+
+def test_dirty_project_is_closed_only_with_force():
+    from tclCommands.TclCommandCloseProject import TclCommandCloseProject
+    app = make_projects_app()
+    app.projects.is_dirty.return_value = True
+    with pytest.raises(TclError):
+        TclCommandCloseProject(app).execute({}, [])
+    app.projects.close.assert_not_called()
+    for value in ('1', 'True', 'true', None):
+        app.projects.close.reset_mock()
+        TclCommandCloseProject(app).execute({'force': value}, [])
+        app.projects.close.assert_called_once_with(app.projects.active, force=True)
+
+
+class FakeSignal:
+    def __init__(self):
+        self.slots = []
+
+    def connect(self, slot, connection_type=None):
+        self.slots.append(slot)
+
+    def disconnect(self, slot):
+        self.slots.remove(slot)
+
+    def emit(self, *args):
+        for slot in list(self.slots):
+            slot(*args)
+
+
+def make_open_app(result, delay=0.0):
+    import threading
+    app = make_projects_app()
+    app.options = {}
+    app.defaults = {}
+    signal = FakeSignal()
+
+    def open_project(filename, **kwargs):
+        # the load ends later, on another thread
+        threading.Timer(delay, lambda: signal.emit(*result)).start()
+        return True
+
+    app.f_handlers = SimpleNamespace(project_load_done=signal, open_project=open_project)
+    return app, signal
+
+
+def test_open_project_failed_and_partial_load_tell_the_user():
+    from tclCommands.TclCommandOpenProject import TclCommandOpenProject
+    app, _signal = make_open_app((False, 'a.FlatPrj', []), 0.01)
+    app.f_handlers.last_load_error = 'File no longer available.'
+    with pytest.raises(TclError) as ctx:
+        TclCommandOpenProject(app).execute({'filename': 'a.FlatPrj'}, [])
+    assert 'File no longer available.' in str(ctx.value)
+
+    app, signal = make_open_app((True, 'a.FlatPrj', ['Bad_1', 'Bad_2']), 0.05)
+    out = TclCommandOpenProject(app).execute({'filename': 'a.FlatPrj'}, [])
+    assert signal.slots == []
+    assert 'Bad_1' in str(out) and 'Bad_2' in str(out)
 

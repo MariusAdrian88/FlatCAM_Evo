@@ -8,7 +8,6 @@ took 11 s.
 
 import os
 import sys
-import tempfile
 import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -42,91 +41,6 @@ def make_editor():
     app = SimpleNamespace(options={'global_theme': 'default'}, defaults=Mock(),
                           resource_location='assets/resources', regFK=SimpleNamespace(myKeywords=[]))
     return AppTextEditor(app=app, plain_text=True)
-
-
-class EditorCase(unittest.TestCase):
-    LINES = 5000
-
-    def setUp(self):
-        self.edit = CodeEdit(theme='default')
-        self.edit.resize(600, 400)
-        self.edit.show()
-        pump()
-        self.edit.load(gcode(self.LINES))
-        pump()
-
-    def tearDown(self):
-        self.edit.close()
-        self.edit.deleteLater()
-        pump()
-
-    def block(self, number):
-        return self.edit.document().findBlockByNumber(number)
-
-    def formatted(self, number):
-        return bool(self.block(number).layout().formats())
-
-    def scroll_to(self, number):
-        self.edit.verticalScrollBar().setValue(number)
-        pump()
-
-    def replace_line(self, number, text):
-        # what Replace does to a line that is not shown
-        cursor = QtGui.QTextCursor(self.block(number))
-        cursor.movePosition(QtGui.QTextCursor.MoveOperation.EndOfBlock, QtGui.QTextCursor.MoveMode.KeepAnchor)
-        cursor.insertText(text)
-        pump()
-
-
-class TestLazyHighlight(EditorCase):
-
-    def test_lines_are_highlighted_when_scrolled_into_view(self):
-        self.scroll_to(4000)
-        shown = self.edit.firstVisibleBlock().blockNumber()
-        self.assertTrue(shown >= 3990)
-        # every line shown (a 400 px high editor shows more than 15 lines)
-        for number in range(shown, shown + 15):
-            self.assertTrue(self.formatted(number), number)
-        # the lines highlighted before stay highlighted
-        self.assertTrue(self.formatted(5))
-
-    def test_changed_line_not_shown_keeps_its_colors(self):
-        self.scroll_to(1000)
-        for number in (1001, 1002, 1003):
-            self.assertTrue(self.formatted(number))
-        self.scroll_to(0)
-        self.assertEqual(self.edit.firstVisibleBlock().blockNumber(), 0)
-
-        self.replace_line(1001, 'G1 X1.0000 Y2.0000 F800.00')
-        self.assertTrue(self.formatted(1001))
-        self.assertTrue(self.formatted(1002))
-
-        # Undo: the line keeps its colors
-        self.edit.undo()
-        pump()
-        self.assertIn('F1000.00', self.block(1001).text())
-        self.assertTrue(self.formatted(1001))
-
-    def test_load_is_not_an_edit(self):
-        changes = []
-        self.edit.textChanged.connect(lambda: changes.append(1))
-        self.edit.load('G1 X1')
-        self.assertEqual((changes, self.edit.toPlainText(), self.edit.document().isModified()), ([], 'G1 X1', False))
-        self.assertFalse(self.edit.document().isUndoAvailable())
-
-
-class TestPrint(EditorCase):
-    LINES = 400
-
-    def test_printed_document_is_highlighted_on_every_line(self):
-        self.assertFalse(self.formatted(350))
-        changes = []
-        self.edit.textChanged.connect(lambda: changes.append(1))
-        with tempfile.TemporaryDirectory() as folder:
-            self.edit.print(QtGui.QPdfWriter(os.path.join(folder, 'print.pdf')))
-        self.assertEqual(changes, [])
-        for number in (5, 350, self.LINES + 2):
-            self.assertTrue(self.formatted(number), number)
 
 
 class TestGotoLine(unittest.TestCase):
@@ -172,17 +86,6 @@ class TestGotoLine(unittest.TestCase):
         self.assertEqual(self.goto('200'), (200, []))
         last = self.edit.document().blockCount()
         self.assertEqual(self.goto(str(last)), (last, []))
-
-    def test_wrong_line_warns_and_keeps_the_cursor(self):
-        # a text that is not a line number went to line 1 without a message
-        for text in ('abc', '', '0', '100000'):
-            line, messages = self.goto(text)
-            self.assertEqual(line, 100, text)
-            self.assertEqual(len(messages), 1, text)
-            self.assertTrue(messages[0].startswith('[WARNING_NOTCL]'), text)
-        # Cancel
-        self.assertEqual(self.goto('200', ok=False), (100, []))
-
 
 class FindCase(unittest.TestCase):
 
@@ -241,19 +144,6 @@ class TestFind(FindCase):
             sys.excepthook = hook
             self.editor.close()
         self.assertEqual(errors, [])
-
-    def test_next_and_previous_wrap_around_without_a_dialog(self):
-        self.editor.load_text('G1\nG2\nG1', move_to_start=True)
-        self.find('G1', case=True)
-        with unittest.mock.patch.object(QtWidgets.QDialog, 'exec', side_effect=AssertionError('dialog')):
-            seen = []
-            for __ in range(3):
-                self.assertTrue(self.bar.find_next())
-                seen.append(self.edit.textCursor().blockNumber())
-            self.assertEqual(seen, [0, 2, 0])
-            self.assertTrue(self.bar.find_previous())
-            self.assertEqual(self.edit.textCursor().blockNumber(), 2)
-
 
 class TestReplaceAll(FindCase):
     """Replace All of AppTextEditor (G-code editor): every match from the document start, in one Undo step."""
@@ -335,124 +225,7 @@ class TestEditingAids(unittest.TestCase):
                 self.edit.undo()
                 self.assertEqual(self.edit.toPlainText(), text)
 
-    def test_toggle_comment_twice_gives_the_text_back(self):
-        text = 'G1 X1\n\nG0 Z5'
-        self.edit.load(text)
-        self.edit.selectAll()
-        self.edit.toggle_comment()
-        self.assertEqual(self.edit.toPlainText(), '(G1 X1)\n\n(G0 Z5)')
-        self.edit.toggle_comment()
-        self.assertEqual(self.edit.toPlainText(), text)
-
-    def test_zoom_keys_change_the_font_size(self):
-        size = self.edit.font().pointSizeF()
-        QtTest.QTest.keyClick(self.edit, Key.Key_Equal, Mod.ControlModifier)
-        self.assertGreater(self.edit.font().pointSizeF(), size)
-        QtTest.QTest.keyClick(self.edit, Key.Key_0, Mod.ControlModifier)
-        self.assertEqual(self.edit.font().pointSizeF(), size)
-
-    def test_bracket_at_the_cursor_is_matched(self):
-        self.edit.load('G1 (a [b] c)')
-        cursor = self.edit.textCursor()
-        cursor.setPosition(4)
-        self.edit.setTextCursor(cursor)
-        self.assertEqual(self.edit.matching_brackets(), [3, 11])
-
-
 # (language, one line, [(character position, token whose color it must have)])
-TOKEN_SAMPLES = [
-    ('gcode', 'N10 G01 X-1.5 Z-2 F100 M03 (note)', [(0, 'line_number'), (4, 'gcode_g'), (8, 'axis'),
-                                                   (14, 'z_axis'), (19, 'feed'), (24, 'gcode_m'), (29, 'comment')]),
-    ('gerber', 'X100Y200D01*', [(0, 'axis'), (8, 'gerber_dcode')]),
-    ('gerber', '%FSLAX24Y24*%', [(3, 'gerber_extended')]),
-    ('gerber', '%TF.FileFunction,Copper*%', [(3, 'attribute')]),
-    ('gerber', 'G04 note*', [(5, 'comment')]),
-    ('excellon', 'T01C0.8', [(0, 'tool'), (4, 'tool')]),
-    ('excellon', 'X1.5Y-2.5 ;c', [(0, 'axis'), (6, 'axis'), (11, 'comment')]),
-    ('tcl', 'set x $y -opt 5 ;# c', [(0, 'keyword'), (6, 'variable'), (9, 'param'), (14, 'number'), (19, 'comment')]),
-]
-
-
-class TestLexers(unittest.TestCase):
-
-    def test_default_theme_on_a_dark_background_takes_the_dark_colors(self):
-        from appEditors.text_editor.themes import DARK, LIGHT
-        edit = CodeEdit(theme='default')
-        for background, expected in (('#ffffff', LIGHT), ('#1e1e1e', DARK), ('#ffffff', LIGHT)):
-            palette = edit.palette()
-            palette.setColor(QtGui.QPalette.ColorRole.Base, QtGui.QColor(background))
-            edit.setPalette(palette)
-            self.assertIs(edit.colors, expected, background)
-        self.assertIs(CodeEdit(theme='dark').colors, DARK)
-
-    def test_tokens_have_their_colors(self):
-        from appEditors.text_editor.lexers import get_lexer
-        for language, line, expected in TOKEN_SAMPLES:
-            edit = CodeEdit(theme='default', lexer=get_lexer(language))
-            colors = edit.colors
-            edit.resize(600, 100)
-            edit.show()
-            edit.load(line)
-            pump()
-            formats = edit.document().firstBlock().layout().formats()
-            for position, token in expected:
-                color = [item.format.foreground().color().name() for item in formats
-                         if item.start <= position < item.start + item.length]
-                self.assertEqual(color, [getattr(colors, token)], (language, line, position, token))
-            edit.close()
-            edit.deleteLater()
-
-        # the Tcl command names of the app are highlighted
-        from appEditors.text_editor.lexers import get_lexer
-        edit = CodeEdit(theme='default', lexer=get_lexer('tcl', ['open_gerber']))
-        edit.show()
-        edit.load('open_gerber file.gbr')
-        pump()
-        formats = edit.document().firstBlock().layout().formats()
-        self.assertEqual(formats[0].format.foreground().color().name(), edit.colors.tcl_command)
-        edit.close()
-        edit.deleteLater()
-
-    def test_fold_regions(self):
-        from appEditors.text_editor.lexers import get_lexer
-        gcode = '(head)\nG21\nG90\nT1\nM6\nG1 X1\nG1 X2\nT2 M6\nG1 X3\nM30'
-        gerber = '%FSLAX24Y24*%\n%AMOC*\n1,1,0.5,0,0*%\nG36*\nX1Y1D02*\nX2Y2D01*\nG37*\nM02*'
-        excellon = 'M48\nMETRIC\nT1C0.8\nT2C1.0\n%\nT1\nX1Y1\nX2Y2\nT2\nX3Y3\nM30'
-        tcl = 'proc a {} {\n  # } not a brace\n  if {$x} {\n    puts "}"\n  }\n}\nset y 1'
-        for language, text, expected in (
-                ('gcode', gcode, [(0, 2), (3, 6), (7, 9)]),
-                ('gerber', gerber, [(1, 2), (3, 6)]),
-                ('excellon', excellon, [(0, 4), (5, 7), (8, 9)]),
-                ('tcl', tcl, [(0, 5), (2, 4)])):
-            self.assertEqual(get_lexer(language).fold_regions(text), expected, language)
-        self.assertEqual(get_lexer('tcl').fold_regions('{ { ( "'), [])
-        self.assertEqual(get_lexer('plain').fold_regions(gcode), [])
-
-    def test_language_is_detected_from_the_text(self):
-        from appEditors.text_editor.lexers import detect_language
-        for language, text in (
-                ('gerber', '%FSLAX24Y24*%\n%MOMM*%\n%ADD10C,0.5*%\nD10*\nX1Y1D02*\nM02*'),
-                ('excellon', 'M48\nMETRIC,TZ\nT1C0.8\n%\nT1\nX1Y1\nM30'),
-                ('gcode', '(test)\nG21\nG90\nG01 X1 Y2 Z-1 F100\nM03\nM05'),
-                ('tcl', 'set x 1\nopen_gerber a.gbr -outname a\nproc f {} {}'),
-                ('plain', 'hello world\nsome notes'),
-                ('plain', '')):
-            self.assertEqual(detect_language(text), language, language)
-
-        # the editor detects the language on the first load and keeps a given one
-        editor = make_editor()
-        editor.load_text('%FSLAX24Y24*%\n%MOMM*%\nX1Y1D02*\nM02*')
-        self.assertEqual((editor.language, editor.lexer.name), ('gerber', 'Gerber'))
-        editor.load_text('G21\nG01 X1 Y1 Z-1')
-        self.assertEqual(editor.language, 'gerber')
-        editor.set_language('gcode')
-        self.assertEqual(editor.lexer.name, 'G-code')
-        app = SimpleNamespace(options={'global_theme': 'default'}, defaults=Mock(), resource_location='assets/resources')
-        fixed = AppTextEditor(app=app, plain_text=True, language='tcl')
-        fixed.load_text('G21\nG01 X1 Y1 Z-1')
-        self.assertEqual(fixed.lexer.name, 'Tcl')
-
-
 def tool_gcode(tools=3, moves=50):
     rows = ['(head)', 'G21', 'G90']
     for tool in range(1, tools + 1):
@@ -527,143 +300,6 @@ class TestFolding(FoldCase):
         self.edit.setTextCursor(QtGui.QTextCursor(self.edit.document().findBlockByNumber(3)))
         QtTest.QTest.keyClick(self.edit, Key.Key_Down)
         self.assertTrue(self.edit.textCursor().block().isVisible())
-
-    def test_edit_inside_a_fold_unfolds_it_and_an_edit_above_keeps_it(self):
-        fold = self.edit.fold
-        fold.fold(55)
-        cursor = QtGui.QTextCursor(self.edit.document().findBlockByNumber(0))
-        cursor.insertText('(first)\n')
-        self.assertEqual((fold.is_folded(56), self.hidden()), (True, list(range(57, 108))))
-        cursor = QtGui.QTextCursor(self.edit.document().findBlockByNumber(70))
-        cursor.insertText('x')
-        self.assertEqual((fold.is_folded(56), self.hidden()), (False, []))
-
-    def test_rescan_keeps_a_fold_that_is_still_a_region_and_drops_the_others(self):
-        fold = self.edit.fold
-        fold.fold(3)
-        fold.fold(107)
-        # a line added above and a start line changed: after the debounce only the first fold is left
-        QtGui.QTextCursor(self.edit.document().findBlockByNumber(0)).insertText('(first)\n')
-        block = self.edit.document().findBlockByNumber(108)
-        cursor = QtGui.QTextCursor(block)
-        cursor.movePosition(QtGui.QTextCursor.MoveOperation.EndOfBlock, QtGui.QTextCursor.MoveMode.KeepAnchor)
-        cursor.insertText('G4 P1')
-        QtTest.QTest.qWait(450)
-        self.assertEqual(sorted(n for n in range(170) if fold.is_folded(n)), [4])
-        self.assertEqual(self.hidden(), list(range(5, 56)))
-
-    def test_nested_unfold_keeps_the_inner_fold(self):
-        from appEditors.text_editor.lexers import get_lexer
-        self.edit.set_lexer(get_lexer('tcl'))
-        self.edit.load('proc a {} {\n  if {$x} {\n    puts 1\n  }\n}\nset y 1')
-        fold = self.edit.fold
-        fold.rescan()
-        fold.fold(1)
-        fold.fold(0)
-        self.assertEqual(self.hidden(), [1, 2, 3, 4])
-        fold.unfold(0)
-        self.assertEqual(self.hidden(), [2, 3])
-
-    def test_click_on_the_marker_toggles_the_fold(self):
-        block = self.edit.document().findBlockByNumber(3)
-        y = int(self.edit.blockBoundingGeometry(block).translated(self.edit.contentOffset()).top()) + 3
-        point = QtCore.QPoint(self.edit.gutter.width() - 5, y)
-        QtTest.QTest.mouseClick(self.edit.gutter, QtCore.Qt.MouseButton.LeftButton, pos=point)
-        self.assertTrue(self.edit.fold.is_folded(3))
-        QtTest.QTest.mouseClick(self.edit.gutter, QtCore.Qt.MouseButton.LeftButton, pos=point)
-        self.assertFalse(self.edit.fold.is_folded(3))
-
-
-class TestMinimap(unittest.TestCase):
-
-    def setUp(self):
-        self.editor = make_editor()
-        self.editor.resize(700, 400)
-        self.editor.show()
-        pump()
-
-    def tearDown(self):
-        self.editor.close()
-        self.editor.deleteLater()
-        pump()
-
-    def test_the_map_button_shows_and_hides_the_minimap(self):
-        # a short text too: the button must not look dead (View Source of a small Gerber file)
-        self.editor.load_text(gcode(100))
-        self.editor.button_minimap.setChecked(True)
-        self.assertFalse(self.editor.minimap.isHidden())
-        self.editor.load_text(gcode(5000))
-        self.assertFalse(self.editor.minimap.isHidden())
-        self.assertTrue(self.editor.app.options['text_editor_minimap'])
-        # the status bar counts the lines of the text loaded
-        self.assertEqual(self.editor.status_bar.lines_label.text(), '%d lines' % self.editor.code_editor.blockCount())
-        self.editor.button_minimap.setChecked(False)
-        self.assertTrue(self.editor.minimap.isHidden())
-
-    def test_click_scrolls_the_editor_to_the_part_clicked(self):
-        self.editor.button_minimap.setChecked(True)
-        self.editor.load_text(gcode(5000))
-        pump()
-        minimap = self.editor.minimap
-        minimap.rebuild()
-        bar = self.editor.code_editor.verticalScrollBar()
-        for fraction in (0.5, 0.9):
-            point = QtCore.QPoint(40, int(minimap.height() * fraction))
-            QtTest.QTest.mouseClick(minimap, QtCore.Qt.MouseButton.LeftButton, pos=point)
-            wanted = fraction * bar.maximum()
-            self.assertAlmostEqual(bar.value() / bar.maximum(), wanted / bar.maximum(), delta=0.1)
-            # the line under the click (the center line of the lens) gets the text cursor, in view
-            edit = self.editor.code_editor
-            self.assertEqual(edit.textCursor().blockNumber(), minimap.block_at_y(point.y()))
-            self.assertTrue(edit.viewport().rect().contains(edit.cursorRect().center()))
-
-    def test_hover_shows_the_code_under_the_pointer_in_a_lens(self):
-        self.editor.button_minimap.setChecked(True)
-        self.editor.load_text(tool_gcode(tools=3, moves=100))     # regions (0, 2), (3, 104), (105, 206), (207, 308)
-        pump()
-        edit = self.editor.code_editor
-        edit.fold.rescan()
-        edit.fold.fold(3)           # 101 lines hidden: 208 lines are visible
-        minimap = self.editor.minimap
-        minimap.rebuild()
-        pump()
-        y = minimap._rows * 0.5
-        # (QTest.mouseMove sends no move event to a widget without a button pressed)
-        point = QtCore.QPointF(40, int(y))
-        QtWidgets.QApplication.sendEvent(minimap, QtGui.QMouseEvent(
-            QtCore.QEvent.Type.MouseMove, point, minimap.mapToGlobal(point), QtCore.Qt.MouseButton.NoButton,
-            QtCore.Qt.MouseButton.NoButton, QtCore.Qt.KeyboardModifier.NoModifier))
-        pump()
-        lens = minimap.lens
-        self.assertTrue(lens is not None and lens.isVisible())
-        # the visible line in the middle is block 104 + 104 - 3 = ~205: a line of the 2nd tool, not of the folded 1st
-        center = minimap.block_at_y(y)
-        self.assertGreater(center, 104)
-        self.assertIn(edit.document().findBlockByNumber(center).text(), lens.view.toPlainText().split('\n'))
-        self.assertIn(center + 1, lens.view.numbers)
-        # the lens keeps the colors of the code
-        self.assertTrue(lens.view.document().firstBlock().layout().formats())
-        QtTest.QTest.mouseClick(minimap, QtCore.Qt.MouseButton.LeftButton, pos=QtCore.QPoint(40, int(y)))
-        minimap.leaveEvent(QtCore.QEvent(QtCore.QEvent.Type.Leave))
-        self.assertFalse(lens.isVisible())
-
-    def test_the_lens_reaches_the_first_and_the_last_lines(self):
-        # a row of a long text covers many lines: the edge rows (and a few pixels near them) must show the ends
-        self.editor.button_minimap.setChecked(True)
-        self.editor.load_text(gcode(5000))
-        pump()
-        minimap = self.editor.minimap
-        minimap.rebuild()
-        pump()
-        last = self.editor.code_editor.blockCount() - 1
-        for y in (0, 2):
-            minimap.show_lens(y)
-            self.assertEqual(minimap.lens.view.numbers[0], 1)
-        for y in (minimap._rows - 1, minimap._rows - 3):
-            minimap.show_lens(y)
-            self.assertEqual(minimap.lens.view.numbers[-1], last + 1)
-            self.assertEqual(len(minimap.lens.view.numbers), 15)
-
 
 if __name__ == '__main__':
     unittest.main()

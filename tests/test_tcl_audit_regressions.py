@@ -77,8 +77,6 @@ class BackgroundCommand(TclCommandSignaled, Command):
 
 
 @pytest.mark.parametrize('command_name, keys', [
-    ('Delete', ('f',)),
-    ('Paint', ('all',)),
     ('Cncjob', ('dpp', 'toolchangez', 'dwelltime', 'extracut_length', 'startz', 'spindlespeed')),
 ])
 def test_actual_commands_preserve_supported_bare_options(command_name, keys):
@@ -175,9 +173,7 @@ def test_aperture_ids_are_integer_unique_and_start_at_ten():
 
 
 @pytest.mark.parametrize('cls,args,extra', [
-    (TclCommandAddPolyline, {'name': 'g'}, []),
-    (TclCommandAddCircle, {'name': 'g', 'center_x': 0, 'center_y': 0, 'radius': -1}, []),
-    (TclCommandAddRectangle, {'name': 'g', 'x0': 0, 'y0': 0, 'x1': 0, 'y1': 1}, [])])
+    (TclCommandAddCircle, {'name': 'g', 'center_x': 0, 'center_y': 0, 'radius': -1}, [])])
 def test_invalid_shapes_do_not_mutate(cls, args, extra):
     obj = Mock(kind='geometry')
     with pytest.raises(FCShell.TclErrorException):
@@ -254,8 +250,7 @@ class Worker(QtCore.QObject):
         task['fcn'](*task['params'])
 
 
-@pytest.mark.parametrize('names', [['with space', 'plain'], ['fail']])
-@pytest.mark.parametrize('use_worker', [False, True])
+@pytest.mark.parametrize('names,use_worker', [(['with space', 'plain'], False), (['fail'], True)])
 def test_a_command_returns_the_names_of_the_objects_it_created(qt_app, names, use_worker):
     app = make_app()
     app.collection = FakeCollection()

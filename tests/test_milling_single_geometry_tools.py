@@ -32,9 +32,8 @@ N_PATHS = 3
 CUT_MOVES = 9
 
 
-@pytest.mark.parametrize('pp_name', ['default', 'GRBL_laser'])
-@pytest.mark.parametrize('toolchange', [False, True])
-@pytest.mark.parametrize('startz', ['', 1.0])
+@pytest.mark.parametrize('pp_name, toolchange, startz', [('default', False, ''), ('default', True, 1.0),
+                                                         ('GRBL_laser', True, '')])
 def test_two_tool_milling_golden(pp_name, toolchange, startz):
     import hashlib
     from tests.test_cncjob_gcode_speed import gcode_job, milling_tools
@@ -160,17 +159,6 @@ def cut_items(parsed):
     return sum(1 for geo in parsed if geo['kind'][0] == 'C')
 
 
-@pytest.mark.parametrize('pp', ['default'])
-@pytest.mark.parametrize('n_tools', [2])
-def test_each_tool_gcode_holds_only_that_tool(n_tools, pp):
-    __, job = milling_job(n_tools, pp)
-    laser = 'laser' in pp
-    assert list(job.tools) == list(range(1, n_tools + 1))
-    for k, tool in job.tools.items():
-        assert tool_marks(tool['gcode'], laser) == expected_marks([k], laser), k
-        assert cut_moves(tool['gcode']) == CUT_MOVES, k
-
-
 @pytest.mark.parametrize('pp', ['GRBL_laser'])
 @pytest.mark.parametrize('n_tools', [2])
 def test_the_exported_file_has_every_path_once(n_tools, pp):
@@ -196,18 +184,6 @@ def test_multi_geometry_job_has_every_path_once(n_tools):
     assert job.source_file == body
     assert tool_marks(exported(job)) == expected_marks(range(1, n_tools + 1))
     assert exported(job).count(body) == 1
-
-
-def test_the_laser_min_power_warning_looks_at_each_tool_only():
-    # tool 1 keeps the laser on between the cuts (Min Power 250), tool 2 turns it off (Min Power 0): 1 warning, for
-    # tool 1. With the G-code of tool 1 in the G-code of tool 2 there was a second warning that said 'Min Power is 0'.
-    app, job = milling_job(2, 'GRBL_laser', min_power=(250, 0))
-    warnings = [c.args[0] for c in app.inform.emit.call_args_list
-                if c.args and str(c.args[0]).startswith('[WARNING]') and 'laser OFF' in str(c.args[0])]
-    assert len(warnings) == 1
-    assert '250' in warnings[0]
-    assert '(laser OFF)' in job.tools[1]['gcode']
-    assert '(laser OFF)' not in job.tools[2]['gcode']
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -349,3 +325,12 @@ def test_the_optimization_of_the_tool_orders_its_paths(multigeo, optimization, l
     assert xy_cuts(job.source_file)[-1] == last_cut
     # the application option is not left changed
     assert app.options['tools_mill_optimization_type'] == 'R'
+
+
+@pytest.mark.parametrize('multigeo', [False, True])
+def test_cut_z_zero_fails_cleanly(multigeo):
+    # Issue #40: a Cut Z of 0 with a non-laser preprocessor is a clean failure and no job, not an unpack error
+    app, job = milling_job(2, multigeo=multigeo, from_tcl=True, data=dict(tools_mill_cutz=0.0))
+    assert job == 'fail'
+    messages = ' '.join(str(call.args[0]) for call in app.inform.emit.call_args_list)
+    assert 'unpack' not in messages

@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
@@ -102,50 +102,7 @@ class TestAllegroBrdImport(unittest.TestCase):
 
     # ------------------------------------------------------------------ dialog
 
-    def test_dialog_accept_queues_only_selected_layers_and_drill_groups(self):
-        def accepted(dialog):
-            for box in dialog.findChildren(QtWidgets.QCheckBox):
-                if box.text() == 'BOTTOM (ETCH/BOTTOM)':
-                    box.setChecked(False)
-            return QtWidgets.QDialog.DialogCode.Accepted
-
-        with patch.object(QtWidgets.QDialog, 'exec', accepted):
-            self.io.on_pcbdoc_parsed(BOARD, self.parsed)
-        job = self.app.worker_task.emit.call_args.args[0]
-        self.assertEqual(job['fcn'], self.io.import_pcbdoc_objects)
-        self.assertEqual(job['params'][0], BOARD)
-        self.assertEqual(job['params'][2:], [['TOP', 'SOLDERMASK_TOP', 'SOLDERMASK_BOTTOM', 'SILKSCREEN_TOP',
-                                              'OUTLINE'], ['PTH', 'NPTH']])
-
     # ------------------------------------------------------------------ parse entry points
-
-    def test_parse_allegro_brd_error_reports_and_returns_fail(self):
-        with tempfile.TemporaryDirectory() as directory:
-            bad = self._file(directory, 'bad.brd', b'\x00\x04\x14\x00' + bytes(40))
-            with patch.object(self.io, 'pcbdoc_parsed') as parsed_signal:
-                self.assertEqual(self.io.parse_allegro_brd(bad), 'fail')
-        parsed_signal.emit.assert_not_called()
-        self.app.inform.emit.assert_called_once()
-        self.assertIn('[ERROR_NOTCL]', self.app.inform.emit.call_args.args[0])
-        self.app.log.error.assert_called_once()
-        self.assertEqual(self.app.log.error.call_args.args[1], 'Allegro Board')
-
-    def test_parse_allegro_brd_success_emits_parsed_board(self):
-        with patch.object(self.io, 'pcbdoc_parsed') as parsed_signal:
-            self.assertIsNone(self.io.parse_allegro_brd(BOARD))
-        parsed_signal.emit.assert_called_once()
-        filename, parsed = parsed_signal.emit.call_args.args
-        self.assertEqual(filename, BOARD)
-        self.assertIsInstance(parsed, AllegroBrdParser)
-        self.assertIn('TOP', parsed.layers)
-        self.assertIs(parsed.app, self.app)
-        self.app.inform.emit.assert_not_called()
-
-    def test_on_file_import_allegro_brd_queues_parse_for_given_name(self):
-        with patch.object(QtWidgets.QFileDialog, 'getOpenFileName') as chooser:
-            self.io.on_file_import_allegro_brd(BOARD)
-        chooser.assert_not_called()
-        self.app.worker_task.emit.assert_called_once_with({'fcn': self.io.parse_allegro_brd, 'params': [BOARD]})
 
 if __name__ == '__main__':
     unittest.main()

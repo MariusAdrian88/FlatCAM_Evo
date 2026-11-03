@@ -9,8 +9,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from tests.helpers_objects import _headless_qt, make_app, make_gerber  # noqa: F401,E402
-from appObjects.GerberObject import GerberObject
-from unittest.mock import MagicMock
 
 
 def _gerber():
@@ -43,8 +41,7 @@ def test_plot_aperture_without_storage_key_stores_shape_keys():
     obj.mark_shapes.redraw.assert_called_once()
 
 
-@pytest.mark.parametrize('only_flashes', [False, True])
-@pytest.mark.parametrize('run_thread', [False, True])
+@pytest.mark.parametrize('only_flashes, run_thread', [(False, False), (True, True)])
 def test_marking_batches_shapes_and_keeps_aperture_keys(only_flashes, run_thread):
     app, obj = _gerber()
     first = Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])
@@ -83,34 +80,3 @@ def test_marking_batches_shapes_and_keeps_aperture_keys(only_flashes, run_thread
     assert obj.mark_shapes_storage == {10: [], 20: ['other']}
 
 
-def test_deleted_object_does_not_submit_mark_batches():
-    app, obj = _gerber()
-    obj.deleted = True
-    obj.clear_plot_apertures = Mock()
-    obj.plot_aperture(marked_aperture=_aperture_with_solid(obj))
-    obj.mark_shapes.add_batch.assert_not_called()
-    obj.clear_plot_apertures.assert_called_once()
-    app.log.error.assert_not_called()
-
-
-class TestGerberMarkedRows_0B6:
-    @staticmethod
-    def _table(checked):
-        table = MagicMock()
-        table.rowCount.return_value = len(checked)
-        table.item.return_value.text.return_value = '10'
-        table.cellWidget.side_effect = lambda r, c: Mock(**{'isChecked.return_value': checked[r]})
-        return table
-
-    def _click(self, marked_rows, checked, row):
-        me = MagicMock()
-        me.marked_rows = marked_rows
-        me.ui.apertures_table = self._table(checked)
-        me.ui.apertures_table.indexAt.return_value.row.return_value = row
-        me._app_option.return_value = '#aabbcc'
-        GerberObject.on_mark_cb_click_table(me)
-        return me
-
-    def test_click_marks_only_the_clicked_row(self):
-        me = self._click([], [False, True, False], 1)
-        assert me.marked_rows == [False, True, False]

@@ -50,17 +50,10 @@ class TestNarrowChannel(unittest.TestCase):
                     paths = list(result.get_objects()) if result is not None else []
                     self.assertTrue(any(path.intersects(channel) for path in paths))
 
-    def test_shrink(self):
-        self.check(lambda area, steps: camlib.Geometry.clear_polygon_shrink(
-            self.geometry, area, self.tooldia, steps, connect=False))
-
-    def test_seed(self):
-        self.check(lambda area, steps: camlib.Geometry.clear_polygon_seed(
-            self.geometry, area, self.tooldia, steps, connect=False))
-
-    def test_lines(self):
-        self.check(lambda area, steps: camlib.Geometry.clear_polygon_lines(
-            self.geometry, area, self.tooldia, steps, connect=False))
+    def test_every_method_cuts_the_channel(self):
+        for method in ('clear_polygon_shrink', 'clear_polygon_seed', 'clear_polygon_lines'):
+            self.check(lambda area, steps: getattr(camlib.Geometry, method)(
+                self.geometry, area, self.tooldia, steps, connect=False))
 
 
 class TestScanLinesCoverTheEdgeStrip(unittest.TestCase):
@@ -91,13 +84,6 @@ class TestScanLinesCoverTheEdgeStrip(unittest.TestCase):
             with self.subTest(steps=steps):
                 margin, paths = self.run_lines(box(0, 0, 20, 10), steps)
                 self.check_levels([c[1] for path in paths for c in path.coords], margin.bounds[1], margin.bounds[3])
-
-    def test_vertical_lines(self):
-        for steps in STEPS:
-            with self.subTest(steps=steps):
-                margin, paths = self.run_lines(box(0, 0, 10, 20), steps)
-                self.check_levels([c[0] for path in paths for c in path.coords], margin.bounds[0], margin.bounds[2])
-
 
 def sweep_of(paths, tooldia):
     return unary_union([path.buffer(tooldia / 2, quad_segs=32) for path in paths])

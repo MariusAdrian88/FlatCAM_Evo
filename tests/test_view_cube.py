@@ -29,17 +29,6 @@ class TestViewCube(unittest.TestCase):
         normal /= np.linalg.norm(normal)
         np.testing.assert_allclose(normal, self.normals[name], atol=1e-6)
 
-    def test_six_views_keep_pan_and_zoom(self):
-        camera = self.make_canvas().view.camera
-        camera.zoom(0.5, (70, 90, 0))
-        center, scale = camera.center, camera.scale_factor
-        for name in self.normals:
-            with self.subTest(view=name):
-                camera.set_view(name)
-                self.assert_view(camera, name)
-                np.testing.assert_allclose(camera.center, center)
-                self.assertEqual(camera.scale_factor, scale)
-
     def test_face_click_selects_the_visible_face(self):
         canvas = self.make_canvas()
         camera, cube = canvas.view.camera, canvas.view_cube

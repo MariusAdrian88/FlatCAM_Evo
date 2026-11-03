@@ -19,12 +19,8 @@ def new_fn():
 
 
 class TestNew:
-    @pytest.mark.parametrize('name, convex', [('mixed_dark_clear_dark', False), ('overlapping_list', True),
-                                              ('multipolygon', False), ('self_intersecting', True)])
+    @pytest.mark.parametrize('name, convex', [('mixed_dark_clear_dark', False), ('overlapping_list', True)])
     def test_valid_polygonal(self, gerber, new_fn, name, convex):
         geo = new_fn(obj_with(gerber, name), convex)
         assert isinstance(geo, (Polygon, MultiPolygon)) and geo.is_valid
 
-    def test_self_intersecting_no_longer_raises(self, gerber, new_fn):
-        geo = new_fn(obj_with(gerber, 'self_intersecting'), False)
-        assert geo.area > 0

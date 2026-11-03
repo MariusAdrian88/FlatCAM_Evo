@@ -21,11 +21,6 @@ def _with_placeholders(grb):
     return grb
 
 
-def test_export_routing_ignores_placeholder_clear(app):
-    grb = _with_placeholders(make_gerber(app, NATIVE_GBR))
-    assert Gerber.needs_region_export(grb) is False
-
-
 def test_project_load_drops_placeholders_so_the_export_keeps_the_copper(app, tmp_path):
     from appObjects.GerberObject import GerberObject
     saved = _with_placeholders(make_gerber(app, NATIVE_GBR))
@@ -36,12 +31,5 @@ def test_project_load_drops_placeholders_so_the_export_keeps_the_copper(app, tmp
             assert all(hasattr(rec[k], 'is_empty') for k in rec if k in ('solid', 'follow', 'clear'))
     again = reparse_gerber(app, export_gerber_text(app, loaded), tmp_path)
     assert_poly_equiv(again.solid_geometry, saved.solid_geometry, rel=1e-6, abs_tol=1e-4)
-
-
-def test_iter_features_treats_placeholders_as_missing(app):
-    grb = _with_placeholders(make_gerber(app, NATIVE_GBR))
-    records = list(iter_features(grb))
-    assert records and all(r.polarity == 'dark' for r in records)
-    assert all(hasattr(r.solid, 'is_empty') for r in records)
 
 

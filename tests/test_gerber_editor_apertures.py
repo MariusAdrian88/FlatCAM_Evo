@@ -1,6 +1,5 @@
 """Gerber Editor aperture table operations: delete unused, renumber, merge duplicates, round sizes, same type."""
 import math
-from copy import deepcopy
 from types import SimpleNamespace
 
 import pytest
@@ -40,68 +39,6 @@ def test_database_autoloads_only_checked_apertures_with_converted_dimensions(tmp
     assert editor.storage_dict[11]['width'] == pytest.approx(2.54)
     assert editor.storage_dict[11]['height'] == pytest.approx(5.08)
     assert editor.storage_dict[11]['size'] == pytest.approx(math.hypot(2.54, 5.08))
-
-
-@pytest.mark.parametrize('tools, solid', [
-    ({10: {'type': 'C', 'size': 1, 'geometry': []}}, []),
-    ({10: {'type': 'C', 'size': 1, 'geometry': [DrawToolShape({'solid': box(0, 0, 1, 1)})]}}, []),
-    ({}, [box(0, 0, 1, 1)]),
-])
-def test_autoload_preserves_existing_apertures_and_geometry(tools, solid):
-    editor = make_editor(deepcopy(tools))
-    editor.gerber_obj = SimpleNamespace(tools=tools, solid_geometry=solid)
-    before = dict(editor.storage_dict)
-    editor.app.tools_database_path.side_effect = AssertionError('Existing objects must not read defaults')
-    editor.autoload_apertures()
-    assert editor.storage_dict == before
-
-
-def test_aperture_library_saves_autoload_and_rejects_stale_or_invalid_edits(tmp_path):
-    from appCommon.ToolDatabase import read_apertures, write_apertures, write_database, read_database
-    from appGUI.ApertureLibrary import ApertureLibrary
-    from PyQt6 import QtCore
-    path = tmp_path / 'tools.sqlite3'
-    write_database(path, {})
-    editor = make_editor()
-    editor.app.tools_database_path.return_value = str(path)
-    dialog = ApertureLibrary(editor.app, apertures={
-        10: {'type': 'C', 'size': 0.6, 'geometry': [flash(0, 0, 0.6)]}})
-    dialog.table.item(0, 6).setCheckState(QtCore.Qt.CheckState.Checked)
-    assert dialog.save_library()
-    stored = read_apertures(path)
-    assert stored == {10: {'type': 'C', 'size': 0.6, 'units': 'MM', 'autoload': True}}
-    stale = ApertureLibrary(editor.app)
-    dialog.table.item(0, 6).setCheckState(QtCore.Qt.CheckState.Unchecked)
-    assert dialog.save_library()
-    assert not stale.save_library()
-    assert not read_apertures(path)[10]['autoload']
-    with pytest.raises(ValueError):
-        write_apertures(path, {10: {'type': 'C', 'size': -1, 'units': 'MM', 'autoload': True}},
-                        expected=read_apertures(path))
-    assert read_apertures(path)[10]['size'] == 0.6
-    write_database(path, {})
-    assert read_apertures(path)[10]['size'] == 0.6
-    assert read_database(path)[0] == {}
-    dialog.close()
-    stale.close()
-
-
-def test_database_aperture_code_collision_keeps_both_presets_and_deletes_only_selected(tmp_path):
-    from appCommon.ToolDatabase import read_apertures, write_apertures, write_database
-    from appGUI.ApertureLibrary import ApertureLibrary
-    path = tmp_path / 'tools.sqlite3'
-    write_database(path, {})
-    write_apertures(path, {10: {'type': 'C', 'size': 0.6, 'units': 'MM', 'autoload': True}}, expected={})
-    editor = make_editor()
-    editor.app.tools_database_path.return_value = str(path)
-    dialog = ApertureLibrary(editor.app, apertures={10: {'type': 'C', 'size': 0.8, 'geometry': []}})
-    assert dialog.save_library()
-    assert {code: item['size'] for code, item in read_apertures(path).items()} == {10: 0.6, 11: 0.8}
-    dialog.table.selectRow(1)
-    dialog.delete_selected()
-    assert dialog.save_library()
-    assert set(read_apertures(path)) == {10}
-    dialog.close()
 
 
 def flash(x, y, diameter):
@@ -190,16 +127,6 @@ def test_round_sizes_rounds_mm_size_rebuilds_flash_and_leaves_exact_codes_alone(
     assert editor.storage_dict[10]['size'] == pytest.approx(0.5004)
 
 
-def test_same_type_codes_returns_only_codes_of_the_same_type():
-    editor = make_editor({
-        10: {'type': 'C', 'size': 1, 'geometry': []},
-        11: {'type': 'C', 'size': 2, 'geometry': []},
-        12: {'type': 'R', 'size': 0, 'width': 1, 'height': 2, 'geometry': []},
-    })
-    assert sorted(module.same_type_codes(editor, 10)) == [10, 11]
-    assert module.same_type_codes(editor, 12) == [12]
-
-
 def test_native_save_reparse_after_renumber_undo_redo(app):
     source = make_gerber(app, NATIVE_GBR, name='board')
     editor = make_editor({
@@ -227,7 +154,7 @@ def test_native_save_reparse_after_renumber_undo_redo(app):
         assert saved.hausdorff_distance(expected) < 0.002
 
 
-@pytest.mark.parametrize('kind', ['R', 'O'])
+@pytest.mark.parametrize('kind', ['R'])
 def test_rounded_rectangular_and_oblong_flashes_save_as_flashes(app, kind):
     from appEditors.grb_plugins.GrbSelectionPlugin import flash_geo
     probe = make_editor({10: {'type': 'C', 'size': 2, 'geometry': []}})

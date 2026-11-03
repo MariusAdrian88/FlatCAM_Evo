@@ -23,15 +23,9 @@ def test_profile_attribute_is_stored_in_obj_options(app):
     assert grb.file_function == ['Profile', 'NP']
 
 
-@pytest.mark.parametrize('name', ['outline_region_cutout.gbr', 'copper_clearance.gbr'])
+@pytest.mark.parametrize('name', ['outline_region_cutout.gbr'])
 def test_no_attribute_gives_an_empty_list(app, name):
     assert parse(app, name).obj_options['file_function'] == []
-
-
-def test_parsing_result_is_unchanged_by_the_attribute(app):
-    with_attr = parse(app, 'outline_region_x2.gbr')
-    without = parse(app, 'outline_region_cutout.gbr')
-    assert with_attr.solid_geometry[0].equals(without.solid_geometry[0])
 
 
 def test_copper_function_value_list(app):

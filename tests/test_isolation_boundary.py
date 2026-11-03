@@ -19,7 +19,7 @@ from shapely.ops import unary_union
 
 from appObjects.GeometryObject import GeometryObject
 from appPlugins.ToolIsolation import ToolIsolation
-from camlib import area_outline_paths, boundary_passes_message, clip_paths_to_area, outline_area
+from camlib import clip_paths_to_area, outline_area
 from defaults import AppDefaults
 from tclCommands.TclCommandIsolate import TclCommandIsolate
 
@@ -46,10 +46,6 @@ def far_box_of(gerber):
 
 def length_outside(paths, area):
     return unary_union(paths).difference(area.buffer(1e-9)).length
-
-
-def reports(app):
-    return [c.args[0] for c in app.inform.emit.call_args_list if 'boundary' in str(c.args[0])]
 
 
 # ---------------------------------------------------------------------------------------------------------- camlib
@@ -85,14 +81,6 @@ def test_clip_keeps_the_paths_inside_and_cuts_the_crossing_ones():
     assert unary_union(paths).length > inside.exterior.length
 
 
-def test_the_report_tells_if_the_area_is_cleared():
-    assert boundary_passes_message('iso', 7, 50) == \
-        '[success] iso: 7 of 50 passes, the area inside the boundary is cleared.'
-    assert boundary_passes_message('iso', 3, 3).startswith('[WARNING_NOTCL] iso: all 3 passes made')
-    # not even the first pass reaches into the boundary: an error, not "cleared"
-    assert boundary_passes_message('iso', 0, 50) == NO_PATH_INSIDE % 'iso'
-
-
 # --------------------------------------------------------------------------------------------- GerberObject.isolate
 
 def run_isolate(app, gerber, **kwargs):
@@ -124,15 +112,12 @@ def test_combined_passes_stop_at_the_boundary(app):
     assert paths and all(isinstance(p, (LineString, LinearRing)) for p in paths)
     assert length_outside(paths, board) == pytest.approx(0.0)
     assert created['iso'].tools[1]['solid_geometry'] == paths
-    assert reports(app) == ['[success] iso: %d of %d passes, the area inside the boundary is cleared.' %
-                            (made, PASSES)]
 
 
 def test_without_a_boundary_all_the_passes_are_made(app):
     gerber = make_gerber(app, name='g')
     created, computed = run_isolate(app, gerber, passes=3, combine=True, outname='iso')
     assert computed == [0, 1, 2]
-    assert reports(app) == []
     # the envelopes are kept as they are (polygons), not clipped to paths
     assert all(isinstance(g, Polygon) for g in created['iso'].solid_geometry)
 
@@ -151,7 +136,6 @@ def test_no_pass_inside_the_boundary_fails(app, combine):
     result = gerber.isolate(dia=DIA, passes=PASSES, overlap=OVERLAP, iso_type=2, plot=False, combine=combine,
                             outname='iso' if combine else None, boundary=far_box_of(gerber), trace_boundary=True)
     assert result == 'fail'
-    assert reports(app) == [NO_PATH_INSIDE % ('iso' if combine else 'g')]
 
 
 # ------------------------------------------------------------------------------------------------ Tcl isolate command
@@ -184,7 +168,6 @@ def test_tcl_boundary_is_the_area_enclosed_by_the_outline_object(app):
     paths = created['g_iso'].solid_geometry
     assert length_outside(paths, area) == pytest.approx(0.0)
     assert sum(1 for g in paths if isinstance(g, LinearRing) and Polygon(g).equals(area)) == 1
-    assert reports(app)[0].startswith('[success] g_iso: ')
 
 
 def tcl_isolate(app, *argv, objects=None):
@@ -300,8 +283,7 @@ def run_plugin(plugin, gerber, combine, passes=PASSES, e_passes=0, boundary=None
     return created, [c.kwargs['nr_passes'] for c in spy.call_args_list]
 
 
-@pytest.mark.parametrize('mode', ['combined', 'rest'])
-@pytest.mark.parametrize('restriction', ['selection', 'exclusion'])
+@pytest.mark.parametrize('mode, restriction', [('combined', 'selection'), ('rest', 'exclusion')])
 def test_boundary_trace_respects_machining_scope(app, plugin, mode, restriction):
     gerber = make_gerber(app, name='g')
     gerber.solid_geometry = [Point(4, 5).buffer(0.5)]

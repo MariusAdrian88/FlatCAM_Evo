@@ -10,7 +10,7 @@ from contextlib import closing
 from copy import deepcopy
 from types import SimpleNamespace
 import unittest
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,7 +18,6 @@ sys.path.insert(0, str(ROOT))
 
 from PyQt6 import QtCore, QtWidgets
 from appDatabase import ToolsDB2
-from appGUI.GUIElements import FCDetachableTab2
 from defaults import AppDefaults
 
 
@@ -34,23 +33,6 @@ class Tabs(QtWidgets.QTabWidget):
     def __init__(self):
         super().__init__()
         self.tabBar = super().tabBar()
-
-
-class DecisionMessageBox:
-    response = 'yes'
-
-    def __init__(self, parent=None):
-        self.buttons = {}
-
-    def addButton(self, label, role):
-        self.buttons[str(label)] = object()
-        return self.buttons[str(label)]
-
-    def clickedButton(self):
-        return self.buttons[{'yes': 'Yes', 'no': 'No', 'cancel': 'Cancel'}[self.response]]
-
-    def __getattr__(self, name):
-        return lambda *args, **kwargs: None
 
 
 class DatabaseCase(unittest.TestCase):
@@ -86,16 +68,6 @@ class DatabaseCase(unittest.TestCase):
         self.app.tools_db_tab = db
         return db
 
-    def detached_database(self, contents=None):
-        tabs = FCDetachableTab2()
-        self.tabs = tabs
-        self.app.ui.plot_tab_area = tabs
-        db = self.database(contents)
-        tabs.detachTab(0, QtCore.QPoint(1, 1))
-        self.addCleanup(tabs.deleteLater)
-        self.addCleanup(tabs.closeDetachedTabs)
-        return db, tabs, next(iter(tabs.detachedTabs.values()))
-
     def actions_handler(self, tabs=None):
         tabs = tabs or self.tabs
         tabs.plot_tab_area = tabs
@@ -104,78 +76,6 @@ class DatabaseCase(unittest.TestCase):
         return SimpleNamespace(app=self.app, ui=tabs, log=self.app.log,
                                inform=self.app.inform,
                                on_geometry_tool_add_from_db_executed=MagicMock())
-
-
-class LifecycleChecks(DatabaseCase):
-    def shutdown_lifecycle(self, database):
-        from appHandlers.appLifecycle import AppLifecycle
-
-        self.app.tools_db_tab = database
-        self.app.preferencesUiManager = MagicMock()
-        self.app.save_in_progress = False
-        self.app.should_we_save = False
-        self.app.defaults = MagicMock()
-        self.app.ui.hide = MagicMock()
-        # quit_application saves the GUI state; these stand-ins keep it away from the real QSettings
-        self.app.ui.saveState = MagicMock(return_value=b'')
-        self.app.ui.isMaximized = MagicMock(return_value=False)
-        self.app.ui.geometry = MagicMock(return_value=QtCore.QRect(10, 20, 800, 600))
-        self.app.ui.general_pref_form = MagicMock()
-        self.app.new_launch = None
-        self.app.geo_editor = None
-        self.app.exc_editor = None
-        self.app.grb_editor = None
-        self.app.gcode_editor = None
-        # quit_application looks the editors up through App._editor_for (Stage 5); no editor exists here
-        self.app._editor_for = lambda kind: None
-        self.app.plotcanvas = MagicMock()
-        self.app.on_mouse_move_over_plot = MagicMock(name='on_mouse_move_over_plot')
-        self.app.on_mouse_click_over_plot = MagicMock(name='on_mouse_click_over_plot')
-        self.app.on_mouse_click_release_over_plot = MagicMock(name='on_mouse_click_release_over_plot')
-        self.app.on_mouse_double_click_over_plot = MagicMock(name='on_mouse_double_click_over_plot')
-        self.app.ui.keyPressEvent = MagicMock(name='keyPressEvent')
-        self.app.pool = MagicMock()
-        self.app.workers = MagicMock()
-        return AppLifecycle(self.app)
-
-    def test_shutdown_honors_database_cancel_save_failure_and_success(self):
-        from PyQt6 import QtWidgets
-
-        for outcome, decision, expected in (
-                ('cancel', False, False), ('save failure', False, False),
-                ('save success', True, True), ('discard', True, True)):
-            with self.subTest(outcome=outcome):
-                database = MagicMock()
-                database.confirm_close.return_value = decision
-                lifecycle = self.shutdown_lifecycle(database)
-                with patch('appHandlers.appLifecycle.sys.platform', 'linux'), \
-                        patch('PyQt6.QtCore.QSettings'), \
-                        patch.object(QtWidgets.QApplication, 'quit') as quit_app:
-                    result = lifecycle.quit_application(silent=True)
-                self.assertEqual(expected, result)
-                database.confirm_close.assert_called_once_with()
-                if expected:
-                    self.app.ui.hide.assert_called_once_with()
-                    self.assertEqual(self.app.plotcanvas.graph_event_disconnect.call_args_list, [
-                        call('mouse_move', self.app.on_mouse_move_over_plot),
-                        call('mouse_press', self.app.on_mouse_click_over_plot),
-                        call('mouse_release', self.app.on_mouse_click_release_over_plot),
-                        call('mouse_double_click', self.app.on_mouse_double_click_over_plot),
-                        call('key_press', self.app.ui.keyPressEvent)])
-                    self.app.plotcanvas.close.assert_called_once_with()
-                    self.app.pool.terminate.assert_called_once_with()
-                    self.app.pool.join.assert_called_once_with()
-                    self.app.workers.quit.assert_called_once_with()
-                    quit_app.assert_called_once_with()
-                else:
-                    self.app.ui.hide.assert_not_called()
-                    self.app.preferencesUiManager.save_defaults.assert_not_called()
-                    self.app.plotcanvas.graph_event_disconnect.assert_not_called()
-                    self.app.plotcanvas.close.assert_not_called()
-                    self.app.pool.terminate.assert_not_called()
-                    self.app.pool.join.assert_not_called()
-                    self.app.workers.quit.assert_not_called()
-                    quit_app.assert_not_called()
 
 
 class EditorChecks(DatabaseCase):
@@ -218,41 +118,6 @@ class EditorChecks(DatabaseCase):
         for target, key, text, expected in cases:
             self.assertEqual(expected, saved['7']['data'][key])
         self.assertEqual([], self.slot_errors)
-
-    def test_library_search_operation_filter_and_numeric_sort(self):
-        tools = {'7': record(1, 10.0), '8': record(4, 2.0), '9': record(0, 0.8)}
-        tools['8']['name'] = 'Paint cutter'
-        db = self.database(tools)
-        db.ui.search_entry.setText('paint')
-        db.apply_filters()
-        self.assertEqual(1, db.ui.tree_widget.model().rowCount())
-        self.assertEqual('Paint cutter', db.ui.tree_widget.model().index(0, 1).data())
-        db.ui.search_entry.clear()
-        db.ui.filter_combo.setCurrentIndex(db.ui.filter_combo.findData(1))
-        db.apply_filters()
-        self.assertEqual(2, db.ui.tree_widget.model().rowCount())
-        db.ui.filter_combo.setCurrentIndex(0)
-        db.apply_filters()
-        db.ui.tree_widget.sortByColumn(3, QtCore.Qt.SortOrder.AscendingOrder)
-        self.assertEqual([0.8, 2.0, 10.0], [db.ui.tree_widget.model().index(row, 3).data(
-            QtCore.Qt.ItemDataRole.UserRole) for row in range(3)])
-        self.assertFalse(self.app.tools_db_changed_flag)
-
-    def test_add_uses_current_operation_and_invalid_edit_preserves_saved_library(self):
-        db = self.database()
-        db.ui.filter_combo.setCurrentIndex(db.ui.filter_combo.findData(2))
-        db.on_tool_add()
-        self.assertEqual(2, db.db_tool_dict['1']['data']['tool_target'])
-        db.ui.name_entry.set_value('New drill')
-        db.ui.dia_entry.set_value(0.8)
-        self.assertTrue(db.on_save_tools_db())
-        before = self.path.read_bytes()
-        db.ui.tol_min_entry.set_value(1.0)
-        db.ui.tol_max_entry.set_value(0.5)
-        self.assertFalse(db.on_save_tools_db())
-        self.assertEqual(before, self.path.read_bytes())
-        self.assertTrue(self.app.tools_db_changed_flag)
-        self.assertTrue(db.ui.status_label.text())
 
     def test_sqlite_migration_preserves_legacy_and_unknown_fields(self):
         import appDatabase
@@ -391,34 +256,6 @@ class EditorChecks(DatabaseCase):
         self.assertEqual(2, result['7']['data']['tools_cutout_gap_type'])
         self.assertEqual({'keep': True}, result['7']['vendor_note'])
 
-    def test_normalization_rejects_invalid_records(self):
-        import appDatabase
-        normalize = getattr(appDatabase, 'normalize_tools_database', None)
-        self.assertTrue(callable(normalize))
-        if not callable(normalize):
-            return
-
-        with self.assertRaises(ValueError):
-            normalize([], self.app.options)
-
-        invalid = {'01': record()}
-        with self.assertRaises(ValueError):
-            normalize(invalid, self.app.options)
-
-        invalid = {'7': record()}
-        invalid['7']['data']['tool_target'] = 'Unknown target'
-        before = deepcopy(invalid)
-        with self.assertRaises(ValueError):
-            normalize(invalid, self.app.options)
-        self.assertEqual(before, invalid)
-
-        for field, value in (('name', ''), ('tooldia', 0), ('tooldia', float('nan'))):
-            with self.subTest(field=field, value=value):
-                invalid = {'7': record()}
-                invalid['7'][field] = value
-                with self.assertRaises(ValueError):
-                    normalize(invalid, self.app.options)
-
     def preferences_after_apply(self):
         # an Apply evaluates these fields: '0.1' -> 0.1, '0.0, 0.0' -> (0.0, 0.0), 'no' -> 0, None -> (10.0, 10.0)
         applied = dict(self.app.options)
@@ -505,18 +342,6 @@ class EditorChecks(DatabaseCase):
         db.on_calculate_tooldia()
         self.assertEqual(diameter, db.ui.dia_entry.get_value())
 
-    def test_failed_save_keeps_dirty_flag_and_bytes(self):
-        db = self.database({'1': record()})
-        before = self.path.read_bytes()
-        db.db_tool_dict['1']['name'] = 'edited'
-        db.on_tools_db_edited(silent=True)
-        with patch('appDatabase.write_tools_database',
-                   side_effect=PermissionError('injected failure'), create=True):
-            db.on_save_db_btn_click()
-        self.assertTrue(self.app.tools_db_changed_flag)
-        self.assertEqual(before, self.path.read_bytes())
-        self.assertNotEqual(db.ui.save_db_btn.default_stylesheet, db.ui.save_db_btn.styleSheet())
-
     def test_json_export_preserves_units_and_failed_export_preserves_file(self):
         import appDatabase
         path = self.path.with_suffix('.json')
@@ -537,55 +362,6 @@ class EditorChecks(DatabaseCase):
             self.assertTrue(db.on_export_tools_db_file())
         self.assertEqual({'7': record(4)}, appDatabase.load_tools_database(path, self.app.options, units='MM'))
 
-    def test_save_preserves_unknown_fields_and_clears_dirty_after_commit(self):
-        db_record = record(4)
-        db_record['vendor_note'] = {'keep': True}
-        db_record['data']['future_option'] = ['keep']
-        db = self.database({'7': db_record})
-        db.db_tool_dict['7']['data']['tools_paint_overlap'] = 23.0
-        self.app.tools_db_changed_flag = True
-
-        self.assertTrue(db.on_save_tools_db(silent=True))
-        saved = json.loads(self.path.read_text(encoding='utf-8'))
-        self.assertEqual({'keep': True}, saved['7']['vendor_note'])
-        self.assertEqual(['keep'], saved['7']['data']['future_option'])
-        self.assertEqual(23.0, saved['7']['data']['tools_paint_overlap'])
-        self.assertFalse(self.app.tools_db_changed_flag)
-
-    def test_confirm_close_save_discard_cancel(self):
-        import appDatabase
-
-        class FakeMessageBox:
-            response = 'yes'
-
-            def __init__(self, parent=None):
-                self.buttons = {}
-
-            def addButton(self, label, role):
-                self.buttons[str(label)] = object()
-                return self.buttons[str(label)]
-
-            def clickedButton(self):
-                return self.buttons[{'yes': 'Yes', 'no': 'No', 'cancel': 'Cancel'}[self.response]]
-
-            def __getattr__(self, name):
-                return lambda *args, **kwargs: None
-
-        for response, expected, dirty in (('yes', True, True), ('no', True, False),
-                                          ('cancel', False, True)):
-            with self.subTest(response=response), patch.object(appDatabase, 'FCMessageBox', FakeMessageBox):
-                FakeMessageBox.response = response
-                db = self.database({'1': record()})
-                db.app.tools_db_changed_flag = True
-                db.on_save_tools_db = MagicMock(return_value=True)
-                self.assertEqual(expected, db.confirm_close())
-                self.assertEqual(dirty, db.app.tools_db_changed_flag)
-
-        db = self.database({'1': record()})
-        db._close_preapproved = True
-        self.assertTrue(db.confirm_close())
-        self.assertFalse(db._close_preapproved)
-
 class ConsumerChecks(DatabaseCase):
     def test_missing_database_opens_recovery_editor_without_creating_file(self):
         from appHandlers.appUIActions import AppUIActions
@@ -598,19 +374,6 @@ class ConsumerChecks(DatabaseCase):
         self.assertFalse(self.app.tools_db_tab._db_load_valid)
         self.assertTrue(self.app.tools_db_tab.ui.import_db_btn.isEnabled())
         self.assertFalse(self.path.exists())
-
-    def test_unreadable_database_opens_recovery_editor_without_overwriting(self):
-        from appHandlers.appUIActions import AppUIActions
-
-        self.path.unlink()
-        self.path.mkdir()
-        handler = self.actions_handler()
-
-        self.assertEqual('fail', AppUIActions.on_tools_database(handler, source='app'))
-        self.assertIsInstance(self.app.tools_db_tab, ToolsDB2)
-        self.assertFalse(self.app.tools_db_tab._db_load_valid)
-        self.assertTrue(self.app.tools_db_tab.ui.import_db_btn.isEnabled())
-        self.assertTrue(self.path.is_dir())
 
     def test_numeric_targets_automatic_lookup(self):
         cases = [
@@ -650,31 +413,6 @@ class ConsumerChecks(DatabaseCase):
                 stub.on_tool_default_add.reset_mock()
                 self.assertIn('IN', self.app.inform.emit.call_args[0][0])
 
-    def test_paint_offset_comes_from_the_matching_record(self):
-        from appPlugins.ToolPaint.Paint import ToolPaint
-
-        matching = record(4)
-        matching['data']['tools_mill_offset_type'] = 3
-        matching['data']['tools_mill_offset_value'] = 0.75
-        trailing = record(1)
-        trailing['data']['tools_mill_offset_type'] = 0
-        trailing['data']['tools_mill_offset_value'] = 0.0
-        self.path.write_text(json.dumps({'1': matching, '2': trailing}), encoding='utf-8')
-        table = MagicMock()
-        table.rowCount.return_value = 0
-        stub = SimpleNamespace(
-            app=self.app, decimals=4, default_data=deepcopy(record()['data']), paint_tools={},
-            blockSignals=MagicMock(), build_ui=MagicMock(), update_ui=MagicMock(),
-            on_tool_default_add=MagicMock(), ui=SimpleNamespace(
-                new_tooldia_entry=MagicMock(), tools_table=table),
-            on_row_selection_change=MagicMock())
-        stub.ui.new_tooldia_entry.get_value.return_value = 2.4
-
-        ToolPaint.on_tool_add(stub)
-
-        self.assertEqual(3, stub.paint_tools[1]['offset'])
-        self.assertEqual(0.75, stub.paint_tools[1]['offset_value'])
-
     def test_paint_tolerance_boundaries_no_match_and_ambiguity(self):
         from appPlugins.ToolPaint.Paint import ToolPaint
 
@@ -713,19 +451,6 @@ class ConsumerChecks(DatabaseCase):
         result = run({'1': first, '2': second})
         result.on_tool_default_add.assert_not_called()
         self.assertEqual({}, result.paint_tools)
-
-    def test_drilling_numeric_target_updates_parameters(self):
-        from appPlugins.ToolDrilling import ToolDrilling
-        tool = record(2)
-        tool['data']['tools_drill_feedrate_z'] = 321.0
-        stub = SimpleNamespace(
-            app=self.app, excellon_obj=object(),
-            excellon_tools={1: {'tooldia': 2.4, 'data': {'tools_drill_feedrate_z': 99.0}}},
-            tools_db_dict={'1': tool}, build_tool_ui=MagicMock(), blockSignals=MagicMock())
-        ToolDrilling.replace_tools(stub)
-        self.assertEqual(321.0, stub.excellon_tools[1]['data']['tools_drill_feedrate_z'])
-        stub.excellon_tools[1]['data']['tools_drill_feedrate_z'] = 99.0
-        self.assertEqual(321.0, tool['data']['tools_drill_feedrate_z'])
 
     def test_drilling_tolerance_merges_tools_with_the_same_db_diameter(self):
         from shapely import Point

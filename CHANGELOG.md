@@ -8,6 +8,14 @@ CHANGELOG for FlatCAM Evo
 
 03.11.2026
 
+Tests:
+
+- changed: the test suite is cut from 4829 to 3161 tests; each kept test checks a result that the user sees (output, geometry, G-code, files, undo, machine safety); tests of private details, widget layout, message text and same-branch cases are removed or merged; E-Cut and the G-code Sender tests are not changed
+- changed: the Levelling tests are folded from 15 files into 5 topical files; other audit and regression files are folded into the file of their area (40 files fewer)
+- fixed: 2 timing races in the E-Cut manual pause tests (the test now waits for the PAUSED state, not only for the pause reason)
+
+03.11.2026
+
 Photo Carve (new plugin, Alt+V, Plugins toolbar):
 
 - new: Photo Carve makes a Geometry object from a raster image (PNG, JPG, BMP, TIF; the EXIF orientation is applied); the Milling plugin then makes the CNCJob

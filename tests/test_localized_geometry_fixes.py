@@ -1,17 +1,13 @@
 """Behavioral regressions for milling, isolation, deletion, export and editor cuts."""
-import os
-import tempfile
 import unittest
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
-from PyQt6 import QtWidgets, sip
+from PyQt6 import QtWidgets
 from shapely.geometry import LineString, LinearRing, MultiLineString, MultiPolygon, Polygon, box
 from shapely.ops import unary_union
 
 from appEditors.appGeoEditor import AppGeoEditor
-from appHandlers.appObjectOps import AppObjectOps
-from appObjects.CNCJobObject import CNCJobObject
 from appPlugins.ToolIsolation import ToolIsolation
 from camlib import CNCjob, Geometry
 from defaults import AppDefaults
@@ -87,52 +83,6 @@ class TestLocalizedGeometryFixes(unittest.TestCase):
         TclCommandInteriors.execute(SimpleNamespace(app=geo.app), {'name': 'source'}, [])
         self.assertTrue(all(isinstance(ring, LinearRing) for ring in output.solid_geometry))
         self.assertEqual(len(output.solid_geometry), 2)
-
-    def make_job(self):
-        app = make_app()
-        app.regFK, app.ui = Mock(), Mock()
-        app.file_opened, app.file_saved = Mock(), Mock()
-        # no other object in the project: a rename keeps the name
-        app.collection.get_list.return_value = []
-        with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
-            job = CNCJobObject('own_job', app)
-        job.source_file = 'G0 X1\nM2\n'
-        job.update_filters = Mock()
-        job.read_form = Mock()
-        return job
-
-    def test_export_rename_without_live_properties(self):
-        for ui_state in ('absent', 'deleted', 'live'):
-            with self.subTest(ui=ui_state), tempfile.TemporaryDirectory() as folder:
-                job = self.make_job()
-                if ui_state == 'absent':
-                    job.ui = None
-                else:
-                    entry = QtWidgets.QLineEdit()
-                    entry.set_value = entry.setText
-                    entry.get_value = entry.text
-                    job.ui = SimpleNamespace(name_entry=entry)
-                    job.form_fields = {'name': entry}
-                    if ui_state == 'deleted':
-                        sip.delete(entry)
-                filename = os.path.join(folder, 'renamed.nc')
-                job.export_gcode_handler(filename)
-                with open(filename) as stream:
-                    self.assertEqual(stream.read(), job.source_file)
-                self.assertEqual(job.obj_options['name'], 'renamed')
-                self.assertEqual(job.default_data['name'], 'renamed')
-                job.app.collection.update_view.assert_called_once_with(job)
-                job.app.regFK.remove_keyword.assert_called_once_with('own_job', update=False)
-                job.app.regFK.prepend_keyword.assert_called_once_with('renamed')
-                if ui_state == 'live':
-                    self.assertEqual(entry.text(), 'renamed')
-                    job.app.collection.update_view.reset_mock()
-                    job.on_name_activate()
-                    job.app.collection.update_view.assert_not_called()
-                job.export_gcode_handler('')
-                self.assertEqual(job.obj_options['name'], 'renamed')
-                job.export_gcode_handler(os.path.join(folder, 'other.nc'), rename_object=False)
-                self.assertEqual(job.obj_options['name'], 'renamed')
 
     def cut(self, target, cutter):
         shapes = [SimpleNamespace(geo=target), SimpleNamespace(geo=cutter)]

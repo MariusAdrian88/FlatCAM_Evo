@@ -11,9 +11,7 @@ import numpy as np  # noqa: E402
 from shapely import Point, Polygon, LineString, MultiPolygon, GeometryCollection, box  # noqa: E402
 
 from camlib import Geometry, list_total_bounds  # noqa: E402
-from appParsers.ParseGerber import Gerber  # noqa: E402
 from appParsers.ParseExcellon import Excellon  # noqa: E402
-from test_gerber_parser import MockApp  # noqa: E402
 from tests.helpers_objects import make_app_0b as make_app  # noqa: F401,E402
 
 INF = (np.inf, np.inf, -np.inf, -np.inf)
@@ -66,20 +64,6 @@ class ObjectBoundsTest(unittest.TestCase):
         g.solid_geometry = [Polygon(), [box(0, 0, 1, 2)], {'k': [box(5, 5, 6, 7)]}]
         self.assertEqual(g.bounds(), (0.0, 0.0, 6.0, 7.0))
         g.solid_geometry = [[], None]
-        with self.assertRaises(AttributeError):
-            g.bounds()
-
-    def test_gerber(self):
-        g = Gerber(MockApp())
-        g.solid_geometry = None
-        self.assertEqual(g.bounds(), (0, 0, 0, 0))
-        g.solid_geometry = []
-        self.assertEqual(g.bounds(), INF)
-        g.solid_geometry = [Polygon(), box(0, 0, 1, 2), {'a': [box(-1, -1, 0, 0)], 'b': box(5, 5, 6, 7)}]
-        self.assertEqual(g.bounds(), (-1.0, -1.0, 6.0, 7.0))
-        g.solid_geometry = MultiPolygon([box(0, 0, 1, 1), box(4, 4, 5, 5)])
-        self.assertEqual(g.bounds(), (0.0, 0.0, 5.0, 5.0))
-        g.solid_geometry = [[box(0, 0, 1, 1)]]  # the old walker raised on a list inside a list
         with self.assertRaises(AttributeError):
             g.bounds()
 

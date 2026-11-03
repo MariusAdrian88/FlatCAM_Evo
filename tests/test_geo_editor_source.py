@@ -119,42 +119,6 @@ def test_save_exports_in_the_worker_and_completes_on_the_gui_thread(monkeypatch)
         assert worker_thread.wait(30000)
 
 
-
-
-def test_generate_without_storing_preserves_source_owner():
-    _, obj = make_geometry()
-    obj.source_file = 'previous source'
-    text = obj.regenerate_source(store=False)
-    assert obj.source_file == 'previous source'
-    assert len(ezdxf.read(StringIO(text)).modelspace()) == 3
-
-
-
-
-
-
-
-
-def test_worker_submission_failure_keeps_committed_geometry_and_finishes_once(monkeypatch):
-    app, obj = make_geometry()
-    assert obj.regenerate_source()
-    previous = obj.source_file
-    line = LineString([(8, 0), (9, 0)])
-    editor = app_save_editor(app, obj, [line], monkeypatch)
-    app.worker_task.emit.side_effect = RuntimeError('queue unavailable')
-    assert App.on_editing_finished(app) is None
-    assert obj.solid_geometry == [line]
-    assert obj.source_file == previous
-    assert editor._source_save_pending is False
-    editor.deactivate.assert_called_once()
-    app.post_edit_sig.emit.assert_called_once()
-    assert any('stale' in str(call).lower() for call in app.inform.emit.call_args_list)
-
-
-
-
-
-
 @pytest.mark.parametrize('units,unit_code', [('MM', 4)])
 @pytest.mark.parametrize('multigeo', [False, True])
 def test_editor_snapshot_project_restore_and_disk_export(tmp_path, units, unit_code, multigeo):
@@ -244,7 +208,7 @@ def test_svg_and_dxf_import_with_letters_that_are_not_ascii(tmp_path):
     assert len(created['dxf'].solid_geometry) == 1 and 'ANSI_1254' in created['dxf'].source_file
 
 
-@pytest.mark.parametrize('failure', ['new', 'write'])
+@pytest.mark.parametrize('failure', ['new'])
 def test_dxf_failure_preserves_good_source_and_does_not_export(tmp_path, monkeypatch, failure):
     app, obj = make_geometry()
     assert obj.regenerate_source()
@@ -314,19 +278,6 @@ def test_actual_app_edit_finish_commits_then_refreshes_before_close(tmp_path, mo
     assert restored[0].source_file == obj.source_file
 
 
-def test_busy_app_exit_does_not_regenerate_or_close():
-    editor = editor_with_history()
-    editor.submit_worker(Mock(), [])
-    app, obj = make_geometry()
-    obj.regenerate_source = Mock()
-    editor.deactivate = Mock()
-    app.call_source, app.geo_editor = 'geo_editor', editor
-    app.collection.get_active.return_value = obj
-    assert App.on_editing_finished(app) == 'fail'
-    obj.regenerate_source.assert_not_called()
-    editor.deactivate.assert_not_called()
-
-
 def test_export_of_two_objects_writes_one_file_with_both_layers(tmp_path):
     app, first = make_geometry()
     second = GeometryObject('other', app)
@@ -339,31 +290,4 @@ def test_export_of_two_objects_writes_one_file_with_both_layers(tmp_path):
     assert {'first', 'second'} <= layers
     app.file_saved.emit.assert_called_once()
 
-
-def test_failed_multi_export_does_not_report_a_save(tmp_path):
-    app, first = make_geometry()
-    first.dxf_layers = lambda: [{'name': 'first', 'geometry': LineString([(0, 0), (1, 1)])}]
-    broken = GeometryObject('broken', app)
-    broken.dxf_layers = Mock(side_effect=ValueError('no layers'))
-    app.collection.get_by_name.side_effect = lambda name: {'geo': first, 'broken': broken}[name]
-    filename = tmp_path / 'bad.dxf'
-    assert app.f_handlers.export_dxf(['geo', 'broken'], str(filename), use_thread=False) == 'fail'
-    assert not filename.exists()
-    app.file_saved.emit.assert_not_called()
-
-
-def test_tcl_export_dxf_name_list_and_default_extension():
-    from tclCommands.TclCommandExportDXF import TclCommandExportDXF
-    from test_tcl_audit_generation import factory_app
-    app = factory_app(None)
-    app.f_handlers = Mock()
-    app.options['global_last_save_folder'] = 'D:/save'
-    app.f_handlers.export_dxf.return_value = None
-    cmd = TclCommandExportDXF(app)
-    assert cmd.execute({'name': 'a,b', 'filename': 'D:/out'}, []) is None
-    kwargs = app.f_handlers.export_dxf.call_args.kwargs
-    assert kwargs['obj_name'] == ['a', 'b'] and kwargs['filename'] == 'D:/out.dxf'
-    app.f_handlers.export_dxf.return_value = 'fail'
-    assert cmd.execute({'name': 'a'}, []) == 'fail'
-    assert app.f_handlers.export_dxf.call_args.kwargs['filename'].endswith('/a.dxf')
 

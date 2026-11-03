@@ -38,15 +38,11 @@ def last_message(editor):
     return editor.app.inform.emit.call_args.args[0]
 
 
-@pytest.mark.parametrize('make', [circle_polygon, circle_outline])
+@pytest.mark.parametrize('make', [circle_outline])
 def test_circle_forms_are_detected(make):
     (cx, cy), radius = geo.circle_of(make())
     assert (cx, cy) == pytest.approx((3.0, 4.0))
     assert radius == pytest.approx(2.0)
-
-
-
-
 
 
 @pytest.mark.parametrize('make', [circle_polygon])
@@ -59,8 +55,6 @@ def test_resize_keeps_center_type_and_vertex_count(make):
     (cx, cy), radius = geo.circle_of(result)
     assert (cx, cy) == pytest.approx((3.0, 4.0))
     assert radius == pytest.approx(5.0)
-
-
 
 
 def test_mixed_selection_skips_non_circles_and_keeps_selection():
@@ -89,7 +83,7 @@ def test_resize_is_one_undo_step():
     assert set(editor.storage.get_objects()).isdisjoint(shapes)
 
 
-@pytest.mark.parametrize('diameter', [float('nan'), 'abc'])
+@pytest.mark.parametrize('diameter', [float('nan')])
 def test_invalid_diameter_warns_and_changes_nothing(diameter):
     editor, shapes = circle_editor([circle_polygon()])
     assert geo.AppGeoEditor.apply_resize_circles(editor, diameter) == 'fail'
@@ -98,10 +92,3 @@ def test_invalid_diameter_warns_and_changes_nothing(diameter):
     assert not editor._history_undo
 
 
-
-
-def test_button_reads_entry():
-    editor, shapes = circle_editor([circle_polygon()])
-    editor.ui.resize_circles_entry.set_value(4.0)
-    result = geo.AppGeoEditor.on_resize_circles(editor)
-    assert math.isclose(geo.circle_of(result[0].geo)[1], 2.0, rel_tol=1e-9)

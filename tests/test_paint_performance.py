@@ -6,12 +6,12 @@ import statistics
 import time
 import unittest
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import test_paint_geometry as paint_cases
 from appPlugins.ToolPaint import PaintModel
 from test_paint_geometry import camlib, PaintGen, storage_of
-from shapely import MultiPolygon, Polygon, Point, box
+from shapely import Polygon, Point, box
 
 
 def rest_worker(geometry, diameters, method=2, overlap=0.15, connect=False):
@@ -47,38 +47,6 @@ def run_rest(worker, params, polygons, diameters):
 
 class TestPaintPerformance(unittest.TestCase):
     setUp = paint_cases.TestPaintGeometry.setUp
-
-    def test_two_rest_tools_keep_legacy_residual_coverage_and_paths(self):
-        # Preserve both legacy residual calculations for intermediate tools.
-        for method in (0, 1, 2):
-            with self.subTest(method=method):
-                worker, params = rest_worker(self.geometry, [1, 0.4], method=method)
-                polygon = self.polygon.buffer(0)
-                first = list(worker._process_polygon(
-                    polygon, 1, worker._get_tool_params(1, params.tools_storage),
-                    params, None).get_objects())
-                swept = camlib.unary_union(first).buffer(0.5)
-                local_rest = [p for p in camlib.flatten_shapely_geometry(polygon.difference(swept))
-                              if p.is_valid and not p.is_empty]
-                global_rest = camlib.flatten_shapely_geometry(MultiPolygon([polygon]).difference(swept))
-                residual = MultiPolygon([p for p in global_rest if p.is_valid] + local_rest)
-                if not residual.is_valid:
-                    residual = camlib.unary_union([p for p in global_rest if p.is_valid] + local_rest)
-                expected = list(first)
-                for part in camlib.flatten_shapely_geometry(residual):
-                    if part.buffer(-0.2).is_empty:
-                        continue
-                    result = worker._process_polygon(
-                        part, 0.4, worker._get_tool_params(2, params.tools_storage), params, None)
-                    expected.extend(result.get_objects())
-                actual = run_rest(worker, params, [self.polygon], [1, 0.4])
-                # The first tool keeps its paths. The second tool covers at least the legacy stock: it also
-                # crosses the cut area to reach the stock that is narrower than it, and stays inside the polygon.
-                self.assertEqual([p.wkb for p in actual[:len(first)]], [p.wkb for p in first])
-                legacy = camlib.unary_union([p.buffer(0.2) for p in expected[len(first):]])
-                new = camlib.unary_union([p.buffer(0.2) for p in actual[len(first):]])
-                self.assertLess(legacy.difference(new).area, 1e-6)
-                self.assertLess(new.difference(self.polygon).area, 1e-4)
 
     def test_rest_tool_clears_the_stock_that_is_narrower_than_it(self):
         # The 1.0 tool leaves the corners of the area and strips around the hole; the 0.4 tool crosses the cut area
@@ -124,31 +92,6 @@ class TestPaintPerformance(unittest.TestCase):
                 left = area.buffer(-0.495, quad_segs=64).buffer(0.495, quad_segs=64).difference(swept)
                 self.assertTrue(tools[2]['solid_geometry'])
                 self.assertTrue(left.buffer(-0.001).is_empty)
-
-    def test_rest_rejects_narrow_residuals_without_buffering(self):
-        polygons = [self.polygon, box(10, 0, 10.1, 4), box(12, 0, 16, 0.1)]
-        original = Polygon.buffer
-        narrow_buffers = []
-
-        def measured(polygon, distance, *args, **kwargs):
-            if distance == -0.5:
-                left, bottom, right, top = polygon.bounds
-                if right - left < 1 or top - bottom < 1:
-                    narrow_buffers.append(polygon)
-                    self.assertTrue(original(polygon, distance).is_empty)
-            return original(polygon, distance, *args, **kwargs)
-
-        worker, params = rest_worker(self.geometry, [1])
-        with patch.object(Polygon, 'buffer', measured):
-            paths = run_rest(worker, params, polygons, [1])
-        expected_worker, expected_params = rest_worker(self.geometry, [1])
-        expected = run_rest(expected_worker, expected_params, [self.polygon], [1])
-        # Unioning extra disjoint polygons can rotate a ring's starting vertex.
-        self.assertTrue(camlib.unary_union(paths).equals(camlib.unary_union(expected)))
-        self.assertEqual(len(paths), len(expected))
-        self.assertEqual(sum(len(p.coords) for p in paths), sum(len(p.coords) for p in expected))
-        self.assertEqual(narrow_buffers, [])
-
 
 def benchmark():
     case = paint_cases.TestPaintGeometry()

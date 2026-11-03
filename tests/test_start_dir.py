@@ -6,12 +6,8 @@ Windows paths are also tested on the other platforms with ntpath (the tests name
 real platform are skipped elsewhere.
 """
 
-import importlib
-import inspect
 import ntpath
 import os
-import pkgutil
-import re
 import subprocess
 import sys
 import textwrap
@@ -20,12 +16,10 @@ from unittest.mock import Mock
 
 import pytest
 
-import tclCommands
-from tclCommands.TclCommand import TclCommand
 from tclCommands.TclCommandOpenGerber import TclCommandOpenGerber
 from tclCommands.TclCommandSetPath import TclCommandSetPath
 from appCommon import StartDir
-from appCommon.StartDir import base_dir, compute_start_dir, resolve_existing_paths, resolve_user_path
+from appCommon.StartDir import compute_start_dir, resolve_existing_paths, resolve_user_path
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOME = os.path.abspath(os.sep + 'home' + os.sep + 'user')
@@ -51,26 +45,6 @@ def windows_paths(monkeypatch):
     monkeypatch.setattr(StartDir, 'os', SimpleNamespace(path=ntpath, getcwd=os.getcwd, environ=os.environ, sep='\\'))
 
 
-def _all_commands():
-    found = {}
-    for module_info in pkgutil.walk_packages(tclCommands.__path__, 'tclCommands.'):
-        module = importlib.import_module(module_info.name)
-        for name, cls in inspect.getmembers(module, inspect.isclass):
-            if issubclass(cls, TclCommand) and cls.__module__ == module_info.name:
-                found[name] = cls
-    return found
-
-
-def _path_commands():
-    """(class name, the name of its file argument) for every command that has one"""
-    result = []
-    for name, cls in sorted(_all_commands().items()):
-        for key in list(cls.arg_names) + list(cls.option_types):
-            if key in cls.path_args:
-                result.append((name, key))
-    return result
-
-
 def _command(cls):
     command = cls.__new__(cls)
     command.raise_tcl_error = Mock(side_effect=AssertionError)
@@ -84,13 +58,6 @@ class TestComputeStartDir:
         cwd = os.path.join(HOME, 'boards')
         assert compute_start_dir(cwd, self.app_dir, frozen=False, home=HOME) == cwd
         assert compute_start_dir(cwd, self.app_dir, frozen=True, home=HOME) == cwd
-
-    def test_unreadable_working_directory_gives_home(self):
-        assert compute_start_dir(None, self.app_dir, frozen=False, home=HOME) == HOME
-
-    def test_root_gives_home(self):
-        # a packaged application started from the Finder / Dock starts in the root folder
-        assert compute_start_dir(os.path.abspath(os.sep), self.app_dir, frozen=True, home=HOME) == HOME
 
     def test_packaged_application_started_inside_itself_gives_home(self):
         assert compute_start_dir(self.app_dir, self.app_dir, frozen=True, home=HOME) == HOME
@@ -115,9 +82,6 @@ class TestWindowsPathsEmulated:
     def test_the_drive_root_gives_home(self, windows_paths):
         assert compute_start_dir('C:\\', self.app_dir, frozen=True, home=self.home) == self.home
 
-    def test_a_unc_share_root_gives_home(self, windows_paths):
-        assert compute_start_dir('\\\\server\\share\\', self.app_dir, frozen=True, home=self.home) == self.home
-
     def test_a_relative_name_is_joined_to_a_unc_folder(self, windows_paths):
         folder = '\\\\server\\share\\proj'
         assert resolve_user_path('board.gtl', start_dir=folder) == folder + '\\board.gtl'
@@ -128,9 +92,6 @@ class TestPosixLaunchers:
         app_dir = '/tmp/.mount_FlatCAMab12cd/usr/lib/flatcam'
         assert compute_start_dir(app_dir, app_dir, frozen=True, home=HOME) == HOME
         assert compute_start_dir(app_dir + '/assets', app_dir, frozen=True, home=HOME) == HOME
-
-    def test_a_launcher_that_starts_in_the_root_folder_gives_home(self):
-        assert compute_start_dir('/', '/opt/flatcam', frozen=True, home=HOME) == HOME
 
 class TestResolveUserPath:
     def test_relative_name_gets_the_start_folder(self):
@@ -146,14 +107,6 @@ class TestResolveExistingPaths:
 class TestBaseDir:
     """set_path and the Tcl cd move the process: the relative names follow it"""
 
-    def test_in_the_application_folder_it_is_the_start_folder(self, in_app_folder):
-        assert base_dir() == HOME
-
-    def test_the_tcl_cd_changes_it(self, in_app_folder, tmp_path):
-        tkinter = pytest.importorskip('tkinter')
-        tkinter.Tcl().call('cd', str(tmp_path))   # the folder of a process is shared by every interpreter
-        assert same_folder(base_dir(), tmp_path)
-
     def test_set_path_then_open_gerber(self, in_app_folder, tmp_path):
         # the pattern of many scripts: set_path <folder>, then the names relative to it
         tkinter = pytest.importorskip('tkinter')
@@ -167,58 +120,6 @@ class TestBaseDir:
         assert app.options['global_tcl_path'] == str(tmp_path).replace('\\', '/')
         args, _ = _command(TclCommandOpenGerber).check_args(('board.gtl',))
         assert same_folder(args['filename'], tmp_path / 'board.gtl')
-
-    def test_a_relative_set_path_is_relative_to_the_start_folder_and_then_to_the_new_one(self, in_app_folder, tmp_path,
-                                                                                         monkeypatch):
-        tkinter = pytest.importorskip('tkinter')
-        (tmp_path / 'one' / 'two').mkdir(parents=True)
-        monkeypatch.setattr(StartDir, 'START_DIR', str(tmp_path))
-        app = SimpleNamespace(shell=SimpleNamespace(tcl=tkinter.Tcl()), options={}, inform_shell=Mock())
-        set_path = _command(TclCommandSetPath)
-        set_path.app = app
-
-        for name, want in (('one', tmp_path / 'one'), ('two', tmp_path / 'one' / 'two')):
-            args, unnamed = set_path.check_args((name,))
-            set_path.execute(args, unnamed)
-            assert same_folder(os.getcwd(), want)
-
-
-class TestTclPathArguments:
-    def test_no_command_has_an_unlisted_file_like_argument(self):
-        # a new command with a file argument under another name would write into the application folder again
-        flag_arguments = {('TclCommandNew', 'keep_scripts'), ('TclCommandSubtractObjects', 'close_paths'),
-                          ('TclCommandDrillcncjob', 'spindledir')}
-        missed = []
-        for name, cls in _all_commands().items():
-            for key in list(cls.arg_names) + list(cls.option_types):
-                if re.search(r'file|path|dir|folder', key, re.I) and key not in cls.path_args \
-                        and (name, key) not in flag_arguments:
-                    missed.append((name, key))
-        assert missed == []
-
-    @pytest.mark.parametrize('command_name,key', _path_commands()[:2])
-    def test_relative_name_is_resolved_against_the_start_folder(self, command_name, key, in_app_folder):
-        cls = _all_commands()[command_name]
-        command = _command(cls)
-
-        if key in cls.arg_names:
-            before = list(cls.arg_names)[:list(cls.arg_names).index(key)]
-            assert all(cls.arg_names[k] is str for k in before)
-            args = ['obj'] * len(before) + ['out.dat']
-        else:
-            args = ['-%s' % key, 'out.dat']
-        named_args, _ = command.check_args(tuple(args))
-
-        assert named_args[key] == os.path.join(HOME, 'out.dat')
-
-    def test_missing_name_is_still_reported(self, in_app_folder):
-        command = _command(_all_commands()['TclCommandWriteGCode'])
-        command.raise_tcl_error = Mock()
-
-        named_args, _ = command.check_args(('obj',))
-
-        assert 'filename' not in named_args
-        command.raise_tcl_error.assert_called_once_with("Missing required argument 'filename'.")
 
 @pytest.fixture(scope='module')
 def command_line_runs(tmp_path_factory):

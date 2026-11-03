@@ -2,9 +2,11 @@
 GUI, the ui is a namespace of tiny value holders), the worker task is executed at once and ``new_object`` runs the
 init callback on a real, empty object. The plugin and the Tcl command must give the same panel."""
 
+from io import StringIO
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+import ezdxf
 import numpy as np
 import pytest
 from PyQt6 import QtCore
@@ -18,9 +20,9 @@ from appObjects.GerberObject import GerberObject
 from appPlugins.ToolPanelize import Panelize
 
 from tests.helpers_objects import (  # noqa: F401,E402
-    app, assert_coords_close, _headless_qt, make_excellon, make_gerber, NATIVE_GBR, parts, polygon_union,
+    app, assert_coords_close, _headless_qt, make_excellon, make_gerber, parts, polygon_union, reparse_gerber,
 )
-from test_panelize_tcl_characterization import run_panelize
+from test_panelize_core import run_panelize
 
 
 class Value:
@@ -105,9 +107,8 @@ def same_tools(pan, other, key):
                 assert_coords_close(rec_a, rec_b)
 
 
-@pytest.mark.parametrize('path', [None, NATIVE_GBR], ids=['mixed', 'native'])
-def test_gerber_plugin_equals_tcl(app, path):
-    src = make_gerber(app, name='g') if path is None else make_gerber(app, path, name='g')
+def test_gerber_plugin_equals_tcl(app):
+    src = make_gerber(app, name='g')
     _, tcl = run_panelize(app, src, 'g', '-rows', '2', '-columns', '3', '-spacing_columns', '5',
                           '-spacing_rows', '5', '-outname', 'p')
     created, informs = run_plugin(app, src, panel_type='gerber')
@@ -142,7 +143,6 @@ def test_constrain_reduces_the_grid(app):
     created, informs = run_plugin(app, src, rows=3, cols=4, constrain=(2 * w + 5.5, h + 1.0))
     pan = created['g_panelized']
     assert len(parts(pan.solid_geometry)) == 2 * len(parts(src.solid_geometry))
-    assert any('Too big for the constrain area' in text and '2 columns and 1 rows' in text for text in informs)
 
 
 def make_geometry(app, multigeo):
@@ -162,8 +162,6 @@ def test_geometry_plugin_multigeo_merges_the_shared_borders(app):
     assert pan.multigeo is True
     fused = pan.tools[1]['solid_geometry']
     assert len(fused) == 1 and fused[0].length == pytest.approx(70.0)
-    assert any('Optimizing the overlapping paths' in t for t in informs)
-    assert any('Optimization complete' in t for t in informs)
     # the composed solid_geometry is flat
     assert all(not isinstance(g, (list, tuple)) for g in pan.solid_geometry) and len(pan.solid_geometry) == 4
 
@@ -179,3 +177,91 @@ def test_geometry_source_to_gerber_panel_solid(app, multigeo):
         assert polygon_union(pan.solid_geometry).area == pytest.approx(200.0)
     else:
         assert len(parts(pan.solid_geometry)) == 4
+
+
+def test_source_excellon_without_slots_or_drills_keys_is_not_changed(app):
+    src = make_excellon(app, name='e')
+    for tool in src.tools.values():
+        del tool['slots']
+    del src.tools[2]['drills']
+    keys_before = {tid: sorted(tool) for tid, tool in src.tools.items()}
+    created, _ = run_plugin(app, src)
+    assert {tid: sorted(tool) for tid, tool in src.tools.items()} == keys_before
+    # the panel still has both keys everywhere
+    assert all('drills' in t and 'slots' in t for t in created['e_panelized'].tools.values())
+
+
+def test_gerber_to_geometry_panel_is_the_translated_copper_with_tools_and_a_dxf_source(app):
+    # The panel gets the tool table of the Geometry (like convert_any2geo); every tool holds the translated copper.
+    src = make_gerber(app, name='g')
+    created, _ = run_plugin(app, src, panel_type='geometry', rows=2, cols=2)
+    pan = created['g_panelized']
+    src_area = polygon_union(src.solid_geometry).area
+    assert pan.multigeo is True
+    assert pan.tools
+    for tool in pan.tools.values():
+        assert polygon_union(tool['solid_geometry']).area == pytest.approx(4 * src_area)
+        assert 'tooldia' in tool and isinstance(tool['data'], dict) and tool['data']
+    assert polygon_union(pan.solid_geometry).area == pytest.approx(4 * src_area)
+    assert all(not isinstance(g, (list, tuple)) for g in pan.solid_geometry)
+    assert all(not isinstance(g, (list, tuple)) for tool in pan.tools.values() for g in tool['solid_geometry'])
+    assert pan.obj_options['tools_mill_tooldia'] == pan.tools[min(pan.tools)]['tooldia']
+    # a Geometry keeps its source as DXF text
+    assert pan.source_file and len(ezdxf.read(StringIO(pan.source_file)).modelspace()) > 0
+
+
+def make_poly_geometry(app, multigeo):
+    """A Geometry made of polygons only: 3 elements."""
+    src = GeometryObject('src', app)
+    src.multigeo = multigeo
+    src.units = 'MM'
+    polys = [box(0, 0, 4, 4), box(6, 0, 8, 2), box(10, 0, 12, 2)]
+    src.solid_geometry = list(polys)
+    if multigeo:
+        src.tools = {1: {'tooldia': 1.0, 'data': {}, 'solid_geometry': polys[:2]},
+                     2: {'tooldia': 2.0, 'data': {}, 'solid_geometry': polys[2:]}}
+    else:
+        src.tools = {1: {'tooldia': 1.0, 'data': {}, 'solid_geometry': []}}
+    return src
+
+
+@pytest.mark.parametrize('multigeo', [False, True], ids=['single-geo', 'multigeo'])
+def test_geometry_to_gerber_panel_keeps_the_records_and_has_a_source(app, multigeo):
+    src = make_poly_geometry(app, multigeo)
+    created, _ = run_plugin(app, src, panel_type='gerber', rows=2, cols=2)
+    pan = created['src_panelized']
+    assert pan.tools[0]['type'] == 'REG'
+    records = pan.tools[0]['geometry']
+    assert len(records) == 4 * 3
+    assert polygon_union([r['solid'] for r in records]).symmetric_difference(
+        polygon_union(pan.solid_geometry)).area < 1e-6
+    assert pan.multigeo is True and pan.multitool is False and pan.follow is False
+    assert pan.export_as_regions is False
+    assert isinstance(pan.source_file, str) and pan.source_file.strip()
+
+
+def test_geometry_to_gerber_panel_with_a_line_exports_as_regions(app, tmp_path):
+    src = make_poly_geometry(app, False)
+    src.solid_geometry = [box(0, 0, 4, 4), LineString([(6, 0), (9, 3)])]
+    created, _ = run_plugin(app, src, panel_type='gerber', rows=1, cols=2)
+    pan = created['src_panelized']
+    assert pan.export_as_regions is True
+    assert isinstance(pan.source_file, str) and pan.source_file.strip()
+    again = reparse_gerber(app, pan.source_file, tmp_path)
+    assert polygon_union(again.solid_geometry).area == pytest.approx(2 * 16)
+
+
+def test_constraint_smaller_than_one_board_does_not_schedule_a_panel(app):
+    src = make_gerber(app, name='g')
+    created, informs = run_plugin(app, src, constrain=(0.001, 0.001))
+    assert not created
+    app.collection.promise.assert_not_called()
+
+
+def test_worker_exception_clears_promise_and_reports_error(app):
+    src = make_gerber(app, name='g')
+    app.collection.promises = set()
+    app.collection.promise.side_effect = app.collection.promises.add
+    created, informs = run_plugin(app, src, fail_job=True)
+    assert not created
+    assert not app.collection.promises

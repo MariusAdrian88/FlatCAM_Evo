@@ -102,15 +102,6 @@ class TestTransformKeys(unittest.TestCase):
                     np.testing.assert_array_equal(d['mesh_rgba'], r['mesh_rgba'])
                     np.testing.assert_array_equal(d['line_rgba'], r['line_rgba'])
 
-    def test_group_transform(self):
-        c = new_collection()
-        g = ShapeGroup(c)
-        other = c.add_batch([{'shape': sample_shapes()[1], 'color': 'red', 'face_color': 'blue'}])
-        keys = g.add_batch([{'shape': sample_shapes()[1], 'color': 'red', 'face_color': 'blue'}])
-        before = c.data[other[0]]['line_pts'].copy()
-        self.assertTrue(g.transform(self.MATRICES['offset']))
-        np.testing.assert_array_equal(c.data[other[0]]['line_pts'], before)
-        self.assertGreater(c.data[keys[0]]['line_pts'][:, 0].min(), 99.0)
 
     def test_excellon_scale_replots_round_holes_in_the_cached_shapes(self):
         # the cached plot of a scaled Excellon must be made again from the rebuilt geometry, not mapped:

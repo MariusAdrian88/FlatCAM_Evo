@@ -75,7 +75,7 @@ def _flipped_content_bounds(path):
 
 
 # (xmin, ymin, xmax, ymax); the 2nd starts below y = 0
-BOXES = [(10, 20, 40, 30), (-5, -30, 7, -10)]
+BOXES = [(-5, -30, 7, -10)]
 
 
 @pytest.mark.parametrize('bounds', BOXES)

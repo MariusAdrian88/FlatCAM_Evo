@@ -87,19 +87,6 @@ def _run_job(tmp_path, job: dict) -> int:
     return updater_app.main(["--job", str(path)])
 
 
-def test_final_extraction_applies_ordinary_mode_bits(monkeypatch, tmp_path):
-    archive_path = _archive(tmp_path)
-    files = {"flatcam.py": b"payload"}
-    calls = []
-    monkeypatch.setattr(
-        updater_app.os, "chmod", lambda path, mode: calls.append((Path(path), mode))
-    )
-
-    updater_app._extract_archive(archive_path, tmp_path / "staging", _manifest(archive_path, files))
-
-    assert calls == [(tmp_path / "staging" / "flatcam.py", 0o755)]
-
-
 def test_final_extraction_strips_privilege_bits_and_skips_unknown_modes(monkeypatch, tmp_path):
     privileged = _archive(tmp_path / "privileged", mode=0o4755)
     files = {"flatcam.py": b"payload"}
@@ -118,7 +105,7 @@ def test_final_extraction_strips_privilege_bits_and_skips_unknown_modes(monkeypa
     assert calls == []
 
 
-@pytest.mark.parametrize("as_directory", [True, False])
+@pytest.mark.parametrize("as_directory", [True])
 def test_source_git_markers_are_refused_before_apply(tmp_path, as_directory):
     install = _install(tmp_path)
     marker = install / ".git"

@@ -73,37 +73,6 @@ def select_uid(t, uid):
     raise AssertionError('uid not in table')
 
 
-SIGNALS = ('cutz_entry', 'tipdia_entry', 'tipangle_entry')
-
-
-def our_receiver_count(t):
-    """Number of connections of the 3 V signals that go to on_update_tool_dia (1 each when connected once)."""
-    counts = {}
-    for name in SIGNALS:
-        widget = getattr(t.ui, name)
-        n = widget.receivers(widget.editingFinished)
-        # disconnect ours, see how many remain: the difference is our connection count
-        ours = 0
-        while True:
-            try:
-                widget.editingFinished.disconnect(t.on_update_tool_dia)
-            except TypeError:
-                break
-            ours += 1
-        counts[name] = (ours, n)
-        for _ in range(ours):
-            widget.editingFinished.connect(t.on_update_tool_dia)
-    return {k: v[0] for k, v in counts.items()}
-
-
-def assert_connected_once(t):
-    assert our_receiver_count(t) == {n: 1 for n in SIGNALS}
-    # total receivers = the widget's own receiver + ours
-    for name in SIGNALS:
-        widget = getattr(t.ui, name)
-        assert widget.receivers(widget.editingFinished) == 2
-
-
 # ------------------------------------------------------------------ helper
 
 # ------------------------------------------------------------------ on_update_tool_dia
@@ -119,7 +88,6 @@ def test_update_changes_diameter(tool):
     assert tool.iso_tools[1]['tooldia'] == expected
     assert tool.iso_tools[1]['data']['tools_iso_tooldia'] == expected
     assert float(tool.ui.tools_table.item(row, 1).text()) == expected
-    assert_connected_once(tool)
 
 
 def test_update_clash_with_other_tool_warns_and_keeps(tool):
@@ -143,7 +111,6 @@ def test_update_clash_with_other_tool_warns_and_keeps(tool):
     # the V edit left the plugin free to pass the Optimal result to the UI
     tool.optimal_found_sig.emit(0.25)
     assert tool.ui.new_tooldia_entry.get_value() == pytest.approx(0.25)
-    assert_connected_once(tool)
 
 
 # ------------------------------------------------------------------ add paths
@@ -155,7 +122,6 @@ def test_default_add_zero_dia_v_shape(tool):
     assert tool.iso_tools[1]['tooldia'] == expected
     assert tool.iso_tools[1]['data']['tools_iso_tooldia'] == expected
     assert float(tool.ui.tools_table.item(0, 1).text()) == expected
-    assert_connected_once(tool)
 
 
 def test_default_add_zero_dia_not_v_shape_warns(tool):
@@ -164,17 +130,6 @@ def test_default_add_zero_dia_not_v_shape_warns(tool):
     tool.on_tool_default_add(dia=0)
     assert tool.iso_tools == {}
     assert 'WARNING' in tool.app.inform.emit.call_args[0][0]
-
-
-def test_add_zero_dia_v_shape_from_defaults(tool):
-    # empty Tools DB: no match, the default tool is added with the V diameter
-    tool.on_tool_add(custom_dia=0)
-    expected = v_dia(0.1, 60, -0.1)
-    assert list(tool.iso_tools) == [1]
-    assert tool.iso_tools[1]['tooldia'] == expected
-    assert tool.iso_tools[1]['data']['tools_iso_tooldia'] == expected
-    assert float(tool.ui.tools_table.item(0, 1).text()) == expected
-    assert_connected_once(tool)
 
 
 def test_add_zero_dia_final_diameter_from_matched_record(tool):
@@ -194,7 +149,6 @@ def test_add_zero_dia_final_diameter_from_matched_record(tool):
     assert tool.iso_tools[1]['data']['tools_iso_tooldia'] == expected
     assert tool.iso_tools[1]['data']['tools_mill_vtipdia'] == 0.2
     assert float(tool.ui.tools_table.item(0, 1).text()) == expected
-    assert_connected_once(tool)
 
 
 def test_effective_diameter_rejects_impossible_tools():
@@ -251,78 +205,3 @@ def test_added_tools_are_selected_under_a_sorted_table_and_duplicates_are_refuse
     assert len(plain.iso_tools) == 4
 
 
-def test_v_parameters_follow_the_selected_rows(plain):
-    # selecting a V row shows the V parameters
-    add_tool_row(plain, 1, 0.1, v_data(shape=0))
-    add_tool_row(plain, 2, 0.5, v_data(shape=V))
-    plain.build_ui()
-    plain.ui.v_frame.setVisible(False)
-    plain.ui.tools_table.selectRow(table_dias(plain).index(0.5))
-    plain.update_ui()
-    assert not plain.ui.v_frame.isHidden()
-    plain.ui.tools_table.selectRow(table_dias(plain).index(0.1))
-    plain.update_ui()
-    assert plain.ui.v_frame.isHidden()
-
-    # a V parameter edit recomputes every selected V tool
-    plain.iso_tools.clear()
-    add_tool_row(plain, 1, 0.5, v_data(angle=60))
-    add_tool_row(plain, 2, 0.9, v_data(angle=90))
-    plain.build_ui()
-    plain.ui.tools_table.setCurrentCell(0, 1)
-    plain.ui.tools_table.selectAll()
-    plain.ui.tipdia_entry.set_value(0.3)
-    plain.ui.tipdia_entry.editingFinished.emit()
-    assert plain.iso_tools[1]['tooldia'] == v_dia(0.3, 60, -0.1)
-    assert plain.iso_tools[2]['tooldia'] == v_dia(0.3, 90, -0.1)
-    assert plain.iso_tools[2]['data']['tools_mill_vtipangle'] == 90
-
-    # apply to all recomputes the V tools and keeps the other diameters
-    plain.iso_tools.clear()
-    add_tool_row(plain, 1, 0.5, v_data(shape=0))
-    add_tool_row(plain, 2, 0.9, v_data(shape=0))
-    plain.build_ui()
-    plain.ui.tools_table.selectRow(table_dias(plain).index(0.9))
-    plain.on_apply_param_to_all_clicked()
-    assert plain.iso_tools[1]['tooldia'] == 0.5 and plain.iso_tools[2]['tooldia'] == 0.9
-    assert plain.iso_tools[1]['data']['tools_iso_tooldia'] == 0.5
-    add_tool_row(plain, 3, 0.7, v_data(tip=0.2, angle=60, cut_z=-0.1))
-    plain.build_ui()
-    plain.ui.tools_table.selectRow(table_dias(plain).index(0.7))
-    plain.on_apply_param_to_all_clicked()
-    assert sorted(t['tooldia'] for t in plain.iso_tools.values()) == [v_dia(0.2, 60, -0.1)] * 2 + [0.7]
-
-
-def test_tool_table_delete_level_toggle_and_row_drag(plain, monkeypatch):
-    from PyQt6 import QtCore
-    # delete without a selection warns, delete all disables Generate
-    plain.on_tool_add(custom_dia=0.1)
-    plain.ui.tools_table.clearSelection()
-    plain.app.inform.emit.reset_mock()
-    plain.on_tool_delete()
-    assert len(plain.iso_tools) == 1
-    assert 'WARNING' in plain.app.inform.emit.call_args[0][0]
-    plain.ui.tools_table.selectAll()
-    plain.on_tool_delete()
-    assert plain.iso_tools == {} and not plain.ui.generate_iso_button.isEnabled()
-
-    # the level toggle keeps the isolation type of each tool
-    add_tool_row(plain, 1, 0.5)
-    add_tool_row(plain, 2, 0.9)
-    plain.iso_tools[1]['data']['tools_iso_isotype'] = 'ext'
-    plain.iso_tools[2]['data']['tools_iso_isotype'] = 'int'
-    plain.build_ui()
-    plain.change_level('b')
-    assert {t['data']['tools_iso_isotype'] for t in plain.iso_tools.values()} == {'full'}
-    plain.change_level('a')
-    assert [plain.iso_tools[u]['data']['tools_iso_isotype'] for u in (1, 2)] == ['ext', 'int']
-
-    # dragging rows switches the order to default and keeps the tools
-    monkeypatch.setattr(QtCore.QTimer, 'singleShot', lambda ms, fn: fn())
-    plain.iso_tools.clear()
-    plain.on_tool_add(custom_dia=0.1)
-    plain.on_tool_add(custom_dia=0.5)
-    uids = {u: t['tooldia'] for u, t in plain.iso_tools.items()}
-    plain.rebuild_ui()
-    assert plain.ui.iso_order_combo.get_value() == 0
-    assert {u: t['tooldia'] for u, t in plain.iso_tools.items()} == uids

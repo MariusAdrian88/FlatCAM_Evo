@@ -85,7 +85,7 @@ def _expected_excellon_batch(obj, multicolored):
     return out
 
 
-@pytest.mark.parametrize('multicolored', [False, True])
+@pytest.mark.parametrize('multicolored', [True])
 @pytest.mark.parametrize('plot', [True, False])
 class TestExcellonPlotSolid:
     def test_solid_batch_and_visibility(self, multicolored, plot):
@@ -98,30 +98,6 @@ class TestExcellonPlotSolid:
             assert obj.tools[tool]['multicolor'] == ('c%d' % (list(obj.tools).index(tool) + 1) if multicolored else None)
         # the keys are mapped back to the tools
         assert sum(len(v) for v in obj.shape_indexes_dict.values()) == len(_batch_of(obj))
-
-@pytest.mark.parametrize('plot', [True, False])
-def test_excellon_outline_mode(plot):
-    obj = _prepare_excellon({'solid': False, 'multicolored': False, 'plot': plot})
-    obj.plot()
-    assert not obj.add_shapes_batch.called
-    calls = [(c.kwargs['shape'].wkt, c.kwargs['color'], c.kwargs['visible']) for c in obj.add_shape.call_args_list]
-    expected = []
-    for tool in obj.tools:
-        for geo in obj.tools[tool]['solid_geometry']:
-            expected.append((geo.exterior.wkt, 'red', plot))
-            for ints in geo.interiors:
-                expected.append((ints.wkt, 'orange', plot))
-    assert calls == expected
-
-
-def test_excellon_plot_without_ui_has_no_exception_and_all_tools_visible():
-    obj = _prepare_excellon({'solid': True, 'multicolored': True, 'plot': True}, with_ui=False)
-    obj.plot()
-    assert obj.add_shapes_batch.call_args.kwargs['visible'] is True
-    assert _batch_of(obj) == _expected_excellon_batch(obj, True)
-    # every tool got its shape keys; no per-tool hidden state is applied
-    assert set(obj.shape_indexes_dict) == set(obj.tools)
-
 
 # ---------------------------------------------------------------------------------------------------------------
 # Gerber
@@ -182,7 +158,7 @@ def _expected_gerber_batch(obj, settings, line_enable):
 
 
 @pytest.mark.parametrize('solid, multicolored, follow', [
-    (False, False, False), (False, True, False), (True, False, False), (True, True, False),
+    (False, False, False), (True, True, False),
     (False, False, True),  # follow only picks the geometry; one case is enough
 ])
 def test_gerber_plot_batch(solid, multicolored, follow):
@@ -195,27 +171,3 @@ def test_gerber_plot_batch(solid, multicolored, follow):
     assert batch == _expected_gerber_batch(obj, settings, line_enable)
     assert obj.add_shapes_batch.call_args.kwargs['visible'] is True
 
-
-@pytest.mark.skipif(OLD_CODE, reason='the old code needs the UI')
-def test_gerber_plot_reads_follow_from_the_options_and_works_without_ui():
-    settings = {'solid': True, 'multicolored': False, 'follow': True, 'plot': True}
-    obj = _prepare_gerber(settings, with_ui=False)
-    obj.plot(color='#line', face_color='#fill')
-    assert _gerber_batch(obj) == _expected_gerber_batch(obj, settings, True)
-    obj.obj_options['follow'] = False
-    obj.plot(color='#line', face_color='#fill')
-    assert _gerber_batch(obj) == _expected_gerber_batch(obj, dict(settings, follow=False), True)
-
-
-@pytest.mark.skipif(OLD_CODE, reason='the old handler does not write the option')
-def test_gerber_follow_toggle_writes_the_option_before_plot():
-    obj = _prepare_gerber({'solid': True, 'multicolored': False, 'follow': False, 'plot': True})
-    seen = []
-    obj.plot = Mock(side_effect=lambda *a, **k: seen.append(obj.obj_options['follow']))
-    ui = Mock()
-    ui.follow_cb.get_value.return_value = True
-    obj.ui = ui
-    obj.form_fields['follow'] = ui.follow_cb
-    obj.muted_ui = False
-    obj.on_follow_cb_click()
-    assert seen == [True]

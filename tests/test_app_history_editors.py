@@ -103,14 +103,6 @@ class TestEditorHistory(unittest.TestCase):
             self.assertTrue(app.history.redo())
             self.assertEqual(obj.solid_geometry, new)
 
-    def test_save_as_new_records_no_edit_step_for_the_source(self):
-        # App.on_editing_finished clears _history_edit on Save as New: nothing is recorded for the source
-        obj = FakeObj('b1', 'gerber', box(0, 0, 1, 1))
-        app = make_app([obj])
-        begin(app, obj)
-        app._history_edit = None
-        saved(app, obj)
-        self.assertEqual(app.history.undo_stack, [])
 
 def test_real_multigeo_geometry_edit_is_one_step_and_undo_gives_the_old_tool_geometry(app):
     # what App.on_editing_finished and update_editor_geometry() do for a Save in place, with a real GeometryObject

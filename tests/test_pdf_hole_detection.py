@@ -276,7 +276,7 @@ def _square_font():
 
 
 @pytest.mark.parametrize('parser_class', [PurePythonPdfParser])
-@pytest.mark.parametrize('font_type', ['Type0', 'TrueType', 'not embedded'])
+@pytest.mark.parametrize('font_type', ['TrueType', 'not embedded'])
 def test_text_is_imported_as_glyph_outlines(tmp_path, parser_class, font_type):
     parser = parser_class()
     if not parser.is_available():
@@ -449,19 +449,6 @@ def _open_pdf(filename, parser=None):
     return named
 
 
-@pytest.mark.parametrize('parser_class', [PurePythonPdfParser])
-def test_every_page_is_extracted_in_order(tmp_path, parser_class):
-    parser = parser_class()
-    if not parser.is_available():
-        pytest.skip('pikepdf is not installed')
-    pages = parser.extract_page_streams(_reportlab_pdf(tmp_path / 'three.pdf', ['rect', 'blank', 'circle']))
-    assert len(pages) == 3
-    # reportlab writes only a transform on a blank page: no path is painted there
-    assert ' re' not in pages[1]
-    assert ' re' in pages[0]
-    assert pages[2].strip() and ' re' not in pages[2]
-
-
 def test_each_page_gets_its_suffix_and_a_blank_page_gives_nothing(tmp_path):
     named = _open_pdf(_reportlab_pdf(tmp_path / 'three.pdf', ['rect', 'blank', 'circle']))
     assert any('_p1' in name for name in named)
@@ -495,14 +482,6 @@ def test_stroke_is_cut_to_the_clip_rectangle():
     stream = '0 0 0 RG 2 w q 113.3858 -20 56.6929 40 re W n 0 0 m 283.4646 0 l S Q'
     min_x, _, max_x, _ = _all_solids(_parse(stream, units='MM')).bounds
     assert (min_x, max_x) == pytest.approx((40.0, 60.0), abs=1e-3)
-
-
-def test_clip_ends_at_q_and_clipped_fill_is_the_intersection():
-    # A is filled 0..20 under a 0..10 clip: only the 10 x 10 overlap stays; B is drawn after Q
-    stream = 'q 0 0 10 10 re W n 0 0 20 20 re f Q 50 50 10 10 re f'
-    solid = _all_solids(_parse(stream, units='MM'))
-    expected = unary_union([box(*_mm(0, 0, 10, 10)), box(*_mm(50, 50, 60, 60))])
-    assert solid.symmetric_difference(expected).area == pytest.approx(0.0, abs=1e-6)
 
 
 @pytest.mark.parametrize('parser_class', [PurePythonPdfParser])

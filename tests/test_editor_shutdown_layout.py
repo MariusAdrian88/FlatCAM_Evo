@@ -9,7 +9,7 @@ from appHandlers.appLifecycle import AppLifecycle
 from tests.test_shutdown_routing import shutdown, qt_app  # noqa: F401
 
 
-SOURCES = ['app', 'geo_editor']
+SOURCES = ['geo_editor']
 
 
 def toolbar_states(window):
@@ -74,7 +74,6 @@ def test_confirmed_quit_restores_and_saves_layout_before_editor_cleanup_can_repl
 
 
 @pytest.mark.parametrize('kind,attribute,method,source', [
-    ('geometry', 'geo_editor', 'edit_geometry', 'geo_editor'),
     ('gerber', 'grb_editor', 'edit_fcgerber', 'grb_editor'),
 ])
 def test_entering_an_editor_captures_the_layout_before_toolbars_change(qt_app, kind, attribute, method, source):

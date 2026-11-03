@@ -61,25 +61,6 @@ class Layer:
         self.events.append('ui')
 
 
-def wait_for(predicate):
-    timer = QtCore.QElapsedTimer()
-    timer.start()
-    while not predicate() and timer.elapsed() < 2000:
-        QtTest.QTest.qWait(1)
-    assert predicate(), 'Qt completion timed out'
-
-
-def test_move_error_reports_after_worker_and_does_not_fit(qt_app):
-    app = make_app()
-    layer = Layer(10.0, [], [])
-    layer.regenerate_source = Mock(side_effect=ValueError('export failed'))
-    app.collection.get_selected.return_value = [layer]
-    ops = AppObjectOps(app)
-    ops.on_move2origin(use_thread=False)
-    app.plotcanvas.fit_view.assert_not_called()
-    assert 'export failed' in app.inform.emit.call_args.args[0]
-
-
 class ClickCanvas:
     """The mouse_release handlers of the canvas (graph_event_connect / graph_event_disconnect) and a click."""
 

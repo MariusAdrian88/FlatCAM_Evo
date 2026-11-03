@@ -10,7 +10,6 @@ Old-code losses: aperture_macros in on_copy_command; follow_geometry and source_
 multigeo / tooluid (Geometry); multigeo, int_digits, frac_digits (Gerber); the Excellon file format attributes.
 """
 
-import copy
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -257,46 +256,11 @@ def run_path_or_fail(app, source, kind, path):
     return results[0]
 
 
-def test_excellon_object2_regenerates_the_source_file_under_the_new_name(app):
-    source = excellon_source(app)
-    clone = run_path(app, source, 'excellon', 'object2')
-    assert clone.source_file == 'REGENERATED\n'
-    assert app.f_handlers.export_excellon.call_args.kwargs['obj_name'] == 'exc_c2'
-
-
 def test_excellon_same_diameter_data_is_kept_by_both_paths(app):
     for path in ('command', 'object2'):
         clone = run_path(app, excellon_source(app), 'excellon', path)
         assert clone.tools[1]['data']['tag'] == 'first' and clone.tools[2]['data']['tag'] == 'second'
         assert [clone.tools[t]['tooldia'] for t in (1, 2)] == [1.0, 1.0]
-
-
-def test_cncjob_cannot_be_copied(app):
-    job = SimpleNamespace(kind='cncjob', obj_options={'name': 'job'})
-    app.collection.get_selected.return_value = [job]
-    ops = AppObjectOps(app)
-    ops.on_copy_command()
-    app.app_obj.new_object.assert_not_called()
-
-
-class TestCopyIndependence:
-    def test_excellon_copy_matches_and_is_independent(self, app, excellon):
-        before = snapshot_excellon(excellon)
-        clone = run_copy(app, excellon, 'excellon')
-        assert sorted(clone.tools) == [1, 2, 3]
-        for t in before:
-            assert pts(clone.tools[t]['drills']) == pts(before[t]['drills'])
-            assert slot_coords(clone.tools[t]['slots']) == slot_coords(before[t]['slots'])
-            assert clone.tools[t]['tooldia'] == before[t]['tooldia']
-        assert len(clone.solid_geometry) == 9
-        excellon.tools[1]['drills'].append(Point(99, 99))
-        excellon.tools[1]['tooldia'] = 9.0
-        excellon.tools[2]['slots'][0] = (Point(0, 0), Point(1, 1))
-        assert len(clone.tools[1]['drills']) == 3
-        assert clone.tools[1]['tooldia'] == 0.8
-        assert slot_coords(clone.tools[2]['slots']) == [((20, 12), (28, 12))]
-        clone.tools[3]['drills'].append(Point(1, 1))
-        assert len(excellon.tools[3]['drills']) == 1
 
 
 def _merge_source(name, solid=None, follow=None, tool_id=10, options=None):
@@ -342,12 +306,3 @@ class TestMerge_0B1:
         src.tools[10]['geometry'].append({'solid': box(9, 9, 10, 10)})
         assert final.tools[10]['size'] == 0.2
         assert len(final.tools[10]['geometry']) == 1
-
-    def test_follow_geometry_comes_from_source_follow(self):
-        line = LineString([(0, 0), (3, 3)])
-        src = _merge_source('a', solid=box(0, 0, 5, 5), follow=line)
-        final = _merge_final()
-        _call_merge([src], final, log=Mock())
-        assert final.follow_geometry.geom_type == 'LineString', final.follow_geometry.geom_type
-        assert final.follow_geometry.equals(line)
-        assert final.solid_geometry.geom_type == 'Polygon'

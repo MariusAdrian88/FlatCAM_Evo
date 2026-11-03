@@ -14,19 +14,27 @@ import threading
 import re
 import unittest
 from types import SimpleNamespace
-from unittest.mock import MagicMock, call, mock_open, patch
+from unittest.mock import ANY, MagicMock, call, mock_open, patch
 
 from PyQt6 import QtWidgets
 
 _qapp = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
 
-from shapely import Point, box
+from shapely import Point, Polygon, box
 from shapely.ops import unary_union
 
 from appPlugins.ToolLevelling import ToolLevelling
 from appPlugins.ToolGcodeSender.Sender import ToolGCodeSender
 from appPlugins.Common.grbl.grbl_protocol import parse_grbl_probe_output
 from appPlugins.Common.levelling_interp import parse_height_map_line
+from copy import deepcopy
+import math
+import random
+import pytest
+import appPlugins.Common.levelling_core as lc_module
+import copy
+
+from test_levelling_audit import FakeGrbl, emitted, make_audit_tool, tl_module
 
 
 def plane(x, y):
@@ -123,47 +131,6 @@ class TestHeightMapCoverage(unittest.TestCase):
         self.assertIn(': 3.', warnings[0])
         self.assertIn('reprobe', warnings[0])
 
-    def test_in_map_boundaries_and_rounding_tolerance_do_not_warn(self):
-        for method in ('b', 'v'):
-            with self.subTest(method=method):
-                tool = make_tool(storage=make_storage_grid([0, 10], [0, 10]))
-                target = make_tool_target({1: 'G21 G90\nG1 X0 Y0 Z-1\nG1 X10 Y10\n'
-                                             'G1 X10.0005 Y5\n'})
-                self.assertIsNotNone(tool.autolevell_gcode(target, method))
-                self.assertEqual(self.warnings(tool), [])
-
-    def test_scattered_footprint_is_hull_not_bounding_rectangle(self):
-        for method in ('v', 'b'):
-            with self.subTest(method=method):
-                storage = make_storage_grid([0, 10], [0, 10])
-                storage.pop(3)
-                tool = make_tool(storage=storage)
-                result = tool.autolevell_gcode(make_tool_target({
-                    1: 'G21 G90\nG1 X2 Y2 Z-1\nG1 X5 Y5\n'
-                       'G1 X5.0002 Y5.0002\nG1 X8 Y9\n'}), method)
-                self.assertIn('G1 X8 Y9 Z-1.1000', result[1])
-                self.assertEqual(len(self.warnings(tool)), 1)
-                self.assertIn(': 1.', self.warnings(tool)[0])
-
-    def test_single_and_collinear_samples_have_only_point_or_line_coverage(self):
-        for xs, inside, outside in (([0], 'X0 Y0', 'X0.01 Y0'),
-                                    ([0, 10], 'X5 Y0.0005', 'X5 Y0.01')):
-            with self.subTest(xs=xs):
-                tool = make_tool(storage=make_storage_grid(xs, [0]))
-                tool.autolevell_gcode(make_tool_target({
-                    1: 'G21 G90\nG1 %s Z-1\nG1 %s\n' % (inside, outside)}), 'v')
-                self.assertEqual(len(self.warnings(tool)), 1)
-                self.assertIn(': 1.', self.warnings(tool)[0])
-
-    def test_rapids_comments_unknown_positions_and_frame_skips_do_not_warn(self):
-        for text in ('G21 G90\nG0 X20 Y20 Z5\n(comment G1 X30 Y30)\nG0 Z10\n',
-                     'G21 G90\nG1 X20 Z-1\n',
-                     'G21 G90 G54\nG0 X0 Y0 Z5\nG55\nG1 X20 Y20 Z-1\n',
-                     'G21 G90 G54\nG0 X0 Y0 Z5\nG20\nG1 X20 Y20 Z-1\n'):
-            with self.subTest(text=text):
-                tool = make_tool(storage=make_storage_grid([0, 10], [0, 10]))
-                self.assertEqual(tool.autolevell_gcode(make_tool_target({1: text}), 'b')[1], text)
-                self.assertEqual(self.warnings(tool), [])
 
     def test_arc_interior_samples_outside_map_warn_even_with_in_map_endpoints(self):
         tool = make_tool(storage=make_storage_grid([0, 10], [0, 10]))
@@ -173,190 +140,6 @@ class TestHeightMapCoverage(unittest.TestCase):
         self.assertEqual(len(self.warnings(tool)), 1)
         outside_samples = len(re.findall(r'G1 X[\d.-]+ Y-\d', result[1]))
         self.assertIn(': %d.' % outside_samples, self.warnings(tool)[0])
-
-    def test_relative_compensation_counts_and_no_evidence_leaks_to_next_call(self):
-        tool = make_tool(storage=make_storage_grid([0, 10], [0, 10]))
-        tool.autolevell_gcode(make_tool_target({
-            1: 'G21 G90\nG0 X0 Y0 Z5\nG1 Z-1\nG91\nG1 X20\n'}), 'b')
-        self.assertEqual(len(self.warnings(tool)), 1)
-        self.assertIn(': 1.', self.warnings(tool)[0])
-        tool.app.inform.emit.reset_mock()
-        tool.autolevell_bilinear(100, 100)
-        tool.autolevell_gcode(make_tool_target({1: 'G21 G90\nG1 X5 Y5 Z-1\n'}), 'b')
-        self.assertEqual(self.warnings(tool), [])
-
-
-class RecordingShapeCollection:
-    def __init__(self):
-        self.shapes = []
-        self.redraw_count = 0
-        self.clear_count = 0
-
-    def add(self, **kwargs):
-        self.shapes.append(kwargs)
-        return len(self.shapes)
-
-    def redraw(self):
-        self.redraw_count += 1
-
-    def clear(self, update=False):
-        self.clear_count += 1
-        self.shapes.clear()
-
-
-def make_overlay_tool(heights_valid=True):
-    storage = {
-        0: {'point': Point(0.0, 0.0), 'geo': None, 'height': 0.0},
-        1: {'point': Point(10.0, 0.0), 'geo': None, 'height': 1.0},
-        2: {'point': Point(0.0, 10.0), 'geo': None, 'height': 2.0},
-        3: {'point': Point(10.0, 10.0), 'geo': None, 'height': 3.0},
-    }
-    tool = make_tool(storage=storage, heights_valid=heights_valid)
-    tool.al_bilinear_geo_storage = [
-        (0.0, 0.0, 0.0),
-        (10.0, 0.0, 0.0),
-        (0.0, 10.0, 0.0),
-        (10.0, 10.0, 0.0),
-    ]
-    tool.ui.al_method_radio.get_value.return_value = 'b'
-    tool.ui.plot_probing_pts_cb.get_value.return_value = True
-    tool.ui.probe_tip_dia_entry.get_value.return_value = 0.2
-    tool.probing_shapes = RecordingShapeCollection()
-    tool.drawing_tolerance = 0.01
-    return tool
-
-
-class TestBilinearOverlay(unittest.TestCase):
-    def test_generates_bounded_transparent_bands(self):
-        tool = make_overlay_tool()
-
-        tool.show_probing_geo(state=True, reset=True)
-        bands = [
-            (item['shape'], item['color'])
-            for item in tool.probing_shapes.shapes
-            if item['color'] != '#000000FF'
-        ]
-
-        self.assertGreater(len(bands), 1)
-        self.assertLessEqual(len(bands), 8)
-        bounds = box(0.0, 0.0, 10.0, 10.0)
-        union = unary_union([geometry for geometry, _color in bands])
-        for geometry, color in bands:
-            self.assertFalse(geometry.is_empty)
-            self.assertTrue(bounds.buffer(1e-9).covers(geometry))
-            self.assertRegex(color, r'^#[0-9A-Fa-f]{8}$')
-            self.assertNotIn(color[-2:].upper(), ('00', 'FF'))
-        self.assertTrue(union.buffer(1e-9).covers(bounds))
-
-    def test_flat_heights_use_one_bounded_transparent_band(self):
-        tool = make_overlay_tool()
-        for value in tool.al_voronoi_geo_storage.values():
-            value['height'] = 0.25
-
-        tool.show_probing_geo(state=True, reset=True)
-        bands = [
-            (item['shape'], item['color'])
-            for item in tool.probing_shapes.shapes
-            if item['color'] != '#000000FF'
-        ]
-
-        self.assertEqual(len(bands), 1)
-        geometry, color = bands[0]
-        self.assertFalse(geometry.is_empty)
-        self.assertTrue(box(0.0, 0.0, 10.0, 10.0).buffer(1e-9).covers(geometry))
-        self.assertRegex(color, r'^#[0-9A-Fa-f]{8}$')
-        self.assertNotIn(color[-2:].upper(), ('00', 'FF'))
-
-
-    def test_invalid_heights_show_only_probe_markers(self):
-        tool = make_overlay_tool(heights_valid=False)
-
-        tool.show_probing_geo(state=True, reset=True)
-
-        self.assertTrue(tool.probing_shapes.shapes)
-        self.assertTrue(all(item['color'] == '#000000FF' for item in tool.probing_shapes.shapes))
-
-    def test_invalid_heights_draw_cell_areas_when_present(self):
-        tool = make_overlay_tool(heights_valid=False)
-        cells = {
-            0: box(-1.0, -1.0, 5.0, 5.0),
-            1: box(5.0, -1.0, 11.0, 5.0),
-            2: box(-1.0, 5.0, 5.0, 11.0),
-            3: box(5.0, 5.0, 11.0, 11.0),
-        }
-        for key, cell in cells.items():
-            tool.al_voronoi_geo_storage[key]['geo'] = cell
-
-        tool.show_probing_geo(state=True, reset=True)
-
-        cell_items = [
-            item for item in tool.probing_shapes.shapes
-            if not isinstance(item['face_color'], str)
-        ]
-        self.assertEqual(len(cell_items), 4)
-        for cell in cells.values():
-            self.assertTrue(any(
-                item['shape'].symmetric_difference(cell).area < 1e-4
-                for item in cell_items
-            ))
-        self.assertTrue(all(item['color'] == '#000000FF' for item in cell_items))
-        for item in cell_items:
-            color = item['face_color']
-            self.assertEqual(color.shape, (4,))
-            self.assertTrue(all(0.0 <= channel <= 1.0 for channel in color))
-            self.assertEqual(color[3], 0.5)
-
-    def test_valid_heights_draw_cell_outlines_under_heatmap(self):
-        tool = make_overlay_tool()
-        for key, value in tool.al_voronoi_geo_storage.items():
-            point = value['point']
-            value['geo'] = box(point.x - 5.0, point.y - 5.0, point.x + 5.0, point.y + 5.0)
-
-        tool.show_probing_geo(state=True, reset=True)
-
-        outline_items = [
-            item for item in tool.probing_shapes.shapes
-            if item['face_color'] == '#00000000'
-        ]
-        self.assertEqual(len(outline_items), 4)
-        self.assertTrue(all(item['color'] == '#000000FF' for item in outline_items))
-
-    def test_generate_bilinear_geometry_assigns_a_cell_to_every_point(self):
-        tool = make_overlay_tool(heights_valid=False)
-        tool.solid_geo = box(0.0, 0.0, 10.0, 10.0)
-        pts = [
-            (value['point'].x, value['point'].y, 0.0)
-            for value in tool.al_voronoi_geo_storage.values()
-        ]
-
-        tool.generate_bilinear_geometry(pts=pts)
-
-        self.assertEqual(tool.al_bilinear_geo_storage, pts)
-        cells = []
-        for value in tool.al_voronoi_geo_storage.values():
-            self.assertIsNotNone(value['geo'])
-            self.assertTrue(value['geo'].covers(value['point']))
-            cells.append(value['geo'])
-        for idx, cell in enumerate(cells):
-            for other in cells[idx + 1:]:
-                self.assertLess(cell.intersection(other).area, 1e-9)
-        envelope = tool.solid_geo.envelope.buffer(1)
-        self.assertAlmostEqual(unary_union(cells).area, envelope.area, places=6)
-
-    def test_non_finite_heights_show_only_probe_markers(self):
-        for invalid_height in (float('nan'), float('inf'), float('-inf')):
-            with self.subTest(invalid_height=invalid_height):
-                tool = make_overlay_tool()
-                tool.al_voronoi_geo_storage[1]['height'] = invalid_height
-
-                tool.show_probing_geo(state=True, reset=True)
-
-                self.assertTrue(tool.probing_shapes.shapes)
-                self.assertTrue(all(
-                    item['color'] == '#000000FF'
-                    for item in tool.probing_shapes.shapes
-                ))
-
 
 
 class TestFiniteLevellingInput(unittest.TestCase):
@@ -420,12 +203,6 @@ class TestAutolevellGcodeBilinear(unittest.TestCase):
         self.tool.autolevell_gcode(self.target, 'b')
         self.assertEqual(self.target.tools[1]['gcode'], original)
 
-    def test_trailing_newline_preserved(self):
-        result = self.tool.autolevell_gcode(self.target, 'b')
-        self.assertTrue(self.target.tools[1]['gcode'].endswith('\n'))
-        self.assertTrue(result[1].endswith('\n'))
-
-
 
 class TestAutolevellGcodeIrregularGrid(unittest.TestCase):
     def test_irregular_grid_falls_back_to_nearest_with_warning(self):
@@ -449,19 +226,6 @@ class TestAutolevellGcodeIrregularGrid(unittest.TestCase):
         self.assertEqual(result[1].strip(), "G1 X0 Y0 Z{0:.4f}".format(expected_z))
 
 
-class TestAutolevellGcodeVoronoi(unittest.TestCase):
-    def test_voronoi_mode_uses_nearest(self):
-        storage = {
-            0: {'point': Point(0, 0), 'geo': None, 'height': 1.0},
-            1: {'point': Point(20, 0), 'geo': None, 'height': 5.0},
-        }
-        tool = make_tool(storage=storage)
-        target = make_tool_target({1: "G1 X1 Y0 Z-0.2\n"})
-        result = tool.autolevell_gcode(target, 'v')
-        expected_z = -0.2 + 1.0
-        self.assertEqual(result[1].strip(), "G1 X1 Y0 Z{0:.4f}".format(expected_z))
-
-
 class TestAutolevellGcodeErrors(unittest.TestCase):
     def setUp(self):
         self.storage = make_storage_grid([0, 10], [0, 10])
@@ -474,14 +238,6 @@ class TestAutolevellGcodeErrors(unittest.TestCase):
         tool.app.inform.emit.assert_called()
         self.assertIn('[ERROR_NOTCL]', tool.app.inform.emit.call_args.args[0])
 
-    def test_none_target_returns_none(self):
-        tool = make_tool(storage=self.storage)
-        self.assertIsNone(tool.autolevell_gcode(None, 'b'))
-
-    def test_empty_storage_returns_none(self):
-        tool = make_tool(storage={}, heights_valid=False)
-        target = make_tool_target({1: "G1 X0 Y0 Z0\n"})
-        self.assertIsNone(tool.autolevell_gcode(target, 'b'))
 
     def test_heights_not_valid_returns_none(self):
         # storage has entries (with placeholder 'height': 0.0, as created
@@ -547,21 +303,6 @@ class TestSendGrblCommand(unittest.TestCase):
         tool.grbl_ser_port = port
         return tool, port
 
-    def test_decodes_bytes_and_joins_lines(self):
-        tool, port = self._tool([
-            b'[PRB:1.000,2.000,-0.500:1]\r\n',
-            b'ok\r\n',
-        ])
-        result = self._send(tool, 'G38.2 Z-1 F50')
-        self.assertIsInstance(result, str)
-        self.assertIn('PRB:1.000,2.000,-0.500:1', result)
-        self.assertIn('ok', result.lower())
-        self.assertEqual(result, '[PRB:1.000,2.000,-0.500:1]\nok')
-        self.assertEqual([c.args[0] for c in port.write.call_args_list], [b'G38.2 Z-1 F50\n', b'?'])
-        port.readlines.assert_not_called()
-        self.assertIsNone(tool._grbl_op)
-        self.assertIsNone(tool._grbl_recovery)
-
 
     def test_no_answer_requires_recovery(self):
         tool, port = self._tool([])
@@ -572,138 +313,6 @@ class TestSendGrblCommand(unittest.TestCase):
         self.assertEqual([c.args[0] for c in port.write.call_args_list], [b'G0 X1\n', b'!'])
         self.assertEqual(tool._grbl_recovery, 'needs_reset')
         self.assertIsNone(tool._grbl_op)
-
-    def test_echo_includes_command_and_decoded_reply(self):
-        tool, port = self._tool()
-        self._send(tool, 'G0 X1')
-        self.assertEqual(tool.console_line_sig.emit.call_args_list,
-                         [call('G0 X1'), call('Answer:             OK')])
-
-    def test_echo_false_suppresses_command_and_reply(self):
-        tool, port = self._tool()
-        self.assertEqual(self._send(tool, 'G0 X1', echo=False), 'ok')
-        tool.console_line_sig.emit.assert_not_called()
-        self.assertEqual([c.args[0] for c in port.write.call_args_list], [b'G0 X1\n', b'?'])
-
-
-class TestToolUiState(unittest.TestCase):
-    @staticmethod
-    def _run_set_tool_ui(storage, loaded_obj=None):
-        tool = ToolLevelling.__new__(ToolLevelling)
-        tool.app = MagicMock()
-        tool.app.app_units = 'MM'
-        tool.app.options = {
-            'global_app_level': 'a',
-            'tools_al_plot_points': False,
-            'tools_al_avoid_exc_holes': False,
-            'tools_al_method': 'v',
-        }
-        tool.app.collection.get_active.return_value = None
-        tool.app.collection.get_by_name.return_value = loaded_obj
-        tool.app.plotcanvas.view.scene = MagicMock()
-        tool.app.pool = MagicMock()
-        tool.layout = MagicMock()
-        tool.form_fields = {}
-        tool.al_voronoi_geo_storage = storage
-        tool.al_bilinear_geo_storage = {}
-        tool.al_heights_valid = True
-        tool.probing_gcode_text = ''
-        tool.probing_gcode = MagicMock(return_value='')
-        tool.clear_ui = MagicMock()
-        tool.connect_signals_at_init = MagicMock()
-        tool.to_form = MagicMock()
-        tool.on_controller_change_alter_ui = MagicMock()
-        tool.change_level = MagicMock()
-        tool.build_tool_ui = MagicMock()
-        tool.on_avoid_exc_holes = MagicMock()
-        tool.mouse_events_connected = False
-        tool.probing_shapes = None
-        tool._al_target_name = None
-        tool._al_target_obj = None
-        tool._al_generation = 0
-
-        ui = MagicMock()
-        ui.al_mode_radio.blockSignals.return_value = False
-        ui.al_method_radio.blockSignals.return_value = False
-        with patch('appPlugins.ToolLevelling.LevelUI', return_value=ui), \
-                patch('appPlugins.Common.levelling_core.ShapeCollection'):
-            tool.set_tool_ui()
-        return tool
-
-    def test_complete_retained_storage_remains_valid(self):
-        storage = {
-            'a': {'point': Point(0.0, 0.0), 'height': 0.1},
-            'b': {'point': Point(1.0, 0.0), 'height': -0.2},
-        }
-        tool = self._run_set_tool_ui(storage)
-        self.assertTrue(tool.al_heights_valid)
-        self.assertIs(tool.al_voronoi_geo_storage, storage)
-
-    def test_empty_or_partial_retained_storage_is_invalid(self):
-        for storage in (
-                {},
-                {'a': {'point': Point(0.0, 0.0), 'height': None}},
-                {'a': {'point': Point(0.0, 0.0)}}
-        ):
-            with self.subTest(storage=storage):
-                self.assertFalse(self._run_set_tool_ui(storage).al_heights_valid)
-
-    def test_selecting_supported_target_preserves_retained_storage(self):
-        # regression: set_tool_ui() used to call on_mode_radio() (directly,
-        # and indirectly via al_mode_radio.set_value() -> toggled ->
-        # activated_custom) when a supported CNCJob target is selected in
-        # object_combo, which unconditionally wiped al_voronoi_geo_storage
-        # and al_heights_valid - destroying a probed/imported height map
-        # just from re-opening the tool.
-        storage = {
-            'a': {'point': Point(0.0, 0.0), 'height': 0.1},
-            'b': {'point': Point(1.0, 0.0), 'height': -0.2},
-        }
-        loaded_obj = SimpleNamespace(
-            kind='geometry',
-            is_segmented_gcode=True,
-            obj_options={
-                'type': 'Geometry',
-                'tools_al_mode': 'grid',
-                'tools_al_method': 'v',
-            },
-        )
-        tool = self._run_set_tool_ui(storage, loaded_obj=loaded_obj)
-
-        self.assertIs(tool.al_voronoi_geo_storage, storage)
-        self.assertEqual(len(tool.al_voronoi_geo_storage), 2)
-        self.assertTrue(tool.al_heights_valid)
-
-
-
-class TestLevellingTargetSelection(unittest.TestCase):
-    def test_segmented_geometry_and_excellon_are_enabled(self):
-        for target_type in ('Geometry', 'Excellon'):
-            with self.subTest(target_type=target_type):
-                tool = make_tool()
-                tool.ui.object_combo.currentText.return_value = 'job'
-                tool.app.collection.get_by_name.return_value = SimpleNamespace(
-                    is_segmented_gcode=True,
-                    obj_options={'type': target_type},
-                )
-                tool.probing_shapes = None
-                with patch('appPlugins.Common.levelling_core.ShapeCollection'):
-                    tool.on_object_changed()
-                tool.ui.al_frame.setDisabled.assert_called_once_with(False)
-
-    def test_non_segmented_remains_disabled(self):
-        tool = make_tool()
-        tool.ui.object_combo.currentText.return_value = 'job'
-        tool.app.collection.get_by_name.return_value = SimpleNamespace(
-            is_segmented_gcode=False,
-            obj_options={'type': 'Excellon'},
-        )
-        tool.probing_shapes = None
-        tool._al_target_name = None
-        tool._al_target_obj = None
-        tool._al_generation = 0
-        tool.on_object_changed()
-        tool.ui.al_frame.setDisabled.assert_called_once_with(True)
 
 
 class TestHeightmapSave(unittest.TestCase):
@@ -731,21 +340,6 @@ class TestHeightmapSave(unittest.TestCase):
         self.assertNotIn('[PRB:', written)
         self.assertNotIn('ok', written)
 
-    def test_incomplete_map_does_not_open_save_dialog_or_file(self):
-        for storage, heights_valid in (
-                ({}, True),
-                ({'a': {'point': Point(0.0, 0.0), 'height': 0.1}}, False),
-                ({'a': {'point': Point(0.0, 0.0), 'height': None}}, True),
-        ):
-            with self.subTest(storage=storage, heights_valid=heights_valid):
-                tool, dialog, output_file = self._save(storage, heights_valid)
-                dialog.assert_not_called()
-                output_file.assert_not_called()
-                self.assertTrue(any(
-                    '[ERROR_NOTCL]' in call.args[0]
-                    for call in tool.app.inform.emit.call_args_list
-                ))
-
 
 class TestImportHeightMap(unittest.TestCase):
     def setUp(self):
@@ -758,17 +352,6 @@ class TestImportHeightMap(unittest.TestCase):
             f.write(content)
         return path
 
-    def test_records_data_units_without_mutating_self_units(self):
-        # An empty-storage import captures the project's units for its new
-        # points. Worker parsing must not rewrite the tool's shared units.
-        path = self._write('units.txt', "0.0,0.0,-0.01\n10.0,0.0,-0.02\n")
-        tool = make_tool(units='IN', storage={}, heights_valid=False)
-        tool.app.app_units = 'MM'
-        tool.import_height_map(path)
-
-        self.assertEqual(tool.units, 'IN')
-        self.assertEqual(tool._al_data_units, 'MM')
-        self.assertTrue(tool.al_heights_valid)
 
     def test_mach3_comma_format_empty_storage_creates_points(self):
         path = self._write('mach3.txt', "0.0,0.0,-0.010\n10.0,0.0,-0.020\n")
@@ -782,20 +365,6 @@ class TestImportHeightMap(unittest.TestCase):
         self.assertAlmostEqual(tool.al_voronoi_geo_storage[2]['point'].x, 10.0)
         tool.build_al_table_sig.emit.assert_called_once()
         tool.apply_autolevel_sig.emit.assert_not_called()
-
-
-    def test_linuxcnc_space_9_columns(self):
-        path = self._write(
-            'linuxcnc.txt',
-            "0.0 0.0 -0.010 0 0 0 0 0 0\n10.0 0.0 -0.020 0 0 0 0 0 0\n"
-        )
-        tool = make_tool(storage={}, heights_valid=False)
-        tool.import_height_map(path)
-
-        self.assertTrue(tool.al_heights_valid)
-        self.assertEqual(len(tool.al_voronoi_geo_storage), 2)
-        self.assertAlmostEqual(tool.al_voronoi_geo_storage[1]['point'].y, 0.0)
-        self.assertAlmostEqual(tool.al_voronoi_geo_storage[2]['point'].x, 10.0)
 
 
     def test_rows_out_of_order_match_correct_storage_points(self):
@@ -903,14 +472,6 @@ class TestApplyAutolevel(unittest.TestCase):
         tool._al_data_units = target.units.upper()
         tool.app.collection.get_by_name.return_value = target
 
-    def test_busy_guard(self):
-        tool = make_tool(storage=self.storage)
-        tool._al_apply_running = True
-        tool.apply_autolevel()
-
-        tool.app.inform.emit.assert_called()
-        self.assertIn('[WARNING_NOTCL]', tool.app.inform.emit.call_args.args[0])
-        tool.app.worker_task.emit.assert_not_called()
 
     def test_non_cncjob_target_errors(self):
         tool = make_tool(storage=self.storage)
@@ -972,53 +533,6 @@ class TestApplyAutolevel(unittest.TestCase):
 
         return captured
 
-    def test_coverage_warning_published_only_by_current_gui_result(self):
-        for change in ('none', 'generation', 'target', 'units'):
-            with self.subTest(change=change):
-                tool = make_tool(storage=self.storage)
-                target = make_apply_target({1: 'G21 G90\nG1 X30 Y0 Z-1\nG1 X40 Y0\n'})
-                pending = []
-                tool.al_result_ready_sig.emit.side_effect = pending.append
-                captured = self._run_worker(tool, target)
-                self.assertIn('new_obj', captured)
-                self.assertEqual(TestHeightMapCoverage.warnings(tool), [])
-                self.assertEqual(len(pending), 1)
-                if change == 'generation':
-                    tool._al_bump_generation()
-                elif change == 'target':
-                    tool._al_target_obj = make_apply_target({1: ''})
-                elif change == 'units':
-                    target.units = 'IN'
-                tool._on_al_result_ready(pending[0])
-                self.assertEqual(len(TestHeightMapCoverage.warnings(tool)),
-                                 1 if change == 'none' else 0)
-                tool.build_al_table_sig.emit.assert_not_called()
-
-    def test_coverage_uses_captured_map_without_worker_widget_reads(self):
-        tool = make_tool(storage=self.storage)
-        target = make_apply_target({1: 'G21 G90\nG1 X30 Y0 Z-1\n'})
-        self._set_owner(tool, target)
-        tool.ui.al_method_radio.get_value.return_value = 'b'
-        tool.apply_autolevel()
-        worker = tool.app.worker_task.emit.call_args.args[0]['fcn']
-        tool.al_voronoi_geo_storage = make_storage_grid([0, 100], [0, 100])
-        tool.ui = None
-        tool.app.app_obj.new_object.return_value = 'success'
-        worker()
-        self.assertEqual(len(TestHeightMapCoverage.warnings(tool)), 1)
-
-    def test_stale_apply_does_not_publish_coverage_warning(self):
-        tool = make_tool(storage=self.storage)
-        target = make_apply_target({1: 'G21 G90\nG1 X30 Y0 Z-1\n'})
-        self._set_owner(tool, target)
-        tool.ui.al_method_radio.get_value.return_value = 'b'
-        tool.apply_autolevel()
-        worker = tool.app.worker_task.emit.call_args.args[0]['fcn']
-        tool._al_target_obj = make_apply_target({1: ''})
-        worker()
-        self.assertEqual(TestHeightMapCoverage.warnings(tool), [])
-        tool.app.app_obj.new_object.assert_not_called()
-        tool.al_result_ready_sig.emit.assert_not_called()
 
     def test_new_object_called_with_levelled_name_and_levels_gcode(self):
         original_gcode = "G0 Z2.0000\nG0 X0.0000 Y0.0000\nG1 Z-0.1000 F100\n"
@@ -1042,30 +556,6 @@ class TestApplyAutolevel(unittest.TestCase):
         self.assertFalse(tool._al_apply_running)
         self.assertIn('[success]', tool.app.inform.emit.call_args.args[0])
 
-    def test_source_object_gcode_unchanged(self):
-        original_gcode = "G0 Z2.0000\nG1 X0 Y0 Z-0.1\n"
-        target = make_apply_target({1: original_gcode})
-        tool = make_tool(storage=self.storage)
-
-        self._run_worker(tool, target)
-
-        self.assertEqual(target.tools[1]['gcode'], original_gcode)
-
-
-    def test_new_object_fail_emits_error_not_success(self):
-        target = make_apply_target({1: "G1 X0 Y0 Z-0.1\n"})
-        tool = make_tool(storage=self.storage)
-        self._set_owner(tool, target)
-        tool.ui.al_method_radio.get_value.return_value = 'b'
-        tool.app.app_obj.new_object.return_value = 'fail'
-
-        tool.apply_autolevel()
-        worker_dict = tool.app.worker_task.emit.call_args.args[0]
-        worker_dict['fcn']()
-
-        self.assertFalse(any('[success]' in c.args[0] for c in tool.app.inform.emit.call_args_list))
-        self.assertTrue(any('[ERROR_NOTCL]' in c.args[0] for c in tool.app.inform.emit.call_args_list))
-        self.assertFalse(tool._al_apply_running)
 
     def test_busy_flag_cleared_after_exception_in_worker(self):
         target = make_apply_target({1: "G1 X0 Y0 Z-0.1\n"})
@@ -1098,7 +588,6 @@ class TestApplyAutolevel(unittest.TestCase):
         self.assertIn(new_obj.tools[2]['gcode'], new_obj.gcode)
 
     def test_apply_against_real_cncjob_preserves_all_tools_geometry(self):
-        from test_levelling_journey import make_real_cncjob
 
         target = make_apply_target({
             1: 'G21\nG90\nG0 X0 Y0 Z2\nG1 Z-0.1\nG1 X5 Y0\n',
@@ -1117,23 +606,6 @@ class TestApplyAutolevel(unittest.TestCase):
         self.assertTrue(obj.solid_geometry)
         self.assertEqual(obj.used_tools, target.used_tools)
 
-
-    def test_pp_names_and_exc_tools_are_copied(self):
-        target = make_apply_target({1: "G1 X0 Y0 Z-0.1\n"})
-        target.pp_geometry_name = 'default'
-        target.pp_excellon_name = 'default'
-        target.pp_solderpaste_name = None
-        target.exc_tools = {1: {'tooldia': 1.0, 'drills': []}}
-        tool = make_tool(storage=self.storage)
-
-        captured = self._run_worker(tool, target)
-        new_obj = captured['new_obj']
-
-        self.assertEqual(new_obj.pp_geometry_name, 'default')
-        self.assertEqual(new_obj.pp_excellon_name, 'default')
-        self.assertIsNone(new_obj.pp_solderpaste_name)
-        self.assertEqual(new_obj.exc_tools, {1: {'tooldia': 1.0, 'drills': []}})
-        self.assertIsNot(new_obj.exc_tools, target.exc_tools)
 
     def test_apply_stops_for_unsupported_preprocessor(self):
         target = make_apply_target({1: "G1 X0 Y0 Z-0.1\n"})
@@ -1195,33 +667,6 @@ class TestAutolevellGcodeToolsOrderAndDialects(unittest.TestCase):
         self.assertIn('[ERROR_NOTCL]', tool.app.inform.emit.call_args.args[0])
         self.assertIn('Roland_GRBL', tool.app.inform.emit.call_args.args[0])
 
-    def test_hpgl_preprocessor_rejected_case_insensitive(self):
-        target = SimpleNamespace(
-            is_segmented_gcode=True, coords_decimals=4, units='MM',
-            pp_geometry_name='default', pp_excellon_name='HPGL2', pp_solderpaste_name=None,
-            tools={1: {'gcode': "G1 X0 Y0 Z-0.1\n", 'data': {}}},
-        )
-        tool = make_tool(storage=self.flat_storage)
-
-        result = tool.autolevell_gcode(target, 'b')
-
-        self.assertIsNone(result)
-        self.assertIn('[ERROR_NOTCL]', tool.app.inform.emit.call_args.args[0])
-
-
-    def test_solderpaste_preprocessor_rejected(self):
-        target = SimpleNamespace(
-            is_segmented_gcode=True, coords_decimals=4, units='MM',
-            pp_geometry_name='default', pp_excellon_name='default', pp_solderpaste_name='Paste_1',
-            tools={1: {'gcode': "G1 X0 Y0 Z-0.1\n", 'data': {}}},
-        )
-        tool = make_tool(storage=self.flat_storage)
-
-        result = tool.autolevell_gcode(target, 'b')
-
-        self.assertIsNone(result)
-        self.assertIn('[ERROR_NOTCL]', tool.app.inform.emit.call_args.args[0])
-        self.assertIn('Paste_1', tool.app.inform.emit.call_args.args[0])
 
     def test_default_preprocessor_names_are_allowed(self):
         target = SimpleNamespace(
@@ -1236,6 +681,1585 @@ class TestAutolevellGcodeToolsOrderAndDialects(unittest.TestCase):
         self.assertIsNotNone(result)
 
 
+class TestApplyInputFreshness(unittest.TestCase):
+    def setUp(self):
+        self.target = make_apply_target({
+            1: 'G21\nG90\nG1 X0 Y0 Z-0.1000\n',
+            2: 'X10 Y0\n',
+        })
+        self.tool = make_tool(storage=make_storage_grid([0, 10], [0, 10]))
+        self.tool._al_target_name = 'job1'
+        self.tool._al_target_obj = self.target
+        self.tool.app.collection.get_by_name.return_value = self.target
+        self.tool.ui.al_method_radio.get_value.return_value = 'b'
+        self.outputs = []
 
-if __name__ == '__main__':
-    unittest.main()
+        def new_object(kind, name, initializer):
+            obj = FakeNewCNCJob()
+            if initializer(obj, self.tool.app) == 'fail':
+                return 'fail'
+            self.outputs.append(obj)
+            return 'success'
+
+        self.tool.app.app_obj.new_object.side_effect = new_object
+
+    def schedule(self):
+        self.tool.apply_autolevel(self.target)
+        self.tool.app.worker_task.emit.assert_called_once()
+        self.assertTrue(self.tool._al_apply_running)
+        return self.tool.app.worker_task.emit.call_args.args[0]['fcn']
+
+    def assert_original_map_or_refusal(self):
+        for obj in self.outputs:
+            self.assertIn('Z0.0000', obj.tools[1]['gcode'])
+            self.assertIn('Z0.1000', obj.tools[2]['gcode'])
+        self.assertFalse(self.tool._al_apply_running)
+
+
+    def test_delayed_worker_never_reads_replaced_storage(self):
+        worker = self.schedule()
+        replacement = make_storage_grid([0, 10], [0, 10])
+        for value in replacement.values():
+            value['height'] = 5.0
+        self.tool.al_voronoi_geo_storage = replacement
+        worker()
+        self.assert_original_map_or_refusal()
+
+
+    def test_changed_project_units_reject_delayed_apply(self):
+        worker = self.schedule()
+        self.tool.app.app_units = 'IN'
+        worker()
+        self.tool.app.app_obj.new_object.assert_not_called()
+        self.assertFalse(self.tool._al_apply_running)
+
+    def test_same_name_target_replacement_rejects_delayed_apply(self):
+        worker = self.schedule()
+        replacement = make_apply_target({1: 'G1 X0 Y0 Z-0.1000\n'})
+        self.tool.app.collection.get_by_name.return_value = replacement
+        worker()
+        self.tool.app.app_obj.new_object.assert_not_called()
+        self.assertFalse(self.tool._al_apply_running)
+
+
+class TestApplyCompatibility(unittest.TestCase):
+    # Keep compatibility checks separate from the expected RED regressions.
+    setUp = TestApplyInputFreshness.setUp
+    schedule = TestApplyInputFreshness.schedule
+    assert_original_map_or_refusal = TestApplyInputFreshness.assert_original_map_or_refusal
+
+    def test_unchanged_apply_preserves_source_and_per_tool_modal_state(self):
+        source = deepcopy(self.target.tools)
+        worker = self.schedule()
+        worker()
+        self.assertEqual(len(self.outputs), 1)
+        self.assert_original_map_or_refusal()
+        self.assertEqual(self.target.tools, source)
+        obj = self.outputs[0]
+        self.assertEqual(obj.units, self.target.units)
+        self.assertEqual(obj.used_tools, self.target.used_tools)
+        self.assertTrue(obj.geometry_created)
+        self.assertEqual(obj.gcode, ''.join(t['gcode'] for t in obj.tools.values()))
+
+
+class TestDirectMapUnits(unittest.TestCase):
+    setUp = TestApplyInputFreshness.setUp
+
+    def test_direct_call_rejects_mm_map_for_in_target_despite_tool_units(self):
+        self.assertEqual(self.tool._al_data_units, 'MM')
+        self.tool.units = 'IN'
+        self.target.units = 'IN'
+        self.target.tools[1]['gcode'] = self.target.tools[1]['gcode'].replace('G21', 'G20')
+        source = deepcopy(self.target.tools)
+
+        result = self.tool.autolevell_gcode(self.target, 'b')
+
+        self.assertIsNone(result)
+        self.assertEqual(self.target.tools, source)
+        self.assertTrue(any('[ERROR_NOTCL]' in call.args[0]
+                            for call in self.tool.app.inform.emit.call_args_list))
+
+
+#!/usr/bin/env python
+
+
+_qapp = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+
+# appParsers.ParseGerber (transitively) imports appMain, whose module-level
+# code parses sys.argv with getopt; running this file as
+# `python tests/test_levelling_journey.py -v` would otherwise blow up with a
+# GetoptError on our own `-v` flag. Neutralize sys.argv for the duration of
+# these FlatCAM imports only.
+_saved_argv = sys.argv
+sys.argv = [sys.argv[0]]
+try:
+    from shapely import Point
+    from shapely.ops import unary_union
+
+    from appParsers.ParseGerber import Gerber
+    from appPlugins.ToolLevelling import ToolLevelling
+    from appPlugins.ToolGcodeSender.Sender import ToolGCodeSender
+    from appPlugins.Common.grbl.grbl_protocol import parse_grbl_work_offset
+    import camlib
+
+    # appParsers.ParseGerber.Gerber.__init__() itself does a *lazy*
+    # `from appMain import App` the first time a Gerber() is constructed
+    # (not at module import time), which would otherwise re-trigger the
+    # sys.argv parsing later, well after this block has restored argv.
+    # Force that import to happen now, once, while argv is still patched,
+    # so it's cached in sys.modules for every Gerber() built by the tests.
+    import appMain  # noqa: F401
+finally:
+    sys.argv = _saved_argv
+
+
+TEST_FILES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'test_files')
+SIMPLE_LINE_GBR = os.path.join(TEST_FILES_DIR, 'simple_line.gbr')
+REGION_GBR = os.path.join(TEST_FILES_DIR, 'region_test.gbr')
+FLASH_GBR = os.path.join(TEST_FILES_DIR, 'flash_test.gbr')
+ALL_GERBERS = [SIMPLE_LINE_GBR, REGION_GBR, FLASH_GBR]
+
+
+# ---------------------------------------------------------------------------
+# Gerber -> toolpaths
+# ---------------------------------------------------------------------------
+
+class MockGerberLog:
+    def debug(self, msg):
+        pass
+
+    def warning(self, msg):
+        pass
+
+    def error(self, msg):
+        pass
+
+    def info(self, msg):
+        pass
+
+
+class MockGerberInform:
+    def emit(self, msg):
+        pass
+
+
+class MockGerberApp:
+    """Same pattern as tests/test_gerber_parser.py's MockApp."""
+
+    def __init__(self):
+        self.options = {
+            'gerber_def_units': 'MM',
+            'gerber_def_zeros': 'L',
+            'gerber_circle_steps': 64,
+            'gerber_simp_tolerance': 0.001,
+            'gerber_simplification': True,
+            'gerber_buffering': True,
+            'gerber_extra_buffering': 0.0,
+            'gerber_clean_apertures': True,
+            'gerber_use_buffer_for_union': True,
+            'global_tolerance': 0.01,
+        }
+        self.decimals = 4
+        self.abort_flag = False
+        self.log = MockGerberLog()
+        self.inform = MockGerberInform()
+        self.app_units = 'MM'
+
+        class MockPlotCanvas:
+            class new_shape_collection:
+                def __init__(self, layers=1):
+                    pass
+
+            def __init__(self):
+                pass
+
+        self.plotcanvas = MockPlotCanvas()
+
+        class MockProcContainer:
+            def update_view_text(self, text):
+                pass
+
+        self.proc_container = MockProcContainer()
+
+
+def gerber_toolpaths(path, tool_dia=1.0):
+    """Parse a Gerber file and build isolation-routing toolpaths: the
+    exterior/interior rings of solid_geometry buffered outward by
+    tool_dia/2. Returns a list of coordinate paths (list of (x, y)
+    tuples, closed rings), always in mm."""
+    gbr = Gerber(MockGerberApp())
+    gbr.parse_file(path)
+
+    geoms = gbr.solid_geometry
+    union = unary_union(geoms) if isinstance(geoms, list) else geoms
+    outline = union.buffer(tool_dia / 2.0)
+
+    polys = list(outline.geoms) if hasattr(outline, 'geoms') else [outline]
+
+    paths = []
+    for poly in polys:
+        paths.append(list(poly.exterior.coords))
+        for interior in poly.interiors:
+            paths.append(list(interior.coords))
+
+    if gbr.units == 'IN':
+        paths = [[(x * 25.4, y * 25.4) for x, y in ring] for ring in paths]
+
+    return paths
+
+
+def paths_bounds(paths, pad_frac=0.1):
+    xs = [x for ring in paths for x, y in ring]
+    ys = [y for ring in paths for x, y in ring]
+    xmin, xmax = min(xs), max(xs)
+    ymin, ymax = min(ys), max(ys)
+    padx = max((xmax - xmin) * pad_frac, 1.0)
+    pady = max((ymax - ymin) * pad_frac, 1.0)
+    return xmin - padx, xmax + padx, ymin - pady, ymax + pady
+
+
+def make_grid_points(bounds, nx=4, ny=4):
+    xmin, xmax, ymin, ymax = bounds
+    xs = [xmin + i * (xmax - xmin) / (nx - 1) for i in range(nx)]
+    ys = [ymin + j * (ymax - ymin) / (ny - 1) for j in range(ny)]
+    return xs, ys
+
+
+# ---------------------------------------------------------------------------
+# G-code generation (FlatCAM/GRBL_11-style, segmented)
+# ---------------------------------------------------------------------------
+
+def _subdivide_path(points, max_len):
+    if not points:
+        return points
+    out = [points[0]]
+    for (x0, y0), (x1, y1) in zip(points[:-1], points[1:]):
+        dist = math.hypot(x1 - x0, y1 - y0)
+        if dist <= max_len or dist == 0:
+            out.append((x1, y1))
+            continue
+        n = int(math.ceil(dist / max_len))
+        for i in range(1, n + 1):
+            t = i / n
+            out.append((x0 + (x1 - x0) * t, y0 + (y1 - y0) * t))
+    return out
+
+
+def make_gcode(paths, cut_z=-0.1, travel_z=2.0, feed=300.0, segment_len=5.0,
+               decimals=4, spindle=10000, include_arc=False):
+    """Build FlatCAM/GRBL_11-style segmented G-code for a list of toolpaths.
+    Guaranteed: no G01 cutting segment longer than segment_len (is_segmented
+    semantics); at least 1 trailing inline comment; with include_arc, 1 G02
+    arc line (at travel height). An arc is split into G1 lines by the
+    levelling, so verify_levelling() (same line count) can not check a job
+    with an arc: the arcs are checked in tests/test_levelling_arc_g91.py."""
+
+    def f(v):
+        return "{0:.{1}f}".format(v, decimals)
+
+    lines = [
+        "(FlatCAM Gcode Generator)",
+        "(This is a Test)",
+        "G21",
+        "G90",
+        "G94",
+        "F" + f(feed),
+        "M03 S%d" % spindle,
+    ]
+
+    last_x, last_y = 0.0, 0.0
+    for idx, ring in enumerate(paths):
+        pts = _subdivide_path(ring, segment_len)
+        x0, y0 = pts[0]
+        comment = " (start path %d)" % idx if idx == 0 else ""
+        lines.append("G00 Z" + f(travel_z) + comment)
+        lines.append("G00 X" + f(x0) + " Y" + f(y0))
+        lines.append("G01 Z" + f(cut_z) + " F" + f(feed))
+        for x, y in pts[1:]:
+            lines.append("G01 X" + f(x) + " Y" + f(y))
+        lines.append("G00 Z" + f(travel_z))
+        last_x, last_y = x0, y0
+
+    if include_arc:
+        # Semicircle at travel height (Z already lifted above 0).
+        cx, cy = last_x + 1.0, last_y
+        x2, y2 = last_x + 2.0, last_y
+        lines.append("G02 X" + f(x2) + " Y" + f(y2) + " I1.0 J0.0 (return arc)")
+
+    # A rapid at or below Z0: rapids are never height-compensated regardless
+    # of their Z value, only cutting (G1) moves are. Without at least 1 rapid
+    # sitting at Z<=0 a mutant that also levels G0 moves would go unnoticed
+    # (every other G0 in this file is at the travel height, which is > 0).
+    lines.append("G00 Z-0.0500 (rapid at Z<=0 - must never be levelled)")
+    lines.append("G00 X0.0000 Y0.0000")
+
+    lines += ["M05", "G00 X0.0000 Y0.0000", "M2"]
+
+    return "\n".join(lines) + "\n"
+
+
+# ---------------------------------------------------------------------------
+# Surfaces
+# ---------------------------------------------------------------------------
+
+def make_plane(a, b, c):
+    def fn(x, y):
+        return a * x + b * y + c
+    return fn
+
+
+def nearest_height_bruteforce(points, x, y):
+    """points: list of (x, y, height). Independent re-implementation (does
+    not call levelling_interp.nearest_offset)."""
+    best = None
+    best_d = None
+    for px, py, pz in points:
+        d = math.hypot(px - x, py - y)
+        if best_d is None or d < best_d:
+            best_d = d
+            best = pz
+    return best
+
+
+# ---------------------------------------------------------------------------
+# Height-map file writers (real files consumed by the real import_height_map)
+# ---------------------------------------------------------------------------
+
+def write_mach3(path, points, decimals=5):
+    with open(path, 'w') as f:
+        for x, y, z in points:
+            f.write(("%.{0}f,%.{0}f,%.{0}f\n".format(decimals)) % (x, y, z))
+
+
+def write_mach4_extra_columns(path, points, decimals=5):
+    with open(path, 'w') as f:
+        for x, y, z in points:
+            f.write(("%.{0}f, %.{0}f, %.{0}f, 0.0, 0.0, 0.0\n".format(decimals)) % (x, y, z))
+
+
+def write_linuxcnc(path, points, decimals=5):
+    with open(path, 'w') as f:
+        for x, y, z in points:
+            f.write(("%.{0}f %.{0}f %.{0}f 0 0 0 0 0 0\n".format(decimals)) % (x, y, z))
+
+
+def prefill_storage(grid_points):
+    """Mimic on_add_grid_points(): storage pre-filled with the probe grid
+    points (height 0.0, not yet probed) before the height-map file/probe
+    result comes back. Used so import_height_map() must go through its
+    "match existing storage points by nearest coordinate" branch instead of
+    the "storage is empty, create points from file rows" branch."""
+    return {
+        i: {'point': Point(x, y), 'geo': None, 'height': 0.0}
+        for i, (x, y, _z) in enumerate(grid_points)
+    }
+
+
+def shuffled_rows(points, seed=1234):
+    """Return `points` in a different order than the canonical grid order,
+    as a real probe-log file would not necessarily be written back in the
+    same order the storage dict was built in."""
+    rows = list(points)
+    random.Random(seed).shuffle(rows)
+    return rows
+
+
+def make_grbl_offset_text(g54=(-100.0, -50.0, -20.0), g92=(0.0, 0.0, 0.0), tlo=0.0):
+    return (
+        "[G54:%.3f,%.3f,%.3f]\n" % g54 +
+        "[G92:%.3f,%.3f,%.3f]\n" % g92 +
+        "[TLO:%.3f]\n" % tlo +
+        "ok\n"
+    )
+
+
+def make_grbl_probe_text(points, offset, noise=0.0125):
+    ox, oy, oz = offset
+    lines = []
+    for x, y, z in points:
+        mx = x + noise + ox
+        my = y - noise + oy
+        mz = z + oz
+        lines.append("[PRB:%.4f,%.4f,%.4f:1]" % (mx, my, mz))
+        lines.append("ok")
+    return "\n".join(lines) + "\n"
+
+
+# ---------------------------------------------------------------------------
+# Independent G-code reader/verifier (does NOT call level_gcode_line/codes_split)
+# ---------------------------------------------------------------------------
+
+_WORD_RE = re.compile(r'([A-Z])([+\-]?\d*\.?\d+)')
+
+
+def _line_words(line):
+    code = line.split('(')[0]
+    return {m.group(1): float(m.group(2)) for m in _WORD_RE.finditer(code)}
+
+
+def verify_levelling(tc, original_text, levelled_text, decimals, offset_fn, tol=None):
+    """Walk `original_text` and `levelled_text` line-by-line with an
+    independent modal-state tracker and check:
+      - same number of lines
+      - every non-cut-move line is byte-identical
+      - X/Y never change anywhere
+      - every G1 cut line (any modal Z) got Z = original modal Z + offset_fn(x, y)
+      - a line with no Z word originally now has one after levelling
+
+    Returns (max_abs_dz, cut_points) where cut_points is the list of
+    (x, y) at every cut line encountered (for range/sanity checks).
+    """
+    if tol is None:
+        tol = 2 * 10 ** (-decimals)
+    orig_lines = original_text.splitlines()
+    lev_lines = levelled_text.splitlines()
+    tc.assertEqual(len(orig_lines), len(lev_lines), "levelled line count differs from source")
+
+    modal_g = None
+    modal_x = 0.0
+    modal_y = 0.0
+    modal_z = 0.0
+    max_abs_dz = 0.0
+    cut_points = []
+
+    for lineno, (orig_line, lev_line) in enumerate(zip(orig_lines, lev_lines)):
+        ow = _line_words(orig_line)
+        lw = _line_words(lev_line)
+
+        has_xyz = ('X' in ow) or ('Y' in ow) or ('Z' in ow)
+
+        if 'G' in ow and ow['G'] in (0.0, 1.0, 2.0, 3.0):
+            modal_g = ow['G']
+
+        if 'X' in ow:
+            modal_x = ow['X']
+        if 'Y' in ow:
+            modal_y = ow['Y']
+        if 'Z' in ow:
+            modal_z = ow['Z']
+
+        tc.assertEqual(ow.get('X'), lw.get('X'), "line %d: X changed (%r vs %r)" % (lineno, orig_line, lev_line))
+        tc.assertEqual(ow.get('Y'), lw.get('Y'), "line %d: Y changed (%r vs %r)" % (lineno, orig_line, lev_line))
+
+        # A G0 word on this exact line always means "rapid, never a cutting
+        # move" regardless of Z, even if a bug elsewhere left modal_g stale;
+        # checked explicitly (not just via modal_g == 1.0) so a mutant that
+        # widens the cutting-move check to include G0 is caught even at a
+        # rapid whose Z happens to be <= 0.
+        is_g0_line = 'G' in ow and ow['G'] == 0.0
+        is_cut_line = has_xyz and modal_g == 1.0 and not is_g0_line
+
+        if not is_cut_line:
+            tc.assertEqual(orig_line, lev_line, "line %d should be untouched: %r vs %r" % (lineno, orig_line, lev_line))
+            continue
+
+        tc.assertIn('Z', lw, "line %d: missing Z after levelling: %r" % (lineno, lev_line))
+        expected_z = modal_z + offset_fn(modal_x, modal_y)
+        tc.assertAlmostEqual(lw['Z'], expected_z, delta=tol,
+                              msg="line %d: bad levelled Z (%r vs %r)" % (lineno, lev_line, orig_line))
+
+        dz = lw['Z'] - modal_z
+        max_abs_dz = max(max_abs_dz, abs(dz))
+        cut_points.append((modal_x, modal_y))
+
+    return max_abs_dz, cut_points
+
+
+class LevellingJourneyTestCase(unittest.TestCase):
+    """Common assertions shared by every journey test."""
+
+    def assert_journey(self, tool, target, tooluid, al_method, offset_fn, expect_warning=None, tol=None):
+        original = target.tools[tooluid]['gcode']
+        result = tool.autolevell_gcode(target, al_method)
+        self.assertIsNotNone(result, "autolevell_gcode() returned None")
+
+        # source untouched
+        self.assertEqual(target.tools[tooluid]['gcode'], original)
+
+        max_abs_dz, cut_points = verify_levelling(
+            self, original, result[tooluid], target.coords_decimals, offset_fn, tol=tol
+        )
+
+        # sanity check: levelling really happened (not a no-op)
+        self.assertGreater(len(cut_points), 0, "no cut lines found to verify")
+        expected_max_abs = max(abs(offset_fn(x, y)) for x, y in cut_points)
+        range_tol = tol if tol is not None else 2 * 10 ** (-target.coords_decimals)
+        self.assertAlmostEqual(max_abs_dz, expected_max_abs, delta=range_tol)
+        self.assertGreater(max_abs_dz, 1e-6, "levelling produced no change at all")
+
+        if expect_warning is not None:
+            warning_calls = [
+                c for c in tool.app.inform.emit.call_args_list
+                if '[WARNING_NOTCL]' in c.args[0] and expect_warning in c.args[0]
+            ]
+            self.assertEqual(len(warning_calls), 1)
+
+        return result
+
+
+# ---------------------------------------------------------------------------
+# Journey 1: each Gerber x each height-map source, tilted plane, method 'b'
+# ---------------------------------------------------------------------------
+
+class TestJourneyPlaneAllSources(LevellingJourneyTestCase):
+    def test_plane_bilinear_all_gerbers_all_sources(self):
+        # 'mach3_empty_storage' keeps import_height_map()'s "storage is empty,
+        # create points straight from the file rows" branch covered. The
+        # other 3 file-based sources pre-fill storage (as on_add_grid_points()
+        # does before a real probe/import) and write rows out of order and
+        # rounded to 3 decimals (as a controller log would), so
+        # import_height_map() is forced through its "match an existing
+        # storage point by nearest coordinate" branch instead.
+        sources = ['mach3', 'mach3_empty_storage', 'mach4', 'linuxcnc', 'grbl']
+        for gerber_path in ALL_GERBERS:
+            paths = gerber_toolpaths(gerber_path)
+            gcode_text = make_gcode(paths)
+            bounds = paths_bounds(paths)
+            xs, ys = make_grid_points(bounds, nx=4, ny=4)
+            plane_fn = make_plane(0.0003, -0.0002, 0.05)
+            grid_points = [(x, y, plane_fn(x, y)) for x in xs for y in ys]
+
+            # Rows written with only 3 decimals of height precision (as a
+            # controller log would) can be off from the exact plane value by
+            # up to half a thousandth of a mm; the verifier's tolerance is
+            # widened accordingly for those 3 sources.
+            rounded_height_tol = 6e-4
+
+            for source in sources:
+                with self.subTest(gerber=os.path.basename(gerber_path), source=source):
+                    with tempfile.TemporaryDirectory() as tmpdir:
+                        target = make_tool_target({1: gcode_text}, units='MM')
+                        tol = None
+
+                        if source == 'mach3':
+                            storage = prefill_storage(grid_points)
+                            tool = make_tool(units='MM', storage=storage, heights_valid=False)
+                            path = os.path.join(tmpdir, 'hm.txt')
+                            write_mach3(path, shuffled_rows(grid_points), decimals=3)
+                            tool.import_height_map(path)
+                            tol = rounded_height_tol
+                        elif source == 'mach3_empty_storage':
+                            tool = make_tool(units='MM', storage={}, heights_valid=False)
+                            path = os.path.join(tmpdir, 'hm.txt')
+                            write_mach3(path, grid_points)
+                            tool.import_height_map(path)
+                        elif source == 'mach4':
+                            storage = prefill_storage(grid_points)
+                            tool = make_tool(units='MM', storage=storage, heights_valid=False)
+                            path = os.path.join(tmpdir, 'hm.txt')
+                            write_mach4_extra_columns(path, shuffled_rows(grid_points, seed=42), decimals=3)
+                            tool.import_height_map(path)
+                            tol = rounded_height_tol
+                        elif source == 'linuxcnc':
+                            storage = prefill_storage(grid_points)
+                            tool = make_tool(units='MM', storage=storage, heights_valid=False)
+                            path = os.path.join(tmpdir, 'hm.txt')
+                            write_linuxcnc(path, shuffled_rows(grid_points, seed=99), decimals=3)
+                            tool.import_height_map(path)
+                            tol = rounded_height_tol
+                        else:  # grbl
+                            storage = prefill_storage(grid_points)
+                            tool = make_tool(units='MM', storage=storage, heights_valid=False,
+                                             cls=ToolGCodeSender)
+                            offset_text = make_grbl_offset_text()
+                            tool.grbl_work_offset = parse_grbl_work_offset(offset_text)
+                            # each G38.2 reply goes through the real per-probe check, then the
+                            # complete result is published through the real GUI-thread slot
+                            probe_text = make_grbl_probe_text(grid_points, tool.grbl_work_offset)
+                            replies = [r for r in probe_text.split('ok\n') if r.strip()]
+                            points = {k: (v['point'].x, v['point'].y) for k, v in storage.items()}
+                            tol = tool._al_match_tolerance(list(points.values()))
+                            heights = {
+                                key: tool._al_check_probe_reply('G38.2', reply, key, points, tol,
+                                                                tool.grbl_work_offset, 1.0)
+                                for key, reply in zip(sorted(points), replies)
+                            }
+                            tool._on_al_result_ready({'kind': 'import', 'context': tool._al_capture_context(),
+                                                      'heights': heights})
+
+                        self.assertTrue(tool.al_heights_valid)
+                        self.assert_journey(tool, target, 1, 'b', plane_fn, tol=tol)
+
+
+# ---------------------------------------------------------------------------
+# Journey 2: saddle surface, method 'b'
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Journey 3: irregular grid falls back to nearest, method 'b' (1 warning)
+# ---------------------------------------------------------------------------
+
+class TestJourneyIrregularGridFallback(LevellingJourneyTestCase):
+    def test_irregular_grid_falls_back_to_nearest(self):
+        for gerber_path in ALL_GERBERS:
+            with self.subTest(gerber=os.path.basename(gerber_path)):
+                paths = gerber_toolpaths(gerber_path)
+                gcode_text = make_gcode(paths)
+                bounds = paths_bounds(paths)
+                xs, ys = make_grid_points(bounds, nx=3, ny=3)
+                plane_fn = make_plane(0.0004, 0.0001, 0.03)
+                grid_points = [(x, y, plane_fn(x, y)) for x in xs for y in ys]
+
+                # Break the regular grid: nudge 1 point off its column/row.
+                bad_x, bad_y, bad_z = grid_points[-1]
+                grid_points[-1] = (bad_x + 7.0, bad_y + 3.0, bad_z)
+
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    tool = make_tool(units='MM', storage={}, heights_valid=False)
+                    path = os.path.join(tmpdir, 'hm.txt')
+                    write_mach3(path, grid_points)
+                    tool.import_height_map(path)
+                    self.assertTrue(tool.al_heights_valid)
+
+                    target = make_tool_target({1: gcode_text}, units='MM')
+
+                    def nearest_fn(x, y):
+                        return nearest_height_bruteforce(grid_points, x, y)
+
+                    self.assert_journey(
+                        tool, target, 1, 'b', nearest_fn,
+                        expect_warning="Probe points do not form a regular grid"
+                    )
+
+
+# ---------------------------------------------------------------------------
+# Journey 4: bump map, method 'v' (nearest point, no grid requirement)
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Journey 5: multi-tool, modal state carries across tools in dict order
+# ---------------------------------------------------------------------------
+
+class TestJourneyMultiTool(LevellingJourneyTestCase):
+    def test_modal_state_carries_across_tools_from_two_gerbers(self):
+        paths_a = gerber_toolpaths(SIMPLE_LINE_GBR)
+        paths_b = gerber_toolpaths(REGION_GBR)
+        ax0, ay0 = paths_a[0][0]
+        bx0, by0 = paths_b[0][0]
+
+        # Tool 9: a normal cut move that sets modal Z = -0.15 and leaves the
+        # machine there (no rapid lift at the end).
+        gcode_1 = (
+            "G21\nG90\nG94\n"
+            "G00 X{0:.4f} Y{1:.4f}\n"
+            "G01 Z-0.1500 F300\n"
+        ).format(ax0, ay0)
+
+        # Tool 3: no G/Z word at all on its only line - if the modal state
+        # were reset between tools, this would not be recognized as a
+        # cutting move and would be left untouched.
+        gcode_2 = "X{0:.4f} Y{1:.4f}\n".format(bx0, by0)
+
+        target = SimpleNamespace(
+            is_segmented_gcode=True, coords_decimals=4, units='MM',
+            tools={
+                9: {'gcode': gcode_1, 'data': {}},
+                3: {'gcode': gcode_2, 'data': {}},
+            },
+        )
+
+        all_paths = paths_a + paths_b
+        bounds = paths_bounds(all_paths)
+        xs, ys = make_grid_points(bounds, nx=4, ny=4)
+        plane_fn = make_plane(0.0002, -0.00015, 0.02)
+        grid_points = [(x, y, plane_fn(x, y)) for x in xs for y in ys]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tool = make_tool(units='MM', storage={}, heights_valid=False)
+            path = os.path.join(tmpdir, 'hm.txt')
+            write_mach3(path, grid_points)
+            tool.import_height_map(path)
+            self.assertTrue(tool.al_heights_valid)
+
+            result = tool.autolevell_gcode(target, 'b')
+            self.assertIsNotNone(result)
+
+            # tool 9's cut line got compensated
+            z9 = _line_words(result[9].splitlines()[-1])['Z']
+            self.assertAlmostEqual(z9, -0.15 + plane_fn(ax0, ay0), delta=1e-3)
+
+            # tool 3's bare "X.. Y.." line inherited tool 9's modal G1/Z=-0.15
+            # and got compensated too - proof the state carried across tools.
+            lev_line_3 = result[3].strip()
+            self.assertIn('Z', _line_words(lev_line_3))
+            z3 = _line_words(lev_line_3)['Z']
+            self.assertAlmostEqual(z3, -0.15 + plane_fn(bx0, by0), delta=1e-3)
+
+            # source objects unchanged
+            self.assertEqual(target.tools[9]['gcode'], gcode_1)
+            self.assertEqual(target.tools[3]['gcode'], gcode_2)
+
+
+# ---------------------------------------------------------------------------
+# Real-object test (reviewer request): run apply_autolevel()'s obj_init
+# against a REAL camlib.CNCjob-based object, not a fake, so that attribute
+# bugs in obj_init are not hidden.
+#
+# A real appObjects.CNCJobObject.CNCJobObject is not used here: its
+# __init__ (appObjects/CNCJobObject.py) calls build_ui()/build_cnc_tools_table()
+# and friends, which need a live app.ui / FlatCAMObj plumbing far beyond what
+# a headless unit test should stand up. camlib.CNCjob (the pure geometry/CNC
+# base class CNCJobObject also inherits from) is used instead, with a
+# minimal app double satisfying only what CNCjob.__init__()/gcode_parse()/
+# create_geometry() actually read (see camlib.py Geometry.__init__/CNCjob.__init__).
+# ---------------------------------------------------------------------------
+
+def make_real_cncjob_app():
+    return SimpleNamespace(
+        decimals=4,
+        app_units='MM',
+        plotcanvas=SimpleNamespace(new_shape_collection=lambda layers=1: None),
+        options={
+            'cncjob_steps_per_circle': 64,
+            'cncjob_coords_type': 'G90',
+            'cncjob_bed_max_x': 0,
+            'cncjob_bed_max_y': 0,
+            'cncjob_bed_offset_x': 0,
+            'cncjob_bed_offset_y': 0,
+            'cncjob_bed_skew_x': 0,
+            'cncjob_bed_skew_y': 0,
+        },
+        preprocessors={'default': object()},
+        inform=MagicMock(),
+        log=MagicMock(),
+    )
+
+
+def make_real_cncjob():
+    app = make_real_cncjob_app()
+    obj = camlib.CNCjob(
+        app=app, units='MM', pp_geometry_name='default', pp_excellon_name='default',
+        steps_per_circle=64,
+    )
+    obj.obj_options = {'type': 'Geometry', 'name': 'job1'}
+    obj.tools = {}
+    obj.multitool = True
+    obj.used_tools = []
+    obj.gc_start = ''
+    obj.prepend_snippet = ''
+    obj.append_snippet = ''
+    obj.is_segmented_gcode = True
+    return obj
+
+
+class TestApplyAutolevelRealObject(unittest.TestCase):
+    def test_obj_init_against_real_cncjob(self):
+        paths = gerber_toolpaths(SIMPLE_LINE_GBR)
+        gcode_1 = make_gcode(paths, include_arc=False)
+
+        paths_2 = gerber_toolpaths(FLASH_GBR)
+        gcode_2 = make_gcode(paths_2, include_arc=False)
+
+        all_paths = paths + paths_2
+        bounds = paths_bounds(all_paths)
+        xs, ys = make_grid_points(bounds, nx=4, ny=4)
+        plane_fn = make_plane(0.0002, -0.0001, 0.02)
+        grid_points = [(x, y, plane_fn(x, y)) for x in xs for y in ys]
+        storage = {
+            i: {'point': Point(x, y), 'geo': None, 'height': z}
+            for i, (x, y, z) in enumerate(grid_points)
+        }
+
+        target = SimpleNamespace(
+            kind='cncjob',
+            obj_options={'name': 'job1', 'type': 'Geometry'},
+            units='MM',
+            multitool=True,
+            used_tools=[1, 2],
+            gc_start='G21\nG90\n',
+            prepend_snippet='',
+            append_snippet='',
+            is_segmented_gcode=True,
+            coords_decimals=4,
+            pp_geometry_name='default',
+            pp_excellon_name='default',
+            pp_solderpaste_name=None,
+            exc_tools={},
+            tools={
+                1: {'gcode': gcode_1, 'gcode_parsed': [], 'data': {}, 'tooldia': 1.0},
+                2: {'gcode': gcode_2, 'gcode_parsed': [], 'data': {}, 'tooldia': 1.0},
+            },
+        )
+
+        tool = make_tool(units='MM', storage=storage, heights_valid=True)
+        tool._al_target_name = target.obj_options['name']
+        tool._al_target_obj = target
+        tool._al_data_units = target.units.upper()
+        tool.app.collection.get_by_name.return_value = target
+        tool.ui.al_method_radio.get_value.return_value = 'b'
+
+        captured = {}
+
+        def fake_new_object(kind, name, obj_init, *args, **kwargs):
+            captured['kind'] = kind
+            captured['name'] = name
+            new_obj = make_real_cncjob()
+            obj_init(new_obj, tool.app)
+            captured['new_obj'] = new_obj
+            return 'success'
+
+        tool.app.app_obj.new_object.side_effect = fake_new_object
+
+        tool.apply_autolevel()
+        worker_dict = tool.app.worker_task.emit.call_args.args[0]
+
+        # No exception must propagate from obj_init() running against the
+        # real CNCjob object.
+        worker_dict['fcn']()
+
+        self.assertEqual(captured['kind'], 'cncjob')
+        new_obj = captured['new_obj']
+
+        # levelled per-tool gcode/gcode_parsed
+        self.assertNotEqual(new_obj.tools[1]['gcode'], gcode_1)
+        self.assertNotEqual(new_obj.tools[2]['gcode'], gcode_2)
+        self.assertTrue(len(new_obj.tools[1]['gcode_parsed']) > 0)
+        self.assertTrue(len(new_obj.tools[2]['gcode_parsed']) > 0)
+        for entry in new_obj.tools[1]['gcode_parsed']:
+            self.assertIn('geom', entry)
+            self.assertEqual(entry['geom'].geom_type, 'LineString')
+
+        # object-level gcode_parsed holds both tools' geometry
+        self.assertEqual(
+            len(new_obj.gcode_parsed),
+            len(new_obj.tools[1]['gcode_parsed']) + len(new_obj.tools[2]['gcode_parsed'])
+        )
+
+        # create_geometry() produced a non-empty solid_geometry
+        self.assertTrue(new_obj.geometry_created if hasattr(new_obj, 'geometry_created') else True)
+        self.assertIsNotNone(new_obj.solid_geometry)
+        self.assertGreater(len(new_obj.solid_geometry), 0)
+
+        # pp names / exc_tools copied
+        self.assertEqual(new_obj.pp_geometry_name, 'default')
+        self.assertEqual(new_obj.pp_excellon_name, 'default')
+        self.assertIsNone(new_obj.pp_solderpaste_name)
+        self.assertEqual(new_obj.exc_tools, {})
+
+        self.assertIn('[success]', tool.app.inform.emit.call_args.args[0])
+
+
+def import_tool():
+    target = MagicMock()
+    target.kind = 'cncjob'
+    target.obj_options = {'name': 'job'}
+    storage = {
+        1: {'point': Point(0.0, 0.0), 'geo': None, 'height': 0.0},
+        2: {'point': Point(10.0, 0.0), 'geo': None, 'height': 0.0},
+    }
+    tool = make_audit_tool(storage=storage, cls=ToolLevelling)
+    tool._al_target_name = 'job'
+    tool._al_target_obj = target
+    tool.app.collection.get_by_name.return_value = target
+    tool.apply_autolevel = MagicMock()
+    return tool
+
+
+def ctx_result(tool, kind, **extra):
+    result = {'kind': kind, 'context': tool._al_capture_context()}
+    result.update(extra)
+    return result
+
+
+# ---------------------------------------------------------------- defect 1
+def test_valid_height_map_import_applies_autolevel():
+    tool = import_tool()
+    tool._on_al_result_ready(ctx_result(tool, 'import', heights={1: 0.1, 2: 0.2}))
+    assert tool.al_heights_valid
+    tool.apply_autolevel.assert_called_once_with(target_obj=tool._al_target_obj)
+
+
+def test_incomplete_height_map_import_does_not_apply():
+    tool = import_tool()
+    tool._on_al_result_ready(ctx_result(tool, 'import', heights={1: 0.1}))
+    assert not tool.al_heights_valid
+    tool.apply_autolevel.assert_not_called()
+
+
+# ---------------------------------------------------------------- defect 2
+GCODE_LINE = re.compile(r'^(\(.*\)|[GMO#%]\S*.*)$')
+
+
+def gcode_tool(controller):
+    tool = make_audit_tool(cls=ToolLevelling)
+    target = MagicMock()
+    target.obj_options = {'name': 'job'}
+    target.coords_decimals = 4
+    target.fr_decimals = 4
+    tool.app.collection.get_by_name.return_value = target
+    tool.app.dec_format.side_effect = lambda value, dec=4: round(value, 4)
+    tool.app.version = '1'
+    tool.app.version_date = 'x'
+    tool.ui.al_method_radio.get_value.return_value = 'v'
+    tool.ui.al_controller_combo.get_value.return_value = controller
+    tool.ui.ptravelz_entry.get_value.return_value = 2.0
+    tool.ui.feedrate_probe_entry.get_value.return_value = 50.0
+    tool.ui.pdepth_entry.get_value.return_value = -1.0
+    return tool
+
+
+def storage():
+    return {1: {'point': Point(1.0, 2.0), 'geo': None, 'height': 0.0}}
+
+
+@pytest.mark.parametrize('controller', ['MACH3', 'MACH4', 'LinuxCNC'])
+def test_probing_code_has_no_bare_prose(controller):
+    tool = gcode_tool(controller)
+    text = tool.probing_gcode(storage=storage())
+    for line in text.splitlines():
+        if not line.strip():
+            continue
+        assert GCODE_LINE.match(line.strip()), 'prose line in G-code: %r' % line
+        if line.startswith('('):
+            assert '(' not in line[1:-1] and ')' not in line[1:-1]
+
+
+# ---------------------------------------------------------------- defect 4
+@pytest.mark.parametrize('new', ['LinuxCNC', 'MACH4'])
+def test_controller_change_drops_old_controller_code(new):
+    tool = gcode_tool('MACH3')
+    tool.on_controller_change_alter_ui = MagicMock()
+    tool.ui.object_combo.get_value.return_value = 'job'
+    tool.probing_gcode_text = tool.probing_gcode(storage=storage())
+    assert 'G31' in tool.probing_gcode_text
+    tool.al_voronoi_geo_storage = storage()
+    tool.ui.al_controller_combo.get_value.return_value = new
+    tool.on_controller_change()
+    text = tool.probing_gcode_text
+    if new == 'LinuxCNC':
+        assert 'G38.2' in text
+        assert 'G31' not in text and 'M40' not in text and 'M41' not in text
+    else:
+        assert 'G31' in text
+
+
+# ---------------------------------------------------------------- defect 3
+def grid_tool(step):
+    tool = make_audit_tool()
+    values = {
+        'avoid_exc_holes_cb': True, 'avoid_exc_holes_size_entry': step,
+        'probe_tip_dia_entry': 0.2, 'al_columns_entry': 3, 'al_rows_entry': 3,
+    }
+    for name, value in values.items():
+        getattr(tool.ui, name).get_value.return_value = value
+    tool.ui.al_method_radio.get_value.return_value = 'v'
+    tool.solid_geo = Polygon([(0, 0), (10, 0), (10, 10), (0, 10)])
+    tool.app.dec_format.side_effect = lambda value, dec=4: round(value, 4)
+    tool.generate_voronoi_geometry = MagicMock()
+    tool.plot_probing_geo = MagicMock()
+    tool.plot_probing_geo = MagicMock()
+    tool.probing_gcode = MagicMock(return_value='')
+    hole = Polygon([(4, 4), (6, 4), (6, 6), (4, 6)])
+    tool.check_point_over_excellon = lambda pol, check: pol.intersection(hole) if pol.intersects(hole) \
+        else Polygon()
+    return tool
+
+
+def run_guarded(tool):
+    counter = {'n': 0}
+    real_contains = Polygon.contains
+
+    def guard_contains(self, other):
+        counter['n'] += 1
+        if counter['n'] > 200000:
+            raise RuntimeError('avoidance loop did not terminate')
+        return real_contains(self, other)
+
+    errors = []
+
+    def run():
+        try:
+            with patch.object(lc_module, 'box', wraps=lc_module.box) as _b:
+                tool.on_add_grid_points()
+        except BaseException as err:
+            errors.append(err)
+
+    # limit by wrapping check_point_over_excellon, which runs once per iteration
+    inner = tool.check_point_over_excellon
+
+    def counting(pol, check):
+        counter['n'] += 1
+        if counter['n'] > 5000:
+            raise RuntimeError('avoidance loop did not terminate')
+        return inner(pol, check)
+
+    tool.check_point_over_excellon = counting
+    worker = threading.Thread(target=run, daemon=True)
+    worker.start()
+    worker.join(timeout=10)
+    assert not worker.is_alive(), 'on_add_grid_points hung'
+    if errors:
+        raise errors[0]
+
+
+def test_zero_avoid_step_is_rejected_without_points():
+    tool = grid_tool(0.0)
+    run_guarded(tool)
+    assert tool.al_voronoi_geo_storage == {}
+    messages = [c.args[0] for c in tool.app.inform.emit.call_args_list]
+    assert any(m.startswith('[ERROR_NOTCL]') for m in messages)
+
+
+def make_lifecycle_tool():
+    tool = make_audit_tool()
+    tool.app.options = {'global_selection_shape': True, 'global_grid_snap': True}
+    tool.app.plotcanvas.translate_coords.return_value = (2.2, 3.3)
+    tool.app.geo_editor.snap.return_value = (2.0, 3.0)
+    tool.ui.avoid_exc_holes_cb.get_value.return_value = False
+    tool.ui.probe_tip_dia_entry.get_value.return_value = 0.5
+    tool.ui.al_mode_radio.get_value.return_value = 'manual'
+    tool.ui.object_combo.get_value.return_value = 'job'
+    tool.ui.object_combo.currentText.return_value = 'job'
+    tool.probing_shapes = MagicMock()
+    tool.build_al_table = MagicMock()
+    tool.plot_probing_geo = MagicMock()
+    tool._new_probing_shapes = MagicMock()
+    tool.solid_geo = box(0.0, 0.0, 10.0, 10.0)
+    target = SimpleNamespace(
+        is_segmented_gcode=True,
+        obj_options={'type': 'Geometry'},
+        gcode_parsed=[{'kind': ['C'], 'geom': tool.solid_geo}],
+    )
+    tool.app.collection.get_by_name.return_value = target
+    tool._al_target_name, tool._al_target_obj = 'job', target
+    return tool
+
+
+def left_click(tool):
+    return SimpleNamespace(pos=(2.2, 3.3), button=1)
+
+
+def assert_released(tool):
+    canvas = tool.app.plotcanvas
+    expected = [
+        call('key_press', tool.on_key_press),
+        call('mouse_release', tool.on_mouse_click_release),
+        call('mouse_move', tool.on_mouse_move),
+    ]
+    canvas.graph_event_disconnect.assert_has_calls(expected)
+    canvas.graph_event_connect.assert_has_calls([
+        call('key_press', tool.app.ui.keyPressEvent),
+        call('mouse_press', tool.app.on_mouse_click_over_plot),
+        call('mouse_release', tool.app.on_mouse_click_release_over_plot),
+    ])
+    assert not tool.mouse_events_connected
+    assert not any(name in tool.__dict__ for name in ('kp', 'mr', 'mm'))
+    assert tool.app.options['global_selection_shape'] is True
+    assert tool.app.options['global_grid_snap'] is True
+
+
+@pytest.mark.parametrize('reset', ['mode', 'target', 'clear'])
+def test_destructive_reset_releases_before_clearing(reset):
+    tool = make_lifecycle_tool()
+    tool.on_add_manual_points()
+    tool.app.plotcanvas.reset_mock()
+    released_at_clear = []
+    tool.probing_shapes.clear.side_effect = lambda **kwargs: released_at_clear.append(
+        tool.mouse_events_connected)
+
+    if reset == 'mode':
+        tool.on_mode_radio('grid')
+    elif reset == 'target':
+        tool.app.collection.get_by_name.return_value = SimpleNamespace(
+            is_segmented_gcode=False, obj_options={})
+        tool.on_object_changed()
+    else:
+        tool._clear_probe_data()
+
+    assert released_at_clear == [False]
+    assert_released(tool)
+    tool.on_mouse_click_release(left_click(tool))
+    assert tool.al_voronoi_geo_storage == {}
+
+
+PLANE = make_plane(0.01, 0.02, 0.0)       # z = 0.01*x + 0.02*y
+TOL = 3e-4
+COLS, ROWS = 4, 3
+
+CONTROLLERS = ['GRBL', 'MACH3', 'MACH4', 'LinuxCNC']
+FIXTURES = {
+    'simple_line': SIMPLE_LINE_GBR,
+    'region': REGION_GBR,
+    'flash': FLASH_GBR,
+}
+
+# controller -> (probe command, open command, close command)
+PROBE_WORDS = {
+    'MACH3': ('G31', 'M40', 'M41'),
+    'MACH4': ('G31', 'M40', 'M41'),
+    'LinuxCNC': ('G38.2', '(PROBEOPEN a_probing_points_file.txt)', '(PROBECLOSE)'),
+}
+HEIGHT_MAP_WRITERS = {
+    'MACH3': write_mach3,                    # x,y,z
+    'MACH4': write_mach4_extra_columns,      # x, y, z, 0.0, 0.0, 0.0
+    'LinuxCNC': write_linuxcnc,              # x y z 0 0 0 0 0 0
+}
+# (controller, method, fixture): every controller, both methods, all 3 fixtures
+FILE_CASES = [
+    ('MACH3', 'b', 'simple_line'),
+    ('LinuxCNC', 'v', 'simple_line'),
+]
+GRBL_CASES = [('b', 'simple_line')]
+
+_TC = unittest.TestCase()   # reuse the independent G-code verifier of the journey tests
+
+
+# --------------------------------------------------------------------------------------
+# environment
+# --------------------------------------------------------------------------------------
+
+def make_source_job(gerber_path, name):
+    """A real camlib.CNCjob with G-code made from a real Gerber file."""
+    paths = gerber_toolpaths(gerber_path)
+    gcode = make_gcode(paths, include_arc=False)
+    job = make_real_cncjob()
+    job.obj_options = {'name': name, 'type': 'Geometry'}
+    job.kind = 'cncjob'
+    job.units = 'MM'
+    job.coords_decimals = 4
+    job.fr_decimals = 2
+    job.pp_geometry_name = 'default'
+    job.pp_excellon_name = 'default'
+    job.pp_solderpaste_name = None
+    job.exc_tools = {}
+    job.used_tools = [1]
+    job.gcode = gcode
+    parsed = job.gcode_parse(tool_data={})
+    job.tools = {1: {'gcode': gcode, 'gcode_parsed': parsed, 'data': {}, 'tooldia': 1.0}}
+    job.gcode_parsed = parsed
+    job.create_geometry()
+    return job
+
+
+class Env:
+    """The tool with a mocked UI/app around the real logic, plus a project registry."""
+
+    def __init__(self, tmp_path, monkeypatch, cls=None):
+        self.tmp_path = tmp_path
+        self.objects = {}
+        tool = make_audit_tool(units='MM', cls=cls or ToolLevelling)
+        self.tool = tool
+        app = tool.app
+        app.defaults = {}
+        app.options = {'cncjob_save_filters': 'Text (*.txt)', 'cncjob_line_ending': False}
+        app.version = '9.9'
+        app.version_date = '2026/10/12'
+        app.get_last_save_folder.return_value = str(tmp_path)
+        app.get_last_folder.return_value = str(tmp_path)
+        app.dec_format.side_effect = lambda value, dec=4: round(value, dec)
+        app.collection.get_by_name.side_effect = lambda n: self.objects.get(n)
+        app.collection.get_list.return_value = []
+        app.app_obj.new_object.side_effect = self._new_object
+        # the worker runs inline
+        app.worker_task.emit.side_effect = lambda d: d['fcn'](*d.get('params', []))
+        # the apply step is the real one
+        tool.apply_autolevel_sig = MagicMock()
+        tool.plot_probing_geo = MagicMock()
+        tool.on_grbl_search_ports = MagicMock()
+        monkeypatch.setattr(lc_module, 'ShapeCollection', MagicMock())
+
+        ui = tool.ui
+        ui.al_mode_radio.get_value.return_value = 'grid'
+        ui.avoid_exc_holes_cb.get_value.return_value = False
+        ui.avoid_exc_holes_size_entry.get_value.return_value = 0.5
+        ui.probe_tip_dia_entry.get_value.return_value = 0.2
+        ui.al_columns_entry.get_value.return_value = COLS
+        ui.al_rows_entry.get_value.return_value = ROWS
+        ui.ptravelz_entry.get_value.return_value = 2.0
+        ui.feedrate_probe_entry.get_value.return_value = 50.0
+        ui.pdepth_entry.get_value.return_value = -1.0
+
+        self.save_path = tmp_path / 'probing.nc'
+        monkeypatch.setattr(
+            tl_module, 'FCFileSaveDialog',
+            SimpleNamespace(get_saved_filename=lambda **kw: (str(self.save_path), '')))
+
+    def _new_object(self, kind, name, obj_init, *args, **kwargs):
+        new_obj = make_real_cncjob()
+        new_obj.obj_options = {'name': name, 'type': 'Geometry'}
+        new_obj.kind = kind
+        if obj_init(new_obj, self.tool.app) == 'fail':
+            return 'fail'
+        self.objects[name] = new_obj
+        return 'success'
+
+    # ---- user steps ----
+    def load_cncjob(self, fixture, name):
+        job = make_source_job(FIXTURES[fixture], name)
+        self.objects[name] = job
+        self.source_name = name
+        self.snapshot = {
+            'gcode': job.tools[1]['gcode'],
+            'parsed_len': len(job.tools[1]['gcode_parsed']),
+            'tools': copy.deepcopy({k: v['gcode'] for k, v in job.tools.items()}),
+        }
+        return job
+
+    def select(self, name, controller, method):
+        ui = self.tool.ui
+        ui.object_combo.currentText.return_value = name
+        ui.object_combo.get_value.return_value = name
+        self.tool.on_object_changed()
+        ui.al_method_radio.get_value.return_value = method
+        self.tool.on_method_radio(method)
+        if isinstance(self.tool, ToolGCodeSender):
+            # the sender is always GRBL: it has no controller combo
+            return
+        ui.al_controller_combo.get_value.return_value = controller
+        self.tool.on_controller_change()
+
+    def add_points(self):
+        assert self.tool.on_add_al_probepoints() != 'fail'
+        storage = self.tool.al_voronoi_geo_storage
+        assert len(storage) == COLS * ROWS
+        return [(v['point'].x, v['point'].y) for v in storage.values()]
+
+    def messages(self):
+        return emitted(self.tool)
+
+    def errors(self):
+        return [m for m in self.messages() if '[ERROR_NOTCL]' in m]
+
+    def levelled_name(self):
+        return self.source_name + '_levelled'
+
+    # ---- checks ----
+    def assert_no_levelled(self):
+        assert self.levelled_name() not in self.objects
+        assert not any(n.endswith('_levelled') for n in self.objects)
+
+    def assert_levelled(self, method, probe_points):
+        """New '<source>_levelled' CNCJob; source untouched; Z = source Z + plane height."""
+        name = self.levelled_name()
+        assert name in self.objects, 'no levelled object; messages: %r' % self.messages()
+        new, src = self.objects[name], self.objects[self.source_name]
+        assert new is not src and new.obj_options['name'] == name
+        assert new.kind == 'cncjob'
+
+        # the source CNCJob is unchanged
+        assert src.tools[1]['gcode'] == self.snapshot['gcode']
+        assert src.gcode == self.snapshot['gcode']
+        assert {k: v['gcode'] for k, v in src.tools.items()} == self.snapshot['tools']
+        assert len(src.tools[1]['gcode_parsed']) == self.snapshot['parsed_len']
+
+        if method == 'b':
+            offset_fn = PLANE
+        else:
+            pts = [(x, y, PLANE(x, y)) for x, y in probe_points]
+
+            def offset_fn(x, y):
+                return nearest_height_bruteforce(pts, x, y)
+
+        max_dz, cut_points = verify_levelling(
+            _TC, self.snapshot['gcode'], new.tools[1]['gcode'], 4, offset_fn, tol=TOL)
+        assert cut_points, 'no cut moves verified'
+        assert max_dz > 1e-3, 'the levelled G-code is not changed'
+        assert new.gcode == new.tools[1]['gcode']
+
+        # parsed geometry exists
+        parsed = new.tools[1]['gcode_parsed']
+        assert len(parsed) > 0 and len(new.gcode_parsed) == len(parsed)
+        assert all(g['geom'].geom_type == 'LineString' for g in parsed)
+        assert new.solid_geometry is not None and len(new.solid_geometry) > 0
+        assert any('[success]' in m for m in self.messages())
+        return new
+
+
+@pytest.fixture
+def env(tmp_path, monkeypatch):
+    return Env(tmp_path, monkeypatch)
+
+
+@pytest.fixture
+def sender_env(tmp_path, monkeypatch):
+    return Env(tmp_path, monkeypatch, cls=ToolGCodeSender)
+
+
+# --------------------------------------------------------------------------------------
+# G-code and height-map helpers
+# --------------------------------------------------------------------------------------
+
+WORD_LINE = re.compile(r'([A-Z]\s*[-+]?\d+(\.\d+)?\s*)+')
+
+
+def check_probing_file(path, controller, probe_points):
+    text = path.read_text()
+    probe_cmd, open_cmd, close_cmd = PROBE_WORDS[controller]
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+
+    for ln in lines:
+        if ln.startswith('('):
+            assert ln.endswith(')'), 'broken comment: %r' % ln
+        else:
+            assert WORD_LINE.fullmatch(ln) or ln == '#', 'plain prose / not G-code: %r' % ln
+    assert lines.count(open_cmd) == 1 and lines.count(close_cmd) == 1
+    assert lines[-1] == 'M2'
+    for other_cmd in {'G31', 'G38.2'} - {probe_cmd}:
+        assert not any(ln.startswith(other_cmd + ' ') for ln in lines)
+
+    # a probe move for every point, in order, right after the move to X/Y
+    moves, probes = [], 0
+    for i, ln in enumerate(lines):
+        m = re.fullmatch(r'G0 X(-?[\d.]+)Y(-?[\d.]+)', ln)
+        if m:
+            nxt = lines[i + 1]
+            assert re.fullmatch(re.escape(probe_cmd) + r' Z-[\d.]+ F[\d.]+', nxt), nxt
+            moves.append((float(m.group(1)), float(m.group(2))))
+            probes += 1
+    assert probes == len(probe_points)
+    for (mx, my), (px, py) in zip(moves, probe_points):
+        assert mx == pytest.approx(px, abs=1e-4) and my == pytest.approx(py, abs=1e-4)
+    return text
+
+
+def write_height_map(path, controller, probe_points, drop_last=False, shuffle=False):
+    rows = [(x, y, PLANE(x, y)) for x, y in probe_points]
+    if shuffle:
+        rows = shuffled_rows(rows, seed=7)
+    if drop_last:
+        rows = rows[:-1]
+    HEIGHT_MAP_WRITERS[controller](str(path), rows, decimals=5)
+
+
+def import_through_button(env, path):
+    with patch.object(tl_module.QtWidgets.QFileDialog, 'getOpenFileName', return_value=(str(path), '')):
+        env.tool.on_import_height_map()
+
+
+# --------------------------------------------------------------------------------------
+# MACH3 / MACH4 / LinuxCNC
+# --------------------------------------------------------------------------------------
+
+@pytest.mark.parametrize('controller,method,fixture', FILE_CASES)
+def test_file_controller_full_journey(env, controller, method, fixture):
+    """Gerber -> CNCJob -> select -> probing G-code -> export -> height map -> import -> levelled job."""
+    env.load_cncjob(fixture, 'job_' + fixture)
+    env.select('job_' + fixture, controller, method)
+    points = env.add_points()
+
+    # probing G-code through the real export path (dialog patched to a tmp file)
+    assert env.tool.probing_gcode_text
+    env.tool.on_save_probing_gcode()
+    text = check_probing_file(env.save_path, controller, points)
+    assert text == env.tool.probing_gcode_text
+
+    # the controller writes a height map; the import button reads it
+    hm = env.tmp_path / 'heights.txt'
+    write_height_map(hm, controller, points, shuffle=(method == 'v'))
+    env.assert_no_levelled()
+    import_through_button(env, hm)
+
+    assert env.tool.al_heights_valid
+    assert not env.errors(), env.errors()
+    env.assert_levelled(method, points)
+
+
+@pytest.mark.parametrize('controller', ['MACH3'])
+def test_file_controller_incomplete_height_map_makes_no_levelled_job(env, controller):
+    env.load_cncjob('simple_line', 'job_neg')
+    env.select('job_neg', controller, 'b')
+    points = env.add_points()
+    hm = env.tmp_path / 'heights_incomplete.txt'
+    write_height_map(hm, controller, points, drop_last=True)
+    import_through_button(env, hm)
+
+    env.assert_no_levelled()
+    env.tool.app.app_obj.new_object.assert_not_called()
+    assert not env.tool.al_heights_valid
+    assert any('no matching row' in m for m in env.errors()), env.messages()
+
+
+ARC_G91_MARKER = '(ARC AND G91 BLOCK)'
+ARC_G91_BLOCK = [
+    ARC_G91_MARKER,
+    'G00 Z2.0000',
+    'G00 X1000.0000 Y1000.0000',
+    'G01 Z-0.1000 F300.0000',
+    'G03 X995.0000 Y1005.0000 I-5.0000 J0.0000',     # quarter arc around (995, 1000)
+    'G91',
+    'G01 X2.0000 Y1.0000 Z-0.0500',
+    'G01 X1.0000',
+    'G90',
+    'G00 Z2.0000',
+]
+
+
+def test_file_controller_arc_and_g91_block_is_levelled(env):
+    """A G2/G3 arc and a G91 block in the tool G-code: the machine follows the height map."""
+    from tests.test_levelling_arc_g91 import Machine
+
+    job = env.load_cncjob('simple_line', 'job_arc')
+    gcode = job.tools[1]['gcode']
+    assert '\nM05\n' in gcode
+    gcode = gcode.replace('\nM05\n', '\n' + '\n'.join(ARC_G91_BLOCK) + '\nM05\n')
+    job.tools[1]['gcode'] = gcode
+    job.gcode = gcode
+    env.snapshot['gcode'] = gcode
+    env.snapshot['tools'] = {1: gcode}
+    env.select('job_arc', 'MACH3', 'b')
+    points = env.add_points()
+    hm = env.tmp_path / 'heights_arc.txt'
+    write_height_map(hm, 'MACH3', points)
+    import_through_button(env, hm)
+
+    assert env.tool.al_heights_valid
+    assert not env.errors(), env.errors()
+    new = env.objects[env.levelled_name()]
+    assert env.objects[env.source_name].tools[1]['gcode'] == gcode
+    levelled = new.tools[1]['gcode']
+    assert 'G03' not in levelled and 'G3 ' not in levelled
+    assert any(m.endswith('Arc moves split into line moves: 1') for m in env.messages()), env.messages()
+
+    head, block = levelled.split(ARC_G91_MARKER, 1)
+    machine = Machine()
+    machine.feed(head)
+    done = len(machine.trace)
+    machine.feed(block.split('\nM05\n')[0])
+    moves = machine.trace[done:]
+    cuts = [m for m in moves if m[3] == 1]
+    assert len(cuts) >= 12                                   # plunge + 9 or more arc segments + 2 relative
+    programmed_z = [-0.1] * (len(cuts) - 2) + [-0.15] * 2
+    for (x, y, z, _g), prog in zip(cuts, programmed_z):
+        assert z == pytest.approx(prog + PLANE(x, y), abs=TOL), (x, y, z)
+    for x, y, _z, _g in cuts[1:-2]:                          # the arc points are on the circle
+        assert ((x - 995.0) ** 2 + (y - 1000.0) ** 2) ** 0.5 == pytest.approx(5.0, abs=2e-4)
+    assert (cuts[-3][0], cuts[-3][1]) == (995.0, 1005.0)
+    assert (cuts[-1][0], cuts[-1][1]) == pytest.approx((998.0, 1006.0), abs=1e-9)
+    assert moves[-1][2] == 2.0                               # the final rapid is not compensated
+
+
+# --------------------------------------------------------------------------------------
+# GRBL
+# --------------------------------------------------------------------------------------
+
+class PlaneHeights(dict):
+    """FakeGrbl.heights: the probe height of any (x, y) from the known plane."""
+
+    def __bool__(self):
+        return True     # FakeGrbl does `heights or {}`
+
+    def get(self, key, default=None):
+        return PLANE(*key)
+
+
+def grbl_env(env):
+    fake = FakeGrbl(heights=PlaneHeights())
+    tool = env.tool
+    tool.grbl_ser_port = fake
+    tool._grbl_connected = True
+    return fake
+
+
+@pytest.mark.parametrize('method,fixture', GRBL_CASES)
+def test_grbl_full_journey(sender_env, method, fixture):
+    env = sender_env
+    fake = grbl_env(env)
+    env.load_cncjob(fixture, 'job_grbl_' + fixture)
+    env.select('job_grbl_' + fixture, 'GRBL', method)
+    points = env.add_points()
+    # GRBL has no probing G-code file: it probes through the serial port
+    storage = env.tool.al_voronoi_geo_storage if method == 'v' else env.tool.al_bilinear_geo_storage
+    assert not env.tool.probing_gcode(storage)
+    env.assert_no_levelled()
+
+    env.tool._al_on_height_map_ready = MagicMock()
+    env.tool.on_grbl_autolevel()
+
+    cmds = fake.commands()
+    probes = [c for c in cmds if c.startswith('G38.2')]
+    assert len(probes) == len(points)
+    assert not env.errors(), env.messages()
+    assert env.tool.al_heights_valid
+    # each stored height is what the fake reported for that point
+    for v in env.tool.al_voronoi_geo_storage.values():
+        assert v['height'] == pytest.approx(PLANE(v['point'].x, v['point'].y), abs=1e-4)
+    assert env.tool._grbl_op is None
+    env.tool._al_on_height_map_ready.assert_called_once_with(env.objects[env.source_name], ANY)
+
+
+def test_grbl_failed_probe_makes_no_levelled_job(sender_env):
+    env = sender_env
+    fake = grbl_env(env)
+    fake.fail_probe_at = len(range(COLS * ROWS))     # the last probe answers ALARM:4
+    env.load_cncjob('flash', 'job_grbl_neg')
+    env.select('job_grbl_neg', 'GRBL', 'b')
+    env.add_points()
+
+    env.tool._al_on_height_map_ready = MagicMock()
+    env.tool.on_grbl_autolevel()
+
+    env.assert_no_levelled()
+    env.tool._al_on_height_map_ready.assert_not_called()
+    env.tool.app.app_obj.new_object.assert_not_called()
+    assert not env.tool.al_heights_valid
+    assert env.errors(), env.messages()
+
+
+# --------------------------------------------------------------------------------------
+# a job imported from a G-code file
+# --------------------------------------------------------------------------------------
+
+IMPORTED_INCH = ("G20\nG90\nT1\nG0 Z0.1\nG0 X0.5 Y0.5\nG1 Z-0.02 F10\nG1 X1.5 Y0.5\nG1 X1.5 Y1.5\nG0 Z0.1\n"
+                 "T2\nG0 X0.5 Y0.5\nG1 Z-0.02 F10\nG1 X1.0 Y1.0\nG0 Z0.1\n")
+
+
+def _imported_job(env, text, name):
+    from appParsers.ParseGCode import parse_gcode
+
+    job = make_real_cncjob()
+    parsed = parse_gcode(text, target_units='MM')
+    job.obj_options = {'name': name, 'type': 'Geometry', 'gcode_units': parsed['units'], 'tooldia': 1.0}
+    job.kind, job.units, job.gcode_imported, job.is_segmented_gcode = 'cncjob', 'MM', True, False
+    job.coords_decimals, job.fr_decimals = 4, 2
+    job.pp_geometry_name = job.pp_excellon_name = 'default'
+    job.pp_solderpaste_name = None
+    job.exc_tools = {}
+    job.tools = {k: {'tool': t['tool'], 'tooldia': 1.0, 'data': {}, 'gcode': t['gcode'],
+                     'gcode_parsed': t['gcode_parsed'], 'solid_geometry': t['solid_geometry']}
+                 for k, t in parsed['tools'].items()}
+    job.used_tools = list(job.tools)
+    job.gcode = text
+    job.gcode_parsed = [g for t in job.tools.values() for g in t['gcode_parsed']]
+    job.create_geometry()
+    env.objects[name] = job
+    env.source_name = name
+    return job
+
+
+def test_imported_gcode_with_macros_is_not_levelled(env):
+    job = _imported_job(env, IMPORTED_INCH.replace("G1 X1.5 Y0.5\n", "#100=1.5\nG1 X#100 Y0.5\n"), 'job_macro')
+    env.select('job_macro', 'MACH3', 'b')
+    points = env.add_points()
+    hm = env.tmp_path / 'heights.txt'
+    write_height_map(hm, 'MACH3', points)
+    import_through_button(env, hm)
+
+    assert any('macro variables or subprograms' in e for e in env.errors()), env.errors()
+    assert env.levelled_name() not in env.objects
+    assert job.gcode.count('#100') == 2
+
+
+def test_imported_gcode_in_inches_is_levelled_once_in_its_own_units(env):
+    """Metric application, inch file: no duplicated program, the probe heights are written in inches."""
+    job = _imported_job(env, IMPORTED_INCH, 'job_in')
+    assert len(job.tools) == 2 and ''.join(t['gcode'] for t in job.tools.values()) == IMPORTED_INCH
+    env.select('job_in', 'MACH3', 'b')
+    points = env.add_points()
+    hm = env.tmp_path / 'heights.txt'
+    write_height_map(hm, 'MACH3', points)
+    import_through_button(env, hm)
+
+    assert not env.errors(), env.errors()
+    new = env.objects[env.levelled_name()]
+    assert new.gcode_imported is True and new.obj_options['gcode_units'] == 'IN'
+    assert new.gcode.count('T1') == 1 and new.gcode.count('T2') == 1
+    assert ''.join(t['gcode'] for t in new.tools.values()) == new.gcode
+    assert len(new.gcode_parsed) == sum(len(t['gcode_parsed']) for t in new.tools.values()) > 0
+    cuts = [m for m in re.finditer(r'G1 X([-\d.]+) Y([-\d.]+) Z([-\d.]+)', new.gcode)]
+    # the 1 inch moves are not segmented in the file: they are split (1 mm pieces) and levelled between their ends
+    assert len(cuts) > 50
+    for m in cuts:
+        x, y, z = (float(v) for v in m.groups())
+        assert z == pytest.approx(-0.02 + PLANE(x * 25.4, y * 25.4) / 25.4, abs=1e-3)

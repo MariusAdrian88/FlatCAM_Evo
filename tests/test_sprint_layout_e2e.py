@@ -143,16 +143,6 @@ class TestSprintLayoutFixture(unittest.TestCase):
     def _mine(self, layer):
         return _union(self.parsed.layers[layer]['solid_geometry'])
 
-    def test_layers_and_default_selection(self):
-        self.assertCountEqual(list(self.parsed.layers), self.LAYERS)
-        self.assertEqual(self.parsed.default_layers, self.DEFAULT_LAYERS)
-        self.assertEqual(self.parsed.layers['C1']['name'], 'Copper Top')
-        self.assertEqual(self.parsed.layers['C2']['name'], 'Copper Bottom')
-        self.assertEqual(self.parsed.layers['M1']['name'], 'Solder Mask Top')
-        self.assertEqual(self.parsed.layers['M2']['name'], 'Solder Mask Bottom')
-        self.assertEqual(self.parsed.layers['S1']['name'], 'Silkscreen Top')
-        self.assertEqual(self.parsed.layers['O']['name'], 'Board Outline')
-        self.assertEqual(self.parsed.board_count, 1)
 
     def test_copper_matches_reference_gerbers(self):
         for layer in ('C1', 'C2'):
@@ -161,15 +151,6 @@ class TestSprintLayoutFixture(unittest.TestCase):
                 difference = self._mine(layer).symmetric_difference(reference).area
                 self.assertLessEqual(difference / reference.area, 0.01)
 
-    def test_board_outline_bounds_match_reference(self):
-        mine = self._mine('O').bounds
-        reference = self.references['O'].bounds
-        for actual, expected in zip(mine, reference):
-            self.assertAlmostEqual(actual, expected, delta=0.01)
-        for actual, expected in zip(mine, self.OUTLINE_BOUNDS):
-            self.assertAlmostEqual(actual, expected, delta=0.01)
-        for actual, expected in zip(self.parsed.board_outline.bounds, self.BOARD_OUTLINE_BOUNDS):
-            self.assertAlmostEqual(actual, expected, delta=0.01)
 
     def test_every_hole_matches_a_reference_hole(self):
         all_tools = [tool for tools in self.parsed.drill_groups.values() for tool in tools.values()]

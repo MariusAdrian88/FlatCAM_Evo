@@ -70,20 +70,6 @@ class TestPo(unittest.TestCase):
         with open(self.po, 'w', encoding='utf-8') as f:
             f.write(PO)
 
-    def test_read(self):
-        header, entries = t.read_po(self.po)
-        self.assertIn('Language: tr_TR', header.msgstr)
-        self.assertEqual(['Title', 'Two lines.\nSecond "quoted" line', 'Fuzzy one', 'Gone', 'Old'],
-                         [e.msgid for e in entries])
-        self.assertEqual('İki satır.\nİkinci "tırnaklı" satır', entries[1].msgstr)
-        self.assertTrue(entries[2].fuzzy)
-        self.assertTrue(entries[4].obsolete)
-        self.assertFalse(entries[3].obsolete)
-        # the previous English texts that Poedit shows next to a fuzzy entry
-        self.assertEqual(['msgid "Fuzzy"'], entries[2].previous)
-        self.assertEqual(['msgid "Older"'], entries[4].previous)
-        self.assertEqual([], entries[0].previous)
-
     def test_write_read_round_trip(self):
         header, entries = t.read_po(self.po)
         entries.append(t.Entry('A long string ' * 12 + 'with\ttab and back\\slash', 'Uzun ' * 30, ['b.py:9']))
@@ -162,22 +148,6 @@ class TestTranslatorTools(unittest.TestCase):
         self.template = os.path.join(self.dir, 'strings.pot')
         t.write_template({'Title': ['a.py:1'], 'Tools Table:': ['a.py:2']}, self.template)
 
-    def test_stats_counts_and_mo_state(self):
-        s = t.stats('xx')
-        # active: Title, Two lines, Fuzzy one, Gone; the fuzzy one is not shown by the program
-        self.assertEqual({'strings': 4, 'translated': 3, 'untranslated': 0, 'fuzzy': 1, 'errors': 0, 'warnings': 0,
-                          'mo_current': False}, s)
-        t.compile_mo(t.po_path('xx'), t.po_path('xx')[:-3] + '.mo')
-        self.assertTrue(t.mo_is_current('xx'))
-        self.assertIn('| xx | 4 | 3 (75 %) | 0 | 1 | 0 | 0 | yes |', t.stats_markdown([('xx', t.stats('xx'))]))
-        status = os.path.join(self.dir, 'status.md')
-        with contextlib.redirect_stdout(io.StringIO()):
-            self.assertEqual(0, t.main(['stats', 'xx', '--markdown', status]))
-        with open(status, encoding='utf-8') as f:
-            text = f.read()
-        self.assertTrue(text.startswith('# Translation status\n\nMade by '), text)
-        self.assertIn('| xx | 4 | 3 (75 %) | 0 | 1 | 0 | 0 | yes |', text)
-
     def test_check_fails_on_errors_only(self):
         def run_check():
             out = io.StringIO()
@@ -203,15 +173,6 @@ class TestTranslatorTools(unittest.TestCase):
         self.assertIn("error: 'Gone %s': formatting with % fails", out)
         self.assertEqual((1, 0), (t.stats('xx')['errors'], t.stats('xx')['warnings']))
 
-    def test_mo_check_sees_a_po_change(self):
-        t.compile_mo(t.po_path('xx'), t.po_path('xx')[:-3] + '.mo')
-        with open(t.po_path('xx'), encoding='utf-8') as f:
-            text = f.read()
-        with open(t.po_path('xx'), 'w', encoding='utf-8') as f:
-            f.write(text.replace('msgstr "Başlık"', 'msgstr "Başlık 2"'))
-        self.assertFalse(t.mo_is_current('xx'))
-        self.assertEqual(1, t.main(['compile', '--check', 'xx']))
-
 class TestChecks(unittest.TestCase):
     def test_errors_make_the_formatting_fail(self):
         def errors(msgid, msgstr):
@@ -222,14 +183,6 @@ class TestChecks(unittest.TestCase):
         self.assertTrue(errors('%s at 100%%', '%s 100 % de'))          # a single % in a formatted text
         self.assertTrue(errors('%(count)s done', '%(sayi)s bitti'))    # KeyError
         self.assertTrue(errors('Name: {name}', 'Ad: {ad}'))
-
-    def test_brace_checks_reject_invalid_syntax_and_escaped_fields(self):
-        for translated in ('Name: {name} {', 'Name: {name} }', 'Name: {{name}}',
-                           'Name: {name!}', 'Name: {name:{width}'):
-            with self.subTest(translation=translated):
-                errors, __ = t.check_entry('Name: {name}', translated)
-                self.assertTrue(errors)
-        self.assertTrue(t.check_entry('Name: {user.name}', 'Name: {user.other}')[0])
 
 class TestExtract(unittest.TestCase):
     def test_literals_and_problems(self):

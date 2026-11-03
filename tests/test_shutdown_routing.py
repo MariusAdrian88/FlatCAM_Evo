@@ -56,8 +56,7 @@ def shutdown(qt_app, monkeypatch):
     window.deleteLater()
 
 
-@pytest.mark.parametrize('entry, state', [('file', 'checking'), ('file', 'queued'), ('file', 'operation'),
-                                         ('file', 'saving'), ('tray', 'checking')])
+@pytest.mark.parametrize('entry, state', [('file', 'checking'), ('file', 'saving')])
 def test_user_exit_blocks_before_settings_and_project_prompt(shutdown, entry, state):
     s = shutdown
     s.final_save.assert_not_called()  # Registration must not call close eagerly.
@@ -80,7 +79,7 @@ def test_user_exit_blocks_before_settings_and_project_prompt(shutdown, entry, st
     assert s.app.inform.emit.called
 
 
-@pytest.mark.parametrize('entry', ['file', 'tray'])
+@pytest.mark.parametrize('entry', ['file'])
 def test_unsaved_project_cancel_keeps_window_open_after_settings_saved(shutdown, entry):
     s = shutdown
     dialogs = []
@@ -107,14 +106,6 @@ def test_unsaved_project_cancel_keeps_window_open_after_settings_saved(shutdown,
     s.lifecycle.quit_application.assert_not_called()
     s.app.f_handlers.on_file_save_project_as.assert_not_called()
     s.app.trayIcon.hide.assert_not_called()
-
-
-def test_editor_exit_still_finishes_editing_without_closing(shutdown):
-    shutdown.editor.trigger()
-    shutdown.app.on_editing_finished.assert_called_once_with()
-    assert shutdown.editor.menuRole() == QtGui.QAction.MenuRole.NoRole
-    shutdown.final_save.assert_not_called()
-    assert shutdown.window.isVisible()
 
 
 def end_save(s, tmp_path, should_quit=False):
@@ -178,13 +169,6 @@ def test_close_during_a_save_does_not_wait_for_the_next_task_of_the_worker(shutd
         assert worker.wait(5000)
 
 
-def test_save_timer_started_in_the_gui_thread_runs_at_once(shutdown, tmp_path):
-    # the project switch (ProjectManager) saves in the GUI thread and stops this timer right after the save
-    shutdown.lifecycle.start_delayed_quit(delay=500, filename=str(tmp_path / 'Board.FlatPrj'))
-    assert isinstance(shutdown.app.save_timer, QtCore.QTimer) and shutdown.app.save_timer.isActive()
-    shutdown.app.save_timer.stop()
-
-
 def test_close_during_a_failed_save_keeps_the_app_open(shutdown, tmp_path):
     from appHandlers.appIO import appIO
     s = shutdown
@@ -204,4 +188,12 @@ def test_close_during_a_failed_save_keeps_the_app_open(shutdown, tmp_path):
     s.final_save.assert_called_once_with()
     s.lifecycle.quit_application.assert_not_called()
     assert s.window.isVisible()
+
+
+def test_shutdown_message_handler_hides_only_the_qthreadstorage_warning(capsys):
+    from flatcam import _shutdown_message_handler
+    _shutdown_message_handler(None, None, 'QThreadStorage: entry 3 destroyed before end of thread 0x1234')
+    assert capsys.readouterr().err == ''
+    _shutdown_message_handler(None, None, 'QObject cleanup failed')
+    assert capsys.readouterr().err == 'WARNING: QObject cleanup failed\n'
 

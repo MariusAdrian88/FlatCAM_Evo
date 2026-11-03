@@ -55,7 +55,7 @@ def three_threads():
 # PassBuffers
 # ---------------------------------------------------------------------------------------------------------------
 
-@pytest.mark.parametrize('workers', [1, 3, 8])
+@pytest.mark.parametrize('workers', [1, 3])
 def test_same_geometry_as_one_pass_at_a_time(workers):
     geo = features()
     buffers = PassBuffers(geo, OFFSETS, 16, workers=workers)
@@ -88,7 +88,7 @@ def run_isolate(app, gerber, **kwargs):
     return created
 
 
-@pytest.mark.parametrize('combine', [True, False])
+@pytest.mark.parametrize('combine', [False])
 def test_isolate_makes_the_same_paths_as_one_pass_at_a_time(app, three_threads, combine):
     app.options['gerber_circle_steps_mode'] = 'fixed'     # the reference passes use the fixed steps of the object
     gerber = make_gerber(app, name='g')

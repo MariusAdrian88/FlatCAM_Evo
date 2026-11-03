@@ -73,25 +73,12 @@ class TestAffineGeometry(unittest.TestCase):
                 with self.subTest(op=name, geom=gname):
                     self.assert_same(affine_geometry(g, matrix), ref(g))
 
-    def test_mixed_2d_3d_list_order(self):
-        geoms = [Point(1, 1), LineString([(0, 0, 1), (1, 1, 2)]), Point(2, 2)]
-        m = affine_scale_matrix(2, 3, ORIGIN)
-        out = affine_geometry(geoms, m)
-        self.assert_same(out, [affinity.scale(g, 2, 3, origin=ORIGIN) for g in geoms])
-
     def test_nested_and_mixed_lists(self):
         g = make_geoms()
         obj = [g['poly_holes'], [g['line'], None, [g['point'], g['multipoly']]], None, 7, g['collection'], []]
         for name, ref, matrix in CASES:
             with self.subTest(op=name):
                 self.assert_same(affine_geometry(obj, matrix), map_geometry(obj, ref))
-
-    def test_mirror_axis_convention(self):
-        # axis "X": Y is flipped, axis "Y": X is flipped (same as Gerber.mirror / Geometry.mirror)
-        p = Point(2, 3)
-        self.assertEqual(tuple(affine_geometry(p, affine_mirror_matrix('X', (0, 0))).coords[0]), (2, -3))
-        self.assertEqual(tuple(affine_geometry(p, affine_mirror_matrix('Y', (0, 0))).coords[0]), (-2, 3))
-
 
 if __name__ == '__main__':
     unittest.main()

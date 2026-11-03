@@ -59,30 +59,6 @@ class TestUpdateView(unittest.TestCase):
             res.append((top.parent().row(), top.row(), bottom.row(), top.internalPointer()))
         return res
 
-    def test_object_emits_single_data_changed_for_its_row(self):
-        self.col.update_view(self.g2)
-        self.assertEqual(len(self.spy), 1)
-        self.assertEqual(len(self.layout_spy), 0)
-        top, bottom = self.spy[0][0], self.spy[0][1]
-        self.assertEqual(top.row(), 1)
-        self.assertEqual(bottom.row(), 1)
-        self.assertIs(top.internalPointer(), self.g2_item)
-        self.assertEqual(top.parent(), bottom.parent())
-        self.assertTrue(top.parent().isValid())
-        # no roles list: every role is refreshed
-        self.assertEqual(len(self.spy[0][2]), 0)
-
-    def test_no_arg_covers_all_non_empty_groups(self):
-        self.col.update_view()
-        self.assertEqual(len(self.layout_spy), 0)
-        ranges = self._ranges()
-        self.assertEqual(len(ranges), 2)
-        by_group = {self.col.root_item.child_items[r[0]]: r for r in ranges}
-        gerber = by_group[self.col.group_items["gerber"]]
-        excellon = by_group[self.col.group_items["excellon"]]
-        self.assertEqual((gerber[1], gerber[2]), (0, 2))
-        self.assertEqual((excellon[1], excellon[2]), (0, 0))
-
     def test_selection_and_persistent_index_survive(self):
         view = self.col.view
         gerber_group = self.col.group_items["gerber"]
@@ -151,14 +127,6 @@ class TestDragReorder(unittest.TestCase):
         # a selection that spans two categories cannot be dragged
         excellon_row = self.col.index(0, 0, excellon)
         self.assertIsNone(self.col.mimeData([self.col.index(0, 0, self._group_index("gerber")), excellon_row]))
-
-    def test_objects_of_a_later_category_can_be_dragged(self):
-        data = self.col.mimeData([self.col.index(0, 0, self._group_index("excellon"))])
-        excellon = self._group_index("excellon")
-        self.assertTrue(self.col.canDropMimeData(data, QtCore.Qt.DropAction.MoveAction, 0, -1, excellon))
-
-
-
 
 if __name__ == "__main__":
     unittest.main()

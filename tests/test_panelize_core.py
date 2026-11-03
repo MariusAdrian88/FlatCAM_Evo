@@ -2,18 +2,26 @@
 files are only parsed to get realistic input)."""
 
 from copy import deepcopy
+from random import Random
+from unittest.mock import Mock
 
 import numpy as np
 import pytest
 import shapely
 from shapely import affinity
+from shapely.ops import linemerge, snap, unary_union
 from shapely.geometry import LineString, MultiLineString, MultiPolygon, Point, Polygon, box
 
+from appHandlers.appIO import appIO
+from appObjects.ExcellonObject import ExcellonObject
+from appObjects.GeometryObject import GeometryObject
+from appObjects.GerberObject import GerberObject
 from appParsers import panelize_core as pc
+from tclCommands.TclCommandPanelize import TclCommandPanelize
 from camlib import grace
 
 from tests.helpers_objects import (  # noqa: F401,E402
-    app, assert_coords_close, assert_poly_equiv, _headless_qt, make_excellon, make_gerber, NATIVE_GBR, parts,
+    app, assert_coords_close, assert_poly_equiv, _headless_qt, make_excellon, make_gerber, parts,
     polygon_union,
 )
 
@@ -54,28 +62,13 @@ class TestGrid:
         assert pc.constrain_grid((0, 0, 10, 10), 3, 3, 5, 5, 30, 100) == (3, 2, True)
         assert pc.constrain_grid((0, 0, 10, 10), 3, 3, 5, 5, 100, 30) == (2, 3, True)
         assert pc.constrain_grid((0, 0, 10, 10), 4, 4, 5, 5, 25, 25) == (2, 2, True)
-
-    def test_constrain_cannot_fit_one_board(self):
         assert pc.constrain_grid((0, 0, 10, 10), 3, 3, 5, 5, 9, 9) == (0, 0, True)
-
-    def test_merge_lines_honors_abort_without_snapping(self):
-        tools = {1: {'solid_geometry': [LineString([(0, 0), (1, 0)])]}}
-        with pytest.raises(grace):
-            pc.merge_tool_lines(tools, abort=lambda: True)
-
-
-class TestTranslate:
-    def test_flat_result_for_nested_lists(self):
-        a, b, c = Point(0, 0), Point(1, 1), Point(2, 2)
-        out = pc.translate_flat([a, [b, [c]], None], 10, 20)
-        assert isinstance(out, list) and len(out) == 3
-        assert [(p.x, p.y) for p in out] == [(10, 20), (11, 21), (12, 22)]
 
 # ---------------------------------------------------------------------------------------------------------------
 # Gerber
 # ---------------------------------------------------------------------------------------------------------------
 
-@pytest.mark.parametrize('path', [None, NATIVE_GBR], ids=['mixed', 'native'])
+@pytest.mark.parametrize('path', [None], ids=['mixed'])
 class TestGerber:
     def build(self, app, path):
         src = make_gerber(app, name='g') if path is None else make_gerber(app, path, name='g')
@@ -131,19 +124,6 @@ def test_gerber_dark_clear_dark_keeps_composed_geometry_per_copy():
     assert new_tools[10]['geometry'][2]['solid'].bounds == (20, 0, 30, 10)
 
 
-def test_copy_gerber_attributes(app):
-    src = make_gerber(app, name='g')
-    src.export_as_regions = True
-    dst = type(src)('dst', app)
-    pc.copy_gerber_attributes(dst, src)
-    assert dst.export_as_regions is True
-    assert set(dst.aperture_macros) == set(src.aperture_macros) and dst.aperture_macros
-    assert all(dst.aperture_macros[k] is not src.aperture_macros[k] for k in src.aperture_macros)
-    src.export_as_regions = False
-    pc.copy_gerber_attributes(dst, src)
-    assert dst.export_as_regions is False
-
-
 # ---------------------------------------------------------------------------------------------------------------
 # Excellon
 # ---------------------------------------------------------------------------------------------------------------
@@ -168,26 +148,6 @@ class TestExcellon:
                     new_start, new_stop = tools[tid]['slots'][copy * ns + i]
                     assert (new_start.x, new_start.y, new_stop.x, new_stop.y) == \
                         pytest.approx((start.x + dx, start.y + dy, stop.x + dx, stop.y + dy))
-
-    def test_each_copy_of_a_hole_keeps_its_object_attribute_id(self):
-        tools = {1: {'tooldia': 1.0, 'drills': [Point(0, 0), Point(1, 0)], 'slots': [(Point(0, 1), Point(1, 1))],
-                     'drills_to': [2, 0], 'slots_to': [3]},
-                 2: {'tooldia': 2.0, 'drills': [Point(5, 5)], 'slots': []}}
-        new = pc.panelize_excellon(tools, [(0.0, 0.0), (10.0, 0.0), (20.0, 0.0)])
-        assert new[1]['drills_to'] == [2, 0] * 3 and new[1]['slots_to'] == [3] * 3
-        assert len(new[1]['drills']) == 6
-        # a tool without ids gets no keys; the source is not changed
-        assert 'drills_to' not in new[2] and 'slots_to' not in new[2]
-        assert tools[1]['drills_to'] == [2, 0]
-
-    def test_tool_data_kept_and_independent(self, app):
-        src, offs = self.build(app)
-        src.tools[1]['data'] = {'cutz': -1.7, 'tag': 'first'}
-        tools = pc.panelize_excellon(src.tools, offs)
-        assert tools[1]['tooldia'] == src.tools[1]['tooldia']
-        assert tools[1]['data'] == {'cutz': -1.7, 'tag': 'first'} and tools[1]['data'] is not src.tools[1]['data']
-        tools[1]['data']['cutz'] = 5
-        assert src.tools[1]['data']['cutz'] == -1.7
 
 # ---------------------------------------------------------------------------------------------------------------
 # Geometry
@@ -250,48 +210,6 @@ class TestAbortAndProgress:
             pc.panelize_geometry({}, [box(0, 0, 1, 1)], False, offs, abort=lambda: True)
 
 # ---------------------------------------------------------------------------------------------------------------
-# core == Tcl command
-# ---------------------------------------------------------------------------------------------------------------
-
-from test_panelize_tcl_characterization import run_panelize  # noqa: E402
-
-
-@pytest.mark.parametrize('path', [None, NATIVE_GBR], ids=['mixed', 'native'])
-def test_gerber_core_equals_tcl(app, path):
-    src = make_gerber(app, name='g') if path is None else make_gerber(app, path, name='g')
-    _, created = run_panelize(app, src, 'g', '-rows', str(ROWS), '-columns', str(COLS),
-                              '-spacing_columns', '5', '-spacing_rows', '5', '-outname', 'p')
-    pan = created['p']
-    offs = pc.grid_offsets(src.bounds(), ROWS, COLS, SPACING, SPACING)
-    tools, solid = pc.panelize_gerber(src.tools, src.solid_geometry, offs)
-    assert list(pan.tools) == list(tools)
-    for apid, tool in tools.items():
-        assert len(pan.tools[apid]['geometry']) == len(tool['geometry'])
-        for rec_t, rec_c in zip(pan.tools[apid]['geometry'], tool['geometry']):
-            assert set(rec_t) == set(rec_c)
-            for key in rec_c:
-                assert_coords_close(rec_t[key], rec_c[key], msg='%s %s' % (apid, key))
-        assert {k: v for k, v in pan.tools[apid].items() if k not in ('geometry', 'macro')} == \
-            {k: v for k, v in tool.items() if k not in ('geometry', 'macro')}
-    assert_coords_close(pan.solid_geometry, solid)
-
-
-def test_excellon_core_equals_tcl(app):
-    src = make_excellon(app, name='e')
-    _, created = run_panelize(app, src, 'e', '-rows', str(ROWS), '-columns', str(COLS),
-                              '-spacing_columns', '5', '-spacing_rows', '5', '-outname', 'q')
-    pan = created['q']
-    offs = pc.grid_offsets(src.bounds(), ROWS, COLS, SPACING, SPACING)
-    tools = pc.panelize_excellon(src.tools, offs)
-    assert list(pan.tools) == list(tools)
-    for tid, tool in tools.items():
-        assert pan.tools[tid]['tooldia'] == tool['tooldia']
-        assert [(p.x, p.y) for p in pan.tools[tid]['drills']] == pytest.approx(np.array([(p.x, p.y) for p in tool['drills']]))
-        assert [(a.x, a.y, b.x, b.y) for a, b in pan.tools[tid]['slots']] == \
-            pytest.approx(np.array([(a.x, a.y, b.x, b.y) for a, b in tool['slots']]))
-
-
-# ---------------------------------------------------------------------------------------------------------------
 # gerber_tools_from_geometry
 # ---------------------------------------------------------------------------------------------------------------
 
@@ -325,3 +243,129 @@ def test_gerber_tools_from_geometry_multigeo_fills_lines_like_the_former_panel_c
     assert records[0]['follow'].equals(records[0]['solid'].exterior)
     assert solid.symmetric_difference(shapely.unary_union([r['solid'] for r in records])).area < 1e-9
 
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# snapping of the panel paths (merge_tool_lines with snap_overlaps)
+# ---------------------------------------------------------------------------------------------------------------
+
+TOLERANCE = 1e-7
+
+
+def pairwise_merge(lines):
+    """The original snapping loop: the oracle of the indexed one."""
+    lines = list(lines)
+    for idx, line in enumerate(lines):
+        for idx_s in range(idx + 1, len(lines)):
+            result = snap(lines[idx_s], line, tolerance=TOLERANCE)
+            if result and not result.is_empty:
+                lines[idx_s] = result
+    return unary_union(linemerge(lines))
+
+
+def indexed_merge(lines):
+    tools = {1: {'solid_geometry': list(lines)}}
+    pc.merge_tool_lines(tools, snap_overlaps=True)
+    return tools[1]['solid_geometry'][0]
+
+
+@pytest.mark.parametrize('seed', range(1))
+def test_snapping_matches_pairwise_order_for_clustered_paths(seed):
+    rng = Random(seed)
+    lines = [LineString([(rng.randrange(3) + rng.uniform(-1, 1) * TOLERANCE, 0),
+                         (rng.randrange(3) + rng.uniform(-1, 1) * TOLERANCE, 1)]) for _ in range(25)]
+    assert indexed_merge(lines).equals_exact(pairwise_merge(lines), 0)
+
+
+def test_snapping_honors_cancellation_between_candidates():
+    lines = [LineString([(x, row * 10), (x, row * 10 + 1)]) for row in range(3) for x in (0, TOLERANCE / 2)]
+    tools = {1: {'solid_geometry': lines}}
+    with pytest.raises(grace):
+        pc.merge_tool_lines(tools, snap_overlaps=True, abort=lambda: True)
+    assert tools[1]['solid_geometry'] is lines
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# the Tcl command panelize (the headless driver is shared with test_panelize_plugin)
+# ---------------------------------------------------------------------------------------------------------------
+
+def run_panelize(app, src, *argv):
+    """Runs the command. Returns (result, created) where created = {name: object built by the init callback}."""
+    app.f_handlers = appIO(app)
+    created = {}
+
+    def new_object(kind, name, initialize, plot=True, **kwargs):
+        cls = {'gerber': GerberObject, 'excellon': ExcellonObject, 'geometry': GeometryObject}[kind]
+        obj = cls(name, app)
+        initialize(obj, app)
+        created[name] = obj
+        return 'ok'
+
+    app.collection.get_by_name = Mock(side_effect=lambda n: src if n == src.obj_options['name'] else None)
+    app.app_obj.new_object = Mock(side_effect=new_object)
+    cmd = TclCommandPanelize(app)
+    args, unnamed = cmd.check_args(tuple(argv))
+    return cmd.execute(args, unnamed), created
+
+
+def test_gerber_panel_inherits_export_as_regions_and_macros(app):
+    src = make_gerber(app, name='g')
+    src.export_as_regions = True
+    res, created = run_panelize(app, src, 'g', '-rows', '1', '-columns', '2', '-outname', 'p')
+    pan = created['p']
+    assert pan.export_as_regions is True
+    assert set(pan.aperture_macros) == set(src.aperture_macros) and pan.aperture_macros
+
+
+def test_excellon_panel_keeps_the_table_of_the_hole_ids(app):
+    from appParsers.ParseExcellon import hole_ids, to_state
+    src = ExcellonObject('e', app)
+    text = "M48\nMETRIC\nT1C1.0\n%\nG05\nT1\n; #@! TO.C,R1\nX1.0Y1.0\n; #@! TD\nX2.0Y2.0\nM30\n"
+    assert src.parse_lines(text.splitlines(keepends=True)) is None
+    src.create_geometry()
+    src.obj_options['name'] = 'e'
+    res, created = run_panelize(app, src, 'e', '-rows', '1', '-columns', '2', '-outname', 'p')
+    pan = created['p']
+    ids = hole_ids(pan.tools[1], 'drills')
+    assert ids is not None and len(ids) == 4
+    assert [to_state(pan.to_attributes, i) for i in ids].count({'.C': ['R1']}) == 2
+    assert pan.to_attributes == src.to_attributes and pan.to_attributes is not src.to_attributes
+
+
+@pytest.mark.parametrize('value', ['1', '0'])
+def test_use_thread_values_start_a_worker_task_or_run_at_once(app, value):
+    src = make_gerber(app, name='g')
+    res, created = run_panelize(app, src, 'g', '-columns', '2', '-rows', '1', '-use_thread', value)
+    assert res is None
+    if value == '0':
+        assert list(created) == ['g_panelized']
+        app.worker_task.emit.assert_not_called()
+    else:
+        assert not created
+        app.worker_task.emit.assert_called_once()
+        task = app.worker_task.emit.call_args[0][0]
+        task['fcn'](*task['params'])
+        assert list(created) == ['g_panelized']
+
+
+def test_missing_box_object_fails_and_creates_nothing(app):
+    src = make_gerber(app, name='g')
+    res, created = run_panelize(app, src, 'g', '-rows', '1', '-columns', '2', '-box', 'no_such_box')
+    assert res == 'fail' and not created
+    app.app_obj.new_object.assert_not_called()
+
+
+def test_only_rows_means_one_column(app):
+    src = make_gerber(app, name='g')
+    res, created = run_panelize(app, src, 'g', '-rows', '3', '-outname', 'p')
+    # the aperture 11 of the mixed fixture holds 1 record
+    assert res is None and len(created['p'].tools[11]['geometry']) == 3
+    assert created['p'].bounds()[2] == pytest.approx(src.bounds()[2])
+    assert created['p'].bounds()[3] > src.bounds()[3] + 2 * 5.0
+
+
+@pytest.mark.parametrize('argv', [(), ('-rows', '0', '-columns', '2')])
+def test_missing_zero_or_negative_counts_fail_instead_of_an_empty_panel(app, argv):
+    src = make_gerber(app, name='g')
+    res, created = run_panelize(app, src, 'g', *argv, '-outname', 'p')
+    assert res == 'fail' and not created

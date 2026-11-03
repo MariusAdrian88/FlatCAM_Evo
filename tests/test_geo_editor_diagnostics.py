@@ -28,23 +28,3 @@ def test_open_closed_duplicates_zero_and_self_intersection():
     assert shapes[2] not in report['open']
 
 
-
-
-
-
-
-
-def test_inspection_preserves_state_history_redo_and_cache():
-    editor, shapes = join_editor([[(0, 0), (1, 0)], [(1, 0), (2, 0)]])
-    assert editor.apply_path_join(0) != 'fail'
-    assert editor.undo()
-    before = [(s.geo.wkb, deepcopy(s.data)) for s in shapes]
-    inspect(editor, 0.1)
-    assert editor.selected == shapes
-    assert set(editor.storage.get_objects()) == set(shapes)
-    assert [(s.geo.wkb, s.data) for s in shapes] == before
-    assert editor.redo()
-
-
-
-

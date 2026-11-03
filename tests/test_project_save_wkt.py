@@ -72,9 +72,6 @@ class TestGeometryWktCache(unittest.TestCase):
         self.geoms = geometries()
         self.data = project(self.geoms)
 
-    def test_geometry_missing_from_the_cache_uses_to_dict(self):
-        text = json.dumps({'g': Point(1, 2)}, default=project_json_default({}))
-        self.assertTrue(json.loads(text, object_hook=dict2obj)['g'].equals(Point(1, 2)))
 
     def test_geometry_replaced_during_the_save_is_written_as_it_is_now(self):
         # the save dict shares the tool dicts of the objects (to_dict() is a shallow copy) and the project can

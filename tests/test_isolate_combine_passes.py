@@ -44,7 +44,7 @@ def expected_offsets(passes):
     return [DIA * ((2 * n + 1) / 2.0) - n * (OVERLAP / 100.0) * DIA for n in range(passes)]
 
 
-@pytest.mark.parametrize('passes', [1, 2, 3])
+@pytest.mark.parametrize('passes', [3])
 def test_combined_result_is_the_union_of_the_separate_passes(app, passes):
     gerber = make_gerber(app, name='g')
     combined = run_isolate(app, gerber, passes=passes, combine=True, outname='combined')

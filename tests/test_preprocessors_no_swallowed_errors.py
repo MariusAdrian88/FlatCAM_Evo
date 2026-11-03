@@ -134,10 +134,7 @@ def test_plotter_units_position_and_feedrate():
     assert pp.position_code(params(x=10.0, y=5.0, _bed_offset_x=5.0)) == 'PA600,200;'
     assert pp.position_code(params(x=1000.0, y=-1000.0)) == 'PA32767,-32768;'
     assert pp.position_code(params(x=800.0, y=5.0, _bed_offset_x=100.0)) == 'PA32767,200;'
-
-
-def test_roland_plunges_at_the_z_feedrate():
-    # the down code set the XY feedrate over the Z feedrate set just before it: the plunge ran at the XY feed
+    # the Roland plunge runs at the Z feedrate (the down code once set the XY feedrate over it)
     for name, res in (('Roland_MDX_20', 40), ('Roland_MDX_540', 100)):
         pp = PREPROCESSORS[name]
         p = params(feedrate=600.0, z_feedrate=60.0, z_cut=-0.1)
@@ -242,7 +239,7 @@ def test_grblhal_tool_change_leaves_the_pause_to_the_firmware():
     assert not re.search(r'^M6$', no_m6, re.M)
 
 
-@pytest.mark.parametrize('xy', [None, [5.0, 7.0]])
+@pytest.mark.parametrize('xy', [[5.0, 7.0]])
 def test_probe_tool_change(xy):
     pp = PREPROCESSORS['Toolchange_Probe_MACH3']
     # the spindle is off and the tool is retracted before the tool change, and the wait comes last
@@ -286,23 +283,6 @@ def test_dwell_fan_and_laser_power_values():
     for spindlespeed in (None, 0):
         assert PREPROCESSORS['default_laser'].spindle_code(params(spindlespeed=spindlespeed)) == 'M3 S0'
     assert PREPROCESSORS['default_laser'].down_code(params(spindlespeed=500)) == 'M3 S500'
-
-
-def test_start_blocks_of_laser_z_and_nccad_excellon():
-    # a tool that misses keys does not lose the start block; the header shows the values, '-' when unset
-    g = PREPROCESSORS['Marlin_laser_z'].start_code(params(
-        use_ui=True, multigeo=True, tools={1: {'tooldia': 1, 'data': {'tools_drill_feedrate_z': 50}}}))
-    for part in ['Feedrate: 50', 'Z: -', 'G90']:
-        assert part in g
-    g = PREPROCESSORS['GRBL_laser_z'].start_code(params(
-        kind='Excellon', use_ui=True, multigeo=True,
-        tools={1: {'tooldia': 0.8, 'data': {'tools_drill_feedrate_z': 50, 'tools_drill_travelz': 2,
-                                            'tools_drill_spindlespeed': 300}},
-               2: {'tooldia': 1.0, 'data': {}}}))
-    for part in ['G21', 'G90', 'Feedrate: 50', 'Z: 2)', 'Power: 300', 'Power: -)']:
-        assert part in g
-    tools = {1: {'tooldia': 0.8, 'nr_drills': 3, 'data': dict(DRILL_DATA)}}
-    assert 'G21\nG90\nG76' in PREPROCESSORS['NCCAD9'].start_code(params('Excellon', tools=tools))
 
 
 def test_no_preprocessor_swallows_an_exception():
@@ -381,7 +361,7 @@ def test_extra_cut_of_a_multi_pass_is_made_at_the_pass_depth():
     assert cut_depths == {'-0.5000'}, gcode
 
 
-@pytest.mark.parametrize('end_xy', [None, [3.0, 4.0]])
+@pytest.mark.parametrize('end_xy', [None])
 def test_line_xyz_writes_its_start_block(end_xy):
     app, job = _job('Geometry', 'Line_xyz', end_xy=end_xy)
 

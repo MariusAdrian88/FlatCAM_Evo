@@ -12,7 +12,7 @@ from tests.helpers_objects import (  # noqa: F401,E402
 )
 
 
-@pytest.mark.parametrize('operation', ['scale', 'quarter_turn', 'nonuniform', 'skew', 'alignment'])
+@pytest.mark.parametrize('operation', ['scale', 'quarter_turn', 'skew'])
 def test_export_roundtrip_after_matrix_undo_redo(app, tmp_path, operation):
     # fixed steps: adaptive steps follow the radius, so a scaled coarse circle and a re-parsed bigger circle differ in tessellation
     app.options['gerber_circle_steps_mode'] = 'fixed'

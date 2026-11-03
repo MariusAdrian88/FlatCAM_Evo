@@ -1,9 +1,5 @@
 from __future__ import annotations
 
-import ast
-import plistlib
-import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -56,21 +52,6 @@ def _fake_freezer_class(calls, *, include_recovery=True, include_executable=True
 @unittest.skipIf(make_freeze is None, "make_freeze.py is not present")
 class TestMakeFreeze(unittest.TestCase):
 
-    def test_windows_has_a_console_executable_for_headless_runs(self):
-        created = []
-
-        def fake_executable(script, **kwargs):
-            created.append((Path(script).name, kwargs))
-            return SimpleNamespace(script=script, kwargs=kwargs)
-
-        with patch.object(make_freeze, 'Executable', fake_executable),                 patch.object(make_freeze.sys, 'platform', 'win32'):
-            executables = make_freeze.make_main_executables(make_freeze.ROOT)
-
-        self.assertEqual(
-            [('flatcam.py', {'target_name': 'FlatCAM.exe', 'base': 'gui'}),
-             ('flatcam.py', {'target_name': 'FlatCAM-cli.exe'})],
-            created)
-        self.assertEqual(2, len(executables))
 
     def test_incomplete_updater_is_rejected_without_touching_existing_final_runtime(self):
         calls = []

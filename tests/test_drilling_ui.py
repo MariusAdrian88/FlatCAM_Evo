@@ -125,16 +125,6 @@ def test_apply_to_all_with_a_totals_row_current_never_blanks_the_tools(fc):
     assert set(after[1]) == set(before[1])
 
 
-def test_reset_button_restores_the_defaults_of_the_object(fc):
-    exc = _load(fc, 'e_ui_reset')
-    tool = _open(fc, 'e_ui_reset')
-    default = exc.obj_options['tools_drill_cutz']
-    _edit(tool.ui.cutz_entry, default - 1.0)
-    assert exc.tools[1]['data']['tools_drill_cutz'] == default - 1.0
-    tool.ui.reset_button.click()
-    assert all(t['data']['tools_drill_cutz'] == default for t in exc.tools.values())
-
-
 # ---------------------------------------------------------------------------------------------------------------------
 # Exclusion areas
 # ---------------------------------------------------------------------------------------------------------------------
@@ -177,20 +167,6 @@ def _generate(fc, monkeypatch, tool):
     return job if getattr(job, 'kind', None) == 'cncjob' else None
 
 
-def test_no_toolchange_job_counts_the_drills_of_every_selected_tool(fc, monkeypatch):
-    exc = _load(fc, 'e_job_cnt')
-    for tl in exc.tools.values():
-        tl['data']['tools_drill_toolchange'] = False
-    tool = _open(fc, 'e_job_cnt')
-    job = _generate(fc, monkeypatch, tool)
-    assert job is not None
-    assert len(job.tools) == 1                      # one tool entry for the whole job without toolchange
-    entry = next(iter(job.tools.values()))
-    total = sum(len(t['drills']) for t in exc.tools.values())
-    assert entry['nr_drills'] == total
-    assert len(entry['drills']) == entry['nr_drills']
-
-
 def test_exclusion_areas_steer_the_travels_only_when_the_tool_uses_them(fc, monkeypatch):
     def two_holes(name, use_areas):
         # one tool, two holes 20 apart: the travel between them crosses the area below
@@ -221,4 +197,4 @@ def test_exclusion_areas_steer_the_travels_only_when_the_tool_uses_them(fc, monk
     tool.change_level('a')
     assert _generate(fc, monkeypatch, tool).gcode != plain
 
-
+

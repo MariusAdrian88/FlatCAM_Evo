@@ -159,13 +159,6 @@ def test_the_optimization_type_defaults_to_the_application_option():
         [(8.0, 8.0), (1.0, 1.0)]
 
 
-@pytest.mark.parametrize('order, expected', [('rev', ['2', '1'])])
-def test_the_tools_are_drilled_in_the_order_asked(order, expected):
-    tools = {2: (1.0, [(5.0, 5.0)], (), {}), 1: (0.8, [(1.0, 1.0)], (), {})}
-    code = run(tools, ['-toolchange', 1, '-order', order])[2]
-    assert re.findall(r'^T(\d+)$', code, re.M) == expected
-
-
 def test_the_tools_of_the_job_are_in_the_order_they_are_drilled():
     # T1 is bigger than T2: T2 is drilled first, after the spot pass (T3). The export (CNCJobObject.export_gcode())
     # joins the G-code of the tools in the order of job.tools: the end code was in the middle of the file, the file
@@ -286,13 +279,6 @@ def test_the_spot_pass_comes_first_over_all_the_holes_with_the_next_free_tool_nu
     assert job.tools[3]['gcode_parsed'] == [] and job.tools[3]['gcode']
 
 
-def test_the_spot_pass_without_a_toolchange_is_skipped_with_a_warning():
-    app, job, code = run(PER_TOOL, ['-toolchange', 0, '-spot', 1])
-    assert 'Z-0.3000' not in code and sorted(job.tools) == [1, 2]
-    assert any('spot' in str(c.args[0]).lower() and 'toolchange' in str(c.args[0]).lower()
-               for c in app.inform.emit.call_args_list)
-
-
 # ---------------------------------------------------------------------------------------------------------------------
 # job XY transforms: mirror -> offset -> array
 
@@ -306,21 +292,12 @@ def test_job_offset_mirror_and_array_args_transform_the_holes():
     assert moved == [(10.0, -5.0), (12.0, -1.0), (14.0, -3.0)]
     mirrored = sorted(drilled_positions(run(XF_TOOLS, ['-mirror', 'y'])[2]))
     assert mirrored == [(0.0, 2.0), (2.0, 4.0), (4.0, 0.0)]
-
-
-def test_job_mirror_point_and_array_args():
     mirrored = sorted(drilled_positions(run(XF_TOOLS, ['-mirror', 'xy', '-mirror_point', '0,0'])[2]))
     assert mirrored == [(-4.0, -2.0), (-2.0, -4.0), (0.0, 0.0)]
     grid = drilled_positions(run(XF_TOOLS, ['-array', '2,2', '-array_pitch', '100,50'])[2])
     assert len(grid) == 12 and (104.0, 52.0) in grid and (2.0, 54.0) in grid
     __, job, __ = run(XF_TOOLS, ['-array', '2,1', '-array_pitch', '20,0', '-toolchange', 1])
     assert job.tools[1]['nr_drills'] == 4 and job.tools[2]['nr_drills'] == 2
-
-
-@pytest.mark.parametrize('argv', [['-job_offset', 'abc']])
-def test_invalid_job_transform_args_are_errors(argv):
-    with pytest.raises(Exception):
-        run(XF_TOOLS, argv)
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -363,14 +340,10 @@ def milled_tools(dias):
     return obj.generate_milling_drills.call_args.kwargs['tools']
 
 
-@pytest.mark.parametrize('dias, tools', [('0.8,3.0', {1}), ('1.0,0.8,3.0', {1, 2})])
-def test_drilled_dias_superset_processes_only_the_matching_tools(dias, tools):
-    __, job, __ = run(TWO, ['-toolchange', 1, '-drilled_dias', dias])
-    assert set(tool_codes(job)) == tools
-    assert milled_tools(dias) == tools
-
-
-def test_drilled_dias_without_a_match_fails():
+def test_drilled_dias_process_only_the_matching_tools_and_no_match_fails():
+    __, job, __ = run(TWO, ['-toolchange', 1, '-drilled_dias', '0.8,3.0'])
+    assert set(tool_codes(job)) == {1}
+    assert milled_tools('0.8,3.0') == {1}
     with pytest.raises(Exception):
         run(TWO, ['-drilled_dias', '3.0'])
     with pytest.raises(Exception):

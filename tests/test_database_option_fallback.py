@@ -33,18 +33,6 @@ class TestDatabaseOptionFallback(unittest.TestCase):
         self.assertEqual(factory_value, {"colors": ["red"]})
         self.assertEqual(second, {"colors": ["red"]})
 
-    def test_runtime_mutable_value_keeps_identity_and_overrides_factory(self):
-        factory_value = []
-        runtime_value = []
-        app = SimpleNamespace(
-            defaults=Defaults({}, {"mutable": factory_value}),
-            options={"mutable": runtime_value},
-        )
-
-        result = _database_option(app, "mutable")
-
-        self.assertIs(result, runtime_value)
-        self.assertIsNot(result, factory_value)
 
     def test_present_falsy_default_overrides_factory_value(self):
         factory_value = ["factory"]

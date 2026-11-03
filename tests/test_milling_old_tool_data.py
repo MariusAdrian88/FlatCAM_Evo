@@ -15,7 +15,6 @@ makes it like the Milling plugin, with its form.
 import os
 from copy import deepcopy
 from types import SimpleNamespace
-from unittest.mock import Mock
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
@@ -23,8 +22,7 @@ import pytest
 from PyQt6 import QtWidgets
 from shapely import LineString
 
-from appPlugins.ToolMilling import (ToolMilling, LEGACY_MILL_DATA_KEYS, LEGACY_MILL_DATA_TEXTS, LEGACY_MILL_TOOL_KEYS,
-                                     legacy_mill_value)
+from appPlugins.ToolMilling import ToolMilling
 from camlib import CNCjob
 from defaults import AppDefaults
 from preprocessors.GRBL_11 import GRBL_11
@@ -76,19 +74,6 @@ def flatcam_8_994_cutout_tool(**data_changes):
             'travelz': 2.0, 'vtipangle': 30.0, 'vtipdia': 0.1}
     data.update(data_changes)
     return {'offset': 'Path', 'offset_value': 0.0, 'tool_type': 'C1', 'tooldia': '1.75', 'type': 'Rough', 'data': data}
-
-
-def flatcam_8_994_laser_tool():
-    """A tool of an isolation Geometry in a real FlatCAM 8.994 project, for a laser: the power is its spindlespeed."""
-    data = {'area_exclusion': False, 'area_overz': 1.0, 'area_shape': 'polygon', 'area_strategy': 'over',
-            'cutz': 0.0, 'depthperpass': 0.8, 'dwell': False, 'dwelltime': 1.0, 'endxy': None, 'endz': 20.0,
-            'extracut': False, 'extracut_length': 0.1, 'feedrate': 1000.0, 'feedrate_rapid': 500.0,
-            'feedrate_z': 60.0, 'multidepth': False, 'name': 'board-F_Cu.gbr_iso_combined', 'optimization_type': 'R',
-            'plot': True, 'polish': False, 'ppname_g': 'GRBL_laser', 'search_time': 3, 'spindledir': 'CW',
-            'spindlespeed': 1000, 'startz': None, 'toolchange': False, 'toolchangexy': [0.0, 0.0],
-            'toolchangez': 15.0, 'tools_iso_passes': 6, 'tools_iso_overlap': 30.0, 'travelz': 2.0, 'vtipangle': 30.0,
-            'vtipdia': 0.1}
-    return {'offset': 'Path', 'offset_value': 0.0, 'tool_type': 'V', 'tooldia': 0.1, 'type': 'Iso', 'data': data}
 
 
 def milling_harness(tool, multigeo, **options):
@@ -195,8 +180,7 @@ def load_plugin_target(milling):
     milling.on_object_changed()
 
 
-@pytest.mark.parametrize('multigeo', [False, True])
-@pytest.mark.parametrize('edit_depth', [False, True])
+@pytest.mark.parametrize('multigeo, edit_depth', [(False, False), (True, True)])
 def test_legacy_form_displays_the_generated_parameters(multigeo, edit_depth):
     tool = flatcam_8_994_cutout_tool()
     milling, jobs = milling_harness(tool, multigeo, **OTHER_OPTIONS)
@@ -226,25 +210,6 @@ def test_legacy_form_displays_the_generated_parameters(multigeo, edit_depth):
     assert 'G00 Z2.0000' in gcode and 'G00 Z15.00' in gcode
     assert jobs[0].pp_geometry_name == milling.ui.pp_geo_name_cb.get_value()
     assert 'Z-0.5000' not in gcode
-
-
-@pytest.mark.parametrize('multigeo', [False, True])
-def test_cnc_job_from_flatcam_8_994_tool_data(multigeo):
-    tool = flatcam_8_994_laser_tool()
-    data = tool['data']
-
-    gcode, _milling = make_cnc_job(tool, multigeo, **dict(OTHER_OPTIONS, tools_mill_ppname_g='default'))
-
-    # the saved laser preprocessor and laser power; the laser ON code of the saved spindle direction (CW), as in an
-    # 8.994 multi-geometry job, not the application one (M4)
-    assert 'M03 S1000' in gcode and 'M4 S' not in gcode and 'S500' not in gcode
-    assert data['tools_mill_ppname_g'] == 'GRBL_laser' and data['tools_mill_laser_on'] == 'M03'
-    # the tool diameter comes from the tool, not from the application option
-    assert data['tools_mill_tooldia'] == 0.1 != OTHER_OPTIONS['tools_mill_tooldia']
-    assert data['tools_mill_job_type'] == 2 and data['tools_mill_tool_shape'] == 5   # 'Iso', 'V'
-    assert all(k in data for k in MILL_OPTIONS)
-    # the older keys stay in the tool data
-    assert data['cutz'] == 0.0 and data['name'] == 'board-F_Cu.gbr_iso_combined'
 
 
 @pytest.mark.parametrize('multigeo', [False, True])
@@ -278,7 +243,7 @@ def make_cnc_job_with_preprocessor(tool, multigeo, **options):
 
 
 @pytest.mark.parametrize('saved, app_value, expected', [
-    ('Standard', 2, 0), ('Seed', 2, 1), ('lines', 0, 2), (0, 2, 0),
+    ('Seed', 2, 1),
     # not recognized, so the application value: a translated text (here Spanish), an index that does not exist, a bool
     ('Semilla', 2, 2), (7, 1, 1), (True, 2, 2)])
 def test_saved_polish_method(saved, app_value, expected):

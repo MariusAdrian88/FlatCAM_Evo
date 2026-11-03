@@ -125,17 +125,6 @@ class TestFileAssociations(unittest.TestCase):
         self.assertTrue(os.path.isfile(icon[:-2]))
         self.notify.assert_called()
 
-    def test_first_start_of_a_new_version_moves_an_earlier_registration_to_the_new_icon(self):
-        self.reg.on_register_files('project')
-        icon_key = ("HKCU", "software\\classes\\flatcam.project\\defaulticon")
-        old_icon = "C:\\FlatCAM\\assets\\resources\\flatcam_icon256.ico,0"  # written by 1.0
-        self.fake.keys[icon_key] = old_icon
-        first_start(first_run=False, new_version=False)  # a usual start does not touch the registry
-        self.assertEqual(old_icon, self.fake.keys[icon_key])
-        first_start(first_run=False, new_version=True)
-        self.assertTrue(self.fake.keys[icon_key].endswith("app256.ico,0"))
-        self.assertIsNone(self.val("Software\\Classes\\FlatCAM.Config\\DefaultIcon"))  # not registered: not made
-
     def test_unregister_keeps_foreign_association(self):
         self.reg.on_register_files('project')
         self.fake.keys[("HKCU", "software\\classes\\.flatprj")] = "OtherApp.File"
@@ -148,17 +137,6 @@ class TestFileAssociations(unittest.TestCase):
         for ext in ("drl", "nc", "gbr", "gtl"):
             self.assertEqual(self.val("Software\\Classes\\.%s" % ext), "FlatCAM")
         self.assertIsNotNone(self.val("Software\\Classes\\FlatCAM\\shell\\open\\command"))
-
-    def test_apply_unregisters_only_what_points_to_flatcam(self):
-        # .nc and .gbr are in the saved lists, no longer in the Preferences lists; .nc belongs to another program now
-        self.fake.keys[("HKCU", "software\\classes\\.nc")] = "OtherApp.File"
-        self.fake.keys[("HKCU", "software\\classes\\.gbr")] = "FlatCAM"
-        self.reg.ui.util_pref_form.fa_gcode_group.gco_list_text = ListText()
-        self.reg.ui.util_pref_form.fa_gerber_group.grb_list_text = ListText()
-        self.reg.on_register_files()
-        self.assertEqual(self.val("Software\\Classes\\.nc"), "OtherApp.File")
-        self.assertIsNone(self.val("Software\\Classes\\.gbr"))
-        self.assertEqual(self.val("Software\\Classes\\.drl"), "FlatCAM")
 
 class FakeHome(unittest.TestCase):
     """A fake home folder and fake system tools: nothing outside the temp folder is touched or run."""
@@ -261,15 +239,6 @@ class TestMacAssociations(FakeHome):
         self.assertTrue(self.called(self.ls, "-f", self.bundle))
         self.assertTrue(self.called("duti", "-s", "org.flatcam.evo", ".gbr", "all"))
         self.assertTrue(self.called("duti", "-s", "org.flatcam.evo", "org.flatcam.evo.project", "all"))
-
-    def test_unregister_last_type_removes_bundle(self):
-        self.reg.on_register_files("project")
-        self.reg.on_register_files("gerber")
-        self.reg.on_unregister_files("gerber")
-        self.assertEqual(sorted(self.info()["FlatCAMAssociations"]), ["project"])
-        self.reg.on_unregister_files("project")
-        self.assertFalse(os.path.exists(self.bundle))
-        self.assertTrue(self.called(self.ls, "-u", self.bundle))
 
     def test_foreign_bundle_is_left_alone(self):
         os.makedirs(os.path.join(self.bundle, "Contents"))

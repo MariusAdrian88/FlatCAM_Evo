@@ -39,15 +39,6 @@ def test_fixed_version_overflow_raises_and_auto_grows():
 
 
 # --- insert_geometry -----------------------------------------------------------------------------------------------
-def test_negative_polarity_and_outline():
-    modules, utility, _ = _qr()
-    base = dict(border_size=2, box_size=10, rounded='s', units='MM')
-    (solid, _tools, outline) = gen.insert_geometry([], {}, modules, utility, (5, 5), polarity='neg',
-                                                   with_outline=True, **base)
-    mask = translate(box(*utility.bounds).buffer(2.0, join_style='mitre'), 5, 5)
-    assert unary_union(solid).area == pytest.approx(mask.area - utility.area, rel=1e-3)
-    assert unary_union(outline).equals_exact(translate(utility, 5, 5), 1e-6) or \
-        unary_union(outline).symmetric_difference(translate(utility, 5, 5)).area < 1e-6
 
 
 def test_new_gerber_geometry_and_mask_opening():

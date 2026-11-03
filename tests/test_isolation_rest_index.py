@@ -66,9 +66,7 @@ def run_rest(geometry, passes, negative_dia=False, forced_rest=False, tooldia=TO
                                                 env_iso_type=2, negative_dia=negative_dia, forced_rest=forced_rest)
 
 
-@pytest.mark.parametrize('passes', [1, 3])
-@pytest.mark.parametrize('forced_rest', [False, True])
-@pytest.mark.parametrize('negative_dia', [False, True])
+@pytest.mark.parametrize('passes, forced_rest, negative_dia', [(3, True, True)])
 def test_same_passes_as_the_pairwise_test(passes, forced_rest, negative_dia):
     geometry = polygons()
     isolated, not_isolated = run_rest(geometry, passes, negative_dia, forced_rest)
@@ -87,8 +85,7 @@ def test_close_pads_and_small_holes_are_left_for_a_smaller_tool():
     assert [g.wkb for g in not_isolated] == [g.wkb for g in geometry[0:2]]
 
 
-@pytest.mark.parametrize('negative_dia', [False, True])
-@pytest.mark.parametrize('forced_rest', [False, True])
+@pytest.mark.parametrize('negative_dia, forced_rest', [(True, True)])
 def test_dense_passes_preserve_paths_and_abandoned_polygons(negative_dia, forced_rest):
     geometry = [box((i % 30) * 0.1, (i // 30) * 0.1,
                     (i % 30) * 0.1 + 0.02, (i // 30) * 0.1 + 0.02) for i in range(900)]

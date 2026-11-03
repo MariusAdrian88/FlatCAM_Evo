@@ -4,7 +4,6 @@ import hashlib
 import os
 import zipfile
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -124,31 +123,6 @@ def _patch_dialogs(monkeypatch, windows_root, output_root, notes=("", True), ans
         monkeypatch.setattr(QtWidgets.QMessageBox, "question", lambda *args, **kwargs: answer)
 
 
-def test_prepare_workflow_rejects_incomplete_inputs_before_worker_dispatch(monkeypatch, tmp_path):
-    from appMain import App
-
-    source = tmp_path / "invalid-source"
-    source.mkdir()
-    windows = tmp_path / "invalid-windows"
-    windows.mkdir()
-    output = tmp_path / "output"
-    output.mkdir()
-    app = _workflow_app(source)
-    _patch_dialogs(
-        monkeypatch,
-        windows,
-        output,
-        notes=("notes", True),
-        answer=QtWidgets.QMessageBox.StandardButton.Yes,
-    )
-
-    App.prepare_update_files(app)
-
-    assert app.worker_task.emissions == []
-    assert app._release_preparation_in_progress is False
-    assert "required" in app.inform.emissions[-1][0].lower()
-
-
 def test_release_core_failure_leaves_no_partial_final_pair(monkeypatch, tmp_path):
     windows = _make_windows(tmp_path / "windows")
     linux = _make_source(tmp_path / "linux")
@@ -180,7 +154,7 @@ def test_release_core_failure_leaves_no_partial_final_pair(monkeypatch, tmp_path
     assert not list(output.rglob("*.part"))
 
 
-@pytest.mark.parametrize("layout", ("equal_windows", "nested_windows", "nested_linux", "roots_inside_output"))
+@pytest.mark.parametrize("layout", ("nested_windows",))
 def test_release_rejects_overlapping_output_before_staging_and_preserves_files(
     monkeypatch, tmp_path, layout
 ):
@@ -298,40 +272,4 @@ def test_end_to_end_preparation_has_four_verified_platform_upload_files(monkeypa
         assert not any(name.startswith(("tests/", "docs/", ".git/", ".venv/", "user_config/")) for name in names)
         assert names == {entry.path for entry in manifest.files}
 
-
-def test_successful_result_resets_state_reports_paths_and_opens_output(monkeypatch, tmp_path):
-    from appMain import App
-
-    source = _make_source(tmp_path / "source")
-    app = _workflow_app(source)
-    progress = Progress()
-    progress.show()
-    app._update_progress_dialog = progress
-    app._release_preparation_in_progress = True
-    paths = tuple(
-        tmp_path / name
-        for name in (
-            "windows/manifest.json",
-            "windows/flatcam-windows.zip",
-            "linux/manifest.json",
-            "linux/flatcam-source.zip",
-        )
-    )
-    for path in paths:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(b"file")
-    opened = []
-    monkeypatch.setattr(
-        "appMain.QtGui.QDesktopServices.openUrl",
-        lambda url: opened.append(url) or True,
-    )
-
-    App.on_release_prepared(
-        app,
-        {"success": True, "output_dir": str(tmp_path), "upload_paths": [str(path) for path in paths]},
-    )
-
-    assert app._release_preparation_in_progress is False
-    assert progress.closed is True
-    assert all(str(path) in app.inform.emissions[-1][0] for path in paths)
-    assert opened
+

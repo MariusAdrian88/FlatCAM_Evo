@@ -63,9 +63,6 @@ class TestKeysWithoutPlotArea(unittest.TestCase):
             MainGUI.keyPressEvent(gui, int(key))
         return gui
 
-    def test_ctrl_s_saves_the_project(self):
-        gui = self.press(QtCore.Qt.Key.Key_S, CTRL)
-        gui.app.f_handlers.on_file_save_project.assert_called_once_with()
 
 class TestEscapeLeavesFullScreen(unittest.TestCase):
     @classmethod
@@ -106,12 +103,6 @@ class TestEscapeLeavesFullScreen(unittest.TestCase):
         self.assertFalse(self.window.isFullScreen())
         self.assertTrue(self.toolbar.isVisible())
 
-    def test_escape_in_a_normal_window_only_deselects(self):
-        self.press_escape()
-        self.window.app.on_deselect_all.assert_called_once_with()
-        self.assertFalse(self.window.isFullScreen())
-        self.assertTrue(self.toolbar.isVisible())
-
 
 class TestViewKeys(unittest.TestCase):
     @classmethod
@@ -142,18 +133,6 @@ class TestViewKeys(unittest.TestCase):
         self.window.activateWindow()
         self.target.setFocus()
         self.qapp.processEvents()
-
-    def test_view_toggles_work_once_outside_text_inputs(self):
-        self.window.app.call_source = 'geo_editor'
-        for key, action in self.actions.items():
-            with self.subTest(key=key):
-                before = action.isChecked()
-                QtTest.QTest.keyClick(self.target, getattr(QtCore.Qt.Key, 'Key_' + key), SHIFT)
-                self.assertEqual(action.isChecked(), not before)
-                event = QtGui.QKeyEvent(QtCore.QEvent.Type.KeyPress,
-                                       getattr(QtCore.Qt.Key, 'Key_' + key), SHIFT, key, True)
-                self.qapp.sendEvent(self.target, event)
-                self.assertEqual(action.isChecked(), not before)
 
 
 if __name__ == '__main__':

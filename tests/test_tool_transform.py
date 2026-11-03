@@ -200,24 +200,6 @@ class TransformTest(unittest.TestCase):
                 self.run_action(name, [o], *args)
                 self.check_matrix(o, original)
 
-    def test_local_bounds_and_notification_compute_fresh_bounds(self):
-        objs = [FakeObj(None, 'a'), FakeObj(None, 'b')]
-        tool, app = self.tool(objs)
-        app.app_obj.object_changed.emit.side_effect = lambda obj: AppObject.on_object_changed(tool, obj)
-        app.app_obj.object_transform_done.emit.side_effect = \
-            lambda obj, set_offset: AppObject.on_object_transform_done(tool, obj, set_offset)
-        ToolTransform.on_rotate_action(tool, 30.0, (0.0, 0.0))
-        expected = {o: o.geo.solid_geometry[0].bounds for o in objs}
-        for o in objs:
-            # the bounds are computed once by on_object_changed and reused by the transform completion
-            self.assertEqual(o.bounds_calls, 1)
-            self.assertEqual(o.offset_bounds, [expected[o]])
-        self.assertEqual(app.app_obj.object_changed.emit.call_count, 2)
-        # one final message
-        # the plugin emits one final message (the camlib methods emit their own per object)
-        msgs = [c.args[0] for c in app.inform.emit.call_args_list]
-        self.assertEqual(sum("Rotate done" in m for m in msgs), 1)
-        self.assertIn("Rotate done", msgs[-1])
 
     def test_mutation_then_failure_rolls_back_and_continues(self):
         for failure in ('fail', 'exception', 'metadata', 'plot'):
@@ -245,10 +227,6 @@ class TransformTest(unittest.TestCase):
                 self.assertTrue(bad.solid_geometry[0].equals_exact(original, 0))
                 self.assertNotIn('offset_x', bad.obj_options)
                 self.assertFalse(good.solid_geometry[0].equals_exact(original, 0))
-
-    def test_no_selection(self):
-        app = self.run_action('on_offset', [], 'X', 2.0)
-        self.assertIn('WARNING_NOTCL', app.inform.emit.call_args.args[0])
 
 
     def test_singular_skew_and_uninvertible_matrices_change_nothing(self):

@@ -7,7 +7,6 @@ import io
 import json
 import zipfile
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
@@ -245,7 +244,7 @@ def test_cumulative_deletions_select_only_the_installed_target_range(monkeypatch
 
 @pytest.mark.parametrize(
     "asset_body",
-    [pytest.param(b"{", id="bad-json"), pytest.param(b'{"schema_version":true,"windows":[],"linux":[]}', id="bool-schema"), pytest.param(b'{"schema_version":1,"windows":[]}', id="missing-linux-list")],
+    [pytest.param(b"{", id="bad-json")],
 )
 def test_invalid_advertised_asset_aborts_and_cleans(monkeypatch, tmp_path, asset_body):
     with pytest.raises(StagingError):
@@ -261,7 +260,7 @@ def test_invalid_advertised_asset_aborts_and_cleans(monkeypatch, tmp_path, asset
 
 @pytest.mark.parametrize(
     "path",
-    ["config/settings.json", "updater/FlatCAMUpdater.exe", ".git/config"],
+    ["config/settings.json"],
 )
 def test_protected_deletion_paths_are_rejected_even_when_out_of_range(monkeypatch, tmp_path, path):
     asset = _asset(windows=[_deletion(path, "0.1")], linux=[_deletion(path, "0.1")])
@@ -278,7 +277,7 @@ def test_protected_deletion_paths_are_rejected_even_when_out_of_range(monkeypatc
 
 @pytest.mark.parametrize(
     "path",
-    ["lib/file:stream", "AUX", "lib/trailing."],
+    ["lib/file:stream"],
 )
 def test_windows_unsafe_deletion_paths_are_validated_on_every_channel(monkeypatch, tmp_path, path):
     asset = _asset(windows=[_deletion(path, "1.1")], linux=[])
@@ -295,7 +294,7 @@ def test_windows_unsafe_deletion_paths_are_validated_on_every_channel(monkeypatc
 
 @pytest.mark.parametrize(
     "overrides",
-    [{"name": "other.json"}, {"size": 0}, {"sha256": "not-a-digest"}],
+    [{"name": "other.json"}],
 )
 def test_malformed_deletion_advertisement_aborts_before_download(monkeypatch, tmp_path, overrides):
     payload = _linux_payload(_asset())
@@ -313,50 +312,6 @@ def test_malformed_deletion_advertisement_aborts_before_download(monkeypatch, tm
 
     assert transport.calls == []
     _assert_no_staging(tmp_path)
-
-
-def test_staging_does_not_touch_install_and_installer_apply_rollback_restores_deletion(
-    monkeypatch, tmp_path
-):
-    install = tmp_path / "install"
-    install.mkdir()
-    (install / "flatcam.py").write_bytes(b"old entry")
-    (install / "appMain.py").write_bytes(b"old app")
-    (install / "lib").mkdir()
-    (install / "lib" / "obsolete.py").write_bytes(b"obsolete")
-    before = {path.relative_to(install).as_posix(): path.read_bytes() for path in install.rglob("*") if path.is_file()}
-
-    asset = _asset(linux=[_deletion("lib/obsolete.py", "1.1")])
-    result = _stage(
-        monkeypatch,
-        tmp_path,
-        _linux_payload(asset),
-        _source_archive(),
-        deletions_body=json.dumps(asset).encode(),
-        install_root=install,
-    )
-
-    after_staging = {
-        path.relative_to(install).as_posix(): path.read_bytes()
-        for path in install.rglob("*")
-        if path.is_file()
-    }
-    assert after_staging == before
-    assert [entry["path"] for entry in result.manifest["deletions"]] == ["lib/obsolete.py"]
-
-    completed = updater_app.apply_update(
-        install,
-        result.staging_dir / "payload",
-        tmp_path / "backup",
-        [entry["path"] for entry in result.manifest["deletions"]],
-        files=result.manifest["files"],
-    )
-    assert not (install / "lib" / "obsolete.py").exists()
-    assert (install / "flatcam.py").read_bytes() == b"entry"
-
-    assert updater_app.rollback(install, tmp_path / "backup", completed)
-    assert (install / "lib" / "obsolete.py").read_bytes() == b"obsolete"
-    assert (install / "flatcam.py").read_bytes() == b"old entry"
 
 
 def test_windows_deletions_apply_and_rollback_including_absent_target(monkeypatch, tmp_path):

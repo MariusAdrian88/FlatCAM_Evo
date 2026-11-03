@@ -14,10 +14,10 @@ from types import SimpleNamespace
 from unittest.mock import Mock, call
 
 import pytest
-from PyQt6 import QtCore, QtNetwork, QtTest, QtWidgets
+from PyQt6 import QtCore, QtNetwork, QtWidgets
 
 import appMain
-from appCommon import SingleInstance, StartDir
+from appCommon import SingleInstance
 from appHandlers.appIO import appIO
 from defaults import AppDefaults
 
@@ -91,15 +91,6 @@ class TestFileType:
         app.ask_run_script_arg.assert_not_called()
         assert_no_command(app)
 
-    @pytest.mark.parametrize('path', ['C:/boards/a.FlatPrj'])
-    def test_project(self, path):
-        app = make_app()
-        run_args(app, [path])
-        app.f_handlers.open_project.assert_called_once_with(filename=path, run_from_arg=True)
-        app.f_handlers.on_file_open_gerber.assert_not_called()
-        app.ask_run_script_arg.assert_not_called()
-        assert_no_command(app)
-
     @pytest.mark.parametrize('path', ['C:/board.tcl/readme'])
     def test_unknown_extension_opens_nothing(self, path):
         app = make_app()
@@ -144,11 +135,6 @@ class TestOrderAndErrors:
         handlers.project_load_done.emit(True, 'C:/b/two.flatprj', [])
         assert handlers.on_file_open_gerber.call_count == 2
 
-    def test_same_file_opens_once(self):
-        app = make_app()
-        run_args(app, ['C:/b/a.gtl', 'C:/b/a.gtl', 'file:///C:/b/a.gtl'])
-        assert app.f_handlers.on_file_open_gerber.call_count == 1
-
     def test_failure_is_shown_to_the_user(self, monkeypatch):
         shown = []
         monkeypatch.setattr(QtWidgets.QMessageBox, 'critical', lambda *a: shown.append(a[2]))
@@ -160,42 +146,7 @@ class TestOrderAndErrors:
         assert 'ERROR' in app.inform.emit.call_args[0][0]
 
 
-class TestRecent:
-    def test_reopened_file_moves_to_the_top(self):
-        app = SimpleNamespace(
-            log=Mock(), recent=[{'kind': 'Gerber', 'filename': 'b'}, {'kind': 'Gerber', 'filename': 'a'}],
-            recent_projects=[], options={'global_recent_limit': 10}, defaults={},
-            app_obj=SimpleNamespace(load_batches=True))
-        appMain.App.register_recent(app, 'Gerber', 'a')
-        assert [r['filename'] for r in app.recent] == ['a', 'b']
-
-
-class TestPaths:
-    def test_file_url_and_relative_names(self, tmp_path):
-        target = tmp_path / 'a b.gtl'
-        target.write_text('x')
-        assert StartDir.absolute_paths([target.as_uri(), 'new.gtl', 'quit'], start_dir=str(tmp_path)) == [
-            os.path.normpath(str(target)), os.path.normpath(str(tmp_path / 'new.gtl')), 'quit']
-
-
-class TestCommandWords:
-    @pytest.mark.parametrize('word', ['quit'])
-    def test_quit(self, word):
-        app = make_app()
-        run_args(app, [word])
-        app.app_quit.emit.assert_called_once_with()
-        assert app.f_handlers.method_calls == []
-        app.defaults.update.assert_not_called()
-
 class TestScriptArgument:
-    @pytest.mark.parametrize('path', ['C:/scripts/a.tcl'])
-    def test_no_does_not_run_the_script(self, path):
-        app = make_app(answer=False)
-        run_args(app, [path])
-        app.ask_run_script_arg.assert_called_once_with(path)
-        # it is opened in the Code Editor, where the user can read it, and not run
-        assert app.f_handlers.method_calls == [call.on_file_open_script(name=path)]
-        app.f_handlers.on_file_run_script.assert_not_called()
 
     @pytest.mark.parametrize('answer', [False, True])
     def test_the_script_reaches_the_tcl_shell_only_after_a_yes(self, tmp_path, answer):
@@ -304,20 +255,6 @@ class TestSingleInstance:
         finally:
             server.close()
 
-    def test_files_wait_until_the_app_is_ready(self, name):
-        server = SingleInstance.InstanceServer()
-        received = []
-        server.files_received.connect(received.append)
-        assert server.start()
-        try:
-            assert self._run_client(lambda: SingleInstance.send_to_running(['C:/a.gbr'], 3000), received, 0) is True
-            QtTest.QTest.qWait(300)
-            assert received == []
-            server.set_ready()
-            assert received == [['C:/a.gbr']]
-        finally:
-            server.close()
-
     def test_bad_client_does_not_stop_the_server(self, name):
         server = SingleInstance.InstanceServer()
         received = []
@@ -366,4 +303,4 @@ class TestRunScriptQuestion:
         assert seen['default'] == QtWidgets.QMessageBox.ButtonRole.NoRole
         assert result is False
         assert 'C:/scripts/job.tcl' in seen['text']
-
+

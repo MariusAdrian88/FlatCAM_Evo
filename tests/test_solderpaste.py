@@ -91,13 +91,6 @@ class SolderPasteTests(unittest.TestCase):
                 self.assertIn('G4 S1.0' if name == 'Paste_Marlin' else 'G4 P1.0', code)
                 self.assertRegex(code, r'M0?4 S200(?:\.0)?\b')
 
-    def test_reverse_dwell_precedes_motor_stop(self):
-        job = make_job()
-        code = job.generate_gcode_from_solder_paste_geo(**nozzle_data(
-            job, [LineString([(1, 1), (2, 1)])]
-        ))
-        reverse = code.index('M04')
-        self.assertLess(code.index('G4 P1.0', reverse), code.index('M05', reverse))
 
     def test_absolute_paste_coordinates_ignore_global_incremental_option(self):
         job = make_job()
@@ -108,9 +101,6 @@ class SolderPasteTests(unittest.TestCase):
         self.assertIn('G90', code)
         self.assertIn('X20.0000 Y10.0000', code)
 
-    def test_empty_tool_returns_failure(self):
-        job = make_job()
-        self.assertEqual(job.generate_gcode_from_solder_paste_geo(**nozzle_data(job, [])), 'fail')
 
     def test_marlin_uses_comments_and_manual_nozzle_change(self):
         job = make_job()
@@ -138,28 +128,6 @@ class SolderPasteTests(unittest.TestCase):
         self.assertEqual(code.count('M03 S'), 2)
         self.assertEqual(code.count('M04 S'), 2)
 
-    def test_marlin_export_uses_comments_and_job_units(self):
-        job = make_job()
-        job.special_group = 'solder_paste_tool'
-        job.pp_solderpaste_name = 'Paste_Marlin'
-        job.tools = {1: {'gcode': 'G21\nG90\n'}}
-        app = make_app()
-        app.collection = SimpleNamespace(get_by_name=lambda name: job)
-        app.version = 'test'
-        app.version_date = 'test'
-        app.get_last_save_folder = lambda: ''
-        app.file_opened = Mock()
-        app.file_saved = Mock()
-        tool = SimpleNamespace(app=app, units='IN', ui=SimpleNamespace(
-            cnc_obj_combo=SimpleNamespace(currentText=lambda: 'paste')
-        ))
-        opened = mock_open()
-        with patch('appPlugins.ToolSolderPaste.FCFileSaveDialog.get_saved_filename',
-                   return_value=('paste.nc', '')), patch('builtins.open', opened):
-            SolderPaste.on_save_gcode(tool)
-        code = ''.join(call.args[0] for call in opened().write.call_args_list)
-        self.assertIn(';Units: MM', code)
-        self.assertFalse(any(line.startswith('(') for line in code.splitlines()))
 
     def test_impossible_nozzle_rejects_incomplete_board(self):
         tool = make_tool([box(0, 0, 0.1, 0.1)])

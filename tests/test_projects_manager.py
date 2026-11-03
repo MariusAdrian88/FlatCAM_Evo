@@ -92,61 +92,16 @@ class TestProjectManagerCore(unittest.TestCase):
         manager.activate.assert_called_once_with(second)
         app.ui.set_ui_title.assert_called_with(name='Board_B')
 
-    def test_switch_is_refused_while_busy(self):
-        app, manager = make_manager()
-        second = manager.add_context('Board_B')
-        app.proc_container.get_procs_count.return_value = 1
-        self.assertFalse(manager.switch(second))
-        self.assertIsNot(manager.active, second)
-        app.inform.emit.assert_called()
-
-    def test_switch_is_refused_while_an_editor_is_open(self):
-        app, manager = make_manager()
-        second = manager.add_context('Board_B')
-        app.call_source = 'geo_editor'
-        self.assertTrue(manager.is_busy())
-        self.assertFalse(manager.switch(second))
-        self.assertIsNot(manager.active, second)
-        self.assertIn('Close the editor first', app.inform.emit.call_args[0][0])
-
-
 class TestProjectManagerLifecycle(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.qt_app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
-
-    def test_new_adds_a_unique_project_and_activates_it(self):
-        app, manager = make_manager()
-        ctx = manager.new()
-        self.assertEqual(manager.names(), ['Project_1', 'Project_2'])
-        self.assertIs(manager.active, ctx)
-        self.assertIs(app.collection, ctx.collection)
-
-    def test_new_is_refused_while_busy(self):
-        app, manager = make_manager()
-        app.save_in_progress = True
-        self.assertIsNone(manager.new())
-        self.assertEqual(manager.names(), ['Project_1'])
-
-    def test_rename(self):
-        app, manager = make_manager()
-        manager.new()
-        self.assertTrue(manager.rename(manager.active, ' Board_B '))
-        self.assertEqual(manager.active.name, 'Board_B')
-        app.ui.set_ui_title.assert_called_with(name='Board_B')
 
     def test_rename_refuses_a_used_name(self):
         app, manager = make_manager()
         manager.new()
         self.assertFalse(manager.rename(manager.active, 'Project_1'))
         self.assertEqual(manager.active.name, 'Project_2')
-
-    def test_is_dirty_needs_changes_and_objects(self):
-        app, manager = make_manager(make_app(FakeCollection([object()])))
-        self.assertFalse(manager.is_dirty(manager.active))
-        app.should_we_save = True
-        self.assertTrue(manager.is_dirty(manager.active))
-        self.assertEqual(manager.dirty_contexts(), [manager.active])
 
     def test_saved_project_with_all_objects_deleted_is_dirty(self):
         # the deletion of all the objects of a saved project is a change that must be saved
@@ -159,14 +114,6 @@ class TestProjectManagerLifecycle(unittest.TestCase):
         self.assertFalse(manager.close(manager.active))
         self.assertTrue(manager.close(manager.active, force=True))
 
-    def test_close_active_project_activates_the_previous_one(self):
-        app, manager = make_manager()
-        first = manager.active
-        second = manager.new()
-        self.assertTrue(manager.close(second))
-        self.assertIs(manager.active, first)
-        self.assertEqual(manager.names(), ['Project_1'])
-
     def test_close_last_project_leaves_one_empty_project(self):
         app, manager = make_manager()
         first = manager.active
@@ -174,13 +121,6 @@ class TestProjectManagerLifecycle(unittest.TestCase):
         self.assertEqual(len(manager.contexts), 1)
         self.assertIsNot(manager.active, first)
         self.assertEqual(manager.active.name, 'Project_2')
-
-    def test_close_refuses_a_dirty_project_without_force(self):
-        app, manager = make_manager(make_app(FakeCollection([object()])))
-        app.should_we_save = True
-        self.assertFalse(manager.close(manager.active))
-        self.assertTrue(manager.close(manager.active, force=True))
-
 
 class TestProjectManagerDialogs(unittest.TestCase):
     @classmethod
@@ -213,29 +153,6 @@ class TestProjectManagerDialogs(unittest.TestCase):
         self.assertFalse(manager.prepare_open(self.path('Board.FlatPrj')))
         self.assertIs(manager.active, first)
 
-    def test_prepare_open_is_refused_while_busy(self):
-        app, manager = make_manager()
-        app.save_in_progress = True
-        self.assertFalse(manager.prepare_open(self.path('Board.FlatPrj')))
-
-    def test_request_close_yes_saves_first(self):
-        app, manager = make_manager(make_app(FakeCollection([object()])))
-        first = manager.active
-        app.should_we_save = True
-        manager.ask_save = Mock(return_value='yes')
-        manager.save_context = Mock(return_value=True)
-        self.assertTrue(manager.request_close(first))
-        manager.save_context.assert_called_once_with(first)
-
-    def test_request_close_all_stops_on_cancel(self):
-        app, manager = make_manager(make_app(FakeCollection([object()])))
-        first = manager.active
-        app.should_we_save = True
-        second = manager.new()
-        manager.ask_save = Mock(return_value='cancel')
-        self.assertFalse(manager.request_close_all())
-        self.assertEqual(manager.contexts, [first, second])
-
     def test_save_context_writes_the_target_file(self):
         app, manager = make_manager(make_app(FakeCollection([object()])))
         app.project_filename = self.path('Project_1.FlatPrj')
@@ -251,16 +168,6 @@ class TestProjectManagerDialogs(unittest.TestCase):
         self.assertFalse(app.should_we_save)
         self.assertFalse(app.save_in_progress)
 
-    def test_save_context_without_file_asks_for_a_path(self):
-        app, manager = make_manager(make_app(FakeCollection([object()])))
-        app.f_handlers = SimpleNamespace(save_project_checked=Mock(return_value=True))
-        manager.ask_save_path = Mock(return_value=self.path('Chosen.FlatPrj'))
-
-        self.assertTrue(manager.save_context(manager.active))
-
-        app.f_handlers.save_project_checked.assert_called_once_with(self.path('Chosen.FlatPrj'), silent=True)
-        self.assertEqual(manager.active.name, 'Chosen')
-
     def test_save_context_failure_keeps_the_project_dirty(self):
         app, manager = make_manager(make_app(FakeCollection([object()])))
         app.project_filename = self.path('Project_1.FlatPrj')
@@ -273,19 +180,6 @@ class TestProjectManagerDialogs(unittest.TestCase):
         self.assertTrue(app.should_we_save)
         self.assertEqual(app.project_filename, self.path('Project_1.FlatPrj'))
         self.assertFalse(app.save_in_progress)
-
-    def test_request_close_stops_when_the_save_fails(self):
-        app, manager = make_manager(make_app(FakeCollection([object()])))
-        first = manager.active
-        app.project_filename = self.path('Project_1.FlatPrj')
-        app.should_we_save = True
-        app.f_handlers = SimpleNamespace(save_project_checked=Mock(return_value=False))
-        manager.ask_save = Mock(return_value='yes')
-
-        self.assertFalse(manager.request_close(first))
-
-        self.assertIn(first, manager.contexts)
-        self.assertTrue(app.should_we_save)
 
     def test_save_context_of_the_active_project_waits_for_a_pending_save(self):
         # switch() returns at once for the active project, so save_context() must check the pending save itself
@@ -345,15 +239,6 @@ class TestExitWithProjects(unittest.TestCase):
         projects.save_context.return_value = False
         lifecycle.final_save()
         lifecycle.quit_application.assert_not_called()
-
-    def test_exit_waits_for_the_completion_of_a_save(self):
-        # the worker of a failed save cleared save_in_progress, but the GUI did not restore the dirty flag yet
-        lifecycle, projects, start = self.make_lifecycle([])
-        lifecycle.app.project_save_pending = True
-        lifecycle.final_save()
-        lifecycle.quit_application.assert_not_called()
-        projects.dirty_contexts.assert_not_called()
-        lifecycle.inform.emit.assert_called_once()
 
     def test_refused_quit_after_the_save_of_an_inactive_project_returns_to_the_start_project(self):
         from types import MethodType

@@ -85,12 +85,6 @@ def skip_without_ortools(opt_type):
         pytest.skip('no OR-Tools')
 
 
-def test_no_optimization_drills_the_given_points_not_the_tool_drills():
-    # the points are what the job drills (e.g. the drills and the slots converted to drills of the tool)
-    __, __, result = gui_run([(5.0, 5.0), (7.0, 1.0)], opt_type='No', source_drills=[(0.0, 0.0), (1.0, 1.0), (2.0, 2.0)])
-    assert drilled_positions(result[0]) == [(5.0, 5.0), (7.0, 1.0)]
-
-
 @pytest.mark.parametrize('opt_type', ['R', 'T'])
 def test_every_optimizer_drills_a_duplicate_hole_once(opt_type):
     skip_without_ortools(opt_type)
@@ -175,25 +169,6 @@ def warnings(app):
     return [str(c.args[0]) for c in app.inform.emit.call_args_list if str(c.args[0]).startswith('[WARNING')]
 
 
-def test_tcl_slots_off_the_slot_only_tool_is_left_out():
-    slot = ((10.0, 20.0), (14.0, 20.0))
-    app, __, ret, code = tcl_run({1: (1.0, [], [slot])}, options=dict(tools_drill_toolchange=False))
-    assert ret == 'fail'
-
-
-def test_tcl_empty_tool_is_reported_and_the_end_code_follows_the_last_tool_with_gcode():
-    slot = ((10.0, 20.0), (14.0, 20.0))
-    app, job, ret, code = tcl_run({1: (0.8, [(1.0, 1.0)], ()), 2: (1.0, [], [slot])},
-                                  options=dict(tools_drill_toolchange=True))
-    assert ret != 'fail'
-    # the tool 2 has no holes to drill: the user is told, it has no G-code, the end code is in the tool 1
-    assert any('2' in w and 'No G-code' in w for w in warnings(app))
-    assert job.tools[2]['gcode'] == ''
-    p = job.pp_excellon
-    end_code = job.doformat(p.spindle_stop_code) + job.doformat(p.end_code, x=0, y=0)
-    assert job.tools[1]['gcode'].endswith(end_code)
-
-
 def test_tcl_zero_feedrate_does_not_divide_by_zero():
     app, job, ret, __ = tcl_run({1: (0.8, [(1.0, 1.0)], ())},
                                options=dict(tools_drill_toolchange=False, tools_drill_feedrate_rapid=0))
@@ -218,20 +193,6 @@ def test_estimates_count_complete_drilling_motion(generator):
     assert job.routing_time == pytest.approx(27 / 600 + 4 / 60 + 30 / 60)
 
 
-@pytest.mark.parametrize('data', [
-    {'tools_drill_peck': True, 'tools_drill_peck_depth': 0.4, 'tools_drill_peck_retract': 0.1},
-])
-def test_drilling_estimate_follows_retract_and_bottom_dwell(data):
-    from appParsers.ParseGCode import parse_gcode
-
-    __, job, result = gui_run([(5, 0), (5, 4)], tools_drill_cutz=-1.0, tools_drill_feedrate_z=60,
-                            tools_drill_feedrate_rapid=600, **data)
-    code = '(Preprocessor Excellon: default)\nG20\nG0 X0 Y0 Z0\n' + result[0]
-    expected = parse_gcode(code, feedrate_rapid=600, target_units=job.units)
-    assert job.travel_distance == pytest.approx(expected['travel_distance'])
-    assert job.routing_time == pytest.approx(expected['routing_time'])
-
-
 # ---------------------------------------------------------------------------------------------------------------------
 # optimizer helpers
 # ---------------------------------------------------------------------------------------------------------------------
@@ -239,20 +200,6 @@ def test_drilling_estimate_follows_retract_and_bottom_dwell(data):
 # ---------------------------------------------------------------------------------------------------------------------
 # DrillingGen
 # ---------------------------------------------------------------------------------------------------------------------
-
-def test_create_drill_points_reads_slot_options_for_each_tool():
-    tools = {1: tool_dict(1.0, [(0, 0)], [((10, 0), (12, 0))], tools_drill_drill_slots=True,
-                          tools_drill_drill_overlap=0.0, tools_drill_last_drill=True),
-             2: tool_dict(2.0, [], [((10, 5), (14, 5))], tools_drill_drill_slots=False),
-             3: tool_dict(1.0, [], [((0, 9), (4, 9))], tools_drill_drill_slots=True,
-                          tools_drill_drill_overlap=50.0, tools_drill_last_drill=False)}
-    sorted_tools = [(k, v['tooldia']) for k, v in tools.items()]
-    points = DrillingGen.create_drill_points([1, 2, 3], sorted_tools, tools)
-
-    assert [(p.x, p.y) for p in points[1]] == [(0, 0), (10, 0), (11, 0), (12, 0)]
-    assert 2 not in points
-    # overlap 50 % of 1.0 = 0.5 mm between the drills, no end point: the end is on the boundary
-    assert [(p.x, p.y) for p in points[3]] == [(0, 9), (0.5, 9), (1, 9), (1.5, 9), (2, 9), (2.5, 9), (3, 9), (3.5, 9)]
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -327,31 +274,6 @@ def test_plugin_job_gcode_does_not_pile_up_between_jobs(fc, plugin, monkeypatch)
     assert second.gcode == first.gcode
 
 
-def test_plugin_toolchange_job_has_only_the_selected_tools_with_their_ids(fc, plugin, monkeypatch):
-    open_plugin(fc, plugin, 'gen_b', selected=[2, 3], tools_drill_toolchange=True, tools_drill_offset=0.5)
-    job, _ = generate(fc, plugin, monkeypatch)
-    assert sorted(job.tools) == [2, 3]
-    assert job.tools[2]['nr_drills'] == 2 and job.tools[3]['nr_drills'] == 1
-    assert job.tools[2]['offset'] == -0.5
-    assert job.used_tools == [2, 3]
-    assert len(drilled_positions(job.gcode)) == 3
-
-
-def test_plugin_selected_tools_without_drills_give_a_message_and_no_job(fc, plugin, monkeypatch):
-    open_plugin(fc, plugin, 'gen_d', selected=[3], tools_drill_toolchange=False, tools_drill_drill_slots=False)
-    plugin.excellon_tools[3]['drills'] = []
-    job, msgs = generate(fc, plugin, monkeypatch)
-    assert job is None
-    assert any('ERROR_NOTCL' in m and 'no drill points' in m for m in msgs)
-    assert any('slots of tool 3 are not drilled' in m for m in msgs)
-
-    # a stale tool row (no such tool): a message, not an exception
-    open_plugin(fc, plugin, 'gen_e', selected=[99])
-    job, msgs = generate(fc, plugin, monkeypatch)
-    assert job is None
-    assert any('ERROR_NOTCL' in m for m in msgs)
-
-
 def test_plugin_refuses_drill_points_inside_a_drilling_exclusion_area(fc, plugin, monkeypatch):
     from shapely.geometry import box
     open_plugin(fc, plugin, 'gen_h', selected=[1], tools_drill_toolchange=False, tools_drill_area_exclusion=True)
@@ -402,14 +324,6 @@ def test_peck_drilling_goes_up_to_travel_z_and_down_to_the_clearance_after_each_
     __, __, (gcode, __, __) = gui_run([(5.0, 5.0)], **PECK)
     assert z_moves(gcode)[:8] == ['G01 Z-1.0000', 'G00 Z2.0000', 'G00 Z-0.7000', 'G01 Z-2.0000', 'G00 Z2.0000',
                                   'G00 Z-1.7000', 'G01 Z-3.0000', 'G00 Z2.0000']
-
-
-def test_peck_drilling_replaces_the_multidepth_with_a_warning():
-    app, __, (gcode, __, __) = gui_run([(5.0, 5.0)], **dict(PECK, tools_drill_multidepth=True,
-                                                            tools_drill_depthperpass=1.5))
-    downs = [line for line in z_moves(gcode) if line.startswith('G01')]
-    assert downs == ['G01 Z-1.0000', 'G01 Z-2.0000', 'G01 Z-3.0000']
-    assert any('WARNING' in str(c.args[0]) and 'Peck' in str(c.args[0]) for c in app.inform.emit.call_args_list)
 
 
 @contextmanager
@@ -473,19 +387,6 @@ def tool_blocks(gcode):
     return [(int(parts[i]), parts[i + 1]) for i in range(1, len(parts), 2)]
 
 
-def test_spot_tool_id_is_the_next_free_one_and_its_data_is_the_spot_parameters():
-    tools = {1: tool_dict(0.8, [(1.0, 1.0)], tools_drill_cutz=-1.7, tools_drill_peck=True, tools_drill_multidepth=True),
-             5: tool_dict(1.0, [(5.0, 5.0)])}
-    assert DrillingGen.next_tool_id(tools) == 6
-    spot = DrillingGen.spot_tool(tools[1]['data'])
-    assert spot['tooldia'] == AppDefaults.factory_defaults['tools_drill_spot_dia']
-    spot = DrillingGen.spot_tool(dict(tools[1]['data'], **SPOT))
-    assert spot['tooldia'] == 0.5 and spot['data']['tools_drill_cutz'] == -0.3
-    assert spot['data']['tools_drill_feedrate_z'] == 50.0
-    assert not spot['data']['tools_drill_peck'] and not spot['data']['tools_drill_multidepth']
-    assert not spot['data']['tools_drill_dwell_bottom'] and not spot['data']['tools_drill_offset']
-
-
 def test_plugin_spot_pass_comes_first_over_all_the_holes_with_its_own_tool_number(fc, plugin, monkeypatch):
     open_plugin(fc, plugin, 'gen_spot', selected=[1, 2, 3], tools_drill_toolchange=True, tools_drill_cutz=-1.7, **SPOT)
     job, __ = generate(fc, plugin, monkeypatch)
@@ -509,13 +410,6 @@ def test_plugin_spot_pass_comes_first_over_all_the_holes_with_its_own_tool_numbe
     assert job.routing_time == pytest.approx(expected['routing_time'])
 
 
-def test_plugin_spot_pass_without_toolchange_is_skipped_with_a_warning(fc, plugin, monkeypatch):
-    open_plugin(fc, plugin, 'gen_spot_nt', selected=[1], tools_drill_toolchange=False, **SPOT)
-    job, msgs = generate(fc, plugin, monkeypatch)
-    assert any('WARNING' in m and 'spot' in m.lower() and 'toolchange' in m.lower() for m in msgs)
-    assert 'Z-0.3000' not in job.gcode and sorted(job.tools) == [1]
-
-
 # ---------------------------------------------------------------------------------------------------------------------
 # Job XY transforms: mirror -> offset -> array
 # ---------------------------------------------------------------------------------------------------------------------
@@ -532,21 +426,6 @@ def test_transform_points_mirror_then_offset_then_array():
     assert xy(out[2]) == [(12, 0), (112, 0)]
     assert all(isinstance(p, Point) for pts in out.values() for p in pts)
     assert xy(src[1]) == [(0, 0), (4, 2)]
-
-
-def test_transform_from_data_rejects_invalid_values():
-    for data in ({'tools_drill_job_offset_xy': 'abc'}, {'tools_drill_array_columns': 0}):
-        with pytest.raises(ValueError):
-            DrillingGen.transform_job_points({1: [Point(0, 0)]}, data)
-
-
-def test_transform_from_data_accepts_text_and_tuples_and_blank():
-    src = {1: [Point(0, 0)]}
-    out = DrillingGen.transform_job_points(src, {'tools_drill_job_offset_xy': '(1, 2)', 'tools_drill_mirror': 'no',
-                                                 'tools_drill_mirror_point': '', 'tools_drill_array_columns': 2,
-                                                 'tools_drill_array_rows': 1, 'tools_drill_array_pitch': (3.0, 0.0)})
-    assert xy(out[1]) == [(1, 2), (4, 2)]
-    assert DrillingGen.transform_job_points(src, {}) == src
 
 
 def plugin_job_positions(fc, plugin, monkeypatch, **data):

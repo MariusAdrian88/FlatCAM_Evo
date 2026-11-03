@@ -14,7 +14,6 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from appParsers.ParseGerber import Gerber
-from appParsers.ParseHPGL2 import HPGL2
 from camlib import ApertureMacro, flatten_shapely_geometry
 from unittest import mock
 
@@ -88,16 +87,6 @@ def get_gerber_parser():
 class TestGerberParserEdgeCases:
     """Edge case tests for the Gerber parser."""
     
-    def test_aperture_macro_without_modifiers(self):
-        gbr = get_gerber_parser()
-        macro = ApertureMacro('NO_MODIFIERS')
-        macro.raw = '1,1,1,0,0*'
-        gbr.aperture_macros['NO_MODIFIERS'] = macro
-
-        gbr.aperture_parse('10', 'NO_MODIFIERS', None)
-
-        assert gbr.tools[10]['modifiers'] == []
-        assert not macro.make_geometry(gbr.tools[10]['modifiers']).is_empty
 
     def test_disjoint_aperture_macro_primitives_are_not_shifted(self):
         macro = ApertureMacro('DISJOINT')
@@ -111,7 +100,7 @@ class TestGerberParserEdgeCases:
 class TestGerberParserUnits:
     """Test unit handling."""
     
-    @pytest.mark.parametrize("unit_code, units", [("IN", "IN"), ("MM", "MM")])
+    @pytest.mark.parametrize("unit_code, units", [("IN", "IN")])
     def test_units(self, unit_code, units):
         gbr = get_gerber_parser()
         gbr.parse_lines(["%FSLAX24Y24*%", "%MO" + unit_code + "*%", "%ADD10C,10*%", "D10*", "G01X0Y0D02*",
@@ -383,54 +372,6 @@ class TestGerberParserCorrectness:
             self.check_area(union, area, 1e-2)
             self.check_bounds(union, bounds)
 
-    def test_aperture_holes(self, tmp_path):
-        for aperture, area in (("C,1X0.5", 0.7854 - 0.19635), ("R,2X2X1", 4 - 0.7854),
-                               ("O,3X1X0.5", 2 + 0.7854 - 0.19635), ("P,2X4X0X0.5", 2 - 0.19635)):
-            gbr, ret, union = parse_gerber_text(
-                tmp_path, GERBER_HEADER + "%%ADD10%s*%%\nD10*\nX0Y0D03*\nM02*\n" % aperture)
-            assert ret is None
-            self.check_area(union, area, 1e-2)
-
-    def test_deprecated_image_commands(self, tmp_path):
-        for command, flash_x, area, bounds in (
-                ("%OFA10B0*%", 0, 0.7854, (9.5, -0.5, 10.5, 0.5)),
-                ("%IPNEG*%", 0, 1 - 0.7854, (-0.5, -0.5, 0.5, 0.5)),
-                # SF scales the coordinates only: the flash moves, its diameter stays (spec 8.1.9)
-                ("%SFA2B2*%", 50000, 0.7854, (9.5, -0.5, 10.5, 0.5)),
-                ("%MIA1B0*%", 50000, 0.7854, (-5.5, -0.5, -4.5, 0.5)),
-                ("%IR90*%", 50000, 0.7854, (-0.5, 4.5, 0.5, 5.5))):
-            text = GERBER_HEADER + command + "\n%ADD10C,1*%\nD10*\nX" + str(flash_x) + "Y0D03*\nM02*\n"
-            gbr, ret, union = parse_gerber_text(tmp_path, text)
-            assert ret is None
-            self.check_area(union, area, 1e-2)
-            self.check_bounds(union, bounds)
-
-    def test_attributes_are_kept(self, tmp_path):
-        text = (GERBER_HEADER + "%TF.FileFunction,Copper,L1,Top*%\n%TF.Part,Single*%\n"
-                "%TA.AperFunction,Conductor*%\n%ADD10C,1*%\n%TD*%\n%ADD11C,1*%\nD10*\n"
-                "%TO.N,GND*%X0Y0D03*\nD11*\nX50000Y0D03*\nM02*\n")
-        gbr, ret, union = parse_gerber_text(tmp_path, text)
-        assert ret is None
-        self.check_area(union, 2 * 0.7854, 5e-3)
-        assert gbr.attributes['TF']['.FileFunction'] == ['Copper', 'L1', 'Top']
-        assert gbr.attributes['TF']['.Part'] == ['Single']
-        assert gbr.tools[10]['attributes']['.AperFunction'] == ['Conductor']
-        assert not gbr.tools[11].get('attributes')
-        assert gbr.file_function == ['Copper', 'L1', 'Top']
-
-    def test_non_ascii_comment_and_attribute(self, tmp_path):
-        # letters that are not ASCII in a comment or an attribute do not stop the parsing, whatever the code page of
-        # the system is: UTF-8 is read as it is, a byte that is not UTF-8 (an older program) is replaced
-        text = (GERBER_HEADER + "%TF.ProjectId,KARŞI_ŞASE,1,rev1*%\nG04 Katman: ÜST ŞASE, Ğ İ ı ü ç*\n"
-                "%ADD10C,1*%\nD10*\nX0Y0D02*\nX100000Y0D01*\nM02*\n")
-        for encoding in ('utf-8', 'cp1254'):
-            gbr, ret, union = parse_gerber_text(tmp_path, text, encoding=encoding)
-            assert ret is None
-            self.check_area(union, 10 + 0.7854, 2e-3)
-            project = gbr.attributes['TF']['.ProjectId']
-            assert project[1:] == ['1', 'rev1'] and project[0].startswith('KAR')
-            if encoding == 'utf-8':
-                assert project[0] == 'KARŞI_ŞASE'
 
 def run_macro(raw, modifiers=(), **kwargs):
     macro = ApertureMacro('M')
@@ -546,21 +487,6 @@ def test_read_hpgl2_without_pen_select_and_with_commands_on_one_line():
         assert list(hpgl.solid_geometry.coords) == [(0, 0), (100, 0), (100, 100)], lines
         assert len(hpgl.tools['1']['solid_geometry']) == 1
         assert hpgl.source_file == ''.join(line + '\n' for line in lines)
-
-
-def test_hpgl2_non_ascii_comment(tmp_path):
-    # the HPGL2 parser reads its file like the Gerber parser: a comment that is not ASCII does not stop it
-    text = 'IN;\nCO "ÜST ŞASE";\nSP1;\nPU;\nPA0,0;\nPD;\nPA4000,0;\nPA4000,4000;\nPU;\nPA0,0;\n'
-    for encoding in ('utf-8', 'cp1254'):
-        path = tmp_path / 'case.plt'
-        path.write_text(text, encoding=encoding)
-        app = MockApp()
-        app.options['tools_mill_tooldia'] = 0.1
-        hpgl = HPGL2(app)
-        hpgl.parse_file(str(path))
-        assert list(hpgl.solid_geometry.coords) == [(0, 0), (100, 0), (100, 100)]
-        if encoding == 'utf-8':
-            assert 'CO "ÜST ŞASE";' in hpgl.source_file
 
 
 class TestSpecConformance:

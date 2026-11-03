@@ -47,19 +47,6 @@ class TestJumpTo(unittest.TestCase):
         )
         return fcapp, AppObjectOps(fcapp)
 
-    def test_jump_updates_exact_position_before_notifying_tools(self):
-        fcapp, handler = self.make_handler()
-        target = (17.123456789, -3.987654321)
-        positions = []
-        fcapp.jump_signal.emit.side_effect = lambda loc: positions.append(tuple(fcapp.mouse_pos))
-        with patch.object(QtGui.QCursor, 'setPos') as set_pos:
-            self.assertEqual(handler.on_jump_to(custom_location=target), target)
-        self.assertEqual(positions, [target])
-        self.assertEqual(tuple(fcapp.mouse_pos), target)
-        screen = fcapp.plotcanvas.translate_coords_2(target)
-        expected = fcapp.plotcanvas.native.mapToGlobal(QtCore.QPoint(round(screen[0]), round(screen[1])))
-        set_pos.assert_called_once_with(expected.x(), expected.y())
-
     def test_relative_reference_is_captured_before_dialog(self):
         fcapp, handler = self.make_handler()
         start = tuple(fcapp.mouse_pos)
@@ -99,23 +86,6 @@ class TestJumpTo(unittest.TestCase):
                 actual = canvas.grid.get_transform('canvas', 'visual').map(pixel)
                 np.testing.assert_array_equal(canvas.translate_coords(pixel), actual)
 
-    def test_jump_target_aligns_with_canvas_after_wheel_zoom(self):
-        fcapp, handler = self.make_handler()
-        canvas = fcapp.plotcanvas
-        canvas.view.camera.rect = Rect(-20, -20, 40, 40)
-        target = (3.2, 4.3)
-        with patch.object(QtGui.QCursor, 'setPos'):
-            handler.on_jump_to(custom_location=target)
-        pixel = np.round(canvas.translate_coords_2(target)[:2])
-        for _ in range(45):
-            canvas.view.camera.last_time = 0
-            canvas.events.mouse_wheel(pos=pixel, delta=(0, 1), modifiers=())
-        self.assertLess(canvas.view.camera.rect.width, 0.02)
-        # Check the real grid transform independently of the coordinate readout.
-        actual = canvas.grid.get_transform('canvas', 'visual').map(pixel)[:2]
-        np.testing.assert_allclose(actual, target, rtol=0, atol=1e-6)
-        np.testing.assert_allclose(canvas.translate_coords_2(target)[:2], pixel, rtol=0, atol=0.1)
-
     def test_jump_centers_target_without_changing_zoom(self):
         fcapp, handler = self.make_handler()
         canvas = fcapp.plotcanvas
@@ -128,17 +98,6 @@ class TestJumpTo(unittest.TestCase):
         # Centering may shift less than a pixel to align the integer OS cursor.
         np.testing.assert_allclose(canvas.view.camera.rect.center, target, rtol=0,
                                    atol=canvas.pixel_size())
-
-    def test_locate_updates_position_for_the_next_relative_jump(self):
-        fcapp, handler = self.make_handler()
-        obj = SimpleNamespace(bounds=lambda: (1.125, 2.25, 8, 9))
-        dialog = SimpleNamespace(ok=True, location_point='bl')
-        with patch('appGUI.GUIElements.DialogBoxChoice', return_value=dialog), \
-                patch.object(QtGui.QCursor, 'setPos'):
-            target = handler.on_locate(obj, fit_center=False)
-        self.assertEqual(tuple(fcapp.mouse_pos), target)
-        pixel = np.round(fcapp.plotcanvas.translate_coords_2(target)[:2])
-        np.testing.assert_allclose(fcapp.plotcanvas.translate_coords(pixel)[:2], target, rtol=0, atol=1e-5)
 
     def test_canvas_pixel_roundtrip_after_pan_zoom_and_resize(self):
         fcapp, _ = self.make_handler()

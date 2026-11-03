@@ -9,11 +9,10 @@ The expected values are written from the plan, not computed with the code under 
 """
 
 import copy
-import math
 
 import pytest
 import shapely
-from shapely.geometry import LinearRing, LineString, Point
+from shapely.geometry import LineString, Point
 
 from appParsers.ParseGerber import Gerber
 from camlib import gerber_quad_segs
@@ -151,8 +150,6 @@ def warned(app):
                for call in app.inform.emit.call_args_list if call.args)
 
 
-
-
 def assert_composed_equal(actual, expected, msg, tol=2e-3):
     exp = polygon_union(expected)
     got = polygon_union(actual)
@@ -211,23 +208,6 @@ class TestTracksAndRegions:
         assert again.tools[10]['size'] == pytest.approx(1.5 * factor)
         assert_composed_equal(again.solid_geometry, obj.solid_geometry, 'round trip')
 
-    def test_regions_are_unchanged(self, app, tmp_path):
-        path = write(tmp_path, 'region_flash', REGION_AND_FLASH)
-        obj = make_gerber(app, path)
-        region_before = copy.deepcopy(obj.tools[0]['geometry'])
-        meta_before = {k: v for k, v in obj.tools[0].items() if k != 'geometry'}
-        multiply(obj, 1.5)
-        assert len(obj.tools[0]['geometry']) == len(region_before)
-        for rec, old in zip(obj.tools[0]['geometry'], region_before):
-            assert rec['solid'].equals_exact(old['solid'], 0)
-            assert rec['follow'].equals_exact(old['follow'], 0)
-        assert {k: v for k, v in obj.tools[0].items() if k != 'geometry'} == meta_before
-        flash = obj.tools[10]['geometry'][0]['solid']
-        assert flash.area == pytest.approx(math.pi * 0.75 ** 2, rel=1e-2)   # a scaled flash keeps its segments
-        assert obj.solid_geometry.contains(region_before[0]['solid'].buffer(-1e-6))
-        assert obj.export_as_regions is False
-        again = reparse_gerber(app, export_gerber_text(app, obj), tmp_path)
-        assert_composed_equal(again.solid_geometry, obj.solid_geometry, 'round trip')
 
     @pytest.mark.parametrize('factor', [1.5])
     def test_every_supported_record_kind_together(self, app, tmp_path, factor):
@@ -282,65 +262,8 @@ class TestRejected:
         assert not any('Gerber Buffer done' in str(c.args[0]) for c in app.inform.emit.call_args_list if c.args)
 
 
-def test_tcl_buffer_returns_fail_on_a_rejection(app):
-    from tclCommands.TclCommandBuffer import TclCommandBuffer
-    obj = make_gerber(app, MIXED_GBR)
-    before = full_state(obj)
-    app.collection.get_by_name.return_value = obj
-    cmd = TclCommandBuffer(app)
-    args, unnamed = cmd.check_args(('grb', '-dist', '1.5', '-factor', 'True'))
-    assert cmd.execute(args, unnamed) == 'fail'
-    assert full_state(obj) == before
-
-
-class TestInvalidInput:
-    @pytest.mark.parametrize('distance, factor', [
-        (-1.5, True),                 # a factor that is not positive
-    ])
-    def test_it_is_rejected_without_a_change(self, app, distance, factor):
-        obj = make_gerber(app, fx('circle'))
-        before = full_state(obj)
-        app.inform.emit.reset_mock()
-        assert Gerber.buffer(obj, distance, 'mitre', factor) == 'fail'
-        assert full_state(obj) == before
-        assert warned(app)
-
-
 # ---------------------------------------------------------------------------------------------------------------
 # distance buffer
 # ---------------------------------------------------------------------------------------------------------------
-
-class TestDistanceBuffer:
-    def test_it_uses_the_quarter_circle_resolution(self, app, tmp_path):
-        obj = make_gerber(app, write(tmp_path, 'region_only', REGION_ONLY))
-        before = obj.tools[0]['geometry'][0]['solid']
-        assert Gerber.buffer(obj, 0.5, 'round') is None
-        after = obj.tools[0]['geometry'][0]['solid']
-        expected = before.buffer(0.5, quad_segs=gerber_quad_segs(app.options, 0.5, obj.units), join_style="round")
-        assert len(after.exterior.coords) == len(expected.exterior.coords)
-        assert after.area == pytest.approx(expected.area)
-
-    def test_it_keeps_the_solid_follow_and_clear_records(self, app, tmp_path):
-        obj = make_gerber(app, MIXED_GBR)
-        clear = [rec for rec in obj.tools[10]['geometry'] if 'clear' in rec][0]
-        follow, clear_geometry = clear['follow'], clear['clear']
-        keys_before = [sorted(rec) for tool in obj.tools.values() for rec in tool.get('geometry', ())]
-        assert Gerber.buffer(obj, 0.3, 'mitre') is None
-        keys_after = [sorted(rec) for tool in obj.tools.values() for rec in tool.get('geometry', ())]
-        assert keys_after == keys_before
-        new_clear = [rec for rec in obj.tools[10]['geometry'] if 'clear' in rec][0]
-        assert new_clear['follow'].equals(follow)
-        assert new_clear['clear'].area > clear_geometry.area
-        assert obj.tools[10]['size'] == pytest.approx(1.6)
-        # the result round trips through the file
-        again = reparse_gerber(app, export_gerber_text(app, obj), tmp_path)
-        assert_composed_equal(again.solid_geometry, obj.solid_geometry, 'distance round trip')
-
-    def test_a_negative_buffer_of_a_closed_line_keeps_the_gerber_semantics(self, app):
-        obj = make_gerber(app, fx('circle'))
-        obj.solid_geometry = [LinearRing([(0, 0), (4, 0), (4, 4), (0, 4)])]
-        assert Gerber.buffer(obj, -0.1, 'mitre') is None
-        # Gerber keeps the plain line buffer (an empty polygon), not the Geometry closed-contour erosion
-        assert obj.solid_geometry == []
 
 

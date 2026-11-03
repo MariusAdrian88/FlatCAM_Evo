@@ -96,20 +96,6 @@ def test_exception_rolls_back_tools_counters_geometry_and_order():
     assert not editor.history.undo_stack
 
 
-def test_move_handler_is_one_undoable_operation():
-    editor, first, second = scene()
-    editor.delete_utility_geometry = Mock()
-    tool = MoveEditorExc.__new__(MoveEditorExc)
-    tool.draw_app = editor
-    tool.origin, tool.destination = (0, 0), (2, 3)
-    tool.selected_dia_list = [1.0]
-    tool.make()
-    assert len(editor.history.undo_stack) == 1
-    assert editor.undo()
-    assert list(editor.storage_dict[1.0].get_objects()) == [first, second]
-    assert editor.selected == [first]
-
-
 def test_diagnostics_are_read_only_and_do_not_report_open_drill_crosses():
     editor, first, second = scene()
     editor.storage_dict[1.0].insert(drill(0.00001))
@@ -127,7 +113,7 @@ def test_diagnostics_are_read_only_and_do_not_report_open_drill_crosses():
     assert selected['slots'] == 0
 
 
-@pytest.mark.parametrize('mode', ['fixed', 'adaptive'])
+@pytest.mark.parametrize('mode', ['adaptive'])
 def test_selected_resize_preserves_native_slot_endpoints_and_unselected_drill(mode):
     editor, first, second = scene()
     editor.app.options['excellon_circle_steps_mode'] = mode

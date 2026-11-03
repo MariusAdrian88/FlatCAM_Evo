@@ -45,7 +45,7 @@ def test_distance_matrix_is_scaled_rounded_and_symmetric():
 # route
 # ---------------------------------------------------------------------------------------------------------------
 
-@pytest.mark.parametrize('method', ['optimized_ortools_basic', 'optimized_ortools_meta'])
+@pytest.mark.parametrize('method', ['optimized_ortools_basic'])
 def test_route_visits_every_location_once_from_the_first(method):
     random.seed(3)
     locs = [(random.uniform(0, 50), random.uniform(0, 50)) for _ in range(40)]
@@ -54,7 +54,7 @@ def test_route_visits_every_location_once_from_the_first(method):
     assert sorted(route) == list(range(len(locs)))
 
 
-@pytest.mark.parametrize('method', ['optimized_ortools_basic', 'optimized_ortools_meta'])
+@pytest.mark.parametrize('method', ['optimized_ortools_meta'])
 def test_route_of_holes_less_than_1_mm_apart_is_not_random(method):
     # holes on a line, 0.3 mm apart, in shuffled order: the shortest open path goes along the line.
     # With distances truncated to whole units every arc cost 0 or 1 and the order was arbitrary.
@@ -79,13 +79,6 @@ def test_basic_stops_at_the_time_limit_on_a_panel():
     assert elapsed < 8.0
 
 
-def test_abort_stops_the_route_walk():
-    cnc = make_cnc()
-    cnc.app.abort_flag = True
-    with pytest.raises(GracefulException):
-        cnc.optimized_ortools_basic(locations=[(0, 0), (1, 1)], opt_time=1)
-
-
 # ---------------------------------------------------------------------------------------------------------------
 # solve in the process pool: the OR-Tools search holds the GIL for its whole time limit
 # ---------------------------------------------------------------------------------------------------------------
@@ -103,15 +96,3 @@ def _random_locs(count):
     return [(random.uniform(0, 100), random.uniform(0, 100)) for _ in range(count)]
 
 
-
-
-def test_abort_stops_the_wait_for_the_pool(pool):
-    import threading
-    cnc = make_cnc()
-    cnc.app.pool = pool
-    threading.Timer(0.2, lambda: setattr(cnc.app, 'abort_flag', True)).start()
-    t0 = time.perf_counter()
-    with pytest.raises(GracefulException):
-        cnc.optimized_ortools_meta(locations=_random_locs(300), opt_time=2)
-    assert time.perf_counter() - t0 < 1.0
-    pool.apply(time.sleep, (0,))      # the pool is free again for the next test

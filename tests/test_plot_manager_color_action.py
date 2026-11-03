@@ -52,27 +52,6 @@ class PlotManagerColorActionTests(unittest.TestCase):
         self.assertEqual(app.options['excellon_color'],
                          (selected.outline_color, selected.fill_color))
 
-    @staticmethod
-    def _swatch_app():
-        QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
-        first, second, other = (SimpleNamespace(kind='excellon', alpha_level='BF', shapes=Mock(),
-                                                fill_color='#00FF00BF', outline_color='#006600BF')
-                                for _ in range(3))
-        app = ColorActionApp(first)
-        app.collection.get_selected.return_value = [first, second]
-        return app, first, second, other
-
-    def test_swatch_on_selected_row_colors_the_whole_selection_with_the_dialog_alpha(self):
-        app, first, second, other = self._swatch_app()
-
-        app.plot_manager.set_color_from_swatch(second, '#11223344')
-
-        for obj in (first, second):
-            self.assertEqual(obj.fill_color, '#11223344')
-            self.assertEqual(obj.alpha_level, '44')
-            obj.shapes.redraw.assert_called_once_with(update_colors=(obj.fill_color, obj.outline_color))
-        self.assertEqual(other.fill_color, '#00FF00BF')
-
 
 if __name__ == '__main__':
     unittest.main()

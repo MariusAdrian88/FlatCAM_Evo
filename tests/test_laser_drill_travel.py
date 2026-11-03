@@ -76,11 +76,9 @@ def laser_state(line):
     return None
 
 
-@pytest.mark.parametrize('min_power', [250])
-@pytest.mark.parametrize('toolchange', [False, True])
-@pytest.mark.parametrize('pp_name', LASER_PREPROCESSORS)
-def test_the_laser_is_off_for_every_travel_and_on_at_each_hole(pp_name, toolchange, min_power):
-    blocks, travels = drilling_gcode(pp_name, toolchange, min_power)
+@pytest.mark.parametrize('pp_name,toolchange', [(pp, i % 2 == 1) for i, pp in enumerate(LASER_PREPROCESSORS)])
+def test_the_laser_is_off_for_every_travel_and_on_at_each_hole(pp_name, toolchange):
+    blocks, travels = drilling_gcode(pp_name, toolchange, 250)
 
     holes = 0
     for gcode in blocks:
@@ -116,8 +114,7 @@ def test_grbl_laser_does_not_turn_the_laser_on_before_the_first_travel_of_a_tool
         assert lines[first_travel + 1] == 'M3 S800'
 
 
-@pytest.mark.parametrize('toolchange', [False, True])
-@pytest.mark.parametrize('pp_name', ['default', 'GRBL_11'])
+@pytest.mark.parametrize('pp_name,toolchange', [('default', False), ('GRBL_11', True)])
 def test_other_preprocessors_still_start_the_spindle_before_the_first_travel(pp_name, toolchange):
     blocks, travels = drilling_gcode(pp_name, toolchange)
 

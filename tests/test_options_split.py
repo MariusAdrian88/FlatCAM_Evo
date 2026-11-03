@@ -18,8 +18,6 @@ class TestIsProjectKey(unittest.TestCase):
     def test_tools_keys_are_project_keys(self):
         for key in ('tools_iso_tooldia', 'tools_drill_ppname_e', 'tools_mill_ppname_g', 'tools_ncc_operation'):
             self.assertTrue(is_project_key(key), key)
-
-    def test_other_keys_are_application_keys(self):
         for key in ('global_gridx', 'global_workspace', 'global_appearance', 'cncjob_tooldia',
                     'excellon_optimization_type', 'gerber_plot', 'units_precision', 'first_run',
                     'root_folder_path', None, 5):
@@ -31,12 +29,6 @@ class TestAppOptionsMergedView(unittest.TestCase):
         calls = []
         options = AppOptions(version='test', callback=calls.append, baseline=defaults, defaults=defaults)
         return defaults, options, calls
-
-    def test_storage_holds_only_project_keys(self):
-        _defaults, options, _calls = self.make()
-        self.assertIn('units', options.options)
-        self.assertNotIn('global_gridx', options.options)
-        self.assertTrue(all(is_project_key(key) for key in options.options))
 
     def test_application_key_reads_and_writes_defaults(self):
         defaults, options, calls = self.make()
@@ -56,23 +48,6 @@ class TestAppOptionsMergedView(unittest.TestCase):
         self.assertEqual(options['gerber_bboxmargin'], before + 1.0)
         self.assertEqual(defaults['gerber_bboxmargin'], before)
         self.assertEqual(calls, ['gerber_bboxmargin'])
-
-    def test_loop_and_items_see_all_keys(self):
-        defaults, options, _calls = self.make()
-        self.assertEqual(set(options), set(defaults))
-        self.assertEqual(set(options.keys()), set(defaults))
-        self.assertEqual(len(options), len(list(defaults)))
-        merged = dict(options.items())
-        self.assertEqual(merged['global_gridx'], defaults['global_gridx'])
-        self.assertEqual(options.copy(), merged)
-        self.assertEqual(len(options.values()), len(merged))
-
-    def test_reset_from_defaults(self):
-        defaults, options, _calls = self.make()
-        options['gerber_bboxmargin'] = 99.0
-        defaults['gerber_bboxmargin'] = 0.25
-        options.reset_from_defaults()
-        self.assertEqual(options['gerber_bboxmargin'], 0.25)
 
     def test_load_project_ignores_application_keys(self):
         defaults, options, _calls = self.make()

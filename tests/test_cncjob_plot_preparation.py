@@ -63,35 +63,6 @@ def fingerprint(job):
 
 
 class TestCNCJobPlotPreparation(unittest.TestCase):
-    def test_buffers_keep_surfaces_contours_and_lines(self):
-        import numpy as np
-        from appGUI.VisPyVisuals import ShapeCollectionVisual, _update_shape_buffers
-        from vispy.color import Color
-
-        polygon = Polygon([(0, 0), (6, 0), (6, 6), (0, 6)],
-                          holes=[[(1, 1), (1, 2), (2, 2), (2, 1)]])
-        line = LineString([(0, 0), (1, 2), (3, 4)])
-        for geometry in (polygon, polygon.exterior, line):
-            with self.subTest(geometry=geometry.geom_type):
-                data = _update_shape_buffers(dict(geometry=geometry, color=COLORS['C'][1],
-                                                 face_color=COLORS['C'][0], tolerance=0))
-                contours = [polygon.exterior, *polygon.interiors] if geometry is polygon else [geometry]
-                expected = [coord for contour in contours
-                            for pair in zip(list(contour.coords)[:-1], list(contour.coords)[1:])
-                            for coord in pair]
-                np.testing.assert_array_equal(data['line_pts'], np.asarray(expected, dtype=np.float32))
-                collection = ShapeCollectionVisual(layers=1, fcoptions={"global_graphic_engine_3d_no_mp": True})
-                collection.add(shape=geometry, color=COLORS['C'][1], face_color=COLORS['C'][0], layer=0, tolerance=0)
-                with patch('appGUI.VisPyVisuals.set_state'):        # no GL canvas in the tests
-                    collection.redraw([])
-                np.testing.assert_array_equal(collection._lines[0]._color,
-                                              np.tile(Color(COLORS['C'][1]).rgba, (len(expected), 1)))
-                if geometry is polygon:
-                    faces = data['mesh_vertices'][data['mesh_tris'].reshape(-1, 3)]
-                    self.assertAlmostEqual(sum(Polygon(face).area for face in faces), polygon.area)
-                    self.assertEqual(len(collection._meshes[0].mesh_data.get_face_colors()), len(faces))
-                else:
-                    self.assertEqual(data['mesh_tris'].size, 0)
 
     def test_native_tessellation_preserves_holes_and_counterclockwise_faces(self):
         import numpy as np

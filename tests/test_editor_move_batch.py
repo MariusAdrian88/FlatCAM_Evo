@@ -6,7 +6,6 @@ from unittest.mock import MagicMock, Mock
 from shapely.geometry import LineString, Point, box
 
 from appEditors.appGeoEditor import AppGeoEditor, FCMove, DrawToolShape as GeoShape
-from appEditors.appExcEditor import MoveEditorExc
 from appEditors.appGerberEditor import MoveEditorGrb, CopyEditorGrb
 from appEditors.grb_plugins.GrbCommon import DrawToolShape as GrbShape
 
@@ -65,38 +64,6 @@ class TestGerberEditorMove(unittest.TestCase):
         tool.draw_app.plot_all.assert_called_once()
 
 
-
-
-class TestExcellonEditorMove(unittest.TestCase):
-
-    def test_move_translates_and_replots_once(self):
-        drill = GeoShape(Point(1, 1).buffer(0.2))
-        slot = GeoShape(LineString([(0, 0), (2, 0)]).buffer(0.3))
-        other = GeoShape(Point(9, 9).buffer(0.2))
-        storage_1, storage_2 = AppGeoEditor.make_storage(), AppGeoEditor.make_storage()
-        for shp in (drill, other):
-            storage_1.insert(shp)
-        storage_2.insert(slot)
-        selected = [drill, slot]
-
-        tool = MoveEditorExc.__new__(MoveEditorExc)
-        tool.origin, tool.destination = (0.0, 0.0), (1.0, 2.0)
-        tool.selected_dia_list = [0.4, 0.6]
-        tool.draw_app = SimpleNamespace(
-            storage_dict={0.4: storage_1, 0.6: storage_2}, selected=selected, get_selected=lambda: selected,
-            add_exc_shape=lambda shp, storage: storage.insert(shp), delete_utility_geometry=Mock(),
-            tool_shape=Mock(), replot=Mock(), build_ui=Mock(), app=counting_app())
-        tool.make()
-
-        objs_1 = list(storage_1.get_objects())
-        self.assertEqual(len(objs_1), 2)
-        self.assertIn(other, objs_1)
-        moved = [shp for shp in objs_1 if shp is not other][0]
-        self.assertAlmostEqual(moved.geo.centroid.x, 2.0)
-        self.assertAlmostEqual(moved.geo.centroid.y, 3.0)
-        self.assertAlmostEqual(list(storage_2.get_objects())[0].geo.centroid.x, 2.0)
-        self.assertEqual(selected, [])
-        tool.draw_app.replot.assert_called_once()
 
 
 class TestGeometryEditorMove(unittest.TestCase):
@@ -164,37 +131,6 @@ class TestClimbMillingDirection(unittest.TestCase):
         from appEditors.appGeoEditor import FCCopy, FCExplode
         for tool_cls in (FCMove, FCCopy, FCExplode):
             self.assertEqual(self.complete(tool_cls), [(0, 0), (1, 0), (2, 1)], tool_cls.__name__)
-
-
-class TestStorageReplace(unittest.TestCase):
-
-    def make_storage(self, n):
-        storage = AppGeoEditor.make_storage()
-        shapes = [GeoShape(box(i, 0, i + 0.5, 0.5)) for i in range(n)]
-        for shp in shapes:
-            storage.insert(shp)
-        return storage, shapes
-
-    def check_index(self, storage, expected):
-        self.assertEqual(set(map(id, storage.get_objects())), set(map(id, expected)))
-        for shp in expected:
-            x, y = shp.geo.exterior.coords[0]
-            __, found = storage.nearest((x, y))
-            self.assertIs(found, shp)
-
-
-    def test_many_changes_rebuild_the_index(self):
-        storage, shapes = self.make_storage(50)
-        new = [GeoShape(box(i + 0.25, 5, i + 0.75, 6)) for i in range(30)]
-        storage.replace(removed=shapes[:30], inserted=new)
-        self.assertNotIn(None, storage.objects)       # rebuilt: the list is compacted
-        self.check_index(storage, shapes[30:] + new)
-        # the rebuilt storage still removes and inserts 1 object
-        storage.remove(new[0])
-        storage.insert(shapes[0])
-        self.check_index(storage, shapes[30:] + new[1:] + [shapes[0]])
-
-
 
 
 if __name__ == '__main__':

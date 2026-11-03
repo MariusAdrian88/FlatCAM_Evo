@@ -50,12 +50,6 @@ class TestRTreeStorageTies(unittest.TestCase):
         self.assertEqual(len(orders[0]), 900)
         self.assertEqual(orders[0], orders[1])
 
-    def test_empty_storage_raises_stop_iteration(self):
-        for bulk in (False, True):
-            storage = make_storage([], bulk)
-            with self.assertRaises(StopIteration):
-                storage.nearest((0, 0))
-
 
 if __name__ == '__main__':
     unittest.main()

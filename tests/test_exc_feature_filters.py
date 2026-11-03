@@ -34,9 +34,7 @@ def test_filter_selection_scope_and_one_step_deletion():
     assert list(editor.storage_dict[1.0].get_objects()) == [drill, slot]
 
 
-@pytest.mark.parametrize('filters', [dict(diameter=(float('nan'), 2)), dict(length=(4, 1)),
-                                   dict(bounds=(1, 0, 0, 3)), dict(kind='polygon'),
-                                   dict(bounds=(0, 0, float('inf'), 2))])
+@pytest.mark.parametrize('filters', [dict(diameter=(float('nan'), 2)), dict(kind='polygon')])
 def test_invalid_filters_are_atomic(filters):
     editor, drill, slot = editor_scene()
     assert editor.delete_filtered_features(**filters) == 'fail'

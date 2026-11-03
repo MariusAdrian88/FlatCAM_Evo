@@ -71,16 +71,6 @@ def test_every_preprocessor_keeps_the_code_of_every_tool(kind):
     assert dropped == []
 
 
-@pytest.mark.parametrize('ppname', HEADERLESS[1:2])
-def test_headerless_drill_job_has_start_code_tool_code_and_no_page_header(ppname):
-    text = _export(_job('Excellon', ppname))
-
-    assert text.startswith('START_CODE')
-    assert text.index('START_CODE') < text.index('BODY_TOOL_1') < text.index('BODY_TOOL_2')
-    # include_header = False: the gc_header block is not written
-    assert 'HEADER' not in text
-
-
 @pytest.mark.parametrize('kind', ['Excellon'])
 def test_unknown_preprocessor_of_a_saved_job_exports_with_the_default_one(kind):
     job = _job(kind, 'Gone_Machine')

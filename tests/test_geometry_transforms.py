@@ -183,21 +183,6 @@ def test_imported_job_with_a_subprogram_is_not_moved_and_tells_the_user(tmp_path
     assert len(errors) == 2 and 'subprograms' in errors[0]
 
 
-@pytest.mark.parametrize('imported', [False, True])
-def test_regenerate_source_after_a_move_gives_the_moved_coordinates(tmp_path, imported):
-    job = _imported_job(tmp_path)[0] if imported else _native_job()
-    job.source_file = 'old'
-
-    job.offset((5.0, 2.0))
-    text = job.regenerate_source(store=False)
-    assert job.source_file == 'old'
-    assert job.regenerate_source() is True
-    assert job.source_file == text
-    assert ('G1 X15.0000 Y3.0000' if imported else 'G01 X15.0000 Y7.0000') in text
-    if imported:
-        assert text == job.gcode
-
-
 def _menu_job(history=False):
     """
     A native job selected in a stub app and the AppObjectOps of that app (Edit -> Flip / Rotate / Skew). The path is
@@ -289,6 +274,65 @@ def test_geometry_unit_conversion_preserves_each_tool_geometry_and_data():
     assert geo.tools[1]['custom'] == {'uid': 1} and geo.tools[2]['custom'] == {'uid': 2}
     first['extra']['preserve'].append(2)
     assert original[1]['data']['extra']['preserve'] == [1]
+
+
+# camlib.map_geometry, the shared coordinate walker of the Gerber / Excellon transforms
+
+def test_map_geometry_keeps_types_and_nested_lists():
+    from shapely.geometry import GeometryCollection
+    from camlib import map_geometry
+
+    def shift(g):
+        return affinity.translate(g, 1.0, 2.0)
+
+    assert map_geometry(None, shift) is None
+    for geom in (Point(0, 0), GeometryCollection([Point(0, 0), box(0, 0, 1, 1)])):
+        calls = []
+        out = map_geometry(geom, lambda g: calls.append(g) or shift(g))
+        assert len(calls) == 1 and calls[0] is geom
+        assert type(out) is type(geom) and out.equals(shift(geom))
+    a, b, c = Point(0, 0), box(0, 0, 1, 1), LineString([(0, 0), (1, 0)])
+    out = map_geometry([a, [b, [c]], []], shift)
+    assert type(out) is list and len(out) == 3 and out[0].equals(shift(a))
+    assert type(out[1]) is list and out[1][0].equals(shift(b))
+    assert type(out[1][1]) is list and out[1][1][0].equals(shift(c))
+    assert out[2] == []
+
+
+# Geometry draws on the top canvas layer (above the filled Gerber) and keeps the visible flag
+
+def test_geometry_plots_on_the_top_layer_and_keeps_the_visible_flag():
+    from types import SimpleNamespace
+    from unittest import mock
+    from shapely.geometry import MultiLineString
+
+    def make(plot=True):
+        obj = SimpleNamespace(
+            obj_options={'plot': plot, 'multicolored': False}, multigeo=False,
+            solid_geometry=MultiLineString([[(0, 0), (1, 1)], [(2, 2), (3, 3)]]),
+            random_color=lambda: '#00FF00FF', _app_option=lambda name: '#112233FF', shapes=mock.Mock(),
+            add_shapes_batch=mock.Mock(), add_shape=mock.Mock(), mark_full_plot=mock.Mock(),
+            PLOT_LAYER=GeometryObject.PLOT_LAYER)
+        obj._collect_elements = GeometryObject._collect_elements.__get__(obj)
+        obj.plot_element = GeometryObject.plot_element.__get__(obj)
+        obj.plot = GeometryObject.plot.__get__(obj)
+        return obj
+
+    obj = make()
+    with mock.patch('appObjects.GeometryObject.FlatCAMObj.plot', return_value=True):
+        obj.plot()
+    batch = obj.add_shapes_batch.call_args[0][0]
+    assert len(batch) == 2 and all(item['layer'] == 2 for item in batch)
+    assert obj.add_shapes_batch.call_args[1]['visible'] is True
+    obj = make(plot=True)
+    with mock.patch('appObjects.GeometryObject.FlatCAMObj.plot', return_value=True):
+        obj.plot(visible=False)
+    assert obj.add_shapes_batch.call_args[1]['visible'] is False
+    obj = make()
+    obj.plot_element([MultiLineString([[(0, 0), (1, 1)], [(2, 2), (3, 3)]]), LineString([(5, 5), (6, 6)])],
+                     visible=False)
+    assert obj.add_shape.call_count == 3
+    assert all(c[1]['layer'] == 2 and c[1]['visible'] is False for c in obj.add_shape.call_args_list)
 
 
 

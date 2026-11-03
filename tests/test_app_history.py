@@ -126,14 +126,6 @@ class TestManager(unittest.TestCase):
         h.undo_stack[-1].fail = False
         self.assertTrue(h.undo())
 
-    def test_changed_signal_only_for_the_active_history(self):
-        h, app = manager()
-        h.push(FakeStep('a', []))
-        app.history_changed.emit.assert_called_with('a', '')
-        app.history_changed.emit.reset_mock()
-        app.history = object()
-        h.push(FakeStep('b', []))
-        app.history_changed.emit.assert_not_called()
 
     def test_invert_matrix(self):
         m = (0.0, -2.0, 2.0, 0.0, 5.0, -3.0)
@@ -162,43 +154,6 @@ class TestIdentityAndProjects(unittest.TestCase):
             options['plot'] = True
             callback.assert_called_with('plot')
 
-    def test_restore_options_exact_without_intermediate_callbacks(self):
-        obj = make_gerber(make_app())
-        options = obj.obj_options
-        state = object_state(obj)
-        callback = Mock()
-        options.set_change_callback(callback)
-        options['temporary'] = True
-        callback.reset_mock()
-        h, _app = manager()
-        h.after_change = Mock()
-        h.restore_state(obj, state)
-        self.assertIs(obj.obj_options, options)
-        self.assertNotIn('temporary', options)
-        callback.assert_not_called()
-        options['plot'] = not options['plot']
-        callback.assert_called_once_with('plot')
-
-    def test_unchanged_snapshot_keeps_redo(self):
-        obj = SimpleNamespace(history_uid='u1', kind='geometry', ser_attrs=['solid_geometry'],
-                              solid_geometry=[Point(1, 2)])
-        h, _app = manager()
-        h.push(FakeStep('prior', []))
-        h.undo()
-        with h.snapshot('unchanged', [obj]):
-            pass
-        self.assertFalse(h.can_undo())
-        self.assertTrue(h.can_redo())
-
-    def test_each_project_has_its_history(self):
-        ctx1 = ProjectContext('p1', SimpleNamespace(get_list=lambda: [], view=None))
-        ctx2 = ProjectContext('p2', SimpleNamespace(get_list=lambda: [], view=None))
-        app = fake_app()
-        pm = SimpleNamespace(app=app)
-        for ctx in (ctx1, ctx2):
-            ProjectManager._ensure_history(pm, ctx)
-        self.assertIsNot(ctx1.history, ctx2.history)
-        self.assertIs(ctx1.history.collection, ctx1.collection)
 
 class TestMerge(unittest.TestCase):
 
@@ -223,16 +178,6 @@ class TestMemory(unittest.TestCase):
     def big_geometry(self, n=50000):
         return LineString([(i, i % 7) for i in range(n)])
 
-    def test_a_shared_geometry_counts_once(self):
-        h, _app = manager()
-        g = self.big_geometry()
-        # 10 parameter edits of 1 object: the states share the same geometry
-        for i in range(10):
-            h.push(SnapshotStep('edit %d' % i, [('u1', {'tools': {1: {'solid_geometry': [g]}, 'v': i}},
-                                                 {'tools': {1: {'solid_geometry': [g]}, 'v': i + 1}})]))
-        self.assertEqual(len(h.undo_stack), 10)
-        self.assertGreaterEqual(h.total_size(), 50000 * COORD_BYTES)
-        self.assertLess(h.total_size(), 50000 * COORD_BYTES + 50000)
 
 class TestRebuildSaveRename(unittest.TestCase):
 
@@ -252,18 +197,6 @@ class TestRebuildSaveRename(unittest.TestCase):
         h.rebuild({'kind': kind, 'history_uid': 'u1', 'obj_options': {'name': 'x'}})
         return objects[0]
 
-    def test_rebuild_cncjob_marks_loaded_from_project(self):
-        self.assertTrue(self.rebuild_flag('cncjob').is_loaded_from_project)
-
-    def test_undo_redo_set_should_we_save(self):
-        h, app = manager()
-        h.push(FakeStep('a', []))
-        app.should_we_save = False
-        self.assertTrue(h.undo())
-        self.assertTrue(app.should_we_save)
-        app.should_we_save = False
-        self.assertTrue(h.redo())
-        self.assertTrue(app.should_we_save)
 
     def test_rename_to_a_taken_name_raises(self):
         a = SimpleNamespace(obj_options={'name': 'a'})

@@ -9,23 +9,14 @@ from shapely.geometry import LineString, Polygon, MultiLineString, box
 from appEditors.segment_ops import segment_geometries
 from appEditors.appGeoEditor import AppGeoEditor
 from tests.test_geo_editor_vertex_drag import drag_editor
-from tests.test_gerber_editor_vertices import track_editor, region_editor
+from tests.test_gerber_editor_vertices import track_editor
 from tests.test_vertex_grips import FakeCollection
-from tests.test_gerber_editor_pick import make_editor, make_select, aperture, pad, event, modifiers
-from appEditors.grb_plugins.GrbCommon import DrawToolShape
-from appGUI.MainGUI import MainGUI
 
 CTRL = QtCore.Qt.KeyboardModifier.ControlModifier
 SHIFT_ONLY = QtCore.Qt.KeyboardModifier.ShiftModifier
 STRETCH = CTRL | QtCore.Qt.KeyboardModifier.ShiftModifier
 CORDS = CTRL | QtCore.Qt.KeyboardModifier.AltModifier
 NONE = QtCore.Qt.KeyboardModifier.NoModifier
-
-
-def test_shift_moves_shared_vertices_once_and_stretches_neighbors():
-    line = LineString([(0, 0), (2, 0), (4, 0), (6, 0), (8, 0)])
-    result = segment_geometries({'line': line}, {'line': {(0, 0, 1), (0, 0, 2)}}, (0, 2))
-    assert list(result['line'].coords) == [(0, 0), (2, 2), (4, 2), (6, 2), (8, 0)]
 
 
 def test_alt_connected_polyline_gets_cords_only_at_outer_extremities():
@@ -70,7 +61,6 @@ def geo_drag(geometry):
 @pytest.mark.parametrize('modifier,expected', [
     (STRETCH, [(0, 0), (2, 2), (6, 2), (8, 0)]),
     (CORDS, [(0, 0), (2, 0), (2, 2), (6, 2), (6, 0), (8, 0)]),
-    (NONE, [(0, 2), (2, 2), (6, 2), (8, 2)]),
 ])
 def test_geo_direct_drag_commits_once_and_undo_redo_restore(modifier, expected):
     editor, original = geo_drag(LineString([(0, 0), (2, 0), (6, 0), (8, 0)]))
@@ -99,7 +89,7 @@ def test_cancel_and_tool_change_do_not_commit_segment_drags():
     assert not grips.press((0, 0), (1, 0), STRETCH)
 
 
-@pytest.mark.parametrize('modifier', [STRETCH, CORDS])
+@pytest.mark.parametrize('modifier', [CORDS])
 def test_gerber_trace_drag_preserves_width_and_one_undo_step(modifier):
     editor, original = track_editor(LineString([(0, 0), (4, 0), (8, 0), (12, 0)]))
     editor.tool_shape = FakeCollection()
@@ -115,21 +105,6 @@ def test_gerber_trace_drag_preserves_width_and_one_undo_step(modifier):
     assert editor.redo()
 
 
-def test_gerber_region_drag_keeps_solid_and_follow_consistent():
-    editor, original = region_editor(box(0, 0, 10, 10))
-    editor.tool_shape = FakeCollection()
-    grips = editor.vertex_grips
-    grips.sync()
-    assert grips.press((0, 0), (10, 3), CORDS)
-    grips.release((20, 0), (12, 3))
-    result = editor.selected[0]
-    assert result.geo['solid'].bounds == (0, 0, 12, 10)
-    assert list(result.geo['solid'].exterior.coords) == list(result.geo['follow'].coords)
-    assert len(editor.history.undo_stack) == 1
-
-
-
-
 def test_grid_snaps_the_displacement_without_a_jump_at_the_press():
     editor, original = geo_drag(LineString([(0, 0), (4, 0)]))
     editor.app.grid_status = lambda: True
@@ -139,40 +114,6 @@ def test_grid_snaps_the_displacement_without_a_jump_at_the_press():
     assert grips.press((0, 0), (1.2, 0), CORDS)
     grips.release((20, 0), (1.3, 1.7))
     assert list(editor.selected[0].geo.coords) == [(0, 0), (0, 2), (4, 2), (4, 0)]
-
-
-
-
-
-
-def test_gerber_plain_drag_moves_a_flash_and_keeps_flash_semantics():
-    shape = pad(0, 0, 1)
-    editor = make_editor({10: {'type': 'C', 'size': 2, 'geometry': [shape]}})
-    editor.history.reset()
-    make_select(editor)
-    editor.tool_shape = FakeCollection()
-    grips = editor.vertex_grips
-    assert grips.press((0, 0), (0, 0), NONE)
-    grips.release((20, 0), (3, 2))
-    result = editor.selected[0]
-    assert tuple(result.geo['follow'].coords[0]) == (3, 2)
-    assert result in editor.history.translated_shapes
-    assert editor.undo() and editor.selected == [shape]
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

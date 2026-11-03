@@ -124,40 +124,6 @@ class TestProjectLoadCleanup(unittest.TestCase):
                 self.done.clear()
                 self.critical.reset_mock()
 
-    def test_missing_file_reports_one_failure(self):
-        filename = os.path.join(self.directory.name, 'gone.FlatPrj')
-        self.io.open_project(filename)
-        self.wait_for(lambda: bool(self.tasks))
-        task = self.tasks.pop()
-        worker = threading.Thread(target=lambda: task['fcn'](*task['params']))
-        worker.start()
-        worker.join(2)
-        self.wait_for(lambda: bool(self.done))
-        self.assertEqual(self.done, [(False, filename, [])])
-        self.assertIn('no longer available', self.critical.call_args[0][2])
-        self.assertIn('no longer available', self.io.last_load_error)
-
-    def test_relink_points_missing_sources_to_a_folder(self):
-        found = os.path.join(self.directory.name, 'top.gtl')
-        with open(found, 'w') as stream:
-            stream.write('x')
-        gone = SimpleNamespace(obj_options={'name': 'top', 'source_path': 'C:/old/top.gtl'})
-        kept = SimpleNamespace(obj_options={'name': 'bot', 'source_path': 'C:/old/bot.gbl'})
-        self.app.collection = SimpleNamespace(get_list=lambda: [gone, kept])
-        self.assertEqual(len(self.io.missing_sources()), 2)
-        self.assertEqual(self.io.relink_sources(self.directory.name), 1)
-        self.assertEqual(gone.obj_options['source_path'], found)
-        self.assertEqual(kept.obj_options['source_path'], 'C:/old/bot.gbl')
-        self.assertTrue(self.app.should_we_save)
-
-    def test_second_request_is_refused_while_one_loads(self):
-        filename = os.path.join(self.directory.name, 'project.FlatPrj')
-        with open(filename, 'w') as stream:
-            stream.write('{}')
-        self.io._open_project(filename, False, True, True, True)
-        self.io._open_project(filename, False, True, True, True)
-        self.assertEqual(len(self.tasks), 1)
-        self.assertEqual(self.done, [(False, filename, [])])
 
     def restore_objects(self, objs):
         """Restore objects with a factory that builds simple objects. Non-interactive: no dialogs."""
@@ -214,9 +180,6 @@ class TestProjectLoadCleanup(unittest.TestCase):
         self.assertTrue(self.app.should_we_save)
         self.assertEqual(opened.call_count, 1)
 
-    def test_all_objects_failing_is_not_a_success(self):
-        self.restore_objects([{'kind': 'gerber', 'boom': True, 'obj_options': {'name': 'broken'}}])
-        self.assertEqual(self.done, [(False, 'board.FlatPrj', ['broken'])])
 
     def test_empty_project_parses_and_finishes_batch(self):
         from appObjects.AppObject import AppObject

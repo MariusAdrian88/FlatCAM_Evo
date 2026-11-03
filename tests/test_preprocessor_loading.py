@@ -94,25 +94,16 @@ def test_builtin_preprocessors_load_from_another_working_directory(registry, app
     assert result['default'].lift_code(SimpleNamespace(z_move=2.0, coords_decimals=4)) == 'G00 Z2.0000'
 
 
-def test_user_preprocessor_from_the_data_folder(registry, app, monkeypatch):
+def test_user_preprocessor_loads_and_a_broken_file_is_logged_without_stopping_the_others(registry, app, monkeypatch):
     monkeypatch.chdir(ROOT)
-    write_user_preprocessor(os.path.join(app.data_path, 'preprocessors'), 'User_A', mark='A')
+    folder = os.path.join(app.data_path, 'preprocessors')
+    write_user_preprocessor(folder, 'User_A', mark='A')
+    write_user_preprocessor(folder, 'Broken', source="raise RuntimeError('broken preprocessor')\n")
 
     result, _deprecated = load(app)
 
     assert result['User_A'].start_code(None) == 'A'
-    assert 'GRBL_11' in result
-    app.log.error.assert_not_called()
-
-
-def test_broken_file_is_logged_and_the_others_load(registry, app, monkeypatch):
-    monkeypatch.chdir(ROOT)
-    write_user_preprocessor(os.path.join(app.data_path, 'preprocessors'), 'Broken',
-                            source="raise RuntimeError('broken preprocessor')\n")
-
-    result, _deprecated = load(app)
-
+    assert 'GRBL_11' in result and 'default' in result
     app.log.error.assert_called_once()
     assert 'broken preprocessor' in app.log.error.call_args.args[0]
-    assert 'default' in result
     assert 'FlatCAMPostProcessor_Broken' not in sys.modules

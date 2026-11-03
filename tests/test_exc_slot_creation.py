@@ -36,8 +36,7 @@ def slot_tool(cls, direction='A', length=5.0, angle=31.0):
     return tool
 
 
-@pytest.mark.parametrize('cls', [SlotAdd, SlotArray])
-@pytest.mark.parametrize('direction', ['X', 'A'])
+@pytest.mark.parametrize('cls, direction', [(SlotAdd, 'A'), (SlotArray, 'X')])
 def test_native_creation_and_linear_array(cls, direction):
     tool = slot_tool(cls, direction)
     tool.make()
@@ -55,7 +54,7 @@ def test_native_creation_and_linear_array(cls, direction):
         assert LineString(shape.exc_slot).buffer(0.5).hausdorff_distance(shape.geo) < 0.01
 
 
-@pytest.mark.parametrize('direction', ['CW', 'CCW'])
+@pytest.mark.parametrize('direction', ['CCW'])
 def test_circular_array_rotates_native_endpoints_with_geometry(direction):
     tool = slot_tool(SlotArray)
     tool.origin = (4, 9)
@@ -69,8 +68,7 @@ def test_circular_array_rotates_native_endpoints_with_geometry(direction):
         assert LineString(shape.exc_slot).buffer(0.5).hausdorff_distance(shape.geo) < 0.01
 
 
-@pytest.mark.parametrize('cls', [SlotAdd, SlotArray])
-@pytest.mark.parametrize('length', [0, float('nan')])
+@pytest.mark.parametrize('cls, length', [(SlotAdd, 0), (SlotArray, float('nan'))])
 def test_invalid_slot_creation_leaves_counts_and_storage_unchanged(cls, length):
     tool = slot_tool(cls, length=length)
     before = list(tool.draw_app.slot_points_edit[1.0])
@@ -80,9 +78,8 @@ def test_invalid_slot_creation_leaves_counts_and_storage_unchanged(cls, length):
     assert len(list(tool.draw_app.storage_dict[1.0].get_objects())) == 2
 
 
-@pytest.mark.parametrize('cls', [SlotAdd, SlotArray])
+@pytest.mark.parametrize('cls, circular', [(SlotAdd, False), (SlotArray, True)])
 @pytest.mark.parametrize('export_units', ['METRIC'])
-@pytest.mark.parametrize('circular', [False, True])
 def test_created_and_copied_slots_history_save_and_native_roundtrip(app, tmp_path, cls, export_units, circular):
     tool = slot_tool(cls)
     if circular and cls is SlotArray:

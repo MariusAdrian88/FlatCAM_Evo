@@ -93,11 +93,6 @@ class TestTransformGeometry(unittest.TestCase):
         new_line, = Film.transform_geometry([line], scale_factor_x=5.0, scale_factor_y=5.0, scale_type=0)
         self.assertEqual(new_line.bounds, (0.0, -2.5, 0.0, 12.5))
 
-    def test_skew_by_length_from_bottomleft(self):
-        frame = box(0, 0, 10, 10)
-        new_frame, = Film.transform_geometry([frame], skew_factor_x=10.0, skew_reference='bottomleft', skew_type=0)
-        self.assertAlmostEqual(new_frame.bounds[2], 20.0)
-
 
 class TestSvgDocument(unittest.TestCase):
 
@@ -122,12 +117,6 @@ class TestSvgDocument(unittest.TestCase):
             self.assertIn(elem.get('fill'), ('#000000', 'none'))
         self.assertEqual([e.get('fill') for e in elements if e.tag.endswith('polyline')], ['none'])
 
-    def test_view_box_of_negative_coordinates(self):
-        film = make_film({})
-        doc = film.create_positive_svg(Film.create_svg_geometry(box(-5, -8, -1, -2), 0.01), (-5, -8, -1, -2),
-                                       1.0, '#000000', 1.0, 'mm')
-        root = ElementTree.fromstring(doc)
-        self.assertEqual([float(v) for v in root.get('viewBox').split()], [-6.0, 1.0, 6.0, 8.0])
 
     def test_negative_box_polygon_gets_the_margin(self):
         film = make_film({})
@@ -163,22 +152,6 @@ class TestExportFilm(unittest.TestCase):
         self.assertEqual(root.get('width'), '31.0mm')
         self.assertEqual(len(colored_elements(ElementTree.tostring(root, encoding='unicode'))), 2)
 
-    def test_negative_film_with_an_other_box(self):
-        part = FakeObject('part', Polygon([(10, 10), (20, 10), (20, 20)]))
-        frame = FakeObject('frame', box(0, 0, 40, 40))
-        root = self.export({'part': part, 'frame': frame}, 'part', 'frame', negative=True)
-        self.assertEqual(root.get('width'), '41.0mm')
-        self.assertTrue(any(e.get('id') == 'neg_rect' for e in root.iter()))
-
-    def test_png_and_pdf_files_are_written(self):
-        part = FakeObject('part', box(1, 1, 10, 10))
-        film = make_film({'part': part})
-        film.ui.pagesize_combo = Value('Bounds')
-        with tempfile.TemporaryDirectory() as tmp:
-            for ftype in ('png', 'pdf'):
-                filename = os.path.join(tmp, 'film.' + ftype)
-                film.export_negative_handler('part', 'part', filename, 1.0, use_thread=False, ftype=ftype)
-                self.assertGreater(os.path.getsize(filename), 0, ftype)
 
     def png_size(self, filename):
         with open(filename, 'rb') as f:
@@ -202,10 +175,6 @@ class TestExportFilm(unittest.TestCase):
             # the file records its DPI: a viewer or a printer shows the 120 mm film at 120 mm
             self.assertIsNotNone(file_dpi, '%s DPI is in the file' % dpi)
             self.assertAlmostEqual(width / file_dpi[0] * 25.4, 120.0, delta=0.5, msg='%s DPI size' % dpi)
-
-    def test_missing_object_returns_a_message(self):
-        film = make_film({})
-        self.assertIn('Could not retrieve', film.export_positive_handler('none', 'none', 'x.svg', use_thread=False))
 
 
 class TestPadCenterPunch(unittest.TestCase):

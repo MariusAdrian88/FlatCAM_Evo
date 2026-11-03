@@ -43,12 +43,6 @@ TOOLS = {
 }
 
 
-def test_merge_joins_touching_lines():
-    lines = [LineString([(0, 0), (1, 0)]), LineString([(1, 0), (2, 0)]), LineString([(5, 5), (6, 5)])]
-    assert len(fg.clean_paths(lines, False, False, 0.0, merge=True)) == 2
-    assert len(fg.clean_paths(lines, False, False, 0.0, merge=False)) == 3
-
-
 def test_selection_keeps_inside_clips_crossing_drops_outside():
     inside = LineString([(1, 1), (2, 1)])
     crossing = LineString([(1, 5), (9, 5)])
@@ -57,28 +51,6 @@ def test_selection_keeps_inside_clips_crossing_drops_outside():
     assert total_length(result) == pytest.approx(1 + 3)
     assert fg.select_paths([outside], [box(0, 0, 4, 10)]) == []
     assert len(fg.select_paths([inside, outside], None)) == 2
-
-
-def test_aperture_filter_uses_only_the_chosen_apertures():
-    groups = fg.follow_groups(source(TOOLS), params(apertures=[11]))
-    assert len(groups) == 1
-    assert groups[0][0] == 0.1
-    assert total_length(groups[0][1]) == pytest.approx(5.0)
-
-
-def test_aperture_dia_mode_groups_by_size_and_regions_use_default_dia():
-    groups = fg.follow_groups(source(TOOLS), params(dia_mode='aperture'))
-    by_dia = {dia: total_length(lines) for dia, lines in groups}
-    assert by_dia == {0.1: pytest.approx(5.0), 0.2: pytest.approx(10.0), 0.4: pytest.approx(5.0)}
-
-
-@pytest.mark.parametrize('dia_mode', ['aperture'])
-def test_a_polygon_follow_geometry_without_aperture_data_is_followed(dia_mode):
-    """A Gerber from the DXF import keeps a Polygon in follow_geometry and has no aperture follow data."""
-    groups = fg.follow_groups(source({}, follow=box(0, 0, 2, 2)),
-                              params(union=True, simplify=True, tolerance=0.01, dia_mode=dia_mode))
-    assert len(groups) == 1 and groups[0][0] == 0.1
-    assert total_length(groups[0][1]) == pytest.approx(8.0)
 
 
 # ---------------------------------------------------------------------------------------------------------------

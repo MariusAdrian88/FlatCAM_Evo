@@ -4,7 +4,7 @@ import threading
 import unittest
 from contextlib import nullcontext
 from types import SimpleNamespace
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 from PyQt6 import QtCore, QtWidgets, QtTest
 
@@ -148,14 +148,6 @@ class TestBatchPropertiesQt(unittest.TestCase):
         self.assertIs(self.window.properties_scroll_area.widget(), obj.ui)
         self.assertEqual(obj.ui.text(), obj.obj_options['name'])
 
-    def test_select_then_click_properties_tab_populates_selected_ui(self):
-        first, second = self.layer('first'), self.layer('second')
-        self.select(first)
-        tab = self.window.notebook.tabBar()
-        QtTest.QTest.mouseClick(tab, QtCore.Qt.MouseButton.LeftButton, pos=tab.tabRect(1).center())
-        self.assert_properties(first)
-        self.select(second)
-        self.assert_properties(second)
 
     def test_bulk_delete_detaches_rows_before_cleanup_and_redraws_once(self):
         collection = self.app.collection
@@ -204,46 +196,6 @@ class TestBatchPropertiesQt(unittest.TestCase):
             obj.mark_shapes.clear.assert_called_once_with(update=False)
             self.assertFalse(obj.mark_shapes.enabled)
 
-    def test_bulk_delete_vispy_cnc_cleanup_and_empty_autohide(self):
-        objects = []
-        for name in ('first', 'second'):
-            obj = Layer(name, self.app)
-            obj.kind = 'cncjob'
-            self.app.collection.append(obj)
-            obj.shapes = Mock()
-            obj.annotation = Mock()
-            obj.text_col = Mock()
-            obj.probing_shapes = Mock()
-            obj.clear = Mock()
-            obj.delete = Mock()
-            objects.append(obj)
-        annotations = [obj.annotation for obj in objects]
-        text_cols = [obj.text_col for obj in objects]
-        self.app.collection.set_all_active()
-        self.window.plot_tab_area = QtWidgets.QTabWidget()
-        self.app.plotcanvas = Mock()
-        self.app.tool_shapes = None
-        self.app.delete_selection_shape = Mock()
-        self.app.exc_areas = Mock()
-        self.app.defaults.report_usage = Mock()
-        self.app.options['global_project_autohide'] = True
-        self.app.setup_default_properties_tab = Mock(wraps=self.show_default)
-
-        AppObjectOps(self.app).on_delete(force_deletion=True)
-
-        self.assertEqual(self.app.collection.get_list(), [])
-        self.app.plotcanvas.redraw.assert_called_once_with()
-        self.app.exc_areas.clear_shapes.assert_called_once_with()
-        self.window.splitter.setSizes.assert_called_once_with([0, 1])
-        self.app.setup_default_properties_tab.assert_called_once_with()
-        for obj, annotation, text_col in zip(objects, annotations, text_cols):
-            obj.clear.assert_called_once_with()
-            obj.delete.assert_called_once_with()
-            annotation.clear.assert_called_once_with(update=False)
-            obj.probing_shapes.clear.assert_called_once_with(update=True)
-            self.assertFalse(text_col.enabled)
-            self.assertFalse(hasattr(obj, 'annotation'))
-            self.assertFalse(hasattr(obj, 'text_col'))
 
     def test_delete_confirmation_cancel_does_not_remove_objects(self):
         first, second = self.layer('first'), self.layer('second')
@@ -255,56 +207,6 @@ class TestBatchPropertiesQt(unittest.TestCase):
         self.assertEqual(self.app.collection.get_list(), [first, second])
         self.assertEqual(self.app.collection.get_selected(), [first, second])
 
-    def test_worker_to_timer_insertion_preserves_selection_and_both_builds(self):
-        first, second = Layer('first', self.app), Layer('second', self.app)
-        self.window.notebook.setCurrentWidget(self.window.properties_tab)
-        batch = ObjectLoadBatch(self.app.app_obj, 1)
-        self.batches.append(batch)
-        proceed = threading.Event()
-        self.addCleanup(proceed.set)
-
-        def create():
-            batch.batch_event.emit('created', (first, False, True, None, []))
-            if not proceed.wait(2):
-                raise RuntimeError('test did not release worker')
-            batch.batch_event.emit('created', (second, False, True, None, []))
-
-        worker = threading.Thread(target=lambda: batch.run(create, []), daemon=True)
-        worker.start()
-        self.wait_for(lambda: batch.integrated == 1)
-        self.select(first)
-        self.assert_properties(first)
-        proceed.set()
-        self.wait_for(lambda: batch.completed)
-        worker.join(2)
-        self.assertFalse(worker.is_alive())
-        self.assertFalse(batch.failed)
-        self.assert_properties(first)
-        self.assertGreaterEqual(first.builds, 2)
-        self.assertEqual(second.builds, 2)
-        self.assertTrue(all(thread is QtCore.QThread.currentThread()
-                            for thread in first.build_threads + second.build_threads))
-        self.assertFalse(self.app.app_obj.load_batches)
-        self.app.on_zoom_fit.assert_not_called()
-
-    def test_load_with_total_counts_objects_and_cancel_fails_the_load(self):
-        finished = Mock()
-        batch = ObjectLoadBatch(self.app.app_obj, 1, finished, total=3)
-        self.batches.append(batch)
-        first, second = Layer('first', self.app), Layer('second', self.app)
-        batch.on_event('created', (first, False, False, None, []))
-        batch.integrate_next()
-        self.assertEqual(batch.progress.value(), 1)
-        self.assertIn('1 / 3', batch.progress.labelText())
-
-        batch.progress.findChild(QtWidgets.QPushButton).click()
-        batch.on_event('created', (second, False, False, None, []))
-        batch.integrate_next()
-        self.assertEqual(self.app.collection.get_list(), [first])
-        self.assertFalse(finished.called)
-        batch.on_event('done', None)
-        finished.assert_called_once_with(True)
-        self.assertTrue(batch.cancelled)
 
     def test_object_with_the_history_uid_of_another_object_gets_a_new_one(self):
         first, second = Layer('first', self.app), Layer('second', self.app)

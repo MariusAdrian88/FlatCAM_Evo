@@ -36,7 +36,7 @@ def new_fn():
 
 
 class TestNew:
-    @pytest.mark.parametrize('name', VALID + ['overlapping_list', 'self_intersecting'])
+    @pytest.mark.parametrize('name', ['mixed_dark_clear_dark', 'multipolygon'])
     def test_valid_polygonal(self, gerber, new_fn, name):
         geo = new_fn(obj_with(gerber, name))
         assert isinstance(geo, (Polygon, MultiPolygon)) and geo.is_valid

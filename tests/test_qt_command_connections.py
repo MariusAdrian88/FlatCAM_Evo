@@ -13,8 +13,7 @@ def qt_app():
     return QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
 
 
-@pytest.mark.parametrize('signal_type', ['action', 'button'])
-@pytest.mark.parametrize('receiver_kind', ['adapter', 'slot'])
+@pytest.mark.parametrize('signal_type,receiver_kind', [('action', 'slot'), ('button', 'adapter')])
 def test_discard_adapter_keeps_command_default_and_checked_receiver_gets_state(qt_app, signal_type, receiver_kind):
     calls, states = [], []
 
@@ -44,8 +43,6 @@ def test_discard_adapter_keeps_command_default_and_checked_receiver_gets_state(q
 
 @pytest.mark.parametrize('registration, action_name', [
     ('connect_editmenu_signals', 'menuedit_center_in_origin'),
-    ('connect_menuview_signals', 'menuview_replot'),
-    ('connect_canvas_context_signals', 'replot'),
     ('connect_toolbar_signals', 'replot_btn'),
 ])
 def test_real_registered_actions_keep_command_defaults(qt_app, registration, action_name):

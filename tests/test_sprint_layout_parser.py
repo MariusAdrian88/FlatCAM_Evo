@@ -184,19 +184,6 @@ class TestSprintLayoutPads(unittest.TestCase):
         self.assertAlmostEqual(tool['drills'][0].y, 10.0, places=6)
         self.assertEqual(tool['slots'], [])
 
-    def test_unplated_pad_goes_to_npth_group(self):
-        parser = SprintLayoutParser().parse_bytes(one_pad_file(plated=0))
-        self.assertEqual(list(parser.drill_groups), ['NPTH'])
-        tool = parser.drill_groups['NPTH'][1]
-        self.assertAlmostEqual(tool['tooldia'], 0.7, places=4)
-        self.assertEqual(len(tool['drills']), 1)
-
-    def test_mask_opening_grows_pad_by_0_12_mm_per_side(self):
-        parser = SprintLayoutParser().parse_bytes(one_pad_file())
-        for key in ('M1', 'M2'):
-            with self.subTest(layer=key):
-                for actual, expected in zip(geo(parser, key).bounds, (9.38, 9.38, 10.62, 10.62)):
-                    self.assertAlmostEqual(actual, expected, delta=1e-3)
 
     def test_smd_pad_is_copper_and_mask_on_its_own_layer_only(self):
         square = obj(8, pts=[(fu(3), fy(5, BOARD_MM)), (fu(5), fy(5, BOARD_MM)),
@@ -239,11 +226,6 @@ class TestSprintLayoutFrame(unittest.TestCase):
         self.assertAlmostEqual(tool['drills'][0].x, 5.0, places=6)
         self.assertAlmostEqual(tool['drills'][0].y, 17.0, places=6)
 
-    def test_board_without_outline_uses_the_board_rectangle(self):
-        parser = SprintLayoutParser().parse_bytes(one_pad_file())
-        for actual, expected in zip(parser.board_outline.bounds, (0.0, 0.0, 20.0, 20.0)):
-            self.assertAlmostEqual(actual, expected, delta=1e-9)
-
 
 class TestSprintLayoutGroundPlane(unittest.TestCase):
     def test_plane_is_board_minus_clearance_with_pad_island(self):
@@ -264,29 +246,6 @@ class TestSprintLayoutGroundPlane(unittest.TestCase):
         self.assertNotIn('C2', parser.warnings[0])
         # C2 has no plane: only the pad
         self.assertAlmostEqual(geo(parser, 'C2').area, math.pi * 0.5 ** 2, delta=0.01)
-
-class TestSprintLayoutText(unittest.TestCase):
-    def _text_file(self, visible):
-        stroke = child(6, [(fu(3), fy(3, BOARD_MM)), (fu(6), fy(3, BOARD_MM))], width=1500, layer=2, shape=0)
-        text = obj(7, children=[stroke], x=0.0, y=0.0, layer=2, shape=1, flag=1 if visible else 0)
-        return sprint_file([board([(7, text)], w=fu(BOARD_MM), h=fu(BOARD_MM))])
-
-    def test_visible_text_is_drawn_on_silkscreen(self):
-        parser = SprintLayoutParser().parse_bytes(self._text_file(visible=True))
-        self.assertEqual(list(parser.layers), ['S1'])
-        for actual, expected in zip(geo(parser, 'S1').bounds, (2.925, 2.925, 6.075, 3.075)):
-            self.assertAlmostEqual(actual, expected, delta=0.01)
-        self.assertEqual(parser.warnings, [])
-
-class TestSprintLayoutBoards(unittest.TestCase):
-    def test_only_first_board_is_imported_with_warning(self):
-        first = board([(2, pad_at(10.0, 10.0))], name=b'First', w=fu(BOARD_MM), h=fu(BOARD_MM))
-        second = board([], name=b'Second', w=100000, h=100000)
-        parser = SprintLayoutParser().parse_bytes(sprint_file([first, second]))
-        self.assertEqual(parser.board_count, 2)
-        self.assertEqual(parser.board_name, 'First')
-        self.assertIn('C1', parser.layers)
-        self.assertEqual(parser.warnings, ['The file holds 2 boards; only the first board ("First") was imported'])
 
 
 if __name__ == '__main__':

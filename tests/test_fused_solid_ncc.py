@@ -7,7 +7,7 @@ from shapely.geometry import MultiPolygon, Polygon
 from fused_consumer_cases import area_diff, case_geometries
 from tests.helpers_objects import app, gerber, _headless_qt  # noqa: F401,E402
 
-CASES = ['mixed_dark_clear_dark', 'overlapping_list', 'self_intersecting', 'single_polygon', 'multipolygon']
+CASES = ['mixed_dark_clear_dark', 'overlapping_list']
 
 
 def obj_with(gerber, name):

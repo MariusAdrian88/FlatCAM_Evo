@@ -1,18 +1,12 @@
 import math
-import sys
-from types import SimpleNamespace
-from unittest.mock import Mock, MagicMock
 
 import pytest
 from shapely import Point, LineString, box
 from shapely.ops import unary_union
 
-from appParsers.feature_access import iter_features
-from appPlugins.ToolPunchGerber.PunchGerber import ToolPunchGerber
 from appPlugins.ToolPunchGerber.PunchGerberGen import punch_geometry
-from tests.helpers_objects import _headless_qt, make_app, make_gerber  # noqa: F401
+from tests.helpers_objects import _headless_qt  # noqa: F401
 
-PUNCH_MODULE = sys.modules['appPlugins.ToolPunchGerber.PunchGerber']
 ALL_ON = [True] * 5
 
 
@@ -51,118 +45,6 @@ def _exc(drills=(), slots=(), dia=0.4):
     return geo, {1: tool}
 
 
-class FakeCollection:
-    def __init__(self):
-        self.items = []
-
-    def get_list(self):
-        return list(self.items)
-
-    def get_active(self):
-        return None
-
-    def get_by_name(self, name):
-        return next((o for o in self.items if o.obj_options['name'] == name), None)
-
-    def index(self, row, column, parent=None):
-        return SimpleNamespace(internalPointer=lambda: SimpleNamespace(obj=self.items[row]))
-
-
-class Entry:
-    def __init__(self, value=None):
-        self.value = value
-
-    def get_value(self):
-        return self.value
-
-    def set_value(self, value):
-        self.value = value
-
-
-class FakeTable:
-    def __init__(self, apids):
-        self.apids = apids
-
-    def selectedItems(self):
-        return [SimpleNamespace(text=lambda a=a: str(a)) for a in self.apids]
-
-    def rowCount(self):
-        return 0
-
-
-@pytest.fixture
-def setup():
-    app = make_app()
-    app.collection = FakeCollection()
-    app.event_is_dragging = False
-    app.plotcanvas = Mock()
-    app.plotcanvas.translate_coords = lambda pos: pos
-    app.on_mouse_click_over_plot = Mock()
-    app.on_mouse_click_release_over_plot = Mock()
-    app.ui = MagicMock()
-    app.ui.grid_snap_btn.isChecked.return_value = False
-    app.options['global_selection_shape'] = True
-    counter = iter(range(1, 1000))
-    app.tool_shapes = Mock()
-    app.tool_shapes.add = Mock(side_effect=lambda **kw: next(counter))
-    app.created = []
-
-    def new_object(kind, name, initialize, **kwargs):
-        obj = SimpleNamespace(obj_options={'name': name}, tools={}, solid_geometry=None,
-                              regenerate_source=lambda name=None: None)
-        initialize(obj, app)
-        app.created.append(obj)
-        return obj
-
-    app.app_obj.new_object = new_object
-    source = make_gerber(app, name='src')
-    source.drawing_tolerance = 0.01
-    source.clear_plot_apertures = Mock()
-    app.collection.items.append(source)
-
-    tool = ToolPunchGerber.__new__(ToolPunchGerber)
-    tool.app = app
-    tool.decimals = 4
-    tool.old_name = ''
-    tool.grb_obj = None
-    tool.grid_status_memory = False
-    tool.poly_sel_disconnect_flag = False
-    tool.poly_dict = {}
-    tool.manual_pads = []
-    tool.old_selection_status = None
-    tool.delete_moving_selection_shape = Mock()
-    tool.delete_tool_selection_shape = Mock()
-    tool.ui = SimpleNamespace(
-        punch_type_radio=Entry('m'), method_punch=Entry('fixed'), dia_entry=Entry(0.1),
-        circular_ring_entry=Entry(0.1), oblong_ring_entry=Entry(0.1), square_ring_entry=Entry(0.1),
-        rectangular_ring_entry=Entry(0.1), other_ring_entry=Entry(0.1), factor_entry=Entry(50.0),
-        circular_cb=Entry(True), oblong_cb=Entry(True), square_cb=Entry(True), rectangular_cb=Entry(True),
-        other_cb=Entry(True), apertures_table=FakeTable(list(source.tools)),
-        gerber_object_combo=SimpleNamespace(currentIndex=lambda: 0, rootModelIndex=lambda: None),
-        exc_combo=SimpleNamespace(currentIndex=lambda: 0, rootModelIndex=lambda: None))
-    tool.grb_obj = source
-    return tool, app, source
-
-
-def pads_of(tool, source):
-    tool.grb_obj = source
-    sel = [int(i.text()) for i in tool.ui.apertures_table.selectedItems()]
-    return [(r.item_key, r.feature_index, r.solid.representative_point()) for r in iter_features(source)
-            if r.item_key in sel and r.polarity == 'dark' and isinstance(r.follow, Point)]
-
-
-def click(tool, point, button=1):
-    tool.on_single_poly_mouse_release(SimpleNamespace(pos=(point.x, point.y), button=button))
-
-
-def start_manual(tool):
-    tool.on_punch_object_click()
-
-
-def notebook_disabled(app):
-    return app.ui.notebook.setDisabled.call_args[0][0]
-
-
 def test_fixed_punches_circle_and_records_clear_and_aperture():
     tools = {10: _circle_ap(0, 0)}
     solid, aps = _run(tools, value=0.4)
@@ -179,7 +61,6 @@ def test_fixed_punches_circle_and_records_clear_and_aperture():
 
 @pytest.mark.parametrize('method,value,code', [
     ('fixed', 0.9, 'size'),            # smaller than diagonal 1.166 but not than the 0.6 side
-    ('ring', [0.5] * 5, 'zero'),
 ])
 def test_obround_error_codes(method, value, code):
     with pytest.raises(ValueError) as err:
@@ -208,18 +89,4 @@ def test_excellon_keeps_clear_features_cuts_only_selected_and_clears_slots():
     assert any(isinstance(g, Point) for _, g in clears) and any(isinstance(g, LineString) for _, g in clears)
     assert len(clears) == 2
     assert not aps[10]['geometry'][0]['solid'].intersects(Point(0, 0))
-
-
-def test_right_click_with_pads_creates_punched_and_exits(setup):
-    tool, app, source = setup
-    pads = pads_of(tool, source)
-    start_manual(tool)
-    assert notebook_disabled(app) is True
-    click(tool, pads[0][2])
-    click(tool, pads[0][2], button=2)
-    assert [o.obj_options['name'] for o in app.created] == ['src_punched']
-    assert notebook_disabled(app) is False
-    assert app.options['global_selection_shape'] is True
-    app.plotcanvas.graph_event_connect.assert_any_call('mouse_press', app.on_mouse_click_over_plot)
-    app.plotcanvas.graph_event_connect.assert_any_call('mouse_release', app.on_mouse_click_release_over_plot)
 

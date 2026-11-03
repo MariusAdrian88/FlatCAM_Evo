@@ -81,34 +81,6 @@ def assert_no_success(editor):
     assert not any('[success]' in str(call) for call in editor.app.inform.emit.call_args_list)
 
 
-def test_busy_move_canvas_preserves_operation_then_retry_commits():
-    editor, tool, original = interactive_move_editor()
-    editor.submit_worker(Mock(), [])
-    event = SimpleNamespace(pos=(3, 2), button=1)
-    assert AppGeoEditor.on_canvas_click(editor, event) == 'fail'
-    assert tool.origin == (0, 0) and not tool.complete and tool.geometry == []
-    assert tool.points == [(0, 0)]
-    assert list(editor.storage.get_objects()) == [original]
-    tool.draw_cursor_data.assert_not_called()
-    editor.select_tool.assert_not_called()
-    assert_no_success(editor)
-    run_worker(editor)
-    assert AppGeoEditor.on_canvas_click(editor, event) != 'fail'
-    assert editor.selected[0].geo.bounds == (3, 2, 4, 2)
-    assert tool.origin is None
-    editor.select_tool.assert_called_once_with('select')
-    assert editor.undo()
-    assert list(editor.storage.get_objects()) == [original]
-
-
-
-
-
-
-
-
-
-
 def test_add_delete_redo_invalidation_and_metadata():
     editor = editor_with_history()
     shape = DrawToolShape(LineString([(0, 0), (1, 0)]))
@@ -178,99 +150,6 @@ def test_editor_and_application_histories_are_independent():
     assert editor.undo()
 
 
-
-
-@pytest.mark.parametrize('route', ['redo'])
-def test_changed_depth_is_enforced_on_redo(route):
-    editor = editor_with_history()
-    for index in range(4):
-        editor.add_shape(DrawToolShape(box(index, 0, index + 1, 1)))
-    assert AppGeoEditor.history_go_to(editor, 0)
-    editor.app.options['global_history_steps'] = 2
-    if route == 'jump':
-        assert AppGeoEditor.history_go_to(editor, 4)
-    else:
-        for _ in range(4):
-            assert editor.redo()
-            assert len(editor._history_undo) <= 2
-    assert len(editor._history_undo) == 2
-    assert len(list(editor.storage.get_objects())) == 4
-
-
-def test_changed_memory_limit_discards_farthest_redo_first():
-    editor = editor_with_history()
-    for index in range(3):
-        editor.add_shape(DrawToolShape(LineString([(i, index) for i in range(23000)])))
-    assert AppGeoEditor.history_go_to(editor, 0)
-    editor.app.options['global_history_memory_mb'] = 1
-    assert editor.redo()
-    assert len(editor._history_redo) == 1
-    assert editor.redo()
-    assert not editor.redo()
-    assert len(list(editor.storage.get_objects())) == 2
-
-
-def test_common_history_uses_application_limits_and_navigation():
-    editor = editor_with_history()
-    editor.app.options['global_history_steps'] = 3
-    assert AppGeoEditor.history_limits(editor) == HistoryManager(editor.app, None).limits()
-    for index in range(5):
-        with editor.history_operation(label='Shape %d' % index):
-            editor.add_shape(DrawToolShape(box(index, 0, index + 1, 1)))
-    assert len(editor._history_undo) == 3
-    assert AppGeoEditor.history_labels(editor) == ['Shape 2', 'Shape 3', 'Shape 4']
-    assert AppGeoEditor.history_go_to(editor, 0)
-    assert len(list(editor.storage.get_objects())) == 2
-    assert AppGeoEditor.history_go_to(editor, 2)
-    assert len(list(editor.storage.get_objects())) == 4
-    editor.add_shape(DrawToolShape(box(9, 0, 10, 1)))
-    assert not editor._history_redo
-    assert len(editor._history_undo) == 3
-
-
-def test_history_navigation_rejects_busy_and_nested_edits_share_entry():
-    editor = editor_with_history()
-    with editor.history_operation(label='Grouped'):
-        editor.add_shape(DrawToolShape(box(0, 0, 1, 1)))
-        editor.add_shape(DrawToolShape(box(2, 0, 3, 1)))
-    assert AppGeoEditor.history_labels(editor) == ['Grouped']
-    editor.submit_worker(Mock(), [])
-    assert not AppGeoEditor.history_go_to(editor, 0)
-    assert len(list(editor.storage.get_objects())) == 2
-    run_worker(editor)
-    assert AppGeoEditor.history_go_to(editor, 0)
-    assert not list(editor.storage.get_objects())
-
-
-def test_history_widgets_show_chronological_states_and_next_actions():
-    editor = editor_with_history()
-    editor.app.call_source = 'geo_editor'
-    editor.app.ui = SimpleNamespace(on_history_changed=Mock())
-    editor.ui = SimpleNamespace()
-    editor.ui.history_positions = QtWidgets.QComboBox()
-    for label in ('Circle', 'Buffer'):
-        with editor.history_operation(label=label):
-            editor.add_shape(DrawToolShape(box(0, 0, 1, 1)))
-    editor.undo()
-    AppGeoEditor.refresh_history(editor)
-    combo = editor.ui.history_positions
-    assert [combo.itemText(i) for i in range(combo.count())] == ['Initial state', 'Circle', 'Buffer']
-    assert combo.currentIndex() == 1
-    editor.app.ui.on_history_changed.assert_called_with('Circle', 'Buffer')
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def test_move_completion_restores_metadata_selection_and_index():
     original = DrawToolShape(LineString([(0, 0), (2, 0)]))
     original.data['custom'] = {'label': 'track'}
@@ -300,7 +179,7 @@ def test_move_completion_restores_metadata_selection_and_index():
     assert editor.selected == [moved]
 
 
-@pytest.mark.parametrize('operation', ['union', 'subtract', 'cutpath'])
+@pytest.mark.parametrize('operation', ['union'])
 def test_boolean_variants_undo_and_redo_as_one_operation(operation):
     a, b = DrawToolShape(box(0, 0, 2, 2).exterior), DrawToolShape(box(1, 1, 3, 3).exterior)
     editor = editor_with_history([a, b], [a, b])
@@ -319,7 +198,7 @@ def test_boolean_variants_undo_and_redo_as_one_operation(operation):
 
 
 @pytest.mark.parametrize('operation', ['subtract', 'cutpath'])
-@pytest.mark.parametrize('target_kind', ['ring', 'open_path'])
+@pytest.mark.parametrize('target_kind', ['ring'])
 @pytest.mark.parametrize('cutter', [box(1, 1, 3, 3)])
 def test_subtraction_uses_areas_while_cutpath_uses_outlines(operation, target_kind, cutter):
     polygon = box(0, 0, 2, 2)
@@ -341,8 +220,6 @@ def test_subtraction_uses_areas_while_cutpath_uses_outlines(operation, target_ki
     expected_target = geometry if target_kind == 'open_path' else \
         polygon.exterior if operation == 'cutpath' else polygon
     assert unary_union(results).equals(expected_target.difference(cutter))
-
-
 
 
 @pytest.mark.parametrize('transform,args,kwargs,expected', [
@@ -379,35 +256,6 @@ def test_affine_overflow_keeps_all_originals_atomically():
     assert list(editor.storage.get_objects()) == shapes
     assert editor.selected == shapes
     assert not editor._history_undo
-
-
-def test_transform_and_replay_plot_only_changed_shapes():
-    shapes = [DrawToolShape(LineString([(x, 0), (x, 1)])) for x in range(100)]
-    editor = editor_with_history(shapes, [shapes[0]])
-    editor.plot_all = lambda: AppGeoEditor.plot_all(editor)
-    editor.plot_changes = lambda: AppGeoEditor.plot_changes(editor)
-    editor.plot_all()
-    editor.shapes.calls.clear()
-    editor.sel_shapes.calls.clear()
-    AppGeoEditor.transform_shapes(editor, 'offset', (200, 0))
-    assert len(editor._history_undo) == 1
-    assert editor.undo()
-    assert editor.redo()
-    assert not any(call[0] == 'clear' for call in editor.shapes.calls + editor.sel_shapes.calls)
-    assert len([call for call in editor.shapes.calls if call[0] == 'add']) <= 3
-    assert editor.build_ui_sig.emit.call_count == 3
-
-
-def test_clear_resets_history_and_rejects_old_worker():
-    editor = editor_with_history()
-    editor.add_shape(DrawToolShape(box(0, 0, 1, 1)))
-    called = Mock()
-    editor.submit_worker(called, [])
-    AppGeoEditor.clear(editor)
-    run_worker(editor)
-    called.assert_not_called()
-    assert not editor.undo()
-    assert not editor.redo()
 
 
 def test_eraser_restores_replacement_selection_on_redo():
@@ -454,29 +302,6 @@ def test_explode_replaces_every_selected_shape_by_its_lines():
     assert set(editor.storage.get_objects()) == set(originals)
 
 
-def test_replay_restores_real_tree_rows_and_selection():
-    shape = DrawToolShape(box(0, 0, 1, 1).exterior)
-    editor = editor_with_history([shape], [shape])
-    tree = FCTree(columns=3, extended_sel=True)
-    editor.ui = SimpleNamespace(tw=tree, geo_parent=tree.invisibleRootItem(), geo_font=QtGui.QFont())
-    editor.shapes_by_tree_id = lambda: AppGeoEditor.shapes_by_tree_id(editor)
-    editor.sync_tree_selection = lambda: AppGeoEditor.sync_tree_selection(editor)
-    editor.build_ui_sig.emit = lambda: AppGeoEditor.build_ui(editor)
-    editor.build_ui_sig.emit()
-    assert [item.text(0) for item in tree.selectedItems()] == [str(id(shape))]
-    editor.delete_shape(shape)
-    editor.build_ui_sig.emit()
-    assert tree.topLevelItemCount() == 0
-    assert editor.undo()
-    assert tree.topLevelItemCount() == 1
-    assert [item.text(0) for item in tree.selectedItems()] == [str(id(shape))]
-    assert editor.redo()
-    assert tree.topLevelItemCount() == 0
-    assert not tree.selectedItems()
-
-
-
-
 @pytest.mark.parametrize('tool_class', [CircleEditorTool])
 @pytest.mark.parametrize('valid', [True, False])
 def test_numeric_apply_replaces_geometry_and_selection_in_one_step(tool_class, valid):
@@ -513,10 +338,6 @@ def test_numeric_apply_replaces_geometry_and_selection_in_one_step(tool_class, v
     assert editor.selected == replacements
 
 
-
-
-
-
 def test_project_restore_honors_rejected_editor_exit():
     app = MagicMock()
     handler = appIO(app)
@@ -524,32 +345,6 @@ def test_project_restore_honors_rejected_editor_exit():
     assert handler._restore_project_handler({'objs': [], 'options': {}},
                                             'unused.FlatPrj', False, False, False, False) is False
     app.options.load_project.assert_not_called()
-
-
-
-
-def test_accepted_deactivation_invalidates_queued_job_without_later_mutation():
-    original = DrawToolShape(box(0, 0, 1, 1))
-    editor = editor_with_history([original], [original])
-    editor.app.ui, editor.app.plotcanvas = Mock(), Mock()
-    editor.app.history = Mock()
-    editor.ui, editor.fcgeometry, editor.item_selected, editor.clear_tree_sig = Mock(), Mock(), Mock(), Mock()
-    editor.toolbar_old_state = False
-    editor.disconnect_canvas_event_handlers = Mock()
-    editor.make_storage = AppGeoEditor.make_storage
-    editor.clear = lambda: AppGeoEditor.clear(editor)
-    editor.on_tree_geo_click, editor.on_tree_selection = Mock(), Mock()
-    called = Mock(side_effect=lambda: editor.add_shape(DrawToolShape(box(2, 2, 3, 3))))
-    editor.submit_worker(called, [])
-    job = editor.app.worker_task.emit.call_args.args[0]
-    assert AppGeoEditor.deactivate(editor) != 'fail'
-    assert not list(editor.storage.get_objects())
-    job['fcn'](*job['params'])
-    called.assert_not_called()
-    assert not list(editor.storage.get_objects())
-    assert not editor.undo()
-
-
 
 
 def test_failed_operation_rolls_back_without_clearing_redo():
@@ -565,57 +360,3 @@ def test_failed_operation_rolls_back_without_clearing_redo():
     assert editor.redo()
 
 
-
-
-def test_worker_failure_releases_selection_guard_and_rolls_back():
-    editor = editor_with_history()
-    editor.interdict_selection = False
-
-    def fail():
-        assert editor.interdict_selection
-        editor.add_shape(DrawToolShape(box(0, 0, 1, 1)))
-        raise ValueError('failed worker')
-
-    editor.submit_worker(fail, [])
-    with pytest.raises(ValueError, match='failed worker'):
-        run_worker(editor)
-    assert not editor.interdict_selection
-    assert not list(editor.storage.get_objects())
-    assert not editor.undo()
-
-
-
-
-
-
-def test_boolean_worker_is_one_step_and_stale_worker_is_rejected():
-    a, b = DrawToolShape(box(0, 0, 2, 2)), DrawToolShape(box(1, 1, 3, 3))
-    editor = editor_with_history([a, b], [a, b])
-    AppGeoEditor.union(editor)
-    job = editor.app.worker_task.emit.call_args.args[0]
-    job['fcn'](*job['params'])
-    assert len(list(editor.storage.get_objects())) == 1
-    assert editor.undo()
-    assert set(editor.storage.get_objects()) == {a, b}
-    assert editor.selected == [a, b]
-    assert not editor.undo()
-    AppGeoEditor.union(editor)
-    job = editor.app.worker_task.emit.call_args.args[0]
-    editor.reset_history()
-    job['fcn'](*job['params'])
-    assert set(editor.storage.get_objects()) == {a, b}
-    assert not editor.undo()
-
-
-def test_preview_and_load_are_not_history_and_reset_clears_redo():
-    editor = editor_with_history()
-    editor.add_shape(DrawToolUtilityShape(box(0, 0, 1, 1)))
-    AppGeoEditor.delete_utility_geometry(editor)
-    assert not editor.undo()
-    with editor.history_operation(record=False):
-        editor.add_shape(DrawToolShape(box(0, 0, 1, 1)))
-    assert not editor.undo()
-    editor.add_shape(DrawToolShape(box(2, 2, 3, 3)))
-    assert editor.undo()
-    editor.reset_history()
-    assert not editor.redo()

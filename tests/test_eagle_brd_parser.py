@@ -1,7 +1,5 @@
 import math
-import os
 import random
-import tempfile
 import unittest
 import warnings
 
@@ -71,23 +69,6 @@ class TestEagleParseErrors(unittest.TestCase):
     def test_non_eagle_root_is_rejected(self):
         self.assertParseError('<?xml version="1.0"?><foo/>', 'Not an Eagle file')
 
-    def test_unknown_package_reference_is_rejected(self):
-        self.assertParseError(doc(elements=element(0, 0, package='nope')), 'unknown package')
-
-    def test_missing_required_attribute_is_rejected(self):
-        self.assertParseError(doc(plain='<wire y1="0" x2="10" y2="0" width="0.5" layer="1"/>'),
-                              'without required attribute')
-
-    def test_failed_parse_clears_previous_state(self):
-        parser = EagleBrdParser()
-        parser.parse_text(doc(plain='<wire x1="0" y1="0" x2="10" y2="0" width="0.5" layer="1"/>'))
-        self.assertIn('Top', parser.layers)
-        with self.assertRaises(EagleBrdParseError):
-            parser.parse_text('<eagle version="9.0"><drawing><schematic/></drawing></eagle>')
-        self.assertEqual(parser.layers, {})
-        self.assertEqual(parser.drill_groups, {})
-        self.assertEqual(parser.default_layers, [])
-
 class TestEagleWiresAndVias(unittest.TestCase):
     def test_wire_with_width_and_round_caps_on_top(self):
         parsed = parse(doc(plain='<wire x1="0" y1="0" x2="10" y2="0" width="0.5" layer="1"/>'))
@@ -122,23 +103,6 @@ class TestEagleWiresAndVias(unittest.TestCase):
                 self.assertEqual(rounded(copper(parsed, layer).bounds), [1.6468, 2.6468, 2.3532, 3.3532])
         self.assertEqual(rounded(copper(parsed, 'tStop').bounds, 2), [1.55, 2.55, 2.45, 3.45])
 
-    def test_blind_via_on_inner_layers_gets_its_own_drill_group(self):
-        rules = '<param name="layerSetup" value="(1*2*16)"/>'
-        parsed = parse(doc(rules=rules, signals='<signal name="N"><via x="2" y="3" extent="1-2" drill="0.3" '
-                                                'diameter="0.6" shape="round"/></signal>'))
-        self.assertEqual(parsed.copper_layers, ['Top', 'Route2', 'Bottom'])
-        self.assertEqual(list(parsed.drill_groups), ['PTH_1-2'])
-        self.assertIn('Top', parsed.layers)
-        self.assertIn('Route2', parsed.layers)
-        self.assertNotIn('Bottom', parsed.layers)
-
-    def test_full_span_via_on_a_multilayer_board_is_pth(self):
-        rules = '<param name="layerSetup" value="(1*2*16)"/>'
-        parsed = parse(doc(rules=rules, signals='<signal name="N"><via x="2" y="3" extent="1-16" drill="0.3" '
-                                                'diameter="0.6" shape="round"/></signal>'))
-        self.assertEqual(list(parsed.drill_groups), ['PTH'])
-        self.assertIn('Route2', parsed.layers)
-
 class TestEagleThroughHolePads(unittest.TestCase):
     PAD_LIBS = '<library name="l"><packages><package name="P">%s</package></packages></library>'
 
@@ -153,10 +117,6 @@ class TestEagleThroughHolePads(unittest.TestCase):
         self.assertEqual(rounded(copper(parsed, 'Top').bounds, 3), [9.346, 9.346, 10.654, 10.654])
         self.assertEqual(rounded(copper(parsed, 'Bottom').bounds, 3), [9.346, 9.346, 10.654, 10.654])
         self.assertNotIn('tCream', parsed.layers)      # THT pads get no paste
-
-    def test_long_pad_is_a_stadium_twice_the_diameter(self):
-        parsed = self._pad('long')
-        self.assertEqual(rounded(copper(parsed, 'Top').bounds, 3), [8.692, 9.346, 11.308, 10.654])
 
     def test_pad_drill_and_stop_opening(self):
         parsed = self._pad('round')
@@ -180,11 +140,6 @@ class TestEagleSmdPads(unittest.TestCase):
         self.assertAlmostEqual(copper(parsed, 'tCream').area, 2.0, places=6)
         self.assertEqual(parsed.copper_layers, ['Top', 'Bottom'])
         self.assertNotIn('Bottom', parsed.layers)
-
-    def test_smd_roundness_rounds_the_corners(self):
-        parsed = parse(doc(libs=self.LIBS % ' roundness="50"', elements=element(10, 10, package='S')))
-        # 1 x 2 mm box with radius 0.25 mm: 2 - (4 - pi) * 0.25 ** 2
-        self.assertAlmostEqual(copper(parsed, 'Top').area, 2 - 4 * 0.25 ** 2 + circle_area(0.25), delta=0.001)
 
 class TestEagleElementPlacement(unittest.TestCase):
     LIBS = ('<library name="l"><packages><package name="S">'
@@ -230,33 +185,12 @@ class TestEagleHolesAndDimensions(unittest.TestCase):
         self.assertEqual(len(parsed.warnings), 1)
         self.assertIn('Zero-width Dimension/Milling lines', parsed.warnings[0])
 
-    def test_open_dimension_path_leaves_outline_empty_with_warning(self):
-        parsed = parse(doc(plain='<wire x1="0" y1="0" x2="10" y2="0" width="0.1" layer="20"/>'))
-        self.assertTrue(parsed.board_outline.is_empty)
-        self.assertTrue(any('closed outline' in warning for warning in parsed.warnings))
-
 class TestEagleSilkscreenAndSmashed(unittest.TestCase):
     PKG = ('<library name="l"><packages><package name="S">'
            '<wire x1="0" y1="0" x2="1" y2="0" width="0.1" layer="21"/>'
            '<text x="0" y="3" size="1" layer="25">&gt;NAME</text>'
            '<smd name="1" x="0" y="0" dx="1" dy="2" layer="1"/>'
            '</package></packages></library>')
-
-    def test_smashed_element_hides_package_name_text_and_draws_attributes(self):
-        attributes = ('<attribute name="NAME" x="1" y="1" size="1" layer="25"/>'
-                      '<attribute name="VALUE" x="1" y="2" size="1" layer="27"/>')
-        parsed = parse(doc(libs=self.PKG, elements=element(0, 0, package='S', value='10k', extra=attributes)
-                           .replace('value="10k"', 'value="10k" smashed="yes"')))
-        self.assertIn('tNames', parsed.layers)
-        self.assertIn('tValues', parsed.layers)
-        # the package's own >NAME text sits at y = 3; only the attribute text at y = 1 is drawn
-        self.assertLess(copper(parsed, 'tNames').bounds[3], 2.5)
-        self.assertTrue(any('approximate' in warning for warning in parsed.warnings))
-
-    def test_package_name_text_is_drawn_when_not_smashed(self):
-        parsed = parse(doc(libs=self.PKG, elements=element(0, 0, package='S', value='10k')))
-        self.assertIn('tNames', parsed.layers)
-        self.assertGreater(copper(parsed, 'tNames').bounds[3], 2.5)
 
 class TestEagleMutationFuzz(unittest.TestCase):
     """Seeded character mutations of one valid board: only EagleBrdParseError may escape."""

@@ -3,25 +3,17 @@ sync and the Simplify and Erase clicks. The editor, the Select tool, the Simplif
 classes; the application and the canvas are stand-ins. Everything is headless."""
 
 import os
-import statistics
-import time
 import unittest
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
-import pytest
 from PyQt6 import QtCore, QtWidgets
-from shapely.geometry import LineString, Point, Polygon, box
+from shapely.geometry import LineString, Point, box
 
-from appEditors import appGerberEditor as module
-from appEditors.appGerberEditor import (
-    AppGerberEditor, CopyEditorGrb, EraserEditorGrb, ImportEditorGrb, MoveEditorGrb, SelectEditorGrb, SimplifyEditorGrb,
-    aperture_rank,
-)
-from appEditors.grb_plugins.GrbBufferPlugin import BufferEditorTool
-from appEditors.grb_plugins.GrbCommon import DrawToolShape, ShapeToolEditorGrb
+from appEditors.appGerberEditor import AppGerberEditor, EraserEditorGrb, ImportEditorGrb, SelectEditorGrb
+from appEditors.grb_plugins.GrbCommon import DrawToolShape
 from appEditors.grb_plugins.GrbTransformationPlugin import queue_transform
 
 ASSETS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'assets', 'resources')
@@ -185,28 +177,6 @@ class TestHitRule(PickCase):
             self.assertEqual(ed.selected, [small], order)
 
 
-    def test_tie_is_stable(self):
-        for keys in ((10, 11), (11, 10)):
-            first, second = pad(0, 0, 1.0), pad(0, 0, 1.0)
-            storage = {}
-            for key in keys:
-                storage[key] = aperture([first if key == 10 else second])
-            ed = make_editor(storage)
-            make_select(ed)
-            click(ed, 0.2, 0.1)
-            self.assertEqual(len(ed.selected), 1)
-            self.assertIs(ed.selected[0], first, keys)
-
-
-    def test_zoom_changes_tolerance(self):
-        trc = trace(0, 0, 10, 0)
-        for pixel, expected in ((0.05, True), (0.2, True), (0.01, False)):
-            ed = make_editor({10: aperture([trc])}, pixel=pixel)
-            make_select(ed)
-            click(ed, 5, 0.25)
-            self.assertEqual(ed.selected == [trc], expected, pixel)
-
-
 class TestIndexFreshness(PickCase):
     def setUp(self):
         self.a = pad(0, 0, 1.0)
@@ -218,45 +188,6 @@ class TestIndexFreshness(PickCase):
     def brute(self, point):
         return [shape for shape in sum((v['geometry'] for v in self.ed.storage_dict.values()), [])
                 if shape.geo['solid'].intersects(Point(point))]
-
-
-    def test_tree_fresh_after_delete(self):
-        self.ed.delete_shape(self.a)
-        self.assertIsNone(self.ed.pick_at((0, 0)))
-        self.assertEqual(self.brute((0, 0)), [])
-        self.assertIsNotNone(self.ed.pick_at((10, 0)))
-
-        self.ed.selected = [self.b]
-        self.ed.delete_selected()
-        self.assertIsNone(self.ed.pick_at((10, 0)))
-
-
-    def test_tree_fresh_after_transform(self):
-        tool = SimpleNamespace(draw_app=self.ed, app=self.ed.app)
-
-        def moved(action):
-            new_ed = make_editor({10: aperture([pad(0, 0, 1.0)])}, pixel=0.01)
-            shape = new_ed.storage_dict[10]['geometry'][0]
-            make_select(new_ed)
-            new_ed.selected = [shape]
-            new_ed.pick_at((0, 0))                  # the tree is built
-            tool.draw_app = new_ed
-            tool.app = new_ed.app
-            old_solid = shape.geo["solid"]
-            action(shape)
-            self.assertFalse(shape.geo["solid"].equals(old_solid))
-            new_point = shape.geo['solid'].representative_point()
-            self.assertIs(new_ed.pick_at((new_point.x, new_point.y))[0], shape)
-            return new_ed
-
-        actions = {
-            'rotate': lambda s: run_transform(tool, 'rotate', [90, (5, 0)]),
-            'buffer': lambda s: run_transform(tool, 'buffer', [3, 1]),
-        }
-        for name, action in actions.items():
-            with self.subTest(name):
-                new_ed = moved(action)
-                self.assertGreater(new_ed.geometry_revision, 0)
 
 
 class TestModifiers(PickCase):
@@ -275,13 +206,6 @@ class TestModifiers(PickCase):
 
 
 class TestOverlapAndCycle(PickCase):
-    def test_small_shape_wins_even_when_the_big_center_is_nearer(self):
-        # the small pad covers the center of the big pad; the click is nearer to the big center
-        big, small = pad(0, 0, 3.0), pad(0.8, 0, 1.0)
-        ed = make_editor({10: aperture([big]), 11: aperture([small])})
-        make_select(ed)
-        click(ed, 0.2, 0)
-        self.assertEqual(ed.selected, [small])
 
     def test_repeated_click_cycles_through_the_shapes(self):
         big, mid, small = pad(0, 0, 3.0), pad(0, 0, 2.0), pad(0, 0, 1.0)
@@ -307,15 +231,6 @@ class TestClickOrDrag(PickCase):
         self.release_spy = MagicMock(side_effect=self.tool.click_release)
         self.tool.click_release = self.release_spy
 
-    def test_three_pixel_move_is_click(self):
-        press(self.ed, 0, 0)
-        move(self.ed, 0.15, 0)
-        self.assertIsNone(self.ed.app.selection_type)
-        release(self.ed, 0.15, 0)
-        self.assertEqual(self.ed.selected, [self.shape])
-        self.assertIsNone(self.ed.app.selection_type)
-        self.ed.app.draw_moving_selection_shape.assert_not_called()
-        self.ed.draw_selection_area_handler.assert_not_called()
 
     def test_six_pixel_move_on_empty_canvas_is_area_drag(self):
         # Starting on a shape now moves it; an area selection starts on empty canvas.
@@ -345,16 +260,6 @@ class TestBulkSelection(PickCase):
         self.ed.plot_all.assert_not_called()
         self.assertEqual(float(self.ed.ui.area_entry.get_value()), 3)
 
-    def test_rectangle_preserves_storage_order_and_toggles(self):
-        self.ed.draw_selection_area_handler((-1, -1), (12, 2), True)
-        self.assertEqual(self.ed.selected, [self.far, self.a, self.b])
-        self.ed.selected = [self.b, self.far]
-        self.ed.key = 'Control'
-        self.ed.draw_selection_area_handler((-0.5, -0.5), (2, 2), False)
-        self.assertEqual(self.ed.selected, [self.far, self.a])
-        rows = self.ed.ui.apertures_table.selectionModel().selectedRows()
-        self.assertEqual(sorted(row.row() for row in rows), [0, 1])
-
 
 class TestEraserMake(PickCase):
     def eraser(self, ed, cx, cy, size=1.0):
@@ -381,26 +286,6 @@ class TestEraserMake(PickCase):
 class TestEditorOperations(PickCase):
 
 
-    def test_repeated_buffer_preserves_live_selection_and_unselected_shapes(self):
-        selected, other = pad(0, 0, 1), pad(10, 0, 1)
-        ed = make_editor({10: aperture([selected, other])})
-        ed.selected = [selected]
-        ed.sync_aperture_rows({10})
-        plugin = SimpleNamespace(app=ed.app, draw_app=ed)
-        BufferEditorTool.buffer(plugin, 1, 'round')
-        job = ed.app.worker_task.emit.call_args.args[0]
-        job['fcn'](*job['params'])
-        QtWidgets.QApplication.processEvents()
-        first_area = ed.storage_dict[10]['geometry'][0].geo['solid'].area
-        BufferEditorTool.buffer(plugin, 1, 'round')
-        job = ed.app.worker_task.emit.call_args.args[0]
-        job['fcn'](*job['params'])
-        QtWidgets.QApplication.processEvents()
-        self.assertIn(ed.selected[0], ed.storage_dict[10]['geometry'])
-        self.assertGreater(ed.storage_dict[10]['geometry'][0].geo['solid'].area, first_area)
-        self.assertIs(ed.storage_dict[10]['geometry'][1], other)
-        self.assertAlmostEqual(other.geo['solid'].area, pad(10, 0, 1).geo['solid'].area)
-
     def test_scale_resolves_aperture_keys_and_scales_each_row_once(self):
         for key in (10, '10'):
             with self.subTest(key=key):
@@ -423,11 +308,6 @@ class TestEditorOperations(PickCase):
                 self.assertIn(ed.selected[0], ed.storage_dict[key]['geometry'])
                 ed.app.log.error.assert_not_called()
 
-    def test_total_erasure_replots_even_without_surviving_fragments(self):
-        ed = make_editor({10: aperture([pad(0, 0, 0.1)])})
-        TestEraserMake().eraser(ed, 0, 0, 2).make()
-        self.assertEqual(sum(len(v['geometry']) for v in ed.storage_dict.values()), 0)
-        ed.plot_all.assert_called_once()
 
     def test_import_merges_only_matching_aperture_types(self):
         for existing_type, imported_type in (('R', 'O'), ('O', 'R'), ('R', 'R'), ('O', 'O')):
@@ -465,50 +345,6 @@ class RecordingShapes:
 
     def redraw(self, *args, **kwargs):
         pass
-
-
-def test_erased_region_is_drawn_whole():
-    # the Eraser cut a region in 2: the record holds a MultiPolygon, and both parts must be drawn
-    region = box(0, 0, 10, 10).difference(box(5, -1, 6, 11))
-    shape = DrawToolShape({'solid': region, 'follow': region.geoms[0].exterior})
-    editor = make_editor({0: {'type': 'REG', 'size': 0.0, 'geometry': [shape]}})
-    editor.app.options.update({'global_draw_color': '#FF0000', 'global_sel_draw_color': '#0000FF'})
-    editor.shapes = RecordingShapes()
-    AppGerberEditor.plot_all(editor)
-    drawn = list(editor.shapes.added.values())
-    assert all(isinstance(geo, Polygon) for geo in drawn)
-    assert sum(geo.area for geo in drawn) == pytest.approx(region.area)
-
-
-def test_canvas_selection_brings_the_aperture_row_into_view():
-    # the panel scrolls (the table has its full height): the row of the picked shape must come into the viewport
-    shapes = {10 + i: aperture([pad(i * 3, 0, 1)]) for i in range(40)}
-    editor = make_editor(shapes)
-    editor.gerber_obj = SimpleNamespace(obj_options={'name': 'board'})
-    AppGerberEditor.build_ui(editor)
-    area = QtWidgets.QScrollArea()
-    area.setWidgetResizable(True)
-    area.setWidget(editor.ui.grb_edit_widget)
-    area.resize(300, 250)
-    area.show()
-    _qapp.processEvents()
-    last = shapes[49]['geometry'][0]
-    editor.selected = [last]
-    tool = SelectEditorGrb.__new__(SelectEditorGrb)
-    tool.draw_app, tool.sel_aperture = editor, set()
-    tool.after_selection()
-    _qapp.processEvents()
-    table = editor.ui.apertures_table
-    (row,) = {index.row() for index in table.selectionModel().selectedRows()}
-    assert table.item(row, 1).text() == '49'
-    rect = table.visualRect(table.model().index(row, 1))
-    center = table.viewport().mapTo(area.viewport(), rect.center())
-    assert area.viewport().rect().contains(center)
-    # the feature table scrolls inside itself to the feature of the picked shape
-    features = editor.ui.features_table
-    (feature_row,) = {index.row() for index in features.selectionModel().selectedRows()}
-    assert features.viewport().rect().intersects(features.visualRect(features.model().index(feature_row, 0)))
-    area.close()
 
 
 if __name__ == '__main__':

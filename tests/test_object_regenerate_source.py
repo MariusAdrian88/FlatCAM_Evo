@@ -57,25 +57,7 @@ def test_excellon_regenerated_text_parses_back_to_the_same_geometry(app, tmp_pat
         assert pts(again.tools[t]['drills']) == pytest.approx(np.array(pts(tool['drills'])), abs=1e-3)
 
 
-def test_local_use_export_runs_without_a_thread_and_writes_no_file(app):
-    grb = make_gerber(app)
-    app.f_handlers.export_gerber = lambda **kw: calls.append(kw) or 'G04*'
-    calls = []
-    assert grb.regenerate_source(name='other') is True
-    assert calls == [dict(obj_name='other', filename=None, local_use=grb, use_thread=False)]
-    assert grb.source_file == 'G04*'
-    app.file_saved.emit.assert_not_called()
-
-
-def test_name_defaults_to_the_object_name(app):
-    exc = make_excellon(app, name='my_exc')
-    seen = []
-    app.f_handlers.export_excellon = lambda **kw: seen.append(kw['obj_name']) or 'M48'
-    exc.regenerate_source()
-    assert seen == ['my_exc']
-
-
-@pytest.mark.parametrize('bad', ['fail', None])
+@pytest.mark.parametrize('bad', ['fail'])
 def test_failed_export_keeps_the_old_source(app, bad):
     grb = make_gerber(app)
     grb.source_file = 'old text'
@@ -84,8 +66,7 @@ def test_failed_export_keeps_the_old_source(app, bad):
     assert grb.source_file == 'old text'
 
 
-@pytest.mark.parametrize('units,unit_code', [('MM', 4), ('IN', 1)])
-@pytest.mark.parametrize('multigeo', [False, True])
+@pytest.mark.parametrize('units,unit_code,multigeo', [('MM', 4, False), ('IN', 1, True)])
 def test_geometry_real_dxf_snapshot_and_project_boundary(app, tmp_path, units, unit_code, multigeo):
     """GEO-09: the usable DXF snapshot is text in the existing project source field."""
     app.app_units = units

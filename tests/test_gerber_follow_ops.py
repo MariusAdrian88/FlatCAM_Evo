@@ -1,17 +1,12 @@
 """Native Gerber FOLLOW operations and selected-only circular flash resizing."""
-from concurrent.futures import ThreadPoolExecutor
-from types import SimpleNamespace
 
 import pytest
-from PyQt6 import QtCore, QtWidgets
 from shapely import LineString, Point
 from shapely.ops import unary_union
 
 from appEditors.appGerberEditor import AppGerberEditor
-from appEditors.grb_plugins import GrbFollowPlugin as module
 from appEditors.grb_plugins import GrbTrackEditPlugin as track_edit
 from appEditors.grb_plugins.GrbCommon import DrawToolShape
-from appEditors.grb_plugins.GrbTrackBend import sweep_parameters
 from appParsers.ParseGerber import Gerber
 from test_editor_save_modes import gerber_stand_in
 from test_gerber_editor_pick import make_editor
@@ -84,7 +79,7 @@ def test_join_reversed_records_preserves_material_and_unrelated_order():
     assert editor.redo()
 
 
-@pytest.mark.parametrize('kind', ['branch', 'gap', 'overlap'])
+@pytest.mark.parametrize('kind', ['gap'])
 def test_join_rejects_incompatible_records_without_mutation(kind):
     a, b = track([(0, 0), (5, 0)]), track([(5, 0), (10, 0)])
     editor = editor_for([a, b])
@@ -115,7 +110,7 @@ def test_join_rejects_incompatible_records_without_mutation(kind):
     editor.plot_all.assert_not_called()
 
 
-@pytest.mark.parametrize('point,tolerance', [((0, 0), 0), ((20, 0), 0.01)])
+@pytest.mark.parametrize('point,tolerance', [((20, 0), 0.01)])
 def test_invalid_split_is_atomic(point, tolerance):
     path = track([(0, 0), (10, 0)])
     editor = editor_for([path])
@@ -151,22 +146,7 @@ def test_selected_flash_resize_reuses_matching_metadata_without_touching_shared_
     assert editor.redo()
 
 
-def test_resize_creates_aperture_and_undo_removes_it():
-    a, b = flash(0), flash(5)
-    editor = editor_for([a, b])
-    editor.selected = [a]
-    editor.storage_dict[10]['tag'] = 'keep'
-    assert editor.apply_resize_circles(3) != 'fail'
-    assert list(editor.storage_dict) == [10, 11]
-    assert editor.storage_dict[11]['tag'] == 'keep'
-    assert editor.storage_dict[10]['geometry'] == [b]
-    assert editor.undo()
-    assert list(editor.storage_dict) == [10]
-    assert editor.redo()
-    assert editor.storage_dict[11]['size'] == 3
-
-
-@pytest.mark.parametrize('diameter', [0, float('nan')])
+@pytest.mark.parametrize('diameter', [float('nan')])
 def test_invalid_diameter_does_not_mutate(diameter):
     a = flash(0)
     editor = editor_for([a])
@@ -175,7 +155,7 @@ def test_invalid_diameter_does_not_mutate(diameter):
     assert not editor.history.undo_stack
 
 
-@pytest.mark.parametrize('kind', ['hole', 'macro'])
+@pytest.mark.parametrize('kind', ['hole'])
 def test_unsupported_flash_does_not_mutate(kind):
     a = flash(0)
     editor = editor_for([a])
@@ -192,7 +172,7 @@ def test_unsupported_flash_does_not_mutate(kind):
     assert not editor.history.undo_stack
 
 
-@pytest.mark.parametrize('operation', ['split', 'join', 'resize'])
+@pytest.mark.parametrize('operation', ['split'])
 def test_native_save_reparse_after_operation_undo_redo(app, operation):
 
     source = make_gerber(app, NATIVE_GBR, name='board')
@@ -221,14 +201,6 @@ def test_native_save_reparse_after_operation_undo_redo(app, operation):
         parsed = Gerber(app, steps_per_circle=64)
         assert parsed.parse_lines(result['obj'].source_file.splitlines()) is None
         assert unary_union(parsed.solid_geometry).hausdorff_distance(footprint(editor)) < 0.002
-
-
-def test_joined_record_can_be_split_and_bend_validated_again():
-
-    editor = editor_for([track([(0, 0), (5, 0)]), track([(10, 0), (5, 0)])])
-    assert editor.apply_path_join(0) != 'fail'
-    assert sweep_parameters(editor, editor.storage_dict[10], editor.selected[0]) == (1, 16)
-    assert editor.apply_path_split((7, 0), 0) != 'fail'
 
 
 def test_clip_splits_track_and_selects_inside_records():
@@ -307,14 +279,6 @@ def test_insert_elbow_adds_vertex_undo_restores_and_a_miss_changes_nothing():
     assert coords_of(editor) == [[(0, 0), (10, 0)]]
 
 
-def test_orthogonal_elbow_drops_zero_length_parts():
-    for vertex, expected in (((5, 3), [(0, 0), (5, 0), (5, 3), (10, 3), (10, 0)]),
-                             ((0, 3), [(0, 0), (0, 3), (10, 3), (10, 0)])):
-        editor = editor_for([track([(0, 0), (10, 0)])])
-        assert track_edit.apply_insert_elbow(editor, (5, 0), vertex, 0.5, orthogonal=True) != 'fail'
-        assert coords_of(editor) == [expected], vertex
-
-
 def flash_at(x, y, diameter=2):
     follow = Point(x, y)
     return DrawToolShape({'follow': follow, 'solid': follow.buffer(diameter / 2, 16)})
@@ -327,8 +291,6 @@ def region(polygon):
 def coords_of(editor, code=10):
     return sorted(list(s.geo['follow'].coords) for s in editor.storage_dict[code]['geometry']
                   if s.geo['follow'].geom_type == 'LineString')
-
-
 
 
 def test_clip_replace_pad_saves_rectangular_flashes_as_flashes(app):

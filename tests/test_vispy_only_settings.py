@@ -1,6 +1,5 @@
 """Retired renderer selection must not survive persistence boundaries."""
 import json
-from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -8,7 +7,7 @@ import pytest
 from defaults import AppDefaults, AppOptions
 
 
-@pytest.mark.parametrize('engine', [None, '2D', '3D', 'unexpected'])
+@pytest.mark.parametrize('engine', [None, '2D'])
 def test_settings_migration(tmp_path, engine):
     payload = {'global_graphic_engine_3d_no_mp': True, 'unrelated_setting': {'value': 7}}
     if engine is not None:
@@ -34,12 +33,12 @@ def test_settings_migration(tmp_path, engine):
     assert 'global_graphic_engine' not in AppOptions(version='test').baseline
 
 
-@pytest.mark.parametrize('cli', [False, True])
+@pytest.mark.parametrize('cli', [False])
 def test_project_open_loads_only_project_options(cli):
     from PyQt6 import QtWidgets
     from appHandlers.appIO import appIO
 
-    qapp = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
     defaults = AppDefaults(beta=False)
     defaults['global_appearance'] = 'light'
     app = MagicMock()

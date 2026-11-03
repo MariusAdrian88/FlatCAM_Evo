@@ -25,18 +25,10 @@ def _run(app, stdin=''):
     return code, out.getvalue(), err.getvalue()
 
 
-def test_a_command_runs_and_its_result_is_written():
-    code, out, err = _run(_app(command='set a 5; expr {$a * 2}'))
-    assert (code, out, err) == (0, '10\n', '')
-
-
-def test_a_tcl_error_gives_exit_code_1_and_the_report_on_stderr():
+def test_exit_codes_of_a_failed_command_and_of_exit_n():
     code, out, err = _run(_app(command='no_such_command'))
     assert code == 1
     assert 'invalid command name "no_such_command"' in err
-
-
-def test_exit_n_gives_exit_code_n_and_stops_the_script():
     code, out, err = _run(_app(command='exit 3; set never 1'))
     assert code == 3
     assert err == ''
@@ -87,6 +79,81 @@ def test_gui_runtime_error_stops_without_repeating_side_effects():
     assert app.script_error_line == 1
     assert App.script_processing(app, 'set changed 1\nset incomplete {') == 'fail'
     assert app.shell.tcl.eval('info exists changed') == '0'
+
+
+def test_quit_in_headless_mode_ends_the_run_and_saves_nothing():
+    import pytest
+    from appCommon.Headless import HeadlessExit
+    from appHandlers.appLifecycle import AppLifecycle
+    app = Mock()
+    app.headless = True
+    app.headless_exit_code = None
+    lifecycle = AppLifecycle(app=app)
+    with pytest.raises(HeadlessExit) as info:
+        lifecycle.quit_application(silent=True)
+    assert info.value.code == 0
+    assert app.headless_exit_code == 0
+    app.preferencesUiManager.save_defaults.assert_not_called()
+
+
+def test_command_line_options_headless_and_command(tmp_path):
+    """--headless and --command are parsed in the class body of App, before anything starts."""
+    import os
+    import subprocess
+    import sys
+    import textwrap
+    repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    code = textwrap.dedent(f'''
+        import sys
+        sys.path.insert(0, {repo!r})
+        sys.argv = ['flatcam.py'] + {['--headless', '--command=new_geometry g; puts ok', '--shellvar=1,2']!r}
+        import appMain
+        A = appMain.App
+        print(repr((A.cmd_line_headless, A.cmd_line_command, A.cmd_line_shellvar)))
+    ''')
+    result = subprocess.run([sys.executable, '-c', code], cwd=str(tmp_path), capture_output=True, text=True,
+                            timeout=300)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip().splitlines()[-1] == "(True, 'new_geometry g; puts ok', '1,2')"
+
+
+def test_headless_output_goes_to_stdout_and_errors_to_stderr():
+    from appCommon.Headless import console_write
+
+    def write(style, text):
+        o, e = io.StringIO(), io.StringIO()
+        console_write(style, text, out=o, err=e)
+        return o.getvalue(), e.getvalue()
+
+    assert write('out', 'hello\n') == ('hello\n', '')
+    assert write('warning', '[WARNING] careful\n') == ('[WARNING] careful\n', '')
+    assert write('err', 'ERROR Report: boom\n') == ('', 'ERROR Report: boom\n')
+    assert write('out', '[ERROR_NOTCL] Failed\n') == ('', '[ERROR_NOTCL] Failed\n')
+
+
+def test_page_down_in_the_command_line_scrolls_the_shell_output():
+    # keyPressEvent of the output pane never passed a key on, so the PageUp / PageDown that the command line sends
+    # to it did not scroll; S still toggles the shell
+    from PyQt6 import QtCore, QtWidgets
+    from PyQt6.QtTest import QTest
+    from appGUI.GUIElements import _BrowserTextEdit, _ExpandableTextEdit
+    toggles = []
+    app = SimpleNamespace(ui=SimpleNamespace(toggle_shell_ui=lambda: toggles.append('S')))
+    app.qt_app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    browser = _BrowserTextEdit(version='test', app=app)
+    browser.setReadOnly(True)
+    browser.resize(300, 100)
+    browser.setPlainText('\n'.join('line %d' % i for i in range(200)))
+    browser.show()
+    app.qt_app.processEvents()
+    bar = browser.verticalScrollBar()
+    assert bar.maximum() > 0 and bar.value() == 0
+    command_line = _ExpandableTextEdit(SimpleNamespace(browser=lambda: browser))
+    QTest.keyClick(command_line, QtCore.Qt.Key.Key_PageDown)
+    assert bar.value() > 0
+    QTest.keyClick(browser, QtCore.Qt.Key.Key_S)
+    assert toggles == ['S']
+    browser.close()
 
 
 def _native_interrupt_child():

@@ -16,7 +16,7 @@ from tests.test_geo_editor_join import join_editor
 from tests.test_vertex_grips import FakeCollection
 
 
-@pytest.mark.parametrize('coords', [[(0, 0), (5, 0), (5, 5)], [(0, 0), (5, 0), (8, 4)]])
+@pytest.mark.parametrize('coords', [[(0, 0), (5, 0), (8, 4)]])
 def test_completed_track_is_one_record_and_drags_across_the_bend(coords):
     tool, storage = track_tool_with_storage(5)
     tool.buf_val, tool.steps_per_circle = 1, 16
@@ -46,7 +46,6 @@ def test_completed_track_is_one_record_and_drags_across_the_bend(coords):
 
 
 @pytest.mark.parametrize('paths', [
-    [[(0, 0), (5, 0)], [(5, 0), (8, 4)]],
     [[(0, 0), (5, 0), (8, 4)], [(8, 4), (13, 4), (16, 8)]],
 ])
 def test_join_bent_records_preserves_copper_and_remains_vertex_editable(paths):

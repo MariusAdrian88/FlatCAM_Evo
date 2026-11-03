@@ -61,12 +61,6 @@ def test_a_failed_command_gives_exit_code_1_after_the_earlier_commands_ran(runs)
     assert (folder / 'out.FlatPrj').is_file()
 
 
-def test_shellfile_with_a_relative_name_and_shellvar(runs):
-    folder, result = runs['shell']
-    assert result.returncode == 0, result.stderr
-    assert (folder / 'var.FlatPrj').is_file()
-
-
 def test_the_prompt_reads_stdin(runs):
     folder, result = runs['prompt']
     assert result.returncode == 0, result.stderr
@@ -77,6 +71,7 @@ def test_the_prompt_reads_stdin(runs):
 def test_gerber_to_gcode(runs):
     folder, result = runs['shell']
     assert result.returncode == 0, result.stderr + result.stdout
+    assert (folder / 'var.FlatPrj').is_file()   # a relative shellfile name and the shellvar
     gcode = (folder / 'out.nc').read_text()
     moves = [line for line in gcode.splitlines() if line.startswith(('G01', 'G1 ')) and 'X' in line]
     assert len(moves) > 10

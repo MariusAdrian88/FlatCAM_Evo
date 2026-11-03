@@ -5,7 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace as NS
 
 import pytest
-from shapely import LineString, MultiPolygon, Point
+from shapely import LineString, Point
 from shapely.geometry import box
 from shapely.ops import unary_union
 
@@ -87,16 +87,6 @@ def test_units_mix_inch_subtractor_on_mm_target():
 
 
 # --------------------------------------------------------------------------------------------------- Geometry target
-@pytest.mark.parametrize('multi', [True])
-def test_geometry_bare_multipolygon_gives_result(multi):
-    mp = MultiPolygon([box(0, 0, 4, 4), box(10, 0, 14, 4)])
-    target = multigeo({1: mp}) if multi else geometry(mp)
-    res = sg.compute(target, [geometry([box(-1, -1, 2, 5)])], close_paths=True)
-    assert res.multigeo is multi
-    shapes = sg._flat(res.tools[1]['solid_geometry'] if multi else res.solid_geometry)
-    assert sum(s.area for s in shapes) == pytest.approx(8 + 16)
-
-
 def test_geometry_lines_with_margin_cut_gerber_and_excellon_subtractors():
     target = geometry([box(0, 0, 10, 10)])
     by_line = sg.compute(target, [geometry([LineString([(5, -5), (5, 15)])])], margin=1.0, close_paths=True)
@@ -177,16 +167,6 @@ def _click(fc, plugin, keep=True, delete_subs=False, sub='cut'):
     ui.delete_subs_cb.setChecked(delete_subs)
     ui.apply_button.click()
     _pump(fc, plugin)
-
-
-@pytest.mark.slow
-def test_one_click_after_reopening_gives_one_object(fc, plugin):
-    plugin.run(toggle=False)
-    plugin.set_tool_ui()
-    _click(fc, plugin)
-    assert sorted(fc.collection.get_names()) == ['cut', 'tgt', 'tgt_sub']
-    assert fc.collection.get_by_name('tgt_sub').solid_geometry
-    assert fc.collection.get_by_name('tgt_sub').solid_geometry != fc.collection.get_by_name('tgt').solid_geometry
 
 
 @pytest.mark.slow

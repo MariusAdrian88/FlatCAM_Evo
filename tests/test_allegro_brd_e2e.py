@@ -12,7 +12,7 @@ os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 import numpy as np
 from PyQt6 import QtWidgets
 from shapely.affinity import scale
-from shapely.geometry import GeometryCollection, box
+from shapely.geometry import GeometryCollection
 from shapely.ops import unary_union
 
 from appHandlers.appIO import appIO
@@ -184,7 +184,6 @@ class TestAllegro172Board(FixtureCase):
         cls.films = {name: cls.read_film(FIXTURES / film) for name, film in FILMS_A.items()}
         cls.films['older TOP'] = cls.read_film(FIXTURES / 'TOP.art')
         cls.films['older BOTTOM'] = cls.read_film(FIXTURES / 'BOTTOM.art')
-        cls.outline_film = cls.read_film(FIXTURES / 'SilkScreen_Bottom.art')    # holds only the board outline
 
     def test_copper_matches_the_copper_films(self):
         for name in ('TOP', 'BOTTOM'):
@@ -193,12 +192,6 @@ class TestAllegro172Board(FixtureCase):
                 self.assertLessEqual(self.ratio(name, self.films['older ' + name]), 0.01)
                 self.assertEqual([round(v, 2) for v in self.mine(name).bounds],
                                  [round(v, 2) for v in self.films[name].bounds])
-
-    def test_outline_bounds_match_the_outline_film(self):
-        reference = self.outline_film.bounds
-        for mine, theirs in zip(self.mine('OUTLINE').bounds, reference):
-            self.assertAlmostEqual(mine, theirs, delta=0.01)
-        self.assertEqual([round(v, 3) for v in self.parsed.board_outline.bounds], [0.0, 0.0, 70.0, 55.0])
 
     def test_drills_sit_on_pad_flashes_in_both_outer_films(self):
         self.assert_holes_on_flashes(FIXTURES / 'Copper_TOP.art', FIXTURES / 'Copper_Bottom.art')

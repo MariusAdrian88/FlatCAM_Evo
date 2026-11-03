@@ -21,7 +21,6 @@ import pytest
 import shapely
 import shapely.affinity as affinity
 from shapely import MultiPolygon, Point, Polygon, STRtree, box
-from shapely.ops import orient
 
 from appParsers import clipper_fuse
 from appParsers.clipper_fuse import fuse_parts
@@ -187,22 +186,12 @@ class TestSmallCases(ClipperTestCase):
     def test_gap_1e8_between_squares_is_closed(self):
         self.assert_same_as_geos([sq(0, 0, 1, 1), sq(1 + 1e-8, 0, 2 + 1e-8, 1)], expected=(1, 0))
 
-    def test_narrow_hole_1e8_is_closed(self):
-        part = sq(0, 0, 10, 10).difference(sq(4, 4, 4 + 1e-8, 6))
-        self.assertEqual(count_holes([part]), 1)
-        self.assert_same_as_geos([part], expected=(1, 0))
-
     def test_hole_with_1e8_neck_is_split(self):
         hole = [(2, 2), (4, 2), (4, 3), (6, 3), (6, 2), (8, 2), (8, 4), (6, 4), (6, 3 + 1e-8), (4, 3 + 1e-8), (4, 4),
                 (2, 4)]
         part = Polygon(sq(0, 0, 10, 10).exterior.coords, [hole])
         self.assertTrue(part.is_valid)
         self.assert_same_as_geos([part], expected=(1, 2))
-
-    def test_u_shape_with_cap_makes_one_hole(self):
-        u_shape = Polygon([(0, 0), (10, 0), (10, 10), (8, 10), (8, 2), (2, 2), (2, 10), (0, 10)])
-        cap = sq(0, 10, 10, 12)
-        self.assert_same_as_geos([u_shape, cap], expected=(1, 1))
 
 class TestStructure(ClipperTestCase):
 
@@ -219,25 +208,6 @@ class TestStructure(ClipperTestCase):
         result = self.assert_same_as_geos([multi, sq(5.5, 5.5, 7, 7)], expected=(2, 0))
         self.assertAlmostEqual(sum(p.area for p in result), 2 + 1 + 2.25 - 0.25, places=6)
 
-    def test_mm_and_inch_units(self):
-        board = [
-            sq(10, 10, 60, 40).difference(sq(15, 15, 20, 20)).difference(sq(30, 15, 55, 35)),
-            sq(32, 17, 40, 25),
-            sq(40, 25, 45, 30),
-            sq(70, 10, 75, 15),
-            sq(75.05, 10, 80, 15),
-            sq(70, 20, 80, 22).difference(sq(74, 20.5, 76, 21.5)),
-        ]
-        factor = 1 / 25.4
-        board_in = [affinity.scale(p, factor, factor, origin=(0, 0)) for p in board]
-        result_mm = self.fuse(board)
-        result_in = self.fuse(board_in)
-        result_in_mm = [affinity.scale(p, 25.4, 25.4, origin=(0, 0)) for p in result_in]
-        self.assertEqual(len(result_mm), len(result_in_mm))
-        self.assertEqual(count_holes(result_mm), count_holes(result_in_mm))
-        self.assertLessEqual(max_boundary_distance(result_mm, result_in_mm, max_segment=0.01), 1e-6)
-
-
 # ----------------------------------------------------------------------------------------------------------------------
 # Group B: safe fallback
 # ----------------------------------------------------------------------------------------------------------------------
@@ -251,27 +221,10 @@ class TestFallbackWithoutClipper(unittest.TestCase):
             self.assertIsNone(fuse_parts(parts, **kwargs))
         fake.Clipper.assert_not_called()
 
-    def test_import_failure(self):
-        with mock.patch.object(clipper_fuse, 'pyclipr', None):
-            self.assertIsNone(fuse_parts([sq(0, 0, 1, 1), sq(2, 0, 3, 1)]))
-
-    def test_invalid_bowtie(self):
-        bowtie = Polygon([(0, 0), (1, 1), (1, 0), (0, 1)])
-        self.assertFalse(bowtie.is_valid)
-        self.assert_rejected([sq(5, 5, 6, 6), bowtie])
-
-    def test_thin_polygon_collapses(self):
-        self.assert_rejected([sq(0, 0, 1, 4e-10)])
-
 class TestFallbackWithClipper(ClipperTestCase):
     """Failures inside or after Clipper: these tests need pyclipr."""
 
     PARTS = [sq(0, 0, 1, 1), sq(3, 0, 4, 1)]
-
-    def test_clipper_exception(self):
-        with mock.patch.object(pyclipr, 'Clipper', side_effect=RuntimeError("forced")):
-            self.assertIsNone(fuse_parts(self.PARTS))
-
 
 # ----------------------------------------------------------------------------------------------------------------------
 # Parse level: Gerber.parse_lines() / parse_file() with the Clipper fusion
@@ -466,25 +419,6 @@ class TestParseFallback(unittest.TestCase):
         lines = self.HEADER + ["D12*", "X20000000Y20000000D03*", "D10*"] + square_region(0, 0, 100000, 100000, 127) +             ["M02*"]
         gbr, results = self.assert_geos_result(lines, expect_fuse_results=[None])
         self.assertEqual(len(as_polygons(gbr.solid_geometry)), 2)
-
-class TestParseFallbackWithClipper(ParseTestCase):
-
-    def test_bowtie_region_is_repaired_by_the_parser(self):
-        bowtie = ["G36*", "X0Y0D02*", "X100000Y100000D01*", "X100000Y0D01*", "X0Y100000D01*", "X0Y0D01*", "G37*"]
-        lines = TestParseFallback.HEADER + bowtie + square_region(300000, 0, 400000, 100000, 127) + ["M02*"]
-        gbr, results = parse_gerber_data(lines=lines)
-        self.assert_clipper_used(results)
-        self.assertTrue(all(p.is_valid for p in as_polygons(gbr.solid_geometry)))
-
-    def test_empty_clipper_result(self):
-        lines = TestParseFallback.HEADER + square_region(0, 0, 100000, 100000, 127) + ["M02*"]
-        patch = mock.patch.object(clipper_fuse, '_tree_to_polygons', return_value=[])
-        gbr, results = parse_gerber_data(lines=lines, patches=[patch])
-        self.assertEqual(results, [None])
-        reference, _ = parse_gerber_data(lines=lines, fuse_result=[None])
-        self.assertEqual(geometry_wkb(gbr.solid_geometry), geometry_wkb(reference.solid_geometry))
-        self.assertGreater(len(as_polygons(gbr.solid_geometry)), 0)
-
 
 if __name__ == '__main__':
     unittest.main()

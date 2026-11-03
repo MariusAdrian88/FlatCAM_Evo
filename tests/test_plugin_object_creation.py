@@ -48,14 +48,6 @@ class PluginObjectCreationTests(unittest.TestCase):
         self.app.collection.set_active.assert_called_once_with('result')
         self.app.ui.notebook.setCurrentWidget.assert_called_once_with(self.app.ui.properties_tab)
 
-    def test_independent_options_and_no_source(self):
-        self.complete(True, False)
-        self.assertFalse(self.source.visible)
-        self.app.ui.notebook.setCurrentWidget.assert_not_called()
-        self.app.collection.reset_mock()
-        self.complete(False, True, source=False)
-        self.app.collection.set_active.assert_called_once_with('result')
-        self.app.ui.notebook.setCurrentWidget.assert_called_once_with(self.app.ui.properties_tab)
 
     def test_failed_initialization_does_not_hide_or_switch(self):
         tool = AppTool(self.app)
@@ -68,14 +60,6 @@ class PluginObjectCreationTests(unittest.TestCase):
         self.assertTrue(self.source.visible)
         self.app.ui.notebook.setCurrentWidget.assert_not_called()
 
-    def test_explicit_tcl_generation_keeps_factory_behavior(self):
-        tool = AppTool(self.app)
-        tool.ui = SimpleNamespace()
-        tool.add_object_creation_controls()
-        self.app.app_obj = Mock()
-        initialize = Mock()
-        tool.new_object('geometry', 'scripted', initialize, source=self.source, from_tcl=True)
-        self.app.app_obj.new_object.assert_called_once_with('geometry', 'scripted', initialize)
 
     def test_worker_creation_uses_captured_options_on_gui_thread_only_after_success(self):
         class Result(QtCore.QObject):

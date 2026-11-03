@@ -48,19 +48,12 @@ class TestProjectFile(unittest.TestCase):
         self.assertEqual(loaded['options'], {"units": "MM"})
         return loaded
 
-    def test_plain_round_trip(self):
-        self.check_round_trip(None)
-        with open(self.filename, 'rb') as f:
-            self.assertEqual(f.read(1), b'{')
 
     def test_zstd_round_trip(self):
         self.check_round_trip(3)
         with open(self.filename, 'rb') as f:
             self.assertEqual(f.read(4), ZSTD_MAGIC)
 
-    def check_round_trip_load_only(self):
-        loaded = load_project_file(self.filename, object_hook=dict2obj)
-        self.assertEqual(loaded['version'], 9.0)
 
     def test_legacy_lzma_project_loads(self):
         data = json.dumps(project(), default=to_dict, indent=2, sort_keys=True).encode('utf-8')
@@ -187,12 +180,3 @@ class TestProjectRoundTrip:
         assert_poly_equiv(exc2.solid_geometry, exc.solid_geometry, rel=1e-6, abs_tol=1e-4, msg='excellon project')
 
 
-    def test_transformed_objects_survive_save_and_restore(self, app, tmp_path):
-        grb = make_gerber(app, name='grb')
-        exc = make_excellon(app, name='exc')
-        grb.rotate(30.0, (10.0, 8.0))
-        exc.rotate(30.0, (10.0, 8.0))
-        _, restored = save_and_load(app, [grb, exc], tmp_path)
-        assert_poly_equiv(restored[0].solid_geometry, grb.solid_geometry, rel=1e-6, abs_tol=1e-4, msg='gerber')
-        assert_same_tools(grb.tools, restored[0].tools, 'gerber')
-        assert_same_tools(exc.tools, restored[1].tools, 'excellon')

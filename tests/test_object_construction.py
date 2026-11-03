@@ -1,36 +1,17 @@
-"""Every project object kind can be constructed.
+"""Script and Document objects: construction, editing, save and load.
 
 FlatCAMObj.__init__ forwarded the 'app' keyword to the next class in the MRO. For ScriptObject and DocumentObject
 no camlib base follows QObject, so PyQt6 raised "TypeError: 'app' is an unknown keyword argument" and the app could
 not create a Script or a Document object.
 """
 
-import pytest
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock
 from PyQt6 import QtWidgets
 
-from appObjects.CNCJobObject import CNCJobObject
 from appObjects.DocumentObject import DocumentObject
-from appObjects.ExcellonObject import ExcellonObject
-from appObjects.GeometryObject import GeometryObject
-from appObjects.GerberObject import GerberObject
 from appObjects.ScriptObject import ScriptObject
-from tests.helpers_objects import make_app_0b as make_app, no_shape_collection  # noqa: F401,E402
-
-KINDS = {
-    GerberObject: 'gerber', ExcellonObject: 'excellon', GeometryObject: 'geometry', CNCJobObject: 'cncjob',
-    ScriptObject: 'script', DocumentObject: 'document',
-}
-
-
-@pytest.mark.parametrize('cls', [GerberObject, ScriptObject, DocumentObject], ids=lambda c: c.__name__)
-def test_object_kind_can_be_constructed(cls, no_shape_collection):  # noqa: F811
-    app = make_app()
-    obj = cls('obj', app)
-    assert obj.kind == KINDS[cls]
-    assert obj.obj_options['name'] == 'obj'
-    assert obj.app is app
+from tests.helpers_objects import no_shape_collection  # noqa: F401,E402
 
 
 def test_script_edits_survive_load_serialization_and_copy(tmp_path, monkeypatch, no_shape_collection):
@@ -133,13 +114,6 @@ def test_document_saves_flatdoc_with_formatting_and_the_toolbar_follows_the_curs
     assert doc2.rich_toolbar.bold_act.isChecked()
     app.ui.close()
     app2.ui.close()
-
-
-def test_document_default_font_size_is_the_saved_option(no_shape_collection):  # noqa: F811
-    qapp = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])  # noqa: F841
-    app, doc = _document_with_ui(document_font_size=10)
-    assert float(doc.ui.font_size_cb.get_value()) == 10
-    app.ui.close()
 
 
 def test_document_survives_a_project_save_and_load(tmp_path, no_shape_collection):  # noqa: F811

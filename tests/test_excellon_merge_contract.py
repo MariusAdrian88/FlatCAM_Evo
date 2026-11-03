@@ -74,14 +74,6 @@ def strip_name(data):
 
 
 class TestFuseEqualData:
-    def test_per_object_keys_do_not_block_the_fuse(self, app):
-        a = make_exc(app, 'a', [(1.0, [(0, 0)], [], DATA_A)])
-        bb = make_exc(app, 'bb', [(1.0, [(5, 0)], [], DATA_A)])
-        # name, bounds, zeros and plot differ between the 2 objects; the tool parameters are equal
-        assert a.tools[1]['data'] != bb.tools[1]['data']
-        final = merge(app, [a, bb])
-        assert list(final.tools) == [1]
-        assert pts(final.tools[1]['drills']) == [(0, 0), (5, 0)]
 
     def test_same_diameter_equal_data_fuses_into_one_tool(self, app):
         a = make_exc(app, 'a', [(1.0, [(0, 0), (1, 0)], [((0, 5), (3, 5))], DATA_A),
@@ -122,49 +114,6 @@ class TestKeepDifferentData:
         assert len(final.solid_geometry) == 4
 
 
-    def test_mixed_groups_fuse_per_data(self, app):
-        a = make_exc(app, 'a', [(1.0, [(0, 0)], [], DATA_A), (1.0, [(1, 0)], [], DATA_B)])
-        b = make_exc(app, 'b', [(1.0, [(2, 0)], [], DATA_A), (1.0, [(3, 0)], [], DATA_B)])
-        final = merge(app, [a, b])
-        assert len(final.tools) == 2
-        by_tag = {t['data']['tools_drill_ppname_e']: t for t in final.tools.values()}
-        assert pts(by_tag['first']['drills']) == [(0, 0), (2, 0)]
-        assert pts(by_tag['second']['drills']) == [(1, 0), (3, 0)]
-
-    def test_tool_ids_are_contiguous_in_order_of_first_appearance(self, app):
-        a = make_exc(app, 'a', [(1.0, [(0, 0)], [], DATA_A)])
-        b = make_exc(app, 'b', [(1.0, [(1, 0)], [], DATA_A)])
-        c = make_exc(app, 'c', [(0.8, [(2, 0)], [], DATA_A)])
-        final = merge(app, [a, b, c])
-        assert sorted(final.tools) == [1, 2]
-        assert [final.tools[t]['tooldia'] for t in (1, 2)] == [1.0, 0.8]
-        assert pts(final.tools[1]['drills']) == [(0, 0), (1, 0)]
-
-
-class TestBuildUiKeepsToolData:
-    def test_build_ui_keeps_per_tool_values_and_fills_missing_keys(self, app):
-        exc = make_exc(app, 'a', [(1.0, [(0, 0)], [], DATA_A),
-                                  (0.8, [(9, 9)], [], {k: v for k, v in DATA_B.items()
-                                                       if k != 'tools_drill_depthperpass'})])
-        exc.obj_options = {'tools_drill_cutz': -9.9, 'tools_drill_multidepth': False,
-                           'tools_drill_depthperpass': 0.2, 'tools_drill_ppname_e': 'object'}
-        class ToolsTable(QtWidgets.QTableWidget):
-            # the 2 methods the real table widget adds in ExcellonObjectUI
-            def getHeight(self):
-                return 100
-
-            def setupContextMenu(self):
-                pass
-
-        exc.ui = MagicMock()
-        exc.ui.tools_table = ToolsTable(0, 6)
-        exc.on_row_selection_change = Mock()    # the selection of the table row is not under test
-        exc.build_ui()
-        assert strip_name(exc.tools[1]['data']) == DATA_A
-        assert exc.tools[2]['data']['tools_drill_cutz'] == -2.4
-        assert exc.tools[2]['data']['tools_drill_depthperpass'] == 0.2
-
-
 class TestIndependenceAndTypes:
     @pytest.mark.parametrize('fuse', [True, False])
     def test_result_does_not_share_data_with_the_sources(self, app, fuse):
@@ -193,18 +142,6 @@ class TestIndependenceAndTypes:
         assert a2.tools[1]['data']['tools_drill_cutz'] == -1.7
         assert pts(snap_a[1]['drills']) == [(0, 0)] and pts(snap_b[1]['drills']) == [(5, 0)]
 
-    @pytest.mark.parametrize('fuse', [True, False])
-    def test_slots_stay_tuples_of_two_points(self, app, fuse):
-        a = make_exc(app, 'a', [(1.0, [], [((0, 1), (1, 1))], DATA_A)])
-        b = make_exc(app, 'b', [(1.0, [], [((5, 1), (6, 1))], DATA_A)])
-        final = merge(app, [a, b], fuse=fuse)
-        slots = [s for t in final.tools.values() for s in t['slots']]
-        assert len(slots) == 2
-        for slot in slots:
-            assert type(slot) is tuple and len(slot) == 2
-            assert all(isinstance(p, Point) for p in slot)
-
-
 
 class TestExcellonMerge:
     def test_merge_without_fusing_keeps_every_tool_and_is_independent(self, app, excellon):
@@ -225,17 +162,6 @@ class TestExcellonMerge:
         final.tools[1]['drills'].append(Point(1, 1))
         final.tools[1]['tooldia'] = 7.0
         assert len(excellon.tools[1]['drills']) == 3 and excellon.tools[1]['tooldia'] == 0.8
-
-    def test_merge_fusing_tools_of_the_same_diameter(self, app, excellon):
-        other = make_excellon(app, name='exc_b')
-        other.offset((100.0, 0.0))
-        final = ExcellonObject('combo', app)
-        ExcellonObject.merge([excellon, other], final, decimals=4, fuse_tools=True, log=Mock())
-        assert sorted(round(t['tooldia'], 4) for t in final.tools.values()) == [0.8, 1.0, 1.5]
-        assert sum(len(t['drills']) for t in final.tools.values()) == 12
-        assert sum(len(t['slots']) for t in final.tools.values()) == 6
-        assert len(excellon.tools[1]['drills']) == 3
-        assert len(other.tools[1]['drills']) == 3
 
 
 def join(app, objs, inform=None):

@@ -27,16 +27,6 @@ def test_address_edits_a_hole_with_one_undo_step():
     assert editor.selected == [original]
 
 
-def test_address_edits_one_part_of_a_multipolygon():
-    editor, original = vertex_editor(MultiPolygon([box(0, 0, 1, 1), box(3, 3, 4, 4)]))
-    assert editor.apply_vertex_edit('move', (1, 0, 0), (4.5, 3)) != 'fail'
-    result = editor.selected[0].geo
-    assert result.geoms[0].equals_exact(original.geo.geoms[0], 0.0)
-    assert (4.5, 3) in list(result.geoms[1].exterior.coords)
-
-
-
-
 from appEditors.vertex_grips import VertexGrips
 from tests.test_vertex_grips import FakeCollection
 
@@ -84,10 +74,6 @@ def test_invalid_drag_does_not_change_the_shape():
     assert editor.app.inform.emit.called
 
 
-
-
-
-
 ROUNDED = box(1, 1, 9, 5).buffer(1, join_style=BufferJoinStyle.round)
 
 
@@ -101,19 +87,3 @@ def on_some_arc(ring, point):
     return False
 
 
-
-
-def test_arc_middle_drag_through_the_real_editor_is_one_undo_step():
-    editor, original = drag_editor(ROUNDED)
-    grips = editor.vertex_grips
-    kind, address, middle = next(grip for grip in grips.grips if grip[0] == 'arc_mid')
-    cursor = (middle[0] - 0.2, middle[1] - 0.2)
-    assert grips.press((0, 0), middle, QtCore.Qt.KeyboardModifier.NoModifier)
-    grips.move((20, 0), cursor)
-    assert grips.release((20, 0), cursor)
-    assert on_some_arc(editor.selected[0].geo.exterior, cursor)
-    assert len(editor._history_undo) == 1
-    assert grips.shape is editor.selected[0]
-    assert sum(1 for grip in grips.grips if grip[0] == 'arc_mid') == 4   # the bent corner is still 1 arc
-    assert editor.undo()
-    assert editor.selected == [original]

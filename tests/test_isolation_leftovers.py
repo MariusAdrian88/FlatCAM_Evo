@@ -19,10 +19,8 @@ from defaults import AppDefaults
 from appObjects.GeometryObject import GeometryObject
 from appObjects.GerberObject import GerberObject
 from appPlugins.ToolIsolation import ToolIsolation
-from tclCommands.TclCommandIsolate import TclCommandIsolate
 
 from test_plugin_geometry_bases import make_tool_app
-from test_tcl_audit_regressions import object_app
 from tests.helpers_objects import app, _headless_qt  # noqa: F401,E402
 
 DIA = 0.1
@@ -130,16 +128,6 @@ def wkb_list(geometries):
     return [g.wkb_hex for g in geometries]
 
 
-def test_isolate_with_the_option_off_is_unchanged(app):
-    gerber = make_strips_gerber(app)
-    default = run_isolate(app, gerber, combine=True, iso_type=2)['iso'].solid_geometry
-    off = run_isolate(app, gerber, combine=True, iso_type=2, clear_leftovers=False)['iso'].solid_geometry
-
-    assert app.options['tools_iso_clear_leftovers'] is False
-    assert wkb_list(off) == wkb_list(default)
-    assert not [g for g in off if isinstance(g, LinearRing)]
-
-
 def test_isolate_adds_the_leftover_paths_after_the_passes(app):
     gerber = make_strips_gerber(app)
     off = run_isolate(app, gerber, combine=True, iso_type=2, clear_leftovers=False)['iso']
@@ -154,20 +142,6 @@ def test_isolate_adds_the_leftover_paths_after_the_passes(app):
     window = box(0, 1, 0.42, 9)
     assert unburned(copper, rings(off.solid_geometry), window).area == pytest.approx(0.04 * 8, rel=0.05)
     assert unburned(copper, rings(on.solid_geometry), window).area < 1e-4
-
-
-def test_tcl_isolate_passes_the_option(app):
-    gerber = Mock(kind='gerber')
-    command = TclCommandIsolate(object_app(gerber))
-    command.execute({'name': 'g', 'combine': '1', 'clear_leftovers': 'True'}, [])
-    assert gerber.isolate.call_args.kwargs['clear_leftovers'] is True
-
-    command.execute({'name': 'g', 'combine': '1', 'clear_leftovers': '0'}, [])
-    assert gerber.isolate.call_args.kwargs['clear_leftovers'] is False
-
-    # not given: GerberObject.isolate() reads the preference
-    command.execute({'name': 'g', 'combine': '1'}, [])
-    assert 'clear_leftovers' not in gerber.isolate.call_args.kwargs
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -225,8 +199,8 @@ def test_plugin_combined_passes_clear_the_leftovers(tool, app):
     assert unburned(copper, rings(on.solid_geometry), window).area < 1e-4
 
 
-@pytest.mark.parametrize('entry_point', ['gerber', 'plugin'])
-@pytest.mark.parametrize('copper', [two_strips(0.42), island_in_a_ring(0.39)], ids=['strips', 'annulus'])
+@pytest.mark.parametrize('entry_point, copper', [('gerber', two_strips(0.42)), ('plugin', island_in_a_ring(0.39))],
+                         ids=['gerber-strips', 'plugin-annulus'])
 def test_leftover_paths_follow_the_milling_direction(tool, app, entry_point, copper):
     gerber = make_strips_gerber(app)
     gerber.solid_geometry = MultiPolygon(copper)

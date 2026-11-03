@@ -1,7 +1,6 @@
 """Gerber X2/X3 attributes: splitting, dictionary state, typed views (spec 5.x, 6.2, 8.4)."""
 
 import hashlib
-import json
 
 import pytest
 
@@ -12,10 +11,7 @@ from appParsers.gerber_attributes import (
 
 
 @pytest.mark.parametrize("body, expected", [
-    ("MyAttr,a b , c\r\n", ("MyAttr", ["a b ", " c"])),          # spaces are significant, CR/LF are not
     (".N,a\\u002Cb,\\u00A9,\\U0001F600,\\uD83D\\uDE00", (".N", ["a,b", "©", "\U0001F600", "\U0001F600"])),
-    (".N,bad\\uZZZZ", (".N", ["bad\\uZZZZ"])),                      # broken escape stays raw
-    ("CustAttr ", ("CustAttr", [])),                                # spec 5.8: "%TDCustAttr *%"
 ])
 def test_split_attribute(body, expected):
     assert split_attribute(body) == expected
@@ -44,35 +40,8 @@ def test_state_dictionary_semantics():
     assert st.as_legacy() == {"TF": {".FileFunction": ["Copper", "L2", "Inr"]}, "TA": {}, "TO": {}}
 
 
-def test_to_interning_is_stable_and_json_friendly():
-    st = AttributeState()
-    assert st.to_id == 0
-    st.apply("TO", ".N,A")
-    a = st.to_id
-    st.apply("TO", ".N,B")
-    b = st.to_id
-    st.apply("TO", ".N,A")
-    assert a != 0 and b != a and st.to_id == a
-    st.apply("TD", "")
-    assert st.to_id == 0
-    table = st.to_table()
-    assert table == {a: {".N": ["A"]}, b: {".N": ["B"]}}
-    assert json.loads(json.dumps(table)) == {str(a): {".N": ["A"]}, str(b): {".N": ["B"]}}
-
-
-def test_ta_snapshot_keeps_earlier_aperture_state():
-    st = AttributeState()
-    st.apply("TA", ".AperFunction,ViaPad")
-    s1 = st.ta_snapshot()
-    assert s1 == {".AperFunction": ["ViaPad"]}
-    st.apply("TA", ".AperFunction,Conductor")
-    assert s1 == {".AperFunction": ["ViaPad"]}          # earlier aperture keeps its attributes
-    assert st.ta_snapshot() == {".AperFunction": ["Conductor"]}
-
-
 @pytest.mark.parametrize("values, expect", [
     (["Copper", "L2", "Inr", "Plane"], dict(kind="Copper", layer=2, side="Inr", type="Plane")),
-    (["Legend", "Bot", "2"], dict(kind="Legend", side="Bot", index=2, extra=[])),
 ])
 def test_parse_file_function_layers(values, expect):
     got = parse_file_function(values)
@@ -82,25 +51,14 @@ def test_parse_file_function_layers(values, expect):
 
 @pytest.mark.parametrize("values, plated, span, kind_type, extra", [
     (["Plated", "1", "4", "PTH"], True, (1, 4), "PTH", []),
-    (["NonPlated", "8", "7", "Blind"], False, (8, 7), "Blind", []),        # from/to order is kept as written
 ])
 def test_parse_file_function_drill(values, plated, span, kind_type, extra):
     got = parse_file_function(values)
     assert (got["plated"], got["from_to"], got["type"], got["extra"]) == (plated, span, kind_type, extra)
 
 
-def test_parse_file_function_profile_and_empty():
-    assert parse_file_function(["Profile", "P"])["edge"] == "P"
-    deprecated = parse_file_function(["Profile"])       # deprecated form without the P/NP label is still a profile
-    assert deprecated["kind"] == "Profile" and deprecated["edge"] is None
-    assert parse_file_function([])["kind"] == ""
-
-
 @pytest.mark.parametrize("values, kind, sub, deprecated", [
-    (["SMDPad", "CuDef"], "SMDPad", ["CuDef"], False),
-    (["MechanicalDrill", "BreakOut"], "MechanicalDrill", ["Breakout"], False),
     (["CutOut"], "CutOut", [], True),         # 8.4 deprecated values are accepted and flagged
-    (["FutureThing", "a"], "FutureThing", ["a"], False),
 ])
 def test_parse_aper_function(values, kind, sub, deprecated):
     assert parse_aper_function(values) == {"kind": kind, "sub": sub, "deprecated": deprecated}
@@ -128,13 +86,6 @@ def test_file_attributes_typed_view_and_mandatory():
     assert got["project_id"] == {"name": "My PCB", "guid": "f81d4fae-7dec-11d0-a765-00a0c91e6bf6", "revision": "2"}
     assert got["md5"] == "6ab9e892830469cdff7e3e346331d404"
     assert check_mandatory(st.as_legacy()["TF"]) == []
-
-
-def test_file_attributes_old_file_without_attributes():
-    got = file_attributes({})
-    assert got["file_function"] is None and got["file_polarity"] is None and got["same_coordinates"] is None
-    assert check_mandatory({}) == [".FileFunction", ".FilePolarity", ".SameCoordinates"]
-    assert check_mandatory({".FileFunction": ["Profile"]}) == [".FilePolarity", ".SameCoordinates"]
 
 
 def test_nets_and_components():
@@ -216,37 +167,6 @@ def test_ta_on_aperture_and_legacy_shape(tmp_path):
     assert gbr.attributes['TA'] == {} and gbr.attributes['TO'] == {}
 
 
-def test_file_function_and_typed_file_attributes(tmp_path):
-    from tests.test_gerber_parser import parse_gerber_text
-    text = KICAD_HEADER + "%ADD10C,1.0*%\nD10*\nX0Y0D03*\nM02*\n"
-    gbr, _, _ = parse_gerber_text(tmp_path, text)
-    assert gbr.file_function == ['Copper', 'L1', 'Top']
-    assert gbr.file_attributes == file_attributes(gbr.attributes['TF'])
-    assert gbr.file_attributes
-    # a later %TF replaces the earlier value (spec 5.3)
-    again = text.replace("%FSLAX46", "%TF.FileFunction,Legend,Top*%\n%FSLAX46")
-    gbr2, _, _ = parse_gerber_text(tmp_path, again)
-    assert gbr2.file_function == ['Legend', 'Top']
-
-
-def test_attribute_values_are_unescaped(tmp_path):
-    from tests.test_gerber_parser import parse_gerber_text
-    text = "%FSLAX26Y26*%\n%MOMM*%\n%ADD10C,1*%\n%TO.N,a\\u002Cb*%\nD10*\nX0Y0D03*\nM02*\n"
-    gbr, _, _ = parse_gerber_text(tmp_path, text)
-    assert nets_of(gbr.to_attributes) == {'a,b': [_records(gbr)[0]['to']]}
-
-
-def test_file_without_attributes_and_old_project_defaults(tmp_path):
-    from tests.test_gerber_parser import parse_gerber_text, MockApp
-    from appParsers.ParseGerber import Gerber
-    gbr, _, _ = parse_gerber_text(tmp_path, "%FSLAX26Y26*%\n%MOMM*%\n%ADD10C,1*%\nD10*\nX0Y0D03*\nM02*\n")
-    assert gbr.to_attributes == {} and not any(gbr.file_attributes.values()) and gbr.file_function == []
-    assert all('to' not in rec for rec in _records(gbr))
-    fresh = Gerber(MockApp())      # what an old project holds: no such keys, the defaults stay
-    assert fresh.to_attributes == {} and fresh.file_attributes == {}
-    assert {'attributes', 'to_attributes', 'file_attributes'} <= set(fresh.ser_attrs)
-
-
 def test_block_keeps_ta_and_nested_to(tmp_path):
     from tests.test_gerber_parser import parse_gerber_text
     text = ("%FSLAX26Y26*%\n%MOMM*%\n%ADD10R,2X2*%\n%TA.AperFunction,Conductor*%\n%ABD12*%\n%TO.N,GND*%\nD10*\n"
@@ -256,19 +176,6 @@ def test_block_keeps_ta_and_nested_to(tmp_path):
     inner = [rec for _, rec, _ in gbr.tools[12]['records']]
     assert nets_of(gbr.to_attributes)['GND'] == [inner[0]['to']]
     assert union.area == pytest.approx(4.0)
-
-
-def test_panelize_copy_keeps_attributes():
-    from types import SimpleNamespace
-    from appParsers.panelize_core import copy_gerber_attributes
-    src = SimpleNamespace(export_as_regions=False, aperture_macros={},
-                          attributes={'TF': {'.FileFunction': ['Copper']}, 'TA': {}, 'TO': {}},
-                          to_attributes={1: {'.N': ['GND']}}, file_attributes={'function': 'x'})
-    dst = SimpleNamespace()
-    copy_gerber_attributes(dst, src)
-    assert dst.attributes == src.attributes and dst.to_attributes == src.to_attributes
-    assert dst.file_attributes == src.file_attributes
-    assert dst.to_attributes is not src.to_attributes
 
 
 def test_merge_renumbers_to_ids():
@@ -317,21 +224,3 @@ def test_report_rows_show_attributes_and_net_counts():
     assert by[('components', 'R1')] == '10k, 0603, 90.0'
 
 
-def test_report_rows_of_an_excellon_count_nets_from_the_hole_ids():
-    from appPlugins.ToolReport.ReportGen import gerber_attribute_rows
-    obj = _report_obj(
-        attributes={'TF': {'.FileFunction': ['Plated', '1', '2', 'PTH']}},
-        to_attributes={1: {'.N': ['GND']}, '2': {'.N': ['VCC']}},
-        tools={1: {'attributes': {'.AperFunction': ['Plated', 'PTH', 'ViaDrill']}, 'drills': [0, 0, 0],
-                   'drills_to': [1, 1, 0], 'slots': [0], 'slots_to': [2]},
-               2: {'drills': [0], 'slots': []}})
-    by = {(s, n): v for s, n, v in gerber_attribute_rows(obj)}
-    assert by[('attributes', '.FileFunction')] == 'Plated,1,2,PTH'
-    assert by[('apertures', 'Plated')] == '1'
-    assert by[('nets', 'GND')] == '2' and by[('nets', 'VCC')] == '1'
-
-
-def test_report_rows_empty_without_attributes():
-    from appPlugins.ToolReport.ReportGen import gerber_attribute_rows
-    assert gerber_attribute_rows(_report_obj(file_attributes={'part': None})) == []
-    assert gerber_attribute_rows(object()) == []

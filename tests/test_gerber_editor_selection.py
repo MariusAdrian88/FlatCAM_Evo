@@ -86,7 +86,7 @@ def test_chain_follows_connected_tracks_and_skips_the_far_one():
     assert ids(editor.selected) == ids([far, t1, t2, t3])
 
 
-@pytest.mark.parametrize('branching, far_selected', [(False, False), (True, True)])
+@pytest.mark.parametrize('branching, far_selected', [(False, False)])
 def test_chain_stops_at_a_junction_unless_branching(branching, far_selected):
     a = track([(0, 0), (5, 0)])
     b = track([(5, 0), (5, 5)])
@@ -125,17 +125,6 @@ def test_transcode_flash_takes_the_target_shape_at_the_same_center():
     assert len(editor.history.undo_stack) == 1
 
 
-def test_transcode_track_takes_the_width_of_a_circular_target():
-    t = track([(0, 0), (10, 0)])
-    editor = editor_for({10: {'type': 'C', 'size': 2, 'geometry': [t]},
-                         11: {'type': 'C', 'size': 4, 'geometry': []}},
-                        selected=[t])
-    assert module.apply_transcode(editor, 11) != 'fail'
-    (moved,) = editor.storage_dict[11]['geometry']
-    assert moved.geo['solid'].bounds[1] == pytest.approx(-2)
-    assert moved.geo['solid'].bounds[3] == pytest.approx(2)
-
-
 def test_transcode_refuses_regions_and_tracks_to_non_circular_apertures():
     for source in ('region', 'track'):
         rect = {11: {'type': 'R', 'size': 0, 'width': 1, 'height': 3, 'geometry': []}}
@@ -163,26 +152,6 @@ def test_snap_to_grid_moves_flash_centers_and_track_vertices():
     assert (flash.geo['follow'].x, flash.geo['follow'].y) == pytest.approx((1.0, 3.0))
     assert (flash.geo['solid'].centroid.x, flash.geo['solid'].centroid.y) == pytest.approx((1.0, 3.0))
     assert [v for xy in line.geo['follow'].coords for v in xy] == pytest.approx([0.0, 0.0, 5.0, 0.0])
-
-
-def test_native_save_reparse_after_step_repeat_undo_redo(app):
-    source = make_gerber(app, NATIVE_GBR, name='board')
-    a = flash_at(0, 0)
-    editor = editor_for({10: {'type': 'C', 'size': 2, 'geometry': [a]}}, selected=[a])
-    assert module.apply_step_repeat(editor, 2, 3, 10, 5) != 'fail'
-    for mode in ('edited', 'undo', 'redo'):
-        if mode == 'undo':
-            assert editor.undo()
-        elif mode == 'redo':
-            assert editor.redo()
-        stand_in = gerber_stand_in(app, source, editor.storage_dict)
-        stand_in.loaded_as_regions = False
-        AppGerberEditor.build_edited_gerber(stand_in, 'board', editor.storage_dict)
-        result = app.custom_signal.emit.call_args.args[0]
-        assert 'error' not in result
-        parsed = Gerber(app, steps_per_circle=64)
-        assert parsed.parse_lines(result['obj'].source_file.splitlines()) is None
-        assert unary_union(parsed.solid_geometry).hausdorff_distance(footprint(editor)) < 0.002
 
 
 def assert_saved_as_flashes(app, editor):

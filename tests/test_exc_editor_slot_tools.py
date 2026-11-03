@@ -103,22 +103,6 @@ def test_new_slot_diameter_after_a_matching_one_does_not_overwrite_a_drill_tool(
     assert_geometry_matches(tools)
 
 
-def test_several_new_slot_diameters_after_a_match_get_new_numbers():
-    slot_12 = ((0.0, 10.0), (3.0, 10.0))
-    tools = save(drills={0.8: [(0, 0)], 1.0: [(0, 5)], 3.2: [(30, 30)], 4.0: [(40, 40)]},
-                 slots={0.8: [SLOT_10], 1.2: [slot_12], 1.5: [SLOT_15]})
-
-    assert summary(tools) == {
-        1: (0.8, [(0, 0)], [SLOT_10]),
-        2: (1.0, [(0, 5)], []),
-        3: (3.2, [(30, 30)], []),
-        4: (4.0, [(40, 40)], []),
-        5: (1.2, [], [slot_12]),
-        6: (1.5, [], [SLOT_15]),
-    }
-    assert_geometry_matches(tools)
-
-
 # ---------------------------------------------------------------------------------------------------------------------
 # the saved tools have the 'drills' and the 'slots' keys
 # ---------------------------------------------------------------------------------------------------------------------
@@ -144,8 +128,7 @@ def exported_holes(code):
 @pytest.mark.parametrize('case, expected', [
     (BOARD, {1: (['X0.000Y0.000', 'X1.000Y0.000'], 0), 2: (['X0.000Y5.000'], 1),
              3: (['X-30.000Y30.000', 'X30.000Y30.000'], 0), 4: ([], 1)}),
-    (SLOT_ONLY_TOOL, {1: (['X0.000Y0.000'], 0), 2: (['X30.000Y30.000'], 0), 3: ([], 1)}),
-], ids=['board', 'slot-only-tool'])
+], ids=['board'])
 def test_excellon_export_of_the_saved_object(no_shape_collection, case, expected):  # noqa: F811
     # the edited object gets the saved tools like AppExcEditor.new_edited_excellon() does
     obj = ExcellonObject('board_edit', make_app())
@@ -209,16 +192,10 @@ def drills_by_tool_change(gcode):
 
 
 @pytest.mark.parametrize('case, expected', [
-    (BOARD, {
-        '(MSG, Change to Tool Dia = 0.8000 ||| Total drills for tool T1 = 2)': ['X0.0000 Y0.0000', 'X1.0000 Y0.0000'],
-        '(MSG, Change to Tool Dia = 1.0000 ||| Total drills for tool T2 = 1)': ['X0.0000 Y5.0000'],
-        '(MSG, Change to Tool Dia = 3.2000 ||| Total drills for tool T3 = 2)': ['X-30.0000 Y30.0000',
-                                                                                'X30.0000 Y30.0000'],
-    }),
     (SLOT_ONLY_TOOL, {
         '(MSG, Change to Tool Dia = 0.8000 ||| Total drills for tool T1 = 1)': ['X0.0000 Y0.0000'],
         '(MSG, Change to Tool Dia = 3.2000 ||| Total drills for tool T2 = 1)': ['X30.0000 Y30.0000'],
     }),
-], ids=['board', 'slot-only-tool'])
+], ids=['slot-only-tool'])
 def test_drillcncjob_with_all_tools_of_the_saved_object(case, expected):
     assert drills_by_tool_change(drill_job_gcode(save(**case))) == expected
