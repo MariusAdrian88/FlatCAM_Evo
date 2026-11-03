@@ -32,6 +32,37 @@ N_PATHS = 3
 CUT_MOVES = 9
 
 
+@pytest.mark.parametrize('pp_name', ['default', 'GRBL_laser'])
+@pytest.mark.parametrize('toolchange', [False, True])
+@pytest.mark.parametrize('startz', ['', 1.0])
+def test_two_tool_milling_golden(pp_name, toolchange, startz):
+    import hashlib
+    from tests.test_cncjob_gcode_speed import gcode_job, milling_tools
+    job = gcode_job(pp_name)
+    tools = milling_tools([LineString([(1, 2), (3, 4)])], tools_mill_ppname_g=pp_name,
+                          tools_mill_startz=startz, tools_mill_toolchangez=15,
+                          tools_mill_toolchangexy='10, 20')
+    tools[2] = milling_tools([LineString([(5, 6), (7, 8)])], **tools[1]['data'])[1]
+    output = []
+    for uid in tools:
+        code, header = job.geometry_tool_gcode_gen(uid, tools, (0, 0), (9, 10), 0,
+                                                  is_first=uid == 1, is_last=uid == 2,
+                                                  toolchange=toolchange)
+        output.append(header + code)
+    digest = hashlib.sha256(''.join(output).encode()).hexdigest()
+    if pp_name == 'GRBL_laser':
+        expected = ('c5e42e6787274ea43ab8a24ece313b81f601a6e9f02b4c3c393b768bd7f7ecac' if toolchange else
+                    'bbf5910546ea708b8e86bd44ac3eec7207963f3874298ad7c72c19c6b03df7af')
+    else:
+        expected = {
+            (False, ''): '21bbb21e36dbfdca718637f6f189ec75a6678e6a116862bdf5daef181bfb52b3',
+            (True, ''): '4a40c95fb8763341b195161d1ae5f182784d64869c968ab85d2bb774117812ac',
+            (False, 1.0): '067a74c13e3c14b3d0bfbffd49e6ab35fc5ac1b80d7b34442e115d50f97b63ab',
+            (True, 1.0): '73eea86b50265ba98ce232ae3c6929d9a9157c4eb527530af763a9d30f3a2c84',
+        }[toolchange, startz]
+    assert digest == expected
+
+
 class MillingHarness(SimpleNamespace):
     """The real ToolMilling methods, without the application GUI."""
     def __getattr__(self, name):

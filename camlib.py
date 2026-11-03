@@ -4372,16 +4372,9 @@ class CNCjob(Geometry):
         # #########################################################################################################
         # ############# PARAMETERS used in PREPROCESSORS so they need to be updated ###############################
         # #########################################################################################################
-        self.tool = str(tool)
-        self.is_first_tool = bool(is_first)
         tool_dict = tools[tool]['data']
-        self.area_exclusion = bool(tool_dict.get('tools_mill_area_exclusion', True))
-        # this is the tool diameter, it is used as such to accommodate the preprocessor who need the tool diameter
-        # given under the name 'toolC'
-        self.postdata['toolC'] = float(tool_dict['tools_mill_tooldia'])
-        self.tooldia = float(tool_dict['tools_mill_tooldia'])
-        self.use_ui = use_ui
-        self.tolerance = tolerance
+        if self.load_mill_tool_params(tool, tools, last_pt, tolerance, is_first, use_ui) == 'fail':
+            return 'fail'
 
         # Optimization type. Can be: 'M', 'B', 'T', 'R', 'No'
         opt_type = tool_dict['tools_mill_optimization_type']
@@ -4400,11 +4393,6 @@ class CNCjob(Geometry):
             self.app.log.debug("Using RTree path optimization.")
         else:
             self.app.log.debug("Using no path optimization.")
-
-        # Preprocessor
-        self.pp_geometry_name = tool_dict['tools_mill_ppname_g']
-        self.pp_geometry = get_preprocessor(self.app, self.pp_geometry_name)
-        p = self.pp_geometry
 
         # Offset the Geometry if it is the case
         # if tool_dict['tools_mill_offset_type'] == 1:  # 'in'
@@ -4455,6 +4443,21 @@ class CNCjob(Geometry):
             self.no_usable_geometry_notice(self.tooldia)
             return 'fail'
 
+        return self._mill_geometry_paths(tool, tools, first_pt, flat_geometry, temp_solid_geometry,
+                                         opt_type, opt_time, is_first, is_last, toolchange)
+
+    def load_mill_tool_params(self, tool, tools, last_pt, tolerance, is_first, use_ui):
+        """Load and validate the current tool's shared Milling preprocessor parameters."""
+        tool_dict = tools[tool]['data']
+        self.tool = str(tool)
+        self.is_first_tool = bool(is_first)
+        self.area_exclusion = bool(tool_dict.get('tools_mill_area_exclusion', True))
+        self.postdata['toolC'] = float(tool_dict['tools_mill_tooldia'])
+        self.tooldia = float(tool_dict['tools_mill_tooldia'])
+        self.use_ui = use_ui
+        self.tolerance = tolerance
+        self.pp_geometry_name = tool_dict['tools_mill_ppname_g']
+        self.pp_geometry = get_preprocessor(self.app, self.pp_geometry_name)
         # Depth parameters for the current tool must be loaded before validation.
         self.z_cut = float(tool_dict['tools_mill_cutz']) if tool_dict['tools_mill_cutz'] is not None else None
         # a laser cuts at one height: multi-depth does not apply (old data can still have it on)
@@ -4590,9 +4593,12 @@ class CNCjob(Geometry):
         self.extracut = tool_dict['tools_mill_extracut']
         self.extracut_length = tool_dict['tools_mill_extracut_length']
 
-        # Probe parameters
-        # self.z_p_depth = tool_dict["tools_drill_z_p_depth"]
-        # self.feedrate_probe = tool_dict["tools_drill_feedrate_probe"]
+        return self.pp_geometry
+
+    def _mill_geometry_paths(self, tool, tools, first_pt, flat_geometry, temp_solid_geometry,
+                             opt_type, opt_time, is_first, is_last, toolchange):
+        p = self.pp_geometry
+        t_gcode = ''
 
         # #########################################################################################################
         # ############ Create the data. ###########################################################################
@@ -4782,7 +4788,19 @@ class CNCjob(Geometry):
         t_gcode = ''.join(gcode_parts)
         self.app.log.debug("Finished G-Code... %s paths traced." % path_count)
 
-        # Finish
+        t_gcode += self.mill_tool_end_gcode(p, current_pt, is_last)
+        if is_last:
+            self.app.inform.emit(
+                '%s... %s %s.' % (_("Finished G-Code generation"), str(path_count), _("paths traced"))
+            )
+
+        self.gcode = t_gcode
+        self.laser_min_power_warning(self.gcode)
+        return self.gcode, start_gcode
+
+    def mill_tool_end_gcode(self, p, current_pt, is_last):
+        """The ordinary Milling final stop, lift and parking blocks."""
+        t_gcode = ''
         if is_last:
             if 'laser' not in self.pp_geometry_name.lower():
                 t_gcode += self.doformat(p.spindle_stop_code)
@@ -4803,13 +4821,7 @@ class CNCjob(Geometry):
                     endy = 0.0
 
             t_gcode += self.doformat(p.end_code, x=endx, y=endy)
-            self.app.inform.emit(
-                '%s... %s %s.' % (_("Finished G-Code generation"), str(path_count), _("paths traced"))
-            )
-
-        self.gcode = t_gcode
-        self.laser_min_power_warning(self.gcode)
-        return self.gcode, start_gcode
+        return t_gcode
 
     def tcl_gcode_from_excellon_by_tool(self, exobj, tools="all", order='fwd', is_first=False, overrides=None,
                                         holes_area=None):
