@@ -372,6 +372,18 @@ def test_halftone_black_dot_width_and_depth_limit(model):
         assert 0.01 < depth <= params.max_depth
 
 
+def test_black_groove_respects_width_limit_at_high_z_precision(model):
+    gen = _pure('PhotoCarveGen')
+    image = Image.new('L', (8, 8), 0)
+    params = model.JobParams(image_px=image.size, width=2, res=0.25, spacing=1,
+                            tool_dia=1, tool_angle=45, max_depth=2, decimals=12, sim_res=0.25)
+    result = gen.run_job(image, params)
+    limit = model.vbit_limit(params)
+    assert result.passes[-1].paths
+    for path in result.passes[-1].paths:
+        assert np.max(-path[:, 2]) <= limit + 1e-12
+
+
 def test_relief_certificate_checks_far_corner_without_subsampling(model):
     frame = model.ImageFrame(0, 0, 3000, 3000, 1, 1)
     indices = np.arange(3000)
@@ -381,3 +393,65 @@ def test_relief_certificate_checks_far_corner_without_subsampling(model):
     path = np.array([[x, y, -0.5], [2999.5, y, -0.51]])
     with pytest.raises(model.PhotoCarveError, match='gouge|Gouge'):
         model.certify_relief([path], certificate, frame)
+
+
+def test_stock_chunks_match_whole_and_independent_gouge_check(model):
+    sim = _pure('PhotoCarveSim')
+    frame = model.ImageFrame(-1, -1, 5, 5, 0.25, 0.25)
+    tool = model.ToolShape('ball', 0.8)
+    path = np.column_stack((np.linspace(0, 3, 25), np.full(25, 1.5), np.full(25, -0.4)))
+    whole, chunked = sim.Stock(frame), sim.Stock(frame)
+    sim.stamp_path(whole, path, tool)
+    for start in range(0, len(path) - 1, 6):
+        sim.stamp_path(chunked, path[start:start + 7], tool)
+    np.testing.assert_array_equal(whole.height, chunked.height)
+    assert whole.height.dtype == np.float32 and whole.height.min() == pytest.approx(-0.4)
+    assert np.all(whole.height[0] == 0)
+    assert sim.reference_gouge([path], tool, np.full((20, 20), -0.4), frame) <= 1e-7
+    assert sim.reference_gouge([path - [0, 0, 0.1]], tool, np.full((20, 20), -0.4), frame) > 0.09
+
+
+def test_laser_burn_matches_integer_power_and_printed_endpoints(model):
+    sim = _pure('PhotoCarveSim')
+    frame = model.ImageFrame(0, 0, 1, 1, 0.1, 0.1)
+    path = np.array([[0, 0.55, 0], [1 / 3, 0.55, 1 / 3]], dtype=np.float64)
+    printer = lambda x, y: (round(x, 4), round(y, 4))
+    for minimum in (0, 100):
+        moves = sim.laser_moves_from_paths([path], as_s=True, minimum=minimum, maximum=1000, printer=printer)
+        expected_s = round(minimum + (1000 - minimum) / 3)
+        assert moves[0].x1 == 0.3333 and moves[0].s == expected_s
+        burn = sim.burn_image(frame, moves, maximum=1000)
+        assert burn.sum() == pytest.approx(0.3333 * expected_s / 1000, abs=1e-7)
+        text = 'G90 G21\nM4 S0\nG0 X0 Y0.55\nG1 X0.3333 S%d\nM5' % expected_s
+        printed = sim.interpret_gcode(text, laser=True)
+        np.testing.assert_allclose(sim.burn_image(frame, printed, maximum=1000), burn, atol=1e-7)
+    with pytest.raises(model.PhotoCarveError):
+        sim.laser_moves_from_paths([path], as_s=True, minimum=1000, maximum=1000)
+
+
+def test_motion_interpreter_modal_units_toolchange_and_laser_off(model):
+    sim = _pure('PhotoCarveSim')
+    text = '(header)\nG90 G17 G21 G94 G54\nG0 Z5\nX0 Y0\nM3 S12000\nG1 Z-0.5 F100\nX1 F1000\nM5\nG0 Z5'
+    spans = sim.interpret_gcode(text)
+    cut = [span for span in spans if not span.rapid]
+    assert len(cut) == 2
+    assert cut[-1].x0 == 0 and cut[-1].x1 == 1 and cut[-1].z1 == -0.5
+    inch = sim.interpret_gcode('G20\nG0 Z1\nG0 X0 Y0\nG1 X1 Z0')
+    assert inch[-1].x1 == pytest.approx(25.4)
+    laser = sim.interpret_gcode('G0 X0 Y0\nM4 S100\nG1 X1\nM5\nG1 X2', laser=True)
+    assert laser[0].laser_on and not laser[1].laser_on
+    assert math.isnan(laser[0].z0)
+    with pytest.raises(model.PhotoCarveError, match='position|Position'):
+        sim.interpret_gcode('G0 X0 Y0 Z5\nM6\nG1 X1 Y1 Z-1')
+
+
+def test_motion_interpreter_rejects_unknown_frames_commands_and_unsplit_arcs(model):
+    sim = _pure('PhotoCarveSim')
+    commands = ('G91', 'G92 X0', 'G28', 'G30', 'G53 G0 X1', 'G10 L2', 'G43 H1', 'G49',
+                'G38.2 Z-1', 'G80', 'G81 X1', 'G18', 'G19', 'G93', 'M98 P1', 'M99',
+                'G2 X1 Y1 I1 J0', 'G54', 'A1', 'G1 Xnan', 'G4 X1', 'G1 X1 #1')
+    for command in commands:
+        with pytest.raises(model.PhotoCarveError):
+            sim.interpret_gcode('G0 X0 Y0 Z5\n' + command)
+    with pytest.raises(model.PhotoCarveError):
+        sim.interpret_gcode('G0 X0 Y0\nG1 X1')
