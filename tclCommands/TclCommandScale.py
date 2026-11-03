@@ -96,6 +96,9 @@ class TclCommandScale(TclCommand):
                 return "fail"
             if obj.kind not in ('geometry', 'gerber', 'excellon', 'cncjob'):
                 self.raise_tcl_error('Only Gerber, Excellon, Geometry and CNCJob objects can be scaled.')
+            if obj.obj_options.get('photocarve'):
+                self.raise_tcl_error('Regenerate photo engraving to change its scale or skew.')
+                return 'fail'
             # an imported G-code with macros or subprograms can not be rewritten: an error, not a silent no-op
             blocked = obj.gcode_flow_blocked('transform') if obj.kind == 'cncjob' else None
             if blocked:

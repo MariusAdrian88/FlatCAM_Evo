@@ -1643,8 +1643,9 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
         for tooluid_key, tooluid_value in self.tools.items():
             for dia_key, dia_value in tooluid_value.items():
                 if dia_key == 'tooldia':
-                    dia_value *= factor
-                    dia_value = float('%.*f' % (self.decimals, dia_value))
+                    if not self.obj_options.get('photocarve'):
+                        dia_value *= factor
+                        dia_value = float('%.*f' % (self.decimals, dia_value))
                     tool_dia_copy[dia_key] = dia_value
                 if dia_key == 'offset':
                     tool_dia_copy[dia_key] = dia_value

@@ -1,6 +1,7 @@
 """Shapely boundary for captured photo engraving results and certified cutter metadata."""
 
 import math
+import re
 from copy import deepcopy
 
 import numpy as np
@@ -46,12 +47,30 @@ def passes_from_cncjob(cnc_obj, arc_res):
     from .PhotoCarveLaser import format_power
 
     mark = cnc_obj.obj_options.get('photocarve', {})
+    if mark.get('units', cnc_obj.units) != cnc_obj.units:
+        raise PhotoCarveError('CNCJob and certified cutter units differ; regenerate the engraving.')
+    if any(getattr(cnc_obj, key, '') for key in ('edited_source_file', 'prepend_snippet', 'append_snippet')):
+        raise PhotoCarveError('Edited or snippet-bearing CNC programs cannot be associated safely with cutters.')
     laser = bool(mark.get('z_is_power'))
     warnings, passes = [], []
     records = cnc_obj.tools or {1: {'gcode': cnc_obj.gcode, 'tooldia': cnc_obj.obj_options.get('tooldia', 0)}}
+    header = getattr(cnc_obj, 'gc_start', '')
+    expected = header + ''.join(record.get('gcode', '') for record in records.values())
+
+    def executable(text):
+        text = re.sub(r'\([^()]*\)|;[^\n]*', '', text)
+        return ''.join(text.upper().split())
+
+    source = getattr(cnc_obj, 'source_file', '')
+    if source and executable(source) != executable(expected):
+        raise PhotoCarveError('Runnable CNC source differs from tool records; simulation refused.')
+    program, previous_count = header, 0
     for uid, record in records.items():
         tool = _simulation_tool(uid, record, mark, warnings)
-        spans = gcode_motion(record.get('gcode', ''), cnc_obj.units, arc_res, laser)
+        # Interpret prefixes so modal state and program end never reset at a tool boundary.
+        program += record.get('gcode', '')
+        motion = gcode_motion(program, cnc_obj.units, arc_res, laser)
+        spans, previous_count = motion[previous_count:], len(motion)
         paths, joined = [], []
         data = record.get('data', {})
         minimum = float(data.get('tools_mill_min_power', 0))

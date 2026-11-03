@@ -211,6 +211,8 @@ def gcode_motion(lines, units='MM', arc_res=0.1, laser=False, check_abort=None):
             # Project laser rapids onto XY without inventing a motion before the G54 preamble.
             line += ' Z0'
         clean.append(line)
+        if any(k == 'M' and float(n) in (2, 30) for k, n in words):
+            break
     interpret_gcode('\n'.join(validation), units, laser, check_abort)
     out, _count, _source, unsplit = split_arcs(clean, units, arc_res)
     if unsplit:
@@ -261,6 +263,10 @@ def interpret_gcode(text, units='MM', laser=False, check_abort=None):
         for group in ({0, 1, 4}, {20, 21}):
             if len(group.intersection(g)) > 1:
                 raise PhotoCarveError('Conflicting modal commands on line %d.' % line_number)
+        if 2 in m or 30 in m:
+            if any(axis in values for axis in 'XYZ'):
+                raise PhotoCarveError('Program end with motion axes is not supported.')
+            break
         if 54 in g and moved:
             raise PhotoCarveError('G54 is only supported before the first motion.')
         if 20 in g:

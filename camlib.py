@@ -3203,6 +3203,43 @@ class CNCjob(Geometry):
         self.z_end *= factor
         self.z_depthpercut = float(self.z_depthpercut) * factor
 
+        mark = getattr(self, 'obj_options', {}).get('photocarve')
+        if mark and factor != 1:
+            mark = deepcopy(mark)
+            mark['units'] = self.units
+            mark['xy_err'] *= factor
+            for cutter in mark['tools'].values():
+                cutter['diameter'] *= factor
+                cutter['tip_diameter'] *= factor
+            self.obj_options['photocarve'] = mark
+            for record in self.tools.values():
+                record['tooldia'] *= factor
+                data = record.get('data', {})
+                for key in ('tools_mill_tooldia', 'tools_mill_vtipdia', 'tools_mill_cutz',
+                            'tools_mill_travelz', 'tools_mill_depthperpass', 'tools_mill_feedrate',
+                            'tools_mill_feedrate_z', 'tools_mill_feedrate_rapid', 'tools_mill_endz',
+                            'tools_mill_toolchangez', 'tools_mill_startz', 'tools_mill_offset_value',
+                            'tools_mill_extracut_length', 'tools_mill_z_p_depth', 'tools_mill_probe_plate',
+                            'tools_mill_feedrate_probe', 'tools_mill_area_overz', 'tools_mill_polish_margin',
+                            'tools_mill_milling_dia'):
+                    if data.get(key) is not None:
+                        data[key] *= factor
+                for key in ('tools_mill_endxy', 'tools_mill_toolchangexy'):
+                    value = data.get(key)
+                    if value is None or value == '':
+                        continue
+                    if isinstance(value, str):
+                        coords = re.sub(r'[()\[\]]', '', value).split(',')
+                        data[key] = ', '.join(str(safe_eval(coord) * factor) for coord in coords)
+                    else:
+                        data[key] = type(value)(coord * factor for coord in value)
+            from appParsers.ParseGCode import convert_gcode_units
+            for key in ('gc_start', 'source_file', 'edited_source_file', 'prepend_snippet', 'append_snippet'):
+                text = getattr(self, key, '')
+                if text:
+                    setattr(self, key, convert_gcode_units(text, factor, self.units,
+                                                        getattr(self, 'coords_decimals', None) or 4))
+
         return factor
 
     def convert_units_native(self, units):
@@ -8354,6 +8391,9 @@ class CNCjob(Geometry):
         :return:        None
         """
         self.app.log.debug("camlib.CNCJob.scale()")
+        if getattr(self, 'obj_options', {}).get('photocarve'):
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _("Regenerate photo engraving to change its scale or skew."))
+            return 'fail'
 
         if yfactor is None:
             yfactor = xfactor
@@ -8410,6 +8450,9 @@ class CNCjob(Geometry):
         See shapely manual for more information: http://toblerity.org/shapely/manual.html#affine-transformations
         """
         self.app.log.debug("camlib.CNCJob.skew()")
+        if getattr(self, 'obj_options', {}).get('photocarve'):
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _("Regenerate photo engraving to change its scale or skew."))
+            return 'fail'
 
         px, py = point
 

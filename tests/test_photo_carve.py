@@ -696,6 +696,14 @@ def test_photo_adapter_overrides_parse_each_tool_and_keeps_certificate():
         'fail' if initializer(job, job.app) == 'fail' else job)
     assert milling._submit_cnc_job_creation(context, plot=False, use_thread=False) is None
     assert job.used_tools == [2, 1]
+    from appObjects.CNCJobObject import CNCJobObject
+    job.gc_header = ''
+    job._app_option = lambda key, fallback=None: False if key == 'cncjob_footer' else ''
+    exported = CNCJobObject.export_gcode(job, to_file=True, default_snippets=False).getvalue()
+    assert exported.index('X7.0000 Y8.0000') < exported.index('X0.0049')
+    assert ''.join(exported.split()) == ''.join(job.source_file.split())
+    from appPlugins.ToolPhotoCarve.PhotoCarveObject import passes_from_cncjob
+    assert len(passes_from_cncjob(job, 0.1)[0]) == 2
     assert job.tools[2]['gcode_parsed'][0]['geom'] == job.tools[2]['gcode']
     assert 'X7.0000 Y8.0000' in job.tools[2]['gcode'] and 'Z-0.1234' in job.tools[2]['gcode']
     assert 'X7.0000 Y8.0000' not in job.tools[1]['gcode']
@@ -1404,19 +1412,30 @@ def test_sim_stock_visual_physical_mesh_updates_without_gpu(rows):
 @pytest.mark.parametrize('kind', ['ball', 'flat', 'vbit'])
 def test_printed_relief_random_rounding_dense_oracle(model, kind):
     sim = _pure('PhotoCarveSim')
+    from appPlugins.ToolPhotoCarve.PhotoCarveGcode import write_tool_gcode
+    skew = (0.13, -0.09, 20, 17)
     params = model.JobParams(image_px=(7, 5), width=1, res=0.14, spacing=0.14,
                             mode='relief', strategy='xy', tool_kind=kind, tool_dia=0.25,
-                            tool_tip=0.02, tool_angle=60, decimals=4)
+                            tool_tip=0.02, tool_angle=60, decimals=4, skew=skew)
     frame = model.mode_frame(params)
     depth = np.random.default_rng(719).random((frame.rows, frame.cols), dtype=np.float32)
     paths, certificate = model.relief_paths(depth, params, params.tool())
     assert model.certify_relief(paths, certificate, frame) >= -1e-9
+    job, defaults = _writer_job()
+    built = _pure('PhotoCarveObject').build_geometry(
+        model.JobResult([model.Pass('finish', params.tool(), paths)], [], {}), params,
+        defaults['tools'][1]['data'])
+    job._bed_skew_x, job._bed_skew_y, job._bed_limit_x, job._bed_limit_y = skew
+    job._bed_offset_x, job._bed_offset_y = 0.00493, -0.00371
+    code, header = write_tool_gcode(job, 1, built['tools'], (0, 0), None, 0,
+                                    True, True, False, True, built['photocarve'])
+    matrix = np.array([[1, skew[0] / skew[3]], [skew[1] / skew[2], 1]])
     printed = []
-    for path in paths:
-        output = path.copy()
-        output[:, :2] = np.round(output[:, :2], 4)
-        output[:, 2] = model.quantize_z(output[:, 2], 4)
-        printed.append(output)
+    for span in sim.gcode_motion(header + code):
+        if not span.rapid:
+            output = np.array([[span.x0, span.y0, span.z0], [span.x1, span.y1, span.z1]])
+            output[:, :2] = np.linalg.solve(matrix, (output[:, :2] - [0.00493, -0.00371]).T).T
+            printed.append(output)
     assert sim.reference_gouge(printed, params.tool(), -depth, frame, sub=8) <= 1e-9
 
 
@@ -1501,3 +1520,109 @@ def test_cnc_laser_real_printed_thirds_burn(minimum):
     cnc = SimpleNamespace(units='MM', tools=built['tools'], obj_options={'photocarve': built['photocarve']})
     passes, _ = passes_from_cncjob(cnc, 0.1)
     assert passes[0].paths[0][-1, 2] == pytest.approx((source[0].s - minimum) / (1000 - minimum))
+
+
+@pytest.mark.parametrize('end', ['M2', 'M30'])
+def test_sim_program_end_stops_but_optional_stops_resume(model, end):
+    sim = _pure('PhotoCarveSim')
+    text = 'G0 X0 Y0 Z0\nG1 X1\nM0\nG1 X2\nM1\nG1 X3\n' + end + '\nG1 X99'
+    assert sim.interpret_gcode(text)[-1].x1 == 3
+    assert sim.gcode_motion(text)[-1].x1 == 3
+
+
+def test_cnc_sim_keeps_program_modal_state_and_end_across_tools():
+    from types import SimpleNamespace
+    from appPlugins.ToolPhotoCarve.PhotoCarveObject import passes_from_cncjob
+    job = SimpleNamespace(units='MM', obj_options={}, tools={
+        1: {'tooldia': 1, 'gcode': 'G20\nG0 X0 Y0 Z0\nG1 X1\nM30\n'},
+        2: {'tooldia': 2, 'gcode': 'G0 X0 Y0 Z0\nG1 X99\n'}})
+    passes, _ = passes_from_cncjob(job, 0.1)
+    assert len(passes) == 1
+    assert passes[0].paths[-1][-1, 0] == pytest.approx(25.4)
+    job.tools[1]['gcode'] = job.tools[1]['gcode'].replace('M30\n', '')
+    passes, _ = passes_from_cncjob(job, 0.1)
+    assert passes[-1].paths[-1][-1, 0] == pytest.approx(99 * 25.4)
+
+
+@pytest.mark.parametrize('change', ['edited_source_file', 'source_file', 'prepend_snippet', 'append_snippet', 'units'])
+def test_cnc_sim_refuses_uncertified_runnable_source(change):
+    from types import SimpleNamespace
+    from appPlugins.ToolPhotoCarve.PhotoCarveObject import passes_from_cncjob
+    code = 'G0 X0 Y0 Z0\nG1 X1 Z-1\n'
+    job = SimpleNamespace(units='MM', tools={1: {'tooldia': 1, 'gcode': code}},
+                          obj_options={'photocarve': {'units': 'MM'}}, gc_start='', source_file=code)
+    assert passes_from_cncjob(job, 0.1)[0]
+    if change == 'units':
+        job.obj_options['photocarve']['units'] = 'IN'
+    else:
+        setattr(job, change, 'G91\n' + code)
+    with pytest.raises(ValueError):
+        passes_from_cncjob(job, 0.1)
+
+
+def test_marked_cnc_transforms_refuse_before_mutation():
+    job, built = _writer_job()
+    job.obj_options['photocarve'] = built['photocarve']
+    job.gcode = 'G0 X0 Y0 Z2\nG1 X10 Z-1'
+    job.multitool, job.gcode_parsed = False, []
+    before = job.gcode
+    assert job.scale(0.1) == 'fail'
+    assert job.skew(10, 0, (0, 0)) == 'fail'
+    assert job.gcode == before
+    job.tools = built['tools']
+    job.convert_units('IN')
+    assert job.tools[1]['tooldia'] == pytest.approx(0.1 / 25.4)
+
+
+def test_tcl_marked_cnc_scale_refuses_without_regenerating():
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    from tclCommands.TclCommandScale import TclCommandScale
+    job, built = _writer_job()
+    job.kind = 'cncjob'
+    job.obj_options['photocarve'] = built['photocarve']
+    job.bounds = lambda: (0, 0, 10, 10)
+    job.gcode_flow_blocked = lambda action: None
+    job.regenerate_source = Mock()
+    app = SimpleNamespace(collection=SimpleNamespace(get_by_name=lambda name: job), log=Mock())
+    command = TclCommandScale(app)
+    command.raise_tcl_error = Mock(side_effect=ValueError('certified engraving'))
+    with pytest.raises(ValueError):
+        command.execute({'factor': 0.1}, ['photo'])
+    job.regenerate_source.assert_not_called()
+
+
+@pytest.mark.parametrize('laser', [False, True])
+def test_marked_cnc_unit_conversion_motion_and_certificate(laser):
+    from unittest.mock import Mock, patch
+    from appObjects.CNCJobObject import CNCJobObject
+    from tests.helpers_objects import make_app_0b
+    from copy import deepcopy
+    _, built = _writer_job('GRBL_laser' if laser else 'default', laser=laser)
+    with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
+        job = CNCJobObject('photo', make_app_0b())
+    job.units, job.multitool = 'MM', True
+    job.gcode_parsed = []
+    job.tools = deepcopy(built['tools'])
+    job.tools[1]['data'].update(tools_mill_vtipdia=0.02, tools_mill_endxy=[25.4, 50.8])
+    built['photocarve']['tools']['1']['tip_diameter'] = 0.02
+    job.tools[1]['gcode'] = 'G21\nG0 X0 Y0 Z25.4\nM4 S505\nG1 X25.4 Z-2.54'
+    job.gc_start = 'G21\n'
+    job.source_file = job.gc_start + job.tools[1]['gcode']
+    job.obj_options['photocarve'] = deepcopy(built['photocarve'])
+    mark = deepcopy(built['photocarve'])
+    for units, factor in [('IN', 1 / 25.4), ('IN', 1 / 25.4), ('MM', 1)]:
+        job.convert_units(units)
+        assert job.tools[1]['tooldia'] == pytest.approx(0.1 * factor, abs=1e-12)
+        assert job.tools[1]['data']['tools_mill_tooldia'] == pytest.approx(0.1 * factor)
+        converted = job.obj_options['photocarve']
+        assert converted['units'] == units
+        assert converted['tools']['1']['diameter'] == pytest.approx(0.1 * factor)
+        assert converted['tools']['1']['tip_diameter'] == pytest.approx(0.02 * factor)
+        assert job.tools[1]['data']['tools_mill_vtipdia'] == pytest.approx(0.02 * factor)
+        assert job.tools[1]['data']['tools_mill_endxy'] == pytest.approx([25.4 * factor, 50.8 * factor])
+        assert converted['xy_err'] == pytest.approx(mark['xy_err'] * factor)
+        spans = _pure('PhotoCarveSim').gcode_motion(job.source_file, units, laser=laser)
+        assert spans[-1].x1 == pytest.approx(25.4 * factor, abs=0.003)
+        assert spans[-1].z1 == pytest.approx(-2.54 * factor, abs=0.003)
+        assert spans[-1].s == 505

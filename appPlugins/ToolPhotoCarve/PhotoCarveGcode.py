@@ -137,7 +137,7 @@ def make_photocarve_cncjob(new_cncjob_obj, app_obj, context):
     cnc.probe_plate = float(context['geo_options'].get('tools_mill_probe_plate', 0))
     cnc.feedrate_probe = float(context['geo_options']['tools_mill_feedrate_probe'])
     cnc.tools.clear()
-    cnc.tools.update(tools)
+    cnc.tools.update((uid, tools[uid]) for uid in used)
     cnc.used_tools = used
     total, start, previous = [], '', (0, 0)
     tol = float(context['options']['global_tolerance'])
