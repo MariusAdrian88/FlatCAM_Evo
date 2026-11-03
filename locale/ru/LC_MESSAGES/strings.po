@@ -7658,7 +7658,7 @@ msgstr "Поворот ..."
 
 #: appEditors/geo_plugins/GeoTransformationPlugin.py:566
 msgid "Enter an Angle Value (degrees, positive CW)"
-msgstr "Угол (градусы, по часовой)"
+msgstr "Введите угол в градусах (положительный — по часовой стрелке)"
 
 #: appEditors/geo_plugins/GeoTransformationPlugin.py:583
 #: appEditors/grb_plugins/GrbTransformationPlugin.py:596
@@ -8099,8 +8099,8 @@ msgid ""
 "Create the buffer effect on each geometry,\n"
 "element from the selected object, using the distance."
 msgstr ""
-"Создаёт буферный эффект для каждой геометрии,\n"
-"элемента из выбранного объекта, используя расстояние."
+"Создать буфер для каждого геометрического\n"
+"элемента выбранного объекта на заданном расстоянии."
 
 # auto-review 2026-10-09: corrected
 #: appEditors/geo_plugins/GeoTransformationPlugin.py:1092
@@ -8133,8 +8133,8 @@ msgid ""
 "Create the buffer effect on each geometry,\n"
 "element from the selected object, using the factor."
 msgstr ""
-"Создаёт буферный эффект для каждой геометрии,\n"
-"элемента из выбранного объекта, используя коэффициент."
+"Создать буфер для каждого геометрического\n"
+"элемента выбранного объекта с заданным коэффициентом."
 
 #: appEditors/grb_plugins/GrbAperturePlugin.py:59
 msgid "Delete unused apertures"
@@ -8260,8 +8260,8 @@ msgstr ""
 #: appEditors/grb_plugins/GrbDrawingPlugin.py:49
 msgid "Enter text, a positive font size and finite coordinates and rotation."
 msgstr ""
-"Введите текст, положительный размер шрифта, а также конечные координаты и "
-"поворот."
+"Введите текст, положительный размер шрифта, конечные координаты и конечный "
+"угол поворота."
 
 #: appEditors/grb_plugins/GrbDrawingPlugin.py:51
 msgid "Bitmap smoothing must be a finite nonnegative number."
@@ -8457,8 +8457,8 @@ msgstr "Изменено круглых вспышек: {n}"
 #: appEditors/grb_plugins/GrbFollowPlugin.py:320
 msgid "Select one circular FOLLOW path, then click its interior to split it."
 msgstr ""
-"Выберите один круглый путь FOLLOW, затем щёлкните по его внутренней части, "
-"чтобы разделить его."
+"Выберите один путь FOLLOW с круглой апертурой, затем щёлкните по нему между "
+"концами, чтобы разделить его."
 
 #: appEditors/grb_plugins/GrbFollowPlugin.py:324
 msgid "Select one FOLLOW path and reopen Split path."
@@ -8549,7 +8549,9 @@ msgstr "В этой точке нет дорожки."
 
 #: appEditors/grb_plugins/GrbSelectionPlugin.py:144
 msgid "Rows and columns must be at least 1, and not both 1."
-msgstr "Строк и столбцов не меньше 1, и не оба равны 1."
+msgstr ""
+"Количество строк и столбцов должно быть не меньше 1; оба значения не могут "
+"одновременно равняться 1."
 
 #: appEditors/grb_plugins/GrbSelectionPlugin.py:146
 msgid "Choose finite X and Y distances."
@@ -8591,7 +8593,7 @@ msgstr "Щёлкните дорожку, чтобы выбрать её цепо
 
 #: appEditors/grb_plugins/GrbTrackBend.py:61
 msgid "The bend would collapse an adjacent segment."
-msgstr "Изгиб сожмёт соседний сегмент."
+msgstr "Перемещение изгиба сведёт длину соседнего сегмента к нулю."
 
 #: appEditors/grb_plugins/GrbTrackBend.py:64
 msgid "The bend would create an invalid or self-intersecting track."
@@ -8649,7 +8651,7 @@ msgstr ""
 
 #: appEditors/grb_plugins/GrbTrackBend.py:171
 msgid "Bend coordinates must be finite two-dimensional numbers."
-msgstr "Координаты изгиба должны быть конечными двумерными числами."
+msgstr "Координаты изгиба должны задаваться двумя конечными числами."
 
 #: appEditors/grb_plugins/GrbTrackBend.py:177
 msgid "The bend would create invalid solid geometry."
@@ -8809,7 +8811,7 @@ msgstr ""
 #: appEditors/grb_plugins/GrbTransformationPlugin.py:52
 #: appEditors/grb_plugins/GrbTransformationPlugin.py:100
 msgid "Transformation produced nonfinite coordinates."
-msgstr "Преобразование дало бесконечные координаты."
+msgstr "Преобразование дало неконечные значения координат."
 
 #: appEditors/grb_plugins/GrbTransformationPlugin.py:54
 msgid "Transformation produced invalid geometry."
@@ -8866,7 +8868,9 @@ msgstr ""
 msgid ""
 "Minimum is the lower-left selection corner. Other corners use the selection "
 "bounds."
-msgstr "Минимум — нижний левый угол выбора; остальные — границы выбора."
+msgstr ""
+"«Минимум» — нижний левый угол рамки выделения. Остальные углы также "
+"определяются по границам выделения."
 
 #: appEditors/grb_plugins/GrbTransformationPlugin.py:964
 msgid "Mirror X coordinates"
@@ -8875,7 +8879,8 @@ msgstr "Отразить X"
 #: appEditors/grb_plugins/GrbTransformationPlugin.py:966
 msgid ""
 "Reverse X coordinates across the vertical line through the reference point."
-msgstr "Меняет знак X относительно вертикальной линии через точку привязки."
+msgstr ""
+"Отражает координаты X относительно вертикальной линии через точку привязки."
 
 #: appEditors/grb_plugins/GrbTransformationPlugin.py:968
 msgid "Mirror Y coordinates"
@@ -8885,7 +8890,9 @@ msgstr "Отразить Y"
 msgid ""
 "Reverse Y coordinates across the horizontal line through the reference "
 "point."
-msgstr "Меняет знак Y относительно горизонтальной линии через точку привязки."
+msgstr ""
+"Отражает координаты Y относительно горизонтальной линии через точку "
+"привязки."
 
 #: appEditors/grb_plugins/GrbVertices.py:39 appEditors/segment_ops.py:44
 msgid "The selected shape changed. Select it again."
@@ -9442,11 +9449,11 @@ msgstr "Толчковое перемещение по оси Z."
 
 #: appGUI/GUIElements.py:5425
 msgid "Zero the CNC X axes at current position."
-msgstr "Обнулите оси X ЧПУ в текущем положении."
+msgstr "Обнулить ось X станка в текущем положении."
 
 #: appGUI/GUIElements.py:5433
 msgid "Zero the CNC Y axes at current position."
-msgstr "Обнулите оси Y ЧПУ в текущем положении."
+msgstr "Обнулить ось Y станка в текущем положении."
 
 #: appGUI/GUIElements.py:5438
 msgid "Z"
@@ -9454,7 +9461,7 @@ msgstr "Z"
 
 #: appGUI/GUIElements.py:5441
 msgid "Zero the CNC Z axes at current position."
-msgstr "Обнулите оси Z ЧПУ в текущем положении."
+msgstr "Обнулить ось Z станка в текущем положении."
 
 # auto-review 2026-10-09: corrected
 #: appGUI/GUIElements.py:5445
@@ -11213,8 +11220,8 @@ msgid ""
 "Draw a delimiting rectangle on canvas.\n"
 "The purpose is to illustrate the limits for our work."
 msgstr ""
-"Нарисует на холсте разделительный прямоугольник,\n"
-"для отображения границы нашей работы."
+"Нарисовать на холсте ограничивающий прямоугольник.\n"
+"Он показывает границы рабочей области."
 
 # auto-review 2026-10-09: corrected
 #: appGUI/MainGUI.py:1685
@@ -11319,8 +11326,8 @@ msgid ""
 "Save the current settings in the 'current_defaults' file\n"
 "which is the file storing the working default preferences."
 msgstr ""
-"Сохраняет текущие настройки в файле 'current_defaults'\n"
-"который является файлом, хранящим рабочие настройки по умолчанию."
+"Сохранить текущие настройки в файл «current_defaults»,\n"
+"в котором хранятся рабочие настройки по умолчанию."
 
 #: appGUI/MainGUI.py:2004
 msgid "Will not save the changes and will close the preferences window."
@@ -11984,8 +11991,8 @@ msgstr "Копировать элемент Geo"
 #: appGUI/MainGUI.py:5872
 msgid "Within Add Arc will toogle the ARC direction: CW or CCW"
 msgstr ""
-"При добавлении дуги будет переключаться направление изгиба: по часовой "
-"стрелке или против"
+"При добавлении дуги переключает её направление: по часовой стрелке или "
+"против часовой стрелки"
 
 #: appGUI/MainGUI.py:5873
 msgid "Polygon Intersection Tool"
@@ -12139,7 +12146,7 @@ msgstr "Добавить полукруг"
 
 #: appGUI/MainGUI.py:6137
 msgid "Add Region"
-msgstr "Добавить регион"
+msgstr "Добавить область"
 
 #: appGUI/MainGUI.py:6138
 msgid "Add Pad"
@@ -12149,20 +12156,19 @@ msgstr "Добавить площадку"
 #: appGUI/MainGUI.py:6139
 msgid "Within Track & Region Tools will cycle in REVERSE the bend modes"
 msgstr ""
-"В инструментах «Трек» и «Регион» — переключение режимов изгиба в ОБРАТНОМ "
+"При рисовании дорожек и областей переключает режимы изгиба в ОБРАТНОМ "
 "порядке"
 
 # auto-review 2026-10-09: corrected
 #: appGUI/MainGUI.py:6141
 msgid "Add Track"
-msgstr "Добавить трек"
+msgstr "Добавить дорожку"
 
 # auto-review 2026-10-09: corrected
 #: appGUI/MainGUI.py:6142
 msgid "Within Track & Region Tools will cycle FORWARD the bend modes"
 msgstr ""
-"В инструментах «Трек» и «Регион» — переключение режимов изгиба в ПРЯМОМ "
-"порядке"
+"При рисовании дорожек и областей переключает режимы изгиба в ПРЯМОМ порядке"
 
 # auto-review 2026-10-09: corrected
 #: appGUI/MainGUI.py:6144
@@ -12341,14 +12347,14 @@ msgid ""
 "When unchecked, it will delete all mark shapes\n"
 "that are drawn on canvas."
 msgstr ""
-"При включенном флажке будут отображаться все отверстия.\n"
-"Когда флажок снят, все фигуры отметок,\n"
-"нарисованные на холсте, удаляются."
+"Если флажок установлен, отображаются все апертуры.\n"
+"Если флажок снят, удаляются все отметки,\n"
+"нарисованные на холсте."
 
 #: appGUI/ObjectUI.py:338 appPlugins/ToolExtract/ExtractUI.py:105
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:94
 msgid "Mark the aperture instances on canvas."
-msgstr "Отметьте места отверстий на холсте."
+msgstr "Отметить экземпляры апертуры на холсте."
 
 # auto-review 2026-10-09: corrected
 #: appGUI/ObjectUI.py:345 appPlugins/ToolIsolation/IsolationUI.py:732
@@ -12857,10 +12863,9 @@ msgid ""
 "When checked it will display numbers in order for each end\n"
 "of a travel line."
 msgstr ""
-"Выбор отображения примечаний на графике.\n"
-"Если флажок установлен, то для каждой точки будут отображаться числа в "
-"порядке\n"
-"траектории движения."
+"Показывать текстовые примечания на холсте.\n"
+"Если флажок установлен, концы линий холостых\n"
+"перемещений нумеруются по порядку."
 
 #: appGUI/ObjectUI.py:1357
 msgid "CNC Tools Table"
@@ -13205,8 +13210,8 @@ msgid ""
 "One microlitre equals one cubic millimetre. Raster strokes share this pad "
 "dose."
 msgstr ""
-"Один микролитр равен одному кубическому миллиметру. Штрихи растра "
-"используют одну и ту же дозу на площадку."
+"Один микролитр равен одному кубическому миллиметру. Доза для площадки "
+"распределяется между штрихами растра."
 
 # auto-review 2026-10-21: new
 #: appGUI/SolderPasteSettings.py:38
@@ -13714,9 +13719,11 @@ msgid ""
 "few segments, large circles get many.\n"
 "- Fixed: every circle gets the same number of segments (Circle Steps)."
 msgstr ""
-"- Адаптивно: число отрезков, при котором отклонение от окружности не больше "
-"Макс. откл. Малые окружности — мало отрезков, большие — много.\n"
-"- Фиксировано: одинаково для всех окружностей (Шаг круга)."
+"- Адаптивно: число отрезков выбирается так, чтобы отклонение\n"
+"от истинной окружности не превышало «Макс. откл.». Малые окружности\n"
+"содержат мало отрезков, большие — много.\n"
+"- Фикс.: одинаковое число отрезков для всех окружностей («Сегментов "
+"окружности»)."
 
 #: appGUI/preferences/CircleStepsRows.py:36
 msgid "Adaptive"
@@ -13745,7 +13752,7 @@ msgstr ""
 #: appGUI/preferences/cncjob/CNCJobGenPrefGroupUI.py:46
 #: appGUI/preferences/tools/Tools2CThievingPrefGroupUI.py:47
 msgid "Circle Steps"
-msgstr "Шаг круга"
+msgstr "Сегментов окружности"
 
 # auto-review 2026-10-09: fuzzy corrected
 #: appGUI/preferences/CircleStepsRows.py:58
@@ -13757,7 +13764,7 @@ msgid ""
 "The number of circle steps for \n"
 "linear approximation of circles."
 msgstr ""
-"Количество шагов круга для \n"
+"Количество отрезков для\n"
 "линейной аппроксимации окружностей."
 
 # auto-review 2026-10-09: corrected
@@ -13771,7 +13778,7 @@ msgstr "Приложение будет перезапущено"
 
 #: appGUI/preferences/PreferencesUIManager.py:1378
 msgid "Are you sure you want to continue?"
-msgstr "Вы уверены что хотите продолжить?"
+msgstr "Вы уверены, что хотите продолжить?"
 
 #: appGUI/preferences/PreferencesUIManager.py:1484
 msgid "Preferences default values are restored."
@@ -13849,7 +13856,7 @@ msgstr "Список параметров редактора."
 
 #: appGUI/preferences/cncjob/CNCJobEditorPrefGroupUI.py:44
 msgid "Prepend to G-Code"
-msgstr "Коды предобработки для G-Code"
+msgstr "Добавить в начало G-кода"
 
 #: appGUI/preferences/cncjob/CNCJobEditorPrefGroupUI.py:46
 msgid ""
@@ -13869,7 +13876,7 @@ msgstr ""
 
 #: appGUI/preferences/cncjob/CNCJobEditorPrefGroupUI.py:60
 msgid "Append to G-Code"
-msgstr "Коды постобработки для G-Code"
+msgstr "Добавить в конец G-кода"
 
 #: appGUI/preferences/cncjob/CNCJobEditorPrefGroupUI.py:62
 msgid ""
@@ -14265,7 +14272,7 @@ msgstr "мм"
 #: appGUI/preferences/excellon/ExcellonExpPrefGroupUI.py:57
 #: appGUI/preferences/gerber/GerberExpPrefGroupUI.py:51
 msgid "Int/Decimals"
-msgstr "Целое число / десятичные дроби"
+msgstr "Цифр: целая/дробная часть"
 
 # auto-review 2026-10-09: corrected
 #: appGUI/preferences/excellon/ExcellonExpPrefGroupUI.py:59
@@ -14331,7 +14338,7 @@ msgstr "Десятичный"
 
 #: appGUI/preferences/excellon/ExcellonExpPrefGroupUI.py:104
 msgid "No-Decimal"
-msgstr "Недесятичный"
+msgstr "Без десятичной точки"
 
 #: appGUI/preferences/excellon/ExcellonExpPrefGroupUI.py:118
 #: appGUI/preferences/excellon/ExcellonGenPrefGroupUI.py:167
@@ -14533,9 +14540,9 @@ msgid ""
 "Some Excellon files don't have an header\n"
 "therefore this parameter will be used."
 msgstr ""
-"Это устанавливает единицы Excellon файлов.\n"
-"Некоторые файлы Excellon не имеют заголовка\n"
-"поэтому этот параметр будет использоваться."
+"Задаёт единицы измерения файлов Excellon.\n"
+"Некоторые файлы Excellon не имеют заголовка,\n"
+"поэтому будет использован этот параметр."
 
 #: appGUI/preferences/excellon/ExcellonGenPrefGroupUI.py:206
 msgid "Update Export settings"
@@ -14649,8 +14656,8 @@ msgid ""
 "When checked, the tools will be merged\n"
 "but only if they share some of their attributes."
 msgstr ""
-"Если этот флажок установлен, инструменты будут объединены\n"
-"но только если они разделяют некоторые из своих атрибутов."
+"Если флажок установлен, инструменты объединяются,\n"
+"но только при совпадении определённых атрибутов."
 
 #: appGUI/preferences/excellon/ExcellonGenPrefGroupUI.py:303
 #: appGUI/preferences/geometry/GeometryGenPrefGroupUI.py:149
@@ -14841,8 +14848,8 @@ msgid ""
 "This sets the font size for the Textbox GUI\n"
 "elements that are used in the application."
 msgstr ""
-"Это устанавливает размер шрифта для полей ввода текста\n"
-"которые используются в приложении."
+"Задаёт размер шрифта текстовых полей\n"
+"в интерфейсе приложения."
 
 #: appGUI/preferences/general/GeneralAPPSetGroupUI.py:266
 #: appGUI/preferences/general/GeneralAPPSetGroupUI.py:287
@@ -15145,7 +15152,7 @@ msgstr "Значок активности"
 #: appGUI/preferences/general/GeneralAPPSetGroupUI.py:563
 #: appGUI/preferences/general/GeneralAppSettingsGroupUI.py:287
 msgid "Select the GIF that show activity when FlatCAM is active."
-msgstr "Выбор GIF-изображения показывающего активность FlatCAM."
+msgstr "Выберите GIF-изображение, показывающее активность FlatCAM."
 
 #: appGUI/preferences/general/GeneralAPPSetGroupUI.py:574
 msgid "Undo steps"
@@ -15280,7 +15287,7 @@ msgid ""
 "performance at the expense of level of detail."
 msgstr ""
 "Это значение может компенсировать влияние параметра\n"
-"«Шаг круга». Значение по умолчанию — 0.005.\n"
+"«Сегментов окружности». Значение по умолчанию — 0.005.\n"
 "Меньшее значение повышает детализацию окружностей\n"
 "как в изображении, так и в G-коде, но снижает\n"
 "производительность. Большее значение повышает\n"
@@ -15342,14 +15349,14 @@ msgid ""
 "The inner passes do not use it: they follow the overlap.\n"
 "Zero uses the Circle Steps of the object."
 msgstr ""
-"Paint, NCC и Paint редактора геометрии.\n"
+"«Рисование», NCC и рисование в редакторе геометрии.\n"
 "Наибольшая погрешность дуг контурного прохода в микрометрах\n"
 "(метрический проект) или mils (дюймовый проект). Контурный проход идёт\n"
 "по контуру области, вокруг углов меди.\n"
 "Меньше значение — точнее контур, больше сегментов (медленнее).\n"
 "Больше значение — меньше сегментов, быстрее работа.\n"
 "Внутренние проходы его не используют: они следуют перекрытию.\n"
-"Ноль берёт Circle Steps объекта."
+"При нуле используется параметр «Сегментов окружности» объекта."
 
 #: appGUI/preferences/general/GeneralAppPrefGroupUI.py:195
 msgid "Clearing Edge"
@@ -16318,27 +16325,27 @@ msgstr ""
 
 #: appGUI/preferences/gerber/GerberEditorPrefGroupUI.py:58
 msgid "New Aperture code"
-msgstr "Код нового отверстия"
+msgstr "Код новой апертуры"
 
 #: appGUI/preferences/gerber/GerberEditorPrefGroupUI.py:71
 msgid "New Aperture size"
-msgstr "Размер нового отверстия"
+msgstr "Размер новой апертуры"
 
 #: appGUI/preferences/gerber/GerberEditorPrefGroupUI.py:73
 msgid "Size for the new aperture"
-msgstr "Размер нового отверстия"
+msgstr "Размер новой апертуры"
 
 #: appGUI/preferences/gerber/GerberEditorPrefGroupUI.py:84
 msgid "New Aperture type"
-msgstr "Тип нового отверстия"
+msgstr "Тип новой апертуры"
 
 #: appGUI/preferences/gerber/GerberEditorPrefGroupUI.py:86
 msgid ""
 "Type for the new aperture.\n"
 "Can be 'C', 'R' or 'O'."
 msgstr ""
-"Тип нового отверстия.\n"
-"Может быть «C», «R» или «O»."
+"Тип новой апертуры.\n"
+"Возможные значения: «C», «R» или «O»."
 
 #: appGUI/preferences/gerber/GerberEditorPrefGroupUI.py:97
 msgid "Nr of pads"
@@ -16350,7 +16357,7 @@ msgstr "Укажите, сколько контактных площадок д�
 
 #: appGUI/preferences/gerber/GerberEditorPrefGroupUI.py:108
 msgid "Aperture Dimensions"
-msgstr "Размеры отверстия"
+msgstr "Размеры апертуры"
 
 # auto-review 2026-10-09: corrected
 #: appGUI/preferences/gerber/GerberEditorPrefGroupUI.py:110
@@ -16411,7 +16418,7 @@ msgstr "Низкий порог"
 
 #: appGUI/preferences/gerber/GerberEditorPrefGroupUI.py:292
 msgid "Threshold value under which the apertures are not marked."
-msgstr "Пороговое значение, ниже которого отверстия не отмечены."
+msgstr "Пороговое значение, ниже которого апертуры не отмечаются."
 
 #: appGUI/preferences/gerber/GerberEditorPrefGroupUI.py:302
 msgid "Threshold high"
@@ -16419,7 +16426,7 @@ msgstr "Высокий порог"
 
 #: appGUI/preferences/gerber/GerberEditorPrefGroupUI.py:304
 msgid "Threshold value over which the apertures are not marked."
-msgstr "Пороговое значение, выше которого отверстия не отмечены."
+msgstr "Пороговое значение, выше которого апертуры не отмечаются."
 
 #: appGUI/preferences/gerber/GerberExpPrefGroupUI.py:38
 #: appGUI/preferences/gerber/GerberExpPrefGroupUI.py:44
@@ -16474,7 +16481,7 @@ msgstr ""
 
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:67
 msgid "pads, track ends, arcs"
-msgstr "площадки, дорожки, дуги"
+msgstr "площадки, концы дорожек, дуги"
 
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:77
 msgid "Default Values"
@@ -16490,7 +16497,7 @@ msgstr ""
 
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:145
 msgid "Clean Apertures"
-msgstr "Очистить отверстия"
+msgstr "Удалить неиспользуемые апертуры"
 
 # auto-review 2026-10-09: corrected
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:147
@@ -16498,8 +16505,8 @@ msgid ""
 "Will remove apertures that do not have geometry\n"
 "thus lowering the number of apertures in the Gerber object."
 msgstr ""
-"Удаляет отверстия, не имеющие геометрии,\n"
-"тем самым уменьшая количество отверстий в объекте Gerber."
+"Удалить апертуры без геометрии,\n"
+"уменьшив их количество в объекте Gerber."
 
 # auto-review 2026-10-09: corrected
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:153
@@ -16651,7 +16658,7 @@ msgstr "Участки балансировочной меди меньшей п
 #: appGUI/preferences/tools/Tools2CThievingPrefGroupUI.py:104
 #: appPlugins/ToolCopperThieving/CopperThievingUI.py:81
 msgid "Reference:"
-msgstr "Ссылка:"
+msgstr "Привязка:"
 
 # auto-review 2026-10-09: corrected
 #: appGUI/preferences/tools/Tools2CThievingPrefGroupUI.py:106
@@ -16665,7 +16672,7 @@ msgid ""
 msgstr ""
 "- 'Как есть' - границы балансировки меди по габаритам объекта.\n"
 "- 'Выбор области' - щелчок левой кнопкой начинает выбор области заливки.\n"
-"- 'Ссылочный объект' - балансировка меди в области другого объекта."
+"- 'Опорный объект' - балансировка меди в области другого объекта."
 
 #: appGUI/preferences/tools/Tools2CThievingPrefGroupUI.py:111
 #: appGUI/preferences/tools/Tools2InvertPrefGroupUI.py:73
@@ -16695,7 +16702,7 @@ msgstr "Выбор области"
 #: appPlugins/ToolIsolation/IsolationUI.py:584 appPlugins/ToolNCC/NccUI.py:567
 #: appPlugins/ToolPaint/PaintUI.py:451
 msgid "Reference Object"
-msgstr "Ссылочный объект"
+msgstr "Опорный объект"
 
 #: appGUI/preferences/tools/Tools2CThievingPrefGroupUI.py:118
 #: appGUI/preferences/tools/Tools2ExtractPrefGroupUI.py:68
@@ -17171,12 +17178,12 @@ msgstr ""
 #: appGUI/preferences/tools/Tools2ExtractPrefGroupUI.py:299
 #: appPlugins/ToolExtract/ExtractUI.py:258
 msgid "Include regions"
-msgstr "Включить регионы"
+msgstr "Включить области"
 
 #: appGUI/preferences/tools/Tools2ExtractPrefGroupUI.py:301
 #: appPlugins/ToolExtract/ExtractUI.py:259
 msgid "Also extract the copper regions (G36 areas) into the soldermask."
-msgstr "Также извлечь медные регионы (области G36) в паяльную маску."
+msgstr "Также извлечь медные области (G36) в паяльную маску."
 
 # auto-review 2026-10-09: fuzzy corrected
 #: appGUI/preferences/tools/Tools2ExtractPrefGroupUI.py:308
@@ -17501,7 +17508,7 @@ msgid ""
 "rectangular pads)."
 msgstr ""
 "Источником отверстий перфорации может быть:\n"
-"- Объект Excellon -> центры сверл объекта Excellon служат опорой.\n"
+"- Объект Excellon -> центры отверстий объекта Excellon служат опорой.\n"
 "- Фиксированный диаметр -> будет использован центр площадок с добавлением "
 "отверстий фиксированного диаметра.\n"
 "- Фиксированное кольцо -> будет поддерживаться заданный кольцевой поясок.\n"
@@ -17875,30 +17882,32 @@ msgstr "— правила"
 #: appGUI/preferences/tools/Tools2RulesCheckPrefGroupUI.py:42
 #: appPlugins/ToolRulesCheck/RulesCheckUI.py:223
 msgid "Trace Size"
-msgstr "Размер трассы"
+msgstr "Ширина дорожки"
 
 #: appGUI/preferences/tools/Tools2RulesCheckPrefGroupUI.py:44
 #: appPlugins/ToolRulesCheck/RulesCheckUI.py:224
 msgid "This checks if the minimum size for traces is met."
-msgstr "Это проверяет, соблюден ли минимальный размер трассы."
+msgstr "Проверяет соблюдение минимальной ширины дорожек."
 
 # auto-review 2026-10-09: corrected
 #: appGUI/preferences/tools/Tools2RulesCheckPrefGroupUI.py:51
 msgid "Minimum acceptable trace size."
-msgstr "Минимальный допустимый размер трассы."
+msgstr "Минимально допустимая ширина дорожки."
 
 #: appGUI/preferences/tools/Tools2RulesCheckPrefGroupUI.py:63
 #: appPlugins/ToolRulesCheck/RulesCheckGen.py:483
 #: appPlugins/ToolRulesCheck/RulesCheckUI.py:229
 msgid "Copper to Copper clearance"
-msgstr "Зазор между медными дорожками"
+msgstr "Зазор между медными элементами"
 
 #: appGUI/preferences/tools/Tools2RulesCheckPrefGroupUI.py:65
 #: appPlugins/ToolRulesCheck/RulesCheckUI.py:230
 msgid ""
 "This checks if the minimum clearance between copper\n"
 "features is met."
-msgstr "Проверяет, соблюдены ли минимальные зазоры между медью."
+msgstr ""
+"Проверяет соблюдение минимального зазора\n"
+"между медными элементами."
 
 #: appGUI/preferences/tools/Tools2RulesCheckPrefGroupUI.py:73
 #: appGUI/preferences/tools/Tools2RulesCheckPrefGroupUI.py:95
@@ -17942,7 +17951,7 @@ msgstr ""
 
 #: appGUI/preferences/tools/Tools2RulesCheckPrefGroupUI.py:117
 msgid "Minimum acceptable ring value."
-msgstr "Минимальное допустимое значение кольца."
+msgstr "Минимально допустимая ширина медного кольца."
 
 #: appGUI/preferences/tools/Tools2RulesCheckPrefGroupUI.py:129
 #: appPlugins/ToolRulesCheck/RulesCheckGen.py:500
@@ -17981,14 +17990,16 @@ msgstr "Шелкография"
 #: appGUI/preferences/tools/Tools2RulesCheckPrefGroupUI.py:163
 #: appPlugins/ToolRulesCheck/RulesCheckUI.py:268
 msgid "Silk to Silk Clearance"
-msgstr "Зазор между шелкографией"
+msgstr "Зазор между элементами шелкографии"
 
 #: appGUI/preferences/tools/Tools2RulesCheckPrefGroupUI.py:165
 #: appPlugins/ToolRulesCheck/RulesCheckUI.py:269
 msgid ""
 "This checks if the minimum clearance between silkscreen\n"
 "features and silkscreen features is met."
-msgstr "Проверяет, соблюдены ли минимальные зазоры между шелкографией."
+msgstr ""
+"Проверяет соблюдение минимального зазора\n"
+"между элементами шелкографии."
 
 #: appGUI/preferences/tools/Tools2RulesCheckPrefGroupUI.py:185
 #: appPlugins/ToolRulesCheck/RulesCheckUI.py:275
@@ -18038,8 +18049,8 @@ msgid ""
 "This checks if the minimum clearance between soldermask\n"
 "features and soldermask features is met."
 msgstr ""
-"Проверяет, соблюдены ли минимальные зазоры между паяльной маской\n"
-"и встречной паяльной маской."
+"Проверяет соблюдение минимальной ширины перемычек\n"
+"паяльной маски между окнами."
 
 # auto-review 2026-10-09: fuzzy corrected
 #: appGUI/preferences/tools/Tools2RulesCheckPrefGroupUI.py:266
@@ -18170,7 +18181,7 @@ msgstr ""
 #: appPlugins/ToolDblSided/DblSidedUI.py:402
 #: appPlugins/ToolMarkers/MarkersUI.py:227
 msgid "Drill Dia"
-msgstr "Диаметр Сверла"
+msgstr "Диаметр сверла"
 
 # auto-review 2026-10-09: corrected
 #: appGUI/preferences/tools/Tools2sidedPrefGroupUI.py:50
@@ -18212,7 +18223,7 @@ msgstr "Операция зеркалирования"
 
 #: appGUI/preferences/tools/Tools2sidedPrefGroupUI.py:113
 msgid "Axis Ref"
-msgstr "Указатель оси"
+msgstr "Привязка оси"
 
 # auto-review 2026-10-09: fuzzy corrected
 #: appGUI/preferences/tools/Tools2sidedPrefGroupUI.py:115
@@ -18257,9 +18268,9 @@ msgid ""
 "having the tip diameter, tip angle and\n"
 "depth-of-cut as parameters."
 msgstr ""
-"Вычисляет диаметр инструмента для наконечника V-образной формы,\n"
-"учитывая диаметр наконечника, угол наклона наконечника и\n"
-"глубину резания в качестве параметров."
+"Рассчитать рабочий диаметр V-образного инструмента\n"
+"по диаметру кончика, углу при вершине\n"
+"и глубине резания."
 
 #: appGUI/preferences/tools/ToolsCalculatorsPrefGroupUI.py:48
 #: appPlugins/ToolCalculators/CalculatorUI.py:120
@@ -18633,7 +18644,9 @@ msgstr "Смена инструмента Z"
 msgid ""
 "Z-axis position (height) for\n"
 "tool change."
-msgstr "Отвод по оси Z  для смены инструмента."
+msgstr ""
+"Положение по оси Z (высота)\n"
+"для смены инструмента."
 
 #: appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:131
 #: appGUI/preferences/tools/ToolsMillPrefGroupUI.py:172
@@ -18669,9 +18682,9 @@ msgid ""
 "If no value is entered then there is no move\n"
 "on X,Y plane at the end of the job."
 msgstr ""
-"Позиция X, Y конца хода. В формате (х, у).\n"
-"Если значение не введено, движение не выполняется\n"
-"на плоскости X, Y в конце работы."
+"Конечная позиция X,Y в формате (x,y).\n"
+"Если значение не задано, в конце задания\n"
+"перемещение в плоскости XY не выполняется."
 
 #: appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:171
 #: appPlugins/ToolCalculators/CalculatorUI.py:248
@@ -18856,9 +18869,9 @@ msgid ""
 "on the canvas\n"
 "in the Drilling plugin (Inside area)."
 msgstr ""
-"Какие отверстия сверлятся: Все или только те, что внутри областей, "
-"нарисованных на дисплее\n"
-"в плагине Сверловка (Внутри области)."
+"Какие отверстия сверлить: все или только находящиеся в областях, "
+"нарисованных на холсте\n"
+"в плагине «Сверление» («Внутри области»)."
 
 #: appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:341
 #: appPlugins/ToolDrilling/DrillingUI.py:938
@@ -19387,8 +19400,8 @@ msgid ""
 "Positive values will skew to the right\n"
 "while negative values will skew to the left."
 msgstr ""
-"Положительные значения будут смещать вправо,\n"
-"а отрицательные значения будут смещать влево."
+"Положительные значения задают наклон вправо,\n"
+"отрицательные — влево."
 
 # auto-review 2026-10-09: new
 #: appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:119
@@ -19758,8 +19771,8 @@ msgid ""
 "Longest G1 line when the G-code is not segmented.\n"
 "Used only with autolevelling."
 msgstr ""
-"Самая длинная линия G1, когда G-код не разбит на сегменты.\n"
-"Используется только с автовыравниванием."
+"Максимальная длина отрезков G1 при разбиении G-кода на сегменты.\n"
+"Используется только при автовыравнивании."
 
 # auto-review 2026-10-21: new
 #: appGUI/preferences/tools/ToolsGrblSenderPrefGroupUI.py:168
@@ -19782,8 +19795,9 @@ msgid ""
 "Removable: use a touchplate placed on the PCB, accounting for its thickness."
 msgstr ""
 "Отключено: без калиброванного измерения при смене инструмента.\n"
-"Неподвижный: неподвижный щуп, откалиброванный по эталонному инструменту.\n"
-"Съёмный: щуп на плате с учётом его толщины."
+"Фикс.: неподвижная контактная пластина, откалиброванная по эталонному "
+"инструменту.\n"
+"Съёмный: контактная пластина на плате с учётом её толщины."
 
 #: appGUI/preferences/tools/ToolsGrblSenderPrefGroupUI.py:191
 msgid "Removable"
@@ -20116,7 +20130,7 @@ msgstr ""
 "- 'Все' -> изолировать все полигоны объекта\n"
 "- 'Выбор области' -> изолировать полигоны в выделенной области.\n"
 "- 'Выбор полигона' -> изолировать выбранные полигоны.\n"
-"- 'Ссылочный объект' - будет обработана область, заданная другим объектом."
+"- 'Опорный объект' - будет обработана область, заданная другим объектом."
 
 #: appGUI/preferences/tools/ToolsISOPrefGroupUI.py:333
 #: appGUI/preferences/tools/ToolsPaintPrefGroupUI.py:299
@@ -20388,7 +20402,7 @@ msgid ""
 "Cutting speed in the XY\n"
 "plane in units per minute"
 msgstr ""
-"Скорость резания в плоскости XY\n"
+"Скорость подачи в плоскости XY\n"
 "в единицах в минуту"
 
 # auto-review 2026-10-09: corrected
@@ -20398,9 +20412,9 @@ msgid ""
 "plane in units per minute.\n"
 "It is called also Plunge."
 msgstr ""
-"Скорость резания по оси Z\n"
+"Скорость подачи по оси Z\n"
 "в единицах в минуту.\n"
-"Также называется скоростью врезания."
+"Также называется подачей врезания."
 
 #: appGUI/preferences/tools/ToolsMillPrefGroupUI.py:233
 msgid ""
@@ -20437,11 +20451,11 @@ msgid ""
 "It is useful only for Marlin,\n"
 "ignore for any other cases."
 msgstr ""
-"Скорость резания в плоскости XY\n"
-"(в единицах измерения в минуту).\n"
-"Это для быстрого перемещения G00.\n"
-"Используется только для Marlin,\n"
-"в остальных случаях игнорируйте."
+"Скорость ускоренного перемещения в плоскости XY\n"
+"(в единицах в минуту).\n"
+"Используется для команды G00.\n"
+"Применяется только для Marlin,\n"
+"в остальных случаях игнорируется."
 
 # auto-review 2026-10-09: corrected
 #: appGUI/preferences/tools/ToolsMillPrefGroupUI.py:346
@@ -20459,10 +20473,10 @@ msgid ""
 "meet with last cut, we generate an\n"
 "extended cut over the first cut section."
 msgstr ""
-"Для того, чтобы удалить возможные остатки меди в тех местах,\n"
-"где первый разрез встречается с последним,\n"
-"мы генерируем расширенный разрез\n"
-"над первым разрезом."
+"Для удаления возможных остатков меди\n"
+"в месте встречи начала и конца реза\n"
+"добавляется продолжение реза,\n"
+"перекрывающее его начальный участок."
 
 # auto-review 2026-10-09: corrected
 #: appGUI/preferences/tools/ToolsMillPrefGroupUI.py:539
@@ -20568,7 +20582,7 @@ msgstr ""
 "объектом.\n"
 " - 'Выбор области' - щелкните левой кнопкой мыши, чтобы начать выделение "
 "области для обработки.\n"
-"- 'Ссылочный объект' - будет обработана область, заданная другим объектом."
+"- 'Опорный объект' - будет обработана область, заданная другим объектом."
 
 #: appGUI/preferences/tools/ToolsNCCPrefGroupUI.py:378
 msgid ""
@@ -20618,7 +20632,7 @@ msgstr ""
 "Удержание нажатой клавиши-модификатора (CTRL или SHIFT) позволяет добавить "
 "несколько областей.\n"
 "- 'Все полигоны' - обработка начнется после щелчка мыши.\n"
-"- 'Ссылочный объект' - будет обработана область, заданная другим объектом."
+"- 'Опорный объект' - будет обработана область, заданная другим объектом."
 
 # auto-review 2026-10-21: new
 #: appGUI/preferences/tools/ToolsPaintPrefGroupUI.py:335
@@ -21205,7 +21219,7 @@ msgstr "Удаляет расширение файла из списка"
 #: appGUI/preferences/utilities/FAGcoPrefGroupUI.py:79
 #: appGUI/preferences/utilities/FAGrbPrefGroupUI.py:77
 msgid "Apply Association"
-msgstr "Ассоциировать"
+msgstr "Применить ассоциацию"
 
 # auto-review 2026-10-09: corrected
 #: appGUI/preferences/utilities/FAExcPrefGroupUI.py:89
@@ -21544,7 +21558,7 @@ msgid ""
 msgstr ""
 "Эта старая плата не хранит унаследованные настройки экспорта.\n"
 "Введите значение, использованное в исходной установке DipTrace (мм).\n"
-"При отмене затронутые вскрытия не импортируются.\n"
+"При отмене соответствующие окна маски не будут импортированы.\n"
 "\n"
 
 # auto-review 2026-10-21: new
@@ -21603,7 +21617,9 @@ msgstr "Можно использовать только объекты Geometry
 
 #: appHandlers/appIO.py:970
 msgid "Data must be a 3D array with last dimension 3 or 4"
-msgstr "Данные должны быть 3D массивом с последним размером 3 или 4"
+msgstr ""
+"Данные должны быть трёхмерным массивом с размером последнего измерения 3 "
+"или 4"
 
 #: appHandlers/appIO.py:976 appHandlers/appIO.py:981
 msgid "Export PNG Image"
@@ -21923,7 +21939,7 @@ msgstr "Не удалось открыть файл Gerber. Вероятно, э
 
 #: appHandlers/appIO.py:3053 appPlugins/ToolPcbWizard/PcbWizard.py:294
 msgid "This is not Excellon file."
-msgstr "Это не Excellon файл."
+msgstr "Это не файл Excellon."
 
 #: appHandlers/appIO.py:3056
 msgid "Cannot open file"
@@ -22407,7 +22423,7 @@ msgstr "Страница загрузок"
 
 #: appHandlers/appUIActions.py:119
 msgid "Issue tracker"
-msgstr "Issue-трекер"
+msgstr "Система отслеживания ошибок"
 
 #: appHandlers/appUIActions.py:151
 msgid "Licensed under the MIT license"
@@ -22672,9 +22688,7 @@ msgstr "Журнал FlatCAM открыт."
 #: appPlugins/ToolSolderPaste/SolderPaste.py:407
 #: appPlugins/ToolSolderPaste/SolderPaste.py:613
 msgid "Please enter a tool diameter with non-zero value, in Float format."
-msgstr ""
-"Пожалуйста, введите диаметр инструмента с ненулевым значением в float "
-"формате."
+msgstr "Введите ненулевой диаметр инструмента в виде вещественного числа."
 
 # auto-review 2026-10-09: fuzzy corrected
 #: appHandlers/appUIActions.py:772
@@ -22723,7 +22737,7 @@ msgstr "Отображается"
 
 #: appHandlers/appUIActions.py:1303
 msgid "Canvas"
-msgstr "Дисплей"
+msgstr "Холст"
 
 # auto-review 2026-10-09: corrected
 #: appHandlers/appUIActions.py:1308
@@ -22750,8 +22764,7 @@ msgstr "Введите размер сетки:"
 
 #: appHandlers/appUIActions.py:1390 appHandlers/appUIActions.py:1420
 msgid "Please enter a grid value with non-zero value, in Float format."
-msgstr ""
-"Пожалуйста, введите значение сетки с ненулевым значением в формате float."
+msgstr "Введите ненулевой шаг сетки в виде вещественного числа."
 
 #: appHandlers/appUIActions.py:1400
 msgid "New Grid added"
@@ -23314,7 +23327,9 @@ msgstr "Скрипт уже выполняется."
 
 #: appMain.py:4690
 msgid "Timed-out script work is still running; changes are not rolled back."
-msgstr "Работа скрипта по тайм-ауту идёт; изменения не откатываются."
+msgstr ""
+"Время ожидания скрипта истекло, но его задачи ещё выполняются; изменения не "
+"откатываются."
 
 #: appObjects/AppObject.py:275
 msgid "Aborted. The object was not created."
@@ -24184,8 +24199,8 @@ msgid ""
 "Invalid controller position report. Only finite XYZ reports are supported; "
 "check the controller axis configuration."
 msgstr ""
-"Неверный отчёт о позиции контроллера. Поддерживаются только конечные отчёты "
-"XYZ; проверьте конфигурацию осей контроллера."
+"Некорректный отчёт о положении контроллера. Поддерживаются только конечные "
+"значения координат XYZ; проверьте конфигурацию осей контроллера."
 
 #: appPlugins/Common/grbl/grbl_client.py:1088
 msgid ""
@@ -24212,7 +24227,9 @@ msgstr "GRBL $13 должен вернуть 0 или 1 перед точным 
 #: appPlugins/Common/grbl/grbl_client.py:1355
 msgid ""
 "Increase the precision retract above the GRBL position report resolution."
-msgstr "Увеличьте точный отвод выше разрешения отчёта о положении GRBL."
+msgstr ""
+"Увеличьте отвод при точном зондировании: он должен превышать шаг координат "
+"в отчёте GRBL."
 
 # auto-review 2026-10-21: new
 #: appPlugins/Common/grbl/grbl_client.py:1383
@@ -25309,7 +25326,7 @@ msgstr "Толщина осаждённой меди."
 
 #: appPlugins/ToolCalculators/CalculatorUI.py:428
 msgid "Current Value"
-msgstr "Текущее значение"
+msgstr "Сила тока"
 
 # auto-review 2026-10-09: fuzzy corrected
 #: appPlugins/ToolCalculators/CalculatorUI.py:429
@@ -25431,7 +25448,7 @@ msgstr ""
 #: appPlugins/ToolCopperThieving/CopperThieving.py:243
 #: appPlugins/ToolCopperThieving/CopperThieving.py:262
 msgid "Lines Grid works only for 'itself' reference ..."
-msgstr "Сетка линий работает только для ссылки 'Как есть'..."
+msgstr "Сетка линий работает только при привязке «Как есть»..."
 
 #: appPlugins/ToolCopperThieving/CopperThieving.py:251
 msgid "Solid fill selected."
@@ -25777,7 +25794,9 @@ msgstr ""
 #: appPlugins/ToolCutOut/CutOutGen.py:683
 #: appPlugins/ToolCutOut/CutOutGen.py:956
 msgid "Mouse bite diameter and spacing must produce a positive finite step."
-msgstr "Диаметр и шаг мышиных укусов должны давать положительный конечный шаг."
+msgstr ""
+"Диаметр отверстий «мышиных укусов» и зазор между ними должны давать "
+"положительный конечный шаг."
 
 # auto-review 2026-10-09: corrected
 #: appPlugins/ToolCutOut/CutOut.py:772 appPlugins/ToolCutOut/CutOut.py:959
@@ -25823,7 +25842,8 @@ msgstr "Операция прямоугольного выреза заверш�
 # auto-review 2026-10-21: new
 #: appPlugins/ToolCutOut/CutOut.py:1010
 msgid "Drill pitch and diameter must be positive finite values."
-msgstr "Шаг и диаметр сверла должны быть положительными конечными значениями."
+msgstr ""
+"Шаг отверстий и их диаметр должны быть положительными конечными значениями."
 
 # auto-review 2026-10-09: fuzzy corrected
 #: appPlugins/ToolCutOut/CutOut.py:1031
@@ -26633,9 +26653,9 @@ msgid ""
 "specified alignment holes and their mirror\n"
 "images."
 msgstr ""
-"Создаёт объект Excellon, содержащий\n"
-"контрольные отверстия и их\n"
-"зеркальные изображения."
+"Создать объект Excellon с указанными\n"
+"установочными отверстиями и их\n"
+"зеркальными копиями."
 
 # auto-review 2026-10-09: corrected
 #: appPlugins/ToolDblSided/DblSidedUI.py:293
@@ -27298,7 +27318,7 @@ msgid ""
 "Ignored by the laser preprocessors."
 msgstr ""
 "Пауза на дне каждого отверстия на время задержки\n"
-"(время, заданное выше, также когда «Задержка на дне» не отмечена).\n"
+"(время, заданное выше, даже если флажок «Задержка» снят).\n"
 "Не учитывается постпроцессорами лазера."
 
 #: appPlugins/ToolDrilling/DrillingUI.py:438
@@ -27911,12 +27931,12 @@ msgstr "Сначала добавьте контрольные точки..."
 
 #: appPlugins/ToolFiducials/Fiducials.py:427
 msgid "Click to add the last fiducial. Top Right..."
-msgstr "Нажмите, чтобы добавить следующую контрольную точку. Вверху справа..."
+msgstr "Щёлкните, чтобы добавить последнюю контрольную точку. Вверху справа..."
 
 #: appPlugins/ToolFiducials/Fiducials.py:431
 msgid "Click to add the second fiducial. Top Left or Bottom Right..."
 msgstr ""
-"Нажмите, чтобы добавить вторичную контрольную точку. Вверху слева или внизу "
+"Щёлкните, чтобы добавить вторую контрольную точку. Вверху слева или внизу "
 "справа..."
 
 #: appPlugins/ToolFiducials/Fiducials.py:492
@@ -28047,8 +28067,10 @@ msgid ""
 "visible.\n"
 "For 'Bounds' page size, it has to intersect the box plus border."
 msgstr ""
-"Чертёж должен пересекать размер страницы, чтобы быть видимым.\n"
-"Для 'Границы' — пересекать рамку с полями."
+"Чтобы изображение было видно, оно должно пересекаться с областью страницы "
+"выбранного размера.\n"
+"При размере страницы «Границы» оно должно пересекаться с рамкой с учётом "
+"отступа."
 
 #: appPlugins/ToolFilm/FilmUI.py:57
 msgid ""
@@ -28139,9 +28161,10 @@ msgid ""
 " FlatCAM object, but directly save it in the\n"
 "selected format."
 msgstr ""
-"Создание плёнки для выбранного объекта, в пределах\n"
-"указанной ограничительной рамки. Не создает новый\n"
-"  объект FlatCAM, но напрямую сохраняет её в выбранном формате."
+"Создать плёнку для выбранного объекта в пределах\n"
+"указанной рамки. Новый объект FlatCAM\n"
+"не создаётся: плёнка сразу сохраняется\n"
+"в выбранном формате."
 
 #: appPlugins/ToolFilm/FilmUI.py:424
 msgid ""
@@ -28216,8 +28239,8 @@ msgid ""
 "The Gerber object is not changed."
 msgstr ""
 "Создать объект Geometry вдоль осевых линий дорожек и путей Gerber.\n"
-"Площадки (флэши) пропускаются, выполняется следование только по дорожкам, "
-"дугам и контурам регионов.\n"
+"Площадки (вспышки) пропускаются; используются только дорожки, дуги и "
+"контуры областей.\n"
 "Объект Gerber не изменяется."
 
 #: appPlugins/ToolFollow/FollowUI.py:60
@@ -28229,9 +28252,9 @@ msgid ""
 "followed."
 msgstr ""
 "Объект Gerber, по которому выполняется следование.\n"
-"Если на вкладке Проект выбраны объекты Gerber, выполняется следование по "
-"каждому выбранному,\n"
-"каждый в свой новый объект Geometry. Иначе — по объекту, выбранному здесь."
+"Если на вкладке «Проект» выбраны объекты Gerber, для каждого из них "
+"создаётся\n"
+"отдельный объект Geometry. Иначе используется объект, выбранный здесь."
 
 #: appPlugins/ToolFollow/FollowUI.py:80
 msgid ""
@@ -28258,7 +28281,7 @@ msgstr ""
 "- Фрезеровка по умолчанию: один инструмент, диаметр из настроек "
 "Фрезеровки.\n"
 "- Размер апертуры: один инструмент на каждый размер апертуры; пути апертур\n"
-"  одного размера находятся в одном инструменте. Регионы используют диаметр "
+"  одного размера находятся в одном инструменте. Области используют диаметр "
 "по умолчанию."
 
 #: appPlugins/ToolFollow/FollowUI.py:121
@@ -28562,8 +28585,8 @@ msgid ""
 "Press and hold to jog; release to cancel. Native GRBL requires a verified "
 "1.1 connection."
 msgstr ""
-"Удерживайте для перемещения; отпустите для отмены. Native GRBL требует "
-"проверенного подключения 1.1."
+"Удерживайте для ручного перемещения; отпустите для отмены. Для стандартного "
+"GRBL требуется подтверждённое соединение с версией 1.1."
 
 #: appPlugins/ToolGcodeSender/Sender.py:1566
 msgid ""
@@ -28691,11 +28714,13 @@ msgstr "Во время смены инструмента перемещайте
 #: appPlugins/ToolGcodeSender/Sender.py:2301
 msgid "The session or reference changed. Capture the spindle reference again."
 msgstr ""
-"Сессия или опора изменились. Снова зафиксируйте опорную точку шпинделя."
+"Сеанс или опорная точка изменились. Снова зафиксируйте опорную точку "
+"шпинделя."
 
 #: appPlugins/ToolGcodeSender/Sender.py:2303
 msgid "The session or reference changed. Verify the saved calibration again."
-msgstr "Сессия или опора изменились. Снова проверьте сохранённую калибровку."
+msgstr ""
+"Сеанс или опорная точка изменились. Снова проверьте сохранённую калибровку."
 
 #: appPlugins/ToolGcodeSender/Sender.py:2323
 #: appPlugins/ToolGcodeSender/SenderRegistrationUI.py:928
@@ -28915,7 +28940,9 @@ msgstr "Пластина зондирована слишком далеко от
 
 #: appPlugins/ToolGcodeSender/Sender.py:2839
 msgid "The fixed plate reference is from an older session. Calibrate it again."
-msgstr "Опора неподвижной пластины из прежней сессии. Откалибруйте её заново."
+msgstr ""
+"Опорные данные неподвижной пластины относятся к прежнему сеансу. "
+"Откалибруйте её заново."
 
 #: appPlugins/ToolGcodeSender/Sender.py:2840
 msgid "The measurement is from an older session. Measure the tool again."
@@ -29009,7 +29036,7 @@ msgstr "Пластина снята. Нуль Z платы готов к зад�
 
 #: appPlugins/ToolGcodeSender/Sender.py:3198
 msgid "The tool-change reference was discarded."
-msgstr "Опора смены инструмента сброшена."
+msgstr "Опорные данные для смены инструмента сброшены."
 
 #: appPlugins/ToolGcodeSender/Sender.py:3228
 msgid ""
@@ -29024,8 +29051,8 @@ msgstr "Опорная позиция пластины неверна."
 #: appPlugins/ToolGcodeSender/Sender.py:3245
 msgid "Fixed plate reference recorded. Install the next tool, then measure it."
 msgstr ""
-"Опора неподвижной пластины записана. Установите следующий инструмент и "
-"измерьте его."
+"Опорные данные неподвижной пластины записаны. Установите следующий "
+"инструмент и измерьте его."
 
 #: appPlugins/ToolGcodeSender/Sender.py:3252
 msgid "The measured position is invalid."
@@ -29231,9 +29258,9 @@ msgid ""
 "The program changes the tool length offset (line %d). A levelled job can "
 "not do this. Remove it, or make a new height map after the change."
 msgstr ""
-"Программа меняет коррекцию длины инструмента (строка %d). Выровненное "
-"задание так не может. Удалите её или создайте новую карту высот после "
-"изменения."
+"Программа меняет коррекцию длины инструмента (строка %d). В задании с "
+"автовыравниванием это недопустимо. Удалите эту команду или создайте новую "
+"карту высот после изменения."
 
 # auto-review 2026-10-21: new
 #: appPlugins/ToolGcodeSender/Sender.py:3840
@@ -29324,7 +29351,8 @@ msgid ""
 "the same WCS and zero as when the map was made?"
 msgstr ""
 "Эта карта высот импортирована. В ней нет системы координат станка. "
-"Совпадает ли станок с той же WCS и нулём, что и при создании карты?"
+"Использует ли станок ту же рабочую систему координат (WCS) и тот же нуль, "
+"что и при создании карты?"
 
 # auto-review 2026-10-21: new
 #: appPlugins/ToolGcodeSender/Sender.py:4038
@@ -29363,8 +29391,8 @@ msgid ""
 "The machine frame (WCS or work offset) changed after the height map was "
 "made. Probe again."
 msgstr ""
-"Система координат станка (WCS или смещение детали) изменилась после "
-"создания карты высот. Выполните зондирование заново."
+"Система координат станка (WCS или смещение рабочей системы координат) "
+"изменилась после создания карты высот. Выполните зондирование заново."
 
 # auto-review 2026-10-21: new
 #: appPlugins/ToolGcodeSender/Sender.py:4157
@@ -29737,7 +29765,7 @@ msgstr "Нужна повторная проверка калибровки: и�
 
 #: appPlugins/ToolGcodeSender/SenderCameraUI.py:493
 msgid "Live preview."
-msgstr "Живой просмотр."
+msgstr "Просмотр в реальном времени."
 
 #: appPlugins/ToolGcodeSender/SenderCameraUI.py:501
 msgid "The camera image stopped. Start the preview again."
@@ -29787,12 +29815,13 @@ msgid ""
 "broken wire. Home and limits may share an input. Logical states use applied "
 "settings. Homing and probing cycles remain unavailable."
 msgstr ""
-"Входы SH9001 I0–I15: сырое значение 1 означает замыкание на Vo12V. "
-"«Активный низкий» считает сырое значение 0 активным; используйте для "
-"нормально замкнутого выключателя, который размыкается при срабатывании "
-"концевика или обрыве провода. Домашний и концевой сигналы могут "
-"использовать один вход. Логические состояния используют применённые "
-"настройки. Циклы поиска нуля и зондирования остаются недоступными."
+"Входы SH9001 I0–I15: исходное значение 1 означает замыкание на Vo12V. "
+"«Активный низкий» считает исходное значение 0 активным; используйте его для "
+"нормально замкнутого выключателя, который размыкается при достижении "
+"предела или обрыве провода. Сигналы поиска нуля и концевых выключателей "
+"могут использовать один вход. Логические состояния определяются "
+"применёнными настройками. Циклы поиска нуля и зондирования остаются "
+"недоступными."
 
 # auto-review 2026-10-21: new
 #: appPlugins/ToolGcodeSender/SenderEcutIO.py:143
@@ -29953,7 +29982,7 @@ msgstr "ШИМ / ЦАП"
 # auto-review 2026-10-21: new
 #: appPlugins/ToolGcodeSender/SenderEcutIO.py:225
 msgid "PWM raw period counts"
-msgstr "Счётчики периода ШИМ (сырые)"
+msgstr "Период ШИМ (исходные отсчёты)"
 
 # auto-review 2026-10-21: new
 #: appPlugins/ToolGcodeSender/SenderEcutIO.py:226
@@ -30655,8 +30684,8 @@ msgid ""
 "Feed hold / stop the manual positioning motion. The controller then needs "
 "Reset and Home."
 msgstr ""
-"Feed hold / остановка ручного позиционирования. Затем контроллеру нужны "
-"Reset и Home."
+"Приостановить подачу / остановить ручное позиционирование. Затем нажмите "
+"«Сбросить» и выполните «Поиск нуля»."
 
 #: appPlugins/ToolGcodeSender/SenderRegistrationUI.py:133
 #: appPlugins/ToolGcodeSender/SenderRegistrationUI.py:493
@@ -30840,7 +30869,7 @@ msgstr "Выбранный объект удалён. Покажите пред�
 
 #: appPlugins/ToolGcodeSender/SenderRegistrationUI.py:748
 msgid "Checking the current machine reference. Nothing moves."
-msgstr "Проверка текущей опоры станка. Ничего не движется."
+msgstr "Проверка текущей системы отсчёта станка. Ничего не движется."
 
 #: appPlugins/ToolGcodeSender/SenderRegistrationUI.py:798
 msgid "Applied to %d object(s) as one Undo step."
@@ -30915,7 +30944,7 @@ msgstr "Смещение нуля изменилось. Совмещение н�
 
 #: appPlugins/ToolGcodeSender/SenderRegistrationUI.py:936
 msgid "The machine homed. Registration restarted."
-msgstr "Станок выполнил Home. Совмещение начато заново."
+msgstr "Станок выполнил поиск нуля. Совмещение начато заново."
 
 #: appPlugins/ToolGcodeSender/SenderRegistrationUI.py:937
 msgid "A new controller session started. Registration restarted."
@@ -30964,15 +30993,15 @@ msgid ""
 "5. Press 'Apply Z correction'.\n"
 "The machine must be homed and its position known before you start."
 msgstr ""
-"Неподвижный щуп:\n"
+"Неподвижная контактная пластина:\n"
 "1. Установите эталонный инструмент и задайте нуль Z платы как обычно.\n"
 "2. Подведите шпиндель над неподвижной пластиной.\n"
 "3. Нажмите «Калибровка неподвижной пластины».\n"
 "4. После смены инструмента подведите шпиндель над той же пластиной и "
-"нажмите «Измерить замену».\n"
+"нажмите «Измерить новый инструмент».\n"
 "5. Нажмите «Применить коррекцию Z».\n"
-"Перед началом станок должен выполнить Home, а его позиция должна быть "
-"известна."
+"Перед началом должен быть выполнен поиск нуля станка, а его положение "
+"должно быть известно."
 
 #: appPlugins/ToolGcodeSender/SenderToolChangeUI.py:33
 msgid ""
@@ -30983,13 +31012,13 @@ msgid ""
 "4. Remove the plate and confirm.\n"
 "The machine must be homed and its position known before you start."
 msgstr ""
-"Съёмный щуп:\n"
+"Съёмная контактная пластина:\n"
 "1. Положите пластину на плату и подведите шпиндель над ней.\n"
 "2. Нажмите «Измерить с пластиной».\n"
 "3. Нажмите «Применить нуль Z».\n"
 "4. Снимите пластину и подтвердите.\n"
-"Перед началом станок должен выполнить Home, а его позиция должна быть "
-"известна."
+"Перед началом должен быть выполнен поиск нуля станка, а его положение "
+"должно быть известно."
 
 #: appPlugins/ToolGcodeSender/SenderToolChangeUI.py:41
 msgid ""
@@ -30997,8 +31026,8 @@ msgid ""
 "Set 'Tool-change touchplate' to Fixed or Removable in Preferences to use it."
 msgstr ""
 "Калиброванное измерение при смене инструмента отключено.\n"
-"Чтобы включить, задайте «Щуп смены инструмента» в настройках: Неподвижный "
-"или Съёмный."
+"Для включения выберите в настройках для параметра «Пластина смены "
+"инструмента» вариант «Фикс.» или «Съёмный»."
 
 #: appPlugins/ToolGcodeSender/SenderToolChangeUI.py:83
 msgid "Calibrate fixed plate"
@@ -31013,7 +31042,7 @@ msgstr ""
 #: appPlugins/ToolGcodeSender/SenderToolChangeUI.py:88
 #: appPlugins/ToolGcodeSender/SenderToolChangeUI.py:139
 msgid "Measure replacement"
-msgstr "Измерить замену"
+msgstr "Измерить новый инструмент"
 
 #: appPlugins/ToolGcodeSender/SenderToolChangeUI.py:90
 msgid ""
@@ -31050,7 +31079,7 @@ msgstr "Сбросить эталон"
 
 #: appPlugins/ToolGcodeSender/SenderToolChangeUI.py:104
 msgid "Discard the fixed plate reference of this session."
-msgstr "Отбросить опору неподвижной пластины этой сессии."
+msgstr "Сбросить опорные данные неподвижной пластины для этого сеанса."
 
 #: appPlugins/ToolGcodeSender/SenderToolChangeUI.py:110
 msgid ""
@@ -31058,7 +31087,7 @@ msgid ""
 "motion."
 msgstr ""
 "Немедленно остановить текущую операцию GRBL. Перед дальнейшим движением "
-"нажмите Reset, затем Home."
+"нажмите «Сбросить», затем «Поиск нуля»."
 
 #: appPlugins/ToolGcodeSender/SenderToolChangeUI.py:143
 msgid "Measure with plate"
@@ -31088,8 +31117,8 @@ msgid ""
 "The fixed plate reference is valid for this session. Measure the installed "
 "tool."
 msgstr ""
-"Опора неподвижной пластины действительна в этой сессии. Измерьте "
-"установленный инструмент."
+"Опорные данные неподвижной пластины действительны для этого сеанса. "
+"Измерьте установленный инструмент."
 
 #: appPlugins/ToolGcodeSender/SenderToolChangeUI.py:163
 msgid "Place the plate on the PCB and measure the installed tool."
@@ -31260,7 +31289,7 @@ msgstr "Вывести отчёт GRBL в командную строку."
 # auto-review 2026-10-21: new
 #: appPlugins/ToolGcodeSender/SenderUI.py:499
 msgid "Probe"
-msgstr "Зонд"
+msgstr "Зондировать"
 
 # auto-review 2026-10-21: new
 #: appPlugins/ToolGcodeSender/SenderUI.py:501
@@ -32480,7 +32509,7 @@ msgstr "Не удалось создать интерфейс плагина"
 
 #: appPlugins/ToolMilling/Milling.py:1526
 msgid "Milling Tool"
-msgstr "Фрезерный инструмент"
+msgstr "Фрезерование"
 
 #: appPlugins/ToolMilling/Milling.py:1656
 msgid ""
@@ -32500,8 +32529,8 @@ msgid ""
 "Negative value. The higher the absolute value\n"
 "the stronger the pressure of the brush on the material."
 msgstr ""
-"Отрицательное значение. Чем выше абсолютное значение,\n"
-"тем сильнее давление кисти на материал."
+"Отрицательное значение. Чем больше модуль значения,\n"
+"тем сильнее давление щётки на материал."
 
 #: appPlugins/ToolMilling/Milling.py:2160
 #: appPlugins/ToolMilling/Milling.py:2257
@@ -32922,7 +32951,7 @@ msgstr ""
 
 #: appPlugins/ToolNCC/NccGen.py:568
 msgid "NCC Tool clear all done but the copper features isolation is broken for"
-msgstr "Очистка от меди выполнена, но медная изоляция нарушена для"
+msgstr "Очистка от меди выполнена, но изоляция медных элементов нарушена для"
 
 #: appPlugins/ToolNCC/NccGen.py:569
 msgid "tools"
@@ -32954,17 +32983,17 @@ msgid ""
 "Check validity: the smallest copper gap is %(gap)s%(units)s. Tools too big "
 "for it: %(tools)s. Use smaller tools or turn off Check validity."
 msgstr ""
-"Проверка корректности: наименьший зазор между медью %(gap)s%(units)s. "
-"Слишком большие инструменты: %(tools)s. Используйте инструменты меньшего "
-"размера или отключите «Проверка корректности»."
+"Проверка корректности: наименьший зазор между медными элементами "
+"%(gap)s%(units)s. Слишком большие инструменты: %(tools)s. Используйте "
+"инструменты меньшего размера или отключите «Проверка корректности»."
 
 #: appPlugins/ToolNCC/NccGen.py:601
 msgid ""
 "Check validity: the smallest copper gap is %(gap)s%(units)s. These tools "
 "will not enter all the gaps: %(tools)s."
 msgstr ""
-"Проверка корректности: наименьший зазор между медью %(gap)s%(units)s. Эти "
-"инструменты не войдут во все зазоры: %(tools)s."
+"Проверка корректности: наименьший зазор между медными элементами "
+"%(gap)s%(units)s. Эти инструменты не войдут во все зазоры: %(tools)s."
 
 #: appPlugins/ToolNCC/NccGen.py:800
 msgid "The order must be no, fwd or rev."
@@ -33094,8 +33123,8 @@ msgid ""
 "The type of FlatCAM object to be used as non copper clearing reference.\n"
 "It can be Gerber, Excellon or Geometry."
 msgstr ""
-"Тип объекта FlatCAM, используемого как ссылка для очистки от меди.\n"
-"Это может быть Gerber, Excellon или Geometry."
+"Тип опорного объекта FlatCAM для очистки от меди.\n"
+"Возможные типы: Gerber, Excellon или Geometry."
 
 #: appPlugins/ToolNCC/NccUI.py:634
 msgid "Zones drawn on the canvas that are left out of the copper clearing."
@@ -33176,7 +33205,7 @@ msgstr "Объекты пересекаются или касаются в то�
 #: appPlugins/ToolObjectDistance/ObjectDistance.py:263
 #: appPlugins/ToolObjectDistance/ObjectDistance.py:274
 msgid "Select two objects and no more. Currently the selection has objects: "
-msgstr "Выберите два и не более объекта. В настоящее время выбрано объектов: "
+msgstr "Выберите ровно два объекта. Сейчас выбрано объектов: "
 
 #: appPlugins/ToolObjectDistance/ObjectDistance.py:283
 msgid "Jumped to the half point between the two selected objects"
@@ -33539,9 +33568,8 @@ msgid ""
 "The type of FlatCAM object to be used as paint reference.\n"
 "It can be Gerber, Excellon or Geometry."
 msgstr ""
-"Тип объекта FlatCAM, который будет использоваться как ссылка для "
-"рисования.\n"
-"Это может быть Gerber, Excellon или Geometry."
+"Тип опорного объекта FlatCAM для рисования.\n"
+"Возможные типы: Gerber, Excellon или Geometry."
 
 #: appPlugins/ToolPaint/PaintUI.py:513
 msgid ""
@@ -33574,7 +33602,7 @@ msgstr ""
 # auto-review 2026-10-21: new
 #: appPlugins/ToolPanelize/Panelize.py:357
 msgid "The reference object does not fit the constrain area."
-msgstr "Ссылочный объект не помещается в ограничивающую область."
+msgstr "Опорный объект не помещается в ограничивающую область."
 
 #: appPlugins/ToolPanelize/Panelize.py:381
 msgid "Generating panel ... "
@@ -33652,14 +33680,14 @@ msgid ""
 "to this reference object therefore maintaining the panelized\n"
 "objects in sync."
 msgstr ""
-"Выберите ссылку для панелизации:\n"
+"Выберите привязку для панелизации:\n"
 "- Объект = ограничительная рамка другого объекта\n"
 "- Ограничительная рамка = ограничительная рамка панелизируемого объекта\n"
 "\n"
-"Ссылка полезна при панелизации более чем одного\n"
-"объекта. Интервалы (фактически смещения) будут применяться относительно\n"
-"этого ссылочного объекта, благодаря чему панелизируемые\n"
-"объекты остаются согласованными."
+"Привязка полезна при панелизации нескольких\n"
+"объектов. Интервалы (фактически смещения) задаются относительно\n"
+"этого опорного объекта, что сохраняет взаимное расположение\n"
+"панелизируемых объектов."
 
 # auto-review 2026-10-09: corrected
 #: appPlugins/ToolPanelize/PanelizeUI.py:132
@@ -33812,7 +33840,7 @@ msgstr "Диаметр инструмента в файловых единица
 
 #: appPlugins/ToolPcbWizard/PcbWizardUI.py:55
 msgid "Int. digits"
-msgstr "Целые цифры"
+msgstr "Цифр целой части"
 
 # auto-review 2026-10-09: corrected
 #: appPlugins/ToolPcbWizard/PcbWizardUI.py:56
@@ -33821,7 +33849,7 @@ msgstr "Количество цифр для целой части коорди�
 
 #: appPlugins/ToolPcbWizard/PcbWizardUI.py:61
 msgid "Frac. digits"
-msgstr "Дробные цифры"
+msgstr "Цифр дробной части"
 
 #: appPlugins/ToolPcbWizard/PcbWizardUI.py:62
 msgid "The number of digits for the fractional part of the coordinates."
@@ -34703,7 +34731,8 @@ msgstr "Модуль меньше минимального размера мод
 
 #: appPlugins/ToolQRCode/QRCode.py:629
 msgid "A border below 4 boxes breaks the quiet zone of the QR standard."
-msgstr "Рамка меньше 4 модулей нарушает тихую зону стандарта QR."
+msgstr ""
+"Отступ менее 4 модулей нарушает требование стандарта QR к свободному полю."
 
 #: appPlugins/ToolQRCode/QRCode.py:648
 msgid "Version %d, %dx%d modules, %.*f x %.*f %s"
@@ -35582,8 +35611,8 @@ msgid ""
 "Excellon objects\n"
 "with a Gerber, Geometry or Excellon target object."
 msgstr ""
-"Вычесть, пересечь или XOR область одного или нескольких объектов Gerber / "
-"Geometry / Excellon\n"
+"Выполнить вычитание, пересечение или симметрическую разность (XOR) областей "
+"одного или нескольких объектов Gerber / Geometry / Excellon\n"
 "с целевым объектом Gerber, Geometry или Excellon."
 
 #: appPlugins/ToolSub/SubUI.py:64
@@ -35739,7 +35768,7 @@ msgstr "Буфер ничего не изменит."
 
 #: appPlugins/ToolTransform/Transform.py:675
 msgid "CNCJob objects can't be rotated."
-msgstr "Объекты CNCJob не могут вращаться."
+msgstr "Объекты CNCJob нельзя поворачивать."
 
 #: appPlugins/ToolTransform/Transform.py:676
 msgid "Rotate done"
@@ -35857,8 +35886,9 @@ msgid ""
 "Use the X angle for both axes.\n"
 "The Y entry is ignored while linked and kept for when the link is off."
 msgstr ""
-"Угол X для обеих осей.\n"
-"При связи Y игнорируется; сохраняется при выключенной связи."
+"Использовать угол X для обеих осей.\n"
+"При включённой связи поле Y игнорируется, но его значение сохраняется для "
+"использования после отключения связи."
 
 #: appPlugins/ToolTransform/TransformUI.py:202
 msgid ""
@@ -35895,8 +35925,9 @@ msgid ""
 "Use the X factor for both axes.\n"
 "The Y entry is ignored while linked and kept for when the link is off."
 msgstr ""
-"Коэффициент X для обеих осей.\n"
-"При связи Y игнорируется; сохраняется при выключенной связи."
+"Использовать коэффициент X для обеих осей.\n"
+"При включённой связи поле Y игнорируется, но его значение сохраняется для "
+"использования после отключения связи."
 
 #: appPlugins/ToolTransform/TransformUI.py:277
 msgid ""
@@ -36024,7 +36055,7 @@ msgstr "Выход"
 
 #: camlib.py:834
 msgid "self.solid_geometry is neither BaseGeometry or list."
-msgstr "self.solid_geometry не является базовой геометрией или списком."
+msgstr "self.solid_geometry не является ни BaseGeometry, ни списком."
 
 # auto-review 2026-10-09: corrected
 #: camlib.py:1264 camlib.py:1298
@@ -36344,8 +36375,8 @@ msgid ""
 "The machine code of the Roland/HPGL preprocessors is not transformed, only "
 "the plot is. Generate the job again."
 msgstr ""
-"Машинный код Roland/HPGL не преобразован, только график. Создайте задание "
-"заново."
+"Машинный код постпроцессоров Roland/HPGL не преобразуется — меняется только "
+"отображение. Создайте задание заново."
 
 #: camlib.py:8363
 msgid ""
@@ -36353,7 +36384,7 @@ msgid ""
 "Change the program in the software that made it."
 msgstr ""
 "G-код с макропеременными или подпрограммами нельзя выровнять. Измените "
-"программу-источник."
+"программу в приложении, в котором она была создана."
 
 #: camlib.py:8366
 msgid ""
@@ -36361,7 +36392,7 @@ msgid ""
 "transformed. Change the program in the software that made it."
 msgstr ""
 "G-код с макропеременными или подпрограммами нельзя переместить или "
-"преобразовать. Измените программу-источник."
+"преобразовать. Измените программу в приложении, в котором она была создана."
 
 #: camlib.py:8901
 msgid "An open line has no width to erode."
@@ -36662,7 +36693,7 @@ msgstr "Некорректная версия, размер модуля или 
 
 #: tclCommands/TclCommandQRCode.py:180
 msgid "Serial pad must be 0 or more."
-msgstr "Серийное заполнение должно быть 0 или больше."
+msgstr "Ширина дополнения серийного номера нулями должна быть не меньше 0."
 
 #: tclCommands/TclCommandQRCode.py:193
 msgid "Mask pattern must be 0..7 or auto"
@@ -36710,7 +36741,7 @@ msgstr "Операция xor недопустима для объекта Excell
 
 #: tclCommands/TclCommandSubtractObjects.py:144
 msgid "The circle steps must be at least 4."
-msgstr "Количество шагов окружности должно быть не менее 4."
+msgstr "Количество сегментов окружности должно быть не меньше 4."
 
 #: tclCommands/TclCommandSubtractObjects.py:156
 msgid "Unknown tool id"

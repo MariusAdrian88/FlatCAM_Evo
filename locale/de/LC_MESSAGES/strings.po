@@ -281,8 +281,8 @@ msgid ""
 "ends too close to the area. Use the 'Over' strategy or change the area."
 msgstr ""
 "Fehlgeschlagen. Das Werkzeug kann einen Sperrbereich nicht umfahren: Eine "
-"Bewegung beginnt oder endet zu nah am Bereich. Strategie „Over“ verwenden "
-"oder den Bereich ändern."
+"Verfahrbewegung beginnt oder endet zu nah am Bereich. Strategie „Über“ "
+"verwenden oder den Bereich ändern."
 
 #: appCommon/Common.py:820
 msgid ""
@@ -749,10 +749,12 @@ msgid ""
 msgstr ""
 "- Isolation -> informativ - niedrigerer Vorschub, da ein Fräser mit feiner "
 "Spitze verwendet wird.\n"
-"- Schruppen -> informativ - niedrigerer Vorschub und mehrfache Tiefe.\n"
-"- Schlichten -> informativ - höherer Vorschub, ohne mehrfache Tiefe.\n"
-"- Polieren -> fügt einen Malvorgang über die gesamte Fläche des Objekts "
-"hinzu"
+"- Schruppen -> informativ - niedrigerer Vorschub und mehrere "
+"Tiefenzustellungen.\n"
+"- Schlichten -> informativ - höherer Vorschub, ohne mehrere "
+"Tiefenzustellungen.\n"
+"- Polieren -> fügt einen flächenfüllenden Bearbeitungsgang über die gesamte "
+"Fläche des Objekts hinzu"
 
 #: appDatabase.py:660
 msgid "Tool Offset"
@@ -1023,10 +1025,9 @@ msgid ""
 "- Clear -> the regular non-copper clearing."
 msgstr ""
 "Die 'Operation' kann sein:\n"
-"- Isolation -> stellt sicher, dass das Freiräumen des Kupfers immer "
-"vollständig ist.\n"
-"Ist dies nicht erfolgreich, schlägt auch das Freiräumen des Kupfers fehl.\n"
-"- Löschen -> das normale Freiräumen des Kupfers."
+"- Isolation -> stellt sicher, dass die Kupferentfernung vollständig ist.\n"
+"Ist dies nicht erfolgreich, schlägt auch die Kupferentfernung fehl.\n"
+"- Löschen -> die normale Kupferentfernung."
 
 # auto-review 2026-10-09: corrected
 #: appDatabase.py:898 appEditors/appGerberEditor.py:8407
@@ -1683,7 +1684,8 @@ msgstr ""
 "die Bewegungshöhe Z (Travel, es entfernt die Späne), fährt schnell bis zum\n"
 "Peck-Rückzugsabstand über der vorherigen Tiefe ab und setzt den Vorschub "
 "fort.\n"
-"Ersetzt die Mehrfache Tiefe. Wird von den Laser-Postprozessoren ignoriert."
+"Ersetzt die mehreren Tiefenzustellungen. Wird von den Laser-Postprozessoren "
+"ignoriert."
 
 #: appDatabase.py:1458
 msgid "Peck depth"
@@ -5703,7 +5705,9 @@ msgstr "Materialregionen"
 
 #: appEditors/appGerberEditor.py:7698
 msgid "Select valid polygon material without clear records."
-msgstr "Gültiges Polygonmaterial ohne eindeutige Datensätze auswählen."
+msgstr ""
+"Gültiges Polygonmaterial ohne Clear-Datensätze (negative Polarität) "
+"auswählen."
 
 #: appEditors/appGerberEditor.py:7701
 msgid "Select at least two material features."
@@ -6014,8 +6018,8 @@ msgid ""
 "Delete matching records from the selected subset, or all records if none "
 "are selected. Undo as one operation."
 msgstr ""
-"Passende Datensätze aus der ausgewählten Teilmenge löschen, oder alle "
-"Datensätze, wenn nichts ausgewählt ist. Als ein Vorgang rückgängig machen."
+"Passende Datensätze aus der ausgewählten Teilmenge löschen; ohne Auswahl "
+"werden alle Datensätze durchsucht. Als ein Vorgang rückgängig machen."
 
 #: appEditors/appGerberEditor.py:8276
 msgid "FOLLOW midpoint snap"
@@ -6139,8 +6143,9 @@ msgid ""
 "Cutters retains them. Clear records are rejected."
 msgstr ""
 "Ausgewähltes Polygonmaterial durch explizite Regionen ersetzen. Löcher "
-"bleiben erhalten. Differenz zieht die anderen Auswahlen von der ersten ab. "
-"Cutter behalten behält sie. Eindeutige Datensätze werden abgelehnt."
+"bleiben erhalten. Differenz zieht die anderen ausgewählten Elemente vom "
+"ersten ab. „Cutter behalten“ behält die abgezogenen Elemente bei. "
+"Clear-Datensätze (negative Polarität) werden abgelehnt."
 
 #: appEditors/appGerberEditor.py:8362
 msgid "Rectangle Region"
@@ -7310,7 +7315,7 @@ msgstr ""
 
 #: appEditors/geo_plugins/GeoPaintPlugin.py:296
 msgid "Diameter of the tool to be used in the operation."
-msgstr "Durchmesser des im Betrieb zu verwendenden Werkzeugs."
+msgstr "Durchmesser des für den Vorgang verwendeten Werkzeugs."
 
 # auto-review 2026-10-09: corrected
 #: appEditors/geo_plugins/GeoPaintPlugin.py:342
@@ -8452,7 +8457,9 @@ msgstr "Der neue Durchmesser muss eine endliche positive Zahl sein."
 
 #: appEditors/grb_plugins/GrbFollowPlugin.py:263
 msgid "Select unmodified circular flashes without clear geometry."
-msgstr "Unveränderte kreisförmige Flashes ohne eindeutige Geometrie auswählen."
+msgstr ""
+"Unveränderte kreisförmige Flashes ohne Clear-Geometrie (negative Polarität) "
+"auswählen."
 
 #: appEditors/grb_plugins/GrbFollowPlugin.py:269
 msgid ""
@@ -8629,7 +8636,7 @@ msgid ""
 "Choose an open, unmodified circular-aperture track without clear geometry."
 msgstr ""
 "Eine offene, unveränderte Leiterbahn mit kreisförmiger Blende ohne "
-"eindeutige Geometrie wählen."
+"Clear-Geometrie (negative Polarität) wählen."
 
 #: appEditors/grb_plugins/GrbTrackBend.py:80
 msgid "The track contains invalid coordinates or zero-length segments."
@@ -11611,7 +11618,7 @@ msgstr "2"
 
 #: appGUI/MainGUI.py:5256
 msgid "Switch to Selected Tab"
-msgstr "Wechseln Sie zur ausgewählten Registerkarte"
+msgstr "Zur Registerkarte „Ausgewählt“ wechseln"
 
 #: appGUI/MainGUI.py:5257
 msgid "3"
@@ -12241,18 +12248,19 @@ msgstr "Pad hinzufügen"
 #: appGUI/MainGUI.py:6139
 msgid "Within Track & Region Tools will cycle in REVERSE the bend modes"
 msgstr ""
-"In den Werkzeugen Track und Region werden die Biegemodi RÜCKWÄRTS "
+"In den Werkzeugen Leiterbahn und Region werden die Knickmodi RÜCKWÄRTS "
 "durchlaufen"
 
 #: appGUI/MainGUI.py:6141
 msgid "Add Track"
-msgstr "Track hinzufügen"
+msgstr "Leiterbahn hinzufügen"
 
 # auto-review 2026-10-09: corrected
 #: appGUI/MainGUI.py:6142
 msgid "Within Track & Region Tools will cycle FORWARD the bend modes"
 msgstr ""
-"In den Werkzeugen Track und Region werden die Biegemodi VORWÄRTS durchlaufen"
+"In den Werkzeugen Leiterbahn und Region werden die Knickmodi VORWÄRTS "
+"durchlaufen"
 
 #: appGUI/MainGUI.py:6144
 msgid "Alternate: Delete Apertures"
@@ -12463,7 +12471,7 @@ msgstr ""
 
 #: appGUI/ObjectUI.py:373
 msgid "Isolation Routing"
-msgstr "Isolierungsrouting"
+msgstr "Isolationsfräsen"
 
 # auto-review 2026-10-09: corrected
 #: appGUI/ObjectUI.py:376 appGUI/preferences/tools/ToolsISOPrefGroupUI.py:28
@@ -13861,7 +13869,7 @@ msgstr ""
 
 #: appGUI/preferences/PreferencesUIManager.py:1348
 msgid "Preferences applied."
-msgstr "Einstellungen werden angewendet."
+msgstr "Einstellungen angewendet."
 
 #: appGUI/preferences/PreferencesUIManager.py:1377
 msgid "Application will restart"
@@ -13873,7 +13881,7 @@ msgstr "Sind Sie sicher, dass Sie fortfahren wollen?"
 
 #: appGUI/preferences/PreferencesUIManager.py:1484
 msgid "Preferences default values are restored."
-msgstr "Die Standardeinstellungen werden wiederhergestellt."
+msgstr "Standardeinstellungen wiederhergestellt."
 
 #: appGUI/preferences/PreferencesUIManager.py:1513 appHandlers/appIO.py:2368
 msgid "Failed to write defaults to file."
@@ -15930,7 +15938,7 @@ msgid ""
 "It will be applied at the next app start."
 msgstr ""
 "Wählen Sie einen Stil für die Anwendung.\n"
-"Es wird beim nächsten App-Start angewendet."
+"Er wird beim nächsten App-Start angewendet."
 
 # auto-review 2026-10-09: corrected
 #: appGUI/preferences/general/GeneralGUIPrefGroupUI.py:171
@@ -15960,8 +15968,8 @@ msgid ""
 "right to left."
 msgstr ""
 "Aktivieren Sie die Anzeige einer Auswahlform für die Anwendungsobjekte.\n"
-"Es wird angezeigt, wenn die Maus ein Objekt auswählt\n"
-"entweder durch Klicken oder Ziehen der Maus von links nach rechts oder\n"
+"Sie wird angezeigt, wenn die Maus ein Objekt auswählt,\n"
+"entweder durch Klicken oder durch Ziehen von links nach rechts oder\n"
 "rechts nach links."
 
 # auto-review 2026-10-09: new
@@ -16635,15 +16643,15 @@ msgstr ""
 # auto-review 2026-10-09: corrected
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:145
 msgid "Clean Apertures"
-msgstr "Öffnungen bereinigen"
+msgstr "Blenden bereinigen"
 
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:147
 msgid ""
 "Will remove apertures that do not have geometry\n"
 "thus lowering the number of apertures in the Gerber object."
 msgstr ""
-"Entfernt Öffnungen ohne Geometrie\n"
-"Dadurch wird die Anzahl der Öffnungen im Gerber-Objekt verringert."
+"Entfernt Blenden ohne Geometrie\n"
+"und verringert so die Anzahl der Blenden im Gerber-Objekt."
 
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:153
 msgid "Polarity change buffer"
@@ -17057,7 +17065,7 @@ msgstr "Robber Bar"
 
 #: appGUI/preferences/tools/Tools2ExtractPrefGroupUI.py:21
 msgid "Extract Drills Options"
-msgstr "Optionen für Bohrer extrahieren"
+msgstr "Optionen zum Extrahieren von Bohrungen"
 
 # auto-review 2026-10-09: corrected
 #: appGUI/preferences/tools/Tools2ExtractPrefGroupUI.py:28
@@ -17079,7 +17087,7 @@ msgid ""
 msgstr ""
 "Die Form der zu verarbeitenden Pads.\n"
 "Wenn die Leiterplatte viele rechteckige SMD-Pads hat,\n"
-"deaktivieren Sie die rechteckige Öffnung."
+"deaktivieren Sie die rechteckige Blende."
 
 # auto-review 2026-10-09: corrected
 #: appGUI/preferences/tools/Tools2ExtractPrefGroupUI.py:46
@@ -17174,7 +17182,7 @@ msgstr "Fester Durchmesser"
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:117
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:150
 msgid "Fixed Annular Ring"
-msgstr "Fester Ring"
+msgstr "Feste Restringbreite"
 
 #: appGUI/preferences/tools/Tools2ExtractPrefGroupUI.py:110
 #: appGUI/preferences/tools/Tools2PunchGerberPrefGroupUI.py:103
@@ -17191,10 +17199,11 @@ msgid ""
 "- Fixed Annular Ring -> all holes will have a set annular ring\n"
 "- Proportional -> each hole size will be a fraction of the pad size"
 msgstr ""
-"Die Methode zur Verarbeitung von Pads. Kann sein:\n"
-"- Fester Durchmesser -> Alle Löcher haben eine festgelegte Größe\n"
-"- Fester Ring -> Alle Löcher haben einen festen Ring\n"
-"- Proportional -> Jede Lochgröße ist ein Bruchteil der Padgröße"
+"Die Methode zur Verarbeitung von Pads. Möglich sind:\n"
+"- Fester Durchmesser -> alle Löcher haben einen festgelegten Durchmesser\n"
+"- Feste Restringbreite -> um alle Löcher bleibt ein Restring mit "
+"festgelegter Breite\n"
+"- Proportional -> jede Lochgröße ist ein Bruchteil der Padgröße"
 
 #: appGUI/preferences/tools/Tools2ExtractPrefGroupUI.py:125
 #: appPlugins/ToolExtract/ExtractUI.py:134
@@ -17223,8 +17232,8 @@ msgid ""
 "The copper sliver between the hole exterior\n"
 "and the margin of the copper pad."
 msgstr ""
-"Die Größe des Ringes.\n"
-"Der Kupferstreifen zwischen dem äußeren Lochrand\n"
+"Die Breite des Restrings.\n"
+"Der Kupferstreifen zwischen dem Lochrand\n"
 "und dem Rand des Kupferpads."
 
 #: appGUI/preferences/tools/Tools2ExtractPrefGroupUI.py:181
@@ -17232,35 +17241,35 @@ msgstr ""
 #: appPlugins/ToolExtract/ExtractUI.py:160
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:161
 msgid "The size of annular ring for circular pads."
-msgstr "Die Größe des Ringes für kreisförmige Pads."
+msgstr "Die Restringbreite für kreisförmige Pads."
 
 #: appGUI/preferences/tools/Tools2ExtractPrefGroupUI.py:194
 #: appGUI/preferences/tools/Tools2PunchGerberPrefGroupUI.py:179
 #: appPlugins/ToolExtract/ExtractUI.py:167
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:169
 msgid "The size of annular ring for oblong pads."
-msgstr "Die Größe des Ringes für längliche Pads."
+msgstr "Die Restringbreite für längliche Pads."
 
 #: appGUI/preferences/tools/Tools2ExtractPrefGroupUI.py:207
 #: appGUI/preferences/tools/Tools2PunchGerberPrefGroupUI.py:193
 #: appPlugins/ToolExtract/ExtractUI.py:174
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:177
 msgid "The size of annular ring for square pads."
-msgstr "Die Größe des Ringes für quadratische Pads."
+msgstr "Die Restringbreite für quadratische Pads."
 
 #: appGUI/preferences/tools/Tools2ExtractPrefGroupUI.py:220
 #: appGUI/preferences/tools/Tools2PunchGerberPrefGroupUI.py:207
 #: appPlugins/ToolExtract/ExtractUI.py:181
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:185
 msgid "The size of annular ring for rectangular pads."
-msgstr "Die Größe des Ringes für rechteckige Pads."
+msgstr "Die Restringbreite für rechteckige Pads."
 
 #: appGUI/preferences/tools/Tools2ExtractPrefGroupUI.py:233
 #: appGUI/preferences/tools/Tools2PunchGerberPrefGroupUI.py:221
 #: appPlugins/ToolExtract/ExtractUI.py:188
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:193
 msgid "The size of annular ring for other pads."
-msgstr "Die Größe des Ringes für andere Pads."
+msgstr "Die Restringbreite für andere Pads."
 
 #: appGUI/preferences/tools/Tools2ExtractPrefGroupUI.py:246
 #: appGUI/preferences/tools/Tools2PunchGerberPrefGroupUI.py:235
@@ -18084,7 +18093,7 @@ msgstr "Überprüft den Minimalabstand zwischen Kupfer und Rand."
 #: appPlugins/ToolRulesCheck/RulesCheckGen.py:491
 #: appPlugins/ToolRulesCheck/RulesCheckUI.py:243
 msgid "Minimum Annular Ring"
-msgstr "Minimaler Ring"
+msgstr "Minimale Restringbreite"
 
 # auto-review 2026-10-09: corrected
 #: appGUI/preferences/tools/Tools2RulesCheckPrefGroupUI.py:109
@@ -18098,7 +18107,7 @@ msgstr ""
 
 #: appGUI/preferences/tools/Tools2RulesCheckPrefGroupUI.py:117
 msgid "Minimum acceptable ring value."
-msgstr "Minimaler akzeptabler Ringwert."
+msgstr "Minimal zulässige Restringbreite."
 
 #: appGUI/preferences/tools/Tools2RulesCheckPrefGroupUI.py:129
 #: appPlugins/ToolRulesCheck/RulesCheckGen.py:500
@@ -18267,8 +18276,8 @@ msgstr "Prüft, ob die Breite der Schlitze über dem Grenzwert liegt."
 #: appPlugins/ToolRulesCheck/RulesCheckUI.py:336
 msgid "Minimum acceptable slot width (the tool diameter that cuts the slot)."
 msgstr ""
-"Mindestens zulässige Schlitzbreite (der Werkzeugdurchmesser, der den "
-"Schlitz fräst)."
+"Minimal zulässige Schlitzbreite (der Werkzeugdurchmesser, der den Schlitz "
+"fräst)."
 
 #: appGUI/preferences/tools/Tools2RulesCheckPrefGroupUI.py:340
 #: appPlugins/ToolRulesCheck/RulesCheckGen.py:496
@@ -18449,7 +18458,7 @@ msgid ""
 "It is specified by manufacturer."
 msgstr ""
 "Dies ist der Werkzeugspitzendurchmesser.\n"
-"Es wird vom Hersteller angegeben."
+"Er wird vom Hersteller angegeben."
 
 #: appGUI/preferences/tools/ToolsCalculatorsPrefGroupUI.py:62
 #: appPlugins/ToolCalculators/CalculatorUI.py:136
@@ -18462,7 +18471,7 @@ msgid ""
 "It is specified by manufacturer."
 msgstr ""
 "Dies ist der Winkel an der Spitze des Werkzeugs.\n"
-"Es wird vom Hersteller angegeben."
+"Er wird vom Hersteller angegeben."
 
 #: appGUI/preferences/tools/ToolsCalculatorsPrefGroupUI.py:78
 msgid ""
@@ -18572,7 +18581,7 @@ msgstr ""
 #: appPlugins/ToolDrilling/DrillingUI.py:221
 #: appPlugins/ToolMilling/MillingUI.py:693
 msgid "Multi-Depth"
-msgstr "Mehrfache Tiefe"
+msgstr "Mehrere Tiefenzustellungen"
 
 #: appGUI/preferences/tools/ToolsCutoutPrefGroupUI.py:108
 #: appPlugins/ToolCutOut/CutOutUI.py:76
@@ -20595,8 +20604,8 @@ msgid ""
 "Cutting speed in the XY\n"
 "plane in units per minute"
 msgstr ""
-"Schnittgeschwindigkeit in der\n"
-"XY-Ebene in Einheiten pro Minute"
+"Vorschubgeschwindigkeit in der XY-\n"
+"Ebene in Einheiten pro Minute"
 
 # auto-review 2026-10-09: corrected
 #: appGUI/preferences/tools/ToolsMillPrefGroupUI.py:217
@@ -20605,8 +20614,8 @@ msgid ""
 "plane in units per minute.\n"
 "It is called also Plunge."
 msgstr ""
-"Schnittgeschwindigkeit in der\n"
-"XY-Ebene in Einheiten pro Minute.\n"
+"Vorschubgeschwindigkeit entlang der Z-\n"
+"Achse in Einheiten pro Minute.\n"
 "Wird auch Eintauchvorschub genannt."
 
 # auto-review 2026-10-09: corrected
@@ -20644,11 +20653,11 @@ msgid ""
 "It is useful only for Marlin,\n"
 "ignore for any other cases."
 msgstr ""
-"Schnittgeschwindigkeit in der XY-Ebene\n"
+"Verfahrgeschwindigkeit in der XY-Ebene\n"
 "(in Einheiten pro Minute).\n"
-"Dies ist für die schnelle Bewegung G00.\n"
-"Es ist nur für Marlin nützlich,\n"
-"für andere Fälle ignorieren."
+"Gilt für den Eilgang G00.\n"
+"Nur für Marlin nützlich,\n"
+"in allen anderen Fällen ignorieren."
 
 #: appGUI/preferences/tools/ToolsMillPrefGroupUI.py:346
 #: appPlugins/ToolMilling/MillingUI.py:790
@@ -22701,16 +22710,15 @@ msgstr ""
 "\n"
 "\n"
 "Der obige Urheberrechtsvermerk und dieser Erlaubnisvermerk sind in allen "
-"Kopien oder Teilkopien\n"
-" der Software beizulegen.\n"
+"Kopien oder wesentlichen Teilen\n"
+"der Software beizulegen.\n"
 "\n"
 "\n"
 "DIE SOFTWARE WIRD OHNE JEDE AUSDRÜCKLICHE ODER IMPLIZIERTE GARANTIE "
 "BEREITGESTELLT,\n"
-"EINSCHLIEẞLICH DER GARANTIE ZUR BENUTZUNG FÜR DEN VORGESEHENEN ODER EINEM "
+"INSBESONDERE OHNE GARANTIEN DER MARKTGÄNGIGKEIT, DER EIGNUNG FÜR EINEN "
 "BESTIMMTEN ZWECK\n"
-"SOWIE JEGLICHER RECHTSVERLETZUNG, JEDOCH NICHT DARAUF BESCHRÄNKT. IN KEINEM "
-"FALL SIND DIE\n"
+"ODER DER NICHTVERLETZUNG VON RECHTEN DRITTER. IN KEINEM FALL SIND DIE\n"
 "AUTOREN ODER COPYRIGHTINHABER FÜR JEGLICHEN SCHADEN ODER SONSTIGE ANSPRÜCHE "
 "HAFTBAR ZU MACHEN,\n"
 "OB INFOLGE DER ERFÜLLUNG EINES VERTRAGES, EINES DELIKTES ODER ANDERS IM "
@@ -24226,7 +24234,8 @@ msgstr "FreeType: Zeichen-Bitmap abgeschnitten."
 
 #: appParsers/ParseFont.py:1291 appParsers/ParseFont.py:1305
 msgid "Bitmap smoothing needs the image tracing support: %s"
-msgstr "Bitmap-Glättung braucht Bildverfolgung: %s"
+msgstr ""
+"Bitmap-Glättung benötigt Unterstützung für das Nachzeichnen von Bildern: %s"
 
 # auto-review 2026-10-09: corrected
 #: appParsers/ParseGerber.py:906
@@ -25622,7 +25631,7 @@ msgstr "Dicke des abgeschiedenen Kupfers."
 
 #: appPlugins/ToolCalculators/CalculatorUI.py:428
 msgid "Current Value"
-msgstr "Aktueller Wert"
+msgstr "Stromstärke"
 
 # auto-review 2026-10-09: fuzzy corrected
 #: appPlugins/ToolCalculators/CalculatorUI.py:429
@@ -26807,8 +26816,9 @@ msgid ""
 "There is no room for keyed alignment holes on this board. Use a smaller "
 "drill diameter or a larger offset."
 msgstr ""
-"Auf dieser Platine ist kein Platz für verschlüsselte Ausrichtungsbohrungen. "
-"Einen kleineren Bohrerdurchmesser oder einen größeren Versatz verwenden."
+"Auf dieser Platine ist kein Platz für Ausrichtungsbohrungen mit "
+"Verwechslungsschutz. Einen kleineren Bohrerdurchmesser oder einen größeren "
+"Versatz verwenden."
 
 #: appPlugins/ToolDblSided/DblSidedUI.py:34
 msgid "Mirror and align PCB layers and create alignment drills."
@@ -27121,10 +27131,11 @@ msgid ""
 "turned in the Type direction.\n"
 "If unchecked, the operator must turn the board in the Type direction."
 msgstr ""
-"Fügt eine dritte verschlüsselte Bohrung hinzu, damit die Platine nur dann "
-"auf die Stifte passt, wenn sie in Typ-Richtung gewendet wird.\n"
-"Ist dies nicht aktiviert, muss die Bedienperson die Platine in Typ-Richtung "
-"wenden."
+"Fügt eine dritte Bohrung als Verwechslungsschutz hinzu, damit die Platine "
+"nur dann auf die Stifte passt, wenn sie in der unter „Typ“ gewählten "
+"Richtung gewendet wird.\n"
+"Ist dies nicht aktiviert, muss die Bedienperson die Platine in dieser "
+"Richtung wenden."
 
 #: appPlugins/ToolDblSided/DblSidedUI.py:424
 msgid "AutoAlign"
@@ -27654,7 +27665,8 @@ msgstr ""
 "auf die Bewegungshöhe Z (es entfernt die Späne), fährt schnell bis zum\n"
 "Peck-Rückzugsabstand über der vorherigen Tiefe ab und setzt den Vorschub "
 "fort.\n"
-"Ersetzt die Mehrfache Tiefe. Wird von den Laser-Postprozessoren ignoriert."
+"Ersetzt die mehreren Tiefenzustellungen. Wird von den Laser-Postprozessoren "
+"ignoriert."
 
 #: appPlugins/ToolDrilling/DrillingUI.py:475
 msgid ""
@@ -27741,8 +27753,8 @@ msgstr ""
 "Werkzeugwechsel,\n"
 "danach die Bohrwerkzeuge. Benötigt den Werkzeugwechsel: Ohne ihn wird der "
 "Durchgang ausgelassen.\n"
-"Wird von den Laser-Postprozessoren ignoriert. Peck, Mehrfache Tiefe und "
-"Verweilen am Grund\n"
+"Wird von den Laser-Postprozessoren ignoriert. Peck, mehrere "
+"Tiefenzustellungen und Verweilen am Grund\n"
 "gelten dafür nicht."
 
 #: appPlugins/ToolDrilling/DrillingUI.py:762
@@ -29608,7 +29620,7 @@ msgstr "Wählen Sie ein CNCJob-Objekt aus."
 #: appPlugins/ToolGcodeSender/Sender.py:3791
 msgid "The CNCJob has no G-code. Use Update in the CNCJob UI."
 msgstr ""
-"Das CNCJob hat keinen G-Code. Verwenden Sie Aktualisieren in der "
+"Das CNCJob-Objekt hat keinen G-Code. Verwenden Sie Aktualisieren in der "
 "CNCJob-Oberfläche."
 
 # auto-review 2026-10-21: new
@@ -29720,9 +29732,9 @@ msgid ""
 "This height map was imported. It has no machine frame. Is the machine in "
 "the same WCS and zero as when the map was made?"
 msgstr ""
-"Diese Höhenkarte wurde importiert. Sie hat keinen Maschinenrahmen. Befindet "
-"sich die Maschine im gleichen WCS und Nullpunkt wie beim Erstellen der "
-"Karte?"
+"Diese Höhenkarte wurde importiert. Sie hat kein Maschinenkoordinatensystem. "
+"Verwendet die Maschine dasselbe Werkstückkoordinatensystem (WCS) und "
+"denselben Nullpunkt wie beim Erstellen der Karte?"
 
 # auto-review 2026-10-21: new
 #: appPlugins/ToolGcodeSender/Sender.py:4038
@@ -29762,8 +29774,8 @@ msgid ""
 "The machine frame (WCS or work offset) changed after the height map was "
 "made. Probe again."
 msgstr ""
-"Der Maschinenrahmen (WCS oder Werkstückversatz) hat sich nach dem Erstellen "
-"der Höhenkarte geändert. Tasten Sie erneut ab."
+"Das Maschinenkoordinatensystem (WCS oder Nullpunktverschiebung) hat sich "
+"nach dem Erstellen der Höhenkarte geändert. Tasten Sie erneut ab."
 
 # auto-review 2026-10-21: new
 #: appPlugins/ToolGcodeSender/Sender.py:4157
@@ -30518,8 +30530,8 @@ msgstr "Wählen Sie eine Zeile im Programm aus."
 #: appPlugins/ToolGcodeSender/SenderGen.py:66
 msgid "The CNCJob needs a finite, positive travel Z to start from a line."
 msgstr ""
-"Das CNCJob benötigt eine endliche, positive Bewegungshöhe Z (Travel), um ab "
-"einer Zeile zu starten."
+"Das CNCJob-Objekt benötigt eine endliche, positive Bewegungshöhe Z "
+"(Travel), um ab einer Zeile zu starten."
 
 # auto-review 2026-10-21: new
 #: appPlugins/ToolGcodeSender/SenderGen.py:68
@@ -31906,8 +31918,9 @@ msgid ""
 "Distance above the coarse contact, in current units. Must release the probe "
 "without exceeding Probe Z travel."
 msgstr ""
-"Abstand über dem groben Kontakt in aktuellen Einheiten. Die Sonde muss "
-"ausgelöst werden, ohne den Sonden-Z-Weg zu überschreiten."
+"Abstand über dem ersten, groben Tastkontakt in aktuellen Einheiten. Der "
+"Rückzug muss den Tastkontakt lösen, ohne die Sonden-Bewegungshöhe Z zu "
+"überschreiten."
 
 # auto-review 2026-10-09: fuzzy corrected
 #: appPlugins/ToolImage/Image.py:96 appPlugins/ToolImage/ImageUI.py:24
@@ -32426,7 +32439,7 @@ msgstr "Löschen fehlgeschlagen. Wählen Sie ein Werkzeug zum Löschen aus."
 #: appPlugins/ToolPaint/Paint.py:1228
 #: appPlugins/ToolSolderPaste/SolderPaste.py:746
 msgid "Tools deleted from Tool Table."
-msgstr "Aus der Werkzeugtabelle gelöschte Werkzeuge."
+msgstr "Werkzeuge aus der Werkzeugtabelle gelöscht."
 
 #: appPlugins/ToolIsolation/Isolation.py:1978
 #: appPlugins/ToolIsolation/Isolation.py:2968
@@ -32515,7 +32528,7 @@ msgstr "Neues Werkzeug zur Werkzeugtabelle hinzugefügt."
 
 #: appPlugins/ToolIsolation/IsolationUI.py:65
 msgid "Gerber object for isolation routing."
-msgstr "Gerber-Objekt für Isolationsrouting."
+msgstr "Gerber-Objekt für das Isolationsfräsen."
 
 # auto-review 2026-10-09: corrected
 #: appPlugins/ToolIsolation/IsolationUI.py:96 appPlugins/ToolNCC/NccUI.py:137
@@ -32914,8 +32927,8 @@ msgstr "Der Werkzeugdurchmesser muss größer als null sein."
 #: appPlugins/ToolMilling/Milling.py:238
 msgid "Depth per Pass must be above zero when Multi-Depth is on."
 msgstr ""
-"Tiefe pro Durchgang muss größer als null sein, wenn Mehrfache Tiefe aktiv "
-"ist."
+"Tiefe pro Durchgang muss größer als null sein, wenn mehrere "
+"Tiefenzustellungen aktiv sind."
 
 #: appPlugins/ToolMilling/Milling.py:262
 msgid "The tools of this step do not exist anymore."
@@ -33156,8 +33169,8 @@ msgid ""
 "The preprocessor JSON file that dictates\n"
 "Gcode output for Geometry (Milling) Objects."
 msgstr ""
-"Die Präprozessor-JSON-Datei, die die\n"
-"Gcode-Ausgabe für Geometrieobjekte (Fräsen) bestimmt."
+"Die Postprozessor-JSON-Datei, die die\n"
+"G-Code-Ausgabe für Geometrieobjekte (Fräsen) bestimmt."
 
 # auto-review 2026-10-09: fuzzy corrected
 #: appPlugins/ToolMilling/MillingUI.py:1060
@@ -35132,11 +35145,11 @@ msgstr "Das Ziel-Gerber wird bearbeitet. Zuerst den Editor schließen."
 
 #: appPlugins/ToolQRCode/QRCode.py:482
 msgid "The soldermask Gerber was not found. Skipped."
-msgstr "Das Lötstopmasken-Gerber wurde nicht gefunden. Übersprungen."
+msgstr "Das Lötstoppmasken-Gerber wurde nicht gefunden. Übersprungen."
 
 #: appPlugins/ToolQRCode/QRCode.py:485
 msgid "The soldermask Gerber is the target object. Skipped."
-msgstr "Das Lötstopplack-Gerber ist das Zielobjekt. Übersprungen."
+msgstr "Das Lötstoppmasken-Gerber ist das Zielobjekt. Übersprungen."
 
 # auto-review 2026-10-09: corrected
 #: appPlugins/ToolQRCode/QRCode.py:513
@@ -35326,16 +35339,15 @@ msgstr "Wohin der QRCode geschrieben wird."
 
 #: appPlugins/ToolQRCode/QRCodeUI.py:290
 msgid "Soldermask opening"
-msgstr "Lötstopmasken-Öffnung"
+msgstr "Lötstoppmasken-Öffnung"
 
 #: appPlugins/ToolQRCode/QRCodeUI.py:291
 msgid ""
 "Also cut the clearance opening of the QRCode in the Gerber below\n"
 "(a soldermask companion)."
 msgstr ""
-"Auch die Freistellungsöffnung des QRCodes im darunterliegenden Gerber "
-"schneiden\n"
-"(ein Begleiter der Lötstopmaske)."
+"Auch die Freistellungsöffnung des QRCodes im unten gewählten Gerber-Objekt\n"
+"(der zugehörigen Lötstoppmaske) ausschneiden."
 
 #: appPlugins/ToolQRCode/QRCodeUI.py:294
 msgid "Mask Gerber"
@@ -35542,15 +35554,15 @@ msgstr "Abstand Siebdruck zu Siebdruck"
 
 #: appPlugins/ToolRulesCheck/RulesCheckGen.py:487
 msgid "Silk to Solder Mask clearance"
-msgstr "Freistellung Bestückungsdruck zu Lötstopmaske"
+msgstr "Abstand Bestückungsdruck zu Lötstoppmaske"
 
 #: appPlugins/ToolRulesCheck/RulesCheckGen.py:489
 msgid "Silk to Outline clearance"
-msgstr "Freistellung Bestückungsdruck zu Kontur"
+msgstr "Abstand Bestückungsdruck zu Kontur"
 
 #: appPlugins/ToolRulesCheck/RulesCheckGen.py:493
 msgid "Hole to Hole clearance"
-msgstr "Freistellung Loch zu Loch"
+msgstr "Abstand Loch zu Loch"
 
 #: appPlugins/ToolRulesCheck/RulesCheckGen.py:494
 msgid "Minimum Drill Size"
@@ -35615,7 +35627,7 @@ msgstr "Das obere Gerber-Kupferobjekt, für das Regeln überprüft werden."
 #: appPlugins/ToolRulesCheck/RulesCheckUI.py:124
 #: appPlugins/ToolRulesCheck/RulesCheckUI.py:145
 msgid "Solder Mask"
-msgstr "Lötstopmaske"
+msgstr "Lötstoppmaske"
 
 # auto-review 2026-10-09: corrected
 #: appPlugins/ToolRulesCheck/RulesCheckUI.py:125
@@ -35713,7 +35725,7 @@ msgid ""
 "openings."
 msgstr ""
 "Minimal zulässiger Abstand zwischen Bestückungsdruck-Elementen und "
-"Lötstopmasken-Öffnungen."
+"Lötstoppmasken-Öffnungen."
 
 #: appPlugins/ToolRulesCheck/RulesCheckUI.py:285
 msgid ""
@@ -35725,7 +35737,7 @@ msgstr ""
 
 #: appPlugins/ToolRulesCheck/RulesCheckUI.py:304
 msgid "Minimum acceptable width of the solder mask left between two openings."
-msgstr "Minimal zulässige Breite der Lötstopmaske zwischen zwei Öffnungen."
+msgstr "Minimal zulässige Breite der Lötstoppmaske zwischen zwei Öffnungen."
 
 #: appPlugins/ToolRulesCheck/RulesCheckUI.py:323
 msgid "Minimum acceptable wall between the edges of two holes or slots."
@@ -36304,12 +36316,12 @@ msgid ""
 "- Object -> the center of the bounding box of a specific object"
 msgstr ""
 "Referenzpunkt für Drehen, Neigen, Skalieren, Spiegeln.\n"
-"Versatz ohne Referenzpunkt.\n"
-"Optionen:\n"
-"- Ursprung -> 0, 0\n"
-"- Auswahl -> Mitte der Auswahlbegrenzung\n"
-"- Punkt -> X,Y-Koordinaten\n"
-"- Objekt -> Mitte eines Objekts"
+"Versatz verwendet keinen Referenzpunkt.\n"
+"Mögliche Werte:\n"
+"- Ursprung -> Punkt (0, 0)\n"
+"- Auswahl -> Mitte des Begrenzungsrahmens der ausgewählten Objekte\n"
+"- Punkt -> benutzerdefinierte X,Y-Koordinaten\n"
+"- Objekt -> Mitte des Begrenzungsrahmens eines bestimmten Objekts"
 
 #: appPlugins/ToolTransform/TransformUI.py:114
 msgid ""
@@ -36332,8 +36344,9 @@ msgid ""
 "Use the X angle for both axes.\n"
 "The Y entry is ignored while linked and kept for when the link is off."
 msgstr ""
-"X-Winkel für beide Achsen.\n"
-"Y-Eintrag wird bei Verknüpfung ignoriert, sonst gespeichert."
+"X-Winkel für beide Achsen verwenden.\n"
+"Bei aktiver Verknüpfung wird der Y-Eintrag ignoriert und für die spätere "
+"Verwendung ohne Verknüpfung beibehalten."
 
 #: appPlugins/ToolTransform/TransformUI.py:202
 msgid ""
@@ -36370,8 +36383,9 @@ msgid ""
 "Use the X factor for both axes.\n"
 "The Y entry is ignored while linked and kept for when the link is off."
 msgstr ""
-"X-Faktor für beide Achsen.\n"
-"Y-Eintrag wird bei Verknüpfung ignoriert, sonst gespeichert."
+"X-Faktor für beide Achsen verwenden.\n"
+"Bei aktiver Verknüpfung wird der Y-Eintrag ignoriert und für die spätere "
+"Verwendung ohne Verknüpfung beibehalten."
 
 #: appPlugins/ToolTransform/TransformUI.py:277
 msgid ""
@@ -36574,7 +36588,7 @@ msgid ""
 "travel moves: the cut goes through the area."
 msgstr ""
 "Ein Schnittpfad kreuzt einen Sperrbereich. Die Sperrbereiche ändern nur die "
-"Bewegungen: Der Schnitt geht durch den Bereich."
+"Verfahrbewegungen ohne Schnitt: Der Schnitt geht durch den Bereich."
 
 #: camlib.py:3433
 msgid ""
@@ -36636,7 +36650,7 @@ msgstr ""
 
 #: camlib.py:3939
 msgid "Peck drilling is on: it replaces the multidepth."
-msgstr "Pecking-Bohren ist aktiv: Es ersetzt die Mehrfache Tiefe."
+msgstr "Pecking-Bohren ist aktiv: Es ersetzt die mehreren Tiefenzustellungen."
 
 # auto-review 2026-10-09: corrected
 #: camlib.py:4169 camlib.py:4610
@@ -36700,11 +36714,11 @@ msgid ""
 "typo therefore the app will convert the value to positive.Check the "
 "resulting CNC code (Gcode etc)."
 msgstr ""
-"Der Parameter Travel Z hat einen negativen Wert. Dies ist der Höhenwert "
-"zwischen den Schnitten.\n"
-"Der Parameter Z Travel muss einen positiven Wert haben. Wenn es sich um "
-"einen Tippfehler handelt, konvertiert die App den Wert in einen positiven "
-"Wert. Überprüfen Sie den resultierenden CNC-Code (Gcode usw.)."
+"Der Parameter Travel Z hat einen negativen Wert. Er gibt die Verfahrhöhe "
+"zwischen den Schnitten an.\n"
+"Travel Z muss positiv sein. Die Anwendung nimmt einen Tippfehler an und "
+"wandelt den Wert in einen positiven Wert um. Überprüfen Sie den "
+"resultierenden CNC-Code (Gcode usw.)."
 
 # auto-review 2026-10-09: format
 #: camlib.py:4548 camlib.py:5714 camlib.py:6167
@@ -37149,7 +37163,7 @@ msgstr "Ungültige Version, Kästchengröße oder ungültiger Rand."
 
 #: tclCommands/TclCommandQRCode.py:180
 msgid "Serial pad must be 0 or more."
-msgstr "Serien-Pad muss 0 oder mehr sein."
+msgstr "Die Mindestbreite der Seriennummer muss 0 oder größer sein."
 
 #: tclCommands/TclCommandQRCode.py:193
 msgid "Mask pattern must be 0..7 or auto"

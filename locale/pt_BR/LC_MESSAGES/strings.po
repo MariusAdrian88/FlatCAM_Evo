@@ -276,8 +276,8 @@ msgid ""
 "ends too close to the area. Use the 'Over' strategy or change the area."
 msgstr ""
 "Falhou. A ferramenta não consegue contornar uma área de exclusão: um "
-"deslocamento começa ou termina muito perto da área. Use a estratégia 'Over' "
-"ou altere a área."
+"deslocamento começa ou termina muito perto da área. Use a estratégia "
+"'Acima' ou altere a área."
 
 #: appCommon/Common.py:820
 msgid ""
@@ -793,8 +793,8 @@ msgid ""
 "each pass adding a DPP parameter depth."
 msgstr ""
 "Multi-Profundidade.\n"
-"Selecionar isso permite cortar em várias passagens,\n"
-"cada passagem adicionando uma profundidade de parâmetro PPP."
+"Selecionar esta opção permite cortar em vários passes,\n"
+"cada passe acrescentando a profundidade definida em PPP."
 
 #: appDatabase.py:723 appDatabase.py:1262
 msgid "Depth per pass"
@@ -898,7 +898,7 @@ msgid ""
 "The speed on Z plane."
 msgstr ""
 "Velocidade de Avanço Z\n"
-"A velocidade no plano Z."
+"A velocidade no eixo Z."
 
 #: appDatabase.py:818
 msgid "FR Rapids"
@@ -943,7 +943,7 @@ msgstr ""
 #: appPlugins/ToolSolderPaste/SolderPasteUI.py:370
 #: appPlugins/ToolSolderPaste/SolderPasteUI.py:408
 msgid "Dwell"
-msgstr "Esperar Velocidade"
+msgstr "Pausa"
 
 #: appDatabase.py:856 appDatabase.py:1358
 msgid ""
@@ -951,9 +951,9 @@ msgid ""
 "Check this if a delay is needed to allow\n"
 "the spindle motor to reach its set speed."
 msgstr ""
-"Esperar Velocidade.\n"
-"Marque se é necessário um atraso para permitir\n"
-"o motor do spindle atingir a velocidade definida."
+"Pausa.\n"
+"Marque se for necessário um atraso para permitir que\n"
+"o motor do spindle atinja a velocidade definida."
 
 #: appDatabase.py:867 appDatabase.py:1369
 msgid "Dwelltime"
@@ -1446,7 +1446,7 @@ msgid ""
 "Drill depth (negative)\n"
 "below the copper surface."
 msgstr ""
-"Profundidade do furo (negativo)\n"
+"Profundidade do furo (negativa)\n"
 "abaixo da superfície de cobre."
 
 #: appDatabase.py:1230 appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:432
@@ -1491,7 +1491,7 @@ msgstr ""
 #: appPlugins/ToolDrilling/DrillingUI.py:237
 #: appPlugins/ToolMilling/MillingUI.py:709
 msgid "Depth of each pass (positive)."
-msgstr "Profundidade de cada passe (positivo)."
+msgstr "Profundidade de cada passe (positiva)."
 
 #: appDatabase.py:1280 appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:97
 #: appPlugins/ToolDrilling/DrillingUI.py:248
@@ -1599,7 +1599,7 @@ msgid ""
 "Pause at the bottom of every hole, for the Dwelltime.\n"
 "Ignored by the laser preprocessors."
 msgstr ""
-"Pausa no fundo de cada furo, pelo Tempo de Pausa.\n"
+"Pausa no fundo de cada furo, pelo Tempo de Espera.\n"
 "Ignorado pelos pré-processadores de laser."
 
 #: appDatabase.py:1445 appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:212
@@ -1898,8 +1898,8 @@ msgid ""
 "You can edit it after it is added."
 msgstr ""
 "Adiciona uma nova ferramenta ao Banco de Dados de Ferramentas.\n"
-"Será usado na interface do usuário da Geometria.\n"
-"Você pode editar após a adição."
+"Ela será usada na interface de Geometria.\n"
+"Você pode editá-la após a adição."
 
 #: appDatabase.py:1699 appEditors/appExcEditor.py:5624
 #: appEditors/appGerberEditor.py:4148
@@ -2243,7 +2243,7 @@ msgstr "A ferramenta foi copiada do BD."
 
 #: appDatabase.py:2531
 msgid "Tool removed from Tools DB."
-msgstr "Ferramenta(s) excluída(s) do BD."
+msgstr "Ferramenta removida do BD de Ferramentas."
 
 #: appDatabase.py:2541
 msgid ""
@@ -3148,8 +3148,8 @@ msgid ""
 "Tools in this Excellon object\n"
 "when are used for drilling."
 msgstr ""
-"Ferramentas neste objeto Excellon \n"
-"quando são usadas para perfuração."
+"Ferramentas deste objeto Excellon\n"
+"usadas para perfuração."
 
 #: appEditors/appExcEditor.py:6029
 msgid "Convert Slots"
@@ -3599,7 +3599,7 @@ msgstr "Início do G-Code"
 
 #: appEditors/appGCodeEditor.py:738 appObjects/CNCJobObject.py:838
 msgid "Loaded Machine Code into Code Editor"
-msgstr "G-Code aberto no Editor de Códigos"
+msgstr "Código de máquina carregado no Editor de Códigos"
 
 #: appEditors/appGCodeEditor.py:771 appEditors/appTextEditor.py:427
 msgid "Open file"
@@ -4970,8 +4970,8 @@ msgstr "Buffer"
 #: appEditors/grb_plugins/GrbBufferPlugin.py:98
 msgid "Buffer distance value is missing or wrong format. Add it and retry."
 msgstr ""
-"O valor da distância do buffer está ausente ou em formato incorreto. Altere "
-"e tente novamente."
+"O valor da distância do buffer está ausente ou em formato incorreto. "
+"Informe-o e tente novamente."
 
 #: appEditors/appGeoEditor.py:7472
 msgid "Simplify geometry ..."
@@ -5006,7 +5006,7 @@ msgstr "Selecione uma forma para atuar como área de exclusão ..."
 #: appEditors/appGeoEditor.py:7609 appEditors/appGeoEditor.py:7635
 #: appEditors/appGeoEditor.py:7641 appEditors/appGerberEditor.py:2697
 msgid "Click to pick-up the erase shape..."
-msgstr "Clique para pegar a forma a apagar ..."
+msgstr "Clique para selecionar a forma de apagamento..."
 
 #: appEditors/appGeoEditor.py:7639 appEditors/appGerberEditor.py:2739
 msgid "Nothing to erase."
@@ -5062,8 +5062,8 @@ msgstr "O valor digitado está incorreto. Verifique o valor."
 #: appEditors/appGerberEditor.py:537
 msgid "The value is not Float. Check for comma instead of dot separator."
 msgstr ""
-"O valor não é flutuante. Verifique se há uma vírgula em vez do ponto no "
-"separador decimal."
+"O valor não é um número decimal. Verifique se foi usada uma vírgula em vez "
+"de um ponto como separador decimal."
 
 #: appEditors/appGerberEditor.py:738
 msgid "Too many items for the selected spacing angle."
@@ -5102,7 +5102,7 @@ msgstr "Preenchimento de Cobre"
 #: appPlugins/ToolExtract/ExtractUI.py:247
 #: appPlugins/ToolQRCode/QRCodeUI.py:187
 msgid "Clearance"
-msgstr "Espaço"
+msgstr "Folga"
 
 #: appEditors/appGerberEditor.py:1248
 msgid "Editor session or units changed. Reopen Copper Pour."
@@ -5291,8 +5291,8 @@ msgstr "Adicionar abertura"
 #: appEditors/appGerberEditor.py:4467
 msgid "Aperture code value is missing or wrong format. Add it and retry."
 msgstr ""
-"O valor do código de abertura está ausente ou em formato incorreto. Altere "
-"e tente novamente."
+"O valor do código de abertura está ausente ou em formato incorreto. "
+"Informe-o e tente novamente."
 
 # auto-review 2026-10-09: corrected
 #: appEditors/appGerberEditor.py:4489 appEditors/appGerberEditor.py:4528
@@ -5420,7 +5420,7 @@ msgstr "O conteúdo editado não pôde ser salvo. O objeto permanece inalterado.
 msgid ""
 "There are no Aperture definitions in the file. Aborting Gerber creation."
 msgstr ""
-"Não há definições da Abertura no arquivo. Abortando a criação de Gerber."
+"Não há definições de abertura no arquivo. Abortando a criação do Gerber."
 
 #: appEditors/appGerberEditor.py:5888 appHandlers/appIO.py:2972
 #: appHandlers/appIO.py:3060 appHandlers/appIO.py:3353
@@ -5548,8 +5548,8 @@ msgstr "A operação gerou uma geometria inválida. Nada foi alterado."
 #: appEditors/appGerberEditor.py:7780
 msgid "Scale factor value is missing or wrong format. Add it and retry."
 msgstr ""
-"O valor do fator de escala está ausente ou está em formato incorreto. "
-"Altere e tente novamente."
+"O valor do fator de escala está ausente ou em formato incorreto. Informe-o "
+"e tente novamente."
 
 #: appEditors/appGerberEditor.py:7786
 msgid "Scale factor must be finite and positive."
@@ -5663,11 +5663,11 @@ msgid ""
 "calculated as:\n"
 "sqrt(width**2 + height**2)"
 msgstr ""
-"Tamanho para a nova abertura.\n"
-"Se o tipo de abertura for 'R' ou 'O' então\n"
-"este valor será automaticamente\n"
-"calculado como:\n"
-"sqrt(largura^2 + altura^2)"
+"Tamanho da nova abertura.\n"
+"Se o tipo de abertura for 'R' ou 'O', então\n"
+"este valor será calculado\n"
+"automaticamente como:\n"
+"sqrt(width**2 + height**2)"
 
 #: appEditors/appGerberEditor.py:8057
 msgid ""
@@ -7823,8 +7823,8 @@ msgid ""
 "Create the buffer effect on each geometry,\n"
 "element from the selected object, using the distance."
 msgstr ""
-"Crie o efeito de buffer em cada geometria,\n"
-"elemento do objeto selecionado, usando a distância."
+"Cria o efeito de buffer em cada elemento\n"
+"geométrico do objeto selecionado, usando a distância."
 
 # auto-review 2026-10-09: corrected
 #: appEditors/geo_plugins/GeoTransformationPlugin.py:1092
@@ -7857,8 +7857,8 @@ msgid ""
 "Create the buffer effect on each geometry,\n"
 "element from the selected object, using the factor."
 msgstr ""
-"Crie o efeito de buffer em cada geometria,\n"
-"elemento do objeto selecionado, usando o fator."
+"Cria o efeito de buffer em cada elemento\n"
+"geométrico do objeto selecionado, usando o fator."
 
 #: appEditors/grb_plugins/GrbAperturePlugin.py:59
 msgid "Delete unused apertures"
@@ -7930,16 +7930,16 @@ msgid ""
 "The teardrop length must be positive and the width between 0 and 100 "
 "percent."
 msgstr ""
-"O comprimento do teardrop deve ser positivo e a largura entre 0 e 100 por "
-"cento."
+"O comprimento do reforço em gota deve ser positivo e a largura entre 0 e "
+"100 por cento."
 
 #: appEditors/grb_plugins/GrbAutoPlugin.py:255
 msgid "No teardrop could be added."
-msgstr "Nenhum teardrop pôde ser adicionado."
+msgstr "Nenhum reforço em gota pôde ser adicionado."
 
 #: appEditors/grb_plugins/GrbAutoPlugin.py:266
 msgid "{n} teardrops added"
-msgstr "{n} teardrops adicionados"
+msgstr "{n} reforços em gota adicionados"
 
 #: appEditors/grb_plugins/GrbAutoPlugin.py:270
 msgid "Snowman fillets"
@@ -7991,11 +7991,11 @@ msgstr "Suavização de bitmap: número finito não negativo."
 
 #: appEditors/grb_plugins/GrbDrawingPlugin.py:63
 msgid "Enter a valid polygon and finite nonnegative clearance."
-msgstr "Informe um polígono válido e um espaço finito não negativo."
+msgstr "Informe um polígono válido e uma folga finita e não negativa."
 
 #: appEditors/grb_plugins/GrbDrawingPlugin.py:70
 msgid "Clearance exceeds the coordinate range."
-msgstr "O espaço excede o intervalo de coordenadas."
+msgstr "A folga excede o intervalo de coordenadas."
 
 #: appEditors/grb_plugins/GrbDrawingPlugin.py:79
 msgid "Source contains invalid polygon material."
@@ -9109,12 +9109,11 @@ msgid ""
 "from the current position (in some cases, last mouse click position).\n"
 "WARNING: comma is a separator between values."
 msgstr ""
-"O valor do local é uma dupla (x, y).\n"
-"Se a referência for Absoluta, o Salto será na posição (x, y).\n"
-"Se a referência for Relativa, o Salto será na distância (x, y)\n"
-"a partir do ponto de localização atual do mouse \n"
-"(em alguns casos, a posição do último clique do mouse).\n"
-"AVISO: a vírgula é o separador entre os valores."
+"O valor da localização é uma tupla (x,y).\n"
+"Se a referência for Absoluta, o salto será na posição (x,y).\n"
+"Se a referência for Relativa, o salto será à distância (x,y)\n"
+"da posição atual (em alguns casos, a posição do último clique do mouse).\n"
+"AVISO: a vírgula separa os valores."
 
 #: appGUI/GUIElements.py:4929
 msgid "Ctrl+F"
@@ -11061,9 +11060,9 @@ msgid ""
 "out of the first item. In the end press ~X~ key or\n"
 "the toolbar button."
 msgstr ""
-"Por favor, primeiro selecione um item de geometria a ser cortado\n"
-"e em seguida, selecione o item de geometria que será cortado\n"
-"fora do primeiro item. No final, pressione a tecla ~X~ ou\n"
+"Primeiro selecione o item de geometria a ser cortado.\n"
+"Em seguida, selecione o item de geometria que será subtraído\n"
+"do primeiro. Por fim, pressione a tecla ~X~ ou\n"
 "o botão da barra de ferramentas."
 
 #: appGUI/MainGUI.py:3949 appGUI/MainGUI.py:4136 appGUI/MainGUI.py:4186
@@ -11566,7 +11565,7 @@ msgstr "Espaço"
 
 #: appGUI/MainGUI.py:5683
 msgid "En(Dis)able Obj Plot"
-msgstr "Des(h)abilitar Gráfico"
+msgstr "Habilitar/Desabilitar Gráfico do Objeto"
 
 #: appGUI/MainGUI.py:5684 appGUI/MainGUI.py:5899 appGUI/MainGUI.py:6004
 #: appGUI/MainGUI.py:6145
@@ -11817,9 +11816,9 @@ msgid ""
 "geometric features of this object.\n"
 "Expressions are allowed. E.g: 1/25.4"
 msgstr ""
-"Fator pelo qual multiplicar recursos\n"
+"Fator pelo qual multiplicar os elementos\n"
 "geométricos deste objeto.\n"
-"Expressões são permitidas. Por exemplo: 1 / 25.4"
+"Expressões são permitidas. Ex.: 1/25.4"
 
 #: appGUI/ObjectUI.py:123
 msgid "Perform scaling operation."
@@ -12265,7 +12264,7 @@ msgstr ""
 "intenção de uso da ferramenta atual.\n"
 "Pode ser Desbaste, Acabamento ou Isolação.\n"
 "O 'Tipo de Ferramenta' (TF) pode ser circular com 1 a 4 dentes (C1..C4),\n"
-"bola (B) ou em forma de V (V).\n"
+"ponta esférica (B) ou em forma de V (V).\n"
 "Quando a forma em V é selecionada, a entrada 'Tipo' é automaticamente\n"
 "alterada para Isolação, o parâmetro Profundidade de Corte no formulário\n"
 "fica desabilitado e a Profundidade de Corte é calculada automaticamente\n"
@@ -12469,7 +12468,7 @@ msgstr "Autonivelamento"
 #: appGUI/ObjectUI.py:1425 appGUI/preferences/tools/ToolsLevelPrefGroupUI.py:28
 #: appPlugins/ToolLevelling/LevellingUI.py:44
 msgid "Generate CNC Code with auto-levelled paths."
-msgstr "Gera código G com auto nivelamento."
+msgstr "Gera código CNC com caminhos autonivelados."
 
 # auto-review 2026-10-21: new
 #: appGUI/ObjectUI.py:1430 appPlugins/ToolGcodeSender/SenderUI.py:29
@@ -12535,7 +12534,7 @@ msgstr "Cor da Seleção"
 
 #: appGUI/ObjectUI.py:1649
 msgid "Set the selection color when doing text selection."
-msgstr "Define a cor da seleção quando selecionando texto."
+msgstr "Define a cor da seleção de texto."
 
 #: appGUI/ObjectUI.py:1660
 msgid "This selects if the auto completer is enabled in the Document Editor."
@@ -12943,7 +12942,7 @@ msgstr "Tempo de preparo legado (s)"
 # auto-review 2026-10-21: new
 #: appGUI/SolderPasteSettings.py:101
 msgid "Reverse time (s)"
-msgstr "Tempo Decrescente (s)"
+msgstr "Tempo de recuo (s)"
 
 # auto-review 2026-10-21: new
 #: appGUI/SolderPasteSettings.py:133
@@ -13849,7 +13848,7 @@ msgstr "Decimal"
 
 #: appGUI/preferences/excellon/ExcellonExpPrefGroupUI.py:104
 msgid "No-Decimal"
-msgstr "Não Decimal"
+msgstr "Sem ponto decimal"
 
 #: appGUI/preferences/excellon/ExcellonExpPrefGroupUI.py:118
 #: appGUI/preferences/excellon/ExcellonGenPrefGroupUI.py:167
@@ -15256,7 +15255,7 @@ msgid ""
 "Changing this option requires an application restart."
 msgstr ""
 "Padrão usa o estilo de widgets do Qt sem folha de estilos do aplicativo.\n"
-"Personalizado aplica a folha de estilos claro ou escuro do aplicativo.\n"
+"Personalizado aplica a folha de estilos clara ou escura do aplicativo.\n"
 "Alterar esta opção exige reiniciar o aplicativo."
 
 #: appGUI/preferences/general/GeneralGUIPrefGroupUI.py:131
@@ -16041,7 +16040,7 @@ msgstr "Adiciona nova camada."
 
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:407
 msgid "Delete the last layers."
-msgstr "Exclui a última camada."
+msgstr "Exclui as últimas camadas."
 
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:454
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:515
@@ -16491,12 +16490,12 @@ msgstr ""
 #: appGUI/preferences/tools/Tools2ExtractPrefGroupUI.py:125
 #: appPlugins/ToolExtract/ExtractUI.py:134
 msgid "Slots for oblong pads"
-msgstr "Rasgos para pads oblongos"
+msgstr "Ranhuras para pads oblongos"
 
 #: appGUI/preferences/tools/Tools2ExtractPrefGroupUI.py:127
 #: appPlugins/ToolExtract/ExtractUI.py:135
 msgid "An oblong pad gives a slot instead of a round hole."
-msgstr "Um pad oblongo gera um rasgo em vez de um furo redondo."
+msgstr "Um pad oblongo gera uma ranhura em vez de um furo redondo."
 
 #: appGUI/preferences/tools/Tools2ExtractPrefGroupUI.py:155
 #: appGUI/preferences/tools/Tools2PunchGerberPrefGroupUI.py:138
@@ -17056,8 +17055,8 @@ msgid ""
 "or in a positive way (squares are opaque)."
 msgstr ""
 "Escolha a polaridade do QRCode.\n"
-"Pode ser desenhado de forma negativa (os quadrados são claros)\n"
-"ou de maneira positiva (os quadrados são opacos)."
+"Pode ser desenhado de forma negativa (os quadrados são transparentes)\n"
+"ou de forma positiva (os quadrados são opacos)."
 
 #: appGUI/preferences/tools/Tools2QRCodePrefGroupUI.py:131
 #: appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:222
@@ -17080,7 +17079,7 @@ msgid ""
 "file then perhaps the QRCode can be added as negative."
 msgstr ""
 "Escolha o tipo de QRCode a ser criado.\n"
-"Se adicionado a um arquivo Silkscreen Gerber, o QRCode poderá\n"
+"Se adicionado a um arquivo Gerber de serigrafia, o QRCode poderá\n"
 "ser adicionado como positivo. Se for adicionado a um arquivo Gerber\n"
 "de cobre, talvez o QRCode possa ser adicionado como negativo."
 
@@ -17278,16 +17277,16 @@ msgstr "Regras"
 #: appGUI/preferences/tools/Tools2RulesCheckPrefGroupUI.py:42
 #: appPlugins/ToolRulesCheck/RulesCheckUI.py:223
 msgid "Trace Size"
-msgstr "Tamanho do Traçado"
+msgstr "Largura da Trilha"
 
 #: appGUI/preferences/tools/Tools2RulesCheckPrefGroupUI.py:44
 #: appPlugins/ToolRulesCheck/RulesCheckUI.py:224
 msgid "This checks if the minimum size for traces is met."
-msgstr "Verifica se o tamanho mínimo para traçados é atendido."
+msgstr "Verifica se a largura mínima das trilhas é atendida."
 
 #: appGUI/preferences/tools/Tools2RulesCheckPrefGroupUI.py:51
 msgid "Minimum acceptable trace size."
-msgstr "Mínimo tamanho de traçado aceito."
+msgstr "Largura mínima aceitável da trilha."
 
 #: appGUI/preferences/tools/Tools2RulesCheckPrefGroupUI.py:63
 #: appPlugins/ToolRulesCheck/RulesCheckGen.py:483
@@ -17386,7 +17385,7 @@ msgstr "Serigrafia"
 #: appGUI/preferences/tools/Tools2RulesCheckPrefGroupUI.py:163
 #: appPlugins/ToolRulesCheck/RulesCheckUI.py:268
 msgid "Silk to Silk Clearance"
-msgstr "Espaço Silk-Silk"
+msgstr "Folga Serigrafia-Serigrafia"
 
 # auto-review 2026-10-09: corrected
 #: appGUI/preferences/tools/Tools2RulesCheckPrefGroupUI.py:165
@@ -17395,13 +17394,13 @@ msgid ""
 "This checks if the minimum clearance between silkscreen\n"
 "features and silkscreen features is met."
 msgstr ""
-"Verifica se o espaço mínimo entre elementos de silkscreen\n"
-"é atendido."
+"Verifica se a folga mínima entre elementos de serigrafia\n"
+"é atendida."
 
 #: appGUI/preferences/tools/Tools2RulesCheckPrefGroupUI.py:185
 #: appPlugins/ToolRulesCheck/RulesCheckUI.py:275
 msgid "Silk to Solder Mask Clearance"
-msgstr "Espaço Silk-Máscara de Solda"
+msgstr "Folga Serigrafia-Máscara de Solda"
 
 # auto-review 2026-10-09: corrected
 #: appGUI/preferences/tools/Tools2RulesCheckPrefGroupUI.py:187
@@ -17410,13 +17409,13 @@ msgid ""
 "This checks if the minimum clearance between silkscreen\n"
 "features and soldermask features is met."
 msgstr ""
-"Verifica se o espaço mínimo entre elementos de silkscreen\n"
-"e de máscara de solda é atendido."
+"Verifica se a folga mínima entre elementos de serigrafia\n"
+"e de máscara de solda é atendida."
 
 #: appGUI/preferences/tools/Tools2RulesCheckPrefGroupUI.py:207
 #: appPlugins/ToolRulesCheck/RulesCheckUI.py:282
 msgid "Silk to Outline Clearance"
-msgstr "Espaço Silk-Contorno"
+msgstr "Folga Serigrafia-Contorno"
 
 # auto-review 2026-10-09: corrected
 #: appGUI/preferences/tools/Tools2RulesCheckPrefGroupUI.py:209
@@ -17425,8 +17424,8 @@ msgid ""
 "This checks if the minimum clearance between silk\n"
 "features and the outline is met."
 msgstr ""
-"Verifica se o espaço mínimo entre elementos de silkscreen\n"
-"e o contorno é atendido."
+"Verifica se a folga mínima entre elementos de serigrafia\n"
+"e o contorno é atendida."
 
 #: appGUI/preferences/tools/Tools2RulesCheckPrefGroupUI.py:231
 #: appPlugins/ToolRulesCheck/RulesCheckUI.py:96
@@ -17697,7 +17696,7 @@ msgstr ""
 
 #: appGUI/preferences/tools/ToolsCalculatorsPrefGroupUI.py:87
 msgid "ElectroPlating Calculator"
-msgstr "Calculadora Eletrolítica"
+msgstr "Calculadora de Galvanoplastia"
 
 # auto-review 2026-10-09: corrected
 #: appGUI/preferences/tools/ToolsCalculatorsPrefGroupUI.py:89
@@ -17744,8 +17743,8 @@ msgid ""
 "Current density to pass through the board. \n"
 "In Amps per Square Feet ASF."
 msgstr ""
-"Densidade de corrente para passar pela placa.\n"
-"Em Ampères por Pés Quadrados ASF."
+"Densidade de corrente aplicada à placa.\n"
+"Em ampères por pé quadrado (ASF)."
 
 #: appGUI/preferences/tools/ToolsCalculatorsPrefGroupUI.py:148
 #: appPlugins/ToolCalculators/CalculatorUI.py:398
@@ -18067,7 +18066,7 @@ msgid ""
 "Pause at the bottom of every hole, for the Dwell Time above.\n"
 "Ignored by the laser preprocessors."
 msgstr ""
-"Pausa no fundo de cada furo, pelo Tempo de Pausa acima.\n"
+"Pausa no fundo de cada furo, pelo Tempo de Espera acima.\n"
 "Ignorado pelos pré-processadores de laser."
 
 #: appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:228
@@ -18610,7 +18609,7 @@ msgstr "Deslocamento Manual"
 
 #: appGUI/preferences/tools/ToolsEtchPrefGroupUI.py:76
 msgid "Etch factor"
-msgstr "Fator Etch"
+msgstr "Fator de corrosão"
 
 #: appGUI/preferences/tools/ToolsEtchPrefGroupUI.py:78
 msgid ""
@@ -18877,9 +18876,9 @@ msgid ""
 "Create a Geometry object that follows the centerlines of the\n"
 "Gerber traces: one single-pass path per trace, no copper outline."
 msgstr ""
-"Cria um objeto Geometry que segue as linhas centrais das\n"
-"trilhas do Gerber: um único caminho de passada única por trilha, sem o "
-"contorno do cobre."
+"Cria um objeto Geometria que segue as linhas centrais das\n"
+"trilhas do Gerber: um caminho de passada única por trilha, sem o contorno "
+"do cobre."
 
 #: appGUI/preferences/tools/ToolsFollowPrefGroupUI.py:41
 msgid ""
@@ -19113,7 +19112,7 @@ msgstr "Com que frequência o enviador pede ao GRBL um relatório de status."
 
 #: appGUI/preferences/tools/ToolsGrblSenderPrefGroupUI.py:180
 msgid "Tool-change touchplate"
-msgstr "Placa de troca de ferramenta"
+msgstr "Placa de toque da troca de ferramenta"
 
 #: appGUI/preferences/tools/ToolsGrblSenderPrefGroupUI.py:182
 msgid ""
@@ -19336,7 +19335,7 @@ msgstr "Parâmetros comuns a todas as ferramentas."
 #: appPlugins/ToolIsolation/IsolationUI.py:466 appPlugins/ToolNCC/NccUI.py:495
 #: appPlugins/ToolPaint/PaintUI.py:414
 msgid "Rest Machining"
-msgstr "Usinagem em Repouso"
+msgstr "Usinagem de Material Restante"
 
 # auto-review 2026-10-09: new
 #: appGUI/preferences/tools/ToolsISOPrefGroupUI.py:264
@@ -19425,7 +19424,7 @@ msgstr ""
 "ficam tiras e triângulos de cobre, não importa quantos passes sejam "
 "feitos.\n"
 "Quando marcada, mais um caminho ao longo de cada um deles os limpa.\n"
-"Isolação completa com passes combinados (não usinagem em repouso)."
+"Isolação completa com passes combinados (não usinagem de material restante)."
 
 #: appGUI/preferences/tools/ToolsISOPrefGroupUI.py:325
 #: appPlugins/ToolIsolation/IsolationUI.py:576
@@ -19717,8 +19716,8 @@ msgid ""
 "this value is the power of laser."
 msgstr ""
 "Velocidade do spindle em RPM (opcional).\n"
-"Se o pós-processador LASER é usado,\n"
-"este valor é a potência do laser."
+"Se o pré-processador LASER for usado,\n"
+"este valor será a potência do laser."
 
 # auto-review 2026-10-09: corrected
 #: appGUI/preferences/tools/ToolsMillPrefGroupUI.py:270
@@ -19939,9 +19938,9 @@ msgid ""
 "with the same tools.\n"
 "Not used by 'Polygon Selection', which paints the object in the combobox."
 msgstr ""
-"Pinta todos os objetos Geometry e Gerber selecionados na aba Projeto, cada "
+"Pinta todos os objetos Geometria e Gerber selecionados na aba Projeto, cada "
 "um com as mesmas ferramentas.\n"
-"Não usado por 'Seleção de Polígono', que pinta o objeto na caixa de "
+"Não usado por 'Seleção de Polígonos', que pinta o objeto na caixa de "
 "combinação."
 
 #: appGUI/preferences/tools/ToolsPanelizePrefGroupUI.py:21
@@ -20572,7 +20571,7 @@ msgstr "Falha. Selecione um Objeto de Geometria e tente novamente."
 
 #: appHandlers/appEdit.py:467 appHandlers/appEdit.py:504
 msgid "Expected a GeometryObject, got"
-msgstr "Geometria FlatCAM esperada, recebido"
+msgstr "Esperado um GeometryObject, recebido"
 
 #: appHandlers/appEdit.py:470
 msgid "Convert to MultiGeo"
@@ -21767,9 +21766,7 @@ msgstr "Tradutor"
 
 #: appHandlers/appUIActions.py:444
 msgid "This program is %s and free in a very wide meaning of the word."
-msgstr ""
-"Este programa é %s e gratuito, com um significado muito\n"
-"amplo da palavra."
+msgstr "Este programa é %s e livre em um sentido muito amplo da palavra."
 
 #: appHandlers/appUIActions.py:445
 msgid "Yet it cannot evolve without <b>contributions</b>."
@@ -21781,7 +21778,7 @@ msgstr "Se você quiser ver esse aplicativo crescer e se tornar cada vez melhor"
 
 #: appHandlers/appUIActions.py:447
 msgid "you can <b>contribute</b> to the development yourself by:"
-msgstr "você pode <b>contribuir</b> para o desenvolvimento por:"
+msgstr "você pode <b>contribuir</b> para o desenvolvimento com:"
 
 #: appHandlers/appUIActions.py:448
 msgid "Pull Requests on the GitHub repository, if you are a developer"
@@ -22502,7 +22499,9 @@ msgstr "Script já está em execução."
 
 #: appMain.py:4690
 msgid "Timed-out script work is still running; changes are not rolled back."
-msgstr "Script expirado ainda executa; alterações não serão desfeitas."
+msgstr ""
+"O trabalho do script cujo tempo limite expirou ainda está em execução; as "
+"alterações não foram desfeitas."
 
 #: appObjects/AppObject.py:275
 msgid "Aborted. The object was not created."
@@ -22765,13 +22764,11 @@ msgstr "Selecione uma ou mais ferramentas da lista e tente novamente."
 # auto-review 2026-10-09: corrected
 #: appObjects/ExcellonObject.py:1118
 msgid "Milling tool for DRILLS is larger than hole size. Cancelled."
-msgstr ""
-"A ferramenta fresa para FUROS é maior que o tamanho do furo. Cancelado."
+msgstr "A fresa para FUROS é maior que o tamanho do furo. Cancelado."
 
 #: appObjects/ExcellonObject.py:1174
 msgid "Milling tool for SLOTS is larger than hole size. Cancelled."
-msgstr ""
-"A ferramenta fresa para RANHURAS é maior que o tamanho do furo. Cancelado."
+msgstr "A fresa para RANHURAS é maior que o tamanho do furo. Cancelado."
 
 #: appObjects/ExcellonObject.py:1520
 msgid "Excellon join: duplicate holes removed"
@@ -23169,8 +23166,8 @@ msgid ""
 "the object has clear (negative polarity) features, the polarity can not be "
 "composed again"
 msgstr ""
-"o objeto tem elementos claros (polaridade negativa); a polaridade não pode "
-"ser composta novamente"
+"o objeto tem elementos de polaridade negativa (clear); a polaridade não "
+"pode ser composta novamente"
 
 # auto-review 2026-10-21: new
 #: appParsers/ParseGerber.py:3307
@@ -23381,8 +23378,8 @@ msgstr ""
 #: appPlugins/Common/grbl/grbl_client.py:1383
 msgid "Contact or precision retract is outside the depth/clearance limits."
 msgstr ""
-"O recolhimento de contato ou de precisão está fora dos limites de "
-"profundidade/espaço."
+"O contato ou o recuo de precisão está fora dos limites de profundidade e "
+"altura de segurança."
 
 # auto-review 2026-10-09: new
 #: appPlugins/Common/grbl/grbl_client.py:1414
@@ -23604,7 +23601,7 @@ msgstr "outro sistema de coordenadas ou origem de trabalho"
 # auto-review 2026-10-21: new
 #: appPlugins/Common/levelling_core.py:1263
 msgid "cutter compensation"
-msgstr "compensação do cortador"
+msgstr "compensação da ferramenta de corte"
 
 # auto-review 2026-10-21: new
 #: appPlugins/Common/levelling_core.py:1263
@@ -23662,8 +23659,8 @@ msgstr ""
 msgid ""
 "Moves with cutter radius compensation (G41/G42) were not height-compensated"
 msgstr ""
-"Movimentos com compensação de raio do cortador (G41/G42) não foram "
-"compensados em altura"
+"Movimentos com compensação de raio da ferramenta de corte (G41/G42) não "
+"foram compensados em altura"
 
 # auto-review 2026-10-21: new
 #: appPlugins/Common/levelling_core.py:1315
@@ -24569,7 +24566,7 @@ msgstr "O objeto Gerber não tem geometria de cobre."
 
 #: appPlugins/ToolCopperThieving/CopperThieving.py:289
 msgid "The robber bar thickness must be positive."
-msgstr "A espessura da barra de robber deve ser positiva."
+msgstr "A espessura da barra deve ser positiva."
 
 #: appPlugins/ToolCopperThieving/CopperThieving.py:292
 #: appPlugins/ToolCopperThieving/CopperThieving.py:522
@@ -26833,7 +26830,7 @@ msgstr "Pads"
 
 #: appPlugins/ToolExtract/Extract.py:410
 msgid "Another Extract run is still working."
-msgstr "Outra execução do Extração ainda está em andamento."
+msgstr "Outra execução da Extração ainda está em andamento."
 
 #: appPlugins/ToolExtract/Extract.py:419
 msgid "The source object is not a Geometry."
@@ -26854,7 +26851,7 @@ msgstr "Ative pelo menos um tipo de pad."
 #: appPlugins/ToolExtract/Extract.py:522 appPlugins/ToolExtract/Extract.py:525
 #: tclCommands/TclCommandExtract.py:154
 msgid "Extract failed"
-msgstr "O Extração falhou"
+msgstr "A Extração falhou"
 
 #: appPlugins/ToolExtract/Extract.py:530
 msgid "No aperture matches the selected pad types."
@@ -27049,8 +27046,8 @@ msgid ""
 "No Excellon object selected. Load an object for punching reference and "
 "retry."
 msgstr ""
-"Nenhum objeto Excellon selecionado. Carregue um objeto para referência de "
-"perfuração manual e tente novamente."
+"Nenhum objeto Excellon selecionado. Carregue um objeto de referência para "
+"os furos e tente novamente."
 
 #: appPlugins/ToolFilm/Film.py:305
 #: appPlugins/ToolPunchGerber/PunchGerber.py:393
@@ -27132,7 +27129,7 @@ msgstr ""
 
 #: appPlugins/ToolFilm/FilmUI.py:246
 msgid "Punch drill holes"
-msgstr "Furar manualmente"
+msgstr "Criar furos de perfuração"
 
 #: appPlugins/ToolFilm/FilmUI.py:247
 msgid ""
@@ -27161,7 +27158,7 @@ msgstr "Remove a geometria do Excellon do filme para criar os furos nos pads."
 
 #: appPlugins/ToolFilm/FilmUI.py:275
 msgid "Punch Size"
-msgstr "Tamanho do Perfurador"
+msgstr "Diâmetro do Furo"
 
 #: appPlugins/ToolFilm/FilmUI.py:276
 msgid "The value here will control how big is the punch hole in the pads."
@@ -27220,19 +27217,19 @@ msgstr "A área selecionada não contém caminhos."
 
 #: appPlugins/ToolFollow/Follow.py:398
 msgid "Failed to create Follow Geometry"
-msgstr "Falha ao criar a Geometry Seguir"
+msgstr "Falha ao criar a Geometria Seguir"
 
 #: appPlugins/ToolFollow/Follow.py:407
 msgid ""
 "Created %(count)d of %(total)d Follow Geometry objects: %(names)s. Failed: "
 "%(failed)s."
 msgstr ""
-"Criados %(count)d de %(total)d objetos Geometry Seguir: %(names)s. "
+"Criados %(count)d de %(total)d objetos Geometria Seguir: %(names)s. "
 "Falharam: %(failed)s."
 
 #: appPlugins/ToolFollow/Follow.py:412
 msgid "Created %(count)d Follow Geometry object(s): %(names)s."
-msgstr "Criados %(count)d objetos Geometry Seguir: %(names)s."
+msgstr "Criados %(count)d objetos Geometria Seguir: %(names)s."
 
 #: appPlugins/ToolFollow/Follow.py:434
 msgid "There are no paths to follow."
@@ -27254,9 +27251,9 @@ msgid ""
 "are followed.\n"
 "The Gerber object is not changed."
 msgstr ""
-"Cria um objeto Geometry ao longo da linha central das trilhas e caminhos do "
-"Gerber.\n"
-"Os pads (flashes) são ignorados, somente trilhas, arcos e contornos de "
+"Cria um objeto Geometria ao longo da linha central das trilhas e caminhos "
+"do Gerber.\n"
+"Os pads (flashes) são ignorados; somente trilhas, arcos e contornos de "
 "regiões são seguidos.\n"
 "O objeto Gerber não é alterado."
 
@@ -27271,7 +27268,7 @@ msgstr ""
 "O objeto Gerber a ser seguido.\n"
 "Quando objetos Gerber estão selecionados na aba Projeto, cada objeto "
 "selecionado é seguido,\n"
-"cada um em seu próprio novo objeto Geometry. Caso contrário, o objeto "
+"cada um em seu próprio novo objeto Geometria. Caso contrário, o objeto "
 "escolhido aqui é seguido."
 
 #: appPlugins/ToolFollow/FollowUI.py:80
@@ -27295,7 +27292,7 @@ msgid ""
 "  with the same size are in the same tool. The regions use the Mill default "
 "diameter."
 msgstr ""
-"O diâmetro das ferramentas no novo objeto Geometry.\n"
+"O diâmetro das ferramentas no novo objeto Geometria.\n"
 "- Padrão da fresa: uma ferramenta, o diâmetro das preferências de "
 "Fresamento.\n"
 "- Tamanho da abertura: uma ferramenta para cada tamanho de abertura; os "
@@ -28065,7 +28062,8 @@ msgstr "Gravando e verificando o offset de trabalho..."
 
 #: appPlugins/ToolGcodeSender/Sender.py:3192
 msgid "The plate is removed. The board Z zero is ready for the job."
-msgstr "A placa foi removida. O zero Z da placa está pronto para o trabalho."
+msgstr ""
+"A placa de toque foi removida. O zero Z da PCB está pronto para o trabalho."
 
 #: appPlugins/ToolGcodeSender/Sender.py:3198
 msgid "The tool-change reference was discarded."
@@ -28113,8 +28111,8 @@ msgid ""
 "Board Z zero set to the plate thickness. Remove the plate from the PCB, "
 "then confirm."
 msgstr ""
-"Zero Z da placa definido pela espessura da placa. Remova a placa da PCB e "
-"confirme."
+"Zero Z da PCB definido pela espessura da placa de toque. Remova a placa de "
+"toque da PCB e confirme."
 
 # auto-review 2026-10-21: new
 #: appPlugins/ToolGcodeSender/Sender.py:3287
@@ -28255,9 +28253,9 @@ msgid ""
 "feed, and a positive retract within the depth-to-clearance range. Use "
 "probing limits representable to four decimal places."
 msgstr ""
-"A sondagem de precisão precisa de um avanço fino positivo não maior que o "
-"avanço grosso, e um recolhimento positivo dentro da faixa "
-"profundidade-espaço. Use limites de sondagem representáveis com quatro "
+"A sondagem de precisão exige um avanço de precisão positivo não maior que o "
+"avanço inicial, e um recuo positivo entre os limites de profundidade e "
+"altura de segurança. Use limites de sondagem representáveis com quatro "
 "casas decimais."
 
 # auto-review 2026-10-21: new
@@ -28384,8 +28382,9 @@ msgid ""
 "This height map was imported. It has no machine frame. Is the machine in "
 "the same WCS and zero as when the map was made?"
 msgstr ""
-"Este mapa de altura foi importado. Ele não tem quadro de máquina. A máquina "
-"está no mesmo WCS e zero de quando o mapa foi feito?"
+"Este mapa de altura foi importado. Ele não tem sistema de coordenadas da "
+"máquina. A máquina está no mesmo WCS e com o mesmo zero de quando o mapa "
+"foi feito?"
 
 # auto-review 2026-10-21: new
 #: appPlugins/ToolGcodeSender/Sender.py:4038
@@ -28425,8 +28424,8 @@ msgid ""
 "The machine frame (WCS or work offset) changed after the height map was "
 "made. Probe again."
 msgstr ""
-"O quadro da máquina (WCS ou deslocamento de trabalho) mudou depois que o "
-"mapa de altura foi feito. Sonde novamente."
+"O sistema de coordenadas da máquina (WCS ou deslocamento de trabalho) mudou "
+"depois que o mapa de altura foi feito. Sonde novamente."
 
 # auto-review 2026-10-21: new
 #: appPlugins/ToolGcodeSender/Sender.py:4157
@@ -28846,8 +28845,8 @@ msgstr "Erro da câmera"
 msgid ""
 "Free name of this pin (at most %d characters). It is only shown in Live I/O."
 msgstr ""
-"Nome livre deste pino (no máximo %d caracteres). É mostrado somente no Live "
-"I/O."
+"Nome livre deste pino (no máximo %d caracteres). É mostrado somente em E/S "
+"ao vivo."
 
 # auto-review 2026-10-21: new
 #: appPlugins/ToolGcodeSender/SenderEcutIO.py:135
@@ -29301,8 +29300,9 @@ msgid ""
 "Axis values use the sender's linear mm convention, including A. Soft limits "
 "use machine coordinates, not the work zero."
 msgstr ""
-"Os valores dos eixos usam a convenção linear em mm do sender, incluindo A. "
-"Os limites suaves usam coordenadas da máquina, não o zero de trabalho."
+"Os valores dos eixos usam a convenção linear em mm do enviador, incluindo "
+"A. Os limites por software usam coordenadas da máquina, não o zero de "
+"trabalho."
 
 # auto-review 2026-10-21: new
 #: appPlugins/ToolGcodeSender/SenderMotion.py:165
@@ -29342,7 +29342,7 @@ msgstr "Usar aceleração para desaceleração"
 # auto-review 2026-10-21: new
 #: appPlugins/ToolGcodeSender/SenderMotion.py:190
 msgid "Enable soft limits"
-msgstr "Ativar limites suaves"
+msgstr "Ativar limites por software"
 
 # auto-review 2026-10-21: new
 #: appPlugins/ToolGcodeSender/SenderMotion.py:206
@@ -29356,7 +29356,7 @@ msgstr ""
 # auto-review 2026-10-21: new
 #: appPlugins/ToolGcodeSender/SenderMotion.py:209
 msgid "Soft limit tolerance (mm)"
-msgstr "Tolerância do limite suave (mm)"
+msgstr "Tolerância dos limites por software (mm)"
 
 # auto-review 2026-10-21: new
 #: appPlugins/ToolGcodeSender/SenderMotion.py:210
@@ -29381,7 +29381,7 @@ msgstr "Deslocamento Z (mm)"
 # auto-review 2026-10-21: new
 #: appPlugins/ToolGcodeSender/SenderMotion.py:220
 msgid "Set soft limits from bed size"
-msgstr "Definir limites suaves pelo tamanho da mesa"
+msgstr "Definir limites por software pelo tamanho da mesa"
 
 # auto-review 2026-10-21: new
 #: appPlugins/ToolGcodeSender/SenderMotion.py:221
@@ -29428,7 +29428,8 @@ msgstr "Digite um tamanho maior que 0 para: %s."
 # auto-review 2026-10-21: new
 #: appPlugins/ToolGcodeSender/SenderMotion.py:258
 msgid "Soft limits are pending. Click Apply to save them."
-msgstr "Os limites suaves estão pendentes. Clique em Aplicar para salvá-los."
+msgstr ""
+"Os limites por software estão pendentes. Clique em Aplicar para salvá-los."
 
 # auto-review 2026-10-21: new
 #: appPlugins/ToolGcodeSender/SenderMotion.py:275
@@ -30051,7 +30052,8 @@ msgstr ""
 "4. Após uma troca de ferramenta, mova sobre a mesma placa e pressione "
 "'Medir nova ferramenta'.\n"
 "5. Pressione 'Aplicar correção Z'.\n"
-"A máquina deve estar em home e com a posição conhecida antes de começar."
+"A máquina deve estar referenciada e com a posição conhecida antes de "
+"começar."
 
 #: appPlugins/ToolGcodeSender/SenderToolChangeUI.py:33
 msgid ""
@@ -30067,7 +30069,8 @@ msgstr ""
 "2. Pressione 'Medir com placa'.\n"
 "3. Pressione 'Aplicar zero Z'.\n"
 "4. Remova a placa e confirme.\n"
-"A máquina deve estar em home e com a posição conhecida antes de começar."
+"A máquina deve estar referenciada e com a posição conhecida antes de "
+"começar."
 
 #: appPlugins/ToolGcodeSender/SenderToolChangeUI.py:41
 msgid ""
@@ -30155,12 +30158,12 @@ msgid ""
 "The board Z zero was set. Remove the plate, then confirm that it is off the "
 "PCB."
 msgstr ""
-"O zero Z da placa foi definido. Remova a placa e confirme que ela está fora "
-"da PCB."
+"O zero Z da PCB foi definido. Remova a placa de toque e confirme que ela "
+"está fora da PCB."
 
 #: appPlugins/ToolGcodeSender/SenderToolChangeUI.py:157
 msgid "The board Z zero is set and the plate is removed."
-msgstr "O zero Z da placa está definido e a placa foi removida."
+msgstr "O zero Z da PCB está definido e a placa de toque foi removida."
 
 #: appPlugins/ToolGcodeSender/SenderToolChangeUI.py:160
 msgid ""
@@ -30442,7 +30445,7 @@ msgstr "Ocioso"
 # auto-review 2026-10-21: new
 #: appPlugins/ToolGcodeSender/SenderUI.py:581
 msgid "Overrides"
-msgstr "Sobreposições"
+msgstr "Ajustes em Tempo Real"
 
 # auto-review 2026-10-21: new
 #: appPlugins/ToolGcodeSender/SenderUI.py:585
@@ -30457,7 +30460,7 @@ msgstr "Rápido"
 # auto-review 2026-10-21: new
 #: appPlugins/ToolGcodeSender/SenderUI.py:603
 msgid "Save the G-code that the sender streams, after the levelling."
-msgstr "Salve o G-code que o sender envia, após o nivelamento."
+msgstr "Salva o G-Code enviado pelo enviador após o nivelamento."
 
 # auto-review 2026-10-21: new
 #: appPlugins/ToolGcodeSender/SenderUI.py:606
@@ -30519,8 +30522,8 @@ msgid ""
 "GRBL only: retract after the coarse touch and probe again at the fine feed. "
 "Only the second measurement is used."
 msgstr ""
-"Somente GRBL: recua após o toque grosso e sonda novamente no avanço fino. "
-"Somente a segunda medição é usada."
+"Somente GRBL: recua após o toque inicial e sonda novamente com o avanço de "
+"precisão. Somente a segunda medição é usada."
 
 # auto-review 2026-10-21: new
 #: appPlugins/ToolGcodeSender/SenderUI.py:653
@@ -30538,8 +30541,8 @@ msgid ""
 "Distance above the coarse contact, in current units. Must release the probe "
 "without exceeding Probe Z travel."
 msgstr ""
-"Distância acima do contato grosso, nas unidades atuais. Deve soltar a sonda "
-"sem exceder a Altura Z da Sonda."
+"Distância acima do contato inicial, nas unidades atuais. Deve liberar o "
+"contato da sonda sem exceder a Altura Z da Sonda."
 
 #: appPlugins/ToolImage/Image.py:96 appPlugins/ToolImage/ImageUI.py:24
 msgid "Image Import"
@@ -30891,7 +30894,7 @@ msgstr "A área na qual o cobre é invertido."
 
 #: appPlugins/ToolInvertGerber/InvertGerberUI.py:94
 msgid "The type of the reference object: Gerber or Geometry."
-msgstr "O tipo do objeto de referência: Gerber ou Geometry."
+msgstr "O tipo do objeto de referência: Gerber ou Geometria."
 
 #: appPlugins/ToolInvertGerber/InvertGerberUI.py:132
 msgid "Parameters for this tool"
@@ -31330,7 +31333,7 @@ msgstr "Autonivelamento concluído."
 
 #: appPlugins/ToolLevelling/LevellingUI.py:64
 msgid "CNCJob source object to be levelled."
-msgstr "Objeto de origem TrabalhoCNC a ser nivelado."
+msgstr "Objeto de origem Trabalho CNC a ser nivelado."
 
 #: appPlugins/ToolLevelling/LevellingUI.py:109
 msgid "Save Probing GCode"
@@ -31533,8 +31536,8 @@ msgid ""
 "Negative value. The higher the absolute value\n"
 "the stronger the pressure of the brush on the material."
 msgstr ""
-"Valor negativo. Quanto maior o valor absoluto\n"
-"mais forte é a pressão do pincel no material."
+"Valor negativo. Quanto maior o valor absoluto,\n"
+"maior a pressão da escova sobre o material."
 
 #: appPlugins/ToolMilling/Milling.py:2160
 #: appPlugins/ToolMilling/Milling.py:2257
@@ -32064,7 +32067,7 @@ msgid ""
 "until either there are no longer selected tools or all the copper features "
 "are processed."
 msgstr ""
-"Se marcado, usa 'Usinagem em Repouso' (rest machining).\n"
+"Se marcado, usa 'Usinagem de Material Restante' (rest machining).\n"
 "Os elementos de cobre serão processados começando pela maior ferramenta "
 "selecionada.\n"
 "O que não puder ser processado passará para a próxima ferramenta menor e "
@@ -32343,7 +32346,7 @@ msgstr "O objeto selecionado não é um objeto Gerber ou Geometria."
 
 #: appPlugins/ToolPaint/Paint.py:1595 appPlugins/ToolPaint/PaintGen.py:189
 msgid "Select Geometry or Gerber objects in the Project tab."
-msgstr "Selecione objetos Geometry ou Gerber na aba Projeto."
+msgstr "Selecione objetos Geometria ou Gerber na aba Projeto."
 
 #: appPlugins/ToolPaint/Paint.py:1610
 msgid ""
@@ -34007,7 +34010,7 @@ msgstr "Tamanho da trilha"
 
 #: appPlugins/ToolRulesCheck/RulesCheckGen.py:486
 msgid "Silk to Silk clearance"
-msgstr "Espaço Silk Silk"
+msgstr "Folga serigrafia-serigrafia"
 
 #: appPlugins/ToolRulesCheck/RulesCheckGen.py:487
 msgid "Silk to Solder Mask clearance"
@@ -34091,7 +34094,7 @@ msgstr "Máscara de Solda Superior para verificar regras."
 
 #: appPlugins/ToolRulesCheck/RulesCheckUI.py:127
 msgid "The Top Gerber Silkscreen object for which rules are checked."
-msgstr "Silkscreen Superior para verificar regras."
+msgstr "Objeto Gerber de serigrafia superior para verificar regras."
 
 # auto-review 2026-10-09: corrected
 #: appPlugins/ToolRulesCheck/RulesCheckUI.py:143
@@ -34104,7 +34107,7 @@ msgstr "Máscara de Solda Inferior para verificar regras."
 
 #: appPlugins/ToolRulesCheck/RulesCheckUI.py:149
 msgid "The Bottom Gerber Silkscreen object for which rules are checked."
-msgstr "Silkscreen Inferior para verificar regras."
+msgstr "Objeto Gerber de serigrafia inferior para verificar regras."
 
 #: appPlugins/ToolRulesCheck/RulesCheckUI.py:165
 msgid "The Gerber Outline (Cutout) object for which rules are checked."
@@ -34248,7 +34251,7 @@ msgstr "Pasta de Solda"
 
 #: appPlugins/ToolSolderPaste/SolderPaste.py:608
 msgid "Please enter a tool diameter to add, in Float format."
-msgstr "Insira um diâmetro de ferramenta para adicionar, no formato Flutuante."
+msgstr "Informe um diâmetro de ferramenta para adicionar, em formato decimal."
 
 #: appPlugins/ToolSolderPaste/SolderPaste.py:696
 msgid "Cancelled. Already in the Tool Table."
@@ -34905,7 +34908,7 @@ msgstr "O projeto não foi salvo. O FlatCAM não foi reiniciado."
 
 #: appTranslation.py:287
 msgid "The user does not have admin rights or UAC issues."
-msgstr "O usuário não tem direitos de administrador ou problemas de UAC."
+msgstr "O usuário não tem direitos de administrador ou há problemas com o UAC."
 
 #: appTranslation.py:288 appTranslation.py:294
 msgid "Quit"
@@ -35380,7 +35383,7 @@ msgstr "Selecione pelo menos um tipo de pad."
 
 #: tclCommands/TclCommandExtract.py:257
 msgid "Extract done."
-msgstr "Extração concluído."
+msgstr "Extração concluída."
 
 #: tclCommands/TclCommandFollow.py:96
 msgid "The tolerance must be a number."
@@ -35461,7 +35464,7 @@ msgstr "Área de referência desconhecida, use box ou exact"
 
 #: tclCommands/TclCommandInvertGerber.py:109
 msgid "Expected a Gerber or Geometry reference object"
-msgstr "Esperado um objeto de referência Gerber ou Geometry"
+msgstr "Esperado um objeto de referência Gerber ou Geometria"
 
 #: tclCommands/TclCommandInvertGerber.py:139
 msgid "Invert Gerber done."
