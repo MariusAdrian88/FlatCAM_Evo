@@ -220,10 +220,11 @@ class FindBar(QtWidgets.QWidget):
         editor = self.editor
         set_selections = getattr(editor, 'set_find_selections', editor.setExtraSelections)
         if not self._starts:
-            if self._had_selections:
-                set_selections([])
-                self._had_selections = False
             self._shown_key = None
+            if self._had_selections:
+                # the flag first: set_selections() emits updateRequest, which calls this method again at once
+                self._had_selections = False
+                set_selections([])
             return
         viewport = editor.viewport()
         first = editor.cursorForPosition(QtCore.QPoint(0, 0)).position()

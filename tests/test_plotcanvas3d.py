@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 from PyQt6 import QtCore, QtGui, QtTest, QtWidgets
 from vispy import app
+from vispy.util import keys
 
 app.use_app('pyqt6')
 
@@ -363,6 +364,14 @@ class TestPlotCanvas3d(unittest.TestCase):
         camera.viewbox_mouse_event(self.mouse_event('mouse_wheel', pos=pos, delta=(0, -1)))
         self.assertAlmostEqual(camera.scale_factor, scale)
         np.testing.assert_allclose(camera.center, center, atol=1e-5)
+        # Shift makes the wheel step 10 times finer; some platforms send the Shift wheel as a horizontal delta
+        for delta in ((0, 1), (1, 0)):
+            camera.viewbox_mouse_event(self.mouse_event('mouse_wheel', pos=pos, delta=delta, modifiers=(keys.SHIFT,)))
+            self.assertAlmostEqual(camera.scale_factor / scale, (1 + camera.zoom_factor) ** -3)
+            after = camera._scene_transform.map(point)
+            np.testing.assert_allclose(after[:2] / after[3], pos, atol=1e-5)
+            camera.viewbox_mouse_event(self.mouse_event('mouse_wheel', pos=pos, delta=(0, -1), modifiers=(keys.SHIFT,)))
+            self.assertAlmostEqual(camera.scale_factor, scale)
 
     def test_initial_view_is_top_down_and_fills_height_with_label_space(self):
         canvas = self.make_canvas()

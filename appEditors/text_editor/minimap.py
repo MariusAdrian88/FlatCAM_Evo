@@ -1,7 +1,8 @@
 """
 Minimap: a narrow overview at the right of a CodeEdit. A cached image shows one horizontal bar per line (its length is
 the length of the text of the line); the lines of a long text are averaged into the rows of the widget. The rectangle
-of the part shown follows the vertical scroll bar; click and drag scroll the editor. A lens at the left of the minimap
+of the part shown follows the vertical scroll bar; click and drag put the text cursor on the line under the pointer
+and scroll it to the middle of the editor. A lens at the left of the minimap
 shows the code under the mouse pointer.
 """
 
@@ -18,6 +19,7 @@ LENS_WIDTH = 520        # the most pixels; a narrow editor gets a narrower lens
 REBUILD_DELAY_MS = 300
 PAD = 2                 # empty pixels at the left of the bars
 PIXELS_PER_CHAR = 2
+EDGE_PIXELS = 4         # pixels at the top and the bottom of the bars that show the first and the last lines
 
 
 def build_density(text, width, max_rows, hidden=()):
@@ -295,14 +297,30 @@ class Minimap(QtWidgets.QWidget):
         bar.setValue(round(fraction * total - bar.pageStep() / 2))
 
     def block_at_y(self, y):
-        """The block number of the line drawn at the height y of the minimap, or None below the last line."""
+        """The block number of the line drawn at the height y of the minimap, or None below the last line.
+        The first row gives the first line and the last row the last line; the pixels near the top and the bottom
+        (EDGE_PIXELS) give the end lines too, as the pointer cannot hit an edge row reliably."""
         pixels = self._rows
-        if pixels <= 0 or not 0 <= y < pixels:
+        if pixels <= 0 or not 0 <= y < pixels + EDGE_PIXELS:
             return None
         fold = self.edit.fold
         count = fold.visible_count()
-        index = min(count - 1, int(y / pixels * count))
-        return fold.block_of_visible(index)
+        if count <= 0:
+            return None
+        edge = min(EDGE_PIXELS, pixels // 4)
+        fraction = min(1.0, max(0.0, (y - edge) / max(1, pixels - 1 - 2 * edge)))
+        return fold.block_of_visible(round(fraction * (count - 1)))
+
+    def select_at_y(self, y):
+        """Puts the text cursor at the start of the line at the height y (the center line of the lens) and scrolls
+        that line to the middle of the window; below the last line it only scrolls."""
+        number = self.block_at_y(y)
+        if number is None:
+            self.scroll_to_y(y)
+            return
+        edit = self.edit
+        edit.setTextCursor(QtGui.QTextCursor(edit.document().findBlockByNumber(number)))
+        edit.centerCursor()
 
     def show_lens(self, y):
         number = self.block_at_y(y)
@@ -322,11 +340,11 @@ class Minimap(QtWidgets.QWidget):
         if event.button() == Qt.MouseButton.LeftButton:
             self._dragging = True
             self.hide_lens()
-            self.scroll_to_y(event.position().y())
+            self.select_at_y(event.position().y())
 
     def mouseMoveEvent(self, event):
         if self._dragging:
-            self.scroll_to_y(event.position().y())
+            self.select_at_y(event.position().y())
         else:
             self.show_lens(event.position().y())
 

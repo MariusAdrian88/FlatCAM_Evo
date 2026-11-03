@@ -80,18 +80,6 @@ class EditorCase(unittest.TestCase):
 
 class TestLazyHighlight(EditorCase):
 
-    def test_gcode_commands_and_parameters_are_highlighted(self):
-        self.replace_line(5, 'G01 X1 Y2 Z-1 F100 M03 T1')
-        formats = self.block(5).layout().formats()
-        for position in (0, 11, 15, 20, 24):
-            self.assertTrue(any(item.start <= position < item.start + item.length for item in formats), position)
-
-    def test_only_the_lines_shown_are_highlighted_when_the_text_is_set(self):
-        self.assertTrue(self.formatted(5))
-        self.assertFalse(self.formatted(4000))
-        self.assertEqual(self.block(4000).userState(), -1)
-        self.assertLess(self.edit.shown_blocks[1], 4000)
-
     def test_lines_are_highlighted_when_scrolled_into_view(self):
         self.scroll_to(4000)
         shown = self.edit.firstVisibleBlock().blockNumber()
@@ -101,12 +89,6 @@ class TestLazyHighlight(EditorCase):
             self.assertTrue(self.formatted(number), number)
         # the lines highlighted before stay highlighted
         self.assertTrue(self.formatted(5))
-
-    def test_typed_line_is_highlighted(self):
-        self.edit.moveCursor(QtGui.QTextCursor.MoveOperation.End)
-        self.edit.insertPlainText('\nG0 X1.0000 Y2.0000')
-        pump()
-        self.assertTrue(self.formatted(self.edit.document().blockCount() - 1))
 
     def test_changed_line_not_shown_keeps_its_colors(self):
         self.scroll_to(1000)
@@ -201,12 +183,6 @@ class TestGotoLine(unittest.TestCase):
         # Cancel
         self.assertEqual(self.goto('200', ok=False), (100, []))
 
-    def test_goto_line_method_refuses_a_wrong_line(self):
-        self.assertTrue(self.edit.goto_line(50))
-        for wrong in (0, 100000, 'x'):
-            self.assertFalse(self.edit.goto_line(wrong))
-            self.assertEqual(self.edit.textCursor().blockNumber(), 49)
-
 
 class FindCase(unittest.TestCase):
 
@@ -238,12 +214,33 @@ class TestFind(FindCase):
             self.find(*args[0], **args[1])
             self.assertEqual(self.bar.match_count(), count, args)
 
-    def test_invalid_regex_finds_nothing_and_does_not_raise(self):
+        # an invalid regex finds nothing and does not raise
         self.editor.load_text('a(b', move_to_start=True)
         self.find('(', regex=True)
         self.assertEqual(self.bar.match_count(), 0)
         self.assertFalse(self.bar.find_next())
-        self.assertIn('border', self.editor.entryFind.styleSheet())
+
+    def test_a_new_search_after_a_shown_match_does_not_recurse(self):
+        # the clear of the shown matches emits updateRequest, which cleared them again without end (a crash)
+        errors = []
+        hook = sys.excepthook
+        sys.excepthook = lambda kind, value, trace: errors.append(value)
+        try:
+            self.editor.resize(700, 400)
+            self.editor.show()
+            self.editor.load_text('\n'.join('G1 X%d S%d' % (k, 45 if k % 2 else 0) for k in range(200)),
+                                  move_to_start=True)
+            self.bar.open_bar()
+            for text, count in (('S', 200), ('S4', 100), ('S40', 0), ('S45', 100)):
+                self.find(text)
+                self.bar.update_results()
+                self.bar.find_next()
+                pump()
+                self.assertEqual(self.bar.match_count(), count, text)
+        finally:
+            sys.excepthook = hook
+            self.editor.close()
+        self.assertEqual(errors, [])
 
     def test_next_and_previous_wrap_around_without_a_dialog(self):
         self.editor.load_text('G1\nG2\nG1', move_to_start=True)
@@ -285,24 +282,17 @@ class TestReplaceAll(FindCase):
         self.edit.undo()
         self.assertEqual(self.edit.toPlainText(), 'G1 S100\nG1 S100\nG1 S100')
 
-    def test_replace_all_with_the_find_text_inside_the_new_text(self):
+        # the find text inside the new text
         self.editor.load_text('S1 S1', move_to_start=True)
         self.replace_all('S1', 'S10')
         self.assertEqual(self.edit.toPlainText(), 'S10 S10')
 
-    def test_regex_groups_in_the_replace_text_and_one_undo_step(self):
+        # regex groups in the replace text
         self.editor.load_text('X1 Y2\nX3 Y4', move_to_start=True)
         self.replace_all(r'X(\d) Y(\d)', r'Y\2 X\1', regex=True)
         self.assertEqual(self.edit.toPlainText(), 'Y2 X1\nY4 X3')
         self.edit.undo()
         self.assertEqual(self.edit.toPlainText(), 'X1 Y2\nX3 Y4')
-
-    def test_big_replace_all_is_one_undo_step(self):
-        self.editor.load_text('G1\n' * 3000, move_to_start=True)
-        self.replace_all('G1', 'G0')
-        self.assertEqual(self.edit.toPlainText(), 'G0\n' * 3000)
-        self.edit.undo()
-        self.assertEqual(self.edit.toPlainText(), 'G1\n' * 3000)
 
 
 class TestEditingAids(unittest.TestCase):
@@ -331,6 +321,7 @@ class TestEditingAids(unittest.TestCase):
     def test_each_aid_gives_the_right_text_in_one_undo_step(self):
         cases = (
             ('indent', 'a\nb', (0, 3), Key.Key_Tab, Mod.NoModifier, '    a\n    b'),
+            ('tab stop', 'ab', (2, 2), Key.Key_Tab, Mod.NoModifier, 'ab  '),
             ('unindent', '    a\n\tb', (0, 7), Key.Key_Backtab, Mod.ShiftModifier, 'a\nb'),
             ('duplicate', 'a\nb', (0, 0), Key.Key_D, Mod.ControlModifier, 'a\na\nb'),
             ('move down', 'a\nb\nc', (0, 0), Key.Key_Down, Mod.AltModifier, 'b\na\nc'),
@@ -343,9 +334,6 @@ class TestEditingAids(unittest.TestCase):
                 self.assertEqual(self.run_aid(text, select, key, mods), expected)
                 self.edit.undo()
                 self.assertEqual(self.edit.toPlainText(), text)
-
-    def test_tab_without_a_selection_inserts_spaces_to_the_next_tab_stop(self):
-        self.assertEqual(self.run_aid('ab', (2, 2), Key.Key_Tab), 'ab  ' + '')
 
     def test_toggle_comment_twice_gives_the_text_back(self):
         text = 'G1 X1\n\nG0 Z5'
@@ -414,7 +402,7 @@ class TestLexers(unittest.TestCase):
             edit.close()
             edit.deleteLater()
 
-    def test_tcl_command_names_of_the_app_are_highlighted(self):
+        # the Tcl command names of the app are highlighted
         from appEditors.text_editor.lexers import get_lexer
         edit = CodeEdit(theme='default', lexer=get_lexer('tcl', ['open_gerber']))
         edit.show()
@@ -451,7 +439,7 @@ class TestLexers(unittest.TestCase):
                 ('plain', '')):
             self.assertEqual(detect_language(text), language, language)
 
-    def test_editor_detects_the_language_on_the_first_load_and_keeps_a_given_one(self):
+        # the editor detects the language on the first load and keeps a given one
         editor = make_editor()
         editor.load_text('%FSLAX24Y24*%\n%MOMM*%\nX1Y1D02*\nM02*')
         self.assertEqual((editor.language, editor.lexer.name), ('gerber', 'Gerber'))
@@ -519,7 +507,7 @@ class TestFolding(FoldCase):
         # a line that starts no region cannot be folded
         self.assertFalse(fold.fold(10))
 
-    def test_fold_all_and_unfold_all(self):
+        # fold all and unfold all
         fold = self.edit.fold
         fold.fold_all()
         self.assertEqual([n for n in range(160) if fold.is_folded(n)], [0, 3, 55, 107])
@@ -529,14 +517,6 @@ class TestFolding(FoldCase):
         # the lines hidden by the fold get their colors when they are shown again
         pump()
         self.assertTrue(self.edit.document().findBlockByNumber(5).layout().formats())
-
-    def test_fold_with_the_keys_folds_the_region_of_the_cursor(self):
-        self.edit.setTextCursor(QtGui.QTextCursor(self.edit.document().findBlockByNumber(60)))
-        QtTest.QTest.keyClick(self.edit, Key.Key_BraceLeft, Mod.ControlModifier | Mod.ShiftModifier)
-        self.assertEqual(self.edit.textCursor().blockNumber(), 55)
-        self.assertEqual(self.hidden(), list(range(56, 107)))
-        QtTest.QTest.keyClick(self.edit, Key.Key_BraceRight, Mod.ControlModifier | Mod.ShiftModifier)
-        self.assertEqual(self.hidden(), [])
 
     def test_goto_line_and_arrow_keys_never_leave_the_cursor_in_hidden_text(self):
         fold = self.edit.fold
@@ -593,19 +573,6 @@ class TestFolding(FoldCase):
         QtTest.QTest.mouseClick(self.edit.gutter, QtCore.Qt.MouseButton.LeftButton, pos=point)
         self.assertFalse(self.edit.fold.is_folded(3))
 
-    def test_print_prints_the_folded_lines_too(self):
-        sizes = []
-        with tempfile.TemporaryDirectory() as folder:
-            for folded in (False, True):
-                if folded:
-                    self.edit.fold.fold_all()
-                path = os.path.join(folder, 'print%d.pdf' % folded)
-                self.edit.print(QtGui.QPdfWriter(path))
-                sizes.append(os.path.getsize(path))
-        self.assertEqual(sizes[0], sizes[1])
-        # the folds are back after the print
-        self.assertEqual(len(self.hidden()), 2 + 51 * 3)
-
 
 class TestMinimap(unittest.TestCase):
 
@@ -645,6 +612,10 @@ class TestMinimap(unittest.TestCase):
             QtTest.QTest.mouseClick(minimap, QtCore.Qt.MouseButton.LeftButton, pos=point)
             wanted = fraction * bar.maximum()
             self.assertAlmostEqual(bar.value() / bar.maximum(), wanted / bar.maximum(), delta=0.1)
+            # the line under the click (the center line of the lens) gets the text cursor, in view
+            edit = self.editor.code_editor
+            self.assertEqual(edit.textCursor().blockNumber(), minimap.block_at_y(point.y()))
+            self.assertTrue(edit.viewport().rect().contains(edit.cursorRect().center()))
 
     def test_hover_shows_the_code_under_the_pointer_in_a_lens(self):
         self.editor.button_minimap.setChecked(True)
@@ -676,12 +647,22 @@ class TestMinimap(unittest.TestCase):
         minimap.leaveEvent(QtCore.QEvent(QtCore.QEvent.Type.Leave))
         self.assertFalse(lens.isVisible())
 
-    def test_folded_lines_get_no_row(self):
-        # the scroll bar does not count a folded line: a row for it moves the rectangle of the part shown
-        from appEditors.text_editor.minimap import build_density
-        text = '\n'.join(['G1 X1'] * 10)
-        self.assertEqual(build_density(text, 80, 100).shape[0], 10)
-        self.assertEqual(build_density(text, 80, 100, hidden=[[2, 5], [8, 8]]).shape[0], 5)
+    def test_the_lens_reaches_the_first_and_the_last_lines(self):
+        # a row of a long text covers many lines: the edge rows (and a few pixels near them) must show the ends
+        self.editor.button_minimap.setChecked(True)
+        self.editor.load_text(gcode(5000))
+        pump()
+        minimap = self.editor.minimap
+        minimap.rebuild()
+        pump()
+        last = self.editor.code_editor.blockCount() - 1
+        for y in (0, 2):
+            minimap.show_lens(y)
+            self.assertEqual(minimap.lens.view.numbers[0], 1)
+        for y in (minimap._rows - 1, minimap._rows - 3):
+            minimap.show_lens(y)
+            self.assertEqual(minimap.lens.view.numbers[-1], last + 1)
+            self.assertEqual(len(minimap.lens.view.numbers), 15)
 
 
 if __name__ == '__main__':

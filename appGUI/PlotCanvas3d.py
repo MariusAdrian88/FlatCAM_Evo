@@ -684,9 +684,13 @@ class Camera_3D(scene.ArcballCamera):
         BaseCamera.viewbox_mouse_event(self, event)
 
         if event.type == 'mouse_wheel':
-            if not event.mouse_event.modifiers:
+            modifiers = event.mouse_event.modifiers
+            fine = tuple(modifiers) == (keys.SHIFT,)
+            if not modifiers or fine:
+                # Shift: 10 times finer steps; some platforms send the Shift wheel as a horizontal delta
+                step = event.delta[1] if event.delta[1] or not fine else event.delta[0]
                 center = self._screen_to_world(event.pos)
-                scale = (1 + self.zoom_factor) ** (-event.delta[1] * 30)
+                scale = (1 + self.zoom_factor) ** (-step * (3 if fine else 30))
                 self.limited_zoom(scale, center)
             event.handled = True
             return
