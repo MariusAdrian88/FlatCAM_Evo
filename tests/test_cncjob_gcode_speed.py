@@ -3,6 +3,7 @@
 Run from the repository root:
     .venv/Scripts/python -m pytest tests/test_cncjob_gcode_speed.py -q
 """
+import json
 import re
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -14,6 +15,7 @@ from shapely import LinearRing, LineString
 from shapely.ops import substring
 
 import camlib
+from appCommon.ProjectFile import load_project_file, save_project_file
 from camlib import CNCjob
 from defaults import AppDefaults
 from tests.helpers_objects import make_app_0b as make_app  # noqa: F401,E402
@@ -161,6 +163,24 @@ class TestMillingGcodeFixes:
         gcode, __ = run_with_deadline(
             lambda: job.create_gcode_multi_pass(TWO_LINES[0], 0.1, False, 0.0, 0, job.pp_geometry, 2.0))
         assert 'Z-0.1000' in gcode
+        assert json.loads(json.dumps(job.to_dict(), default=camlib.to_dict))['z_depthpercut'] == step
+
+    @pytest.mark.parametrize('single', [True, False])
+    def test_multi_depth_job_can_be_saved_and_loaded(self, single, tmp_path):
+        job = gcode_job('default')
+        if single:
+            gcode = single_path_gcode(job, TWO_LINES, z_cut=-2.0, multidepth=True, depthpercut=0.7)
+        else:
+            job, gcode = multi_geo_gcode(TWO_LINES, job=job, data=dict(
+                tools_mill_multidepth=True, tools_mill_depthperpass=0.7, tools_mill_cutz=-2.0))
+        assert re.findall(r'G01 Z(-?[\d.]+)', gcode) == ['-0.7000', '-1.4000', '-2.0000'] * 2
+        data = {'objs': [job.to_dict()]}
+        filename = str(tmp_path / 'multi_depth.FlatPrj')
+        save_project_file(filename, data, default=camlib.project_json_default(camlib.geometry_wkt_cache(data)))
+        loaded = load_project_file(filename, object_hook=camlib.dict2obj)['objs'][0]
+        assert loaded['z_depthpercut'] == 0.7
+        assert loaded['z_cut'] == -2.0
+        assert loaded['gcode'] == gcode
 
     def test_extra_cut_goes_on_along_the_path_after_the_start_point(self):
         # the isolation ring of a 0.3 x 0.3 mm pad for a 0.1 mm tool, Extra Cut 1.0: before, the tool went from the

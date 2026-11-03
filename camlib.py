@@ -6651,11 +6651,12 @@ class CNCjob(Geometry):
         else:
             z_cut = Decimal(self.z_cut).quantize(Decimal('0.000000001'))
 
-        if not self.z_depthpercut:
+        step = self.z_depthpercut
+        if not step:
             # a zero (or missing) step would never reach the Cut Z: cut it in one pass
-            self.z_depthpercut = abs(z_cut)
-        elif not isinstance(self.z_depthpercut, Decimal):
-            self.z_depthpercut = abs(Decimal(self.z_depthpercut).quantize(Decimal('0.000000001')))
+            step = abs(z_cut)
+        elif not isinstance(step, Decimal):
+            step = abs(Decimal(step).quantize(Decimal('0.000000001')))
 
         depth = 0
         reverse = False
@@ -6664,7 +6665,7 @@ class CNCjob(Geometry):
         while depth > z_cut:
 
             # Increase depth. Limit to z_cut.
-            depth -= self.z_depthpercut
+            depth -= step
             if depth < z_cut:
                 depth = z_cut
 

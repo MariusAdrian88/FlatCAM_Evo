@@ -6,6 +6,12 @@ Based on FlatCAM:
 
 CHANGELOG for FlatCAM Evo
 
+03.11.2026
+
+CNCJob:
+
+- fixed: a project with a multi-depth Geometry CNCJob could not be saved ("Circular reference detected"); the G-code generation changed the Depth per Pass value of the job to a Decimal that the project file cannot store; now the generation keeps the step in a local value and the job keeps its original value (the G-code does not change) (reported in issue #74 by kpkrisnop)
+
 3.11.2026
 - RELEASE 1.03
 
