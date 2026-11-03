@@ -9,13 +9,15 @@
 program makes (Gerber, Excellon, board files of Altium, KiCad, Eagle, OrCAD/Allegro, DipTrace, Proteus and Sprint
 Layout) and makes the
 G-code that a CNC router, a CNC mill or a laser needs to make the board: isolation routing, copper clearing, drilling,
-slot milling, board cutout, solder paste dispensing and more.
+slot milling, board cutout, solder paste dispensing and more. It also carves and laser-engraves photos (Photo Carve).
 
 FlatCAM Evo continues [FlatCAM](http://flatcam.org) by Juan Pablo Caram. It has a modern PyQt6 interface, a fast
 OpenGL canvas, many new plugins and a Tcl scripting shell for automation.
 
 - Stable code: branch [`main`](https://github.com/MariusAdrian88/FlatCAM_Evo/tree/main)
 - Development code: branch [`1.0`](https://github.com/MariusAdrian88/FlatCAM_Evo/tree/1.0)
+- Ready-to-run packages (Windows installer, Linux AppImage, macOS DMG):
+  [Releases](https://github.com/MariusAdrian88/FlatCAM_Evo/releases)
 - Video tutorials: [YouTube playlist](https://www.youtube.com/playlist?list=PLVvP2SYRpx-AQgNlfoxw93tXUXon7G94_)
 
 ---
@@ -47,7 +49,7 @@ The workflow has 4 steps:
 
 1. **Load** the manufacturing files of the board: Gerber layers (copper, solder mask, silkscreen, outline) and
    Excellon drill files. You can also import a complete board file (Altium, KiCad, Eagle, OrCAD/Allegro, DipTrace,
-   Proteus, Sprint Layout 6), or SVG, DXF, PDF, HPGL2, images and G-code files.
+   Proteus, Sprint Layout 6), or SVG, DXF, PDF, HPGL2, images and G-code files. For Photo Carve, you load a photo.
 2. **Prepare** the objects: move, mirror (for 2-sided boards), rotate, scale, panelize, join, or edit them in the
    built-in editors.
 3. **Generate** the toolpaths with a plugin: isolation routing around the tracks, removal of the copper that is not
@@ -62,9 +64,11 @@ The program keeps all objects of a job in 1 **project** file (`.FlatPrj`).
 
 ## Main features
 
-- Native parsers for **Gerber** (RS-274X and X2, with aperture macros, aperture blocks, regions, polarity changes,
-  step and repeat, load mirror, rotation and scale) and **Excellon** (drills, routed and drilled slots, pattern
-  repeat, incremental coordinates, the plated flag of each tool, all number formats).
+- Native parsers for **Gerber** (RS-274X with the X2 and X3 attributes, to the Ucamco specification 2021.11, with
+  aperture macros, aperture blocks, regions, polarity changes, step and repeat, load mirror, rotation and scale) and
+  **Excellon** (drills, routed and drilled slots, pattern repeat, incremental coordinates, the plated flag of each
+  tool, all number formats, and the XNC format 2019.02 with its attributes). The attributes stay with the objects
+  through the editors, Panelize, Join and the export.
 - **Direct import of PCB board files**: Altium `.PcbDoc`, KiCad `.kicad_pcb`, Eagle `.brd`, OrCAD/Allegro `.brd`,
   DipTrace `.dip`, Proteus `.pdsprj` and Sprint Layout 6 `.lay6`. Each copper or mask layer becomes a Gerber
   object, and each drill group becomes an Excellon object. `Ctrl+I` opens an Import dialog with all the imports in
@@ -73,7 +77,11 @@ The program keeps all objects of a job in 1 **project** file (`.FlatPrj`).
   time. The parser reads arcs, canned drill cycles, subprograms and macro variables, and keeps the text of the file.
 - **Transforms of CNC jobs**: move, rotate, scale, mirror and skew change the G-code text and the plot together.
 - **Isolation routing** with many passes, rest machining, V-shape tools and area selection.
-- **Non-copper clearing (NCC)** and **Paint** with the Standard, Seed, Lines and Combo methods.
+- **Non-copper clearing (NCC)** and **Paint** with the Standard, Seed, Lines, Laser Lines and Combo methods. The
+  clearing removes all the material in the reach of the tool, also with rest machining, and the **Clearing Error**
+  and **Clearing Edge** preferences set how near the contour goes to the copper.
+- **Photo Carve**: makes a V-carve, halftone, relief, lithophane or laser engraving from a photo, with a 3D
+  simulation of the stock removal or of the laser burn.
 - **Drilling** and **milling** of holes and slots, with tool change, many depths per cut, exclusion areas and laser
   modes.
 - **Cutout** of the board with bridges, thin gaps or mouse bites.
@@ -83,15 +91,20 @@ The program keeps all objects of a job in 1 **project** file (`.FlatPrj`).
 - **Board preparation tools**: copper thieving, robber bar, fiducials, markers, QR codes, punched pads, inverted
   Gerbers, etch compensation, film output for photo processes, design rule check.
 - **3 built-in editors** for Gerber, Excellon and Geometry objects, with their own Undo / Redo history, snaps,
-  vertex grips and numeric input, and a G-code editor.
+  vertex grips and numeric input. The Gerber Editor also has track editing, teardrops, aperture tools and a Gerber
+  Apertures database.
+- **Code editor** for G-code, Gerber, Excellon and Tcl text: syntax colors, Find/Replace with regular expressions,
+  code folding, a minimap and a status bar. Document objects have a formatting toolbar.
 - **Undo / Redo** for each project (`Ctrl+Z`, `Ctrl+Y`): moves, transforms, alignments, deletes, renames and the
   objects that the plugins make.
 - **Path optimization** of the drill and mill paths (Rtree, Google OR-Tools, travelling salesman).
-- **27 G-code preprocessors**: GRBL, Marlin, Repetier, MACH3-compatible controllers, Roland, ISEL, Berta, NCCAD,
-  HPGL, lasers and solder paste dispensers. You can add your own.
+- **31 G-code preprocessors**: GRBL, grblHAL, Marlin, Repetier, MACH3-compatible controllers, Roland, ISEL, Berta,
+  NCCAD, HPGL, lasers and solder paste dispensers. You can add your own.
 - **Export** to Gerber, Excellon, G-code, SVG, PNG, PDF and DXF (with layers, also for CNC jobs).
-- **Tcl shell** with 85 commands, script files, command-line options and a headless mode for automatic jobs.
+- **Tcl shell** with 86 commands, script files, command-line options and a headless mode for automatic jobs.
 - **Tools Database** for your tools and their cutting parameters.
+- **Updates from the program**: Help > Check for Updates installs a new release, and Help > Revert to Previous
+  Version goes back.
 - **Light and dark themes**, a fast **OpenGL (VisPy)** canvas, and
   translations in 9 languages.
 
@@ -120,11 +133,30 @@ The program keeps all objects of a job in 1 **project** file (`.FlatPrj`).
 
 <img src="assets/images/paint_cncjob.png" width="850" alt="PCB Paint a Gerber object">
 
+### Photo Carve
+
+<img src="assets/images/photo_carve.png" width="850" alt="Photo Carve: a photo carved into a material">
+
 ---
 
 ## Installation
 
-FlatCAM Evo runs from the source code on **Windows**, **Linux** and **macOS**.
+FlatCAM Evo runs on **Windows**, **Linux** and **macOS**. Install a ready-to-run package, or run it from the source
+code.
+
+### Ready-to-run packages
+
+Each [release](https://github.com/MariusAdrian88/FlatCAM_Evo/releases) has these packages. They need no Python:
+
+| System | Package |
+|---|---|
+| Windows (64-bit) | `FlatCAM_Evo_<version>_win64.exe`: an installer |
+| Linux (x86-64) | `FlatCAM_EVO-<tag>-linux-x86_64.AppImage`: make it executable (`chmod +x`), then start it |
+| macOS (Apple silicon) | `FlatCAM_EVO-<tag>-macos-arm64.dmg`: drag the app into Applications |
+
+The `flatcam-evo-<version>-win64-update.zip` file of a release is for the updater. You do not need to download it.
+
+The steps below are for a run from the source code.
 
 ### Requirements
 
@@ -270,9 +302,16 @@ provide working OpenGL, use a previous release that includes the Legacy backend 
 
 ### Update
 
-**Help > Check for Updates** finds a new release, downloads it and installs it. The updater also replaces itself.
-If a release does not work for you, **Help > Revert to Previous Version** restores the previous installation.
-FlatCAM Evo 1.0 cannot update itself: install 1.01 or newer with the installer 1 time.
+FlatCAM Evo looks for a new release at each start. **Help > Check for Updates** does the same check when you want.
+
+- **Windows installation and source installation**: the update dialog downloads the release and installs it. A
+  progress window shows the steps, and `updater.log` keeps them. The updater also replaces itself.
+- **AppImage and macOS**: the update dialog shows a direct link to the package for your system, with its size. The
+  web browser downloads it.
+- **Skip this version** in the update dialog stops the startup check from showing that version again. Help > Check
+  for Updates still shows it. A mandatory update cannot be skipped.
+- If a release does not work for you, **Help > Revert to Previous Version** restores the previous installation.
+- FlatCAM Evo 1.0 cannot update itself: install 1.01 or newer with the installer 1 time.
 
 For a Git checkout, you can also update with Git:
 
@@ -328,20 +367,21 @@ plugin.
 
 | Object | Content | What you can do in its Properties |
 |---|---|---|
-| **Gerber** | Copper, mask, silkscreen or outline layer, with its apertures | Show it solid or as outlines, in 1 color or in many colors; mark apertures on the canvas; open the Gerber Editor; buffer the geometry; make the non-copper regions or a bounding box as a Geometry; start Isolation, Cutout, NCC, Film or Follow. |
+| **Gerber** | Copper, mask, silkscreen or outline layer, with its apertures and its X2 / X3 attributes | Show it solid or as outlines, in 1 color or in many colors; mark apertures on the canvas; open the Gerber Editor; buffer the geometry; make the non-copper regions or a bounding box as a Geometry; start Isolation, Cutout, NCC, Film or Follow. |
 | **Excellon** | Drills and slots, grouped by tool diameter | See the tools, the drill and slot counts; show or hide each tool; open the Excellon Editor; start Drilling or Milling; make a Geometry that mills the drills or the slots with a smaller tool. |
-| **Geometry** | Toolpaths and shapes (lines and polygons), with a tool table | Single-geometry or multi-geometry (1 set of paths for each tool); open the Geometry Editor; simplify the paths; start Milling, Paint or NCC. |
+| **Geometry** | Toolpaths and shapes (lines and polygons), with a tool table | Single-geometry or multi-geometry (1 set of paths for each tool); open the Geometry Editor; simplify the paths; start Milling, Paint or NCC. A Photo Carve Geometry keeps its source image and parameters: "Edit in Photo Carve" opens them again. |
 | **CNCJob** | Machine code made from a Geometry or an Excellon, or opened from a G-code file | See the paths of each tool, the travel distance and the estimated time (with the dwells); show annotations; edit the G-code; add code snippets; move, rotate, scale, mirror or skew the job (the G-code text changes too); start Levelling; save the G-code. |
-| **Script** | A Tcl script | Edit the script with auto-complete and run it. |
-| **Document** | A text document | Edit the text with font, color and alignment settings. The Check Rules plugin writes its report into a Document. |
+| **Script** | A Tcl script | Edit the script in the code editor (Tcl syntax colors, auto-complete) and run it. |
+| **Document** | A formatted text document | Format the text with the toolbar above it: font, size, heading, bold, italic, underline, strikethrough, colors, alignment and lists. Save it as `.FlatDoc` or `.html` (with the format), `.txt` or PDF. The Check Rules plugin writes its report into a Document. |
 
 The **Edit** menu converts and combines objects: convert single-geometry to multi-geometry and back, convert any
 object to a Geometry, Gerber or Excellon object, join Gerber, Excellon or Geometry objects, copy, delete, set the
 origin, move to the origin and jump to a location.
 
 The context menu of the **Project** tab has an **Export** submenu (DXF, SVG, PNG, PDF) for a Gerber, Excellon or
-Geometry object, and a **Join** submenu (As Gerber, As Excellon, As Geometry) for 2 or more selected objects. A
-right-click on the project selector opens a menu with **Import...** and **Close All Projects**.
+Geometry object, and a **Join** submenu (As Gerber, As Excellon, As Geometry) for 2 or more selected objects. The
+context menu of a category row (Gerber, Excellon, Geometry, Script, Document) has a **New** action that makes an
+empty object of that category. A right-click on the project selector opens a menu with **Import...** and **Close All Projects**.
 
 ---
 
@@ -366,11 +406,18 @@ of the object that they use.
   reduce the etch time or to make a board with large insulated areas. Input: a Gerber or Geometry object. It uses a
   tool table with many tools and rest machining, and the methods Standard, Seed and Lines. Options: connect the
   paths, cut a contour around each area, offset from the copper, check the validity, and clear the whole object, an
-  area or the area of a reference object. Output: a Geometry object.
-- **Paint** — Fills polygons of a Geometry object with toolpaths, for example to remove copper from a large area or
-  to engrave a filled shape. Methods: Standard, Seed, Lines and Combo. Options: connect, contour and rest machining.
-  You can paint all polygons, selected polygons, an area or the area of a reference object. Output: a Geometry
-  object.
+  area or the area of a reference object. In rest machining, a smaller tool crosses the cleared area to reach the
+  stock that the larger tool left. Output: a Geometry object.
+- **Paint** — Fills polygons of a Gerber or Geometry object with toolpaths, for example to remove copper from a
+  large area or to engrave a filled shape. Methods: Standard, Seed, Lines, Laser Lines (Gerber only) and Combo.
+  Options: connect, contour and rest machining. You can paint all polygons, selected polygons, an area or the area
+  of a reference object. Output: a Geometry object.
+
+  Paint and NCC clear all the material in the reach of the tool. A slot or a neck exactly as wide as the tool gets
+  a path. 2 preferences of the project (Preferences > General) control the contour:
+  - **Clearing Error**: the maximum cut past the outline (default 2 µm; 0 uses the Circle Steps of the object).
+  - **Clearing Edge**: **Touch** lets the contour cut past the outline by up to the Clearing Error. **Strict**
+    never cuts past the outline, and leaves up to the Clearing Error of material along the walls.
 - **Follow** — Makes a Geometry that follows the center lines of the Gerber tracks, for example for a pen plotter or
   for traces cut with a 1-pass tool (`Alt+Y`). Options: simplify, union, and all or an area. Output: a Geometry
   object.
@@ -400,6 +447,34 @@ of the object that they use.
   controller on a serial port (jog, send commands, read the height map), save a probing G-code for MACH3, MACH4,
   LinuxCNC or GRBL, or import a height map. It also levels an imported G-code file. Output: a levelled CNCJob
   object.
+
+### Photo Carve
+
+**Photo Carve** (Plugins menu, `Alt+V`, Plugins toolbar) makes a Geometry object from a raster image (PNG, JPG, BMP,
+TIF). The Milling plugin then makes the CNCJob from it.
+
+- **Modes**:
+  - **V-carve**: a V-bit cuts deeper where the image is dark, as a raster with a scan angle or as a spiral.
+  - **Halftone**: V-bit dots on a hexagonal grid.
+  - **Relief**: a ball or flat cutter, with passes in X, Y or XY.
+  - **Lithophane**: a thin plate where the image is light, with a frame and a minimum and maximum thickness.
+  - **Laser**: grayscale power levels, Bayer dither or Floyd-Steinberg dither, with the dot size and the overscan.
+- **Image Adjust**: brightness, contrast, gamma, invert, auto contrast, equalize, blur, sharpen, and Mirror X /
+  Mirror Y. The tone mapping is Linear, Perceptual or V-bit area.
+- **Roughing** for Relief and Lithophane, with its own cutter, stepdown and allowance.
+- **3D simulation** in the Plot 3D tab: the stock removal of a milling job, or the burn image of a laser job. The
+  materials are wood, stone, marble, metal and aluminium, with the stock thickness and the cell size. It simulates
+  the generated Geometry or the G-code of a selected CNCJob, with a speed slider and a progress bar.
+- **Checks before the generation**: the limits of the image cells, the path points and the roughing levels, valid
+  values for each mode, and a gouge check of the relief paths. The maximum depth of a V-bit is limited to its width.
+- A **Beginner / Advanced** toggle hides the advanced fields. The generation runs in the background.
+- The Geometry keeps the source image and the parameters, also in a saved project. Project > **Edit in Photo
+  Carve** opens them in the plugin again. The paths of a Photo Carve Geometry cannot be edited.
+- For a Photo Carve Geometry, the Milling plugin locks the cutter, offset, depth, area and strategy fields. It shows
+  only the checked preprocessors: `default`, `GRBL_11`, `GRBL_11_no_M6`, `grblHAL`, `Marlin`, `GRBL_laser` and
+  `grblHAL_laser`.
+- The Tcl command `photocarve` does the same from a script. Preferences > Engraving > Photo Carve Plugin holds the
+  defaults.
 
 ### Double-sided boards and panels
 
@@ -467,7 +542,8 @@ of the object that they use.
   diameter, the angle and the cut depth), an electroplating calculator (current and time) and a tinning solution
   calculator.
 - **Object Report** (Options menu, `P`) — Shows all the properties of an object in a tree: type, dimensions, units,
-  options, apertures, tools, drills and slots.
+  options, apertures, tools, drills and slots. For a Gerber or Excellon object it also shows the Attributes section
+  (X2 / X3 or XNC attributes).
 
 ### Transform and move
 
@@ -519,6 +595,18 @@ A step keeps only the changed shapes, so the history stays small on a large boar
   snaps to the FOLLOW endpoints, bends, midpoints and segments; a read-only inspection of the selected geometry.
   New pads and tracks use the aperture that you select in the aperture table. Preferences > Gerber > Editor >
   "Load" sets how an object with clear (negative) features opens: as regions (its final geometry) or by apertures.
+  The editor keeps the X2 / X3 attributes of the object. These menus of the Gerber Editor do 1 Undo step for each
+  action:
+  - **Select**: Invert Selection; Pads Only, Tracks Only, Regions Only; Select Chain (the tracks connected end to
+    end; Shift adds, Alt continues through junctions).
+  - **Track Edit**: Clip, Clip and Replace with Pad, Stretch (the connected tracks follow), Insert Elbow and
+    Insert 90° Elbow. A right click ends the tool.
+  - **Apertures**: Delete Unused, Renumber (from D10), Merge Duplicates, Round Sizes, Select Same Type.
+  - **Automatic**: Drawn Pads to Flashes, Teardrops and Snowman Fillets.
+  - Also: Step and Repeat of the selection, Transcode (move the selection to another aperture), and Snap to Grid.
+
+  The **Gerber Apertures database** (the "Gerber Apertures" button of the Tools Database) keeps C, R and O
+  apertures. The apertures with the Autoload flag load into the editor when it opens an empty Gerber object.
 - **Excellon Editor** — Drill, drill array, slot and slot array tools; resize drills; copy, move and delete;
   rotate, mirror, scale and offset of the selected features; edit or drag the endpoints of a slot; filter, select
   and delete by type, diameter and size; a read-only inspection; a second click at the same place selects the next
@@ -530,7 +618,16 @@ A step keeps only the changed shapes, so the history stays small on a large boar
   geometry; snap to the grid, to corners, to segment midpoints and to the nearest segment. The text tool uses
   TrueType, OpenType, font collections (`.ttc`, `.otc`) and bitmap fonts (`.bdf`, `.pcf`, `.fon`, `.fnt`), with
   more lines of text. A save also writes a DXF source of the geometry.
-- **G-code Editor** — Opens the G-code of a CNCJob object as text, so that you can change it before you save it.
+- **Code editor** — Opens the G-code of a CNCJob object, the source of a Gerber or Excellon object, and Script
+  objects as text, so that you can change them. It has:
+  - Syntax colors for G-code, Gerber, Excellon and Tcl, with light and dark palettes.
+  - A Find/Replace bar (`Ctrl+F`, `Ctrl+H`) with Match Case, Whole Word and Regex, a match count, and Replace All
+    in 1 Undo step.
+  - Code folding of headers, tool blocks, macros, regions and Tcl braces; a minimap with a lens; bracket matching,
+    word wrap and show whitespace.
+  - A status bar with the line and column, the selection length, the language, the line ends and the zoom.
+  - Editing keys: auto-indent, `Tab` / `Shift+Tab` on the selected lines, `Ctrl+D` duplicate line, `Alt+Up` /
+    `Alt+Down` move lines, `Ctrl+/` comment, `Ctrl+G` go to line, and `Ctrl+wheel` zoom.
 
 ---
 
@@ -541,7 +638,7 @@ A step keeps only the changed shapes, so the history stays small on a large boar
 | Format | Menu | Object |
 |---|---|---|
 | Gerber (`.gbr`, `.gtl`, `.gbl`, `.gts`, `.gto`, `.gko`, `.cmp`, `.sol`, `.art`, `.pho` and many more) | File > Open > Open Gerber | Gerber |
-| Excellon (`.drl`, `.txt`, `.xln`, `.drd`, `.tap`, `.exc`, `.ncd`) | File > Open > Open Excellon | Excellon |
+| Excellon and XNC (`.drl`, `.txt`, `.xln`, `.xnc`, `.drd`, `.tap`, `.exc`, `.ncd`) | File > Open > Open Excellon | Excellon |
 | G-code (`.nc`, `.gcode`, `.cnc`, `.tap` and more), from FlatCAM or any other program | File > Open > Open G-Code | CNCJob |
 | FlatCAM project (`.FlatPrj`) | File > Open > Open Project | all objects |
 | Tcl script (`.FlatScript`, `.tcl`, `.txt`) | File > Scripting | Script |
@@ -550,6 +647,7 @@ A step keeps only the changed shapes, so the history stays small on a large boar
 | HPGL2 (`.plt`) | File > Import | Geometry |
 | PDF | File > Import | Gerber and Excellon |
 | Image (BMP, PNG, JPG) | File > Import | Gerber or Geometry |
+| Photo (PNG, JPG, BMP, TIF) for carving or laser engraving | Photo Carve plugin | Geometry |
 | PCB Wizard Excellon + `.INF` | File > Import | Excellon |
 | Altium PCB (`.PcbDoc`) | File > Import | Gerber and Excellon objects |
 | KiCad PCB (`.kicad_pcb`) | File > Import | Gerber and Excellon objects |
@@ -592,12 +690,14 @@ G-code are set in **Preferences > Utilities** (file associations).
 | PNG, PDF of 1 object (black on white) | Export submenu of the Project tab |
 | PDF | File > Print (PDF) (`Ctrl+P`) |
 | Film (SVG, PNG, PDF) | Film plugin |
+| Document (`.FlatDoc`, `.html`, `.txt`, PDF) | Save button of a Document object |
 | Project (`.FlatPrj`) | File > Save Project |
 | Preferences (`.FlatConfig`) | File > Backup |
 
 The Gerber export writes the apertures of the object when it can. If the object has aperture macros, polygon
 apertures, clear (negative) features, or a transform that the apertures cannot follow, the export writes the final
-geometry as regions, with all holes and islands kept.
+geometry as regions, with all holes and islands kept. The Gerber export writes the X2 / X3 attributes, and the
+Excellon export writes the XNC attributes. An object without attributes exports as before.
 
 The DXF export puts each tool, aperture or object on its own layer, and writes arcs, circles and slots as true DXF
 arcs and circles. Preferences set the layers, the Gerber mode (outline or centerline), the travel moves, and the
@@ -616,6 +716,8 @@ SolderPaste plugin.
 | `Default_no_M6` | MACH3-compatible, without `M6` |
 | `GRBL_11` | GRBL 1.1 (and most other GRBL versions) |
 | `GRBL_11_no_M6` | GRBL, without `M6` |
+| `grblHAL` | grblHAL controllers (`M6` pauses the controller, so no `M0` follows it) |
+| `grblHAL_no_M6` | grblHAL, without `M6` |
 | `Marlin` | Marlin firmware |
 | `Repetier` | Repetier firmware |
 | `Toolchange_Manual` | Manual tool change: the machine stops (`M0`) for the change |
@@ -629,6 +731,7 @@ SolderPaste plugin.
 | `hpgl` | HPGL plotters and cutters |
 | `default_laser` | Lasers on MACH3-compatible controllers |
 | `GRBL_laser`, `GRBL_laser_z` | Lasers on GRBL (`_z` moves Z on tool change, to change the spot size) |
+| `grblHAL_laser`, `grblHAL_laser_z` | Lasers on grblHAL |
 | `grbl_laser_eleks_drd` | GRBL lasers without Z: drills become circles |
 | `Marlin_laser_FAN_pin`, `Marlin_laser_Spindle_pin`, `Marlin_laser_z` | Lasers on Marlin |
 | `Paste_1`, `Paste_GRBL`, `Paste_Marlin` | Solder paste dispensers (SolderPaste plugin only) |
@@ -754,13 +857,20 @@ apt-get install -y libgl1 libegl1 libglu1-mesa libxkbcommon0 libfontconfig1 libd
 | Create geometry | `add_aperture`, `add_drill`, `add_slot`, `add_circle`, `add_rect`, `add_polygon`, `add_polyline`, `subtract_poly`, `subtract_rectangle`, `bounding_box`, `exteriors`, `interiors`, `non_copper_regions` |
 | Transform | `offset`, `scale`, `mirror`, `skew`, `buffer`, `set_origin` |
 | Combine and split | `join_gerber`, `join_excellon`, `join_geometries`, `geo_union`, `split_geometries`, `panelize` |
-| Toolpaths | `isolate`, `ncc_clear`, `paint`, `follow`, `cutout`, `geocutout`, `milldrills`, `millslots`, `aligndrill`, `aligndrillgrid` |
+| Toolpaths | `isolate`, `ncc_clear`, `paint`, `follow`, `cutout`, `geocutout`, `milldrills`, `millslots`, `aligndrill`, `aligndrillgrid`, `photocarve` |
 | Board preparation and checks | `extract`, `invert_gerber`, `etch_compensate`, `qrcode`, `subtract_objects`, `check_rules` |
 | CNC jobs | `cncjob`, `drillcncjob`, `list_pp` |
 | Settings and program | `get_sys`, `set_sys`, `list_sys`, `save_sys`, `help`, `version`, `clear`, `quit_app` |
 
-There are 85 commands. Some have short aliases, for example `bbox`, `ncc`, `pan`, `ee`, `egr` and `geoc`. The
+There are 86 commands. Some have short aliases, for example `bbox`, `ncc`, `pan`, `ee`, `egr` and `geoc`. The
 transforms (`offset`, `scale`, `mirror`, `skew`) also work on CNCJob objects.
+
+- `drillcncjob -drilled_dias` and `milldrills -milled_dias` accept diameters that the Excellon object does not
+  have. The command processes the matching tools and writes a warning for the others.
+- `ncc_clear -order` takes the tool order as a number or as a name. Without `-order`, it uses the order of the
+  preferences.
+- `photocarve <filename>` has an option for each parameter of the plugin, for example
+  `photocarve image.png -width 100 -strategy spiral -outname engraving`. It uses the preferences as defaults.
 
 ---
 
@@ -772,7 +882,11 @@ transforms (`offset`, `scale`, `mirror`, `skew`) also work on CNCJob objects.
 - **Tools Database** (Options > Tools Database, `Ctrl+D`): your tools with their diameter, tolerance, shape and
   cutting parameters, and the settings for Isolation, NCC, Paint, Drilling, Milling and Cutout. The plugins can pick a
   tool from the database, or find the tool that fits a diameter. The database is exported and imported as a text
-  file.
+  file. The **Gerber Apertures** button opens the database of apertures for the Gerber Editor.
+- **Clearing Error** and **Clearing Edge** (Preferences > General): the accuracy of the contour of Paint and NCC.
+  See [Plugins](#toolpath-generation). They are options of the project, not of the tool data.
+- **3D view** (Options > Experimental > 3D Area, and the Plot 3D tab): `Shift` + mouse wheel zooms in steps 10
+  times finer.
 - **Rendering**: VisPy is the only PCB canvas backend. The retired `global_graphic_engine` preference is discarded
   automatically when loading or importing settings and when accepting project settings; subsequent saves omit it.
   No manual preference reset is needed.
@@ -814,7 +928,7 @@ python -m pip install pytest pytest-xdist
 python -m pytest tests -q -n 8 --dist loadfile
 ```
 
-Without `pytest-xdist`, omit `-n 8 --dist loadfile` (1 process, about 10 minutes).
+Without `pytest-xdist`, omit `-n 8 --dist loadfile` (1 process, slower).
 
 The gates are the test sets for a change:
 
