@@ -1376,6 +1376,8 @@ class MainGUI(QtWidgets.QMainWindow):
             QtGui.QIcon(self.app.resource_location + '/ncc32.png'), _("NCC"))
         self.paint_btn = self.toolbarplugins.addAction(
             QtGui.QIcon(self.app.resource_location + '/paint32.png'), _("Paint"))
+        self.photocarve_btn = self.toolbarplugins.addAction(
+            QtGui.QIcon(self.app.resource_location + '/photo_carving64.png'), _("Photo Carve"))
 
         self.toolbarplugins.addSeparator()
 
@@ -2825,6 +2827,8 @@ class MainGUI(QtWidgets.QMainWindow):
             QtGui.QIcon(self.app.resource_location + '/ncc32.png'), _("NCC"))
         self.paint_btn = self.toolbarplugins.addAction(
             QtGui.QIcon(self.app.resource_location + '/paint32.png'), _("Paint"))
+        self.photocarve_btn = self.toolbarplugins.addAction(
+            QtGui.QIcon(self.app.resource_location + '/photo_carving64.png'), _("Photo Carve"))
 
         self.toolbarplugins.addSeparator()
 
@@ -3658,6 +3662,11 @@ class MainGUI(QtWidgets.QMainWindow):
                 # 2-Sided PCB Tool
                 if key == QtCore.Qt.Key.Key_U:
                     self.app.dblsidedtool.run(toggle=True)
+                    return
+
+                # Photo Carve Tool
+                if key == QtCore.Qt.Key.Key_V:
+                    self.app.photocarve_tool.run(toggle=True)
                     return
 
                 # Substract Tool
@@ -5542,6 +5551,10 @@ class ShortcutsTab(QtWidgets.QWidget):
                         <td height="20"><strong>&#39;%s&#39;</strong></td>
                         <td>&nbsp;%s</td>
                     </tr>
+                    <tr height="20">
+                        <td height="20"><strong>%s</strong></td>
+                        <td>&nbsp;%s</td>
+                    </tr>
                 </tbody>
             </table>
         """ % (
@@ -5567,6 +5580,7 @@ class ShortcutsTab(QtWidgets.QWidget):
             _('Alt+S'), _("View File Source"),
             _('Alt+T'), _("Transform"),
             _('Alt+U'), _("2-Sided PCB"),
+            _('Alt+V'), _("Photo Carve"),
             _('Alt+W'), _("Subtract"),
             _('Alt+X'), _("Cutout PCB"),
             _('Alt+Y'), _("Follow"),

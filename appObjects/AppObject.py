@@ -519,8 +519,20 @@ class AppObject(QtCore.QObject):
         # #############################################################################################################
         # ###############################  Add the new object to the Collection  ######################################
         # #############################################################################################################
+        guard = getattr(obj, '_publish_guard', None)
+        if guard is not None:
+            del obj._publish_guard
+            if not guard():
+                self.app.log.debug('Discarding an obsolete generated object before publication.')
+                self.app.inform.emit('[WARNING_NOTCL] %s' % _("Obsolete generated object discarded."))
+                return
+
         # The Collection might change the name if there is a collision
         self.app.collection.append(obj)
+        after_publish = getattr(obj, '_after_publish', None)
+        if after_publish is not None:
+            del obj._after_publish
+            after_publish(obj)
 
         if getattr(obj, '_record_history', False):
             history_of(self.app).record_create('%s: %s' % (_("New"), obj.obj_options['name']), [obj])

@@ -67,6 +67,7 @@ import tclCommands.TclCommandOpenSVG
 import tclCommands.TclCommandOptions
 import tclCommands.TclCommandPaint
 import tclCommands.TclCommandPanelize
+import tclCommands.TclCommandPhotoCarve
 import tclCommands.TclCommandPlotAll
 import tclCommands.TclCommandPlotObjects
 import tclCommands.TclCommandQRCode

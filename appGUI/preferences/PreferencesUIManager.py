@@ -889,6 +889,12 @@ class PreferencesUIManager(QtCore.QObject):
 
         }
 
+        from appPlugins.ToolPhotoCarve.PhotoCarveModel import DEFAULTS, PHOTOCARVE_KEYS
+        self.defaults_form_fields.update({
+            key: getattr(self.ui.plugin_eng_pref_form.tools_photocarve_group, name + '_entry')
+            for name, key in zip(DEFAULTS, PHOTOCARVE_KEYS)
+        })
+
         # set the colors of the tab text's to default and the color of the first tab is 'green'
         self.ui.on_pref_tabbar_clicked(0)
 

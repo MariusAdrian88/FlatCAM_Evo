@@ -565,6 +565,7 @@ class App(QtCore.QObject):
         self.cutout_tool = None
         self.ncclear_tool = None
         self.paint_tool = None
+        self.photocarve_tool = None
         self.isolation_tool = None
         self.follow_tool = None
         self.drilling_tool = None
@@ -2153,6 +2154,10 @@ class App(QtCore.QObject):
         self.paint_tool.install(icon=QtGui.QIcon(self.resource_location + '/paint32.png'), pos=self.ui.menu_plugins,
                                 before=self.sub_tool.menuAction, separator=True)
 
+        self.photocarve_tool = ToolPhotoCarve(self)
+        self.photocarve_tool.install(icon=QtGui.QIcon(self.resource_location + '/photo_carving64.png'),
+                                     pos=self.ui.menu_plugins, before=self.sub_tool.menuAction, separator=True)
+
         self.isolation_tool = ToolIsolation(self)
         self.isolation_tool.install(icon=QtGui.QIcon(self.resource_location + '/iso_16.png'), pos=self.ui.menu_plugins,
                                     before=self.sub_tool.menuAction, separator=True)
@@ -2247,6 +2252,7 @@ class App(QtCore.QObject):
             self.cutout_tool,
             self.ncclear_tool,
             self.paint_tool,
+            self.photocarve_tool,
             self.isolation_tool,
             self.follow_tool,
             self.drilling_tool,

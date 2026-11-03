@@ -380,6 +380,9 @@ class ProjectManager(QtCore.QObject):
         so this method does not close an editor.
         """
         app = self.app
+        photocarve = getattr(app, 'photocarve_tool', None)
+        if photocarve is not None:
+            photocarve.on_project_reset()
         for attr in ('tool_shapes', 'hover_shapes'):
             shapes = getattr(app, attr, None)
             if shapes is not None:

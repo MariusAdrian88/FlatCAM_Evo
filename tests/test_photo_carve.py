@@ -877,3 +877,352 @@ def test_writer_physical_skew_error_and_inch_precision():
     assert write_tool_gcode(job, 1, built['tools'], (0, 0), None, 0,
                             True, True, False, True, built['photocarve']) == 'fail'
     assert '6 coordinate decimals' in job.app.inform.emit.call_args.args[0]
+
+
+@pytest.fixture
+def photo_controller():
+    from PyQt6 import QtWidgets
+    from types import SimpleNamespace
+    from unittest.mock import Mock, MagicMock
+    from defaults import AppDefaults
+    from appPlugins.ToolPhotoCarve.PhotoCarve import ToolPhotoCarve
+    qapp = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    app = SimpleNamespace(decimals=4, units='MM', options=dict(AppDefaults.factory_defaults),
+                          defaults=Mock(), log=Mock(), inform=Mock(), worker_task=Mock(),
+                          cleanup=Mock(), proc_container=MagicMock(), abort_flag=False,
+                          collection=Mock(), ui=Mock(), milling_tool=Mock())
+    tool = ToolPhotoCarve(app)
+    tool.set_tool_ui()
+    yield tool, app, qapp
+    tool.on_plugin_cleanup()
+    tool.deleteLater()
+    qapp.processEvents()
+
+
+def test_photo_rebuild_bindings_and_preferences_roundtrip(photo_controller):
+    from appPlugins.ToolPhotoCarve.PhotoCarveModel import DEFAULTS, PHOTOCARVE_KEYS
+    from appGUI.preferences.tools.ToolsPhotoCarvePrefGroupUI import ToolsPhotoCarvePrefGroupUI
+    from defaults import AppDefaults
+    tool, app, _ = photo_controller
+    prefs = ToolsPhotoCarvePrefGroupUI(app)
+    for _ in range(2):
+        tool.set_tool_ui()
+        assert set(tool.form_fields) == set(PHOTOCARVE_KEYS)
+        tool.ui.strategy_entry.set_value('spiral')
+        tool.form_to_storage()
+        assert app.options['tools_photocarve_strategy'] == 'spiral'
+        for key, name in zip(PHOTOCARVE_KEYS, DEFAULTS):
+            widget = getattr(prefs, name + '_entry')
+            widget.set_value(app.options[key])
+            assert widget.get_value() == app.options[key]
+            assert AppDefaults.factory_defaults[key] == DEFAULTS[name]
+    tool.ui.width_entry.set_value(23)
+    assert app.options['tools_photocarve_width'] == 23
+
+
+def test_photo_preview_drops_stale_and_emits_errors(photo_controller, monkeypatch):
+    from appPlugins.ToolPhotoCarve import PhotoCarveGen as gen
+    tool, app, _ = photo_controller
+    tool.image = Image.new('RGB', (3, 2), 'black')
+    tool.on_preview()
+    old = app.worker_task.emit.call_args.args[0]
+    tool.on_preview()
+    new = app.worker_task.emit.call_args.args[0]
+    new['fcn'](*new['params'])
+    shown = tool.ui.preview_label.pixmap().cacheKey()
+    old['fcn'](*old['params'])
+    assert tool.ui.preview_label.pixmap().cacheKey() == shown
+    monkeypatch.setattr(gen, 'preview_map', lambda *a: (_ for _ in ()).throw(ValueError('preview error')))
+    tool.on_preview()
+    task = app.worker_task.emit.call_args.args[0]
+    task['fcn'](*task['params'])
+    assert 'preview error' in app.inform.emit.call_args.args[0]
+
+
+@pytest.mark.parametrize('kind', ['geometry', 'gerber'])
+def test_photo_publication_guard_and_ordinary_creation(kind):
+    from appObjects.AppObject import AppObject
+    from types import SimpleNamespace
+    from unittest.mock import Mock, patch
+    app = SimpleNamespace(log=Mock(), inform=Mock(), collection=Mock(), ui=Mock(), worker_task=Mock())
+    app.ui.notebook.currentWidget.return_value = app.ui.plugin_tab
+    obj = SimpleNamespace(kind=kind, obj_options={'name': 'result'}, status_color=None,
+                          has_plot_colors=False, _record_history=True)
+    holder = SimpleNamespace(app=app)
+    with patch('appObjects.AppObject.history_of') as history:
+        obj._publish_guard = lambda: False
+        AppObject.on_object_created(holder, obj, False, False, None, [])
+        app.collection.append.assert_not_called()
+        history.return_value.record_create.assert_not_called()
+        callback = Mock()
+        AppObject.on_object_created(holder, obj, False, False, callback, ['arg'])
+        app.collection.append.assert_called_once_with(obj)
+        history.return_value.record_create.assert_called_once()
+        assert app.worker_task.emit.call_args.args[0] == {'fcn': callback, 'params': ['arg']}
+
+
+@pytest.mark.parametrize('invalidate', ['reset', 'units', 'newer', 'after_init', 'units_after_init'])
+def test_photo_generation_captured_publication(photo_controller, invalidate):
+    from appObjects.AppObject import AppObject
+    from types import SimpleNamespace
+    tool, app, _ = photo_controller
+    tool.image = Image.new('RGB', (2, 2), 'black')
+    tool.image_filename = 'photo.png'
+    tool.ui.width_entry.set_value(2)
+    tool.ui.res_entry.set_value(1)
+    pending = []
+
+    def create(kind, name, init, **kwargs):
+        obj = SimpleNamespace(kind=kind, obj_options={'name': name}, status_color=None, has_plot_colors=False)
+        if init(obj, app) != 'fail':
+            pending.append(obj)
+        return obj
+
+    app.app_obj = SimpleNamespace(new_object=create)
+    app.collection.get_by_name.return_value = object()
+    app.ui.notebook.currentWidget.return_value = app.ui.plugin_tab
+    tool.on_generate()
+    first = app.worker_task.emit.call_args.args[0]
+    if invalidate == 'reset':
+        tool.on_project_reset()
+    elif invalidate == 'units':
+        app.units = 'IN'
+    elif invalidate == 'newer':
+        tool.on_generate()
+        latest = app.worker_task.emit.call_args.args[0]
+        latest['fcn'](*latest['params'])
+    first['fcn'](*first['params'])
+    if invalidate == 'after_init':
+        assert len(pending) == 1
+        tool.on_project_reset()
+    elif invalidate == 'units_after_init':
+        assert len(pending) == 1
+        app.units = 'IN'
+    for obj in pending:
+        obj.obj_options['name'] = 'photo_engrave_2'
+        AppObject.on_object_created(SimpleNamespace(app=app), obj, False, False, None, [])
+    if invalidate == 'newer':
+        assert tool.result_obj_name == 'photo_engrave_2'
+        tool.on_open_milling()
+        app.collection.set_active.assert_called_with('photo_engrave_2')
+        app.milling_tool.run.assert_called_once()
+        tool.on_project_reset()
+        assert tool.result_obj_name is None
+    else:
+        app.collection.append.assert_not_called()
+        assert tool.result_obj_name is None
+
+
+def test_photo_preferences_manager_all_keys(photo_controller, tmp_path):
+    from unittest.mock import MagicMock
+    from defaults import AppDefaults
+    from appGUI.preferences.PreferencesUIManager import PreferencesUIManager
+    from appGUI.preferences.tools.PluginsEngravingPreferencesUI import PluginsEngravingPreferencesUI
+    from appPlugins.ToolPhotoCarve.PhotoCarveModel import DEFAULTS, PHOTOCARVE_KEYS
+    tool, app, _ = photo_controller
+    ui = MagicMock()
+    ui.app = app
+    ui.plugin_eng_pref_form = PluginsEngravingPreferencesUI(app)
+    manager = PreferencesUIManager(AppDefaults(), str(tmp_path), ui, app.inform, app.options)
+    fields = {key: manager.defaults_form_fields[key] for key in PHOTOCARVE_KEYS}
+    manager.defaults_form_fields = fields
+    for key in fields:
+        manager.defaults_write_form_field(key)
+        assert fields[key].get_value() == app.options[key]
+    fields['tools_photocarve_strategy'].set_value('spiral')
+    manager.defaults_read_form()
+    assert app.options['tools_photocarve_strategy'] == 'spiral'
+    assert manager.defaults['tools_photocarve_strategy'] == 'spiral'
+    assert len(fields) == len(DEFAULTS)
+
+
+def test_photo_tcl_shared_generation_and_invalid_cutter(photo_controller, tmp_path, monkeypatch):
+    from tclCommands.TclCommandPhotoCarve import TclCommandPhotoCarve
+    from appPlugins.ToolPhotoCarve import PhotoCarveGen
+    from appPlugins.ToolPhotoCarve.PhotoCarveModel import DEFAULTS
+    from defaults import AppDefaults
+    from types import SimpleNamespace
+    tool, app, _ = photo_controller
+    app.defaults = AppDefaults()
+    path = tmp_path / 'photo.png'
+    Image.new('RGB', (2, 2), 'black').save(path)
+    captured = []
+    original = PhotoCarveGen.run_job
+
+    def run(image, params, check_abort=None):
+        captured.append(params)
+        return original(image, params, check_abort)
+
+    monkeypatch.setattr(PhotoCarveGen, 'run_job', run)
+    created = []
+
+    def create(kind, name, init, **kwargs):
+        assert kind == 'geometry' and kwargs['plot'] is False
+        obj = SimpleNamespace(obj_options={'name': name})
+        init(obj, app)
+        assert not hasattr(obj, '_publish_guard') and not hasattr(obj, '_after_publish')
+        created.append(obj)
+        return obj
+
+    app.app_obj = SimpleNamespace(new_object=create)
+    command = TclCommandPhotoCarve(app)
+    assert set(command.option_types) == set(DEFAULTS) | {'outname'}
+    command.execute({'filename': str(path), 'outname': 'scripted', 'width': 2., 'res': 1.}, [])
+    assert len(captured) == len(created) == 1
+    assert created[0].obj_options['name'] == 'scripted'
+    assert created[0].obj_options['photocarve']['mode'] == 'vcarve'
+    assert created[0].tools[1]['solid_geometry']
+    error = command.execute({'filename': str(path), 'tool_angle': 0.}, [])
+    assert isinstance(error, str) and error
+    assert len(created) == 1
+
+
+@pytest.mark.parametrize('mode,strategy,kind,tone', [
+    ('vcarve', 'spiral', 'vbit', 'vbit_area'), ('halftone', '-', 'vbit', 'linear'),
+    ('relief', 'xy', 'ball', 'perceptual'), ('lithophane', 'y', 'flat', 'lithophane'),
+    ('laser', 'floyd', 'flat', 'linear'),
+])
+def test_photo_modes_and_image_capture(photo_controller, tmp_path, mode, strategy, kind, tone):
+    tool, app, _ = photo_controller
+    path = tmp_path / 'oriented.tif'
+    image = Image.new('RGB', (2, 3))
+    exif = image.getexif()
+    exif[274] = 6
+    image.save(path, exif=exif)
+    tool.on_load_image(filename=str(path))
+    assert tool.image.size == (3, 2)
+    assert tool.ui.file_label.text() == 'oriented.tif'
+    tool.ui.mode_entry.set_value(mode)
+    tool.ui.strategy_entry.set_value(strategy)
+    tool.ui.tool_kind_entry.set_value(kind)
+    tool.ui.tone_entry.set_value(tone)
+    params = tool.capture_params()
+    assert (params.mode, params.strategy, params.tool_kind, params.tone) == (mode, strategy, kind, tone)
+    assert tool.ui.tool_kind_entry.isEnabled() == (mode not in ('vcarve', 'halftone'))
+    assert tool.ui.sections['rough'].isHidden() == (mode == 'laser')
+    assert tool.ui.tone_entry.isHidden() == (mode in ('laser', 'halftone'))
+
+
+def test_photo_generations_final_name_and_reset_no_callback(photo_controller):
+    from appObjects.AppObject import AppObject
+    from types import SimpleNamespace
+    tool, app, _ = photo_controller
+    tool.image = Image.new('RGB', (2, 2), 'black')
+    tool.image_filename = 'photo.png'
+    tool.ui.width_entry.set_value(2)
+    tool.ui.res_entry.set_value(1)
+    app.ui.notebook.currentWidget.return_value = app.ui.plugin_tab
+    objects = []
+
+    def create(kind, name, init, **kwargs):
+        assert 'callback' not in kwargs
+        obj = SimpleNamespace(kind=kind, obj_options={'name': name}, status_color=None, has_plot_colors=False)
+        if init(obj, app) != 'fail':
+            AppObject.on_object_created(SimpleNamespace(app=app), obj, False, False, None, [])
+            objects.append(obj)
+        return obj
+
+    def append(obj):
+        obj.obj_options['name'] += '_%d' % (len(objects) + 1)
+
+    app.app_obj = SimpleNamespace(new_object=create)
+    app.collection.append.side_effect = append
+    for expected in ('photo_photocarve_1', 'photo_photocarve_2'):
+        tool.on_generate()
+        task = app.worker_task.emit.call_args.args[0]
+        task['fcn'](*task['params'])
+        assert tool.result_obj_name == expected
+    tool.on_open_milling()
+    app.collection.set_active.assert_called_with('photo_photocarve_2')
+    tool.on_project_reset()
+    assert tool.result_obj_name is None
+
+
+def test_photo_latest_finishes_before_old_running_job(photo_controller, monkeypatch):
+    import threading
+    from appPlugins.ToolPhotoCarve import PhotoCarveGen as gen
+    from types import SimpleNamespace
+    tool, app, _ = photo_controller
+    tool.image = Image.new('RGB', (2, 2), 'black')
+    tool.ui.width_entry.set_value(2)
+    tool.ui.res_entry.set_value(1)
+    started, finish = threading.Event(), threading.Event()
+    real_run = gen.run_job
+    results = []
+
+    def run(image, params, check_abort):
+        result = real_run(image, params, check_abort)
+        if threading.current_thread() is not threading.main_thread():
+            started.set()
+            assert finish.wait(5)
+        return result
+
+    def create(kind, name, init, **kwargs):
+        obj = SimpleNamespace(obj_options={'name': name})
+        if init(obj, app) != 'fail':
+            results.append(obj)
+
+    monkeypatch.setattr(gen, 'run_job', run)
+    app.app_obj = SimpleNamespace(new_object=create)
+    tool.on_generate()
+    first = app.worker_task.emit.call_args.args[0]
+    worker = threading.Thread(target=lambda: first['fcn'](*first['params']))
+    worker.start()
+    try:
+        assert started.wait(5)
+        tool.on_generate()
+        latest = app.worker_task.emit.call_args.args[0]
+        latest['fcn'](*latest['params'])
+    finally:
+        finish.set()
+        worker.join(5)
+    assert not worker.is_alive()
+    assert len(results) == 1
+
+
+def test_photo_menu_toggle_and_shortcut(photo_controller, monkeypatch):
+    from PyQt6 import QtCore, QtWidgets
+    from appGUI.MainGUI import MainGUI, ShortcutsTab
+    from appGUI.GUIElements import VerticalScrollArea
+    from unittest.mock import Mock, patch
+    from types import SimpleNamespace
+    tool, app, _ = photo_controller
+    errors = []
+    monkeypatch.setattr(sys, 'excepthook', lambda typ, value, tb: errors.append(str(value)))
+    app.plugin_tab_locked = False
+    app.call_source = 'app'
+    app.photocarve_tool = tool
+    app.ui.menu_plugins = QtWidgets.QMenu()
+    app.ui.notebook = QtWidgets.QTabWidget()
+    app.ui.properties_tab = QtWidgets.QWidget()
+    app.ui.plugin_tab = QtWidgets.QWidget()
+    app.ui.plugin_tab.setObjectName('plugin_tab')
+    app.ui.notebook.addTab(QtWidgets.QWidget(), 'Project')
+    app.ui.notebook.addTab(app.ui.properties_tab, 'Properties')
+    app.ui.notebook.addTab(app.ui.plugin_tab, 'Plugin')
+    app.ui.plugin_scroll_area = VerticalScrollArea()
+    app.ui.plugin_tab_layout = QtWidgets.QVBoxLayout(app.ui.plugin_tab)
+    app.ui.plugin_tab_layout.addWidget(app.ui.plugin_scroll_area)
+    app.collection.get_list.return_value = []
+    app.ui.splitter.sizes.return_value = [1, 1]
+    tool.install()
+    tool.menuAction.trigger()
+    assert not errors, errors
+    assert app.ui.plugin_scroll_area.widget() is tool
+    assert app.ui.notebook.currentWidget() is app.ui.plugin_tab
+    tool.menuAction.trigger()
+    assert not errors, errors
+    assert app.ui.notebook.indexOf(app.ui.plugin_tab) == -1
+    with patch.object(QtWidgets.QApplication, 'keyboardModifiers',
+                      return_value=QtCore.Qt.KeyboardModifier.AltModifier):
+        MainGUI.keyPressEvent(SimpleNamespace(app=app), int(QtCore.Qt.Key.Key_V))
+    assert app.ui.notebook.currentWidget() is app.ui.plugin_tab
+    app.on_zoom_fit = Mock()
+    with patch.object(QtWidgets.QApplication, 'keyboardModifiers',
+                      return_value=QtCore.Qt.KeyboardModifier.NoModifier):
+        MainGUI.keyPressEvent(SimpleNamespace(app=app), int(QtCore.Qt.Key.Key_V))
+    app.on_zoom_fit.assert_called_once()
+    shortcuts = ShortcutsTab()
+    assert any('Alt+V' in w.toPlainText() for w in shortcuts.findChildren(QtWidgets.QTextEdit))
+    app.ui.plugin_scroll_area.takeWidget()
+    app.ui.notebook.deleteLater()

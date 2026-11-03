@@ -1431,6 +1431,9 @@ class appIO(QtCore.QObject):
                 return 'fail'
 
         # The reset is now committed. Only this project's history is no longer replayable.
+        photocarve = getattr(self.app, 'photocarve_tool', None)
+        if photocarve is not None:
+            photocarve.on_project_reset()
         history_of(self.app).clear()
 
         for obj in self.app.collection.get_list():

@@ -22,6 +22,7 @@ from appPlugins.ToolMove import ToolMove
 from appPlugins.ToolCutOut import CutOut
 from appPlugins.ToolNCC.Ncc import ToolNcc
 from appPlugins.ToolPaint.Paint import ToolPaint
+from appPlugins.ToolPhotoCarve.PhotoCarve import ToolPhotoCarve
 from appPlugins.ToolIsolation import ToolIsolation
 from appPlugins.ToolFollow import ToolFollow
 from appPlugins.ToolDrilling import ToolDrilling

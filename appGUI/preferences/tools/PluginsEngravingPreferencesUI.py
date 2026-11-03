@@ -7,6 +7,7 @@ from appGUI.preferences.tools.ToolsGrblSenderPrefGroupUI import ToolsGrblSenderP
 
 from appGUI.preferences.tools.ToolsNCCPrefGroupUI import ToolsNCCPrefGroupUI
 from appGUI.preferences.tools.ToolsPaintPrefGroupUI import ToolsPaintPrefGroupUI
+from appGUI.preferences.tools.ToolsPhotoCarvePrefGroupUI import ToolsPhotoCarvePrefGroupUI
 from appGUI.preferences.tools.ToolsISOPrefGroupUI import ToolsISOPrefGroupUI
 
 from appGUI.ColumnarFlowLayout import ColumnarFlowLayout
@@ -36,6 +37,9 @@ class PluginsEngravingPreferencesUI(QtWidgets.QWidget):
         self.tools_paint_group = ToolsPaintPrefGroupUI(app=app)
         self.tools_paint_group.setMinimumWidth(250)
 
+        self.tools_photocarve_group = ToolsPhotoCarvePrefGroupUI(app=app)
+        self.tools_photocarve_group.setMinimumWidth(250)
+
         self.tools_2sided_group = Tools2sidedPrefGroupUI(app=app)
         self.tools_2sided_group.setMinimumWidth(250)
 
@@ -53,6 +57,8 @@ class PluginsEngravingPreferencesUI(QtWidgets.QWidget):
 
         self.vlay2 = QtWidgets.QVBoxLayout()
         self.vlay2.addWidget(self.tools_paint_group)
+        self.vlay_photo = QtWidgets.QVBoxLayout()
+        self.vlay_photo.addWidget(self.tools_photocarve_group)
 
         self.vlay3 = QtWidgets.QVBoxLayout()
         self.vlay3.addWidget(self.tools_2sided_group)
@@ -62,6 +68,7 @@ class PluginsEngravingPreferencesUI(QtWidgets.QWidget):
         self.layout.addLayout(self.vlay)
         self.layout.addLayout(self.vlay1)
         self.layout.addLayout(self.vlay2)
+        self.layout.addLayout(self.vlay_photo)
         self.layout.addLayout(self.vlay3)
 
         self.layout.addStretch()

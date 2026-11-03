@@ -248,6 +248,7 @@ class AppSignalConnector(QtCore.QObject):
         self.ui.isolation_btn.triggered.connect(lambda: self.app.isolation_tool.run(toggle=True))
         self.ui.ncc_btn.triggered.connect(lambda: self.app.ncclear_tool.run(toggle=True))
         self.ui.paint_btn.triggered.connect(lambda: self.app.paint_tool.run(toggle=True))
+        self.ui.photocarve_btn.triggered.connect(lambda: self.app.photocarve_tool.run(toggle=True))
 
         self.ui.cutout_btn.triggered.connect(lambda: self.app.cutout_tool.run(toggle=True))
         self.ui.panelize_btn.triggered.connect(lambda: self.app.panelize_tool.run(toggle=True))

@@ -5,6 +5,7 @@ import sys
 import tempfile
 from copy import deepcopy
 from appCommon.Common import LoudDict
+from appCommon.PhotoCarveDefaults import DEFAULTS as PHOTOCARVE_DEFAULTS
 from camlib import to_dict, Geometry
 import json
 import logging
@@ -114,6 +115,7 @@ def clean_project_options(options):
 class AppDefaults:
 
     factory_defaults = {
+        **{'tools_photocarve_' + key: value for key, value in PHOTOCARVE_DEFAULTS.items()},
         # Global
         "first_run": True,
         "root_folder_path": '',

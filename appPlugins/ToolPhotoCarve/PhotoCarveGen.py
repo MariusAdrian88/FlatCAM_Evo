@@ -62,3 +62,75 @@ def run_job(image, params, check_abort=None):
         raise PhotoCarveError('Combined passes exceed the point limit; increase spacing, resolution or stepdown.')
     return JobResult(passes, warnings, {'points': points, 'paths': sum(len(part.paths) for part in passes),
                                        'cells': frame.rows * frame.cols, 'max_gouge': min(margins, default=0.0)})
+
+
+def preview_map(image, params):
+    """The adjusted physical image, using the same preflight as generation."""
+    from PIL import Image
+    params, _warnings = validate(params)
+    gray = prepare_image(image, params)
+    return Image.fromarray(np.rint(gray * 255).astype(np.uint8))
+
+
+class PhotoCarveGen:
+    def __init__(self, tool):
+        self.tool = tool
+        self.app = tool.app
+
+    def preview(self, token, image, params):
+        result = None
+        try:
+            result = preview_map(image, params)
+        except Exception as err:
+            result = str(err)
+        finally:
+            self.tool.preview_done_sig.emit(token, result)
+
+    def generate(self, token, image, params, milldefaults, outname):
+        from camlib import grace
+        from .PhotoCarveObject import build_geometry
+
+        def current():
+            return token == self.tool._gen_token and self.app.units == params.units
+
+        def check_abort():
+            if self.app.abort_flag or not current():
+                raise grace
+
+        try:
+            check_abort()
+            with self.app.proc_container.new(self.tool.pluginName):
+                result = run_job(image, params, check_abort)
+                check_abort()
+                for warning in result.warnings:
+                    self.tool.generation_message_sig.emit(token, '[WARNING_NOTCL]', warning)
+
+                def obj_init(geo, app):
+                    if not current():
+                        return 'fail'
+                    try:
+                        built = build_geometry(result, params, milldefaults)
+                    except PhotoCarveError as err:
+                        self.tool.generation_message_sig.emit(token, '[ERROR_NOTCL]', str(err))
+                        return 'fail'
+                    geo.tools = built['tools']
+                    geo.solid_geometry = built['solid_geometry']
+                    geo.multigeo = True
+                    geo.multitool = True
+                    geo.obj_options['photocarve'] = built['photocarve']
+                    geo._publish_guard = current
+
+                    def after_publish(obj):
+                        if current():
+                            self.tool.result_obj_name = obj.obj_options['name']
+
+                    geo._after_publish = after_publish
+
+                check_abort()
+                return self.app.app_obj.new_object('geometry', outname, obj_init)
+        except grace:
+            return 'fail'
+        except Exception as err:
+            self.app.log.error('PhotoCarveGen.generate() --> %s', err)
+            self.tool.generation_message_sig.emit(token, '[ERROR_NOTCL]', str(err))
+            return 'fail'
