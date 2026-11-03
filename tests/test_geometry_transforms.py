@@ -249,5 +249,47 @@ def test_a_closed_contour_erosion_that_splits_keeps_every_piece():
     assert sorted(Polygon(part).area for part in geo.solid_geometry) == pytest.approx([4.0, 4.0])
 
 
+def test_geometry_unit_conversion_preserves_each_tool_geometry_and_data():
+    from copy import deepcopy
+    from unittest.mock import patch
 
-
+    with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
+        geo = GeometryObject('board', make_app())
+    geo.units, geo.multigeo = 'MM', True
+    geo.ui_disconnect = Mock()
+    geo.tools = {
+        1: {'tooldia': 6.0, 'solid_geometry': [LineString([(0, 0), (25.4, 12.7)])],
+            'data': {'tools_mill_tooldia': 6.0, 'tools_mill_vtipdia': 0.2,
+                     'tools_mill_feedrate': 254.0, 'tools_mill_feedrate_z': 25.4,
+                     'tools_mill_travelz': 5.0, 'tools_mill_startz': None,
+                     'tools_mill_endxy': '25.4, 50.8', 'tools_mill_toolchangexy': '',
+                     'cutz': -1.0, 'extra': {'preserve': [1]}}, 'custom': {'uid': 1}},
+        2: {'tooldia': 3.0, 'solid_geometry': [Point(50.8, 25.4)],
+            'data': {'tools_mill_cutz': -2.54, 'tools_mill_vtipangle': 60,
+                     'tools_mill_endxy': None, 'tools_mill_toolchangexy': '(50.8, 25.4)'},
+            'custom': {'uid': 2}},
+    }
+    original = deepcopy(geo.tools)
+    assert geo.convert_units('IN') == pytest.approx(1 / 25.4)
+    assert list(geo.tools) == [1, 2]
+    assert geo.tools[1]['solid_geometry'][0].coords[:] == pytest.approx(np.array([(0, 0), (1, 0.5)]))
+    assert geo.tools[2]['solid_geometry'][0].coords[:] == pytest.approx(np.array([(2, 1)]))
+    first, second = geo.tools[1]['data'], geo.tools[2]['data']
+    assert first['tools_mill_tooldia'] == pytest.approx(6 / 25.4)
+    assert first['tools_mill_vtipdia'] == pytest.approx(0.2 / 25.4)
+    assert first['tools_mill_feedrate'] == pytest.approx(10)
+    assert first['tools_mill_feedrate_z'] == pytest.approx(1)
+    assert first['tools_mill_travelz'] == pytest.approx(5 / 25.4)
+    assert first['cutz'] == pytest.approx(-1 / 25.4)
+    assert first['tools_mill_startz'] is None and first['tools_mill_toolchangexy'] == ''
+    assert [float(v) for v in first['tools_mill_endxy'].split(',')] == pytest.approx([1, 2])
+    assert second['tools_mill_cutz'] == pytest.approx(-0.1)
+    assert second['tools_mill_vtipangle'] == 60 and second['tools_mill_endxy'] is None
+    assert [float(v) for v in second['tools_mill_toolchangexy'].split(',')] == pytest.approx([2, 1])
+    assert geo.tools[1]['custom'] == {'uid': 1} and geo.tools[2]['custom'] == {'uid': 2}
+    first['extra']['preserve'].append(2)
+    assert original[1]['data']['extra']['preserve'] == [1]
+
+
+
+

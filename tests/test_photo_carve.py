@@ -455,3 +455,34 @@ def test_motion_interpreter_rejects_unknown_frames_commands_and_unsplit_arcs(mod
             sim.interpret_gcode('G0 X0 Y0 Z5\n' + command)
     with pytest.raises(model.PhotoCarveError):
         sim.interpret_gcode('G0 X0 Y0\nG1 X1')
+
+
+def test_marked_geometry_unit_conversion_preserves_cutter_precision_and_laser_power():
+    from unittest.mock import Mock, patch
+    from shapely import LineString
+    from appObjects.GeometryObject import GeometryObject
+    from tests.helpers_objects import make_app_0b
+
+    for laser in (False, True):
+        with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
+            obj = GeometryObject('photo', make_app_0b())
+        obj.units, obj.multigeo, obj.ui_disconnect = 'MM', True, Mock()
+        mark = {'version': 1, 'mode': 'laser' if laser else 'relief', 'units': 'MM',
+                'contract': 'laser' if laser else 'column', 'z_is_power': laser, 'xy_err': 0.0001,
+                'tools': {'1': {'kind': 'vbit', 'diameter': 6.0, 'tip_diameter': 0.2,
+                                'angle_deg': 60.0, 'role': 'laser' if laser else 'finish'}}}
+        obj.obj_options['photocarve'] = mark
+        obj.tools = {1: {'tooldia': 6.0, 'solid_geometry': [LineString([(0, 0, 0.5), (25.4, 0, 1.0)])],
+                         'data': {'tools_mill_tooldia': 6.0, 'tools_mill_vtipdia': 0.2}}}
+        obj.convert_units('IN')
+        assert obj.tools[1]['tooldia'] == 6 / 25.4
+        assert obj.tools[1]['data']['tools_mill_tooldia'] == 6 / 25.4
+        assert obj.tools[1]['data']['tools_mill_vtipdia'] == 0.2 / 25.4
+        converted = obj.obj_options['photocarve']
+        assert converted['tools']['1']['diameter'] == 6 / 25.4
+        assert converted['tools']['1']['tip_diameter'] == 0.2 / 25.4
+        assert converted['xy_err'] == 0.0001 / 25.4 and converted['units'] == 'IN'
+        assert mark['units'] == 'MM' and mark['tools']['1']['diameter'] == 6
+        coords = np.asarray(obj.tools[1]['solid_geometry'][0].coords)
+        np.testing.assert_allclose(coords[:, 0], [0, 1])
+        np.testing.assert_allclose(coords[:, 2], [0.5, 1.0] if laser else np.array([0.5, 1.0]) / 25.4)

@@ -1249,103 +1249,80 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
 
     def convert_units(self, units):
         self.app.log.debug("FlatCAMObj.GeometryObject.convert_units()")
-
         self.ui_disconnect()
+        if units.upper() not in ('MM', 'IN') or units.upper() == self.units.upper():
+            return Geometry.convert_units(self, units)
+        factor = 25.4 if units.upper() == 'MM' else 1 / 25.4
+        length_keys = ('cutz', 'depthperpass', 'travelz', 'feedrate', 'feedrate_z', 'feedrate_rapid',
+                       'endz', 'toolchangez', 'startz', 'tooldia', 'offset_value', 'extracut_length',
+                       'vtipdia', 'z_p_depth', 'probe_plate', 'feedrate_probe', 'area_overz',
+                       'polish_margin', 'milling_dia')
 
-        factor = Geometry.convert_units(self, units)
+        def convert_length(value):
+            return float(value) * 25.4 if units.upper() == 'MM' else float(value) / 25.4
 
-        self.obj_options['cutz'] = float(self.obj_options['cutz']) * factor
-        self.obj_options['depthperpass'] = float(self.obj_options['depthperpass']) * factor
-        self.obj_options['travelz'] = float(self.obj_options['travelz']) * factor
-        self.obj_options['feedrate'] = float(self.obj_options['feedrate']) * factor
-        self.obj_options['feedrate_z'] = float(self.obj_options['feedrate_z']) * factor
-        self.obj_options['feedrate_rapid'] = float(self.obj_options['feedrate_rapid']) * factor
-        self.obj_options['endz'] = float(self.obj_options['endz']) * factor
-        # self.obj_options['tools_mill_tooldia'] *= factor
-        # self.obj_options['painttooldia'] *= factor
-        # self.obj_options['paintmargin'] *= factor
-        # self.obj_options['paintoverlap'] *= factor
+        def convert_values(storage):
+            for key in tuple(storage):
+                suffix = key.removeprefix('tools_mill_')
+                if suffix not in length_keys and suffix not in ('toolchangexy', 'endxy'):
+                    continue
+                value = storage[key]
+                if value is None or (isinstance(value, str) and value == ''):
+                    continue
+                if suffix in length_keys:
+                    storage[key] = convert_length(value)
+                elif suffix in ('toolchangexy', 'endxy'):
+                    if isinstance(value, str):
+                        coords = re.sub(r'[()\[\]]', '', value).split(',')
+                        coords = [convert_length(safe_eval(coord)) for coord in coords]
+                        if len(coords) != 2:
+                            raise ValueError('XY coordinates require two values')
+                        storage[key] = ', '.join(str(coord) for coord in coords)
+                    else:
+                        if len(value) != 2:
+                            raise ValueError('XY coordinates require two values')
+                        storage[key] = type(value)(convert_length(coord) for coord in value)
 
-        self.obj_options["toolchangez"] = float(self.obj_options["toolchangez"]) * factor
+        options = deepcopy(dict(self.obj_options))
+        tools = deepcopy(self.tools)
+        mark = options.get('photocarve')
+        try:
+            convert_values(options)
+            for tool in tools.values():
+                convert_values(tool)
+                convert_values(tool.get('data', {}))
+                if not mark and tool.get('tooldia') is not None:
+                    tool['tooldia'] = float('%.*f' % (self.decimals, tool['tooldia']))
+        except (TypeError, ValueError) as err:
+            self.app.inform.emit('[ERROR_NOTCL] %s: %s' % (_("Cannot convert geometry units"), str(err)))
+            return 'fail'
 
-        if self._app_option("tools_mill_toolchangexy") == '':
-            self.obj_options['toolchangexy'] = "0.0, 0.0"
-        else:
-            coords_xy = [float(safe_eval(coord)) for coord in self._app_option("tools_mill_toolchangexy").split(",")]
-            if len(coords_xy) < 2:
-                self.app.inform.emit('[ERROR] %s' %
-                                     _("The Toolchange X,Y field in Edit -> Preferences "
-                                       "has to be in the format (x, y)\n"
-                                       "but now there is only one value, not two.")
-                                     )
-                return 'fail'
-            coords_xy[0] *= factor
-            coords_xy[1] *= factor
-            self.obj_options['toolchangexy'] = "%f, %f" % (coords_xy[0], coords_xy[1])
+        self._photocarve_unit_change = True
+        try:
+            Geometry.convert_units(self, units)
+        finally:
+            self._photocarve_unit_change = False
 
-        if self.obj_options['startz'] is not None:
-            self.obj_options['startz'] = float(self.obj_options['startz']) * factor
+        def convert_z(geometry):
+            if isinstance(geometry, (list, tuple)):
+                return type(geometry)(convert_z(item) for item in geometry)
+            return scale(geometry, xfact=1, yfact=1, zfact=factor, origin=(0, 0, 0)) if geometry is not None else None
 
-        param_list = ['cutz', 'depthperpass', 'travelz', 'feedrate', 'feedrate_z', 'feedrate_rapid',
-                      'endz', 'toolchangez']
-
-        if isinstance(self, GeometryObject):
-            temp_tools_dict = {}
-            tool_dia_copy = {}
-            data_copy = {}
-            for tooluid_key, tooluid_value in self.tools.items():
-                for dia_key, dia_value in tooluid_value.items():
-                    if dia_key == 'tooldia':
-                        dia_value *= factor
-                        dia_value = float('%.*f' % (self.decimals, dia_value))
-                        tool_dia_copy[dia_key] = dia_value
-                    if dia_key == 'offset':
-                        tool_dia_copy[dia_key] = dia_value
-                    if dia_key == 'offset_value':
-                        dia_value *= factor
-                        tool_dia_copy[dia_key] = dia_value
-
-                        # convert the value in the Custom Tool Offset entry in UI
-                        custom_offset = None
-                        try:
-                            custom_offset = float(self.ui.tool_offset_entry.get_value())
-                        except ValueError:
-                            # try to convert comma to decimal point. if it's still not working error message and return
-                            try:
-                                custom_offset = float(self.ui.tool_offset_entry.get_value().replace(',', '.'))
-                            except ValueError:
-                                self.app.inform.emit('[ERROR_NOTCL] %s' %
-                                                     _("Wrong value format entered, use a number."))
-                                return
-                        except TypeError:
-                            pass
-
-                        if custom_offset:
-                            custom_offset *= factor
-                            self.ui.tool_offset_entry.set_value(custom_offset)
-
-                    if dia_key == 'tool_type':
-                        tool_dia_copy[dia_key] = dia_value
-                    if dia_key == 'data':
-                        for data_key, data_value in dia_value.items():
-                            # convert the form fields that are convertible
-                            for param in param_list:
-                                if data_key == param and data_value is not None:
-                                    data_copy[data_key] = data_value * factor
-                            # copy the other dict entries that are not convertible
-                            if data_key not in param_list:
-                                data_copy[data_key] = data_value
-                        tool_dia_copy[dia_key] = deepcopy(data_copy)
-                        data_copy.clear()
-
-                temp_tools_dict.update({
-                    tooluid_key: deepcopy(tool_dia_copy)
-                })
-                tool_dia_copy.clear()
-
-            self.tools.clear()
-            self.tools = deepcopy(temp_tools_dict)
-
+        # Geometry.convert_units() already scaled XY; keep every record and its converted geometry.
+        for uid, tool in tools.items():
+            if 'solid_geometry' in self.tools[uid]:
+                geometry = self.tools[uid]['solid_geometry']
+                tool['solid_geometry'] = convert_z(geometry) if mark and not mark['z_is_power'] else deepcopy(geometry)
+        if mark:
+            mark['xy_err'] = convert_length(mark['xy_err'])
+            mark['units'] = units.upper()
+            for cutter in mark['tools'].values():
+                cutter['diameter'] = convert_length(cutter['diameter'])
+                cutter['tip_diameter'] = convert_length(cutter['tip_diameter'])
+            if not mark['z_is_power']:
+                self.solid_geometry = convert_z(self.solid_geometry)
+        self.obj_options.update(options)
+        self.tools = tools
         return factor
 
     def _collect_elements(self, element, color=None, collected=None):
