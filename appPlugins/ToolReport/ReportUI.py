@@ -149,7 +149,11 @@ class ReportUI:
         for option in obj.obj_options:
             if option == 'name':
                 continue
-            self.treeWidget.addChild(options, [str(option), str(obj.obj_options[option])], True)
+            text = str(obj.obj_options[option])
+            # a long value (the source image of a Photo Carve geometry) is shortened: the tree stays fast
+            if len(text) > 500:
+                text = '%s ... (%d %s)' % (text[:500], len(text), _("characters"))
+            self.treeWidget.addChild(options, [str(option), text], True)
 
         # Items that depend on the object type
         if obj.kind.lower() == 'gerber':

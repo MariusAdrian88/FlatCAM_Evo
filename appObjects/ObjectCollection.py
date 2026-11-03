@@ -638,6 +638,7 @@ class ObjectCollection(QtCore.QAbstractItemModel):
             entry.setVisible(True)
 
         ui.menuprojectsave.setText(_('Save'))
+        ui.menuprojectedit.setText(_('Edit'))
 
         if sel:
             # only the entries that apply to the selected objects
@@ -654,6 +655,10 @@ class ObjectCollection(QtCore.QAbstractItemModel):
                 all(dispatch_attr(obj, 'has_plot_colors') for obj in obj_selection))
             ui.menuprojectviewsource.setVisible(plotted and single is not None and self.has_source(single))
             ui.menuprojectedit.setVisible(plotted and single is not None)
+            # Edit opens a Photo Carve geometry with its source image in the Photo Carve plugin
+            mark = single.obj_options.get('photocarve') if single is not None else None
+            if single is not None and single.kind == 'geometry' and isinstance(mark, dict) and mark.get('source'):
+                ui.menuprojectedit.setText(_('Edit in Photo Carve'))
             ui.menuprojectsave.setVisible(single is not None or all_cncjob)
             ui.menuprojectexport.menuAction().setVisible(
                 single is not None and single.kind in ('gerber', 'excellon', 'geometry'))
@@ -1245,7 +1250,11 @@ class ObjectCollection(QtCore.QAbstractItemModel):
             if not self.app.all_objects_list:
                 self.app.ui.splitter.setSizes([0, 1])
 
-    def delete_by_name(self, name, select_project=True):
+    def delete_by_name(self, name, select_project=True, autohide=True):
+        """
+        :param autohide:    False keeps the notebook visible also if the project gets empty: a plugin that deletes
+                            its own result while the user works in it (a field keeps the keyboard focus).
+        """
         if getattr(self.app, '_script_event_pump', False) is True:
             self.app.inform.emit('[WARNING_NOTCL] %s' % _("Stop the running script before deleting objects."))
             return 'fail'
@@ -1290,7 +1299,7 @@ class ObjectCollection(QtCore.QAbstractItemModel):
         self.app.should_we_save = True
 
         # decide if to show or hide the Notebook side of the screen
-        if self.app.options.get("global_project_autohide",
+        if autohide and self.app.options.get("global_project_autohide",
                                 self.app.defaults.get("global_project_autohide",
                                                       self.app.defaults.factory_defaults.get("global_project_autohide"))) is True:
             # hide the notebook if there are no objects in the collection

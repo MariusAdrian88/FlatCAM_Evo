@@ -1081,6 +1081,12 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
         :return:            None
         """
 
+        mark = getattr(self, 'obj_options', {}).get('photocarve')
+        if mark and mark.get('certified') is False:
+            self.app.inform.emit('[WARNING] %s' % _(
+                "This Photo Carve CNCJob was converted to other units and is not certified. "
+                "Make the CNCJob again from the Photo Carve Geometry in the Milling plugin."))
+
         if getattr(self, 'gcode_imported', False):
             # the file as it was read: no header, no start code, no footer and no snippets of the application
             text = CNCJobObject.imported_text(self, preamble, postamble)

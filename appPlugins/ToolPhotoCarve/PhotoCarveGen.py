@@ -1,17 +1,39 @@
 """Photo engraving orchestration with captured parameters and no worker-side GUI reads."""
 
 import math
+from dataclasses import replace
 from types import SimpleNamespace
 
 import numpy as np
 
 from .PhotoCarveModel import (
-    MAX_CELLS, MAX_POINTS, ImageFrame, JobResult, Pass, PhotoCarveError, certify_relief, depth_grid, groove_paths,
+    MATERIALS, MAX_CELLS, MAX_POINTS, ImageFrame, JobResult, Pass, PhotoCarveError, certify_relief, depth_grid, groove_paths,
     halftone_paths, mode_frame, prepare_image, quantize_z, relief_paths, rough_paths, validate,
     kernel_count,
 )
 from .PhotoCarveLaser import laser_paths, power_grid
 from .PhotoCarveSim import Stock, stamp_path, burn_image, laser_moves_from_paths
+
+import gettext
+import appTranslation as fcTranslate
+import builtins
+
+fcTranslate.apply_language('strings')
+if '_' not in builtins.__dict__:
+    _ = gettext.gettext
+
+# The number of path points in one simulation chunk; consecutive chunks share 1 point.
+SIM_CHUNK = 256
+
+
+def laser_line_spacing(passes):
+    """The distance between the scan lines of a laser job (its rows are horizontal), 0 if it has 1 line.
+
+    It also works for a CNCJob, which has no line spacing in its options."""
+    ys = np.unique(np.round(np.concatenate([path[:, 1] for part in passes for path in part.paths]), 6))
+    gaps = np.diff(ys)
+    gaps = gaps[gaps > 1e-6]
+    return float(np.median(gaps)) if len(gaps) else 0.0
 
 
 def capture_machine(app):
@@ -67,12 +89,44 @@ def run_job(image, params, check_abort=None):
                                        'cells': frame.rows * frame.cols, 'max_gouge': min(margins, default=0.0)})
 
 
+PREVIEW_CELLS = 400
+
+
 def preview_map(image, params):
-    """The adjusted physical image, using the same preflight as generation."""
-    from PIL import Image
-    params, _warnings = validate(params)
+    """What the job makes, on a coarse grid, with the same pipeline as generation.
+
+    Milling modes: the depth (white = stock top, black = deepest). Halftone: the dots. Laser: the power after the
+    quantization or the dither (white = no power). The image has the grid aspect; the caller shows it with the
+    physical aspect ``params.height / params.width``.
+    """
+    from PIL import Image, ImageDraw
+    coarse = max(params.res, params.width / PREVIEW_CELLS, params.height / PREVIEW_CELLS)
+    changes = {'res': coarse}
+    if params.mode == 'laser':
+        changes['spacing'] = max(params.spacing, params.height / PREVIEW_CELLS)
+    params, _warnings = validate(replace(params, rough=False, **changes))
     gray = prepare_image(image, params)
-    return Image.fromarray(np.rint(gray * 255).astype(np.uint8))
+    if params.mode == 'laser':
+        power = power_grid(gray, params)
+        return Image.fromarray(np.rint((1 - power) * 255).astype(np.uint8))
+    if params.mode == 'halftone':
+        frame = mode_frame(params)
+        scale = 4                      # pixels per grid cell, so small dots stay round
+        picture = Image.new('L', (frame.cols * scale, frame.rows * scale), 255)
+        draw = ImageDraw.Draw(picture)
+        tangent = math.tan(math.radians(params.tool_angle) / 2)
+        for path in halftone_paths(gray, params):
+            x, y, z = path[0]
+            radius = (params.tool_tip + 2 * -z * tangent) / 2
+            cx = (x - frame.x0) / frame.pitch_x * scale
+            cy = (frame.y0 + frame.height - y) / frame.pitch_y * scale
+            rx, ry = radius / frame.pitch_x * scale, radius / frame.pitch_y * scale
+            draw.ellipse((cx - rx, cy - ry, cx + rx, cy + ry), fill=0)
+        return picture
+    depth = depth_grid(gray, params)
+    deepest = (params.litho_max - params.litho_min if params.mode == 'lithophane' else params.max_depth)
+    shade = 1 - np.clip(depth / max(deepest, 1e-9), 0, 1)
+    return Image.fromarray(np.rint(shade * 255).astype(np.uint8))
 
 
 class PhotoCarveGen:
@@ -100,6 +154,12 @@ class PhotoCarveGen:
             res = float(self.tool.ui.sim_res_entry.get_value())
             if not math.isfinite(res) or res <= 0:
                 raise PhotoCarveError('Simulation resolution must be finite and positive.')
+            thickness = float(self.tool.ui.sim_thickness_entry.get_value())
+            if not math.isfinite(thickness) or thickness <= 0:
+                raise PhotoCarveError('Simulation thickness must be finite and positive.')
+            material = self.tool.ui.sim_material_entry.get_value()
+            if material not in MATERIALS:
+                raise PhotoCarveError('Unknown simulation material.')
             passes, warnings = (passes_from_cncjob(source, res) if machine else passes_from_geometry(source))
             kind = 'laser' if passes and passes[0].z_is_power else 'mill'
             if not passes or any(part.z_is_power != (kind == 'laser') for part in passes):
@@ -126,24 +186,29 @@ class PhotoCarveGen:
                 for part in passes:
                     kernel_count(part.tool.diameter / 2, frame.pitch_x, frame.pitch_y)
             session = SimpleNamespace(id=self.tool._sim_session, kind=kind, frame=frame,
-                                      busy=False, cancelled=False, passes=passes)
+                                      busy=False, cancelled=False, passes=passes, done_chunks=0,
+                                      total_chunks=self.chunk_count(passes))
             if kind == 'laser':
                 session.burn = np.zeros((frame.rows, frame.cols), dtype=np.float32)
             else:
-                session.stock = Stock(frame)
+                session.stock = Stock(frame, thickness)
+                if bottom < -thickness:
+                    warnings.append('The cuts are deeper than the stock thickness; they go through the stock.')
             session.chunks = self.sim_chunks(passes, kind)
             self.app.on_3d_area()
             canvas = self.app.plotcanvas3d
             canvas.view.camera.set_view('iso')
-            self.tool._view = PhotoCarveView3d(canvas)
+            spot = laser_line_spacing(passes) if kind == 'laser' else 0.0
+            self.tool._view = PhotoCarveView3d(canvas, material, thickness, depth_ref=-bottom, spot=spot)
             if kind == 'laser':
                 self.tool._view.set_burn(frame, session.burn)
             else:
                 self.tool._view.set_stock(session.stock)
             self.tool._view.set_paths(passes, machine_coords=machine)
             canvas.fit_view(points=np.array([[x, y, z] for x in (low[0], high[0])
-                                             for y in (low[1], high[1]) for z in (bottom, 0)]))
+                                             for y in (low[1], high[1]) for z in (-thickness, 0)]))
             self.session = session
+            self.tool.ui.sim_progress.setValue(0)
             if self.sim_timer is None:
                 self.sim_timer = QtCore.QTimer(self.tool)
                 self.sim_timer.setInterval(30)
@@ -157,11 +222,17 @@ class PhotoCarveGen:
             return 'fail'
 
     @staticmethod
+    def chunk_count(passes):
+        """The number of items that sim_chunks() yields, for the progress bar."""
+        step = SIM_CHUNK - 1
+        return sum(-(-max(1, len(path) - 1) // step) for part in passes for path in part.paths)
+
+    @staticmethod
     def sim_chunks(passes, kind):
         for part in passes:
             for path in part.paths:
-                for start in range(0, max(1, len(path) - 1), 255):
-                    chunk = path[start:start + 256]
+                for start in range(0, max(1, len(path) - 1), SIM_CHUNK - 1):
+                    chunk = path[start:start + SIM_CHUNK]
                     yield part.tool, laser_moves_from_paths([chunk]) if kind == 'laser' else chunk
 
     def sim_tick(self):
@@ -196,6 +267,7 @@ class PhotoCarveGen:
                     stamp_path(session.stock, chunk, cutter, check_abort=check_abort)
                     last = tuple(chunk[-1])
                 index += 1
+            session.done_chunks += index
             image = session.burn if session.kind == 'laser' else session.stock.height
             payload = (image.copy(), cutter, last, done)
             ok = True
@@ -215,16 +287,22 @@ class PhotoCarveGen:
             self.app.inform.emit('[ERROR_NOTCL] %s' % payload)
             return
         image, cutter, last, done = payload
+        view = self.tool._view
         if session.kind == 'laser':
-            self.tool._view.set_burn(session.frame, image)
+            view.set_burn(session.frame, image)
             if last is not None:
-                self.tool._view.set_marker(last)
+                view.set_marker(last)
         else:
-            self.tool._view.update_stock(image)
+            view.update_stock(image)
             if last is not None:
-                self.tool._view.set_tool(cutter, last)
+                view.set_tool(cutter, last)
+        total = max(1, session.total_chunks)
+        self.tool.ui.sim_progress.setValue(100 if done else min(99, 100 * session.done_chunks // total))
         if done:
             self.sim_timer.stop()
+            # the result alone: the path lines and the tool hide the cuts
+            view.finish()
+            self.app.inform.emit('[success] %s' % _("Simulation finished."))
 
     def stop_simulation(self):
         if self.sim_timer is not None:
@@ -244,9 +322,9 @@ class PhotoCarveGen:
         finally:
             self.tool.preview_done_sig.emit(token, result)
 
-    def generate(self, token, image, params, milldefaults, outname):
+    def generate(self, token, image, params, milldefaults, outname, filename=None):
         from camlib import grace
-        from .PhotoCarveObject import build_geometry
+        from .PhotoCarveObject import build_geometry, embed_source
 
         def current():
             return token == self.tool._gen_token and self.app.units == params.units
@@ -257,17 +335,19 @@ class PhotoCarveGen:
 
         try:
             check_abort()
-            with self.app.proc_container.new(self.tool.pluginName):
+            with self.app.proc_container.new('%s...' % _("Working")):
                 result = run_job(image, params, check_abort)
                 check_abort()
                 for warning in result.warnings:
                     self.tool.generation_message_sig.emit(token, '[WARNING_NOTCL]', warning)
+                source = embed_source(image, filename, params)
+                check_abort()
 
                 def obj_init(geo, app):
                     if not current():
                         return 'fail'
                     try:
-                        built = build_geometry(result, params, milldefaults)
+                        built = build_geometry(result, params, milldefaults, source)
                     except PhotoCarveError as err:
                         self.tool.generation_message_sig.emit(token, '[ERROR_NOTCL]', str(err))
                         return 'fail'
@@ -285,10 +365,18 @@ class PhotoCarveGen:
                     geo._after_publish = after_publish
 
                 check_abort()
-                return self.app.app_obj.new_object('geometry', outname, obj_init)
+                created = self.app.app_obj.new_object('geometry', outname, obj_init)
+                if created != 'fail':
+                    self.tool.generation_message_sig.emit(
+                        token, '[success]', '%s: %d %s, %d %s.' % (
+                            _("Photo Carve geometry generated"), result.stats.get('paths', 0), _("paths"),
+                            result.stats.get('points', 0), _("points")))
+                return created
         except grace:
             return 'fail'
         except Exception as err:
             self.app.log.error('PhotoCarveGen.generate() --> %s', err)
             self.tool.generation_message_sig.emit(token, '[ERROR_NOTCL]', str(err))
             return 'fail'
+        finally:
+            self.tool.generation_done_sig.emit(token)

@@ -823,17 +823,7 @@ class ToolMilling(Geometry, AppTool):
             self.app.log.error("ToolMilling.set_tool_ui() --> %s" % str(err))
 
         # reset the Geometry preprocessor combo
-        self.ui.pp_geo_name_cb.clear()
-        # populate Geometry (milling) preprocessor combobox list
-        for name in list(self.app.preprocessors.keys()):
-            # the 'Paste' preprocessors are only for the Solder Paste plugin (as in the Preferences list)
-            if 'paste' in name.lower():
-                continue
-            self.ui.pp_geo_name_cb.addItem(name)
-        # and add ToolTips (useful when names are too long)
-        for it in range(self.ui.pp_geo_name_cb.count()):
-            self.ui.pp_geo_name_cb.setItemData(it, self.ui.pp_geo_name_cb.itemText(it),
-                                               QtCore.Qt.ItemDataRole.ToolTipRole)
+        self.fill_pp_combo()
 
         # Fill form fields
         self.to_form()
@@ -1579,12 +1569,65 @@ class ToolMilling(Geometry, AppTool):
 
         self.set_photocarve_ui()
 
+    def fill_pp_combo(self, allowed=None):
+        """
+        Fill the Geometry preprocessor combo; no signals. 'allowed' None gives all of them; else only these names
+        (a Photo Carve geometry can use only its certified preprocessors). Returns the names in the combo.
+        """
+        combo = self.ui.pp_geo_name_cb
+        # the 'Paste' preprocessors are only for the Solder Paste plugin (as in the Preferences list)
+        names = [name for name in self.app.preprocessors if 'paste' not in name.lower()]
+        if allowed is not None:
+            names = [name for name in names if name in allowed]
+        with QtCore.QSignalBlocker(combo):
+            combo.clear()
+            for it, name in enumerate(names):
+                combo.addItem(name)
+                # ToolTips: useful when the names are too long
+                combo.setItemData(it, name, QtCore.Qt.ItemDataRole.ToolTipRole)
+        self.ui._pp_filter = None if allowed is None else frozenset(allowed)
+        return names
+
+    def _photocarve_pp_filter(self):
+        """The certified preprocessors of the target, or None (all) for a target without the Photo Carve mark."""
+        mark = self.target_obj.obj_options.get('photocarve') if self.target_obj is not None else None
+        if not mark:
+            return None
+        from appPlugins.ToolPhotoCarve.PhotoCarveGcode import LASER_POSTS, MILL_POSTS
+        return frozenset(LASER_POSTS if mark.get('z_is_power') else MILL_POSTS)
+
+    def update_pp_choices(self):
+        """
+        A change of the target type changes the preprocessors that it can use: fill the combo again and select a
+        suitable one. Order of choice: the preprocessor of the target's tools, the one shown before, the app option.
+        """
+        allowed = self._photocarve_pp_filter()
+        if getattr(self.ui, '_pp_filter', None) == allowed:
+            return
+        combo = self.ui.pp_geo_name_cb
+        shown = combo.get_value()
+        names = self.fill_pp_combo(allowed)
+        if not names:
+            return
+        tools = getattr(self.target_obj, 'tools', None) or {}
+        own = [tool.get('data', {}).get('tools_mill_ppname_g') for tool in tools.values()] if allowed else []
+        candidates = own + [shown, self.app.options.get('tools_mill_ppname_g')]
+        choice = next((name for name in candidates if name in names), sorted(names)[0])
+        if choice == shown:
+            with QtCore.QSignalBlocker(combo):
+                combo.set_value(choice)
+        else:
+            # a new value: the signal stores it and updates the fields of the preprocessor (laser or not)
+            combo.set_value(choice)
+
     def set_photocarve_ui(self):
         """Certified geometry owns its cutter and depth paths, not the Milling form."""
         marked = bool(self.target_obj and self.target_obj.obj_options.get('photocarve'))
-        if not marked and not getattr(self.ui, '_photocarve_locked', False):
+        if not marked and not getattr(self.ui, '_photocarve_locked', False) and \
+                getattr(self.ui, '_pp_filter', None) is None:
             return
         self.ui._photocarve_locked = marked
+        self.update_pp_choices()
         for name in ('offset_type_combo', 'offset_entry', 'mpass_cb', 'maxdepth_entry',
                      'extracut_cb', 'e_cut_entry', 'cutz_entry', 'startz_entry', 'exclusion_cb',
                      'area_shape_radio', 'strategy_radio', 'over_z_entry', 'add_area_button',
@@ -1609,7 +1652,10 @@ class ToolMilling(Geometry, AppTool):
         elif self.ui.level.isChecked():
             self.set_context_menu()
         if not hasattr(self.ui, 'photocarve_label'):
-            self.ui.photocarve_label = FCLabel(_("Certified photo engraving: regenerate to change cutters or paths."))
+            self.ui.photocarve_label = FCLabel(
+                _("Photo Carve geometry: the cutters and the paths come from the Photo Carve plugin. To change "
+                  "them, click Generate Geometry there again."))
+            self.ui.photocarve_label.setWordWrap(True)
             self.ui.layout.addWidget(self.ui.photocarve_label)
         self.ui.photocarve_label.setVisible(marked)
 

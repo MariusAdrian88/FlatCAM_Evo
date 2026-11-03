@@ -5,7 +5,7 @@ from copy import deepcopy
 from tclCommands.TclCommand import TclCommand
 from appPlugins.ToolPhotoCarve import PhotoCarveGen
 from appPlugins.ToolPhotoCarve.PhotoCarveModel import DEFAULTS, PHOTOCARVE_KEYS, JobParams, PhotoCarveError, load_image
-from appPlugins.ToolPhotoCarve.PhotoCarveObject import build_geometry
+from appPlugins.ToolPhotoCarve.PhotoCarveObject import build_geometry, embed_source
 
 import gettext
 import appTranslation as fcTranslate
@@ -49,12 +49,13 @@ class TclCommandPhotoCarve(TclCommand):
             for warning in result.warnings:
                 self.app.inform.emit('[WARNING_NOTCL] %s' % _(warning))
             outname = args.get('outname', os.path.splitext(os.path.basename(args['filename']))[0] + '_photocarve')
+            source = embed_source(image, args['filename'], params)
             failure = None
 
             def obj_init(geo, app):
                 nonlocal failure
                 try:
-                    built = build_geometry(result, params, milldefaults)
+                    built = build_geometry(result, params, milldefaults, source)
                 except PhotoCarveError as err:
                     failure = _(str(err))
                     return 'fail'

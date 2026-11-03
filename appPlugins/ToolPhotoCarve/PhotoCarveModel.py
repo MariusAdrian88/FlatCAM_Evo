@@ -14,6 +14,15 @@ MAX_KERNEL = 40_000
 MAX_POINTS = 50_000_000
 MAX_LEVELS = 10_000
 
+# Simulation materials: (top color, color of a burn mark) as RGB 0..1, approximate
+MATERIALS = {
+    'wood': ((0.78, 0.59, 0.38), (0.16, 0.09, 0.04)),
+    'stone': ((0.55, 0.54, 0.51), (0.22, 0.21, 0.20)),
+    'marble': ((0.93, 0.92, 0.89), (0.40, 0.39, 0.37)),
+    'metal': ((0.58, 0.60, 0.63), (0.16, 0.16, 0.18)),
+    'aluminium': ((0.82, 0.84, 0.87), (0.30, 0.30, 0.32)),
+}
+
 class PhotoCarveError(ValueError):
     """A user-readable failure, translated at the application boundary."""
 
@@ -88,7 +97,6 @@ class JobParams:
     contrast: float = 0.0
     gamma: float = 1.0
     invert: bool = False
-    mirror: bool = False
     angle: float = 0.0
     spacing: float = 1.0
     min_depth: float = 0.0
@@ -97,6 +105,7 @@ class JobParams:
     tool_dia: float = 6.0
     tool_angle: float = 60.0
     tool_tip: float = 0.0
+    laser_dia: float = 0.1
     rough: bool = False
     rough_kind: str = 'flat'
     rough_dia: float = 3.0
@@ -112,6 +121,8 @@ class JobParams:
     overscan: float = 2.0
     levels: int = 256
     sim_res: float = 0.1
+    sim_material: str = 'wood'
+    sim_thickness: float = 10.0
     image_px: tuple = (1, 1)
     units: str = 'MM'
     decimals: int = 4
@@ -130,6 +141,9 @@ class JobParams:
     def tool(self, rough=False):
         if rough:
             return ToolShape(self.rough_kind, self.rough_dia, self.rough_angle, self.rough_tip)
+        if self.mode == 'laser':
+            # The laser dot is the tool of a laser job. Laser mode hides the cutter fields.
+            return ToolShape('flat', self.laser_dia)
         return ToolShape(self.tool_kind, self.tool_dia, self.tool_angle, self.tool_tip)
 
 
@@ -274,7 +288,9 @@ def validate(params, check_abort=None):
                 raise PhotoCarveError('%s must be a finite number.' % field.name)
     if isinstance(params.levels, bool) or not isinstance(params.levels, (int, np.integer)) or params.levels < 2:
         raise PhotoCarveError('Laser levels must be an integer of at least 2.')
-    for name in ('width', 'res', 'spacing', 'sim_res', 'gamma'):
+    if params.sim_material not in MATERIALS:
+        raise PhotoCarveError('Simulation material must be one of: %s.' % ', '.join(MATERIALS))
+    for name in ('width', 'res', 'spacing', 'sim_res', 'gamma', 'sim_thickness', 'laser_dia'):
         if getattr(params, name) <= 0:
             raise PhotoCarveError('%s must be positive.' % name)
     for name in ('tolerance', 'lift_gap', 'overscan'):
@@ -293,13 +309,18 @@ def validate(params, check_abort=None):
             raise PhotoCarveError('Tool kind must be vbit, ball or flat.')
     if params.mode in ('vcarve', 'halftone') and params.tool_kind != 'vbit':
         raise PhotoCarveError('V-carving and halftone dots require a V-bit.')
+    warnings = []
+    if params.rough and params.mode not in ('relief', 'lithophane'):
+        # A roughing pass follows a column surface; V-grooves, dots and laser lines have none, so a wider
+        # roughing cutter would cut away the image between the lines.
+        params = replace(params, rough=False)
+        warnings.append('Roughing is used only for Relief and Lithophane; it was ignored.')
     used_tools = ([] if params.mode == 'laser' else [params.tool()]) + ([params.tool(True)] if params.rough else [])
     for tool in used_tools:
         if tool.diameter <= 0 or not 0 <= tool.tip_diameter < tool.diameter:
             raise PhotoCarveError('Tool diameter must be positive and tip diameter must be smaller and nonnegative.')
         if tool.kind == 'vbit' and not 0 < tool.angle_deg < 180:
             raise PhotoCarveError('V-bit angle must be between 0 and 180 degrees.')
-    warnings = []
     if params.mode == 'lithophane':
         if not 0 < params.litho_min < params.litho_max or params.frame < 0:
             raise PhotoCarveError('Lithophane needs 0 < minimum < maximum thickness and a nonnegative frame.')
@@ -363,8 +384,6 @@ def prepare_image(image, params):
         gray = ImageOps.autocontrast(gray, cutoff=1)
     if params.equalize:
         gray = ImageOps.equalize(gray)
-    if params.mirror:
-        gray = ImageOps.mirror(gray)
     gray = gray.resize((frame.cols, frame.rows), Image.Resampling.LANCZOS)
     pitch = min(frame.pitch_x, frame.pitch_y)
     if params.blur > 0:
@@ -402,7 +421,9 @@ def depth_grid(gray, params):
                              116 * np.cbrt(luminance) - 16, (29 / 3) ** 3 * luminance)
         darkness = 1 - lightness / 100
     if params.tone == 'vbit_area':
-        width = np.sqrt(darkness) * min(params.spacing, params.tool_dia)
+        # A raster line darkens the strip of one spacing by width / spacing, so the width is linear in darkness
+        # (the square root is right only for round dots, see halftone_paths).
+        width = darkness * min(params.spacing, params.tool_dia)
         depth = (width - params.tool_tip) / (2 * math.tan(math.radians(params.tool_angle) / 2))
         return np.asarray(np.clip(depth, params.min_depth, params.max_depth), dtype=np.float32)
     return np.asarray(params.min_depth + darkness * (params.max_depth - params.min_depth), dtype=np.float32)

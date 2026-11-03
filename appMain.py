@@ -2431,6 +2431,9 @@ class App(QtCore.QObject):
         if (edited_object is not None and isinstance(edited_object.obj_options, dict) and
                 edited_object.obj_options.get('photocarve')):
             self.inform.emit('[ERROR_NOTCL] %s' % _("Regenerate photo engraving instead of editing certified paths."))
+            # A Photo Carve geometry keeps its source image and parameters: edit the job, not the certified paths
+            if edited_object.kind == 'geometry' and edited_object.obj_options['photocarve'].get('source'):
+                return self.photocarve_tool.open_source(edited_object)
             return 'fail'
         if edited_object is None:
             self.inform.emit('[ERROR_NOTCL] %s %s' % (_("The Editor could not start."), _("No object is selected.")))

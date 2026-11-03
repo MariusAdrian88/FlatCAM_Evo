@@ -26,7 +26,10 @@ class ToolPhotoCarve(AppTool):
     pluginName = _("Photo Carve")
     preview_done_sig = QtCore.pyqtSignal(int, object)
     generation_message_sig = QtCore.pyqtSignal(int, str, str)
+    generation_done_sig = QtCore.pyqtSignal(int)
     sim_step_sig = QtCore.pyqtSignal(int, bool, object)
+    # The parameters of the 3D simulation only: a change of them keeps the generated geometry.
+    SIM_KEYS = ('tools_photocarve_sim_material', 'tools_photocarve_sim_thickness', 'tools_photocarve_sim_res')
 
     def __init__(self, app):
         super().__init__(app)
@@ -40,11 +43,15 @@ class ToolPhotoCarve(AppTool):
         self._preview_token = 0
         self._sim_session = 0
         self._gen_token = 0
+        self._gen_running = None
         self._preview_timer = None
         self._preview_shapes = None
+        # the 1st preview after the plugin opens or an image loads fits the 2D view to its outline
+        self._fit_preview = True
         self._view = None
         self.preview_done_sig.connect(self.on_preview_done)
         self.generation_message_sig.connect(self.on_generation_message)
+        self.generation_done_sig.connect(self.on_generation_done)
         self.sim_step_sig.connect(self.on_sim_step, QtCore.Qt.ConnectionType.QueuedConnection)
 
     def install(self, icon=None, separator=None, **kwargs):
@@ -90,7 +97,8 @@ class ToolPhotoCarve(AppTool):
         self.gen = PhotoCarveGen(self)
         self.bind_form()
         self.storage_to_form(self.app.options)
-        self.update_mode()
+        self.ui.level.setChecked(self.app.options.get('global_app_level', 'b') == 'a')
+        self.on_level_changed(self.ui.level.isChecked())
         self.connect_signals()
         self.update_image_labels()
 
@@ -117,20 +125,23 @@ class ToolPhotoCarve(AppTool):
             self._preview_timer.setSingleShot(True)
             self._preview_timer.setInterval(300)
             self._preview_timer.timeout.connect(self.on_preview)
-        for widget in self.form_fields.values():
+        for key, widget in self.form_fields.items():
             if isinstance(widget, QtWidgets.QComboBox):
                 signal = widget.currentIndexChanged
             elif isinstance(widget, QtWidgets.QCheckBox):
                 signal = widget.toggled
             else:
                 signal = widget.valueChanged
-            signal.connect(self.on_value_changed)
+            signal.connect(self.form_to_storage if key in self.SIM_KEYS else self.on_value_changed)
+        self.ui.level.toggled.connect(self.on_level_changed)
         self.ui.load_button.clicked.connect(self.on_load_image)
+        self.ui.mirror_x_button.clicked.connect(lambda: self.on_mirror_image('x'))
+        self.ui.mirror_y_button.clicked.connect(lambda: self.on_mirror_image('y'))
         self.ui.preview_button.clicked.connect(self.on_preview)
         self.ui.generate_button.clicked.connect(self.on_generate)
         self.ui.milling_button.clicked.connect(self.on_open_milling)
         self.ui.sim_button.clicked.connect(self.on_simulate)
-        self.ui.stop_button.clicked.connect(self.on_stop)
+        self.ui.stop_button.clicked.connect(self.on_stop_button)
 
     def update_mode(self):
         mode = self.ui.mode_entry.get_value()
@@ -151,13 +162,9 @@ class ToolPhotoCarve(AppTool):
             del blocker
         self.ui.tool_kind_entry.setEnabled(mode not in ('vcarve', 'halftone'))
         self.ui.tone_entry.setEnabled(mode != 'lithophane')
-        for name in ('tone_entry', 'tone_label'):
-            getattr(self.ui, name).setVisible(mode not in ('laser', 'halftone'))
-        self.ui.sections['tool_kind'].setVisible(mode != 'laser')
-        self.ui.sections['rough'].setVisible(mode != 'laser')
-        self.ui.sections['litho_min'].setVisible(mode == 'lithophane')
-        self.ui.spacing_label.setText(_("Line spacing") if mode == 'laser' else _("Spacing"))
-        self.ui.vbit_limit_label.setVisible(mode in ('vcarve', 'halftone'))
+        self.ui.apply_visibility(mode, self.ui.strategy_entry.get_value(), self.ui.tool_kind_entry.get_value(),
+                                 bool(self.ui.rough_entry.get_value()), self.ui.rough_kind_entry.get_value(),
+                                 self.ui.level.isChecked())
         try:
             params = JobParams.from_options(self.form_values(), (1, 1), 'MM', self.decimals, (0, 0, 0, 0))
             self.ui.vbit_limit_label.setText(_("V-bit depth limit: %s") %
@@ -165,12 +172,55 @@ class ToolPhotoCarve(AppTool):
         except (ValueError, ZeroDivisionError):
             self.ui.vbit_limit_label.setText(_("Invalid V-bit parameters"))
 
+    def on_level_changed(self, checked):
+        """Beginner hides the advanced fields; the values stay and are still used."""
+        self.ui.level.setText(_('Advanced') if checked else _('Beginner'))
+        self.ui.level.setStyleSheet('QToolButton { color: %s; }' % ('red' if checked else 'green'))
+        self.update_mode()
+
     def on_value_changed(self, *args):
+        """A process parameter (or the image) changed: the old geometry and the old preview do not match it."""
         self.update_mode()
         self.form_to_storage()
         self.update_image_labels()
+        self.reset_result()
         self.clear_preview()
+        if self.ui is not None:
+            self.ui.preview_label.clear()
+            self.ui.preview_label.setVisible(False)
         self._preview_timer.start()
+
+    def reset_result(self):
+        """Stop a running generation, close the simulation and delete the geometry of the old parameters."""
+        self._gen_token += 1
+        self.close_3d()
+        name, self.result_obj_name = self.result_obj_name, None
+        obj = self.app.collection.get_by_name(name) if name else None
+        if obj is None or not obj.obj_options.get('photocarve'):
+            return
+        from appHandlers.appHistory import history_of
+        history_of(self.app).record_delete(self.pluginName, [obj])
+        # The user types in a field of this plugin: each key press changes the value. The deletion of the last
+        # object must not hide the notebook ("global_project_autohide"), because the hidden field loses the
+        # keyboard focus and the next key presses are lost.
+        focus = QtWidgets.QApplication.focusWidget()
+        self.app.collection.delete_by_name(name, select_project=False, autohide=False)
+        if focus is not None and QtWidgets.QApplication.focusWidget() is not focus:
+            focus.setFocus()
+        self.app.inform.emit('[WARNING_NOTCL] %s' %
+                             _("The parameters changed: the old Photo Carve geometry was deleted. Generate again."))
+
+    def close_3d(self):
+        """Stop the simulation and close the Plot 3D tab, but only if this plugin shows its simulation there."""
+        shown = self._view is not None
+        self.on_stop()
+        canvas = getattr(self.app, 'plotcanvas3d', None)
+        if not shown or canvas is None:
+            return
+        tabs = self.app.ui.plot_tab_area
+        index = tabs.indexOf(self.app.area_3d_tab)
+        if index >= 0:
+            tabs.closeTab(index)
 
     def update_image_labels(self):
         if self.image is None or self.ui is None:
@@ -193,7 +243,45 @@ class ToolPhotoCarve(AppTool):
             return 'fail'
         self.image = image
         self.image_filename = filename
+        self._fit_preview = True
         self.on_value_changed()
+
+    def open_source(self, obj):
+        """Open the plugin with the image and the job parameters that a Photo Carve geometry keeps.
+
+        The geometry stays the result of the plugin: a parameter change deletes it, as for a new job."""
+        from .PhotoCarveObject import read_source
+        try:
+            source = read_source(obj.obj_options.get('photocarve'), self.app.units)
+        except PhotoCarveError as err:
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _(str(err)))
+            return 'fail'
+        if source is None:
+            self.app.inform.emit('[WARNING_NOTCL] %s' % _("This Photo Carve object has no source image. "
+                                                          "Load the image again in the Photo Carve plugin."))
+            return 'fail'
+        image, filename, options = source
+        self.run(toggle=False)
+        if self.ui is None:
+            return 'fail'
+        self._gen_token += 1
+        self.result_obj_name = None
+        self.storage_to_form(options)
+        self.image, self.image_filename = image, filename
+        self._fit_preview = True
+        self.on_value_changed()
+        self.result_obj_name = obj.obj_options['name']
+        self.app.inform.emit('[success] %s' % _("Photo Carve opened with the image and the parameters of the object."))
+
+    def on_mirror_image(self, axis):
+        """Mirror the loaded image in place: 'x' left to right, 'y' top to bottom. The preview is made again."""
+        if self.image is None:
+            self.app.inform.emit('[WARNING_NOTCL] %s' % _("Load an image first."))
+            return
+        from PIL import ImageOps
+        self.image = ImageOps.mirror(self.image) if axis == 'x' else ImageOps.flip(self.image)
+        self.on_value_changed()
+        self.on_preview()
 
     def capture_params(self):
         if self.image is None:
@@ -202,9 +290,15 @@ class ToolPhotoCarve(AppTool):
         return JobParams.from_options(self.form_values(), self.image.size, units, decimals, skew)
 
     def on_preview(self, *args):
-        if self.image is None:
-            return
+        """Timer and button. Only the button reports, so a value change does not fill the status bar."""
         self._preview_timer.stop()
+        manual = self.sender() is self.ui.preview_button if self.ui is not None else False
+        if manual:
+            self.close_3d()
+        if self.image is None:
+            if manual:
+                self.app.inform.emit('[WARNING_NOTCL] %s' % _("Load an image first."))
+            return
         self.clear_preview()
         try:
             params = self.capture_params()
@@ -212,12 +306,25 @@ class ToolPhotoCarve(AppTool):
         except (PhotoCarveError, ValueError) as err:
             self.app.inform.emit('[ERROR_NOTCL] %s' % _(str(err)))
             return
+        self._preview_aspect = params.height / params.width
+        self._preview_manual = manual
         self.app.worker_task.emit({'fcn': self.gen.preview, 'params': [self._preview_token, image, params]})
         store = self._preview_store()
         if store is not None:
             store.add(box(params.x0, params.y0, params.x0 + params.width, params.y0 + params.height),
                       color='#00AA00FF', face_color='#00AA0022', update=False, layer=0, tolerance=None)
             store.redraw()
+            if self._fit_preview:
+                self._fit_preview = False
+                self.fit_to_outline(params)
+
+    def fit_to_outline(self, params):
+        """Zoom the 2D view to the area of the job. Later previews keep the zoom of the user."""
+        from vispy.geometry import Rect
+        try:
+            self.app.plotcanvas.fit_view(rect=Rect(params.x0, params.y0, params.width, params.height))
+        except Exception as err:
+            self.app.log.error('ToolPhotoCarve.fit_to_outline() --> %s', err)
 
     def on_preview_done(self, token, result):
         if token != self._preview_token or self.ui is None:
@@ -226,8 +333,17 @@ class ToolPhotoCarve(AppTool):
             self.app.inform.emit('[ERROR_NOTCL] %s' % _(result))
             return
         pixmap = QtGui.QPixmap.fromImage(ImageQt(result.convert('RGBA')))
-        self.ui.preview_label.setPixmap(pixmap.scaled(256, 256, QtCore.Qt.AspectRatioMode.KeepAspectRatio,
+        # The grid cells are not square in Laser mode (rows = line spacing): show the physical aspect.
+        box = self.ui.preview_label.size()
+        aspect = getattr(self, '_preview_aspect', result.height / max(result.width, 1))
+        width = min(box.width(), box.height() / aspect) if aspect > 0 else box.width()
+        height = width * aspect
+        self.ui.preview_label.setPixmap(pixmap.scaled(max(1, round(width)), max(1, round(height)),
+                                                       QtCore.Qt.AspectRatioMode.IgnoreAspectRatio,
                                                        QtCore.Qt.TransformationMode.SmoothTransformation))
+        self.ui.preview_label.setVisible(True)
+        if getattr(self, '_preview_manual', False):
+            self.app.inform.emit('[success] %s' % _("Preview of the job: the area is shown on the canvas."))
 
     def _preview_store(self):
         if self._preview_shapes is None:
@@ -243,6 +359,7 @@ class ToolPhotoCarve(AppTool):
             self._preview_shapes.clear(update=True)
 
     def on_generate(self, *args):
+        self.close_3d()
         try:
             params = self.capture_params()
             image = self.image.copy()
@@ -253,8 +370,25 @@ class ToolPhotoCarve(AppTool):
         except (PhotoCarveError, ValueError) as err:
             self.app.inform.emit('[ERROR_NOTCL] %s' % _(str(err)))
             return 'fail'
+        self._gen_running = self._gen_token
+        self.set_generating(True)
+        self.app.inform.emit('%s...' % _("Working"))
         self.app.worker_task.emit({'fcn': self.gen.generate,
-                                   'params': [self._gen_token, image, params, milldefaults, outname]})
+                                   'params': [self._gen_token, image, params, milldefaults, outname,
+                                              self.image_filename]})
+
+    def set_generating(self, busy):
+        """The Generate button shows that the worker runs, and a 2nd click cannot start the same job again."""
+        if self.ui is None:
+            return
+        self.ui.generate_button.setEnabled(not busy)
+        self.ui.generate_button.setText(_("Generating...") if busy else _("Generate Geometry"))
+
+    def on_generation_done(self, token):
+        # an older worker that ends after a new Generate must not enable the button of the running one
+        if token == self._gen_running:
+            self._gen_running = None
+            self.set_generating(False)
 
     def on_generation_message(self, token, level, message):
         if token == self._gen_token:
@@ -275,8 +409,19 @@ class ToolPhotoCarve(AppTool):
         if self.gen is not None:
             self.gen.on_sim_step(session_id, ok, payload)
 
-    def on_stop(self):
+    def on_stop_button(self):
+        """Stop the animation and keep the stock that is cut so far, without the paths and the tool."""
         self._sim_session += 1
+        if self.gen is not None:
+            self.gen.stop_simulation()
+        if self._view is not None:
+            self._view.finish()
+
+    def on_stop(self):
+        """Stop the simulation and remove its visuals."""
+        self._sim_session += 1
+        if self.ui is not None:
+            self.ui.sim_progress.setValue(0)
         if self.gen is not None:
             self.gen.stop_simulation()
         if self._view is not None:
@@ -284,12 +429,14 @@ class ToolPhotoCarve(AppTool):
             self._view = None
 
     def on_plugin_cleanup(self):
+        self._fit_preview = True
         self.clear_preview()
         self.on_stop()
         if self._preview_timer is not None:
             self._preview_timer.stop()
         if self.ui is not None:
             self.ui.preview_label.clear()
+            self.ui.preview_label.setVisible(False)
 
     def on_project_reset(self):
         self._gen_token += 1

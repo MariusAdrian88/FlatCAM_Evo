@@ -1,6 +1,7 @@
 """Certified XYZ/incoming-power paths at the existing Milling CNC-job boundary."""
 
 import math
+import re
 from copy import deepcopy
 
 from camlib import AttrDict, grace
@@ -15,15 +16,22 @@ MILL_POSTS = {'default', 'GRBL_11', 'GRBL_11_no_M6', 'grblHAL', 'Marlin'}
 LASER_POSTS = {'GRBL_laser', 'grblHAL_laser'}
 
 
+def is_dynamic_laser(code):
+    """True for M4 in any form that a G-code reader accepts: "M4", "M04", "m04 "."""
+    return re.fullmatch(r'M0*4', str(code).strip().upper()) is not None
+
+
 def write_tool_gcode(cnc, tool, tools, first_pt, last_pt, tolerance, is_first, is_last,
                      toolchange, use_ui, mark):
     """Emit complete blocks without sorting, simplifying or re-rounding certified paths."""
     try:
-        validate_tools(tools, mark)
         laser = mark['z_is_power']
         name = tools[tool]['data']['tools_mill_ppname_g']
-        if name not in (LASER_POSTS if laser else MILL_POSTS):
-            raise PhotoCarveError('This preprocessor is not certified for photo engraving.')
+        allowed = LASER_POSTS if laser else MILL_POSTS
+        if name not in allowed:
+            raise PhotoCarveError('The preprocessor "%s" is not certified for photo engraving. In the Milling plugin, '
+                                  'select one of: %s.' % (name, ', '.join(sorted(allowed))))
+        validate_tools(tools, mark)
         if name not in cnc.app.preprocessors:
             raise PhotoCarveError('The certified photo engraving preprocessor is not installed.')
         p = cnc.load_mill_tool_params(tool, tools, last_pt, tolerance, is_first, use_ui)
@@ -36,11 +44,13 @@ def write_tool_gcode(cnc, tool, tools, first_pt, last_pt, tolerance, is_first, i
             raise PhotoCarveError('Photo engraving requires at least %d coordinate decimals.' % needed)
         cnc.startz = None  # A saved low Start Z must never replace the safe toolchange height.
         cnc.toolchange = toolchange
-        if not laser and toolchange and float(cnc.z_toolchange) < cnc.z_move:
+        if not laser and toolchange and (cnc.z_toolchange in (None, '') or float(cnc.z_toolchange) < cnc.z_move):
             raise PhotoCarveError('Toolchange Z must be at least the Travel Z for photo engraving.')
         if laser:
-            if cnc.laser_on_code != 'M4':
-                raise PhotoCarveError('Photo laser engraving requires dynamic M4 power.')
+            # the Milling combo gives "M03" / "M04"; M4 and M04 are the same command
+            if not is_dynamic_laser(cnc.laser_on_code):
+                raise PhotoCarveError('Photo laser engraving needs the dynamic laser power. In the Milling plugin, '
+                                      'set the Laser ON code to M04.')
             format_power(0, cnc.laser_min_power, cnc.spindlespeed)
         attrs = AttrDict(cnc.postdata)
         attrs.update(x=first_pt[0], y=first_pt[1])
@@ -116,7 +126,9 @@ def write_tool_gcode(cnc, tool, tools, first_pt, last_pt, tolerance, is_first, i
 def make_photocarve_cncjob(new_cncjob_obj, app_obj, context):
     """Milling multi-geometry initializer with captured overrides and certified tool validation."""
     cnc = new_cncjob_obj
-    mark = deepcopy(context['geo_obj'].obj_options['photocarve'])
+    # The CNCJob does not keep the source image: it is in the Geometry, and the project would hold it 2 times.
+    mark = {key: deepcopy(value) for key, value in context['geo_obj'].obj_options['photocarve'].items()
+            if key != 'source'}
     tools = deepcopy(context['tools_dict'])
     try:
         for record in tools.values():

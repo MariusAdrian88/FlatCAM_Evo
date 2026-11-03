@@ -9,10 +9,15 @@ import numpy as np
 from .PhotoCarveModel import MAX_CELLS, MAX_KERNEL, MAX_POINTS, ImageFrame, PhotoCarveError, kernel_count, tool_lift
 from .PhotoCarveLaser import format_power
 
+# The largest number of (placement, kernel offset) pairs that stamp_path() updates in 1 numpy call (about 50 MB).
+_STAMP_BLOCK = 2_000_000
+
 
 @dataclass
 class Stock:
+    """Top surface of the stock; ``thickness`` (None: no bottom) limits the cuts: a deeper cut goes through."""
     frame: ImageFrame
+    thickness: float = None
     height: np.ndarray = field(init=False)
 
     def __post_init__(self):
@@ -89,14 +94,22 @@ def stamp_path(stock, path, tool, sub=4, check_abort=None):
                 keep = rho < radius
                 if np.count_nonzero(keep) > MAX_KERNEL:
                     raise PhotoCarveError('Simulation cutter kernel exceeds the safety limit.')
-                kernels[phase] = list(zip(dr[keep], dc[keep], tool_lift(tool, rho[keep])))
-            for index, (row_offset, col_offset, lift) in enumerate(kernels[phase]):
-                if check_abort is not None and index % 64 == 0:
+                kernels[phase] = (dr[keep], dc[keep], np.asarray(tool_lift(tool, rho[keep]), dtype=np.float64))
+            # All placements × a block of kernel offsets in one numpy call: a Python loop per offset was slow
+            # (a 6 mm V-bit has about 2800 offsets at 0.1 mm). The minimum does not depend on the order.
+            k_rows, k_cols, k_lift = kernels[phase]
+            block = max(1, _STAMP_BLOCK // len(bases))
+            for start in range(0, len(k_rows), block):
+                if check_abort is not None:
                     check_abort()
-                rows, cols = bases[:, 0] + row_offset, bases[:, 1] + col_offset
+                end = start + block
+                rows = bases[:, 0, None] + k_rows[None, start:end]
+                cols = bases[:, 1, None] + k_cols[None, start:end]
+                values = z[:, None] + k_lift[None, start:end]
                 inside = (rows >= 0) & (rows < frame.rows) & (cols >= 0) & (cols < frame.cols)
-                rows, cols = rows[inside], cols[inside]
-                stock.height[rows, cols] = np.minimum(stock.height[rows, cols], z[inside] + lift)
+                np.minimum.at(stock.height, (rows[inside], cols[inside]), values[inside])
+    if stock.thickness is not None:
+        np.maximum(stock.height, -stock.thickness, out=stock.height)
     return stock.height
 
 

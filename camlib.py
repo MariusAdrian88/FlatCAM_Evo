@@ -3208,6 +3208,12 @@ class CNCjob(Geometry):
             mark = deepcopy(mark)
             mark['units'] = self.units
             mark['xy_err'] *= factor
+            # The G-code text is rounded again at the new unit (nearest, also for Z): it is no longer the certified
+            # program. The Geometry converts exactly; a CNCJob made again from it in Milling is certified.
+            mark['certified'] = False
+            self.app.inform.emit('[WARNING] %s' % _(
+                "Photo Carve CNCJob converted to other units: its G-code is no longer certified. "
+                "Make the CNCJob again from the Photo Carve Geometry in the Milling plugin."))
             for cutter in mark['tools'].values():
                 cutter['diameter'] *= factor
                 cutter['tip_diameter'] *= factor

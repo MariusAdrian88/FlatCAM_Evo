@@ -1,17 +1,69 @@
 """Shapely boundary for captured photo engraving results and certified cutter metadata."""
 
+import base64
+import io
 import math
+import ntpath
 import re
 from copy import deepcopy
 
 import numpy as np
+from PIL import Image
 from shapely import LineString, Point, force_2d
 
-from .PhotoCarveModel import Pass, ToolShape, PhotoCarveError, xy_budget
+from .PhotoCarveModel import DEFAULTS, Pass, ToolShape, PhotoCarveError, xy_budget
+
+# The job parameters that hold a length: they change with the units of the application.
+LENGTH_FIELDS = ('x0', 'y0', 'width', 'res', 'spacing', 'laser_dia', 'min_depth', 'max_depth', 'tool_dia',
+                 'tool_tip', 'rough_dia', 'rough_tip', 'stepdown', 'allowance', 'litho_min', 'litho_max', 'frame',
+                 'blur', 'sharpen', 'tolerance', 'lift_gap', 'overscan', 'sim_res', 'sim_thickness')
+# The image modes that PNG keeps as they are. Another mode (CMYK, YCbCr, ...) is stored as RGBA, as the job reads it.
+PNG_MODES = ('1', 'L', 'LA', 'P', 'RGB', 'RGBA', 'I', 'I;16')
+
+
+def embed_source(image, filename, params):
+    """The source record of the mark: the image as PNG data and the job parameters, so that a saved project
+    can open the job again in Photo Carve, also on another computer."""
+    if image.mode not in PNG_MODES:
+        image = image.convert('RGBA')
+    buffer = io.BytesIO()
+    image.save(buffer, format='PNG')
+    return {'png': base64.b64encode(buffer.getvalue()).decode('ascii'),
+            'filename': ntpath.basename(filename or ''),
+            'units': params.units,
+            'params': {name: getattr(params, name) for name in DEFAULTS}}
+
+
+def read_source(mark, units):
+    """(image, file name, plugin options) of the source of a Photo Carve mark, or None if it has no source.
+
+    The lengths are converted to "units"; a parameter that the record does not have takes its default value."""
+    source = (mark or {}).get('source')
+    if not source:
+        return None
+    try:
+        with Image.open(io.BytesIO(base64.b64decode(source['png']))) as picture:
+            image = picture.copy()
+    except (KeyError, ValueError, OSError) as err:
+        raise PhotoCarveError('Cannot read the source image of the Photo Carve geometry: %s' % err) from err
+    saved, units = str(source.get('units', units)).upper(), str(units).upper()
+    factor = 1.0 if saved == units else (25.4 if units == 'MM' else 1 / 25.4)
+    options = {}
+    for name, default in DEFAULTS.items():
+        value = source.get('params', {}).get(name, default)
+        if name in LENGTH_FIELDS and factor != 1.0:
+            value = float(value) * factor
+        options['tools_photocarve_' + name] = value
+    return image, source.get('filename', ''), options
 
 
 # MillingUI's C1, C2, C3, C4, B, V, L combo identifiers.
 MILL_SHAPES = {'flat': 0, 'ball': 4, 'vbit': 5}
+
+# What the user does when the cutter of a Photo Carve geometry no longer matches its paths. The Reset Tool button of
+# the Milling plugin does not help: it resets the form, not the tools of the geometry.
+REGENERATE = ('Open the Photo Carve plugin and click "Generate Geometry" to make the geometry again; then make the '
+              'CNCJob from the new geometry.')
 
 
 def _simulation_tool(uid, record, mark, warnings):
@@ -48,11 +100,15 @@ def passes_from_cncjob(cnc_obj, arc_res):
 
     mark = cnc_obj.obj_options.get('photocarve', {})
     if mark.get('units', cnc_obj.units) != cnc_obj.units:
-        raise PhotoCarveError('CNCJob and certified cutter units differ; regenerate the engraving.')
+        raise PhotoCarveError('The units of the CNCJob and of the photo engraving differ. Make the CNCJob again '
+                              'in the Milling plugin.')
     if any(getattr(cnc_obj, key, '') for key in ('edited_source_file', 'prepend_snippet', 'append_snippet')):
         raise PhotoCarveError('Edited or snippet-bearing CNC programs cannot be associated safely with cutters.')
     laser = bool(mark.get('z_is_power'))
     warnings, passes = [], []
+    if mark and mark.get('certified') is False:
+        warnings.append('This CNCJob was converted to other units and is not certified; '
+                        'the simulation shows its converted G-code.')
     records = cnc_obj.tools or {1: {'gcode': cnc_obj.gcode, 'tooldia': cnc_obj.obj_options.get('tooldia', 0)}}
     header = getattr(cnc_obj, 'gc_start', '')
     expected = header + ''.join(record.get('gcode', '') for record in records.values())
@@ -101,12 +157,15 @@ def passes_from_cncjob(cnc_obj, arc_res):
     return passes, warnings
 
 
-def build_geometry(result, params, milldefaults):
+def build_geometry(result, params, milldefaults, source=None):
     """Build independent multigeometry records using captured inputs only.
 
     The aggregate is XY for plotting; each tool keeps its XYZ or incoming laser power in Z.
     The caller stores ``photocarve`` in the geometry object's obj_options.
+    ``source`` is the record of embed_source(): the mark keeps it, so that the job opens again in Photo Carve.
     """
+    from .PhotoCarveGcode import LASER_POSTS, MILL_POSTS
+
     laser = params.mode == 'laser'
     mark = {'version': 1, 'mode': params.mode, 'z_is_power': laser, 'units': params.units,
             'contract': {'vcarve': 'groove', 'halftone': 'dot', 'laser': 'laser'}.get(params.mode, 'column'),
@@ -136,24 +195,37 @@ def build_geometry(result, params, milldefaults):
                     tools_mill_extracut=False, tools_mill_area_exclusion=False, tools_mill_polish=False,
                     tools_mill_tool_shape=6 if laser else MILL_SHAPES[cutter['kind']],
                     tools_mill_vtipdia=cutter['tip_diameter'], tools_mill_vtipangle=cutter['angle_deg'])
+        # Start with values that the writer accepts: the user's preprocessor if it is certified, and the dynamic
+        # laser power (M04). The application defaults are a milling preprocessor and M03.
+        allowed = LASER_POSTS if laser else MILL_POSTS
+        if data.get('tools_mill_ppname_g') not in allowed:
+            data['tools_mill_ppname_g'] = 'GRBL_laser' if laser else 'default'
+        if laser:
+            data['tools_mill_laser_on'] = 'M04'
         tools[uid] = {'tooldia': cutter['diameter'], 'data': data, 'solid_geometry': geometry}
         aggregate.extend(force_2d(item) for item in geometry)
         mark['tools'][str(uid)] = cutter
     if not tools:
         raise PhotoCarveError('The image produced no engraving paths.')
+    if source:
+        mark['source'] = source
     return {'tools': tools, 'solid_geometry': aggregate, 'photocarve': mark}
 
 
 def validate_tools(tools, mark):
-    """Call after all Milling overrides; no added tools or changed certified cutters are allowed."""
-    if mark.get('version') != 1 or set(map(str, tools)) != set(mark['tools']):
-        raise PhotoCarveError('Photo engraving tools differ from the certified job; regenerate the engraving.')
+    """Call after all Milling overrides; no added tools or changed certified cutters are allowed.
+
+    The Milling job holds only the tools selected in its table: each certified pass is safe on its own, so a
+    subset of the marked tools (for example only the finishing tool) is accepted.
+    """
+    if mark.get('version') != 1 or not tools or not set(map(str, tools)) <= set(mark['tools']):
+        raise PhotoCarveError('The tools differ from the tools of the photo engraving. ' + REGENERATE)
     for uid, tool in tools.items():
         cutter = mark['tools'][str(uid)]
         data = tool.get('data', {})
         expected_shape = 6 if mark['z_is_power'] else MILL_SHAPES.get(cutter['kind'])
         if data.get('tools_mill_tool_shape') != expected_shape:
-            raise PhotoCarveError('Certified cutter shape changed; regenerate the photo engraving.')
+            raise PhotoCarveError('The shape of the cutter changed. ' + REGENERATE)
         values = ((tool.get('tooldia'), cutter['diameter']),
                   (data.get('tools_mill_tooldia'), cutter['diameter']),
                   (data.get('tools_mill_vtipdia'), cutter['tip_diameter']),
@@ -164,4 +236,4 @@ def validate_tools(tools, mark):
             except (TypeError, ValueError):
                 valid = False
             if not valid:
-                raise PhotoCarveError('Certified cutter dimensions changed; regenerate the photo engraving.')
+                raise PhotoCarveError('The dimensions of the cutter changed. ' + REGENERATE)

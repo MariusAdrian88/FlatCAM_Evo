@@ -1377,7 +1377,8 @@ class MainGUI(QtWidgets.QMainWindow):
         self.paint_btn = self.toolbarplugins.addAction(
             QtGui.QIcon(self.app.resource_location + '/paint32.png'), _("Paint"))
         self.photocarve_btn = self.toolbarplugins.addAction(
-            QtGui.QIcon(self.app.resource_location + '/photo_carving64.png'), _("Photo Carve"))
+            QtGui.QIcon(self.app.resource_location + '/photo_carving64.png'), _("Carve"))
+        self.photocarve_btn.setToolTip(_("Carve a loaded picture into a material."))
 
         self.toolbarplugins.addSeparator()
 
@@ -2828,7 +2829,8 @@ class MainGUI(QtWidgets.QMainWindow):
         self.paint_btn = self.toolbarplugins.addAction(
             QtGui.QIcon(self.app.resource_location + '/paint32.png'), _("Paint"))
         self.photocarve_btn = self.toolbarplugins.addAction(
-            QtGui.QIcon(self.app.resource_location + '/photo_carving64.png'), _("Photo Carve"))
+            QtGui.QIcon(self.app.resource_location + '/photo_carving64.png'), _("Carve"))
+        self.photocarve_btn.setToolTip(_("Carve a loaded picture into a material."))
 
         self.toolbarplugins.addSeparator()
 

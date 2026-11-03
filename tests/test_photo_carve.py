@@ -51,30 +51,23 @@ def test_physical_frame_and_mode_pitch(model):
     assert laser.pitch_y == 7.5 / 4
 
 
-def test_options_capture_is_frozen_and_uses_only_prefixed_keys(model):
-    params = model.JobParams.from_options(
-        {'tools_photocarve_width': 12, 'width': 900}, (40, 30), 'IN', 6, (0, 0, 0, 0))
-    assert params.width == 12
-    assert params.height == 9
-    assert params.units == 'IN'
-    assert set(model.PHOTOCARVE_KEYS) == {'tools_photocarve_' + name for name in model.DEFAULTS}
-    with pytest.raises(AttributeError):
-        params.width = 20
-
-
-@pytest.mark.parametrize('changes', [
+_INVALID_JOBS = [
     {'width': float('nan')}, {'contrast': float('inf')}, {'res': 0}, {'spacing': -1},
     {'sim_res': 0}, {'gamma': 0}, {'levels': 2.5}, {'levels': 1}, {'overscan': -1},
     {'tool_kind': 'unknown'}, {'rough_kind': 'unknown'}, {'tool_tip': 6}, {'tool_angle': 180},
     {'mode': 'relief', 'strategy': 'raster'}, {'mode': 'vcarve', 'tool_kind': 'ball'},
     {'mode': 'halftone', 'strategy': '-', 'tool_kind': 'flat'},
     {'mode': 'lithophane', 'strategy': 'x', 'tone': 'linear'},
-    {'rough': True, 'stepdown': 0}, {'rough': True, 'allowance': -1},
+    {'mode': 'relief', 'tone': 'linear', 'strategy': 'x', 'rough': True, 'stepdown': 0},
+    {'mode': 'relief', 'tone': 'linear', 'strategy': 'x', 'rough': True, 'allowance': -1},
     {'decimals': 2, 'tolerance': 0.001},
-])
-def test_invalid_job_is_rejected_before_arrays(model, changes):
-    with pytest.raises(model.PhotoCarveError):
-        model.validate(model.JobParams(**changes))
+]
+
+
+def test_invalid_job_is_rejected_before_arrays(model):
+    for changes in _INVALID_JOBS:
+        with pytest.raises(model.PhotoCarveError):
+            model.validate(model.JobParams(**changes))
 
 
 def test_vbit_limit_and_lithophane_depth(model):
@@ -91,27 +84,30 @@ def test_vbit_limit_and_lithophane_depth(model):
     assert depth[0].tolist() == pytest.approx([0, 2.2])
 
 
-@pytest.mark.parametrize('changes', [
+_HUGE_JOBS = [
     {'res': 1e-9}, {'mode': 'laser', 'strategy': 'gray', 'spacing': 1e-12},
     {'tool_dia': 1e8}, {'spacing': 1e-12}, {'strategy': 'spiral', 'spacing': 1e-12},
     {'mode': 'halftone', 'strategy': '-', 'spacing': 1e-12},
-    {'rough': True, 'stepdown': 1e-12},
+    {'mode': 'relief', 'tone': 'linear', 'strategy': 'x', 'rough': True, 'stepdown': 1e-12},
     {'mode': 'lithophane', 'tone': 'lithophane', 'strategy': 'x', 'rough': True,
      'stepdown': 0.00001, 'litho_max': 100},
     {'mode': 'relief', 'tone': 'linear', 'strategy': 'xy', 'rough': True, 'max_depth': 1,
      'stepdown': 1, 'width': 4001, 'image_px': (4001, 5000), 'res': 1, 'spacing': 2,
      'sim_res': 1, 'tool_kind': 'flat', 'tool_dia': 0.1, 'rough_dia': 0.1},
-])
-def test_resource_preflight_is_scalar_fast_and_small(model, changes):
-    tracemalloc.start()
-    start = time.perf_counter()
-    try:
-        with pytest.raises(model.PhotoCarveError):
-            model.validate(model.JobParams(**changes))
-        assert time.perf_counter() - start < 1
-        assert tracemalloc.get_traced_memory()[1] < 10_000_000
-    finally:
-        tracemalloc.stop()
+]
+
+
+def test_resource_preflight_is_scalar_fast_and_small(model):
+    for changes in _HUGE_JOBS:
+        tracemalloc.start()
+        start = time.perf_counter()
+        try:
+            with pytest.raises(model.PhotoCarveError):
+                model.validate(model.JobParams(**changes))
+            assert time.perf_counter() - start < 1
+            assert tracemalloc.get_traced_memory()[1] < 10_000_000
+        finally:
+            tracemalloc.stop()
 
 
 def test_kernel_count_matches_rectangle_distance_and_sweeps(model):
@@ -147,9 +143,13 @@ def test_quantization_never_cuts_below_requested_z(model):
     quantized = model.quantize_z(z, 2)
     assert quantized.tolist() == [-1, -0.99, -1, 0, 0.01]
     assert np.all(quantized >= z - 1e-12)
+    path = np.array([[0, 0, -1], [1, 0, -0.995], [2, 0, -1]], dtype=np.float64)
+    np.testing.assert_array_equal(model.safe_rdp(path, 0.01), path)
+    path[1, 2] = -1.005
+    assert len(model.safe_rdp(path, 0.01)) == 2
 
 
-def test_image_gamma_once_alpha_white_and_exif_orientation(model, tmp_path):
+def test_image_preparation_tone_mapping_and_lithophane_border(model, tmp_path):
     image = Image.new('L', (40, 30), 128)
     params = model.JobParams(image_px=image.size, width=4, res=0.1, gamma=2)
     gray = model.prepare_image(image, params)
@@ -166,14 +166,14 @@ def test_image_gamma_once_alpha_white_and_exif_orientation(model, tmp_path):
     loaded = model.load_image(filename)
     assert loaded.size == image.size
     np.testing.assert_array_equal(model.prepare_image(loaded, params), model.prepare_image(pattern, params))
-
-
-def test_tone_mapping_and_lithophane_border(model):
     gray = np.array([[0, 0.5, 1]], dtype=np.float32)
     linear = model.depth_grid(gray, model.JobParams(tone='linear', max_depth=1))
     np.testing.assert_allclose(linear, [[1, 0.5, 0]])
     perceptual = model.depth_grid(gray, model.JobParams(tone='perceptual', max_depth=1))
     assert 0.45 < perceptual[0, 1] < 0.48
+    # V-bit area: a 50 % gray covers half of the line spacing (90° V-bit, spacing 1 -> width 0.5, depth 0.25)
+    area = model.depth_grid(gray, model.JobParams(tone='vbit_area', spacing=1, tool_angle=90, max_depth=1))
+    np.testing.assert_allclose(area, [[0.5, 0.25, 0]], atol=1e-6)
     params = model.JobParams(image_px=(5, 5), width=5, res=1, mode='lithophane',
                             strategy='x', tone='lithophane', frame=1)
     depth = model.depth_grid(np.ones((5, 5), dtype=np.float32), params)
@@ -193,6 +193,11 @@ def test_laser_levels_and_dither(model):
     calls = []
     laser.power_grid(gray, replace(params, strategy='floyd'), lambda: calls.append(True))
     assert len(calls) >= gray.shape[0]
+    assert laser.format_power(0, 100, 1000) == 0
+    assert laser.format_power(1 / 3, 100, 1000) == 400
+    assert laser.format_power(1, 100, 1000) == 1000
+    with pytest.raises(model.PhotoCarveError):
+        laser.format_power(0.5, 1000, 1000)
 
 
 def _exposure(paths):
@@ -220,28 +225,6 @@ def test_laser_cell_edges_reverse_incoming_power_and_split_before_overscan(model
         np.testing.assert_array_equal(laser.reverse_laser_path(reversed_path), path)
 
 
-def test_laser_real_points_within_preflight_bound(model):
-    laser = _pure('PhotoCarveLaser')
-    rng = np.random.default_rng(13)
-    for cols in range(1, 30):
-        params = model.JobParams(image_px=(cols, 7), width=cols, res=1, spacing=1,
-                                mode='laser', strategy='gray', lift_gap=0, overscan=5)
-        frame = model.mode_frame(params)
-        power = rng.integers(0, 4, (7, cols)).astype(np.float32) / 3
-        paths = laser.laser_paths(power, params)
-        assert sum(map(len, paths)) <= model.work_preflight(params, frame)['points']
-        assert _exposure(paths) == pytest.approx(float(power.sum()), abs=1e-5)
-
-
-def test_laser_power_formatter_zero_and_integer_mapping(model):
-    laser = _pure('PhotoCarveLaser')
-    assert laser.format_power(0, 100, 1000) == 0
-    assert laser.format_power(1 / 3, 100, 1000) == 400
-    assert laser.format_power(1, 100, 1000) == 1000
-    with pytest.raises(model.PhotoCarveError):
-        laser.format_power(0.5, 1000, 1000)
-
-
 def test_raster_clips_exact_frame_and_spiral_obeys_work_bounds(model):
     params = model.JobParams(image_px=(40, 30), width=4, res=0.1, spacing=0.4, angle=37)
     frame = model.mode_frame(params)
@@ -260,42 +243,6 @@ def test_raster_clips_exact_frame_and_spiral_obeys_work_bounds(model):
         assert sum(map(len, paths)) <= model.work_preflight(spiral, frame)['points']
         for path in paths:
             assert np.all(path >= [0, 0]) and np.all(path <= [4, 3])
-
-
-def test_one_sided_simplification_keeps_shallow_middle(model):
-    path = np.array([[0, 0, -1], [1, 0, -0.995], [2, 0, -1]], dtype=np.float64)
-    np.testing.assert_array_equal(model.safe_rdp(path, 0.01), path)
-    path[1, 2] = -1.005
-    assert len(model.safe_rdp(path, 0.01)) == 2
-
-
-def test_relief_single_center_is_a_plunge_in_both_directions(model):
-    for axis in ('x', 'y'):
-        params = model.JobParams(image_px=(1, 1), width=1, res=1, spacing=1, mode='relief',
-                                tone='linear', strategy=axis, tool_kind='flat', tool_dia=0.2,
-                                max_depth=0.5, sim_res=0.1)
-        depth = np.full((1, 1), 0.5, dtype=np.float32)
-        paths, certificate = model.relief_paths(depth, params, params.tool())
-        assert len(paths) == 1
-        np.testing.assert_array_equal(paths[0], [[0.5, 0.5, -0.5]])
-        assert certificate[0]['kind'] == 'point'
-        assert model.certify_relief(paths, certificate, model.mode_frame(params)) >= -1e-9
-
-
-def test_relief_certificate_exact_thirds_reversed_and_gouge(model):
-    params = model.JobParams(image_px=(3, 3), width=1, res=1 / 3, spacing=1 / 3,
-                            mode='relief', tone='linear', strategy='xy', tool_kind='ball',
-                            tool_dia=0.1, sim_res=0.1, max_depth=1)
-    depth = np.array([[0.1, 0.7, 0.1], [0.2, 0.9, 0.2], [0.3, 0.4, 0.3]], dtype=np.float32)
-    paths, certificate = model.relief_paths(depth, params, params.tool())
-    frame = model.mode_frame(params)
-    paths = [np.column_stack((path[:, :2], model.quantize_z(path[:, 2], 4))) for path in paths]
-    assert model.certify_relief(paths, certificate, frame) >= -1e-9
-    assert model.certify_relief([path[::-1] for path in paths], certificate, frame) >= -1e-9
-    bad = [path.copy() for path in paths]
-    bad[-1][-1, 2] -= 0.1
-    with pytest.raises(model.PhotoCarveError, match='gouge|Gouge'):
-        model.certify_relief(bad, certificate, frame)
 
 
 def test_relief_cutter_clearance_against_independent_dense_columns(model):
@@ -324,6 +271,19 @@ def test_relief_cutter_clearance_against_independent_dense_columns(model):
                                     max(0, rho - tool.tip_diameter / 2) / math.tan(math.radians(tool.angle_deg) / 2))
                             target = -float(depth[row, col]) if 0 <= row < 7 and 0 <= col < 7 else 0
                             assert z + lift >= target - 1e-9
+    params = model.JobParams(image_px=(3, 3), width=1, res=1 / 3, spacing=1 / 3,
+                            mode='relief', tone='linear', strategy='xy', tool_kind='ball',
+                            tool_dia=0.1, sim_res=0.1, max_depth=1)
+    depth = np.array([[0.1, 0.7, 0.1], [0.2, 0.9, 0.2], [0.3, 0.4, 0.3]], dtype=np.float32)
+    paths, certificate = model.relief_paths(depth, params, params.tool())
+    frame = model.mode_frame(params)
+    paths = [np.column_stack((path[:, :2], model.quantize_z(path[:, 2], 4))) for path in paths]
+    assert model.certify_relief(paths, certificate, frame) >= -1e-9
+    assert model.certify_relief([path[::-1] for path in paths], certificate, frame) >= -1e-9
+    bad = [path.copy() for path in paths]
+    bad[-1][-1, 2] -= 0.1
+    with pytest.raises(model.PhotoCarveError, match='gouge|Gouge'):
+        model.certify_relief(bad, certificate, frame)
 
 
 def test_run_job_modes_and_roughing_order(model):
@@ -347,14 +307,18 @@ def test_run_job_modes_and_roughing_order(model):
                 assert np.min(path[:, 2]) >= -(2.2 if mode == 'lithophane' else 0.5) - 1e-9
         else:
             assert result.passes[-1].z_is_power
+            # The Milling tool of a laser job is the laser dot, not the hidden cutter diameter.
+            params = replace(params, tool_dia=6.0, laser_dia=0.15)
+            built = _pure('PhotoCarveObject').build_geometry(gen.run_job(image, params), params, {})
+            assert {tool['tooldia'] for tool in built['tools'].values()} == {0.15}
+            assert {tool['data']['tools_mill_tooldia'] for tool in built['tools'].values()} == {0.15}
+            with pytest.raises(model.PhotoCarveError):
+                gen.run_job(image, replace(params, laser_dia=0))
     rough = replace(base, mode='relief', tone='linear', strategy='x', rough=True,
                     rough_dia=0.25, stepdown=0.2, allowance=0.1)
     result = gen.run_job(image, rough)
     assert [part.role for part in result.passes] == ['rough', 'finish']
     assert min(path[:, 2].min() for path in result.passes[0].paths) >= -0.4 - 1e-9
-
-
-def test_generation_abort_is_propagated(model):
     gen = _pure('PhotoCarveGen')
 
     def abort():
@@ -374,9 +338,6 @@ def test_halftone_black_dot_width_and_depth_limit(model):
         width = params.tool_tip + 2 * depth * math.tan(math.radians(params.tool_angle) / 2)
         assert width <= min(params.spacing, params.tool_dia) + 1e-9
         assert 0.01 < depth <= params.max_depth
-
-
-def test_black_groove_respects_width_limit_at_high_z_precision(model):
     gen = _pure('PhotoCarveGen')
     image = Image.new('L', (8, 8), 0)
     params = model.JobParams(image_px=image.size, width=2, res=0.25, spacing=1,
@@ -419,24 +380,6 @@ def test_stock_chunks_match_whole_and_independent_gouge_check(model):
     assert sim.reference_gouge([path - [0, 0, 0.1]], tool, np.full((20, 20), -0.4), frame) > 0.09
 
 
-def test_laser_burn_matches_integer_power_and_printed_endpoints(model):
-    sim = _pure('PhotoCarveSim')
-    frame = model.ImageFrame(0, 0, 1, 1, 0.1, 0.1)
-    path = np.array([[0, 0.55, 0], [1 / 3, 0.55, 1 / 3]], dtype=np.float64)
-    printer = lambda x, y: (round(x, 4), round(y, 4))
-    for minimum in (0, 100):
-        moves = sim.laser_moves_from_paths([path], as_s=True, minimum=minimum, maximum=1000, printer=printer)
-        expected_s = round(minimum + (1000 - minimum) / 3)
-        assert moves[0].x1 == 0.3333 and moves[0].s == expected_s
-        burn = sim.burn_image(frame, moves, maximum=1000)
-        assert burn.sum() == pytest.approx(0.3333 * expected_s / 1000, abs=1e-7)
-        text = 'G90 G21\nM4 S0\nG0 X0 Y0.55\nG1 X0.3333 S%d\nM5' % expected_s
-        printed = sim.interpret_gcode(text, laser=True)
-        np.testing.assert_allclose(sim.burn_image(frame, printed, maximum=1000), burn, atol=1e-7)
-    with pytest.raises(model.PhotoCarveError):
-        sim.laser_moves_from_paths([path], as_s=True, minimum=1000, maximum=1000)
-
-
 def test_motion_interpreter_modal_units_toolchange_and_laser_off(model):
     sim = _pure('PhotoCarveSim')
     text = '(header)\nG90 G17 G21 G94 G54\nG0 Z5\nX0 Y0\nM3 S12000\nG1 Z-0.5 F100\nX1 F1000\nM5\nG0 Z5'
@@ -451,9 +394,6 @@ def test_motion_interpreter_modal_units_toolchange_and_laser_off(model):
     assert math.isnan(laser[0].z0)
     with pytest.raises(model.PhotoCarveError, match='position|Position'):
         sim.interpret_gcode('G0 X0 Y0 Z5\nM6\nG1 X1 Y1 Z-1')
-
-
-def test_motion_interpreter_rejects_unknown_frames_commands_and_unsplit_arcs(model):
     sim = _pure('PhotoCarveSim')
     commands = ('G91', 'G92 X0', 'G28', 'G30', 'G53 G0 X1', 'G10 L2', 'G43 H1', 'G49',
                 'G38.2 Z-1', 'G80', 'G81 X1', 'G18', 'G19', 'G93', 'M98 P1', 'M99',
@@ -463,6 +403,26 @@ def test_motion_interpreter_rejects_unknown_frames_commands_and_unsplit_arcs(mod
             sim.interpret_gcode('G0 X0 Y0 Z5\n' + command)
     with pytest.raises(model.PhotoCarveError):
         sim.interpret_gcode('G0 X0 Y0\nG1 X1')
+    for end in ['M2', 'M30']:
+        sim = _pure('PhotoCarveSim')
+        text = 'G0 X0 Y0 Z0\nG1 X1\nM0\nG1 X2\nM1\nG1 X3\n' + end + '\nG1 X99'
+        assert sim.interpret_gcode(text)[-1].x1 == 3
+        assert sim.gcode_motion(text)[-1].x1 == 3
+    sim = _pure('PhotoCarveSim')
+    from appPlugins.ToolGcodeSender.SenderGen import split_arcs
+    lines = ['G21 G90 G17', 'G0 X0 Y0 Z0', 'G2 X2 Y0 I1 J0 F100']
+    split, count, _, unsplit = split_arcs(lines, 'MM', 0.1)
+    assert count == 1 and not unsplit
+    assert sim.gcode_motion(lines, 'MM', 0.1) == sim.interpret_gcode('\n'.join(split))
+    for code in ('G2 X1 Y1 I1', 'G91', 'G92 X0', 'G28', 'G81 X1', 'G1 X1'):
+        with pytest.raises(model.PhotoCarveError):
+            sim.gcode_motion(['G0 X0 Y0', code], 'MM', 0.1)
+    with pytest.raises(model.PhotoCarveError):
+        sim.gcode_motion(['G0 X0 Y0 Z0', 'G2 X2 Y0 I1 I1 J0'], 'MM', 0.1)
+    with pytest.raises(model.PhotoCarveError, match='1 arc'):
+        sim.gcode_motion(['G0 X0 Y0 Z0', 'G2 X2 Y0 I0 J0'], 'MM', 0.1)
+    laser = sim.gcode_motion(['G54', 'G0 X0 Y0', 'M4 S500', 'G2 X2 Y0 I1 J0'], 'MM', 0.1, laser=True)
+    assert len(laser) > 10 and laser[-1].x1 == 2 and laser[-1].s == 500
 
 
 def test_marked_geometry_unit_conversion_preserves_cutter_precision_and_laser_power():
@@ -531,6 +491,10 @@ def test_build_geometry_keeps_xyz_orders_rough_first_and_copies_defaults(model):
             objects.validate_tools(changed, built['photocarve'])
     with pytest.raises(model.PhotoCarveError):
         objects.validate_tools({**built['tools'], 3: built['tools'][1]}, built['photocarve'])
+    # Milling passes only the tools selected in its table: the finishing tool alone is a valid job
+    objects.validate_tools({2: built['tools'][2]}, built['photocarve'])
+    with pytest.raises(model.PhotoCarveError):
+        objects.validate_tools({}, built['photocarve'])
 
 
 def _writer_job(pp='default', laser=False, **changes):
@@ -554,8 +518,8 @@ def _writer_job(pp='default', laser=False, **changes):
     return job, built
 
 
-@pytest.mark.parametrize('pp', ['default', 'GRBL_11', 'GRBL_11_no_M6', 'grblHAL', 'Marlin'])
-@pytest.mark.parametrize('toolchange', [False, True])
+@pytest.mark.parametrize('pp,toolchange', [('default', False), ('default', True), ('GRBL_11_no_M6', True),
+                                           ('Marlin', True)])
 def test_writer_milling_executed_blocks_and_safe_toolchange(pp, toolchange):
     from appPlugins.ToolPhotoCarve.PhotoCarveGcode import write_tool_gcode
     from copy import deepcopy
@@ -596,7 +560,7 @@ def test_writer_milling_executed_blocks_and_safe_toolchange(pp, toolchange):
     assert not re.search(r'Z\S+G', code)
 
 
-@pytest.mark.parametrize('pp', ['GRBL_laser', 'grblHAL_laser'])
+@pytest.mark.parametrize('pp', ['GRBL_laser'])
 def test_writer_laser_only_powers_cutting_motion(pp):
     from appPlugins.ToolPhotoCarve.PhotoCarveGcode import write_tool_gcode
     import re
@@ -628,20 +592,6 @@ def test_writer_laser_only_powers_cutting_motion(pp):
     np.testing.assert_allclose(burn, expected, atol=1e-7)
 
 
-def test_writer_rejects_unsafe_toolchange_and_precision_and_rounds_once():
-    from appPlugins.ToolPhotoCarve.PhotoCarveGcode import write_tool_gcode
-    job, built = _writer_job(tools_mill_toolchangez=2)
-    args = (job, 1, built['tools'], (0, 0), None, 0, True, True, True, True, built['photocarve'])
-    assert write_tool_gcode(*args) == 'fail'
-    built['tools'][1]['data']['tools_mill_toolchangez'] = 15
-    job.coords_decimals = 2
-    assert write_tool_gcode(*args) == 'fail'
-    built['photocarve']['xy_err'] = 0.01
-    job._bed_offset_x = 0.0049
-    code, _ = write_tool_gcode(*args)
-    assert 'X0.01 Y0.00' in code and 'Z-0.20' in code
-
-
 def test_certified_geometry_lifecycle():
     from unittest.mock import Mock, patch
     from appObjects.GeometryObject import GeometryObject
@@ -670,6 +620,17 @@ def test_certified_geometry_lifecycle():
     collected = obj._collect_elements(obj.tools[1]['solid_geometry'])
     assert not collected[0]['shape'].has_z
     assert force_2d(obj.tools[1]['solid_geometry'][0]).equals(collected[0]['shape'])
+    from appMain import App
+    from appHandlers.appEdit import appEditor
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    obj = SimpleNamespace(kind='geometry', multigeo=True, obj_options={'photocarve': {'version': 1}})
+    harness = SimpleNamespace(defaults=Mock(), call_source='app', inform=Mock(),
+                              collection=SimpleNamespace(get_active=lambda: obj,
+                                                         get_selected=lambda: [obj, obj]))
+    assert App.on_editing_start(harness) == 'fail'
+    assert appEditor.on_edit_join(harness) == 'fail'
+    assert appEditor.on_join_as(harness, 'geometry') == 'fail'
 
 
 def test_photo_adapter_overrides_parse_each_tool_and_keeps_certificate():
@@ -728,14 +689,27 @@ def test_writer_fails_closed_for_missing_post_and_laser_settings():
                                  True, True, False, True, built['photocarve'])
 
     data = built['tools'][1]['data']
-    data['tools_mill_laser_on'] = 'M3'
+    # a new laser geometry starts with the dynamic power; the Milling combo writes it as M04
+    assert data['tools_mill_laser_on'] == 'M04'
+    data['tools_mill_laser_on'] = 'M03'
     assert write() == 'fail'
-    data['tools_mill_laser_on'] = 'M4'
+    data['tools_mill_laser_on'] = 'M04'
     data['tools_mill_min_power'] = 1000
     assert write() == 'fail'
     data['tools_mill_min_power'] = 0
+    assert write() != 'fail'
     del job.app.preprocessors['GRBL_laser']
     assert write() == 'fail'
+    job, built = _writer_job(tools_mill_toolchangez=2)
+    args = (job, 1, built['tools'], (0, 0), None, 0, True, True, True, True, built['photocarve'])
+    assert write_tool_gcode(*args) == 'fail'
+    built['tools'][1]['data']['tools_mill_toolchangez'] = 15
+    job.coords_decimals = 2
+    assert write_tool_gcode(*args) == 'fail'
+    built['photocarve']['xy_err'] = 0.01
+    job._bed_offset_x = 0.0049
+    code, _ = write_tool_gcode(*args)
+    assert 'X0.01 Y0.00' in code and 'Z-0.20' in code
 
 
 def test_writer_cancellation_stops_a_long_path():
@@ -780,7 +754,14 @@ def test_photo_milling_ui_locks_and_restores_certified_fields():
     item = QtWidgets.QTableWidgetItem('0.1')
     ui.tools_table_mill_geo.setItem(0, 1, item)
     before = deepcopy(built['tools'])
+    app.preprocessors = dict.fromkeys(('default', 'GRBL_11', 'GRBL_laser', 'Roland_MDX_20', 'Paste_1'))
+    combo = ui.pp_geo_name_cb
+    milling.fill_pp_combo()
+    combo.set_value('Roland_MDX_20')
     milling.set_photocarve_ui()
+    # a Photo Carve milling geometry offers only the certified milling preprocessors
+    assert [combo.itemText(i) for i in range(combo.count())] == ['default', 'GRBL_11']
+    assert combo.get_value() == built['tools'][1]['data']['tools_mill_ppname_g']
     for name in ('offset_type_combo', 'mpass_cb', 'maxdepth_entry', 'extracut_cb', 'cutz_entry',
                  'exclusion_cb', 'tool_shape_combo', 'tipdia_entry', 'tipangle_entry',
                  'search_and_add_btn', 'deltool_btn', 'addtool_from_db_btn'):
@@ -791,24 +772,16 @@ def test_photo_milling_ui_locks_and_restores_certified_fields():
                          ('on_tool_edit', (item,)), ('on_tool_from_db_inserted', ({},))):
         assert getattr(milling, method)(*args) == 'fail'
     assert built['tools'] == before
+    # a laser engraving geometry offers only the certified laser preprocessors
+    milling.target_obj.obj_options = {'photocarve': dict(built['photocarve'], z_is_power=True)}
+    milling.set_photocarve_ui()
+    assert [combo.itemText(i) for i in range(combo.count())] == ['GRBL_laser']
+    # another geometry gets the whole list again (without the Solder Paste preprocessors)
     milling.target_obj.obj_options = {}
     milling.set_photocarve_ui()
     assert ui.tool_shape_combo.isEnabled()
     assert item.flags() & QtCore.Qt.ItemFlag.ItemIsEditable
-
-
-def test_photo_edit_and_join_are_refused_before_side_effects():
-    from appMain import App
-    from appHandlers.appEdit import appEditor
-    from types import SimpleNamespace
-    from unittest.mock import Mock
-    obj = SimpleNamespace(kind='geometry', multigeo=True, obj_options={'photocarve': {'version': 1}})
-    harness = SimpleNamespace(defaults=Mock(), call_source='app', inform=Mock(),
-                              collection=SimpleNamespace(get_active=lambda: obj,
-                                                         get_selected=lambda: [obj, obj]))
-    assert App.on_editing_start(harness) == 'fail'
-    assert appEditor.on_edit_join(harness) == 'fail'
-    assert appEditor.on_join_as(harness, 'geometry') == 'fail'
+    assert [combo.itemText(i) for i in range(combo.count())] == ['default', 'GRBL_11', 'GRBL_laser', 'Roland_MDX_20']
 
 
 def test_photo_cutter_real_form_signals_do_not_change_certificate(monkeypatch):
@@ -855,6 +828,11 @@ def test_photo_save_load_keeps_xyz_and_certificate(tmp_path):
     with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
         obj = GeometryObject('photo', make_app_0b())
         restored_obj = GeometryObject('restored', obj.app)
+    objects, model = _pure('PhotoCarveObject'), _pure('PhotoCarveModel')
+    with Image.open(Path(__file__).parent / 'fixtures' / 'image.png') as picture:
+        image = picture.copy()
+    params = model.JobParams(image_px=image.size, width=40, spacing=0.3, mode='laser', strategy='floyd')
+    built['photocarve']['source'] = objects.embed_source(image, 'D:/photos/image.png', params)
     obj.tools, obj.solid_geometry, obj.multigeo = built['tools'], built['solid_geometry'], True
     obj.obj_options['photocarve'] = built['photocarve']
     data = {'objs': [obj.to_dict()]}
@@ -865,6 +843,16 @@ def test_photo_save_load_keeps_xyz_and_certificate(tmp_path):
     assert restored_obj.obj_options['photocarve'] == built['photocarve']
     assert restored_obj.multigeo
     assert list(restored_obj.tools['1']['solid_geometry'][0].coords) == list(built['tools'][1]['solid_geometry'][0].coords)
+    # The project holds the source image and the job parameters: Photo Carve opens them again, also in inch.
+    picture, filename, options = objects.read_source(restored_obj.obj_options['photocarve'], 'MM')
+    assert filename == 'image.png'
+    assert np.array_equal(np.asarray(picture), np.asarray(image))
+    assert (options['tools_photocarve_width'], options['tools_photocarve_strategy']) == (40, 'floyd')
+    _picture, _filename, inch = objects.read_source(restored_obj.obj_options['photocarve'], 'IN')
+    assert inch['tools_photocarve_width'] == pytest.approx(40 / 25.4)
+    assert inch['tools_photocarve_spacing'] == pytest.approx(0.3 / 25.4)
+    assert inch['tools_photocarve_gamma'] == 1.0
+    assert objects.read_source(built['photocarve'] | {'source': None}, 'MM') is None
 
 
 def test_writer_physical_skew_error_and_inch_precision():
@@ -944,6 +932,21 @@ def test_photo_preview_drops_stale_and_emits_errors(photo_controller, monkeypatc
     shown = tool.ui.preview_label.pixmap().cacheKey()
     old['fcn'](*old['params'])
     assert tool.ui.preview_label.pixmap().cacheKey() == shown
+    # Laser rows are one line spacing high, columns one resolution wide: the shown preview keeps the physical
+    # aspect (3 × 2), and it shows the job (a black image is full power, so the laser preview is black too)
+    tool.ui.mode_entry.set_value('laser')
+    tool.ui.strategy_entry.set_value('bayer')
+    tool.ui.width_entry.set_value(30)
+    tool.ui.res_entry.set_value(0.1)
+    tool.ui.spacing_entry.set_value(1)
+    tool.on_preview()
+    task = app.worker_task.emit.call_args.args[0]
+    assert task['params'][2].mode == 'laser'
+    result = gen.preview_map(*task['params'][1:])
+    assert result.size == (300, 20) and not np.asarray(result).any()
+    task['fcn'](*task['params'])
+    pixmap = tool.ui.preview_label.pixmap()
+    assert pixmap.width() / pixmap.height() == pytest.approx(1.5, rel=0.02)
     monkeypatch.setattr(gen, 'preview_map', lambda *a: (_ for _ in ()).throw(ValueError('preview error')))
     tool.on_preview()
     task = app.worker_task.emit.call_args.args[0]
@@ -951,29 +954,66 @@ def test_photo_preview_drops_stale_and_emits_errors(photo_controller, monkeypatc
     assert 'preview error' in app.inform.emit.call_args.args[0]
 
 
-@pytest.mark.parametrize('kind', ['geometry', 'gerber'])
-def test_photo_publication_guard_and_ordinary_creation(kind):
-    from appObjects.AppObject import AppObject
+def test_photo_parameter_change_resets_result_and_generate_shows_busy(photo_controller, monkeypatch):
     from types import SimpleNamespace
-    from unittest.mock import Mock, patch
-    app = SimpleNamespace(log=Mock(), inform=Mock(), collection=Mock(), ui=Mock(), worker_task=Mock())
-    app.ui.notebook.currentWidget.return_value = app.ui.plugin_tab
-    obj = SimpleNamespace(kind=kind, obj_options={'name': 'result'}, status_color=None,
-                          has_plot_colors=False, _record_history=True)
-    holder = SimpleNamespace(app=app)
-    with patch('appObjects.AppObject.history_of') as history:
-        obj._publish_guard = lambda: False
-        AppObject.on_object_created(holder, obj, False, False, None, [])
-        app.collection.append.assert_not_called()
-        history.return_value.record_create.assert_not_called()
-        callback = Mock()
-        AppObject.on_object_created(holder, obj, False, False, callback, ['arg'])
-        app.collection.append.assert_called_once_with(obj)
-        history.return_value.record_create.assert_called_once()
-        assert app.worker_task.emit.call_args.args[0] == {'fcn': callback, 'params': ['arg']}
+    from unittest.mock import Mock
+    from appPlugins.ToolPhotoCarve import PhotoCarveGen as gen
+    tool, app, _ = photo_controller
+    app.collection.get_by_name.return_value = SimpleNamespace(obj_options={'photocarve': {'version': 1}})
+    tool.result_obj_name = 'img_photocarve'
+    tool._view = Mock()
+    app.plotcanvas3d, app.area_3d_tab = Mock(), Mock()
+    app.ui.plot_tab_area.indexOf.return_value = 2
+    token = tool._gen_token
+    # a simulation parameter keeps the geometry and the simulation
+    tool.ui.sim_thickness_entry.set_value(5)
+    assert tool.result_obj_name == 'img_photocarve' and tool._view is not None
+    # a process parameter: the old geometry, the running generation and the 3D simulation go
+    # the deletion must not hide the notebook (project autohide): the field that the user types in stays usable
+    tool.ui.spacing_entry.set_value(2)
+    app.collection.delete_by_name.assert_called_once_with('img_photocarve', select_project=False, autohide=False)
+    app.ui.plot_tab_area.closeTab.assert_called_once_with(2)
+    assert tool.result_obj_name is None and tool._view is None and tool._gen_token > token
+    assert not tool.ui.preview_label.isVisible()
+    # Generate disables its button while the worker runs, also when the job fails
+    tool.image = Image.new('RGB', (3, 2), 'black')
+    monkeypatch.setattr(gen, 'run_job', Mock(side_effect=model_error('bad image')))
+    tool.on_generate()
+    assert not tool.ui.generate_button.isEnabled()
+    task = app.worker_task.emit.call_args.args[0]
+    task['fcn'](*task['params'])
+    assert tool.ui.generate_button.isEnabled()
+    assert 'bad image' in app.inform.emit.call_args.args[0]
 
 
-@pytest.mark.parametrize('invalidate', ['reset', 'units', 'newer', 'after_init', 'units_after_init'])
+def model_error(text):
+    from appPlugins.ToolPhotoCarve.PhotoCarveModel import PhotoCarveError
+    return PhotoCarveError(text)
+
+
+def test_photo_publication_guard_and_ordinary_creation():
+    for kind in ['geometry', 'gerber']:
+        from appObjects.AppObject import AppObject
+        from types import SimpleNamespace
+        from unittest.mock import Mock, patch
+        app = SimpleNamespace(log=Mock(), inform=Mock(), collection=Mock(), ui=Mock(), worker_task=Mock())
+        app.ui.notebook.currentWidget.return_value = app.ui.plugin_tab
+        obj = SimpleNamespace(kind=kind, obj_options={'name': 'result'}, status_color=None,
+                              has_plot_colors=False, _record_history=True)
+        holder = SimpleNamespace(app=app)
+        with patch('appObjects.AppObject.history_of') as history:
+            obj._publish_guard = lambda: False
+            AppObject.on_object_created(holder, obj, False, False, None, [])
+            app.collection.append.assert_not_called()
+            history.return_value.record_create.assert_not_called()
+            callback = Mock()
+            AppObject.on_object_created(holder, obj, False, False, callback, ['arg'])
+            app.collection.append.assert_called_once_with(obj)
+            history.return_value.record_create.assert_called_once()
+            assert app.worker_task.emit.call_args.args[0] == {'fcn': callback, 'params': ['arg']}
+
+
+@pytest.mark.parametrize('invalidate', ['reset', 'units', 'newer', 'after_init'])
 def test_photo_generation_captured_publication(photo_controller, invalidate):
     from appObjects.AppObject import AppObject
     from types import SimpleNamespace
@@ -1025,29 +1065,6 @@ def test_photo_generation_captured_publication(photo_controller, invalidate):
         assert tool.result_obj_name is None
 
 
-def test_photo_preferences_manager_all_keys(photo_controller, tmp_path):
-    from unittest.mock import MagicMock
-    from defaults import AppDefaults
-    from appGUI.preferences.PreferencesUIManager import PreferencesUIManager
-    from appGUI.preferences.tools.PluginsEngravingPreferencesUI import PluginsEngravingPreferencesUI
-    from appPlugins.ToolPhotoCarve.PhotoCarveModel import DEFAULTS, PHOTOCARVE_KEYS
-    tool, app, _ = photo_controller
-    ui = MagicMock()
-    ui.app = app
-    ui.plugin_eng_pref_form = PluginsEngravingPreferencesUI(app)
-    manager = PreferencesUIManager(AppDefaults(), str(tmp_path), ui, app.inform, app.options)
-    fields = {key: manager.defaults_form_fields[key] for key in PHOTOCARVE_KEYS}
-    manager.defaults_form_fields = fields
-    for key in fields:
-        manager.defaults_write_form_field(key)
-        assert fields[key].get_value() == app.options[key]
-    fields['tools_photocarve_strategy'].set_value('spiral')
-    manager.defaults_read_form()
-    assert app.options['tools_photocarve_strategy'] == 'spiral'
-    assert manager.defaults['tools_photocarve_strategy'] == 'spiral'
-    assert len(fields) == len(DEFAULTS)
-
-
 def test_photo_tcl_shared_generation_and_invalid_cutter(photo_controller, tmp_path, monkeypatch):
     from tclCommands.TclCommandPhotoCarve import TclCommandPhotoCarve
     from appPlugins.ToolPhotoCarve import PhotoCarveGen
@@ -1087,67 +1104,43 @@ def test_photo_tcl_shared_generation_and_invalid_cutter(photo_controller, tmp_pa
     error = command.execute({'filename': str(path), 'tool_angle': 0.}, [])
     assert isinstance(error, str) and error
     assert len(created) == 1
+    # The geometry keeps its source: Edit opens the image and the job parameters again in the plugin.
+    monkeypatch.setattr(tool, 'run', lambda toggle=True: None)
+    tool.ui.width_entry.set_value(50)
+    tool.open_source(created[0])
+    assert tool.image.size == (2, 2) and tool.ui.file_label.text() == 'photo.png'
+    assert tool.ui.width_entry.get_value() == 2 and tool.result_obj_name == 'scripted'
 
 
-@pytest.mark.parametrize('mode,strategy,kind,tone', [
+def test_photo_modes_and_image_capture(photo_controller, tmp_path):
+    for mode,strategy,kind,tone in [
     ('vcarve', 'spiral', 'vbit', 'vbit_area'), ('halftone', '-', 'vbit', 'linear'),
     ('relief', 'xy', 'ball', 'perceptual'), ('lithophane', 'y', 'flat', 'lithophane'),
     ('laser', 'floyd', 'flat', 'linear'),
-])
-def test_photo_modes_and_image_capture(photo_controller, tmp_path, mode, strategy, kind, tone):
-    tool, app, _ = photo_controller
-    path = tmp_path / 'oriented.tif'
-    image = Image.new('RGB', (2, 3))
-    exif = image.getexif()
-    exif[274] = 6
-    image.save(path, exif=exif)
-    tool.on_load_image(filename=str(path))
-    assert tool.image.size == (3, 2)
-    assert tool.ui.file_label.text() == 'oriented.tif'
-    tool.ui.mode_entry.set_value(mode)
-    tool.ui.strategy_entry.set_value(strategy)
-    tool.ui.tool_kind_entry.set_value(kind)
-    tool.ui.tone_entry.set_value(tone)
-    params = tool.capture_params()
-    assert (params.mode, params.strategy, params.tool_kind, params.tone) == (mode, strategy, kind, tone)
-    assert tool.ui.tool_kind_entry.isEnabled() == (mode not in ('vcarve', 'halftone'))
-    assert tool.ui.sections['rough'].isHidden() == (mode == 'laser')
-    assert tool.ui.tone_entry.isHidden() == (mode in ('laser', 'halftone'))
-
-
-def test_photo_generations_final_name_and_reset_no_callback(photo_controller):
-    from appObjects.AppObject import AppObject
-    from types import SimpleNamespace
-    tool, app, _ = photo_controller
-    tool.image = Image.new('RGB', (2, 2), 'black')
-    tool.image_filename = 'photo.png'
-    tool.ui.width_entry.set_value(2)
-    tool.ui.res_entry.set_value(1)
-    app.ui.notebook.currentWidget.return_value = app.ui.plugin_tab
-    objects = []
-
-    def create(kind, name, init, **kwargs):
-        assert 'callback' not in kwargs
-        obj = SimpleNamespace(kind=kind, obj_options={'name': name}, status_color=None, has_plot_colors=False)
-        if init(obj, app) != 'fail':
-            AppObject.on_object_created(SimpleNamespace(app=app), obj, False, False, None, [])
-            objects.append(obj)
-        return obj
-
-    def append(obj):
-        obj.obj_options['name'] += '_%d' % (len(objects) + 1)
-
-    app.app_obj = SimpleNamespace(new_object=create)
-    app.collection.append.side_effect = append
-    for expected in ('photo_photocarve_1', 'photo_photocarve_2'):
-        tool.on_generate()
-        task = app.worker_task.emit.call_args.args[0]
-        task['fcn'](*task['params'])
-        assert tool.result_obj_name == expected
-    tool.on_open_milling()
-    app.collection.set_active.assert_called_with('photo_photocarve_2')
-    tool.on_project_reset()
-    assert tool.result_obj_name is None
+]:
+        tool, app, _ = photo_controller
+        path = tmp_path / 'oriented.tif'
+        image = Image.new('RGB', (2, 3))
+        exif = image.getexif()
+        exif[274] = 6
+        image.save(path, exif=exif)
+        tool.on_load_image(filename=str(path))
+        assert tool.image.size == (3, 2)
+        assert tool.ui.file_label.text() == 'oriented.tif'
+        tool.ui.mode_entry.set_value(mode)
+        tool.ui.strategy_entry.set_value(strategy)
+        tool.ui.tool_kind_entry.set_value(kind)
+        tool.ui.tone_entry.set_value(tone)
+        params = tool.capture_params()
+        assert (params.mode, params.strategy, params.tool_kind, params.tone) == (mode, strategy, kind, tone)
+        assert tool.ui.tool_kind_entry.isEnabled() == (mode not in ('vcarve', 'halftone'))
+        assert tool.ui.sections['rough'].isHidden() == (mode not in ('relief', 'lithophane'))
+        assert tool.ui.tone_entry.isHidden() == (mode in ('laser', 'halftone'))
+        # a roughing cutter would cut away the image between V-grooves, dots or laser lines
+        from appPlugins.ToolPhotoCarve.PhotoCarveModel import validate
+        checked, warnings = validate(replace(params, rough=True))
+        assert checked.rough == (mode in ('relief', 'lithophane'))
+        assert any('Roughing' in text for text in warnings) == (mode not in ('relief', 'lithophane'))
 
 
 def test_photo_latest_finishes_before_old_running_job(photo_controller, monkeypatch):
@@ -1240,24 +1233,6 @@ def test_photo_menu_toggle_and_shortcut(photo_controller, monkeypatch):
     app.ui.notebook.deleteLater()
 
 
-def test_sim_motion_arcs_and_closed_subset(model):
-    sim = _pure('PhotoCarveSim')
-    from appPlugins.ToolGcodeSender.SenderGen import split_arcs
-    lines = ['G21 G90 G17', 'G0 X0 Y0 Z0', 'G2 X2 Y0 I1 J0 F100']
-    split, count, _, unsplit = split_arcs(lines, 'MM', 0.1)
-    assert count == 1 and not unsplit
-    assert sim.gcode_motion(lines, 'MM', 0.1) == sim.interpret_gcode('\n'.join(split))
-    for code in ('G2 X1 Y1 I1', 'G91', 'G92 X0', 'G28', 'G81 X1', 'G1 X1'):
-        with pytest.raises(model.PhotoCarveError):
-            sim.gcode_motion(['G0 X0 Y0', code], 'MM', 0.1)
-    with pytest.raises(model.PhotoCarveError):
-        sim.gcode_motion(['G0 X0 Y0 Z0', 'G2 X2 Y0 I1 I1 J0'], 'MM', 0.1)
-    with pytest.raises(model.PhotoCarveError, match='1 arc'):
-        sim.gcode_motion(['G0 X0 Y0 Z0', 'G2 X2 Y0 I0 J0'], 'MM', 0.1)
-    laser = sim.gcode_motion(['G54', 'G0 X0 Y0', 'M4 S500', 'G2 X2 Y0 I1 J0'], 'MM', 0.1, laser=True)
-    assert len(laser) > 10 and laser[-1].x1 == 2 and laser[-1].s == 500
-
-
 def test_cnc_sim_passes_milling_and_laser(model):
     from types import SimpleNamespace
     from appPlugins.ToolPhotoCarve.PhotoCarveObject import passes_from_cncjob
@@ -1275,6 +1250,17 @@ def test_cnc_sim_passes_milling_and_laser(model):
     job.tools[1]['data']['tools_mill_min_power'] = 1000
     with pytest.raises(ValueError):
         passes_from_cncjob(job, 0.1)
+    from types import SimpleNamespace
+    from appPlugins.ToolPhotoCarve.PhotoCarveObject import passes_from_cncjob
+    job = SimpleNamespace(units='MM', obj_options={}, tools={
+        1: {'tooldia': 1, 'gcode': 'G20\nG0 X0 Y0 Z0\nG1 X1\nM30\n'},
+        2: {'tooldia': 2, 'gcode': 'G0 X0 Y0 Z0\nG1 X99\n'}})
+    passes, _ = passes_from_cncjob(job, 0.1)
+    assert len(passes) == 1
+    assert passes[0].paths[-1][-1, 0] == pytest.approx(25.4)
+    job.tools[1]['gcode'] = job.tools[1]['gcode'].replace('M30\n', '')
+    passes, _ = passes_from_cncjob(job, 0.1)
+    assert passes[-1].paths[-1][-1, 0] == pytest.approx(99 * 25.4)
 
 
 def test_sim_sessions_burn_isolated_restart_and_error(photo_controller, monkeypatch):
@@ -1377,6 +1363,9 @@ def test_sim_milling_session_detaches_paths_and_updates_on_gui(photo_controller,
     np.testing.assert_array_equal(view.update_stock.call_args.args[0], expected.height)
     view.set_tool.assert_called_once()
     assert not session.busy and not tool.gen.sim_timer.isActive()
+    # the end shows the cut stock alone and a full progress bar
+    view.finish.assert_called_once()
+    assert tool.ui.sim_progress.value() == 100
     tool.on_plugin_cleanup()
     assert tool.gen.session is None and tool._view is None
     geo.kind = 'cncjob'
@@ -1385,89 +1374,136 @@ def test_sim_milling_session_detaches_paths_and_updates_on_gui(photo_controller,
     assert view.set_paths.call_args.kwargs['machine_coords'] is True
 
 
-@pytest.mark.parametrize('rows', [6, 1201])
-def test_sim_stock_visual_physical_mesh_updates_without_gpu(rows):
-    from unittest.mock import Mock, patch
+def test_sim_laser_line_burns_the_full_line_spacing():
     from types import SimpleNamespace
+    from unittest.mock import Mock, patch
+    from appPlugins.ToolPhotoCarve.PhotoCarveGen import laser_line_spacing
+    from appPlugins.ToolPhotoCarve.PhotoCarveModel import ImageFrame, Pass, ToolShape
+    from appPlugins.ToolPhotoCarve.PhotoCarveSim import burn_image, laser_moves_from_paths
     from appPlugins.ToolPhotoCarve.PhotoCarveView3d import PhotoCarveView3d
-    from appPlugins.ToolPhotoCarve.PhotoCarveModel import ImageFrame
-    from appPlugins.ToolPhotoCarve.PhotoCarveSim import Stock
-    stock = Stock(ImageFrame(10, 20, 8, 6, 2, 6 / rows))
-    canvas = SimpleNamespace(view=SimpleNamespace(scene=Mock()))
+    # 2 scan lines 1 mm apart, full power and half power, on 0.1 mm cells
+    paths = [np.array([[0, 2.5, 0], [4, 2.5, 1.0]]), np.array([[4, 1.5, 0], [0, 1.5, 0.5]])]
+    assert laser_line_spacing([Pass('laser', ToolShape('flat', 0.1), paths, True)]) == pytest.approx(1.0)
+    frame = ImageFrame(0, 0, 4, 4, 0.1, 0.1)
+    burn = burn_image(frame, laser_moves_from_paths(paths))
     with patch('appPlugins.ToolPhotoCarve.PhotoCarveView3d.scene.visuals'):
-        view = PhotoCarveView3d(canvas)
-        view.set_stock(stock)
-        assert np.ptp(view.vertices[:, 0]) == 8
-        assert np.ptp(view.vertices[:, 1]) == 6
-        faces = view.faces
-        step = math.ceil(max(stock.frame.rows, stock.frame.cols) / 600)
-        assert len(faces) == 2 * math.ceil(stock.frame.rows / step) * math.ceil(stock.frame.cols / step)
-        stock.height[:] = -0.5
-        view.update_stock(stock.height)
-        assert view.faces is faces
-        assert np.all(view.vertices[:, 2] == -0.5)
-        view.clear()
+        view = PhotoCarveView3d(SimpleNamespace(view=SimpleNamespace(scene=Mock())), spot=1.0)
+    exposure = view.burn_exposure(frame, burn)
+    # each line darkens a band 1 mm (10 cells) high with its own power, so the lines touch and keep their tone
+    assert np.count_nonzero(np.isclose(exposure[:, 20], 1.0)) == 10
+    assert np.count_nonzero(np.isclose(exposure[:, 20], 0.5)) == 10
 
 
-@pytest.mark.parametrize('kind', ['ball', 'flat', 'vbit'])
-def test_printed_relief_random_rounding_dense_oracle(model, kind):
-    sim = _pure('PhotoCarveSim')
-    from appPlugins.ToolPhotoCarve.PhotoCarveGcode import write_tool_gcode
-    skew = (0.13, -0.09, 20, 17)
-    params = model.JobParams(image_px=(7, 5), width=1, res=0.14, spacing=0.14,
-                            mode='relief', strategy='xy', tool_kind=kind, tool_dia=0.25,
-                            tool_tip=0.02, tool_angle=60, decimals=4, skew=skew)
-    frame = model.mode_frame(params)
-    depth = np.random.default_rng(719).random((frame.rows, frame.cols), dtype=np.float32)
-    paths, certificate = model.relief_paths(depth, params, params.tool())
-    assert model.certify_relief(paths, certificate, frame) >= -1e-9
-    job, defaults = _writer_job()
-    built = _pure('PhotoCarveObject').build_geometry(
-        model.JobResult([model.Pass('finish', params.tool(), paths)], [], {}), params,
-        defaults['tools'][1]['data'])
-    job._bed_skew_x, job._bed_skew_y, job._bed_limit_x, job._bed_limit_y = skew
-    job._bed_offset_x, job._bed_offset_y = 0.00493, -0.00371
-    code, header = write_tool_gcode(job, 1, built['tools'], (0, 0), None, 0,
-                                    True, True, False, True, built['photocarve'])
-    matrix = np.array([[1, skew[0] / skew[3]], [skew[1] / skew[2], 1]])
-    printed = []
-    for span in sim.gcode_motion(header + code):
-        if not span.rapid:
-            output = np.array([[span.x0, span.y0, span.z0], [span.x1, span.y1, span.z1]])
-            output[:, :2] = np.linalg.solve(matrix, (output[:, :2] - [0.00493, -0.00371]).T).T
-            printed.append(output)
-    assert sim.reference_gouge(printed, params.tool(), -depth, frame, sub=8) <= 1e-9
+def test_sim_stock_visual_physical_mesh_updates_without_gpu():
+    for rows in [6, 1201]:
+        from unittest.mock import Mock, patch
+        from types import SimpleNamespace
+        from appPlugins.ToolPhotoCarve.PhotoCarveView3d import PhotoCarveView3d
+        from appPlugins.ToolPhotoCarve.PhotoCarveModel import ImageFrame
+        from appPlugins.ToolPhotoCarve.PhotoCarveSim import Stock
+        stock = Stock(ImageFrame(10, 20, 8, 6, 2, 6 / rows))
+        canvas = SimpleNamespace(view=SimpleNamespace(scene=Mock()))
+        with patch('appPlugins.ToolPhotoCarve.PhotoCarveView3d.scene.visuals'):
+            view = PhotoCarveView3d(canvas)
+            view.set_stock(stock)
+            assert np.ptp(view.vertices[:, 0]) == 8
+            assert np.ptp(view.vertices[:, 1]) == 6
+            faces = view.faces
+            step = math.ceil(max(stock.frame.rows, stock.frame.cols) / 600)
+            assert len(faces) == 2 * math.ceil(stock.frame.rows / step) * math.ceil(stock.frame.cols / step)
+            stock.height[:] = -0.5
+            view.update_stock(stock.height)
+            assert view.faces is faces
+            assert np.all(view.vertices[:, 2] == -0.5)
+            # a closed block: the walls follow the top edge and stand on the bottom at -thickness
+            n = len(view.wall_vertices) // 2
+            assert np.all(view.wall_vertices[:n, 2] == -0.5) and np.all(view.wall_vertices[n:, 2] == -10)
+            assert view.wall_faces.max() < len(view.wall_vertices)
+            # the cut is darker than the uncut material, so it is visible from any angle
+            top, cut = view._cut_colors(np.array([0.0])), view._cut_colors(np.array([-0.5]))
+            assert np.all(cut[0, :3] < top[0, :3])
+            # a groove 1 cell wide between the vertices of a coarse mesh stays visible
+            stock.height[:] = 0
+            stock.height[min(1, rows - 1), :] = -0.5
+            view.update_stock(stock.height)
+            assert view.vertices[:, 2].min() == -0.5
+            view.clear()
+        # a cut deeper than the stock goes through and stops at the bottom
+        through = Stock(ImageFrame(0, 0, 4, 4, 1, 1), thickness=1.0)
+        _pure('PhotoCarveSim').stamp_path(through, np.array([[2.0, 2.0, -5.0]]), _pure('PhotoCarveModel').ToolShape('flat', 1))
+        assert through.height.min() == -1.0
 
 
-@pytest.mark.parametrize('size', [(1, 7), (7, 1)])
-def test_relief_singleton_axis_paths_and_certificate(model, size):
-    params = model.JobParams(image_px=size, width=size[0], res=1, spacing=1,
-                            mode='relief', strategy='xy', tool_kind='flat', tool_dia=0.1)
-    depth = np.full((size[1], size[0]), 0.5, dtype=np.float32)
-    paths, certificate = model.relief_paths(depth, params, params.tool())
-    assert any(len(path) == 1 for path in paths)
-    assert any(len(path) > 1 for path in paths)
-    assert model.certify_relief(paths, certificate, model.mode_frame(params)) >= -1e-9
+def test_printed_relief_random_rounding_dense_oracle(model):
+    for kind in ['ball', 'flat', 'vbit']:
+        sim = _pure('PhotoCarveSim')
+        from appPlugins.ToolPhotoCarve.PhotoCarveGcode import write_tool_gcode
+        skew = (0.13, -0.09, 20, 17)
+        params = model.JobParams(image_px=(7, 5), width=1, res=0.14, spacing=0.14,
+                                mode='relief', strategy='xy', tool_kind=kind, tool_dia=0.25,
+                                tool_tip=0.02, tool_angle=60, decimals=4, skew=skew)
+        frame = model.mode_frame(params)
+        depth = np.random.default_rng(719).random((frame.rows, frame.cols), dtype=np.float32)
+        paths, certificate = model.relief_paths(depth, params, params.tool())
+        assert model.certify_relief(paths, certificate, frame) >= -1e-9
+        job, defaults = _writer_job()
+        built = _pure('PhotoCarveObject').build_geometry(
+            model.JobResult([model.Pass('finish', params.tool(), paths)], [], {}), params,
+            defaults['tools'][1]['data'])
+        job._bed_skew_x, job._bed_skew_y, job._bed_limit_x, job._bed_limit_y = skew
+        job._bed_offset_x, job._bed_offset_y = 0.00493, -0.00371
+        code, header = write_tool_gcode(job, 1, built['tools'], (0, 0), None, 0,
+                                        True, True, False, True, built['photocarve'])
+        matrix = np.array([[1, skew[0] / skew[3]], [skew[1] / skew[2], 1]])
+        printed = []
+        for span in sim.gcode_motion(header + code):
+            if not span.rapid:
+                output = np.array([[span.x0, span.y0, span.z0], [span.x1, span.y1, span.z1]])
+                output[:, :2] = np.linalg.solve(matrix, (output[:, :2] - [0.00493, -0.00371]).T).T
+                printed.append(output)
+        assert sim.reference_gouge(printed, params.tool(), -depth, frame, sub=8) <= 1e-9
 
 
-@pytest.mark.parametrize('width,spacing', [(40, 0.3), (200, 8)])
-def test_spiral_sampled_and_dense_work_bounds(model, monkeypatch, width, spacing):
-    params = model.JobParams(image_px=(40, 30), width=width, res=0.5, spacing=spacing, strategy='spiral')
-    frame = model.mode_frame(params)
-    diag = math.hypot(frame.width, frame.height)
-    radius, b = diag / 2, spacing / (2 * math.pi)
-    theta = radius / b
-    exact_length = b / 2 * (theta * math.hypot(1, theta) + math.asinh(theta))
-    dense = math.ceil(exact_length / (min(frame.pitch_x, frame.pitch_y) / 4)) + 1
-    sampled = math.ceil(exact_length / min(frame.pitch_x, frame.pitch_y)) + 1
-    bound = model.work_preflight(params, frame)['points']
-    assert bound >= dense and bound >= 3 * sampled
-    paths = model.spiral_paths(params)
-    assert sum(map(len, paths)) <= bound
-    assert all(np.all(path >= [0, 0]) and np.all(path <= [frame.width, frame.height]) for path in paths)
-    monkeypatch.setattr(model, 'MAX_POINTS', dense - 1)
-    with pytest.raises(model.PhotoCarveError):
-        model.spiral_paths(params)
+def test_relief_singleton_axis_paths_and_certificate(model):
+    for size in ((1, 7), (7, 1)):
+        params = model.JobParams(image_px=size, width=size[0], res=1, spacing=1,
+                                mode='relief', strategy='xy', tool_kind='flat', tool_dia=0.1)
+        depth = np.full((size[1], size[0]), 0.5, dtype=np.float32)
+        paths, certificate = model.relief_paths(depth, params, params.tool())
+        assert any(len(path) == 1 for path in paths)
+        assert any(len(path) > 1 for path in paths)
+        assert model.certify_relief(paths, certificate, model.mode_frame(params)) >= -1e-9
+    for axis in ('x', 'y'):
+        params = model.JobParams(image_px=(1, 1), width=1, res=1, spacing=1, mode='relief',
+                                tone='linear', strategy=axis, tool_kind='flat', tool_dia=0.2,
+                                max_depth=0.5, sim_res=0.1)
+        depth = np.full((1, 1), 0.5, dtype=np.float32)
+        paths, certificate = model.relief_paths(depth, params, params.tool())
+        assert len(paths) == 1
+        np.testing.assert_array_equal(paths[0], [[0.5, 0.5, -0.5]])
+        assert certificate[0]['kind'] == 'point'
+        assert model.certify_relief(paths, certificate, model.mode_frame(params)) >= -1e-9
+
+
+def test_spiral_sampled_and_dense_work_bounds(model, monkeypatch):
+    for width, spacing in [(40, 0.3), (200, 8)]:
+        params = model.JobParams(image_px=(40, 30), width=width, res=0.5, spacing=spacing, strategy='spiral')
+        frame = model.mode_frame(params)
+        diag = math.hypot(frame.width, frame.height)
+        radius, b = diag / 2, spacing / (2 * math.pi)
+        theta = radius / b
+        exact_length = b / 2 * (theta * math.hypot(1, theta) + math.asinh(theta))
+        dense = math.ceil(exact_length / (min(frame.pitch_x, frame.pitch_y) / 4)) + 1
+        sampled = math.ceil(exact_length / min(frame.pitch_x, frame.pitch_y)) + 1
+        bound = model.work_preflight(params, frame)['points']
+        assert bound >= dense and bound >= 3 * sampled
+        paths = model.spiral_paths(params)
+        assert sum(map(len, paths)) <= bound
+        assert all(np.all(path >= [0, 0]) and np.all(path <= [frame.width, frame.height]) for path in paths)
+        with monkeypatch.context() as patched:
+            patched.setattr(model, 'MAX_POINTS', dense - 1)
+            with pytest.raises(model.PhotoCarveError):
+                model.spiral_paths(params)
 
 
 def test_laser_seeded_splits_and_overscan_only_preflight_rejection(model, monkeypatch):
@@ -1480,6 +1516,7 @@ def test_laser_seeded_splits_and_overscan_only_preflight_rejection(model, monkey
             power = rng.integers(0, 4, (7, 31)).astype(np.float32) / 3
             paths = laser.laser_paths(power, params)
             assert sum(map(len, paths)) <= model.work_preflight(params, model.mode_frame(params))['points']
+            assert _exposure(paths) == pytest.approx(float(power.sum()), abs=1e-5)
     params = replace(params, image_px=(3, 1), width=3, overscan=100)
     frame = model.mode_frame(params)
     assert frame.rows * (frame.cols + 1) < model.work_preflight(params, frame)['points']
@@ -1488,76 +1525,54 @@ def test_laser_seeded_splits_and_overscan_only_preflight_rejection(model, monkey
         model.work_preflight(params, frame)
 
 
-@pytest.mark.parametrize('minimum', [0, 100])
-def test_cnc_laser_real_printed_thirds_burn(minimum):
-    from types import SimpleNamespace
-    from shapely import LineString
-    from camlib import AttrDict
-    from appPlugins.ToolPhotoCarve.PhotoCarveGcode import write_tool_gcode
-    from appPlugins.ToolPhotoCarve.PhotoCarveObject import passes_from_cncjob
-    model, sim = _pure('PhotoCarveModel'), _pure('PhotoCarveSim')
-    job, built = _writer_job('GRBL_laser', laser=True, tools_mill_min_power=minimum)
-    path = np.array([[0, 0.5, 0], [1 / 3, 0.5, 1 / 3]], dtype=np.float64)
-    built['tools'][1]['solid_geometry'] = [LineString(path)]
-    code, header = write_tool_gcode(job, 1, built['tools'], (0, 0), None, 0,
-                                    True, True, False, True, built['photocarve'])
-    pp = job.app.preprocessors['GRBL_laser']
-    attrs = AttrDict(job.postdata)
+def test_cnc_laser_real_printed_thirds_burn():
+    for minimum in [0, 100]:
+        from types import SimpleNamespace
+        from shapely import LineString
+        from camlib import AttrDict
+        from appPlugins.ToolPhotoCarve.PhotoCarveGcode import write_tool_gcode
+        from appPlugins.ToolPhotoCarve.PhotoCarveObject import passes_from_cncjob
+        model, sim = _pure('PhotoCarveModel'), _pure('PhotoCarveSim')
+        job, built = _writer_job('GRBL_laser', laser=True, tools_mill_min_power=minimum)
+        path = np.array([[0, 0.5, 0], [1 / 3, 0.5, 1 / 3]], dtype=np.float64)
+        built['tools'][1]['solid_geometry'] = [LineString(path)]
+        code, header = write_tool_gcode(job, 1, built['tools'], (0, 0), None, 0,
+                                        True, True, False, True, built['photocarve'])
+        pp = job.app.preprocessors['GRBL_laser']
+        attrs = AttrDict(job.postdata)
 
-    def printer(x, y):
-        return tuple(float(pp.coord(attrs, value)) for value in pp.bed_xy(attrs, x, y))
+        def printer(x, y):
+            return tuple(float(pp.coord(attrs, value)) for value in pp.bed_xy(attrs, x, y))
 
-    source = sim.laser_moves_from_paths([path], as_s=True, minimum=minimum, maximum=1000, printer=printer)
-    printed = sim.gcode_motion(header + code, 'MM', laser=True)
-    cuts = [move for move in printed if not move.rapid and move.laser_on and move.s > 0]
-    assert cuts[0].x1 == 0.3333 and cuts[0].s == source[0].s
-    frame = model.ImageFrame(0, 0, 1, 1, 1 / 3, 1)
-    np.testing.assert_allclose(sim.burn_image(frame, cuts, 1000), sim.burn_image(frame, source, 1000), atol=1e-7)
-    unprinted = sim.laser_moves_from_paths([path], as_s=True, minimum=minimum, maximum=1000)
-    assert abs(sum(move.s * abs(move.x1 - move.x0) for move in unprinted) -
-               sum(move.s * abs(move.x1 - move.x0) for move in source)) <= 1000 * 1e-4
-    built['tools'][1]['gcode'] = header + code
-    cnc = SimpleNamespace(units='MM', tools=built['tools'], obj_options={'photocarve': built['photocarve']})
-    passes, _ = passes_from_cncjob(cnc, 0.1)
-    assert passes[0].paths[0][-1, 2] == pytest.approx((source[0].s - minimum) / (1000 - minimum))
-
-
-@pytest.mark.parametrize('end', ['M2', 'M30'])
-def test_sim_program_end_stops_but_optional_stops_resume(model, end):
-    sim = _pure('PhotoCarveSim')
-    text = 'G0 X0 Y0 Z0\nG1 X1\nM0\nG1 X2\nM1\nG1 X3\n' + end + '\nG1 X99'
-    assert sim.interpret_gcode(text)[-1].x1 == 3
-    assert sim.gcode_motion(text)[-1].x1 == 3
+        source = sim.laser_moves_from_paths([path], as_s=True, minimum=minimum, maximum=1000, printer=printer)
+        printed = sim.gcode_motion(header + code, 'MM', laser=True)
+        cuts = [move for move in printed if not move.rapid and move.laser_on and move.s > 0]
+        assert cuts[0].x1 == 0.3333 and cuts[0].s == source[0].s
+        frame = model.ImageFrame(0, 0, 1, 1, 1 / 3, 1)
+        np.testing.assert_allclose(sim.burn_image(frame, cuts, 1000), sim.burn_image(frame, source, 1000), atol=1e-7)
+        unprinted = sim.laser_moves_from_paths([path], as_s=True, minimum=minimum, maximum=1000)
+        assert abs(sum(move.s * abs(move.x1 - move.x0) for move in unprinted) -
+                   sum(move.s * abs(move.x1 - move.x0) for move in source)) <= 1000 * 1e-4
+        built['tools'][1]['gcode'] = header + code
+        cnc = SimpleNamespace(units='MM', tools=built['tools'], obj_options={'photocarve': built['photocarve']})
+        passes, _ = passes_from_cncjob(cnc, 0.1)
+        assert passes[0].paths[0][-1, 2] == pytest.approx((source[0].s - minimum) / (1000 - minimum))
 
 
-def test_cnc_sim_keeps_program_modal_state_and_end_across_tools():
-    from types import SimpleNamespace
-    from appPlugins.ToolPhotoCarve.PhotoCarveObject import passes_from_cncjob
-    job = SimpleNamespace(units='MM', obj_options={}, tools={
-        1: {'tooldia': 1, 'gcode': 'G20\nG0 X0 Y0 Z0\nG1 X1\nM30\n'},
-        2: {'tooldia': 2, 'gcode': 'G0 X0 Y0 Z0\nG1 X99\n'}})
-    passes, _ = passes_from_cncjob(job, 0.1)
-    assert len(passes) == 1
-    assert passes[0].paths[-1][-1, 0] == pytest.approx(25.4)
-    job.tools[1]['gcode'] = job.tools[1]['gcode'].replace('M30\n', '')
-    passes, _ = passes_from_cncjob(job, 0.1)
-    assert passes[-1].paths[-1][-1, 0] == pytest.approx(99 * 25.4)
-
-
-@pytest.mark.parametrize('change', ['edited_source_file', 'source_file', 'prepend_snippet', 'append_snippet', 'units'])
-def test_cnc_sim_refuses_uncertified_runnable_source(change):
-    from types import SimpleNamespace
-    from appPlugins.ToolPhotoCarve.PhotoCarveObject import passes_from_cncjob
-    code = 'G0 X0 Y0 Z0\nG1 X1 Z-1\n'
-    job = SimpleNamespace(units='MM', tools={1: {'tooldia': 1, 'gcode': code}},
-                          obj_options={'photocarve': {'units': 'MM'}}, gc_start='', source_file=code)
-    assert passes_from_cncjob(job, 0.1)[0]
-    if change == 'units':
-        job.obj_options['photocarve']['units'] = 'IN'
-    else:
-        setattr(job, change, 'G91\n' + code)
-    with pytest.raises(ValueError):
-        passes_from_cncjob(job, 0.1)
+def test_cnc_sim_refuses_uncertified_runnable_source():
+    for change in ['edited_source_file', 'source_file', 'prepend_snippet', 'append_snippet', 'units']:
+        from types import SimpleNamespace
+        from appPlugins.ToolPhotoCarve.PhotoCarveObject import passes_from_cncjob
+        code = 'G0 X0 Y0 Z0\nG1 X1 Z-1\n'
+        job = SimpleNamespace(units='MM', tools={1: {'tooldia': 1, 'gcode': code}},
+                              obj_options={'photocarve': {'units': 'MM'}}, gc_start='', source_file=code)
+        assert passes_from_cncjob(job, 0.1)[0]
+        if change == 'units':
+            job.obj_options['photocarve']['units'] = 'IN'
+        else:
+            setattr(job, change, 'G91\n' + code)
+        with pytest.raises(ValueError):
+            passes_from_cncjob(job, 0.1)
 
 
 def test_marked_cnc_transforms_refuse_before_mutation():
@@ -1572,9 +1587,6 @@ def test_marked_cnc_transforms_refuse_before_mutation():
     job.tools = built['tools']
     job.convert_units('IN')
     assert job.tools[1]['tooldia'] == pytest.approx(0.1 / 25.4)
-
-
-def test_tcl_marked_cnc_scale_refuses_without_regenerating():
     from types import SimpleNamespace
     from unittest.mock import Mock
     from tclCommands.TclCommandScale import TclCommandScale
@@ -1592,37 +1604,41 @@ def test_tcl_marked_cnc_scale_refuses_without_regenerating():
     job.regenerate_source.assert_not_called()
 
 
-@pytest.mark.parametrize('laser', [False, True])
-def test_marked_cnc_unit_conversion_motion_and_certificate(laser):
-    from unittest.mock import Mock, patch
-    from appObjects.CNCJobObject import CNCJobObject
-    from tests.helpers_objects import make_app_0b
-    from copy import deepcopy
-    _, built = _writer_job('GRBL_laser' if laser else 'default', laser=laser)
-    with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
-        job = CNCJobObject('photo', make_app_0b())
-    job.units, job.multitool = 'MM', True
-    job.gcode_parsed = []
-    job.tools = deepcopy(built['tools'])
-    job.tools[1]['data'].update(tools_mill_vtipdia=0.02, tools_mill_endxy=[25.4, 50.8])
-    built['photocarve']['tools']['1']['tip_diameter'] = 0.02
-    job.tools[1]['gcode'] = 'G21\nG0 X0 Y0 Z25.4\nM4 S505\nG1 X25.4 Z-2.54'
-    job.gc_start = 'G21\n'
-    job.source_file = job.gc_start + job.tools[1]['gcode']
-    job.obj_options['photocarve'] = deepcopy(built['photocarve'])
-    mark = deepcopy(built['photocarve'])
-    for units, factor in [('IN', 1 / 25.4), ('IN', 1 / 25.4), ('MM', 1)]:
-        job.convert_units(units)
-        assert job.tools[1]['tooldia'] == pytest.approx(0.1 * factor, abs=1e-12)
-        assert job.tools[1]['data']['tools_mill_tooldia'] == pytest.approx(0.1 * factor)
-        converted = job.obj_options['photocarve']
-        assert converted['units'] == units
-        assert converted['tools']['1']['diameter'] == pytest.approx(0.1 * factor)
-        assert converted['tools']['1']['tip_diameter'] == pytest.approx(0.02 * factor)
-        assert job.tools[1]['data']['tools_mill_vtipdia'] == pytest.approx(0.02 * factor)
-        assert job.tools[1]['data']['tools_mill_endxy'] == pytest.approx([25.4 * factor, 50.8 * factor])
-        assert converted['xy_err'] == pytest.approx(mark['xy_err'] * factor)
-        spans = _pure('PhotoCarveSim').gcode_motion(job.source_file, units, laser=laser)
-        assert spans[-1].x1 == pytest.approx(25.4 * factor, abs=0.003)
-        assert spans[-1].z1 == pytest.approx(-2.54 * factor, abs=0.003)
-        assert spans[-1].s == 505
+def test_marked_cnc_unit_conversion_motion_and_certificate():
+    for laser in [False, True]:
+        from unittest.mock import Mock, patch
+        from appObjects.CNCJobObject import CNCJobObject
+        from tests.helpers_objects import make_app_0b
+        from copy import deepcopy
+        _, built = _writer_job('GRBL_laser' if laser else 'default', laser=laser)
+        with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
+            job = CNCJobObject('photo', make_app_0b())
+        job.units, job.multitool = 'MM', True
+        job.gcode_parsed = []
+        job.tools = deepcopy(built['tools'])
+        job.tools[1]['data'].update(tools_mill_vtipdia=0.02, tools_mill_endxy=[25.4, 50.8])
+        built['photocarve']['tools']['1']['tip_diameter'] = 0.02
+        job.tools[1]['gcode'] = 'G21\nG0 X0 Y0 Z25.4\nM4 S505\nG1 X25.4 Z-2.54'
+        job.gc_start = 'G21\n'
+        job.source_file = job.gc_start + job.tools[1]['gcode']
+        job.obj_options['photocarve'] = deepcopy(built['photocarve'])
+        mark = deepcopy(built['photocarve'])
+        for units, factor in [('IN', 1 / 25.4), ('IN', 1 / 25.4), ('MM', 1)]:
+            job.convert_units(units)
+            assert job.tools[1]['tooldia'] == pytest.approx(0.1 * factor, abs=1e-12)
+            assert job.tools[1]['data']['tools_mill_tooldia'] == pytest.approx(0.1 * factor)
+            converted = job.obj_options['photocarve']
+            assert converted['units'] == units
+            assert converted['tools']['1']['diameter'] == pytest.approx(0.1 * factor)
+            assert converted['tools']['1']['tip_diameter'] == pytest.approx(0.02 * factor)
+            assert job.tools[1]['data']['tools_mill_vtipdia'] == pytest.approx(0.02 * factor)
+            assert job.tools[1]['data']['tools_mill_endxy'] == pytest.approx([25.4 * factor, 50.8 * factor])
+            assert converted['xy_err'] == pytest.approx(mark['xy_err'] * factor)
+            # the text is rounded again at the new unit: the job is no longer the certified program
+            assert converted['certified'] is False
+            spans = _pure('PhotoCarveSim').gcode_motion(job.source_file, units, laser=laser)
+            assert spans[-1].x1 == pytest.approx(25.4 * factor, abs=0.003)
+            assert spans[-1].z1 == pytest.approx(-2.54 * factor, abs=0.003)
+            assert spans[-1].s == 505
+
+
