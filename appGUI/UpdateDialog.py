@@ -11,7 +11,7 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 _ = gettext.gettext
 
 _MANUAL_REASONS = {
-    "appimage": _("This FlatCAM copy runs from an AppImage."),
+    "appimage": _("This FlatCAM Evo copy runs from an AppImage."),
     "windows-source": _("This is a source installation on Windows."),
     "unsupported-architecture": _("This build does not match the published Windows x64 archive."),
     "frozen-linux": _("The packaged Linux application is replaced by hand."),
@@ -108,7 +108,7 @@ class UpdateDialog(QtWidgets.QDialog):
         self._manual = bool(payload.get("manual", False))
         self.choice = "later"
 
-        self.setWindowTitle(_("FlatCAM update available: %s") % (details["version"] or _("unknown version")))
+        self.setWindowTitle(_("FlatCAM Evo update available: %s") % (details["version"] or _("unknown version")))
         self.setModal(True)
         self.setMinimumWidth(520)
 
@@ -126,13 +126,18 @@ class UpdateDialog(QtWidgets.QDialog):
         header.setAccessibleName(_("Update version information"))
         layout.addWidget(header)
 
-        if details["size"] is None:
-            size_text = _("Update size: unknown; the source archive is prepared automatically.")
-        else:
-            size_text = _("Full archive size: %s") % _human_bytes(details["size"])
-        archive_size = QtWidgets.QLabel(size_text)
-        archive_size.setAccessibleName(_("Update archive size"))
-        layout.addWidget(archive_size)
+        package = payload.get("package_asset") if self._manual else None
+        if not isinstance(package, dict) or not str(package.get("url", "")).startswith("https://"):
+            package = None
+        # an installation that is replaced by hand gets no archive from the updater: the archive size is not shown
+        if not self._manual:
+            if details["size"] is None:
+                size_text = _("Update size: unknown; the source archive is prepared automatically.")
+            else:
+                size_text = _("Full archive size: %s") % _human_bytes(details["size"])
+            archive_size = QtWidgets.QLabel(size_text)
+            archive_size.setAccessibleName(_("Update archive size"))
+            layout.addWidget(archive_size)
 
         if details["published"]:
             published = QtWidgets.QLabel(_("Published: %s") % _human_date(details["published"]))
@@ -154,14 +159,30 @@ class UpdateDialog(QtWidgets.QDialog):
                 payload.get("manual_reason", ""),
                 _("Automatic replacement is not available for this installation."),
             )
-            manual_label = QtWidgets.QLabel(
-                _("This update cannot be installed automatically. %s "
-                  "Download the release from its page and replace this installation manually.")
-                % reason
-            )
+            if package is not None:
+                guidance = _("This update cannot be installed automatically. %s "
+                             "Download the new package, save it, and replace this installation manually.") % reason
+            else:
+                guidance = _("This update cannot be installed automatically. %s "
+                             "Download the release from its page and replace this installation manually.") % reason
+            manual_label = QtWidgets.QLabel(guidance)
             manual_label.setWordWrap(True)
             manual_label.setAccessibleName(_("Manual installation guidance"))
             layout.addWidget(manual_label)
+            if package is not None:
+                name = str(package.get("name") or _("the package"))
+                size = package.get("size")
+                if type(size) is int and size > 0:
+                    name = "%s (%s)" % (name, _human_bytes(size))
+                # the web browser downloads the file and asks where to save it
+                download = QtWidgets.QLabel(
+                    '%s <a href="%s">%s</a>'
+                    % (html.escape(_("Download:")), html.escape(package["url"], quote=True), html.escape(name))
+                )
+                download.setOpenExternalLinks(True)
+                download.setWordWrap(True)
+                download.setAccessibleName(_("Download the new package"))
+                layout.addWidget(download)
             if details["release_page"].startswith(("https://", "http://")):
                 link = QtWidgets.QLabel(
                     '<a href="%s">%s</a>'
@@ -173,13 +194,24 @@ class UpdateDialog(QtWidgets.QDialog):
 
         if self._mandatory:
             warning = QtWidgets.QLabel(
-                _("This update is mandatory. Update now or exit FlatCAM.")
+                _("This update is mandatory. Update now or exit FlatCAM Evo.")
             )
             warning.setWordWrap(True)
             warning.setAccessibleName(_("Mandatory update warning"))
             layout.addWidget(warning)
 
         buttons = QtWidgets.QHBoxLayout()
+        # the startup check then stays quiet about this version; Help > Check for Updates still shows it
+        self.skip_button = None
+        if not self._mandatory:
+            self.skip_button = QtWidgets.QPushButton(_("Skip this version"))
+            self.skip_button.setToolTip(
+                _("Do not show this version again when FlatCAM Evo starts.\n"
+                  "A manual check for updates still shows it.")
+            )
+            self.skip_button.setAccessibleName(_("Skip this version"))
+            self.skip_button.clicked.connect(self._on_skip)
+            buttons.addWidget(self.skip_button)
         buttons.addStretch(1)
         self.update_button = None
         if not self._manual:
@@ -201,6 +233,10 @@ class UpdateDialog(QtWidgets.QDialog):
     def _on_update(self) -> None:
         self.choice = "update"
         self.accept()
+
+    def _on_skip(self) -> None:
+        self.choice = "skip"
+        self.reject()
 
     def _on_other(self) -> None:
         self.choice = "exit" if self._mandatory else "later"

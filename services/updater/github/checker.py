@@ -76,6 +76,16 @@ def select_release(releases):
     return best
 
 
+def _machine() -> str:
+    """Return the processor name in the form of the release package names: x86_64 or arm64."""
+    name = platform_module.machine().lower()
+    return {"amd64": "x86_64", "x64": "x86_64", "aarch64": "arm64"}.get(name, name)
+
+
+# the manual reasons that have a package of their own in the release, and how to find it
+_PACKAGE_KINDS = {"appimage": ("linux", ".AppImage"), "macos": ("macos", ".dmg")}
+
+
 def _asset_payload(asset):
     if asset is None:
         return None
@@ -161,6 +171,9 @@ class GitHubUpdateChecker:
             )
             if reason:
                 payload["manual_reason"] = reason
+            if release is not None and reason in _PACKAGE_KINDS:
+                package_platform, suffix = _PACKAGE_KINDS[reason]
+                payload["package_asset"] = _asset_payload(release.package_asset(package_platform, _machine(), suffix))
         if error:
             payload["error"] = error
         return payload

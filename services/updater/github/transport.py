@@ -118,6 +118,15 @@ class GitHubRelease:
                 return asset
         return None
 
+    def package_asset(self, platform: str, arch: str, suffix: str) -> ReleaseAsset | None:
+        """Return the package that release-packages.yml attached for one system, or None. The workflow names it
+        FlatCAM_EVO-<tag>-<platform>-<arch><suffix>, for example FlatCAM_EVO-v1.1-linux-x86_64.AppImage."""
+        ending = f"-{platform}-{arch}{suffix}".lower()
+        for asset in self.assets:
+            if asset.name.startswith("FlatCAM_EVO-") and asset.name.lower().endswith(ending):
+                return asset
+        return None
+
 
 class GitHubReleaseTransport:
     """List stable releases and download release assets from GitHub without credentials."""

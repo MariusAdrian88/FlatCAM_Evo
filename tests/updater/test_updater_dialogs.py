@@ -129,38 +129,6 @@ def test_dialog_renders_premanifest_metadata_and_markdown_notes(qapp):
     assert "Update now" in buttons
 
 
-def test_manual_dialog_links_the_release_and_never_offers_a_download(qapp):
-    from appGUI.UpdateDialog import UpdateDialog
-
-    payload = _payload(install="manual", automatic=False, manual=True, manual_reason="appimage")
-    dialog = UpdateDialog(None, payload)
-    texts = " ".join(label.text() for label in dialog.findChildren(QtWidgets.QLabel))
-
-    assert dialog.update_button is None
-    assert "replace this installation manually" in texts
-    assert payload["release_page"] in texts
-    assert not any(button.text() == "Update now" for button in dialog.findChildren(QtWidgets.QPushButton))
-
-
-def test_automatic_manual_offer_is_ignored_but_a_manual_check_shows_it(qapp, tmp_path):
-    from appMain import App
-
-    app = _fake_app(tmp_path)
-    app._start_update_download = MagicMock()
-    payload = _payload(install="manual", automatic=False, manual=True, manual_reason="appimage")
-
-    App.on_update_available(app, payload)
-    assert app._update_dialog is None
-    app._start_update_download.assert_not_called()
-
-    app._manual_update_requested = True
-    App.on_update_available(app, payload)
-    assert app._update_dialog is not None
-    app._update_dialog._on_other()
-    app._start_update_download.assert_not_called()
-
-
-
 def test_dependency_warning_cancels_before_preflight_and_launch(qapp, monkeypatch, tmp_path):
     from appMain import App
 

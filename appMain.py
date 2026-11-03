@@ -60,6 +60,7 @@ from appGUI.GUIElements import (
     AppSystemTray,
 )
 from appGUI.UpdateDialog import UpdateDialog
+from services.updater.skip import is_release_skipped, skip_release
 from appGUI.themes import dark_style_sheet, light_style_sheet
 
 # Various
@@ -2430,10 +2431,10 @@ class App(QtCore.QObject):
         edited_object = self.collection.get_active()
         if (edited_object is not None and isinstance(edited_object.obj_options, dict) and
                 edited_object.obj_options.get('photocarve')):
-            self.inform.emit('[ERROR_NOTCL] %s' % _("Regenerate photo engraving instead of editing certified paths."))
             # A Photo Carve geometry keeps its source image and parameters: edit the job, not the certified paths
             if edited_object.kind == 'geometry' and edited_object.obj_options['photocarve'].get('source'):
                 return self.photocarve_tool.open_source(edited_object)
+            self.inform.emit('[ERROR_NOTCL] %s' % _("Regenerate photo engraving instead of editing certified paths."))
             return 'fail'
         if edited_object is None:
             self.inform.emit('[ERROR_NOTCL] %s %s' % (_("The Editor could not start."), _("No object is selected.")))
@@ -3238,7 +3239,8 @@ class App(QtCore.QObject):
         if dialog is None:
             return
         try:
-            dialog.setLabelText(text)
+            if text:
+                dialog.setLabelText(text)
             if value < 0:
                 # A negative value means the transport cannot report a total yet.
                 if dialog.maximum() != 0:
@@ -3386,9 +3388,10 @@ class App(QtCore.QObject):
 
         manual_request = bool(getattr(self, "_manual_update_requested", False))
         self._manual_update_requested = False
-        if payload.get("manual") and not manual_request:
-            # Automatic checks must not nag about installs that are always replaced by hand.
-            self.log.info("A manual update is available; automatic checks stay nonintrusive.")
+        mandatory = bool(payload.get("mandatory"))
+        if not manual_request and not mandatory and is_release_skipped(self.data_path, payload):
+            # the user skipped this release: only Help > Check for Updates shows it
+            self.log.info("The available update %s was skipped by the user." % payload.get("version", ""))
             return
 
         dialog = UpdateDialog(parent=self.ui, payload=payload)
@@ -3396,6 +3399,9 @@ class App(QtCore.QObject):
 
         def finished(_result):
             self._update_dialog = None
+            if dialog.choice == "skip":
+                skip_release(self.data_path, payload)
+                return
             if dialog.choice == "later":
                 return
             if dialog.choice == "exit":
@@ -3416,9 +3422,24 @@ class App(QtCore.QObject):
         self._update_in_progress = True
         cancel_event = threading.Event()
         self._update_cancel_event = cancel_event
-        progress = QtWidgets.QProgressDialog(
-            _("Downloading update..."), _("Cancel"), 0, 100, self.ui
+        if payload.get("install") == "linux_zipball":
+            check_text = _("the source archive of the release is checked")
+        else:
+            check_text = _("the update archive is checked against its published checksum")
+        # a static text: the bar alone shows how far the download is
+        steps = QtWidgets.QLabel(
+            _("FlatCAM Evo downloads the new version. The steps are:\n\n"
+              "1. Download: %s after the download.\n"
+              "2. Confirm: FlatCAM Evo shows what it will install and asks you to confirm.\n"
+              "3. Install: FlatCAM Evo closes, the updater replaces the files and starts FlatCAM Evo again.\n\n"
+              "Nothing in this installation changes before you confirm. "
+              "Cancel stops the download and removes the downloaded files.") % check_text
         )
+        steps.setWordWrap(True)
+        steps.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        progress = QtWidgets.QProgressDialog("", _("Cancel"), 0, 100, self.ui)
+        progress.setLabel(steps)
+        progress.setMinimumWidth(480)
         progress.setWindowTitle(_("Downloading update"))
         progress.setWindowModality(Qt.WindowModality.ApplicationModal)
         progress.setAutoClose(False)
@@ -3468,12 +3489,12 @@ class App(QtCore.QObject):
             ),
         )
 
+        # no text: the dialog keeps its static list of steps and the bar shows the progress
         def progress(written, total):
             if not total:
-                self.update_progress.emit(-1, _("Downloading update..."))
+                self.update_progress.emit(-1, "")
                 return
-            value = min(int((written * 100) / total), 100)
-            self.update_progress.emit(value, _("Downloading update: %s%%") % value)
+            self.update_progress.emit(min(int((written * 100) / total), 100), "")
 
         try:
             if provider == PROVIDER_DIGI:
