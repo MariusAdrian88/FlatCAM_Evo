@@ -13,9 +13,21 @@ import pytest
 from PIL import Image
 
 
-def _model():
-    path = Path(__file__).resolve().parents[1] / 'appPlugins/ToolPhotoCarve/PhotoCarveModel.py'
-    spec = importlib.util.spec_from_file_location('photo_carve_model', path)
+def _pure(name):
+    root = Path(__file__).resolve().parents[1] / 'appPlugins/ToolPhotoCarve'
+    package = '_photo_carve_tests'
+    if package not in sys.modules:
+        package_spec = importlib.util.spec_from_file_location(package, root / '__init__.py',
+                                                             submodule_search_locations=[str(root)])
+        assert package_spec is not None and package_spec.loader is not None
+        module = importlib.util.module_from_spec(package_spec)
+        sys.modules[package] = module
+        package_spec.loader.exec_module(module)
+    fullname = package + '.' + name
+    if fullname in sys.modules:
+        return sys.modules[fullname]
+    spec = importlib.util.spec_from_file_location(fullname, root / (name + '.py'))
+    assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
@@ -24,7 +36,7 @@ def _model():
 
 @pytest.fixture(scope='module')
 def model():
-    return _model()
+    return _pure('PhotoCarveModel')
 
 
 def test_physical_frame_and_mode_pitch(model):
@@ -163,3 +175,209 @@ def test_tone_mapping_and_lithophane_border(model):
     depth = model.depth_grid(np.ones((5, 5), dtype=np.float32), params)
     assert depth[2, 2] == pytest.approx(2.2)
     assert not depth[0].any() and not depth[:, -1].any()
+
+
+def test_laser_levels_and_dither(model):
+    laser = _pure('PhotoCarveLaser')
+    gray = np.tile(np.linspace(0, 1, 8, dtype=np.float32), (8, 1))
+    params = model.JobParams(mode='laser', strategy='gray', levels=3)
+    np.testing.assert_array_equal(laser.power_grid(gray, params), np.round((1 - gray) * 2) / 2)
+    for strategy in ('bayer', 'floyd'):
+        power = laser.power_grid(np.full((8, 8), 0.5, dtype=np.float32), replace(params, strategy=strategy))
+        assert set(np.unique(power)) == {0, 1}
+        assert 0.45 < power.mean() < 0.55
+    calls = []
+    laser.power_grid(gray, replace(params, strategy='floyd'), lambda: calls.append(True))
+    assert len(calls) >= gray.shape[0]
+
+
+def _exposure(paths):
+    return sum(abs(b[0] - a[0]) * b[2] for path in paths for a, b in zip(path, path[1:]))
+
+
+def test_laser_cell_edges_reverse_incoming_power_and_split_before_overscan(model):
+    laser = _pure('PhotoCarveLaser')
+    params = model.JobParams(image_px=(10, 2), width=10, res=1, spacing=1,
+                            mode='laser', strategy='gray', lift_gap=3, overscan=5)
+    power = np.array([[0, 0.2, 0.2, 0, 0, 0, 0, 0.7, 1, 0]] * 2, dtype=np.float32)
+    paths = laser.laser_paths(power, params)
+    assert len(paths) == 4
+    assert all(path.dtype == np.float64 and len(path) >= 2 for path in paths)
+    assert paths[0][:, 0].tolist() == [-4, 1, 3, 8]
+    assert paths[1][:, 0].tolist() == [2, 7, 8, 9, 14]
+    assert paths[2][0, 0] == 14 and paths[2][-1, 0] == 2
+    assert paths[0][0, 1] == 1.5 and paths[2][0, 1] == 0.5
+    assert _exposure(paths[:2]) == pytest.approx(2.1)
+    assert _exposure(paths[2:]) == pytest.approx(2.1)
+    for path in paths:
+        assert path[0, 2] == 0 and path[1, 2] == 0 and path[-1, 2] == 0
+        reversed_path = laser.reverse_laser_path(path)
+        assert _exposure([reversed_path]) == pytest.approx(_exposure([path]))
+        np.testing.assert_array_equal(laser.reverse_laser_path(reversed_path), path)
+
+
+def test_laser_real_points_within_preflight_bound(model):
+    laser = _pure('PhotoCarveLaser')
+    rng = np.random.default_rng(13)
+    for cols in range(1, 30):
+        params = model.JobParams(image_px=(cols, 7), width=cols, res=1, spacing=1,
+                                mode='laser', strategy='gray', lift_gap=0, overscan=5)
+        frame = model.mode_frame(params)
+        power = rng.integers(0, 4, (7, cols)).astype(np.float32) / 3
+        paths = laser.laser_paths(power, params)
+        assert sum(map(len, paths)) <= model.work_preflight(params, frame)['points']
+        assert _exposure(paths) == pytest.approx(float(power.sum()), abs=1e-5)
+
+
+def test_laser_power_formatter_zero_and_integer_mapping(model):
+    laser = _pure('PhotoCarveLaser')
+    assert laser.format_power(0, 100, 1000) == 0
+    assert laser.format_power(1 / 3, 100, 1000) == 400
+    assert laser.format_power(1, 100, 1000) == 1000
+    with pytest.raises(model.PhotoCarveError):
+        laser.format_power(0.5, 1000, 1000)
+
+
+def test_raster_clips_exact_frame_and_spiral_obeys_work_bounds(model):
+    params = model.JobParams(image_px=(40, 30), width=4, res=0.1, spacing=0.4, angle=37)
+    frame = model.mode_frame(params)
+    paths = model.raster_paths(params)
+    assert len(paths) > 1
+    for path in paths:
+        assert np.all(path[:, 0] >= frame.x0 - 1e-12)
+        assert np.all(path[:, 0] <= frame.x0 + frame.width + 1e-12)
+        assert np.all(path[:, 1] >= frame.y0 - 1e-12)
+        assert np.all(path[:, 1] <= frame.y0 + frame.height + 1e-12)
+        assert np.all(np.linalg.norm(np.diff(path, axis=0), axis=1) <= 0.1 + 1e-12)
+    for spacing in (0.1, 2, 100):
+        spiral = replace(params, strategy='spiral', spacing=spacing)
+        paths = model.spiral_paths(spiral)
+        assert paths
+        assert sum(map(len, paths)) <= model.work_preflight(spiral, frame)['points']
+        for path in paths:
+            assert np.all(path >= [0, 0]) and np.all(path <= [4, 3])
+
+
+def test_one_sided_simplification_keeps_shallow_middle(model):
+    path = np.array([[0, 0, -1], [1, 0, -0.995], [2, 0, -1]], dtype=np.float64)
+    np.testing.assert_array_equal(model.safe_rdp(path, 0.01), path)
+    path[1, 2] = -1.005
+    assert len(model.safe_rdp(path, 0.01)) == 2
+
+
+def test_relief_single_center_is_a_plunge_in_both_directions(model):
+    for axis in ('x', 'y'):
+        params = model.JobParams(image_px=(1, 1), width=1, res=1, spacing=1, mode='relief',
+                                tone='linear', strategy=axis, tool_kind='flat', tool_dia=0.2,
+                                max_depth=0.5, sim_res=0.1)
+        depth = np.full((1, 1), 0.5, dtype=np.float32)
+        paths, certificate = model.relief_paths(depth, params, params.tool())
+        assert len(paths) == 1
+        np.testing.assert_array_equal(paths[0], [[0.5, 0.5, -0.5]])
+        assert certificate[0]['kind'] == 'point'
+        assert model.certify_relief(paths, certificate, model.mode_frame(params)) >= -1e-9
+
+
+def test_relief_certificate_exact_thirds_reversed_and_gouge(model):
+    params = model.JobParams(image_px=(3, 3), width=1, res=1 / 3, spacing=1 / 3,
+                            mode='relief', tone='linear', strategy='xy', tool_kind='ball',
+                            tool_dia=0.1, sim_res=0.1, max_depth=1)
+    depth = np.array([[0.1, 0.7, 0.1], [0.2, 0.9, 0.2], [0.3, 0.4, 0.3]], dtype=np.float32)
+    paths, certificate = model.relief_paths(depth, params, params.tool())
+    frame = model.mode_frame(params)
+    paths = [np.column_stack((path[:, :2], model.quantize_z(path[:, 2], 4))) for path in paths]
+    assert model.certify_relief(paths, certificate, frame) >= -1e-9
+    assert model.certify_relief([path[::-1] for path in paths], certificate, frame) >= -1e-9
+    bad = [path.copy() for path in paths]
+    bad[-1][-1, 2] -= 0.1
+    with pytest.raises(model.PhotoCarveError, match='gouge|Gouge'):
+        model.certify_relief(bad, certificate, frame)
+
+
+def test_relief_cutter_clearance_against_independent_dense_columns(model):
+    rng = np.random.default_rng(11)
+    params = model.JobParams(image_px=(7, 7), width=3.5, res=0.5, spacing=0.5, sim_res=0.5,
+                            mode='relief', strategy='xy', tone='linear', max_depth=1)
+    depth = rng.random((7, 7), dtype=np.float32)
+    frame = model.mode_frame(params)
+    for tool in (model.ToolShape('flat', 0.6), model.ToolShape('ball', 0.8),
+                 model.ToolShape('vbit', 0.8, 60, 0.1)):
+        paths, certificate = model.relief_paths(depth, params, tool)
+        assert model.certify_relief(paths, certificate, frame) >= -1e-9
+        for path in paths:
+            for a, b in zip(path, path[1:]):
+                for t in np.linspace(0, 1, 9):
+                    x, y, z = a + t * (b - a)
+                    for row in range(-1, 8):
+                        for col in range(-1, 8):
+                            cx, cy = frame.center(row, col)
+                            rho = math.hypot(max(abs(cx - x) - 0.25, 0), max(abs(cy - y) - 0.25, 0))
+                            if rho >= tool.diameter / 2:
+                                continue
+                            lift = (0 if tool.kind == 'flat' else
+                                    tool.diameter / 2 - math.sqrt((tool.diameter / 2) ** 2 - rho ** 2)
+                                    if tool.kind == 'ball' else
+                                    max(0, rho - tool.tip_diameter / 2) / math.tan(math.radians(tool.angle_deg) / 2))
+                            target = -float(depth[row, col]) if 0 <= row < 7 and 0 <= col < 7 else 0
+                            assert z + lift >= target - 1e-9
+
+
+def test_run_job_modes_and_roughing_order(model):
+    gen = _pure('PhotoCarveGen')
+    image = Image.new('L', (12, 12), 0)
+    base = model.JobParams(image_px=image.size, width=3, res=0.25, spacing=0.5,
+                           tool_dia=0.5, sim_res=0.25, max_depth=0.5)
+    for mode, strategy, tone in (('vcarve', 'raster', 'vbit_area'), ('vcarve', 'spiral', 'linear'),
+                                 ('halftone', '-', 'ignored'), ('relief', 'xy', 'linear'),
+                                 ('lithophane', 'x', 'lithophane'), ('laser', 'bayer', 'ignored')):
+        params = replace(base, mode=mode, strategy=strategy, tone=tone, frame=0)
+        result = gen.run_job(image, params)
+        assert result.passes and result.passes[-1].paths
+        assert result.stats['points'] == sum(len(path) for part in result.passes for path in part.paths)
+        frame = model.mode_frame(params)
+        assert result.stats['cells'] == frame.rows * frame.cols
+        assert result.stats['max_gouge'] >= -1e-9
+        if mode != 'laser':
+            for path in result.passes[-1].paths:
+                assert path.shape[1] == 3 and path.dtype == np.float64
+                assert np.min(path[:, 2]) >= -(2.2 if mode == 'lithophane' else 0.5) - 1e-9
+        else:
+            assert result.passes[-1].z_is_power
+    rough = replace(base, mode='relief', tone='linear', strategy='x', rough=True,
+                    rough_dia=0.25, stepdown=0.2, allowance=0.1)
+    result = gen.run_job(image, rough)
+    assert [part.role for part in result.passes] == ['rough', 'finish']
+    assert min(path[:, 2].min() for path in result.passes[0].paths) >= -0.4 - 1e-9
+
+
+def test_generation_abort_is_propagated(model):
+    gen = _pure('PhotoCarveGen')
+
+    def abort():
+        raise RuntimeError('cancelled')
+
+    with pytest.raises(RuntimeError, match='cancelled'):
+        gen.run_job(Image.new('L', (2, 2)), model.JobParams(image_px=(2, 2)), abort)
+
+
+def test_halftone_black_dot_width_and_depth_limit(model):
+    params = model.JobParams(image_px=(20, 20), width=4, res=0.2, spacing=1, mode='halftone',
+                            strategy='-', tool_dia=0.8, tool_tip=0.1, max_depth=0.3)
+    paths = model.halftone_paths(np.zeros((20, 20), dtype=np.float32), params)
+    assert paths and all(len(path) == 1 for path in paths)
+    for path in paths:
+        depth = -path[0, 2]
+        width = params.tool_tip + 2 * depth * math.tan(math.radians(params.tool_angle) / 2)
+        assert width <= min(params.spacing, params.tool_dia) + 1e-9
+        assert 0.01 < depth <= params.max_depth
+
+
+def test_relief_certificate_checks_far_corner_without_subsampling(model):
+    frame = model.ImageFrame(0, 0, 3000, 3000, 1, 1)
+    indices = np.arange(3000)
+    x, y = frame.center(2999, 0)
+    certificate = [{'kind': 'x', 'axis': 'x', 'fixed': 2999,
+                    'indices': indices, 'z': np.full(3000, -0.5)}]
+    path = np.array([[x, y, -0.5], [2999.5, y, -0.51]])
+    with pytest.raises(model.PhotoCarveError, match='gouge|Gouge'):
+        model.certify_relief([path], certificate, frame)

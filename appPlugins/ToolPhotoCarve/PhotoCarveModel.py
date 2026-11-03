@@ -414,3 +414,406 @@ def depth_grid(gray, params):
         depth = (width - params.tool_tip) / (2 * math.tan(math.radians(params.tool_angle) / 2))
         return np.asarray(np.clip(depth, params.min_depth, params.max_depth), dtype=np.float32)
     return np.asarray(params.min_depth + darkness * (params.max_depth - params.min_depth), dtype=np.float32)
+
+
+def clip_segment(a, b, frame):
+    """Liang-Barsky clipping in model coordinates, with exact frame boundary endpoints."""
+    a, b = np.asarray(a, dtype=np.float64), np.asarray(b, dtype=np.float64)
+    delta = b - a
+    lo, hi = 0.0, 1.0
+    for p, q in ((-delta[0], a[0] - frame.x0), (delta[0], frame.x0 + frame.width - a[0]),
+                 (-delta[1], a[1] - frame.y0), (delta[1], frame.y0 + frame.height - a[1])):
+        if p == 0:
+            if q < 0:
+                return None
+            continue
+        t = q / p
+        if p < 0:
+            lo = max(lo, t)
+        else:
+            hi = min(hi, t)
+        if lo > hi:
+            return None
+    bounds = ([frame.x0, frame.y0], [frame.x0 + frame.width, frame.y0 + frame.height])
+    return np.clip(np.array([a + lo * delta, a + hi * delta]), *bounds)
+
+
+def raster_paths(params, check_abort=None):
+    frame = mode_frame(params)
+    work_preflight(params, frame)
+    angle = math.radians(params.angle)
+    direction = np.array([math.cos(angle), math.sin(angle)])
+    normal = np.array([-direction[1], direction[0]])
+    center = np.array([frame.x0 + frame.width / 2, frame.y0 + frame.height / 2])
+    extent = (abs(normal[0]) * frame.width + abs(normal[1]) * frame.height) / 2
+    diag = math.hypot(frame.width, frame.height)
+    step = min(frame.pitch_x, frame.pitch_y)
+    first = math.ceil((-extent - params.spacing / 2) / params.spacing)
+    last = math.floor((extent - params.spacing / 2) / params.spacing)
+    paths, count = [], 0
+    for k in range(first, last + 1):
+        if check_abort is not None:
+            check_abort()
+        origin = center + normal * (params.spacing / 2 + k * params.spacing)
+        segment = clip_segment(origin - diag * direction, origin + diag * direction, frame)
+        if segment is None or np.linalg.norm(segment[1] - segment[0]) < 1e-12:
+            continue
+        n = max(2, math.ceil(float(np.linalg.norm(segment[1] - segment[0])) / step) + 1)
+        count += n
+        if count > MAX_POINTS:
+            raise PhotoCarveError('Raster paths exceed the point limit; increase spacing or resolution.')
+        path = np.linspace(segment[0], segment[1], n, dtype=np.float64)
+        paths.append(path[::-1].copy() if len(paths) % 2 else path)
+    return paths
+
+
+def spiral_paths(params, check_abort=None):
+    frame = mode_frame(params)
+    work_preflight(params, frame)
+    step = min(frame.pitch_x, frame.pitch_y)
+    radius = math.hypot(frame.width, frame.height) / 2
+    b = params.spacing / (2 * math.pi)
+    theta_max = radius / b
+    length = b / 2 * (theta_max * math.hypot(1, theta_max) + math.asinh(theta_max))
+    nd = math.ceil(length / (step / 4)) + 1
+    if nd > MAX_POINTS:
+        raise PhotoCarveError('Dense spiral exceeds the point limit; increase spacing or resolution.')
+    s = np.linspace(0, length, nd)
+    theta = np.minimum(s / b, np.sqrt(2 * s / b))
+    for _ in range(8):
+        if check_abort is not None:
+            check_abort()
+        root = np.hypot(1, theta)
+        theta -= (b / 2 * (theta * root + np.arcsinh(theta)) - s) / (b * root)
+    center = np.array([frame.x0 + frame.width / 2, frame.y0 + frame.height / 2])
+    dense = np.column_stack((b * theta * np.cos(theta), b * theta * np.sin(theta))) + center
+    distance = np.r_[0, np.cumsum(np.linalg.norm(np.diff(dense, axis=0), axis=1))]
+    ns = math.ceil(float(distance[-1]) / step) + 1
+    sample = np.linspace(0, distance[-1], ns)
+    points = np.column_stack((np.interp(sample, distance, dense[:, 0]),
+                              np.interp(sample, distance, dense[:, 1])))
+    paths, current, count = [], [], 0
+    for index, (a, end) in enumerate(zip(points, points[1:])):
+        if check_abort is not None and index % 1000 == 0:
+            check_abort()
+        segment = clip_segment(a, end, frame)
+        if segment is None:
+            if current:
+                paths.append(np.asarray(current, dtype=np.float64))
+                current = []
+            continue
+        if current and not np.allclose(current[-1], segment[0], rtol=0, atol=1e-12):
+            paths.append(np.asarray(current, dtype=np.float64))
+            current = []
+        if not current:
+            current.append(segment[0])
+            count += 1
+        if np.linalg.norm(segment[1] - current[-1]) > 1e-12:
+            current.append(segment[1])
+            count += 1
+        if count > MAX_POINTS:
+            raise PhotoCarveError('Clipped spiral exceeds the point limit; increase spacing or resolution.')
+    if current:
+        paths.append(np.asarray(current, dtype=np.float64))
+    return [path for path in paths if len(path) > 1]
+
+
+def bilinear(grid, xy, frame):
+    xy = np.asarray(xy, dtype=np.float64)
+    col = np.clip((xy[:, 0] - frame.x0) / frame.pitch_x - 0.5, 0, frame.cols - 1)
+    row = np.clip((frame.y0 + frame.height - xy[:, 1]) / frame.pitch_y - 0.5, 0, frame.rows - 1)
+    c, r = np.floor(col).astype(np.intp), np.floor(row).astype(np.intp)
+    c1, r1 = np.minimum(c + 1, frame.cols - 1), np.minimum(r + 1, frame.rows - 1)
+    u, v = col - c, row - r
+    return (grid[r, c] * (1 - u) * (1 - v) + grid[r, c1] * u * (1 - v) +
+            grid[r1, c] * (1 - u) * v + grid[r1, c1] * u * v)
+
+
+def safe_rdp(path, tolerance, check_abort=None):
+    """3D RDP that never lowers the chord below an input vertex."""
+    path = np.asarray(path, dtype=np.float64)
+    if len(path) <= 2:
+        return path.copy()
+    keep = np.zeros(len(path), dtype=bool)
+    keep[0] = keep[-1] = True
+    pending = [(0, len(path) - 1)]
+    while pending:
+        if check_abort is not None:
+            check_abort()
+        first, last = pending.pop()
+        if last - first < 2:
+            continue
+        a, b = path[first], path[last]
+        interior = path[first + 1:last]
+        delta = b - a
+        norm = float(delta @ delta)
+        t = np.clip((interior - a) @ delta / norm, 0, 1) if norm else np.zeros(len(interior))
+        distance = np.linalg.norm(interior - (a + t[:, None] * delta), axis=1)
+        xy_norm = float(delta[:2] @ delta[:2])
+        u = np.clip((interior[:, :2] - a[:2]) @ delta[:2] / xy_norm, 0, 1) if xy_norm else t
+        gouge = interior[:, 2] - (a[2] + u * delta[2])
+        if np.max(gouge) > 1e-12:
+            split = first + 1 + int(np.argmax(gouge))
+        elif np.max(distance) > tolerance:
+            split = first + 1 + int(np.argmax(distance))
+        else:
+            continue
+        keep[split] = True
+        pending.extend(((first, split), (split, last)))
+    return path[keep].copy()
+
+
+def tool_lift(tool, rho):
+    rho = np.asarray(rho, dtype=np.float64)
+    radius = tool.diameter / 2
+    if tool.kind == 'flat':
+        return np.zeros_like(rho)
+    if tool.kind == 'ball':
+        return radius - np.sqrt(np.maximum(0, radius * radius - np.minimum(rho, radius) ** 2))
+    return np.maximum(0, rho - tool.tip_diameter / 2) / math.tan(math.radians(tool.angle_deg) / 2)
+
+
+def relief_kernel(tool, frame, xy_err, axis, check_abort=None):
+    """Minimum column-rectangle distance to a stationary center or next-center segment."""
+    radius = tool.diameter / 2
+    kernel_count(radius, frame.pitch_x, frame.pitch_y, xy_err, axis, check_abort)
+    nr = math.ceil((radius + xy_err) / frame.pitch_y) + 2
+    nc = math.ceil((radius + xy_err) / frame.pitch_x) + 2
+    columns = np.arange(-nc, nc + 1)
+    x = columns * frame.pitch_x
+    dx = np.maximum(np.maximum(x - frame.pitch_x / 2 - (frame.pitch_x if axis == 'x' else 0),
+                               -x - frame.pitch_x / 2), 0)
+    result = []
+    for row in range(-nr, nr + 1):
+        if check_abort is not None and row % 64 == 0:
+            check_abort()
+        y = row * frame.pitch_y
+        dy = max(y - frame.pitch_y / 2 - (frame.pitch_y if axis == 'y' else 0), -y - frame.pitch_y / 2, 0)
+        rho = np.maximum(0, np.hypot(dx, dy) - xy_err)
+        mask = rho < radius
+        lifts = tool_lift(tool, rho[mask])
+        result.extend((row, int(col), float(lift)) for col, lift in zip(columns[mask], lifts))
+    if len(result) > MAX_KERNEL:
+        raise PhotoCarveError('Tool kernel exceeds the safety limit.')
+    return result
+
+
+def _requirements(depth, frame, kernel, row, col, axis, check_abort):
+    """A row/column block; outside the image is uncut stock at Z zero."""
+    n = (frame.cols if axis == 'x' else frame.rows) if axis != 'point' else 1
+    if axis != 'point':
+        n -= 1
+    positions = np.arange(n)
+    base_rows = row + (positions if axis == 'y' else 0)
+    base_cols = col + (positions if axis == 'x' else 0)
+    safe = np.full(n, -np.inf, dtype=np.float64)
+    for index, (dr, dc, lift) in enumerate(kernel):
+        if check_abort is not None and index % 64 == 0:
+            check_abort()
+        rr, cc = base_rows + dr, base_cols + dc
+        valid = (rr >= 0) & (rr < frame.rows) & (cc >= 0) & (cc < frame.cols)
+        target = np.zeros(n, dtype=np.float64)
+        if axis == 'x':
+            target[valid] = -depth[int(rr), cc[valid]] if 0 <= rr < frame.rows else 0
+        elif axis == 'y':
+            target[valid] = -depth[rr[valid], int(cc)] if 0 <= cc < frame.cols else 0
+        elif bool(valid):
+            target[0] = -depth[int(rr), int(cc)]
+        np.maximum(safe, target - lift, out=safe)
+    return safe
+
+
+def relief_paths(depth, params, tool, check_abort=None):
+    frame = mode_frame(params)
+    xy_err = xy_budget(params.decimals, params.skew)
+    paths, certificate, total = [], [], 0
+    for axis in ('x', 'y'):
+        if params.strategy not in (axis, 'xy'):
+            continue
+        varying = frame.cols if axis == 'x' else frame.rows
+        fixed = frame.rows if axis == 'x' else frame.cols
+        pitch = frame.pitch_y if axis == 'x' else frame.pitch_x
+        stride = max(1, round(params.spacing / pitch))
+        kind = axis if varying > 1 else 'point'
+        kernel = relief_kernel(tool, frame, xy_err, kind, check_abort)
+        for index, fixed_index in enumerate(range(0, fixed, stride)):
+            if check_abort is not None:
+                check_abort()
+            row, col = (fixed_index, 0) if axis == 'x' else (0, fixed_index)
+            segments = _requirements(depth, frame, kernel, row, col, kind, check_abort)
+            if varying == 1:
+                z = segments
+            else:
+                z = np.r_[segments[0], np.maximum(segments[:-1], segments[1:]), segments[-1]]
+            indices = np.arange(varying)
+            x, y = frame.center(row + (indices if axis == 'y' else 0), col + (indices if axis == 'x' else 0))
+            path = np.column_stack((np.broadcast_to(x, varying), np.broadcast_to(y, varying), z))
+            record = {'kind': kind, 'axis': axis, 'fixed': fixed_index, 'indices': indices.copy(), 'z': z.copy()}
+            if kind == 'point':
+                record.update(x=float(path[0, 0]), y=float(path[0, 1]))
+            if index % 2:
+                path = path[::-1].copy()
+            path = safe_rdp(path, params.tolerance, check_abort)
+            total += len(path)
+            if total > MAX_POINTS:
+                raise PhotoCarveError('Relief paths exceed the point limit; increase resolution or spacing.')
+            paths.append(path)
+            certificate.append(record)
+    return paths, certificate
+
+
+def certify_relief(paths, certificate, frame, check_abort=None):
+    """Exhaustive center and output-vertex verification; no stride or sampled corners."""
+    if len(paths) != len(certificate):
+        raise PhotoCarveError('Relief certificate does not match the output paths.')
+    margin = math.inf
+    for path, record in zip(paths, certificate):
+        if check_abort is not None:
+            check_abort()
+        path = np.asarray(path, dtype=np.float64)
+        if not len(path) or path.shape[1] != 3 or not np.isfinite(path).all():
+            raise PhotoCarveError('Relief path contains invalid coordinates.')
+        if record['kind'] == 'point':
+            if len(path) != 1 or np.max(np.abs(path[0, :2] - [record['x'], record['y']])) > 1e-9:
+                raise PhotoCarveError('Relief plunge does not match its certified center.')
+            difference = path[0, 2] - record['z'][0]
+            where = path[0, :2]
+        else:
+            axis = record['axis']
+            dimension = 0 if axis == 'x' else 1
+            x, y = frame.center(record['fixed'] if axis == 'x' else 0,
+                                0 if axis == 'x' else record['fixed'])
+            fixed_coordinate = y if axis == 'x' else x
+            if np.max(np.abs(path[:, 1 - dimension] - fixed_coordinate)) > 1e-9:
+                raise PhotoCarveError('Relief path left its certified raster line.')
+            indices = ((path[:, 0] - frame.x0) / frame.pitch_x - 0.5 if axis == 'x' else
+                       (frame.y0 + frame.height - path[:, 1]) / frame.pitch_y - 0.5)
+            rounded = np.rint(indices)
+            centers = (frame.x0 + (rounded + 0.5) * frame.pitch_x if axis == 'x' else
+                       frame.y0 + frame.height - (rounded + 0.5) * frame.pitch_y)
+            if np.max(np.abs(path[:, dimension] - centers)) > 1e-9:
+                raise PhotoCarveError('Relief vertices must be exact model raster centers.')
+            z = path[:, 2]
+            if len(indices) > 1 and indices[-1] < indices[0]:
+                indices, z = indices[::-1], z[::-1]
+            if len(indices) < 2 or np.any(np.diff(indices) <= 0):
+                raise PhotoCarveError('Relief raster indices must be strictly increasing.')
+            certified_indices = record['indices']
+            if abs(indices[0] - certified_indices[0]) > 1e-9 or abs(indices[-1] - certified_indices[-1]) > 1e-9:
+                raise PhotoCarveError('Relief path coverage differs from its certificate.')
+            differences = np.interp(certified_indices, indices, z) - record['z']
+            # Vertices are checked as well as every covered center, even after simplification.
+            vertex_differences = z - np.interp(indices, certified_indices, record['z'])
+            difference = min(float(np.min(differences)), float(np.min(vertex_differences)))
+            bad = int(np.argmin(differences))
+            row, col = ((record['fixed'], certified_indices[bad]) if axis == 'x' else
+                        (certified_indices[bad], record['fixed']))
+            where = frame.center(row, col)
+        margin = min(margin, float(difference))
+        if difference < -1e-9:
+            raise PhotoCarveError('Relief gouge %.12g at X %.12g Y %.12g.' % (-difference, *where))
+    return 0.0 if margin == math.inf else margin
+
+
+def split_white(path, lift_gap):
+    """Remove long white interiors, retaining their boundary points on both sides."""
+    lit = np.flatnonzero(path[:, 2] < 0)
+    if not len(lit):
+        return []
+    lengths = np.r_[0, np.cumsum(np.linalg.norm(np.diff(path[:, :2], axis=0), axis=1))]
+    start = max(0, int(lit[0]) - 1)
+    result = []
+    for a, b in zip(lit, lit[1:]):
+        if b > a + 1 and lengths[b - 1] - lengths[a + 1] > lift_gap:
+            result.append(path[start:min(len(path), int(a) + 2)].copy())
+            start = int(b) - 1
+    result.append(path[start:min(len(path), int(lit[-1]) + 2)].copy())
+    return result
+
+
+def groove_paths(depth, params, check_abort=None):
+    frame = mode_frame(params)
+    xy_paths = (spiral_paths(params, check_abort) if params.strategy == 'spiral' else
+                raster_paths(params, check_abort))
+    paths, count = [], 0
+    for xy in xy_paths:
+        if check_abort is not None:
+            check_abort()
+        z = -bilinear(depth, xy, frame)
+        for piece in split_white(np.column_stack((xy, z)), params.lift_gap):
+            path = safe_rdp(piece, params.tolerance, check_abort)
+            count += len(path)
+            if count > MAX_POINTS:
+                raise PhotoCarveError('V-carve paths exceed the point limit; increase resolution or spacing.')
+            paths.append(path)
+    return paths
+
+
+def halftone_paths(gray, params, check_abort=None):
+    frame = mode_frame(params)
+    work_preflight(params, frame)
+    image = Image.fromarray(np.rint(np.clip(gray, 0, 1) * 255).astype(np.uint8))
+    image = image.filter(ImageFilter.BoxBlur(params.spacing / (2 * min(frame.pitch_x, frame.pitch_y))))
+    means = np.asarray(image, dtype=np.float32) / 255
+    pitch_y = params.spacing * math.sqrt(3) / 2
+    area = math.sqrt(3) / 2 * params.spacing ** 2
+    tangent = math.tan(math.radians(params.tool_angle) / 2)
+    paths, count = [], 0
+    for row in range(math.ceil(frame.height / pitch_y)):
+        if check_abort is not None:
+            check_abort()
+        y = frame.y0 + frame.height - (row + 0.5) * pitch_y
+        if y < frame.y0:
+            continue
+        start = frame.x0 + params.spacing * (1 if row % 2 else 0.5)
+        n = max(0, math.floor((frame.x0 + frame.width - start) / params.spacing) + 1)
+        xy = np.column_stack((start + np.arange(n) * params.spacing, np.full(n, y)))
+        darkness = 1 - bilinear(means, xy, frame)
+        width = np.minimum(min(params.spacing, params.tool_dia), np.sqrt(4 * darkness * area / math.pi))
+        depth = np.clip((width - params.tool_tip) / (2 * tangent), 0, params.max_depth)
+        for point, z in zip(xy, depth):
+            if z > 0.01:
+                count += 1
+                if count > MAX_POINTS:
+                    raise PhotoCarveError('Halftone paths exceed the point limit; increase spacing.')
+                paths.append(np.array([[point[0], point[1], -z]], dtype=np.float64))
+    return paths
+
+
+def rough_paths(depth, params, check_abort=None):
+    """Level-limited row passes on the allowance surface, retaining only newly cut runs."""
+    frame = mode_frame(params)
+    rough_depth = np.maximum(depth - params.allowance, 0)
+    base_params = replace(params, strategy='x')
+    _, base_certificate = relief_paths(rough_depth, base_params, params.tool(True), check_abort)
+    maximum = float(np.max(rough_depth))
+    levels = math.ceil(maximum / params.stepdown)
+    if levels > MAX_LEVELS:
+        raise PhotoCarveError('Roughing exceeds the level limit; increase stepdown.')
+    paths, certificate, count = [], [], 0
+    for level_index in range(1, levels + 1):
+        level = -min(maximum, level_index * params.stepdown)
+        previous = -(level_index - 1) * params.stepdown
+        for row_index, record in enumerate(base_certificate):
+            if check_abort is not None:
+                check_abort()
+            zsafe = record['z']
+            retain = zsafe < previous
+            edges = np.flatnonzero(np.diff(np.r_[False, retain, False]))
+            for first, last in zip(edges[::2], edges[1::2]):
+                indices = record['indices'][first:last]
+                z = np.maximum(level, zsafe[first:last])
+                x, y = frame.center(record['fixed'], indices)
+                path = np.column_stack((x, np.full(len(indices), y), z))
+                cert = {**record, 'indices': indices.copy(), 'z': zsafe[first:last].copy()}
+                if len(indices) == 1:
+                    cert.update(kind='point', x=float(path[0, 0]), y=float(path[0, 1]))
+                if row_index % 2:
+                    path = path[::-1].copy()
+                path = safe_rdp(path, params.tolerance, check_abort)
+                count += len(path)
+                if count > MAX_POINTS:
+                    raise PhotoCarveError('Roughing paths exceed the point limit; increase stepdown or spacing.')
+                paths.append(path)
+                certificate.append(cert)
+    return paths, certificate
