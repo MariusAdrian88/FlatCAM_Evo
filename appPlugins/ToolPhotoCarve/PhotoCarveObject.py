@@ -6,11 +6,80 @@ from copy import deepcopy
 import numpy as np
 from shapely import LineString, Point, force_2d
 
-from .PhotoCarveModel import PhotoCarveError, xy_budget
+from .PhotoCarveModel import Pass, ToolShape, PhotoCarveError, xy_budget
 
 
 # MillingUI's C1, C2, C3, C4, B, V, L combo identifiers.
 MILL_SHAPES = {'flat': 0, 'ball': 4, 'vbit': 5}
+
+
+def _simulation_tool(uid, record, mark, warnings):
+    cutter = mark.get('tools', {}).get(str(uid))
+    if cutter is None:
+        warnings.append('Unmarked CNC tool simulated as a flat cutter.')
+        tool = ToolShape('flat', float(record.get('tooldia', record.get('data', {}).get('tools_mill_tooldia', 0))))
+    else:
+        tool = ToolShape(**{key: cutter[key] for key in ('kind', 'diameter', 'angle_deg', 'tip_diameter')})
+    if (tool.kind not in MILL_SHAPES or not math.isfinite(tool.diameter) or tool.diameter <= 0 or
+            not math.isfinite(tool.angle_deg) or not 0 < tool.angle_deg < 180 or
+            not math.isfinite(tool.tip_diameter) or not 0 <= tool.tip_diameter <= tool.diameter):
+        raise PhotoCarveError('Invalid simulation cutter.')
+    return tool
+
+
+def passes_from_geometry(geo):
+    """Detach Shapely coordinates on the GUI thread before starting simulation."""
+    mark = geo.obj_options.get('photocarve', {})
+    if not mark:
+        raise PhotoCarveError('Generate photo engraving geometry first or select a CNCJob.')
+    warnings, passes = [], []
+    for uid, record in geo.tools.items():
+        tool = _simulation_tool(uid, record, mark, warnings)
+        paths = [np.array(shape.coords, dtype=np.float64, copy=True) for shape in record['solid_geometry']]
+        passes.append(Pass('simulation', tool, paths, bool(mark.get('z_is_power'))))
+    return passes, warnings
+
+
+def passes_from_cncjob(cnc_obj, arc_res):
+    """Interpret each tool's printed G-code in machine coordinates, never parsed XY geometry."""
+    from .PhotoCarveSim import gcode_motion
+    from .PhotoCarveLaser import format_power
+
+    mark = cnc_obj.obj_options.get('photocarve', {})
+    laser = bool(mark.get('z_is_power'))
+    warnings, passes = [], []
+    records = cnc_obj.tools or {1: {'gcode': cnc_obj.gcode, 'tooldia': cnc_obj.obj_options.get('tooldia', 0)}}
+    for uid, record in records.items():
+        tool = _simulation_tool(uid, record, mark, warnings)
+        spans = gcode_motion(record.get('gcode', ''), cnc_obj.units, arc_res, laser)
+        paths, joined = [], []
+        data = record.get('data', {})
+        minimum = float(data.get('tools_mill_min_power', 0))
+        maximum = float(data.get('tools_mill_spindlespeed', 1000))
+        if laser:
+            format_power(0, minimum, maximum)
+        for span in spans:
+            if laser:
+                if not span.rapid and span.laser_on and span.s > 0:
+                    power = max(0.0, min(1.0, (span.s - minimum) / (maximum - minimum)))
+                    paths.append(np.array([[span.x0, span.y0, 0], [span.x1, span.y1, power]], dtype=np.float64))
+                continue
+            a, b = (span.x0, span.y0, span.z0), (span.x1, span.y1, span.z1)
+            if span.rapid or (joined and joined[-1] != a):
+                if joined:
+                    paths.append(np.array(joined, dtype=np.float64))
+                    joined = []
+            if not span.rapid:
+                if not joined:
+                    joined.append(a)
+                joined.append(b)
+        if joined:
+            paths.append(np.array(joined, dtype=np.float64))
+        if paths:
+            passes.append(Pass('machine coordinates', tool, paths, laser))
+    if not passes:
+        raise PhotoCarveError('The CNCJob contains no supported cutting motion.')
+    return passes, warnings
 
 
 def build_geometry(result, params, milldefaults):

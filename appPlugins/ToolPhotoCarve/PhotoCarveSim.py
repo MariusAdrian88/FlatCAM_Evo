@@ -180,11 +180,51 @@ _WORD_RE = re.compile(r'([A-Z])\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+))', re.IGNORECASE
 _COMMENT_RE = re.compile(r'\([^()]*\)')
 
 
+def gcode_motion(lines, units='MM', arc_res=0.1, laser=False, check_abort=None):
+    """Split arcs with the Sender's numeric interpolator, then interpret fail-closed."""
+    from appPlugins.Common.gcode_arcs import split_arcs
+
+    if units not in ('MM', 'IN') or not math.isfinite(arc_res) or arc_res <= 0:
+        raise PhotoCarveError('Known units and a positive arc resolution are required.')
+    lines = lines.splitlines() if isinstance(lines, str) else list(lines)
+    clean, validation, motion = [], [], None
+    for raw in lines:
+        line = raw.split(';', 1)[0].upper()
+        while _COMMENT_RE.search(line):
+            line = _COMMENT_RE.sub('', line)
+        if not line.strip() or line.strip() == '%':
+            continue
+        words = _WORD_RE.findall(line)
+        for axis in 'IJR':
+            if sum(k == axis for k, _n in words) > 1:
+                raise PhotoCarveError('Duplicate arc geometry word: %s.' % axis)
+        motions = [float(n) for k, n in words if k == 'G' and float(n) in (0, 1, 2, 3)]
+        if motions:
+            motion = motions[-1]
+        if len(motions) > 1:
+            raise PhotoCarveError('Conflicting motion commands.')
+        # Validate the original blocks before interpolation can consume any words.
+        masked = _WORD_RE.sub(lambda m: ('G1' if m[1].upper() == 'G' and float(m[2]) in (2, 3)
+                                        else '' if motion in (2, 3) and m[1].upper() in 'IJR' else m[0]), line)
+        validation.append(masked)
+        if laser and motion == 0 and any(k in 'XY' for k, _n in words) and not any(k == 'Z' for k, _n in words):
+            # Project laser rapids onto XY without inventing a motion before the G54 preamble.
+            line += ' Z0'
+        clean.append(line)
+    interpret_gcode('\n'.join(validation), units, laser, check_abort)
+    out, _count, _source, unsplit = split_arcs(clean, units, arc_res)
+    if unsplit:
+        raise PhotoCarveError('%d arc(s) could not be resolved; simulation refused.' % len(unsplit))
+    return interpret_gcode('\n'.join(out), units, laser, check_abort)
+
+
 def interpret_gcode(text, units='MM', laser=False, check_abort=None):
     """Interpret only known absolute linear motion; callers must split arcs first.
 
     Unknown frames, offsets, cycles and macros fail closed instead of displaying a misleading simulation.
     """
+    if units not in ('MM', 'IN'):
+        raise PhotoCarveError('Simulation units must be MM or IN.')
     position = [math.nan, math.nan, math.nan]
     motion, enabled, power, moved = None, False, 0.0, False
     factor = 1.0
@@ -253,8 +293,7 @@ def interpret_gcode(text, units='MM', laser=False, check_abort=None):
         if motion is None:
             raise PhotoCarveError('Motion axes require a known G0/G1 mode.')
         target = [values[axis] * factor if axis in values else position[index] for index, axis in enumerate('XYZ')]
-        xy_motion = 'X' in values or 'Y' in values
-        if motion == 1 and xy_motion and not all(math.isfinite(v) for v in position[:2] + target[:2]):
+        if motion == 1 and not all(math.isfinite(v) for v in position[:2] + target[:2]):
             raise PhotoCarveError('Cutting motion requires known starting and ending XY positions.')
         if motion == 1 and not laser and not all(math.isfinite(v) for v in (position[2], target[2])):
             raise PhotoCarveError('Milling motion requires a known Z position.')

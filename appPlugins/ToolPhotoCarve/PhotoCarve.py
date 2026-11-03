@@ -26,6 +26,7 @@ class ToolPhotoCarve(AppTool):
     pluginName = _("Photo Carve")
     preview_done_sig = QtCore.pyqtSignal(int, object)
     generation_message_sig = QtCore.pyqtSignal(int, str, str)
+    sim_step_sig = QtCore.pyqtSignal(int, bool, object)
 
     def __init__(self, app):
         super().__init__(app)
@@ -44,6 +45,7 @@ class ToolPhotoCarve(AppTool):
         self._view = None
         self.preview_done_sig.connect(self.on_preview_done)
         self.generation_message_sig.connect(self.on_generation_message)
+        self.sim_step_sig.connect(self.on_sim_step, QtCore.Qt.ConnectionType.QueuedConnection)
 
     def install(self, icon=None, separator=None, **kwargs):
         super().install(icon=icon, separator=separator, shortcut='Alt+V', **kwargs)
@@ -267,16 +269,18 @@ class ToolPhotoCarve(AppTool):
         self.app.milling_tool.run(toggle=False)
 
     def on_simulate(self):
-        simulate = getattr(self.gen, 'simulate', None)
-        if simulate is None:
-            self.app.inform.emit('[WARNING_NOTCL] %s' % _("The 3D simulation view is not available yet."))
-            return
-        simulate()
+        return self.gen.simulate()
+
+    def on_sim_step(self, session_id, ok, payload):
+        if self.gen is not None:
+            self.gen.on_sim_step(session_id, ok, payload)
 
     def on_stop(self):
         self._sim_session += 1
+        if self.gen is not None:
+            self.gen.stop_simulation()
         if self._view is not None:
-            self._view.close()
+            self._view.clear()
             self._view = None
 
     def on_plugin_cleanup(self):
