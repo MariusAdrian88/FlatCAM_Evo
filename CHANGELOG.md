@@ -6,6 +6,9 @@ Based on FlatCAM:
 
 CHANGELOG for FlatCAM Evo
 
+3.11.2026
+- RELEASE 1.03
+
 03.11.2026
 
 Translations:
@@ -13,15 +16,11 @@ Translations:
 - changed: German, Brazilian Portuguese and Russian: clearer wording of many messages and tooltips (for example the exclusion area strategy names and the Milling operation types are now translated)
 - changed: the .mo files of all 10 languages compiled again
 
-03.11.2026
-
 Tests:
 
 - changed: the test suite is cut from 4829 to 3161 tests; each kept test checks a result that the user sees (output, geometry, G-code, files, undo, machine safety); tests of private details, widget layout, message text and same-branch cases are removed or merged; E-Cut and the G-code Sender tests are not changed
 - changed: the Levelling tests are folded from 15 files into 5 topical files; other audit and regression files are folded into the file of their area (40 files fewer)
 - fixed: 2 timing races in the E-Cut manual pause tests (the test now waits for the PAUSED state, not only for the pause reason)
-
-03.11.2026
 
 Photo Carve (new plugin, Alt+V, Plugins toolbar):
 
