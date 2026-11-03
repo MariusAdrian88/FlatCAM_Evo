@@ -6,6 +6,65 @@ Based on FlatCAM:
 
 CHANGELOG for FlatCAM Evo
 
+03.11.2026
+
+Photo Carve (new plugin, Alt+V, Plugins toolbar):
+
+- new: Photo Carve makes a Geometry object from a raster image (PNG, JPG, BMP, TIF; the EXIF orientation is applied); the Milling plugin then makes the CNCJob
+- new: 5 modes: V-carve (Raster with a scan angle, or Spiral), Halftone (V-bit dots on a hexagonal grid), Relief (ball or flat cutter; X, Y or XY), Lithophane (thin where the image is light; frame, minimum and maximum thickness) and Laser (Grayscale power levels, Bayer dither or Floyd-Steinberg dither; dot size and overscan)
+- new: tone mapping Linear, Perceptual or V-bit area; Image Adjust: brightness, contrast, gamma, invert, auto contrast, equalize, blur, sharpen, Mirror X and Mirror Y (the buttons flip the loaded image)
+- new: Roughing for Relief and Lithophane, with its own cutter, stepdown and allowance
+- new: 3D simulation in the Plot 3D tab: stock removal for milling jobs and a burn image for laser jobs; materials wood, stone, marble, metal and aluminium, with stock thickness and cell size; Simulate, Stop, a speed slider and a progress bar; it simulates the generated Geometry or the G-code of a selected CNCJob
+- new: a Beginner/Advanced toggle hides the advanced fields; the fields of other modes are hidden
+- new: checks before the generation: limits of the image cells (25 M), path points (50 M) and roughing levels (10000), valid values for each mode, a V-bit for V-carve and Halftone; the maximum depth is limited to the width of the V-bit, with a warning; the relief paths are checked for gouges
+- new: the Geometry keeps the source image and the parameters, also in a saved project; Project > "Edit in Photo Carve" opens them in the plugin again. The paths of the Geometry cannot be edited
+- new: the generation runs in the background; a change of the parameters deletes the old result, with a warning
+- new: Tcl command photocarve <filename> with an option for each parameter and -outname (example: photocarve image.png -width 100 -strategy spiral -outname engraving); it uses the Preferences as defaults and does not plot
+- new: Preferences > Plugins (Engraving): Photo Carve Plugin
+
+Milling:
+
+- new: for a Photo Carve Geometry, the cutter, offset, depth, area and strategy fields are locked, with a note; the preprocessor list shows only the checked preprocessors (milling: default, GRBL_11, GRBL_11_no_M6, grblHAL, Marlin; laser: GRBL_laser, grblHAL_laser)
+- changed: Milling and Photo Carve share the code of the tool parameters and of the end G-code, so both write the same G-code
+- fixed: a change of units (MM <-> IN) of a Geometry did not convert the values of each tool (Cut Z, feedrates, offsets, tool diameter, toolchange and end XY) and the multigeometry records; the depths, feeds and tool sizes were wrong after the change
+
+CNCJob:
+
+- new: a unit change of a Photo Carve CNCJob shows a warning that its G-code is no longer checked; the warning shows again when the G-code is saved. Make the CNCJob again from the Geometry
+
+Report:
+
+- changed: an option value longer than 500 characters is cut, with "... (N characters)"; the tree stays fast for a Geometry that keeps a source image
+
+3D view:
+
+- new: Shift + mouse wheel zooms in steps 10 times finer; it also works where the system sends the Shift wheel as a horizontal step
+
+Text editor:
+
+- fixed: a new search after a shown match could crash the editor (endless recursion when the old matches were cleared)
+- changed: a click or a drag in the minimap puts the text cursor on the line under the pointer and scrolls that line to the middle of the editor
+- fixed: the lens of the minimap did not reach the first and the last lines of a long text; the rows at the top and the bottom edge now show them
+
+Updater:
+
+- changed: the startup check now shows the update dialog also for an AppImage and a macOS installation (before, only Help > Check for Updates showed it)
+- new: for an AppImage and a macOS installation, the update dialog has a direct link to the package of the system (FlatCAM_EVO-<tag>-linux-x86_64.AppImage or FlatCAM_EVO-<tag>-macos-arm64.dmg) with its size; the web browser downloads it and asks where to save it. If no package matches, the dialog shows the release page as before
+- fixed: the update dialog of a manual installation said "the source archive is prepared automatically"; the size line is not shown there now
+- new: "Skip this version" in the update dialog: the startup check does not show that version again; Help > Check for Updates still shows it and can install it; a newer version or build shows again. A mandatory update cannot be skipped
+- changed: the download window shows the steps of the update (download and check, confirm, install and restart) as a static text; only the bar shows the progress (before, the text repeated the percentage of the bar)
+- changed: the update dialogs say "FlatCAM Evo"
+
+Tests:
+
+- changed: duplicate tests and tests of private details removed or merged (5041 -> 4829 tests); a timing race in the Proteus import test fixed
+
+Translations:
+
+- all 10 languages updated with the new strings
+
+- version string changed to 1.03 and updated the splash
+
 02.11.2026
 
 Updater:
