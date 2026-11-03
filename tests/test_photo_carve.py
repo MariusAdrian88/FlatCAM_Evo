@@ -595,12 +595,17 @@ def test_writer_milling_executed_blocks_and_safe_toolchange(pp, toolchange):
 @pytest.mark.parametrize('pp', ['GRBL_laser', 'grblHAL_laser'])
 def test_writer_laser_only_powers_cutting_motion(pp):
     from appPlugins.ToolPhotoCarve.PhotoCarveGcode import write_tool_gcode
+    import re
     job, built = _writer_job(pp, laser=True)
+    job._bed_offset_x = 10
     code, header = write_tool_gcode(job, 1, built['tools'], (0, 0), None, 0,
                                     True, True, False, True, built['photocarve'])
     assert 'M5\nM4 S0\n' in code
     assert code.endswith('S0\nM5\n')
     assert ' S1000\n' in code and ' S505\n' in code
+    assert 'X10.0049' in code
+    assert all(line.startswith(('G1 ', 'G01 ')) for line in code.splitlines()
+               if re.search(r'\bS[1-9]\d*', line))
     assert ' Z' not in code
     assert all(code.splitlines()[i - 1] == 'S0' for i, line in enumerate(code.splitlines())
                if line.startswith(('G0 ', 'G00 ')))
@@ -609,6 +614,7 @@ def test_writer_laser_only_powers_cutting_motion(pp):
                             mode='laser', strategy='gray', lift_gap=3, overscan=5)
     power = np.array([[0, 0.2, 0.2, 0, 0, 0, 0, 0.7, 1, 0]] * 2, dtype=np.float32)
     from shapely import LineString
+    job._bed_offset_x = 0
     built['tools'][1]['solid_geometry'] = [LineString(path) for path in laser.laser_paths(power, params)]
     code, header = write_tool_gcode(job, 1, built['tools'], (0, 0), None, 0,
                                     True, True, False, True, built['photocarve'])
@@ -867,6 +873,7 @@ def test_writer_physical_skew_error_and_inch_precision():
     model_space = printed @ np.linalg.inv(transform).T
     assert np.linalg.norm(model_space - points[1:, :2], axis=1).max() <= built['photocarve']['xy_err'] + 1e-12
     built['photocarve']['xy_err'] /= 25.4
+    job.units = built['photocarve']['units'] = 'IN'
     assert write_tool_gcode(job, 1, built['tools'], (0, 0), None, 0,
                             True, True, False, True, built['photocarve']) == 'fail'
     assert '6 coordinate decimals' in job.app.inform.emit.call_args.args[0]
