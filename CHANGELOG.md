@@ -12,6 +12,10 @@ CNCJob:
 
 - fixed: a project with a multi-depth Geometry CNCJob could not be saved ("Circular reference detected"); the G-code generation changed the Depth per Pass value of the job to a Decimal that the project file cannot store; now the generation keeps the step in a local value and the job keeps its original value (the G-code does not change) (reported in issue #74 by kpkrisnop)
 
+Updater:
+
+- changed: the progress window of the updater follows the theme of the OS; with a dark OS theme it has dark colors and (on Windows 10 and 11) a dark title bar; on Linux the dark theme is read from GTK_THEME or the GNOME color scheme; on macOS Tk follows the system appearance by itself
+
 3.11.2026
 - RELEASE 1.03
 

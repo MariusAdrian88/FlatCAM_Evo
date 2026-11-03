@@ -1228,6 +1228,51 @@ def main(argv=None) -> int:
 _SUCCESS_CLOSE_MS = 4000
 _POLL_MS = 100
 
+# colors of the dark theme of the progress window
+_DARK = {
+    "bg": "#202020",
+    "fg": "#e6e6e6",
+    "muted": "#7a7a7a",
+    "button": "#333333",
+    "button_active": "#3d3d3d",
+    "border": "#4a4a4a",
+    "trough": "#2d2d2d",
+    "bar": "#3d8ee6",
+}
+
+
+def _os_dark_mode() -> bool:
+    """True when the OS uses a dark theme for applications; False when it is light or not known."""
+    if _IS_WINDOWS:
+        try:
+            import winreg
+
+            key = r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key) as handle:
+                return winreg.QueryValueEx(handle, "AppsUseLightTheme")[0] == 0
+        except (OSError, ImportError):
+            return False
+    if sys.platform == "darwin":
+        # Tk on macOS (Aqua) follows the system appearance by itself
+        return False
+    gtk_theme = os.environ.get("GTK_THEME", "")
+    if gtk_theme:
+        return "dark" in gtk_theme.lower()
+    try:
+        out = subprocess.run(
+            ["gsettings", "get", "org.gnome.desktop.interface", "color-scheme"],
+            capture_output=True, text=True, timeout=1,
+        ).stdout
+        if "dark" in out:
+            return True
+        out = subprocess.run(
+            ["gsettings", "get", "org.gnome.desktop.interface", "gtk-theme"],
+            capture_output=True, text=True, timeout=1,
+        ).stdout
+        return "dark" in out.lower()
+    except (OSError, subprocess.SubprocessError):
+        return False
+
 
 class _ProgressWindow:
     """Progress window of the updater: the update has no other visible part while FlatCAM is closed."""
@@ -1242,6 +1287,9 @@ class _ProgressWindow:
         root.protocol("WM_DELETE_WINDOW", self._on_close)
         if getattr(sys, "frozen", False):
             self._set_icon(sys.executable)
+        self.dark = _os_dark_mode()
+        if self.dark:
+            self._apply_dark_style(ttk)
         frame = ttk.Frame(root, padding=16)
         frame.grid(sticky="nsew")
         self.title = ttk.Label(frame, text="Updating FlatCAM", font=("TkDefaultFont", 11, "bold"))
@@ -1265,11 +1313,52 @@ class _ProgressWindow:
         self.done = 0
         self.bar.start(15)
         root.update_idletasks()
+        if self.dark:
+            self._dark_title_bar()
         x = (root.winfo_screenwidth() - root.winfo_reqwidth()) // 2
         y = (root.winfo_screenheight() - root.winfo_reqheight()) // 3
         root.geometry(f"+{max(x, 0)}+{max(y, 0)}")
         root.lift()
         root.after(_POLL_MS, self._poll)
+
+    def _apply_dark_style(self, ttk) -> None:
+        # the native themes (vista, aqua) ignore custom colors; clam takes them
+        c = _DARK
+        self.root.configure(background=c["bg"])
+        style = ttk.Style(self.root)
+        try:
+            style.theme_use("clam")
+        except Exception:
+            return
+        style.configure(".", background=c["bg"], foreground=c["fg"], bordercolor=c["border"],
+                        lightcolor=c["bg"], darkcolor=c["bg"], troughcolor=c["trough"],
+                        focuscolor=c["border"])
+        style.configure("TFrame", background=c["bg"])
+        style.configure("TLabel", background=c["bg"], foreground=c["fg"])
+        style.configure("TButton", background=c["button"], foreground=c["fg"], bordercolor=c["border"],
+                        lightcolor=c["button"], darkcolor=c["button"], padding=(10, 3))
+        style.map("TButton",
+                  background=[("disabled", c["bg"]), ("pressed", c["border"]), ("active", c["button_active"])],
+                  foreground=[("disabled", c["muted"])],
+                  lightcolor=[("disabled", c["bg"]), ("active", c["button_active"])],
+                  darkcolor=[("disabled", c["bg"]), ("active", c["button_active"])])
+        style.configure("Horizontal.TProgressbar", background=c["bar"], troughcolor=c["trough"],
+                        bordercolor=c["border"], lightcolor=c["bar"], darkcolor=c["bar"])
+
+    def _dark_title_bar(self) -> None:
+        # Windows 10 1809+ and Windows 11 draw a dark title bar on request; other systems ignore this
+        if not _IS_WINDOWS:
+            return
+        try:
+            hwnd = ctypes.windll.user32.GetParent(self.root.winfo_id())
+            value = ctypes.c_int(1)
+            # 20 = DWMWA_USE_IMMERSIVE_DARK_MODE; 19 on Windows 10 builds before 20H1
+            for attribute in (20, 19):
+                if ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                        hwnd, attribute, ctypes.byref(value), ctypes.sizeof(value)) == 0:
+                    break
+        except Exception:
+            pass
 
     def _set_icon(self, path) -> None:
         try:
