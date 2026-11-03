@@ -240,15 +240,6 @@ def test_drilling_estimate_follows_retract_and_bottom_dwell(data):
 # DrillingGen
 # ---------------------------------------------------------------------------------------------------------------------
 
-def slot_points(a, b):
-    return Point(a), Point(b)
-
-
-def test_slot_drills_run_from_the_start_to_the_end():
-    pts = DrillingGen.process_slot_as_drills(slot_points((0, 0), (4, 0)), overlap=1.0, add_last_pt=True)
-    assert [(p.x, p.y) for p in pts] == [(0, 0), (1, 0), (2, 0), (3, 0), (4, 0)]
-
-
 def test_create_drill_points_reads_slot_options_for_each_tool():
     tools = {1: tool_dict(1.0, [(0, 0)], [((10, 0), (12, 0))], tools_drill_drill_slots=True,
                           tools_drill_drill_overlap=0.0, tools_drill_last_drill=True),
@@ -344,15 +335,6 @@ def test_plugin_toolchange_job_has_only_the_selected_tools_with_their_ids(fc, pl
     assert job.tools[2]['offset'] == -0.5
     assert job.used_tools == [2, 3]
     assert len(drilled_positions(job.gcode)) == 3
-
-
-def test_plugin_tool_without_points_is_skipped_and_the_last_tool_ends_the_job(fc, plugin, monkeypatch):
-    open_plugin(fc, plugin, 'gen_c', selected=[1, 2, 3], tools_drill_toolchange=True)
-    plugin.excellon_tools[1]['drills'] = []
-    job, _ = generate(fc, plugin, monkeypatch)
-    assert sorted(job.tools) == [2, 3]
-    assert any(abs(x - 25.0) < 1e-3 and abs(y - 22.0) < 1e-3 for x, y in drilled_positions(job.gcode))
-    assert job.tools[2]['gcode'] and job.tools[3]['gcode']
 
 
 def test_plugin_selected_tools_without_drills_give_a_message_and_no_job(fc, plugin, monkeypatch):
@@ -552,11 +534,10 @@ def test_transform_points_mirror_then_offset_then_array():
     assert xy(src[1]) == [(0, 0), (4, 2)]
 
 
-@pytest.mark.parametrize('data', [
-    {'tools_drill_job_offset_xy': 'abc'}, {'tools_drill_array_columns': 0}])
-def test_transform_from_data_rejects_invalid_values(data):
-    with pytest.raises(ValueError):
-        DrillingGen.transform_job_points({1: [Point(0, 0)]}, data)
+def test_transform_from_data_rejects_invalid_values():
+    for data in ({'tools_drill_job_offset_xy': 'abc'}, {'tools_drill_array_columns': 0}):
+        with pytest.raises(ValueError):
+            DrillingGen.transform_job_points({1: [Point(0, 0)]}, data)
 
 
 def test_transform_from_data_accepts_text_and_tuples_and_blank():

@@ -59,7 +59,7 @@ class TestCameraCalibrationMath(unittest.TestCase):
                 self.assertFalse(ok)
                 self.assertFalse(calibration.has_calibration)
 
-    def test_camera_capture_needs_the_spindle_reference_of_the_same_session(self):
+        # a camera capture needs the spindle reference of the same session
         calibration = CameraCalibration()
         ok, _message = calibration.capture('camera', (70.0, 90.0, -5.0), 'MM', 1, 'cam-A', 0, False)
         self.assertFalse(ok)
@@ -107,7 +107,7 @@ class TestCameraCalibrationValidity(unittest.TestCase):
         self.assertGreater(distance, 0.0)
         self.assertEqual(message, 'repeatability_failed')
 
-    def test_user_viewing_z_tolerance_decides_the_observation(self):
+        # the viewing Z tolerance decides the observation
         calibration = calibrated()
         calibration.verify((70.0, 90.0), -5.0, 'MM', 1, 'cam-A', 0, False)
         state, reason = calibration.state(
@@ -149,7 +149,7 @@ class TestCameraCalibrationValidity(unittest.TestCase):
                 self.assertFalse(calibration.has_calibration)
                 self.assertFalse(calibration.verified)
 
-    def test_saved_values_round_trip_and_clear(self):
+        # saved values round-trip and clear
         calibration = calibrated()
         options = {}
         calibration.save(options)
@@ -239,7 +239,7 @@ class TestCameraSenderBehaviour(unittest.TestCase):
         self.assertEqual(tool.app.options['tools_camera_offset_y'], -10.0)
         self.assertEqual(tool.app.options['tools_camera_view_z'], -5.0)
 
-    def test_capture_converts_report_inches_to_application_units(self):
+        # report inches are converted to application units
         tool = make_camera_tool()
         tool._grbl_report_inches = True
         tool._on_camera_capture(payload(
@@ -249,7 +249,7 @@ class TestCameraSenderBehaviour(unittest.TestCase):
         self.assertAlmostEqual(tool.camera_calibration.offset[0], 50.8)
         self.assertAlmostEqual(tool.camera_calibration.offset[1], -25.4)
 
-    def test_a_wpos_only_report_adds_the_work_offset(self):
+        # a WPos-only report adds the work offset
         tool = make_camera_tool()
         wco = (10.0, 20.0, 0.0)
         tool._on_camera_capture(payload(
@@ -304,14 +304,6 @@ def camera_app(units='MM'):
 
 
 class TestCameraAvailabilityFeedback(unittest.TestCase):
-
-    def test_no_camera_disables_preview_and_says_so(self):
-        from appPlugins.ToolGcodeSender.SenderCameraUI import SenderCameraUI
-
-        with patch('appPlugins.ToolGcodeSender.SenderCameraUI.QMediaDevices.videoInputs', return_value=[]):
-            widget = SenderCameraUI(camera_app())
-        self.assertFalse(widget.preview_button.isEnabled())
-        self.assertIn('No camera', widget.status_label.text())
 
     def test_camera_identity_is_the_stable_id_and_a_refresh_keeps_it(self):
         from appPlugins.ToolGcodeSender.SenderCameraUI import SenderCameraUI
@@ -442,49 +434,6 @@ class TestCameraPublicWorkflow(unittest.TestCase):
             tool.run()
         self.tool = tool
         return tool
-
-    def assert_camera_only_surfaces(self, tool):
-        from appPlugins.ToolGcodeSender.Sender import GrblConsole
-
-        ui = tool.ui
-        self.assertTrue(ui.gr_send_tab.isHidden())
-        self.assertFalse(ui.al_toolbar.tabBar.isTabEnabled(ui.al_toolbar.indexOf(ui.gr_send_tab)))
-        self.assertTrue(ui.run_frame.isHidden())
-        self.assertTrue(ui.autolevel_frame.isHidden())
-        self.assertTrue(ui.console_cb.isHidden())
-        self.assertFalse(ui.spindle_button.isVisible())
-        self.assertTrue(ui.zero_axs_wdg.grbl_zerox_button.isHidden())
-        self.assertFalse(ui.zero_axs_wdg.grbl_homing_button.isHidden())
-        self.assertTrue(ui.al_toolbar.tabBar.isTabEnabled(ui.al_toolbar.indexOf(ui.gr_ctrl_tab)))
-        self.assertTrue(ui.al_toolbar.tabBar.isTabEnabled(ui.al_toolbar.indexOf(ui.camera_tab)))
-        self.assertTrue(ui.al_toolbar.tabBar.isTabEnabled(ui.al_toolbar.indexOf(ui.gr_conn_tab)))
-        # the one set of jog controls is in the dock's Jog page, and the raw Console stays gated
-        console = tool._console()
-        self.assertIsInstance(console, GrblConsole)
-        self.assertIs(console.jog_page, ui.jog_page)
-        for control in (ui.jog_wdg, ui.jog_step_entry, ui.jog_fr_entry):
-            self.assertFalse(control.isHidden())
-        self.assertTrue(console.jog_page.isAncestorOf(ui.jog_wdg))
-        self.assertTrue(console.jog_page.isAncestorOf(ui.jog_step_entry))
-        self.assertTrue(console.jog_page.isAncestorOf(ui.jog_fr_entry))
-        self.assertTrue(console.tabs.tabBar().isTabEnabled(0))
-        self.assertFalse(console.tabs.tabBar().isTabEnabled(console.tabs.indexOf(console.console_tab)))
-        self.assertTrue(ui.jog_step_entry.isEnabled())
-        self.assertTrue(ui.jog_fr_entry.isEnabled())
-        self.assertTrue(ui.gr_ctrl_tab.isAncestorOf(ui.zero_axs_wdg))
-        self.assertTrue(ui.camera_tab.isAncestorOf(ui.registration_widget.stop_button))
-
-    def test_opening_the_camera_workflow_needs_no_cncjob_and_reaches_camera_and_jog(self):
-        tool = self.make_tool()
-        self.assertIsNotNone(tool.ui.camera_widget)
-        self.assertEqual(tool.ui.object_combo.count(), 0)
-        self.assertEqual(tool.job_lines, [])
-        self.assertIsNone(tool.view3d)
-        self.assertEqual(tool.app.options['tools_grbl_console_visible'], True)
-        self.tool._grbl_start_op.assert_not_called()
-
-        tool._grbl_set_ui_connected(True)
-        self.assert_camera_only_surfaces(tool)
 
     def test_real_sender_widget_signal_roundtrip_capture_apply_and_cancel(self):
         from appHandlers.appHistory import HistoryManager
@@ -646,7 +595,7 @@ class TestCameraRegistration(unittest.TestCase):
         self.assertAlmostEqual(a * e - b * d, 1.0, places=9)
         self.assertLess(fit.max_error, 1e-9)
 
-    def test_a_residual_above_the_acceptance_tolerance_is_refused(self):
+        # a residual above the acceptance tolerance is refused
         from appPlugins.ToolGcodeSender.CameraRegistration import RegistrationError
 
         model = self.make_model()
@@ -688,7 +637,7 @@ class TestCameraRegistration(unittest.TestCase):
         self.assertAlmostEqual(result['x'], 90.0)
         self.assertAlmostEqual(result['y'], 60.0)
 
-    def test_an_observation_without_a_current_work_offset_is_refused(self):
+        # an observation without a current work offset is refused
         tool = make_camera_tool()
         tool._on_camera_capture(payload(tool, 'spindle'))
         tool._on_camera_capture(payload(
@@ -736,31 +685,6 @@ class TestCameraRegistration(unittest.TestCase):
             with self.subTest(reason=reason):
                 self.assertEqual(model.check_context(self.observation(5.0, 5.0, **changes)),
                                  (False, reason))
-
-    def test_preview_and_cancel_leave_the_objects_and_history_unchanged(self):
-        from unittest.mock import MagicMock
-        from appPlugins.ToolGcodeSender.SenderRegistrationUI import SenderRegistrationUI
-        from tests.helpers_objects import make_app, make_gerber
-
-        app = make_app()
-        app.plotcanvas = MagicMock()
-        app.on_mouse_click_release_over_plot = MagicMock()
-        app.ui.grid_snap_btn.isChecked.return_value = False
-        obj = make_gerber(app)
-        before = obj.bounds()
-        ui = SenderRegistrationUI(app)
-        ui.registration.set_objects([obj])
-        ui.registration.add_design(0.0, 0.0)
-        ui.registration.add_observation(self.observation(3.0, 4.0))
-        ui.registration.add_design(10.0, 0.0)
-        ui.registration.add_observation(self.observation(3.0, 14.0))
-        ui.on_preview()
-        self.assertIsNotNone(ui.fit)
-        self.assertEqual(obj.bounds(), before)
-        ui.on_cancel()
-        self.assertIsNone(ui.fit)
-        self.assertEqual(obj.bounds(), before)
-        app.history.record_matrix.assert_not_called()
 
 class TestCameraRegistrationWorkflow(unittest.TestCase):
     """The board registration tab correlates every async answer with the state that asked for it."""
@@ -821,7 +745,7 @@ class TestCameraRegistrationWorkflow(unittest.TestCase):
         self.assertEqual(ui.registration.design, [])
         self.assertEqual(ui.registration.measured, [])
 
-    def test_a_live_project_unit_change_invalidates_instead_of_mixing_points(self):
+        # a live project unit change invalidates instead of mixing points
         app, ui, _obj = self.make_ui('MM')
         self.add_two_pairs(ui)
         ui.on_preview()

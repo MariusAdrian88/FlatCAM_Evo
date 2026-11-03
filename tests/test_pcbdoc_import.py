@@ -392,6 +392,8 @@ class TestPcbDocImport(unittest.TestCase):
 
         with patch.object(QtWidgets.QDialog, 'exec', accept):
             io.on_pcbdoc_parsed('design.pdsprj', parsed)
+            # the test advances the import itself: the 50 ms timer fired in processEvents() on a slow PC
+            io._proteus_timer.stop()
             for index in range(2):
                 io._advance_proteus_import()
                 self.assertEqual(len(projects.contexts), index + 2)

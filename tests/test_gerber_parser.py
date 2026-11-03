@@ -111,19 +111,12 @@ class TestGerberParserEdgeCases:
 class TestGerberParserUnits:
     """Test unit handling."""
     
-    def test_inches_units(self):
+    @pytest.mark.parametrize("unit_code, units", [("IN", "IN"), ("MM", "MM")])
+    def test_units(self, unit_code, units):
         gbr = get_gerber_parser()
-        lines = ["%FSLAX24Y24*%", "%MOIN*%", "%ADD10C,10*%", "D10*", "G01X0Y0D02*", "G01X100Y100D01*", "M02*"]
-        result = gbr.parse_lines(lines)
-        assert gbr.units == 'IN'
-        print("[PASS] Inches units test passed")
-    
-    def test_metric_units(self):
-        gbr = get_gerber_parser()
-        lines = ["%FSLAX24Y24*%", "%MOMM*%", "%ADD10C,10*%", "D10*", "G01X0Y0D02*", "G01X10000Y10000D01*", "M02*"]
-        result = gbr.parse_lines(lines)
-        assert gbr.units == 'MM'
-        print("[PASS] Metric units test passed")
+        gbr.parse_lines(["%FSLAX24Y24*%", "%MO" + unit_code + "*%", "%ADD10C,10*%", "D10*", "G01X0Y0D02*",
+                         "G01X100Y100D01*", "M02*"])
+        assert gbr.units == units
 
 
 class TestGerberPolarityLayers:
@@ -183,20 +176,18 @@ class TestGerberPolarityLayers:
         assert diff < 1e-9, "symmetric difference %g" % diff
         return new, old, ret_new
 
-    def test_ends_in_lpc(self):
-        lines = self.HEADER + self.region(0, 0, 100000, 100000) + ["%LPC*%"] + self.region(20000, 20000, 40000, 40000) + \
-            ["M02*"]
-        new, old, ret = self.check(lines)
+    def test_polarity_layers_match_the_sequential_fold(self):
+        ends_in_lpc = self.HEADER + self.region(0, 0, 100000, 100000) + ["%LPC*%"] + \
+            self.region(20000, 20000, 40000, 40000) + ["M02*"]
+        new, old, ret = self.check(ends_in_lpc)
         assert self.holes(new.solid_geometry) == 1
-        print("[PASS] Polarity layers: ends in LPC")
 
-    def test_ends_in_lpd(self):
-        lines = self.HEADER + self.region(0, 0, 100000, 100000) + ["%LPC*%"] + self.region(20000, 20000, 60000, 60000) + \
-            ["%LPD*%"] + self.region(30000, 30000, 40000, 40000) + ["M02*"]
-        new, old, ret = self.check(lines)
+        ends_in_lpd = self.HEADER + self.region(0, 0, 100000, 100000) + ["%LPC*%"] + \
+            self.region(20000, 20000, 60000, 60000) + ["%LPD*%"] + self.region(30000, 30000, 40000, 40000) + ["M02*"]
+        new, old, ret = self.check(ends_in_lpd)
         assert self.holes(new.solid_geometry) == 1
         assert len(self.parts(new.solid_geometry)) == 2
-        print("[PASS] Polarity layers: ends in LPD")
+
 
 GERBER_HEADER = "%FSLAX24Y24*%\n%MOMM*%\n"
 # coordinates of FSLAX24: 10000 is 1 mm
@@ -576,85 +567,58 @@ class TestSpecConformance:
     """Gerber spec (revision 2021-11) rules the parser does not follow yet. The expected numbers come from the spec rule
     (a shapely computation for the composed shapes)."""
 
-    @staticmethod
-    def centres(union):
-        """Sorted x of the centres of the parts of a union."""
-        parts = list(union.geoms) if hasattr(union, 'geoms') else [union]
-        return sorted(round(p.centroid.x, 3) for p in parts)
+    HEAD6 = "%FSLAX26Y26*%\n%MOMM*%\n"
+    HEAD4 = "%FSLAX24Y24*%\n%MOMM*%\n"
+    BLOCK12 = "%ADD10R,4X4*%\n%ADD11R,2X2*%\n%ABD12*%\nD10*\nX0Y0D03*\n%LPC*%\nD11*\nX0Y0D03*\n%LPD*%\n%AB*%\n"
 
-    def test_macro_number_with_leading_zeros(self, tmp_path):
-        # 4.5.1: the macro number "02" is 2, a disc of diameter 2 (area pi)
-        text = "%FSLAX24Y24*%\n%MOMM*%\n%AMT*1,1,02,0,0*%\n%ADD10T*%\nD10*\nX0Y0D03*\nM02*\n"
-        gbr, ret, union = parse_gerber_text(tmp_path, text)
-        assert ret is None
-        assert union.area == pytest.approx(math.pi, rel=1e-2)
-
-    def test_moire_ring_that_does_not_fit_becomes_disc(self, tmp_path):
-        # 4.5.1.6: the outer ring r 1.5..0.5 (area 2*pi); the next ring does not fit, so the inner part r=0.3 is a full
-        # disc (area 0.2827); total 6.5659
-        text = "%FSLAX26Y26*%\n%MOMM*%\n%AMT*6,0,0,3,1,0.2,9,0,0,0*%\n%ADD10T*%\nD10*\nX0Y0D03*\nM02*\n"
-        gbr, ret, union = parse_gerber_text(tmp_path, text)
-        assert ret is None
-        assert union.area == pytest.approx(6.5659, rel=1e-2)
-
-    def test_load_scale_flushes_open_path(self, tmp_path):
-        # 4.9.1: segment 1 (width 1) is drawn before %LS1.5*%; segment 2 has width 1.5; union area 5.4398 (shapely)
-        text = ("%FSLAX26Y26*%\n%MOMM*%\n%ADD10C,1*%\nD10*\nG01*\nX0Y0D02*\nX1000000D01*\n%LS1.5*%\nY2000000D01*\n"
-                "M02*\n")
-        gbr, ret, union = parse_gerber_text(tmp_path, text)
-        assert ret is None
-        assert union.area == pytest.approx(5.4398, rel=1e-2)
-        assert union.bounds == pytest.approx((-0.5, -0.75, 1.75, 2.75), abs=1e-2)
-
-    def test_step_repeat_copies_made_y_then_x(self, tmp_path):
-        # 4.12: copies are made in +Y first, then +X; each clear object cuts the copies made before it.
-        # Y-first union area 31.0 (X-first order would give 33.0), bounds (-2,-2,4,4) (shapely)
-        text = ("%FSLAX26Y26*%\n%MOMM*%\n%ADD10R,4X4*%\n%ADD11R,2X2*%\n%SRX2Y2I2J2*%\nD10*\nX0Y0D03*\n%LPC*%\nD11*\n"
-                "X-2000000Y2000000D03*\n%LPD*%\n%SR*%\nM02*\n")
-        gbr, ret, union = parse_gerber_text(tmp_path, text)
-        assert ret is None
-        assert union.area == pytest.approx(31.0, rel=1e-2)
-        assert union.bounds == pytest.approx((-2, -2, 4, 4), abs=1e-3)
-
-    def test_single_quadrant_arc_with_equal_ends_is_a_dot(self, tmp_path):
-        # 8.1 G74: start equals end, the arc covers 0 degrees: a dot of the aperture (diameter 1) at (0, 6)
-        text = ("%FSLAX26Y26*%\n%MOMM*%\n%ADD10C,1*%\nD10*\nG01*\nX0Y6000000D02*\nG74*\nG02*\n"
-                "X0Y6000000I5000000J0D01*\nM02*\n")
-        gbr, ret, union = parse_gerber_text(tmp_path, text)
-        assert ret is None
-        assert union.area == pytest.approx(math.pi / 4, rel=1e-2)
-        assert union.bounds == pytest.approx((-0.5, 5.5, 0.5, 6.5), abs=1e-2)
-
-    def test_g55_prefix_on_coordinate_word(self, tmp_path):
-        # 8.1 G55: the flash at (1, 0) is a disc of diameter 1
-        text = "%FSLAX26Y26*%\n%MOMM*%\n%ADD10C,1*%\nG54D10*\nG55X1000000Y0D03*\nM02*\n"
-        gbr, ret, union = parse_gerber_text(tmp_path, text)
-        assert ret is None
-        assert union.area == pytest.approx(math.pi / 4, rel=1e-2)
-        assert union.bounds == pytest.approx((0.5, -0.5, 1.5, 0.5), abs=1e-2)
-
-    def test_m00_ends_the_file(self, tmp_path):
-        # 4.13: the flash after M00 is not read; one disc of diameter 1 at (0, 0)
-        text = "%FSLAX26Y26*%\n%MOMM*%\n%ADD10C,1*%\nD10*\nX0Y0D03*\nM00*\nX5000000D03*\nM02*\n"
-        gbr, ret, union = parse_gerber_text(tmp_path, text)
-        assert ret is None
-        assert union.area == pytest.approx(math.pi / 4, rel=1e-2)
-        assert union.bounds == pytest.approx((-0.5, -0.5, 0.5, 0.5), abs=1e-2)
-
-    def test_mirror_applies_to_coordinate_data_only(self, tmp_path):
-        # 8.1 MI: the flash at x=1 is mirrored to x=-1; the SR steps (5 mm) are not mirrored: x = -1, 4, 9
-        text = ("%FSLAX26Y26*%\n%MOMM*%\n%MIA1B0*%\n%ADD10C,1*%\nD10*\n%SRX3Y1I5J0*%\nX1000000Y0D03*\n%SR*%\nM02*\n")
-        gbr, ret, union = parse_gerber_text(tmp_path, text)
-        assert ret is None
-        assert self.centres(union) == pytest.approx([-1, 4, 9], abs=1e-3)
-        assert union.area == pytest.approx(3 * math.pi / 4, rel=1e-2)
-
-    def test_offset_is_rotated_by_image_rotation(self, tmp_path):
-        # 8.1 OF, IR: the offset (10, 0) is applied first, then the image is rotated 90 degrees: (1,0) -> (11,0) -> (0,11)
-        text = "%FSLAX26Y26*%\n%MOMM*%\n%OFA10B0*%\n%IR90*%\n%ADD10C,1*%\nD10*\nX1000000Y0D03*\nM02*\n"
-        gbr, ret, union = parse_gerber_text(tmp_path, text)
-        assert ret is None
-        assert union.bounds == pytest.approx((-0.5, 10.5, 0.5, 11.5), abs=1e-2)
+    def test_spec_rules(self, tmp_path):
+        # (Gerber text, union area or None, union bounds or None); the numbers come from the spec rule
+        pi = math.pi
+        cases = [
+            # 4.5.1: the macro number "02" is 2, a disc of diameter 2
+            (self.HEAD4 + "%AMT*1,1,02,0,0*%\n%ADD10T*%\nD10*\nX0Y0D03*\n", pi, None),
+            # 4.5.1.6: outer ring r 1.5..0.5 (2*pi), the next ring does not fit so the inner r=0.3 is a disc
+            (self.HEAD6 + "%AMT*6,0,0,3,1,0.2,9,0,0,0*%\n%ADD10T*%\nD10*\nX0Y0D03*\n", 6.5659, None),
+            # 4.9.1: segment 1 (width 1) is drawn before %LS1.5*%; segment 2 has width 1.5
+            (self.HEAD6 + "%ADD10C,1*%\nD10*\nG01*\nX0Y0D02*\nX1000000D01*\n%LS1.5*%\nY2000000D01*\n", 5.4398,
+             (-0.5, -0.75, 1.75, 2.75)),
+            # 4.12: copies are made in +Y first, then +X; each clear object cuts the copies made before it
+            (self.HEAD6 + "%ADD10R,4X4*%\n%ADD11R,2X2*%\n%SRX2Y2I2J2*%\nD10*\nX0Y0D03*\n%LPC*%\nD11*\n"
+             "X-2000000Y2000000D03*\n%LPD*%\n%SR*%\n", 31.0, (-2, -2, 4, 4)),
+            # 8.1 G74: start equals end, the arc covers 0 degrees: a dot of the aperture at (0, 6)
+            (self.HEAD6 + "%ADD10C,1*%\nD10*\nG01*\nX0Y6000000D02*\nG74*\nG02*\nX0Y6000000I5000000J0D01*\n",
+             pi / 4, (-0.5, 5.5, 0.5, 6.5)),
+            # 8.1 G55 prefix on a coordinate word
+            (self.HEAD6 + "%ADD10C,1*%\nG54D10*\nG55X1000000Y0D03*\n", pi / 4, (0.5, -0.5, 1.5, 0.5)),
+            # 4.13: the flash after M00 is not read
+            (self.HEAD6 + "%ADD10C,1*%\nD10*\nX0Y0D03*\nM00*\nX5000000D03*\n", pi / 4, (-0.5, -0.5, 0.5, 0.5)),
+            # 8.1 MI: the flash at x=1 is mirrored to x=-1; the SR steps (5 mm) are not mirrored: x = -1, 4, 9
+            (self.HEAD6 + "%MIA1B0*%\n%ADD10C,1*%\nD10*\n%SRX3Y1I5J0*%\nX1000000Y0D03*\n%SR*%\n", 3 * pi / 4,
+             (-1.5, -0.5, 9.5, 0.5)),
+            # 8.1 OF, IR: the offset (10, 0) is applied first, then the image is rotated 90 degrees
+            (self.HEAD6 + "%OFA10B0*%\n%IR90*%\n%ADD10C,1*%\nD10*\nX1000000Y0D03*\n", None, (-0.5, 10.5, 0.5, 11.5)),
+            # 8.1 AS: %ASAYBX*% swaps the axes: the flash (1, 2) is at (2, 1)
+            (self.HEAD6 + "%ASAYBX*%\n%ADD10C,1*%\nD10*\nX1000000Y2000000D03*\n", None, (1.5, 0.5, 2.5, 1.5)),
+            # 4.4.1 / 4.8: a zero-size flash is valid and makes no image
+            (self.HEAD4 + "%ADD10C,0*%\nD10*\nX0Y0D03*\n", 0.0, None),
+            (self.HEAD4 + "%ADD10R,0X1*%\nD10*\nX0Y0D03*\n", 0.0, None),
+            # 4.8.2: D01 without coordinates draws a zero-length line: a dot of diameter 1
+            (self.HEAD4 + "%ADD10C,1*%\nD10*\nX0Y0D02*\nD01*\n", pi / 4, None),
+            # 3.1: a G04 comment ends at its '*', a '%' in the comment is text
+            (self.HEAD4 + "G04 5% off*\n%ADD10C,1*%\nD10*\nX0Y0D03*\n", pi / 4, None),
+            # 4.11.1: flashed clear at (10, 0) the block (12) toggles to a clear 4x4 and a dark 2x2: 12 + 4
+            (self.HEAD6 + self.BLOCK12 + "%LPD*%\nD12*\nX0Y0D03*\n%LPC*%\nX10000000Y0D03*\n", 16.0, None),
+            # the same toggling through a second block, flashed dark and then clear
+            (self.HEAD6 + self.BLOCK12 + "%ABD13*%\nD12*\nX0Y0D03*\n%AB*%\n%LPD*%\nD13*\nX0Y0D03*\n%LPC*%\n"
+             "X10000000Y0D03*\n", 16.0, None),
+        ]
+        for text, area, bounds in cases:
+            gbr, ret, union = parse_gerber_text(tmp_path, text + "M02*\n")
+            assert ret is None, text
+            if area is not None:
+                assert union.area == pytest.approx(area, rel=1e-2, abs=1e-9), text
+            if bounds is not None:
+                assert union.bounds == pytest.approx(bounds, abs=1e-2), text
 
     def test_rectangular_hole_does_not_rotate_with_load_rotation(self, tmp_path):
         # 8.2.2: a rectangular hole (4 x 2) stays axis-aligned when the aperture is rotated by LR
@@ -663,50 +627,3 @@ class TestSpecConformance:
         assert ret is None
         assert union.area == pytest.approx(math.pi * 25 - 8, rel=1e-2)
         assert list(union.interiors)[0].bounds == pytest.approx((-2, -1, 2, 1), abs=1e-3)
-
-    def test_axis_select_swaps_data_axes(self, tmp_path):
-        # 8.1 AS: %ASAYBX*% swaps the axes: the flash (1, 2) is at (2, 1)
-        text = "%FSLAX26Y26*%\n%MOMM*%\n%ASAYBX*%\n%ADD10C,1*%\nD10*\nX1000000Y2000000D03*\nM02*\n"
-        gbr, ret, union = parse_gerber_text(tmp_path, text)
-        assert ret is None
-        assert union.bounds == pytest.approx((1.5, 0.5, 2.5, 1.5), abs=1e-2)
-
-    @pytest.mark.parametrize("aperture", ["C,0", "R,0X1"])
-    def test_zero_size_apertures_make_no_image(self, tmp_path, aperture):
-        # 4.4.1 / 4.8: a zero-size flash is valid and makes no image; the parse does not fail
-        text = "%%FSLAX24Y24*%%\n%%MOMM*%%\n%%ADD10%s*%%\nD10*\nX0Y0D03*\nM02*\n" % aperture
-        gbr, ret, union = parse_gerber_text(tmp_path, text)
-        assert ret is None
-        assert union.area == pytest.approx(0.0, abs=1e-9)
-
-    def test_bare_d01_is_zero_length_draw(self, tmp_path):
-        # 4.8.2: D01 without coordinates draws a zero-length line at the current point: a dot of diameter 1
-        text = "%FSLAX24Y24*%\n%MOMM*%\n%ADD10C,1*%\nD10*\nX0Y0D02*\nD01*\nM02*\n"
-        gbr, ret, union = parse_gerber_text(tmp_path, text)
-        assert ret is None
-        assert union.area == pytest.approx(math.pi / 4, rel=1e-2)
-
-    def test_comment_with_percent_ends_at_asterisk(self, tmp_path):
-        # 3.1: a G04 comment ends at its '*', a '%' in the comment is text
-        text = "%FSLAX24Y24*%\n%MOMM*%\nG04 5% off*\n%ADD10C,1*%\nD10*\nX0Y0D03*\nM02*\n"
-        gbr, ret, union = parse_gerber_text(tmp_path, text)
-        assert ret is None
-        assert union.area == pytest.approx(math.pi / 4, rel=1e-2)
-
-    def test_block_flash_with_clear_polarity_toggles_nested_objects(self, tmp_path):
-        # 4.11.1: the block (4x4 dark minus 2x2 clear = 12) at the origin; flashed clear at (10, 0) it toggles to a
-        # clear 4x4 and a dark 2x2 there: 12 + 4 = 16
-        text = ("%FSLAX26Y26*%\n%MOMM*%\n%ADD10R,4X4*%\n%ADD11R,2X2*%\n%ABD12*%\nD10*\nX0Y0D03*\n%LPC*%\nD11*\n"
-                "X0Y0D03*\n%LPD*%\n%AB*%\n%LPD*%\nD12*\nX0Y0D03*\n%LPC*%\nX10000000Y0D03*\nM02*\n")
-        gbr, ret, union = parse_gerber_text(tmp_path, text)
-        assert ret is None
-        assert union.area == pytest.approx(16.0, rel=1e-2)
-
-    def test_block_flash_with_clear_polarity_toggles_through_nested_blocks(self, tmp_path):
-        # the same block (12) is flashed inside a second block, which is flashed dark and then clear
-        text = ("%FSLAX26Y26*%\n%MOMM*%\n%ADD10R,4X4*%\n%ADD11R,2X2*%\n%ABD12*%\nD10*\nX0Y0D03*\n%LPC*%\nD11*\n"
-                "X0Y0D03*\n%LPD*%\n%AB*%\n%ABD13*%\nD12*\nX0Y0D03*\n%AB*%\n%LPD*%\nD13*\nX0Y0D03*\n%LPC*%\n"
-                "X10000000Y0D03*\nM02*\n")
-        gbr, ret, union = parse_gerber_text(tmp_path, text)
-        assert ret is None
-        assert union.area == pytest.approx(16.0, rel=1e-2)

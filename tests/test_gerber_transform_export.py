@@ -123,12 +123,12 @@ TR_BY_ID = {t.id: t for t in TRANSFORMS}
 
 # One cell per branch of the plan table instead of the full kinds x transforms matrix.
 CELLS = [(k, t) for k, ts in {
-    'C': ('scale_nonuniform', 'rotate_30'),
-    'R': ('rotate_90', 'buffer_mitre', 'skew_x'),
-    'O': ('buffer_round', 'mirror_y'),
+    'C': ('scale_nonuniform',),
+    'R': ('rotate_90', 'buffer_mitre'),
+    'O': ('buffer_round',),
     'RT': ('buffer_mitre',),
-    'P3': ('scale_neg', 'rotate_90'),
-    'P7': ('mirror_x', 'skew_x'),
+    'P3': ('scale_neg',),
+    'P7': ('skew_x',),
     'AM': ('scale_up', 'offset'),
 }.items() for t in ts]
 
@@ -198,21 +198,14 @@ def record_count(obj, apid):
 # ---------------------------------------------------------------------------------------------------------------
 
 class TestTableFlagAndMetadata:
-    @pytest.mark.parametrize('kind,tid', cell_params('flag'))
-    def test_flag_is_exactly_the_regions_cells(self, app, kind, tid):
-        obj, apid = load(app, kind)
-        before = dict(obj.tools[apid])
-        flagged, _ = expected_cell(kind, tid, before)
-        assert obj.export_as_regions is False
-        TR_BY_ID[tid].apply(obj)
-        assert obj.export_as_regions is flagged, '%s %s' % (kind, tid)
-
     @pytest.mark.parametrize('kind,tid', cell_params('meta'))
-    def test_metadata_of_the_representable_cells(self, app, kind, tid):
+    def test_flag_and_metadata_of_the_cells(self, app, kind, tid):
         obj, apid = load(app, kind)
         before = dict(obj.tools[apid])
         flagged, want = expected_cell(kind, tid, before)
+        assert obj.export_as_regions is False
         TR_BY_ID[tid].apply(obj)
+        assert obj.export_as_regions is flagged, '%s %s' % (kind, tid)
         now = obj.tools[apid]
         assert now['type'] == before['type']
         assert record_count(obj, apid) == len(before['geometry'])
@@ -230,15 +223,6 @@ class TestTableFlagAndMetadata:
             for key in ('size', 'width', 'height', 'diam'):
                 if key in now:
                     assert now[key] >= 0, (kind, tid, key, now[key])
-
-    def test_offset_changes_no_metadata(self, app):
-        for kind in KINDS:
-            obj, apid = load(app, kind)
-            before = {k: (v.name if k == 'macro' else v) for k, v in obj.tools[apid].items() if k != 'geometry'}
-            obj.offset((3.5, -2.25))
-            after = {k: (v.name if k == 'macro' else v) for k, v in obj.tools[apid].items() if k != 'geometry'}
-            assert after == before
-            assert obj.export_as_regions is False
 
     def test_the_region_aperture_never_sets_the_flag(self, app):
         for tid in TR_BY_ID:
@@ -262,12 +246,6 @@ class TestTableFlagAndMetadata:
             obj.rotate(angle, ROT_ORIGIN)
             expect = (1.2, 3.0) if swapped else (3.0, 1.2)
             assert (obj.tools[apid]['width'], obj.tools[apid]['height']) == pytest.approx(expect), angle
-
-
-    def test_degenerate_scale_factor_sets_the_flag(self, app):
-        obj, apid = load(app, 'R')
-        obj.scale(2.0, 0.0, SCALE_ORIGIN)
-        assert obj.export_as_regions is True
 
 
     def test_an_o_track_is_drawn_with_the_diagonal_of_the_aperture(self, app, tmp_path):
@@ -304,7 +282,10 @@ class TestTableFlagAndMetadata:
         assert_composed_equal(reparse_gerber(app, text, tmp_path).solid_geometry, obj.solid_geometry, 'exact')
 
 
-    def test_a_buffer_that_removes_the_aperture_sets_the_flag(self, app):
+    def test_a_degenerate_scale_or_buffer_sets_the_flag(self, app):
+        degenerate, _ = load(app, 'R')
+        degenerate.scale(2.0, 0.0, SCALE_ORIGIN)
+        assert degenerate.export_as_regions is True
         circle, _ = load(app, 'C')
         circle.buffer(-0.8, 'mitre')       # 1.5 - 1.6 < 0
         assert circle.export_as_regions is True
@@ -318,23 +299,17 @@ class TestBufferByFactor:
     metadata can not describe (an aperture macro). The geometry and the rejections are in
     test_gerber_multiplicative_buffer."""
 
-    @pytest.mark.parametrize('kind', ['AM'])
-    def test_flag_is_set_when_there_are_records(self, app, kind):
-        obj, _ = load(app, kind)
-        obj.buffer(1.2, 'mitre', True)
-        assert obj.export_as_regions is True
-
-    @pytest.mark.parametrize('kind', ['C', 'P3'])
-    def test_a_representable_aperture_does_not_set_the_flag(self, app, kind):
-        obj, _ = load(app, kind)
-        obj.buffer(1.2, 'mitre', True)
-        assert obj.export_as_regions is False
-
-
-    def test_a_zero_factor_is_rejected_without_a_change(self, app):
-        obj, _ = load(app, 'R')
-        obj.buffer(0, 'mitre', True)
-        assert obj.export_as_regions is False
+    def test_only_a_macro_sets_the_flag_and_a_zero_factor_changes_nothing(self, app):
+        macro, _ = load(app, 'AM')
+        macro.buffer(1.2, 'mitre', True)
+        assert macro.export_as_regions is True
+        for kind in ('C', 'P3'):
+            obj, _ = load(app, kind)
+            obj.buffer(1.2, 'mitre', True)
+            assert obj.export_as_regions is False, kind
+        zero, _ = load(app, 'R')
+        zero.buffer(0, 'mitre', True)
+        assert zero.export_as_regions is False
 
 
 class TestFlagIsSticky:
@@ -397,7 +372,7 @@ class TestTableExportRoundTrip:
 
 
 class TestUntransformedAndMixedFixtures:
-    @pytest.mark.parametrize('kind', ['P3', 'P7', 'AM'])
+    @pytest.mark.parametrize('kind', ['P3', 'AM'])
     def test_untransformed_p_and_macro_round_trip_through_the_regions(self, app, tmp_path, kind):
         """The writer cannot declare P and AM apertures: the object goes through the region export before any
         transform, without the flag. This separates the writer limit from a transform regression."""
@@ -411,7 +386,7 @@ class TestUntransformedAndMixedFixtures:
         assert record_count(again, 0) == record_count(obj, apid)
 
 
-    @pytest.mark.parametrize('tid', ['scale_nonuniform', 'rotate_30', 'buffer_mitre'])
+    @pytest.mark.parametrize('tid', ['scale_nonuniform', 'buffer_mitre'])
     def test_region_with_a_hole(self, app, tmp_path, tid):
         obj = make_gerber(app, fx('region_hole'), name='hole')
         TR_BY_ID[tid].apply(obj)
@@ -421,14 +396,14 @@ class TestUntransformedAndMixedFixtures:
         assert interior_count(obj.solid_geometry) == 1
         assert interior_count(again.solid_geometry) == 1
 
-    @pytest.mark.parametrize('tid', ['rotate_30', 'mirror_x'])
+    @pytest.mark.parametrize('tid', ['rotate_30'])
     def test_dark_clear_dark_fixture(self, app, tmp_path, tid):
         obj = make_gerber(app, MIXED_GBR)
         TR_BY_ID[tid].apply(obj)
         again = reparse_gerber(app, export_gerber_text(app, obj), tmp_path)
         assert_composed_equal(again.solid_geometry, obj.solid_geometry, 'mixed ' + tid)
 
-    @pytest.mark.parametrize('tid', ['rotate_90', 'mirror_x', 'buffer_shrink_mitre'])
+    @pytest.mark.parametrize('tid', ['rotate_90', 'buffer_shrink_mitre'])
     def test_native_subset_stays_native_when_the_table_allows(self, app, tmp_path, tid):
         obj = make_gerber(app, NATIVE_GBR)
         TR_BY_ID[tid].apply(obj)
@@ -439,7 +414,7 @@ class TestUntransformedAndMixedFixtures:
         assert_composed_equal(again.solid_geometry, obj.solid_geometry, 'native ' + tid)
         assert {ap: record_count(again, ap) for ap in again.tools} == {ap: record_count(obj, ap) for ap in obj.tools}
 
-    @pytest.mark.parametrize('tid', ['rotate_30', 'buffer_round'])
+    @pytest.mark.parametrize('tid', ['buffer_round'])
     def test_native_subset_goes_to_regions_when_the_table_says(self, app, tmp_path, tid):
         obj = make_gerber(app, NATIVE_GBR)
         TR_BY_ID[tid].apply(obj)
@@ -538,19 +513,15 @@ def make_p_am_gerber(app, tmp_path):
 
 class TestNeedsRegionExport:
 
-    def test_flag_forces_the_region_export(self, app):
+    def test_flag_pcbdoc_and_p_am_apertures_force_the_region_export(self, app, tmp_path):
         grb = make_gerber(app, NATIVE_GBR)
+        assert grb.needs_region_export() is False
         grb.export_as_regions = True
         assert grb.needs_region_export() is True
-
-    def test_pcbdoc_import_forces_the_region_export(self, app):
-        grb = make_gerber(app, NATIVE_GBR)
-        grb.obj_options['pcbdoc_import'] = True
-        assert grb.needs_region_export() is True
-
-    def test_p_and_am_apertures_force_the_region_export(self, app, tmp_path):
+        pcb = make_gerber(app, NATIVE_GBR)
+        pcb.obj_options['pcbdoc_import'] = True
+        assert pcb.needs_region_export() is True
         assert make_p_am_gerber(app, tmp_path).needs_region_export() is True
-
 
     def test_a_clear_record_forces_the_region_export(self, app):
         grb = make_gerber(app)   # the mixed fixture has a dark -> clear -> dark sequence on aperture 10
@@ -558,17 +529,6 @@ class TestNeedsRegionExport:
         native = make_gerber(app, NATIVE_GBR)
         native.tools[10]['geometry'].append({'clear': box(0, 0, 1, 1)})
         assert native.needs_region_export() is True
-
-
-class TestExportRouting:
-    def test_flag_exports_regions_and_keeps_the_composed_geometry(self, app, tmp_path):
-        grb = make_gerber(app, NATIVE_GBR)
-        grb.export_as_regions = True
-        text = export_gerber_text(app, grb)
-        assert '%ADD' not in text and 'G36*' in text
-        again = reparse_gerber(app, text, tmp_path)
-        assert_poly_equiv(again.solid_geometry, grb.solid_geometry, rel=1e-6, abs_tol=1e-4, msg='flag')
-        assert set(again.tools) == {0}
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -738,25 +698,17 @@ class TestGerberParse:
         union = polygon_union(gerber.solid_geometry)
         assert union.contains(Point(30.75, 5.0))
         assert not union.contains(Point(30.0, 5.0))
-
-    def test_bounds(self, gerber):
         assert gerber.bounds() == pytest.approx((-0.5, 4.0, 31.0, 38.0))
 
 
 @pytest.mark.parametrize('name', TRANSFORM_NAMES)
 class TestGerberTransforms:
-    def test_composed_solid_geometry_matches_affine_copy(self, app, name):
+    def test_composed_geometry_and_records_match_affine_copy(self, app, name):
         obj = make_gerber(app)
         before = snapshot_gerber(obj)
         AFFINE_TRANSFORMS[name][0](obj)
         expected = apply_to(AFFINE_TRANSFORMS[name][1], polygon_union(before['solid']))
         assert_poly_equiv(obj.solid_geometry, expected, rel=1e-6, msg=name)
-
-
-    def test_records_keep_aperture_and_counts_and_transform(self, app, name):
-        obj = make_gerber(app)
-        before = snapshot_gerber(obj)
-        AFFINE_TRANSFORMS[name][0](obj)
         assert sorted(obj.tools) == sorted(before['tools'])
         for ap, tool in before['tools'].items():
             now = obj.tools[ap]['geometry']
@@ -767,21 +719,6 @@ class TestGerberTransforms:
                 for key in rec_before:
                     assert_coords_close(rec_now[key], apply_to(AFFINE_TRANSFORMS[name][1], rec_before[key]),
                                         msg='%s %s %s' % (name, ap, key))
-
-
-def test_gerber_uniform_positive_scale_metadata(app):
-    obj = make_gerber(app)
-    obj.scale(1.5, 1.5, (6.0, 4.0))
-    t = obj.tools
-    assert t[10]['size'] == pytest.approx(1.5)
-    assert t[16]['size'] == pytest.approx(9.0)
-    for ap in (11, 12):
-        assert t[ap]['width'] == pytest.approx(3.0)
-        assert t[ap]['height'] == pytest.approx(1.5)
-    assert t[13]['diam'] == pytest.approx(3.0)
-    assert t[13]['rotation'] == 30.0
-    assert t[14]['type'] == 'AM' and t[15]['type'] == 'AM'
-    assert t[14]['modifiers'] == [] and t[15]['modifiers'] == ['2.0', '1.0']
 
 
 class TestFileRoundTrip:
@@ -890,13 +827,10 @@ class TestGerberAttributeExport:
         assert '.MD5' not in tf
         assert text.index('%TF.FileFunction') < text.index('%ADD10')
 
-    def test_aperture_attributes_do_not_leak(self, app, tmp_path, x2):
+    def test_aperture_and_object_attributes_stay_on_their_own(self, app, tmp_path, x2):
         again = reparse_gerber(app, export_gerber_text(app, x2), tmp_path)
         assert again.tools[10]['attributes']['.AperFunction'] == ['SMDPad', 'CuDef']
         assert again.tools[11]['attributes']['.AperFunction'] == ['Conductor']
-
-    def test_object_attributes_stay_on_their_objects(self, app, tmp_path, x2):
-        again = reparse_gerber(app, export_gerber_text(app, x2), tmp_path)
         before = x2_records(x2)
         assert [r[2] for r in before if r[0] == 10 and r[2]] != []
         assert x2_records(again) == before

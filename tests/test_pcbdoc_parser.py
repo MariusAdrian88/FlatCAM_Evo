@@ -160,7 +160,24 @@ class TestPcbDocParser(unittest.TestCase):
         parser._parse_streams(data)
         return parser
 
-    def test_regions_preserve_holes_and_nested_islands_for_export(self):
+    def test_regions_cutouts_and_planes(self):
+        self.check_regions_preserve_holes_and_nested_islands_for_export()
+        self.check_cutout_removes_board_and_copper_not_keepout_tracks()
+        self.check_negative_plane_is_bounded_and_not_positive_artwork()
+        self.check_plane_clearance_and_connected_pad_relief()
+
+    def test_pad_shapes_slots_stacks_and_mask_rules(self):
+        self.check_multilayer_pad_uses_only_linked_copper_layers()
+        self.check_rounded_rectangle_and_oblong_are_not_ellipses()
+        self.check_true_slot_endpoints_include_pad_and_slot_rotation()
+        self.check_full_pad_stack_uses_inner_size_and_positive_copper_offset()
+        self.check_scoped_mask_rule_and_tenting()
+
+    def test_tracks_arcs_text_and_dimensions(self):
+        self.check_tracks_arcs_and_optional_tails()
+        self.check_true_type_font_counters_remain_holes()
+        self.check_dimension_annotations_render_on_native_layer()
+    def check_regions_preserve_holes_and_nested_islands_for_export(self):
         outer = list(box(0, 0, 9, 9).exterior.coords)
         inner = list(box(2, 2, 7, 7).exterior.coords)
         island = list(box(3, 3, 4, 4).exterior.coords)
@@ -176,7 +193,7 @@ class TestPcbDocParser(unittest.TestCase):
         self.assertTrue(exported.contains(Point(3.5, 3.5)))
         self.assertFalse(exported.contains(Point(5, 5)))
 
-    def test_cutout_removes_board_and_copper_not_keepout_tracks(self):
+    def check_cutout_removes_board_and_copper_not_keepout_tracks(self):
         hole = list(box(4, 4, 6, 6).exterior.coords)
         parser = self.parser({'Regions6': region(list(box(0, 0, 10, 10).exterior.coords)) +
                               region(hole, cutout=True), 'Tracks6': track(56)})
@@ -184,20 +201,20 @@ class TestPcbDocParser(unittest.TestCase):
         self.assertAlmostEqual(unary_union(parser.layers[1]['solid_geometry']).area, 96)
         self.assertGreater(unary_union(parser.layers[56]['solid_geometry']).area, 0)
 
-    def test_negative_plane_is_bounded_and_not_positive_artwork(self):
+    def check_negative_plane_is_bounded_and_not_positive_artwork(self):
         parser = self.parser({'Tracks6': track(39)}, stack=(1, 39, 32))
         plane = unary_union(parser.layers[39]['solid_geometry'])
         self.assertFalse(plane.contains(Point(3, 2)))
         self.assertTrue(plane.contains(Point(8, 8)))
         self.assertTrue(box(0, 0, 10, 10).covers(plane))
 
-    def test_multilayer_pad_uses_only_linked_copper_layers(self):
+    def check_multilayer_pad_uses_only_linked_copper_layers(self):
         parser = self.parser({'Pads6': pad()}, stack=(1, 2, 32))
         self.assertEqual(set(parser.layers), {1, 2, 32, 37, 38})
         self.assertEqual(sum(len(t['drills']) for g in parser.drill_groups.values() for t in g.values()), 1)
         self.assertAlmostEqual(next(iter(next(iter(parser.drill_groups.values())).values()))['tooldia'], 1, places=5)
 
-    def test_rounded_rectangle_and_oblong_are_not_ellipses(self):
+    def check_rounded_rectangle_and_oblong_are_not_ellipses(self):
         oblong = self.parser({'Pads6': pad(layer=1, hole=0)})
         geo = unary_union(oblong.layers[1]['solid_geometry'])
         self.assertAlmostEqual(geo.area, 2 + math.pi, delta=0.01)
@@ -205,7 +222,7 @@ class TestPcbDocParser(unittest.TestCase):
         geo = unary_union(rounded.layers[1]['solid_geometry'])
         self.assertAlmostEqual(geo.area, 6 - (4 - math.pi) * 0.25, delta=0.01)
 
-    def test_true_slot_endpoints_include_pad_and_slot_rotation(self):
+    def check_true_slot_endpoints_include_pad_and_slot_rotation(self):
         parser = self.parser({'Pads6': pad(slot=3, rotation=30, slotrotation=15, plated=False)})
         group = next(iter(parser.drill_groups))
         self.assertIn('NPTH', group)
@@ -216,7 +233,7 @@ class TestPcbDocParser(unittest.TestCase):
         self.assertAlmostEqual(last.x - first.x, math.sqrt(2), places=5)
         self.assertAlmostEqual(last.y - first.y, math.sqrt(2), places=5)
 
-    def test_tracks_arcs_and_optional_tails(self):
+    def check_tracks_arcs_and_optional_tails(self):
         arc = bytearray(56)
         arc[0] = 1
         struct.pack_into('<HHH', arc, 3, 65535, 65535, 65535)
@@ -229,7 +246,7 @@ class TestPcbDocParser(unittest.TestCase):
         self.assertAlmostEqual(follows[-1].length, math.pi, delta=0.001)
         self.assertAlmostEqual(follows[-1].coords[-1][1], 7, places=5)
 
-    def test_full_pad_stack_uses_inner_size_and_positive_copper_offset(self):
+    def check_full_pad_stack_uses_inner_size_and_positive_copper_offset(self):
         record = bytearray(pad(mode=2, shape=2, rotation=90))
         offset = 1
         parts = []
@@ -252,7 +269,7 @@ class TestPcbDocParser(unittest.TestCase):
         drill = next(iter(parser.drill_groups['PTH_1-32'].values()))['drills'][0]
         self.assertAlmostEqual(drill.y, 5, places=5)
 
-    def test_scoped_mask_rule_and_tenting(self):
+    def check_scoped_mask_rule_and_tenting(self):
         record = bytearray(pad(layer=1, hole=0))
         offset = 1
         for _ in range(4):
@@ -267,7 +284,7 @@ class TestPcbDocParser(unittest.TestCase):
         parser = self.parser({'Pads6': bytes(record), 'Rules6': rules})
         self.assertNotIn(37, parser.layers)
 
-    def test_plane_clearance_and_connected_pad_relief(self):
+    def check_plane_clearance_and_connected_pad_relief(self):
         data = bytearray(pad(size=(2, 2)))
         offset = 1
         for _ in range(4):
@@ -289,7 +306,7 @@ class TestPcbDocParser(unittest.TestCase):
                                               'Nets6': properties({'NAME': 'GND'}), 'Rules6': rules})
         self.assertFalse(unary_union(parser.layers[39]['solid_geometry']).contains(Point(6.3, 5)))
 
-    def test_true_type_font_counters_remain_holes(self):
+    def check_true_type_font_counters_remain_holes(self):
         parser = self.parser()
         geo = parser._font_geometry('OB', 'Arial', 'Regular', 1)
         self.assertEqual(sum(len(p.interiors) for p in parser._polygons_of(geo)), 3)
@@ -325,7 +342,7 @@ class TestPcbDocParser(unittest.TestCase):
             checked.add(text)
         self.assertEqual(checked, {'H1', 'H2', 'R1', 'R2', 'R3', 'R4', 'T1', 'T2', '3.3V'})
 
-    def test_dimension_annotations_render_on_native_layer(self):
+    def check_dimension_annotations_render_on_native_layer(self):
         dim = {'DIMENSIONKIND': 1, 'LAYER': 'MECHANICAL1', 'ANGLE': 0,
                'X1': '0mm', 'Y1': '-2mm', 'REFERENCES_COUNT': 2,
                'REFERENCE0POINTX': '0mm', 'REFERENCE0POINTY': '0mm',
