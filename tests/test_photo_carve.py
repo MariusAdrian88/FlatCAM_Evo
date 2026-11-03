@@ -98,6 +98,9 @@ def test_vbit_limit_and_lithophane_depth(model):
     {'rough': True, 'stepdown': 1e-12},
     {'mode': 'lithophane', 'tone': 'lithophane', 'strategy': 'x', 'rough': True,
      'stepdown': 0.00001, 'litho_max': 100},
+    {'mode': 'relief', 'tone': 'linear', 'strategy': 'xy', 'rough': True, 'max_depth': 1,
+     'stepdown': 1, 'width': 4001, 'image_px': (4001, 5000), 'res': 1, 'spacing': 2,
+     'sim_res': 1, 'tool_kind': 'flat', 'tool_dia': 0.1, 'rough_dia': 0.1},
 ])
 def test_resource_preflight_is_scalar_fast_and_small(model, changes):
     tracemalloc.start()
@@ -154,14 +157,15 @@ def test_image_gamma_once_alpha_white_and_exif_orientation(model, tmp_path):
     np.testing.assert_allclose(gray, (128 / 255) ** 2, atol=1e-7)
     transparent = Image.new('RGBA', image.size, (0, 0, 0, 0))
     np.testing.assert_array_equal(model.prepare_image(transparent, params), 1)
-    oriented = image.transpose(Image.Transpose.ROTATE_90)
+    pattern = Image.fromarray(np.arange(1200, dtype=np.uint16).reshape(30, 40).astype(np.uint8))
+    oriented = pattern.transpose(Image.Transpose.ROTATE_90)
     exif = Image.Exif()
     exif[274] = 6
     filename = tmp_path / 'oriented.png'
     oriented.save(filename, exif=exif)
     loaded = model.load_image(filename)
     assert loaded.size == image.size
-    np.testing.assert_array_equal(model.prepare_image(loaded, params), gray)
+    np.testing.assert_array_equal(model.prepare_image(loaded, params), model.prepare_image(pattern, params))
 
 
 def test_tone_mapping_and_lithophane_border(model):
@@ -486,3 +490,40 @@ def test_marked_geometry_unit_conversion_preserves_cutter_precision_and_laser_po
         coords = np.asarray(obj.tools[1]['solid_geometry'][0].coords)
         np.testing.assert_allclose(coords[:, 0], [0, 1])
         np.testing.assert_allclose(coords[:, 2], [0.5, 1.0] if laser else np.array([0.5, 1.0]) / 25.4)
+
+
+def test_build_geometry_keeps_xyz_orders_rough_first_and_copies_defaults(model):
+    import json
+    objects = _pure('PhotoCarveObject')
+    params = model.JobParams(mode='relief', strategy='x', tone='linear')
+    finish = model.Pass('finish', model.ToolShape('vbit', 6, 60, 0.2),
+                        [np.array([[0, 0, -0.1], [1, 0, -0.5]])])
+    rough = model.Pass('rough', model.ToolShape('flat', 3), [np.array([[0.5, 0.5, -0.2]])])
+    defaults = {'tools_mill_feedrate': 100, 'nested': {'keep': [1]}, 'tools_mill_multidepth': True,
+                'tools_mill_offset_value': 1, 'tools_mill_extracut': True}
+    built = objects.build_geometry(model.JobResult([finish, rough], [], {}), params, defaults)
+    assert list(built['tools']) == [1, 2]
+    assert built['photocarve']['tools']['1']['role'] == 'rough'
+    assert built['photocarve']['tools']['2']['role'] == 'finish'
+    assert built['tools'][1]['solid_geometry'][0].geom_type == 'Point'
+    assert np.asarray(built['tools'][2]['solid_geometry'][0].coords)[:, 2].tolist() == [-0.1, -0.5]
+    assert all(not geometry.has_z for geometry in built['solid_geometry'])
+    first, second = built['tools'][1]['data'], built['tools'][2]['data']
+    assert first['tools_mill_tool_shape'] == 0 and second['tools_mill_tool_shape'] == 5
+    assert second['tools_mill_vtipdia'] == 0.2 and second['tools_mill_vtipangle'] == 60
+    assert second['tools_mill_cutz'] == -0.5
+    assert not first['tools_mill_multidepth'] and first['tools_mill_offset_value'] == 0
+    assert not first['tools_mill_extracut']
+    first['nested']['keep'].append(2)
+    assert second['nested']['keep'] == [1] and defaults['nested']['keep'] == [1]
+    json.dumps(built['photocarve'], allow_nan=False)
+    objects.validate_tools(built['tools'], built['photocarve'])
+    for field, value in (('tooldia', 5), ('tools_mill_tool_shape', 0), ('tools_mill_tooldia', 5),
+                         ('tools_mill_vtipdia', 0.3), ('tools_mill_vtipangle', 90)):
+        from copy import deepcopy
+        changed = deepcopy(built['tools'])
+        (changed[2] if field == 'tooldia' else changed[2]['data'])[field] = value
+        with pytest.raises(model.PhotoCarveError):
+            objects.validate_tools(changed, built['photocarve'])
+    with pytest.raises(model.PhotoCarveError):
+        objects.validate_tools({**built['tools'], 3: built['tools'][1]}, built['photocarve'])

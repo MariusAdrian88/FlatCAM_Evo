@@ -266,6 +266,9 @@ def work_preflight(params, frame):
         if rough_points > MAX_POINTS:
             raise PhotoCarveError('Roughing needs up to %d points; limit is %d. Increase stepdown or spacing.'
                                   % (rough_points, MAX_POINTS))
+    if points + rough_points > MAX_POINTS:
+        raise PhotoCarveError('Combined passes need up to %d points; limit is %d. Increase spacing, resolution or stepdown.'
+                              % (points + rough_points, MAX_POINTS))
     return {'points': points, 'rough_points': rough_points, 'levels': levels}
 
 
