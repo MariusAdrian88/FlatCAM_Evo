@@ -530,6 +530,10 @@ class appEditor(QtCore.QObject):
         """
         self.defaults.report_usage("on_edit_join()")
 
+        if any(obj.obj_options.get('photocarve') for obj in self.collection.get_selected()):
+            self.inform.emit('[ERROR_NOTCL] %s' % _("Certified photo engraving cannot be joined."))
+            return 'fail'
+
         obj_name_single = str(name) if name else "Combo_SingleGeo"
         obj_name_multi = str(name) if name else "Combo_MultiGeo"
 
@@ -665,6 +669,10 @@ class appEditor(QtCore.QObject):
         :return:        'fail' on failure, else None
         """
         self.defaults.report_usage("on_join_as()")
+
+        if any(obj.obj_options.get('photocarve') for obj in self.collection.get_selected()):
+            self.inform.emit('[ERROR_NOTCL] %s' % _("Certified photo engraving cannot be joined."))
+            return 'fail'
 
         objs = self.collection.get_selected()
 

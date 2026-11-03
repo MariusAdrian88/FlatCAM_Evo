@@ -527,3 +527,346 @@ def test_build_geometry_keeps_xyz_orders_rough_first_and_copies_defaults(model):
             objects.validate_tools(changed, built['photocarve'])
     with pytest.raises(model.PhotoCarveError):
         objects.validate_tools({**built['tools'], 3: built['tools'][1]}, built['photocarve'])
+
+
+def _writer_job(pp='default', laser=False, **changes):
+    from tests.test_cncjob_gcode_speed import gcode_job
+    from defaults import AppDefaults
+    model = _pure('PhotoCarveModel')
+    objects = _pure('PhotoCarveObject')
+    params = model.JobParams(mode='laser' if laser else 'relief')
+    paths = [np.array([[0.0049, 0, 0 if laser else -0.105], [2, 0, 1 if laser else -0.205]]),
+             np.array([[4, 0, 0 if laser else -0.3], [5, 0, 0.5 if laser else -0.4]])]
+    part = model.Pass('finish', model.ToolShape('flat', 0.1), paths, z_is_power=laser)
+    data = dict(AppDefaults.factory_defaults)
+    data.update(tools_mill_ppname_g=pp, tools_mill_feedrate=1000, tools_mill_feedrate_z=100,
+                tools_mill_travelz=5, tools_mill_startz=1, tools_mill_toolchangez=15,
+                tools_mill_toolchangexy='10, 20', tools_mill_laser_on='M4',
+                tools_mill_min_power=10, tools_mill_spindlespeed=1000)
+    data.update(changes)
+    built = objects.build_geometry(model.JobResult([part], [], {}), params, data)
+    job = gcode_job(pp)
+    job.units = params.units
+    return job, built
+
+
+@pytest.mark.parametrize('pp', ['default', 'GRBL_11', 'GRBL_11_no_M6', 'grblHAL', 'Marlin'])
+@pytest.mark.parametrize('toolchange', [False, True])
+def test_writer_milling_executed_blocks_and_safe_toolchange(pp, toolchange):
+    from appPlugins.ToolPhotoCarve.PhotoCarveGcode import write_tool_gcode
+    from copy import deepcopy
+    import re
+    job, built = _writer_job(pp)
+    built['tools'][2] = deepcopy(built['tools'][1])
+    built['photocarve']['tools']['2'] = deepcopy(built['photocarve']['tools']['1'])
+    job._bed_offset_x = 10
+    result = write_tool_gcode(job, 1, built['tools'], (0, 0), (0, 0), 0,
+                              True, False, toolchange, True, built['photocarve'])
+    assert result != 'fail'
+    code, header = result
+    second, second_header = write_tool_gcode(job, 2, built['tools'], (5, 0), (0, 0), 0,
+                                             False, True, toolchange, True, built['photocarve'])
+    assert second_header == ''
+    code += second
+    assert header.endswith('\n') and code.endswith('\n')
+    assert 'X10.0049' in code
+    z, feed = 0, 0
+    cuts = []
+    for line in code.splitlines():
+        if not line.strip() or line.lstrip().startswith(('(', ';')):
+            continue
+        words = dict(re.findall(r'([XYZF])\s*(-?\d+(?:\.\d+)?)', line))
+        if 'F' in words:
+            feed = float(words['F'])
+        if 'X' in words or 'Y' in words:
+            if re.match(r'G0?0\b', line):
+                assert z >= 5, line
+            else:
+                assert feed == 1000, line
+                cuts.append(float(words['Z']))
+        elif 'Z' in words and float(words['Z']) < 0:
+            assert feed == 100
+        if 'Z' in words:
+            z = float(words['Z'])
+    assert cuts == [-0.205, -0.4] * 2
+    assert not re.search(r'Z\S+G', code)
+
+
+@pytest.mark.parametrize('pp', ['GRBL_laser', 'grblHAL_laser'])
+def test_writer_laser_only_powers_cutting_motion(pp):
+    from appPlugins.ToolPhotoCarve.PhotoCarveGcode import write_tool_gcode
+    job, built = _writer_job(pp, laser=True)
+    code, header = write_tool_gcode(job, 1, built['tools'], (0, 0), None, 0,
+                                    True, True, False, True, built['photocarve'])
+    assert 'M5\nM4 S0\n' in code
+    assert code.endswith('S0\nM5\n')
+    assert ' S1000\n' in code and ' S505\n' in code
+    assert ' Z' not in code
+    assert all(code.splitlines()[i - 1] == 'S0' for i, line in enumerate(code.splitlines())
+               if line.startswith(('G0 ', 'G00 ')))
+    model, laser, sim = _pure('PhotoCarveModel'), _pure('PhotoCarveLaser'), _pure('PhotoCarveSim')
+    params = model.JobParams(image_px=(10, 2), width=10, res=1, spacing=1,
+                            mode='laser', strategy='gray', lift_gap=3, overscan=5)
+    power = np.array([[0, 0.2, 0.2, 0, 0, 0, 0, 0.7, 1, 0]] * 2, dtype=np.float32)
+    from shapely import LineString
+    built['tools'][1]['solid_geometry'] = [LineString(path) for path in laser.laser_paths(power, params)]
+    code, header = write_tool_gcode(job, 1, built['tools'], (0, 0), None, 0,
+                                    True, True, False, True, built['photocarve'])
+    spans = sim.interpret_gcode(header + code, laser=True)
+    burn = sim.burn_image(model.mode_frame(params), spans, maximum=1000)
+    expected = np.where(power > 0, (10 + power * 990) / 1000, 0)
+    np.testing.assert_allclose(burn, expected, atol=1e-7)
+
+
+def test_writer_rejects_unsafe_toolchange_and_precision_and_rounds_once():
+    from appPlugins.ToolPhotoCarve.PhotoCarveGcode import write_tool_gcode
+    job, built = _writer_job(tools_mill_toolchangez=2)
+    args = (job, 1, built['tools'], (0, 0), None, 0, True, True, True, True, built['photocarve'])
+    assert write_tool_gcode(*args) == 'fail'
+    built['tools'][1]['data']['tools_mill_toolchangez'] = 15
+    job.coords_decimals = 2
+    assert write_tool_gcode(*args) == 'fail'
+    built['photocarve']['xy_err'] = 0.01
+    job._bed_offset_x = 0.0049
+    code, _ = write_tool_gcode(*args)
+    assert 'X0.01 Y0.00' in code and 'Z-0.20' in code
+
+
+def test_certified_geometry_lifecycle():
+    from unittest.mock import Mock, patch
+    from appObjects.GeometryObject import GeometryObject
+    from tests.helpers_objects import make_app_0b
+    from shapely import force_2d
+    job, built = _writer_job()
+    with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
+        obj = GeometryObject('photo', make_app_0b())
+        copied = GeometryObject('copy', obj.app)
+    obj.tools, obj.solid_geometry, obj.multigeo = built['tools'], built['solid_geometry'], True
+    obj.obj_options['photocarve'] = built['photocarve']
+    copied.copy_from(obj)
+    assert copied.obj_options['photocarve'] == obj.obj_options['photocarve']
+    assert copied.obj_options['photocarve'] is not obj.obj_options['photocarve']
+    before = obj.tools[1]['solid_geometry'][0].wkt
+    assert obj.scale(2) == 'fail'
+    assert obj.skew(10, 0, (0, 0)) == 'fail'
+    assert obj.tools[1]['solid_geometry'][0].wkt == before
+    assert obj.mtool_gen_cncjob() == 'fail'
+    assert obj.generatecncjob() == 'fail'
+    assert GeometryObject.merge([obj], copied) == 'fail'
+    obj.offset((2, 3))
+    obj.rotate(90, (2, 3))
+    coords = list(obj.tools[1]['solid_geometry'][0].coords)
+    assert coords[0] == pytest.approx((2, 3.0049, -0.105))
+    collected = obj._collect_elements(obj.tools[1]['solid_geometry'])
+    assert not collected[0]['shape'].has_z
+    assert force_2d(obj.tools[1]['solid_geometry'][0]).equals(collected[0]['shape'])
+
+
+def test_photo_adapter_overrides_parse_each_tool_and_keeps_certificate():
+    from tests.test_milling_lifecycle import MillingHarness
+    from appParsers.ParseGCode import parse_gcode
+    from types import SimpleNamespace
+    from copy import deepcopy
+    from unittest.mock import Mock
+    job, built = _writer_job()
+    built['tools'][2] = deepcopy(built['tools'][1])
+    from shapely import Point
+    built['tools'][2]['solid_geometry'] = [Point(7, 8, -0.12345)]
+    built['photocarve']['tools']['2'] = dict(built['photocarve']['tools']['1'], role='rough')
+    context = dict(geo_obj=SimpleNamespace(obj_options={'photocarve': built['photocarve']}),
+                   tools_dict=built['tools'], bounds={}, seg_x=0, seg_y=0,
+                   geo_options={'tools_mill_z_p_depth': -1, 'tools_mill_feedrate_probe': 50},
+                   options={'cncjob_coords_decimals': 4, 'cncjob_fr_decimals': 2, 'global_tolerance': 0.01},
+                   units='MM', overrides={'tools_mill_feedrate': 1234}, toolchange=False, from_tcl=True)
+    context.update(source_obj=context['geo_obj'], outname='photo_cnc', multigeo=True)
+    job.tools = {}
+    job.gcode_parse = Mock(side_effect=lambda **kw: [{'geom': job.gcode}])
+    milling = MillingHarness(app=job.app)
+    milling.new_object = lambda kind, name, initializer, **kw: (
+        'fail' if initializer(job, job.app) == 'fail' else job)
+    assert milling._submit_cnc_job_creation(context, plot=False, use_thread=False) is None
+    assert job.used_tools == [2, 1]
+    assert job.tools[2]['gcode_parsed'][0]['geom'] == job.tools[2]['gcode']
+    assert 'X7.0000 Y8.0000' in job.tools[2]['gcode'] and 'Z-0.1234' in job.tools[2]['gcode']
+    assert 'X7.0000 Y8.0000' not in job.tools[1]['gcode']
+    assert 'F1234' in job.source_file and job.source_file.startswith(job.gc_start)
+    assert job.obj_options['photocarve'] == built['photocarve']
+    assert job.obj_options['photocarve'] is not built['photocarve']
+    parsed = parse_gcode(job.source_file, feedrate_rapid=job.feedrate_rapid, target_units='MM')
+    assert job.travel_distance == parsed['travel_distance'] and job.routing_time == parsed['routing_time']
+    context['overrides']['tools_mill_tooldia'] = 99
+    assert milling._submit_cnc_job_creation(context, plot=False, use_thread=False) == 'fail'
+    context['overrides'].clear()
+    context['tools_dict'][3] = deepcopy(context['tools_dict'][1])
+    assert milling._submit_cnc_job_creation(context, plot=False, use_thread=False) == 'fail'
+
+
+def test_writer_fails_closed_for_missing_post_and_laser_settings():
+    from appPlugins.ToolPhotoCarve.PhotoCarveGcode import write_tool_gcode
+    job, built = _writer_job('GRBL_laser', laser=True)
+
+    def write():
+        return write_tool_gcode(job, 1, built['tools'], (0, 0), None, 0,
+                                 True, True, False, True, built['photocarve'])
+
+    data = built['tools'][1]['data']
+    data['tools_mill_laser_on'] = 'M3'
+    assert write() == 'fail'
+    data['tools_mill_laser_on'] = 'M4'
+    data['tools_mill_min_power'] = 1000
+    assert write() == 'fail'
+    data['tools_mill_min_power'] = 0
+    del job.app.preprocessors['GRBL_laser']
+    assert write() == 'fail'
+
+
+def test_writer_cancellation_stops_a_long_path():
+    from appPlugins.ToolPhotoCarve.PhotoCarveGcode import write_tool_gcode
+    from shapely import LineString
+    from camlib import grace
+    from unittest.mock import patch
+    job, built = _writer_job()
+    built['tools'][1]['solid_geometry'] = [LineString([(x, 0, -0.1) for x in range(1005)])]
+    post = job.app.preprocessors['default']
+    linear = post.linear_code
+
+    def cancel(point):
+        job.app.abort_flag = True
+        return linear(point)
+
+    with patch.object(post, 'linear_code', side_effect=cancel):
+        with pytest.raises(grace):
+            write_tool_gcode(job, 1, built['tools'], (0, 0), None, 0,
+                              True, True, False, True, built['photocarve'])
+
+
+def test_photo_milling_ui_locks_and_restores_certified_fields():
+    from PyQt6 import QtCore, QtGui, QtWidgets
+    from appPlugins.ToolMilling import ToolMilling
+    from appPlugins.ToolMilling.MillingUI import MillingUI
+    from tests.test_milling_lifecycle import MillingHarness
+    from tests.helpers_objects import make_app_0b
+    from types import SimpleNamespace
+    from copy import deepcopy
+    qapp = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    app = make_app_0b()
+    app.collection = QtGui.QStandardItemModel()
+    app.resource_location = 'assets/resources'
+    widget = QtWidgets.QWidget()
+    layout = QtWidgets.QVBoxLayout(widget)
+    ui = MillingUI(layout, app, 'Milling')
+    _, built = _writer_job()
+    milling = MillingHarness(app=app, ui=ui, layout=layout, target_obj=SimpleNamespace(
+        obj_options={'photocarve': built['photocarve']}, tools=built['tools']))
+    ui.tools_table_mill_geo.setRowCount(1)
+    item = QtWidgets.QTableWidgetItem('0.1')
+    ui.tools_table_mill_geo.setItem(0, 1, item)
+    before = deepcopy(built['tools'])
+    milling.set_photocarve_ui()
+    for name in ('offset_type_combo', 'mpass_cb', 'maxdepth_entry', 'extracut_cb', 'cutz_entry',
+                 'exclusion_cb', 'tool_shape_combo', 'tipdia_entry', 'tipangle_entry',
+                 'search_and_add_btn', 'deltool_btn', 'addtool_from_db_btn'):
+        assert not getattr(ui, name).isEnabled(), name
+    assert not item.flags() & QtCore.Qt.ItemFlag.ItemIsEditable
+    for method, args in (('on_tool_add', ()), ('on_tool_default_add', ()),
+                         ('on_tool_copy', ()), ('on_tool_delete', ()),
+                         ('on_tool_edit', (item,)), ('on_tool_from_db_inserted', ({},))):
+        assert getattr(milling, method)(*args) == 'fail'
+    assert built['tools'] == before
+    milling.target_obj.obj_options = {}
+    milling.set_photocarve_ui()
+    assert ui.tool_shape_combo.isEnabled()
+    assert item.flags() & QtCore.Qt.ItemFlag.ItemIsEditable
+
+
+def test_photo_edit_and_join_are_refused_before_side_effects():
+    from appMain import App
+    from appHandlers.appEdit import appEditor
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    obj = SimpleNamespace(kind='geometry', multigeo=True, obj_options={'photocarve': {'version': 1}})
+    harness = SimpleNamespace(defaults=Mock(), call_source='app', inform=Mock(),
+                              collection=SimpleNamespace(get_active=lambda: obj,
+                                                         get_selected=lambda: [obj, obj]))
+    assert App.on_editing_start(harness) == 'fail'
+    assert appEditor.on_edit_join(harness) == 'fail'
+    assert appEditor.on_join_as(harness, 'geometry') == 'fail'
+
+
+def test_photo_cutter_real_form_signals_do_not_change_certificate(monkeypatch):
+    import sys
+    import traceback
+    errors = []
+    monkeypatch.setattr(sys, 'excepthook', lambda typ, value, tb: errors.append(''.join(traceback.format_exception(typ, value, tb))))
+    from tests.test_milling_target_settings import plugin, select, make_object
+    from PyQt6 import QtWidgets
+    from copy import deepcopy
+    qapp = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    _, built = _writer_job()
+    obj = make_object('photo', tool=built['tools'][1])
+    obj.obj_options['photocarve'] = built['photocarve']
+    ordinary = make_object('ordinary')
+    ordinary_before = deepcopy(ordinary.tools)
+    milling = plugin({'photo': obj, 'ordinary': ordinary})
+    from unittest.mock import MagicMock
+    milling.app.inform = MagicMock()
+    select(milling, 'photo')
+    before = deepcopy(obj.tools)
+    milling.ui.tool_shape_combo.set_value(5)
+    milling.ui.tipdia_entry.set_value(0.3)
+    milling.ui.tipangle_entry.set_value(90)
+    milling.ui.mpass_cb.setChecked(True)
+    assert obj.tools == before
+    milling.ui.xyfeedrate_entry.set_value(321)
+    milling.ui.xyfeedrate_entry.returnPressed.emit()
+    assert obj.tools[1]['data']['tools_mill_feedrate'] == 321
+    select(milling, 'ordinary')
+    assert ordinary.tools == ordinary_before
+    assert milling.ui.tool_shape_combo.isEnabled()
+    if errors:
+        pytest.fail('\n'.join(errors))
+
+
+def test_photo_save_load_keeps_xyz_and_certificate(tmp_path):
+    from appCommon.ProjectFile import save_project_file, load_project_file
+    from appObjects.GeometryObject import GeometryObject
+    from tests.helpers_objects import make_app_0b
+    from unittest.mock import Mock, patch
+    from camlib import geometry_wkt_cache, project_json_default
+    _, built = _writer_job()
+    with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
+        obj = GeometryObject('photo', make_app_0b())
+        restored_obj = GeometryObject('restored', obj.app)
+    obj.tools, obj.solid_geometry, obj.multigeo = built['tools'], built['solid_geometry'], True
+    obj.obj_options['photocarve'] = built['photocarve']
+    data = {'objs': [obj.to_dict()]}
+    path = str(tmp_path / 'photo.FlatPrj')
+    save_project_file(path, data, default=project_json_default(geometry_wkt_cache(data)))
+    restored = load_project_file(path)['objs'][0]
+    restored_obj.from_dict(restored)
+    assert restored_obj.obj_options['photocarve'] == built['photocarve']
+    assert restored_obj.multigeo
+    assert list(restored_obj.tools['1']['solid_geometry'][0].coords) == list(built['tools'][1]['solid_geometry'][0].coords)
+
+
+def test_writer_physical_skew_error_and_inch_precision():
+    from appPlugins.ToolPhotoCarve.PhotoCarveGcode import write_tool_gcode
+    from shapely import LineString
+    import re
+    job, built = _writer_job()
+    job._bed_skew_x, job._bed_skew_y, job._bed_limit_x, job._bed_limit_y = 2, -3, 100, 150
+    skew = (2, -3, 100, 150)
+    model = _pure('PhotoCarveModel')
+    built['photocarve']['xy_err'] = model.xy_budget(4, skew)
+    points = np.column_stack([np.random.default_rng(71).uniform(-20, 20, (1000, 2)), np.full(1000, -0.12345)])
+    built['tools'][1]['solid_geometry'] = [LineString(points)]
+    code, header = write_tool_gcode(job, 1, built['tools'], (0, 0), None, 0,
+                                    True, True, False, True, built['photocarve'])
+    printed = np.array([[float(x), float(y)] for x, y in re.findall(r'G0?1 X(-?[\d.]+) Y(-?[\d.]+)', code)])
+    transform = np.array([[1, 2 / 150], [-3 / 100, 1]])
+    model_space = printed @ np.linalg.inv(transform).T
+    assert np.linalg.norm(model_space - points[1:, :2], axis=1).max() <= built['photocarve']['xy_err'] + 1e-12
+    built['photocarve']['xy_err'] /= 25.4
+    assert write_tool_gcode(job, 1, built['tools'], (0, 0), None, 0,
+                            True, True, False, True, built['photocarve']) == 'fail'
+    assert '6 coordinate decimals' in job.app.inform.emit.call_args.args[0]

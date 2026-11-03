@@ -2422,6 +2422,10 @@ class App(QtCore.QObject):
             return 'fail'
 
         edited_object = self.collection.get_active()
+        if (edited_object is not None and isinstance(edited_object.obj_options, dict) and
+                edited_object.obj_options.get('photocarve')):
+            self.inform.emit('[ERROR_NOTCL] %s' % _("Regenerate photo engraving instead of editing certified paths."))
+            return 'fail'
         if edited_object is None:
             self.inform.emit('[ERROR_NOTCL] %s %s' % (_("The Editor could not start."), _("No object is selected.")))
             return

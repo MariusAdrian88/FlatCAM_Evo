@@ -221,6 +221,8 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
         self.multigeo = getattr(src, 'multigeo', self.multigeo)
         self.tooluid = getattr(src, 'tooluid', self.tooluid)
         self.units = getattr(src, 'units', self.units)
+        if 'photocarve' in src.obj_options:
+            self.obj_options['photocarve'] = deepcopy(src.obj_options['photocarve'])
         if hasattr(src, 'source_file'):
             self.source_file = deepcopy(src.source_file)
 
@@ -647,6 +649,10 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
         :return:                None
         """
 
+        if self.obj_options.get('photocarve'):
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _("Use Milling to generate a certified photo engraving CNC job."))
+            return 'fail'
+
         # use the name of the first tool selected in self.geo_tools_table which has the diameter passed as tool_dia
         outname = "%s_%s" % (self.obj_options["name"], 'cnc') if outname is None else outname
 
@@ -1037,6 +1043,10 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
 
         self.app.log.debug("FlatCAMGeometry.GeometryObject.generatecncjob()")
 
+        if self.obj_options.get('photocarve'):
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _("Use Milling to generate a certified photo engraving CNC job."))
+            return 'fail'
+
         tooldia = dia if dia is not None else float(self.obj_options["tools_mill_tooldia"])
         outname = outname if outname is not None else self.obj_options["name"]
 
@@ -1164,6 +1174,10 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
         """
         self.app.log.debug("FlatCAMObj.GeometryObject.scale()")
 
+        if getattr(self, 'obj_options', {}).get('photocarve') and not getattr(self, '_photocarve_unit_change', False):
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _("Regenerate photo engraving to change its scale or skew."))
+            return 'fail'
+
         try:
             xfactor = float(xfactor)
         except Exception:
@@ -1204,6 +1218,12 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
 
         self.app.proc_container.new_text = ''
         self.app.inform.emit('[success] %s' % _("Done."))
+
+    def skew(self, angle_x, angle_y, point):
+        if self.obj_options.get('photocarve'):
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _("Regenerate photo engraving to change its scale or skew."))
+            return 'fail'
+        return super().skew(angle_x, angle_y, point)
 
     def offset(self, vect):
         """
@@ -1349,6 +1369,9 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
                     self._collect_elements(sub_el, color=color, collected=collected)
         except TypeError:
             # Leaf element - not iterable
+            if getattr(self, 'obj_options', {}).get('photocarve') and getattr(element, 'has_z', False):
+                from shapely import force_2d
+                element = force_2d(element)
             collected.append({'shape': element, 'color': color, 'layer': GeometryObject.PLOT_LAYER})
 
         return collected
@@ -1513,6 +1536,14 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
         :param log:         A logging object
         :return: None
         """
+
+        def marked(objects):
+            return any(marked(obj) if isinstance(obj, list) else obj.obj_options.get('photocarve')
+                       for obj in objects)
+
+        if marked(geo_list):
+            geo_final.app.inform.emit('[ERROR_NOTCL] %s' % _("Certified photo engraving cannot be joined."))
+            return 'fail'
 
         if geo_final.solid_geometry is None:
             geo_final.solid_geometry = []

@@ -1549,6 +1549,7 @@ class ToolMilling(Geometry, AppTool):
             self.app.inform.emit('[ERROR_NOTCL] %s: %s' % (_("Could not retrieve object"), str(self.obj_name)))
             return
 
+        self.set_photocarve_ui()
         if self.target_obj is None:
             self.ui.param_frame.setDisabled(True)
             self.ui.plot_cb.setDisabled(True)
@@ -1575,6 +1576,42 @@ class ToolMilling(Geometry, AppTool):
             else:
                 self.ui.param_frame.setDisabled(True)
                 self.ui.generate_cnc_button.setDisabled(True)
+
+        self.set_photocarve_ui()
+
+    def set_photocarve_ui(self):
+        """Certified geometry owns its cutter and depth paths, not the Milling form."""
+        marked = bool(self.target_obj and self.target_obj.obj_options.get('photocarve'))
+        if not marked and not getattr(self.ui, '_photocarve_locked', False):
+            return
+        self.ui._photocarve_locked = marked
+        for name in ('offset_type_combo', 'offset_entry', 'mpass_cb', 'maxdepth_entry',
+                     'extracut_cb', 'e_cut_entry', 'cutz_entry', 'startz_entry', 'exclusion_cb',
+                     'area_shape_radio', 'strategy_radio', 'over_z_entry', 'add_area_button',
+                     'job_type_combo', 'polish_margin_entry', 'polish_over_entry', 'polish_method_combo',
+                     'tool_shape_combo', 'tipdia_entry', 'tipangle_entry', 'addtool_entry',
+                     'search_and_add_btn', 'deltool_btn', 'addtool_from_db_btn', 'apply_param_to_all'):
+            widget = getattr(self.ui, name, None)
+            if widget is not None:
+                widget.setDisabled(marked)
+        table = self.ui.tools_table_mill_geo
+        table.setDragEnabled(not marked)
+        table.setAcceptDrops(not marked)
+        with QtCore.QSignalBlocker(table):
+            for row in range(table.rowCount()):
+                item = table.item(row, 1)
+                if item is not None:
+                    flags = item.flags()
+                    item.setFlags(flags & ~QtCore.Qt.ItemFlag.ItemIsEditable if marked else
+                                  flags | QtCore.Qt.ItemFlag.ItemIsEditable)
+        if marked:
+            table.removeContextMenu()
+        elif self.ui.level.isChecked():
+            self.set_context_menu()
+        if not hasattr(self.ui, 'photocarve_label'):
+            self.ui.photocarve_label = FCLabel(_("Certified photo engraving: regenerate to change cutters or paths."))
+            self.ui.layout.addWidget(self.ui.photocarve_label)
+        self.ui.photocarve_label.setVisible(marked)
 
     def on_object_selection_changed(self, current, previous):
         found_idx = None
@@ -2115,6 +2152,12 @@ class ToolMilling(Geometry, AppTool):
         option_changed = self.name2option.get(wdg_objname)
         if option_changed is None:
             return
+        if self.target_obj.obj_options.get('photocarve') and option_changed in {
+                'tools_mill_tooldia', 'tools_mill_tool_shape', 'tools_mill_vtipdia', 'tools_mill_vtipangle',
+                'tools_mill_offset_type', 'tools_mill_offset_value', 'tools_mill_multidepth',
+                'tools_mill_depthperpass', 'tools_mill_extracut', 'tools_mill_extracut_length',
+                'tools_mill_cutz', 'tools_mill_startz', 'tools_mill_area_exclusion', 'tools_mill_job_type'}:
+            return 'fail'
 
         edited = []
         self.ui_disconnect()
@@ -2223,6 +2266,8 @@ class ToolMilling(Geometry, AppTool):
 
     def on_update_cutz(self):
         """Calculate the Cut Z of the selected V-Shape tools from the V-tip fields."""
+        if self.target_obj and self.target_obj.obj_options.get('photocarve'):
+            return 'fail'
         if self.target_obj is None:
             return
         vdia = float(self.ui.tipdia_entry.get_value())
@@ -2341,6 +2386,8 @@ class ToolMilling(Geometry, AppTool):
         self.build_ui()
 
     def on_tool_add(self, dia=None, new_geo=None):
+        if self.target_obj and self.target_obj.obj_options.get('photocarve'):
+            return 'fail'
         with _history_step(self, _("Add tool")):
             return ToolMilling._on_tool_add(self, dia, new_geo)
 
@@ -2443,6 +2490,8 @@ class ToolMilling(Geometry, AppTool):
         self.app.inform.emit('[success] %s' % _("New tool added to Tool Table from Tools Database."))
 
     def on_tool_default_add(self, dia=None, new_geo=None, muted=None):
+        if self.target_obj and self.target_obj.obj_options.get('photocarve'):
+            return 'fail'
         with _history_step(self, _("Add tool")):
             return ToolMilling._on_tool_default_add(self, dia, new_geo, muted)
 
@@ -2534,6 +2583,8 @@ class ToolMilling(Geometry, AppTool):
         self.app.tools_db_tab.ui.cancel_tool_from_db.show()
 
     def on_tool_from_db_inserted(self, tool):
+        if self.target_obj and self.target_obj.obj_options.get('photocarve'):
+            return 'fail'
         with _history_step(self, _("Add tool from DB")):
             return ToolMilling._on_tool_from_db_inserted(self, tool)
 
@@ -2593,6 +2644,8 @@ class ToolMilling(Geometry, AppTool):
             self.ui.param_frame.setDisabled(False)
 
     def on_tool_edit(self, current_item):
+        if self.target_obj and self.target_obj.obj_options.get('photocarve'):
+            return 'fail'
         with _history_step(self, _("Edit tool")):
             return ToolMilling._on_tool_edit(self, current_item)
 
@@ -2645,6 +2698,8 @@ class ToolMilling(Geometry, AppTool):
         self.target_obj.build_ui()
 
     def on_tool_copy(self, all_tools=None):
+        if self.target_obj and self.target_obj.obj_options.get('photocarve'):
+            return 'fail'
         with _history_step(self, _("Copy tool")):
             return ToolMilling._on_tool_copy(self, all_tools)
 
@@ -2692,6 +2747,8 @@ class ToolMilling(Geometry, AppTool):
         self.app.inform.emit('[success] %s' % _("Tool was copied in Tool Table."))
 
     def on_tool_delete(self, all_tools=None):
+        if self.target_obj and self.target_obj.obj_options.get('photocarve'):
+            return 'fail'
         with _history_step(self, _("Delete tool")):
             return ToolMilling._on_tool_delete(self, all_tools)
 
@@ -3431,6 +3488,9 @@ class ToolMilling(Geometry, AppTool):
     def _submit_cnc_job_creation(self, context, plot, use_thread):
         initializer = self._initialize_multi_geometry_cnc_job if context['multigeo'] else \
             self._initialize_single_geometry_cnc_job
+        if context['geo_obj'].obj_options.get('photocarve'):
+            from appPlugins.ToolPhotoCarve.PhotoCarveGcode import make_photocarve_cncjob
+            initializer = make_photocarve_cncjob
 
         def job_init(new_cncjob_obj, app_obj):
             # work that belongs to the job (the paths of an Excellon): done here, in the thread of the job
@@ -3462,6 +3522,8 @@ class ToolMilling(Geometry, AppTool):
     def on_pp_changed(self):
         current_pp = self.ui.pp_geo_name_cb.get_value()
         self.ui.on_pp_changed(current_pp, self.ui.level.isChecked())
+        if self.target_obj and self.target_obj.obj_options.get('photocarve'):
+            self.set_photocarve_ui()
 
     def on_plot_cb_click(self):
         self.target_obj.plot()
