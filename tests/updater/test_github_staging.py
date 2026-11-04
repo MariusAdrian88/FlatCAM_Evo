@@ -242,6 +242,20 @@ def test_linux_staging_returns_full_manifest_with_release_identity(monkeypatch, 
     assert transport.calls[0]["url"] == _linux_payload()["zipball_url"]
 
 
+def test_linux_staging_reports_the_optional_package_changes_apart(monkeypatch, tmp_path):
+    optional = [(_info(WRAPPER + "/requirements-optional.txt"), b"# optional\npyclipr==0.1.8\nortools>=7.0\n")]
+    body = _zip_bytes(_source_entries(extra=optional))
+    root = _install_root(tmp_path)
+    (root / "requirements-optional.txt").write_text("pyclipr==0.1.8\n", encoding="utf-8")
+
+    result = _stage(monkeypatch, tmp_path, _linux_payload(), body, platform="linux", frozen=False, install_root=root)
+
+    assert result.dependencies["changed"] is False
+    assert result.dependencies["optional_changed"] is True
+    assert result.dependencies["optional_added"] == ["ortools>=7.0"]
+    assert result.dependencies["optional_removed"] == []
+
+
 def test_windows_staging_verifies_asset_digest_and_reports_trust(monkeypatch, tmp_path):
     body = _zip_bytes(_windows_entries())
     transport = FakeTransport(body)

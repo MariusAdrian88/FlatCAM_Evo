@@ -117,6 +117,25 @@ class TestBoundedStandardOffsets(unittest.TestCase):
                 self.assertLess(new.difference(old).difference(polygon).area, 1e-12)
                 self.assertGreater(new.difference(old).area, 0)
 
+    def test_clipper_and_geos_insets_clear_the_same_concave_area(self):
+        from unittest import mock
+        from appCommon import clipper_ops
+        if not clipper_ops.available():
+            self.skipTest("pyclipr is not installed")
+        n = 40
+        star = Polygon([((5 if i % 2 else 2.5) * math.cos(math.pi * i / n), (5 if i % 2 else 2.5) *
+                         math.sin(math.pi * i / n)) for i in range(2 * n)])
+        fast = self.paths(star, 0.4)
+        with mock.patch.object(clipper_ops, 'pyclipr', None):
+            slow = self.paths(star, 0.4)
+        self.assertTrue(fast and slow)
+        margin = star.buffer(-0.2, quad_segs=16)
+        self.assertTrue(all(margin.buffer(1e-9).covers(p) for p in fast))
+        # the cut areas match within the inner ring allowance (a quarter of the overlap width per side)
+        cut_fast, cut_slow = cutter_sweep(fast, 0.2), cutter_sweep(slow, 0.2)
+        self.assertLess(cut_fast.symmetric_difference(cut_slow).area, 0.01 * cut_slow.area)
+        self.assertTrue(cut_slow.difference(cut_fast).buffer(-0.4 * 0.15 / 2).is_empty)
+
 
 if __name__ == '__main__':
     unittest.main()

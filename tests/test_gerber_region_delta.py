@@ -87,3 +87,33 @@ def test_import_preflight_rejects_the_whole_batch():
     assert not editor.history.undo_stack
 
 
+
+
+@pytest.mark.parametrize('operation', ['union', 'difference'])
+def test_material_regions_of_a_board_match_geos_without_clipper(operation):
+    from unittest import mock
+    from appCommon import clipper_ops
+    tiles = [box(x * 1.5, y * 1.5, x * 1.5 + 2, y * 1.5 + 2) for x in range(10) for y in range(10)]
+    expected = unary_union(tiles) if operation == 'union' else tiles[0].difference(unary_union(tiles[1:]))
+    for clipper in (True, False):
+        shapes = [DrawToolShape({'solid': tile}) for tile in tiles]
+        editor = make_editor({10: aperture(shapes)})
+        editor.selected = shapes
+        with mock.patch.object(clipper_ops, 'pyclipr', clipper_ops.pyclipr if clipper else None):
+            assert editor.apply_region_operation(operation) != 'fail'
+        result = unary_union([shape.geo['solid'] for shape in editor.selected])
+        assert result.symmetric_difference(expected).area < 1e-6
+
+
+def test_saving_a_board_of_records_fuses_the_copper_like_geos(app):
+    from unittest import mock
+    from appCommon import clipper_ops
+    source = make_gerber(app, NATIVE_GBR)
+    tiles = [box(x * 1.5, y * 1.5, x * 1.5 + 2, y * 1.5 + 2) for x in range(10) for y in range(10)]
+    tools = {10: {'type': 'REG', 'size': 0.0, 'geometry': [{'solid': tile} for tile in tiles]}}
+    saved = []
+    for clipper in (True, False):
+        with mock.patch.object(clipper_ops, 'pyclipr', clipper_ops.pyclipr if clipper else None):
+            saved.append(unary_union(editor_save(app, source, tools, loaded_as_regions=True).solid_geometry))
+    assert saved[0].symmetric_difference(saved[1]).area < 1e-6
+    assert saved[0].symmetric_difference(unary_union(tiles)).area < 1e-6

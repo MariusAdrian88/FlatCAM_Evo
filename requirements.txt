@@ -14,10 +14,8 @@
 
 setuptools
 numpy>=1.16
-cycler>=0.10
 python-dateutil>=2.1
 kiwisolver>=1.1
-six
 # project compression; Python 3.14 and newer has it in the standard library (compression.zstd)
 zstandard; python_version < "3.14"
 qrcode>=6.1
@@ -26,10 +24,7 @@ rtree
 # foronoi>=1.0.3
 shapely>=2.0
 
-# ###############################
-# OR-TOOLS package is now optional
-ortools>=7.0
-# ###############################
+# Optional packages (OR-Tools, pyclipr) are in requirements-optional.txt: python install_optional.py
 
 lxml
 svg.path>=4.0

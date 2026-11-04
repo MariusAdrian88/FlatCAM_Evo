@@ -184,7 +184,11 @@ Some packages are optional. FlatCAM Evo runs without them, but the related featu
 | `rasterio` (with GDAL) | The Image import plugin. |
 | `vtracer` | The tracing mode of the Image import plugin. |
 | `pikepdf` | An alternative PDF parser (the built-in parser is the default). |
-| `pyclipr` | Faster fusion of the Gerber geometry when a file is opened. See [`requirements-optional.txt`](requirements-optional.txt). |
+| `pyclipr` | Faster Gerber fusion, NCC/Paint clearing and rest machining, and Gerber/Geometry Editor union and subtract. |
+
+`ortools` and `pyclipr` are in [`requirements-optional.txt`](requirements-optional.txt), not in `requirements.txt`:
+they have no wheel for some platforms, and a failed package stops a `pip install -r`. Install them with
+`python install_optional.py`. The script installs each package separately and skips a package that fails.
 
 ### 1. Get the source code
 
@@ -212,6 +216,12 @@ Conda installs the packages that need system libraries (GDAL, GEOS, libspatialin
    mamba activate flatcam
    ```
 
+4. Install the optional packages (a package that fails is skipped):
+
+   ```bash
+   python install_optional.py
+   ```
+
 ### 2b. Install with pip and a virtual environment
 
 1. Create and activate a virtual environment in the project folder:
@@ -228,7 +238,7 @@ Conda installs the packages that need system libraries (GDAL, GEOS, libspatialin
    ```bash
    python -m pip install --upgrade pip
    python -m pip install -r requirements.txt
-   python -m pip install -r requirements-optional.txt   # optional
+   python install_optional.py   # optional packages; a package that fails is skipped
    ```
 
 3. If `pip` cannot install `gdal`:
@@ -318,6 +328,7 @@ For a Git checkout, you can also update with Git:
 ```bash
 git pull
 python -m pip install -r requirements.txt   # or: mamba env update -f environment.yml
+python install_optional.py
 ```
 
 ### Where FlatCAM Evo keeps its data

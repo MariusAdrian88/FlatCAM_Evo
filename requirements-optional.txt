@@ -1,5 +1,11 @@
 # Optional packages. FlatCAM works without them.
-# pyclipr makes the fusion of Gerber geometry faster.
-# Wheels exist for Windows (Python 3.11 to 3.14) and macOS arm64.
-# Other platforms build it from source.
+# Install them with:  python install_optional.py
+# The script installs each package separately: a package that fails to install is skipped.
+# (pip install -r requirements-optional.txt stops at the first failure and installs none of them.)
+
+# pyclipr (Clipper2): faster Gerber fusion, NCC/Paint clearing and rest machining, Gerber/Geometry Editor union and
+# subtract. Wheels exist for Windows (Python 3.11 to 3.14) and macOS arm64. Other platforms build it from source.
 pyclipr==0.1.8
+
+# OR-Tools: the MetaHeuristic and Basic path optimization of drill and mill paths. 64-bit Python only.
+ortools>=7.0

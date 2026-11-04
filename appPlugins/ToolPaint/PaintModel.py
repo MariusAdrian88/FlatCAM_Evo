@@ -5,10 +5,11 @@ from copy import deepcopy
 
 import numpy as np
 import shapely
-from shapely import LineString, LinearRing, MultiLineString, Point, Polygon, STRtree, make_valid
+from shapely import LineString, LinearRing, MultiLineString, MultiPolygon, Point, Polygon, STRtree, make_valid
 from shapely.geometry import base
 from shapely.ops import linemerge, unary_union
 
+from appCommon import clipper_ops
 from camlib import (AppRTreeStorage, accepted_error, circle_quad_segs, clearing_margin, error_quad_segs,
                     flatten_shapely_geometry, grace, rest_area)
 
@@ -175,6 +176,11 @@ def swept_area(paths, diameter, quad_segs=16):
     paths = [path for path in paths if path is not None and not path.is_empty]
     if not paths:
         return Polygon()
+    # Clipper2 offsets all open paths in one pass (2 to 5x faster than GEOS); like GEOS its round ends stay inside the
+    # true circle sweep by the arc tolerance of the quad_segs. None (no pyclipr, not lines): the GEOS code below.
+    parts = clipper_ops.offset_lines(paths, diameter / 2.0, clipper_ops.arc_tolerance(diameter / 2.0, quad_segs))
+    if parts is not None:
+        return Polygon() if not parts else parts[0] if len(parts) == 1 else MultiPolygon(parts)
     # A buffer for each path, then 1 union: the same area, about 4x faster than the buffer of the union.
     return shapely.union_all(shapely.buffer(paths, diameter / 2.0, quad_segs=quad_segs))
 

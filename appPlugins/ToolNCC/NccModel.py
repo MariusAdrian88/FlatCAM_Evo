@@ -13,6 +13,7 @@ from shapely.ops import unary_union
 
 from camlib import (clearing_margin, error_quad_segs, flatten_shapely_geometry, grace, polygon_gap_pairs,
                     rest_area)
+from appPlugins.ToolPaint.PaintModel import swept_area
 
 log = logging.getLogger('base')
 
@@ -445,8 +446,7 @@ def generate_tools(mode, tool_settings, tools_storage, diameters, areas, name, d
                 # the chords of the swept area stay within the accepted error: its slivers are not residual
                 segments = (error_quad_segs(used_diameter / 2, clearing_error) if clearing_error
                             else quad_segs(circle_steps))
-                swept = shapely.union_all(shapely.buffer(flatten_shapely_geometry(paths), used_diameter / 2,
-                                                         quad_segs=segments))
+                swept = swept_area(flatten_shapely_geometry(paths), used_diameter, segments)
                 residual = residual.difference(swept)
                 residual = MultiPolygon([pol for pol in flatten_shapely_geometry(residual)
                                          if isinstance(pol, Polygon) and pol.is_valid and not pol.is_empty])

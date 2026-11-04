@@ -26,7 +26,8 @@ dependencies:
 - svglib
 - vispy>=0.17.0
 - zstandard
+# the optional packages (OR-Tools, pyclipr) are not listed: a failed pip package stops the environment.
+# After the environment is made, run:  python install_optional.py
 - pip:
-  - ortools>=7.0
   - pyqt6>=6.1.0
   - vtracer>=0.6.15

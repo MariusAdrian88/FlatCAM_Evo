@@ -41,6 +41,7 @@ SOURCE_VERSION_MEMBER = "appMain.py"
 SOURCE_ROOT_ENTRIES = ("flatcam.py", "appMain.py")
 WINDOWS_ROOT_ENTRIES = ("FlatCAM.exe", "lib/library.zip")
 REQUIREMENTS_MEMBER = "requirements.txt"
+OPTIONAL_REQUIREMENTS_MEMBER = "requirements-optional.txt"
 _STAGING_PREFIX = "flatcam-evo-update-"
 
 _TRUST_DIGEST = "Update archive verified against the published GitHub SHA-256 digest."
@@ -460,7 +461,20 @@ def _requirement_lines(text: str | None) -> frozenset[str]:
 
 
 def _dependency_changes(install_root: Path, payload_dir: Path) -> dict:
-    """Return requirement differences for the later explicit GUI confirmation."""
+    """
+    Return requirement differences for the later explicit GUI confirmation.
+
+    The optional packages (requirements-optional.txt) are reported apart: FlatCAM starts without them, so only a
+    changed package line counts, not an edited comment.
+    """
+    staged_optional = _requirement_lines(_read_requirements(payload_dir / OPTIONAL_REQUIREMENTS_MEMBER))
+    installed_optional = _requirement_lines(_read_requirements(Path(install_root) / OPTIONAL_REQUIREMENTS_MEMBER))
+    optional = {
+        "optional_added": sorted(staged_optional - installed_optional),
+        "optional_removed": sorted(installed_optional - staged_optional),
+    }
+    optional["optional_changed"] = bool(optional["optional_added"] or optional["optional_removed"])
+
     staged_text = _read_requirements(payload_dir / REQUIREMENTS_MEMBER)
     installed_text = _read_requirements(Path(install_root) / REQUIREMENTS_MEMBER)
     staged = _requirement_lines(staged_text)
@@ -473,7 +487,7 @@ def _dependency_changes(install_root: Path, payload_dir: Path) -> dict:
         changed = True
     else:
         changed = bool(added or removed) or staged_text != installed_text
-    return {"changed": changed, "added": added, "removed": removed}
+    return {"changed": changed, "added": added, "removed": removed, **optional}
 
 
 def _trust_text(channel: str, digest_verified: bool) -> str:

@@ -72,6 +72,7 @@ jobs:
         run: |
           conda install -y gdal rasterio freetype tk pillow 'numpy=1.26.4'
           python -m pip install -r requirements.txt 'numpy==1.26.4' 'ortools==9.14.6206' 'cx-Freeze==8.7.3'
+          python install_optional.py
           python -m pip check
           python -c 'import os, platform; assert platform.machine() == os.environ["PACKAGE_ARCH"], platform.machine()'
 

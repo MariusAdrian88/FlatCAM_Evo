@@ -95,3 +95,21 @@ def test_polygonize_without_usable_enclosure_leaves_storage_and_history_unchange
     assert not any('[success]' in str(call) for call in editor.app.inform.emit.call_args_list)
 
 
+
+
+@pytest.mark.parametrize('operation', ['union', 'subtract'])
+def test_union_and_subtract_of_a_board_of_polygons_match_geos_without_clipper(operation):
+    from unittest import mock
+    from appCommon import clipper_ops
+    tiles = [box(x * 1.5, y * 1.5, x * 1.5 + 2, y * 1.5 + 2) for x in range(10) for y in range(10)]
+    results = []
+    for clipper in (True, False):
+        originals = [DrawToolShape(tile) for tile in tiles]
+        editor = editor_with_history(originals, originals)
+        with mock.patch.object(clipper_ops, 'pyclipr', clipper_ops.pyclipr if clipper else None):
+            getattr(AppGeoEditor, operation)(editor)
+            run_worker(editor)
+        results.append(unary_union([shape.geo for shape in editor.storage.get_objects()]))
+    expected = unary_union(tiles) if operation == 'union' else tiles[0].difference(unary_union(tiles[1:]))
+    for result in results:
+        assert result.symmetric_difference(expected).area < 1e-6

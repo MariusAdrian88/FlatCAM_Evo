@@ -3558,7 +3558,8 @@ class App(QtCore.QObject):
     @staticmethod
     def _dependency_warning(dependencies):
         detail = []
-        for label, key in (("Added", "added"), ("Removed", "removed")):
+        for label, key in ((_("Added"), "added"), (_("Removed"), "removed"),
+                           (_("Optional added"), "optional_added"), (_("Optional removed"), "optional_removed")):
             values = dependencies.get(key) or []
             if values:
                 detail.append("%s: %s" % (label, ", ".join(sorted(str(value) for value in values))))
@@ -3568,12 +3569,19 @@ class App(QtCore.QObject):
         """Ask on the GUI thread before the external helper may touch the installation."""
         dependencies = dependencies if isinstance(dependencies, dict) else {}
         warning = ""
-        if channel == "linux" and dependencies.get("changed"):
+        # a changed requirements.txt can stop the start (Cancel is the default); FlatCAM starts without the
+        # optional packages, so their change is only a note (Yes stays the default)
+        blocking = channel == "linux" and bool(dependencies.get("changed"))
+        if blocking:
             warning = _(
                 "The application requirements changed. Update the Python environment and "
                 "restart afterwards; otherwise FlatCAM may fail to start. FlatCAM does not "
                 "run pip or change the environment itself."
             )
+        elif channel == "linux" and dependencies.get("optional_changed"):
+            warning = _("Optional packages changed. FlatCAM works without them. "
+                        "To install them, run: python install_optional.py")
+        if warning:
             detail = self._dependency_warning(dependencies)
             if detail:
                 warning = "%s\n%s" % (warning, detail)
@@ -3589,7 +3597,7 @@ class App(QtCore.QObject):
             message.append(warning)
         default = (
             QtWidgets.QMessageBox.StandardButton.Cancel
-            if warning
+            if blocking
             else QtWidgets.QMessageBox.StandardButton.Yes
         )
         box = QtWidgets.QMessageBox(self.ui)

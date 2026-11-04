@@ -6,6 +6,37 @@ Based on FlatCAM:
 
 CHANGELOG for FlatCAM Evo
 
+04.11.2026
+
+Performance (optional Clipper2 / pyclipr):
+
+- new: when the optional package pyclipr is installed, some geometry operations use Clipper2; without pyclipr, or when a Clipper2 result is not valid, the previous (Shapely) code runs and the result is the same
+- changed: NCC and Paint: the tool sweep of the rest machining and of the residual check is 2 to 5 times faster
+- changed: Paint, NCC and Geometry Editor Paint, Standard method: the inset passes are up to 15 times faster on concave outlines (text, logos, stars); on a usual board the speed does not change
+- changed: Gerber Editor: the save of a whole board is about 20 times faster
+- changed: Gerber Editor (region union and difference) and Geometry Editor (Union and Subtract): an operation on 64 shapes or more is about 9 times faster
+- measured and not changed (Clipper2 is slower there): the Gerber track buffers, the NCC area and margin, the Isolation passes and rest machining, Film, Invert Gerber, Copper Thieving and the track bend of the Gerber Editor
+
+Installation:
+
+- changed: OR-Tools and pyclipr are optional packages in requirements-optional.txt (not in requirements.txt): they have no wheel for some platforms, and 1 failed package stops a "pip install -r"
+- new: install_optional.py installs each optional package separately; a package that fails is skipped with a note (python install_optional.py); setup_ubuntu.sh, the conda notes of environment.yml, the release build and the README use it
+- changed: requirements.txt: cycler and six removed
+- changed: the Windows wheels for Python 3.15 (GDAL, OR-Tools, pyclipr, rasterio) are in assets/Missing wheels; the Python 3.14 GDAL and rasterio wheels are removed
+
+Updater:
+
+- new: Linux source installation: the update dialog also lists the changes of the optional packages; when only the optional packages change, a note tells to run python install_optional.py and Yes stays the default button
+- fixed: the labels "Added" and "Removed" of the update dialog were not translated
+
+GUI:
+
+- changed: the Gerber project icon (light and dark theme)
+
+Translations:
+
+- changed: the new strings of the update dialog are translated in all 9 languages; the .mo files compiled again
+
 03.11.2026
 
 CNCJob:

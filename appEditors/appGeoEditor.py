@@ -42,6 +42,7 @@ from appEditors.vertex_ops import (vertex_address, edit_vertex, check_vertex_res
                                    SUPPORTED_TYPES)
 from appEditors.vertex_grips import VertexGrips
 from appEditors.cursor_text import show_cursor_text, hide_cursor_text
+from appCommon.clipper_ops import boolean_geometry as clipper_boolean
 
 from vispy.geometry import Rect
 
@@ -3803,7 +3804,8 @@ class AppGeoEditor(QtCore.QObject):
             with editor_self.app.proc_container.new(_("Working...")):
                 selected = editor_self.get_selected()
 
-                results = unary_union([t.geo for t in selected])
+                geos = [t.geo for t in selected]
+                results = clipper_boolean(geos, [], 'union') or unary_union(geos)
                 if results.geom_type == 'MultiLineString':
                     results = linemerge(results)
 
@@ -3954,8 +3956,12 @@ class AppGeoEditor(QtCore.QObject):
                         target = Polygon(target)
                     tools = selected[1:]
                     # toolgeo = unary_union([shp.geo for shp in tools]).buffer(0.0000001)
-                    toolgeo = unary_union([Polygon(tool.geo) if tool.geo.is_ring else tool.geo for tool in tools])
-                    target = target.difference(toolgeo)
+                    tool_geos = [Polygon(tool.geo) if tool.geo.is_ring else tool.geo for tool in tools]
+                    fast = clipper_boolean([target], tool_geos, 'difference')
+                    if fast is not None:
+                        target = fast
+                    else:
+                        target = target.difference(unary_union(tool_geos))
                     inserted = []
                     editor_self._collect_shape(DrawToolShape(target), inserted)
                     editor_self.delete_shape(selected[0], inserted=inserted)

@@ -208,6 +208,53 @@ class TestStructure(ClipperTestCase):
         result = self.assert_same_as_geos([multi, sq(5.5, 5.5, 7, 7)], expected=(2, 0))
         self.assertAlmostEqual(sum(p.area for p in result), 2 + 1 + 2.25 - 0.25, places=6)
 
+
+class TestClipperOps(ClipperTestCase):
+    """appCommon/clipper_ops.py: the results match GEOS within the arc tolerance."""
+
+    TOL = 1e-4
+
+    def assert_close(self, result, reference, tol):
+        self.assertIsNotNone(result)
+        shape = MultiPolygon(result)
+        self.assertTrue(shape.is_valid)
+        self.assertEqual(len(result), len(getattr(reference, 'geoms', [reference])))
+        self.assertLess(shape.symmetric_difference(reference).area, reference.length * tol * 2)
+
+    def test_offset_polygons_in_and_out_keep_the_holes(self):
+        from appCommon import clipper_ops
+        part = sq(0, 0, 10, 10).difference(sq(4, 4, 6, 6))
+        worker = clipper_ops.PolygonOffsetter([part])
+        for distance in (-0.5, -1.5, 0.3):
+            reference = part.buffer(distance, quad_segs=64)
+            self.assert_close(worker.offset(distance, self.TOL), reference, self.TOL)
+        self.assertEqual(worker.offset(-6, self.TOL), [])
+
+    def test_offset_lines_is_the_union_of_the_line_buffers(self):
+        from appCommon import clipper_ops
+        lines = [shapely.LineString([(0, 0), (10, 0)]), shapely.LineString([(5, -5), (5, 5)]),
+                 shapely.LinearRing([(20, 0), (24, 0), (24, 4), (20, 4)])]
+        reference = shapely.union_all([line.buffer(0.5, quad_segs=64) for line in lines])
+        self.assert_close(clipper_ops.offset_lines(lines, 0.5, self.TOL), reference, self.TOL)
+
+    def test_boolean_difference_and_union(self):
+        from appCommon import clipper_ops
+        board = sq(0, 0, 20, 20)
+        copper = [sq(2, 2, 5, 5), sq(4, 4, 8, 8), Point(15, 15).buffer(2, quad_segs=16)]
+        self.assert_close(clipper_ops.boolean(board, copper, 'difference'),
+                          board.difference(shapely.union_all(copper)), 1e-9)
+        self.assert_close(clipper_ops.union(copper), shapely.union_all(copper), 1e-9)
+
+    def test_no_pyclipr_or_bad_input_returns_none(self):
+        from appCommon import clipper_ops
+        with mock.patch.object(clipper_ops, 'pyclipr', None):
+            self.assertIsNone(clipper_ops.offset_polygons([sq(0, 0, 1, 1)], -0.1, self.TOL))
+            self.assertIsNone(clipper_ops.offset_lines([shapely.LineString([(0, 0), (1, 0)])], 0.1, self.TOL))
+            self.assertIsNone(clipper_ops.union([sq(0, 0, 1, 1)]))
+        bowtie = Polygon([(0, 0), (1, 1), (1, 0), (0, 1)])
+        self.assertIsNone(clipper_ops.union([bowtie]))
+        self.assertIsNone(clipper_ops.offset_lines([sq(0, 0, 1, 1)], 0.1, self.TOL))
+
 # ----------------------------------------------------------------------------------------------------------------------
 # Group B: safe fallback
 # ----------------------------------------------------------------------------------------------------------------------

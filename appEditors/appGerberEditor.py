@@ -8,6 +8,8 @@
 from appHandlers.appHistory import history_of
 from appEditors.grb_plugins.GrbCommon import (gerber_steps, gerber_quad, DrawToolUtilityShape, DrawToolShape, DrawTool, ShapeToolEditorGrb,
                                                    numeric_aperture_codes)
+from appCommon.clipper_ops import MIN_SHAPES as CLIPPER_MIN_SHAPES, boolean_geometry as clipper_boolean
+from appParsers.clipper_fuse import fuse_parts
 
 from camlib import distance, arc, three_point_circle, flatten_shapely_geometry, translate_geometry
 from appGUI.GUIElements import *
@@ -5861,10 +5863,14 @@ class AppGerberEditor(QtCore.QObject):
 
         follow_buffer = flatten_shapely_geometry(follow_buffer)
 
-        new_poly = MultiPolygon(flatten_shapely_geometry(poly_buffer))
-        new_poly = new_poly.buffer(0.00000001)
-        new_poly = new_poly.buffer(-0.00000001)
-        new_poly = flatten_shapely_geometry(new_poly)
+        parts = flatten_shapely_geometry(poly_buffer)
+        # Clipper2 closing of the whole board (20x faster than the GEOS buffer pair); None: use GEOS
+        new_poly = fuse_parts(parts) if len(parts) >= CLIPPER_MIN_SHAPES else None
+        if not new_poly:
+            new_poly = MultiPolygon(parts)
+            new_poly = new_poly.buffer(0.00000001)
+            new_poly = new_poly.buffer(-0.00000001)
+            new_poly = flatten_shapely_geometry(new_poly)
         grb_obj.solid_geometry = deepcopy(new_poly)
 
         grb_obj.follow_geometry = follow_buffer
@@ -7703,9 +7709,10 @@ class AppGerberEditor(QtCore.QObject):
 
         # Compute and validate the complete output before changing ownership or history state.
         if operation == 'union':
-            output = [unary_union(solids)]
+            output = [clipper_boolean(solids, [], 'union') or unary_union(solids)]
         elif operation in ('difference', 'difference_keep'):
-            output = [solids[0].difference(unary_union(solids[1:]))]
+            output = [clipper_boolean(solids[:1], solids[1:], 'difference') or
+                      solids[0].difference(unary_union(solids[1:]))]
         elif operation == 'intersection':
             result = solids[0]
             for solid in solids[1:]:

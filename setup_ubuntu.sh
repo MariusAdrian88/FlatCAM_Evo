@@ -51,8 +51,8 @@ sudo apt-get install -y \
 
 .venv/bin/python -m pip install -r requirements.txt
 
-# optional: faster fusion of the Gerber geometry (it can fail to build on some systems; FlatCAM Evo works without it)
-.venv/bin/python -m pip install -r requirements-optional.txt || echo "The optional packages were not installed."
+# optional packages (pyclipr, OR-Tools): each one is installed separately, a failure skips only that package
+.venv/bin/python install_optional.py
 
 echo
 echo "Done. Start FlatCAM Evo with:   .venv/bin/python flatcam.py"

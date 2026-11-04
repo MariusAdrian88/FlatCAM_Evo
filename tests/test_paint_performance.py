@@ -48,6 +48,25 @@ def run_rest(worker, params, polygons, diameters):
 class TestPaintPerformance(unittest.TestCase):
     setUp = paint_cases.TestPaintGeometry.setUp
 
+    def test_swept_area_with_clipper_matches_shapely_and_is_not_larger(self):
+        import numpy as np
+        import shapely
+        from unittest import mock
+        from appCommon import clipper_ops
+        rng = np.random.default_rng(3)
+        paths = [shapely.LineString(rng.uniform(0, 20, (4, 2))) for _ in range(60)]
+        paths.append(shapely.LinearRing([(1, 1), (5, 1), (5, 4), (1, 1)]))
+        diameter, quad = 0.4, 8
+        expected = shapely.union_all(shapely.buffer(paths, diameter / 2, quad_segs=quad))
+        tolerance = clipper_ops.arc_tolerance(diameter / 2, quad)
+        swept = PaintModel.swept_area(paths, diameter, quad)
+        self.assertTrue(swept.is_valid)
+        self.assertLess(swept.symmetric_difference(expected).area, expected.length * tolerance)
+        self.assertEqual(swept.difference(expected.buffer(2 * tolerance)).area, 0.0)
+        with mock.patch.object(clipper_ops, 'pyclipr', None):
+            self.assertEqual(PaintModel.swept_area(paths, diameter, quad).symmetric_difference(expected).area, 0.0)
+        self.assertTrue(PaintModel.swept_area([], diameter, quad).is_empty)
+
     def test_rest_tool_clears_the_stock_that_is_narrower_than_it(self):
         # The 1.0 tool leaves the corners of the area and strips around the hole; the 0.4 tool crosses the cut area
         # to reach them and stays inside the area.

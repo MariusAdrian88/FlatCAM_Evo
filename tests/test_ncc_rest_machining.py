@@ -132,6 +132,23 @@ def test_rest_margin_and_exact_swept_area_are_used():
     assert list(output.tools) == [2, 1]
 
 
+def test_rest_residual_is_the_same_with_and_without_clipper():
+    from unittest import mock
+    from appCommon import clipper_ops
+    area = MultiPolygon([box(0, 0, 10, 10)])
+    paths = [LineString([(1, y / 2), (9, y / 2 + 1)]) for y in range(2, 14)]
+    residuals = []
+    for patched in (False, True):
+        with mock.patch.object(clipper_ops, 'pyclipr', None) if patched else mock.MagicMock():
+            tools = {1: line_tool(2.0), 2: line_tool(1.0)}
+            _, _, residual, _, _ = NccModel.generate_tools(
+                'gui_rest', tools, tools, [2.0, 1.0], {1: area, 2: area}, 'n', 4, 32,
+                lambda **kw: paths if kw['tooldia'] == 2.0 else None, lambda: None, lambda text: None)
+            residuals.append(residual)
+    assert residuals[0].area < area.area
+    assert residuals[0].symmetric_difference(residuals[1]).area < 1e-3
+
+
 @pytest.mark.parametrize("order, preference, expected", [
     ("fwd", 2, [1, 2]), (1, 2, [1, 2]),
 ])
