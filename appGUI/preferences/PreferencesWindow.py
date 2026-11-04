@@ -137,6 +137,32 @@ def setting_rows(group):
     return rows
 
 
+def help_html(title, tooltip):
+    """
+    The text of the help strip: the name of the setting and its tooltip, nothing else. The line breaks of a tooltip
+    that only wrap a sentence become spaces; the ones that start a list item or follow a full stop stay.
+    """
+    if Qt.mightBeRichText(tooltip):
+        body = tooltip
+    else:
+        lines = [line.strip() for line in tooltip.strip().splitlines()]
+        body = ''
+        for index, line in enumerate(lines):
+            if index:
+                previous = lines[index - 1]
+                new_line = (not line or not previous or previous[-1] in '.:;!?' or
+                            line[0] in "-*'\"(\u2022" or line[0].isdigit())
+                body += '<br>' if new_line else ' '
+            body += _escape(line)
+    if not title:
+        return body
+    return '<b>%s</b> &nbsp;\u00b7&nbsp; %s' % (_escape(title), body)
+
+
+def _escape(text):
+    return text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+
 class _RowDelegate(QtWidgets.QStyledItemDelegate):
     """The rows of the tree get some air."""
 
@@ -151,7 +177,8 @@ class PreferencesPage:
     # the group gets at least this width; a wider page has an empty margin instead of stretched fields
     max_width = 640
 
-    def __init__(self, section, name, group, item):
+    def __init__(self, window, section, name, group, item):
+        self.window = window
         self.section = section
         self.name = name
         self.group = group
@@ -188,6 +215,9 @@ class PreferencesPage:
         group.setMaximumWidth(max(self.max_width, group.minimumSizeHint().width()))
         lay.addWidget(group, 1)
         lay.addStretch(0)
+
+        for widget in [group] + group.findChildren(QtWidgets.QWidget):
+            widget.installEventFilter(self.window)
 
         self.widget = QtWidgets.QScrollArea()
         self.widget.setWidgetResizable(True)
@@ -271,6 +301,19 @@ class PreferencesWindow(QtWidgets.QWidget):
 
         self.stack = QtWidgets.QStackedWidget()
         right_lay.addWidget(self.stack, 1)
+
+        # the help strip: the tooltip of the setting under the mouse or with the focus
+        self.help_label = QtWidgets.QLabel()
+        self.help_label.setWordWrap(True)
+        self.help_label.setTextFormat(Qt.TextFormat.RichText)
+        self.help_label.setAlignment(Qt.AlignmentFlag.AlignLeading | Qt.AlignmentFlag.AlignTop)
+        self.help_label.setContentsMargins(8, 6, 8, 6)
+        self.help_area = QtWidgets.QScrollArea()
+        self.help_area.setWidgetResizable(True)
+        self.help_area.setWidget(self.help_label)
+        self.help_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.help_area.setFixedHeight(self.fontMetrics().lineSpacing() * 4 + 16)
+        right_lay.addWidget(self.help_area)
         self.splitter.addWidget(right)
 
         self.splitter.setStretchFactor(0, 0)
@@ -295,7 +338,7 @@ class PreferencesWindow(QtWidgets.QWidget):
                 group = getattr(getattr(self.ui, form_name, None), group_name, None)
                 if group is None:
                     continue
-                page = PreferencesPage(section, name or group.title(), group, None)
+                page = PreferencesPage(self, section, name or group.title(), group, None)
                 page.item = QtWidgets.QTreeWidgetItem([page.name, ''])
                 page.item.setData(0, Qt.ItemDataRole.UserRole, len(self.pages))
                 section_item.addChild(page.item)
@@ -373,8 +416,10 @@ class PreferencesWindow(QtWidgets.QWidget):
         widget = page.build()
         if self.stack.indexOf(widget) < 0:
             self.stack.addWidget(widget)
+        if self.stack.currentWidget() is not widget:
+            self.help_label.setText('')         # the help of the page that was shown
         self.stack.setCurrentWidget(widget)
-        self.path_label.setText('%s  ›  %s' % (page.section, page.name))
+        self.path_label.setText('%s  \u203a  %s' % (page.section, page.name))
         self.title_label.setText(page.name)
         if self.tree.currentItem() is not page.item:
             self.tree.setCurrentItem(page.item)
@@ -401,6 +446,40 @@ class PreferencesWindow(QtWidgets.QWidget):
             if field is label or field in fields:
                 return label
         return None
+
+    # ------------------------------------------------------------------------------------------------------------
+    # help strip
+    # ------------------------------------------------------------------------------------------------------------
+    def eventFilter(self, obj, event):
+        if event.type() in (QtCore.QEvent.Type.Enter, QtCore.QEvent.Type.FocusIn) and isinstance(
+                obj, QtWidgets.QWidget):
+            self.show_help_for(obj)
+        return False
+
+    def show_help_for(self, widget):
+        """Show the name and the tooltip of the setting of the widget (a label, a field or a part of a field)."""
+        page = self.page_of(widget)
+        if page is None:
+            return
+        names = {}
+        for label, fields, _text in page.rows():
+            names[label] = (label, fields)
+            for field in fields:
+                names[field] = (label, fields)
+        while widget is not None and widget is not page.group:
+            if widget in names:
+                label, fields = names[widget]
+                tips = [widget.toolTip(), label.toolTip()] + [field.toolTip() for field in fields]
+                tip = next((t for t in tips if t), '')
+                title = _plain(label.text()).rstrip(':').strip()
+                self.help_label.setText(help_html(title, tip) if tip else '')
+                return
+            if widget.toolTip():
+                text = widget.text() if hasattr(widget, 'text') and callable(widget.text) else ''
+                title = _plain(text).rstrip(':').strip() if isinstance(text, str) else ''
+                self.help_label.setText(help_html(title, widget.toolTip()))
+                return
+            widget = widget.parentWidget()
 
     # ------------------------------------------------------------------------------------------------------------
     # search

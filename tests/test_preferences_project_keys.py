@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, Mock, patch
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest
-from PyQt6 import QtCore, QtWidgets
+from PyQt6 import QtCore, QtGui, QtWidgets
 
 from appGUI.preferences.OptionsGroupUI import OptionsGroupUI
 from appGUI.preferences.PreferencesUIManager import PreferencesUIManager
@@ -287,6 +287,25 @@ def test_search_filters_the_pages_by_label_and_tooltip(pref_app):
     window.search('')
     assert not any(page.item.isHidden() for page in window.pages)
     assert not feedrate_label.styleSheet()
+
+
+def test_help_strip_shows_the_label_and_the_existing_tooltip(pref_app):
+    window = pref_app.ui.preferences_window
+    drill = window.ui.plugin_pref_form.tools_drill_group
+    window.show_page(window.page_of(drill))
+    words = lambda text: ' '.join(text.split())     # noqa: E731
+    help_text = lambda: words(QtGui.QTextDocumentFragment.fromHtml(window.help_label.text()).toPlainText())  # noqa
+    # the focus in the text box of the Cut Z spinner
+    inner = drill.cutz_entry.lineEdit()
+    QtWidgets.QApplication.sendEvent(inner, QtGui.QFocusEvent(QtCore.QEvent.Type.FocusIn))
+    label = window.label_of(drill.cutz_entry)
+    shown = help_text()
+    assert words(label.toolTip()) in shown and 'Cut Z' in shown
+    # the mouse over the label of Feedrate Z: its own tooltip, no other text
+    label = window.label_of(drill.feedrate_z_entry)
+    QtWidgets.QApplication.sendEvent(label, QtCore.QEvent(QtCore.QEvent.Type.Enter))
+    shown = help_text()
+    assert shown.replace('Feedrate Z', '', 1).strip(' \u00b7') == words(label.toolTip())
 
 
 def test_the_window_mirrors_in_a_right_to_left_application(pref_app):
