@@ -1,12 +1,15 @@
 """The Preferences form shows and saves the project keys of the active project, and the values it keeps valid."""
 import os
 import sys
+import importlib
 import unittest
+from copy import deepcopy
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import pytest
 from PyQt6 import QtCore, QtWidgets
 
 from appGUI.preferences.OptionsGroupUI import OptionsGroupUI
@@ -147,8 +150,145 @@ class TestExcellonPreferences(unittest.TestCase):
         self.assertEqual({key: field.get_value() for key, field in fields.items()},
                          {key: defaults.factory_defaults[key] for key in fields})    # zeros: 'T'
 
-if __name__ == '__main__':
-    unittest.main()
+
+# ------------------------------------------------------------------------------------------------------------------
+# The Preferences window: the real forms of MainGUI, the real PreferencesUIManager, opened as the menu opens it
+# ------------------------------------------------------------------------------------------------------------------
+
+@pytest.fixture
+def pref_app(tmp_path, monkeypatch):
+    """An App mock with a real MainGUI and PreferencesUIManager; yields it with the Preferences window open."""
+    from appGUI.MainGUI import MainGUI
+    from appHandlers.appUIActions import AppUIActions
+    qapp = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    defaults = AppDefaults(beta=False)
+    app = MagicMock(decimals=4, resource_location='assets/resources', data_path=str(tmp_path))
+    app.defaults = defaults
+    app.options = AppOptions(version='test', baseline=defaults, defaults=defaults)
+    monkeypatch.setattr(OptionsGroupUI, 'app', app)
+    ui = MainGUI(app)
+    app.ui = ui
+    app.preferencesUiManager = PreferencesUIManager(defaults, str(tmp_path), ui, MagicMock(), app.options)
+    app.preferencesUiManager.defaults_write_form()
+    app.ui_actions = AppUIActions(app)
+    app.on_preferences = app.ui_actions.on_preferences
+    app.on_toggle_preferences = app.ui_actions.on_toggle_preferences
+    app.on_preferences()
+    yield app
+    if ui.preferences_window is not None:
+        ui.preferences_window.close_quietly()
+    # a full MainGUI left to the interpreter exit crashes the process
+    ui.close()
+    ui.deleteLater()
+    QtCore.QCoreApplication.sendPostedEvents(None, QtCore.QEvent.Type.DeferredDelete.value)
+    qapp.processEvents()
+
+
+def answer_save_question(monkeypatch, answer):
+    """Answer the question 'Save Preferences' with 'Yes' or 'No'; returns the mock dialog."""
+    module = importlib.import_module('appGUI.preferences.PreferencesUIManager')
+    dialog = MagicMock()
+    yes, no = object(), object()
+    dialog.addButton.side_effect = [yes, no]
+    dialog.clickedButton.return_value = yes if answer == 'Yes' else no
+    monkeypatch.setattr(module, 'FCMessageBox', lambda **kwargs: dialog)
+    return dialog
+
+
+def test_preferences_open_in_a_window_over_the_main_window(pref_app):
+    window = pref_app.ui.preferences_window
+    assert window.isVisible() and window.isWindow()
+    assert window.parentWidget() is pref_app.ui
+    assert window.width() < 1200 and window.height() < 900
+    sections = [window.tree.topLevelItem(i).text(0) for i in range(window.tree.topLevelItemCount())]
+    assert sections == ['Application', 'Gerber', 'Excellon', 'Geometry', 'CNC Job', 'Plugins', 'Utilities']
+    plugins = window.tree.topLevelItem(5)
+    names = [plugins.child(i).text(0) for i in range(plugins.childCount())]
+    assert names == sorted(names, key=str.casefold) and 'Drilling' in names
+    assert not any('Plugin' in name for name in names)
+    # the menu entry opens the same window again, it does not add a tab
+    pref_app.on_preferences()
+    assert pref_app.ui.preferences_window is window
+    assert all(pref_app.ui.plot_tab_area.tabText(i) != 'Preferences' for i in range(pref_app.ui.plot_tab_area.count()))
+
+
+def test_every_key_writes_and_reads_its_widget_through_the_window(pref_app):
+    window = pref_app.ui.preferences_window
+    manager = pref_app.preferencesUiManager
+    for page in window.pages:
+        window.show_page(page)
+        assert window.stack.currentWidget().isAncestorOf(page.group)
+    fields = manager.defaults_form_fields
+    assert len(fields) > 600
+    assert [key for key, field in fields.items() if window.page_of(field) is None] == []
+    # the form normalizes some factory values (a tuple written as text, a combo index): write, read, then the next
+    # round trip must keep every value
+    manager.defaults_write_form()
+    manager.defaults_read_form()
+    shown = {key: deepcopy(pref_app.defaults.get(key)) for key in fields}
+    for key, field in fields.items():     # the form is written by key, not by tab
+        manager.defaults_write_form_field(key)
+    manager.defaults_read_form()
+    assert {key: pref_app.defaults.get(key) for key in fields} == shown
+
+
+def test_close_asks_to_save_an_edit_and_cancel_discards_it(pref_app, monkeypatch):
+    window = pref_app.ui.preferences_window
+    manager = pref_app.preferencesUiManager
+    cutz = pref_app.ui.plugin_pref_form.tools_drill_group.cutz_entry
+    factory = pref_app.defaults['tools_drill_cutz']
+
+    cutz.set_value(-2.5)        # an edit: valueChanged marks the Preferences as edited
+    assert manager.preferences_changed_flag
+    dialog = answer_save_question(monkeypatch, 'No')
+    window.close()
+    dialog.exec.assert_called_once()
+    assert not window.isVisible()
+    assert pref_app.defaults['tools_drill_cutz'] == factory
+
+    pref_app.on_preferences()
+    assert cutz.get_value() == factory
+    cutz.set_value(-2.5)
+    window.cancel_button.click()
+    assert not window.isVisible()
+    assert pref_app.defaults['tools_drill_cutz'] == factory
+    pref_app.on_preferences()
+    assert cutz.get_value() == factory
+
+
+def test_ctrl_s_in_the_window_applies_the_preferences(pref_app):
+    from PyQt6.QtTest import QTest
+    window = pref_app.ui.preferences_window
+    window.show_page(window.pages[0])
+    cutz = pref_app.ui.plugin_pref_form.tools_drill_group.cutz_entry
+    cutz.set_value(-2.5)
+    QTest.keyClick(window.tree, QtCore.Qt.Key.Key_S, QtCore.Qt.KeyboardModifier.ControlModifier)
+    assert pref_app.defaults['tools_drill_cutz'] == -2.5
+    assert not pref_app.preferencesUiManager.preferences_changed_flag
+    assert window.isVisible()
+
+
+def test_the_window_mirrors_in_a_right_to_left_application(pref_app):
+    from appGUI.preferences.PreferencesWindow import PreferencesWindow
+    qapp = QtWidgets.QApplication.instance()
+    qapp.setLayoutDirection(QtCore.Qt.LayoutDirection.RightToLeft)
+    try:
+        window = PreferencesWindow(pref_app)
+        window.resize(1000, 700)
+        window.show()
+        page = next(p for p in window.pages if p.name == 'Drilling')
+        window.show_page(page)
+        qapp.processEvents()
+        tree_x = window.tree.mapTo(window, QtCore.QPoint(0, 0)).x()
+        stack_x = window.stack.mapTo(window, QtCore.QPoint(0, 0)).x()
+        assert tree_x > stack_x                 # the list of pages is on the right
+        group = page.group.geometry()
+        content = page.group.parentWidget().rect()
+        assert content.right() - group.right() < group.left() - content.left()     # the page starts on the right
+        window.close_quietly()
+        window.deleteLater()
+    finally:
+        qapp.setLayoutDirection(QtCore.Qt.LayoutDirection.LeftToRight)
 
 
 if __name__ == '__main__':
