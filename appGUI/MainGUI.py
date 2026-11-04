@@ -22,16 +22,11 @@ from appGUI.preferences.excellon.ExcellonPreferencesUI import ExcellonPreference
 from appGUI.preferences.general.GeneralPreferencesUI import GeneralPreferencesUI
 from appGUI.preferences.geometry.GeometryPreferencesUI import GeometryPreferencesUI
 from appGUI.preferences.gerber.GerberPreferencesUI import GerberPreferencesUI
-from appEditors.appGeoEditor import AppGeoEditor, FCShapeTool
-
-import webbrowser
-
 from appGUI.preferences.tools.PluginsPreferencesUI import PluginsPreferencesUI
 from appGUI.preferences.tools.Plugins2PreferencesUI import Plugins2PreferencesUI
 from appGUI.preferences.tools.PluginsEngravingPreferencesUI import PluginsEngravingPreferencesUI
 
 from appGUI.preferences.utilities.UtilPreferencesUI import UtilPreferencesUI
-from appObjects.ObjectCollection import EventSensitiveListView
 
 import subprocess
 import os

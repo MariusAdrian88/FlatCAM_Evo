@@ -286,7 +286,8 @@ class _Recorder:
             gui.attach_mock(MagicMock(name=name), 'EXT_' + name)
         gui.EXT_FCInputDoubleSpinner.return_value.get_value.return_value = (1.5, True)
         self.modifiers = M.NoModifier
-        list_view = MagicMock(spec=main_module.EventSensitiveListView)
+        from appObjects.ObjectCollection import EventSensitiveListView
+        list_view = MagicMock(spec=EventSensitiveListView)
         self.patches = [
             patch.object(QtWidgets.QApplication, 'keyboardModifiers', side_effect=lambda: self.modifiers),
             patch.object(QtWidgets.QApplication, 'focusWidget',
