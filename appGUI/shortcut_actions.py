@@ -865,7 +865,66 @@ def exc_add_tool(ui, key):
 # The plugins that MainGUI.keyPressEvent serves (app.call_source)
 # ---------------------------------------------------------------------------------------------------------------------
 def plugin_actions():
-    return []
+    jump = _("Jump to Location (x, y)")
+    grid = _("Grid On/Off")
+    abort = _("Abort current task (gracefully)")
+    cancel = _("Cancel")
+    actions = [
+        Shortcut('gcode_editor.exit', _("Save Object and Exit Editor"), 'gcode_editor', 'Ctrl+S',
+                 stop(lambda ui: ui.app.on_editing_finished(force_cancel=True))),
+
+        Shortcut('measurement.cancel', cancel, 'measurement', 'Esc', measurement_cancel),
+        Shortcut('measurement.remove_point', _("Remove the last point"), 'measurement', 'Backspace',
+                 measurement_remove_point),
+        Shortcut('measurement.grid_snap', grid, 'measurement', 'G', measurement_grid_snap),
+        Shortcut('measurement.jump', jump, 'measurement', 'J', lambda ui, key: ui.app.on_jump_to()),
+
+        # the drawing of the Exclusion areas (app.call_source 'geometry')
+        Shortcut('geometry.cancel', cancel, 'geometry', 'Esc', stop(lambda ui: ui.app.exc_areas.area_disconnect())),
+        Shortcut('geometry.grid_snap', grid, 'geometry', 'G', stop(lambda ui: ui.app.ui.grid_snap_btn.trigger())),
+        Shortcut('geometry.jump', jump, 'geometry', 'J', lambda ui, key: ui.app.on_jump_to()),
+    ]
+    # the plugins that wait for clicks on the plot area: Esc ends it
+    exits = {
+        'qrcode_tool': plugin_exit_if_armed,
+        'copper_thieving_tool': lambda ui, key: ui.app.copper_thieving_tool.on_exit(),
+        '2_sided_tool': lambda ui, key: ui.app.dblsidedtool.on_exit(cancelled=True),
+        'fiducials_tool': lambda ui, key: ui.app.fiducial_tool.on_exit(cancelled=True),
+        'markers_tool': lambda ui, key: ui.app.markers_tool.on_exit(cancelled=True),
+    }
+    for context, on_exit in exits.items():
+        actions += [
+            Shortcut('%s.abort_tasks' % context, abort, context, 'Ctrl+Alt+X', abort_all_tasks),
+            Shortcut('%s.cancel' % context, cancel, context, 'Esc', on_exit),
+            Shortcut('%s.grid_snap' % context, grid, context, 'G', lambda ui, key: ui.app.ui.grid_snap_btn.trigger()),
+            Shortcut('%s.jump' % context, jump, context, 'J', lambda ui, key: ui.app.on_jump_to()),
+        ]
+    return actions
+
+
+def measurement_cancel(ui, key):
+    # abort the measurement action
+    ui.app.distance_tool.on_exit()
+    ui.app.inform.emit(_("Cancelled."))
+    return STOP
+
+
+def measurement_remove_point(ui, key):
+    if not ui.app_focus_in_text():
+        ui.app.distance_tool.undo_last_point()
+    return STOP
+
+
+def measurement_grid_snap(ui, key):
+    ui.app.ui.grid_snap_btn.trigger()
+    if ui.app.distance_tool.ui.big_cursor_cb.get_value():
+        ui.app.app_cursor.enabled = True
+    return STOP
+
+
+def plugin_exit_if_armed(ui, key):
+    if ui.app.qrcode_tool.armed:
+        ui.app.qrcode_tool.on_exit(cancelled=True)
 
 
 # ---------------------------------------------------------------------------------------------------------------------

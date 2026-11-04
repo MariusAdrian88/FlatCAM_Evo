@@ -3149,7 +3149,8 @@ class MainGUI(QtWidgets.QMainWindow):
 
     def keyPressEvent(self, event):
         """
-        Key event handler for the entire app.
+        Key event handler for the entire app: the keys of the plot area and of the Project tab. The action of a key
+        comes from the registry of the shortcuts (appGUI/shortcuts.py, the table in appGUI/shortcut_actions.py).
         Some key events are also treated locally in the FlatCAM editors
 
         :param event: QT event
@@ -3157,9 +3158,6 @@ class MainGUI(QtWidgets.QMainWindow):
         """
 
         modifiers = QtWidgets.QApplication.keyboardModifiers()
-        active = self.app.collection.get_active()
-        selected = self.app.collection.get_selected()
-        names_list = self.app.collection.get_names()
 
         # events out of the self.app.collection view (it's about Project Tab) are of type int
         if type(event) is int:
@@ -3193,208 +3191,8 @@ class MainGUI(QtWidgets.QMainWindow):
                 self.app.inform.emit('[WARNING_NOTCL] %s' % _("Cancelled."))
                 return
 
-        if self.app.call_source == 'app':
-            return shortcuts.dispatch(self, 'app', key, modifiers)
-        elif self.app.call_source == 'geo_editor':
-            return shortcuts.dispatch(self, 'geo_editor', key, modifiers)
-        elif self.app.call_source == 'grb_editor':
-            return shortcuts.dispatch(self, 'grb_editor', key, modifiers)
-        elif self.app.call_source == 'exc_editor':
-            return shortcuts.dispatch(self, 'exc_editor', key, modifiers)
-        elif self.app.call_source == 'gcode_editor':
-            # CTRL
-            if modifiers == QtCore.Qt.KeyboardModifier.ControlModifier:
-                # save (update) the current geometry and return to the App
-                if key == QtCore.Qt.Key.Key_S or key == 'S':
-                    self.app.on_editing_finished(force_cancel=True)
-                    return
-            # SHIFT
-            elif modifiers == QtCore.Qt.KeyboardModifier.ShiftModifier:
-                pass
-            # ALT
-            elif modifiers == QtCore.Qt.KeyboardModifier.AltModifier:
-                pass
-            # NO MODIFIER
-            elif modifiers == QtCore.Qt.KeyboardModifier.NoModifier:
-                pass
-        elif self.app.call_source == 'measurement':
-            if modifiers == QtCore.Qt.KeyboardModifier.ControlModifier:
-                pass
-            elif modifiers == QtCore.Qt.KeyboardModifier.AltModifier:
-                pass
-            elif modifiers == QtCore.Qt.KeyboardModifier.ShiftModifier:
-                pass
-            # NO MODIFIER
-            elif modifiers == QtCore.Qt.KeyboardModifier.NoModifier:
-                if key == QtCore.Qt.Key.Key_Escape or key == 'Escape':
-                    # abort the measurement action
-                    self.app.distance_tool.on_exit()
-                    self.app.inform.emit(_("Cancelled."))
-                    return
-
-                if key == QtCore.Qt.Key.Key_Backspace or key == 'Backspace':
-                    if not self.app_focus_in_text():
-                        self.app.distance_tool.undo_last_point()
-                    return
-
-                if key == QtCore.Qt.Key.Key_G or key == 'G':
-                    self.app.ui.grid_snap_btn.trigger()
-                    if self.app.distance_tool.ui.big_cursor_cb.get_value():
-                        self.app.app_cursor.enabled = True
-                    return
-
-                # Jump to coords
-                if key == QtCore.Qt.Key.Key_J or key == 'J':
-                    self.app.on_jump_to()
-        elif self.app.call_source == 'qrcode_tool':
-            # CTRL + ALT
-            if modifiers == QtCore.Qt.KeyboardModifier.ControlModifier | QtCore.Qt.KeyboardModifier.AltModifier:
-                if key == QtCore.Qt.Key.Key_X:
-                    self.app.abort_all_tasks()
-                    return
-
-            elif modifiers == QtCore.Qt.KeyboardModifier.ControlModifier:
-                pass
-            elif modifiers == QtCore.Qt.KeyboardModifier.ShiftModifier:
-                pass
-            elif modifiers == QtCore.Qt.KeyboardModifier.AltModifier:
-                pass
-            # NO MODIFIER
-            elif modifiers == QtCore.Qt.KeyboardModifier.NoModifier:
-                # Escape = Deselect All
-                if key == QtCore.Qt.Key.Key_Escape or key == 'Escape':
-                    if self.app.qrcode_tool.armed:
-                        self.app.qrcode_tool.on_exit(cancelled=True)
-
-                # Grid toggle
-                if key == QtCore.Qt.Key.Key_G:
-                    self.app.ui.grid_snap_btn.trigger()
-
-                # Jump to coords
-                if key == QtCore.Qt.Key.Key_J:
-                    self.app.on_jump_to()
-        elif self.app.call_source == 'copper_thieving_tool':
-            # CTRL + ALT
-            if modifiers == QtCore.Qt.KeyboardModifier.ControlModifier | QtCore.Qt.KeyboardModifier.AltModifier:
-                if key == QtCore.Qt.Key.Key_X:
-                    self.app.abort_all_tasks()
-                    return
-            elif modifiers == QtCore.Qt.KeyboardModifier.ControlModifier:
-                pass
-            elif modifiers == QtCore.Qt.KeyboardModifier.ShiftModifier:
-                pass
-            elif modifiers == QtCore.Qt.KeyboardModifier.AltModifier:
-                pass
-            # NO MODIFIER
-            elif modifiers == QtCore.Qt.KeyboardModifier.NoModifier:
-                # Escape = Deselect All
-                if key == QtCore.Qt.Key.Key_Escape or key == 'Escape':
-                    self.app.copper_thieving_tool.on_exit()
-
-                # Grid toggle
-                if key == QtCore.Qt.Key.Key_G:
-                    self.app.ui.grid_snap_btn.trigger()
-
-                # Jump to coords
-                if key == QtCore.Qt.Key.Key_J:
-                    self.app.on_jump_to()
-        elif self.app.call_source == '2_sided_tool':
-            # CTRL + ALT
-            if modifiers == QtCore.Qt.KeyboardModifier.ControlModifier | QtCore.Qt.KeyboardModifier.AltModifier:
-                if key == QtCore.Qt.Key.Key_X:
-                    self.app.abort_all_tasks()
-                    return
-            elif modifiers == QtCore.Qt.KeyboardModifier.ControlModifier:
-                pass
-            elif modifiers == QtCore.Qt.KeyboardModifier.ShiftModifier:
-                pass
-            elif modifiers == QtCore.Qt.KeyboardModifier.AltModifier:
-                pass
-            # NO MODIFIER
-            elif modifiers == QtCore.Qt.KeyboardModifier.NoModifier:
-                # Escape = Deselect All
-                if key == QtCore.Qt.Key.Key_Escape or key == 'Escape':
-                    self.app.dblsidedtool.on_exit(cancelled=True)
-
-                # Grid toggle
-                if key == QtCore.Qt.Key.Key_G:
-                    self.app.ui.grid_snap_btn.trigger()
-
-                # Jump to coords
-                if key == QtCore.Qt.Key.Key_J:
-                    self.app.on_jump_to()
-        elif self.app.call_source == 'geometry':
-            # used for Exclusion Areas
-            if modifiers == QtCore.Qt.KeyboardModifier.ControlModifier:
-                pass
-            elif modifiers == QtCore.Qt.KeyboardModifier.AltModifier:
-                pass
-            elif modifiers == QtCore.Qt.KeyboardModifier.ShiftModifier:
-                pass
-            # NO MODIFIER
-            elif modifiers == QtCore.Qt.KeyboardModifier.NoModifier:
-                if key == QtCore.Qt.Key.Key_Escape or key == 'Escape':
-                    # the drawing belongs to the Exclusion Areas of the app, not to the active object
-                    self.app.exc_areas.area_disconnect()
-                    return
-
-                if key == QtCore.Qt.Key.Key_G or key == 'G':
-                    self.app.ui.grid_snap_btn.trigger()
-                    return
-
-                # Jump to coords
-                if key == QtCore.Qt.Key.Key_J or key == 'J':
-                    self.app.on_jump_to()
-        elif self.app.call_source == 'fiducials_tool':
-            # CTRL + ALT
-            if modifiers == QtCore.Qt.KeyboardModifier.ControlModifier | QtCore.Qt.KeyboardModifier.AltModifier:
-                if key == QtCore.Qt.Key.Key_X:
-                    self.app.abort_all_tasks()
-                    return
-            elif modifiers == QtCore.Qt.KeyboardModifier.ControlModifier:
-                pass
-            elif modifiers == QtCore.Qt.KeyboardModifier.ShiftModifier:
-                pass
-            elif modifiers == QtCore.Qt.KeyboardModifier.AltModifier:
-                pass
-            # NO MODIFIER
-            elif modifiers == QtCore.Qt.KeyboardModifier.NoModifier:
-                # Escape = Deselect All
-                if key == QtCore.Qt.Key.Key_Escape or key == 'Escape':
-                    self.app.fiducial_tool.on_exit(cancelled=True)
-
-                # Grid toggle
-                if key == QtCore.Qt.Key.Key_G:
-                    self.app.ui.grid_snap_btn.trigger()
-
-                # Jump to coords
-                if key == QtCore.Qt.Key.Key_J:
-                    self.app.on_jump_to()
-        elif self.app.call_source == 'markers_tool':
-            # CTRL + ALT
-            if modifiers == QtCore.Qt.KeyboardModifier.ControlModifier | QtCore.Qt.KeyboardModifier.AltModifier:
-                if key == QtCore.Qt.Key.Key_X:
-                    self.app.abort_all_tasks()
-                    return
-            elif modifiers == QtCore.Qt.KeyboardModifier.ControlModifier:
-                pass
-            elif modifiers == QtCore.Qt.KeyboardModifier.ShiftModifier:
-                pass
-            elif modifiers == QtCore.Qt.KeyboardModifier.AltModifier:
-                pass
-            # NO MODIFIER
-            elif modifiers == QtCore.Qt.KeyboardModifier.NoModifier:
-                # Escape = Deselect All
-                if key == QtCore.Qt.Key.Key_Escape or key == 'Escape':
-                    self.app.markers_tool.on_exit(cancelled=True)
-
-                # Grid toggle
-                if key == QtCore.Qt.Key.Key_G:
-                    self.app.ui.grid_snap_btn.trigger()
-
-                # Jump to coordinates
-                if key == QtCore.Qt.Key.Key_J:
-                    self.app.on_jump_to()
+        # the action of the key in the context of the application (the editor or the plugin that is active)
+        return shortcuts.dispatch(self, self.app.call_source, key, modifiers)
 
     def goto_text_line(self):
         """
