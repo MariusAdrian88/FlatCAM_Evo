@@ -394,5 +394,24 @@ def test_the_window_mirrors_in_a_right_to_left_application(pref_app):
         qapp.setLayoutDirection(QtCore.Qt.LayoutDirection.LeftToRight)
 
 
+def test_changed_shortcuts_survive_a_restart(tmp_path):
+    from appGUI import shortcuts
+    registry = shortcuts.registry()
+    defaults = AppDefaults(beta=False)
+    assert defaults['global_shortcuts'] == {}       # factory: every action has its factory key
+    # only the changed keys are saved; an id that no longer exists is ignored
+    defaults['global_shortcuts'] = {'app.new_gerber': 'Ctrl+Shift+B', 'app.no_such_action': 'F9'}
+    path = str(tmp_path / 'current_defaults.FlatConfig')
+    defaults.write(filename=path)
+    restarted = AppDefaults(beta=False)
+    restarted.load(filename=path, inform=Mock())
+    try:
+        shortcuts.apply_options(SimpleNamespace(defaults=restarted))
+        assert registry.key('app.new_gerber') == 'Ctrl+Shift+B'
+        assert registry.overrides() == {'app.new_gerber': 'Ctrl+Shift+B'}
+    finally:
+        registry.reset_all()
+
+
 if __name__ == '__main__':
     unittest.main()

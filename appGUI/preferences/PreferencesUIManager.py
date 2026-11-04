@@ -7,6 +7,7 @@ import re
 
 from defaults import AppDefaults, is_project_key
 from appGUI.GUIElements import FCMessageBox
+from appGUI import shortcuts
 
 import gettext
 import appTranslation as fcTranslate
@@ -1222,6 +1223,10 @@ class PreferencesUIManager(QtCore.QObject):
         self.defaults_read_form()
         self.defaults.current_defaults.update(self.defaults)
         # #############################################################################################################
+
+        # the keyboard shortcuts of the form work now; the menus and the F3 list show them
+        shortcuts.apply_options(self.ui.app)
+        shortcuts.apply_to_gui(self.ui.app)
 
         self.ui.app.apply_dim_text(self._pref('global_dim_text'))
         if getattr(self.ui, 'title_bar', None) is not None:
