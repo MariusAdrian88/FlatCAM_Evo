@@ -12,6 +12,8 @@ attributes of the section forms of MainGUI (``ui.general_pref_form.general_app_g
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtCore import Qt, QSettings
 
+from appGUI.GUIElements import FCMessageBox
+
 import gettext
 import appTranslation as fcTranslate
 import builtins
@@ -458,29 +460,38 @@ class PreferencesWindow(QtWidgets.QWidget):
     def _build_buttons(self):
         res = self.app.resource_location
 
-        self.restore_defaults_button = QtWidgets.QPushButton(
-            QtGui.QIcon(res + '/restore32.png'), _("Restore Defaults"))
-        self.restore_defaults_button.setToolTip(
-            _("Restore the entire set of default values\n"
-              "to the initial values loaded after first launch."))
-        self.restore_defaults_button.clicked.connect(self.manager.on_restore_defaults_preferences)
-
-        self.open_folder_button = QtWidgets.QPushButton(QtGui.QIcon(res + '/pref.png'), _("Open Pref Folder"))
-        self.open_folder_button.setToolTip(_("Open the folder where FlatCAM save the preferences files."))
-        self.open_folder_button.clicked.connect(self.ui.on_preferences_open_folder)
-
-        self.clear_gui_button = QtWidgets.QPushButton(QtGui.QIcon(res + '/trash32.png'), _("Clear GUI Settings"))
-        self.clear_gui_button.setToolTip(
-            _("Clear the GUI settings for FlatCAM,\n"
-              "such as: layout, gui state, style etc."))
-        self.clear_gui_button.clicked.connect(lambda: self.ui.on_gui_clear())
-
         self.reset_page_button = QtWidgets.QPushButton(_("Reset page to defaults"))
         self.reset_page_button.clicked.connect(lambda: self.reset_page())
+        self.bottom_layout.addWidget(self.reset_page_button)
 
-        for button in (self.reset_page_button, self.restore_defaults_button, self.open_folder_button,
-                       self.clear_gui_button):
-            self.bottom_layout.addWidget(button)
+        # the actions that are seldom used
+        self.more_menu = QtWidgets.QMenu(self)
+        self.more_menu.setToolTipsVisible(True)
+        self.more_menu.addAction(self.ui.menufileimportpref)
+        self.more_menu.addAction(self.ui.menufileexportpref)
+        self.more_menu.addSeparator()
+
+        self.open_folder_action = self.more_menu.addAction(QtGui.QIcon(res + '/pref.png'), _("Open Pref Folder"))
+        self.open_folder_action.setToolTip(_("Open the folder where FlatCAM save the preferences files."))
+        self.open_folder_action.triggered.connect(self.ui.on_preferences_open_folder)
+        self.more_menu.addSeparator()
+
+        self.restore_defaults_action = self.more_menu.addAction(
+            QtGui.QIcon(res + '/restore32.png'), _("Restore Defaults"))
+        self.restore_defaults_action.setToolTip(
+            _("Restore the entire set of default values\n"
+              "to the initial values loaded after first launch."))
+        self.restore_defaults_action.triggered.connect(self.on_restore_defaults)
+
+        self.clear_gui_action = self.more_menu.addAction(QtGui.QIcon(res + '/trash32.png'), _("Clear GUI Settings"))
+        self.clear_gui_action.setToolTip(
+            _("Clear the GUI settings for FlatCAM,\n"
+              "such as: layout, gui state, style etc."))
+        self.clear_gui_action.triggered.connect(lambda: self.ui.on_gui_clear())     # it asks first
+
+        self.more_button = QtWidgets.QPushButton(_("More"))
+        self.more_button.setMenu(self.more_menu)
+        self.bottom_layout.addWidget(self.more_button)
         self.bottom_layout.addStretch(1)
 
         self.cancel_button = QtWidgets.QPushButton(_("Cancel"))
@@ -500,6 +511,24 @@ class PreferencesWindow(QtWidgets.QWidget):
         for button in (self.cancel_button, self.apply_button, self.save_button):
             button.setMinimumWidth(100)
             self.bottom_layout.addWidget(button)
+
+    def on_restore_defaults(self):
+        """Restore Defaults of the More menu: all the settings get their factory values, after a question."""
+        msgbox = FCMessageBox(parent=self)
+        title = _("Restore Defaults")
+        msgbox.setWindowTitle(title)
+        msgbox.setWindowIcon(QtGui.QIcon(self.app.resource_location + '/app128.png'))
+        msgbox.setText('<b>%s</b>' % title)
+        msgbox.setInformativeText(_("Are you sure you want to continue?"))
+        msgbox.setIcon(QtWidgets.QMessageBox.Icon.Question)
+        bt_yes = msgbox.addButton(_('Yes'), QtWidgets.QMessageBox.ButtonRole.YesRole)
+        bt_no = msgbox.addButton(_('No'), QtWidgets.QMessageBox.ButtonRole.NoRole)
+        msgbox.setDefaultButton(bt_no)
+        msgbox.exec()
+        if msgbox.clickedButton() == bt_yes:
+            self.manager.on_restore_defaults_preferences()
+            for key in ALPHA_SLIDERS:
+                self._show_alpha(key)
 
     # ------------------------------------------------------------------------------------------------------------
     # pages
@@ -739,7 +768,7 @@ class PreferencesWindow(QtWidgets.QWidget):
         while len(content.buttons) < len(rows):
             button = QtWidgets.QToolButton(content)
             button.setAutoRaise(True)
-            button.setIcon(QtGui.QIcon(self.app.resource_location + '/reset32.png'))
+            button.setIcon(QtGui.QIcon(self.app.resource_location + '/undo64.png'))
             button.setIconSize(QtCore.QSize(14, 14))
             button.setToolTip(_("Reset"))
             button.clicked.connect(lambda _checked=False, b=button: self.reset_key(b.property('option_key')))

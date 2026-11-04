@@ -184,9 +184,9 @@ def pref_app(tmp_path, monkeypatch):
     qapp.processEvents()
 
 
-def answer_save_question(monkeypatch, answer):
-    """Answer the question 'Save Preferences' with 'Yes' or 'No'; returns the mock dialog."""
-    module = importlib.import_module('appGUI.preferences.PreferencesUIManager')
+def answer_save_question(monkeypatch, answer, module='appGUI.preferences.PreferencesUIManager'):
+    """Answer the question of the module (default: 'Save Preferences') with 'Yes' or 'No'; returns the mock dialog."""
+    module = importlib.import_module(module)
     dialog = MagicMock()
     yes, no = object(), object()
     dialog.addButton.side_effect = [yes, no]
@@ -350,6 +350,25 @@ def test_changed_settings_are_marked_and_reset_page_puts_the_factory_values(pref
     window.reset_key('tools_drill_feedrate_z')
     assert drill.feedrate_z_entry.get_value() == pref_app.defaults.factory_defaults['tools_drill_feedrate_z']
     assert drill.cutz_entry.get_value() == -2.5
+
+
+def test_more_menu_holds_the_rare_actions_and_restore_defaults_asks_first(pref_app, monkeypatch):
+    window = pref_app.ui.preferences_window
+    texts = [action.text() for action in window.more_menu.actions() if not action.isSeparator()]
+    assert texts[:2] == [pref_app.ui.menufileimportpref.text(), pref_app.ui.menufileexportpref.text()]
+    assert texts[2:] == ['Open Pref Folder', 'Restore Defaults', 'Clear GUI Settings']
+    assert [b.text() for b in (window.cancel_button, window.apply_button, window.save_button)] == \
+        ['Cancel', 'Apply', 'Save']
+    assert window.apply_button.toolTip()
+
+    cutz = pref_app.ui.plugin_pref_form.tools_drill_group.cutz_entry
+    cutz.set_value(-2.5)
+    pref_app.preferencesUiManager.on_save_button(save_to_file=False)
+    for answer, expected in (('No', -2.5), ('Yes', pref_app.defaults.factory_defaults['tools_drill_cutz'])):
+        dialog = answer_save_question(monkeypatch, answer, module='appGUI.preferences.PreferencesWindow')
+        window.restore_defaults_action.trigger()
+        dialog.exec.assert_called_once()
+        assert cutz.get_value() == expected
 
 
 def test_the_window_mirrors_in_a_right_to_left_application(pref_app):
