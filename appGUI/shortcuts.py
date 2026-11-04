@@ -41,8 +41,17 @@ PHASE_MAIN = 'main'     # first, always
 PHASE_TOOL = 'tool'     # when no tool of the editor is active (else the key goes to the active tool)
 PHASE_LATE = 'late'     # last, also after the active tool got the key
 
-# an action returns STOP to say that the key is used up (the other phases do not get it)
-STOP = object()
+class Stop:
+    """
+    What an action returns when the key is used up: the next phases of the context do not get it, and keyPressEvent
+    returns the value. Any other return value of an action is ignored (the key goes on).
+    """
+
+    def __init__(self, value=None):
+        self.value = value
+
+
+STOP = Stop()
 
 # the key sequences of the editor and of the files: Qt's portable text
 PORTABLE = QtGui.QKeySequence.SequenceFormat.PortableText
@@ -100,7 +109,7 @@ class Shortcut:
         self.context = context
         self.default = normalize(default)
         self.key = self.default
-        self.run = run              # run(ui, key) -> None (the key goes on) or STOP or a value for keyPressEvent
+        self.run = run              # run(ui, key) -> STOP or Stop(value) when the key is used up
         self.source = source
         self.phase = phase
         self.f3 = f3                # listed in the F3 list
@@ -314,7 +323,7 @@ class ShortcutRegistry:
     def dispatch(self, ui, context_id, key, modifiers):
         """
         Run the action of a key in a context (MainGUI.keyPressEvent). Returns what keyPressEvent returns: None, or the
-        value that an action returned ('fail', the answer of a tool).
+        value of the Stop that an action returned ('fail', the answer of a tool).
         """
         context = self.contexts.get(context_id)
         if context is None or not context.editable:
@@ -327,7 +336,7 @@ class ShortcutRegistry:
         def run(phase):
             for action in self.match(context.id, combination, source, phase):
                 result = action.run(ui, key)
-                if result is not None:
+                if isinstance(result, Stop):
                     return result
             return None
 
@@ -340,7 +349,7 @@ class ShortcutRegistry:
                 result = run(PHASE_TOOL)
             if result is None:
                 result = run(PHASE_LATE)
-        return None if result is STOP else result
+        return result.value if result is not None else None
 
     def global_action(self, code, modifiers):
         """The action of the 'global' context for a key of a QKeyEvent (MainGUI.eventFilter), or None."""
