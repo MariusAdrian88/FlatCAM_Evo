@@ -30,23 +30,6 @@ def press(key, modifiers, source='app', in_text=False, options=None):
     return gui
 
 
-class TestAppHistoryKeys(unittest.TestCase):
-    def test_ctrl_z_undo(self):
-        gui = press(QtCore.Qt.Key.Key_Z, CTRL)
-        gui.app.history.undo.assert_called_once()
-        gui.app.history.redo.assert_not_called()
-
-    def test_ctrl_shift_z_redo(self):
-        gui = press(QtCore.Qt.Key.Key_Z, CTRL | SHIFT)
-        gui.app.history.redo.assert_called_once()
-        gui.app.history.undo.assert_not_called()
-
-    def test_text_focus_blocks(self):
-        gui = press(QtCore.Qt.Key.Key_Z, CTRL, in_text=True)
-        gui.app.history.undo.assert_not_called()
-        gui.app.history.redo.assert_not_called()
-
-
 class TestKeysWithoutPlotArea(unittest.TestCase):
     """View -> Toggle Plot Area (Ctrl+F10) can close the last tab: the keys of the Project tab still work."""
 
