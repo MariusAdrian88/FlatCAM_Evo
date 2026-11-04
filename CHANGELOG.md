@@ -10,6 +10,14 @@ CHANGELOG for FlatCAM Evo
 
 Translations:
 
+- new: right-to-left interface: with a right-to-left language (Arabic, Persian, Hebrew, Urdu) the whole interface is mirrored; no such translation is included yet, the other languages show no change
+- new: in a right-to-left interface the plot canvas, the code and G-code editors, the Tcl shell and the coordinates in the status bar stay left to right
+- fixed: in a right-to-left interface the check boxes with the box after the text (Plot, Mark), the Preferences columns and the panel button of the title bar follow the mirrored direction
+
+04.11.2026
+
+Translations:
+
 - new: the texts of the Compare plugin (plugin, preferences and menu) are translated in German, Spanish, French, Italian, Brazilian Portuguese, Romanian, Russian, Turkish and Chinese; all .mo files are compiled again
 
 04.11.2026
