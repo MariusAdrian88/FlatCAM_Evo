@@ -175,7 +175,7 @@ class ShortcutsEditor(QtWidgets.QWidget):
 
         self.key_entry = KeyField(_("Press a key"))
         self.key_entry.setToolTip(_("Click here and press the key of the shortcut. The modifiers pressed with it\n"
-                                    "are set in the box on the left."))
+                                    "are set in the box of the modifiers."))
         self.key_entry.setMinimumWidth(110)
         edit_row.addWidget(self.key_entry)
 
