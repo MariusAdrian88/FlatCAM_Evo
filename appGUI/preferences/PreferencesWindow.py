@@ -181,7 +181,19 @@ ALPHA_SLIDERS = {
 
 # the colour of the marks of a setting that differs from its factory value
 MARK_COLOR = QtGui.QColor(224, 138, 0)
-MARK = '\u25cf'
+
+
+def _mark_icon():
+    """A small dot of MARK_COLOR: the mark of a page with changed settings in the tree."""
+    pixmap = QtGui.QPixmap(10, 10)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QtGui.QPainter(pixmap)
+    painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(MARK_COLOR)
+    painter.drawEllipse(1, 1, 8, 8)
+    painter.end()
+    return QtGui.QIcon(pixmap)
 
 
 def _tolerance(field):
@@ -438,6 +450,7 @@ class PreferencesWindow(QtWidgets.QWidget):
             if page is not None:
                 page.keys.append(key)
         self._factory_shown = {}
+        self._mark_icon = _mark_icon()
         self.unmarked_keys = []     # the keys that get no mark: their field cannot show the factory value reliably
         self._markers_timer = QtCore.QTimer(self)
         self._markers_timer.setSingleShot(True)
@@ -673,18 +686,11 @@ class PreferencesWindow(QtWidgets.QWidget):
 
     def _update_item(self, page):
         """The second column of a page in the tree: the number of matches of the search and the changed mark."""
-        parts = [str(page.matches)] if self._query else []
-        if page.changed:
-            parts.append(MARK)
-        page.item.setText(1, ' '.join(parts))
-        if page.changed:
-            page.item.setForeground(1, MARK_COLOR)
-        else:
-            page.item.setData(1, Qt.ItemDataRole.ForegroundRole, None)
+        page.item.setText(1, str(page.matches) if self._query else '')
+        page.item.setIcon(1, self._mark_icon if page.changed else QtGui.QIcon())
         section = page.item.parent()
         changed = any(p.changed for p in self.pages if p.item.parent() is section)
-        section.setText(1, MARK if changed else '')
-        section.setForeground(1, MARK_COLOR)
+        section.setIcon(1, self._mark_icon if changed else QtGui.QIcon())
 
     # ------------------------------------------------------------------------------------------------------------
     # changed settings

@@ -329,7 +329,7 @@ def test_changed_settings_are_marked_and_reset_page_puts_the_factory_values(pref
             break
         QTest.qWait(10)
     assert window.changed_keys(page) == ['tools_drill_cutz', 'tools_drill_feedrate_z']
-    assert '\u25cf' in page.item.text(1) and '\u25cf' in page.item.parent().text(1)
+    assert not page.item.icon(1).isNull() and not page.item.parent().icon(1).isNull()     # the dots in the tree
     assert len(page.content.bars) == 2 and page.content.buttons[1].isVisibleTo(page.content)
 
     # Reset page: the factory values in the form, kept only by Save or Apply
@@ -337,7 +337,7 @@ def test_changed_settings_are_marked_and_reset_page_puts_the_factory_values(pref
     assert drill.cutz_entry.get_value() == pref_app.defaults.factory_defaults['tools_drill_cutz']
     assert pref_app.defaults['tools_drill_cutz'] == -2.5
     window.refresh_markers()
-    assert window.changed_keys(page) == [] and '\u25cf' not in page.item.text(1)
+    assert window.changed_keys(page) == [] and page.item.icon(1).isNull()
 
     # Cancel throws the reset away
     window.cancel_button.click()
