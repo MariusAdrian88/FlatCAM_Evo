@@ -8,6 +8,19 @@ CHANGELOG for FlatCAM Evo
 
 04.11.2026
 
+Shortcuts:
+
+- new: Preferences > Application > Keyboard Shortcuts: a table of every command with its key and the context where it works (the application, the Geometry, Gerber and Excellon Editors, the plugins that wait for clicks on the plot area)
+- new: search a command by its name, or press a key in "Press a key to find it" to see which commands use it; a filter shows one context
+- new: change a key: select the command, choose the modifiers in the combo box (Ctrl, Alt, Shift and their combinations; Cmd on macOS) and press the key in the key field (the modifiers pressed with it are set in the combo box), then Assign; Clear removes the key
+- new: a key that another command already uses where the command works is reported before it is assigned, with the name of that command: "Assign it here and clear the other" or Cancel; the keys of the drawing tools, of the plugins with their own keys and of the text fields are listed in grey and cannot be taken
+- new: Reset shortcut, Reset all shortcuts, Import and Export of the shortcuts (a JSON file); a changed key is marked in its row and the page gets the dot of a changed page; the new keys work after Save or Apply and are kept in the preferences (only the changed ones)
+- changed: the Shortcuts List (F3) and the keys shown in the menus always show the current keys; the F3 list now also lists Undo, Redo, the Up and Down keys of the Project tab and the editor keys it missed (G, K, V, -, =, `, Enter, F3), and no longer lists Q (Change Units), which did nothing
+- changed: Edit > Move to Origin no longer shows Shift+O (no key did it); Geo Editor > Cut Path shows Ctrl+X, its real key
+- changed: the status messages of Add Pad Array (Gerber Editor), Add Drill Array and Add Slot Array (Excellon Editor) are translated
+
+04.11.2026
+
 Translations:
 
 - new: Arabic (العربية): all 5842 texts are translated into Modern Standard Arabic with machine help (a translator model with one glossary, an independent reviewer model that checked every entry, the checks of scripts/i18n_tool.py); every entry is marked "# auto-review 2026-11-04: new" and waits for a native speaker's approval; the list of the entries and the glossary are in docs/translation_review/ (ar.md, ar.csv, ar_glossary.csv)
