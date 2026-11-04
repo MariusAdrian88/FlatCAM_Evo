@@ -6,6 +6,7 @@ interface of a right-to-left language (set_layout_direction()).
 """
 
 import builtins
+import types
 import unittest
 import unittest.mock
 
@@ -110,6 +111,35 @@ class TestRightToLeft(unittest.TestCase):
                 box = FCCheckBox('Plot')
                 box.setLayoutDirection(opposite_direction())
                 self.assertEqual(box_direction, box.layoutDirection())
+
+    def test_code_shell_coordinates_and_canvas_stay_left_to_right(self):
+        from appEditors.text_editor.code_edit import CodeEdit
+        from appGUI.GUIElements import CoordsToolbar
+        from appPlugins.ToolShell.ShellUI import TermWidget
+
+        fcTranslate.set_layout_direction('العربية')
+        widgets = {
+            'code editor': CodeEdit(theme='default'),
+            'Tcl shell': TermWidget('test', types.SimpleNamespace(resource_location='assets/resources')),
+            'coordinates': CoordsToolbar('Coordinates Toolbar'),
+        }
+        for what, widget in widgets.items():
+            with self.subTest(what=what):
+                self.assertEqual(LTR, widget.layoutDirection())
+
+        from appGUI.PlotCanvas import PlotCanvas
+        from defaults import AppDefaults
+
+        class MainWindow(QtWidgets.QMainWindow):
+            def __getattr__(self, name):        # the status bar labels of the canvas
+                return unittest.mock.MagicMock()
+
+        defaults = AppDefaults()
+        fcapp = unittest.mock.MagicMock(options=dict(defaults.defaults), defaults=defaults, app_units='MM',
+                                        ui=MainWindow(), cursor_color_3D='#000000')
+        canvas = PlotCanvas(fcapp)
+        self.assertEqual(LTR, canvas.native.layoutDirection())
+
 
 if __name__ == '__main__':
     unittest.main()

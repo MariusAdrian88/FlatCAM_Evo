@@ -35,6 +35,8 @@ class TermWidget(QWidget):
 
     def __init__(self, version, app, *args):
         QWidget.__init__(self, *args)
+        # Tcl commands and their output are left to right, in a right-to-left application too
+        self.setLayoutDirection(QtCore.Qt.LayoutDirection.LeftToRight)
 
         self.app = app
 

@@ -2242,6 +2242,7 @@ class MainGUI(QtWidgets.QMainWindow):
         self.units_label = FCLabel("[mm]")
         self.units_label.setToolTip(_("The application dimensional units is millimeter."))
         self.units_label.setMargin(2)
+        self.units_label.setLayoutDirection(QtCore.Qt.LayoutDirection.LeftToRight)
         self.infobar.addWidget(self.units_label)
 
         # this used to be done in the APP.__init__()

@@ -5734,6 +5734,8 @@ class CoordsToolbar(QtWidgets.QToolBar):
 
     def __init__(self, title: str, parent=None, app=None):
         super(CoordsToolbar, self).__init__(title, parent=parent)
+        # the coordinates read as X, Y in a right-to-left application too
+        self.setLayoutDirection(Qt.LayoutDirection.LeftToRight)
 
         self.app = app
 
