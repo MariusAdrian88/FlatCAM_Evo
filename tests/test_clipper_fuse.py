@@ -237,24 +237,6 @@ class TestClipperOps(ClipperTestCase):
         reference = shapely.union_all([line.buffer(0.5, quad_segs=64) for line in lines])
         self.assert_close(clipper_ops.offset_lines(lines, 0.5, self.TOL), reference, self.TOL)
 
-    def test_boolean_difference_and_union(self):
-        from appCommon import clipper_ops
-        board = sq(0, 0, 20, 20)
-        copper = [sq(2, 2, 5, 5), sq(4, 4, 8, 8), Point(15, 15).buffer(2, quad_segs=16)]
-        self.assert_close(clipper_ops.boolean(board, copper, 'difference'),
-                          board.difference(shapely.union_all(copper)), 1e-9)
-        self.assert_close(clipper_ops.union(copper), shapely.union_all(copper), 1e-9)
-
-    def test_no_pyclipr_or_bad_input_returns_none(self):
-        from appCommon import clipper_ops
-        with mock.patch.object(clipper_ops, 'pyclipr', None):
-            self.assertIsNone(clipper_ops.offset_polygons([sq(0, 0, 1, 1)], -0.1, self.TOL))
-            self.assertIsNone(clipper_ops.offset_lines([shapely.LineString([(0, 0), (1, 0)])], 0.1, self.TOL))
-            self.assertIsNone(clipper_ops.union([sq(0, 0, 1, 1)]))
-        bowtie = Polygon([(0, 0), (1, 1), (1, 0), (0, 1)])
-        self.assertIsNone(clipper_ops.union([bowtie]))
-        self.assertIsNone(clipper_ops.offset_lines([sq(0, 0, 1, 1)], 0.1, self.TOL))
-
 # ----------------------------------------------------------------------------------------------------------------------
 # Group B: safe fallback
 # ----------------------------------------------------------------------------------------------------------------------

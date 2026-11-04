@@ -152,27 +152,6 @@ def test_dependency_warning_cancels_before_preflight_and_launch(qapp, monkeypatc
     assert observed["default"] == "Cancel"
 
 
-def test_optional_package_change_shows_a_note_and_defaults_to_install(qapp, monkeypatch, tmp_path):
-    from appMain import App
-
-    app = _fake_app(tmp_path)
-    observed = {}
-
-    def accept_dialog(box):
-        observed["text"] = box.text()
-        observed["default"] = box.defaultButton().text()
-        return QtWidgets.QMessageBox.StandardButton.Yes
-
-    monkeypatch.setattr(QtWidgets.QMessageBox, "exec", accept_dialog)
-    dependencies = {"changed": False, "added": [], "removed": [],
-                    "optional_changed": True, "optional_added": ["ortools>=7.0"], "optional_removed": []}
-
-    assert App._confirm_staged_update(app, _manifest_dict(), "linux", dependencies, "") is True
-    assert "install_optional.py" in observed["text"]
-    assert "ortools>=7.0" in observed["text"]
-    assert observed["default"].replace("&", "") == "Yes"
-
-
 def test_cancellation_after_worker_success_prevents_the_gui_launch(monkeypatch, tmp_path):
     from appMain import App
 

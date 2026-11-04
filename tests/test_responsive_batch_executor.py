@@ -50,6 +50,7 @@ class TestResponsiveBatch(unittest.TestCase):
         self.batch.progress.close()
         self.window.close()
         self.tree.close()
+        QtCore.QCoreApplication.sendPostedEvents(None, QtCore.QEvent.Type.DeferredDelete)
 
     def test_worker_completion_does_not_finish_before_insertion_and_plot(self):
         obj = SimpleNamespace(obj_options={'name': 'layer'})

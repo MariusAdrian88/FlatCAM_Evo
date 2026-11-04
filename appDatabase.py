@@ -63,7 +63,8 @@ def _database_option(app, key):
     defaults = getattr(app, 'defaults', {})
     factory_defaults = getattr(defaults, 'factory_defaults', {})
     missing = object()
-    option = app.options.get(key, missing)
+    # the app-wide event filter of MainGUI can run while the App is torn down, without its options
+    option = getattr(app, 'options', {}).get(key, missing)
     if option is not missing:
         return option
     try:

@@ -117,16 +117,28 @@ def _install_window_filter():
     app.installEventFilter(_window_filter)
 
 
-def pytest_runtest_setup(item):
-    _install_window_filter()
+# PyQt6 aborts the process when a slot or a virtual method raises and sys.excepthook is the default one. The app sets
+# its own hook (flatcam.py); without one, the error kills the whole worker and the report names no test. This hook
+# keeps the error, and the teardown of the running test fails with it.
+_qt_errors = []
 
 
-def pytest_runtest_call(item):
-    # unittest runs setUp in the call phase: a QApplication made in setUpClass is here
-    _install_window_filter()
+def _qt_excepthook(kind, value, trace):
+    import traceback
+    _qt_errors.append(''.join(traceback.format_exception(kind, value, trace)))
 
 
-def pytest_runtest_teardown(item):
+sys.excepthook = _qt_excepthook
+
+
+def _raise_qt_errors():
+    if _qt_errors:
+        errors = list(_qt_errors)
+        _qt_errors.clear()
+        raise RuntimeError('a Qt callback raised during the test:\n' + '\n'.join(errors))
+
+
+def _release_modifiers():
     # QTest key events with Ctrl / Shift / Alt leave that state in QApplication.keyboardModifiers(); a later plain
     # click in another test then extends a selection. Release the keys after each test.
     try:
@@ -143,10 +155,35 @@ def pytest_runtest_teardown(item):
         target.deleteLater()
 
 
+import pytest  # noqa: E402
+
+
+def pytest_runtest_setup(item):
+    _qt_errors.clear()
+    _install_window_filter()
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_call(item):
+    # unittest runs setUp in the call phase: a QApplication made in setUpClass is here
+    _install_window_filter()
+    result = yield
+    _raise_qt_errors()
+    return result
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_teardown(item, nextitem):
+    try:
+        return (yield)
+    finally:
+        _release_modifiers()
+        _raise_qt_errors()
+
+
 # Hardware tests (a connected E-Cut USB board or a GRBL serial board) do not run by default.
 # Mark such a test with @pytest.mark.hardware and set FLATCAM_TEST_HARDWARE=1 to run it.
 # All other tests cannot open a real HID device or serial port: a board that is connected stays untouched.
-import pytest  # noqa: E402
 
 HARDWARE_TESTS = os.environ.get('FLATCAM_TEST_HARDWARE') == '1'
 # Timing tests measure the GUI thread while a worker holds the GIL; the result depends on the machine load and on
