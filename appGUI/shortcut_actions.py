@@ -78,7 +78,15 @@ def actions():
 # Everywhere (MainGUI.eventFilter): before the plot area, an editor or a plugin, unless the focus is in a text field
 # ---------------------------------------------------------------------------------------------------------------------
 def global_actions():
-    return []
+    return [
+        Shortcut('global.axis', _("Toggle the axis"), 'global', 'Shift+A',
+                 lambda ui, key: ui.menuview_toggle_axis.trigger()),
+        Shortcut('global.grid_lines', _("Toggle Grid Lines"), 'global', 'Shift+G',
+                 lambda ui, key: ui.menuview_toggle_grid_lines.trigger()),
+        Shortcut('global.hud', _("Toggle HUD"), 'global', 'Shift+H', lambda ui, key: ui.menuview_toggle_hud.trigger()),
+        Shortcut('global.workspace', _("Toggle the workspace"), 'global', 'Shift+W',
+                 lambda ui, key: ui.menuview_toggle_workspace.trigger()),
+    ]
 
 
 # ---------------------------------------------------------------------------------------------------------------------

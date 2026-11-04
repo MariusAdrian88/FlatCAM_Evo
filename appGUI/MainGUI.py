@@ -3266,20 +3266,13 @@ class MainGUI(QtWidgets.QMainWindow):
         :return:
         """
         if (event.type() == QtCore.QEvent.Type.KeyPress and
-                isinstance(obj, QtWidgets.QWidget) and (obj is self or self.isAncestorOf(obj)) and
-                event.modifiers() == QtCore.Qt.KeyboardModifier.ShiftModifier and
-                not self.app_focus_in_text()):
-            # Catch these before canvas, editor or plugin handlers can consume them.
-            actions = {
-                QtCore.Qt.Key.Key_G: self.menuview_toggle_grid_lines,
-                QtCore.Qt.Key.Key_A: self.menuview_toggle_axis,
-                QtCore.Qt.Key.Key_H: self.menuview_toggle_hud,
-                QtCore.Qt.Key.Key_W: self.menuview_toggle_workspace,
-            }
-            action = actions.get(event.key())
-            if action is not None:
+                isinstance(obj, QtWidgets.QWidget) and (obj is self or self.isAncestorOf(obj))):
+            # the keys of the 'global' context of the shortcuts (the View toggles): caught before the canvas, the
+            # editor or the plugin handlers can consume them
+            action = shortcuts.registry().global_action(event.key(), event.modifiers())
+            if action is not None and not self.app_focus_in_text():
                 if not event.isAutoRepeat():
-                    action.trigger()
+                    action.run(self, event.key())
                 event.accept()
                 return True
 

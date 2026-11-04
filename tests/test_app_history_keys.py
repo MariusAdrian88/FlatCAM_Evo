@@ -134,6 +134,20 @@ class TestViewKeys(unittest.TestCase):
         self.target.setFocus()
         self.qapp.processEvents()
 
+    def key(self, key, modifiers=SHIFT):
+        event = QtGui.QKeyEvent(QtCore.QEvent.Type.KeyPress, key, modifiers)
+        return self.window.eventFilter(self.target, event)
+
+    def test_shift_keys_toggle_the_view_in_every_context(self):
+        for key, letter in ((QtCore.Qt.Key.Key_G, 'G'), (QtCore.Qt.Key.Key_A, 'A'), (QtCore.Qt.Key.Key_H, 'H'),
+                            (QtCore.Qt.Key.Key_W, 'W')):
+            for source in ('app', 'geo_editor', 'measurement'):
+                self.window.app.call_source = source
+                before = self.actions[letter].isChecked()
+                self.assertTrue(self.key(key))
+                self.assertNotEqual(before, self.actions[letter].isChecked(), letter)
+        self.assertFalse(self.key(QtCore.Qt.Key.Key_G, NO_MODIFIER))
+
 
 # ---------------------------------------------------------------------------------------------------------------------
 # Characterization of MainGUI.keyPressEvent: every key with every modifier, from the plot area (a vispy key) and from
