@@ -399,3 +399,137 @@ def dispatch(ui, context, key, modifiers):
 def apply_options(app):
     """Apply the shortcuts of the preferences (start-up, Save and Apply of the Preferences)."""
     registry().apply_overrides(app.defaults.get('global_shortcuts', {}))
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# The F3 list (MainGUI.ShortcutsTab): the tables of the list as they were written by hand, made from the registry
+# ---------------------------------------------------------------------------------------------------------------------
+_TABLE = '<table border="0" cellpadding="0" cellspacing="0" style="width:283px"><tbody>%s</tbody></table>'
+_BLANK_ROW = '<tr height="20"><td height="20">&nbsp;</td><td>&nbsp;</td></tr>'
+_ROW = '<tr height="20"><td height="20" width="89"><strong>%s</strong></td><td width="194">&nbsp;%s</td></tr>'
+_FIRST_ROW = ('<tr height="20"><td height="20" width="89"><strong>%s</strong></td><td width="194">'
+              '<span style="color:#006400"><strong>&nbsp;%s</strong></span></td></tr>')
+# the order of the keys without a modifier that are not a letter or a digit
+_SPECIAL_ORDER = ('-', '=', 'Del', '`', 'Space', 'Return', 'Esc', 'Backspace', 'Up', 'Down')
+
+
+def _escape(text):
+    return text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+
+def _sort_key(sequence):
+    key = key_of(sequence)
+    if len(key) == 1 and key.isalpha():
+        return 0, key, ''
+    if len(key) == 1 and key.isdigit():
+        return 1, key, ''
+    if key[:1] == 'F' and key[1:].isdigit():
+        return 2, '%02d' % int(key[1:]), ''
+    rank = _SPECIAL_ORDER.index(key) if key in _SPECIAL_ORDER else len(_SPECIAL_ORDER)
+    return 3, '%02d' % rank, key
+
+
+def _group_of(sequence):
+    """The table of the F3 list: '' (no modifier, a letter, a digit, - or =), Ctrl, Shift, Alt, combo, special."""
+    mods, key = modifiers_of(sequence), key_of(sequence)
+    if not mods:
+        if len(key) == 1 and key.isdigit():
+            return 'digit'
+        return 'plain' if (len(key) == 1 and key.isalpha()) or key in ('-', '=') else 'special'
+    return mods if mods in ('Ctrl', 'Shift', 'Alt') else 'combo'
+
+
+def _rows(actions):
+    return [(native_text(a.key), a.f3_name or a.name) for a in sorted(actions, key=lambda a: _sort_key(a.key))]
+
+
+def _table(groups, first=None, lead_blank=False):
+    """1 table: the groups of rows with a blank row between them (and before the first one with lead_blank)."""
+    html = [_BLANK_ROW] if lead_blank else []
+    if first is not None:
+        html.append(_FIRST_ROW % tuple(_escape(t) for t in first))
+    for rows in groups:
+        if not rows:
+            continue
+        if html and html[-1] != _BLANK_ROW:
+            html.append(_BLANK_ROW)
+        html += [_ROW % (_escape(key), _escape(name)) for key, name in rows]
+    return _TABLE % ''.join(html)
+
+
+def _f3_actions(reg, contexts):
+    return [a for a in reg.actions.values() if a.context in contexts and a.f3 and a.key]
+
+
+def f3_application_html(reg=None):
+    """The left pane of the F3 list: the keys of the application (and the keys of every context and of the shell)."""
+    reg = reg or registry()
+    actions = _f3_actions(reg, ('app', 'global', 'tcl_shell'))
+    first = reg.get('app.shortcut_list')
+    rest = [a for a in actions if a is not first]
+    by_group = {}
+    for action in rest:
+        by_group.setdefault(_group_of(action.key), []).append(action)
+    html = '<b>%s</b><br>' % _("General Shortcut list")
+    html += _table([_rows(by_group.get('digit', [])), _rows(by_group.get('plain', []))],
+                   first=(native_text(first.key), first.f3_name or first.name) if first.key else None)
+    for group in ('Ctrl', 'Shift', 'Alt', 'combo', 'special'):
+        if by_group.get(group):
+            html += _table([_rows(by_group[group])], lead_blank=True)
+    return html
+
+
+def f3_editors_html(heading_color='blue', reg=None):
+    """The right pane of the F3 list: the keys of the Geometry, Gerber and Excellon Editors."""
+    reg = reg or registry()
+    html = '<b>%s</b><br><br>' % _("Editor Shortcut list")
+    sections = (('geo_editor', 'geo_drawing', _("GEOMETRY EDITOR"), heading_color),
+                ('grb_editor', 'grb_drawing', _("GERBER EDITOR"), '#00ff00'),
+                ('exc_editor', 'exc_drawing', _("EXCELLON EDITOR"), '#ff0000'))
+    for index, (context, drawing, title, color) in enumerate(sections):
+        by_group = {}
+        for action in _f3_actions(reg, (context,)):
+            group = _group_of(action.key)
+            by_group.setdefault('plain' if group == 'digit' else group, []).append(action)
+        groups = [_rows(by_group.get(g, [])) for g in ('plain', 'Shift', 'Alt', 'Ctrl', 'combo', 'special')]
+        groups.append(_rows(_f3_actions(reg, (drawing,))))
+        html += '%s<strong><span style="color:%s">%s</span></strong><br>' % ('<br>' if index else '', color,
+                                                                             _escape(title))
+        html += _table(groups) + '<br>'
+    return html
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# The key hints of the menus
+# ---------------------------------------------------------------------------------------------------------------------
+def _resolve(app, path):
+    target = app
+    for name in path.split('.'):
+        target = getattr(target, name, None)
+        if target is None:
+            return None
+    return target
+
+
+def apply_menu_hints(app, reg=None):
+    """
+    The text after the tab of the menu actions of shortcut_actions.MENU_HINTS: the current key of the action (no hint
+    when the action has no key or the menu action names no action). A menu action that does not exist is skipped.
+    """
+    from appGUI.shortcut_actions import MENU_HINTS
+    reg = reg or registry()
+    for path, aid in MENU_HINTS:
+        menu_action = _resolve(app, path)
+        if menu_action is None or not hasattr(menu_action, 'setText'):
+            continue
+        name = menu_action.text().split('\t')[0]
+        key = native_text(reg.key(aid)) if aid else ''
+        menu_action.setText('%s\t%s' % (name, key) if key else name)
+
+
+def apply_to_gui(app):
+    """After a change of the keys: the hints of the menus and the F3 list show the current keys."""
+    apply_menu_hints(app)
+    tab = getattr(app.ui, 'shortcuts_tab', None)
+    if tab is not None:
+        tab.refresh()

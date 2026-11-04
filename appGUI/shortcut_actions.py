@@ -1002,3 +1002,82 @@ def read_only_actions():
         Shortcut('preferences.apply', _("Apply"), 'preferences', 'Ctrl+S', f3=False),
         Shortcut('preferences.close', _("Close"), 'preferences', 'Esc', f3=False),
     ]
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# The key hints of the menus: (the path of the menu action from the App, the action id). The hint after the tab of the
+# text of the menu action is the current key of the action (shortcuts.apply_menu_hints()).
+# ---------------------------------------------------------------------------------------------------------------------
+MENU_HINTS = (
+    # File
+    ('ui.menufilenewproject', 'app.new_project'), ('ui.menufilenewgeo', 'app.new_geometry'),
+    ('ui.menufilenewgrb', 'app.new_gerber'), ('ui.menufilenewexc', 'app.new_excellon'),
+    ('ui.menufilenewdoc', 'app.new_document'), ('ui.menufileopenproject', 'app.open_project'),
+    ('ui.menufileopengerber', 'app.open_gerber'), ('ui.menufileopenexcellon', 'app.open_excellon'),
+    ('ui.menufilesaveproject', 'app.save_project'), ('ui.menufilesaveprojectas', 'app.save_project_as'),
+    ('ui.menufilerunscript', 'app.run_script'), ('ui.menufile_print', 'app.print_pdf'),
+    # Edit
+    ('ui.menuedit_undo', 'app.undo'), ('ui.menuedit_redo', 'app.redo_alt'), ('ui.menueditedit', 'app.edit'),
+    ('ui.menueditok', 'geo_editor.exit'), ('ui.menueditcopyobject', 'app.copy'), ('ui.menueditdelete', 'app.delete'),
+    ('ui.menueditorigin', 'app.set_origin'), ('ui.menuedit_move2origin', None), ('ui.menueditjump', 'app.jump'),
+    ('ui.menueditlocate', 'app.locate'), ('ui.menueditselectall', 'app.select_all'),
+    ('ui.menueditpreferences', 'app.preferences'),
+    # Options
+    ('ui.menuoptions_transform_skewx', 'app.skew_x'), ('ui.menuoptions_transform_skewy', 'app.skew_y'),
+    ('ui.menuoptions_transform_flipx', 'app.flip_x'), ('ui.menuoptions_transform_flipy', 'app.flip_y'),
+    ('ui.menuoptions_view_source', 'app.view_source'), ('ui.menuoptions_tools_db', 'app.tools_database'),
+    # View
+    ('ui.menuviewenable', 'app.enable_all'), ('ui.menuviewdisableall', 'app.disable_all'),
+    ('ui.menuviewenableother', 'app.enable_others'), ('ui.menuviewdisableother', 'app.disable_others'),
+    ('ui.menuview_zoom_fit', 'app.zoom_fit'), ('ui.menuview_zoom_in', 'app.zoom_in'),
+    ('ui.menuview_zoom_out', 'app.zoom_out'), ('ui.menuview_replot', 'app.refresh'),
+    ('ui.menuview_toggle_code_editor', 'app.code_editor'), ('ui.menuview_toggle_fscreen', 'app.full_screen'),
+    ('ui.menuview_toggle_parea', 'app.toggle_plot_area'), ('ui.menuview_toggle_notebook', 'app.notebook'),
+    ('ui.menuview_toggle_grid', 'app.grid_snap'), ('ui.menuview_toggle_grid_lines', 'global.grid_lines'),
+    ('ui.menuview_toggle_axis', 'global.axis'), ('ui.menuview_toggle_workspace', 'global.workspace'),
+    ('ui.menuview_toggle_hud', 'global.hud'),
+    # Plugins and Help
+    ('ui.menu_plugins_shell', 'app.shell'), ('ui.menuhelp_manual', 'app.manual'),
+    ('ui.menuhelp_shortcut_list', 'app.shortcut_list'), ('ui.menuhelp_videohelp', 'app.tutorials'),
+    ('distance_tool.menuAction', 'app.distance'), ('distance_min_tool.menuAction', 'app.distance_min'),
+    ('move_tool.menuAction', 'app.move'), ('report_tool.menuAction', 'app.properties'),
+    ('qrcode_tool.menuAction', 'app.qrcode'),
+    # Geometry Editor
+    ('ui.geo_add_circle_menuitem', 'geo_editor.circle'), ('ui.geo_add_arc_menuitem', 'geo_editor.arc'),
+    ('ui.geo_add_rectangle_menuitem', 'geo_editor.rectangle'), ('ui.geo_add_polygon_menuitem', 'geo_editor.polygon'),
+    ('ui.geo_add_path_menuitem', 'geo_editor.path'), ('ui.geo_add_text_menuitem', 'geo_editor.text'),
+    ('ui.geo_union_menuitem', 'geo_editor.union'), ('ui.geo_intersection_menuitem', 'geo_editor.intersection'),
+    ('ui.geo_subtract_menuitem', 'geo_editor.subtract'), ('ui.geo_cutpath_menuitem', 'geo_editor.cut'),
+    ('ui.geo_copy_menuitem', 'geo_editor.copy'), ('ui.geo_delete_menuitem', 'geo_editor.delete'),
+    ('ui.geo_move_menuitem', 'geo_editor.move'), ('ui.geo_buffer_menuitem', 'geo_editor.buffer'),
+    ('ui.geo_paint_menuitem', 'geo_editor.paint'), ('ui.geo_transform_menuitem', 'geo_editor.transform'),
+    ('ui.geo_cornersnap_menuitem', 'geo_editor.corner_snap'),
+    # Excellon Editor
+    ('ui.exc_add_array_drill_menuitem', 'exc_editor.drill_array'), ('ui.exc_add_drill_menuitem', 'exc_editor.drill'),
+    ('ui.exc_add_array_slot_menuitem', 'exc_editor.slot_array'), ('ui.exc_add_slot_menuitem', 'exc_editor.slot'),
+    ('ui.exc_resize_drill_menuitem', 'exc_editor.resize'), ('ui.exc_copy_drill_menuitem', 'exc_editor.copy'),
+    ('ui.exc_delete_drill_menuitem', 'exc_editor.delete'), ('ui.exc_move_drill_menuitem', 'exc_editor.move'),
+    # Gerber Editor
+    ('ui.grb_add_pad_menuitem', 'grb_editor.pad'), ('ui.grb_add_pad_array_menuitem', 'grb_editor.pad_array'),
+    ('ui.grb_add_track_menuitem', 'grb_editor.track'), ('ui.grb_add_region_menuitem', 'grb_editor.region'),
+    ('ui.grb_convert_poly_menuitem', 'grb_editor.poligonize'), ('ui.grb_add_semidisc_menuitem', 'grb_editor.semidisc'),
+    ('ui.grb_add_disc_menuitem', 'grb_editor.disc'), ('ui.grb_add_buffer_menuitem', 'grb_editor.buffer'),
+    ('ui.grb_add_scale_menuitem', 'grb_editor.scale'), ('ui.grb_add_markarea_menuitem', 'grb_editor.mark_area'),
+    ('ui.grb_add_eraser_menuitem', 'grb_editor.eraser'), ('ui.grb_transform_menuitem', 'grb_editor.transform'),
+    ('ui.grb_copy_menuitem', 'grb_editor.copy'), ('ui.grb_delete_menuitem', 'grb_editor.delete'),
+    ('ui.grb_move_menuitem', 'grb_editor.move'),
+)
+# the plugins of the Plugins menu (AppTool.install()): their menuAction shows the key of the action that opens them
+for _attribute, _aid in (('compare_tool', 'app.compare'), ('align_objects_tool', 'app.align'),
+                         ('markers_tool', 'app.markers'), ('calculator_tool', 'app.calculators'),
+                         ('drilling_tool', 'app.drilling'), ('extract_tool', 'app.extract'),
+                         ('fiducial_tool', 'app.fiducials'), ('invert_tool', 'app.invert'),
+                         ('punch_tool', 'app.punch'), ('isolation_tool', 'app.isolation'),
+                         ('copper_thieving_tool', 'app.copper_thieving'), ('paste_tool', 'app.solder_paste'),
+                         ('film_tool', 'app.film'), ('milling_tool', 'app.milling'), ('ncclear_tool', 'app.ncc'),
+                         ('optimal_tool', 'app.optimal'), ('paint_tool', 'app.paint'), ('rules_tool', 'app.rules'),
+                         ('transform_tool', 'app.transform'), ('dblsidedtool', 'app.two_sided'),
+                         ('photocarve_tool', 'app.photo_carve'), ('sub_tool', 'app.subtract'),
+                         ('cutout_tool', 'app.cutout'), ('follow_tool', 'app.follow'),
+                         ('panelize_tool', 'app.panelize')):
+    MENU_HINTS += (('%s.menuAction' % _attribute, _aid),)
