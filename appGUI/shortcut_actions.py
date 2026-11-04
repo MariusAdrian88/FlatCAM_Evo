@@ -746,7 +746,119 @@ def grb_delete(ui, key):
 # Excellon Editor
 # ---------------------------------------------------------------------------------------------------------------------
 def exc_editor_actions():
-    return []
+    exc = 'exc_editor'
+    flag = lambda function: shortcut_flag('exc_editor', function)    # noqa: E731
+    return [
+        Shortcut('exc_editor.undo', _("Undo"), exc, 'Ctrl+Z', editor_undo('exc_editor')),
+        Shortcut('exc_editor.redo', _("Redo"), exc, 'Ctrl+Y', editor_redo('exc_editor')),
+        Shortcut('exc_editor.redo_alt', '%s (%s)' % (_("Redo"), _("Alternative")), exc, 'Ctrl+Shift+Z',
+                 editor_redo('exc_editor')),
+        # Ctrl (another Ctrl key goes to the active tool: Ctrl+Space of the Slot Array)
+        Shortcut('exc_editor.select_all', _("Select All"), exc, 'Ctrl+A',
+                 stop(lambda ui: ui.app.exc_editor.ui.tools_table_exc.selectAll())),
+        Shortcut('exc_editor.exit', _("Save Object and Exit Editor"), exc, 'Ctrl+S', exit_editor),
+        Shortcut('exc_editor.distance', _("Distance Tool"), exc, 'Ctrl+M', stop(lambda ui: ui.app.distance_tool.run())),
+        # Shift
+        Shortcut('exc_editor.distance_min', _("Distance Minimum Tool"), exc, 'Shift+M',
+                 stop(lambda ui: ui.app.distance_min_tool.run())),
+        # no modifier: also with a drawing tool active
+        Shortcut('exc_editor.abort', _("Abort and return to Select"), exc, 'Esc', exc_abort),
+        Shortcut('exc_editor.finish', _("Finish drawing for certain tools"), exc, 'Return', exc_finish),
+        Shortcut('exc_editor.delete', _("Delete"), exc, 'Del', exc_delete, source=SOURCE_CANVAS),
+        Shortcut('exc_editor.delete_tool', _("Alternate: Delete Tool"), exc, 'Del',
+                 flag(lambda ui: ui.app.exc_editor.on_tool_delete()), source=SOURCE_PROJECT),
+        Shortcut('exc_editor.zoom_out', _("Zoom Out"), exc, '-', flag(editor_zoom('exc_editor', out=True))),
+        Shortcut('exc_editor.zoom_in', _("Zoom In"), exc, '=', flag(editor_zoom('exc_editor', out=False))),
+        Shortcut('exc_editor.notebook', _("(left to Key_1)Toggle Notebook Area (Left Side)"), exc, '`',
+                 flag(lambda ui: ui.on_toggle_notebook())),
+        Shortcut('exc_editor.grid_snap', _("Grid On/Off"), exc, 'G', editor_grid_snap('exc_editor')),
+        Shortcut('exc_editor.corner_snap', _("Toggle Corner Snap"), exc, 'K',
+                 flag(lambda ui: ui.app.ui.corner_snap_btn.trigger())),
+        Shortcut('exc_editor.zoom_fit', _("Zoom Fit"), exc, 'V', flag(lambda ui: ui.app.on_zoom_fit())),
+        Shortcut('exc_editor.slot', _("Add Slot"), exc, 'W',
+                 editor_add_at_cursor('exc_editor', 'slot_add', 'add_slot_btn', _("Click on target point."))),
+        Shortcut('exc_editor.shortcut_list', _("Shortcuts List"), exc, 'F3', stop(lambda ui: ui.on_shortcut_list())),
+        # no modifier, when no drawing tool is active
+        Shortcut('exc_editor.drill_array', _("Add Drill Array"), exc, 'A',
+                 editor_add_at_cursor('exc_editor', 'drill_array', 'add_drill_array_btn', _("Click on target point.")),
+                 phase=PHASE_TOOL),
+        Shortcut('exc_editor.copy', _("Copy"), exc, 'C',
+                 editor_from_selection('exc_editor', 'drill_copy', 'copy_drill_btn', _("Click on target point.")),
+                 phase=PHASE_TOOL),
+        Shortcut('exc_editor.drill', _("Add Drill"), exc, 'D',
+                 editor_add_at_cursor('exc_editor', 'drill_add', 'add_drill_btn', _("Click on target point.")),
+                 phase=PHASE_TOOL),
+        Shortcut('exc_editor.jump', _("Jump to Location (x, y)"), exc, 'J', lambda ui, key: ui.app.on_jump_to(),
+                 phase=PHASE_TOOL),
+        Shortcut('exc_editor.move', _("Move"), exc, 'M',
+                 editor_from_selection('exc_editor', 'drill_move', 'move_drill_btn',
+                                       _("Click on target location ...")),
+                 phase=PHASE_TOOL),
+        Shortcut('exc_editor.slot_array', _("Add Slot Array"), exc, 'Q',
+                 editor_add_at_cursor('exc_editor', 'slot_array', 'add_slot_array_btn', _("Click on target point.")),
+                 phase=PHASE_TOOL),
+        Shortcut('exc_editor.resize', _("Resize Drill"), exc, 'R',
+                 flag(lambda ui: ui.app.exc_editor.select_tool('drill_resize')), phase=PHASE_TOOL),
+        Shortcut('exc_editor.add_tool', _("Add a new Tool"), exc, 'T', exc_add_tool, phase=PHASE_TOOL),
+    ]
+
+
+def exc_abort(ui, key):
+    ui.app.inform.emit('[WARNING_NOTCL] %s' % _("Cancelled."))
+    ui.app.exc_editor.delete_utility_geometry()
+    ui.app.exc_editor.active_tool.clean_up()
+    ui.app.exc_editor.select_tool('drill_select')
+    return STOP
+
+
+def exc_finish(ui, key):
+    """Finish the current action. Use with tools that do not complete automatically."""
+    from appEditors.appGeoEditor import FCShapeTool
+    editor = ui.app.exc_editor
+    tool = editor.active_tool
+    if not isinstance(tool, FCShapeTool):
+        return
+    # a typed distance in the panel of the tool: the tool takes Enter itself
+    # ('drill_move' has no panel for a typed distance (no move_tool): Enter clicks at the cursor)
+    if tool.name == 'drill_add' and tool.drill_tool.length != 0.0:
+        return
+    if tool.name == 'slot_add' and tool.slot_tool.length != 0.0:
+        return
+    if tool.name == 'drill_copy' and tool.copy_tool.length != 0.0:
+        return
+    editor.on_canvas_click_left_handler((editor.snap_x, editor.snap_y))
+    if editor.active_tool.complete:
+        editor.on_shape_complete()
+        ui.app.inform.emit('[success] %s' % _("Done."))
+
+
+def exc_delete(ui, key):
+    # Del on the plot area deletes the selected drills and slots
+    ui.app.exc_editor.launched_from_shortcuts = True
+    if ui.app.exc_editor.selected:
+        ui.app.exc_editor.delete_selected()
+        ui.app.exc_editor.replot()
+    else:
+        ui.app.inform.emit('[WARNING_NOTCL] %s' % _("Cancelled. Nothing selected."))
+    return STOP
+
+
+def exc_add_tool(ui, key):
+    ui.app.exc_editor.launched_from_shortcuts = True
+    # ## Current application units in Upper Case
+    ui.units = "MM"
+    tool_add_popup = FCInputDoubleSpinner(title='%s ...' % _("New Tool"), text='%s:' % _('Enter a Tool Diameter'),
+                                          min=0.0000, max=99.9999, decimals=ui.decimals)
+    tool_add_popup.set_icon(QtGui.QIcon(ui.app.resource_location + '/letter_t_32.png'))
+
+    val, ok = tool_add_popup.get_value()
+    if ok:
+        ui.app.exc_editor.on_tool_add(tooldia=val)
+        formated_val = '%.*f' % (ui.decimals, float(val))
+        ui.app.inform.emit('[success] %s: %s %s' % (_("Added new tool with dia"), formated_val, str(ui.units)))
+    else:
+        ui.app.inform.emit('[WARNING_NOTCL] %s...' % _("Adding Tool cancelled"))
+    return STOP
 
 
 # ---------------------------------------------------------------------------------------------------------------------
