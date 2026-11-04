@@ -18,9 +18,10 @@ To add a shortcut: write its function and add a Shortcut(...) line to the list o
 
 import webbrowser
 
-from PyQt6 import QtWidgets
+from PyQt6 import QtGui, QtWidgets
 
 from appDatabase import _database_option
+from appGUI.GUIElements import FCMessageBox, FCInputDoubleSpinner
 from appGUI.shortcuts import (Context, Shortcut, Stop, STOP, SOURCE_CANVAS, SOURCE_PROJECT, PHASE_TOOL, PHASE_LATE)
 
 import gettext
@@ -356,7 +357,234 @@ def app_add_tool(ui, key):
 # Geometry Editor
 # ---------------------------------------------------------------------------------------------------------------------
 def geo_editor_actions():
-    return []
+    geo = 'geo_editor'
+    return [
+        Shortcut('geo_editor.undo', _("Undo"), geo, 'Ctrl+Z', editor_undo('geo_editor')),
+        Shortcut('geo_editor.redo', _("Redo"), geo, 'Ctrl+Y', editor_redo('geo_editor')),
+        Shortcut('geo_editor.redo_alt', '%s (%s)' % (_("Redo"), _("Alternative")), geo, 'Ctrl+Shift+Z',
+                 editor_redo('geo_editor')),
+        # Ctrl
+        Shortcut('geo_editor.exit', _("Save Object and Exit Editor"), geo, 'Ctrl+S', exit_editor),
+        Shortcut('geo_editor.distance', _("Distance Tool"), geo, 'Ctrl+M', stop(lambda ui: ui.app.distance_tool.run())),
+        Shortcut('geo_editor.cut', _("Polygon Cut Tool"), geo, 'Ctrl+X', geo_cut),
+        # Shift
+        Shortcut('geo_editor.distance_min', _("Distance Minimum Tool"), geo, 'Shift+M',
+                 stop(lambda ui: ui.app.distance_min_tool.run())),
+        Shortcut('geo_editor.skew_x', _("Skew shape on X axis"), geo, 'Shift+X',
+                 stop(lambda ui: ui.app.geo_editor.transform_tool.on_skewx_key())),
+        Shortcut('geo_editor.skew_y', _("Skew shape on Y axis"), geo, 'Shift+Y',
+                 stop(lambda ui: ui.app.geo_editor.transform_tool.on_skewy_key())),
+        # Alt
+        Shortcut('geo_editor.transform', _("Editor Transformation Tool"), geo, 'Alt+R',
+                 stop(lambda ui: ui.app.geo_editor.select_tool('transform'))),
+        Shortcut('geo_editor.offset_x', _("Offset shape on X axis"), geo, 'Alt+X',
+                 stop(lambda ui: ui.app.geo_editor.transform_tool.on_offx_key())),
+        Shortcut('geo_editor.offset_y', _("Offset shape on Y axis"), geo, 'Alt+Y',
+                 stop(lambda ui: ui.app.geo_editor.transform_tool.on_offy_key())),
+        # no modifier: also with a drawing tool active (the tool gets the key after them)
+        Shortcut('geo_editor.notebook', _("(left to Key_1)Toggle Notebook Area (Left Side)"), geo, '`',
+                 lambda ui, key: ui.on_toggle_notebook()),
+        Shortcut('geo_editor.finish', _("Finish drawing for certain tools"), geo, 'Return', geo_finish),
+        Shortcut('geo_editor.abort', _("Abort and return to Select"), geo, 'Esc', geo_abort),
+        Shortcut('geo_editor.delete', _("Delete"), geo, 'Del', geo_delete),
+        Shortcut('geo_editor.rotate', _("Rotate Geometry"), geo, 'Space',
+                 lambda ui, key: ui.app.geo_editor.transform_tool.on_rotate_key()),
+        Shortcut('geo_editor.zoom_out', _("Zoom Out"), geo, '-', editor_zoom('geo_editor', out=True)),
+        Shortcut('geo_editor.zoom_in', _("Zoom In"), geo, '=', editor_zoom('geo_editor', out=False)),
+        Shortcut('geo_editor.grid_snap', _("Grid On/Off"), geo, 'G', geo_grid_snap),
+        Shortcut('geo_editor.corner_snap', _("Toggle Corner Snap"), geo, 'K',
+                 lambda ui, key: ui.app.geo_editor.on_corner_snap()),
+        Shortcut('geo_editor.zoom_fit', _("Zoom Fit"), geo, 'V', lambda ui, key: ui.app.on_zoom_fit()),
+        # no modifier, when no drawing tool is active
+        Shortcut('geo_editor.arc', _("Draw an Arc"), geo, 'A', select_tool('geo_editor', 'arc'), phase=PHASE_TOOL),
+        Shortcut('geo_editor.buffer', _("Buffer Tool"), geo, 'B', select_tool('geo_editor', 'buffer'),
+                 phase=PHASE_TOOL),
+        Shortcut('geo_editor.copy', _("Copy Geo Item"), geo, 'C', select_tool('geo_editor', 'copy'),
+                 phase=PHASE_TOOL),
+        Shortcut('geo_editor.intersection', _("Polygon Intersection Tool"), geo, 'E',
+                 geo_selection_command('intersection', _("Please select geometry items \n"
+                                                         "on which to perform Intersection Tool.")),
+                 phase=PHASE_TOOL),
+        Shortcut('geo_editor.paint', _("Geo Paint Tool"), geo, 'I', select_tool('geo_editor', 'paint'),
+                 phase=PHASE_TOOL),
+        Shortcut('geo_editor.jump', _("Jump to Location (x, y)"), geo, 'J', lambda ui, key: ui.app.on_jump_to(),
+                 phase=PHASE_TOOL),
+        Shortcut('geo_editor.move', _("Move Geo Item"), geo, 'M', select_tool('geo_editor', 'move'),
+                 phase=PHASE_TOOL),
+        Shortcut('geo_editor.polygon', _("Draw a Polygon"), geo, 'N', select_tool('geo_editor', 'polygon'),
+                 phase=PHASE_TOOL),
+        Shortcut('geo_editor.circle', _("Draw a Circle"), geo, 'O', select_tool('geo_editor', 'circle'),
+                 phase=PHASE_TOOL),
+        Shortcut('geo_editor.path', _("Draw a Path"), geo, 'P', select_tool('geo_editor', 'path'), phase=PHASE_TOOL),
+        Shortcut('geo_editor.rectangle', _("Draw Rectangle"), geo, 'R', select_tool('geo_editor', 'rectangle'),
+                 phase=PHASE_TOOL),
+        Shortcut('geo_editor.subtract', _("Polygon Subtraction Tool"), geo, 'S',
+                 geo_selection_command('subtract', _("Please select geometry items \n"
+                                                     "on which to perform Subtraction.")),
+                 phase=PHASE_TOOL),
+        Shortcut('geo_editor.text', _("Add Text Tool"), geo, 'T', select_tool('geo_editor', 'text'),
+                 phase=PHASE_TOOL),
+        Shortcut('geo_editor.union', _("Polygon Union Tool"), geo, 'U',
+                 geo_selection_command('union', _("Please select geometry items \n"
+                                                  "on which to perform union.")),
+                 phase=PHASE_TOOL),
+        Shortcut('geo_editor.flip_x', _("Flip shape on X axis"), geo, 'X',
+                 stop(lambda ui: ui.app.geo_editor.transform_tool.on_flipx()), phase=PHASE_TOOL),
+        Shortcut('geo_editor.flip_y', _("Flip shape on Y axis"), geo, 'Y',
+                 stop(lambda ui: ui.app.geo_editor.transform_tool.on_flipy()), phase=PHASE_TOOL),
+        # after the drawing tool got the key
+        Shortcut('geo_editor.shortcut_list', _("Shortcuts List"), geo, 'F3', lambda ui, key: ui.on_shortcut_list(),
+                 source=SOURCE_CANVAS, phase=PHASE_LATE),
+    ]
+
+
+def stop(function):
+    """An action that runs function(ui) and uses up the key."""
+    def action(ui, key):
+        function(ui)
+        return STOP
+    return action
+
+
+def select_tool(editor, tool):
+    return lambda ui, key: getattr(ui.app, editor).select_tool(tool)
+
+
+def focus_in_text():
+    """True if the keyboard focus is in a text or number field (Ctrl+Z belongs to the field then)."""
+    from appGUI.MainGUI import MainGUI
+    return MainGUI.app_focus_in_text()
+
+
+def editor_undo(editor):
+    def action(ui, key):
+        if not focus_in_text():
+            getattr(ui.app, editor).undo()
+        return STOP
+    return action
+
+
+def editor_redo(editor):
+    def action(ui, key):
+        if not focus_in_text():
+            getattr(ui.app, editor).redo()
+        return STOP
+    return action
+
+
+def editor_zoom(editor, out):
+    def action(ui, key):
+        ratio = _database_option(ui.app, 'global_zoom_ratio')
+        draw = getattr(ui.app, editor)
+        ui.app.plotcanvas.zoom(ratio if out else 1 / ratio, [draw.snap_x, draw.snap_y])
+    return action
+
+
+def exit_editor(ui, key):
+    # save (update) the edited object and return to the App
+    ui.app.on_editing_finished()
+    return STOP
+
+
+def warning_box(ui, msg):
+    messagebox = FCMessageBox(parent=ui)
+    title = _("Warning")
+    messagebox.setWindowTitle(title)  # taskbar still shows it
+    messagebox.setWindowIcon(QtGui.QIcon(ui.app.resource_location + '/app128.png'))
+    messagebox.setText('<b>%s</b>' % title)
+    messagebox.setInformativeText(msg)
+    messagebox.setIcon(QtWidgets.QMessageBox.Icon.Warning)
+    messagebox.setStandardButtons(QtWidgets.QMessageBox.StandardButton.Ok)
+    messagebox.setDefaultButton(QtWidgets.QMessageBox.StandardButton.Ok)
+    messagebox.exec()
+
+
+def geo_cut(ui, key):
+    if ui.app.geo_editor.get_selected() is not None:
+        ui.app.geo_editor.cutpath()
+    else:
+        warning_box(ui, _('Please first select a geometry item to be cut\n'
+                          'then select the geometry item that will be cut\n'
+                          'out of the first item. In the end press ~X~ key or\n'
+                          'the toolbar button.'))
+    return STOP
+
+
+def geo_selection_command(method, msg):
+    """Union, Intersection, Subtraction of the selected shapes; a message when nothing is selected."""
+    def action(ui, key):
+        if ui.app.geo_editor.get_selected() is not None:
+            getattr(ui.app.geo_editor, method)()
+        else:
+            warning_box(ui, msg)
+    return action
+
+
+def geo_finish(ui, key):
+    """Finish the current action. Use with tools that do not complete automatically, like a polygon or path."""
+    from appEditors.appGeoEditor import AppGeoEditor, FCShapeTool
+    editor = ui.app.geo_editor
+    if AppGeoEditor.reject_busy(editor):
+        return Stop('fail')
+    if isinstance(editor.active_tool, FCShapeTool):
+        tool = editor.active_tool
+        if tool.name in ('path', 'circle', 'rectangle', 'move', 'copy'):
+            if not getattr(tool, 'points', ()) and getattr(tool, 'origin', None) is None:
+                ui.app.inform.emit('[WARNING_NOTCL] %s' %
+                                   _("Click on the first construction or reference point before Enter."))
+                return Stop('fail')
+            if tool.name != 'path' or tool.path_tool.length != 0.0:
+                response = tool.on_key(key)
+                if response is not None and response != 'fail':
+                    ui.app.inform.emit(response)
+                return Stop(response)
+        if editor.active_tool.name == 'rotate':
+            if editor.active_tool.make() == 'fail':
+                return Stop('fail')
+
+            if editor.active_tool.complete:
+                if editor.on_shape_complete() == 'fail':
+                    return Stop('fail')
+                ui.app.inform.emit('[success] %s' % _("Done."))
+            # automatically make the selection tool active after completing current action
+            editor.select_tool('select')
+            return STOP
+        else:
+            if editor.active_tool.name == 'polygon' and editor.active_tool.polygon_tool.length != 0.0:
+                pass
+            else:
+                if editor.active_tool.click(editor.snap(editor.x, editor.y)) == 'fail':
+                    return Stop('fail')
+
+                if editor.active_tool.make() == 'fail':
+                    return Stop('fail')
+
+                if editor.active_tool.complete:
+                    if editor.on_shape_complete() == 'fail':
+                        return Stop('fail')
+                    ui.app.inform.emit('[success] %s' % _("Done."))
+                # automatically make the selection tool active after completing current action
+                editor.select_tool('select')
+
+
+def geo_abort(ui, key):
+    ui.app.inform.emit('[WARNING_NOTCL] %s' % _("Cancelled."))
+    ui.app.geo_editor.delete_utility_geometry()
+    if ui.app.geo_editor.active_tool.name not in ('path', 'circle', 'rectangle', 'move', 'copy'):
+        ui.app.geo_editor.active_tool.clean_up()
+    ui.app.geo_editor.select_tool('select')
+    return STOP
+
+
+def geo_delete(ui, key):
+    ui.app.geo_editor.delete_selected()
+    ui.app.geo_editor.plot_all()
+
+
+def geo_grid_snap(ui, key):
+    ui.app.ui.grid_snap_btn.trigger()
+    # make sure that the cursor shape is enabled/disabled, too
+    ui.app.app_cursor.enabled = ui.app.geo_editor.editor_options['grid_snap'] is True
 
 
 # ---------------------------------------------------------------------------------------------------------------------

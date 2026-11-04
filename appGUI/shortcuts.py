@@ -147,13 +147,16 @@ def native_text(sequence):
 
 
 def qt_key_of(key):
-    """The Qt key code of a key: an int (the Project tab) or a vispy key (the plot area). None if it has none."""
+    """
+    The Qt key code of a key: an int (the Project tab) or a vispy key (the plot area) or the name of a vispy key.
+    None if it has none.
+    """
     if key is None:
         return None
     if isinstance(key, int):
         code = int(key)
     else:
-        name = getattr(key, 'name', None)
+        name = key if isinstance(key, str) else getattr(key, 'name', None)     # a vispy key or its name
         if name in _VISPY_NAMES:
             code = int(_VISPY_NAMES[name])
         elif isinstance(name, str) and len(name) == 1:
