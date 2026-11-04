@@ -473,7 +473,7 @@ def editor_redo(editor):
 
 
 def editor_zoom(editor, out):
-    def action(ui, key):
+    def action(ui, key=None):
         ratio = _database_option(ui.app, 'global_zoom_ratio')
         draw = getattr(ui.app, editor)
         ui.app.plotcanvas.zoom(ratio if out else 1 / ratio, [draw.snap_x, draw.snap_y])
@@ -591,7 +591,155 @@ def geo_grid_snap(ui, key):
 # Gerber Editor
 # ---------------------------------------------------------------------------------------------------------------------
 def grb_editor_actions():
-    return []
+    grb = 'grb_editor'
+    return [
+        Shortcut('grb_editor.undo', _("Undo"), grb, 'Ctrl+Z', editor_undo('grb_editor')),
+        Shortcut('grb_editor.redo', _("Redo"), grb, 'Ctrl+Y', editor_redo('grb_editor')),
+        Shortcut('grb_editor.redo_alt', '%s (%s)' % (_("Redo"), _("Alternative")), grb, 'Ctrl+Shift+Z',
+                 editor_redo('grb_editor')),
+        # Ctrl
+        Shortcut('grb_editor.select_all', _("Select All"), grb, 'Ctrl+A',
+                 stop(lambda ui: ui.app.grb_editor.ui.apertures_table.selectAll())),
+        Shortcut('grb_editor.eraser', _("Eraser Tool"), grb, 'Ctrl+E', stop(lambda ui: ui.app.grb_editor.on_eraser())),
+        Shortcut('grb_editor.exit', _("Save Object and Exit Editor"), grb, 'Ctrl+S', exit_editor),
+        Shortcut('grb_editor.distance', _("Distance Tool"), grb, 'Ctrl+M', stop(lambda ui: ui.app.distance_tool.run())),
+        # Shift
+        Shortcut('grb_editor.distance_min', _("Distance Minimum Tool"), grb, 'Shift+M',
+                 stop(lambda ui: ui.app.distance_min_tool.run())),
+        # Alt
+        Shortcut('grb_editor.mark_area', _("Mark Area Tool"), grb, 'Alt+A',
+                 stop(lambda ui: ui.app.grb_editor.on_markarea())),
+        Shortcut('grb_editor.poligonize', _("Poligonize Tool"), grb, 'Alt+N',
+                 stop(lambda ui: ui.app.grb_editor.on_poligonize())),
+        Shortcut('grb_editor.transform', _("Transformation Tool"), grb, 'Alt+R',
+                 stop(lambda ui: ui.app.grb_editor.on_transform())),
+        # no modifier: also with a drawing tool active
+        Shortcut('grb_editor.abort', _("Abort and return to Select"), grb, 'Esc', grb_abort),
+        Shortcut('grb_editor.delete', _("Delete"), grb, 'Del', grb_delete, source=SOURCE_CANVAS),
+        Shortcut('grb_editor.delete_aperture', _("Alternate: Delete Apertures"), grb, 'Del',
+                 shortcut_flag('grb_editor', lambda ui: ui.app.grb_editor.on_aperture_delete()),
+                 source=SOURCE_PROJECT),
+        Shortcut('grb_editor.zoom_out', _("Zoom Out"), grb, '-',
+                 shortcut_flag('grb_editor', editor_zoom('grb_editor', out=True))),
+        Shortcut('grb_editor.zoom_in', _("Zoom In"), grb, '=',
+                 shortcut_flag('grb_editor', editor_zoom('grb_editor', out=False))),
+        Shortcut('grb_editor.notebook', _("(left to Key_1)Toggle Notebook Area (Left Side)"), grb, '`',
+                 shortcut_flag('grb_editor', lambda ui: ui.on_toggle_notebook())),
+        # no modifier, when no drawing tool is active
+        Shortcut('grb_editor.rotate', _("Rotate"), grb, 'Space',
+                 lambda ui, key: ui.app.grb_editor.transform_tool.on_rotate_key(), phase=PHASE_TOOL),
+        Shortcut('grb_editor.pad_array', _("Add Pad Array"), grb, 'A', grb_add_at_cursor('array', 'add_pad_ar_btn'),
+                 phase=PHASE_TOOL),
+        Shortcut('grb_editor.buffer', _("Buffer"), grb, 'B',
+                 shortcut_flag('grb_editor', lambda ui: ui.app.grb_editor.select_tool('buffer')), phase=PHASE_TOOL),
+        Shortcut('grb_editor.copy', _("Copy"), grb, 'C', editor_from_selection('grb_editor', 'copy', 'aperture_copy_btn',
+                                                                               _("Click on target point.")),
+                 phase=PHASE_TOOL),
+        Shortcut('grb_editor.disc', _("Add Disc"), grb, 'D',
+                 shortcut_flag('grb_editor', lambda ui: ui.app.grb_editor.select_tool('disc')), phase=PHASE_TOOL),
+        Shortcut('grb_editor.semidisc', _("Add SemiDisc"), grb, 'E',
+                 shortcut_flag('grb_editor', lambda ui: ui.app.grb_editor.select_tool('semidisc')),
+                 phase=PHASE_TOOL),
+        Shortcut('grb_editor.grid_snap', _("Grid On/Off"), grb, 'G', editor_grid_snap('grb_editor'),
+                 phase=PHASE_TOOL),
+        Shortcut('grb_editor.jump', _("Jump to Location (x, y)"), grb, 'J', lambda ui, key: ui.app.on_jump_to(),
+                 phase=PHASE_TOOL),
+        Shortcut('grb_editor.corner_snap', _("Toggle Corner Snap"), grb, 'K',
+                 shortcut_flag('grb_editor', lambda ui: ui.app.ui.corner_snap_btn.trigger()), phase=PHASE_TOOL),
+        Shortcut('grb_editor.move', _("Move"), grb, 'M', editor_from_selection('grb_editor', 'move', 'aperture_move_btn',
+                                                                               _("Click on target point.")),
+                 phase=PHASE_TOOL),
+        Shortcut('grb_editor.region', _("Add Region"), grb, 'N',
+                 shortcut_flag('grb_editor', lambda ui: ui.app.grb_editor.select_tool('region')), phase=PHASE_TOOL),
+        Shortcut('grb_editor.pad', _("Add Pad"), grb, 'P', grb_add_at_cursor('pad', 'add_pad_ar_btn'),
+                 phase=PHASE_TOOL),
+        Shortcut('grb_editor.scale', _("Scale"), grb, 'S',
+                 shortcut_flag('grb_editor', lambda ui: ui.app.grb_editor.select_tool('scale')), phase=PHASE_TOOL),
+        Shortcut('grb_editor.track', _("Add Track"), grb, 'T',
+                 shortcut_flag('grb_editor', lambda ui: ui.app.grb_editor.select_tool('track')), phase=PHASE_TOOL),
+        Shortcut('grb_editor.zoom_fit', _("Zoom Fit"), grb, 'V',
+                 shortcut_flag('grb_editor', lambda ui: ui.app.grb_editor.on_zoom_fit()), phase=PHASE_TOOL),
+        # after the drawing tool got the key
+        Shortcut('grb_editor.shortcut_list', _("Shortcuts List"), grb, 'F3',
+                 stop(lambda ui: ui.on_shortcut_list()), phase=PHASE_LATE),
+    ]
+
+
+def shortcut_flag(editor, function):
+    """
+    An action of the Gerber or Excellon Editor that tells the editor that it comes from a key
+    (launched_from_shortcuts), runs function(ui) and uses up the key.
+    """
+    def action(ui, key):
+        getattr(ui.app, editor).launched_from_shortcuts = True
+        function(ui)
+        return STOP
+    return action
+
+
+def editor_grid_snap(editor):
+    def action(ui, key):
+        draw = getattr(ui.app, editor)
+        draw.launched_from_shortcuts = True
+        # make sure that the cursor shape is enabled/disabled, too
+        ui.app.app_cursor.enabled = draw.editor_options['grid_snap'] is not True
+        ui.app.ui.grid_snap_btn.trigger()
+        return STOP
+    return action
+
+
+def editor_from_selection(editor, tool, button, msg):
+    """Copy and Move of the Gerber and Excellon Editors: start the tool at the cursor if something is selected."""
+    def action(ui, key):
+        draw = getattr(ui.app, editor)
+        draw.launched_from_shortcuts = True
+        if draw.selected:
+            ui.app.inform.emit(msg)
+            getattr(ui.app.ui, button).setChecked(True)
+            draw.on_tool_select(tool)
+            if draw.active_tool is not None:
+                draw.active_tool.set_origin((draw.snap_x, draw.snap_y))
+        else:
+            ui.app.inform.emit('[WARNING_NOTCL] %s' % _("Cancelled. Nothing selected."))
+        return STOP
+    return action
+
+
+def editor_add_at_cursor(editor, tool, button, msg):
+    """Add a pad or a drill (or an array) of the Gerber and Excellon Editors at the mouse position."""
+    def action(ui, key):
+        draw = getattr(ui.app, editor)
+        draw.launched_from_shortcuts = True
+        ui.app.inform.emit(msg)
+        getattr(ui.app.ui, button).setChecked(True)
+        draw.x = ui.app.mouse_pos[0]
+        draw.y = ui.app.mouse_pos[1]
+        draw.select_tool(tool)
+        return STOP
+    return action
+
+
+def grb_add_at_cursor(tool, button):
+    return editor_add_at_cursor('grb_editor', tool, button, _("Click on target point."))
+
+
+def grb_abort(ui, key):
+    ui.app.inform.emit('[WARNING_NOTCL] %s' % _("Cancelled."))
+    ui.app.grb_editor.delete_utility_geometry()
+    ui.app.grb_editor.active_tool.clean_up()
+    ui.app.grb_editor.select_tool('select')
+    return STOP
+
+
+def grb_delete(ui, key):
+    # Del on the plot area deletes the selected shapes
+    ui.app.grb_editor.launched_from_shortcuts = True
+    if ui.app.grb_editor.selected:
+        ui.app.grb_editor.delete_selected()
+        ui.app.grb_editor.plot_all()
+    else:
+        ui.app.inform.emit('[WARNING_NOTCL] %s' % _("Cancelled. Nothing selected."))
+    return STOP
 
 
 # ---------------------------------------------------------------------------------------------------------------------
