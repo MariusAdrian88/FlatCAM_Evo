@@ -25,7 +25,7 @@ class Tools2EDrillsPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # PARAMETERS Frame
         # #############################################################################################################
-        self.padt_label = FCLabel('%s' % _("Processed Pads Type"), color='blue', bold=True)
+        self.padt_label = FCLabel('%s' % _("Processed Pads Type"), bold=True)
         self.padt_label.setToolTip(
             _("The type of pads shape to be processed.\n"
               "If the PCB has many SMD pads with rectangular pads,\n"
@@ -111,7 +111,7 @@ class Tools2EDrillsPrefGroupUI(OptionsGroupUI):
             ],
             orientation='vertical',
             compact=True)
-        self.method_label = FCLabel('%s' % _("Method"), color='green', bold=True)
+        self.method_label = FCLabel('%s' % _("Method"), bold=True)
         self.method_label.setToolTip(
             _("The method for processing pads. Can be:\n"
               "- Fixed Diameter -> all holes will have a set size\n"
@@ -136,7 +136,7 @@ class Tools2EDrillsPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Fixed Diameter Frame
         # #############################################################################################################
-        self.fixed_label = FCLabel('%s' % _("Fixed Diameter"), color='teal', bold=True)
+        self.fixed_label = FCLabel('%s' % _("Fixed Diameter"), bold=True)
         self.layout.addWidget(self.fixed_label)
 
         fix_frame = FCFrame()
@@ -161,7 +161,7 @@ class Tools2EDrillsPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Annular ring Frame
         # #############################################################################################################
-        self.ring_label = FCLabel('%s' % _("Fixed Annular Ring"), color='darkorange', bold=True)
+        self.ring_label = FCLabel('%s' % _("Fixed Annular Ring"), bold=True)
         self.ring_label.setToolTip(
             _("The size of annular ring.\n"
               "The copper sliver between the hole exterior\n"
@@ -243,7 +243,7 @@ class Tools2EDrillsPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Proportional Diameter Frame
         # #############################################################################################################
-        self.prop_label = FCLabel('%s' % _("Proportional Diameter"), color='indigo', bold=True)
+        self.prop_label = FCLabel('%s' % _("Proportional Diameter"), bold=True)
         self.layout.addWidget(self.prop_label)
 
         prop_frame = FCFrame()
@@ -270,7 +270,7 @@ class Tools2EDrillsPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Extract Soldermask Frame
         # #############################################################################################################
-        self.extract_sm_label = FCLabel('%s' % _("Extract Soldermask"), color='magenta', bold=True)
+        self.extract_sm_label = FCLabel('%s' % _("Extract Soldermask"), bold=True)
         self.extract_sm_label.setToolTip(
             _("Extract soldermask from a given Gerber file."))
         self.layout.addWidget(self.extract_sm_label)
@@ -305,7 +305,7 @@ class Tools2EDrillsPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Extract CutOut Frame
         # #############################################################################################################
-        self.extract_cut_label = FCLabel('%s' % _("Extract Cutout"), color='brown', bold=True)
+        self.extract_cut_label = FCLabel('%s' % _("Extract Cutout"), bold=True)
         self.extract_cut_label.setToolTip(
             _("Extract a cutout from a given Gerber file."))
         self.layout.addWidget(self.extract_cut_label)

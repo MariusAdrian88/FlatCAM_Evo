@@ -26,7 +26,7 @@ class ToolsPaintPrefGroupUI(OptionsGroupUI):
         # ------------------------------
         # ## Paint area
         # ------------------------------
-        self.paint_label = FCLabel('%s' % _("Parameters"), color='blue', bold=True)
+        self.paint_label = FCLabel('%s' % _("Parameters"), bold=True)
         self.paint_label.setToolTip(
             _("Creates tool paths to cover the\n"
               "whole area of a polygon.")
@@ -43,7 +43,7 @@ class ToolsPaintPrefGroupUI(OptionsGroupUI):
         par_frame.setLayout(param_grid)
 
         # Tool dia
-        ptdlabel = FCLabel('%s:' % _('Tools Dia'), color='green', bold=True)
+        ptdlabel = FCLabel('%s:' % _('Tools Dia'), bold=True)
         ptdlabel.setToolTip(
             _("Diameters of the tools, separated by comma.\n"
               "The value of the diameter has to use the dot decimals separator.\n"
@@ -139,7 +139,7 @@ class ToolsPaintPrefGroupUI(OptionsGroupUI):
         # Tool Frame
         # #############################################################################################################
         # ### Tools ## ##
-        self.tools_table_label = FCLabel('%s' % _("Tool Parameters"), color='green', bold=True)
+        self.tools_table_label = FCLabel('%s' % _("Tool Parameters"), bold=True)
         self.layout.addWidget(self.tools_table_label)
 
         tt_frame = FCFrame()
@@ -236,7 +236,7 @@ class ToolsPaintPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # General Parameters Frame
         # #############################################################################################################
-        self.gen_param_label = FCLabel('%s' % _("Common Parameters"), color='indigo', bold=True)
+        self.gen_param_label = FCLabel('%s' % _("Common Parameters"), bold=True)
         self.gen_param_label.setToolTip(
             _("Parameters that are common for all tools.")
         )

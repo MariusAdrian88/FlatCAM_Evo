@@ -28,7 +28,7 @@ class GeometryGenPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Plot Frame
         # #############################################################################################################
-        self.plot_options_label = FCLabel('%s' % _("Plot Options"), color='blue', bold=True)
+        self.plot_options_label = FCLabel('%s' % _("Plot Options"), bold=True)
         self.layout.addWidget(self.plot_options_label)
 
         plot_frame = FCFrame()
@@ -65,7 +65,7 @@ class GeometryGenPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Optimization Frame
         # #############################################################################################################
-        self.opt_label = FCLabel('%s' % _("Path Optimization"), color='teal', bold=True)
+        self.opt_label = FCLabel('%s' % _("Path Optimization"), bold=True)
         self.layout.addWidget(self.opt_label)
 
         opt_frame = FCFrame()
@@ -115,7 +115,7 @@ class GeometryGenPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Fuse Frame
         # #############################################################################################################
-        self.join_geo_label = FCLabel('%s' % _("Join Option"), color='magenta', bold=True)
+        self.join_geo_label = FCLabel('%s' % _("Join Option"), bold=True)
         self.layout.addWidget(self.join_geo_label)
 
         fuse_frame = FCFrame()
@@ -134,7 +134,7 @@ class GeometryGenPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Object Color Frame
         # #############################################################################################################
-        self.gerber_color_label = FCLabel('%s' % _("Object Color"), color='darkorange', bold=True)
+        self.gerber_color_label = FCLabel('%s' % _("Object Color"), bold=True)
         self.layout.addWidget(self.gerber_color_label)
 
         obj_frame = FCFrame()

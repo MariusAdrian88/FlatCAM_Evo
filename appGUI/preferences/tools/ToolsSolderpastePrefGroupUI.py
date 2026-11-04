@@ -29,7 +29,7 @@ class ToolsSolderpastePrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # PARAMETERS Frame
         # #############################################################################################################
-        self.solderpastelabel = FCLabel('%s' % _("Parameters"), color='blue', bold=True)
+        self.solderpastelabel = FCLabel('%s' % _("Parameters"), bold=True)
         self.solderpastelabel.setToolTip(
             _("A tool to create GCode for dispensing\n"
               "solder paste onto a PCB.")
@@ -43,7 +43,7 @@ class ToolsSolderpastePrefGroupUI(OptionsGroupUI):
         param_frame.setLayout(param_grid)
 
         # Nozzle Tool Diameters
-        nozzletdlabel = FCLabel('%s:' % _('Tools Dia'), color='green', bold=True)
+        nozzletdlabel = FCLabel('%s:' % _('Tools Dia'), bold=True)
         nozzletdlabel.setToolTip(
             _("Diameters of the tools, separated by comma.\n"
               "The value of the diameter has to use the dot decimals separator.\n"

@@ -25,7 +25,7 @@ class ToolsMarkersPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # PARAMETERS Frame
         # #############################################################################################################
-        self.param_label = FCLabel('%s' % _("Parameters"), color='blue', bold=True)
+        self.param_label = FCLabel('%s' % _("Parameters"), bold=True)
         self.param_label.setToolTip(
             _("Parameters used for this tool.")
         )
@@ -107,7 +107,7 @@ class ToolsMarkersPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Offset Frame
         # #############################################################################################################
-        self.offset_title_label = FCLabel('%s' % _("Offset"), color='magenta', bold=True)
+        self.offset_title_label = FCLabel('%s' % _("Offset"), bold=True)
         self.offset_title_label.setToolTip(_("Offset locations from the set reference."))
         self.layout.addWidget(self.offset_title_label)
 

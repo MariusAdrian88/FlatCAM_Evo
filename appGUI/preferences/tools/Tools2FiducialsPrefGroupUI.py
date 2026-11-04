@@ -25,7 +25,7 @@ class Tools2FiducialsPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Parameters Frame
         # #############################################################################################################
-        self.param_label = FCLabel('%s' % _("Parameters"), color='blue', bold=True)
+        self.param_label = FCLabel('%s' % _("Parameters"), bold=True)
         self.param_label.setToolTip(
             _("Parameters used for this tool.")
         )
@@ -117,7 +117,7 @@ class Tools2FiducialsPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Selection Frame
         # #############################################################################################################
-        self.sel_label = FCLabel('%s' % _("Selection"), color='brown', bold=True)
+        self.sel_label = FCLabel('%s' % _("Selection"), bold=True)
         self.layout.addWidget(self.sel_label)
 
         s_frame = FCFrame()

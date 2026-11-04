@@ -28,7 +28,7 @@ class GeneralGUIPrefGroupUI(OptionsGroupUI):
         self.decimals = app.decimals
         self.options = app.options
 
-        self.param_lbl = FCLabel('%s' % _("Parameters"), color='blue', bold=True)
+        self.param_lbl = FCLabel('%s' % _("Parameters"), bold=True)
         self.layout.addWidget(self.param_lbl)
 
         # #############################################################################################################
@@ -225,7 +225,7 @@ class GeneralGUIPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Grid1 Frame
         # #############################################################################################################
-        self.color_lbl = FCLabel('%s' % _("Colors"), color='teal', bold=True)
+        self.color_lbl = FCLabel('%s' % _("Colors"), bold=True)
         self.layout.addWidget(self.color_lbl)
 
         color_frame = FCFrame()
@@ -348,7 +348,7 @@ class GeneralGUIPrefGroupUI(OptionsGroupUI):
         separator_line.setFrameShadow(QtWidgets.QFrame.Shadow.Sunken)
         grid1.addWidget(separator_line, 26, 0, 1, 2)
 
-        proj_item_lbl = FCLabel('%s' % _("Project Items Color"), bold=True, color='green')
+        proj_item_lbl = FCLabel('%s' % _("Project Items Color"), bold=True)
         grid1.addWidget(proj_item_lbl, 27, 0, 1, 2)
         # ------------------------------------------------------------------
         # ----------------------- Project Settings -----------------------------
@@ -417,7 +417,7 @@ class GeneralGUIPrefGroupUI(OptionsGroupUI):
         separator_line.setFrameShadow(QtWidgets.QFrame.Shadow.Sunken)
         grid1.addWidget(separator_line, 40, 0, 1, 2)
 
-        self.icon_color_label = FCLabel('%s' % _("Icons Color"), bold=True, color='green')
+        self.icon_color_label = FCLabel('%s' % _("Icons Color"), bold=True)
         grid1.addWidget(self.icon_color_label, 41, 0, 1, 2)
 
         self.icon_settings_l_label = FCLabel('%s %s' % (_("Light"), _("Theme")), bold=True)

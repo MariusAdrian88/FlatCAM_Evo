@@ -19,7 +19,7 @@ class ToolsComparePrefGroupUI(OptionsGroupUI):
         self.decimals = app.decimals
         self.options = app.options
 
-        self.param_label = FCLabel('%s' % _("Parameters"), color='blue', bold=True)
+        self.param_label = FCLabel('%s' % _("Parameters"), bold=True)
         self.param_label.setToolTip(_("Compare two objects of the same type and show what was removed or added."))
         self.layout.addWidget(self.param_label)
 

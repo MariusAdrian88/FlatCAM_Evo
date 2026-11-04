@@ -23,7 +23,7 @@ class ToolsFollowPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # PATHS Frame
         # #############################################################################################################
-        self.paths_label = FCLabel('%s' % _("Paths"), color='blue', bold=True)
+        self.paths_label = FCLabel('%s' % _("Paths"), bold=True)
         self.paths_label.setToolTip(
             _("Create a Geometry object that follows the centerlines of the\n"
               "Gerber traces: one single-pass path per trace, no copper outline.")
@@ -78,7 +78,7 @@ class ToolsFollowPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # CLEANUP Frame
         # #############################################################################################################
-        self.cleanup_label = FCLabel('%s' % _("Cleanup"), color='green', bold=True)
+        self.cleanup_label = FCLabel('%s' % _("Cleanup"), bold=True)
         self.layout.addWidget(self.cleanup_label)
 
         cleanup_frame = FCFrame()
@@ -124,7 +124,7 @@ class ToolsFollowPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # OUTPUT Frame
         # #############################################################################################################
-        self.output_label = FCLabel('%s' % _("Output"), color='red', bold=True)
+        self.output_label = FCLabel('%s' % _("Output"), bold=True)
         self.layout.addWidget(self.output_label)
 
         output_frame = FCFrame()

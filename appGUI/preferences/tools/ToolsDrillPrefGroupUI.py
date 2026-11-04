@@ -27,7 +27,7 @@ class ToolsDrillPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # PARAMETERS Frame
         # #############################################################################################################
-        self.drill_label = FCLabel('%s' % _("Parameters"), color='blue', bold=True)
+        self.drill_label = FCLabel('%s' % _("Parameters"), bold=True)
         self.drill_label.setToolTip(
             _("Create CNCJob with toolpaths for drilling or milling holes.")
         )
@@ -370,7 +370,7 @@ class ToolsDrillPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Drill Slots Frame
         # #############################################################################################################
-        self.dslots_label = FCLabel('%s' % _("Drilling Slots"), color='brown', bold=True)
+        self.dslots_label = FCLabel('%s' % _("Drilling Slots"), bold=True)
         self.layout.addWidget(self.dslots_label)
 
         ds_frame = FCFrame()
@@ -416,7 +416,7 @@ class ToolsDrillPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Advanced Options Frame
         # #############################################################################################################
-        self.exc_label = FCLabel('%s' % _("Advanced Options"), color='teal', bold=True)
+        self.exc_label = FCLabel('%s' % _("Advanced Options"), bold=True)
         self.exc_label.setToolTip(
             _("A list of advanced parameters.")
         )
@@ -593,7 +593,7 @@ class ToolsDrillPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Area Exclusion Frame
         # #############################################################################################################
-        self.area_exc_label = FCLabel('%s' % _("Area Exclusion"), color='magenta', bold=True)
+        self.area_exc_label = FCLabel('%s' % _("Area Exclusion"), bold=True)
         self.area_exc_label.setToolTip(
             _("Area exclusion parameters.")
         )

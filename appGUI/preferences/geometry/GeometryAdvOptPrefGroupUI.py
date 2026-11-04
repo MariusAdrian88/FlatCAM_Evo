@@ -25,7 +25,7 @@ class GeometryAdvOptPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Advanced Options Frame
         # #############################################################################################################
-        self.geo_label = FCLabel('%s' % _("Advanced Options"), color='indigo', bold=True)
+        self.geo_label = FCLabel('%s' % _("Advanced Options"), bold=True)
         self.geo_label.setToolTip(
             _("A list of advanced parameters.\n"
               "Those parameters are available only for\n"

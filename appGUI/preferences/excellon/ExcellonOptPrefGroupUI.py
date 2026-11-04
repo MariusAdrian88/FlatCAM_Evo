@@ -26,7 +26,7 @@ class ExcellonOptPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # PARAMETERS Frame
         # #############################################################################################################
-        self.cncjob_label = FCLabel('%s' % _("Parameters"), color='blue', bold=True)
+        self.cncjob_label = FCLabel('%s' % _("Parameters"), bold=True)
         self.cncjob_label.setToolTip(
             _("Parameters used to create a CNC Job object\n"
               "for this drill object.")

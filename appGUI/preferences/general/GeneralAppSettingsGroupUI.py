@@ -126,7 +126,7 @@ class GeneralAppSettingsGroupUI(OptionsGroupUI2):
 
     def build_options(self) -> [OptionUI]:
         return [
-            HeadingOptionUI(label_text=_("Grid Settings"), color="brown", label_tooltip=None),
+            HeadingOptionUI(label_text=_("Grid Settings"), label_tooltip=None),
             DoubleSpinnerOptionUI(
                 option="global_gridx",
                 label_text=_("X value"),
