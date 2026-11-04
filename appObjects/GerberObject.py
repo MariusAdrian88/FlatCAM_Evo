@@ -11,7 +11,7 @@
 # ##########################################################
 
 from PyQt6 import QtWidgets, QtCore
-from appGUI.GUIElements import FCCheckBox
+from appGUI.GUIElements import FCCheckBox, opposite_direction
 from appGUI.ObjectUI import GerberObjectUI
 from appParsers.ParseGerber import Gerber, drop_placeholder_record_keys
 from appParsers.gerber_attributes import attribute_changes, merge_to_table, remap_to_ids
@@ -354,7 +354,7 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
 
                 # ------------------------ Aperture MARK --------------------------------------------------------------
                 mark_item = FCCheckBox()
-                mark_item.setLayoutDirection(QtCore.Qt.LayoutDirection.RightToLeft)
+                mark_item.setLayoutDirection(opposite_direction())
                 # if self.ui.aperture_table_visibility_cb.isChecked():
                 #     mark_item.setChecked(True)
 

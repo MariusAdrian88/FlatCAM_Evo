@@ -38,6 +38,9 @@ languages_dict = {
     'tr': 'Türkçe',
 }
 
+# the languages written from right to left: the whole interface is mirrored for them (set_layout_direction())
+rtl_languages = ('ar', 'fa', 'he', 'ur')
+
 translations = {}
 
 languages_path_search = ''
@@ -186,6 +189,27 @@ def apply_language(domain, lang=None):
             log.error("FlatCAMTranslation.apply_language() --> %s" % str(e))
 
         return name
+
+
+def is_rtl(name):
+    """
+    :param name:    the name of a language, as saved in the settings (a value of languages_dict)
+    :return:        True if the language is written from right to left
+    """
+    codes = [code for code, lang_name in languages_dict.items() if lang_name == name]
+    return bool(codes) and codes[0].split('_')[0] in rtl_languages
+
+
+def set_layout_direction(name):
+    """
+    Mirror the whole interface for a right-to-left language. Called once at start-up, before the GUI is built: every
+    widget takes the direction of the application, so a new UI needs nothing extra. A change of the language restarts
+    the application. For a left-to-right language nothing is changed.
+
+    :param name:    the name of the current language
+    """
+    if is_rtl(name):
+        QtWidgets.QApplication.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
 
 
 def save_before_restart(app):

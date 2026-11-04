@@ -14,7 +14,7 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 
 from appEditors.appTextEditor import AppTextEditor
 from appObjects.AppObjectTemplate import FlatCAMObj, PropertiesPanelMixin, ObjectDeleted
-from appGUI.GUIElements import FCFileSaveDialog, FCCheckBox, FCMessageBox
+from appGUI.GUIElements import FCFileSaveDialog, FCCheckBox, FCMessageBox, opposite_direction
 from appGUI.ObjectUI import CNCObjectUI
 from camlib import CNCjob
 from appParsers.DXF.writer import build_dxf
@@ -334,7 +334,7 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
                 # qhboxlayout.setAlignment(QtCore.Qt.AlignCenter)
                 # qhboxlayout.setContentsMargins(0, 0, 0, 0)
                 plot_item = FCCheckBox()
-                plot_item.setLayoutDirection(QtCore.Qt.LayoutDirection.RightToLeft)
+                plot_item.setLayoutDirection(opposite_direction())
                 tool_uid_item = QtWidgets.QTableWidgetItem(str(dia_key))
                 if self.ui.plot_cb.isChecked():
                     plot_item.setChecked(True)
@@ -440,7 +440,7 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
                 cutz_item.setFlags(QtCore.Qt.ItemFlag.ItemIsEnabled)
 
                 plot_cnc_exc_item = FCCheckBox()
-                plot_cnc_exc_item.setLayoutDirection(QtCore.Qt.LayoutDirection.RightToLeft)
+                plot_cnc_exc_item.setLayoutDirection(opposite_direction())
 
                 if self.ui.plot_cb.isChecked():
                     plot_cnc_exc_item.setChecked(True)

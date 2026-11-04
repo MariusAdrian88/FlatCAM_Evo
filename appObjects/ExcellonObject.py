@@ -15,7 +15,7 @@ from PyQt6 import QtWidgets, QtCore, QtGui
 from appParsers.ParseExcellon import Excellon, hole_ids, to_state
 from appParsers.gerber_attributes import format_attribute, merge_to_table
 from appObjects.AppObjectTemplate import FlatCAMObj, OffsetUiMixin, PropertiesPanelMixin, ObjectDeleted
-from appGUI.GUIElements import FCCheckBox
+from appGUI.GUIElements import FCCheckBox, opposite_direction
 from appGUI.ObjectUI import ExcellonObjectUI
 
 import itertools
@@ -504,7 +504,7 @@ class ExcellonObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Excellon):
 
             # Plot Item
             plot_item = FCCheckBox()
-            plot_item.setLayoutDirection(QtCore.Qt.LayoutDirection.RightToLeft)
+            plot_item.setLayoutDirection(opposite_direction())
             if self.ui.plot_cb.isChecked():
                 plot_item.setChecked(True)
             self.ui.tools_table.setCellWidget(self.tool_row, 5, plot_item)

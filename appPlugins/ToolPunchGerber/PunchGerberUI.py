@@ -1,6 +1,6 @@
 from PyQt6 import QtWidgets, QtCore, QtGui
 from appGUI.GUIElements import FCLabel, FCButton, FCFrame, GLay, FCComboBox, FCCheckBox, \
-    RadioSet, FCDoubleSpinner, FCTable
+    RadioSet, FCDoubleSpinner, FCTable, opposite_direction
 
 import gettext
 import appTranslation as fcTranslate
@@ -306,7 +306,7 @@ class PunchUI:
                 ap_size_item = QtWidgets.QTableWidgetItem('')
             ap_size_item.setFlags(QtCore.Qt.ItemFlag.ItemIsEnabled)
             mark_item = FCCheckBox()
-            mark_item.setLayoutDirection(QtCore.Qt.LayoutDirection.RightToLeft)
+            mark_item.setLayoutDirection(opposite_direction())
             empty_plot_item = QtWidgets.QTableWidgetItem('')
             empty_plot_item.setFlags(QtCore.Qt.ItemFlag.ItemIsEnabled)
             self.apertures_table.setItem(row, 0, ap_code_item)

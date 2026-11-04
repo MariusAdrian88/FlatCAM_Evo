@@ -12,7 +12,7 @@
 
 from PyQt6 import QtWidgets, QtCore
 from appObjects.AppObjectTemplate import FlatCAMObj, OffsetUiMixin, PropertiesPanelMixin, ObjectDeleted
-from appGUI.GUIElements import FCCheckBox
+from appGUI.GUIElements import FCCheckBox, opposite_direction
 from appGUI.ObjectUI import GeometryObjectUI
 
 from shapely import MultiLineString, LinearRing, Polygon, MultiPolygon, LineString
@@ -304,7 +304,7 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
             empty_plot_item.setFlags(~QtCore.Qt.ItemFlag.ItemIsSelectable | QtCore.Qt.ItemFlag.ItemIsEnabled)
             self.ui.geo_tools_table.setItem(row_idx, 6, empty_plot_item)
             plot_item = FCCheckBox()
-            plot_item.setLayoutDirection(QtCore.Qt.LayoutDirection.RightToLeft)
+            plot_item.setLayoutDirection(opposite_direction())
             if self.ui.plot_cb.isChecked():
                 plot_item.setChecked(True)
             self.ui.geo_tools_table.setCellWidget(row_idx, 6, plot_item)

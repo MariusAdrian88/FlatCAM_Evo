@@ -8,7 +8,7 @@
 from PyQt6 import QtWidgets, QtCore, QtGui
 from appGUI.GUIElements import FCLabel, FCButton, FCFrame, GLay, FCComboBox, FCCheckBox, \
     FCComboBox2, RadioSet, FCDoubleSpinner, FCSpinner, NumericalEvalTupleEntry, FCTable, \
-    OptionalInputSection, OptionalHideInputSection
+    OptionalInputSection, OptionalHideInputSection, opposite_direction
 from defaults import AppDefaults
 
 import gettext
@@ -132,7 +132,7 @@ class MillingUI:
         # Plot CB
         self.plot_cb = FCCheckBox(_('Plot Object'))
         self.plot_cb.setToolTip(_("Plot (show) this object."))
-        self.plot_cb.setLayoutDirection(QtCore.Qt.LayoutDirection.RightToLeft)
+        self.plot_cb.setLayoutDirection(opposite_direction())
         tool_title_grid.addWidget(self.plot_cb, 0, 1)
 
         tt_frame = FCFrame()

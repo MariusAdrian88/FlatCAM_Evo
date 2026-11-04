@@ -296,7 +296,7 @@ class GerberObjectUI(ObjectUI):
         self.aperture_table_visibility_cb.setToolTip(
             _("Toggle the display of the Tools Table.")
         )
-        # self.aperture_table_visibility_cb.setLayoutDirection(QtCore.Qt.LayoutDirection.RightToLeft)
+        # self.aperture_table_visibility_cb.setLayoutDirection(opposite_direction())
         tt_grid.addWidget(self.aperture_table_visibility_cb, 0, 1)
 
         hlay_plot = QtWidgets.QHBoxLayout()
@@ -310,7 +310,7 @@ class GerberObjectUI(ObjectUI):
               "that are drawn on canvas.")
 
         )
-        self.mark_all_cb.setLayoutDirection(QtCore.Qt.LayoutDirection.RightToLeft)
+        self.mark_all_cb.setLayoutDirection(opposite_direction())
         hlay_plot.addStretch()
         hlay_plot.addWidget(self.mark_all_cb)
 
@@ -675,7 +675,7 @@ class ExcellonObjectUI(ObjectUI):
         self.plot_cb.setToolTip(
             _("Plot (show) this object.")
         )
-        self.plot_cb.setLayoutDirection(QtCore.Qt.LayoutDirection.RightToLeft)
+        self.plot_cb.setLayoutDirection(opposite_direction())
         hlay_plot.addStretch()
         hlay_plot.addWidget(self.plot_cb)
 
@@ -978,7 +978,7 @@ class GeometryObjectUI(ObjectUI):
         self.plot_cb.setToolTip(
             _("Plot (show) this object.")
         )
-        self.plot_cb.setLayoutDirection(QtCore.Qt.LayoutDirection.RightToLeft)
+        self.plot_cb.setLayoutDirection(opposite_direction())
         tt_grid.addWidget(self.plot_cb, 0, 1)
 
         self.geo_tools_table = FCTable(drag_drop=True)
@@ -1376,7 +1376,7 @@ class CNCObjectUI(ObjectUI):
         self.plot_cb.setToolTip(
             _("Plot (show) this object.")
         )
-        self.plot_cb.setLayoutDirection(QtCore.Qt.LayoutDirection.RightToLeft)
+        self.plot_cb.setLayoutDirection(opposite_direction())
         hlay.addStretch()
         hlay.addWidget(self.plot_cb)
 
@@ -1523,7 +1523,7 @@ class ScriptObjectUI(ObjectUI):
         # Plot CB - this is added only for compatibility; other FlatCAM objects expect it and the mechanism is already
         # established and I don't want to changed it right now
         self.plot_cb = FCCheckBox()
-        self.plot_cb.setLayoutDirection(QtCore.Qt.LayoutDirection.RightToLeft)
+        self.plot_cb.setLayoutDirection(opposite_direction())
         self.custom_box.addWidget(self.plot_cb)
         self.plot_cb.hide()
 
@@ -1574,7 +1574,7 @@ class DocumentObjectUI(ObjectUI):
         # Plot CB - this is added only for compatibility; other FlatCAM objects expect it, the mechanism is already
         # established, and I don't want to change it right now
         self.plot_cb = FCCheckBox()
-        self.plot_cb.setLayoutDirection(QtCore.Qt.LayoutDirection.RightToLeft)
+        self.plot_cb.setLayoutDirection(opposite_direction())
         self.custom_box.addWidget(self.plot_cb)
         self.plot_cb.hide()
 

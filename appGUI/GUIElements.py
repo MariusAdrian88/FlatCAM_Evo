@@ -39,6 +39,18 @@ if '_' not in builtins.__dict__:
 EDIT_SIZE_HINT = 70
 
 
+def opposite_direction():
+    """
+    The layout direction opposite to the direction of the application. A check box with it shows its indicator after
+    the text: on the right in a left-to-right application, on the left in a right-to-left one.
+
+    :return:    Qt.LayoutDirection
+    """
+    if QtWidgets.QApplication.layoutDirection() == Qt.LayoutDirection.RightToLeft:
+        return Qt.LayoutDirection.LeftToRight
+    return Qt.LayoutDirection.RightToLeft
+
+
 class PlotTabWithDragDrop(QtWidgets.QWidget):
 
     def __init__(self, app, parent=None):
