@@ -747,6 +747,11 @@ tests/test_app_history_keys.py::TestAppHistoryKeys::test_ctrl_shift_z_redo
 tests/test_app_history_keys.py::TestAppHistoryKeys::test_ctrl_z_undo
 tests/test_app_history_keys.py::TestAppHistoryKeys::test_text_focus_blocks
 tests/test_app_history_keys.py::TestEscapeLeavesFullScreen::test_escape_after_alt_f10
+tests/test_app_history_keys.py::TestShortcutCharacterization::test_app
+tests/test_app_history_keys.py::TestShortcutCharacterization::test_excellon_editor
+tests/test_app_history_keys.py::TestShortcutCharacterization::test_geometry_editor
+tests/test_app_history_keys.py::TestShortcutCharacterization::test_gerber_editor
+tests/test_app_history_keys.py::TestShortcutCharacterization::test_plugin_contexts
 tests/test_app_history_milling.py::test_exc_field_edits_and_order
 tests/test_app_history_milling.py::test_geo_field_edit_is_one_undo_step
 tests/test_app_history_milling.py::test_geo_tool_actions_undo_redo
