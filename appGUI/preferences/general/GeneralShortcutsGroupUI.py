@@ -107,6 +107,11 @@ class ShortcutsEditor(QtWidgets.QWidget):
         self.keys = {aid: action.default for aid, action in self.registry.actions.items()}
         self._pending = None        # (action id, key sequence, [the actions that use it]) of the conflict shown
         self._dot = _dot_icon()
+        # the scroll to the edited row once more after the table laid out its rows (a timer of the page: it ends with it)
+        self._scroll_timer = QtCore.QTimer(self)
+        self._scroll_timer.setSingleShot(True)
+        self._scroll_timer.setInterval(0)
+        self._scroll_timer.timeout.connect(self._scroll_to_current_now)
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -260,11 +265,20 @@ class ShortcutsEditor(QtWidgets.QWidget):
     def _changed(self):
         self._refresh_rows()
         self._on_selection()
+        self._scroll_to_current()
+        self.valueChanged.emit()
+
+    def _scroll_to_current_now(self):
         aid = self.current_id()
         if aid is not None:
             self.table.scrollToItem(self.table.item(self.rows[aid], self.COLUMN_COMMAND),
                                     QtWidgets.QAbstractItemView.ScrollHint.PositionAtCenter)
-        self.valueChanged.emit()
+
+    def _scroll_to_current(self):
+        """Keep the row of the command that is edited in view (also after the table laid out its rows again)."""
+        self._scroll_to_current_now()
+        if not self._scroll_timer.isActive():
+            self._scroll_timer.start()
 
     # ------------------------------------------------------------------------------------------------------------
     # the table
@@ -330,6 +344,7 @@ class ShortcutsEditor(QtWidgets.QWidget):
                        (not context or action.context == context))
             self.table.setRowHidden(row, not visible)
             shown += visible
+        self.table.doItemsLayout()      # the scroll range follows the rows shown now (a later scroll to a row uses it)
         if self.current_id() is not None and self.table.isRowHidden(self.rows[self.current_id()]):
             self.table.clearSelection()     # the command that is edited below is always one of the table
         if key and not shown:
@@ -355,8 +370,7 @@ class ShortcutsEditor(QtWidgets.QWidget):
     def select(self, aid):
         # the whole row is selected (SelectRows); selectRow() would unselect it again in a right-to-left table
         self.table.setCurrentCell(self.rows[aid], self.COLUMN_COMMAND)
-        self.table.scrollToItem(self.table.item(self.rows[aid], self.COLUMN_COMMAND),
-                                QtWidgets.QAbstractItemView.ScrollHint.PositionAtCenter)
+        self._scroll_to_current()
 
     def _on_selection(self):
         aid = self.current_id()
