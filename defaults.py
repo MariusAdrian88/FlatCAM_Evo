@@ -949,6 +949,14 @@ class AppDefaults:
         "tools_sub_margin": 0.0,
         "tools_sub_suffix": '_sub',
 
+        # Compare Plugin
+        "tools_compare_type": 'grb',
+        "tools_compare_show_removed": True,
+        "tools_compare_show_added": True,
+        "tools_compare_tolerance": 0.001,
+        "tools_compare_removed_color": '#800020FF',
+        "tools_compare_added_color": '#228B22FF',
+
         # Distance Tool
         "tools_dist_snap_center": False,
         "tools_dist_big_cursor": True,

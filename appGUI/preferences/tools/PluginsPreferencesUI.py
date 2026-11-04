@@ -2,6 +2,7 @@
 from PyQt6 import QtWidgets
 
 from appGUI.preferences.tools.ToolsSubPrefGroupUI import ToolsSubPrefGroupUI
+from appGUI.preferences.tools.ToolsComparePrefGroupUI import ToolsComparePrefGroupUI
 from appGUI.preferences.tools.ToolsFollowPrefGroupUI import ToolsFollowPrefGroupUI
 from appGUI.preferences.tools.ToolsSolderpastePrefGroupUI import ToolsSolderpastePrefGroupUI
 from appGUI.preferences.tools.ToolsMarkersPrefGroupUI import ToolsMarkersPrefGroupUI
@@ -64,6 +65,9 @@ class PluginsPreferencesUI(QtWidgets.QWidget):
         self.tools_sub_group = ToolsSubPrefGroupUI(app=app)
         self.tools_sub_group.setMinimumWidth(250)
 
+        self.tools_compare_group = ToolsComparePrefGroupUI(app=app)
+        self.tools_compare_group.setMinimumWidth(250)
+
         self.tools_follow_group = ToolsFollowPrefGroupUI(app=app)
         self.tools_follow_group.setMinimumWidth(250)
 
@@ -87,6 +91,7 @@ class PluginsPreferencesUI(QtWidgets.QWidget):
         self.vlay4.addWidget(self.tools_markers_group)
         self.vlay4.addWidget(self.tools_calculators_group)
         self.vlay4.addWidget(self.tools_sub_group)
+        self.vlay4.addWidget(self.tools_compare_group)
 
         self.layout.addLayout(self.vlay)
         self.layout.addLayout(self.vlay1)

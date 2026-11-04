@@ -266,7 +266,7 @@ class App(QtCore.QObject):
     # ################################### Version and VERSION DATE ##################################################
     # version = "Unstable"
     version = "1.03"
-    version_date = "2026/11/03"
+    version_date = "2026/11/04"
     beta = False
 
     # current date now
@@ -562,6 +562,7 @@ class App(QtCore.QObject):
         self.calculator_tool = None
         self.rules_tool = None
         self.sub_tool = None
+        self.compare_tool = None
         self.move_tool = None
         self.cutout_tool = None
         self.ncclear_tool = None
@@ -2131,6 +2132,10 @@ class App(QtCore.QObject):
         self.sub_tool.install(icon=QtGui.QIcon(self.resource_location + '/sub32.png'),
                               pos=self.ui.menu_plugins, separator=True)
 
+        self.compare_tool = ToolCompare(self)
+        self.compare_tool.install(icon=QtGui.QIcon(self.resource_location + '/compare64.png'),
+                                  pos=self.ui.menu_plugins)
+
         self.rules_tool = RulesCheck(self)
         self.rules_tool.install(icon=QtGui.QIcon(self.resource_location + '/rules32.png'),
                                 pos=self.ui.menu_plugins, separator=False)
@@ -2248,6 +2253,7 @@ class App(QtCore.QObject):
             self.calculator_tool,
             self.rules_tool,
             self.sub_tool,
+            self.compare_tool,
             self.move_tool,
 
             self.cutout_tool,

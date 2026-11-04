@@ -88,6 +88,8 @@ The program keeps all objects of a job in 1 **project** file (`.FlatPrj`).
 - **Double-sided boards**: mirror about an axis and make alignment drills.
 - **Panelization** of Gerber, Excellon and Geometry objects.
 - **Autolevelling** (Levelling plugin): probe the board surface and correct the Z of a CNC job.
+- **Compare** (`Alt+5`): compares 2 revisions of a Gerber, Excellon or Geometry object. The canvas shows the
+  removed geometry in burgundy and the added geometry in green, with a tolerance; also fast on large boards.
 - **Board preparation tools**: copper thieving, robber bar, fiducials, markers, QR codes, punched pads, inverted
   Gerbers, etch compensation, film output for photo processes, design rule check.
 - **3 built-in editors** for Gerber, Excellon and Geometry objects, with their own Undo / Redo history, snaps,

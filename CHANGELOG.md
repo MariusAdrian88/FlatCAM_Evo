@@ -8,6 +8,31 @@ CHANGELOG for FlatCAM Evo
 
 04.11.2026
 
+Compare plugin:
+
+- new: the Compare plugin (Plugins menu, Alt+5) compares 2 objects of the same type (Gerber, Excellon or Geometry): the geometry in Old and not in New (removed) shows in burgundy, the geometry in New and not in Old (added) shows in forest green; 2 checkboxes show or hide each result; the summary shows the counts, the area and the length
+- new: a Tolerance value: geometry within the tolerance is never reported as changed, geometry farther than about 1.011 x the tolerance is always reported
+- new: Excellon objects are compared hole by hole: a drill or a slot matches a hole of the same diameter (within the tolerance) at the same place; slots with reversed end points are equal
+- new: objects in MM and in inches can be compared (New is scaled to the units of Old)
+- new: the comparison runs in the background and the GUI stays responsive; a new Compare click, Reset, a type change, a change of Old or New, the close of the tab or the delete of a source object stops the running job; a large result draws in small steps
+- new: Preferences > Plugins: the Compare tolerance and the colors of the removed and the added geometry
+- new: a click on the color swatch of Removed or Added opens a color picker; the new color is saved in the preferences and changes the shown result and the next comparisons
+- new: the Compare icon (light and dark theme)
+
+Canvas:
+
+- fixed: a shape hidden while its drawing in the process pool was not finished showed again when the drawing finished
+
+GUI:
+
+- changed: the splash image (light and dark theme)
+
+Tests:
+
+- fixed: an error in a Qt callback during a test aborted the whole test process without the name of the test; now the test fails with the error
+- fixed: the full test gate could abort when a pending delete of an earlier test ran in a later test
+- changed: tests that only repeated other tests removed
+
 Performance (optional Clipper2 / pyclipr):
 
 - new: when the optional package pyclipr is installed, some geometry operations use Clipper2; without pyclipr, or when a Clipper2 result is not valid, the previous (Shapely) code runs and the result is the same

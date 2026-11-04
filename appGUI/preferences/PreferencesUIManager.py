@@ -716,6 +716,9 @@ class PreferencesUIManager(QtCore.QObject):
             "tools_sub_margin": self.ui.plugin_pref_form.tools_sub_group.margin_entry,
             "tools_sub_suffix": self.ui.plugin_pref_form.tools_sub_group.suffix_entry,
 
+            # Compare Plugin
+            "tools_compare_tolerance": self.ui.plugin_pref_form.tools_compare_group.tolerance_entry,
+
             # Follow Plugin
             "tools_follow_simplification": self.ui.plugin_pref_form.tools_follow_group.simplification_cb,
             "tools_follow_tolerance": self.ui.plugin_pref_form.tools_follow_group.tolerance_entry,

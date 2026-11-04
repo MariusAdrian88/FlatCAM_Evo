@@ -3566,6 +3566,11 @@ class MainGUI(QtWidgets.QMainWindow):
                 if key == Qt.Key.Key_4:
                     self.app.disable_other_plots()
 
+                # Compare Tool
+                if key == Qt.Key.Key_5:
+                    self.app.compare_tool.run(toggle=True)
+                    return
+
                 # Align in Object Tool
                 if key == QtCore.Qt.Key.Key_A:
                     self.app.align_objects_tool.run(toggle=True)
@@ -5554,6 +5559,10 @@ class ShortcutsTab(QtWidgets.QWidget):
                         <td>&nbsp;%s</td>
                     </tr>
                     <tr height="20">
+                        <td height="20"><strong>&#39;%s&#39;</strong></td>
+                        <td>&nbsp;%s</td>
+                    </tr>
+                    <tr height="20">
                         <td height="20"><strong>%s</strong></td>
                         <td>&nbsp;%s</td>
                     </tr>
@@ -5591,6 +5600,7 @@ class ShortcutsTab(QtWidgets.QWidget):
             _('Alt+2'), _("Disable all"),
             _('Alt+3'), _("Enable Non-selected Objects"),
             _('Alt+4'), _("Disable Non-selected Objects"),
+            _('Alt+5'), _("Compare"),
             _('Alt+F10'), _("Toggle Full Screen"),
         )
 

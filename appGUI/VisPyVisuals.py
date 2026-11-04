@@ -217,6 +217,12 @@ class ShapeGroup(object):
         """
         return self._collection.transform_keys(list(self._indexes), matrix, update)
 
+    def pending_ready(self) -> bool:
+        """
+        True if the collection has no unfinished batch result. Never waits.
+        """
+        return self._collection.pending_ready()
+
     def redraw(self, update_colors=None):
         """
         Redraws shape collection
@@ -1051,6 +1057,17 @@ class ShapeCollectionVisual(CompoundVisual):
 
         self._bounds_changed()
 
+    def pending_ready(self) -> bool:
+        """
+        True if no batch result is pending or all of them are finished. Never waits.
+        """
+        if not self.results_lock.acquire(False):
+            return False
+        try:
+            return all(res.ready() for _keys, res in self._batch_results)
+        finally:
+            self.results_lock.release()
+
     def _collect_results(self, indexes=None):
         """
         Stores the finished (or waits for the pending) process pool results in self.data.
@@ -1070,6 +1087,11 @@ class ShapeCollectionVisual(CompoundVisual):
                 batch_data = batch_result.get()
                 for k, r in zip(batch_keys, batch_data):
                     if k in self.data:
+                        # visibility changed while the batch was pending stays
+                        try:
+                            r['visible'] = self.data[k]['visible']
+                        except (KeyError, TypeError):
+                            pass
                         self.data[k] = r
                         results_collected = True
             except Exception as e:

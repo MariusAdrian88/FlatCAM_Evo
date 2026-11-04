@@ -46,6 +46,7 @@ from appPlugins.ToolFiducials import ToolFiducials
 from appPlugins.ToolShell import FCShell
 from appPlugins.ToolSolderPaste import SolderPaste
 from appPlugins.ToolSub import ToolSub
+from appPlugins.ToolCompare import ToolCompare
 
 from appPlugins.ToolTransform import ToolTransform
 from appPlugins.ToolPunchGerber import ToolPunchGerber
