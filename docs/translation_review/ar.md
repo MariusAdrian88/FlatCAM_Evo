@@ -118,13 +118,13 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 107 | new | Tool Offset.<br>Can be of a few types:<br>Path = zero offset<br>In = offset inside by half of tool diameter<br>Out = offset outside by half of tool diameter<br>Custom = custom offset using the Custom Offset value | — | إزاحة اللقمة.<br>يمكن أن تكون من عدة أنواع:<br>المسار = إزاحة صفرية<br>داخل = إزاحة للداخل بمقدار نصف قطر اللقمة<br>خارج = إزاحة للخارج بمقدار نصف قطر اللقمة<br>مخصص = إزاحة مخصصة باستخدام قيمة الإزاحة المخصصة | New translation (machine-assisted) | ☐ |
 | 108 | new | Custom Offset | — | إزاحة مخصصة | New translation (machine-assisted) | ☐ |
 | 109 | new | Custom Offset.<br>A value to be used as offset from the current path. | — | إزاحة مخصصة.<br>قيمة تُستخدم كإزاحة عن المسار الحالي. | New translation (machine-assisted) | ☐ |
-| 110 | new | Cut Z | — | Z القطع | New translation (machine-assisted) | ☐ |
+| 110 | new | Cut Z | — | عمق القطع Z | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 111 | new | Cutting Depth.<br>The depth at which to cut into material. | — | عمق القطع.<br>العمق الذي يتم القطع عنده داخل المادة. | New translation (machine-assisted) | ☐ |
 | 112 | new | MultiDepth | — | أعماق متعددة | New translation (machine-assisted) | ☐ |
 | 113 | new | Multi Depth.<br>Selecting this will allow cutting in multiple passes,<br>each pass adding a DPP parameter depth. | — | أعماق متعددة.<br>تحديد هذا الخيار يتيح القطع على عدة تمريرات،<br>تضيف كل تمريرة عمقًا بمقدار المعامل DPP. | New translation (machine-assisted) | ☐ |
 | 114 | new | Depth per pass | — | العمق لكل تمريرة | New translation (machine-assisted) | ☐ |
-| 115 | new | DPP. Depth per Pass.<br>The value used to cut into material on each pass. | — | DPP. العمق لكل تمريرة.<br>القيمة المستخدمة للقطع داخل المادة في كل تمريرة. | New translation (machine-assisted) | ☐ |
-| 116 | new | Travel Z | — | Z الانتقال | New translation (machine-assisted) | ☐ |
+| 115 | new | DPP. Depth per Pass.<br>The value used to cut into material on each pass. | — | العمق لكل تمريرة (DPP).<br>القيمة المستخدمة للقطع داخل المادة في كل تمريرة. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 116 | new | Travel Z | — | ارتفاع الانتقال Z | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 117 | new | Clearance Height.<br>Height at which the milling bit will travel between cuts,<br>above the surface of the material, avoiding all fixtures. | — | ارتفاع الخلوص.<br>الارتفاع الذي تنتقل عنده لقمة التفريز بين عمليات القطع،<br>فوق سطح المادة، متجنبةً جميع أدوات التثبيت. | New translation (machine-assisted) | ☐ |
 | 118 | new | ExtraCut | — | قطع إضافي | New translation (machine-assisted) | ☐ |
 | 119 | new | Extra Cut.<br>If checked, after a isolation is finished an extra cut<br>will be added where the start and end of isolation meet<br>such as that this point is covered by this extra cut to<br>ensure a complete isolation. | — | قطع إضافي.<br>إذا فُعِّل، فبعد انتهاء العزل يُضاف قطع إضافي<br>حيث تلتقي بداية العزل ونهايته<br>بحيث تُغطّى هذه النقطة بهذا القطع الإضافي<br>لضمان عزل كامل. | New translation (machine-assisted) | ☐ |
@@ -181,8 +181,8 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 170 | new | Int | — | داخلي | New translation (machine-assisted) | ☐ |
 | 171 | new | Drill depth (negative)<br>below the copper surface. | — | عمق الثقب (سالب)<br>تحت سطح النحاس. | New translation (machine-assisted) | ☐ |
 | 172 | new | Offset Z | — | إزاحة Z | New translation (machine-assisted) | ☐ |
-| 173 | new | Some drill bits (the larger ones) need to drill deeper<br>to create the desired exit hole diameter due of the tip shape.<br>The value here can compensate the Cut Z parameter. | — | بعض لقم الثقب (الكبيرة منها) تحتاج إلى الثقب أعمق<br>للحصول على قطر ثقب الخروج المطلوب بسبب شكل الرأس.<br>يمكن للقيمة هنا أن تعوّض معامل Z القطع. | New translation (machine-assisted) — reviewer: terminology: hole is ثقب, not فتحة (aperture) | ☐ |
-| 174 | new | Use multiple passes to limit<br>the cut depth in each pass. Will<br>cut multiple times until Cut Z is<br>reached. | — | استخدم عدة تمريرات لتحديد<br>عمق القطع في كل تمريرة.<br>سيقطع عدة مرات حتى الوصول<br>إلى Z القطع. | New translation (machine-assisted) | ☐ |
+| 173 | new | Some drill bits (the larger ones) need to drill deeper<br>to create the desired exit hole diameter due of the tip shape.<br>The value here can compensate the Cut Z parameter. | — | بعض لقم الثقب (الكبيرة منها) تحتاج إلى الثقب أعمق<br>للحصول على قطر ثقب الخروج المطلوب بسبب شكل الرأس.<br>يمكن للقيمة هنا أن تعوّض معامل عمق القطع Z. | New translation (machine-assisted) — reviewer: terminology: hole is ثقب, not فتحة (aperture); begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 174 | new | Use multiple passes to limit<br>the cut depth in each pass. Will<br>cut multiple times until Cut Z is<br>reached. | — | استخدم عدة تمريرات لتحديد<br>عمق القطع في كل تمريرة.<br>سيقطع عدة مرات حتى الوصول<br>إلى عمق القطع Z. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 175 | new | Depth of each pass (positive). | — | عمق كل تمريرة (موجب). | New translation (machine-assisted) | ☐ |
 | 176 | new | Tool height when travelling<br>across the XY plane. | — | ارتفاع اللقمة عند الانتقال<br>عبر المستوى XY. | New translation (machine-assisted) | ☐ |
 | 177 | new | Tool speed while drilling<br>(in units per minute).<br>So called 'Plunge' feedrate.<br>This is for linear move G01. | — | سرعة اللقمة أثناء الثقب<br>(بالوحدات في الدقيقة).<br>ما يُسمّى معدل تغذية 'النزول'.<br>هذا للحركة الخطية G01. | New translation (machine-assisted) | ☐ |
@@ -197,7 +197,7 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 186 | new | Dwell at bottom | — | توقف مؤقت في القاع | New translation (machine-assisted) | ☐ |
 | 187 | new | Pause at the bottom of every hole, for the Dwelltime.<br>Ignored by the laser preprocessors. | — | توقف في قاع كل ثقب لمدة التوقف.<br>تتجاهله معالجات الليزر اللاحقة. | New translation (machine-assisted) | ☐ |
 | 188 | new | Peck drilling | — | الثقب المتقطع | New translation (machine-assisted) | ☐ |
-| 189 | new | Drill each hole in steps. After each step the tool goes up to the<br>Travel Z (it clears the chips), goes down fast to the Peck Retract<br>clearance above the previous depth and feeds on.<br>It replaces the Multi-Depth. Ignored by the laser preprocessors. | — | ثقب كل ثقب على خطوات. بعد كل خطوة تصعد اللقمة إلى<br>Z الانتقال (لإخراج الرايش)، ثم تنزل بسرعة إلى خلوص سحب<br>الثقب المتقطع فوق العمق السابق وتتابع التغذية.<br>يحل محل الأعماق المتعددة. تتجاهله معالجات الليزر اللاحقة. | New translation (machine-assisted) | ☐ |
+| 189 | new | Drill each hole in steps. After each step the tool goes up to the<br>Travel Z (it clears the chips), goes down fast to the Peck Retract<br>clearance above the previous depth and feeds on.<br>It replaces the Multi-Depth. Ignored by the laser preprocessors. | — | ثقب كل ثقب على خطوات. بعد كل خطوة تصعد اللقمة إلى<br>ارتفاع الانتقال Z (لإخراج الرايش)، ثم تنزل بسرعة إلى خلوص سحب<br>الثقب المتقطع فوق العمق السابق وتتابع التغذية.<br>يحل محل الأعماق المتعددة. تتجاهله معالجات الليزر اللاحقة. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 190 | new | Peck depth | — | عمق الثقب المتقطع | New translation (machine-assisted) — reviewer: terminology: peck depth per GLOSSARY2 | ☐ |
 | 191 | new | Depth of each peck step (positive). | — | عمق كل خطوة من خطوات الثقب المتقطع (موجب). | New translation (machine-assisted) | ☐ |
 | 192 | new | Peck retract | — | سحب الثقب المتقطع | New translation (machine-assisted) — reviewer: terminology: peck retract, unify with peck drilling | ☐ |
@@ -207,9 +207,9 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 196 | new | CW | — | CW | New translation (machine-assisted) | ☐ |
 | 197 | new | CCW | — | CCW | New translation (machine-assisted) | ☐ |
 | 198 | new | Fast Plunge | — | نزول سريع | New translation (machine-assisted) | ☐ |
-| 199 | new | The vertical move from Z_Toolchange to Z_move is done with G0,<br>meaning the fastest speed available.<br>WARNING: the move is done at Toolchange X,Y coords. | — | الحركة العمودية من Z_Toolchange إلى Z_move تتم باستخدام G0،<br>أي بأقصى سرعة متاحة.<br>تحذير: تتم الحركة عند إحداثيات X,Y لتغيير اللقمة. | New translation (machine-assisted) | ☐ |
+| 199 | new | The vertical move from Z_Toolchange to Z_move is done with G0,<br>meaning the fastest speed available.<br>WARNING: the move is done at Toolchange X,Y coords. | — | الحركة العمودية من Z_Toolchange إلى Z_move تتم باستخدام G0،<br>أي بأقصى سرعة متاحة.<br>تحذير: تتم الحركة عند إحداثيات موضع تغيير اللقمة X,Y. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 200 | new | Fast Retract | — | سحب سريع | New translation (machine-assisted) | ☐ |
-| 201 | new | Exit hole strategy.<br> - When unchecked the drill bit travels slow (G1) up to zero depth and then<br>as fast as possible (G0) to the Z Move (travel height).<br> - When checked the travel from Z cut to Z_move is done as fast as possible (G0). | — | استراتيجية الخروج من الثقب.<br> - عند عدم التفعيل تصعد لقمة الثقب ببطء (G1) حتى العمق صفر ثم<br>بأقصى سرعة ممكنة (G0) إلى Z Move (ارتفاع الانتقال).<br> - عند التفعيل يتم الانتقال من Z القطع إلى Z_move بأقصى سرعة ممكنة (G0). | New translation (machine-assisted) | ☐ |
+| 201 | new | Exit hole strategy.<br> - When unchecked the drill bit travels slow (G1) up to zero depth and then<br>as fast as possible (G0) to the Z Move (travel height).<br> - When checked the travel from Z cut to Z_move is done as fast as possible (G0). | — | استراتيجية الخروج من الثقب.<br> - عند عدم التفعيل تصعد لقمة الثقب ببطء (G1) حتى العمق صفر ثم<br>بأقصى سرعة ممكنة (G0) إلى ارتفاع الانتقال Z.<br> - عند التفعيل يتم الانتقال من عمق القطع Z إلى Z_move بأقصى سرعة ممكنة (G0). | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 202 | new | Margin over bounds. A positive value here<br>will make the cutout of the PCB further from<br>the actual PCB border | — | الهامش حول الحدود. القيمة الموجبة هنا<br>تجعل قص اللوحة أبعد عن<br>الحافة الفعلية للوحة الدوائر المطبوعة | New translation (machine-assisted) | ☐ |
 | 203 | new | Gap size | — | عرض الجسر | New translation (machine-assisted) | ☐ |
 | 204 | new | The size of the bridge gaps in the cutout<br>used to keep the board connected to<br>the surrounding material (the one <br>from which the PCB is cutout). | — | عرض الجسور في قص اللوحة<br>المستخدمة لإبقاء اللوحة متصلة<br>بالمادة المحيطة (التي <br>تُقص منها اللوحة). | New translation (machine-assisted) | ☐ |
@@ -472,8 +472,8 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 461 | new | Header | — | الترويسة | New translation (machine-assisted) | ☐ |
 | 462 | new | Start | — | بدء | New translation (machine-assisted) — reviewer: meaning: also the Start button of the Sender simulation; noun/imperative بدء fits both uses | ☐ |
 | 463 | new | All GCode | — | كل G-code | New translation (machine-assisted) | ☐ |
-| 464 | new | Header GCode | — | G-code الترويسة | New translation (machine-assisted) | ☐ |
-| 465 | new | Start GCode | — | G-code البداية | New translation (machine-assisted) | ☐ |
+| 464 | new | Header GCode | — | شيفرة G-code للترويسة | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 465 | new | Start GCode | — | شيفرة G-code للبداية | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 466 | new | Loaded Machine Code into Code Editor | — | تم تحميل كود الآلة في محرر الكود | New translation (machine-assisted) | ☐ |
 | 467 | new | Open file | — | فتح ملف | New translation (machine-assisted) | ☐ |
 | 468 | new | GCode Editor | — | محرر G-code | New translation (machine-assisted) | ☐ |
@@ -990,7 +990,7 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 979 | new | Buffer Exterior | — | توسيع الحدود الخارجي | New translation (machine-assisted) | ☐ |
 | 980 | new | Full Buffer | — | توسيع الحدود الكامل | New translation (machine-assisted) | ☐ |
 | 981 | new | Note | — | ملاحظة | New translation (machine-assisted) | ☐ |
-| 982 | new | Shift + click to select a shape for modification. | — | Shift + نقرة لتحديد شكل لتعديله. | New translation (machine-assisted) | ☐ |
+| 982 | new | Shift + click to select a shape for modification. | — | انقر مع Shift لتحديد شكل لتعديله. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 983 | new | Angle at which each element in circular array is placed.<br>Each copy rotates radially around the reference point in the selected direction. | — | الزاوية التي يوضع بها كل عنصر في المصفوفة الدائرية.<br>تدور كل نسخة شعاعيًا حول النقطة المرجعية في الاتجاه المحدد. | New translation (machine-assisted) | ☐ |
 | 984 | new | Paint Tool | — | أداة التعبئة | New translation (machine-assisted) | ☐ |
 | 985 | new | The tool diameter must be a number greater than zero. | — | يجب أن يكون قطر اللقمة رقمًا أكبر من الصفر. | New translation (machine-assisted) | ☐ |
@@ -1133,8 +1133,8 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 1122 | new | Source contains invalid polygon material. | — | المصدر يحتوي على مادة مضلعات غير صالحة. | New translation (machine-assisted) | ☐ |
 | 1123 | new | Explicit material regions. Dimensions use %s; font size uses points. | — | مناطق مادة صريحة. الأبعاد بوحدة %s؛ وحجم الخط بالنقاط. | New translation (machine-assisted) | ☐ |
 | 1124 | new | Creates new material; existing features aren't replaced. | — | ينشئ مادة جديدة؛ لا تُستبدل العناصر الموجودة. | New translation (machine-assisted) | ☐ |
-| 1125 | new | Baseline X | — | X خط الأساس | New translation (machine-assisted) | ☐ |
-| 1126 | new | Baseline Y | — | Y خط الأساس | New translation (machine-assisted) | ☐ |
+| 1125 | new | Baseline X | — | خط الأساس X | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 1126 | new | Baseline Y | — | خط الأساس Y | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 1127 | new | Rotation (degrees, about anchor) | — | الدوران (بالدرجات، حول المرساة) | New translation (machine-assisted) | ☐ |
 | 1128 | new | Editor session or units changed. Reopen the drawing tool. | — | تغيّرت جلسة المحرر أو الوحدات. أعد فتح أداة الرسم. | New translation (machine-assisted) | ☐ |
 | 1129 | new | Select distinct stored features first. | — | حدد أولًا عناصر مخزنة مختلفة. | New translation (machine-assisted) | ☐ |
@@ -1387,17 +1387,17 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 1376 | new | Ctrl+E | — | Ctrl+E | New translation (machine-assisted) | ☐ |
 | 1377 | new | Open G-Code | — | فتح G-Code | New translation (machine-assisted) | ☐ |
 | 1378 | new | Exit | — | خروج | New translation (machine-assisted) | ☐ |
-| 1379 | new | SVG as Geometry | — | SVG كهندسة | New translation (machine-assisted) | ☐ |
+| 1379 | new | SVG as Geometry | — | ملف SVG كهندسة | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 1380 | new | Geometry object | — | كائن هندسة | New translation (machine-assisted) | ☐ |
 | 1381 | new | Reads the paths, the shapes and the text of a Scalable Vector Graphics file. Use it for artwork that you mill, cut or engrave. You can select more than one file. | — | يقرأ المسارات والأشكال والنصوص من ملف رسوميات متجهة قابلة للتحجيم (SVG). استخدمه للرسومات التي تفرزها أو تقصها أو تنقشها. يمكنك تحديد أكثر من ملف. | New translation (machine-assisted) | ☐ |
-| 1382 | new | SVG as Gerber | — | SVG كـ Gerber | New translation (machine-assisted) | ☐ |
+| 1382 | new | SVG as Gerber | — | ملف SVG كـ Gerber | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 1383 | new | Gerber object | — | كائن Gerber | New translation (machine-assisted) | ☐ |
 | 1384 | new | Reads the paths, the shapes and the text of a Scalable Vector Graphics file. Use it for copper, solder mask or silkscreen artwork that the isolation and the copper clearing plugins process. You can select more than one file. | — | يقرأ المسارات والأشكال والنصوص من ملف رسوميات متجهة قابلة للتحجيم (SVG). استخدمه لرسومات النحاس أو قناع اللحام أو طبقة الطباعة الحريرية التي تعالجها إضافتا العزل وإزالة النحاس. يمكنك تحديد أكثر من ملف. | New translation (machine-assisted) | ☐ |
-| 1385 | new | DXF as Geometry | — | DXF كهندسة | New translation (machine-assisted) | ☐ |
+| 1385 | new | DXF as Geometry | — | ملف DXF كهندسة | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 1386 | new | Reads the lines, the arcs, the circles, the polylines, the splines and the blocks of an AutoCAD drawing. Use it for mechanical outlines and for artwork that you mill, cut or engrave. | — | يقرأ الخطوط والأقواس والدوائر والخطوط المتعددة والمنحنيات الشريحية والكتل من رسم AutoCAD. استخدمه للمحيطات الخارجية الميكانيكية وللرسومات التي تفرزها أو تقصها أو تنقشها. | New translation (machine-assisted) — reviewer: terminology: outline = المحيط الخارجي | ☐ |
-| 1387 | new | DXF as Gerber | — | DXF كـ Gerber | New translation (machine-assisted) | ☐ |
+| 1387 | new | DXF as Gerber | — | ملف DXF كـ Gerber | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 1388 | new | Reads the lines, the arcs, the circles, the polylines, the splines and the blocks of an AutoCAD drawing. Use it for copper artwork that the isolation and the copper clearing plugins process. | — | يقرأ الخطوط والأقواس والدوائر والخطوط المتعددة والمنحنيات الشريحية والكتل من رسم AutoCAD. استخدمه لرسومات النحاس التي تعالجها إضافتا العزل وإزالة النحاس. | New translation (machine-assisted) | ☐ |
-| 1389 | new | HPGL2 as Geometry | — | HPGL2 كهندسة | New translation (machine-assisted) | ☐ |
+| 1389 | new | HPGL2 as Geometry | — | ملف HPGL2 كهندسة | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 1390 | new | Reads the pen moves of an HPGL/2 plot file, the format of pen plotters and vinyl cutters. | — | يقرأ حركات القلم من ملف رسم HPGL/2، وهو تنسيق الراسمات بالقلم وقواطع الفينيل. | New translation (machine-assisted) | ☐ |
 | 1391 | new | PDF | — | PDF | New translation (machine-assisted) | ☐ |
 | 1392 | new | Gerber and Excellon objects | — | كائنات Gerber و Excellon | New translation (machine-assisted) | ☐ |
@@ -1460,11 +1460,11 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 1449 | new | Open Example | — | فتح مثال | New translation (machine-assisted) | ☐ |
 | 1450 | new | Run Script | — | تشغيل سكربت | New translation (machine-assisted) | ☐ |
 | 1451 | new | Shift+S | — | Shift+S | New translation (machine-assisted) | ☐ |
-| 1452 | new | SVG as Geometry Object | — | SVG ككائن هندسة | New translation (machine-assisted) | ☐ |
-| 1453 | new | SVG as Gerber Object | — | SVG ككائن Gerber | New translation (machine-assisted) | ☐ |
-| 1454 | new | DXF as Geometry Object | — | DXF ككائن هندسة | New translation (machine-assisted) | ☐ |
-| 1455 | new | DXF as Gerber Object | — | DXF ككائن Gerber | New translation (machine-assisted) | ☐ |
-| 1456 | new | HPGL2 as Geometry Object | — | HPGL2 ككائن هندسة | New translation (machine-assisted) | ☐ |
+| 1452 | new | SVG as Geometry Object | — | ملف SVG ككائن هندسة | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 1453 | new | SVG as Gerber Object | — | ملف SVG ككائن Gerber | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 1454 | new | DXF as Geometry Object | — | ملف DXF ككائن هندسة | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 1455 | new | DXF as Gerber Object | — | ملف DXF ككائن Gerber | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 1456 | new | HPGL2 as Geometry Object | — | ملف HPGL2 ككائن هندسة | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 1457 | new | Altium PCB (.PcbDoc) | — | لوحة Altium (.PcbDoc) | New translation (machine-assisted) | ☐ |
 | 1458 | new | Proteus PCB (.pdsprj) | — | لوحة Proteus (.pdsprj) | New translation (machine-assisted) | ☐ |
 | 1459 | new | KiCad PCB (.kicad_pcb) | — | لوحة KiCad (.kicad_pcb) | New translation (machine-assisted) | ☐ |
@@ -1714,7 +1714,7 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 1703 | new | Snap to corner | — | الالتقاط إلى الزاوية | New translation (machine-assisted) | ☐ |
 | 1704 | new | Max. magnet distance | — | أقصى مسافة للمغناطيس | New translation (machine-assisted) | ☐ |
 | 1705 | new | Toggle the display of axis on canvas | — | إظهار/إخفاء المحاور على لوحة الرسم | New translation (machine-assisted) — reviewer: terminology: Toggle display=إظهار/إخفاء | ☐ |
-| 1706 | new | HUD (Heads up display) | — | HUD (شاشة المعلومات العلوية) | New translation (machine-assisted) | ☐ |
+| 1706 | new | HUD (Heads up display) | — | شاشة المعلومات العلوية (HUD) | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 1707 | new | Draw a delimiting rectangle on canvas.<br>The purpose is to illustrate the limits for our work. | — | رسم مستطيل حدودي على لوحة الرسم.<br>الغرض منه توضيح حدود منطقة العمل. | New translation (machine-assisted) | ☐ |
 | 1708 | new | Relative measurement.<br>Reference is last click position | — | قياس نسبي.<br>المرجع هو موضع آخر نقرة | New translation (machine-assisted) | ☐ |
 | 1709 | new | Absolute measurement.<br>Reference is (X=0, Y= 0) position | — | قياس مطلق.<br>المرجع هو الموضع (X=0, Y= 0) | New translation (machine-assisted) | ☐ |
@@ -1759,11 +1759,11 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 1748 | new | Switch to Selected Tab | — | التبديل إلى تبويب المحدد | New translation (machine-assisted) | ☐ |
 | 1749 | new | 3 | — | 3 | New translation (machine-assisted) | ☐ |
 | 1750 | new | Switch to Tool Tab | — | التبديل إلى تبويب الأدوات | New translation (machine-assisted) | ☐ |
-| 1751 | new | New Gerber | — | Gerber جديد | New translation (machine-assisted) | ☐ |
+| 1751 | new | New Gerber | — | كائن Gerber جديد | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 1752 | new | Edit Object (if selected) | — | تحرير الكائن (إن كان محددًا) | New translation (machine-assisted) | ☐ |
 | 1753 | new | Grid On/Off | — | تشغيل/إيقاف الشبكة | New translation (machine-assisted) | ☐ |
 | 1754 | new | Jump to Coordinates | — | الانتقال إلى إحداثيات | New translation (machine-assisted) | ☐ |
-| 1755 | new | New Excellon | — | Excellon جديد | New translation (machine-assisted) | ☐ |
+| 1755 | new | New Excellon | — | كائن Excellon جديد | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 1756 | new | Move Obj | — | نقل الكائن | New translation (machine-assisted) | ☐ |
 | 1757 | new | New Geometry | — | هندسة جديدة | New translation (machine-assisted) | ☐ |
 | 1758 | new | Change Units | — | تغيير الوحدات | New translation (machine-assisted) | ☐ |
@@ -1970,7 +1970,7 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 1959 | new | Mill Slots | — | تفريز الشقوق | New translation (machine-assisted) | ☐ |
 | 1960 | new | Create the Geometry Object<br>for milling slots. | — | إنشاء كائن الهندسة<br>لتفريز الشقوق. | New translation (machine-assisted) | ☐ |
 | 1961 | new | Geometry Object | — | كائن هندسة | New translation (machine-assisted) | ☐ |
-| 1962 | new | Tools in this Geometry object used for cutting.<br>The 'Offset' entry will set an offset for the cut.<br>'Offset' can be inside, outside, on path (none) and custom.<br>'Type' entry is only informative and it allow to know the <br>intent of using the current tool. <br>It can be Rough(ing), Finish(ing) or Iso(lation).<br>The 'Tool type'(TT) can be circular with 1 to 4 teeths(C1..C4),<br>ball(B), or V-Shaped(V). <br>When V-shaped is selected the 'Type' entry is automatically <br>set to Isolation, the CutZ parameter in the UI form is<br>grayed out and Cut Z is automatically calculated from the newly <br>showed UI form entries named V-Tip Dia and V-Tip Angle. | — | اللقم المستخدمة للقطع في كائن الهندسة هذا.<br>يحدد حقل 'الإزاحة' إزاحة القطع.<br>يمكن أن تكون 'الإزاحة' داخلية أو خارجية أو على المسار (بلا) أو مخصصة.<br>حقل 'النوع' للمعلومات فقط ويتيح معرفة <br>الغرض من استخدام اللقمة الحالية. <br>ويمكن أن يكون تخشين أو تشطيب أو عزل.<br>يمكن أن يكون 'نوع اللقمة' (TT) دائريًا بسن واحد إلى 4 أسنان (C1..C4)،<br>أو كرويًا (B)، أو على شكل V (V). <br>عند اختيار شكل V يُضبط حقل 'النوع' تلقائيًا <br>على عزل، ويُعطَّل معامل Z القطع في نموذج الواجهة<br>ويُحسب Z القطع تلقائيًا من حقلي النموذج اللذين <br>يظهران حديثًا باسم قطر رأس V وزاوية رأس V. | New translation (machine-assisted) — reviewer: grammar: 'with 1 to 4 teeth' lost the 1 | ☐ |
+| 1962 | new | Tools in this Geometry object used for cutting.<br>The 'Offset' entry will set an offset for the cut.<br>'Offset' can be inside, outside, on path (none) and custom.<br>'Type' entry is only informative and it allow to know the <br>intent of using the current tool. <br>It can be Rough(ing), Finish(ing) or Iso(lation).<br>The 'Tool type'(TT) can be circular with 1 to 4 teeths(C1..C4),<br>ball(B), or V-Shaped(V). <br>When V-shaped is selected the 'Type' entry is automatically <br>set to Isolation, the CutZ parameter in the UI form is<br>grayed out and Cut Z is automatically calculated from the newly <br>showed UI form entries named V-Tip Dia and V-Tip Angle. | — | اللقم المستخدمة للقطع في كائن الهندسة هذا.<br>يحدد حقل 'الإزاحة' إزاحة القطع.<br>يمكن أن تكون 'الإزاحة' داخلية أو خارجية أو على المسار (بلا) أو مخصصة.<br>حقل 'النوع' للمعلومات فقط ويتيح معرفة <br>الغرض من استخدام اللقمة الحالية. <br>ويمكن أن يكون تخشين أو تشطيب أو عزل.<br>يمكن أن يكون 'نوع اللقمة' (TT) دائريًا بسن واحد إلى 4 أسنان (C1..C4)،<br>أو كرويًا (B)، أو على شكل V (V). <br>عند اختيار شكل V يُضبط حقل 'النوع' تلقائيًا <br>على عزل، ويُعطَّل معامل عمق القطع Z في نموذج الواجهة<br>ويُحسب عمق القطع Z تلقائيًا من حقلي النموذج اللذين <br>يظهران حديثًا باسم قطر رأس V وزاوية رأس V. | New translation (machine-assisted) — reviewer: grammar: 'with 1 to 4 teeth' lost the 1; begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 1963 | new | Plot Object | — | عرض الكائن | New translation (machine-assisted) | ☐ |
 | 1964 | new | Dia | — | القطر | New translation (machine-assisted) | ☐ |
 | 1965 | new | Tool Number.<br>When ToolChange is checked, on toolchange event this value<br>will be showed as a T1, T2 ... Tn | — | رقم اللقمة.<br>عند تفعيل تغيير اللقمة، تظهر هذه القيمة عند تغيير اللقمة<br>بالشكل T1، T2 ... Tn | New translation (machine-assisted) | ☐ |
@@ -2039,7 +2039,7 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 2028 | new | Syringe drive | — | دفع المحقنة | New translation (machine-assisted) | ☐ |
 | 2029 | new | Motor uses M3/M4 and S; Stepper uses a dedicated extrusion axis. | — | المحرك يستخدم M3/M4 و S؛ المحرك الخطوي يستخدم محور بثق مخصصًا. | New translation (machine-assisted) | ☐ |
 | 2030 | new | Extrusion axis | — | محور البثق | New translation (machine-assisted) | ☐ |
-| 2031 | new | A/B/C for CNC controllers. Marlin needs linear E. Stock GRBL has no extra axis. | — | A/B/C لوحدات تحكم CNC. يحتاج Marlin إلى المحور الخطي E. لا يملك GRBL القياسي محورًا إضافيًا. | New translation (machine-assisted) | ☐ |
+| 2031 | new | A/B/C for CNC controllers. Marlin needs linear E. Stock GRBL has no extra axis. | — | المحاور A/B/C لوحدات تحكم CNC. يحتاج Marlin إلى المحور الخطي E. لا يملك GRBL القياسي محورًا إضافيًا. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 2032 | new | Axis units | — | وحدات المحور | New translation (machine-assisted) | ☐ |
 | 2033 | new | Rotary: degrees of motor rotation. Linear: millimetres of plunger motion (job units in the code). | — | دوراني: درجات دوران المحرك. خطي: مليمترات حركة المكبس (بوحدات المهمة في الكود). | New translation (machine-assisted) | ☐ |
 | 2034 | new | Mach3 dwell units | — | وحدات التوقف المؤقت في Mach3 | New translation (machine-assisted) | ☐ |
@@ -2079,7 +2079,7 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 2068 | new | Plunger retract | — | سحب المكبس | New translation (machine-assisted) | ☐ |
 | 2069 | new | Stepper anti-drip retraction in physical plunger millimetres; recovered at the next pad. | — | سحب المحرك الخطوي لمنع التنقيط بمليمترات المكبس الفعلية؛ يُستعاد عند الوسادة التالية. | New translation (machine-assisted) | ☐ |
 | 2070 | new | Slow Z approach | — | اقتراب Z البطيء | New translation (machine-assisted) | ☐ |
-| 2071 | new | Approach via Z Start at Z Dispense feed. The motor stays off until Dispense Z. Disabled for a faster normal cycle. | — | الاقتراب عبر Z البدء بمعدل تغذية Z التوزيع. يبقى المحرك متوقفًا حتى Z التوزيع. عند التعطيل تكون الدورة العادية أسرع. | New translation (machine-assisted) | ☐ |
+| 2071 | new | Approach via Z Start at Z Dispense feed. The motor stays off until Dispense Z. Disabled for a faster normal cycle. | — | الاقتراب عبر ارتفاع البدء Z بمعدل تغذية التوزيع Z. يبقى المحرك متوقفًا حتى ارتفاع التوزيع Z. عند التعطيل تكون الدورة العادية أسرع. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 2072 | new | Motor forward speed | — | سرعة المحرك للأمام | New translation (machine-assisted) | ☐ |
 | 2073 | new | Motor reverse speed | — | سرعة المحرك للخلف | New translation (machine-assisted) | ☐ |
 | 2074 | new | Legacy prime time (s) | — | زمن التحضير القديم (s) | New translation (machine-assisted) | ☐ |
@@ -2408,11 +2408,11 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 2397 | new | Update source | — | مصدر التحديث | New translation (machine-assisted) | ☐ |
 | 2398 | new | Where updates are downloaded from.<br>GitHub: the GitHub Releases of the project (default).<br>Digi (legacy): the former Digi public share. | — | المكان الذي تُنزَّل منه التحديثات.<br>GitHub: إصدارات GitHub Releases للمشروع (افتراضي).<br>Digi (قديم): المشاركة العامة السابقة على Digi. | New translation (machine-assisted) | ☐ |
 | 2399 | new | GitHub | — | GitHub | New translation (machine-assisted) | ☐ |
-| 2400 | new | Digi (legacy) | — | Digi (قديم) | New translation (machine-assisted) | ☐ |
+| 2400 | new | Digi (legacy) | — | مشاركة Digi (قديمة) | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 2401 | new | Digi share URL | — | رابط مشاركة Digi | New translation (machine-assisted) | ☐ |
 | 2402 | new | Address of the Digi public share used when the update source is Digi (legacy). | — | عنوان مشاركة Digi العامة المستخدم عندما يكون مصدر التحديث Digi (قديم). | New translation (machine-assisted) | ☐ |
 | 2403 | new | Prepare Update Files (Digi Legacy) | — | تجهيز ملفات التحديث (Digi القديم) | New translation (machine-assisted) | ☐ |
-| 2404 | new | Digi legacy: create local upload files for manual Digi publishing.<br>GitHub releases are published separately.<br>This does not upload or send credentials or application data. | — | Digi القديم: إنشاء ملفات رفع محلية للنشر اليدوي على Digi.<br>تُنشر إصدارات GitHub بشكل منفصل.<br>هذا لا يرفع ولا يرسل بيانات اعتماد أو بيانات التطبيق. | New translation (machine-assisted) | ☐ |
+| 2404 | new | Digi legacy: create local upload files for manual Digi publishing.<br>GitHub releases are published separately.<br>This does not upload or send credentials or application data. | — | مشاركة Digi القديمة: إنشاء ملفات رفع محلية للنشر اليدوي على Digi.<br>تُنشر إصدارات GitHub بشكل منفصل.<br>هذا لا يرفع ولا يرسل بيانات اعتماد أو بيانات التطبيق. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 2405 | new | Send Statistics | — | إرسال الإحصاءات | New translation (machine-assisted) | ☐ |
 | 2406 | new | Check this box if you agree to send anonymous<br>stats automatically at startup, to help improve FlatCAM. | — | فعّل هذا المربع إذا كنت توافق على إرسال إحصاءات مجهولة<br>تلقائيًا عند بدء التشغيل، للمساعدة في تحسين FlatCAM. | New translation (machine-assisted) | ☐ |
 | 2407 | new | Save Settings | — | حفظ الإعدادات | New translation (machine-assisted) | ☐ |
@@ -2836,12 +2836,12 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 2825 | new | Reverse | — | عكسي | New translation (machine-assisted) | ☐ |
 | 2826 | new | Tool change | — | تغيير اللقمة | New translation (machine-assisted) | ☐ |
 | 2827 | new | Include tool-change sequence<br>in G-Code (Pause for tool change). | — | تضمين تسلسل تغيير اللقمة<br>في G-Code (توقف لتغيير اللقمة). | New translation (machine-assisted) | ☐ |
-| 2828 | new | Toolchange Z | — | Z تغيير اللقمة | New translation (machine-assisted) | ☐ |
+| 2828 | new | Toolchange Z | — | ارتفاع تغيير اللقمة Z | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 2829 | new | Z-axis position (height) for<br>tool change. | — | موضع المحور Z (الارتفاع) عند<br>تغيير اللقمة. | New translation (machine-assisted) | ☐ |
-| 2830 | new | End move Z | — | Z نهاية الحركة | New translation (machine-assisted) | ☐ |
+| 2830 | new | End move Z | — | ارتفاع نهاية الحركة Z | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 2831 | new | Height of the tool after<br>the last move at the end of the job. | — | ارتفاع اللقمة بعد<br>آخر حركة في نهاية المهمة. | New translation (machine-assisted) | ☐ |
-| 2832 | new | End move X,Y | — | X,Y نهاية الحركة | New translation (machine-assisted) | ☐ |
-| 2833 | new | End move X,Y position. In format (x,y).<br>If no value is entered then there is no move<br>on X,Y plane at the end of the job. | — | موضع X,Y لنهاية الحركة. بالصيغة (x,y).<br>إذا لم تُدخل قيمة فلن تكون هناك حركة<br>في المستوى X,Y في نهاية المهمة. | New translation (machine-assisted) | ☐ |
+| 2832 | new | End move X,Y | — | موضع نهاية الحركة X,Y | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 2833 | new | End move X,Y position. In format (x,y).<br>If no value is entered then there is no move<br>on X,Y plane at the end of the job. | — | موضع نهاية الحركة X,Y. بالصيغة (x,y).<br>إذا لم تُدخل قيمة فلن تكون هناك حركة<br>في المستوى X,Y في نهاية المهمة. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 2834 | new | Spindle Speed | — | سرعة المغزل | New translation (machine-assisted) | ☐ |
 | 2835 | new | Enable Dwell | — | تمكين التوقف المؤقت | New translation (machine-assisted) — reviewer: terminology: Enable -> تمكين | ☐ |
 | 2836 | new | Pause to allow the spindle to reach its<br>speed before cutting. | — | التوقف ليصل المغزل إلى<br>سرعته قبل القطع. | New translation (machine-assisted) | ☐ |
@@ -2851,7 +2851,7 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 2840 | new | Spot drilling | — | ثقب التمركز | New translation (machine-assisted) — reviewer: terminology: Spot drill -> ثقب التمركز | ☐ |
 | 2841 | new | The job starts with an extra pass over all the selected holes with a spot drill<br>(centering): its own tool number, a toolchange before it, then the drills.<br>Needs the toolchange. Ignored by the laser preprocessors. | — | تبدأ المهمة بتمريرة إضافية على كل الثقوب المحددة بلقمة ثقب التمركز<br>(لتحديد المركز): برقم لقمة خاص بها، وتغيير لقمة قبلها، ثم الثقوب.<br>تحتاج إلى تغيير اللقمة. تتجاهلها المعالجات اللاحقة لليزر. | New translation (machine-assisted) — reviewer: terminology: spot drill -> ثقب التمركز | ☐ |
 | 2842 | new | Diameter of the spot drill. | — | قطر لقمة ثقب التمركز. | New translation (machine-assisted) — reviewer: terminology: spot drill -> ثقب التمركز | ☐ |
-| 2843 | new | Spot Cut Z | — | Z قطع التمركز | New translation (machine-assisted) — reviewer: terminology: spot -> التمركز | ☐ |
+| 2843 | new | Spot Cut Z | — | عمق قطع التمركز Z | New translation (machine-assisted) — reviewer: terminology: spot -> التمركز; begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 2844 | new | Depth of the spot holes. Negative value, in current units. | — | عمق ثقوب التمركز. قيمة سالبة، بالوحدات الحالية. | New translation (machine-assisted) — reviewer: terminology: spot -> التمركز | ☐ |
 | 2845 | new | Spot Feedrate Z | — | معدل التغذية Z للتمركز | New translation (machine-assisted) — reviewer: terminology: spot -> التمركز | ☐ |
 | 2846 | new | Feedrate on the Z axis of the spot holes. | — | معدل التغذية على المحور Z لثقوب التمركز. | New translation (machine-assisted) — reviewer: terminology: spot -> التمركز | ☐ |
@@ -2876,9 +2876,9 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 2865 | new | The preprocessor JSON file that dictates<br>Gcode output. | — | ملف JSON للمعالج اللاحق الذي يحدد<br>مخرجات Gcode. | New translation (machine-assisted) | ☐ |
 | 2866 | new | Drilling Slots | — | ثقب الشقوق | New translation (machine-assisted) | ☐ |
 | 2867 | new | A list of advanced parameters. | — | قائمة بالمعاملات المتقدمة. | New translation (machine-assisted) | ☐ |
-| 2868 | new | Toolchange X,Y | — | X,Y تغيير اللقمة | New translation (machine-assisted) | ☐ |
-| 2869 | new | Toolchange X,Y position. | — | موضع X,Y لتغيير اللقمة. | New translation (machine-assisted) | ☐ |
-| 2870 | new | Start Z | — | Z البداية | New translation (machine-assisted) | ☐ |
+| 2868 | new | Toolchange X,Y | — | موضع تغيير اللقمة X,Y | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 2869 | new | Toolchange X,Y position. | — | موضع تغيير اللقمة X,Y. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 2870 | new | Start Z | — | ارتفاع البداية Z | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 2871 | new | Height of the tool just after starting the work.<br>Delete the value if you don't need this feature. | — | ارتفاع اللقمة مباشرة بعد بدء العمل.<br>احذف القيمة إذا لم تكن بحاجة إلى هذه الميزة. | New translation (machine-assisted) | ☐ |
 | 2872 | new | Probe Z depth | — | عمق Z للمجس | New translation (machine-assisted) | ☐ |
 | 2873 | new | The maximum depth that the probe is allowed<br>to probe. Negative value, in current units. | — | أقصى عمق مسموح للمجس<br>بالنزول إليه أثناء الجس. قيمة سالبة، بالوحدات الحالية. | New translation (machine-assisted) — reviewer: terminology: probing -> الجس | ☐ |
@@ -2892,8 +2892,8 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 2881 | new | Above 0 the laser is not turned off between the cuts:<br>the 'laser OFF' lines set this power instead.<br>Keep it 0 to turn the laser off between the cuts. | — | فوق 0 لا يُطفأ الليزر بين عمليات القطع:<br>تضبط أسطر 'laser OFF' هذه القدرة بدلًا من ذلك.<br>أبقها 0 لإطفاء الليزر بين عمليات القطع. | New translation (machine-assisted) | ☐ |
 | 2882 | new | Turn ON Code | — | كود التشغيل | New translation (machine-assisted) | ☐ |
 | 2883 | new | The Gode that will be executed to turn the laser on. | — | كود G-code الذي سيُنفَّذ لتشغيل الليزر. | New translation (machine-assisted) — reviewer: rule: keep G-code (English typo Gode) | ☐ |
-| 2884 | new | By checking this, the vertical move from<br>Z_Toolchange to Z_move is done with G0,<br>meaning the fastest speed available.<br>WARNING: the move is done at Toolchange X,Y coords. | — | بتفعيل هذا، تتم الحركة العمودية من<br>Z_Toolchange إلى Z_move باستخدام G0،<br>أي بأقصى سرعة متاحة.<br>تحذير: تتم الحركة عند إحداثيات X,Y لتغيير اللقمة. | New translation (machine-assisted) | ☐ |
-| 2885 | new | Exit hole strategy.<br> - When uncheked, while exiting the drilled hole the drill bit<br>will travel slow, with set feedrate (G1), up to zero depth and then<br>travel as fast as possible (G0) to the Z Move (travel height).<br> - When checked the travel from Z cut (cut depth) to Z_move<br>(travel height) is done as fast as possible (G0) in one move. | — | استراتيجية الخروج من الثقب.<br> - عند عدم التفعيل، أثناء الخروج من الثقب تتحرك لقمة الثقب<br>ببطء بمعدل التغذية المحدد (G1) حتى العمق صفر ثم<br>تنتقل بأقصى سرعة ممكنة (G0) إلى Z الانتقال (ارتفاع الانتقال).<br> - عند التفعيل يتم الانتقال من Z القطع (عمق القطع) إلى Z_move<br>(ارتفاع الانتقال) بأقصى سرعة ممكنة (G0) في حركة واحدة. | New translation (machine-assisted) — reviewer: terminology: Z Move left in English -> Z الانتقال | ☐ |
+| 2884 | new | By checking this, the vertical move from<br>Z_Toolchange to Z_move is done with G0,<br>meaning the fastest speed available.<br>WARNING: the move is done at Toolchange X,Y coords. | — | بتفعيل هذا، تتم الحركة العمودية<br>من Z_Toolchange إلى Z_move باستخدام G0،<br>أي بأقصى سرعة متاحة.<br>تحذير: تتم الحركة عند إحداثيات موضع تغيير اللقمة X,Y. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 2885 | new | Exit hole strategy.<br> - When uncheked, while exiting the drilled hole the drill bit<br>will travel slow, with set feedrate (G1), up to zero depth and then<br>travel as fast as possible (G0) to the Z Move (travel height).<br> - When checked the travel from Z cut (cut depth) to Z_move<br>(travel height) is done as fast as possible (G0) in one move. | — | استراتيجية الخروج من الثقب.<br> - عند عدم التفعيل، أثناء الخروج من الثقب تتحرك لقمة الثقب<br>ببطء بمعدل التغذية المحدد (G1) حتى العمق صفر ثم<br>تنتقل بأقصى سرعة ممكنة (G0) إلى ارتفاع الانتقال Z.<br> - عند التفعيل يتم الانتقال من عمق القطع Z إلى Z_move<br>(ارتفاع الانتقال) بأقصى سرعة ممكنة (G0) في حركة واحدة. | New translation (machine-assisted) — reviewer: terminology: Z Move left in English -> Z الانتقال; begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 2886 | new | Area Exclusion | — | استبعاد المناطق | New translation (machine-assisted) | ☐ |
 | 2887 | new | Area exclusion parameters. | — | معاملات استبعاد المناطق. | New translation (machine-assisted) | ☐ |
 | 2888 | new | Exclusion areas | — | مناطق الاستبعاد | New translation (machine-assisted) | ☐ |
@@ -2903,7 +2903,7 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 2892 | new | The strategy followed when encountering an exclusion area.<br>Can be:<br>- Over -> when encountering the area, the tool will go to a set height<br>- Around -> will avoid the exclusion area by going around the area | — | الاستراتيجية المتبعة عند مصادفة منطقة استبعاد.<br>يمكن أن تكون:<br>- فوق -> عند مصادفة المنطقة ترتفع اللقمة إلى ارتفاع محدد<br>- حول -> تتجنب منطقة الاستبعاد بالالتفاف حولها | New translation (machine-assisted) | ☐ |
 | 2893 | new | Over | — | فوق | New translation (machine-assisted) | ☐ |
 | 2894 | new | Around | — | حول | New translation (machine-assisted) | ☐ |
-| 2895 | new | Over Z | — | Z العبور | New translation (machine-assisted) | ☐ |
+| 2895 | new | Over Z | — | ارتفاع العبور Z | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 2896 | new | The height Z to which the tool will rise in order to avoid<br>an interdiction area. | — | الارتفاع Z الذي سترتفع إليه اللقمة لتجنب<br>منطقة محظورة. | New translation (machine-assisted) | ☐ |
 | 2897 | new | Grow the copper of a Gerber object to compensate<br>the lateral undercut of the etching. | — | توسيع نحاس كائن Gerber لتعويض<br>التآكل الجانبي الناتج عن الحفر الكيميائي. | New translation (machine-assisted) | ☐ |
 | 2898 | new | Copper thickness | — | سماكة النحاس | New translation (machine-assisted) | ☐ |
@@ -2970,8 +2970,8 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 2959 | new | The largest distance a simplified path may move away from the original path. | — | أكبر مسافة يمكن أن يبتعد بها المسار المبسَّط عن المسار الأصلي. | New translation (machine-assisted) | ☐ |
 | 2960 | new | Added to the name of the Gerber object to make the name of the result. | — | تُضاف إلى اسم كائن Gerber لتكوين اسم النتيجة. | New translation (machine-assisted) | ☐ |
 | 2961 | new | GCode sender Plugin | — | إضافة مُرسِل GCode | New translation (machine-assisted) — reviewer: terminology: Sender -> مُرسِل (GLOSSARY2) | ☐ |
-| 2962 | new | USB Serial | — | USB تسلسلي | New translation (machine-assisted) | ☐ |
-| 2963 | new | Native USB | — | USB أصلي | New translation (machine-assisted) | ☐ |
+| 2962 | new | USB Serial | — | تسلسلي عبر USB | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 2963 | new | Native USB | — | منفذ USB أصلي | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 2964 | new | Network | — | الشبكة | New translation (machine-assisted) | ☐ |
 | 2965 | new | grblHAL raw TCP host/IP on a trusted LAN. | — | مضيف/IP لاتصال TCP خام بـ grblHAL على شبكة محلية موثوقة. | New translation (machine-assisted) | ☐ |
 | 2966 | new | grblHAL transport | — | طريقة اتصال grblHAL | New translation (machine-assisted) — reviewer: meaning: transport = connection type, not نقل | ☐ |
@@ -3053,7 +3053,7 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 3042 | new | The number of grid rows. | — | عدد صفوف الشبكة. | New translation (machine-assisted) | ☐ |
 | 3043 | new | Probe Tip Dia | — | قطر رأس المجس | New translation (machine-assisted) | ☐ |
 | 3044 | new | The probe tip diameter. | — | قطر رأس المجس. | New translation (machine-assisted) | ☐ |
-| 3045 | new | Probe Z travel | — | Z انتقال المجس | New translation (machine-assisted) | ☐ |
+| 3045 | new | Probe Z travel | — | ارتفاع انتقال المجس Z | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 3046 | new | The safe Z for probe travelling between probe points. | — | ارتفاع Z الآمن لانتقال المجس بين نقاط الجس. | New translation (machine-assisted) | ☐ |
 | 3047 | new | Probe Feedrate | — | معدل تغذية المجس | New translation (machine-assisted) | ☐ |
 | 3048 | new | The kind of controller for which to generate<br>height map gcode. | — | نوع وحدة التحكم التي سيُنشأ لها<br>كود G-code لخريطة الارتفاعات. | New translation (machine-assisted) | ☐ |
@@ -3073,7 +3073,7 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 3062 | new | Cutting speed in the XY<br>plane in units per minute.<br>It is called also Plunge. | — | سرعة القطع في المستوى XY<br>بالوحدات في الدقيقة.<br>تُسمى أيضًا النزول. | New translation (machine-assisted) | ☐ |
 | 3063 | new | Speed of the spindle in RPM (optional).<br>If LASER preprocessor is used,<br>this value is the power of laser. | — | سرعة المغزل بـ RPM (اختياري).<br>إذا استُخدم المعالج اللاحق LASER،<br>فهذه القيمة هي قدرة الليزر. | New translation (machine-assisted) | ☐ |
 | 3064 | new | The Preprocessor file that dictates<br>the Machine Code (like GCode, RML, HPGL) output. | — | ملف المعالج اللاحق الذي يحدد<br>مخرجات كود الآلة (مثل GCode وRML وHPGL). | New translation (machine-assisted) | ☐ |
-| 3065 | new | Toolchange X-Y | — | X-Y تغيير اللقمة | New translation (machine-assisted) | ☐ |
+| 3065 | new | Toolchange X-Y | — | موضع تغيير اللقمة X-Y | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 3066 | new | Cutting speed in the XY plane<br>(in units per minute).<br>This is for the rapid move G00.<br>It is useful only for Marlin,<br>ignore for any other cases. | — | سرعة القطع في المستوى XY<br>(بالوحدات في الدقيقة).<br>هذه للحركة السريعة G00.<br>مفيدة فقط مع Marlin،<br>تجاهلها في الحالات الأخرى. | New translation (machine-assisted) | ☐ |
 | 3067 | new | Re-cut | — | إعادة القطع | New translation (machine-assisted) | ☐ |
 | 3068 | new | In order to remove possible<br>copper leftovers where first cut<br>meet with last cut, we generate an<br>extended cut over the first cut section. | — | لإزالة بقايا النحاس المحتملة<br>حيث يلتقي أول قطع<br>مع آخر قطع، نُنشئ<br>قطعًا ممتدًا فوق جزء القطع الأول. | New translation (machine-assisted) | ☐ |
@@ -3116,17 +3116,17 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 3105 | new | Diameter for the new tool to add in the Tool Table | — | قطر اللقمة الجديدة المراد إضافتها إلى جدول اللقم | New translation (machine-assisted) | ☐ |
 | 3106 | new | Offset from the boundary. | — | الإزاحة عن الحدود. | New translation (machine-assisted) | ☐ |
 | 3107 | new | Fraction of tool diameter. | — | جزء من قطر اللقمة. | New translation (machine-assisted) | ☐ |
-| 3108 | new | Z Dispense Start | — | Z بدء التوزيع | New translation (machine-assisted) | ☐ |
+| 3108 | new | Z Dispense Start | — | ارتفاع بدء التوزيع Z | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 3109 | new | The height (Z) when solder paste dispensing starts. | — | الارتفاع (Z) عند بدء توزيع معجون اللحام. | New translation (machine-assisted) | ☐ |
-| 3110 | new | Z Dispense | — | Z التوزيع | New translation (machine-assisted) | ☐ |
+| 3110 | new | Z Dispense | — | ارتفاع التوزيع Z | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 3111 | new | The height (Z) when doing solder paste dispensing. | — | الارتفاع (Z) أثناء توزيع معجون اللحام. | New translation (machine-assisted) | ☐ |
-| 3112 | new | Z Dispense Stop | — | Z إيقاف التوزيع | New translation (machine-assisted) | ☐ |
+| 3112 | new | Z Dispense Stop | — | ارتفاع إيقاف التوزيع Z | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 3113 | new | The height (Z) when solder paste dispensing stops. | — | الارتفاع (Z) عند توقف توزيع معجون اللحام. | New translation (machine-assisted) | ☐ |
-| 3114 | new | Z Travel | — | Z الانتقال | New translation (machine-assisted) | ☐ |
+| 3114 | new | Z Travel | — | ارتفاع الانتقال Z | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 3115 | new | The height (Z) for travel between pads<br>(without dispensing solder paste). | — | الارتفاع (Z) للانتقال بين الوسادات<br>(دون توزيع معجون اللحام). | New translation (machine-assisted) | ☐ |
-| 3116 | new | Z Toolchange | — | Z تغيير اللقمة | New translation (machine-assisted) | ☐ |
+| 3116 | new | Z Toolchange | — | ارتفاع تغيير اللقمة Z | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 3117 | new | The height (Z) for tool (nozzle) change. | — | الارتفاع (Z) لتغيير اللقمة (الفوهة). | New translation (machine-assisted) | ☐ |
-| 3118 | new | The X,Y location for tool (nozzle) change.<br>The format is (x, y) where x and y are real numbers. | — | موقع X,Y لتغيير اللقمة (الفوهة).<br>الصيغة (x, y) حيث x وy أعداد حقيقية. | New translation (machine-assisted) | ☐ |
+| 3118 | new | The X,Y location for tool (nozzle) change.<br>The format is (x, y) where x and y are real numbers. | — | موضع تغيير اللقمة (الفوهة) X,Y.<br>الصيغة (x, y) حيث x وy أعداد حقيقية. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 3119 | new | Feedrate (speed) while moving on the X-Y plane. | — | معدل التغذية (السرعة) أثناء الحركة في المستوى X-Y. | New translation (machine-assisted) | ☐ |
 | 3120 | new | Feedrate while moving as fast as possible. | — | معدل التغذية أثناء الحركة بأقصى سرعة ممكنة. | New translation (machine-assisted) | ☐ |
 | 3121 | new | Feedrate (speed) while moving vertically<br>(on Z plane). | — | معدل التغذية (السرعة) أثناء الحركة الرأسية<br>(على المحور Z). | New translation (machine-assisted) | ☐ |
@@ -3325,7 +3325,7 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 3314 | new | Not in the file, the default values are used | — | غير موجودة في الملف، تُستخدم القيم الافتراضية | New translation (machine-assisted) | ☐ |
 | 3315 | new | No tool diameter in the file for the tools %s: the default %s is used | — | لا يوجد قطر لقمة في الملف للقم %s: يُستخدم القطر الافتراضي %s | New translation (machine-assisted) | ☐ |
 | 3316 | new | Failed to create the CNCJob object from the G-code file. | — | فشل إنشاء كائن مهمة CNC من ملف G-code. | New translation (machine-assisted) | ☐ |
-| 3317 | new | G-code without complete tool data | — | G-code دون بيانات لقم كاملة | New translation (machine-assisted) | ☐ |
+| 3317 | new | G-code without complete tool data | — | شيفرة G-code دون بيانات لقم كاملة | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 3318 | new | Object is not HPGL2 file or empty. Aborting object creation. | — | الكائن ليس ملف HPGL2 أو أنه فارغ. إلغاء إنشاء الكائن. | New translation (machine-assisted) | ☐ |
 | 3319 | new | Failed. Probable not a HPGL2 file. | — | فشل. على الأرجح ليس ملف HPGL2. | New translation (machine-assisted) | ☐ |
 | 3320 | new | TCL script file opened in Code Editor. | — | تم فتح ملف سكربت TCL في محرر الكود. | New translation (machine-assisted) | ☐ |
@@ -3723,7 +3723,7 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 3712 | new | GRBL needs recovery. Press Home. | — | يحتاج GRBL إلى استعادة. اضغط «العودة إلى الأصل». | New translation (machine-assisted) — reviewer: Home -> العودة إلى الأصل (GLOSSARY2) | ☐ |
 | 3713 | new | Close the simulation first. | — | أغلق المحاكاة أولًا. | New translation (machine-assisted) | ☐ |
 | 3714 | new | Not connected to a GRBL controller. | — | غير متصل بوحدة تحكم GRBL. | New translation (machine-assisted) | ☐ |
-| 3715 | new | GRBL is busy | — | GRBL مشغول | New translation (machine-assisted) | ☐ |
+| 3715 | new | GRBL is busy | — | وحدة التحكم GRBL مشغولة | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 3716 | new | Wait, or press Stop. | — | انتظر، أو اضغط «إيقاف». | New translation (machine-assisted) | ☐ |
 | 3717 | new | GRBL can still have lines of the stopped job. Press Reset, then Home. | — | قد تبقى لدى GRBL أسطر من المهمة المتوقفة. اضغط «إعادة الضبط» ثم «العودة إلى الأصل». | New translation (machine-assisted) — reviewer: Home -> العودة إلى الأصل (GLOSSARY2) | ☐ |
 | 3718 | new | Controller discovery is incomplete. Wait, or reconnect after the external job finishes. | — | اكتشاف وحدة التحكم غير مكتمل. انتظر، أو أعد الاتصال بعد انتهاء المهمة الخارجية. | New translation (machine-assisted) | ☐ |
@@ -3741,7 +3741,7 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 3730 | new | Could not read the GRBL work offset | — | تعذرت قراءة إزاحة العمل في GRBL | New translation (machine-assisted) | ☐ |
 | 3731 | new | Finished probing. Doing the autolevelling. | — | انتهى الجس. جارٍ تنفيذ التسوية التلقائية. | New translation (machine-assisted) — reviewer: Probing -> الجس (GLOSSARY2) | ☐ |
 | 3732 | new | GRBL did not report the setting $13. The levelled job was not started. | — | لم يُبلغ GRBL عن الإعداد $13. لم تبدأ المهمة المُسوّاة. | New translation (machine-assisted) | ☐ |
-| 3733 | new | GRBL is not in the units of the height map, or not in G90/G94. The levelled job was not started. | — | GRBL ليس بوحدات خريطة الارتفاعات، أو ليس في وضع G90/G94. لم تبدأ المهمة المُسوّاة. | New translation (machine-assisted) — reviewer: Height map -> خريطة الارتفاعات (GLOSSARY2) | ☐ |
+| 3733 | new | GRBL is not in the units of the height map, or not in G90/G94. The levelled job was not started. | — | وحدة التحكم GRBL ليست بوحدات خريطة الارتفاعات، أو ليست في وضع G90/G94. لم تبدأ المهمة المُسوّاة. | New translation (machine-assisted) — reviewer: Height map -> خريطة الارتفاعات (GLOSSARY2); begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 3734 | new | The Start was stopped. | — | تم إيقاف البدء. | New translation (machine-assisted) | ☐ |
 | 3735 | new | Could not read the machine frame of GRBL | — | تعذرت قراءة إطار الآلة في GRBL | New translation (machine-assisted) | ☐ |
 | 3736 | new | GRBL must be Idle to start the job. State | — | يجب أن يكون GRBL في حالة خمول (Idle) لبدء المهمة. الحالة | New translation (machine-assisted) | ☐ |
@@ -3854,10 +3854,10 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 3843 | new | Also test the mirrored object, for a layer of the bottom side. | — | اختبار الكائن المعكوس أيضًا، لطبقة الوجه السفلي. | New translation (machine-assisted) | ☐ |
 | 3844 | new | Limit pairs | — | تحديد الأزواج | New translation (machine-assisted) | ☐ |
 | 3845 | new | Limit source landmarks and fitted pairs in Auto mode.<br>All features still verify the result. Zero means unlimited. | — | تحديد عدد معالم المصدر والأزواج الملائمة في النمط التلقائي.<br>تُستخدم جميع العناصر مع ذلك للتحقق من النتيجة. الصفر يعني بلا حد. | New translation (machine-assisted) — reviewer: grammar/meaning: all features still used to verify | ☐ |
-| 3846 | new | START X | — | X البداية | New translation (machine-assisted) | ☐ |
-| 3847 | new | START Y | — | Y البداية | New translation (machine-assisted) | ☐ |
-| 3848 | new | DEST X | — | X الوجهة | New translation (machine-assisted) | ☐ |
-| 3849 | new | DEST Y | — | Y الوجهة | New translation (machine-assisted) | ☐ |
+| 3846 | new | START X | — | البداية X | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 3847 | new | START Y | — | البداية Y | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 3848 | new | DEST X | — | الوجهة X | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 3849 | new | DEST Y | — | الوجهة Y | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 3850 | new | The picked point pairs. The Error column shows the distance between the<br>transformed START point and the DESTINATION point after the alignment. | — | أزواج النقاط المختارة. يعرض عمود الخطأ المسافة بعد المحاذاة بين<br>نقطة البداية المحوَّلة ونقطة الوجهة. | New translation (machine-assisted) — reviewer: meaning: "after alignment" qualifies the distance, START is transformed | ☐ |
 | 3851 | new | Align Object | — | محاذاة الكائن | New translation (machine-assisted) | ☐ |
 | 3852 | new | Align the specified object to the aligner object.<br>Click the START point on the moving object, then the DESTINATION point on the aligner object.<br>Backspace removes the last point. Esc or right click cancels. | — | محاذاة الكائن المحدد مع الكائن المرجعي.<br>انقر نقطة البداية على الكائن المتحرك، ثم نقطة الوجهة على الكائن المرجعي.<br>Backspace يحذف آخر نقطة. Esc أو النقر بالزر الأيمن يلغي. | New translation (machine-assisted) | ☐ |
@@ -3868,7 +3868,7 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 3857 | new | Reset Tool | — | إعادة ضبط الأداة | New translation (machine-assisted) — reviewer: Reset -> إعادة الضبط (GLOSSARY2) | ☐ |
 | 3858 | new | Will reset the tool parameters. | — | سيعيد ضبط معاملات الأداة. | New translation (machine-assisted) — reviewer: Reset -> إعادة الضبط (GLOSSARY2) | ☐ |
 | 3859 | new | Cut width (tool diameter) calculated. | — | تم حساب عرض القطع (قطر اللقمة). | New translation (machine-assisted) | ☐ |
-| 3860 | new | Cut depth (Cut Z) calculated. | — | تم حساب عمق القطع (Z القطع). | New translation (machine-assisted) | ☐ |
+| 3860 | new | Cut depth (Cut Z) calculated. | — | تم حساب عمق القطع Z. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 3861 | new | Converted value is outside the supported range. | — | القيمة المحولة خارج النطاق المدعوم. | New translation (machine-assisted) | ☐ |
 | 3862 | new | Feeds and speeds calculated. | — | تم حساب التغذية والسرعات. | New translation (machine-assisted) | ☐ |
 | 3863 | new | V-Shape Tool | — | لقمة على شكل V | New translation (machine-assisted) | ☐ |
@@ -3893,9 +3893,9 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 3882 | new | Change units and convert the values in this calculator. | — | تغيير الوحدات وتحويل القيم في هذه الحاسبة. | New translation (machine-assisted) | ☐ |
 | 3883 | new | Feed Rate | — | معدل التغذية | New translation (machine-assisted) | ☐ |
 | 3884 | new | Chip Load | — | حمل الرقاقة | New translation (machine-assisted) | ☐ |
-| 3885 | new | RPM from Feed | — | RPM من التغذية | New translation (machine-assisted) | ☐ |
+| 3885 | new | RPM from Feed | — | سرعة الدوران RPM من التغذية | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 3886 | new | Surface Speed | — | السرعة السطحية | New translation (machine-assisted) | ☐ |
-| 3887 | new | RPM from Surface Speed | — | RPM من السرعة السطحية | New translation (machine-assisted) | ☐ |
+| 3887 | new | RPM from Surface Speed | — | سرعة الدوران RPM من السرعة السطحية | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 3888 | new | Choose the unknown quantity. Its field becomes read-only.<br>Surface speed is also updated from diameter and RPM. | — | اختر الكمية المجهولة. يصبح حقلها للقراءة فقط.<br>تُحدَّث السرعة السطحية أيضًا من القطر وRPM. | New translation (machine-assisted) | ☐ |
 | 3889 | new | Calculate for | — | الحساب لـ | New translation (machine-assisted) | ☐ |
 | 3890 | new | Cutting diameter of the tool. | — | قطر القطع للقمة. | New translation (machine-assisted) | ☐ |
@@ -4019,9 +4019,9 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 4008 | new | The selected object has to be of Gerber type.<br>Select a Gerber file and try again. | — | يجب أن يكون الكائن المحدد من نوع Gerber.<br>حدد ملف Gerber وحاول مجددًا. | New translation (machine-assisted) | ☐ |
 | 4009 | new | Bridge selected. Drag the orange grip or click a new position to move; Delete removes. Right-click keeps it and finishes; Escape cancels the entire session. | — | تم تحديد الجسر. اسحب المقبض البرتقالي أو انقر موضعًا جديدًا لنقله؛ Delete يحذفه. النقر بالزر الأيمن يبقيه وينهي؛ Escape يلغي الجلسة بأكملها. | New translation (machine-assisted) | ☐ |
 | 4010 | new | Finished manual adding of gaps. | — | انتهت الإضافة اليدوية للجسور. | New translation (machine-assisted) | ☐ |
-| 4011 | new | Cut Z and Thin Depth must be finite values. | — | يجب أن تكون Z القطع والعمق الرقيق قيمًا محدودة. | New translation (machine-assisted) | ☐ |
-| 4012 | new | Cut Z must be a finite negative value for Thin gaps. | — | يجب أن تكون Z القطع قيمة سالبة محدودة للجسور الرقيقة. | New translation (machine-assisted) | ☐ |
-| 4013 | new | Thin Depth must be zero or satisfy Cut Z < Thin Depth < 0. | — | يجب أن يكون العمق الرقيق صفرًا أو يحقق Z القطع < العمق الرقيق < 0. | New translation (machine-assisted) | ☐ |
+| 4011 | new | Cut Z and Thin Depth must be finite values. | — | يجب أن يكون عمق القطع Z والعمق الرقيق قيمًا محدودة. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 4012 | new | Cut Z must be a finite negative value for Thin gaps. | — | يجب أن يكون عمق القطع Z قيمة سالبة محدودة للجسور الرقيقة. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 4013 | new | Thin Depth must be zero or satisfy Cut Z < Thin Depth < 0. | — | يجب أن يكون العمق الرقيق صفرًا أو يحقق عمق القطع Z < العمق الرقيق < 0. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 4014 | new | Gaps value is not supported. | — | قيمة الجسور غير مدعومة. | New translation (machine-assisted) | ☐ |
 | 4015 | new | Tool diameter must be a positive finite number. | — | يجب أن يكون قطر اللقمة عددًا موجبًا محدودًا. | New translation (machine-assisted) | ☐ |
 | 4016 | new | Gap width must be a positive finite number. | — | يجب أن يكون عرض الجسر عددًا موجبًا محدودًا. | New translation (machine-assisted) | ☐ |
@@ -4057,7 +4057,7 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 4046 | new | Check only for a board outline (profile, Edge.Cuts, GKO/GM1) file.<br>Every hole and every inner closed contour in it is cut as a cutout.<br>Not saved: it is unchecked again when the object changes. | — | فعّله فقط لملف محيط اللوحة (profile, Edge.Cuts, GKO/GM1).<br>كل ثقب وكل محيط داخلي مغلق فيه يُقص ويُفصل.<br>لا يُحفظ: يُلغى تفعيله مجددًا عند تغيّر الكائن. | New translation (machine-assisted) — reviewer: contour -> المحيط (GLOSSARY2, not كفاف); "cut as a cutout" was awkward | ☐ |
 | 4047 | new | Cut the slots and the inner contours of the board outline as well as the outer edge.<br>Active only when the source is a board outline and the shape is 'Any'. | — | قص الشقوق والمحيطات الداخلية لمحيط اللوحة إضافةً إلى الحافة الخارجية.<br>نشط فقط عندما يكون المصدر محيط لوحة والشكل 'أي شكل'. | New translation (machine-assisted) — reviewer: contour -> المحيط (GLOSSARY2, not كفاف) | ☐ |
 | 4048 | new | The size of the bridge gaps in the cutout<br>is the remaining bridge width on straight sections, measured along contour.<br>used to keep the board connected to<br>the surrounding material (the one <br>from which the PCB is cutout). | — | حجم الجسور في قص اللوحة<br>هو عرض الجسر المتبقي على المقاطع المستقيمة، مقيسًا على طول المحيط.<br>تُستخدم لإبقاء اللوحة متصلة<br>بالمادة المحيطة (التي <br>تُقص منها اللوحة). | New translation (machine-assisted) — reviewer: contour -> المحيط (GLOSSARY2, not كفاف) | ☐ |
-| 4049 | new | Thin Depth is a negative Z depth, not remaining material thickness.<br>Use Cut Z < Thin Depth < 0. Zero leaves a full-thickness bridge and creates no thin-gap tool. | — | العمق الرقيق هو عمق Z سالب، وليس سماكة المادة المتبقية.<br>استخدم Z القطع < العمق الرقيق < 0. الصفر يترك جسرًا بكامل السماكة ولا ينشئ لقمة للجسور الرقيقة. | New translation (machine-assisted) | ☐ |
+| 4049 | new | Thin Depth is a negative Z depth, not remaining material thickness.<br>Use Cut Z < Thin Depth < 0. Zero leaves a full-thickness bridge and creates no thin-gap tool. | — | العمق الرقيق هو عمق Z سالب، وليس سماكة المادة المتبقية.<br>استخدم عمق القطع Z < العمق الرقيق < 0. الصفر يترك جسرًا بكامل السماكة ولا ينشئ لقمة للجسور الرقيقة. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 4050 | new | Edge-to-edge spacing between mouse-bite holes.<br>Center pitch equals drill diameter plus this spacing. | — | التباعد من حافة إلى حافة بين ثقوب عضّات الفأر.<br>خطوة المراكز تساوي قطر الثقب مضافًا إليه هذا التباعد. | New translation (machine-assisted) — reviewer: Mouse bites -> عضّات الفأر (GLOSSARY2) | ☐ |
 | 4051 | new | Selection of the type of cutout. | — | اختيار نوع قص اللوحة. | New translation (machine-assisted) | ☐ |
 | 4052 | new | Number of gaps used for the Automatic cutout.<br>There can be maximum 8 bridges/gaps.<br>LR/TB use left-right or top-bottom center anchors; 2LR/2TB use quarter anchors.<br>4 means two LR plus two TB gaps; 8 means four LR plus four TB gaps.<br>Each contour must fit the exact count and width or the operation fails.<br>The choices are:<br>- None  - no gaps<br>- lr    - left + right<br>- tb    - top + bottom<br>- 4     - left + right +top + bottom<br>- 2lr   - 2*left + 2*right<br>- 2tb  - 2*top + 2*bottom<br>- 8     - 2*left + 2*right +2*top + 2*bottom | — | عدد الجسور المستخدمة لقص اللوحة التلقائي.<br>يمكن أن يكون هناك 8 جسور كحد أقصى.<br>LR/TB تستخدم نقاط ارتكاز مركزية يسار-يمين أو أعلى-أسفل؛ 2LR/2TB تستخدم نقاط ارتكاز ربعية.<br>4 تعني جسرين LR وجسرين TB؛ 8 تعني أربعة LR وأربعة TB.<br>يجب أن يتسع كل محيط للعدد والعرض المحددين بدقة وإلا تفشل العملية.<br>الخيارات هي:<br>- None  - بلا جسور<br>- lr    - يسار + يمين<br>- tb    - أعلى + أسفل<br>- 4     - يسار + يمين + أعلى + أسفل<br>- 2lr   - 2*يسار + 2*يمين<br>- 2tb  - 2*أعلى + 2*أسفل<br>- 8     - 2*يسار + 2*يمين + 2*أعلى + 2*أسفل | New translation (machine-assisted) — reviewer: contour -> المحيط (GLOSSARY2, not كفاف) | ☐ |
@@ -4104,12 +4104,12 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 4093 | new | Select the type of application object to be processed in this tool. | — | اختر نوع كائن التطبيق المراد معالجته في هذه الأداة. | New translation (machine-assisted) | ☐ |
 | 4094 | new | Bounds Values | — | قيم الحدود | New translation (machine-assisted) | ☐ |
 | 4095 | new | Select on canvas the object(s)<br>for which to calculate bounds values. | — | حدد على لوحة الرسم الكائن (الكائنات)<br>التي ستُحسب قيم حدودها. | New translation (machine-assisted) | ☐ |
-| 4096 | new | X min | — | X الأدنى | New translation (machine-assisted) | ☐ |
+| 4096 | new | X min | — | أدنى X | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 4097 | new | Minimum location. | — | الموضع الأدنى. | New translation (machine-assisted) | ☐ |
-| 4098 | new | Y min | — | Y الأدنى | New translation (machine-assisted) | ☐ |
-| 4099 | new | X max | — | X الأقصى | New translation (machine-assisted) | ☐ |
+| 4098 | new | Y min | — | أدنى Y | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 4099 | new | X max | — | أقصى X | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 4100 | new | Maximum location. | — | الموضع الأقصى. | New translation (machine-assisted) | ☐ |
-| 4101 | new | Y max | — | Y الأقصى | New translation (machine-assisted) | ☐ |
+| 4101 | new | Y max | — | أقصى Y | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 4102 | new | Center point coordinates | — | إحداثيات نقطة المركز | New translation (machine-assisted) | ☐ |
 | 4103 | new | Centroid | — | مركز الشكل | New translation (machine-assisted) | ☐ |
 | 4104 | new | The center point location for the rectangular<br>bounding shape. Centroid. Format is (x, y). | — | موضع نقطة المركز للشكل المستطيل<br>المحيط. مركز الشكل. الصيغة هي (x, y). | New translation (machine-assisted) | ☐ |
@@ -4126,7 +4126,7 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 4115 | new | Creates an Excellon Object containing the<br>specified alignment holes and their mirror<br>images. | — | ينشئ كائن Excellon يحتوي على<br>ثقوب المحاذاة المحددة وصورها<br>المعكوسة. | New translation (machine-assisted) | ☐ |
 | 4116 | new | The reference point used to create the second alignment drill<br>from the first alignment drill, by doing mirror.<br>It can be modified in the Mirror Parameters -> Reference section | — | النقطة المرجعية المستخدمة لإنشاء ثقب المحاذاة الثاني<br>من ثقب المحاذاة الأول بالعكس.<br>يمكن تعديلها في قسم معاملات العكس -> المرجع | New translation (machine-assisted) | ☐ |
 | 4117 | new | Drill Coordinates | — | إحداثيات الثقوب | New translation (machine-assisted) | ☐ |
-| 4118 | new | Alignment holes (x1, y1), (x2, y2), ... <br>If the type is X or Y then for each pair of coordinates<br>two drill points will be added: one with the given coordinates,<br>and the other will be mirrored as set in the 'Mirror' section.<br>If the type is 'Manual' then no mirror point is generated.<br><br>Shift + mouse click will add one set of coordinates.<br>Ctrl + Shift + mouse click will accumulate sets of coordinates.  | — | ثقوب المحاذاة (x1, y1), (x2, y2), ... <br>إذا كان النوع X أو Y فستُضاف لكل زوج من الإحداثيات<br>نقطتا ثقب: واحدة بالإحداثيات المعطاة،<br>والأخرى معكوسة كما هو محدد في قسم 'العكس'.<br>إذا كان النوع 'يدوي' فلا تُنشأ نقطة معكوسة.<br><br>Shift + نقرة الفأرة تضيف مجموعة واحدة من الإحداثيات.<br>Ctrl + Shift + نقرة الفأرة تجمع عدة مجموعات من الإحداثيات.  | New translation (machine-assisted) | ☐ |
+| 4118 | new | Alignment holes (x1, y1), (x2, y2), ... <br>If the type is X or Y then for each pair of coordinates<br>two drill points will be added: one with the given coordinates,<br>and the other will be mirrored as set in the 'Mirror' section.<br>If the type is 'Manual' then no mirror point is generated.<br><br>Shift + mouse click will add one set of coordinates.<br>Ctrl + Shift + mouse click will accumulate sets of coordinates.  | — | ثقوب المحاذاة (x1, y1), (x2, y2), ... <br>إذا كان النوع X أو Y فستُضاف لكل زوج من الإحداثيات<br>نقطتا ثقب: واحدة بالإحداثيات المعطاة،<br>والأخرى معكوسة كما هو محدد في قسم 'العكس'.<br>إذا كان النوع 'يدوي' فلا تُنشأ نقطة معكوسة.<br><br>النقر بالفأرة مع Shift يضيف مجموعة واحدة من الإحداثيات.<br>النقر بالفأرة مع Ctrl + Shift يجمع عدة مجموعات من الإحداثيات.  | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 4119 | new | Drill coordinates | — | إحداثيات الثقوب | New translation (machine-assisted) | ☐ |
 | 4120 | new | Delete the last coordinates tuple in the list. | — | حذف آخر زوج إحداثيات في القائمة. | New translation (machine-assisted) | ☐ |
 | 4121 | new | Create Excellon Object | — | إنشاء كائن Excellon | New translation (machine-assisted) | ☐ |
@@ -4176,8 +4176,8 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 4165 | new | Current preview segment, or last committed segment when finished. | — | مقطع المعاينة الحالي، أو آخر مقطع مثبّت عند الانتهاء. | New translation (machine-assisted) | ☐ |
 | 4166 | new | Number of committed measurement points. | — | عدد نقاط القياس المثبّتة. | New translation (machine-assisted) | ☐ |
 | 4167 | new | coords | — | الإحداثيات | New translation (machine-assisted) | ☐ |
-| 4168 | new | Toolchange X-Y is not valid. Use two numbers: x, y. | — | قيمة X-Y لتغيير اللقمة غير صالحة. استخدم رقمين: x, y. | New translation (machine-assisted) | ☐ |
-| 4169 | new | End move X,Y is not valid. Use two numbers: x, y. | — | قيمة X,Y نهاية الحركة غير صالحة. استخدم رقمين: x, y. | New translation (machine-assisted) | ☐ |
+| 4168 | new | Toolchange X-Y is not valid. Use two numbers: x, y. | — | قيمة موضع تغيير اللقمة X-Y غير صالحة. استخدم رقمين: x, y. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 4169 | new | End move X,Y is not valid. Use two numbers: x, y. | — | قيمة موضع نهاية الحركة X,Y غير صالحة. استخدم رقمين: x, y. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 4170 | new | Drilling: reset the tool parameters | — | الثقب: إعادة ضبط معاملات اللقمة | New translation (machine-assisted) — reviewer: terminology: Reset -> إعادة الضبط (GLOSSARY2) | ☐ |
 | 4171 | new | Parameters for | — | المعاملات لـ | New translation (machine-assisted) | ☐ |
 | 4172 | new | Multiple Tools | — | لقم متعددة | New translation (machine-assisted) | ☐ |
@@ -4199,15 +4199,15 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 4188 | new | Holes: Inside area needs at least one area. Add a hole area or select Holes: All. | — | الثقوب: خيار داخل المنطقة يحتاج إلى منطقة واحدة على الأقل. أضف منطقة ثقوب أو اختر الثقوب: الكل. | New translation (machine-assisted) | ☐ |
 | 4189 | new | The selected tools have no drill points. | — | اللقم المحددة ليس لها نقاط ثقب. | New translation (machine-assisted) | ☐ |
 | 4190 | new | Drill points inside the exclusion zones. | — | نقاط ثقب داخل مناطق الاستبعاد. | New translation (machine-assisted) | ☐ |
-| 4191 | new | There is no toolchange: the parameters of tool {tool} (Cut Z, Feedrate Z, Spindle speed) are used for all the selected tools. | — | لا يوجد تغيير للقمة: تُستخدم معاملات اللقمة {tool} (Z القطع، معدل التغذية Z، سرعة المغزل) لكل اللقم المحددة. | New translation (machine-assisted) | ☐ |
+| 4191 | new | There is no toolchange: the parameters of tool {tool} (Cut Z, Feedrate Z, Spindle speed) are used for all the selected tools. | — | لا يوجد تغيير للقمة: تُستخدم معاملات اللقمة {tool} (عمق القطع Z، معدل التغذية Z، سرعة المغزل) لكل اللقم المحددة. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 4192 | new | The spot drilling pass needs a toolchange: it is left out. Enable the toolchange to use it. | — | تمريرة ثقب التمركز تحتاج إلى تغيير اللقمة: لذا حُذفت. فعّل تغيير اللقمة لاستخدامها. | New translation (machine-assisted) | ☐ |
 | 4193 | new | tool | — | اللقمة | New translation (machine-assisted) | ☐ |
 | 4194 | new | Starting G-Code | — | بدء G-code | New translation (machine-assisted) | ☐ |
 | 4195 | new | Generating CNCJob... | — | جارٍ إنشاء مهمة CNC... | New translation (machine-assisted) | ☐ |
-| 4196 | new | The Toolchange X,Y format has to be (x, y). | — | يجب أن تكون صيغة X,Y تغيير اللقمة (x, y). | New translation (machine-assisted) | ☐ |
+| 4196 | new | The Toolchange X,Y format has to be (x, y). | — | يجب أن تكون صيغة موضع تغيير اللقمة X,Y هي (x, y). | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 4197 | new | G-Code generation failed. | — | فشل إنشاء G-code. | New translation (machine-assisted) | ☐ |
 | 4198 | new | Generating CNC Code | — | جارٍ إنشاء كود CNC | New translation (machine-assisted) | ☐ |
-| 4199 | new | Travel Z must be above zero: the moves between the holes would be made with the bit in or on the material. | — | يجب أن يكون Z الانتقال أكبر من الصفر: وإلا ستتم الحركات بين الثقوب واللقمة داخل المادة أو عليها. | New translation (machine-assisted) | ☐ |
+| 4199 | new | Travel Z must be above zero: the moves between the holes would be made with the bit in or on the material. | — | يجب أن يكون ارتفاع الانتقال Z أكبر من الصفر: وإلا ستتم الحركات بين الثقوب واللقمة داخل المادة أو عليها. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 4200 | new | Feedrate Z must be above zero. | — | يجب أن يكون معدل التغذية Z أكبر من الصفر. | New translation (machine-assisted) | ☐ |
 | 4201 | new | use two numbers: x, y | — | استخدم رقمين: x, y | New translation (machine-assisted) | ☐ |
 | 4202 | new | Mirror: use no, x, y or xy | — | العكس: استخدم no أو x أو y أو xy | New translation (machine-assisted) | ☐ |
@@ -4223,12 +4223,12 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 4212 | new | The data used for creating GCode.<br>Each tool store it's own set of such data. | — | البيانات المستخدمة لإنشاء G-code.<br>تحتفظ كل لقمة بمجموعة بياناتها الخاصة. | New translation (machine-assisted) | ☐ |
 | 4213 | new | With added objects the tool parameters are read-only. Remove the added objects to edit them. | — | مع الكائنات المضافة تكون معاملات اللقمة للقراءة فقط. أزل الكائنات المضافة لتعديلها. | New translation (machine-assisted) | ☐ |
 | 4214 | new | Pause at the bottom of every hole, for the Dwell time<br>(the time set above, also when Dwell is not checked).<br>Ignored by the laser preprocessors. | — | التوقف في قاع كل ثقب لمدة التوقف المؤقت<br>(المدة المحددة أعلاه، حتى إذا لم يُفعّل التوقف المؤقت).<br>تتجاهله المعالجات اللاحقة لليزر. | New translation (machine-assisted) | ☐ |
-| 4215 | new | Drill each hole in steps of Peck depth. After each step the tool<br>goes up to the Travel Z (it clears the chips), goes down fast to the<br>Peck retract clearance above the previous depth and feeds on.<br>It replaces the Multi-Depth. Ignored by the laser preprocessors. | — | ثقب كل ثقب على خطوات بعمق الثقب المتقطع. بعد كل خطوة تصعد اللقمة<br>إلى Z الانتقال (لتنظيف الرايش)، ثم تنزل بسرعة إلى<br>خلوص سحب الثقب المتقطع فوق العمق السابق وتتابع التغذية.<br>يحل محل الأعماق المتعددة. تتجاهله المعالجات اللاحقة لليزر. | New translation (machine-assisted) — reviewer: terminology: Peck retract clearance -> retract = سحب (GLOSSARY2), keep 'peck' | ☐ |
+| 4215 | new | Drill each hole in steps of Peck depth. After each step the tool<br>goes up to the Travel Z (it clears the chips), goes down fast to the<br>Peck retract clearance above the previous depth and feeds on.<br>It replaces the Multi-Depth. Ignored by the laser preprocessors. | — | ثقب كل ثقب على خطوات بعمق الثقب المتقطع. بعد كل خطوة تصعد اللقمة<br>إلى ارتفاع الانتقال Z (لتنظيف الرايش)، ثم تنزل بسرعة إلى<br>خلوص سحب الثقب المتقطع فوق العمق السابق وتتابع التغذية.<br>يحل محل الأعماق المتعددة. تتجاهله المعالجات اللاحقة لليزر. | New translation (machine-assisted) — reviewer: terminology: Peck retract clearance -> retract = سحب (GLOSSARY2), keep 'peck'; begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 4216 | new | The direction that the spindle is rotating.<br>It can be either:<br>- CW = clockwise or<br>- CCW = counter clockwise | — | اتجاه دوران المغزل.<br>يمكن أن يكون:<br>- CW = مع عقارب الساعة أو<br>- CCW = عكس عقارب الساعة | New translation (machine-assisted) | ☐ |
-| 4217 | new | Exit hole strategy.<br> - When unchecked, while exiting the drilled hole the drill bit<br>will travel slow, with set feedrate (G1), up to zero depth and then<br>travel as fast as possible (G0) to the Z Move (travel height).<br> - When checked the travel from Z cut (cut depth) to Z_move<br>(travel height) is done as fast as possible (G0) in one move. | — | استراتيجية الخروج من الثقب.<br> - عند عدم التفعيل، أثناء الخروج من الثقب تتحرك لقمة الثقب<br>ببطء، بمعدل التغذية المحدد (G1)، حتى العمق صفر ثم<br>تتحرك بأقصى سرعة (G0) إلى Z الانتقال (ارتفاع الانتقال).<br> - عند التفعيل تتم الحركة من Z القطع (عمق القطع) إلى Z_move<br>(ارتفاع الانتقال) بأقصى سرعة (G0) في حركة واحدة. | New translation (machine-assisted) | ☐ |
+| 4217 | new | Exit hole strategy.<br> - When unchecked, while exiting the drilled hole the drill bit<br>will travel slow, with set feedrate (G1), up to zero depth and then<br>travel as fast as possible (G0) to the Z Move (travel height).<br> - When checked the travel from Z cut (cut depth) to Z_move<br>(travel height) is done as fast as possible (G0) in one move. | — | استراتيجية الخروج من الثقب.<br> - عند عدم التفعيل، أثناء الخروج من الثقب تتحرك لقمة الثقب<br>ببطء، بمعدل التغذية المحدد (G1)، حتى العمق صفر ثم<br>تتحرك بأقصى سرعة (G0) إلى ارتفاع الانتقال Z.<br> - عند التفعيل تتم الحركة من عمق القطع Z إلى Z_move<br>(ارتفاع الانتقال) بأقصى سرعة (G0) في حركة واحدة. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 4218 | new | Apply parameters to all tools | — | تطبيق المعاملات على كل اللقم | New translation (machine-assisted) | ☐ |
 | 4219 | new | The parameters in the current form will be applied<br>on all the tools from the Tool Table. | — | ستُطبّق المعاملات في النموذج الحالي<br>على كل اللقم في جدول اللقم. | New translation (machine-assisted) | ☐ |
-| 4220 | new | Tool change Z | — | Z تغيير اللقمة | New translation (machine-assisted) | ☐ |
+| 4220 | new | Tool change Z | — | ارتفاع تغيير اللقمة Z | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 4221 | new | X,Y coordinates | — | إحداثيات X,Y | New translation (machine-assisted) | ☐ |
 | 4222 | new | The preprocessor JSON file that dictates<br>Gcode output for Excellon Objects. | — | ملف JSON للمعالج اللاحق الذي يحدد<br>مخرجات G-code لكائنات Excellon. | New translation (machine-assisted) | ☐ |
 | 4223 | new | The job starts with an extra pass over all the selected holes with a spot drill<br>(centering): its own tool number (the next free one), a toolchange before it,<br>then the drill tools. Needs the toolchange: without it the pass is left out.<br>Ignored by the laser preprocessors. Peck, multi-depth and dwell at the bottom<br>do not apply to it. | — | تبدأ المهمة بتمريرة إضافية على كل الثقوب المحددة بلقمة تمركز<br>(توسيط): برقم لقمة خاص بها (التالي المتاح)، وتغيير لقمة قبلها،<br>ثم لقم الثقب. تحتاج إلى تغيير اللقمة: من دونه تُحذف التمريرة.<br>تتجاهلها المعالجات اللاحقة لليزر. لا ينطبق عليها الثقب المتقطع والأعماق المتعددة والتوقف المؤقت<br>في القاع. | New translation (machine-assisted) — reviewer: meaning/terminology: centering is توسيط; تنقيط is reserved for dither | ☐ |
@@ -4251,7 +4251,7 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 4240 | new | Delete the areas that select the holes. | — | حذف المناطق التي تحدد الثقوب. | New translation (machine-assisted) | ☐ |
 | 4241 | new | Generate CNCJob object | — | إنشاء كائن مهمة CNC | New translation (machine-assisted) | ☐ |
 | 4242 | new | Generate the CNC Job.<br>If milling then an additional Geometry object will be created.<br>Add / Select at least one tool in the tool-table.<br>Click the # header to select all, or Ctrl + LMB<br>for custom selection of tools. | — | إنشاء مهمة CNC.<br>في حالة التفريز سيُنشأ كائن هندسة إضافي.<br>أضف / حدد لقمة واحدة على الأقل في جدول اللقم.<br>انقر على رأس العمود # لتحديد الكل، أو Ctrl + زر الفأرة الأيسر<br>لتحديد لقم مخصصة. | New translation (machine-assisted) | ☐ |
-| 4243 | new | Focus Z | — | Z التركيز | New translation (machine-assisted) | ☐ |
+| 4243 | new | Focus Z | — | ارتفاع التركيز Z | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 4244 | new | Laser Power | — | قدرة الليزر | New translation (machine-assisted) | ☐ |
 | 4245 | new | The laser power when the laser is cutting. | — | قدرة الليزر أثناء القطع بالليزر. | New translation (machine-assisted) | ☐ |
 | 4246 | new | No Gerber object is selected. | — | لم يُحدد أي كائن Gerber. | New translation (machine-assisted) | ☐ |
@@ -4406,7 +4406,7 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 4395 | new | Enter a hostname or IP address, not a URL | — | أدخل اسم مضيف أو عنوان IP، وليس عنوان URL | New translation (machine-assisted) | ☐ |
 | 4396 | new | Enter a hostname or IPv4 address, not a URL | — | أدخل اسم مضيف أو عنوان IPv4، وليس عنوان URL | New translation (machine-assisted) | ☐ |
 | 4397 | new | Invalid network port | — | منفذ شبكة غير صالح | New translation (machine-assisted) | ☐ |
-| 4398 | new | GRBL is busy. Wait until the running operation stops. | — | GRBL مشغول. انتظر حتى تتوقف العملية الجارية. | New translation (machine-assisted) | ☐ |
+| 4398 | new | GRBL is busy. Wait until the running operation stops. | — | وحدة التحكم GRBL مشغولة. انتظر حتى تتوقف العملية الجارية. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 4399 | new | Select a serial port. | — | اختر منفذًا تسلسليًا. | New translation (machine-assisted) | ☐ |
 | 4400 | new | Select a valid baudrate. | — | اختر معدل باود صالحًا. | New translation (machine-assisted) | ☐ |
 | 4401 | new | E-Cut board not found (USB VID %04X, PID %04X). Connect the board and try again. | — | لم يتم العثور على لوحة E-Cut (USB VID %04X، PID %04X). وصّل اللوحة وحاول مرة أخرى. | New translation (machine-assisted) | ☐ |
@@ -4451,7 +4451,7 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 4440 | new | Connect to the controller first. | — | اتصل بوحدة التحكم أولًا. | New translation (machine-assisted) | ☐ |
 | 4441 | new | The camera or orientation differs from the saved calibration. | — | تختلف الكاميرا أو الاتجاه عن المعايرة المحفوظة. | New translation (machine-assisted) | ☐ |
 | 4442 | new | The units differ from the saved calibration. | — | تختلف الوحدات عن المعايرة المحفوظة. | New translation (machine-assisted) | ☐ |
-| 4443 | new | The camera is not at the calibrated viewing Z. | — | الكاميرا ليست عند Z العرض المعايَر. | New translation (machine-assisted) | ☐ |
+| 4443 | new | The camera is not at the calibrated viewing Z. | — | الكاميرا ليست عند ارتفاع العرض Z المعايَر. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 4444 | new | Verify the saved calibration at the marked point first. | — | تحقق من المعايرة المحفوظة عند النقطة المعلَّمة أولًا. | New translation (machine-assisted) | ☐ |
 | 4445 | new | The marked point does not repeat within the tolerance. | — | لا تتكرر النقطة المعلَّمة ضمن التفاوت. | New translation (machine-assisted) | ☐ |
 | 4446 | new | The verification tolerance changed. Verify the saved calibration again. | — | تغير تفاوت التحقق. تحقق من المعايرة المحفوظة مرة أخرى. | New translation (machine-assisted) | ☐ |
@@ -4465,7 +4465,7 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 4454 | new | The camera operation was refused. | — | تم رفض عملية الكاميرا. | New translation (machine-assisted) | ☐ |
 | 4455 | new | Camera calibration cleared. | — | تم مسح معايرة الكاميرا. | New translation (machine-assisted) | ☐ |
 | 4456 | new | Repeatability verified: the predicted spindle position is %.*f %s from the first reference. | — | تم التحقق من قابلية التكرار: موضع المغزل المتوقع يبعد %.*f %s عن المرجع الأول. | New translation (machine-assisted) | ☐ |
-| 4457 | new | Calibration saved. Offset X %.*f  Y %.*f, viewing Z %.*f. | — | تم حفظ المعايرة. الإزاحة X %.*f  Y %.*f، Z العرض %.*f. | New translation (machine-assisted) | ☐ |
+| 4457 | new | Calibration saved. Offset X %.*f  Y %.*f, viewing Z %.*f. | — | تم حفظ المعايرة. الإزاحة X %.*f  Y %.*f، ارتفاع العرض Z %.*f. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 4458 | new | Spindle reference captured at X %.*f  Y %.*f. Retract, set the camera viewing height and center the same mark. | — | تم التقاط مرجع المغزل عند X %.*f  Y %.*f. اسحب المغزل للأعلى، واضبط ارتفاع عرض الكاميرا، ثم ضع العلامة نفسها في المركز. | New translation (machine-assisted) — reviewer: Retract -> سحب (GLOSSARY2) | ☐ |
 | 4459 | new | The machine session changed. Measure the tool or calibrate the plate again. | — | تغيرت جلسة الآلة. قِس اللقمة أو عاير لوح اللمس مرة أخرى. | New translation (machine-assisted) — reviewer: plate = touchplate -> لوح اللمس (GLOSSARY2) | ☐ |
 | 4460 | new | The tool-change mode or its settings changed. Measure the tool again. | — | تغير وضع تغيير اللقمة أو إعداداته. قِس اللقمة مرة أخرى. | New translation (machine-assisted) | ☐ |
@@ -4516,7 +4516,7 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 4505 | new | GRBL reset was not confirmed. Press Reset, then Home. | — | لم تتأكد إعادة ضبط GRBL. اضغط إعادة الضبط، ثم العودة إلى الأصل. | New translation (machine-assisted) — reviewer: grammar (feminine agreement); Home term | ☐ |
 | 4506 | new | Home cycle finished. | — | انتهت دورة العودة إلى الأصل. | New translation (machine-assisted) — reviewer: Home -> العودة إلى الأصل (GLOSSARY2) | ☐ |
 | 4507 | new | Home cycle failed | — | فشلت دورة العودة إلى الأصل | New translation (machine-assisted) — reviewer: Home -> العودة إلى الأصل (GLOSSARY2) | ☐ |
-| 4508 | new | GRBL is doing a home cycle. | — | GRBL ينفذ دورة العودة إلى الأصل. | New translation (machine-assisted) — reviewer: Home -> العودة إلى الأصل (GLOSSARY2) | ☐ |
+| 4508 | new | GRBL is doing a home cycle. | — | وحدة التحكم GRBL تنفذ دورة العودة إلى الأصل. | New translation (machine-assisted) — reviewer: Home -> العودة إلى الأصل (GLOSSARY2); begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 4509 | new | Stopped. GRBL is in feed hold. | — | تم الإيقاف. GRBL في حالة إيقاف التغذية المؤقت (feed hold). | New translation (machine-assisted) | ☐ |
 | 4510 | new | Could not clear the GRBL receive buffer. Reset was sent, but Home is blocked. Press Reset again. | — | تعذّر مسح مخزن الاستقبال في GRBL. أُرسلت إعادة الضبط، لكن العودة إلى الأصل محظورة. اضغط إعادة الضبط مرة أخرى. | New translation (machine-assisted) — reviewer: Home -> العودة إلى الأصل (GLOSSARY2) | ☐ |
 | 4511 | new | GRBL software reset was sent. | — | تم إرسال إعادة ضبط برمجية إلى GRBL. | New translation (machine-assisted) | ☐ |
@@ -4533,7 +4533,7 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 4522 | new | The probing parameters are not valid numbers. | — | معاملات الجس ليست أعدادًا صالحة. | New translation (machine-assisted) | ☐ |
 | 4523 | new | The probe Z depth must be negative. | — | يجب أن يكون عمق Z للمجس سالبًا. | New translation (machine-assisted) | ☐ |
 | 4524 | new | The probe feedrate must be more than zero. | — | يجب أن يكون معدل تغذية المجس أكبر من صفر. | New translation (machine-assisted) | ☐ |
-| 4525 | new | The probe travel Z must be more than zero. | — | يجب أن يكون Z الانتقال للمجس أكبر من صفر. | New translation (machine-assisted) | ☐ |
+| 4525 | new | The probe travel Z must be more than zero. | — | يجب أن يكون ارتفاع انتقال المجس Z أكبر من صفر. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 4526 | new | There are no probe points. Add probe points first. | — | لا توجد نقاط جس. أضف نقاط جس أولًا. | New translation (machine-assisted) | ☐ |
 | 4527 | new | Probing | — | الجس | New translation (machine-assisted) | ☐ |
 | 4528 | new | Sending probing GCode to the GRBL controller. | — | جارٍ إرسال GCode الجس إلى وحدة تحكم GRBL. | New translation (machine-assisted) | ☐ |
@@ -4558,7 +4558,7 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 4547 | new | This height map was imported. It has no machine frame. Is the machine in the same WCS and zero as when the map was made? | — | تم استيراد خريطة الارتفاعات هذه. ليس لها إطار آلة. هل الآلة في نظام إحداثيات العمل (WCS) والصفر نفسيهما كما عند إنشاء الخريطة؟ | New translation (machine-assisted) — reviewer:  | ☐ |
 | 4548 | new | The height map, the object or the machine state changed while the dialog was open. Press Start again. | — | تغيرت خريطة الارتفاعات أو الكائن أو حالة الآلة أثناء فتح مربع الحوار. اضغط بدء مرة أخرى. | New translation (machine-assisted) — reviewer:  | ☐ |
 | 4549 | new | The Start failed. | — | فشل البدء. | New translation (machine-assisted) | ☐ |
-| 4550 | new | GRBL is in check mode. Send $C in the console, or press Reset. | — | GRBL في وضع الفحص. أرسل $C في الطرفية، أو اضغط إعادة الضبط. | New translation (machine-assisted) | ☐ |
+| 4550 | new | GRBL is in check mode. Send $C in the console, or press Reset. | — | وحدة التحكم GRBL في وضع الفحص. أرسل $C في الطرفية، أو اضغط إعادة الضبط. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 4551 | new | The Start request is old (the map, the object or the machine state changed). Press Start again. | — | طلب البدء قديم (تغيرت الخريطة أو الكائن أو حالة الآلة). اضغط بدء مرة أخرى. | New translation (machine-assisted) | ☐ |
 | 4552 | new | The machine frame (WCS or work offset) changed after the height map was made. Probe again. | — | تغير إطار الآلة (WCS أو إزاحة العمل) بعد إنشاء خريطة الارتفاعات. نفّذ الجس مرة أخرى. | New translation (machine-assisted) — reviewer:  | ☐ |
 | 4553 | new | The restart preparation exceeds the GRBL line length limit. | — | تحضير إعادة التشغيل يتجاوز حد طول السطر في GRBL. | New translation (machine-assisted) | ☐ |
@@ -4574,7 +4574,7 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 4563 | new | Save levelled G-code | — | حفظ G-code المسوّى | New translation (machine-assisted) | ☐ |
 | 4564 | new | Saved | — | تم الحفظ | New translation (machine-assisted) | ☐ |
 | 4565 | new | Add probe points before simulating auto-levelling. | — | أضف نقاط جس قبل محاكاة التسوية التلقائية. | New translation (machine-assisted) | ☐ |
-| 4566 | new | Simulation probe travel Z must be above the 0.25 mm simulated surface. | — | يجب أن يكون Z الانتقال للمجس في المحاكاة أعلى من السطح المحاكى عند 0.25 mm. | New translation (machine-assisted) | ☐ |
+| 4566 | new | Simulation probe travel Z must be above the 0.25 mm simulated surface. | — | يجب أن يكون ارتفاع انتقال المجس Z في المحاكاة أعلى من السطح المحاكى عند 0.25 mm. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 4567 | new | This program can not be height-compensated. | — | لا يمكن تعويض الارتفاع لهذا البرنامج. | New translation (machine-assisted) | ☐ |
 | 4568 | new | The levelled G-code has a line longer than GRBL accepts. | — | يحتوي G-code المسوّى على سطر أطول مما يقبله GRBL. | New translation (machine-assisted) | ☐ |
 | 4569 | new | Pause | — | إيقاف مؤقت | New translation (machine-assisted) | ☐ |
@@ -4604,27 +4604,27 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 4593 | new | Mirror the preview horizontally. A change needs revalidation. | — | عكس المعاينة أفقيًا. يتطلب التغيير إعادة التحقق. | New translation (machine-assisted) | ☐ |
 | 4594 | new | Repeatability tolerance (%s): | — | تفاوت قابلية التكرار (%s): | New translation (machine-assisted) | ☐ |
 | 4595 | new | The largest allowed mismatch of the marked point during verification, in current units. | — | أكبر عدم تطابق مسموح به للنقطة المعلَّمة أثناء التحقق، بالوحدات الحالية. | New translation (machine-assisted) | ☐ |
-| 4596 | new | Viewing Z tolerance (%s): | — | تفاوت Z العرض (%s): | New translation (machine-assisted) | ☐ |
+| 4596 | new | Viewing Z tolerance (%s): | — | تفاوت ارتفاع العرض Z (%s): | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 4597 | new | The largest allowed change of the camera viewing height, in current units. | — | أكبر تغير مسموح به في ارتفاع عرض الكاميرا، بالوحدات الحالية. | New translation (machine-assisted) | ☐ |
 | 4598 | new | No camera found. Connect a camera and press Refresh. | — | لم يتم العثور على كاميرا. وصّل كاميرا واضغط تحديث. | New translation (machine-assisted) | ☐ |
 | 4599 | new | No calibration saved. | — | لا توجد معايرة محفوظة. | New translation (machine-assisted) | ☐ |
 | 4600 | new | Capture spindle XY | — | التقاط XY للمغزل | New translation (machine-assisted) | ☐ |
 | 4601 | new | Mount a thin drill in the spindle, put its tip on the reference mark and press.<br>Only the machine position is read: nothing moves. | — | ركّب لقمة ثقب رفيعة في المغزل، وضع طرفها على علامة المرجع ثم اضغط.<br>تتم قراءة موضع الآلة فقط: لا شيء يتحرك. | New translation (machine-assisted) | ☐ |
 | 4602 | new | Capture camera XY + Z | — | التقاط XY + Z للكاميرا | New translation (machine-assisted) | ☐ |
-| 4603 | new | Retract, set the camera viewing height and center the same mark under the crosshair.<br>Only the machine position and viewing Z are read: nothing moves. | — | اسحب المغزل للأعلى، واضبط ارتفاع عرض الكاميرا وضع العلامة نفسها في المركز تحت علامة التصويب.<br>تتم قراءة موضع الآلة وZ العرض فقط: لا شيء يتحرك. | New translation (machine-assisted) — reviewer: Retract -> سحب (GLOSSARY2) | ☐ |
+| 4603 | new | Retract, set the camera viewing height and center the same mark under the crosshair.<br>Only the machine position and viewing Z are read: nothing moves. | — | اسحب المغزل للأعلى، واضبط ارتفاع عرض الكاميرا وضع العلامة نفسها في المركز تحت علامة التصويب.<br>تتم قراءة موضع الآلة وارتفاع العرض Z فقط: لا شيء يتحرك. | New translation (machine-assisted) — reviewer: Retract -> سحب (GLOSSARY2); begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 4604 | new | Verify repeatability | — | التحقق من قابلية التكرار | New translation (machine-assisted) | ☐ |
-| 4605 | new | Center the same mark under the camera at the calibrated viewing Z.<br>The predicted spindle position must match the first reference. | — | ضع العلامة نفسها في المركز تحت الكاميرا عند Z العرض المعايَر.<br>يجب أن يطابق موضع المغزل المتوقع المرجع الأول. | New translation (machine-assisted) | ☐ |
+| 4605 | new | Center the same mark under the camera at the calibrated viewing Z.<br>The predicted spindle position must match the first reference. | — | ضع العلامة نفسها في المركز تحت الكاميرا عند ارتفاع العرض Z المعايَر.<br>يجب أن يطابق موضع المغزل المتوقع المرجع الأول. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 4606 | new | Clear calibration | — | مسح المعايرة | New translation (machine-assisted) | ☐ |
 | 4607 | new | Invalidate the saved calibration and require a new one. | — | إلغاء صلاحية المعايرة المحفوظة وطلب معايرة جديدة. | New translation (machine-assisted) | ☐ |
-| 4608 | new | 1. Mount a thin drill and center the reference mark with the spindle.<br>2. Capture the spindle XY.<br>3. Retract, set the camera viewing height and center the same mark.<br>4. Capture the camera XY and viewing Z.<br>5. Verify the repeatability at the same mark. | — | 1. ركّب لقمة ثقب رفيعة وضع علامة المرجع في المركز بالمغزل.<br>2. التقط XY للمغزل.<br>3. اسحب المغزل للأعلى، واضبط ارتفاع عرض الكاميرا وضع العلامة نفسها في المركز.<br>4. التقط XY للكاميرا وZ العرض.<br>5. تحقق من قابلية التكرار عند العلامة نفسها. | New translation (machine-assisted) — reviewer: Retract -> سحب (GLOSSARY2) | ☐ |
+| 4608 | new | 1. Mount a thin drill and center the reference mark with the spindle.<br>2. Capture the spindle XY.<br>3. Retract, set the camera viewing height and center the same mark.<br>4. Capture the camera XY and viewing Z.<br>5. Verify the repeatability at the same mark. | — | 1. ركّب لقمة ثقب رفيعة وضع علامة المرجع في المركز بالمغزل.<br>2. التقط XY للمغزل.<br>3. اسحب المغزل للأعلى، واضبط ارتفاع عرض الكاميرا وضع العلامة نفسها في المركز.<br>4. التقط XY للكاميرا وارتفاع العرض Z.<br>5. تحقق من قابلية التكرار عند العلامة نفسها. | New translation (machine-assisted) — reviewer: Retract -> سحب (GLOSSARY2); begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 4609 | new | Camera %d | — | الكاميرا %d | New translation (machine-assisted) | ☐ |
 | 4610 | new | No camera found. | — | لم يتم العثور على كاميرا. | New translation (machine-assisted) | ☐ |
 | 4611 | new | Camera selected. Press Preview. | — | تم اختيار الكاميرا. اضغط معاينة. | New translation (machine-assisted) | ☐ |
 | 4612 | new | The selected camera is gone. Choose a camera and press Refresh. | — | الكاميرا المختارة لم تعد موجودة. اختر كاميرا واضغط تحديث. | New translation (machine-assisted) | ☐ |
 | 4613 | new | %d camera(s) found. | — | تم العثور على %d كاميرا. | New translation (machine-assisted) | ☐ |
-| 4614 | new | Calibration verified this session. Offset X %.*f  Y %.*f, viewing Z %.*f. | — | تم التحقق من المعايرة في هذه الجلسة. الإزاحة X %.*f  Y %.*f، Z العرض %.*f. | New translation (machine-assisted) | ☐ |
-| 4615 | new | Saved calibration (not verified this session). Offset X %.*f  Y %.*f, viewing Z %.*f. | — | معايرة محفوظة (لم يتم التحقق منها في هذه الجلسة). الإزاحة X %.*f  Y %.*f، Z العرض %.*f. | New translation (machine-assisted) | ☐ |
-| 4616 | new | Viewing Z is not the calibrated %.*f. Center the mark at that height again. | — | Z العرض ليس القيمة المعايَرة %.*f. ضع العلامة في المركز عند ذلك الارتفاع مرة أخرى. | New translation (machine-assisted) | ☐ |
+| 4614 | new | Calibration verified this session. Offset X %.*f  Y %.*f, viewing Z %.*f. | — | تم التحقق من المعايرة في هذه الجلسة. الإزاحة X %.*f  Y %.*f، ارتفاع العرض Z %.*f. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 4615 | new | Saved calibration (not verified this session). Offset X %.*f  Y %.*f, viewing Z %.*f. | — | معايرة محفوظة (لم يتم التحقق منها في هذه الجلسة). الإزاحة X %.*f  Y %.*f، ارتفاع العرض Z %.*f. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 4616 | new | Viewing Z is not the calibrated %.*f. Center the mark at that height again. | — | ارتفاع العرض Z ليس القيمة المعايَرة %.*f. ضع العلامة في المركز عند ذلك الارتفاع مرة أخرى. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 4617 | new | Calibration needs revalidation: camera or orientation changed. | — | تحتاج المعايرة إلى إعادة التحقق: تغيرت الكاميرا أو الاتجاه. | New translation (machine-assisted) | ☐ |
 | 4618 | new | Live preview. | — | معاينة مباشرة. | New translation (machine-assisted) | ☐ |
 | 4619 | new | The camera image stopped. Start the preview again. | — | توقفت صورة الكاميرا. ابدأ المعاينة مرة أخرى. | New translation (machine-assisted) | ☐ |
@@ -4657,8 +4657,8 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 4646 | new | Dir profile pin | — | طرف Dir في الملف التعريفي | New translation (machine-assisted) | ☐ |
 | 4647 | new | Step port | — | منفذ Step | New translation (machine-assisted) | ☐ |
 | 4648 | new | Dir port | — | منفذ Dir | New translation (machine-assisted) | ☐ |
-| 4649 | new | Step Active Low | — | Step فعّال عند المنخفض | New translation (machine-assisted) | ☐ |
-| 4650 | new | Dir Active Low | — | Dir فعّال عند المنخفض | New translation (machine-assisted) | ☐ |
+| 4649 | new | Step Active Low | — | إشارة Step فعّالة عند المنخفض | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 4650 | new | Dir Active Low | — | إشارة Dir فعّالة عند المنخفض | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 4651 | new | Spindle / VFD | — | المغزل / VFD | New translation (machine-assisted) | ☐ |
 | 4652 | new | PWM/DAC controls the spindle speed output; map SPINDLE_CW/CCW on Output signals for run control. The VFD run input and analog speed input require their corresponding wiring. The recovered raw PWM period is editable; frequency conversion and step/direction drive are unverified. | — | يتحكم PWM/DAC في مخرج سرعة المغزل؛ اربط SPINDLE_CW/CCW في إشارات الإخراج للتحكم بالتشغيل. يتطلب مدخل تشغيل VFD ومدخل السرعة التناظري التوصيلات المقابلة لهما. فترة PWM الخام المستردة قابلة للتعديل؛ لم يتم التحقق من تحويل التردد ولا من القيادة بالخطوة/الاتجاه. | New translation (machine-assisted) | ☐ |
 | 4653 | new | PWM / DAC | — | PWM / DAC | New translation (machine-assisted) | ☐ |
@@ -4686,7 +4686,7 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 4675 | new | Off | — | متوقف | New translation (machine-assisted) — reviewer: Off is an output state shown after the pin name, not a command | ☐ |
 | 4676 | new | Physical sinking output. Labels use applied settings. Readback confirms changes. | — | مخرج فعلي مُصرِّف. التسميات تستخدم الإعدادات المطبَّقة. القراءة من وحدة التحكم تؤكد التغييرات. | New translation (machine-assisted) | ☐ |
 | 4677 | new | Select a line within the program. | — | اختر سطرًا داخل البرنامج. | New translation (machine-assisted) | ☐ |
-| 4678 | new | The CNCJob needs a finite, positive travel Z to start from a line. | — | تحتاج مهمة CNC إلى قيمة Z الانتقال محدودة وموجبة لبدء التشغيل من سطر. | New translation (machine-assisted) | ☐ |
+| 4678 | new | The CNCJob needs a finite, positive travel Z to start from a line. | — | تحتاج مهمة CNC إلى قيمة ارتفاع الانتقال Z محدودة وموجبة لبدء التشغيل من سطر. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 4679 | new | The CNCJob units are not known. | — | وحدات مهمة CNC غير معروفة. | New translation (machine-assisted) | ☐ |
 | 4680 | new | Cannot reconstruct the state at program line %d. Start from Beginning. | — | تعذّرت إعادة بناء الحالة عند سطر البرنامج %d. ابدأ من البداية. | New translation (machine-assisted) | ☐ |
 | 4681 | new | The tool length offset has no Z value at line %d. | — | إزاحة طول اللقمة ليس لها قيمة Z عند السطر %d. | New translation (machine-assisted) | ☐ |
@@ -4781,10 +4781,10 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 4770 | new | Stop | — | إيقاف | New translation (machine-assisted) | ☐ |
 | 4771 | new | Feed hold / stop the manual positioning motion. The controller then needs Reset and Home. | — | إيقاف التغذية المؤقت / إيقاف حركة التموضع اليدوي. تحتاج وحدة التحكم بعدها إلى إعادة الضبط والعودة إلى الأصل. | New translation (machine-assisted) — reviewer: terminology: Controller -> وحدة التحكم, Home -> العودة إلى الأصل | ☐ |
 | 4772 | new | No pending design point. | — | لا توجد نقطة تصميم معلّقة. | New translation (machine-assisted) | ☐ |
-| 4773 | new | Design X | — | X التصميم | New translation (machine-assisted) | ☐ |
-| 4774 | new | Design Y | — | Y التصميم | New translation (machine-assisted) | ☐ |
-| 4775 | new | Camera X | — | X الكاميرا | New translation (machine-assisted) | ☐ |
-| 4776 | new | Camera Y | — | Y الكاميرا | New translation (machine-assisted) | ☐ |
+| 4773 | new | Design X | — | التصميم X | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 4774 | new | Design Y | — | التصميم Y | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 4775 | new | Camera X | — | الكاميرا X | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 4776 | new | Camera Y | — | الكاميرا Y | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 4777 | new | Remove selected pair | — | إزالة الزوج المحدد | New translation (machine-assisted) | ☐ |
 | 4778 | new | Restart | — | إعادة البدء | New translation (machine-assisted) | ☐ |
 | 4779 | new | Forget every design/camera pair and the preview. | — | نسيان كل أزواج التصميم/الكاميرا والمعاينة. | New translation (machine-assisted) | ☐ |
@@ -4853,7 +4853,7 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 4842 | new | Measure replacement | — | قياس البديلة | New translation (machine-assisted) | ☐ |
 | 4843 | new | Probe the plate with the installed tool. The spindle must be above the plate. | — | جسّ اللوح باللقمة المركّبة. يجب أن يكون المغزل فوق اللوح. | New translation (machine-assisted) | ☐ |
 | 4844 | new | Apply Z correction | — | تطبيق تصحيح Z | New translation (machine-assisted) | ☐ |
-| 4845 | new | Set the active work offset Z from the verified measurement. X and Y are kept. | — | ضبط Z إزاحة العمل النشطة من القياس المُتحقَّق منه. يُحتفظ بـ X وY. | New translation (machine-assisted) | ☐ |
+| 4845 | new | Set the active work offset Z from the verified measurement. X and Y are kept. | — | ضبط إزاحة العمل Z النشطة من القياس المُتحقَّق منه. يُحتفظ بـ X وY. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 4846 | new | Plate removed | — | أُزيل اللوح | New translation (machine-assisted) | ☐ |
 | 4847 | new | Confirm that the removable plate is off the PCB before cutting. | — | أكّد أن اللوح القابل للإزالة ليس على لوحة الدوائر المطبوعة قبل القطع. | New translation (machine-assisted) | ☐ |
 | 4848 | new | Forget reference | — | نسيان المرجع | New translation (machine-assisted) | ☐ |
@@ -4861,7 +4861,7 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 4850 | new | Stop the running GRBL operation now. Press Reset, then Home, before more motion. | — | أوقف عملية GRBL الجارية الآن. اضغط إعادة الضبط، ثم العودة إلى الأصل، قبل أي حركة أخرى. | New translation (machine-assisted) — reviewer: terminology: Home -> العودة إلى الأصل | ☐ |
 | 4851 | new | Measure with plate | — | القياس باللوح | New translation (machine-assisted) | ☐ |
 | 4852 | new | Apply Z zero | — | تطبيق صفر Z | New translation (machine-assisted) | ☐ |
-| 4853 | new | A measurement is ready. Apply it to change the work offset Z. | — | القياس جاهز. طبّقه لتغيير Z إزاحة العمل. | New translation (machine-assisted) | ☐ |
+| 4853 | new | A measurement is ready. Apply it to change the work offset Z. | — | القياس جاهز. طبّقه لتغيير إزاحة العمل Z. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 4854 | new | The board Z zero was set. Remove the plate, then confirm that it is off the PCB. | — | ضُبط صفر Z للوحة. أزل اللوح، ثم أكّد أنه ليس على لوحة الدوائر المطبوعة. | New translation (machine-assisted) | ☐ |
 | 4855 | new | The board Z zero is set and the plate is removed. | — | صفر Z للوحة مضبوط واللوح مُزال. | New translation (machine-assisted) | ☐ |
 | 4856 | new | The fixed plate reference is valid for this session. Measure the installed tool. | — | مرجع اللوح الثابت صالح لهذه الجلسة. قِس اللقمة المركّبة. | New translation (machine-assisted) | ☐ |
@@ -4931,7 +4931,7 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 4920 | new | Show or hide the generated height-map surface in Plot 3D.<br>This also applies to simulated height maps.<br>Hiding the surface doesn't affect levelling. | — | إظهار أو إخفاء سطح خريطة الارتفاعات المُنشأ في عرض 3D.<br>ينطبق هذا أيضًا على خرائط الارتفاعات المحاكاة.<br>إخفاء السطح لا يؤثر على تسوية السطح. | New translation (machine-assisted) | ☐ |
 | 4921 | new | Avoid holes from this Excellon object when adding probe points. | — | تجنّب الثقوب من كائن Excellon هذا عند إضافة نقاط الجس. | New translation (machine-assisted) — reviewer: terminology: probe points -> نقاط الجس | ☐ |
 | 4922 | new | Precision probing (two touches) | — | جسّ دقيق (لمستان) | New translation (machine-assisted) | ☐ |
-| 4923 | new | GRBL only: retract after the coarse touch and probe again at the fine feed. Only the second measurement is used. | — | GRBL فقط: السحب بعد اللمسة الخشنة والجسّ مرة أخرى بالتغذية الدقيقة. يُستخدم القياس الثاني فقط. | New translation (machine-assisted) — reviewer: terminology: Retract -> سحب | ☐ |
+| 4923 | new | GRBL only: retract after the coarse touch and probe again at the fine feed. Only the second measurement is used. | — | لـ GRBL فقط: السحب بعد اللمسة الخشنة والجسّ مرة أخرى بالتغذية الدقيقة. يُستخدم القياس الثاني فقط. | New translation (machine-assisted) — reviewer: terminology: Retract -> سحب; begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 4924 | new | Fine probe feedrate | — | معدل تغذية الجسّ الدقيق | New translation (machine-assisted) | ☐ |
 | 4925 | new | Precision retract | — | سحب الجسّ الدقيق | New translation (machine-assisted) — reviewer: terminology: Retract -> سحب | ☐ |
 | 4926 | new | Distance above the coarse contact, in current units. Must release the probe without exceeding Probe Z travel. | — | المسافة فوق نقطة التلامس الخشن، بالوحدات الحالية. يجب أن تحرر المجس دون تجاوز مدى حركة Z للمجس. | New translation (machine-assisted) | ☐ |
@@ -5085,8 +5085,8 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 5074 | new | Enabled only if markers are available (added to an object).<br>Those markers will be inserted in yet another object. | — | مفعّل فقط إذا توفرت علامات (مضافة إلى كائن).<br>ستُدرج هذه العلامات في كائن آخر. | New translation (machine-assisted) | ☐ |
 | 5075 | new | Specify the type of object where the markers are inserted. | — | حدد نوع الكائن الذي تُدرج فيه العلامات. | New translation (machine-assisted) | ☐ |
 | 5076 | new | Insert Marker | — | إدراج علامة | New translation (machine-assisted) | ☐ |
-| 5077 | new | Cut Z is above zero: the job cuts at the same value below zero. | — | Z القطع أعلى من الصفر: ستقطع المهمة عند القيمة نفسها تحت الصفر. | New translation (machine-assisted) | ☐ |
-| 5078 | new | Travel Z is below zero: the job travels at the same value above zero. | — | Z الانتقال أقل من الصفر: ستنتقل المهمة عند القيمة نفسها فوق الصفر. | New translation (machine-assisted) | ☐ |
+| 5077 | new | Cut Z is above zero: the job cuts at the same value below zero. | — | عمق القطع Z أعلى من الصفر: ستقطع المهمة عند القيمة نفسها تحت الصفر. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 5078 | new | Travel Z is below zero: the job travels at the same value above zero. | — | ارتفاع الانتقال Z أقل من الصفر: ستنتقل المهمة عند القيمة نفسها فوق الصفر. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 5079 | new | The overlap must be less than 100%: the tool passes do not advance. | — | يجب أن يكون التداخل أقل من 100%: تمريرات اللقمة لا تتقدم. | New translation (machine-assisted) | ☐ |
 | 5080 | new | The tool diameter must be above zero. | — | يجب أن يكون قطر اللقمة أكبر من الصفر. | New translation (machine-assisted) | ☐ |
 | 5081 | new | Depth per Pass must be above zero when Multi-Depth is on. | — | يجب أن يكون العمق لكل تمريرة أكبر من الصفر عند تفعيل الأعماق المتعددة. | New translation (machine-assisted) | ☐ |
@@ -5360,8 +5360,8 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 5349 | new | Image Adjust | — | ضبط الصورة | New translation (machine-assisted) | ☐ |
 | 5350 | new | Optimize | — | تحسين | New translation (machine-assisted) | ☐ |
 | 5351 | new | 3D Simulation | — | محاكاة ثلاثية الأبعاد | New translation (machine-assisted) | ☐ |
-| 5352 | new | Origin X | — | X نقطة الأصل | New translation (machine-assisted) | ☐ |
-| 5353 | new | Origin Y | — | Y نقطة الأصل | New translation (machine-assisted) | ☐ |
+| 5352 | new | Origin X | — | نقطة الأصل X | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 5353 | new | Origin Y | — | نقطة الأصل Y | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 5354 | new | Resolution | — | الدقة | New translation (machine-assisted) | ☐ |
 | 5355 | new | Auto contrast | — | تباين تلقائي | New translation (machine-assisted) | ☐ |
 | 5356 | new | Equalize | — | معادلة | New translation (machine-assisted) | ☐ |
@@ -5389,8 +5389,8 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 5378 | new | Power levels | — | مستويات القدرة | New translation (machine-assisted) | ☐ |
 | 5379 | new | Cell size | — | حجم الخلية | New translation (machine-assisted) | ☐ |
 | 5380 | new | Material | — | المادة | New translation (machine-assisted) | ☐ |
-| 5381 | new | X of the lower-left corner of the engraving. | — | X للزاوية السفلية اليسرى من النقش. | New translation (machine-assisted) | ☐ |
-| 5382 | new | Y of the lower-left corner of the engraving. | — | Y للزاوية السفلية اليسرى للنقش. | New translation (machine-assisted) | ☐ |
+| 5381 | new | X of the lower-left corner of the engraving. | — | إحداثي X للزاوية السفلية اليسرى من النقش. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 5382 | new | Y of the lower-left corner of the engraving. | — | إحداثي Y للزاوية السفلية اليسرى من النقش. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 5383 | new | Width of the engraving. The height follows the aspect ratio of the image. | — | عرض النقش. يتبع الارتفاع نسبة أبعاد الصورة. | New translation (machine-assisted) | ☐ |
 | 5384 | new | Size of one image cell on the material.<br>A smaller value keeps more detail, but the job is larger and slower. | — | حجم خلية واحدة من الصورة على الخامة.<br>القيمة الأصغر تحفظ تفاصيل أكثر، لكن المهمة تصبح أكبر وأبطأ. | New translation (machine-assisted) | ☐ |
 | 5385 | new | V-carve: lines with a V-bit, the line width follows the darkness.<br>Halftone: V-bit dots on a hexagonal grid.<br>Relief: 3D surface with a ball or flat end mill.<br>Lithophane: back-lit panel, thin where the image is light.<br>Laser: grayscale or dithered laser power. | — | نقش V: خطوط بلقمة V، يتبع عرض الخط درجة القتامة.<br>تدرج نقطي: نقاط بلقمة V على شبكة سداسية.<br>نحت بارز: سطح ثلاثي الأبعاد بلقمة تفريز كروية أو مسطحة.<br>ليثوفان: لوح يُضاء من الخلف، رقيق حيث تكون الصورة فاتحة.<br>ليزر: قدرة ليزر بتدرج رمادي أو بالتنقيط. | New translation (machine-assisted) — reviewer: terminology: Halftone -> تدرج نقطي, Relief -> نحت بارز (GLOSSARY2) | ☐ |
@@ -5466,7 +5466,7 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 5455 | new | Click to add/remove next pad or right click to start. | — | انقر لإضافة/إزالة الوسادة التالية أو انقر بالزر الأيمن للبدء. | New translation (machine-assisted) | ☐ |
 | 5456 | new | All selectable pads are selected. | — | حُددت كل الوسادات القابلة للتحديد. | New translation (machine-assisted) | ☐ |
 | 5457 | new | Selection cleared. | — | مُسح التحديد. | New translation (machine-assisted) | ☐ |
-| 5458 | new | Gerber into which to punch holes | — | Gerber المراد تثقيب الثقوب فيه | New translation (machine-assisted) | ☐ |
+| 5458 | new | Gerber into which to punch holes | — | كائن Gerber المراد تثقيب الثقوب فيه | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 5459 | new | Remove the geometry of Excellon from the Gerber to create the holes in pads. | — | إزالة هندسة Excellon من Gerber لإنشاء الثقوب في الوسادات. | New translation (machine-assisted) | ☐ |
 | 5460 | new | When the manual type is chosen, the pads to be punched<br>are selected on the canvas but only those that<br>are in the processed pads. | — | عند اختيار النوع اليدوي، تُحدد الوسادات المراد تثقيبها<br>على لوحة الرسم، لكن فقط تلك التي<br>تقع ضمن الوسادات المعالجة. | New translation (machine-assisted) | ☐ |
 | 5461 | new | Create a new Gerber object with holes punched in the selected pads. | — | إنشاء كائن Gerber جديد مع تثقيب الثقوب في الوسادات المحددة. | New translation (machine-assisted) | ☐ |
@@ -5477,7 +5477,7 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 5466 | new | The target object is not a Gerber object. | — | الكائن الهدف ليس كائن Gerber. | New translation (machine-assisted) | ☐ |
 | 5467 | new | The target Gerber is being edited. Close the editor first. | — | كائن Gerber الهدف قيد التحرير. أغلق المحرر أولاً. | New translation (machine-assisted) | ☐ |
 | 5468 | new | The soldermask Gerber was not found. Skipped. | — | لم يُعثر على Gerber قناع اللحام. تم التخطي. | New translation (machine-assisted) | ☐ |
-| 5469 | new | The soldermask Gerber is the target object. Skipped. | — | Gerber قناع اللحام هو الكائن الهدف. تم التخطي. | New translation (machine-assisted) | ☐ |
+| 5469 | new | The soldermask Gerber is the target object. Skipped. | — | كائن Gerber لقناع اللحام هو الكائن الهدف. تم التخطي. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 5470 | new | QRCode Tool done. | — | اكتملت أداة رمز QR. | New translation (machine-assisted) | ☐ |
 | 5471 | new | The box is smaller than the minimum module size. | — | المربع أصغر من الحد الأدنى لحجم الوحدة. | New translation (machine-assisted) | ☐ |
 | 5472 | new | A border below 4 boxes breaks the quiet zone of the QR standard. | — | الإطار الأقل من 4 مربعات يخل بالمنطقة الهادئة لمعيار QR. | New translation (machine-assisted) | ☐ |
@@ -5514,7 +5514,7 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 5503 | new | Where the QRCode is written. | — | مكان كتابة رمز QR. | New translation (machine-assisted) | ☐ |
 | 5504 | new | Soldermask opening | — | فتحة قناع اللحام | New translation (machine-assisted) | ☐ |
 | 5505 | new | Also cut the clearance opening of the QRCode in the Gerber below<br>(a soldermask companion). | — | قص فتحة الخلوص لرمز QR أيضاً في Gerber أدناه<br>(طبقة قناع لحام مرافقة). | New translation (machine-assisted) | ☐ |
-| 5506 | new | Mask Gerber | — | Gerber القناع | New translation (machine-assisted) | ☐ |
+| 5506 | new | Mask Gerber | — | قناع Gerber | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 5507 | new | Export QRCode | — | تصدير رمز QR | New translation (machine-assisted) | ☐ |
 | 5508 | new | Show a set of controls allowing to export the QRCode<br>to a SVG file or an PNG file. | — | عرض مجموعة عناصر تحكم تسمح بتصدير رمز QR<br>إلى ملف SVG أو ملف PNG. | New translation (machine-assisted) | ☐ |
 | 5509 | new | Transparent back color | — | لون خلفية شفاف | New translation (machine-assisted) | ☐ |
@@ -5620,9 +5620,9 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 5609 | new | Tool Diameter. Its value<br>is the width of the solder paste dispensed. | — | قطر اللقمة. قيمته<br>هي عرض معجون اللحام الموزع. | New translation (machine-assisted) | ☐ |
 | 5610 | new | Add a new nozzle tool to the Tool Table<br>with the diameter specified above. | — | إضافة لقمة فوهة جديدة إلى جدول اللقم<br>بالقطر المحدد أعلاه. | New translation (machine-assisted) | ☐ |
 | 5611 | new | Dispense | — | التوزيع | New translation (machine-assisted) | ☐ |
-| 5612 | new | Z Start | — | Z البدء | New translation (machine-assisted) | ☐ |
-| 5613 | new | Z Action | — | Z التوزيع | New translation (machine-assisted) | ☐ |
-| 5614 | new | Z Stop | — | Z التوقف | New translation (machine-assisted) | ☐ |
+| 5612 | new | Z Start | — | ارتفاع البدء Z | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 5613 | new | Z Action | — | ارتفاع التوزيع Z | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 5614 | new | Z Stop | — | ارتفاع التوقف Z | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 5615 | new | Generate solder paste dispensing geometry. | — | إنشاء هندسة توزيع معجون اللحام. | New translation (machine-assisted) | ☐ |
 | 5616 | new | Geometry Solder Paste object.<br>Selecting geometry restores its nozzle settings.<br>Regenerate Geometry after changing quantity or placement.<br>Controller and calibration edits apply when generating CNCJob. | — | كائن هندسة معجون اللحام.<br>تحديد الهندسة يستعيد إعدادات الفوهة الخاصة بها.<br>أعد إنشاء الهندسة بعد تغيير الكمية أو الموضع.<br>تعديلات وحدة التحكم والمعايرة تُطبق عند إنشاء مهمة CNC. | New translation (machine-assisted) | ☐ |
 | 5617 | new | Regenerate Geometry after quantity or placement changes.<br>Controller and calibration edits apply to the next CNCJob. | — | أعد إنشاء الهندسة بعد تغيير الكمية أو الموضع.<br>تعديلات وحدة التحكم والمعايرة تُطبق على مهمة CNC التالية. | New translation (machine-assisted) | ☐ |
@@ -5635,7 +5635,7 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 5624 | new | No Target object loaded. | — | لم يُحمّل كائن هدف. | New translation (machine-assisted) | ☐ |
 | 5625 | new | No Subtractor object selected. | — | لم يُحدد كائن طارح. | New translation (machine-assisted) | ☐ |
 | 5626 | new | The target object can not be a subtractor. | — | لا يمكن أن يكون الكائن الهدف طارحاً. | New translation (machine-assisted) | ☐ |
-| 5627 | new | XOR is not valid for an Excellon target. | — | XOR غير صالح لهدف Excellon. | New translation (machine-assisted) | ☐ |
+| 5627 | new | XOR is not valid for an Excellon target. | — | العملية XOR غير صالحة لهدف Excellon. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 5628 | new | Another Subtract run is still working. | — | عملية طرح أخرى لا تزال قيد التشغيل. | New translation (machine-assisted) | ☐ |
 | 5629 | new | Subtract failed | — | فشل الطرح | New translation (machine-assisted) | ☐ |
 | 5630 | new | The subtractor has no area (a Geometry of lines needs a Margin above zero). Nothing was created. | — | الطارح ليس له مساحة (هندسة الخطوط تحتاج هامشاً أكبر من صفر). لم يُنشأ شيء. | New translation (machine-assisted) | ☐ |
@@ -5720,7 +5720,7 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 5709 | new | The project was not saved. FlatCAM did not restart. | — | لم يُحفظ المشروع. لم يُعد تشغيل FlatCAM. | New translation (machine-assisted) | ☐ |
 | 5710 | new | The user does not have admin rights or UAC issues. | — | المستخدم لا يملك صلاحيات المسؤول أو توجد مشاكل في UAC. | New translation (machine-assisted) | ☐ |
 | 5711 | new | Quit | — | خروج | New translation (machine-assisted) | ☐ |
-| 5712 | new | self.solid_geometry is neither BaseGeometry or list. | — | self.solid_geometry ليس BaseGeometry ولا قائمة. | New translation (machine-assisted) | ☐ |
+| 5712 | new | self.solid_geometry is neither BaseGeometry or list. | — | الخاصية self.solid_geometry ليست BaseGeometry ولا قائمة. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 5713 | new | Pass | — | تمريرة | New translation (machine-assisted) | ☐ |
 | 5714 | new | Get Exteriors | — | استخراج المحيطات الخارجية | New translation (machine-assisted) | ☐ |
 | 5715 | new | Get Interiors | — | استخراج الأجزاء الداخلية | New translation (machine-assisted) | ☐ |
@@ -5738,29 +5738,29 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 5727 | new | Preprocessor error, G-code is missing | — | خطأ في المعالج اللاحق، الـ G-code مفقود | New translation (machine-assisted) | ☐ |
 | 5728 | new | There is no such parameter | — | لا يوجد معامل بهذا الاسم | New translation (machine-assisted) | ☐ |
 | 5729 | new | Indexing geometry before generating G-Code... | — | فهرسة الهندسة قبل إنشاء G-code... | New translation (machine-assisted) | ☐ |
-| 5730 | new | The Cut Z parameter has positive value. It is the depth value to drill into material.<br>The Cut Z parameter needs to have a negative value, assuming it is a typo therefore the app will convert the value to negative. Check the resulting CNC code (Gcode etc). | — | معامل Z القطع ذو قيمة موجبة. وهو قيمة عمق الثقب في المادة.<br>يجب أن تكون قيمة معامل Z القطع سالبة، وبافتراض أنه خطأ مطبعي سيحوّل البرنامج القيمة إلى سالبة. تحقق من كود CNC الناتج (G-code وغيره). | New translation (machine-assisted) | ☐ |
-| 5731 | new | The Cut Z parameter is zero. There will be no cut, aborting | — | معامل Z القطع يساوي صفرًا. لن يحدث قطع، جارٍ الإلغاء | New translation (machine-assisted) | ☐ |
-| 5732 | new | The Cut Z parameter is not a number. | — | معامل Z القطع ليس رقمًا. | New translation (machine-assisted) | ☐ |
+| 5730 | new | The Cut Z parameter has positive value. It is the depth value to drill into material.<br>The Cut Z parameter needs to have a negative value, assuming it is a typo therefore the app will convert the value to negative. Check the resulting CNC code (Gcode etc). | — | معامل عمق القطع Z ذو قيمة موجبة. وهو قيمة عمق الثقب في المادة.<br>يجب أن تكون قيمة معامل عمق القطع Z سالبة، وبافتراض أنه خطأ مطبعي سيحوّل البرنامج القيمة إلى سالبة. تحقق من كود CNC الناتج (G-code وغيره). | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 5731 | new | The Cut Z parameter is zero. There will be no cut, aborting | — | معامل عمق القطع Z يساوي صفرًا. لن يحدث قطع، جارٍ الإلغاء | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 5732 | new | The Cut Z parameter is not a number. | — | معامل عمق القطع Z ليس رقمًا. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 5733 | new | Laser Min Power is %s: the laser is not turned off between the cuts. The 'laser OFF' lines set this power instead, so the laser can burn along the travel moves and stay on if the job is interrupted. Set Min Power to 0 to turn the laser off between the cuts. | — | أدنى قدرة لليزر هي %s: لا يُطفأ الليزر بين عمليات القطع. تضبط أسطر 'إطفاء الليزر' هذه القدرة بدلًا من ذلك، لذا قد يحرق الليزر على طول حركات الانتقال ويبقى مشتعلًا إذا توقفت المهمة. اضبط أدنى قدرة على 0 لإطفاء الليزر بين عمليات القطع. | New translation (machine-assisted) | ☐ |
 | 5734 | new | Peck drilling is on: it replaces the multidepth. | — | الثقب المتقطع مفعّل: وهو يحل محل الأعماق المتعددة. | New translation (machine-assisted) | ☐ |
-| 5735 | new | The End X,Y format has to be (x, y). | — | يجب أن يكون تنسيق X,Y نهاية الحركة هو (x, y). | New translation (machine-assisted) — reviewer: terminology: untranslated 'End X,Y' -> glossary 'X,Y نهاية الحركة' | ☐ |
+| 5735 | new | The End X,Y format has to be (x, y). | — | يجب أن يكون تنسيق موضع نهاية الحركة X,Y هو (x, y). | New translation (machine-assisted) — reviewer: terminology: untranslated 'End X,Y' -> glossary 'X,Y نهاية الحركة'; begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 5736 | new | Starting G-Code for tool with diameter | — | بدء G-code للقمة ذات القطر | New translation (machine-assisted) | ☐ |
 | 5737 | new | G91 coordinates not implemented | — | إحداثيات G91 غير مدعومة | New translation (machine-assisted) | ☐ |
 | 5738 | new | Finished G-Code generation for tool: | — | انتهى إنشاء G-code للقمة: | New translation (machine-assisted) | ☐ |
 | 5739 | new | Cut_Z parameter is None or zero. Most likely a bad combinations of other parameters. | — | معامل Cut_Z فارغ أو يساوي صفرًا. على الأرجح بسبب تركيبة خاطئة من المعاملات الأخرى. | New translation (machine-assisted) | ☐ |
-| 5740 | new | The Cut Z parameter has positive value. It is the depth value to cut into material.<br>The Cut Z parameter needs to have a negative value, assuming it is a typo therefore the app will convert the value to negative.Check the resulting CNC code (Gcode etc). | — | معامل Z القطع ذو قيمة موجبة. وهو قيمة عمق القطع في المادة.<br>يجب أن تكون قيمة معامل Z القطع سالبة، وبافتراض أنه خطأ مطبعي سيحوّل البرنامج القيمة إلى سالبة. تحقق من كود CNC الناتج (G-code وغيره). | New translation (machine-assisted) | ☐ |
-| 5741 | new | The Cut Z parameter is zero. There will be no cut, skipping file | — | معامل Z القطع يساوي صفرًا. لن يحدث قطع، جارٍ تخطي الملف | New translation (machine-assisted) | ☐ |
-| 5742 | new | Travel Z parameter is None or zero. | — | معامل Z الانتقال فارغ أو يساوي صفرًا. | New translation (machine-assisted) | ☐ |
-| 5743 | new | The Travel Z parameter has negative value. It is the height value to travel between cuts.<br>The Z Travel parameter needs to have a positive value, assuming it is a typo therefore the app will convert the value to positive.Check the resulting CNC code (Gcode etc). | — | معامل Z الانتقال ذو قيمة سالبة. وهو قيمة الارتفاع للانتقال بين عمليات القطع.<br>يجب أن تكون قيمة معامل Z الانتقال موجبة، وبافتراض أنه خطأ مطبعي سيحوّل البرنامج القيمة إلى موجبة. تحقق من كود CNC الناتج (G-code وغيره). | New translation (machine-assisted) | ☐ |
-| 5744 | new | The Z Travel parameter is zero. This is dangerous, skipping file | — | معامل Z الانتقال يساوي صفرًا. هذا خطير، جارٍ تخطي الملف | New translation (machine-assisted) | ☐ |
+| 5740 | new | The Cut Z parameter has positive value. It is the depth value to cut into material.<br>The Cut Z parameter needs to have a negative value, assuming it is a typo therefore the app will convert the value to negative.Check the resulting CNC code (Gcode etc). | — | معامل عمق القطع Z ذو قيمة موجبة. وهو قيمة عمق القطع في المادة.<br>يجب أن تكون قيمة معامل عمق القطع Z سالبة، وبافتراض أنه خطأ مطبعي سيحوّل البرنامج القيمة إلى سالبة. تحقق من كود CNC الناتج (G-code وغيره). | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 5741 | new | The Cut Z parameter is zero. There will be no cut, skipping file | — | معامل عمق القطع Z يساوي صفرًا. لن يحدث قطع، جارٍ تخطي الملف | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 5742 | new | Travel Z parameter is None or zero. | — | معامل ارتفاع الانتقال Z فارغ أو يساوي صفرًا. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 5743 | new | The Travel Z parameter has negative value. It is the height value to travel between cuts.<br>The Z Travel parameter needs to have a positive value, assuming it is a typo therefore the app will convert the value to positive.Check the resulting CNC code (Gcode etc). | — | معامل ارتفاع الانتقال Z ذو قيمة سالبة. وهو قيمة الارتفاع للانتقال بين عمليات القطع.<br>يجب أن تكون قيمة معامل ارتفاع الانتقال Z موجبة، وبافتراض أنه خطأ مطبعي سيحوّل البرنامج القيمة إلى موجبة. تحقق من كود CNC الناتج (G-code وغيره). | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 5744 | new | The Z Travel parameter is zero. This is dangerous, skipping file | — | معامل ارتفاع الانتقال Z يساوي صفرًا. هذا خطير، جارٍ تخطي الملف | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 5745 | new | Finished G-Code generation | — | انتهى إنشاء G-code | New translation (machine-assisted) | ☐ |
 | 5746 | new | paths traced | — | مسارات منفذة | New translation (machine-assisted) | ☐ |
-| 5747 | new | The Toolchange X,Y field in Edit -> Preferences has to be in the format (x, y) <br>but now there is only one value, not two.  | — | يجب أن يكون حقل X,Y تغيير اللقمة في تحرير -> التفضيلات بالتنسيق (x, y) <br>لكن توجد الآن قيمة واحدة فقط وليس قيمتين.  | New translation (machine-assisted) | ☐ |
-| 5748 | new | The End Move X,Y field in Edit -> Preferences has to be in the format (x, y) but now there is only one value, not two. | — | يجب أن يكون حقل X,Y نهاية الحركة في تحرير -> التفضيلات بالتنسيق (x, y) لكن توجد الآن قيمة واحدة فقط وليس قيمتين. | New translation (machine-assisted) | ☐ |
+| 5747 | new | The Toolchange X,Y field in Edit -> Preferences has to be in the format (x, y) <br>but now there is only one value, not two.  | — | يجب أن يكون حقل موضع تغيير اللقمة X,Y في تحرير -> التفضيلات بالتنسيق (x, y) <br>لكن توجد الآن قيمة واحدة فقط وليس قيمتين.  | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
+| 5748 | new | The End Move X,Y field in Edit -> Preferences has to be in the format (x, y) but now there is only one value, not two. | — | يجب أن يكون حقل موضع نهاية الحركة X,Y في تحرير -> التفضيلات بالتنسيق (x, y) لكن توجد الآن قيمة واحدة فقط وليس قيمتين. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 5749 | new | Failed. Drill points inside the exclusion zones. | — | فشل. توجد نقاط ثقب داخل مناطق الاستبعاد. | New translation (machine-assisted) | ☐ |
 | 5750 | new | No G-code for the tool | — | لا يوجد G-code للقمة | New translation (machine-assisted) | ☐ |
 | 5751 | new | it has no holes to drill (check Drill slots if it has only slots) | — | لا توجد لها ثقوب لثقبها (فعّل ثقب الشقوق إن كانت لها شقوق فقط) | New translation (machine-assisted) | ☐ |
-| 5752 | new | The Toolchange X,Y field in Edit -> Preferences has to be in the format (x, y) <br>but now there is only one value, not two. | — | يجب أن يكون حقل X,Y تغيير اللقمة في تحرير -> التفضيلات بالتنسيق (x, y) <br>لكن توجد الآن قيمة واحدة فقط وليس قيمتين. | New translation (machine-assisted) | ☐ |
+| 5752 | new | The Toolchange X,Y field in Edit -> Preferences has to be in the format (x, y) <br>but now there is only one value, not two. | — | يجب أن يكون حقل موضع تغيير اللقمة X,Y في تحرير -> التفضيلات بالتنسيق (x, y) <br>لكن توجد الآن قيمة واحدة فقط وليس قيمتين. | New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check) | ☐ |
 | 5753 | new | Trying to generate a CNC Job from a Geometry object without solid_geometry. | — | محاولة إنشاء مهمة CNC من كائن هندسة بدون solid_geometry. | New translation (machine-assisted) | ☐ |
 | 5754 | new | The Tool Offset value is too negative to use for the current_geometry.<br>Raise the value (in module) and try again. | — | قيمة إزاحة اللقمة سالبة أكثر من اللازم لاستخدامها مع current_geometry.<br>ارفع القيمة (بالقيمة المطلقة) وحاول مرة أخرى. | New translation (machine-assisted) | ☐ |
 | 5755 | new | There is no tool data in the SolderPaste geometry. | — | لا توجد بيانات لقم في هندسة معجون اللحام. | New translation (machine-assisted) | ☐ |

@@ -36,11 +36,11 @@ Laser Power,قدرة الليزر,
 Min Power,أدنى قدرة,
 Preprocessor,المعالج اللاحق,writes G-code for a machine; the usual CAM term in Arabic is post-processor
 Tool change,تغيير اللقمة,
-Toolchange Z,Z تغيير اللقمة,Z labels: the axis letter then the noun
-Travel Z,Z الانتقال,height of the moves between cuts
-Cut Z,Z القطع,depth of the cut
-End move Z,Z نهاية الحركة,
-"End move X,Y","X,Y نهاية الحركة",
+Toolchange Z,ارتفاع تغيير اللقمة Z,"the Arabic noun first, the axis after it: a label that starts with a Latin letter is laid out left to right"
+Travel Z,ارتفاع الانتقال Z,"noun first, axis after it"
+Cut Z,عمق القطع Z,"noun first, axis after it"
+End move Z,ارتفاع نهاية الحركة Z,"noun first, axis after it"
+"End move X,Y","موضع نهاية الحركة X,Y","noun first, axis after it"
 Depth,العمق,
 Multi-Depth,أعماق متعددة,
 Plunge,النزول,the tool going down into the material; 'Plunge feedrate' = معدل تغذية النزول

@@ -855,7 +855,7 @@ msgstr ""
 #: appPlugins/ToolMilling/Milling.py:1707
 #: appPlugins/ToolMilling/MillingUI.py:676
 msgid "Cut Z"
-msgstr "Z القطع"
+msgstr "عمق القطع Z"
 
 # auto-review 2026-11-04: new
 #: appDatabase.py:699
@@ -893,7 +893,7 @@ msgid ""
 "DPP. Depth per Pass.\n"
 "The value used to cut into material on each pass."
 msgstr ""
-"DPP. العمق لكل تمريرة.\n"
+"العمق لكل تمريرة (DPP).\n"
 "القيمة المستخدمة للقطع داخل المادة في كل تمريرة."
 
 # auto-review 2026-11-04: new
@@ -907,7 +907,7 @@ msgstr ""
 #: appPlugins/ToolMilling/MillingUI.py:1367
 #: appPlugins/ToolSolderPaste/SolderPasteUI.py:178
 msgid "Travel Z"
-msgstr "Z الانتقال"
+msgstr "ارتفاع الانتقال Z"
 
 # auto-review 2026-11-04: new
 #: appDatabase.py:740
@@ -1588,7 +1588,7 @@ msgid ""
 msgstr ""
 "بعض لقم الثقب (الكبيرة منها) تحتاج إلى الثقب أعمق\n"
 "للحصول على قطر ثقب الخروج المطلوب بسبب شكل الرأس.\n"
-"يمكن للقيمة هنا أن تعوّض معامل Z القطع."
+"يمكن للقيمة هنا أن تعوّض معامل عمق القطع Z."
 
 # auto-review 2026-11-04: new
 #: appDatabase.py:1249 appGUI/preferences/tools/ToolsCutoutPrefGroupUI.py:87
@@ -1606,7 +1606,7 @@ msgstr ""
 "استخدم عدة تمريرات لتحديد\n"
 "عمق القطع في كل تمريرة.\n"
 "سيقطع عدة مرات حتى الوصول\n"
-"إلى Z القطع."
+"إلى عمق القطع Z."
 
 # auto-review 2026-11-04: new
 #: appDatabase.py:1272 appGUI/preferences/tools/ToolsCutoutPrefGroupUI.py:100
@@ -1751,7 +1751,7 @@ msgid ""
 "It replaces the Multi-Depth. Ignored by the laser preprocessors."
 msgstr ""
 "ثقب كل ثقب على خطوات. بعد كل خطوة تصعد اللقمة إلى\n"
-"Z الانتقال (لإخراج الرايش)، ثم تنزل بسرعة إلى خلوص سحب\n"
+"ارتفاع الانتقال Z (لإخراج الرايش)، ثم تنزل بسرعة إلى خلوص سحب\n"
 "الثقب المتقطع فوق العمق السابق وتتابع التغذية.\n"
 "يحل محل الأعماق المتعددة. تتجاهله معالجات الليزر اللاحقة."
 
@@ -1848,7 +1848,7 @@ msgid ""
 msgstr ""
 "الحركة العمودية من Z_Toolchange إلى Z_move تتم باستخدام G0،\n"
 "أي بأقصى سرعة متاحة.\n"
-"تحذير: تتم الحركة عند إحداثيات X,Y لتغيير اللقمة."
+"تحذير: تتم الحركة عند إحداثيات موضع تغيير اللقمة X,Y."
 
 # auto-review 2026-11-04: new
 #: appDatabase.py:1517 appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:576
@@ -1868,8 +1868,8 @@ msgid ""
 msgstr ""
 "استراتيجية الخروج من الثقب.\n"
 " - عند عدم التفعيل تصعد لقمة الثقب ببطء (G1) حتى العمق صفر ثم\n"
-"بأقصى سرعة ممكنة (G0) إلى Z Move (ارتفاع الانتقال).\n"
-" - عند التفعيل يتم الانتقال من Z القطع إلى Z_move بأقصى سرعة ممكنة (G0)."
+"بأقصى سرعة ممكنة (G0) إلى ارتفاع الانتقال Z.\n"
+" - عند التفعيل يتم الانتقال من عمق القطع Z إلى Z_move بأقصى سرعة ممكنة (G0)."
 
 # auto-review 2026-11-04: new
 #: appDatabase.py:1546 appGUI/preferences/tools/Tools2ExtractPrefGroupUI.py:322
@@ -3940,12 +3940,12 @@ msgstr "كل G-code"
 # auto-review 2026-11-04: new
 #: appEditors/appGCodeEditor.py:291
 msgid "Header GCode"
-msgstr "G-code الترويسة"
+msgstr "شيفرة G-code للترويسة"
 
 # auto-review 2026-11-04: new
 #: appEditors/appGCodeEditor.py:297
 msgid "Start GCode"
-msgstr "G-code البداية"
+msgstr "شيفرة G-code للبداية"
 
 # auto-review 2026-11-04: new
 #: appEditors/appGCodeEditor.py:738 appObjects/CNCJobObject.py:838
@@ -7747,7 +7747,7 @@ msgstr "ملاحظة"
 #: appEditors/geo_plugins/GeoCirclePlugin.py:301
 #: appEditors/geo_plugins/GeoRectanglePlugin.py:363
 msgid "Shift + click to select a shape for modification."
-msgstr "Shift + نقرة لتحديد شكل لتعديله."
+msgstr "انقر مع Shift لتحديد شكل لتعديله."
 
 # auto-review 2026-11-04: new
 #: appEditors/geo_plugins/GeoCopyPlugin.py:429
@@ -8858,12 +8858,12 @@ msgstr "ينشئ مادة جديدة؛ لا تُستبدل العناصر الم
 # auto-review 2026-11-04: new
 #: appEditors/grb_plugins/GrbDrawingPlugin.py:126
 msgid "Baseline X"
-msgstr "X خط الأساس"
+msgstr "خط الأساس X"
 
 # auto-review 2026-11-04: new
 #: appEditors/grb_plugins/GrbDrawingPlugin.py:127
 msgid "Baseline Y"
-msgstr "Y خط الأساس"
+msgstr "خط الأساس Y"
 
 # auto-review 2026-11-04: new
 #: appEditors/grb_plugins/GrbDrawingPlugin.py:133
@@ -10301,7 +10301,7 @@ msgstr "خروج"
 # auto-review 2026-11-04: new
 #: appGUI/ImportDialog.py:28
 msgid "SVG as Geometry"
-msgstr "SVG كهندسة"
+msgstr "ملف SVG كهندسة"
 
 # auto-review 2026-11-04: new
 #: appGUI/ImportDialog.py:29 appGUI/ImportDialog.py:40
@@ -10322,7 +10322,7 @@ msgstr ""
 # auto-review 2026-11-04: new
 #: appGUI/ImportDialog.py:33
 msgid "SVG as Gerber"
-msgstr "SVG كـ Gerber"
+msgstr "ملف SVG كـ Gerber"
 
 # auto-review 2026-11-04: new
 #: appGUI/ImportDialog.py:34 appGUI/ImportDialog.py:45
@@ -10344,7 +10344,7 @@ msgstr ""
 # auto-review 2026-11-04: new
 #: appGUI/ImportDialog.py:39
 msgid "DXF as Geometry"
-msgstr "DXF كهندسة"
+msgstr "ملف DXF كهندسة"
 
 # auto-review 2026-11-04: new
 #: appGUI/ImportDialog.py:41
@@ -10360,7 +10360,7 @@ msgstr ""
 # auto-review 2026-11-04: new
 #: appGUI/ImportDialog.py:44
 msgid "DXF as Gerber"
-msgstr "DXF كـ Gerber"
+msgstr "ملف DXF كـ Gerber"
 
 # auto-review 2026-11-04: new
 #: appGUI/ImportDialog.py:46
@@ -10376,7 +10376,7 @@ msgstr ""
 # auto-review 2026-11-04: new
 #: appGUI/ImportDialog.py:50
 msgid "HPGL2 as Geometry"
-msgstr "HPGL2 كهندسة"
+msgstr "ملف HPGL2 كهندسة"
 
 # auto-review 2026-11-04: new
 #: appGUI/ImportDialog.py:52
@@ -10784,27 +10784,27 @@ msgstr "Shift+S"
 # auto-review 2026-11-04: new
 #: appGUI/MainGUI.py:289
 msgid "SVG as Geometry Object"
-msgstr "SVG ككائن هندسة"
+msgstr "ملف SVG ككائن هندسة"
 
 # auto-review 2026-11-04: new
 #: appGUI/MainGUI.py:293
 msgid "SVG as Gerber Object"
-msgstr "SVG ككائن Gerber"
+msgstr "ملف SVG ككائن Gerber"
 
 # auto-review 2026-11-04: new
 #: appGUI/MainGUI.py:299
 msgid "DXF as Geometry Object"
-msgstr "DXF ككائن هندسة"
+msgstr "ملف DXF ككائن هندسة"
 
 # auto-review 2026-11-04: new
 #: appGUI/MainGUI.py:303
 msgid "DXF as Gerber Object"
-msgstr "DXF ككائن Gerber"
+msgstr "ملف DXF ككائن Gerber"
 
 # auto-review 2026-11-04: new
 #: appGUI/MainGUI.py:308
 msgid "HPGL2 as Geometry Object"
-msgstr "HPGL2 ككائن هندسة"
+msgstr "ملف HPGL2 ككائن هندسة"
 
 # auto-review 2026-11-04: new
 #: appGUI/MainGUI.py:314
@@ -12212,7 +12212,7 @@ msgstr "إظهار/إخفاء المحاور على لوحة الرسم"
 # auto-review 2026-11-04: new
 #: appGUI/MainGUI.py:1666
 msgid "HUD (Heads up display)"
-msgstr "HUD (شاشة المعلومات العلوية)"
+msgstr "شاشة المعلومات العلوية (HUD)"
 
 # auto-review 2026-11-04: new
 #: appGUI/MainGUI.py:1672
@@ -12492,7 +12492,7 @@ msgstr "التبديل إلى تبويب الأدوات"
 # auto-review 2026-11-04: new
 #: appGUI/MainGUI.py:5060
 msgid "New Gerber"
-msgstr "Gerber جديد"
+msgstr "كائن Gerber جديد"
 
 # auto-review 2026-11-04: new
 #: appGUI/MainGUI.py:5061
@@ -12512,7 +12512,7 @@ msgstr "الانتقال إلى إحداثيات"
 # auto-review 2026-11-04: new
 #: appGUI/MainGUI.py:5064
 msgid "New Excellon"
-msgstr "Excellon جديد"
+msgstr "كائن Excellon جديد"
 
 # auto-review 2026-11-04: new
 #: appGUI/MainGUI.py:5065
@@ -13778,8 +13778,8 @@ msgstr ""
 "يمكن أن يكون 'نوع اللقمة' (TT) دائريًا بسن واحد إلى 4 أسنان (C1..C4)،\n"
 "أو كرويًا (B)، أو على شكل V (V). \n"
 "عند اختيار شكل V يُضبط حقل 'النوع' تلقائيًا \n"
-"على عزل، ويُعطَّل معامل Z القطع في نموذج الواجهة\n"
-"ويُحسب Z القطع تلقائيًا من حقلي النموذج اللذين \n"
+"على عزل، ويُعطَّل معامل عمق القطع Z في نموذج الواجهة\n"
+"ويُحسب عمق القطع Z تلقائيًا من حقلي النموذج اللذين \n"
 "يظهران حديثًا باسم قطر رأس V وزاوية رأس V."
 
 # auto-review 2026-11-04: new
@@ -14211,8 +14211,8 @@ msgid ""
 "A/B/C for CNC controllers. Marlin needs linear E. Stock GRBL has no extra "
 "axis."
 msgstr ""
-"A/B/C لوحدات تحكم CNC. يحتاج Marlin إلى المحور الخطي E. لا يملك GRBL "
-"القياسي محورًا إضافيًا."
+"المحاور A/B/C لوحدات تحكم CNC. يحتاج Marlin إلى المحور الخطي E. لا يملك "
+"GRBL القياسي محورًا إضافيًا."
 
 # auto-review 2026-11-04: new
 #: appGUI/SolderPasteSettings.py:29
@@ -14460,8 +14460,8 @@ msgid ""
 "Approach via Z Start at Z Dispense feed. The motor stays off until Dispense "
 "Z. Disabled for a faster normal cycle."
 msgstr ""
-"الاقتراب عبر Z البدء بمعدل تغذية Z التوزيع. يبقى المحرك متوقفًا حتى Z "
-"التوزيع. عند التعطيل تكون الدورة العادية أسرع."
+"الاقتراب عبر ارتفاع البدء Z بمعدل تغذية التوزيع Z. يبقى المحرك متوقفًا حتى "
+"ارتفاع التوزيع Z. عند التعطيل تكون الدورة العادية أسرع."
 
 # auto-review 2026-11-04: new
 #: appGUI/SolderPasteSettings.py:98
@@ -16871,7 +16871,7 @@ msgstr "GitHub"
 # auto-review 2026-11-04: new
 #: appGUI/preferences/general/GeneralAppPrefGroupUI.py:332
 msgid "Digi (legacy)"
-msgstr "Digi (قديم)"
+msgstr "مشاركة Digi (قديمة)"
 
 # auto-review 2026-11-04: new
 #: appGUI/preferences/general/GeneralAppPrefGroupUI.py:337
@@ -16897,7 +16897,7 @@ msgid ""
 "GitHub releases are published separately.\n"
 "This does not upload or send credentials or application data."
 msgstr ""
-"Digi القديم: إنشاء ملفات رفع محلية للنشر اليدوي على Digi.\n"
+"مشاركة Digi القديمة: إنشاء ملفات رفع محلية للنشر اليدوي على Digi.\n"
 "تُنشر إصدارات GitHub بشكل منفصل.\n"
 "هذا لا يرفع ولا يرسل بيانات اعتماد أو بيانات التطبيق."
 
@@ -20164,7 +20164,7 @@ msgstr ""
 #: appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:117
 #: appGUI/preferences/tools/ToolsMillPrefGroupUI.py:154
 msgid "Toolchange Z"
-msgstr "Z تغيير اللقمة"
+msgstr "ارتفاع تغيير اللقمة Z"
 
 # auto-review 2026-11-04: new
 #: appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:119
@@ -20184,7 +20184,7 @@ msgstr ""
 #: appPlugins/ToolDrilling/DrillingUI.py:611
 #: appPlugins/ToolMilling/MillingUI.py:962
 msgid "End move Z"
-msgstr "Z نهاية الحركة"
+msgstr "ارتفاع نهاية الحركة Z"
 
 # auto-review 2026-11-04: new
 #: appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:133
@@ -20204,7 +20204,7 @@ msgstr ""
 #: appPlugins/ToolDrilling/DrillingUI.py:627
 #: appPlugins/ToolMilling/MillingUI.py:978
 msgid "End move X,Y"
-msgstr "X,Y نهاية الحركة"
+msgstr "موضع نهاية الحركة X,Y"
 
 # auto-review 2026-11-04: new
 #: appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:146
@@ -20216,7 +20216,7 @@ msgid ""
 "If no value is entered then there is no move\n"
 "on X,Y plane at the end of the job."
 msgstr ""
-"موضع X,Y لنهاية الحركة. بالصيغة (x,y).\n"
+"موضع نهاية الحركة X,Y. بالصيغة (x,y).\n"
 "إذا لم تُدخل قيمة فلن تكون هناك حركة\n"
 "في المستوى X,Y في نهاية المهمة."
 
@@ -20294,7 +20294,7 @@ msgstr "قطر لقمة ثقب التمركز."
 #: appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:260
 #: appPlugins/ToolDrilling/DrillingUI.py:729
 msgid "Spot Cut Z"
-msgstr "Z قطع التمركز"
+msgstr "عمق قطع التمركز Z"
 
 # auto-review 2026-11-04: new
 #: appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:261
@@ -20468,7 +20468,7 @@ msgstr "قائمة بالمعاملات المتقدمة."
 # auto-review 2026-11-04: new
 #: appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:445
 msgid "Toolchange X,Y"
-msgstr "X,Y تغيير اللقمة"
+msgstr "موضع تغيير اللقمة X,Y"
 
 # auto-review 2026-11-04: new
 #: appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:447
@@ -20476,14 +20476,14 @@ msgstr "X,Y تغيير اللقمة"
 #: appPlugins/ToolDrilling/DrillingUI.py:583
 #: appPlugins/ToolMilling/MillingUI.py:946
 msgid "Toolchange X,Y position."
-msgstr "موضع X,Y لتغيير اللقمة."
+msgstr "موضع تغيير اللقمة X,Y."
 
 # auto-review 2026-11-04: new
 #: appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:455
 #: appGUI/preferences/tools/ToolsMillPrefGroupUI.py:317
 #: appPlugins/ToolDrilling/DrillingUI.py:599
 msgid "Start Z"
-msgstr "Z البداية"
+msgstr "ارتفاع البداية Z"
 
 # auto-review 2026-11-04: new
 #: appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:457
@@ -20630,10 +20630,10 @@ msgid ""
 "meaning the fastest speed available.\n"
 "WARNING: the move is done at Toolchange X,Y coords."
 msgstr ""
-"بتفعيل هذا، تتم الحركة العمودية من\n"
-"Z_Toolchange إلى Z_move باستخدام G0،\n"
+"بتفعيل هذا، تتم الحركة العمودية\n"
+"من Z_Toolchange إلى Z_move باستخدام G0،\n"
 "أي بأقصى سرعة متاحة.\n"
-"تحذير: تتم الحركة عند إحداثيات X,Y لتغيير اللقمة."
+"تحذير: تتم الحركة عند إحداثيات موضع تغيير اللقمة X,Y."
 
 # auto-review 2026-11-04: new
 #: appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:578
@@ -20648,8 +20648,8 @@ msgstr ""
 "استراتيجية الخروج من الثقب.\n"
 " - عند عدم التفعيل، أثناء الخروج من الثقب تتحرك لقمة الثقب\n"
 "ببطء بمعدل التغذية المحدد (G1) حتى العمق صفر ثم\n"
-"تنتقل بأقصى سرعة ممكنة (G0) إلى Z الانتقال (ارتفاع الانتقال).\n"
-" - عند التفعيل يتم الانتقال من Z القطع (عمق القطع) إلى Z_move\n"
+"تنتقل بأقصى سرعة ممكنة (G0) إلى ارتفاع الانتقال Z.\n"
+" - عند التفعيل يتم الانتقال من عمق القطع Z إلى Z_move\n"
 "(ارتفاع الانتقال) بأقصى سرعة ممكنة (G0) في حركة واحدة."
 
 # auto-review 2026-11-04: new
@@ -20755,7 +20755,7 @@ msgstr "حول"
 #: appPlugins/ToolMilling/MillingUI.py:1136
 #: appPlugins/ToolMilling/MillingUI.py:1166
 msgid "Over Z"
-msgstr "Z العبور"
+msgstr "ارتفاع العبور Z"
 
 # auto-review 2026-11-04: new
 #: appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:645
@@ -21259,13 +21259,13 @@ msgstr "إضافة مُرسِل GCode"
 #: appGUI/preferences/tools/ToolsGrblSenderPrefGroupUI.py:33
 #: appPlugins/ToolGcodeSender/SenderUI.py:214
 msgid "USB Serial"
-msgstr "USB تسلسلي"
+msgstr "تسلسلي عبر USB"
 
 # auto-review 2026-11-04: new
 #: appGUI/preferences/tools/ToolsGrblSenderPrefGroupUI.py:34
 #: appPlugins/ToolGcodeSender/SenderUI.py:214
 msgid "Native USB"
-msgstr "USB أصلي"
+msgstr "منفذ USB أصلي"
 
 # auto-review 2026-11-04: new
 #: appGUI/preferences/tools/ToolsGrblSenderPrefGroupUI.py:35
@@ -21916,7 +21916,7 @@ msgstr "قطر رأس المجس."
 #: appGUI/preferences/tools/ToolsLevelPrefGroupUI.py:117
 #: appPlugins/Common/levelling_ui.py:144
 msgid "Probe Z travel"
-msgstr "Z انتقال المجس"
+msgstr "ارتفاع انتقال المجس Z"
 
 # auto-review 2026-11-04: new
 #: appGUI/preferences/tools/ToolsLevelPrefGroupUI.py:119
@@ -22071,7 +22071,7 @@ msgstr ""
 #: appPlugins/ToolDrilling/DrillingUI.py:581
 #: appPlugins/ToolMilling/MillingUI.py:944
 msgid "Toolchange X-Y"
-msgstr "X-Y تغيير اللقمة"
+msgstr "موضع تغيير اللقمة X-Y"
 
 # auto-review 2026-11-04: new
 #: appGUI/preferences/tools/ToolsMillPrefGroupUI.py:330
@@ -22451,7 +22451,7 @@ msgstr "جزء من قطر اللقمة."
 # auto-review 2026-11-04: new
 #: appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:91
 msgid "Z Dispense Start"
-msgstr "Z بدء التوزيع"
+msgstr "ارتفاع بدء التوزيع Z"
 
 # auto-review 2026-11-04: new
 #: appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:93
@@ -22463,7 +22463,7 @@ msgstr "الارتفاع (Z) عند بدء توزيع معجون اللحام."
 #: appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:104
 #: appPlugins/ToolSolderPaste/SolderPasteUI.py:331
 msgid "Z Dispense"
-msgstr "Z التوزيع"
+msgstr "ارتفاع التوزيع Z"
 
 # auto-review 2026-11-04: new
 #: appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:106
@@ -22474,7 +22474,7 @@ msgstr "الارتفاع (Z) أثناء توزيع معجون اللحام."
 # auto-review 2026-11-04: new
 #: appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:117
 msgid "Z Dispense Stop"
-msgstr "Z إيقاف التوزيع"
+msgstr "ارتفاع إيقاف التوزيع Z"
 
 # auto-review 2026-11-04: new
 #: appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:119
@@ -22485,7 +22485,7 @@ msgstr "الارتفاع (Z) عند توقف توزيع معجون اللحام.
 # auto-review 2026-11-04: new
 #: appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:130
 msgid "Z Travel"
-msgstr "Z الانتقال"
+msgstr "ارتفاع الانتقال Z"
 
 # auto-review 2026-11-04: new
 #: appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:132
@@ -22500,7 +22500,7 @@ msgstr ""
 # auto-review 2026-11-04: new
 #: appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:144
 msgid "Z Toolchange"
-msgstr "Z تغيير اللقمة"
+msgstr "ارتفاع تغيير اللقمة Z"
 
 # auto-review 2026-11-04: new
 #: appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:146
@@ -22515,7 +22515,7 @@ msgid ""
 "The X,Y location for tool (nozzle) change.\n"
 "The format is (x, y) where x and y are real numbers."
 msgstr ""
-"موقع X,Y لتغيير اللقمة (الفوهة).\n"
+"موضع تغيير اللقمة (الفوهة) X,Y.\n"
 "الصيغة (x, y) حيث x وy أعداد حقيقية."
 
 # auto-review 2026-11-04: new
@@ -23752,7 +23752,7 @@ msgstr "فشل إنشاء كائن مهمة CNC من ملف G-code."
 # auto-review 2026-11-04: new
 #: appHandlers/appIO.py:3320
 msgid "G-code without complete tool data"
-msgstr "G-code دون بيانات لقم كاملة"
+msgstr "شيفرة G-code دون بيانات لقم كاملة"
 
 # auto-review 2026-11-04: new
 #: appHandlers/appIO.py:3367
@@ -26093,7 +26093,7 @@ msgstr "غير متصل بوحدة تحكم GRBL."
 # auto-review 2026-11-04: new
 #: appPlugins/Common/grbl/grbl_client.py:694
 msgid "GRBL is busy"
-msgstr "GRBL مشغول"
+msgstr "وحدة التحكم GRBL مشغولة"
 
 # auto-review 2026-11-04: new
 #: appPlugins/Common/grbl/grbl_client.py:694
@@ -26212,8 +26212,8 @@ msgid ""
 "GRBL is not in the units of the height map, or not in G90/G94. The levelled "
 "job was not started."
 msgstr ""
-"GRBL ليس بوحدات خريطة الارتفاعات، أو ليس في وضع G90/G94. لم تبدأ المهمة "
-"المُسوّاة."
+"وحدة التحكم GRBL ليست بوحدات خريطة الارتفاعات، أو ليست في وضع G90/G94. لم "
+"تبدأ المهمة المُسوّاة."
 
 # auto-review 2026-11-04: new
 #: appPlugins/Common/grbl/grbl_client.py:1460
@@ -26909,22 +26909,22 @@ msgstr ""
 # auto-review 2026-11-04: new
 #: appPlugins/ToolAlignObjects/AlignUI.py:219
 msgid "START X"
-msgstr "X البداية"
+msgstr "البداية X"
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolAlignObjects/AlignUI.py:219
 msgid "START Y"
-msgstr "Y البداية"
+msgstr "البداية Y"
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolAlignObjects/AlignUI.py:219
 msgid "DEST X"
-msgstr "X الوجهة"
+msgstr "الوجهة X"
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolAlignObjects/AlignUI.py:219
 msgid "DEST Y"
-msgstr "Y الوجهة"
+msgstr "الوجهة Y"
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolAlignObjects/AlignUI.py:224
@@ -27049,7 +27049,7 @@ msgstr "تم حساب عرض القطع (قطر اللقمة)."
 # auto-review 2026-11-04: new
 #: appPlugins/ToolCalculators/Calculator.py:206
 msgid "Cut depth (Cut Z) calculated."
-msgstr "تم حساب عمق القطع (Z القطع)."
+msgstr "تم حساب عمق القطع Z."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolCalculators/Calculator.py:280
@@ -27197,7 +27197,7 @@ msgstr "حمل الرقاقة"
 # auto-review 2026-11-04: new
 #: appPlugins/ToolCalculators/CalculatorUI.py:206
 msgid "RPM from Feed"
-msgstr "RPM من التغذية"
+msgstr "سرعة الدوران RPM من التغذية"
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolCalculators/CalculatorUI.py:207
@@ -27208,7 +27208,7 @@ msgstr "السرعة السطحية"
 # auto-review 2026-11-04: new
 #: appPlugins/ToolCalculators/CalculatorUI.py:207
 msgid "RPM from Surface Speed"
-msgstr "RPM من السرعة السطحية"
+msgstr "سرعة الدوران RPM من السرعة السطحية"
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolCalculators/CalculatorUI.py:209
@@ -28055,17 +28055,17 @@ msgstr "انتهت الإضافة اليدوية للجسور."
 # auto-review 2026-11-04: new
 #: appPlugins/ToolCutOut/CutOutGen.py:66
 msgid "Cut Z and Thin Depth must be finite values."
-msgstr "يجب أن تكون Z القطع والعمق الرقيق قيمًا محدودة."
+msgstr "يجب أن يكون عمق القطع Z والعمق الرقيق قيمًا محدودة."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolCutOut/CutOutGen.py:68
 msgid "Cut Z must be a finite negative value for Thin gaps."
-msgstr "يجب أن تكون Z القطع قيمة سالبة محدودة للجسور الرقيقة."
+msgstr "يجب أن يكون عمق القطع Z قيمة سالبة محدودة للجسور الرقيقة."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolCutOut/CutOutGen.py:72
 msgid "Thin Depth must be zero or satisfy Cut Z < Thin Depth < 0."
-msgstr "يجب أن يكون العمق الرقيق صفرًا أو يحقق Z القطع < العمق الرقيق < 0."
+msgstr "يجب أن يكون العمق الرقيق صفرًا أو يحقق عمق القطع Z < العمق الرقيق < 0."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolCutOut/CutOutGen.py:119
@@ -28342,8 +28342,8 @@ msgid ""
 "no thin-gap tool."
 msgstr ""
 "العمق الرقيق هو عمق Z سالب، وليس سماكة المادة المتبقية.\n"
-"استخدم Z القطع < العمق الرقيق < 0. الصفر يترك جسرًا بكامل السماكة ولا ينشئ "
-"لقمة للجسور الرقيقة."
+"استخدم عمق القطع Z < العمق الرقيق < 0. الصفر يترك جسرًا بكامل السماكة ولا "
+"ينشئ لقمة للجسور الرقيقة."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolCutOut/CutOutUI.py:359
@@ -28651,7 +28651,7 @@ msgstr ""
 # auto-review 2026-11-04: new
 #: appPlugins/ToolDblSided/DblSidedUI.py:94
 msgid "X min"
-msgstr "X الأدنى"
+msgstr "أدنى X"
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolDblSided/DblSidedUI.py:95
@@ -28662,12 +28662,12 @@ msgstr "الموضع الأدنى."
 # auto-review 2026-11-04: new
 #: appPlugins/ToolDblSided/DblSidedUI.py:103
 msgid "Y min"
-msgstr "Y الأدنى"
+msgstr "أدنى Y"
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolDblSided/DblSidedUI.py:112
 msgid "X max"
-msgstr "X الأقصى"
+msgstr "أقصى X"
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolDblSided/DblSidedUI.py:113
@@ -28678,7 +28678,7 @@ msgstr "الموضع الأقصى."
 # auto-review 2026-11-04: new
 #: appPlugins/ToolDblSided/DblSidedUI.py:121
 msgid "Y max"
-msgstr "Y الأقصى"
+msgstr "أقصى Y"
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolDblSided/DblSidedUI.py:128
@@ -28828,8 +28828,8 @@ msgstr ""
 "والأخرى معكوسة كما هو محدد في قسم 'العكس'.\n"
 "إذا كان النوع 'يدوي' فلا تُنشأ نقطة معكوسة.\n"
 "\n"
-"Shift + نقرة الفأرة تضيف مجموعة واحدة من الإحداثيات.\n"
-"Ctrl + Shift + نقرة الفأرة تجمع عدة مجموعات من الإحداثيات. "
+"النقر بالفأرة مع Shift يضيف مجموعة واحدة من الإحداثيات.\n"
+"النقر بالفأرة مع Ctrl + Shift يجمع عدة مجموعات من الإحداثيات. "
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolDblSided/DblSidedUI.py:319
@@ -29165,12 +29165,12 @@ msgstr "الإحداثيات"
 # auto-review 2026-11-04: new
 #: appPlugins/ToolDrilling/Drilling.py:768
 msgid "Toolchange X-Y is not valid. Use two numbers: x, y."
-msgstr "قيمة X-Y لتغيير اللقمة غير صالحة. استخدم رقمين: x, y."
+msgstr "قيمة موضع تغيير اللقمة X-Y غير صالحة. استخدم رقمين: x, y."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolDrilling/Drilling.py:771
 msgid "End move X,Y is not valid. Use two numbers: x, y."
-msgstr "قيمة X,Y نهاية الحركة غير صالحة. استخدم رقمين: x, y."
+msgstr "قيمة موضع نهاية الحركة X,Y غير صالحة. استخدم رقمين: x, y."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolDrilling/Drilling.py:777
@@ -29353,8 +29353,8 @@ msgid ""
 "There is no toolchange: the parameters of tool {tool} (Cut Z, Feedrate Z, "
 "Spindle speed) are used for all the selected tools."
 msgstr ""
-"لا يوجد تغيير للقمة: تُستخدم معاملات اللقمة {tool} (Z القطع، معدل التغذية "
-"Z، سرعة المغزل) لكل اللقم المحددة."
+"لا يوجد تغيير للقمة: تُستخدم معاملات اللقمة {tool} (عمق القطع Z، معدل "
+"التغذية Z، سرعة المغزل) لكل اللقم المحددة."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolDrilling/Drilling.py:2312 camlib.py:5164
@@ -29386,7 +29386,7 @@ msgstr "جارٍ إنشاء مهمة CNC..."
 #: appPlugins/ToolDrilling/Drilling.py:2451 camlib.py:4144 camlib.py:4636
 #: camlib.py:6123
 msgid "The Toolchange X,Y format has to be (x, y)."
-msgstr "يجب أن تكون صيغة X,Y تغيير اللقمة (x, y)."
+msgstr "يجب أن تكون صيغة موضع تغيير اللقمة X,Y هي (x, y)."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolDrilling/Drilling.py:2458
@@ -29404,8 +29404,8 @@ msgid ""
 "Travel Z must be above zero: the moves between the holes would be made with "
 "the bit in or on the material."
 msgstr ""
-"يجب أن يكون Z الانتقال أكبر من الصفر: وإلا ستتم الحركات بين الثقوب واللقمة "
-"داخل المادة أو عليها."
+"يجب أن يكون ارتفاع الانتقال Z أكبر من الصفر: وإلا ستتم الحركات بين الثقوب "
+"واللقمة داخل المادة أو عليها."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolDrilling/DrillingGen.py:127
@@ -29520,7 +29520,7 @@ msgid ""
 "It replaces the Multi-Depth. Ignored by the laser preprocessors."
 msgstr ""
 "ثقب كل ثقب على خطوات بعمق الثقب المتقطع. بعد كل خطوة تصعد اللقمة\n"
-"إلى Z الانتقال (لتنظيف الرايش)، ثم تنزل بسرعة إلى\n"
+"إلى ارتفاع الانتقال Z (لتنظيف الرايش)، ثم تنزل بسرعة إلى\n"
 "خلوص سحب الثقب المتقطع فوق العمق السابق وتتابع التغذية.\n"
 "يحل محل الأعماق المتعددة. تتجاهله المعالجات اللاحقة لليزر."
 
@@ -29550,8 +29550,8 @@ msgstr ""
 "استراتيجية الخروج من الثقب.\n"
 " - عند عدم التفعيل، أثناء الخروج من الثقب تتحرك لقمة الثقب\n"
 "ببطء، بمعدل التغذية المحدد (G1)، حتى العمق صفر ثم\n"
-"تتحرك بأقصى سرعة (G0) إلى Z الانتقال (ارتفاع الانتقال).\n"
-" - عند التفعيل تتم الحركة من Z القطع (عمق القطع) إلى Z_move\n"
+"تتحرك بأقصى سرعة (G0) إلى ارتفاع الانتقال Z.\n"
+" - عند التفعيل تتم الحركة من عمق القطع Z إلى Z_move\n"
 "(ارتفاع الانتقال) بأقصى سرعة (G0) في حركة واحدة."
 
 # auto-review 2026-11-04: new
@@ -29578,7 +29578,7 @@ msgstr ""
 #: appPlugins/ToolDrilling/DrillingUI.py:558
 #: appPlugins/ToolMilling/MillingUI.py:922
 msgid "Tool change Z"
-msgstr "Z تغيير اللقمة"
+msgstr "ارتفاع تغيير اللقمة Z"
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolDrilling/DrillingUI.py:634
@@ -29765,7 +29765,7 @@ msgstr ""
 #: appPlugins/ToolDrilling/DrillingUI.py:1025
 #: appPlugins/ToolMilling/MillingUI.py:1323
 msgid "Focus Z"
-msgstr "Z التركيز"
+msgstr "ارتفاع التركيز Z"
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolDrilling/DrillingUI.py:1057
@@ -30810,7 +30810,7 @@ msgstr "منفذ شبكة غير صالح"
 # auto-review 2026-11-04: new
 #: appPlugins/ToolGcodeSender/Sender.py:1166
 msgid "GRBL is busy. Wait until the running operation stops."
-msgstr "GRBL مشغول. انتظر حتى تتوقف العملية الجارية."
+msgstr "وحدة التحكم GRBL مشغولة. انتظر حتى تتوقف العملية الجارية."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolGcodeSender/Sender.py:1189
@@ -31083,7 +31083,7 @@ msgstr "تختلف الوحدات عن المعايرة المحفوظة."
 # auto-review 2026-11-04: new
 #: appPlugins/ToolGcodeSender/Sender.py:2336
 msgid "The camera is not at the calibrated viewing Z."
-msgstr "الكاميرا ليست عند Z العرض المعايَر."
+msgstr "الكاميرا ليست عند ارتفاع العرض Z المعايَر."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolGcodeSender/Sender.py:2337
@@ -31170,7 +31170,7 @@ msgstr ""
 # auto-review 2026-11-04: new
 #: appPlugins/ToolGcodeSender/Sender.py:2611
 msgid "Calibration saved. Offset X %.*f  Y %.*f, viewing Z %.*f."
-msgstr "تم حفظ المعايرة. الإزاحة X %.*f  Y %.*f، Z العرض %.*f."
+msgstr "تم حفظ المعايرة. الإزاحة X %.*f  Y %.*f، ارتفاع العرض Z %.*f."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolGcodeSender/Sender.py:2616
@@ -31453,7 +31453,7 @@ msgstr "فشلت دورة العودة إلى الأصل"
 # auto-review 2026-11-04: new
 #: appPlugins/ToolGcodeSender/Sender.py:3329
 msgid "GRBL is doing a home cycle."
-msgstr "GRBL ينفذ دورة العودة إلى الأصل."
+msgstr "وحدة التحكم GRBL تنفذ دورة العودة إلى الأصل."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolGcodeSender/Sender.py:3352
@@ -31544,7 +31544,7 @@ msgstr "يجب أن يكون معدل تغذية المجس أكبر من صفر
 # auto-review 2026-11-04: new
 #: appPlugins/ToolGcodeSender/Sender.py:3562
 msgid "The probe travel Z must be more than zero."
-msgstr "يجب أن يكون Z الانتقال للمجس أكبر من صفر."
+msgstr "يجب أن يكون ارتفاع انتقال المجس Z أكبر من صفر."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolGcodeSender/Sender.py:3579
@@ -31708,7 +31708,8 @@ msgstr "فشل البدء."
 #: appPlugins/ToolGcodeSender/Sender.py:4077
 #: appPlugins/ToolGcodeSender/Sender.py:4548
 msgid "GRBL is in check mode. Send $C in the console, or press Reset."
-msgstr "GRBL في وضع الفحص. أرسل $C في الطرفية، أو اضغط إعادة الضبط."
+msgstr ""
+"وحدة التحكم GRBL في وضع الفحص. أرسل $C في الطرفية، أو اضغط إعادة الضبط."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolGcodeSender/Sender.py:4088
@@ -31814,7 +31815,8 @@ msgstr "أضف نقاط جس قبل محاكاة التسوية التلقائي
 #: appPlugins/ToolGcodeSender/Sender.py:4757
 msgid "Simulation probe travel Z must be above the 0.25 mm simulated surface."
 msgstr ""
-"يجب أن يكون Z الانتقال للمجس في المحاكاة أعلى من السطح المحاكى عند 0.25 mm."
+"يجب أن يكون ارتفاع انتقال المجس Z في المحاكاة أعلى من السطح المحاكى عند "
+"0.25 mm."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolGcodeSender/Sender.py:4764
@@ -31980,7 +31982,7 @@ msgstr ""
 # auto-review 2026-11-04: new
 #: appPlugins/ToolGcodeSender/SenderCameraUI.py:234
 msgid "Viewing Z tolerance (%s):"
-msgstr "تفاوت Z العرض (%s):"
+msgstr "تفاوت ارتفاع العرض Z (%s):"
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolGcodeSender/SenderCameraUI.py:235
@@ -32032,7 +32034,7 @@ msgid ""
 msgstr ""
 "اسحب المغزل للأعلى، واضبط ارتفاع عرض الكاميرا وضع العلامة نفسها في المركز "
 "تحت علامة التصويب.\n"
-"تتم قراءة موضع الآلة وZ العرض فقط: لا شيء يتحرك."
+"تتم قراءة موضع الآلة وارتفاع العرض Z فقط: لا شيء يتحرك."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolGcodeSender/SenderCameraUI.py:272
@@ -32045,7 +32047,7 @@ msgid ""
 "Center the same mark under the camera at the calibrated viewing Z.\n"
 "The predicted spindle position must match the first reference."
 msgstr ""
-"ضع العلامة نفسها في المركز تحت الكاميرا عند Z العرض المعايَر.\n"
+"ضع العلامة نفسها في المركز تحت الكاميرا عند ارتفاع العرض Z المعايَر.\n"
 "يجب أن يطابق موضع المغزل المتوقع المرجع الأول."
 
 # auto-review 2026-11-04: new
@@ -32071,7 +32073,7 @@ msgstr ""
 "2. التقط XY للمغزل.\n"
 "3. اسحب المغزل للأعلى، واضبط ارتفاع عرض الكاميرا وضع العلامة نفسها في "
 "المركز.\n"
-"4. التقط XY للكاميرا وZ العرض.\n"
+"4. التقط XY للكاميرا وارتفاع العرض Z.\n"
 "5. تحقق من قابلية التكرار عند العلامة نفسها."
 
 # auto-review 2026-11-04: new
@@ -32104,7 +32106,8 @@ msgstr "تم العثور على %d كاميرا."
 msgid ""
 "Calibration verified this session. Offset X %.*f  Y %.*f, viewing Z %.*f."
 msgstr ""
-"تم التحقق من المعايرة في هذه الجلسة. الإزاحة X %.*f  Y %.*f، Z العرض %.*f."
+"تم التحقق من المعايرة في هذه الجلسة. الإزاحة X %.*f  Y %.*f، ارتفاع العرض Z "
+"%.*f."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolGcodeSender/SenderCameraUI.py:408
@@ -32112,16 +32115,16 @@ msgid ""
 "Saved calibration (not verified this session). Offset X %.*f  Y %.*f, "
 "viewing Z %.*f."
 msgstr ""
-"معايرة محفوظة (لم يتم التحقق منها في هذه الجلسة). الإزاحة X %.*f  Y %.*f، Z "
-"العرض %.*f."
+"معايرة محفوظة (لم يتم التحقق منها في هذه الجلسة). الإزاحة X %.*f  Y %.*f، "
+"ارتفاع العرض Z %.*f."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolGcodeSender/SenderCameraUI.py:411
 msgid ""
 "Viewing Z is not the calibrated %.*f. Center the mark at that height again."
 msgstr ""
-"Z العرض ليس القيمة المعايَرة %.*f. ضع العلامة في المركز عند ذلك الارتفاع "
-"مرة أخرى."
+"ارتفاع العرض Z ليس القيمة المعايَرة %.*f. ضع العلامة في المركز عند ذلك "
+"الارتفاع مرة أخرى."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolGcodeSender/SenderCameraUI.py:414
@@ -32320,12 +32323,12 @@ msgstr "منفذ Dir"
 # auto-review 2026-11-04: new
 #: appPlugins/ToolGcodeSender/SenderEcutIO.py:198
 msgid "Step Active Low"
-msgstr "Step فعّال عند المنخفض"
+msgstr "إشارة Step فعّالة عند المنخفض"
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolGcodeSender/SenderEcutIO.py:198
 msgid "Dir Active Low"
-msgstr "Dir فعّال عند المنخفض"
+msgstr "إشارة Dir فعّالة عند المنخفض"
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolGcodeSender/SenderEcutIO.py:216
@@ -32489,7 +32492,8 @@ msgstr "اختر سطرًا داخل البرنامج."
 # auto-review 2026-11-04: new
 #: appPlugins/ToolGcodeSender/SenderGen.py:66
 msgid "The CNCJob needs a finite, positive travel Z to start from a line."
-msgstr "تحتاج مهمة CNC إلى قيمة Z الانتقال محدودة وموجبة لبدء التشغيل من سطر."
+msgstr ""
+"تحتاج مهمة CNC إلى قيمة ارتفاع الانتقال Z محدودة وموجبة لبدء التشغيل من سطر."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolGcodeSender/SenderGen.py:68
@@ -33060,22 +33064,22 @@ msgstr "لا توجد نقطة تصميم معلّقة."
 # auto-review 2026-11-04: new
 #: appPlugins/ToolGcodeSender/SenderRegistrationUI.py:139
 msgid "Design X"
-msgstr "X التصميم"
+msgstr "التصميم X"
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolGcodeSender/SenderRegistrationUI.py:139
 msgid "Design Y"
-msgstr "Y التصميم"
+msgstr "التصميم Y"
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolGcodeSender/SenderRegistrationUI.py:139
 msgid "Camera X"
-msgstr "X الكاميرا"
+msgstr "الكاميرا X"
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolGcodeSender/SenderRegistrationUI.py:139
 msgid "Camera Y"
-msgstr "Y الكاميرا"
+msgstr "الكاميرا Y"
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolGcodeSender/SenderRegistrationUI.py:148
@@ -33479,7 +33483,7 @@ msgstr "تطبيق تصحيح Z"
 msgid ""
 "Set the active work offset Z from the verified measurement. X and Y are "
 "kept."
-msgstr "ضبط Z إزاحة العمل النشطة من القياس المُتحقَّق منه. يُحتفظ بـ X وY."
+msgstr "ضبط إزاحة العمل Z النشطة من القياس المُتحقَّق منه. يُحتفظ بـ X وY."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolGcodeSender/SenderToolChangeUI.py:98
@@ -33523,7 +33527,7 @@ msgstr "تطبيق صفر Z"
 # auto-review 2026-11-04: new
 #: appPlugins/ToolGcodeSender/SenderToolChangeUI.py:152
 msgid "A measurement is ready. Apply it to change the work offset Z."
-msgstr "القياس جاهز. طبّقه لتغيير Z إزاحة العمل."
+msgstr "القياس جاهز. طبّقه لتغيير إزاحة العمل Z."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolGcodeSender/SenderToolChangeUI.py:155
@@ -33910,8 +33914,8 @@ msgid ""
 "GRBL only: retract after the coarse touch and probe again at the fine feed. "
 "Only the second measurement is used."
 msgstr ""
-"GRBL فقط: السحب بعد اللمسة الخشنة والجسّ مرة أخرى بالتغذية الدقيقة. يُستخدم "
-"القياس الثاني فقط."
+"لـ GRBL فقط: السحب بعد اللمسة الخشنة والجسّ مرة أخرى بالتغذية الدقيقة. "
+"يُستخدم القياس الثاني فقط."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolGcodeSender/SenderUI.py:653
@@ -34941,12 +34945,13 @@ msgstr "إدراج علامة"
 # auto-review 2026-11-04: new
 #: appPlugins/ToolMilling/Milling.py:221
 msgid "Cut Z is above zero: the job cuts at the same value below zero."
-msgstr "Z القطع أعلى من الصفر: ستقطع المهمة عند القيمة نفسها تحت الصفر."
+msgstr "عمق القطع Z أعلى من الصفر: ستقطع المهمة عند القيمة نفسها تحت الصفر."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolMilling/Milling.py:224
 msgid "Travel Z is below zero: the job travels at the same value above zero."
-msgstr "Z الانتقال أقل من الصفر: ستنتقل المهمة عند القيمة نفسها فوق الصفر."
+msgstr ""
+"ارتفاع الانتقال Z أقل من الصفر: ستنتقل المهمة عند القيمة نفسها فوق الصفر."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolMilling/Milling.py:229
@@ -36707,12 +36712,12 @@ msgstr "محاكاة ثلاثية الأبعاد"
 # auto-review 2026-11-04: new
 #: appPlugins/ToolPhotoCarve/PhotoCarveUI.py:57
 msgid "Origin X"
-msgstr "X نقطة الأصل"
+msgstr "نقطة الأصل X"
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolPhotoCarve/PhotoCarveUI.py:57
 msgid "Origin Y"
-msgstr "Y نقطة الأصل"
+msgstr "نقطة الأصل Y"
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolPhotoCarve/PhotoCarveUI.py:57
@@ -36855,12 +36860,12 @@ msgstr "المادة"
 # auto-review 2026-11-04: new
 #: appPlugins/ToolPhotoCarve/PhotoCarveUI.py:73
 msgid "X of the lower-left corner of the engraving."
-msgstr "X للزاوية السفلية اليسرى من النقش."
+msgstr "إحداثي X للزاوية السفلية اليسرى من النقش."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolPhotoCarve/PhotoCarveUI.py:74
 msgid "Y of the lower-left corner of the engraving."
-msgstr "Y للزاوية السفلية اليسرى للنقش."
+msgstr "إحداثي Y للزاوية السفلية اليسرى من النقش."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolPhotoCarve/PhotoCarveUI.py:75
@@ -37323,7 +37328,7 @@ msgstr "مُسح التحديد."
 # auto-review 2026-11-04: new
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:43
 msgid "Gerber into which to punch holes"
-msgstr "Gerber المراد تثقيب الثقوب فيه"
+msgstr "كائن Gerber المراد تثقيب الثقوب فيه"
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:125
@@ -37385,7 +37390,7 @@ msgstr "لم يُعثر على Gerber قناع اللحام. تم التخطي."
 # auto-review 2026-11-04: new
 #: appPlugins/ToolQRCode/QRCode.py:485
 msgid "The soldermask Gerber is the target object. Skipped."
-msgstr "Gerber قناع اللحام هو الكائن الهدف. تم التخطي."
+msgstr "كائن Gerber لقناع اللحام هو الكائن الهدف. تم التخطي."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolQRCode/QRCode.py:513
@@ -37619,7 +37624,7 @@ msgstr ""
 # auto-review 2026-11-04: new
 #: appPlugins/ToolQRCode/QRCodeUI.py:294
 msgid "Mask Gerber"
-msgstr "Gerber القناع"
+msgstr "قناع Gerber"
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolQRCode/QRCodeUI.py:316
@@ -38218,17 +38223,17 @@ msgstr "التوزيع"
 # auto-review 2026-11-04: new
 #: appPlugins/ToolSolderPaste/SolderPasteUI.py:204
 msgid "Z Start"
-msgstr "Z البدء"
+msgstr "ارتفاع البدء Z"
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolSolderPaste/SolderPasteUI.py:217
 msgid "Z Action"
-msgstr "Z التوزيع"
+msgstr "ارتفاع التوزيع Z"
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolSolderPaste/SolderPasteUI.py:230
 msgid "Z Stop"
-msgstr "Z التوقف"
+msgstr "ارتفاع التوقف Z"
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolSolderPaste/SolderPasteUI.py:458
@@ -38322,7 +38327,7 @@ msgstr "لا يمكن أن يكون الكائن الهدف طارحاً."
 # auto-review 2026-11-04: new
 #: appPlugins/ToolSub/Sub.py:426
 msgid "XOR is not valid for an Excellon target."
-msgstr "XOR غير صالح لهدف Excellon."
+msgstr "العملية XOR غير صالحة لهدف Excellon."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolSub/Sub.py:461 appPlugins/ToolSub/Sub.py:471
@@ -38875,7 +38880,7 @@ msgstr "خروج"
 # auto-review 2026-11-04: new
 #: camlib.py:834
 msgid "self.solid_geometry is neither BaseGeometry or list."
-msgstr "self.solid_geometry ليس BaseGeometry ولا قائمة."
+msgstr "الخاصية self.solid_geometry ليست BaseGeometry ولا قائمة."
 
 # auto-review 2026-11-04: new
 #: camlib.py:1264 camlib.py:1298
@@ -38988,19 +38993,19 @@ msgid ""
 "therefore the app will convert the value to negative. Check the resulting "
 "CNC code (Gcode etc)."
 msgstr ""
-"معامل Z القطع ذو قيمة موجبة. وهو قيمة عمق الثقب في المادة.\n"
-"يجب أن تكون قيمة معامل Z القطع سالبة، وبافتراض أنه خطأ مطبعي سيحوّل "
+"معامل عمق القطع Z ذو قيمة موجبة. وهو قيمة عمق الثقب في المادة.\n"
+"يجب أن تكون قيمة معامل عمق القطع Z سالبة، وبافتراض أنه خطأ مطبعي سيحوّل "
 "البرنامج القيمة إلى سالبة. تحقق من كود CNC الناتج (G-code وغيره)."
 
 # auto-review 2026-11-04: new
 #: camlib.py:3860
 msgid "The Cut Z parameter is zero. There will be no cut, aborting"
-msgstr "معامل Z القطع يساوي صفرًا. لن يحدث قطع، جارٍ الإلغاء"
+msgstr "معامل عمق القطع Z يساوي صفرًا. لن يحدث قطع، جارٍ الإلغاء"
 
 # auto-review 2026-11-04: new
 #: camlib.py:3876
 msgid "The Cut Z parameter is not a number."
-msgstr "معامل Z القطع ليس رقمًا."
+msgstr "معامل عمق القطع Z ليس رقمًا."
 
 # auto-review 2026-11-04: new
 #: camlib.py:3893
@@ -39023,7 +39028,7 @@ msgstr "الثقب المتقطع مفعّل: وهو يحل محل الأعما�
 # auto-review 2026-11-04: new
 #: camlib.py:4175 camlib.py:4616
 msgid "The End X,Y format has to be (x, y)."
-msgstr "يجب أن يكون تنسيق X,Y نهاية الحركة هو (x, y)."
+msgstr "يجب أن يكون تنسيق موضع نهاية الحركة X,Y هو (x, y)."
 
 # auto-review 2026-11-04: new
 #: camlib.py:4232 camlib.py:4739 camlib.py:5320 camlib.py:5408 camlib.py:5814
@@ -39060,19 +39065,19 @@ msgid ""
 "therefore the app will convert the value to negative.Check the resulting "
 "CNC code (Gcode etc)."
 msgstr ""
-"معامل Z القطع ذو قيمة موجبة. وهو قيمة عمق القطع في المادة.\n"
-"يجب أن تكون قيمة معامل Z القطع سالبة، وبافتراض أنه خطأ مطبعي سيحوّل "
+"معامل عمق القطع Z ذو قيمة موجبة. وهو قيمة عمق القطع في المادة.\n"
+"يجب أن تكون قيمة معامل عمق القطع Z سالبة، وبافتراض أنه خطأ مطبعي سيحوّل "
 "البرنامج القيمة إلى سالبة. تحقق من كود CNC الناتج (G-code وغيره)."
 
 # auto-review 2026-11-04: new
 #: camlib.py:4536 camlib.py:5702 camlib.py:6153
 msgid "The Cut Z parameter is zero. There will be no cut, skipping file"
-msgstr "معامل Z القطع يساوي صفرًا. لن يحدث قطع، جارٍ تخطي الملف"
+msgstr "معامل عمق القطع Z يساوي صفرًا. لن يحدث قطع، جارٍ تخطي الملف"
 
 # auto-review 2026-11-04: new
 #: camlib.py:4541 camlib.py:5707 camlib.py:6159
 msgid "Travel Z parameter is None or zero."
-msgstr "معامل Z الانتقال فارغ أو يساوي صفرًا."
+msgstr "معامل ارتفاع الانتقال Z فارغ أو يساوي صفرًا."
 
 # auto-review 2026-11-04: new
 #: camlib.py:4546 camlib.py:5712 camlib.py:6165
@@ -39083,15 +39088,15 @@ msgid ""
 "typo therefore the app will convert the value to positive.Check the "
 "resulting CNC code (Gcode etc)."
 msgstr ""
-"معامل Z الانتقال ذو قيمة سالبة. وهو قيمة الارتفاع للانتقال بين عمليات "
-"القطع.\n"
-"يجب أن تكون قيمة معامل Z الانتقال موجبة، وبافتراض أنه خطأ مطبعي سيحوّل "
-"البرنامج القيمة إلى موجبة. تحقق من كود CNC الناتج (G-code وغيره)."
+"معامل ارتفاع الانتقال Z ذو قيمة سالبة. وهو قيمة الارتفاع للانتقال بين "
+"عمليات القطع.\n"
+"يجب أن تكون قيمة معامل ارتفاع الانتقال Z موجبة، وبافتراض أنه خطأ مطبعي "
+"سيحوّل البرنامج القيمة إلى موجبة. تحقق من كود CNC الناتج (G-code وغيره)."
 
 # auto-review 2026-11-04: new
 #: camlib.py:4554 camlib.py:5720 camlib.py:6173
 msgid "The Z Travel parameter is zero. This is dangerous, skipping file"
-msgstr "معامل Z الانتقال يساوي صفرًا. هذا خطير، جارٍ تخطي الملف"
+msgstr "معامل ارتفاع الانتقال Z يساوي صفرًا. هذا خطير، جارٍ تخطي الملف"
 
 # auto-review 2026-11-04: new
 #: camlib.py:4843 camlib.py:5467 camlib.py:5870 camlib.py:6386
@@ -39110,7 +39115,8 @@ msgid ""
 "y) \n"
 "but now there is only one value, not two. "
 msgstr ""
-"يجب أن يكون حقل X,Y تغيير اللقمة في تحرير -> التفضيلات بالتنسيق (x, y) \n"
+"يجب أن يكون حقل موضع تغيير اللقمة X,Y في تحرير -> التفضيلات بالتنسيق (x, y) "
+"\n"
 "لكن توجد الآن قيمة واحدة فقط وليس قيمتين. "
 
 # auto-review 2026-11-04: new
@@ -39119,8 +39125,8 @@ msgid ""
 "The End Move X,Y field in Edit -> Preferences has to be in the format (x, "
 "y) but now there is only one value, not two."
 msgstr ""
-"يجب أن يكون حقل X,Y نهاية الحركة في تحرير -> التفضيلات بالتنسيق (x, y) لكن "
-"توجد الآن قيمة واحدة فقط وليس قيمتين."
+"يجب أن يكون حقل موضع نهاية الحركة X,Y في تحرير -> التفضيلات بالتنسيق (x, y) "
+"لكن توجد الآن قيمة واحدة فقط وليس قيمتين."
 
 # auto-review 2026-11-04: new
 #: camlib.py:5135
@@ -39144,7 +39150,8 @@ msgid ""
 "y) \n"
 "but now there is only one value, not two."
 msgstr ""
-"يجب أن يكون حقل X,Y تغيير اللقمة في تحرير -> التفضيلات بالتنسيق (x, y) \n"
+"يجب أن يكون حقل موضع تغيير اللقمة X,Y في تحرير -> التفضيلات بالتنسيق (x, y) "
+"\n"
 "لكن توجد الآن قيمة واحدة فقط وليس قيمتين."
 
 # auto-review 2026-11-04: new

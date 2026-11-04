@@ -154,7 +154,7 @@ Custom = custom offset using the Custom Offset value",,"إزاحة اللقمة.
 109,new,"Custom Offset.
 A value to be used as offset from the current path.",,"إزاحة مخصصة.
 قيمة تُستخدم كإزاحة عن المسار الحالي.",New translation (machine-assisted),appDatabase.py:680,,
-110,new,Cut Z,,Z القطع,New translation (machine-assisted),appDatabase.py:697 appDatabase.py:1213 appEditors/appGCodeEditor.py:888 appGUI/ObjectUI.py:1398 appGUI/preferences/geometry/GeometryOptPrefGroupUI.py:39 appGUI/preferences/tools/ToolsCalculatorsPrefGroupUI.py:76 appGUI/preferences/tools/ToolsCutoutPrefGroupUI.py:68 appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:56 appGUI/preferences/tools/ToolsISOPrefGroupUI.py:97 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:86 appGUI/preferences/tools/ToolsNCCPrefGroupUI.py:98 appGUI/preferences/tools/ToolsPaintPrefGroupUI.py:101 appGUI/preferences/tools/ToolsPaintPrefGroupUI.py:109 appHandlers/appIO.py:3266 appPlugins/ToolCalculators/CalculatorUI.py:150 appPlugins/ToolCutOut/CutOutUI.py:204 appPlugins/ToolDrilling/DrillingUI.py:204 appPlugins/ToolIsolation/IsolationUI.py:334 appPlugins/ToolMilling/Milling.py:1707 appPlugins/ToolMilling/MillingUI.py:676,,
+110,new,Cut Z,,عمق القطع Z,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appDatabase.py:697 appDatabase.py:1213 appEditors/appGCodeEditor.py:888 appGUI/ObjectUI.py:1398 appGUI/preferences/geometry/GeometryOptPrefGroupUI.py:39 appGUI/preferences/tools/ToolsCalculatorsPrefGroupUI.py:76 appGUI/preferences/tools/ToolsCutoutPrefGroupUI.py:68 appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:56 appGUI/preferences/tools/ToolsISOPrefGroupUI.py:97 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:86 appGUI/preferences/tools/ToolsNCCPrefGroupUI.py:98 appGUI/preferences/tools/ToolsPaintPrefGroupUI.py:101 appGUI/preferences/tools/ToolsPaintPrefGroupUI.py:109 appHandlers/appIO.py:3266 appPlugins/ToolCalculators/CalculatorUI.py:150 appPlugins/ToolCutOut/CutOutUI.py:204 appPlugins/ToolDrilling/DrillingUI.py:204 appPlugins/ToolIsolation/IsolationUI.py:334 appPlugins/ToolMilling/Milling.py:1707 appPlugins/ToolMilling/MillingUI.py:676,,
 111,new,"Cutting Depth.
 The depth at which to cut into material.",,"عمق القطع.
 العمق الذي يتم القطع عنده داخل المادة.",New translation (machine-assisted),appDatabase.py:699,,
@@ -166,9 +166,9 @@ each pass adding a DPP parameter depth.",,"أعماق متعددة.
 تضيف كل تمريرة عمقًا بمقدار المعامل DPP.",New translation (machine-assisted),appDatabase.py:713,,
 114,new,Depth per pass,,العمق لكل تمريرة,New translation (machine-assisted),appDatabase.py:724 appDatabase.py:1263,,
 115,new,"DPP. Depth per Pass.
-The value used to cut into material on each pass.",,"DPP. العمق لكل تمريرة.
-القيمة المستخدمة للقطع داخل المادة في كل تمريرة.",New translation (machine-assisted),appDatabase.py:726 appDatabase.py:1265,,
-116,new,Travel Z,,Z الانتقال,New translation (machine-assisted),appDatabase.py:738 appDatabase.py:1279 appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:95 appGUI/preferences/tools/ToolsGrblSenderPrefGroupUI.py:95 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:128 appHandlers/appIO.py:3266 appPlugins/ToolDrilling/DrillingUI.py:246 appPlugins/ToolDrilling/DrillingUI.py:1085 appPlugins/ToolMilling/MillingUI.py:718 appPlugins/ToolMilling/MillingUI.py:1367 appPlugins/ToolSolderPaste/SolderPasteUI.py:178,,
+The value used to cut into material on each pass.",,"العمق لكل تمريرة (DPP).
+القيمة المستخدمة للقطع داخل المادة في كل تمريرة.",New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appDatabase.py:726 appDatabase.py:1265,,
+116,new,Travel Z,,ارتفاع الانتقال Z,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appDatabase.py:738 appDatabase.py:1279 appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:95 appGUI/preferences/tools/ToolsGrblSenderPrefGroupUI.py:95 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:128 appHandlers/appIO.py:3266 appPlugins/ToolDrilling/DrillingUI.py:246 appPlugins/ToolDrilling/DrillingUI.py:1085 appPlugins/ToolMilling/MillingUI.py:718 appPlugins/ToolMilling/MillingUI.py:1367 appPlugins/ToolSolderPaste/SolderPasteUI.py:178,,
 117,new,"Clearance Height.
 Height at which the milling bit will travel between cuts,
 above the surface of the material, avoiding all fixtures.",,"ارتفاع الخلوص.
@@ -351,14 +351,14 @@ below the copper surface.",,"عمق الثقب (سالب)
 to create the desired exit hole diameter due of the tip shape.
 The value here can compensate the Cut Z parameter.",,"بعض لقم الثقب (الكبيرة منها) تحتاج إلى الثقب أعمق
 للحصول على قطر ثقب الخروج المطلوب بسبب شكل الرأس.
-يمكن للقيمة هنا أن تعوّض معامل Z القطع.","New translation (machine-assisted) — reviewer: terminology: hole is ثقب, not فتحة (aperture)",appDatabase.py:1233 appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:434 appPlugins/ToolDrilling/DrillingUI.py:379,,
+يمكن للقيمة هنا أن تعوّض معامل عمق القطع Z.","New translation (machine-assisted) — reviewer: terminology: hole is ثقب, not فتحة (aperture); begins with an Arabic word so that the right-to-left label is laid out correctly (screen check)",appDatabase.py:1233 appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:434 appPlugins/ToolDrilling/DrillingUI.py:379,,
 174,new,"Use multiple passes to limit
 the cut depth in each pass. Will
 cut multiple times until Cut Z is
 reached.",,"استخدم عدة تمريرات لتحديد
 عمق القطع في كل تمريرة.
 سيقطع عدة مرات حتى الوصول
-إلى Z القطع.",New translation (machine-assisted),appDatabase.py:1249 appGUI/preferences/tools/ToolsCutoutPrefGroupUI.py:87 appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:74 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:104 appPlugins/ToolCutOut/CutOutUI.py:221 appPlugins/ToolDrilling/DrillingUI.py:223 appPlugins/ToolMilling/MillingUI.py:695,,
+إلى عمق القطع Z.",New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appDatabase.py:1249 appGUI/preferences/tools/ToolsCutoutPrefGroupUI.py:87 appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:74 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:104 appPlugins/ToolCutOut/CutOutUI.py:221 appPlugins/ToolDrilling/DrillingUI.py:223 appPlugins/ToolMilling/MillingUI.py:695,,
 175,new,Depth of each pass (positive).,,عمق كل تمريرة (موجب).,New translation (machine-assisted),appDatabase.py:1272 appGUI/preferences/tools/ToolsCutoutPrefGroupUI.py:100 appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:87 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:116 appPlugins/ToolCutOut/CutOutUI.py:232 appPlugins/ToolDrilling/DrillingUI.py:237 appPlugins/ToolMilling/MillingUI.py:709,,
 176,new,"Tool height when travelling
 across the XY plane.",,"ارتفاع اللقمة عند الانتقال
@@ -399,9 +399,9 @@ Ignored by the laser preprocessors.",,"توقف في قاع كل ثقب لمدة
 Travel Z (it clears the chips), goes down fast to the Peck Retract
 clearance above the previous depth and feeds on.
 It replaces the Multi-Depth. Ignored by the laser preprocessors.",,"ثقب كل ثقب على خطوات. بعد كل خطوة تصعد اللقمة إلى
-Z الانتقال (لإخراج الرايش)، ثم تنزل بسرعة إلى خلوص سحب
+ارتفاع الانتقال Z (لإخراج الرايش)، ثم تنزل بسرعة إلى خلوص سحب
 الثقب المتقطع فوق العمق السابق وتتابع التغذية.
-يحل محل الأعماق المتعددة. تتجاهله معالجات الليزر اللاحقة.",New translation (machine-assisted),appDatabase.py:1448 appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:214,,
+يحل محل الأعماق المتعددة. تتجاهله معالجات الليزر اللاحقة.",New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appDatabase.py:1448 appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:214,,
 190,new,Peck depth,,عمق الثقب المتقطع,New translation (machine-assisted) — reviewer: terminology: peck depth per GLOSSARY2,appDatabase.py:1459,,
 191,new,Depth of each peck step (positive).,,عمق كل خطوة من خطوات الثقب المتقطع (موجب).,New translation (machine-assisted),appDatabase.py:1460 appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:223 appPlugins/ToolDrilling/DrillingUI.py:449,,
 192,new,Peck retract,,سحب الثقب المتقطع,"New translation (machine-assisted) — reviewer: terminology: peck retract, unify with peck drilling",appDatabase.py:1470 appPlugins/ToolDrilling/DrillingUI.py:455,,
@@ -421,15 +421,15 @@ after the full retract, before it feeds on.",,"الخلوص فوق العمق ا
 meaning the fastest speed available.
 WARNING: the move is done at Toolchange X,Y coords.",,"الحركة العمودية من Z_Toolchange إلى Z_move تتم باستخدام G0،
 أي بأقصى سرعة متاحة.
-تحذير: تتم الحركة عند إحداثيات X,Y لتغيير اللقمة.",New translation (machine-assisted),appDatabase.py:1506,,
+تحذير: تتم الحركة عند إحداثيات موضع تغيير اللقمة X,Y.",New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appDatabase.py:1506,,
 200,new,Fast Retract,,سحب سريع,New translation (machine-assisted),appDatabase.py:1517 appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:576 appPlugins/ToolDrilling/DrillingUI.py:499,,
 201,new,"Exit hole strategy.
  - When unchecked the drill bit travels slow (G1) up to zero depth and then
 as fast as possible (G0) to the Z Move (travel height).
  - When checked the travel from Z cut to Z_move is done as fast as possible (G0).",,"استراتيجية الخروج من الثقب.
  - عند عدم التفعيل تصعد لقمة الثقب ببطء (G1) حتى العمق صفر ثم
-بأقصى سرعة ممكنة (G0) إلى Z Move (ارتفاع الانتقال).
- - عند التفعيل يتم الانتقال من Z القطع إلى Z_move بأقصى سرعة ممكنة (G0).",New translation (machine-assisted),appDatabase.py:1519,,
+بأقصى سرعة ممكنة (G0) إلى ارتفاع الانتقال Z.
+ - عند التفعيل يتم الانتقال من عمق القطع Z إلى Z_move بأقصى سرعة ممكنة (G0).",New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appDatabase.py:1519,,
 202,new,"Margin over bounds. A positive value here
 will make the cutout of the PCB further from
 the actual PCB border",,"الهامش حول الحدود. القيمة الموجبة هنا
@@ -754,8 +754,8 @@ by selecting a row in the tool table.",,"حذف لقمة من قائمة الل�
 461,new,Header,,الترويسة,New translation (machine-assisted),appEditors/appGCodeEditor.py:185,,
 462,new,Start,,بدء,New translation (machine-assisted) — reviewer: meaning: also the Start button of the Sender simulation; noun/imperative بدء fits both uses,appEditors/appGCodeEditor.py:191 appPlugins/ToolGcodeSender/SenderSimulation.py:226 appPlugins/ToolGcodeSender/SenderUI.py:531,,
 463,new,All GCode,,كل G-code,New translation (machine-assisted),appEditors/appGCodeEditor.py:285,,
-464,new,Header GCode,,G-code الترويسة,New translation (machine-assisted),appEditors/appGCodeEditor.py:291,,
-465,new,Start GCode,,G-code البداية,New translation (machine-assisted),appEditors/appGCodeEditor.py:297,,
+464,new,Header GCode,,شيفرة G-code للترويسة,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appEditors/appGCodeEditor.py:291,,
+465,new,Start GCode,,شيفرة G-code للبداية,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appEditors/appGCodeEditor.py:297,,
 466,new,Loaded Machine Code into Code Editor,,تم تحميل كود الآلة في محرر الكود,New translation (machine-assisted),appEditors/appGCodeEditor.py:738 appObjects/CNCJobObject.py:838,,
 467,new,Open file,,فتح ملف,New translation (machine-assisted),appEditors/appGCodeEditor.py:771 appEditors/appTextEditor.py:427,,
 468,new,GCode Editor,,محرر G-code,New translation (machine-assisted),appEditors/appGCodeEditor.py:838 appGUI/ObjectUI.py:1240 appObjects/CNCJobObject.py:884 appPlugins/ToolSolderPaste/SolderPaste.py:1113,,
@@ -1392,7 +1392,7 @@ It can be Linear X(Y) or Circular",,"اختر نوع مصفوفة الشقوق �
 979,new,Buffer Exterior,,توسيع الحدود الخارجي,New translation (machine-assisted),appEditors/geo_plugins/GeoBufferPlugin.py:348,,
 980,new,Full Buffer,,توسيع الحدود الكامل,New translation (machine-assisted),appEditors/geo_plugins/GeoBufferPlugin.py:354 appEditors/grb_plugins/GrbBufferPlugin.py:242,,
 981,new,Note,,ملاحظة,New translation (machine-assisted),appEditors/geo_plugins/GeoCirclePlugin.py:299 appEditors/geo_plugins/GeoRectanglePlugin.py:361,,
-982,new,Shift + click to select a shape for modification.,,Shift + نقرة لتحديد شكل لتعديله.,New translation (machine-assisted),appEditors/geo_plugins/GeoCirclePlugin.py:301 appEditors/geo_plugins/GeoRectanglePlugin.py:363,,
+982,new,Shift + click to select a shape for modification.,,انقر مع Shift لتحديد شكل لتعديله.,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appEditors/geo_plugins/GeoCirclePlugin.py:301 appEditors/geo_plugins/GeoRectanglePlugin.py:363,,
 983,new,"Angle at which each element in circular array is placed.
 Each copy rotates radially around the reference point in the selected direction.",,"الزاوية التي يوضع بها كل عنصر في المصفوفة الدائرية.
 تدور كل نسخة شعاعيًا حول النقطة المرجعية في الاتجاه المحدد.",New translation (machine-assisted),appEditors/geo_plugins/GeoCopyPlugin.py:429,,
@@ -1619,8 +1619,8 @@ element from the selected object, using the factor.",,"تطبيق تأثير ت�
 1122,new,Source contains invalid polygon material.,,المصدر يحتوي على مادة مضلعات غير صالحة.,New translation (machine-assisted),appEditors/grb_plugins/GrbDrawingPlugin.py:79,,
 1123,new,Explicit material regions. Dimensions use %s; font size uses points.,,مناطق مادة صريحة. الأبعاد بوحدة %s؛ وحجم الخط بالنقاط.,New translation (machine-assisted),appEditors/grb_plugins/GrbDrawingPlugin.py:107,,
 1124,new,Creates new material; existing features aren't replaced.,,ينشئ مادة جديدة؛ لا تُستبدل العناصر الموجودة.,New translation (machine-assisted),appEditors/grb_plugins/GrbDrawingPlugin.py:116,,
-1125,new,Baseline X,,X خط الأساس,New translation (machine-assisted),appEditors/grb_plugins/GrbDrawingPlugin.py:126,,
-1126,new,Baseline Y,,Y خط الأساس,New translation (machine-assisted),appEditors/grb_plugins/GrbDrawingPlugin.py:127,,
+1125,new,Baseline X,,خط الأساس X,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appEditors/grb_plugins/GrbDrawingPlugin.py:126,,
+1126,new,Baseline Y,,خط الأساس Y,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appEditors/grb_plugins/GrbDrawingPlugin.py:127,,
 1127,new,"Rotation (degrees, about anchor)",,الدوران (بالدرجات، حول المرساة),New translation (machine-assisted),appEditors/grb_plugins/GrbDrawingPlugin.py:133,,
 1128,new,Editor session or units changed. Reopen the drawing tool.,,تغيّرت جلسة المحرر أو الوحدات. أعد فتح أداة الرسم.,New translation (machine-assisted),appEditors/grb_plugins/GrbDrawingPlugin.py:257,,
 1129,new,Select distinct stored features first.,,حدد أولًا عناصر مخزنة مختلفة.,New translation (machine-assisted),appEditors/grb_plugins/GrbFollowPlugin.py:25,,
@@ -1909,17 +1909,17 @@ functions of FlatCAM.",,"يشغّل سكربت Tcl المفتوح، مما يت�
 1376,new,Ctrl+E,,Ctrl+E,New translation (machine-assisted),appGUI/GUIElements.py:5828 appGUI/MainGUI.py:210 appGUI/MainGUI.py:962 appGUI/MainGUI.py:5142 appGUI/MainGUI.py:5955,,
 1377,new,Open G-Code,,فتح G-Code,New translation (machine-assisted),appGUI/GUIElements.py:5833 appGUI/MainGUI.py:215 appHandlers/appIO.py:721 appHandlers/appIO.py:726,,
 1378,new,Exit,,خروج,New translation (machine-assisted),appGUI/GUIElements.py:5843 appGUI/MainGUI.py:432 appGUI/UpdateDialog.py:224,,
-1379,new,SVG as Geometry,,SVG كهندسة,New translation (machine-assisted),appGUI/ImportDialog.py:28,,
+1379,new,SVG as Geometry,,ملف SVG كهندسة,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/ImportDialog.py:28,,
 1380,new,Geometry object,,كائن هندسة,New translation (machine-assisted),appGUI/ImportDialog.py:29 appGUI/ImportDialog.py:40 appGUI/ImportDialog.py:51,,
 1381,new,"Reads the paths, the shapes and the text of a Scalable Vector Graphics file. Use it for artwork that you mill, cut or engrave. You can select more than one file.",,يقرأ المسارات والأشكال والنصوص من ملف رسوميات متجهة قابلة للتحجيم (SVG). استخدمه للرسومات التي تفرزها أو تقصها أو تنقشها. يمكنك تحديد أكثر من ملف.,New translation (machine-assisted),appGUI/ImportDialog.py:30,,
-1382,new,SVG as Gerber,,SVG كـ Gerber,New translation (machine-assisted),appGUI/ImportDialog.py:33,,
+1382,new,SVG as Gerber,,ملف SVG كـ Gerber,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/ImportDialog.py:33,,
 1383,new,Gerber object,,كائن Gerber,New translation (machine-assisted),appGUI/ImportDialog.py:34 appGUI/ImportDialog.py:45,,
 1384,new,"Reads the paths, the shapes and the text of a Scalable Vector Graphics file. Use it for copper, solder mask or silkscreen artwork that the isolation and the copper clearing plugins process. You can select more than one file.",,يقرأ المسارات والأشكال والنصوص من ملف رسوميات متجهة قابلة للتحجيم (SVG). استخدمه لرسومات النحاس أو قناع اللحام أو طبقة الطباعة الحريرية التي تعالجها إضافتا العزل وإزالة النحاس. يمكنك تحديد أكثر من ملف.,New translation (machine-assisted),appGUI/ImportDialog.py:35,,
-1385,new,DXF as Geometry,,DXF كهندسة,New translation (machine-assisted),appGUI/ImportDialog.py:39,,
+1385,new,DXF as Geometry,,ملف DXF كهندسة,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/ImportDialog.py:39,,
 1386,new,"Reads the lines, the arcs, the circles, the polylines, the splines and the blocks of an AutoCAD drawing. Use it for mechanical outlines and for artwork that you mill, cut or engrave.",,يقرأ الخطوط والأقواس والدوائر والخطوط المتعددة والمنحنيات الشريحية والكتل من رسم AutoCAD. استخدمه للمحيطات الخارجية الميكانيكية وللرسومات التي تفرزها أو تقصها أو تنقشها.,New translation (machine-assisted) — reviewer: terminology: outline = المحيط الخارجي,appGUI/ImportDialog.py:41,,
-1387,new,DXF as Gerber,,DXF كـ Gerber,New translation (machine-assisted),appGUI/ImportDialog.py:44,,
+1387,new,DXF as Gerber,,ملف DXF كـ Gerber,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/ImportDialog.py:44,,
 1388,new,"Reads the lines, the arcs, the circles, the polylines, the splines and the blocks of an AutoCAD drawing. Use it for copper artwork that the isolation and the copper clearing plugins process.",,يقرأ الخطوط والأقواس والدوائر والخطوط المتعددة والمنحنيات الشريحية والكتل من رسم AutoCAD. استخدمه لرسومات النحاس التي تعالجها إضافتا العزل وإزالة النحاس.,New translation (machine-assisted),appGUI/ImportDialog.py:46,,
-1389,new,HPGL2 as Geometry,,HPGL2 كهندسة,New translation (machine-assisted),appGUI/ImportDialog.py:50,,
+1389,new,HPGL2 as Geometry,,ملف HPGL2 كهندسة,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/ImportDialog.py:50,,
 1390,new,"Reads the pen moves of an HPGL/2 plot file, the format of pen plotters and vinyl cutters.",,يقرأ حركات القلم من ملف رسم HPGL/2، وهو تنسيق الراسمات بالقلم وقواطع الفينيل.,New translation (machine-assisted),appGUI/ImportDialog.py:52,,
 1391,new,PDF,,PDF,New translation (machine-assisted),appGUI/ImportDialog.py:57 appGUI/MainGUI.py:1125 appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:277 appPlugins/ToolFilm/FilmUI.py:301,,
 1392,new,Gerber and Excellon objects,,كائنات Gerber و Excellon,New translation (machine-assisted),appGUI/ImportDialog.py:58 appGUI/ImportDialog.py:103,,
@@ -1982,11 +1982,11 @@ functions of FlatCAM.",,"يشغّل سكربت Tcl المفتوح، مما يت�
 1449,new,Open Example,,فتح مثال,New translation (machine-assisted),appGUI/MainGUI.py:266,,
 1450,new,Run Script,,تشغيل سكربت,New translation (machine-assisted),appGUI/MainGUI.py:269 appGUI/MainGUI.py:1361 appGUI/MainGUI.py:2613,,
 1451,new,Shift+S,,Shift+S,New translation (machine-assisted),appGUI/MainGUI.py:269 appGUI/MainGUI.py:5225,,
-1452,new,SVG as Geometry Object,,SVG ككائن هندسة,New translation (machine-assisted),appGUI/MainGUI.py:289,,
-1453,new,SVG as Gerber Object,,SVG ككائن Gerber,New translation (machine-assisted),appGUI/MainGUI.py:293,,
-1454,new,DXF as Geometry Object,,DXF ككائن هندسة,New translation (machine-assisted),appGUI/MainGUI.py:299,,
-1455,new,DXF as Gerber Object,,DXF ككائن Gerber,New translation (machine-assisted),appGUI/MainGUI.py:303,,
-1456,new,HPGL2 as Geometry Object,,HPGL2 ككائن هندسة,New translation (machine-assisted),appGUI/MainGUI.py:308,,
+1452,new,SVG as Geometry Object,,ملف SVG ككائن هندسة,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/MainGUI.py:289,,
+1453,new,SVG as Gerber Object,,ملف SVG ككائن Gerber,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/MainGUI.py:293,,
+1454,new,DXF as Geometry Object,,ملف DXF ككائن هندسة,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/MainGUI.py:299,,
+1455,new,DXF as Gerber Object,,ملف DXF ككائن Gerber,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/MainGUI.py:303,,
+1456,new,HPGL2 as Geometry Object,,ملف HPGL2 ككائن هندسة,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/MainGUI.py:308,,
 1457,new,Altium PCB (.PcbDoc),,لوحة Altium (.PcbDoc),New translation (machine-assisted),appGUI/MainGUI.py:314,,
 1458,new,Proteus PCB (.pdsprj),,لوحة Proteus (.pdsprj),New translation (machine-assisted),appGUI/MainGUI.py:318,,
 1459,new,KiCad PCB (.kicad_pcb),,لوحة KiCad (.kicad_pcb),New translation (machine-assisted),appGUI/MainGUI.py:322,,
@@ -2272,7 +2272,7 @@ is copied to the Grid_Y value.",,"عند التفعيل، تُنسخ قيمة Gr
 1703,new,Snap to corner,,الالتقاط إلى الزاوية,New translation (machine-assisted),appGUI/MainGUI.py:1640,,
 1704,new,Max. magnet distance,,أقصى مسافة للمغناطيس,New translation (machine-assisted),appGUI/MainGUI.py:1644 appGUI/preferences/general/GeneralAPPSetGroupUI.py:78 appGUI/preferences/general/GeneralAppSettingsGroupUI.py:147,,
 1705,new,Toggle the display of axis on canvas,,إظهار/إخفاء المحاور على لوحة الرسم,New translation (machine-assisted) — reviewer: terminology: Toggle display=إظهار/إخفاء,appGUI/MainGUI.py:1654,,
-1706,new,HUD (Heads up display),,HUD (شاشة المعلومات العلوية),New translation (machine-assisted),appGUI/MainGUI.py:1666,,
+1706,new,HUD (Heads up display),,شاشة المعلومات العلوية (HUD),New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/MainGUI.py:1666,,
 1707,new,"Draw a delimiting rectangle on canvas.
 The purpose is to illustrate the limits for our work.",,"رسم مستطيل حدودي على لوحة الرسم.
 الغرض منه توضيح حدود منطقة العمل.",New translation (machine-assisted),appGUI/MainGUI.py:1672 appGUI/preferences/general/GeneralAPPSetGroupUI.py:106 appGUI/preferences/general/GeneralAppSettingsGroupUI.py:157,,
@@ -2337,11 +2337,11 @@ on which to perform union.",,"يرجى تحديد عناصر الهندسة
 1748,new,Switch to Selected Tab,,التبديل إلى تبويب المحدد,New translation (machine-assisted),appGUI/MainGUI.py:5058,,
 1749,new,3,,3,New translation (machine-assisted),appGUI/MainGUI.py:5059,,
 1750,new,Switch to Tool Tab,,التبديل إلى تبويب الأدوات,New translation (machine-assisted),appGUI/MainGUI.py:5059,,
-1751,new,New Gerber,,Gerber جديد,New translation (machine-assisted),appGUI/MainGUI.py:5060,,
+1751,new,New Gerber,,كائن Gerber جديد,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/MainGUI.py:5060,,
 1752,new,Edit Object (if selected),,تحرير الكائن (إن كان محددًا),New translation (machine-assisted),appGUI/MainGUI.py:5061,,
 1753,new,Grid On/Off,,تشغيل/إيقاف الشبكة,New translation (machine-assisted),appGUI/MainGUI.py:5062 appHandlers/appUIActions.py:1290,,
 1754,new,Jump to Coordinates,,الانتقال إلى إحداثيات,New translation (machine-assisted),appGUI/MainGUI.py:5063,,
-1755,new,New Excellon,,Excellon جديد,New translation (machine-assisted),appGUI/MainGUI.py:5064,,
+1755,new,New Excellon,,كائن Excellon جديد,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/MainGUI.py:5064,,
 1756,new,Move Obj,,نقل الكائن,New translation (machine-assisted),appGUI/MainGUI.py:5065,,
 1757,new,New Geometry,,هندسة جديدة,New translation (machine-assisted),appGUI/MainGUI.py:5066,,
 1758,new,Change Units,,تغيير الوحدات,New translation (machine-assisted),appGUI/MainGUI.py:5068,,
@@ -2646,9 +2646,9 @@ showed UI form entries named V-Tip Dia and V-Tip Angle.",,"اللقم المست
 يمكن أن يكون 'نوع اللقمة' (TT) دائريًا بسن واحد إلى 4 أسنان (C1..C4)،
 أو كرويًا (B)، أو على شكل V (V). 
 عند اختيار شكل V يُضبط حقل 'النوع' تلقائيًا 
-على عزل، ويُعطَّل معامل Z القطع في نموذج الواجهة
-ويُحسب Z القطع تلقائيًا من حقلي النموذج اللذين 
-يظهران حديثًا باسم قطر رأس V وزاوية رأس V.",New translation (machine-assisted) — reviewer: grammar: 'with 1 to 4 teeth' lost the 1,appGUI/ObjectUI.py:960,,
+على عزل، ويُعطَّل معامل عمق القطع Z في نموذج الواجهة
+ويُحسب عمق القطع Z تلقائيًا من حقلي النموذج اللذين 
+يظهران حديثًا باسم قطر رأس V وزاوية رأس V.",New translation (machine-assisted) — reviewer: grammar: 'with 1 to 4 teeth' lost the 1; begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/ObjectUI.py:960,,
 1963,new,Plot Object,,عرض الكائن,New translation (machine-assisted),appGUI/ObjectUI.py:977 appGUI/ObjectUI.py:1375 appGUI/preferences/cncjob/CNCJobGenPrefGroupUI.py:39 appPlugins/ToolMilling/MillingUI.py:133,,
 1964,new,Dia,,القطر,New translation (machine-assisted),appGUI/ObjectUI.py:990 appGUI/ObjectUI.py:1388 appGUI/ObjectUI.py:1398 appGUI/preferences/tools/Tools2CThievingPrefGroupUI.py:163 appPlugins/ToolCopperThieving/CopperThievingUI.py:148 appPlugins/ToolMilling/MillingUI.py:270,,
 1965,new,"Tool Number.
@@ -2759,7 +2759,7 @@ ball(B), or V-Shaped(V).",,"اللقم المستخدمة للقطع في كائ
 2028,new,Syringe drive,,دفع المحقنة,New translation (machine-assisted),appGUI/SolderPasteSettings.py:27,,
 2029,new,Motor uses M3/M4 and S; Stepper uses a dedicated extrusion axis.,,المحرك يستخدم M3/M4 و S؛ المحرك الخطوي يستخدم محور بثق مخصصًا.,New translation (machine-assisted),appGUI/SolderPasteSettings.py:27,,
 2030,new,Extrusion axis,,محور البثق,New translation (machine-assisted),appGUI/SolderPasteSettings.py:28,,
-2031,new,A/B/C for CNC controllers. Marlin needs linear E. Stock GRBL has no extra axis.,,A/B/C لوحدات تحكم CNC. يحتاج Marlin إلى المحور الخطي E. لا يملك GRBL القياسي محورًا إضافيًا.,New translation (machine-assisted),appGUI/SolderPasteSettings.py:28,,
+2031,new,A/B/C for CNC controllers. Marlin needs linear E. Stock GRBL has no extra axis.,,المحاور A/B/C لوحدات تحكم CNC. يحتاج Marlin إلى المحور الخطي E. لا يملك GRBL القياسي محورًا إضافيًا.,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/SolderPasteSettings.py:28,,
 2032,new,Axis units,,وحدات المحور,New translation (machine-assisted),appGUI/SolderPasteSettings.py:29,,
 2033,new,Rotary: degrees of motor rotation. Linear: millimetres of plunger motion (job units in the code).,,دوراني: درجات دوران المحرك. خطي: مليمترات حركة المكبس (بوحدات المهمة في الكود).,New translation (machine-assisted),appGUI/SolderPasteSettings.py:29,,
 2034,new,Mach3 dwell units,,وحدات التوقف المؤقت في Mach3,New translation (machine-assisted),appGUI/SolderPasteSettings.py:30,,
@@ -2799,7 +2799,7 @@ ball(B), or V-Shaped(V).",,"اللقم المستخدمة للقطع في كائ
 2068,new,Plunger retract,,سحب المكبس,New translation (machine-assisted),appGUI/SolderPasteSettings.py:52,,
 2069,new,Stepper anti-drip retraction in physical plunger millimetres; recovered at the next pad.,,سحب المحرك الخطوي لمنع التنقيط بمليمترات المكبس الفعلية؛ يُستعاد عند الوسادة التالية.,New translation (machine-assisted),appGUI/SolderPasteSettings.py:52,,
 2070,new,Slow Z approach,,اقتراب Z البطيء,New translation (machine-assisted),appGUI/SolderPasteSettings.py:53,,
-2071,new,Approach via Z Start at Z Dispense feed. The motor stays off until Dispense Z. Disabled for a faster normal cycle.,,الاقتراب عبر Z البدء بمعدل تغذية Z التوزيع. يبقى المحرك متوقفًا حتى Z التوزيع. عند التعطيل تكون الدورة العادية أسرع.,New translation (machine-assisted),appGUI/SolderPasteSettings.py:53,,
+2071,new,Approach via Z Start at Z Dispense feed. The motor stays off until Dispense Z. Disabled for a faster normal cycle.,,الاقتراب عبر ارتفاع البدء Z بمعدل تغذية التوزيع Z. يبقى المحرك متوقفًا حتى ارتفاع التوزيع Z. عند التعطيل تكون الدورة العادية أسرع.,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/SolderPasteSettings.py:53,,
 2072,new,Motor forward speed,,سرعة المحرك للأمام,New translation (machine-assisted),appGUI/SolderPasteSettings.py:98,,
 2073,new,Motor reverse speed,,سرعة المحرك للخلف,New translation (machine-assisted),appGUI/SolderPasteSettings.py:99,,
 2074,new,Legacy prime time (s),,زمن التحضير القديم (s),New translation (machine-assisted),appGUI/SolderPasteSettings.py:100,,
@@ -3480,15 +3480,15 @@ Digi (legacy): the former Digi public share.",,"المكان الذي تُنزَ
 GitHub: إصدارات GitHub Releases للمشروع (افتراضي).
 Digi (قديم): المشاركة العامة السابقة على Digi.",New translation (machine-assisted),appGUI/preferences/general/GeneralAppPrefGroupUI.py:326,,
 2399,new,GitHub,,GitHub,New translation (machine-assisted),appGUI/preferences/general/GeneralAppPrefGroupUI.py:331,,
-2400,new,Digi (legacy),,Digi (قديم),New translation (machine-assisted),appGUI/preferences/general/GeneralAppPrefGroupUI.py:332,,
+2400,new,Digi (legacy),,مشاركة Digi (قديمة),New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/preferences/general/GeneralAppPrefGroupUI.py:332,,
 2401,new,Digi share URL,,رابط مشاركة Digi,New translation (machine-assisted),appGUI/preferences/general/GeneralAppPrefGroupUI.py:337,,
 2402,new,Address of the Digi public share used when the update source is Digi (legacy).,,عنوان مشاركة Digi العامة المستخدم عندما يكون مصدر التحديث Digi (قديم).,New translation (machine-assisted),appGUI/preferences/general/GeneralAppPrefGroupUI.py:339,,
 2403,new,Prepare Update Files (Digi Legacy),,تجهيز ملفات التحديث (Digi القديم),New translation (machine-assisted),appGUI/preferences/general/GeneralAppPrefGroupUI.py:346,,
 2404,new,"Digi legacy: create local upload files for manual Digi publishing.
 GitHub releases are published separately.
-This does not upload or send credentials or application data.",,"Digi القديم: إنشاء ملفات رفع محلية للنشر اليدوي على Digi.
+This does not upload or send credentials or application data.",,"مشاركة Digi القديمة: إنشاء ملفات رفع محلية للنشر اليدوي على Digi.
 تُنشر إصدارات GitHub بشكل منفصل.
-هذا لا يرفع ولا يرسل بيانات اعتماد أو بيانات التطبيق.",New translation (machine-assisted),appGUI/preferences/general/GeneralAppPrefGroupUI.py:348,,
+هذا لا يرفع ولا يرسل بيانات اعتماد أو بيانات التطبيق.",New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/preferences/general/GeneralAppPrefGroupUI.py:348,,
 2405,new,Send Statistics,,إرسال الإحصاءات,New translation (machine-assisted),appGUI/preferences/general/GeneralAppPrefGroupUI.py:358,,
 2406,new,"Check this box if you agree to send anonymous
 stats automatically at startup, to help improve FlatCAM.",,"فعّل هذا المربع إذا كنت توافق على إرسال إحصاءات مجهولة
@@ -4314,20 +4314,20 @@ two neighboring drill holes.",,"المسافة بين مركزي
 2827,new,"Include tool-change sequence
 in G-Code (Pause for tool change).",,"تضمين تسلسل تغيير اللقمة
 في G-Code (توقف لتغيير اللقمة).",New translation (machine-assisted),appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:111 appPlugins/ToolDrilling/DrillingUI.py:560 appPlugins/ToolMilling/MillingUI.py:924,,
-2828,new,Toolchange Z,,Z تغيير اللقمة,New translation (machine-assisted),appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:117 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:154,,
+2828,new,Toolchange Z,,ارتفاع تغيير اللقمة Z,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:117 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:154,,
 2829,new,"Z-axis position (height) for
 tool change.",,"موضع المحور Z (الارتفاع) عند
 تغيير اللقمة.",New translation (machine-assisted),appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:119 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:156 appPlugins/ToolDrilling/DrillingUI.py:568 appPlugins/ToolMilling/MillingUI.py:932,,
-2830,new,End move Z,,Z نهاية الحركة,New translation (machine-assisted),appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:131 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:172 appPlugins/ToolDrilling/DrillingUI.py:611 appPlugins/ToolMilling/MillingUI.py:962,,
+2830,new,End move Z,,ارتفاع نهاية الحركة Z,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:131 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:172 appPlugins/ToolDrilling/DrillingUI.py:611 appPlugins/ToolMilling/MillingUI.py:962,,
 2831,new,"Height of the tool after
 the last move at the end of the job.",,"ارتفاع اللقمة بعد
 آخر حركة في نهاية المهمة.",New translation (machine-assisted),appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:133 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:174 appPlugins/ToolDrilling/DrillingUI.py:613 appPlugins/ToolMilling/MillingUI.py:964,,
-2832,new,"End move X,Y",,"X,Y نهاية الحركة",New translation (machine-assisted),appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:144 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:188 appPlugins/ToolDrilling/DrillingUI.py:627 appPlugins/ToolMilling/MillingUI.py:978,,
+2832,new,"End move X,Y",,"موضع نهاية الحركة X,Y",New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:144 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:188 appPlugins/ToolDrilling/DrillingUI.py:627 appPlugins/ToolMilling/MillingUI.py:978,,
 2833,new,"End move X,Y position. In format (x,y).
 If no value is entered then there is no move
-on X,Y plane at the end of the job.",,"موضع X,Y لنهاية الحركة. بالصيغة (x,y).
+on X,Y plane at the end of the job.",,"موضع نهاية الحركة X,Y. بالصيغة (x,y).
 إذا لم تُدخل قيمة فلن تكون هناك حركة
-في المستوى X,Y في نهاية المهمة.",New translation (machine-assisted),appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:146 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:190 appPlugins/ToolDrilling/DrillingUI.py:629 appPlugins/ToolMilling/MillingUI.py:980,,
+في المستوى X,Y في نهاية المهمة.",New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:146 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:190 appPlugins/ToolDrilling/DrillingUI.py:629 appPlugins/ToolMilling/MillingUI.py:980,,
 2834,new,Spindle Speed,,سرعة المغزل,New translation (machine-assisted),appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:171 appPlugins/ToolCalculators/CalculatorUI.py:248,,
 2835,new,Enable Dwell,,تمكين التوقف المؤقت,New translation (machine-assisted) — reviewer: terminology: Enable -> تمكين,appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:185 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:247,,
 2836,new,"Pause to allow the spindle to reach its
@@ -4345,7 +4345,7 @@ Needs the toolchange. Ignored by the laser preprocessors.",,"تبدأ المهم
 (لتحديد المركز): برقم لقمة خاص بها، وتغيير لقمة قبلها، ثم الثقوب.
 تحتاج إلى تغيير اللقمة. تتجاهلها المعالجات اللاحقة لليزر.",New translation (machine-assisted) — reviewer: terminology: spot drill -> ثقب التمركز,appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:247,,
 2842,new,Diameter of the spot drill.,,قطر لقمة ثقب التمركز.,New translation (machine-assisted) — reviewer: terminology: spot drill -> ثقب التمركز,appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:255 appPlugins/ToolDrilling/DrillingUI.py:723,,
-2843,new,Spot Cut Z,,Z قطع التمركز,New translation (machine-assisted) — reviewer: terminology: spot -> التمركز,appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:260 appPlugins/ToolDrilling/DrillingUI.py:729,,
+2843,new,Spot Cut Z,,عمق قطع التمركز Z,New translation (machine-assisted) — reviewer: terminology: spot -> التمركز; begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:260 appPlugins/ToolDrilling/DrillingUI.py:729,,
 2844,new,"Depth of the spot holes. Negative value, in current units.",,عمق ثقوب التمركز. قيمة سالبة، بالوحدات الحالية.,New translation (machine-assisted) — reviewer: terminology: spot -> التمركز,appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:261 appPlugins/ToolDrilling/DrillingUI.py:730,,
 2845,new,Spot Feedrate Z,,معدل التغذية Z للتمركز,New translation (machine-assisted) — reviewer: terminology: spot -> التمركز,appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:270 appPlugins/ToolDrilling/DrillingUI.py:740,,
 2846,new,Feedrate on the Z axis of the spot holes.,,معدل التغذية على المحور Z لثقوب التمركز.,New translation (machine-assisted) — reviewer: terminology: spot -> التمركز,appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:271 appPlugins/ToolDrilling/DrillingUI.py:741,,
@@ -4380,9 +4380,9 @@ Gcode output.",,"ملف JSON للمعالج اللاحق الذي يحدد
 مخرجات Gcode.",New translation (machine-assisted),appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:348,,
 2866,new,Drilling Slots,,ثقب الشقوق,New translation (machine-assisted),appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:373,,
 2867,new,A list of advanced parameters.,,قائمة بالمعاملات المتقدمة.,New translation (machine-assisted),appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:421 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:296,,
-2868,new,"Toolchange X,Y",,"X,Y تغيير اللقمة",New translation (machine-assisted),appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:445,,
-2869,new,"Toolchange X,Y position.",,"موضع X,Y لتغيير اللقمة.",New translation (machine-assisted),appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:447 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:309 appPlugins/ToolDrilling/DrillingUI.py:583 appPlugins/ToolMilling/MillingUI.py:946,,
-2870,new,Start Z,,Z البداية,New translation (machine-assisted),appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:455 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:317 appPlugins/ToolDrilling/DrillingUI.py:599,,
+2868,new,"Toolchange X,Y",,"موضع تغيير اللقمة X,Y",New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:445,,
+2869,new,"Toolchange X,Y position.",,"موضع تغيير اللقمة X,Y.",New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:447 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:309 appPlugins/ToolDrilling/DrillingUI.py:583 appPlugins/ToolMilling/MillingUI.py:946,,
+2870,new,Start Z,,ارتفاع البداية Z,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:455 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:317 appPlugins/ToolDrilling/DrillingUI.py:599,,
 2871,new,"Height of the tool just after starting the work.
 Delete the value if you don't need this feature.",,"ارتفاع اللقمة مباشرة بعد بدء العمل.
 احذف القيمة إذا لم تكن بحاجة إلى هذه الميزة.",New translation (machine-assisted),appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:457 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:319 appPlugins/ToolDrilling/DrillingUI.py:601,,
@@ -4415,10 +4415,10 @@ Keep it 0 to turn the laser off between the cuts.",,"فوق 0 لا يُطفأ ا
 2884,new,"By checking this, the vertical move from
 Z_Toolchange to Z_move is done with G0,
 meaning the fastest speed available.
-WARNING: the move is done at Toolchange X,Y coords.",,"بتفعيل هذا، تتم الحركة العمودية من
-Z_Toolchange إلى Z_move باستخدام G0،
+WARNING: the move is done at Toolchange X,Y coords.",,"بتفعيل هذا، تتم الحركة العمودية
+من Z_Toolchange إلى Z_move باستخدام G0،
 أي بأقصى سرعة متاحة.
-تحذير: تتم الحركة عند إحداثيات X,Y لتغيير اللقمة.",New translation (machine-assisted),appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:568 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:446 appPlugins/ToolDrilling/DrillingUI.py:490,,
+تحذير: تتم الحركة عند إحداثيات موضع تغيير اللقمة X,Y.",New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:568 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:446 appPlugins/ToolDrilling/DrillingUI.py:490,,
 2885,new,"Exit hole strategy.
  - When uncheked, while exiting the drilled hole the drill bit
 will travel slow, with set feedrate (G1), up to zero depth and then
@@ -4427,9 +4427,9 @@ travel as fast as possible (G0) to the Z Move (travel height).
 (travel height) is done as fast as possible (G0) in one move.",,"استراتيجية الخروج من الثقب.
  - عند عدم التفعيل، أثناء الخروج من الثقب تتحرك لقمة الثقب
 ببطء بمعدل التغذية المحدد (G1) حتى العمق صفر ثم
-تنتقل بأقصى سرعة ممكنة (G0) إلى Z الانتقال (ارتفاع الانتقال).
- - عند التفعيل يتم الانتقال من Z القطع (عمق القطع) إلى Z_move
-(ارتفاع الانتقال) بأقصى سرعة ممكنة (G0) في حركة واحدة.",New translation (machine-assisted) — reviewer: terminology: Z Move left in English -> Z الانتقال,appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:578,,
+تنتقل بأقصى سرعة ممكنة (G0) إلى ارتفاع الانتقال Z.
+ - عند التفعيل يتم الانتقال من عمق القطع Z إلى Z_move
+(ارتفاع الانتقال) بأقصى سرعة ممكنة (G0) في حركة واحدة.",New translation (machine-assisted) — reviewer: terminology: Z Move left in English -> Z الانتقال; begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:578,,
 2886,new,Area Exclusion,,استبعاد المناطق,New translation (machine-assisted),appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:596 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:473,,
 2887,new,Area exclusion parameters.,,معاملات استبعاد المناطق.,New translation (machine-assisted),appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:598 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:475,,
 2888,new,Exclusion areas,,مناطق الاستبعاد,New translation (machine-assisted),appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:609 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:486 appPlugins/ToolNCC/NccUI.py:632,,
@@ -4449,7 +4449,7 @@ Can be:
 - حول -> تتجنب منطقة الاستبعاد بالالتفاف حولها",New translation (machine-assisted),appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:633 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:510 appPlugins/ToolDrilling/DrillingUI.py:805 appPlugins/ToolMilling/MillingUI.py:1154,,
 2893,new,Over,,فوق,New translation (machine-assisted),appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:637 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:514 appPlugins/ToolDrilling/Drilling.py:1125 appPlugins/ToolDrilling/DrillingUI.py:809 appPlugins/ToolMilling/Milling.py:1100 appPlugins/ToolMilling/MillingUI.py:1158,,
 2894,new,Around,,حول,New translation (machine-assisted),appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:638 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:515 appPlugins/ToolDrilling/Drilling.py:1125 appPlugins/ToolDrilling/DrillingUI.py:810 appPlugins/ToolMilling/Milling.py:1100 appPlugins/ToolMilling/MillingUI.py:1159,,
-2895,new,Over Z,,Z العبور,New translation (machine-assisted),appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:644 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:521 appPlugins/ToolDrilling/DrillingUI.py:787 appPlugins/ToolDrilling/DrillingUI.py:817 appPlugins/ToolMilling/MillingUI.py:1136 appPlugins/ToolMilling/MillingUI.py:1166,,
+2895,new,Over Z,,ارتفاع العبور Z,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:644 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:521 appPlugins/ToolDrilling/DrillingUI.py:787 appPlugins/ToolDrilling/DrillingUI.py:817 appPlugins/ToolMilling/MillingUI.py:1136 appPlugins/ToolMilling/MillingUI.py:1166,,
 2896,new,"The height Z to which the tool will rise in order to avoid
 an interdiction area.",,"الارتفاع Z الذي سترتفع إليه اللقمة لتجنب
 منطقة محظورة.",New translation (machine-assisted),appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:645 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:522 appPlugins/ToolDrilling/DrillingUI.py:818 appPlugins/ToolMilling/MillingUI.py:1167,,
@@ -4588,8 +4588,8 @@ from the straight line. The result has fewer points and the same shape within th
 2959,new,The largest distance a simplified path may move away from the original path.,,أكبر مسافة يمكن أن يبتعد بها المسار المبسَّط عن المسار الأصلي.,New translation (machine-assisted),appGUI/preferences/tools/ToolsFollowPrefGroupUI.py:113,,
 2960,new,Added to the name of the Gerber object to make the name of the result.,,تُضاف إلى اسم كائن Gerber لتكوين اسم النتيجة.,New translation (machine-assisted),appGUI/preferences/tools/ToolsFollowPrefGroupUI.py:137,,
 2961,new,GCode sender Plugin,,إضافة مُرسِل GCode,New translation (machine-assisted) — reviewer: terminology: Sender -> مُرسِل (GLOSSARY2),appGUI/preferences/tools/ToolsGrblSenderPrefGroupUI.py:20,,
-2962,new,USB Serial,,USB تسلسلي,New translation (machine-assisted),appGUI/preferences/tools/ToolsGrblSenderPrefGroupUI.py:33 appPlugins/ToolGcodeSender/SenderUI.py:214,,
-2963,new,Native USB,,USB أصلي,New translation (machine-assisted),appGUI/preferences/tools/ToolsGrblSenderPrefGroupUI.py:34 appPlugins/ToolGcodeSender/SenderUI.py:214,,
+2962,new,USB Serial,,تسلسلي عبر USB,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/preferences/tools/ToolsGrblSenderPrefGroupUI.py:33 appPlugins/ToolGcodeSender/SenderUI.py:214,,
+2963,new,Native USB,,منفذ USB أصلي,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/preferences/tools/ToolsGrblSenderPrefGroupUI.py:34 appPlugins/ToolGcodeSender/SenderUI.py:214,,
 2964,new,Network,,الشبكة,New translation (machine-assisted),appGUI/preferences/tools/ToolsGrblSenderPrefGroupUI.py:35 appPlugins/ToolGcodeSender/SenderUI.py:214,,
 2965,new,grblHAL raw TCP host/IP on a trusted LAN.,,مضيف/IP لاتصال TCP خام بـ grblHAL على شبكة محلية موثوقة.,New translation (machine-assisted),appGUI/preferences/tools/ToolsGrblSenderPrefGroupUI.py:38 appPlugins/ToolGcodeSender/SenderUI.py:223,,
 2966,new,grblHAL transport,,طريقة اتصال grblHAL,"New translation (machine-assisted) — reviewer: meaning: transport = connection type, not نقل",appGUI/preferences/tools/ToolsGrblSenderPrefGroupUI.py:46,,
@@ -4749,7 +4749,7 @@ Works when 'rest machining' is used.",,"عند التفعيل سيتم العز�
 3042,new,The number of grid rows.,,عدد صفوف الشبكة.,New translation (machine-assisted),appGUI/preferences/tools/ToolsLevelPrefGroupUI.py:99 appPlugins/Common/levelling_ui.py:236,,
 3043,new,Probe Tip Dia,,قطر رأس المجس,New translation (machine-assisted),appGUI/preferences/tools/ToolsLevelPrefGroupUI.py:105 appPlugins/Common/levelling_ui.py:132,,
 3044,new,The probe tip diameter.,,قطر رأس المجس.,New translation (machine-assisted),appGUI/preferences/tools/ToolsLevelPrefGroupUI.py:107 appPlugins/Common/levelling_ui.py:134,,
-3045,new,Probe Z travel,,Z انتقال المجس,New translation (machine-assisted),appGUI/preferences/tools/ToolsLevelPrefGroupUI.py:117 appPlugins/Common/levelling_ui.py:144,,
+3045,new,Probe Z travel,,ارتفاع انتقال المجس Z,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/preferences/tools/ToolsLevelPrefGroupUI.py:117 appPlugins/Common/levelling_ui.py:144,,
 3046,new,The safe Z for probe travelling between probe points.,,ارتفاع Z الآمن لانتقال المجس بين نقاط الجس.,New translation (machine-assisted),appGUI/preferences/tools/ToolsLevelPrefGroupUI.py:119 appPlugins/Common/levelling_ui.py:146,,
 3047,new,Probe Feedrate,,معدل تغذية المجس,New translation (machine-assisted),appGUI/preferences/tools/ToolsLevelPrefGroupUI.py:142 appPlugins/Common/levelling_ui.py:169,,
 3048,new,"The kind of controller for which to generate
@@ -4791,7 +4791,7 @@ this value is the power of laser.",,"سرعة المغزل بـ RPM (اختيا�
 3064,new,"The Preprocessor file that dictates
 the Machine Code (like GCode, RML, HPGL) output.",,"ملف المعالج اللاحق الذي يحدد
 مخرجات كود الآلة (مثل GCode وRML وHPGL).",New translation (machine-assisted),appGUI/preferences/tools/ToolsMillPrefGroupUI.py:270,,
-3065,new,Toolchange X-Y,,X-Y تغيير اللقمة,New translation (machine-assisted),appGUI/preferences/tools/ToolsMillPrefGroupUI.py:307 appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:153 appPlugins/ToolDrilling/DrillingUI.py:581 appPlugins/ToolMilling/MillingUI.py:944,,
+3065,new,Toolchange X-Y,,موضع تغيير اللقمة X-Y,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/preferences/tools/ToolsMillPrefGroupUI.py:307 appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:153 appPlugins/ToolDrilling/DrillingUI.py:581 appPlugins/ToolMilling/MillingUI.py:944,,
 3066,new,"Cutting speed in the XY plane
 (in units per minute).
 This is for the rapid move G00.
@@ -4922,21 +4922,21 @@ solder paste onto a PCB.",,"أداة لإنشاء GCode لتوزيع
 3105,new,Diameter for the new tool to add in the Tool Table,,قطر اللقمة الجديدة المراد إضافتها إلى جدول اللقم,New translation (machine-assisted),appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:60 appPlugins/ToolSolderPaste/SolderPasteUI.py:111,,
 3106,new,Offset from the boundary.,,الإزاحة عن الحدود.,New translation (machine-assisted),appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:73 appPlugins/ToolSolderPaste/SolderPasteUI.py:160,,
 3107,new,Fraction of tool diameter.,,جزء من قطر اللقمة.,New translation (machine-assisted),appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:74 appPlugins/ToolSolderPaste/SolderPasteUI.py:161,,
-3108,new,Z Dispense Start,,Z بدء التوزيع,New translation (machine-assisted),appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:91,,
+3108,new,Z Dispense Start,,ارتفاع بدء التوزيع Z,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:91,,
 3109,new,The height (Z) when solder paste dispensing starts.,,الارتفاع (Z) عند بدء توزيع معجون اللحام.,New translation (machine-assisted),appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:93 appPlugins/ToolSolderPaste/SolderPasteUI.py:206,,
-3110,new,Z Dispense,,Z التوزيع,New translation (machine-assisted),appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:104 appPlugins/ToolSolderPaste/SolderPasteUI.py:331,,
+3110,new,Z Dispense,,ارتفاع التوزيع Z,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:104 appPlugins/ToolSolderPaste/SolderPasteUI.py:331,,
 3111,new,The height (Z) when doing solder paste dispensing.,,الارتفاع (Z) أثناء توزيع معجون اللحام.,New translation (machine-assisted),appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:106 appPlugins/ToolSolderPaste/SolderPasteUI.py:219,,
-3112,new,Z Dispense Stop,,Z إيقاف التوزيع,New translation (machine-assisted),appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:117,,
+3112,new,Z Dispense Stop,,ارتفاع إيقاف التوزيع Z,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:117,,
 3113,new,The height (Z) when solder paste dispensing stops.,,الارتفاع (Z) عند توقف توزيع معجون اللحام.,New translation (machine-assisted),appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:119 appPlugins/ToolSolderPaste/SolderPasteUI.py:232,,
-3114,new,Z Travel,,Z الانتقال,New translation (machine-assisted),appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:130,,
+3114,new,Z Travel,,ارتفاع الانتقال Z,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:130,,
 3115,new,"The height (Z) for travel between pads
 (without dispensing solder paste).",,"الارتفاع (Z) للانتقال بين الوسادات
 (دون توزيع معجون اللحام).",New translation (machine-assisted),appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:132 appPlugins/ToolSolderPaste/SolderPasteUI.py:180,,
-3116,new,Z Toolchange,,Z تغيير اللقمة,New translation (machine-assisted),appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:144,,
+3116,new,Z Toolchange,,ارتفاع تغيير اللقمة Z,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:144,,
 3117,new,The height (Z) for tool (nozzle) change.,,الارتفاع (Z) لتغيير اللقمة (الفوهة).,New translation (machine-assisted),appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:146 appPlugins/ToolSolderPaste/SolderPasteUI.py:267,,
 3118,new,"The X,Y location for tool (nozzle) change.
-The format is (x, y) where x and y are real numbers.",,"موقع X,Y لتغيير اللقمة (الفوهة).
-الصيغة (x, y) حيث x وy أعداد حقيقية.",New translation (machine-assisted),appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:155 appPlugins/ToolSolderPaste/SolderPasteUI.py:253,,
+The format is (x, y) where x and y are real numbers.",,"موضع تغيير اللقمة (الفوهة) X,Y.
+الصيغة (x, y) حيث x وy أعداد حقيقية.",New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:155 appPlugins/ToolSolderPaste/SolderPasteUI.py:253,,
 3119,new,Feedrate (speed) while moving on the X-Y plane.,,معدل التغذية (السرعة) أثناء الحركة في المستوى X-Y.,New translation (machine-assisted),appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:169 appPlugins/ToolSolderPaste/SolderPasteUI.py:292,,
 3120,new,Feedrate while moving as fast as possible.,,معدل التغذية أثناء الحركة بأقصى سرعة ممكنة.,New translation (machine-assisted),appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:177 appPlugins/ToolSolderPaste/SolderPasteUI.py:300,,
 3121,new,"Feedrate (speed) while moving vertically
@@ -5211,7 +5211,7 @@ Canvas initialization finished in",,"بدأت تهيئة لوحة الرسم.
 3314,new,"Not in the file, the default values are used",,غير موجودة في الملف، تُستخدم القيم الافتراضية,New translation (machine-assisted),appHandlers/appIO.py:3268,,
 3315,new,No tool diameter in the file for the tools %s: the default %s is used,,لا يوجد قطر لقمة في الملف للقم %s: يُستخدم القطر الافتراضي %s,New translation (machine-assisted),appHandlers/appIO.py:3271,,
 3316,new,Failed to create the CNCJob object from the G-code file.,,فشل إنشاء كائن مهمة CNC من ملف G-code.,New translation (machine-assisted),appHandlers/appIO.py:3311,,
-3317,new,G-code without complete tool data,,G-code دون بيانات لقم كاملة,New translation (machine-assisted),appHandlers/appIO.py:3320,,
+3317,new,G-code without complete tool data,,شيفرة G-code دون بيانات لقم كاملة,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appHandlers/appIO.py:3320,,
 3318,new,Object is not HPGL2 file or empty. Aborting object creation.,,الكائن ليس ملف HPGL2 أو أنه فارغ. إلغاء إنشاء الكائن.,New translation (machine-assisted),appHandlers/appIO.py:3367,,
 3319,new,Failed. Probable not a HPGL2 file.,,فشل. على الأرجح ليس ملف HPGL2.,New translation (machine-assisted),appHandlers/appIO.py:3379,,
 3320,new,TCL script file opened in Code Editor.,,تم فتح ملف سكربت TCL في محرر الكود.,New translation (machine-assisted),appHandlers/appIO.py:3405,,
@@ -5717,7 +5717,7 @@ The user needs to edit the resulting Excellon object and change the diameters to
 3712,new,GRBL needs recovery. Press Home.,,يحتاج GRBL إلى استعادة. اضغط «العودة إلى الأصل».,New translation (machine-assisted) — reviewer: Home -> العودة إلى الأصل (GLOSSARY2),appPlugins/Common/grbl/grbl_client.py:664,,
 3713,new,Close the simulation first.,,أغلق المحاكاة أولًا.,New translation (machine-assisted),appPlugins/Common/grbl/grbl_client.py:677,,
 3714,new,Not connected to a GRBL controller.,,غير متصل بوحدة تحكم GRBL.,New translation (machine-assisted),appPlugins/Common/grbl/grbl_client.py:680 appPlugins/ToolGcodeSender/Sender.py:2865 appPlugins/ToolGcodeSender/Sender.py:3349 appPlugins/ToolGcodeSender/Sender.py:3397 appPlugins/ToolGcodeSender/Sender.py:3457 appPlugins/ToolGcodeSender/Sender.py:3498 appPlugins/ToolGcodeSender/Sender.py:4017 appPlugins/ToolGcodeSender/Sender.py:4672,,
-3715,new,GRBL is busy,,GRBL مشغول,New translation (machine-assisted),appPlugins/Common/grbl/grbl_client.py:694,,
+3715,new,GRBL is busy,,وحدة التحكم GRBL مشغولة,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/Common/grbl/grbl_client.py:694,,
 3716,new,"Wait, or press Stop.",,انتظر، أو اضغط «إيقاف».,New translation (machine-assisted),appPlugins/Common/grbl/grbl_client.py:694,,
 3717,new,"GRBL can still have lines of the stopped job. Press Reset, then Home.",,قد تبقى لدى GRBL أسطر من المهمة المتوقفة. اضغط «إعادة الضبط» ثم «العودة إلى الأصل».,New translation (machine-assisted) — reviewer: Home -> العودة إلى الأصل (GLOSSARY2),appPlugins/Common/grbl/grbl_client.py:697,,
 3718,new,"Controller discovery is incomplete. Wait, or reconnect after the external job finishes.",,اكتشاف وحدة التحكم غير مكتمل. انتظر، أو أعد الاتصال بعد انتهاء المهمة الخارجية.,New translation (machine-assisted),appPlugins/Common/grbl/grbl_client.py:708,,
@@ -5735,7 +5735,7 @@ The user needs to edit the resulting Excellon object and change the diameters to
 3730,new,Could not read the GRBL work offset,,تعذرت قراءة إزاحة العمل في GRBL,New translation (machine-assisted),appPlugins/Common/grbl/grbl_client.py:1414 appPlugins/Common/grbl/grbl_client.py:1464,,
 3731,new,Finished probing. Doing the autolevelling.,,انتهى الجس. جارٍ تنفيذ التسوية التلقائية.,New translation (machine-assisted) — reviewer: Probing -> الجس (GLOSSARY2),appPlugins/Common/grbl/grbl_client.py:1423,,
 3732,new,GRBL did not report the setting $13. The levelled job was not started.,,لم يُبلغ GRBL عن الإعداد $13. لم تبدأ المهمة المُسوّاة.,New translation (machine-assisted),appPlugins/Common/grbl/grbl_client.py:1449,,
-3733,new,"GRBL is not in the units of the height map, or not in G90/G94. The levelled job was not started.",,GRBL ليس بوحدات خريطة الارتفاعات، أو ليس في وضع G90/G94. لم تبدأ المهمة المُسوّاة.,New translation (machine-assisted) — reviewer: Height map -> خريطة الارتفاعات (GLOSSARY2),appPlugins/Common/grbl/grbl_client.py:1452,,
+3733,new,"GRBL is not in the units of the height map, or not in G90/G94. The levelled job was not started.",,وحدة التحكم GRBL ليست بوحدات خريطة الارتفاعات، أو ليست في وضع G90/G94. لم تبدأ المهمة المُسوّاة.,New translation (machine-assisted) — reviewer: Height map -> خريطة الارتفاعات (GLOSSARY2); begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/Common/grbl/grbl_client.py:1452,,
 3734,new,The Start was stopped.,,تم إيقاف البدء.,New translation (machine-assisted),appPlugins/Common/grbl/grbl_client.py:1460 appPlugins/Common/grbl/grbl_client.py:1466 appPlugins/ToolGcodeSender/Sender.py:4075,,
 3735,new,Could not read the machine frame of GRBL,,تعذرت قراءة إطار الآلة في GRBL,New translation (machine-assisted),appPlugins/Common/grbl/grbl_client.py:1462,,
 3736,new,GRBL must be Idle to start the job. State,,يجب أن يكون GRBL في حالة خمول (Idle) لبدء المهمة. الحالة,New translation (machine-assisted),appPlugins/Common/grbl/grbl_client.py:1468 appPlugins/ToolGcodeSender/Sender.py:4079 appPlugins/ToolGcodeSender/Sender.py:4551,,
@@ -5896,10 +5896,10 @@ In the Auto mode it is the model of the final refine.",,"التحويل الذي
 3845,new,"Limit source landmarks and fitted pairs in Auto mode.
 All features still verify the result. Zero means unlimited.",,"تحديد عدد معالم المصدر والأزواج الملائمة في النمط التلقائي.
 تُستخدم جميع العناصر مع ذلك للتحقق من النتيجة. الصفر يعني بلا حد.",New translation (machine-assisted) — reviewer: grammar/meaning: all features still used to verify,appPlugins/ToolAlignObjects/AlignUI.py:194,,
-3846,new,START X,,X البداية,New translation (machine-assisted),appPlugins/ToolAlignObjects/AlignUI.py:219,,
-3847,new,START Y,,Y البداية,New translation (machine-assisted),appPlugins/ToolAlignObjects/AlignUI.py:219,,
-3848,new,DEST X,,X الوجهة,New translation (machine-assisted),appPlugins/ToolAlignObjects/AlignUI.py:219,,
-3849,new,DEST Y,,Y الوجهة,New translation (machine-assisted),appPlugins/ToolAlignObjects/AlignUI.py:219,,
+3846,new,START X,,البداية X,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolAlignObjects/AlignUI.py:219,,
+3847,new,START Y,,البداية Y,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolAlignObjects/AlignUI.py:219,,
+3848,new,DEST X,,الوجهة X,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolAlignObjects/AlignUI.py:219,,
+3849,new,DEST Y,,الوجهة Y,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolAlignObjects/AlignUI.py:219,,
 3850,new,"The picked point pairs. The Error column shows the distance between the
 transformed START point and the DESTINATION point after the alignment.",,"أزواج النقاط المختارة. يعرض عمود الخطأ المسافة بعد المحاذاة بين
 نقطة البداية المحوَّلة ونقطة الوجهة.","New translation (machine-assisted) — reviewer: meaning: ""after alignment"" qualifies the distance, START is transformed",appPlugins/ToolAlignObjects/AlignUI.py:224,,
@@ -5920,7 +5920,7 @@ or apply the shown candidate (Auto mode).",,"ملاءمة النقاط ومحا�
 3857,new,Reset Tool,,إعادة ضبط الأداة,New translation (machine-assisted) — reviewer: Reset -> إعادة الضبط (GLOSSARY2),appPlugins/ToolAlignObjects/AlignUI.py:267 appPlugins/ToolCalculators/CalculatorUI.py:668 appPlugins/ToolCompare/CompareUI.py:128 appPlugins/ToolCopperThieving/CopperThievingUI.py:335 appPlugins/ToolCutOut/CutOutUI.py:612 appPlugins/ToolDblSided/DblSidedUI.py:345 appPlugins/ToolDrilling/DrillingUI.py:978 appPlugins/ToolEtchCompensation/EtchCompensationUI.py:219 appPlugins/ToolExtract/ExtractUI.py:313 appPlugins/ToolFiducials/FiducialsUI.py:219 appPlugins/ToolFilm/FilmUI.py:358 appPlugins/ToolFollow/FollowUI.py:220 appPlugins/ToolGcodeSender/SenderUI.py:674 appPlugins/ToolInvertGerber/InvertGerberUI.py:178 appPlugins/ToolIsolation/IsolationUI.py:744 appPlugins/ToolLevelling/LevellingUI.py:141 appPlugins/ToolMarkers/MarkersUI.py:291 appPlugins/ToolMilling/MillingUI.py:1276 appPlugins/ToolNCC/NccUI.py:699 appPlugins/ToolObjectDistance/ObjectDistanceUI.py:150 appPlugins/ToolOptimal/OptimalUI.py:152 appPlugins/ToolPaint/PaintUI.py:531 appPlugins/ToolPanelize/PanelizeUI.py:315 appPlugins/ToolPunchGerber/PunchGerberUI.py:252 appPlugins/ToolQRCode/QRCodeUI.py:369 appPlugins/ToolRulesCheck/RulesCheckUI.py:397 appPlugins/ToolSolderPaste/SolderPasteUI.py:541 appPlugins/ToolSub/SubUI.py:195 appPlugins/ToolTransform/TransformUI.py:489,,
 3858,new,Will reset the tool parameters.,,سيعيد ضبط معاملات الأداة.,New translation (machine-assisted) — reviewer: Reset -> إعادة الضبط (GLOSSARY2),appPlugins/ToolAlignObjects/AlignUI.py:270 appPlugins/ToolCalculators/CalculatorUI.py:671 appPlugins/ToolCompare/CompareUI.py:130 appPlugins/ToolCopperThieving/CopperThievingUI.py:337 appPlugins/ToolCutOut/CutOutUI.py:615 appPlugins/ToolDblSided/DblSidedUI.py:347 appPlugins/ToolDrilling/DrillingUI.py:981 appPlugins/ToolEtchCompensation/EtchCompensationUI.py:221 appPlugins/ToolExtract/ExtractUI.py:315 appPlugins/ToolFiducials/FiducialsUI.py:221 appPlugins/ToolFilm/FilmUI.py:360 appPlugins/ToolFollow/FollowUI.py:223 appPlugins/ToolGcodeSender/SenderUI.py:677 appPlugins/ToolInvertGerber/InvertGerberUI.py:180 appPlugins/ToolIsolation/IsolationUI.py:747 appPlugins/ToolLevelling/LevellingUI.py:144 appPlugins/ToolMarkers/MarkersUI.py:294 appPlugins/ToolMilling/MillingUI.py:1279 appPlugins/ToolNCC/NccUI.py:702 appPlugins/ToolObjectDistance/ObjectDistanceUI.py:153 appPlugins/ToolOptimal/OptimalUI.py:154 appPlugins/ToolPaint/PaintUI.py:534 appPlugins/ToolPanelize/PanelizeUI.py:318 appPlugins/ToolPunchGerber/PunchGerberUI.py:254 appPlugins/ToolQRCode/QRCodeUI.py:371 appPlugins/ToolRulesCheck/RulesCheckUI.py:400 appPlugins/ToolSolderPaste/SolderPasteUI.py:544 appPlugins/ToolSub/SubUI.py:198 appPlugins/ToolTransform/TransformUI.py:492,,
 3859,new,Cut width (tool diameter) calculated.,,تم حساب عرض القطع (قطر اللقمة).,New translation (machine-assisted),appPlugins/ToolCalculators/Calculator.py:194,,
-3860,new,Cut depth (Cut Z) calculated.,,تم حساب عمق القطع (Z القطع).,New translation (machine-assisted),appPlugins/ToolCalculators/Calculator.py:206,,
+3860,new,Cut depth (Cut Z) calculated.,,تم حساب عمق القطع Z.,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolCalculators/Calculator.py:206,,
 3861,new,Converted value is outside the supported range.,,القيمة المحولة خارج النطاق المدعوم.,New translation (machine-assisted),appPlugins/ToolCalculators/Calculator.py:280,,
 3862,new,Feeds and speeds calculated.,,تم حساب التغذية والسرعات.,New translation (machine-assisted),appPlugins/ToolCalculators/Calculator.py:308,,
 3863,new,V-Shape Tool,,لقمة على شكل V,New translation (machine-assisted),appPlugins/ToolCalculators/CalculatorUI.py:23,,
@@ -5951,9 +5951,9 @@ Choose cutting parameters for your tool, material and machine.",,"حساب مع�
 3882,new,Change units and convert the values in this calculator.,,تغيير الوحدات وتحويل القيم في هذه الحاسبة.,New translation (machine-assisted),appPlugins/ToolCalculators/CalculatorUI.py:200,,
 3883,new,Feed Rate,,معدل التغذية,New translation (machine-assisted),appPlugins/ToolCalculators/CalculatorUI.py:206 appPlugins/ToolCalculators/CalculatorUI.py:250,,
 3884,new,Chip Load,,حمل الرقاقة,New translation (machine-assisted),appPlugins/ToolCalculators/CalculatorUI.py:206 appPlugins/ToolCalculators/CalculatorUI.py:249,,
-3885,new,RPM from Feed,,RPM من التغذية,New translation (machine-assisted),appPlugins/ToolCalculators/CalculatorUI.py:206,,
+3885,new,RPM from Feed,,سرعة الدوران RPM من التغذية,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolCalculators/CalculatorUI.py:206,,
 3886,new,Surface Speed,,السرعة السطحية,New translation (machine-assisted),appPlugins/ToolCalculators/CalculatorUI.py:207 appPlugins/ToolCalculators/CalculatorUI.py:251,,
-3887,new,RPM from Surface Speed,,RPM من السرعة السطحية,New translation (machine-assisted),appPlugins/ToolCalculators/CalculatorUI.py:207,,
+3887,new,RPM from Surface Speed,,سرعة الدوران RPM من السرعة السطحية,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolCalculators/CalculatorUI.py:207,,
 3888,new,"Choose the unknown quantity. Its field becomes read-only.
 Surface speed is also updated from diameter and RPM.",,"اختر الكمية المجهولة. يصبح حقلها للقراءة فقط.
 تُحدَّث السرعة السطحية أيضًا من القطر وRPM.",New translation (machine-assisted),appPlugins/ToolCalculators/CalculatorUI.py:209,,
@@ -6139,9 +6139,9 @@ Select a Gerber file and try again.",,"يجب أن يكون الكائن الم�
 حدد ملف Gerber وحاول مجددًا.",New translation (machine-assisted),appPlugins/ToolCutOut/CutOut.py:1421,,
 4009,new,Bridge selected. Drag the orange grip or click a new position to move; Delete removes. Right-click keeps it and finishes; Escape cancels the entire session.,,تم تحديد الجسر. اسحب المقبض البرتقالي أو انقر موضعًا جديدًا لنقله؛ Delete يحذفه. النقر بالزر الأيمن يبقيه وينهي؛ Escape يلغي الجلسة بأكملها.,New translation (machine-assisted),appPlugins/ToolCutOut/CutOut.py:1566,,
 4010,new,Finished manual adding of gaps.,,انتهت الإضافة اليدوية للجسور.,New translation (machine-assisted),appPlugins/ToolCutOut/CutOut.py:1648,,
-4011,new,Cut Z and Thin Depth must be finite values.,,يجب أن تكون Z القطع والعمق الرقيق قيمًا محدودة.,New translation (machine-assisted),appPlugins/ToolCutOut/CutOutGen.py:66,,
-4012,new,Cut Z must be a finite negative value for Thin gaps.,,يجب أن تكون Z القطع قيمة سالبة محدودة للجسور الرقيقة.,New translation (machine-assisted),appPlugins/ToolCutOut/CutOutGen.py:68,,
-4013,new,Thin Depth must be zero or satisfy Cut Z < Thin Depth < 0.,,يجب أن يكون العمق الرقيق صفرًا أو يحقق Z القطع < العمق الرقيق < 0.,New translation (machine-assisted),appPlugins/ToolCutOut/CutOutGen.py:72,,
+4011,new,Cut Z and Thin Depth must be finite values.,,يجب أن يكون عمق القطع Z والعمق الرقيق قيمًا محدودة.,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolCutOut/CutOutGen.py:66,,
+4012,new,Cut Z must be a finite negative value for Thin gaps.,,يجب أن يكون عمق القطع Z قيمة سالبة محدودة للجسور الرقيقة.,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolCutOut/CutOutGen.py:68,,
+4013,new,Thin Depth must be zero or satisfy Cut Z < Thin Depth < 0.,,يجب أن يكون العمق الرقيق صفرًا أو يحقق عمق القطع Z < العمق الرقيق < 0.,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolCutOut/CutOutGen.py:72,,
 4014,new,Gaps value is not supported.,,قيمة الجسور غير مدعومة.,New translation (machine-assisted),appPlugins/ToolCutOut/CutOutGen.py:119,,
 4015,new,Tool diameter must be a positive finite number.,,يجب أن يكون قطر اللقمة عددًا موجبًا محدودًا.,New translation (machine-assisted),appPlugins/ToolCutOut/CutOutGen.py:155 appPlugins/ToolCutOut/CutOutGen.py:237,,
 4016,new,Gap width must be a positive finite number.,,يجب أن يكون عرض الجسر عددًا موجبًا محدودًا.,New translation (machine-assisted),appPlugins/ToolCutOut/CutOutGen.py:157,,
@@ -6219,7 +6219,7 @@ from which the PCB is cutout).",,"حجم الجسور في قص اللوحة
 تُقص منها اللوحة).","New translation (machine-assisted) — reviewer: contour -> المحيط (GLOSSARY2, not كفاف)",appPlugins/ToolCutOut/CutOutUI.py:293,,
 4049,new,"Thin Depth is a negative Z depth, not remaining material thickness.
 Use Cut Z < Thin Depth < 0. Zero leaves a full-thickness bridge and creates no thin-gap tool.",,"العمق الرقيق هو عمق Z سالب، وليس سماكة المادة المتبقية.
-استخدم Z القطع < العمق الرقيق < 0. الصفر يترك جسرًا بكامل السماكة ولا ينشئ لقمة للجسور الرقيقة.",New translation (machine-assisted),appPlugins/ToolCutOut/CutOutUI.py:333,,
+استخدم عمق القطع Z < العمق الرقيق < 0. الصفر يترك جسرًا بكامل السماكة ولا ينشئ لقمة للجسور الرقيقة.",New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolCutOut/CutOutUI.py:333,,
 4050,new,"Edge-to-edge spacing between mouse-bite holes.
 Center pitch equals drill diameter plus this spacing.",,"التباعد من حافة إلى حافة بين ثقوب عضّات الفأر.
 خطوة المراكز تساوي قطر الثقب مضافًا إليه هذا التباعد.",New translation (machine-assisted) — reviewer: Mouse bites -> عضّات الفأر (GLOSSARY2),appPlugins/ToolCutOut/CutOutUI.py:359,,
@@ -6306,12 +6306,12 @@ Escape يعيد الكائن إلى حالته قبل هذه الجلسة.
 4095,new,"Select on canvas the object(s)
 for which to calculate bounds values.",,"حدد على لوحة الرسم الكائن (الكائنات)
 التي ستُحسب قيم حدودها.",New translation (machine-assisted),appPlugins/ToolDblSided/DblSidedUI.py:82,,
-4096,new,X min,,X الأدنى,New translation (machine-assisted),appPlugins/ToolDblSided/DblSidedUI.py:94,,
+4096,new,X min,,أدنى X,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolDblSided/DblSidedUI.py:94,,
 4097,new,Minimum location.,,الموضع الأدنى.,New translation (machine-assisted),appPlugins/ToolDblSided/DblSidedUI.py:95 appPlugins/ToolDblSided/DblSidedUI.py:104,,
-4098,new,Y min,,Y الأدنى,New translation (machine-assisted),appPlugins/ToolDblSided/DblSidedUI.py:103,,
-4099,new,X max,,X الأقصى,New translation (machine-assisted),appPlugins/ToolDblSided/DblSidedUI.py:112,,
+4098,new,Y min,,أدنى Y,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolDblSided/DblSidedUI.py:103,,
+4099,new,X max,,أقصى X,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolDblSided/DblSidedUI.py:112,,
 4100,new,Maximum location.,,الموضع الأقصى.,New translation (machine-assisted),appPlugins/ToolDblSided/DblSidedUI.py:113 appPlugins/ToolDblSided/DblSidedUI.py:122,,
-4101,new,Y max,,Y الأقصى,New translation (machine-assisted),appPlugins/ToolDblSided/DblSidedUI.py:121,,
+4101,new,Y max,,أقصى Y,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolDblSided/DblSidedUI.py:121,,
 4102,new,Center point coordinates,,إحداثيات نقطة المركز,New translation (machine-assisted),appPlugins/ToolDblSided/DblSidedUI.py:128,,
 4103,new,Centroid,,مركز الشكل,New translation (machine-assisted),appPlugins/ToolDblSided/DblSidedUI.py:129,,
 4104,new,"The center point location for the rectangular
@@ -6371,8 +6371,8 @@ Ctrl + Shift + mouse click will accumulate sets of coordinates. ",,"ثقوب ا�
 والأخرى معكوسة كما هو محدد في قسم 'العكس'.
 إذا كان النوع 'يدوي' فلا تُنشأ نقطة معكوسة.
 
-Shift + نقرة الفأرة تضيف مجموعة واحدة من الإحداثيات.
-Ctrl + Shift + نقرة الفأرة تجمع عدة مجموعات من الإحداثيات. ",New translation (machine-assisted),appPlugins/ToolDblSided/DblSidedUI.py:308,,
+النقر بالفأرة مع Shift يضيف مجموعة واحدة من الإحداثيات.
+النقر بالفأرة مع Ctrl + Shift يجمع عدة مجموعات من الإحداثيات. ",New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolDblSided/DblSidedUI.py:308,,
 4119,new,Drill coordinates,,إحداثيات الثقوب,New translation (machine-assisted),appPlugins/ToolDblSided/DblSidedUI.py:319,,
 4120,new,Delete the last coordinates tuple in the list.,,حذف آخر زوج إحداثيات في القائمة.,New translation (machine-assisted),appPlugins/ToolDblSided/DblSidedUI.py:322,,
 4121,new,Create Excellon Object,,إنشاء كائن Excellon,New translation (machine-assisted),appPlugins/ToolDblSided/DblSidedUI.py:335 appPlugins/ToolMarkers/MarkersUI.py:238 appPlugins/ToolMarkers/MarkersUI.py:248,,
@@ -6438,8 +6438,8 @@ Changing this mode restarts the measurement.",,"إجراء قياس عبر عد�
 4165,new,"Current preview segment, or last committed segment when finished.",,مقطع المعاينة الحالي، أو آخر مقطع مثبّت عند الانتهاء.,New translation (machine-assisted),appPlugins/ToolDistance/DistanceUI.py:149,,
 4166,new,Number of committed measurement points.,,عدد نقاط القياس المثبّتة.,New translation (machine-assisted),appPlugins/ToolDistance/DistanceUI.py:158,,
 4167,new,coords,,الإحداثيات,New translation (machine-assisted),appPlugins/ToolDrilling/Drilling.py:373 appPlugins/ToolMilling/Milling.py:643,,
-4168,new,"Toolchange X-Y is not valid. Use two numbers: x, y.",,"قيمة X-Y لتغيير اللقمة غير صالحة. استخدم رقمين: x, y.",New translation (machine-assisted),appPlugins/ToolDrilling/Drilling.py:768,,
-4169,new,"End move X,Y is not valid. Use two numbers: x, y.",,"قيمة X,Y نهاية الحركة غير صالحة. استخدم رقمين: x, y.",New translation (machine-assisted),appPlugins/ToolDrilling/Drilling.py:771,,
+4168,new,"Toolchange X-Y is not valid. Use two numbers: x, y.",,"قيمة موضع تغيير اللقمة X-Y غير صالحة. استخدم رقمين: x, y.",New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolDrilling/Drilling.py:768,,
+4169,new,"End move X,Y is not valid. Use two numbers: x, y.",,"قيمة موضع نهاية الحركة X,Y غير صالحة. استخدم رقمين: x, y.",New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolDrilling/Drilling.py:771,,
 4170,new,Drilling: reset the tool parameters,,الثقب: إعادة ضبط معاملات اللقمة,New translation (machine-assisted) — reviewer: terminology: Reset -> إعادة الضبط (GLOSSARY2),appPlugins/ToolDrilling/Drilling.py:777,,
 4171,new,Parameters for,,المعاملات لـ,New translation (machine-assisted),appPlugins/ToolDrilling/Drilling.py:1174 appPlugins/ToolDrilling/Drilling.py:1180 appPlugins/ToolDrilling/Drilling.py:1233 appPlugins/ToolDrilling/Drilling.py:1352 appPlugins/ToolDrilling/Drilling.py:1646 appPlugins/ToolDrilling/Drilling.py:1653 appPlugins/ToolDrilling/Drilling.py:1671 appPlugins/ToolDrilling/Drilling.py:1690 appPlugins/ToolDrilling/Drilling.py:1694 appPlugins/ToolDrilling/DrillingUI.py:169 appPlugins/ToolIsolation/Isolation.py:854 appPlugins/ToolIsolation/Isolation.py:1113 appPlugins/ToolIsolation/Isolation.py:1118 appPlugins/ToolIsolation/Isolation.py:1148 appPlugins/ToolIsolation/Isolation.py:1173 appPlugins/ToolIsolation/Isolation.py:1188 appPlugins/ToolIsolation/IsolationUI.py:235 appPlugins/ToolMilling/Milling.py:1158 appPlugins/ToolMilling/Milling.py:1280 appPlugins/ToolMilling/Milling.py:1954 appPlugins/ToolMilling/Milling.py:1962 appPlugins/ToolMilling/Milling.py:1966 appPlugins/ToolMilling/Milling.py:2028 appPlugins/ToolMilling/Milling.py:2039 appPlugins/ToolMilling/Milling.py:2043 appPlugins/ToolMilling/MillingUI.py:378 appPlugins/ToolNCC/Ncc.py:1072 appPlugins/ToolNCC/Ncc.py:1077 appPlugins/ToolNCC/Ncc.py:1107 appPlugins/ToolNCC/Ncc.py:1130 appPlugins/ToolNCC/Ncc.py:1143 appPlugins/ToolNCC/Ncc.py:1365 appPlugins/ToolNCC/NccUI.py:296 appPlugins/ToolPaint/Paint.py:691 appPlugins/ToolPaint/Paint.py:696 appPlugins/ToolPaint/Paint.py:743 appPlugins/ToolPaint/Paint.py:764 appPlugins/ToolPaint/Paint.py:776 appPlugins/ToolPaint/Paint.py:987 appPlugins/ToolPaint/PaintUI.py:286,,
 4172,new,Multiple Tools,,لقم متعددة,New translation (machine-assisted),appPlugins/ToolDrilling/Drilling.py:1174 appPlugins/ToolDrilling/Drilling.py:1653 appPlugins/ToolDrilling/Drilling.py:1694 appPlugins/ToolIsolation/Isolation.py:854 appPlugins/ToolIsolation/Isolation.py:1118 appPlugins/ToolIsolation/Isolation.py:1188 appPlugins/ToolMilling/Milling.py:1158 appPlugins/ToolMilling/Milling.py:1280 appPlugins/ToolMilling/Milling.py:1966 appPlugins/ToolMilling/Milling.py:2043 appPlugins/ToolNCC/Ncc.py:1077 appPlugins/ToolNCC/Ncc.py:1143 appPlugins/ToolNCC/Ncc.py:1365 appPlugins/ToolPaint/Paint.py:696 appPlugins/ToolPaint/Paint.py:776 appPlugins/ToolPaint/Paint.py:987,,
@@ -6461,15 +6461,15 @@ Changing this mode restarts the measurement.",,"إجراء قياس عبر عد�
 4188,new,Holes: Inside area needs at least one area. Add a hole area or select Holes: All.,,الثقوب: خيار داخل المنطقة يحتاج إلى منطقة واحدة على الأقل. أضف منطقة ثقوب أو اختر الثقوب: الكل.,New translation (machine-assisted),appPlugins/ToolDrilling/Drilling.py:2265,,
 4189,new,The selected tools have no drill points.,,اللقم المحددة ليس لها نقاط ثقب.,New translation (machine-assisted),appPlugins/ToolDrilling/Drilling.py:2273,,
 4190,new,Drill points inside the exclusion zones.,,نقاط ثقب داخل مناطق الاستبعاد.,New translation (machine-assisted),appPlugins/ToolDrilling/Drilling.py:2287,,
-4191,new,"There is no toolchange: the parameters of tool {tool} (Cut Z, Feedrate Z, Spindle speed) are used for all the selected tools.",,لا يوجد تغيير للقمة: تُستخدم معاملات اللقمة {tool} (Z القطع، معدل التغذية Z، سرعة المغزل) لكل اللقم المحددة.,New translation (machine-assisted),appPlugins/ToolDrilling/Drilling.py:2303,,
+4191,new,"There is no toolchange: the parameters of tool {tool} (Cut Z, Feedrate Z, Spindle speed) are used for all the selected tools.",,لا يوجد تغيير للقمة: تُستخدم معاملات اللقمة {tool} (عمق القطع Z، معدل التغذية Z، سرعة المغزل) لكل اللقم المحددة.,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolDrilling/Drilling.py:2303,,
 4192,new,The spot drilling pass needs a toolchange: it is left out. Enable the toolchange to use it.,,تمريرة ثقب التمركز تحتاج إلى تغيير اللقمة: لذا حُذفت. فعّل تغيير اللقمة لاستخدامها.,New translation (machine-assisted),appPlugins/ToolDrilling/Drilling.py:2312 camlib.py:5164,,
 4193,new,tool,,اللقمة,New translation (machine-assisted),appPlugins/ToolDrilling/Drilling.py:2327 appPlugins/ToolMilling/Milling.py:3303,,
 4194,new,Starting G-Code,,بدء G-code,New translation (machine-assisted),appPlugins/ToolDrilling/Drilling.py:2346 camlib.py:5219 camlib.py:5801 camlib.py:6318,,
 4195,new,Generating CNCJob...,,جارٍ إنشاء مهمة CNC...,New translation (machine-assisted),appPlugins/ToolDrilling/Drilling.py:2351,,
-4196,new,"The Toolchange X,Y format has to be (x, y).",,"يجب أن تكون صيغة X,Y تغيير اللقمة (x, y).",New translation (machine-assisted),appPlugins/ToolDrilling/Drilling.py:2451 camlib.py:4144 camlib.py:4636 camlib.py:6123,,
+4196,new,"The Toolchange X,Y format has to be (x, y).",,"يجب أن تكون صيغة موضع تغيير اللقمة X,Y هي (x, y).",New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolDrilling/Drilling.py:2451 camlib.py:4144 camlib.py:4636 camlib.py:6123,,
 4197,new,G-Code generation failed.,,فشل إنشاء G-code.,New translation (machine-assisted),appPlugins/ToolDrilling/Drilling.py:2458,,
 4198,new,Generating CNC Code,,جارٍ إنشاء كود CNC,New translation (machine-assisted),appPlugins/ToolDrilling/Drilling.py:2580,,
-4199,new,Travel Z must be above zero: the moves between the holes would be made with the bit in or on the material.,,يجب أن يكون Z الانتقال أكبر من الصفر: وإلا ستتم الحركات بين الثقوب واللقمة داخل المادة أو عليها.,New translation (machine-assisted),appPlugins/ToolDrilling/DrillingGen.py:123,,
+4199,new,Travel Z must be above zero: the moves between the holes would be made with the bit in or on the material.,,يجب أن يكون ارتفاع الانتقال Z أكبر من الصفر: وإلا ستتم الحركات بين الثقوب واللقمة داخل المادة أو عليها.,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolDrilling/DrillingGen.py:123,,
 4200,new,Feedrate Z must be above zero.,,يجب أن يكون معدل التغذية Z أكبر من الصفر.,New translation (machine-assisted),appPlugins/ToolDrilling/DrillingGen.py:127,,
 4201,new,"use two numbers: x, y",,"استخدم رقمين: x, y",New translation (machine-assisted),appPlugins/ToolDrilling/DrillingGen.py:262,,
 4202,new,"Mirror: use no, x, y or xy",,العكس: استخدم no أو x أو y أو xy,New translation (machine-assisted),appPlugins/ToolDrilling/DrillingGen.py:281,,
@@ -6501,9 +6501,9 @@ Ignored by the laser preprocessors.",,"التوقف في قاع كل ثقب لم
 goes up to the Travel Z (it clears the chips), goes down fast to the
 Peck retract clearance above the previous depth and feeds on.
 It replaces the Multi-Depth. Ignored by the laser preprocessors.",,"ثقب كل ثقب على خطوات بعمق الثقب المتقطع. بعد كل خطوة تصعد اللقمة
-إلى Z الانتقال (لتنظيف الرايش)، ثم تنزل بسرعة إلى
+إلى ارتفاع الانتقال Z (لتنظيف الرايش)، ثم تنزل بسرعة إلى
 خلوص سحب الثقب المتقطع فوق العمق السابق وتتابع التغذية.
-يحل محل الأعماق المتعددة. تتجاهله المعالجات اللاحقة لليزر.","New translation (machine-assisted) — reviewer: terminology: Peck retract clearance -> retract = سحب (GLOSSARY2), keep 'peck'",appPlugins/ToolDrilling/DrillingUI.py:438,,
+يحل محل الأعماق المتعددة. تتجاهله المعالجات اللاحقة لليزر.","New translation (machine-assisted) — reviewer: terminology: Peck retract clearance -> retract = سحب (GLOSSARY2), keep 'peck'; begins with an Arabic word so that the right-to-left label is laid out correctly (screen check)",appPlugins/ToolDrilling/DrillingUI.py:438,,
 4216,new,"The direction that the spindle is rotating.
 It can be either:
 - CW = clockwise or
@@ -6519,14 +6519,14 @@ travel as fast as possible (G0) to the Z Move (travel height).
 (travel height) is done as fast as possible (G0) in one move.",,"استراتيجية الخروج من الثقب.
  - عند عدم التفعيل، أثناء الخروج من الثقب تتحرك لقمة الثقب
 ببطء، بمعدل التغذية المحدد (G1)، حتى العمق صفر ثم
-تتحرك بأقصى سرعة (G0) إلى Z الانتقال (ارتفاع الانتقال).
- - عند التفعيل تتم الحركة من Z القطع (عمق القطع) إلى Z_move
-(ارتفاع الانتقال) بأقصى سرعة (G0) في حركة واحدة.",New translation (machine-assisted),appPlugins/ToolDrilling/DrillingUI.py:501,,
+تتحرك بأقصى سرعة (G0) إلى ارتفاع الانتقال Z.
+ - عند التفعيل تتم الحركة من عمق القطع Z إلى Z_move
+(ارتفاع الانتقال) بأقصى سرعة (G0) في حركة واحدة.",New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolDrilling/DrillingUI.py:501,,
 4218,new,Apply parameters to all tools,,تطبيق المعاملات على كل اللقم,New translation (machine-assisted),appPlugins/ToolDrilling/DrillingUI.py:533 appPlugins/ToolIsolation/IsolationUI.py:441 appPlugins/ToolMilling/MillingUI.py:897 appPlugins/ToolNCC/NccUI.py:467 appPlugins/ToolPaint/PaintUI.py:391,,
 4219,new,"The parameters in the current form will be applied
 on all the tools from the Tool Table.",,"ستُطبّق المعاملات في النموذج الحالي
 على كل اللقم في جدول اللقم.",New translation (machine-assisted),appPlugins/ToolDrilling/DrillingUI.py:536 appPlugins/ToolIsolation/IsolationUI.py:444 appPlugins/ToolMilling/MillingUI.py:900 appPlugins/ToolNCC/NccUI.py:470 appPlugins/ToolPaint/PaintUI.py:394,,
-4220,new,Tool change Z,,Z تغيير اللقمة,New translation (machine-assisted),appPlugins/ToolDrilling/DrillingUI.py:558 appPlugins/ToolMilling/MillingUI.py:922,,
+4220,new,Tool change Z,,ارتفاع تغيير اللقمة Z,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolDrilling/DrillingUI.py:558 appPlugins/ToolMilling/MillingUI.py:922,,
 4221,new,"X,Y coordinates",,"إحداثيات X,Y",New translation (machine-assisted),appPlugins/ToolDrilling/DrillingUI.py:634 appPlugins/ToolMilling/MillingUI.py:985,,
 4222,new,"The preprocessor JSON file that dictates
 Gcode output for Excellon Objects.",,"ملف JSON للمعالج اللاحق الذي يحدد
@@ -6575,7 +6575,7 @@ for custom selection of tools.",,"إنشاء مهمة CNC.
 أضف / حدد لقمة واحدة على الأقل في جدول اللقم.
 انقر على رأس العمود # لتحديد الكل، أو Ctrl + زر الفأرة الأيسر
 لتحديد لقم مخصصة.",New translation (machine-assisted),appPlugins/ToolDrilling/DrillingUI.py:967 appPlugins/ToolMilling/MillingUI.py:1265,,
-4243,new,Focus Z,,Z التركيز,New translation (machine-assisted),appPlugins/ToolDrilling/DrillingUI.py:1025 appPlugins/ToolMilling/MillingUI.py:1323,,
+4243,new,Focus Z,,ارتفاع التركيز Z,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolDrilling/DrillingUI.py:1025 appPlugins/ToolMilling/MillingUI.py:1323,,
 4244,new,Laser Power,,قدرة الليزر,New translation (machine-assisted),appPlugins/ToolDrilling/DrillingUI.py:1057 appPlugins/ToolMilling/MillingUI.py:1345,,
 4245,new,The laser power when the laser is cutting.,,قدرة الليزر أثناء القطع بالليزر.,New translation (machine-assisted),appPlugins/ToolDrilling/DrillingUI.py:1059 appPlugins/ToolMilling/MillingUI.py:1347,,
 4246,new,No Gerber object is selected.,,لم يُحدد أي كائن Gerber.,New translation (machine-assisted),appPlugins/ToolEtchCompensation/EtchCompensation.py:220 appPlugins/ToolFollow/Follow.py:242 appPlugins/ToolInvertGerber/InvertGerber.py:170,,
@@ -6852,7 +6852,7 @@ Nothing is created. The area selection is not used by the preview.",,"رسم ا�
 4395,new,"Enter a hostname or IP address, not a URL",,أدخل اسم مضيف أو عنوان IP، وليس عنوان URL,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:1144,,
 4396,new,"Enter a hostname or IPv4 address, not a URL",,أدخل اسم مضيف أو عنوان IPv4، وليس عنوان URL,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:1149,,
 4397,new,Invalid network port,,منفذ شبكة غير صالح,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:1151,,
-4398,new,GRBL is busy. Wait until the running operation stops.,,GRBL مشغول. انتظر حتى تتوقف العملية الجارية.,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:1166,,
+4398,new,GRBL is busy. Wait until the running operation stops.,,وحدة التحكم GRBL مشغولة. انتظر حتى تتوقف العملية الجارية.,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolGcodeSender/Sender.py:1166,,
 4399,new,Select a serial port.,,اختر منفذًا تسلسليًا.,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:1189,,
 4400,new,Select a valid baudrate.,,اختر معدل باود صالحًا.,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:1199,,
 4401,new,"E-Cut board not found (USB VID %04X, PID %04X). Connect the board and try again.",,لم يتم العثور على لوحة E-Cut (USB VID %04X، PID %04X). وصّل اللوحة وحاول مرة أخرى.,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:1214,,
@@ -6897,7 +6897,7 @@ Nothing is created. The area selection is not used by the preview.",,"رسم ا�
 4440,new,Connect to the controller first.,,اتصل بوحدة التحكم أولًا.,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:2333 appPlugins/ToolGcodeSender/SenderRegistrationUI.py:924,,
 4441,new,The camera or orientation differs from the saved calibration.,,تختلف الكاميرا أو الاتجاه عن المعايرة المحفوظة.,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:2334,,
 4442,new,The units differ from the saved calibration.,,تختلف الوحدات عن المعايرة المحفوظة.,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:2335,,
-4443,new,The camera is not at the calibrated viewing Z.,,الكاميرا ليست عند Z العرض المعايَر.,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:2336,,
+4443,new,The camera is not at the calibrated viewing Z.,,الكاميرا ليست عند ارتفاع العرض Z المعايَر.,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolGcodeSender/Sender.py:2336,,
 4444,new,Verify the saved calibration at the marked point first.,,تحقق من المعايرة المحفوظة عند النقطة المعلَّمة أولًا.,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:2337 appPlugins/ToolGcodeSender/SenderRegistrationUI.py:930,,
 4445,new,The marked point does not repeat within the tolerance.,,لا تتكرر النقطة المعلَّمة ضمن التفاوت.,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:2338,,
 4446,new,The verification tolerance changed. Verify the saved calibration again.,,تغير تفاوت التحقق. تحقق من المعايرة المحفوظة مرة أخرى.,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:2339,,
@@ -6911,7 +6911,7 @@ Nothing is created. The area selection is not used by the preview.",,"رسم ا�
 4454,new,The camera operation was refused.,,تم رفض عملية الكاميرا.,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:2350,,
 4455,new,Camera calibration cleared.,,تم مسح معايرة الكاميرا.,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:2481,,
 4456,new,Repeatability verified: the predicted spindle position is %.*f %s from the first reference.,,تم التحقق من قابلية التكرار: موضع المغزل المتوقع يبعد %.*f %s عن المرجع الأول.,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:2594,,
-4457,new,"Calibration saved. Offset X %.*f  Y %.*f, viewing Z %.*f.",,تم حفظ المعايرة. الإزاحة X %.*f  Y %.*f، Z العرض %.*f.,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:2611,,
+4457,new,"Calibration saved. Offset X %.*f  Y %.*f, viewing Z %.*f.",,تم حفظ المعايرة. الإزاحة X %.*f  Y %.*f، ارتفاع العرض Z %.*f.,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolGcodeSender/Sender.py:2611,,
 4458,new,"Spindle reference captured at X %.*f  Y %.*f. Retract, set the camera viewing height and center the same mark.",,تم التقاط مرجع المغزل عند X %.*f  Y %.*f. اسحب المغزل للأعلى، واضبط ارتفاع عرض الكاميرا، ثم ضع العلامة نفسها في المركز.,New translation (machine-assisted) — reviewer: Retract -> سحب (GLOSSARY2),appPlugins/ToolGcodeSender/Sender.py:2616,,
 4459,new,The machine session changed. Measure the tool or calibrate the plate again.,,تغيرت جلسة الآلة. قِس اللقمة أو عاير لوح اللمس مرة أخرى.,New translation (machine-assisted) — reviewer: plate = touchplate -> لوح اللمس (GLOSSARY2),appPlugins/ToolGcodeSender/Sender.py:2805,,
 4460,new,The tool-change mode or its settings changed. Measure the tool again.,,تغير وضع تغيير اللقمة أو إعداداته. قِس اللقمة مرة أخرى.,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:2820,,
@@ -6962,7 +6962,7 @@ Nothing is created. The area selection is not used by the preview.",,"رسم ا�
 4505,new,"GRBL reset was not confirmed. Press Reset, then Home.",,لم تتأكد إعادة ضبط GRBL. اضغط إعادة الضبط، ثم العودة إلى الأصل.,New translation (machine-assisted) — reviewer: grammar (feminine agreement); Home term,appPlugins/ToolGcodeSender/Sender.py:3311 appPlugins/ToolGcodeSender/Sender.py:3424,,
 4506,new,Home cycle finished.,,انتهت دورة العودة إلى الأصل.,New translation (machine-assisted) — reviewer: Home -> العودة إلى الأصل (GLOSSARY2),appPlugins/ToolGcodeSender/Sender.py:3320,,
 4507,new,Home cycle failed,,فشلت دورة العودة إلى الأصل,New translation (machine-assisted) — reviewer: Home -> العودة إلى الأصل (GLOSSARY2),appPlugins/ToolGcodeSender/Sender.py:3325,,
-4508,new,GRBL is doing a home cycle.,,GRBL ينفذ دورة العودة إلى الأصل.,New translation (machine-assisted) — reviewer: Home -> العودة إلى الأصل (GLOSSARY2),appPlugins/ToolGcodeSender/Sender.py:3329,,
+4508,new,GRBL is doing a home cycle.,,وحدة التحكم GRBL تنفذ دورة العودة إلى الأصل.,New translation (machine-assisted) — reviewer: Home -> العودة إلى الأصل (GLOSSARY2); begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolGcodeSender/Sender.py:3329,,
 4509,new,Stopped. GRBL is in feed hold.,,تم الإيقاف. GRBL في حالة إيقاف التغذية المؤقت (feed hold).,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:3352,,
 4510,new,"Could not clear the GRBL receive buffer. Reset was sent, but Home is blocked. Press Reset again.",,تعذّر مسح مخزن الاستقبال في GRBL. أُرسلت إعادة الضبط، لكن العودة إلى الأصل محظورة. اضغط إعادة الضبط مرة أخرى.,New translation (machine-assisted) — reviewer: Home -> العودة إلى الأصل (GLOSSARY2),appPlugins/ToolGcodeSender/Sender.py:3400,,
 4511,new,GRBL software reset was sent.,,تم إرسال إعادة ضبط برمجية إلى GRBL.,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:3403,,
@@ -6979,7 +6979,7 @@ Nothing is created. The area selection is not used by the preview.",,"رسم ا�
 4522,new,The probing parameters are not valid numbers.,,معاملات الجس ليست أعدادًا صالحة.,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:3550 appPlugins/ToolGcodeSender/Sender.py:3553,,
 4523,new,The probe Z depth must be negative.,,يجب أن يكون عمق Z للمجس سالبًا.,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:3556,,
 4524,new,The probe feedrate must be more than zero.,,يجب أن يكون معدل تغذية المجس أكبر من صفر.,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:3559,,
-4525,new,The probe travel Z must be more than zero.,,يجب أن يكون Z الانتقال للمجس أكبر من صفر.,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:3562,,
+4525,new,The probe travel Z must be more than zero.,,يجب أن يكون ارتفاع انتقال المجس Z أكبر من صفر.,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolGcodeSender/Sender.py:3562,,
 4526,new,There are no probe points. Add probe points first.,,لا توجد نقاط جس. أضف نقاط جس أولًا.,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:3579,,
 4527,new,Probing,,الجس,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:3604,,
 4528,new,Sending probing GCode to the GRBL controller.,,جارٍ إرسال GCode الجس إلى وحدة تحكم GRBL.,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:3612,,
@@ -7004,7 +7004,7 @@ Nothing is created. The area selection is not used by the preview.",,"رسم ا�
 4547,new,This height map was imported. It has no machine frame. Is the machine in the same WCS and zero as when the map was made?,,تم استيراد خريطة الارتفاعات هذه. ليس لها إطار آلة. هل الآلة في نظام إحداثيات العمل (WCS) والصفر نفسيهما كما عند إنشاء الخريطة؟,New translation (machine-assisted) — reviewer: ,appPlugins/ToolGcodeSender/Sender.py:3983,,
 4548,new,"The height map, the object or the machine state changed while the dialog was open. Press Start again.",,تغيرت خريطة الارتفاعات أو الكائن أو حالة الآلة أثناء فتح مربع الحوار. اضغط بدء مرة أخرى.,New translation (machine-assisted) — reviewer: ,appPlugins/ToolGcodeSender/Sender.py:4038,,
 4549,new,The Start failed.,,فشل البدء.,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:4048,,
-4550,new,"GRBL is in check mode. Send $C in the console, or press Reset.",,GRBL في وضع الفحص. أرسل $C في الطرفية، أو اضغط إعادة الضبط.,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:4077 appPlugins/ToolGcodeSender/Sender.py:4548,,
+4550,new,"GRBL is in check mode. Send $C in the console, or press Reset.",,وحدة التحكم GRBL في وضع الفحص. أرسل $C في الطرفية، أو اضغط إعادة الضبط.,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolGcodeSender/Sender.py:4077 appPlugins/ToolGcodeSender/Sender.py:4548,,
 4551,new,"The Start request is old (the map, the object or the machine state changed). Press Start again.",,طلب البدء قديم (تغيرت الخريطة أو الكائن أو حالة الآلة). اضغط بدء مرة أخرى.,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:4088 appPlugins/ToolGcodeSender/Sender.py:5236,,
 4552,new,The machine frame (WCS or work offset) changed after the height map was made. Probe again.,,تغير إطار الآلة (WCS أو إزاحة العمل) بعد إنشاء خريطة الارتفاعات. نفّذ الجس مرة أخرى.,New translation (machine-assisted) — reviewer: ,appPlugins/ToolGcodeSender/Sender.py:4104 appPlugins/ToolGcodeSender/Sender.py:4353,,
 4553,new,The restart preparation exceeds the GRBL line length limit.,,تحضير إعادة التشغيل يتجاوز حد طول السطر في GRBL.,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:4157,,
@@ -7020,7 +7020,7 @@ Nothing is created. The area selection is not used by the preview.",,"رسم ا�
 4563,new,Save levelled G-code,,حفظ G-code المسوّى,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:4652 appPlugins/ToolGcodeSender/Sender.py:4656 appPlugins/ToolGcodeSender/SenderUI.py:601,,
 4564,new,Saved,,تم الحفظ,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:4666,,
 4565,new,Add probe points before simulating auto-levelling.,,أضف نقاط جس قبل محاكاة التسوية التلقائية.,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:4746,,
-4566,new,Simulation probe travel Z must be above the 0.25 mm simulated surface.,,يجب أن يكون Z الانتقال للمجس في المحاكاة أعلى من السطح المحاكى عند 0.25 mm.,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:4757,,
+4566,new,Simulation probe travel Z must be above the 0.25 mm simulated surface.,,يجب أن يكون ارتفاع انتقال المجس Z في المحاكاة أعلى من السطح المحاكى عند 0.25 mm.,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolGcodeSender/Sender.py:4757,,
 4567,new,This program can not be height-compensated.,,لا يمكن تعويض الارتفاع لهذا البرنامج.,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:4764,,
 4568,new,The levelled G-code has a line longer than GRBL accepts.,,يحتوي G-code المسوّى على سطر أطول مما يقبله GRBL.,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:4791,,
 4569,new,Pause,,إيقاف مؤقت,New translation (machine-assisted),appPlugins/ToolGcodeSender/Sender.py:4826 appPlugins/ToolGcodeSender/SenderSimulation.py:228 appPlugins/ToolGcodeSender/SenderSimulation.py:254,,
@@ -7050,7 +7050,7 @@ Nothing is created. The area selection is not used by the preview.",,"رسم ا�
 4593,new,Mirror the preview horizontally. A change needs revalidation.,,عكس المعاينة أفقيًا. يتطلب التغيير إعادة التحقق.,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderCameraUI.py:210,,
 4594,new,Repeatability tolerance (%s):,,تفاوت قابلية التكرار (%s):,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderCameraUI.py:221,,
 4595,new,"The largest allowed mismatch of the marked point during verification, in current units.",,أكبر عدم تطابق مسموح به للنقطة المعلَّمة أثناء التحقق، بالوحدات الحالية.,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderCameraUI.py:222 appPlugins/ToolGcodeSender/SenderCameraUI.py:230,,
-4596,new,Viewing Z tolerance (%s):,,تفاوت Z العرض (%s):,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderCameraUI.py:234,,
+4596,new,Viewing Z tolerance (%s):,,تفاوت ارتفاع العرض Z (%s):,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolGcodeSender/SenderCameraUI.py:234,,
 4597,new,"The largest allowed change of the camera viewing height, in current units.",,أكبر تغير مسموح به في ارتفاع عرض الكاميرا، بالوحدات الحالية.,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderCameraUI.py:235 appPlugins/ToolGcodeSender/SenderCameraUI.py:243,,
 4598,new,No camera found. Connect a camera and press Refresh.,,لم يتم العثور على كاميرا. وصّل كاميرا واضغط تحديث.,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderCameraUI.py:249 appPlugins/ToolGcodeSender/SenderCameraUI.py:368 appPlugins/ToolGcodeSender/SenderCameraUI.py:511,,
 4599,new,No calibration saved.,,لا توجد معايرة محفوظة.,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderCameraUI.py:253 appPlugins/ToolGcodeSender/SenderCameraUI.py:403 appPlugins/ToolGcodeSender/SenderCameraUI.py:416,,
@@ -7061,11 +7061,11 @@ Only the machine position is read: nothing moves.",,"ركّب لقمة ثقب ر
 4602,new,Capture camera XY + Z,,التقاط XY + Z للكاميرا,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderCameraUI.py:264,,
 4603,new,"Retract, set the camera viewing height and center the same mark under the crosshair.
 Only the machine position and viewing Z are read: nothing moves.",,"اسحب المغزل للأعلى، واضبط ارتفاع عرض الكاميرا وضع العلامة نفسها في المركز تحت علامة التصويب.
-تتم قراءة موضع الآلة وZ العرض فقط: لا شيء يتحرك.",New translation (machine-assisted) — reviewer: Retract -> سحب (GLOSSARY2),appPlugins/ToolGcodeSender/SenderCameraUI.py:265,,
+تتم قراءة موضع الآلة وارتفاع العرض Z فقط: لا شيء يتحرك.",New translation (machine-assisted) — reviewer: Retract -> سحب (GLOSSARY2); begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolGcodeSender/SenderCameraUI.py:265,,
 4604,new,Verify repeatability,,التحقق من قابلية التكرار,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderCameraUI.py:272,,
 4605,new,"Center the same mark under the camera at the calibrated viewing Z.
-The predicted spindle position must match the first reference.",,"ضع العلامة نفسها في المركز تحت الكاميرا عند Z العرض المعايَر.
-يجب أن يطابق موضع المغزل المتوقع المرجع الأول.",New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderCameraUI.py:273,,
+The predicted spindle position must match the first reference.",,"ضع العلامة نفسها في المركز تحت الكاميرا عند ارتفاع العرض Z المعايَر.
+يجب أن يطابق موضع المغزل المتوقع المرجع الأول.",New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolGcodeSender/SenderCameraUI.py:273,,
 4606,new,Clear calibration,,مسح المعايرة,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderCameraUI.py:277,,
 4607,new,Invalidate the saved calibration and require a new one.,,إلغاء صلاحية المعايرة المحفوظة وطلب معايرة جديدة.,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderCameraUI.py:278,,
 4608,new,"1. Mount a thin drill and center the reference mark with the spindle.
@@ -7075,16 +7075,16 @@ The predicted spindle position must match the first reference.",,"ضع العل�
 5. Verify the repeatability at the same mark.",,"1. ركّب لقمة ثقب رفيعة وضع علامة المرجع في المركز بالمغزل.
 2. التقط XY للمغزل.
 3. اسحب المغزل للأعلى، واضبط ارتفاع عرض الكاميرا وضع العلامة نفسها في المركز.
-4. التقط XY للكاميرا وZ العرض.
-5. تحقق من قابلية التكرار عند العلامة نفسها.",New translation (machine-assisted) — reviewer: Retract -> سحب (GLOSSARY2),appPlugins/ToolGcodeSender/SenderCameraUI.py:282,,
+4. التقط XY للكاميرا وارتفاع العرض Z.
+5. تحقق من قابلية التكرار عند العلامة نفسها.",New translation (machine-assisted) — reviewer: Retract -> سحب (GLOSSARY2); begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolGcodeSender/SenderCameraUI.py:282,,
 4609,new,Camera %d,,الكاميرا %d,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderCameraUI.py:351,,
 4610,new,No camera found.,,لم يتم العثور على كاميرا.,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderCameraUI.py:372,,
 4611,new,Camera selected. Press Preview.,,تم اختيار الكاميرا. اضغط معاينة.,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderCameraUI.py:376,,
 4612,new,The selected camera is gone. Choose a camera and press Refresh.,,الكاميرا المختارة لم تعد موجودة. اختر كاميرا واضغط تحديث.,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderCameraUI.py:378,,
 4613,new,%d camera(s) found.,,تم العثور على %d كاميرا.,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderCameraUI.py:380,,
-4614,new,"Calibration verified this session. Offset X %.*f  Y %.*f, viewing Z %.*f.",,تم التحقق من المعايرة في هذه الجلسة. الإزاحة X %.*f  Y %.*f، Z العرض %.*f.,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderCameraUI.py:405,,
-4615,new,"Saved calibration (not verified this session). Offset X %.*f  Y %.*f, viewing Z %.*f.",,معايرة محفوظة (لم يتم التحقق منها في هذه الجلسة). الإزاحة X %.*f  Y %.*f، Z العرض %.*f.,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderCameraUI.py:408,,
-4616,new,Viewing Z is not the calibrated %.*f. Center the mark at that height again.,,Z العرض ليس القيمة المعايَرة %.*f. ضع العلامة في المركز عند ذلك الارتفاع مرة أخرى.,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderCameraUI.py:411,,
+4614,new,"Calibration verified this session. Offset X %.*f  Y %.*f, viewing Z %.*f.",,تم التحقق من المعايرة في هذه الجلسة. الإزاحة X %.*f  Y %.*f، ارتفاع العرض Z %.*f.,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolGcodeSender/SenderCameraUI.py:405,,
+4615,new,"Saved calibration (not verified this session). Offset X %.*f  Y %.*f, viewing Z %.*f.",,معايرة محفوظة (لم يتم التحقق منها في هذه الجلسة). الإزاحة X %.*f  Y %.*f، ارتفاع العرض Z %.*f.,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolGcodeSender/SenderCameraUI.py:408,,
+4616,new,Viewing Z is not the calibrated %.*f. Center the mark at that height again.,,ارتفاع العرض Z ليس القيمة المعايَرة %.*f. ضع العلامة في المركز عند ذلك الارتفاع مرة أخرى.,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolGcodeSender/SenderCameraUI.py:411,,
 4617,new,Calibration needs revalidation: camera or orientation changed.,,تحتاج المعايرة إلى إعادة التحقق: تغيرت الكاميرا أو الاتجاه.,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderCameraUI.py:414,,
 4618,new,Live preview.,,معاينة مباشرة.,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderCameraUI.py:493,,
 4619,new,The camera image stopped. Start the preview again.,,توقفت صورة الكاميرا. ابدأ المعاينة مرة أخرى.,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderCameraUI.py:501,,
@@ -7117,8 +7117,8 @@ The predicted spindle position must match the first reference.",,"ضع العل�
 4646,new,Dir profile pin,,طرف Dir في الملف التعريفي,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderEcutIO.py:197,,
 4647,new,Step port,,منفذ Step,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderEcutIO.py:197,,
 4648,new,Dir port,,منفذ Dir,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderEcutIO.py:198,,
-4649,new,Step Active Low,,Step فعّال عند المنخفض,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderEcutIO.py:198,,
-4650,new,Dir Active Low,,Dir فعّال عند المنخفض,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderEcutIO.py:198,,
+4649,new,Step Active Low,,إشارة Step فعّالة عند المنخفض,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolGcodeSender/SenderEcutIO.py:198,,
+4650,new,Dir Active Low,,إشارة Dir فعّالة عند المنخفض,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolGcodeSender/SenderEcutIO.py:198,,
 4651,new,Spindle / VFD,,المغزل / VFD,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderEcutIO.py:216,,
 4652,new,PWM/DAC controls the spindle speed output; map SPINDLE_CW/CCW on Output signals for run control. The VFD run input and analog speed input require their corresponding wiring. The recovered raw PWM period is editable; frequency conversion and step/direction drive are unverified.,,يتحكم PWM/DAC في مخرج سرعة المغزل؛ اربط SPINDLE_CW/CCW في إشارات الإخراج للتحكم بالتشغيل. يتطلب مدخل تشغيل VFD ومدخل السرعة التناظري التوصيلات المقابلة لهما. فترة PWM الخام المستردة قابلة للتعديل؛ لم يتم التحقق من تحويل التردد ولا من القيادة بالخطوة/الاتجاه.,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderEcutIO.py:216,,
 4653,new,PWM / DAC,,PWM / DAC,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderEcutIO.py:223,,
@@ -7146,7 +7146,7 @@ The predicted spindle position must match the first reference.",,"ضع العل�
 4675,new,Off,,متوقف,"New translation (machine-assisted) — reviewer: Off is an output state shown after the pin name, not a command",appPlugins/ToolGcodeSender/SenderEcutIO.py:440,,
 4676,new,Physical sinking output. Labels use applied settings. Readback confirms changes.,,مخرج فعلي مُصرِّف. التسميات تستخدم الإعدادات المطبَّقة. القراءة من وحدة التحكم تؤكد التغييرات.,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderEcutIO.py:444,,
 4677,new,Select a line within the program.,,اختر سطرًا داخل البرنامج.,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderGen.py:62,,
-4678,new,"The CNCJob needs a finite, positive travel Z to start from a line.",,تحتاج مهمة CNC إلى قيمة Z الانتقال محدودة وموجبة لبدء التشغيل من سطر.,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderGen.py:66,,
+4678,new,"The CNCJob needs a finite, positive travel Z to start from a line.",,تحتاج مهمة CNC إلى قيمة ارتفاع الانتقال Z محدودة وموجبة لبدء التشغيل من سطر.,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolGcodeSender/SenderGen.py:66,,
 4679,new,The CNCJob units are not known.,,وحدات مهمة CNC غير معروفة.,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderGen.py:68,,
 4680,new,Cannot reconstruct the state at program line %d. Start from Beginning.,,تعذّرت إعادة بناء الحالة عند سطر البرنامج %d. ابدأ من البداية.,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderGen.py:85,,
 4681,new,The tool length offset has no Z value at line %d.,,إزاحة طول اللقمة ليس لها قيمة Z عند السطر %d.,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderGen.py:99,,
@@ -7253,10 +7253,10 @@ Only a fresh machine position is read: nothing moves.",,"ضع العلامة ا�
 4770,new,Stop,,إيقاف,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderRegistrationUI.py:127 appPlugins/ToolGcodeSender/SenderSimulation.py:227 appPlugins/ToolGcodeSender/SenderToolChangeUI.py:107 appPlugins/ToolGcodeSender/SenderUI.py:345 appPlugins/ToolGcodeSender/SenderUI.py:506 appPlugins/ToolGcodeSender/SenderUI.py:536 appPlugins/ToolPhotoCarve/PhotoCarveUI.py:334,,
 4771,new,Feed hold / stop the manual positioning motion. The controller then needs Reset and Home.,,إيقاف التغذية المؤقت / إيقاف حركة التموضع اليدوي. تحتاج وحدة التحكم بعدها إلى إعادة الضبط والعودة إلى الأصل.,"New translation (machine-assisted) — reviewer: terminology: Controller -> وحدة التحكم, Home -> العودة إلى الأصل",appPlugins/ToolGcodeSender/SenderRegistrationUI.py:128,,
 4772,new,No pending design point.,,لا توجد نقطة تصميم معلّقة.,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderRegistrationUI.py:133 appPlugins/ToolGcodeSender/SenderRegistrationUI.py:493,,
-4773,new,Design X,,X التصميم,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderRegistrationUI.py:139,,
-4774,new,Design Y,,Y التصميم,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderRegistrationUI.py:139,,
-4775,new,Camera X,,X الكاميرا,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderRegistrationUI.py:139,,
-4776,new,Camera Y,,Y الكاميرا,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderRegistrationUI.py:139,,
+4773,new,Design X,,التصميم X,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolGcodeSender/SenderRegistrationUI.py:139,,
+4774,new,Design Y,,التصميم Y,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolGcodeSender/SenderRegistrationUI.py:139,,
+4775,new,Camera X,,الكاميرا X,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolGcodeSender/SenderRegistrationUI.py:139,,
+4776,new,Camera Y,,الكاميرا Y,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolGcodeSender/SenderRegistrationUI.py:139,,
 4777,new,Remove selected pair,,إزالة الزوج المحدد,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderRegistrationUI.py:148,,
 4778,new,Restart,,إعادة البدء,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderRegistrationUI.py:150,,
 4779,new,Forget every design/camera pair and the preview.,,نسيان كل أزواج التصميم/الكاميرا والمعاينة.,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderRegistrationUI.py:151,,
@@ -7349,7 +7349,7 @@ Set 'Tool-change touchplate' to Fixed or Removable in Preferences to use it.",,"
 4842,new,Measure replacement,,قياس البديلة,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderToolChangeUI.py:88 appPlugins/ToolGcodeSender/SenderToolChangeUI.py:139,,
 4843,new,Probe the plate with the installed tool. The spindle must be above the plate.,,جسّ اللوح باللقمة المركّبة. يجب أن يكون المغزل فوق اللوح.,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderToolChangeUI.py:90,,
 4844,new,Apply Z correction,,تطبيق تصحيح Z,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderToolChangeUI.py:93 appPlugins/ToolGcodeSender/SenderToolChangeUI.py:140,,
-4845,new,Set the active work offset Z from the verified measurement. X and Y are kept.,,ضبط Z إزاحة العمل النشطة من القياس المُتحقَّق منه. يُحتفظ بـ X وY.,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderToolChangeUI.py:95,,
+4845,new,Set the active work offset Z from the verified measurement. X and Y are kept.,,ضبط إزاحة العمل Z النشطة من القياس المُتحقَّق منه. يُحتفظ بـ X وY.,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolGcodeSender/SenderToolChangeUI.py:95,,
 4846,new,Plate removed,,أُزيل اللوح,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderToolChangeUI.py:98,,
 4847,new,Confirm that the removable plate is off the PCB before cutting.,,أكّد أن اللوح القابل للإزالة ليس على لوحة الدوائر المطبوعة قبل القطع.,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderToolChangeUI.py:100,,
 4848,new,Forget reference,,نسيان المرجع,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderToolChangeUI.py:103,,
@@ -7357,7 +7357,7 @@ Set 'Tool-change touchplate' to Fixed or Removable in Preferences to use it.",,"
 4850,new,"Stop the running GRBL operation now. Press Reset, then Home, before more motion.",,أوقف عملية GRBL الجارية الآن. اضغط إعادة الضبط، ثم العودة إلى الأصل، قبل أي حركة أخرى.,New translation (machine-assisted) — reviewer: terminology: Home -> العودة إلى الأصل,appPlugins/ToolGcodeSender/SenderToolChangeUI.py:110,,
 4851,new,Measure with plate,,القياس باللوح,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderToolChangeUI.py:143,,
 4852,new,Apply Z zero,,تطبيق صفر Z,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderToolChangeUI.py:144,,
-4853,new,A measurement is ready. Apply it to change the work offset Z.,,القياس جاهز. طبّقه لتغيير Z إزاحة العمل.,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderToolChangeUI.py:152,,
+4853,new,A measurement is ready. Apply it to change the work offset Z.,,القياس جاهز. طبّقه لتغيير إزاحة العمل Z.,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolGcodeSender/SenderToolChangeUI.py:152,,
 4854,new,"The board Z zero was set. Remove the plate, then confirm that it is off the PCB.",,ضُبط صفر Z للوحة. أزل اللوح، ثم أكّد أنه ليس على لوحة الدوائر المطبوعة.,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderToolChangeUI.py:155,,
 4855,new,The board Z zero is set and the plate is removed.,,صفر Z للوحة مضبوط واللوح مُزال.,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderToolChangeUI.py:157,,
 4856,new,The fixed plate reference is valid for this session. Measure the installed tool.,,مرجع اللوح الثابت صالح لهذه الجلسة. قِس اللقمة المركّبة.,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderToolChangeUI.py:160,,
@@ -7439,7 +7439,7 @@ Hiding the surface doesn't affect levelling.",,"إظهار أو إخفاء سط�
 إخفاء السطح لا يؤثر على تسوية السطح.",New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderUI.py:623,,
 4921,new,Avoid holes from this Excellon object when adding probe points.,,تجنّب الثقوب من كائن Excellon هذا عند إضافة نقاط الجس.,New translation (machine-assisted) — reviewer: terminology: probe points -> نقاط الجس,appPlugins/ToolGcodeSender/SenderUI.py:630,,
 4922,new,Precision probing (two touches),,جسّ دقيق (لمستان),New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderUI.py:645,,
-4923,new,GRBL only: retract after the coarse touch and probe again at the fine feed. Only the second measurement is used.,,GRBL فقط: السحب بعد اللمسة الخشنة والجسّ مرة أخرى بالتغذية الدقيقة. يُستخدم القياس الثاني فقط.,New translation (machine-assisted) — reviewer: terminology: Retract -> سحب,appPlugins/ToolGcodeSender/SenderUI.py:646,,
+4923,new,GRBL only: retract after the coarse touch and probe again at the fine feed. Only the second measurement is used.,,لـ GRBL فقط: السحب بعد اللمسة الخشنة والجسّ مرة أخرى بالتغذية الدقيقة. يُستخدم القياس الثاني فقط.,New translation (machine-assisted) — reviewer: terminology: Retract -> سحب; begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolGcodeSender/SenderUI.py:646,,
 4924,new,Fine probe feedrate,,معدل تغذية الجسّ الدقيق,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderUI.py:653,,
 4925,new,Precision retract,,سحب الجسّ الدقيق,New translation (machine-assisted) — reviewer: terminology: Retract -> سحب,appPlugins/ToolGcodeSender/SenderUI.py:660,,
 4926,new,"Distance above the coarse contact, in current units. Must release the probe without exceeding Probe Z travel.",,المسافة فوق نقطة التلامس الخشن، بالوحدات الحالية. يجب أن تحرر المجس دون تجاوز مدى حركة Z للمجس.,New translation (machine-assisted),appPlugins/ToolGcodeSender/SenderUI.py:664,,
@@ -7719,8 +7719,8 @@ Those markers will be inserted in yet another object.",,"مفعّل فقط إذ�
 ستُدرج هذه العلامات في كائن آخر.",New translation (machine-assisted),appPlugins/ToolMarkers/MarkersUI.py:261,,
 5075,new,Specify the type of object where the markers are inserted.,,حدد نوع الكائن الذي تُدرج فيه العلامات.,New translation (machine-assisted),appPlugins/ToolMarkers/MarkersUI.py:271,,
 5076,new,Insert Marker,,إدراج علامة,New translation (machine-assisted),appPlugins/ToolMarkers/MarkersUI.py:282,,
-5077,new,Cut Z is above zero: the job cuts at the same value below zero.,,Z القطع أعلى من الصفر: ستقطع المهمة عند القيمة نفسها تحت الصفر.,New translation (machine-assisted),appPlugins/ToolMilling/Milling.py:221,,
-5078,new,Travel Z is below zero: the job travels at the same value above zero.,,Z الانتقال أقل من الصفر: ستنتقل المهمة عند القيمة نفسها فوق الصفر.,New translation (machine-assisted),appPlugins/ToolMilling/Milling.py:224,,
+5077,new,Cut Z is above zero: the job cuts at the same value below zero.,,عمق القطع Z أعلى من الصفر: ستقطع المهمة عند القيمة نفسها تحت الصفر.,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolMilling/Milling.py:221,,
+5078,new,Travel Z is below zero: the job travels at the same value above zero.,,ارتفاع الانتقال Z أقل من الصفر: ستنتقل المهمة عند القيمة نفسها فوق الصفر.,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolMilling/Milling.py:224,,
 5079,new,The overlap must be less than 100%: the tool passes do not advance.,,يجب أن يكون التداخل أقل من 100%: تمريرات اللقمة لا تتقدم.,New translation (machine-assisted),appPlugins/ToolMilling/Milling.py:229,,
 5080,new,The tool diameter must be above zero.,,يجب أن يكون قطر اللقمة أكبر من الصفر.,New translation (machine-assisted),appPlugins/ToolMilling/Milling.py:233,,
 5081,new,Depth per Pass must be above zero when Multi-Depth is on.,,يجب أن يكون العمق لكل تمريرة أكبر من الصفر عند تفعيل الأعماق المتعددة.,New translation (machine-assisted),appPlugins/ToolMilling/Milling.py:238,,
@@ -8194,8 +8194,8 @@ the other has .INF extension.",,"استيراد ملف Excellon
 5349,new,Image Adjust,,ضبط الصورة,New translation (machine-assisted),appPlugins/ToolPhotoCarve/PhotoCarveUI.py:50,,
 5350,new,Optimize,,تحسين,New translation (machine-assisted),appPlugins/ToolPhotoCarve/PhotoCarveUI.py:52,,
 5351,new,3D Simulation,,محاكاة ثلاثية الأبعاد,New translation (machine-assisted),appPlugins/ToolPhotoCarve/PhotoCarveUI.py:53,,
-5352,new,Origin X,,X نقطة الأصل,New translation (machine-assisted),appPlugins/ToolPhotoCarve/PhotoCarveUI.py:57,,
-5353,new,Origin Y,,Y نقطة الأصل,New translation (machine-assisted),appPlugins/ToolPhotoCarve/PhotoCarveUI.py:57,,
+5352,new,Origin X,,نقطة الأصل X,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolPhotoCarve/PhotoCarveUI.py:57,,
+5353,new,Origin Y,,نقطة الأصل Y,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolPhotoCarve/PhotoCarveUI.py:57,,
 5354,new,Resolution,,الدقة,New translation (machine-assisted),appPlugins/ToolPhotoCarve/PhotoCarveUI.py:57,,
 5355,new,Auto contrast,,تباين تلقائي,New translation (machine-assisted),appPlugins/ToolPhotoCarve/PhotoCarveUI.py:58,,
 5356,new,Equalize,,معادلة,New translation (machine-assisted),appPlugins/ToolPhotoCarve/PhotoCarveUI.py:58,,
@@ -8223,8 +8223,8 @@ the other has .INF extension.",,"استيراد ملف Excellon
 5378,new,Power levels,,مستويات القدرة,New translation (machine-assisted),appPlugins/ToolPhotoCarve/PhotoCarveUI.py:68,,
 5379,new,Cell size,,حجم الخلية,New translation (machine-assisted),appPlugins/ToolPhotoCarve/PhotoCarveUI.py:68,,
 5380,new,Material,,المادة,New translation (machine-assisted),appPlugins/ToolPhotoCarve/PhotoCarveUI.py:69,,
-5381,new,X of the lower-left corner of the engraving.,,X للزاوية السفلية اليسرى من النقش.,New translation (machine-assisted),appPlugins/ToolPhotoCarve/PhotoCarveUI.py:73,,
-5382,new,Y of the lower-left corner of the engraving.,,Y للزاوية السفلية اليسرى للنقش.,New translation (machine-assisted),appPlugins/ToolPhotoCarve/PhotoCarveUI.py:74,,
+5381,new,X of the lower-left corner of the engraving.,,إحداثي X للزاوية السفلية اليسرى من النقش.,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolPhotoCarve/PhotoCarveUI.py:73,,
+5382,new,Y of the lower-left corner of the engraving.,,إحداثي Y للزاوية السفلية اليسرى من النقش.,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolPhotoCarve/PhotoCarveUI.py:74,,
 5383,new,Width of the engraving. The height follows the aspect ratio of the image.,,عرض النقش. يتبع الارتفاع نسبة أبعاد الصورة.,New translation (machine-assisted),appPlugins/ToolPhotoCarve/PhotoCarveUI.py:75,,
 5384,new,"Size of one image cell on the material.
 A smaller value keeps more detail, but the job is larger and slower.",,"حجم خلية واحدة من الصورة على الخامة.
@@ -8342,7 +8342,7 @@ or of the selected CNCJob, in the 3D view.",,"محاكاة إزالة الماد
 5455,new,Click to add/remove next pad or right click to start.,,انقر لإضافة/إزالة الوسادة التالية أو انقر بالزر الأيمن للبدء.,New translation (machine-assisted),appPlugins/ToolPunchGerber/PunchGerber.py:513,,
 5456,new,All selectable pads are selected.,,حُددت كل الوسادات القابلة للتحديد.,New translation (machine-assisted),appPlugins/ToolPunchGerber/PunchGerber.py:604,,
 5457,new,Selection cleared.,,مُسح التحديد.,New translation (machine-assisted),appPlugins/ToolPunchGerber/PunchGerber.py:610,,
-5458,new,Gerber into which to punch holes,,Gerber المراد تثقيب الثقوب فيه,New translation (machine-assisted),appPlugins/ToolPunchGerber/PunchGerberUI.py:43,,
+5458,new,Gerber into which to punch holes,,كائن Gerber المراد تثقيب الثقوب فيه,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolPunchGerber/PunchGerberUI.py:43,,
 5459,new,Remove the geometry of Excellon from the Gerber to create the holes in pads.,,إزالة هندسة Excellon من Gerber لإنشاء الثقوب في الوسادات.,New translation (machine-assisted),appPlugins/ToolPunchGerber/PunchGerberUI.py:125,,
 5460,new,"When the manual type is chosen, the pads to be punched
 are selected on the canvas but only those that
@@ -8357,7 +8357,7 @@ are in the processed pads.",,"عند اختيار النوع اليدوي، تُ
 5466,new,The target object is not a Gerber object.,,الكائن الهدف ليس كائن Gerber.,New translation (machine-assisted),appPlugins/ToolQRCode/QRCode.py:457,,
 5467,new,The target Gerber is being edited. Close the editor first.,,كائن Gerber الهدف قيد التحرير. أغلق المحرر أولاً.,New translation (machine-assisted),appPlugins/ToolQRCode/QRCode.py:460,,
 5468,new,The soldermask Gerber was not found. Skipped.,,لم يُعثر على Gerber قناع اللحام. تم التخطي.,New translation (machine-assisted),appPlugins/ToolQRCode/QRCode.py:482,,
-5469,new,The soldermask Gerber is the target object. Skipped.,,Gerber قناع اللحام هو الكائن الهدف. تم التخطي.,New translation (machine-assisted),appPlugins/ToolQRCode/QRCode.py:485,,
+5469,new,The soldermask Gerber is the target object. Skipped.,,كائن Gerber لقناع اللحام هو الكائن الهدف. تم التخطي.,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolQRCode/QRCode.py:485,,
 5470,new,QRCode Tool done.,,اكتملت أداة رمز QR.,New translation (machine-assisted),appPlugins/ToolQRCode/QRCode.py:513,,
 5471,new,The box is smaller than the minimum module size.,,المربع أصغر من الحد الأدنى لحجم الوحدة.,New translation (machine-assisted),appPlugins/ToolQRCode/QRCode.py:628,,
 5472,new,A border below 4 boxes breaks the quiet zone of the QR standard.,,الإطار الأقل من 4 مربعات يخل بالمنطقة الهادئة لمعيار QR.,New translation (machine-assisted),appPlugins/ToolQRCode/QRCode.py:629,,
@@ -8422,7 +8422,7 @@ Right click or Escape ends the placement.",,"البقاء جاهزاً بعد ك
 5505,new,"Also cut the clearance opening of the QRCode in the Gerber below
 (a soldermask companion).",,"قص فتحة الخلوص لرمز QR أيضاً في Gerber أدناه
 (طبقة قناع لحام مرافقة).",New translation (machine-assisted),appPlugins/ToolQRCode/QRCodeUI.py:291,,
-5506,new,Mask Gerber,,Gerber القناع,New translation (machine-assisted),appPlugins/ToolQRCode/QRCodeUI.py:294,,
+5506,new,Mask Gerber,,قناع Gerber,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolQRCode/QRCodeUI.py:294,,
 5507,new,Export QRCode,,تصدير رمز QR,New translation (machine-assisted),appPlugins/ToolQRCode/QRCodeUI.py:316,,
 5508,new,"Show a set of controls allowing to export the QRCode
 to a SVG file or an PNG file.",,"عرض مجموعة عناصر تحكم تسمح بتصدير رمز QR
@@ -8552,9 +8552,9 @@ is the width of the solder paste dispensed.",,"قطر اللقمة. قيمته
 with the diameter specified above.",,"إضافة لقمة فوهة جديدة إلى جدول اللقم
 بالقطر المحدد أعلاه.",New translation (machine-assisted),appPlugins/ToolSolderPaste/SolderPasteUI.py:121,,
 5611,new,Dispense,,التوزيع,New translation (machine-assisted),appPlugins/ToolSolderPaste/SolderPasteUI.py:189,,
-5612,new,Z Start,,Z البدء,New translation (machine-assisted),appPlugins/ToolSolderPaste/SolderPasteUI.py:204,,
-5613,new,Z Action,,Z التوزيع,New translation (machine-assisted),appPlugins/ToolSolderPaste/SolderPasteUI.py:217,,
-5614,new,Z Stop,,Z التوقف,New translation (machine-assisted),appPlugins/ToolSolderPaste/SolderPasteUI.py:230,,
+5612,new,Z Start,,ارتفاع البدء Z,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolSolderPaste/SolderPasteUI.py:204,,
+5613,new,Z Action,,ارتفاع التوزيع Z,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolSolderPaste/SolderPasteUI.py:217,,
+5614,new,Z Stop,,ارتفاع التوقف Z,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolSolderPaste/SolderPasteUI.py:230,,
 5615,new,Generate solder paste dispensing geometry.,,إنشاء هندسة توزيع معجون اللحام.,New translation (machine-assisted),appPlugins/ToolSolderPaste/SolderPasteUI.py:458,,
 5616,new,"Geometry Solder Paste object.
 Selecting geometry restores its nozzle settings.
@@ -8585,7 +8585,7 @@ on PCB pads, to a file.",,"حفظ G-code المُنشأ لتوزيع معجون 
 5624,new,No Target object loaded.,,لم يُحمّل كائن هدف.,New translation (machine-assisted),appPlugins/ToolSub/Sub.py:404,,
 5625,new,No Subtractor object selected.,,لم يُحدد كائن طارح.,New translation (machine-assisted),appPlugins/ToolSub/Sub.py:419,,
 5626,new,The target object can not be a subtractor.,,لا يمكن أن يكون الكائن الهدف طارحاً.,New translation (machine-assisted),appPlugins/ToolSub/Sub.py:421 tclCommands/TclCommandSubtractObjects.py:115 tclCommands/TclCommandSubtractObjects.py:127,,
-5627,new,XOR is not valid for an Excellon target.,,XOR غير صالح لهدف Excellon.,New translation (machine-assisted),appPlugins/ToolSub/Sub.py:426,,
+5627,new,XOR is not valid for an Excellon target.,,العملية XOR غير صالحة لهدف Excellon.,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),appPlugins/ToolSub/Sub.py:426,,
 5628,new,Another Subtract run is still working.,,عملية طرح أخرى لا تزال قيد التشغيل.,New translation (machine-assisted),appPlugins/ToolSub/Sub.py:461 appPlugins/ToolSub/Sub.py:471,,
 5629,new,Subtract failed,,فشل الطرح,New translation (machine-assisted),appPlugins/ToolSub/Sub.py:522 appPlugins/ToolSub/Sub.py:525,,
 5630,new,The subtractor has no area (a Geometry of lines needs a Margin above zero). Nothing was created.,,الطارح ليس له مساحة (هندسة الخطوط تحتاج هامشاً أكبر من صفر). لم يُنشأ شيء.,New translation (machine-assisted),appPlugins/ToolSub/Sub.py:530,,
@@ -8732,7 +8732,7 @@ Offset does not use the reference point.",,"إزاحة الكائن (الكائ�
 5709,new,The project was not saved. FlatCAM did not restart.,,لم يُحفظ المشروع. لم يُعد تشغيل FlatCAM.,New translation (machine-assisted),appTranslation.py:255,,
 5710,new,The user does not have admin rights or UAC issues.,,المستخدم لا يملك صلاحيات المسؤول أو توجد مشاكل في UAC.,New translation (machine-assisted),appTranslation.py:311,,
 5711,new,Quit,,خروج,New translation (machine-assisted),appTranslation.py:312 appTranslation.py:318,,
-5712,new,self.solid_geometry is neither BaseGeometry or list.,,self.solid_geometry ليس BaseGeometry ولا قائمة.,New translation (machine-assisted),camlib.py:834,,
+5712,new,self.solid_geometry is neither BaseGeometry or list.,,الخاصية self.solid_geometry ليست BaseGeometry ولا قائمة.,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),camlib.py:834,,
 5713,new,Pass,,تمريرة,New translation (machine-assisted),camlib.py:1264 camlib.py:1298,,
 5714,new,Get Exteriors,,استخراج المحيطات الخارجية,New translation (machine-assisted),camlib.py:1310,,
 5715,new,Get Interiors,,استخراج الأجزاء الداخلية,New translation (machine-assisted),camlib.py:1313,,
@@ -8751,38 +8751,38 @@ Offset does not use the reference point.",,"إزاحة الكائن (الكائ�
 5728,new,There is no such parameter,,لا يوجد معامل بهذا الاسم,New translation (machine-assisted),camlib.py:3624,,
 5729,new,Indexing geometry before generating G-Code...,,فهرسة الهندسة قبل إنشاء G-code...,New translation (machine-assisted),camlib.py:3762 camlib.py:5739,,
 5730,new,"The Cut Z parameter has positive value. It is the depth value to drill into material.
-The Cut Z parameter needs to have a negative value, assuming it is a typo therefore the app will convert the value to negative. Check the resulting CNC code (Gcode etc).",,"معامل Z القطع ذو قيمة موجبة. وهو قيمة عمق الثقب في المادة.
-يجب أن تكون قيمة معامل Z القطع سالبة، وبافتراض أنه خطأ مطبعي سيحوّل البرنامج القيمة إلى سالبة. تحقق من كود CNC الناتج (G-code وغيره).",New translation (machine-assisted),camlib.py:3853,,
-5731,new,"The Cut Z parameter is zero. There will be no cut, aborting",,معامل Z القطع يساوي صفرًا. لن يحدث قطع، جارٍ الإلغاء,New translation (machine-assisted),camlib.py:3860,,
-5732,new,The Cut Z parameter is not a number.,,معامل Z القطع ليس رقمًا.,New translation (machine-assisted),camlib.py:3876,,
+The Cut Z parameter needs to have a negative value, assuming it is a typo therefore the app will convert the value to negative. Check the resulting CNC code (Gcode etc).",,"معامل عمق القطع Z ذو قيمة موجبة. وهو قيمة عمق الثقب في المادة.
+يجب أن تكون قيمة معامل عمق القطع Z سالبة، وبافتراض أنه خطأ مطبعي سيحوّل البرنامج القيمة إلى سالبة. تحقق من كود CNC الناتج (G-code وغيره).",New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),camlib.py:3853,,
+5731,new,"The Cut Z parameter is zero. There will be no cut, aborting",,معامل عمق القطع Z يساوي صفرًا. لن يحدث قطع، جارٍ الإلغاء,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),camlib.py:3860,,
+5732,new,The Cut Z parameter is not a number.,,معامل عمق القطع Z ليس رقمًا.,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),camlib.py:3876,,
 5733,new,"Laser Min Power is %s: the laser is not turned off between the cuts. The 'laser OFF' lines set this power instead, so the laser can burn along the travel moves and stay on if the job is interrupted. Set Min Power to 0 to turn the laser off between the cuts.",,أدنى قدرة لليزر هي %s: لا يُطفأ الليزر بين عمليات القطع. تضبط أسطر 'إطفاء الليزر' هذه القدرة بدلًا من ذلك، لذا قد يحرق الليزر على طول حركات الانتقال ويبقى مشتعلًا إذا توقفت المهمة. اضبط أدنى قدرة على 0 لإطفاء الليزر بين عمليات القطع.,New translation (machine-assisted),camlib.py:3893,,
 5734,new,Peck drilling is on: it replaces the multidepth.,,الثقب المتقطع مفعّل: وهو يحل محل الأعماق المتعددة.,New translation (machine-assisted),camlib.py:3945,,
-5735,new,"The End X,Y format has to be (x, y).",,"يجب أن يكون تنسيق X,Y نهاية الحركة هو (x, y).","New translation (machine-assisted) — reviewer: terminology: untranslated 'End X,Y' -> glossary 'X,Y نهاية الحركة'",camlib.py:4175 camlib.py:4616,,
+5735,new,"The End X,Y format has to be (x, y).",,"يجب أن يكون تنسيق موضع نهاية الحركة X,Y هو (x, y).","New translation (machine-assisted) — reviewer: terminology: untranslated 'End X,Y' -> glossary 'X,Y نهاية الحركة'; begins with an Arabic word so that the right-to-left label is laid out correctly (screen check)",camlib.py:4175 camlib.py:4616,,
 5736,new,Starting G-Code for tool with diameter,,بدء G-code للقمة ذات القطر,New translation (machine-assisted),camlib.py:4232 camlib.py:4739 camlib.py:5320 camlib.py:5408 camlib.py:5814 camlib.py:6329,,
 5737,new,G91 coordinates not implemented,,إحداثيات G91 غير مدعومة,New translation (machine-assisted),camlib.py:4370 camlib.py:5346 camlib.py:5429 camlib.py:7374 camlib.py:7660 camlib.py:7817,,
 5738,new,Finished G-Code generation for tool:,,انتهى إنشاء G-code للقمة:,New translation (machine-assisted),camlib.py:4379,,
 5739,new,Cut_Z parameter is None or zero. Most likely a bad combinations of other parameters.,,معامل Cut_Z فارغ أو يساوي صفرًا. على الأرجح بسبب تركيبة خاطئة من المعاملات الأخرى.,New translation (machine-assisted),camlib.py:4520 camlib.py:5686 camlib.py:6136,,
 5740,new,"The Cut Z parameter has positive value. It is the depth value to cut into material.
-The Cut Z parameter needs to have a negative value, assuming it is a typo therefore the app will convert the value to negative.Check the resulting CNC code (Gcode etc).",,"معامل Z القطع ذو قيمة موجبة. وهو قيمة عمق القطع في المادة.
-يجب أن تكون قيمة معامل Z القطع سالبة، وبافتراض أنه خطأ مطبعي سيحوّل البرنامج القيمة إلى سالبة. تحقق من كود CNC الناتج (G-code وغيره).",New translation (machine-assisted),camlib.py:4528 camlib.py:5694 camlib.py:6145,,
-5741,new,"The Cut Z parameter is zero. There will be no cut, skipping file",,معامل Z القطع يساوي صفرًا. لن يحدث قطع، جارٍ تخطي الملف,New translation (machine-assisted),camlib.py:4536 camlib.py:5702 camlib.py:6153,,
-5742,new,Travel Z parameter is None or zero.,,معامل Z الانتقال فارغ أو يساوي صفرًا.,New translation (machine-assisted),camlib.py:4541 camlib.py:5707 camlib.py:6159,,
+The Cut Z parameter needs to have a negative value, assuming it is a typo therefore the app will convert the value to negative.Check the resulting CNC code (Gcode etc).",,"معامل عمق القطع Z ذو قيمة موجبة. وهو قيمة عمق القطع في المادة.
+يجب أن تكون قيمة معامل عمق القطع Z سالبة، وبافتراض أنه خطأ مطبعي سيحوّل البرنامج القيمة إلى سالبة. تحقق من كود CNC الناتج (G-code وغيره).",New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),camlib.py:4528 camlib.py:5694 camlib.py:6145,,
+5741,new,"The Cut Z parameter is zero. There will be no cut, skipping file",,معامل عمق القطع Z يساوي صفرًا. لن يحدث قطع، جارٍ تخطي الملف,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),camlib.py:4536 camlib.py:5702 camlib.py:6153,,
+5742,new,Travel Z parameter is None or zero.,,معامل ارتفاع الانتقال Z فارغ أو يساوي صفرًا.,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),camlib.py:4541 camlib.py:5707 camlib.py:6159,,
 5743,new,"The Travel Z parameter has negative value. It is the height value to travel between cuts.
-The Z Travel parameter needs to have a positive value, assuming it is a typo therefore the app will convert the value to positive.Check the resulting CNC code (Gcode etc).",,"معامل Z الانتقال ذو قيمة سالبة. وهو قيمة الارتفاع للانتقال بين عمليات القطع.
-يجب أن تكون قيمة معامل Z الانتقال موجبة، وبافتراض أنه خطأ مطبعي سيحوّل البرنامج القيمة إلى موجبة. تحقق من كود CNC الناتج (G-code وغيره).",New translation (machine-assisted),camlib.py:4546 camlib.py:5712 camlib.py:6165,,
-5744,new,"The Z Travel parameter is zero. This is dangerous, skipping file",,معامل Z الانتقال يساوي صفرًا. هذا خطير، جارٍ تخطي الملف,New translation (machine-assisted),camlib.py:4554 camlib.py:5720 camlib.py:6173,,
+The Z Travel parameter needs to have a positive value, assuming it is a typo therefore the app will convert the value to positive.Check the resulting CNC code (Gcode etc).",,"معامل ارتفاع الانتقال Z ذو قيمة سالبة. وهو قيمة الارتفاع للانتقال بين عمليات القطع.
+يجب أن تكون قيمة معامل ارتفاع الانتقال Z موجبة، وبافتراض أنه خطأ مطبعي سيحوّل البرنامج القيمة إلى موجبة. تحقق من كود CNC الناتج (G-code وغيره).",New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),camlib.py:4546 camlib.py:5712 camlib.py:6165,,
+5744,new,"The Z Travel parameter is zero. This is dangerous, skipping file",,معامل ارتفاع الانتقال Z يساوي صفرًا. هذا خطير، جارٍ تخطي الملف,New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),camlib.py:4554 camlib.py:5720 camlib.py:6173,,
 5745,new,Finished G-Code generation,,انتهى إنشاء G-code,New translation (machine-assisted),camlib.py:4843 camlib.py:5467 camlib.py:5870 camlib.py:6386,,
 5746,new,paths traced,,مسارات منفذة,New translation (machine-assisted),camlib.py:4843 camlib.py:5870 camlib.py:6386 camlib.py:6523,,
 5747,new,"The Toolchange X,Y field in Edit -> Preferences has to be in the format (x, y) 
-but now there is only one value, not two. ",,"يجب أن يكون حقل X,Y تغيير اللقمة في تحرير -> التفضيلات بالتنسيق (x, y) 
-لكن توجد الآن قيمة واحدة فقط وليس قيمتين. ",New translation (machine-assisted),camlib.py:4932,,
-5748,new,"The End Move X,Y field in Edit -> Preferences has to be in the format (x, y) but now there is only one value, not two.",,"يجب أن يكون حقل X,Y نهاية الحركة في تحرير -> التفضيلات بالتنسيق (x, y) لكن توجد الآن قيمة واحدة فقط وليس قيمتين.",New translation (machine-assisted),camlib.py:4944 camlib.py:5645 camlib.py:6095,,
+but now there is only one value, not two. ",,"يجب أن يكون حقل موضع تغيير اللقمة X,Y في تحرير -> التفضيلات بالتنسيق (x, y) 
+لكن توجد الآن قيمة واحدة فقط وليس قيمتين. ",New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),camlib.py:4932,,
+5748,new,"The End Move X,Y field in Edit -> Preferences has to be in the format (x, y) but now there is only one value, not two.",,"يجب أن يكون حقل موضع نهاية الحركة X,Y في تحرير -> التفضيلات بالتنسيق (x, y) لكن توجد الآن قيمة واحدة فقط وليس قيمتين.",New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),camlib.py:4944 camlib.py:5645 camlib.py:6095,,
 5749,new,Failed. Drill points inside the exclusion zones.,,فشل. توجد نقاط ثقب داخل مناطق الاستبعاد.,New translation (machine-assisted),camlib.py:5135,,
 5750,new,No G-code for the tool,,لا يوجد G-code للقمة,New translation (machine-assisted),camlib.py:5262 camlib.py:5291,,
 5751,new,it has no holes to drill (check Drill slots if it has only slots),,لا توجد لها ثقوب لثقبها (فعّل ثقب الشقوق إن كانت لها شقوق فقط),New translation (machine-assisted),camlib.py:5262,,
 5752,new,"The Toolchange X,Y field in Edit -> Preferences has to be in the format (x, y) 
-but now there is only one value, not two.",,"يجب أن يكون حقل X,Y تغيير اللقمة في تحرير -> التفضيلات بالتنسيق (x, y) 
-لكن توجد الآن قيمة واحدة فقط وليس قيمتين.",New translation (machine-assisted),camlib.py:5672,,
+but now there is only one value, not two.",,"يجب أن يكون حقل موضع تغيير اللقمة X,Y في تحرير -> التفضيلات بالتنسيق (x, y) 
+لكن توجد الآن قيمة واحدة فقط وليس قيمتين.",New translation (machine-assisted) — reviewer: begins with an Arabic word so that the right-to-left label is laid out correctly (screen check),camlib.py:5672,,
 5753,new,Trying to generate a CNC Job from a Geometry object without solid_geometry.,,محاولة إنشاء مهمة CNC من كائن هندسة بدون solid_geometry.,New translation (machine-assisted),camlib.py:5957,,
 5754,new,"The Tool Offset value is too negative to use for the current_geometry.
 Raise the value (in module) and try again.",,"قيمة إزاحة اللقمة سالبة أكثر من اللازم لاستخدامها مع current_geometry.
