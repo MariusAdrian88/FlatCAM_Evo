@@ -163,6 +163,82 @@ def _escape(text):
     return text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
 
 
+# the alpha slider of a pair of colours '#RRGGBBAA': (section form, group, slider) by the key of the fill colour
+ALPHA_SLIDERS = {
+    'gerber_plot_fill': ('gerber_pref_form', 'gerber_gen_group', 'gerber_alpha_entry'),
+    'gerber_plot_line': ('gerber_pref_form', 'gerber_gen_group', 'gerber_alpha_entry'),
+    'excellon_plot_fill': ('excellon_pref_form', 'excellon_gen_group', 'excellon_alpha_entry'),
+    'excellon_plot_line': ('excellon_pref_form', 'excellon_gen_group', 'excellon_alpha_entry'),
+    'cncjob_travel_fill': ('cncjob_pref_form', 'cncjob_gen_group', 'cncjob_alpha_entry'),
+    'cncjob_travel_line': ('cncjob_pref_form', 'cncjob_gen_group', 'cncjob_alpha_entry'),
+    'global_sel_fill': ('general_pref_form', 'general_gui_group', 'left_right_alpha_entry'),
+    'global_sel_line': ('general_pref_form', 'general_gui_group', 'left_right_alpha_entry'),
+    'global_alt_sel_fill': ('general_pref_form', 'general_gui_group', 'right_left_alpha_entry'),
+    'global_alt_sel_line': ('general_pref_form', 'general_gui_group', 'right_left_alpha_entry'),
+}
+
+# the colour of the marks of a setting that differs from its factory value
+MARK_COLOR = QtGui.QColor(224, 138, 0)
+MARK = '\u25cf'
+
+
+def _tolerance(field):
+    """Two numbers closer than this show the same text in the field."""
+    if isinstance(field, QtWidgets.QDoubleSpinBox):
+        return 0.5 * 10 ** -field.decimals() + 1e-12
+    return 1e-9
+
+
+def _same(a, b, tol=1e-9):
+    """The values of a field are the same: numbers within the tolerance, colours in any case, element by element."""
+    if isinstance(a, bool) or isinstance(b, bool):
+        return a == b
+    if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+        return abs(a - b) <= tol
+    if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)):
+        return len(a) == len(b) and all(_same(x, y, tol) for x, y in zip(a, b))
+    if isinstance(a, str) and isinstance(b, str) and a.startswith('#') and b.startswith('#'):
+        return a.casefold() == b.casefold()
+    return a == b
+
+
+class _SignalsBlocked:
+    """Block the signals of a widget and of its children (a field built of several widgets) for a with block."""
+
+    def __init__(self, widget):
+        self.objects = [widget] + widget.findChildren(QtWidgets.QWidget)
+        self.states = []
+
+    def __enter__(self):
+        self.states = [obj.blockSignals(True) for obj in self.objects]
+
+    def __exit__(self, *args):
+        for obj, state in zip(self.objects, self.states):
+            try:
+                obj.blockSignals(state)
+            except RuntimeError:
+                pass        # a part that the field replaced
+
+
+class _PageContent(QtWidgets.QWidget):
+    """The content of a page: the group, and in the leading margin the marks of the changed settings."""
+
+    gutter = 24
+
+    def __init__(self):
+        super().__init__()
+        self.bars = []
+        self.buttons = []
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if self.bars:
+            painter = QtGui.QPainter(self)
+            for bar in self.bars:
+                painter.fillRect(bar, MARK_COLOR)
+            painter.end()
+
+
 class _RowDelegate(QtWidgets.QStyledItemDelegate):
     """The rows of the tree get some air."""
 
@@ -184,8 +260,11 @@ class PreferencesPage:
         self.group = group
         self.item = item
         self.widget = None      # the scroll area, built by build()
+        self.content = None     # the _PageContent in the scroll area
         self._rows = None
         self.matches = 0        # the number of settings that match the search
+        self.keys = []          # the option keys of defaults_form_fields on this page
+        self.changed = []       # the keys whose value in the form differs from the factory value
 
     def rows(self):
         """The settings of the page: [(label, [fields], the text that the search looks in)]."""
@@ -207,9 +286,13 @@ class PreferencesPage:
         if old_layout is not None:
             old_layout.removeWidget(group)
 
-        content = QtWidgets.QWidget()
+        content = _PageContent()
         lay = QtWidgets.QHBoxLayout(content)
-        lay.setContentsMargins(4, 4, 4, 4)
+        # the leading margin holds the marks of the changed settings; the margins do not follow the direction
+        if content.isRightToLeft():
+            lay.setContentsMargins(4, 4, content.gutter, 4)
+        else:
+            lay.setContentsMargins(content.gutter, 4, 4, 4)
         group.setTitle('')      # the page title above shows the name
         group.setFlat(True)
         group.setMaximumWidth(max(self.max_width, group.minimumSizeHint().width()))
@@ -223,6 +306,8 @@ class PreferencesPage:
         self.widget.setWidgetResizable(True)
         self.widget.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
         self.widget.setWidget(content)
+        self.content = content
+        content.installEventFilter(self.window)
         group.show()
         return self.widget
 
@@ -344,6 +429,26 @@ class PreferencesWindow(QtWidgets.QWidget):
                 section_item.addChild(page.item)
                 self.pages.append(page)
 
+        # the option keys by page, and the factory value of each as its field shows it (probe_factory_values())
+        self.fields = self.manager.defaults_form_fields
+        for key, field in self.fields.items():
+            page = self.page_of(field)
+            if page is not None:
+                page.keys.append(key)
+        self._factory_shown = {}
+        self.unmarked_keys = []     # the keys that get no mark: their field cannot show the factory value reliably
+        self._markers_timer = QtCore.QTimer(self)
+        self._markers_timer.setSingleShot(True)
+        self._markers_timer.setInterval(80)
+        self._markers_timer.timeout.connect(self.refresh_markers)
+        for field in self.fields.values():
+            for widget in [field] + field.findChildren(QtWidgets.QWidget):
+                for name in self.edit_signals + ('textChanged', 'stateChanged'):
+                    signal = getattr(widget, name, None)
+                    if signal is not None and hasattr(signal, 'connect'):
+                        # not start() itself: QTimer.start(msec) would take the value of the signal as the interval
+                        signal.connect(self.schedule_markers)
+
         self.tree.currentItemChanged.connect(self._on_current_item_changed)
         self.tree.itemClicked.connect(self._on_item_clicked)
 
@@ -370,7 +475,11 @@ class PreferencesWindow(QtWidgets.QWidget):
               "such as: layout, gui state, style etc."))
         self.clear_gui_button.clicked.connect(lambda: self.ui.on_gui_clear())
 
-        for button in (self.restore_defaults_button, self.open_folder_button, self.clear_gui_button):
+        self.reset_page_button = QtWidgets.QPushButton(_("Reset page to defaults"))
+        self.reset_page_button.clicked.connect(lambda: self.reset_page())
+
+        for button in (self.reset_page_button, self.restore_defaults_button, self.open_folder_button,
+                       self.clear_gui_button):
             self.bottom_layout.addWidget(button)
         self.bottom_layout.addStretch(1)
 
@@ -419,6 +528,7 @@ class PreferencesWindow(QtWidgets.QWidget):
         if self.stack.currentWidget() is not widget:
             self.help_label.setText('')         # the help of the page that was shown
         self.stack.setCurrentWidget(widget)
+        self.schedule_markers()
         self.path_label.setText('%s  \u203a  %s' % (page.section, page.name))
         self.title_label.setText(page.name)
         if self.tree.currentItem() is not page.item:
@@ -451,6 +561,10 @@ class PreferencesWindow(QtWidgets.QWidget):
     # help strip
     # ------------------------------------------------------------------------------------------------------------
     def eventFilter(self, obj, event):
+        if isinstance(obj, _PageContent):
+            if event.type() in (QtCore.QEvent.Type.Resize, QtCore.QEvent.Type.LayoutRequest):
+                self.schedule_markers()
+            return False
         if event.type() in (QtCore.QEvent.Type.Enter, QtCore.QEvent.Type.FocusIn) and isinstance(
                 obj, QtWidgets.QWidget):
             self.show_help_for(obj)
@@ -529,8 +643,154 @@ class PreferencesWindow(QtWidgets.QWidget):
             self.show_page(first)
 
     def _update_item(self, page):
-        """The second column of a page in the tree: the number of matches of the search."""
-        page.item.setText(1, str(page.matches) if self._query else '')
+        """The second column of a page in the tree: the number of matches of the search and the changed mark."""
+        parts = [str(page.matches)] if self._query else []
+        if page.changed:
+            parts.append(MARK)
+        page.item.setText(1, ' '.join(parts))
+        if page.changed:
+            page.item.setForeground(1, MARK_COLOR)
+        else:
+            page.item.setData(1, Qt.ItemDataRole.ForegroundRole, None)
+        section = page.item.parent()
+        changed = any(p.changed for p in self.pages if p.item.parent() is section)
+        section.setText(1, MARK if changed else '')
+        section.setForeground(1, MARK_COLOR)
+
+    # ------------------------------------------------------------------------------------------------------------
+    # changed settings
+    # ------------------------------------------------------------------------------------------------------------
+    def probe_factory_values(self):
+        """
+        Find the factory value of each key as its field shows it: write the factory value through the same path as
+        the form (PreferencesUIManager.defaults_write_form_field(): units, colours with alpha, tuples), read the field,
+        and put the value of the form back, with the signals blocked. A field that does not give its value back the
+        same is left without a mark (unmarked_keys).
+        """
+        factory = self.app.defaults.factory_defaults
+        self._factory_shown = {}
+        self.unmarked_keys = []
+        for key, field in self.fields.items():
+            ok = False
+            if key in factory:
+                with _SignalsBlocked(field):
+                    try:
+                        current = field.get_value()
+                        self.manager.defaults_write_form_field(key, defaults_dict=factory)
+                        shown = field.get_value()
+                        field.set_value(current)
+                        ok = _same(field.get_value(), current, _tolerance(field))
+                    except Exception as err:
+                        self.app.log.debug("PreferencesWindow.probe_factory_values() %s --> %s" % (key, str(err)))
+            if ok:
+                self._factory_shown[key] = shown
+            else:
+                self.unmarked_keys.append(key)
+
+    def schedule_markers(self, *_args):
+        """Refresh the marks soon: an edit gives several signals, the marks are drawn once after them."""
+        if not self._markers_timer.isActive():
+            self._markers_timer.start()
+
+    def changed_keys(self, page):
+        """The keys of the page whose value in the form differs from the factory value."""
+        changed = []
+        for key in page.keys:
+            if key not in self._factory_shown:
+                continue
+            field = self.fields[key]
+            try:
+                if not _same(field.get_value(), self._factory_shown[key], _tolerance(field)):
+                    changed.append(key)
+            except Exception:
+                pass
+        return changed
+
+    def marker_rows(self, page):
+        """[(key, rectangle of the row in the page content)] of the changed settings that are visible."""
+        rows = []
+        content = page.content
+        if content is None:
+            return rows
+        for key in page.changed:
+            field = self.fields[key]
+            label = self.label_of(field)
+            widgets = [w for w in (label, field) if w is not None and w.isVisibleTo(content)]
+            if not widgets:
+                continue
+            tops = [w.mapTo(content, QtCore.QPoint(0, 0)).y() for w in widgets]
+            bottoms = [top + w.height() for top, w in zip(tops, widgets)]
+            rows.append((key, QtCore.QRect(0, min(tops), content.width(), max(bottoms) - min(tops))))
+        return rows
+
+    def refresh_markers(self):
+        """Mark the changed settings: the pages in the tree, and the rows of the page that is shown."""
+        self._markers_timer.stop()
+        for page in self.pages:
+            page.changed = self.changed_keys(page)
+            self._update_item(page)
+        page = self.current_page()
+        if page is None or page.content is None:
+            return
+        content = page.content
+        style = content.style()
+        bars = []
+        rows = self.marker_rows(page)
+        while len(content.buttons) < len(rows):
+            button = QtWidgets.QToolButton(content)
+            button.setAutoRaise(True)
+            button.setIcon(QtGui.QIcon(self.app.resource_location + '/reset32.png'))
+            button.setIconSize(QtCore.QSize(14, 14))
+            button.setToolTip(_("Reset"))
+            button.clicked.connect(lambda _checked=False, b=button: self.reset_key(b.property('option_key')))
+            content.buttons.append(button)
+        direction = content.layoutDirection()
+        for index, button in enumerate(content.buttons):
+            if index >= len(rows):
+                button.hide()
+                continue
+            key, rect = rows[index]
+            bar = QtCore.QRect(content.gutter - 6, rect.top() + 2, 3, max(rect.height() - 4, 4))
+            box = QtCore.QRect(1, rect.center().y() - 9, 18, 18)
+            bars.append(style.visualRect(direction, content.rect(), bar))
+            button.setGeometry(style.visualRect(direction, content.rect(), box))
+            button.setProperty('option_key', key)
+            button.show()
+            button.raise_()
+        content.bars = bars
+        content.update()
+
+    def reset_key(self, key):
+        """Put the factory value of 1 setting into the form (saved by Save or Apply, as an edit)."""
+        self._write_factory([key])
+
+    def reset_page(self, page=None):
+        """Put the factory values of the settings of the page (the page shown) into the form."""
+        page = page or self.current_page()
+        if page is not None:
+            self._write_factory(page.keys)
+
+    def _write_factory(self, keys):
+        factory = self.app.defaults.factory_defaults
+        for key in keys:
+            if key in factory:
+                self.manager.defaults_write_form_field(key, defaults_dict=factory)
+        for key in keys:
+            self._show_alpha(key)
+        self.manager.on_preferences_edited()
+        self.refresh_markers()
+
+    def _show_alpha(self, key):
+        """An alpha slider shows the alpha of the colour of the key (the slider itself is not an option)."""
+        names = ALPHA_SLIDERS.get(key)
+        slider = getattr(getattr(getattr(self.ui, names[0], None), names[1], None), names[2], None) if names else None
+        value = self.fields[key].get_value() if key in self.fields else None
+        if slider is None or not isinstance(value, str) or len(value) not in (7, 9):
+            return
+        alpha = int(value[7:9], 16) if len(value) == 9 else 255
+        for part in (slider.spinner, slider.slider):
+            with _SignalsBlocked(part):
+                part.setValue(alpha)
 
     # ------------------------------------------------------------------------------------------------------------
     # edit tracking
@@ -563,6 +823,8 @@ class PreferencesWindow(QtWidgets.QWidget):
     def open_window(self):
         """Show the window centred over the main window, with the size it had the last time."""
         if not self.isVisible():
+            self.probe_factory_values()
+            self.schedule_markers()
             settings = QSettings("Open Source", "FlatCAM_EVO")
             size = settings.value(self.settings_key, None)
             try:

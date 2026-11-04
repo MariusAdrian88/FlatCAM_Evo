@@ -308,6 +308,50 @@ def test_help_strip_shows_the_label_and_the_existing_tooltip(pref_app):
     assert shown.replace('Feedrate Z', '', 1).strip(' \u00b7') == words(label.toolTip())
 
 
+def test_changed_settings_are_marked_and_reset_page_puts_the_factory_values(pref_app):
+    from PyQt6.QtTest import QTest
+    window = pref_app.ui.preferences_window
+    manager = pref_app.preferencesUiManager
+    drill = window.ui.plugin_pref_form.tools_drill_group
+    page = window.page_of(drill)
+    window.show_page(page)
+    # the factory values in the form: no setting is marked on any page
+    window.refresh_markers()
+    assert {p.name: window.changed_keys(p) for p in window.pages if window.changed_keys(p)} == {}
+    assert len(window.unmarked_keys) < 15
+
+    # a saved value that differs from the factory value is marked, on its row and on its page in the tree
+    drill.feedrate_z_entry.set_value(123.0)
+    drill.cutz_entry.set_value(-2.5)
+    manager.on_save_button(save_to_file=False)
+    for _ in range(200):        # the marks follow the edit by themselves
+        if len(window.marker_rows(page)) == 2:
+            break
+        QTest.qWait(10)
+    assert window.changed_keys(page) == ['tools_drill_cutz', 'tools_drill_feedrate_z']
+    assert '\u25cf' in page.item.text(1) and '\u25cf' in page.item.parent().text(1)
+    assert len(page.content.bars) == 2 and page.content.buttons[1].isVisibleTo(page.content)
+
+    # Reset page: the factory values in the form, kept only by Save or Apply
+    window.reset_page_button.click()
+    assert drill.cutz_entry.get_value() == pref_app.defaults.factory_defaults['tools_drill_cutz']
+    assert pref_app.defaults['tools_drill_cutz'] == -2.5
+    window.refresh_markers()
+    assert window.changed_keys(page) == [] and '\u25cf' not in page.item.text(1)
+
+    # Cancel throws the reset away
+    window.cancel_button.click()
+    pref_app.on_preferences()
+    assert drill.cutz_entry.get_value() == -2.5
+
+    # the arrow of a row resets only that setting
+    window.show_page(page)
+    window.refresh_markers()
+    window.reset_key('tools_drill_feedrate_z')
+    assert drill.feedrate_z_entry.get_value() == pref_app.defaults.factory_defaults['tools_drill_feedrate_z']
+    assert drill.cutz_entry.get_value() == -2.5
+
+
 def test_the_window_mirrors_in_a_right_to_left_application(pref_app):
     from appGUI.preferences.PreferencesWindow import PreferencesWindow
     qapp = QtWidgets.QApplication.instance()
