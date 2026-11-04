@@ -26,6 +26,7 @@ if '_' not in builtins.__dict__:
 # ISO639-1 codes from here: https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes
 # the name of each language is written in that language (the settings keep the name)
 languages_dict = {
+    'ar': 'العربية',
     'zh': '简体中文',
     'de': 'Deutsch',
     'en': 'English',
