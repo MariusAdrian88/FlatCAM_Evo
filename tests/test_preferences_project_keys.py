@@ -268,6 +268,27 @@ def test_ctrl_s_in_the_window_applies_the_preferences(pref_app):
     assert window.isVisible()
 
 
+def test_search_filters_the_pages_by_label_and_tooltip(pref_app):
+    window = pref_app.ui.preferences_window
+    drill = window.ui.plugin_pref_form.tools_drill_group
+    window.search('FEEDRATE')
+    visible = [page for page in window.pages if not page.item.isHidden()]
+    assert window.page_of(drill) in visible and len(visible) < len(window.pages) / 2
+    assert all(int(page.item.text(1)) > 0 for page in visible)
+    assert window.current_page() is visible[0]          # the first page with a match is shown
+    assert all(window.tree.topLevelItem(i).isHidden() == (window.tree.topLevelItem(i).text(0) == 'Application')
+               for i in range(window.tree.topLevelItemCount()) if window.tree.topLevelItem(i).text(0) in
+               ('Application', 'Plugins'))
+    feedrate_label = window.label_of(drill.feedrate_z_entry)
+    assert 'Feedrate Z' in feedrate_label.text() and feedrate_label.styleSheet()     # highlighted
+    # words of a tooltip only: the tooltip of Cut Z
+    window.search('below the copper surface')
+    assert window.page_of(drill) in [page for page in window.pages if not page.item.isHidden()]
+    window.search('')
+    assert not any(page.item.isHidden() for page in window.pages)
+    assert not feedrate_label.styleSheet()
+
+
 def test_the_window_mirrors_in_a_right_to_left_application(pref_app):
     from appGUI.preferences.PreferencesWindow import PreferencesWindow
     qapp = QtWidgets.QApplication.instance()

@@ -76,6 +76,67 @@ def _sections():
     ]
 
 
+def _plain(text):
+    """The text of a label without its HTML."""
+    if text and Qt.mightBeRichText(text):
+        text = QtGui.QTextDocumentFragment.fromHtml(text).toPlainText()
+    return (text or '').strip()
+
+
+def _is_label(widget):
+    """A widget that names a setting: a label or a check box with a text."""
+    return isinstance(widget, (QtWidgets.QLabel, QtWidgets.QCheckBox)) and bool(_plain(widget.text()))
+
+
+def _layout_widgets(item):
+    """The widgets of a layout item (a widget, or the widgets of a layout in a grid cell)."""
+    if item is None:
+        return []
+    if item.widget() is not None:
+        return [item.widget()]
+    layout = item.layout()
+    if layout is None:
+        return []
+    widgets = []
+    for index in range(layout.count()):
+        widgets += _layout_widgets(layout.itemAt(index))
+    return widgets
+
+
+def setting_rows(group):
+    """
+    The settings of a preferences group: [(label, [field widgets of its row])]. A label is a QLabel or a QCheckBox
+    with a text; its fields are the other widgets of its grid row. A label outside a grid (a subheading) has no field.
+    """
+    rows = []
+    taken = set()
+    for grid in group.findChildren(QtWidgets.QGridLayout):
+        for row in range(grid.rowCount()):
+            cells = []
+            for column in range(grid.columnCount()):
+                for widget in _layout_widgets(grid.itemAtPosition(row, column)):
+                    if widget not in cells:
+                        cells.append(widget)
+            label = next((w for w in cells if _is_label(w)), None)
+            if label is None:
+                continue
+            fields = []
+            for widget in cells:
+                if widget is label:
+                    continue
+                if isinstance(widget, QtWidgets.QCheckBox) and _is_label(widget):
+                    rows.append((widget, []))       # a 2nd check box of the row is a setting of its own
+                    taken.add(widget)
+                elif not isinstance(widget, QtWidgets.QLabel):
+                    fields.append(widget)
+            rows.append((label, fields))
+            taken.add(label)
+    for widget in group.findChildren(QtWidgets.QWidget):
+        if widget not in taken and _is_label(widget):
+            rows.append((widget, []))
+    return rows
+
+
 class _RowDelegate(QtWidgets.QStyledItemDelegate):
     """The rows of the tree get some air."""
 
@@ -96,6 +157,17 @@ class PreferencesPage:
         self.group = group
         self.item = item
         self.widget = None      # the scroll area, built by build()
+        self._rows = None
+        self.matches = 0        # the number of settings that match the search
+
+    def rows(self):
+        """The settings of the page: [(label, [fields], the text that the search looks in)]."""
+        if self._rows is None:
+            self._rows = []
+            for label, fields in setting_rows(self.group):
+                texts = [_plain(label.text()), label.toolTip()] + [field.toolTip() for field in fields]
+                self._rows.append((label, fields, '\n'.join(t for t in texts if t).casefold()))
+        return self._rows
 
     def build(self):
         """Move the group from its section form into a scroll area of its own. Returns the scroll area."""
@@ -156,6 +228,18 @@ class PreferencesWindow(QtWidgets.QWidget):
         left = QtWidgets.QWidget()
         left_lay = QtWidgets.QVBoxLayout(left)
         left_lay.setContentsMargins(0, 0, 0, 0)
+
+        self.search_entry = QtWidgets.QLineEdit()
+        self.search_entry.setPlaceholderText(_("Search settings"))
+        self.search_entry.setClearButtonEnabled(True)
+        left_lay.addWidget(self.search_entry)
+        self._search_timer = QtCore.QTimer(self)
+        self._search_timer.setSingleShot(True)
+        self._search_timer.setInterval(200)
+        self._search_timer.timeout.connect(lambda: self.search(self.search_entry.text()))
+        self.search_entry.textChanged.connect(lambda: self._search_timer.start())
+        self._highlighted = {}      # label -> its style sheet before the highlight
+        self._query = ''
 
         self.tree = QtWidgets.QTreeWidget()
         self.tree.setHeaderHidden(True)
@@ -308,6 +392,67 @@ class PreferencesWindow(QtWidgets.QWidget):
         if item.data(0, Qt.ItemDataRole.UserRole) is None:     # a section: open or close it
             item.setExpanded(not item.isExpanded())
 
+    def label_of(self, field):
+        """The label that names a field (the field itself for a check box), or None."""
+        page = self.page_of(field)
+        if page is None:
+            return None
+        for label, fields, _text in page.rows():
+            if field is label or field in fields:
+                return label
+        return None
+
+    # ------------------------------------------------------------------------------------------------------------
+    # search
+    # ------------------------------------------------------------------------------------------------------------
+    highlight_style = '\nQLabel, QCheckBox { background-color: rgba(255, 190, 0, 110); }'
+
+    def search(self, text):
+        """
+        Show only the pages with a setting whose label or tooltip holds the text (case-insensitive), with the number
+        of the matches, highlight the matching labels and show the first page with a match. An empty text shows all.
+        """
+        self._search_timer.stop()
+        if self.search_entry.text() != text:
+            self.search_entry.blockSignals(True)
+            self.search_entry.setText(text)
+            self.search_entry.blockSignals(False)
+        query = text.strip().casefold()
+        self._query = query
+
+        for label, style in self._highlighted.items():
+            label.setStyleSheet(style)
+        self._highlighted = {}
+
+        first = None
+        for page in self.pages:
+            if query:
+                matches = [label for label, _fields, hay in page.rows() if query in hay]
+                for label in matches:
+                    self._highlighted[label] = label.styleSheet()
+                    label.setStyleSheet(label.styleSheet() + self.highlight_style)
+                page.matches = len(matches)
+            else:
+                page.matches = 0
+            page.item.setHidden(bool(query) and not page.matches)
+            self._update_item(page)
+            if first is None and page.matches:
+                first = page
+
+        for index in range(self.tree.topLevelItemCount()):
+            section = self.tree.topLevelItem(index)
+            children = [section.child(i) for i in range(section.childCount())]
+            section.setHidden(all(child.isHidden() for child in children))
+            current = self.current_page()
+            section.setExpanded(bool(query) or (current is not None and current.item in children))
+
+        if first is not None:
+            self.show_page(first)
+
+    def _update_item(self, page):
+        """The second column of a page in the tree: the number of matches of the search."""
+        page.item.setText(1, str(page.matches) if self._query else '')
+
     # ------------------------------------------------------------------------------------------------------------
     # edit tracking
     # ------------------------------------------------------------------------------------------------------------
@@ -365,7 +510,10 @@ class PreferencesWindow(QtWidgets.QWidget):
             self.manager.on_save_button(save_to_file=False)
             event.accept()
         elif event.key() == Qt.Key.Key_Escape and event.modifiers() == Qt.KeyboardModifier.NoModifier:
-            self.close()
+            if self.search_entry.hasFocus() and self.search_entry.text():
+                self.search('')
+            else:
+                self.close()
             event.accept()
         else:
             super().keyPressEvent(event)
