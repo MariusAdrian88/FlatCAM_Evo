@@ -8,6 +8,19 @@ CHANGELOG for FlatCAM Evo
 
 04.11.2026
 
+Preferences:
+
+- changed: the Preferences open in a window of moderate size over the main window (about 1000 x 700, resizable, it keeps its size) instead of the full-size tab; the menu, Shift+P and the Preferences icon of the status bar open it
+- new: a tree on the left lists the sections (Application, Gerber, Excellon, Geometry, CNC Job, Plugins, Utilities) and their pages; one page at a time is shown on the right with its title; the plugin pages are in alphabetical order
+- new: a search box filters the pages by the names and the tooltips of the settings, shows the number of matches of each page, highlights the matching names and shows the first page with a match; clearing it (or Esc) shows all the pages again
+- new: a strip under the page shows the tooltip of the setting under the mouse or with the focus
+- new: a setting that differs from its factory value is marked with a coloured bar and a reset arrow; its page and section get a dot in the list; the arrow resets that setting and "Reset page to defaults" resets the page (kept only by Save or Apply)
+- changed: the bottom bar holds Cancel, Apply and Save; Import and Export Preferences, Open Pref Folder, Restore Defaults and Clear GUI Settings are under the "More" button; Restore Defaults asks for a confirmation
+- changed: the subheadings of the Preferences use one neutral style (bold, the normal text colour) instead of about ten colours
+- changed: Ctrl+S in the Preferences window applies the preferences, as it did in the tab; Esc closes the window and asks about unsaved changes
+
+04.11.2026
+
 Translations:
 
 - new: right-to-left interface: with a right-to-left language (Arabic, Persian, Hebrew, Urdu) the whole interface is mirrored; no such translation is included yet, the other languages show no change
