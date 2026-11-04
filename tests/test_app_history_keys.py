@@ -385,6 +385,24 @@ def _record_rows(context, recorder, rows):
                     rows['%s|%s|%s' % (mod_name, _key_name(key), source)] = calls
 
 
+class TestChangedShortcut(unittest.TestCase):
+    def test_a_changed_key_runs_its_action_and_the_old_key_does_not(self):
+        from appGUI import shortcuts
+        registry = shortcuts.registry()
+        registry.apply_overrides({'app.new_gerber': 'Ctrl+Shift+B', 'geo_editor.circle': 'Alt+O'})
+        try:
+            gui = press(QtCore.Qt.Key.Key_B, CTRL | SHIFT)
+            gui.app.app_obj.new_gerber_object.assert_called_once()
+            gui = press(QtCore.Qt.Key.Key_B, NO_MODIFIER)
+            gui.app.app_obj.new_gerber_object.assert_not_called()
+            gui = press('O', M.AltModifier, source='geo_editor')
+            gui.app.geo_editor.select_tool.assert_called_once_with('circle')
+            gui = press('O', NO_MODIFIER, source='geo_editor')
+            gui.app.geo_editor.select_tool.assert_not_called()
+        finally:
+            registry.reset_all()
+
+
 class TestShortcutCharacterization(unittest.TestCase):
     """Each key of each context runs what it ran before the keys moved to the registry (with the factory keys)."""
 
