@@ -36054,3 +36054,105 @@ msgid "No Geometry name in args. Provide a name and try again."
 msgstr ""
 "Niciun nume de Geometrie în argumente. Furnizați un nume și încercați din "
 "nou."
+
+#: appGUI/MainGUI.py:5603
+msgid "Alt+5"
+msgstr "Alt+5"
+
+#: appGUI/MainGUI.py:5603 appPlugins/ToolCompare/Compare.py:175
+#: appPlugins/ToolCompare/CompareUI.py:21 appPlugins/ToolCompare/CompareUI.py:120
+msgid "Compare"
+msgstr "Compară"
+
+#: appGUI/preferences/tools/ToolsComparePrefGroupUI.py:18
+msgid "Compare Plugin"
+msgstr "Plugin de comparare"
+
+#: appGUI/preferences/tools/ToolsComparePrefGroupUI.py:23
+msgid "Compare two objects of the same type and show what was removed or added."
+msgstr "Compară două obiecte de același tip și afișează ce a fost eliminat sau adăugat."
+
+#: appGUI/preferences/tools/ToolsComparePrefGroupUI.py:33
+msgid "Geometry within this distance of the other object is never reported as changed.\nGeometry farther than about 1.011 times this distance is always reported as changed."
+msgstr "Geometria aflată la cel mult această distanță de celălalt obiect nu este niciodată raportată ca modificată.\nPeste aproximativ 1,011 ori această distanță, este întotdeauna raportată ca modificată."
+
+#: appPlugins/ToolCompare/Compare.py:353
+msgid "Select the Old and the New object."
+msgstr "Selectați obiectele Vechi și Nou."
+
+#: appPlugins/ToolCompare/Compare.py:356
+msgid "Old and New are the same object."
+msgstr "Vechi și Nou sunt același obiect."
+
+#: appPlugins/ToolCompare/Compare.py:365 appPlugins/ToolCompare/Compare.py:415
+#: appPlugins/ToolCompare/Compare.py:416 appPlugins/ToolCompare/Compare.py:419
+msgid "Compare failed"
+msgstr "Compararea a eșuat"
+
+#: appPlugins/ToolCompare/Compare.py:388
+msgid "Comparing"
+msgstr "Se compară"
+
+#: appPlugins/ToolCompare/Compare.py:434
+msgid "Incomplete"
+msgstr "Incomplet"
+
+#: appPlugins/ToolCompare/Compare.py:434
+msgid "features could not be compared"
+msgstr "elemente nu au putut fi comparate"
+
+#: appPlugins/ToolCompare/Compare.py:438
+msgid "Compare done."
+msgstr "Comparare finalizată."
+
+#: appPlugins/ToolCompare/CompareUI.py:32
+msgid "Compare two objects of the same type (Gerber, Excellon or Geometry).\nShows the geometry that is only in Old (removed) and only in New (added)."
+msgstr "Compară două obiecte de același tip (Gerber, Excellon sau Geometrie).\nAfișează geometria care există doar în Vechi (eliminată) și doar în Nou (adăugată)."
+
+#: appPlugins/ToolCompare/CompareUI.py:59
+msgid "The type of both objects."
+msgstr "Tipul ambelor obiecte."
+
+#: appPlugins/ToolCompare/CompareUI.py:62
+msgid "Old"
+msgstr "Vechi"
+
+#: appPlugins/ToolCompare/CompareUI.py:63
+msgid "The reference object."
+msgstr "Obiectul de referință."
+
+#: appPlugins/ToolCompare/CompareUI.py:69
+msgid "The object that is compared to Old."
+msgstr "Obiectul comparat cu Vechi."
+
+#: appPlugins/ToolCompare/CompareUI.py:76
+msgid "In the units of Old. Geometry within this distance of the other object is never reported\nas changed. Geometry farther than about 1.011 times this distance is always reported as changed.\nBetween the two the result can go either way."
+msgstr "În unitățile obiectului Vechi. Geometria aflată la cel mult această distanță de celălalt obiect nu este niciodată raportată\nca modificată. Peste aproximativ 1,011 ori această distanță, este întotdeauna raportată ca modificată.\nÎntre cele două distanțe, rezultatul poate varia."
+
+#: appPlugins/ToolCompare/CompareUI.py:91
+msgid "Display"
+msgstr "Afișare"
+
+#: appPlugins/ToolCompare/CompareUI.py:100
+msgid "Show the geometry that is in Old but not in New."
+msgstr "Afișează geometria din Vechi, dar nu și din Nou."
+
+#: appPlugins/ToolCompare/CompareUI.py:102
+msgid "Removed color"
+msgstr "Culoarea elementelor eliminate"
+
+#: appPlugins/ToolCompare/CompareUI.py:107
+msgid "Show the geometry that is in New but not in Old."
+msgstr "Afișează geometria din Nou, dar nu și din Vechi."
+
+#: appPlugins/ToolCompare/CompareUI.py:109
+msgid "Added color"
+msgstr "Culoarea elementelor adăugate"
+
+#: appPlugins/ToolCompare/CompareUI.py:122
+msgid "Compare the objects. A new click replaces a running comparison."
+msgstr "Compară obiectele. Un clic nou înlocuiește comparația în curs."
+
+#: appPlugins/ToolCompare/CompareUI.py:147
+msgid "Click to choose the comparison color."
+msgstr "Faceți clic pentru a alege culoarea comparației."

@@ -22557,7 +22557,7 @@ msgstr "Статус"
 
 #: appHandlers/appUIActions.py:319 appHandlers/appUIActions.py:369
 msgid "E-mail"
-msgstr "E-mail"
+msgstr "Эл. почта"
 
 # auto-review 2026-10-09: fuzzy corrected
 #: appHandlers/appUIActions.py:323
@@ -26547,7 +26547,7 @@ msgstr ""
 
 #: appPlugins/ToolDblSided/DblSidedUI.py:94
 msgid "X min"
-msgstr "X min"
+msgstr "X мин."
 
 # auto-review 2026-10-09: corrected
 #: appPlugins/ToolDblSided/DblSidedUI.py:95
@@ -26557,11 +26557,11 @@ msgstr "Минимальная координата."
 
 #: appPlugins/ToolDblSided/DblSidedUI.py:103
 msgid "Y min"
-msgstr "Y min"
+msgstr "Y мин."
 
 #: appPlugins/ToolDblSided/DblSidedUI.py:112
 msgid "X max"
-msgstr "X max"
+msgstr "X макс."
 
 # auto-review 2026-10-09: corrected
 #: appPlugins/ToolDblSided/DblSidedUI.py:113
@@ -26571,7 +26571,7 @@ msgstr "Максимальная координата."
 
 #: appPlugins/ToolDblSided/DblSidedUI.py:121
 msgid "Y max"
-msgstr "Y max"
+msgstr "Y макс."
 
 #: appPlugins/ToolDblSided/DblSidedUI.py:128
 msgid "Center point coordinates"
@@ -36778,3 +36778,117 @@ msgstr "У вычитающих объектов нет области."
 #: tclCommands/TclCommandSubtractRectangle.py:62
 msgid "No Geometry name in args. Provide a name and try again."
 msgstr "Нет имени геометрии в аргументах. Укажите имя и попробуйте снова."
+
+#: appGUI/MainGUI.py:5603
+msgid "Alt+5"
+msgstr "Alt+5"
+
+#: appGUI/MainGUI.py:5603 appPlugins/ToolCompare/Compare.py:175 appPlugins/ToolCompare/CompareUI.py:21 appPlugins/ToolCompare/CompareUI.py:120
+msgid "Compare"
+msgstr "Сравнение"
+
+#: appGUI/preferences/tools/ToolsComparePrefGroupUI.py:18
+msgid "Compare Plugin"
+msgstr "Плагин сравнения"
+
+#: appGUI/preferences/tools/ToolsComparePrefGroupUI.py:23
+msgid "Compare two objects of the same type and show what was removed or added."
+msgstr "Сравнивает два объекта одного типа и показывает удалённое и добавленное."
+
+#: appGUI/preferences/tools/ToolsComparePrefGroupUI.py:33
+msgid ""
+"Geometry within this distance of the other object is never reported as changed.\n"
+"Geometry farther than about 1.011 times this distance is always reported as changed."
+msgstr ""
+"Геометрия в пределах этого расстояния от другого объекта никогда не считается изменённой.\n"
+"Геометрия на расстоянии больше примерно 1,011-кратного значения всегда считается изменённой."
+
+#: appPlugins/ToolCompare/Compare.py:353
+msgid "Select the Old and the New object."
+msgstr "Выберите старый и новый объекты."
+
+#: appPlugins/ToolCompare/Compare.py:356
+msgid "Old and New are the same object."
+msgstr "Старый и новый объекты совпадают."
+
+#: appPlugins/ToolCompare/Compare.py:365 appPlugins/ToolCompare/Compare.py:415 appPlugins/ToolCompare/Compare.py:416 appPlugins/ToolCompare/Compare.py:419
+msgid "Compare failed"
+msgstr "Сравнение не выполнено"
+
+#: appPlugins/ToolCompare/Compare.py:388
+msgid "Comparing"
+msgstr "Сравнение"
+
+#: appPlugins/ToolCompare/Compare.py:434
+msgid "Incomplete"
+msgstr "Неполно"
+
+#: appPlugins/ToolCompare/Compare.py:434
+msgid "features could not be compared"
+msgstr "элемент(ов) не удалось сравнить"
+
+#: appPlugins/ToolCompare/Compare.py:438
+msgid "Compare done."
+msgstr "Сравнение завершено."
+
+#: appPlugins/ToolCompare/CompareUI.py:32
+msgid ""
+"Compare two objects of the same type (Gerber, Excellon or Geometry).\n"
+"Shows the geometry that is only in Old (removed) and only in New (added)."
+msgstr ""
+"Сравнивает два объекта одного типа (Gerber, Excellon или Geometry).\n"
+"Показывает геометрию только в старом объекте (удалённую) и только в новом (добавленную)."
+
+#: appPlugins/ToolCompare/CompareUI.py:59
+msgid "The type of both objects."
+msgstr "Тип обоих объектов."
+
+#: appPlugins/ToolCompare/CompareUI.py:62
+msgid "Old"
+msgstr "Старый"
+
+#: appPlugins/ToolCompare/CompareUI.py:63
+msgid "The reference object."
+msgstr "Эталонный объект."
+
+#: appPlugins/ToolCompare/CompareUI.py:69
+msgid "The object that is compared to Old."
+msgstr "Объект для сравнения со старым."
+
+#: appPlugins/ToolCompare/CompareUI.py:76
+msgid ""
+"In the units of Old. Geometry within this distance of the other object is never reported\n"
+"as changed. Geometry farther than about 1.011 times this distance is always reported as changed.\n"
+"Between the two the result can go either way."
+msgstr ""
+"В единицах старого объекта. Геометрия в пределах этого расстояния от другого объекта никогда не считается изменённой.\n"
+"Геометрия на расстоянии больше примерно 1,011-кратного значения всегда считается изменённой.\n"
+"Между этими значениями результат может быть любым."
+
+#: appPlugins/ToolCompare/CompareUI.py:91
+msgid "Display"
+msgstr "Отображение"
+
+#: appPlugins/ToolCompare/CompareUI.py:100
+msgid "Show the geometry that is in Old but not in New."
+msgstr "Показать геометрию старого объекта, отсутствующую в новом."
+
+#: appPlugins/ToolCompare/CompareUI.py:102
+msgid "Removed color"
+msgstr "Цвет удалённых"
+
+#: appPlugins/ToolCompare/CompareUI.py:107
+msgid "Show the geometry that is in New but not in Old."
+msgstr "Показать геометрию нового объекта, отсутствующую в старом."
+
+#: appPlugins/ToolCompare/CompareUI.py:109
+msgid "Added color"
+msgstr "Цвет добавленных"
+
+#: appPlugins/ToolCompare/CompareUI.py:122
+msgid "Compare the objects. A new click replaces a running comparison."
+msgstr "Сравнить объекты. Новый щелчок заменяет выполняющееся сравнение."
+
+#: appPlugins/ToolCompare/CompareUI.py:147
+msgid "Click to choose the comparison color."
+msgstr "Нажмите, чтобы выбрать цвет сравнения."

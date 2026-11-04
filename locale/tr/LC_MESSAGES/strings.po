@@ -35830,3 +35830,117 @@ msgstr "Çıkarıcıların alanı yok."
 #: tclCommands/TclCommandSubtractRectangle.py:62
 msgid "No Geometry name in args. Provide a name and try again."
 msgstr "Bağımsız değişkenlerde Geometri adı yok. Bir ad girip tekrar deneyin."
+
+#: appGUI/MainGUI.py:5603
+msgid "Alt+5"
+msgstr "Alt+5"
+
+#: appGUI/MainGUI.py:5603 appPlugins/ToolCompare/Compare.py:175 appPlugins/ToolCompare/CompareUI.py:21 appPlugins/ToolCompare/CompareUI.py:120
+msgid "Compare"
+msgstr "Karşılaştır"
+
+#: appGUI/preferences/tools/ToolsComparePrefGroupUI.py:18
+msgid "Compare Plugin"
+msgstr "Karşılaştırma Eklentisi"
+
+#: appGUI/preferences/tools/ToolsComparePrefGroupUI.py:23
+msgid "Compare two objects of the same type and show what was removed or added."
+msgstr "Aynı türdeki iki nesneyi karşılaştırır ve kaldırılan veya eklenenleri gösterir."
+
+#: appGUI/preferences/tools/ToolsComparePrefGroupUI.py:33
+msgid ""
+"Geometry within this distance of the other object is never reported as changed.\n"
+"Geometry farther than about 1.011 times this distance is always reported as changed."
+msgstr ""
+"Diğer nesneye uzaklığı bu mesafe içindeki geometri asla değişmiş olarak bildirilmez.\n"
+"Bu mesafenin yaklaşık 1,011 katından uzaktaki geometri daima değişmiş olarak bildirilir."
+
+#: appPlugins/ToolCompare/Compare.py:353
+msgid "Select the Old and the New object."
+msgstr "Eski ve yeni nesneleri seçin."
+
+#: appPlugins/ToolCompare/Compare.py:356
+msgid "Old and New are the same object."
+msgstr "Eski ve yeni nesne aynı."
+
+#: appPlugins/ToolCompare/Compare.py:365 appPlugins/ToolCompare/Compare.py:415 appPlugins/ToolCompare/Compare.py:416 appPlugins/ToolCompare/Compare.py:419
+msgid "Compare failed"
+msgstr "Karşılaştırma başarısız"
+
+#: appPlugins/ToolCompare/Compare.py:388
+msgid "Comparing"
+msgstr "Karşılaştırılıyor"
+
+#: appPlugins/ToolCompare/Compare.py:434
+msgid "Incomplete"
+msgstr "Eksik"
+
+#: appPlugins/ToolCompare/Compare.py:434
+msgid "features could not be compared"
+msgstr "öğe karşılaştırılamadı"
+
+#: appPlugins/ToolCompare/Compare.py:438
+msgid "Compare done."
+msgstr "Karşılaştırma tamamlandı."
+
+#: appPlugins/ToolCompare/CompareUI.py:32
+msgid ""
+"Compare two objects of the same type (Gerber, Excellon or Geometry).\n"
+"Shows the geometry that is only in Old (removed) and only in New (added)."
+msgstr ""
+"Aynı türdeki iki nesneyi (Gerber, Excellon veya Geometry) karşılaştırır.\n"
+"Yalnızca eski nesnedeki (kaldırılan) ve yeni nesnedeki (eklenen) geometriyi gösterir."
+
+#: appPlugins/ToolCompare/CompareUI.py:59
+msgid "The type of both objects."
+msgstr "Her iki nesnenin türü."
+
+#: appPlugins/ToolCompare/CompareUI.py:62
+msgid "Old"
+msgstr "Eski"
+
+#: appPlugins/ToolCompare/CompareUI.py:63
+msgid "The reference object."
+msgstr "Referans nesne."
+
+#: appPlugins/ToolCompare/CompareUI.py:69
+msgid "The object that is compared to Old."
+msgstr "Eski nesneyle karşılaştırılacak nesne."
+
+#: appPlugins/ToolCompare/CompareUI.py:76
+msgid ""
+"In the units of Old. Geometry within this distance of the other object is never reported\n"
+"as changed. Geometry farther than about 1.011 times this distance is always reported as changed.\n"
+"Between the two the result can go either way."
+msgstr ""
+"Eski nesnenin birimlerinde. Diğer nesneye uzaklığı bu mesafe içindeki geometri asla değişmiş olarak bildirilmez.\n"
+"Bu mesafenin yaklaşık 1,011 katından uzaktaki geometri daima değişmiş olarak bildirilir.\n"
+"İki değer arasında sonuç her iki yönde de olabilir."
+
+#: appPlugins/ToolCompare/CompareUI.py:91
+msgid "Display"
+msgstr "Görüntüleme"
+
+#: appPlugins/ToolCompare/CompareUI.py:100
+msgid "Show the geometry that is in Old but not in New."
+msgstr "Eski nesnede olup yeni nesnede olmayan geometriyi göster."
+
+#: appPlugins/ToolCompare/CompareUI.py:102
+msgid "Removed color"
+msgstr "Kaldırılanların rengi"
+
+#: appPlugins/ToolCompare/CompareUI.py:107
+msgid "Show the geometry that is in New but not in Old."
+msgstr "Yeni nesnede olup eski nesnede olmayan geometriyi göster."
+
+#: appPlugins/ToolCompare/CompareUI.py:109
+msgid "Added color"
+msgstr "Eklenenlerin rengi"
+
+#: appPlugins/ToolCompare/CompareUI.py:122
+msgid "Compare the objects. A new click replaces a running comparison."
+msgstr "Nesneleri karşılaştırır. Yeniden tıklamak süren karşılaştırmanın yerine yenisini başlatır."
+
+#: appPlugins/ToolCompare/CompareUI.py:147
+msgid "Click to choose the comparison color."
+msgstr "Karşılaştırma rengini seçmek için tıklayın."

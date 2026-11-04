@@ -8,6 +8,12 @@ CHANGELOG for FlatCAM Evo
 
 04.11.2026
 
+Translations:
+
+- new: the texts of the Compare plugin (plugin, preferences and menu) are translated in German, Spanish, French, Italian, Brazilian Portuguese, Romanian, Russian, Turkish and Chinese; all .mo files are compiled again
+
+04.11.2026
+
 Compare plugin:
 
 - new: the Compare plugin (Plugins menu, Alt+5) compares 2 objects of the same type (Gerber, Excellon or Geometry): the geometry in Old and not in New (removed) shows in burgundy, the geometry in New and not in Old (added) shows in forest green; 2 checkboxes show or hide each result; the summary shows the counts, the area and the length
