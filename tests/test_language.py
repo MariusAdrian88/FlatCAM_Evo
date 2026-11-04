@@ -87,6 +87,11 @@ class TestRightToLeft(unittest.TestCase):
         self.addCleanup(QtWidgets.QApplication.setLayoutDirection, Qt.LayoutDirection.LayoutDirectionAuto)
 
     def test_an_rtl_language_mirrors_the_application(self):
+        saved = builtins.__dict__.get('_')
+        self.addCleanup(lambda: builtins.__dict__.__setitem__('_', saved) if saved is not None else None)
+        self.addCleanup(fcTranslate.apply_language, 'strings', 'English')
+        self.assertEqual('العربية', fcTranslate.apply_language('strings', lang='العربية'))
+        self.assertEqual('التفضيلات', builtins.__dict__['_']('Preferences'))
         fcTranslate.set_layout_direction('العربية')
         self.assertEqual(RTL, QtWidgets.QApplication.layoutDirection())
         # a new UI is mirrored with nothing extra
