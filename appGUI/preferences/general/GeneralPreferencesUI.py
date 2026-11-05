@@ -4,6 +4,7 @@ from PyQt6 import QtWidgets
 from appGUI.preferences.general.GeneralAppPrefGroupUI import GeneralAppPrefGroupUI
 from appGUI.preferences.general.GeneralAPPSetGroupUI import GeneralAPPSetGroupUI
 from appGUI.preferences.general.GeneralGUIPrefGroupUI import GeneralGUIPrefGroupUI
+from appGUI.preferences.general.GeneralShortcutsGroupUI import GeneralShortcutsGroupUI
 
 from appGUI.ColumnarFlowLayout import ColumnarFlowLayout
 
@@ -34,8 +35,11 @@ class GeneralPreferencesUI(QtWidgets.QWidget):
         self.general_app_set_group.setMinimumWidth(250)
         # self.general_app_set_group.setMaximumWidth(250)
 
+        self.general_shortcuts_group = GeneralShortcutsGroupUI(app=app)
+
         self.layout.addWidget(self.general_app_group)
         self.layout.addWidget(self.general_gui_group)
         self.layout.addWidget(self.general_app_set_group)
+        self.layout.addWidget(self.general_shortcuts_group)
 
         self.layout.addStretch()

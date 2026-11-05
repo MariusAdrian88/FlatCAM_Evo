@@ -52,6 +52,7 @@ from ast import literal_eval
 from appGUI.PlotCanvas import PlotCanvas
 from appGUI.NullCanvas import NullCanvas
 from appGUI.MainGUI import MainGUI, cursor_screen
+from appGUI import shortcuts
 
 from appGUI.GUIElements import (
     FCMessageBox,
@@ -2287,6 +2288,10 @@ class App(QtCore.QObject):
 
         # Filter out None values (e.g., if image_tool failed to initialize)
         self.app_plugins = [p for p in self.app_plugins if p is not None]
+
+        # the keyboard shortcuts of the preferences; the key hints of the menus and the F3 list show them
+        shortcuts.apply_options(self)
+        shortcuts.apply_to_gui(self)
 
         self.log.debug("Tools are installed.")
 

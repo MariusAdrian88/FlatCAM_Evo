@@ -65,7 +65,7 @@ def _sections():
 
     return [
         (_("Application"), [('general_pref_form', name, None) for name in (
-            'general_app_group', 'general_gui_group', 'general_app_set_group')]),
+            'general_app_group', 'general_gui_group', 'general_app_set_group', 'general_shortcuts_group')]),
         (_("Gerber"), object_pages('gerber_pref_form', 'gerber')),
         (_("Excellon"), object_pages('excellon_pref_form', 'excellon')),
         (_("Geometry"), object_pages('geo_pref_form', 'geometry')),
@@ -309,7 +309,8 @@ class PreferencesPage:
             lay.setContentsMargins(content.gutter, 4, 4, 4)
         group.setTitle('')      # the page title above shows the name
         group.setFlat(True)
-        group.setMaximumWidth(max(self.max_width, group.minimumSizeHint().width()))
+        if not getattr(group, 'full_width', False):     # a table (Keyboard Shortcuts) uses the whole width
+            group.setMaximumWidth(max(self.max_width, group.minimumSizeHint().width()))
         lay.addWidget(group, 1)
         lay.addStretch(0)
 
@@ -751,6 +752,8 @@ class PreferencesWindow(QtWidgets.QWidget):
             return rows
         for key in page.changed:
             field = self.fields[key]
+            if getattr(field, 'marks_itself', False):      # the field marks its changed rows (Keyboard Shortcuts)
+                continue
             label = self.label_of(field)
             widgets = [w for w in (label, field) if w is not None and w.isVisibleTo(content)]
             if not widgets:
@@ -838,6 +841,8 @@ class PreferencesWindow(QtWidgets.QWidget):
         """Connect (or disconnect) the edit signals of every widget of the groups to the slot."""
         for group in self.groups():
             for widget in group.findChildren(QtWidgets.QWidget):
+                if widget.property('no_edit_tracking'):     # a search field or a choice that is not a setting
+                    continue
                 for name in self.edit_signals:
                     signal = getattr(widget, name, None)
                     if signal is None or not hasattr(signal, 'connect'):

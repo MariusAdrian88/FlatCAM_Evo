@@ -286,6 +286,8 @@ class AppDefaults:
         "global_open_style": True,
         "global_toggle_tooltips": True,
         "global_bookmarks": dict(),
+        # the keyboard shortcuts that differ from their factory key: {action id: key sequence} (appGUI/shortcuts.py)
+        "global_shortcuts": dict(),
         "global_bookmarks_limit": 10,
         "global_activity_icon": 'Ball green',
 
