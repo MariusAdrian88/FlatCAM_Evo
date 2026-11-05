@@ -47,6 +47,22 @@ the `<lang>.md` / `<lang>.csv` lists; in the `.po` file each one carries the com
 `# auto-review 2026-10-21: new` (or `fuzzy corrected` / `fuzzy confirmed`). They also need a native translator's
 approval.
 
+## Arabic, a new language (2026-11-04)
+
+Arabic (`ar`, العربية) was added on 2026-11-04 as a new language, and **the whole Arabic catalogue is machine-assisted**:
+all 5842 texts were translated into Modern Standard Arabic by a translator model, chunk by chunk with one glossary
+([ar_glossary.csv](ar_glossary.csv): the Arabic term chosen for every key term, with a note), then an independent
+reviewer model checked every entry (meaning, PCB/CNC terms, placeholders, `%%`, HTML tags, line breaks, `<argument>`
+names) and corrected 425 of them; after a check of the interface on screen, 130 entries were reworded to begin with
+an Arabic word (a label that begins with a Latin word is laid out left to right); `scripts/i18n_tool.py check ar` reports 0 placeholder errors and 0 warnings. Every
+entry carries the comment `# auto-review 2026-11-04: new` and **needs a native speaker's approval**. `ar.md` / `ar.csv`
+list every entry (with the reviewer's correction as the reason where there was one). When Arabic is selected the
+interface is mirrored right to left; the canvas, the coordinates, the code editors and the Tcl shell stay left to right.
+
+Kept in Latin letters on purpose: Gerber, Excellon, G-code, GRBL, Marlin, FluidNC, Tcl and the Tcl command names and
+options, file extensions, units (`mm`, `in`), `<argument>` names, key names (Ctrl, Shift, Alt, F3), default file and
+object names. Numbers are written in Western digits (0-9), as the program writes them.
+
 ## How to approve
 
 - `<lang>.md`: readable table (type, English, old translation, new translation, reason).
@@ -54,7 +70,7 @@ approval.
   in *Translator note*, and send the file back (an issue with the *Translation problem* form, or a pull request).
 
 You can also work directly in the `.po` file (for example with Poedit): every entry changed this way carries the
-comment `# auto-review 2026-10-09: <type>`. Delete the comment when you have checked the entry, then run
+comment `# auto-review 2026-10-09: <type>` (Arabic: `# auto-review 2026-11-04: new`). Delete the comment when you have checked the entry, then run
 
     python scripts/i18n_tool.py check <lang>
     python scripts/i18n_tool.py compile <lang>

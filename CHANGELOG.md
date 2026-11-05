@@ -8,6 +8,14 @@ CHANGELOG for FlatCAM Evo
 
 04.11.2026
 
+Translations:
+
+- new: Arabic (العربية): all 5842 texts are translated into Modern Standard Arabic with machine help (a translator model with one glossary, an independent reviewer model that checked every entry, the checks of scripts/i18n_tool.py); every entry is marked "# auto-review 2026-11-04: new" and waits for a native speaker's approval; the list of the entries and the glossary are in docs/translation_review/ (ar.md, ar.csv, ar_glossary.csv)
+- new: with Arabic selected the interface is mirrored right to left; the plot canvas, the code editors, the Tcl shell and the coordinates stay left to right
+- fixed: in a right-to-left interface the path above a Preferences page points from the section to the page
+
+04.11.2026
+
 Preferences:
 
 - changed: the Preferences open in a window of moderate size over the main window (about 1000 x 700, resizable, it keeps its size) instead of the full-size tab; the menu, Shift+P and the Preferences icon of the status bar open it

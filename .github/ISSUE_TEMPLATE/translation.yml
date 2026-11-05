@@ -13,6 +13,7 @@ body:
     attributes:
       label: Language
       options:
+        - العربية (ar)
         - Deutsch (de)
         - Español (es)
         - Français (fr)
