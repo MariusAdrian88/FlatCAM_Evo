@@ -504,8 +504,47 @@ def test_keyboard_shortcuts_page_reports_a_key_in_use_before_it_is_assigned(pref
         assert registry.key('app.jump') == 'Ctrl+Shift+B'
         assert 'Ctrl+Shift+B' in pref_app.ui.shortcuts_tab.sh_app.toPlainText()
         assert pref_app.ui.menueditjump.text().endswith('\tCtrl+Shift+B')
+
+        # Reset must ask before taking a factory key that was assigned to another command.
+        editor.reset_all()
+        assert not editor.request('app.jump', 'B')
+        editor.confirm()
+        editor.reset('app.new_gerber')
+        assert editor.get_value() == {'app.jump': 'B', 'app.new_gerber': ''}
+        assert editor.conflict_text()
+        editor.confirm()
+        assert editor.get_value() == {'app.jump': ''}
+
+        # A main-phase key must not take a fixed key used while drawing.
+        assert not editor.request('geo_editor.undo', 'T')
+        assert 'Corner Modes' in editor.conflict_text()
+        assert not editor.replace_button.isVisibleTo(editor)
     finally:
         registry.reset_all()
+
+
+@pytest.mark.parametrize('overrides', [
+    {'app.jump': 'B'},
+    {'geo_editor.undo': 'T', 'geo_editor.text': ''},
+    {'app.jump': 'not a key'},
+])
+def test_shortcut_import_rejects_conflicts_and_invalid_keys_without_losing_edits(pref_app, tmp_path, monkeypatch,
+                                                                              overrides):
+    import json
+    editor = pref_app.ui.general_pref_form.general_shortcuts_group.shortcuts_editor
+    assert editor.request('app.jump', 'Ctrl+Shift+B')
+    saved = editor.get_value()
+    path = tmp_path / 'keys.json'
+    path.write_text(json.dumps({'shortcuts': overrides}), encoding='utf-8')
+    monkeypatch.setattr(QtWidgets.QMessageBox, 'warning', Mock())
+    assert not editor.import_file(str(path))
+    assert editor.get_value() == saved
+
+
+def test_shortcut_export_reports_a_write_error(pref_app, tmp_path, monkeypatch):
+    editor = pref_app.ui.general_pref_form.general_shortcuts_group.shortcuts_editor
+    monkeypatch.setattr(QtWidgets.QMessageBox, 'warning', Mock())
+    assert not editor.export_file(str(tmp_path / 'missing' / 'keys.json'))
 
 
 def test_changed_shortcuts_survive_a_restart(tmp_path):

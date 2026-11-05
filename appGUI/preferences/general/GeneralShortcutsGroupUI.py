@@ -457,9 +457,7 @@ class ShortcutsEditor(QtWidgets.QWidget):
     def reset(self, aid):
         if aid is None or not self.registry.actions[aid].editable:
             return
-        self.cancel()
-        self.keys[aid] = self.registry.actions[aid].default
-        self._changed()
+        self.request(aid, self.registry.actions[aid].default)
 
     def reset_all(self):
         self.cancel()
@@ -494,8 +492,12 @@ class ShortcutsEditor(QtWidgets.QWidget):
                 self, _("Export the keyboard shortcuts"), 'shortcuts.json', "JSON (*.json)")
         if not filename:
             return False
-        with open(filename, 'w', encoding='utf-8') as f:
-            f.write(self.registry.to_json(self.get_value()))
+        try:
+            with open(filename, 'w', encoding='utf-8') as f:
+                f.write(self.registry.to_json(self.get_value()))
+        except OSError as err:
+            QtWidgets.QMessageBox.warning(self, _("Export the keyboard shortcuts"), str(err))
+            return False
         return True
 
 

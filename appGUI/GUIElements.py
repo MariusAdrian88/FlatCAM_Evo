@@ -5340,6 +5340,8 @@ class FCJog(QtWidgets.QFrame):
 
     def __init__(self, app, *args, **kwargs):
         super(FCJog, self).__init__(*args, **kwargs)
+        # physical axis directions must not mirror with the interface language
+        self.setLayoutDirection(QtCore.Qt.LayoutDirection.LeftToRight)
 
         self.app = app
         self.setFrameShape(QtWidgets.QFrame.Shape.Box)

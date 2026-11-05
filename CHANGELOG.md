@@ -6,6 +6,24 @@ Based on FlatCAM:
 
 CHANGELOG for FlatCAM Evo
 
+05.11.2026
+
+Shortcuts:
+
+- fixed: resetting one shortcut checks whether its factory key was assigned to another command and asks before replacing it
+- fixed: importing shortcuts rejects conflicting or invalid keys without discarding the edits already in the form
+- fixed: reassigned editor keys cannot take the fixed keys of active drawing tools; tool-selection keys still work when no drawing tool is active
+- fixed: a failed shortcut export reports the file error instead of raising an unhandled exception
+
+Preferences:
+
+- fixed: edit tracking is disconnected when the Preferences window closes and reconnected when it opens, so an edit is handled once
+- fixed: settings that share a row keep separate reset targets, so resetting one does not reset its neighbour
+
+Translations:
+
+- fixed: the jog controls keep their physical left-to-right axis directions in a right-to-left interface
+
 04.11.2026
 
 Shortcuts:
@@ -53,6 +71,7 @@ Translations:
 Translations:
 
 - new: the texts of the Compare plugin (plugin, preferences and menu) are translated in German, Spanish, French, Italian, Brazilian Portuguese, Romanian, Russian, Turkish and Chinese; all .mo files are compiled again
+- RELEASE 1.04
 
 04.11.2026
 

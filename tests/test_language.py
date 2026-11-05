@@ -116,7 +116,7 @@ class TestRightToLeft(unittest.TestCase):
 
     def test_code_shell_coordinates_and_canvas_stay_left_to_right(self):
         from appEditors.text_editor.code_edit import CodeEdit
-        from appGUI.GUIElements import CoordsToolbar
+        from appGUI.GUIElements import CoordsToolbar, FCJog
         from appPlugins.ToolShell.ShellUI import TermWidget
 
         fcTranslate.set_layout_direction('العربية')
@@ -128,6 +128,12 @@ class TestRightToLeft(unittest.TestCase):
         for what, widget in widgets.items():
             with self.subTest(what=what):
                 self.assertEqual(LTR, widget.layoutDirection())
+
+        jog = FCJog(types.SimpleNamespace(resource_location='assets/resources'))
+        jog.resize(jog.sizeHint())
+        jog.layout().activate()
+        self.assertLess(jog.jog_left_button.x(), jog.jog_origin_button.x())
+        self.assertLess(jog.jog_origin_button.x(), jog.jog_right_button.x())
 
         from appGUI.PlotCanvas import PlotCanvas
         from defaults import AppDefaults

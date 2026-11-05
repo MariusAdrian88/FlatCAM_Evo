@@ -314,6 +314,10 @@ class ShortcutRegistry:
                 other_context = self.contexts[other.context]
                 if not (own.text or other_context.text):
                     found.append(other)
+            elif (own.tool_editor is not None and action.phase != PHASE_TOOL and
+                  other.context == action.context.replace('_editor', '_drawing') and sequence != action.default):
+                # Tool-selection keys are idle-only; main and late keys also run while drawing.
+                found.append(other)
         return found
 
     # ------------------------------------------------------------------------------------------------------------
@@ -376,8 +380,24 @@ class ShortcutRegistry:
             data = data['shortcuts']
         if not isinstance(data, dict):
             raise ValueError('not a file of keyboard shortcuts')
-        return {aid: normalize(seq) for aid, seq in data.items()
-                if aid in self.actions and self.actions[aid].editable and isinstance(seq, str)}
+        overrides = {}
+        for aid, sequence in data.items():
+            action = self.actions.get(aid)
+            if action is None or not action.editable:
+                continue
+            if not isinstance(sequence, str) or (sequence and not normalize(sequence)):
+                raise ValueError('invalid shortcut: %s' % aid)
+            overrides[aid] = normalize(sequence)
+        keys = {aid: action.default for aid, action in self.actions.items()}
+        keys.update(overrides)
+        for aid, sequence in overrides.items():
+            if sequence == self.actions[aid].default:
+                continue
+            conflicts = self.conflicts(aid, sequence, keys=keys)
+            if conflicts:
+                raise ValueError('%s: %s (%s)' % (self.actions[aid].name, sequence,
+                                                 ', '.join(other.name for other in conflicts)))
+        return overrides
 
 
 _REGISTRY = None
