@@ -571,7 +571,9 @@ class PreferencesWindow(QtWidgets.QWidget):
             self.help_label.setText('')         # the help of the page that was shown
         self.stack.setCurrentWidget(widget)
         self.schedule_markers()
-        self.path_label.setText('%s  \u203a  %s' % (page.section, page.name))
+        # the separator points from the section to the page: to the left in a right-to-left interface
+        arrow = '\u2039' if self.layoutDirection() == Qt.LayoutDirection.RightToLeft else '\u203a'
+        self.path_label.setText('%s  %s  %s' % (page.section, arrow, page.name))
         self.title_label.setText(page.name)
         if self.tree.currentItem() is not page.item:
             self.tree.setCurrentItem(page.item)

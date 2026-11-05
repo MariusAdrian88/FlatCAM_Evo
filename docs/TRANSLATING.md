@@ -38,7 +38,7 @@ file these entries carry the comment `# auto-review 2026-10-09: <type>`; delete 
 | `locale_template/strings.pot` | all English texts of the program (the template) | no: made from the code |
 | `locale_template/glossary_terms.txt` | the key CNC/PCB terms with a short explanation | only to add a term |
 
-The language codes are the folder names: `de`, `es`, `fr`, `it`, `pt_BR`, `ro`, `ru`, `tr`, `zh`.
+The language codes are the folder names: `ar`, `de`, `es`, `fr`, `it`, `pt_BR`, `ro`, `ru`, `tr`, `zh`.
 
 ## Rules: what must stay as it is
 
@@ -98,7 +98,7 @@ Remember to run `compile` after editing the `.po`: the program reads the `.mo`.
 ## When the program's texts change (maintainers)
 
     python scripts/i18n_tool.py extract           # locale_template/strings.pot from the code
-    python scripts/i18n_tool.py merge de es fr it pt_BR ro ru tr zh
+    python scripts/i18n_tool.py merge ar de es fr it pt_BR ro ru tr zh
     python scripts/i18n_tool.py compile
     python scripts/i18n_tool.py stats             # --markdown <file> also writes the table to a file
 

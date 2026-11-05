@@ -18,6 +18,7 @@ import appTranslation as fcTranslate
 
 class TestLanguageNames(unittest.TestCase):
     def test_each_name_is_written_in_its_own_language(self):
+        self.assertEqual('العربية', fcTranslate.languages_dict['ar'])
         self.assertEqual('Deutsch', fcTranslate.languages_dict['de'])
         self.assertEqual('Português do Brasil', fcTranslate.languages_dict['pt_BR'])
         self.assertEqual('Türkçe', fcTranslate.languages_dict['tr'])
@@ -83,13 +84,14 @@ class TestRightToLeft(unittest.TestCase):
         cls.qapp = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
 
     def setUp(self):
-        # 'ar' has no catalogue yet: its name is added for the test
-        patcher = unittest.mock.patch.dict(fcTranslate.languages_dict, {'ar': 'العربية'})
-        patcher.start()
-        self.addCleanup(patcher.stop)
         self.addCleanup(QtWidgets.QApplication.setLayoutDirection, Qt.LayoutDirection.LayoutDirectionAuto)
 
     def test_an_rtl_language_mirrors_the_application(self):
+        saved = builtins.__dict__.get('_')
+        self.addCleanup(lambda: builtins.__dict__.__setitem__('_', saved) if saved is not None else None)
+        self.addCleanup(fcTranslate.apply_language, 'strings', 'English')
+        self.assertEqual('العربية', fcTranslate.apply_language('strings', lang='العربية'))
+        self.assertEqual('التفضيلات', builtins.__dict__['_']('Preferences'))
         fcTranslate.set_layout_direction('العربية')
         self.assertEqual(RTL, QtWidgets.QApplication.layoutDirection())
         # a new UI is mirrored with nothing extra

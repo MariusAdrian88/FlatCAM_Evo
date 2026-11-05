@@ -1,0 +1,199 @@
+﻿English,Arabic,Note
+Gerber,Gerber,"file format name, kept in Latin letters"
+Excellon,Excellon,"file format name, kept in Latin letters"
+GCode / G-code,G-code,kept in Latin letters
+CNCJob / CNC Job,مهمة CNC,the object type that holds G-code; 'كائن مهمة CNC'
+Geometry,هندسة,the object type of paths and shapes; 'كائن هندسة'
+Object,كائن,an item of the project
+Project,مشروع,
+Isolation,عزل,cutting around the copper traces
+Isolation Routing,تفريز العزل,
+Isolation Type,نوع العزل,
+NCC,إزالة النحاس,Arabic has no use for the English abbreviation; written out
+Non-Copper Clearing,إزالة النحاس الزائد,removing the copper that is not part of the circuit
+Paint,تعبئة,filling an area with toolpaths; not 'طلاء' (painting a colour)
+Cutout,قص اللوحة,cutting the board out of the plate
+Bridge,جسر,
+Gaps,الجسور,the bridges of a cutout (not 'فجوات')
+Gap size,عرض الجسر,
+Milling,تفريز,
+Drilling,ثقب,
+Tool (cutting),لقمة,"the cutting tool (end mill, drill bit, laser spot); plural لقم. A software tool / plugin is 'أداة'"
+Tools Table,جدول اللقم,
+Tools Database,قاعدة بيانات اللقم,
+Tool Dia / Tool Diameter,قطر اللقمة,
+Tool (plugin),أداة,"a plugin of the program (Tools menu), plural أدوات"
+V-Tip Dia,قطر رأس V,
+V-Tip Angle,زاوية رأس V,
+End mill,لقمة تفريز,
+Feedrate,معدل التغذية,
+Feedrate X-Y,معدل التغذية X-Y,
+Feedrate Z,معدل التغذية Z,
+Feedrate Rapids,معدل التغذية السريعة,speed of the rapid moves
+Spindle,المغزل,
+Spindle speed,سرعة المغزل,
+Laser Power,قدرة الليزر,
+Min Power,أدنى قدرة,
+Preprocessor,المعالج اللاحق,writes G-code for a machine; the usual CAM term in Arabic is post-processor
+Tool change,تغيير اللقمة,
+Toolchange Z,ارتفاع تغيير اللقمة Z,"the Arabic noun first, the axis after it: a label that starts with a Latin letter is laid out left to right"
+Travel Z,ارتفاع الانتقال Z,"noun first, axis after it"
+Cut Z,عمق القطع Z,"noun first, axis after it"
+End move Z,ارتفاع نهاية الحركة Z,"noun first, axis after it"
+"End move X,Y","موضع نهاية الحركة X,Y","noun first, axis after it"
+Depth,العمق,
+Multi-Depth,أعماق متعددة,
+Plunge,النزول,the tool going down into the material; 'Plunge feedrate' = معدل تغذية النزول
+Pass / Passes,تمريرة / تمريرات,
+Overlap,التداخل,
+Offset,الإزاحة,
+Margin,الهامش,
+Climb,تفريز تسلقي,climb milling
+Conventional,تفريز تقليدي,conventional milling
+Rest Machining,تشغيل المتبقي,
+Seed,البذرة,clearing method growing from a point
+Lines,خطوط,clearing method
+Standard,قياسي,clearing method
+Aperture / Apertures,فتحة / فتحات,"the shapes of a Gerber file; a drill hole is 'ثقب', not 'فتحة'"
+Pad,وسادة,
+Trace / Track,مسار,
+Slot / Slots,شق / شقوق,an elongated hole
+Drill / Drills,ثقب / ثقوب,the hole; the bit is 'لقمة ثقب'
+Holes,ثقوب,
+Copper,نحاس,
+Copper Thieving,ملء النحاس,copper patterns in empty areas
+Fiducials,علامات مرجعية,
+Film,فيلم,printing a layer as a film
+Solder mask,قناع اللحام,
+Silkscreen,طبقة الطباعة الحريرية,
+Solder paste,معجون اللحام,
+Panelize / Panelization,تجميع اللوحات,several copies of a board on one plate
+Mirror,عكس,
+Align / Alignment,محاذاة,
+Levelling,تسوية السطح,adjusting the G-code to the measured height
+Autolevelling,التسوية التلقائية,
+Probe,مجس,
+Polygon,مضلع,
+Buffer,توسيع الحدود,growing or shrinking a shape by a distance; not 'مخزن مؤقت'
+Bounding Box,المستطيل المحيط,
+Combine,دمج,
+Interiors,الأجزاء الداخلية,
+Edge,الحافة,
+Clearance,الخلوص,free distance kept around something
+Dwell,توقف مؤقت,
+Canvas,لوحة الرسم,
+Plot,عرض,drawing an object on the canvas
+Grid,الشبكة,
+Snap,الالتقاط,
+Units,الوحدات,mm and in stay as written
+Origin,نقطة الأصل,
+Coordinates,الإحداثيات,
+Scale,تحجيم,
+Rotate,تدوير,
+Skew,إمالة,
+Preferences,التفضيلات,
+Editor,المحرر,
+Undo / Redo,تراجع / إعادة,
+Selection,التحديد,
+Reference,المرجع,
+Area,المساحة / المنطقة,"المساحة for a measured size (and the single word ""Area""), المنطقة for a region"
+Shape,شكل,
+Distance,المسافة,
+Properties,الخصائص,
+Script,سكربت,a Tcl script
+Command Line / Shell,سطر الأوامر,
+Open / Save,فتح / حفظ,
+Import / Export,استيراد / تصدير,
+Generate Geometry,إنشاء هندسة,
+Generate CNCJob object,إنشاء كائن مهمة CNC,
+Board / PCB,لوحة / لوحة الدوائر المطبوعة,
+Layer,طبقة,
+Toolpath,مسار القطع,
+Engrave,نقش,
+Etch,حفر كيميائي,
+Plugin,إضافة,"""X Plugin"" → إضافة X"
+Kept in English,"Gerber, Excellon, G-code, GRBL, Marlin, FluidNC, Tcl, Tcl command names and options, file extensions, mm, in, <argument>, Ctrl, Shift, Alt, F3",
+Numbers,0-9,"Western digits, as the program writes them"
+Tolerance,التفاوت,not السماح / السماحية
+Vertex / vertices,رأس / رؤوس,
+Segment,مقطع,
+Endpoint,نقطة النهاية,
+Flash / flashes (Gerber),ومضة / ومضات,flashed pad → وسادة مومضة
+Track,مسار,
+Region,منطقة,
+Exclusion area / zone,منطقة الاستبعاد,
+Parameters,المعاملات,
+Tab (UI tab),تبويب,not لسان; Project Tab → تبويب المشروع
+Notebook (the side panel),اللوحة الجانبية,
+Inch / inches (the word),بوصة,not إنش; the unit symbol in stays
+Metric / Imperial,متري / إنجليزي,
+Photo Carve,النحت الضوئي,
+Contour (pass),المحيط,contour pass → تمريرة المحيط; not كفاف / كنتور
+Outline (board),المحيط الخارجي,board outline → محيط اللوحة
+Peck drilling / peck depth,الثقب المتقطع / عمق الثقب المتقطع,
+Probe / probing / probe points,مجس / الجس / نقاط الجس,not السبر
+Height map,خريطة الارتفاعات,
+Jog,التحريك اليدوي,
+Home / homing cycle,العودة إلى الأصل / دورة العودة إلى الأصل,
+Mouse bites (M-Bites),عضّات الفأر,
+Roughing / Finishing / Polishing,تخشين / تشطيب / صقل,
+Join / Merge / Union / Intersection / Subtract / Split,وصل / دمج / اتحاد / تقاطع / طرح / تقسيم,
+Transform,تحويل,
+Flip,قلب,
+Polarity / Invert Gerber,القطبية / عكس قطبية Gerber,
+Annular ring,الحلقة النحاسية,
+Robber bar / pattern plating,شريط الموازنة / الطلاء النمطي,
+Convex hull,الغلاف المحدب,
+"Box (the container / reference object of Film, Panelize, NCC, Paint)",الإطار,
+Panel (the result of Panelize),اللوحة المجمّعة,
+Stepover / Stepdown,الخطوة الجانبية / العمق لكل تمريرة,
+V-bit / ball end mill,لقمة V / لقمة تفريز كروية,
+Halftone / relief / lithophane / dither / grayscale,تدرج نقطي / نحت بارز / ليثوفان / تنقيط / تدرج رمادي,
+Console (G-code Sender),الطرفية,
+Sender (G-code Sender),المُرسِل,G-code Sender → مُرسِل G-code
+Fiducial,علامة مرجعية,
+Spot drill,ثقب التمركز,
+"""X Plugin""",إضافة X,
+Clear (Gerber clear polarity),مسح,
+Exterior / Interior,خارجي / داخلي,
+Theme,السمة,
+Workspace,مساحة العمل,
+Rules Check,فحص القواعد,
+"Default file names (Tools_Database, ...) and code identifiers",stay in English (ASCII),
+CW / CCW,keep the letters where the English defines them,otherwise مع عقارب الساعة / عكس عقارب الساعة
+Feeds & Speeds,keep one `&`: التغذية & السرعات,
+QRCode,رمز QR,
+Etch Compensation,تعويض الحفر الكيميائي,
+Calibration,المعايرة,
+Solder Paste (plugin),معجون اللحام,
+Preview,معاينة,
+Default,افتراضي,
+Enable / Disable,تمكين / تعطيل,
+"Area as a measured size (polygon area, copper area, box area)",المساحة,a region stays المنطقة
+Toolbar,شريط الأدوات,
+Shell / Tcl Shell,سطر الأوامر / سطر أوامر Tcl,
+Controller (machine),وحدة التحكم,
+Toggle,تبديل,visibility: إظهار/إخفاء
+Reset / soft reset,إعادة الضبط / إعادة ضبط برمجية,
+Unlock,إلغاء القفل,
+Idle (GRBL state),خامل,Idle
+Feed hold,إيقاف التغذية المؤقت,
+Retract,سحب,
+Work offset,إزاحة العمل,
+Serial port / baud rate,المنفذ التسلسلي / معدل الباود,
+Firmware,البرنامج الثابت,
+Touchplate,لوح اللمس,
+Registration (board),تسجيل موضع اللوحة,
+Explode,تفكيك,
+Utilities,الأدوات المساعدة,
+Optimal (plugin),الأمثل,
+Markers (plugin),العلامات,
+2-Sided (plugin),الوجهان,
+Calculators,الحاسبات,
+Extract (plugin),استخراج,
+Follow (plugin / Follow geometry),تتبّع / هندسة التتبّع,FOLLOW (Gerber editor key) stays FOLLOW
+Over / Around (strategy),فوق / حول,
+Annotation,التعليقات التوضيحية,
+Bookmark,إشارة مرجعية,
+Splash screen,شاشة البداية,
+Parser / parsing,المحلل / التحليل,
