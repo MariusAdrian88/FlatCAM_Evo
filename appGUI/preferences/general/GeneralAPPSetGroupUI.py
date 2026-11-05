@@ -39,7 +39,7 @@ class GeneralAPPSetGroupUI(OptionsGroupUI):
         # Grid Settings Frame
         # #############################################################################################################
         # GRID Settings
-        self.grid_label = FCLabel('%s' % _("Grid Settings"), color='magenta', bold=True)
+        self.grid_label = FCLabel('%s' % _("Grid Settings"), bold=True)
         self.layout.addWidget(self.grid_label)
 
         grids_frame = FCFrame()
@@ -92,7 +92,7 @@ class GeneralAPPSetGroupUI(OptionsGroupUI):
         # Workspace Frame
         # #############################################################################################################
         # Workspace
-        self.workspace_label = FCLabel('%s' % _("Workspace Settings"), color='brown', bold=True)
+        self.workspace_label = FCLabel('%s' % _("Workspace Settings"), bold=True)
         self.layout.addWidget(self.workspace_label)
 
         wk_frame = FCFrame()
@@ -193,7 +193,7 @@ class GeneralAPPSetGroupUI(OptionsGroupUI):
         # Font Frame
         # #############################################################################################################
         # Font Size
-        self.font_size_label = FCLabel('%s' % _("Font Size"), color='green', bold=True)
+        self.font_size_label = FCLabel('%s' % _("Font Size"), bold=True)
         self.layout.addWidget(self.font_size_label)
 
         fnt_frame = FCFrame()
@@ -284,7 +284,7 @@ class GeneralAPPSetGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # HUD Frame
         # #############################################################################################################
-        self.hud_label = FCLabel('%s' % _("HUD"), color='purple', bold=True)
+        self.hud_label = FCLabel('%s' % _("HUD"), bold=True)
         self.layout.addWidget(self.hud_label)
 
         hud_frame = FCFrame()
@@ -362,7 +362,7 @@ class GeneralAPPSetGroupUI(OptionsGroupUI):
         # Axis Frame
         # #############################################################################################################
         # Axis Size
-        self.axis_label = FCLabel('%s' % _("Axis"), color='brown', bold=True)
+        self.axis_label = FCLabel('%s' % _("Axis"), bold=True)
         self.layout.addWidget(self.axis_label)
 
         ax_frame = FCFrame()
@@ -396,7 +396,7 @@ class GeneralAPPSetGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Mouse Frame
         # #############################################################################################################
-        self.mouse_lbl = FCLabel('%s' % _("Mouse Settings"), color='darkorange', bold=True)
+        self.mouse_lbl = FCLabel('%s' % _("Mouse Settings"), bold=True)
         self.layout.addWidget(self.mouse_lbl)
 
         m_frame = FCFrame()
@@ -499,7 +499,7 @@ class GeneralAPPSetGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Parameters Frame
         # #############################################################################################################
-        self.par_label = FCLabel(_('Parameters'), color='blue', bold=True)
+        self.par_label = FCLabel(_('Parameters'), bold=True)
         self.layout.addWidget(self.par_label)
 
         par_frame = FCFrame()

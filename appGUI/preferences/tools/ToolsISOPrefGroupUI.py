@@ -23,7 +23,7 @@ class ToolsISOPrefGroupUI(OptionsGroupUI):
         self.options = app.options
 
         # ## Clear non-copper regions
-        self.iso_label = FCLabel(_("Parameters"), color='blue', bold=True)
+        self.iso_label = FCLabel(_("Parameters"), bold=True)
         self.iso_label.setToolTip(
             _("Create a Geometry object with\n"
               "toolpaths to cut around polygons.")
@@ -40,7 +40,7 @@ class ToolsISOPrefGroupUI(OptionsGroupUI):
         par_frame.setLayout(par_grid)
 
         # Tool Dias
-        isotdlabel = FCLabel('%s:' % _('Tools Dia'), color='green', bold=True)
+        isotdlabel = FCLabel('%s:' % _('Tools Dia'), bold=True)
         isotdlabel.setToolTip(
             _("Diameters of the tools, separated by comma.\n"
               "The value of the diameter has to use the dot decimals separator.\n"
@@ -136,7 +136,7 @@ class ToolsISOPrefGroupUI(OptionsGroupUI):
         # Tool Frame
         # #############################################################################################################
         # ### Tools ## ##
-        self.tools_table_label = FCLabel(_("Tool Parameters"), color='green', bold=True)
+        self.tools_table_label = FCLabel(_("Tool Parameters"), bold=True)
         self.layout.addWidget(self.tools_table_label)
 
         tt_frame = FCFrame()
@@ -246,7 +246,7 @@ class ToolsISOPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # General Parameters Frame
         # #############################################################################################################
-        self.gen_param_label = FCLabel(_("Common Parameters"), color='indigo', bold=True)
+        self.gen_param_label = FCLabel(_("Common Parameters"), bold=True)
         self.gen_param_label.setToolTip(
             _("Parameters that are common for all tools.")
         )

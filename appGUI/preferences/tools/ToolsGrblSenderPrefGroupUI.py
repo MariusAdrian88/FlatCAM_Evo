@@ -50,7 +50,7 @@ class ToolsGrblSenderPrefGroupUI(OptionsGroupUI):
             connection_grid.addWidget(FCLabel('%s:' % label), row, 0)
             connection_grid.addWidget(widget, row, 1)
 
-        self.grbl_label = FCLabel('%s' % _("Parameters"), color='blue', bold=True)
+        self.grbl_label = FCLabel('%s' % _("Parameters"), bold=True)
         self.grbl_label.setToolTip(
             _("Send the CNC Code to a GRBL controller.")
         )

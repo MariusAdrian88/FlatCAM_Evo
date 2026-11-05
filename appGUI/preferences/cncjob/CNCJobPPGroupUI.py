@@ -24,7 +24,7 @@ class CNCJobPPGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # PARAMETERS Frame
         # #############################################################################################################
-        self.comp_gcode_label = FCLabel('%s' % _("Compensation"), color='blue', bold=True)
+        self.comp_gcode_label = FCLabel('%s' % _("Compensation"), bold=True)
         self.comp_gcode_label.setToolTip(
             _("Compensate CNC bed issues.")
         )

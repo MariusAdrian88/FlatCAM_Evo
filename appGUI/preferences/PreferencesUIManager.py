@@ -29,7 +29,7 @@ class PreferencesUIManager(QtCore.QObject):
 
     def __init__(self, defaults: AppDefaults, data_path: str, ui, inform, options):
         """
-        Class that control the Preferences Tab
+        Class that control the Preferences window (appGUI/preferences/PreferencesWindow.py)
 
         :param defaults:    a dictionary storage where all the application settings are stored
         :param data_path:   a path to the file where all the preferences are stored for persistence
@@ -39,16 +39,6 @@ class PreferencesUIManager(QtCore.QObject):
         """
         super(PreferencesUIManager, self).__init__()
 
-        self.general_displayed = False
-        self.gerber_displayed = False
-        self.excellon_displayed = False
-        self.geometry_displayed = False
-        self.cnc_displayed = False
-        self.engrave_displayed = False
-        self.plugins_displayed = False
-        self.plugins2_displayed = False
-        self.util_displayed = False
-
         self.defaults = defaults
         self.data_path = data_path
         self.ui = ui
@@ -57,8 +47,6 @@ class PreferencesUIManager(QtCore.QObject):
 
         # if Preferences are changed in the Edit -> Preferences tab the value will be set to True
         self.preferences_changed_flag = False
-
-        self.old_color = QtGui.QColor('black')
 
         # when adding entries here read the comments in the  method found below named:
         # def app_obj.new_object(self, kind, name, initialize, active=True, fit=True, plot=True)
@@ -898,9 +886,6 @@ class PreferencesUIManager(QtCore.QObject):
             for name, key in zip(DEFAULTS, PHOTOCARVE_KEYS)
         })
 
-        # set the colors of the tab text's to default and the color of the first tab is 'green'
-        self.ui.on_pref_tabbar_clicked(0)
-
     def _pref(self, key, source=None):
         """Safe preference read with factory-default fallback."""
         storage = self.defaults if source is None else source
@@ -1024,8 +1009,6 @@ class PreferencesUIManager(QtCore.QObject):
         if not self.preferences_changed_flag:
             self.defaults_write_form()
 
-        self.init_preferences_gui()
-
         self.pref_connect()
 
         # Initialize the color box's color in Preferences -> Global -> Colors
@@ -1033,35 +1016,14 @@ class PreferencesUIManager(QtCore.QObject):
 
         # log.debug("Finished Preferences GUI form initialization.")
 
-    def init_preferences_gui(self):
-        self.general_displayed = False
-        self.gerber_displayed = False
-        self.excellon_displayed = False
-        self.geometry_displayed = False
-        self.cnc_displayed = False
-        self.engrave_displayed = False
-        self.plugins_displayed = False
-        self.plugins2_displayed = False
-        self.util_displayed = False
-
-        gen_form = self.ui.general_pref_form
-        try:
-            self.ui.general_scroll_area.takeWidget()
-        except Exception:
-            self.ui.app.log.debug("Nothing to remove")
-        self.ui.general_scroll_area.setWidget(gen_form)
-        gen_form.show()
+    def _window(self):
+        """The Preferences window, None before its first opening."""
+        return getattr(self.ui, 'preferences_window', None)
 
     def pref_connect(self):
         self.pref_disconnect()
 
-        self.ui.pref_tab_area.tabBarClicked.connect(self.on_tab_clicked)
-
-        # Button handlers
-        self.ui.pref_save_button.clicked.connect(lambda: self.on_save_button(save_to_file=True))
-        self.ui.pref_apply_button.clicked.connect(lambda: self.on_save_button(save_to_file=False))
-        self.ui.pref_close_button.clicked.connect(self.on_pref_close_button)
-        self.ui.pref_defaults_button.clicked.connect(self.on_restore_defaults_preferences)
+        # the buttons of the window are connected by the window
         prepare_update_files = getattr(self.ui.app, "prepare_update_files", None)
         if callable(prepare_update_files):
             self.ui.general_pref_form.general_app_group.prepare_update_files_btn.clicked.connect(
@@ -1070,173 +1032,9 @@ class PreferencesUIManager(QtCore.QObject):
 
     def pref_disconnect(self):
         try:
-            self.ui.pref_tab_area.tabBarClicked.disconnect()
-        except Exception:
-            pass
-
-        # Disconnect Button handlers
-        try:
-            self.ui.pref_save_button.clicked.disconnect()
-        except Exception:
-            pass
-
-        try:
-            self.ui.pref_apply_button.clicked.disconnect()
-        except Exception:
-            pass
-
-        try:
-            self.ui.pref_close_button.clicked.disconnect()
-        except Exception:
-            pass
-
-        try:
-            self.ui.pref_defaults_button.clicked.disconnect()
-        except Exception:
-            pass
-
-        try:
             self.ui.general_pref_form.general_app_group.prepare_update_files_btn.clicked.disconnect()
         except Exception:
             pass
-
-    def clear_preferences_gui(self):
-        self.pref_disconnect()
-        # try:
-        #     self.ui.general_scroll_area.takeWidget()
-        # except Exception:
-        #     self.ui.app.log.debug("Nothing to remove")
-        #
-        # try:
-        #     self.ui.gerber_scroll_area.takeWidget()
-        # except Exception:
-        #     self.ui.app.log.debug("Nothing to remove")
-        #
-        # try:
-        #     self.ui.excellon_scroll_area.takeWidget()
-        # except Exception:
-        #     self.ui.app.log.debug("Nothing to remove")
-        #
-        # try:
-        #     self.ui.geometry_scroll_area.takeWidget()
-        # except Exception:
-        #     self.ui.app.log.debug("Nothing to remove")
-        #
-        # try:
-        #     self.ui.cncjob_scroll_area.takeWidget()
-        # except Exception:
-        #     self.ui.app.log.debug("Nothing to remove")
-        #
-        # try:
-        #     self.ui.plugins_engraving_scroll_area.takeWidget()
-        # except Exception:
-        #     self.ui.app.log.debug("Nothing to remove")
-        #
-        # try:
-        #     self.ui.tools_scroll_area.takeWidget()
-        # except Exception:
-        #     self.ui.app.log.debug("Nothing to remove")
-        #
-        # try:
-        #     self.ui.tools2_scroll_area.takeWidget()
-        # except Exception:
-        #     self.ui.app.log.debug("Nothing to remove")
-        #
-        # try:
-        #     self.ui.fa_scroll_area.takeWidget()
-        # except Exception:
-        #     self.ui.app.log.debug("Nothing to remove")
-
-    def on_tab_clicked(self, idx):
-        if idx == 0 and self.general_displayed is False:
-            self.general_displayed = True
-            gen_form = self.ui.general_pref_form
-            try:
-                self.ui.general_scroll_area.takeWidget()
-            except Exception:
-                self.ui.app.log.debug("Nothing to remove")
-            self.ui.general_scroll_area.setWidget(gen_form)
-            gen_form.show()
-
-        if idx == 1 and self.gerber_displayed is False:
-            self.gerber_displayed = True
-            ger_form = self.ui.gerber_pref_form
-            try:
-                self.ui.gerber_scroll_area.takeWidget()
-            except Exception:
-                self.ui.app.log.debug("Nothing to remove")
-            self.ui.gerber_scroll_area.setWidget(ger_form)
-            ger_form.show()
-
-        if idx == 2 and self.excellon_displayed is False:
-            self.excellon_displayed = True
-            exc_form = self.ui.excellon_pref_form
-            try:
-                self.ui.excellon_scroll_area.takeWidget()
-            except Exception:
-                self.ui.app.log.debug("Nothing to remove")
-            self.ui.excellon_scroll_area.setWidget(exc_form)
-            exc_form.show()
-
-        if idx == 3 and self.geometry_displayed is False:
-            self.geometry_displayed = True
-            geo_form = self.ui.geo_pref_form
-            try:
-                self.ui.geometry_scroll_area.takeWidget()
-            except Exception:
-                self.ui.app.log.debug("Nothing to remove")
-            self.ui.geometry_scroll_area.setWidget(geo_form)
-            geo_form.show()
-
-        if idx == 4 and self.cnc_displayed is False:
-            self.cnc_displayed = True
-            cnc_form = self.ui.cncjob_pref_form
-            try:
-                self.ui.cncjob_scroll_area.takeWidget()
-            except Exception:
-                self.ui.app.log.debug("Nothing to remove")
-            self.ui.cncjob_scroll_area.setWidget(cnc_form)
-            cnc_form.show()
-
-        if idx == 5 and self.engrave_displayed is False:
-            self.engrave_displayed = True
-            plugins_engraving_form = self.ui.plugin_eng_pref_form
-            try:
-                self.ui.plugins_engraving_scroll_area.takeWidget()
-            except Exception:
-                self.ui.app.log.debug("Nothing to remove")
-            self.ui.plugins_engraving_scroll_area.setWidget(plugins_engraving_form)
-            plugins_engraving_form.show()
-
-        if idx == 6 and self.plugins_displayed is False:
-            self.plugins_displayed = True
-            plugins_form = self.ui.plugin_pref_form
-            try:
-                self.ui.tools_scroll_area.takeWidget()
-            except Exception:
-                self.ui.app.log.debug("Nothing to remove")
-            self.ui.tools_scroll_area.setWidget(plugins_form)
-            plugins_form.show()
-
-        if idx == 7 and self.plugins2_displayed is False:
-            self.plugins2_displayed = True
-            plugins2_form = self.ui.plugin2_pref_form
-            try:
-                self.ui.tools2_scroll_area.takeWidget()
-            except Exception:
-                self.ui.app.log.debug("Nothing to remove")
-            self.ui.tools2_scroll_area.setWidget(plugins2_form)
-            plugins2_form.show()
-
-        if idx == 8 and self.util_displayed is False:
-            self.util_displayed = True
-            fa_form = self.ui.util_pref_form
-            try:
-                self.ui.fa_scroll_area.takeWidget()
-            except Exception:
-                self.ui.app.log.debug("Nothing to remove")
-            self.ui.fa_scroll_area.setWidget(fa_form)
-            fa_form.show()
 
     def __init_color_pickers(self):
         # Init Gerber Plot Colors
@@ -1339,14 +1137,9 @@ class PreferencesUIManager(QtCore.QObject):
         # Preferences saved, update flag
         self.preferences_changed_flag = False
 
-        # Preferences save, update the color of the Preferences Tab text
-        for idx in range(self.ui.plot_tab_area.count()):
-            if self.ui.plot_tab_area.tabText(idx) == _("Preferences"):
-                self.ui.plot_tab_area.tabBar.setTabTextColor(idx, self.old_color)
-
-        # restore the default stylesheet by setting a blank one
-        self.ui.pref_apply_button.setStyleSheet("")
-        self.ui.pref_apply_button.setIcon(QtGui.QIcon(self.ui.app.resource_location + '/apply32.png'))
+        # Preferences saved, the Apply button shows no pending edit
+        if self._window() is not None:
+            self._window().set_edited(False)
 
         self.inform.emit('%s' % _("Preferences applied."))  # noqa
 
@@ -1461,13 +1254,9 @@ class PreferencesUIManager(QtCore.QObject):
         # This will write the setting to the platform specific storage.
         del settgs
 
-        if save_to_file:
-            # close the tab and delete it
-            for idx in range(self.ui.plot_tab_area.count()):
-                if self.ui.plot_tab_area.tabText(idx) == _("Preferences"):
-                    self.ui.plot_tab_area.tabBar.setTabTextColor(idx, self.old_color)
-                    self.ui.plot_tab_area.closeTab(idx)
-                    break
+        if save_to_file and self._window() is not None:
+            # close the window
+            self._window().close_quietly()
 
         if should_restart is True:
             self.ui.app.on_app_restart()
@@ -1521,8 +1310,8 @@ class PreferencesUIManager(QtCore.QObject):
 
     def on_preferences_edited(self):
         """
-        Executed when a preference was changed in the Edit -> Preferences tab.
-        Will color the Preferences tab text to Red color.
+        Executed when a preference was changed in the Preferences window.
+        Will show the Apply button in red.
         :return:
         """
         if isinstance(self.sender(), QtWidgets.QScrollBar):
@@ -1531,13 +1320,8 @@ class PreferencesUIManager(QtCore.QObject):
         if self.preferences_changed_flag is False:
             self.inform.emit('[WARNING_NOTCL] %s' % _("Preferences edited but not saved."))
 
-            for idx in range(self.ui.plot_tab_area.count()):
-                if self.ui.plot_tab_area.tabText(idx) == _("Preferences"):
-                    self.old_color = self.ui.plot_tab_area.tabBar.tabTextColor(idx)
-                    self.ui.plot_tab_area.tabBar.setTabTextColor(idx, QtGui.QColor('red'))
-
-            self.ui.pref_apply_button.color = 'red'
-            self.ui.pref_apply_button.setIcon(QtGui.QIcon(self.ui.app.resource_location + '/apply_red32.png'))
+            if self._window() is not None:
+                self._window().set_edited(True)
 
             self.preferences_changed_flag = True
 
@@ -1549,35 +1333,11 @@ class PreferencesUIManager(QtCore.QObject):
         # restore stylesheet to default for the statusBar icon
         self.ui.pref_status_label.setStyleSheet("")
 
-        self.clear_preferences_gui()
+        self.pref_disconnect()
 
-        # disconnect
-        for idx in range(self.ui.pref_tab_area.count()):
-            for tb in self.ui.pref_tab_area.widget(idx).findChildren(QtCore.QObject):
-                try:
-                    tb.textEdited.disconnect(self.on_preferences_edited)
-                except (TypeError, AttributeError):
-                    pass
-
-                try:
-                    tb.modificationChanged.disconnect(self.on_preferences_edited)
-                except (TypeError, AttributeError):
-                    pass
-
-                try:
-                    tb.toggled.disconnect(self.on_preferences_edited)
-                except (TypeError, AttributeError):
-                    pass
-
-                try:
-                    tb.valueChanged.disconnect(self.on_preferences_edited)
-                except (TypeError, AttributeError):
-                    pass
-
-                try:
-                    tb.currentIndexChanged.disconnect(self.on_preferences_edited)
-                except (TypeError, AttributeError):
-                    pass
+        # stop the detection of edits
+        if self._window() is not None:
+            self._window().set_edit_tracking(self.on_preferences_edited, False)
 
         # Prompt user to save
         if self.preferences_changed_flag is True:
@@ -1618,12 +1378,9 @@ class PreferencesUIManager(QtCore.QObject):
 
         self.defaults_write_form()
 
-        # Preferences save, update the color of the Preferences Tab text
-        for idx in range(self.ui.plot_tab_area.count()):
-            if self.ui.plot_tab_area.tabText(idx) == _("Preferences"):
-                self.ui.plot_tab_area.tabBar.setTabTextColor(idx, self.old_color)
-                self.ui.plot_tab_area.closeTab(idx)
-                break
+        if self._window() is not None:
+            self._window().set_edited(False)
+            self._window().close_quietly()
 
         self.inform.emit('%s' % _("Preferences closed without saving."))
         self.ignore_tab_close_event = False

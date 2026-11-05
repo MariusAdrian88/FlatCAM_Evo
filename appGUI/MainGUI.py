@@ -1814,195 +1814,10 @@ class MainGUI(QtWidgets.QMainWindow):
             )
 
         # ########################################################################
-        # ########################## PREFERENCES AREA Tab # ######################
+        # ########################## PREFERENCES WINDOW ##########################
         # ########################################################################
-        self.preferences_tab = QtWidgets.QWidget()
-        self.preferences_tab.setObjectName("preferences_tab")
-        self.pref_tab_layout = QtWidgets.QVBoxLayout(self.preferences_tab)
-        self.pref_tab_layout.setContentsMargins(2, 2, 2, 2)
-
-        self.pref_tab_area = FCTab()
-        if _database_option(self.app, "global_theme") not in ['default', 'light']:
-            self.pref_tab_area.setStyleSheet(
-                """
-                QTabWidget::pane {
-                border: 0px solid rgba(63.000, 64.000, 66.000, 1.000);
-                }
-                """
-            )
-        self.pref_tab_area.setTabsClosable(False)
-        self.pref_tab_area_tabBar = self.pref_tab_area.tabBar()
-        self.pref_tab_area_tabBar.setStyleSheet("QTabBar::tab{min-width:90px;}")
-        self.pref_tab_area_tabBar.setExpanding(True)
-        self.pref_tab_layout.addWidget(self.pref_tab_area)
-        self.default_pref_tab_area_tab_text_color = self.pref_tab_area.tabBar().tabTextColor(0)
-
-        self.general_tab = QtWidgets.QWidget()
-        self.general_tab.setObjectName("general_tab")
-        self.pref_tab_area.addTab(self.general_tab, _("General"))
-        self.general_tab_lay = QtWidgets.QVBoxLayout()
-        self.general_tab_lay.setContentsMargins(2, 2, 2, 2)
-        self.general_tab.setLayout(self.general_tab_lay)
-
-        self.hlay1 = QtWidgets.QHBoxLayout()
-        self.general_tab_lay.addLayout(self.hlay1)
-
-        self.hlay1.addStretch()
-
-        self.general_scroll_area = QtWidgets.QScrollArea()
-        self.general_scroll_area.setWidgetResizable(True)
-        self.general_tab_lay.addWidget(self.general_scroll_area)
-
-        self.gerber_tab = QtWidgets.QWidget()
-        self.gerber_tab.setObjectName("gerber_tab")
-        self.pref_tab_area.addTab(self.gerber_tab, _("Gerber").upper())
-        self.gerber_tab_lay = QtWidgets.QVBoxLayout()
-        self.gerber_tab_lay.setContentsMargins(2, 2, 2, 2)
-        self.gerber_tab.setLayout(self.gerber_tab_lay)
-
-        self.gerber_scroll_area = QtWidgets.QScrollArea()
-        self.gerber_scroll_area.setWidgetResizable(True)
-        self.gerber_tab_lay.addWidget(self.gerber_scroll_area)
-
-        self.excellon_tab = QtWidgets.QWidget()
-        self.excellon_tab.setObjectName("excellon_tab")
-        self.pref_tab_area.addTab(self.excellon_tab, _("Excellon").upper())
-        self.excellon_tab_lay = QtWidgets.QVBoxLayout()
-        self.excellon_tab_lay.setContentsMargins(2, 2, 2, 2)
-        self.excellon_tab.setLayout(self.excellon_tab_lay)
-
-        self.excellon_scroll_area = QtWidgets.QScrollArea()
-        self.excellon_scroll_area.setWidgetResizable(True)
-        self.excellon_tab_lay.addWidget(self.excellon_scroll_area)
-
-        self.geometry_tab = QtWidgets.QWidget()
-        self.geometry_tab.setObjectName("geometry_tab")
-        self.pref_tab_area.addTab(self.geometry_tab, _("Geometry").upper())
-        self.geometry_tab_lay = QtWidgets.QVBoxLayout()
-        self.geometry_tab_lay.setContentsMargins(2, 2, 2, 2)
-        self.geometry_tab.setLayout(self.geometry_tab_lay)
-
-        self.geometry_scroll_area = QtWidgets.QScrollArea()
-        self.geometry_scroll_area.setWidgetResizable(True)
-        self.geometry_tab_lay.addWidget(self.geometry_scroll_area)
-
-        self.text_editor_tab = QtWidgets.QWidget()
-        self.text_editor_tab.setObjectName("text_editor_tab")
-        self.pref_tab_area.addTab(self.text_editor_tab, _("CNC-JOB"))
-        self.cncjob_tab_lay = QtWidgets.QVBoxLayout()
-        self.cncjob_tab_lay.setContentsMargins(2, 2, 2, 2)
-        self.text_editor_tab.setLayout(self.cncjob_tab_lay)
-
-        self.cncjob_scroll_area = QtWidgets.QScrollArea()
-        self.cncjob_scroll_area.setWidgetResizable(True)
-        self.cncjob_tab_lay.addWidget(self.cncjob_scroll_area)
-
-        self.plugins_eng_tab = QtWidgets.QWidget()
-        self.pref_tab_area.addTab(self.plugins_eng_tab, '%s' % _("Engraving").upper())
-        self.plugins_eng_tab_lay = QtWidgets.QVBoxLayout()
-        self.plugins_eng_tab_lay.setContentsMargins(2, 2, 2, 2)
-        self.plugins_eng_tab.setLayout(self.plugins_eng_tab_lay)
-
-        self.plugins_engraving_scroll_area = QtWidgets.QScrollArea()
-        self.plugins_engraving_scroll_area.setWidgetResizable(True)
-        self.plugins_eng_tab_lay.addWidget(self.plugins_engraving_scroll_area)
-
-        self.tools_tab = QtWidgets.QWidget()
-        self.pref_tab_area.addTab(self.tools_tab, '%s' % _("Processing").upper())
-        self.tools_tab_lay = QtWidgets.QVBoxLayout()
-        self.tools_tab_lay.setContentsMargins(2, 2, 2, 2)
-        self.tools_tab.setLayout(self.tools_tab_lay)
-
-        self.tools_scroll_area = QtWidgets.QScrollArea()
-        self.tools_scroll_area.setWidgetResizable(True)
-        self.tools_tab_lay.addWidget(self.tools_scroll_area)
-
-        self.tools2_tab = QtWidgets.QWidget()
-        self.pref_tab_area.addTab(self.tools2_tab, '%s' % _("Extra Plugins").upper())
-        self.tools2_tab_lay = QtWidgets.QVBoxLayout()
-        self.tools2_tab_lay.setContentsMargins(2, 2, 2, 2)
-        self.tools2_tab.setLayout(self.tools2_tab_lay)
-
-        self.tools2_scroll_area = QtWidgets.QScrollArea()
-        self.tools2_scroll_area.setWidgetResizable(True)
-        self.tools2_tab_lay.addWidget(self.tools2_scroll_area)
-
-        self.fa_tab = QtWidgets.QWidget()
-        self.fa_tab.setObjectName("fa_tab")
-        self.pref_tab_area.addTab(self.fa_tab, _("UTILITIES"))
-        self.fa_tab_lay = QtWidgets.QVBoxLayout()
-        self.fa_tab_lay.setContentsMargins(2, 2, 2, 2)
-        self.fa_tab.setLayout(self.fa_tab_lay)
-
-        self.fa_scroll_area = QtWidgets.QScrollArea()
-        self.fa_scroll_area.setWidgetResizable(True)
-        self.fa_tab_lay.addWidget(self.fa_scroll_area)
-
-        self.pref_tab_bottom_layout = QtWidgets.QHBoxLayout()
-        self.pref_tab_bottom_layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignVCenter)
-        self.pref_tab_layout.addLayout(self.pref_tab_bottom_layout)
-
-        self.pref_tab_bottom_layout_1 = QtWidgets.QHBoxLayout()
-        self.pref_tab_bottom_layout_1.setAlignment(
-            QtCore.Qt.AlignmentFlag.AlignLeft | QtCore.Qt.AlignmentFlag.AlignVCenter)
-        self.pref_tab_bottom_layout.addLayout(self.pref_tab_bottom_layout_1)
-
-        self.pref_defaults_button = FCButton(_("Restore Defaults"))
-        self.pref_defaults_button.setIcon(QtGui.QIcon(self.app.resource_location + '/restore32.png'))
-        self.pref_defaults_button.setMinimumWidth(130)
-        self.pref_defaults_button.setToolTip(
-            _("Restore the entire set of default values\n"
-              "to the initial values loaded after first launch."))
-        self.pref_tab_bottom_layout_1.addWidget(self.pref_defaults_button)
-
-        self.pref_open_button = FCButton()
-        self.pref_open_button.setText(_("Open Pref Folder"))
-        self.pref_open_button.setIcon(QtGui.QIcon(self.app.resource_location + '/pref.png'))
-        self.pref_open_button.setMinimumWidth(130)
-        self.pref_open_button.setToolTip(
-            _("Open the folder where FlatCAM save the preferences files."))
-        self.pref_tab_bottom_layout_1.addWidget(self.pref_open_button)
-
-        # Clear Settings
-        self.clear_btn = FCButton('%s' % _('Clear GUI Settings'))
-        self.clear_btn.setIcon(QtGui.QIcon(self.app.resource_location + '/trash32.png'))
-        self.clear_btn.setMinimumWidth(130)
-
-        self.clear_btn.setToolTip(
-            _("Clear the GUI settings for FlatCAM,\n"
-              "such as: layout, gui state, style etc.")
-        )
-
-        self.pref_tab_bottom_layout_1.addWidget(self.clear_btn)
-
-        self.pref_tab_bottom_layout_2 = QtWidgets.QHBoxLayout()
-        self.pref_tab_bottom_layout_2.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight |
-                                                   QtCore.Qt.AlignmentFlag.AlignVCenter)
-        self.pref_tab_bottom_layout.addLayout(self.pref_tab_bottom_layout_2)
-
-        self.pref_apply_button = FCButton()
-        self.pref_apply_button.setIcon(QtGui.QIcon(self.app.resource_location + '/apply32.png'))
-        self.pref_apply_button.setText(_("Apply"))
-        self.pref_apply_button.setMinimumWidth(130)
-        self.pref_apply_button.setToolTip(
-            _("Apply the current preferences without saving to a file."))
-        self.pref_tab_bottom_layout_2.addWidget(self.pref_apply_button)
-
-        self.pref_save_button = FCButton()
-        self.pref_save_button.setIcon(QtGui.QIcon(self.app.resource_location + '/save_as.png'))
-        self.pref_save_button.setText(_("Save"))
-        self.pref_save_button.setMinimumWidth(130)
-        self.pref_save_button.setToolTip(
-            _("Save the current settings in the 'current_defaults' file\n"
-              "which is the file storing the working default preferences."))
-        self.pref_tab_bottom_layout_2.addWidget(self.pref_save_button)
-
-        self.pref_close_button = FCButton()
-        self.pref_close_button.setText(_("Cancel"))
-        self.pref_close_button.setMinimumWidth(130)
-        self.pref_close_button.setToolTip(
-            _("Will not save the changes and will close the preferences window."))
-        self.pref_tab_bottom_layout_2.addWidget(self.pref_close_button)
+        # built on the first opening of the Preferences: AppUIActions.on_preferences()
+        self.preferences_window = None
 
         # ########################################################################
         # #################### SHORTCUT LIST AREA Tab # ##########################
@@ -2368,9 +2183,6 @@ class MainGUI(QtWidgets.QMainWindow):
         self.lock_action.triggered[bool].connect(self.lock_toolbar)
         self.show_text_action.triggered.connect(self.show_text_under_action)
 
-        self.pref_open_button.clicked.connect(self.on_preferences_open_folder)
-        self.clear_btn.clicked.connect(lambda: self.on_gui_clear())
-
         self.wplace_label.clicked.connect(self.app.on_workspace_toggle)
         self.fcinfo.clicked.connect(self.toggle_shell_ui)
         self.coords_toolbar.clicked.connect(self.app.on_gui_coords_clicked)
@@ -2410,8 +2222,6 @@ class MainGUI(QtWidgets.QMainWindow):
 
         self.plot_tab_area.tab_detached.connect(self.on_tab_detached)
 
-        self.pref_tab_area.tabBar().tabBarClicked.connect(self.on_pref_tabbar_clicked)
-
         # self.screenChanged.connect(self.on_screen_change)
 
     # def on_screen_change(self, old_screen, new_screen):
@@ -2429,16 +2239,6 @@ class MainGUI(QtWidgets.QMainWindow):
     #         # update canvas dpi
     #         ratio = new_pixel_ratio / old_pixel_ratio
     #         self.app.plotcanvas.dpi = self.app.plotcanvas.Pdpi * ratio
-
-    def on_pref_tabbar_clicked(self, idx, color=None):
-        self.set_pref_tab_area_tab_default_text_color()
-        if color is not None:
-            self.pref_tab_area.tabBar().setTabTextColor(idx, color)
-
-    def set_pref_tab_area_tab_default_text_color(self):
-        for idx in range(self.pref_tab_area.count()):
-            # An invalid color clears overrides so Qt's style can choose selected/unselected text colors.
-            self.pref_tab_area.tabBar().setTabTextColor(idx, QtGui.QColor())
 
     def update_location_labels(self, dx, dy, x, y):
         """
@@ -3473,10 +3273,6 @@ class MainGUI(QtWidgets.QMainWindow):
                 if key == QtCore.Qt.Key.Key_S:
                     current_tab = self.plot_tab_area.currentWidget()
                     widget_name = current_tab.objectName() if current_tab is not None else ''
-                    if widget_name == 'preferences_tab':
-                        self.app.preferencesUiManager.on_save_button(save_to_file=False)
-                        return
-
                     if widget_name == 'database_tab':
                         self.app.tools_db_tab.on_save_tools_db()
                         return

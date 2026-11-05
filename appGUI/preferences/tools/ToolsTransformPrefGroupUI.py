@@ -26,7 +26,7 @@ class ToolsTransformPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # PARAMETERS Frame
         # #############################################################################################################
-        self.transform_label = FCLabel('%s' % _("Parameters"), color='blue', bold=True)
+        self.transform_label = FCLabel('%s' % _("Parameters"), bold=True)
         self.transform_label.setToolTip(
             _("Various transformations that can be applied\n"
               "on a application object.")
@@ -86,7 +86,7 @@ class ToolsTransformPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Rotate Frame
         # #############################################################################################################
-        rotate_title_lbl = FCLabel('%s' % _("Rotate"), color='tomato', bold=True)
+        rotate_title_lbl = FCLabel('%s' % _("Rotate"), bold=True)
         self.layout.addWidget(rotate_title_lbl)
 
         rot_frame = FCFrame()
@@ -116,7 +116,7 @@ class ToolsTransformPrefGroupUI(OptionsGroupUI):
         s_t_lay = QtWidgets.QHBoxLayout()
         self.layout.addLayout(s_t_lay)
 
-        skew_title_lbl = FCLabel('%s' % _("Skew"), color='teal', bold=True)
+        skew_title_lbl = FCLabel('%s' % _("Skew"), bold=True)
         s_t_lay.addWidget(skew_title_lbl)
 
         s_t_lay.addStretch()
@@ -169,7 +169,7 @@ class ToolsTransformPrefGroupUI(OptionsGroupUI):
         sc_t_lay = QtWidgets.QHBoxLayout()
         self.layout.addLayout(sc_t_lay)
 
-        scale_title_lbl = FCLabel('%s' % _("Scale"), color='magenta', bold=True)
+        scale_title_lbl = FCLabel('%s' % _("Scale"), bold=True)
         sc_t_lay.addWidget(scale_title_lbl)
 
         sc_t_lay.addStretch()
@@ -215,7 +215,7 @@ class ToolsTransformPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Offset Frame
         # #############################################################################################################
-        offset_title_lbl = FCLabel('%s' % _("Offset"), color='green', bold=True)
+        offset_title_lbl = FCLabel('%s' % _("Offset"), bold=True)
         self.layout.addWidget(offset_title_lbl)
 
         off_frame = FCFrame()
@@ -255,7 +255,7 @@ class ToolsTransformPrefGroupUI(OptionsGroupUI):
         b_t_lay = QtWidgets.QHBoxLayout()
         self.layout.addLayout(b_t_lay)
 
-        buffer_title_lbl = FCLabel('%s' % _("Buffer"), color='indigo', bold=True)
+        buffer_title_lbl = FCLabel('%s' % _("Buffer"), bold=True)
         b_t_lay.addWidget(buffer_title_lbl)
 
         b_t_lay.addStretch()

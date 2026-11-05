@@ -24,7 +24,7 @@ class CNCJobAdvOptPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # PARAMETERS Frame
         # #############################################################################################################
-        self.export_gcode_label = FCLabel('%s' % _("Parameters"), color='blue', bold=True)
+        self.export_gcode_label = FCLabel('%s' % _("Parameters"), bold=True)
         self.export_gcode_label.setToolTip(
             _("Export and save G-Code to\n"
               "make this object to a file.")

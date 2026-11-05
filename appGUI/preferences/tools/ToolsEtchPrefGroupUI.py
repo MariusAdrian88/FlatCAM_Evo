@@ -34,7 +34,7 @@ class ToolsEtchPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # PARAMETERS Frame
         # #############################################################################################################
-        self.param_label = FCLabel('%s' % _("Parameters"), color='blue', bold=True)
+        self.param_label = FCLabel('%s' % _("Parameters"), bold=True)
         self.param_label.setToolTip(
             _("Grow the copper of a Gerber object to compensate\n"
               "the lateral undercut of the etching.")

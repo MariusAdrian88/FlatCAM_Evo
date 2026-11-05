@@ -27,7 +27,7 @@ class GerberEditorPrefGroupUI(OptionsGroupUI):
         # Gerber Editor Parameters Frame
         # #############################################################################################################
 
-        self.param_label = FCLabel('%s' % _("Parameters"), color='blue', bold=True)
+        self.param_label = FCLabel('%s' % _("Parameters"), bold=True)
         self.param_label.setToolTip(
             _("A list of Gerber Editor parameters.")
         )
@@ -132,7 +132,7 @@ class GerberEditorPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Linear Pad Array Frame
         # #############################################################################################################
-        self.grb_array_linear_label = FCLabel('%s' % _("Linear Pad Array"), color='brown', bold=True)
+        self.grb_array_linear_label = FCLabel('%s' % _("Linear Pad Array"), bold=True)
         self.layout.addWidget(self.grb_array_linear_label)
 
         lin_frame = FCFrame()
@@ -186,7 +186,7 @@ class GerberEditorPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Circular Pad Array Frame
         # #############################################################################################################
-        self.grb_array_circ_label = FCLabel('%s' % _("Circular Pad Array"), color='green', bold=True)
+        self.grb_array_circ_label = FCLabel('%s' % _("Circular Pad Array"), bold=True)
         self.layout.addWidget(self.grb_array_circ_label)
 
         circ_frame = FCFrame()
@@ -226,7 +226,7 @@ class GerberEditorPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Buffer Frame
         # #############################################################################################################
-        self.grb_array_tools_b_label = FCLabel('%s' % _("Buffer Tool"), color='darkorange', bold=True)
+        self.grb_array_tools_b_label = FCLabel('%s' % _("Buffer Tool"), bold=True)
         self.layout.addWidget(self.grb_array_tools_b_label)
 
         buff_frame = FCFrame()
@@ -251,7 +251,7 @@ class GerberEditorPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Scale Frame
         # #############################################################################################################
-        self.grb_array_tools_s_label = FCLabel('%s' % _("Scale Tool"), color='magenta', bold=True)
+        self.grb_array_tools_s_label = FCLabel('%s' % _("Scale Tool"), bold=True)
         self.layout.addWidget(self.grb_array_tools_s_label)
 
         scale_frame = FCFrame()
@@ -276,7 +276,7 @@ class GerberEditorPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Mark Area Frame
         # #############################################################################################################
-        self.grb_array_tools_ma_label = FCLabel('%s' % _("Mark Area Tool"), color='blue', bold=True)
+        self.grb_array_tools_ma_label = FCLabel('%s' % _("Mark Area Tool"), bold=True)
         self.layout.addWidget(self.grb_array_tools_ma_label)
 
         ma_frame = FCFrame()

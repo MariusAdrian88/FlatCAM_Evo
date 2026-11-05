@@ -26,7 +26,7 @@ class Tools2PunchGerberPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Processed Pads Frame
         # #############################################################################################################
-        self.padt_label = FCLabel('%s' % _("Processed Pads Type"), color='blue', bold=True)
+        self.padt_label = FCLabel('%s' % _("Processed Pads Type"), bold=True)
         self.padt_label.setToolTip(
             _("The type of pads shape to be processed.\n"
               "If the PCB has many SMD pads with rectangular pads,\n"
@@ -104,7 +104,7 @@ class Tools2PunchGerberPrefGroupUI(OptionsGroupUI):
             ],
             orientation='vertical',
             compact=True)
-        self.hole_size_label = FCLabel('%s' % _("Method"), color='green', bold=True)
+        self.hole_size_label = FCLabel('%s' % _("Method"), bold=True)
         self.hole_size_label.setToolTip(
             _("The punch hole source can be:\n"
               "- Excellon Object-> the Excellon object drills center will serve as reference.\n"
@@ -119,7 +119,7 @@ class Tools2PunchGerberPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Fixed Diameter Frame
         # #############################################################################################################
-        self.fixed_label = FCLabel('%s' % _("Fixed Diameter"), color='teal', bold=True)
+        self.fixed_label = FCLabel('%s' % _("Fixed Diameter"), bold=True)
         self.layout.addWidget(self.fixed_label)
 
         fix_frame = FCFrame()
@@ -145,7 +145,7 @@ class Tools2PunchGerberPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Annular ring Frame
         # #############################################################################################################
-        self.ring_label = FCLabel('%s' % _("Fixed Annular Ring"), color='darkorange', bold=True)
+        self.ring_label = FCLabel('%s' % _("Fixed Annular Ring"), bold=True)
         self.ring_label.setToolTip(
             _("The size of annular ring.\n"
               "The copper sliver between the hole exterior\n"
@@ -232,7 +232,7 @@ class Tools2PunchGerberPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Proportional Diameter Frame
         # #############################################################################################################
-        self.prop_label = FCLabel('%s' % _("Proportional Diameter"), color='indigo', bold=True)
+        self.prop_label = FCLabel('%s' % _("Proportional Diameter"), bold=True)
         self.layout.addWidget(self.prop_label)
 
         prop_frame = FCFrame()

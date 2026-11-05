@@ -26,7 +26,7 @@ class GeometryOptPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # PARAMETERS Frame
         # #############################################################################################################
-        self.cncjob_label = FCLabel('%s' % _("Parameters"), color='blue', bold=True)
+        self.cncjob_label = FCLabel('%s' % _("Parameters"), bold=True)
         self.layout.addWidget(self.cncjob_label)
 
         param_frame = FCFrame()

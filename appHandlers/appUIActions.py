@@ -811,44 +811,31 @@ class AppUIActions(QtCore.QObject):
     # --------------------------------------------------------------------------
 
     def on_toggle_preferences(self):
-        pref_open = False
-        for idx in range(self.ui.plot_tab_area.count()):
-            if self.ui.plot_tab_area.tabText(idx) == _("Preferences"):
-                pref_open = True
-
-        if pref_open:
-            # close it as the close button of the tab does: the unsaved edits are saved or thrown away first, else
-            # they stay in the form and the next Save stores them
-            self.app.preferencesUiManager.on_close_preferences_tab(parent=self.ui)
-            for idx in range(self.ui.plot_tab_area.count()):
-                if self.ui.plot_tab_area.tabText(idx) == _("Preferences"):
-                    self.ui.plot_tab_area.removeTab(idx)
-                    break
+        window = self.ui.preferences_window
+        if window is not None and window.isVisible():
+            # close it as the close button of the window does: the unsaved edits are saved or thrown away first,
+            # else they stay in the form and the next Save stores them
+            window.close()
         else:
             self.on_preferences()
 
     def on_preferences(self):
         """
-        Adds the Preferences in a Tab in Plot Area
+        Opens the Preferences window over the main window (builds it the first time).
 
         :return:
         """
+        from appGUI.preferences.PreferencesWindow import PreferencesWindow
+
+        if self.ui.preferences_window is None:
+            self.ui.preferences_window = PreferencesWindow(self.app)
+        window = self.ui.preferences_window
+        if window.isVisible():
+            window.open_window()
+            return
 
         self.app.preferencesUiManager.show_preferences_gui()
-
-        # add the tab if it was closed
-        self.ui.plot_tab_area.addTab(self.ui.preferences_tab, _("Preferences"))
-
-        # delete the absolute and relative position and messages in the infobar
-        # self.ui.position_label.setText("")
-        # self.ui.rel_position_label.setText("")
-        # hide coordinates toolbars in the infobar while in DB
-        self.ui.coords_toolbar.hide()
-        self.ui.delta_coords_toolbar.hide()
-
-        # Switch plot_area to preferences page
-        self.ui.plot_tab_area.setCurrentWidget(self.ui.preferences_tab)
-        # self.ui.show()
+        window.open_window()
 
         self.ui.pref_status_label.setStyleSheet("""
                                                 QLabel
@@ -860,52 +847,7 @@ class AppUIActions(QtCore.QObject):
                                                 )
 
         # detect changes in the preferences
-        for idx in range(self.ui.pref_tab_area.count()):
-            for tb in self.ui.pref_tab_area.widget(idx).findChildren(QtWidgets.QWidget):
-                try:
-                    try:
-                        tb.textEdited.disconnect(self.app.preferencesUiManager.on_preferences_edited)
-                    except (TypeError, AttributeError):
-                        pass
-                    tb.textEdited.connect(self.app.preferencesUiManager.on_preferences_edited)
-                except AttributeError:
-                    pass
-
-                try:
-                    try:
-                        tb.modificationChanged.disconnect(self.app.preferencesUiManager.on_preferences_edited)
-                    except (TypeError, AttributeError):
-                        pass
-                    tb.modificationChanged.connect(self.app.preferencesUiManager.on_preferences_edited)
-                except AttributeError:
-                    pass
-
-                try:
-                    try:
-                        tb.toggled.disconnect(self.app.preferencesUiManager.on_preferences_edited)
-                    except (TypeError, AttributeError):
-                        pass
-                    tb.toggled.connect(self.app.preferencesUiManager.on_preferences_edited)
-                except AttributeError:
-                    pass
-
-                try:
-                    try:
-                        tb.valueChanged.disconnect(self.app.preferencesUiManager.on_preferences_edited)
-                    except (TypeError, AttributeError):
-                        pass
-                    tb.valueChanged.connect(self.app.preferencesUiManager.on_preferences_edited)
-                except AttributeError:
-                    pass
-
-                try:
-                    try:
-                        tb.currentIndexChanged.disconnect(self.app.preferencesUiManager.on_preferences_edited)
-                    except (TypeError, AttributeError):
-                        pass
-                    tb.currentIndexChanged.connect(self.app.preferencesUiManager.on_preferences_edited)
-                except AttributeError:
-                    pass
+        window.set_edit_tracking(self.app.preferencesUiManager.on_preferences_edited, True)
 
     # --------------------------------------------------------------------------
     # Tools Database
@@ -1098,9 +1040,7 @@ class AppUIActions(QtCore.QObject):
         if closed_widget is not None and closed_widget.objectName() != tab_obj_name:
             closed_widget = None
 
-        if tab_obj_name == "preferences_tab":
-            self.app.preferencesUiManager.on_close_preferences_tab(parent=self.ui)
-        elif tab_obj_name == "database_tab":
+        if tab_obj_name == "database_tab":
             self.app.tools_db_tab.ui_disconnect()
             self.app.tools_db_changed_flag = False
             self.app.tools_db_tab.deleteLater()

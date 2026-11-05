@@ -41,7 +41,7 @@ class GeneralAppPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Grid0 Frame
         # #############################################################################################################
-        self.unitslabel = FCLabel('%s' % _("Units"), color='red', bold=True)
+        self.unitslabel = FCLabel('%s' % _("Units"), bold=True)
         self.unitslabel.setToolTip(_("The application dimensional units is millimeter."))
         self.layout.addWidget(self.unitslabel)
 
@@ -64,7 +64,7 @@ class GeneralAppPrefGroupUI(OptionsGroupUI):
         grid0.addWidget(self.precision_metric_label, 2, 0)
         grid0.addWidget(self.precision_metric_entry, 2, 1)
 
-        self.par_label = FCLabel('%s' % _("Parameters"), color='blue', bold=True)
+        self.par_label = FCLabel('%s' % _("Parameters"), bold=True)
         self.layout.addWidget(self.par_label)
 
         # #############################################################################################################
@@ -214,7 +214,7 @@ class GeneralAppPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Grid0 Frame
         # #############################################################################################################
-        self.app_level_label = FCLabel('%s' % _("Application Level"), color='red', bold=True)
+        self.app_level_label = FCLabel('%s' % _("Application Level"), bold=True)
         self.app_level_label.setToolTip(_("Choose the default level of usage for FlatCAM.\n"
                                           "BASIC level -> reduced functionality, best for beginner's.\n"
                                           "ADVANCED level -> full functionality.\n\n"
@@ -237,7 +237,7 @@ class GeneralAppPrefGroupUI(OptionsGroupUI):
         # Grid3 Frame
         # #############################################################################################################
         # Languages for FlatCAM
-        self.languagelabel = FCLabel('%s' % _("Languages"), color='DarkCyan', bold=True)
+        self.languagelabel = FCLabel('%s' % _("Languages"), bold=True)
         self.languagelabel.setToolTip(_("Set the language used throughout FlatCAM."))
         self.layout.addWidget(self.languagelabel)
 
@@ -261,7 +261,7 @@ class GeneralAppPrefGroupUI(OptionsGroupUI):
         # ----------- APPLICATION STARTUP SETTINGS ------------------
         # -----------------------------------------------------------
 
-        self.startup_label = FCLabel('%s' % _("Startup Settings"), color='green', bold=True)
+        self.startup_label = FCLabel('%s' % _("Startup Settings"), bold=True)
         self.layout.addWidget(self.startup_label)
 
         # #############################################################################################################
@@ -364,7 +364,7 @@ class GeneralAppPrefGroupUI(OptionsGroupUI):
         grid4.addWidget(self.send_stats_cb, 12, 0, 1, 2)
 
         # Save Settings
-        self.save_label = FCLabel('%s' % _("Save Settings"), color='purple', bold=True)
+        self.save_label = FCLabel('%s' % _("Save Settings"), bold=True)
         self.layout.addWidget(self.save_label)
 
         # #############################################################################################################
@@ -401,7 +401,7 @@ class GeneralAppPrefGroupUI(OptionsGroupUI):
 
         self.proj_ois = OptionalInputSection(self.save_type_cb, [self.compress_label, self.compress_spinner], True)
 
-        self.pdf_param_label = FCLabel('%s' % _("Text to PDF parameters"), color='orange', bold=True)
+        self.pdf_param_label = FCLabel('%s' % _("Text to PDF parameters"), bold=True)
         self.pdf_param_label.setToolTip(
             _("Used when saving text in Code Editor or in FlatCAM Document objects.")
         )

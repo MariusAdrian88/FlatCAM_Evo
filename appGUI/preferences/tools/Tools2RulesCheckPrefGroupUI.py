@@ -29,7 +29,7 @@ class Tools2RulesCheckPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Rules Frame
         # #############################################################################################################
-        rules_copper_label = FCLabel('%s %s' % (_("Copper"), _("Rules")), color='darkorange', bold=True)
+        rules_copper_label = FCLabel('%s %s' % (_("Copper"), _("Rules")), bold=True)
         self.layout.addWidget(rules_copper_label)
 
         copper_frame = FCFrame()
@@ -150,7 +150,7 @@ class Tools2RulesCheckPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Silk Frame
         # #############################################################################################################
-        silk_copper_label = FCLabel('%s %s' % (_("Silk"), _("Rules")), color='teal', bold=True)
+        silk_copper_label = FCLabel('%s %s' % (_("Silk"), _("Rules")), bold=True)
         self.layout.addWidget(silk_copper_label)
 
         silk_frame = FCFrame()
@@ -228,7 +228,7 @@ class Tools2RulesCheckPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Soldermask Frame
         # #############################################################################################################
-        sm_copper_label = FCLabel('%s %s' % (_("Soldermask"), _("Rules")), color='magenta', bold=True)
+        sm_copper_label = FCLabel('%s %s' % (_("Soldermask"), _("Rules")), bold=True)
         self.layout.addWidget(sm_copper_label)
 
         solder_frame = FCFrame()
@@ -263,7 +263,7 @@ class Tools2RulesCheckPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Holes Frame
         # #############################################################################################################
-        holes_copper_label = FCLabel('%s %s' % (_("Holes"), _("Rules")), color='brown', bold=True)
+        holes_copper_label = FCLabel('%s %s' % (_("Holes"), _("Rules")), bold=True)
         self.layout.addWidget(holes_copper_label)
 
         holes_frame = FCFrame()

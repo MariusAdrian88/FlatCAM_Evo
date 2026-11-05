@@ -29,7 +29,7 @@ class Tools2CThievingPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Parameters Frame
         # #############################################################################################################
-        self.param_label = FCLabel('%s' % _("Parameters"), color='blue', bold=True)
+        self.param_label = FCLabel('%s' % _("Parameters"), bold=True)
         self.param_label.setToolTip(
             _("A tool to generate a Copper Thieving that can be added\n"
               "to a selected Gerber file.")
@@ -272,7 +272,7 @@ class Tools2CThievingPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Robber Bar Parameters Frame
         # #############################################################################################################
-        self.robber_bar_label = FCLabel('%s' % _("Robber Bar Parameters"), color='brown', bold=True)
+        self.robber_bar_label = FCLabel('%s' % _("Robber Bar Parameters"), bold=True)
         self.robber_bar_label.setToolTip(
             _("Parameters used for the robber bar.\n"
               "Robber bar = copper border to help in pattern hole plating.")
@@ -317,7 +317,7 @@ class Tools2CThievingPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # RPattern Plating Mask Parameters Frame
         # #############################################################################################################
-        self.patern_mask_label = FCLabel('%s' % _("Pattern Plating Mask"), color='purple', bold=True)
+        self.patern_mask_label = FCLabel('%s' % _("Pattern Plating Mask"), bold=True)
         self.patern_mask_label.setToolTip(
             _("Generate a mask for pattern plating.")
         )

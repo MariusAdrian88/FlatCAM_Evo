@@ -24,7 +24,7 @@ class ToolsNCCPrefGroupUI(OptionsGroupUI):
         self.options = app.options
 
         # ## Clear non-copper regions
-        self.clearcopper_label = FCLabel('%s' % _("Parameters"), color='blue', bold=True)
+        self.clearcopper_label = FCLabel('%s' % _("Parameters"), bold=True)
         self.clearcopper_label.setToolTip(
             _("Create a Geometry object with\n"
               "toolpaths to cut all non-copper regions.")
@@ -41,7 +41,7 @@ class ToolsNCCPrefGroupUI(OptionsGroupUI):
         par_frame.setLayout(par_grid)
 
         # Tools Diameters
-        ncctdlabel = FCLabel('%s:' % _('Tools Dia'), color='green', bold=True)
+        ncctdlabel = FCLabel('%s:' % _('Tools Dia'), bold=True)
         ncctdlabel.setToolTip(
             _("Diameters of the tools, separated by comma.\n"
               "The value of the diameter has to use the dot decimals separator.\n"
@@ -168,7 +168,7 @@ class ToolsNCCPrefGroupUI(OptionsGroupUI):
         # Tool Frame
         # #############################################################################################################
         # ### Tools ## ##
-        self.tools_table_label = FCLabel('%s' % _("Tool Parameters"), color='green', bold=True)
+        self.tools_table_label = FCLabel('%s' % _("Tool Parameters"), bold=True)
         self.layout.addWidget(self.tools_table_label)
 
         tt_frame = FCFrame()
@@ -292,7 +292,7 @@ class ToolsNCCPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # General Parameters Frame
         # #############################################################################################################
-        self.gen_param_label = FCLabel('%s' % _("Common Parameters"), color='indigo', bold=True)
+        self.gen_param_label = FCLabel('%s' % _("Common Parameters"), bold=True)
         self.gen_param_label.setToolTip(
             _("Parameters that are common for all tools.")
         )

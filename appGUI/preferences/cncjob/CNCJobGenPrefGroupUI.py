@@ -26,7 +26,7 @@ class CNCJobGenPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Plot Frame
         # #############################################################################################################
-        self.plot_options_label = FCLabel('%s' % _("Plot Options"), color='blue', bold=True)
+        self.plot_options_label = FCLabel('%s' % _("Plot Options"), bold=True)
         self.layout.addWidget(self.plot_options_label)
 
         plot_frame = FCFrame()
@@ -73,7 +73,7 @@ class CNCJobGenPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Decimals Frame
         # #############################################################################################################
-        self.layout.addWidget(FCLabel('%s' % _("G-code Decimals"), color='teal', bold=True))
+        self.layout.addWidget(FCLabel('%s' % _("G-code Decimals"), bold=True))
 
         dec_frame = FCFrame()
         self.layout.addWidget(dec_frame)
@@ -143,7 +143,7 @@ class CNCJobGenPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Travel Frame
         # #############################################################################################################
-        self.travel_color_label = FCLabel('%s' % _("Travel Line Color"), color='green', bold=True)
+        self.travel_color_label = FCLabel('%s' % _("Travel Line Color"), bold=True)
         self.layout.addWidget(self.travel_color_label)
 
         travel_frame = FCFrame()
@@ -192,7 +192,7 @@ class CNCJobGenPrefGroupUI(OptionsGroupUI):
         # #############################################################################################################
         # Object Color Frame
         # #############################################################################################################
-        self.cnc_color_label = FCLabel('%s' % _("Object Color"), color='darkorange', bold=True)
+        self.cnc_color_label = FCLabel('%s' % _("Object Color"), bold=True)
         self.layout.addWidget(self.cnc_color_label)
 
         obj_frame = FCFrame()

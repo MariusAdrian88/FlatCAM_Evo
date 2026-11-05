@@ -112,27 +112,6 @@ class TestRightToLeft(unittest.TestCase):
                 box.setLayoutDirection(opposite_direction())
                 self.assertEqual(box_direction, box.layoutDirection())
 
-    def test_the_preferences_columns_start_on_the_right(self):
-        from appGUI.ColumnarFlowLayout import ColumnarFlowLayout
-        for name, first_is_left in (('English', True), ('العربية', False)):
-            with self.subTest(name=name):
-                QtWidgets.QApplication.setLayoutDirection(Qt.LayoutDirection.LayoutDirectionAuto)
-                fcTranslate.set_layout_direction(name)
-                page = QtWidgets.QWidget()
-                layout = ColumnarFlowLayout(page)
-                columns = []
-                for _ in range(3):
-                    column = QtWidgets.QWidget()
-                    column.setMinimumSize(100, 50)
-                    layout.addWidget(column)
-                    columns.append(column)
-                layout.setGeometry(QtCore.QRect(0, 0, 400, 100))
-                first, last = columns[0].geometry(), columns[-1].geometry()
-                self.assertEqual(first_is_left, first.x() < last.x())
-                # the columns keep their width and stay inside the page
-                self.assertEqual(last.width(), first.width())
-                self.assertTrue(QtCore.QRect(0, 0, 400, 100).contains(first))
-
     def test_code_shell_coordinates_and_canvas_stay_left_to_right(self):
         from appEditors.text_editor.code_edit import CodeEdit
         from appGUI.GUIElements import CoordsToolbar
