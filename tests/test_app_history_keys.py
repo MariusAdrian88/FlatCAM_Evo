@@ -263,7 +263,7 @@ def _states(context):
 
 
 def _clean(text):
-    return re.sub(r" (id='\d+'|at 0x[0-9a-f]+)", '', text)
+    return re.sub(r" (id='\d+'|at 0x[0-9a-fA-F]+)", '', text)
 
 
 class _Recorder:
