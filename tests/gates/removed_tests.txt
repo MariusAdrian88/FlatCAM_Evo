@@ -3436,3 +3436,6 @@ tests/updater/test_updater_integration.py::test_main_window_close_is_ignored_whi
 tests/updater/test_updater_integration.py::test_startup_queues_updates_for_beta_builds  # 2026-11-03 suite cut: beta, message and duplicate-failure tests deleted; same-branch cases cut.
 tests/updater/test_updater_permissions.py::test_final_extraction_applies_ordinary_mode_bits  # 2026-11-03 suite cut: chmod-mock test deleted; Git-marker case cut.
 tests/updater/test_updater_permissions.py::test_source_git_markers_are_refused_before_apply[False]  # 2026-11-03 suite cut: chmod-mock test deleted; Git-marker case cut.
+tests/test_app_history_keys.py::TestAppHistoryKeys::test_ctrl_shift_z_redo  # 2026-11-04 shortcut registry: covered by TestShortcutCharacterization (Ctrl+Z, Ctrl+Shift+Z, focus in a text field)
+tests/test_app_history_keys.py::TestAppHistoryKeys::test_ctrl_z_undo  # 2026-11-04 shortcut registry: covered by TestShortcutCharacterization (Ctrl+Z, Ctrl+Shift+Z, focus in a text field)
+tests/test_app_history_keys.py::TestAppHistoryKeys::test_text_focus_blocks  # 2026-11-04 shortcut registry: covered by TestShortcutCharacterization (Ctrl+Z, Ctrl+Shift+Z, focus in a text field)

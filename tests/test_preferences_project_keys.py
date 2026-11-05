@@ -427,10 +427,104 @@ def test_the_window_mirrors_in_a_right_to_left_application(pref_app):
         group = page.group.geometry()
         content = page.group.parentWidget().rect()
         assert content.right() - group.right() < group.left() - content.left()     # the page starts on the right
+        # Keyboard Shortcuts: the Command column is on the right, a row can be selected, the keys read left to right
+        group = next(p for p in window.pages if p.name == 'Keyboard Shortcuts').group
+        window.show_page(window.page_of(group))
+        qapp.processEvents()
+        editor = group.shortcuts_editor
+        header = editor.table.horizontalHeader()
+        assert header.sectionViewportPosition(0) > header.sectionViewportPosition(2)
+        editor.select('app.distance')
+        assert editor.current_id() == 'app.distance'
+        assert editor.key_entry.layoutDirection() == QtCore.Qt.LayoutDirection.LeftToRight
         window.close_quietly()
         window.deleteLater()
     finally:
         qapp.setLayoutDirection(QtCore.Qt.LayoutDirection.LeftToRight)
+
+
+def test_keyboard_shortcuts_page_reports_a_key_in_use_before_it_is_assigned(pref_app, tmp_path):
+    from PyQt6.QtTest import QTest
+    from appGUI import shortcuts
+    registry = shortcuts.registry()
+    window = pref_app.ui.preferences_window
+    editor = pref_app.ui.general_pref_form.general_shortcuts_group.shortcuts_editor
+    page = window.page_of(editor)
+    assert (page.section, page.name) == ('Application', 'Keyboard Shortcuts')
+    window.show_page(page)
+    try:
+        # search by name and by key
+        editor.search_entry.setText('new gerber')
+        assert editor.visible_ids() == ['app.new_gerber']
+        editor.search_entry.clear()
+        QTest.keyClick(editor.find_key_entry, QtCore.Qt.Key.Key_S, QtCore.Qt.KeyboardModifier.ControlModifier)
+        assert {'app.save_project', 'geo_editor.exit', 'grb_editor.exit'} <= set(editor.visible_ids())
+        assert all(registry.key(aid) == 'Ctrl+S' for aid in editor.visible_ids())
+        editor.find_key_entry.clear()
+
+        # Ctrl+S for New Gerber: the modifier combo box and the key field; it is reported, not assigned
+        editor.select('app.new_gerber')
+        editor.modifier_combo.setCurrentIndex(editor.modifier_combo.findData('Ctrl'))
+        QTest.keyClick(editor.key_entry, QtCore.Qt.Key.Key_S)
+        assert not editor.assign()
+        assert 'Ctrl+S' in editor.conflict_text() and 'Save Project' in editor.conflict_text()
+        assert editor.get_value() == {}
+        editor.cancel()
+
+        # a free key is assigned; the page and its row are marked, the factory key is shown
+        QTest.keyClick(editor.key_entry, QtCore.Qt.Key.Key_B,
+                       QtCore.Qt.KeyboardModifier.ControlModifier | QtCore.Qt.KeyboardModifier.ShiftModifier)
+        assert editor.modifier_combo.currentData() == 'Ctrl+Shift'
+        assert editor.assign()
+        window.refresh_markers()
+        assert window.changed_keys(page) == ['global_shortcuts'] and not page.item.icon(1).isNull()
+        assert window.marker_rows(page) == []       # the row of the table is marked, not the whole page
+        row = editor.rows['app.new_gerber']
+        assert not editor.table.item(row, editor.COLUMN_COMMAND).icon().isNull()
+
+        # "Assign it here and clear the other"
+        editor.select('app.jump')
+        assert not editor.request('app.jump', 'Ctrl+Shift+B')
+        editor.confirm()
+        assert editor.get_value() == {'app.jump': 'Ctrl+Shift+B', 'app.new_gerber': ''}
+
+        # reset one, export, reset all, import
+        editor.reset('app.new_gerber')
+        assert editor.get_value() == {'app.jump': 'Ctrl+Shift+B'}
+        path = str(tmp_path / 'keys.json')
+        assert editor.export_file(path)
+        editor.reset_all()
+        assert editor.get_value() == {}
+        assert editor.import_file(path)
+        assert editor.get_value() == {'app.jump': 'Ctrl+Shift+B'}
+
+        # the keys work after Apply; the F3 list and the menu show the new key
+        assert registry.key('app.jump') == 'J'
+        pref_app.preferencesUiManager.on_save_button(save_to_file=False)
+        assert registry.key('app.jump') == 'Ctrl+Shift+B'
+        assert 'Ctrl+Shift+B' in pref_app.ui.shortcuts_tab.sh_app.toPlainText()
+        assert pref_app.ui.menueditjump.text().endswith('\tCtrl+Shift+B')
+    finally:
+        registry.reset_all()
+
+
+def test_changed_shortcuts_survive_a_restart(tmp_path):
+    from appGUI import shortcuts
+    registry = shortcuts.registry()
+    defaults = AppDefaults(beta=False)
+    assert defaults['global_shortcuts'] == {}       # factory: every action has its factory key
+    # only the changed keys are saved; an id that no longer exists is ignored
+    defaults['global_shortcuts'] = {'app.new_gerber': 'Ctrl+Shift+B', 'app.no_such_action': 'F9'}
+    path = str(tmp_path / 'current_defaults.FlatConfig')
+    defaults.write(filename=path)
+    restarted = AppDefaults(beta=False)
+    restarted.load(filename=path, inform=Mock())
+    try:
+        shortcuts.apply_options(SimpleNamespace(defaults=restarted))
+        assert registry.key('app.new_gerber') == 'Ctrl+Shift+B'
+        assert registry.overrides() == {'app.new_gerber': 'Ctrl+Shift+B'}
+    finally:
+        registry.reset_all()
 
 
 if __name__ == '__main__':

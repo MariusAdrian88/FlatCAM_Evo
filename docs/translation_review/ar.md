@@ -4,8 +4,8 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 
 | Type | Count |
 |---|---|
-| new | 5842 |
-| **Total** | **5842** |
+| new | 5892 |
+| **Total** | **5892** |
 
 | No | Type | English | Old | New | Reason | Approved |
 |---|---|---|---|---|---|---|
@@ -5851,3 +5851,53 @@ Every entry of `locale/ar/LC_MESSAGES/strings.po`. Arabic is a new language: the
 | 5840 | new | Unknown tool id | — | معرّف لقمة غير معروف | New translation (machine-assisted) | ☐ |
 | 5841 | new | The subtractors have no area. | — | الكائنات الطارحة ليس لها مساحة. | New translation (machine-assisted) | ☐ |
 | 5842 | new | No Geometry name in args. Provide a name and try again. | — | لا يوجد اسم هندسة في الوسائط. أدخل اسمًا وحاول مرة أخرى. | New translation (machine-assisted) | ☐ |
+| 5843 | new | No modifier | — | بلا مفتاح تعديل | New translation (machine-assisted) | ☐ |
+| 5844 | new | Search commands | — | البحث في الأوامر | New translation (machine-assisted) | ☐ |
+| 5845 | new | Show the commands whose name holds the text. | — | عرض الأوامر التي يحتوي اسمها على النص. | New translation (machine-assisted) | ☐ |
+| 5846 | new | Press a key to find it | — | اضغط مفتاحًا للبحث عنه | New translation (machine-assisted) | ☐ |
+| 5847 | new | Press a key combination: the table shows the commands that use it. | — | اضغط تركيبة مفاتيح: يعرض الجدول الأوامر التي تستخدمها. | New translation (machine-assisted) | ☐ |
+| 5848 | new | All contexts | — | كل السياقات | New translation (machine-assisted) | ☐ |
+| 5849 | new | Show the commands of one context. | — | عرض أوامر سياق واحد. | New translation (machine-assisted) | ☐ |
+| 5850 | new | Command | — | الأمر | New translation (machine-assisted) | ☐ |
+| 5851 | new | Shortcut | — | الاختصار | New translation (machine-assisted) | ☐ |
+| 5852 | new | Context | — | السياق | New translation (machine-assisted) | ☐ |
+| 5853 | new | Select a command, then choose the modifiers and press the new key below.<br>A grey command has a fixed key: it is listed so that its key is not used twice. | — | حدد أمرًا، ثم اختر مفاتيح التعديل واضغط المفتاح الجديد في الأسفل.<br>الأمر الرمادي له مفتاح ثابت: يُدرَج حتى لا يُستخدم مفتاحه مرتين. | New translation (machine-assisted) | ☐ |
+| 5854 | new | The modifier keys of the shortcut (on macOS Ctrl is Cmd). | — | مفاتيح التعديل للاختصار (في macOS يكون Ctrl هو Cmd). | New translation (machine-assisted) | ☐ |
+| 5855 | new | Press a key | — | اضغط مفتاحًا | New translation (machine-assisted) | ☐ |
+| 5856 | new | Click here and press the key of the shortcut. The modifiers pressed with it<br>are set in the box of the modifiers. | — | انقر هنا واضغط مفتاح الاختصار. تُضبط مفاتيح التعديل المضغوطة معه<br>في مربع مفاتيح التعديل. | New translation (machine-assisted) | ☐ |
+| 5857 | new | Assign | — | تعيين | New translation (machine-assisted) | ☐ |
+| 5858 | new | Give the key to the selected command. | — | تعيين المفتاح للأمر المحدد. | New translation (machine-assisted) | ☐ |
+| 5859 | new | Remove the key of the selected command. | — | إزالة مفتاح الأمر المحدد. | New translation (machine-assisted) | ☐ |
+| 5860 | new | Assign it here and clear the other | — | تعيينه هنا وإزالته من الأمر الآخر | New translation (machine-assisted) | ☐ |
+| 5861 | new | Reset shortcut | — | إعادة ضبط الاختصار | New translation (machine-assisted) | ☐ |
+| 5862 | new | Give the selected command its factory key. | — | إعادة المفتاح الافتراضي للأمر المحدد. | New translation (machine-assisted) | ☐ |
+| 5863 | new | Reset all shortcuts | — | إعادة ضبط كل الاختصارات | New translation (machine-assisted) | ☐ |
+| 5864 | new | Give every command its factory key. | — | إعادة المفتاح الافتراضي لكل الأوامر. | New translation (machine-assisted) | ☐ |
+| 5865 | new | Load the shortcuts from a JSON file. | — | تحميل الاختصارات من ملف JSON. | New translation (machine-assisted) | ☐ |
+| 5866 | new | Export... | — | تصدير... | New translation (machine-assisted) | ☐ |
+| 5867 | new | Save the shortcuts that differ from the factory keys in a JSON file. | — | حفظ الاختصارات التي تختلف عن المفاتيح الافتراضية في ملف JSON. | New translation (machine-assisted) | ☐ |
+| 5868 | new | This key is handled by its own code; it is listed so that it is not used twice. | — | يعالج هذا المفتاحَ كودٌ خاص به؛ يُدرَج حتى لا يُستخدم مرتين. | New translation (machine-assisted) | ☐ |
+| 5869 | new | Factory key | — | المفتاح الافتراضي | New translation (machine-assisted) | ☐ |
+| 5870 | new | No command uses %s. | — | لا يستخدم أي أمر %s. | New translation (machine-assisted) | ☐ |
+| 5871 | new | Select a command in the table. | — | حدد أمرًا في الجدول. | New translation (machine-assisted) | ☐ |
+| 5872 | new | "%s" is already used by %s. | — | "%s" مستخدم بالفعل في %s. | New translation (machine-assisted) | ☐ |
+| 5873 | new | That key cannot be changed here; choose another key. | — | لا يمكن تغيير ذلك المفتاح هنا؛ اختر مفتاحًا آخر. | New translation (machine-assisted) | ☐ |
+| 5874 | new | Import the keyboard shortcuts | — | استيراد اختصارات لوحة المفاتيح | New translation (machine-assisted) | ☐ |
+| 5875 | new | The file could not be read. | — | تعذّرت قراءة الملف. | New translation (machine-assisted) | ☐ |
+| 5876 | new | Export the keyboard shortcuts | — | تصدير اختصارات لوحة المفاتيح | New translation (machine-assisted) | ☐ |
+| 5877 | new | Keyboard Shortcuts | — | اختصارات لوحة المفاتيح | New translation (machine-assisted) | ☐ |
+| 5878 | new | Select a command and press its new key. A key already in use where the command works<br>is reported before it is assigned. The new keys work after Save or Apply. | — | حدد أمرًا واضغط مفتاحه الجديد. يُبلَّغ عن المفتاح المستخدم بالفعل حيث يعمل الأمر<br>قبل تعيينه. تعمل المفاتيح الجديدة بعد الحفظ أو التطبيق. | New translation (machine-assisted) | ☐ |
+| 5879 | new | while drawing | — | أثناء الرسم | New translation (machine-assisted) | ☐ |
+| 5880 | new | Everywhere | — | في كل مكان | New translation (machine-assisted) | ☐ |
+| 5881 | new | Area selection | — | تحديد المنطقة | New translation (machine-assisted) | ☐ |
+| 5882 | new | Alternative | — | بديل | New translation (machine-assisted) | ☐ |
+| 5883 | new | Select the previous object | — | تحديد الكائن السابق | New translation (machine-assisted) | ☐ |
+| 5884 | new | Select the next object | — | تحديد الكائن التالي | New translation (machine-assisted) | ☐ |
+| 5885 | new | New Document | — | مستند جديد | New translation (machine-assisted) | ☐ |
+| 5886 | new | Remove the last point | — | إزالة آخر نقطة | New translation (machine-assisted) | ☐ |
+| 5887 | new | Toggle the cursor data | — | إظهار/إخفاء بيانات المؤشر | New translation (machine-assisted) | ☐ |
+| 5888 | new | End the selection | — | إنهاء التحديد | New translation (machine-assisted) | ☐ |
+| 5889 | new | Delete a manual gap | — | حذف جسر يدوي | New translation (machine-assisted) | ☐ |
+| 5890 | new | Find next | — | البحث عن التالي | New translation (machine-assisted) | ☐ |
+| 5891 | new | Find previous | — | البحث عن السابق | New translation (machine-assisted) | ☐ |
+| 5892 | new | Comment or uncomment the lines | — | تعليق الأسطر أو إلغاء تعليقها | New translation (machine-assisted) | ☐ |
