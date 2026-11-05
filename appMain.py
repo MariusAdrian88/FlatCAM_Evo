@@ -1092,6 +1092,7 @@ class App(QtCore.QObject):
         else:
             # make the current language the current selection on the language combobox
             self.options["global_language_current"] = ret_val
+            fcTranslate.set_layout_direction(ret_val)
             self.log.debug("App.__init__() --> Applied %s language." % str(ret_val).capitalize())
 
         # #################################### LOAD PREPROCESSORS ###################################################

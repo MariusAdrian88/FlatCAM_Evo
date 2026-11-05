@@ -148,6 +148,8 @@ class PlotCanvas3d(QtCore.QObject, scene.SceneCanvas):
         # <VisPyCanvas>
         self.create_native()
         self.native.setParent(self.fcapp.ui)
+        # the canvas is never mirrored: X grows to the right in a right-to-left application too
+        self.native.setLayoutDirection(QtCore.Qt.LayoutDirection.LeftToRight)
 
         # <QtCore.QObject>
         self.container.addWidget(self.native)

@@ -102,7 +102,7 @@ class ColumnarFlowLayout(QLayout):
 
         while True:
             column_width = math.floor((area.width() - (column_count-1)*spacing) / column_count)
-            # a column is never wider than the widest preferred width; the free space stays to the right
+            # a column is never wider than the widest preferred width; the free space stays at the end
             column_width = max(min_width, min(column_width, hint_widths[-1]))
 
             # Get the heights for all of our items. The heightForWidth() of some items is too small before
@@ -124,12 +124,15 @@ class ColumnarFlowLayout(QLayout):
 
         # Set geometry according to the layout we have calculated
         if not testOnly:
+            # the first column is on the right in a right-to-left application
+            parent = self.parentWidget()
+            direction = parent.layoutDirection() if parent is not None else QtWidgets.QApplication.layoutDirection()
             for column_index, column_items in enumerate(column_contents):
                 x = area.x() + column_index * (column_width + spacing)
                 y = area.y()
                 for item in column_items:
                     height = item_heights[item]
-                    item.setGeometry(QRect(x, y, column_width, height))
+                    item.setGeometry(QtWidgets.QStyle.visualRect(direction, area, QRect(x, y, column_width, height)))
                     y += (height + spacing)
 
         # Return the overall height; each column height holds a spacing after the last item

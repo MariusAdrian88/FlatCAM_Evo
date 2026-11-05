@@ -1,12 +1,17 @@
 """
-The language names and the fall back to English (appTranslation.languages_dict, apply_language()).
+The language names, the fall back to English (appTranslation.languages_dict, apply_language()) and the right-to-left
+interface of a right-to-left language (set_layout_direction()).
 
     python -m pytest tests/test_language.py
 """
 
 import builtins
+import types
 import unittest
 import unittest.mock
+
+from PyQt6 import QtCore, QtWidgets
+from PyQt6.QtCore import Qt
 
 import appTranslation as fcTranslate
 
@@ -64,6 +69,98 @@ class TestApplyLanguage(unittest.TestCase):
         store = self._fake_settings('Deutsche')
         self.assertEqual('English', fcTranslate.apply_language('strings'))
         self.assertEqual('English', store['language'])
+
+
+LTR = Qt.LayoutDirection.LeftToRight
+RTL = Qt.LayoutDirection.RightToLeft
+
+
+class TestRightToLeft(unittest.TestCase):
+    """The language is applied at start-up; a change of the language restarts the application."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.qapp = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+
+    def setUp(self):
+        # 'ar' has no catalogue yet: its name is added for the test
+        patcher = unittest.mock.patch.dict(fcTranslate.languages_dict, {'ar': 'العربية'})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.addCleanup(QtWidgets.QApplication.setLayoutDirection, Qt.LayoutDirection.LayoutDirectionAuto)
+
+    def test_an_rtl_language_mirrors_the_application(self):
+        fcTranslate.set_layout_direction('العربية')
+        self.assertEqual(RTL, QtWidgets.QApplication.layoutDirection())
+        # a new UI is mirrored with nothing extra
+        self.assertEqual(RTL, QtWidgets.QWidget().layoutDirection())
+
+    def test_an_ltr_language_keeps_the_application_left_to_right(self):
+        for name in [n for code, n in fcTranslate.languages_dict.items() if code != 'ar']:
+            with self.subTest(name=name):
+                fcTranslate.set_layout_direction(name)
+                self.assertEqual(LTR, QtWidgets.QApplication.layoutDirection())
+
+    def test_the_check_box_indicator_goes_after_the_text_in_both_directions(self):
+        from appGUI.GUIElements import FCCheckBox, opposite_direction
+        for name, app_direction, box_direction in (('English', LTR, RTL), ('العربية', RTL, LTR)):
+            with self.subTest(name=name):
+                QtWidgets.QApplication.setLayoutDirection(Qt.LayoutDirection.LayoutDirectionAuto)
+                fcTranslate.set_layout_direction(name)
+                self.assertEqual(app_direction, QtWidgets.QApplication.layoutDirection())
+                box = FCCheckBox('Plot')
+                box.setLayoutDirection(opposite_direction())
+                self.assertEqual(box_direction, box.layoutDirection())
+
+    def test_the_preferences_columns_start_on_the_right(self):
+        from appGUI.ColumnarFlowLayout import ColumnarFlowLayout
+        for name, first_is_left in (('English', True), ('العربية', False)):
+            with self.subTest(name=name):
+                QtWidgets.QApplication.setLayoutDirection(Qt.LayoutDirection.LayoutDirectionAuto)
+                fcTranslate.set_layout_direction(name)
+                page = QtWidgets.QWidget()
+                layout = ColumnarFlowLayout(page)
+                columns = []
+                for _ in range(3):
+                    column = QtWidgets.QWidget()
+                    column.setMinimumSize(100, 50)
+                    layout.addWidget(column)
+                    columns.append(column)
+                layout.setGeometry(QtCore.QRect(0, 0, 400, 100))
+                first, last = columns[0].geometry(), columns[-1].geometry()
+                self.assertEqual(first_is_left, first.x() < last.x())
+                # the columns keep their width and stay inside the page
+                self.assertEqual(last.width(), first.width())
+                self.assertTrue(QtCore.QRect(0, 0, 400, 100).contains(first))
+
+    def test_code_shell_coordinates_and_canvas_stay_left_to_right(self):
+        from appEditors.text_editor.code_edit import CodeEdit
+        from appGUI.GUIElements import CoordsToolbar
+        from appPlugins.ToolShell.ShellUI import TermWidget
+
+        fcTranslate.set_layout_direction('العربية')
+        widgets = {
+            'code editor': CodeEdit(theme='default'),
+            'Tcl shell': TermWidget('test', types.SimpleNamespace(resource_location='assets/resources')),
+            'coordinates': CoordsToolbar('Coordinates Toolbar'),
+        }
+        for what, widget in widgets.items():
+            with self.subTest(what=what):
+                self.assertEqual(LTR, widget.layoutDirection())
+
+        from appGUI.PlotCanvas import PlotCanvas
+        from defaults import AppDefaults
+
+        class MainWindow(QtWidgets.QMainWindow):
+            def __getattr__(self, name):        # the status bar labels of the canvas
+                return unittest.mock.MagicMock()
+
+        defaults = AppDefaults()
+        fcapp = unittest.mock.MagicMock(options=dict(defaults.defaults), defaults=defaults, app_units='MM',
+                                        ui=MainWindow(), cursor_color_3D='#000000')
+        canvas = PlotCanvas(fcapp)
+        self.assertEqual(LTR, canvas.native.layoutDirection())
+
 
 if __name__ == '__main__':
     unittest.main()

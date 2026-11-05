@@ -133,6 +133,8 @@ class PlotCanvas(QtCore.QObject, VisPyCanvas):
         # <VisPyCanvas>
         self.create_native()
         self.native.setParent(self.fcapp.ui)
+        # the canvas is never mirrored: X grows to the right in a right-to-left application too
+        self.native.setLayoutDirection(QtCore.Qt.LayoutDirection.LeftToRight)
 
         self.axis_transparency = 0.8
         axis_color = self.axis_rgba()

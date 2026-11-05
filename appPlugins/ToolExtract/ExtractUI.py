@@ -1,6 +1,6 @@
 from PyQt6 import QtWidgets, QtCore, QtGui
 from appGUI.GUIElements import FCLabel, FCButton, FCFrame, GLay, FCComboBox, FCCheckBox, \
-    RadioSet, FCDoubleSpinner, FCTable
+    RadioSet, FCDoubleSpinner, FCTable, opposite_direction
 from appPlugins.ToolExtract import ExtractGen
 
 import gettext
@@ -393,7 +393,7 @@ class ExtractUI:
             ap_size_item.setFlags(QtCore.Qt.ItemFlag.ItemIsEnabled)
 
             mark_item = FCCheckBox()
-            mark_item.setLayoutDirection(QtCore.Qt.LayoutDirection.RightToLeft)
+            mark_item.setLayoutDirection(opposite_direction())
             empty_plot_item = QtWidgets.QTableWidgetItem('')
             empty_plot_item.setFlags(~QtCore.Qt.ItemFlag.ItemIsSelectable | QtCore.Qt.ItemFlag.ItemIsEnabled)
             empty_plot_item.setFlags(QtCore.Qt.ItemFlag.ItemIsEnabled)

@@ -9,7 +9,7 @@ from PyQt6 import QtWidgets, QtCore, QtGui
 from appTool import AppTool
 from appGUI.GUIElements import VerticalScrollArea, FCLabel, FCButton, FCFrame, GLay, FCComboBox, FCCheckBox, \
     FCComboBox2, RadioSet, FCDoubleSpinner, FCSpinner, NumericalEvalTupleEntry, FCTable, \
-    OptionalInputSection, OptionalHideInputSection
+    OptionalInputSection, OptionalHideInputSection, opposite_direction
 
 import logging
 from copy import deepcopy
@@ -1210,7 +1210,7 @@ class ToolMilling(Geometry, AppTool):
             empty_plot_item.setFlags(~QtCore.Qt.ItemFlag.ItemIsSelectable | QtCore.Qt.ItemFlag.ItemIsEnabled)
             self.ui.tools_table_mill_geo.setItem(row_idx, 4, empty_plot_item)
             plot_item = FCCheckBox()
-            plot_item.setLayoutDirection(QtCore.Qt.LayoutDirection.RightToLeft)
+            plot_item.setLayoutDirection(opposite_direction())
             if self.ui.plot_cb.isChecked():
                 plot_item.setChecked(True)
             self.ui.tools_table_mill_geo.setCellWidget(row_idx, 4, plot_item)

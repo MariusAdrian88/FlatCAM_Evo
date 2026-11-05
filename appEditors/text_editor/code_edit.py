@@ -54,6 +54,8 @@ class CodeEdit(FCPlainTextAreaExtended):
 
     def __init__(self, parent=None, theme='default', lexer=None, tab_width=4):
         super().__init__(parent)
+        # code is written left to right, in a right-to-left application too (the gutter stays on the left)
+        self.setLayoutDirection(QtCore.Qt.LayoutDirection.LeftToRight)
 
         self.theme = theme
         self.colors = palette_for(theme, self._background())

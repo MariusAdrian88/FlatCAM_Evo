@@ -235,7 +235,9 @@ class NotebookButton(QtWidgets.QToolButton):
         x = (self.width() - 16) / 2
         y = (self.height() - 14) / 2
         painter.drawRect(QtCore.QRectF(x, y, 16, 14))
-        painter.fillRect(QtCore.QRectF(x + 0.4, y + 0.4, 5, 13.2), color)
+        # the bar shows the side of the notebook: on the right in a right-to-left application
+        bar_x = x + 10.6 if self.isRightToLeft() else x + 0.4
+        painter.fillRect(QtCore.QRectF(bar_x, y + 0.4, 5, 13.2), color)
 
 
 class TitleBar(QtWidgets.QWidget):
