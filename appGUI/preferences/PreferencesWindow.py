@@ -771,6 +771,18 @@ class PreferencesWindow(QtWidgets.QWidget):
         style = content.style()
         bars = []
         rows = self.marker_rows(page)
+        boxes = []
+        for _key, rect in rows:
+            box = QtCore.QRect(1, rect.center().y() - 9, 18, 18)
+            # Settings sharing a row need separate reset targets in the leading margin.
+            while any(box.intersects(other) for other in boxes):
+                box.translate(content.gutter, 0)
+            boxes.append(box)
+        gutter = max([content.gutter] + [box.right() + 6 for box in boxes])
+        if content.isRightToLeft():
+            content.layout().setContentsMargins(4, 4, gutter, 4)
+        else:
+            content.layout().setContentsMargins(gutter, 4, 4, 4)
         while len(content.buttons) < len(rows):
             button = QtWidgets.QToolButton(content)
             button.setAutoRaise(True)
@@ -785,10 +797,9 @@ class PreferencesWindow(QtWidgets.QWidget):
                 button.hide()
                 continue
             key, rect = rows[index]
-            bar = QtCore.QRect(content.gutter - 6, rect.top() + 2, 3, max(rect.height() - 4, 4))
-            box = QtCore.QRect(1, rect.center().y() - 9, 18, 18)
+            bar = QtCore.QRect(gutter - 6, rect.top() + 2, 3, max(rect.height() - 4, 4))
             bars.append(style.visualRect(direction, content.rect(), bar))
-            button.setGeometry(style.visualRect(direction, content.rect(), box))
+            button.setGeometry(style.visualRect(direction, content.rect(), boxes[index]))
             button.setProperty('option_key', key)
             button.show()
             button.raise_()
@@ -896,6 +907,8 @@ class PreferencesWindow(QtWidgets.QWidget):
 
     def close_quietly(self):
         """Close without the question about unsaved changes (after Save or Cancel)."""
+        self.manager.pref_disconnect()
+        self.set_edit_tracking(self.manager.on_preferences_edited, False)
         self._quiet_close = True
         try:
             self.close()

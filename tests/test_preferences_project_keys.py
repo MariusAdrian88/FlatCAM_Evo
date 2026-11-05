@@ -267,6 +267,17 @@ def test_ctrl_s_in_the_window_applies_the_preferences(pref_app):
     assert not pref_app.preferencesUiManager.preferences_changed_flag
     assert window.isVisible()
 
+    window.save_button.click()
+    assert not window.isVisible()
+    # A project switch fills the hidden form. Reopening it must not turn that update into an unsaved edit.
+    pref_app.options['tools_drill_cutz'] = -3.5
+    pref_app.preferencesUiManager.defaults_write_form()
+    pref_app.on_preferences()
+    assert cutz.get_value() == -3.5
+    assert not pref_app.preferencesUiManager.preferences_changed_flag
+    cutz.set_value(-4.5)
+    assert pref_app.preferencesUiManager.preferences_changed_flag
+
 
 def test_search_filters_the_pages_by_label_and_tooltip(pref_app):
     window = pref_app.ui.preferences_window
@@ -350,6 +361,34 @@ def test_changed_settings_are_marked_and_reset_page_puts_the_factory_values(pref
     window.reset_key('tools_drill_feedrate_z')
     assert drill.feedrate_z_entry.get_value() == pref_app.defaults.factory_defaults['tools_drill_feedrate_z']
     assert drill.cutz_entry.get_value() == -2.5
+
+
+@pytest.mark.parametrize('direction', [QtCore.Qt.LayoutDirection.LeftToRight, QtCore.Qt.LayoutDirection.RightToLeft])
+def test_reset_arrows_on_the_same_row_reset_only_their_setting(pref_app, direction):
+    from PyQt6.QtTest import QTest
+    qapp = QtWidgets.QApplication.instance()
+    previous = qapp.layoutDirection()
+    qapp.setLayoutDirection(direction)
+    try:
+        window = pref_app.ui.preferences_window
+        fields = pref_app.preferencesUiManager.defaults_form_fields
+        keys = ('gerber_plot', 'gerber_solid', 'gerber_multicolored')
+        expected = {key: not pref_app.defaults.factory_defaults[key] for key in keys}
+        for key, value in expected.items():
+            fields[key].set_value(value)
+        page = window.page_of(fields[keys[0]])
+        window.show_page(page)
+        for key in keys:
+            qapp.processEvents()
+            window.refresh_markers()
+            button = next(b for b in page.content.buttons if b.isVisible() and b.property('option_key') == key)
+            page.widget.ensureWidgetVisible(button)
+            target = page.content.childAt(button.geometry().center())
+            QTest.mouseClick(target, QtCore.Qt.MouseButton.LeftButton)
+            expected[key] = pref_app.defaults.factory_defaults[key]
+            assert {key: fields[key].get_value() for key in keys} == expected
+    finally:
+        qapp.setLayoutDirection(previous)
 
 
 def test_more_menu_holds_the_rare_actions_and_restore_defaults_asks_first(pref_app, monkeypatch):
