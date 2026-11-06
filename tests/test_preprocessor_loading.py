@@ -11,6 +11,7 @@ still gets math from appPreProcessor.
 
 import ast
 import glob
+import logging
 import os
 import shutil
 import sys
@@ -65,12 +66,16 @@ def registry():
     saved = dict(appPreProcessor.preprocessors)
     saved_modules = set(sys.modules)
     appPreProcessor.preprocessors.clear()
+    # another test module imports the built-in preprocessors as a package at collection time: execute the files again
+    # so that this test starts with its own registry
+    removed_modules = {name: sys.modules.pop(name) for name in list(sys.modules) if name.startswith('preprocessors.')}
     yield appPreProcessor.preprocessors
     appPreProcessor.preprocessors.clear()
     appPreProcessor.preprocessors.update(saved)
     for name in set(sys.modules) - saved_modules:
-        if name.startswith('FlatCAMPostProcessor'):
+        if name.startswith(('FlatCAMPostProcessor', 'preprocessors.')):
             del sys.modules[name]
+    sys.modules.update(removed_modules)
 
 
 @pytest.fixture
@@ -92,6 +97,25 @@ def test_builtin_preprocessors_load_from_another_working_directory(registry, app
         assert isinstance(pp, (PreProc, AppPreProcTools))
     app.log.error.assert_not_called()
     assert result['default'].lift_code(SimpleNamespace(z_move=2.0, coords_decimals=4)) == 'G00 Z2.0000'
+
+
+def test_grbl_hal_preprocessors_do_not_execute_the_grbl_files_again(registry, app, caplog):
+    # grblHAL imports 'preprocessors.GRBL_11'; when the file is executed under its package name the import gets the
+    # module that is already loaded. A second copy would register its classes again ("has been overriden").
+    with caplog.at_level(logging.WARNING, logger='base'):
+        result, _deprecated = load(app)
+
+    overrides = [record.getMessage() for record in caplog.records if 'has been overriden' in record.getMessage()]
+    assert overrides == []
+    for name in ('GRBL_11', 'GRBL_11_no_M6', 'GRBL_laser', 'GRBL_laser_z'):
+        module = sys.modules['preprocessors.' + name]
+        assert os.path.samefile(module.__file__, os.path.join(BUILTIN_DIR, name + '.py'))
+        assert result[name].__class__ is getattr(module, name)
+    # the grblHAL class derives from the class of the loaded module, not from a second copy of the file
+    for name, base in (('grblHAL', 'GRBL_11'), ('grblHAL_no_M6', 'GRBL_11_no_M6'),
+                       ('grblHAL_laser', 'GRBL_laser'), ('grblHAL_laser_z', 'GRBL_laser_z')):
+        assert getattr(sys.modules['preprocessors.' + name], name).__bases__[0] is \
+            getattr(sys.modules['preprocessors.' + base], base)
 
 
 def test_user_preprocessor_loads_and_a_broken_file_is_logged_without_stopping_the_others(registry, app, monkeypatch):

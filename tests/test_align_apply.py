@@ -100,6 +100,38 @@ def test_registration_applies_to_all_selected_objects_as_one_undo_step(app):
     assert all(not np.allclose(np.array(obj.bounds()), before[id(obj)]) for obj in objects)
 
 
+def test_registration_applies_the_previewed_overdetermined_fit(app):
+    from appPlugins.ToolGcodeSender.CameraRegistration import CameraRegistration, apply_registration
+
+    model = CameraRegistration()
+    for (x, y), (qx, qy) in (
+            ((0.0, 0.0), (0.0, 0.0)),
+            ((10.0, 0.0), (10.0, 0.0)),
+            ((0.0, 10.0), (0.0, 10.5))):
+        model.add_design(x, y)
+        ok, reason = model.add_observation({
+            'ok': True, 'frame': 'work', 'x': qx, 'y': qy, 'wco': (10.0, 20.0),
+            'session': 1, 'units': 'MM', 'camera_id': 'cam-A', 'rotation': 0, 'mirror': False,
+            'offset': (30.0, -10.0), 'view_z': -5.0,
+        })
+        assert ok, reason
+    fit = model.fit(0.05)
+    assert fit is model.preview
+    assert fit.max_error > 0.05
+
+    obj = make_gerber(app)
+    obj.plot_transformed = Mock()
+    obj.regenerate_source = Mock(return_value=True)
+    history = _registration_history([obj], app)
+    before = np.array(obj.bounds())
+    apply_registration(app, [obj], fit)
+    assert not np.allclose(np.array(obj.bounds()), before)
+    assert len(history.undo_stack) == 1
+
+    apply_matrix_to_object(obj, invert(fit.matrix))
+    assert np.array(obj.bounds()) == pytest.approx(before, abs=1e-6)
+
+
 def test_registration_failure_rolls_back_every_touched_object(app, monkeypatch):
     from appPlugins.ToolGcodeSender import CameraRegistration
 

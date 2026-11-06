@@ -2168,6 +2168,8 @@ class ToolIsolation(Geometry, AppTool):
                 "tools_iso_selection": selection_type,
                 "tools_iso_area_shape": sel_area_shape,
                 "tools_mill_job_type": 2,  # _("Isolation")
+                # generated Isolation paths are already the tool centerline: Milling must not offset them again
+                "tools_iso_centerline": True,
                 "tools_mill_tool_shape": tool_tip_shape,
             })
 

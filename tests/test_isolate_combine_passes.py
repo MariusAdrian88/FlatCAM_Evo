@@ -62,3 +62,27 @@ def test_tool_data_of_the_combined_object_holds_all_passes(app):
     combined = run_isolate(app, gerber, passes=2, combine=True, outname='combined')['combined']
     assert combined.tools[1]['solid_geometry'] == combined.solid_geometry
     assert len(combined.solid_geometry) > 0
+
+
+@pytest.mark.parametrize('combine, rest', [(False, False), (True, False), (True, True)])
+def test_generated_tools_carry_the_isolation_centerline_marker(app, combine, rest):
+    created = run_isolate(app, make_gerber(app, name='g'), passes=1 if rest else 2,
+                          combine=combine, rest=rest)
+    assert created
+    for obj in created.values():
+        assert obj.tools
+        for tool in obj.tools.values():
+            assert tool['data'].get('tools_iso_centerline') is True
+
+
+def test_the_marker_of_the_real_isolation_output_is_consumed_by_milling(app):
+    # the real output carries the key Milling reads: a would-be second offset is dropped
+    from tests.test_milling_single_geometry_tools import milling_job, xy_cuts
+
+    created = run_isolate(app, make_gerber(app, name='g'), passes=1, combine=True)
+    (obj,) = created.values()
+    data = dict(obj.tools[1]['data'], tools_mill_offset_type=1)
+    __, job = milling_job(1, multigeo=False, from_tcl=True, data=data)
+    __, plain = milling_job(1, multigeo=False, from_tcl=True, data=dict(tools_mill_offset_type=0))
+    assert job != 'fail' and plain != 'fail'
+    assert xy_cuts(job.tools[1]['gcode']) == xy_cuts(plain.tools[1]['gcode'])

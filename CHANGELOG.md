@@ -6,6 +6,83 @@ Based on FlatCAM:
 
 CHANGELOG for FlatCAM Evo
 
+06.11.2026
+
+Merged pull requests (they are described in the sections of 04.11.2026 and 05.11.2026):
+
+- Right-to-left layout: the interface is mirrored for right-to-left languages; the plot canvas, the code editors, the Tcl shell and the coordinates stay left to right (merged PR #78 from ErkanGench)
+- Preferences window: a window with a tree of sections and pages, a search box, a tooltip strip, marks for changed settings and reset arrows (merged PR #79 from ErkanGench)
+- Arabic translation: all the texts are translated into Modern Standard Arabic (merged PR #80 from ErkanGench)
+- Shortcut editor: Preferences > Application > Keyboard Shortcuts, with conflict check, reset, import and export of the keys (merged PR #81 from ErkanGench)
+
+PCB 3D Viewer:
+
+- new: Plugins > PCB 3D Viewer shows the Gerber and Excellon objects of the project as a 3D board in the Plot 3D tab; the substrate, the copper, the soldermask, the silkscreen-type overlays, the board outline and the drills are separate layers
+- new: the Gerber object has a "View 3D" button (next to the Properties button) that opens the viewer for that object
+- new: each layer has a combo box with the project objects (Top and Bottom for the copper and the soldermask, Outline, Overlay layers, one combo box for each Excellon drill set); "None" and the clear button remove a layer from the view
+- new: the thickness of the board, of the copper and of the soldermask, the transparency of the board and the colors of the layers are set in the plugin; a change of the thickness or of the material only updates the existing meshes and does not triangulate the geometry again
+- new: the meshes are built in a worker thread, one layer at a time, so the application stays responsive; the status line shows "Building PCB preview…" and "PCB preview ready"; a new request cancels the build that is running
+- new: "Reference" sets the point around which the board rotates: "lmb" rotates about the point under the mouse button (as before), "center" rotates about the center of all the objects of the project; the View Cube rotates about the same point
+- changed: the 3D view fits the bounds of the board when the viewer is active (it does not use the machine workspace), and it allows a larger zoom out
+- fixed: the right mouse button on the View Cube no longer passes through to the 3D canvas
+
+Image tools:
+
+- new: Geometry Editor > Import Image (menu and toolbar, with its own icon): load a raster image, convert it to paths with the settings of the Image plugin and place it on the canvas; the preview of the paths follows the cursor and the lower-left corner of the image goes to the click point
+- new: a large image shows the extent of the paths in the moving preview; the placement keeps all the paths; a placement uses the prepared conversion once, then a new conversion is needed
+- new: the Image plugin has a preview of the loaded image (sampled to 320 x 200 pixels) that follows the settings; the final import uses every original pixel
+- new: the Image plugin has Invert, Mirror horizontal (X) and Mirror vertical (Y) options; the invert is applied before the black-and-white or color interpretation
+- changed: the threshold and the mask levels (black and white, red, green and blue) of the Image plugin are sliders with a spin box, so you can drag a value and see the preview change
+- changed: the raster import is much faster: the regions are traced and scaled once (in the transform of the raster library) and the polygons are built in batches, instead of four Shapely transforms for each color region; the shapes of the regions keep their exact pixel edges
+- changed: the conversion of the image to paths for the import runs in a worker with a progress dialog that has a Cancel button; a cancel stops the conversion and releases the progress dialog
+- changed: the loading of the image and the conversion of the paths for Image Import share one code path in the Image plugin and in the Geometry Editor
+- fixed: a failure inside the vtracer image tracer (a Rust panic, which is not a normal Python exception) is reported as "Image tracing failed" and no longer leaves the progress dialog open
+
+GRBL Sender:
+
+- new: Edge / centre probing: "Probe edge" probes one edge in the direction you choose (X+, X-, Y+, Y-) and shows the contact point; "Find XY centre" probes the 4 opposed edges of a hole or a ring and shows the center
+- new: the probing parameters are the probe distance, the probe feedrate, the pull-off and the Z travel; the units follow the project units (MM or IN)
+- new: the contacts are shown in the work coordinates that the controller uses now; the work offsets of the controller are never changed
+- new: the probing starts only if the controller is Idle, the report setting ($13) is known, the units, G90 and G94 are confirmed by $G and check mode is off; a failed or partial run shows no result
+- changed: when the tool length changes during a tool change (tool measurement or plate calibration), the active height map is checked against the new tool frame; the map is kept when the frame is provably the same and is retired, together with the levelled job, when the frame cannot be proven
+- changed: the messages tell you why the map was invalidated (incomplete map, units that do not match the project, a different fixed-plate reference, a machine session that changed) and ask you to probe it again
+- changed: a tool-change answer that arrives after the mode, the settings, the units or the session changed is rejected as stale
+- changed: Camera registration: the "alignment acceptance tolerance" is now a "Residual warning limit"; a fit whose residual is above the limit is still shown, with a warning, so you can see the residual of every point before you apply it
+- changed: the registration table shows "Residual" for each pair, and the summary shows the minimum, the mean and the maximum residual (it no longer shows the RMS)
+- fixed: a registration with non-finite residuals is refused with "The points can not give a valid rigid registration."
+
+Levelling:
+
+- changed: G81, G82 and G83 canned cycles in the plain G17 plane are expanded into levelled moves that follow the height map; the cycle needs a known start point, a valid R, Z, Q, P and feed, and the G98 or G99 return mode
+- changed: the move between two holes goes at a Z that clears the highest point of the whole height map (for the bilinear map and the bicubic map, also between the control points), not only the end points of the segment
+- changed: G98 returns to the initial plane that the cycle started at; the initial plane is lifted if the surface at the hole leaves less than the R clearance; G83 retracts to the R plane between the pecks and goes back to the bottom of the previous peck, never below it
+- changed: a canned cycle that is not supported (G73, G76, G84 to G89, another plane, a missing or invalid parameter, a repetition) is left unchanged and counted in the warning, and the Z after it is treated as unknown; the warning text lists these cases
+- changed: the codes that have no effect on the position (G4, G17 to G19, G40, G61, G64, G98, G99) no longer break the segment that the levelling follows
+
+Excellon and Gerber objects:
+
+- new: Excellon > Tools table: the color of a tool is a round color swatch; click it to choose the color of the drills of that tool with the color dialog (with the alpha channel); the plot of the tool and the swatch change at once
+- changed: a color chosen for a tool is kept when the "Multicolored" option is changed and when the object is plotted again; random colors are given only to the tools that have no usable color; clearing "Multicolored" clears the tool colors
+- changed: the Solid and Solid Geometry plot of the drills uses the color of the tool for the outline and the holes
+- fixed: the hidden shapes of the plot keep a new color when the color of a layer changes, so they show the new color when they are shown again
+- fixed: the check box columns of the tool tables (Geometry, Milling, CNC Job, Excellon, Gerber apertures, Extract, G-Code Editor) have the width of a check box with the style sheet of the application, not a fixed 17 pixels, so the check box is no longer clipped on a scaled screen
+
+Isolation and Milling:
+
+- fixed: the Milling paths that the Isolation plugin and the Gerber object (Isolate) generate are marked as an already offset centerline of the tool; the Milling plugin no longer offsets them a second time when you generate a CNC Job from them
+
+CNC Job:
+
+- fixed: a change of the project units from MM to IN (or from IN to MM) now also converts the dimensions and the XY points that are stored in the tool data of a job under the tools_mill_ and tools_drill_ names, and the numeric Z offset of an imported Excellon tool; a value that is empty or not valid is left as it is, so the conversion does not fail the job
+
+Preprocessors:
+
+- fixed: a preprocessor that imports another preprocessor of the built-in package (for example "from preprocessors.GRBL_11 import GRBL_11") gets the module that is already loaded and no longer runs the file a second time; user preprocessors keep their own module names
+
+Translations:
+
+- fixed: when the language has no usable catalog, or the catalog is missing or corrupt, the earlier language no longer stays installed; the application falls back to English
+
 05.11.2026
 
 Shortcuts:

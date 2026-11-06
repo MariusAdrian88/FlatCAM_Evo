@@ -181,6 +181,8 @@ def apply_language(domain, lang=None):
                 del settings
 
     if lang_code == '':
+        # no usable catalog: clear a previously installed translation, else the old language stays
+        gettext.NullTranslations().install()
         return "no language"
     else:
         try:
@@ -188,6 +190,8 @@ def apply_language(domain, lang=None):
             current_lang.install()
         except Exception as e:
             log.error("FlatCAMTranslation.apply_language() --> %s" % str(e))
+            # a missing or corrupt catalog must not keep the old translation installed
+            gettext.NullTranslations().install()
 
         return name
 

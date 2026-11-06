@@ -12,7 +12,7 @@
 
 from PyQt6 import QtWidgets, QtCore
 from appObjects.AppObjectTemplate import FlatCAMObj, OffsetUiMixin, PropertiesPanelMixin, ObjectDeleted
-from appGUI.GUIElements import FCCheckBox, opposite_direction
+from appGUI.GUIElements import FCCheckBox, checkbox_column_width, opposite_direction
 from appGUI.ObjectUI import GeometryObjectUI
 
 from shapely import MultiLineString, LinearRing, Polygon, MultiPolygon, LineString
@@ -334,13 +334,13 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
         horizontal_header.setSectionResizeMode(4, QtWidgets.QHeaderView.ResizeMode.Fixed)
         horizontal_header.resizeSection(4, 40)
         horizontal_header.setSectionResizeMode(6, QtWidgets.QHeaderView.ResizeMode.Fixed)
-        horizontal_header.resizeSection(6, 17)
+        horizontal_header.resizeSection(6, checkbox_column_width())
         # horizontal_header.setStretchLastSection(True)
         self.ui.geo_tools_table.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
         self.ui.geo_tools_table.setColumnWidth(0, 20)
         self.ui.geo_tools_table.setColumnWidth(4, 40)
-        self.ui.geo_tools_table.setColumnWidth(6, 17)
+        self.ui.geo_tools_table.setColumnWidth(6, checkbox_column_width())
 
         # self.ui.geo_tools_table.setSortingEnabled(True)
 

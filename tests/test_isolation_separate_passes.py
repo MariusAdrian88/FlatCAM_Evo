@@ -97,6 +97,21 @@ def test_whole_object_makes_one_geometry_per_pass(tool, app, passes):
         assert obj.tools[1]['solid_geometry'] == obj.solid_geometry
 
 
+@pytest.mark.parametrize('combine, rest', [(False, False), (True, False), (True, True)])
+def test_generated_tools_carry_the_isolation_centerline_marker(tool, app, combine, rest):
+    if rest:
+        gerber, storage, sel_tools = pads_gerber(app)[0], two_tools(), [1, 2]
+    else:
+        gerber, storage, sel_tools = make_gerber(app, name='g'), tools_storage(2), [1]
+    created = run_isolate(tool, app, gerber, 1, storage=storage, sel_tools=sel_tools,
+                          combine=combine, rest=rest, forced_rest=False, order=0)
+    assert created and created.result is None
+    for obj in created.values():
+        assert obj.tools
+        for tool_data in obj.tools.values():
+            assert tool_data['data'].get('tools_iso_centerline') is True
+
+
 def test_area_selection_with_separate_passes(tool, app):
     gerber = make_gerber(app, name='g')
     xmin, ymin, xmax, ymax = unary_union(gerber.solid_geometry).bounds

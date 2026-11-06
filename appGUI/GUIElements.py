@@ -2008,6 +2008,18 @@ class FCCheckBox(QtWidgets.QCheckBox):
         self.setFont(font)
 
 
+def checkbox_column_width():
+    """
+    The width of a table column that holds only a check box: the size hint of the check box (the indicator of the
+    application style sheet is wider than the indicator of the style) and the frame of the table cell. It follows the
+    screen scaling.
+
+    :return:    the width in pixels
+    :rtype:     int
+    """
+    return FCCheckBox().sizeHint().width() + 2
+
+
 class FCTextArea(QtWidgets.QPlainTextEdit):
     def __init__(self, parent=None):
         super(FCTextArea, self).__init__(parent)

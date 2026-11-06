@@ -15,7 +15,7 @@ from PyQt6 import QtWidgets, QtCore, QtGui
 from appParsers.ParseExcellon import Excellon, hole_ids, to_state
 from appParsers.gerber_attributes import format_attribute, merge_to_table
 from appObjects.AppObjectTemplate import FlatCAMObj, OffsetUiMixin, PropertiesPanelMixin, ObjectDeleted
-from appGUI.GUIElements import FCCheckBox, opposite_direction
+from appGUI.GUIElements import FCCheckBox, FCButton, checkbox_column_width, opposite_direction
 from appGUI.ObjectUI import ExcellonObjectUI
 
 import itertools
@@ -490,17 +490,14 @@ class ExcellonObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Excellon):
             self.ui.tools_table.setItem(self.tool_row, 4, empty_plot_item)
 
             if 'multicolor' in self.tools[tool_no] and self.tools[tool_no]['multicolor'] is not None:
-                red = int(self.tools[tool_no]['multicolor'][0] * 255)
-                green = int(self.tools[tool_no]['multicolor'][1] * 255)
-                blue = int(self.tools[tool_no]['multicolor'][2] * 255)
-                alpha = int(self.tools[tool_no]['multicolor'][3] * 255)
-                h_color = QtGui.QColor(red, green, blue, alpha)
-                self.ui.tools_table.item(self.tool_row, 4).setBackground(h_color)
+                tool_color = self.tools[tool_no]['multicolor']
+                h_color = QtGui.QColor.fromRgbF(float(tool_color[0]), float(tool_color[1]), float(tool_color[2]))
+                h_color.setAlphaF(float(tool_color[3]))
             else:
                 h1 = self._app_option("excellon_plot_fill")[1:7]
                 h2 = self._app_option("excellon_plot_fill")[7:9]
                 h_color = QtGui.QColor('#' + h2 + h1)
-                self.ui.tools_table.item(self.tool_row, 4).setBackground(h_color)
+            self.ui.tools_table.setCellWidget(self.tool_row, 4, self.build_tool_color_swatch(tool_no, h_color))
 
             # Plot Item
             plot_item = FCCheckBox()
@@ -598,10 +595,10 @@ class ExcellonObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Excellon):
         horizontal_header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         horizontal_header.setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         horizontal_header.setSectionResizeMode(4, QtWidgets.QHeaderView.ResizeMode.Fixed)
-        horizontal_header.resizeSection(4, 17)
+        horizontal_header.resizeSection(4, checkbox_column_width())
         horizontal_header.setSectionResizeMode(5, QtWidgets.QHeaderView.ResizeMode.Fixed)
-        horizontal_header.resizeSection(5, 17)
-        self.ui.tools_table.setColumnWidth(5, 17)
+        horizontal_header.resizeSection(5, checkbox_column_width())
+        self.ui.tools_table.setColumnWidth(5, checkbox_column_width())
 
         # horizontal_header.setStretchLastSection(True)
         # horizontal_header.setColumnWidth(2, QtWidgets.QHeaderView.ResizeToContents)
@@ -1239,9 +1236,73 @@ class ExcellonObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Excellon):
         if self.muted_ui:
             return
         self.read_form_item('multicolored')
+        if not val:
+            for tool in self.tools.values():
+                tool['multicolor'] = None
         self.plot()
         if not val:
             self.build_ui()
+
+    def build_tool_color_swatch(self, tool_no, color):
+        """
+        The color swatch of a tool: a round button over the tool row that opens the color picker for the tool color.
+
+        :param tool_no:     the id of the tool
+        :param color:       the initial color
+        :type color:        QtGui.QColor
+        :return:            the widget that centers the swatch in the table cell
+        :rtype:             QtWidgets.QWidget
+        """
+        swatch = FCButton()
+        swatch.setFixedSize(16, 16)
+        swatch.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+        swatch.setToolTip(_("Click to choose the color of the drills of this tool."))
+        self.set_tool_color_swatch(swatch, color)
+        swatch.clicked.connect(lambda: self.on_tool_color_clicked(tool_no, swatch))
+
+        container = QtWidgets.QWidget()
+        layout = QtWidgets.QHBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(swatch)
+        return container
+
+    @staticmethod
+    def set_tool_color_swatch(swatch, color):
+        # the FCButton selector, not QPushButton: the color dialog is parented to the swatch and a QPushButton
+        # rule would also style its OK/Cancel buttons
+        swatch.setStyleSheet('.FCButton {background-color: rgba(%d, %d, %d, %d); border: 1px solid dimgray; '
+                             'border-radius: 7px;}' % (color.red(), color.green(), color.blue(), color.alpha()))
+
+    def on_tool_color_clicked(self, tool_no, swatch):
+        tool_color = self.tools[tool_no].get('multicolor')
+        if tool_color is not None:
+            color = QtGui.QColor.fromRgbF(float(tool_color[0]), float(tool_color[1]), float(tool_color[2]))
+            color.setAlphaF(float(tool_color[3]))
+        else:
+            h1 = self._app_option("excellon_plot_fill")[1:7]
+            h2 = self._app_option("excellon_plot_fill")[7:9]
+            color = QtGui.QColor('#' + h2 + h1)
+
+        color_dialog = QtWidgets.QColorDialog(swatch)
+        color_dialog.setOption(QtWidgets.QColorDialog.ColorDialogOption.ShowAlphaChannel, True)
+        color_dialog.setCurrentColor(color)
+        if color_dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted:
+            return
+        selected_color = color_dialog.selectedColor()
+        if not selected_color.isValid():
+            return
+
+        # the tool color is stored as RGBA floats, as the color of the plot of a tool
+        self.tools[tool_no]['multicolor'] = (selected_color.redF(), selected_color.greenF(),
+                                             selected_color.blueF(), selected_color.alphaF())
+        self.set_tool_color_swatch(swatch, selected_color)
+
+        indexes = self.shape_indexes_dict.get(tool_no)
+        if indexes:
+            hex_color = '#%02X%02X%02X%02X' % (selected_color.red(), selected_color.green(),
+                                               selected_color.blue(), selected_color.alpha())
+            self.shapes.redraw(indexes=indexes, update_colors=(hex_color, hex_color))
 
     def on_autoload_db_toggled(self, state):
         self.app.options["excellon_autoload_db"] = True if state else False
@@ -1302,6 +1363,16 @@ class ExcellonObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Excellon):
             return False
         return super().plot_transformed(matrix, kind=kind)
 
+    @staticmethod
+    def _valid_tool_color(color):
+        """True for a stored tool color: 4 RGBA channels in the 0..1 range, as random_color() and the swatch store it."""
+        try:
+            if len(color) != 4:
+                return False
+            return all(math.isfinite(float(value)) and 0.0 <= float(value) <= 1.0 for value in color)
+        except (TypeError, ValueError):
+            return False
+
     def plot(self, visible=None, kind=None):
 
         # the plot state is read from the options (the UI widgets mirror them and are not needed to plot)
@@ -1334,19 +1405,21 @@ class ExcellonObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Excellon):
                 tool_ranges = {}  # tool -> (start_index, end_index) in batch
 
                 for tool in self.tools:
-                    # set the color here so we have one color for each tool
-                    geo_color = random_color()
+                    geo_color = self.tools[tool].get('multicolor')
                     if multicolored:
+                        # keep a color selected with the tool color swatch; a random color only when there is no usable one
+                        if not self._valid_tool_color(geo_color):
+                            geo_color = random_color()
                         self.tools[tool]['multicolor'] = geo_color
-                    else:
-                        self.tools[tool]['multicolor'] = None
+                    elif not self._valid_tool_color(geo_color):
+                        geo_color = None
 
                     batch_start = len(batch)
                     for geo in self.tools[tool]["solid_geometry"]:
                         batch.append({
                             'shape': geo,
-                            'color': geo_color if multicolored else self.outline_color,
-                            'face_color': geo_color if multicolored else self.fill_color,
+                            'color': geo_color if geo_color is not None else self.outline_color,
+                            'face_color': geo_color if geo_color is not None else self.fill_color,
                             'layer': 2
                         })
                     tool_ranges[tool] = (batch_start, len(batch))
@@ -1359,14 +1432,19 @@ class ExcellonObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Excellon):
             else:
                 # Non-solid mode: plot outlines only (fewer shapes, keep individual add)
                 for tool in self.tools:
+                    geo_color = self.tools[tool].get('multicolor')
+                    if not self._valid_tool_color(geo_color):
+                        geo_color = None
                     for geo in self.tools[tool]['solid_geometry']:
-                        idx = self.add_shape(shape=geo.exterior, color='red', visible=visible)
+                        idx = self.add_shape(shape=geo.exterior,
+                                             color=geo_color if geo_color is not None else 'red', visible=visible)
                         try:
                             self.shape_indexes_dict[tool].append(idx)
                         except KeyError:
                             self.shape_indexes_dict[tool] = [idx]
                         for ints in geo.interiors:
-                            idx = self.add_shape(shape=ints, color='orange', visible=visible)
+                            idx = self.add_shape(shape=ints,
+                                                 color=geo_color if geo_color is not None else 'orange', visible=visible)
                             try:
                                 self.shape_indexes_dict[tool].append(idx)
                             except KeyError:

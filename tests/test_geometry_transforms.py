@@ -276,6 +276,114 @@ def test_geometry_unit_conversion_preserves_each_tool_geometry_and_data():
     assert original[1]['data']['extra']['preserve'] == [1]
 
 
+def test_cncjob_unit_conversion_scales_canonical_tool_metadata_and_round_trips():
+    import re
+    from unittest.mock import patch
+    from appObjects.CNCJobObject import CNCJobObject
+
+    mill_lengths = {'tools_mill_tooldia': 3.0, 'tools_mill_cutz': -2.0, 'tools_mill_depthperpass': 0.5,
+                    'tools_mill_travelz': 2.0, 'tools_mill_endz': 15.0, 'tools_mill_toolchangez': 10.0,
+                    'tools_mill_feedrate': 100.0, 'tools_mill_feedrate_z': 50.0,
+                    'tools_mill_feedrate_rapid': 500.0, 'tools_mill_vtipdia': 0.2,
+                    'tools_mill_offset_value': 1.0, 'tools_mill_startz': None}
+    drill_lengths = {'tools_drill_cutz': -1.7, 'tools_drill_depthperpass': 0.7, 'tools_drill_travelz': 2.0,
+                     'tools_drill_endz': 15.0, 'tools_drill_toolchangez': 10.0, 'tools_drill_feedrate_z': 300.0,
+                     'tools_drill_feedrate_rapid': 1500.0, 'tools_drill_peck_depth': 0.5,
+                     'tools_drill_peck_retract': 0.2, 'tools_drill_spot_dia': 1.0,
+                     'tools_drill_spot_cutz': -0.3, 'tools_drill_spot_feedrate_z': 200.0,
+                     'tools_drill_offset': 0.5, 'tools_drill_startz': None}
+    # percentages are not lengths: a change of the unit must leave them as they are
+    percentages = {'tools_drill_drill_overlap': 25.0, 'tools_mill_milling_overlap': 10.0}
+    xy = {'tools_mill_endxy': '(25.4, 50.8)', 'tools_mill_toolchangexy': [12.7, -6.35],
+          'tools_drill_job_offset_xy': [25.4, -12.7], 'tools_drill_mirror_point': '(50.8, 25.4)',
+          'tools_drill_array_pitch': (25.4, 12.7),
+          'tools_drill_toolchangexy': '0.0, 0.0'}
+    # a value that cannot be read stays as it is: a conversion must not fail the job
+    malformed = {'tools_drill_endxy': 'unknown'}
+
+    def pair(value):
+        if isinstance(value, str):
+            value = value.replace('(', '').replace(')', '').replace('[', '').replace(']', '')
+            value = value.split(',')
+        return [float(part) for part in value]
+
+    with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
+        job = CNCJobObject('job', make_app())
+    job.units, job.multitool, job.gcode_parsed = 'MM', True, []
+    job.tools = {
+        1: {'tooldia': 3.0, 'offset': 0.5, 'gcode': 'G21\nG1 X10 Z-1 F100\n',
+            'gcode_parsed': [], 'solid_geometry': [],
+            'data': dict(mill_lengths, **percentages, **{'tools_mill_vtipangle': 30,
+                                                         'tools_mill_multidepth': True},
+                         **{k: v for k, v in xy.items() if k.startswith('tools_mill_')},
+                         **{k: v for k, v in malformed.items() if k.startswith('tools_mill_')})},
+        2: {'tooldia': 1.0, 'offset': 'Path', 'gcode': '', 'gcode_parsed': [], 'solid_geometry': [],
+            'data': dict(drill_lengths, **percentages, **{'tools_drill_tool_order': 'no',
+                                                          'tools_drill_dwelltime': 1},
+                         **{k: v for k, v in xy.items() if k.startswith('tools_drill_')},
+                         **{k: v for k, v in malformed.items() if k.startswith('tools_drill_')})},
+    }
+    job.obj_options['tooldia'] = 3.0
+    factor = 1 / 25.4
+
+    job.convert_units('IN')
+
+    assert job.units == 'IN'
+    for key, value in mill_lengths.items():
+        if value is None:
+            assert job.tools[1]['data'][key] is None
+        else:
+            assert job.tools[1]['data'][key] == pytest.approx(value * factor)
+    for key, value in drill_lengths.items():
+        if value is None:
+            assert job.tools[2]['data'][key] is None
+        else:
+            assert job.tools[2]['data'][key] == pytest.approx(value * factor)
+    for key, value in xy.items():
+        if value is None:
+            assert job.tools[1 if key.startswith('tools_mill_') else 2]['data'][key] is None
+        else:
+            tool = job.tools[1 if key.startswith('tools_mill_') else 2]
+            assert pair(tool['data'][key]) == pytest.approx([part * factor for part in pair(value)])
+    for key, value in percentages.items():
+        assert job.tools[1 if key.startswith('tools_mill_') else 2]['data'][key] == value
+    for key, value in malformed.items():
+        assert job.tools[1 if key.startswith('tools_mill_') else 2]['data'][key] == value
+    assert job.tools[1]['offset'] == pytest.approx(0.5 * factor)
+    assert job.tools[2]['offset'] == 'Path'
+    assert job.tools[1]['data']['tools_mill_vtipangle'] == 30
+    assert job.tools[1]['data']['tools_mill_multidepth'] is True
+    assert job.tools[2]['data']['tools_drill_tool_order'] == 'no'
+    assert job.tools[2]['data']['tools_drill_dwelltime'] == 1
+    words = dict(re.findall(r'([XYZF])([-+]?\d*\.?\d+)', job.tools[1]['gcode'].splitlines()[1]))
+    assert 'G20' in job.tools[1]['gcode'] and float(words['X']) == pytest.approx(10 * factor, abs=1e-3)
+
+    job.convert_units('MM')
+
+    assert job.units == 'MM'
+    for key, value in mill_lengths.items():
+        if value is None:
+            assert job.tools[1]['data'][key] is None
+        else:
+            assert job.tools[1]['data'][key] == pytest.approx(value)
+    for key, value in drill_lengths.items():
+        if value is None:
+            assert job.tools[2]['data'][key] is None
+        else:
+            assert job.tools[2]['data'][key] == pytest.approx(value)
+    for key, value in xy.items():
+        if value is not None:
+            tool = job.tools[1 if key.startswith('tools_mill_') else 2]
+            assert pair(tool['data'][key]) == pytest.approx(pair(value))
+    for key, value in percentages.items():
+        assert job.tools[1 if key.startswith('tools_mill_') else 2]['data'][key] == value
+    for key, value in malformed.items():
+        assert job.tools[1 if key.startswith('tools_mill_') else 2]['data'][key] == value
+    assert job.tools[1]['offset'] == pytest.approx(0.5)
+    words = dict(re.findall(r'([XYZF])([-+]?\d*\.?\d+)', job.tools[1]['gcode'].splitlines()[1]))
+    assert 'G21' in job.tools[1]['gcode'] and float(words['X']) == pytest.approx(10, abs=1e-3)
+
+
 # camlib.map_geometry, the shared coordinate walker of the Gerber / Excellon transforms
 
 def test_map_geometry_keeps_types_and_nested_lists():

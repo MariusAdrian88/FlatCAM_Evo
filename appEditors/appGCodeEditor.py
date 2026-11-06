@@ -10,7 +10,7 @@ from PyQt6.QtCore import Qt
 
 from appEditors.appTextEditor import AppTextEditor
 from appObjects.CNCJobObject import CNCJobObject
-from appGUI.GUIElements import FCTextArea, FCEntry, FCButton, FCTable, GLay, FCLabel
+from appGUI.GUIElements import FCTextArea, FCEntry, FCButton, FCTable, GLay, FCLabel, checkbox_column_width
 
 # from io import StringIO
 
@@ -261,7 +261,7 @@ class AppGCodeEditor(QtCore.QObject):
 
         self.ui.cnc_tools_table.setColumnWidth(0, 20)
         self.ui.cnc_tools_table.setColumnWidth(4, 40)
-        self.ui.cnc_tools_table.setColumnWidth(6, 17)
+        self.ui.cnc_tools_table.setColumnWidth(6, checkbox_column_width())
 
         # self.ui.geo_tools_table.setSortingEnabled(True)
 
@@ -355,7 +355,7 @@ class AppGCodeEditor(QtCore.QObject):
         self.ui.exc_cnc_tools_table.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
         self.ui.exc_cnc_tools_table.setColumnWidth(0, 20)
-        self.ui.exc_cnc_tools_table.setColumnWidth(6, 17)
+        self.ui.exc_cnc_tools_table.setColumnWidth(6, checkbox_column_width())
 
         self.ui.exc_cnc_tools_table.setMinimumHeight(self.ui.exc_cnc_tools_table.getHeight())
         self.ui.exc_cnc_tools_table.setMaximumHeight(self.ui.exc_cnc_tools_table.getHeight())

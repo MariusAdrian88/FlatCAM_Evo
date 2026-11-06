@@ -203,6 +203,34 @@ def test_custom_offset_without_a_usable_value_is_a_failed_job(multigeo, offset):
     assert not any('CNCjob created' in str(c.args[0]) for c in app.inform.emit.call_args_list)
 
 
+@pytest.mark.parametrize('multigeo', [False, True])
+@pytest.mark.parametrize('offset_type, offset_value', [(1, None), (2, None), (3, 0.125)])
+def test_isolation_centerline_marker_gets_no_second_offset(multigeo, offset_type, offset_value):
+    # the generated Isolation geometry carries the centerline marker: the job must not offset it again
+    isolation = dict(tools_mill_offset_type=offset_type, tools_iso_centerline=True)
+    if offset_value is not None:
+        isolation['tools_mill_offset_value'] = offset_value
+    __, plain = milling_job(1, multigeo=multigeo, from_tcl=True, data=dict(tools_mill_offset_type=0))
+    __, job = milling_job(1, multigeo=multigeo, from_tcl=True, data=isolation)
+    assert job != 'fail'
+    assert xy_cuts(job.tools[1]['gcode']) == xy_cuts(plain.tools[1]['gcode'])
+
+
+@pytest.mark.parametrize('multigeo', [False, True])
+@pytest.mark.parametrize('labels', [
+    {'tools_mill_job_type': 2},
+    {'tools_iso_isotype': 'full'},
+    {'tools_mill_job_type': 2, 'tools_iso_isotype': 'full'},
+])
+def test_an_ordinary_tool_keeps_its_offset_despite_isolation_like_labels(multigeo, labels):
+    # job type 2 (the form sets it for a V tool) and the generic tools_iso_* copy are not provenance
+    __, offset = milling_job(1, multigeo=multigeo, from_tcl=True,
+                             data=dict(tools_mill_offset_type=1, **labels))
+    __, plain = milling_job(1, multigeo=multigeo, from_tcl=True, data=dict(tools_mill_offset_type=0))
+    assert offset != 'fail' and plain != 'fail'
+    assert xy_cuts(offset.tools[1]['gcode']) != xy_cuts(plain.tools[1]['gcode'])
+
+
 @pytest.mark.parametrize('method', [0])
 def test_polishing_paints_the_box_with_margin_and_cuts_it(method):
     # the plugin works on a copy of the tools of the object: the plotted geometry of the job is the painted one

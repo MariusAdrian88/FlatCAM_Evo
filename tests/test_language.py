@@ -6,6 +6,9 @@ interface of a right-to-left language (set_layout_direction()).
 """
 
 import builtins
+import os
+import shutil
+import tempfile
 import types
 import unittest
 import unittest.mock
@@ -70,6 +73,37 @@ class TestApplyLanguage(unittest.TestCase):
         store = self._fake_settings('Deutsche')
         self.assertEqual('English', fcTranslate.apply_language('strings'))
         self.assertEqual('English', store['language'])
+
+    def _fake_locale(self, *language_dirs):
+        folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, folder, ignore_errors=True)
+        for lang in language_dirs:
+            os.makedirs(os.path.join(folder, lang, 'LC_MESSAGES'))
+        fcTranslate.translations.clear()
+        self.addCleanup(fcTranslate.translations.clear)
+        return folder
+
+    def test_a_missing_or_corrupt_catalog_shows_the_source_strings(self):
+        # the language is listed, but its catalog cannot be used; the previous language must not stay installed
+        for damage in ('missing', 'corrupt'):
+            with self.subTest(damage=damage):
+                self.assertEqual('العربية', fcTranslate.apply_language('strings', lang='العربية'))
+                self.assertEqual('التفضيلات', builtins.__dict__['_']('Preferences'))
+                folder = self._fake_locale('de')
+                if damage == 'corrupt':
+                    with open(os.path.join(folder, 'de', 'LC_MESSAGES', 'strings.mo'), 'wb') as catalog:
+                        catalog.write(b'not a catalog')
+                with unittest.mock.patch.object(fcTranslate, 'locale_dir', lambda: folder):
+                    self.assertEqual('Deutsch', fcTranslate.apply_language('strings', lang='Deutsch'))
+                    self.assertEqual('Preferences', builtins.__dict__['_']('Preferences'))
+
+    def test_an_empty_locale_folder_shows_the_source_strings(self):
+        self.assertEqual('العربية', fcTranslate.apply_language('strings', lang='العربية'))
+        self.assertEqual('التفضيلات', builtins.__dict__['_']('Preferences'))
+        folder = self._fake_locale()
+        with unittest.mock.patch.object(fcTranslate, 'locale_dir', lambda: folder):
+            self.assertEqual('no language', fcTranslate.apply_language('strings', lang='Deutsch'))
+            self.assertEqual('Preferences', builtins.__dict__['_']('Preferences'))
 
 
 LTR = Qt.LayoutDirection.LeftToRight

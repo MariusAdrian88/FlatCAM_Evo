@@ -223,14 +223,18 @@ class ShapeGroup(object):
         """
         return self._collection.pending_ready()
 
-    def redraw(self, update_colors=None):
+    def redraw(self, indexes=None, update_colors=None):
         """
         Redraws shape collection
+        :param indexes: shape keys to redraw; the indexes of the group by default
+        :param update_colors: (mesh color, line color) for the redrawn shapes
         """
+        if indexes is None:
+            indexes = self._indexes
         if update_colors:
-            self._collection.redraw(self._indexes, update_colors=update_colors)
+            self._collection.redraw(indexes, update_colors=update_colors)
         else:
-            self._collection.redraw(self._indexes)
+            self._collection.redraw(indexes)
 
     @property
     def visible(self):
@@ -837,6 +841,17 @@ class ShapeCollectionVisual(CompoundVisual):
 
         # Lock sub-visuals updates
         self.update_lock.acquire(True)
+        # Hidden shapes aren't uploaded below, but must keep the new color for their next visibility rebuild.
+        for k, data in list(self.data.items()):
+            if not data['visible'] and (indexes is None or k in indexes):
+                if new_mesh_color and len(data['mesh_tris']):
+                    data['face_color'] = new_mesh_color
+                    data['face_color_rgba'] = mesh_color_rgba
+                    data['mesh_rgba'] = np.asarray(mesh_color_rgba, dtype=np.float32)
+                if new_line_color and len(data['line_pts']):
+                    data['color'] = new_line_color
+                    data['color_rgba'] = line_color_rgba
+                    data['line_rgba'] = np.asarray(line_color_rgba, dtype=np.float32)
         # Merge shapes buffers
 
         if indexes is None:

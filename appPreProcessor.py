@@ -266,7 +266,19 @@ def load_preprocessor_file(file_path):
     :type file_path:    str
     :return:            the module
     """
-    module_name = 'FlatCAMPostProcessor_%s' % os.path.splitext(os.path.basename(file_path))[0]
+    stem = os.path.splitext(os.path.basename(file_path))[0]
+    # the files of the built-in package are executed under their package name, so a preprocessor that imports one
+    # ('from preprocessors.GRBL_11 import GRBL_11') gets the module already loaded and does not execute the file again
+    if os.path.realpath(os.path.dirname(file_path)) == os.path.realpath(builtin_preprocessors_path()):
+        module_name = 'preprocessors.%s' % stem
+    else:
+        module_name = 'FlatCAMPostProcessor_%s' % stem
+
+    module = sys.modules.get(module_name)
+    if module is not None and \
+            os.path.realpath(getattr(module, '__file__', '') or '') == os.path.realpath(file_path):
+        return module
+
     spec = importlib.util.spec_from_file_location(module_name, file_path)
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module

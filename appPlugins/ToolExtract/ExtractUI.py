@@ -1,6 +1,6 @@
 from PyQt6 import QtWidgets, QtCore, QtGui
 from appGUI.GUIElements import FCLabel, FCButton, FCFrame, GLay, FCComboBox, FCCheckBox, \
-    RadioSet, FCDoubleSpinner, FCTable, opposite_direction
+    RadioSet, FCDoubleSpinner, FCTable, checkbox_column_width, opposite_direction
 from appPlugins.ToolExtract import ExtractGen
 
 import gettext
@@ -417,8 +417,8 @@ class ExtractUI:
         horizontal_header.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         horizontal_header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeMode.Stretch)
         horizontal_header.setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeMode.Fixed)
-        horizontal_header.resizeSection(3, 17)
-        self.apertures_table.setColumnWidth(3, 17)
+        horizontal_header.resizeSection(3, checkbox_column_width())
+        self.apertures_table.setColumnWidth(3, checkbox_column_width())
         self.apertures_table.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.apertures_table.setSortingEnabled(False)
 

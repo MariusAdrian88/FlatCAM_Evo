@@ -8,7 +8,8 @@ os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtTest import QTest
 
-from appGUI.GUIElements import FCDoubleSpinner, FCLabel, FCMicronSpinner, FCSpinner, FCTable
+from appGUI.GUIElements import FCDoubleSpinner, FCCheckBox, FCLabel, FCMicronSpinner, FCSpinner, FCTable, \
+    checkbox_column_width
 
 
 @pytest.fixture(scope='module', autouse=True)
@@ -86,6 +87,26 @@ def test_drag_that_leaves_the_tool_table_unblocks_its_signals():
 
     assert not table.signalsBlocked()
     assert edits == [table.item(0, 1)]
+
+def test_checkbox_column_width_fits_the_theme_indicator():
+    app = QtWidgets.QApplication.instance()
+    # the application style sheet makes the indicator wider than the indicator of the style
+    app.setStyleSheet('QCheckBox::indicator { height: 18px; width: 18px; }')
+    table = FCTable()
+    try:
+        table.setColumnCount(1)
+        table.setRowCount(1)
+        table.setColumnWidth(0, checkbox_column_width())
+        checkbox = FCCheckBox()
+        table.setCellWidget(0, 0, checkbox)
+        table.show()
+        app.processEvents()
+
+        assert checkbox.width() >= checkbox.sizeHint().width()
+    finally:
+        table.close()
+        app.setStyleSheet('')
+
 
 def test_micron_field_shows_the_units_of_the_project_and_keeps_micrometers():
     units = ['MM']

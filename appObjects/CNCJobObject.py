@@ -14,7 +14,7 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 
 from appEditors.appTextEditor import AppTextEditor
 from appObjects.AppObjectTemplate import FlatCAMObj, PropertiesPanelMixin, ObjectDeleted
-from appGUI.GUIElements import FCFileSaveDialog, FCCheckBox, FCMessageBox, opposite_direction
+from appGUI.GUIElements import FCFileSaveDialog, FCCheckBox, FCMessageBox, checkbox_column_width, opposite_direction
 from appGUI.ObjectUI import CNCObjectUI
 from camlib import CNCjob
 from appParsers.DXF.writer import build_dxf
@@ -31,6 +31,7 @@ from shapely import affinity, Point
 
 from appHandlers.appHistory import history_of
 from appParsers.ParseGCode import safe_comment_text
+from appCommon.SafeEval import safe_eval
 import gettext
 import appTranslation as fcTranslate
 import builtins
@@ -376,13 +377,13 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
         horizontal_header.setSectionResizeMode(4, QtWidgets.QHeaderView.ResizeMode.Fixed)
         horizontal_header.resizeSection(4, 40)
         horizontal_header.setSectionResizeMode(6, QtWidgets.QHeaderView.ResizeMode.Fixed)
-        horizontal_header.resizeSection(4, 17)
+        horizontal_header.resizeSection(6, checkbox_column_width())
         # horizontal_header.setStretchLastSection(True)
         self.ui.cnc_tools_table.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
         self.ui.cnc_tools_table.setColumnWidth(0, 20)
         self.ui.cnc_tools_table.setColumnWidth(4, 40)
-        self.ui.cnc_tools_table.setColumnWidth(6, 17)
+        self.ui.cnc_tools_table.setColumnWidth(6, checkbox_column_width())
 
         # self.ui.geo_tools_table.setSortingEnabled(True)
 
@@ -486,7 +487,7 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
         self.ui.exc_cnc_tools_table.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
         self.ui.exc_cnc_tools_table.setColumnWidth(0, 20)
-        self.ui.exc_cnc_tools_table.setColumnWidth(6, 17)
+        self.ui.exc_cnc_tools_table.setColumnWidth(6, checkbox_column_width())
 
         self.ui.exc_cnc_tools_table.setMinimumHeight(self.ui.exc_cnc_tools_table.getHeight())
         self.ui.exc_cnc_tools_table.setMaximumHeight(self.ui.exc_cnc_tools_table.getHeight())
@@ -1642,6 +1643,39 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
         param_list = ['cutz', 'depthperpass', 'travelz', 'feedrate', 'feedrate_z', 'feedrate_rapid',
                       'endz', 'toolchangez']
 
+        # the canonical (namespaced) tool data holds the same dimensions under the tools_mill_ / tools_drill_ names
+        canonical_length_params = (
+            'tooldia', 'offset_value', 'cutz', 'depthperpass', 'travelz', 'feedrate', 'feedrate_z',
+            'feedrate_rapid', 'peck_depth', 'peck_retract', 'spot_dia', 'spot_cutz', 'spot_feedrate_z',
+            'endz', 'toolchangez', 'startz', 'offset', 'z_p_depth', 'probe_plate', 'feedrate_probe',
+            'area_overz', 'extracut_length', 'vtipdia', 'polish_margin', 'milling_dia')
+        canonical_xy_params = ('toolchangexy', 'endxy', 'job_offset_xy', 'mirror_point', 'array_pitch')
+
+        def convert_canonical_values(storage):
+            if not isinstance(storage, dict):
+                return
+            for key in tuple(storage):
+                suffix = next((key[len(prefix):] for prefix in ('tools_mill_', 'tools_drill_')
+                               if key.startswith(prefix)), None)
+                if suffix is None or (suffix not in canonical_length_params
+                                      and suffix not in canonical_xy_params):
+                    continue
+                value = storage[key]
+                if value is None or (isinstance(value, str) and value == ''):
+                    continue
+                try:
+                    if suffix in canonical_xy_params:
+                        if isinstance(value, str):
+                            coords = re.sub(r'[()\[\]]', '', value).split(',')
+                            storage[key] = ', '.join(str(safe_eval(coord) * factor) for coord in coords)
+                        else:
+                            storage[key] = type(value)(coord * factor for coord in value)
+                    else:
+                        storage[key] = float(value) * factor
+                except (TypeError, ValueError):
+                    # an unknown or malformed value stays as it is: a conversion must not fail the job
+                    continue
+
         temp_tools_dict = {}
         tool_dia_copy = {}
         data_copy = {}
@@ -1654,7 +1688,11 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
                         dia_value = float('%.*f' % (self.decimals, dia_value))
                     tool_dia_copy[dia_key] = dia_value
                 if dia_key == 'offset':
-                    tool_dia_copy[dia_key] = dia_value
+                    # a numeric Z offset (an imported Excellon tool) follows the units; the legacy 'Path' stays
+                    if factor != 1.0 and isinstance(dia_value, (int, float)) and not isinstance(dia_value, bool):
+                        tool_dia_copy[dia_key] = dia_value * factor
+                    else:
+                        tool_dia_copy[dia_key] = dia_value
                 if dia_key == 'offset_value':
                     dia_value *= factor
                     tool_dia_copy[dia_key] = dia_value
@@ -1698,6 +1736,11 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
                 #
                 #     tool_dia_copy['gcode_parsed'] = deepcopy(dia_value)
                 #     tool_dia_copy['solid_geometry'] = unary_union([geo['geom'] for geo in dia_value])
+
+            # Photo Carve converted its canonical data and XY in camlib.CNCjob.convert_units already
+            if factor != 1.0 and not self.obj_options.get('photocarve'):
+                convert_canonical_values(tool_dia_copy)
+                convert_canonical_values(tool_dia_copy.get('data', {}))
 
             temp_tools_dict.update({
                 tooluid_key: deepcopy(tool_dia_copy)

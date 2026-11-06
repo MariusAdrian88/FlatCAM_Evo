@@ -9,7 +9,7 @@ from PyQt6 import QtWidgets, QtCore, QtGui
 from appTool import AppTool
 from appGUI.GUIElements import VerticalScrollArea, FCLabel, FCButton, FCFrame, GLay, FCComboBox, FCCheckBox, \
     FCComboBox2, RadioSet, FCDoubleSpinner, FCSpinner, NumericalEvalTupleEntry, FCTable, \
-    OptionalInputSection, OptionalHideInputSection, opposite_direction
+    OptionalInputSection, OptionalHideInputSection, checkbox_column_width, opposite_direction
 
 import logging
 from copy import deepcopy
@@ -1246,13 +1246,13 @@ class ToolMilling(Geometry, AppTool):
         # horizontal_header.setSectionResizeMode(2, QtWidgets.QHeaderView.Fixed)
         # horizontal_header.resizeSection(2, 40)
         horizontal_header.setSectionResizeMode(4, QtWidgets.QHeaderView.ResizeMode.Fixed)
-        horizontal_header.resizeSection(4, 17)
+        horizontal_header.resizeSection(4, checkbox_column_width())
         # horizontal_header.setStretchLastSection(True)
         self.ui.tools_table_mill_geo.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
         self.ui.tools_table_mill_geo.setColumnWidth(0, 20)
         # self.ui.tools_table_mill_geo.setColumnWidth(2, 40)
-        self.ui.tools_table_mill_geo.setColumnWidth(4, 17)
+        self.ui.tools_table_mill_geo.setColumnWidth(4, checkbox_column_width())
 
         # self.ui.tools_table_mill_geo.setSortingEnabled(True)
 
@@ -3368,6 +3368,10 @@ class ToolMilling(Geometry, AppTool):
                 tool_offset = MillingGen.milling_offset(offset_type, tooldia_val, offset_value)
             if context['disable_offset'] is True:
                 tool_offset = 0.0
+            # the Isolation plugin / GerberObject.isolate mark their generated paths as an already offset centerline.
+            # The tools_iso_* keys and the informative job type are not markers: every Milling tool can carry them.
+            if data.get('tools_iso_centerline') is True:
+                tool_offset = 0.0
             dia_cnc_dict['data']['tools_mill_offset_value'] = tool_offset
             tool_solid_geometry = geo_obj.solid_geometry
             new_cncjob_obj.coords_decimals = context['options']['cncjob_coords_decimals']
@@ -3490,6 +3494,10 @@ class ToolMilling(Geometry, AppTool):
                     return 'fail'
                 tool_offset = MillingGen.milling_offset(offset_type, tooldia_val, offset_value)
             if context['disable_offset'] is True:
+                tool_offset = 0.0
+            # the Isolation plugin / GerberObject.isolate mark their generated paths as an already offset centerline.
+            # The tools_iso_* keys and the informative job type are not markers: every Milling tool can carry them.
+            if data.get('tools_iso_centerline') is True:
                 tool_offset = 0.0
             dia_cnc_dict['data']['tools_mill_offset_value'] = tool_offset
             data['tools_mill_offset_value'] = tool_offset
