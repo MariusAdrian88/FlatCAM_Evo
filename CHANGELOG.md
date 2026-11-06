@@ -38,7 +38,7 @@ Image tools:
 - changed: the loading of the image and the conversion of the paths for Image Import share one code path in the Image plugin and in the Geometry Editor
 - fixed: a failure inside the vtracer image tracer (a Rust panic, which is not a normal Python exception) is reported as "Image tracing failed" and no longer leaves the progress dialog open
 
-GRBL Sender:
+GCode Sender:
 
 - new: Edge / centre probing: "Probe edge" probes one edge in the direction you choose (X+, X-, Y+, Y-) and shows the contact point; "Find XY centre" probes the 4 opposed edges of a hole or a ring and shows the center
 - new: the probing parameters are the probe distance, the probe feedrate, the pull-off and the Z travel; the units follow the project units (MM or IN)
@@ -78,10 +78,24 @@ CNC Job:
 Preprocessors:
 
 - fixed: a preprocessor that imports another preprocessor of the built-in package (for example "from preprocessors.GRBL_11 import GRBL_11") gets the module that is already loaded and no longer runs the file a second time; user preprocessors keep their own module names
+- fixed: when the list of the preprocessors is cleared and loaded again while a preprocessor module is still loaded, the classes of that module are registered again; before, such a preprocessor was missing from the preprocessor lists
+
+Tests:
+
+- changed: the tests of Levelling, Image, Geometry Editor Import Image, Compare, PCB 3D Viewer, Photo Carve, Preferences and other recent work are pruned; tests that only repeated other tests or checked private details are removed, and the PCB 3D Viewer benchmark script is removed
+- changed: 2 canned-cycle tests of Levelling are replaced by the new tests of the expanded G81, G82 and G83 cycles
 
 Translations:
 
+- changed: all 11 language catalogs (Arabic, German, English, Spanish, French, Italian, Brazilian Portuguese, Romanian, Russian, Turkish and Chinese) match the current source texts, with 5919 active translations each; new texts are translated and retired texts are kept as obsolete entries
+- changed: an independent review corrected technical terms and shortened labels and messages without removing their meaning or safety instructions; the English catalog keeps the source wording
+- changed: the compiled translation catalogs are rebuilt; all catalogs pass the placeholder and formatting checks with no untranslated or fuzzy entries
 - fixed: when the language has no usable catalog, or the catalog is missing or corrupt, the earlier language no longer stays installed; the application falls back to English
+
+GUI:
+
+- changed: the splash image (light and dark theme)
+- RELEASE 1.05
 
 05.11.2026
 
@@ -113,6 +127,7 @@ Shortcuts:
 - changed: the Shortcuts List (F3) and the keys shown in the menus always show the current keys; the F3 list now also lists Undo, Redo, the Up and Down keys of the Project tab and the editor keys it missed (G, K, V, -, =, `, Enter, F3), and no longer lists Q (Change Units), which did nothing
 - changed: Edit > Move to Origin no longer shows Shift+O (no key did it); Geo Editor > Cut Path shows Ctrl+X, its real key
 - changed: the status messages of Add Pad Array (Gerber Editor), Add Drill Array and Add Slot Array (Excellon Editor) are translated
+- fixed: after a search on the Keyboard Shortcuts page, the row of the command that you just changed stays in view; before, the table scrolled to its top
 
 04.11.2026
 
