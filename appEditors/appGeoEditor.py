@@ -466,6 +466,7 @@ class AppGeoEditor(QtCore.QObject):
         self.app.ui.geo_cutpath_menuitem.triggered.connect(self.cutpath)
         self.app.ui.geo_copy_menuitem.triggered.connect(lambda: self.select_tool('copy'))
         self.app.ui.geo_import_menuitem.triggered.connect(lambda: self.select_tool('import'))
+        self.app.ui.geo_import_image_menuitem.triggered.connect(lambda: self.select_tool('import_image'))
 
         self.app.ui.geo_union_btn.triggered.connect(self.union)
         self.app.ui.geo_intersection_btn.triggered.connect(self.intersection)
@@ -519,6 +520,7 @@ class AppGeoEditor(QtCore.QObject):
             "transform": {"button": self.app.ui.geo_transform_btn, "constructor": FCTransform},
             "copy": {"button": self.app.ui.geo_copy_btn, "constructor": FCCopy},
             "import": {"button": self.app.ui.geo_import_btn, "constructor": FCImport},
+            "import_image": {"button": self.app.ui.geo_import_image_btn, "constructor": FCImportImage},
             "explode": {"button": self.app.ui.geo_explode_btn, "constructor": FCExplode},
             "split": {"button": self.ui.split_action, "constructor": FCSplit}
         })
@@ -2235,6 +2237,8 @@ class AppGeoEditor(QtCore.QObject):
         """
         if AppGeoEditor.reset_history(self) == 'fail':
             return 'fail'
+        if isinstance(self.active_tool, FCImportImage):
+            self.active_tool.clean_up()
         self.active_tool = None
         # self.shape_buffer = []
         self.selected = []
@@ -2258,7 +2262,7 @@ class AppGeoEditor(QtCore.QObject):
 
         # This is to make the group behave as radio group
         if tool in self.tools:
-            if isinstance(self.active_tool, (FCPath, FCCircle, FCRectangle, FCMove, FCCopy, FCImport)):
+            if isinstance(self.active_tool, (FCPath, FCCircle, FCRectangle, FCMove, FCCopy, FCImport, FCImportImage)):
                 self.delete_utility_geometry()
                 self.active_tool.clean_up()
                 self.active_tool.points = []
@@ -2394,7 +2398,7 @@ class AppGeoEditor(QtCore.QObject):
                     if self.on_shape_complete() == 'fail':
                         return 'fail'
 
-                    if isinstance(self.active_tool, (FCText, FCMove)):
+                    if isinstance(self.active_tool, (FCText, FCMove, FCImportImage)):
                         self.select_tool("select")
                     else:
                         self.select_tool(self.active_tool.name)
@@ -7596,6 +7600,73 @@ class FCImport(DrawTool):
     def clean_up(self):
         self.picked = []
         self.draw_app.tool_shape.clear(update=True)
+
+
+class FCImportImage(FCShapeTool):
+    """Places the paths prepared by GeoImportImageTool, with their lower-left corner at the click."""
+
+    def __init__(self, draw_app):
+        # ToolImage loads appPlugins, whose tools import this editor's shape classes.
+        from appEditors.geo_plugins.GeoImportImagePlugin import GeoImportImageTool
+
+        FCShapeTool.__init__(self, draw_app)
+        self.name = 'import_image'
+        self.draw_app = draw_app
+        self.app = draw_app.app
+        self.origin = (0, 0)
+        self.points = []
+        self.geometry = []
+        self.complete = False
+
+        try:
+            QtGui.QGuiApplication.restoreOverrideCursor()
+        except Exception:
+            pass
+        self._cursor_widget = self.draw_app.canvas.native
+        self._canvas_cursor = self._cursor_widget.cursor()
+        self._cursor_widget.setCursor(QtCore.Qt.CursorShape.CrossCursor)
+
+        self.app.inform.emit(_("Load an image, then place it on the canvas."))
+        self.image_tool = GeoImportImageTool(self.app, self.draw_app)
+        self.image_tool.run()
+        self.app.jump_signal.connect(lambda x: self.draw_app.update_utility_geometry(data=x))
+
+    def utility_geometry(self, data=None):
+        paths = self.image_tool.preview_paths
+        if not paths or self.image_tool.anchor is None:
+            return None
+        if data is None:
+            data = (getattr(self.draw_app, 'snap_x', None), getattr(self.draw_app, 'snap_y', None))
+        if data[0] is None or data[1] is None:
+            return None
+        dx = data[0] - self.image_tool.anchor[0]
+        dy = data[1] - self.image_tool.anchor[1]
+        return DrawToolUtilityShape(translate_geometry(paths, dx, dy))
+
+    def click(self, point):
+        if not self.image_tool.paths or self.image_tool.anchor is None:
+            self.app.inform.emit('[WARNING_NOTCL] %s' % _("Load an image and convert it first."))
+            return 'fail'
+        if AppGeoEditor.reject_busy(self.draw_app):
+            return 'fail'
+
+        dx = point[0] - self.image_tool.anchor[0]
+        dy = point[1] - self.image_tool.anchor[1]
+        self.geometry = [DrawToolShape(geo) for geo in translate_geometry(self.image_tool.paths, dx, dy)]
+        # a placement uses the prepared conversion once
+        self.image_tool.paths = []
+        self.complete = True
+        return "Done."
+
+    def clean_up(self):
+        self.image_tool.cancel()
+        self._cursor_widget.setCursor(self._canvas_cursor)
+        self.points = []
+        self.geometry = []
+        try:
+            self.app.jump_signal.disconnect()
+        except (TypeError, AttributeError):
+            pass
 
 
 class FCEraser(FCShapeTool):

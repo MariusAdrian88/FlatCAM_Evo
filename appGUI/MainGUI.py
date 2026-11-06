@@ -831,6 +831,9 @@ class MainGUI(QtWidgets.QMainWindow):
         self.geo_import_menuitem = self.geo_editor_menu.addAction(
             QtGui.QIcon(self.app.resource_location + '/import.png'),
             '%s\t%s' % (_("Import"), ''))
+        self.geo_import_image_menuitem = self.geo_editor_menu.addAction(
+            QtGui.QIcon(self.app.resource_location + '/image_import64.png'),
+            '%s\t%s' % (_("Import Image"), ''))
         self.geo_delete_menuitem = self.geo_editor_menu.addAction(
             QtGui.QIcon(self.app.resource_location + '/deleteshape16.png'),
             '%s\t%s' % (_("Delete"), _('DEL'))
@@ -1522,6 +1525,8 @@ class MainGUI(QtWidgets.QMainWindow):
             QtGui.QIcon(self.app.resource_location + '/copy32.png'), _("Copy"))
         self.geo_import_btn = self.geo_edit_toolbar.addAction(
             QtGui.QIcon(self.app.resource_location + '/import.png'), _("Import"))
+        self.geo_import_image_btn = self.geo_edit_toolbar.addAction(
+            QtGui.QIcon(self.app.resource_location + '/image_import64.png'), _("Import Image"))
 
         self.geo_delete_btn = self.geo_edit_toolbar.addAction(
             QtGui.QIcon(self.app.resource_location + '/trash32.png'), _("Delete"))
@@ -2765,6 +2770,8 @@ class MainGUI(QtWidgets.QMainWindow):
             QtGui.QIcon(self.app.resource_location + '/copy32.png'), _("Copy"))
         self.geo_import_btn = self.geo_edit_toolbar.addAction(
             QtGui.QIcon(self.app.resource_location + '/import.png'), _("Import"))
+        self.geo_import_image_btn = self.geo_edit_toolbar.addAction(
+            QtGui.QIcon(self.app.resource_location + '/image_import64.png'), _("Import Image"))
         self.geo_delete_btn = self.geo_edit_toolbar.addAction(
             QtGui.QIcon(self.app.resource_location + '/trash32.png'), _("Delete"))
         self.geo_transform_btn = self.geo_edit_toolbar.addAction(

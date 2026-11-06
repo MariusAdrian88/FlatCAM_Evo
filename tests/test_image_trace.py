@@ -4,6 +4,7 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from PIL import Image, ImageDraw
 from shapely import unary_union
@@ -73,6 +74,15 @@ class ImageTraceTestCase(unittest.TestCase):
         path = self.save(img)
         self.assertEqual(trace(path, threshold=128).count('<path'), 0)
         self.assertAlmostEqual(svg_to_shape(trace(path, threshold=200)).area, 24 * 24)
+
+    def test_native_tracer_panic_is_a_reportable_conversion_failure(self):
+        class PanicException(BaseException):
+            pass
+
+        path = self.save(Image.new('RGB', (8, 8), 'black'))
+        with patch('appCommon.imagetrace.vtracer.convert_raw_image_to_svg', side_effect=PanicException('overflow')):
+            with self.assertRaisesRegex(ValueError, 'overflow'):
+                trace(path)
 
 if __name__ == '__main__':
     unittest.main()

@@ -5,9 +5,9 @@
 # MIT Licence                                              #
 # ##########################################################
 
-from PyQt6 import QtWidgets, QtGui
+from PyQt6 import QtCore, QtWidgets, QtGui
 from appGUI.GUIElements import FCLabel, FCButton, FCFrame, GLay, FCComboBox, FCComboBox2, \
-    RadioSet, FCDoubleSpinner, FCSpinner
+    RadioSet, FCDoubleSpinner, FCSpinner, FCCheckBox, FCSliderWithSpinner
 from appCommon.imagetrace import PRESETS, PRESET_NAMES, CURVE_MODES
 
 import gettext
@@ -39,6 +39,20 @@ class ImageUI:
         load_layout.addWidget(self.load_button, 1)
         load_layout.addWidget(self.load_status)
         self.layout.addLayout(load_layout)
+
+        self.preview_label = QtWidgets.QLabel()
+        self.preview_label.setFixedHeight(200)
+        self.preview_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        self.preview_label.setToolTip(_("Sampled image preview (up to 320 x 200 pixels).\n"
+                                       "Settings apply to this preview; final import uses every original pixel."))
+        self.layout.addWidget(self.preview_label)
+        adjust_layout = QtWidgets.QHBoxLayout()
+        self.invert_entry = FCCheckBox(_("Invert"))
+        self.mirror_x_entry = FCCheckBox(_("Mirror horizontal (X)"))
+        self.mirror_y_entry = FCCheckBox(_("Mirror vertical (Y)"))
+        for widget in (self.invert_entry, self.mirror_x_entry, self.mirror_y_entry):
+            adjust_layout.addWidget(widget)
+        self.layout.addLayout(adjust_layout)
 
         self.param_lbl = FCLabel('%s' % _("Parameters"), color='blue', bold=True)
         self.layout.addWidget(self.param_lbl)
@@ -110,8 +124,7 @@ class ImageUI:
         self.detail_label = FCLabel("%s:" % _('Level of detail'), bold=True)
         raster_grid.addWidget(self.detail_label, 0, 0, 1, 2)
 
-        self.mask_bw_entry = FCSpinner()
-        self.mask_bw_entry.set_range(0, 255)
+        self.mask_bw_entry = FCSliderWithSpinner(0, 255, 1)
         self.mask_bw_label = FCLabel("%s <b>B/W</b>:" % _('Mask value'))
         self.mask_bw_label.setToolTip(
             _("Mask for monochrome image.\n"
@@ -124,8 +137,7 @@ class ImageUI:
         raster_grid.addWidget(self.mask_bw_label, 2, 0)
         raster_grid.addWidget(self.mask_bw_entry, 2, 1)
 
-        self.mask_r_entry = FCSpinner()
-        self.mask_r_entry.set_range(0, 255)
+        self.mask_r_entry = FCSliderWithSpinner(0, 255, 1)
         self.mask_r_label = FCLabel("%s <b>R:</b>" % _('Mask value'))
         self.mask_r_label.setToolTip(
             _("Mask for RED color.\n"
@@ -136,8 +148,7 @@ class ImageUI:
         raster_grid.addWidget(self.mask_r_label, 4, 0)
         raster_grid.addWidget(self.mask_r_entry, 4, 1)
 
-        self.mask_g_entry = FCSpinner()
-        self.mask_g_entry.set_range(0, 255)
+        self.mask_g_entry = FCSliderWithSpinner(0, 255, 1)
         self.mask_g_label = FCLabel("%s <b>G:</b>" % _('Mask value'))
         self.mask_g_label.setToolTip(
             _("Mask for GREEN color.\n"
@@ -148,8 +159,7 @@ class ImageUI:
         raster_grid.addWidget(self.mask_g_label, 6, 0)
         raster_grid.addWidget(self.mask_g_entry, 6, 1)
 
-        self.mask_b_entry = FCSpinner()
-        self.mask_b_entry.set_range(0, 255)
+        self.mask_b_entry = FCSliderWithSpinner(0, 255, 1)
         self.mask_b_label = FCLabel("%s <b>B:</b>" % _('Mask value'))
         self.mask_b_label.setToolTip(
             _("Mask for BLUE color.\n"
@@ -167,9 +177,7 @@ class ImageUI:
 
         self.threshold_lbl = FCLabel('%s:' % _("Threshold"))
         self.threshold_lbl.setToolTip(_("B/W only.\nA pixel darker than this value [0 ... 255] is traced."))
-        self.threshold_entry = FCSpinner()
-        self.threshold_entry.set_range(0, 255)
-        self.threshold_entry.setSingleStep(1)
+        self.threshold_entry = FCSliderWithSpinner(0, 255, 1)
         trace_grid.addWidget(self.threshold_lbl, 0, 0)
         trace_grid.addWidget(self.threshold_entry, 0, 1)
 

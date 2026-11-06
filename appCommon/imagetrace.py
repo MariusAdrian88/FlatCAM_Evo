@@ -92,10 +92,16 @@ def trace_image(image, black_white=True, threshold=128, options=None):
 
     # Positional arguments only: vtracer 0.6.15 segfaults on CPython 3.14 when it gets keyword arguments.
     # 'cutout' makes color regions that do not overlap, so each one becomes its own shape on import
-    svg = vtracer.convert_raw_image_to_svg(
-        buf.getvalue(), 'png', 'binary' if black_white else 'color', 'cutout', opt['mode'],
-        int(opt['filter_speckle']), int(opt['color_precision']), int(opt['layer_difference']),
-        int(opt['corner_threshold']), float(opt['length_threshold']), MAX_ITERATIONS,
-        int(opt['splice_threshold']), PATH_PRECISION)
+    try:
+        svg = vtracer.convert_raw_image_to_svg(
+            buf.getvalue(), 'png', 'binary' if black_white else 'color', 'cutout', opt['mode'],
+            int(opt['filter_speckle']), int(opt['color_precision']), int(opt['layer_difference']),
+            int(opt['corner_threshold']), float(opt['length_threshold']), MAX_ITERATIONS,
+            int(opt['splice_threshold']), PATH_PRECISION)
+    except BaseException as err:
+        # PyO3 panics inherit BaseException, not Exception; let workers report them and release their progress UI.
+        if type(err).__name__ != 'PanicException':
+            raise
+        raise ValueError('Image tracing failed: %s' % str(err)) from err
     # lxml rejects a str that has an encoding declaration (ToolImage parses the text with ET.fromstring())
     return re.sub(r'^\s*<\?xml[^>]*\?>\s*', '', svg)
