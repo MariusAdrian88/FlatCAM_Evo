@@ -20,7 +20,7 @@ _COMMENT_RE = re.compile(r'\([^)]*\)')
 # G words of a block that can be split (G1 is the split move itself)
 _SPLIT_G_KEYS = ('1.0', '17.0', '90.0', '94.0')
 # no effect on the position, the distance mode or the units
-_NO_EFFECT_G_KEYS = ('4.0', '17.0', '18.0', '19.0', '40.0', '61.0', '64.0')
+_NO_EFFECT_G_KEYS = ('4.0', '17.0', '18.0', '19.0', '40.0', '61.0', '64.0', '98.0', '99.0')
 _MOTION_G_KEYS = ('0.0', '1.0', '2.0', '3.0')
 # X, Y, Z are unknown after them (the one-shot and frame codes of level_gcode_line)
 _LOSE_G_KEYS = ('10.0', '28.0', '30.0', '53.0', '54.0', '55.0', '56.0', '57.0', '58.0', '59.0',

@@ -108,6 +108,9 @@ def make_audit_tool(units='MM', storage=None, heights_valid=False, cls=None):
     tool.spindle_state_sig = MagicMock()
     tool.stream_ended_sig = MagicMock()
     tool.frame_ready_sig = MagicMock()
+    tool.edge_probe_result_sig = MagicMock()
+    if isinstance(tool, ToolGCodeSender):
+        tool.edge_probe_result_sig.emit.side_effect = tool._on_edge_probe_result
     return tool
 
 
@@ -242,6 +245,105 @@ class FakeGrbl:
             self._send('[PRB:%.4f,%.4f,%.4f:1]' % (self._report(self.x), self._report(self.y), z), 'ok')
             return
         self._send('ok')
+
+
+class AxisFakeGrbl(FakeGrbl):
+    """A FakeGrbl that reports a directional G38.2 contact on X or Y.
+
+    `edges` maps 'xplus', 'xminus', 'yplus' or 'yminus' to the contact coordinate in
+    command units; without an entry the commanded target is the contact.
+    `machine_offset` is added to the PRB machine coordinates. The reported position
+    is in the controller report units ($13).
+    """
+
+    def __init__(self, edges=None, machine_offset=(0.0, 0.0, 0.0), no_contact_at=None, **kwargs):
+        super().__init__(**kwargs)
+        self.edges = dict(edges or {})
+        self.machine_offset = machine_offset
+        self.no_contact_at = no_contact_at
+
+    def _answer(self, cmd):
+        words = {word[0]: word[1:] for word in cmd.split()[1:] if word and word[0] in 'XYF'}
+        if cmd.startswith('G38.2') and ('X' in words or 'Y' in words):
+            axis = 'x' if 'X' in words else 'y'
+            target = float(words[axis.upper()])
+            current = self.x if axis == 'x' else self.y
+            direction = axis + ('plus' if target >= current else 'minus')
+            contact = self.edges.get(direction, target)
+            if axis == 'x':
+                self.x = contact
+            else:
+                self.y = contact
+            z_mm = self.heights.get((round(self.x, 3), round(self.y, 3)), 0.0)
+            z = z_mm / 25.4 if self.report_inches else z_mm
+            mx, my, mz = self.machine_offset
+            self.probe_count += 1
+            if self.fail_probe_at == self.probe_count:
+                self._send('ALARM:4')
+                return
+            hit = 0 if self.no_contact_at == self.probe_count else 1
+            self._send('[PRB:%.4f,%.4f,%.4f:%d]' % (
+                self._report(self.x + mx), self._report(self.y + my), z + mz, hit), 'ok')
+            return
+        super()._answer(cmd)
+
+
+class MovingAxisFakeGrbl(AxisFakeGrbl):
+    """AxisFakeGrbl that reports its current work position in the status report."""
+
+    def _answer(self, cmd):
+        if cmd == '?':
+            self._send('<Idle|MPos:%.4f,%.4f,0.000|FS:0,0>' % (
+                self._report(self.x), self._report(self.y)))
+            return
+        super()._answer(cmd)
+
+
+class OffsetAxisFakeGrbl(AxisFakeGrbl):
+    """AxisFakeGrbl with a nonzero active work offset, in command units."""
+
+    def __init__(self, offset=(0.0, 0.0, 0.0), **kwargs):
+        kwargs.setdefault('machine_offset', offset)
+        super().__init__(**kwargs)
+        self.offset = offset
+
+    def _answer(self, cmd):
+        if cmd == '$#':
+            self._send('[G54:%.4f,%.4f,%.4f]' % tuple(self._report(value) for value in self.offset),
+                       '[G92:0,0,0]', '[TLO:0]', 'ok')
+            return
+        if cmd == '?':
+            self._send('<Idle|MPos:%.4f,%.4f,%.4f|FS:0,0>' % tuple(
+                self._report(value) for value in self.offset))
+            return
+        super()._answer(cmd)
+
+
+class ModalFakeGrbl(AxisFakeGrbl):
+    """AxisFakeGrbl that tracks the distance/feed modes and can refuse 1 command."""
+
+    def __init__(self, distance='G90', feed='G94', fail_on=None, **kwargs):
+        super().__init__(**kwargs)
+        self.distance = distance
+        self.feed = feed
+        self.fail_on = fail_on
+
+    def _answer(self, cmd):
+        if cmd == '$G':
+            self._send('[GC:G0 G54 G17 %s %s %s M5]' % (self.units_word, self.distance, self.feed), 'ok')
+            return
+        if cmd in ('G90', 'G91'):
+            self.distance = cmd
+            self._send('ok')
+            return
+        if cmd in ('G93', 'G94'):
+            self.feed = cmd
+            self._send('ok')
+            return
+        if cmd == self.fail_on:
+            self._send('error:9')
+            return
+        super()._answer(cmd)
 
 
 def emitted(tool):
@@ -922,6 +1024,248 @@ class TestGrblProbeRun(unittest.TestCase):
         self.assertEqual(tool.al_voronoi_geo_storage[1]['height'], 0.0)
         self.assertFalse(tool.al_heights_valid)
         tool._al_on_height_map_ready.assert_not_called()
+
+
+class TestGrblEdgeProbe(unittest.TestCase):
+    def _tool(self, fake, units='MM'):
+        tool = make_audit_tool(units=units)
+        tool.grbl_ser_port = fake
+        tool._grbl_connected = True
+        tool.ui.check_mode_cb.get_value.return_value = False
+        tool.ui.edge_probe_axis_radio.get_value.return_value = 'xplus'
+        tool.ui.edge_probe_distance_entry.get_value.return_value = 5.0
+        tool.ui.edge_probe_feed_entry.get_value.return_value = 100.0
+        tool.ui.edge_probe_pulloff_entry.get_value.return_value = 1.0
+        tool.ui.edge_probe_travelz_entry.get_value.return_value = 2.0
+        return tool
+
+    def _result(self, tool):
+        return tool.edge_probe_result_sig.emit.call_args.args[0]
+
+    def test_spindle_must_be_explicitly_off_before_motion(self):
+        for spindle in ('M3 S10000', 'M4 S10000', '', 'M5.1', 'M5 M3', 'M5 M4', 'M5 M03', 'M5 M04'):
+            with self.subTest(spindle=spindle):
+                fake = AxisFakeGrbl(replies={
+                    '$G': ['[GC:G0 G54 G17 G21 G90 G94 %s]' % spindle, 'ok']})
+                tool = self._tool(fake)
+                tool.on_grbl_edge_probe()
+                run_worker(tool)
+                self.assertEqual([c for c in fake.commands() if c.startswith(('G0', 'G38'))], [])
+                self.assertEqual(self._result(tool)['kind'], 'failed')
+                self.assertTrue(any('spindle' in text.lower() for text in emitted(tool)))
+
+    def test_stale_widget_units_refuse_before_reserving(self):
+        fake = AxisFakeGrbl()
+        tool = self._tool(fake)
+        tool.app.app_units = 'IN'
+        tool.on_grbl_edge_probe()
+        tool.app.worker_task.emit.assert_not_called()
+        self.assertIsNone(tool._grbl_op)
+        self.assertEqual(fake.commands(), [])
+        self.assertTrue(any('units' in text.lower() for text in emitted(tool)))
+
+    def test_unit_change_while_queued_or_running_stops_subsequent_motion(self):
+        for boundary in ('queued', 'G94', 'G38.2', 'G4 P0'):
+            for owner in ('project', 'sender'):
+                with self.subTest(boundary=boundary, owner=owner):
+                    fake = AxisFakeGrbl()
+                    tool = self._tool(fake)
+                    changed_at = []
+
+                    def change():
+                        if owner == 'project':
+                            tool.app.app_units = 'IN'
+                        else:
+                            tool.units = 'IN'
+                        changed_at.append(len(fake.commands()))
+
+                    def hook():
+                        if not changed_at and fake.commands()[-1].startswith(boundary):
+                            change()
+
+                    tool.on_grbl_center_probe()
+                    if boundary == 'queued':
+                        change()
+                    else:
+                        fake.read_hook = hook
+                    run_worker(tool)
+                    self.assertTrue(changed_at)
+                    subsequent = fake.commands()[changed_at[0]:]
+                    self.assertEqual([c for c in subsequent if c.startswith(('G0', 'G38'))], [])
+                    self.assertEqual(self._result(tool)['kind'], 'failed')
+                    self.assertIsNone(tool._grbl_op)
+                    self.assertTrue(any('units' in text.lower() for text in emitted(tool)))
+
+    def test_directional_contact_is_published_in_work_units(self):
+        fake = AxisFakeGrbl()
+        tool = self._tool(fake)
+        tool.on_grbl_edge_probe()
+        run_worker(tool)
+        result = self._result(tool)
+        self.assertEqual(result['kind'], 'edge')
+        self.assertEqual(result['contact'], (5.0, 0.0, 0.0))
+        self.assertIn('G38.2 X5.0000 F100.0000', fake.commands())
+        self.assertIn('G0 X4.0000', fake.commands())
+        self.assertIsNone(tool._grbl_recovery)
+
+    def test_inch_project_converts_the_controller_report(self):
+        fake = AxisFakeGrbl()
+        tool = self._tool(fake, units='IN')
+        tool.on_grbl_edge_probe()
+        run_worker(tool)
+        result = self._result(tool)
+        self.assertIn('G20', fake.commands())
+        self.assertEqual(result['contact'], (5.0, 0.0, 0.0))
+
+    def test_centre_is_the_midpoint_of_opposed_contacts(self):
+        fake = AxisFakeGrbl(edges={'xplus': 3.2, 'xminus': -3.8, 'yplus': 2.5, 'yminus': -1.5})
+        tool = self._tool(fake)
+        tool.on_grbl_center_probe()
+        run_worker(tool)
+        result = self._result(tool)
+        self.assertEqual(result['kind'], 'center')
+        self.assertAlmostEqual(result['center'][0], -0.3, places=4)
+        self.assertAlmostEqual(result['center'][1], 0.5, places=4)
+        self.assertEqual(set(result['contacts']), {'xplus', 'xminus', 'yplus', 'yminus'})
+        self.assertEqual(fake.commands().count('G38.2 X5.0000 F100.0000'), 1)
+        self.assertEqual(fake.commands().count('G38.2 X-5.0000 F100.0000'), 1)
+        self.assertEqual(fake.commands().count('G38.2 Y5.0000 F100.0000'), 1)
+        self.assertEqual(fake.commands().count('G38.2 Y-5.0000 F100.0000'), 1)
+
+    def test_failed_contact_publishes_no_result(self):
+        fake = AxisFakeGrbl(fail_probe_at=1)
+        tool = self._tool(fake)
+        tool.on_grbl_edge_probe()
+        run_worker(tool)
+        result = self._result(tool)
+        self.assertEqual(result['kind'], 'failed')
+        self.assertNotIn('contact', result)
+        self.assertEqual(tool._grbl_recovery, 'needs_reset')
+
+    def test_no_contact_publishes_no_result(self):
+        fake = AxisFakeGrbl(no_contact_at=1)
+        tool = self._tool(fake)
+        tool.on_grbl_edge_probe()
+        run_worker(tool)
+        result = self._result(tool)
+        self.assertEqual(result['kind'], 'failed')
+        self.assertNotIn('contact', result)
+        self.assertEqual(tool._grbl_recovery, 'needs_reset')
+
+    def test_cancel_between_contacts_publishes_no_partial_result(self):
+        fake = AxisFakeGrbl(edges={'xplus': 3.2, 'xminus': -3.8, 'yplus': 2.5, 'yminus': -1.5})
+        tool = self._tool(fake)
+
+        def hook():
+            cmds = fake.commands()
+            if cmds and cmds[-1].startswith('G4 P0') and any(c.startswith('G38.2') for c in cmds) \
+                    and '!' not in cmds:
+                tool.on_grbl_stop()
+
+        fake.read_hook = hook
+        tool.on_grbl_center_probe()
+        run_worker(tool)
+        result = self._result(tool)
+        self.assertEqual(result['kind'], 'failed')
+        self.assertNotIn('center', result)
+        self.assertEqual(fake.commands()[fake.commands().index('!') + 1:], [])
+
+    def test_not_idle_sends_no_motion(self):
+        fake = AxisFakeGrbl(state='Alarm')
+        tool = self._tool(fake)
+        tool.on_grbl_edge_probe()
+        run_worker(tool)
+        self.assertEqual([c for c in fake.commands() if c.startswith(('G0', 'G38'))], [])
+        self.assertEqual(self._result(tool)['kind'], 'failed')
+
+    def test_invalid_inputs_schedule_nothing(self):
+        for field, value in (('edge_probe_distance_entry', 0.0),
+                             ('edge_probe_feed_entry', float('nan')),
+                             ('edge_probe_pulloff_entry', -1.0),
+                             ('edge_probe_travelz_entry', 0.0)):
+            fake = AxisFakeGrbl()
+            tool = self._tool(fake)
+            getattr(tool.ui, field).get_value.return_value = value
+            tool.on_grbl_edge_probe()
+            tool.app.worker_task.emit.assert_not_called()
+            self.assertIsNone(tool._grbl_op)
+
+    def test_default_pulloff_is_bounded_in_a_smaller_hole(self):
+        # a 0.8 mm hole: contact at +0.4, the default 1.0 pull-off would reach -0.6
+        fake = AxisFakeGrbl(edges={'xplus': 0.4})
+        tool = self._tool(fake)
+        tool.on_grbl_edge_probe()
+        run_worker(tool)
+        self.assertEqual(self._result(tool)['kind'], 'edge')
+        self.assertIn('G0 X0.0000', fake.commands())
+        self.assertEqual([c for c in fake.commands() if c.startswith('G0 X-')], [])
+
+    def test_off_centre_start_pulls_off_to_the_start_not_the_opposite_wall(self):
+        fake = MovingAxisFakeGrbl(edges={'xplus': 0.4})
+        fake.x = 0.2
+        tool = self._tool(fake)
+        tool.on_grbl_edge_probe()
+        run_worker(tool)
+        self.assertEqual(self._result(tool)['kind'], 'edge')
+        self.assertIn('G0 X0.2000', fake.commands())
+        self.assertNotIn('G0 X-0.8000', fake.commands())
+
+    def test_impossible_contact_publishes_no_result_and_no_pulloff(self):
+        fake = AxisFakeGrbl(edges={'xplus': -1.0})
+        tool = self._tool(fake)
+        tool.on_grbl_edge_probe()
+        run_worker(tool)
+        self.assertEqual(self._result(tool)['kind'], 'failed')
+        self.assertEqual([c for c in fake.commands() if c.startswith('G0')], [])
+        self.assertEqual(tool._grbl_recovery, 'needs_reset')
+
+    def test_oversize_pulloff_is_clamped_to_the_contact_to_start_travel(self):
+        fake = AxisFakeGrbl(edges={'xplus': 3.2})
+        tool = self._tool(fake)
+        tool.ui.edge_probe_pulloff_entry.get_value.return_value = 10000.0
+        tool.on_grbl_edge_probe()
+        run_worker(tool)
+        self.assertEqual(self._result(tool)['kind'], 'edge')
+        self.assertIn('G0 X0.0000', fake.commands())
+
+    def test_nonzero_wcs_and_inch_report_convert_to_work_units(self):
+        fake = OffsetAxisFakeGrbl(edges={'xplus': 3.2}, offset=(10.0, 20.0, 0.0),
+                                  report_inches=True)
+        tool = self._tool(fake)
+        tool.on_grbl_edge_probe()
+        run_worker(tool)
+        result = self._result(tool)
+        self.assertEqual(result['kind'], 'edge')
+        # GRBL's four-place inch report is quantized to 0.00254 mm.
+        self.assertAlmostEqual(result['contact'][0], 3.2, delta=0.0026)
+        self.assertAlmostEqual(result['contact'][1], 0.0, delta=0.0026)
+        self.assertAlmostEqual(result['contact'][2], 0.0, delta=0.0026)
+        self.assertIn('G21', fake.commands())
+        self.assertTrue(any(c.startswith('G0 X2.2') for c in fake.commands()))
+
+    def test_a_recoverable_failure_restores_the_original_modes_after_the_retract(self):
+        fake = ModalFakeGrbl(distance='G91', feed='G93', fail_on='G0 X4.0000')
+        fake.units_word = 'G20'
+        tool = self._tool(fake)
+        tool.on_grbl_edge_probe()
+        run_worker(tool)
+        commands = fake.commands()
+        self.assertEqual(self._result(tool)['kind'], 'failed')
+        self.assertIsNone(tool._grbl_recovery)
+        self.assertEqual([c for c in commands if c in ('G20', 'G21', 'G90', 'G91', 'G93', 'G94')],
+                         ['G21', 'G90', 'G94', 'G20', 'G91', 'G93'])
+        self.assertLess(commands.index('G0 Z2.0000'), commands.index('G20'))
+
+    def test_an_alarm_with_changed_modes_requires_reset_and_restores_nothing(self):
+        fake = ModalFakeGrbl(distance='G91', feed='G93', fail_probe_at=1)
+        fake.units_word = 'G20'
+        tool = self._tool(fake)
+        tool.on_grbl_edge_probe()
+        run_worker(tool)
+        self.assertEqual(self._result(tool)['kind'], 'failed')
+        self.assertEqual(tool._grbl_recovery, 'needs_reset')
+        self.assertEqual([c for c in fake.commands() if c in ('G20', 'G91', 'G93')], [])
+        self.assertTrue(any('not restored' in text and 'Reset' in text for text in emitted(tool)))
 
 
 class TestManualFinish(unittest.TestCase):

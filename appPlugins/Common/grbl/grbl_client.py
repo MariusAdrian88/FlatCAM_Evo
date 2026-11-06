@@ -35,6 +35,7 @@ from appPlugins.Common.grbl.grbl_protocol import (
     parse_grbl_setting,
     parse_grbl_status_state,
     parse_grbl_status_report,
+    work_position,
     grbl_modes_confirmed,
     parse_grbl_identity,
     grbl_capabilities,
@@ -1426,6 +1427,344 @@ class GrblClientMixin:
         self.al_result_ready_sig.emit(dict(evidence, kind='probe', heights=staged, frame=frame))
         return True
 
+    def _emit_edge_probe_result(self, result):
+        """Publish 1 complete directional-probe result; a test double may have no signal."""
+        signal = getattr(self, 'edge_probe_result_sig', None)
+        if signal is not None:
+            signal.emit(result)
+
+    def _grbl_edge_probe_run(self, op, units, directions, travel_z, distance, feed, pulloff,
+                             units_cmd, probe_timeout):
+        """
+        Probe 1 edge, or the 4 opposed edges of a hole/ring, at the current work Z.
+        Runs in a worker thread and reads no widgets.
+
+        A contact is published in the active work coordinates of the controller, in
+        `units`. GRBL reports the PRB record in machine coordinates and in the report
+        units ($13), so the active work offset is subtracted and the report scale is
+        applied. The work offsets are never changed.
+
+        Preconditions before any motion: GRBL is Idle, setting $13 is known, the
+        units, G90 and G94 are acknowledged and confirmed by $G. Every contact is a
+        valid PRB record at the commanded point. A complete result goes to the GUI
+        thread through edge_probe_result_sig; a failed or partial run publishes none.
+        """
+        if not directions or any(direction not in ('xplus', 'xminus', 'yplus', 'yminus')
+                                 for direction in directions):
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _("The edge probing direction is not valid."))
+            self._emit_edge_probe_result({'kind': 'failed', 'operation': op, 'units': units,
+                                          'safety_generation': op.safety_generation})
+            return False
+
+        modes_ok = False
+        offset = None
+        motion_started = False
+        original_modes = None
+        staged = {}
+        evidence = {'operation': op, 'units': units, 'safety_generation': op.safety_generation}
+
+        def guard():
+            if str(self.units).upper() != units or str(self.app.app_units).upper() != units:
+                raise _GrblProbeAbort('', _(
+                    "The probe units changed. Probing stopped; refresh the Sender before probing again."),
+                    'units_changed')
+
+        def check_spindle(text):
+            words = text.replace('[GC:', '').replace(']', '').split()
+            spindle = [float(match.group(2)) for match in _GCODE_WORD_RE.finditer(text)
+                       if match.group(1).upper() == 'M' and 3.0 <= float(match.group(2)) < 6.0]
+            if '[GC:' not in text or 'M5' not in words or spindle != [5.0]:
+                raise _GrblProbeAbort('$G', _(
+                    "Stop the spindle before probing. GRBL must explicitly report M5."), 'spindle_active')
+
+        def step(command, timeout=10.0):
+            nonlocal motion_started
+            guard()
+            if command.startswith(('G0 ', 'G38.2 ')):
+                check_spindle(step('$G'))
+                guard()
+                motion_started = True
+            text, status = self._grbl_transact(op, command, timeout=timeout, guard=guard)
+            guard()
+            if status != 'ok':
+                raise _GrblProbeAbort(command, text, status)
+            return text
+
+        def mode_word(text, choices):
+            return next((match.group(1).upper() + match.group(2)
+                         for match in _GCODE_WORD_RE.finditer(text or '')
+                         if (match.group(1).upper() + match.group(2)) in choices), None)
+
+        def check_frame():
+            # A changed/unknown coordinate frame must not produce a guessed move.
+            try:
+                text = step('$G')
+                if not grbl_modes_confirmed(text, units_cmd) or parse_grbl_active_wcs(text) != active_wcs:
+                    raise ValueError('distance mode, units or active WCS changed')
+                if parse_grbl_work_offset(step('$#'), active_wcs) != offset:
+                    raise ValueError('work offset changed')
+                if parse_grbl_status_state(self._grbl_query_status(op)) != 'Idle':
+                    raise ValueError('GRBL is not Idle')
+            except ValueError as err:
+                raise _GrblProbeAbort('$G / $# / ?', str(err), 'probe_invalid')
+            except _GrblProbeAbort as abort:
+                if abort.status == 'error':
+                    raise _GrblProbeAbort(abort.command, abort.text, 'probe_invalid')
+                raise
+
+        try:
+            guard()
+            state = parse_grbl_status_state(self._grbl_query_status(op))
+            if state != 'Idle':
+                raise _GrblProbeAbort('?', state or _("no answer"), 'not_idle')
+
+            report_setting = parse_grbl_setting(step('$$'), 13)
+            if report_setting is None:
+                raise _GrblProbeAbort('$$', '', 'unknown_units')
+            scale = grbl_report_scale(units, report_setting == 1.0)
+
+            # Keep the supported modal state that the probe forces, and restore it after the run.
+            original_gc = step('$G')
+            check_spindle(original_gc)
+            original_modes = (mode_word(original_gc, ('G20', 'G21')),
+                              mode_word(original_gc, ('G90', 'G91')),
+                              mode_word(original_gc, ('G93', 'G94')))
+
+            step(units_cmd)
+            step('G90')
+            step('G94')
+            gc_text = step('$G')
+            check_spindle(gc_text)
+            if not grbl_modes_confirmed(gc_text, units_cmd):
+                raise _GrblProbeAbort('$G', gc_text, 'modes_not_confirmed')
+            modes_ok = True
+
+            active_wcs = parse_grbl_active_wcs(gc_text)
+            offset = parse_grbl_work_offset(step('$#'), active_wcs)
+            self.grbl_work_offset = offset
+
+            status_text = self._grbl_query_status(op)
+            report = parse_grbl_status_report(status_text)
+            if parse_grbl_status_state(status_text) != 'Idle' or report is None:
+                raise ValueError('GRBL did not report a stationary position')
+            if 'mpos' in report:
+                start = tuple((machine - origin) * scale
+                              for machine, origin in zip(report['mpos'], offset))
+            else:
+                work = work_position(report)
+                if work is None:
+                    raise ValueError('GRBL did not report a work position')
+                start = tuple(value * scale for value in work)
+            if not all(math.isfinite(value) for value in start):
+                raise ValueError('the work position is not finite')
+
+            # The safe Z is used after every contact; it must not move the probe down first.
+            if travel_z <= start[2] + 1e-9:
+                self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                    "The probe Z travel must be above the current Z. Probing was not started."))
+                # No motion follows: put the modes the probe forced back before leaving.
+                changed = [mode for mode in original_modes
+                           if mode is not None and mode not in (units_cmd, 'G90', 'G94')]
+                for mode in changed:
+                    step(mode)
+                self._emit_edge_probe_result(dict(evidence, kind='failed'))
+                return False
+
+            for index, direction in enumerate(directions):
+                axis = direction[0]
+                sign = 1.0 if direction.endswith('plus') else -1.0
+                primary_start = start[0] if axis == 'x' else start[1]
+                target = primary_start + sign * distance
+                command = 'G38.2 %s%.4f F%.4f' % (axis.upper(), target, feed)
+                text = step(command, timeout=probe_timeout)
+                position = self._al_check_axis_probe_reply(
+                    command, text, direction, start, distance, offset, scale)
+                staged[direction] = position
+
+                # Pull off the contact along the approach axis, then lift to the safe Z.
+                # A pull-off past the known-free start can cross the opposite wall of a
+                # small hole at the probing Z, so bound it by the travel to the start.
+                travelled = ((position[0] if axis == 'x' else position[1])
+                             - primary_start) * sign
+                tolerance = 1e-6 * max(1.0, abs(primary_start), abs(target), distance)
+                if travelled <= tolerance:
+                    raise _GrblProbeAbort(command, text, 'probe_invalid')
+                safe_pulloff = min(pulloff, travelled)
+                if safe_pulloff < pulloff - tolerance:
+                    self.app.inform.emit('[WARNING_NOTCL] %s' % _(
+                        "The pull-off is limited to the contact-to-start travel. "
+                        "The probe does not cross the opposite wall."))
+                endpoint = (position[0] if axis == 'x' else position[1]) - sign * safe_pulloff
+                if safe_pulloff >= travelled - tolerance:
+                    endpoint = primary_start
+                if axis == 'x':
+                    step('G0 X%.4f' % endpoint)
+                else:
+                    step('G0 Y%.4f' % endpoint)
+                step('G4 P0', timeout=120.0)
+                step('G0 Z%.4f' % travel_z)
+                step('G4 P0', timeout=120.0)
+
+                if index + 1 < len(directions):
+                    # return to the starting point at the safe Z, then to the probing Z
+                    step('G0 X%.4f Y%.4f' % (start[0], start[1]))
+                    step('G4 P0', timeout=120.0)
+                    step('G0 Z%.4f' % start[2])
+                    step('G4 P0', timeout=120.0)
+                    check_frame()
+
+            with self._grbl_op_lock:
+                if not self._grbl_active_locked(op) or self._grbl_safety_generation != op.safety_generation:
+                    raise _GrblProbeAbort('G4 P0', '', 'cancelled')
+
+            frame = (active_wcs, offset, report_setting == 1.0)
+            if len(directions) == 4:
+                x_plus, x_minus = staged['xplus'][0], staged['xminus'][0]
+                y_plus, y_minus = staged['yplus'][1], staged['yminus'][1]
+                tolerance = 1e-6 * max(1.0, abs(x_plus), abs(x_minus), abs(y_plus), abs(y_minus),
+                                       distance)
+                if x_plus - x_minus <= tolerance or y_plus - y_minus <= tolerance:
+                    raise _GrblProbeAbort('centre', _(
+                        'The opposed contacts are inverted or coincident. No centre was calculated.'),
+                        'probe_invalid')
+                if not (x_minus + tolerance < start[0] < x_plus - tolerance and
+                        y_minus + tolerance < start[1] < y_plus - tolerance):
+                    raise _GrblProbeAbort('centre', _(
+                        'The probing start point is outside the measured hole. '
+                        'No centre was calculated.'), 'probe_invalid')
+                result = dict(evidence, kind='center', contacts=staged,
+                              center=((x_plus + x_minus) / 2.0, (y_plus + y_minus) / 2.0),
+                              frame=frame)
+            else:
+                result = dict(evidence, kind='edge', contacts=staged,
+                              contact=staged[directions[0]], frame=frame)
+
+            # No motion follows: restore the units/distance/feed mode that the probe forced.
+            for mode in original_modes:
+                if mode is not None and mode not in (units_cmd, 'G90', 'G94'):
+                    step(mode)
+        except _GrblProbeAbort as abort:
+            # Recovery writes use the same guard as the normal path; never guess a
+            # retract after units or spindle evidence became unsafe.
+            try:
+                guard()
+            except _GrblProbeAbort as changed:
+                abort = changed
+            unsafe = abort.status in ('units_changed', 'spindle_active')
+            if unsafe:
+                self.app.inform.emit('[ERROR_NOTCL] %s' % abort.text)
+                if motion_started:
+                    self._grbl_hold_for_recovery()
+            elif abort.status in ('error', 'modes_not_confirmed') and modes_ok:
+                self.app.inform.emit('[ERROR_NOTCL] %s: %s -> %s' % (
+                    _("GRBL refused a command"), abort.command, grbl_reply_error(abort.text) or abort.text))
+                try:
+                    step('G0 Z%.4f' % travel_z, timeout=30.0)
+                    step('G4 P0', timeout=120.0)
+                except _GrblProbeAbort as recovery_abort:
+                    self.app.inform.emit('[ERROR_NOTCL] %s' % recovery_abort.text)
+                    self._grbl_hold_for_recovery()
+            else:
+                self._grbl_handle_abort(op, abort, None, False)
+            changed_modes = [mode for mode in (original_modes or ())
+                             if mode is not None and mode not in (units_cmd, 'G90', 'G94')]
+            if changed_modes and modes_ok:
+                # A controller that refused a command is still responsive and Idle, and
+                # the safety retract has run: put the original modes back. In alarm, hold,
+                # reset, disconnect or cancel the modes cannot be restored safely; say so.
+                if abort.status == 'error' and self._grbl_recovery is None and not op.failed and not unsafe:
+                    try:
+                        for mode in changed_modes:
+                            step(mode)
+                    except _GrblProbeAbort as recovery_abort:
+                        self.app.inform.emit('[ERROR_NOTCL] %s' % recovery_abort.text)
+                        self._grbl_hold_for_recovery()
+                else:
+                    self.app.inform.emit('[WARNING_NOTCL] %s' % _(
+                        "The original units, distance and feed mode were not restored. "
+                        "Reset GRBL before relying on its modal state."))
+            self._emit_edge_probe_result(dict(evidence, kind='failed'))
+            return False
+        except ValueError as err:
+            self.app.inform.emit('[ERROR_NOTCL] %s: %s' % (
+                _("Could not read the GRBL work position"), str(err)))
+            changed = [mode for mode in (original_modes or ())
+                       if mode is not None and mode not in (units_cmd, 'G90', 'G94')]
+            try:
+                guard()
+                if motion_started and offset is not None:
+                    step('G0 Z%.4f' % travel_z, timeout=30.0)
+                    step('G4 P0', timeout=120.0)
+                if modes_ok and self._grbl_recovery is None and not op.failed:
+                    for mode in changed:
+                        step(mode)
+            except _GrblProbeAbort as recovery_abort:
+                self.app.inform.emit('[ERROR_NOTCL] %s' % recovery_abort.text)
+                if motion_started:
+                    self._grbl_hold_for_recovery()
+            self._emit_edge_probe_result(dict(evidence, kind='failed'))
+            return False
+
+        self.app.inform.emit('%s' % _("Finished probing."))
+        self._emit_edge_probe_result(result)
+        return True
+
+    def _al_check_axis_probe_reply(self, command, text, direction, start, distance, offset, scale):
+        """
+        Check the reply of 1 directional G38.2 move.
+
+        :return: the contact (x, y, z) in the active work frame and application units.
+        :raises _GrblProbeAbort: 'probe_failed' if a finite record proves no contact;
+            'probe_invalid' if the record is malformed/nonfinite, does not lie on the
+            commanded ray, or travels farther than `distance`.
+        """
+        x, y, z = self._al_probe_record(command, text, offset, scale)
+        axis = direction[0]
+        sign = 1.0 if direction.endswith('plus') else -1.0
+        if axis == 'x':
+            primary, primary_start, other, other_start = x, start[0], y, start[1]
+        else:
+            primary, primary_start, other, other_start = y, start[1], x, start[0]
+        tolerance = 1e-6 * max(1.0, abs(primary_start), abs(primary), distance)
+        travelled = (primary - primary_start) * sign
+        if travelled <= tolerance or abs(primary - primary_start) > distance + tolerance:
+            raise _GrblProbeAbort(command, text, 'probe_invalid')
+        if abs(other - other_start) > tolerance:
+            raise _GrblProbeAbort(command, text, 'probe_invalid')
+        return x, y, z
+
+    def _al_probe_record(self, command, text, offset, scale):
+        """
+        Check 1 PRB record and convert it from machine report units into the active
+        work frame and application units.
+
+        :return: (x, y, z).
+        :raises _GrblProbeAbort: as _al_check_probe_reply().
+        """
+        try:
+            results = parse_grbl_probe_output(text)
+        except ValueError:
+            # Validate the numeric record separately from its contact flag. A bad
+            # number is uncertainty, not evidence that GRBL entered Alarm.
+            records = [line.strip() for line in text.splitlines() if line.strip().startswith('[PRB:')]
+            if len(records) == 1 and records[0].endswith(':0]'):
+                try:
+                    valid = parse_grbl_probe_output(records[0][:-3] + ':1]')
+                except ValueError:
+                    valid = []
+                if len(valid) == 1:
+                    raise _GrblProbeAbort(command, text, 'probe_failed')
+            raise _GrblProbeAbort(command, text, 'probe_invalid')
+        if len(results) != 1:
+            raise _GrblProbeAbort(command, text, 'probe_invalid')
+
+        mx, my, mz = results[0]
+        ox, oy, oz = offset
+        position = ((mx - ox) * scale, (my - oy) * scale, (mz - oz) * scale)
+        if not all(math.isfinite(value) for value in position):
+            raise _GrblProbeAbort(command, text, 'probe_invalid')
+        return position
+
     def _grbl_read_live_frame(self, op, units_cmd):
         """
         Read the frame of GRBL as _grbl_probe_run() does, with no motion and no mode command:
@@ -1477,28 +1816,7 @@ class GrblClientMixin:
             'probe_invalid' if the record is malformed/nonfinite or not unique,
             or if the record is not at the commanded point.
         """
-        try:
-            results = parse_grbl_probe_output(text)
-        except ValueError:
-            # Validate the numeric record separately from its contact flag. A bad
-            # number is uncertainty, not evidence that GRBL entered Alarm.
-            records = [line.strip() for line in text.splitlines() if line.strip().startswith('[PRB:')]
-            if len(records) == 1 and records[0].endswith(':0]'):
-                try:
-                    valid = parse_grbl_probe_output(records[0][:-3] + ':1]')
-                except ValueError:
-                    valid = []
-                if len(valid) == 1:
-                    raise _GrblProbeAbort(command, text, 'probe_failed')
-            raise _GrblProbeAbort(command, text, 'probe_invalid')
-        if len(results) != 1:
-            raise _GrblProbeAbort(command, text, 'probe_invalid')
-
-        mx, my, mz = results[0]
-        ox, oy, oz = offset
-        x = (mx - ox) * scale
-        y = (my - oy) * scale
-        z = (mz - oz) * scale
+        x, y, z = self._al_probe_record(command, text, offset, scale)
         if match_nearest_point(points, x, y, tol) != expected_key:
             raise _GrblProbeAbort(command, text, 'probe_invalid')
         return z
@@ -1507,6 +1825,27 @@ class GrblClientMixin:
         """Feed hold now; the machine needs a reset and a home cycle."""
         with self._grbl_op_lock:
             self._grbl_failure_locked(self._grbl_op, 'probe_invalid')
+
+    def _grbl_restore_modes(self, op, modes):
+        """
+        Put back the units/distance/feed modes that a probe forced.
+
+        Call it only on a responsive, Idle controller, and only after the safety retract,
+        so the retract still runs in the units it was computed in.
+
+        :return: True when every mode was acknowledged; otherwise the machine is in hold.
+        """
+        for mode in modes:
+            text, status = self._grbl_transact(op, mode)
+            if status == 'ok':
+                continue
+            if status != 'cancelled':
+                self._grbl_hold_for_recovery()
+                self.app.inform.emit('[ERROR_NOTCL] %s: %s. %s' % (
+                    _("The original GRBL modes could not be restored"),
+                    grbl_reply_error(text) or status, self._grbl_recovery_text()))
+            return False
+        return True
 
     def _grbl_retract(self, op, travel_z):
         """
@@ -1531,7 +1870,10 @@ class GrblClientMixin:
         status = abort.status
         if status == 'cancelled':
             # Stop, Reset or a disconnect already sent the hold or the reset
-            self.app.inform.emit('[WARNING_NOTCL] %s' % _("Probing was stopped."))
+            text = _("Probing was stopped.")
+            if self._grbl_recovery is not None:
+                text += ' ' + self._grbl_recovery_text()
+            self.app.inform.emit('[WARNING_NOTCL] %s' % text)
             return
 
         if status == 'not_idle':

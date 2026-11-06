@@ -49,6 +49,8 @@ class RegistrationFit:
         self.measured = list(measured)
         self.errors = list(errors)
         self.rms = float(rms)
+        self.min_error = min(self.errors) if self.errors else 0.0
+        self.mean_error = sum(self.errors) / len(self.errors) if self.errors else 0.0
         self.max_error = max(self.errors) if self.errors else 0.0
         self.tolerance = float(tolerance)
         self.angle = math.degrees(math.atan2(self.matrix[2], self.matrix[0]))
@@ -245,7 +247,11 @@ class CameraRegistration:
 
     def fit(self, tolerance):
         """
-        Solve the rigid matrix and reject it above the user acceptance tolerance.
+        Solve the rigid matrix and report the residual of every design/measured pair.
+
+        The tolerance is the user residual warning limit, never an acceptance gate:
+        a fit with an inconsistent extra point is still returned so its residual is
+        visible before Apply.
 
         :return: RegistrationFit, or None while there are fewer than two complete pairs.
         """
@@ -261,13 +267,9 @@ class CameraRegistration:
             self.preview = None
             raise RegistrationError(_("The points can not give a valid rigid registration.")) from exc
         errors, rms = residuals(matrix, self.design, self.measured)
-        max_error = max(errors) if errors else 0.0
-        self.preview = None
-        if max_error > limit + 1e-12:
-            units = self.identity['units'] if self.identity else ''
-            raise RegistrationError(_(
-                "The largest residual is %.*f %s; it exceeds the alignment tolerance of %.*f %s.") % (
-                self.decimals, max_error, units, self.decimals, limit, units))
+        if not all(math.isfinite(error) for error in errors):
+            self.preview = None
+            raise RegistrationError(_("The points can not give a valid rigid registration."))
         self.preview = RegistrationFit(matrix, self.design, self.measured, errors, rms, limit)
         return self.preview
 

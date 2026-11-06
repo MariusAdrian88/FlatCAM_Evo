@@ -16,6 +16,7 @@ from unittest.mock import MagicMock, patch
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from PyQt6 import QtWidgets
+from shapely import Point
 
 _qapp = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
 
@@ -45,6 +46,24 @@ def make_settings(mode=PLATE_FIXED, **changes):
     settings = ToolChangeSettings.from_options(options(mode, **changes))
     assert settings is not None
     return settings
+
+
+def map_frame(fake):
+    """The height-map frame of `fake`: raw report units and report-unit flag."""
+    scale = 25.4 if fake.report_inches else 1.0
+    return fake.wcs, (fake.wcs_x / scale, fake.wcs_y / scale, fake.wcs_z / scale), fake.report_inches
+
+
+def attach_map(tool, frame, height, units='MM'):
+    tool.al_voronoi_geo_storage = {1: {'point': Point((0.0, 0.0)), 'geo': None, 'height': float(height)}}
+    tool._al_data_units = units
+    tool.al_heights_valid = True
+    tool._al_map_imported = False
+    tool._al_map_frame = frame
+    tool.job_map_generation = 99
+    tool.job_lines = ['G1 Z-1.0']
+    tool.job_line_numbers = [1]
+    tool._start_seq = 5
 
 
 class TestToolChangeMath(unittest.TestCase):
@@ -334,6 +353,173 @@ class TestToolChangeSender(unittest.TestCase):
             tool.on_toolchange_measure()
             tool.on_toolchange_apply()
             self.assertAlmostEqual(fake.wcs_z, expected)
+
+    def test_supported_height_map_survives_fixed_plate_correction_and_is_reused(self):
+        fake = ToolChangeFake(wcs_z=-50.0, start_z=0.0, heights={(0.0, 0.0): -40.0})
+        tool = make_tool(fake, options(PLATE_FIXED, tools_grbl_toolchange_probe_distance=50.0))
+        tool.on_toolchange_calibrate()
+        self.assertIsNotNone(tool.toolchange.reference)
+
+        # the map was probed in the calibrated frame; its height is a work-coordinate contact
+        attach_map(tool, map_frame(fake), 0.2)
+        target = SimpleNamespace(units='MM', coords_decimals=4, is_segmented_gcode=True,
+                                 tools={1: {'gcode': 'G21 G54\nG0 X0 Y0 Z5\nG1 X0 Y0 Z-0.1 F100\n'}})
+        for contact, expected_offset in ((-38.0, -48.0), (-37.0, -47.0), (-41.0, -51.0)):
+            fake.heights = {(0.0, 0.0): contact}
+            fake.start_z = 0.0
+            tool.on_toolchange_measure()
+            self.assertEqual(tool.toolchange.state(), STATE_MEASURED)
+            tool.on_toolchange_apply()
+            self.assertAlmostEqual(fake.wcs_z, expected_offset)
+            self.assertTrue(tool.al_heights_valid)
+            self.assertEqual(tool._al_map_frame, ('G54', (0.0, 0.0, expected_offset), False))
+            result = tool.autolevell_gcode(target, 'v', strict=True)
+            self.assertIsNotNone(result)
+            cut = result[1].splitlines()[-1]
+            commanded_work_z = float(cut.split('Z')[1].split()[0])
+            # The board contact and WCS both follow the tool-length change.
+            board_machine_z = -49.8 + (contact - (-40.0))
+            self.assertAlmostEqual(commanded_work_z + fake.wcs_z - board_machine_z, -0.1)
+            self.assertIsNone(tool.job_map_generation)
+            self.assertNotEqual(tool._start_seq, 5)
+            self.assertAlmostEqual(tool.toolchange.reference['offset_z'], expected_offset)
+            self.assertAlmostEqual(tool.toolchange.reference['contact_machine_z'], contact)
+
+    def test_removable_plate_with_a_map_refuses_an_unprovable_board_zero(self):
+        fake = ToolChangeFake(wcs_z=0.0, start_z=0.0, heights={(0.0, 0.0): -5.0})
+        tool = make_tool(fake, options(PLATE_REMOVABLE,
+                                       tools_grbl_toolchange_thickness=1.5,
+                                       tools_grbl_toolchange_probe_distance=50.0))
+        # the map was probed on the board surface, 1.5 below the top of the plate
+        attach_map(tool, map_frame(fake), -6.5)
+        tool.on_toolchange_measure()
+        tool.on_toolchange_apply()
+        self.assertEqual(fake.commands(), [])
+        self.assertIsNone(tool.toolchange.measurement)
+        self.assertTrue(tool.al_heights_valid)
+        self.assertEqual(tool._al_map_frame, ('G54', (0.0, 0.0, 0.0), False))
+        self.assertTrue(any('removable' in str(call).lower() and 'map' in str(call).lower()
+                            for call in tool.ui.toolchange_widget.set_message.call_args_list))
+
+    def test_height_map_with_unknown_provenance_or_another_frame_refuses_the_measurement(self):
+        variants = {
+            'imported': lambda tool: setattr(tool, '_al_map_imported', True),
+            'no_frame': lambda tool: setattr(tool, '_al_map_frame', None),
+            'units': lambda tool: setattr(tool, '_al_data_units', 'IN'),
+            'other_wcs': lambda tool: setattr(
+                tool, '_al_map_frame', ('G55', tool._al_map_frame[1], tool._al_map_frame[2])),
+            'other_offset': lambda tool: setattr(
+                tool, '_al_map_frame', (tool._al_map_frame[0],
+                                        (tool._al_map_frame[1][0], tool._al_map_frame[1][1],
+                                         tool._al_map_frame[1][2] + 1.0), tool._al_map_frame[2])),
+            'other_report_units': lambda tool: setattr(
+                tool, '_al_map_frame', (tool._al_map_frame[0], tool._al_map_frame[1],
+                                        not tool._al_map_frame[2])),
+            'incomplete': lambda tool: tool.al_voronoi_geo_storage[1].__setitem__('height', None),
+            'live_wcs': lambda tool: setattr(fake, 'wcs', 'G55'),
+            'live_report_units': lambda tool: setattr(fake, 'report_inches', True),
+        }
+        for name, mutate in variants.items():
+            with self.subTest(variant=name):
+                fake = ToolChangeFake(wcs_z=-50.0, start_z=0.0, heights={(0.0, 0.0): -40.0})
+                tool = make_tool(fake, options(PLATE_FIXED, tools_grbl_toolchange_probe_distance=50.0))
+                tool.on_toolchange_calibrate()
+                attach_map(tool, map_frame(fake), 10.0)
+                mutate(tool)
+                fake.heights = {(0.0, 0.0): -38.0}
+                fake.start_z = 0.0
+                count = fake.probe_count
+                tool.on_toolchange_measure()
+                self.assertEqual(fake.probe_count, count, name)
+                self.assertIsNone(tool.toolchange.measurement, name)
+                self.assertFalse(any(command.startswith('G10') for command in fake.commands()), name)
+
+    def test_failed_contact_or_offset_readback_leaves_no_usable_map(self):
+        for fault in ('contact', 'readback'):
+            with self.subTest(fault=fault):
+                fake = ToolChangeFake(wcs_z=-50.0, start_z=0.0, heights={(0.0, 0.0): -40.0})
+                tool = make_tool(fake, options(PLATE_FIXED, tools_grbl_toolchange_probe_distance=50.0))
+                tool.on_toolchange_calibrate()
+                attach_map(tool, map_frame(fake), 10.0)
+                if fault == 'contact':
+                    fake.heights = {}
+                    fake.start_z = 0.0
+                    tool.on_toolchange_measure()
+                else:
+                    fake.heights = {(0.0, 0.0): -38.0}
+                    fake.start_z = 0.0
+                    tool.on_toolchange_measure()
+                    def fail(cmd):
+                        if cmd.startswith('G10'):
+                            fake.start_z += 1.0
+                    fake.command_hook = fail
+                    tool.on_toolchange_apply()
+                    self.assertTrue(any(command.startswith('G10') for command in fake.commands()))
+
+                self.assertIsNone(tool.toolchange.measurement, fault)
+                self.assertFalse(tool.al_heights_valid, fault)
+                self.assertIsNone(tool._al_map_frame, fault)
+                self.assertIsNone(tool.job_map_generation, fault)
+                before = len(fake.commands())
+                tool.on_toolchange_measure()
+                self.assertEqual(len(fake.commands()), before, fault)
+
+    def test_stop_and_zero_invalidate_the_active_height_map(self):
+        for action in ('stop', 'zero'):
+            with self.subTest(action=action):
+                fake = ToolChangeFake(wcs_z=-50.0, start_z=0.0, heights={(0.0, 0.0): -40.0})
+                tool = make_tool(fake, options(PLATE_FIXED, tools_grbl_toolchange_probe_distance=50.0))
+                tool.on_toolchange_calibrate()
+                attach_map(tool, map_frame(fake), 10.0)
+                if action == 'stop':
+                    tool.__dict__['_toolchange_busy'] = True
+                    tool.__dict__['_toolchange_action'] = 'measure'
+                    tool.on_grbl_stop()
+                else:
+                    tool.on_grbl_zero('z')
+                self.assertFalse(tool.al_heights_valid, action)
+                self.assertIsNone(tool._al_map_frame, action)
+                self.assertIsNone(tool.job_map_generation, action)
+
+    def test_zero_and_reset_invalidate_imported_or_unbound_maps(self):
+        for action in ('zero', 'reset'):
+            for imported in (True, False):
+                with self.subTest(action=action, imported=imported):
+                    fake = ToolChangeFake(wcs_z=-50.0, start_z=0.0, heights={(0.0, 0.0): -40.0})
+                    tool = make_tool(fake, options(PLATE_FIXED))
+                    attach_map(tool, None, 10.0)
+                    tool._al_map_imported = imported
+                    start_seq = tool._start_seq
+                    if action == 'zero':
+                        tool.on_grbl_zero('z')
+                    else:
+                        tool._toolchange_new_session('reset')
+                    self.assertFalse(tool.al_heights_valid, action)
+                    self.assertIsNone(tool._al_map_frame, action)
+                    self.assertFalse(tool._al_map_imported, action)
+                    self.assertIsNone(tool.job_map_generation, action)
+                    self.assertNotEqual(tool._start_seq, start_seq, action)
+
+    def test_a_repeated_apply_result_does_not_shift_the_map_twice(self):
+        fake = ToolChangeFake(wcs_z=-50.0, start_z=0.0, heights={(0.0, 0.0): -40.0})
+        tool = make_tool(fake, options(PLATE_FIXED, tools_grbl_toolchange_probe_distance=50.0))
+        tool.on_toolchange_calibrate()
+        attach_map(tool, map_frame(fake), 10.0)
+        fake.heights = {(0.0, 0.0): -38.0}
+        fake.start_z = 0.0
+        tool.on_toolchange_measure()
+        payloads = []
+        tool.toolchange_result_sig.emit.side_effect = lambda payload: (
+            payloads.append(payload), tool._on_toolchange_result(payload))
+        tool.on_toolchange_apply()
+        applied = [payload for payload in payloads if payload.get('action') == 'apply'][0]
+        height = tool.al_voronoi_geo_storage[1]['height']
+        frame = tool._al_map_frame
+
+        tool._on_toolchange_result(applied)
+        self.assertEqual(tool.al_voronoi_geo_storage[1]['height'], height)
+        self.assertEqual(tool._al_map_frame, frame)
+        self.assertAlmostEqual(height, 10.0)
 
     def test_inch_report_units_convert_and_preserve_the_wcs_xy(self):
         # report in inches, work offset -2 in; contact -1 in for the reference tool

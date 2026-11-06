@@ -136,7 +136,7 @@ class SenderRegistrationUI(QtWidgets.QWidget):
 
         self.pairs_table = QtWidgets.QTableWidget(0, 6)
         self.pairs_table.setHorizontalHeaderLabels([
-            '#', _("Design X"), _("Design Y"), _("Camera X"), _("Camera Y"), _("Error")])
+            '#', _("Design X"), _("Design Y"), _("Camera X"), _("Camera Y"), _("Residual")])
         self.pairs_table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
         self.pairs_table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
         self.pairs_table.setMaximumHeight(150)
@@ -154,9 +154,9 @@ class SenderRegistrationUI(QtWidgets.QWidget):
         layout.addLayout(pair_row)
 
         tolerance_row = QtWidgets.QHBoxLayout()
-        self.tolerance_label = FCLabel(_("Alignment acceptance tolerance (%s):") % self.units)
+        self.tolerance_label = FCLabel(_("Residual warning limit (%s):") % self.units)
         self.tolerance_label.setToolTip(_(
-            "The largest allowed residual of a design point after the rigid fit, in current units."))
+            "A residual above this limit is reported as a warning; it does not block the preview or Apply."))
         tolerance_row.addWidget(self.tolerance_label)
         self.tolerance_entry = FCDoubleSpinner()
         self.tolerance_entry.set_precision(max(self.decimals, 4))
@@ -268,7 +268,7 @@ class SenderRegistrationUI(QtWidgets.QWidget):
             self.tolerance_entry.set_value(alignment_tolerance(live, value))
         finally:
             self.tolerance_entry.blockSignals(False)
-        self.tolerance_label.setText(_("Alignment acceptance tolerance (%s):") % live)
+        self.tolerance_label.setText(_("Residual warning limit (%s):") % live)
         self._cancel_operation()
         self.fit = None
         self.registration.invalidate('units_changed')
@@ -714,12 +714,16 @@ class SenderRegistrationUI(QtWidgets.QWidget):
             self._update_buttons()
             return
         self.refresh_table()
-        text = '%s: %.*f°  %s: X %.*f  Y %.*f %s  %s: %.*f %s  %s: %.*f %s' % (
+        text = ('%s: %.*f°  %s: X %.*f  Y %.*f %s  '
+                '%s: %.*f %s  %s: %.*f %s  %s: %.*f %s') % (
             _("Angle"), self.decimals, fit.angle,
             _("Translation"), self.decimals, fit.translation[0], self.decimals, fit.translation[1], self.units,
-            _("RMS"), self.decimals, fit.rms, self.units,
-            _("Max error"), self.decimals, fit.max_error, self.units)
-        self._set_message('%s  (%s: %s)' % (text, _("tolerance"), self._format_limit(fit.tolerance)))
+            _("Min residual"), self.decimals, fit.min_error, self.units,
+            _("Mean residual"), self.decimals, fit.mean_error, self.units,
+            _("Max residual"), self.decimals, fit.max_error, self.units)
+        warning = '' if fit.max_error <= fit.tolerance else _("; above the warning limit")
+        self._set_message('%s  (%s: %s%s)' % (
+            text, _("residual warning limit"), self._format_limit(fit.tolerance), warning))
         self._update_buttons()
 
     def on_cancel(self):
@@ -821,7 +825,7 @@ class SenderRegistrationUI(QtWidgets.QWidget):
         self.registration.invalidate('tolerance_changed', clear_points=False)
         self.clear_preview()
         self.refresh_table()
-        self._set_message(_("The alignment tolerance changed. Preview again."), error=True)
+        self._set_message(_("The residual warning limit changed. Preview again."), error=True)
         self._update_buttons()
 
     # ---------------------------------------------------------------------------------------------------------
@@ -916,7 +920,7 @@ class SenderRegistrationUI(QtWidgets.QWidget):
             'work_offset_changed': _(
                 "The work offset changed between points. Registration restarted; observe the points again."),
             'selection_changed': _("The project selection changed. Preview the snapshot again."),
-            'tolerance_changed': _("The alignment tolerance changed. Preview again."),
+            'tolerance_changed': _("The residual warning limit changed. Preview again."),
             'apply_failed': _("The registration failed and was rolled back."),
             'cancelled': _("Preview cleared."),
             'stale_result': _("The camera answer belongs to an older state and was discarded."),

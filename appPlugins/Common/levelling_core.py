@@ -41,6 +41,7 @@ from appPlugins.Common.levelling_interp import (
     bicubic_offset,
     bicubic_supported,
     nearest_offset,
+    conservative_ceiling,
     match_nearest_point,
     match_tolerance,
     new_levelling_state,
@@ -1231,6 +1232,15 @@ class LevellingCoreMixin:
             else:
                 # A degenerate hull is a measured line or point, not a filled rectangle.
                 footprint = MultiPoint([(p[0], p[1]) for p in map_points]).convex_hull
+            # A provable ceiling of the map, for the XY plane of a canned cycle:
+            # the segment between 2 holes must be cleared, not only its ends.
+            grid_data = getattr(self, '_al_grid', None) if al_method in ('b', 'c') else None
+            ceiling = conservative_ceiling(
+                points=map_points, grid_data=grid_data,
+                bicubic=(al_method == 'c' and grid_data is not None
+                         and bicubic_supported(grid_data)))
+            if ceiling is not None:
+                state['map_ceiling'] = ceiling / text_factor
             offset_fn = self._al_offset_fn
 
             def coverage_offset(x, y):
@@ -1301,7 +1311,9 @@ class LevellingCoreMixin:
         if state['cycles'] > 0:
             self.app.inform.emit(
                 '[WARNING_NOTCL] %s: %d' %
-                (_("Canned cycle moves (G73, G76, G81..G89) were not height-compensated"), state['cycles'])
+                (_("Canned cycle moves or parameters that are not supported (G73, G76, G84..G89, "
+                   "another plane, missing or invalid R, Z, Q, P or feed, a repetition) "
+                   "were not height-compensated"), state['cycles'])
             )
 
         if state['cutter'] > 0:

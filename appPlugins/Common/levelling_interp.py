@@ -252,6 +252,65 @@ def nearest_offset(points, x, y):
     return best_z
 
 
+def _bicubic_control_bounds(grid_data):
+    """
+    :return: (min, max) of the Catmull-Rom Bezier control values of every
+        X-direction piece of the grid, or (None, None) for an empty grid.
+        The spline stays inside the convex hull of these values (also at the
+        borders, where _neighbours() extrapolates a missing value).
+    """
+    xs, _ys, grid = grid_data
+    low = high = None
+    for row in grid:
+        for i in range(len(xs) - 1):
+            p0, p1, p2, p3 = _neighbours(row, i)
+            for value in (p1, p1 + (p2 - p0) / 6.0, p2 - (p3 - p1) / 6.0, p2):
+                if low is None or value < low:
+                    low = value
+                if high is None or value > high:
+                    high = value
+    return low, high
+
+
+def conservative_ceiling(points=None, grid_data=None, bicubic=False):
+    """
+    Return a provable upper bound of the interpolated height over the whole
+    map, or None if there is no map data.
+
+    The bound is used for the XY plane of an expanded canned cycle: every
+    point of the segment between 2 holes must be cleared, so a bound that is
+    only sampled at the ends (or at a few points) is not enough.
+
+    - nearest point: the highest probe point (the nearest height is always
+      the height of 1 of the points);
+    - bilinear: the highest grid value (a bilinear patch is monotone along
+      each axis, so its maximum over a cell is at a corner);
+    - bicubic (Catmull-Rom): the spline stays inside the convex hull of its
+      Bezier control values. The Y direction can go past the highest X
+      control by at most 1/3 of their range (also with the border
+      extrapolation of _neighbours()), so half the range is a safe margin.
+
+    :param points: list of (x, y, height) probe points, or None.
+    :param grid_data: (xs, ys, grid) as returned by build_bilinear_grid, or None.
+    :param bicubic: True if bicubic_offset() is the interpolation in use.
+    :return: a float upper bound, or None.
+    """
+    if grid_data is not None:
+        xs, _ys, grid = grid_data
+        values = [value for row in grid for value in row]
+        if not values:
+            return None
+        if bicubic:
+            low, high = _bicubic_control_bounds(grid_data)
+            if high is None:
+                return None
+            return high + (high - low) / 2.0
+        return max(values)
+    if points:
+        return max(point[2] for point in points)
+    return None
+
+
 def parse_height_map_line(line):
     """
     Parse 1 row of a probe file written by a CNC controller.
@@ -345,6 +404,8 @@ _MOTION_G_CODES = (0.0, 1.0, 2.0, 3.0)
 # move until a real G0/G1/G2/G3 is seen again.
 _MOTION_NO_LEVEL_G_CODES = (31.0, 38.2, 38.3, 38.4, 38.5, 73.0, 76.0, 80.0,
                             81.0, 82.0, 83.0, 84.0, 85.0, 86.0, 87.0, 88.0, 89.0)
+# G81/G82/G83 are expanded by _level_cycle(); the other canned cycles above are
+# not supported and are counted in state['cycles'].
 # Non-modal (one-shot) codes: their X/Y/Z words are not moves to work
 # coordinates (machine-coordinate move, coordinate-system offset, ...),
 # so they must not update the modal X/Y/Z state, and the line itself is
@@ -363,9 +424,18 @@ _MODAL_SETTING_G_CODES = (17.0, 18.0, 19.0, 20.0, 21.0, 40.0, 49.0, 54.0, 55.0, 
 # frame of the probing (the units and the coordinate system), see _note_frame_words().
 _UNITS_BY_G = {20.0: 20, 21.0: 21, 70.0: 20, 71.0: 21}
 _WCS_G_CODES = (54.0, 55.0, 56.0, 57.0, 58.0, 59.0, 59.1, 59.2, 59.3)
-# Canned cycles (peck, drill, tap, bore; LinuxCNC G76 threading): their Z and R
-# words are not compensated, and the Z after the cycle is the retract level.
+# Canned cycles (peck, drill, tap, bore; LinuxCNC G76 threading). G81/G82/G83
+# are expanded into explicit motions (see _level_cycle()); the others are not
+# compensated and are counted in state['cycles'].
 _CANNED_CYCLE_G_CODES = (73.0, 76.0, 81.0, 82.0, 83.0, 84.0, 85.0, 86.0, 87.0, 88.0, 89.0)
+# Canned cycles supported by the expansion: drill, dwell and peck.
+_SUPPORTED_CYCLE_G_CODES = (81.0, 82.0, 83.0)
+# Letters a supported canned cycle block may carry; L (repetitions) is not one.
+_CYCLE_BLOCK_LETTERS = frozenset('GXYZRQPFN')
+# The upper bound on the pecks of 1 G83 hole (a tiny Q can not make an endless program).
+_CYCLE_MAX_PECKS = 10000
+# The return-level words of a canned cycle: G98 initial plane, G99 R plane.
+_CYCLE_RETURN_G_CODES = (98.0, 99.0)
 # G codes that do not move the machine and that need nothing more than their
 # own rules: dwell, stored positions, tool length, offsets, scale, rotation,
 # subprogram call, exact path, feed and spindle modes, canned cycle return level.
@@ -397,7 +467,9 @@ _ARC_FULL_CIRCLE_EPS = 5e-7
 # Modal keys that an optional (block delete) line can change; after such a line
 # each changed key is unknown (None), because the controller may skip the line.
 _BLOCK_DELETE_MODAL_KEYS = ('abs', 'plane', 'arc_abs', 'inverse_feed', 'G', 'units', 'wcs',
-                            'cutter_comp', 'cycle')
+                            'cutter_comp', 'cycle', 'cycle_code', 'cycle_return', 'cycle_r',
+                            'cycle_z', 'cycle_q', 'cycle_p', 'cycle_initial_z', 'cycle_initial_phys',
+                            'feed')
 # Cutter radius compensation on (G41/G42, dynamic G41.1/G42.1): the tool moves
 # off the programmed X/Y by its radius, so the map is read at the wrong point.
 _CUTTER_COMP_G_CODES = (41.0, 41.1, 42.0, 42.1)
@@ -442,7 +514,8 @@ def new_levelling_state(arc_segment=1.0, units=None, map_bounds=None, home_wcs=N
         position, the distance mode or the motion mode was unknown) and
         `frame` (G1 moves that were not compensated because they are in
         another WCS or in other units, or after a change of the work origin),
-        `cutter` (G1 moves under G41/G42) and `cycles` (canned cycle moves),
+        `cutter` (G1 moves under G41/G42) and `cycles` (canned cycle blocks or
+        parameters that are not supported, so they were not compensated),
         so the caller can warn/report on them.
     :raises ValueError: if `arc_segment` is not > 0.
     """
@@ -472,6 +545,15 @@ def new_levelling_state(arc_segment=1.0, units=None, map_bounds=None, home_wcs=N
     # cutter_comp: True under G41/G42 (None when unknown); cutter: G1 moves not
     #   compensated because of it
     # cycle: True while a canned cycle is the motion mode (None when unknown)
+    # cycle_code: 81, 82 or 83 for a supported cycle, the G number of an
+    #   unsupported cycle, or None when no cycle is active
+    # cycle_return: 98 (initial plane) or 99 (R plane), None when unknown
+    # cycle_r/cycle_z/cycle_q/cycle_p: the last resolved (absolute) cycle values
+    # cycle_initial_z: the programmed absolute Z of the initial plane of the active cycle
+    # cycle_initial_phys: the machine Z of the initial plane, where the cycle started
+    # map_ceiling: a provable upper bound of the height map over the whole map, or None;
+    #   it lets an expanded cycle clear every point of an XY segment, not just its ends
+    # feed: the modal F value, None when it is not known or not positive
     # z_ref: the map height of the point where a Z zero change set the Z reference
     #   (minus the new Z value), subtracted from every offset; 0.0 at the start
     # probe_xy: the X/Y of the last contact probe move, until the next line that moves
@@ -482,8 +564,12 @@ def new_levelling_state(arc_segment=1.0, units=None, map_bounds=None, home_wcs=N
             'unknown': 0, 'g_unknown': False, 'frame': 0,
             'home_units': home_units, 'units': home_units, 'home_wcs': None, 'wcs': None,
             'moved': False, 'shifted': False, 'cutter_comp': False, 'cutter': 0,
-            'cycle': False, 'cycles': 0, 'z_ref': 0.0, 'probe_xy': None,
-            'map_bounds': tuple(map_bounds) if map_bounds is not None else None}
+            'cycle': False, 'cycle_code': None, 'cycle_return': 98.0, 'cycle_r': None,
+            'cycle_z': None, 'cycle_q': None, 'cycle_p': None, 'cycle_initial_z': None,
+            'cycle_initial_phys': None,
+            'cycles': 0, 'feed': None, 'z_ref': 0.0, 'probe_xy': None,
+            'map_bounds': tuple(map_bounds) if map_bounds is not None else None,
+            'map_ceiling': None}
     if home_wcs is not None:
         state['home_wcs'] = home_wcs
         state['wcs'] = home_wcs
@@ -588,6 +674,10 @@ def _note_modal_settings(state, g_words):
             state['inverse_feed'] = True
         elif g == 94.0:
             state['inverse_feed'] = False
+        elif g == 98.0:
+            state['cycle_return'] = 98.0
+        elif g == 99.0:
+            state['cycle_return'] = 99.0
 
 
 def _lose_axes(state, axes):
@@ -1044,6 +1134,314 @@ def level_gcode_line(line, state, offset_fn, decimals=4):
     return out
 
 
+def _level_cycle(line, info, state, offset_fn, decimals, start, was_known, absolute,
+                 cycle_was, cycle_code_was):
+    """
+    Expand a supported G81/G82/G83 canned cycle block into explicit motions,
+    height-compensating every feed, or leave it unchanged and count it in
+    ``state['cycles']`` when the block is not supported.
+
+    The expansion keeps the hole order, the depth, the feed, the dwell of G82,
+    the pecks of G83 and the line lead (N word). Every Z of the cycle is a
+    physical plane: the R plane and the depth get the height of the hole, and
+    the G98 initial plane is the captured physical Z where the cycle started
+    (raised when a higher surface at a hole needs more than the R clearance).
+    A G83 re-entry rapids to the bottom of the previous peck, never below it.
+    Before a move in X/Y the tool lifts to a plane that clears the whole
+    segment at the map ceiling of `state['map_ceiling']`; when that ceiling is
+    not known the block is rejected rather than expanded with a guessed
+    clearance. Only G81/G82/G83 in G17, in the frame of the height map, with a
+    known start point and Z offset, positive feed (and Q for G83, P for G82)
+    are expanded; everything else is rejected before any new output is
+    produced.
+
+    :param line: original line.
+    :param info: parsed words of the line, as made by level_gcode_line.
+    :param state: modal state dict; mutated in place.
+    :param offset_fn: callable (x, y) -> height offset.
+    :param decimals: number of decimals of the output.
+    :param start: (x, y, z) before the line.
+    :param was_known: True if X, Y and Z were all known before the line.
+    :param absolute: True for G90, False for G91, None if unknown.
+    :param cycle_was: True if a supported cycle was active before the line.
+    :param cycle_code_was: the cycle code active before the line.
+    :return: the expanded text (lines joined with a newline) or the original line.
+    """
+    def reject():
+        state['cycles'] += 1
+        state['G'] = None
+        state['cycle'] = None
+        state['applied'] = None
+        for axis in ('X', 'Y'):
+            value = info['words'].get(axis)
+            if value is None:
+                continue
+            if absolute is True:
+                state[axis] = float(value)
+                state['known'].add(axis)
+            else:
+                _lose_axes(state, [axis])
+        _lose_axes(state, ['Z'])
+        return line
+
+    cycle_gs = [g for g in info['g_words'] if g in _SUPPORTED_CYCLE_G_CODES]
+    if len(cycle_gs) > 1:
+        return reject()
+    explicit = bool(cycle_gs)
+    cycle_code = cycle_gs[-1] if explicit else state['cycle_code']
+    if cycle_code not in _SUPPORTED_CYCLE_G_CODES:
+        return reject()
+
+    # only the plain G17 cycle of the map frame, from a known point, is expanded
+    if (_BLOCK_DELETE_RE.match(line) or not was_known or absolute is None
+            or not _in_frame(state) or state['cutter_comp'] is not False
+            or state['plane'] != 17 or state['inverse_feed'] is not False
+            or (absolute is False and state['applied'] is None)):
+        return reject()
+    if not info['letters'] <= _CYCLE_BLOCK_LETTERS:
+        return reject()
+    allowed_gs = set(_SUPPORTED_CYCLE_G_CODES) | set(_MODAL_SETTING_G_CODES) | set(_CYCLE_RETURN_G_CODES)
+    if any(g not in allowed_gs for g in info['g_words']):
+        return reject()
+    if 98.0 in info['g_words'] and 99.0 in info['g_words']:
+        return reject()
+
+    # F is modal: a block without F uses the feed set by an earlier line
+    feed_word = info['words'].get('F')
+    if feed_word is not None and (not math.isfinite(feed_word) or feed_word <= 0):
+        return reject()
+    if state['feed'] is None or not math.isfinite(state['feed']) or state['feed'] <= 0:
+        return reject()
+
+    # the physical start Z is part of the modal state: without it a G98
+    # initial plane would be a guess (fail closed)
+    if state['applied'] is None or not math.isfinite(state['applied']):
+        return reject()
+    new_cycle = explicit and not (cycle_was is True and cycle_code_was == cycle_code)
+    if new_cycle:
+        if start[2] is None or not math.isfinite(start[2]):
+            return reject()
+        initial_z = start[2]
+        initial_phys = start[2] + state['applied']
+        if 'R' not in info['words'] or 'Z' not in info['words']:
+            return reject()
+        state['cycle_r'] = state['cycle_z'] = state['cycle_q'] = state['cycle_p'] = None
+    else:
+        initial_z = state['cycle_initial_z']
+        if initial_z is None:
+            initial_z = start[2]
+        if initial_z is None or not math.isfinite(initial_z):
+            return reject()
+        initial_phys = state.get('cycle_initial_phys')
+        if initial_phys is None or not math.isfinite(initial_phys):
+            return reject()
+
+    r_word = info['words'].get('R')
+    z_word = info['words'].get('Z')
+    if r_word is not None:
+        if not math.isfinite(r_word):
+            return reject()
+        r_abs = r_word if absolute else initial_z + r_word
+    else:
+        r_abs = state['cycle_r']
+    if z_word is not None:
+        if not math.isfinite(z_word):
+            return reject()
+        z_abs = z_word if absolute else r_abs + z_word
+    else:
+        z_abs = state['cycle_z']
+    if (r_abs is None or z_abs is None or not math.isfinite(r_abs)
+            or not math.isfinite(z_abs) or z_abs >= r_abs):
+        return reject()
+
+    q_word = info['words'].get('Q')
+    p_word = info['words'].get('P')
+    if cycle_code in (81.0, 82.0) and q_word is not None:
+        return reject()
+    if cycle_code in (81.0, 83.0) and p_word is not None:
+        return reject()
+    if q_word is not None:
+        if not math.isfinite(q_word) or q_word <= 0:
+            return reject()
+        q_abs = q_word
+    else:
+        q_abs = state['cycle_q']
+    if cycle_code == 83.0 and (q_abs is None or not math.isfinite(q_abs) or q_abs <= 0):
+        return reject()
+    if p_word is not None:
+        if not math.isfinite(p_word) or p_word < 0:
+            return reject()
+        p_val = p_word
+    else:
+        p_val = state['cycle_p']
+    if cycle_code == 82.0 and (p_val is None or not math.isfinite(p_val) or p_val < 0):
+        return reject()
+
+    retract_mode = state['cycle_return']
+    if retract_mode not in _CYCLE_RETURN_G_CODES:
+        return reject()
+    if retract_mode == 98.0 and initial_z < r_abs:
+        return reject()
+
+    x_word = info['words'].get('X')
+    y_word = info['words'].get('Y')
+    if x_word is not None and not math.isfinite(x_word):
+        return reject()
+    if y_word is not None and not math.isfinite(y_word):
+        return reject()
+    if absolute:
+        x = x_word if x_word is not None else state['X']
+        y = y_word if y_word is not None else state['Y']
+    else:
+        if state['X'] is None or state['Y'] is None:
+            return reject()
+        x = state['X'] + x_word if x_word is not None else state['X']
+        y = state['Y'] + y_word if y_word is not None else state['Y']
+    if x is None or y is None or not math.isfinite(x) or not math.isfinite(y):
+        return reject()
+
+    if cycle_code == 83.0:
+        pecks = int(math.ceil((r_abs - z_abs) / q_abs - 1e-9))
+        if pecks > _CYCLE_MAX_PECKS:
+            return reject()
+
+    hole_offset = offset_fn(x, y)
+    if not math.isfinite(hole_offset):
+        return reject()
+    r_phys = r_abs + hole_offset
+    if retract_mode == 98.0:
+        # G98 returns to the captured physical initial plane; lift it when a
+        # higher surface at this hole would leave less than the R clearance
+        retract_phys = max(initial_phys, r_phys)
+    else:
+        retract_phys = r_phys
+
+    actual_start = start[2] + state['applied']
+    # the XY segment of a hole is crossed at a plane that clears the whole
+    # segment, not only its 2 ends: the caller must give a provable ceiling
+    if abs(x - start[0]) > 0 or abs(y - start[1]) > 0:
+        ceiling = state.get('map_ceiling')
+        if ceiling is None or not math.isfinite(ceiling):
+            return reject()
+        travel_phys = max(actual_start, ceiling - (state.get('z_ref') or 0.0) + r_abs)
+    else:
+        travel_phys = actual_start
+
+    state['cycle_initial_z'] = initial_z
+    state['cycle_initial_phys'] = initial_phys
+    state['cycle_r'] = r_abs
+    state['cycle_z'] = z_abs
+    state['cycle_q'] = q_abs
+    state['cycle_p'] = p_val
+
+    lines = []
+    first_feed = [None]
+    cur_x, cur_y = start[0], start[1]
+    actual_z = actual_start
+
+    def rapid_z(target):
+        nonlocal actual_z
+        target = float(_fmt(target, decimals))
+        if abs(target - actual_z) < 0.5 * 10 ** -decimals:
+            actual_z = target
+            return
+        if absolute:
+            actual_z = target
+            lines.append('G0 Z%s' % _fmt(target, decimals))
+        else:
+            step = float(_fmt(target - actual_z, decimals))
+            if step == 0:
+                return
+            actual_z += step
+            lines.append('G0 Z%s' % _fmt(step, decimals))
+
+    def rapid_xy(target_x, target_y):
+        nonlocal cur_x, cur_y
+        target_x = float(_fmt(target_x, decimals))
+        target_y = float(_fmt(target_y, decimals))
+        if absolute:
+            if target_x == cur_x and target_y == cur_y:
+                return
+            x_text, y_text = _fmt(target_x, decimals), _fmt(target_y, decimals)
+            cur_x, cur_y = target_x, target_y
+        else:
+            dx = float(_fmt(target_x - cur_x, decimals))
+            dy = float(_fmt(target_y - cur_y, decimals))
+            if dx == 0 and dy == 0:
+                return
+            x_text, y_text = _fmt(dx, decimals), _fmt(dy, decimals)
+            cur_x, cur_y = cur_x + dx, cur_y + dy
+        lines.append('G0 X%s Y%s' % (x_text, y_text))
+
+    def feed_z(target):
+        nonlocal actual_z
+        desired = float(_fmt(target + hole_offset, decimals))
+        if absolute:
+            if desired == actual_z:
+                return
+            actual_z = desired
+            lines.append('G1 Z%s' % _fmt(desired, decimals))
+        else:
+            step = float(_fmt(desired - actual_z, decimals))
+            if step == 0:
+                return
+            actual_z += step
+            lines.append('G1 Z%s' % _fmt(step, decimals))
+        if first_feed[0] is None:
+            first_feed[0] = len(lines) - 1
+
+    # lift to a plane that also clears the segment, then go to the hole and
+    # down to its R plane; the full retract clears the mapped surface
+    rapid_z(travel_phys)
+    rapid_xy(x, y)
+    rapid_z(r_phys)
+
+    if cycle_code in (81.0, 82.0):
+        feed_z(z_abs)
+    else:
+        depth = r_abs
+        while depth > z_abs + 1e-12:
+            next_depth = max(depth - q_abs, z_abs)
+            feed_z(next_depth)
+            cut_actual = actual_z
+            if next_depth > z_abs + 1e-12:
+                # G83 retracts to the R plane between pecks, then rapids back
+                # to the bottom of the previous peck (never below it).
+                rapid_z(r_phys)
+                rapid_z(cut_actual)
+            depth = next_depth
+    if cycle_code == 82.0:
+        lines.append('G4 P%s' % _fmt(p_val, decimals))
+    rapid_z(retract_phys)
+
+    if not lines:
+        # every motion of the block rounds away: make the expansion explicit
+        # anyway, so the controller never runs the raw (uncompensated) cycle
+        lines.append('G0 Z%s' % _fmt(actual_z if absolute else 0.0, decimals))
+
+    state['X'] = cur_x
+    state['Y'] = cur_y
+    # keep the programmed/physical relation: machine Z = programmed Z + applied
+    programmed_retract = initial_z if retract_mode == 98.0 else r_abs
+    state['Z'] = programmed_retract
+    state['applied'] = actual_z - programmed_retract
+    state['G'] = None
+    state['cycle'] = True
+    state['cycle_code'] = int(cycle_code)
+
+    head = [text for g, text in zip(info['g_words'], info['g_texts'])
+            if g not in _SUPPORTED_CYCLE_G_CODES and g not in _CYCLE_RETURN_G_CODES]
+    head.append(lines[0])
+    lead = info.get('lead', '')
+    lines[0] = lead + ' '.join(head) if lead else ' '.join(head)
+    if info['f_text'] and first_feed[0] is not None:
+        lines[first_feed[0]] += ' ' + info['f_text']
+    comment = _comment_text(line)
+    if comment:
+        lines[0] += ' ' + comment
+    return '\n'.join(lines)
+
+
 def _level_line(line, state, offset_fn, decimals):
     """
     Apply height-map compensation to 1 line of G-code, modally tracking
@@ -1069,8 +1467,17 @@ def _level_line(line, state, offset_fn, decimals):
     _note_z_zero()); any other Z zero change of the map WCS (also G10 L2 Z and
     G52 Z) puts the rest of the program out of the frame. G70/G71 are units
     words, Mach3 "G59 P<n>" and Fanuc "G54.1 P<n>" are coordinate systems. A
-    canned cycle move (G73, G76, G81..G89, also a bare hole under a modal cycle)
-    is not changed and is counted in `state['cycles']`. A G code that the tool
+    supported canned cycle (G81, G82, G83, also a bare hole under a modal
+    supported cycle) in G17 and in the map frame is expanded into explicit
+    motions, with every feed height-compensated and every XY move at or above
+    the cycle's retract plane (G98 initial plane, G99 R plane); its repeats,
+    G80 and any other motion-group word cancel it. Return-mode words are consumed
+    by this cycle-expanding API, including standalone settings, not sent to GRBL.
+    A canned cycle or a cycle
+    parameter that is not supported (G73, G76, G84..G89, another plane, a
+    missing/invalid R, Z, Q or P, a bad feed, a repetition L, or a cycle block
+    that mixes a motion code) is not changed and is counted in
+    `state['cycles']`. A G code that the tool
     does not know makes the position and the motion mode unknown. An axis word
     of a line that is not a G0..G3 move (a probe, G43.1 Z, ...) makes its axis
     unknown, and G43/G49 make Z unknown. A G1 move with X/Y/Z
@@ -1141,7 +1548,8 @@ def _level_line(line, state, offset_fn, decimals):
     x_val = y_val = z_val = None
     z_match = None
     g_words = []
-    info = {'words': {}, 'letters': set(), 'g_words': g_words, 'g_texts': [], 'f_text': None}
+    info = {'words': {}, 'letters': set(), 'g_words': g_words, 'g_texts': [], 'f_text': None,
+            'lead': _LINE_LEAD_RE.match(masked).group(0)}
 
     for m in _WORD_RE.finditer(masked):
         letter, num = m.group(1), m.group(2)
@@ -1161,6 +1569,10 @@ def _level_line(line, state, offset_fn, decimals):
             info['f_text'] = 'F' + num
 
     has_xyz = x_val is not None or y_val is not None or z_val is not None
+
+    if 'F' in info['words']:
+        feed_value = info['words']['F']
+        state['feed'] = feed_value if math.isfinite(feed_value) and feed_value > 0 else None
 
     _note_modal_settings(state, g_words)
     unparsed = _unparsed_text(masked)
@@ -1264,8 +1676,28 @@ def _level_line(line, state, offset_fn, decimals):
         _lose_axes(state, ['X', 'Y', 'Z'])
         return line
 
+    return_gs = [g for g in g_words if g in _CYCLE_RETURN_G_CODES]
+    if return_gs and info['letters'] <= {'G', 'N', 'F'} and all(
+            g in _CYCLE_RETURN_G_CODES or g in _MODAL_SETTING_G_CODES for g in g_words):
+        if len(return_gs) != 1 or _BLOCK_DELETE_RE.match(line):
+            state['cycles'] += 1
+            state['cycle_return'] = None
+            return line
+        # Only consume a plain cycle-return setting; leave unrelated commands
+        # and unsupported blocks intact so strict levelling can reject them.
+        for match in reversed(list(_WORD_RE.finditer(masked))):
+            if match.group(1) == 'G' and float(match.group(2)) in _CYCLE_RETURN_G_CODES:
+                line = line[:match.start()] + line[match.end():]
+        return line
+
     if non_modal_gs:
-        # One-shot code: X/Y/Z here are not work-coordinate moves.
+        # One-shot code: X/Y/Z here are not work-coordinate moves. A motion or
+        # a coordinate change also ends a canned cycle (the next bare hole is
+        # not a continuation of it).
+        state['cycle'] = False
+        state['cycle_code'] = None
+        state['cycle_initial_z'] = None
+        state['cycle_r'] = state['cycle_z'] = state['cycle_q'] = state['cycle_p'] = None
         moved = [axis for axis, value in [('X', x_val), ('Y', y_val), ('Z', z_val)]
                  if value is not None]
         if 53.0 in non_modal_gs:
@@ -1303,15 +1735,40 @@ def _level_line(line, state, offset_fn, decimals):
         and g not in _MODAL_SETTING_G_CODES
     ]
 
+    cycle_was = state['cycle'] is True
+    cycle_code_was = state['cycle_code']
+    supported_cycle_gs = [g for g in g_words if g in _SUPPORTED_CYCLE_G_CODES]
+    unsupported_cycle_gs = [g for g in g_words if g in _CANNED_CYCLE_G_CODES
+                            and g not in _SUPPORTED_CYCLE_G_CODES]
+    cycle_gs = supported_cycle_gs + unsupported_cycle_gs
+    mixed_cycle = (len(cycle_gs) > 1
+                   or (cycle_gs and (motion_gs or any(
+                       g in _MOTION_NO_LEVEL_G_CODES and g not in _CANNED_CYCLE_G_CODES
+                       for g in no_level_gs))))
+    if mixed_cycle:
+        state['cycles'] += 1
+        state['G'] = None
+        state['cycle'] = None
+        state['applied'] = None
+        _lose_axes(state, ['X', 'Y', 'Z'])
+        return line
+
     is_non_motion_cmd = False
     if motion_gs or no_level_gs:
         state['g_unknown'] = False
     if motion_gs:
         state['G'] = int(motion_gs[-1])
         state['cycle'] = False
+        state['cycle_code'] = None
+        state['cycle_initial_z'] = None
+        state['cycle_r'] = state['cycle_z'] = state['cycle_q'] = state['cycle_p'] = None
     elif no_level_gs:
         state['G'] = None
         state['cycle'] = no_level_gs[-1] in _CANNED_CYCLE_G_CODES
+        state['cycle_code'] = no_level_gs[-1] if state['cycle'] else None
+        if not state['cycle']:
+            state['cycle_initial_z'] = None
+            state['cycle_r'] = state['cycle_z'] = state['cycle_q'] = state['cycle_p'] = None
         is_non_motion_cmd = True
     elif other_gs:
         is_non_motion_cmd = True
@@ -1325,6 +1782,9 @@ def _level_line(line, state, offset_fn, decimals):
         if unknown_gs:
             state['G'] = None
             state['g_unknown'] = True
+            # an unknown code can be a motion or a cycle change: no hole after it
+            # is a continuation of the cycle that was active before it
+            state['cycle'] = None
         if has_xyz or any(letter in info['words'] for letter in 'IJKR'):
             if state['cycle'] is not False:
                 state['cycles'] += 1
@@ -1332,9 +1792,17 @@ def _level_line(line, state, offset_fn, decimals):
                 state['unknown'] += 1
         return line
 
+    if (state['cycle'] is True and state['cycle_code'] in _SUPPORTED_CYCLE_G_CODES
+            and not motion_gs and not unparsed and not unknown_gs
+            and (supported_cycle_gs or has_xyz or 'R' in info['words']
+                 or 'Q' in info['words'] or 'P' in info['words'])):
+        return _level_cycle(line, info, state, offset_fn, decimals,
+                            (state['X'], state['Y'], state['Z']), _all_known(state),
+                            state['abs'], cycle_was, cycle_code_was)
+
     if state['cycle'] is not False and not motion_gs and (has_xyz or 'R' in info['words']):
-        # A canned cycle (also a bare "X5 Y5" hole under a modal G81): its depth is
-        # not compensated, and the Z after it is the retract level.
+        # An unsupported canned cycle (also a bare "X5 Y5" hole under it): its
+        # depth is not compensated, and the Z after it is the retract level.
         state['cycles'] += 1
         for axis, value in (('X', x_val), ('Y', y_val)):
             if value is not None and state['abs'] is True:

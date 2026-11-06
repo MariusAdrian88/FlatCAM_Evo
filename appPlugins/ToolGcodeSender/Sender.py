@@ -435,6 +435,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     console_line_sig = QtCore.pyqtSignal(str)
     preview_ready_sig = QtCore.pyqtSignal(object)
     probe_finished_sig = QtCore.pyqtSignal(object, object)
+    # a complete directional-probe result, from a worker
+    edge_probe_result_sig = QtCore.pyqtSignal(object)
     simulation_event_sig = QtCore.pyqtSignal(object, str, object)
     ecut_tool_change_sig = QtCore.pyqtSignal(object, int, object)
     ecut_motion_result_sig = QtCore.pyqtSignal(object)
@@ -685,6 +687,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self.console_line_sig.connect(lambda line: self._console().append(line))
             self.preview_ready_sig.connect(self._on_preview_ready)
             self.probe_finished_sig.connect(self._on_probe_finished)
+            self.edge_probe_result_sig.connect(self._on_edge_probe_result)
             self.app.collection.rowsInserted.connect(self._select_available_excellon)
             self.app.collection.rowsRemoved.connect(self._select_available_excellon)
             self.app.collection.modelReset.connect(self._select_available_excellon)
@@ -768,6 +771,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self.ui.grbl_get_heightmap_button.clicked.connect(self.on_grbl_autolevel)
         self.ui.stop_probing_button.clicked.connect(self.on_grbl_stop)
         self.ui.grbl_save_height_map_button.clicked.connect(self.on_grbl_heightmap_save)
+        self.ui.edge_probe_button.clicked.connect(self.on_grbl_edge_probe)
+        self.ui.edge_center_button.clicked.connect(self.on_grbl_center_probe)
 
         # Reset Tool
         self.ui.reset_button.clicked.connect(self.on_reset_tool)
@@ -2764,9 +2769,129 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         return ToolChangeSettings.from_options(self.app.options, units=str(self.units).upper())
 
     def _toolchange_levelling_active(self):
-        """An active or loaded height map binds the frame to the old tool length."""
+        """True if a height map (bound, imported or in progress) is present."""
         return bool(self.__dict__.get('al_heights_valid', False) or
-                    self.__dict__.get('_al_map_frame', None) is not None)
+                    self.__dict__.get('_al_map_frame', None) is not None or
+                    self.__dict__.get('_al_map_imported', False))
+
+    def _toolchange_map_state(self, units):
+        """
+        :return: None if no height map is present, else {'ok', 'reason', 'frame'}.
+            A map is provably usable when it was probed in this application, bound to a
+            known frame, complete, and in the application units. An imported map or a
+            map without a bound frame has no verified provenance and is refused.
+        """
+        frame = self.__dict__.get('_al_map_frame')
+        valid = bool(self.__dict__.get('al_heights_valid', False))
+        imported = bool(self.__dict__.get('_al_map_imported', False))
+        if not valid and frame is None and not imported:
+            return None
+        if not valid or not self._height_map_is_complete():
+            return {'ok': False, 'reason': 'map_incomplete', 'frame': frame}
+        if imported or frame is None:
+            return {'ok': False, 'reason': 'map_provenance', 'frame': frame}
+        if str(self.__dict__.get('_al_data_units') or '').upper() != str(units).upper():
+            return {'ok': False, 'reason': 'map_units', 'frame': frame}
+        try:
+            if (len(frame) != 3 or len(frame[1]) != 3 or
+                    not all(math.isfinite(float(value)) for value in frame[1])):
+                raise ValueError('invalid frame')
+        except (TypeError, ValueError):
+            return {'ok': False, 'reason': 'map_provenance', 'frame': None}
+        return {'ok': True, 'reason': None, 'frame': frame}
+
+    @staticmethod
+    def _toolchange_frame_epsilon(report_inches, scale):
+        return 2.0 * (0.0001 if report_inches else 0.001) * scale + 0.00005
+
+    def _toolchange_map_matches_reference(self, frame, reference, units):
+        """Compare a bound map frame (raw report units) with the fixed-plate reference (app units)."""
+        if not frame or not reference or 'report_inches' not in reference:
+            return False
+        report_inches = bool(frame[2])
+        if str(frame[0]) != str(reference.get('wcs')):
+            return False
+        if reference['report_inches'] is None or report_inches != bool(reference['report_inches']):
+            return False
+        scale = grbl_report_scale(units, report_inches)
+        epsilon = self._toolchange_frame_epsilon(report_inches, scale)
+        return all(abs(float(raw) * scale - float(reference[key])) <= epsilon
+                   for raw, key in zip(frame[1], ('offset_x', 'offset_y', 'offset_z')))
+
+    @staticmethod
+    def _toolchange_map_matches_live(frame, map_frame):
+        """Compare a bound map frame (raw report units) with a fresh _toolchange_frame()."""
+        if not map_frame or frame is None:
+            return False
+        if str(map_frame[0]) != str(frame['wcs']) or bool(map_frame[2]) != bool(frame['report_inches']):
+            return False
+        return all(abs(float(raw) * frame['scale'] - app) <= frame['epsilon']
+                   for raw, app in zip(map_frame[1], frame['offset']))
+
+    def _toolchange_map_unchanged(self, context):
+        """The map captured when the operation started must not change under it."""
+        return (self.__dict__.get('_al_map_frame') == context.get('map_frame') and
+                bool(self.__dict__.get('_al_map_imported', False)) == context.get('map_imported') and
+                bool(self.__dict__.get('al_heights_valid', False)) == context.get('map_heights_valid') and
+                self.__dict__.get('_al_generation', 0) == context.get('map_generation') and
+                self.__dict__.get('_al_data_units') == context.get('map_units'))
+
+    def _toolchange_invalidate_map(self, frame=None):
+        """Retire the height map (and the levelled job) when its frame can not be proven."""
+        current = self.__dict__.get('_al_map_frame')
+        if frame is not None and current != frame:
+            return False
+        if (current is None and not self.__dict__.get('al_heights_valid', False)
+                and not self.__dict__.get('_al_map_imported', False)):
+            return False
+        self.__dict__['al_heights_valid'] = False
+        self.__dict__['_al_map_frame'] = None
+        self.__dict__['_al_map_imported'] = False
+        self.__dict__['job_map_generation'] = None
+        self._al_bump_generation()
+        self._invalidate_start_requests()
+        try:
+            self._update_3d_height_map()
+        except (AttributeError, RuntimeError):
+            pass  # the Qt view was deleted while the application closes
+        return True
+
+    def _toolchange_reconcile_map(self, old_offset_z, new_offset_z):
+        """
+        Bind the map to a verified fixed-reference tool correction. The surface contact
+        and WCS move by the same tool-length delta: board work heights stay unchanged.
+        """
+        frame = self.__dict__.get('_al_map_frame')
+        if frame is None or not self.__dict__.get('al_heights_valid', False):
+            return False
+        if self._toolchange_mode() != PLATE_FIXED:
+            self._toolchange_invalidate_map(frame)
+            return False
+        units = str(self.units).upper()
+        try:
+            delta = float(new_offset_z) - float(old_offset_z)
+            scale = grbl_report_scale(units, bool(frame[2]))
+            if not math.isfinite(delta) or not math.isfinite(scale) or scale <= 0.0:
+                raise ValueError('invalid offset')
+        except (TypeError, ValueError):
+            self._toolchange_invalidate_map(frame)
+            return False
+        heights = self.__dict__.get('al_voronoi_geo_storage') or {}
+        if not heights or any(
+                not isinstance(value.get('height'), (int, float)) or
+                not math.isfinite(float(value['height'])) for value in heights.values()):
+            self._toolchange_invalidate_map(frame)
+            return False
+        self.__dict__['_al_map_frame'] = (
+            frame[0], (frame[1][0], frame[1][1], frame[1][2] + delta / scale), bool(frame[2]))
+        self.__dict__['job_map_generation'] = None
+        self._al_bump_generation()
+        self._invalidate_start_requests()
+        try:
+            self._update_3d_height_map()
+        except (AttributeError, RuntimeError):
+            pass  # the Qt view was deleted while the application closes
+        return True
 
     def _toolchange_message(self, text, error=False):
         ui = self._toolchange_ui()
@@ -2793,6 +2918,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
     def _toolchange_new_session(self, reason=''):
         """Connect, disconnect, reset or home: a fixed reference and a measurement are old."""
+        was_busy = bool(self.__dict__.get('_toolchange_busy', False))
+        map_frame = self.__dict__.get('_al_map_frame')
         self.__dict__['_toolchange_session_id'] = self.__dict__.get('_toolchange_session_id', 0) + 1
         self.__dict__['_toolchange_request_id'] = self.__dict__.get('_toolchange_request_id', 0) + 1
         self.__dict__['_toolchange_busy'] = False
@@ -2800,9 +2927,16 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         measurement = self.__dict__.get('toolchange')
         if measurement is not None:
             measurement.start_session(self.__dict__['_toolchange_session_id'])
+        invalidated = False
+        has_map = (map_frame is not None or bool(self.__dict__.get('al_heights_valid', False))
+                   or bool(self.__dict__.get('_al_map_imported', False)))
+        if has_map and (was_busy or reason in ('zero', 'disconnect', 'reset')):
+            invalidated = self._toolchange_invalidate_map()
         if reason:
-            self._toolchange_refresh_ui(
-                _("The machine session changed. Measure the tool or calibrate the plate again."), error=True)
+            text = _("The machine session changed. Measure the tool or calibrate the plate again.")
+            if invalidated:
+                text += ' ' + _("The active height map was invalidated. Probe it again.")
+            self._toolchange_refresh_ui(text, error=True)
 
     def _toolchange_settings_changed(self):
         measurement = self.__dict__.get('toolchange')
@@ -2847,6 +2981,17 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             'timeout': _("The tool-change operation timed out. Follow the GRBL recovery message."),
             'port_error': _("The serial port failed. Check the work offset before continuing."),
             'spindle_active': _("Stop the spindle before measuring a tool."),
+            'map_incomplete': _("The height map is incomplete or its heights were invalidated. Probe the map again."),
+            'map_provenance': _(
+                "The height map has no verified machine frame (an imported map, or one made before its frame "
+                "was recorded). It can not be used for a calibrated tool change. Probe the map again."),
+            'map_units': _("The units of the height map do not match the project units. Probe the map again."),
+            'map_removable': _(
+                "A removable plate can reset the board origin and can not preserve an active height map. "
+                "Clear the map, set the board Z zero, then probe the map again."),
+            'map_reference': _(
+                "The height map was made in another WCS or work offset than the fixed plate reference. "
+                "Calibrate the plate and probe the map again in the same reference."),
         }.get(reason, _("The tool-change operation failed: %s") % reason)
 
     def _toolchange_ready(self):
@@ -2868,13 +3013,23 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self._toolchange_message(
                 _("Calibrated tool-change measurement supports stock GRBL only, not E-Cut."), error=True)
             return None
-        if self._toolchange_levelling_active():
-            self._toolchange_message(_(
-                "A levelling height map is active. Clear it, or acquire it again after the tool change."), error=True)
-            return None
         if (str(getattr(self, 'units', '')).upper() not in ('MM', 'IN') or
                 str(self.app.app_units).upper() != str(self.units).upper()):
             self._toolchange_message(_("The application units are not known."), error=True)
+            return None
+        units = str(self.units).upper()
+        map_state = self._toolchange_map_state(units)
+        if map_state is not None and not map_state['ok']:
+            self._toolchange_message(self._toolchange_reason_text(map_state['reason']), error=True)
+            return None
+        if map_state is not None and mode == PLATE_REMOVABLE:
+            self._toolchange_message(self._toolchange_reason_text('map_removable'), error=True)
+            return None
+        measurement = self.__dict__.get('toolchange')
+        if (map_state is not None and mode == PLATE_FIXED and measurement is not None and
+                measurement.reference is not None and
+                not self._toolchange_map_matches_reference(map_state['frame'], measurement.reference, units)):
+            self._toolchange_message(self._toolchange_reason_text('map_reference'), error=True)
             return None
         if self.__dict__.get('_toolchange_busy', False):
             self._toolchange_message(_("A tool-change operation is already running."), error=True)
@@ -2924,7 +3079,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             payload = self._toolchange_probe_worker(op, settings, context, reference)
             payload.update({'kind': 'toolchange', 'action': action, 'request': request,
                             'mode': mode, 'session': session, 'units': units,
-                            'settings': context['settings'], 'generation': op.safety_generation})
+                            'settings': context['settings'], 'generation': op.safety_generation,
+                            'map_frame': context.get('map_frame')})
             self.toolchange_result_sig.emit(payload)
             return False  # the worker already verified Idle, including on its success path
 
@@ -2937,7 +3093,12 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     def _toolchange_context(self, mode, settings, units, session, request):
         return {'mode': mode, 'settings': settings.signature(), 'units': units, 'session': session,
                 'request': request, 'port': self.grbl_ser_port,
-                'stored_units': self.app.options.get('tools_grbl_toolchange_units', 'MM')}
+                'stored_units': self.app.options.get('tools_grbl_toolchange_units', 'MM'),
+                'map_frame': self.__dict__.get('_al_map_frame'),
+                'map_imported': bool(self.__dict__.get('_al_map_imported', False)),
+                'map_heights_valid': bool(self.__dict__.get('al_heights_valid', False)),
+                'map_generation': self.__dict__.get('_al_generation', 0),
+                'map_units': self.__dict__.get('_al_data_units')}
 
     def _toolchange_guard(self, op, context):
         """No widgets: also used under the transaction's Stop lock immediately before a write."""
@@ -2951,7 +3112,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 context['stored_units'] != self.app.options.get('tools_grbl_toolchange_units', 'MM') or
                 context['units'] != str(self.units).upper() or
                 context['units'] != str(self.app.app_units).upper() or
-                self._toolchange_levelling_active() or self._ecut_settings_capable(self.grbl_ser_port)):
+                not self._toolchange_map_unchanged(context) or
+                self._ecut_settings_capable(self.grbl_ser_port)):
             raise _GrblProbeAbort('', '', 'cancelled')
 
     def _toolchange_step(self, op, context, command, timeout=10.0):
@@ -3054,6 +3216,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             step('G4 P0', timeout=10.0)
             frame = self._toolchange_frame(op, context, probe_clear=True)
             machine, offset = frame['machine'], frame['offset']
+            if (context.get('map_frame') is not None and
+                    not self._toolchange_map_matches_live(frame, context['map_frame'])):
+                raise _GrblProbeAbort('$#', '', 'frame_changed')
             if reference is not None:
                 if (reference.get('report_inches') != frame['report_inches'] or
                         reference['wcs'] != frame['wcs'] or any(abs(a - reference[k]) > frame['epsilon']
@@ -3112,10 +3277,10 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                     'not_idle', 'unknown_units', 'already_triggered', 'spindle_active',
                     'unsupported_offsets', 'modes_not_confirmed'):
                 self._toolchange_recovery(op)
-            return dict(evidence, reason=abort.status)
+            return dict(evidence, reason=abort.status, map_may_be_stale=bool(motion_started))
         except (ValueError, TypeError, KeyError, OSError, serial.SerialException):
             self._toolchange_recovery(op)
-            return dict(evidence, reason='probe_invalid')
+            return dict(evidence, reason='probe_invalid', map_may_be_stale=bool(motion_started))
 
     def on_toolchange_apply(self):
         ready = self._toolchange_ready()
@@ -3145,7 +3310,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             payload = self._toolchange_apply_worker(op, wcs, expected, snapshot, context)
             payload.update({'kind': 'toolchange', 'action': 'apply', 'request': request,
                             'mode': mode, 'session': session, 'units': units,
-                            'settings': context['settings'], 'generation': op.safety_generation})
+                            'settings': context['settings'], 'generation': op.safety_generation,
+                            'map_frame': context.get('map_frame')})
             self.toolchange_result_sig.emit(payload)
             return False
 
@@ -3162,6 +3328,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         try:
             frame = self._toolchange_frame(op, context)
             current = frame['offset']
+            if (context.get('map_frame') is not None and
+                    not self._toolchange_map_matches_live(frame, context['map_frame'])):
+                raise _GrblProbeAbort('$#', '', 'frame_changed')
             if (snapshot.get('report_inches') != frame['report_inches'] or wcs != frame['wcs'] or
                     any(abs(a - snapshot[k]) > frame['epsilon'] for a, k in
                         zip(current, ('offset_x', 'offset_y', 'offset_z')))):
@@ -3174,14 +3343,16 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             step(command, timeout=10.0)
             expected = dict(frame, offset=(current[0], current[1], float(expected_offset_z)))
             after = self._toolchange_frame(op, context, expected=expected, position=frame['machine'])
-            return {'ok': True, 'reason': 'ok', 'new_offset_z': after['offset'][2], 'wcs': wcs}
+            return {'ok': True, 'reason': 'ok', 'new_offset_z': after['offset'][2], 'wcs': wcs,
+                    'old_offset_z': float(snapshot['offset_z'])}
         except _GrblProbeAbort as abort:
             if write_attempted:
                 self._toolchange_recovery(op)
-            return {'ok': False, 'reason': 'apply_not_verified' if write_attempted else abort.status}
+            return {'ok': False, 'reason': 'apply_not_verified' if write_attempted else abort.status,
+                    'map_may_be_stale': bool(write_attempted)}
         except (ValueError, TypeError, KeyError, OSError, serial.SerialException):
             self._toolchange_recovery(op)
-            return {'ok': False, 'reason': 'apply_not_verified'}
+            return {'ok': False, 'reason': 'apply_not_verified', 'map_may_be_stale': bool(write_attempted)}
 
     def on_toolchange_acknowledge(self):
         self._toolchange_settings_changed()
@@ -3224,12 +3395,23 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 str(self.app.app_units).upper() != units or
                 self.__dict__.get('_grbl_connected') is False):
             measurement.forget()
-            self._toolchange_refresh_ui(
-                _("The answer is stale: the mode, the settings, the units or the session changed."), error=True)
+            invalidated = (bool(payload.get('map_may_be_stale')) and
+                           payload.get('map_frame') is not None and
+                           self._toolchange_invalidate_map(payload.get('map_frame')))
+            text = _("The answer is stale: the mode, the settings, the units or the session changed.")
+            if invalidated:
+                text += ' ' + _("The active height map was invalidated. Probe it again.")
+            self._toolchange_refresh_ui(text, error=True)
             return
         if not payload.get('ok'):
             measurement.forget()
-            self._toolchange_refresh_ui(self._toolchange_reason_text(payload.get('reason')), error=True)
+            invalidated = (bool(payload.get('map_may_be_stale')) and
+                           payload.get('map_frame') is not None and
+                           self._toolchange_invalidate_map(payload.get('map_frame')))
+            text = self._toolchange_reason_text(payload.get('reason'))
+            if invalidated:
+                text += ' ' + _("The active height map was invalidated. Probe it again.")
+            self._toolchange_refresh_ui(text, error=True)
             return
 
         action = payload.get('action')
@@ -3259,14 +3441,29 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             if new_offset_z is None or not math.isfinite(float(new_offset_z)):
                 self._toolchange_refresh_ui(_("The new work offset Z is invalid."), error=True)
                 return
+            request = payload.get('request')
+            if request is not None and self.__dict__.get('_toolchange_applied_request') == request:
+                return  # a repeated delivery must not rebase the map twice
+            self.__dict__['_toolchange_applied_request'] = request
+            old_offset_z = payload.get('old_offset_z')
+            if old_offset_z is None and measurement.measurement is not None:
+                old_offset_z = measurement.measurement.get('offset_z')
+            reconciled = False
+            if old_offset_z is not None:
+                reconciled = self._toolchange_reconcile_map(old_offset_z, new_offset_z)
+            elif self.__dict__.get('_al_map_frame') is not None:
+                self._toolchange_invalidate_map(self.__dict__.get('_al_map_frame'))
+            measurement.mark_applied(new_offset_z)
             if mode == PLATE_FIXED:
-                measurement.mark_applied(new_offset_z)
                 text = _("Work offset Z corrected to %.*f. The next tool is measured against the same plate.") % (
                     self.decimals, float(new_offset_z))
             else:
-                measurement.mark_applied(new_offset_z)
                 text = _(
                     "Board Z zero set to the plate thickness. Remove the plate from the PCB, then confirm.")
+            if reconciled:
+                text += ' ' + _("The height map keeps its board heights in the corrected tool frame.")
+            elif payload.get('map_frame') is not None:
+                text += ' ' + _("The active height map was invalidated. Probe it again.")
             self._toolchange_refresh_ui(text)
 
     def on_grbl_zero(self, axis):
@@ -3611,6 +3808,110 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
         self.app.inform.emit('%s' % _("Sending probing GCode to the GRBL controller."))
         self.app.worker_task.emit({'fcn': worker_task, 'params': []})
+
+    def on_grbl_edge_probe(self):
+        self._queue_edge_probe(center=False)
+
+    def on_grbl_center_probe(self):
+        self._queue_edge_probe(center=True)
+
+    # the spelling used in the UI text
+    on_grbl_centre_probe = on_grbl_center_probe
+
+    def _edge_read_inputs(self):
+        """
+        Read and check the directional probing parameters (GUI thread).
+
+        :return: (travel_z, distance, feed, pulloff), or None (the user was told why).
+        """
+        try:
+            travel_z = float(self.ui.edge_probe_travelz_entry.get_value())
+            distance = float(self.ui.edge_probe_distance_entry.get_value())
+            feed = float(self.ui.edge_probe_feed_entry.get_value())
+            pulloff = float(self.ui.edge_probe_pulloff_entry.get_value())
+        except (TypeError, ValueError):
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _("The edge probing parameters are not valid numbers."))
+            return None
+        values = (travel_z, distance, feed, pulloff)
+        if not all(math.isfinite(value) and value > 0 for value in values):
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                "The probe Z travel, distance, feedrate and pull-off must be positive finite numbers."))
+            return None
+        # The wire protocol uses four decimal places; never round a bounded move or a feed to zero.
+        if not all(round(value, 4) > 0 for value in values):
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                "The edge probing parameters must be representable to four decimal places."))
+            return None
+        return round(travel_z, 4), round(distance, 4), round(feed, 4), round(pulloff, 4)
+
+    def _queue_edge_probe(self, center):
+        units = self.app.app_units.upper()
+        if units not in ('MM', 'IN'):
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _("The project units must be MM or IN."))
+            return
+        if str(self.units).upper() != units:
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                "The probe widget units do not match the project units. Refresh the Sender before probing."))
+            return
+        if self.ui.check_mode_cb.get_value() is True:
+            self.app.inform.emit('[WARNING_NOTCL] %s' % _("Turn off check mode before probing."))
+            return
+        inputs = self._edge_read_inputs()
+        if inputs is None:
+            return
+        travel_z, distance, feed, pulloff = inputs
+
+        directions = ['xplus', 'xminus', 'yplus', 'yminus'] if center else [
+            self.ui.edge_probe_axis_radio.get_value()]
+
+        # reserve first: a refused click must not retire a running operation
+        op = self._grbl_reserve('probe', motion=True)
+        if op is None:
+            return
+        units_cmd = 'G20' if units == 'IN' else 'G21'
+        probe_timeout = probe_timeout_s(distance, 0.0, feed)
+        self._edge_probe_op = op
+        self.ui.edge_probe_result_label.setText('')
+
+        def worker_task():
+            try:
+                with self.app.proc_container.new('%s...' % _("Probing")):
+                    self._grbl_edge_probe_run(op, units, directions, travel_z, distance, feed, pulloff,
+                                              units_cmd, probe_timeout)
+            finally:
+                self._grbl_release(op)
+
+        self.app.inform.emit('%s' % _("Sending probing GCode to the GRBL controller."))
+        self.app.worker_task.emit({'fcn': worker_task, 'params': []})
+
+    def _on_edge_probe_result(self, result):
+        """GUI thread: show a complete directional or centre result; never a partial one."""
+        if not isinstance(result, dict):
+            return
+        if result.get('operation') is not getattr(self, '_edge_probe_op', None):
+            return
+        if result.get('safety_generation') != self._grbl_safety_generation:
+            return
+        if result.get('units') != self.app.app_units.upper():
+            self.app.inform.emit('[WARNING_NOTCL] %s' % _(
+                "The project units changed while the probing ran. The result was discarded."))
+            return
+        if result.get('kind') == 'failed':
+            return
+        frame = result.get('frame')
+        wcs = frame[0] if frame else ''
+        if result.get('kind') == 'center':
+            x, y = result['center']
+            text = '%s X%.*f Y%.*f' % (_("Centre:"), self.decimals, x, self.decimals, y)
+        elif result.get('kind') == 'edge':
+            x, y, z = result['contact']
+            text = '%s X%.*f Y%.*f Z%.*f' % (
+                _("Contact:"), self.decimals, x, self.decimals, y, self.decimals, z)
+        else:
+            return
+        if wcs:
+            text += ' (%s, %s)' % (wcs, result.get('units'))
+        self.ui.edge_probe_result_label.setText(text)
 
     def _on_probe_finished(self, op, context):
         if op is not getattr(self, '_probe_start_op', None):

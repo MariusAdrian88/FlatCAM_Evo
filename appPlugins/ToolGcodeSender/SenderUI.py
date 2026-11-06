@@ -10,7 +10,8 @@ from PyQt6.QtCore import Qt
 
 from appGUI.GUIElements import (
     FCLabel, FCButton, FCFrame, GLay, FCComboBox, FCCheckBox, FCJog, FCDoubleSpinner, FCSpinner,
-    FCDetachableTab, FCZeroAxes, FCSliderWithDoubleSpinner, FCEntry, RotatedToolButton, VerticalScrollArea)
+    RadioSet, FCDetachableTab, FCZeroAxes, FCSliderWithDoubleSpinner, FCEntry, RotatedToolButton,
+    VerticalScrollArea)
 from appPlugins.Common.levelling_ui import build_probe_points_ui
 from appPlugins.ToolGcodeSender.SenderCameraUI import SenderCameraUI, CameraView
 from appPlugins.ToolGcodeSender.SenderRegistrationUI import SenderRegistrationUI
@@ -437,6 +438,76 @@ class GcodeSenderUI:
         pause_h_lay.addWidget(self.pause_resume_button)
         self.pause_frame.setLayout(pause_h_lay)
         control_grid.addWidget(self.pause_frame, 1, 1)
+
+        # EDGE / CENTRE PROBING
+        self.edge_probe_frame = FCFrame()
+        self.gr_ctrl_tab_layout.addWidget(self.edge_probe_frame)
+        edge_grid = GLay(v_spacing=5, h_spacing=3, c_stretch=[0, 1])
+        self.edge_probe_frame.setLayout(edge_grid)
+
+        edge_grid.addWidget(FCLabel(_("Edge / centre probing"), bold=True), 0, 0, 1, 2)
+
+        edge_grid.addWidget(FCLabel('%s:' % _("Direction")), 1, 0)
+        self.edge_probe_axis_radio = RadioSet([
+            {'label': 'X+', 'value': 'xplus'},
+            {'label': 'X-', 'value': 'xminus'},
+            {'label': 'Y+', 'value': 'yplus'},
+            {'label': 'Y-', 'value': 'yminus'},
+        ])
+        self.edge_probe_axis_radio.setToolTip(_("The direction of the edge probe."))
+        self.edge_probe_axis_radio.set_value('xplus')
+        edge_grid.addWidget(self.edge_probe_axis_radio, 1, 1)
+
+        edge_grid.addWidget(FCLabel('%s:' % _("Probe distance")), 2, 0)
+        self.edge_probe_distance_entry = FCDoubleSpinner()
+        self.edge_probe_distance_entry.set_precision(self.decimals)
+        self.edge_probe_distance_entry.set_range(0.0001, 10000.0)
+        self.edge_probe_distance_entry.set_value(5.0 if self.app.app_units.upper() == 'MM' else 0.2)
+        self.edge_probe_distance_entry.setToolTip(_(
+            "The maximum travel of a directional probe, in current units."))
+        edge_grid.addWidget(self.edge_probe_distance_entry, 2, 1)
+
+        edge_grid.addWidget(FCLabel('%s:' % _("Probe feedrate")), 3, 0)
+        self.edge_probe_feed_entry = FCDoubleSpinner()
+        self.edge_probe_feed_entry.set_precision(self.decimals)
+        self.edge_probe_feed_entry.set_range(0.0001, 910000.0)
+        self.edge_probe_feed_entry.set_value(100.0 if self.app.app_units.upper() == 'MM' else 4.0)
+        edge_grid.addWidget(self.edge_probe_feed_entry, 3, 1)
+
+        edge_grid.addWidget(FCLabel('%s:' % _("Pull-off")), 4, 0)
+        self.edge_probe_pulloff_entry = FCDoubleSpinner()
+        self.edge_probe_pulloff_entry.set_precision(self.decimals)
+        self.edge_probe_pulloff_entry.set_range(0.0001, 10000.0)
+        self.edge_probe_pulloff_entry.set_value(1.0 if self.app.app_units.upper() == 'MM' else 0.04)
+        self.edge_probe_pulloff_entry.setToolTip(_(
+            "The distance to move away from a contact, in current units."))
+        edge_grid.addWidget(self.edge_probe_pulloff_entry, 4, 1)
+
+        edge_grid.addWidget(FCLabel('%s:' % _("Probe Z travel")), 5, 0)
+        self.edge_probe_travelz_entry = FCDoubleSpinner()
+        self.edge_probe_travelz_entry.set_precision(self.decimals)
+        self.edge_probe_travelz_entry.set_range(0.0001, 10000.0)
+        self.edge_probe_travelz_entry.set_value(2.0 if self.app.app_units.upper() == 'MM' else 0.08)
+        self.edge_probe_travelz_entry.setToolTip(_(
+            "The safe Z used while moving between centre contacts, in current units."))
+        edge_grid.addWidget(self.edge_probe_travelz_entry, 5, 1)
+
+        edge_buttons = QtWidgets.QHBoxLayout()
+        self.edge_probe_button = FCButton(_("Probe edge"))
+        self.edge_probe_button.setToolTip(_(
+            "Probe one bounded contact in the selected direction.\n"
+            "The contact is reported in the active work coordinates."))
+        edge_buttons.addWidget(self.edge_probe_button)
+        self.edge_center_button = FCButton(_("Find XY centre"))
+        self.edge_center_button.setToolTip(_(
+            "Probe the 2 opposed X contacts and the 2 opposed Y contacts,\n"
+            "then report their midpoint as the hole or ring centre."))
+        edge_buttons.addWidget(self.edge_center_button)
+        edge_grid.addLayout(edge_buttons, 6, 0, 1, 2)
+
+        self.edge_probe_result_label = FCLabel('')
+        self.edge_probe_result_label.setWordWrap(True)
+        edge_grid.addWidget(self.edge_probe_result_label, 7, 0, 1, 2)
 
         self.gr_ctrl_tab_layout.addStretch(1)
 

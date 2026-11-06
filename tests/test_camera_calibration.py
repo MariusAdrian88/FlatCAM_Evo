@@ -595,16 +595,41 @@ class TestCameraRegistration(unittest.TestCase):
         self.assertAlmostEqual(a * e - b * d, 1.0, places=9)
         self.assertLess(fit.max_error, 1e-9)
 
-        # a residual above the acceptance tolerance is refused
-        from appPlugins.ToolGcodeSender.CameraRegistration import RegistrationError
-
+        # residuals above the warning limit are still reported, never refused
         model = self.make_model()
         model.add_design(0.0, 0.0)
         model.add_observation(self.observation(0.0, 0.0))
         model.add_design(10.0, 0.0)
-        model.add_observation(self.observation(10.5, 0.0))
-        with self.assertRaises(RegistrationError):
-            model.fit(0.05)
+        model.add_observation(self.observation(10.0, 0.0))
+        model.add_design(0.0, 10.0)
+        model.add_observation(self.observation(0.0, 10.5))
+        fit = model.fit(0.05)
+        self.assertIsNotNone(fit)
+        self.assertIs(fit, model.preview)
+        self.assertGreater(fit.max_error, 0.05)
+        self.assertEqual(len(fit.errors), 3)
+        self.assertEqual(fit.min_error, min(fit.errors))
+        self.assertEqual(fit.max_error, max(fit.errors))
+        self.assertAlmostEqual(fit.mean_error, sum(fit.errors) / len(fit.errors))
+
+    def test_residuals_and_translation_are_in_the_project_units(self):
+        model = self.make_model()
+        for design, measured in (
+                ((0.0, 0.0), (0.25, -0.10)),
+                ((1.0, 0.0), (1.25, -0.10)),
+                ((0.0, 1.0), (0.25, 0.92))):
+            model.add_design(design[0], design[1], 'IN')
+            self.assertEqual(
+                model.add_observation(self.observation(measured[0], measured[1], units='IN')),
+                (True, 'ok'))
+        fit = model.fit(0.01)
+        self.assertIsNotNone(fit)
+        self.assertAlmostEqual(fit.translation[0], 0.25, delta=0.02)
+        self.assertAlmostEqual(fit.translation[1], -0.10, delta=0.02)
+        self.assertGreater(fit.max_error, 0.01)
+        self.assertLess(fit.max_error, 0.02)
+        self.assertLessEqual(fit.min_error, fit.mean_error)
+        self.assertLessEqual(fit.mean_error, fit.max_error)
 
     def test_a_session_or_calibration_change_invalidates_the_pending_registration(self):
         for changes, reason in (
@@ -664,6 +689,9 @@ class TestCameraRegistration(unittest.TestCase):
         model.add_design(5.0, 0.0)
         self.assertEqual(
             model.add_observation(self.observation(0.0, 0.0)), (False, 'duplicate_point'))
+        for x, y in ((float('nan'), 0.0), (0.0, float('inf'))):
+            with self.subTest(x=x, y=y):
+                self.assertEqual(model.add_observation(self.observation(x, y)), (False, 'invalid_position'))
         for limit in (0.0, -1.0, float('nan'), float('inf')):
             with self.subTest(limit=limit):
                 with self.assertRaises(RegistrationError):
@@ -755,6 +783,23 @@ class TestCameraRegistrationWorkflow(unittest.TestCase):
         self.assertIsNone(ui.fit)
         self.assertEqual(ui.registration.design, [])
         self.assertEqual(ui.registration.measured, [])
+
+    def test_an_inconsistent_extra_point_stays_visible_before_apply(self):
+        _app, ui, _obj = self.make_ui()
+        self.add_two_pairs(ui)
+        ui.registration.add_design(0.0, 10.0, 'MM')
+        self.assertEqual(ui.registration.add_observation(self.observation(0.0, 10.5)), (True, 'ok'))
+        ui.on_preview()
+        fit = ui.fit
+        self.assertIsNotNone(fit)
+        self.assertGreater(fit.max_error, ui.tolerance())
+        self.assertTrue(ui.apply_button.isEnabled())
+        residuals = [ui.pairs_table.item(row, 5).text() for row in range(ui.pairs_table.rowCount())]
+        self.assertEqual(len(residuals), 3)
+        self.assertTrue(all(residuals))
+        text = ui.result_label.text()
+        for value in (fit.min_error, fit.mean_error, fit.max_error):
+            self.assertIn('%.*f' % (ui.decimals, value), text)
 
     def test_a_draw_failure_leaves_no_partial_preview(self):
         from unittest.mock import MagicMock

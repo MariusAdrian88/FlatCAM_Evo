@@ -13,7 +13,9 @@ import unittest
 from appPlugins.Common.levelling_interp import (
     build_bilinear_grid,
     bilinear_offset,
+    bicubic_offset,
     nearest_offset,
+    conservative_ceiling,
     _group_values,
     parse_height_map_line,
     match_nearest_point,
@@ -56,6 +58,24 @@ class TestBilinear(unittest.TestCase):
             self.assertAlmostEqual(
                 bilinear_offset(self.grid, x, y), plane(x, y), places=9
             )
+
+
+class TestConservativeCeiling(unittest.TestCase):
+    def test_highest_measured_height_and_no_data(self):
+        points = [(0.0, 0.0, 0.0), (10.0, 0.0, 2.0), (0.0, 10.0, 1.0)]
+        self.assertEqual(conservative_ceiling(points=points), 2.0)
+        self.assertIsNone(conservative_ceiling(points=[]))
+        self.assertIsNone(conservative_ceiling())
+
+    def test_bicubic_bound_is_not_below_the_interpolated_surface(self):
+        xs = [0, 1, 2, 3]
+        ys = [0, 1, 2, 3]
+        grid = (xs, ys, [[0, 0, 0, 0], [0, 10, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]])
+        bound = conservative_ceiling(grid_data=grid, bicubic=True)
+        self.assertIsNotNone(bound)
+        self.assertGreaterEqual(bound, 10.0)
+        for x, y in ((0, 0), (0.5, 0.5), (1, 1), (1.5, 1.5), (2.5, 0.5), (3, 3)):
+            self.assertLessEqual(bicubic_offset(grid, x, y), bound + 1e-9)
 
 
 class TestGridDetection(unittest.TestCase):
@@ -513,6 +533,63 @@ class TestToolPassesTheUnits(unittest.TestCase):
         self.assertTrue(any('another coordinate system or units' in m and m.endswith(': 1')
                             for m in emitted(tool)))
 
+    def test_strict_rejects_an_unsupported_cycle(self):
+        from tests.test_levelling_audit import emitted
+        tool, target = self.tool_and_target(
+            'G21\nG0 X0 Y0 Z5\nG81 X1 Y1 Z-1 R1\n', units='MM')
+        self.assertIsNone(tool.autolevell_gcode(target, 'v', strict=True))
+        self.assertTrue(any('can not be height-compensated' in m for m in emitted(tool)))
+
+    def test_strict_accepts_an_expanded_drill_cycle(self):
+        tool, target = self.tool_and_target(
+            'G21\nG0 X0 Y0 Z5\nG81 X1 Y1 Z-1 R1 F100\n', units='MM')
+        result = tool.autolevell_gcode(target, 'v', strict=True)
+        self.assertIsNotNone(result)
+        self.assertIn('G1 Z-0.5000 F100', result[1])
+
+    def test_strict_expansion_consumes_inline_and_standalone_return_modes(self):
+        for mode, retract in (('G98', 'G0 Z5.0000'), ('G99', 'G0 Z1.5000')):
+            for standalone in (False, True):
+                for cycle, extra in (('G81', ''), ('G82', ' P0.5'), ('G83', ' Q0.5')):
+                    with self.subTest(mode=mode, standalone=standalone, cycle=cycle):
+                        setting = 'N8 %s (return plane)\n' % mode if standalone else ''
+                        inline = '' if standalone else mode + ' '
+                        tool, target = self.tool_and_target(
+                            'G21 G54\nG0 X0 Y0 Z5\n' + setting +
+                            'N10 %s%s X1 Y1 Z-1 R1 F100%s (hole)\nX2 Y1\nG80\n' %
+                            (inline, cycle, extra))
+                        result = tool.autolevell_gcode(target, 'v', strict=True)
+                        self.assertIsNotNone(result)
+                        output = result[1]
+                        self.assertNotRegex(output, r'\bG(?:98|99|81|82|83)\b')
+                        self.assertIn('N10 ', output)
+                        self.assertIn('(hole)', output)
+                        if standalone:
+                            self.assertIn('N8 ', output)
+                            self.assertIn('(return plane)', output)
+                        self.assertIn('G1 Z-0.5000', output)
+                        self.assertEqual(output.splitlines()[-2], retract)
+                        self.assertEqual(output.splitlines()[-1], 'G80')
+                        if cycle == 'G82':
+                            self.assertEqual(output.count('G4 P0.5000'), 2)
+
+    def test_strict_rejects_a_cycle_without_a_provable_traverse_clearance(self):
+        from tests.test_levelling_audit import emitted
+        tool, target = self.tool_and_target(
+            'G21\nG0 X0 Y0 Z5\nG81 X1 Y1 Z-1 R1 F100\n', units='MM')
+        # no probe point: there is no provable ceiling of the XY segment
+        tool._al_points = []
+        self.assertIsNone(tool.autolevell_gcode(target, 'v', strict=True))
+        self.assertTrue(any('can not be height-compensated' in m for m in emitted(tool)))
+
+    def test_unsupported_cycle_warns_in_permissive_mode(self):
+        from tests.test_levelling_audit import emitted
+        tool, target = self.tool_and_target(
+            'G21\nG0 X0 Y0 Z5\nG81 X1 Y1 Z-1 R1\n', units='MM')
+        self.assertIsNotNone(tool.autolevell_gcode(target, 'v'))
+        self.assertTrue(any('Canned cycle moves or parameters that are not supported' in m
+                            for m in emitted(tool)))
+
 
 class TestNoDeclarationAfterAMove(unittest.TestCase):
     """A WCS or units word after a move never declares the frame, also when the position is lost."""
@@ -814,25 +891,227 @@ class TestExtraWcs(unittest.TestCase):
 
 
 class TestCannedCycles(unittest.TestCase):
-    """Canned cycle moves are not compensated and are reported."""
+    """G81/G82/G83 are expanded and compensated; every other cycle is reported."""
 
-    def test_cycle_moves_are_counted(self):
-        for cycle in ('G81', 'G82', 'G83', 'G73', 'G84', 'G85', 'G89', 'G98 G81', 'G99 G83'):
+    def setUp(self):
+        self.state = new_levelling_state(units='MM', map_bounds=(0, 0, 20, 20))
+        self.state['map_ceiling'] = UP
+        run_on(up, self.state, 'G21 G54', 'G0 X0 Y0 Z5')
+
+    def lines(self, line):
+        return level_gcode_line(line, self.state, up, DEC).split('\n')
+
+    def test_g81_drills_and_retracts_to_the_initial_plane(self):
+        self.assertEqual(
+            self.lines('G81 X5 Y5 Z-1 R1 F100'),
+            ['G0 X5.0000 Y5.0000', 'G0 Z1.5000', 'G1 Z-0.5000 F100', 'G0 Z5.0000']
+        )
+        self.assertEqual((self.state['X'], self.state['Y']), (5.0, 5.0))
+        self.assertEqual(self.state['Z'] + self.state['applied'], 5.0)
+        self.assertEqual((self.state['cycles'], self.state['unknown']), (0, 0))
+        self.assertTrue(self.state['cycle'])
+        self.assertEqual(self.state['cycle_code'], 81)
+
+    def test_line_number_stays_on_the_first_expansion_line(self):
+        self.assertEqual(
+            self.lines('N10 G81 X5 Y5 Z-1 R1 F100'),
+            ['N10 G0 X5.0000 Y5.0000', 'G0 Z1.5000', 'G1 Z-0.5000 F100', 'G0 Z5.0000']
+        )
+
+    def test_drill_depths_follow_a_nonflat_map(self):
+        state = new_levelling_state(units='MM', map_bounds=(0, 0, 20, 20))
+        state['map_ceiling'] = 1.0
+        out = run_on(slope, state, 'G21 G54', 'G0 X0 Y0 Z5',
+                     'G81 X10 Y10 Z-1 R1 F100', 'X0 Y0 Z-1')
+        self.assertIn('G1 Z-0.5000 F100', out[-2].split('\n'))
+        self.assertIn('G1 Z-1.0000', out[-1].split('\n'))
+
+    def test_g81_omitted_xy_drills_at_the_current_position(self):
+        self.assertEqual(
+            self.lines('G81 Z-1 R1 F100'),
+            ['G0 Z1.5000', 'G1 Z-0.5000 F100', 'G0 Z5.0000']
+        )
+
+    def test_g81_repeat_holes_and_g80_cancel(self):
+        self.lines('G81 X5 Y5 Z-1 R1 F100')
+        self.assertEqual(
+            self.lines('X10 Y5'),
+            ['G0 X10.0000 Y5.0000', 'G0 Z1.5000', 'G1 Z-0.5000', 'G0 Z5.0000']
+        )
+        self.lines('G80')
+        self.assertFalse(self.state['cycle'])
+        self.assertEqual(self.lines('G1 X12 Y5 Z-1'), ['G1 X12 Y5 Z-0.5000'])
+
+    def test_g99_retracts_to_the_r_plane(self):
+        out = self.lines('G99 G81 X5 Y5 Z-1 R1 F100')
+        self.assertEqual(out[-1], 'G0 Z1.5000')
+        out = self.lines('X10 Y5')
+        self.assertNotIn('G0 Z5.0000', out)
+        self.assertEqual(out[0], 'G0 X10.0000 Y5.0000')
+        self.assertEqual(out[-1], 'G0 Z1.5000')
+        self.assertEqual(self.state['Z'], 1.0)
+
+    def test_g82_dwells_at_the_depth(self):
+        out = self.lines('G82 X5 Y5 Z-2 R0 P0.5 F100')
+        self.assertIn('G4 P0.5000', out)
+        self.assertLess(out.index('G4 P0.5000'), out.index('G0 Z5.0000'))
+
+    def test_g83_pecks_and_retracts_between_the_pecks(self):
+        self.assertEqual(
+            self.lines('G83 X5 Y5 Z-2 R0 Q0.8 F100'),
+            ['G0 X5.0000 Y5.0000', 'G0 Z0.5000', 'G1 Z-0.3000 F100', 'G0 Z0.5000',
+             'G0 Z-0.3000', 'G1 Z-1.1000', 'G0 Z0.5000', 'G0 Z-1.1000', 'G1 Z-1.5000',
+             'G0 Z5.0000']
+        )
+
+    def test_g83_rapids_never_go_below_the_previous_physical_bottom(self):
+        # a small Q on a raised map: every re-entry rapid must stop at the
+        # physical bottom already cut, and the first feed must go down
+        out = self.lines('G83 X5 Y5 Z-1 R0 Q0.2 F100')
+        moves = []
+        for line in out:
+            parts = line.split()
+            if len(parts) >= 2 and parts[0] in ('G0', 'G1') and parts[1].startswith('Z'):
+                moves.append((parts[0], float(parts[1][1:])))
+        self.assertEqual(moves[0], ('G0', 0.5))
+        feed_bottoms = []
+        previous_rapid = None
+        for kind, z in moves:
+            if kind == 'G1':
+                if previous_rapid is not None:
+                    self.assertLess(z, previous_rapid)
+                previous_rapid = None
+                feed_bottoms.append(z)
+            else:
+                if feed_bottoms:
+                    self.assertGreaterEqual(z, min(feed_bottoms) - 1e-9)
+                previous_rapid = z
+        self.assertEqual(feed_bottoms, [0.3, 0.1, -0.1, -0.3, -0.5])
+
+    def test_g98_initial_plane_is_the_physical_start_after_a_compensated_move(self):
+        # the compensated G1 leaves the tool 0.5 above the programmed Z: the
+        # cycle must retract to the physical plane, not plunge to the word
+        run_on(up, self.state, 'G1 X0 Y0 Z2')
+        out = self.lines('G98 G81 Z-1 R1 F100')
+        self.assertEqual(out, ['G0 Z1.5000', 'G1 Z-0.5000 F100', 'G0 Z2.5000'])
+
+    def test_move_after_g98_keeps_the_programmed_plane(self):
+        # after a G98 cycle the programmed plane is still the initial Z: an
+        # XY-only G1 must not reuse the offset of the hole as the new plane
+        state = new_levelling_state(units='MM', map_bounds=(0, 0, 20, 20))
+        state['map_ceiling'] = 1.0
+        run_on(slope, state, 'G21 G54', 'G0 X0 Y0 Z5',
+               'G81 X10 Y10 Z-1 R1 F100')
+        self.assertEqual(state['Z'], 5.0)
+        self.assertEqual(
+            level_gcode_line('G1 X0 Y0', state, slope, DEC),
+            'G1 X0 Y0 Z5.0000'
+        )
+
+    def test_g83_on_a_negative_map_and_a_follow_on_move(self):
+        def down(x, y):
+            return -0.5
+
+        state = new_levelling_state(units='MM', map_bounds=(0, 0, 20, 20))
+        state['map_ceiling'] = -0.5
+        run_on(down, state, 'G21 G54', 'G0 X0 Y0 Z5')
+        run_on(down, state, 'G81 X5 Y5 Z-1 R1 F100')
+        self.assertEqual(state['Z'] + state['applied'], 5.0)
+        self.assertEqual(
+            level_gcode_line('G1 X10 Y10 Z0', state, down, DEC),
+            'G1 X10 Y10 Z-0.5000'
+        )
+        self.assertEqual(state['applied'], -0.5)
+
+    def test_g91_incremental_holes_and_r_plane(self):
+        state = new_levelling_state(units='MM', map_bounds=(0, 0, 20, 20))
+        state['map_ceiling'] = UP
+        out = run_on(up, state, 'G21 G54', 'G0 X0 Y0 Z5',
+                     'G91 G81 X1 Y1 Z-1 R-4 F100')
+        self.assertEqual(
+            out[-1].split('\n'),
+            ['G91 G0 X1.0000 Y1.0000', 'G0 Z-3.5000', 'G1 Z-1.0000 F100', 'G0 Z4.5000']
+        )
+        out = run_on(up, state, 'X1 Y1')
+        self.assertEqual(
+            out[0].split('\n'),
+            ['G0 X1.0000 Y1.0000', 'G0 Z-3.5000', 'G1 Z-1.0000', 'G0 Z4.5000']
+        )
+        self.assertEqual((state['X'], state['Y'], state['Z'] + state['applied']), (2.0, 2.0, 5.0))
+
+    def test_xy_travel_clears_an_interior_peak_of_the_segment(self):
+        # the 2 hole ends are at height 0; the peak (5, 0) is on the segment
+        points = [(0.0, 0.0, 0.0), (5.0, 0.0, 1.0), (10.0, 0.0, 0.0)]
+        ceiling = conservative_ceiling(points=points)
+        self.assertEqual(ceiling, 1.0)
+
+        def peak(x, y):
+            return 1.0 if abs(x - 5.0) < 1e-9 and abs(y) < 1e-9 else 0.0
+
+        state = new_levelling_state(units='MM', map_bounds=(0, 0, 10, 0))
+        state['map_ceiling'] = ceiling
+        out = run_on(peak, state, 'G21 G54', 'G0 X0 Y0 Z0.5',
+                     'G81 X10 Y0 Z-0.5 R0.2 F100')[-1].split('\n')
+        # the XY is done at the ceiling + R (1.2), not at the ends + R (0.2)
+        self.assertEqual(out[0], 'G0 Z1.2000')
+        self.assertEqual(out[1], 'G0 X10.0000 Y0.0000')
+        self.assertEqual(out[2], 'G0 Z0.2000')
+
+    def test_cycle_without_a_traverse_needs_no_ceiling(self):
+        # no XY move: the point offset is enough, so a map without a
+        # provable ceiling is not rejected
+        state = new_levelling_state(units='MM', map_bounds=(0, 0, 20, 20))
+        run_on(up, state, 'G21 G54', 'G0 X0 Y0 Z5')
+        out = level_gcode_line('G81 Z-1 R1 F100', state, up, DEC).split('\n')
+        self.assertEqual(out, ['G0 Z1.5000', 'G1 Z-0.5000 F100', 'G0 Z5.0000'])
+        self.assertEqual(state['cycles'], 0)
+
+    def test_cycle_with_an_unknown_z_offset_is_rejected(self):
+        # without the compensation in effect the physical initial plane of
+        # G98 can not be known: the block stays unexpanded
+        state = new_levelling_state(units='MM', map_bounds=(0, 0, 20, 20))
+        state['map_ceiling'] = UP
+        run_on(up, state, 'G21 G54', 'G0 X0 Y0 Z5')
+        state['applied'] = None
+        line = 'G81 X5 Y5 Z-1 R1 F100'
+        self.assertEqual(level_gcode_line(line, state, up, DEC), line)
+        self.assertEqual(state['cycles'], 1)
+
+    def test_cycle_without_a_feed_is_rejected(self):
+        line = 'G81 X5 Y5 Z-1 R1'
+        self.assertEqual(self.lines(line), [line])
+        self.assertEqual(self.state['cycles'], 1)
+        self.assertIsNone(self.state['cycle'])
+        self.assertEqual(self.lines('X10 Y5'), ['X10 Y5'])
+        self.assertEqual(self.state['cycles'], 2)
+
+    def test_unsupported_cycle_parameters_are_rejected(self):
+        cases = ('G18 G81 X5 Y5 Z-1 R1 F100',
+                 'G83 X5 Y5 Z-1 R1 F100',
+                 'G82 X5 Y5 Z-2 R0 F100',
+                 'G81 X5 Y5 Z2 R-1 F100',
+                 'G81 X5 Y5 Z-1 R1 F0',
+                 'G81 X5 Y5 Z-1 R1 Q0.5 F100',
+                 'G81 X5 Y5 Z-1 R1 F100 L2',
+                 'G81 X5 Y5 Z-1 R1 F100 S1000',
+                 'G93 G81 X5 Y5 Z-1 R1 F100',
+                 'G81 G0 X5 Y5 Z-1 R1 F100',
+                 'G81 G83 X5 Y5 Z-1 R1 Q0.5 F100')
+        for line in cases:
+            with self.subTest(line=line):
+                state = new_levelling_state(units='MM', map_bounds=(0, 0, 20, 20))
+                run_on(up, state, 'G21 G54', 'G0 X0 Y0 Z5')
+                self.assertEqual(level_gcode_line(line, state, up, DEC), line)
+                self.assertEqual(state['cycles'], 1)
+
+    def test_unsupported_cycles_are_rejected(self):
+        for cycle in ('G73', 'G76', 'G84', 'G85', 'G89'):
             with self.subTest(cycle=cycle):
-                state = fresh('MM', 'G21 G54')
-                out = run(state, cycle + ' X1 Y1 Z-1 R1 F100', 'X2 Y2', 'Y3', 'G80', 'G0 X4 Y4 Z5',
-                          'G1 Z-1')
-                self.assertEqual(out[:3], [cycle + ' X1 Y1 Z-1 R1 F100', 'X2 Y2', 'Y3'])
-                self.assertEqual(out[-1], 'G1 Z-0.5000')
-                self.assertEqual(state['cycles'], 3)
-                self.assertEqual(state['unknown'], 0)
-
-    def test_z_is_unknown_after_a_cycle(self):
-        state = fresh('MM', 'G21 G54')
-        out = run(state, 'G81 X1 Y1 Z-1 R1', 'G80', 'G1 X2 Y2')
-        self.assertEqual(out[-1], 'G1 X2 Y2')
-        self.assertEqual(state['unknown'], 1)
-        self.assertEqual((state['X'], state['Y']), (2.0, 2.0))
+                state = new_levelling_state(units='MM', map_bounds=(0, 0, 20, 20))
+                run_on(up, state, 'G21 G54', 'G0 X0 Y0 Z5')
+                line = '%s X5 Y5 Z-1 R1 F100' % cycle
+                self.assertEqual(level_gcode_line(line, state, up, DEC), line)
+                self.assertEqual(state['cycles'], 1)
 
 
 class TestUnknownGCodes(unittest.TestCase):
