@@ -36,11 +36,9 @@ tests/test_object_copy.py::test_copy_is_independent[gerber-object2]
 tests/test_object_copy.py::test_excellon_same_diameter_data_is_kept_by_both_paths
 tests/test_object_copy.py::test_excellon_without_tools_fails_in_both_paths
 tests/test_object_copy.py::test_gerber_without_apertures_fails_in_object2
-tests/test_object_plot_state.py::TestExcellonPlotSolid::test_solid_batch_and_visibility[False-True]
-tests/test_object_plot_state.py::TestExcellonPlotSolid::test_solid_batch_and_visibility[True-True]
-tests/test_object_plot_state.py::test_gerber_plot_batch[False-False-False]
-tests/test_object_plot_state.py::test_gerber_plot_batch[False-False-True]
-tests/test_object_plot_state.py::test_gerber_plot_batch[True-True-False]
+tests/test_object_plot_state.py::test_a_tool_color_survives_a_full_plot_and_an_invalid_one_is_replaced
+tests/test_object_plot_state.py::test_tool_color_swatch_updates_the_tool_color_and_its_shapes[True-False-True-True]
+tests/test_object_plot_state.py::test_tool_color_swatch_updates_the_tool_color_and_its_shapes[True-True-False-False]
 tests/test_object_regenerate_source.py::test_excellon_regenerated_text_parses_back_to_the_same_geometry
 tests/test_object_regenerate_source.py::test_failed_export_keeps_the_old_source[fail]
 tests/test_object_regenerate_source.py::test_geometry_real_dxf_snapshot_and_project_boundary[IN-1-True]

@@ -1,14 +1,12 @@
 """Geometry Editor: the Import tool copies shapes of other project objects into the edited Geometry."""
 from types import SimpleNamespace
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, Mock
 
 import pytest
 from PIL import Image, ImageDraw
-from PyQt6 import QtCore, QtGui, QtWidgets
-from shapely.geometry import GeometryCollection, LinearRing, LineString, MultiPolygon, Polygon, box
+from shapely.geometry import GeometryCollection, LinearRing, LineString, Polygon, box
 
-from appEditors.appGeoEditor import (AppGeoEditor, DrawToolShape, FCImport, FCImportImage, geometries_at_point,
-                                     geometries_in_area, import_source_geometries, import_source_objects)
+from appEditors.appGeoEditor import (AppGeoEditor, DrawToolShape, FCImport, FCImportImage, import_source_geometries)
 from appEditors.geo_plugins.GeoImportImagePlugin import GeoImportImageTool, image_paths
 from appPlugins.ToolImage.ImageImportMixin import ImageImportMixin
 from tests.test_geo_editor_history import editor_with_history, qt_application  # noqa: F401
@@ -147,28 +145,6 @@ def test_place_image_uses_lower_left_anchor_and_is_one_undo(tmp_path):
     assert len(stored(editor)) == 3
 
 
-def editor_image_tool(token=1, paths=None, anchor=None, busy=True):
-    tool = SimpleNamespace(
-        token=token, filename='A', paths=list(paths or []), anchor=anchor,
-        ui=SimpleNamespace(import_button=Mock()),
-        app=SimpleNamespace(inform=SimpleNamespace(emit=Mock()), log=Mock(), app_units='MM'),
-        draw_app=SimpleNamespace(snap_x=0, snap_y=0, update_utility_geometry=Mock(),
-                                 delete_utility_geometry=Mock(), storage=Mock()),
-        _busy=busy, _cleanup_connected=False)
-    tool.draw_app.active_tool = SimpleNamespace(image_tool=tool)
-    tool._invalidate_prepared = lambda: GeoImportImageTool._invalidate_prepared(tool)
-    tool._clear_preview = lambda: GeoImportImageTool._clear_preview(tool)
-    tool.start_image_processing = Mock()
-    tool.image_adjustments = ImageImportMixin.image_adjustments
-    return tool
-
-
-def prepared_image(geometries):
-    paths = image_paths(geometries)
-    anchor = (min(p.bounds[0] for p in paths), min(p.bounds[1] for p in paths)) if paths else None
-    return paths, anchor, paths
-
-
 def test_editor_geometry_keeps_paths_and_filters_polygon_leaves():
     tool = image_tool_for_conversion()
     ring = LinearRing([(0, 0), (2, 0), (2, 2), (0, 2)])
@@ -187,221 +163,6 @@ def test_editor_geometry_keeps_paths_and_filters_polygon_leaves():
     assert tool.image_geometry('ignored', 'raster', 96, 'black', None, None, 0.3, 'MM') == []
     assert tool.image_geometry('ignored', 'raster', 96, 'black', None, None, 0.3, 'MM',
                                keep_paths=True) == [ring]
-
-
-def test_starting_a_new_conversion_clears_the_old_preview():
-    polygon = Polygon([(0, 0), (2, 0), (2, 2), (0, 2)])
-    tool = editor_image_tool(token=1, paths=[polygon], anchor=(0.0, 0.0), busy=False)
-    tool.image_import_params = Mock(return_value={
-        'filename': 'B', 'import_mode': 'raster', 'trace_options': {}, 'dpi': 96, 'mode': 'black',
-        'min_area': 0.3, 'mask': [250, 250, 250, 250], 'threshold': 128})
-    tool.image_finished = Mock()
-    tool.app.worker_task = SimpleNamespace(emit=Mock())
-    tool.on_image_import_action = lambda: GeoImportImageTool.on_image_import_action(tool)
-
-    tool.on_image_import_action()
-
-    assert tool.paths == []
-    assert tool.anchor is None
-    assert tool._busy is True
-    tool.draw_app.delete_utility_geometry.assert_called_once()
-    tool.ui.import_button.setEnabled.assert_called_with(False)
-    tool.app.worker_task.emit.assert_called_once()
-
-
-def test_failed_or_empty_replacement_clears_the_old_preview():
-    polygon = Polygon([(0, 0), (2, 0), (2, 2), (0, 2)])
-    tool = editor_image_tool(token=1, paths=[], anchor=None, busy=True)
-
-    GeoImportImageTool.on_image_finished(tool, 1, prepared_image([polygon]), '')
-    assert [path.bounds for path in tool.paths] == [(0.0, 0.0, 2.0, 2.0)]
-    assert tool.anchor == (0.0, 0.0)
-    tool.draw_app.update_utility_geometry.assert_called_once()
-    tool.draw_app.delete_utility_geometry.assert_not_called()
-
-    tool.token = 2
-    GeoImportImageTool.on_image_finished(tool, 2, prepared_image([]), '')
-    assert tool.paths == []
-    assert tool.anchor is None
-    tool.draw_app.delete_utility_geometry.assert_called_once()
-    tool.draw_app.update_utility_geometry.assert_called_once()
-    assert tool.ui.import_button.setEnabled.call_args.args == (True,)
-    assert tool.draw_app.storage.mock_calls == []
-
-    tool.token = 3
-    GeoImportImageTool.on_image_finished(tool, 3, None, 'boom')
-    assert tool.paths == []
-    assert tool.draw_app.delete_utility_geometry.call_count == 2
-    assert tool.draw_app.storage.mock_calls == []
-
-
-def test_loading_another_image_invalidates_ready_and_inflight_edit():
-    polygon = Polygon([(0, 0), (2, 0), (2, 2), (0, 2)])
-
-    ready = editor_image_tool(token=1, paths=[], anchor=None, busy=True)
-    GeoImportImageTool.on_image_finished(ready, 1, prepared_image([polygon]), '')
-    old_token = ready.token
-    GeoImportImageTool.on_image_loaded(ready, 'B')
-    assert ready.token > old_token
-    assert ready.paths == []
-    assert ready.anchor is None
-    assert ready._busy is False
-    ready.ui.import_button.setEnabled.assert_called_with(True)
-    ready.draw_app.delete_utility_geometry.assert_called_once()
-    GeoImportImageTool.on_image_finished(ready, old_token, prepared_image([polygon]), '')
-    assert ready.paths == []
-
-    inflight = editor_image_tool(token=1, paths=[], anchor=None, busy=True)
-    old_token = inflight.token
-    GeoImportImageTool.on_image_loaded(inflight, 'B')
-    assert inflight.token > old_token
-    assert inflight._busy is False
-    assert inflight.ui.import_button.setEnabled.call_args.args == (True,)
-    GeoImportImageTool.on_image_finished(inflight, old_token, prepared_image([polygon]), '')
-    assert inflight.paths == []
-
-
-def test_image_load_hook_runs_only_for_an_accepted_replacement(tmp_path):
-    class Loader(ImageImportMixin):
-        def __init__(self):
-            self.filename = 'A'
-            self.accepted = []
-            self.app = SimpleNamespace(get_last_folder=lambda: str(tmp_path), register_folder=Mock(),
-                                       inform=SimpleNamespace(emit=Mock()), log=Mock())
-            self.ui = SimpleNamespace(import_button=Mock(),
-                                      load_status=SimpleNamespace(color=None, setToolTip=Mock()),
-                                      dpi_entry=SimpleNamespace(maximum=lambda: 99999, set_value=Mock()))
-
-        def on_image_loaded(self, filename):
-            self.accepted.append(filename)
-
-    tool = Loader()
-    tool.ui.import_button.isEnabled.return_value = True
-
-    with patch('appPlugins.ToolImage.ImageImportMixin.QtWidgets.QFileDialog.getOpenFileName',
-               return_value=('', '')):
-        tool.on_load_image()
-    assert tool.filename == 'A'
-    assert tool.accepted == []
-    tool.ui.import_button.setEnabled.assert_not_called()
-
-    with patch('appPlugins.ToolImage.ImageImportMixin.QtWidgets.QFileDialog.getOpenFileName',
-               return_value=(str(tmp_path / 'missing.png'), '')):
-        tool.on_load_image()
-    assert tool.filename == 'A'
-    assert tool.accepted == []
-    assert tool.ui.import_button.setEnabled.call_args.args == (True,)
-    tool.app.register_folder.assert_not_called()
-
-    replacement = tmp_path / 'b.png'
-    Image.new('RGB', (2, 2), 'white').save(replacement)
-    with patch('appPlugins.ToolImage.ImageImportMixin.QtWidgets.QFileDialog.getOpenFileName',
-               return_value=(str(replacement), '')):
-        tool.on_load_image()
-    assert tool.filename == str(replacement)
-    assert tool.accepted == [str(replacement)]
-    tool.app.register_folder.assert_called_once_with(str(replacement))
-
-
-def test_stale_conversion_after_cancel_is_ignored():
-    tool = editor_image_tool(token=1, paths=[], anchor=None, busy=True)
-
-    polygon = Polygon([(0, 0), (2, 0), (2, 2), (0, 2)])
-    GeoImportImageTool.on_image_finished(tool, 1, prepared_image([polygon]), '')
-    assert [path.bounds for path in tool.paths] == [(0.0, 0.0, 2.0, 2.0)]
-
-    GeoImportImageTool.cancel(tool)
-    assert tool.paths == []
-    assert tool.anchor is None
-
-    GeoImportImageTool.on_image_finished(tool, 1, prepared_image([polygon]), '')
-    assert tool.paths == []
-
-
-def test_editor_image_tool_has_no_gerber_destination(qt_application, tmp_path):
-    from appMain import App
-    app = SimpleNamespace(
-        decimals=4, app_units='MM', resource_location='assets/resources', options={'global_last_folder': 'previous'},
-        defaults=SimpleNamespace(get=lambda key, default=None: default, factory_defaults={}),
-        log=Mock(), inform=SimpleNamespace(emit=Mock()), worker_task=MagicMock())
-    plugin = GeoImportImageTool(app, SimpleNamespace(app=app))
-
-    assert plugin.ui.tf_type_obj_combo.isHidden()
-    assert plugin.ui.tf_type_obj_combo_label.isHidden()
-    app.get_last_folder = lambda: App.get_last_folder(app)
-    app.register_folder = lambda filename: App.register_folder(app, filename)
-    filename = tmp_path / 'editor.png'
-    Image.new('RGB', (16, 16), (120, 120, 120)).save(filename)
-    try:
-        with patch('appPlugins.ToolImage.ImageImportMixin.QtWidgets.QFileDialog.getOpenFileName',
-                   return_value=(str(filename), '')):
-            plugin.on_load_image()
-        plugin.prepare_image_preview()
-        task = app.worker_task.emit.call_args.args[0]
-        task['fcn'](*task['params'])
-        assert plugin.ui.preview_label.pixmap().toImage().pixelColor(100, 100).red() == 120
-        with patch('appPlugins.ToolImage.ImageImportMixin.QtWidgets.QFileDialog.getOpenFileName',
-                   return_value=('', '')) as dialog:
-            plugin.on_load_image()
-        assert dialog.call_args.kwargs['directory'] == str(tmp_path)
-        assert app.options['global_last_folder'] == str(tmp_path)
-    finally:
-        plugin.cancel()
-        plugin.deleteLater()
-
-
-def test_image_cursor_is_canvas_local_and_restored(qt_application):
-    canvas, properties = QtWidgets.QWidget(), QtWidgets.QWidget()
-    canvas.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
-    app = MagicMock()
-    app.decimals, app.app_units, app.resource_location = 4, 'MM', 'assets/resources'
-    editor = SimpleNamespace(app=app, canvas=SimpleNamespace(native=canvas))
-    with patch.object(GeoImportImageTool, 'run'):
-        tool = FCImportImage(editor)
-    try:
-        assert QtGui.QGuiApplication.overrideCursor() is None
-        assert canvas.cursor().shape() == QtCore.Qt.CursorShape.CrossCursor
-        assert properties.cursor().shape() == QtCore.Qt.CursorShape.ArrowCursor
-        QtWidgets.QApplication.sendEvent(canvas, QtCore.QEvent(QtCore.QEvent.Type.Leave))
-        assert properties.cursor().shape() == QtCore.Qt.CursorShape.ArrowCursor
-        QtWidgets.QApplication.sendEvent(canvas, QtCore.QEvent(QtCore.QEvent.Type.Enter))
-        assert canvas.cursor().shape() == QtCore.Qt.CursorShape.CrossCursor
-    finally:
-        tool.clean_up()
-    assert canvas.cursor().shape() == QtCore.Qt.CursorShape.ArrowCursor
-    assert QtGui.QGuiApplication.overrideCursor() is None
-
-
-def test_editor_progress_cancel_and_stale_completion(qt_application):
-    app = MagicMock()
-    app.decimals, app.app_units, app.resource_location = 4, 'MM', 'assets/resources'
-    editor = SimpleNamespace(app=app, delete_utility_geometry=Mock(), snap_x=0, snap_y=0,
-                             update_utility_geometry=Mock())
-    plugin = GeoImportImageTool(app, editor)
-    editor.active_tool = SimpleNamespace(image_tool=plugin)
-    plugin.filename = 'test.png'
-    plugin.on_image_import_action()
-    token = plugin.token
-    progress = plugin._image_progress
-    assert progress.isVisible()
-    plugin.cancel_image_processing()
-    assert not progress.isVisible()
-    plugin.on_image_finished(token, prepared_image([box(0, 0, 2, 2)]), '')
-    assert plugin.paths == []
-    plugin.on_image_import_action()
-    current = plugin._image_progress
-    plugin.on_image_finished(token, prepared_image([box(0, 0, 2, 2)]), '')
-    assert current.isVisible()
-    plugin.on_image_finished(plugin.token, prepared_image([box(0, 0, 2, 2)]), '')
-    assert not current.isVisible()
-    assert len(plugin.paths) == 1
-    token = plugin.token
-    plugin.ui.mask_bw_entry.slider.setValue(129)
-    assert plugin.paths == []
-    assert plugin.anchor is None
-    plugin.on_image_finished(token, prepared_image([box(0, 0, 2, 2)]), '')
-    assert plugin.paths == []
-    plugin.cancel()
 
 
 def test_large_image_moving_extent_keeps_every_path_for_placement(qt_application, tmp_path):

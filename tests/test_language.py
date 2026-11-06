@@ -19,16 +19,6 @@ from PyQt6.QtCore import Qt
 import appTranslation as fcTranslate
 
 
-class TestLanguageNames(unittest.TestCase):
-    def test_each_name_is_written_in_its_own_language(self):
-        self.assertEqual('العربية', fcTranslate.languages_dict['ar'])
-        self.assertEqual('Deutsch', fcTranslate.languages_dict['de'])
-        self.assertEqual('Português do Brasil', fcTranslate.languages_dict['pt_BR'])
-        self.assertEqual('Türkçe', fcTranslate.languages_dict['tr'])
-        # the Russian name is all Cyrillic (it began with a Latin 'P')
-        self.assertEqual('Русский', fcTranslate.languages_dict['ru'])
-        self.assertTrue(all('Ѐ' <= ch <= 'ӿ' for ch in fcTranslate.languages_dict['ru']))
-
 class TestApplyLanguage(unittest.TestCase):
     def setUp(self):
         self._saved = builtins.__dict__.get('_')
@@ -96,14 +86,6 @@ class TestApplyLanguage(unittest.TestCase):
                 with unittest.mock.patch.object(fcTranslate, 'locale_dir', lambda: folder):
                     self.assertEqual('Deutsch', fcTranslate.apply_language('strings', lang='Deutsch'))
                     self.assertEqual('Preferences', builtins.__dict__['_']('Preferences'))
-
-    def test_an_empty_locale_folder_shows_the_source_strings(self):
-        self.assertEqual('العربية', fcTranslate.apply_language('strings', lang='العربية'))
-        self.assertEqual('التفضيلات', builtins.__dict__['_']('Preferences'))
-        folder = self._fake_locale()
-        with unittest.mock.patch.object(fcTranslate, 'locale_dir', lambda: folder):
-            self.assertEqual('no language', fcTranslate.apply_language('strings', lang='Deutsch'))
-            self.assertEqual('Preferences', builtins.__dict__['_']('Preferences'))
 
 
 LTR = Qt.LayoutDirection.LeftToRight

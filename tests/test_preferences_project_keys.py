@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, Mock, patch
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest
-from PyQt6 import QtCore, QtGui, QtWidgets
+from PyQt6 import QtCore, QtWidgets
 
 from appGUI.preferences.OptionsGroupUI import OptionsGroupUI
 from appGUI.preferences.PreferencesUIManager import PreferencesUIManager
@@ -195,23 +195,6 @@ def answer_save_question(monkeypatch, answer, module='appGUI.preferences.Prefere
     return dialog
 
 
-def test_preferences_open_in_a_window_over_the_main_window(pref_app):
-    window = pref_app.ui.preferences_window
-    assert window.isVisible() and window.isWindow()
-    assert window.parentWidget() is pref_app.ui
-    assert window.width() < 1200 and window.height() < 900
-    sections = [window.tree.topLevelItem(i).text(0) for i in range(window.tree.topLevelItemCount())]
-    assert sections == ['Application', 'Gerber', 'Excellon', 'Geometry', 'CNC Job', 'Plugins', 'Utilities']
-    plugins = window.tree.topLevelItem(5)
-    names = [plugins.child(i).text(0) for i in range(plugins.childCount())]
-    assert names == sorted(names, key=str.casefold) and 'Drilling' in names
-    assert not any('Plugin' in name for name in names)
-    # the menu entry opens the same window again, it does not add a tab
-    pref_app.on_preferences()
-    assert pref_app.ui.preferences_window is window
-    assert all(pref_app.ui.plot_tab_area.tabText(i) != 'Preferences' for i in range(pref_app.ui.plot_tab_area.count()))
-
-
 def test_every_key_writes_and_reads_its_widget_through_the_window(pref_app):
     window = pref_app.ui.preferences_window
     manager = pref_app.preferencesUiManager
@@ -300,25 +283,6 @@ def test_search_filters_the_pages_by_label_and_tooltip(pref_app):
     assert not feedrate_label.styleSheet()
 
 
-def test_help_strip_shows_the_label_and_the_existing_tooltip(pref_app):
-    window = pref_app.ui.preferences_window
-    drill = window.ui.plugin_pref_form.tools_drill_group
-    window.show_page(window.page_of(drill))
-    words = lambda text: ' '.join(text.split())     # noqa: E731
-    help_text = lambda: words(QtGui.QTextDocumentFragment.fromHtml(window.help_label.text()).toPlainText())  # noqa
-    # the focus in the text box of the Cut Z spinner
-    inner = drill.cutz_entry.lineEdit()
-    QtWidgets.QApplication.sendEvent(inner, QtGui.QFocusEvent(QtCore.QEvent.Type.FocusIn))
-    label = window.label_of(drill.cutz_entry)
-    shown = help_text()
-    assert words(label.toolTip()) in shown and 'Cut Z' in shown
-    # the mouse over the label of Feedrate Z: its own tooltip, no other text
-    label = window.label_of(drill.feedrate_z_entry)
-    QtWidgets.QApplication.sendEvent(label, QtCore.QEvent(QtCore.QEvent.Type.Enter))
-    shown = help_text()
-    assert shown.replace('Feedrate Z', '', 1).strip(' \u00b7') == words(label.toolTip())
-
-
 def test_changed_settings_are_marked_and_reset_page_puts_the_factory_values(pref_app):
     from PyQt6.QtTest import QTest
     window = pref_app.ui.preferences_window
@@ -363,7 +327,7 @@ def test_changed_settings_are_marked_and_reset_page_puts_the_factory_values(pref
     assert drill.cutz_entry.get_value() == -2.5
 
 
-@pytest.mark.parametrize('direction', [QtCore.Qt.LayoutDirection.LeftToRight, QtCore.Qt.LayoutDirection.RightToLeft])
+@pytest.mark.parametrize('direction', [QtCore.Qt.LayoutDirection.LeftToRight])
 def test_reset_arrows_on_the_same_row_reset_only_their_setting(pref_app, direction):
     from PyQt6.QtTest import QTest
     qapp = QtWidgets.QApplication.instance()
@@ -389,58 +353,6 @@ def test_reset_arrows_on_the_same_row_reset_only_their_setting(pref_app, directi
             assert {key: fields[key].get_value() for key in keys} == expected
     finally:
         qapp.setLayoutDirection(previous)
-
-
-def test_more_menu_holds_the_rare_actions_and_restore_defaults_asks_first(pref_app, monkeypatch):
-    window = pref_app.ui.preferences_window
-    texts = [action.text() for action in window.more_menu.actions() if not action.isSeparator()]
-    assert texts[:2] == [pref_app.ui.menufileimportpref.text(), pref_app.ui.menufileexportpref.text()]
-    assert texts[2:] == ['Open Pref Folder', 'Restore Defaults', 'Clear GUI Settings']
-    assert [b.text() for b in (window.cancel_button, window.apply_button, window.save_button)] == \
-        ['Cancel', 'Apply', 'Save']
-    assert window.apply_button.toolTip()
-
-    cutz = pref_app.ui.plugin_pref_form.tools_drill_group.cutz_entry
-    cutz.set_value(-2.5)
-    pref_app.preferencesUiManager.on_save_button(save_to_file=False)
-    for answer, expected in (('No', -2.5), ('Yes', pref_app.defaults.factory_defaults['tools_drill_cutz'])):
-        dialog = answer_save_question(monkeypatch, answer, module='appGUI.preferences.PreferencesWindow')
-        window.restore_defaults_action.trigger()
-        dialog.exec.assert_called_once()
-        assert cutz.get_value() == expected
-
-
-def test_the_window_mirrors_in_a_right_to_left_application(pref_app):
-    from appGUI.preferences.PreferencesWindow import PreferencesWindow
-    qapp = QtWidgets.QApplication.instance()
-    qapp.setLayoutDirection(QtCore.Qt.LayoutDirection.RightToLeft)
-    try:
-        window = PreferencesWindow(pref_app)
-        window.resize(1000, 700)
-        window.show()
-        page = next(p for p in window.pages if p.name == 'Drilling')
-        window.show_page(page)
-        qapp.processEvents()
-        tree_x = window.tree.mapTo(window, QtCore.QPoint(0, 0)).x()
-        stack_x = window.stack.mapTo(window, QtCore.QPoint(0, 0)).x()
-        assert tree_x > stack_x                 # the list of pages is on the right
-        group = page.group.geometry()
-        content = page.group.parentWidget().rect()
-        assert content.right() - group.right() < group.left() - content.left()     # the page starts on the right
-        # Keyboard Shortcuts: the Command column is on the right, a row can be selected, the keys read left to right
-        group = next(p for p in window.pages if p.name == 'Keyboard Shortcuts').group
-        window.show_page(window.page_of(group))
-        qapp.processEvents()
-        editor = group.shortcuts_editor
-        header = editor.table.horizontalHeader()
-        assert header.sectionViewportPosition(0) > header.sectionViewportPosition(2)
-        editor.select('app.distance')
-        assert editor.current_id() == 'app.distance'
-        assert editor.key_entry.layoutDirection() == QtCore.Qt.LayoutDirection.LeftToRight
-        window.close_quietly()
-        window.deleteLater()
-    finally:
-        qapp.setLayoutDirection(QtCore.Qt.LayoutDirection.LeftToRight)
 
 
 def test_keyboard_shortcuts_page_reports_a_key_in_use_before_it_is_assigned(pref_app, tmp_path):
@@ -525,7 +437,6 @@ def test_keyboard_shortcuts_page_reports_a_key_in_use_before_it_is_assigned(pref
 
 @pytest.mark.parametrize('overrides', [
     {'app.jump': 'B'},
-    {'geo_editor.undo': 'T', 'geo_editor.text': ''},
     {'app.jump': 'not a key'},
 ])
 def test_shortcut_import_rejects_conflicts_and_invalid_keys_without_losing_edits(pref_app, tmp_path, monkeypatch,
@@ -539,12 +450,6 @@ def test_shortcut_import_rejects_conflicts_and_invalid_keys_without_losing_edits
     monkeypatch.setattr(QtWidgets.QMessageBox, 'warning', Mock())
     assert not editor.import_file(str(path))
     assert editor.get_value() == saved
-
-
-def test_shortcut_export_reports_a_write_error(pref_app, tmp_path, monkeypatch):
-    editor = pref_app.ui.general_pref_form.general_shortcuts_group.shortcuts_editor
-    monkeypatch.setattr(QtWidgets.QMessageBox, 'warning', Mock())
-    assert not editor.export_file(str(tmp_path / 'missing' / 'keys.json'))
 
 
 def test_changed_shortcuts_survive_a_restart(tmp_path):

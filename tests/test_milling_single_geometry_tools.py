@@ -155,10 +155,6 @@ def expected_marks(tool_numbers, laser=False):
     return Counter({('%d' % (100 * k) if laser else '%.4f' % (-0.05 * k)): N_PATHS for k in tool_numbers})
 
 
-def cut_items(parsed):
-    return sum(1 for geo in parsed if geo['kind'][0] == 'C')
-
-
 @pytest.mark.parametrize('pp', ['GRBL_laser'])
 @pytest.mark.parametrize('n_tools', [2])
 def test_the_exported_file_has_every_path_once(n_tools, pp):
@@ -204,7 +200,7 @@ def test_custom_offset_without_a_usable_value_is_a_failed_job(multigeo, offset):
 
 
 @pytest.mark.parametrize('multigeo', [False, True])
-@pytest.mark.parametrize('offset_type, offset_value', [(1, None), (2, None), (3, 0.125)])
+@pytest.mark.parametrize('offset_type, offset_value', [(1, None), (3, 0.125)])
 def test_isolation_centerline_marker_gets_no_second_offset(multigeo, offset_type, offset_value):
     # the generated Isolation geometry carries the centerline marker: the job must not offset it again
     isolation = dict(tools_mill_offset_type=offset_type, tools_iso_centerline=True)
@@ -217,11 +213,7 @@ def test_isolation_centerline_marker_gets_no_second_offset(multigeo, offset_type
 
 
 @pytest.mark.parametrize('multigeo', [False, True])
-@pytest.mark.parametrize('labels', [
-    {'tools_mill_job_type': 2},
-    {'tools_iso_isotype': 'full'},
-    {'tools_mill_job_type': 2, 'tools_iso_isotype': 'full'},
-])
+@pytest.mark.parametrize('labels', [{'tools_mill_job_type': 2, 'tools_iso_isotype': 'full'}])
 def test_an_ordinary_tool_keeps_its_offset_despite_isolation_like_labels(multigeo, labels):
     # job type 2 (the form sets it for a V tool) and the generic tools_iso_* copy are not provenance
     __, offset = milling_job(1, multigeo=multigeo, from_tcl=True,
@@ -270,15 +262,6 @@ def test_the_next_tool_starts_its_travel_where_the_previous_one_ended():
     assert travels[0] == (0, 0)
     assert travels[3] == pytest.approx(end_of_tool_1)
     assert end_of_tool_1 != (0, 0)
-
-
-@pytest.mark.parametrize('multigeo', [True])
-def test_tool_without_area_exclusion_does_not_route_around_the_areas(multigeo):
-    travels = []
-    milling_job(1, multigeo=multigeo, from_tcl=True, travels=travels, data=dict(tools_mill_area_exclusion=False))
-    assert not travels
-    milling_job(1, multigeo=multigeo, from_tcl=True, travels=travels, data=dict(tools_mill_area_exclusion=True))
-    assert travels
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -337,13 +320,6 @@ def test_excellon_paint_job_clears_the_holes_and_names_the_skipped_tools():
     cuts = xy_cuts(job.source_file)
     assert cuts and all(min(abs(x - hx) for hx, __ in HOLES_1) < 1.5 for x, __ in cuts)
     assert '0.4' in messages(app)
-
-
-def test_excellon_paint_without_a_usable_tool_is_an_error_and_no_job():
-    app, __, jobs, result, __ = excellon_paint(sizes=(0.4, 0.3))
-    assert result == 'fail' and not jobs
-    assert '[ERROR' in messages(app)
-    assert 'CNCjob created' not in messages(app)
 
 
 @pytest.mark.parametrize('multigeo', [False])

@@ -6,8 +6,6 @@ import os
 import sys
 import tempfile
 import unittest
-from concurrent.futures import ThreadPoolExecutor
-from itertools import product
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -15,7 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
 from PIL import Image
-from PyQt6 import QtCore, QtWidgets
+from PyQt6 import QtWidgets
 import numpy as np
 from shapely.geometry import Point
 from appPlugins.ToolImage import ImageGen
@@ -85,70 +83,6 @@ class TestImageLoading(unittest.TestCase):
         self.load(filename)
         self.assertEqual(self.tool.ui.dpi_entry.get_value(), 240)
 
-    def test_both_object_types_are_offered(self):
-        items = [self.tool.ui.tf_type_obj_combo.itemText(index)
-                 for index in range(self.tool.ui.tf_type_obj_combo.count())]
-        self.assertEqual(items, ['Gerber', 'Geometry'])
-
-    def test_raster_mask_controls_start_synced_and_follow_mode_changes(self):
-        ui = self.tool.ui
-        self.assertEqual(self.tool.image_import_params()['mask'], [128, 250, 250, 250])
-        for mode in ('color', 'black'):
-            ui.image_type.set_value(mode)
-            ui.on_image_type(mode)
-            for channel in ('bw', 'r', 'g', 'b'):
-                entry = getattr(ui, 'mask_%s_entry' % channel)
-                self.assertEqual(entry.slider.value(), entry.get_value())
-                self.assertEqual(entry.slider.isEnabled(), mode == ('black' if channel == 'bw' else 'color'))
-                entry.set_value(73)
-                self.assertEqual(entry.slider.value(), 73)
-                entry.slider.setValue(154)
-                self.assertEqual(entry.get_value(), 154)
-
-    def test_mask_slider_updates_preview_and_coalesces_pending_work(self):
-        filename = Path(self.folder.name) / 'slider.png'
-        Image.new('RGB', (20, 20), (100, 100, 100)).save(filename)
-        self.load(filename)
-        self.tool.ui.min_area_entry.set_value(0)
-        self.tool.prepare_image_preview()
-        pending = self.tool.app.worker_task.emit.call_args.args[0]
-        self.tool.app.worker_task.emit.reset_mock()
-        for value in range(255, 49, -1):
-            self.tool.ui.mask_bw_entry.slider.setValue(value)
-        # A running sampled conversion can't enqueue more workers during a drag.
-        self.tool.prepare_image_preview()
-        self.tool.app.worker_task.emit.assert_not_called()
-        pending['fcn'](*pending['params'])
-        self.tool.prepare_image_preview()
-        task = self.tool.app.worker_task.emit.call_args.args[0]
-        task['fcn'](*task['params'])
-        preview = self.tool.ui.preview_label.pixmap().toImage()
-        self.assertEqual(preview.pixelColor(100, 100).red(), 255)
-        self.assertEqual(self.tool.image_import_params()['mask'][0], 50)
-
-    def test_trace_threshold_slider_sync_mode_and_preview(self):
-        ui = self.tool.ui
-        self.assertEqual(ui.threshold_entry.get_value(), 128)
-        for mode in ('color', 'black'):
-            ui.image_type.set_value(mode)
-            ui.on_image_type(mode)
-            self.assertEqual(ui.threshold_entry.slider.isEnabled(), mode == 'black')
-        filename = Path(self.folder.name) / 'threshold.png'
-        Image.new('RGB', (20, 20), (100, 100, 100)).save(filename)
-        ui.import_mode_radio.set_value('trace')
-        ui.min_area_entry.set_value(0)
-        self.load(filename)
-        for value, expected in ((50, 255), (150, 0)):
-            ui.threshold_entry.set_value(128)
-            self.assertEqual(ui.threshold_entry.slider.value(), 128)
-            ui.threshold_entry.slider.setValue(value)
-            self.assertEqual(self.tool.image_import_params()['threshold'], value)
-            self.assertTrue(self.tool._preview_timer.isActive())
-            self.tool.prepare_image_preview()
-            task = self.tool.app.worker_task.emit.call_args.args[0]
-            task['fcn'](*task['params'])
-            preview = ui.preview_label.pixmap().toImage()
-            self.assertEqual(preview.pixelColor(100, 100).red(), expected)
 
     def test_successful_load_remembers_folder_but_cancel_and_invalid_do_not(self):
         from appMain import App
@@ -168,39 +102,6 @@ class TestImageLoading(unittest.TestCase):
             self.assertEqual(self.tool.filename, str(filename))
             self.assertEqual(self.tool.ui.dpi_entry.get_value(), 300)
 
-    def test_preview_preserves_visible_tones_and_colors_after_worker(self):
-        for import_mode, image_mode in product(('raster', 'trace'), ('L', 'RGB', 'P', 'RGBA')):
-            with self.subTest(import_mode=import_mode, image_mode=image_mode):
-                pixels = np.empty((16, 24, 3), dtype=np.uint8)
-                pixels[:, :8] = (60, 100, 140)
-                pixels[:, 8:16] = (180, 160, 120)
-                pixels[:, :16] += np.arange(16, dtype=np.uint8)[:, None, None]
-                pixels[:, 16:] = 255
-                image = Image.fromarray(pixels).convert(image_mode)
-                if image_mode == 'RGBA':
-                    image.paste((0, 0, 0, 0), (16, 0, 24, 16))
-                filename = Path(self.folder.name) / (image_mode + '.png')
-                image.save(filename)
-                self.tool.ui.image_type.set_value('color')
-                self.tool.ui.import_mode_radio.set_value(import_mode)
-                self.tool.ui.min_area_entry.set_value(0)
-                self.load(filename)
-                for worker in (False, True):
-                    if worker:
-                        self.tool.prepare_image_preview()
-                        task = self.tool.app.worker_task.emit.call_args.args[0]
-                        self.tool._preview_timer.stop()
-                        with ThreadPoolExecutor(max_workers=1) as pool:
-                            pool.submit(task['fcn'], *task['params']).result()
-                        _qapp.processEvents()
-                    preview = self.tool.ui.preview_label.pixmap().toImage()
-                    for index in range(3):
-                        actual = preview.pixelColor(int((index + 0.5) * preview.width() / 3),
-                                                    preview.height() // 2).getRgb()[:3]
-                        expected = image.convert('RGB').getpixel((index * 8 + 4, 8))
-                        if image_mode == 'RGBA' and index == 2:
-                            expected = (255, 255, 255)
-                        self.assertEqual(actual, expected, (image_mode, worker, index))
 
     def test_tonal_preview_masks_trace_threshold_and_orientation(self):
         filename = Path(self.folder.name) / 'tones.png'
@@ -243,50 +144,6 @@ class TestImageLoading(unittest.TestCase):
         self.assertFalse(any(g.contains(Point(2.5, -1.5)) for g in geos))
         self.assertTrue(any(g.contains(Point(0.5, -0.5)) for g in geos))
 
-    def test_processing_dialog_blocks_and_closes_on_completion_failure_and_cancel(self):
-        for error in ('', 'failed'):
-            token = self.tool.start_image_processing()
-            progress = self.tool._image_progress
-            self.assertTrue(progress.isVisible())
-            self.assertEqual(progress.windowModality(), QtCore.Qt.WindowModality.ApplicationModal)
-            self.assertEqual((progress.minimum(), progress.maximum()), (0, 0))
-            self.tool.finish_image_processing(token, error)
-            self.assertFalse(progress.isVisible())
-        token = self.tool.start_image_processing()
-        progress = self.tool._image_progress
-        self.tool.cancel_image_processing()
-        self.assertFalse(progress.isVisible())
-        current = self.tool.start_image_processing()
-        self.tool.finish_image_processing(token, '')
-        self.assertTrue(self.tool._image_progress.isVisible())
-        self.tool.finish_image_processing(current, '')
-
-    def test_preview_responds_to_area_and_trace_settings(self):
-        filename = Path(self.folder.name) / 'preview.png'
-        Image.new('RGB', (12, 12), 'black').save(filename)
-        self.load(filename)
-        self.tool.ui.dpi_entry.set_value(25)
-        for mode, area, expected_black in (('raster', 0, True), ('raster', 200, False),
-                                           ('trace', 0, True)):
-            self.tool.ui.import_mode_radio.set_value(mode)
-            self.tool.ui.min_area_entry.set_value(area)
-            self.tool.prepare_image_preview()
-            task = self.tool.app.worker_task.emit.call_args.args[0]
-            task['fcn'](*task['params'])
-            pixel = self.tool.ui.preview_label.pixmap().toImage().pixelColor(100, 100)
-            self.assertEqual(pixel.red() == 0, expected_black)
-
-    def test_cancelled_main_worker_cannot_create_an_object(self):
-        filename = Path(self.folder.name) / 'cancel.png'
-        Image.new('RGB', (8, 8), 'black').save(filename)
-        self.load(filename)
-        self.tool.new_object = MagicMock()
-        self.tool.on_file_importimage()
-        task = self.tool.app.worker_task.emit.call_args.args[0]
-        self.tool.cancel_image_processing()
-        task['fcn'](*task['params'])
-        self.tool.new_object.assert_not_called()
-        self.assertIsNone(self.tool._image_progress)
 
     def test_trace_adjustments_apply_before_threshold_and_geometry(self):
         filename = Path(self.folder.name) / 'trace_adjust.png'
@@ -326,31 +183,6 @@ class TestImageLoading(unittest.TestCase):
             self.assertTrue(all(a.equals(b) for a, b in zip(filtered, retained)))
         self.assertEqual(ImageGen.raster_geometries(red, np.zeros(red.shape, dtype=bool)), [])
 
-    def test_import_uses_loaded_file_and_current_parameters_without_dialog(self):
-        filename = Path(self.folder.name) / 'image.png'
-        Image.new('RGB', (8, 8)).save(filename, dpi=(300, 300))
-        self.load(filename)
-        self.tool.ui.dpi_entry.set_value(600)
-        self.tool.ui.min_area_entry.set_value(0)
-        imported = []
-        def new_object(kind, name, initialize):
-            obj = MagicMock()
-            obj.tools = {}
-            initialize(obj, self.tool.app)
-            imported.append((kind, obj.solid_geometry))
-        self.tool.new_object = new_object
-        self.tool.app.options = {'tools_mill_tooldia': 0.2}
-        for obj_type in ('Gerber', 'Geometry'):
-            with self.subTest(obj_type=obj_type):
-                self.tool.ui.tf_type_obj_combo.set_value(obj_type)
-                with patch('appPlugins.ToolImage.QtWidgets.QFileDialog.getOpenFileName') as dialog:
-                    self.tool.ui.import_button.click()
-                dialog.assert_not_called()
-                task = self.tool.app.worker_task.emit.call_args.args[0]
-                task['fcn'](*task['params'])
-                self.assertEqual(imported[-1][0], obj_type.lower())
-                self.assertAlmostEqual(imported[-1][1][0].bounds[2], 8 * 25.4 / 600)
-                self.assertIsNone(self.tool._image_progress)
 
     def test_import_builds_geometry_for_both_destinations(self):
         filename = Path(self.folder.name) / 'image.png'

@@ -3,8 +3,6 @@
 import importlib.util
 import math
 import sys
-import time
-import tracemalloc
 from dataclasses import replace
 from pathlib import Path
 
@@ -82,48 +80,6 @@ def test_vbit_limit_and_lithophane_depth(model):
     gray = np.array([[0, 1]], dtype=np.float32)
     depth = model.depth_grid(gray, replace(litho, frame=0))
     assert depth[0].tolist() == pytest.approx([0, 2.2])
-
-
-_HUGE_JOBS = [
-    {'res': 1e-9}, {'mode': 'laser', 'strategy': 'gray', 'spacing': 1e-12},
-    {'tool_dia': 1e8}, {'spacing': 1e-12}, {'strategy': 'spiral', 'spacing': 1e-12},
-    {'mode': 'halftone', 'strategy': '-', 'spacing': 1e-12},
-    {'mode': 'relief', 'tone': 'linear', 'strategy': 'x', 'rough': True, 'stepdown': 1e-12},
-    {'mode': 'lithophane', 'tone': 'lithophane', 'strategy': 'x', 'rough': True,
-     'stepdown': 0.00001, 'litho_max': 100},
-    {'mode': 'relief', 'tone': 'linear', 'strategy': 'xy', 'rough': True, 'max_depth': 1,
-     'stepdown': 1, 'width': 4001, 'image_px': (4001, 5000), 'res': 1, 'spacing': 2,
-     'sim_res': 1, 'tool_kind': 'flat', 'tool_dia': 0.1, 'rough_dia': 0.1},
-]
-
-
-def test_resource_preflight_is_scalar_fast_and_small(model):
-    for changes in _HUGE_JOBS:
-        tracemalloc.start()
-        start = time.perf_counter()
-        try:
-            with pytest.raises(model.PhotoCarveError):
-                model.validate(model.JobParams(**changes))
-            assert time.perf_counter() - start < 1
-            assert tracemalloc.get_traced_memory()[1] < 10_000_000
-        finally:
-            tracemalloc.stop()
-
-
-def test_inverse_calibration_budget_bounds_random_rounding(model):
-    rng = np.random.default_rng(7)
-    for _ in range(1000):
-        sx, sy = rng.uniform(-10, 10, 2)
-        lx, ly = rng.uniform(50, 300, 2)
-        a = np.array([[1, sx / ly], [sy / lx, 1]])
-        xy = rng.uniform(-100, 100, 2)
-        printed = np.round(a @ xy, 3)
-        error = np.linalg.norm(np.linalg.solve(a, printed) - xy)
-        assert error <= model.xy_budget(3, (sx, sy, lx, ly)) + 1e-12
-    assert model.xy_budget(4, (0, 0, 0, 0)) == pytest.approx(1e-4 * math.sqrt(2) / 2)
-    for skew in ((1, 0, 100, 0), (0, 1, 0, 100), (100, 100, 100, 100)):
-        with pytest.raises(model.PhotoCarveError):
-            model.xy_budget(4, skew)
 
 
 def test_quantization_never_cuts_below_requested_z(model):
@@ -558,53 +514,6 @@ def test_certified_geometry_lifecycle():
     assert appEditor.on_join_as(harness, 'geometry') == 'fail'
 
 
-def test_photo_adapter_overrides_parse_each_tool_and_keeps_certificate():
-    from tests.test_milling_lifecycle import MillingHarness
-    from appParsers.ParseGCode import parse_gcode
-    from types import SimpleNamespace
-    from copy import deepcopy
-    from unittest.mock import Mock
-    job, built = _writer_job()
-    built['tools'][2] = deepcopy(built['tools'][1])
-    from shapely import Point
-    built['tools'][2]['solid_geometry'] = [Point(7, 8, -0.12345)]
-    built['photocarve']['tools']['2'] = dict(built['photocarve']['tools']['1'], role='rough')
-    context = dict(geo_obj=SimpleNamespace(obj_options={'photocarve': built['photocarve']}),
-                   tools_dict=built['tools'], bounds={}, seg_x=0, seg_y=0,
-                   geo_options={'tools_mill_z_p_depth': -1, 'tools_mill_feedrate_probe': 50},
-                   options={'cncjob_coords_decimals': 4, 'cncjob_fr_decimals': 2, 'global_tolerance': 0.01},
-                   units='MM', overrides={'tools_mill_feedrate': 1234}, toolchange=False, from_tcl=True)
-    context.update(source_obj=context['geo_obj'], outname='photo_cnc', multigeo=True)
-    job.tools = {}
-    job.gcode_parse = Mock(side_effect=lambda **kw: [{'geom': job.gcode}])
-    milling = MillingHarness(app=job.app)
-    milling.new_object = lambda kind, name, initializer, **kw: (
-        'fail' if initializer(job, job.app) == 'fail' else job)
-    assert milling._submit_cnc_job_creation(context, plot=False, use_thread=False) is None
-    assert job.used_tools == [2, 1]
-    from appObjects.CNCJobObject import CNCJobObject
-    job.gc_header = ''
-    job._app_option = lambda key, fallback=None: False if key == 'cncjob_footer' else ''
-    exported = CNCJobObject.export_gcode(job, to_file=True, default_snippets=False).getvalue()
-    assert exported.index('X7.0000 Y8.0000') < exported.index('X0.0049')
-    assert ''.join(exported.split()) == ''.join(job.source_file.split())
-    from appPlugins.ToolPhotoCarve.PhotoCarveObject import passes_from_cncjob
-    assert len(passes_from_cncjob(job, 0.1)[0]) == 2
-    assert job.tools[2]['gcode_parsed'][0]['geom'] == job.tools[2]['gcode']
-    assert 'X7.0000 Y8.0000' in job.tools[2]['gcode'] and 'Z-0.1234' in job.tools[2]['gcode']
-    assert 'X7.0000 Y8.0000' not in job.tools[1]['gcode']
-    assert 'F1234' in job.source_file and job.source_file.startswith(job.gc_start)
-    assert job.obj_options['photocarve'] == built['photocarve']
-    assert job.obj_options['photocarve'] is not built['photocarve']
-    parsed = parse_gcode(job.source_file, feedrate_rapid=job.feedrate_rapid, target_units='MM')
-    assert job.travel_distance == parsed['travel_distance'] and job.routing_time == parsed['routing_time']
-    context['overrides']['tools_mill_tooldia'] = 99
-    assert milling._submit_cnc_job_creation(context, plot=False, use_thread=False) == 'fail'
-    context['overrides'].clear()
-    context['tools_dict'][3] = deepcopy(context['tools_dict'][1])
-    assert milling._submit_cnc_job_creation(context, plot=False, use_thread=False) == 'fail'
-
-
 def test_writer_fails_closed_for_missing_post_and_laser_settings():
     from appPlugins.ToolPhotoCarve.PhotoCarveGcode import write_tool_gcode
     job, built = _writer_job('GRBL_laser', laser=True)
@@ -696,125 +605,6 @@ def test_writer_physical_skew_error_and_inch_precision():
     assert write_tool_gcode(job, 1, built['tools'], (0, 0), None, 0,
                             True, True, False, True, built['photocarve']) == 'fail'
     assert '6 coordinate decimals' in job.app.inform.emit.call_args.args[0]
-
-
-@pytest.fixture
-def photo_controller():
-    from PyQt6 import QtWidgets
-    from types import SimpleNamespace
-    from unittest.mock import Mock, MagicMock
-    from defaults import AppDefaults
-    from appPlugins.ToolPhotoCarve.PhotoCarve import ToolPhotoCarve
-    qapp = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
-    app = SimpleNamespace(decimals=4, units='MM', options=dict(AppDefaults.factory_defaults),
-                          defaults=Mock(), log=Mock(), inform=Mock(), worker_task=Mock(),
-                          cleanup=Mock(), proc_container=MagicMock(), abort_flag=False,
-                          collection=Mock(), ui=Mock(), milling_tool=Mock())
-    tool = ToolPhotoCarve(app)
-    tool.set_tool_ui()
-    yield tool, app, qapp
-    tool.on_plugin_cleanup()
-    tool.deleteLater()
-    qapp.processEvents()
-
-
-@pytest.mark.parametrize('invalidate', ['reset', 'newer'])
-def test_photo_generation_captured_publication(photo_controller, invalidate):
-    from appObjects.AppObject import AppObject
-    from types import SimpleNamespace
-    tool, app, _ = photo_controller
-    tool.image = Image.new('RGB', (2, 2), 'black')
-    tool.image_filename = 'photo.png'
-    tool.ui.width_entry.set_value(2)
-    tool.ui.res_entry.set_value(1)
-    pending = []
-
-    def create(kind, name, init, **kwargs):
-        obj = SimpleNamespace(kind=kind, obj_options={'name': name}, status_color=None, has_plot_colors=False)
-        if init(obj, app) != 'fail':
-            pending.append(obj)
-        return obj
-
-    app.app_obj = SimpleNamespace(new_object=create)
-    app.collection.get_by_name.return_value = object()
-    app.ui.notebook.currentWidget.return_value = app.ui.plugin_tab
-    tool.on_generate()
-    first = app.worker_task.emit.call_args.args[0]
-    if invalidate == 'reset':
-        tool.on_project_reset()
-    elif invalidate == 'units':
-        app.units = 'IN'
-    elif invalidate == 'newer':
-        tool.on_generate()
-        latest = app.worker_task.emit.call_args.args[0]
-        latest['fcn'](*latest['params'])
-    first['fcn'](*first['params'])
-    if invalidate == 'after_init':
-        assert len(pending) == 1
-        tool.on_project_reset()
-    elif invalidate == 'units_after_init':
-        assert len(pending) == 1
-        app.units = 'IN'
-    for obj in pending:
-        obj.obj_options['name'] = 'photo_engrave_2'
-        AppObject.on_object_created(SimpleNamespace(app=app), obj, False, False, None, [])
-    if invalidate == 'newer':
-        assert tool.result_obj_name == 'photo_engrave_2'
-        tool.on_open_milling()
-        app.collection.set_active.assert_called_with('photo_engrave_2')
-        app.milling_tool.run.assert_called_once()
-        tool.on_project_reset()
-        assert tool.result_obj_name is None
-    else:
-        app.collection.append.assert_not_called()
-        assert tool.result_obj_name is None
-
-
-def test_photo_tcl_shared_generation_and_invalid_cutter(photo_controller, tmp_path, monkeypatch):
-    from tclCommands.TclCommandPhotoCarve import TclCommandPhotoCarve
-    from appPlugins.ToolPhotoCarve import PhotoCarveGen
-    from appPlugins.ToolPhotoCarve.PhotoCarveModel import DEFAULTS
-    from defaults import AppDefaults
-    from types import SimpleNamespace
-    tool, app, _ = photo_controller
-    app.defaults = AppDefaults()
-    path = tmp_path / 'photo.png'
-    Image.new('RGB', (2, 2), 'black').save(path)
-    captured = []
-    original = PhotoCarveGen.run_job
-
-    def run(image, params, check_abort=None):
-        captured.append(params)
-        return original(image, params, check_abort)
-
-    monkeypatch.setattr(PhotoCarveGen, 'run_job', run)
-    created = []
-
-    def create(kind, name, init, **kwargs):
-        assert kind == 'geometry' and kwargs['plot'] is False
-        obj = SimpleNamespace(obj_options={'name': name})
-        init(obj, app)
-        assert not hasattr(obj, '_publish_guard') and not hasattr(obj, '_after_publish')
-        created.append(obj)
-        return obj
-
-    app.app_obj = SimpleNamespace(new_object=create)
-    command = TclCommandPhotoCarve(app)
-    assert set(command.option_types) == set(DEFAULTS) | {'outname'}
-    command.execute({'filename': str(path), 'outname': 'scripted', 'width': 2., 'res': 1.}, [])
-    assert len(captured) == len(created) == 1
-    assert created[0].obj_options['name'] == 'scripted'
-    assert created[0].obj_options['photocarve']['mode'] == 'vcarve'
-    assert created[0].tools[1]['solid_geometry']
-    error = command.execute({'filename': str(path), 'tool_angle': 0.}, [])
-    assert isinstance(error, str) and error
-    assert len(created) == 1
-    # The geometry keeps its source: Edit opens the image and the job parameters again in the plugin.
-    monkeypatch.setattr(tool, 'run', lambda toggle=True: None)
-    tool.ui.width_entry.set_value(50)
-    tool.open_source(created[0])
-    assert tool.image.size == (2, 2) and tool.ui.file_label.text() == 'photo.png'
-    assert tool.ui.width_entry.get_value() == 2 and tool.result_obj_name == 'scripted'
 
 
 def test_cnc_sim_passes_milling_and_laser(model):

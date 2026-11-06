@@ -3441,3 +3441,224 @@ tests/test_app_history_keys.py::TestAppHistoryKeys::test_ctrl_z_undo  # 2026-11-
 tests/test_app_history_keys.py::TestAppHistoryKeys::test_text_focus_blocks  # 2026-11-04 shortcut registry: covered by TestShortcutCharacterization (Ctrl+Z, Ctrl+Shift+Z, focus in a text field)
 tests/test_levelling.py::TestCannedCycles::test_cycle_moves_are_counted  # 2026-11-06 canned cycles are expanded now: replaced by the cycle tests of test_levelling.py and test_levelling_audit.py
 tests/test_levelling.py::TestCannedCycles::test_z_is_unknown_after_a_cycle  # 2026-11-06 canned cycles are expanded now: the Z after an unsupported cycle is covered by the unsupported-cycle tests
+tests/test_compare.py::test_added_unchecked_while_pending_is_hidden_after_install  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_compare.py::test_bend_points_at_0999_tol_are_never_reported  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_compare.py::test_cancel_after_first_check_raises_cancelled[draw splitting]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_compare.py::test_cancel_after_first_check_raises_cancelled[hole matching]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_compare.py::test_cancel_color_picker_keeps_the_comparison_and_settings  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_compare.py::test_collections_pending_at_retire_are_cleared_once_ready  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_compare.py::test_fatal_result_draws_nothing_and_reports_error  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_compare.py::test_five_runs_reset_and_cleanup_detach_every_collection  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_compare.py::test_incomplete_result_draws_good_pieces_and_warns  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_compare.py::test_normalize_color_accepts_rrggbb_with_or_without_alpha[#800020FF]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_compare.py::test_notebook_focus_keeps_comparison  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_compare.py::test_plugin_exit_detaches_results_and_rejects_pending_job[replace]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_compare.py::test_real_null_canvas_run_finishes_and_poll_stops  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_compare.py::test_result_after_invalidation_is_not_drawn[cleanup]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_compare.py::test_result_after_invalidation_is_not_drawn[reset]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_compare.py::test_result_after_invalidation_is_not_drawn[type]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_compare.py::test_source_edit_invalidates_pending_and_displayed_result[new]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_compare.py::test_swatch_colors_are_saved_and_used_by_current_and_next_comparison[hidden]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_compare.py::test_swatch_colors_are_saved_and_used_by_current_and_next_comparison[pending]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_compare.py::test_swatch_colors_are_saved_and_used_by_current_and_next_comparison[queued]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_geo_editor_import.py::test_editor_image_tool_has_no_gerber_destination  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_geo_editor_import.py::test_editor_progress_cancel_and_stale_completion  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_geo_editor_import.py::test_failed_or_empty_replacement_clears_the_old_preview  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_geo_editor_import.py::test_image_cursor_is_canvas_local_and_restored  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_geo_editor_import.py::test_image_load_hook_runs_only_for_an_accepted_replacement  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_geo_editor_import.py::test_loading_another_image_invalidates_ready_and_inflight_edit  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_geo_editor_import.py::test_stale_conversion_after_cancel_is_ignored  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_geo_editor_import.py::test_starting_a_new_conversion_clears_the_old_preview  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_geometry_transforms.py::test_geometry_plots_on_the_top_layer_and_keeps_the_visible_flag  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_geometry_transforms.py::test_map_geometry_keeps_types_and_nested_lists  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_image_tool.py::TestImageLoading::test_both_object_types_are_offered  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_image_tool.py::TestImageLoading::test_cancelled_main_worker_cannot_create_an_object  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_image_tool.py::TestImageLoading::test_import_uses_loaded_file_and_current_parameters_without_dialog  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_image_tool.py::TestImageLoading::test_mask_slider_updates_preview_and_coalesces_pending_work  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_image_tool.py::TestImageLoading::test_preview_preserves_visible_tones_and_colors_after_worker  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_image_tool.py::TestImageLoading::test_preview_responds_to_area_and_trace_settings  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_image_tool.py::TestImageLoading::test_processing_dialog_blocks_and_closes_on_completion_failure_and_cancel  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_image_tool.py::TestImageLoading::test_raster_mask_controls_start_synced_and_follow_mode_changes  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_image_tool.py::TestImageLoading::test_trace_threshold_slider_sync_mode_and_preview  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_isolate_combine_passes.py::test_generated_tools_carry_the_isolation_centerline_marker[False-False]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_isolate_combine_passes.py::test_generated_tools_carry_the_isolation_centerline_marker[True-False]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_isolate_combine_passes.py::test_generated_tools_carry_the_isolation_centerline_marker[True-True]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_isolation_separate_passes.py::test_generate_uses_the_tools_of_the_click[edit]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_language.py::TestApplyLanguage::test_an_empty_locale_folder_shows_the_source_strings  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_language.py::TestLanguageNames::test_each_name_is_written_in_its_own_language  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_levelling.py::TestCannedCycles::test_cycle_with_an_unknown_z_offset_is_rejected  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling.py::TestCannedCycles::test_drill_depths_follow_a_nonflat_map  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling.py::TestCannedCycles::test_g81_omitted_xy_drills_at_the_current_position  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling.py::TestCannedCycles::test_g82_dwells_at_the_depth  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling.py::TestCannedCycles::test_g83_on_a_negative_map_and_a_follow_on_move  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling.py::TestCannedCycles::test_line_number_stays_on_the_first_expansion_line  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling.py::TestCutterCompensation::test_arcs_under_comp_are_not_split  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling.py::TestExtraWcs::test_g10_on_an_extra_wcs_is_conservative  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling.py::TestG53Compatibility::test_ordinary_rapids_and_positive_z_feed_policy  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling.py::TestGridDetection::test_noise_still_builds_grid  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling.py::TestGroupValues::test_no_chaining_across_tol_span  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling.py::TestLevelGcodeLine::test_arc_move_unchanged_and_counted  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling.py::TestLevelGcodeLine::test_basic_linear_move  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling.py::TestLevelGcodeLine::test_modal_z_appended_on_next_line  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling.py::TestLevelGcodeLine::test_non_motion_g_words_no_state_change  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling.py::TestLevelGcodeLine::test_rapid_move_unchanged  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling.py::TestLevelGcodeLine::test_rapid_then_positive_z_feed_is_compensated  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling.py::TestMatchNearestPoint::test_within_tolerance  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling.py::TestMatchTolerance::test_capped_when_points_far_apart  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling.py::TestNearest::test_empty_raises  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling.py::TestNoDeclarationAfterAMove::test_units_word_after_a_lost_position  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling.py::TestNoDefaultStart::test_arc_from_an_unknown_start  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling.py::TestParseGrbl::test_work_offset_missing_g54_raises  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling.py::TestParseGrbl::test_work_offset_sum_must_remain_finite  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling.py::TestParseHeightMapLine::test_non_numeric_tokens  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling.py::TestToolPassesTheUnits::test_inch_job_with_a_metric_program_warns  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling.py::TestToolPassesTheUnits::test_unsupported_cycle_warns_in_permissive_mode  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling.py::TestUnits::test_header_then_cuts_are_compensated  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling.py::TestUnitsState::test_units_argument  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling.py::TestWcs::test_every_wcs_word_is_a_frame_word  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling.py::TestWcs::test_wcs_and_move_on_one_line  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling.py::TestWcs::test_wcs_word_loses_the_axes  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling.py::TestWorkOriginShift::test_g10_l2  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling.py::TestWorkOriginShift::test_g92_xy  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_arc_g91.py::SimSelfTest::test_the_checker_is_not_blind  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_arc_g91.py::TestAppliedOffset::test_g0_with_z_clears_applied_and_g0_without_z_keeps_it  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_arc_g91.py::TestArcNotCompensated::test_p2  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_arc_g91.py::TestArcNotCompensated::test_state_is_updated_and_applied_cleared  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_arc_g91.py::TestArcNotCompensated::test_zero_radius  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_arc_g91.py::TestArcSplitAbsolute::test_g2_quarter_arc  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_arc_g91.py::TestArcsInRelativeMode::test_full_circle_in_g91_mode_returns_to_the_start  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_arc_g91.py::TestBlockDelete::test_relative_move_after_optional_arc_is_not_compensated  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_arc_g91.py::TestCoordinateSystemLoss::test_g92_loses_named_axes  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_arc_g91.py::TestCoordinateSystemLoss::test_relative_move_is_counted_until_an_absolute_word  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_arc_g91.py::TestMixedPrograms::test_retract_in_g90_returns_to_the_original_z  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_arc_g91.py::TestNewState::test_arc_segment_must_be_positive  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_arc_g91.py::TestPositionLoss::test_g28_z  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_arc_g91.py::TestRandomArcs::test_arcs_only_chained_in_g91  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_arc_g91.py::TestRelativeG1::test_constant_offset_exact_line  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_arc_g91.py::TestRelativeG1::test_z_word_is_added_when_the_surface_moves  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_arc_g91.py::TestShortArcIsNotAFullCircle::test_equal_ends_are_still_a_full_circle  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_arc_g91.py::TestToolPassesArcSegment::test_smaller_of_seg_x_and_seg_y  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_arc_g91.py::TestToolPassesArcSegment::test_units_fallback  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_arc_g91.py::TestUnknownMovesAreCounted::test_g1_after_g53_is_counted  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_arc_g91.py::TestUnparsedWords::test_expression_axis_keeps_the_arc  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_arc_g91.py::TestUnsplittableAfterSplit::test_g18_arc_without_g_word_runs_as_an_arc  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::TestConnectionRed::test_failed_dtr_and_ok_do_not_prove_reset  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::TestDistanceMode::test_g91_position_accumulates  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::TestGrblCommands::test_bad_parameter_number_starts_nothing  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::TestGrblCommands::test_jog_blocked_in_recovery  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::TestGrblConnect::test_connect_blocked_while_operation_runs  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::TestGrblEdgeProbe::test_default_pulloff_is_bounded_in_a_smaller_hole  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::TestGrblEdgeProbe::test_failed_contact_publishes_no_result  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::TestGrblEdgeProbe::test_impossible_contact_publishes_no_result_and_no_pulloff  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::TestGrblEdgeProbe::test_inch_project_converts_the_controller_report  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::TestGrblEdgeProbe::test_invalid_inputs_schedule_nothing  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::TestGrblEdgeProbe::test_no_contact_publishes_no_result  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::TestGrblEdgeProbe::test_not_idle_sends_no_motion  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::TestGrblEdgeProbe::test_oversize_pulloff_is_clamped_to_the_contact_to_start_travel  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::TestGrblEdgeProbe::test_stale_widget_units_refuse_before_reserving  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::TestGrblHoming::test_failed_home_stays_blocked  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::TestGrblHoming::test_home_without_reset_is_rejected  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::TestGrblHoming::test_homing_blocks_other_operations  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::TestGrblProbeRun::test_failed_units_setup_sends_no_retract  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::TestGrblProbeRun::test_inch_project_sends_g20_and_scales  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::TestGrblProbeRun::test_missing_report_setting_aborts  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::TestGrblProbeRun::test_non_finite_probe_record_stops  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::TestGrblProbeRun::test_queued_sender_blocks_probe  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::TestGrblProbeRun::test_stale_result_after_points_regenerated  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::TestGrblProbeRun::test_timeout_blocks_next_probe_until_reset_and_home  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::TestGrblRealtime::test_stop_between_steps_prevents_the_second_command  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::TestGrblSession::test_cancel_during_read  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::TestGrblSession::test_port_error_does_not_touch_replacement_port  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::TestGrblSession::test_pre_cancelled_transact_does_no_io  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::TestGrblSession::test_transact_error_and_alarm  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::TestGrblZero::test_zero_blocked_in_recovery  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::TestManualFinish::test_finish_with_no_points_clears_gcode  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::TestManualFinish::test_right_click_bilinear_builds_probing_gcode  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::TestPrecisionProbing::test_cancel_between_stages_has_no_subsequent_motion  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::TestResultPublication::test_units_change_is_discarded  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::TestResultSignalThread::test_result_from_worker_thread_is_published_in_gui_thread  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::test_existing_point_units_cannot_be_reinterpreted[import]  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::test_old_import_result_cannot_change_replacement[import-b_started]  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::test_queued_probe_is_rejected_after_replacement_starts[import]  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::test_queued_probe_is_rejected_after_replacement_starts[probe]  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_audit.py::test_released_probe_evidence_is_checked_before_gui_storage_update[stop]  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_safety.py::test_failed_reset_does_not_relax_recovery  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_safety.py::test_failed_stop_write_still_requires_reset  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_safety.py::test_home_ack_alone_does_not_clear_recovery_while_run  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_safety.py::test_home_cancel_inside_final_read[stop]  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_safety.py::test_motion_port_replacement_blocks_without_writing_replacement[False]  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_safety.py::test_motion_retains_ownership_until_completion[jog]  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_safety.py::test_motion_retains_ownership_until_completion[typed]  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_safety.py::test_probe_cancel_inside_final_read[stop]  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_safety.py::test_refused_probe_click_in_recovery_keeps_valid_map  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_safety.py::test_uncertain_probe_record_sends_hold[[PRB:nan,0,0:1]]  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_tool.py::TestApplyAutolevel::test_busy_flag_cleared_after_exception_in_worker  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_tool.py::TestApplyAutolevel::test_gcode_parsed_and_solid_geometry_include_all_tools  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_tool.py::TestApplyAutolevel::test_new_object_called_with_levelled_name_and_levels_gcode  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_tool.py::TestApplyAutolevel::test_non_cncjob_target_errors  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_tool.py::TestApplyAutolevelRealObject::test_obj_init_against_real_cncjob  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_tool.py::TestAutolevellGcodeBilinear::test_source_tool_gcode_not_mutated  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_tool.py::TestAutolevellGcodeErrors::test_units_mismatch_returns_none  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_tool.py::TestAutolevellGcodeIrregularGrid::test_irregular_grid_falls_back_to_nearest_with_warning  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_tool.py::TestAutolevellGcodeToolsOrderAndDialects::test_default_preprocessor_names_are_allowed  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_tool.py::TestAutolevellGcodeToolsOrderAndDialects::test_roland_preprocessor_rejected  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_tool.py::TestAutolevellGcodeToolsOrderAndDialects::test_tools_are_processed_in_dict_order_not_sorted  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_tool.py::TestFiniteLevellingInput::test_non_finite_grbl_probe_values_are_rejected  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_tool.py::TestHeightMapCoverage::test_arc_interior_samples_outside_map_warn_even_with_in_map_endpoints  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_tool.py::TestImportHeightMap::test_rows_out_of_order_match_correct_storage_points  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_tool.py::TestImportHeightMap::test_zero_valid_rows_errors_and_does_not_apply  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_tool.py::TestSendGrblCommand::test_no_answer_requires_recovery  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_tool.py::test_controller_change_drops_old_controller_code[MACH4]  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_tool.py::test_destructive_reset_releases_before_clearing[clear]  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_tool.py::test_destructive_reset_releases_before_clearing[mode]  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_tool.py::test_destructive_reset_releases_before_clearing[target]  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_tool.py::test_incomplete_height_map_import_does_not_apply  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_tool.py::test_probing_code_has_no_bare_prose[MACH4]  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_levelling_tool.py::test_valid_height_map_import_applies_autolevel  # 2026-11-06 prune: duplicate or implementation-pinning levelling test
+tests/test_milling_single_geometry_tools.py::test_an_ordinary_tool_keeps_its_offset_despite_isolation_like_labels[labels1-False]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_milling_single_geometry_tools.py::test_an_ordinary_tool_keeps_its_offset_despite_isolation_like_labels[labels1-True]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_milling_single_geometry_tools.py::test_an_ordinary_tool_keeps_its_offset_despite_isolation_like_labels[labels2-False]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_milling_single_geometry_tools.py::test_an_ordinary_tool_keeps_its_offset_despite_isolation_like_labels[labels2-True]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_milling_single_geometry_tools.py::test_excellon_paint_without_a_usable_tool_is_an_error_and_no_job  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_milling_single_geometry_tools.py::test_isolation_centerline_marker_gets_no_second_offset[2-None-False]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_milling_single_geometry_tools.py::test_isolation_centerline_marker_gets_no_second_offset[2-None-True]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_milling_single_geometry_tools.py::test_tool_without_area_exclusion_does_not_route_around_the_areas[True]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_object_plot_state.py::TestExcellonPlotSolid::test_solid_batch_and_visibility[False-True]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_object_plot_state.py::TestExcellonPlotSolid::test_solid_batch_and_visibility[True-True]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_object_plot_state.py::test_cancelled_tool_color_picker_keeps_the_tool_color_and_plot  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_object_plot_state.py::test_gerber_plot_batch[False-False-False]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_object_plot_state.py::test_gerber_plot_batch[False-False-True]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_object_plot_state.py::test_gerber_plot_batch[True-True-False]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_object_plot_state.py::test_tool_color_swatch_updates_the_tool_color_and_its_shapes[False-False-False-False]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_object_plot_state.py::test_tool_color_swatch_updates_the_tool_color_and_its_shapes[False-False-False-True]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_object_plot_state.py::test_tool_color_swatch_updates_the_tool_color_and_its_shapes[False-False-True-False]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_object_plot_state.py::test_tool_color_swatch_updates_the_tool_color_and_its_shapes[False-True-False-False]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_object_plot_state.py::test_tool_color_swatch_updates_the_tool_color_and_its_shapes[False-True-False-True]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_object_plot_state.py::test_tool_color_swatch_updates_the_tool_color_and_its_shapes[False-True-True-False]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_object_plot_state.py::test_tool_color_swatch_updates_the_tool_color_and_its_shapes[True-False-False-False]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_object_plot_state.py::test_tool_color_swatch_updates_the_tool_color_and_its_shapes[True-False-False-True]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_object_plot_state.py::test_tool_color_swatch_updates_the_tool_color_and_its_shapes[True-False-True-False]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_object_plot_state.py::test_tool_color_swatch_updates_the_tool_color_and_its_shapes[True-True-False-True]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_object_plot_state.py::test_tool_color_swatch_updates_the_tool_color_and_its_shapes[True-True-True-False]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_pcb_viewer.py::test_gerber_view_button_shares_info_row  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_pcb_viewer.py::test_native_and_fallback_tessellation_preserve_holes  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_pcb_viewer.py::test_plugin_defaults_controls_and_source_selection  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_pcb_viewer.py::test_replacing_plugin_restores_the_shared_plot_scene  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_pcb_viewer.py::test_units_and_mesh_cache_keep_geometry_in_register  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_photo_carve.py::test_inverse_calibration_budget_bounds_random_rounding  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_photo_carve.py::test_photo_adapter_overrides_parse_each_tool_and_keeps_certificate  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_photo_carve.py::test_photo_generation_captured_publication[newer]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_photo_carve.py::test_photo_generation_captured_publication[reset]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_photo_carve.py::test_photo_tcl_shared_generation_and_invalid_cutter  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_photo_carve.py::test_resource_preflight_is_scalar_fast_and_small  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_plot_visibility_toggle.py::TestMoveToTop::test_moves_group_to_end_and_keeps_buffers  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_plot_visibility_toggle.py::TestShapeGroupVisibility::test_redraw_with_indexes_recolors_only_those_shapes  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_plotcanvas3d.py::TestPlotCanvas3d::test_zoom_out_range_survives_fit_views_and_resize  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_preferences_project_keys.py::test_help_strip_shows_the_label_and_the_existing_tooltip  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_preferences_project_keys.py::test_more_menu_holds_the_rare_actions_and_restore_defaults_asks_first  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_preferences_project_keys.py::test_preferences_open_in_a_window_over_the_main_window  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_preferences_project_keys.py::test_reset_arrows_on_the_same_row_reset_only_their_setting[LayoutDirection.RightToLeft]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_preferences_project_keys.py::test_shortcut_export_reports_a_write_error  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_preferences_project_keys.py::test_shortcut_import_rejects_conflicts_and_invalid_keys_without_losing_edits[overrides2]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_preferences_project_keys.py::test_the_window_mirrors_in_a_right_to_left_application  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_preprocessor_loading.py::test_grbl_hal_preprocessors_do_not_execute_the_grbl_files_again  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test

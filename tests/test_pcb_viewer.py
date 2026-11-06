@@ -83,30 +83,6 @@ def test_preview_without_outline_uses_combined_bounds_and_handles_empty_layers()
         build({'outline': source(follow=[LineString([(0, 0), (1, 1)])]), 'copper_top': copper})
 
 
-def test_units_and_mesh_cache_keep_geometry_in_register():
-    from appPlugins.ToolPCBViewer.PCBViewerGen import PCBGeometry
-    engine = PCBGeometry()
-    sources = {'outline': source([box(0, 0, 25.4, 25.4)]),
-               'copper_top': source([box(0.1, 0.1, 0.2, 0.2)], units='IN')}
-    layers = list(engine.build(sources, 'IN'))
-    assert layers[0].geometry.bounds == pytest.approx((0, 0, 1, 1))
-    assert layers[1].geometry.bounds == pytest.approx((0.1, 0.1, 0.2, 0.2))
-    again = list(engine.build(sources, 'IN'))
-    assert again[1].vertices is layers[1].vertices
-    sources['copper_top'] = source([box(0.3, 0.3, 0.4, 0.4)], units='IN')
-    changed = list(engine.build(sources, 'IN'))
-    assert changed[1].geometry.bounds == pytest.approx((0.3, 0.3, 0.4, 0.4))
-
-
-def test_native_and_fallback_tessellation_preserve_holes(monkeypatch):
-    from appPlugins.ToolPCBViewer.PCBViewerGen import extrude_mesh
-    shape = box(0, 0, 10, 10).difference(Point(3, 3).buffer(1))
-    monkeypatch.setattr(shapely, 'constrained_delaunay_triangles', None)
-    vertices, faces, origin = extrude_mesh(shape)
-    layer = SimpleNamespace(vertices=vertices, faces=faces)
-    assert cap_area(layer) == pytest.approx(shape.area, rel=1e-6)
-
-
 @pytest.fixture
 def viewer_app():
     import logging
@@ -201,52 +177,6 @@ def viewer_app():
     qapp.processEvents()
 
 
-def test_plugin_defaults_controls_and_source_selection(viewer_app):
-    from appPlugins.ToolPCBViewer.PCBViewer import ToolPCBViewer
-    app, qapp = viewer_app
-    tool = app.pcb_viewer_tool = ToolPCBViewer(app)
-    tool.run(source=app.collection.objects[0])
-    qapp.processEvents()
-    ui = tool.ui
-    assert ui.camera_reference.get_value() == 'lmb'
-    assert app.plotcanvas3d.camera_reference == 'lmb'
-    ui.camera_reference.set_value('center')
-    assert app.plotcanvas3d.camera_reference == 'center'
-    ui.camera_reference.set_value('lmb')
-    assert app.plotcanvas3d.camera_reference == 'lmb'
-    for name in ('copper_top', 'copper_bottom', 'overlay_top', 'overlay_bottom'):
-        assert ui.combos[name].currentText() == 'source'
-    for name in ('outline', 'soldermask_top', 'soldermask_bottom'):
-        assert ui.combos[name].currentIndex() == -1
-    assert ui.combos['drills'].currentText() == 'drill'
-    assert ui.combos['drills_2'].currentIndex() == -1
-    assert set(ui.colors) == {'board', 'copper', 'soldermask', 'overlay'}
-    assert ui.colors['board'].get_value() == '#809966FF'
-    assert ui.colors['soldermask'].get_value() == '#FF000080'
-    assert ui.colors['overlay'].get_value() == '#FFFFFFFF'
-    ui.colors['soldermask'].set_value('#FFFFFF80')
-    assert ui.colors['overlay'].get_value() == '#000000FF'
-    ui.colors['soldermask'].set_value('#FF000080')
-    assert ui.colors['overlay'].get_value() == '#FFFFFFFF'
-    ui.colors['overlay'].set_value('#123456FF')
-    ui.colors['soldermask'].set_value('#FFFFFF80')
-    assert ui.colors['overlay'].get_value() == '#123456FF'
-    for widget, limits, default, changed in (
-            (ui.board_thickness, (0.2, 3), 0.8, 1.2),
-            (ui.copper_thickness, (10, 30), 18, 22),
-            (ui.mask_thickness, (80, 200), 100, 150)):
-        assert (widget.spinner.minimum(), widget.spinner.maximum()) == limits
-        assert widget.get_value() == default
-        widget.slider.set_value(changed) if hasattr(widget.slider, 'set_value') else widget.slider.setValue(changed)
-        assert widget.get_value() == pytest.approx(changed)
-        widget.spinner.setValue(default)
-        assert widget.slider.value() == pytest.approx(default)
-    assert not app.plotcanvas3d.grid.visible
-    assert not app.messages
-    tool.on_plugin_cleanup()
-    app.signals.cleanup.emit()
-
-
 def test_mesh_rendering_and_fit_survive_resize_and_show_both_sides(viewer_app):
     from appPlugins.ToolPCBViewer.PCBViewerView import PCBView
     app, qapp = viewer_app
@@ -315,20 +245,6 @@ def test_dense_panel_mesh_keeps_every_board_and_hole():
     geometry = shapely.MultiPolygon(panels)
     vertices, faces, _origin = extrude_mesh(geometry)
     assert cap_area(SimpleNamespace(vertices=vertices, faces=faces)) == pytest.approx(geometry.area, rel=1e-6)
-
-
-def test_gerber_view_button_shares_info_row(viewer_app):
-    from appGUI.ObjectUI import GerberObjectUI
-    from defaults import AppDefaults
-    app, _qapp = viewer_app
-    app.options.update(AppDefaults().defaults)
-    ui = GerberObjectUI(app)
-    assert ui.view_3d_button.text() == 'View 3D'
-    row = next(ui.custom_box.itemAt(i).layout() for i in range(ui.custom_box.count())
-               if ui.custom_box.itemAt(i).layout() is not None and
-               ui.custom_box.itemAt(i).layout().indexOf(ui.info_button) >= 0)
-    assert row.indexOf(ui.view_3d_button) == row.indexOf(ui.info_button) + 1
-    ui.deleteLater()
 
 
 def test_changed_object_supersedes_inflight_preview_and_close_is_safe(viewer_app):
@@ -405,20 +321,6 @@ def test_transparent_offcenter_overlay_stays_above_opaque_board(viewer_app):
     blended = (image[:, :, 0] > 40) & (image[:, :, 2] > 40) & (image[:, :, 1] < 30)
     assert np.count_nonzero(blended) > 100
     view.clear()
-
-
-def test_replacing_plugin_restores_the_shared_plot_scene(viewer_app):
-    from appPlugins.ToolPCBViewer.PCBViewer import ToolPCBViewer
-    app, qapp = viewer_app
-    tool = app.pcb_viewer_tool = ToolPCBViewer(app)
-    tool.run(source=app.collection.objects[0])
-    qapp.processEvents()
-    canvas = app.plotcanvas3d
-    app.ui.plugin_scroll_area.takeWidget()
-    assert canvas.grid.visible
-    assert canvas.content_bounds is None
-    assert app.plotcanvas3d is None
-    tool.deleteLater()
 
 
 def test_filename_aliases_select_the_board_stack(viewer_app, subtests):

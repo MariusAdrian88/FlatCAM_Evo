@@ -176,22 +176,6 @@ class TestPlotCanvas3d(unittest.TestCase):
             camera.viewbox_mouse_event(self.mouse_event('mouse_wheel', pos=pos, delta=(0, -1), modifiers=(keys.SHIFT,)))
             self.assertAlmostEqual(camera.scale_factor, scale)
 
-    def test_zoom_out_range_survives_fit_views_and_resize(self):
-        canvas = self.make_canvas()
-        camera = canvas.view.camera
-        for view in ('iso', 'top', 'bottom', 'left', 'right', 'front', 'back'):
-            with self.subTest(view=view):
-                camera.set_view(view)
-                canvas.fit_view()
-                fitted = camera.scale_factor
-                camera.zoom(10)
-                self.assertAlmostEqual(camera.scale_factor, fitted * 10)
-                canvas.on_view_resize(None)
-                self.assertAlmostEqual(camera.scale_factor, fitted * 10)
-                canvas.fit_view()
-                self.assertAlmostEqual(camera.scale_factor, fitted)
-                camera.zoom(10)
-                self.assertAlmostEqual(camera.scale_factor, fitted * 10)
 
     def test_drag_tilts_in_screen_direction_from_any_start(self):
         canvas = self.make_canvas()

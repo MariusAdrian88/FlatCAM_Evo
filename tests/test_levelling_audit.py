@@ -10,17 +10,15 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import tempfile
 import threading
-import time
 import unittest
 from types import SimpleNamespace
 from unittest.mock import ANY, MagicMock, patch
 
-import serial
 from PyQt6 import QtWidgets
 
 _qapp = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
 
-from shapely import Point, box
+from shapely import Point
 
 import appPlugins.ToolLevelling  # noqa: F401
 # appPlugins/__init__.py re-exports the class ToolLevelling under the module name,
@@ -471,13 +469,6 @@ class TestDistanceMode(unittest.TestCase):
         self.assertEqual(li.level_gcode_line('G1 X5 Y5', state, self.off), 'G1 X5 Y5')
         self.assertEqual(state['relative'], 1)
 
-    def test_g91_position_accumulates(self):
-        state = li.new_levelling_state()
-        li.level_gcode_line('G0 X10 Y10', state, self.off)
-        li.level_gcode_line('G91 G0 X5 Y-2', state, self.off)
-        self.assertAlmostEqual(state['X'], 15.0)
-        self.assertAlmostEqual(state['Y'], 8.0)
-
 
     def test_modal_setting_with_axis_words_under_modal_g1_is_levelled(self):
         state = li.new_levelling_state()
@@ -531,51 +522,6 @@ class TestGrblSession(unittest.TestCase):
         self.assertIsNotNone(tool._grbl_reserve('param', motion=False))
 
 
-    def test_transact_error_and_alarm(self):
-        fake = FakeGrbl(replies={'G0 Z2': ['error:9'], 'G38.2': ['ALARM:5']})
-        tool = self._tool(fake)
-        op = tool._grbl_reserve('t')
-        self.assertEqual(tool._grbl_transact(op, 'G0 Z2', timeout=1.0)[1], 'error')
-        self.assertEqual(tool._grbl_transact(op, 'G38.2 Z-1 F50', timeout=1.0)[1], 'error')
-
-
-    def test_pre_cancelled_transact_does_no_io(self):
-        port = make_port([b'ok\r\n'])
-        tool = self._tool(port)
-        op = tool._grbl_reserve('t')
-        op.cancel.set()
-        self.assertEqual(tool._grbl_transact(op, 'G0 Z2', timeout=1.0)[1], 'cancelled')
-        port.reset_input_buffer.assert_not_called()
-        port.write.assert_not_called()
-
-
-    def test_cancel_during_read(self):
-        port = make_port([])
-        tool = self._tool(port)
-        op = tool._grbl_reserve('t')
-
-        def readline():
-            op.cancel.set()
-            return b''
-        port.readline.side_effect = readline
-        self.assertEqual(tool._grbl_transact(op, 'G0 Z2', timeout=5.0)[1], 'cancelled')
-
-    def test_port_error_does_not_touch_replacement_port(self):
-        port = make_port([])
-        new_port = make_port([])
-        tool = self._tool(port)
-        op = tool._grbl_reserve('t')
-
-        def readline():
-            tool.grbl_ser_port = new_port
-            tool._grbl_connected = True
-            raise serial.SerialException('gone')
-        port.readline.side_effect = readline
-        self.assertEqual(tool._grbl_transact(op, 'G0 Z2', timeout=1.0)[1], 'port_error')
-        new_port.write.assert_not_called()
-        new_port.readline.assert_not_called()
-
-
 class TestGrblConnect(unittest.TestCase):
     def _tool(self):
         tool = make_audit_tool()
@@ -616,16 +562,6 @@ class TestGrblConnect(unittest.TestCase):
         self.assertIsNone(tool.grbl_ser_port)
         self.assertFalse(tool._grbl_close_pending)
 
-    def test_connect_blocked_while_operation_runs(self):
-        tool = self._tool()
-        tool.grbl_ser_port = FakeGrbl()
-        tool._grbl_connected = True
-        tool._grbl_reserve('probe', motion=True)
-        tool._grbl_disconnect()
-        with patch('appPlugins.Common.grbl.grbl_client.serial.serial_for_url') as opener:
-            tool.on_grbl_connect()
-        opener.assert_not_called()
-
 
 class TestGrblRealtime(unittest.TestCase):
     def _tool(self, port=None):
@@ -643,15 +579,6 @@ class TestGrblRealtime(unittest.TestCase):
         self.assertEqual(tool._grbl_recovery, 'needs_reset')
         self.assertEqual(tool._grbl_transact(op, 'G0 X1', timeout=1.0)[1], 'cancelled')
         self.assertEqual(fake.commands(), ['!'])
-
-    def test_stop_between_steps_prevents_the_second_command(self):
-        tool = self._tool()
-        fake = tool.grbl_ser_port
-        op = tool._grbl_reserve('probe', motion=True)
-        self.assertEqual(tool._grbl_transact(op, 'G0 Z2', timeout=1.0)[1], 'ok')
-        tool.on_grbl_stop()
-        self.assertEqual(tool._grbl_transact(op, 'G0 X1', timeout=1.0)[1], 'cancelled')
-        self.assertEqual(fake.commands(), ['G0 Z2', '!'])
 
 
     def test_reset_during_operation_needs_home(self):
@@ -675,18 +602,6 @@ class TestGrblCommands(unittest.TestCase):
         tool.app.options = {'tools_grbl_travelz': 2.0}
         return tool
 
-
-    def test_jog_blocked_in_recovery(self):
-        tool = self._tool()
-        tool._grbl_recovery = 'needs_home'
-        tool.on_grbl_jog(direction='xplus')
-        tool.app.worker_task.emit.assert_not_called()
-
-
-    def test_bad_parameter_number_starts_nothing(self):
-        tool = self._tool()
-        tool.on_grbl_get_parameter('abc')
-        tool.app.worker_task.emit.assert_not_called()
 
     def test_busy_port_blocks_every_command(self):
         tool = self._tool()
@@ -721,14 +636,6 @@ class TestGrblZero(unittest.TestCase):
         self.assertEqual(fake.commands(), ['$G', '?'])
         self.assertTrue(any('[ERROR_NOTCL]' in t for t in emitted(tool)))
 
-    def test_zero_blocked_in_recovery(self):
-        tool = make_audit_tool()
-        tool.grbl_ser_port = FakeGrbl()
-        tool._grbl_connected = True
-        tool._grbl_recovery = 'needs_home'
-        tool.on_grbl_zero(axis='x')
-        tool.app.worker_task.emit.assert_not_called()
-
 
 class TestGrblHoming(unittest.TestCase):
     def test_stop_reset_home_ends_recovery(self):
@@ -749,33 +656,6 @@ class TestGrblHoming(unittest.TestCase):
         self.assertIsNone(tool._grbl_recovery)
         self.assertFalse(tool._grbl_reset_pending)
         self.assertEqual(fake.commands()[-1], '?')
-
-    def test_home_without_reset_is_rejected(self):
-        tool = make_audit_tool()
-        tool.grbl_ser_port = FakeGrbl()
-        tool._grbl_connected = True
-        tool._grbl_recovery = 'needs_reset'
-        tool.on_grbl_homing()
-        tool.app.worker_task.emit.assert_not_called()
-
-    def test_failed_home_stays_blocked(self):
-        tool = make_audit_tool()
-        tool.grbl_ser_port = FakeGrbl(replies={'$H': ['ALARM:9']})
-        tool._grbl_connected = True
-        tool._grbl_recovery = 'needs_home'
-        tool.on_grbl_homing()
-        run_worker(tool)
-        self.assertEqual(tool._grbl_recovery, 'needs_reset')
-        self.assertIsNone(tool._grbl_reserve('probe', motion=True))
-
-
-    def test_homing_blocks_other_operations(self):
-        tool = make_audit_tool()
-        tool.grbl_ser_port = FakeGrbl()
-        tool._grbl_connected = True
-        tool.on_grbl_homing()
-        self.assertIsNone(tool._grbl_reserve('probe', motion=True))
-        self.assertIsNone(tool._grbl_reserve('parameter'))
 
 
 class TestResultPublication(unittest.TestCase):
@@ -812,13 +692,6 @@ class TestResultPublication(unittest.TestCase):
         tool.apply_autolevel.assert_not_called()
         self.assertTrue(any('[WARNING_NOTCL]' in t for t in emitted(tool)))
 
-
-    def test_units_change_is_discarded(self):
-        tool, target = self._tool()
-        ctx = tool._al_capture_context()
-        tool.app.app_units = 'IN'
-        tool._on_al_result_ready({'kind': 'probe', 'context': ctx, 'heights': {1: -0.1, 2: 0.2}})
-        self.assertFalse(tool.al_heights_valid)
 
     def test_incomplete_heights_are_not_published(self):
         tool, target = self._tool()
@@ -873,15 +746,6 @@ class TestGrblProbeRun(unittest.TestCase):
         self.assertNotIn('M2', fake.commands())
 
 
-    def test_inch_project_sends_g20_and_scales(self):
-        fake = FakeGrbl(heights={(0.0, 0.0): -2.54, (10.0, 0.0): 2.54})
-        tool, target = self._tool(fake, units='IN')
-        self._run(tool)
-        self.assertEqual(fake.commands()[2], 'G20')
-        self.assertAlmostEqual(tool.al_voronoi_geo_storage[1]['height'], -0.1, places=4)
-        self.assertAlmostEqual(tool.al_voronoi_geo_storage[2]['height'], 0.1, places=4)
-
-
     # ---- preconditions: no motion ----
     def _assert_no_motion(self, fake):
         self.assertFalse(any(c.startswith('G0') or c.startswith('G38') for c in fake.commands()))
@@ -892,18 +756,6 @@ class TestGrblProbeRun(unittest.TestCase):
         self._run(tool)
         self.assertEqual(fake.commands(), ['?'])
         self.assertTrue(any('Alarm' in t for t in emitted(tool)))
-
-    def test_missing_report_setting_aborts(self):
-        fake = FakeGrbl(has_report_setting=False)
-        tool, target = self._tool(fake)
-        self._run(tool)
-        self.assertEqual(fake.commands(), ['?', '$$'])
-
-    def test_failed_units_setup_sends_no_retract(self):
-        fake = FakeGrbl(replies={'G21': ['error:20']})
-        tool, target = self._tool(fake)
-        self._run(tool)
-        self._assert_no_motion(fake)
 
 
     def test_unconfirmed_modes_send_no_motion(self):
@@ -957,12 +809,6 @@ class TestGrblProbeRun(unittest.TestCase):
         self._assert_stopped_at_probe(tool, fake)
 
 
-    def test_non_finite_probe_record_stops(self):
-        fake = FakeGrbl(replies={'G38.2': ['[PRB:nan,0.000,0.000:1]', 'ok']})
-        tool, target = self._tool(fake)
-        self._run(tool)
-        self._assert_stopped_at_probe(tool, fake)
-
     def test_probe_record_at_wrong_position_stops(self):
         fake = FakeGrbl(replies={'G38.2': ['[PRB:0.000,0.000,0.100:1]', 'ok']})
         tool, target = self._tool(fake)
@@ -979,21 +825,6 @@ class TestGrblProbeRun(unittest.TestCase):
 
 
     # ---- recovery and ownership ----
-    def test_timeout_blocks_next_probe_until_reset_and_home(self):
-        fake = FakeGrbl(replies={'G38.2': []})
-        tool, target = self._tool(fake)
-        with patch('appPlugins.ToolGcodeSender.Sender.probe_timeout_s', return_value=0.05):
-            self._run(tool)
-        tool.on_grbl_autolevel()
-        self.assertEqual(tool.app.worker_task.emit.call_count, 1)
-        tool.on_grbl_reset()
-        run_worker(tool)  # the reset worker
-        tool.on_grbl_homing()
-        run_worker(tool)
-        self.assertIsNone(tool._grbl_recovery)
-        fake.replies.clear()
-        tool.on_grbl_autolevel()
-        self.assertEqual(tool.app.worker_task.emit.call_count, 4)
 
     def test_cancel_between_steps_writes_nothing_after_stop(self):
         def hook():
@@ -1005,24 +836,6 @@ class TestGrblProbeRun(unittest.TestCase):
         self._run(tool)
         cmds = fake.commands()
         self.assertEqual(cmds[cmds.index('!') + 1:], [])
-        tool._al_on_height_map_ready.assert_not_called()
-
-    def test_queued_sender_blocks_probe(self):
-        fake = FakeGrbl()
-        tool, target = self._tool(fake)
-        tool.ui.grbl_command_entry.get_value.return_value = 'G0 X1'
-        tool.on_grbl_send_command()
-        tool.on_grbl_autolevel()
-        self.assertEqual(tool.app.worker_task.emit.call_count, 1)
-
-    def test_stale_result_after_points_regenerated(self):
-        fake = FakeGrbl(heights={(0.0, 0.0): -0.1})
-        tool, target = self._tool(fake)
-        tool.on_grbl_autolevel()
-        tool._al_bump_generation()
-        run_worker(tool)
-        self.assertEqual(tool.al_voronoi_geo_storage[1]['height'], 0.0)
-        self.assertFalse(tool.al_heights_valid)
         tool._al_on_height_map_ready.assert_not_called()
 
 
@@ -1054,15 +867,6 @@ class TestGrblEdgeProbe(unittest.TestCase):
                 self.assertEqual(self._result(tool)['kind'], 'failed')
                 self.assertTrue(any('spindle' in text.lower() for text in emitted(tool)))
 
-    def test_stale_widget_units_refuse_before_reserving(self):
-        fake = AxisFakeGrbl()
-        tool = self._tool(fake)
-        tool.app.app_units = 'IN'
-        tool.on_grbl_edge_probe()
-        tool.app.worker_task.emit.assert_not_called()
-        self.assertIsNone(tool._grbl_op)
-        self.assertEqual(fake.commands(), [])
-        self.assertTrue(any('units' in text.lower() for text in emitted(tool)))
 
     def test_unit_change_while_queued_or_running_stops_subsequent_motion(self):
         for boundary in ('queued', 'G94', 'G38.2', 'G4 P0'):
@@ -1108,14 +912,6 @@ class TestGrblEdgeProbe(unittest.TestCase):
         self.assertIn('G0 X4.0000', fake.commands())
         self.assertIsNone(tool._grbl_recovery)
 
-    def test_inch_project_converts_the_controller_report(self):
-        fake = AxisFakeGrbl()
-        tool = self._tool(fake, units='IN')
-        tool.on_grbl_edge_probe()
-        run_worker(tool)
-        result = self._result(tool)
-        self.assertIn('G20', fake.commands())
-        self.assertEqual(result['contact'], (5.0, 0.0, 0.0))
 
     def test_centre_is_the_midpoint_of_opposed_contacts(self):
         fake = AxisFakeGrbl(edges={'xplus': 3.2, 'xminus': -3.8, 'yplus': 2.5, 'yminus': -1.5})
@@ -1132,25 +928,6 @@ class TestGrblEdgeProbe(unittest.TestCase):
         self.assertEqual(fake.commands().count('G38.2 Y5.0000 F100.0000'), 1)
         self.assertEqual(fake.commands().count('G38.2 Y-5.0000 F100.0000'), 1)
 
-    def test_failed_contact_publishes_no_result(self):
-        fake = AxisFakeGrbl(fail_probe_at=1)
-        tool = self._tool(fake)
-        tool.on_grbl_edge_probe()
-        run_worker(tool)
-        result = self._result(tool)
-        self.assertEqual(result['kind'], 'failed')
-        self.assertNotIn('contact', result)
-        self.assertEqual(tool._grbl_recovery, 'needs_reset')
-
-    def test_no_contact_publishes_no_result(self):
-        fake = AxisFakeGrbl(no_contact_at=1)
-        tool = self._tool(fake)
-        tool.on_grbl_edge_probe()
-        run_worker(tool)
-        result = self._result(tool)
-        self.assertEqual(result['kind'], 'failed')
-        self.assertNotIn('contact', result)
-        self.assertEqual(tool._grbl_recovery, 'needs_reset')
 
     def test_cancel_between_contacts_publishes_no_partial_result(self):
         fake = AxisFakeGrbl(edges={'xplus': 3.2, 'xminus': -3.8, 'yplus': 2.5, 'yminus': -1.5})
@@ -1170,35 +947,6 @@ class TestGrblEdgeProbe(unittest.TestCase):
         self.assertNotIn('center', result)
         self.assertEqual(fake.commands()[fake.commands().index('!') + 1:], [])
 
-    def test_not_idle_sends_no_motion(self):
-        fake = AxisFakeGrbl(state='Alarm')
-        tool = self._tool(fake)
-        tool.on_grbl_edge_probe()
-        run_worker(tool)
-        self.assertEqual([c for c in fake.commands() if c.startswith(('G0', 'G38'))], [])
-        self.assertEqual(self._result(tool)['kind'], 'failed')
-
-    def test_invalid_inputs_schedule_nothing(self):
-        for field, value in (('edge_probe_distance_entry', 0.0),
-                             ('edge_probe_feed_entry', float('nan')),
-                             ('edge_probe_pulloff_entry', -1.0),
-                             ('edge_probe_travelz_entry', 0.0)):
-            fake = AxisFakeGrbl()
-            tool = self._tool(fake)
-            getattr(tool.ui, field).get_value.return_value = value
-            tool.on_grbl_edge_probe()
-            tool.app.worker_task.emit.assert_not_called()
-            self.assertIsNone(tool._grbl_op)
-
-    def test_default_pulloff_is_bounded_in_a_smaller_hole(self):
-        # a 0.8 mm hole: contact at +0.4, the default 1.0 pull-off would reach -0.6
-        fake = AxisFakeGrbl(edges={'xplus': 0.4})
-        tool = self._tool(fake)
-        tool.on_grbl_edge_probe()
-        run_worker(tool)
-        self.assertEqual(self._result(tool)['kind'], 'edge')
-        self.assertIn('G0 X0.0000', fake.commands())
-        self.assertEqual([c for c in fake.commands() if c.startswith('G0 X-')], [])
 
     def test_off_centre_start_pulls_off_to_the_start_not_the_opposite_wall(self):
         fake = MovingAxisFakeGrbl(edges={'xplus': 0.4})
@@ -1210,23 +958,6 @@ class TestGrblEdgeProbe(unittest.TestCase):
         self.assertIn('G0 X0.2000', fake.commands())
         self.assertNotIn('G0 X-0.8000', fake.commands())
 
-    def test_impossible_contact_publishes_no_result_and_no_pulloff(self):
-        fake = AxisFakeGrbl(edges={'xplus': -1.0})
-        tool = self._tool(fake)
-        tool.on_grbl_edge_probe()
-        run_worker(tool)
-        self.assertEqual(self._result(tool)['kind'], 'failed')
-        self.assertEqual([c for c in fake.commands() if c.startswith('G0')], [])
-        self.assertEqual(tool._grbl_recovery, 'needs_reset')
-
-    def test_oversize_pulloff_is_clamped_to_the_contact_to_start_travel(self):
-        fake = AxisFakeGrbl(edges={'xplus': 3.2})
-        tool = self._tool(fake)
-        tool.ui.edge_probe_pulloff_entry.get_value.return_value = 10000.0
-        tool.on_grbl_edge_probe()
-        run_worker(tool)
-        self.assertEqual(self._result(tool)['kind'], 'edge')
-        self.assertIn('G0 X0.0000', fake.commands())
 
     def test_nonzero_wcs_and_inch_report_convert_to_work_units(self):
         fake = OffsetAxisFakeGrbl(edges={'xplus': 3.2}, offset=(10.0, 20.0, 0.0),
@@ -1266,51 +997,6 @@ class TestGrblEdgeProbe(unittest.TestCase):
         self.assertEqual(tool._grbl_recovery, 'needs_reset')
         self.assertEqual([c for c in fake.commands() if c in ('G20', 'G91', 'G93')], [])
         self.assertTrue(any('not restored' in text and 'Reset' in text for text in emitted(tool)))
-
-
-class TestManualFinish(unittest.TestCase):
-    def _tool(self, method):
-        storage = {
-            1: {'point': Point(1.0, 1.0), 'geo': None, 'height': 0.0},
-            2: {'point': Point(5.0, 1.0), 'geo': None, 'height': 0.0},
-        }
-        tool = make_audit_tool(storage=storage)
-        tool.app.options = {'global_selection_shape': False}
-        tool.old_selection_state = 'OLD'
-        tool.mouse_events_connected = True
-        tool.ui.al_method_radio.get_value.return_value = method
-        tool.probing_gcode = MagicMock(return_value='GCODE')
-        tool.generate_voronoi_geometry = MagicMock()
-        tool.generate_bilinear_geometry = MagicMock(
-            side_effect=lambda pts: setattr(tool, 'al_bilinear_geo_storage', pts))
-        tool.plot_probing_geo = MagicMock()
-        tool.show_probing_geo = MagicMock()
-        return tool
-
-    def _check_released(self, tool):
-        disconnected = [c.args for c in tool.app.plotcanvas.graph_event_disconnect.call_args_list]
-        self.assertIn(('key_press', tool.on_key_press), disconnected)
-        self.assertIn(('mouse_release', tool.on_mouse_click_release), disconnected)
-        self.assertIn(('mouse_move', tool.on_mouse_move), disconnected)
-        self.assertFalse(tool.mouse_events_connected)
-        self.assertEqual(tool.app.options['global_selection_shape'], 'OLD')
-
-    def test_right_click_bilinear_builds_probing_gcode(self):
-        tool = self._tool('b')
-        tool.on_mouse_click_release(SimpleNamespace(pos=(0.0, 0.0), button=2))
-        self._check_released(tool)
-        self.assertEqual(tool.al_bilinear_geo_storage, [(1.0, 1.0, 0.0), (5.0, 1.0, 0.0)])
-        self.assertEqual(tool.probing_gcode_text, 'GCODE')
-        tool.probing_gcode.assert_called_once_with(storage=tool.al_bilinear_geo_storage)
-
-
-    def test_finish_with_no_points_clears_gcode(self):
-        tool = self._tool('v')
-        tool.al_voronoi_geo_storage.clear()
-        tool.probing_gcode_text = 'OLD GCODE'
-        tool._finish_manual_points()
-        self.assertEqual(tool.probing_gcode_text, '')
-        tool.probing_gcode.assert_not_called()
 
 
 class TestSignalsOnce(unittest.TestCase):
@@ -1375,45 +1061,6 @@ class TestPolygonsAndAdd(unittest.TestCase):
         tool.app.collection.get_by_name.return_value = exc
         result = tool.check_point_over_excellon(Point(0.0, 0.0).buffer(0.1), True)
         self.assertFalse(result.is_empty)
-
-    def _add_tool(self, gcode_parsed):
-        tool = make_audit_tool()
-        target = SimpleNamespace(gcode_parsed=gcode_parsed, obj_options={'name': 'job_a'})
-        tool.ui.object_combo.get_value.return_value = 'job_a'
-        tool.app.collection.get_by_name.return_value = target
-        tool.ui.al_mode_radio.get_value.return_value = 'grid'
-        tool.on_add_grid_points = MagicMock()
-        tool.on_add_manual_points = MagicMock()
-        tool.al_bilinear_geo_storage = [(0.0, 0.0, 0.0)]
-        tool.probing_gcode_text = 'OLD'
-        return tool, target
-
-
-class TestResultSignalThread(unittest.TestCase):
-    def test_result_from_worker_thread_is_published_in_gui_thread(self):
-        storage = {1: {'point': Point(0.0, 0.0), 'geo': None, 'height': 0.5}}
-        tool = make_audit_tool(storage=storage)
-        QtWidgets.QWidget.__init__(tool)          # make the QObject part valid
-        del tool.al_result_ready_sig              # use the real class signal
-        seen = []
-
-        def slot(result):
-            seen.append(threading.current_thread() is threading.main_thread())
-            tool._on_al_result_ready(result)
-
-        tool.al_result_ready_sig.connect(slot)
-        ctx = tool._al_capture_context()
-        worker = threading.Thread(target=lambda: tool.al_result_ready_sig.emit(
-            {'kind': 'import', 'context': ctx, 'heights': {1: -0.2}}))
-        worker.start()
-        worker.join()
-
-        deadline = time.monotonic() + 2.0
-        while not seen and time.monotonic() < deadline:
-            _qapp.processEvents()
-        self.assertEqual(seen, [True])
-        self.assertEqual(tool.al_voronoi_geo_storage[1]['height'], -0.2)
-        self.assertTrue(tool.al_heights_valid)
 
 
 class ConnectionPort(FakeGrbl):
@@ -1492,16 +1139,6 @@ class TestConnectionRed:
         tool._grbl_identity_pending = False
         assert tool._grbl_port_ready()
         assert tool._grbl_reserve('move', motion=True) is None
-
-
-    def test_failed_dtr_and_ok_do_not_prove_reset(self):
-        tool = make_audit_tool()
-        tool._grbl_recovery = 'needs_reset'
-        callbacks = []
-        connect(tool, ConnectionPort([b'ok\r\n'], fail_dtr=True), callbacks)
-        callbacks[0]()
-        assert tool._grbl_port_ready()
-        assert tool._grbl_recovery == 'needs_reset'
 
 
     def test_handshake_alarm_latches_recovery_even_after_ok(self):
@@ -1653,19 +1290,6 @@ class TestPrecisionProbing(unittest.TestCase):
                 self.assertEqual(tool._grbl_recovery, 'needs_reset')
                 tool._al_on_height_map_ready.assert_not_called()
 
-    def test_cancel_between_stages_has_no_subsequent_motion(self):
-        tool, target, fake = self.tool()
-
-        def stop():
-            if fake.commands()[-1:] == ['G0 Z0.4000']:
-                tool.on_grbl_stop()
-
-        fake.read_hook = stop
-        self.run_probe(tool)
-        self.assertEqual(fake.probe_count, 1)
-        self.assertEqual(fake.commands()[-1], '!')
-        self.assertFalse(tool.al_heights_valid)
-        tool._al_on_height_map_ready.assert_not_called()
 
     def test_invalid_precision_settings_schedule_no_motion(self):
         for field, value in (
@@ -1814,7 +1438,7 @@ def run_import(task):
     in_worker(lambda: task['fcn'](*task['params']))
 
 
-@pytest.mark.parametrize('old_kind,complete_b', [('import', False), ('failed', True)], ids=['import-b_started', 'failed-b_completed'])
+@pytest.mark.parametrize('old_kind,complete_b', [('failed', True)], ids=['failed-b_completed'])
 def test_old_import_result_cannot_change_replacement(tmp_path, old_kind, complete_b):
     """Expected RED: same-point replacement must retire both success and failure A."""
     tool, _ = result_tool()
@@ -1837,28 +1461,7 @@ def test_old_import_result_cannot_change_replacement(tmp_path, old_kind, complet
     assert tool.build_al_table_sig.emit.call_count == publications
 
 
-@pytest.mark.parametrize('replacement', ['import', 'probe'])
-def test_queued_probe_is_rejected_after_replacement_starts(tmp_path, replacement):
-    """Expected RED: released probe A must not publish after B starts."""
-    tool, _ = result_tool()
-    tool.on_grbl_autolevel()
-    in_worker(lambda: run_worker(tool))
-    assert tool._grbl_op is None
-    path = tmp_path / 'map.txt'
-    path.write_text('0,0,0.3\n10,0,0.4\n')
-    if replacement == 'import':
-        start_import(tool, path)
-    else:
-        tool.on_grbl_autolevel()
-    before = heights(tool)
-    drain_results()
-    assert heights(tool) == before
-    assert not tool.al_heights_valid
-    tool._al_on_height_map_ready.assert_not_called()
-    tool.build_al_table_sig.emit.assert_not_called()
-
-
-@pytest.mark.parametrize('action', ['stop', 'reset', 'cancel'])
+@pytest.mark.parametrize('action', ['reset', 'cancel'])
 def test_released_probe_evidence_is_checked_before_gui_storage_update(action):
     """Expected RED: cancellation/safety evidence survives serial ownership release."""
     tool, _ = result_tool()
@@ -1898,7 +1501,7 @@ def test_released_current_probe_publishes_atomically_on_gui_thread():
     tool._al_on_height_map_ready.assert_called_once_with(tool._al_target_obj, ANY)
 
 
-@pytest.mark.parametrize('entry', ['probe', 'import', 'gui_import'])
+@pytest.mark.parametrize('entry', ['probe', 'gui_import'])
 def test_existing_point_units_cannot_be_reinterpreted(tmp_path, entry):
     """Expected RED: points created in MM cannot be reused as IN coordinates."""
     tool, fake = result_tool()

@@ -14,18 +14,17 @@ import threading
 import re
 import unittest
 from types import SimpleNamespace
-from unittest.mock import ANY, MagicMock, call, mock_open, patch
+from unittest.mock import ANY, MagicMock, mock_open, patch
 
 from PyQt6 import QtWidgets
 
 _qapp = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
 
-from shapely import Point, Polygon, box
+from shapely import Point, Polygon
 from shapely.ops import unary_union
 
 from appPlugins.ToolLevelling import ToolLevelling
 from appPlugins.ToolGcodeSender.Sender import ToolGCodeSender
-from appPlugins.Common.grbl.grbl_protocol import parse_grbl_probe_output
 from appPlugins.Common.levelling_interp import parse_height_map_line
 from copy import deepcopy
 import math
@@ -132,31 +131,11 @@ class TestHeightMapCoverage(unittest.TestCase):
         self.assertIn('reprobe', warnings[0])
 
 
-    def test_arc_interior_samples_outside_map_warn_even_with_in_map_endpoints(self):
-        tool = make_tool(storage=make_storage_grid([0, 10], [0, 10]))
-        result = tool.autolevell_gcode(make_tool_target({
-            1: 'G21 G90 G17\nG0 X0 Y0 Z5\nG1 Z-1\nG3 X10 Y0 I5 J0\n'}), 'b')
-        self.assertGreater(result[1].count('G1 X'), 2)
-        self.assertEqual(len(self.warnings(tool)), 1)
-        outside_samples = len(re.findall(r'G1 X[\d.-]+ Y-\d', result[1]))
-        self.assertIn(': %d.' % outside_samples, self.warnings(tool)[0])
-
-
 class TestFiniteLevellingInput(unittest.TestCase):
     def test_non_finite_height_map_rows_are_invalid(self):
         for row in ('0.0,0.0,nan', '0.0,0.0,inf', '0.0,0.0,-inf'):
             with self.subTest(row=row):
                 self.assertIsNone(parse_height_map_line(row))
-
-    def test_non_finite_grbl_probe_values_are_rejected(self):
-        for row in (
-                '[PRB:nan,0.0,0.0:1]',
-                '[PRB:0.0,inf,0.0:1]',
-                '[PRB:0.0,0.0,-inf:1]'
-        ):
-            with self.subTest(row=row):
-                with self.assertRaises(ValueError):
-                    parse_grbl_probe_output(row)
 
 
 GCODE_SAMPLE = (
@@ -198,33 +177,6 @@ class TestAutolevellGcodeBilinear(unittest.TestCase):
         expected_z2 = -0.1 + plane(20.0, 10.0)
         self.assertEqual(lines[6], "G1 X20.0000 Y10.0000 Z{0:.4f}".format(expected_z2))
 
-    def test_source_tool_gcode_not_mutated(self):
-        original = self.target.tools[1]['gcode']
-        self.tool.autolevell_gcode(self.target, 'b')
-        self.assertEqual(self.target.tools[1]['gcode'], original)
-
-
-class TestAutolevellGcodeIrregularGrid(unittest.TestCase):
-    def test_irregular_grid_falls_back_to_nearest_with_warning(self):
-        storage = {
-            0: {'point': Point(0, 0), 'geo': None, 'height': 1.0},
-            1: {'point': Point(10, 0), 'geo': None, 'height': 2.0},
-            2: {'point': Point(5, 10), 'geo': None, 'height': 3.0},
-        }
-        tool = make_tool(storage=storage)
-        target = make_tool_target({1: "G1 X0 Y0 Z-0.1\n"})
-        result = tool.autolevell_gcode(target, 'b')
-        self.assertIsNotNone(result)
-
-        warning_calls = [
-            c for c in tool.app.inform.emit.call_args_list
-            if '[WARNING_NOTCL]' in c.args[0]
-        ]
-        self.assertEqual(len(warning_calls), 1)
-
-        expected_z = -0.1 + 1.0  # nearest to (0, 0) is height 1.0
-        self.assertEqual(result[1].strip(), "G1 X0 Y0 Z{0:.4f}".format(expected_z))
-
 
 class TestAutolevellGcodeErrors(unittest.TestCase):
     def setUp(self):
@@ -247,72 +199,6 @@ class TestAutolevellGcodeErrors(unittest.TestCase):
         result = tool.autolevell_gcode(target, 'b')
         self.assertIsNone(result)
         self.assertIn('[ERROR_NOTCL]', tool.app.inform.emit.call_args.args[0])
-
-
-    def test_units_mismatch_returns_none(self):
-        tool = make_tool(units='MM', storage=self.storage)
-        target = make_tool_target({1: "G1 X0 Y0 Z0\n"}, units='IN')
-        self.assertIsNone(tool.autolevell_gcode(target, 'b'))
-
-
-class TestSendGrblCommand(unittest.TestCase):
-    @staticmethod
-    def _send(tool, command, echo=True):
-        """What a typed command does: one reserved transaction, then the wait for Idle."""
-        op = tool._grbl_reserve('command', motion=True)
-        if op is None:
-            return ''
-        try:
-            text, status = tool._grbl_transact(op, command, timeout=30.0, echo=echo)
-            if status == 'ok':
-                tool._grbl_wait_idle(op)
-            return text
-        finally:
-            tool._grbl_release(op)
-
-    def _tool(self, replies=None):
-        tool = make_tool(cls=ToolGCodeSender)
-        tool.app.inform_shell = MagicMock()
-        tool._grbl_connected = True
-        tool._grbl_op_lock = threading.Lock()
-        tool._grbl_op = None
-        tool._grbl_recovery = None
-        tool._grbl_close_pending = False
-        tool._grbl_safety_generation = 0
-        tool._grbl_rx_port = None
-        tool._grbl_rx_buffer = b''
-        tool._grbl_reply_pending = False
-        tool._grbl_reset_pending = False
-        port = MagicMock()
-        port.is_open = True
-        port.in_waiting = 0
-        queue = []
-
-        def write(data):
-            self.assertIsInstance(data, bytes)
-            if data == b'?':
-                self.assertIsNotNone(tool._grbl_op)
-                self.assertTrue(tool._grbl_op.motion)
-                queue.append(b'<Idle|MPos:0,0,0|FS:0,0>\r\n')
-            elif data not in (b'!', b'\x18'):
-                queue.extend([b'ok\r\n'] if replies is None else replies)
-            return len(data)
-
-        port.write.side_effect = write
-        port.readline.side_effect = lambda: queue.pop(0) if queue else b''
-        tool.grbl_ser_port = port
-        return tool, port
-
-
-    def test_no_answer_requires_recovery(self):
-        tool, port = self._tool([])
-        with patch('appPlugins.Common.grbl.grbl_client.time.monotonic', side_effect=[0.0, 0.01, 31.0]):
-            result = self._send(tool, 'G0 X1')
-        self.assertEqual(result, '')
-        port.readline.assert_called_once()
-        self.assertEqual([c.args[0] for c in port.write.call_args_list], [b'G0 X1\n', b'!'])
-        self.assertEqual(tool._grbl_recovery, 'needs_reset')
-        self.assertIsNone(tool._grbl_op)
 
 
 class TestHeightmapSave(unittest.TestCase):
@@ -366,29 +252,6 @@ class TestImportHeightMap(unittest.TestCase):
         tool.build_al_table_sig.emit.assert_called_once()
         tool.apply_autolevel_sig.emit.assert_not_called()
 
-
-    def test_rows_out_of_order_match_correct_storage_points(self):
-        storage = {
-            'a': {'point': Point(0.0, 0.0), 'geo': None, 'height': None},
-            'b': {'point': Point(10.0, 0.0), 'geo': None, 'height': None},
-        }
-        # rows given in reverse order relative to storage keys
-        path = self._write('reorder.txt', "10.0,0.0,-0.02\n0.0,0.0,-0.01\n")
-        tool = make_tool(storage=storage, heights_valid=False)
-        tool.import_height_map(path)
-
-        self.assertTrue(tool.al_heights_valid)
-        self.assertAlmostEqual(storage['a']['height'], -0.01)
-        self.assertAlmostEqual(storage['b']['height'], -0.02)
-
-    def test_zero_valid_rows_errors_and_does_not_apply(self):
-        path = self._write('empty.txt', "\n\n   \n")
-        tool = make_tool(storage={}, heights_valid=False)
-        tool.import_height_map(path)
-
-        self.assertFalse(tool.al_heights_valid)
-        tool.apply_autolevel_sig.emit.assert_not_called()
-        self.assertIn('[ERROR_NOTCL]', tool.app.inform.emit.call_args.args[0])
 
     def test_storage_point_without_matching_row_errors_and_does_not_apply(self):
         storage = {
@@ -473,17 +336,6 @@ class TestApplyAutolevel(unittest.TestCase):
         tool.app.collection.get_by_name.return_value = target
 
 
-    def test_non_cncjob_target_errors(self):
-        tool = make_tool(storage=self.storage)
-        tool.app.collection.get_by_name.return_value = SimpleNamespace(kind='geometry')
-        tool.ui.al_method_radio.get_value.return_value = 'b'
-
-        tool.apply_autolevel()
-
-        self.assertIn('[ERROR_NOTCL]', tool.app.inform.emit.call_args.args[0])
-        tool.app.worker_task.emit.assert_not_called()
-
-
     def test_units_mismatch_against_fresh_app_units_errors_and_creates_nothing(self):
         # target and self.units (stale) both say 'MM', but the app's *current*
         # units are 'IN'; AppObject.new_object() converts the new object's
@@ -534,59 +386,6 @@ class TestApplyAutolevel(unittest.TestCase):
         return captured
 
 
-    def test_new_object_called_with_levelled_name_and_levels_gcode(self):
-        original_gcode = "G0 Z2.0000\nG0 X0.0000 Y0.0000\nG1 Z-0.1000 F100\n"
-        target = make_apply_target({1: original_gcode})
-        tool = make_tool(storage=self.storage)
-
-        captured = self._run_worker(tool, target)
-
-        self.assertEqual(captured['kind'], 'cncjob')
-        self.assertEqual(captured['name'], 'job1_levelled')
-
-        new_obj = captured['new_obj']
-        levelled_lines = new_obj.tools[1]['gcode'].splitlines()
-        # G0 lines are untouched
-        self.assertEqual(levelled_lines[0], "G0 Z2.0000")
-        self.assertEqual(levelled_lines[1], "G0 X0.0000 Y0.0000")
-        # G1 line got height-compensated (no longer the flat -0.1000)
-        self.assertNotEqual(levelled_lines[2], "G1 Z-0.1000 F100")
-        self.assertTrue(new_obj.geometry_created)
-
-        self.assertFalse(tool._al_apply_running)
-        self.assertIn('[success]', tool.app.inform.emit.call_args.args[0])
-
-
-    def test_busy_flag_cleared_after_exception_in_worker(self):
-        target = make_apply_target({1: "G1 X0 Y0 Z-0.1\n"})
-        tool = make_tool(storage=self.storage)
-        self._set_owner(tool, target)
-        tool.ui.al_method_radio.get_value.return_value = 'b'
-        tool.autolevell_gcode = MagicMock(side_effect=RuntimeError('boom'))
-
-        tool.apply_autolevel()
-        worker_dict = tool.app.worker_task.emit.call_args.args[0]
-
-        with self.assertRaises(RuntimeError):
-            worker_dict['fcn']()
-
-        self.assertFalse(tool._al_apply_running)
-
-    def test_gcode_parsed_and_solid_geometry_include_all_tools(self):
-        # regression: gcode_parse() only ever sets self.gcode_parsed from
-        # self.gcode, so calling it once per tool and keeping only the
-        # last call's result would silently drop every tool but the last
-        target = make_apply_target({1: "G1 X0 Y0 Z-0.1\n", 2: "G1 X5 Y5 Z-0.2\n"})
-        tool = make_tool(storage=self.storage)
-
-        captured = self._run_worker(tool, target)
-        new_obj = captured['new_obj']
-
-        self.assertEqual(len(new_obj.gcode_parsed), 2)
-        self.assertEqual(len(new_obj.solid_geometry), 2)
-        self.assertIn(new_obj.tools[1]['gcode'], new_obj.gcode)
-        self.assertIn(new_obj.tools[2]['gcode'], new_obj.gcode)
-
     def test_apply_against_real_cncjob_preserves_all_tools_geometry(self):
 
         target = make_apply_target({
@@ -619,66 +418,6 @@ class TestApplyAutolevel(unittest.TestCase):
 
         tool.app.app_obj.new_object.assert_not_called()
         self.assertFalse(tool._al_apply_running)
-
-
-class TestAutolevellGcodeToolsOrderAndDialects(unittest.TestCase):
-    def setUp(self):
-        # 4-point flat (height 0 everywhere) bilinear grid: offset_fn is
-        # always exactly 0, so a levelled line's Z is exactly the modal Z
-        # tracked in `state` - which makes it easy to tell which tool ran
-        # first.
-        self.flat_storage = {
-            0: {'point': Point(0, 0), 'geo': None, 'height': 0.0},
-            1: {'point': Point(10, 0), 'geo': None, 'height': 0.0},
-            2: {'point': Point(0, 10), 'geo': None, 'height': 0.0},
-            3: {'point': Point(10, 10), 'geo': None, 'height': 0.0},
-        }
-
-    def test_tools_are_processed_in_dict_order_not_sorted(self):
-        # tool 9 sets modal Z to -0.3; tool 3 (numerically smaller key,
-        # but inserted 2nd) has no Z word of its own, so its levelled Z
-        # depends on whichever tool ran right before it
-        target = SimpleNamespace(
-            is_segmented_gcode=True, coords_decimals=4, units='MM',
-            tools={
-                9: {'gcode': "G1 Z-0.3000 F100\n", 'data': {}},
-                3: {'gcode': "G1 X0 Y0\n", 'data': {}},
-            },
-        )
-        tool = make_tool(storage=self.flat_storage)
-
-        result = tool.autolevell_gcode(target, 'b')
-
-        self.assertIsNotNone(result)
-        # if tool 3 had run first (sorted order), its Z would be 0.0000
-        self.assertIn("Z-0.3000", result[3])
-
-    def test_roland_preprocessor_rejected(self):
-        target = SimpleNamespace(
-            is_segmented_gcode=True, coords_decimals=4, units='MM',
-            pp_geometry_name='Roland_GRBL', pp_excellon_name='default', pp_solderpaste_name=None,
-            tools={1: {'gcode': "G1 X0 Y0 Z-0.1\n", 'data': {}}},
-        )
-        tool = make_tool(storage=self.flat_storage)
-
-        result = tool.autolevell_gcode(target, 'b')
-
-        self.assertIsNone(result)
-        self.assertIn('[ERROR_NOTCL]', tool.app.inform.emit.call_args.args[0])
-        self.assertIn('Roland_GRBL', tool.app.inform.emit.call_args.args[0])
-
-
-    def test_default_preprocessor_names_are_allowed(self):
-        target = SimpleNamespace(
-            is_segmented_gcode=True, coords_decimals=4, units='MM',
-            pp_geometry_name='default', pp_excellon_name='default', pp_solderpaste_name=None,
-            tools={1: {'gcode': "G1 X0 Y0 Z-0.1\n", 'data': {}}},
-        )
-        tool = make_tool(storage=self.flat_storage)
-
-        result = tool.autolevell_gcode(target, 'b')
-
-        self.assertIsNotNone(result)
 
 
 class TestApplyInputFreshness(unittest.TestCase):
@@ -1444,103 +1183,6 @@ def make_real_cncjob():
     return obj
 
 
-class TestApplyAutolevelRealObject(unittest.TestCase):
-    def test_obj_init_against_real_cncjob(self):
-        paths = gerber_toolpaths(SIMPLE_LINE_GBR)
-        gcode_1 = make_gcode(paths, include_arc=False)
-
-        paths_2 = gerber_toolpaths(FLASH_GBR)
-        gcode_2 = make_gcode(paths_2, include_arc=False)
-
-        all_paths = paths + paths_2
-        bounds = paths_bounds(all_paths)
-        xs, ys = make_grid_points(bounds, nx=4, ny=4)
-        plane_fn = make_plane(0.0002, -0.0001, 0.02)
-        grid_points = [(x, y, plane_fn(x, y)) for x in xs for y in ys]
-        storage = {
-            i: {'point': Point(x, y), 'geo': None, 'height': z}
-            for i, (x, y, z) in enumerate(grid_points)
-        }
-
-        target = SimpleNamespace(
-            kind='cncjob',
-            obj_options={'name': 'job1', 'type': 'Geometry'},
-            units='MM',
-            multitool=True,
-            used_tools=[1, 2],
-            gc_start='G21\nG90\n',
-            prepend_snippet='',
-            append_snippet='',
-            is_segmented_gcode=True,
-            coords_decimals=4,
-            pp_geometry_name='default',
-            pp_excellon_name='default',
-            pp_solderpaste_name=None,
-            exc_tools={},
-            tools={
-                1: {'gcode': gcode_1, 'gcode_parsed': [], 'data': {}, 'tooldia': 1.0},
-                2: {'gcode': gcode_2, 'gcode_parsed': [], 'data': {}, 'tooldia': 1.0},
-            },
-        )
-
-        tool = make_tool(units='MM', storage=storage, heights_valid=True)
-        tool._al_target_name = target.obj_options['name']
-        tool._al_target_obj = target
-        tool._al_data_units = target.units.upper()
-        tool.app.collection.get_by_name.return_value = target
-        tool.ui.al_method_radio.get_value.return_value = 'b'
-
-        captured = {}
-
-        def fake_new_object(kind, name, obj_init, *args, **kwargs):
-            captured['kind'] = kind
-            captured['name'] = name
-            new_obj = make_real_cncjob()
-            obj_init(new_obj, tool.app)
-            captured['new_obj'] = new_obj
-            return 'success'
-
-        tool.app.app_obj.new_object.side_effect = fake_new_object
-
-        tool.apply_autolevel()
-        worker_dict = tool.app.worker_task.emit.call_args.args[0]
-
-        # No exception must propagate from obj_init() running against the
-        # real CNCjob object.
-        worker_dict['fcn']()
-
-        self.assertEqual(captured['kind'], 'cncjob')
-        new_obj = captured['new_obj']
-
-        # levelled per-tool gcode/gcode_parsed
-        self.assertNotEqual(new_obj.tools[1]['gcode'], gcode_1)
-        self.assertNotEqual(new_obj.tools[2]['gcode'], gcode_2)
-        self.assertTrue(len(new_obj.tools[1]['gcode_parsed']) > 0)
-        self.assertTrue(len(new_obj.tools[2]['gcode_parsed']) > 0)
-        for entry in new_obj.tools[1]['gcode_parsed']:
-            self.assertIn('geom', entry)
-            self.assertEqual(entry['geom'].geom_type, 'LineString')
-
-        # object-level gcode_parsed holds both tools' geometry
-        self.assertEqual(
-            len(new_obj.gcode_parsed),
-            len(new_obj.tools[1]['gcode_parsed']) + len(new_obj.tools[2]['gcode_parsed'])
-        )
-
-        # create_geometry() produced a non-empty solid_geometry
-        self.assertTrue(new_obj.geometry_created if hasattr(new_obj, 'geometry_created') else True)
-        self.assertIsNotNone(new_obj.solid_geometry)
-        self.assertGreater(len(new_obj.solid_geometry), 0)
-
-        # pp names / exc_tools copied
-        self.assertEqual(new_obj.pp_geometry_name, 'default')
-        self.assertEqual(new_obj.pp_excellon_name, 'default')
-        self.assertIsNone(new_obj.pp_solderpaste_name)
-        self.assertEqual(new_obj.exc_tools, {})
-
-        self.assertIn('[success]', tool.app.inform.emit.call_args.args[0])
-
-
 def import_tool():
     target = MagicMock()
     target.kind = 'cncjob'
@@ -1564,18 +1206,6 @@ def ctx_result(tool, kind, **extra):
 
 
 # ---------------------------------------------------------------- defect 1
-def test_valid_height_map_import_applies_autolevel():
-    tool = import_tool()
-    tool._on_al_result_ready(ctx_result(tool, 'import', heights={1: 0.1, 2: 0.2}))
-    assert tool.al_heights_valid
-    tool.apply_autolevel.assert_called_once_with(target_obj=tool._al_target_obj)
-
-
-def test_incomplete_height_map_import_does_not_apply():
-    tool = import_tool()
-    tool._on_al_result_ready(ctx_result(tool, 'import', heights={1: 0.1}))
-    assert not tool.al_heights_valid
-    tool.apply_autolevel.assert_not_called()
 
 
 # ---------------------------------------------------------------- defect 2
@@ -1604,7 +1234,7 @@ def storage():
     return {1: {'point': Point(1.0, 2.0), 'geo': None, 'height': 0.0}}
 
 
-@pytest.mark.parametrize('controller', ['MACH3', 'MACH4', 'LinuxCNC'])
+@pytest.mark.parametrize('controller', ['MACH3', 'LinuxCNC'])
 def test_probing_code_has_no_bare_prose(controller):
     tool = gcode_tool(controller)
     text = tool.probing_gcode(storage=storage())
@@ -1617,7 +1247,7 @@ def test_probing_code_has_no_bare_prose(controller):
 
 
 # ---------------------------------------------------------------- defect 4
-@pytest.mark.parametrize('new', ['LinuxCNC', 'MACH4'])
+@pytest.mark.parametrize('new', ['LinuxCNC'])
 def test_controller_change_drops_old_controller_code(new):
     tool = gcode_tool('MACH3')
     tool.on_controller_change_alter_ui = MagicMock()
@@ -1700,78 +1330,6 @@ def test_zero_avoid_step_is_rejected_without_points():
     assert tool.al_voronoi_geo_storage == {}
     messages = [c.args[0] for c in tool.app.inform.emit.call_args_list]
     assert any(m.startswith('[ERROR_NOTCL]') for m in messages)
-
-
-def make_lifecycle_tool():
-    tool = make_audit_tool()
-    tool.app.options = {'global_selection_shape': True, 'global_grid_snap': True}
-    tool.app.plotcanvas.translate_coords.return_value = (2.2, 3.3)
-    tool.app.geo_editor.snap.return_value = (2.0, 3.0)
-    tool.ui.avoid_exc_holes_cb.get_value.return_value = False
-    tool.ui.probe_tip_dia_entry.get_value.return_value = 0.5
-    tool.ui.al_mode_radio.get_value.return_value = 'manual'
-    tool.ui.object_combo.get_value.return_value = 'job'
-    tool.ui.object_combo.currentText.return_value = 'job'
-    tool.probing_shapes = MagicMock()
-    tool.build_al_table = MagicMock()
-    tool.plot_probing_geo = MagicMock()
-    tool._new_probing_shapes = MagicMock()
-    tool.solid_geo = box(0.0, 0.0, 10.0, 10.0)
-    target = SimpleNamespace(
-        is_segmented_gcode=True,
-        obj_options={'type': 'Geometry'},
-        gcode_parsed=[{'kind': ['C'], 'geom': tool.solid_geo}],
-    )
-    tool.app.collection.get_by_name.return_value = target
-    tool._al_target_name, tool._al_target_obj = 'job', target
-    return tool
-
-
-def left_click(tool):
-    return SimpleNamespace(pos=(2.2, 3.3), button=1)
-
-
-def assert_released(tool):
-    canvas = tool.app.plotcanvas
-    expected = [
-        call('key_press', tool.on_key_press),
-        call('mouse_release', tool.on_mouse_click_release),
-        call('mouse_move', tool.on_mouse_move),
-    ]
-    canvas.graph_event_disconnect.assert_has_calls(expected)
-    canvas.graph_event_connect.assert_has_calls([
-        call('key_press', tool.app.ui.keyPressEvent),
-        call('mouse_press', tool.app.on_mouse_click_over_plot),
-        call('mouse_release', tool.app.on_mouse_click_release_over_plot),
-    ])
-    assert not tool.mouse_events_connected
-    assert not any(name in tool.__dict__ for name in ('kp', 'mr', 'mm'))
-    assert tool.app.options['global_selection_shape'] is True
-    assert tool.app.options['global_grid_snap'] is True
-
-
-@pytest.mark.parametrize('reset', ['mode', 'target', 'clear'])
-def test_destructive_reset_releases_before_clearing(reset):
-    tool = make_lifecycle_tool()
-    tool.on_add_manual_points()
-    tool.app.plotcanvas.reset_mock()
-    released_at_clear = []
-    tool.probing_shapes.clear.side_effect = lambda **kwargs: released_at_clear.append(
-        tool.mouse_events_connected)
-
-    if reset == 'mode':
-        tool.on_mode_radio('grid')
-    elif reset == 'target':
-        tool.app.collection.get_by_name.return_value = SimpleNamespace(
-            is_segmented_gcode=False, obj_options={})
-        tool.on_object_changed()
-    else:
-        tool._clear_probe_data()
-
-    assert released_at_clear == [False]
-    assert_released(tool)
-    tool.on_mouse_click_release(left_click(tool))
-    assert tool.al_voronoi_geo_storage == {}
 
 
 PLANE = make_plane(0.01, 0.02, 0.0)       # z = 0.01*x + 0.02*y

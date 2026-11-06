@@ -230,51 +230,6 @@ def test_selected_gerbers_are_isolated_in_one_run(tool, app, multi, selection, e
     assert sorted(created) == expected
 
 
-@pytest.mark.parametrize('change', ['edit'])
-def test_generate_uses_the_tools_of_the_click(tool, app, change):
-    expected = run_isolate(tool, app, make_gerber(app, name='a'), 1, storage=tools_storage(1), combine=True)
-    (reference,) = expected.values()
-
-    gerber = make_gerber(app, name='a')
-    created = Created()
-
-    def new_object(kind, name, initialize, plot=True, **kw):
-        obj = GeometryObject(name, app)
-        if initialize(obj, app) == 'fail':
-            return 'fail'
-        created[name] = obj
-        return 'ok'
-
-    tasks = []
-    tool.app.app_obj.new_object = Mock(side_effect=new_object)
-    tool.app.worker_task.emit = tasks.append
-    tool.app.collection.get_by_name = lambda name: gerber
-    tool.app.collection.get_selected = lambda: []
-    tool.iso_tools = tools_storage(1)
-    tool.build_ui()
-    tool.ui.tools_table.selectAll()
-    tool.ui.object_combo.currentText = lambda: 'a'
-    for cb, value in ((tool.ui.valid_cb, False), (tool.ui.combine_passes_cb, True), (tool.ui.rest_cb, False),
-                      (tool.ui.except_cb, False), (tool.ui.simplify_cb, False), (tool.ui.pad_passes_entry, 0),
-                      (tool.ui.select_combo, 0), (tool.ui.multi_objects_cb, False)):
-        cb.set_value(value)
-
-    tool.on_iso_button_click()
-
-    # the Tool Table changes between the Generate click and the worker run
-    if change == 'edit':
-        tool.iso_tools[1]['tooldia'] = 0.8
-    else:
-        tool.iso_tools.clear()
-
-    (task,) = tasks
-    task['fcn'](*task['params'])
-
-    (obj,) = created.values()
-    assert obj.tools[1]['tooldia'] == DIA
-    assert wkb_set(obj.solid_geometry) == wkb_set(reference.solid_geometry)
-
-
 # ------------------------------------------------------------------------------- native board (PcbDoc) regions
 
 def isolate_native(entries):

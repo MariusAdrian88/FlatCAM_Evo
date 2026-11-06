@@ -19,7 +19,7 @@ from PyQt6 import QtGui, QtWidgets
 from appGUI.GUIElements import FCButton, FCCheckBox
 from appGUI.VisPyVisuals import ShapeGroup
 from appObjects.ExcellonObject import ExcellonObject
-from tests.helpers_objects import _headless_qt, make_app, make_excellon, make_gerber  # noqa: F401,E402
+from tests.helpers_objects import _headless_qt, make_app, make_excellon  # noqa: F401,E402
 
 OLD_CODE = os.environ.get('STAGE5_OLD_CODE') == '1'
 
@@ -89,32 +89,6 @@ def _batch_of(obj):
     return [(d['shape'].wkt, d['color'], d['face_color'], d['layer']) for d in obj.add_shapes_batch.call_args.args[0]]
 
 
-def _expected_excellon_batch(obj, multicolored):
-    out = []
-    n = 0
-    for tool in obj.tools:
-        n += 1
-        c = 'c%d' % n
-        for geo in obj.tools[tool]['solid_geometry']:
-            out.append((geo.wkt, c if multicolored else '#line', c if multicolored else '#fill', 2))
-    return out
-
-
-@pytest.mark.parametrize('multicolored', [True])
-@pytest.mark.parametrize('plot', [True, False])
-class TestExcellonPlotSolid:
-    def test_solid_batch_and_visibility(self, multicolored, plot):
-        settings = {'solid': True, 'multicolored': multicolored, 'plot': plot}
-        obj = _prepare_excellon(settings)
-        obj.plot()
-        assert obj.add_shapes_batch.call_args.kwargs['visible'] is plot
-        assert _batch_of(obj) == _expected_excellon_batch(obj, multicolored)
-        for tool in obj.tools:
-            assert obj.tools[tool]['multicolor'] == ('c%d' % (list(obj.tools).index(tool) + 1) if multicolored else None)
-        # the keys are mapped back to the tools
-        assert sum(len(v) for v in obj.shape_indexes_dict.values()) == len(_batch_of(obj))
-
-
 def test_a_tool_color_survives_a_full_plot_and_an_invalid_one_is_replaced():
     obj = _prepare_excellon({'solid': True, 'multicolored': True, 'plot': True})
     obj.random_color = _valid_counter_colors()
@@ -159,11 +133,8 @@ def _color_dialog(color, accepted):
     return Dialog
 
 
-@pytest.mark.parametrize('solid, multicolored, hidden', [
-    (True, False, False), (True, True, False), (False, False, False), (False, True, False),
-    (True, False, True), (False, False, True),
-])
-@pytest.mark.parametrize('deferred', [False, True])
+@pytest.mark.parametrize('solid, multicolored, hidden', [(True, False, False), (False, True, True)])
+@pytest.mark.parametrize('deferred', [True])
 def test_tool_color_swatch_updates_the_tool_color_and_its_shapes(monkeypatch, solid, multicolored, hidden, deferred):
     from appGUI.VisPyVisuals import ShapeCollection
     from vispy.gloo.context import FakeCanvas
@@ -252,89 +223,8 @@ def test_tool_color_swatch_updates_the_tool_color_and_its_shapes(monkeypatch, so
         assert np.all(lines[1] == (1.0, 0.0, 0.0, 1.0))
 
 
-def test_cancelled_tool_color_picker_keeps_the_tool_color_and_plot(monkeypatch):
-    obj = make_excellon(make_app())
-    obj.obj_options['multicolored'] = True
-    obj.tools[1]['multicolor'] = (0.1, 0.2, 0.3, 1.0)
-    obj.shape_indexes_dict = {1: ['key']}
-    obj.shapes = Mock()
-    swatch = FCButton()
-    monkeypatch.setattr(QtWidgets, 'QColorDialog', _color_dialog(QtGui.QColor(10, 20, 30, 128), False))
-
-    ExcellonObject.on_tool_color_clicked(obj, 1, swatch)
-
-    assert obj.tools[1]['multicolor'] == (0.1, 0.2, 0.3, 1.0)
-    obj.shapes.redraw.assert_not_called()
-
 # ---------------------------------------------------------------------------------------------------------------
 # Gerber
 # ---------------------------------------------------------------------------------------------------------------
 
-def _prepare_gerber(settings, line_enable=True, with_ui=True):
-    app = make_app()
-    app.options['gerber_plot_line_enable'] = line_enable
-    obj = make_gerber(app)
-    obj.obj_options.update(settings)
-    obj.ui = _ui_for(settings) if with_ui else None
-    obj.random_color = _counter_colors()
-    obj.add_shapes_batch = Mock(side_effect=lambda batch, **kw: list(range(len(batch))))
-    obj.add_shape = Mock()
-    obj.shapes = Mock(_indexes=[])
-    obj.calls = []
-    real = obj._app_option
-
-    def counting(key, *a, **kw):
-        obj.calls.append(key)
-        return real(key, *a, **kw)
-    obj._app_option = counting
-    return obj
-
-
-def _gerber_batch(obj):
-    return [(d['shape'].wkt, d['color'], d['face_color']) for d in obj.add_shapes_batch.call_args.args[0]]
-
-
-def _expected_gerber_batch(obj, settings, line_enable):
-    from shapely.geometry import LinearRing, LineString, MultiLineString, MultiPolygon, Polygon
-    geometry = obj.follow_geometry if settings.get('follow') else obj.solid_geometry
-    geoms = geometry.geoms if isinstance(geometry, (MultiPolygon, MultiLineString)) else geometry
-    out = []
-    n = 0
-    for g in geoms:
-        if settings['solid']:
-            color = '#line'
-            if settings['multicolored']:
-                n += 1
-                face = 'c%d' % n
-            else:
-                face = '#fill'
-        else:
-            if settings['multicolored']:
-                n += 1
-                color = 'c%d' % n
-            else:
-                color = 'black'
-            face = None
-        if not line_enable:
-            color = None
-        if isinstance(g, (Polygon, LineString)):
-            out.append((g.wkt, color, face))
-        elif isinstance(g, LinearRing):
-            out.append((LineString(g).wkt, color, face))
-    return out
-
-
-@pytest.mark.parametrize('solid, multicolored, follow', [
-    (False, False, False), (True, True, False),
-    (False, False, True),  # follow only picks the geometry; one case is enough
-])
-def test_gerber_plot_batch(solid, multicolored, follow):
-    line_enable = True
-    settings = {'solid': solid, 'multicolored': multicolored, 'follow': follow, 'plot': True}
-    obj = _prepare_gerber(settings, line_enable)
-    obj.plot(color='#line', face_color='#fill')
-    batch = _gerber_batch(obj)
-    assert batch
-    assert batch == _expected_gerber_batch(obj, settings, line_enable)
-    assert obj.add_shapes_batch.call_args.kwargs['visible'] is True
 

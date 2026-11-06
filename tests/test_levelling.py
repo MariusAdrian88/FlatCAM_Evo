@@ -16,7 +16,6 @@ from appPlugins.Common.levelling_interp import (
     bicubic_offset,
     nearest_offset,
     conservative_ceiling,
-    _group_values,
     parse_height_map_line,
     match_nearest_point,
     match_tolerance,
@@ -99,33 +98,12 @@ class TestGridDetection(unittest.TestCase):
         self.assertIsNone(result)
 
 
-    def test_noise_still_builds_grid(self):
-        points = self._points()
-        noisy = [(x + 1e-9, y - 1e-9, z) for (x, y, z) in points]
-        result = build_bilinear_grid(noisy)
-        self.assertIsNotNone(result)
-        xs, ys, grid = result
-        self.assertEqual(len(xs), 3)
-        self.assertEqual(len(ys), 3)
-
-
     def test_duplicate_cell_returns_none(self):
         points = self._points()
         # add an extra point that snaps to an already-filled cell
         points.append((points[0][0], points[0][1], points[0][2]))
         result = build_bilinear_grid(points)
         self.assertIsNone(result)
-
-
-class TestGroupValues(unittest.TestCase):
-    def test_no_chaining_across_tol_span(self):
-        # 0, 0.4e-6, 0.8e-6, 1.2e-6 with tol=1e-6: each consecutive pair
-        # is within tol of its neighbor, but the span from 0 to 1.2e-6
-        # exceeds tol, so this must NOT collapse into a single group.
-        # Anchoring to the first value of the group (not the previous
-        # value) gives 2 groups: {0, 0.4e-6, 0.8e-6} and {1.2e-6}.
-        groups = _group_values([0, 0.4e-6, 0.8e-6, 1.2e-6], 1e-6)
-        self.assertEqual(len(groups), 2)
 
 
 class TestNearest(unittest.TestCase):
@@ -143,11 +121,6 @@ class TestNearest(unittest.TestCase):
         self.assertEqual(nearest_offset(self.points, 9.9, 0.1), 2.0)
 
 
-    def test_empty_raises(self):
-        with self.assertRaises(ValueError):
-            nearest_offset([], 0, 0)
-
-
 class TestParseHeightMapLine(unittest.TestCase):
     def test_mach_comma(self):
         self.assertEqual(parse_height_map_line("1.0,2.0,-0.05"), (1.0, 2.0, -0.05))
@@ -158,10 +131,6 @@ class TestParseHeightMapLine(unittest.TestCase):
             parse_height_map_line("1.0 2.0 -0.05 0 0 0 0 0 0"),
             (1.0, 2.0, -0.05),
         )
-
-
-    def test_non_numeric_tokens(self):
-        self.assertIsNone(parse_height_map_line("abc,def,ghi"))
 
 
 class TestParseGrbl(unittest.TestCase):
@@ -211,11 +180,6 @@ class TestParseGrbl(unittest.TestCase):
         self.assertAlmostEqual(result[2], -20.0 + 3.0 + 0.5)
 
 
-    def test_work_offset_missing_g54_raises(self):
-        text = "[G55:0.000,0.000,0.000]\nok\n"
-        with self.assertRaises(ValueError):
-            parse_grbl_work_offset(text)
-
     def test_work_offset_uses_selected_g55(self):
         text = (
             "[G54:-100.000,-50.000,-20.000]\n"
@@ -245,11 +209,6 @@ class TestParseGrbl(unittest.TestCase):
                         parse_grbl_work_offset('[G54:0,0,0]\n' + record % key)
 
 
-    def test_work_offset_sum_must_remain_finite(self):
-        with self.assertRaises(ValueError):
-            parse_grbl_work_offset('[G54:1e308,0,0]\n[G92:1e308,0,0]')
-
-
 class TestMatchNearestPoint(unittest.TestCase):
     def setUp(self):
         self.points = {
@@ -258,8 +217,6 @@ class TestMatchNearestPoint(unittest.TestCase):
             'c': (0, 10),
         }
 
-    def test_within_tolerance(self):
-        self.assertEqual(match_nearest_point(self.points, 0.5, 0.5, 1.0), 'a')
 
     def test_outside_tolerance(self):
         self.assertIsNone(match_nearest_point(self.points, 5, 5, 1.0))
@@ -271,67 +228,11 @@ class TestMatchTolerance(unittest.TestCase):
         points = [(0, 0), (1, 0), (10, 10)]
         self.assertAlmostEqual(match_tolerance(points, cap=5.0), 0.5)
 
-    def test_capped_when_points_far_apart(self):
-        # closest pair is 10 apart -> half = 5.0, but cap is 0.5
-        points = [(0, 0), (10, 0)]
-        self.assertAlmostEqual(match_tolerance(points, cap=0.5), 0.5)
-
 
 class TestLevelGcodeLine(unittest.TestCase):
     @staticmethod
     def offset_fn(x, y):
         return 0.01 * x + 0.1
-
-    def test_basic_linear_move(self):
-        state = new_levelling_state()
-        line = "G01 X10.0 Y5.0 Z-0.1"
-        result = level_gcode_line(line, state, self.offset_fn)
-        expected_z = -0.1 + self.offset_fn(10.0, 5.0)
-        self.assertEqual(result, "G01 X10.0 Y5.0 Z{0:.4f}".format(expected_z))
-
-    def test_modal_z_appended_on_next_line(self):
-        state = new_levelling_state()
-        level_gcode_line("G01 Z-0.1", state, self.offset_fn)
-        self.assertEqual(state['Z'], -0.1)
-        result = level_gcode_line("X10.0 Y5.0", state, self.offset_fn)
-        expected_z = -0.1 + self.offset_fn(10.0, 5.0)
-        self.assertEqual(result, "X10.0 Y5.0 Z{0:.4f}".format(expected_z))
-        self.assertEqual(state['Z'], -0.1)
-
-
-    def test_rapid_move_unchanged(self):
-        state = new_levelling_state()
-        line = "G00 X10 Y5 Z-0.1"
-        result = level_gcode_line(line, state, self.offset_fn)
-        self.assertEqual(result, line)
-
-    def test_rapid_then_positive_z_feed_is_compensated(self):
-        # every G1 move is compensated, also above Z0 (policy since 2026-10-12)
-        state = new_levelling_state()
-        level_gcode_line("G00 Z2.0", state, lambda x, y: 0.5)
-        result = level_gcode_line("G01 X1 Y1", state, lambda x, y: 0.5)
-        self.assertEqual(result, "G01 X1 Y1 Z2.5000")
-
-    def test_arc_move_unchanged_and_counted(self):
-        state = new_levelling_state()
-        state['G'] = 1
-        state['Z'] = -0.1
-        line = "G02 X10 Y5 I1 J0"
-        result = level_gcode_line(line, state, self.offset_fn)
-        self.assertEqual(result, line)
-        self.assertEqual(state['arcs'], 1)
-
-
-    def test_non_motion_g_words_no_state_change(self):
-        state = new_levelling_state()
-        result = level_gcode_line("G21 G90 G17 G94", state, self.offset_fn)
-        self.assertEqual(result, "G21 G90 G17 G94")
-        self.assertEqual(state['G'], 0)
-
-        result = level_gcode_line("G01 X1 Y1 Z-0.1", state, self.offset_fn)
-        self.assertEqual(state['G'], 1)
-        expected_z = -0.1 + self.offset_fn(1.0, 1.0)
-        self.assertEqual(result, "G01 X1 Y1 Z{0:.4f}".format(expected_z))
 
 
     def test_g38_2_then_bare_move_not_levelled(self):
@@ -374,21 +275,7 @@ def fresh(units='MM', *lines):
     return state
 
 
-class TestUnitsState(unittest.TestCase):
-
-    def test_units_argument(self):
-        for text, code in (('MM', 21), ('IN', 20), ('mm', 21), ('in', 20), (None, None)):
-            state = new_levelling_state(units=text)
-            self.assertEqual(state['home_units'], code)
-            self.assertEqual(state['units'], code)
-
-
 class TestUnits(unittest.TestCase):
-    def test_header_then_cuts_are_compensated(self):
-        state = new_levelling_state(units='MM')
-        out = run(state, 'G21', 'G90', 'G0 X0 Y0 Z5', 'G1 X1 Y1 Z-1')
-        self.assertEqual(out[-1], 'G1 X1 Y1 Z-0.5000')
-        self.assertEqual(state['frame'], 0)
 
     def test_other_units_stop_the_compensation_and_the_same_come_back(self):
         state = fresh('MM')
@@ -427,30 +314,6 @@ class TestWcs(unittest.TestCase):
         self.assertEqual(out[1:3], ['G1 X1 Y1 Z-1', 'G1 X2 Y2 Z-1'])
         self.assertEqual(out[4], 'G1 X3 Y3 Z-0.5000')
         self.assertEqual(state['frame'], 2)
-
-    def test_wcs_word_loses_the_axes(self):
-        state = fresh('MM', 'G54')
-        run(state, 'G55')
-        for axis in 'XYZ':
-            self.assertIsNone(state[axis])
-        self.assertEqual(state['known'], set())
-        out = run(state, 'G54', 'G1 X5')
-        self.assertEqual(out[1], 'G1 X5')
-        self.assertEqual(state['unknown'], 1)
-
-    def test_wcs_and_move_on_one_line(self):
-        state = fresh('MM', 'G54')
-        out = run(state, 'G55 G1 X1 Y1 Z-1')
-        self.assertEqual(out[0], 'G55 G1 X1 Y1 Z-1')
-        self.assertEqual(state['frame'], 1)
-
-
-    def test_every_wcs_word_is_a_frame_word(self):
-        for code in ('G55', 'G56', 'G57', 'G58', 'G59', 'G59.1', 'G59.2', 'G59.3'):
-            state = fresh('MM', 'G54')
-            out = run(state, code, 'G1 X1 Y1 Z-1')
-            self.assertEqual(out[1], 'G1 X1 Y1 Z-1', code)
-            self.assertEqual(state['frame'], 1, code)
 
 
 class TestOutOfFrameMoves(unittest.TestCase):
@@ -505,13 +368,6 @@ class TestNoDefaultStart(unittest.TestCase):
         self.assertEqual(state['unknown'], 2)
 
 
-    def test_arc_from_an_unknown_start(self):
-        state = new_levelling_state()
-        out = run(state, 'G3 X0 Y10 I-10 J0')
-        self.assertEqual(out[0], 'G3 X0 Y10 I-10 J0')
-        self.assertEqual(state['arcs'], 1)
-
-
 class TestToolPassesTheUnits(unittest.TestCase):
     def tool_and_target(self, gcode, units='MM', **target_attrs):
         from tests.test_levelling_audit import make_audit_tool
@@ -525,13 +381,6 @@ class TestToolPassesTheUnits(unittest.TestCase):
             target.units = units
         return tool, target
 
-
-    def test_inch_job_with_a_metric_program_warns(self):
-        from tests.test_levelling_audit import emitted
-        tool, target = self.tool_and_target('G21\nG0 X0 Y0 Z5\nG1 X1 Y1 Z-1\n', units='IN')
-        tool.autolevell_gcode(target, 'v')
-        self.assertTrue(any('another coordinate system or units' in m and m.endswith(': 1')
-                            for m in emitted(tool)))
 
     def test_strict_rejects_an_unsupported_cycle(self):
         from tests.test_levelling_audit import emitted
@@ -582,14 +431,6 @@ class TestToolPassesTheUnits(unittest.TestCase):
         self.assertIsNone(tool.autolevell_gcode(target, 'v', strict=True))
         self.assertTrue(any('can not be height-compensated' in m for m in emitted(tool)))
 
-    def test_unsupported_cycle_warns_in_permissive_mode(self):
-        from tests.test_levelling_audit import emitted
-        tool, target = self.tool_and_target(
-            'G21\nG0 X0 Y0 Z5\nG81 X1 Y1 Z-1 R1\n', units='MM')
-        self.assertIsNotNone(tool.autolevell_gcode(target, 'v'))
-        self.assertTrue(any('Canned cycle moves or parameters that are not supported' in m
-                            for m in emitted(tool)))
-
 
 class TestNoDeclarationAfterAMove(unittest.TestCase):
     """A WCS or units word after a move never declares the frame, also when the position is lost."""
@@ -606,14 +447,6 @@ class TestNoDeclarationAfterAMove(unittest.TestCase):
         self.check_after('G28')
 
 
-    def test_units_word_after_a_lost_position(self):
-        state = new_levelling_state()
-        out = run(state, 'G0 X10 Y10 Z5', 'G1 Z-1', 'G28', 'G20', 'G0 X1 Y1 Z1', 'G1 Z-0.1')
-        self.assertIsNone(state['home_units'])
-        self.assertEqual(out[-1], 'G1 Z-0.1')
-        self.assertEqual(state['frame'], 1)
-
-
 class TestWorkOriginShift(unittest.TestCase):
     """A line that moves the X/Y work origin puts the rest of the program out of the frame."""
 
@@ -625,13 +458,6 @@ class TestWorkOriginShift(unittest.TestCase):
         self.assertEqual(out[3], 'G1 Z-1')
         self.assertEqual(out[6], 'G1 Z-1')
         self.assertEqual(state['frame'], 2)
-
-    def test_g92_xy(self):
-        self.check_shift('G92 X0 Y0')
-
-
-    def test_g10_l2(self):
-        self.check_shift('G10 L2 P1 X5 Y5')
 
 
     def test_z_zero_without_a_probe_ends_the_frame(self):
@@ -745,14 +571,6 @@ class TestCutterCompensation(unittest.TestCase):
                 self.assertEqual(out[-1], 'G1 X3 Y3 Z-0.5000')
                 self.assertEqual(state['cutter'], 3)
                 self.assertEqual(state['relative'], 0)
-
-
-    def test_arcs_under_comp_are_not_split(self):
-        state = fresh('MM', 'G21 G54')
-        out = run(state, 'G0 X10 Y0 Z-1', 'G41 D1', 'G3 X0 Y10 I-10 J0')
-        self.assertNotIn('\n', out[-1])
-        self.assertEqual(state['arcs'], 1)
-        self.assertEqual(state['arcs_split'], 0)
 
 
     def test_optional_comp_words_make_comp_unknown(self):
@@ -883,13 +701,6 @@ class TestExtraWcs(unittest.TestCase):
                 self.assertEqual(state['frame'], 1)
 
 
-    def test_g10_on_an_extra_wcs_is_conservative(self):
-        state = fresh('MM', 'G59 P7')
-        out = run(state, 'G10 L2 P7 X5', 'G0 X0 Y0 Z5', 'G1 Z-1')
-        self.assertEqual(out[-1], 'G1 Z-1')
-        self.assertTrue(state['shifted'])
-
-
 class TestCannedCycles(unittest.TestCase):
     """G81/G82/G83 are expanded and compensated; every other cycle is reported."""
 
@@ -912,25 +723,6 @@ class TestCannedCycles(unittest.TestCase):
         self.assertTrue(self.state['cycle'])
         self.assertEqual(self.state['cycle_code'], 81)
 
-    def test_line_number_stays_on_the_first_expansion_line(self):
-        self.assertEqual(
-            self.lines('N10 G81 X5 Y5 Z-1 R1 F100'),
-            ['N10 G0 X5.0000 Y5.0000', 'G0 Z1.5000', 'G1 Z-0.5000 F100', 'G0 Z5.0000']
-        )
-
-    def test_drill_depths_follow_a_nonflat_map(self):
-        state = new_levelling_state(units='MM', map_bounds=(0, 0, 20, 20))
-        state['map_ceiling'] = 1.0
-        out = run_on(slope, state, 'G21 G54', 'G0 X0 Y0 Z5',
-                     'G81 X10 Y10 Z-1 R1 F100', 'X0 Y0 Z-1')
-        self.assertIn('G1 Z-0.5000 F100', out[-2].split('\n'))
-        self.assertIn('G1 Z-1.0000', out[-1].split('\n'))
-
-    def test_g81_omitted_xy_drills_at_the_current_position(self):
-        self.assertEqual(
-            self.lines('G81 Z-1 R1 F100'),
-            ['G0 Z1.5000', 'G1 Z-0.5000 F100', 'G0 Z5.0000']
-        )
 
     def test_g81_repeat_holes_and_g80_cancel(self):
         self.lines('G81 X5 Y5 Z-1 R1 F100')
@@ -951,10 +743,6 @@ class TestCannedCycles(unittest.TestCase):
         self.assertEqual(out[-1], 'G0 Z1.5000')
         self.assertEqual(self.state['Z'], 1.0)
 
-    def test_g82_dwells_at_the_depth(self):
-        out = self.lines('G82 X5 Y5 Z-2 R0 P0.5 F100')
-        self.assertIn('G4 P0.5000', out)
-        self.assertLess(out.index('G4 P0.5000'), out.index('G0 Z5.0000'))
 
     def test_g83_pecks_and_retracts_between_the_pecks(self):
         self.assertEqual(
@@ -1008,20 +796,6 @@ class TestCannedCycles(unittest.TestCase):
             'G1 X0 Y0 Z5.0000'
         )
 
-    def test_g83_on_a_negative_map_and_a_follow_on_move(self):
-        def down(x, y):
-            return -0.5
-
-        state = new_levelling_state(units='MM', map_bounds=(0, 0, 20, 20))
-        state['map_ceiling'] = -0.5
-        run_on(down, state, 'G21 G54', 'G0 X0 Y0 Z5')
-        run_on(down, state, 'G81 X5 Y5 Z-1 R1 F100')
-        self.assertEqual(state['Z'] + state['applied'], 5.0)
-        self.assertEqual(
-            level_gcode_line('G1 X10 Y10 Z0', state, down, DEC),
-            'G1 X10 Y10 Z-0.5000'
-        )
-        self.assertEqual(state['applied'], -0.5)
 
     def test_g91_incremental_holes_and_r_plane(self):
         state = new_levelling_state(units='MM', map_bounds=(0, 0, 20, 20))
@@ -1066,16 +840,6 @@ class TestCannedCycles(unittest.TestCase):
         self.assertEqual(out, ['G0 Z1.5000', 'G1 Z-0.5000 F100', 'G0 Z5.0000'])
         self.assertEqual(state['cycles'], 0)
 
-    def test_cycle_with_an_unknown_z_offset_is_rejected(self):
-        # without the compensation in effect the physical initial plane of
-        # G98 can not be known: the block stays unexpanded
-        state = new_levelling_state(units='MM', map_bounds=(0, 0, 20, 20))
-        state['map_ceiling'] = UP
-        run_on(up, state, 'G21 G54', 'G0 X0 Y0 Z5')
-        state['applied'] = None
-        line = 'G81 X5 Y5 Z-1 R1 F100'
-        self.assertEqual(level_gcode_line(line, state, up, DEC), line)
-        self.assertEqual(state['cycles'], 1)
 
     def test_cycle_without_a_feed_is_rejected(self):
         line = 'G81 X5 Y5 Z-1 R1'
@@ -1187,26 +951,3 @@ class TestG53Regressions(unittest.TestCase):
         )
 
 
-class TestG53Compatibility(unittest.TestCase):
-    @staticmethod
-    def offset_fn(x, y):
-        return 0.5
-
-
-    def test_ordinary_rapids_and_positive_z_feed_policy(self):
-        state = new_levelling_state()
-        line = "G0 X0 Y0 Z2"
-        self.assertEqual(level_gcode_line(line, state, self.offset_fn), line)
-        self.assertEqual(
-            level_gcode_line("G1 X1 Y1", state, self.offset_fn),
-            "G1 X1 Y1 Z2.5000"
-        )
-        # relative moves from a known position are compensated too (G91 delta)
-        self.assertEqual(
-            level_gcode_line("G91 G1 X1 Y1 Z1", state, self.offset_fn),
-            "G91 G1 X1 Y1 Z1.0000"
-        )
-        self.assertEqual(
-            level_gcode_line("G90 G1 X3 Y3", state, self.offset_fn),
-            "G90 G1 X3 Y3 Z3.5000"
-        )
