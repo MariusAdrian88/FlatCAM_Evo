@@ -43,13 +43,14 @@ class PlotCanvas3d(QtCore.QObject, scene.SceneCanvas):
     Class handling the plotting area in the application.
     """
 
-    def __init__(self, container, fcapp):
+    def __init__(self, container, fcapp, camera_reference='lmb'):
         """
         The constructor configures the VisPy figure that
         will contain all plots, creates the base axes and connects
         events to the plotting area.
 
         :param container: The parent container in which to draw plots.
+        :param camera_reference: 'lmb' rotates about the press point; 'center' uses all loaded objects.
         :rtype: PlotCanvas
         """
 
@@ -180,6 +181,8 @@ class PlotCanvas3d(QtCore.QObject, scene.SceneCanvas):
         self.grid_lines_enabled = True
 
         self.shape_collections = []
+        # A material preview can fit its own bounds instead of the machine workspace.
+        self.content_bounds = None
 
         # deferred: the redraws of a burst of object plots are joined into one rebuild
         self.shape_collection = self.new_shape_collection(
@@ -192,11 +195,15 @@ class PlotCanvas3d(QtCore.QObject, scene.SceneCanvas):
         self.view_cube = ViewCube(self.view.camera, self.native)
         self.view_cube.fit_requested.connect(self.fit_view)
         self.view_cube.rotation_requested.connect(lambda dx, dy: self.view.camera.rotate_about(
-            (dx, dy), (self.workspace_size[0] / 2, self.workspace_size[1] / 2, 0)
+            (dx, dy), self.geometry_center() if self.camera_reference == 'center' else
+            (np.mean(self.content_bounds, axis=0) if self.content_bounds is not None else
+                       (self.workspace_size[0] / 2, self.workspace_size[1] / 2, 0))
         ))
         self.view.events.resize.connect(self.on_view_resize)
         self.context_menu = self.create_context_menu()
         self.graph_event_connect('mouse_release', self.on_mouse_release)
+        self._camera_reference = 'lmb'
+        self.camera_reference = camera_reference
 
         # Keep VisPy canvas happy by letting it be "frozen" again.
         self.freeze()
@@ -214,7 +221,7 @@ class PlotCanvas3d(QtCore.QObject, scene.SceneCanvas):
     def on_fit_view(self):
         sender = getattr(self.fcapp, 'grbl_sender_tool', None)
         view = getattr(sender, 'view3d', None)
-        if view is not None and view.canvas is self:
+        if self.content_bounds is None and view is not None and view.canvas is self:
             sender.on_fit_view()
         else:
             self.view.camera.set_view('iso')
@@ -407,9 +414,37 @@ class PlotCanvas3d(QtCore.QObject, scene.SceneCanvas):
         self.fit_view()
         self.update()
 
+    @property
+    def camera_reference(self):
+        return self._camera_reference
+
+    @camera_reference.setter
+    def camera_reference(self, value):
+        value = value.lower()
+        if value not in ('lmb', 'center'):
+            raise ValueError('Camera reference must be lmb or center.')
+        self._camera_reference = value
+        self.view.camera.rotation_center = self.geometry_center if value == 'center' else None
+        self.view.camera._rotation_anchor = None
+
+    def geometry_center(self):
+        center = (np.mean(self.content_bounds, axis=0) if self.content_bounds is not None else
+                  np.array(self.view.camera.center, dtype=float))
+        collection = getattr(self.fcapp, 'collection', None)
+        get_bounds = getattr(collection, 'get_bounds', None)
+        if get_bounds is not None:
+            bounds = np.asarray(get_bounds(), dtype=float)
+            if bounds.shape == (4,) and np.isfinite(bounds).all():
+                center[:2] = (bounds[:2] + bounds[2:]) / 2
+                if self.content_bounds is None:
+                    center[2] = 0
+        return center
+
     def _scene_corners(self, rect=None):
         if rect is not None:
             return np.array(list(product((rect.left, rect.right), (rect.bottom, rect.top), (0,))))
+        if self.content_bounds is not None:
+            return np.array(list(product(*zip(*self.content_bounds))))
         bounds = np.array([(0, 0, 0), (*self.workspace_size, 0)], dtype=float)
         # the bounds need the buffers of the deferred redraws
         self.shape_collection.flush()
@@ -473,8 +508,9 @@ class PlotCanvas3d(QtCore.QObject, scene.SceneCanvas):
         center[:2] += np.array((right - left, top - bottom)) * units_per_pixel / 2
         center = camera.transform.map(center)
         camera.center = center[:3] / center[3]
-        camera.maximum_scene_size = units_per_pixel * min(width, height)
-        camera.scale_factor = camera.maximum_scene_size
+        camera.fitted_scene_size = units_per_pixel * min(width, height)
+        camera.scale_factor = camera.fitted_scene_size
+        camera.maximum_scene_size = camera.fitted_scene_size
         if fit_bounds:
             # Fitting a toolpath must still allow zooming out to the full workspace.
             scene_points = camera.transform.imap(self._scene_corners())
@@ -485,12 +521,13 @@ class PlotCanvas3d(QtCore.QObject, scene.SceneCanvas):
                 scene_size[0] / max(1, width - padding - 20) * min(width, height),
                 scene_size[1] / max(1, height - padding - 20) * min(width, height)
             )
+        camera.maximum_scene_size *= 10
         camera._view_modified = False
 
     def on_view_resize(self, event):
         camera = self.view.camera
         center = camera.center
-        zoom = camera.scale_factor / camera.maximum_scene_size
+        zoom = camera.scale_factor / camera.fitted_scene_size
         modified = camera._view_modified
         self.fit_view()
         if modified:
@@ -519,11 +556,13 @@ class Camera_3D(scene.ArcballCamera):
 
         self.minimum_scene_size = 0.01
         self.maximum_scene_size = 10000
+        self.fitted_scene_size = self.maximum_scene_size
 
         self.last_event = None
         self.last_time = 0
         self._view_modified = False
         self._rotation_anchor = None
+        self.rotation_center = None
 
         # Default mouse button for panning is RMB
         self.pan_button_setting = "2"
@@ -577,14 +616,17 @@ class Camera_3D(scene.ArcballCamera):
         if not np.any(delta):
             return
         if self._rotation_anchor is None:
-            ray = self._scene_transform.imap([(start[0], start[1], 0, 1), (start[0], start[1], 1, 1)])
-            ray = ray[:, :3] / ray[:, 3:]
-            direction = ray[1] - ray[0]
-            if abs(direction[2]) > np.linalg.norm(direction) * 1e-8:
-                self._rotation_anchor = ray[0] - direction * ray[0, 2] / direction[2]
+            if self.rotation_center is not None:
+                self._rotation_anchor = self.rotation_center()
             else:
-                # Edge-on views have no unique intersection with the grid plane.
-                self._rotation_anchor = self._screen_to_world(start)
+                ray = self._scene_transform.imap([(start[0], start[1], 0, 1), (start[0], start[1], 1, 1)])
+                ray = ray[:, :3] / ray[:, 3:]
+                direction = ray[1] - ray[0]
+                if abs(direction[2]) > np.linalg.norm(direction) * 1e-8:
+                    self._rotation_anchor = ray[0] - direction * ray[0, 2] / direction[2]
+                else:
+                    # Edge-on views have no unique intersection with the grid plane.
+                    self._rotation_anchor = self._screen_to_world(start)
         self.rotate_about(delta, self._rotation_anchor)
 
     def rotate_about(self, delta, anchor):

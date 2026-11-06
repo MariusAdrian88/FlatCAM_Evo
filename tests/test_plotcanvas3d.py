@@ -91,10 +91,11 @@ class TestPlotCanvas3d(unittest.TestCase):
                 self.qapp.processEvents()
                 self.assertGreater(blue_pixels(), 100, 'Shapes disappeared after reattaching')
 
-    def make_canvas(self, units='MM', custom_cursor=True):
+    def make_canvas(self, units='MM', custom_cursor=True, camera_reference=None):
         fcapp = CanvasApp(units, custom_cursor)
         layout = QtWidgets.QVBoxLayout(fcapp.ui)
-        canvas = PlotCanvas3d(layout, fcapp)
+        options = {} if camera_reference is None else {'camera_reference': camera_reference}
+        canvas = PlotCanvas3d(layout, fcapp, **options)
         self.addCleanup(fcapp.ui.deleteLater)
         self.addCleanup(canvas.close)
         canvas.size = (800, 600)
@@ -175,6 +176,23 @@ class TestPlotCanvas3d(unittest.TestCase):
             camera.viewbox_mouse_event(self.mouse_event('mouse_wheel', pos=pos, delta=(0, -1), modifiers=(keys.SHIFT,)))
             self.assertAlmostEqual(camera.scale_factor, scale)
 
+    def test_zoom_out_range_survives_fit_views_and_resize(self):
+        canvas = self.make_canvas()
+        camera = canvas.view.camera
+        for view in ('iso', 'top', 'bottom', 'left', 'right', 'front', 'back'):
+            with self.subTest(view=view):
+                camera.set_view(view)
+                canvas.fit_view()
+                fitted = camera.scale_factor
+                camera.zoom(10)
+                self.assertAlmostEqual(camera.scale_factor, fitted * 10)
+                canvas.on_view_resize(None)
+                self.assertAlmostEqual(camera.scale_factor, fitted * 10)
+                canvas.fit_view()
+                self.assertAlmostEqual(camera.scale_factor, fitted)
+                camera.zoom(10)
+                self.assertAlmostEqual(camera.scale_factor, fitted * 10)
+
     def test_drag_tilts_in_screen_direction_from_any_start(self):
         canvas = self.make_canvas()
         camera = canvas.view.camera
@@ -192,6 +210,40 @@ class TestPlotCanvas3d(unittest.TestCase):
                     normal = projected[1, :2] / projected[1, 3] - projected[0, :2] / projected[0, 3]
                     self.assertGreater(np.dot(normal, (dx, dy)), 0)
                     self.assertAlmostEqual(normal[1 if dx else 0], 0, places=5)
+
+    def test_center_reference_rotates_about_loaded_object_bounds_and_can_change(self):
+        canvas = self.make_canvas(camera_reference='center')
+        camera = canvas.view.camera
+        bounds = [1000, 2000, 1200, 2100]
+        canvas.fcapp.collection = SimpleNamespace(get_bounds=lambda: bounds)
+        canvas.content_bounds = ((1000, 2000, -2), (1020, 2010, 4))
+        camera.set_view('iso')
+        canvas.fit_view()
+        camera.center = np.array(camera.center) + (40, -20, 0)
+        for reference in ('center', 'lmb', 'center'):
+            with self.subTest(reference=reference):
+                canvas.camera_reference = reference
+                pivot = np.array(((bounds[0] + bounds[2]) / 2, (bounds[1] + bounds[3]) / 2, 1, 1))
+                before = camera._scene_transform.map(pivot)
+                camera.viewbox_mouse_event(self.mouse_event('mouse_move', (160, 140), (100, 100), (1,)))
+                after = camera._scene_transform.map(pivot)
+                before, after = before[:2] / before[3], after[:2] / after[3]
+                if reference == 'center':
+                    np.testing.assert_allclose(after, before, atol=1e-5)
+                    canvas.view_cube.rotation_requested.emit(0.1, 0.15)
+                    after = camera._scene_transform.map(pivot)
+                    np.testing.assert_allclose(after[:2] / after[3], before, atol=1e-5)
+                else:
+                    self.assertGreater(np.linalg.norm(after - before), 1)
+                camera.viewbox_mouse_event(self.mouse_event('mouse_release'))
+                bounds[2] += 100
+        canvas.content_bounds = None
+        camera.center = np.array(camera.center) + (0, 0, 99)
+        pivot = ((bounds[0] + bounds[2]) / 2, (bounds[1] + bounds[3]) / 2, 0, 1)
+        before = camera._scene_transform.map(pivot)
+        camera.viewbox_mouse_event(self.mouse_event('mouse_move', (160, 140), (100, 100), (1,)))
+        after = camera._scene_transform.map(pivot)
+        np.testing.assert_allclose(after[:2] / after[3], before[:2] / before[3], atol=1e-5)
 
 if __name__ == '__main__':
     unittest.main()

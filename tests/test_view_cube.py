@@ -4,7 +4,7 @@ import unittest
 from types import SimpleNamespace
 
 import numpy as np
-from PyQt6 import QtCore, QtWidgets, QtTest
+from PyQt6 import QtCore, QtGui, QtWidgets, QtTest
 
 import test_plotcanvas3d as canvas_tests
 from appGUI import VisPyCanvas as plot_module
@@ -91,7 +91,24 @@ class TestViewCube(unittest.TestCase):
         self.assertGreaterEqual(screen[:, 1].min(), 20 - 1e-3)
         self.assertLessEqual(screen[:, 0].max(), 800 - 20 + 1e-3)
         self.assertLessEqual(screen[:, 1].max(), 600 - canvas.axis_padding + 1e-3)
-        self.assertEqual(camera.scale_factor, camera.maximum_scene_size)
+        fitted = camera.scale_factor
+        camera.zoom(10)
+        self.assertAlmostEqual(camera.scale_factor, fitted * 10)
+
+    def test_cube_right_click_does_not_open_the_canvas_menu(self):
+        canvas = self.make_canvas()
+        cube = canvas.view_cube
+        menus = []
+        canvas.show_context_menu = lambda pos: menus.append('canvas')
+        cube.menu.aboutToShow.connect(lambda: menus.append('cube'))
+        point = cube.rect().center()
+        QtTest.QTest.mouseClick(cube, QtCore.Qt.MouseButton.RightButton, pos=point)
+        QtCore.QTimer.singleShot(0, cube.menu.close)
+        event = QtGui.QContextMenuEvent(QtGui.QContextMenuEvent.Reason.Mouse, point, cube.mapToGlobal(point))
+        QtWidgets.QApplication.sendEvent(cube, event)
+        self.assertEqual(menus, ['cube'])
+        QtTest.QTest.mouseClick(canvas.native, QtCore.Qt.MouseButton.RightButton, pos=QtCore.QPoint(100, 300))
+        self.assertEqual(menus, ['cube', 'canvas'])
 
 if __name__ == '__main__':
     unittest.main()

@@ -65,6 +65,20 @@ class TestShapeGroupVisibility(unittest.TestCase):
         group.update_visibility(False, indexes=keys[2:])
         self.assertFalse(line.visible)
 
+    def test_redraw_with_indexes_recolors_only_those_shapes(self):
+        from appGUI.VisPyVisuals import ShapeGroup
+        collection = _new_collection()
+        group = ShapeGroup(collection)
+        keys = _add_squares(group, 2)
+        group.redraw()
+
+        group.redraw(indexes=keys[:1], update_colors=('#112233FF', '#112233FF'))
+
+        self.assertEqual(collection.data[keys[0]]['color'], '#112233FF')
+        self.assertEqual(collection.data[keys[0]]['face_color'], '#112233FF')
+        self.assertEqual(collection.data[keys[1]]['color'], '#FF0000FF')
+        self.assertEqual(collection.data[keys[1]]['face_color'], '#00FF00FF')
+
 
 class TestMoveToTop(unittest.TestCase):
 

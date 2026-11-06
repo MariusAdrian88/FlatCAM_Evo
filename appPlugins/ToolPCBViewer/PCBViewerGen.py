@@ -1,0 +1,214 @@
+"""Detached PCB geometry and unit-height meshes. No widgets or OpenGL in the worker."""
+
+from dataclasses import dataclass
+from concurrent.futures import ThreadPoolExecutor
+
+import numpy as np
+import shapely
+from shapely import Polygon, box
+from shapely.geometry.base import BaseGeometry
+
+from appCommon import clipper_ops
+
+
+def parts(geometry):
+    if isinstance(geometry, BaseGeometry):
+        if geometry.is_empty:
+            return
+        if hasattr(geometry, 'geoms'):
+            for geo in geometry.geoms:
+                yield from parts(geo)
+        else:
+            yield geometry
+    elif geometry is not None:
+        for geo in geometry:
+            yield from parts(geo)
+
+
+@dataclass(eq=False)
+class Source:
+    solid: object
+    follow: object = ()
+    units: str = 'MM'
+
+    def __post_init__(self):
+        # Shapely geometries are immutable; detach containers, not every coordinate of the board.
+        self.solid = tuple(parts(self.solid))
+        self.follow = tuple(parts(self.follow))
+
+
+@dataclass
+class Layer:
+    name: str
+    geometry: object
+    vertices: np.ndarray
+    faces: np.ndarray
+    origin: tuple
+
+
+def polygons(geometry):
+    return [geo for geo in parts(geometry) if isinstance(geo, Polygon)]
+
+
+def boolean(subject, clip=(), operation='union'):
+    subject, clip = polygons(subject), polygons(clip)
+    result = clipper_ops.boolean_geometry(subject, clip, operation)
+    if result is not None:
+        return result
+    left = shapely.union_all(subject)
+    if operation == 'union':
+        return left if not clip else left.union(shapely.union_all(clip))
+    right = shapely.union_all(clip)
+    return left.difference(right) if operation == 'difference' else left.intersection(right)
+
+
+def extrude_mesh(geometry):
+    """Caps and ring walls at Z=0..1; scaling the visual changes thickness without triangulating again."""
+    polys = polygons(geometry)
+    if not polys:
+        return np.empty((0, 3), np.float32), np.empty((0, 3), np.uint32), (0, 0)
+    origin = tuple((np.array(geometry.bounds[:2]) + geometry.bounds[2:]) / 2)
+    polys = shapely.orient_polygons(polys) if hasattr(shapely, 'orient_polygons') else [
+        shapely.geometry.polygon.orient(poly) for poly in polys]
+    native = getattr(shapely, 'constrained_delaunay_triangles', None)
+    if native is not None:
+        try:
+            if len(polys) >= 4 and shapely.get_num_coordinates(polys).sum() >= 20000:
+                # GEOS releases the GIL: independent panel islands can triangulate together.
+                with ThreadPoolExecutor(max_workers=4) as executor:
+                    triangles = np.concatenate(list(executor.map(native, np.array_split(polys, 4))))
+            else:
+                triangles = native(polys)
+            xy = shapely.get_coordinates(triangles).reshape(-1, 4, 2)[:, :3].copy()
+        except (shapely.errors.GEOSException, shapely.errors.UnsupportedGEOSVersionError):
+            xy = None
+    else:
+        xy = None
+    if xy is None:
+        from appGUI.VisPyTesselators import GLUTess
+        tess = GLUTess()
+        triangles = []
+        for poly in polys:
+            indices, points = tess.triangulate(poly)
+            triangles.append(np.asarray(points, dtype=float)[np.asarray(indices).reshape(-1, 3)])
+        xy = np.concatenate(triangles)
+    a, b = xy[:, 1] - xy[:, 0], xy[:, 2] - xy[:, 0]
+    clockwise = a[:, 0] * b[:, 1] - a[:, 1] * b[:, 0] < 0
+    xy[clockwise, 1], xy[clockwise, 2] = xy[clockwise, 2].copy(), xy[clockwise, 1].copy()
+    xy = xy.reshape(-1, 2) - origin
+    cap_count = len(xy)
+    top = np.column_stack((xy, np.ones(cap_count)))
+    bottom = np.column_stack((xy, np.zeros(cap_count)))
+    cap_faces = np.arange(cap_count, dtype=np.uint32).reshape(-1, 3)
+
+    rings = shapely.get_rings(polys)
+    coords, ring_index = shapely.get_coordinates(rings, return_index=True)
+    edges = ring_index[:-1] == ring_index[1:]
+    p, q = coords[:-1][edges] - origin, coords[1:][edges] - origin
+    walls = np.zeros((len(p), 4, 3), dtype=np.float32)
+    walls[:, 0, :2] = walls[:, 3, :2] = p
+    walls[:, 1, :2] = walls[:, 2, :2] = q
+    walls[:, 2:, 2] = 1
+    wall_faces = (np.arange(len(p), dtype=np.uint32)[:, None, None] * 4 +
+                  np.array([[0, 1, 2], [0, 2, 3]], dtype=np.uint32)).reshape(-1, 3) + 2 * cap_count
+    vertices = np.concatenate((top, bottom, walls.reshape(-1, 3))).astype(np.float32)
+    faces = np.concatenate((cap_faces, cap_faces[:, ::-1] + cap_count, wall_faces))
+    return vertices, faces, origin
+
+
+class PCBGeometry:
+    def __init__(self):
+        self._sources = {}
+        self._meshes = {}
+
+    def source_geometry(self, source, units, outline=False):
+        key = (source, units, outline)
+        if key in self._sources:
+            return self._sources[key]
+        factor = (25.4 if source.units.upper() == 'IN' else 1) / (25.4 if units.upper() == 'IN' else 1)
+        raw = source.follow if outline and source.follow else source.solid
+        if factor != 1:
+            raw = tuple(shapely.transform(raw, lambda xy: xy * factor))
+        valid = shapely.is_valid(raw)
+        raw = [geo if ok else shapely.make_valid(geo) for geo, ok in zip(raw, valid)]
+        if outline:
+            lines = [geo.boundary if isinstance(geo, Polygon) else geo for geo in raw
+                     if isinstance(geo, Polygon) or geo.geom_type in ('LineString', 'LinearRing')]
+            precision = 1e-6 / (25.4 if units.upper() == 'IN' else 1)
+            geometry = shapely.build_area(shapely.union_all(shapely.set_precision(lines, precision)))
+            if geometry.is_empty:
+                raise ValueError('The mechanical outline must contain closed contours or filled regions.')
+        else:
+            geometry = boolean(raw)
+        self._sources[key] = geometry
+        return geometry
+
+    def build(self, sources, units='MM', cancelled=lambda: False):
+        """Yield the substrate first, then completed layers in the project's original XY coordinates."""
+        sources = {name: src for name, src in sources.items() if src is not None}
+        active = set(sources.values())
+        self._sources = {key: value for key, value in self._sources.items() if key[0] in active and key[1] == units}
+        # Keep the last board's mesh variants, not every board ever opened in this project.
+        if len(self._meshes) > 24:
+            self._meshes.clear()
+        outline = self.source_geometry(sources['outline'], units, outline=True) if 'outline' in sources else None
+        bounds_list = []
+        for name, src in sources.items():
+            if cancelled():
+                return
+            if name == 'outline':
+                bounds_list.append(outline.bounds)
+                continue
+            solid = polygons(src.solid)
+            if solid:
+                factor = (25.4 if src.units.upper() == 'IN' else 1) / (25.4 if units.upper() == 'IN' else 1)
+                bounds_list.append(shapely.total_bounds(solid) * factor)
+        bounds = np.full(4, np.nan)
+        if bounds_list:
+            array = np.array(bounds_list)
+            bounds = np.r_[np.nanmin(array[:, :2], axis=0), np.nanmax(array[:, 2:], axis=0)]
+        if not np.isfinite(bounds).all() or bounds[0] >= bounds[2] or bounds[1] >= bounds[3]:
+            raise ValueError('Select a Gerber object with nonempty geometry.')
+        reference = tuple(bounds)
+        drills = tuple(dict.fromkeys(src for name, src in sources.items() if name.startswith('drills')))
+        plated = tuple(dict.fromkeys(src for name, src in sources.items() if name.startswith('drills_pth_')))
+        board_key = (sources.get('outline'), drills, reference, units)
+        if board_key not in self._meshes:
+            board = outline if outline is not None else box(*bounds)
+            if drills:
+                board = boolean(board, [self.source_geometry(src, units) for src in drills], 'difference')
+            self._meshes[board_key] = (board, *extrude_mesh(board))
+        board, vertices, faces, origin = self._meshes[board_key]
+        yield Layer('board', board, vertices, faces, origin)
+        if plated and not cancelled():
+            key = (board_key, 'plating', plated)
+            if key not in self._meshes:
+                holes = boolean([self.source_geometry(src, units) for src in plated])
+                # Only exposed drill walls are plated: never cap a hole or coat the board's outside edge.
+                walls = shapely.intersection(shapely.orient_polygons(holes).boundary, board.boundary)
+                coords, indices = shapely.get_coordinates(shapely.get_parts(walls), return_index=True)
+                edges = indices[:-1] == indices[1:]
+                p, q = coords[:-1][edges] - origin, coords[1:][edges] - origin
+                vertices = np.zeros((len(p), 4, 3), dtype=np.float32)
+                vertices[:, 0, :2] = vertices[:, 3, :2] = p
+                vertices[:, 1, :2] = vertices[:, 2, :2] = q
+                vertices[:, 2:, 2] = 1
+                faces = (np.arange(len(p), dtype=np.uint32)[:, None, None] * 4 +
+                         np.array([[0, 2, 1], [0, 3, 2]], dtype=np.uint32)).reshape(-1, 3)
+                self._meshes[key] = (walls, vertices.reshape(-1, 3), faces, origin)
+            walls, vertices, faces, origin = self._meshes[key]
+            yield Layer('plating', walls, vertices, faces, origin)
+        for name in ('copper_top', 'copper_bottom', 'soldermask_top', 'soldermask_bottom',
+                     'overlay_top', 'overlay_bottom'):
+            if cancelled():
+                return
+            if name not in sources:
+                continue
+            negative = name.startswith('soldermask')
+            key = (board_key, sources[name], negative)
+            if key not in self._meshes:
+                geometry = self.source_geometry(sources[name], units)
+                geometry = boolean(board, geometry, 'difference') if negative else boolean(geometry, board, 'intersection')
+                self._meshes[key] = (geometry, *extrude_mesh(geometry))
+            geometry, vertices, faces, origin = self._meshes[key]
+            yield Layer(name, geometry, vertices, faces, origin)

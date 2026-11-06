@@ -165,6 +165,8 @@ class ViewCube(QtWidgets.QWidget):
             self._press_pos = self._last_pos = event.position()
             self._dragging = False
             event.accept()
+        elif event.button() == QtCore.Qt.MouseButton.RightButton:
+            event.accept()
         else:
             super().mousePressEvent(event)
 
@@ -180,6 +182,8 @@ class ViewCube(QtWidgets.QWidget):
             self.setCursor(QtCore.Qt.CursorShape.PointingHandCursor if self._hovered
                            else QtCore.Qt.CursorShape.ArrowCursor)
             self.update()
+            event.accept()
+        elif event.button() == QtCore.Qt.MouseButton.RightButton:
             event.accept()
         else:
             super().mouseReleaseEvent(event)

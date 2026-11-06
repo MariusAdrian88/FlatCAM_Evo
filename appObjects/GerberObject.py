@@ -11,7 +11,7 @@
 # ##########################################################
 
 from PyQt6 import QtWidgets, QtCore
-from appGUI.GUIElements import FCCheckBox, opposite_direction
+from appGUI.GUIElements import FCCheckBox, checkbox_column_width, opposite_direction
 from appGUI.ObjectUI import GerberObjectUI
 from appParsers.ParseGerber import Gerber, drop_placeholder_record_keys
 from appParsers.gerber_attributes import attribute_changes, merge_to_table, remap_to_ids
@@ -213,6 +213,7 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
 
         # Properties
         self.ui.info_button.toggled.connect(self.on_properties)
+        self.ui.view_3d_button.clicked.connect(lambda: self.app.pcb_viewer_tool.run(toggle=False, source=self))
         self.calculations_finished.connect(self.update_area_chull)
         self.ui.treeWidget.itemExpanded.connect(self.on_properties_expanded)
         self.ui.treeWidget.itemCollapsed.connect(self.on_properties_expanded)
@@ -389,8 +390,8 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
             horizontal_header.setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
             horizontal_header.setSectionResizeMode(4,  QtWidgets.QHeaderView.ResizeMode.Stretch)
             horizontal_header.setSectionResizeMode(5, QtWidgets.QHeaderView.ResizeMode.Fixed)
-            horizontal_header.resizeSection(5, 17)
-            self.ui.apertures_table.setColumnWidth(5, 17)
+            horizontal_header.resizeSection(5, checkbox_column_width())
+            self.ui.apertures_table.setColumnWidth(5, checkbox_column_width())
 
             self.ui.apertures_table.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
             self.ui.apertures_table.setSortingEnabled(False)
@@ -653,6 +654,8 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
             data.update({
                 'tools_mill_tooldia':       float(tooldia),
                 'tools_mill_job_type':      2,  # Isolation
+                # generated Isolation paths are already the tool centerline: Milling must not offset them again
+                'tools_iso_centerline':     True,
                 'tools_mill_tool_shape':    tool_shape,
                 'tools_mill_vtipdia':       vtipdia,
                 'tools_mill_vtipangle':     vtipangle,

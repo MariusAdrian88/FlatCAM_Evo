@@ -252,7 +252,13 @@ class GerberObjectUI(ObjectUI):
         self.info_button = FCButton('%s' % _("INFO"), checkable=True, bold=True)
         self.info_button.setIcon(QtGui.QIcon(self.app.resource_location + '/properties32.png'))
         self.info_button.setToolTip(_("Show the Object Attributes."))
-        self.custom_box.addWidget(self.info_button)
+        info_row = QtWidgets.QHBoxLayout()
+        info_row.addWidget(self.info_button)
+        self.view_3d_button = FCButton(_("View 3D"), bold=True)
+        self.view_3d_button.setIcon(QtGui.QIcon(self.app.resource_location + '/3d_area32.png'))
+        self.view_3d_button.setToolTip(_("View Gerber and Excellon objects as a 3D PCB board."))
+        info_row.addWidget(self.view_3d_button)
+        self.custom_box.addLayout(info_row)
 
         # INFO Frame
         self.info_frame = QtWidgets.QFrame()
