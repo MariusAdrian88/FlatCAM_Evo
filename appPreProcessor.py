@@ -277,6 +277,11 @@ def load_preprocessor_file(file_path):
     module = sys.modules.get(module_name)
     if module is not None and \
             os.path.realpath(getattr(module, '__file__', '') or '') == os.path.realpath(file_path):
+        # the registry can be empty while the module is loaded (it was cleared): register its classes again
+        for value in vars(module).values():
+            if isinstance(value, type) and issubclass(value, PreProc) and value is not PreProc \
+                    and value.__module__ == module_name and value.__name__ not in preprocessors:
+                preprocessors[value.__name__] = value()
         return module
 
     spec = importlib.util.spec_from_file_location(module_name, file_path)

@@ -3439,3 +3439,5 @@ tests/updater/test_updater_permissions.py::test_source_git_markers_are_refused_b
 tests/test_app_history_keys.py::TestAppHistoryKeys::test_ctrl_shift_z_redo  # 2026-11-04 shortcut registry: covered by TestShortcutCharacterization (Ctrl+Z, Ctrl+Shift+Z, focus in a text field)
 tests/test_app_history_keys.py::TestAppHistoryKeys::test_ctrl_z_undo  # 2026-11-04 shortcut registry: covered by TestShortcutCharacterization (Ctrl+Z, Ctrl+Shift+Z, focus in a text field)
 tests/test_app_history_keys.py::TestAppHistoryKeys::test_text_focus_blocks  # 2026-11-04 shortcut registry: covered by TestShortcutCharacterization (Ctrl+Z, Ctrl+Shift+Z, focus in a text field)
+tests/test_levelling.py::TestCannedCycles::test_cycle_moves_are_counted  # 2026-11-06 canned cycles are expanded now: replaced by the cycle tests of test_levelling.py and test_levelling_audit.py
+tests/test_levelling.py::TestCannedCycles::test_z_is_unknown_after_a_cycle  # 2026-11-06 canned cycles are expanded now: the Z after an unsupported cycle is covered by the unsupported-cycle tests
