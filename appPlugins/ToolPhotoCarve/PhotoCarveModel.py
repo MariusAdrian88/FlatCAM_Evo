@@ -1,5 +1,6 @@
 """Pure photo engraving contracts, physical image sampling and resource limits."""
 
+import builtins
 import math
 from dataclasses import dataclass, fields, replace
 
@@ -23,8 +24,13 @@ MATERIALS = {
     'aluminium': ((0.82, 0.84, 0.87), (0.30, 0.30, 0.32)),
 }
 
+def _(message):
+    translate_fcn = getattr(builtins, '_', None)
+    return translate_fcn(message) if translate_fcn else message
+
+
 class PhotoCarveError(ValueError):
-    """A user-readable failure, translated at the application boundary."""
+    """A user-readable failure, translated before formatting at its origin."""
 
 
 @dataclass(frozen=True)
@@ -156,16 +162,16 @@ def mode_frame(params):
 def xy_budget(decimals, skew):
     """Maximum model-space error of one final machine-space XY rounding."""
     if isinstance(decimals, bool) or not isinstance(decimals, int) or not 0 <= decimals <= 15:
-        raise PhotoCarveError('Coordinate decimals must be an integer between 0 and 15.')
+        raise PhotoCarveError(_('Coordinate decimals must be an integer between 0 and 15.'))
     if len(skew) != 4 or not all(math.isfinite(v) for v in skew):
-        raise PhotoCarveError('Bed calibration must contain four finite values.')
+        raise PhotoCarveError(_('Bed calibration must contain four finite values.'))
     sx, sy, lx, ly = skew
     if (sx and ly <= 0) or (sy and lx <= 0):
-        raise PhotoCarveError('Nonzero bed skew requires a positive corresponding bed limit.')
+        raise PhotoCarveError(_('Nonzero bed skew requires a positive corresponding bed limit.'))
     a, b = sx / ly if sx else 0.0, sy / lx if sy else 0.0
     det = 1 - a * b
     if not math.isfinite(det) or abs(det) <= 1e-9:
-        raise PhotoCarveError('Bed calibration is singular; correct the skew and bed limits.')
+        raise PhotoCarveError(_('Bed calibration is singular; correct the skew and bed limits.'))
     # Largest singular value of [[1, -a], [-b, 1]] / det, using scalar arithmetic.
     scale = max(1.0, abs(a), abs(b))
     u, v, w = 1 / scale, a / scale, b / scale
@@ -174,7 +180,7 @@ def xy_budget(decimals, skew):
     gain = scale / abs(det) * math.sqrt((trace + delta) / 2)
     budget = gain * 10.0 ** -decimals * math.sqrt(2) / 2
     if not math.isfinite(budget):
-        raise PhotoCarveError('Bed calibration produces a non-finite coordinate error.')
+        raise PhotoCarveError(_('Bed calibration produces a non-finite coordinate error.'))
     return budget
 
 
@@ -191,17 +197,17 @@ def vbit_limit(params):
 def _ceil_ratio(length, pitch, label):
     ratio = length / pitch
     if not math.isfinite(ratio):
-        raise PhotoCarveError('%s exceeds the resource limit; increase resolution or spacing.' % label)
+        raise PhotoCarveError(_('%s exceeds the resource limit; increase resolution or spacing.') % label)
     return math.ceil(ratio)
 
 
 def kernel_count(radius, res_x, res_y, xy_err=0.0, axis='point', check_abort=None):
     """Exact rectangle/axis-segment footprint count, without a per-cell loop or array."""
     reach = radius + xy_err
-    nr = 2 * _ceil_ratio(reach, res_y, 'Tool kernel') + 3
-    nc = 2 * _ceil_ratio(reach, res_x, 'Tool kernel') + 3
+    nr = 2 * _ceil_ratio(reach, res_y, _('Tool kernel')) + 3
+    nc = 2 * _ceil_ratio(reach, res_x, _('Tool kernel')) + 3
     if nr * nc > 2 * MAX_KERNEL:
-        raise PhotoCarveError('Tool kernel bound has %d cells; limit is %d. Increase resolution or reduce tool diameter.'
+        raise PhotoCarveError(_('Tool kernel bound has %d cells; limit is %d. Increase resolution or reduce tool diameter.')
                               % (nr * nc, MAX_KERNEL))
     hx = res_x * (1.5 if axis == 'x' else 0.5)
     hy = res_y * (1.5 if axis == 'y' else 0.5)
@@ -218,7 +224,7 @@ def kernel_count(radius, res_x, res_y, xy_err=0.0, axis='point', check_abort=Non
         last = math.ceil(half) - 1
         count += 2 * last + 1
         if count > MAX_KERNEL:
-            raise PhotoCarveError('Tool kernel has more than %d cells; increase resolution or reduce tool diameter.'
+            raise PhotoCarveError(_('Tool kernel has more than %d cells; increase resolution or reduce tool diameter.')
                                   % MAX_KERNEL)
     return count
 
@@ -229,21 +235,21 @@ def work_preflight(params, frame):
     step = min(frame.pitch_x, frame.pitch_y)
     ceil = _ceil_ratio
     if params.mode == 'vcarve' and params.strategy == 'raster':
-        lines = ceil(diag, params.spacing, 'Raster lines') + 1
-        points = 3 * lines * (ceil(diag, step, 'Raster points') + 1)
+        lines = ceil(diag, params.spacing, _('Raster lines')) + 1
+        points = 3 * lines * (ceil(diag, step, _('Raster points')) + 1)
     elif params.mode == 'vcarve':
         radius = diag / 2
         length = math.pi * radius * radius / params.spacing + radius
-        ns = ceil(length, step, 'Spiral samples') + 1
-        nd = ceil(length, step / 4, 'Dense spiral samples') + 1
+        ns = ceil(length, step, _('Spiral samples')) + 1
+        nd = ceil(length, step / 4, _('Dense spiral samples')) + 1
         points = max(3 * ns, nd)
     elif params.mode == 'halftone':
-        points = ((ceil(frame.height, params.spacing * math.sqrt(3) / 2, 'Dot rows') + 1) *
-                  (ceil(frame.width, params.spacing, 'Dot columns') + 2))
+        points = ((ceil(frame.height, params.spacing * math.sqrt(3) / 2, _('Dot rows')) + 1) *
+                  (ceil(frame.width, params.spacing, _('Dot columns')) + 2))
     elif params.mode == 'laser':
         points = frame.rows * (frame.cols + 1 + 3 * math.ceil(frame.cols / 2))
         if params.strategy == 'floyd' and frame.rows * frame.cols > 4_000_000:
-            raise PhotoCarveError('Floyd dithering is limited to 4000000 cells; increase resolution or spacing.')
+            raise PhotoCarveError(_('Floyd dithering is limited to 4000000 cells; increase resolution or spacing.'))
     else:
         k = max(1, round(params.spacing / frame.pitch_y))
         kx = max(1, round(params.spacing / frame.pitch_x))
@@ -253,24 +259,24 @@ def work_preflight(params, frame):
         if params.strategy in ('y', 'xy'):
             points += math.ceil(frame.cols / kx) * frame.rows
     if points > MAX_POINTS:
-        raise PhotoCarveError('Job needs up to %d points; limit is %d. Increase spacing or resolution.'
+        raise PhotoCarveError(_('Job needs up to %d points; limit is %d. Increase spacing or resolution.')
                               % (points, MAX_POINTS))
     rough_points, levels = 0, 0
     if params.rough:
         depth = (params.litho_max - params.litho_min if params.mode == 'lithophane' else
                  min(params.max_depth, vbit_limit(params)) if params.mode in ('vcarve', 'halftone') else
                  params.max_depth)
-        levels = ceil(depth, params.stepdown, 'Roughing levels')
+        levels = ceil(depth, params.stepdown, _('Roughing levels'))
         if levels > MAX_LEVELS:
-            raise PhotoCarveError('Roughing needs %d levels; limit is %d. Use stepdown at least %.12g.'
+            raise PhotoCarveError(_('Roughing needs %d levels; limit is %d. Use stepdown at least %.12g.')
                                   % (levels, MAX_LEVELS, depth / MAX_LEVELS))
         k = max(1, round(params.spacing / frame.pitch_y))
         rough_points = 3 * levels * math.ceil(frame.rows / k) * frame.cols
         if rough_points > MAX_POINTS:
-            raise PhotoCarveError('Roughing needs up to %d points; limit is %d. Increase stepdown or spacing.'
+            raise PhotoCarveError(_('Roughing needs up to %d points; limit is %d. Increase stepdown or spacing.')
                                   % (rough_points, MAX_POINTS))
     if points + rough_points > MAX_POINTS:
-        raise PhotoCarveError('Combined passes need up to %d points; limit is %d. Increase spacing, resolution or stepdown.'
+        raise PhotoCarveError(_('Combined passes need up to %d points; limit is %d. Increase spacing, resolution or stepdown.')
                               % (points + rough_points, MAX_POINTS))
     return {'points': points, 'rough_points': rough_points, 'levels': levels}
 
@@ -285,77 +291,77 @@ def validate(params, check_abort=None):
             except (TypeError, ValueError):
                 finite = False
             if not finite:
-                raise PhotoCarveError('%s must be a finite number.' % field.name)
+                raise PhotoCarveError(_('%s must be a finite number.') % field.name)
     if isinstance(params.levels, bool) or not isinstance(params.levels, (int, np.integer)) or params.levels < 2:
-        raise PhotoCarveError('Laser levels must be an integer of at least 2.')
+        raise PhotoCarveError(_('Laser levels must be an integer of at least 2.'))
     if params.sim_material not in MATERIALS:
-        raise PhotoCarveError('Simulation material must be one of: %s.' % ', '.join(MATERIALS))
+        raise PhotoCarveError(_('Simulation material must be one of: %s.') % ', '.join(MATERIALS))
     for name in ('width', 'res', 'spacing', 'sim_res', 'gamma', 'sim_thickness', 'laser_dia'):
         if getattr(params, name) <= 0:
-            raise PhotoCarveError('%s must be positive.' % name)
+            raise PhotoCarveError(_('%s must be positive.') % name)
     for name in ('tolerance', 'lift_gap', 'overscan'):
         if getattr(params, name) < 0:
-            raise PhotoCarveError('%s must not be negative.' % name)
+            raise PhotoCarveError(_('%s must not be negative.') % name)
     strategies = {'vcarve': ('raster', 'spiral'), 'halftone': ('-',), 'relief': ('x', 'y', 'xy'),
                   'lithophane': ('x', 'y', 'xy'), 'laser': ('gray', 'bayer', 'floyd')}
     if params.mode not in strategies or params.strategy not in strategies[params.mode]:
-        raise PhotoCarveError('Select a valid strategy for the engraving mode.')
+        raise PhotoCarveError(_('Select a valid strategy for the engraving mode.'))
     tones = {'vcarve': ('linear', 'perceptual', 'vbit_area'), 'relief': ('linear', 'perceptual'),
              'lithophane': ('lithophane',)}
     if params.mode in tones and params.tone not in tones[params.mode]:
-        raise PhotoCarveError('Select a valid tone mapping for the engraving mode.')
+        raise PhotoCarveError(_('Select a valid tone mapping for the engraving mode.'))
     for kind in (params.tool_kind, params.rough_kind):
         if kind not in ('vbit', 'ball', 'flat'):
-            raise PhotoCarveError('Tool kind must be vbit, ball or flat.')
+            raise PhotoCarveError(_('Tool kind must be vbit, ball or flat.'))
     if params.mode in ('vcarve', 'halftone') and params.tool_kind != 'vbit':
-        raise PhotoCarveError('V-carving and halftone dots require a V-bit.')
+        raise PhotoCarveError(_('V-carving and halftone dots require a V-bit.'))
     warnings = []
     if params.rough and params.mode not in ('relief', 'lithophane'):
         # A roughing pass follows a column surface; V-grooves, dots and laser lines have none, so a wider
         # roughing cutter would cut away the image between the lines.
         params = replace(params, rough=False)
-        warnings.append('Roughing is used only for Relief and Lithophane; it was ignored.')
+        warnings.append(_('Roughing is used only for Relief and Lithophane; it was ignored.'))
     used_tools = ([] if params.mode == 'laser' else [params.tool()]) + ([params.tool(True)] if params.rough else [])
     for tool in used_tools:
         if tool.diameter <= 0 or not 0 <= tool.tip_diameter < tool.diameter:
-            raise PhotoCarveError('Tool diameter must be positive and tip diameter must be smaller and nonnegative.')
+            raise PhotoCarveError(_('Tool diameter must be positive and tip diameter must be smaller and nonnegative.'))
         if tool.kind == 'vbit' and not 0 < tool.angle_deg < 180:
-            raise PhotoCarveError('V-bit angle must be between 0 and 180 degrees.')
+            raise PhotoCarveError(_('V-bit angle must be between 0 and 180 degrees.'))
     if params.mode == 'lithophane':
         if not 0 < params.litho_min < params.litho_max or params.frame < 0:
-            raise PhotoCarveError('Lithophane needs 0 < minimum < maximum thickness and a nonnegative frame.')
+            raise PhotoCarveError(_('Lithophane needs 0 < minimum < maximum thickness and a nonnegative frame.'))
     elif params.mode != 'laser':
         if not 0 <= params.min_depth <= params.max_depth or params.max_depth <= 0:
-            raise PhotoCarveError('Depths must satisfy 0 <= minimum <= maximum, with maximum positive.')
+            raise PhotoCarveError(_('Depths must satisfy 0 <= minimum <= maximum, with maximum positive.'))
         if params.mode in ('vcarve', 'halftone'):
             limit = vbit_limit(params)
             if params.min_depth > limit:
-                raise PhotoCarveError('Minimum depth exceeds the V-bit width limit %.12g.' % limit)
+                raise PhotoCarveError(_('Minimum depth exceeds the V-bit width limit %.12g.') % limit)
             if params.max_depth > limit:
                 params = replace(params, max_depth=limit)
-                warnings.append('Maximum depth clamped to the V-bit width limit %.12g.' % limit)
+                warnings.append(_('Maximum depth clamped to the V-bit width limit %.12g.') % limit)
     if params.rough and (params.stepdown <= 0 or params.allowance < 0):
-        raise PhotoCarveError('Roughing needs positive stepdown and a nonnegative allowance.')
+        raise PhotoCarveError(_('Roughing needs positive stepdown and a nonnegative allowance.'))
     if (len(params.image_px) != 2 or any(isinstance(v, bool) or not isinstance(v, (int, np.integer)) or v <= 0
                                          for v in params.image_px)):
-        raise PhotoCarveError('Image dimensions must be positive integers.')
+        raise PhotoCarveError(_('Image dimensions must be positive integers.'))
     if not math.isfinite(params.height) or params.height <= 0:
-        raise PhotoCarveError('Physical image height must be finite and positive.')
+        raise PhotoCarveError(_('Physical image height must be finite and positive.'))
     xy_err = xy_budget(params.decimals, params.skew)
     if 10.0 ** -params.decimals > params.tolerance:
-        raise PhotoCarveError('Coordinate quantum exceeds tolerance; increase coordinate decimals.')
+        raise PhotoCarveError(_('Coordinate quantum exceeds tolerance; increase coordinate decimals.'))
     for length, pitch in ((params.width, params.res),
                           (params.height, params.spacing if params.mode == 'laser' else params.res)):
-        _ceil_ratio(length, pitch, 'Image grid')
+        _ceil_ratio(length, pitch, _('Image grid'))
     frame = mode_frame(params)
     if frame.rows * frame.cols > MAX_CELLS:
-        raise PhotoCarveError('Image grid has %d cells; limit is %d. Increase resolution or laser spacing.'
+        raise PhotoCarveError(_('Image grid has %d cells; limit is %d. Increase resolution or laser spacing.')
                               % (frame.rows * frame.cols, MAX_CELLS))
     radius = max((tool.diameter / 2 for tool in used_tools), default=0.0)
-    sim_cols = max(1, _ceil_ratio(params.width + 2 * radius, params.sim_res, 'Simulation grid'))
-    sim_rows = max(1, _ceil_ratio(params.height + 2 * radius, params.sim_res, 'Simulation grid'))
+    sim_cols = max(1, _ceil_ratio(params.width + 2 * radius, params.sim_res, _('Simulation grid')))
+    sim_rows = max(1, _ceil_ratio(params.height + 2 * radius, params.sim_res, _('Simulation grid')))
     if sim_cols * sim_rows > MAX_CELLS:
-        raise PhotoCarveError('Simulation grid has %d cells; limit is %d. Increase simulation resolution.'
+        raise PhotoCarveError(_('Simulation grid has %d cells; limit is %d. Increase simulation resolution.')
                               % (sim_cols * sim_rows, MAX_CELLS))
     for tool in used_tools:
         for rx, ry in ((frame.pitch_x, frame.pitch_y), (params.sim_res, params.sim_res)):
@@ -371,7 +377,7 @@ def load_image(filename):
         with Image.open(filename) as image:
             return ImageOps.exif_transpose(image).copy()
     except (OSError, ValueError, Image.DecompressionBombError) as err:
-        raise PhotoCarveError('Cannot load image: %s' % err) from err
+        raise PhotoCarveError(_('Cannot load image: %s') % err) from err
 
 
 def prepare_image(image, params):
@@ -474,7 +480,7 @@ def raster_paths(params, check_abort=None):
         n = max(2, math.ceil(float(np.linalg.norm(segment[1] - segment[0])) / step) + 1)
         count += n
         if count > MAX_POINTS:
-            raise PhotoCarveError('Raster paths exceed the point limit; increase spacing or resolution.')
+            raise PhotoCarveError(_('Raster paths exceed the point limit; increase spacing or resolution.'))
         path = np.linspace(segment[0], segment[1], n, dtype=np.float64)
         paths.append(path[::-1].copy() if len(paths) % 2 else path)
     return paths
@@ -490,10 +496,10 @@ def spiral_paths(params, check_abort=None):
     length = b / 2 * (theta_max * math.hypot(1, theta_max) + math.asinh(theta_max))
     nd = math.ceil(length / (step / 4)) + 1
     if nd > MAX_POINTS:
-        raise PhotoCarveError('Dense spiral exceeds the point limit; increase spacing or resolution.')
+        raise PhotoCarveError(_('Dense spiral exceeds the point limit; increase spacing or resolution.'))
     s = np.linspace(0, length, nd)
     theta = np.minimum(s / b, np.sqrt(2 * s / b))
-    for _ in range(8):
+    for iteration in range(8):
         if check_abort is not None:
             check_abort()
         root = np.hypot(1, theta)
@@ -525,7 +531,7 @@ def spiral_paths(params, check_abort=None):
             current.append(segment[1])
             count += 1
         if count > MAX_POINTS:
-            raise PhotoCarveError('Clipped spiral exceeds the point limit; increase spacing or resolution.')
+            raise PhotoCarveError(_('Clipped spiral exceeds the point limit; increase spacing or resolution.'))
     if current:
         paths.append(np.asarray(current, dtype=np.float64))
     return [path for path in paths if len(path) > 1]
@@ -607,7 +613,7 @@ def relief_kernel(tool, frame, xy_err, axis, check_abort=None):
         lifts = tool_lift(tool, rho[mask])
         result.extend((row, int(col), float(lift)) for col, lift in zip(columns[mask], lifts))
     if len(result) > MAX_KERNEL:
-        raise PhotoCarveError('Tool kernel exceeds the safety limit.')
+        raise PhotoCarveError(_('Tool kernel exceeds the safety limit.'))
     return result
 
 
@@ -669,7 +675,7 @@ def relief_paths(depth, params, tool, check_abort=None):
             path = safe_rdp(path, params.tolerance, check_abort)
             total += len(path)
             if total > MAX_POINTS:
-                raise PhotoCarveError('Relief paths exceed the point limit; increase resolution or spacing.')
+                raise PhotoCarveError(_('Relief paths exceed the point limit; increase resolution or spacing.'))
             paths.append(path)
             certificate.append(record)
     return paths, certificate
@@ -678,17 +684,17 @@ def relief_paths(depth, params, tool, check_abort=None):
 def certify_relief(paths, certificate, frame, check_abort=None):
     """Exhaustive center and output-vertex verification; no stride or sampled corners."""
     if len(paths) != len(certificate):
-        raise PhotoCarveError('Relief certificate does not match the output paths.')
+        raise PhotoCarveError(_('Relief certificate does not match the output paths.'))
     margin = math.inf
     for path, record in zip(paths, certificate):
         if check_abort is not None:
             check_abort()
         path = np.asarray(path, dtype=np.float64)
         if not len(path) or path.shape[1] != 3 or not np.isfinite(path).all():
-            raise PhotoCarveError('Relief path contains invalid coordinates.')
+            raise PhotoCarveError(_('Relief path contains invalid coordinates.'))
         if record['kind'] == 'point':
             if len(path) != 1 or np.max(np.abs(path[0, :2] - [record['x'], record['y']])) > 1e-9:
-                raise PhotoCarveError('Relief plunge does not match its certified center.')
+                raise PhotoCarveError(_('Relief plunge does not match its certified center.'))
             difference = path[0, 2] - record['z'][0]
             where = path[0, :2]
         else:
@@ -698,22 +704,22 @@ def certify_relief(paths, certificate, frame, check_abort=None):
                                 0 if axis == 'x' else record['fixed'])
             fixed_coordinate = y if axis == 'x' else x
             if np.max(np.abs(path[:, 1 - dimension] - fixed_coordinate)) > 1e-9:
-                raise PhotoCarveError('Relief path left its certified raster line.')
+                raise PhotoCarveError(_('Relief path left its certified raster line.'))
             indices = ((path[:, 0] - frame.x0) / frame.pitch_x - 0.5 if axis == 'x' else
                        (frame.y0 + frame.height - path[:, 1]) / frame.pitch_y - 0.5)
             rounded = np.rint(indices)
             centers = (frame.x0 + (rounded + 0.5) * frame.pitch_x if axis == 'x' else
                        frame.y0 + frame.height - (rounded + 0.5) * frame.pitch_y)
             if np.max(np.abs(path[:, dimension] - centers)) > 1e-9:
-                raise PhotoCarveError('Relief vertices must be exact model raster centers.')
+                raise PhotoCarveError(_('Relief vertices must be exact model raster centers.'))
             z = path[:, 2]
             if len(indices) > 1 and indices[-1] < indices[0]:
                 indices, z = indices[::-1], z[::-1]
             if len(indices) < 2 or np.any(np.diff(indices) <= 0):
-                raise PhotoCarveError('Relief raster indices must be strictly increasing.')
+                raise PhotoCarveError(_('Relief raster indices must be strictly increasing.'))
             certified_indices = record['indices']
             if abs(indices[0] - certified_indices[0]) > 1e-9 or abs(indices[-1] - certified_indices[-1]) > 1e-9:
-                raise PhotoCarveError('Relief path coverage differs from its certificate.')
+                raise PhotoCarveError(_('Relief path coverage differs from its certificate.'))
             differences = np.interp(certified_indices, indices, z) - record['z']
             # Vertices are checked as well as every covered center, even after simplification.
             vertex_differences = z - np.interp(indices, certified_indices, record['z'])
@@ -724,7 +730,7 @@ def certify_relief(paths, certificate, frame, check_abort=None):
             where = frame.center(row, col)
         margin = min(margin, float(difference))
         if difference < -1e-9:
-            raise PhotoCarveError('Relief gouge %.12g at X %.12g Y %.12g.' % (-difference, *where))
+            raise PhotoCarveError(_('Relief gouge %.12g at X %.12g Y %.12g.') % (-difference, *where))
     return 0.0 if margin == math.inf else margin
 
 
@@ -757,7 +763,7 @@ def groove_paths(depth, params, check_abort=None):
             path = safe_rdp(piece, params.tolerance, check_abort)
             count += len(path)
             if count > MAX_POINTS:
-                raise PhotoCarveError('V-carve paths exceed the point limit; increase resolution or spacing.')
+                raise PhotoCarveError(_('V-carve paths exceed the point limit; increase resolution or spacing.'))
             paths.append(path)
     return paths
 
@@ -788,7 +794,7 @@ def halftone_paths(gray, params, check_abort=None):
             if z > 0.01:
                 count += 1
                 if count > MAX_POINTS:
-                    raise PhotoCarveError('Halftone paths exceed the point limit; increase spacing.')
+                    raise PhotoCarveError(_('Halftone paths exceed the point limit; increase spacing.'))
                 paths.append(np.array([[point[0], point[1], -z]], dtype=np.float64))
     return paths
 
@@ -798,11 +804,11 @@ def rough_paths(depth, params, check_abort=None):
     frame = mode_frame(params)
     rough_depth = np.maximum(depth - params.allowance, 0)
     base_params = replace(params, strategy='x')
-    _, base_certificate = relief_paths(rough_depth, base_params, params.tool(True), check_abort)
+    base_paths, base_certificate = relief_paths(rough_depth, base_params, params.tool(True), check_abort)
     maximum = float(np.max(rough_depth))
     levels = math.ceil(maximum / params.stepdown)
     if levels > MAX_LEVELS:
-        raise PhotoCarveError('Roughing exceeds the level limit; increase stepdown.')
+        raise PhotoCarveError(_('Roughing exceeds the level limit; increase stepdown.'))
     paths, certificate, count = [], [], 0
     for level_index in range(1, levels + 1):
         level = -min(maximum, level_index * params.stepdown)
@@ -826,7 +832,7 @@ def rough_paths(depth, params, check_abort=None):
                 path = safe_rdp(path, params.tolerance, check_abort)
                 count += len(path)
                 if count > MAX_POINTS:
-                    raise PhotoCarveError('Roughing paths exceed the point limit; increase stepdown or spacing.')
+                    raise PhotoCarveError(_('Roughing paths exceed the point limit; increase stepdown or spacing.'))
                 paths.append(path)
                 certificate.append(cert)
     return paths, certificate

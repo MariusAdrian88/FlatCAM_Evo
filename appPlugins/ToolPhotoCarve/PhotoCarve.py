@@ -241,7 +241,7 @@ class ToolPhotoCarve(AppTool):
         try:
             image = load_image(filename)
         except PhotoCarveError as err:
-            self.app.inform.emit('[ERROR_NOTCL] %s' % _(str(err)))
+            self.app.inform.emit('[ERROR_NOTCL] %s' % str(err))
             return 'fail'
         self.image = image
         self.image_filename = filename
@@ -256,7 +256,7 @@ class ToolPhotoCarve(AppTool):
         try:
             source = read_source(obj.obj_options.get('photocarve'), self.app.units)
         except PhotoCarveError as err:
-            self.app.inform.emit('[ERROR_NOTCL] %s' % _(str(err)))
+            self.app.inform.emit('[ERROR_NOTCL] %s' % str(err))
             return 'fail'
         if source is None:
             self.app.inform.emit('[WARNING_NOTCL] %s' % _("This Photo Carve object has no source image. "
@@ -306,7 +306,7 @@ class ToolPhotoCarve(AppTool):
             params = self.capture_params()
             image = self.image.copy()
         except (PhotoCarveError, ValueError) as err:
-            self.app.inform.emit('[ERROR_NOTCL] %s' % _(str(err)))
+            self.app.inform.emit('[ERROR_NOTCL] %s' % str(err))
             return
         self._preview_aspect = params.height / params.width
         self._preview_manual = manual
@@ -332,7 +332,7 @@ class ToolPhotoCarve(AppTool):
         if token != self._preview_token or self.ui is None:
             return
         if isinstance(result, str):
-            self.app.inform.emit('[ERROR_NOTCL] %s' % _(result))
+            self.app.inform.emit('[ERROR_NOTCL] %s' % result)
             return
         pixmap = QtGui.QPixmap.fromImage(ImageQt(result.convert('RGBA')))
         # The grid cells are not square in Laser mode (rows = line spacing): show the physical aspect.
@@ -370,7 +370,7 @@ class ToolPhotoCarve(AppTool):
             outname = os.path.splitext(os.path.basename(self.image_filename or _("photo")))[0] + '_photocarve'
             self._gen_token += 1
         except (PhotoCarveError, ValueError) as err:
-            self.app.inform.emit('[ERROR_NOTCL] %s' % _(str(err)))
+            self.app.inform.emit('[ERROR_NOTCL] %s' % str(err))
             return 'fail'
         self._gen_running = self._gen_token
         self.set_generating(True)
@@ -394,7 +394,7 @@ class ToolPhotoCarve(AppTool):
 
     def on_generation_message(self, token, level, message):
         if token == self._gen_token:
-            self.app.inform.emit('%s %s' % (level, _(message)))
+            self.app.inform.emit('%s %s' % (level, message))
 
     def on_open_milling(self):
         if not self.result_obj_name or self.app.collection.get_by_name(self.result_obj_name) is None:

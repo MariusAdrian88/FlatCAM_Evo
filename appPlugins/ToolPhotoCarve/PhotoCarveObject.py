@@ -11,7 +11,7 @@ import numpy as np
 from PIL import Image
 from shapely import LineString, Point, force_2d
 
-from .PhotoCarveModel import DEFAULTS, Pass, ToolShape, PhotoCarveError, xy_budget
+from .PhotoCarveModel import DEFAULTS, Pass, ToolShape, PhotoCarveError, xy_budget, _
 
 # The job parameters that hold a length: they change with the units of the application.
 LENGTH_FIELDS = ('x0', 'y0', 'width', 'res', 'spacing', 'laser_dia', 'min_depth', 'max_depth', 'tool_dia',
@@ -45,7 +45,7 @@ def read_source(mark, units):
         with Image.open(io.BytesIO(base64.b64decode(source['png']))) as picture:
             image = picture.copy()
     except (KeyError, ValueError, OSError) as err:
-        raise PhotoCarveError('Cannot read the source image of the Photo Carve geometry: %s' % err) from err
+        raise PhotoCarveError(_('Cannot read the source image of the Photo Carve geometry: %s') % err) from err
     saved, units = str(source.get('units', units)).upper(), str(units).upper()
     factor = 1.0 if saved == units else (25.4 if units == 'MM' else 1 / 25.4)
     options = {}
@@ -60,23 +60,18 @@ def read_source(mark, units):
 # MillingUI's C1, C2, C3, C4, B, V, L combo identifiers.
 MILL_SHAPES = {'flat': 0, 'ball': 4, 'vbit': 5}
 
-# What the user does when the cutter of a Photo Carve geometry no longer matches its paths. The Reset Tool button of
-# the Milling plugin does not help: it resets the form, not the tools of the geometry.
-REGENERATE = ('Open the Photo Carve plugin and click "Generate Geometry" to make the geometry again; then make the '
-              'CNCJob from the new geometry.')
-
 
 def _simulation_tool(uid, record, mark, warnings):
     cutter = mark.get('tools', {}).get(str(uid))
     if cutter is None:
-        warnings.append('Unmarked CNC tool simulated as a flat cutter.')
+        warnings.append(_('Unmarked CNC tool simulated as a flat cutter.'))
         tool = ToolShape('flat', float(record.get('tooldia', record.get('data', {}).get('tools_mill_tooldia', 0))))
     else:
         tool = ToolShape(**{key: cutter[key] for key in ('kind', 'diameter', 'angle_deg', 'tip_diameter')})
     if (tool.kind not in MILL_SHAPES or not math.isfinite(tool.diameter) or tool.diameter <= 0 or
             not math.isfinite(tool.angle_deg) or not 0 < tool.angle_deg < 180 or
             not math.isfinite(tool.tip_diameter) or not 0 <= tool.tip_diameter <= tool.diameter):
-        raise PhotoCarveError('Invalid simulation cutter.')
+        raise PhotoCarveError(_('Invalid simulation cutter.'))
     return tool
 
 
@@ -84,7 +79,7 @@ def passes_from_geometry(geo):
     """Detach Shapely coordinates on the GUI thread before starting simulation."""
     mark = geo.obj_options.get('photocarve', {})
     if not mark:
-        raise PhotoCarveError('Generate photo engraving geometry first or select a CNCJob.')
+        raise PhotoCarveError(_('Generate photo engraving geometry first or select a CNCJob.'))
     warnings, passes = [], []
     for uid, record in geo.tools.items():
         tool = _simulation_tool(uid, record, mark, warnings)
@@ -100,15 +95,15 @@ def passes_from_cncjob(cnc_obj, arc_res):
 
     mark = cnc_obj.obj_options.get('photocarve', {})
     if mark.get('units', cnc_obj.units) != cnc_obj.units:
-        raise PhotoCarveError('The units of the CNCJob and of the photo engraving differ. Make the CNCJob again '
-                              'in the Milling plugin.')
+        raise PhotoCarveError(_('The units of the CNCJob and of the photo engraving differ. Make the CNCJob again '
+                               'in the Milling plugin.'))
     if any(getattr(cnc_obj, key, '') for key in ('edited_source_file', 'prepend_snippet', 'append_snippet')):
-        raise PhotoCarveError('Edited or snippet-bearing CNC programs cannot be associated safely with cutters.')
+        raise PhotoCarveError(_('Edited or snippet-bearing CNC programs cannot be associated safely with cutters.'))
     laser = bool(mark.get('z_is_power'))
     warnings, passes = [], []
     if mark and mark.get('certified') is False:
-        warnings.append('This CNCJob was converted to other units and is not certified; '
-                        'the simulation shows its converted G-code.')
+        warnings.append(_('This CNCJob was converted to other units and is not certified; '
+                         'the simulation shows its converted G-code.'))
     records = cnc_obj.tools or {1: {'gcode': cnc_obj.gcode, 'tooldia': cnc_obj.obj_options.get('tooldia', 0)}}
     header = getattr(cnc_obj, 'gc_start', '')
     expected = header + ''.join(record.get('gcode', '') for record in records.values())
@@ -119,7 +114,7 @@ def passes_from_cncjob(cnc_obj, arc_res):
 
     source = getattr(cnc_obj, 'source_file', '')
     if source and executable(source) != executable(expected):
-        raise PhotoCarveError('Runnable CNC source differs from tool records; simulation refused.')
+        raise PhotoCarveError(_('Runnable CNC source differs from tool records; simulation refused.'))
     program, previous_count = header, 0
     for uid, record in records.items():
         tool = _simulation_tool(uid, record, mark, warnings)
@@ -153,7 +148,7 @@ def passes_from_cncjob(cnc_obj, arc_res):
         if paths:
             passes.append(Pass('machine coordinates', tool, paths, laser))
     if not passes:
-        raise PhotoCarveError('The CNCJob contains no supported cutting motion.')
+        raise PhotoCarveError(_('The CNCJob contains no supported cutting motion.'))
     return passes, warnings
 
 
@@ -174,7 +169,7 @@ def build_geometry(result, params, milldefaults, source=None):
     passes = sorted(result.passes, key=lambda part: part.role != 'rough')
     for part in passes:
         if part.z_is_power != laser:
-            raise PhotoCarveError('Pass power/depth semantics do not match the job mode.')
+            raise PhotoCarveError(_('Pass power/depth semantics do not match the job mode.'))
         if not part.paths:
             continue
         uid = len(tools) + 1
@@ -183,7 +178,7 @@ def build_geometry(result, params, milldefaults, source=None):
             path = np.asarray(raw_path, dtype=np.float64)
             if (path.ndim != 2 or path.shape[1] != 3 or not len(path) or not np.isfinite(path).all() or
                     (laser and (len(path) < 2 or np.any(path[:, 2] < 0) or np.any(path[:, 2] > 1)))):
-                raise PhotoCarveError('Invalid photo engraving path.')
+                raise PhotoCarveError(_('Invalid photo engraving path.'))
             geometry.append(Point(path[0]) if len(path) == 1 else LineString(path))
             minimum = min(minimum, float(np.min(path[:, 2])))
         cutter = {'kind': part.tool.kind, 'diameter': float(part.tool.diameter),
@@ -206,7 +201,7 @@ def build_geometry(result, params, milldefaults, source=None):
         aggregate.extend(force_2d(item) for item in geometry)
         mark['tools'][str(uid)] = cutter
     if not tools:
-        raise PhotoCarveError('The image produced no engraving paths.')
+        raise PhotoCarveError(_('The image produced no engraving paths.'))
     if source:
         mark['source'] = source
     return {'tools': tools, 'solid_geometry': aggregate, 'photocarve': mark}
@@ -219,13 +214,17 @@ def validate_tools(tools, mark):
     subset of the marked tools (for example only the finishing tool) is accepted.
     """
     if mark.get('version') != 1 or not tools or not set(map(str, tools)) <= set(mark['tools']):
-        raise PhotoCarveError('The tools differ from the tools of the photo engraving. ' + REGENERATE)
+        raise PhotoCarveError(_('The tools differ from the tools of the photo engraving. '
+                               'Open the Photo Carve plugin and click "Generate Geometry" to make the geometry again; '
+                               'then make the CNCJob from the new geometry.'))
     for uid, tool in tools.items():
         cutter = mark['tools'][str(uid)]
         data = tool.get('data', {})
         expected_shape = 6 if mark['z_is_power'] else MILL_SHAPES.get(cutter['kind'])
         if data.get('tools_mill_tool_shape') != expected_shape:
-            raise PhotoCarveError('The shape of the cutter changed. ' + REGENERATE)
+            raise PhotoCarveError(_('The shape of the cutter changed. '
+                                   'Open the Photo Carve plugin and click "Generate Geometry" to make the geometry again; '
+                                   'then make the CNCJob from the new geometry.'))
         values = ((tool.get('tooldia'), cutter['diameter']),
                   (data.get('tools_mill_tooldia'), cutter['diameter']),
                   (data.get('tools_mill_vtipdia'), cutter['tip_diameter']),
@@ -236,4 +235,6 @@ def validate_tools(tools, mark):
             except (TypeError, ValueError):
                 valid = False
             if not valid:
-                raise PhotoCarveError('The dimensions of the cutter changed. ' + REGENERATE)
+                raise PhotoCarveError(_('The dimensions of the cutter changed. '
+                                       'Open the Photo Carve plugin and click "Generate Geometry" to make the geometry again; '
+                                       'then make the CNCJob from the new geometry.'))

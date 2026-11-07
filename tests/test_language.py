@@ -7,6 +7,7 @@ interface of a right-to-left language (set_layout_direction()).
 
 import builtins
 import os
+import runpy
 import shutil
 import tempfile
 import types
@@ -17,6 +18,87 @@ from PyQt6 import QtCore, QtWidgets
 from PyQt6.QtCore import Qt
 
 import appTranslation as fcTranslate
+
+
+class TestRuntimeMessages(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from scripts import i18n_tool
+        cls.qapp = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+        cls.strings = i18n_tool.extract()[0]
+
+    def translate(self, text):
+        # Only messages that reach extraction can be present in a translator's catalog.
+        return 'translated: ' + text if text in self.strings else text
+
+    def test_calculator_validation_is_translated_before_display(self):
+        from appPlugins.ToolCalculators import Calculator, CalculatorGen
+        tool = types.SimpleNamespace(
+            ui=types.SimpleNamespace(tipDia_entry=unittest.mock.Mock(get_value=lambda: 1),
+                                     tipAngle_entry=unittest.mock.Mock(get_value=lambda: 180),
+                                     cutDepth_entry=unittest.mock.Mock(get_value=lambda: -1)),
+            ui_disconnect=lambda: None, ui_connect=lambda: None,
+            app=types.SimpleNamespace(inform=unittest.mock.Mock()))
+        with unittest.mock.patch.object(builtins, '_', self.translate, create=True):
+            del builtins._
+            model = runpy.run_path(CalculatorGen.__file__)
+            with self.assertRaises(ValueError) as error:
+                model['v_shape_diameter'](1, 180, -1)
+            self.assertEqual('Tip angle must be between 0 and 180 degrees.', str(error.exception))
+            builtins._ = self.translate
+            with self.subTest('translator installed after model import'):
+                with self.assertRaises(ValueError) as error:
+                    model['v_shape_diameter'](1, 180, -1)
+                self.assertEqual('translated: Tip angle must be between 0 and 180 degrees.', str(error.exception))
+            with unittest.mock.patch.object(Calculator, 'v_shape_diameter', model['v_shape_diameter']):
+                Calculator.ToolCalculator.on_calculate_tool_dia(tool)
+        self.assertEqual('[ERROR_NOTCL] translated: Tip angle must be between 0 and 180 degrees.',
+                         tool.app.inform.emit.call_args.args[0])
+
+    def test_extract_errors_and_skip_counts_use_extractable_translations(self):
+        import tclCommands.TclCommandExtract
+        from appPlugins.ToolExtract import ExtractGen
+        with unittest.mock.patch.object(fcTranslate, 'apply_language'), \
+                unittest.mock.patch.object(builtins, '_', self.translate):
+            command_class = runpy.run_path('tclCommands/TclCommandExtract.py')['TclCommandExtract']
+            command = command_class.__new__(command_class)
+            result = ExtractGen.ExtractResult('drills', error=ExtractGen.ERR_NO_APERTURES,
+                                             skipped={ExtractGen.SKIP_EMPTY: 3})
+            self.assertEqual('translated: There are no apertures to use. Check the apertures and the pad kinds.',
+                             command._fail_text(result))
+            self.assertEqual(' (3 translated: pads skipped: empty shape)', command._skipped_text(result))
+            result.error, result.skipped = 'unknown', {'unknown reason': 2, ExtractGen.SKIP_EMPTY: 0}
+            self.assertEqual('translated: Extract failed: unknown', command._fail_text(result))
+            self.assertEqual(' (2 unknown reason)', command._skipped_text(result))
+
+    def test_invert_error_is_translated_in_the_tcl_output(self):
+        import tclCommands.TclCommandInvertGerber
+        from test_tcl_small_commands import make_invert, invert_source
+        from test_tcl_audit_regressions import FCShell
+        from shapely import box
+        _command, app = make_invert({'board': invert_source('board', box(0, 0, 1, 1), None)})
+        with unittest.mock.patch.object(fcTranslate, 'apply_language'), \
+                unittest.mock.patch.object(builtins, '_', self.translate):
+            command_class = runpy.run_path('tclCommands/TclCommandInvertGerber.py')['TclCommandInvertGerber']
+            command = command_class(app)
+            with self.assertRaises(FCShell.TclErrorException) as error:
+                command.execute({'name': 'board'}, [])
+        self.assertIn('translated: The object has no bounds to invert.', str(error.exception))
+        app.app_obj.new_object.assert_not_called()
+
+    def test_rules_status_is_translated_in_the_result_row(self):
+        from appPlugins.ToolRulesCheck import RulesCheckUI
+        ui = RulesCheckUI.RulesUI.__new__(RulesCheckUI.RulesUI)
+        ui.results_table = QtWidgets.QTableWidget(0, 6)
+        ui.summary_label = QtWidgets.QLabel()
+        ui.decimals = 4
+        with unittest.mock.patch.object(RulesCheckUI, '_', self.translate, create=True):
+            ui.fill_results([{'rule': 'clearance', 'error': 'invalid geometry'},
+                             {'rule': 'holes', 'checked': False}])
+        rows = {ui.results_table.item(row, 0).text(): ui.results_table.item(row, 1).text()
+                for row in range(ui.results_table.rowCount())}
+        self.assertEqual({'clearance': 'translated: ERROR', 'holes': 'translated: NOTHING TO CHECK'}, rows)
+        self.assertEqual('translated: 0 violations in 0 rules', ui.summary_label.text())
 
 
 class TestApplyLanguage(unittest.TestCase):

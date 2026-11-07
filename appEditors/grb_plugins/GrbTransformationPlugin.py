@@ -187,7 +187,9 @@ def queue_transform(tool, kind, params):
         tool.app.inform.emit('[WARNING_NOTCL] %s' % _("Transform matrix must be finite and nonsingular."))
         return 'fail'
     success = _("Done.") if isinstance(tool, TransformEditorTool) else None
-    return tool.draw_app.submit_geometry(_(kind.capitalize()), lambda shapes: affine_selection(shapes, matrix), matrix,
+    label = {'rotate': _("Rotate"), 'flip': _("Flip"), 'skew': _("Skew"),
+             'scale': _("Scale"), 'offset': _("Offset")}[kind]
+    return tool.draw_app.submit_geometry(label, lambda shapes: affine_selection(shapes, matrix), matrix,
                                          success=success)
 
 

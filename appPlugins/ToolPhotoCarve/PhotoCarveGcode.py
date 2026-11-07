@@ -7,7 +7,7 @@ from copy import deepcopy
 from camlib import AttrDict, grace
 from appParsers.ParseGCode import parse_gcode
 
-from .PhotoCarveModel import PhotoCarveError, xy_budget
+from .PhotoCarveModel import PhotoCarveError, xy_budget, _
 from .PhotoCarveObject import validate_tools
 from .PhotoCarveLaser import format_power
 
@@ -29,11 +29,11 @@ def write_tool_gcode(cnc, tool, tools, first_pt, last_pt, tolerance, is_first, i
         name = tools[tool]['data']['tools_mill_ppname_g']
         allowed = LASER_POSTS if laser else MILL_POSTS
         if name not in allowed:
-            raise PhotoCarveError('The preprocessor "%s" is not certified for photo engraving. In the Milling plugin, '
-                                  'select one of: %s.' % (name, ', '.join(sorted(allowed))))
+            raise PhotoCarveError(_('The preprocessor "%s" is not certified for photo engraving. In the Milling plugin, '
+                                   'select one of: %s.') % (name, ', '.join(sorted(allowed))))
         validate_tools(tools, mark)
         if name not in cnc.app.preprocessors:
-            raise PhotoCarveError('The certified photo engraving preprocessor is not installed.')
+            raise PhotoCarveError(_('The certified photo engraving preprocessor is not installed.'))
         p = cnc.load_mill_tool_params(tool, tools, last_pt, tolerance, is_first, use_ui)
         if p == 'fail':
             return 'fail'
@@ -41,16 +41,16 @@ def write_tool_gcode(cnc, tool, tools, first_pt, last_pt, tolerance, is_first, i
         budget = xy_budget(cnc.coords_decimals, skew)
         if budget > mark['xy_err'] + 1e-12:
             needed = math.ceil(-math.log10(mark['xy_err'] / xy_budget(0, skew)))
-            raise PhotoCarveError('Photo engraving requires at least %d coordinate decimals.' % needed)
+            raise PhotoCarveError(_('Photo engraving requires at least %d coordinate decimals.') % needed)
         cnc.startz = None  # A saved low Start Z must never replace the safe toolchange height.
         cnc.toolchange = toolchange
         if not laser and toolchange and (cnc.z_toolchange in (None, '') or float(cnc.z_toolchange) < cnc.z_move):
-            raise PhotoCarveError('Toolchange Z must be at least the Travel Z for photo engraving.')
+            raise PhotoCarveError(_('Toolchange Z must be at least the Travel Z for photo engraving.'))
         if laser:
             # the Milling combo gives "M03" / "M04"; M4 and M04 are the same command
             if not is_dynamic_laser(cnc.laser_on_code):
-                raise PhotoCarveError('Photo laser engraving needs the dynamic laser power. In the Milling plugin, '
-                                      'set the Laser ON code to M04.')
+                raise PhotoCarveError(_('Photo laser engraving needs the dynamic laser power. In the Milling plugin, '
+                                       'set the Laser ON code to M04.'))
             format_power(0, cnc.laser_min_power, cnc.spindlespeed)
         attrs = AttrDict(cnc.postdata)
         attrs.update(x=first_pt[0], y=first_pt[1])
@@ -89,7 +89,7 @@ def write_tool_gcode(cnc, tool, tools, first_pt, last_pt, tolerance, is_first, i
                 if index % 1000 == 0 and cnc.app.abort_flag:
                     raise grace
                 if len(point) != 3 or not all(math.isfinite(v) for v in point):
-                    raise PhotoCarveError('Photo engraving requires finite XYZ paths.')
+                    raise PhotoCarveError(_('Photo engraving requires finite XYZ paths.'))
             attrs.update(x=points[0][0], y=points[0][1])
             if laser:
                 emit('S0')

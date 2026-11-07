@@ -37,6 +37,123 @@ def model():
     return _pure('PhotoCarveModel')
 
 
+def test_runtime_messages_translate_templates_before_substitution(model, monkeypatch):
+    import builtins
+    gen = _pure('PhotoCarveGen')
+    laser = _pure('PhotoCarveLaser')
+    sim = _pure('PhotoCarveSim')
+    objects = _pure('PhotoCarveObject')
+    translations = {
+        '%s must be positive.': 'Positif requis: %s.',
+        'Image size changed after the job parameters were captured.': 'Dimensions modifiées.',
+        'Laser path power must be between 0 and 1.': 'Puissance hors limites.',
+        'Unsupported G-code syntax on line %d.': 'Syntaxe incorrecte à la ligne %d.',
+        'The image produced no engraving paths.': 'Aucun parcours.',
+        'Maximum depth clamped to the V-bit width limit %.12g.': 'Profondeur limitée à %.12g.',
+    }
+    monkeypatch.setattr(builtins, '_', lambda text: translations.get(text, text), raising=False)
+    with pytest.raises(model.PhotoCarveError) as error:
+        model.validate(model.JobParams(width=0))
+    assert str(error.value) == 'Positif requis: width.'
+    with pytest.raises(model.PhotoCarveError) as error:
+        gen.run_job(Image.new('L', (2, 2)), model.JobParams())
+    assert str(error.value) == 'Dimensions modifiées.'
+    with pytest.raises(model.PhotoCarveError) as error:
+        laser.format_power(2, 0, 1000)
+    assert str(error.value) == 'Puissance hors limites.'
+    with pytest.raises(model.PhotoCarveError) as error:
+        sim.interpret_gcode('(header)\nG1 Xnan')
+    assert str(error.value) == 'Syntaxe incorrecte à la ligne 2.'
+    with pytest.raises(model.PhotoCarveError) as error:
+        objects.build_geometry(model.JobResult([], [], {}), model.JobParams(), {})
+    assert str(error.value) == 'Aucun parcours.'
+    params = model.JobParams()
+    checked, warnings = model.validate(params)
+    assert checked.max_depth == model.vbit_limit(params)
+    assert warnings == ['Profondeur limitée à %.12g.' % checked.max_depth]
+    monkeypatch.delattr(builtins, '_')
+    with pytest.raises(model.PhotoCarveError) as error:
+        model.validate(model.JobParams(width=0))
+    assert str(error.value) == 'width must be positive.'
+
+
+def test_writer_runtime_messages_translate_and_keep_required_precision(monkeypatch):
+    import builtins
+    from appPlugins.ToolPhotoCarve.PhotoCarveGcode import write_tool_gcode
+    job, built = _writer_job()
+    translations = {
+        'The certified photo engraving preprocessor is not installed.': 'Préprocesseur absent.',
+        'Photo engraving requires at least %d coordinate decimals.': 'Précision requise: %d décimales.',
+    }
+    monkeypatch.setattr(builtins, '_', lambda text: translations.get(text, text), raising=False)
+    args = (job, 1, built['tools'], (0, 0), None, 0, True, True, False, True, built['photocarve'])
+    post = job.app.preprocessors.pop('default')
+    assert write_tool_gcode(*args) == 'fail'
+    assert job.app.inform.emit.call_args.args[0] == '[ERROR_NOTCL] Préprocesseur absent.'
+    job.app.preprocessors['default'] = post
+    job.coords_decimals = 2
+    assert write_tool_gcode(*args) == 'fail'
+    assert job.app.inform.emit.call_args.args[0] == '[ERROR_NOTCL] Précision requise: 4 décimales.'
+
+
+def test_simulation_labels_translate_and_presented_messages_are_not_translated_again(monkeypatch):
+    import builtins
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    from appPlugins.ToolPhotoCarve.PhotoCarve import ToolPhotoCarve
+    from appPlugins.ToolPhotoCarve.PhotoCarveView3d import PhotoCarveView3d
+    translations = {
+        'CNCJob — machine coordinates': 'CNCJob — coordonnées machine',
+        'Photo Carve — model coordinates': 'Photo Carve — coordonnées modèle',
+        'Déjà traduit.': 'Incorrect second translation.',
+    }
+    monkeypatch.setattr(builtins, '_', lambda text: translations.get(text, text), raising=False)
+    view = SimpleNamespace(path=Mock(), label=SimpleNamespace(),
+                           frame=SimpleNamespace(x0=0, y0=0, height=1))
+    for machine, expected in ((True, 'CNCJob — coordonnées machine'),
+                              (False, 'Photo Carve — coordonnées modèle')):
+        PhotoCarveView3d.set_paths(view, [], machine_coords=machine)
+        assert view.label.text == expected
+    tool = SimpleNamespace(_gen_token=1, _preview_token=1, ui=object(),
+                           app=SimpleNamespace(inform=Mock()))
+    ToolPhotoCarve.on_generation_message(tool, 1, '[WARNING_NOTCL]', 'Déjà traduit.')
+    assert tool.app.inform.emit.call_args.args[0] == '[WARNING_NOTCL] Déjà traduit.'
+    ToolPhotoCarve.on_preview_done(tool, 1, 'Déjà traduit.')
+    assert tool.app.inform.emit.call_args.args[0] == '[ERROR_NOTCL] Déjà traduit.'
+
+
+@pytest.mark.parametrize('case', ['warning', 'validation', 'geometry'])
+def test_tcl_preserves_translated_messages(case, monkeypatch, tmp_path):
+    import builtins
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    from tclCommands.TclCommandPhotoCarve import TclCommandPhotoCarve
+    image = tmp_path / 'photo.png'
+    Image.new('L', (2, 2), 255 if case == 'geometry' else 0).save(image)
+    geo = SimpleNamespace(obj_options={})
+
+    def new_object(kind, name, initialize, **kwargs):
+        return 'fail' if initialize(geo, app) == 'fail' else geo
+
+    app = SimpleNamespace(units='MM', log=Mock(), inform=Mock(),
+                          options={'cncjob_coords_decimals': 4, 'cncjob_bed_skew_x': 0,
+                                   'cncjob_bed_skew_y': 0, 'cncjob_bed_max_x': 0, 'cncjob_bed_max_y': 0},
+                          app_obj=SimpleNamespace(new_object=new_object))
+    monkeypatch.setattr(builtins, '_', lambda text: 'traduit: ' + text, raising=False)
+    command = TclCommandPhotoCarve(app)
+    result = command.execute({'filename': str(image), 'width': 0 if case == 'validation' else 2,
+                              'res': 0.5, 'sim_res': 0.5, 'tool_dia': 0.5,
+                              'max_depth': 0.1, 'rough': case == 'warning'}, [])
+    if case == 'warning':
+        assert result is geo
+        assert app.inform.emit.call_args.args[0] == (
+            '[WARNING_NOTCL] traduit: Roughing is used only for Relief and Lithophane; it was ignored.')
+    elif case == 'validation':
+        assert result == 'traduit: width must be positive.'
+    else:
+        assert result == 'traduit: The image produced no engraving paths.'
+
+
 def test_physical_frame_and_mode_pitch(model):
     params = model.JobParams(image_px=(40, 30), width=10, res=3, spacing=2)
     frame = model.mode_frame(params)

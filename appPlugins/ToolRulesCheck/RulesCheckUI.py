@@ -489,7 +489,8 @@ class RulesUI:
                     total += 1
                     self._add_row(res['rule'], vio['layer'], vio['x'], vio['y'], vio['value'], limit)
             elif status in ('ERROR', 'NOTHING TO CHECK'):
-                self._add_row(res['rule'], _(status), None, None, None, limit)
+                label = {'ERROR': _("ERROR"), 'NOTHING TO CHECK': _("NOTHING TO CHECK")}[status]
+                self._add_row(res['rule'], label, None, None, None, limit)
         table.setSortingEnabled(True)
         self.summary_label.setText(self.summary_text(total, failed_rules))
 

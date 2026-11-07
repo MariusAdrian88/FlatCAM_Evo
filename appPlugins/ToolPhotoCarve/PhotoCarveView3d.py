@@ -12,7 +12,7 @@ from PyQt6 import sip
 from vispy import scene
 from vispy.visuals.transforms import STTransform
 
-from .PhotoCarveModel import MATERIALS
+from .PhotoCarveModel import MATERIALS, _
 
 
 class PhotoCarveView3d:
@@ -175,7 +175,8 @@ class PhotoCarveView3d:
                     xyz[:, 2] = 0
                 positions.extend(np.stack((xyz[:-1], xyz[1:]), axis=1).reshape(-1, 3))
         self.path.set_data(pos=np.asarray(positions, dtype=np.float32).reshape(-1, 3), color=(0.1, 0.45, 0.9, 0.35))
-        self.label.text = 'CNCJob — machine coordinates' if machine_coords else 'Photo Carve — model coordinates'
+        self.label.text = (_('CNCJob — machine coordinates') if machine_coords else
+                           _('Photo Carve — model coordinates'))
         self.label.pos = (self.frame.x0, self.frame.y0 + self.frame.height, 0)
 
     def set_tool(self, tool, xyz):

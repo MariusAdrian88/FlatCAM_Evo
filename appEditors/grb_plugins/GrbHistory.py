@@ -46,7 +46,7 @@ def gerber_operation(label, all_apertures=False):
             history = getattr(editor, 'history', None)
             if not isinstance(history, GerberHistory):
                 return method(self, *args, **kwargs)
-            with history.operation(_(label)) as accepted:
+            with history.operation(label) as accepted:
                 if not accepted:
                     return 'fail'
                 history.scope(self, method.__name__, args, kwargs, all_apertures)

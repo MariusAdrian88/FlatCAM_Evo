@@ -84,20 +84,20 @@ class TclCommandExtract(TclCommand):
     }
 
     ERRORS = {
-        ExtractGen.ERR_NO_APERTURES: "There are no apertures to use. Check the apertures and the pad kinds.",
-        ExtractGen.ERR_NO_PADS: "No pads were found for the selected apertures and pad kinds.",
-        ExtractGen.ERR_BAD_DIAMETER: "The hole diameter must be greater than zero.",
-        ExtractGen.ERR_BAD_THICKNESS: "The thickness must be greater than zero.",
-        ExtractGen.ERR_NO_CIRCLES: "The object has no circular shapes.",
-        ExtractGen.ERR_NO_GEOMETRY: "The object has no geometry.",
-        ExtractGen.ERR_EMPTY_SHAPE: "The resulting outline is empty.",
+        ExtractGen.ERR_NO_APERTURES: _("There are no apertures to use. Check the apertures and the pad kinds."),
+        ExtractGen.ERR_NO_PADS: _("No pads were found for the selected apertures and pad kinds."),
+        ExtractGen.ERR_BAD_DIAMETER: _("The hole diameter must be greater than zero."),
+        ExtractGen.ERR_BAD_THICKNESS: _("The thickness must be greater than zero."),
+        ExtractGen.ERR_NO_CIRCLES: _("The object has no circular shapes."),
+        ExtractGen.ERR_NO_GEOMETRY: _("The object has no geometry."),
+        ExtractGen.ERR_EMPTY_SHAPE: _("The resulting outline is empty."),
     }
 
     SKIPPED = {
-        ExtractGen.SKIP_NON_POSITIVE: "pads skipped: the hole would have no size",
-        ExtractGen.SKIP_DUPLICATE: "duplicate holes removed",
-        ExtractGen.SKIP_UNKNOWN_SIZE: "pads skipped: unknown size",
-        ExtractGen.SKIP_EMPTY: "pads skipped: empty shape",
+        ExtractGen.SKIP_NON_POSITIVE: _("pads skipped: the hole would have no size"),
+        ExtractGen.SKIP_DUPLICATE: _("duplicate holes removed"),
+        ExtractGen.SKIP_UNKNOWN_SIZE: _("pads skipped: unknown size"),
+        ExtractGen.SKIP_EMPTY: _("pads skipped: empty shape"),
     }
 
     def _flag(self, args, key, pref, default):
@@ -151,10 +151,10 @@ class TclCommandExtract(TclCommand):
 
     def _fail_text(self, result):
         text = self.ERRORS.get(result.error)
-        return _(text) if text else '%s: %s' % (_("Extract failed"), result.error)
+        return text if text else '%s: %s' % (_("Extract failed"), result.error)
 
     def _skipped_text(self, result):
-        parts = ['%d %s' % (count, _(self.SKIPPED.get(reason, reason))) for reason, count in result.skipped.items()
+        parts = ['%d %s' % (count, self.SKIPPED.get(reason, reason)) for reason, count in result.skipped.items()
                  if count]
         return ' (%s)' % ', '.join(parts) if parts else ''
 

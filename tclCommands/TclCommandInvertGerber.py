@@ -58,10 +58,10 @@ class TclCommandInvertGerber(TclCommand):
     }
 
     ERRORS = {
-        'no_bounds': "The object has no bounds to invert.",
-        'empty_area': "The area to invert is empty.",
-        'empty_reference': "The reference object has no area.",
-        'covered': "The copper covers the whole area: nothing to invert.",
+        'no_bounds': _("The object has no bounds to invert."),
+        'empty_area': _("The area to invert is empty."),
+        'empty_reference': _("The reference object has no area."),
+        'covered': _("The copper covers the whole area: nothing to invert."),
     }
 
     def _number(self, args, key, pref, default):
@@ -110,7 +110,7 @@ class TclCommandInvertGerber(TclCommand):
             try:
                 area = Gen.reference_area(ref, ref_mode, hole_steps, target_units=units)
             except Gen.InvertError:
-                self.raise_tcl_error(_(self.ERRORS['empty_reference']))
+                self.raise_tcl_error(self.ERRORS['empty_reference'])
 
         try:
             bounds = source.bounds()
@@ -121,9 +121,9 @@ class TclCommandInvertGerber(TclCommand):
             polys = Gen.invert_geometry(source.solid_geometry, bounds, margin, self.app.options, join, area=area, units=units)
         except Gen.InvertError as err:
             text = self.ERRORS['no_bounds'] if 'bounds' in str(err) else self.ERRORS['empty_area']
-            self.raise_tcl_error(_(text))
+            self.raise_tcl_error(text)
         if not polys:
-            self.raise_tcl_error(_(self.ERRORS['covered']))
+            self.raise_tcl_error(self.ERRORS['covered'])
 
         def init(new_obj, app_obj):
             if getattr(new_obj, 'obj_options', None) is None:

@@ -9,18 +9,10 @@ import numpy as np
 from .PhotoCarveModel import (
     MATERIALS, MAX_CELLS, MAX_POINTS, ImageFrame, JobResult, Pass, PhotoCarveError, certify_relief, depth_grid, groove_paths,
     halftone_paths, mode_frame, prepare_image, quantize_z, relief_paths, rough_paths, validate,
-    kernel_count,
+    kernel_count, _,
 )
 from .PhotoCarveLaser import laser_paths, power_grid
 from .PhotoCarveSim import Stock, stamp_path, burn_image, laser_moves_from_paths
-
-import gettext
-import appTranslation as fcTranslate
-import builtins
-
-fcTranslate.apply_language('strings')
-if '_' not in builtins.__dict__:
-    _ = gettext.gettext
 
 # The number of path points in one simulation chunk; consecutive chunks share 1 point.
 SIM_CHUNK = 256
@@ -49,7 +41,7 @@ def run_job(image, params, check_abort=None):
         check_abort()
     params, warnings = validate(params, check_abort)
     if image.size != params.image_px:
-        raise PhotoCarveError('Image size changed after the job parameters were captured.')
+        raise PhotoCarveError(_('Image size changed after the job parameters were captured.'))
     frame = mode_frame(params)
     gray = prepare_image(image, params)
     passes, margins = [], []
@@ -80,11 +72,11 @@ def run_job(image, params, check_abort=None):
                 widths = params.tool_tip + 2 * depths * math.tan(math.radians(params.tool_angle) / 2)
                 if (np.any(depths < -1e-9) or np.any(depths > params.max_depth + 1e-9) or
                         np.any(widths > min(params.spacing, params.tool_dia) + 1e-9)):
-                    raise PhotoCarveError('V-bit paths exceed their certified width or depth limit.')
+                    raise PhotoCarveError(_('V-bit paths exceed their certified width or depth limit.'))
         passes.append(Pass('finish', params.tool(), paths))
     points = sum(len(path) for part in passes for path in part.paths)
     if points > MAX_POINTS:
-        raise PhotoCarveError('Combined passes exceed the point limit; increase spacing, resolution or stepdown.')
+        raise PhotoCarveError(_('Combined passes exceed the point limit; increase spacing, resolution or stepdown.'))
     return JobResult(passes, warnings, {'points': points, 'paths': sum(len(part.paths) for part in passes),
                                        'cells': frame.rows * frame.cols, 'max_gouge': min(margins, default=0.0)})
 
@@ -148,40 +140,40 @@ class PhotoCarveGen:
             if not machine and self.tool.result_obj_name:
                 source = self.app.collection.get_by_name(self.tool.result_obj_name)
             if source is None or source.kind not in ('geometry', 'cncjob'):
-                raise PhotoCarveError('Generate photo engraving geometry first or select a CNCJob.')
+                raise PhotoCarveError(_('Generate photo engraving geometry first or select a CNCJob.'))
             if source.units != self.app.units:
-                raise PhotoCarveError('Simulation source units differ from the project units.')
+                raise PhotoCarveError(_('Simulation source units differ from the project units.'))
             res = float(self.tool.ui.sim_res_entry.get_value())
             if not math.isfinite(res) or res <= 0:
-                raise PhotoCarveError('Simulation resolution must be finite and positive.')
+                raise PhotoCarveError(_('Simulation resolution must be finite and positive.'))
             thickness = float(self.tool.ui.sim_thickness_entry.get_value())
             if not math.isfinite(thickness) or thickness <= 0:
-                raise PhotoCarveError('Simulation thickness must be finite and positive.')
+                raise PhotoCarveError(_('Simulation thickness must be finite and positive.'))
             material = self.tool.ui.sim_material_entry.get_value()
             if material not in MATERIALS:
-                raise PhotoCarveError('Unknown simulation material.')
+                raise PhotoCarveError(_('Unknown simulation material.'))
             passes, warnings = (passes_from_cncjob(source, res) if machine else passes_from_geometry(source))
             kind = 'laser' if passes and passes[0].z_is_power else 'mill'
             if not passes or any(part.z_is_power != (kind == 'laser') for part in passes):
-                raise PhotoCarveError('Simulation passes have inconsistent power/depth semantics.')
+                raise PhotoCarveError(_('Simulation passes have inconsistent power/depth semantics.'))
             low, high, points, bottom = np.full(2, np.inf), np.full(2, -np.inf), 0, 0.0
             for part in passes:
                 part.paths = [np.array(path, dtype=np.float64, copy=True) for path in part.paths]
                 for path in part.paths:
                     if path.ndim != 2 or path.shape[1] != 3 or not len(path) or not np.isfinite(path).all():
-                        raise PhotoCarveError('Simulation requires finite XYZ/power paths.')
+                        raise PhotoCarveError(_('Simulation requires finite XYZ/power paths.'))
                     points += len(path)
                     low = np.minimum(low, path[:, :2].min(axis=0))
                     high = np.maximum(high, path[:, :2].max(axis=0))
                     if kind == 'mill':
                         bottom = min(bottom, float(path[:, 2].min()))
             if not points or points > MAX_POINTS:
-                raise PhotoCarveError('Simulation path point limit exceeded or no paths available.')
+                raise PhotoCarveError(_('Simulation path point limit exceeded or no paths available.'))
             radius = max(part.tool.diameter / 2 for part in passes) if kind == 'mill' else res / 2
             low, high = low - radius, high + radius
             frame = ImageFrame(*low, *(high - low), res, res)
             if frame.rows * frame.cols > MAX_CELLS:
-                raise PhotoCarveError('Simulation exceeds the cell limit; increase simulation resolution.')
+                raise PhotoCarveError(_('Simulation exceeds the cell limit; increase simulation resolution.'))
             if kind == 'mill':
                 for part in passes:
                     kernel_count(part.tool.diameter / 2, frame.pitch_x, frame.pitch_y)
@@ -193,7 +185,7 @@ class PhotoCarveGen:
             else:
                 session.stock = Stock(frame, thickness)
                 if bottom < -thickness:
-                    warnings.append('The cuts are deeper than the stock thickness; they go through the stock.')
+                    warnings.append(_('The cuts are deeper than the stock thickness; they go through the stock.'))
             session.chunks = self.sim_chunks(passes, kind)
             self.app.on_3d_area()
             canvas = self.app.plotcanvas3d
@@ -254,7 +246,7 @@ class PhotoCarveGen:
 
             def check_abort():
                 if session.cancelled:
-                    raise PhotoCarveError('Simulation stopped.')
+                    raise PhotoCarveError(_('Simulation stopped.'))
 
             while count is None or index < count:
                 check_abort()
@@ -376,9 +368,8 @@ class PhotoCarveGen:
                 created = self.app.app_obj.new_object('geometry', outname, obj_init)
                 if created != 'fail':
                     self.tool.generation_message_sig.emit(
-                        token, '[success]', '%s: %d %s, %d %s.' % (
-                            _("Photo Carve geometry generated"), result.stats.get('paths', 0), _("paths"),
-                            result.stats.get('points', 0), _("points")))
+                        token, '[success]', _("Photo Carve geometry generated: %d paths, %d points.") % (
+                            result.stats.get('paths', 0), result.stats.get('points', 0)))
                 return created
         except grace:
             return 'fail'

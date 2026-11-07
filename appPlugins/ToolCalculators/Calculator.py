@@ -193,7 +193,7 @@ class ToolCalculator(AppTool):
             self.ui.effectiveToolDia_entry.set_value(self.app.dec_format(diameter, self.decimals))
             self.app.inform.emit('[success] %s' % _("Cut width (tool diameter) calculated."))
         except ValueError as err:
-            self.app.inform.emit('[ERROR_NOTCL] %s' % _(str(err)))
+            self.app.inform.emit('[ERROR_NOTCL] %s' % err)
         finally:
             self.ui_connect()
 
@@ -207,7 +207,7 @@ class ToolCalculator(AppTool):
         except ValueError as err:
             if self.ui.tipDia_entry.get_value() > self.ui.effectiveToolDia_entry.get_value():
                 self.ui.cutDepth_entry.set_value(0.0)
-            self.app.inform.emit('[ERROR_NOTCL] %s' % _(str(err)))
+            self.app.inform.emit('[ERROR_NOTCL] %s' % err)
         finally:
             self.ui_connect()
 
@@ -299,11 +299,11 @@ class ToolCalculator(AppTool):
             for name, value in result.items():
                 entry = entries[name]
                 if value > entry.maximum() or round(value, entry.decimals()) <= 0:
-                    raise ValueError("Calculated result is outside the supported range.")
+                    raise ValueError(_("Calculated result is outside the supported range."))
             for name, value in result.items():
                 entries[name].set_value(value)
         except (ValueError, OverflowError, ZeroDivisionError) as err:
-            self.app.inform.emit('[ERROR_NOTCL] %s' % _(str(err)))
+            self.app.inform.emit('[ERROR_NOTCL] %s' % err)
             return
         self.app.inform.emit('[success] %s' % _("Feeds and speeds calculated."))
 

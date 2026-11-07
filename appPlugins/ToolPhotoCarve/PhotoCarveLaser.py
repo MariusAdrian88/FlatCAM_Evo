@@ -4,7 +4,7 @@ import math
 
 import numpy as np
 
-from .PhotoCarveModel import MAX_POINTS, PhotoCarveError, mode_frame
+from .PhotoCarveModel import MAX_POINTS, PhotoCarveError, mode_frame, _
 
 
 def power_grid(gray, params, check_abort=None):
@@ -13,15 +13,15 @@ def power_grid(gray, params, check_abort=None):
         return np.round(power * (params.levels - 1)) / (params.levels - 1)
     if params.strategy == 'bayer':
         matrix = np.array([[0]], dtype=np.float32)
-        for _ in range(3):
+        for iteration in range(3):
             matrix = np.block([[4 * matrix, 4 * matrix + 2], [4 * matrix + 3, 4 * matrix + 1]])
         threshold = (matrix + 0.5) / 64
         rows, cols = power.shape
         return (power > threshold[np.arange(rows)[:, None] % 8, np.arange(cols) % 8]).astype(np.float32)
     if params.strategy != 'floyd':
-        raise PhotoCarveError('Unknown laser dithering strategy.')
+        raise PhotoCarveError(_('Unknown laser dithering strategy.'))
     if power.size > 4_000_000:
-        raise PhotoCarveError('Floyd dithering is limited to 4000000 cells; increase resolution or spacing.')
+        raise PhotoCarveError(_('Floyd dithering is limited to 4000000 cells; increase resolution or spacing.'))
     rows, cols = power.shape
     result = np.empty_like(power)
     current = power[0].tolist() if rows else []
@@ -68,7 +68,7 @@ def laser_paths(power, params, check_abort=None):
     """Trim/split blank spans before adding off-power acceleration/deceleration spans."""
     frame = mode_frame(params)
     if power.shape != (frame.rows, frame.cols):
-        raise PhotoCarveError('Laser power grid does not match the physical image frame.')
+        raise PhotoCarveError(_('Laser power grid does not match the physical image frame.'))
     paths, count = [], 0
     for row, values in enumerate(power):
         if check_abort is not None:
@@ -97,7 +97,7 @@ def laser_paths(power, params, check_abort=None):
             path = _merge_path(points)
             count += len(path)
             if count > MAX_POINTS:
-                raise PhotoCarveError('Laser paths exceed the point limit; increase resolution or spacing.')
+                raise PhotoCarveError(_('Laser paths exceed the point limit; increase resolution or spacing.'))
             row_paths.append(path)
         if row % 2:
             row_paths = [reverse_laser_path(path) for path in row_paths[::-1]]
@@ -108,9 +108,9 @@ def laser_paths(power, params, check_abort=None):
 def format_power(fraction, minimum, maximum):
     """One shared integer-S mapping for the writer and simulation."""
     if not all(math.isfinite(v) for v in (fraction, minimum, maximum)):
-        raise PhotoCarveError('Laser power settings must be finite.')
+        raise PhotoCarveError(_('Laser power settings must be finite.'))
     if not 0 <= minimum < maximum:
-        raise PhotoCarveError('Laser power must satisfy 0 <= minimum < maximum.')
+        raise PhotoCarveError(_('Laser power must satisfy 0 <= minimum < maximum.'))
     if not 0 <= fraction <= 1:
-        raise PhotoCarveError('Laser path power must be between 0 and 1.')
+        raise PhotoCarveError(_('Laser path power must be between 0 and 1.'))
     return 0 if fraction == 0 else int(round(minimum + fraction * (maximum - minimum)))

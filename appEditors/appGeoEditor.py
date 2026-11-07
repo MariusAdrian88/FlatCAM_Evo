@@ -118,7 +118,21 @@ def geometry_operation(method):
     def operation(self, *args, **kwargs):
         tool_name = getattr(getattr(self, 'active_tool', None), 'name', '')
         label = tool_name if tool_name and tool_name != 'select' else method.__name__.replace('_', ' ')
-        with AppGeoEditor.history_operation(self, label=_(label.capitalize())) as accepted:
+        labels = {
+            'circle': _("Circle"), 'arc': _("Arc"), 'rectangle': _("Rectangle"),
+            'polygon': _("Polygon"), 'path': _("Path"), 'split': _("Split"),
+            'explode': _("Explode"), 'move': _("Move"), 'copy': _("Copy"),
+            'text': _("Text"), 'buffer': _("Buffer"), 'simplify': _("Simplify"),
+            'import': _("Import"), 'import_image': _("Import image"), 'eraser': _("Eraser"),
+            'paint': _("Paint"), 'transformation': _("Transformation"),
+            'apply vertex edit': _("Apply vertex edit"), 'apply selection drag': _("Apply selection drag"),
+            'apply path split': _("Apply path split"), 'apply path join': _("Apply path join"),
+            'apply resize circles': _("Apply resize circles"), 'replace shapes': _("Replace shapes"),
+            'add shape': _("Add shape"), 'delete selected': _("Delete selected"),
+            'delete shape': _("Delete shape"), 'transform shapes': _("Transform shapes"),
+            'on shape complete': _("On shape complete"),
+        }
+        with AppGeoEditor.history_operation(self, label=labels.get(label, label.capitalize())) as accepted:
             if not accepted:
                 return 'fail'
             return method(self, *args, **kwargs)

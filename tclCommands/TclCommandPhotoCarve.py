@@ -47,7 +47,7 @@ class TclCommandPhotoCarve(TclCommand):
             params = JobParams.from_options(values, image.size, units, decimals, skew)
             result = PhotoCarveGen.run_job(image, params)
             for warning in result.warnings:
-                self.app.inform.emit('[WARNING_NOTCL] %s' % _(warning))
+                self.app.inform.emit('[WARNING_NOTCL] %s' % warning)
             outname = args.get('outname', os.path.splitext(os.path.basename(args['filename']))[0] + '_photocarve')
             source = embed_source(image, args['filename'], params)
             failure = None
@@ -57,7 +57,7 @@ class TclCommandPhotoCarve(TclCommand):
                 try:
                     built = build_geometry(result, params, milldefaults, source)
                 except PhotoCarveError as err:
-                    failure = _(str(err))
+                    failure = str(err)
                     return 'fail'
                 geo.tools = built['tools']
                 geo.solid_geometry = built['solid_geometry']
@@ -68,4 +68,4 @@ class TclCommandPhotoCarve(TclCommand):
             created = self.app.app_obj.new_object('geometry', outname, obj_init, plot=False)
             return failure if failure is not None else created
         except (PhotoCarveError, ValueError) as err:
-            return _(str(err))
+            return str(err)

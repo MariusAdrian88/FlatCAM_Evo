@@ -7,6 +7,12 @@
 """Calculator formulas. No Qt here."""
 
 import math
+import builtins
+
+
+def _(message):
+    translate_fcn = getattr(builtins, '_', None)
+    return translate_fcn(message) if translate_fcn else message
 
 
 MM_PER_INCH = 25.4
@@ -22,15 +28,15 @@ TIN_RECIPES = {
 
 def v_shape_diameter(tip_diameter, tip_angle, cut_depth):
     if tip_angle < 0 or tip_angle >= 180:
-        raise ValueError("Tip angle must be between 0 and 180 degrees.")
+        raise ValueError(_("Tip angle must be between 0 and 180 degrees."))
     return tip_diameter + 2 * abs(cut_depth) * math.tan(math.radians(tip_angle / 2.0))
 
 
 def v_shape_depth(tip_diameter, tip_angle, tool_diameter):
     if tip_angle <= 0 or tip_angle >= 180:
-        raise ValueError("Tip angle must be between 0 and 180 degrees.")
+        raise ValueError(_("Tip angle must be between 0 and 180 degrees."))
     if tip_diameter > tool_diameter:
-        raise ValueError("Tool diameter (cut width) cannot be smaller than the tip diameter.")
+        raise ValueError(_("Tool diameter (cut width) cannot be smaller than the tip diameter."))
     return -(tool_diameter - tip_diameter) / (2 * math.tan(math.radians(tip_angle / 2.0)))
 
 
@@ -53,9 +59,9 @@ def solve_feeds_speeds(target, diameter, flutes, rpm, chip_load, feed, surface, 
     Return the solved quantity and the related feed/surface speed. The unknown is ignored.
     """
     if units not in ('MM', 'IN'):
-        raise ValueError("Unknown feed and speed units.")
+        raise ValueError(_("Unknown feed and speed units."))
     if target not in ('feed', 'chip', 'rpm_feed', 'surface', 'rpm_surface'):
-        raise ValueError("Unknown feed and speed calculation.")
+        raise ValueError(_("Unknown feed and speed calculation."))
 
     values = {'diameter': diameter, 'flutes': flutes, 'rpm': rpm, 'chip_load': chip_load,
               'feed': feed, 'surface': surface}
@@ -69,9 +75,9 @@ def solve_feeds_speeds(target, diameter, flutes, rpm, chip_load, feed, surface, 
     for name in required[target]:
         value = values[name]
         if not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
-            raise ValueError("Required inputs must be finite numbers greater than zero.")
+            raise ValueError(_("Required inputs must be finite numbers greater than zero."))
     if 'flutes' in required[target] and int(flutes) != flutes:
-        raise ValueError("Flute count must be a whole number.")
+        raise ValueError(_("Flute count must be a whole number."))
 
     divisor = 1000.0 if units == 'MM' else 12.0
     result = {}
@@ -88,5 +94,5 @@ def solve_feeds_speeds(target, diameter, flutes, rpm, chip_load, feed, surface, 
         result['feed'] = rpm * flutes * chip_load
     result['surface'] = math.pi * diameter * rpm / divisor
     if any(not math.isfinite(value) or value <= 0 for value in result.values()):
-        raise ValueError("Calculated result is outside the supported range.")
+        raise ValueError(_("Calculated result is outside the supported range."))
     return result
