@@ -42,7 +42,7 @@ Other:
 - changed: the Image plugin can load an image from a given path (used by the welcome screen)
 - changed: some debug log messages that were written very often (bounds, offset, Gerber export) are disabled
 - changed: requirements.txt has minimum versions for rtree, lxml, svg.path, svglib, fontTools, pyopengl and rasterio, and adds pikepdf, pypdfium2, pytest and pytest-xdist
-- changed: the PCB 3D Viewer texts of the 3D PDF export are in the translation template and in all the language catalogs; the texts of the welcome screen are not yet in the catalogs
+- changed: the new texts of the welcome screen and of the 3D PDF export are in the translation template and are translated in all the language catalogs
 
 06.11.2026
 
