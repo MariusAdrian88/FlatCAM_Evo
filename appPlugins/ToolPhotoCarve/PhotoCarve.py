@@ -49,6 +49,7 @@ class ToolPhotoCarve(AppTool):
         # the 1st preview after the plugin opens or an image loads fits the 2D view to its outline
         self._fit_preview = True
         self._view = None
+        self._hooked_canvas = None
         self.preview_done_sig.connect(self.on_preview_done)
         self.generation_message_sig.connect(self.on_generation_message)
         self.generation_done_sig.connect(self.on_generation_done)
@@ -57,6 +58,7 @@ class ToolPhotoCarve(AppTool):
     def install(self, icon=None, separator=None, **kwargs):
         super().install(icon=icon, separator=separator, shortcut='Alt+V', **kwargs)
         self.app.cleanup.connect(self.on_plugin_cleanup)
+        self.app.ui.plot_tab_area.tab_closed_signal.connect(self.on_plot_tab_closed)
 
     def run(self, toggle=True):
         self.app.defaults.report_usage('ToolPhotoCarve()')
@@ -212,10 +214,10 @@ class ToolPhotoCarve(AppTool):
 
     def close_3d(self):
         """Stop the simulation and close the Plot 3D tab, but only if this plugin shows its simulation there."""
-        shown = self._view is not None
+        view = self._view
+        # on_stop() clears self._view first: the tab close below then does not close this plugin
         self.on_stop()
-        canvas = getattr(self.app, 'plotcanvas3d', None)
-        if not shown or canvas is None:
+        if view is None or not view.alive or getattr(self.app, 'plotcanvas3d', None) is not view.canvas:
             return
         tabs = self.app.ui.plot_tab_area
         index = tabs.indexOf(self.app.area_3d_tab)
@@ -428,10 +430,30 @@ class ToolPhotoCarve(AppTool):
             self._view.clear()
             self._view = None
 
+    def on_canvas_destroyed(self, canvas):
+        if self._view is not None and self._view.canvas is canvas:
+            self.on_plot_tab_closed('3D_area_tab')
+
+    def on_plot_tab_closed(self, name, index=None):
+        """The Plot 3D tab of the simulation is closed: close this plugin too."""
+        if name != '3D_area_tab' or self._view is None:
+            return
+        # clear the view first: the cleanup of the plugin then does not close the 3D tab again
+        self.on_stop()
+        if self.app.ui.plugin_scroll_area.widget() is self:
+            self.app.on_notebook_closed()
+
+    def event(self, event):
+        # another plugin replaced this one in the Plugin tab: close the 3D simulation too
+        if (event.type() == QtCore.QEvent.Type.ParentChange and self.parent() is None and
+                getattr(self, '_view', None) is not None):
+            self.on_plugin_cleanup()
+        return super().event(event)
+
     def on_plugin_cleanup(self):
         self._fit_preview = True
         self.clear_preview()
-        self.on_stop()
+        self.close_3d()
         if self._preview_timer is not None:
             self._preview_timer.stop()
         if self.ui is not None:

@@ -200,6 +200,10 @@ class PhotoCarveGen:
             canvas.view.camera.set_view('iso')
             spot = laser_line_spacing(passes) if kind == 'laser' else 0.0
             self.tool._view = PhotoCarveView3d(canvas, material, thickness, depth_ref=-bottom, spot=spot)
+            if self.tool._hooked_canvas is not canvas:
+                # a closed Plot 3D tab deletes its canvas; a new tab has a new canvas
+                self.tool._hooked_canvas = canvas
+                canvas.native.destroyed.connect(lambda *args, c=canvas: self.tool.on_canvas_destroyed(c))
             if kind == 'laser':
                 self.tool._view.set_burn(frame, session.burn)
             else:
@@ -288,6 +292,10 @@ class PhotoCarveGen:
             return
         image, cutter, last, done = payload
         view = self.tool._view
+        if view is None or not view.alive:
+            # the 3D tab is closed: stop the animation, there is no scene to update
+            self.stop_simulation()
+            return
         if session.kind == 'laser':
             view.set_burn(session.frame, image)
             if last is not None:

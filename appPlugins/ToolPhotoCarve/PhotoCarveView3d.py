@@ -8,6 +8,7 @@ cut, from the material color to a darker cut color, so the cuts are visible from
 import math
 
 import numpy as np
+from PyQt6 import sip
 from vispy import scene
 from vispy.visuals.transforms import STTransform
 
@@ -209,14 +210,22 @@ class PhotoCarveView3d:
     def set_marker(self, xyz):
         self.marker.set_data(pos=np.asarray([xyz], dtype=np.float32), face_color='red', size=8)
 
+    @property
+    def alive(self):
+        """False after the 3D tab is closed: its Qt widget is deleted and a scene change raises RuntimeError."""
+        return not sip.isdeleted(self.canvas.native)
+
     def finish(self):
         """Show only the cut stock: the path lines, the tool and the marker cover the grooves."""
+        if not self.alive:
+            return
         for visual in (self.path, self.marker, self.cutter):
             if visual is not None:
                 visual.visible = False
 
     def clear(self):
-        for visual in (self.path, self.marker, self.label, self.mesh, self.walls, self.cutter):
-            if visual is not None:
-                visual.parent = None
+        if self.alive:
+            for visual in (self.path, self.marker, self.label, self.mesh, self.walls, self.cutter):
+                if visual is not None:
+                    visual.parent = None
         self.mesh = self.walls = self.cutter = None
