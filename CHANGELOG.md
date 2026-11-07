@@ -8,6 +8,33 @@ CHANGELOG for FlatCAM Evo
 
 07.11.2026
 
+G-code Sender:
+
+- fixed: on Windows a headless run no longer stays alive after its script ends when a camera is connected; the Sender builds its UI and its camera tab (Qt Multimedia) only at its first run in the GUI, so a headless run or a session that never opens the Sender does not load the camera stack (issue #82, reported by ErkanGench)
+- changed: the Sender is disabled for users until it is finished and verified; Plugins > G-code Sender shows a warning and does not open; for development work, set the environment variable FLATCAM_SENDER_DEV=1 (the test suite sets it)
+- new: an E-Stop button at the bottom of the Plugin tab, outside the scroll area; it is a software stop request (feed hold, then a soft reset) and also stops an open simulation; it does not replace a physical E-stop circuit
+- new: the console dock has a Configuration tab: it reads the GRBL $ settings of an idle controller, shows the confirmed and the pending values, and writes only the changes that you apply, with a readback check; a new connection or a reset discards the values
+- new: the Plot 3D view shows the work and the machine positions of the last status report in an overlay; the values are marked stale after 3 seconds and are cleared after a reset, a stop, a homing, a zero or a change of the units
+- new: while a job runs (not in check mode), the Plot 3D tab stays the current tab and the other plot tabs cannot be selected, closed or detached
+- new: a "Jog (Tab)" button on the Control tab opens the Jog page of the console dock
+- changed: the Connect button shows "Connect", "Connecting... Cancel" or "Disconnect"; Start, Hold, Resume, Unlock, Spindle and the override buttons are active only while a controller is connected
+- changed: the Stop buttons are "Stop / recover" and "Stop / reset", with tooltips that tell that the operation cannot resume; the probing button is "Probe height map"; the Spindle button shows "Spindle ON" or "Spindle OFF" from the state that the controller reports
+- changed: a job that makes a new height map always starts at the first line; the start dialog tells why, and tells when check mode is on
+- changed: the camera preview runs only while the Camera tab is shown; a stopped preview shows an empty view instead of the last frame
+- changed: the Calibration and Board registration pages put their settings and buttons in grids that fit the width of the plugin panel; the Camera tab has no inner scroll area
+- fixed: a status report of an old connection or of an earlier reset no longer changes the position, the state or the spindle on the screen
+- fixed: a typed $13 or $RST command reads the report units again
+- fixed: a GRBL operation is accepted only on the port where it started
+
+Translations:
+
+- fixed: the labels of the undo history of the Geometry and Gerber editors, the errors of the Calculators, the Photo Carve messages, the Rules Check status and the errors of the Tcl commands extract, invert_gerber and photocarve are translated; the texts are translated before the values are put in, and are not translated a second time
+- changed: the translation template and the language catalogs have the new texts
+
+Other:
+
+- changed: new dark splash image
+
 Welcome screen:
 
 - new: a welcome screen opens at an interactive start without files or commands; it lists the file types by category (Project, Geometry, PCB Manufacturing files, PCB Boards) with a search box, a description of each type and the last 5 recent files of the selected type
