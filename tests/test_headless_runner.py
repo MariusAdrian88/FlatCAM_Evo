@@ -218,6 +218,18 @@ def _native_interrupt_child():
     timer.timeout.connect(interrupt)
     for run in (lambda text: App.script_processing(app, text),
                 lambda text: FCShell.exec_command_test(app.shell, text, reraise=False)):
+        # Empty bytecode loops must pump events without cancellation too.
+        heartbeat = QtCore.QTimer()
+        heartbeat.setInterval(10)
+        pulses = []
+        heartbeat.timeout.connect(lambda: pulses.append(time.monotonic()))
+        heartbeat.start()
+        try:
+            assert run('set end [expr {[clock milliseconds] + 100}]; '
+                       'while {[clock milliseconds] < $end} {}; set done yes') == 'yes'
+        finally:
+            heartbeat.stop()
+        assert pulses, f'Native event pumping unavailable: {app.log.warning.call_args_list}'
         for script in ('while {1} {}', 'catch {while {1} {}}; set escaped 1',
                        'while {1} {catch {while {1} {}}}'):
             output.clear()
@@ -235,16 +247,6 @@ def _native_interrupt_child():
             run('return -code error broken')
             assert app.script_state == 'failed'
             assert run('expr {20 + 22}') == '42'
-        # Empty bytecode loops must pump events without cancellation too.
-        heartbeat = QtCore.QTimer()
-        heartbeat.setInterval(10)
-        pulses = []
-        heartbeat.timeout.connect(lambda: pulses.append(time.monotonic()))
-        heartbeat.start()
-        assert run('set end [expr {[clock milliseconds] + 100}]; '
-                   'while {[clock milliseconds] < $end} {}; set done yes') == 'yes'
-        heartbeat.stop()
-        assert pulses
         result = run('''
             proc preserve_error {} {
                 set end [expr {[clock milliseconds] + 80}]

@@ -1,4 +1,4 @@
-"""Tcl 8.6 interruption without calling tkinter from a raw ctypes callback."""
+"""Tcl 8.6/9.0 interruption without calling tkinter from a raw ctypes callback."""
 
 import ctypes
 import ctypes.util
@@ -44,10 +44,12 @@ def _windows_tcl():
         length = kernel.K32GetModuleFileNameExW(process, module, path, len(path))
         if not length or length >= len(path):
             raise RuntimeError('cannot identify a loaded process module')
-        if re.fullmatch(r'tcl\d+.*\.dll', os.path.basename(path.value).lower()):
+        name = os.path.basename(path.value).lower()
+        # Tk 9.0's Windows DLL is named tcl9tk90.dll, not a Tcl core.
+        if re.fullmatch(r'tcl\d+.*\.dll', name) and name != 'tcl9tk90.dll':
             paths[path.value] = module
-    if len(paths) != 1 or os.path.basename(next(iter(paths))).lower() != 'tcl86t.dll':
-        raise RuntimeError('loaded tcl86t.dll is missing or ambiguous')
+    if len(paths) != 1 or os.path.basename(next(iter(paths))).lower() not in ('tcl86t.dll', 'tcl90.dll'):
+        raise RuntimeError('loaded Tcl core is missing, unsupported or ambiguous')
     path, module = next(iter(paths.items()))
     return ctypes.CDLL(path, handle=module)
 
@@ -114,14 +116,17 @@ def _posix_tcl():
 
 
 def _loaded_tcl(tcl):
-    """Capability gates and shared Tcl 8.6 C ABI, independent of discovery."""
+    """Capability gates and Tcl 8.6/9.0 C ABI, independent of discovery."""
     if sys.implementation.name != 'cpython' or sys.platform not in ('win32', 'linux', 'darwin'):
         raise RuntimeError('requires CPython on Windows, Linux or macOS')
     if getattr(sys, '_is_gil_enabled', lambda: True)() is False:
         raise RuntimeError('free-threaded Python Tcl interruption is unverified')
     patchlevel = tuple(map(int, str(tcl.call('info', 'patchlevel')).split('.')))
-    if tk.TclVersion != 8.6 or patchlevel[:2] != (8, 6) or \
-            not tcl.getboolean(tcl.call('set', 'tcl_platform(threaded)')):
+    family = patchlevel[:2]
+    if family not in ((8, 6), (9, 0)) or tk.TclVersion != float('%d.%d' % family):
+        raise RuntimeError('requires matching tkinter and Tcl 8.6 or 9.0')
+    # Tcl 9 is always threaded and no longer exposes tcl_platform(threaded).
+    if family == (8, 6) and not tcl.getboolean(tcl.call('set', 'tcl_platform(threaded)')):
         raise RuntimeError('requires threaded Tcl 8.6')
     if not callable(getattr(tcl.tk, 'interpaddr', None)):
         raise RuntimeError('tkapp.interpaddr is unavailable')
@@ -130,7 +135,9 @@ def _loaded_tcl(tcl):
         raise RuntimeError('tkapp.interpaddr is not a valid native address')
     dll = _windows_tcl() if sys.platform == 'win32' else _posix_tcl()
     callback_type = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int)
-    # Exact public Tcl 8.6 C ABI (cdecl), not the Tcl stubs table.
+    # Tcl 9's Tcl_Size is ptrdiff_t; Tcl 8.6 uses int for the script length.
+    size_type = ctypes.c_ssize_t if family == (9, 0) else ctypes.c_int
+    # Exact public C ABI (cdecl), not the Tcl stubs table.
     signatures = {
         'Tcl_GetVersion': ([ctypes.POINTER(ctypes.c_int)] * 4, None),
         'Tcl_AsyncCreate': ([callback_type, ctypes.c_void_p], ctypes.c_void_p),
@@ -139,7 +146,7 @@ def _loaded_tcl(tcl):
         'Tcl_CancelEval': ([ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int], ctypes.c_int),
         'Tcl_SaveInterpState': ([ctypes.c_void_p, ctypes.c_int], ctypes.c_void_p),
         'Tcl_RestoreInterpState': ([ctypes.c_void_p, ctypes.c_void_p], ctypes.c_int),
-        'Tcl_EvalEx': ([ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_int], ctypes.c_int),
+        'Tcl_EvalEx': ([ctypes.c_void_p, ctypes.c_char_p, size_type, ctypes.c_int], ctypes.c_int),
     }
     for name, (args, result) in signatures.items():
         function = getattr(dll, name)
