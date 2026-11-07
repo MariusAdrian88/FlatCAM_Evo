@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import gettext
 import html
+import re
+from html.parser import HTMLParser
 
-from PyQt6 import QtCore, QtGui, QtWidgets
+from PyQt6 import QtCore, QtGui, QtNetwork, QtWidgets
 
 
 _ = gettext.gettext
@@ -51,6 +53,82 @@ def _human_date(value: str) -> str:
 # GitHub Markdown, but raw HTML in the notes stays text: the notes come from the network
 _NOTES_MARKDOWN = (QtGui.QTextDocument.MarkdownFeature.MarkdownDialectGitHub
                    | QtGui.QTextDocument.MarkdownFeature.MarkdownNoHTML)
+
+
+class _ImageTag(HTMLParser):
+    """Convert GitHub's HTML image tags without enabling arbitrary HTML."""
+
+    markdown = ""
+
+    def handle_starttag(self, tag, attrs):
+        if tag != "img":
+            return
+        attrs = dict(attrs)
+        url = QtCore.QUrl(attrs.get("src") or "")
+        if url.scheme() not in ("http", "https") or not url.host():
+            return
+        alt = re.sub(r"([\\\[\]])", r"\\\1", attrs.get("alt") or "")
+        source = bytes(url.toEncoded()).decode("ascii").replace("<", "%3C").replace(">", "%3E")
+        self.markdown = "![%s](<%s>)" % (alt.replace("\n", " "), source)
+
+
+def _release_markdown(text):
+    def image(match):
+        if match.group(1):
+            return match.group(0)
+        parser = _ImageTag()
+        parser.feed(match.group(0))
+        return parser.markdown or match.group(0)
+
+    # Code examples stay literal, including image tags inside them.
+    return re.sub(r"(```.*?```|~~~.*?~~~|`[^`]*`)|<img\b[^>]*>", image, text, flags=re.DOTALL | re.IGNORECASE)
+
+
+class _ReleaseNotesBrowser(QtWidgets.QTextBrowser):
+    """QTextBrowser doesn't fetch web images; fetch them asynchronously instead."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._network = QtNetwork.QNetworkAccessManager(self)
+        self._requested = set()
+
+    def loadResource(self, resource_type, name):  # noqa: N802
+        if (resource_type == QtGui.QTextDocument.ResourceType.ImageResource
+                and name.scheme() in ("http", "https") and name.host()
+                and name not in self._requested):
+            self._requested.add(QtCore.QUrl(name))
+            request = QtNetwork.QNetworkRequest(name)
+            request.setTransferTimeout(10000)
+            reply = self._network.get(request)
+            reply.setReadBufferSize(8 * 1024 * 1024 + 1)
+            reply.readyRead.connect(lambda: self._limit_image(reply))
+            reply.finished.connect(lambda: self._image_ready(reply, name))
+        # Never let network release notes fall back to local files or Windows shares.
+        return None
+
+    @staticmethod
+    def _limit_image(reply):
+        if reply.bytesAvailable() > 8 * 1024 * 1024:
+            reply.abort()
+
+    def _image_ready(self, reply, name):
+        if reply.error() == QtNetwork.QNetworkReply.NetworkError.NoError:
+            data = QtCore.QBuffer()
+            data.setData(reply.readAll())
+            data.open(QtCore.QIODevice.OpenModeFlag.ReadOnly)
+            reader = QtGui.QImageReader(data)
+            size = reader.size()
+            if size.isValid() and size.width() * size.height() <= 16000000:
+                image = reader.read()
+                if not image.isNull():
+                    width = max(1, self.viewport().width() - 20)
+                    if image.width() > width:
+                        image = image.scaledToWidth(width, QtCore.Qt.TransformationMode.SmoothTransformation)
+                    document = self.document()
+                    document.addResource(QtGui.QTextDocument.ResourceType.ImageResource, name, image)
+                    document.markContentsDirty(0, document.characterCount())
+                    self.viewport().update()
+        reply.deleteLater()
 
 
 def _open_web_link(url: QtCore.QUrl) -> None:
@@ -144,12 +222,13 @@ class UpdateDialog(QtWidgets.QDialog):
             published.setAccessibleName(_("Release date"))
             layout.addWidget(published)
 
-        notes = QtWidgets.QTextBrowser()
+        notes = _ReleaseNotesBrowser(self)
         notes.setAccessibleName(_("Release notes"))
         # a click on a link opens the web browser; the notes never load another page in place
         notes.setOpenLinks(False)
         notes.anchorClicked.connect(_open_web_link)
-        notes.document().setMarkdown(details["notes"] or _("No release notes provided."), _NOTES_MARKDOWN)
+        notes.document().setMarkdown(_release_markdown(details["notes"] or _("No release notes provided.")),
+                                     _NOTES_MARKDOWN)
         notes.moveCursor(QtGui.QTextCursor.MoveOperation.Start)  # the notes start at the top, not at the end
         self.setMinimumHeight(480)
         layout.addWidget(notes)

@@ -7,7 +7,9 @@ import json
 import os
 import shutil
 import threading
+import time
 import zipfile
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -16,7 +18,7 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6 import QtCore, QtWidgets
+from PyQt6 import QtCore, QtGui, QtTest, QtWidgets
 
 
 
@@ -105,6 +107,75 @@ def _manifest_dict():
         "files": [],
         "deletions": [],
     }
+
+
+@pytest.mark.parametrize("image_markup", [
+    '<img width="2944" height="1744" alt="viewer" src="{url}" />',
+    '![viewer]({url})',
+])
+def test_release_images_load_without_waiting_for_the_network(qapp, image_markup):
+    from appGUI.UpdateDialog import UpdateDialog
+
+    image = QtGui.QImage(40, 20, QtGui.QImage.Format.Format_RGB32)
+    image.fill(QtGui.QColor("red"))
+    buffer = QtCore.QBuffer()
+    buffer.open(QtCore.QIODevice.OpenModeFlag.WriteOnly)
+    image.save(buffer, "PNG")
+    png = bytes(buffer.data())
+    requested = threading.Event()
+    send_image = threading.Event()
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            requested.set()
+            send_image.wait(5)
+            self.send_response(200)
+            self.send_header("Content-Type", "image/png")
+            self.send_header("Content-Length", str(len(png)))
+            self.end_headers()
+            self.wfile.write(png)
+
+        def log_message(self, *_args):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    url = "http://127.0.0.1:%s/image.png" % server.server_port
+    dialog = None
+    try:
+        start = time.monotonic()
+        dialog = UpdateDialog(None, _payload(release_notes=(
+            "# Highlights\n\n" + image_markup.format(url=url) + "\n\nPlain <b>notes</b>"
+        )))
+        dialog.open()
+        assert time.monotonic() - start < 1
+        notes = dialog.findChild(QtWidgets.QTextBrowser)
+        assert '<img' not in notes.toPlainText()
+        assert "<b>notes</b>" in notes.toPlainText()
+        deadline = time.monotonic() + 3
+        while not requested.is_set() and time.monotonic() < deadline:
+            QtTest.QTest.qWait(10)
+        assert requested.is_set()
+        assert dialog.isVisible()
+        send_image.set()
+        loaded = None
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline:
+            QtTest.QTest.qWait(10)
+            loaded = notes.document().resource(QtGui.QTextDocument.ResourceType.ImageResource, QtCore.QUrl(url))
+            if isinstance(loaded, QtGui.QImage) and not loaded.isNull():
+                break
+        assert isinstance(loaded, QtGui.QImage) and not loaded.isNull()
+        assert loaded.pixelColor(0, 0) == QtGui.QColor("red")
+    finally:
+        send_image.set()
+        if dialog is not None:
+            dialog.close()
+            dialog.deleteLater()
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
 
 
 def test_dependency_warning_cancels_before_preflight_and_launch(qapp, monkeypatch, tmp_path):
@@ -276,4 +347,3 @@ def test_launcher_owns_a_verified_archive_copy_before_stage_cleanup(monkeypatch,
     shutil.rmtree(staging)
     assert not archive.exists()
     updater_app._validate_archive(job_archive, manifest["archive"])
-
