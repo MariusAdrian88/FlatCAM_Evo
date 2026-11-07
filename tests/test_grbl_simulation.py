@@ -97,7 +97,9 @@ class TestSimulationControls(unittest.TestCase):
     def make_tool(self):
         from tests.test_grbl_sender_construct import make_app
         from appPlugins.ToolGcodeSender.Sender import ToolGCodeSender
-        return ToolGCodeSender(make_app())
+        tool = ToolGCodeSender(make_app())
+        tool.build_ui()
+        return tool
 
     def test_simulated_probing_compensates_without_changing_real_map(self):
         from types import SimpleNamespace

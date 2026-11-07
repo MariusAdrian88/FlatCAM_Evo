@@ -47,6 +47,37 @@ def make_app():
 
 
 class TestGrblSenderConstruct(unittest.TestCase):
+    def test_emergency_stop_is_outside_scroll_and_survives_ui_rebuild(self):
+        app = make_app()
+        workspace = QtWidgets.QWidget()
+        self.addCleanup(workspace.deleteLater)
+        self.addCleanup(workspace.close)
+        layout = QtWidgets.QVBoxLayout(workspace)
+        app.ui.plugin_tab_layout = layout
+        scroll = QtWidgets.QScrollArea()
+        scroll.setWidgetResizable(True)
+        layout.addWidget(scroll)
+        tool = ToolGCodeSender(app)
+        tool.build_ui()
+        scroll.setWidget(tool)
+        workspace.resize(500, 400)
+        workspace.show()
+        _qapp.processEvents()
+        for rebuild in (False, True):
+            if rebuild:
+                with patch('appPlugins.Common.levelling_core.ShapeCollection'):
+                    tool.set_tool_ui()
+            button = tool.ui.estop_button
+            self.assertEqual(button.text(), 'E-Stop')
+            self.assertIs(button.parentWidget(), workspace)
+            position = button.mapTo(workspace, QtCore.QPoint())
+            scroll.verticalScrollBar().setValue(scroll.verticalScrollBar().maximum())
+            _qapp.processEvents()
+            self.assertTrue(button.isVisible())
+            self.assertEqual(button.mapTo(workspace, QtCore.QPoint()), position)
+        tool.hide()
+        self.assertFalse(button.isVisible())
+
 
     def test_avoidance_combo_lists_only_excellon_and_follows_checkbox(self):
         app = make_app()
@@ -55,6 +86,7 @@ class TestGrblSenderConstruct(unittest.TestCase):
         app.collection.item(1).appendRow(QtGui.QStandardItem('drills'))
         app.collection.item(3).appendRow(QtGui.QStandardItem('job'))
         tool = ToolGCodeSender(app)
+        tool.build_ui()
         with patch('appPlugins.Common.levelling_core.ShapeCollection'):
             tool._populate_tool_ui()
         combo = tool.ui.avoid_exc_combo
@@ -70,6 +102,7 @@ class TestGrblSenderConstruct(unittest.TestCase):
         app = make_app()
         app.defaults = dict(app.options)
         tool = ToolGCodeSender(app)
+        tool.build_ui()
         with patch('appPlugins.Common.levelling_core.ShapeCollection'):
             tool._populate_tool_ui()
         self.assertTrue(tool.ui.fit_view_cb.isChecked())
@@ -78,6 +111,7 @@ class TestGrblSenderConstruct(unittest.TestCase):
         restarted_app = make_app()
         restarted_app.options.update(app.defaults)
         restarted = ToolGCodeSender(restarted_app)
+        restarted.build_ui()
         with patch('appPlugins.Common.levelling_core.ShapeCollection'):
             restarted._populate_tool_ui()
         self.assertFalse(restarted.ui.fit_view_cb.isChecked())
@@ -89,6 +123,33 @@ class TestGrblSenderConstruct(unittest.TestCase):
         self.assertIsNotNone(layout.itemAt(1).spacerItem())
         self.assertIs(layout.itemAt(2).widget(), restarted.ui.fit_view_cb)
         self.assertIs(layout.itemAt(3).widget(), restarted.ui.console_cb)
+
+    def test_camera_starts_only_at_the_first_gui_run(self):
+        """Issue #82: Qt Multimedia kept a headless run on Windows from exiting when a camera was connected."""
+        cameras = 'appPlugins.ToolGcodeSender.SenderCameraUI.QMediaDevices.videoInputs'
+        app = make_app()
+        app.defaults = MagicMock()
+        app.plugin_tab_locked = False
+        with patch(cameras, return_value=[]) as video_inputs, \
+                patch('appPlugins.Common.levelling_core.ShapeCollection'):
+            tool = ToolGCodeSender(app)
+            # the app signals that reach a never-run Sender must not fail or build the UI
+            tool.on_reset_tool()
+            tool._select_available_excellon()
+            tool.on_object_selection_changed(MagicMock(), None)
+            tool._update_sim_button()
+            tool._toolchange_settings_changed()
+            app.headless = True
+            tool.run()
+            video_inputs.assert_not_called()
+            app.headless = False
+            # the unfinished Sender stays closed for users: no UI, no camera, a warning
+            with patch.dict('os.environ', {'FLATCAM_SENDER_DEV': '0'}):
+                tool.run()
+            self.assertIsNone(tool.ui)
+            video_inputs.assert_not_called()
+            tool.run()
+            video_inputs.assert_called()
 
 
 class TestSelectedExcellonAvoidance(unittest.TestCase):
@@ -168,6 +229,7 @@ class TestBaudratePersists(unittest.TestCase):
 
     def populate(self, app):
         tool = ToolGCodeSender(app)
+        tool.build_ui()
         with patch('appPlugins.Common.levelling_core.ShapeCollection'):
             tool._populate_tool_ui()
         return tool

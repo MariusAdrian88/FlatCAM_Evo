@@ -205,11 +205,11 @@ class SenderCameraUI(QtWidgets.QWidget):
         self.orientation_combo = FCComboBox2()
         self.orientation_combo.addItems(['0°', '90°', '180°', '270°'])
         self.orientation_combo.setToolTip(_("Rotate the preview. A change needs revalidation."))
-        orientation_row.addWidget(self.orientation_combo)
+        # FCComboBox2 ignores its size hint: without the stretch it gets no width
+        orientation_row.addWidget(self.orientation_combo, stretch=1)
         self.mirror_cb = FCCheckBox(_("Mirror"))
         self.mirror_cb.setToolTip(_("Mirror the preview horizontally. A change needs revalidation."))
         orientation_row.addWidget(self.mirror_cb)
-        orientation_row.addStretch(1)
         preview_layout.addLayout(orientation_row)
 
         self.view = self._provided_view if self._provided_view is not None else CameraView()
@@ -217,11 +217,14 @@ class SenderCameraUI(QtWidgets.QWidget):
             layout.addWidget(self.preview_controls)
             layout.addWidget(self.view, stretch=1)
 
-        tolerance_row = QtWidgets.QHBoxLayout()
+        # one setting per row: side by side they are wider than the plugin panel
+        tolerance_grid = QtWidgets.QGridLayout()
+        # the FC entries ignore their size hint: only a stretched column gives them a width
+        tolerance_grid.setColumnStretch(1, 1)
         self.verify_tolerance_label = FCLabel(_("Repeatability tolerance (%s):") % self.units)
         self.verify_tolerance_label.setToolTip(_(
             "The largest allowed mismatch of the marked point during verification, in current units."))
-        tolerance_row.addWidget(self.verify_tolerance_label)
+        tolerance_grid.addWidget(self.verify_tolerance_label, 0, 0)
         self.verify_tolerance_entry = FCDoubleSpinner()
         self.verify_tolerance_entry.set_precision(max(self.decimals, 4))
         self.verify_tolerance_entry.set_range(0.0001, 100.0 if self.units == 'MM' else 100.0 / 25.4)
@@ -229,12 +232,12 @@ class SenderCameraUI(QtWidgets.QWidget):
             VERIFY_TOLERANCE_MM if self.units == 'MM' else VERIFY_TOLERANCE_MM / 25.4)
         self.verify_tolerance_entry.setToolTip(_(
             "The largest allowed mismatch of the marked point during verification, in current units."))
-        tolerance_row.addWidget(self.verify_tolerance_entry)
+        tolerance_grid.addWidget(self.verify_tolerance_entry, 0, 1)
 
         self.view_tolerance_label = FCLabel(_("Viewing Z tolerance (%s):") % self.units)
         self.view_tolerance_label.setToolTip(_(
             "The largest allowed change of the camera viewing height, in current units."))
-        tolerance_row.addWidget(self.view_tolerance_label)
+        tolerance_grid.addWidget(self.view_tolerance_label, 1, 0)
         self.view_tolerance_entry = FCDoubleSpinner()
         self.view_tolerance_entry.set_precision(max(self.decimals, 4))
         self.view_tolerance_entry.set_range(0.0001, 100.0 if self.units == 'MM' else 100.0 / 25.4)
@@ -242,9 +245,8 @@ class SenderCameraUI(QtWidgets.QWidget):
             VIEW_Z_TOLERANCE_MM if self.units == 'MM' else VIEW_Z_TOLERANCE_MM / 25.4)
         self.view_tolerance_entry.setToolTip(_(
             "The largest allowed change of the camera viewing height, in current units."))
-        tolerance_row.addWidget(self.view_tolerance_entry)
-        tolerance_row.addStretch(1)
-        layout.addLayout(tolerance_row)
+        tolerance_grid.addWidget(self.view_tolerance_entry, 1, 1)
+        layout.addLayout(tolerance_grid)
 
         self.status_label = FCLabel(_("No camera found. Connect a camera and press Refresh."))
         self.status_label.setWordWrap(True)
@@ -254,30 +256,28 @@ class SenderCameraUI(QtWidgets.QWidget):
         self.calibration_label.setWordWrap(True)
         layout.addWidget(self.calibration_label)
 
-        capture_row = QtWidgets.QHBoxLayout()
+        button_grid = QtWidgets.QGridLayout()
         self.capture_spindle_button = FCButton(_("Capture spindle XY"))
         self.capture_spindle_button.setToolTip(_(
             "Mount a thin drill in the spindle, put its tip on the reference mark and press.\n"
             "Only the machine position is read: nothing moves."))
-        capture_row.addWidget(self.capture_spindle_button)
+        button_grid.addWidget(self.capture_spindle_button, 0, 0)
 
         self.capture_camera_button = FCButton(_("Capture camera XY + Z"))
         self.capture_camera_button.setToolTip(_(
             "Retract, set the camera viewing height and center the same mark under the crosshair.\n"
             "Only the machine position and viewing Z are read: nothing moves."))
-        capture_row.addWidget(self.capture_camera_button)
-        layout.addLayout(capture_row)
+        button_grid.addWidget(self.capture_camera_button, 0, 1)
 
-        action_row = QtWidgets.QHBoxLayout()
         self.verify_button = FCButton(_("Verify repeatability"))
         self.verify_button.setToolTip(_(
             "Center the same mark under the camera at the calibrated viewing Z.\n"
             "The predicted spindle position must match the first reference."))
-        action_row.addWidget(self.verify_button)
+        button_grid.addWidget(self.verify_button, 1, 0)
         self.clear_button = FCButton(_("Clear calibration"))
         self.clear_button.setToolTip(_("Invalidate the saved calibration and require a new one."))
-        action_row.addWidget(self.clear_button)
-        layout.addLayout(action_row)
+        button_grid.addWidget(self.clear_button, 1, 1)
+        layout.addLayout(button_grid)
 
         self.guide_label = FCLabel(_(
             "1. Mount a thin drill and center the reference mark with the spindle.\n"
@@ -287,6 +287,9 @@ class SenderCameraUI(QtWidgets.QWidget):
             "5. Verify the repeatability at the same mark."))
         self.guide_label.setWordWrap(True)
         layout.addWidget(self.guide_label)
+        if self._external_view:
+            # the taller Board registration page sets the page height: keep these rows together at the top
+            layout.addStretch(1)
 
         self.refresh_button.clicked.connect(lambda: self.refresh_cameras(announce=True))
         self.preview_button.toggled.connect(self._on_preview_toggled)
@@ -516,8 +519,8 @@ class SenderCameraUI(QtWidgets.QWidget):
             self.status_label.setText(_("Choose a camera first."))
             self.stop_preview()
             return False
+        # stop_preview() also gives the view a new, empty video item
         self.stop_preview()
-        self.view.reset_video_item()
         try:
             self.camera = QCamera(self._devices[index], self)
             self._preview_device_id = self._device_id(self._devices[index])
@@ -572,6 +575,12 @@ class SenderCameraUI(QtWidgets.QWidget):
                 session.deleteLater()
         except RuntimeError:
             pass
+        # the video item keeps the last frame: a new item shows an empty (black) view
+        try:
+            self.view.reset_video_item()
+            self.view.set_orientation(self.rotation(), self.mirror())
+        except RuntimeError:
+            pass  # the view was deleted while the application closes
         self._update_buttons()
         self.preview_available_sig.emit(False)
 

@@ -20,6 +20,153 @@ from tests.grbl_stream_helpers import CheckFake, make_stream_tool, make_levelled
 _qapp = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
 
 
+class TestGrblConfiguration(unittest.TestCase):
+    def make_configuration(self):
+        from tests.test_grbl_sender_construct import make_app
+        from tests.test_levelling_audit import FakeGrbl
+        from appPlugins.ToolGcodeSender.Sender import ToolGCodeSender
+
+        class SettingsPort(FakeGrbl):
+            def __init__(self):
+                super().__init__()
+                self.settings = {'13': '0', '100': '250', '101': '250', '700': 'router.local'}
+
+            def _answer(self, cmd):
+                if cmd == '$$':
+                    self._send(*['$%s=%s' % pair for pair in self.settings.items()], 'ok')
+                elif cmd.startswith('$') and '=' in cmd:
+                    number, value = cmd[1:].split('=', 1)
+                    if number == '101':
+                        self._send('error:3')
+                    else:
+                        self.settings[number] = value
+                        self._send('ok')
+                else:
+                    super()._answer(cmd)
+
+        tool = ToolGCodeSender(make_app())
+        tool.build_ui()
+        port = SettingsPort()
+        tool.grbl_ser_port = port
+        tool._grbl_connected = True
+        dock = QtWidgets.QDockWidget()
+        self.addCleanup(dock.deleteLater)
+        tool.app.ui.grbl_console_dock = dock
+        page = tool._console().configuration
+        tool.app.worker_task.emit.side_effect = lambda task: task['fcn']()
+        self.addCleanup(drop_console_event_filters)
+        return tool, port, page
+
+    def test_explicit_apply_reads_back_partial_success_and_preserves_string_setting(self):
+        tool, port, page = self.make_configuration()
+        page.refresh_button.click()
+        self.assertEqual(page.table.rowCount(), 4)
+        self.assertEqual(page.table.item(3, 2).text(), 'router.local')
+        port.written.clear()
+        original = port._answer
+
+        def reset_notice(cmd):
+            if cmd == '$100=300':
+                port._send('[MSG:Reboot required]')
+            original(cmd)
+        port._answer = reset_notice
+        page.table.item(1, 3).setText('300')
+        page.table.item(2, 3).setText('400')
+        self.assertEqual(port.written, [])
+        page.apply_changes()
+        self.assertEqual(port.commands(), ['?', '$100=300', '$101=400', '$$'])
+        self.assertEqual(page.table.item(1, 2).text(), '300')
+        self.assertIn('Reboot required', page.table.item(1, 4).text())
+        self.assertEqual(page.table.item(2, 2).text(), '250')
+        self.assertIn('error:3', page.table.item(2, 4).text())
+
+    def test_busy_injection_and_replaced_connection_cannot_write(self):
+        tool, port, page = self.make_configuration()
+        page.refresh_button.click()
+        port.written.clear()
+        page.table.item(1, 3).setText('300\n$H')
+        page.apply_changes()
+        self.assertEqual(port.written, [])
+        page.table.item(1, 3).setText('300')
+        op = tool._grbl_reserve('home', motion=True)
+        page.apply_changes()
+        page.refresh_button.click()
+        self.assertEqual(port.written, [])
+        tool._grbl_release(op)
+        tool.grbl_ser_port = type(port)()
+        page.apply_changes()
+        self.assertEqual(tool.grbl_ser_port.written, [])
+
+    def test_old_read_result_is_discarded_on_reconnect(self):
+        tool, port, page = self.make_configuration()
+        tasks = []
+        tool.app.worker_task.emit.side_effect = tasks.append
+        page.refresh_button.click()
+        tool._grbl_set_ui_connected(False)
+        tool.grbl_ser_port = type(port)()
+        tool._grbl_set_ui_connected(True)
+        tasks[0]['fcn']()
+        self.assertEqual(page.table.rowCount(), 0)
+        self.assertEqual(tool.grbl_ser_port.written, [])
+
+    def test_readback_failure_does_not_confirm_or_retry_acknowledged_write(self):
+        tool, port, page = self.make_configuration()
+        page.refresh_button.click()
+        port.written.clear()
+        page.table.item(1, 3).setText('300')
+        original = port._answer
+
+        def fail_readback(command):
+            if command == '$$':
+                port._send('error:3')
+            else:
+                original(command)
+        port._answer = fail_readback
+        page.apply_changes()
+        self.assertEqual(port.settings['100'], '300')
+        self.assertEqual(page.table.item(1, 2).text(), '250')
+        self.assertIn('Readback failed', page.table.item(1, 4).text())
+        port.written.clear()
+        page.apply_changes()
+        self.assertEqual(port.written, [])
+
+    def test_unknown_string_edit_and_external_motion_ownership(self):
+        tool, port, page = self.make_configuration()
+        self.assertEqual(port.written, [])
+        page.refresh_button.click()
+        port.written.clear()
+        page.table.item(3, 3).setText('new-router.local')
+        port.state = 'Run'
+        page.apply_changes()
+        self.assertEqual(port.commands(), ['?'])
+        port.state = 'Idle'
+        page.update_controls()
+        page.refresh_button.click()
+        port.written.clear()
+        page.apply_changes()
+        self.assertEqual(port.commands(), ['?', '$700=new-router.local', '$$'])
+        self.assertEqual(page.table.item(3, 2).text(), 'new-router.local')
+        tool._grbl_report_inches = False
+        tool.ui.grbl_command_entry.set_value('$13=1')
+        tool.on_grbl_send_command()
+        self.assertIs(tool._grbl_report_inches, True)
+
+    def test_acknowledged_value_missing_from_readback_remains_unverified(self):
+        tool, port, page = self.make_configuration()
+        page.refresh_button.click()
+        page.table.item(1, 3).setText('300')
+        original = port._answer
+
+        def missing_setting(command):
+            original(command)
+            if command == '$100=300':
+                del port.settings['100']
+        port._answer = missing_setting
+        page.apply_changes()
+        self.assertIn('not reported', page.table.item(1, 4).text().lower())
+        self.assertNotEqual(page.table.item(1, 2).text(), '300')
+
+
 class TestGrblConsole(unittest.TestCase):
 
     def make_console(self, tool=None):
@@ -48,7 +195,7 @@ class TestGrblConsole(unittest.TestCase):
     def test_program_and_console_tabs_keep_commands_and_log_separate(self):
         console = self.make_console()
         self.assertEqual([console.tabs.tabText(i) for i in range(console.tabs.count())],
-                         ['Program', 'Console', 'Jog'])
+                         ['Program', 'Console', 'Jog', 'Configuration'])
         self.assertIs(console.tabs.widget(2), console.jog_page)
         console.set_program(['G21', 'G1 X2'])
         console.append('ok')
@@ -563,6 +710,52 @@ class TestDockedJogPage(unittest.TestCase):
 
     def console(self):
         return self.dock.widget()
+
+    def test_control_jog_opener_always_shows_existing_page(self):
+        self.connect(DockJogFake())
+        page = self.tool.ui.jog_page
+        self.dock.hide()
+        for unused in range(2):
+            self.tool.ui.jog_button.click()
+            self.assertTrue(self.dock.isVisible())
+            self.assertIs(self.console().tabs.currentWidget(), page)
+        self.tool.toggle_jog_page()
+        self.assertFalse(self.dock.isVisible())
+
+    def test_disconnected_job_keeps_offline_actions_available(self):
+        self.tool._grbl_set_ui_connected(False)
+        for button in (self.tool.ui.start_button, self.tool.ui.hold_button,
+                       self.tool.ui.resume_button, self.tool.ui.spindle_button,
+                       self.tool.ui.unlock_button):
+            self.assertFalse(button.isEnabled())
+        for button in (self.tool.ui.sim_button, self.tool.ui.save_levelled_button,
+                       self.tool.ui.view3d_button):
+            self.assertTrue(button.isEnabled())
+
+    def test_work_position_identifies_converted_job_units_and_reported_spindle(self):
+        self.connect(DockJogFake())
+        self.tool._target = lambda: MagicMock(units='IN')
+        self.tool._on_status_report({'state': 'Idle', 'wpos': (25.4, 50.8, 76.2),
+                                    'ov': (100, 100, 100), 'accessory': 'S'})
+        text = self.tool.ui.status_label.text()
+        self.assertIn('Work position (in)', text)
+        self.assertIn('X 1.000', text)
+        self.assertEqual(self.tool.ui.spindle_button.text(), 'Spindle ON')
+        self.assertTrue(self.tool.ui.spindle_button.isChecked())
+        self.tool._on_status_report({'state': 'Idle', 'ov': (100, 100, 100)})
+        self.assertEqual(self.tool.ui.spindle_button.text(), 'Spindle OFF')
+
+    def test_connection_action_explains_pending_and_cancelled_attempt(self):
+        self.tool._grbl_connect_attempt = object()
+        self.tool._grbl_set_ui_connected(False)
+        self.assertIn('Cancel', self.tool.ui.com_connect_button.text())
+        self.assertTrue(self.tool.ui.com_connect_button.isEnabled())
+        self.tool.ui.com_connect_button.click()
+        self.assertIsNone(self.tool._grbl_connect_attempt)
+        self.assertEqual(self.tool.ui.com_connect_button.text(), 'Connect')
+        self.tool._grbl_connect_attempt = object()
+        self.connect(DockJogFake())
+        self.assertEqual(self.tool.ui.com_connect_button.text(), 'Disconnect')
 
     def connect(self, port):
         self.tool.grbl_ser_port = port

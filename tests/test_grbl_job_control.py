@@ -124,6 +124,45 @@ class TestExitCheckMode(unittest.TestCase):
 
 
 class TestCheckModeJob(unittest.TestCase):
+    def test_only_physical_execution_restricts_plot_selection_and_completion_releases_it(self):
+        from PyQt6 import QtWidgets
+        from unittest.mock import MagicMock
+
+        for check_mode, worker_failure in ((False, False), (True, False), (False, True)):
+            with self.subTest(check_mode=check_mode, worker_failure=worker_failure):
+                fake = CheckFake()
+                tool = make_stream_tool(fake, check_mode=check_mode)
+                QtWidgets.QWidget.__init__(tool)
+                tabs = QtWidgets.QTabWidget()
+                editor, plot = QtWidgets.QWidget(), QtWidgets.QWidget()
+                tabs.addTab(editor, 'Editor')
+                tabs.addTab(plot, 'Plot 3D')
+                tool.app.ui.plot_tab_area = tabs
+                tool.app.area_3d_tab = plot
+                tool.view3d = MagicMock()
+                tool.on_show_3d = lambda: tabs.setCurrentWidget(plot)
+                during = []
+
+                def observe():
+                    if any(command.startswith('G1') for command in fake.commands()):
+                        during.append((tabs.isTabEnabled(0), tabs.currentWidget() is plot))
+                fake.read_hook = observe
+                if worker_failure:
+                    def no_thread(_fn):
+                        raise RuntimeError('worker unavailable')
+                    tool._start_stream_thread = no_thread
+                    with self.assertRaises(RuntimeError):
+                        tool.on_start()
+                    self.assertFalse(any(command.startswith('G1') for command in fake.commands()))
+                else:
+                    tool.on_start()
+                    self.assertTrue(during)
+                    self.assertTrue(all(enabled == check_mode and selected != check_mode
+                                        for enabled, selected in during))
+                self.assertTrue(tabs.isTabEnabled(0))
+                tabs.setCurrentWidget(editor)
+                self.assertIs(tabs.currentWidget(), editor)
+
     def test_check_passed(self):
         fake = CheckFake()
         tool = make_stream_tool(fake, check_mode=True)
@@ -439,6 +478,26 @@ class TestRestartPreamble(unittest.TestCase):
 
 
 class TestStartDialog(unittest.TestCase):
+
+    def test_new_height_map_offers_only_beginning_and_can_cancel(self):
+        from PyQt6 import QtCore, QtWidgets
+        from appPlugins.ToolGcodeSender.Sender import ToolGCodeSender
+        from tests.grbl_stream_helpers import CheckFake, make_stream_tool
+        tool = make_stream_tool(CheckFake())
+        tool.app.ui = QtWidgets.QMainWindow()
+        self.addCleanup(tool.app.ui.deleteLater)
+        observed = []
+        for accepted in (True, False):
+            def finish():
+                dialog = QtWidgets.QApplication.activeModalWidget()
+                observed.append(dialog.start_radio.isEnabled())
+                observed.append(dialog.line_entry.isVisible())
+                dialog.accept() if accepted else dialog.reject()
+
+            QtCore.QTimer.singleShot(0, finish)
+            result = ToolGCodeSender._choose_start_line(tool, 10, beginning_only=True)
+            self.assertEqual(result, 1 if accepted else None)
+        self.assertEqual(observed, [False, False, False, False])
 
 
     def test_ok_and_cancel_return_the_selected_line_or_none(self):

@@ -43,6 +43,27 @@ SEGMENTS = [
 
 
 class SenderView3dTest(unittest.TestCase):
+    def test_coordinates_are_screen_space_and_expire(self):
+        from PyQt6 import QtWidgets, QtCore
+        canvas = fake_canvas()
+        canvas.native = QtWidgets.QWidget()
+        view = SenderView3d(canvas)
+        self.addCleanup(view.clear)
+        view.set_coordinates((1, 2, 3), (11, 22, 33), 'MM')
+        label = view.coordinates
+        self.assertIs(label.parent(), canvas.native)
+        self.assertTrue(label.testAttribute(QtCore.Qt.WidgetAttribute.WA_TransparentForMouseEvents))
+        self.assertIn('X 1.000', label.text())
+        self.assertIn('X 11.000', label.text())
+        self.assertIn('mm', label.text())
+        self.assertIn('WCS unverified', label.text())
+        point = label.pos()
+        canvas.view.camera.rotate_about(10, 20)
+        self.assertEqual(label.pos(), point)
+        view._coordinate_timer.timeout.emit()
+        self.assertNotIn('X 1.000', label.text())
+        self.assertIn('stale', label.text())
+
 
     def test_set_toolpath(self):
         view = SenderView3d(fake_canvas())
@@ -172,6 +193,57 @@ def wpos_report(x, y, z):
 
 
 class ReportUnitsTest(unittest.TestCase):
+    def test_execution_view_guard_keeps_plot_without_locking_operator_controls(self):
+        from PyQt6 import QtWidgets
+        from appGUI.GUIElements import FCDetachableTab2
+        tool = status_tool()
+        QtWidgets.QWidget.__init__(tool)
+        tabs = FCDetachableTab2(protect=False)
+        other, plot = QtWidgets.QWidget(), QtWidgets.QWidget()
+        tabs.addTab(other, 'Editor')
+        tabs.addTab(plot, 'Plot 3D')
+        tool.app.ui.plot_tab_area = tabs
+        tool.app.area_3d_tab = plot
+        tool.on_show_3d = lambda: tabs.setCurrentWidget(plot)
+        tool._lock_execution_view()
+        self.assertIs(tabs.currentWidget(), plot)
+        self.assertFalse(tabs.isTabEnabled(0))
+        tool._on_status_report({'state': 'Hold:0'})
+        tool._on_status_report({'state': 'Tool'})
+        tool._on_status_report({'state': 'Idle'})
+        tabs.setCurrentWidget(other)
+        self.assertIs(tabs.currentWidget(), plot)
+        self.assertTrue(tabs.isEnabled())
+        new_editor = QtWidgets.QWidget()
+        tabs.addTab(new_editor, 'New editor')
+        tabs.setCurrentWidget(new_editor)
+        self.assertIs(tabs.currentWidget(), plot)
+        self.assertFalse(tabs.closeTab(tabs.indexOf(plot)))
+        tool._unlock_execution_view()
+        self.assertTrue(tabs.isTabEnabled(0))
+        self.assertTrue(tabs.isTabEnabled(tabs.indexOf(new_editor)))
+        tabs.setCurrentWidget(other)
+        self.assertIs(tabs.currentWidget(), other)
+        self.assertTrue(tabs.closeTab(tabs.indexOf(plot)))
+
+    def test_overlay_uses_effective_wco_and_rejects_old_connection_report(self):
+        tool = status_tool('IN', False)
+        tool._on_status_report({'state': 'Idle', 'mpos': (50.8, 76.2, 101.6), 'wco': (25.4, 25.4, 25.4)})
+        work, machine, units = tool.view3d.set_coordinates.call_args.args
+        np.testing.assert_allclose(work, (1, 2, 3))
+        np.testing.assert_allclose(machine, (2, 3, 4))
+        self.assertEqual(units, 'IN')
+        tool._on_status_report({'state': 'Idle', 'mpos': (50.8, 76.2, 101.6)})
+        self.assertIsNone(tool.view3d.set_coordinates.call_args.args[0])
+        tool._on_status_report({'state': 'Idle', 'wpos': (25.4, 50.8, 76.2)})
+        self.assertIsNone(tool.view3d.set_coordinates.call_args.args[1])
+        tool.view3d.set_coordinates.reset_mock()
+        tool._on_status_report({'state': 'Idle', '_sender_port': object(), '_sender_generation': -1,
+                                'mpos': (0, 0, 0)})
+        tool.view3d.set_coordinates.assert_not_called()
+        tool._grbl_set_ui_connected(False)
+        self.assertEqual(tool.view3d.set_coordinates.call_args.args, (None, None, None))
+
 
     def test_inches_report_mm_job(self):
         tool = status_tool('MM', True)

@@ -12,6 +12,7 @@ from appPlugins.ToolGcodeSender.Sender import ToolGCodeSender
 
 def make_sender():
     tool = ToolGCodeSender(make_app())
+    tool.build_ui()
     tool._sim_ui_timer.stop()
     return tool
 

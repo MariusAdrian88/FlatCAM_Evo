@@ -168,16 +168,15 @@ class GcodeSenderUI:
         self.camera_widget = SenderCameraUI(self.app, self.camera_tabs, view=self.camera_view)
         self.camera_tab_layout.addWidget(self.camera_widget.preview_controls)
         self.camera_tab_layout.addWidget(self.camera_view, stretch=1)
-        self.camera_scroll_area = VerticalScrollArea()
-        self.camera_workflow = QtWidgets.QWidget()
-        self.camera_workflow_layout = QtWidgets.QVBoxLayout(self.camera_workflow)
-        self.camera_workflow_layout.setContentsMargins(0, 0, 0, 0)
-        self.camera_workflow_layout.addWidget(self.camera_tabs)
-        self.camera_scroll_area.setWidget(self.camera_workflow)
-        self.camera_tab_layout.addWidget(self.camera_scroll_area, stretch=1)
+        # no inner scroll area: the plugin panel already scrolls, and a nested one gets only
+        # its minimum height (about 70 px), so the pages under the preview are squeezed.
+        # Without it the pages keep their full height and the preview takes the rest.
+        self.camera_tab_layout.addWidget(self.camera_tabs)
         self.camera_tabs.addTab(self.camera_widget, _("Calibration"))
         self.registration_widget = SenderRegistrationUI(self.app, self.camera_tabs)
         self.camera_tabs.addTab(self.registration_widget, _("Board registration"))
+        # the camera runs only while its tab is shown
+        self.al_toolbar.currentChanged.connect(self._on_toolbar_tab_changed)
 
         # TOOL CHANGE TAB
         self.toolchange_tab = QtWidgets.QWidget()
@@ -289,13 +288,13 @@ class GcodeSenderUI:
         ctrl_h_lay = QtWidgets.QHBoxLayout()
         self.controller_reset_button = FCButton(_("Reset"))
         self.controller_reset_button.setToolTip(
-            _("Software reset of the controller.")
+            _("Abort the current operation and reset the controller immediately. Homing may be required.")
         )
         self.controller_reset_button.setDisabled(True)
         ctrl_h_lay.addWidget(self.controller_reset_button)
 
         self.com_connect_button = FCButton()
-        self.com_connect_button.setText(_("Disconnected"))
+        self.com_connect_button.setText(_("Connect"))
         self.com_connect_button.setToolTip(
             _("Connect to the selected port with the selected baud rate.")
         )
@@ -343,11 +342,11 @@ class GcodeSenderUI:
         grbl_ctrl_grid.addWidget(self.jog_wdg, 1, 0)
 
         # STOP
-        self.jog_stop_button = FCButton(_("Stop"))
+        self.jog_stop_button = FCButton(_("Stop / recover"))
         self.jog_stop_button.setToolTip(
             _("Stop the running GRBL operation now.\n"
-              "GRBL goes into feed hold.\n"
-              "Press Reset, then Home, before more motion.")
+              "GRBL goes into feed hold; the operation is abandoned. Cannot Resume.\n"
+              "Use Reset on Connect, then Home on Jog, before more motion.")
         )
         self.jog_stop_button.setStyleSheet("QPushButton {background-color: red; color: white;}")
         grbl_ctrl_grid.addWidget(self.jog_stop_button, 1, 1)
@@ -397,6 +396,10 @@ class GcodeSenderUI:
         # #############################################################################################################
         # GRBL CONTROL
         # #############################################################################################################
+        self.jog_button = FCButton(_("Jog (Tab)"), bold=True)
+        self.jog_button.setToolTip(_("Show Jog in the console dock. Tab toggles the Jog dock."))
+        self.gr_ctrl_tab_layout.addWidget(self.jog_button)
+
         self.control_frame = FCFrame()
         self.gr_ctrl_tab_layout.addWidget(self.control_frame)
         control_grid = GLay(v_spacing=5, h_spacing=3, c_stretch=[0, 1, 0])
@@ -567,18 +570,18 @@ class GcodeSenderUI:
 
         hm_lay = QtWidgets.QHBoxLayout()
         # GET HEIGHT MAP
-        self.grbl_get_heightmap_button = FCButton(_("Probe"))
+        self.grbl_get_heightmap_button = FCButton(_("Probe height map"))
         self.grbl_get_heightmap_button.setToolTip(
             _("Probe the points and make the height map.")
         )
         hm_lay.addWidget(self.grbl_get_heightmap_button, stretch=1)
 
         # STOP
-        self.stop_probing_button = FCButton(_("Stop"))
+        self.stop_probing_button = FCButton(_("Stop / recover"))
         self.stop_probing_button.setToolTip(
             _("Stop the running GRBL operation now.\n"
-              "GRBL goes into feed hold.\n"
-              "Press Reset, then Home, before more motion.")
+              "GRBL goes into feed hold; the operation is abandoned. Cannot Resume.\n"
+              "Use Reset on Connect, then Home on Jog, before more motion.")
         )
         self.stop_probing_button.setStyleSheet("QPushButton {background-color: red; color: white;}")
         hm_lay.addWidget(self.stop_probing_button)
@@ -604,9 +607,10 @@ class GcodeSenderUI:
         self.hold_button = FCButton(_("Hold"))
         self.hold_button.setToolTip(_("Feed hold. Resume continues the job."))
         self.resume_button = FCButton(_("Resume"))
-        self.stop_button = FCButton(_("Stop"))
+        self.stop_button = FCButton(_("Stop / reset"))
         self.stop_button.setStyleSheet("QPushButton {background-color: red; color: white;}")
-        self.stop_button.setToolTip(_("Stop the job: feed hold, then a soft reset."))
+        self.stop_button.setToolTip(_("Abort the job: feed hold, then a soft reset. Cannot Resume.\n"
+                                      "Homing may be required. Reset and Home are on Connect and Jog."))
         run_grid.addWidget(self.start_button, 0, 0)
         run_grid.addWidget(self.hold_button, 0, 1)
         run_grid.addWidget(self.resume_button, 0, 2)
@@ -617,7 +621,9 @@ class GcodeSenderUI:
         self.sim_button = FCButton(_("Sim"))
         self.sim_button.setToolTip(_("Run the program with a virtual controller."))
         self.check_mode_cb = FCCheckBox(_("Check mode"))
-        self.check_mode_cb.setToolTip(_("GRBL reads the G-code of the next Start but does not move (check mode for 1 job)."))
+        self.check_mode_cb.setToolTip(_("While checked, every Start validates G-code without motion.\n"
+                                       "The controller exits check mode after each job; this request stays checked.\n"
+                                       "Uncheck it explicitly before cutting."))
         run_grid.addWidget(self.unlock_button, 1, 0)
         run_grid.addWidget(self.sim_button, 1, 1)
         run_grid.addWidget(self.check_mode_cb, 1, 2, 1, 2)
@@ -626,7 +632,7 @@ class GcodeSenderUI:
         self.spindle_button = FCButton(_("Spindle"))
         self.spindle_button.setCheckable(True)
         self.spindle_button.setToolTip(_("Start the spindle clockwise (M3) with the RPM value, or stop it (M5).\n"
-                                         "The button is ON while the spindle runs."))
+                                         "ON/OFF follows the controller-reported state, not measured rotation."))
         self.spindle_button.setStyleSheet("QPushButton:checked {background-color: green; color: white;}")
         self.spindle_rpm_entry = FCSpinner()
         self.spindle_rpm_entry.set_range(0, 100000)
@@ -763,6 +769,13 @@ class GcodeSenderUI:
                 lambda collapsed, label=label, frame=frame, color=label.color:
                 toggle_section(collapsed, label, frame, color)
             )
+
+    def _on_toolbar_tab_changed(self, index):
+        """Leaving the Camera tab stops the preview; a detached Camera tab stays live in its own window."""
+        if self.al_toolbar.indexOf(self.camera_tab) < 0:
+            return
+        if self.al_toolbar.widget(index) is not self.camera_tab:
+            self.camera_widget.stop_preview()
 
     def confirmation_message(self, accepted, minval, maxval):
         if accepted is False:

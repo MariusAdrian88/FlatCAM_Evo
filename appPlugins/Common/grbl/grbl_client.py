@@ -778,7 +778,8 @@ class GrblClientMixin:
                 not self._grbl_port_ready() or self.grbl_ser_port is not op.port):
             self._grbl_failure_locked(op, 'port_error')
         return (self._grbl_op is op and not op.cancel.is_set() and not op.failed
-                and self._grbl_port_ready() and (port is None or self.grbl_ser_port is port))
+                and self._grbl_port_ready() and self.grbl_ser_port is op.port
+                and (port is None or self.grbl_ser_port is port))
 
     def _grbl_failure_locked(self, op, status, text=''):
         """Latch alarm/uncertain motion before attempting hold. Caller holds the lock."""

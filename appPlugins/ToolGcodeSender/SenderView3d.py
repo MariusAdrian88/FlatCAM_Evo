@@ -8,7 +8,7 @@
 """The visuals of the GRBL Sender in the Plot 3D tab: toolpath, accepted path, tool marker, height map."""
 
 import numpy as np
-from PyQt6 import QtCore
+from PyQt6 import QtCore, QtWidgets
 from vispy import scene
 from vispy.color import Colormap
 
@@ -40,6 +40,42 @@ class SenderView3d:
         self.mesh = None
         self.z_scale = 10.0
         self._segments = []
+        native = getattr(canvas, 'native', None)
+        self.coordinates = QtWidgets.QLabel(native) if isinstance(native, QtWidgets.QWidget) else None
+        self._coordinate_timer = QtCore.QTimer(native)
+        self._coordinate_timer.setSingleShot(True)
+        self._coordinate_timer.setInterval(3000)
+        self._coordinate_timer.timeout.connect(lambda: self.set_coordinates(None, None, None, stale=True))
+        if self.coordinates is not None:
+            self.coordinates.setAttribute(QtCore.Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+            self.coordinates.setLayoutDirection(QtCore.Qt.LayoutDirection.LeftToRight)
+            self.coordinates.setStyleSheet('QLabel {background: rgba(255,255,255,225); color: #202020; padding: 8px;}')
+            self.coordinates.move(12, 12)
+            self.set_coordinates(None, None, None)
+
+    def set_coordinates(self, work, machine, units, stale=False):
+        """Qt child of the viewport: independent of every scene/camera transform."""
+        self._coordinate_timer.stop()
+        if self.coordinates is None:
+            return
+
+        def position(xyz):
+            if units not in ('MM', 'IN') or xyz is None or not np.isfinite(xyz).all():
+                return 'unavailable'
+            return 'X %.3f &nbsp; Y %.3f &nbsp; Z %.3f' % tuple(xyz)
+
+        unit_text = units.lower() if units in ('MM', 'IN') else 'units unknown'
+        self.coordinates.setText(
+            '<span style="font-size:16pt; font-weight:bold">Work (%s): %s</span><br>'
+            'Machine (%s): %s<br>WCS unverified · Machine reference unverified%s<br>'
+            'Homing establishes the machine reference; not necessarily zero at switches.<br>'
+            'Controller coordinates, not independent physical measurement.' % (
+                unit_text, position(work), unit_text, position(machine), ' · stale' if stale else ''))
+        self.coordinates.adjustSize()
+        self.coordinates.show()
+        self.coordinates.raise_()
+        if work is not None or machine is not None:
+            self._coordinate_timer.start()
 
     def set_toolpath(self, segments, chord_lines=()):
         """
@@ -132,6 +168,11 @@ class SenderView3d:
     def clear(self):
         """Remove the visuals from the scene. It is safe to call it more than 1 time."""
         self._selection_timer.stop()
+        self._coordinate_timer.stop()
+        if self.coordinates is not None:
+            self.coordinates.hide()
+            self.coordinates.deleteLater()
+            self.coordinates = None
         self.probing_shapes.clear(update=True)
         self.probing_shapes.parent = None
         self.excellon_shapes.clear(update=True)

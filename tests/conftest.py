@@ -25,6 +25,9 @@ os.environ['FLATCAM_INSTANCE_NAME'] = 'FlatCAM_EVO-test-%d' % os.getpid()
 # The updater subprocesses of the tests must not show the progress window: a failed job waits for "Close".
 os.environ['FLATCAM_UPDATER_NO_WINDOW'] = '1'
 
+# The G-code Sender is disabled for users until it is finished; its tests need it to open.
+os.environ['FLATCAM_SENDER_DEV'] = '1'
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 

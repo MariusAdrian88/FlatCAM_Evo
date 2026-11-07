@@ -35,6 +35,7 @@ class SenderSelectionTest(unittest.TestCase):
                 if existing:
                     root.appendRow(QtGui.QStandardItem('drills'))
                 tool = ToolGCodeSender(app)
+                tool.build_ui()
                 tool.ui.avoid_exc_holes_cb.setChecked(True)
                 tool.on_show_3d()
                 shapes = tool.view3d.excellon_shapes
@@ -76,6 +77,7 @@ class SenderSelectionTest(unittest.TestCase):
                 if existing:
                     root.appendRow(QtGui.QStandardItem('drills'))
                 tool = ToolGCodeSender(app)
+                tool.build_ui()
                 combo = tool.ui.avoid_exc_combo
                 if not existing:
                     root.appendRow(QtGui.QStandardItem('drills'))
@@ -93,6 +95,7 @@ class SenderSelectionTest(unittest.TestCase):
 
     def test_reset_and_close_invalidate_map(self):
         tool = ToolGCodeSender(make_app())
+        tool.build_ui()
         for action in ('reset', 'close'):
             with self.subTest(action=action):
                 tool.al_heights_valid = True

@@ -8,6 +8,7 @@
 import logging
 import ipaddress
 import math
+import os
 import random
 import re
 import threading
@@ -59,6 +60,15 @@ if '_' not in builtins.__dict__:
 
 log = logging.getLogger('base')
 
+# The Sender is not finished or verified: it can move a machine in an unsafe way. run() opens it only when
+# the environment variable FLATCAM_SENDER_DEV is 1 (development work). The test suite sets the variable.
+SENDER_DEV_ENV = 'FLATCAM_SENDER_DEV'
+
+
+def sender_enabled():
+    """:return: True if the G-code Sender can open (development switch FLATCAM_SENDER_DEV=1)."""
+    return os.environ.get(SENDER_DEV_ENV) == '1'
+
 
 def _qt_deleted(obj):
     """:return: True if obj is a Qt object that Qt has deleted (False for None and for other objects)."""
@@ -68,6 +78,136 @@ def _qt_deleted(obj):
         return sip.isdeleted(obj)
     except TypeError:  # not a Qt object
         return False
+
+
+class GrblConfiguration(QtWidgets.QWidget):
+    """Controller-confirmed values and explicit pending edits; editing never sends commands."""
+    DESCRIPTIONS = {'0': 'Step pulse (microseconds)', '1': 'Step idle delay (milliseconds)',
+                    '10': 'Status report mask', '13': 'Report in inches', '20': 'Soft limits',
+                    '21': 'Hard limits', '22': 'Homing enabled', '30': 'Maximum spindle speed',
+                    '31': 'Minimum spindle speed', '32': 'Laser mode',
+                    '100': 'X steps/unit', '101': 'Y steps/unit', '102': 'Z steps/unit'}
+
+    def __init__(self, tool, parent=None):
+        super().__init__(parent)
+        self.tool = tool
+        self.values = {}
+        self.identity = None
+        self.epoch = 0
+        layout = QtWidgets.QVBoxLayout(self)
+        self.status = QtWidgets.QLabel(_('Not read. Refresh while the controller is idle.'))
+        self.status.setWordWrap(True)
+        layout.addWidget(self.status)
+        self.table = QtWidgets.QTableWidget(0, 5)
+        self.table.setHorizontalHeaderLabels([_('Identifier'), _('Description'), _('Confirmed'),
+                                             _('Pending'), _('Result')])
+        self.table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+        layout.addWidget(self.table)
+        buttons = QtWidgets.QHBoxLayout()
+        self.refresh_button = QtWidgets.QPushButton(_('Refresh'))
+        self.apply_button = QtWidgets.QPushButton(_('Apply changes'))
+        buttons.addWidget(self.refresh_button)
+        buttons.addWidget(self.apply_button)
+        layout.addLayout(buttons)
+        note = QtWidgets.QLabel(_(
+            'Firmware validates supported values and read-only settings. Some settings require reset; '
+            'no reset is sent automatically. Consult the controller documentation.'))
+        note.setWordWrap(True)
+        layout.addWidget(note)
+        self.refresh_button.clicked.connect(lambda: self.tool._configuration_request(self))
+        self.apply_button.clicked.connect(self.apply_changes)
+        self.table.cellChanged.connect(self._edited)
+        self._timer = QtCore.QTimer(self)
+        self._timer.setInterval(250)
+        self._timer.timeout.connect(self.update_controls)
+        self._timer.start()
+
+    def invalidate(self):
+        self.epoch += 1
+        self.identity = None
+        self.values = {}
+        self.table.setRowCount(0)
+        self.status.setText(_('Connection/reset changed. Previous values and edits discarded. Refresh required.'))
+
+    def update_controls(self):
+        supported = self.tool._configuration_supported()
+        busy = self.tool.__dict__.get('_grbl_op') is not None
+        recovery = self.tool.__dict__.get('_grbl_recovery') is not None
+        self.refresh_button.setEnabled(supported and not busy)
+        self.apply_button.setEnabled(supported and not busy and not recovery and self.identity is not None)
+        self.table.setToolTip(_('Cached values; reads and writes require an idle controller.') if busy else '')
+
+    def _edited(self, row, column):
+        if column != 3:
+            return
+        pending, confirmed = self.table.item(row, 3), self.table.item(row, 2)
+        if pending is not None and confirmed is not None:
+            self.table.item(row, 4).setText(_('Modified (not sent)') if pending.text() != confirmed.text() else '')
+
+    def apply_changes(self):
+        changes = {self.table.item(row, 0).text()[1:]: self.table.item(row, 3).text()
+                   for row in range(self.table.rowCount())
+                   if self.table.item(row, 3).text() != self.table.item(row, 2).text()}
+        if changes:
+            self.tool._configuration_request(self, changes)
+
+    @staticmethod
+    def parse_settings(text):
+        values = {}
+        for line in text.splitlines():
+            match = re.fullmatch(r'\s*\$(\d+)=(.*)', line)
+            if match:
+                value = match[2].strip()
+                # Older GRBL includes a description after numeric values. String values stay intact.
+                comment = re.fullmatch(r'([+\-]?(?:\d+(?:\.\d*)?|\.\d+))\s+\((.*)\)', value)
+                values[match[1]] = comment[1] if comment else value
+        return values
+
+    def show_result(self, values, changes, results, identity, read_status):
+        pending = {self.table.item(row, 0).text()[1:]: self.table.item(row, 3).text()
+                   for row in range(self.table.rowCount())}
+        missing = set(changes) - set(values) if read_status == 'ok' else set()
+        if read_status == 'ok':
+            self.values = {**{number: self.values[number] for number in missing}, **values}
+            self.identity = None if missing else identity
+        else:
+            self.identity = None  # do not retry an acknowledged write without an explicit refresh
+        blocker = QtCore.QSignalBlocker(self.table)
+        self.table.setRowCount(len(self.values))
+        for row, (number, value) in enumerate(sorted(self.values.items(), key=lambda item: int(item[0]))):
+            edited = pending.get(number, value)
+            status, reply = results.get(number, ('', ''))
+            outcome = 'ok' if status == 'ok' else (status + ': ' + reply if status else '')
+            if number in missing:
+                outcome += ' · ' + _('Setting not reported by readback; previous value shown')
+            elif number in changes and outcome == 'ok' and read_status == 'ok':
+                requested = changes[number]
+                same = requested == value
+                if not same:
+                    try:
+                        same = math.isfinite(float(value)) and float(value) == float(requested)
+                    except ValueError:
+                        pass
+                outcome = _('Confirmed by readback') if same else _('Acknowledged; readback differs')
+                if same and edited == requested:
+                    edited = value
+            elif number in changes and not outcome:
+                outcome = _('Not sent')
+            if number in changes and read_status != 'ok':
+                outcome += ' · ' + _('Readback failed; previous value shown')
+            if status == 'ok' and re.search(r'reset|reboot', reply, re.IGNORECASE):
+                outcome += ' · ' + reply
+            for column, text in enumerate(('$' + number, self.DESCRIPTIONS.get(number, _('Firmware setting')),
+                                            value, edited, outcome)):
+                item = QtWidgets.QTableWidgetItem(text)
+                if column != 3:
+                    item.setFlags(item.flags() & ~QtCore.Qt.ItemFlag.ItemIsEditable)
+                self.table.setItem(row, column, item)
+        del blocker
+        self.status.setText(_('Readback incomplete. Refresh required.') if missing else
+                            _('Readback complete. Values are cached until Refresh.') if read_status == 'ok'
+                            else _('Read failed. Values are unverified; Refresh before applying again.') + ' ' + read_status)
+        self.update_controls()
 
 
 class GrblConsole(QtWidgets.QWidget):
@@ -134,6 +274,8 @@ class GrblConsole(QtWidgets.QWidget):
         self.jog_page = QtWidgets.QWidget()
         QtWidgets.QVBoxLayout(self.jog_page).setContentsMargins(0, 0, 0, 0)
         self.tabs.addTab(self.jog_page, _("Jog"))
+        self.configuration = GrblConfiguration(tool)
+        self.tabs.addTab(self.configuration, _('Configuration'))
         self.cmd_entry.returnPressed.connect(self.on_send)
         self.send_btn.clicked.connect(self.on_send)
         self.follow_cb.toggled.connect(self._follow_program)
@@ -145,6 +287,8 @@ class GrblConsole(QtWidgets.QWidget):
     def set_tool(self, tool):
         """A new project makes a new Sender plugin; the dock keeps this console: it then works for the new plugin."""
         self.tool = tool
+        self.configuration.tool = tool
+        self.configuration.invalidate()
         self.sync_event_filter()
 
     def sync_event_filter(self):
@@ -442,6 +586,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     ecut_motion_result_sig = QtCore.pyqtSignal(object)
     ecut_connect_result_sig = QtCore.pyqtSignal(object)
     network_connect_result_sig = QtCore.pyqtSignal(object)
+    configuration_result_sig = QtCore.pyqtSignal(object)
     # a fresh status query for a camera capture or observation, from a worker
     camera_capture_sig = QtCore.pyqtSignal(object)
     # the calibrated spindle-equivalent position of a camera-centered point
@@ -528,9 +673,10 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self._toolchange_busy = False
         self._toolchange_action = None
 
-        self.ui = GcodeSenderUI(layout=self.layout, app=self.app)
-        self.ui.spindle_button.setChecked(self.__dict__.get('_spindle_on', False))
-        self.pluginName = self.ui.pluginName
+        # the UI and its camera (Qt Multimedia) are built at the first run of the plugin: a headless run or a
+        # session that never opens the Sender does not load the camera stack (issue #82)
+        self.ui = None
+        self.pluginName = GcodeSenderUI.pluginName
         self._continuous_jog = None
         self._continuous_jog_click_button = None
         self._continuous_jog_timer = QtCore.QTimer(self)
@@ -561,8 +707,12 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         AppTool.install(self, icon, separator, shortcut='', **kwargs)
 
     def run(self, toggle=True):
-        if self.app.plugin_tab_locked is True:
+        if self.app.plugin_tab_locked is True or getattr(self.app, 'headless', False) is True:
             return
+        if not sender_enabled():
+            self.app.inform.emit("[WARNING_NOTCL] Cancelled. Unsafe. This tool is not ready/verified yet.")
+            return  # TODO re-enable after it is finished (remove the FLATCAM_SENDER_DEV switch)
+
         self.app.defaults.report_usage("ToolGcodeSender()")
 
         if toggle:
@@ -674,6 +824,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self.ecut_motion_result_sig.connect(self._on_ecut_motion_result)
             self.ecut_connect_result_sig.connect(self._on_ecut_connect_result)
             self.network_connect_result_sig.connect(self._on_network_connect_result)
+            self.configuration_result_sig.connect(self._on_configuration_result)
             self.al_result_ready_sig.connect(self._on_al_result_ready)
             self.build_al_table_sig.connect(self.build_al_table)
             self.show_probing_geo_sig.connect(self._on_show_probing_geo_sig)
@@ -707,6 +858,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             if qt_app is not None:
                 MachineSafety.connect_quit(qt_app)
                 qt_app.aboutToQuit.connect(lambda: self._simulation.close() if self._simulation else None)
+        if self.ui is None:
+            return
         self.ui.level.toggled.connect(self.on_level_changed)
         self._select_available_excellon()
 
@@ -753,6 +906,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self.ui.continuous_jog_cb.toggled.connect(
             lambda checked: None if checked else self._stop_continuous_jog())
         self.ui.jog_stop_button.clicked.connect(self.on_grbl_stop)
+        self.ui.jog_button.clicked.connect(self.show_jog_page)
         self.ui.jog_wdg.jog_origin_button.clicked.connect(lambda: self.on_grbl_jog(direction='origin'))
 
         # Zero
@@ -814,6 +968,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self.ui.hold_button.clicked.connect(lambda: self._grbl_realtime(b'!'))
         self.ui.resume_button.clicked.connect(self._on_resume_button)
         self.ui.stop_button.clicked.connect(self.on_stream_stop)
+        self.ui.estop_button.clicked.connect(self.on_emergency_stop)
         self.ui.spindle_button.clicked.connect(self.on_spindle_button)
         self.ui.unlock_button.clicked.connect(self.on_unlock)
         self.ui.sim_button.clicked.connect(self.on_simulation)
@@ -823,6 +978,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             btn.clicked.connect(lambda checked=False, b=byte: self._grbl_realtime(b))
 
     def on_reset_tool(self):
+        if self.ui is None:
+            return  # never run: there is nothing to reset, and a reset must not build the UI
         self._probe_start_op = None
         self._clear_probe_data()
         self.set_tool_ui()
@@ -850,10 +1007,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self.al_heights_valid = bool(getattr(self, 'al_heights_valid', False)) and \
             self._height_map_is_complete()
         self.clear_ui(self.layout)
-        self.ui = GcodeSenderUI(layout=self.layout, app=self.app)
-        self.ui.spindle_button.setChecked(self.__dict__.get('_spindle_on', False))
-        self.pluginName = self.ui.pluginName
-        self.connect_signals_at_init()
+        self.build_ui()
 
         mode_blocked = self.ui.al_mode_radio.blockSignals(True)
         method_blocked = self.ui.al_method_radio.blockSignals(True)
@@ -865,6 +1019,53 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self._toolchange_settings_changed()
         if self.view3d is not None and not self.__dict__.get('_camera_public_mode', False):
             self._schedule_3d_preview()
+
+    def build_ui(self):
+        """Make a new GcodeSenderUI (with its camera tab) and connect its signals."""
+        old_stop = getattr(getattr(self, 'ui', None), 'estop_button', None)
+        if old_stop is not None:
+            old_stop.hide()
+            old_stop.deleteLater()
+        self.ui = GcodeSenderUI(layout=self.layout, app=self.app)
+        self.ui.estop_button = QtWidgets.QPushButton('E-Stop', self)
+        self.ui.estop_button.setMinimumHeight(56)
+        self.ui.estop_button.setStyleSheet(
+            'QPushButton {background-color: #800020; color: white; font-size: 20px; font-weight: bold;}')
+        self.ui.estop_button.setToolTip(_(
+            'SOFTWARE emergency-stop request: abort motion, then reset to stop spindle and outputs.\n'
+            'Not a replacement for a physical E-stop circuit. Communication failure can prevent hardware response.'))
+        self.ui.estop_button.setEnabled(self._grbl_port_ready())
+        self.layout.addWidget(self.ui.estop_button)
+        self._on_spindle_state(self.__dict__.get('_spindle_on', False))
+        self.pluginName = self.ui.pluginName
+        self.connect_signals_at_init()
+        if self.isVisible():
+            self._mount_emergency_stop()
+
+    def _mount_emergency_stop(self):
+        button = getattr(getattr(self, 'ui', None), 'estop_button', None)
+        layout = getattr(self.app.ui, 'plugin_tab_layout', None)
+        if button is not None and isinstance(layout, QtWidgets.QLayout):
+            # A sibling of the plugin scroll area, not part of its scrolling contents.
+            footer = getattr(self, '_estop_layout', None)
+            if footer is None:
+                footer = self._estop_layout = QtWidgets.QHBoxLayout()
+                footer.setContentsMargins(0, 0, 0, 0)
+                footer.setSpacing(0)
+                footer.addStretch(1)
+                layout.addLayout(footer)
+            footer.insertWidget(0, button, 1)
+            button.show()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._mount_emergency_stop()
+
+    def hideEvent(self, event):
+        button = getattr(getattr(self, 'ui', None), 'estop_button', None)
+        if button is not None:
+            button.hide()
+        super().hideEvent(event)
 
     def _populate_tool_ui(self):
         # Both radio groups stay blocked, including the initial to_form().
@@ -1093,10 +1294,19 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self.app.inform.emit('[WARNING_NOTCL] %s' % _("COM list updated ..."))
 
     def _connection_controls(self):
+        if self.ui is None:
+            return
         update = getattr(self.ui, 'update_connection_controls', None)
         if callable(update):
             update(locked=self.grbl_ser_port is not None or
                    self.__dict__.get('_grbl_connect_attempt') is not None)
+        connected = self._grbl_connected
+        pending = self.__dict__.get('_grbl_connect_attempt') is not None and not connected
+        self.ui.com_connect_button.setText(
+            _("Connecting... Cancel") if pending else (_("Disconnect") if connected else _("Connect")))
+        self.ui.com_connect_button.setToolTip(
+            _("Cancel the pending connection attempt.") if pending else
+            (_("Disconnect from the controller.") if connected else _("Connect to the selected controller.")))
 
     def _save_connection_settings(self, *_args):
         if self.grbl_ser_port is None and self.__dict__.get('_grbl_connect_attempt') is None:
@@ -1555,6 +1765,11 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     def _grbl_set_ui_connected(self, connected):
         """Show the connection state on the Connect button and on the tabs."""
         self._connection_controls()
+        self._invalidate_coordinates()
+        self._invalidate_configuration()
+        if not connected:
+            self._unlock_execution_view()
+        self.ui.estop_button.setEnabled(connected)
         camera_mode = bool(self.__dict__.get('_camera_public_mode', False))
         # fixed-step jog and the position readouts need a connected controller in either workflow
         self.ui.ctrl_grbl_frame.setEnabled(connected)
@@ -1574,8 +1789,12 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self._stop_continuous_jog()
         color = 'seagreen' if connected else 'red'
         self.ui.com_connect_button.setStyleSheet("QPushButton {background-color: %s;}" % color)
-        self.ui.com_connect_button.setText(_("Connected") if connected else _("Disconnected"))
         self.ui.controller_reset_button.setDisabled(not connected)
+        for button in (self.ui.start_button, self.ui.hold_button, self.ui.resume_button,
+                       self.ui.unlock_button, self.ui.spindle_button):
+            button.setEnabled(connected)
+        for button, byte in self.ui.ov_buttons.values():
+            button.setEnabled(connected)
         camera_ui = getattr(self.ui, 'camera_widget', None)
         if camera_ui is not None:
             camera_ui.set_connected(connected)
@@ -1612,6 +1831,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             pass
 
     def _clear_connection_capabilities(self):
+        self._invalidate_configuration()
         self._grbl_tool_fence_op = None
         self._native_jog_port = None
         self._grbl_identity = None
@@ -1844,9 +2064,17 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             return
         if self._grbl_queue_tool_command(cmd):
             return
+        self._invalidate_coordinates()
+        changes_units = re.match(r'\$13\s*=|\$RST', cmd, re.IGNORECASE) is not None
+        if changes_units:
+            self._grbl_report_inches = None
+            self._invalidate_configuration()
 
         def task(op):
-            return self._grbl_transact(op, cmd, timeout=30.0)[1] == 'ok'
+            status = self._grbl_transact(op, cmd, timeout=30.0)[1]
+            if changes_units and status == 'ok':
+                status = self._grbl_read_report_units(op)
+            return status == 'ok'
 
         # a typed command can move the machine, so it needs a machine that is not in recovery
         self._grbl_start_op('command', task, motion=True)
@@ -1872,6 +2100,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         if button is not None:
             try:
                 button.setChecked(self._spindle_on)
+                button.setText(_("Spindle ON") if self._spindle_on else _("Spindle OFF"))
             except RuntimeError:
                 pass  # the UI was deleted
 
@@ -1891,7 +2120,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             line = self._grbl_query_status(op, timeout=0.5)
             report = parse_grbl_status_report(line) if line else None
             if report is not None:
-                self.status_report_sig.emit(report)
+                self._emit_sender_status(report, op)
 
         # its own thread: in the app worker pool it can wait behind a long job while it holds the port
         self._grbl_start_op(STATUS_POLL, task, own_thread=True)
@@ -1919,6 +2148,85 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self.console_line_sig.emit("GRBL Parameter: $%d = %s" % (number, str(value)))
 
         self._grbl_start_op('parameter', task)
+
+    def _configuration_supported(self):
+        return (self._grbl_port_ready() and not callable(getattr(self.grbl_ser_port, 'prepare_program', None))
+                and not self.__dict__.get('_grbl_identity_pending', False))
+
+    def _invalidate_configuration(self):
+        dock = getattr(self.app.ui, 'grbl_console_dock', None)
+        if isinstance(dock, QtWidgets.QDockWidget) and not _qt_deleted(dock):
+            console = dock.widget()
+            if isinstance(console, GrblConsole) and console.tool is self:
+                console.configuration.invalidate()
+
+    def _configuration_request(self, page, changes=None):
+        changes = dict(changes or {})
+        identity = (self.grbl_ser_port, self._grbl_safety_generation)
+        if not self._configuration_supported() or page.tool is not self:
+            page.status.setText(_('Configuration requires a connected GRBL/grblHAL controller, not an E-Cut adapter.'))
+            return
+        if changes and (page.identity != identity or self._grbl_recovery is not None or self._grbl_reset_pending):
+            page.status.setText(_('Refresh this connection first; recovery must finish before writes.'))
+            return
+        for number, value in changes.items():
+            if (number not in page.values or not re.fullmatch(r'\d+', number) or
+                    not re.fullmatch(r'[\x20-\x7e]*', value) or any(char in value for char in '!~?') or
+                    validate_stream_lines(['$%s=%s' % (number, value)]) is not None):
+                page.status.setText(_('Invalid setting value: control/realtime characters and multiline commands are forbidden.'))
+                return
+            if int(number) in (*range(0, 7), 10, 11, 12, 13, *range(20, 28), 30, 31, 32,
+                               *range(100, 103), *range(110, 113), *range(120, 123), *range(130, 133)):
+                try:
+                    valid = math.isfinite(float(value))
+                except ValueError:
+                    valid = False
+                if not valid:
+                    page.status.setText(_('This standard GRBL setting requires a finite numeric value.'))
+                    return
+        epoch = page.epoch
+
+        def task(op):
+            values, outcomes, read_status = {}, {}, 'not read'
+            try:
+                state = parse_grbl_status_state(self._grbl_query_status(op))
+                if state != 'Idle' or self._grbl_mpg_owned or self._grbl_sd_owned:
+                    read_status = 'controller not idle or externally owned'
+                    return
+                for number, value in changes.items():
+                    text, status = self._grbl_transact(op, '$%s=%s' % (number, value), timeout=5.0, echo=False)
+                    outcomes[number] = (status, text.strip())
+                    if status not in ('ok', 'error'):
+                        read_status = status
+                        return
+                text, read_status = self._grbl_transact(op, '$$', timeout=5.0, echo=False)
+                if read_status == 'ok':
+                    values = GrblConfiguration.parse_settings(text)
+                    if not values:
+                        read_status = 'no settings reported'
+                    with self._grbl_op_lock:
+                        if self._grbl_active_locked(op):
+                            self._grbl_report_inches = {'0': False, '1': True}.get(values.get('13'))
+            except (serial.SerialException, OSError) as err:
+                read_status = str(err)
+                raise
+            finally:
+                self.configuration_result_sig.emit((page, epoch, op.port, op.safety_generation,
+                                                     values, changes, outcomes, read_status))
+
+        page.status.setText(_('Reading controller settings...') if not changes else _('Applying explicit changes; waiting for readback...'))
+        if not self._grbl_start_op('configuration', task):
+            page.status.setText(_('Controller busy or unavailable. Cached values have not changed.'))
+
+    def _on_configuration_result(self, result):
+        page, epoch, port, generation, values, changes, outcomes, status = result
+        if (_qt_deleted(page) or page.tool is not self or page.epoch != epoch or
+                port is not self.grbl_ser_port or generation != self._grbl_safety_generation or
+                not self._grbl_port_ready()):
+            return
+        page.show_result(values, changes, outcomes, (port, generation), status)
+        if changes:
+            self._invalidate_coordinates()
 
     def _continuous_jog_capable(self, port):
         return (port is not None and port is self.__dict__.get('_native_jog_port')) or all(
@@ -2013,7 +2321,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                         status = parse_grbl_status_state(report)
                         parsed = parse_grbl_status_report(report) if report else None
                         if parsed is not None:
-                            self.status_report_sig.emit(parsed)
+                            self._emit_sender_status(parsed, op)
                         if status == 'Idle':
                             break
                         if status != 'Jog' or time.monotonic() >= deadline:
@@ -2115,6 +2423,12 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self._stop_continuous_jog()
             dock.hide()
             return
+        self.show_jog_page()
+
+    def show_jog_page(self):
+        """Open the existing Jog page without toggling an already visible dock."""
+        dock = self.app.ui.grbl_console_dock
+        console = self._console()
         console.tabs.setCurrentWidget(console.jog_page)
         dock.show()
         dock.raise_()
@@ -3467,6 +3781,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self._toolchange_refresh_ui(text)
 
     def on_grbl_zero(self, axis):
+        self._invalidate_coordinates()
         axes = {'x': 'X0', 'y': 'Y0', 'z': 'Z0'}.get(axis, 'X0 Y0 Z0')
         # the work offset changes: the next status report that has no WCO must not use the old one
         self._last_wco = None
@@ -3497,6 +3812,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self._grbl_start_op('zero', task, motion=True)
 
     def on_grbl_homing(self):
+        self._invalidate_coordinates()
         self._stop_continuous_jog()
         self._camera_new_session('home')
         self._toolchange_new_session('home')
@@ -3542,6 +3858,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             written = self._grbl_write_realtime_locked(b'!')
             self._grbl_recovery = 'needs_reset'
 
+        self._invalidate_coordinates()
+        self._unlock_execution_view()
         if not written:
             self.app.inform.emit('[ERROR_NOTCL] %s' % _("Not connected to a GRBL controller."))
             return
@@ -3557,6 +3875,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         """
         if self.__dict__.get('_simulation') is not None:
             return
+        self._invalidate_coordinates()
+        self._unlock_execution_view()
+        self._invalidate_configuration()
         self._stop_continuous_jog()
         self._last_wco = None
         self._camera_new_session('reset')
@@ -3697,6 +4018,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self.app.inform.emit("%s" % _("GRBL resumed."))
 
     def _select_available_excellon(self, *args):
+        if self.ui is None:
+            return
         combo = self.ui.avoid_exc_combo
         root = self.app.collection.index(1, 0, QtCore.QModelIndex())
         if combo.rootModelIndex() != root:
@@ -4225,7 +4548,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 source = target.source_file
                 context = self._al_capture_context()
                 generation = self._grbl_safety_generation
-                start_line = self._choose_start_line(len(self.job_lines))
+                start_line = self._choose_start_line(len(self.job_lines), beginning_only=True)
                 if start_line is None:
                     return
                 if (not self._al_context_current(context) or generation != self._grbl_safety_generation or
@@ -4242,7 +4565,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             return
         if not self.build_stream_job():
             return
-        # The check box is a request for this Start only. Read it 1 time, here, in the GUI thread.
+        # Sample the persistent check request once per Start, here in the GUI thread.
         check_mode = self.ui.check_mode_cb.get_value() is True
         poll_ms = int(self.app.options.get("tools_grbl_status_ms", 200))
         op = self._grbl_reserve('stream', motion=True)
@@ -4417,8 +4740,16 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         poll_ms = int(self.app.options.get("tools_grbl_status_ms", 200))
         self._start_stream_worker(op, list(self.job_lines), list(self.job_line_numbers), req.check_mode, poll_ms, req)
 
-    def _choose_start_line(self, line_count):
+    def _choose_start_line(self, line_count, beginning_only=False):
         dialog = GrblStartDialog(line_count, self.app.ui)
+        if beginning_only:
+            dialog.start_radio.setEnabled(False)
+            reason = QtWidgets.QLabel(_("A new height map must start at the beginning.\n"
+                                       "Probe first and use the existing map to start from a line."))
+            reason.setWordWrap(True)
+            dialog.layout().insertWidget(0, reason)
+        elif self.ui.check_mode_cb.get_value() is True:
+            dialog.layout().insertWidget(0, QtWidgets.QLabel(_("Check mode: validate without motion.")))
         try:
             if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted:
                 return None
@@ -4465,6 +4796,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self.app.inform.emit('%s: %d' % (_("Starting from program line"), start_line))
 
         self._program_paused = False
+        if not check_mode:
+            self._lock_execution_view()
         self._preview_generation = self.__dict__.get('_preview_generation', 0) + 1
         if self.view3d is not None:
             display, indexes, chords = self._display_lines()
@@ -4492,7 +4825,13 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self.ui.start_button.setDisabled(True)
         self.ui.progress_bar.setValue(0)
         self.app.inform.emit('%s: %d' % (_("Streaming lines"), len(lines)))
-        self._start_stream_thread(worker_task)
+        try:
+            self._start_stream_thread(worker_task)
+        except Exception:
+            self._unlock_execution_view()
+            self._grbl_release(op)
+            self._start_free_button()
+            raise
 
     def _start_stream_thread(self, fn):
         """The stream runs for the whole job: its own thread, so it never blocks an app worker."""
@@ -4717,7 +5056,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                             self._grbl_tool_fence_op = op
                     elif report['state'] in ('Run', 'Idle'):
                         self._grbl_tool_change_pending = False
-            self.status_report_sig.emit(report)
+            self._emit_sender_status(report, op)
 
         def on_tool_change():
             with self._grbl_op_lock:
@@ -4912,6 +5251,16 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self._grbl_abort_stream_locked(op, 'timeout')
         return 'incomplete'
 
+    def on_emergency_stop(self):
+        """The hardware stop remains available even while an offline simulation is open."""
+        dialog = self.__dict__.get('_simulation')
+        if dialog is not None:
+            dialog.stop()
+            self._simulation = None
+        self.on_stream_stop()
+        if dialog is not None:
+            dialog.close()
+
     def on_stream_stop(self):
         """
         Stop: feed hold now; the stream worker stops writing. Then a soft reset, which also stops
@@ -5018,6 +5367,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 not (self.grbl_ser_port is not None and not self._grbl_connected))
 
     def _update_sim_button(self):
+        if self.ui is None:
+            return
         self.ui.sim_button.setEnabled(self._simulation is None and self._simulation_available())
 
     def on_simulation(self):
@@ -5230,7 +5581,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             dialog.stop_button.setEnabled(False)
             dialog.pause_button.setEnabled(False)
             self._program_paused = False
-            self.ui.start_button.setEnabled(True)
+            self.ui.start_button.setEnabled(self._grbl_port_ready())
             self.ui.object_combo.setEnabled(True)
             status = value['status']
             text = (_("Finished") if status == 'finished' else
@@ -5250,6 +5601,11 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
     def _on_status_report(self, report):
         if report is None:
+            return
+        if '_sender_port' in report and (
+                report['_sender_port'] is not self.grbl_ser_port or
+                report['_sender_generation'] != self._grbl_safety_generation or
+                time.monotonic() - report.get('_sender_time', time.monotonic()) > 3.0):
             return
         self._controller_state = report['state'].split(':')[0]
         was_paused = self.__dict__.get('_program_paused') is True
@@ -5280,7 +5636,14 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 text += '   %s' % _("position unknown (GRBL $13 not read)")
             else:
                 pos = tuple(value * scale for value in pos)
-                text += '   X %.3f  Y %.3f  Z %.3f' % pos
+                try:
+                    units = getattr(self._target(), 'units', None)
+                except Exception:
+                    units = None
+                if str(units).upper() not in ('MM', 'IN'):
+                    units = self.units
+                text += '   %s (%s): X %.3f  Y %.3f  Z %.3f' % (
+                    _("Work position"), units.lower(), *pos)
         if 'spindle_actual' in report:
             # the measured RPM that grblHAL adds to FS when the spindle has an encoder
             text += '   RPM %d' % round(report['spindle_actual'])
@@ -5292,8 +5655,112 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self._on_spindle_state('S' in accessory or 'C' in accessory)
         if self.view3d is not None and pos is not None:
             self.view3d.set_tool_position(pos)
+        if self.view3d is not None:
+            scale = self._report_scale()
+            # Only this report's effective WCO is evidence for the overlay. Never reuse an
+            # offset across a G92/tool/WCS change just because a previous report contained it.
+            work = work_position(report)
+            machine = self._report_machine_position(report)
+            try:
+                units = getattr(self._target(), 'units', None)
+            except Exception:
+                units = None
+            if units not in ('MM', 'IN'):
+                units = self.units
+            if scale is None:
+                work = machine = None
+                units = None
+            else:
+                work = tuple(value * scale for value in work) if work is not None else None
+                machine = tuple(value * scale for value in machine) if machine is not None else None
+            self.view3d.set_coordinates(work, machine, units)
         if self.__dict__.get('camera_calibration') is not None and self.camera_calibration.has_calibration:
             self._camera_refresh_ui()
+
+    def _emit_sender_status(self, report, op):
+        if report is None:
+            return
+        self.status_report_sig.emit(dict(report, _sender_port=op.port,
+                                        _sender_generation=op.safety_generation, _sender_time=time.monotonic()))
+
+    def _invalidate_coordinates(self):
+        self._last_wco = None
+        if self.view3d is not None:
+            try:
+                self.view3d.set_coordinates(None, None, None)
+            except RuntimeError:
+                pass  # a destroyed canvas must never prevent the controller stop/reset
+
+    def _lock_execution_view(self):
+        if self.__dict__.get('_execution_tabs') is not None:
+            return
+        tabs = getattr(self.app.ui, 'plot_tab_area', None)
+        if not isinstance(tabs, QtWidgets.QTabWidget):
+            return
+        self.on_show_3d()
+        plot = getattr(self.app, 'area_3d_tab', None)
+        if tabs.indexOf(plot) < 0:
+            return
+        self._execution_tabs = tabs
+        self._execution_plot = plot
+        self._execution_close_guard = getattr(plot, 'confirm_close', None)
+        plot.confirm_close = lambda: False
+        self._execution_tab_states = [(tabs.widget(i), tabs.isTabEnabled(i)) for i in range(tabs.count())]
+        bar = tabs.tabBar
+        self._execution_bar = bar() if callable(bar) else bar
+        self._execution_buttons = []
+        for i in range(tabs.count()):
+            for side in (QtWidgets.QTabBar.ButtonPosition.LeftSide, QtWidgets.QTabBar.ButtonPosition.RightSide):
+                button = self._execution_bar.tabButton(i, side)
+                if button is not None:
+                    self._execution_buttons.append((button, button.isEnabled()))
+                    button.setEnabled(False)
+        self._execution_bar.installEventFilter(self)
+        tabs.currentChanged.connect(self._keep_execution_view)
+        self._keep_execution_view()
+
+    def _keep_execution_view(self, *_args):
+        tabs = self.__dict__.get('_execution_tabs')
+        if tabs is None:
+            return
+        plot = self._execution_plot
+        for i in range(tabs.count()):
+            widget = tabs.widget(i)
+            if not any(saved is widget for saved, _enabled in self._execution_tab_states):
+                self._execution_tab_states.append((widget, tabs.isTabEnabled(i)))
+            tabs.setTabEnabled(i, widget is plot)
+        if tabs.currentWidget() is not plot:
+            tabs.setCurrentWidget(plot)
+
+    def eventFilter(self, obj, event):
+        if obj is self.__dict__.get('_execution_bar') and event.type() in (
+                QtCore.QEvent.Type.MouseButtonPress, QtCore.QEvent.Type.MouseButtonRelease,
+                QtCore.QEvent.Type.MouseButtonDblClick, QtCore.QEvent.Type.MouseMove):
+            return True  # no close, detach or switch; the canvas and operator controls stay live
+        return super().eventFilter(obj, event)
+
+    def _unlock_execution_view(self):
+        tabs = self.__dict__.get('_execution_tabs')
+        if tabs is None:
+            return
+        self._execution_tabs = None
+        try:
+            if self._execution_close_guard is None:
+                del self._execution_plot.confirm_close
+            else:
+                self._execution_plot.confirm_close = self._execution_close_guard
+            tabs.currentChanged.disconnect(self._keep_execution_view)
+            self._execution_bar.removeEventFilter(self)
+            for button, enabled in self._execution_buttons:
+                if not _qt_deleted(button):
+                    button.setEnabled(enabled)
+            for widget, enabled in self._execution_tab_states:
+                index = tabs.indexOf(widget)
+                if index >= 0:
+                    tabs.setTabEnabled(index, enabled)
+        except (RuntimeError, TypeError):
+            pass  # the application may already have deleted the plot tabs
+        self._execution_bar = None
 
     def show_probing_geo(self, state, reset=False):
         if self.view3d is not None and (reset or not state):
@@ -5501,7 +5968,10 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
         :param how: see _grbl_stream_run().
         """
+        self._unlock_execution_view()
         self._grbl_tool_change_pending = False
+        if how not in ('finished', 'check_passed'):
+            self._invalidate_coordinates()
         self._grbl_tool_commands = []
         self._grbl_tool_command_busy = False
         self.ui.start_button.setDisabled(False)
@@ -5615,6 +6085,12 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
     def on_plugin_cleanup(self):
         """The plugin closes: stop and disconnect the controller, release the Plot 3D tab, hide the console."""
+        self._unlock_execution_view()
+        self._invalidate_coordinates()
+        self._invalidate_configuration()
+        button = getattr(getattr(self, 'ui', None), 'estop_button', None)
+        if button is not None:
+            button.hide()
         self._stop_continuous_jog()
         self._toolchange_new_session('close')
         if self.__dict__.get('_simulation') is not None:

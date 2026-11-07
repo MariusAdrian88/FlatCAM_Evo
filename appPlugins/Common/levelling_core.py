@@ -224,6 +224,8 @@ class LevellingCoreMixin:
         )
 
     def on_object_selection_changed(self, current, previous):
+        if getattr(self, 'ui', None) is None:
+            return  # the GCode sender builds its UI at its first run
         found_idx = None
         for tab_idx in range(self.app.ui.notebook.count()):
             if self.app.ui.notebook.tabText(tab_idx) == self.ui.pluginName:

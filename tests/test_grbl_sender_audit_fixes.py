@@ -18,9 +18,28 @@ from appPlugins.Common.grbl.grbl_client import stream_lines
 
 
 class TestResumeBypass(unittest.TestCase):
+    def test_emergency_stop_cancels_motion_before_guarded_reset(self):
+        tool, fake = self.make_button_tool()
+        tool._grbl_set_ui_connected(True)
+        op = tool._grbl_reserve('probe', motion=True)
+        callbacks = []
+        with patch('appPlugins.ToolGcodeSender.Sender.QtCore.QTimer.singleShot',
+                   side_effect=lambda delay, callback: callbacks.append((delay, callback))):
+            tool.ui.estop_button.click()
+        self.assertTrue(op.cancel.is_set())
+        self.assertEqual(fake.written, [b'!'])
+        tool.ui.resume_button.click()
+        self.assertEqual(fake.written, [b'!'])
+        self.assertEqual(callbacks[0][0], 500)
+        callbacks[0][1]()
+        self.assertIn(b'\x18', fake.written)
+        tool._grbl_set_ui_connected(False)
+        self.assertFalse(tool.ui.estop_button.isEnabled())
+
     @staticmethod
     def make_button_tool():
         tool = ToolGCodeSender(make_app())
+        tool.build_ui()
         fake = FakeGrbl()
         tool.grbl_ser_port = fake
         tool._grbl_connected = True
@@ -242,7 +261,9 @@ class TestSpindleButton(unittest.TestCase):
 
     def test_typed_rpm_is_kept(self):
         from PyQt6 import QtCore, QtTest
-        entry = ToolGCodeSender(make_app()).ui.spindle_rpm_entry
+        sender = ToolGCodeSender(make_app())
+        sender.build_ui()
+        entry = sender.ui.spindle_rpm_entry
         entry.lineEdit().selectAll()
         QtTest.QTest.keyClicks(entry, '15000')
         QtTest.QTest.keyClick(entry, QtCore.Qt.Key.Key_Return)
