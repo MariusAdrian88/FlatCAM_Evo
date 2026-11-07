@@ -83,6 +83,17 @@ class TestImageLoading(unittest.TestCase):
         self.load(filename)
         self.assertEqual(self.tool.ui.dpi_entry.get_value(), 240)
 
+    def test_preselected_image_loads_options_without_another_picker_or_import(self):
+        filename = Path(self.folder.name) / 'welcome.png'
+        Image.new('RGB', (8, 8)).save(filename, dpi=(300, 300))
+        with patch('appPlugins.ToolImage.QtWidgets.QFileDialog.getOpenFileName',
+                   side_effect=AssertionError('image already selected')):
+            self.tool.on_load_image(filename=str(filename))
+        self.assertEqual(self.tool.filename, str(filename))
+        self.assertEqual(self.tool.ui.dpi_entry.get_value(), 300)
+        self.assertTrue(self.tool.ui.import_button.isEnabled())
+        self.tool.app.app_obj.new_object.assert_not_called()
+
 
     def test_successful_load_remembers_folder_but_cancel_and_invalid_do_not(self):
         from appMain import App

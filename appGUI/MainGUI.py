@@ -2352,6 +2352,9 @@ class MainGUI(QtWidgets.QMainWindow):
         self.setGeometry(geometry_on_screen(self.geometry(), screen.availableGeometry()))
 
     def on_toggle_gui(self):
+        if getattr(self.app, '_startup_workspace_pending', False) is True:
+            self.app.bring_to_front()
+            return
         if self.isHidden():
             mgui_settings = QSettings("Open Source", "FlatCAM_EVO")
             if mgui_settings.contains("maximized_gui"):

@@ -287,6 +287,10 @@ class GeneralAppPrefGroupUI(OptionsGroupUI):
 
         grid4.addWidget(self.splash_cb, 0, 0, 1, 2)
 
+        self.welcome_cb = FCCheckBox(_('Show welcome screen on startup'))
+        self.welcome_cb.setToolTip(_('Show the welcome screen on an interactive launch without files or commands.'))
+        grid4.addWidget(self.welcome_cb, 1, 0, 1, 2)
+
         # Sys Tray Icon
         self.systray_cb = FCCheckBox('%s' % _('Sys Tray Icon'))
         self.systray_cb.setToolTip(

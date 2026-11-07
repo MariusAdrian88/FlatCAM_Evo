@@ -304,3 +304,250 @@ class TestRunScriptQuestion:
         assert result is False
         assert 'C:/scripts/job.tcl' in seen['text']
 
+
+@pytest.mark.parametrize('bypass', ['', 'headless', 'args', 'shellfile', 'shellvar', 'command',
+                                   'queued', 'busy', 'received', 'preference'])
+def test_startup_welcome_only_for_interactive_empty_launch(qapp, monkeypatch, bypass):
+    import appGUI.WelcomeDialog as welcome_module
+    shown = []
+    class Welcome(QtWidgets.QDialog):
+        decision = QtCore.pyqtSignal()
+
+        def __init__(self, app, parent):
+            super().__init__(parent)
+            shown.append(self)
+    monkeypatch.setattr(welcome_module, 'WelcomeDialog', Welcome)
+    monkeypatch.setattr(appMain.App, 'args', ['file.gbr'] if bypass == 'args' else [])
+    app = SimpleNamespace(ui=QtWidgets.QWidget(), headless=bypass == 'headless',
+                          cmd_line_shellfile='script.tcl' if bypass == 'shellfile' else '',
+                          cmd_line_shellvar='x=1' if bypass == 'shellvar' else '',
+                          cmd_line_command='puts test' if bypass == 'command' else '',
+                          _open_requests=[['file.gbr']] if bypass == 'queued' else [],
+                          _open_busy=bypass == 'busy', _startup_open_received=bypass == 'received',
+                          splash=None, _show_startup_workspace=Mock(),
+                          options={'global_welcome': bypass != 'preference'}, defaults={'global_welcome': True})
+    try:
+        appMain.App._show_startup_welcome(app)
+        assert bool(shown) == (bypass == '')
+        if shown:
+            assert shown[0].isVisible()
+    finally:
+        for dialog in shown:
+            dialog.close()
+        app.ui.close()
+
+
+def test_external_open_dismisses_welcome_and_preserves_request_order(qapp):
+    from collections import deque
+    opened = []
+    app = SimpleNamespace(ui=QtWidgets.QWidget(), qapp=qapp, _open_requests=deque(), _open_busy=False,
+                          _open_retry_pending=False, _start_deferred_version_check=Mock())
+    for name in ('_drain_open_requests', '_open_request_done'):
+        setattr(app, name, types.MethodType(getattr(appMain.App, name), app))
+    app.on_startup_args = lambda files, on_done: (opened.extend(files), on_done())
+    app._welcome_dialog = QtWidgets.QDialog(app.ui)
+    app._welcome_dialog.setWindowModality(QtCore.Qt.WindowModality.WindowModal)
+    app._welcome_dialog.show()
+    try:
+        appMain.App.open_files_request(app, ['first.gbr', 'second.drl'])
+        assert not app._welcome_dialog.isVisible()
+        assert opened == ['first.gbr', 'second.drl']
+        assert not app._open_requests
+    finally:
+        app.ui.close()
+
+
+@pytest.mark.parametrize('history', [None, '{broken', '{"bad":"shape"}',
+                                   '[null, {}, {"kind":"gerber", "filename":42}]'])
+def test_invalid_recent_history_does_not_prevent_startup(qapp, tmp_path, history):
+    class RecentApp(QtCore.QObject):
+        pass
+    app = RecentApp()
+    app.data_path = str(tmp_path)
+    app.resource_location = 'assets/resources'
+    app.f_handlers = Mock()
+    app.image_tool = Mock()
+    app.inform = Mock()
+    app.log = Mock()
+    app.ui = SimpleNamespace(recent=QtWidgets.QMenu(), recent_projects=QtWidgets.QMenu())
+    if history is not None:
+        (tmp_path / 'recent.json').write_text(history, encoding='utf-8')
+    (tmp_path / 'recent_projects.json').write_text(
+        '[{"kind":"project", "filename":"board.FlatPrj"}]', encoding='utf-8')
+    appMain.App.setup_recent_items(app)
+    assert app.recent == []
+    assert app.recent_projects == [{'kind': 'project', 'filename': 'board.FlatPrj'}]
+    assert app.ui.recent_projects.actions()[0].text() == 'board.FlatPrj'
+
+
+@pytest.fixture
+def welcome_startup(qapp, monkeypatch, tmp_path):
+    from collections import deque
+    from defaults import AppOptions
+
+    class StartupApp(SimpleNamespace):
+        pass
+
+    class Window(QtWidgets.QMainWindow):
+        def __init__(self):
+            super().__init__()
+            self.presentations = []
+
+        def showEvent(self, event):
+            self.presentations.append(self.windowState())
+            super().showEvent(event)
+
+        def place_on_cursor_screen(self):
+            pass
+
+    defaults = AppDefaults(beta=False)
+    defaults.old_defaults_found = False
+    options = AppOptions(version='test', baseline=defaults, defaults=defaults)
+    options.update({'global_welcome': True, 'global_systray_icon': False, 'global_version_check': False})
+    app = StartupApp(qapp=qapp, ui=Window(), headless=False, defaults=defaults, options=options,
+                          splash=QtWidgets.QSplashScreen(), log=Mock(), inform=Mock(), trayIcon=None,
+                          refresh_rollback_action=Mock(), new_launch=None, file_open_filter=None,
+                          cmd_line_shellvar='', cmd_line_shellfile='', cmd_line_command='',
+                          _open_requests=deque(), _open_busy=False, _open_retry_pending=False,
+                          _queue_version_check=Mock(), version='1.0', version_date='2026/11/07',
+                          resource_location='assets/resources', recent=[], recent_projects=[],
+                          f_handlers=Mock(), app_obj=Mock(), image_tool=Mock(), pdf_tool=Mock(),
+                          get_last_folder=lambda: '', preferencesUiManager=Mock(),
+                          projects=SimpleNamespace(new=lambda: SimpleNamespace(filename=None)))
+    for name in ('_show_startup_welcome', '_show_startup_workspace', '_drain_open_requests',
+                 '_open_request_done', '_start_deferred_version_check', 'bring_to_front', 'open_files_request'):
+        if hasattr(appMain.App, name):
+            setattr(app, name, types.MethodType(getattr(appMain.App, name), app))
+    app.worker_task = SimpleNamespace(emit=lambda task: task['fcn'](*task['params']))
+    app.ui.app = app
+    settings = QtCore.QSettings(str(tmp_path / 'startup.ini'), QtCore.QSettings.Format.IniFormat)
+    settings.setValue('maximized_gui', False)
+    monkeypatch.setattr(appMain, 'QSettings', lambda *args: settings)
+    monkeypatch.setattr(appMain.App, 'args', [])
+    app.ui.setGeometry(70, 60, 900, 620)
+    app.splash.show()
+    yield app, settings
+    welcome = getattr(app, '_welcome_dialog', None)
+    if welcome is not None:
+        welcome.close()
+    app.ui.close()
+    app.splash.close()
+    qapp.processEvents()
+    app.ui.deleteLater()
+    app.splash.deleteLater()
+
+
+@pytest.mark.parametrize('action,maximized', [('continue', False), ('escape', False), ('close', True)])
+def test_welcome_is_the_only_startup_window_until_dismissed(welcome_startup, qapp, action, maximized):
+    from PyQt6 import QtTest
+    app, settings = welcome_startup
+    settings.setValue('maximized_gui', maximized)
+    geometry = app.ui.geometry()
+    appMain.App._setup_startup(app)
+    assert not app.ui.isVisible()
+    assert not app.ui.presentations  # Even a show-then-hide flash is a regression.
+    qapp.processEvents()
+    welcome = app._welcome_dialog
+    assert welcome.isVisible() and not app.splash.isVisible()
+    assert not app.ui.isVisible() and not app.ui.presentations
+    from appGUI.MainGUI import MainGUI
+    app.bring_to_front()
+    MainGUI.on_toggle_gui(app.ui)
+    assert not app.ui.isVisible() and not app.ui.presentations
+    if action == 'escape':
+        QtTest.QTest.keyClick(welcome, QtCore.Qt.Key.Key_Escape)
+    else:
+        getattr(welcome, 'continue_button' if action == 'continue' else 'close_button').click()
+    qapp.processEvents()
+    assert app.ui.isVisible() and not welcome.isVisible()
+    assert app.ui.isMaximized() == maximized
+    if not maximized:
+        assert app.ui.geometry() == geometry
+
+
+def test_cancel_and_missing_recent_keep_workspace_hidden_then_browse_reveals_before_open(
+        welcome_startup, qapp, monkeypatch, tmp_path):
+    app, settings = welcome_startup
+    app.recent = [{'kind': 'gerber', 'filename': str(tmp_path / 'missing.gbr')}]
+    appMain.App._setup_startup(app)
+    qapp.processEvents()
+    welcome = app._welcome_dialog
+    welcome.select('gerber')
+    welcome.open_recent(welcome.recent_list.item(0))
+    monkeypatch.setattr(QtWidgets.QFileDialog, 'getOpenFileName', lambda **kwargs: ('', ''))
+    welcome.browse_button.click()
+    assert welcome.isVisible() and not app.ui.isVisible() and not app.ui.presentations
+    filename = tmp_path / 'board.gbr'
+    filename.write_text('board', encoding='utf-8')
+    opened = []
+    def open_board(path):
+        assert app.ui.isVisible()
+        opened.append(path)
+    app.f_handlers.open_gerber.side_effect = open_board
+    monkeypatch.setattr(QtWidgets.QFileDialog, 'getOpenFileName', lambda **kwargs: (str(filename), ''))
+    welcome.browse_button.click()
+    assert opened == [str(filename)] and app.ui.isVisible() and not welcome.isVisible()
+
+
+@pytest.mark.parametrize('before_welcome', [False, True])
+def test_late_external_files_reveal_workspace_before_dispatch(welcome_startup, qapp, before_welcome):
+    app, settings = welcome_startup
+    appMain.App._setup_startup(app)
+    if not before_welcome:
+        qapp.processEvents()
+    opened = []
+    def open_files(files, on_done):
+        assert app.ui.isVisible()
+        opened.extend(files)
+        on_done()
+    app.on_startup_args = open_files
+    appMain.App.on_files_from_other_instance(app, ['first.gbr', 'second.drl'])
+    qapp.processEvents()
+    assert opened == ['first.gbr', 'second.drl'] and app.ui.isVisible()
+    welcome = getattr(app, '_welcome_dialog', None)
+    assert welcome is None or not welcome.isVisible()
+
+
+def test_new_can_create_before_the_deferred_update_worker_starts(welcome_startup, qapp):
+    app, settings = welcome_startup
+    checking = []
+    objects = []
+    app.options['global_version_check'] = True
+    app._queue_version_check.side_effect = lambda: checking.append(True)
+    app.projects.new = lambda: None if checking else SimpleNamespace(filename=None)
+    app.app_obj.new_document_object.side_effect = lambda: objects.append('document')
+    appMain.App._setup_startup(app)
+    qapp.processEvents()
+    welcome = app._welcome_dialog
+    welcome.select('document')
+    welcome.new_button.click()
+    qapp.processEvents()
+    assert objects == ['document']
+    assert app.ui.isVisible() and not welcome.isVisible()
+    assert checking == [True]
+
+
+def test_welcome_preserves_the_native_titlebar_restore_geometry(welcome_startup, qapp, monkeypatch):
+    from tests.test_titlebar import TitleWindow
+    app, settings = welcome_startup
+    app.ui.deleteLater()
+    app.ui = TitleWindow()
+    monkeypatch.setattr('appGUI.MainGUI.cursor_screen', lambda: app.ui.screen())
+    app.ui.setGeometry(115, 23, 900, 400)
+    geometry = app.ui.geometry()
+    appMain.App._setup_startup(app)
+    qapp.processEvents()
+    assert not app.ui.isVisible()
+    app._welcome_dialog.continue_button.click()
+    qapp.processEvents()
+    assert app.ui.isVisible() and app.ui.geometry() == geometry
+    app.ui.hide()
+
+
+def test_disabled_welcome_presents_the_workspace_directly(welcome_startup, qapp):
+    app, settings = welcome_startup
+    app.options['global_welcome'] = False
+    appMain.App._setup_startup(app)
+    qapp.processEvents()
+    assert app.ui.isVisible() and not app.splash.isVisible()
+    assert getattr(app, '_welcome_dialog', None) is None

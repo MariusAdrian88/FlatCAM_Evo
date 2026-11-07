@@ -116,6 +116,7 @@ def _startup_app(auto_updates, beta=False):
     app.options = {
         "global_systray_icon": False,
         "global_version_check": auto_updates,
+        "global_welcome": False,  # This fixture tests the direct-startup update check, not a pending user decision.
     }
     app.beta = beta
     app.version = "1.0"

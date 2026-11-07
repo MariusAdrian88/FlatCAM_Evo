@@ -237,17 +237,19 @@ class ImageImportMixin:
         self.ui.presets_combo.set_value(0)
         self.ui.on_preset_changed(0)
 
-    def on_load_image(self):
+    def on_load_image(self, filename=None):
         _filter = "Image Files(*.BMP *.PNG *.JPG *.JPEG);;" \
                   "Bitmap File (*.BMP);;" \
                   "PNG File (*.PNG);;" \
                   "Jpeg File (*.JPG);;" \
                   "All Files (*.*)"
-        try:
-            filename, _f = QtWidgets.QFileDialog.getOpenFileName(caption=_("Load Image"),
-                                                                 directory=self.app.get_last_folder(), filter=_filter)
-        except TypeError:
-            filename, _f = QtWidgets.QFileDialog.getOpenFileName(caption=_("Load Image"), filter=_filter)
+        if filename is None or isinstance(filename, bool):
+            # clicked(bool) still opens the picker; the welcome screen supplies an already selected path.
+            try:
+                filename, _f = QtWidgets.QFileDialog.getOpenFileName(caption=_("Load Image"),
+                                                                     directory=self.app.get_last_folder(), filter=_filter)
+            except TypeError:
+                filename, _f = QtWidgets.QFileDialog.getOpenFileName(caption=_("Load Image"), filter=_filter)
 
         filename = str(filename)
         if not filename:

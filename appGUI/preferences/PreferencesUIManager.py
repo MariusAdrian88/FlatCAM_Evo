@@ -66,6 +66,7 @@ class PreferencesUIManager(QtCore.QObject):
             "global_systray_icon": self.ui.general_pref_form.general_app_group.systray_cb,
             "global_shell_at_startup": self.ui.general_pref_form.general_app_group.shell_startup_cb,
             "global_project_at_startup": self.ui.general_pref_form.general_app_group.project_startup_cb,
+            "global_welcome": self.ui.general_pref_form.general_app_group.welcome_cb,
             "global_version_check": self.ui.general_pref_form.general_app_group.version_check_cb,
             "global_update_provider": self.ui.general_pref_form.general_app_group.update_provider_combo,
             "global_legacy_update_url": self.ui.general_pref_form.general_app_group.legacy_update_url_entry,

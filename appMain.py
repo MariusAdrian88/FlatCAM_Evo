@@ -1616,21 +1616,16 @@ class App(QtCore.QObject):
             return
 
         # ########################################## SHOW GUI #######################################################
-        # before the splash finish: QSplashScreen.finish() makes the native window of the main window
+        # Do not finish the splash against the main window when welcome is the startup window.
         self.ui.place_on_cursor_screen()
-        if self.splash:
-            # finish the splash
-            self.splash.finish(self.ui)
-
-        mgui_settings = QSettings("Open Source", "FlatCAM_EVO")
-        if mgui_settings.contains("maximized_gui"):
-            maximized_ui = mgui_settings.value('maximized_gui', type=bool)
-            if maximized_ui is True:
-                self.ui.showMaximized()
-            else:
-                self.ui.show()
-        else:
-            self.ui.show()
+        self._startup_workspace_shown = False
+        self._startup_workspace_pending = bool(
+            self.options.get('global_welcome', self.defaults.get('global_welcome')) and
+            not (App.args or self.cmd_line_shellfile or self.cmd_line_shellvar or self.cmd_line_command or
+                 getattr(self, '_startup_open_received', False) or getattr(self, '_open_requests', []) or
+                 getattr(self, '_open_busy', False)))
+        if not self._startup_workspace_pending:
+            App._show_startup_workspace(self)
 
         if self.options.get("global_systray_icon", self.defaults.get("global_systray_icon")) and self.trayIcon is not None:
             self.trayIcon.show()
@@ -1660,6 +1655,8 @@ class App(QtCore.QObject):
 
         # accept some type file as command line parameter: FlatCAM project, FlatCAM preferences or scripts
         # the path/file_name must be enclosed in quotes, if it contains spaces
+        if getattr(self, '_open_requests', []):
+            self._startup_open_received = True
         if App.args:  # noqa
             self.open_files_request(App.args)  # noqa
         else:
@@ -1675,6 +1672,48 @@ class App(QtCore.QObject):
             self.inform.emit('[WARNING_NOTCL] %s' % _("Found old default preferences files. "
                                                       "Please reboot the application to update."))
             self.defaults.old_defaults_found = False
+
+        if self._startup_workspace_pending:
+            # Ready notifications can deliver queued OS/socket requests before this event-loop turn.
+            QtCore.QTimer.singleShot(0, self._show_startup_welcome)
+
+    def _show_startup_welcome(self):
+        if self.headless or App.args or self.cmd_line_shellfile or self.cmd_line_shellvar or self.cmd_line_command or \
+                getattr(self, '_startup_open_received', False) or getattr(self, '_open_requests', []) or \
+                getattr(self, '_open_busy', False) or \
+                not self.options.get('global_welcome', self.defaults.get('global_welcome', True)):
+            if getattr(self, '_startup_workspace_pending', False) is True:
+                self._show_startup_workspace()
+            return
+        from appGUI.WelcomeDialog import WelcomeDialog
+        self._welcome_dialog = WelcomeDialog(self, self.ui)
+        self._welcome_dialog.decision.connect(lambda: self._show_startup_workspace())
+        self._welcome_dialog.finished.connect(lambda: self._show_startup_workspace())
+        self._welcome_dialog.show()
+        if self.splash:
+            self.splash.finish(self._welcome_dialog)
+
+    def _show_startup_workspace(self):
+        """Present the workspace once, only after a startup decision or a direct-launch bypass."""
+        if getattr(self, '_startup_workspace_shown', False) is True:
+            return
+        was_pending = getattr(self, '_startup_workspace_pending', False) is True
+        self._startup_workspace_pending = False
+        self._startup_workspace_shown = True
+        if was_pending:
+            welcome = getattr(self, '_welcome_dialog', None)
+            if welcome is not None:
+                welcome.hide()
+        if self.splash and self.splash.isVisible():
+            self.splash.finish(self.ui)
+        settings = QSettings("Open Source", "FlatCAM_EVO")
+        if settings.value('maximized_gui', False, type=bool):
+            self.ui.showMaximized()
+        else:
+            self.ui.show()
+        if was_pending:
+            # Let the chosen action queue its work before resuming external requests and the update check.
+            QtCore.QTimer.singleShot(0, lambda: self._drain_open_requests())
 
     # ######################################### INIT FINISHED  #######################################################
 
@@ -1765,6 +1804,15 @@ class App(QtCore.QObject):
         :param files: list of paths (and command words)
         :return: None
         """
+        self._startup_open_received = True
+        welcome = getattr(self, '_welcome_dialog', None)
+        if welcome is not None and welcome.isVisible():
+            modal = self.qapp.activeModalWidget()
+            if isinstance(modal, QtWidgets.QDialog) and welcome.isAncestorOf(modal):
+                modal.reject()
+            welcome.reject()
+        if getattr(self, '_startup_workspace_pending', False) is True:
+            self._show_startup_workspace()
         self._open_requests.append(list(files))
         self._drain_open_requests()
 
@@ -1797,6 +1845,8 @@ class App(QtCore.QObject):
         self._drain_open_requests()
 
     def _start_deferred_version_check(self):
+        if getattr(self, '_startup_workspace_pending', False) is True:
+            return
         if self._version_check_due:
             self._version_check_due = False
             self.log.info(f"Checking for updates in background (this is version {self.version}).")
@@ -1982,6 +2032,12 @@ class App(QtCore.QObject):
 
     def bring_to_front(self):
         """Show the main window (it can be minimized or hidden in the tray), raise it and give it the focus."""
+        if getattr(self, '_startup_workspace_pending', False) is True:
+            welcome = getattr(self, '_welcome_dialog', None)
+            if welcome is not None:
+                welcome.raise_()
+                welcome.activateWindow()
+            return
         try:
             if self.ui.isMinimized():
                 self.ui.showNormal()
@@ -4352,33 +4408,22 @@ class App(QtCore.QObject):
             'pdf': self.f_handlers.import_pdf
         }
 
-        # Open recent file for files
-        try:
-            with open(os.path.join(self.data_path, 'recent.json')) as f:
-                try:
-                    self.recent = json.load(f)
-                except json.JSONDecodeError:
-                    self.log.error("Failed to parse recent item list.")
-                    self.inform.emit('[ERROR_NOTCL] %s' % _("Failed to parse recent item list."))
-                    return
-        except IOError:
-            self.log.error("Failed to load recent item list.")
-            self.inform.emit('[ERROR_NOTCL] %s' % _("Failed to load recent item list."))
-            return
-
-        # Open recent file for projects
-        try:
-            with open(os.path.join(self.data_path, 'recent_projects.json')) as fp:
-                try:
-                    self.recent_projects = json.load(fp)
-                except json.JSONDecodeError:
-                    self.log.error("Failed to parse recent project item list.")
-                    self.inform.emit('[ERROR_NOTCL] %s' % _("Failed to parse recent project item list."))
-                    return
-        except IOError:
-            self.log.error("Failed to load recent project item list.")
-            self.inform.emit('[ERROR_NOTCL] %s' % _("Failed to load recent projects item list."))
-            return
+        # A missing or damaged history must not prevent startup or hide the other history.
+        for attribute, basename in (('recent', 'recent.json'), ('recent_projects', 'recent_projects.json')):
+            records = []
+            try:
+                with open(os.path.join(self.data_path, basename)) as history:
+                    records = json.load(history)
+                if not isinstance(records, list):
+                    records = []
+            except FileNotFoundError:
+                pass
+            except (OSError, ValueError) as error:
+                self.log.error('Failed to load %s: %s', basename, error)
+                self.inform.emit('[WARNING_NOTCL] %s' % _("Failed to load recent item list."))
+            setattr(self, attribute, [record for record in records if isinstance(record, dict)
+                                     and isinstance(record.get('kind'), str)
+                                     and isinstance(record.get('filename'), str) and record['filename']])
 
         # Closure needed to create callbacks in a loop.
         # Otherwise, late binding occurs.
