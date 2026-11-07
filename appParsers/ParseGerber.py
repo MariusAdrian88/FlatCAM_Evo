@@ -2274,7 +2274,7 @@ class Gerber(Geometry):
         :return:            None
         """
 
-        self.app.log.debug("parseGerber.Gerber.bounds()")
+        # self.app.log.debug("parseGerber.Gerber.bounds()")
 
         if self.solid_geometry is None:
             self.app.log.debug("solid_geometry is None")
@@ -2620,7 +2620,7 @@ class Gerber(Geometry):
         :type vect: tuple
         :return: None
         """
-        self.app.log.debug("ParseGerber.Gerber.offset()")
+        # self.app.log.debug("ParseGerber.Gerber.offset()")
 
         try:
             dx, dy = vect

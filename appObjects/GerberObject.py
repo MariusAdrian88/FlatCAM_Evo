@@ -1293,7 +1293,7 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
         :param factor: factor to be applied onto the Gerber coordinates
         :return: Gerber_code
         """
-        self.app.log.debug("GerberObject.export_gerber() --> Generating the Gerber code from the selected Gerber file")
+        # self.app.log.debug("GerberObject.export_gerber() --> Generating the Gerber code from the selected Gerber file")
 
         # 'T': the whole part is left padded with zeros to 'whole' digits and the sign stays in front of the padding
         # (the forced '+' sign makes the padding width the same for positive and negative values).

@@ -1416,7 +1416,7 @@ class Excellon(Geometry):
         :param flatten:     No used
         """
 
-        self.app.log.debug("appParsers.ParseExcellon.Excellon.bounds()")
+        # self.app.log.debug("appParsers.ParseExcellon.Excellon.bounds()")
 
         if self.solid_geometry is None or not self.tools:
             self.app.log.debug("appParsers.ParseExcellon.Excellon -> solid_geometry is None")

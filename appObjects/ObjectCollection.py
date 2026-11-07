@@ -1076,7 +1076,7 @@ class ObjectCollection(QtCore.QAbstractItemModel):
         :return: [xmin, ymin, xmax, ymax]
         :rtype: list
         """
-        self.app.log.debug(sys._getframe(1).f_code.co_name + "--> OC.get_bounds()")
+        # self.app.log.debug(sys._getframe(1).f_code.co_name + "--> OC.get_bounds()")
 
         # TODO: Move the operation out of here.
 
