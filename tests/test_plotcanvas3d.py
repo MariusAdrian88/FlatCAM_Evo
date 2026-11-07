@@ -178,7 +178,7 @@ class TestPlotCanvas3d(unittest.TestCase):
 
 
     def test_drag_tilts_in_screen_direction_from_any_start(self):
-        canvas = self.make_canvas()
+        canvas = self.make_canvas(camera_reference='lmb')
         camera = canvas.view.camera
         initial = camera.get_state()
         points = np.array([(200, 200, 0, 1), (200, 200, 40, 1)])
@@ -195,6 +195,45 @@ class TestPlotCanvas3d(unittest.TestCase):
                     self.assertGreater(np.dot(normal, (dx, dy)), 0)
                     self.assertAlmostEqual(normal[1 if dx else 0], 0, places=5)
 
+    def test_trackball_tumbles_and_rolls_without_moving_the_pivot(self):
+        canvas = self.make_canvas()
+        camera = canvas.view.camera
+        camera.set_view('top')
+        canvas.content_bounds = ((0, 0, 0), (250, 250, 4))
+        camera.center = np.array(camera.center) + (40, -20, 0)
+        pivot = np.r_[canvas.geometry_center(), 1]
+        points = np.array([pivot, pivot + (10, 0, 0, 0), pivot + (0, 0, 10, 0)])
+        initial = camera.get_state()
+        for start, end, roll in (((400, 300), (440, 300), False),
+                                 ((760, 300), (650, 560), True)):
+            with self.subTest(roll=roll):
+                if roll:
+                    canvas.camera_reference = 'lmb'
+                    canvas.camera_reference = 'center_rotate'
+                camera.set_state(initial)
+                camera.viewbox_mouse_event(self.mouse_event('mouse_release'))
+                projected = camera._scene_transform.map(points)
+                before = projected[:, :2] / projected[:, 3:]
+                camera.viewbox_mouse_event(self.mouse_event('mouse_move', end, start, (1,)))
+                projected = camera._scene_transform.map(points)
+                after = projected[:, :2] / projected[:, 3:]
+                np.testing.assert_allclose(after[0], before[0], atol=1e-5)
+                if roll:
+                    self.assertGreater(abs(after[1, 1] - after[0, 1]), 1)
+                    np.testing.assert_allclose(after[2], after[0], atol=1e-5)
+                else:
+                    self.assertGreater(np.linalg.norm(after[2] - after[0]), 1)
+                camera.viewbox_mouse_event(self.mouse_event('mouse_move', start, start, (1,)))
+                projected = camera._scene_transform.map(points)
+                np.testing.assert_allclose(projected[:, :2] / projected[:, 3:], before, atol=1e-5)
+                if roll:
+                    canvas.camera_reference = 'center'
+                    camera.set_state(initial)
+                    camera.viewbox_mouse_event(self.mouse_event('mouse_move', end, start, (1,)))
+                    projected = camera._scene_transform.map(points)
+                    screen = projected[:, :2] / projected[:, 3:]
+                    self.assertGreater(np.linalg.norm(screen[2] - screen[0]), 1)
+
     def test_center_reference_rotates_about_loaded_object_bounds_and_can_change(self):
         canvas = self.make_canvas(camera_reference='center')
         camera = canvas.view.camera
@@ -204,7 +243,7 @@ class TestPlotCanvas3d(unittest.TestCase):
         camera.set_view('iso')
         canvas.fit_view()
         camera.center = np.array(camera.center) + (40, -20, 0)
-        for reference in ('center', 'lmb', 'center'):
+        for reference in ('center', 'center_rotate', 'lmb', 'center'):
             with self.subTest(reference=reference):
                 canvas.camera_reference = reference
                 pivot = np.array(((bounds[0] + bounds[2]) / 2, (bounds[1] + bounds[3]) / 2, 1, 1))
@@ -212,7 +251,7 @@ class TestPlotCanvas3d(unittest.TestCase):
                 camera.viewbox_mouse_event(self.mouse_event('mouse_move', (160, 140), (100, 100), (1,)))
                 after = camera._scene_transform.map(pivot)
                 before, after = before[:2] / before[3], after[:2] / after[3]
-                if reference == 'center':
+                if reference != 'lmb':
                     np.testing.assert_allclose(after, before, atol=1e-5)
                     canvas.view_cube.rotation_requested.emit(0.1, 0.15)
                     after = camera._scene_transform.map(pivot)

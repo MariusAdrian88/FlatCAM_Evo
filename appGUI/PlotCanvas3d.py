@@ -43,14 +43,15 @@ class PlotCanvas3d(QtCore.QObject, scene.SceneCanvas):
     Class handling the plotting area in the application.
     """
 
-    def __init__(self, container, fcapp, camera_reference='lmb'):
+    def __init__(self, container, fcapp, camera_reference='center_rotate'):
         """
         The constructor configures the VisPy figure that
         will contain all plots, creates the base axes and connects
         events to the plotting area.
 
         :param container: The parent container in which to draw plots.
-        :param camera_reference: 'lmb' rotates about the press point; 'center' uses all loaded objects.
+        :param camera_reference: 'lmb' rotates about the press point; 'center' uses all loaded objects;
+                                 'center_rotate' adds trackball rotation about that center.
         :rtype: PlotCanvas
         """
 
@@ -195,7 +196,7 @@ class PlotCanvas3d(QtCore.QObject, scene.SceneCanvas):
         self.view_cube = ViewCube(self.view.camera, self.native)
         self.view_cube.fit_requested.connect(self.fit_view)
         self.view_cube.rotation_requested.connect(lambda dx, dy: self.view.camera.rotate_about(
-            (dx, dy), self.geometry_center() if self.camera_reference == 'center' else
+            (dx, dy), self.geometry_center() if self.camera_reference != 'lmb' else
             (np.mean(self.content_bounds, axis=0) if self.content_bounds is not None else
                        (self.workspace_size[0] / 2, self.workspace_size[1] / 2, 0))
         ))
@@ -421,11 +422,13 @@ class PlotCanvas3d(QtCore.QObject, scene.SceneCanvas):
     @camera_reference.setter
     def camera_reference(self, value):
         value = value.lower()
-        if value not in ('lmb', 'center'):
-            raise ValueError('Camera reference must be lmb or center.')
+        if value not in ('lmb', 'center', 'center_rotate'):
+            raise ValueError('Camera reference must be lmb, center or center_rotate.')
         self._camera_reference = value
-        self.view.camera.rotation_center = self.geometry_center if value == 'center' else None
+        self.view.camera.rotation_center = self.geometry_center if value != 'lmb' else None
+        self.view.camera._trackball_rotation = value == 'center_rotate'
         self.view.camera._rotation_anchor = None
+        self.view.camera._event_value = None
 
     def geometry_center(self):
         center = (np.mean(self.content_bounds, axis=0) if self.content_bounds is not None else
@@ -563,6 +566,7 @@ class Camera_3D(scene.ArcballCamera):
         self._view_modified = False
         self._rotation_anchor = None
         self.rotation_center = None
+        self._trackball_rotation = False
 
         # Default mouse button for panning is RMB
         self.pan_button_setting = "2"
@@ -627,7 +631,16 @@ class Camera_3D(scene.ArcballCamera):
                 else:
                     # Edge-on views have no unique intersection with the grid plane.
                     self._rotation_anchor = self._screen_to_world(start)
-        self.rotate_about(delta, self._rotation_anchor)
+        if self._trackball_rotation:
+            anchor = self._rotation_anchor
+            projected = self._scene_transform.map((*anchor, 1))
+            screen = projected[:2] / projected[3]
+            self._event_value = previous
+            super()._update_rotation(event)
+            self._view_modified = True
+            self.center = np.asarray(self.center) + anchor - self._screen_to_world(screen, anchor)
+        else:
+            self.rotate_about(delta, self._rotation_anchor)
 
     def rotate_about(self, delta, anchor):
         """Rotate by screen-space angles while keeping a world-space pivot fixed on screen."""

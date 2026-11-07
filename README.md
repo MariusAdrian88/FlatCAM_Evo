@@ -541,6 +541,12 @@ TIF). The Milling plugin then makes the CNCJob from it.
 
 ### Measurement and analysis
 
+- **PCB 3D Viewer** (Plugins menu) — Select the board's Gerber and Excellon layers, set the physical
+  thicknesses, colors and alpha, and wait for "PCB preview ready". Click **Export 3D PDF** and choose a file.
+  The export keeps those thicknesses and materials, with a fixed isometric view of the whole board, not the
+  live pan/zoom. The page's longest side is 297 mm; the board is aspect-fitted with 5% padding.
+  A static PCB image is included for readers without 3D support. Interactive 3D requires a U3D-capable reader
+  such as Adobe Acrobat Reader or Foxit, not a browser. No third-party converter or runtime SDK is needed.
 - **Distance** (Edit menu, `Ctrl+M`) — Measures between 2 or more points that you click, with snap to the pad and
   drill centers. It shows dX, dY, the angle and the distance.
 - **Object Distance** (Edit menu, `Shift+M`) — Measures the distance between 2 objects, between their nearest points

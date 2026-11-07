@@ -3,8 +3,9 @@
 import numpy as np
 from PyQt6 import sip
 from vispy import scene
-from vispy.color import Color
 from vispy.geometry import MeshData
+
+from .PCBViewerGen import layer_styles
 
 
 class PCBView:
@@ -58,33 +59,10 @@ class PCBView:
                 del self.layers[name]
 
     def update_style(self, values, units):
-        factor = 1 / 25.4 if units.upper() == 'IN' else 1
-        board = values['board_thickness'] * factor
-        copper = values['copper_thickness'] / 1000 * factor
-        mask = values['mask_thickness'] / 1000 * factor
-        ink = 0.001 * factor
-        heights = {'board': (0, board)}
-        if 'plating' in self.layers:
-            bottom = copper if 'copper_bottom' in self.layers else 0
-            top = copper if 'copper_top' in self.layers else 0
-            heights['plating'] = (-bottom, board + bottom + top)
-        for side in ('top', 'bottom'):
-            top = side == 'top'
-            z = board if top else 0
-            for name, thickness in (('copper', copper), ('soldermask', mask), ('overlay', ink)):
-                key = name + '_' + side
-                if key not in self.layers:
-                    continue
-                heights[key] = (z if top else z - thickness, thickness)
-                z += thickness if top else -thickness
+        styles = layer_styles((layer for layer, _meshes in self.layers.values()), values, units)
+        heights = {name: (style['z'], style['thickness']) for name, style in styles.items()}
         for name, (layer, meshes) in self.layers.items():
-            color_key = 'copper' if name == 'plating' else name.split('_')[0]
-            text = values[color_key + '_color']
-            if len(text) not in (7, 9) or not text.startswith('#'):
-                raise ValueError('Use a color in #RRGGBB or #RRGGBBAA format.')
-            color = Color(text).rgba.copy()
-            if name == 'board':
-                color[3] = values['board_alpha'] / 255
+            color = styles[name]['color']
             z, thickness = heights[name]
             for mesh in meshes:
                 mesh.color = color

@@ -46,6 +46,46 @@ class Layer:
     origin: tuple
 
 
+def layer_styles(layers, values, units):
+    """Physical stack and RGBA materials shared by the preview and detached export."""
+    names = {layer.name for layer in layers}
+    factor = 1 / 25.4 if units.upper() == 'IN' else 1
+    board = values['board_thickness'] * factor
+    copper = values['copper_thickness'] / 1000 * factor
+    mask = values['mask_thickness'] / 1000 * factor
+    ink = 0.001 * factor
+    heights = {'board': (0, board)}
+    if 'plating' in names:
+        bottom = copper if 'copper_bottom' in names else 0
+        top = copper if 'copper_top' in names else 0
+        heights['plating'] = (-bottom, board + bottom + top)
+    for side in ('top', 'bottom'):
+        top = side == 'top'
+        z = board if top else 0
+        for name, thickness in (('copper', copper), ('soldermask', mask), ('overlay', ink)):
+            key = name + '_' + side
+            if key not in names:
+                continue
+            heights[key] = (z if top else z - thickness, thickness)
+            z += thickness if top else -thickness
+    styles = {}
+    for name in names:
+        color_key = 'copper' if name == 'plating' else name.split('_')[0]
+        text = values[color_key + '_color']
+        if len(text) not in (7, 9) or not text.startswith('#'):
+            raise ValueError('Use a color in #RRGGBB or #RRGGBBAA format.')
+        try:
+            color = np.array([int(text[index:index + 2], 16) / 255 for index in (1, 3, 5)] +
+                             [int(text[7:9], 16) / 255 if len(text) == 9 else 1])
+        except ValueError:
+            raise ValueError('Use a color in #RRGGBB or #RRGGBBAA format.') from None
+        if name == 'board':
+            color[3] = values['board_alpha'] / 255
+        z, thickness = heights[name]
+        styles[name] = dict(z=z, thickness=thickness, color=color)
+    return styles
+
+
 def polygons(geometry):
     return [geo for geo in parts(geometry) if isinstance(geo, Polygon)]
 
@@ -113,7 +153,10 @@ def extrude_mesh(geometry):
                   np.array([[0, 1, 2], [0, 2, 3]], dtype=np.uint32)).reshape(-1, 3) + 2 * cap_count
     vertices = np.concatenate((top, bottom, walls.reshape(-1, 3))).astype(np.float32)
     faces = np.concatenate((cap_faces, cap_faces[:, ::-1] + cap_count, wall_faces))
-    return vertices, faces, origin
+    # Generated faces that collapse at float32 precision have zero area.
+    triangles = vertices[faces].astype(np.float64)
+    valid = np.any(np.cross(triangles[:, 1] - triangles[:, 0], triangles[:, 2] - triangles[:, 0]) != 0, axis=1)
+    return vertices, faces[valid], origin
 
 
 class PCBGeometry:

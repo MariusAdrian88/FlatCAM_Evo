@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "POT-Creation-Date: 2022-05-17 14:36+0300\n"
-"PO-Revision-Date: 2026-11-06 15:03+0100\n"
+"PO-Revision-Date: 2026-11-07 15:54+0100\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: ro\n"
@@ -92,8 +92,8 @@ msgstr "Titlul sau linkul web există deja în tabel."
 msgid "Bookmark added."
 msgstr "Semn de carte adăugat."
 
-#: Bookmark.py:252 appHandlers/appUIActions.py:562
-#: appHandlers/appUIActions.py:590
+#: Bookmark.py:252 appHandlers/appUIActions.py:471
+#: appHandlers/appUIActions.py:499
 msgid "Backup Site"
 msgstr "Site de rezervă"
 
@@ -121,8 +121,8 @@ msgstr "Semne de carte"
 #: appEditors/geo_plugins/GeoPaintPlugin.py:174
 #: appEditors/geo_plugins/GeoTransformationPlugin.py:221
 #: appEditors/grb_plugins/GrbOperationDialogs.py:81
-#: appEditors/grb_plugins/GrbTransformationPlugin.py:401 appGUI/MainGUI.py:3193
-#: appGUI/MainGUI.py:3311 appGUI/shortcut_actions.py:579
+#: appEditors/grb_plugins/GrbTransformationPlugin.py:401 appGUI/MainGUI.py:3196
+#: appGUI/MainGUI.py:3314 appGUI/shortcut_actions.py:579
 #: appGUI/shortcut_actions.py:735 appGUI/shortcut_actions.py:815
 #: appGUI/shortcut_actions.py:916 appHandlers/appIO.py:652
 #: appHandlers/appIO.py:696 appHandlers/appIO.py:740 appHandlers/appIO.py:765
@@ -137,8 +137,8 @@ msgstr "Semne de carte"
 #: appHandlers/appIO.py:1861 appHandlers/appIO.py:1908
 #: appHandlers/appIO.py:2323 appHandlers/appIO.py:2359
 #: appHandlers/appIO.py:3469 appHandlers/appIO.py:3526
-#: appHandlers/appObjectOps.py:490 appMain.py:1886 appMain.py:1922
-#: appMain.py:3094 appObjects/CNCJobObject.py:905
+#: appHandlers/appObjectOps.py:490 appMain.py:1936 appMain.py:1972
+#: appMain.py:3150 appObjects/CNCJobObject.py:905
 #: appObjects/DocumentObject.py:276 appObjects/ObjectCollection.py:287
 #: appParsers/ParseGerber.py:2800 appParsers/ParseGerber.py:2840
 #: appParsers/ParseGerber.py:2855 appParsers/ParseGerber.py:2872
@@ -147,7 +147,7 @@ msgstr "Semne de carte"
 #: appPlugins/ToolDistance/Distance.py:538 appPlugins/ToolFilm/Film.py:281
 #: appPlugins/ToolFilm/Film.py:328 appPlugins/ToolFollow/Follow.py:355
 #: appPlugins/ToolGcodeSender/Sender.py:4336
-#: appPlugins/ToolImage/ImageImportMixin.py:254
+#: appPlugins/ToolImage/ImageImportMixin.py:256
 #: appPlugins/ToolInvertGerber/InvertGerber.py:254
 #: appPlugins/ToolMarkers/Markers.py:569 appPlugins/ToolMarkers/Markers.py:627
 #: appPlugins/ToolMove/Move.py:356 appPlugins/ToolNCC/Ncc.py:1592
@@ -171,7 +171,7 @@ msgstr "Anulat."
 #: Bookmark.py:317 appEditors/appTextEditor.py:610 appHandlers/appIO.py:2239
 #: appHandlers/appIO.py:2293 appHandlers/appIO.py:2482
 #: appHandlers/appIO.py:2657 appHandlers/appIO.py:2746
-#: appHandlers/appIO.py:4228 appMain.py:3099 appObjects/CNCJobObject.py:1329
+#: appHandlers/appIO.py:4228 appMain.py:3155 appObjects/CNCJobObject.py:1329
 #: appPlugins/Common/levelling_core.py:1745 appPlugins/ToolFilm/Film.py:490
 #: appPlugins/ToolLevelling/Levelling.py:500
 #: appPlugins/ToolSolderPaste/SolderPaste.py:1205
@@ -182,8 +182,8 @@ msgstr ""
 "Permisiune refuzată, salvarea nu este posibilă.\n"
 "Cel mai probabil o altă aplicație ține fișierul deschis și inaccesibil."
 
-#: Bookmark.py:328 Bookmark.py:359 appDatabase.py:2368 defaults.py:1385
-#: defaults.py:1677
+#: Bookmark.py:328 Bookmark.py:359 appDatabase.py:2368 defaults.py:1386
+#: defaults.py:1678
 msgid "Could not load the file."
 msgstr "Nu s-a putut încărca fișierul."
 
@@ -351,12 +351,12 @@ msgstr ""
 #: appGUI/preferences/excellon/ExcellonGenPrefGroupUI.py:27
 #: appGUI/preferences/geometry/GeometryGenPrefGroupUI.py:24
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:26
-#: appHandlers/appUIActions.py:1221
+#: appHandlers/appUIActions.py:1130
 msgid "General"
 msgstr "General"
 
 #: appDatabase.py:145 appDatabase.py:569 appGUI/MainGUI.py:1368
-#: appGUI/MainGUI.py:2622 appGUI/ObjectUI.py:768 appGUI/ObjectUI.py:1044
+#: appGUI/MainGUI.py:2625 appGUI/ObjectUI.py:768 appGUI/ObjectUI.py:1044
 #: appGUI/ToolLibrary.py:14 appGUI/preferences/PreferencesWindow.py:33
 #: appGUI/shortcut_actions.py:160 appPlugins/ToolMilling/Milling.py:304
 #: appPlugins/ToolMilling/Milling.py:306 appPlugins/ToolMilling/Milling.py:325
@@ -365,7 +365,7 @@ msgid "Milling"
 msgstr "Frezare"
 
 #: appDatabase.py:145 appDatabase.py:569 appGUI/MainGUI.py:1366
-#: appGUI/MainGUI.py:2620 appGUI/ObjectUI.py:760 appGUI/ToolLibrary.py:14
+#: appGUI/MainGUI.py:2623 appGUI/ObjectUI.py:760 appGUI/ToolLibrary.py:14
 #: appGUI/preferences/PreferencesWindow.py:32 appGUI/shortcut_actions.py:151
 #: appPlugins/ToolDrilling/Drilling.py:84
 #: appPlugins/ToolDrilling/Drilling.py:228
@@ -375,7 +375,7 @@ msgstr "Găurire"
 
 #: appDatabase.py:146 appDatabase.py:149 appDatabase.py:317 appDatabase.py:569
 #: appDatabase.py:900 appEditors/appGCodeEditor.py:211 appGUI/MainGUI.py:1373
-#: appGUI/MainGUI.py:2627 appGUI/ToolLibrary.py:14
+#: appGUI/MainGUI.py:2630 appGUI/ToolLibrary.py:14
 #: appGUI/preferences/PreferencesWindow.py:44
 #: appGUI/preferences/tools/ToolsNCCPrefGroupUI.py:163
 #: appGUI/shortcut_actions.py:156 appObjects/CNCJobObject.py:306
@@ -389,21 +389,21 @@ msgstr "Izolare"
 #: appEditors/geo_plugins/GeoPaintPlugin.py:269
 #: appEditors/geo_plugins/GeoPaintPlugin.py:384 appGUI/MainGUI.py:855
 #: appGUI/MainGUI.py:1377 appGUI/MainGUI.py:1488 appGUI/MainGUI.py:1936
-#: appGUI/MainGUI.py:2632 appGUI/MainGUI.py:2741 appGUI/ObjectUI.py:1052
+#: appGUI/MainGUI.py:2635 appGUI/MainGUI.py:2744 appGUI/ObjectUI.py:1052
 #: appGUI/ToolLibrary.py:14 appGUI/preferences/PreferencesWindow.py:46
 #: appPlugins/ToolPaint/Paint.py:280 appPlugins/ToolPaint/PaintUI.py:47
 msgid "Paint"
 msgstr "Pictează"
 
 #: appDatabase.py:146 appDatabase.py:569 appGUI/MainGUI.py:1375
-#: appGUI/MainGUI.py:2630 appGUI/ObjectUI.py:417 appGUI/ObjectUI.py:1062
+#: appGUI/MainGUI.py:2633 appGUI/ObjectUI.py:417 appGUI/ObjectUI.py:1062
 #: appGUI/ToolLibrary.py:14 appGUI/preferences/PreferencesWindow.py:45
 #: appPlugins/ToolNCC/Ncc.py:262 appPlugins/ToolNCC/NccUI.py:33
 msgid "NCC"
 msgstr "NCC"
 
 #: appDatabase.py:146 appDatabase.py:569 appGUI/MainGUI.py:1385
-#: appGUI/MainGUI.py:2640 appGUI/ObjectUI.py:388 appGUI/ToolLibrary.py:14
+#: appGUI/MainGUI.py:2643 appGUI/ObjectUI.py:388 appGUI/ToolLibrary.py:14
 #: appGUI/preferences/PreferencesWindow.py:34 appGUI/shortcut_actions.py:61
 #: appPlugins/ToolCutOut/CutOut.py:230 appPlugins/ToolCutOut/CutOutUI.py:22
 msgid "Cutout"
@@ -436,7 +436,7 @@ msgstr "Lustruire"
 #: appEditors/appGeoEditor.py:6033 appEditors/appGeoEditor.py:6043
 #: appEditors/appGeoEditor.py:6112 appEditors/appGeoEditor.py:6426
 #: appGUI/MainGUI.py:800 appGUI/MainGUI.py:1477 appGUI/MainGUI.py:1917
-#: appGUI/MainGUI.py:2732 appPlugins/ToolMilling/MillingUI.py:458
+#: appGUI/MainGUI.py:2735 appPlugins/ToolMilling/MillingUI.py:458
 msgid "Path"
 msgstr "Cale"
 
@@ -544,7 +544,7 @@ msgstr "Parametri de decupare"
 #: appGUI/ObjectUI.py:1511 appGUI/ObjectUI.py:1574 appGUI/ToolLibrary.py:36
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:384
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:387
-#: appHandlers/appUIActions.py:1223 appPlugins/ToolFiducials/FiducialsUI.py:66
+#: appHandlers/appUIActions.py:1132 appPlugins/ToolFiducials/FiducialsUI.py:66
 #: appPlugins/ToolGcodeSender/SenderEcutIO.py:105
 msgid "Name"
 msgstr "Nume"
@@ -636,8 +636,7 @@ msgstr "Operațiune"
 # auto-review 2026-10-09: corrected
 #: appDatabase.py:565
 msgid "The kind of Application Tool where this tool is to be used."
-msgstr ""
-"Tipul de plugin în care se folosește unealta."
+msgstr "Tipul de plugin în care se folosește unealta."
 
 #: appDatabase.py:575
 msgid "Properties for"
@@ -1907,7 +1906,7 @@ msgstr ""
 #: appGUI/ApertureLibrary.py:63
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:396
 #: appGUI/preferences/tools/Tools2CThievingPrefGroupUI.py:356
-#: appHandlers/appUIActions.py:1302
+#: appHandlers/appUIActions.py:1211
 #: appPlugins/ToolCopperThieving/CopperThievingUI.py:319
 #: appPlugins/ToolDblSided/DblSidedUI.py:196
 #: appPlugins/ToolGcodeSender/SenderUI.py:278 appPlugins/ToolNCC/Ncc.py:274
@@ -1942,12 +1941,12 @@ msgstr "Duplică"
 #: appGUI/GUIElements.py:4941 appGUI/MainGUI.py:540 appGUI/MainGUI.py:839
 #: appGUI/MainGUI.py:898 appGUI/MainGUI.py:1024 appGUI/MainGUI.py:1104
 #: appGUI/MainGUI.py:1308 appGUI/MainGUI.py:1457 appGUI/MainGUI.py:1532
-#: appGUI/MainGUI.py:1600 appGUI/MainGUI.py:2018 appGUI/MainGUI.py:2564
-#: appGUI/MainGUI.py:2712 appGUI/MainGUI.py:2776 appGUI/MainGUI.py:2845
+#: appGUI/MainGUI.py:1600 appGUI/MainGUI.py:2018 appGUI/MainGUI.py:2567
+#: appGUI/MainGUI.py:2715 appGUI/MainGUI.py:2779 appGUI/MainGUI.py:2848
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:404
 #: appGUI/shortcut_actions.py:397 appGUI/shortcut_actions.py:626
 #: appGUI/shortcut_actions.py:775 appHandlers/appObjectOps.py:970
-#: appHandlers/appUIActions.py:1304 appPlugins/ToolDrilling/Drilling.py:377
+#: appHandlers/appUIActions.py:1213 appPlugins/ToolDrilling/Drilling.py:377
 #: appPlugins/ToolIsolation/Isolation.py:292
 #: appPlugins/ToolMilling/Milling.py:635 appPlugins/ToolMilling/Milling.py:647
 #: appPlugins/ToolNCC/Ncc.py:280 appPlugins/ToolPaint/Paint.py:294
@@ -1974,7 +1973,7 @@ msgstr "Salvați baza de date Unelte într-un fișier text."
 
 #: appDatabase.py:1726 appEditors/appGerberEditor.py:3446
 #: appGUI/ImportDialog.py:119 appGUI/MainGUI.py:282 appGUI/MainGUI.py:833
-#: appGUI/MainGUI.py:1527 appGUI/MainGUI.py:1591 appGUI/MainGUI.py:2772
+#: appGUI/MainGUI.py:1527 appGUI/MainGUI.py:1591 appGUI/MainGUI.py:2775
 msgid "Import"
 msgstr "Import"
 
@@ -1984,7 +1983,7 @@ msgstr "Încărcați informațiile din baza de date Unelte dintr-un fișier text
 
 #: appDatabase.py:1733 appGUI/ApertureLibrary.py:64 appGUI/MainGUI.py:228
 #: appGUI/MainGUI.py:1106 appGUI/ObjectUI.py:1457
-#: appGUI/preferences/PreferencesWindow.py:519 appMain.py:2703
+#: appGUI/preferences/PreferencesWindow.py:519 appMain.py:2759
 #: appObjects/ObjectCollection.py:640
 msgid "Save"
 msgstr "Salvează"
@@ -2016,7 +2015,7 @@ msgstr ""
 #: appDatabase.py:1752 appDatabase.py:3014 appGUI/GUIElements.py:2976
 #: appGUI/GUIElements.py:3046 appGUI/GUIElements.py:3107
 #: appGUI/GUIElements.py:3172 appGUI/GUIElements.py:4879
-#: appGUI/preferences/PreferencesUIManager.py:1186
+#: appGUI/preferences/PreferencesUIManager.py:1187
 #: appGUI/preferences/PreferencesWindow.py:511
 #: appGUI/preferences/general/GeneralShortcutsGroupUI.py:208
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:426
@@ -2024,7 +2023,7 @@ msgstr ""
 #: appGUI/shortcut_actions.py:980 appGUI/shortcut_actions.py:988
 #: appHandlers/appIO.py:3861 appHandlers/appLifecycle.py:327
 #: appHandlers/appObjectOps.py:955 appHandlers/appProjects.py:555
-#: appMain.py:2709 appMain.py:3458 appObjects/AppObject.py:87
+#: appMain.py:2765 appMain.py:3514 appObjects/AppObject.py:87
 #: appPlugins/ToolGcodeSender/Sender.py:4260
 #: appPlugins/ToolGcodeSender/SenderMotion.py:111
 #: appPlugins/ToolImage/ImageImportMixin.py:189
@@ -2045,7 +2044,7 @@ msgstr "Anulează"
 #: appEditors/grb_plugins/GrbCopyPlugin.py:459
 #: appEditors/grb_plugins/GrbCopyPlugin.py:468
 #: appEditors/grb_plugins/GrbPadArrayPlugin.py:335
-#: appEditors/grb_plugins/GrbPadArrayPlugin.py:344 appGUI/MainGUI.py:3226
+#: appEditors/grb_plugins/GrbPadArrayPlugin.py:344 appGUI/MainGUI.py:3229
 #: appGUI/ObjectUI.py:158 appGUI/ObjectUI.py:169
 #: appPlugins/ToolAlignObjects/AlignUI.py:332
 #: appPlugins/ToolAlignObjects/AlignUI.py:343
@@ -2211,8 +2210,8 @@ msgstr "Înlocuiește biblioteca din fișier…"
 
 #: appDatabase.py:2352 appDatabase.py:2659 appDatabase.py:2869
 #: appDatabase.py:2894 appDatabase.py:2983 appGUI/MainGUI.py:610
-#: appHandlers/appUIActions.py:38 appHandlers/appUIActions.py:51
-#: appHandlers/appUIActions.py:906 appPlugins/ToolCutOut/CutOut.py:595
+#: appHandlers/appUIActions.py:39 appHandlers/appUIActions.py:52
+#: appHandlers/appUIActions.py:815 appPlugins/ToolCutOut/CutOut.py:595
 #: appPlugins/ToolIsolation/Isolation.py:3365
 #: appPlugins/ToolMilling/Milling.py:2620 appPlugins/ToolNCC/Ncc.py:2190
 #: appPlugins/ToolPaint/Paint.py:1981
@@ -2248,7 +2247,7 @@ msgstr "Dia Unealtă"
 
 # auto-review 2026-10-09: corrected
 #: appDatabase.py:2453 appEditors/appExcEditor.py:3657
-#: appEditors/appExcEditor.py:3663 appGUI/MainGUI.py:3223
+#: appEditors/appExcEditor.py:3663 appGUI/MainGUI.py:3226
 #: appObjects/GeometryObject.py:730 appPlugins/ToolDrilling/Drilling.py:2073
 #: appPlugins/ToolIsolation/Isolation.py:1797
 #: appPlugins/ToolMilling/Milling.py:2709
@@ -2391,24 +2390,24 @@ msgstr ""
 "Una sau mai multe unelte au fost modificate.\n"
 "Doriți să salvați?"
 
-#: appDatabase.py:3012 appGUI/MainGUI.py:2495
-#: appGUI/preferences/PreferencesUIManager.py:1185
-#: appGUI/preferences/PreferencesUIManager.py:1362
+#: appDatabase.py:3012 appGUI/MainGUI.py:2498
+#: appGUI/preferences/PreferencesUIManager.py:1186
+#: appGUI/preferences/PreferencesUIManager.py:1363
 #: appGUI/preferences/PreferencesWindow.py:538
 #: appGUI/preferences/general/GeneralGUIPrefGroupUI.py:560
 #: appHandlers/appLifecycle.py:325 appHandlers/appProjects.py:532
-#: appHandlers/appProjects.py:553 appMain.py:2029 appMain.py:2703
+#: appHandlers/appProjects.py:553 appMain.py:2085 appMain.py:2759
 #: appObjects/CNCJobObject.py:893 appPlugins/ToolGcodeSender/Sender.py:4288
 #: appTranslation.py:130
 msgid "Yes"
 msgstr "Da"
 
-#: appDatabase.py:3013 appGUI/MainGUI.py:2496
-#: appGUI/preferences/PreferencesUIManager.py:1363
+#: appDatabase.py:3013 appGUI/MainGUI.py:2499
+#: appGUI/preferences/PreferencesUIManager.py:1364
 #: appGUI/preferences/PreferencesWindow.py:539
 #: appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:300
 #: appHandlers/appLifecycle.py:326 appHandlers/appProjects.py:533
-#: appHandlers/appProjects.py:554 appMain.py:2030 appMain.py:2707
+#: appHandlers/appProjects.py:554 appMain.py:2086 appMain.py:2763
 #: appObjects/CNCJobObject.py:894 appPlugins/ToolDrilling/DrillingUI.py:878
 #: appPlugins/ToolGcodeSender/Sender.py:4289 appTranslation.py:131
 msgid "No"
@@ -2708,8 +2707,8 @@ msgstr "Nu este nimic selectat."
 #: appGUI/MainGUI.py:830 appGUI/MainGUI.py:895 appGUI/MainGUI.py:1021
 #: appGUI/MainGUI.py:1102 appGUI/MainGUI.py:1305 appGUI/MainGUI.py:1455
 #: appGUI/MainGUI.py:1525 appGUI/MainGUI.py:1598 appGUI/MainGUI.py:2016
-#: appGUI/MainGUI.py:2561 appGUI/MainGUI.py:2710 appGUI/MainGUI.py:2770
-#: appGUI/MainGUI.py:2843 appGUI/shortcut_actions.py:643
+#: appGUI/MainGUI.py:2564 appGUI/MainGUI.py:2713 appGUI/MainGUI.py:2773
+#: appGUI/MainGUI.py:2846 appGUI/shortcut_actions.py:643
 #: appGUI/shortcut_actions.py:793 appObjects/ExcellonObject.py:652
 #: appPlugins/ToolDrilling/Drilling.py:373
 #: appPlugins/ToolMilling/Milling.py:632 appPlugins/ToolMilling/Milling.py:643
@@ -2738,7 +2737,7 @@ msgstr "Matrice circulară invalidă."
 #: appGUI/GUIElements.py:1312 appGUI/GUIElements.py:1560
 #: appGUI/GUIElements.py:2066 appGUI/GUIElements.py:2360
 #: appGUI/GUIElements.py:4919 appGUI/MainGUI.py:442 appGUI/MainGUI.py:449
-#: appGUI/MainGUI.py:3132 appGUI/MainGUI.py:3137 appGUI/shortcut_actions.py:98
+#: appGUI/MainGUI.py:3135 appGUI/MainGUI.py:3140 appGUI/shortcut_actions.py:98
 #: appGUI/shortcut_actions.py:370 appGUI/shortcut_actions.py:604
 #: appGUI/shortcut_actions.py:760 appHandlers/appHistory.py:724
 msgid "Undo"
@@ -2748,7 +2747,7 @@ msgstr "Revino"
 #: appGUI/GUIElements.py:1319 appGUI/GUIElements.py:1567
 #: appGUI/GUIElements.py:2073 appGUI/GUIElements.py:2365
 #: appGUI/GUIElements.py:4924 appGUI/MainGUI.py:445 appGUI/MainGUI.py:450
-#: appGUI/MainGUI.py:3133 appGUI/MainGUI.py:3137 appGUI/shortcut_actions.py:99
+#: appGUI/MainGUI.py:3136 appGUI/MainGUI.py:3140 appGUI/shortcut_actions.py:99
 #: appGUI/shortcut_actions.py:100 appGUI/shortcut_actions.py:371
 #: appGUI/shortcut_actions.py:372 appGUI/shortcut_actions.py:605
 #: appGUI/shortcut_actions.py:606 appGUI/shortcut_actions.py:761
@@ -2811,7 +2810,7 @@ msgstr "Nr. Tot. Sloturi"
 #: appPlugins/ToolMarkers/MarkersUI.py:309
 #: appPlugins/ToolMilling/Milling.py:936 appPlugins/ToolNCC/Ncc.py:939
 #: appPlugins/ToolPaint/Paint.py:620 appPlugins/ToolPanelize/PanelizeUI.py:344
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:177
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:179
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:333
 #: appPlugins/ToolQRCode/QRCodeUI.py:383 appPlugins/ToolSub/Sub.py:204
 msgid "Beginner"
@@ -2834,7 +2833,7 @@ msgstr "Începător"
 #: appPlugins/ToolMarkers/MarkersUI.py:325
 #: appPlugins/ToolMilling/Milling.py:947 appPlugins/ToolNCC/Ncc.py:979
 #: appPlugins/ToolPaint/Paint.py:645 appPlugins/ToolPanelize/PanelizeUI.py:354
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:177
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:179
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:338
 #: appPlugins/ToolQRCode/QRCodeUI.py:386 appPlugins/ToolSub/Sub.py:207
 msgid "Advanced"
@@ -3003,7 +3002,7 @@ msgstr "Adaugă elemente"
 #: appEditors/appGeoEditor.py:4175 appEditors/appGerberEditor.py:6321
 #: appEditors/appGerberEditor.py:6325 appEditors/appGerberEditor.py:6383
 #: appGUI/preferences/tools/Tools2sidedPrefGroupUI.py:110
-#: appHandlers/appUIActions.py:1234 appPlugins/ToolDblSided/DblSidedUI.py:176
+#: appHandlers/appUIActions.py:1143 appPlugins/ToolDblSided/DblSidedUI.py:176
 msgid "Snap"
 msgstr "Lipire"
 
@@ -3589,13 +3588,13 @@ msgstr ""
 #: appEditors/appExcEditor.py:6334 appEditors/appGCodeEditor.py:76
 #: appEditors/appGCodeEditor.py:77 appEditors/appGCodeEditor.py:954
 #: appEditors/appGeoEditor.py:4469 appEditors/appGerberEditor.py:8576
-#: appGUI/MainGUI.py:460 appGUI/MainGUI.py:2022 appMain.py:2693
+#: appGUI/MainGUI.py:460 appGUI/MainGUI.py:2022 appMain.py:2749
 msgid "Exit Editor"
 msgstr "Ieșiți din Editor"
 
 #: appEditors/appExcEditor.py:6337 appEditors/appGCodeEditor.py:957
 #: appEditors/appGeoEditor.py:4472 appEditors/appGerberEditor.py:8579
-#: appGUI/MainGUI.py:1299 appGUI/MainGUI.py:2556
+#: appGUI/MainGUI.py:1299 appGUI/MainGUI.py:2559
 msgid "Exit from Editor."
 msgstr "Ieșiți din Editor."
 
@@ -3605,7 +3604,7 @@ msgid "Ctrl+S"
 msgstr "Ctrl+S"
 
 #: appEditors/appGCodeEditor.py:84 appGUI/shortcut_actions.py:66
-#: appMain.py:4229
+#: appMain.py:4285
 msgid "Code Editor"
 msgstr "Editor Cod"
 
@@ -3766,8 +3765,8 @@ msgstr ""
 #: appEditors/appGeoEditor.py:6486 appEditors/grb_plugins/GrbVertices.py:206
 #: appGUI/MainGUI.py:844 appGUI/MainGUI.py:904 appGUI/MainGUI.py:1029
 #: appGUI/MainGUI.py:1461 appGUI/MainGUI.py:1537 appGUI/MainGUI.py:1605
-#: appGUI/MainGUI.py:1958 appGUI/MainGUI.py:2031 appGUI/MainGUI.py:2716
-#: appGUI/MainGUI.py:2782 appGUI/MainGUI.py:2850 appGUI/shortcut_actions.py:65
+#: appGUI/MainGUI.py:1958 appGUI/MainGUI.py:2031 appGUI/MainGUI.py:2719
+#: appGUI/MainGUI.py:2785 appGUI/MainGUI.py:2853 appGUI/shortcut_actions.py:65
 #: appGUI/shortcut_actions.py:657 appGUI/shortcut_actions.py:801
 #: appPlugins/ToolMove/Move.py:37 appPlugins/ToolMove/Move.py:249
 msgid "Move"
@@ -3816,9 +3815,9 @@ msgstr "Aplicați"
 #: appEditors/grb_plugins/GrbVertices.py:214
 #: appEditors/text_editor/find_bar.py:82 appGUI/ApertureLibrary.py:64
 #: appGUI/TitleBar.py:291 appGUI/TitleBar.py:346 appGUI/TitleBar.py:347
-#: appGUI/shortcut_actions.py:1003 appHandlers/appIO.py:3669
-#: appHandlers/appUIActions.py:136 appHandlers/appUIActions.py:476
-#: appHandlers/appUIActions.py:650
+#: appGUI/WelcomeDialog.py:180 appGUI/shortcut_actions.py:1003
+#: appHandlers/appIO.py:3669 appHandlers/appUIActions.py:137
+#: appHandlers/appUIActions.py:385 appHandlers/appUIActions.py:559
 #: appPlugins/ToolGcodeSender/SenderSimulation.py:229
 msgid "Close"
 msgstr "Închide"
@@ -4017,8 +4016,8 @@ msgstr "{n} cercuri redimensionate, {m} forme omise"
 #: appPlugins/ToolNCC/NccGen.py:851 appPlugins/ToolNCC/NccGen.py:853
 #: appPlugins/ToolOptimal/Optimal.py:243 appPlugins/ToolPaint/PaintGen.py:385
 #: appPlugins/ToolPaint/PaintGen.py:387 appPlugins/ToolPanelize/Panelize.py:490
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:375
-#: appPlugins/ToolPhotoCarve/PhotoCarveGen.py:338
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:377
+#: appPlugins/ToolPhotoCarve/PhotoCarveGen.py:346
 #: appPlugins/ToolQRCode/QRCode.py:319 appPlugins/ToolReport/Report.py:111
 #: appPlugins/ToolSolderPaste/SolderPaste.py:930
 #: appPlugins/ToolSolderPaste/SolderPaste.py:946
@@ -4037,8 +4036,8 @@ msgstr ""
 "Operație de geometrie în curs. Așteptați finalizarea, apoi reîncercați."
 
 #: appEditors/appGeoEditor.py:1927 appEditors/appGeoEditor.py:2101
-#: appGUI/MainGUI.py:166 appGUI/MainGUI.py:1852
-#: appGUI/preferences/PreferencesWindow.py:71
+#: appGUI/MainGUI.py:166 appGUI/MainGUI.py:1852 appGUI/WelcomeDialog.py:31
+#: appGUI/WelcomeDialog.py:54 appGUI/preferences/PreferencesWindow.py:71
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:77
 #: appObjects/ObjectCollection.py:398 appPlugins/ToolAlignObjects/AlignUI.py:75
 #: appPlugins/ToolAlignObjects/AlignUI.py:115
@@ -4160,7 +4159,7 @@ msgstr "Segmentul cel mai apropiat"
 
 #: appEditors/appGeoEditor.py:3351 appEditors/appGerberEditor.py:6382
 #: appGUI/preferences/tools/ToolsLevelPrefGroupUI.py:50
-#: appHandlers/appUIActions.py:1229 appPlugins/Common/levelling_ui.py:194
+#: appHandlers/appUIActions.py:1138 appPlugins/Common/levelling_ui.py:194
 msgid "Grid"
 msgstr "Grilă"
 
@@ -4179,7 +4178,7 @@ msgstr "Grilă"
 #: appPlugins/ToolFiducials/FiducialsUI.py:151
 #: appPlugins/ToolGcodeSender/SenderEcutIO.py:223
 #: appPlugins/ToolMilling/MillingUI.py:1228
-#: appPlugins/ToolPCBViewer/PCBViewerUI.py:99
+#: appPlugins/ToolPCBViewer/PCBViewerUI.py:104
 #: appPlugins/ToolReport/ReportUI.py:256 appPlugins/ToolReport/ReportUI.py:259
 #: appPlugins/ToolReport/ReportUI.py:262 appPlugins/ToolReport/ReportUI.py:292
 #: appPlugins/ToolReport/ReportUI.py:299 appPlugins/ToolReport/ReportUI.py:302
@@ -4250,7 +4249,7 @@ msgstr "Selectați trasee care delimitează o arie. Nu s-a modificat nimic."
 
 #: appEditors/appGeoEditor.py:3753 appEditors/appGeoEditor.py:5824
 #: appGUI/MainGUI.py:796 appGUI/MainGUI.py:1479 appGUI/MainGUI.py:1924
-#: appGUI/MainGUI.py:2734 appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:626
+#: appGUI/MainGUI.py:2737 appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:626
 #: appGUI/preferences/tools/ToolsFollowPrefGroupUI.py:60
 #: appGUI/preferences/tools/ToolsISOPrefGroupUI.py:346
 #: appGUI/preferences/tools/ToolsMillPrefGroupUI.py:503
@@ -4679,8 +4678,8 @@ msgstr "Lungime maximă"
 
 #: appEditors/appGeoEditor.py:4430 appEditors/appGerberEditor.py:8260
 #: appGUI/MainGUI.py:968 appGUI/MainGUI.py:1441 appGUI/MainGUI.py:1467
-#: appGUI/MainGUI.py:1543 appGUI/MainGUI.py:2696 appGUI/MainGUI.py:2722
-#: appGUI/MainGUI.py:2788
+#: appGUI/MainGUI.py:1543 appGUI/MainGUI.py:2699 appGUI/MainGUI.py:2725
+#: appGUI/MainGUI.py:2791
 msgid "Select"
 msgstr "Selectează"
 
@@ -4751,7 +4750,7 @@ msgstr ""
 #: appEditors/appGeoEditor.py:5046 appEditors/appGeoEditor.py:5289
 #: appEditors/geo_plugins/GeoCirclePlugin.py:139
 #: appEditors/geo_plugins/GeoCirclePlugin.py:191 appGUI/MainGUI.py:784
-#: appGUI/MainGUI.py:1469 appGUI/MainGUI.py:1922 appGUI/MainGUI.py:2724
+#: appGUI/MainGUI.py:1469 appGUI/MainGUI.py:1922 appGUI/MainGUI.py:2727
 msgid "Circle"
 msgstr "Cerc"
 
@@ -4867,7 +4866,7 @@ msgid "Mode: Center -> Start -> Stop. Click on Center point ..."
 msgstr "Mod: Centru -> Start -> Stop. Click pe punctul de Centru ..."
 
 #: appEditors/appGeoEditor.py:5543 appGUI/MainGUI.py:788 appGUI/MainGUI.py:1471
-#: appGUI/MainGUI.py:1926 appGUI/MainGUI.py:2726
+#: appGUI/MainGUI.py:1926 appGUI/MainGUI.py:2729
 msgid "Arc"
 msgstr "Arc"
 
@@ -4875,7 +4874,7 @@ msgstr "Arc"
 #: appEditors/appGeoEditor.py:5566 appEditors/appGeoEditor.py:5701
 #: appEditors/geo_plugins/GeoRectanglePlugin.py:176
 #: appEditors/geo_plugins/GeoRectanglePlugin.py:228 appGUI/MainGUI.py:792
-#: appGUI/MainGUI.py:1473 appGUI/MainGUI.py:1919 appGUI/MainGUI.py:2728
+#: appGUI/MainGUI.py:1473 appGUI/MainGUI.py:1919 appGUI/MainGUI.py:2731
 msgid "Rectangle"
 msgstr "Dreptunghi"
 
@@ -5014,8 +5013,8 @@ msgstr "Creează o geometrie de tip Bufer ..."
 #: appEditors/grb_plugins/GrbTransformationPlugin.py:178
 #: appEditors/grb_plugins/GrbTransformationPlugin.py:701 appGUI/MainGUI.py:847
 #: appGUI/MainGUI.py:948 appGUI/MainGUI.py:1486 appGUI/MainGUI.py:1583
-#: appGUI/MainGUI.py:1934 appGUI/MainGUI.py:1981 appGUI/MainGUI.py:2739
-#: appGUI/MainGUI.py:2828
+#: appGUI/MainGUI.py:1934 appGUI/MainGUI.py:1981 appGUI/MainGUI.py:2742
+#: appGUI/MainGUI.py:2831
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:258
 #: appGUI/shortcut_actions.py:641 appObjects/GerberObject.py:455
 #: appPlugins/ToolIsolation/Isolation.py:1907
@@ -5106,7 +5105,7 @@ msgstr ""
 
 #: appEditors/appGerberEditor.py:126 appEditors/appGerberEditor.py:157
 #: appGUI/MainGUI.py:925 appGUI/MainGUI.py:1545 appGUI/MainGUI.py:1963
-#: appGUI/MainGUI.py:2790
+#: appGUI/MainGUI.py:2793
 msgid "Pad"
 msgstr "Pad"
 
@@ -5125,7 +5124,7 @@ msgstr ""
 
 #: appEditors/appGerberEditor.py:434 appEditors/appGerberEditor.py:451
 #: appGUI/MainGUI.py:928 appGUI/MainGUI.py:1547 appGUI/MainGUI.py:1965
-#: appGUI/MainGUI.py:2792
+#: appGUI/MainGUI.py:2795
 msgid "Pad Array"
 msgstr "Matrice de paduri"
 
@@ -5151,7 +5150,7 @@ msgid "Select shape(s) and then click ..."
 msgstr "Selectează formele și apoi click ..."
 
 #: appEditors/appGerberEditor.py:880 appGUI/MainGUI.py:810
-#: appGUI/MainGUI.py:1499 appGUI/MainGUI.py:1944 appGUI/MainGUI.py:2752
+#: appGUI/MainGUI.py:1499 appGUI/MainGUI.py:1944 appGUI/MainGUI.py:2755
 msgid "Polygonize"
 msgstr "Poligonizează"
 
@@ -5160,12 +5159,12 @@ msgid "Failed. Nothing selected."
 msgstr "A eșuat. Nu este nimic selectat."
 
 #: appEditors/appGerberEditor.py:968 appGUI/MainGUI.py:934
-#: appGUI/MainGUI.py:1554 appGUI/MainGUI.py:1971 appGUI/MainGUI.py:2799
+#: appGUI/MainGUI.py:1554 appGUI/MainGUI.py:1971 appGUI/MainGUI.py:2802
 msgid "Region"
 msgstr "Regiune"
 
 #: appEditors/appGerberEditor.py:1219 appGUI/MainGUI.py:915
-#: appGUI/MainGUI.py:1567 appGUI/MainGUI.py:2812
+#: appGUI/MainGUI.py:1567 appGUI/MainGUI.py:2815
 msgid "Copper Pour"
 msgstr "Umplere cu cupru"
 
@@ -5197,7 +5196,7 @@ msgstr "Nu mai rămâne cupru în interiorul conturului."
 
 #: appEditors/appGerberEditor.py:1333 appEditors/appGerberEditor.py:1350
 #: appGUI/MainGUI.py:931 appGUI/MainGUI.py:1549 appGUI/MainGUI.py:1969
-#: appGUI/MainGUI.py:2794
+#: appGUI/MainGUI.py:2797
 msgid "Track"
 msgstr "Traseu"
 
@@ -5236,7 +5235,7 @@ msgstr "Simplificați aperturile selectate ..."
 #: appEditors/geo_plugins/GeoSimplificationPlugin.py:206
 #: appEditors/grb_plugins/GrbSimplificationPlugin.py:116 appGUI/MainGUI.py:851
 #: appGUI/MainGUI.py:951 appGUI/MainGUI.py:1585 appGUI/MainGUI.py:1932
-#: appGUI/MainGUI.py:2830 appGUI/ObjectUI.py:1101
+#: appGUI/MainGUI.py:2833 appGUI/ObjectUI.py:1101
 #: appGUI/preferences/tools/ToolsFollowPrefGroupUI.py:104
 #: appGUI/preferences/tools/ToolsNCCPrefGroupUI.py:376
 #: appGUI/preferences/tools/ToolsPaintPrefGroupUI.py:333
@@ -5473,7 +5472,7 @@ msgid "Dim"
 msgstr "Dim"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:5409 appMain.py:4161
+#: appEditors/appGerberEditor.py:5409 appMain.py:4217
 #: appObjects/CNCJobObject.py:788 appObjects/ScriptObject.py:165
 #: appPlugins/ToolLevelling/Levelling.py:506
 msgid "Loading"
@@ -5494,7 +5493,7 @@ msgstr "S-a terminat încărcarea obiectului Gerber în editor."
 
 #: appEditors/appGerberEditor.py:5587 appEditors/appGerberEditor.py:5606
 #: appEditors/appGerberEditor.py:5655 appEditors/appGerberEditor.py:5662
-#: appMain.py:2872
+#: appMain.py:2928
 msgid "The edited content could not be saved. The object is unchanged."
 msgstr "Conținutul editat nu a putut fi salvat. Obiectul nu a fost modificat."
 
@@ -5508,7 +5507,7 @@ msgstr ""
 # auto-review 2026-10-09: corrected
 #: appEditors/appGerberEditor.py:5894 appHandlers/appIO.py:2972
 #: appHandlers/appIO.py:3060 appHandlers/appIO.py:3353
-#: appHandlers/appIO.py:3418 appHandlers/appUIActions.py:961
+#: appHandlers/appIO.py:3418 appHandlers/appUIActions.py:870
 #: appObjects/AppObject.py:411 appObjects/GeometryObject.py:671
 #: appParsers/ParseExcellon.py:386 appPlugins/ToolMilling/Milling.py:3248
 #: appPlugins/ToolPcbWizard/PcbWizard.py:302
@@ -5650,7 +5649,7 @@ msgstr ""
 #: appEditors/appGerberEditor.py:7815 appEditors/appGerberEditor.py:8490
 #: appEditors/geo_plugins/GeoTransformationPlugin.py:704
 #: appEditors/grb_plugins/GrbTransformationPlugin.py:698 appGUI/MainGUI.py:955
-#: appGUI/MainGUI.py:1587 appGUI/MainGUI.py:1983 appGUI/MainGUI.py:2832
+#: appGUI/MainGUI.py:1587 appGUI/MainGUI.py:1983 appGUI/MainGUI.py:2835
 #: appGUI/ObjectUI.py:121 appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:43
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:172
 #: appGUI/shortcut_actions.py:664 appObjects/AppObjectTemplate.py:687
@@ -6031,7 +6030,7 @@ msgid "Material Difference"
 msgstr "Diferență de material"
 
 #: appEditors/appGerberEditor.py:8359 appGUI/MainGUI.py:921
-#: appGUI/MainGUI.py:1578 appGUI/MainGUI.py:2823
+#: appGUI/MainGUI.py:1578 appGUI/MainGUI.py:2826
 msgid "Diff. Keep"
 msgstr "Dif. Păstrează"
 
@@ -6252,7 +6251,7 @@ msgstr "Minihartă"
 
 # auto-review 2026-10-09: corrected
 #: appEditors/appTextEditor.py:474 appEditors/appTextEditor.py:486
-#: appMain.py:4059 appMain.py:4065 appObjects/CNCJobObject.py:742
+#: appMain.py:4115 appMain.py:4121 appObjects/CNCJobObject.py:742
 #: appObjects/CNCJobObject.py:748 appObjects/DocumentObject.py:269
 #: appObjects/DocumentObject.py:274 appPlugins/Common/levelling_core.py:1717
 #: appPlugins/Common/levelling_core.py:1723
@@ -6395,8 +6394,8 @@ msgstr "Mod Colț 5: Unghi liber ..."
 #: appPlugins/ToolPanelize/Panelize.py:79
 #: appPlugins/ToolPcbWizard/PcbWizard.py:83
 #: appPlugins/ToolPcbWizard/PcbWizard.py:92
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:72
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:80
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:74
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:82
 #: appPlugins/ToolPunchGerber/PunchGerber.py:95
 #: appPlugins/ToolPunchGerber/PunchGerber.py:103
 #: appPlugins/ToolQRCode/QRCode.py:85 appPlugins/ToolQRCode/QRCode.py:93
@@ -7154,11 +7153,12 @@ msgstr "Plasează imaginea"
 
 #: appEditors/geo_plugins/GeoImportImagePlugin.py:67
 msgid "Convert the loaded image and place its paths on the canvas."
-msgstr "Convertește imaginea încărcată și plasează-i traseele pe suprafața de lucru."
+msgstr ""
+"Convertește imaginea încărcată și plasează-i traseele pe suprafața de lucru."
 
 # auto-review 2026-10-21: new
 #: appEditors/geo_plugins/GeoImportImagePlugin.py:68 appGUI/MainGUI.py:836
-#: appGUI/MainGUI.py:1529 appGUI/MainGUI.py:2774
+#: appGUI/MainGUI.py:1529 appGUI/MainGUI.py:2777
 #: appPlugins/ToolImage/ImageUI.py:308
 msgid "Import Image"
 msgstr "Import imagine"
@@ -7166,9 +7166,9 @@ msgstr "Import imagine"
 # auto-review 2026-10-21: new
 #: appEditors/geo_plugins/GeoImportImagePlugin.py:107
 #: appPlugins/ToolImage/Image.py:109
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:279
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:288
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:300
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:281
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:290
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:302
 msgid "Load an image first."
 msgstr "Încărcați mai întâi o imagine."
 
@@ -7367,7 +7367,7 @@ msgstr "Nu s-a generat nicio geometrie din textul introdus."
 
 #: appEditors/geo_plugins/GeoTextPlugin.py:244
 #: appEditors/geo_plugins/GeoTextPlugin.py:329 appGUI/MainGUI.py:804
-#: appGUI/MainGUI.py:1482 appGUI/MainGUI.py:1930 appGUI/MainGUI.py:2737
+#: appGUI/MainGUI.py:1482 appGUI/MainGUI.py:1930 appGUI/MainGUI.py:2740
 msgid "Text"
 msgstr "Text"
 
@@ -7435,7 +7435,7 @@ msgstr "Obiect"
 #: appPlugins/ToolMarkers/MarkersUI.py:184 appPlugins/ToolNCC/NccUI.py:571
 #: appPlugins/ToolPaint/PaintUI.py:439
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:219
-#: appPlugins/ToolTransform/TransformUI.py:68 defaults.py:883
+#: appPlugins/ToolTransform/TransformUI.py:68 defaults.py:884
 msgid "Selection"
 msgstr "Selecție"
 
@@ -7951,7 +7951,7 @@ msgstr ""
 
 #: appEditors/geo_plugins/GeoTransformationPlugin.py:1065
 #: appEditors/grb_plugins/GrbTransformationPlugin.py:1057
-#: appGUI/MainGUI.py:1312 appGUI/MainGUI.py:2568
+#: appGUI/MainGUI.py:1312 appGUI/MainGUI.py:2571
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:280
 #: appPlugins/ToolDistance/Distance.py:196
 #: appPlugins/ToolDistance/DistanceUI.py:15
@@ -9109,6 +9109,96 @@ msgstr "Eliminarea ar lăsa prea puține vârfuri pentru un contur valid."
 msgid "The edit would create a zero-length segment."
 msgstr "Editarea ar crea un segment de lungime zero."
 
+# auto-review 2026-10-09: corrected
+#: appGUI/AboutContent.py:38
+msgid ""
+"Permission is hereby granted, free of charge, to any person obtaining a "
+"copy\n"
+"of this software and associated documentation files (the \"Software\"), to "
+"deal\n"
+"in the Software without restriction, including without limitation the "
+"rights\n"
+"to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n"
+"copies of the Software, and to permit persons to whom the Software is\n"
+"furnished to do so, subject to the following conditions:\n"
+"\n"
+"The above copyright notice and this permission notice shall be included in\n"
+"all copies or substantial portions of the Software.\n"
+"\n"
+"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS "
+"OR\n"
+"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n"
+"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL "
+"THE\n"
+"AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n"
+"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING "
+"FROM,\n"
+"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n"
+"THE SOFTWARE."
+msgstr ""
+"Prin prezenta se acordă, gratuit, oricărei persoane care obține o copie\n"
+"a acestui software și a fișierelor de documentație asociate "
+"(„Software-ul”), dreptul de a utiliza\n"
+"Software-ul fără restricții, inclusiv, fără limitare, drepturile\n"
+"de a folosi, copia, modifica, îmbina, publica, distribui, sublicenția "
+"și/sau vinde\n"
+"copii ale Software-ului, precum și de a permite persoanelor cărora le este "
+"furnizat Software-ul\n"
+"să facă acest lucru, cu respectarea următoarelor condiții:\n"
+"\n"
+"Notificarea privind drepturile de autor de mai sus și această notificare de "
+"permisiune vor fi incluse în\n"
+"toate copiile sau porțiunile substanțiale ale Software-ului.\n"
+"\n"
+"SOFTWARE-UL ESTE FURNIZAT „CA ATARE”, FĂRĂ NICIUN FEL DE GARANȚIE, EXPRESĂ "
+"SAU\n"
+"IMPLICITĂ, INCLUSIV, DAR FĂRĂ A SE LIMITA LA, GARANȚIILE DE VANDABILITATE,\n"
+"ADECVARE LA UN ANUMIT SCOP ȘI NEÎNCĂLCARE A DREPTURILOR. ÎN NICIUN CAZ\n"
+"AUTORII SAU DEȚINĂTORII DREPTURILOR DE AUTOR NU VOR FI RĂSPUNZĂTORI PENTRU\n"
+"NICIO PRETENȚIE, DAUNĂ SAU ALTĂ RĂSPUNDERE, FIE ÎNTR-O ACȚIUNE "
+"CONTRACTUALĂ, DELICTUALĂ SAU DE ALTĂ NATURĂ,\n"
+"DECURGÂND DIN SAU ÎN LEGĂTURĂ CU SOFTWARE-UL ORI CU UTILIZAREA SAU ALTE "
+"OPERAȚIUNI\n"
+"CU SOFTWARE-UL."
+
+# auto-review 2026-10-09: format
+#: appGUI/AboutContent.py:58
+msgid ""
+"Some of the icons used are from the following sources:<br><div>Icons by <a "
+"href=\"https://www.flaticon.com/authors/freepik\" "
+"title=\"Freepik\">Freepik</a> from <a href=\"https://www.flaticon.com/\"    "
+"         title=\"Flaticon\">www.flaticon.com</a></div><div>Icons by <a "
+"target=\"_blank\" href=\"https://icons8.com\">Icons8</a></div>Icons by <a "
+"href=\"http://www.onlinewebfonts.com\">oNline Web Fonts</a><div>Icons by <a "
+"href=\"https://www.flaticon.com/authors/pixel-perfect\" title=\"Pixel "
+"perfect\">Pixel perfect</a> from <a href=\"https://www.flaticon.com/\" "
+"title=\"Flaticon\">www.flaticon.com</a></div><div>Icons by <a "
+"href=\"https://www.flaticon.com/authors/anggara\" title=\"Anggara\"> "
+"Anggara </a> from <a href=\"https://www.flaticon.com/\" "
+"title=\"Flaticon\">www.flaticon.com</a></div><div>Icons by <a "
+"href=\"https://www.flaticon.com/authors/kharisma\" title=\"Kharisma\"> "
+"Kharisma </a> from <a href=\"https://www.flaticon.com/\" "
+"title=\"Flaticon\">www.flaticon.com</a></div>"
+msgstr ""
+"Unele dintre pictogramele folosite provin din următoarele "
+"surse:<br><div>Pictograme create de <a "
+"href=\"https://www.flaticon.com/authors/freepik\" "
+"title=\"Freepik\">Freepik</a> de la <a href=\"https://www.flaticon.com/\"   "
+"          title=\"Flaticon\">www.flaticon.com</a></div><div>Pictograme "
+"create de <a target=\"_blank\" "
+"href=\"https://icons8.com\">Icons8</a></div>Pictograme create de <a "
+"href=\"http://www.onlinewebfonts.com\">oNline Web Fonts</a><div>Pictograme "
+"create de <a href=\"https://www.flaticon.com/authors/pixel-perfect\" "
+"title=\"Pixel perfect\">Pixel perfect</a> de la <a "
+"href=\"https://www.flaticon.com/\" "
+"title=\"Flaticon\">www.flaticon.com</a></div><div>Pictograme create de <a "
+"href=\"https://www.flaticon.com/authors/anggara\" title=\"Anggara\"> "
+"Anggara </a> de la <a href=\"https://www.flaticon.com/\" "
+"title=\"Flaticon\">www.flaticon.com</a></div><div>Pictograme create de <a "
+"href=\"https://www.flaticon.com/authors/kharisma\" title=\"Kharisma\"> "
+"Kharisma </a> de la <a href=\"https://www.flaticon.com/\" "
+"title=\"Flaticon\">www.flaticon.com</a></div>"
+
 #: appGUI/ApertureLibrary.py:43
 msgid "Gerber Apertures Database"
 msgstr "Bază de date aperturi Gerber"
@@ -9243,7 +9333,7 @@ msgstr "µm"
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:425
 #: appHandlers/appIO.py:854 appHandlers/appIO.py:930 appHandlers/appIO.py:1291
 #: appHandlers/appIO.py:3860 appHandlers/appObjectOps.py:954
-#: appHandlers/appUIActions.py:781
+#: appHandlers/appUIActions.py:690
 msgid "Ok"
 msgstr "Ok"
 
@@ -9324,11 +9414,11 @@ msgstr "Deplasare manuală pe axa Z."
 
 #: appGUI/GUIElements.py:5451
 msgid "Zero the CNC X axes at current position."
-msgstr "Puneți la zero axa X a CNC în poziția curentă."
+msgstr "Setează axa X CNC la zero în poziția curentă."
 
 #: appGUI/GUIElements.py:5459
 msgid "Zero the CNC Y axes at current position."
-msgstr "Puneți la zero axa Y a CNC în poziția curentă."
+msgstr "Setează axa Y CNC la zero în poziția curentă."
 
 #: appGUI/GUIElements.py:5464
 msgid "Z"
@@ -9336,7 +9426,7 @@ msgstr "Z"
 
 #: appGUI/GUIElements.py:5467
 msgid "Zero the CNC Z axes at current position."
-msgstr "Puneți la zero axa Z a CNC în poziția curentă."
+msgstr "Setează axa Z CNC la zero în poziția curentă."
 
 #: appGUI/GUIElements.py:5471
 msgid "Do Home"
@@ -9344,11 +9434,11 @@ msgstr "Execută homing"
 
 #: appGUI/GUIElements.py:5473
 msgid "Perform a homing cycle on all axis."
-msgstr "Efectuați un ciclu Homing pe toate axele."
+msgstr "Execută un ciclu de referențiere (homing) pe toate axele."
 
 #: appGUI/GUIElements.py:5482
 msgid "Zero all CNC axes at current position."
-msgstr "Puneți la zero toate axele CNC în poziția curentă."
+msgstr "Setează toate axele CNC la zero în poziția curentă."
 
 #: appGUI/GUIElements.py:5641 appGUI/GUIElements.py:5652
 msgid "Idle."
@@ -9415,7 +9505,7 @@ msgid "Open G-Code"
 msgstr "Încarcă G-Code"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/GUIElements.py:5857 appGUI/MainGUI.py:428 appGUI/UpdateDialog.py:224
+#: appGUI/GUIElements.py:5857 appGUI/MainGUI.py:428 appGUI/UpdateDialog.py:303
 msgid "Exit"
 msgstr "Ieșire"
 
@@ -9424,7 +9514,8 @@ msgid "SVG as Geometry"
 msgstr "SVG ca Geometrie"
 
 #: appGUI/ImportDialog.py:29 appGUI/ImportDialog.py:40
-#: appGUI/ImportDialog.py:51
+#: appGUI/ImportDialog.py:51 appGUI/WelcomeDialog.py:31
+#: appGUI/WelcomeDialog.py:266
 msgid "Geometry object"
 msgstr "Obiect Geometrie"
 
@@ -9443,6 +9534,7 @@ msgid "SVG as Gerber"
 msgstr "SVG ca Gerber"
 
 #: appGUI/ImportDialog.py:34 appGUI/ImportDialog.py:45
+#: appGUI/WelcomeDialog.py:43 appGUI/WelcomeDialog.py:267
 msgid "Gerber object"
 msgstr "Obiect Gerber"
 
@@ -9623,7 +9715,7 @@ msgstr "Fișiere vectoriale"
 msgid "Raster Images"
 msgstr "Imagini raster"
 
-#: appGUI/ImportDialog.py:106
+#: appGUI/ImportDialog.py:106 appGUI/WelcomeDialog.py:55
 msgid "PCB Boards"
 msgstr "Plăci PCB"
 
@@ -9678,9 +9770,9 @@ msgstr "Ctrl+N"
 msgid "Will create a new, blank project"
 msgstr "Se va crea un proiect nou, fără conținut"
 
-#: appGUI/MainGUI.py:162 appGUI/MainGUI.py:1850 appMain.py:2767
-#: appObjects/AppObject.py:538 appObjects/ObjectCollection.py:609
-#: appPlugins/ToolCompare/CompareUI.py:68
+#: appGUI/MainGUI.py:162 appGUI/MainGUI.py:1850 appGUI/WelcomeDialog.py:341
+#: appMain.py:2823 appObjects/AppObject.py:538
+#: appObjects/ObjectCollection.py:609 appPlugins/ToolCompare/CompareUI.py:68
 #: appPlugins/ToolGcodeSender/SenderUI.py:270
 msgid "New"
 msgstr "Nou"
@@ -9693,8 +9785,8 @@ msgstr "N"
 msgid "Will create a new, empty Geometry Object."
 msgstr "Va crea un obiect nou de tip Geometrie, fără conținut."
 
-#: appGUI/MainGUI.py:171 appGUI/MainGUI.py:1267 appGUI/MainGUI.py:2522
-#: appGUI/preferences/PreferencesWindow.py:69
+#: appGUI/MainGUI.py:171 appGUI/MainGUI.py:1267 appGUI/MainGUI.py:2525
+#: appGUI/WelcomeDialog.py:40 appGUI/preferences/PreferencesWindow.py:69
 #: appGUI/preferences/geometry/GeometryExpPrefGroupUI.py:66
 #: appGUI/preferences/tools/ToolsPanelizePrefGroupUI.py:95
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:75
@@ -9723,7 +9815,7 @@ msgstr "Va crea un obiect nou de tip Geometrie, fără conținut."
 #: appPlugins/ToolPanelize/PanelizeUI.py:234
 #: appPlugins/ToolRulesCheck/RulesCheckUI.py:68 appPlugins/ToolSub/SubUI.py:75
 #: appPlugins/ToolTransform/Transform.py:170
-#: appPlugins/ToolTransform/TransformUI.py:96 defaults.py:884
+#: appPlugins/ToolTransform/TransformUI.py:96 defaults.py:885
 msgid "Gerber"
 msgstr "Gerber"
 
@@ -9736,7 +9828,8 @@ msgid "Will create a new, empty Gerber Object."
 msgstr "Va crea un obiect nou de tip Gerber, fără conținut."
 
 #: appGUI/MainGUI.py:176 appGUI/MainGUI.py:1270 appGUI/MainGUI.py:1856
-#: appGUI/MainGUI.py:2525 appGUI/preferences/PreferencesWindow.py:70
+#: appGUI/MainGUI.py:2528 appGUI/WelcomeDialog.py:45
+#: appGUI/preferences/PreferencesWindow.py:70
 #: appGUI/preferences/tools/Tools2PunchGerberPrefGroupUI.py:100
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:76
 #: appObjects/ObjectCollection.py:397 appPlugins/ToolAlignObjects/AlignUI.py:74
@@ -9795,7 +9888,8 @@ msgstr "Încarcă configurația"
 msgid "Recent projects"
 msgstr "Proiectele recente"
 
-#: appGUI/MainGUI.py:225
+#: appGUI/MainGUI.py:225 appGUI/WelcomeDialog.py:271
+#: appGUI/WelcomeDialog.py:282
 msgid "Recent files"
 msgstr "Fișierele Recente"
 
@@ -9816,11 +9910,11 @@ msgstr "Ctrl+Shift+S"
 msgid "Scripting"
 msgstr "Scripturi"
 
-#: appGUI/MainGUI.py:257 appGUI/MainGUI.py:1356 appGUI/MainGUI.py:2610
+#: appGUI/MainGUI.py:257 appGUI/MainGUI.py:1356 appGUI/MainGUI.py:2613
 msgid "New Script"
 msgstr "Script nou"
 
-#: appGUI/MainGUI.py:259 appGUI/MainGUI.py:1358 appGUI/MainGUI.py:2612
+#: appGUI/MainGUI.py:259 appGUI/MainGUI.py:1358 appGUI/MainGUI.py:2615
 msgid "Open Script"
 msgstr "Încarcă Script"
 
@@ -9828,7 +9922,7 @@ msgstr "Încarcă Script"
 msgid "Open Example"
 msgstr "Deschideți exemplul"
 
-#: appGUI/MainGUI.py:265 appGUI/MainGUI.py:1360 appGUI/MainGUI.py:2614
+#: appGUI/MainGUI.py:265 appGUI/MainGUI.py:1360 appGUI/MainGUI.py:2617
 msgid "Run Script"
 msgstr "Rulează TCL script"
 
@@ -9955,7 +10049,7 @@ msgid "Export Preferences to file"
 msgstr "Exportați Preferințele într-un fișier"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:412 appGUI/preferences/PreferencesUIManager.py:1353
+#: appGUI/MainGUI.py:412 appGUI/preferences/PreferencesUIManager.py:1354
 msgid "Save Preferences"
 msgstr "Salvează Preferințele"
 
@@ -9968,7 +10062,7 @@ msgid "Ctrl+P"
 msgstr "Ctrl+P"
 
 #: appGUI/MainGUI.py:439 appGUI/MainGUI.py:1100 appGUI/MainGUI.py:2020
-#: appMain.py:2431 appMain.py:2788 appObjects/ObjectCollection.py:641
+#: appMain.py:2487 appMain.py:2844 appObjects/ObjectCollection.py:641
 msgid "Edit"
 msgstr "Editează"
 
@@ -10077,7 +10171,7 @@ msgstr "DEL"
 msgid "Num Move"
 msgstr "Mutare numerică"
 
-#: appGUI/MainGUI.py:549 appGUI/MainGUI.py:1318 appGUI/MainGUI.py:2574
+#: appGUI/MainGUI.py:549 appGUI/MainGUI.py:1318 appGUI/MainGUI.py:2577
 #: appGUI/shortcut_actions.py:209 appHandlers/appObjectOps.py:417
 msgid "Set Origin"
 msgstr "Setează Originea"
@@ -10222,7 +10316,7 @@ msgstr "Alt+4"
 
 # auto-review 2026-10-09: corrected
 #: appGUI/MainGUI.py:648 appGUI/MainGUI.py:1346 appGUI/MainGUI.py:1842
-#: appGUI/MainGUI.py:2602 appGUI/shortcut_actions.py:217
+#: appGUI/MainGUI.py:2605 appGUI/shortcut_actions.py:217
 #: appGUI/shortcut_actions.py:405 appGUI/shortcut_actions.py:668
 #: appGUI/shortcut_actions.py:785
 msgid "Zoom Fit"
@@ -10233,7 +10327,7 @@ msgid "V"
 msgstr "V"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:651 appGUI/MainGUI.py:1342 appGUI/MainGUI.py:2598
+#: appGUI/MainGUI.py:651 appGUI/MainGUI.py:1342 appGUI/MainGUI.py:2601
 #: appGUI/shortcut_actions.py:220 appGUI/shortcut_actions.py:401
 #: appGUI/shortcut_actions.py:632 appGUI/shortcut_actions.py:779
 #: appGUI/shortcut_actions.py:997
@@ -10245,7 +10339,7 @@ msgid "="
 msgstr "="
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:654 appGUI/MainGUI.py:1344 appGUI/MainGUI.py:2600
+#: appGUI/MainGUI.py:654 appGUI/MainGUI.py:1344 appGUI/MainGUI.py:2603
 #: appGUI/shortcut_actions.py:223 appGUI/shortcut_actions.py:400
 #: appGUI/shortcut_actions.py:630 appGUI/shortcut_actions.py:778
 #: appGUI/shortcut_actions.py:998
@@ -10361,7 +10455,7 @@ msgid "Plugins"
 msgstr "Plugin-uri"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:717 appGUI/MainGUI.py:1354 appGUI/MainGUI.py:2608
+#: appGUI/MainGUI.py:717 appGUI/MainGUI.py:1354 appGUI/MainGUI.py:2611
 msgid "Command Line"
 msgstr "Linie de comandă"
 
@@ -10392,8 +10486,8 @@ msgstr "Verifică actualizările"
 msgid "Revert to Previous Version"
 msgstr "Revino la versiunea anterioară"
 
-#: appGUI/MainGUI.py:739 appHandlers/appUIActions.py:606
-#: appHandlers/appUIActions.py:615
+#: appGUI/MainGUI.py:739 appHandlers/appUIActions.py:515
+#: appHandlers/appUIActions.py:524
 msgid "Bookmarks Manager"
 msgstr "Manager de semne de carte"
 
@@ -10436,11 +10530,12 @@ msgid "Donate"
 msgstr "Donează"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:770 appHandlers/appUIActions.py:425
+#: appGUI/MainGUI.py:770 appHandlers/appUIActions.py:334
 msgid "How To"
 msgstr "Ghiduri practice"
 
-#: appGUI/MainGUI.py:774 appHandlers/appUIActions.py:110
+#: appGUI/MainGUI.py:774 appGUI/WelcomeDialog.py:320
+#: appHandlers/appUIActions.py:111
 msgid "About"
 msgstr "Despre"
 
@@ -10466,7 +10561,7 @@ msgid "T"
 msgstr "T"
 
 #: appGUI/MainGUI.py:808 appGUI/MainGUI.py:1494 appGUI/MainGUI.py:1942
-#: appGUI/MainGUI.py:2747 appGUI/preferences/tools/ToolsFollowPrefGroupUI.py:90
+#: appGUI/MainGUI.py:2750 appGUI/preferences/tools/ToolsFollowPrefGroupUI.py:90
 #: appPlugins/ToolFollow/FollowUI.py:145
 msgid "Union"
 msgstr "Uniune"
@@ -10476,21 +10571,21 @@ msgid "U"
 msgstr "U"
 
 #: appGUI/MainGUI.py:813 appGUI/MainGUI.py:1507 appGUI/MainGUI.py:1946
-#: appGUI/MainGUI.py:2760
+#: appGUI/MainGUI.py:2763
 msgid "Intersection"
 msgstr "Intersecție"
 
 #: appGUI/MainGUI.py:816 appGUI/MainGUI.py:1509 appGUI/MainGUI.py:1948
-#: appGUI/MainGUI.py:2762
+#: appGUI/MainGUI.py:2765
 msgid "Subtraction"
 msgstr "Scădere"
 
 #: appGUI/MainGUI.py:820 appGUI/MainGUI.py:1515 appGUI/MainGUI.py:1950
-#: appGUI/MainGUI.py:2764
+#: appGUI/MainGUI.py:2767
 msgid "Alt Subtraction"
 msgstr "Scădere alternativă"
 
-#: appGUI/MainGUI.py:825 appGUI/MainGUI.py:1523 appGUI/MainGUI.py:2768
+#: appGUI/MainGUI.py:825 appGUI/MainGUI.py:1523 appGUI/MainGUI.py:2771
 msgid "Cut Path"
 msgstr "Taie Cale"
 
@@ -10508,7 +10603,7 @@ msgstr "I"
 
 #: appGUI/MainGUI.py:859 appGUI/MainGUI.py:964 appGUI/MainGUI.py:1534
 #: appGUI/MainGUI.py:1602 appGUI/MainGUI.py:1954 appGUI/MainGUI.py:1991
-#: appGUI/MainGUI.py:2778 appGUI/MainGUI.py:2847
+#: appGUI/MainGUI.py:2781 appGUI/MainGUI.py:2850
 #: appGUI/preferences/PreferencesWindow.py:38 appGUI/shortcut_actions.py:167
 #: appHandlers/appObjectOps.py:216 appHandlers/appObjectOps.py:276
 #: appHandlers/appObjectOps.py:329
@@ -10539,24 +10634,24 @@ msgstr "W"
 
 # auto-review 2026-10-09: corrected
 #: appGUI/MainGUI.py:891 appGUI/MainGUI.py:1451 appGUI/MainGUI.py:2013
-#: appGUI/MainGUI.py:2702 appGUI/shortcut_actions.py:808
+#: appGUI/MainGUI.py:2705 appGUI/shortcut_actions.py:808
 msgid "Resize Drill"
 msgstr "Redimensionare gaură"
 
-#: appGUI/MainGUI.py:913 appGUI/MainGUI.py:1563 appGUI/MainGUI.py:2808
+#: appGUI/MainGUI.py:913 appGUI/MainGUI.py:1563 appGUI/MainGUI.py:2811
 msgid "Rect. Reg"
 msgstr "Reg. dreptunghi"
 
-#: appGUI/MainGUI.py:917 appGUI/MainGUI.py:1570 appGUI/MainGUI.py:2815
+#: appGUI/MainGUI.py:917 appGUI/MainGUI.py:1570 appGUI/MainGUI.py:2818
 msgid "Text Reg"
 msgstr "Reg. text"
 
-#: appGUI/MainGUI.py:919 appGUI/MainGUI.py:1574 appGUI/MainGUI.py:2819
+#: appGUI/MainGUI.py:919 appGUI/MainGUI.py:1574 appGUI/MainGUI.py:2822
 msgid "Arc Follow"
 msgstr "Urmărire arc"
 
 #: appGUI/MainGUI.py:939 appGUI/MainGUI.py:1556 appGUI/MainGUI.py:1973
-#: appGUI/MainGUI.py:2801
+#: appGUI/MainGUI.py:2804
 msgid "Poligonize"
 msgstr "Poligonizare"
 
@@ -10565,17 +10660,17 @@ msgid "Alt+N"
 msgstr "Alt+N"
 
 #: appGUI/MainGUI.py:942 appGUI/MainGUI.py:1559 appGUI/MainGUI.py:1975
-#: appGUI/MainGUI.py:2804
+#: appGUI/MainGUI.py:2807
 msgid "SemiDisc"
 msgstr "Semidisc"
 
 #: appGUI/MainGUI.py:945 appGUI/MainGUI.py:1561 appGUI/MainGUI.py:1977
-#: appGUI/MainGUI.py:2806
+#: appGUI/MainGUI.py:2809
 msgid "Disc"
 msgstr "Disc"
 
 #: appGUI/MainGUI.py:958 appGUI/MainGUI.py:1589 appGUI/MainGUI.py:1985
-#: appGUI/MainGUI.py:2834
+#: appGUI/MainGUI.py:2837
 msgid "Mark Area"
 msgstr "Marc. aria"
 
@@ -10585,8 +10680,8 @@ msgstr "Alt+A"
 
 # auto-review 2026-10-09: corrected
 #: appGUI/MainGUI.py:961 appGUI/MainGUI.py:1490 appGUI/MainGUI.py:1594
-#: appGUI/MainGUI.py:1938 appGUI/MainGUI.py:1987 appGUI/MainGUI.py:2743
-#: appGUI/MainGUI.py:2839
+#: appGUI/MainGUI.py:1938 appGUI/MainGUI.py:1987 appGUI/MainGUI.py:2746
+#: appGUI/MainGUI.py:2842
 msgid "Eraser"
 msgstr "Ștergere selectivă"
 
@@ -10744,7 +10839,7 @@ msgid "PNG"
 msgstr "PNG"
 
 #: appGUI/MainGUI.py:1128 appGUI/MainGUI.py:1496 appGUI/MainGUI.py:1551
-#: appGUI/MainGUI.py:2749 appGUI/MainGUI.py:2796
+#: appGUI/MainGUI.py:2752 appGUI/MainGUI.py:2799
 msgid "Join"
 msgstr "Unește"
 
@@ -10762,15 +10857,16 @@ msgstr "Ca Geometrie"
 
 # auto-review 2026-10-09: corrected
 #: appGUI/MainGUI.py:1138 appGUI/MainGUI.py:1151 appGUI/MainGUI.py:1760
-#: appGUI/MainGUI.py:2033 appHandlers/appUIActions.py:1178 appMain.py:2570
-#: appMain.py:2952
+#: appGUI/MainGUI.py:2033 appHandlers/appUIActions.py:1087 appMain.py:2626
+#: appMain.py:3008
 msgid "Properties"
 msgstr "Proprietăți"
 
 #: appGUI/MainGUI.py:1151 appGUI/MainGUI.py:1744 appGUI/MainGUI.py:1859
+#: appGUI/WelcomeDialog.py:29 appGUI/WelcomeDialog.py:54
 #: appGUI/preferences/general/GeneralShortcutsGroupUI.py:291
-#: appHandlers/appIO.py:1846 appHandlers/appProjects.py:71 appMain.py:2576
-#: appMain.py:2956
+#: appHandlers/appIO.py:1846 appHandlers/appProjects.py:71 appMain.py:2632
+#: appMain.py:3012
 msgid "Project"
 msgstr "Proiect"
 
@@ -10825,99 +10921,99 @@ msgid "Status Toolbar"
 msgstr "Bara de instrumente de Stare"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:1268 appGUI/MainGUI.py:2523
+#: appGUI/MainGUI.py:1268 appGUI/MainGUI.py:2526
 msgid "Open a Gerber file."
 msgstr "Încarcă un fișier Gerber."
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:1271 appGUI/MainGUI.py:2526
+#: appGUI/MainGUI.py:1271 appGUI/MainGUI.py:2529
 msgid "Open a Excellon file."
 msgstr "Încarcă un fișier Excellon."
 
-#: appGUI/MainGUI.py:1278 appGUI/MainGUI.py:2533 appGUI/ObjectUI.py:1633
+#: appGUI/MainGUI.py:1278 appGUI/MainGUI.py:2536 appGUI/ObjectUI.py:1633
 #: appGUI/preferences/cncjob/CNCJobEditorPrefGroupUI.py:22
 #: appGUI/preferences/excellon/ExcellonEditorPrefGroupUI.py:18
 #: appGUI/preferences/geometry/GeometryEditorPrefGroupUI.py:21
-#: appGUI/preferences/gerber/GerberEditorPrefGroupUI.py:22 appMain.py:2573
-#: appMain.py:2950
+#: appGUI/preferences/gerber/GerberEditorPrefGroupUI.py:22 appMain.py:2629
+#: appMain.py:3006
 msgid "Editor"
 msgstr "Editor"
 
-#: appGUI/MainGUI.py:1283 appGUI/MainGUI.py:2538
+#: appGUI/MainGUI.py:1283 appGUI/MainGUI.py:2541
 msgid "Exit Edit"
 msgstr "Ieși din editare"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:1306 appGUI/MainGUI.py:2562
+#: appGUI/MainGUI.py:1306 appGUI/MainGUI.py:2565
 msgid "Copy a selection of objects."
 msgstr "Copiază obiectele selectate."
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:1309 appGUI/MainGUI.py:2565
+#: appGUI/MainGUI.py:1309 appGUI/MainGUI.py:2568
 msgid "Delete a selection of objects."
 msgstr "Șterge obiectele selectate."
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:1313 appGUI/MainGUI.py:2569
+#: appGUI/MainGUI.py:1313 appGUI/MainGUI.py:2572
 msgid "Measure a distance between two or more points."
 msgstr "Măsoară distanța dintre două sau mai multe puncte."
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:1319 appGUI/MainGUI.py:2575
+#: appGUI/MainGUI.py:1319 appGUI/MainGUI.py:2578
 msgid "Set an origin to a custom location."
 msgstr "Setează originea într-o locație personalizată."
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:1328 appGUI/MainGUI.py:2584
+#: appGUI/MainGUI.py:1328 appGUI/MainGUI.py:2587
 msgid "Jump to"
 msgstr "Sari la"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:1329 appGUI/MainGUI.py:2585
+#: appGUI/MainGUI.py:1329 appGUI/MainGUI.py:2588
 msgid "Move the mouse cursor to a defined position and center into view."
 msgstr ""
 "Mută cursorul mouse-ului într-o poziție definită și centrează vizualizarea "
 "pe ea."
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:1331 appGUI/MainGUI.py:2587
+#: appGUI/MainGUI.py:1331 appGUI/MainGUI.py:2590
 msgid "Locate"
 msgstr "Localizează"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:1332 appGUI/MainGUI.py:2588
+#: appGUI/MainGUI.py:1332 appGUI/MainGUI.py:2591
 msgid "Locate a predefined position on a selected object."
 msgstr "Localizează o poziție predefinită pe obiectul selectat."
 
-#: appGUI/MainGUI.py:1338 appGUI/MainGUI.py:1846 appGUI/MainGUI.py:2594
+#: appGUI/MainGUI.py:1338 appGUI/MainGUI.py:1846 appGUI/MainGUI.py:2597
 msgid "Replot"
 msgstr "Reafișare"
 
-#: appGUI/MainGUI.py:1340 appGUI/MainGUI.py:1844 appGUI/MainGUI.py:2596
+#: appGUI/MainGUI.py:1340 appGUI/MainGUI.py:1844 appGUI/MainGUI.py:2599
 msgid "Clear Plot"
 msgstr "Șterge Afișare"
 
-#: appGUI/MainGUI.py:1379 appGUI/MainGUI.py:2634
+#: appGUI/MainGUI.py:1379 appGUI/MainGUI.py:2637
 msgid "Carve"
 msgstr "Gravează"
 
-#: appGUI/MainGUI.py:1380 appGUI/MainGUI.py:2635
+#: appGUI/MainGUI.py:1380 appGUI/MainGUI.py:2638
 msgid "Carve a loaded picture into a material."
 msgstr "Gravează imaginea încărcată într-un material."
 
-#: appGUI/MainGUI.py:1387 appGUI/MainGUI.py:2642
+#: appGUI/MainGUI.py:1387 appGUI/MainGUI.py:2645
 #: appGUI/preferences/tools/ToolsCutoutPrefGroupUI.py:118
 #: appPlugins/ToolCutOut/CutOutUI.py:85
 msgid "Panel"
 msgstr "Panel"
 
-#: appGUI/MainGUI.py:1389 appGUI/MainGUI.py:2644 appGUI/ObjectUI.py:403
+#: appGUI/MainGUI.py:1389 appGUI/MainGUI.py:2647 appGUI/ObjectUI.py:403
 #: appGUI/preferences/PreferencesWindow.py:35 appPlugins/ToolFilm/Film.py:118
 #: appPlugins/ToolFilm/FilmUI.py:19
 msgid "Film"
 msgstr "Film"
 
-#: appGUI/MainGUI.py:1391 appGUI/MainGUI.py:2646
+#: appGUI/MainGUI.py:1391 appGUI/MainGUI.py:2649
 #: appGUI/preferences/PreferencesWindow.py:48 appGUI/shortcut_actions.py:53
 #: appPlugins/ToolDblSided/DblSided.py:203
 #: appPlugins/ToolDblSided/DblSidedUI.py:16
@@ -10925,11 +11021,11 @@ msgid "2-Sided"
 msgstr "2-fețe"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:1396 appGUI/MainGUI.py:2651
+#: appGUI/MainGUI.py:1396 appGUI/MainGUI.py:2654
 msgid "Align"
 msgstr "Aliniere"
 
-#: appGUI/MainGUI.py:1403 appGUI/MainGUI.py:2658
+#: appGUI/MainGUI.py:1403 appGUI/MainGUI.py:2661
 #: appGUI/preferences/tools/Tools2CThievingPrefGroupUI.py:361
 #: appPlugins/ToolCopperThieving/CopperThieving.py:509
 #: appPlugins/ToolCopperThieving/CopperThieving.py:521
@@ -10939,7 +11035,7 @@ msgid "Thieving"
 msgstr "Echilibrare cupru"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:1405 appGUI/MainGUI.py:2660
+#: appGUI/MainGUI.py:1405 appGUI/MainGUI.py:2663
 #: appGUI/preferences/PreferencesWindow.py:40 appGUI/shortcut_actions.py:55
 #: appGUI/shortcut_actions.py:149 appPlugins/ToolMarkers/Markers.py:152
 #: appPlugins/ToolMarkers/MarkersUI.py:16
@@ -10951,7 +11047,7 @@ msgstr "Marcaje"
 msgid "Punch"
 msgstr "Perforare"
 
-#: appGUI/MainGUI.py:1409 appGUI/MainGUI.py:2664
+#: appGUI/MainGUI.py:1409 appGUI/MainGUI.py:2667
 #: appGUI/preferences/PreferencesWindow.py:37 appGUI/shortcut_actions.py:150
 #: appPlugins/ToolCalculators/Calculator.py:86
 #: appPlugins/ToolCalculators/CalculatorUI.py:22
@@ -10959,32 +11055,32 @@ msgid "Calculators"
 msgstr "Calculatoare"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:1443 appGUI/MainGUI.py:2698 appGUI/shortcut_actions.py:796
+#: appGUI/MainGUI.py:1443 appGUI/MainGUI.py:2701 appGUI/shortcut_actions.py:796
 msgid "Add Drill"
 msgstr "Adaugă gaură"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:1445 appGUI/MainGUI.py:2700 appGUI/shortcut_actions.py:790
+#: appGUI/MainGUI.py:1445 appGUI/MainGUI.py:2703 appGUI/shortcut_actions.py:790
 msgid "Add Drill Array"
 msgstr "Adaugă o matrice de găuri"
 
-#: appGUI/MainGUI.py:1447 appGUI/MainGUI.py:2704 appGUI/shortcut_actions.py:786
+#: appGUI/MainGUI.py:1447 appGUI/MainGUI.py:2707 appGUI/shortcut_actions.py:786
 msgid "Add Slot"
 msgstr "Adaugă slot"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:1449 appGUI/MainGUI.py:2706 appGUI/shortcut_actions.py:805
+#: appGUI/MainGUI.py:1449 appGUI/MainGUI.py:2709 appGUI/shortcut_actions.py:805
 msgid "Add Slot Array"
 msgstr "Adaugă o matrice de sloturi"
 
-#: appGUI/MainGUI.py:1497 appGUI/MainGUI.py:2750
+#: appGUI/MainGUI.py:1497 appGUI/MainGUI.py:2753
 msgid ""
 "Join selected lines into polylines. Uses the Join tolerance in Properties."
 msgstr ""
 "Unește liniile selectate în polilinii. Folosește toleranța de unire din "
 "Proprietăți."
 
-#: appGUI/MainGUI.py:1501 appGUI/MainGUI.py:2754
+#: appGUI/MainGUI.py:1501 appGUI/MainGUI.py:2757
 msgid ""
 "Create polygons from selected closed paths or enclosing segments.\n"
 "Unused open segments are kept. Endpoints must meet exactly."
@@ -10995,7 +11091,7 @@ msgstr ""
 "întâlnească exact."
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:1504 appGUI/MainGUI.py:2757
+#: appGUI/MainGUI.py:1504 appGUI/MainGUI.py:2760
 msgid "Explode"
 msgstr "Descompunere"
 
@@ -11020,23 +11116,23 @@ msgstr ""
 "Restul de forme selectate se scad din prima.\n"
 "Prima formă selectată este păstrată pe lângă rezultat."
 
-#: appGUI/MainGUI.py:1552 appGUI/MainGUI.py:2797
+#: appGUI/MainGUI.py:1552 appGUI/MainGUI.py:2800
 msgid "Join selected connected track sections into one track."
 msgstr "Unește secțiunile conectate de traseu selectate într-un singur traseu."
 
-#: appGUI/MainGUI.py:1564 appGUI/MainGUI.py:2809
+#: appGUI/MainGUI.py:1564 appGUI/MainGUI.py:2812
 msgid "Rectangular Region"
 msgstr "Regiune dreptunghiulară"
 
-#: appGUI/MainGUI.py:1571 appGUI/MainGUI.py:2816
+#: appGUI/MainGUI.py:1571 appGUI/MainGUI.py:2819
 msgid "Text Region"
 msgstr "Regiune de text"
 
-#: appGUI/MainGUI.py:1575 appGUI/MainGUI.py:2820
+#: appGUI/MainGUI.py:1575 appGUI/MainGUI.py:2823
 msgid "Arc: Circular Follow"
 msgstr "Arc: Urmărire circulară"
 
-#: appGUI/MainGUI.py:1579 appGUI/MainGUI.py:2824
+#: appGUI/MainGUI.py:1579 appGUI/MainGUI.py:2827
 msgid "Difference: Keep Cutters"
 msgstr "Diferență: păstrează formele de scădere"
 
@@ -11119,10 +11215,10 @@ msgstr "Consolă Tcl"
 msgid "GCode Console"
 msgstr "Consolă GCode"
 
-#: appGUI/MainGUI.py:1790 appGUI/MainGUI.py:1798 appGUI/MainGUI.py:3052
-#: appGUI/MainGUI.py:3058
+#: appGUI/MainGUI.py:1790 appGUI/MainGUI.py:1798 appGUI/MainGUI.py:3055
+#: appGUI/MainGUI.py:3061
 #: appGUI/preferences/general/GeneralShortcutsGroupUI.py:289
-#: appHandlers/appIO.py:1549 appMain.py:2959
+#: appHandlers/appIO.py:1549 appMain.py:3015
 msgid "Plot Area"
 msgstr "Arie Afișare"
 
@@ -11167,24 +11263,24 @@ msgstr "Proiect nou - Nu a fost salvat"
 msgid "Untitled"
 msgstr "Fără nume"
 
-#: appGUI/MainGUI.py:2370
+#: appGUI/MainGUI.py:2373
 msgid "Detachable Tabs"
 msgstr "Taburi detașabile"
 
-#: appGUI/MainGUI.py:2475
+#: appGUI/MainGUI.py:2478
 msgid "FlatCAM Preferences Folder opened."
 msgstr "Folderul de preferințe FlatCAM a fost deschis."
 
-#: appGUI/MainGUI.py:2487 appGUI/preferences/PreferencesWindow.py:500
+#: appGUI/MainGUI.py:2490 appGUI/preferences/PreferencesWindow.py:500
 msgid "Clear GUI Settings"
 msgstr "Șterge setările GUI"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:2488
+#: appGUI/MainGUI.py:2491
 msgid "Are you sure you want to delete the GUI Settings? \n"
 msgstr "Ești sigur că dorești să ștergi setările GUI? \n"
 
-#: appGUI/MainGUI.py:2662 appGUI/preferences/PreferencesWindow.py:57
+#: appGUI/MainGUI.py:2665 appGUI/preferences/PreferencesWindow.py:57
 #: appGUI/shortcut_actions.py:155 appPlugins/ToolPunchGerber/PunchGerber.py:57
 #: appPlugins/ToolPunchGerber/PunchGerber.py:210
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:16
@@ -11192,24 +11288,24 @@ msgstr "Ești sigur că dorești să ștergi setările GUI? \n"
 msgid "Punch Gerber"
 msgstr "Perforează Gerber"
 
-#: appGUI/MainGUI.py:2836
+#: appGUI/MainGUI.py:2839
 msgid "Import Shape"
 msgstr "Importați Forma"
 
-#: appGUI/MainGUI.py:2871
+#: appGUI/MainGUI.py:2874
 msgid "Key Shortcut List"
 msgstr "Lista scurtăturilor de tastatură"
 
-#: appGUI/MainGUI.py:3211
+#: appGUI/MainGUI.py:3214
 msgid "Go to Line ..."
 msgstr "Mergi la Linia ..."
 
-#: appGUI/MainGUI.py:3212 appPlugins/ToolGcodeSender/Sender.py:383
+#: appGUI/MainGUI.py:3215 appPlugins/ToolGcodeSender/Sender.py:383
 msgid "Line"
 msgstr "Linie"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:3324
+#: appGUI/MainGUI.py:3327
 msgid ""
 "An updater operation is active. Cancel it or wait for it to finish before "
 "closing FlatCAM."
@@ -11218,12 +11314,12 @@ msgstr ""
 "termine înainte de a închide FlatCAM."
 
 # auto-review 2026-10-21: new
-#: appGUI/MainGUI.py:3331 appHandlers/appLifecycle.py:286
+#: appGUI/MainGUI.py:3334 appHandlers/appLifecycle.py:286
 msgid "Saving the project. FlatCAM closes when the save ends."
 msgstr "Se salvează proiectul. FlatCAM se închide când salvarea se termină."
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:3375
+#: appGUI/MainGUI.py:3378
 msgid "Shortcut Key List"
 msgstr "Lista scurtăturilor de tastatură"
 
@@ -11501,7 +11597,7 @@ msgstr ""
 #: appPlugins/ToolCutOut/CutOutUI.py:513 appPlugins/ToolFollow/FollowUI.py:210
 #: appPlugins/ToolIsolation/IsolationUI.py:709 appPlugins/ToolNCC/NccUI.py:688
 #: appPlugins/ToolPaint/PaintUI.py:521
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:385
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:387
 #: appPlugins/ToolPhotoCarve/PhotoCarveUI.py:304
 #: appPlugins/ToolSolderPaste/SolderPasteUI.py:454
 msgid "Generate Geometry"
@@ -12030,12 +12126,12 @@ msgid "Grid disabled."
 msgstr "Grilă dezactivată."
 
 # auto-review 2026-10-21: new
-#: appGUI/PlotCanvas3d.py:217
+#: appGUI/PlotCanvas3d.py:218
 msgid "Toggle Grid"
 msgstr "Comută grila"
 
 # auto-review 2026-10-21: new
-#: appGUI/PlotCanvas3d.py:218 appGUI/ViewCube.py:68
+#: appGUI/PlotCanvas3d.py:219 appGUI/ViewCube.py:68
 #: appPlugins/ToolGcodeSender/SenderUI.py:99
 msgid "Fit View"
 msgstr "Potrivire în fereastră"
@@ -12374,7 +12470,7 @@ msgstr ""
 # auto-review 2026-10-21: new
 #: appGUI/SolderPasteSettings.py:53
 msgid "Slow Z approach"
-msgstr "Abordare Z lentă"
+msgstr "Apropiere lentă pe Z"
 
 # auto-review 2026-10-21: new
 #: appGUI/SolderPasteSettings.py:53
@@ -12382,7 +12478,7 @@ msgid ""
 "Approach via Z Start at Z Dispense feed. The motor stays off until Dispense "
 "Z. Disabled for a faster normal cycle."
 msgstr ""
-"Abordare prin Z Start la avansul Z Dispensare. Motorul rămâne oprit până la "
+"Apropiere prin Z Start la avansul Z Dispensare. Motorul rămâne oprit până la "
 "Z Dispensare. Dezactivat pentru un ciclu normal mai rapid."
 
 # auto-review 2026-10-21: new
@@ -12429,8 +12525,8 @@ msgid ""
 "Enter the measured flow at the selected forward speed for each nozzle. No "
 "flow is assumed."
 msgstr ""
-"Introduceți fluxul măsurat la viteza înainte selectată pentru fiecare duză. "
-"Nu se presupune niciun flux."
+"Introduceți debitul măsurat la viteza de avans selectată pentru fiecare duză. "
+"Nu se presupune niciun debit."
 
 # auto-review 2026-10-21: new
 #: appGUI/SolderPasteSettings.py:139
@@ -12488,112 +12584,112 @@ msgstr "ID"
 msgid "Skipped: %s"
 msgstr "Omis: %s"
 
-#: appGUI/UpdateDialog.py:14
+#: appGUI/UpdateDialog.py:16
 msgid "This FlatCAM Evo copy runs from an AppImage."
 msgstr "Această copie FlatCAM Evo rulează dintr-un AppImage."
 
 # auto-review 2026-10-21: new
-#: appGUI/UpdateDialog.py:15
+#: appGUI/UpdateDialog.py:17
 msgid "This is a source installation on Windows."
 msgstr "Aceasta este o instalare din surse pe Windows."
 
 # auto-review 2026-10-21: new
-#: appGUI/UpdateDialog.py:16
+#: appGUI/UpdateDialog.py:18
 msgid "This build does not match the published Windows x64 archive."
 msgstr "Această compilare nu corespunde arhivei Windows x64 publicate."
 
 # auto-review 2026-10-21: new
-#: appGUI/UpdateDialog.py:17
+#: appGUI/UpdateDialog.py:19
 msgid "The packaged Linux application is replaced by hand."
 msgstr "Aplicația Linux împachetată se înlocuiește manual."
 
 # auto-review 2026-10-21: new
-#: appGUI/UpdateDialog.py:18
+#: appGUI/UpdateDialog.py:20
 msgid "This is a Git checkout."
 msgstr "Aceasta este o copie Git (checkout)."
 
 # auto-review 2026-10-21: new
-#: appGUI/UpdateDialog.py:19
+#: appGUI/UpdateDialog.py:21
 msgid "The installation folder is read-only."
 msgstr "Folderul de instalare este doar pentru citire."
 
 # auto-review 2026-10-21: new
-#: appGUI/UpdateDialog.py:20
+#: appGUI/UpdateDialog.py:22
 msgid "macOS builds are replaced by hand."
 msgstr "Compilările macOS se înlocuiesc manual."
 
 # auto-review 2026-10-21: new
-#: appGUI/UpdateDialog.py:21
+#: appGUI/UpdateDialog.py:23
 msgid "This platform has no automatic package."
 msgstr "Această platformă nu are pachet automat."
 
-#: appGUI/UpdateDialog.py:111
+#: appGUI/UpdateDialog.py:189
 msgid "FlatCAM Evo update available: %s"
 msgstr "Este disponibilă o actualizare FlatCAM Evo: %s"
 
 # auto-review 2026-10-21: new
-#: appGUI/UpdateDialog.py:111
+#: appGUI/UpdateDialog.py:189
 msgid "unknown version"
 msgstr "versiune necunoscută"
 
 # auto-review 2026-10-21: new
-#: appGUI/UpdateDialog.py:120
+#: appGUI/UpdateDialog.py:198
 msgid "unknown"
 msgstr "necunoscut"
 
 # auto-review 2026-10-09: new
-#: appGUI/UpdateDialog.py:122
+#: appGUI/UpdateDialog.py:200
 msgid "A new version is available: <b>%s</b><br>You have: <b>%s</b>"
 msgstr ""
 "Este disponibilă o versiune nouă: <b>%s</b><br>Versiunea dvs.: <b>%s</b>"
 
 # auto-review 2026-10-09: new
-#: appGUI/UpdateDialog.py:126
+#: appGUI/UpdateDialog.py:204
 msgid "Update version information"
 msgstr "Informații despre versiunea actualizării"
 
 # auto-review 2026-10-21: new
-#: appGUI/UpdateDialog.py:135
+#: appGUI/UpdateDialog.py:213
 msgid "Update size: unknown; the source archive is prepared automatically."
 msgstr ""
 "Dimensiune actualizare: necunoscută; arhiva sursă se pregătește automat."
 
 # auto-review 2026-10-09: new
-#: appGUI/UpdateDialog.py:137
+#: appGUI/UpdateDialog.py:215
 msgid "Full archive size: %s"
 msgstr "Dimensiunea arhivei complete: %s"
 
 # auto-review 2026-10-09: new
-#: appGUI/UpdateDialog.py:139
+#: appGUI/UpdateDialog.py:217
 msgid "Update archive size"
 msgstr "Dimensiunea arhivei de actualizare"
 
 # auto-review 2026-10-21: new
-#: appGUI/UpdateDialog.py:143
+#: appGUI/UpdateDialog.py:221
 msgid "Published: %s"
 msgstr "Publicat: %s"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/UpdateDialog.py:144 appHandlers/appUIActions.py:1227
+#: appGUI/UpdateDialog.py:222 appHandlers/appUIActions.py:1136
 msgid "Release date"
 msgstr "Data lansării"
 
 # auto-review 2026-10-09: new
-#: appGUI/UpdateDialog.py:148 appMain.py:3294
+#: appGUI/UpdateDialog.py:226 appMain.py:3350
 msgid "Release notes"
 msgstr "Note de lansare"
 
 # auto-review 2026-10-09: new
-#: appGUI/UpdateDialog.py:152
+#: appGUI/UpdateDialog.py:230
 msgid "No release notes provided."
 msgstr "Nu există note de lansare."
 
 # auto-review 2026-10-21: new
-#: appGUI/UpdateDialog.py:160
+#: appGUI/UpdateDialog.py:239
 msgid "Automatic replacement is not available for this installation."
 msgstr "Înlocuirea automată nu este disponibilă pentru această instalare."
 
-#: appGUI/UpdateDialog.py:163
+#: appGUI/UpdateDialog.py:242
 msgid ""
 "This update cannot be installed automatically. %s Download the new package, "
 "save it, and replace this installation manually."
@@ -12602,7 +12698,7 @@ msgstr ""
 "salvați-l și înlocuiți manual instalarea curentă."
 
 # auto-review 2026-10-21: new
-#: appGUI/UpdateDialog.py:166
+#: appGUI/UpdateDialog.py:245
 msgid ""
 "This update cannot be installed automatically. %s Download the release from "
 "its page and replace this installation manually."
@@ -12611,43 +12707,43 @@ msgstr ""
 "pagina ei și înlocuiți manual instalarea curentă."
 
 # auto-review 2026-10-21: new
-#: appGUI/UpdateDialog.py:170
+#: appGUI/UpdateDialog.py:249
 msgid "Manual installation guidance"
 msgstr "Ghid de instalare manuală"
 
-#: appGUI/UpdateDialog.py:173
+#: appGUI/UpdateDialog.py:252
 msgid "the package"
 msgstr "pachetul"
 
-#: appGUI/UpdateDialog.py:180
+#: appGUI/UpdateDialog.py:259
 msgid "Download:"
 msgstr "Descărcare:"
 
-#: appGUI/UpdateDialog.py:184
+#: appGUI/UpdateDialog.py:263
 msgid "Download the new package"
 msgstr "Descarcă noul pachet"
 
 # auto-review 2026-10-21: new
-#: appGUI/UpdateDialog.py:192
+#: appGUI/UpdateDialog.py:271
 msgid "Open the release page"
 msgstr "Deschide pagina versiunii"
 
-#: appGUI/UpdateDialog.py:197
+#: appGUI/UpdateDialog.py:276
 msgid "This update is mandatory. Update now or exit FlatCAM Evo."
 msgstr ""
 "Această actualizare este obligatorie. Actualizați acum sau ieșiți din "
 "FlatCAM Evo."
 
 # auto-review 2026-10-09: new
-#: appGUI/UpdateDialog.py:200
+#: appGUI/UpdateDialog.py:279
 msgid "Mandatory update warning"
 msgstr "Avertisment de actualizare obligatorie"
 
-#: appGUI/UpdateDialog.py:207 appGUI/UpdateDialog.py:212
+#: appGUI/UpdateDialog.py:286 appGUI/UpdateDialog.py:291
 msgid "Skip this version"
 msgstr "Omite versiunea"
 
-#: appGUI/UpdateDialog.py:209
+#: appGUI/UpdateDialog.py:288
 msgid ""
 "Do not show this version again when FlatCAM Evo starts.\n"
 "A manual check for updates still shows it."
@@ -12656,12 +12752,12 @@ msgstr ""
 "Versiunea apare în continuare la verificarea manuală a actualizărilor."
 
 # auto-review 2026-10-09: new
-#: appGUI/UpdateDialog.py:218 appGUI/UpdateDialog.py:220
+#: appGUI/UpdateDialog.py:297 appGUI/UpdateDialog.py:299
 msgid "Update now"
 msgstr "Actualizează acum"
 
 # auto-review 2026-10-09: new
-#: appGUI/UpdateDialog.py:224
+#: appGUI/UpdateDialog.py:303
 #: appGUI/preferences/general/GeneralGUIPrefGroupUI.py:561
 msgid "Later"
 msgstr "Mai târziu"
@@ -12719,6 +12815,221 @@ msgstr ""
 #: appGUI/ViewCube.py:65
 msgid "Iso View"
 msgstr "Vizualizare izometrică"
+
+#: appGUI/WelcomeDialog.py:29
+msgid "FlatCAM Evo Project"
+msgstr "Proiect FlatCAM Evo"
+
+#: appGUI/WelcomeDialog.py:30
+msgid "Open a saved project or start an empty, untitled project."
+msgstr "Deschideți un proiect salvat sau începeți un proiect gol, fără titlu."
+
+#: appGUI/WelcomeDialog.py:32
+msgid "Start with a blank Geometry object in an untitled project."
+msgstr "Începeți cu un obiect Geometrie gol într-un proiect fără titlu."
+
+#: appGUI/WelcomeDialog.py:36
+msgid ""
+"Import vector artwork as Geometry for machining, or as Gerber for PCB "
+"processing."
+msgstr ""
+"Importați desene vectoriale ca Geometrie pentru prelucrare sau ca Gerber "
+"pentru procesarea PCB-ului."
+
+#: appGUI/WelcomeDialog.py:44
+msgid "Open PCB artwork, or create a blank Gerber object."
+msgstr "Deschideți desene PCB sau creați un obiect Gerber gol."
+
+#: appGUI/WelcomeDialog.py:45
+msgid "Excellon object"
+msgstr "Obiect Excellon"
+
+#: appGUI/WelcomeDialog.py:46
+msgid "Open drilling data, or create a blank Excellon object."
+msgstr "Deschideți datele de găurire sau creați un obiect Excellon gol."
+
+#: appGUI/WelcomeDialog.py:47 appObjects/ObjectCollection.py:400
+msgid "Script"
+msgstr "Script"
+
+#: appGUI/WelcomeDialog.py:47
+msgid "Script object"
+msgstr "Obiect script"
+
+#: appGUI/WelcomeDialog.py:48
+msgid ""
+"Open a script for editing without executing it, or create a blank script."
+msgstr "Deschideți un script pentru editare fără a-l executa sau creați un script gol."
+
+#: appGUI/WelcomeDialog.py:49
+msgid "Doc"
+msgstr "Doc"
+
+#: appGUI/WelcomeDialog.py:49
+msgid "Document object"
+msgstr "Obiect document"
+
+#: appGUI/WelcomeDialog.py:50
+msgid "Open a FlatCAM Evo document, or create a blank document."
+msgstr "Deschideți un document FlatCAM Evo sau creați un document gol."
+
+#: appGUI/WelcomeDialog.py:55
+msgid "PCB Manufacturing files"
+msgstr "Fișiere pentru fabricarea PCB-urilor"
+
+#: appGUI/WelcomeDialog.py:139
+msgid "Welcome to FlatCAM Evo"
+msgstr "Bun venit în FlatCAM Evo"
+
+#: appGUI/WelcomeDialog.py:170 appGUI/WelcomeDialog.py:323
+msgid "CAM tools for PCB manufacturing, machining and more."
+msgstr "Instrumente CAM pentru fabricarea PCB-urilor, prelucrare și multe altele."
+
+#: appGUI/WelcomeDialog.py:181
+msgid "Continue to workspace"
+msgstr "Treci la spațiul de lucru"
+
+#: appGUI/WelcomeDialog.py:200 appGUI/preferences/PreferencesWindow.py:67
+#: appGUI/shortcut_actions.py:41
+msgid "Application"
+msgstr "Aplicație"
+
+#: appGUI/WelcomeDialog.py:211
+msgid "Search file types…"
+msgstr "Caută tipuri de fișiere…"
+
+#: appGUI/WelcomeDialog.py:212
+msgid "Search file types"
+msgstr "Caută tipuri de fișiere"
+
+#: appGUI/WelcomeDialog.py:223
+msgid "File types"
+msgstr "Tipuri de fișiere"
+
+#: appGUI/WelcomeDialog.py:232
+msgid "Start something"
+msgstr "Începeți ceva"
+
+#: appGUI/WelcomeDialog.py:265
+msgid "Import as"
+msgstr "Importă ca"
+
+#: appGUI/WelcomeDialog.py:275
+msgid "Last 5 · selected type"
+msgstr "Ultimele 5 · tipul selectat"
+
+#: appGUI/WelcomeDialog.py:289
+msgid "No recent files of this type."
+msgstr "Nu există fișiere recente de acest tip."
+
+#: appGUI/WelcomeDialog.py:302
+msgid "Contributors"
+msgstr "Contributori"
+
+#: appGUI/WelcomeDialog.py:303 appHandlers/appUIActions.py:242
+msgid "FlatCAM Author"
+msgstr "Autor FlatCAM"
+
+# auto-review 2026-10-09: corrected
+#: appGUI/WelcomeDialog.py:304 appHandlers/appUIActions.py:246
+msgid "FlatCAM Evo Author/Maintainer"
+msgstr "Autor / întreținător FlatCAM Evo"
+
+#: appGUI/WelcomeDialog.py:306
+msgid "Developer"
+msgstr "Dezvoltator"
+
+#: appGUI/WelcomeDialog.py:309 appHandlers/appUIActions.py:277
+msgid "Translator"
+msgstr "Traducător"
+
+#: appGUI/WelcomeDialog.py:317 appHandlers/appUIActions.py:206
+msgid "License"
+msgstr "Licență"
+
+#: appGUI/WelcomeDialog.py:319 appHandlers/appUIActions.py:153
+msgid "Licensed under the MIT license"
+msgstr "Licențiat sub licența MIT"
+
+#: appGUI/WelcomeDialog.py:331
+msgid "Show this screen next time"
+msgstr "Arată acest ecran data viitoare"
+
+#: appGUI/WelcomeDialog.py:337
+msgid "Continue"
+msgstr "Continuă"
+
+#: appGUI/WelcomeDialog.py:339
+msgid "Browse…"
+msgstr "Răsfoiește…"
+
+#: appGUI/WelcomeDialog.py:351
+msgid ""
+"A FlatCAM Evo project keeps your objects and their settings together. "
+"Select FlatCAM Evo Project to reopen saved work or start an empty project."
+msgstr "Un proiect FlatCAM Evo păstrează împreună obiectele și setările acestora. "
+"Selectați Proiect FlatCAM Evo pentru a redeschide lucrările salvate sau a "
+"începe un proiect gol."
+
+#: appGUI/WelcomeDialog.py:353
+msgid ""
+"Import drawings, vector artwork and images for machining, cutting or "
+"engraving, or create a blank Geometry object. Select a file type to see its "
+"import options and recent files."
+msgstr "Importați desene, elemente vectoriale și imagini pentru prelucrare, tăiere "
+"sau gravare sau creați un obiect Geometrie gol. Selectați un tip de fișier "
+"pentru a vedea opțiunile de import și fișierele recente."
+
+#: appGUI/WelcomeDialog.py:355
+msgid ""
+"Work with Gerber artwork and Excellon drilling files, or add scripts and "
+"documents to your project. Select a file type to open an existing file or "
+"create a supported blank object."
+msgstr "Lucrați cu desene Gerber și fișiere de găurire Excellon sau adăugați "
+"scripturi și documente la proiect. Selectați un tip de fișier pentru a deschide "
+"un fișier existent sau a crea un obiect gol acceptat."
+
+#: appGUI/WelcomeDialog.py:357
+msgid ""
+"Import a native PCB design from a supported board editor. Choose its "
+"format, then select the layers and drilling to bring into FlatCAM Evo."
+msgstr "Importați un proiect PCB nativ dintr-un editor de plăci acceptat. Alegeți "
+"formatul, apoi selectați straturile și datele de găurire care vor fi aduse în "
+"FlatCAM Evo."
+
+#: appGUI/WelcomeDialog.py:605
+msgid "Select a category or file type."
+msgstr "Selectați o categorie sau un tip de fișier."
+
+#: appGUI/WelcomeDialog.py:605
+msgid "No file type matches the search."
+msgstr "Niciun tip de fișier nu corespunde căutării."
+
+#: appGUI/WelcomeDialog.py:612
+msgid "New object only"
+msgstr "Doar obiect nou"
+
+#: appGUI/WelcomeDialog.py:660
+#: appGUI/preferences/general/GeneralShortcutsGroupUI.py:473
+#: appPlugins/ToolQRCode/QRCode.py:691 appPlugins/ToolQRCode/QRCode.py:695
+msgid "All Files"
+msgstr "Toate fișierele"
+
+#: appGUI/WelcomeDialog.py:670 appHandlers/appIO.py:2825
+#: appHandlers/appIO.py:2890 appHandlers/appIO.py:2992
+#: appHandlers/appIO.py:3043 appHandlers/appIO.py:3123
+#: appHandlers/appIO.py:3425 appHandlers/appIO.py:3486
+#: appHandlers/appIO.py:3763 appPlugins/ToolImage/Image.py:161
+#: appPlugins/ToolPdf/PdfImport.py:133
+msgid "File no longer available."
+msgstr "Fișierul nu mai este disponibil."
+
+# auto-review 2026-10-09: corrected
+#: appGUI/WelcomeDialog.py:698 appHandlers/appIO.py:2964
+#: appHandlers/appIO.py:3345 appHandlers/appIO.py:3410
+#: appHandlers/appIO.py:3493
+msgid "Failed to open file"
+msgstr "Eșec la încărcarea fișierului"
 
 #: appGUI/preferences/CircleStepsRows.py:27
 msgid "Circles"
@@ -12779,38 +13090,38 @@ msgstr ""
 "Numărul de segmente utilizate pentru\n"
 "aproximarea liniară a cercurilor."
 
-#: appGUI/preferences/PreferencesUIManager.py:1148
+#: appGUI/preferences/PreferencesUIManager.py:1149
 msgid "Preferences applied."
 msgstr "Preferințele au fost aplicate."
 
-#: appGUI/preferences/PreferencesUIManager.py:1177
+#: appGUI/preferences/PreferencesUIManager.py:1178
 msgid "Application will restart"
 msgstr "Aplicația va reporni"
 
-#: appGUI/preferences/PreferencesUIManager.py:1178
+#: appGUI/preferences/PreferencesUIManager.py:1179
 #: appGUI/preferences/PreferencesWindow.py:536
 msgid "Are you sure you want to continue?"
 msgstr "Ești sigur că vrei să continui?"
 
-#: appGUI/preferences/PreferencesUIManager.py:1284
+#: appGUI/preferences/PreferencesUIManager.py:1285
 msgid "Preferences default values are restored."
 msgstr "Valorile implicite pt preferințe sunt restabilite."
 
 # auto-review 2026-10-09: corrected
-#: appGUI/preferences/PreferencesUIManager.py:1313 appHandlers/appIO.py:2368
+#: appGUI/preferences/PreferencesUIManager.py:1314 appHandlers/appIO.py:2368
 msgid "Failed to write defaults to file."
 msgstr "Salvarea valorilor implicite în fișier a eșuat."
 
-#: appGUI/preferences/PreferencesUIManager.py:1317
-#: appGUI/preferences/PreferencesUIManager.py:1371
+#: appGUI/preferences/PreferencesUIManager.py:1318
+#: appGUI/preferences/PreferencesUIManager.py:1372
 msgid "Preferences saved."
 msgstr "Preferințele au fost salvate."
 
-#: appGUI/preferences/PreferencesUIManager.py:1329
+#: appGUI/preferences/PreferencesUIManager.py:1330
 msgid "Preferences edited but not saved."
-msgstr "Preferințele au fost editate dar nu au fost salvate."
+msgstr "Preferințe modificate, dar nesalvate."
 
-#: appGUI/preferences/PreferencesUIManager.py:1354
+#: appGUI/preferences/PreferencesUIManager.py:1355
 msgid ""
 "One or more values are changed.\n"
 "Do you want to save?"
@@ -12818,9 +13129,9 @@ msgstr ""
 "Una sau mai multe valori au fost schimbate.\n"
 "Dorești să salvezi?"
 
-#: appGUI/preferences/PreferencesUIManager.py:1393
+#: appGUI/preferences/PreferencesUIManager.py:1394
 msgid "Preferences closed without saving."
-msgstr "Tab-ul Preferințe a fost închis fără a salva."
+msgstr "Preferințe închise fără salvare."
 
 #: appGUI/preferences/PreferencesWindow.py:36
 msgid "Panelize"
@@ -12830,7 +13141,7 @@ msgstr "Panelizare"
 #: appPlugins/ToolSolderPaste/SolderPaste.py:128
 #: appPlugins/ToolSolderPaste/SolderPasteUI.py:24
 msgid "SolderPaste"
-msgstr "Pastă Fludor"
+msgstr "Pastă de lipit"
 
 #: appGUI/preferences/PreferencesWindow.py:41
 #: appGUI/preferences/tools/ToolsSubPrefGroupUI.py:41
@@ -12903,10 +13214,6 @@ msgstr "Inversează Gerber"
 #: appPlugins/ToolEtchCompensation/EtchCompensationUI.py:30
 msgid "Etch Compensation"
 msgstr "Compensare Corodare"
-
-#: appGUI/preferences/PreferencesWindow.py:67 appGUI/shortcut_actions.py:41
-msgid "Application"
-msgstr "Aplicație"
 
 #: appGUI/preferences/PreferencesWindow.py:72
 msgid "CNC Job"
@@ -13892,7 +14199,7 @@ msgstr "Setări Grilă"
 
 #: appGUI/preferences/general/GeneralAPPSetGroupUI.py:53
 #: appGUI/preferences/general/GeneralAppSettingsGroupUI.py:132
-#: appHandlers/appUIActions.py:1237
+#: appHandlers/appUIActions.py:1146
 msgid "X value"
 msgstr "Val X"
 
@@ -13904,7 +14211,7 @@ msgstr "Aceasta este valoarea de lipire la grilă pe axa X."
 
 #: appGUI/preferences/general/GeneralAPPSetGroupUI.py:65
 #: appGUI/preferences/general/GeneralAppSettingsGroupUI.py:139
-#: appHandlers/appUIActions.py:1240
+#: appHandlers/appUIActions.py:1149
 msgid "Y value"
 msgstr "Val Y"
 
@@ -13956,14 +14263,14 @@ msgstr ""
 #: appGUI/preferences/general/GeneralAPPSetGroupUI.py:185
 #: appGUI/preferences/general/GeneralAppSettingsGroupUI.py:171
 #: appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:296
-#: appHandlers/appUIActions.py:1257 appPlugins/ToolFilm/FilmUI.py:306
+#: appHandlers/appUIActions.py:1166 appPlugins/ToolFilm/FilmUI.py:306
 msgid "Portrait"
 msgstr "Portret"
 
 #: appGUI/preferences/general/GeneralAPPSetGroupUI.py:186
 #: appGUI/preferences/general/GeneralAppSettingsGroupUI.py:172
 #: appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:297
-#: appHandlers/appUIActions.py:1259 appPlugins/ToolFilm/FilmUI.py:307
+#: appHandlers/appUIActions.py:1168 appPlugins/ToolFilm/FilmUI.py:307
 msgid "Landscape"
 msgstr "Peisaj"
 
@@ -13994,7 +14301,7 @@ msgstr ""
 #: appGUI/preferences/general/GeneralAPPSetGroupUI.py:227
 #: appGUI/preferences/general/GeneralAPPSetGroupUI.py:365
 #: appGUI/preferences/general/GeneralAppSettingsGroupUI.py:189
-#: appHandlers/appUIActions.py:1245 appPlugins/ToolDblSided/DblSidedUI.py:154
+#: appHandlers/appUIActions.py:1154 appPlugins/ToolDblSided/DblSidedUI.py:154
 #: appPlugins/ToolFilm/FilmUI.py:185
 #: appPlugins/ToolGcodeSender/SenderEcutIO.py:196
 #: appPlugins/ToolGcodeSender/SenderMotion.py:339
@@ -14023,7 +14330,7 @@ msgstr ""
 
 #: appGUI/preferences/general/GeneralAPPSetGroupUI.py:266
 #: appGUI/preferences/general/GeneralAPPSetGroupUI.py:287
-#: appHandlers/appUIActions.py:1262
+#: appHandlers/appUIActions.py:1171
 msgid "HUD"
 msgstr "HUD"
 
@@ -14581,7 +14888,7 @@ msgstr ""
 
 #: appGUI/preferences/general/GeneralAppPrefGroupUI.py:240
 msgid "Languages"
-msgstr "Traduceri"
+msgstr "Limbi"
 
 #: appGUI/preferences/general/GeneralAppPrefGroupUI.py:241
 msgid "Set the language used throughout FlatCAM."
@@ -14613,19 +14920,28 @@ msgstr "Ecran Pornire"
 msgid "Enable display of the splash screen at application startup."
 msgstr "Activează afișarea ecranului de pornire la lansarea aplicației."
 
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:290
+msgid "Show welcome screen on startup"
+msgstr "Afișează ecranul de bun venit la pornire"
+
 #: appGUI/preferences/general/GeneralAppPrefGroupUI.py:291
+msgid ""
+"Show the welcome screen on an interactive launch without files or commands."
+msgstr "Afișează ecranul de bun venit la o pornire interactivă fără fișiere sau comenzi."
+
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:295
 msgid "Sys Tray Icon"
 msgstr "Pictogramă în zona de notificare"
 
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:293
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:297
 msgid "Enable display of FlatCAM icon in Sys Tray."
 msgstr "Activează afișarea pictogramei FlatCAM în zona de notificare."
 
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:298
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:302
 msgid "Show Shell"
 msgstr "Arată Shell"
 
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:300
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:304
 msgid ""
 "Check this box if you want the shell to\n"
 "start automatically at startup."
@@ -14634,12 +14950,12 @@ msgstr ""
 "consola (linia de comandă)\n"
 "la pornirea aplicației."
 
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:307
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:311
 msgid "Show Project"
 msgstr "Afișați Proiectul"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:309
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:313
 msgid ""
 "Check this box if you want the project/selected/tool tab area to\n"
 "to be shown automatically at startup."
@@ -14648,12 +14964,12 @@ msgstr ""
 "să fie afișată automat la pornire."
 
 # auto-review 2026-10-09: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:315
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:319
 msgid "Check for updates automatically"
 msgstr "Verifică automat actualizările"
 
 # auto-review 2026-10-09: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:317
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:321
 msgid ""
 "Check for updates automatically at startup.\n"
 "Use Help > Check for Updates for a manual check."
@@ -14662,12 +14978,12 @@ msgstr ""
 "Folosiți Ajutor > Verifică actualizările pentru o verificare manuală."
 
 # auto-review 2026-10-21: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:324
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:328
 msgid "Update source"
 msgstr "Sursa actualizării"
 
 # auto-review 2026-10-21: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:326
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:330
 msgid ""
 "Where updates are downloaded from.\n"
 "GitHub: the GitHub Releases of the project (default).\n"
@@ -14678,22 +14994,22 @@ msgstr ""
 "Digi (vechi): fostul depozit public Digi."
 
 # auto-review 2026-10-21: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:331
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:335
 msgid "GitHub"
 msgstr "GitHub"
 
 # auto-review 2026-10-21: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:332
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:336
 msgid "Digi (legacy)"
 msgstr "Digi (vechi)"
 
 # auto-review 2026-10-21: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:337
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:341
 msgid "Digi share URL"
 msgstr "URL de partajare Digi"
 
 # auto-review 2026-10-21: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:339
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:343
 msgid ""
 "Address of the Digi public share used when the update source is Digi "
 "(legacy)."
@@ -14702,12 +15018,12 @@ msgstr ""
 "(vechi)."
 
 # auto-review 2026-10-21: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:346
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:350
 msgid "Prepare Update Files (Digi Legacy)"
 msgstr "Pregătește fișierele de actualizare (Digi vechi)"
 
 # auto-review 2026-10-21: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:348
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:352
 msgid ""
 "Digi legacy: create local upload files for manual Digi publishing.\n"
 "GitHub releases are published separately.\n"
@@ -14718,12 +15034,12 @@ msgstr ""
 "Versiunile GitHub se publică separat.\n"
 "Aceasta nu încarcă și nu trimite credențiale sau date ale aplicației."
 
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:358
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:362
 msgid "Send Statistics"
 msgstr "Trimiteți statistici"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:360
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:364
 msgid ""
 "Check this box if you agree to send anonymous\n"
 "stats automatically at startup, to help improve FlatCAM."
@@ -14731,15 +15047,15 @@ msgstr ""
 "Bifează dacă ești de acord ca aplicația să trimită automat la pornire\n"
 "statistici anonime, pentru a ajuta la îmbunătățirea FlatCAM."
 
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:367
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:371
 msgid "Save Settings"
 msgstr "Setări pentru Salvare"
 
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:380
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:384
 msgid "Save Compressed Project"
 msgstr "Salvează Proiectul comprimat"
 
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:382
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:386
 msgid ""
 "Whether to save a compressed or uncompressed project.\n"
 "When checked it will save a compressed FlatCAM project."
@@ -14747,12 +15063,12 @@ msgstr ""
 "Alege dacă proiectul se salvează comprimat.\n"
 "Când este bifat, se salvează un proiect FlatCAM comprimat."
 
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:391
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:395
 msgid "Compression"
 msgstr "Compresie"
 
 # auto-review 2026-10-21: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:393
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:397
 msgid ""
 "The Zstandard compression level used when saving\n"
 "a FlatCAM project. The default is 3.\n"
@@ -14764,46 +15080,46 @@ msgstr ""
 "O valoare mai mare înseamnă o compresie mai bună,\n"
 "dar necesită mai multă memorie RAM și mai mult timp de procesare."
 
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:404
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:408
 msgid "Text to PDF parameters"
 msgstr "Parametri text la PDF"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:406
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:410
 msgid "Used when saving text in Code Editor or in FlatCAM Document objects."
 msgstr ""
 "Utilizat la salvarea textului în Editorul de cod sau în obiectele Document "
 "FlatCAM."
 
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:424
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:428
 msgid "Top Margin"
 msgstr "Margine Sus"
 
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:426
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:430
 msgid "Distance between text body and the top of the PDF file."
 msgstr "Distanța dintre corpul textului și partea superioară a fișierului PDF."
 
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:437
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:441
 msgid "Bottom Margin"
 msgstr "Margine Jos"
 
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:439
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:443
 msgid "Distance between text body and the bottom of the PDF file."
 msgstr "Distanța dintre corpul textului și partea de jos a fișierului PDF."
 
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:450
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:454
 msgid "Left Margin"
 msgstr "Margine Stânga"
 
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:452
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:456
 msgid "Distance between text body and the left of the PDF file."
 msgstr "Distanța dintre corpul textului și stânga fișierului PDF."
 
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:463
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:467
 msgid "Right Margin"
 msgstr "Margine Dreapta"
 
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:465
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:469
 msgid "Distance between text body and the right of the PDF file."
 msgstr "Distanța dintre corpul textului și dreapta fișierului PDF."
 
@@ -15281,7 +15597,8 @@ msgstr "Apăsați tasta căutată"
 
 #: appGUI/preferences/general/GeneralShortcutsGroupUI.py:129
 msgid "Press a key combination: the table shows the commands that use it."
-msgstr "Apăsați o combinație de taste: tabelul afișează comenzile care o folosesc."
+msgstr ""
+"Apăsați o combinație de taste: tabelul afișează comenzile care o folosesc."
 
 #: appGUI/preferences/general/GeneralShortcutsGroupUI.py:135
 msgid "All contexts"
@@ -15309,7 +15626,8 @@ msgid ""
 "A grey command has a fixed key: it is listed so that its key is not used "
 "twice."
 msgstr ""
-"Selectați o comandă, apoi alegeți modificatorii și apăsați noua tastă de mai jos.\n"
+"Selectați o comandă, apoi alegeți modificatorii și apăsați noua tastă de "
+"mai jos.\n"
 "O comandă gri are o tastă fixă: este listată pentru ca tasta să nu fie "
 "folosită de două ori."
 
@@ -15327,8 +15645,8 @@ msgid ""
 "it\n"
 "are set in the box of the modifiers."
 msgstr ""
-"Faceți clic aici și apăsați tasta scurtăturii. Modificatorii apăsați împreună "
-"cu ea\n"
+"Faceți clic aici și apăsați tasta scurtăturii. Modificatorii apăsați "
+"împreună cu ea\n"
 "sunt setați în caseta modificatorilor."
 
 #: appGUI/preferences/general/GeneralShortcutsGroupUI.py:187
@@ -15408,11 +15726,6 @@ msgstr "Tasta nu poate fi schimbată aici; alegeți alta."
 msgid "Import the keyboard shortcuts"
 msgstr "Importă scurtăturile de tastatură"
 
-#: appGUI/preferences/general/GeneralShortcutsGroupUI.py:473
-#: appPlugins/ToolQRCode/QRCode.py:691 appPlugins/ToolQRCode/QRCode.py:695
-msgid "All Files"
-msgstr "Toate fișierele"
-
 #: appGUI/preferences/general/GeneralShortcutsGroupUI.py:481
 msgid "The file could not be read."
 msgstr "Fișierul nu a putut fi citit."
@@ -15434,7 +15747,8 @@ msgid ""
 msgstr ""
 "Selectați o comandă și apăsați noua tastă. O tastă deja folosită acolo unde "
 "funcționează comanda\n"
-"este raportată înainte de atribuire. Noile taste funcționează după Salvare sau Aplicare."
+"este raportată înainte de atribuire. Noile taste funcționează după Salvare "
+"sau Aplicare."
 
 #: appGUI/preferences/geometry/GeometryAdvOptPrefGroupUI.py:43
 #: appPlugins/ToolMilling/MillingUI.py:1069
@@ -16843,7 +17157,7 @@ msgstr ""
 "într-un fișier Gerber selectat sau care poate fi exportat ca fișier."
 
 #: appGUI/preferences/tools/Tools2QRCodePrefGroupUI.py:44
-#: appHandlers/appUIActions.py:1225 appPlugins/ToolQRCode/QRCodeUI.py:79
+#: appHandlers/appUIActions.py:1134 appPlugins/ToolQRCode/QRCodeUI.py:79
 msgid "Version"
 msgstr "Versiune"
 
@@ -20704,7 +21018,7 @@ msgstr "Editează obiectul (dacă este selectat)"
 #: appGUI/shortcut_actions.py:651 appGUI/shortcut_actions.py:782
 #: appGUI/shortcut_actions.py:877 appGUI/shortcut_actions.py:966
 #: appGUI/shortcut_actions.py:978 appGUI/shortcut_actions.py:984
-#: appHandlers/appUIActions.py:1290
+#: appHandlers/appUIActions.py:1199
 msgid "Grid On/Off"
 msgstr "Activare/dezactivare grilă"
 
@@ -20958,7 +21272,7 @@ msgid "Add a new Tool"
 msgstr "Adaugă o unealtă nouă"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/shortcut_actions.py:858 appHandlers/appUIActions.py:752
+#: appGUI/shortcut_actions.py:858 appHandlers/appUIActions.py:661
 #: appPlugins/ToolIsolation/Isolation.py:1294 appPlugins/ToolNCC/Ncc.py:1733
 #: appPlugins/ToolPaint/Paint.py:842
 #: appPlugins/ToolSolderPaste/SolderPaste.py:398
@@ -20967,14 +21281,14 @@ msgid "New Tool"
 msgstr "Unealtă nouă"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/shortcut_actions.py:858 appHandlers/appUIActions.py:753
+#: appGUI/shortcut_actions.py:858 appHandlers/appUIActions.py:662
 #: appPlugins/ToolIsolation/Isolation.py:1295 appPlugins/ToolNCC/Ncc.py:1734
 #: appPlugins/ToolPaint/Paint.py:843
 #: appPlugins/ToolSolderPaste/SolderPaste.py:399
 msgid "Enter a Tool Diameter"
 msgstr "Introduceți un diametru de unealtă"
 
-#: appGUI/shortcut_actions.py:868 appHandlers/appUIActions.py:769
+#: appGUI/shortcut_actions.py:868 appHandlers/appUIActions.py:678
 #: appPlugins/ToolIsolation/Isolation.py:1316 appPlugins/ToolNCC/Ncc.py:1758
 #: appPlugins/ToolPaint/Paint.py:856
 #: appPlugins/ToolSolderPaste/SolderPaste.py:411
@@ -21093,7 +21407,7 @@ msgstr "selectat"
 #: appHandlers/appObjectOps.py:212 appHandlers/appObjectOps.py:273
 #: appHandlers/appObjectOps.py:326 appHandlers/appObjectOps.py:645
 #: appHandlers/appObjectOps.py:973 appHandlers/appObjectOps.py:1095
-#: appHandlers/appUIActions.py:1002 appMain.py:2458 appMain.py:2688
+#: appHandlers/appUIActions.py:911 appMain.py:2514 appMain.py:2744
 #: appPlugins/ToolDblSided/DblSided.py:577
 #: appPlugins/ToolDblSided/DblSided.py:666
 #: appPlugins/ToolExtract/Extract.py:414 appPlugins/ToolFilm/Film.py:213
@@ -21482,7 +21796,7 @@ msgstr "Importă SVG"
 msgid "Import DXF"
 msgstr "Importă DXF"
 
-#: appHandlers/appIO.py:1422 appMain.py:2084 appMain.py:2326
+#: appHandlers/appIO.py:1422 appMain.py:2140 appMain.py:2382
 msgid "Cannot reset Tcl while a script is running."
 msgstr "Nu se poate reseta Tcl cât rulează un script."
 
@@ -21531,7 +21845,7 @@ msgid "Executing ScriptObject file."
 msgstr "Se execută un fișier script FlatCAM."
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appIO.py:1689 appHandlers/appIO.py:1693 appMain.py:2018
+#: appHandlers/appIO.py:1689 appHandlers/appIO.py:1693 appMain.py:2074
 msgid "Run TCL script"
 msgstr "Rulează script TCL"
 
@@ -21657,14 +21971,6 @@ msgstr "Fișierul DXF a fost exportat în"
 msgid "The drills of the SVG file could not be created."
 msgstr "Găurile din fișierul SVG nu au putut fi create."
 
-#: appHandlers/appIO.py:2825 appHandlers/appIO.py:2890
-#: appHandlers/appIO.py:2992 appHandlers/appIO.py:3043
-#: appHandlers/appIO.py:3123 appHandlers/appIO.py:3425
-#: appHandlers/appIO.py:3486 appHandlers/appIO.py:3763
-#: appPlugins/ToolImage/Image.py:161 appPlugins/ToolPdf/PdfImport.py:133
-msgid "File no longer available."
-msgstr "Fișierul nu mai este disponibil."
-
 # auto-review 2026-10-09: corrected
 #: appHandlers/appIO.py:2835 appHandlers/appIO.py:2900
 msgid ""
@@ -21688,12 +21994,6 @@ msgstr "Încărcat"
 #: tclCommands/TclCommandImportSvg.py:87
 msgid "Importing"
 msgstr "Se importă"
-
-# auto-review 2026-10-09: corrected
-#: appHandlers/appIO.py:2964 appHandlers/appIO.py:3345
-#: appHandlers/appIO.py:3410 appHandlers/appIO.py:3493
-msgid "Failed to open file"
-msgstr "Eșec la încărcarea fișierului"
 
 #: appHandlers/appIO.py:2967 appHandlers/appIO.py:3348
 #: appHandlers/appIO.py:3413
@@ -22204,233 +22504,122 @@ msgstr "Acest proiect este deja deschis"
 msgid "Do you want to overwrite it with the version from the file?"
 msgstr "Doriți să îl suprascrieți cu versiunea din fișier?"
 
-#: appHandlers/appUIActions.py:116
+#: appHandlers/appUIActions.py:117
 msgid "PCB Manufacturing files Viewer/Editor with Plugins"
 msgstr "Vizualizator / Editor fișiere de fabricare PCB cu pluginuri"
 
-#: appHandlers/appUIActions.py:117
+#: appHandlers/appUIActions.py:118
 msgid "Development"
 msgstr "Dezvoltare"
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appUIActions.py:118
+#: appHandlers/appUIActions.py:119
 msgid "DOWNLOAD"
 msgstr "DESCĂRCARE"
 
-#: appHandlers/appUIActions.py:119
+#: appHandlers/appUIActions.py:120
 msgid "Issue tracker"
 msgstr "Raportare probleme"
 
-#: appHandlers/appUIActions.py:151
-msgid "Licensed under the MIT license"
-msgstr "Licențiat sub licența MIT"
-
 # auto-review 2026-10-09: corrected
-#: appHandlers/appUIActions.py:159
-msgid ""
-"Permission is hereby granted, free of charge, to any person obtaining a "
-"copy\n"
-"of this software and associated documentation files (the \"Software\"), to "
-"deal\n"
-"in the Software without restriction, including without limitation the "
-"rights\n"
-"to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n"
-"copies of the Software, and to permit persons to whom the Software is\n"
-"furnished to do so, subject to the following conditions:\n"
-"\n"
-"The above copyright notice and this permission notice shall be included in\n"
-"all copies or substantial portions of the Software.\n"
-"\n"
-"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS "
-"OR\n"
-"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n"
-"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL "
-"THE\n"
-"AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n"
-"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING "
-"FROM,\n"
-"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n"
-"THE SOFTWARE."
-msgstr ""
-"Prin prezenta se acordă, gratuit, oricărei persoane care obține o copie\n"
-"a acestui software și a fișierelor de documentație asociate "
-"(„Software-ul”), dreptul de a utiliza\n"
-"Software-ul fără restricții, inclusiv, fără limitare, drepturile\n"
-"de a folosi, copia, modifica, îmbina, publica, distribui, sublicenția "
-"și/sau vinde\n"
-"copii ale Software-ului, precum și de a permite persoanelor cărora le este "
-"furnizat Software-ul\n"
-"să facă acest lucru, cu respectarea următoarelor condiții:\n"
-"\n"
-"Notificarea privind drepturile de autor de mai sus și această notificare de "
-"permisiune vor fi incluse în\n"
-"toate copiile sau porțiunile substanțiale ale Software-ului.\n"
-"\n"
-"SOFTWARE-UL ESTE FURNIZAT „CA ATARE”, FĂRĂ NICIUN FEL DE GARANȚIE, EXPRESĂ "
-"SAU\n"
-"IMPLICITĂ, INCLUSIV, DAR FĂRĂ A SE LIMITA LA, GARANȚIILE DE VANDABILITATE,\n"
-"ADECVARE LA UN ANUMIT SCOP ȘI NEÎNCĂLCARE A DREPTURILOR. ÎN NICIUN CAZ\n"
-"AUTORII SAU DEȚINĂTORII DREPTURILOR DE AUTOR NU VOR FI RĂSPUNZĂTORI PENTRU\n"
-"NICIO PRETENȚIE, DAUNĂ SAU ALTĂ RĂSPUNDERE, FIE ÎNTR-O ACȚIUNE "
-"CONTRACTUALĂ, DELICTUALĂ SAU DE ALTĂ NATURĂ,\n"
-"DECURGÂND DIN SAU ÎN LEGĂTURĂ CU SOFTWARE-UL ORI CU UTILIZAREA SAU ALTE "
-"OPERAȚIUNI\n"
-"CU SOFTWARE-UL."
-
-# auto-review 2026-10-09: format
-#: appHandlers/appUIActions.py:179
-msgid ""
-"Some of the icons used are from the following sources:<br><div>Icons by <a "
-"href=\"https://www.flaticon.com/authors/freepik\" "
-"title=\"Freepik\">Freepik</a> from <a href=\"https://www.flaticon.com/\"    "
-"         title=\"Flaticon\">www.flaticon.com</a></div><div>Icons by <a "
-"target=\"_blank\" href=\"https://icons8.com\">Icons8</a></div>Icons by <a "
-"href=\"http://www.onlinewebfonts.com\">oNline Web Fonts</a><div>Icons by <a "
-"href=\"https://www.flaticon.com/authors/pixel-perfect\" title=\"Pixel "
-"perfect\">Pixel perfect</a> from <a href=\"https://www.flaticon.com/\" "
-"title=\"Flaticon\">www.flaticon.com</a></div><div>Icons by <a "
-"href=\"https://www.flaticon.com/authors/anggara\" title=\"Anggara\"> "
-"Anggara </a> from <a href=\"https://www.flaticon.com/\" "
-"title=\"Flaticon\">www.flaticon.com</a></div><div>Icons by <a "
-"href=\"https://www.flaticon.com/authors/kharisma\" title=\"Kharisma\"> "
-"Kharisma </a> from <a href=\"https://www.flaticon.com/\" "
-"title=\"Flaticon\">www.flaticon.com</a></div>"
-msgstr ""
-"Unele dintre pictogramele folosite provin din următoarele "
-"surse:<br><div>Pictograme create de <a "
-"href=\"https://www.flaticon.com/authors/freepik\" "
-"title=\"Freepik\">Freepik</a> de la <a href=\"https://www.flaticon.com/\"   "
-"          title=\"Flaticon\">www.flaticon.com</a></div><div>Pictograme "
-"create de <a target=\"_blank\" "
-"href=\"https://icons8.com\">Icons8</a></div>Pictograme create de <a "
-"href=\"http://www.onlinewebfonts.com\">oNline Web Fonts</a><div>Pictograme "
-"create de <a href=\"https://www.flaticon.com/authors/pixel-perfect\" "
-"title=\"Pixel perfect\">Pixel perfect</a> de la <a "
-"href=\"https://www.flaticon.com/\" "
-"title=\"Flaticon\">www.flaticon.com</a></div><div>Pictograme create de <a "
-"href=\"https://www.flaticon.com/authors/anggara\" title=\"Anggara\"> "
-"Anggara </a> de la <a href=\"https://www.flaticon.com/\" "
-"title=\"Flaticon\">www.flaticon.com</a></div><div>Pictograme create de <a "
-"href=\"https://www.flaticon.com/authors/kharisma\" title=\"Kharisma\"> "
-"Kharisma </a> de la <a href=\"https://www.flaticon.com/\" "
-"title=\"Flaticon\">www.flaticon.com</a></div>"
-
-# auto-review 2026-10-09: corrected
-#: appHandlers/appUIActions.py:222
+#: appHandlers/appUIActions.py:188
 msgid "Splash"
 msgstr "Ecran pornire"
 
-#: appHandlers/appUIActions.py:228
+#: appHandlers/appUIActions.py:194
 msgid "Programmers"
 msgstr "Programatori"
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appUIActions.py:234
+#: appHandlers/appUIActions.py:200
 msgid "Translators"
 msgstr "Traducători"
 
-#: appHandlers/appUIActions.py:240
-msgid "License"
-msgstr "Licență"
-
-#: appHandlers/appUIActions.py:246
+#: appHandlers/appUIActions.py:212
 msgid "Attributions"
 msgstr "Atribuiri"
 
-#: appHandlers/appUIActions.py:317
+#: appHandlers/appUIActions.py:236
 msgid "Programmer"
 msgstr "Programator"
 
-#: appHandlers/appUIActions.py:318
+#: appHandlers/appUIActions.py:237
 msgid "Status"
 msgstr "Statut"
 
-#: appHandlers/appUIActions.py:319 appHandlers/appUIActions.py:369
+#: appHandlers/appUIActions.py:238 appHandlers/appUIActions.py:278
 msgid "E-mail"
 msgstr "E-mail"
 
-#: appHandlers/appUIActions.py:323
-msgid "FlatCAM Author"
-msgstr "Autor FlatCAM"
-
-# auto-review 2026-10-09: corrected
-#: appHandlers/appUIActions.py:327
-msgid "FlatCAM Evo Author/Maintainer"
-msgstr "Autor / întreținător FlatCAM Evo"
-
-#: appHandlers/appUIActions.py:367
+#: appHandlers/appUIActions.py:276
 msgid "Language"
 msgstr "Limba"
 
-#: appHandlers/appUIActions.py:368
-msgid "Translator"
-msgstr "Traducător"
-
-#: appHandlers/appUIActions.py:444
+#: appHandlers/appUIActions.py:353
 msgid "This program is %s and free in a very wide meaning of the word."
 msgstr ""
 "Acest program este %s și gratuit într-un sens foarte larg al cuvântului."
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appUIActions.py:445
+#: appHandlers/appUIActions.py:354
 msgid "Yet it cannot evolve without <b>contributions</b>."
 msgstr "Cu toate acestea, nu poate evolua fără <b>contribuții</b>."
 
-#: appHandlers/appUIActions.py:446
+#: appHandlers/appUIActions.py:355
 msgid "If you want to see this application grow and become better and better"
 msgstr ""
 "Dacă doriți ca această aplicație să crească și să devină din ce în ce mai "
 "bună"
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appUIActions.py:447
+#: appHandlers/appUIActions.py:356
 msgid "you can <b>contribute</b> to the development yourself by:"
 msgstr "puteți <b>contribui</b> chiar dumneavoastră la dezvoltare prin:"
 
-#: appHandlers/appUIActions.py:448
+#: appHandlers/appUIActions.py:357
 msgid "Pull Requests on the GitHub repository, if you are a developer"
 msgstr ""
 "Propuneri de modificări (Pull Requests) în depozitul GitHub, dacă sunteți "
 "dezvoltator"
 
-#: appHandlers/appUIActions.py:450
+#: appHandlers/appUIActions.py:359
 msgid "Bug Reports by providing the steps required to reproduce the bug"
 msgstr "Rapoarte de Erori furnizând pașii necesari pentru reproducerea erorii"
 
-#: appHandlers/appUIActions.py:452
+#: appHandlers/appUIActions.py:361
 msgid "If you like what you have seen so far ..."
 msgstr "Dacă îți place ceea ce ai văzut până acum ..."
 
-#: appHandlers/appUIActions.py:453
+#: appHandlers/appUIActions.py:362
 msgid "Donations are NOT required."
 msgstr "Donațiile NU sunt necesare."
 
-#: appHandlers/appUIActions.py:453
+#: appHandlers/appUIActions.py:362
 msgid "But they are welcomed"
 msgstr "Dar sunt binevenite"
 
-#: appHandlers/appUIActions.py:484
+#: appHandlers/appUIActions.py:393
 msgid "Contribute"
 msgstr "Contribuie"
 
-#: appHandlers/appUIActions.py:504
+#: appHandlers/appUIActions.py:413
 msgid "Links Exchange"
 msgstr "Schimb de Link-uri"
 
-#: appHandlers/appUIActions.py:517 appHandlers/appUIActions.py:537
+#: appHandlers/appUIActions.py:426 appHandlers/appUIActions.py:446
 msgid "Soon ..."
 msgstr "Curând ..."
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appUIActions.py:524
+#: appHandlers/appUIActions.py:433
 msgid "How To's"
 msgstr "Ghiduri practice"
 
-#: appHandlers/appUIActions.py:636
+#: appHandlers/appUIActions.py:545
 msgid "Alternative website"
 msgstr "Site alternativ"
 
-#: appHandlers/appUIActions.py:637
+#: appHandlers/appUIActions.py:546
 msgid ""
 "This entry will resolve to another website if:\n"
 "\n"
@@ -22450,20 +22639,20 @@ msgstr ""
 "Dacă nu puteți obține informații despre aplicație\n"
 "utilizați linkul canalului YouTube din meniul Ajutor."
 
-#: appHandlers/appUIActions.py:669
+#: appHandlers/appUIActions.py:578
 msgid "Workspace enabled."
 msgstr "Spațiul de lucru activat."
 
-#: appHandlers/appUIActions.py:672
+#: appHandlers/appUIActions.py:581
 msgid "Workspace disabled."
 msgstr "Spațiul de lucru este dezactivat."
 
-#: appHandlers/appUIActions.py:703
+#: appHandlers/appUIActions.py:612
 msgid "FlatCAM log opened."
 msgstr "Log-ul FlatCAM a fost deschis."
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appUIActions.py:762 appPlugins/ToolCutOut/CutOut.py:447
+#: appHandlers/appUIActions.py:671 appPlugins/ToolCutOut/CutOut.py:447
 #: appPlugins/ToolIsolation/Isolation.py:1311
 #: appPlugins/ToolIsolation/Isolation.py:1640
 #: appPlugins/ToolIsolation/Isolation.py:1737
@@ -22479,12 +22668,12 @@ msgid "Please enter a tool diameter with non-zero value, in Float format."
 msgstr ""
 "Introduceți un diametru valid al uneltei: valoare nenulă, în format real."
 
-#: appHandlers/appUIActions.py:772
+#: appHandlers/appUIActions.py:681
 msgid "Tool adding ..."
 msgstr "Se adaugă o unealtă..."
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appUIActions.py:773
+#: appHandlers/appUIActions.py:682
 msgid ""
 "Adding Tool works only when Advanced is checked.\n"
 "Go to Preferences -> General - Show Advanced Options."
@@ -22493,11 +22682,11 @@ msgstr ""
 "Pentru aceasta mergi în Preferințe -> General - Activează Modul Avansat."
 
 # auto-review 2026-10-21: new
-#: appHandlers/appUIActions.py:943
+#: appHandlers/appUIActions.py:852
 msgid "Plot 3D"
 msgstr "Afișare 3D"
 
-#: appHandlers/appUIActions.py:1007 appHandlers/appUIActions.py:1013
+#: appHandlers/appUIActions.py:916 appHandlers/appUIActions.py:922
 #: appPlugins/ToolCutOut/CutOut.py:544
 #: appPlugins/ToolIsolation/Isolation.py:3283 appPlugins/ToolNCC/Ncc.py:2104
 #: appPlugins/ToolPaint/Paint.py:1889
@@ -22505,77 +22694,77 @@ msgid "Selected tool can't be used here. Pick another."
 msgstr "Unealta selectată nu poate fi utilizată aici. Alege alta."
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appUIActions.py:1017
+#: appHandlers/appUIActions.py:926
 msgid "Adding tool from DB is not allowed for this object."
 msgstr ""
 "Adăugarea unei unelte din Baza de date nu este permisă pentru acest obiect."
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appUIActions.py:1022 appPlugins/ToolIsolation/Isolation.py:3290
+#: appHandlers/appUIActions.py:931 appPlugins/ToolIsolation/Isolation.py:3290
 #: appPlugins/ToolNCC/Ncc.py:2111 appPlugins/ToolPaint/Paint.py:1896
 msgid "Tool from DB added in Tool Table."
 msgstr "Unealtă din Baza de date adăugată în Tabela de Unelte."
 
-#: appHandlers/appUIActions.py:1223
+#: appHandlers/appUIActions.py:1132
 msgid "FlatCAM Evo"
 msgstr "FlatCAM Evo"
 
-#: appHandlers/appUIActions.py:1231
+#: appHandlers/appUIActions.py:1140
 msgid "Displayed"
 msgstr "Afișat"
 
-#: appHandlers/appUIActions.py:1243
+#: appHandlers/appUIActions.py:1152
 msgid "Canvas"
 msgstr "Suprafață de lucru"
 
-#: appHandlers/appUIActions.py:1248
+#: appHandlers/appUIActions.py:1157
 msgid "Workspace active"
 msgstr "Spațiu de lucru activ"
 
-#: appHandlers/appUIActions.py:1252
+#: appHandlers/appUIActions.py:1161
 msgid "Workspace size"
 msgstr "Dimensiunea spațiului de lucru"
 
-#: appHandlers/appUIActions.py:1256
+#: appHandlers/appUIActions.py:1165
 msgid "Workspace orientation"
 msgstr "Orientarea spațiului de lucru"
 
-#: appHandlers/appUIActions.py:1320
+#: appHandlers/appUIActions.py:1229
 msgid "New Grid ..."
 msgstr "Grilă nouă ..."
 
-#: appHandlers/appUIActions.py:1321
+#: appHandlers/appUIActions.py:1230
 msgid "Enter a Grid Value:"
 msgstr "Introduceți o valoare pentru grilă:"
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appUIActions.py:1330 appHandlers/appUIActions.py:1360
+#: appHandlers/appUIActions.py:1239 appHandlers/appUIActions.py:1269
 msgid "Please enter a grid value with non-zero value, in Float format."
 msgstr "Introduceți o valoare nenulă pentru grilă, în format real."
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appUIActions.py:1340
+#: appHandlers/appUIActions.py:1249
 msgid "New Grid added"
 msgstr "Grilă nouă adăugată"
 
-#: appHandlers/appUIActions.py:1342
+#: appHandlers/appUIActions.py:1251
 msgid "Grid already exists"
 msgstr "Grila există deja"
 
-#: appHandlers/appUIActions.py:1344
+#: appHandlers/appUIActions.py:1253
 msgid "Adding New Grid cancelled"
 msgstr "Adăugarea unei valori de Grilă a fost anulată"
 
-#: appHandlers/appUIActions.py:1366 appHandlers/appUIActions.py:1371
+#: appHandlers/appUIActions.py:1275 appHandlers/appUIActions.py:1280
 msgid "Grid Value does not exist"
 msgstr "Valoarea Grilei nu există"
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appUIActions.py:1373
+#: appHandlers/appUIActions.py:1282
 msgid "Grid Value deleted"
 msgstr "Valoarea grilei a fost ștearsă"
 
-#: appHandlers/appUIActions.py:1375
+#: appHandlers/appUIActions.py:1284
 msgid "Delete Grid value cancelled"
 msgstr "Ștergerea unei valori de Grilă a fost anulată"
 
@@ -22617,7 +22806,7 @@ msgstr "Inițializarea canvas-ului s-a terminat în"
 msgid "The task failed"
 msgstr "Sarcina a eșuat"
 
-#: appMain.py:1675
+#: appMain.py:1672
 msgid ""
 "Found old default preferences files. Please reboot the application to "
 "update."
@@ -22625,65 +22814,65 @@ msgstr ""
 "Au fost găsite fișiere de preferințe implicite vechi. Vă rugăm să reporniți "
 "aplicația pentru a le actualiza."
 
-#: appMain.py:1853
+#: appMain.py:1903
 msgid "The project did not finish loading"
 msgstr "Proiectul nu s-a încărcat complet"
 
 # auto-review 2026-10-21: new
-#: appMain.py:1870 appPlugins/ToolAlignObjects/AlignUI.py:219
+#: appMain.py:1920 appPlugins/ToolAlignObjects/AlignUI.py:219
 #: appPlugins/ToolGcodeSender/Sender.py:5238
 msgid "Error"
 msgstr "Eroare"
 
-#: appMain.py:1891
+#: appMain.py:1941
 msgid "Could not open the project file."
 msgstr "Fișierul de proiect nu a putut fi deschis."
 
 # auto-review 2026-10-09: corrected
-#: appMain.py:1899
+#: appMain.py:1949
 msgid "Open Config file failed."
 msgstr "Deschiderea fișierului de configurare a eșuat."
 
-#: appMain.py:1903
+#: appMain.py:1953
 msgid "Could not open the preferences file."
 msgstr "Fișierul de preferințe nu a putut fi deschis."
 
 # auto-review 2026-10-09: corrected
-#: appMain.py:1911
+#: appMain.py:1961
 msgid "Open Script file failed."
 msgstr "Deschiderea fișierului Script a eșuat."
 
-#: appMain.py:1924
+#: appMain.py:1974
 msgid "Could not open the script file."
 msgstr "Fișierul de script nu a putut fi deschis."
 
-#: appMain.py:1938
+#: appMain.py:1988
 msgid "Open Excellon file failed."
 msgstr "Deschiderea fișierului Excellon a eșuat."
 
-#: appMain.py:1940
+#: appMain.py:1990
 msgid "Open GCode file failed."
 msgstr "Deschiderea fișierului GCode a eșuat."
 
-#: appMain.py:1942
+#: appMain.py:1992
 msgid "Open Gerber file failed."
 msgstr "Deschiderea fișierului Gerber a eșuat."
 
-#: appMain.py:1965
+#: appMain.py:2015
 msgid "Could not open the file."
 msgstr "Fișierul nu a putut fi deschis."
 
-#: appMain.py:1981
+#: appMain.py:2031
 msgid "Not a file that FlatCAM opens:"
 msgstr "Nu este un fișier pe care FlatCAM îl deschide:"
 
 # auto-review 2026-10-21: new
-#: appMain.py:2021
+#: appMain.py:2077
 msgid "Run this script?"
 msgstr "Rulați acest script?"
 
 # auto-review 2026-10-21: new
-#: appMain.py:2025
+#: appMain.py:2081
 msgid ""
 "A Tcl script can start programs and change or delete files. Run it only if "
 "you trust its source."
@@ -22691,23 +22880,23 @@ msgstr ""
 "Un script Tcl poate porni programe sau modifica ori șterge fișiere. "
 "Rulați-l doar dacă aveți încredere în sursa sa."
 
-#: appMain.py:2455
+#: appMain.py:2511
 msgid "Regenerate photo engraving instead of editing certified paths."
 msgstr "Regenerați gravarea foto în loc să editați traseele certificate."
 
-#: appMain.py:2458 appMain.py:2479 appMain.py:2522 appMain.py:2538
-#: appMain.py:2557
+#: appMain.py:2514 appMain.py:2535 appMain.py:2578 appMain.py:2594
+#: appMain.py:2613
 msgid "The Editor could not start."
 msgstr "Editorul nu a putut porni."
 
 # auto-review 2026-10-09: corrected
-#: appMain.py:2465
+#: appMain.py:2521
 msgid "Select a Geometry, Gerber, Excellon or CNCJob Object to edit."
 msgstr ""
 "Selectează un obiect de tip Geometrie, Gerber, Excellon sau CNCJob pentru "
 "editare."
 
-#: appMain.py:2495
+#: appMain.py:2551
 msgid ""
 "Simultaneous editing of tools geometry in a MultiGeo Geometry is not "
 "possible.\n"
@@ -22718,7 +22907,7 @@ msgstr ""
 "Se poate edita numai o singură geometrie de fiecare dată."
 
 # auto-review 2026-10-09: corrected
-#: appMain.py:2502 appPlugins/ToolDrilling/Drilling.py:1233
+#: appMain.py:2558 appPlugins/ToolDrilling/Drilling.py:1233
 #: appPlugins/ToolDrilling/Drilling.py:1352
 #: appPlugins/ToolDrilling/Drilling.py:1646
 #: appPlugins/ToolDrilling/Drilling.py:1671
@@ -22732,113 +22921,113 @@ msgstr ""
 msgid "No Tool Selected"
 msgstr "Nicio unealtă selectată"
 
-#: appMain.py:2597
+#: appMain.py:2653
 msgid "EDITOR Area"
 msgstr "Zona EDITOR"
 
-#: appMain.py:2600
+#: appMain.py:2656
 msgid "Editor is activated ..."
 msgstr "Editorul este activ ..."
 
-#: appMain.py:2652
+#: appMain.py:2708
 msgid "The copy of the object could not be made."
 msgstr "Copia obiectului nu a putut fi realizată."
 
-#: appMain.py:2694
+#: appMain.py:2750
 msgid "Do you want to save the changes?"
 msgstr "Doriți să salvați modificările?"
 
-#: appMain.py:2705
+#: appMain.py:2761
 msgid "Save as New"
 msgstr "Salvează ca nou"
 
 # auto-review 2026-10-09: corrected
-#: appMain.py:2760
+#: appMain.py:2816
 msgid "Object empty after edit."
 msgstr "Obiectul nu are date după editare."
 
 # auto-review 2026-10-09: corrected
-#: appMain.py:2777 appMain.py:2791 appMain.py:2810 appMain.py:2827
+#: appMain.py:2833 appMain.py:2847 appMain.py:2866 appMain.py:2883
 msgid "Editor exited. Editor content saved."
 msgstr "Ieșire din Editor. Conținutul editorului a fost salvat."
 
-#: appMain.py:2831 appMain.py:2915 appMain.py:2933
+#: appMain.py:2887 appMain.py:2971 appMain.py:2989
 msgid "Select a Gerber, Geometry, Excellon or CNCJob Object to update."
 msgstr ""
 "Selectează un obiect tip Gerber, Geometrie, Excellon sau CNCJob pentru "
 "actualizare."
 
-#: appMain.py:2849
+#: appMain.py:2905
 msgid "is updated, returning to App..."
 msgstr "este actualizat, întoarcere la aplicație..."
 
 # auto-review 2026-10-09: corrected
-#: appMain.py:2894
+#: appMain.py:2950
 msgid "Editor exited. Editor content was not saved."
 msgstr "Ieșire din Editor. Conținutul editorului nu a fost salvat."
 
 # auto-review 2026-10-09: corrected
-#: appMain.py:3082 appMain.py:3088
+#: appMain.py:3138 appMain.py:3144
 msgid "Save to file"
 msgstr "Salvează în fișier"
 
 # auto-review 2026-10-09: new
-#: appMain.py:3114
+#: appMain.py:3170
 msgid "Failed to write to file."
 msgstr "Scrierea în fișier a eșuat."
 
 # auto-review 2026-10-09: corrected
-#: appMain.py:3117
+#: appMain.py:3173
 msgid "Exported file to"
 msgstr "S-a exportat fișierul în"
 
-#: appMain.py:3157
+#: appMain.py:3213
 msgid "Failed to open recent files file for writing."
 msgstr ""
 "Deschiderea fișierului cu >fișiere recente< pentru a fi salvat a eșuat."
 
-#: appMain.py:3166
+#: appMain.py:3222
 msgid "Failed to open recent projects file for writing."
 msgstr ""
 "Deschiderea fișierului cu >proiecte recente< pentru a fi salvat a eșuat."
 
 # auto-review 2026-10-09: new
-#: appMain.py:3231
+#: appMain.py:3287
 msgid "Update canceled while closing the tools database."
 msgstr "Actualizarea a fost anulată la închiderea bazei de date a uneltelor."
 
 # auto-review 2026-10-09: new
-#: appMain.py:3234
+#: appMain.py:3290
 msgid "Please wait for the project save to finish before updating."
 msgstr "Așteptați finalizarea salvării proiectului înainte de actualizare."
 
 # auto-review 2026-10-09: new
-#: appMain.py:3237
+#: appMain.py:3293
 msgid "Save the current project before updating."
 msgstr "Salvați proiectul curent înainte de actualizare."
 
 # auto-review 2026-10-09: new
-#: appMain.py:3280
+#: appMain.py:3336
 msgid "Select completed Windows build"
 msgstr "Selectați build-ul Windows finalizat"
 
 # auto-review 2026-10-09: new
-#: appMain.py:3287
+#: appMain.py:3343
 msgid "Select update output directory"
 msgstr "Selectați directorul de ieșire pentru actualizare"
 
 # auto-review 2026-10-09: new
-#: appMain.py:3295
+#: appMain.py:3351
 msgid "Enter release notes:"
 msgstr "Introduceți notele de lansare:"
 
 # auto-review 2026-10-09: new
-#: appMain.py:3306
+#: appMain.py:3362
 msgid "Prepare update files"
 msgstr "Pregătire fișiere de actualizare"
 
 # auto-review 2026-10-09: new
-#: appMain.py:3307
+#: appMain.py:3363
 msgid ""
 "Version: %s\n"
 "Build: %s\n"
@@ -22855,53 +23044,53 @@ msgstr ""
 "Creați acum fișierele locale de încărcare Digi?"
 
 # auto-review 2026-10-09: new
-#: appMain.py:3320
+#: appMain.py:3376
 msgid "Release inputs are incomplete: %s"
 msgstr "Datele pentru lansare sunt incomplete: %s"
 
 # auto-review 2026-10-09: new
-#: appMain.py:3325
+#: appMain.py:3381
 msgid "Preparing update files..."
 msgstr "Se pregătesc fișierele de actualizare..."
 
 # auto-review 2026-10-09: new
-#: appMain.py:3327
+#: appMain.py:3383
 msgid "Preparing update files"
 msgstr "Se pregătesc fișierele de actualizare"
 
 # auto-review 2026-10-09: new
-#: appMain.py:3344
+#: appMain.py:3400
 msgid "Release preparation could not be started."
 msgstr "Pregătirea lansării nu a putut fi pornită."
 
 # auto-review 2026-10-09: new
-#: appMain.py:3384
+#: appMain.py:3440
 msgid "Release preparation failed: %s"
 msgstr "Pregătirea lansării a eșuat: %s"
 
 # auto-review 2026-10-09: new
-#: appMain.py:3389
+#: appMain.py:3445
 msgid "Local Digi upload files are ready:"
 msgstr "Fișierele locale de încărcare Digi sunt gata:"
 
 # auto-review 2026-10-21: new
-#: appMain.py:3396
+#: appMain.py:3452
 msgid "No releases have been published yet."
 msgstr "Nicio versiune nu a fost publicată încă."
 
-#: appMain.py:3398
+#: appMain.py:3454
 msgid "The application is up to date!"
 msgstr "Versiunea aplicației este curentă!"
 
-#: appMain.py:3444
+#: appMain.py:3500
 msgid "the source archive of the release is checked"
 msgstr "arhiva cu codul sursă al versiunii este verificată"
 
-#: appMain.py:3446
+#: appMain.py:3502
 msgid "the update archive is checked against its published checksum"
 msgstr "arhiva actualizării este verificată folosind suma de control publicată"
 
-#: appMain.py:3449
+#: appMain.py:3505
 msgid ""
 "FlatCAM Evo downloads the new version. The steps are:\n"
 "\n"
@@ -22926,35 +23115,35 @@ msgstr ""
 "oprește descărcarea și șterge fișierele descărcate."
 
 # auto-review 2026-10-09: new
-#: appMain.py:3461
+#: appMain.py:3517
 msgid "Downloading update"
 msgstr "Se descarcă actualizarea"
 
 # auto-review 2026-10-09: new
-#: appMain.py:3484
+#: appMain.py:3540
 msgid "Update download could not be started."
 msgstr "Descărcarea actualizării nu a putut fi pornită."
 
-#: appMain.py:3579 appPlugins/ToolCompare/Compare.py:431
+#: appMain.py:3635 appPlugins/ToolCompare/Compare.py:431
 #: appPlugins/ToolCompare/CompareUI.py:106
 msgid "Added"
 msgstr "Adăugate"
 
-#: appMain.py:3579 appPlugins/ToolCompare/Compare.py:430
+#: appMain.py:3635 appPlugins/ToolCompare/Compare.py:430
 #: appPlugins/ToolCompare/CompareUI.py:99
 msgid "Removed"
 msgstr "Eliminate"
 
-#: appMain.py:3580
+#: appMain.py:3636
 msgid "Optional added"
 msgstr "Opționale adăugate"
 
-#: appMain.py:3580
+#: appMain.py:3636
 msgid "Optional removed"
 msgstr "Opționale eliminate"
 
 # auto-review 2026-10-21: new
-#: appMain.py:3594
+#: appMain.py:3650
 msgid ""
 "The application requirements changed. Update the Python environment and "
 "restart afterwards; otherwise FlatCAM may fail to start. FlatCAM does not "
@@ -22964,7 +23153,7 @@ msgstr ""
 "după aceea; altfel FlatCAM ar putea să nu mai pornească. FlatCAM nu rulează "
 "pip și nu modifică singur mediul."
 
-#: appMain.py:3600
+#: appMain.py:3656
 msgid ""
 "Optional packages changed. FlatCAM works without them. To install them, "
 "run: python install_optional.py"
@@ -22973,151 +23162,136 @@ msgstr ""
 "instalare: python install_optional.py"
 
 # auto-review 2026-10-21: new
-#: appMain.py:3613
+#: appMain.py:3669
 msgid "Trust: %s"
 msgstr "Încredere: %s"
 
 # auto-review 2026-10-21: new
-#: appMain.py:3622
+#: appMain.py:3678
 msgid "Install update"
 msgstr "Instalează actualizarea"
 
 # auto-review 2026-10-09: new
-#: appMain.py:3641
+#: appMain.py:3697
 msgid "Update download canceled."
 msgstr "Descărcarea actualizării a fost anulată."
 
 # auto-review 2026-10-09: new
-#: appMain.py:3654
+#: appMain.py:3710
 msgid "Update download failed; the installation was not changed."
 msgstr "Descărcarea actualizării a eșuat; instalarea nu a fost modificată."
 
 # auto-review 2026-10-21: new
-#: appMain.py:3662
+#: appMain.py:3718
 msgid "Update was canceled; the installation was not changed."
 msgstr "Actualizarea a fost anulată; instalarea nu a fost modificată."
 
 # auto-review 2026-10-09: new
-#: appMain.py:3670
+#: appMain.py:3726
 msgid "The updater could not be started."
 msgstr "Programul de actualizare nu a putut fi pornit."
 
 # auto-review 2026-10-09: new
-#: appMain.py:3707
+#: appMain.py:3763
 msgid "Revert to %s (%s)"
 msgstr "Revenire la %s (%s)"
 
 # auto-review 2026-10-09: new
-#: appMain.py:3717
+#: appMain.py:3773
 msgid "No usable previous version is available."
 msgstr "Nu este disponibilă nicio versiune anterioară utilizabilă."
 
 # auto-review 2026-10-09: new
-#: appMain.py:3722
+#: appMain.py:3778
 msgid "Revert application update"
 msgstr "Revenire la versiunea anterioară a aplicației"
 
 # auto-review 2026-10-09: new
-#: appMain.py:3723
+#: appMain.py:3779
 msgid "Revert from %s (%s) to %s (%s)?"
 msgstr "Reveniți de la %s (%s) la %s (%s)?"
 
 # auto-review 2026-10-09: new
-#: appMain.py:3755
+#: appMain.py:3811
 msgid "The previous version could not be started."
 msgstr "Versiunea anterioară nu a putut fi pornită."
 
 # auto-review 2026-10-09: corrected
-#: appMain.py:3867
+#: appMain.py:3923
 msgid "Aborting."
 msgstr "Se renunță."
 
-#: appMain.py:3867
+#: appMain.py:3923
 msgid "The current task will be gracefully closed as soon as possible..."
 msgstr "Sarcina curentă va fi oprită controlat cât mai curând posibil..."
 
-#: appMain.py:3877
+#: appMain.py:3933
 msgid "The current task was gracefully closed on user request..."
 msgstr "Sarcina curentă a fost oprită controlat la cererea utilizatorului..."
 
 # auto-review 2026-10-09: corrected
-#: appMain.py:4146 appMain.py:4150
+#: appMain.py:4202 appMain.py:4206
 msgid "Select an Gerber or Excellon file to view it's source file."
 msgstr "Selectați un obiect Gerber sau Excellon pentru a-i vedea codul sursă."
 
 # auto-review 2026-10-21: new
-#: appMain.py:4156
+#: appMain.py:4212
 msgid "The object has no source file to show"
 msgstr "Obiectul nu are un fișier sursă de afișat"
 
-#: appMain.py:4160
+#: appMain.py:4216
 msgid "Viewing the source code of the selected object."
 msgstr "Vizualizarea codului sursă a obiectului selectat."
 
-#: appMain.py:4176
+#: appMain.py:4232
 msgid "Source Editor"
 msgstr "Editor Cod Sursă"
 
 # auto-review 2026-10-09: corrected
-#: appMain.py:4202 appMain.py:4209
+#: appMain.py:4258 appMain.py:4265
 msgid "There is no selected object for which to see it's source file code."
 msgstr "Niciun obiect selectat pentru a-i vedea codul sursă."
 
-#: appMain.py:4218
+#: appMain.py:4274
 msgid "Failed to load the source code for the selected object"
 msgstr "Codul sursă pentru obiectul selectat nu a putut fi încărcat"
 
 # auto-review 2026-10-09: new
-#: appMain.py:4305
+#: appMain.py:4361
 msgid "Cannot open image file. Image tool is not available."
 msgstr ""
 "Fișierul imagine nu poate fi deschis. Unealta Imagine nu este disponibilă."
 
 # auto-review 2026-10-09: corrected
-#: appMain.py:4362
-msgid "Failed to parse recent item list."
-msgstr "Eșec la parsarea listei cu fișiere recente."
-
-# auto-review 2026-10-09: corrected
-#: appMain.py:4366
+#: appMain.py:4423
 msgid "Failed to load recent item list."
 msgstr "Eșec la încărcarea listei cu fișiere recente."
 
-# auto-review 2026-10-09: corrected
-#: appMain.py:4376
-msgid "Failed to parse recent project item list."
-msgstr "Eșec la parsarea listei cu proiecte recente."
-
-# auto-review 2026-10-09: corrected
-#: appMain.py:4380
-msgid "Failed to load recent projects item list."
-msgstr "Eșec la încărcarea listei cu proiecte recente."
-
-#: appMain.py:4402
+#: appMain.py:4447
 msgid "Recent files list was reset."
 msgstr "Lista fișierelor recente a fost resetată."
 
-#: appMain.py:4415
+#: appMain.py:4460
 msgid "Recent projects list was reset."
 msgstr "Lista proiectelor recente a fost resetată."
 
 # auto-review 2026-10-09: corrected
-#: appMain.py:4440
+#: appMain.py:4485
 msgid "Clear Recent projects"
 msgstr "Șterge proiectele recente"
 
 # auto-review 2026-10-09: corrected
-#: appMain.py:4464
+#: appMain.py:4509
 msgid "Clear Recent files"
 msgstr "Șterge fișierele recente"
 
 # auto-review 2026-10-09: new
-#: appMain.py:4509
+#: appMain.py:4554
 msgid "Failed checking for the latest version."
 msgstr "Verificarea celei mai recente versiuni a eșuat."
 
 # auto-review 2026-10-21: new
-#: appMain.py:4533
+#: appMain.py:4578
 msgid ""
 "OpenGL canvas initialization failed.\n"
 "Check your graphics drivers and OpenGL support, including remote desktop or "
@@ -23131,19 +23305,19 @@ msgstr ""
 "erorii."
 
 # auto-review 2026-10-21: new
-#: appMain.py:4538
+#: appMain.py:4583
 msgid "OpenGL initialization failed"
 msgstr "Inițializarea OpenGL a eșuat"
 
-#: appMain.py:4706
+#: appMain.py:4751
 msgid "Activate the script's project before running it."
 msgstr "Activează proiectul scriptului înainte de rulare."
 
-#: appMain.py:4709
+#: appMain.py:4754
 msgid "A script is already running."
 msgstr "Un script rulează deja."
 
-#: appMain.py:4716
+#: appMain.py:4761
 msgid "Timed-out script work is still running; changes are not rolled back."
 msgstr "Scriptul cu timp depășit rulează încă; modificările nu se anulează."
 
@@ -23542,10 +23716,6 @@ msgstr ""
 "Eșec parțial. Geometria a fost procesată cu toate uneltele.\n"
 "Dar mai există elemente de geometrie care nu sunt izolate. Încercați să "
 "includeți o unealtă cu diametrul mai mic."
-
-#: appObjects/ObjectCollection.py:400
-msgid "Script"
-msgstr "Script"
 
 #: appObjects/ObjectCollection.py:596
 msgid "Show All"
@@ -24049,33 +24219,43 @@ msgstr "Direcția sondării muchiei nu este validă."
 msgid ""
 "The probe units changed. Probing stopped; refresh the Sender before probing "
 "again."
-msgstr "Unitățile sondei s-au schimbat. Sondarea s-a oprit; reîmprospătați panoul de transmitere înainte de a sonda din nou."
+msgstr ""
+"Unitățile sondei s-au schimbat. Sondarea s-a oprit; reîmprospătați panoul "
+"de transmitere înainte de a sonda din nou."
 
 #: appPlugins/Common/grbl/grbl_client.py:1477
 msgid "Stop the spindle before probing. GRBL must explicitly report M5."
-msgstr "Opriți arborele înainte de sondare. GRBL trebuie să raporteze explicit M5."
+msgstr ""
+"Opriți arborele înainte de sondare. GRBL trebuie să raporteze explicit M5."
 
 #: appPlugins/Common/grbl/grbl_client.py:1563
 msgid ""
 "The probe Z travel must be above the current Z. Probing was not started."
-msgstr "Înălțimea Z de deplasare a sondei trebuie să depășească Z-ul curent. Sondarea nu a pornit."
+msgstr ""
+"Înălțimea Z de deplasare a sondei trebuie să depășească Z-ul curent. "
+"Sondarea nu a pornit."
 
 #: appPlugins/Common/grbl/grbl_client.py:1594
 msgid ""
 "The pull-off is limited to the contact-to-start travel. The probe does not "
 "cross the opposite wall."
-msgstr "Retragerea este limitată la deplasarea de la contact până la punctul de pornire. Sonda nu trece de peretele opus."
+msgstr ""
+"Retragerea este limitată la deplasarea de la contact până la punctul de "
+"pornire. Sonda nu trece de peretele opus."
 
 #: appPlugins/Common/grbl/grbl_client.py:1627
 msgid ""
 "The opposed contacts are inverted or coincident. No centre was calculated."
-msgstr "Contactele opuse sunt inversate sau coincid. Nu s-a calculat niciun centru."
+msgstr ""
+"Contactele opuse sunt inversate sau coincid. Nu s-a calculat niciun centru."
 
 #: appPlugins/Common/grbl/grbl_client.py:1632
 msgid ""
 "The probing start point is outside the measured hole. No centre was "
 "calculated."
-msgstr "Punctul de pornire a sondării este în afara găurii măsurate. Nu s-a calculat niciun centru."
+msgstr ""
+"Punctul de pornire a sondării este în afara găurii măsurate. Nu s-a "
+"calculat niciun centru."
 
 # auto-review 2026-10-21: new
 #: appPlugins/Common/grbl/grbl_client.py:1660
@@ -24087,7 +24267,9 @@ msgstr "GRBL a refuzat o comandă"
 msgid ""
 "The original units, distance and feed mode were not restored. Reset GRBL "
 "before relying on its modal state."
-msgstr "Unitățile și modurile inițiale de poziționare și avans nu au fost restabilite. Resetați GRBL înainte de a vă baza pe starea sa modală."
+msgstr ""
+"Unitățile și modurile inițiale de poziționare și avans nu au fost "
+"restabilite. Resetați GRBL înainte de a vă baza pe starea sa modală."
 
 #: appPlugins/Common/grbl/grbl_client.py:1690
 msgid "Could not read the GRBL work position"
@@ -24357,7 +24539,10 @@ msgid ""
 "Canned cycle moves or parameters that are not supported (G73, G76, "
 "G84..G89, another plane, missing or invalid R, Z, Q, P or feed, a "
 "repetition) were not height-compensated"
-msgstr "Deplasările sau parametrii neacceptați ai ciclurilor fixe (G73, G76, G84..G89, alt plan, R, Z, Q, P sau avans lipsă ori invalid, o repetare) nu au fost compensați în înălțime"
+msgstr ""
+"Deplasările sau parametrii neacceptați ai ciclurilor fixe (G73, G76, "
+"G84..G89, alt plan, R, Z, Q, P sau avans lipsă ori invalid, o repetare) nu "
+"au fost compensați în înălțime"
 
 # auto-review 2026-10-21: new
 #: appPlugins/Common/levelling_core.py:1322
@@ -28550,8 +28735,10 @@ msgstr "Deplasarea necesită pas și avans pozitive și finite."
 
 #: appPlugins/ToolGcodeSender/Sender.py:2161
 msgid "Use single-axis jogs during a native tool change."
-msgstr "Folosește deplasări pe o singură axă în timpul schimbului nativ de unealtă."
-"Folosește deplasări pe o singură axă în timpul schimbului nativ de unealtă."
+msgstr ""
+"Folosește deplasări pe o singură axă în timpul schimbului nativ de "
+"unealtă.Folosește deplasări pe o singură axă în timpul schimbului nativ de "
+"unealtă."
 
 #: appPlugins/ToolGcodeSender/Sender.py:2306
 msgid "The session or reference changed. Capture the spindle reference again."
@@ -28853,33 +29040,46 @@ msgstr "Oprește motorul înainte de a măsura o unealtă."
 msgid ""
 "The height map is incomplete or its heights were invalidated. Probe the map "
 "again."
-msgstr "Harta de înălțimi este incompletă sau valorile ei au fost invalidate. Sondați harta din nou."
+msgstr ""
+"Harta de înălțimi este incompletă sau valorile ei au fost invalidate. "
+"Sondați harta din nou."
 
 #: appPlugins/ToolGcodeSender/Sender.py:2985
 msgid ""
 "The height map has no verified machine frame (an imported map, or one made "
 "before its frame was recorded). It can not be used for a calibrated tool "
 "change. Probe the map again."
-msgstr "Harta de înălțimi nu are un sistem de coordonate verificat al mașinii (este importată sau creată înainte de înregistrarea sistemului). Nu poate fi folosită la un schimb calibrat de unealtă. Sondați harta din nou."
+msgstr ""
+"Harta de înălțimi nu are un sistem de coordonate verificat al mașinii (este "
+"importată sau creată înainte de înregistrarea sistemului). Nu poate fi "
+"folosită la un schimb calibrat de unealtă. Sondați harta din nou."
 
 #: appPlugins/ToolGcodeSender/Sender.py:2988
 msgid ""
 "The units of the height map do not match the project units. Probe the map "
 "again."
-msgstr "Unitățile hărții de înălțimi nu corespund celor ale proiectului. Sondați harta din nou."
+msgstr ""
+"Unitățile hărții de înălțimi nu corespund celor ale proiectului. Sondați "
+"harta din nou."
 
 #: appPlugins/ToolGcodeSender/Sender.py:2989
 msgid ""
 "A removable plate can reset the board origin and can not preserve an active "
 "height map. Clear the map, set the board Z zero, then probe the map again."
-msgstr "O placă de sondare amovibilă poate reseta originea PCB-ului și nu poate păstra o hartă de înălțimi activă. Ștergeți harta, setați zero-ul Z al PCB-ului, apoi sondați harta din nou."
+msgstr ""
+"O placă de sondare amovibilă poate reseta originea PCB-ului și nu poate "
+"păstra o hartă de înălțimi activă. Ștergeți harta, setați zero-ul Z al "
+"PCB-ului, apoi sondați harta din nou."
 
 #: appPlugins/ToolGcodeSender/Sender.py:2992
 msgid ""
 "The height map was made in another WCS or work offset than the fixed plate "
 "reference. Calibrate the plate and probe the map again in the same "
 "reference."
-msgstr "Harta de înălțimi a fost creată cu alt WCS sau ofset de lucru decât referința plăcii fixe. Calibrați placa și sondați din nou harta folosind aceeași referință."
+msgstr ""
+"Harta de înălțimi a fost creată cu alt WCS sau ofset de lucru decât "
+"referința plăcii fixe. Calibrați placa și sondați din nou harta folosind "
+"aceeași referință."
 
 #: appPlugins/ToolGcodeSender/Sender.py:2995
 msgid "The tool-change operation failed: %s"
@@ -28972,7 +29172,9 @@ msgstr ""
 
 #: appPlugins/ToolGcodeSender/Sender.py:3464
 msgid "The height map keeps its board heights in the corrected tool frame."
-msgstr "Harta de înălțimi păstrează înălțimile PCB-ului în sistemul de coordonate corectat al uneltei."
+msgstr ""
+"Harta de înălțimi păstrează înălțimile PCB-ului în sistemul de coordonate "
+"corectat al uneltei."
 
 # auto-review 2026-10-21: new
 #: appPlugins/ToolGcodeSender/Sender.py:3484
@@ -29114,12 +29316,16 @@ msgstr "Parametrii sondării muchiei nu sunt numere valide."
 msgid ""
 "The probe Z travel, distance, feedrate and pull-off must be positive finite "
 "numbers."
-msgstr "Deplasarea Z a sondei, distanța, avansul și retragerea trebuie să fie numere pozitive finite."
+msgstr ""
+"Deplasarea Z a sondei, distanța, avansul și retragerea trebuie să fie "
+"numere pozitive finite."
 
 #: appPlugins/ToolGcodeSender/Sender.py:3842
 msgid ""
 "The edge probing parameters must be representable to four decimal places."
-msgstr "Parametrii sondării muchiei trebuie să poată fi reprezentați cu patru zecimale."
+msgstr ""
+"Parametrii sondării muchiei trebuie să poată fi reprezentați cu patru "
+"zecimale."
 
 #: appPlugins/ToolGcodeSender/Sender.py:3850
 msgid "The project units must be MM or IN."
@@ -29129,7 +29335,9 @@ msgstr "Unitățile proiectului trebuie să fie MM sau IN."
 msgid ""
 "The probe widget units do not match the project units. Refresh the Sender "
 "before probing."
-msgstr "Unitățile panoului sondei nu corespund celor ale proiectului. Reîmprospătați panoul de transmitere înainte de sondare."
+msgstr ""
+"Unitățile panoului sondei nu corespund celor ale proiectului. "
+"Reîmprospătați panoul de transmitere înainte de sondare."
 
 #: appPlugins/ToolGcodeSender/Sender.py:3857
 msgid "Turn off check mode before probing."
@@ -29138,7 +29346,9 @@ msgstr "Dezactivați modul de verificare înainte de sondare."
 #: appPlugins/ToolGcodeSender/Sender.py:3896
 msgid ""
 "The project units changed while the probing ran. The result was discarded."
-msgstr "Unitățile proiectului s-au schimbat în timpul sondării. Rezultatul a fost eliminat."
+msgstr ""
+"Unitățile proiectului s-au schimbat în timpul sondării. Rezultatul a fost "
+"eliminat."
 
 #: appPlugins/ToolGcodeSender/Sender.py:3905
 msgid "Centre:"
@@ -29463,7 +29673,7 @@ msgstr "poziție necunoscută (GRBL $13 nu a fost citit)"
 
 # auto-review 2026-10-21: new
 #: appPlugins/ToolGcodeSender/Sender.py:5338
-#: appPlugins/ToolPCBViewer/PCBViewer.py:110
+#: appPlugins/ToolPCBViewer/PCBViewer.py:126
 msgid "The Plot 3D tab is not available."
 msgstr "Fila Afișare 3D nu este disponibilă."
 
@@ -30682,7 +30892,9 @@ msgstr "Prag de avertizare a reziduului (%s):"
 msgid ""
 "A residual above this limit is reported as a warning; it does not block the "
 "preview or Apply."
-msgstr "Un reziduu peste limită generează un avertisment; nu blochează previzualizarea sau aplicarea."
+msgstr ""
+"Un reziduu peste limită generează un avertisment; nu blochează "
+"previzualizarea sau aplicarea."
 
 #: appPlugins/ToolGcodeSender/SenderRegistrationUI.py:172
 msgid ""
@@ -30851,7 +31063,8 @@ msgstr "Aplicat la %d obiect(e) ca un singur pas de anulare."
 #: appPlugins/ToolGcodeSender/SenderRegistrationUI.py:828
 #: appPlugins/ToolGcodeSender/SenderRegistrationUI.py:923
 msgid "The residual warning limit changed. Preview again."
-msgstr "Pragul de avertizare a reziduului s-a schimbat. Previzualizați din nou."
+msgstr ""
+"Pragul de avertizare a reziduului s-a schimbat. Previzualizați din nou."
 
 #: appPlugins/ToolGcodeSender/SenderRegistrationUI.py:853
 msgid "The preview could not be drawn: %s"
@@ -31240,7 +31453,9 @@ msgstr "Distanța de îndepărtare de la un contact, în unitățile curente."
 
 #: appPlugins/ToolGcodeSender/SenderUI.py:491
 msgid "The safe Z used while moving between centre contacts, in current units."
-msgstr "Înălțimea Z de siguranță între punctele de contact pentru centrarea XY, în unitățile curente."
+msgstr ""
+"Înălțimea Z de siguranță între punctele de contact pentru centrarea XY, în "
+"unitățile curente."
 
 #: appPlugins/ToolGcodeSender/SenderUI.py:496
 msgid "Probe edge"
@@ -31250,7 +31465,8 @@ msgstr "Sondează muchia"
 msgid ""
 "Probe one bounded contact in the selected direction.\n"
 "The contact is reported in the active work coordinates."
-msgstr "Sondează un singur contact în direcția aleasă, cu cursă limitată.\n"
+msgstr ""
+"Sondează un singur contact în direcția aleasă, cu cursă limitată.\n"
 "Punctul de contact este raportat în coordonatele de lucru active."
 
 #: appPlugins/ToolGcodeSender/SenderUI.py:501
@@ -31261,7 +31477,8 @@ msgstr "Găsește centrul XY"
 msgid ""
 "Probe the 2 opposed X contacts and the 2 opposed Y contacts,\n"
 "then report their midpoint as the hole or ring centre."
-msgstr "Sondează cele 2 contacte opuse pe X și cele 2 pe Y,\n"
+msgstr ""
+"Sondează cele 2 contacte opuse pe X și cele 2 pe Y,\n"
 "apoi raportează mijlocul dintre ele ca centru al găurii sau inelului."
 
 #: appPlugins/ToolGcodeSender/SenderUI.py:524
@@ -31514,16 +31731,16 @@ msgid "Only Geometry and Gerber objects are supported"
 msgstr "Sunt acceptate doar obiecte Geometrie și Gerber"
 
 # auto-review 2026-10-21: new
-#: appPlugins/ToolImage/ImageImportMixin.py:247
-#: appPlugins/ToolImage/ImageImportMixin.py:250
+#: appPlugins/ToolImage/ImageImportMixin.py:249
+#: appPlugins/ToolImage/ImageImportMixin.py:252
 #: appPlugins/ToolImage/ImageUI.py:34
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:236
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:238
 #: appPlugins/ToolPhotoCarve/PhotoCarveUI.py:244
 msgid "Load Image"
 msgstr "Încarcă imagine"
 
 # auto-review 2026-10-21: new
-#: appPlugins/ToolImage/ImageImportMixin.py:271
+#: appPlugins/ToolImage/ImageImportMixin.py:273
 msgid "Failed to load image"
 msgstr "Încărcarea imaginii a eșuat"
 
@@ -31541,8 +31758,10 @@ msgstr "Nicio imagine încărcată."
 msgid ""
 "Sampled image preview (up to 320 x 200 pixels).\n"
 "Settings apply to this preview; final import uses every original pixel."
-msgstr "Previzualizare eșantionată (până la 320 x 200 pixeli).\n"
-"Setările se aplică previzualizării; importul final folosește toți pixelii originali."
+msgstr ""
+"Previzualizare eșantionată (până la 320 x 200 pixeli).\n"
+"Setările se aplică previzualizării; importul final folosește toți pixelii "
+"originali."
 
 #: appPlugins/ToolImage/ImageUI.py:50
 #: appPlugins/ToolPhotoCarve/PhotoCarveUI.py:60
@@ -33324,18 +33543,32 @@ msgstr ""
 "acest lucru va permite determinarea uneltei potrivite\n"
 "pentru izolare sau curățare de cupru."
 
-#: appPlugins/ToolPCBViewer/PCBViewer.py:23
+#: appPlugins/ToolPCBViewer/PCBViewer.py:29
 #: appPlugins/ToolPCBViewer/PCBViewerUI.py:21
 msgid "PCB 3D Viewer"
 msgstr "Vizualizator PCB 3D"
 
-#: appPlugins/ToolPCBViewer/PCBViewer.py:189
+#: appPlugins/ToolPCBViewer/PCBViewer.py:215
 msgid "Building PCB preview…"
 msgstr "Se construiește previzualizarea PCB…"
 
-#: appPlugins/ToolPCBViewer/PCBViewer.py:227
+#: appPlugins/ToolPCBViewer/PCBViewer.py:261
 msgid "PCB preview ready"
 msgstr "Previzualizarea PCB este gata"
+
+#: appPlugins/ToolPCBViewer/PCBViewer.py:281
+#: appPlugins/ToolPCBViewer/PCBViewerUI.py:78
+msgid "Export 3D PDF"
+msgstr "Exportă PDF 3D"
+
+#: appPlugins/ToolPCBViewer/PCBViewer.py:297
+msgid "Exporting 3D PDF…"
+msgstr "Se exportă PDF-ul 3D…"
+
+#: appPlugins/ToolPCBViewer/PCBViewer.py:353
+#: appPlugins/ToolPCBViewer/PCBViewer.py:356
+msgid "3D PDF exported"
+msgstr "PDF 3D exportat"
 
 #: appPlugins/ToolPCBViewer/PCBViewerUI.py:23
 msgid "PCB"
@@ -33356,8 +33589,8 @@ msgid "Thickness:"
 msgstr "Grosime:"
 
 #: appPlugins/ToolPCBViewer/PCBViewerUI.py:46
-msgid "Transparency:"
-msgstr "Transparență:"
+msgid "Opacity:"
+msgstr "Opacitate:"
 
 #: appPlugins/ToolPCBViewer/PCBViewerUI.py:48
 msgid "Alpha: 0 is transparent; 255 is opaque."
@@ -33367,14 +33600,24 @@ msgstr "Alfa: 0 este transparent; 255 este opac."
 msgid ""
 "Closed board contours, including cutouts.\n"
 "Without an outline, the preview uses the combined bounding box."
-msgstr "Contururi închise ale plăcii, inclusiv decupajele.\n"
+msgstr ""
+"Contururi închise ale plăcii, inclusiv decupajele.\n"
 "Fără un contur, previzualizarea folosește caseta de încadrare combinată."
 
-#: appPlugins/ToolPCBViewer/PCBViewerUI.py:90
+#: appPlugins/ToolPCBViewer/PCBViewerUI.py:79
+msgid ""
+"Requires a PDF reader with U3D support, such as Adobe Acrobat or Foxit.\n"
+"Other readers display the static PCB preview."
+msgstr ""
+"Necesită un cititor PDF cu suport U3D, precum Adobe Acrobat sau Foxit.\n"
+"Alte cititoare afișează previzualizarea statică a plăcii de circuit "
+"imprimat."
+
+#: appPlugins/ToolPCBViewer/PCBViewerUI.py:95
 msgid "Color:"
 msgstr "Culoare:"
 
-#: appPlugins/ToolPCBViewer/PCBViewerUI.py:103
+#: appPlugins/ToolPCBViewer/PCBViewerUI.py:108
 msgid "Clear selection"
 msgstr "Golește selecția"
 
@@ -33916,15 +34159,15 @@ msgstr "Deschiderea fișierului PDF a eșuat."
 msgid "Rendered"
 msgstr "Randat"
 
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:170
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:172
 msgid "V-bit depth limit: %s"
 msgstr "Limită adâncime freză V: %s"
 
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:173
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:175
 msgid "Invalid V-bit parameters"
 msgstr "Parametri invalizi ai frezei V"
 
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:211
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:213
 msgid ""
 "The parameters changed: the old Photo Carve geometry was deleted. Generate "
 "again."
@@ -33932,15 +34175,15 @@ msgstr ""
 "Parametrii s-au schimbat: vechea geometrie de gravare foto a fost ștearsă. "
 "Generați din nou."
 
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:230
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:232
 msgid "Pixels: %d × %d"
 msgstr "Pixeli: %d × %d"
 
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:231
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:233
 msgid "Height: %s"
 msgstr "Înălțime: %s"
 
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:260
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:262
 msgid ""
 "This Photo Carve object has no source image. Load the image again in the "
 "Photo Carve plugin."
@@ -33948,39 +34191,39 @@ msgstr ""
 "Acest obiect de gravare foto nu are imagine sursă. Încărcați din nou "
 "imaginea în pluginul Gravare foto."
 
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:274
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:276
 msgid "Photo Carve opened with the image and the parameters of the object."
 msgstr "Gravarea foto a fost deschisă cu imaginea și parametrii obiectului."
 
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:346
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:348
 msgid "Preview of the job: the area is shown on the canvas."
 msgstr "Previzualizarea lucrării: zona apare pe suprafața de lucru."
 
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:368
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:370
 msgid "photo"
 msgstr "foto"
 
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:385
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:387
 msgid "Generating..."
 msgstr "Se generează..."
 
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:399
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:401
 msgid "Generate photo engraving geometry first."
 msgstr "Generați mai întâi geometria de gravare foto."
 
-#: appPlugins/ToolPhotoCarve/PhotoCarveGen.py:305
+#: appPlugins/ToolPhotoCarve/PhotoCarveGen.py:313
 msgid "Simulation finished."
 msgstr "Simularea s-a încheiat."
 
-#: appPlugins/ToolPhotoCarve/PhotoCarveGen.py:372
+#: appPlugins/ToolPhotoCarve/PhotoCarveGen.py:380
 msgid "Photo Carve geometry generated"
 msgstr "Geometria de gravare foto a fost generată"
 
-#: appPlugins/ToolPhotoCarve/PhotoCarveGen.py:372
+#: appPlugins/ToolPhotoCarve/PhotoCarveGen.py:380
 msgid "paths"
 msgstr "trasee"
 
-#: appPlugins/ToolPhotoCarve/PhotoCarveGen.py:373
+#: appPlugins/ToolPhotoCarve/PhotoCarveGen.py:381
 msgid "points"
 msgstr "puncte"
 
@@ -36334,7 +36577,7 @@ msgstr ""
 "toate cele %d treceri au fost făcute; zona din interiorul delimitării poate "
 "să nu fie degajată încă (sunt necesare mai multe treceri pentru ea)."
 
-#: defaults.py:1393 defaults.py:1686
+#: defaults.py:1394 defaults.py:1687
 msgid "Failed to parse defaults file."
 msgstr "Analiza fișierului cu valori implicite a eșuat."
 
@@ -36659,6 +36902,21 @@ msgid "No Geometry name in args. Provide a name and try again."
 msgstr ""
 "Niciun nume de Geometrie în argumente. Furnizați un nume și încercați din "
 "nou."
+
+# auto-review 2026-10-09: corrected
+#~ msgid "Failed to parse recent item list."
+#~ msgstr "Eșec la parsarea listei cu fișiere recente."
+
+# auto-review 2026-10-09: corrected
+#~ msgid "Failed to parse recent project item list."
+#~ msgstr "Eșec la parsarea listei cu proiecte recente."
+
+# auto-review 2026-10-09: corrected
+#~ msgid "Failed to load recent projects item list."
+#~ msgstr "Eșec la încărcarea listei cu proiecte recente."
+
+#~ msgid "Transparency:"
+#~ msgstr "Transparență:"
 
 #~ msgid "CNC-JOB"
 #~ msgstr "CNCJob"

@@ -2,7 +2,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: FlatCAM Evo\n"
-"PO-Revision-Date: 2026-11-06 15:03+0100\n"
+"PO-Revision-Date: 2026-11-07 15:54+0100\n"
 "Last-Translator: machine-assisted, waiting for a native speaker's review\n"
 "Language-Team: \n"
 "Language: ar\n"
@@ -93,8 +93,8 @@ msgid "Bookmark added."
 msgstr "أُضيفت الإشارة المرجعية."
 
 # auto-review 2026-11-04: new
-#: Bookmark.py:252 appHandlers/appUIActions.py:562
-#: appHandlers/appUIActions.py:590
+#: Bookmark.py:252 appHandlers/appUIActions.py:471
+#: appHandlers/appUIActions.py:499
 msgid "Backup Site"
 msgstr "موقع النسخ الاحتياطي"
 
@@ -127,8 +127,8 @@ msgstr "الإشارات المرجعية"
 #: appEditors/geo_plugins/GeoPaintPlugin.py:174
 #: appEditors/geo_plugins/GeoTransformationPlugin.py:221
 #: appEditors/grb_plugins/GrbOperationDialogs.py:81
-#: appEditors/grb_plugins/GrbTransformationPlugin.py:401 appGUI/MainGUI.py:3193
-#: appGUI/MainGUI.py:3311 appGUI/shortcut_actions.py:579
+#: appEditors/grb_plugins/GrbTransformationPlugin.py:401 appGUI/MainGUI.py:3196
+#: appGUI/MainGUI.py:3314 appGUI/shortcut_actions.py:579
 #: appGUI/shortcut_actions.py:735 appGUI/shortcut_actions.py:815
 #: appGUI/shortcut_actions.py:916 appHandlers/appIO.py:652
 #: appHandlers/appIO.py:696 appHandlers/appIO.py:740 appHandlers/appIO.py:765
@@ -143,8 +143,8 @@ msgstr "الإشارات المرجعية"
 #: appHandlers/appIO.py:1861 appHandlers/appIO.py:1908
 #: appHandlers/appIO.py:2323 appHandlers/appIO.py:2359
 #: appHandlers/appIO.py:3469 appHandlers/appIO.py:3526
-#: appHandlers/appObjectOps.py:490 appMain.py:1886 appMain.py:1922
-#: appMain.py:3094 appObjects/CNCJobObject.py:905
+#: appHandlers/appObjectOps.py:490 appMain.py:1936 appMain.py:1972
+#: appMain.py:3150 appObjects/CNCJobObject.py:905
 #: appObjects/DocumentObject.py:276 appObjects/ObjectCollection.py:287
 #: appParsers/ParseGerber.py:2800 appParsers/ParseGerber.py:2840
 #: appParsers/ParseGerber.py:2855 appParsers/ParseGerber.py:2872
@@ -153,7 +153,7 @@ msgstr "الإشارات المرجعية"
 #: appPlugins/ToolDistance/Distance.py:538 appPlugins/ToolFilm/Film.py:281
 #: appPlugins/ToolFilm/Film.py:328 appPlugins/ToolFollow/Follow.py:355
 #: appPlugins/ToolGcodeSender/Sender.py:4336
-#: appPlugins/ToolImage/ImageImportMixin.py:254
+#: appPlugins/ToolImage/ImageImportMixin.py:256
 #: appPlugins/ToolInvertGerber/InvertGerber.py:254
 #: appPlugins/ToolMarkers/Markers.py:569 appPlugins/ToolMarkers/Markers.py:627
 #: appPlugins/ToolMove/Move.py:356 appPlugins/ToolNCC/Ncc.py:1592
@@ -178,7 +178,7 @@ msgstr "أُلغي."
 #: Bookmark.py:317 appEditors/appTextEditor.py:610 appHandlers/appIO.py:2239
 #: appHandlers/appIO.py:2293 appHandlers/appIO.py:2482
 #: appHandlers/appIO.py:2657 appHandlers/appIO.py:2746
-#: appHandlers/appIO.py:4228 appMain.py:3099 appObjects/CNCJobObject.py:1329
+#: appHandlers/appIO.py:4228 appMain.py:3155 appObjects/CNCJobObject.py:1329
 #: appPlugins/Common/levelling_core.py:1745 appPlugins/ToolFilm/Film.py:490
 #: appPlugins/ToolLevelling/Levelling.py:500
 #: appPlugins/ToolSolderPaste/SolderPaste.py:1205
@@ -190,8 +190,8 @@ msgstr ""
 "على الأرجح أن تطبيقًا آخر يُبقي الملف مفتوحًا ولا يمكن الوصول إليه."
 
 # auto-review 2026-11-04: new
-#: Bookmark.py:328 Bookmark.py:359 appDatabase.py:2368 defaults.py:1385
-#: defaults.py:1677
+#: Bookmark.py:328 Bookmark.py:359 appDatabase.py:2368 defaults.py:1386
+#: defaults.py:1678
 msgid "Could not load the file."
 msgstr "تعذّر تحميل الملف."
 
@@ -382,13 +382,13 @@ msgstr ""
 #: appGUI/preferences/excellon/ExcellonGenPrefGroupUI.py:27
 #: appGUI/preferences/geometry/GeometryGenPrefGroupUI.py:24
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:26
-#: appHandlers/appUIActions.py:1221
+#: appHandlers/appUIActions.py:1130
 msgid "General"
 msgstr "عام"
 
 # auto-review 2026-11-04: new
 #: appDatabase.py:145 appDatabase.py:569 appGUI/MainGUI.py:1368
-#: appGUI/MainGUI.py:2622 appGUI/ObjectUI.py:768 appGUI/ObjectUI.py:1044
+#: appGUI/MainGUI.py:2625 appGUI/ObjectUI.py:768 appGUI/ObjectUI.py:1044
 #: appGUI/ToolLibrary.py:14 appGUI/preferences/PreferencesWindow.py:33
 #: appGUI/shortcut_actions.py:160 appPlugins/ToolMilling/Milling.py:304
 #: appPlugins/ToolMilling/Milling.py:306 appPlugins/ToolMilling/Milling.py:325
@@ -398,7 +398,7 @@ msgstr "تفريز"
 
 # auto-review 2026-11-04: new
 #: appDatabase.py:145 appDatabase.py:569 appGUI/MainGUI.py:1366
-#: appGUI/MainGUI.py:2620 appGUI/ObjectUI.py:760 appGUI/ToolLibrary.py:14
+#: appGUI/MainGUI.py:2623 appGUI/ObjectUI.py:760 appGUI/ToolLibrary.py:14
 #: appGUI/preferences/PreferencesWindow.py:32 appGUI/shortcut_actions.py:151
 #: appPlugins/ToolDrilling/Drilling.py:84
 #: appPlugins/ToolDrilling/Drilling.py:228
@@ -409,7 +409,7 @@ msgstr "ثقب"
 # auto-review 2026-11-04: new
 #: appDatabase.py:146 appDatabase.py:149 appDatabase.py:317 appDatabase.py:569
 #: appDatabase.py:900 appEditors/appGCodeEditor.py:211 appGUI/MainGUI.py:1373
-#: appGUI/MainGUI.py:2627 appGUI/ToolLibrary.py:14
+#: appGUI/MainGUI.py:2630 appGUI/ToolLibrary.py:14
 #: appGUI/preferences/PreferencesWindow.py:44
 #: appGUI/preferences/tools/ToolsNCCPrefGroupUI.py:163
 #: appGUI/shortcut_actions.py:156 appObjects/CNCJobObject.py:306
@@ -424,7 +424,7 @@ msgstr "عزل"
 #: appEditors/geo_plugins/GeoPaintPlugin.py:269
 #: appEditors/geo_plugins/GeoPaintPlugin.py:384 appGUI/MainGUI.py:855
 #: appGUI/MainGUI.py:1377 appGUI/MainGUI.py:1488 appGUI/MainGUI.py:1936
-#: appGUI/MainGUI.py:2632 appGUI/MainGUI.py:2741 appGUI/ObjectUI.py:1052
+#: appGUI/MainGUI.py:2635 appGUI/MainGUI.py:2744 appGUI/ObjectUI.py:1052
 #: appGUI/ToolLibrary.py:14 appGUI/preferences/PreferencesWindow.py:46
 #: appPlugins/ToolPaint/Paint.py:280 appPlugins/ToolPaint/PaintUI.py:47
 msgid "Paint"
@@ -432,7 +432,7 @@ msgstr "تعبئة"
 
 # auto-review 2026-11-04: new
 #: appDatabase.py:146 appDatabase.py:569 appGUI/MainGUI.py:1375
-#: appGUI/MainGUI.py:2630 appGUI/ObjectUI.py:417 appGUI/ObjectUI.py:1062
+#: appGUI/MainGUI.py:2633 appGUI/ObjectUI.py:417 appGUI/ObjectUI.py:1062
 #: appGUI/ToolLibrary.py:14 appGUI/preferences/PreferencesWindow.py:45
 #: appPlugins/ToolNCC/Ncc.py:262 appPlugins/ToolNCC/NccUI.py:33
 msgid "NCC"
@@ -440,7 +440,7 @@ msgstr "إزالة النحاس"
 
 # auto-review 2026-11-04: new
 #: appDatabase.py:146 appDatabase.py:569 appGUI/MainGUI.py:1385
-#: appGUI/MainGUI.py:2640 appGUI/ObjectUI.py:388 appGUI/ToolLibrary.py:14
+#: appGUI/MainGUI.py:2643 appGUI/ObjectUI.py:388 appGUI/ToolLibrary.py:14
 #: appGUI/preferences/PreferencesWindow.py:34 appGUI/shortcut_actions.py:61
 #: appPlugins/ToolCutOut/CutOut.py:230 appPlugins/ToolCutOut/CutOutUI.py:22
 msgid "Cutout"
@@ -474,7 +474,7 @@ msgstr "صقل"
 #: appEditors/appGeoEditor.py:6033 appEditors/appGeoEditor.py:6043
 #: appEditors/appGeoEditor.py:6112 appEditors/appGeoEditor.py:6426
 #: appGUI/MainGUI.py:800 appGUI/MainGUI.py:1477 appGUI/MainGUI.py:1917
-#: appGUI/MainGUI.py:2732 appPlugins/ToolMilling/MillingUI.py:458
+#: appGUI/MainGUI.py:2735 appPlugins/ToolMilling/MillingUI.py:458
 msgid "Path"
 msgstr "المسار"
 
@@ -598,7 +598,7 @@ msgstr "معاملات قص اللوحة"
 #: appGUI/ObjectUI.py:1511 appGUI/ObjectUI.py:1574 appGUI/ToolLibrary.py:36
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:384
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:387
-#: appHandlers/appUIActions.py:1223 appPlugins/ToolFiducials/FiducialsUI.py:66
+#: appHandlers/appUIActions.py:1132 appPlugins/ToolFiducials/FiducialsUI.py:66
 #: appPlugins/ToolGcodeSender/SenderEcutIO.py:105
 msgid "Name"
 msgstr "الاسم"
@@ -2039,7 +2039,7 @@ msgstr ""
 #: appGUI/ApertureLibrary.py:63
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:396
 #: appGUI/preferences/tools/Tools2CThievingPrefGroupUI.py:356
-#: appHandlers/appUIActions.py:1302
+#: appHandlers/appUIActions.py:1211
 #: appPlugins/ToolCopperThieving/CopperThievingUI.py:319
 #: appPlugins/ToolDblSided/DblSidedUI.py:196
 #: appPlugins/ToolGcodeSender/SenderUI.py:278 appPlugins/ToolNCC/Ncc.py:274
@@ -2076,12 +2076,12 @@ msgstr "تكرار"
 #: appGUI/GUIElements.py:4941 appGUI/MainGUI.py:540 appGUI/MainGUI.py:839
 #: appGUI/MainGUI.py:898 appGUI/MainGUI.py:1024 appGUI/MainGUI.py:1104
 #: appGUI/MainGUI.py:1308 appGUI/MainGUI.py:1457 appGUI/MainGUI.py:1532
-#: appGUI/MainGUI.py:1600 appGUI/MainGUI.py:2018 appGUI/MainGUI.py:2564
-#: appGUI/MainGUI.py:2712 appGUI/MainGUI.py:2776 appGUI/MainGUI.py:2845
+#: appGUI/MainGUI.py:1600 appGUI/MainGUI.py:2018 appGUI/MainGUI.py:2567
+#: appGUI/MainGUI.py:2715 appGUI/MainGUI.py:2779 appGUI/MainGUI.py:2848
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:404
 #: appGUI/shortcut_actions.py:397 appGUI/shortcut_actions.py:626
 #: appGUI/shortcut_actions.py:775 appHandlers/appObjectOps.py:970
-#: appHandlers/appUIActions.py:1304 appPlugins/ToolDrilling/Drilling.py:377
+#: appHandlers/appUIActions.py:1213 appPlugins/ToolDrilling/Drilling.py:377
 #: appPlugins/ToolIsolation/Isolation.py:292
 #: appPlugins/ToolMilling/Milling.py:635 appPlugins/ToolMilling/Milling.py:647
 #: appPlugins/ToolNCC/Ncc.py:280 appPlugins/ToolPaint/Paint.py:294
@@ -2111,7 +2111,7 @@ msgstr "حفظ قاعدة بيانات اللقم في ملف نصي مخصص."
 # auto-review 2026-11-04: new
 #: appDatabase.py:1726 appEditors/appGerberEditor.py:3446
 #: appGUI/ImportDialog.py:119 appGUI/MainGUI.py:282 appGUI/MainGUI.py:833
-#: appGUI/MainGUI.py:1527 appGUI/MainGUI.py:1591 appGUI/MainGUI.py:2772
+#: appGUI/MainGUI.py:1527 appGUI/MainGUI.py:1591 appGUI/MainGUI.py:2775
 msgid "Import"
 msgstr "استيراد"
 
@@ -2123,7 +2123,7 @@ msgstr "تحميل معلومات قاعدة بيانات اللقم من ملف
 # auto-review 2026-11-04: new
 #: appDatabase.py:1733 appGUI/ApertureLibrary.py:64 appGUI/MainGUI.py:228
 #: appGUI/MainGUI.py:1106 appGUI/ObjectUI.py:1457
-#: appGUI/preferences/PreferencesWindow.py:519 appMain.py:2703
+#: appGUI/preferences/PreferencesWindow.py:519 appMain.py:2759
 #: appObjects/ObjectCollection.py:640
 msgid "Save"
 msgstr "حفظ"
@@ -2158,7 +2158,7 @@ msgstr ""
 #: appDatabase.py:1752 appDatabase.py:3014 appGUI/GUIElements.py:2976
 #: appGUI/GUIElements.py:3046 appGUI/GUIElements.py:3107
 #: appGUI/GUIElements.py:3172 appGUI/GUIElements.py:4879
-#: appGUI/preferences/PreferencesUIManager.py:1186
+#: appGUI/preferences/PreferencesUIManager.py:1187
 #: appGUI/preferences/PreferencesWindow.py:511
 #: appGUI/preferences/general/GeneralShortcutsGroupUI.py:208
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:426
@@ -2166,7 +2166,7 @@ msgstr ""
 #: appGUI/shortcut_actions.py:980 appGUI/shortcut_actions.py:988
 #: appHandlers/appIO.py:3861 appHandlers/appLifecycle.py:327
 #: appHandlers/appObjectOps.py:955 appHandlers/appProjects.py:555
-#: appMain.py:2709 appMain.py:3458 appObjects/AppObject.py:87
+#: appMain.py:2765 appMain.py:3514 appObjects/AppObject.py:87
 #: appPlugins/ToolGcodeSender/Sender.py:4260
 #: appPlugins/ToolGcodeSender/SenderMotion.py:111
 #: appPlugins/ToolImage/ImageImportMixin.py:189
@@ -2188,7 +2188,7 @@ msgstr "إلغاء"
 #: appEditors/grb_plugins/GrbCopyPlugin.py:459
 #: appEditors/grb_plugins/GrbCopyPlugin.py:468
 #: appEditors/grb_plugins/GrbPadArrayPlugin.py:335
-#: appEditors/grb_plugins/GrbPadArrayPlugin.py:344 appGUI/MainGUI.py:3226
+#: appEditors/grb_plugins/GrbPadArrayPlugin.py:344 appGUI/MainGUI.py:3229
 #: appGUI/ObjectUI.py:158 appGUI/ObjectUI.py:169
 #: appPlugins/ToolAlignObjects/AlignUI.py:332
 #: appPlugins/ToolAlignObjects/AlignUI.py:343
@@ -2368,8 +2368,8 @@ msgstr "استبدال المكتبة من ملف…"
 # auto-review 2026-11-04: new
 #: appDatabase.py:2352 appDatabase.py:2659 appDatabase.py:2869
 #: appDatabase.py:2894 appDatabase.py:2983 appGUI/MainGUI.py:610
-#: appHandlers/appUIActions.py:38 appHandlers/appUIActions.py:51
-#: appHandlers/appUIActions.py:906 appPlugins/ToolCutOut/CutOut.py:595
+#: appHandlers/appUIActions.py:39 appHandlers/appUIActions.py:52
+#: appHandlers/appUIActions.py:815 appPlugins/ToolCutOut/CutOut.py:595
 #: appPlugins/ToolIsolation/Isolation.py:3365
 #: appPlugins/ToolMilling/Milling.py:2620 appPlugins/ToolNCC/Ncc.py:2190
 #: appPlugins/ToolPaint/Paint.py:1981
@@ -2408,7 +2408,7 @@ msgstr "أقطار اللقم"
 
 # auto-review 2026-11-04: new
 #: appDatabase.py:2453 appEditors/appExcEditor.py:3657
-#: appEditors/appExcEditor.py:3663 appGUI/MainGUI.py:3223
+#: appEditors/appExcEditor.py:3663 appGUI/MainGUI.py:3226
 #: appObjects/GeometryObject.py:730 appPlugins/ToolDrilling/Drilling.py:2073
 #: appPlugins/ToolIsolation/Isolation.py:1797
 #: appPlugins/ToolMilling/Milling.py:2709
@@ -2560,25 +2560,25 @@ msgstr ""
 "هل تريد الحفظ؟"
 
 # auto-review 2026-11-04: new
-#: appDatabase.py:3012 appGUI/MainGUI.py:2495
-#: appGUI/preferences/PreferencesUIManager.py:1185
-#: appGUI/preferences/PreferencesUIManager.py:1362
+#: appDatabase.py:3012 appGUI/MainGUI.py:2498
+#: appGUI/preferences/PreferencesUIManager.py:1186
+#: appGUI/preferences/PreferencesUIManager.py:1363
 #: appGUI/preferences/PreferencesWindow.py:538
 #: appGUI/preferences/general/GeneralGUIPrefGroupUI.py:560
 #: appHandlers/appLifecycle.py:325 appHandlers/appProjects.py:532
-#: appHandlers/appProjects.py:553 appMain.py:2029 appMain.py:2703
+#: appHandlers/appProjects.py:553 appMain.py:2085 appMain.py:2759
 #: appObjects/CNCJobObject.py:893 appPlugins/ToolGcodeSender/Sender.py:4288
 #: appTranslation.py:130
 msgid "Yes"
 msgstr "نعم"
 
 # auto-review 2026-11-04: new
-#: appDatabase.py:3013 appGUI/MainGUI.py:2496
-#: appGUI/preferences/PreferencesUIManager.py:1363
+#: appDatabase.py:3013 appGUI/MainGUI.py:2499
+#: appGUI/preferences/PreferencesUIManager.py:1364
 #: appGUI/preferences/PreferencesWindow.py:539
 #: appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:300
 #: appHandlers/appLifecycle.py:326 appHandlers/appProjects.py:533
-#: appHandlers/appProjects.py:554 appMain.py:2030 appMain.py:2707
+#: appHandlers/appProjects.py:554 appMain.py:2086 appMain.py:2763
 #: appObjects/CNCJobObject.py:894 appPlugins/ToolDrilling/DrillingUI.py:878
 #: appPlugins/ToolGcodeSender/Sender.py:4289 appTranslation.py:131
 msgid "No"
@@ -2899,8 +2899,8 @@ msgstr "لم يُحدَّد شيء."
 #: appGUI/MainGUI.py:830 appGUI/MainGUI.py:895 appGUI/MainGUI.py:1021
 #: appGUI/MainGUI.py:1102 appGUI/MainGUI.py:1305 appGUI/MainGUI.py:1455
 #: appGUI/MainGUI.py:1525 appGUI/MainGUI.py:1598 appGUI/MainGUI.py:2016
-#: appGUI/MainGUI.py:2561 appGUI/MainGUI.py:2710 appGUI/MainGUI.py:2770
-#: appGUI/MainGUI.py:2843 appGUI/shortcut_actions.py:643
+#: appGUI/MainGUI.py:2564 appGUI/MainGUI.py:2713 appGUI/MainGUI.py:2773
+#: appGUI/MainGUI.py:2846 appGUI/shortcut_actions.py:643
 #: appGUI/shortcut_actions.py:793 appObjects/ExcellonObject.py:652
 #: appPlugins/ToolDrilling/Drilling.py:373
 #: appPlugins/ToolMilling/Milling.py:632 appPlugins/ToolMilling/Milling.py:643
@@ -2934,7 +2934,7 @@ msgstr "مصفوفة دائرية غير صالحة."
 #: appGUI/GUIElements.py:1312 appGUI/GUIElements.py:1560
 #: appGUI/GUIElements.py:2066 appGUI/GUIElements.py:2360
 #: appGUI/GUIElements.py:4919 appGUI/MainGUI.py:442 appGUI/MainGUI.py:449
-#: appGUI/MainGUI.py:3132 appGUI/MainGUI.py:3137 appGUI/shortcut_actions.py:98
+#: appGUI/MainGUI.py:3135 appGUI/MainGUI.py:3140 appGUI/shortcut_actions.py:98
 #: appGUI/shortcut_actions.py:370 appGUI/shortcut_actions.py:604
 #: appGUI/shortcut_actions.py:760 appHandlers/appHistory.py:724
 msgid "Undo"
@@ -2945,7 +2945,7 @@ msgstr "تراجع"
 #: appGUI/GUIElements.py:1319 appGUI/GUIElements.py:1567
 #: appGUI/GUIElements.py:2073 appGUI/GUIElements.py:2365
 #: appGUI/GUIElements.py:4924 appGUI/MainGUI.py:445 appGUI/MainGUI.py:450
-#: appGUI/MainGUI.py:3133 appGUI/MainGUI.py:3137 appGUI/shortcut_actions.py:99
+#: appGUI/MainGUI.py:3136 appGUI/MainGUI.py:3140 appGUI/shortcut_actions.py:99
 #: appGUI/shortcut_actions.py:100 appGUI/shortcut_actions.py:371
 #: appGUI/shortcut_actions.py:372 appGUI/shortcut_actions.py:605
 #: appGUI/shortcut_actions.py:606 appGUI/shortcut_actions.py:761
@@ -3017,7 +3017,7 @@ msgstr "إجمالي الشقوق"
 #: appPlugins/ToolMarkers/MarkersUI.py:309
 #: appPlugins/ToolMilling/Milling.py:936 appPlugins/ToolNCC/Ncc.py:939
 #: appPlugins/ToolPaint/Paint.py:620 appPlugins/ToolPanelize/PanelizeUI.py:344
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:177
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:179
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:333
 #: appPlugins/ToolQRCode/QRCodeUI.py:383 appPlugins/ToolSub/Sub.py:204
 msgid "Beginner"
@@ -3041,7 +3041,7 @@ msgstr "مبتدئ"
 #: appPlugins/ToolMarkers/MarkersUI.py:325
 #: appPlugins/ToolMilling/Milling.py:947 appPlugins/ToolNCC/Ncc.py:979
 #: appPlugins/ToolPaint/Paint.py:645 appPlugins/ToolPanelize/PanelizeUI.py:354
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:177
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:179
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:338
 #: appPlugins/ToolQRCode/QRCodeUI.py:386 appPlugins/ToolSub/Sub.py:207
 msgid "Advanced"
@@ -3235,7 +3235,7 @@ msgstr "إضافة العناصر"
 #: appEditors/appGeoEditor.py:4175 appEditors/appGerberEditor.py:6321
 #: appEditors/appGerberEditor.py:6325 appEditors/appGerberEditor.py:6383
 #: appGUI/preferences/tools/Tools2sidedPrefGroupUI.py:110
-#: appHandlers/appUIActions.py:1234 appPlugins/ToolDblSided/DblSidedUI.py:176
+#: appHandlers/appUIActions.py:1143 appPlugins/ToolDblSided/DblSidedUI.py:176
 msgid "Snap"
 msgstr "الالتقاط"
 
@@ -3901,14 +3901,14 @@ msgstr "يستخدم الالتقاط بالعناصر أقصى مسافة ال�
 #: appEditors/appExcEditor.py:6334 appEditors/appGCodeEditor.py:76
 #: appEditors/appGCodeEditor.py:77 appEditors/appGCodeEditor.py:954
 #: appEditors/appGeoEditor.py:4469 appEditors/appGerberEditor.py:8576
-#: appGUI/MainGUI.py:460 appGUI/MainGUI.py:2022 appMain.py:2693
+#: appGUI/MainGUI.py:460 appGUI/MainGUI.py:2022 appMain.py:2749
 msgid "Exit Editor"
 msgstr "الخروج من المحرر"
 
 # auto-review 2026-11-04: new
 #: appEditors/appExcEditor.py:6337 appEditors/appGCodeEditor.py:957
 #: appEditors/appGeoEditor.py:4472 appEditors/appGerberEditor.py:8579
-#: appGUI/MainGUI.py:1299 appGUI/MainGUI.py:2556
+#: appGUI/MainGUI.py:1299 appGUI/MainGUI.py:2559
 msgid "Exit from Editor."
 msgstr "الخروج من المحرر."
 
@@ -3920,7 +3920,7 @@ msgstr "Ctrl+S"
 
 # auto-review 2026-11-04: new
 #: appEditors/appGCodeEditor.py:84 appGUI/shortcut_actions.py:66
-#: appMain.py:4229
+#: appMain.py:4285
 msgid "Code Editor"
 msgstr "محرر الكود"
 
@@ -4106,8 +4106,8 @@ msgstr ""
 #: appEditors/appGeoEditor.py:6486 appEditors/grb_plugins/GrbVertices.py:206
 #: appGUI/MainGUI.py:844 appGUI/MainGUI.py:904 appGUI/MainGUI.py:1029
 #: appGUI/MainGUI.py:1461 appGUI/MainGUI.py:1537 appGUI/MainGUI.py:1605
-#: appGUI/MainGUI.py:1958 appGUI/MainGUI.py:2031 appGUI/MainGUI.py:2716
-#: appGUI/MainGUI.py:2782 appGUI/MainGUI.py:2850 appGUI/shortcut_actions.py:65
+#: appGUI/MainGUI.py:1958 appGUI/MainGUI.py:2031 appGUI/MainGUI.py:2719
+#: appGUI/MainGUI.py:2785 appGUI/MainGUI.py:2853 appGUI/shortcut_actions.py:65
 #: appGUI/shortcut_actions.py:657 appGUI/shortcut_actions.py:801
 #: appPlugins/ToolMove/Move.py:37 appPlugins/ToolMove/Move.py:249
 msgid "Move"
@@ -4163,9 +4163,9 @@ msgstr "تطبيق"
 #: appEditors/grb_plugins/GrbVertices.py:214
 #: appEditors/text_editor/find_bar.py:82 appGUI/ApertureLibrary.py:64
 #: appGUI/TitleBar.py:291 appGUI/TitleBar.py:346 appGUI/TitleBar.py:347
-#: appGUI/shortcut_actions.py:1003 appHandlers/appIO.py:3669
-#: appHandlers/appUIActions.py:136 appHandlers/appUIActions.py:476
-#: appHandlers/appUIActions.py:650
+#: appGUI/WelcomeDialog.py:180 appGUI/shortcut_actions.py:1003
+#: appHandlers/appIO.py:3669 appHandlers/appUIActions.py:137
+#: appHandlers/appUIActions.py:385 appHandlers/appUIActions.py:559
 #: appPlugins/ToolGcodeSender/SenderSimulation.py:229
 msgid "Close"
 msgstr "إغلاق"
@@ -4386,8 +4386,8 @@ msgstr "تم تغيير حجم {n} دائرة، وتخطي {m} شكل"
 #: appPlugins/ToolNCC/NccGen.py:851 appPlugins/ToolNCC/NccGen.py:853
 #: appPlugins/ToolOptimal/Optimal.py:243 appPlugins/ToolPaint/PaintGen.py:385
 #: appPlugins/ToolPaint/PaintGen.py:387 appPlugins/ToolPanelize/Panelize.py:490
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:375
-#: appPlugins/ToolPhotoCarve/PhotoCarveGen.py:338
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:377
+#: appPlugins/ToolPhotoCarve/PhotoCarveGen.py:346
 #: appPlugins/ToolQRCode/QRCode.py:319 appPlugins/ToolReport/Report.py:111
 #: appPlugins/ToolSolderPaste/SolderPaste.py:930
 #: appPlugins/ToolSolderPaste/SolderPaste.py:946
@@ -4408,8 +4408,8 @@ msgstr "عملية هندسية قيد التنفيذ. انتظر حتى تنت�
 
 # auto-review 2026-11-04: new
 #: appEditors/appGeoEditor.py:1927 appEditors/appGeoEditor.py:2101
-#: appGUI/MainGUI.py:166 appGUI/MainGUI.py:1852
-#: appGUI/preferences/PreferencesWindow.py:71
+#: appGUI/MainGUI.py:166 appGUI/MainGUI.py:1852 appGUI/WelcomeDialog.py:31
+#: appGUI/WelcomeDialog.py:54 appGUI/preferences/PreferencesWindow.py:71
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:77
 #: appObjects/ObjectCollection.py:398 appPlugins/ToolAlignObjects/AlignUI.py:75
 #: appPlugins/ToolAlignObjects/AlignUI.py:115
@@ -4545,7 +4545,7 @@ msgstr "أقرب مقطع"
 # auto-review 2026-11-04: new
 #: appEditors/appGeoEditor.py:3351 appEditors/appGerberEditor.py:6382
 #: appGUI/preferences/tools/ToolsLevelPrefGroupUI.py:50
-#: appHandlers/appUIActions.py:1229 appPlugins/Common/levelling_ui.py:194
+#: appHandlers/appUIActions.py:1138 appPlugins/Common/levelling_ui.py:194
 msgid "Grid"
 msgstr "الشبكة"
 
@@ -4565,7 +4565,7 @@ msgstr "الشبكة"
 #: appPlugins/ToolFiducials/FiducialsUI.py:151
 #: appPlugins/ToolGcodeSender/SenderEcutIO.py:223
 #: appPlugins/ToolMilling/MillingUI.py:1228
-#: appPlugins/ToolPCBViewer/PCBViewerUI.py:99
+#: appPlugins/ToolPCBViewer/PCBViewerUI.py:104
 #: appPlugins/ToolReport/ReportUI.py:256 appPlugins/ToolReport/ReportUI.py:259
 #: appPlugins/ToolReport/ReportUI.py:262 appPlugins/ToolReport/ReportUI.py:292
 #: appPlugins/ToolReport/ReportUI.py:299 appPlugins/ToolReport/ReportUI.py:302
@@ -4642,7 +4642,7 @@ msgstr "حدّد مسارات تحيط بمنطقة. لم يتغيّر شيء."
 # auto-review 2026-11-04: new
 #: appEditors/appGeoEditor.py:3753 appEditors/appGeoEditor.py:5824
 #: appGUI/MainGUI.py:796 appGUI/MainGUI.py:1479 appGUI/MainGUI.py:1924
-#: appGUI/MainGUI.py:2734 appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:626
+#: appGUI/MainGUI.py:2737 appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:626
 #: appGUI/preferences/tools/ToolsFollowPrefGroupUI.py:60
 #: appGUI/preferences/tools/ToolsISOPrefGroupUI.py:346
 #: appGUI/preferences/tools/ToolsMillPrefGroupUI.py:503
@@ -5113,8 +5113,8 @@ msgstr "أقصى طول"
 # auto-review 2026-11-04: new
 #: appEditors/appGeoEditor.py:4430 appEditors/appGerberEditor.py:8260
 #: appGUI/MainGUI.py:968 appGUI/MainGUI.py:1441 appGUI/MainGUI.py:1467
-#: appGUI/MainGUI.py:1543 appGUI/MainGUI.py:2696 appGUI/MainGUI.py:2722
-#: appGUI/MainGUI.py:2788
+#: appGUI/MainGUI.py:1543 appGUI/MainGUI.py:2699 appGUI/MainGUI.py:2725
+#: appGUI/MainGUI.py:2791
 msgid "Select"
 msgstr "تحديد"
 
@@ -5189,7 +5189,7 @@ msgstr "حدّد LineString مفتوحًا واحدًا بالضبط وأعد ف
 #: appEditors/appGeoEditor.py:5046 appEditors/appGeoEditor.py:5289
 #: appEditors/geo_plugins/GeoCirclePlugin.py:139
 #: appEditors/geo_plugins/GeoCirclePlugin.py:191 appGUI/MainGUI.py:784
-#: appGUI/MainGUI.py:1469 appGUI/MainGUI.py:1922 appGUI/MainGUI.py:2724
+#: appGUI/MainGUI.py:1469 appGUI/MainGUI.py:1922 appGUI/MainGUI.py:2727
 msgid "Circle"
 msgstr "دائرة"
 
@@ -5314,7 +5314,7 @@ msgstr "الوضع: المركز -> البداية -> النهاية. انقر �
 
 # auto-review 2026-11-04: new
 #: appEditors/appGeoEditor.py:5543 appGUI/MainGUI.py:788 appGUI/MainGUI.py:1471
-#: appGUI/MainGUI.py:1926 appGUI/MainGUI.py:2726
+#: appGUI/MainGUI.py:1926 appGUI/MainGUI.py:2729
 msgid "Arc"
 msgstr "قوس"
 
@@ -5322,7 +5322,7 @@ msgstr "قوس"
 #: appEditors/appGeoEditor.py:5566 appEditors/appGeoEditor.py:5701
 #: appEditors/geo_plugins/GeoRectanglePlugin.py:176
 #: appEditors/geo_plugins/GeoRectanglePlugin.py:228 appGUI/MainGUI.py:792
-#: appGUI/MainGUI.py:1473 appGUI/MainGUI.py:1919 appGUI/MainGUI.py:2728
+#: appGUI/MainGUI.py:1473 appGUI/MainGUI.py:1919 appGUI/MainGUI.py:2731
 msgid "Rectangle"
 msgstr "مستطيل"
 
@@ -5472,8 +5472,8 @@ msgstr "إنشاء هندسة توسيع الحدود ..."
 #: appEditors/grb_plugins/GrbTransformationPlugin.py:178
 #: appEditors/grb_plugins/GrbTransformationPlugin.py:701 appGUI/MainGUI.py:847
 #: appGUI/MainGUI.py:948 appGUI/MainGUI.py:1486 appGUI/MainGUI.py:1583
-#: appGUI/MainGUI.py:1934 appGUI/MainGUI.py:1981 appGUI/MainGUI.py:2739
-#: appGUI/MainGUI.py:2828
+#: appGUI/MainGUI.py:1934 appGUI/MainGUI.py:1981 appGUI/MainGUI.py:2742
+#: appGUI/MainGUI.py:2831
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:258
 #: appGUI/shortcut_actions.py:641 appObjects/GerberObject.py:455
 #: appPlugins/ToolIsolation/Isolation.py:1907
@@ -5568,7 +5568,7 @@ msgstr "يجب أن تحدد مسبقًا فتحة لها حجم في جدول �
 # auto-review 2026-11-04: new
 #: appEditors/appGerberEditor.py:126 appEditors/appGerberEditor.py:157
 #: appGUI/MainGUI.py:925 appGUI/MainGUI.py:1545 appGUI/MainGUI.py:1963
-#: appGUI/MainGUI.py:2790
+#: appGUI/MainGUI.py:2793
 msgid "Pad"
 msgstr "وسادة"
 
@@ -5587,7 +5587,7 @@ msgstr "نوع فتحة غير متوافق. حدّد فتحة من النوع '
 # auto-review 2026-11-04: new
 #: appEditors/appGerberEditor.py:434 appEditors/appGerberEditor.py:451
 #: appGUI/MainGUI.py:928 appGUI/MainGUI.py:1547 appGUI/MainGUI.py:1965
-#: appGUI/MainGUI.py:2792
+#: appGUI/MainGUI.py:2795
 msgid "Pad Array"
 msgstr "مصفوفة وسادات"
 
@@ -5613,7 +5613,7 @@ msgstr "حدّد شكلًا (أشكالًا) ثم انقر ..."
 
 # auto-review 2026-11-04: new
 #: appEditors/appGerberEditor.py:880 appGUI/MainGUI.py:810
-#: appGUI/MainGUI.py:1499 appGUI/MainGUI.py:1944 appGUI/MainGUI.py:2752
+#: appGUI/MainGUI.py:1499 appGUI/MainGUI.py:1944 appGUI/MainGUI.py:2755
 msgid "Polygonize"
 msgstr "تحويل إلى مضلعات"
 
@@ -5624,13 +5624,13 @@ msgstr "فشل. لم يُحدَّد شيء."
 
 # auto-review 2026-11-04: new
 #: appEditors/appGerberEditor.py:968 appGUI/MainGUI.py:934
-#: appGUI/MainGUI.py:1554 appGUI/MainGUI.py:1971 appGUI/MainGUI.py:2799
+#: appGUI/MainGUI.py:1554 appGUI/MainGUI.py:1971 appGUI/MainGUI.py:2802
 msgid "Region"
 msgstr "منطقة"
 
 # auto-review 2026-11-04: new
 #: appEditors/appGerberEditor.py:1219 appGUI/MainGUI.py:915
-#: appGUI/MainGUI.py:1567 appGUI/MainGUI.py:2812
+#: appGUI/MainGUI.py:1567 appGUI/MainGUI.py:2815
 msgid "Copper Pour"
 msgstr "صب النحاس"
 
@@ -5665,7 +5665,7 @@ msgstr "لا يتبقى نحاس داخل المحيط."
 # auto-review 2026-11-04: new
 #: appEditors/appGerberEditor.py:1333 appEditors/appGerberEditor.py:1350
 #: appGUI/MainGUI.py:931 appGUI/MainGUI.py:1549 appGUI/MainGUI.py:1969
-#: appGUI/MainGUI.py:2794
+#: appGUI/MainGUI.py:2797
 msgid "Track"
 msgstr "مسار"
 
@@ -5709,7 +5709,7 @@ msgstr "تبسيط الفتحات المحددة ..."
 #: appEditors/geo_plugins/GeoSimplificationPlugin.py:206
 #: appEditors/grb_plugins/GrbSimplificationPlugin.py:116 appGUI/MainGUI.py:851
 #: appGUI/MainGUI.py:951 appGUI/MainGUI.py:1585 appGUI/MainGUI.py:1932
-#: appGUI/MainGUI.py:2830 appGUI/ObjectUI.py:1101
+#: appGUI/MainGUI.py:2833 appGUI/ObjectUI.py:1101
 #: appGUI/preferences/tools/ToolsFollowPrefGroupUI.py:104
 #: appGUI/preferences/tools/ToolsNCCPrefGroupUI.py:376
 #: appGUI/preferences/tools/ToolsPaintPrefGroupUI.py:333
@@ -5979,7 +5979,7 @@ msgid "Dim"
 msgstr "الأبعاد"
 
 # auto-review 2026-11-04: new
-#: appEditors/appGerberEditor.py:5409 appMain.py:4161
+#: appEditors/appGerberEditor.py:5409 appMain.py:4217
 #: appObjects/CNCJobObject.py:788 appObjects/ScriptObject.py:165
 #: appPlugins/ToolLevelling/Levelling.py:506
 msgid "Loading"
@@ -6003,7 +6003,7 @@ msgstr "اكتمل تحميل كائن Gerber في المحرر."
 # auto-review 2026-11-04: new
 #: appEditors/appGerberEditor.py:5587 appEditors/appGerberEditor.py:5606
 #: appEditors/appGerberEditor.py:5655 appEditors/appGerberEditor.py:5662
-#: appMain.py:2872
+#: appMain.py:2928
 msgid "The edited content could not be saved. The object is unchanged."
 msgstr "تعذّر حفظ المحتوى المحرَّر. الكائن لم يتغيّر."
 
@@ -6016,7 +6016,7 @@ msgstr "لا توجد تعريفات فتحات في الملف. إلغاء إن
 # auto-review 2026-11-04: new
 #: appEditors/appGerberEditor.py:5894 appHandlers/appIO.py:2972
 #: appHandlers/appIO.py:3060 appHandlers/appIO.py:3353
-#: appHandlers/appIO.py:3418 appHandlers/appUIActions.py:961
+#: appHandlers/appIO.py:3418 appHandlers/appUIActions.py:870
 #: appObjects/AppObject.py:411 appObjects/GeometryObject.py:671
 #: appParsers/ParseExcellon.py:386 appPlugins/ToolMilling/Milling.py:3248
 #: appPlugins/ToolPcbWizard/PcbWizard.py:302
@@ -6178,7 +6178,7 @@ msgstr "لا توجد فتحة لتحجيمها. حدّد فتحة واحدة ع
 #: appEditors/appGerberEditor.py:7815 appEditors/appGerberEditor.py:8490
 #: appEditors/geo_plugins/GeoTransformationPlugin.py:704
 #: appEditors/grb_plugins/GrbTransformationPlugin.py:698 appGUI/MainGUI.py:955
-#: appGUI/MainGUI.py:1587 appGUI/MainGUI.py:1983 appGUI/MainGUI.py:2832
+#: appGUI/MainGUI.py:1587 appGUI/MainGUI.py:1983 appGUI/MainGUI.py:2835
 #: appGUI/ObjectUI.py:121 appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:43
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:172
 #: appGUI/shortcut_actions.py:664 appObjects/AppObjectTemplate.py:687
@@ -6599,7 +6599,7 @@ msgstr "فرق المادة"
 
 # auto-review 2026-11-04: new
 #: appEditors/appGerberEditor.py:8359 appGUI/MainGUI.py:921
-#: appGUI/MainGUI.py:1578 appGUI/MainGUI.py:2823
+#: appGUI/MainGUI.py:1578 appGUI/MainGUI.py:2826
 msgid "Diff. Keep"
 msgstr "فرق مع الإبقاء"
 
@@ -6849,7 +6849,7 @@ msgstr "خريطة مصغرة"
 
 # auto-review 2026-11-04: new
 #: appEditors/appTextEditor.py:474 appEditors/appTextEditor.py:486
-#: appMain.py:4059 appMain.py:4065 appObjects/CNCJobObject.py:742
+#: appMain.py:4115 appMain.py:4121 appObjects/CNCJobObject.py:742
 #: appObjects/CNCJobObject.py:748 appObjects/DocumentObject.py:269
 #: appObjects/DocumentObject.py:274 appPlugins/Common/levelling_core.py:1717
 #: appPlugins/Common/levelling_core.py:1723
@@ -6994,8 +6994,8 @@ msgstr "وضع الزاوية 5: زاوية حرة ..."
 #: appPlugins/ToolPanelize/Panelize.py:79
 #: appPlugins/ToolPcbWizard/PcbWizard.py:83
 #: appPlugins/ToolPcbWizard/PcbWizard.py:92
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:72
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:80
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:74
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:82
 #: appPlugins/ToolPunchGerber/PunchGerber.py:95
 #: appPlugins/ToolPunchGerber/PunchGerber.py:103
 #: appPlugins/ToolQRCode/QRCode.py:85 appPlugins/ToolQRCode/QRCode.py:93
@@ -7807,7 +7807,7 @@ msgstr "حوّل الصورة المحمّلة وضع مساراتها على ل
 
 # auto-review 2026-11-04: new
 #: appEditors/geo_plugins/GeoImportImagePlugin.py:68 appGUI/MainGUI.py:836
-#: appGUI/MainGUI.py:1529 appGUI/MainGUI.py:2774
+#: appGUI/MainGUI.py:1529 appGUI/MainGUI.py:2777
 #: appPlugins/ToolImage/ImageUI.py:308
 msgid "Import Image"
 msgstr "استيراد الصورة"
@@ -7815,9 +7815,9 @@ msgstr "استيراد الصورة"
 # auto-review 2026-11-04: new
 #: appEditors/geo_plugins/GeoImportImagePlugin.py:107
 #: appPlugins/ToolImage/Image.py:109
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:279
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:288
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:300
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:281
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:290
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:302
 msgid "Load an image first."
 msgstr "حمّل صورة أولًا."
 
@@ -7838,7 +7838,8 @@ msgstr "انقر على لوحة الرسم لوضع الصورة."
 #: appEditors/geo_plugins/GeoImportImagePlugin.py:184
 msgid ""
 "Large image: the moving preview shows its extent; placement keeps all paths."
-msgstr "صورة كبيرة: تُظهر المعاينة المتحركة حدودها؛ ويحتفظ الإدراج بكل المسارات."
+msgstr ""
+"صورة كبيرة: تُظهر المعاينة المتحركة حدودها؛ ويحتفظ الإدراج بكل المسارات."
 
 # auto-review 2026-11-04: new
 #: appEditors/geo_plugins/GeoPaintPlugin.py:69
@@ -8026,7 +8027,7 @@ msgstr "لم تُنشأ أي هندسة من النص المُدخل."
 # auto-review 2026-11-04: new
 #: appEditors/geo_plugins/GeoTextPlugin.py:244
 #: appEditors/geo_plugins/GeoTextPlugin.py:329 appGUI/MainGUI.py:804
-#: appGUI/MainGUI.py:1482 appGUI/MainGUI.py:1930 appGUI/MainGUI.py:2737
+#: appGUI/MainGUI.py:1482 appGUI/MainGUI.py:1930 appGUI/MainGUI.py:2740
 msgid "Text"
 msgstr "النص"
 
@@ -8100,7 +8101,7 @@ msgstr "الكائن"
 #: appPlugins/ToolMarkers/MarkersUI.py:184 appPlugins/ToolNCC/NccUI.py:571
 #: appPlugins/ToolPaint/PaintUI.py:439
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:219
-#: appPlugins/ToolTransform/TransformUI.py:68 defaults.py:883
+#: appPlugins/ToolTransform/TransformUI.py:68 defaults.py:884
 msgid "Selection"
 msgstr "التحديد"
 
@@ -8681,7 +8682,7 @@ msgstr ""
 # auto-review 2026-11-04: new
 #: appEditors/geo_plugins/GeoTransformationPlugin.py:1065
 #: appEditors/grb_plugins/GrbTransformationPlugin.py:1057
-#: appGUI/MainGUI.py:1312 appGUI/MainGUI.py:2568
+#: appGUI/MainGUI.py:1312 appGUI/MainGUI.py:2571
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:280
 #: appPlugins/ToolDistance/Distance.py:196
 #: appPlugins/ToolDistance/DistanceUI.py:15
@@ -10017,6 +10018,88 @@ msgid "The edit would create a zero-length segment."
 msgstr "سينتج عن التحرير مقطع طوله صفر."
 
 # auto-review 2026-11-04: new
+#: appGUI/AboutContent.py:38
+msgid ""
+"Permission is hereby granted, free of charge, to any person obtaining a "
+"copy\n"
+"of this software and associated documentation files (the \"Software\"), to "
+"deal\n"
+"in the Software without restriction, including without limitation the "
+"rights\n"
+"to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n"
+"copies of the Software, and to permit persons to whom the Software is\n"
+"furnished to do so, subject to the following conditions:\n"
+"\n"
+"The above copyright notice and this permission notice shall be included in\n"
+"all copies or substantial portions of the Software.\n"
+"\n"
+"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS "
+"OR\n"
+"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n"
+"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL "
+"THE\n"
+"AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n"
+"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING "
+"FROM,\n"
+"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n"
+"THE SOFTWARE."
+msgstr ""
+"يُمنح بموجب هذا الإذن مجانًا لأي شخص يحصل على نسخة\n"
+"من هذا البرنامج وملفات التوثيق المرتبطة به (\"البرنامج\")، بالتعامل\n"
+"في البرنامج دون قيود، بما في ذلك على سبيل المثال لا الحصر حقوق\n"
+"استخدام نسخ البرنامج ونسخها وتعديلها ودمجها ونشرها وتوزيعها وترخيصها من "
+"الباطن و/أو بيعها،\n"
+"والسماح للأشخاص الذين يُقدَّم لهم البرنامج\n"
+"بالقيام بذلك، وفقًا للشروط التالية:\n"
+"\n"
+"يجب تضمين إشعار حقوق النشر أعلاه وإشعار الإذن هذا في\n"
+"جميع نسخ البرنامج أو الأجزاء الجوهرية منه.\n"
+"\n"
+"يُقدَّم البرنامج \"كما هو\"، دون أي ضمان من أي نوع، صريحًا كان أو\n"
+"ضمنيًا، بما في ذلك على سبيل المثال لا الحصر ضمانات القابلية للتسويق\n"
+"والملاءمة لغرض معين وعدم الانتهاك. ولا يتحمل\n"
+"المؤلفون أو أصحاب حقوق النشر بأي حال من الأحوال المسؤولية عن أي مطالبة أو "
+"أضرار أو أي\n"
+"مسؤولية أخرى، سواء في دعوى تعاقدية أو تقصيرية أو غير ذلك، تنشأ عن\n"
+"البرنامج أو استخدامه أو التعاملات الأخرى فيه\n"
+"أو تتعلق بها."
+
+# auto-review 2026-11-04: new
+#: appGUI/AboutContent.py:58
+msgid ""
+"Some of the icons used are from the following sources:<br><div>Icons by <a "
+"href=\"https://www.flaticon.com/authors/freepik\" "
+"title=\"Freepik\">Freepik</a> from <a href=\"https://www.flaticon.com/\"    "
+"         title=\"Flaticon\">www.flaticon.com</a></div><div>Icons by <a "
+"target=\"_blank\" href=\"https://icons8.com\">Icons8</a></div>Icons by <a "
+"href=\"http://www.onlinewebfonts.com\">oNline Web Fonts</a><div>Icons by <a "
+"href=\"https://www.flaticon.com/authors/pixel-perfect\" title=\"Pixel "
+"perfect\">Pixel perfect</a> from <a href=\"https://www.flaticon.com/\" "
+"title=\"Flaticon\">www.flaticon.com</a></div><div>Icons by <a "
+"href=\"https://www.flaticon.com/authors/anggara\" title=\"Anggara\"> "
+"Anggara </a> from <a href=\"https://www.flaticon.com/\" "
+"title=\"Flaticon\">www.flaticon.com</a></div><div>Icons by <a "
+"href=\"https://www.flaticon.com/authors/kharisma\" title=\"Kharisma\"> "
+"Kharisma </a> from <a href=\"https://www.flaticon.com/\" "
+"title=\"Flaticon\">www.flaticon.com</a></div>"
+msgstr ""
+"بعض الأيقونات المستخدمة مأخوذة من المصادر التالية:<br><div>أيقونات من <a "
+"href=\"https://www.flaticon.com/authors/freepik\" "
+"title=\"Freepik\">Freepik</a> عبر <a href=\"https://www.flaticon.com/\"     "
+"        title=\"Flaticon\">www.flaticon.com</a></div><div>أيقونات من <a "
+"target=\"_blank\" href=\"https://icons8.com\">Icons8</a></div>أيقونات من <a "
+"href=\"http://www.onlinewebfonts.com\">oNline Web Fonts</a><div>أيقونات من "
+"<a href=\"https://www.flaticon.com/authors/pixel-perfect\" title=\"Pixel "
+"perfect\">Pixel perfect</a> عبر <a href=\"https://www.flaticon.com/\" "
+"title=\"Flaticon\">www.flaticon.com</a></div><div>أيقونات من <a "
+"href=\"https://www.flaticon.com/authors/anggara\" title=\"Anggara\"> "
+"Anggara </a> عبر <a href=\"https://www.flaticon.com/\" "
+"title=\"Flaticon\">www.flaticon.com</a></div><div>أيقونات من <a "
+"href=\"https://www.flaticon.com/authors/kharisma\" title=\"Kharisma\"> "
+"Kharisma </a> عبر <a href=\"https://www.flaticon.com/\" "
+"title=\"Flaticon\">www.flaticon.com</a></div>"
+
+# auto-review 2026-11-04: new
 #: appGUI/ApertureLibrary.py:43
 msgid "Gerber Apertures Database"
 msgstr "قاعدة بيانات فتحات Gerber"
@@ -10168,7 +10251,7 @@ msgstr "µm"
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:425
 #: appHandlers/appIO.py:854 appHandlers/appIO.py:930 appHandlers/appIO.py:1291
 #: appHandlers/appIO.py:3860 appHandlers/appObjectOps.py:954
-#: appHandlers/appUIActions.py:781
+#: appHandlers/appUIActions.py:690
 msgid "Ok"
 msgstr "موافق"
 
@@ -10371,7 +10454,7 @@ msgid "Open G-Code"
 msgstr "فتح G-Code"
 
 # auto-review 2026-11-04: new
-#: appGUI/GUIElements.py:5857 appGUI/MainGUI.py:428 appGUI/UpdateDialog.py:224
+#: appGUI/GUIElements.py:5857 appGUI/MainGUI.py:428 appGUI/UpdateDialog.py:303
 msgid "Exit"
 msgstr "خروج"
 
@@ -10382,7 +10465,8 @@ msgstr "ملف SVG كهندسة"
 
 # auto-review 2026-11-04: new
 #: appGUI/ImportDialog.py:29 appGUI/ImportDialog.py:40
-#: appGUI/ImportDialog.py:51
+#: appGUI/ImportDialog.py:51 appGUI/WelcomeDialog.py:31
+#: appGUI/WelcomeDialog.py:266
 msgid "Geometry object"
 msgstr "كائن هندسة"
 
@@ -10403,6 +10487,7 @@ msgstr "ملف SVG كـ Gerber"
 
 # auto-review 2026-11-04: new
 #: appGUI/ImportDialog.py:34 appGUI/ImportDialog.py:45
+#: appGUI/WelcomeDialog.py:43 appGUI/WelcomeDialog.py:267
 msgid "Gerber object"
 msgstr "كائن Gerber"
 
@@ -10610,7 +10695,7 @@ msgid "Raster Images"
 msgstr "صور نقطية"
 
 # auto-review 2026-11-04: new
-#: appGUI/ImportDialog.py:106
+#: appGUI/ImportDialog.py:106 appGUI/WelcomeDialog.py:55
 msgid "PCB Boards"
 msgstr "لوحات الدوائر المطبوعة"
 
@@ -10677,9 +10762,9 @@ msgid "Will create a new, blank project"
 msgstr "ينشئ مشروعًا جديدًا فارغًا"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:162 appGUI/MainGUI.py:1850 appMain.py:2767
-#: appObjects/AppObject.py:538 appObjects/ObjectCollection.py:609
-#: appPlugins/ToolCompare/CompareUI.py:68
+#: appGUI/MainGUI.py:162 appGUI/MainGUI.py:1850 appGUI/WelcomeDialog.py:341
+#: appMain.py:2823 appObjects/AppObject.py:538
+#: appObjects/ObjectCollection.py:609 appPlugins/ToolCompare/CompareUI.py:68
 #: appPlugins/ToolGcodeSender/SenderUI.py:270
 msgid "New"
 msgstr "جديد"
@@ -10695,8 +10780,8 @@ msgid "Will create a new, empty Geometry Object."
 msgstr "ينشئ كائن هندسة جديدًا فارغًا."
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:171 appGUI/MainGUI.py:1267 appGUI/MainGUI.py:2522
-#: appGUI/preferences/PreferencesWindow.py:69
+#: appGUI/MainGUI.py:171 appGUI/MainGUI.py:1267 appGUI/MainGUI.py:2525
+#: appGUI/WelcomeDialog.py:40 appGUI/preferences/PreferencesWindow.py:69
 #: appGUI/preferences/geometry/GeometryExpPrefGroupUI.py:66
 #: appGUI/preferences/tools/ToolsPanelizePrefGroupUI.py:95
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:75
@@ -10725,7 +10810,7 @@ msgstr "ينشئ كائن هندسة جديدًا فارغًا."
 #: appPlugins/ToolPanelize/PanelizeUI.py:234
 #: appPlugins/ToolRulesCheck/RulesCheckUI.py:68 appPlugins/ToolSub/SubUI.py:75
 #: appPlugins/ToolTransform/Transform.py:170
-#: appPlugins/ToolTransform/TransformUI.py:96 defaults.py:884
+#: appPlugins/ToolTransform/TransformUI.py:96 defaults.py:885
 msgid "Gerber"
 msgstr "Gerber"
 
@@ -10741,7 +10826,8 @@ msgstr "ينشئ كائن Gerber جديدًا فارغًا."
 
 # auto-review 2026-11-04: new
 #: appGUI/MainGUI.py:176 appGUI/MainGUI.py:1270 appGUI/MainGUI.py:1856
-#: appGUI/MainGUI.py:2525 appGUI/preferences/PreferencesWindow.py:70
+#: appGUI/MainGUI.py:2528 appGUI/WelcomeDialog.py:45
+#: appGUI/preferences/PreferencesWindow.py:70
 #: appGUI/preferences/tools/Tools2PunchGerberPrefGroupUI.py:100
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:76
 #: appObjects/ObjectCollection.py:397 appPlugins/ToolAlignObjects/AlignUI.py:74
@@ -10809,7 +10895,8 @@ msgid "Recent projects"
 msgstr "المشاريع الأخيرة"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:225
+#: appGUI/MainGUI.py:225 appGUI/WelcomeDialog.py:271
+#: appGUI/WelcomeDialog.py:282
 msgid "Recent files"
 msgstr "الملفات الأخيرة"
 
@@ -10835,12 +10922,12 @@ msgid "Scripting"
 msgstr "البرمجة النصية"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:257 appGUI/MainGUI.py:1356 appGUI/MainGUI.py:2610
+#: appGUI/MainGUI.py:257 appGUI/MainGUI.py:1356 appGUI/MainGUI.py:2613
 msgid "New Script"
 msgstr "سكربت جديد"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:259 appGUI/MainGUI.py:1358 appGUI/MainGUI.py:2612
+#: appGUI/MainGUI.py:259 appGUI/MainGUI.py:1358 appGUI/MainGUI.py:2615
 msgid "Open Script"
 msgstr "فتح سكربت"
 
@@ -10850,7 +10937,7 @@ msgid "Open Example"
 msgstr "فتح مثال"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:265 appGUI/MainGUI.py:1360 appGUI/MainGUI.py:2614
+#: appGUI/MainGUI.py:265 appGUI/MainGUI.py:1360 appGUI/MainGUI.py:2617
 msgid "Run Script"
 msgstr "تشغيل سكربت"
 
@@ -10995,7 +11082,7 @@ msgid "Export Preferences to file"
 msgstr "تصدير التفضيلات إلى ملف"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:412 appGUI/preferences/PreferencesUIManager.py:1353
+#: appGUI/MainGUI.py:412 appGUI/preferences/PreferencesUIManager.py:1354
 msgid "Save Preferences"
 msgstr "حفظ التفضيلات"
 
@@ -11011,7 +11098,7 @@ msgstr "Ctrl+P"
 
 # auto-review 2026-11-04: new
 #: appGUI/MainGUI.py:439 appGUI/MainGUI.py:1100 appGUI/MainGUI.py:2020
-#: appMain.py:2431 appMain.py:2788 appObjects/ObjectCollection.py:641
+#: appMain.py:2487 appMain.py:2844 appObjects/ObjectCollection.py:641
 msgid "Edit"
 msgstr "تحرير"
 
@@ -11135,7 +11222,7 @@ msgid "Num Move"
 msgstr "نقل رقمي"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:549 appGUI/MainGUI.py:1318 appGUI/MainGUI.py:2574
+#: appGUI/MainGUI.py:549 appGUI/MainGUI.py:1318 appGUI/MainGUI.py:2577
 #: appGUI/shortcut_actions.py:209 appHandlers/appObjectOps.py:417
 msgid "Set Origin"
 msgstr "تعيين نقطة الأصل"
@@ -11310,7 +11397,7 @@ msgstr "Alt+4"
 
 # auto-review 2026-11-04: new
 #: appGUI/MainGUI.py:648 appGUI/MainGUI.py:1346 appGUI/MainGUI.py:1842
-#: appGUI/MainGUI.py:2602 appGUI/shortcut_actions.py:217
+#: appGUI/MainGUI.py:2605 appGUI/shortcut_actions.py:217
 #: appGUI/shortcut_actions.py:405 appGUI/shortcut_actions.py:668
 #: appGUI/shortcut_actions.py:785
 msgid "Zoom Fit"
@@ -11322,7 +11409,7 @@ msgid "V"
 msgstr "V"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:651 appGUI/MainGUI.py:1342 appGUI/MainGUI.py:2598
+#: appGUI/MainGUI.py:651 appGUI/MainGUI.py:1342 appGUI/MainGUI.py:2601
 #: appGUI/shortcut_actions.py:220 appGUI/shortcut_actions.py:401
 #: appGUI/shortcut_actions.py:632 appGUI/shortcut_actions.py:779
 #: appGUI/shortcut_actions.py:997
@@ -11335,7 +11422,7 @@ msgid "="
 msgstr "="
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:654 appGUI/MainGUI.py:1344 appGUI/MainGUI.py:2600
+#: appGUI/MainGUI.py:654 appGUI/MainGUI.py:1344 appGUI/MainGUI.py:2603
 #: appGUI/shortcut_actions.py:223 appGUI/shortcut_actions.py:400
 #: appGUI/shortcut_actions.py:630 appGUI/shortcut_actions.py:778
 #: appGUI/shortcut_actions.py:998
@@ -11471,7 +11558,7 @@ msgid "Plugins"
 msgstr "الإضافات"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:717 appGUI/MainGUI.py:1354 appGUI/MainGUI.py:2608
+#: appGUI/MainGUI.py:717 appGUI/MainGUI.py:1354 appGUI/MainGUI.py:2611
 msgid "Command Line"
 msgstr "سطر الأوامر"
 
@@ -11506,8 +11593,8 @@ msgid "Revert to Previous Version"
 msgstr "الرجوع إلى الإصدار السابق"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:739 appHandlers/appUIActions.py:606
-#: appHandlers/appUIActions.py:615
+#: appGUI/MainGUI.py:739 appHandlers/appUIActions.py:515
+#: appHandlers/appUIActions.py:524
 msgid "Bookmarks Manager"
 msgstr "مدير الإشارات المرجعية"
 
@@ -11554,12 +11641,13 @@ msgid "Donate"
 msgstr "تبرّع"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:770 appHandlers/appUIActions.py:425
+#: appGUI/MainGUI.py:770 appHandlers/appUIActions.py:334
 msgid "How To"
 msgstr "كيفية الاستخدام"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:774 appHandlers/appUIActions.py:110
+#: appGUI/MainGUI.py:774 appGUI/WelcomeDialog.py:320
+#: appHandlers/appUIActions.py:111
 msgid "About"
 msgstr "حول"
 
@@ -11591,7 +11679,7 @@ msgstr "T"
 
 # auto-review 2026-11-04: new
 #: appGUI/MainGUI.py:808 appGUI/MainGUI.py:1494 appGUI/MainGUI.py:1942
-#: appGUI/MainGUI.py:2747 appGUI/preferences/tools/ToolsFollowPrefGroupUI.py:90
+#: appGUI/MainGUI.py:2750 appGUI/preferences/tools/ToolsFollowPrefGroupUI.py:90
 #: appPlugins/ToolFollow/FollowUI.py:145
 msgid "Union"
 msgstr "اتحاد"
@@ -11603,24 +11691,24 @@ msgstr "U"
 
 # auto-review 2026-11-04: new
 #: appGUI/MainGUI.py:813 appGUI/MainGUI.py:1507 appGUI/MainGUI.py:1946
-#: appGUI/MainGUI.py:2760
+#: appGUI/MainGUI.py:2763
 msgid "Intersection"
 msgstr "تقاطع"
 
 # auto-review 2026-11-04: new
 #: appGUI/MainGUI.py:816 appGUI/MainGUI.py:1509 appGUI/MainGUI.py:1948
-#: appGUI/MainGUI.py:2762
+#: appGUI/MainGUI.py:2765
 msgid "Subtraction"
 msgstr "طرح"
 
 # auto-review 2026-11-04: new
 #: appGUI/MainGUI.py:820 appGUI/MainGUI.py:1515 appGUI/MainGUI.py:1950
-#: appGUI/MainGUI.py:2764
+#: appGUI/MainGUI.py:2767
 msgid "Alt Subtraction"
 msgstr "طرح بديل"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:825 appGUI/MainGUI.py:1523 appGUI/MainGUI.py:2768
+#: appGUI/MainGUI.py:825 appGUI/MainGUI.py:1523 appGUI/MainGUI.py:2771
 msgid "Cut Path"
 msgstr "قص المسار"
 
@@ -11642,7 +11730,7 @@ msgstr "I"
 # auto-review 2026-11-04: new
 #: appGUI/MainGUI.py:859 appGUI/MainGUI.py:964 appGUI/MainGUI.py:1534
 #: appGUI/MainGUI.py:1602 appGUI/MainGUI.py:1954 appGUI/MainGUI.py:1991
-#: appGUI/MainGUI.py:2778 appGUI/MainGUI.py:2847
+#: appGUI/MainGUI.py:2781 appGUI/MainGUI.py:2850
 #: appGUI/preferences/PreferencesWindow.py:38 appGUI/shortcut_actions.py:167
 #: appHandlers/appObjectOps.py:216 appHandlers/appObjectOps.py:276
 #: appHandlers/appObjectOps.py:329
@@ -11677,28 +11765,28 @@ msgstr "W"
 
 # auto-review 2026-11-04: new
 #: appGUI/MainGUI.py:891 appGUI/MainGUI.py:1451 appGUI/MainGUI.py:2013
-#: appGUI/MainGUI.py:2702 appGUI/shortcut_actions.py:808
+#: appGUI/MainGUI.py:2705 appGUI/shortcut_actions.py:808
 msgid "Resize Drill"
 msgstr "تغيير حجم الثقب"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:913 appGUI/MainGUI.py:1563 appGUI/MainGUI.py:2808
+#: appGUI/MainGUI.py:913 appGUI/MainGUI.py:1563 appGUI/MainGUI.py:2811
 msgid "Rect. Reg"
 msgstr "منطقة مستطيلة"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:917 appGUI/MainGUI.py:1570 appGUI/MainGUI.py:2815
+#: appGUI/MainGUI.py:917 appGUI/MainGUI.py:1570 appGUI/MainGUI.py:2818
 msgid "Text Reg"
 msgstr "منطقة نصية"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:919 appGUI/MainGUI.py:1574 appGUI/MainGUI.py:2819
+#: appGUI/MainGUI.py:919 appGUI/MainGUI.py:1574 appGUI/MainGUI.py:2822
 msgid "Arc Follow"
 msgstr "مسار قوسي"
 
 # auto-review 2026-11-04: new
 #: appGUI/MainGUI.py:939 appGUI/MainGUI.py:1556 appGUI/MainGUI.py:1973
-#: appGUI/MainGUI.py:2801
+#: appGUI/MainGUI.py:2804
 msgid "Poligonize"
 msgstr "تحويل إلى مضلع"
 
@@ -11709,19 +11797,19 @@ msgstr "Alt+N"
 
 # auto-review 2026-11-04: new
 #: appGUI/MainGUI.py:942 appGUI/MainGUI.py:1559 appGUI/MainGUI.py:1975
-#: appGUI/MainGUI.py:2804
+#: appGUI/MainGUI.py:2807
 msgid "SemiDisc"
 msgstr "نصف قرص"
 
 # auto-review 2026-11-04: new
 #: appGUI/MainGUI.py:945 appGUI/MainGUI.py:1561 appGUI/MainGUI.py:1977
-#: appGUI/MainGUI.py:2806
+#: appGUI/MainGUI.py:2809
 msgid "Disc"
 msgstr "قرص"
 
 # auto-review 2026-11-04: new
 #: appGUI/MainGUI.py:958 appGUI/MainGUI.py:1589 appGUI/MainGUI.py:1985
-#: appGUI/MainGUI.py:2834
+#: appGUI/MainGUI.py:2837
 msgid "Mark Area"
 msgstr "تحديد منطقة"
 
@@ -11732,8 +11820,8 @@ msgstr "Alt+A"
 
 # auto-review 2026-11-04: new
 #: appGUI/MainGUI.py:961 appGUI/MainGUI.py:1490 appGUI/MainGUI.py:1594
-#: appGUI/MainGUI.py:1938 appGUI/MainGUI.py:1987 appGUI/MainGUI.py:2743
-#: appGUI/MainGUI.py:2839
+#: appGUI/MainGUI.py:1938 appGUI/MainGUI.py:1987 appGUI/MainGUI.py:2746
+#: appGUI/MainGUI.py:2842
 msgid "Eraser"
 msgstr "ممحاة"
 
@@ -11922,7 +12010,7 @@ msgstr "PNG"
 
 # auto-review 2026-11-04: new
 #: appGUI/MainGUI.py:1128 appGUI/MainGUI.py:1496 appGUI/MainGUI.py:1551
-#: appGUI/MainGUI.py:2749 appGUI/MainGUI.py:2796
+#: appGUI/MainGUI.py:2752 appGUI/MainGUI.py:2799
 msgid "Join"
 msgstr "وصل"
 
@@ -11943,16 +12031,17 @@ msgstr "كهندسة"
 
 # auto-review 2026-11-04: new
 #: appGUI/MainGUI.py:1138 appGUI/MainGUI.py:1151 appGUI/MainGUI.py:1760
-#: appGUI/MainGUI.py:2033 appHandlers/appUIActions.py:1178 appMain.py:2570
-#: appMain.py:2952
+#: appGUI/MainGUI.py:2033 appHandlers/appUIActions.py:1087 appMain.py:2626
+#: appMain.py:3008
 msgid "Properties"
 msgstr "الخصائص"
 
 # auto-review 2026-11-04: new
 #: appGUI/MainGUI.py:1151 appGUI/MainGUI.py:1744 appGUI/MainGUI.py:1859
+#: appGUI/WelcomeDialog.py:29 appGUI/WelcomeDialog.py:54
 #: appGUI/preferences/general/GeneralShortcutsGroupUI.py:291
-#: appHandlers/appIO.py:1846 appHandlers/appProjects.py:71 appMain.py:2576
-#: appMain.py:2956
+#: appHandlers/appIO.py:1846 appHandlers/appProjects.py:71 appMain.py:2632
+#: appMain.py:3012
 msgid "Project"
 msgstr "المشروع"
 
@@ -12017,106 +12106,106 @@ msgid "Status Toolbar"
 msgstr "شريط أدوات الحالة"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:1268 appGUI/MainGUI.py:2523
+#: appGUI/MainGUI.py:1268 appGUI/MainGUI.py:2526
 msgid "Open a Gerber file."
 msgstr "فتح ملف Gerber."
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:1271 appGUI/MainGUI.py:2526
+#: appGUI/MainGUI.py:1271 appGUI/MainGUI.py:2529
 msgid "Open a Excellon file."
 msgstr "فتح ملف Excellon."
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:1278 appGUI/MainGUI.py:2533 appGUI/ObjectUI.py:1633
+#: appGUI/MainGUI.py:1278 appGUI/MainGUI.py:2536 appGUI/ObjectUI.py:1633
 #: appGUI/preferences/cncjob/CNCJobEditorPrefGroupUI.py:22
 #: appGUI/preferences/excellon/ExcellonEditorPrefGroupUI.py:18
 #: appGUI/preferences/geometry/GeometryEditorPrefGroupUI.py:21
-#: appGUI/preferences/gerber/GerberEditorPrefGroupUI.py:22 appMain.py:2573
-#: appMain.py:2950
+#: appGUI/preferences/gerber/GerberEditorPrefGroupUI.py:22 appMain.py:2629
+#: appMain.py:3006
 msgid "Editor"
 msgstr "المحرر"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:1283 appGUI/MainGUI.py:2538
+#: appGUI/MainGUI.py:1283 appGUI/MainGUI.py:2541
 msgid "Exit Edit"
 msgstr "الخروج من التحرير"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:1306 appGUI/MainGUI.py:2562
+#: appGUI/MainGUI.py:1306 appGUI/MainGUI.py:2565
 msgid "Copy a selection of objects."
 msgstr "نسخ الكائنات المحددة."
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:1309 appGUI/MainGUI.py:2565
+#: appGUI/MainGUI.py:1309 appGUI/MainGUI.py:2568
 msgid "Delete a selection of objects."
 msgstr "حذف الكائنات المحددة."
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:1313 appGUI/MainGUI.py:2569
+#: appGUI/MainGUI.py:1313 appGUI/MainGUI.py:2572
 msgid "Measure a distance between two or more points."
 msgstr "قياس المسافة بين نقطتين أو أكثر."
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:1319 appGUI/MainGUI.py:2575
+#: appGUI/MainGUI.py:1319 appGUI/MainGUI.py:2578
 msgid "Set an origin to a custom location."
 msgstr "تعيين نقطة الأصل في موضع مخصص."
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:1328 appGUI/MainGUI.py:2584
+#: appGUI/MainGUI.py:1328 appGUI/MainGUI.py:2587
 msgid "Jump to"
 msgstr "الانتقال إلى"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:1329 appGUI/MainGUI.py:2585
+#: appGUI/MainGUI.py:1329 appGUI/MainGUI.py:2588
 msgid "Move the mouse cursor to a defined position and center into view."
 msgstr "تحريك مؤشر الفأرة إلى موضع محدد وتوسيطه في العرض."
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:1331 appGUI/MainGUI.py:2587
+#: appGUI/MainGUI.py:1331 appGUI/MainGUI.py:2590
 msgid "Locate"
 msgstr "تحديد الموقع"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:1332 appGUI/MainGUI.py:2588
+#: appGUI/MainGUI.py:1332 appGUI/MainGUI.py:2591
 msgid "Locate a predefined position on a selected object."
 msgstr "تحديد موضع معرّف مسبقًا على الكائن المحدد."
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:1338 appGUI/MainGUI.py:1846 appGUI/MainGUI.py:2594
+#: appGUI/MainGUI.py:1338 appGUI/MainGUI.py:1846 appGUI/MainGUI.py:2597
 msgid "Replot"
 msgstr "إعادة العرض"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:1340 appGUI/MainGUI.py:1844 appGUI/MainGUI.py:2596
+#: appGUI/MainGUI.py:1340 appGUI/MainGUI.py:1844 appGUI/MainGUI.py:2599
 msgid "Clear Plot"
 msgstr "مسح العرض"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:1379 appGUI/MainGUI.py:2634
+#: appGUI/MainGUI.py:1379 appGUI/MainGUI.py:2637
 msgid "Carve"
 msgstr "نحت"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:1380 appGUI/MainGUI.py:2635
+#: appGUI/MainGUI.py:1380 appGUI/MainGUI.py:2638
 msgid "Carve a loaded picture into a material."
 msgstr "نحت صورة محمّلة في المادة."
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:1387 appGUI/MainGUI.py:2642
+#: appGUI/MainGUI.py:1387 appGUI/MainGUI.py:2645
 #: appGUI/preferences/tools/ToolsCutoutPrefGroupUI.py:118
 #: appPlugins/ToolCutOut/CutOutUI.py:85
 msgid "Panel"
 msgstr "تجميع اللوحات"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:1389 appGUI/MainGUI.py:2644 appGUI/ObjectUI.py:403
+#: appGUI/MainGUI.py:1389 appGUI/MainGUI.py:2647 appGUI/ObjectUI.py:403
 #: appGUI/preferences/PreferencesWindow.py:35 appPlugins/ToolFilm/Film.py:118
 #: appPlugins/ToolFilm/FilmUI.py:19
 msgid "Film"
 msgstr "فيلم"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:1391 appGUI/MainGUI.py:2646
+#: appGUI/MainGUI.py:1391 appGUI/MainGUI.py:2649
 #: appGUI/preferences/PreferencesWindow.py:48 appGUI/shortcut_actions.py:53
 #: appPlugins/ToolDblSided/DblSided.py:203
 #: appPlugins/ToolDblSided/DblSidedUI.py:16
@@ -12124,12 +12213,12 @@ msgid "2-Sided"
 msgstr "الوجهان"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:1396 appGUI/MainGUI.py:2651
+#: appGUI/MainGUI.py:1396 appGUI/MainGUI.py:2654
 msgid "Align"
 msgstr "محاذاة"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:1403 appGUI/MainGUI.py:2658
+#: appGUI/MainGUI.py:1403 appGUI/MainGUI.py:2661
 #: appGUI/preferences/tools/Tools2CThievingPrefGroupUI.py:361
 #: appPlugins/ToolCopperThieving/CopperThieving.py:509
 #: appPlugins/ToolCopperThieving/CopperThieving.py:521
@@ -12139,7 +12228,7 @@ msgid "Thieving"
 msgstr "ملء النحاس"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:1405 appGUI/MainGUI.py:2660
+#: appGUI/MainGUI.py:1405 appGUI/MainGUI.py:2663
 #: appGUI/preferences/PreferencesWindow.py:40 appGUI/shortcut_actions.py:55
 #: appGUI/shortcut_actions.py:149 appPlugins/ToolMarkers/Markers.py:152
 #: appPlugins/ToolMarkers/MarkersUI.py:16
@@ -12152,7 +12241,7 @@ msgid "Punch"
 msgstr "تثقيب"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:1409 appGUI/MainGUI.py:2664
+#: appGUI/MainGUI.py:1409 appGUI/MainGUI.py:2667
 #: appGUI/preferences/PreferencesWindow.py:37 appGUI/shortcut_actions.py:150
 #: appPlugins/ToolCalculators/Calculator.py:86
 #: appPlugins/ToolCalculators/CalculatorUI.py:22
@@ -12160,34 +12249,34 @@ msgid "Calculators"
 msgstr "الحاسبات"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:1443 appGUI/MainGUI.py:2698 appGUI/shortcut_actions.py:796
+#: appGUI/MainGUI.py:1443 appGUI/MainGUI.py:2701 appGUI/shortcut_actions.py:796
 msgid "Add Drill"
 msgstr "إضافة ثقب"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:1445 appGUI/MainGUI.py:2700 appGUI/shortcut_actions.py:790
+#: appGUI/MainGUI.py:1445 appGUI/MainGUI.py:2703 appGUI/shortcut_actions.py:790
 msgid "Add Drill Array"
 msgstr "إضافة مصفوفة ثقوب"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:1447 appGUI/MainGUI.py:2704 appGUI/shortcut_actions.py:786
+#: appGUI/MainGUI.py:1447 appGUI/MainGUI.py:2707 appGUI/shortcut_actions.py:786
 msgid "Add Slot"
 msgstr "إضافة شق"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:1449 appGUI/MainGUI.py:2706 appGUI/shortcut_actions.py:805
+#: appGUI/MainGUI.py:1449 appGUI/MainGUI.py:2709 appGUI/shortcut_actions.py:805
 msgid "Add Slot Array"
 msgstr "إضافة مصفوفة شقوق"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:1497 appGUI/MainGUI.py:2750
+#: appGUI/MainGUI.py:1497 appGUI/MainGUI.py:2753
 msgid ""
 "Join selected lines into polylines. Uses the Join tolerance in Properties."
 msgstr ""
 "وصل الخطوط المحددة في خطوط متعددة متصلة. يستخدم تفاوت الوصل في الخصائص."
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:1501 appGUI/MainGUI.py:2754
+#: appGUI/MainGUI.py:1501 appGUI/MainGUI.py:2757
 msgid ""
 "Create polygons from selected closed paths or enclosing segments.\n"
 "Unused open segments are kept. Endpoints must meet exactly."
@@ -12196,7 +12285,7 @@ msgstr ""
 "تُترك المقاطع المفتوحة غير المستخدمة. يجب أن تتطابق نقاط النهاية تمامًا."
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:1504 appGUI/MainGUI.py:2757
+#: appGUI/MainGUI.py:1504 appGUI/MainGUI.py:2760
 msgid "Explode"
 msgstr "تفكيك"
 
@@ -12223,27 +12312,27 @@ msgstr ""
 "يُحتفظ بالعنصر الأول المحدد إلى جانب النتيجة."
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:1552 appGUI/MainGUI.py:2797
+#: appGUI/MainGUI.py:1552 appGUI/MainGUI.py:2800
 msgid "Join selected connected track sections into one track."
 msgstr "وصل مقاطع المسارات المتصلة المحددة في مسار واحد."
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:1564 appGUI/MainGUI.py:2809
+#: appGUI/MainGUI.py:1564 appGUI/MainGUI.py:2812
 msgid "Rectangular Region"
 msgstr "منطقة مستطيلة"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:1571 appGUI/MainGUI.py:2816
+#: appGUI/MainGUI.py:1571 appGUI/MainGUI.py:2819
 msgid "Text Region"
 msgstr "منطقة نص"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:1575 appGUI/MainGUI.py:2820
+#: appGUI/MainGUI.py:1575 appGUI/MainGUI.py:2823
 msgid "Arc: Circular Follow"
 msgstr "قوس: تتبع دائري"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:1579 appGUI/MainGUI.py:2824
+#: appGUI/MainGUI.py:1579 appGUI/MainGUI.py:2827
 msgid "Difference: Keep Cutters"
 msgstr "الفرق: الاحتفاظ بالأشكال القاطعة"
 
@@ -12332,10 +12421,10 @@ msgid "GCode Console"
 msgstr "طرفية G-code"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:1790 appGUI/MainGUI.py:1798 appGUI/MainGUI.py:3052
-#: appGUI/MainGUI.py:3058
+#: appGUI/MainGUI.py:1790 appGUI/MainGUI.py:1798 appGUI/MainGUI.py:3055
+#: appGUI/MainGUI.py:3061
 #: appGUI/preferences/general/GeneralShortcutsGroupUI.py:289
-#: appHandlers/appIO.py:1549 appMain.py:2959
+#: appHandlers/appIO.py:1549 appMain.py:3015
 msgid "Plot Area"
 msgstr "منطقة العرض"
 
@@ -12387,27 +12476,27 @@ msgid "Untitled"
 msgstr "بلا عنوان"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:2370
+#: appGUI/MainGUI.py:2373
 msgid "Detachable Tabs"
 msgstr "تبويبات قابلة للفصل"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:2475
+#: appGUI/MainGUI.py:2478
 msgid "FlatCAM Preferences Folder opened."
 msgstr "تم فتح مجلد تفضيلات FlatCAM."
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:2487 appGUI/preferences/PreferencesWindow.py:500
+#: appGUI/MainGUI.py:2490 appGUI/preferences/PreferencesWindow.py:500
 msgid "Clear GUI Settings"
 msgstr "مسح إعدادات الواجهة"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:2488
+#: appGUI/MainGUI.py:2491
 msgid "Are you sure you want to delete the GUI Settings? \n"
 msgstr "هل أنت متأكد من حذف إعدادات الواجهة؟ \n"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:2662 appGUI/preferences/PreferencesWindow.py:57
+#: appGUI/MainGUI.py:2665 appGUI/preferences/PreferencesWindow.py:57
 #: appGUI/shortcut_actions.py:155 appPlugins/ToolPunchGerber/PunchGerber.py:57
 #: appPlugins/ToolPunchGerber/PunchGerber.py:210
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:16
@@ -12416,39 +12505,39 @@ msgid "Punch Gerber"
 msgstr "تثقيب Gerber"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:2836
+#: appGUI/MainGUI.py:2839
 msgid "Import Shape"
 msgstr "استيراد شكل"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:2871
+#: appGUI/MainGUI.py:2874
 msgid "Key Shortcut List"
 msgstr "قائمة اختصارات المفاتيح"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:3211
+#: appGUI/MainGUI.py:3214
 msgid "Go to Line ..."
 msgstr "الانتقال إلى السطر ..."
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:3212 appPlugins/ToolGcodeSender/Sender.py:383
+#: appGUI/MainGUI.py:3215 appPlugins/ToolGcodeSender/Sender.py:383
 msgid "Line"
 msgstr "السطر"
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:3324
+#: appGUI/MainGUI.py:3327
 msgid ""
 "An updater operation is active. Cancel it or wait for it to finish before "
 "closing FlatCAM."
 msgstr "توجد عملية تحديث نشطة. ألغِها أو انتظر انتهاءها قبل إغلاق FlatCAM."
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:3331 appHandlers/appLifecycle.py:286
+#: appGUI/MainGUI.py:3334 appHandlers/appLifecycle.py:286
 msgid "Saving the project. FlatCAM closes when the save ends."
 msgstr "جارٍ حفظ المشروع. يُغلق FlatCAM عند انتهاء الحفظ."
 
 # auto-review 2026-11-04: new
-#: appGUI/MainGUI.py:3375
+#: appGUI/MainGUI.py:3378
 msgid "Shortcut Key List"
 msgstr "قائمة مفاتيح الاختصار"
 
@@ -12755,7 +12844,7 @@ msgstr "ستكون زوايا الهندسة الناتجة مستديرة."
 #: appPlugins/ToolCutOut/CutOutUI.py:513 appPlugins/ToolFollow/FollowUI.py:210
 #: appPlugins/ToolIsolation/IsolationUI.py:709 appPlugins/ToolNCC/NccUI.py:688
 #: appPlugins/ToolPaint/PaintUI.py:521
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:385
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:387
 #: appPlugins/ToolPhotoCarve/PhotoCarveUI.py:304
 #: appPlugins/ToolSolderPaste/SolderPasteUI.py:454
 msgid "Generate Geometry"
@@ -12883,7 +12972,7 @@ msgstr ""
 #: appGUI/ObjectUI.py:740
 #: appGUI/preferences/excellon/ExcellonAdvOptPrefGroupUI.py:51
 msgid "Auto load from DB"
-msgstr "التحميل التلقائي من قاعدة البيانات"
+msgstr "تحميل تلقائي من قاعدة البيانات"
 
 # auto-review 2026-11-04: new
 #: appGUI/ObjectUI.py:742
@@ -13333,12 +13422,12 @@ msgid "Grid disabled."
 msgstr "تم تعطيل الشبكة."
 
 # auto-review 2026-11-04: new
-#: appGUI/PlotCanvas3d.py:217
+#: appGUI/PlotCanvas3d.py:218
 msgid "Toggle Grid"
 msgstr "إظهار/إخفاء الشبكة"
 
 # auto-review 2026-11-04: new
-#: appGUI/PlotCanvas3d.py:218 appGUI/ViewCube.py:68
+#: appGUI/PlotCanvas3d.py:219 appGUI/ViewCube.py:68
 #: appPlugins/ToolGcodeSender/SenderUI.py:99
 msgid "Fit View"
 msgstr "ملاءمة العرض"
@@ -13779,112 +13868,112 @@ msgid "Skipped: %s"
 msgstr "تم التخطي: %s"
 
 # auto-review 2026-11-04: new
-#: appGUI/UpdateDialog.py:14
+#: appGUI/UpdateDialog.py:16
 msgid "This FlatCAM Evo copy runs from an AppImage."
 msgstr "تعمل نسخة FlatCAM Evo هذه من AppImage."
 
 # auto-review 2026-11-04: new
-#: appGUI/UpdateDialog.py:15
+#: appGUI/UpdateDialog.py:17
 msgid "This is a source installation on Windows."
 msgstr "هذا تثبيت من الشيفرة المصدرية على Windows."
 
 # auto-review 2026-11-04: new
-#: appGUI/UpdateDialog.py:16
+#: appGUI/UpdateDialog.py:18
 msgid "This build does not match the published Windows x64 archive."
 msgstr "هذا الإصدار لا يطابق أرشيف Windows x64 المنشور."
 
 # auto-review 2026-11-04: new
-#: appGUI/UpdateDialog.py:17
+#: appGUI/UpdateDialog.py:19
 msgid "The packaged Linux application is replaced by hand."
 msgstr "يُستبدل تطبيق Linux المحزّم يدويًا."
 
 # auto-review 2026-11-04: new
-#: appGUI/UpdateDialog.py:18
+#: appGUI/UpdateDialog.py:20
 msgid "This is a Git checkout."
 msgstr "هذه نسخة مستخرجة من Git."
 
 # auto-review 2026-11-04: new
-#: appGUI/UpdateDialog.py:19
+#: appGUI/UpdateDialog.py:21
 msgid "The installation folder is read-only."
 msgstr "مجلد التثبيت للقراءة فقط."
 
 # auto-review 2026-11-04: new
-#: appGUI/UpdateDialog.py:20
+#: appGUI/UpdateDialog.py:22
 msgid "macOS builds are replaced by hand."
 msgstr "تُستبدل إصدارات macOS يدويًا."
 
 # auto-review 2026-11-04: new
-#: appGUI/UpdateDialog.py:21
+#: appGUI/UpdateDialog.py:23
 msgid "This platform has no automatic package."
 msgstr "لا توجد حزمة تلقائية لهذه المنصة."
 
 # auto-review 2026-11-04: new
-#: appGUI/UpdateDialog.py:111
+#: appGUI/UpdateDialog.py:189
 msgid "FlatCAM Evo update available: %s"
 msgstr "يتوفر تحديث لـ FlatCAM Evo: %s"
 
 # auto-review 2026-11-04: new
-#: appGUI/UpdateDialog.py:111
+#: appGUI/UpdateDialog.py:189
 msgid "unknown version"
 msgstr "إصدار غير معروف"
 
 # auto-review 2026-11-04: new
-#: appGUI/UpdateDialog.py:120
+#: appGUI/UpdateDialog.py:198
 msgid "unknown"
 msgstr "غير معروف"
 
 # auto-review 2026-11-04: new
-#: appGUI/UpdateDialog.py:122
+#: appGUI/UpdateDialog.py:200
 msgid "A new version is available: <b>%s</b><br>You have: <b>%s</b>"
 msgstr "يتوفر إصدار جديد: <b>%s</b><br>إصدارك الحالي: <b>%s</b>"
 
 # auto-review 2026-11-04: new
-#: appGUI/UpdateDialog.py:126
+#: appGUI/UpdateDialog.py:204
 msgid "Update version information"
 msgstr "معلومات إصدار التحديث"
 
 # auto-review 2026-11-04: new
-#: appGUI/UpdateDialog.py:135
+#: appGUI/UpdateDialog.py:213
 msgid "Update size: unknown; the source archive is prepared automatically."
 msgstr "حجم التحديث: غير معروف؛ يُجهَّز أرشيف المصدر تلقائيًا."
 
 # auto-review 2026-11-04: new
-#: appGUI/UpdateDialog.py:137
+#: appGUI/UpdateDialog.py:215
 msgid "Full archive size: %s"
 msgstr "حجم الأرشيف الكامل: %s"
 
 # auto-review 2026-11-04: new
-#: appGUI/UpdateDialog.py:139
+#: appGUI/UpdateDialog.py:217
 msgid "Update archive size"
 msgstr "حجم أرشيف التحديث"
 
 # auto-review 2026-11-04: new
-#: appGUI/UpdateDialog.py:143
+#: appGUI/UpdateDialog.py:221
 msgid "Published: %s"
 msgstr "تاريخ النشر: %s"
 
 # auto-review 2026-11-04: new
-#: appGUI/UpdateDialog.py:144 appHandlers/appUIActions.py:1227
+#: appGUI/UpdateDialog.py:222 appHandlers/appUIActions.py:1136
 msgid "Release date"
 msgstr "تاريخ الإصدار"
 
 # auto-review 2026-11-04: new
-#: appGUI/UpdateDialog.py:148 appMain.py:3294
+#: appGUI/UpdateDialog.py:226 appMain.py:3350
 msgid "Release notes"
 msgstr "ملاحظات الإصدار"
 
 # auto-review 2026-11-04: new
-#: appGUI/UpdateDialog.py:152
+#: appGUI/UpdateDialog.py:230
 msgid "No release notes provided."
 msgstr "لا توجد ملاحظات إصدار."
 
 # auto-review 2026-11-04: new
-#: appGUI/UpdateDialog.py:160
+#: appGUI/UpdateDialog.py:239
 msgid "Automatic replacement is not available for this installation."
 msgstr "الاستبدال التلقائي غير متاح لهذا التثبيت."
 
 # auto-review 2026-11-04: new
-#: appGUI/UpdateDialog.py:163
+#: appGUI/UpdateDialog.py:242
 msgid ""
 "This update cannot be installed automatically. %s Download the new package, "
 "save it, and replace this installation manually."
@@ -13893,7 +13982,7 @@ msgstr ""
 "استبدل هذا التثبيت يدويًا."
 
 # auto-review 2026-11-04: new
-#: appGUI/UpdateDialog.py:166
+#: appGUI/UpdateDialog.py:245
 msgid ""
 "This update cannot be installed automatically. %s Download the release from "
 "its page and replace this installation manually."
@@ -13902,47 +13991,47 @@ msgstr ""
 "التثبيت يدويًا."
 
 # auto-review 2026-11-04: new
-#: appGUI/UpdateDialog.py:170
+#: appGUI/UpdateDialog.py:249
 msgid "Manual installation guidance"
 msgstr "إرشادات التثبيت اليدوي"
 
 # auto-review 2026-11-04: new
-#: appGUI/UpdateDialog.py:173
+#: appGUI/UpdateDialog.py:252
 msgid "the package"
 msgstr "الحزمة"
 
 # auto-review 2026-11-04: new
-#: appGUI/UpdateDialog.py:180
+#: appGUI/UpdateDialog.py:259
 msgid "Download:"
 msgstr "تنزيل:"
 
 # auto-review 2026-11-04: new
-#: appGUI/UpdateDialog.py:184
+#: appGUI/UpdateDialog.py:263
 msgid "Download the new package"
 msgstr "تنزيل الحزمة الجديدة"
 
 # auto-review 2026-11-04: new
-#: appGUI/UpdateDialog.py:192
+#: appGUI/UpdateDialog.py:271
 msgid "Open the release page"
 msgstr "فتح صفحة الإصدار"
 
 # auto-review 2026-11-04: new
-#: appGUI/UpdateDialog.py:197
+#: appGUI/UpdateDialog.py:276
 msgid "This update is mandatory. Update now or exit FlatCAM Evo."
 msgstr "هذا التحديث إلزامي. حدّث الآن أو اخرج من FlatCAM Evo."
 
 # auto-review 2026-11-04: new
-#: appGUI/UpdateDialog.py:200
+#: appGUI/UpdateDialog.py:279
 msgid "Mandatory update warning"
 msgstr "تحذير تحديث إلزامي"
 
 # auto-review 2026-11-04: new
-#: appGUI/UpdateDialog.py:207 appGUI/UpdateDialog.py:212
+#: appGUI/UpdateDialog.py:286 appGUI/UpdateDialog.py:291
 msgid "Skip this version"
 msgstr "تخطي هذا الإصدار"
 
 # auto-review 2026-11-04: new
-#: appGUI/UpdateDialog.py:209
+#: appGUI/UpdateDialog.py:288
 msgid ""
 "Do not show this version again when FlatCAM Evo starts.\n"
 "A manual check for updates still shows it."
@@ -13951,12 +14040,12 @@ msgstr ""
 "التحقق اليدوي من التحديثات يظل يعرضه."
 
 # auto-review 2026-11-04: new
-#: appGUI/UpdateDialog.py:218 appGUI/UpdateDialog.py:220
+#: appGUI/UpdateDialog.py:297 appGUI/UpdateDialog.py:299
 msgid "Update now"
 msgstr "التحديث الآن"
 
 # auto-review 2026-11-04: new
-#: appGUI/UpdateDialog.py:224
+#: appGUI/UpdateDialog.py:303
 #: appGUI/preferences/general/GeneralGUIPrefGroupUI.py:561
 msgid "Later"
 msgstr "لاحقًا"
@@ -14015,6 +14104,228 @@ msgstr ""
 #: appGUI/ViewCube.py:65
 msgid "Iso View"
 msgstr "منظر متساوي القياس"
+
+#: appGUI/WelcomeDialog.py:29
+msgid "FlatCAM Evo Project"
+msgstr "مشروع FlatCAM Evo"
+
+#: appGUI/WelcomeDialog.py:30
+msgid "Open a saved project or start an empty, untitled project."
+msgstr "افتح مشروعًا محفوظًا أو ابدأ مشروعًا فارغًا بلا عنوان."
+
+#: appGUI/WelcomeDialog.py:32
+msgid "Start with a blank Geometry object in an untitled project."
+msgstr "ابدأ بكائن هندسة فارغ في مشروع بلا عنوان."
+
+#: appGUI/WelcomeDialog.py:36
+msgid ""
+"Import vector artwork as Geometry for machining, or as Gerber for PCB "
+"processing."
+msgstr ""
+"استورد رسومات متجهة ككائن هندسة للتشغيل الميكانيكي، أو كـ Gerber لمعالجة لوحات PCB."
+
+#: appGUI/WelcomeDialog.py:44
+msgid "Open PCB artwork, or create a blank Gerber object."
+msgstr "افتح رسومات PCB أو أنشئ كائن Gerber فارغًا."
+
+#: appGUI/WelcomeDialog.py:45
+msgid "Excellon object"
+msgstr "كائن Excellon"
+
+#: appGUI/WelcomeDialog.py:46
+msgid "Open drilling data, or create a blank Excellon object."
+msgstr "افتح بيانات الثقب أو أنشئ كائن Excellon فارغًا."
+
+# auto-review 2026-11-04: new
+#: appGUI/WelcomeDialog.py:47 appObjects/ObjectCollection.py:400
+msgid "Script"
+msgstr "سكربت"
+
+#: appGUI/WelcomeDialog.py:47
+msgid "Script object"
+msgstr "كائن سكربت"
+
+#: appGUI/WelcomeDialog.py:48
+msgid ""
+"Open a script for editing without executing it, or create a blank script."
+msgstr "افتح سكربت للتحرير دون تشغيله، أو أنشئ سكربت فارغًا."
+
+#: appGUI/WelcomeDialog.py:49
+msgid "Doc"
+msgstr "مستند"
+
+#: appGUI/WelcomeDialog.py:49
+msgid "Document object"
+msgstr "كائن مستند"
+
+#: appGUI/WelcomeDialog.py:50
+msgid "Open a FlatCAM Evo document, or create a blank document."
+msgstr "افتح مستند FlatCAM Evo أو أنشئ مستندًا فارغًا."
+
+#: appGUI/WelcomeDialog.py:55
+msgid "PCB Manufacturing files"
+msgstr "ملفات تصنيع PCB"
+
+#: appGUI/WelcomeDialog.py:139
+msgid "Welcome to FlatCAM Evo"
+msgstr "مرحبًا بك في FlatCAM Evo"
+
+#: appGUI/WelcomeDialog.py:170 appGUI/WelcomeDialog.py:323
+msgid "CAM tools for PCB manufacturing, machining and more."
+msgstr "أدوات CAM لتصنيع PCB والتشغيل الميكانيكي وغير ذلك."
+
+#: appGUI/WelcomeDialog.py:181
+msgid "Continue to workspace"
+msgstr "المتابعة إلى مساحة العمل"
+
+# auto-review 2026-11-04: new
+#: appGUI/WelcomeDialog.py:200 appGUI/preferences/PreferencesWindow.py:67
+#: appGUI/shortcut_actions.py:41
+msgid "Application"
+msgstr "التطبيق"
+
+#: appGUI/WelcomeDialog.py:211
+msgid "Search file types…"
+msgstr "ابحث عن أنواع الملفات…"
+
+#: appGUI/WelcomeDialog.py:212
+msgid "Search file types"
+msgstr "البحث عن أنواع الملفات"
+
+#: appGUI/WelcomeDialog.py:223
+msgid "File types"
+msgstr "أنواع الملفات"
+
+#: appGUI/WelcomeDialog.py:232
+msgid "Start something"
+msgstr "ابدأ العمل"
+
+#: appGUI/WelcomeDialog.py:265
+msgid "Import as"
+msgstr "الاستيراد كـ"
+
+#: appGUI/WelcomeDialog.py:275
+msgid "Last 5 · selected type"
+msgstr "آخر 5 · النوع المحدد"
+
+#: appGUI/WelcomeDialog.py:289
+msgid "No recent files of this type."
+msgstr "لا توجد ملفات حديثة من هذا النوع."
+
+#: appGUI/WelcomeDialog.py:302
+msgid "Contributors"
+msgstr "المساهمون"
+
+# auto-review 2026-11-04: new
+#: appGUI/WelcomeDialog.py:303 appHandlers/appUIActions.py:242
+msgid "FlatCAM Author"
+msgstr "مؤلف FlatCAM"
+
+# auto-review 2026-11-04: new
+#: appGUI/WelcomeDialog.py:304 appHandlers/appUIActions.py:246
+msgid "FlatCAM Evo Author/Maintainer"
+msgstr "مؤلف/مشرف FlatCAM Evo"
+
+#: appGUI/WelcomeDialog.py:306
+msgid "Developer"
+msgstr "المطوّر"
+
+# auto-review 2026-11-04: new
+#: appGUI/WelcomeDialog.py:309 appHandlers/appUIActions.py:277
+msgid "Translator"
+msgstr "المترجم"
+
+# auto-review 2026-11-04: new
+#: appGUI/WelcomeDialog.py:317 appHandlers/appUIActions.py:206
+msgid "License"
+msgstr "الرخصة"
+
+# auto-review 2026-11-04: new
+#: appGUI/WelcomeDialog.py:319 appHandlers/appUIActions.py:153
+msgid "Licensed under the MIT license"
+msgstr "مرخص بموجب رخصة MIT"
+
+#: appGUI/WelcomeDialog.py:331
+msgid "Show this screen next time"
+msgstr "عرض هذه الشاشة في المرة المقبلة"
+
+#: appGUI/WelcomeDialog.py:337
+msgid "Continue"
+msgstr "متابعة"
+
+#: appGUI/WelcomeDialog.py:339
+msgid "Browse…"
+msgstr "استعراض…"
+
+#: appGUI/WelcomeDialog.py:351
+msgid ""
+"A FlatCAM Evo project keeps your objects and their settings together. "
+"Select FlatCAM Evo Project to reopen saved work or start an empty project."
+msgstr ""
+"يجمع مشروع FlatCAM Evo كائناتك وإعداداتها معًا. حدّد مشروع FlatCAM Evo "
+"لإعادة فتح العمل المحفوظ أو لبدء مشروع فارغ."
+
+#: appGUI/WelcomeDialog.py:353
+msgid ""
+"Import drawings, vector artwork and images for machining, cutting or "
+"engraving, or create a blank Geometry object. Select a file type to see its "
+"import options and recent files."
+msgstr ""
+"استورد الرسومات والرسومات المتجهة والصور للتشغيل الميكانيكي أو القص أو النقش، أو أنشئ "
+"كائن هندسة فارغًا. حدّد نوع ملف لعرض خيارات استيراده والملفات الحديثة."
+
+#: appGUI/WelcomeDialog.py:355
+msgid ""
+"Work with Gerber artwork and Excellon drilling files, or add scripts and "
+"documents to your project. Select a file type to open an existing file or "
+"create a supported blank object."
+msgstr ""
+"اعمل مع رسومات Gerber وملفات ثقب Excellon، أو أضف سكربتات ومستندات إلى "
+"مشروعك. حدّد نوع ملف لفتح ملف موجود أو لإنشاء كائن فارغ مدعوم."
+
+#: appGUI/WelcomeDialog.py:357
+msgid ""
+"Import a native PCB design from a supported board editor. Choose its "
+"format, then select the layers and drilling to bring into FlatCAM Evo."
+msgstr ""
+"استورد تصميم PCB أصليًا من محرر لوحات مدعوم. اختر تنسيقه، ثم حدّد الطبقات "
+"وبيانات الثقب لاستيرادها إلى FlatCAM Evo."
+
+#: appGUI/WelcomeDialog.py:605
+msgid "Select a category or file type."
+msgstr "حدّد فئة أو نوع ملف."
+
+#: appGUI/WelcomeDialog.py:605
+msgid "No file type matches the search."
+msgstr "لا يطابق البحث أي نوع ملف."
+
+#: appGUI/WelcomeDialog.py:612
+msgid "New object only"
+msgstr "كائن جديد فقط"
+
+# auto-review 2026-11-04: new
+#: appGUI/WelcomeDialog.py:660
+#: appGUI/preferences/general/GeneralShortcutsGroupUI.py:473
+#: appPlugins/ToolQRCode/QRCode.py:691 appPlugins/ToolQRCode/QRCode.py:695
+msgid "All Files"
+msgstr "كل الملفات"
+
+# auto-review 2026-11-04: new
+#: appGUI/WelcomeDialog.py:670 appHandlers/appIO.py:2825
+#: appHandlers/appIO.py:2890 appHandlers/appIO.py:2992
+#: appHandlers/appIO.py:3043 appHandlers/appIO.py:3123
+#: appHandlers/appIO.py:3425 appHandlers/appIO.py:3486
+#: appHandlers/appIO.py:3763 appPlugins/ToolImage/Image.py:161
+#: appPlugins/ToolPdf/PdfImport.py:133
+msgid "File no longer available."
+msgstr "الملف لم يعد متاحًا."
+
+# auto-review 2026-11-04: new
+#: appGUI/WelcomeDialog.py:698 appHandlers/appIO.py:2964
+#: appHandlers/appIO.py:3345 appHandlers/appIO.py:3410
+#: appHandlers/appIO.py:3493
+msgid "Failed to open file"
+msgstr "فشل فتح الملف"
 
 # auto-review 2026-11-04: new
 #: appGUI/preferences/CircleStepsRows.py:27
@@ -14084,44 +14395,44 @@ msgstr ""
 "للتقريب الخطي للدوائر."
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/PreferencesUIManager.py:1148
+#: appGUI/preferences/PreferencesUIManager.py:1149
 msgid "Preferences applied."
 msgstr "تم تطبيق التفضيلات."
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/PreferencesUIManager.py:1177
+#: appGUI/preferences/PreferencesUIManager.py:1178
 msgid "Application will restart"
 msgstr "سيُعاد تشغيل التطبيق"
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/PreferencesUIManager.py:1178
+#: appGUI/preferences/PreferencesUIManager.py:1179
 #: appGUI/preferences/PreferencesWindow.py:536
 msgid "Are you sure you want to continue?"
 msgstr "هل أنت متأكد أنك تريد المتابعة؟"
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/PreferencesUIManager.py:1284
+#: appGUI/preferences/PreferencesUIManager.py:1285
 msgid "Preferences default values are restored."
 msgstr "تمت استعادة القيم الافتراضية للتفضيلات."
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/PreferencesUIManager.py:1313 appHandlers/appIO.py:2368
+#: appGUI/preferences/PreferencesUIManager.py:1314 appHandlers/appIO.py:2368
 msgid "Failed to write defaults to file."
 msgstr "فشلت كتابة القيم الافتراضية إلى الملف."
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/PreferencesUIManager.py:1317
-#: appGUI/preferences/PreferencesUIManager.py:1371
+#: appGUI/preferences/PreferencesUIManager.py:1318
+#: appGUI/preferences/PreferencesUIManager.py:1372
 msgid "Preferences saved."
 msgstr "تم حفظ التفضيلات."
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/PreferencesUIManager.py:1329
+#: appGUI/preferences/PreferencesUIManager.py:1330
 msgid "Preferences edited but not saved."
 msgstr "عُدّلت التفضيلات ولكن لم تُحفظ."
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/PreferencesUIManager.py:1354
+#: appGUI/preferences/PreferencesUIManager.py:1355
 msgid ""
 "One or more values are changed.\n"
 "Do you want to save?"
@@ -14130,7 +14441,7 @@ msgstr ""
 "هل تريد الحفظ؟"
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/PreferencesUIManager.py:1393
+#: appGUI/preferences/PreferencesUIManager.py:1394
 msgid "Preferences closed without saving."
 msgstr "أُغلقت التفضيلات دون حفظ."
 
@@ -14230,11 +14541,6 @@ msgid "Etch Compensation"
 msgstr "تعويض الحفر الكيميائي"
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/PreferencesWindow.py:67 appGUI/shortcut_actions.py:41
-msgid "Application"
-msgstr "التطبيق"
-
-# auto-review 2026-11-04: new
 #: appGUI/preferences/PreferencesWindow.py:72
 msgid "CNC Job"
 msgstr "مهمة CNC"
@@ -14247,7 +14553,7 @@ msgstr "البحث في الإعدادات"
 # auto-review 2026-11-04: new
 #: appGUI/preferences/PreferencesWindow.py:477
 msgid "Reset page to defaults"
-msgstr "إعادة الصفحة إلى القيم الافتراضية"
+msgstr "استعادة افتراضيات الصفحة"
 
 # auto-review 2026-11-04: new
 #: appGUI/preferences/PreferencesWindow.py:488
@@ -15283,7 +15589,7 @@ msgstr "إعدادات الشبكة"
 # auto-review 2026-11-04: new
 #: appGUI/preferences/general/GeneralAPPSetGroupUI.py:53
 #: appGUI/preferences/general/GeneralAppSettingsGroupUI.py:132
-#: appHandlers/appUIActions.py:1237
+#: appHandlers/appUIActions.py:1146
 msgid "X value"
 msgstr "قيمة X"
 
@@ -15296,7 +15602,7 @@ msgstr "هذه قيمة التقاط الشبكة على المحور X."
 # auto-review 2026-11-04: new
 #: appGUI/preferences/general/GeneralAPPSetGroupUI.py:65
 #: appGUI/preferences/general/GeneralAppSettingsGroupUI.py:139
-#: appHandlers/appUIActions.py:1240
+#: appHandlers/appUIActions.py:1149
 msgid "Y value"
 msgstr "قيمة Y"
 
@@ -15353,7 +15659,7 @@ msgstr ""
 #: appGUI/preferences/general/GeneralAPPSetGroupUI.py:185
 #: appGUI/preferences/general/GeneralAppSettingsGroupUI.py:171
 #: appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:296
-#: appHandlers/appUIActions.py:1257 appPlugins/ToolFilm/FilmUI.py:306
+#: appHandlers/appUIActions.py:1166 appPlugins/ToolFilm/FilmUI.py:306
 msgid "Portrait"
 msgstr "عمودي"
 
@@ -15361,7 +15667,7 @@ msgstr "عمودي"
 #: appGUI/preferences/general/GeneralAPPSetGroupUI.py:186
 #: appGUI/preferences/general/GeneralAppSettingsGroupUI.py:172
 #: appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:297
-#: appHandlers/appUIActions.py:1259 appPlugins/ToolFilm/FilmUI.py:307
+#: appHandlers/appUIActions.py:1168 appPlugins/ToolFilm/FilmUI.py:307
 msgid "Landscape"
 msgstr "أفقي"
 
@@ -15395,7 +15701,7 @@ msgstr ""
 #: appGUI/preferences/general/GeneralAPPSetGroupUI.py:227
 #: appGUI/preferences/general/GeneralAPPSetGroupUI.py:365
 #: appGUI/preferences/general/GeneralAppSettingsGroupUI.py:189
-#: appHandlers/appUIActions.py:1245 appPlugins/ToolDblSided/DblSidedUI.py:154
+#: appHandlers/appUIActions.py:1154 appPlugins/ToolDblSided/DblSidedUI.py:154
 #: appPlugins/ToolFilm/FilmUI.py:185
 #: appPlugins/ToolGcodeSender/SenderEcutIO.py:196
 #: appPlugins/ToolGcodeSender/SenderMotion.py:339
@@ -15426,7 +15732,7 @@ msgstr ""
 # auto-review 2026-11-04: new
 #: appGUI/preferences/general/GeneralAPPSetGroupUI.py:266
 #: appGUI/preferences/general/GeneralAPPSetGroupUI.py:287
-#: appHandlers/appUIActions.py:1262
+#: appHandlers/appUIActions.py:1171
 msgid "HUD"
 msgstr "شاشة المعلومات"
 
@@ -15846,7 +16152,7 @@ msgstr ""
 # auto-review 2026-11-04: new
 #: appGUI/preferences/general/GeneralAppPrefGroupUI.py:103
 msgid "Workers number"
-msgstr "عدد العمال"
+msgstr "عدد خيوط التنفيذ"
 
 # auto-review 2026-11-04: new
 #: appGUI/preferences/general/GeneralAppPrefGroupUI.py:105
@@ -16073,23 +16379,32 @@ msgstr "شاشة البداية"
 msgid "Enable display of the splash screen at application startup."
 msgstr "تمكين عرض شاشة البداية عند بدء تشغيل التطبيق."
 
-# auto-review 2026-11-04: new
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:290
+msgid "Show welcome screen on startup"
+msgstr "إظهار شاشة الترحيب عند بدء التشغيل"
+
 #: appGUI/preferences/general/GeneralAppPrefGroupUI.py:291
+msgid ""
+"Show the welcome screen on an interactive launch without files or commands."
+msgstr "إظهار شاشة الترحيب عند التشغيل التفاعلي دون ملفات أو أوامر."
+
+# auto-review 2026-11-04: new
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:295
 msgid "Sys Tray Icon"
 msgstr "أيقونة علبة النظام"
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:293
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:297
 msgid "Enable display of FlatCAM icon in Sys Tray."
 msgstr "تمكين عرض أيقونة FlatCAM في علبة النظام."
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:298
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:302
 msgid "Show Shell"
 msgstr "إظهار سطر الأوامر"
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:300
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:304
 msgid ""
 "Check this box if you want the shell to\n"
 "start automatically at startup."
@@ -16098,12 +16413,12 @@ msgstr ""
 "تلقائيًا عند بدء التشغيل."
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:307
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:311
 msgid "Show Project"
 msgstr "إظهار المشروع"
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:309
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:313
 msgid ""
 "Check this box if you want the project/selected/tool tab area to\n"
 "to be shown automatically at startup."
@@ -16112,12 +16427,12 @@ msgstr ""
 "تلقائيًا عند بدء التشغيل."
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:315
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:319
 msgid "Check for updates automatically"
 msgstr "التحقق من التحديثات تلقائيًا"
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:317
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:321
 msgid ""
 "Check for updates automatically at startup.\n"
 "Use Help > Check for Updates for a manual check."
@@ -16126,12 +16441,12 @@ msgstr ""
 "استخدم مساعدة > التحقق من التحديثات للتحقق اليدوي."
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:324
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:328
 msgid "Update source"
 msgstr "مصدر التحديث"
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:326
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:330
 msgid ""
 "Where updates are downloaded from.\n"
 "GitHub: the GitHub Releases of the project (default).\n"
@@ -16142,34 +16457,34 @@ msgstr ""
 "Digi (قديم): المشاركة العامة السابقة على Digi."
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:331
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:335
 msgid "GitHub"
 msgstr "GitHub"
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:332
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:336
 msgid "Digi (legacy)"
 msgstr "مشاركة Digi (قديمة)"
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:337
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:341
 msgid "Digi share URL"
 msgstr "رابط مشاركة Digi"
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:339
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:343
 msgid ""
 "Address of the Digi public share used when the update source is Digi "
 "(legacy)."
 msgstr "عنوان مشاركة Digi العامة المستخدم عندما يكون مصدر التحديث Digi (قديم)."
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:346
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:350
 msgid "Prepare Update Files (Digi Legacy)"
 msgstr "تجهيز ملفات التحديث (Digi القديم)"
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:348
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:352
 msgid ""
 "Digi legacy: create local upload files for manual Digi publishing.\n"
 "GitHub releases are published separately.\n"
@@ -16180,12 +16495,12 @@ msgstr ""
 "هذا لا يرفع ولا يرسل بيانات اعتماد أو بيانات التطبيق."
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:358
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:362
 msgid "Send Statistics"
 msgstr "إرسال الإحصاءات"
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:360
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:364
 msgid ""
 "Check this box if you agree to send anonymous\n"
 "stats automatically at startup, to help improve FlatCAM."
@@ -16194,17 +16509,17 @@ msgstr ""
 "تلقائيًا عند بدء التشغيل، للمساعدة في تحسين FlatCAM."
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:367
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:371
 msgid "Save Settings"
 msgstr "حفظ الإعدادات"
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:380
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:384
 msgid "Save Compressed Project"
 msgstr "حفظ المشروع مضغوطًا"
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:382
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:386
 msgid ""
 "Whether to save a compressed or uncompressed project.\n"
 "When checked it will save a compressed FlatCAM project."
@@ -16213,12 +16528,12 @@ msgstr ""
 "عند التفعيل سيُحفظ مشروع FlatCAM مضغوطًا."
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:391
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:395
 msgid "Compression"
 msgstr "الضغط"
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:393
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:397
 msgid ""
 "The Zstandard compression level used when saving\n"
 "a FlatCAM project. The default is 3.\n"
@@ -16231,52 +16546,52 @@ msgstr ""
 "لكنها تتطلب ذاكرة RAM أكثر ووقت معالجة أطول."
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:404
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:408
 msgid "Text to PDF parameters"
 msgstr "معاملات تحويل النص إلى PDF"
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:406
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:410
 msgid "Used when saving text in Code Editor or in FlatCAM Document objects."
 msgstr "تُستخدم عند حفظ النص في محرر الأكواد أو في كائنات مستندات FlatCAM."
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:424
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:428
 msgid "Top Margin"
 msgstr "الهامش العلوي"
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:426
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:430
 msgid "Distance between text body and the top of the PDF file."
 msgstr "المسافة بين متن النص وأعلى ملف PDF."
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:437
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:441
 msgid "Bottom Margin"
 msgstr "الهامش السفلي"
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:439
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:443
 msgid "Distance between text body and the bottom of the PDF file."
 msgstr "المسافة بين متن النص وأسفل ملف PDF."
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:450
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:454
 msgid "Left Margin"
 msgstr "الهامش الأيسر"
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:452
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:456
 msgid "Distance between text body and the left of the PDF file."
 msgstr "المسافة بين متن النص والجانب الأيسر لملف PDF."
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:463
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:467
 msgid "Right Margin"
 msgstr "الهامش الأيمن"
 
 # auto-review 2026-11-04: new
-#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:465
+#: appGUI/preferences/general/GeneralAppPrefGroupUI.py:469
 msgid "Distance between text body and the right of the PDF file."
 msgstr "المسافة بين متن النص والجانب الأيمن لملف PDF."
 
@@ -16921,12 +17236,6 @@ msgstr "لا يمكن تغيير ذلك المفتاح هنا؛ اختر مفت�
 #: appGUI/preferences/general/GeneralShortcutsGroupUI.py:480
 msgid "Import the keyboard shortcuts"
 msgstr "استيراد اختصارات لوحة المفاتيح"
-
-# auto-review 2026-11-04: new
-#: appGUI/preferences/general/GeneralShortcutsGroupUI.py:473
-#: appPlugins/ToolQRCode/QRCode.py:691 appPlugins/ToolQRCode/QRCode.py:695
-msgid "All Files"
-msgstr "كل الملفات"
 
 # auto-review 2026-11-04: new
 #: appGUI/preferences/general/GeneralShortcutsGroupUI.py:481
@@ -18492,7 +18801,7 @@ msgstr ""
 
 # auto-review 2026-11-04: new
 #: appGUI/preferences/tools/Tools2QRCodePrefGroupUI.py:44
-#: appHandlers/appUIActions.py:1225 appPlugins/ToolQRCode/QRCodeUI.py:79
+#: appHandlers/appUIActions.py:1134 appPlugins/ToolQRCode/QRCodeUI.py:79
 msgid "Version"
 msgstr "الإصدار"
 
@@ -22737,7 +23046,7 @@ msgstr "تحرير الكائن (إن كان محددًا)"
 #: appGUI/shortcut_actions.py:651 appGUI/shortcut_actions.py:782
 #: appGUI/shortcut_actions.py:877 appGUI/shortcut_actions.py:966
 #: appGUI/shortcut_actions.py:978 appGUI/shortcut_actions.py:984
-#: appHandlers/appUIActions.py:1290
+#: appHandlers/appUIActions.py:1199
 msgid "Grid On/Off"
 msgstr "تشغيل/إيقاف الشبكة"
 
@@ -23034,7 +23343,7 @@ msgid "Add a new Tool"
 msgstr "إضافة لقمة جديدة"
 
 # auto-review 2026-11-04: new
-#: appGUI/shortcut_actions.py:858 appHandlers/appUIActions.py:752
+#: appGUI/shortcut_actions.py:858 appHandlers/appUIActions.py:661
 #: appPlugins/ToolIsolation/Isolation.py:1294 appPlugins/ToolNCC/Ncc.py:1733
 #: appPlugins/ToolPaint/Paint.py:842
 #: appPlugins/ToolSolderPaste/SolderPaste.py:398
@@ -23043,7 +23352,7 @@ msgid "New Tool"
 msgstr "لقمة جديدة"
 
 # auto-review 2026-11-04: new
-#: appGUI/shortcut_actions.py:858 appHandlers/appUIActions.py:753
+#: appGUI/shortcut_actions.py:858 appHandlers/appUIActions.py:662
 #: appPlugins/ToolIsolation/Isolation.py:1295 appPlugins/ToolNCC/Ncc.py:1734
 #: appPlugins/ToolPaint/Paint.py:843
 #: appPlugins/ToolSolderPaste/SolderPaste.py:399
@@ -23051,7 +23360,7 @@ msgid "Enter a Tool Diameter"
 msgstr "أدخل قطر اللقمة"
 
 # auto-review 2026-11-04: new
-#: appGUI/shortcut_actions.py:868 appHandlers/appUIActions.py:769
+#: appGUI/shortcut_actions.py:868 appHandlers/appUIActions.py:678
 #: appPlugins/ToolIsolation/Isolation.py:1316 appPlugins/ToolNCC/Ncc.py:1758
 #: appPlugins/ToolPaint/Paint.py:856
 #: appPlugins/ToolSolderPaste/SolderPaste.py:411
@@ -23186,7 +23495,7 @@ msgstr "محدد"
 #: appHandlers/appObjectOps.py:212 appHandlers/appObjectOps.py:273
 #: appHandlers/appObjectOps.py:326 appHandlers/appObjectOps.py:645
 #: appHandlers/appObjectOps.py:973 appHandlers/appObjectOps.py:1095
-#: appHandlers/appUIActions.py:1002 appMain.py:2458 appMain.py:2688
+#: appHandlers/appUIActions.py:911 appMain.py:2514 appMain.py:2744
 #: appPlugins/ToolDblSided/DblSided.py:577
 #: appPlugins/ToolDblSided/DblSided.py:666
 #: appPlugins/ToolExtract/Extract.py:414 appPlugins/ToolFilm/Film.py:213
@@ -23609,7 +23918,7 @@ msgid "Import DXF"
 msgstr "استيراد DXF"
 
 # auto-review 2026-11-04: new
-#: appHandlers/appIO.py:1422 appMain.py:2084 appMain.py:2326
+#: appHandlers/appIO.py:1422 appMain.py:2140 appMain.py:2382
 msgid "Cannot reset Tcl while a script is running."
 msgstr "لا يمكن إعادة ضبط Tcl أثناء تشغيل سكربت."
 
@@ -23661,7 +23970,7 @@ msgid "Executing ScriptObject file."
 msgstr "جارٍ تنفيذ ملف كائن السكربت."
 
 # auto-review 2026-11-04: new
-#: appHandlers/appIO.py:1689 appHandlers/appIO.py:1693 appMain.py:2018
+#: appHandlers/appIO.py:1689 appHandlers/appIO.py:1693 appMain.py:2074
 msgid "Run TCL script"
 msgstr "تشغيل سكربت TCL"
 
@@ -23800,15 +24109,6 @@ msgid "The drills of the SVG file could not be created."
 msgstr "تعذّر إنشاء ثقوب ملف SVG."
 
 # auto-review 2026-11-04: new
-#: appHandlers/appIO.py:2825 appHandlers/appIO.py:2890
-#: appHandlers/appIO.py:2992 appHandlers/appIO.py:3043
-#: appHandlers/appIO.py:3123 appHandlers/appIO.py:3425
-#: appHandlers/appIO.py:3486 appHandlers/appIO.py:3763
-#: appPlugins/ToolImage/Image.py:161 appPlugins/ToolPdf/PdfImport.py:133
-msgid "File no longer available."
-msgstr "الملف لم يعد متاحًا."
-
-# auto-review 2026-11-04: new
 #: appHandlers/appIO.py:2835 appHandlers/appIO.py:2900
 msgid ""
 "Not supported type is picked as parameter. Only Geometry and Gerber are "
@@ -23830,12 +24130,6 @@ msgstr "تم الفتح"
 #: tclCommands/TclCommandImportSvg.py:87
 msgid "Importing"
 msgstr "جارٍ الاستيراد"
-
-# auto-review 2026-11-04: new
-#: appHandlers/appIO.py:2964 appHandlers/appIO.py:3345
-#: appHandlers/appIO.py:3410 appHandlers/appIO.py:3493
-msgid "Failed to open file"
-msgstr "فشل فتح الملف"
 
 # auto-review 2026-11-04: new
 #: appHandlers/appIO.py:2967 appHandlers/appIO.py:3348
@@ -24410,244 +24704,137 @@ msgid "Do you want to overwrite it with the version from the file?"
 msgstr "هل تريد استبداله بالإصدار الموجود في الملف؟"
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:116
+#: appHandlers/appUIActions.py:117
 msgid "PCB Manufacturing files Viewer/Editor with Plugins"
 msgstr "عارض/محرر ملفات تصنيع لوحات الدوائر المطبوعة مع إضافات"
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:117
+#: appHandlers/appUIActions.py:118
 msgid "Development"
 msgstr "التطوير"
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:118
+#: appHandlers/appUIActions.py:119
 msgid "DOWNLOAD"
 msgstr "التنزيل"
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:119
+#: appHandlers/appUIActions.py:120
 msgid "Issue tracker"
 msgstr "متتبع المشكلات"
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:151
-msgid "Licensed under the MIT license"
-msgstr "مرخص بموجب رخصة MIT"
-
-# auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:159
-msgid ""
-"Permission is hereby granted, free of charge, to any person obtaining a "
-"copy\n"
-"of this software and associated documentation files (the \"Software\"), to "
-"deal\n"
-"in the Software without restriction, including without limitation the "
-"rights\n"
-"to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n"
-"copies of the Software, and to permit persons to whom the Software is\n"
-"furnished to do so, subject to the following conditions:\n"
-"\n"
-"The above copyright notice and this permission notice shall be included in\n"
-"all copies or substantial portions of the Software.\n"
-"\n"
-"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS "
-"OR\n"
-"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n"
-"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL "
-"THE\n"
-"AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n"
-"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING "
-"FROM,\n"
-"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n"
-"THE SOFTWARE."
-msgstr ""
-"يُمنح بموجب هذا الإذن مجانًا لأي شخص يحصل على نسخة\n"
-"من هذا البرنامج وملفات التوثيق المرتبطة به (\"البرنامج\")، بالتعامل\n"
-"في البرنامج دون قيود، بما في ذلك على سبيل المثال لا الحصر حقوق\n"
-"استخدام نسخ البرنامج ونسخها وتعديلها ودمجها ونشرها وتوزيعها وترخيصها من "
-"الباطن و/أو بيعها،\n"
-"والسماح للأشخاص الذين يُقدَّم لهم البرنامج\n"
-"بالقيام بذلك، وفقًا للشروط التالية:\n"
-"\n"
-"يجب تضمين إشعار حقوق النشر أعلاه وإشعار الإذن هذا في\n"
-"جميع نسخ البرنامج أو الأجزاء الجوهرية منه.\n"
-"\n"
-"يُقدَّم البرنامج \"كما هو\"، دون أي ضمان من أي نوع، صريحًا كان أو\n"
-"ضمنيًا، بما في ذلك على سبيل المثال لا الحصر ضمانات القابلية للتسويق\n"
-"والملاءمة لغرض معين وعدم الانتهاك. ولا يتحمل\n"
-"المؤلفون أو أصحاب حقوق النشر بأي حال من الأحوال المسؤولية عن أي مطالبة أو "
-"أضرار أو أي\n"
-"مسؤولية أخرى، سواء في دعوى تعاقدية أو تقصيرية أو غير ذلك، تنشأ عن\n"
-"البرنامج أو استخدامه أو التعاملات الأخرى فيه\n"
-"أو تتعلق بها."
-
-# auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:179
-msgid ""
-"Some of the icons used are from the following sources:<br><div>Icons by <a "
-"href=\"https://www.flaticon.com/authors/freepik\" "
-"title=\"Freepik\">Freepik</a> from <a href=\"https://www.flaticon.com/\"    "
-"         title=\"Flaticon\">www.flaticon.com</a></div><div>Icons by <a "
-"target=\"_blank\" href=\"https://icons8.com\">Icons8</a></div>Icons by <a "
-"href=\"http://www.onlinewebfonts.com\">oNline Web Fonts</a><div>Icons by <a "
-"href=\"https://www.flaticon.com/authors/pixel-perfect\" title=\"Pixel "
-"perfect\">Pixel perfect</a> from <a href=\"https://www.flaticon.com/\" "
-"title=\"Flaticon\">www.flaticon.com</a></div><div>Icons by <a "
-"href=\"https://www.flaticon.com/authors/anggara\" title=\"Anggara\"> "
-"Anggara </a> from <a href=\"https://www.flaticon.com/\" "
-"title=\"Flaticon\">www.flaticon.com</a></div><div>Icons by <a "
-"href=\"https://www.flaticon.com/authors/kharisma\" title=\"Kharisma\"> "
-"Kharisma </a> from <a href=\"https://www.flaticon.com/\" "
-"title=\"Flaticon\">www.flaticon.com</a></div>"
-msgstr ""
-"بعض الأيقونات المستخدمة مأخوذة من المصادر التالية:<br><div>أيقونات من <a "
-"href=\"https://www.flaticon.com/authors/freepik\" "
-"title=\"Freepik\">Freepik</a> عبر <a href=\"https://www.flaticon.com/\"     "
-"        title=\"Flaticon\">www.flaticon.com</a></div><div>أيقونات من <a "
-"target=\"_blank\" href=\"https://icons8.com\">Icons8</a></div>أيقونات من <a "
-"href=\"http://www.onlinewebfonts.com\">oNline Web Fonts</a><div>أيقونات من "
-"<a href=\"https://www.flaticon.com/authors/pixel-perfect\" title=\"Pixel "
-"perfect\">Pixel perfect</a> عبر <a href=\"https://www.flaticon.com/\" "
-"title=\"Flaticon\">www.flaticon.com</a></div><div>أيقونات من <a "
-"href=\"https://www.flaticon.com/authors/anggara\" title=\"Anggara\"> "
-"Anggara </a> عبر <a href=\"https://www.flaticon.com/\" "
-"title=\"Flaticon\">www.flaticon.com</a></div><div>أيقونات من <a "
-"href=\"https://www.flaticon.com/authors/kharisma\" title=\"Kharisma\"> "
-"Kharisma </a> عبر <a href=\"https://www.flaticon.com/\" "
-"title=\"Flaticon\">www.flaticon.com</a></div>"
-
-# auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:222
+#: appHandlers/appUIActions.py:188
 msgid "Splash"
 msgstr "شاشة البداية"
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:228
+#: appHandlers/appUIActions.py:194
 msgid "Programmers"
 msgstr "المبرمجون"
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:234
+#: appHandlers/appUIActions.py:200
 msgid "Translators"
 msgstr "المترجمون"
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:240
-msgid "License"
-msgstr "الرخصة"
-
-# auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:246
+#: appHandlers/appUIActions.py:212
 msgid "Attributions"
 msgstr "الإسنادات"
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:317
+#: appHandlers/appUIActions.py:236
 msgid "Programmer"
 msgstr "المبرمج"
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:318
+#: appHandlers/appUIActions.py:237
 msgid "Status"
 msgstr "الحالة"
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:319 appHandlers/appUIActions.py:369
+#: appHandlers/appUIActions.py:238 appHandlers/appUIActions.py:278
 msgid "E-mail"
 msgstr "البريد الإلكتروني"
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:323
-msgid "FlatCAM Author"
-msgstr "مؤلف FlatCAM"
-
-# auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:327
-msgid "FlatCAM Evo Author/Maintainer"
-msgstr "مؤلف/مشرف FlatCAM Evo"
-
-# auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:367
+#: appHandlers/appUIActions.py:276
 msgid "Language"
 msgstr "اللغة"
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:368
-msgid "Translator"
-msgstr "المترجم"
-
-# auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:444
+#: appHandlers/appUIActions.py:353
 msgid "This program is %s and free in a very wide meaning of the word."
 msgstr "هذا البرنامج %s ومجاني بأوسع معاني الكلمة."
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:445
+#: appHandlers/appUIActions.py:354
 msgid "Yet it cannot evolve without <b>contributions</b>."
 msgstr "لكنه لا يستطيع التطور دون <b>مساهمات</b>."
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:446
+#: appHandlers/appUIActions.py:355
 msgid "If you want to see this application grow and become better and better"
 msgstr "إذا كنت تريد أن ترى هذا التطبيق ينمو ويصبح أفضل فأفضل"
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:447
+#: appHandlers/appUIActions.py:356
 msgid "you can <b>contribute</b> to the development yourself by:"
 msgstr "يمكنك <b>المساهمة</b> في التطوير بنفسك عن طريق:"
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:448
+#: appHandlers/appUIActions.py:357
 msgid "Pull Requests on the GitHub repository, if you are a developer"
 msgstr "طلبات السحب (Pull Requests) على مستودع GitHub، إذا كنت مطورًا"
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:450
+#: appHandlers/appUIActions.py:359
 msgid "Bug Reports by providing the steps required to reproduce the bug"
 msgstr "تقارير الأخطاء مع ذكر الخطوات اللازمة لإعادة إنتاج الخطأ"
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:452
+#: appHandlers/appUIActions.py:361
 msgid "If you like what you have seen so far ..."
 msgstr "إذا أعجبك ما رأيته حتى الآن ..."
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:453
+#: appHandlers/appUIActions.py:362
 msgid "Donations are NOT required."
 msgstr "التبرعات ليست مطلوبة."
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:453
+#: appHandlers/appUIActions.py:362
 msgid "But they are welcomed"
 msgstr "لكنها موضع ترحيب"
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:484
+#: appHandlers/appUIActions.py:393
 msgid "Contribute"
 msgstr "ساهم"
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:504
+#: appHandlers/appUIActions.py:413
 msgid "Links Exchange"
 msgstr "تبادل الروابط"
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:517 appHandlers/appUIActions.py:537
+#: appHandlers/appUIActions.py:426 appHandlers/appUIActions.py:446
 msgid "Soon ..."
 msgstr "قريبًا ..."
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:524
+#: appHandlers/appUIActions.py:433
 msgid "How To's"
 msgstr "إرشادات الاستخدام"
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:636
+#: appHandlers/appUIActions.py:545
 msgid "Alternative website"
 msgstr "موقع بديل"
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:637
+#: appHandlers/appUIActions.py:546
 msgid ""
 "This entry will resolve to another website if:\n"
 "\n"
@@ -24668,22 +24855,22 @@ msgstr ""
 "فاستخدم رابط قناة YouTube من قائمة المساعدة."
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:669
+#: appHandlers/appUIActions.py:578
 msgid "Workspace enabled."
 msgstr "تم تفعيل مساحة العمل."
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:672
+#: appHandlers/appUIActions.py:581
 msgid "Workspace disabled."
 msgstr "تم تعطيل مساحة العمل."
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:703
+#: appHandlers/appUIActions.py:612
 msgid "FlatCAM log opened."
 msgstr "تم فتح سجل FlatCAM."
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:762 appPlugins/ToolCutOut/CutOut.py:447
+#: appHandlers/appUIActions.py:671 appPlugins/ToolCutOut/CutOut.py:447
 #: appPlugins/ToolIsolation/Isolation.py:1311
 #: appPlugins/ToolIsolation/Isolation.py:1640
 #: appPlugins/ToolIsolation/Isolation.py:1737
@@ -24699,12 +24886,12 @@ msgid "Please enter a tool diameter with non-zero value, in Float format."
 msgstr "يرجى إدخال قطر لقمة بقيمة غير صفرية، بصيغة عدد عشري."
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:772
+#: appHandlers/appUIActions.py:681
 msgid "Tool adding ..."
 msgstr "جارٍ إضافة لقمة ..."
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:773
+#: appHandlers/appUIActions.py:682
 msgid ""
 "Adding Tool works only when Advanced is checked.\n"
 "Go to Preferences -> General - Show Advanced Options."
@@ -24713,12 +24900,12 @@ msgstr ""
 "انتقل إلى التفضيلات -> عام - إظهار الخيارات المتقدمة."
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:943
+#: appHandlers/appUIActions.py:852
 msgid "Plot 3D"
 msgstr "عرض ثلاثي الأبعاد"
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:1007 appHandlers/appUIActions.py:1013
+#: appHandlers/appUIActions.py:916 appHandlers/appUIActions.py:922
 #: appPlugins/ToolCutOut/CutOut.py:544
 #: appPlugins/ToolIsolation/Isolation.py:3283 appPlugins/ToolNCC/Ncc.py:2104
 #: appPlugins/ToolPaint/Paint.py:1889
@@ -24726,88 +24913,88 @@ msgid "Selected tool can't be used here. Pick another."
 msgstr "لا يمكن استخدام اللقمة المحددة هنا. اختر لقمة أخرى."
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:1017
+#: appHandlers/appUIActions.py:926
 msgid "Adding tool from DB is not allowed for this object."
 msgstr "إضافة لقمة من قاعدة البيانات غير مسموحة لهذا الكائن."
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:1022 appPlugins/ToolIsolation/Isolation.py:3290
+#: appHandlers/appUIActions.py:931 appPlugins/ToolIsolation/Isolation.py:3290
 #: appPlugins/ToolNCC/Ncc.py:2111 appPlugins/ToolPaint/Paint.py:1896
 msgid "Tool from DB added in Tool Table."
 msgstr "تمت إضافة اللقمة من قاعدة البيانات إلى جدول اللقم."
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:1223
+#: appHandlers/appUIActions.py:1132
 msgid "FlatCAM Evo"
 msgstr "FlatCAM Evo"
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:1231
+#: appHandlers/appUIActions.py:1140
 msgid "Displayed"
 msgstr "معروضة"
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:1243
+#: appHandlers/appUIActions.py:1152
 msgid "Canvas"
 msgstr "لوحة الرسم"
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:1248
+#: appHandlers/appUIActions.py:1157
 msgid "Workspace active"
 msgstr "مساحة العمل مفعلة"
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:1252
+#: appHandlers/appUIActions.py:1161
 msgid "Workspace size"
 msgstr "حجم مساحة العمل"
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:1256
+#: appHandlers/appUIActions.py:1165
 msgid "Workspace orientation"
 msgstr "اتجاه مساحة العمل"
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:1320
+#: appHandlers/appUIActions.py:1229
 msgid "New Grid ..."
 msgstr "شبكة جديدة ..."
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:1321
+#: appHandlers/appUIActions.py:1230
 msgid "Enter a Grid Value:"
 msgstr "أدخل قيمة الشبكة:"
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:1330 appHandlers/appUIActions.py:1360
+#: appHandlers/appUIActions.py:1239 appHandlers/appUIActions.py:1269
 msgid "Please enter a grid value with non-zero value, in Float format."
 msgstr "يرجى إدخال قيمة شبكة غير صفرية، بصيغة عدد عشري."
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:1340
+#: appHandlers/appUIActions.py:1249
 msgid "New Grid added"
 msgstr "تمت إضافة شبكة جديدة"
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:1342
+#: appHandlers/appUIActions.py:1251
 msgid "Grid already exists"
 msgstr "الشبكة موجودة مسبقًا"
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:1344
+#: appHandlers/appUIActions.py:1253
 msgid "Adding New Grid cancelled"
 msgstr "تم إلغاء إضافة شبكة جديدة"
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:1366 appHandlers/appUIActions.py:1371
+#: appHandlers/appUIActions.py:1275 appHandlers/appUIActions.py:1280
 msgid "Grid Value does not exist"
 msgstr "قيمة الشبكة غير موجودة"
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:1373
+#: appHandlers/appUIActions.py:1282
 msgid "Grid Value deleted"
 msgstr "تم حذف قيمة الشبكة"
 
 # auto-review 2026-11-04: new
-#: appHandlers/appUIActions.py:1375
+#: appHandlers/appUIActions.py:1284
 msgid "Delete Grid value cancelled"
 msgstr "تم إلغاء حذف قيمة الشبكة"
 
@@ -24851,7 +25038,7 @@ msgid "The task failed"
 msgstr "فشلت المهمة"
 
 # auto-review 2026-11-04: new
-#: appMain.py:1675
+#: appMain.py:1672
 msgid ""
 "Found old default preferences files. Please reboot the application to "
 "update."
@@ -24860,73 +25047,73 @@ msgstr ""
 "للتحديث."
 
 # auto-review 2026-11-04: new
-#: appMain.py:1853
+#: appMain.py:1903
 msgid "The project did not finish loading"
 msgstr "لم يكتمل تحميل المشروع"
 
 # auto-review 2026-11-04: new
-#: appMain.py:1870 appPlugins/ToolAlignObjects/AlignUI.py:219
+#: appMain.py:1920 appPlugins/ToolAlignObjects/AlignUI.py:219
 #: appPlugins/ToolGcodeSender/Sender.py:5238
 msgid "Error"
 msgstr "خطأ"
 
 # auto-review 2026-11-04: new
-#: appMain.py:1891
+#: appMain.py:1941
 msgid "Could not open the project file."
 msgstr "تعذر فتح ملف المشروع."
 
 # auto-review 2026-11-04: new
-#: appMain.py:1899
+#: appMain.py:1949
 msgid "Open Config file failed."
 msgstr "فشل فتح ملف الإعدادات."
 
 # auto-review 2026-11-04: new
-#: appMain.py:1903
+#: appMain.py:1953
 msgid "Could not open the preferences file."
 msgstr "تعذر فتح ملف التفضيلات."
 
 # auto-review 2026-11-04: new
-#: appMain.py:1911
+#: appMain.py:1961
 msgid "Open Script file failed."
 msgstr "فشل فتح ملف السكربت."
 
 # auto-review 2026-11-04: new
-#: appMain.py:1924
+#: appMain.py:1974
 msgid "Could not open the script file."
 msgstr "تعذر فتح ملف السكربت."
 
 # auto-review 2026-11-04: new
-#: appMain.py:1938
+#: appMain.py:1988
 msgid "Open Excellon file failed."
 msgstr "فشل فتح ملف Excellon."
 
 # auto-review 2026-11-04: new
-#: appMain.py:1940
+#: appMain.py:1990
 msgid "Open GCode file failed."
 msgstr "فشل فتح ملف GCode."
 
 # auto-review 2026-11-04: new
-#: appMain.py:1942
+#: appMain.py:1992
 msgid "Open Gerber file failed."
 msgstr "فشل فتح ملف Gerber."
 
 # auto-review 2026-11-04: new
-#: appMain.py:1965
+#: appMain.py:2015
 msgid "Could not open the file."
 msgstr "تعذر فتح الملف."
 
 # auto-review 2026-11-04: new
-#: appMain.py:1981
+#: appMain.py:2031
 msgid "Not a file that FlatCAM opens:"
 msgstr "ليس ملفًا يفتحه FlatCAM:"
 
 # auto-review 2026-11-04: new
-#: appMain.py:2021
+#: appMain.py:2077
 msgid "Run this script?"
 msgstr "هل تريد تشغيل هذا السكربت؟"
 
 # auto-review 2026-11-04: new
-#: appMain.py:2025
+#: appMain.py:2081
 msgid ""
 "A Tcl script can start programs and change or delete files. Run it only if "
 "you trust its source."
@@ -24935,23 +25122,23 @@ msgstr ""
 "بمصدره."
 
 # auto-review 2026-11-04: new
-#: appMain.py:2455
+#: appMain.py:2511
 msgid "Regenerate photo engraving instead of editing certified paths."
 msgstr "أعد إنشاء النحت الضوئي بدلًا من تحرير المسارات المعتمدة."
 
 # auto-review 2026-11-04: new
-#: appMain.py:2458 appMain.py:2479 appMain.py:2522 appMain.py:2538
-#: appMain.py:2557
+#: appMain.py:2514 appMain.py:2535 appMain.py:2578 appMain.py:2594
+#: appMain.py:2613
 msgid "The Editor could not start."
 msgstr "تعذر بدء المحرر."
 
 # auto-review 2026-11-04: new
-#: appMain.py:2465
+#: appMain.py:2521
 msgid "Select a Geometry, Gerber, Excellon or CNCJob Object to edit."
 msgstr "حدد كائن هندسة أو Gerber أو Excellon أو مهمة CNC لتحريره."
 
 # auto-review 2026-11-04: new
-#: appMain.py:2495
+#: appMain.py:2551
 msgid ""
 "Simultaneous editing of tools geometry in a MultiGeo Geometry is not "
 "possible.\n"
@@ -24961,7 +25148,7 @@ msgstr ""
 "حرّر هندسة واحدة فقط في كل مرة."
 
 # auto-review 2026-11-04: new
-#: appMain.py:2502 appPlugins/ToolDrilling/Drilling.py:1233
+#: appMain.py:2558 appPlugins/ToolDrilling/Drilling.py:1233
 #: appPlugins/ToolDrilling/Drilling.py:1352
 #: appPlugins/ToolDrilling/Drilling.py:1646
 #: appPlugins/ToolDrilling/Drilling.py:1671
@@ -24976,117 +25163,117 @@ msgid "No Tool Selected"
 msgstr "لم يتم تحديد لقمة"
 
 # auto-review 2026-11-04: new
-#: appMain.py:2597
+#: appMain.py:2653
 msgid "EDITOR Area"
 msgstr "منطقة المحرر"
 
 # auto-review 2026-11-04: new
-#: appMain.py:2600
+#: appMain.py:2656
 msgid "Editor is activated ..."
 msgstr "تم تفعيل المحرر ..."
 
 # auto-review 2026-11-04: new
-#: appMain.py:2652
+#: appMain.py:2708
 msgid "The copy of the object could not be made."
 msgstr "تعذر إنشاء نسخة من الكائن."
 
 # auto-review 2026-11-04: new
-#: appMain.py:2694
+#: appMain.py:2750
 msgid "Do you want to save the changes?"
 msgstr "هل تريد حفظ التغييرات؟"
 
 # auto-review 2026-11-04: new
-#: appMain.py:2705
+#: appMain.py:2761
 msgid "Save as New"
 msgstr "حفظ كجديد"
 
 # auto-review 2026-11-04: new
-#: appMain.py:2760
+#: appMain.py:2816
 msgid "Object empty after edit."
 msgstr "الكائن فارغ بعد التحرير."
 
 # auto-review 2026-11-04: new
-#: appMain.py:2777 appMain.py:2791 appMain.py:2810 appMain.py:2827
+#: appMain.py:2833 appMain.py:2847 appMain.py:2866 appMain.py:2883
 msgid "Editor exited. Editor content saved."
 msgstr "تم الخروج من المحرر. تم حفظ محتوى المحرر."
 
 # auto-review 2026-11-04: new
-#: appMain.py:2831 appMain.py:2915 appMain.py:2933
+#: appMain.py:2887 appMain.py:2971 appMain.py:2989
 msgid "Select a Gerber, Geometry, Excellon or CNCJob Object to update."
 msgstr "حدد كائن Gerber أو هندسة أو Excellon أو مهمة CNC لتحديثه."
 
 # auto-review 2026-11-04: new
-#: appMain.py:2849
+#: appMain.py:2905
 msgid "is updated, returning to App..."
 msgstr "تم تحديثه، جارٍ العودة إلى التطبيق..."
 
 # auto-review 2026-11-04: new
-#: appMain.py:2894
+#: appMain.py:2950
 msgid "Editor exited. Editor content was not saved."
 msgstr "تم الخروج من المحرر. لم يتم حفظ محتوى المحرر."
 
 # auto-review 2026-11-04: new
-#: appMain.py:3082 appMain.py:3088
+#: appMain.py:3138 appMain.py:3144
 msgid "Save to file"
 msgstr "حفظ إلى ملف"
 
 # auto-review 2026-11-04: new
-#: appMain.py:3114
+#: appMain.py:3170
 msgid "Failed to write to file."
 msgstr "فشلت الكتابة إلى الملف."
 
 # auto-review 2026-11-04: new
-#: appMain.py:3117
+#: appMain.py:3173
 msgid "Exported file to"
 msgstr "تم تصدير الملف إلى"
 
 # auto-review 2026-11-04: new
-#: appMain.py:3157
+#: appMain.py:3213
 msgid "Failed to open recent files file for writing."
 msgstr "فشل فتح ملف قائمة الملفات الأخيرة للكتابة."
 
 # auto-review 2026-11-04: new
-#: appMain.py:3166
+#: appMain.py:3222
 msgid "Failed to open recent projects file for writing."
 msgstr "فشل فتح ملف قائمة المشاريع الأخيرة للكتابة."
 
 # auto-review 2026-11-04: new
-#: appMain.py:3231
+#: appMain.py:3287
 msgid "Update canceled while closing the tools database."
 msgstr "تم إلغاء التحديث أثناء إغلاق قاعدة بيانات اللقم."
 
 # auto-review 2026-11-04: new
-#: appMain.py:3234
+#: appMain.py:3290
 msgid "Please wait for the project save to finish before updating."
 msgstr "يرجى انتظار انتهاء حفظ المشروع قبل التحديث."
 
 # auto-review 2026-11-04: new
-#: appMain.py:3237
+#: appMain.py:3293
 msgid "Save the current project before updating."
 msgstr "احفظ المشروع الحالي قبل التحديث."
 
 # auto-review 2026-11-04: new
-#: appMain.py:3280
+#: appMain.py:3336
 msgid "Select completed Windows build"
 msgstr "اختر بناء Windows المكتمل"
 
 # auto-review 2026-11-04: new
-#: appMain.py:3287
+#: appMain.py:3343
 msgid "Select update output directory"
 msgstr "اختر مجلد مخرجات التحديث"
 
 # auto-review 2026-11-04: new
-#: appMain.py:3295
+#: appMain.py:3351
 msgid "Enter release notes:"
 msgstr "أدخل ملاحظات الإصدار:"
 
 # auto-review 2026-11-04: new
-#: appMain.py:3306
+#: appMain.py:3362
 msgid "Prepare update files"
 msgstr "تحضير ملفات التحديث"
 
 # auto-review 2026-11-04: new
-#: appMain.py:3307
+#: appMain.py:3363
 msgid ""
 "Version: %s\n"
 "Build: %s\n"
@@ -25103,57 +25290,57 @@ msgstr ""
 "هل تريد إنشاء ملفات رفع Digi المحلية الآن؟"
 
 # auto-review 2026-11-04: new
-#: appMain.py:3320
+#: appMain.py:3376
 msgid "Release inputs are incomplete: %s"
 msgstr "مدخلات الإصدار غير مكتملة: %s"
 
 # auto-review 2026-11-04: new
-#: appMain.py:3325
+#: appMain.py:3381
 msgid "Preparing update files..."
 msgstr "جارٍ تحضير ملفات التحديث..."
 
 # auto-review 2026-11-04: new
-#: appMain.py:3327
+#: appMain.py:3383
 msgid "Preparing update files"
 msgstr "تحضير ملفات التحديث"
 
 # auto-review 2026-11-04: new
-#: appMain.py:3344
+#: appMain.py:3400
 msgid "Release preparation could not be started."
 msgstr "تعذر بدء تحضير الإصدار."
 
 # auto-review 2026-11-04: new
-#: appMain.py:3384
+#: appMain.py:3440
 msgid "Release preparation failed: %s"
 msgstr "فشل تحضير الإصدار: %s"
 
 # auto-review 2026-11-04: new
-#: appMain.py:3389
+#: appMain.py:3445
 msgid "Local Digi upload files are ready:"
 msgstr "ملفات رفع Digi المحلية جاهزة:"
 
 # auto-review 2026-11-04: new
-#: appMain.py:3396
+#: appMain.py:3452
 msgid "No releases have been published yet."
 msgstr "لم يتم نشر أي إصدارات بعد."
 
 # auto-review 2026-11-04: new
-#: appMain.py:3398
+#: appMain.py:3454
 msgid "The application is up to date!"
 msgstr "التطبيق محدّث!"
 
 # auto-review 2026-11-04: new
-#: appMain.py:3444
+#: appMain.py:3500
 msgid "the source archive of the release is checked"
 msgstr "يُفحص الأرشيف المصدري للإصدار"
 
 # auto-review 2026-11-04: new
-#: appMain.py:3446
+#: appMain.py:3502
 msgid "the update archive is checked against its published checksum"
 msgstr "يُفحص أرشيف التحديث مقابل المجموع الاختباري المنشور له"
 
 # auto-review 2026-11-04: new
-#: appMain.py:3449
+#: appMain.py:3505
 msgid ""
 "FlatCAM Evo downloads the new version. The steps are:\n"
 "\n"
@@ -25177,39 +25364,39 @@ msgstr ""
 "وحذف الملفات التي تم تنزيلها."
 
 # auto-review 2026-11-04: new
-#: appMain.py:3461
+#: appMain.py:3517
 msgid "Downloading update"
 msgstr "جارٍ تنزيل التحديث"
 
 # auto-review 2026-11-04: new
-#: appMain.py:3484
+#: appMain.py:3540
 msgid "Update download could not be started."
 msgstr "تعذر بدء تنزيل التحديث."
 
 # auto-review 2026-11-04: new
-#: appMain.py:3579 appPlugins/ToolCompare/Compare.py:431
+#: appMain.py:3635 appPlugins/ToolCompare/Compare.py:431
 #: appPlugins/ToolCompare/CompareUI.py:106
 msgid "Added"
 msgstr "مضافة"
 
 # auto-review 2026-11-04: new
-#: appMain.py:3579 appPlugins/ToolCompare/Compare.py:430
+#: appMain.py:3635 appPlugins/ToolCompare/Compare.py:430
 #: appPlugins/ToolCompare/CompareUI.py:99
 msgid "Removed"
 msgstr "محذوفة"
 
 # auto-review 2026-11-04: new
-#: appMain.py:3580
+#: appMain.py:3636
 msgid "Optional added"
 msgstr "اختيارية مضافة"
 
 # auto-review 2026-11-04: new
-#: appMain.py:3580
+#: appMain.py:3636
 msgid "Optional removed"
 msgstr "اختيارية محذوفة"
 
 # auto-review 2026-11-04: new
-#: appMain.py:3594
+#: appMain.py:3650
 msgid ""
 "The application requirements changed. Update the Python environment and "
 "restart afterwards; otherwise FlatCAM may fail to start. FlatCAM does not "
@@ -25219,7 +25406,7 @@ msgstr ""
 "يفشل FlatCAM في البدء. لا يشغّل FlatCAM الأداة pip ولا يغيّر البيئة بنفسه."
 
 # auto-review 2026-11-04: new
-#: appMain.py:3600
+#: appMain.py:3656
 msgid ""
 "Optional packages changed. FlatCAM works without them. To install them, "
 "run: python install_optional.py"
@@ -25228,157 +25415,142 @@ msgstr ""
 "install_optional.py"
 
 # auto-review 2026-11-04: new
-#: appMain.py:3613
+#: appMain.py:3669
 msgid "Trust: %s"
 msgstr "الثقة: %s"
 
 # auto-review 2026-11-04: new
-#: appMain.py:3622
+#: appMain.py:3678
 msgid "Install update"
 msgstr "تثبيت التحديث"
 
 # auto-review 2026-11-04: new
-#: appMain.py:3641
+#: appMain.py:3697
 msgid "Update download canceled."
 msgstr "تم إلغاء تنزيل التحديث."
 
 # auto-review 2026-11-04: new
-#: appMain.py:3654
+#: appMain.py:3710
 msgid "Update download failed; the installation was not changed."
 msgstr "فشل تنزيل التحديث؛ لم يتغير التثبيت."
 
 # auto-review 2026-11-04: new
-#: appMain.py:3662
+#: appMain.py:3718
 msgid "Update was canceled; the installation was not changed."
 msgstr "تم إلغاء التحديث؛ لم يتغير التثبيت."
 
 # auto-review 2026-11-04: new
-#: appMain.py:3670
+#: appMain.py:3726
 msgid "The updater could not be started."
 msgstr "تعذر بدء برنامج التحديث."
 
 # auto-review 2026-11-04: new
-#: appMain.py:3707
+#: appMain.py:3763
 msgid "Revert to %s (%s)"
 msgstr "الرجوع إلى %s (%s)"
 
 # auto-review 2026-11-04: new
-#: appMain.py:3717
+#: appMain.py:3773
 msgid "No usable previous version is available."
 msgstr "لا يتوفر إصدار سابق قابل للاستخدام."
 
 # auto-review 2026-11-04: new
-#: appMain.py:3722
+#: appMain.py:3778
 msgid "Revert application update"
 msgstr "التراجع عن تحديث التطبيق"
 
 # auto-review 2026-11-04: new
-#: appMain.py:3723
+#: appMain.py:3779
 msgid "Revert from %s (%s) to %s (%s)?"
 msgstr "هل تريد الرجوع من %s (%s) إلى %s (%s)؟"
 
 # auto-review 2026-11-04: new
-#: appMain.py:3755
+#: appMain.py:3811
 msgid "The previous version could not be started."
 msgstr "تعذر تشغيل الإصدار السابق."
 
 # auto-review 2026-11-04: new
-#: appMain.py:3867
+#: appMain.py:3923
 msgid "Aborting."
 msgstr "جارٍ الإلغاء."
 
 # auto-review 2026-11-04: new
-#: appMain.py:3867
+#: appMain.py:3923
 msgid "The current task will be gracefully closed as soon as possible..."
 msgstr "سيتم إغلاق المهمة الحالية بشكل سليم في أقرب وقت ممكن..."
 
 # auto-review 2026-11-04: new
-#: appMain.py:3877
+#: appMain.py:3933
 msgid "The current task was gracefully closed on user request..."
 msgstr "تم إغلاق المهمة الحالية بشكل سليم بناءً على طلب المستخدم..."
 
 # auto-review 2026-11-04: new
-#: appMain.py:4146 appMain.py:4150
+#: appMain.py:4202 appMain.py:4206
 msgid "Select an Gerber or Excellon file to view it's source file."
 msgstr "حدد ملف Gerber أو Excellon لعرض ملفه المصدري."
 
 # auto-review 2026-11-04: new
-#: appMain.py:4156
+#: appMain.py:4212
 msgid "The object has no source file to show"
 msgstr "لا يوجد ملف مصدري لهذا الكائن لعرضه"
 
 # auto-review 2026-11-04: new
-#: appMain.py:4160
+#: appMain.py:4216
 msgid "Viewing the source code of the selected object."
 msgstr "عرض الكود المصدري للكائن المحدد."
 
 # auto-review 2026-11-04: new
-#: appMain.py:4176
+#: appMain.py:4232
 msgid "Source Editor"
 msgstr "محرر المصدر"
 
 # auto-review 2026-11-04: new
-#: appMain.py:4202 appMain.py:4209
+#: appMain.py:4258 appMain.py:4265
 msgid "There is no selected object for which to see it's source file code."
 msgstr "لا يوجد كائن محدد لعرض كود ملفه المصدري."
 
 # auto-review 2026-11-04: new
-#: appMain.py:4218
+#: appMain.py:4274
 msgid "Failed to load the source code for the selected object"
 msgstr "فشل تحميل الكود المصدري للكائن المحدد"
 
 # auto-review 2026-11-04: new
-#: appMain.py:4305
+#: appMain.py:4361
 msgid "Cannot open image file. Image tool is not available."
 msgstr "لا يمكن فتح ملف الصورة. أداة الصور غير متاحة."
 
 # auto-review 2026-11-04: new
-#: appMain.py:4362
-msgid "Failed to parse recent item list."
-msgstr "فشل تحليل قائمة العناصر الأخيرة."
-
-# auto-review 2026-11-04: new
-#: appMain.py:4366
+#: appMain.py:4423
 msgid "Failed to load recent item list."
 msgstr "فشل تحميل قائمة العناصر الأخيرة."
 
 # auto-review 2026-11-04: new
-#: appMain.py:4376
-msgid "Failed to parse recent project item list."
-msgstr "فشل تحليل قائمة المشاريع الأخيرة."
-
-# auto-review 2026-11-04: new
-#: appMain.py:4380
-msgid "Failed to load recent projects item list."
-msgstr "فشل تحميل قائمة المشاريع الأخيرة."
-
-# auto-review 2026-11-04: new
-#: appMain.py:4402
+#: appMain.py:4447
 msgid "Recent files list was reset."
 msgstr "تمت إعادة تعيين قائمة الملفات الأخيرة."
 
 # auto-review 2026-11-04: new
-#: appMain.py:4415
+#: appMain.py:4460
 msgid "Recent projects list was reset."
 msgstr "تمت إعادة تعيين قائمة المشاريع الأخيرة."
 
 # auto-review 2026-11-04: new
-#: appMain.py:4440
+#: appMain.py:4485
 msgid "Clear Recent projects"
 msgstr "مسح المشاريع الأخيرة"
 
 # auto-review 2026-11-04: new
-#: appMain.py:4464
+#: appMain.py:4509
 msgid "Clear Recent files"
 msgstr "مسح الملفات الأخيرة"
 
 # auto-review 2026-11-04: new
-#: appMain.py:4509
+#: appMain.py:4554
 msgid "Failed checking for the latest version."
 msgstr "فشل التحقق من أحدث إصدار."
 
 # auto-review 2026-11-04: new
-#: appMain.py:4533
+#: appMain.py:4578
 msgid ""
 "OpenGL canvas initialization failed.\n"
 "Check your graphics drivers and OpenGL support, including remote desktop or "
@@ -25391,22 +25563,22 @@ msgstr ""
 "تتوفر التفاصيل التقنية في سجل التطبيق وتفاصيل الخطأ."
 
 # auto-review 2026-11-04: new
-#: appMain.py:4538
+#: appMain.py:4583
 msgid "OpenGL initialization failed"
 msgstr "فشلت تهيئة OpenGL"
 
 # auto-review 2026-11-04: new
-#: appMain.py:4706
+#: appMain.py:4751
 msgid "Activate the script's project before running it."
 msgstr "فعّل مشروع السكربت قبل تشغيله."
 
 # auto-review 2026-11-04: new
-#: appMain.py:4709
+#: appMain.py:4754
 msgid "A script is already running."
 msgstr "يوجد سكربت قيد التشغيل بالفعل."
 
 # auto-review 2026-11-04: new
-#: appMain.py:4716
+#: appMain.py:4761
 msgid "Timed-out script work is still running; changes are not rolled back."
 msgstr ""
 "لا يزال عمل السكربت الذي انتهت مهلته قيد التشغيل؛ لن يتم التراجع عن "
@@ -25862,11 +26034,6 @@ msgid ""
 msgstr ""
 "فشل جزئي. تمت معالجة الهندسة بجميع اللقم.\n"
 "لكن لا تزال هناك عناصر هندسية غير معزولة. حاول إضافة لقمة بقطر أصغر."
-
-# auto-review 2026-11-04: new
-#: appObjects/ObjectCollection.py:400
-msgid "Script"
-msgstr "سكربت"
 
 # auto-review 2026-11-04: new
 #: appObjects/ObjectCollection.py:596
@@ -26421,7 +26588,9 @@ msgstr "يجب أن يكون ارتفاع انتقال المجس Z أعلى م�
 msgid ""
 "The pull-off is limited to the contact-to-start travel. The probe does not "
 "cross the opposite wall."
-msgstr "يقتصر الابتعاد على مسافة الانتقال من نقطة التماس إلى نقطة البدء. لا يعبر المجس الجدار المقابل."
+msgstr ""
+"يقتصر الابتعاد على مسافة الانتقال من نقطة التماس إلى نقطة البدء. لا يعبر "
+"المجس الجدار المقابل."
 
 #: appPlugins/Common/grbl/grbl_client.py:1627
 msgid ""
@@ -26444,7 +26613,9 @@ msgstr "رفض GRBL أمرًا"
 msgid ""
 "The original units, distance and feed mode were not restored. Reset GRBL "
 "before relying on its modal state."
-msgstr "لم تُستعد الوحدات الأصلية ووضعا المسافة والتغذية. أعد ضبط GRBL قبل الاعتماد على أوضاعه النشطة."
+msgstr ""
+"لم تُستعد الوحدات الأصلية ووضعا المسافة والتغذية. أعد ضبط GRBL قبل الاعتماد "
+"على أوضاعه النشطة."
 
 #: appPlugins/Common/grbl/grbl_client.py:1690
 msgid "Could not read the GRBL work position"
@@ -26706,7 +26877,10 @@ msgid ""
 "Canned cycle moves or parameters that are not supported (G73, G76, "
 "G84..G89, another plane, missing or invalid R, Z, Q, P or feed, a "
 "repetition) were not height-compensated"
-msgstr "لم يُطبَّق تعويض الارتفاع على حركات الدورات الجاهزة أو معاملاتها غير المدعومة (G73، G76، G84..G89، مستوى آخر، أو غياب أو عدم صلاحية R أو Z أو Q أو P أو التغذية، أو تكرار)."
+msgstr ""
+"لم يُطبَّق تعويض الارتفاع على حركات الدورات الجاهزة أو معاملاتها غير "
+"المدعومة (G73، G76، G84..G89، مستوى آخر، أو غياب أو عدم صلاحية R أو Z أو Q "
+"أو P أو التغذية، أو تكرار)."
 
 # auto-review 2026-11-04: new
 #: appPlugins/Common/levelling_core.py:1322
@@ -31583,7 +31757,9 @@ msgid ""
 "The height map has no verified machine frame (an imported map, or one made "
 "before its frame was recorded). It can not be used for a calibrated tool "
 "change. Probe the map again."
-msgstr "خريطة الارتفاع بلا إطار إحداثيات آلة متحقق منه (مستوردة أو أُنشئت قبل تسجيل إطارها). لا تصلح لتغيير اللقمة المعايَر. أعد جسّ الخريطة."
+msgstr ""
+"خريطة الارتفاع بلا إطار إحداثيات آلة متحقق منه (مستوردة أو أُنشئت قبل تسجيل "
+"إطارها). لا تصلح لتغيير اللقمة المعايَر. أعد جسّ الخريطة."
 
 #: appPlugins/ToolGcodeSender/Sender.py:2988
 msgid ""
@@ -31595,14 +31771,18 @@ msgstr "وحدات خريطة الارتفاع لا تطابق وحدات الم
 msgid ""
 "A removable plate can reset the board origin and can not preserve an active "
 "height map. Clear the map, set the board Z zero, then probe the map again."
-msgstr "قد تعيد الصفيحة القابلة للإزالة ضبط أصل اللوحة ولا تحفظ خريطة ارتفاع نشطة. امسح الخريطة، واضبط صفر Z للوحة، ثم أعد جسّ الخريطة."
+msgstr ""
+"قد تعيد الصفيحة القابلة للإزالة ضبط أصل اللوحة ولا تحفظ خريطة ارتفاع نشطة. "
+"امسح الخريطة، واضبط صفر Z للوحة، ثم أعد جسّ الخريطة."
 
 #: appPlugins/ToolGcodeSender/Sender.py:2992
 msgid ""
 "The height map was made in another WCS or work offset than the fixed plate "
 "reference. Calibrate the plate and probe the map again in the same "
 "reference."
-msgstr "أُنشئت خريطة الارتفاع في WCS أو إزاحة عمل مختلفة عن مرجع الصفيحة الثابتة. عاير الصفيحة وأعد جسّ الخريطة في المرجع نفسه."
+msgstr ""
+"أُنشئت خريطة الارتفاع في WCS أو إزاحة عمل مختلفة عن مرجع الصفيحة الثابتة. "
+"عاير الصفيحة وأعد جسّ الخريطة في المرجع نفسه."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolGcodeSender/Sender.py:2995
@@ -31849,7 +32029,9 @@ msgstr "معاملات جس الحافة ليست أرقامًا صالحة."
 msgid ""
 "The probe Z travel, distance, feedrate and pull-off must be positive finite "
 "numbers."
-msgstr "يجب أن يكون ارتفاع انتقال المجس Z والمسافة ومعدل التغذية والابتعاد أعدادًا موجبة منتهية."
+msgstr ""
+"يجب أن يكون ارتفاع انتقال المجس Z والمسافة ومعدل التغذية والابتعاد أعدادًا "
+"موجبة منتهية."
 
 #: appPlugins/ToolGcodeSender/Sender.py:3842
 msgid ""
@@ -32190,7 +32372,7 @@ msgstr "الموضع غير معروف (لم تتم قراءة $13 في GRBL)"
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolGcodeSender/Sender.py:5338
-#: appPlugins/ToolPCBViewer/PCBViewer.py:110
+#: appPlugins/ToolPCBViewer/PCBViewer.py:126
 msgid "The Plot 3D tab is not available."
 msgstr "تبويب العرض ثلاثي الأبعاد غير متاح."
 
@@ -33433,7 +33615,8 @@ msgstr "حد تحذير الخطأ المتبقي (%s):"
 msgid ""
 "A residual above this limit is reported as a warning; it does not block the "
 "preview or Apply."
-msgstr "تجاوز الخطأ المتبقي هذا الحد يُظهر تحذيرًا ولا يمنع المعاينة أو التطبيق."
+msgstr ""
+"تجاوز الخطأ المتبقي هذا الحد يُظهر تحذيرًا ولا يمنع المعاينة أو التطبيق."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolGcodeSender/SenderRegistrationUI.py:172
@@ -34061,7 +34244,8 @@ msgstr "جس الحافة"
 msgid ""
 "Probe one bounded contact in the selected direction.\n"
 "The contact is reported in the active work coordinates."
-msgstr "جس نقطة تماس واحدة ضمن مسافة محدودة في الاتجاه المحدد.\n"
+msgstr ""
+"جس نقطة تماس واحدة ضمن مسافة محدودة في الاتجاه المحدد.\n"
 "يُبلَّغ عن نقطة التماس بإحداثيات العمل النشطة."
 
 #: appPlugins/ToolGcodeSender/SenderUI.py:501
@@ -34072,7 +34256,8 @@ msgstr "إيجاد مركز XY"
 msgid ""
 "Probe the 2 opposed X contacts and the 2 opposed Y contacts,\n"
 "then report their midpoint as the hole or ring centre."
-msgstr "جس نقطتي تماس X المتقابلتين ونقطتي تماس Y المتقابلتين،\n"
+msgstr ""
+"جس نقطتي تماس X المتقابلتين ونقطتي تماس Y المتقابلتين،\n"
 "ثم أبلغ عن مركزها بوصفه مركز الثقب أو الحلقة."
 
 # auto-review 2026-11-04: new
@@ -34333,16 +34518,16 @@ msgid "Only Geometry and Gerber objects are supported"
 msgstr "كائنات الهندسة وGerber فقط مدعومة"
 
 # auto-review 2026-11-04: new
-#: appPlugins/ToolImage/ImageImportMixin.py:247
-#: appPlugins/ToolImage/ImageImportMixin.py:250
+#: appPlugins/ToolImage/ImageImportMixin.py:249
+#: appPlugins/ToolImage/ImageImportMixin.py:252
 #: appPlugins/ToolImage/ImageUI.py:34
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:236
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:238
 #: appPlugins/ToolPhotoCarve/PhotoCarveUI.py:244
 msgid "Load Image"
 msgstr "تحميل صورة"
 
 # auto-review 2026-11-04: new
-#: appPlugins/ToolImage/ImageImportMixin.py:271
+#: appPlugins/ToolImage/ImageImportMixin.py:273
 msgid "Failed to load image"
 msgstr "فشل تحميل الصورة"
 
@@ -34360,7 +34545,8 @@ msgstr "لم تُحمَّل صورة."
 msgid ""
 "Sampled image preview (up to 320 x 200 pixels).\n"
 "Settings apply to this preview; final import uses every original pixel."
-msgstr "معاينة عيّنة من الصورة (حتى 320 × 200 بكسل).\n"
+msgstr ""
+"معاينة عيّنة من الصورة (حتى 320 × 200 بكسل).\n"
 "تُطبَّق الإعدادات على هذه المعاينة؛ ويستخدم الاستيراد النهائي كل بكسل أصلي."
 
 # auto-review 2026-11-04: new
@@ -36301,18 +36487,32 @@ msgstr ""
 "مما يسمح بتحديد اللقمة المناسبة\n"
 "للعزل أو لإزالة النحاس."
 
-#: appPlugins/ToolPCBViewer/PCBViewer.py:23
+#: appPlugins/ToolPCBViewer/PCBViewer.py:29
 #: appPlugins/ToolPCBViewer/PCBViewerUI.py:21
 msgid "PCB 3D Viewer"
 msgstr "عارض PCB ثلاثي الأبعاد"
 
-#: appPlugins/ToolPCBViewer/PCBViewer.py:189
+#: appPlugins/ToolPCBViewer/PCBViewer.py:215
 msgid "Building PCB preview…"
 msgstr "جارٍ إنشاء معاينة PCB…"
 
-#: appPlugins/ToolPCBViewer/PCBViewer.py:227
+#: appPlugins/ToolPCBViewer/PCBViewer.py:261
 msgid "PCB preview ready"
 msgstr "معاينة PCB جاهزة"
+
+#: appPlugins/ToolPCBViewer/PCBViewer.py:281
+#: appPlugins/ToolPCBViewer/PCBViewerUI.py:78
+msgid "Export 3D PDF"
+msgstr "تصدير PDF ثلاثي الأبعاد"
+
+#: appPlugins/ToolPCBViewer/PCBViewer.py:297
+msgid "Exporting 3D PDF…"
+msgstr "جارٍ تصدير PDF ثلاثي الأبعاد…"
+
+#: appPlugins/ToolPCBViewer/PCBViewer.py:353
+#: appPlugins/ToolPCBViewer/PCBViewer.py:356
+msgid "3D PDF exported"
+msgstr "تم تصدير PDF ثلاثي الأبعاد"
 
 #: appPlugins/ToolPCBViewer/PCBViewerUI.py:23
 msgid "PCB"
@@ -36333,8 +36533,8 @@ msgid "Thickness:"
 msgstr "السُمك:"
 
 #: appPlugins/ToolPCBViewer/PCBViewerUI.py:46
-msgid "Transparency:"
-msgstr "الشفافية:"
+msgid "Opacity:"
+msgstr "العتامة:"
 
 #: appPlugins/ToolPCBViewer/PCBViewerUI.py:48
 msgid "Alpha: 0 is transparent; 255 is opaque."
@@ -36344,14 +36544,23 @@ msgstr "ألفا: 0 شفاف؛ 255 معتم."
 msgid ""
 "Closed board contours, including cutouts.\n"
 "Without an outline, the preview uses the combined bounding box."
-msgstr "حدود اللوحة المغلقة، بما فيها مناطق القص.\n"
+msgstr ""
+"حدود اللوحة المغلقة، بما فيها مناطق القص.\n"
 "من دون محيط، تستخدم المعاينة المستطيل المحيط الموحّد."
 
-#: appPlugins/ToolPCBViewer/PCBViewerUI.py:90
+#: appPlugins/ToolPCBViewer/PCBViewerUI.py:79
+msgid ""
+"Requires a PDF reader with U3D support, such as Adobe Acrobat or Foxit.\n"
+"Other readers display the static PCB preview."
+msgstr ""
+"يتطلب قارئ PDF يدعم U3D، مثل Adobe Acrobat أو Foxit.\n"
+"تعرض برامج القراءة الأخرى معاينة ثابتة للوحة الدوائر المطبوعة."
+
+#: appPlugins/ToolPCBViewer/PCBViewerUI.py:95
 msgid "Color:"
 msgstr "اللون:"
 
-#: appPlugins/ToolPCBViewer/PCBViewerUI.py:103
+#: appPlugins/ToolPCBViewer/PCBViewerUI.py:108
 msgid "Clear selection"
 msgstr "مسح التحديد"
 
@@ -36953,34 +37162,34 @@ msgid "Rendered"
 msgstr "تم الرسم"
 
 # auto-review 2026-11-04: new
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:170
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:172
 msgid "V-bit depth limit: %s"
 msgstr "حد عمق لقمة V: %s"
 
 # auto-review 2026-11-04: new
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:173
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:175
 msgid "Invalid V-bit parameters"
 msgstr "معاملات لقمة V غير صالحة"
 
 # auto-review 2026-11-04: new
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:211
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:213
 msgid ""
 "The parameters changed: the old Photo Carve geometry was deleted. Generate "
 "again."
 msgstr "تغيّرت المعاملات: حُذفت هندسة النحت الضوئي القديمة. أنشئها مرة أخرى."
 
 # auto-review 2026-11-04: new
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:230
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:232
 msgid "Pixels: %d × %d"
 msgstr "البكسلات: %d × %d"
 
 # auto-review 2026-11-04: new
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:231
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:233
 msgid "Height: %s"
 msgstr "الارتفاع: %s"
 
 # auto-review 2026-11-04: new
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:260
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:262
 msgid ""
 "This Photo Carve object has no source image. Load the image again in the "
 "Photo Carve plugin."
@@ -36989,47 +37198,47 @@ msgstr ""
 "الضوئي."
 
 # auto-review 2026-11-04: new
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:274
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:276
 msgid "Photo Carve opened with the image and the parameters of the object."
 msgstr "تم فتح النحت الضوئي بصورة الكائن ومعاملاته."
 
 # auto-review 2026-11-04: new
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:346
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:348
 msgid "Preview of the job: the area is shown on the canvas."
 msgstr "معاينة المهمة: المنطقة معروضة على لوحة الرسم."
 
 # auto-review 2026-11-04: new
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:368
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:370
 msgid "photo"
 msgstr "photo"
 
 # auto-review 2026-11-04: new
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:385
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:387
 msgid "Generating..."
 msgstr "جارٍ الإنشاء..."
 
 # auto-review 2026-11-04: new
-#: appPlugins/ToolPhotoCarve/PhotoCarve.py:399
+#: appPlugins/ToolPhotoCarve/PhotoCarve.py:401
 msgid "Generate photo engraving geometry first."
 msgstr "أنشئ هندسة النحت الضوئي أولًا."
 
 # auto-review 2026-11-04: new
-#: appPlugins/ToolPhotoCarve/PhotoCarveGen.py:305
+#: appPlugins/ToolPhotoCarve/PhotoCarveGen.py:313
 msgid "Simulation finished."
 msgstr "انتهت المحاكاة."
 
 # auto-review 2026-11-04: new
-#: appPlugins/ToolPhotoCarve/PhotoCarveGen.py:372
+#: appPlugins/ToolPhotoCarve/PhotoCarveGen.py:380
 msgid "Photo Carve geometry generated"
 msgstr "تم إنشاء هندسة النحت الضوئي"
 
 # auto-review 2026-11-04: new
-#: appPlugins/ToolPhotoCarve/PhotoCarveGen.py:372
+#: appPlugins/ToolPhotoCarve/PhotoCarveGen.py:380
 msgid "paths"
 msgstr "مسارات"
 
 # auto-review 2026-11-04: new
-#: appPlugins/ToolPhotoCarve/PhotoCarveGen.py:373
+#: appPlugins/ToolPhotoCarve/PhotoCarveGen.py:381
 msgid "points"
 msgstr "نقاط"
 
@@ -39714,7 +39923,7 @@ msgstr ""
 "الحدود قد اكتملت بعد (تحتاج إلى تمريرات أكثر)."
 
 # auto-review 2026-11-04: new
-#: defaults.py:1393 defaults.py:1686
+#: defaults.py:1394 defaults.py:1687
 msgid "Failed to parse defaults file."
 msgstr "فشل تحليل ملف الإعدادات الافتراضية."
 
@@ -40091,6 +40300,21 @@ msgstr "الكائنات الطارحة ليس لها مساحة."
 #: tclCommands/TclCommandSubtractRectangle.py:62
 msgid "No Geometry name in args. Provide a name and try again."
 msgstr "لا يوجد اسم هندسة في الوسائط. أدخل اسمًا وحاول مرة أخرى."
+
+# auto-review 2026-11-04: new
+#~ msgid "Failed to parse recent item list."
+#~ msgstr "فشل تحليل قائمة العناصر الأخيرة."
+
+# auto-review 2026-11-04: new
+#~ msgid "Failed to parse recent project item list."
+#~ msgstr "فشل تحليل قائمة المشاريع الأخيرة."
+
+# auto-review 2026-11-04: new
+#~ msgid "Failed to load recent projects item list."
+#~ msgstr "فشل تحميل قائمة المشاريع الأخيرة."
+
+#~ msgid "Transparency:"
+#~ msgstr "الشفافية:"
 
 # auto-review 2026-11-04: new
 #~ msgid "Canned cycle moves (G73, G76, G81..G89) were not height-compensated"

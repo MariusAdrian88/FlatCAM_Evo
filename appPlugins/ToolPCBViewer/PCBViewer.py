@@ -1,14 +1,20 @@
 """PCB preview controller: snapshots on the GUI thread, serial cached builds on the worker."""
 
+import os
 import re
+import tempfile
+from threading import Event, Lock
 
 from PyQt6 import QtCore, QtWidgets
 
 from appTool import AppTool
-from appGUI.GUIElements import VerticalScrollArea
+from appGUI.GUIElements import FCFileSaveDialog, VerticalScrollArea
+from . import PDF3DWriter
+from .PCBViewerExport import export_bounds, export_meshes, render_poster
 from .PCBViewerGen import PCBGeometry, Source
 from .PCBViewerUI import PCBViewerUI
 from .PCBViewerView import PCBView
+from .U3DWriter import write_scene
 
 import gettext
 import appTranslation as fcTranslate
@@ -23,6 +29,7 @@ class ToolPCBViewer(AppTool):
     pluginName = _("PCB 3D Viewer")
     layer_ready = QtCore.pyqtSignal(int, object)
     build_done = QtCore.pyqtSignal(int, str)
+    export_done = QtCore.pyqtSignal(int, str, str)
 
     def __init__(self, app):
         super().__init__(app)
@@ -35,12 +42,20 @@ class ToolPCBViewer(AppTool):
         self._pending = False
         self._active = False
         self._fit = False
+        self._ready = False
+        self._completed_layers = ()
+        self._completed_units = None
+        self._exporting = False
+        self._export_job = 0
+        self._export_cancel = Event()
+        self._export_lock = Lock()
         self._timer = QtCore.QTimer(self)
         self._timer.setSingleShot(True)
         self._timer.setInterval(60)
         self._timer.timeout.connect(self.on_redraw)
         self.layer_ready.connect(self.on_layer_ready, QtCore.Qt.ConnectionType.QueuedConnection)
         self.build_done.connect(self.on_build_done, QtCore.Qt.ConnectionType.QueuedConnection)
+        self.export_done.connect(self.on_export_done, QtCore.Qt.ConnectionType.QueuedConnection)
         app.cleanup.connect(self.on_plugin_cleanup)
         app.app_obj.object_changed.connect(self.on_object_changed)
         app.object_status_changed.connect(self.on_object_changed)
@@ -76,6 +91,7 @@ class ToolPCBViewer(AppTool):
         super().run()
         self.clear_ui(self.layout)
         self.ui = PCBViewerUI(self.layout, self.app)
+        self.ui.export_pdf_button.clicked.connect(self.on_export_pdf)
         source = source or self.app.collection.get_active()
         if source is not None and source.kind == 'gerber':
             for name in ('copper_top', 'copper_bottom', 'overlay_top', 'overlay_bottom'):
@@ -119,7 +135,7 @@ class ToolPCBViewer(AppTool):
 
     def on_camera_reference_changed(self, value):
         if self.view is not None and self.view.alive:
-            self.view.canvas.camera_reference = value
+            self.view.canvas.camera_reference = 'center_rotate' if value == 'center' else value
 
     def on_alpha_changed(self, value):
         entry = self.ui.colors['board']
@@ -140,6 +156,9 @@ class ToolPCBViewer(AppTool):
             return
         self._token += 1
         self._pending = True
+        self._completed_layers = ()
+        self._ready = False
+        self.update_export_button()
         self._fit = True
         self._timer.start()
 
@@ -162,8 +181,12 @@ class ToolPCBViewer(AppTool):
                 self.view.update_style(self.ui.values(), self.app.app_units)
                 if not self.view.canvas.view.camera._view_modified:
                     self.view.canvas.fit_view()
+                self._ready = (any(layer.name == 'board' and len(layer.faces) for layer in self._completed_layers)
+                               and not self._running)
             except ValueError as err:
+                self._ready = False
                 self.ui.status.setText(str(err))
+            self.update_export_button()
             return
         if self._running:
             return
@@ -182,6 +205,9 @@ class ToolPCBViewer(AppTool):
         self._sources = {key: value for key, value in self._sources.items() if value in active_sources}
         self._pending = False
         self._running = True
+        self._completed_units = self.app.app_units
+        self._ready = False
+        self.update_export_button()
         names = set(snapshots) | {'board'}
         if any(name.startswith('drills_pth_') for name in snapshots):
             names.add('plating')
@@ -220,15 +246,114 @@ class ToolPCBViewer(AppTool):
             self._engine = PCBGeometry()
             return
         if token == self._token:
+            self._ready = False
+            self._completed_layers = ()
             if error:
                 self.ui.status.setText(error)
                 self.app.inform.emit('[ERROR_NOTCL] %s' % error)
             else:
-                self.ui.status.setText(_("PCB preview ready"))
-                if self.view is not None and self.view.alive and not self.view.canvas.view.camera._view_modified:
-                    self.view.canvas.fit_view()
+                if self.view is not None and self.view.alive:
+                    self._completed_layers = tuple(layer for layer, _meshes in self.view.layers.values())
+                    try:
+                        self.view.update_style(self.ui.values(), self._completed_units)
+                        self._ready = any(layer.name == 'board' and len(layer.faces)
+                                          for layer in self._completed_layers)
+                        self.ui.status.setText(_("PCB preview ready"))
+                        if not self.view.canvas.view.camera._view_modified:
+                            self.view.canvas.fit_view()
+                    except ValueError as err:
+                        self.ui.status.setText(str(err))
+            self.update_export_button()
         if self._pending:
             self._timer.start()
+
+    def update_export_button(self):
+        if self.ui is not None:
+            self.ui.export_pdf_button.setEnabled(self._active and self._ready and not self._pending
+                                                 and not self._running and not self._exporting)
+
+    def on_export_pdf(self):
+        if (not self._active or not self._ready or self._pending or self._running or self._exporting
+                or self.view is None or not self.view.alive):
+            return
+        request = self._export_job
+        filename, _filter = FCFileSaveDialog.get_saved_filename(
+            caption=_("Export 3D PDF"), directory=self.app.get_last_save_folder() + '/PCB.pdf',
+            ext_filter='PDF Files (*.pdf);;All Files (*.*)')
+        if not filename:
+            return
+        # A modal dialog can process selection changes or cleanup before returning.
+        if (request != self._export_job or not self._active or not self._ready
+                or self._pending or self._running or self._exporting):
+            return
+        values = self.ui.values()
+        layers = self._completed_layers
+        units = self._completed_units
+        self._export_job += 1
+        job = self._export_job
+        cancelled = self._export_cancel = Event()
+        self._exporting = True
+        self.update_export_button()
+        self.ui.status.setText(_("Exporting 3D PDF…"))
+        try:
+            frame = PDF3DWriter.export_frame(export_bounds(layers, values, units))
+        except ValueError as err:
+            self._ready = False
+            self.on_export_done(job, '', str(err))
+            return
+        try:
+            poster = render_poster(layers, values, units, frame)
+        except Exception as err:
+            self.on_export_done(job, '', str(err))
+            return
+        if cancelled.is_set():
+            return
+        self.app.worker_task.emit({'fcn': self.export_pdf,
+                                   'params': [job, cancelled, str(filename), layers, values, units, frame, poster]})
+
+    def export_pdf(self, job, cancelled, filename, layers, values, units, frame, poster):
+        temporary = None
+        error = ''
+        saved = False
+        try:
+            if cancelled.is_set():
+                return
+            u3d = write_scene(export_meshes(layers, values, units))
+            if cancelled.is_set():
+                return
+            with tempfile.NamedTemporaryFile(delete=False, dir=os.path.dirname(os.path.abspath(filename)),
+                                             suffix='.pdf') as output:
+                temporary = output.name
+            PDF3DWriter.write(temporary, u3d, frame['bounds'], page_size=frame['page_size'], poster=poster)
+            # Cleanup and commit share this lock so a closed session cannot replace the destination.
+            with self._export_lock:
+                if cancelled.is_set():
+                    return
+                os.replace(temporary, filename)
+                saved = True
+        except Exception as err:
+            error = str(err)
+        finally:
+            try:
+                if temporary is not None and os.path.exists(temporary):
+                    os.unlink(temporary)
+            except OSError as err:
+                error = str(err) if not error else error + '\n' + str(err)
+            self.export_done.emit(job, filename if saved else '', error)
+
+    def on_export_done(self, job, filename, error):
+        if job != self._export_job or not self._active:
+            return
+        self._exporting = False
+        self.update_export_button()
+        if error:
+            self.ui.status.setText(error)
+            self.app.inform.emit('[ERROR_NOTCL] %s' % error)
+        elif filename:
+            self.ui.status.setText(_("3D PDF exported"))
+            if getattr(self.app, 'file_saved', None) is not None:
+                self.app.file_saved.emit('PDF', filename)
+            self.app.inform.emit('[success] %s: %s' % (_("3D PDF exported"), filename))
 
     def on_canvas_destroyed(self, canvas):
         if self.view is None or self.view.canvas is not canvas:
@@ -250,6 +375,13 @@ class ToolPCBViewer(AppTool):
         self._active = False
         self._token += 1
         self._pending = False
+        with self._export_lock:
+            self._export_cancel.set()
+        self._export_job += 1
+        self._exporting = False
+        self._ready = False
+        self._completed_layers = ()
+        self.update_export_button()
         self._timer.stop()
         if self.view is not None:
             self.view.clear()

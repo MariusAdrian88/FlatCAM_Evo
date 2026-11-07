@@ -32,7 +32,7 @@ class PCBViewerUI:
         camera, pcb, mechanical, copper, mask, overlay, excellon = grids
         self.camera_reference = RadioSet([{'label': 'LMB', 'value': 'lmb'},
                                           {'label': _('Center'), 'value': 'center'}])
-        self.camera_reference.set_value('lmb')
+        self.camera_reference.set_value('center')
         camera.addWidget(FCLabel(_("Reference:")), 0, 0)
         camera.addWidget(self.camera_reference, 0, 1, 1, 2)
         self.board_thickness = FCSliderWithDoubleSpinner(min=0.2, max=3, step=0.1, precision=2)
@@ -43,7 +43,7 @@ class PCBViewerUI:
         self.add_color(pcb, 1, 'board', '#809966FF')
         self.board_alpha = FCSliderWithSpinner(min=0, max=255)
         self.board_alpha.set_value(255)
-        pcb.addWidget(FCLabel(_("Transparency:")), 2, 0)
+        pcb.addWidget(FCLabel(_("Opacity:")), 2, 0)
         pcb.addWidget(self.board_alpha, 2, 1, 1, 2)
         self.board_alpha.setToolTip(_("Alpha: 0 is transparent; 255 is opaque."))
         self.add_combo(mechanical, 0, 'outline', _("Outline"))
@@ -75,6 +75,11 @@ class PCBViewerUI:
         self.status = FCLabel('')
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
+        self.export_pdf_button = FCButton(_('Export 3D PDF'))
+        self.export_pdf_button.setToolTip(_("Requires a PDF reader with U3D support, such as Adobe Acrobat or Foxit.\n"
+                                          "Other readers display the static PCB preview."))
+        self.export_pdf_button.setEnabled(False)
+        layout.addWidget(self.export_pdf_button)
         layout.addStretch()
 
     def on_mask_color_changed(self, value):
