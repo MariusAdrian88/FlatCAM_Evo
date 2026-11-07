@@ -6,6 +6,44 @@ Based on FlatCAM:
 
 CHANGELOG for FlatCAM Evo
 
+07.11.2026
+
+Welcome screen:
+
+- new: a welcome screen opens at an interactive start without files or commands; it lists the file types by category (Project, Geometry, PCB Manufacturing files, PCB Boards) with a search box, a description of each type and the last 5 recent files of the selected type
+- new: from the welcome screen you can open a file of the selected type (Browse…), open a recent file, or create a new blank object; DXF and SVG files can be imported as a Geometry object or as a Gerber object
+- new: the welcome screen has Contributors, License and About tabs and a "Show this screen next time" check box
+- new: Preferences > General > "Show welcome screen on startup" turns the welcome screen on or off (on by default)
+- changed: the main window opens only after a choice on the welcome screen; a file sent by the OS or by a second instance while the welcome screen is open closes the welcome screen and opens the file; the update check waits for the main window
+- changed: the lists of programmers and translators, the license text and the icon attributions are kept in one module, used by Help > About and by the welcome screen
+- changed: Help > About links to the GitHub repository and to the Wiki instead of flatcam.org
+- fixed: a missing or damaged recent file list no longer stops the load of the recent project list; damaged records are skipped and a warning is shown
+
+PCB 3D Viewer:
+
+- new: Export 3D PDF details: the button is active only when the preview is ready; the 3D model is written as U3D into the PDF by FlatCAM Evo itself (no external converter); the page has 297 mm on its longest side and the board is fitted with 5% padding; the file is written to a temporary file first and replaces the destination only when it is complete; closing the plugin cancels an export that runs
+- changed: "Reference" is "Center" by default; with "Center" the mouse rotates the board as a trackball about the center of the objects
+- changed: the "Transparency" label of the board is now "Opacity" (0 is transparent, 255 is opaque)
+- changed: the preview and the PDF export use the same layer heights and colors
+- fixed: the triangles that collapse to zero area at float precision are removed from the meshes
+
+Photo Carve:
+
+- fixed: closing the Plot 3D tab of the simulation stops the simulation and closes the plugin; it no longer raises an error when the animation updates a deleted scene
+- fixed: when another plugin replaces Photo Carve in the Plugin tab, the 3D simulation and its Plot 3D tab are closed too
+
+Update dialog:
+
+- new: the release notes show the images of the GitHub release (HTML image tags too); the images load in the background, only from http or https, with a limit of 8 MB and 16 megapixels each, and are scaled to the width of the dialog
+
+Other:
+
+- changed: the interruption of a Tcl script works with Tcl 9.0 (tcl90.dll) as well as with Tcl 8.6
+- changed: the Image plugin can load an image from a given path (used by the welcome screen)
+- changed: some debug log messages that were written very often (bounds, offset, Gerber export) are disabled
+- changed: requirements.txt has minimum versions for rtree, lxml, svg.path, svglib, fontTools, pyopengl and rasterio, and adds pikepdf, pypdfium2, pytest and pytest-xdist
+- changed: the PCB 3D Viewer texts of the 3D PDF export are in the translation template and in all the language catalogs; the texts of the welcome screen are not yet in the catalogs
+
 06.11.2026
 
 Merged pull requests (they are described in the sections of 04.11.2026 and 05.11.2026):
@@ -17,6 +55,7 @@ Merged pull requests (they are described in the sections of 04.11.2026 and 05.11
 
 PCB 3D Viewer:
 
+- new: "Export 3D PDF" saves the selected board layers with their physical thicknesses, colors and alpha, a fixed whole-board isometric view and a static image fallback; interactive 3D requires Acrobat Reader or Foxit, not a browser
 - new: Plugins > PCB 3D Viewer shows the Gerber and Excellon objects of the project as a 3D board in the Plot 3D tab; the substrate, the copper, the soldermask, the silkscreen-type overlays, the board outline and the drills are separate layers
 - new: the Gerber object has a "View 3D" button (next to the Properties button) that opens the viewer for that object
 - new: each layer has a combo box with the project objects (Top and Bottom for the copper and the soldermask, Outline, Overlay layers, one combo box for each Excellon drill set); "None" and the clear button remove a layer from the view
