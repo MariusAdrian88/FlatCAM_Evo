@@ -3662,3 +3662,46 @@ tests/test_preferences_project_keys.py::test_shortcut_export_reports_a_write_err
 tests/test_preferences_project_keys.py::test_shortcut_import_rejects_conflicts_and_invalid_keys_without_losing_edits[overrides2]  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
 tests/test_preferences_project_keys.py::test_the_window_mirrors_in_a_right_to_left_application  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
 tests/test_preprocessor_loading.py::test_grbl_hal_preprocessors_do_not_execute_the_grbl_files_again  # 2026-11-06 prune: duplicate/implementation-pinning/UI-structure/mock-only test
+tests/test_app_history_editors.py::TestEditorHistory::test_geometry_edit_is_one_step  # 2026-11-08 prune: duplicate (folded into test_gerber_and_excellon_edit_is_one_step)
+tests/test_pcb_viewer.py::test_u3d_writer_rejects_invalid_scene[opacity_inf]  # 2026-11-08 prune: duplicate (same validation branch as a kept opacity case)
+tests/test_pcb_viewer.py::test_u3d_writer_rejects_invalid_scene[opacity_negative_inf]  # 2026-11-08 prune: duplicate (same validation branch as a kept opacity case)
+tests/test_pcb_viewer.py::test_u3d_writer_rejects_invalid_scene[opacity_array]  # 2026-11-08 prune: duplicate (same validation branch as a kept opacity case)
+tests/test_pcb_viewer.py::test_u3d_group_and_light_scene_links[0]  # 2026-11-08 prune: tests the test-only U3D reader tests/u3d_reader.py, not app behavior
+tests/test_pcb_viewer.py::test_u3d_group_and_light_scene_links[1]  # 2026-11-08 prune: tests the test-only U3D reader tests/u3d_reader.py, not app behavior
+tests/test_pcb_viewer.py::test_u3d_rejects_corrupt_reference[file_length]  # 2026-11-08 prune: tests the test-only U3D reader tests/u3d_reader.py, not app behavior
+tests/test_pcb_viewer.py::test_u3d_rejects_corrupt_reference[block_size]  # 2026-11-08 prune: tests the test-only U3D reader tests/u3d_reader.py, not app behavior
+tests/test_pcb_viewer.py::test_u3d_rejects_corrupt_reference[padding]  # 2026-11-08 prune: tests the test-only U3D reader tests/u3d_reader.py, not app behavior
+tests/test_pcb_viewer.py::test_u3d_rejects_corrupt_reference[compression]  # 2026-11-08 prune: tests the test-only U3D reader tests/u3d_reader.py, not app behavior
+tests/test_pcb_viewer.py::test_u3d_rejects_corrupt_reference[position_index]  # 2026-11-08 prune: tests the test-only U3D reader tests/u3d_reader.py, not app behavior
+tests/test_pcb_viewer.py::test_u3d_rejects_corrupt_reference[normal_index]  # 2026-11-08 prune: tests the test-only U3D reader tests/u3d_reader.py, not app behavior
+tests/test_pcb_viewer.py::test_u3d_rejects_corrupt_reference[shading_index]  # 2026-11-08 prune: tests the test-only U3D reader tests/u3d_reader.py, not app behavior
+tests/test_pcb_viewer.py::test_u3d_rejects_corrupt_reference[declaration_boundary]  # 2026-11-08 prune: tests the test-only U3D reader tests/u3d_reader.py, not app behavior
+tests/test_pcb_viewer.py::test_u3d_rejects_corrupt_reference[mesh_count]  # 2026-11-08 prune: tests the test-only U3D reader tests/u3d_reader.py, not app behavior
+tests/test_pcb_viewer.py::test_u3d_rejects_corrupt_reference[flush_word]  # 2026-11-08 prune: tests the test-only U3D reader tests/u3d_reader.py, not app behavior
+tests/test_pcb_viewer.py::test_u3d_rejects_truncated_reference_even_with_adjusted_file_length  # 2026-11-08 prune: tests the test-only U3D reader tests/u3d_reader.py, not app behavior
+tests/test_pcb_viewer.py::test_u3d_rejects_cycles_unknown_blocks_and_unconsumed_fields  # 2026-11-08 prune: tests the test-only U3D reader tests/u3d_reader.py, not app behavior
+tests/test_lifecycle_initialization.py::TestAppShutdownSequence::test_quit_application_with_proper_preferencesUiManager  # 2026-11-08 prune: mock-only
+tests/test_tcl_audit_generation.py::test_handler_explicit_failure_is_not_discarded[ExportGerber-export_gerber-args0]  # 2026-11-08 prune: mock-only
+tests/test_tcl_audit_generation.py::test_handler_explicit_failure_is_not_discarded[OpenProject-open_project-args1]  # 2026-11-08 prune: mock-only
+tests/test_tcl_audit_regressions.py::test_invalid_shapes_do_not_mutate[TclCommandAddCircle-args0-extra0]  # 2026-11-08 prune: mock-only
+tests/test_language.py::TestRightToLeft::test_code_shell_coordinates_and_canvas_stay_left_to_right  # 2026-11-08 prune: UI-structure
+tests/test_language.py::TestRightToLeft::test_the_check_box_indicator_goes_after_the_text_in_both_directions  # 2026-11-08 prune: UI-structure
+tests/test_preprocessor_end_move.py::test_low_end_z_moves[default]  # 2026-11-08 prune: duplicate
+tests/test_preprocessor_end_move.py::test_low_end_z_moves[Line_xyz]  # 2026-11-08 prune: duplicate
+tests/test_welcome_dialog.py::test_category_clicks_show_overviews_without_file_specific_content  # 2026-11-08 prune: UI-structure
+tests/test_welcome_dialog.py::test_header_and_information_use_actual_metadata_and_all_credits  # 2026-11-08 prune: UI-structure
+tests/test_welcome_dialog.py::test_welcome_is_an_independent_native_window_while_workspace_is_hidden  # 2026-11-08 prune: UI-structure
+tests/test_welcome_dialog.py::test_layout_fits_available_screen_in_both_palettes[#f6f7f8]  # 2026-11-08 prune: UI-structure
+tests/test_welcome_dialog.py::test_layout_fits_available_screen_in_both_palettes[#25272b]  # 2026-11-08 prune: UI-structure
+tests/test_excellon_transforms.py::TestExcellonScaleUnits_0B3::test_unit_conversion_then_scale_keeps_the_converted_diameters  # 2026-11-08 prune: duplicate (convert_units and scale-keeps-diameters covered by test_excellon_convert_units_round_trip_scales_once and test_scale_moves_holes_keeps_diameters)
+tests/test_gerber_file_function.py::test_copper_function_value_list  # 2026-11-08 prune: implementation-pinning (private _read_file_function plus a meaningless __mro__ assert; parse_file_function covered in test_gerber_attributes)
+tests/test_project_selector.py::TestProjectSelector::test_import_dialog_lists_the_board_imports_and_runs_the_choice  # 2026-11-08 prune: UI-structure (dialog entries list, mock-only handler call)
+tests/test_qt_command_connections.py::test_discard_adapter_keeps_command_default_and_checked_receiver_gets_state[action-slot]  # 2026-11-08 prune: TDD leftover (tests Qt signals with local stand-ins, no app code)
+tests/test_qt_command_connections.py::test_discard_adapter_keeps_command_default_and_checked_receiver_gets_state[button-adapter]  # 2026-11-08 prune: TDD leftover (tests Qt signals with local stand-ins, no app code)
+tests/test_editor_save_modes.py::test_excellon_save_in_place_and_save_as_new  # 2026-11-08 prune: mock-only
+tests/updater/test_updater_apply.py::TestLauncher::test_frozen_update_and_rollback_jobs_pass_the_job_check_of_the_updater  # 2026-11-08 updater rework: renamed to test_frozen_update_and_revert_jobs_pass_the_job_check_of_the_updater (launch_rollback removed)
+tests/updater/test_updater_apply.py::TestRecovery::test_restore_metadata_and_payload_are_strictly_validated  # 2026-11-08 updater rework: the restore point (copy of all files) is removed; revert downloads the previous release
+tests/updater/test_updater_apply.py::TestUpdaterApplication::test_explicit_rollback_marks_blocked_release_consumes_restore_and_uses_argv  # 2026-11-08 updater rework: replaced by test_revert_job_installs_the_old_release_blocks_the_new_one_and_clears_the_record
+tests/updater/test_updater_apply.py::TestUpdaterApplication::test_mid_apply_failure_rolls_back_and_relaunches_only_after_full_recovery  # 2026-11-08 updater rework: renamed to test_mid_apply_failure_restores_the_old_files_and_relaunches_only_after_full_recovery
+tests/updater/test_updater_apply.py::TestUpdaterApplication::test_source_edits_are_backed_up_obsolete_files_removed_and_restore_is_retained  # 2026-11-08 updater rework: replaced by test_update_records_the_replaced_release_and_removes_work_and_legacy_folders
+tests/updater/test_updater_integration.py::test_rollback_action_requires_valid_restore_point_and_waits_for_ack  # 2026-11-08 updater rework: replaced by test_revert_update_needs_a_previous_release_record_and_installs_it_as_a_revert_job

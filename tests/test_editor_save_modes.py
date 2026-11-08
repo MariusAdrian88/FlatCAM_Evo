@@ -87,29 +87,6 @@ def test_gerber_save_as_new_keeps_the_source_and_the_empty_source_rule():
     app_stub.collection.delete_by_name.assert_not_called()
 
 
-def test_excellon_save_in_place_and_save_as_new():
-    app_stub, obj = editor_app('excellon', empty=True)
-    assert finish(app_stub, 'Save') == 'pending'
-    call = app_stub.exc_editor.update_fcexcellon.call_args
-    assert call.args == (obj,) and call.kwargs['in_place'] is True
-    app_stub._history_edit_saved.assert_not_called()
-    call.kwargs['on_complete']()
-    app_stub._history_edit_saved.assert_called_once_with(obj)
-    app_stub.exc_editor.refresh_edited_excellon.assert_called_once_with(obj)
-    app_stub.collection.delete_by_name.assert_not_called()
-
-    app_stub, obj = editor_app('excellon', empty=True)
-    assert finish(app_stub, 'Save as New') == 'pending'
-    call = app_stub.exc_editor.update_fcexcellon.call_args
-    assert call.args == (obj,) and call.kwargs['in_place'] is False
-    app_stub.post_edit_sig.emit.assert_not_called()
-    call.kwargs['on_complete']()
-    app_stub.collection.delete_by_name.assert_not_called()
-    app_stub._history_edit_saved.assert_not_called()
-    assert app_stub._history_edit is None
-
-
-
 
 def test_geometry_save_as_new_removes_the_copy_when_the_save_is_rejected():
     app_stub, _obj = editor_app('geometry')

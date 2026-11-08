@@ -26,9 +26,3 @@ def test_profile_attribute_is_stored_in_obj_options(app):
 @pytest.mark.parametrize('name', ['outline_region_cutout.gbr'])
 def test_no_attribute_gives_an_empty_list(app, name):
     assert parse(app, name).obj_options['file_function'] == []
-
-
-def test_copper_function_value_list(app):
-    assert type(parse(app, 'outline_single.gbr')).__mro__  # object builds
-    from appParsers.ParseGerber import Gerber
-    assert Gerber._read_file_function('%TF.FileFunction,Copper,L1,Top*%\nX') == ['Copper', 'L1', 'Top']

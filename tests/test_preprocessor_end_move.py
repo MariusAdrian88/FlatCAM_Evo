@@ -61,18 +61,6 @@ def test_end_xy_move_is_not_made_below_the_travel_z(name):
     assert moves[-1][1] == END_XY + (0.5,), gcode
 
 
-@pytest.mark.parametrize('name', ['default', 'Line_xyz'])
-def test_low_end_z_moves(name):
-    expected = {
-        'default': 'G00 Z2.0000\nG00 X10.0000 Y20.0000\nG00 Z0.5000\n',
-        'Marlin': 'G0 Z2.0000 F1500.0000\nG0 X10.0000 Y20.0000 F1500.0000\nG0 Z0.5000 F1500.0000\n',
-        'NCCAD9': 'G00 Z2.0000 F9000.0\nG0 X10.0000 Y20.0000 F9000.0\nG00 Z0.5000 F9000.0\n\nG77',
-        'Line_xyz': 'G00 X10.0000 Y20.0000 Z2.0000\nG00 X10.0000 Y20.0000 Z0.5000',
-    }[name]
-    gcode = preprocessor(name).end_code(params(z_end=0.5))
-    assert gcode.startswith(expected), gcode
-
-
 def test_line_xyz_without_end_position_goes_down_at_the_end():
     # Excellon jobs call end_code() with x=0, y=0, so Line_xyz moves to X0 Y0 at the end
     gcode = preprocessor('Line_xyz').end_code(params(z_end=0.5, xy_end=None, x=0.0, y=0.0))

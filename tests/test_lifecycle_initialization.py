@@ -20,47 +20,6 @@ class TestAppShutdownSequence(unittest.TestCase):
     preferencesUiManager.save_defaults() without AttributeError.
     """
     
-    def test_quit_application_with_proper_preferencesUiManager(self):
-        """
-        GREEN: quit_application() works when preferencesUiManager is properly set.
-        
-        This test verifies the expected behavior when preferencesUiManager
-        is properly initialized.
-        """
-        from appHandlers.appLifecycle import AppLifecycle
-        
-        # Set up with proper mock
-        mock_prefs = Mock()
-        mock_prefs.save_defaults = Mock()
-        
-        mock_app = Mock()
-        # a Mock attribute is truthy: this is the GUI mode, not the headless mode
-        mock_app.headless = False
-        mock_app.preferencesUiManager = mock_prefs
-        mock_app.defaults = Mock()
-        mock_app.options = {}
-        mock_app.ui = Mock()
-        mock_app.new_launch = Mock()
-        mock_app.geo_editor = None
-        mock_app.exc_editor = None
-        mock_app.grb_editor = None
-        mock_app.gcode_editor = None
-        mock_app.plotcanvas = Mock()
-        mock_app.workers = Mock()
-        mock_app.pool = Mock()
-        mock_app.log = Mock()
-        
-        lifecycle = AppLifecycle(app=mock_app)
-        
-        # This should work
-        try:
-            with patch('appHandlers.appLifecycle.sys.platform', 'linux'), \
-                    patch('PyQt6.QtCore.QSettings'):
-                lifecycle.quit_application(silent=True)
-            mock_prefs.save_defaults.assert_called_once_with(silent=True)
-        except AttributeError as e:
-            self.fail(f"quit_application failed even with proper preferencesUiManager: {e}")
-
     def test_quit_application_before_the_event_loop_still_ends_the_app(self):
         """
         A --shellfile runs in App.__init__(), before app.exec(). QApplication.quit() does nothing while the event

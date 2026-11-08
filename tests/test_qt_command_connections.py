@@ -3,7 +3,7 @@
 from unittest.mock import Mock
 
 import pytest
-from PyQt6 import QtCore, QtGui, QtWidgets
+from PyQt6 import QtGui, QtWidgets
 
 from appHandlers.appSignalConnector import AppSignalConnector
 
@@ -11,34 +11,6 @@ from appHandlers.appSignalConnector import AppSignalConnector
 @pytest.fixture(scope='module')
 def qt_app():
     return QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
-
-
-@pytest.mark.parametrize('signal_type,receiver_kind', [('action', 'slot'), ('button', 'adapter')])
-def test_discard_adapter_keeps_command_default_and_checked_receiver_gets_state(qt_app, signal_type, receiver_kind):
-    calls, states = [], []
-
-    def command(use_thread=True):
-        calls.append(use_thread)
-
-    class Commands(QtCore.QObject):
-        @QtCore.pyqtSlot()
-        def command(self, use_thread=True):
-            calls.append(use_thread)
-
-    commands = Commands()
-    sender = QtGui.QAction('Command') if signal_type == 'action' else QtWidgets.QPushButton('Command')
-    sender.setCheckable(True)
-    signal = sender.triggered if signal_type == 'action' else sender.clicked
-    if receiver_kind == 'slot':
-        signal.connect(commands.command)
-    else:
-        signal.connect(lambda: command())
-    signal.connect(states.append)
-    invoke = sender.trigger if signal_type == 'action' else sender.click
-    invoke()
-    invoke()
-    assert calls == [True, True]
-    assert states == [True, False]
 
 
 @pytest.mark.parametrize('registration, action_name', [

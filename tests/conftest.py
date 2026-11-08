@@ -28,6 +28,21 @@ os.environ['FLATCAM_UPDATER_NO_WINDOW'] = '1'
 # The G-code Sender is disabled for users until it is finished; its tests need it to open.
 os.environ['FLATCAM_SENDER_DEV'] = '1'
 
+
+# Each test process has its own empty data folder. Without it a test App reads the preferences of the user
+# (%APPDATA%/FlatCAM) and can write them; it also copied the appearance of the user into the test QSettings, so a
+# later Preferences save in the same worker saw a changed appearance and waited in a hidden "restart" message box.
+def _isolate_data_path():
+    import atexit
+    import shutil
+    import tempfile
+    folder = tempfile.mkdtemp(prefix='flatcam-test-data-')
+    atexit.register(shutil.rmtree, folder, True)
+    os.environ['FLATCAM_DATA_PATH'] = folder
+
+
+_isolate_data_path()
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
@@ -120,6 +135,69 @@ def _install_window_filter():
     app.installEventFilter(_window_filter)
 
 
+# The test windows are not on the screen, so nobody can answer a modal dialog that a test did not patch: exec() then
+# waits for ever and the whole run hangs with no report. The watchdog closes a modal dialog that stays open longer
+# than this limit, and the running test fails with the title and the text of the dialog.
+_MODAL_LIMIT_S = 30.0
+_modal_watchdog = None
+
+
+def _install_modal_watchdog():
+    global _modal_watchdog
+    if _modal_watchdog is not None:
+        try:
+            if _modal_watchdog.timer.isActive():
+                return
+        except RuntimeError:
+            pass    # the QApplication that owned it was deleted
+        _modal_watchdog = None
+    try:
+        from PyQt6 import QtCore, QtWidgets
+    except ImportError:
+        return
+    app = QtWidgets.QApplication.instance()
+    if app is None:
+        return
+    import time
+
+    class ModalWatchdog(QtCore.QObject):
+        def __init__(self, parent):
+            super().__init__(parent)
+            self.widget = None
+            self.since = 0.0
+            self.closed = []
+            # the timer also runs in the event loop of exec()
+            self.timer = QtCore.QTimer(self)
+            self.timer.setInterval(500)
+            self.timer.timeout.connect(self.check)
+            self.timer.start()
+
+        def check(self):
+            widget = QtWidgets.QApplication.activeModalWidget()
+            if widget is not self.widget:
+                self.widget, self.since = widget, time.monotonic()
+                return
+            if widget is None or time.monotonic() - self.since < _MODAL_LIMIT_S:
+                return
+            text = widget.text() if isinstance(widget, QtWidgets.QMessageBox) else ''
+            self.closed.append('%s %r %s' % (type(widget).__name__, widget.windowTitle(), text))
+            self.widget = None
+            if isinstance(widget, QtWidgets.QDialog):
+                widget.reject()
+            else:
+                widget.close()
+
+    _modal_watchdog = ModalWatchdog(app)
+
+
+def _raise_modal_timeouts():
+    if _modal_watchdog is not None and _modal_watchdog.closed:
+        closed = list(_modal_watchdog.closed)
+        _modal_watchdog.closed.clear()
+        raise RuntimeError('a modal dialog waited for an answer for %d s and was closed (patch it in the test): %s'
+                           % (_MODAL_LIMIT_S, '; '.join(closed)))
+
+
 # PyQt6 aborts the process when a slot or a virtual method raises and sys.excepthook is the default one. The app sets
 # its own hook (flatcam.py); without one, the error kills the whole worker and the report names no test. This hook
 # keeps the error, and the teardown of the running test fails with it.
@@ -164,14 +242,19 @@ import pytest  # noqa: E402
 def pytest_runtest_setup(item):
     _qt_errors.clear()
     _install_window_filter()
+    _install_modal_watchdog()
+    if _modal_watchdog is not None:
+        _modal_watchdog.closed.clear()
 
 
 @pytest.hookimpl(wrapper=True)
 def pytest_runtest_call(item):
     # unittest runs setUp in the call phase: a QApplication made in setUpClass is here
     _install_window_filter()
+    _install_modal_watchdog()
     result = yield
     _raise_qt_errors()
+    _raise_modal_timeouts()
     return result
 
 

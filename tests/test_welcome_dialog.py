@@ -56,27 +56,6 @@ def test_search_and_creation_availability(welcome):
     assert dialog.object_type.count() == 2
 
 
-def test_category_clicks_show_overviews_without_file_specific_content(welcome, qapp):
-    dialog, app, opened = welcome
-    for index, (title, explanation) in enumerate((
-            ('Project', 'FlatCAM Evo project'), ('Geometry', 'Geometry object'),
-            ('PCB Manufacturing files', 'Gerber'), ('PCB Boards', 'native PCB'))):
-        category = dialog.tree.topLevelItem(index)
-        dialog.tree.scrollToItem(category)
-        qapp.processEvents()
-        QtTest.QTest.mouseClick(dialog.tree.viewport(), QtCore.Qt.MouseButton.LeftButton,
-                               pos=dialog.tree.visualItemRect(category).center())
-        assert dialog.title_label.text() == title
-        assert explanation in dialog.details_label.text()
-        assert not dialog.browse_button.isEnabled() and not dialog.new_button.isEnabled()
-        assert dialog.continue_button.isEnabled()
-        assert all(not widget.isVisible() for widget in (
-            dialog.ext_label, dialog.creates_label, dialog.object_type, dialog.recent_list, dialog.empty_label))
-        assert not dialog.findChild(QtWidgets.QLabel, 'welcome_history_heading').isVisible()
-        assert not dialog.findChild(QtWidgets.QLabel, 'welcome_history_hint').isVisible()
-    assert not opened
-
-
 def test_category_keyboard_selection_and_enter_never_start_a_file_action(welcome, monkeypatch):
     dialog, app, opened = welcome
     picked = []
@@ -268,77 +247,6 @@ def test_saved_startup_choice_survives_preferences_cancel(welcome, tmp_path):
     assert saved['global_welcome'] is False
     app.defaults.update(app.defaults.current_defaults)  # Preferences > Cancel restores this snapshot.
     assert app.options['global_welcome'] is False
-
-
-def test_header_and_information_use_actual_metadata_and_all_credits(welcome, monkeypatch):
-    dialog, app, opened = welcome
-    assert dialog.windowTitle() == 'Welcome to FlatCAM Evo'
-    assert dialog.entries['document']['text'].startswith('Open a FlatCAM Evo document')
-    dialog.tree.setCurrentItem(dialog.tree.topLevelItem(3))
-    assert 'bring into FlatCAM Evo.' in dialog.details_label.text()
-    assert app.version in dialog.version_label.text() and app.version_date in dialog.version_label.text()
-    text = dialog.contributors.toPlainText()
-    for name in ('Juan Pablo Caram', 'Marius Stanciu', '@michaelosthege', 'Carlos Stein',
-                 '余俊潇 (Yu Junxiao)', 'Detlef Eckardt', 'Mehmet Kaya'):
-        assert name in text
-    assert 'MIT' in dialog.license.toPlainText()
-    assert 'FlatCAM_Evo/wiki' in dialog.about.toHtml()
-    from appHandlers.appUIActions import AppUIActions
-    app.ui.app_icon = QtGui.QIcon()
-    about_text = []
-    monkeypatch.setattr(QtWidgets.QDialog, 'exec', lambda about: about_text.extend(
-        label.text() for label in about.findChildren(QtWidgets.QLabel)))
-    AppUIActions(app).on_about()
-    assert all(name in '\n'.join(about_text) for name in ('Juan Pablo Caram', 'Marius Stanciu', 'Carlos Stein'))
-    assert 'FlatCAM_Evo/wiki' in '\n'.join(about_text)
-    assert 'flatcam.org' not in '\n'.join(about_text)
-
-
-def test_welcome_is_an_independent_native_window_while_workspace_is_hidden(welcome):
-    import sys
-    dialog, app, opened = welcome
-    assert dialog.isVisible() and not app.ui.isVisible()
-    assert dialog.parentWidget() is None
-    assert dialog.windowFlags() & QtCore.Qt.WindowType.FramelessWindowHint
-    assert not dialog.testAttribute(QtCore.Qt.WidgetAttribute.WA_TranslucentBackground)
-    assert dialog.mask().isEmpty()
-    assert not dialog.testAttribute(QtCore.Qt.WidgetAttribute.WA_QuitOnClose)
-    if sys.platform == 'win32' and QtWidgets.QApplication.platformName() == 'windows':
-        import ctypes
-        from ctypes import wintypes
-        user32 = ctypes.windll.user32
-        user32.GetWindow.argtypes = [wintypes.HWND, wintypes.UINT]
-        user32.GetWindow.restype = wintypes.HWND
-        user32.GetWindowLongW.argtypes = [wintypes.HWND, ctypes.c_int]
-        user32.SendMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
-        user32.SendMessageW.restype = wintypes.LPARAM
-        handle = wintypes.HWND(int(dialog.winId()))
-        assert not user32.GetWindow(handle, 4)  # GW_OWNER: owned windows don't get their own taskbar button.
-        assert not user32.GetWindowLongW(handle, -20) & 0x80  # WS_EX_TOOLWINDOW
-        assert user32.SendMessageW(handle, 0x7f, 0, 0)  # WM_GETICON / ICON_SMALL
-        user32.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
-        user32.GetClientRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
-        user32.ClientToScreen.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.POINT)]
-        outer, client, origin = wintypes.RECT(), wintypes.RECT(), wintypes.POINT()
-        assert user32.GetWindowRect(handle, ctypes.byref(outer))
-        assert user32.GetClientRect(handle, ctypes.byref(client))
-        assert user32.ClientToScreen(handle, ctypes.byref(origin))
-        # Caption style bits can survive custom nonclient handling; measure the actual caption area.
-        assert (origin.x, origin.y) == (outer.left, outer.top)
-        assert (client.right, client.bottom) == (outer.right - outer.left, outer.bottom - outer.top)
-        assert dialog.header.mapTo(dialog, QtCore.QPoint()).y() == 0
-
-
-@pytest.mark.parametrize('color', ['#f6f7f8', '#25272b'])
-def test_layout_fits_available_screen_in_both_palettes(welcome, qapp, color):
-    dialog, app, opened = welcome
-    palette = dialog.palette()
-    palette.setColor(QtGui.QPalette.ColorRole.Window, QtGui.QColor(color))
-    dialog.setPalette(palette)
-    qapp.processEvents()
-    assert dialog.width() <= dialog.screen().availableGeometry().width()
-    assert dialog.height() <= dialog.screen().availableGeometry().height()
-    assert dialog.browse_button.geometry().width() > 0
 
 
 @pytest.mark.parametrize('height', [480, 360])

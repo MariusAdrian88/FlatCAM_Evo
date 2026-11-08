@@ -73,23 +73,9 @@ def saved(app, obj):
 
 class TestEditorHistory(unittest.TestCase):
 
-    def test_geometry_edit_is_one_step(self):
-        old, new = box(0, 0, 1, 1), box(0, 0, 5, 5)
-        obj = FakeObj('g1', 'geometry', old)
-        app = make_app([obj])
-        begin(app, obj)
-        obj.solid_geometry = new
-        saved(app, obj)
-        self.assertEqual([s.label for s in app.history.undo_stack], ['Edit'])
-        self.assertIsNone(app._history_edit)
-        self.assertTrue(app.history.undo())
-        self.assertEqual(obj.solid_geometry, old)
-        self.assertTrue(app.history.redo())
-        self.assertEqual(obj.solid_geometry, new)
-
     def test_gerber_and_excellon_edit_is_one_step(self):
-        # Save updates a Gerber / Excellon object in place: 1 Edit step, like the Geometry
-        for kind in ('gerber', 'excellon'):
+        # Save updates a Gerber / Excellon / Geometry object in place: 1 Edit step
+        for kind in ('geometry', 'gerber', 'excellon'):
             old, new = box(0, 0, 1, 1), box(0, 0, 3, 3)
             obj = FakeObj(kind[:1] + '1', kind, old)
             app = make_app([obj])

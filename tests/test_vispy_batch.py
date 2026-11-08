@@ -23,31 +23,6 @@ from unittest.mock import patch
 from shapely.geometry import Polygon, LineString
 
 
-class TestShapeCollectionVisualBatch(unittest.TestCase):
-    """Tests for ShapeCollectionVisual batch processing."""
-    
-    def setUp(self):
-        """Set up test fixtures."""
-        # Import after path setup
-        from appGUI.VisPyVisuals import ShapeCollectionVisual, _update_shape_buffers
-        self.ShapeCollectionVisual = ShapeCollectionVisual
-        self._update_shape_buffers = _update_shape_buffers
-        
-        # Mock fc_options with all required keys
-        self.default_fc_options = {
-            "global_graphic_engine_3d_no_mp": False,
-            "global_backface_culling": True,
-        }
-    
-class TestCollectElements(unittest.TestCase):
-    """Tests for GeometryObject._collect_elements() method."""
-    
-    def setUp(self):
-        """Set up test fixtures."""
-        from appObjects.GeometryObject import GeometryObject
-        # Can't fully instantiate without app, so we'll test the method directly
-        self.GeometryObject = GeometryObject
-    
 class TestAddCopy(unittest.TestCase):
     """add_copy() reuses the position buffers of a shape and makes new color buffers."""
 
@@ -88,29 +63,6 @@ class TestAddCopy(unittest.TestCase):
         colors = collection._lines[0]._color
         self.assertTrue(np.all(colors[:2] == (0.0, 0.0, 1.0, 1.0)))
         self.assertTrue(np.all(colors[2:] == (1.0, 0.0, 0.0, 1.0)))
-
-class TestDeferredRedraw(unittest.TestCase):
-    """A deferred collection joins a burst of redraws into few rebuilds."""
-
-    def setUp(self):
-        from appGUI.VisPyVisuals import ShapeCollectionVisual
-        options = {"global_graphic_engine_3d_no_mp": True, "global_backface_culling": True}
-        self.collection = ShapeCollectionVisual(linewidth=1, layers=1, pool=None, fcoptions=options, deferred=True)
-        self.rebuilds = 0
-        patcher = patch('appGUI.VisPyVisuals.set_state', side_effect=self._count)
-        patcher.start()
-        self.addCleanup(patcher.stop)
-
-    def _count(self, **kwargs):
-        self.rebuilds += 1
-
-    def _burst(self, count):
-        from appGUI.VisPyVisuals import ShapeGroup
-        for i in range(count):
-            group = ShapeGroup(self.collection)
-            group.add(shape=Polygon([(i, 0), (i + 1, 0), (i + 1, 1), (i, 1)]), color='#112233FF',
-                      face_color='#11223350', layer=0)
-            group.redraw()
 
 if __name__ == '__main__':
     unittest.main()

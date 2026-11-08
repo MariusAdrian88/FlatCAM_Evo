@@ -6,6 +6,23 @@ Based on FlatCAM:
 
 CHANGELOG for FlatCAM Evo
 
+08.11.2026
+
+Updater:
+
+- changed: a GitHub update is much faster; FlatCAM no longer extracts the downloaded archive, packs it again and hashes each file; the manifest lists the members of the downloaded archive with their size and CRC-32, and the archive is checked as a whole against the SHA-256 that GitHub publishes
+- changed: the updater extracts each file one time into a work folder inside the installation (.flatcam-update) and renames it into place; the replaced files are renamed to a backup in the same folder; before, each file was written about 5 times and hashed about 6 times, with a disk flush for each file
+- changed: Help > Revert Update downloads the previous release from GitHub and installs it; the updater no longer keeps a copy of all the files of the previous version on the disk, and it removes the restore point of an older release; Revert Update needs a network connection and the previous release on GitHub
+- changed: the launcher moves the downloaded archive into the update job and checks it one time; before, it copied the archive and checked it 2 times
+- fixed: the updater refuses to apply a file contract when the staging folder is missing, instead of installing nothing
+- fixed: each update job has its own backup folder; a backup that an earlier failed cleanup left no longer stops all later updates
+
+Tests:
+
+- fixed: a test run could hang with no report: the test Apps used the preferences folder of the user, copied its appearance into the test settings, and a later Preferences save waited in a hidden "Application will restart" message box; each test process now has its own empty data folder (FLATCAM_DATA_PATH)
+- new: a modal dialog that stays open for 30 seconds in a test is closed and the test fails with the title of the dialog, instead of a hang of the whole run
+- changed: the tests that only checked the design (mock calls, private functions, UI structure, the test helper of the U3D reader, duplicates) are removed; the E-Cut and G-code Sender tests are not changed
+
 07.11.2026
 
 G-code Sender:

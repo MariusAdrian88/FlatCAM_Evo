@@ -232,16 +232,6 @@ def test_milling_plugin_uses_the_saved_depth_passes_and_feed_rates(multigeo):
     assert tool['data']['tools_mill_endz'] == (OTHER_OPTIONS['tools_mill_endz'] if multigeo else 15.0)
 
 
-def make_cnc_job_with_preprocessor(tool, multigeo, **options):
-    """The CNC job, its G-code and the warnings that name the preprocessor saved in the tool."""
-    saved = tool['data']['ppname_g']
-    milling, jobs = milling_harness(tool, multigeo, **options)
-    milling.generate_cnc_job_handler(toolchange=False, plot=False, use_thread=False, from_tcl=True)
-    assert len(jobs) == 1
-    warnings = [c.args[0] for c in milling.app.inform.emit.call_args_list if saved in str(c.args[0])]
-    return jobs[0], milling.app.preprocessors, warnings
-
-
 @pytest.mark.parametrize('saved, app_value, expected', [
     ('Seed', 2, 1),
     # not recognized, so the application value: a translated text (here Spanish), an index that does not exist, a bool

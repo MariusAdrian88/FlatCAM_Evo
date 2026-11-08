@@ -173,30 +173,7 @@ class TestMerge(unittest.TestCase):
         h.push(SnapshotStep('e', [('u2', {}, {})]))
         self.assertEqual(len(h.undo_stack), 5)
 
-class TestMemory(unittest.TestCase):
-
-    def big_geometry(self, n=50000):
-        return LineString([(i, i % 7) for i in range(n)])
-
-
 class TestRebuildSaveRename(unittest.TestCase):
-
-    def rebuild_flag(self, kind):
-        objects = []
-        app = fake_app()
-
-        def new_object(k, name, obj_init, **kwargs):
-            obj = SimpleNamespace(from_dict=lambda d: None, obj_options={'name': name},
-                                  on_options_change=lambda *a: None)
-            obj_init(obj, app)
-            objects.append(obj)
-            return obj
-
-        app.app_obj = SimpleNamespace(new_object=new_object)
-        h = HistoryManager(app, collection=SimpleNamespace(get_list=lambda: objects))
-        h.rebuild({'kind': kind, 'history_uid': 'u1', 'obj_options': {'name': 'x'}})
-        return objects[0]
-
 
     def test_rename_to_a_taken_name_raises(self):
         a = SimpleNamespace(obj_options={'name': 'a'})

@@ -238,24 +238,6 @@ class TestClipperOps(ClipperTestCase):
         self.assert_close(clipper_ops.offset_lines(lines, 0.5, self.TOL), reference, self.TOL)
 
 # ----------------------------------------------------------------------------------------------------------------------
-# Group B: safe fallback
-# ----------------------------------------------------------------------------------------------------------------------
-
-class TestFallbackWithoutClipper(unittest.TestCase):
-    """The input checks must reject the data before Clipper is used: these tests need no pyclipr."""
-
-    def assert_rejected(self, parts, **kwargs):
-        fake = mock.MagicMock()
-        with mock.patch.object(clipper_fuse, 'pyclipr', fake):
-            self.assertIsNone(fuse_parts(parts, **kwargs))
-        fake.Clipper.assert_not_called()
-
-class TestFallbackWithClipper(ClipperTestCase):
-    """Failures inside or after Clipper: these tests need pyclipr."""
-
-    PARTS = [sq(0, 0, 1, 1), sq(3, 0, 4, 1)]
-
-# ----------------------------------------------------------------------------------------------------------------------
 # Parse level: Gerber.parse_lines() / parse_file() with the Clipper fusion
 # ----------------------------------------------------------------------------------------------------------------------
 

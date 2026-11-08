@@ -161,20 +161,6 @@ class TestExcellonFileRoundTrip:
         assert {n: s for n, s in again.to_attributes.items()} == src.to_attributes
 
 
-class TestExcellonScaleUnits_0B3:
-    # A drill is a physical tool: scale() moves the holes and keeps the diameters (the behavior before the
-    # unification). A user corrects a file read with a wrong number format with a scale of the positions.
-
-    def test_unit_conversion_then_scale_keeps_the_converted_diameters(self):
-        # an inch file (M72) read with the wrong format, converted to MM by the app, then scaled by 1/10
-        ex = make_excellon_0b(default_data={})
-        ex.units = 'IN'
-        ex.convert_units('MM')
-        assert ex.tools[1]['tooldia'] == pytest.approx(25.4)
-        ex.scale(0.1, 0.1, point=(0, 0))
-        assert ex.tools[1]['tooldia'] == pytest.approx(25.4)
-
-
 def _tcl_buffer(ex, *argv):
     app = make_app_0b()
     app.collection.get_by_name.return_value = ex

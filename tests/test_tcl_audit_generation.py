@@ -39,19 +39,6 @@ def factory_app(obj):
 
 # command API contracts: explicit failure stays failure, None success stays success
 
-@pytest.mark.parametrize('suffix,handler,args', [
-    ('ExportGerber', 'export_gerber', {'name': 'g', 'filename': 'out'}),
-    ('OpenProject', 'open_project', {'filename': 'in'})])
-def test_handler_explicit_failure_is_not_discarded(suffix, handler, args):
-    cls = getattr(importlib.import_module('tclCommands.TclCommand' + suffix), 'TclCommand' + suffix)
-    app = factory_app(None)
-    app.f_handlers = Mock()
-    getattr(app.f_handlers, handler).return_value = 'fail'
-    assert cls(app).execute(dict(args), []) == 'fail'
-    getattr(app.f_handlers, handler).return_value = None
-    assert cls(app).execute(dict(args), []) is None
-
-
 def test_export_gcode_accepts_both_documented_options_and_legacy_positionals():
     from tclCommands.TclCommandExportGcode import TclCommandExportGcode
     app = factory_app(Mock(kind='cncjob'))

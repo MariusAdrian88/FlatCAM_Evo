@@ -11,10 +11,6 @@ from PyQt6 import QtCore, QtWidgets
 from appPlugins.ToolShell import FCShell
 from tclCommands.TclCommand import TclCommand, TclCommandSignaled
 from tclCommands.TclCommandAddAperture import TclCommandAddAperture
-from tclCommands.TclCommandAddPolygon import TclCommandAddPolygon
-from tclCommands.TclCommandAddPolyline import TclCommandAddPolyline
-from tclCommands.TclCommandAddCircle import TclCommandAddCircle
-from tclCommands.TclCommandAddRectangle import TclCommandAddRectangle
 from tclCommands.TclCommandSetSys import TclCommandSetSys
 from tclCommands.TclCommandSetPath import TclCommandSetPath
 from tclCommands.TclCommandGetActive import TclCommandGetActive
@@ -170,17 +166,6 @@ def test_aperture_ids_are_integer_unique_and_start_at_ten():
         command.execute({'name': 'g', 'apid': 10}, [])
     with pytest.raises(FCShell.TclErrorException):
         command.execute({'name': 'g', 'type': 'R', 'width': 1, 'height': 0}, [])
-
-
-@pytest.mark.parametrize('cls,args,extra', [
-    (TclCommandAddCircle, {'name': 'g', 'center_x': 0, 'center_y': 0, 'radius': -1}, [])])
-def test_invalid_shapes_do_not_mutate(cls, args, extra):
-    obj = Mock(kind='geometry')
-    with pytest.raises(FCShell.TclErrorException):
-        cls(object_app(obj)).execute(args, extra)
-    obj.add_polygon.assert_not_called()
-    obj.add_polyline.assert_not_called()
-    obj.add_circle.assert_not_called()
 
 
 def test_real_worker_validation_exception_becomes_tcl_error_without_excepthook(qt_app):

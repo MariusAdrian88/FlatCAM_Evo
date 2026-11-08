@@ -654,8 +654,7 @@ def test_u3d_writer_preserves_indices_above_u16_range():
 
 @pytest.mark.parametrize('damage', ['nonfinite', 'overflow', 'index', 'fractional', 'degenerate',
                                    'normals', 'color', 'duplicate', 'empty', 'opacity_nan',
-                                   'opacity_inf', 'opacity_negative_inf', 'opacity_below_zero',
-                                   'opacity_above_one', 'opacity_list', 'opacity_array'])
+                                   'opacity_below_zero', 'opacity_above_one', 'opacity_list'])
 def test_u3d_writer_rejects_invalid_scene(damage):
     from appPlugins.ToolPCBViewer.U3DWriter import write_scene
 
@@ -673,10 +672,8 @@ def test_u3d_writer_rejects_invalid_scene(damage):
     elif damage == 'duplicate':
         meshes.append(_u3d_cube())
     elif damage.startswith('opacity_'):
-        mesh['opacity'] = {'opacity_nan': np.nan, 'opacity_inf': np.inf,
-                           'opacity_negative_inf': -np.inf, 'opacity_below_zero': -0.01,
-                           'opacity_above_one': 1.01, 'opacity_list': [0.5],
-                           'opacity_array': np.array([0.25, 0.75])}[damage]
+        mesh['opacity'] = {'opacity_nan': np.nan, 'opacity_below_zero': -0.01,
+                           'opacity_above_one': 1.01, 'opacity_list': [0.5]}[damage]
     else:
         meshes = []
     with pytest.raises(ValueError):
@@ -833,125 +830,6 @@ def test_u3d_sdk_reference_cube():
     material = scene['materials'][shader['material']]
     assert material['diffuse'] == pytest.approx((0.8, 0.4, 0.2))
     assert material['opacity'] == pytest.approx(1)
-
-
-def _u3d_test_block(kind, payload):
-    import struct
-    return struct.pack('<III', kind, len(payload), 0) + payload + bytes(-len(payload) % 4)
-
-
-def _u3d_test_string(value):
-    import struct
-    encoded = value.encode('utf-8')
-    return struct.pack('<H', len(encoded)) + encoded
-
-
-def _u3d_test_file(*blocks, units=None):
-    import struct
-    size = 36 if units is None else 44
-    header = struct.pack('<hhIIQI', 0, 7, 4 if units is None else 12,
-                         size, size + sum(map(len, blocks)), 106)
-    if units is not None:
-        header += struct.pack('<d', units)
-    return _u3d_test_block(0x00443355, header) + b''.join(blocks)
-
-
-@pytest.mark.parametrize('light_type', [0, 1])
-def test_u3d_group_and_light_scene_links(light_type):
-    import struct
-    from tests.u3d_reader import read_u3d
-
-    matrix = (1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 2, 3, 4, 1)
-    group = _u3d_test_block(0xFFFFFF21, _u3d_test_string('Board') + struct.pack('<I', 0))
-    parents = struct.pack('<I', 1) + _u3d_test_string('Board') + struct.pack('<16f', *matrix)
-    name = _u3d_test_string('Lumière')
-    node = _u3d_test_block(0xFFFFFF23, name + parents + _u3d_test_string('Lamp'))
-    # Section 9.4.3 bounding fields precede padding and the embedded block count.
-    chain = name + struct.pack('<II10f', 0, 3, 0, 0, 0, 10, -1, -1, -1, 1, 1, 1)
-    chain += bytes(-len(chain) % 4) + struct.pack('<I', 1) + node
-    light = _u3d_test_block(0xFFFFFF51, _u3d_test_string('Lamp') + struct.pack(
-        '<IB9f', 3, light_type, 0.8, 0.7, 0.6, 1, 1, 0, 0, 45, 2.5))
-    scene = read_u3d(_u3d_test_file(group, _u3d_test_block(0xFFFFFF14, chain), light, units=0.001))
-    assert scene['header']['units_scale'] == pytest.approx(0.001)
-    assert scene['nodes']['Board']['kind'] == 'group'
-    assert scene['nodes']['Board']['parents'] == []
-    node = scene['nodes']['Lumière']
-    assert node['parents'] == [{'name': 'Board', 'matrix': matrix}]
-    resource = scene['lights'][node['resource']]
-    assert resource['type'] == light_type
-    assert resource['color'] == pytest.approx((0.8, 0.7, 0.6))
-    assert resource['intensity'] == pytest.approx(2.5)
-    assert scene['chains'][(0, 'Lumière')]['bounding_box'] == (-1, -1, -1, 1, 1, 1)
-
-
-@pytest.mark.parametrize('damage', ['file_length', 'block_size', 'padding', 'compression',
-                                   'position_index', 'normal_index', 'shading_index',
-                                   'declaration_boundary', 'mesh_count', 'flush_word'])
-def test_u3d_rejects_corrupt_reference(damage):
-    import struct
-    from pathlib import Path
-    from tests.u3d_reader import U3DError, read_u3d
-
-    data = bytearray((Path(__file__).parent / 'fixtures/u3d_no_compression_cube.u3d').read_bytes())
-    base = data.index(struct.pack('<I', 0xFFFFFF3B))
-    size = struct.unpack_from('<I', data, base + 4)[0]
-    payload = base + 12
-    name_size = struct.unpack_from('<H', data, payload)[0]
-    counts = payload + 2 + name_size + 4
-    face_count, positions, normals = struct.unpack_from('<III', data, counts)
-    faces = counts + 24 + 12 * (positions + normals)
-    if damage == 'file_length':
-        struct.pack_into('<Q', data, 24, len(data) + 4)
-    elif damage == 'block_size':
-        struct.pack_into('<I', data, base + 4, size + 100)
-    elif damage == 'padding':
-        data[payload + size] = 1
-    elif damage == 'compression':
-        struct.pack_into('<I', data, 16, 0)
-    elif damage == 'declaration_boundary':
-        struct.pack_into('<I', data, 20, 40)
-    elif damage == 'mesh_count':
-        struct.pack_into('<I', data, counts, face_count + 1)
-    elif damage == 'flush_word':
-        data[payload + size - 1] = 1
-    else:
-        offset, value = {'position_index': (4, positions), 'normal_index': (8, normals),
-                         'shading_index': (0, 1)}[damage]
-        struct.pack_into('<I', data, faces + offset, value)
-    with pytest.raises(U3DError):
-        read_u3d(data)
-
-
-def test_u3d_rejects_truncated_reference_even_with_adjusted_file_length():
-    import struct
-    from pathlib import Path
-    from tests.u3d_reader import U3DError, read_u3d
-
-    data = (Path(__file__).parent / 'fixtures/u3d_no_compression_cube.u3d').read_bytes()
-    for end in range(len(data)):
-        truncated = bytearray(data[:end])
-        if end >= 36:
-            struct.pack_into('<Q', truncated, 24, end)
-        # Whole-block prefixes can be legal partial scenes (undefined links are allowed).
-        if end in (36, 52, 236):
-            continue
-        with pytest.raises(U3DError):
-            read_u3d(truncated)
-
-
-def test_u3d_rejects_cycles_unknown_blocks_and_unconsumed_fields():
-    import struct
-    from tests.u3d_reader import U3DError, UnsupportedU3D, read_u3d
-
-    matrix = struct.pack('<16f', 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
-    parent = struct.pack('<I', 1) + _u3d_test_string('Self') + matrix
-    with pytest.raises(U3DError, match='[Cc]ycl'):
-        read_u3d(_u3d_test_file(_u3d_test_block(0xFFFFFF21, _u3d_test_string('Self') + parent)))
-    with pytest.raises(UnsupportedU3D, match='[Uu]nsupported'):
-        read_u3d(_u3d_test_file(_u3d_test_block(0xFFFFFF99, _u3d_test_string('Unknown'))))
-    payload = _u3d_test_string('Group') + struct.pack('<II', 0, 123)
-    with pytest.raises(U3DError, match='[Uu]nconsumed'):
-        read_u3d(_u3d_test_file(_u3d_test_block(0xFFFFFF21, payload)))
 
 
 def test_outline_region_fixture_preserves_gerber_clear_region():

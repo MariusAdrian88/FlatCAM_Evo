@@ -201,51 +201,5 @@ class TestRightToLeft(unittest.TestCase):
                 fcTranslate.set_layout_direction(name)
                 self.assertEqual(LTR, QtWidgets.QApplication.layoutDirection())
 
-    def test_the_check_box_indicator_goes_after_the_text_in_both_directions(self):
-        from appGUI.GUIElements import FCCheckBox, opposite_direction
-        for name, app_direction, box_direction in (('English', LTR, RTL), ('العربية', RTL, LTR)):
-            with self.subTest(name=name):
-                QtWidgets.QApplication.setLayoutDirection(Qt.LayoutDirection.LayoutDirectionAuto)
-                fcTranslate.set_layout_direction(name)
-                self.assertEqual(app_direction, QtWidgets.QApplication.layoutDirection())
-                box = FCCheckBox('Plot')
-                box.setLayoutDirection(opposite_direction())
-                self.assertEqual(box_direction, box.layoutDirection())
-
-    def test_code_shell_coordinates_and_canvas_stay_left_to_right(self):
-        from appEditors.text_editor.code_edit import CodeEdit
-        from appGUI.GUIElements import CoordsToolbar, FCJog
-        from appPlugins.ToolShell.ShellUI import TermWidget
-
-        fcTranslate.set_layout_direction('العربية')
-        widgets = {
-            'code editor': CodeEdit(theme='default'),
-            'Tcl shell': TermWidget('test', types.SimpleNamespace(resource_location='assets/resources')),
-            'coordinates': CoordsToolbar('Coordinates Toolbar'),
-        }
-        for what, widget in widgets.items():
-            with self.subTest(what=what):
-                self.assertEqual(LTR, widget.layoutDirection())
-
-        jog = FCJog(types.SimpleNamespace(resource_location='assets/resources'))
-        jog.resize(jog.sizeHint())
-        jog.layout().activate()
-        self.assertLess(jog.jog_left_button.x(), jog.jog_origin_button.x())
-        self.assertLess(jog.jog_origin_button.x(), jog.jog_right_button.x())
-
-        from appGUI.PlotCanvas import PlotCanvas
-        from defaults import AppDefaults
-
-        class MainWindow(QtWidgets.QMainWindow):
-            def __getattr__(self, name):        # the status bar labels of the canvas
-                return unittest.mock.MagicMock()
-
-        defaults = AppDefaults()
-        fcapp = unittest.mock.MagicMock(options=dict(defaults.defaults), defaults=defaults, app_units='MM',
-                                        ui=MainWindow(), cursor_color_3D='#000000')
-        canvas = PlotCanvas(fcapp)
-        self.assertEqual(LTR, canvas.native.layoutDirection())
-
-
 if __name__ == '__main__':
     unittest.main()

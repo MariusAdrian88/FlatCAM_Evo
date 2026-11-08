@@ -112,10 +112,6 @@ def selection_editor(shapes, selected=()):
     return editor
 
 
-class TestGeoEditorPlotSelection(unittest.TestCase):
-    """plot_changes() changes only the shapes whose selection changed, without a new triangulation."""
-
-
 def tree_editor(shapes):
     """An editor with a real tree, rows like build_ui() makes them: column 0 is str(id(shape))."""
     editor = selection_editor(shapes)
