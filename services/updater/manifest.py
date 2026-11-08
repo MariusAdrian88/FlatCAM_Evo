@@ -30,9 +30,16 @@ class ArchiveInfo:
 
 @dataclass(frozen=True)
 class FileEntry:
+    """One managed file: a SHA-256 (a manifest built from files) or the CRC-32 of its archive member.
+
+    A GitHub release archive is checked as a whole against its SHA-256; the updater checks the CRC-32 of each member
+    while it extracts it, so the app does not extract and pack the archive again only to hash each file.
+    """
+
     path: str
     size: int
-    sha256: str
+    sha256: str = ""
+    crc32: int | None = None
 
 
 @dataclass(frozen=True)
@@ -53,6 +60,8 @@ class Manifest:
     archive: ArchiveInfo
     files: tuple[FileEntry, ...]
     deletions: tuple[DeletionEntry, ...] = ()
+    # the enclosing directory of the archive members (a GitHub source archive); empty for a flat archive
+    archive_prefix: str = ""
 
     @property
     def build(self) -> str:
@@ -147,6 +156,24 @@ def _validate_hash(value, label: str) -> str:
     return value.lower()
 
 
+def _validate_crc32(value, label: str) -> int:
+    if type(value) is not int or not 0 <= value <= 0xFFFFFFFF:
+        raise ManifestError(f"{label} must be a 32-bit unsigned integer.")
+    return value
+
+
+def _file_check(entry: FileEntry, index) -> dict:
+    """Return the integrity fields of a file entry: its SHA-256, its CRC-32, or both."""
+    check = {}
+    if entry.sha256:
+        check["sha256"] = _validate_hash(entry.sha256, f"files[{index}].sha256")
+    if entry.crc32 is not None:
+        check["crc32"] = _validate_crc32(entry.crc32, f"files[{index}].crc32")
+    if not check:
+        raise ManifestError(f"files[{index}] needs a sha256 or a crc32 field.")
+    return check
+
+
 def _validate_size(value, label: str) -> int:
     if isinstance(value, bool):
         raise ManifestError(f"{label} must be a non-negative integer.")
@@ -224,20 +251,21 @@ def parse_manifest(data) -> Manifest:
     for index, raw in enumerate(files_data):
         if not isinstance(raw, dict):
             raise ManifestError(f"files[{index}] must be an object.")
-        for key in ("path", "size", "sha256"):
+        for key in ("path", "size"):
             if key not in raw:
                 raise ManifestError(f"files[{index}] is missing required field {key!r}.")
         path = validate_relative_path(raw["path"])
         if path in seen:
             raise ManifestError(f"Manifest contains duplicate file path {path!r}.")
         seen.add(path)
-        files.append(
-            FileEntry(
-                path=path,
-                size=_validate_size(raw["size"], f"files[{index}].size"),
-                sha256=_validate_hash(raw["sha256"], f"files[{index}].sha256"),
-            )
+        entry = FileEntry(
+            path=path,
+            size=_validate_size(raw["size"], f"files[{index}].size"),
+            sha256=raw.get("sha256", ""),
+            crc32=raw.get("crc32"),
         )
+        check = _file_check(entry, index)
+        files.append(FileEntry(path=path, size=entry.size, sha256=check.get("sha256", ""), crc32=check.get("crc32")))
     deletion_data = data["deletions"]
     if not isinstance(deletion_data, list):
         raise ManifestError("Manifest 'deletions' must be a list.")
@@ -252,6 +280,11 @@ def parse_manifest(data) -> Manifest:
         seen.add(path)
         parse_version(raw["version"])
         deletions.append(DeletionEntry(path=path, version=str(raw["version"])))
+    prefix = data.get("archive_prefix", "")
+    if not isinstance(prefix, str):
+        raise ManifestError("Manifest 'archive_prefix' must be a string.")
+    if prefix:
+        prefix = validate_relative_path(prefix)
     return Manifest(
         schema_version=SCHEMA_VERSION,
         channel=_validate_channel(data["channel"]),
@@ -263,6 +296,7 @@ def parse_manifest(data) -> Manifest:
         archive=_parse_archive(data["archive"]),
         files=tuple(files),
         deletions=tuple(deletions),
+        archive_prefix=prefix,
     )
 
 
@@ -283,8 +317,8 @@ def manifest_to_json(manifest: Manifest) -> str:
         "files": [
             {
                 "path": validate_relative_path(entry.path),
-                "sha256": _validate_hash(entry.sha256, "file.sha256"),
                 "size": _validate_size(entry.size, "file.size"),
+                **_file_check(entry, entry.path),
             }
             for entry in sorted(manifest.files, key=lambda entry: entry.path)
         ],
@@ -294,6 +328,8 @@ def manifest_to_json(manifest: Manifest) -> str:
         "version": manifest.version,
         "version_date": manifest.version_date,
     }
+    if manifest.archive_prefix:
+        data["archive_prefix"] = validate_relative_path(manifest.archive_prefix)
     return json.dumps(data, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
 
 

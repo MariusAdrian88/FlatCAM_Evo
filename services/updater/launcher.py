@@ -21,7 +21,6 @@ from .recovery import (
     UPDATER_RUNTIME_DIR,
     is_protected_deletion,
     is_protected_path,
-    load_restore_point,
     restore_dir_for_install,
     safe_join,
 )
@@ -31,7 +30,7 @@ UPDATER_DIR_NAME = UPDATER_RUNTIME_DIR
 UPDATER_EXE_NAME = "FlatCAMUpdater.exe"
 _STARTUP_ACK_TIMEOUT = 5.0
 _STALE_JOB_AGE = 24 * 3600
-_JOB_PREFIXES = ("flatcam-update-", "flatcam-rollback-")
+_JOB_PREFIXES = ("flatcam-update-", "flatcam-rollback-")  # rollback: jobs of releases up to 1.05
 _log = logging.getLogger(__name__)
 
 
@@ -204,13 +203,16 @@ def _validate_archive_reference(archive_path: Path, manifest: dict) -> None:
 
 
 def _copy_job_archive(job_root: Path, archive_path: Path) -> Path:
-    """Copy the verified archive into the job so the caller may delete its staging."""
+    """Move the archive into the job (a copy only across volumes) so the caller may delete its staging."""
     source = Path(archive_path).resolve()
     destination = (Path(job_root) / "archive" / source.name).resolve()
     if _path_key(source) == _path_key(destination) or _paths_overlap(source, job_root):
         return source
     destination.parent.mkdir(parents=True)
-    shutil.copy2(source, destination)
+    try:
+        os.replace(source, destination)
+    except OSError:
+        shutil.copy2(source, destination)
     return destination
 
 
@@ -257,15 +259,26 @@ def _extract_release_runtime(runtime: Path, archive: Path, manifest: dict, membe
     ``members`` maps an archive path of the manifest to its path below ``runtime``.
     """
     entries = {entry["path"].casefold(): entry for entry in manifest["files"]}
+    prefix = manifest.get("archive_prefix") or ""
+    lead = f"{prefix}/" if prefix else ""
     with zipfile.ZipFile(archive) as source:
         names = {name.casefold(): name for name in source.namelist()}
         for path, target_path in members.items():
             entry = entries.get(path.casefold())
-            name = names.get(path.casefold())
+            name = names.get((lead + path).casefold())
             if entry is None or name is None:
                 raise ValueError(f"release runtime file is missing: {path}")
-            data = source.read(name)
-            if len(data) != entry["size"] or hashlib.sha256(data).hexdigest() != entry["sha256"].lower():
+            try:
+                # read() checks the CRC-32 of the member
+                info = source.getinfo(name)
+                data = source.read(name)
+            except zipfile.BadZipFile as exc:
+                raise ValueError(f"release runtime file is damaged: {path}") from exc
+            if (
+                len(data) != entry["size"]
+                or (entry.get("crc32") is not None and info.CRC != entry["crc32"])
+                or (entry.get("sha256") and hashlib.sha256(data).hexdigest() != entry["sha256"].lower())
+            ):
                 raise ValueError(f"release runtime file does not match manifest: {path}")
             target = safe_join(runtime, target_path, label="runtime path")
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -366,18 +379,20 @@ def _launch_process(command: list[str], cwd: Path, ack_path: Path) -> bool:
     return _wait_for_startup_ack(ack_path)
 
 
-def _prepare_job_paths(app, install_root: Path, prefix: str) -> tuple[Path, Path, Path, Path, Path]:
+def _prepare_job_paths(app, install_root: Path, prefix: str) -> tuple[Path, Path, Path]:
     storage = _storage_root(app, install_root)
     job_root = _new_job_root(storage, install_root, prefix)
-    staging = job_root / "staging"
-    backup = job_root / "backup"
     restore = restore_dir_for_install(storage, install_root)
     ack = job_root / ".updater_started"
-    return job_root, staging, backup, restore, ack
+    return job_root, restore, ack
 
 
-def launch_update(app, manifest, archive_path, *, relaunch_argv=None) -> bool:
-    """Write and launch a full-archive update job."""
+def launch_update(app, manifest, archive_path, *, relaunch_argv=None, revert=False) -> bool:
+    """Write and launch a full-archive update job.
+
+    A revert installs the previous release with the installed updater: the updater of an older release does not know
+    the job fields of this one. A normal update runs the updater of the new release.
+    """
     job_root = None
     try:
         install_root = _install_root()
@@ -387,26 +402,24 @@ def launch_update(app, manifest, archive_path, *, relaunch_argv=None) -> bool:
             raise ValueError("manifest contains a protected managed path")
         if any(is_protected_deletion(entry["path"]) for entry in manifest_data["deletions"]):
             raise ValueError("manifest contains a protected deletion path")
-        _validate_archive_reference(archive_path, manifest_data)
         if _paths_overlap(archive_path, install_root):
             raise ValueError("archive_path must be outside install root")
         relaunch = _validate_relaunch_argv(
             _default_relaunch_argv() if relaunch_argv is None else relaunch_argv
         )
-        job_root, staging, backup, restore, ack = _prepare_job_paths(
-            app, install_root, "flatcam-update-"
-        )
+        job_root, restore, ack = _prepare_job_paths(app, install_root, "flatcam-update-")
         job_archive = _copy_job_archive(job_root, archive_path)
         _validate_archive_reference(job_archive, manifest_data)
+        runtime_archive, runtime_manifest = (None, None) if revert else (job_archive, manifest_data)
         mode = "frozen" if _is_frozen() else "source"
         if mode == "frozen":
             exe_name = Path(sys.executable).name
             if exe_name.casefold() != "flatcam.exe":
                 raise ValueError("frozen application executable must be FlatCAM.exe")
-            runtime, executable = _copy_frozen_runtime(app, job_root, job_archive, manifest_data)
+            runtime, executable = _copy_frozen_runtime(app, job_root, runtime_archive, runtime_manifest)
             helper = None
         else:
-            runtime, helper = _copy_source_runtime(job_root, job_archive, manifest_data)
+            runtime, helper = _copy_source_runtime(job_root, runtime_archive, runtime_manifest)
             executable = Path(sys.executable)
             exe_name = ""
         cwd = runtime
@@ -416,8 +429,6 @@ def launch_update(app, manifest, archive_path, *, relaunch_argv=None) -> bool:
             "mode": mode,
             "install_dir": str(install_root),
             "archive_path": str(job_archive),
-            "staging_dir": str(staging),
-            "backup_dir": str(backup),
             "restore_dir": str(restore),
             "manifest": manifest_data,
             "previous_version": str(getattr(app, "version", "")),
@@ -430,6 +441,8 @@ def launch_update(app, manifest, archive_path, *, relaunch_argv=None) -> bool:
             "log_path": str(job_root / "updater.log"),
             "runtime_dir": str(runtime),
         }
+        if revert:
+            job["revert"] = True
         job_path = job_root / "update_job.json"
         _write_json(job_path, job)
         ack.unlink(missing_ok=True)
@@ -458,62 +471,3 @@ def launch_updater(app, manifest, delta_or_archive, staging_dir=None) -> bool:
     else:
         archive_path = delta_or_archive
     return launch_update(app, manifest, archive_path)
-
-
-def launch_rollback(app, *, relaunch_argv=None) -> bool:
-    """Write and launch a rollback job for the retained restore point."""
-    try:
-        install_root = _install_root()
-        storage = _storage_root(app, install_root)
-        restore = restore_dir_for_install(storage, install_root)
-        load_restore_point(restore, install_root, verify_files=False)
-        relaunch = _validate_relaunch_argv(
-            _default_relaunch_argv() if relaunch_argv is None else relaunch_argv
-        )
-        job_root, staging, backup, _restore, ack = _prepare_job_paths(
-            app, install_root, "flatcam-rollback-"
-        )
-        mode = "frozen" if _is_frozen() else "source"
-        if mode == "frozen":
-            if Path(sys.executable).name.casefold() != "flatcam.exe":
-                raise ValueError("frozen application executable must be FlatCAM.exe")
-            exe_name = Path(sys.executable).name
-            runtime, executable = _copy_frozen_runtime(app, job_root)
-            helper = None
-        else:
-            runtime, helper = _copy_source_runtime(job_root)
-            executable = Path(sys.executable)
-            exe_name = ""
-        cwd = runtime
-        job = {
-            "schema": 1,
-            "action": "rollback",
-            "mode": mode,
-            "install_dir": str(install_root),
-            "restore_dir": str(restore),
-            "staging_dir": str(staging),
-            "backup_dir": str(backup),
-            "exe_name": exe_name,
-            "wait_pid": os.getpid(),
-            "relaunch": True,
-            "relaunch_argv": relaunch,
-            "startup_ack_path": str(ack),
-            "log_path": str(job_root / "updater.log"),
-            "runtime_dir": str(runtime),
-        }
-        job_path = job_root / "rollback_job.json"
-        _write_json(job_path, job)
-        ack.unlink(missing_ok=True)
-        command = (
-            [str(executable), "--job", str(job_path)]
-            if mode == "frozen"
-            else [str(executable), str(helper), "--job", str(job_path)]
-        )
-        if not _launch_process(command, cwd, ack):
-            _app_log(app, "error", "launch_rollback: updater did not acknowledge startup")
-            return False
-        _app_log(app, "info", f"launch_rollback: updater started for {install_root}")
-        return True
-    except Exception as exc:
-        _app_log(app, "error", f"launch_rollback: {exc}")
-        return False

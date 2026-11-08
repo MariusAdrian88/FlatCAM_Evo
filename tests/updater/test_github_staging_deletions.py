@@ -345,16 +345,20 @@ def test_windows_deletions_apply_and_rollback_including_absent_target(monkeypatc
         "lib/already-gone.pyc",
         "lib/obsolete.pyc",
     ]
+    # the downloaded zip is the job archive: the updater extracts it, then moves the files in
+    manifest = updater_app._validate_manifest(result.manifest)
+    work = install / ".flatcam-update"
+    updater_app._extract_archive(result.archive_path, work / "staging", manifest)
     completed = updater_app.apply_update(
         install,
-        result.staging_dir / "payload",
-        tmp_path / "backup",
+        work / "staging",
+        work / "backup",
         [entry["path"] for entry in result.manifest["deletions"]],
-        files=result.manifest["files"],
+        files=manifest["files"],
     )
     assert not (install / "lib" / "obsolete.pyc").exists()
     assert (install / "FlatCAM.exe").read_bytes() == b"new exe"
 
-    assert updater_app.rollback(install, tmp_path / "backup", completed)
+    assert updater_app.rollback(install, work / "backup", completed)
     assert (install / "lib" / "obsolete.pyc").read_bytes() == b"obsolete"
     assert (install / "FlatCAM.exe").read_bytes() == b"old exe"

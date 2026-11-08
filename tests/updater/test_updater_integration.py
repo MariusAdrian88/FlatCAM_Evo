@@ -223,14 +223,12 @@ def _fake_app(tmp_path):
     app.inform = FakeSignal()
     app.update_progress = FakeSignal()
     app.update_staged = FakeSignal()
-    app.rollback_ready = FakeSignal()
     app.worker_task = FakeSignal()
     app.ui = SimpleNamespace(hide=MagicMock())
     app._update_dialog = None
     app._update_progress_dialog = None
     app._update_in_progress = False
     app._update_cancel_event = None
-    app._rollback_in_progress = False
     app._shutdown_requested = False
     app.quit_application = MagicMock()
     app._updater_shutdown_preflight = MagicMock(return_value=True)
@@ -311,7 +309,7 @@ def test_main_window_close_is_ignored_while_updater_is_active(active_state):
     assert "wait" in app.inform.emissions[-1][0].lower()
 
 
-def test_rollback_action_requires_valid_restore_point_and_waits_for_ack(monkeypatch, tmp_path):
+def test_revert_update_needs_a_previous_release_record_and_installs_it_as_a_revert_job(monkeypatch, tmp_path):
     from appMain import App, QtWidgets
 
     class Action:
@@ -326,15 +324,17 @@ def test_rollback_action_requires_valid_restore_point_and_waits_for_ack(monkeypa
 
     app = _fake_app(tmp_path)
     app.ui.menuhelp_revert_update = Action()
-    app._load_rollback_restore_point = MagicMock(
-        return_value=(tmp_path / "restore", {
-            "version": "2.0",
-            "build_string": "build-2",
-            "previous_version": "1.0",
-            "previous_build_string": "build-1",
-        })
-    )
-    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    app._load_previous_release = MagicMock(side_effect=OSError("no previous release is recorded"))
+    App.refresh_rollback_action(app)
+    assert app.ui.menuhelp_revert_update.enabled is False
+
+    app._load_previous_release = MagicMock(return_value={
+        "version": "2.0",
+        "build_string": "build-2",
+        "previous_version": "1.0",
+        "previous_build_string": "build-1",
+        "added": ["lib/new.py"],
+    })
     App.refresh_rollback_action(app)
     assert app.ui.menuhelp_revert_update.enabled is True
 
@@ -343,14 +343,30 @@ def test_rollback_action_requires_valid_restore_point_and_waits_for_ack(monkeypa
         "question",
         lambda *args, **kwargs: QtWidgets.QMessageBox.StandardButton.Yes,
     )
-    launch = MagicMock(return_value=True)
-    monkeypatch.setattr("appMain.launch_rollback", launch)
+    app._start_update_download = MagicMock()
     App.on_revert_update(app)
-    worker = app.worker_task.emissions[0][0]
-    worker["fcn"](*worker["params"])
-    result = app.rollback_ready.emissions[0][0]
-    App.on_rollback_ready(app, result)
+    started = app._start_update_download.call_args.args[0]
+    staged_payloads = []
+    staged = SimpleNamespace(
+        staging_dir=tmp_path / "stage", archive_path=tmp_path / "stage" / "old.zip", manifest=_manifest_json(_manifest()),
+        channel="windows", install="windows_asset", trust="", dependencies={},
+    )
+    checker = SimpleNamespace(
+        provider="github",
+        create_transport=lambda *args, **kwargs: object(),
+        revert_payload=lambda _app, version, transport=None: {"revert": True, "version": version},
+    )
+    monkeypatch.setattr("appMain.checker_for", lambda _app: checker)
+    monkeypatch.setattr("appMain.stage_update", lambda _app, payload, **kwargs: staged_payloads.append(payload) or staged)
+    launch = MagicMock(return_value=True)
+    monkeypatch.setattr("appMain.launch_update", launch)
+
+    App._download_update_worker(app, started, MagicMock(is_set=lambda: False))
+    # the previous release is looked up by its version; the files that the update added are deleted by the revert
+    assert staged_payloads == [{"revert": True, "version": "1.0", "revert_delete": ["lib/new.py"]}]
+    App.on_update_staged(app, app.update_staged.emissions[0][0])
 
     launch.assert_called_once()
+    assert launch.call_args.kwargs["revert"] is True
     app.quit_application.assert_called_once_with(mode="updater")
 

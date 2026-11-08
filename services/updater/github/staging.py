@@ -1,4 +1,8 @@
-"""Download and normalize GitHub release archives into an external staging area."""
+"""Download and check GitHub release archives in an external staging area.
+
+The downloaded archive goes to the updater as it is: the manifest lists the managed members with their size and
+CRC-32, and the updater extracts each member one time. Nothing is extracted or packed again here.
+"""
 
 from __future__ import annotations
 
@@ -13,7 +17,7 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from ..archive import DEFAULT_EXCLUSION_POLICY, build_deterministic_zip
+from ..archive import DEFAULT_EXCLUSION_POLICY
 from ..common import (
     DownloadCancelled,
     TransportError,
@@ -21,10 +25,12 @@ from ..common import (
     install_root as _install_root,
 )
 from ..manifest import (
+    SCHEMA_VERSION,
     ArchiveInfo,
     DeletionEntry,
+    FileEntry,
+    Manifest,
     ManifestError,
-    build_manifest,
     compare_versions,
     manifest_to_json,
     parse_version,
@@ -379,26 +385,13 @@ def _check_cancelled(cancel_cb) -> None:
         raise DownloadCancelled("Update staging cancelled.")
 
 
-def _extract_members(archive_path: Path, selected, payload_dir: Path, cancel_cb=None) -> None:
-    """Write selected members below the payload root, preserving ordinary mode bits."""
-    payload_dir.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(archive_path, "r") as archive:
-        for info, path in selected:
-            _check_cancelled(cancel_cb)
-            destination = payload_dir.joinpath(*path.split("/"))
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            with archive.open(info, "r") as source, destination.open("wb") as target:
-                shutil.copyfileobj(source, target, length=1024 * 1024)
-            permissions = (info.external_attr >> 16) & 0o777
-            if permissions:
-                os.chmod(destination, permissions)
-
-
-def _staged_source_version(path: Path) -> tuple[str, ...]:
-    """Return literal App.version values from a staged appMain.py without executing it."""
+def _staged_source_version(text: str | None) -> tuple[str, ...]:
+    """Return literal App.version values from the appMain.py of the archive without executing it."""
+    if text is None:
+        raise StagingError("Staged source application is missing.")
     try:
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, SyntaxError) as exc:
+        tree = ast.parse(text)
+    except SyntaxError as exc:
         raise StagingError(f"Staged source application cannot be parsed: {exc}") from exc
     values = []
     for node in tree.body:
@@ -425,9 +418,9 @@ def _staged_source_version(path: Path) -> tuple[str, ...]:
     return tuple(values)
 
 
-def _validate_source_version(payload_dir: Path, version: str) -> None:
+def _validate_source_version(text: str | None, version: str) -> None:
     """Refuse staged sources whose literal App.version differs from the release."""
-    for value in _staged_source_version(payload_dir / SOURCE_VERSION_MEMBER):
+    for value in _staged_source_version(text):
         try:
             if compare_versions(value, version) != 0:
                 raise StagingError(
@@ -445,11 +438,32 @@ def _read_requirements(path: Path) -> str | None:
         return None
     except OSError as exc:
         raise StagingError(f"Could not read requirements file {path}: {exc}") from exc
+    return _decode_text(raw, str(path))
+
+
+def _decode_text(raw: bytes | None, label: str) -> str | None:
+    if raw is None:
+        return None
     try:
         text = raw.decode("utf-8")
     except UnicodeDecodeError as exc:
-        raise StagingError(f"Requirements file is not valid UTF-8: {path}") from exc
+        raise StagingError(f"File is not valid UTF-8: {label}") from exc
     return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
+def _member_texts(archive_path: Path, selected, names) -> dict[str, str | None]:
+    """Read some small text members (appMain.py, requirements) from the archive; None for a missing member."""
+    wanted = {name.casefold(): name for name in names}
+    texts: dict[str, str | None] = {name: None for name in names}
+    with zipfile.ZipFile(archive_path, "r") as archive:
+        for info, path in selected:
+            name = wanted.get(path.casefold())
+            if name is not None:
+                try:
+                    texts[name] = _decode_text(archive.read(info), path)
+                except zipfile.BadZipFile as exc:
+                    raise StagingError(f"Archive member is damaged: {path}") from exc
+    return texts
 
 
 def _requirement_lines(text: str | None) -> frozenset[str]:
@@ -460,14 +474,14 @@ def _requirement_lines(text: str | None) -> frozenset[str]:
     )
 
 
-def _dependency_changes(install_root: Path, payload_dir: Path) -> dict:
+def _dependency_changes(install_root: Path, staged: dict[str, str | None]) -> dict:
     """
     Return requirement differences for the later explicit GUI confirmation.
 
     The optional packages (requirements-optional.txt) are reported apart: FlatCAM starts without them, so only a
     changed package line counts, not an edited comment.
     """
-    staged_optional = _requirement_lines(_read_requirements(payload_dir / OPTIONAL_REQUIREMENTS_MEMBER))
+    staged_optional = _requirement_lines(staged.get(OPTIONAL_REQUIREMENTS_MEMBER))
     installed_optional = _requirement_lines(_read_requirements(Path(install_root) / OPTIONAL_REQUIREMENTS_MEMBER))
     optional = {
         "optional_added": sorted(staged_optional - installed_optional),
@@ -475,7 +489,7 @@ def _dependency_changes(install_root: Path, payload_dir: Path) -> dict:
     }
     optional["optional_changed"] = bool(optional["optional_added"] or optional["optional_removed"])
 
-    staged_text = _read_requirements(payload_dir / REQUIREMENTS_MEMBER)
+    staged_text = staged.get(REQUIREMENTS_MEMBER)
     installed_text = _read_requirements(Path(install_root) / REQUIREMENTS_MEMBER)
     staged = _requirement_lines(staged_text)
     installed = _requirement_lines(installed_text)
@@ -641,6 +655,23 @@ def _reject_payload_deletion_overlap(deletions, payload_paths) -> None:
             raise StagingError(f"Deletion path is a payload parent directory: {entry.path!r}.")
 
 
+def _revert_deletions(payload, platform: str, install_root: Path, version: str, payload_paths) -> tuple:
+    """Return the deletions of a revert: the files that the reverted update added and the old release does not have."""
+    raw = payload.get("revert_delete") or []
+    if not isinstance(raw, list):
+        raise StagingError("Revert deletion list must be a list.")
+    present = {path.casefold() for path in payload_paths}
+    deletions = {}
+    for value in raw:
+        path = _deletion_path(value, platform)
+        if path.casefold() in present or path.casefold() in deletions:
+            continue
+        if any(candidate.is_dir() for candidate in _casefold_candidates(install_root, path)):
+            raise StagingError(f"Deletion path is a directory: {path!r}.")
+        deletions[path.casefold()] = DeletionEntry(path=path, version=str(version))
+    return tuple(deletions.values())
+
+
 def stage_update(
     app=None,
     payload=None,
@@ -676,12 +707,15 @@ def stage_update(
             raise DownloadCancelled("Update staging cancelled.")
         members = _inspect_members(download)
         _check_structure(members)
+        archive_prefix = ""
         if request.channel == "windows":
             _validate_windows_members(members)
         if request.channel == "linux":
             prefix = _source_wrapper_prefix(members)
             if prefix is None:
                 raise StagingError("Source archive must contain exactly one enclosing directory.")
+            # the updater finds the members below this directory: keep the case of the archive
+            archive_prefix = members[0][1].split("/", 1)[0]
             members = _strip_wrapper(members, prefix)
         selected = _select_members(members, request.channel)
         deletions = ()
@@ -708,36 +742,41 @@ def stage_update(
                 installed_version=_installed_version(app, payload),
             )
             _reject_payload_deletion_overlap(deletions, [path for _, path in selected])
-        payload_dir = staging / "payload"
-        _extract_members(download, selected, payload_dir, cancel_cb)
+        if payload.get("revert"):
+            deletions = deletions + _revert_deletions(
+                payload, request.channel, root, request.version, [path for _, path in selected]
+            )
+        texts = _member_texts(download, selected, (SOURCE_VERSION_MEMBER, REQUIREMENTS_MEMBER,
+                                                   OPTIONAL_REQUIREMENTS_MEMBER))
         if request.channel == "linux":
-            _validate_source_version(payload_dir, request.version)
-        archive_path = staging / request.archive_name
-        build_deterministic_zip(payload_dir, archive_path, DEFAULT_EXCLUSION_POLICY)
+            _validate_source_version(texts[SOURCE_VERSION_MEMBER], request.version)
         _check_cancelled(cancel_cb)
-        manifest = build_manifest(
-            payload_dir,
-            request.version,
+        manifest = Manifest(
+            schema_version=SCHEMA_VERSION,
             channel=request.channel,
-            archive=ArchiveInfo(
-                filename=archive_path.name,
-                size=archive_path.stat().st_size,
-                sha256=sha256_file(archive_path),
-            ),
+            version=request.version,
             build_string=request.build_string,
             version_date=request.published_at,
             minimum_required_version="0",
             release_notes=request.release_notes,
+            archive=ArchiveInfo(
+                filename=download.name,
+                size=download.stat().st_size,
+                sha256=sha256_file(download),
+            ),
+            files=tuple(
+                FileEntry(path=path, size=info.file_size, crc32=info.CRC)
+                for info, path in sorted(selected, key=lambda item: item[1])
+            ),
             deletions=deletions,
-            exclusions=DEFAULT_EXCLUSION_POLICY,
+            archive_prefix=archive_prefix,
         )
-        dependencies = _dependency_changes(root, payload_dir)
+        dependencies = _dependency_changes(root, texts)
         _check_cancelled(cancel_cb)
-        shutil.rmtree(download.parent, ignore_errors=True)
         _app_log(app, "debug", f"Staged GitHub update {request.version} in {staging}")
         return StagedUpdate(
             staging_dir=staging,
-            archive_path=archive_path,
+            archive_path=download,
             manifest=json.loads(manifest_to_json(manifest)),
             channel=request.channel,
             install=request.install,

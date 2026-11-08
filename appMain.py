@@ -86,9 +86,11 @@ from services.updater.digi.release import prepare_releases, validate_release_roo
 from services.updater.github import GitHubUpdateChecker     # noqa
 from services.updater.github.staging import stage_update
 from services.updater.digi.staging import stage_update_archive
-from services.updater.provider import PROVIDER_DIGI, checker_for, create_update_checker, update_provider
-from services.updater.launcher import launch_rollback, launch_update
-from services.updater.recovery import read_restore_summary, restore_dir_for_install
+from services.updater.provider import (
+    PROVIDER_DIGI, PROVIDER_GITHUB, checker_for, create_update_checker, update_provider,
+)
+from services.updater.launcher import launch_update
+from services.updater.recovery import read_previous_release, restore_dir_for_install
 from services.updater.common import DownloadCancelled
 
 from Bookmark import BookmarkManager
@@ -349,7 +351,6 @@ class App(QtCore.QObject):
     update_check_result = QtCore.pyqtSignal(object)
     update_staged = QtCore.pyqtSignal(object)
     update_progress = QtCore.pyqtSignal(int, str)
-    rollback_ready = QtCore.pyqtSignal(object)
     release_prepared = QtCore.pyqtSignal(object)
 
     # Emitted when a shell command is finished(one command only)
@@ -617,7 +618,6 @@ class App(QtCore.QObject):
         self._update_progress_dialog = None
         self._update_in_progress = False
         self._update_cancel_event = None
-        self._rollback_in_progress = False
         self._release_preparation_in_progress = False
 
         # =========================================================================
@@ -1479,7 +1479,6 @@ class App(QtCore.QObject):
         self.update_check_result.connect(self.on_update_check_result)
         self.update_staged.connect(self.on_update_staged)
         self.update_progress.connect(self._on_update_progress)
-        self.rollback_ready.connect(self.on_rollback_ready)
         self.release_prepared.connect(self.on_release_prepared)
         # self.progress.connect(self.set_progress_bar)
 
@@ -3264,7 +3263,6 @@ class App(QtCore.QObject):
     def _update_operation_active(self):
         if (
             getattr(self, "_update_in_progress", False)
-            or getattr(self, "_rollback_in_progress", False)
             or getattr(self, "_release_preparation_in_progress", False)
         ):
             return True
@@ -3514,7 +3512,10 @@ class App(QtCore.QObject):
         progress = QtWidgets.QProgressDialog("", _("Cancel"), 0, 100, self.ui)
         progress.setLabel(steps)
         progress.setMinimumWidth(480)
-        progress.setWindowTitle(_("Downloading update"))
+        if payload.get("revert"):
+            progress.setWindowTitle(_("Downloading the previous version"))
+        else:
+            progress.setWindowTitle(_("Downloading update"))
         progress.setWindowModality(Qt.WindowModality.ApplicationModal)
         progress.setAutoClose(False)
         progress.setAutoReset(False)
@@ -3595,6 +3596,11 @@ class App(QtCore.QObject):
                 return
 
             transport = checker.create_transport(self, repository_url=repository_url)
+            if payload.get("revert"):
+                # Revert Update: the offer of the previous release is made here, off the GUI thread
+                revert_delete = payload.get("revert_delete") or []
+                payload = checker.revert_payload(self, payload["version"], transport=transport)
+                payload["revert_delete"] = revert_delete
             staged = stage_update(
                 self,
                 payload,
@@ -3721,7 +3727,7 @@ class App(QtCore.QObject):
                 self._cleanup_staged_update(data)
                 return
 
-            if not launch_update(self, manifest, archive_path):
+            if not launch_update(self, manifest, archive_path, revert=bool(payload.get("revert"))):
                 self._cleanup_staged_update(data)
                 self.inform.emit('[WARNING_NOTCL] %s' % _("The updater could not be started."))
                 return
@@ -3734,17 +3740,14 @@ class App(QtCore.QObject):
             if not launched:
                 self._update_in_progress = False
 
-    def _load_rollback_restore_point(self):
+    def _load_previous_release(self):
         install_dir = (
             Path(sys.executable).resolve().parent
             if getattr(sys, "frozen", False)
             else Path(__file__).resolve().parent
         )
-        restore_dir = restore_dir_for_install(self.data_path, install_dir)
-        # only restore.json (a few ms): the check of each file takes seconds for a full release. launch_rollback
-        # checks the files in a worker, and the updater checks the hashes before it changes a file.
-        metadata = read_restore_summary(restore_dir, install_dir)
-        return restore_dir, metadata
+        # a small record (no files): Revert Update downloads the previous release from GitHub
+        return read_previous_release(restore_dir_for_install(self.data_path, install_dir), install_dir)
 
     def refresh_rollback_action(self):
         action = getattr(getattr(self, "ui", None), "menuhelp_revert_update", None)
@@ -3754,21 +3757,21 @@ class App(QtCore.QObject):
             action.setEnabled(False)
             return
         try:
-            _restore, metadata = self._load_rollback_restore_point()
+            record = self._load_previous_release()
         except (OSError, TypeError, ValueError, RuntimeError):
             action.setEnabled(False)
             return
         action.setEnabled(True)
         action.setToolTip(
             _("Revert to %s (%s)") %
-            (metadata["previous_version"], metadata["previous_build_string"])
+            (record["previous_version"], record["previous_build_string"])
         )
 
     def on_revert_update(self):
         if self._update_operation_active():
             return
         try:
-            _restore, metadata = self._load_rollback_restore_point()
+            record = self._load_previous_release()
         except (OSError, TypeError, ValueError, RuntimeError):
             self.inform.emit('[WARNING_NOTCL] %s' % _("No usable previous version is available."))
             return
@@ -3776,42 +3779,23 @@ class App(QtCore.QObject):
         answer = QtWidgets.QMessageBox.question(
             self.ui,
             _("Revert application update"),
-            _("Revert from %s (%s) to %s (%s)?") % (
-                metadata["version"], metadata["build_string"],
-                metadata["previous_version"], metadata["previous_build_string"],
+            _("Revert from %s (%s) to %s (%s)?\n\n"
+              "FlatCAM Evo downloads version %s from GitHub and installs it.") % (
+                record["version"], record["build_string"],
+                record["previous_version"], record["previous_build_string"],
+                record["previous_version"],
             ),
             QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.Cancel,
             QtWidgets.QMessageBox.StandardButton.Cancel,
         )
         if answer != QtWidgets.QMessageBox.StandardButton.Yes or not self._updater_shutdown_preflight():
             return
-
-        self._rollback_in_progress = True
-
-        def rollback_worker():
-            try:
-                success = launch_rollback(self)
-                error = ""
-            except Exception as exc:
-                success = False
-                error = str(exc)
-            self.rollback_ready.emit({"success": success, "error": error})
-
-        try:
-            self.worker_task.emit({'fcn': rollback_worker, 'params': []})
-        except Exception as exc:
-            self._rollback_in_progress = False
-            self.log.error("Could not queue rollback: %s" % str(exc))
-
-    def on_rollback_ready(self, result):
-        if not self._rollback_in_progress:
-            return
-        self._rollback_in_progress = False
-        if not result.get("success", False):
-            self.inform.emit('[WARNING_NOTCL] %s' % _("The previous version could not be started."))
-            self.refresh_rollback_action()
-            return
-        self.quit_application(mode="updater")
+        self._start_update_download({
+            "revert": True,
+            "provider": PROVIDER_GITHUB,
+            "version": record["previous_version"],
+            "revert_delete": list(record["added"]),
+        })
 
     def final_save(self):
         """

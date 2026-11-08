@@ -11,8 +11,15 @@ import sys
 import time
 import zipfile
 from pathlib import Path
+import zlib
 from types import SimpleNamespace
 
+from services.updater.recovery import (
+    WORK_DIR_NAME,
+    is_release_blocked,
+    previous_release_path,
+    read_previous_release,
+)
 from services.updater.github import checker as checker_module
 from services.updater.github import staging as staging_module
 from services.updater.github.checker import GitHubUpdateChecker
@@ -240,10 +247,11 @@ def test_github_transport_checker_stage_launcher_helper_apply_and_rollback(
         "archive, manifest_path, relaunch = (Path(value) for value in sys.argv[4:7])\n"
         "os.environ.pop('PYTHONPATH', None)\n"
         "launcher._install_root = lambda: install\n"
-        "app = SimpleNamespace(data_path=storage, version='1.0', build_string='source-build', options={})\n"
+        "app = SimpleNamespace(data_path=storage, version=sys.argv[7], build_string='source-build', options={})\n"
         "manifest = json.loads(manifest_path.read_text(encoding='utf-8'))\n"
         "storage.mkdir(parents=True, exist_ok=True)\n"
-        "ok = launcher.launch_update(app, manifest, archive, relaunch_argv=[sys.executable, str(relaunch)])\n"
+        "ok = launcher.launch_update(app, manifest, archive, relaunch_argv=[sys.executable, str(relaunch)],\n"
+        "                            revert=sys.argv[8] == 'revert')\n"
         "(storage / 'launch_result.json').write_text(json.dumps({'ok': bool(ok)}), encoding='utf-8')\n"
         "raise SystemExit(0 if ok else 1)\n",
         encoding="utf-8",
@@ -251,24 +259,30 @@ def test_github_transport_checker_stage_launcher_helper_apply_and_rollback(
 
     env = os.environ.copy()
     env["PYTHONPATH"] = str(ROOT)
-    launched = subprocess.run(
-        [
-            sys.executable,
-            str(controller),
-            str(ROOT),
-            str(install),
-            str(storage),
-            str(staged.archive_path),
-            str(manifest_path),
-            str(sentinel_script),
-        ],
-        cwd=ROOT,
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=60,
-        check=False,
-    )
+
+    def launch(archive_path, manifest_file, app_version, mode):
+        return subprocess.run(
+            [
+                sys.executable,
+                str(controller),
+                str(ROOT),
+                str(install),
+                str(storage),
+                str(archive_path),
+                str(manifest_file),
+                str(sentinel_script),
+                app_version,
+                mode,
+            ],
+            cwd=ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+
+    launched = launch(staged.archive_path, manifest_path, "1.0", "update")
     assert launched.returncode == 0, launched.stderr
 
     assert _wait_for(sentinel), _job_diagnostics(storage)
@@ -285,23 +299,45 @@ def test_github_transport_checker_stage_launcher_helper_apply_and_rollback(
     job = json.loads(jobs[0].read_text(encoding="utf-8"))
     assert job["mode"] == "source"
     assert job["wait_pid"] > 0
-    assert Path(job["archive_path"]).is_file()
-    assert _wait_until_missing(Path(job["staging_dir"]))
-    assert _wait_until_missing(Path(job["backup_dir"]))
+    assert "staging_dir" not in job and "revert" not in job
+    # the updater leaves no work folder in the installation, and the update recorded the release it replaced
+    assert _wait_until_missing(install / WORK_DIR_NAME)
+    restore = Path(job["restore_dir"])
+    record = read_previous_release(restore, install)
+    assert record["previous_version"] == "1.0" and record["version"] == VERSION
+    assert record["added"] == ["lib/new.py"]
 
+    # Revert Update: the previous release is installed by a revert job; the added file is deleted
     sentinel.unlink()
-    rollback = subprocess.run(
-        [sys.executable, str(ROOT / "updater_app.py"), "--rollback", job["restore_dir"]],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        timeout=60,
-        check=False,
+    old_files = {
+        "FlatCAM.exe": b"old frozen executable",
+        "lib/library.zip": b"old library.zip runtime",
+        "lib/obsolete.pyc": b"obsolete bytecode",
+    }
+    old_archive = tmp_path / "old-release.zip"
+    old_archive.write_bytes(_zip_bytes(list(old_files.items())))
+    revert_manifest = dict(staged.manifest)
+    revert_manifest.update(
+        version="1.0",
+        archive={
+            "filename": old_archive.name,
+            "size": old_archive.stat().st_size,
+            "sha256": hashlib.sha256(old_archive.read_bytes()).hexdigest(),
+        },
+        files=[
+            {"path": name, "size": len(data), "crc32": zlib.crc32(data)} for name, data in old_files.items()
+        ],
+        deletions=[{"path": "lib/new.py", "version": "1.0"}],
     )
-    assert rollback.returncode == 0, rollback.stderr
+    revert_path = tmp_path / "revert-manifest.json"
+    revert_path.write_text(json.dumps(revert_manifest), encoding="utf-8")
+    reverted = launch(old_archive, revert_path, VERSION, "revert")
+    assert reverted.returncode == 0, reverted.stderr
 
-    assert _wait_for(sentinel), "rollback did not relaunch the application"
-    assert (install / "FlatCAM.exe").read_bytes() == b"old frozen executable"
-    assert (install / "lib" / "library.zip").read_bytes() == b"old library.zip runtime"
-    assert (install / "lib" / "obsolete.pyc").read_bytes() == b"obsolete bytecode"
+    assert _wait_for(sentinel), "the revert did not relaunch the application"
+    assert _wait_until_missing(install / WORK_DIR_NAME)
+    for name, data in old_files.items():
+        assert (install / name).read_bytes() == data
     assert not (install / "lib" / "new.py").exists()
+    assert is_release_blocked(restore, VERSION, "source-build")
+    assert not previous_release_path(restore).exists()

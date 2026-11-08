@@ -20,7 +20,6 @@ import shutil
 import stat
 import subprocess
 import sys
-import tempfile
 import threading
 import time
 import uuid
@@ -29,19 +28,19 @@ from pathlib import Path
 
 try:
     from services.updater.recovery import (
+        WORK_DIR_NAME,
         blocked_release_path,
         is_protected_deletion,
-        is_release_blocked,
-        load_restore_point,
+        previous_release_path,
         safe_join,
         validate_relative_path,
     )
 except ImportError:  # source helper copied beside recovery.py
     from recovery import (  # type: ignore[no-redef]
+        WORK_DIR_NAME,
         blocked_release_path,
         is_protected_deletion,
-        is_release_blocked,
-        load_restore_point,
+        previous_release_path,
         safe_join,
         validate_relative_path,
     )
@@ -76,6 +75,7 @@ _JOB_FIELDS = frozenset(
         "runtime_dir",
         "lock_file_path",
         "interactive",
+        "revert",
     }
 )
 _CONTROL_NAMES = frozenset(
@@ -124,7 +124,7 @@ class _Progress:
             self._sink(event)
 
     def job(self, job: dict) -> None:
-        self._action = str(job.get("action", "update"))
+        self._action = "revert" if job.get("revert") else "update"
         manifest = job.get("manifest")
         self._version = str(manifest.get("version", "")) if isinstance(manifest, dict) else ""
         self._log_path = str(job.get("log_path", ""))
@@ -144,8 +144,9 @@ class _Progress:
 
     def finish(self, code: int) -> None:
         if code == 0:
-            if self._action == "rollback":
-                message = "The previous version of FlatCAM is restored. FlatCAM starts again."
+            if self._action == "revert":
+                version = f" {self._version}" if self._version else ""
+                message = f"FlatCAM is reverted to version{version}. FlatCAM starts again."
             else:
                 version = f" {self._version}" if self._version else ""
                 message = f"FlatCAM is updated to version{version}. FlatCAM starts again."
@@ -268,22 +269,26 @@ def _validate_manifest(raw) -> dict:
     if type(archive["size"]) is not int or archive["size"] < 0 or not _hash_valid(archive["sha256"]):
         raise ValueError("manifest archive contract is malformed")
 
+    prefix = raw.get("archive_prefix", "")
+    if not isinstance(prefix, str):
+        raise ValueError("manifest archive_prefix must be a string")
+    if prefix:
+        prefix = validate_relative_path(prefix, reject_protected=False)
+
     files = []
     seen: set[str] = set()
     for entry in raw["files"]:
-        if not isinstance(entry, dict) or any(
-            field not in entry for field in ("path", "size", "sha256")
-        ):
+        if not isinstance(entry, dict) or any(field not in entry for field in ("path", "size")):
             raise ValueError("manifest file entry is malformed")
         path = validate_relative_path(entry["path"])
         if path.casefold() in seen:
             raise ValueError("manifest contains duplicate file paths")
         seen.add(path.casefold())
-        if type(entry["size"]) is not int or entry["size"] < 0 or not _hash_valid(entry["sha256"]):
+        if len(Path(path).parts) == 1 and path in _CONTROL_NAMES:
+            raise ValueError(f"manifest uses a reserved control path: {path}")
+        if type(entry["size"]) is not int or entry["size"] < 0:
             raise ValueError("manifest file contract is malformed")
-        files.append(
-            {"path": path, "size": entry["size"], "sha256": entry["sha256"].lower()}
-        )
+        files.append({"path": path, "size": entry["size"], **_file_check(entry)})
 
     deletions = []
     for entry in raw["deletions"]:
@@ -307,9 +312,26 @@ def _validate_manifest(raw) -> dict:
         "minimum_required_version": raw["minimum_required_version"],
         "release_notes": raw["release_notes"],
         "archive": {"filename": archive_name, "size": archive["size"], "sha256": archive["sha256"].lower()},
+        "archive_prefix": prefix,
         "files": files,
         "deletions": deletions,
     }
+
+
+def _file_check(entry: dict) -> dict:
+    """Return the integrity fields of a file entry: a SHA-256 (older launchers, Digi), a CRC-32 (GitHub), or both."""
+    check = {}
+    if entry.get("sha256"):
+        if not _hash_valid(entry["sha256"]):
+            raise ValueError("manifest file sha256 is malformed")
+        check["sha256"] = entry["sha256"].lower()
+    if entry.get("crc32") is not None:
+        if type(entry["crc32"]) is not int or not 0 <= entry["crc32"] <= 0xFFFFFFFF:
+            raise ValueError("manifest file crc32 is malformed")
+        check["crc32"] = entry["crc32"]
+    if not check:
+        raise ValueError("manifest file entry has no sha256 or crc32")
+    return check
 
 
 def _manifest_from_job(job: dict) -> dict:
@@ -338,9 +360,12 @@ def _validate_job(job: dict, job_path: Path | None = None) -> dict:
         raise ValueError(f"job contains unknown fields: {sorted(unknown)!r}")
     if type(job.get("schema")) is not int or job["schema"] != 1:
         raise ValueError("job schema must be integer 1")
-    action = job.get("action", "update")
-    if action not in ("update", "rollback"):
+    # a revert is an update to the previous release; the restore points (action "rollback") of releases up to 1.05
+    # are not used now, and the installed updater of such a release runs its own rollback jobs
+    if job.get("action", "update") != "update":
         raise ValueError("job action is invalid")
+    if not isinstance(job.get("revert", False), bool):
+        raise ValueError("revert must be a boolean")
     if job.get("mode") not in ("source", "frozen"):
         raise ValueError("job mode is invalid")
     common = (
@@ -397,59 +422,47 @@ def _validate_job(job: dict, job_path: Path | None = None) -> dict:
         if _paths_overlap(job_path, install):
             raise ValueError("job file must be outside install_dir")
 
-    if action == "update":
-        for field in ("archive_path", "staging_dir", "backup_dir"):
-            if field not in job:
-                raise ValueError(f"update job is missing {field}")
-        if "manifest" not in job and "manifest_path" not in job:
-            raise ValueError("update job is missing manifest or manifest_path")
-        archive = _validate_absolute_path(job["archive_path"], "archive_path", allow_missing=False)
-        if not archive.is_file():
-            raise ValueError("archive_path must be a regular file")
-        if _paths_overlap(archive, install):
-            raise ValueError("archive_path must be outside install_dir")
-        for field in ("staging_dir", "backup_dir"):
-            path = _validate_absolute_path(job[field], field)
-            if _paths_overlap(path, install):
-                raise ValueError(f"{field} must be outside install_dir")
-            paths[field] = path
-        work_paths = [paths[field] for field in ("staging_dir", "backup_dir", "restore_dir")]
-        if "runtime_dir" in paths:
-            work_paths.append(paths["runtime_dir"])
-        if any(_paths_overlap(archive, path) for path in work_paths):
-            raise ValueError("archive and updater work paths overlap")
-        for index, first in enumerate(work_paths):
-            if any(_paths_overlap(first, second) for second in work_paths[index + 1:]):
-                raise ValueError("updater work paths overlap")
-        if "manifest_path" in job:
-            manifest_path = _validate_absolute_path(job["manifest_path"], "manifest_path", allow_missing=False)
-            if _paths_overlap(manifest_path, install) or any(_paths_overlap(manifest_path, path) for path in work_paths):
-                raise ValueError("manifest_path overlaps a protected path")
-        for path in (paths["startup_ack_path"], paths["log_path"]):
-            if any(_paths_overlap(path, work) for work in work_paths):
-                raise ValueError("job protocol path overlaps update work")
-        manifest = _manifest_from_job(job)
-        if job["mode"] == "frozen":
-            executable = install / job["exe_name"]
-            if not executable.is_file() or executable.is_symlink():
-                raise ValueError("frozen application executable is missing")
-        paths["archive_path"] = archive
-        return {"job": job, "install": install, "paths": paths, "manifest": manifest, "argv": relaunch_argv}
-
+    if "manifest" not in job and "manifest_path" not in job:
+        raise ValueError("update job is missing manifest or manifest_path")
+    if "archive_path" not in job:
+        raise ValueError("update job is missing archive_path")
+    archive = _validate_absolute_path(job["archive_path"], "archive_path", allow_missing=False)
+    if not archive.is_file():
+        raise ValueError("archive_path must be a regular file")
+    if _paths_overlap(archive, install):
+        raise ValueError("archive_path must be outside install_dir")
+    # older launchers name a staging and a backup folder in the user data; the updater works in its folder inside
+    # the installation, so these fields are only checked
     for field in ("staging_dir", "backup_dir"):
-        if field in job:
-            path = _validate_absolute_path(job[field], field)
-            if _paths_overlap(path, install) or _paths_overlap(path, restore):
-                raise ValueError(f"{field} overlaps a protected path")
-            paths[field] = path
-    if "runtime_dir" in paths and _paths_overlap(paths["runtime_dir"], restore):
-        raise ValueError("runtime_dir overlaps restore_dir")
-    for field in ("startup_ack_path", "log_path"):
-        if _paths_overlap(paths[field], restore):
-            raise ValueError(f"{field} overlaps restore_dir")
-    if not restore.is_dir():
-        raise OSError("restore_dir does not exist")
-    return {"job": job, "install": install, "paths": paths, "manifest": None, "argv": relaunch_argv}
+        if field in job and _paths_overlap(_validate_absolute_path(job[field], field), install):
+            raise ValueError(f"{field} must be outside install_dir")
+    work_paths = [restore]
+    if "runtime_dir" in paths:
+        work_paths.append(paths["runtime_dir"])
+    if any(_paths_overlap(archive, path) for path in work_paths):
+        raise ValueError("archive and updater work paths overlap")
+    if len(work_paths) == 2 and _paths_overlap(*work_paths):
+        raise ValueError("updater work paths overlap")
+    if "manifest_path" in job:
+        manifest_path = _validate_absolute_path(job["manifest_path"], "manifest_path", allow_missing=False)
+        if _paths_overlap(manifest_path, install) or any(_paths_overlap(manifest_path, path) for path in work_paths):
+            raise ValueError("manifest_path overlaps a protected path")
+    for path in (paths["startup_ack_path"], paths["log_path"]):
+        if any(_paths_overlap(path, work) for work in work_paths):
+            raise ValueError("job protocol path overlaps update work")
+    manifest = _manifest_from_job(job)
+    if job["mode"] == "frozen":
+        executable = install / job["exe_name"]
+        if not executable.is_file() or executable.is_symlink():
+            raise ValueError("frozen application executable is missing")
+    work = install / WORK_DIR_NAME
+    _reject_symlink_components(work, install)
+    if _is_link(work) or (work.exists() and not work.is_dir()):
+        raise ValueError(f"updater work folder is not a directory: {work}")
+    # a backup folder of its own for each job: a backup that an earlier failed cleanup left must not stop this update
+    paths.update({"archive_path": archive, "work_dir": work, "staging_dir": work / "staging",
+                  "backup_dir": work / f"backup-{uuid.uuid4().hex[:12]}"})
+    return {"job": job, "install": install, "paths": paths, "manifest": manifest, "argv": relaunch_argv}
 
 
 def _validate_archive(path: Path, contract: dict) -> None:
@@ -470,68 +483,120 @@ def validate_install_dir(job: dict) -> tuple[bool, str]:
     return True, ""
 
 
+class _PathGuard:
+    """Join managed relative paths below one root.
+
+    A relative path is checked as text (no absolute path, no ``..``); each directory below the root is checked one
+    time for a symlink or a junction, not again for each file of a release with thousands of files.
+    """
+
+    def __init__(self, root: Path, label: str):
+        root = Path(root)
+        _reject_symlink_components(root)
+        self.root = root
+        self.label = label
+        self._checked: set[str] = set()
+
+    def join(self, relative: str) -> Path:
+        normalized = validate_relative_path(relative)
+        parts = normalized.split("/")
+        cursor = self.root
+        key = ""
+        for part in parts[:-1]:
+            cursor = cursor / part
+            key = f"{key}/{part.casefold()}"
+            if key in self._checked:
+                continue
+            if _is_link(cursor):
+                raise ValueError(f"{self.label} must not contain symlink components: {normalized}")
+            self._checked.add(key)
+        target = cursor / parts[-1]
+        if _is_link(target):
+            raise ValueError(f"{self.label} must not be a symlink: {normalized}")
+        return target
+
+
+def _is_link(path: Path) -> bool:
+    if path.is_symlink():
+        return True
+    is_junction = getattr(os.path, "isjunction", None)
+    return bool(is_junction and is_junction(path))
+
+
 def _archive_members(archive_path: Path, manifest: dict) -> dict[str, zipfile.ZipInfo]:
+    """Map each managed file to its archive member; the members that the manifest does not list stay unused."""
     expected = {entry["path"].casefold(): entry for entry in manifest["files"]}
+    prefix = manifest.get("archive_prefix", "")
+    lead = f"{prefix}/".casefold() if prefix else ""
     members = {}
     try:
         with zipfile.ZipFile(archive_path, "r") as archive:
             for info in archive.infolist():
                 raw_name = info.filename
-                is_directory = info.is_dir() or raw_name.endswith("/")
-                name = raw_name.rstrip("/") if is_directory else raw_name
-                if not name:
+                if info.is_dir() or raw_name.endswith("/"):
                     continue
-                normalized = validate_relative_path(name)
-                mode = (info.external_attr >> 16) & 0xFFFF
-                if stat.S_ISLNK(mode):
-                    raise ValueError(f"ZIP symlink is not allowed: {raw_name}")
-                if is_directory:
-                    continue
-                if len(Path(normalized).parts) == 1 and normalized in _CONTROL_NAMES:
-                    raise ValueError(f"ZIP uses a reserved control path: {normalized}")
-                key = normalized.casefold()
-                if key in members:
-                    raise ValueError(f"ZIP contains duplicate path: {normalized}")
+                name = raw_name.replace("\\", "/")
+                if lead:
+                    if not name.casefold().startswith(lead):
+                        continue
+                    name = name[len(lead):]
+                key = name.casefold()
                 if key not in expected:
-                    raise ValueError(f"ZIP contains unmanaged path: {normalized}")
+                    continue
+                if stat.S_ISLNK((info.external_attr >> 16) & 0xFFFF):
+                    raise ValueError(f"ZIP symlink is not allowed: {raw_name}")
+                if key in members:
+                    raise ValueError(f"ZIP contains duplicate path: {name}")
                 members[key] = info
-            if set(members) != set(expected):
-                missing = sorted(set(expected) - set(members))
-                raise ValueError(f"ZIP is missing managed files: {missing!r}")
     except zipfile.BadZipFile as exc:
         raise ValueError(f"archive is not a valid ZIP: {exc}") from exc
+    if set(members) != set(expected):
+        missing = sorted(expected[key]["path"] for key in set(expected) - set(members))
+        raise ValueError(f"ZIP is missing managed files: {missing!r}")
     return members
 
 
 def _reset_directory(path: Path) -> None:
     _reject_symlink_components(path)
     if path.exists():
-        if path.is_symlink() or not path.is_dir():
+        if _is_link(path) or not path.is_dir():
             raise ValueError(f"work path is not a directory: {path}")
         shutil.rmtree(path)
     path.mkdir(parents=True, exist_ok=True)
 
 
 def _extract_archive(archive_path: Path, staging_dir: Path, manifest: dict) -> None:
+    """Extract each managed file one time and check its size and its CRC-32 or SHA-256 while it is written."""
     members = _archive_members(archive_path, manifest)
     _reset_directory(staging_dir)
+    guard = _PathGuard(staging_dir, "staged file path")
     entries = {entry["path"].casefold(): entry for entry in manifest["files"]}
+    made: set[Path] = set()
     _PROGRESS.stage("Extracting files", len(entries))
     with zipfile.ZipFile(archive_path, "r") as archive:
         for key, entry in sorted(entries.items()):
-            destination = safe_join(staging_dir, entry["path"], label="staged file path")
-            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination = guard.join(entry["path"])
+            if destination.parent not in made:
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                made.add(destination.parent)
             info = members[key]
-            digest = hashlib.sha256()
+            digest = hashlib.sha256() if entry.get("sha256") else None
             written = 0
-            with archive.open(info, "r") as source, destination.open("xb") as target:
-                while chunk := source.read(1024 * 1024):
-                    target.write(chunk)
-                    digest.update(chunk)
-                    written += len(chunk)
-                target.flush()
-                os.fsync(target.fileno())
-            if written != entry["size"] or digest.hexdigest() != entry["sha256"]:
+            try:
+                # the member stream checks the CRC-32 of the data at its end
+                with archive.open(info, "r") as source, destination.open("xb") as target:
+                    while chunk := source.read(1024 * 1024):
+                        target.write(chunk)
+                        if digest is not None:
+                            digest.update(chunk)
+                        written += len(chunk)
+            except zipfile.BadZipFile as exc:
+                raise ValueError(f"staged file checksum mismatch: {entry['path']}: {exc}") from exc
+            if (
+                written != entry["size"]
+                or (entry.get("crc32") is not None and info.CRC != entry["crc32"])
+                or (digest is not None and digest.hexdigest() != entry["sha256"])
+            ):
                 raise ValueError(f"staged file checksum mismatch: {entry['path']}")
             permissions = (info.external_attr >> 16) & 0o777
             if permissions:
@@ -550,29 +615,29 @@ def _contract_files(files) -> dict[str, dict]:
         raise OSError("files contract must be a list")
     result = {}
     for entry in files:
-        if not isinstance(entry, dict) or any(field not in entry for field in ("path", "size", "sha256")):
+        if not isinstance(entry, dict) or any(field not in entry for field in ("path", "size")):
             raise OSError("malformed file contract entry")
         try:
             path = validate_relative_path(entry["path"])
+            check = _file_check(entry)
         except (TypeError, ValueError) as exc:
             raise OSError(f"malformed file contract entry: {exc}") from exc
-        if type(entry["size"]) is not int or entry["size"] < 0 or not _hash_valid(entry["sha256"]):
+        if type(entry["size"]) is not int or entry["size"] < 0:
             raise OSError(f"malformed file contract entry: {path}")
         if path.casefold() in result:
             raise OSError(f"duplicate file contract entry: {path}")
-        result[path.casefold()] = {"path": path, "size": entry["size"], "sha256": entry["sha256"].lower()}
+        result[path.casefold()] = {"path": path, "size": entry["size"], **check}
     return result
 
 
 def _staged_files(staging_dir: Path, expected: dict[str, dict] | None, job_file_path: Path | None) -> dict[str, Path]:
+    """Return the staged files; the extraction checked their data, so here only their set and sizes are checked."""
     result = {}
-    if not staging_dir.exists():
-        return result
     _reject_symlink_components(staging_dir)
+    # a missing staging folder gives no files: the contract check below then fails for each expected file
     for root, dirs, filenames in os.walk(staging_dir, followlinks=False):
         root_path = Path(root)
-        symlink_dirs = [name for name in dirs if (root_path / name).is_symlink()]
-        if symlink_dirs:
+        if any(_is_link(root_path / name) for name in dirs):
             raise OSError("staging directory contains a symlink")
         for filename in filenames:
             source = root_path / filename
@@ -589,14 +654,12 @@ def _staged_files(staging_dir: Path, expected: dict[str, dict] | None, job_file_
                 raise OSError(f"duplicate staged path: {normalized}")
             result[key] = source
     if expected is not None:
-        _PROGRESS.stage("Checking the extracted files", len(expected))
         for key, entry in expected.items():
             source = result.get(key)
             if source is None:
                 raise OSError(f"expected staged file is missing: {entry['path']}")
-            if source.stat().st_size != entry["size"] or _hash_file(source) != entry["sha256"]:
-                raise OSError(f"staged file checksum mismatch: {entry['path']}")
-            _PROGRESS.advance()
+            if source.stat().st_size != entry["size"]:
+                raise OSError(f"staged file size mismatch: {entry['path']}")
     return result
 
 
@@ -607,13 +670,26 @@ def _attach_completed(exc: BaseException, completed: list[dict]) -> None:
         pass
 
 
-def _copy_or_move_target(install_dir: Path, backup_dir: Path, rel: str, source: Path | None, completed: list[dict]) -> None:
-    target = safe_join(install_dir, rel, label="install path")
+def _place_file(source: Path, target: Path) -> None:
+    """Rename a staged file into place; copy it when the rename is not possible (another volume)."""
+    try:
+        os.replace(source, target)
+    except OSError:
+        if target.exists():
+            raise
+        shutil.copy2(source, target)
+
+
+def _copy_or_move_target(install: _PathGuard, backup_guard: _PathGuard, rel: str, source: Path | None,
+                         completed: list[dict], made: set[Path]) -> None:
+    target = install.join(rel)
     if target.exists() or target.is_symlink():
         if target.is_symlink() or not target.is_file():
             raise OSError(f"install target is not a regular file: {target}")
-        backup = safe_join(backup_dir, rel, label="backup path")
-        backup.parent.mkdir(parents=True, exist_ok=True)
+        backup = backup_guard.join(rel)
+        if backup.parent not in made:
+            backup.parent.mkdir(parents=True, exist_ok=True)
+            made.add(backup.parent)
         op = {"type": "replace" if source is not None else "delete", "rel": rel, "dst": str(target), "backup": str(backup)}
         try:
             if backup.exists() or backup.is_symlink():
@@ -629,8 +705,10 @@ def _copy_or_move_target(install_dir: Path, backup_dir: Path, rel: str, source: 
 
     if source is not None:
         try:
-            target.parent.mkdir(parents=True, exist_ok=True)
-            _retry_op("staged copy", shutil.copy2, str(source), str(target))
+            if target.parent not in made:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                made.add(target.parent)
+            _retry_op("staged move", _place_file, source, target)
         except Exception as exc:
             _attach_completed(exc, completed)
             raise
@@ -657,14 +735,18 @@ def apply_update(
     job_file_path: Path | None = None,
     files: list[dict] | None = None,
 ) -> list[dict]:
-    """Apply staged files and deletions, recording enough for reverse rollback."""
+    """Move the staged files into place and do the deletions; record each step for a reverse rollback."""
     completed: list[dict] = []
     try:
         install_dir = _validate_absolute_path(str(install_dir), "install_dir", allow_missing=False)
         staging_dir = _validate_absolute_path(str(staging_dir), "staging_dir")
         backup_dir = _validate_absolute_path(str(backup_dir), "backup_dir")
-        if _paths_overlap(install_dir, staging_dir) or _paths_overlap(install_dir, backup_dir):
-            raise OSError("update work path overlaps install_dir")
+        if _paths_overlap(staging_dir, backup_dir):
+            raise OSError("update staging and backup paths overlap")
+        work = (install_dir / WORK_DIR_NAME).resolve()
+        for path in (staging_dir, backup_dir):
+            if _paths_overlap(path, install_dir) and work not in path.resolve().parents:
+                raise OSError("update work path overlaps install_dir outside the updater work folder")
         expected = _contract_files(files) if files is not None else None
         staged = _staged_files(staging_dir, expected, job_file_path)
         deletes = {}
@@ -672,24 +754,21 @@ def apply_update(
             rel = validate_relative_path(raw)
             deletes[rel.casefold()] = rel
         if backup_dir.exists():
-            if backup_dir.is_symlink() or not backup_dir.is_dir():
+            if _is_link(backup_dir) or not backup_dir.is_dir():
                 raise OSError("backup_dir is not a directory")
             if any(backup_dir.iterdir()):
                 raise OSError("backup_dir must be empty")
         else:
             backup_dir.mkdir(parents=True, exist_ok=True)
 
+        install = _PathGuard(install_dir, "install path")
+        backup_guard = _PathGuard(backup_dir, "backup path")
+        made: set[Path] = set()
         all_keys = set(deletes) | set(staged)
         _PROGRESS.stage("Replacing files", len(all_keys))
         for key in sorted(all_keys):
             rel = expected[key]["path"] if expected and key in expected else staged[key].relative_to(staging_dir).as_posix() if key in staged else deletes[key]
-            _copy_or_move_target(
-                install_dir,
-                backup_dir,
-                rel,
-                staged.get(key),
-                completed,
-            )
+            _copy_or_move_target(install, backup_guard, rel, staged.get(key), completed, made)
             _PROGRESS.advance()
         return completed
     except Exception as exc:
@@ -698,20 +777,20 @@ def apply_update(
 
 
 def _verify_final(install_dir: Path, files: list[dict], delete_list: list[str]) -> None:
-    _PROGRESS.stage("Checking the installed files", len(files))
+    """Check that each managed file is in place with its size and that each deleted file is gone."""
+    install = _PathGuard(install_dir, "installed path")
     for entry in files:
-        rel = validate_relative_path(entry["path"])
-        target = safe_join(install_dir, rel, label="installed path")
-        if target.is_symlink() or not target.is_file():
-            raise OSError(f"installed file is missing: {rel}")
-        if target.stat().st_size != entry["size"] or _hash_file(target) != entry["sha256"].lower():
-            raise OSError(f"installed file checksum mismatch: {rel}")
-        _PROGRESS.advance()
+        target = install.join(entry["path"])
+        try:
+            size = target.stat().st_size
+        except OSError as exc:
+            raise OSError(f"installed file is missing: {entry['path']}") from exc
+        if not target.is_file() or size != entry["size"]:
+            raise OSError(f"installed file size mismatch: {entry['path']}")
     for raw in delete_list:
-        rel = validate_relative_path(raw)
-        target = safe_join(install_dir, rel, label="deleted path")
+        target = install.join(raw)
         if target.exists() or target.is_symlink():
-            raise OSError(f"obsolete file remains: {rel}")
+            raise OSError(f"obsolete file remains: {raw}")
 
 
 def rollback(install_dir: Path, backup_dir: Path, completed_ops: list[dict]) -> bool:
@@ -742,133 +821,63 @@ def rollback(install_dir: Path, backup_dir: Path, completed_ops: list[dict]) -> 
     return success
 
 
-def _restore_operation_records(completed_ops: list[dict]) -> tuple[list[dict], list[str]]:
-    records: dict[str, dict] = {}
-    for operation in completed_ops:
-        rel = validate_relative_path(str(operation["rel"]))
-        record = records.setdefault(rel.casefold(), {"path": rel})
-        if "backup" in operation:
-            record["backup"] = operation["backup"]
-        elif "backup" not in record:
-            record["new"] = True
-    files = []
-    deletes = []
-    for record in records.values():
-        if "backup" in record:
-            backup = Path(record["backup"])
-            files.append({"path": record["path"], "source": backup})
-        elif record.get("new"):
-            deletes.append(record["path"])
-    return files, sorted(deletes)
-
-
-def _write_restore_metadata(path: Path, metadata: dict) -> None:
+def _write_json_atomic(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
     try:
-        temporary.write_text(json.dumps(metadata, sort_keys=True, separators=(",", ":")), encoding="utf-8")
+        temporary.write_text(json.dumps(data, sort_keys=True, separators=(",", ":")), encoding="utf-8")
         os.replace(temporary, path)
     finally:
         temporary.unlink(missing_ok=True)
 
 
-def retain_restore_point(job: dict, completed_ops: list[dict]) -> None:
-    """Atomically publish the one restore point representing the prior release."""
-    install = Path(job["install_dir"]).resolve()
-    restore = Path(job["restore_dir"]).resolve()
-    parent = restore.parent
-    _reject_symlink_components(parent)
-    parent.mkdir(parents=True, exist_ok=True)
-    records, delete_paths = _restore_operation_records(completed_ops)
-    candidate = Path(tempfile.mkdtemp(prefix=restore.name + ".pending-", dir=str(parent)))
-    published = False
-    previous = None
+def _record_release(job: dict, completed_ops: list[dict]) -> None:
+    """Write the release records after a committed update; they hold no files.
+
+    An update records the release that it replaced: Revert Update downloads that release and installs it, and it
+    deletes the files that this update added. A revert blocks the release that it removed and clears the record.
+    """
+    restore = Path(job["restore_dir"])
+    record_path = previous_release_path(restore)
+    if job.get("revert"):
+        _write_json_atomic(blocked_release_path(restore), {
+            "version": str(job.get("previous_version", "")),
+            "build_string": str(job.get("previous_build_string", "")),
+        })
+        record_path.unlink(missing_ok=True)
+        return
+    added = sorted({operation["rel"] for operation in completed_ops if operation["type"] == "add"})
+    _write_json_atomic(record_path, {
+        "schema": 1,
+        "install_dir": str(Path(job["install_dir"]).resolve()),
+        "mode": job["mode"],
+        "exe_name": job["exe_name"],
+        "previous_version": str(job.get("previous_version", "")),
+        "previous_build_string": str(job.get("previous_build_string", "")),
+        "version": str(job["manifest"]["version"]),
+        "build_string": str(job["manifest"]["build"]),
+        "added": added,
+    })
+
+
+def _legacy_restore_points(job: dict) -> list[Path]:
+    """Return the restore point folders of releases up to 1.05 (a copy of all files): they are not used now."""
+    restore = Path(job["restore_dir"])
+    found = []
     try:
-        files_root = candidate / "files"
-        files_root.mkdir()
-        entries = []
-        _PROGRESS.stage("Saving the restore point", len(records))
-        for record in sorted(records, key=lambda item: item["path"]):
-            _PROGRESS.advance()
-            source = Path(record["source"])
-            if source.is_symlink() or not source.is_file():
-                raise OSError(f"restore backup is missing: {source}")
-            destination = safe_join(files_root, record["path"], label="restore payload path")
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source, destination)
-            entries.append({"path": record["path"], "size": destination.stat().st_size, "sha256": _hash_file(destination)})
-        metadata = {
-            "schema": 1,
-            "install_dir": str(install),
-            "mode": job["mode"],
-            "exe_name": job["exe_name"],
-            "previous_version": str(job.get("previous_version", "")),
-            "previous_build_string": str(job.get("previous_build_string", "")),
-            "version": str(job["manifest"]["version"]),
-            "build_string": str(job["manifest"]["build"]),
-            "files": entries,
-            "delete": delete_paths,
-            "relaunch_argv": list(job["relaunch_argv"]),
-        }
-        _write_restore_metadata(candidate / "restore.json", metadata)
-        load_restore_point(candidate, install, verify_files=True)
-        if restore.exists():
-            if restore.is_symlink() or not restore.is_dir():
-                raise OSError("restore_dir is not a real directory")
-            previous = parent / f"{restore.name}.previous-{uuid.uuid4().hex}"
-            os.replace(restore, previous)
-        try:
-            os.replace(candidate, restore)
-            published = True
-        except Exception as exc:
-            if previous is not None:
-                os.replace(previous, restore)
-                previous = None
-            raise exc
-        if previous is not None:
-            try:
-                shutil.rmtree(previous)
-            except OSError:
-                _log("warning", "Could not remove superseded restore point: %s", previous)
-    finally:
-        if not published and candidate.exists():
-            shutil.rmtree(candidate, ignore_errors=True)
+        for path in restore.parent.iterdir():
+            name = path.name
+            if (name == restore.name or name.startswith(restore.name + ".")) and path.is_dir() and not _is_link(path):
+                found.append(path)
+    except OSError:
+        pass
+    return found
 
 
 def _default_relaunch_argv() -> list[str]:
     if _IS_WINDOWS:
         return [str(sys.executable), *sys.argv[1:]]
     return [str(sys.executable), *sys.argv]
-
-
-def _write_blocked_release_marker(restore_dir: Path, metadata: dict) -> None:
-    marker = blocked_release_path(restore_dir)
-    marker.parent.mkdir(parents=True, exist_ok=True)
-    temporary = marker.with_name(f".{marker.name}.{uuid.uuid4().hex}.tmp")
-    try:
-        temporary.write_text(
-            json.dumps({"version": metadata["version"], "build_string": metadata["build_string"]}, separators=(",", ":")),
-            encoding="utf-8",
-        )
-        os.replace(temporary, marker)
-    finally:
-        temporary.unlink(missing_ok=True)
-
-
-def _restore_marker(marker: Path, previous: bytes | None) -> bool:
-    try:
-        if previous is None:
-            marker.unlink(missing_ok=True)
-        else:
-            marker.write_bytes(previous)
-        return True
-    except OSError:
-        return False
-
-
-def _consume_restore_point(restore: Path) -> Path:
-    consumed = restore.parent / f"{restore.name}.consumed-{uuid.uuid4().hex}"
-    os.replace(restore, consumed)
-    return consumed
 
 
 def _cleanup_tree(path: Path | None) -> None:
@@ -883,37 +892,6 @@ def _cleanup_tree(path: Path | None) -> None:
             shutil.rmtree(path)
     except OSError as exc:
         _log("warning", "Cleanup failed for %s: %s", path, exc)
-
-
-def _validate_rollback_job(job: dict) -> dict:
-    return _validate_job(job)
-
-
-def _rollback_job_from_restore(restore_arg: str) -> dict:
-    restore = _validate_absolute_path(restore_arg, "restore_dir", allow_missing=False)
-    metadata = load_restore_point(restore, verify_files=False)
-    install = Path(metadata["install_dir"]).resolve()
-    job_root = restore.parent / f"rollback_job_{uuid.uuid4().hex}"
-    job_root.mkdir(parents=True, exist_ok=False)
-    argv = metadata.get("relaunch_argv")
-    if not isinstance(argv, list) or not argv:
-        argv = _default_relaunch_argv()
-    return {
-        "schema": 1,
-        "action": "rollback",
-        "mode": metadata.get("mode", "source"),
-        "install_dir": str(install),
-        "restore_dir": str(restore),
-        "staging_dir": str(job_root / "staging"),
-        "backup_dir": str(job_root / "backup"),
-        "exe_name": metadata["exe_name"],
-        "wait_pid": 0,
-        "relaunch": True,
-        "relaunch_argv": argv,
-        "startup_ack_path": str(job_root / ".updater_started"),
-        "log_path": str(job_root / "updater.log"),
-        "runtime_dir": str(job_root),
-    }
 
 
 def _write_startup_ack(job: dict) -> None:
@@ -1003,93 +981,6 @@ def relaunch_app(argv, install_dir: Path) -> None:
     subprocess.Popen(list(argv), **kwargs)
 
 
-def restore_previous_version(job: dict) -> int:
-    """Restore and consume a validated retained point."""
-    try:
-        validated = _validate_rollback_job(job)
-    except (OSError, TypeError, ValueError, RuntimeError) as exc:
-        _PROGRESS.fail(f"The rollback job is not valid: {exc}")
-        return 3
-    install = validated["install"]
-    paths = validated["paths"]
-    restore = paths["restore_dir"] if "restore_dir" in paths else Path(job["restore_dir"])
-    _PROGRESS.stage("Checking the restore point")
-    try:
-        metadata = load_restore_point(restore, install, verify_files=True)
-    except (OSError, TypeError, ValueError, RuntimeError) as exc:
-        _PROGRESS.fail(f"Could not load the restore point: {exc}")
-        return 3
-    if job["exe_name"] != metadata["exe_name"]:
-        _PROGRESS.fail("The restore point is for a different executable. Nothing was changed.")
-        return 3
-    if _rollback_cancelled(job):
-        _PROGRESS.fail("The rollback was cancelled. Nothing was changed.")
-        return 2
-    try:
-        _PROGRESS.stage("Waiting for FlatCAM to close")
-        wait_for_pid_exit(job["wait_pid"], timeout=60)
-        if job["wait_pid"] > 0 and _pid_alive(job["wait_pid"]):
-            _PROGRESS.fail("FlatCAM did not close in 60 seconds. Nothing was changed.")
-            return 2
-        _remove_update_lock(job)
-        if job["exe_name"]:
-            exe = safe_join(install, job["exe_name"], label="application executable")
-            if exe.exists() and not wait_for_file_unlock(exe):
-                _PROGRESS.fail(f"{exe} stays locked by another process. Nothing was changed.")
-                return 2
-    except (OSError, TypeError, ValueError, RuntimeError) as exc:
-        _PROGRESS.fail(f"Could not prepare the rollback: {exc}. Nothing was changed.")
-        return 2
-
-    backup = paths.get("backup_dir") or restore.parent / f"{restore.name}.rollback-{uuid.uuid4().hex}"
-    completed: list[dict] = []
-    marker = blocked_release_path(restore)
-    previous_marker = None
-    try:
-        if marker.exists():
-            if marker.is_symlink():
-                return 3
-            previous_marker = marker.read_bytes()
-        files = [{"path": entry["path"], "size": entry["size"], "sha256": entry["sha256"]} for entry in metadata["files"]]
-        completed = apply_update(install, restore / "files", backup, metadata["delete"], None, files)
-        _verify_final(install, files, metadata["delete"])
-        _write_blocked_release_marker(restore, metadata)
-        consumed = _consume_restore_point(restore)
-    except Exception as exc:
-        _PROGRESS.fail(f"The rollback failed: {exc}")
-        completed = getattr(exc, "completed_ops", completed)
-        marker_ok = _restore_marker(marker, previous_marker)
-        recovery_ok = rollback(install, backup, completed)
-        if not (marker_ok and recovery_ok):
-            _log("critical", "Rollback recovery failed; refusing relaunch")
-            _PROGRESS.fail("The files of the current version could not be restored. "
-                           "FlatCAM is not started: install it again with the installer.")
-            return 1
-        _PROGRESS.fail("The current version is kept.")
-        if job["relaunch"]:
-            try:
-                relaunch_app(job["relaunch_argv"], install)
-            except OSError:
-                pass
-        return 1
-
-    _cleanup_tree(backup)
-    _cleanup_tree(consumed)
-    if job["relaunch"]:
-        _PROGRESS.stage("Starting FlatCAM")
-        try:
-            relaunch_app(job["relaunch_argv"], install)
-        except OSError as exc:
-            _PROGRESS.fail(f"The previous version is restored, but FlatCAM could not start: {exc}")
-            return 1
-    return 0
-
-
-def _rollback_cancelled(job: dict) -> bool:
-    cancel = job.get("cancel_path")
-    return bool(cancel and Path(cancel).exists())
-
-
 def _apply_job(job: dict, job_path: Path) -> int:
     try:
         validated = _validate_job(job, job_path)
@@ -1126,7 +1017,7 @@ def _apply_job(job: dict, job_path: Path) -> int:
         deletes = [entry["path"] for entry in manifest["deletions"]]
     except (OSError, TypeError, ValueError, RuntimeError, zipfile.BadZipFile) as exc:
         _PROGRESS.fail(f"Could not prepare the update: {exc}. Nothing was changed.")
-        _cleanup_tree(paths.get("staging_dir"))
+        _cleanup_tree(paths.get("work_dir"))
         _cleanup_tree(paths.get("runtime_dir"))
         return 2
 
@@ -1150,13 +1041,13 @@ def _apply_job(job: dict, job_path: Path) -> int:
                 pass
         _cleanup_tree(paths.get("staging_dir"))
         if rollback_ok:
-            _cleanup_tree(paths.get("backup_dir"))
+            _cleanup_tree(paths.get("work_dir"))
         return 1
 
     try:
-        retain_restore_point(job, completed)
+        _record_release(job, completed)
     except Exception as exc:
-        _log("error", "Update committed but restore point retention failed: %s", exc)
+        _log("error", "Update committed but the release record could not be written: %s", exc)
 
     relaunch_ok = True
     if job["relaunch"]:
@@ -1166,34 +1057,28 @@ def _apply_job(job: dict, job_path: Path) -> int:
         except OSError as exc:
             _PROGRESS.fail(f"FlatCAM is updated, but it could not start: {exc}")
             relaunch_ok = False
-    _cleanup_tree(paths.get("staging_dir"))
-    _cleanup_tree(paths.get("backup_dir"))
+    # FlatCAM starts while the updater removes the replaced files
+    _PROGRESS.stage("Removing the replaced files")
+    _cleanup_tree(paths.get("work_dir"))
+    for legacy in _legacy_restore_points(job):
+        _cleanup_tree(legacy)
     _cleanup_tree(paths.get("runtime_dir"))
     return 0 if relaunch_ok else 1
 
 
 def _run(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="updater_app")
-    group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--job", metavar="PATH")
-    group.add_argument("--rollback", metavar="RESTORE_DIR")
+    parser.add_argument("--job", metavar="PATH", required=True)
     args = parser.parse_args(argv)
-    job_path = None
     try:
-        if args.rollback:
-            job = _rollback_job_from_restore(args.rollback)
-        else:
-            job_path = _validate_absolute_path(args.job, "job_path", allow_missing=False)
-            job = load_job(str(job_path))
+        job_path = _validate_absolute_path(args.job, "job_path", allow_missing=False)
+        job = load_job(str(job_path))
     except (OSError, TypeError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
         print(f"[updater] Failed to load job: {exc}", file=sys.stderr)
         _PROGRESS.fail(f"Could not load the update job: {exc}")
         return 3
-    action = job.get("action", "update")
     try:
-        validated = _validate_job(job, job_path)
-        if action == "rollback":
-            validated = _validate_rollback_job(job)
+        _validate_job(job, job_path)
         _write_startup_ack(job)
         setup_logging(job["log_path"])
     except (OSError, TypeError, ValueError, RuntimeError) as exc:
@@ -1201,11 +1086,6 @@ def _run(argv=None) -> int:
         _PROGRESS.fail(f"The update job is not valid: {exc}")
         return 3
     _PROGRESS.job(job)
-    if action == "rollback":
-        try:
-            return restore_previous_version(job)
-        finally:
-            _cleanup_tree(Path(job.get("runtime_dir")) if job.get("runtime_dir") else None)
     return _apply_job(job, job_path)
 
 
@@ -1381,8 +1261,8 @@ class _ProgressWindow:
         kind = event[0]
         if kind == "job":
             _, action, version, self.log_path, install_dir = event
-            if action == "rollback":
-                self.title.configure(text="Restoring the previous version of FlatCAM")
+            if action == "revert":
+                self.title.configure(text=f"Reverting FlatCAM to version {version}")
             else:
                 self.title.configure(text=f"Updating FlatCAM to version {version}" if version else "Updating FlatCAM")
             if not getattr(sys, "frozen", False) and install_dir:

@@ -4,31 +4,25 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import shutil
 import stat
 import sys
 import tempfile
 import unittest
 import zipfile
+import zlib
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from services.updater.launcher import (
-    _creation_flags,
-    _install_root,
-    _is_frozen,
-    launch_rollback,
-    launch_update,
-)
+from services.updater.launcher import launch_update
 from services.updater.recovery import (
-    blocked_release_path,
+    WORK_DIR_NAME,
     is_release_blocked,
-    load_restore_point,
+    previous_release_path,
+    read_previous_release,
     restore_dir_for_install,
 )
-from services.updater.archive import DEFAULT_EXCLUSION_POLICY
 import services.updater.launcher as launcher_mod
 import updater_app
 
@@ -45,12 +39,12 @@ def _write_archive(path: Path, files: dict[str, bytes], extra=None) -> None:
             archive.writestr(info, data)
 
 
-def _manifest(archive: Path, files: dict[str, bytes], deletions=()) -> dict:
+def _manifest(archive: Path, files: dict[str, bytes], deletions=(), version="2.0", build="build-2") -> dict:
     return {
         "schema_version": 1,
         "channel": "linux",
-        "version": "2.0",
-        "build": "build-2",
+        "version": version,
+        "build": build,
         "version_date": "2026-09-17",
         "minimum_required_version": "1.0",
         "release_notes": "",
@@ -60,7 +54,7 @@ def _manifest(archive: Path, files: dict[str, bytes], deletions=()) -> dict:
             "sha256": _hash(archive.read_bytes()),
         },
         "files": [
-            {"path": name, "size": len(data), "sha256": _hash(data)}
+            {"path": name, "size": len(data), "sha256": _hash(data), "crc32": zlib.crc32(data)}
             for name, data in files.items()
         ],
         "deletions": [
@@ -90,10 +84,10 @@ def _job(tmp_path: Path, install: Path, archive: Path, manifest: dict, **extra) 
         "mode": "source",
         "install_dir": str(install),
         "archive_path": str(archive),
-        "staging_dir": str(update / "staging"),
-        "backup_dir": str(update / "backup"),
         "restore_dir": str(update / "restore"),
         "manifest": manifest,
+        "previous_version": "1.0",
+        "previous_build_string": "build-1",
         "exe_name": "",
         "wait_pid": 0,
         "relaunch": False,
@@ -112,61 +106,12 @@ def _run_job(tmp_path: Path, job: dict) -> int:
     return updater_app.main(["--job", str(path)])
 
 
-def _rollback_job(root: Path, install: Path, restore: Path, **extra) -> dict:
-    update = root / "rollback"
-    job = {
-        "schema": 1,
-        "action": "rollback",
-        "mode": "source",
-        "install_dir": str(install),
-        "restore_dir": str(restore),
-        "exe_name": "",
-        "staging_dir": str(update / "staging"),
-        "backup_dir": str(update / "backup"),
-        "wait_pid": 0,
-        "relaunch": False,
-        "relaunch_argv": [sys.executable, str(install / "flatcam.py")],
-        "startup_ack_path": str(update / ".updater_started"),
-        "log_path": str(update / "updater.log"),
-        "runtime_dir": str(update / "runtime"),
-    }
-    job.update(extra)
-    return job
+def _tree(root: Path) -> dict[str, bytes]:
+    return {p.relative_to(root).as_posix(): p.read_bytes() for p in sorted(root.rglob("*")) if p.is_file()}
 
-
-class TestRecovery(unittest.TestCase):
-    def test_restore_metadata_and_payload_are_strictly_validated(self):
-        root = Path(tempfile.mkdtemp(prefix="flatcam-ticket2-recovery-"))
-        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
-        with self.subTest("valid"):
-            install = root / "install"
-            install.mkdir(exist_ok=True)
-            (install / "FlatCAM.exe").write_bytes(b"current")
-            payload = b"previous"
-            restore = root / "restore"
-            (restore / "files").mkdir(parents=True, exist_ok=True)
-            (restore / "files" / "lib.py").write_bytes(payload)
-            metadata = {
-                "schema": 1,
-                "install_dir": str(install.resolve()),
-                "exe_name": "FlatCAM.exe",
-                "previous_version": "1.0",
-                "previous_build_string": "build-1",
-                "version": "2.0",
-                "build_string": "build-2",
-                "files": [{"path": "lib.py", "size": len(payload), "sha256": _hash(payload)}],
-                "delete": [],
-            }
-            (restore / "restore.json").write_text(json.dumps(metadata), encoding="utf-8")
-            self.assertEqual(metadata, load_restore_point(restore, install))
-
-            metadata["files"][0]["path"] = "../escape"
-            (restore / "restore.json").write_text(json.dumps(metadata), encoding="utf-8")
-            with self.assertRaises(ValueError):
-                load_restore_point(restore, install, verify_files=False)
 
 class TestLauncher(unittest.TestCase):
-    def test_frozen_update_and_rollback_jobs_pass_the_job_check_of_the_updater(self):
+    def test_frozen_update_and_revert_jobs_pass_the_job_check_of_the_updater(self):
         """A frozen build has no runtime copy per job: the launcher wrote runtime_dir "None", which the updater
         rejects ("runtime_dir must be absolute") before it acknowledges the start, so the app said "The updater could
         not be started." The fake updater checks the job as updater_app.main() does before the acknowledgement."""
@@ -183,10 +128,12 @@ class TestLauncher(unittest.TestCase):
         _write_archive(archive, files)
         manifest = _manifest(archive, files)
         rejected = []
+        jobs = []
 
         def frozen_updater(argv, **kwargs):
             job_path = Path(argv[2])
             job = updater_app.load_job(str(job_path))
+            jobs.append(job)
             try:
                 updater_app._validate_job(job, job_path)
             except ValueError as exc:
@@ -195,21 +142,33 @@ class TestLauncher(unittest.TestCase):
             updater_app._write_startup_ack(job)
 
         exe = str(install / "FlatCAM.exe")
+        # the launcher moves the archive into the job: the run and the revert get their own copies
+        run_archive = root / "run.zip"
+        revert_archive = root / "revert.zip"
+        shutil.copy2(archive, run_archive)
+        shutil.copy2(archive, revert_archive)
         with patch.object(sys, "frozen", True, create=True), patch.object(sys, "executable", exe), patch(
             "services.updater.launcher.subprocess.Popen", frozen_updater
         ), patch.object(launcher_mod, "_wait_for_startup_ack", lambda ack: ack.is_file()):
             self.assertTrue(launch_update(app, manifest, archive, relaunch_argv=[exe]), rejected)
-            # a restore point of this installation, as an applied update leaves it
+            self.assertFalse(archive.exists())
             restore = restore_dir_for_install(data.resolve(), Path(exe).resolve().parent)
-            self.assertEqual(0, _run_job(root, _job(root, install, archive, manifest, restore_dir=str(restore))))
+            self.assertEqual(0, _run_job(root, _job(root, install, run_archive, manifest, restore_dir=str(restore))))
             self.assertEqual(b"new updater", (install / "updater" / "FlatCAMUpdater.exe").read_bytes())
-            # the rollback runs a copy of the installed updater, so it can restore the old updater/
-            self.assertTrue(launch_rollback(app, relaunch_argv=[exe]), rejected)
+            # a revert is a job of the same kind with "revert" set
+            self.assertTrue(launch_update(app, manifest, revert_archive, relaunch_argv=[exe], revert=True), rejected)
+        self.assertNotIn("revert", jobs[0])
+        self.assertIs(True, jobs[1]["revert"])
+
 
 class TestUpdaterApplication(unittest.TestCase):
-    def test_archive_checksum_failure_and_zip_slip_do_not_mutate_install(self):
-        root = Path(tempfile.mkdtemp(prefix="flatcam-ticket2-archive-"))
+    def _root(self, prefix):
+        root = Path(tempfile.mkdtemp(prefix=prefix))
         self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+        return root
+
+    def test_archive_checksum_failure_and_zip_slip_do_not_mutate_install(self):
+        root = self._root("flatcam-updater-archive-")
         install = _install(root)
         archive = root / "release.zip"
         files = {"flatcam.py": b"new"}
@@ -229,12 +188,11 @@ class TestUpdaterApplication(unittest.TestCase):
 
         evil = root / "evil.zip"
         _write_archive(evil, {"flatcam.py": b"new"}, [(zipfile.ZipInfo("../evil.py"), b"evil")])
-        evil_manifest = _manifest(evil, files)
-        evil_manifest["archive"]["size"] = evil.stat().st_size
-        evil_manifest["archive"]["sha256"] = _hash(evil.read_bytes())
-        evil_job = _job(root, install, evil, evil_manifest)
-        self.assertEqual(2, _run_job(root, evil_job))
+        evil_job = _job(root, install, evil, _manifest(evil, files))
+        # a member outside the manifest is ignored or refused, but never written
+        self.assertIn(_run_job(root, evil_job), (0, 2))
         self.assertFalse((root / "evil.py").exists())
+        self.assertFalse((install / ".flatcam-update" / ".." / ".." / "evil.py").resolve().exists())
 
         symlink_zip = root / "symlink.zip"
         link_info = zipfile.ZipInfo("lib/link.py")
@@ -246,130 +204,154 @@ class TestUpdaterApplication(unittest.TestCase):
         self.assertEqual(2, _run_job(root, symlink_job))
         self.assertFalse((install / "lib" / "link.py").exists())
 
-    def test_source_edits_are_backed_up_obsolete_files_removed_and_restore_is_retained(self):
-        root = Path(tempfile.mkdtemp(prefix="flatcam-ticket2-retain-"))
-        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+    def test_size_or_crc_mismatch_in_the_archive_stops_before_any_install_file_changes(self):
+        root = self._root("flatcam-updater-crc-")
+        install = _install(root)
+        before = _tree(install)
+        archive = root / "release.zip"
+        files = {"flatcam.py": b"new entry", "lib/new.py": b"new file"}
+        _write_archive(archive, files)
+        for field, value in (("crc32", zlib.crc32(b"other")), ("size", 3)):
+            with self.subTest(field=field):
+                manifest = _manifest(archive, files)
+                entry = next(item for item in manifest["files"] if item["path"] == "lib/new.py")
+                entry[field] = value
+                entry.pop("sha256")  # the check is the CRC-32 or the size alone
+                self.assertEqual(2, _run_job(root, _job(root, install, archive, manifest)))
+                self.assertEqual(before, _tree(install))
+
+    def test_update_records_the_replaced_release_and_removes_work_and_legacy_folders(self):
+        root = self._root("flatcam-updater-record-")
         install = _install(root)
         (install / "lib" / "old.py").write_bytes(b"local edit")
         archive = root / "release.zip"
-        files = {"flatcam.py": b"new entry", "lib" + "/new.py": b"new file"}
+        files = {"flatcam.py": b"new entry", "lib/new.py": b"new file"}
         _write_archive(archive, files)
         manifest = _manifest(archive, files, deletions=["lib/old.py"])
         job = _job(root, install, archive, manifest)
-        events = []
+        restore = Path(job["restore_dir"])
+        # the restore points of older releases (a full copy of the files) are not used any more
+        for name in (restore.name, restore.name + ".20260101"):
+            (restore.parent / name / "files").mkdir(parents=True)
+            (restore.parent / name / "restore.json").write_text("{}", encoding="utf-8")
+        launched = []
 
-        with patch.object(updater_app.subprocess, "Popen") as popen, patch.object(
-            updater_app, "_PROGRESS", updater_app._Progress(events.append)
-        ):
+        with patch.object(updater_app, "relaunch_app", lambda argv, cwd: launched.append(argv)):
             self.assertEqual(0, _run_job(root, job))
-            popen.assert_not_called()
-
-        # the progress window gets each file of the replace step and a final result
-        replace = events.index(("stage", "Replacing files", 3))
-        advanced = 0
-        for event in events[replace + 1:]:
-            if event[0] != "advance":
-                break
-            advanced += event[1]
-        self.assertEqual(3, advanced)
-        self.assertEqual(("finish", 0), events[-1][:2])
-        self.assertIn("2.0", events[-1][2])
 
         self.assertEqual(b"new entry", (install / "flatcam.py").read_bytes())
         self.assertEqual(b"new file", (install / "lib" / "new.py").read_bytes())
         self.assertFalse((install / "lib" / "old.py").exists())
-        restore = Path(job["restore_dir"])
-        metadata = load_restore_point(restore, install)
-        self.assertEqual({"flatcam.py", "lib/old.py"}, {item["path"] for item in metadata["files"]})
-        self.assertEqual(["lib/new.py"], metadata["delete"])
+        self.assertFalse((install / WORK_DIR_NAME).exists())
+        self.assertEqual([p.name for p in restore.parent.glob("restore*")], [previous_release_path(restore).name])
+        self.assertEqual([], launched)
+        record = read_previous_release(restore, install)
+        self.assertEqual(("1.0", "build-1", "2.0", "build-2"),
+                         (record["previous_version"], record["previous_build_string"], record["version"],
+                          record["build_string"]))
+        self.assertEqual(["lib/new.py"], record["added"])
+        # the record belongs to this installation only
+        other = root / "other"
+        other.mkdir()
+        with self.assertRaises(ValueError):
+            read_previous_release(restore, other)
 
-    def test_mid_apply_failure_rolls_back_and_relaunches_only_after_full_recovery(self):
-        root = Path(tempfile.mkdtemp(prefix="flatcam-ticket2-apply-"))
-        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+    def test_mid_apply_failure_restores_the_old_files_and_relaunches_only_after_full_recovery(self):
+        root = self._root("flatcam-updater-apply-")
         install = _install(root)
         archive = root / "release.zip"
-        files = {"lib/new-a.py": b"a", "lib/new-b.py": b"b"}
+        files = {"flatcam.py": b"new entry", "lib/new-a.py": b"a", "lib/new-b.py": b"b"}
         _write_archive(archive, files)
-        manifest = _manifest(archive, files)
-        job = _job(root, install, archive, manifest, relaunch=True)
+        job = _job(root, install, archive, _manifest(archive, files), relaunch=True)
         launched = []
-        original_copy = updater_app.shutil.copy2
+        original = updater_app._place_file
         calls = {"count": 0}
 
-        def fail_second(source, target, *args, **kwargs):
+        def fail_third(source, target):
             calls["count"] += 1
-            if calls["count"] >= 2:
+            if calls["count"] >= 3:
                 raise OSError("injected apply failure")
-            return original_copy(source, target, *args, **kwargs)
+            return original(source, target)
 
-        with patch.object(updater_app.shutil, "copy2", fail_second), patch.object(
+        with patch.object(updater_app, "_place_file", fail_third), patch.object(
             updater_app, "relaunch_app", lambda argv, cwd: launched.append((argv, cwd))
-        ):
+        ), patch.object(updater_app, "RETRY_BACKOFF", ()):
             self.assertEqual(1, _run_job(root, job))
 
+        self.assertEqual(b"old entry", (install / "flatcam.py").read_bytes())
         self.assertFalse((install / "lib" / "new-a.py").exists())
         self.assertFalse((install / "lib" / "new-b.py").exists())
+        self.assertFalse((install / WORK_DIR_NAME).exists())
+        self.assertFalse(previous_release_path(Path(job["restore_dir"])).exists())
         self.assertEqual(1, len(launched))
 
     def test_failed_rollback_refuses_relaunch_and_parent_is_waited_for(self):
-        root = Path(tempfile.mkdtemp(prefix="flatcam-ticket2-failure-"))
-        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+        root = self._root("flatcam-updater-failure-")
         install = _install(root)
         archive = root / "release.zip"
         files = {"lib/new.py": b"new"}
         _write_archive(archive, files)
-        manifest = _manifest(archive, files)
-        job = _job(root, install, archive, manifest, relaunch=True, wait_pid=123)
+        job = _job(root, install, archive, _manifest(archive, files), relaunch=True, wait_pid=123)
         waited = []
         launched = []
 
         def parent_wait(pid, timeout):
             waited.append((pid, timeout))
 
+        def fail(source, target):
+            raise OSError("apply failure")
+
         with patch.object(updater_app, "wait_for_pid_exit", parent_wait), patch.object(
             updater_app, "_pid_alive", lambda pid: False
         ), patch.object(updater_app, "rollback", lambda *args: False), patch.object(
             updater_app, "relaunch_app", lambda *args: launched.append(args)
-        ), patch.object(updater_app.shutil, "copy2", side_effect=OSError("apply failure")):
+        ), patch.object(updater_app, "_place_file", fail), patch.object(updater_app, "RETRY_BACKOFF", ()):
             self.assertEqual(1, _run_job(root, job))
 
         self.assertEqual([(123, 60)], waited)
         self.assertEqual([], launched)
 
-    def test_explicit_rollback_marks_blocked_release_consumes_restore_and_uses_argv(self):
-        root = Path(tempfile.mkdtemp(prefix="flatcam-ticket2-rollback-"))
-        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+    def test_revert_job_installs_the_old_release_blocks_the_new_one_and_clears_the_record(self):
+        root = self._root("flatcam-updater-revert-")
         install = _install(root)
         archive = root / "release.zip"
         files = {"flatcam.py": b"new entry", "lib/new.py": b"new"}
         _write_archive(archive, files)
-        manifest = _manifest(archive, files, deletions=["lib/old.py"])
-        update_job = _job(root, install, archive, manifest)
+        update_job = _job(root, install, archive, _manifest(archive, files))
         self.assertEqual(0, _run_job(root, update_job))
         restore = Path(update_job["restore_dir"])
-        rollback_job = {
-            "schema": 1,
-            "action": "rollback",
-            "mode": "source",
-            "install_dir": str(install),
-            "restore_dir": str(restore),
-            "exe_name": "",
-            "wait_pid": 0,
-            "relaunch": True,
-            "relaunch_argv": [sys.executable, str(install / "flatcam.py"), "--safe"],
-            "startup_ack_path": str(root / "rollback-started"),
-            "log_path": str(root / "rollback.log"),
-        }
-        launched = []
-        with patch.object(updater_app, "relaunch_app", lambda argv, cwd: launched.append((argv, cwd))):
-            self.assertEqual(0, _run_job(root, rollback_job))
+        record = read_previous_release(restore, install)
 
-        self.assertEqual(b"old entry", (install / "flatcam.py").read_bytes())
-        self.assertEqual(b"old file", (install / "lib" / "old.py").read_bytes())
-        self.assertFalse((install / "lib" / "new.py").exists())
-        self.assertFalse(restore.exists())
+        # what Revert Update does: install the previous release and delete what the update added
+        old_files = {"flatcam.py": b"old entry", "lib/old.py": b"old file"}
+        old_archive = root / "old.zip"
+        _write_archive(old_archive, old_files)
+        old_manifest = _manifest(old_archive, old_files, deletions=record["added"], version="1.0", build="build-1")
+        launched = []
+        revert_job = _job(
+            root, install, old_archive, old_manifest, revert=True, relaunch=True,
+            previous_version="2.0", previous_build_string="build-2",
+            relaunch_argv=[sys.executable, str(install / "flatcam.py"), "--safe"],
+        )
+        with patch.object(updater_app, "relaunch_app", lambda argv, cwd: launched.append(argv)):
+            self.assertEqual(0, _run_job(root, revert_job))
+
+        self.assertEqual(old_files, _tree(install))
         self.assertTrue(is_release_blocked(restore, "2.0", "build-2"))
-        self.assertEqual([rollback_job["relaunch_argv"]], [item[0] for item in launched])
+        self.assertFalse(is_release_blocked(restore, "1.0", "build-1"))
+        self.assertFalse(previous_release_path(restore).exists())
+        self.assertFalse((install / WORK_DIR_NAME).exists())
+        self.assertEqual([revert_job["relaunch_argv"]], launched)
+
+    def test_old_rollback_jobs_are_refused(self):
+        root = self._root("flatcam-updater-oldjob-")
+        install = _install(root)
+        archive = root / "release.zip"
+        files = {"flatcam.py": b"new"}
+        _write_archive(archive, files)
+        job = _job(root, install, archive, _manifest(archive, files), action="rollback")
+        self.assertEqual(3, _run_job(root, job))
+        self.assertEqual(b"old entry", (install / "flatcam.py").read_bytes())
 
 
 if __name__ == "__main__":

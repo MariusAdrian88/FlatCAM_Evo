@@ -6,6 +6,7 @@ import hashlib
 import io
 import stat
 import zipfile
+import zlib
 from pathlib import Path
 
 import pytest
@@ -213,7 +214,7 @@ def test_linux_staging_returns_full_manifest_with_release_identity(monkeypatch, 
     assert result.channel == "linux"
     assert result.install == "linux_zipball"
     assert result.staging_dir.is_dir()
-    assert result.staging_dir == result.archive_path.parent
+    assert result.archive_path.parent.parent == result.staging_dir
     assert result.archive_path.is_file()
     assert not result.staging_dir.is_relative_to(tmp_path / "install")
 
@@ -228,6 +229,11 @@ def test_linux_staging_returns_full_manifest_with_release_identity(monkeypatch, 
     assert manifest.archive.filename == SOURCE_ARCHIVE_NAME
     assert manifest.archive.size == result.archive_path.stat().st_size
     assert manifest.archive.sha256 == sha256_file(result.archive_path)
+    # the downloaded zip is the job archive; the manifest names its wrapper folder and each file's size and CRC-32
+    assert result.archive_path.read_bytes() == body
+    assert manifest.archive_prefix == WRAPPER
+    flatcam = next(entry for entry in manifest.files if entry.path == "flatcam.py")
+    assert (flatcam.size, flatcam.crc32) == (len(b"entry"), zlib.crc32(b"entry"))
 
     paths = [entry.path for entry in manifest.files]
     assert "flatcam.py" in paths
@@ -414,10 +420,7 @@ def test_protected_and_excluded_members_never_reach_the_payload(monkeypatch, tmp
         "cache/data.bin",
     ):
         assert forbidden not in paths
-    with zipfile.ZipFile(result.archive_path) as archive:
-        members = archive.namelist()
-    assert "flatcam.py" in members
-    assert "config/settings.json" not in members
+    assert "flatcam.py" in paths
 
 
 def test_source_archive_requires_exactly_one_enclosing_directory(monkeypatch, tmp_path):

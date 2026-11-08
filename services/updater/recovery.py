@@ -1,4 +1,4 @@
-"""Standalone restore-point validation for the FlatCAM updater."""
+"""Path rules and release records of the FlatCAM updater (standard library only)."""
 
 from __future__ import annotations
 
@@ -8,20 +8,7 @@ import os
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
 
-_REQUIRED_FIELDS = (
-    "schema",
-    "install_dir",
-    "exe_name",
-    "previous_version",
-    "previous_build_string",
-    "version",
-    "build_string",
-    "files",
-    "delete",
-)
-_FILE_FIELDS = ("path", "size", "sha256")
-_HASH_CHUNK_SIZE = 1024 * 1024
-_HASH_RE = set("0123456789abcdefABCDEF")
+_RECORD_FIELDS = ("install_dir", "previous_version", "previous_build_string", "version", "build_string")
 
 # These names are excluded by Ticket 1's release policy or are updater/user
 # state.  They must never become a restore payload or a delete target.
@@ -63,10 +50,18 @@ PROTECTED_FILE_NAMES = frozenset(
 )
 PROTECTED_SUFFIXES = (".flatconfig", ".flatprj")
 UPDATER_RUNTIME_DIR = "updater"
+# the work folder of the updater inside the installation: a rename from it into place stays on one volume, and the
+# extracted files get the access rights of the installation folder (a move from the user profile keeps its rights)
+WORK_DIR_NAME = ".flatcam-update"
+PROTECTED_DIR_NAMES = PROTECTED_DIR_NAMES | {WORK_DIR_NAME}
 
 
 def restore_dir_for_install(data_path, install_dir) -> Path:
-    """Return the stable restore-point directory for an installation."""
+    """Return the stable base path of the update records of an installation.
+
+    The records (``_previous.json``, ``_blocked.json``) are siblings of this path. Releases up to 1.05 kept a
+    restore point with a copy of all files in this directory; the updater removes such a directory.
+    """
     install_hash8 = hashlib.sha1(str(Path(install_dir)).encode()).hexdigest()[:8]
     return Path(data_path) / "update" / f"restore_{install_hash8}"
 
@@ -187,163 +182,39 @@ def safe_join(parent: Path, relative: str, *, label: str = "path") -> Path:
     return candidate
 
 
-def _verify_backup_file(path: Path, expected_size: int, expected_hash: str) -> None:
-    if path.is_symlink() or not path.is_file():
-        raise OSError(f"restore payload is missing or not a file: {path}")
-    if path.stat().st_size != expected_size:
-        raise ValueError(f"restore payload size mismatch: {path}")
-    digest = hashlib.sha256()
-    with path.open("rb") as payload:
-        while chunk := payload.read(_HASH_CHUNK_SIZE):
-            digest.update(chunk)
-    if digest.hexdigest().casefold() != expected_hash.casefold():
-        raise ValueError(f"restore payload hash mismatch: {path}")
+def previous_release_path(restore_dir) -> Path:
+    """Return the sibling record of the release that the last update replaced (the target of Revert Update)."""
+    restore_path = Path(restore_dir)
+    return restore_path.with_name(restore_path.name + "_previous.json")
 
 
-def _check_unique_path(path: str, seen_paths: set[str]) -> None:
-    key = path.casefold()
-    if key in seen_paths:
-        raise ValueError("restore file and delete paths must be unique")
-    seen_paths.add(key)
+def read_previous_release(restore_dir, install_dir) -> dict:
+    """Read the record of the previous release for this installation; raise when there is no usable record.
 
-
-def _validate_metadata_fields(metadata: dict) -> None:
-    missing = [field for field in _REQUIRED_FIELDS if field not in metadata]
-    if missing:
-        raise ValueError("restore metadata is missing a required field")
-    if type(metadata["schema"]) is not int or metadata["schema"] != 1:
-        raise ValueError("restore metadata schema must be integer 1")
-    if not isinstance(metadata["install_dir"], str) or not Path(metadata["install_dir"]).is_absolute():
-        raise ValueError("restore metadata install_dir must be absolute")
-    if not isinstance(metadata["exe_name"], str):
-        raise ValueError("restore metadata exe_name must be a string")
-    if metadata["exe_name"]:
-        exe_name = Path(metadata["exe_name"])
-        if exe_name.name != metadata["exe_name"] or metadata["exe_name"] in (".", ".."):
-            raise ValueError("restore metadata exe_name must be a file name")
-    for field in ("previous_version", "previous_build_string", "version", "build_string"):
-        if not isinstance(metadata[field], str):
-            raise ValueError(f"restore metadata {field} must be a string")
-    if metadata.get("mode") is not None and metadata["mode"] not in ("source", "frozen"):
-        raise ValueError("restore metadata mode is invalid")
-    if not isinstance(metadata["files"], list):
-        raise ValueError("restore metadata files must be a list")
-    if not isinstance(metadata["delete"], list):
-        raise ValueError("restore metadata delete must be a list")
-
-
-def _validate_entries(metadata: dict) -> tuple[list[tuple], list[tuple]]:
-    file_entries = []
-    for entry in metadata["files"]:
-        if not isinstance(entry, dict) or any(field not in entry for field in _FILE_FIELDS):
-            raise ValueError("restore file entry is malformed")
-        path = validate_relative_path(entry["path"])
-        size = entry["size"]
-        if type(size) is not int or size < 0:
-            raise ValueError("restore file size must be a non-negative integer")
-        expected_hash = entry["sha256"]
-        if (
-            not isinstance(expected_hash, str)
-            or len(expected_hash) != 64
-            or not set(expected_hash) <= _HASH_RE
-        ):
-            raise ValueError("restore file sha256 must be 64 hexadecimal characters")
-        file_entries.append((path, size, expected_hash))
-
-    delete_paths = []
-    for entry in metadata["delete"]:
-        path = validate_relative_path(entry)
-        delete_paths.append(path)
-    return file_entries, delete_paths
-
-
-def read_restore_summary(restore_dir, install_dir) -> dict:
-    """Read the metadata of a restore point for the Revert Update action: no check of each file.
-
-    A restore point of a full release lists thousands of files and their path checks take seconds, so the GUI reads
-    only restore.json. launch_rollback runs load_restore_point, and the updater checks the hashes before it changes
-    a file.
+    The record holds no files: Revert Update downloads the previous release from GitHub and installs it.
     """
-    restore_path = Path(restore_dir)
-    metadata_path = restore_path / "restore.json"
-    if metadata_path.is_symlink() or not metadata_path.is_file():
-        raise OSError(f"restore metadata is missing: {metadata_path}")
-    if not (restore_path / "files").is_dir():
-        raise OSError(f"restore files directory is missing: {restore_path}")
+    path = previous_release_path(restore_dir)
+    if path.is_symlink() or not path.is_file():
+        raise OSError(f"no previous release is recorded: {path}")
     try:
-        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        record = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise ValueError(f"invalid restore metadata: {exc}") from exc
-    if not isinstance(metadata, dict):
-        raise ValueError("restore metadata must be a JSON object")
-    _validate_metadata_fields(metadata)
-    if _path_key(_resolve(Path(metadata["install_dir"]), "install directory")) != _path_key(
+        raise ValueError(f"invalid previous release record: {exc}") from exc
+    if not isinstance(record, dict) or record.get("schema") != 1:
+        raise ValueError("previous release record schema must be integer 1")
+    for field in _RECORD_FIELDS:
+        if not isinstance(record.get(field), str):
+            raise ValueError(f"previous release record {field} must be a string")
+    if not record["previous_version"]:
+        raise ValueError("previous release record has no version")
+    added = record.get("added", [])
+    if not isinstance(added, list):
+        raise ValueError("previous release record added must be a list")
+    record["added"] = [validate_relative_path(item) for item in added]
+    if _path_key(_resolve(Path(record["install_dir"]), "install directory")) != _path_key(
             _resolve(Path(install_dir), "install_dir argument")):
-        raise ValueError("restore metadata installation mismatch")
-    return metadata
-
-
-def load_restore_point(restore_dir, install_dir=None, verify_files=True) -> dict:
-    """Load and validate a restore point without changing any files."""
-    restore_path = Path(restore_dir)
-    if not restore_path.is_absolute():
-        raise ValueError("restore directory must be absolute")
-    _reject_symlink_components(restore_path)
-    if not restore_path.is_dir():
-        raise OSError(f"restore directory is missing: {restore_path}")
-    metadata_path = restore_path / "restore.json"
-    if metadata_path.is_symlink() or not metadata_path.is_file():
-        raise OSError(f"restore metadata is missing: {metadata_path}")
-    try:
-        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise ValueError(f"invalid restore metadata: {exc}") from exc
-    if not isinstance(metadata, dict):
-        raise ValueError("restore metadata must be a JSON object")
-    _validate_metadata_fields(metadata)
-
-    record_install = Path(metadata["install_dir"])
-    _reject_symlink_components(record_install)
-    install_root = _resolve(record_install, "install directory")
-    if not install_root.is_dir() or record_install.is_symlink():
-        raise ValueError("restore metadata install_dir must be an existing directory")
-    if install_dir is not None:
-        supplied = Path(install_dir)
-        _reject_symlink_components(supplied)
-        if _path_key(_resolve(supplied, "install_dir argument")) != _path_key(install_root):
-            raise ValueError("restore metadata installation mismatch")
-
-    restore_root = _resolve(restore_path, "restore directory")
-    if _is_within(restore_root, install_root) or _is_within(install_root, restore_root):
-        raise ValueError("restore directory and installation must not contain each other")
-
-    files_root = restore_path / "files"
-    if files_root.is_symlink() or not files_root.is_dir():
-        raise ValueError("restore files directory must be a real directory")
-    _reject_symlink_components(files_root, restore_path)
-    file_entries, delete_paths = _validate_entries(metadata)
-    seen_paths: set[str] = set()
-    for path, size, expected_hash in file_entries:
-        _check_unique_path(path, seen_paths)
-        safe_join(install_root, path, label="restore file path")
-        backup_path = safe_join(files_root, path, label="restore payload path")
-        if verify_files:
-            _verify_backup_file(backup_path, size, expected_hash)
-    for path in delete_paths:
-        _check_unique_path(path, seen_paths)
-        safe_join(install_root, path, label="restore delete path")
-
-    exe_name = metadata["exe_name"]
-    if exe_name:
-        exe_path = safe_join(install_root, exe_name, label="installation executable")
-        if exe_path.exists():
-            if exe_path.is_symlink() or not exe_path.is_file():
-                raise ValueError("installation executable must be a file")
-        elif not any(path.casefold() == exe_name.casefold() for path, _, _ in file_entries):
-            if metadata.get("mode") != "source":
-                raise ValueError("installation executable is missing from restore contract")
-
-    return metadata
+        raise ValueError("previous release record installation mismatch")
+    return record
 
 
 def is_release_blocked(restore_dir, version, build_string) -> bool:

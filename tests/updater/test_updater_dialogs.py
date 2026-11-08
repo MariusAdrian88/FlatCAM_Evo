@@ -53,7 +53,6 @@ def _fake_app(tmp_path):
     app._update_progress_dialog = None
     app._update_in_progress = False
     app._update_cancel_event = None
-    app._rollback_in_progress = False
     app._release_preparation_in_progress = False
     app._manual_update_requested = False
     app._check_in_progress = False
@@ -331,6 +330,7 @@ def test_launcher_owns_a_verified_archive_copy_before_stage_cleanup(monkeypatch,
     staging, archive, manifest = _launcher_fixture(tmp_path)
     app = SimpleNamespace(data_path=str(tmp_path / "data"), log=MagicMock())
     captured = {}
+    original = archive.read_bytes()
 
     def fake_popen(argv, **kwargs):
         job = json.loads(Path(argv[3]).read_text(encoding="utf-8"))
@@ -343,7 +343,8 @@ def test_launcher_owns_a_verified_archive_copy_before_stage_cleanup(monkeypatch,
 
     job_archive = Path(captured["job"]["archive_path"])
     assert job_archive != archive
-    assert job_archive.read_bytes() == archive.read_bytes()
-    shutil.rmtree(staging)
+    assert job_archive.read_bytes() == original
+    # the archive is moved into the job: cleaning the stage cannot remove the updater's copy
     assert not archive.exists()
+    shutil.rmtree(staging)
     updater_app._validate_archive(job_archive, manifest["archive"])

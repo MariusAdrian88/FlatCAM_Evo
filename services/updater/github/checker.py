@@ -227,6 +227,31 @@ class GitHubUpdateChecker:
             return "manual", "macos"
         return "manual", "unsupported-platform"
 
+    def revert_payload(self, app, version, *, repository_url=None, transport=None):
+        """Return the offer of the release with this version, to install it as a revert; raise when it is missing."""
+        channel = self._channel(app)
+        install, reason = self._install_plan(app)
+        if install not in ("windows_asset", "linux_zipball"):
+            raise TransportError(f"This installation cannot be reverted automatically: {reason}.")
+        if transport is None:
+            transport = self.create_transport(app, repository_url=repository_url)
+        wanted = _numeric(version)
+        release = None
+        for candidate in transport.list_releases():
+            try:
+                if _numeric(candidate.version) == wanted:
+                    release = candidate
+                    break
+            except ManifestError:
+                continue
+        if release is None:
+            raise TransportError(f"The release {version} is not published on GitHub.")
+        if install == "windows_asset" and release.windows_asset() is None:
+            raise TransportError(f"The release {version} has no Windows update archive.")
+        payload = self._payload("update_available", channel, app, release=release, install=install, reason=reason)
+        payload["revert"] = True
+        return payload
+
     def run_check(self, app=None, *, forced=False, repository_url=None):
         """Run one check and return a result safe for a worker task."""
         app = app or self.app
