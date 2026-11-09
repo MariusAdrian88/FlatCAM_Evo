@@ -8,6 +8,29 @@ CHANGELOG for FlatCAM Evo
 
 09.11.2026
 
+Gerber Editor:
+
+- fixed: a save no longer drops the apertures of the edited object; a flash or a track whose shape still matches its aperture is saved with that aperture, so the tools that read the apertures keep working after an edit
+- fixed: a cut or changed flash or track is saved as region material; before, a cut pad could be saved as the full flash, so the cut was lost
+- fixed: an object with clear features that is loaded with its apertures keeps the native flashes and tracks; only the records that the clear features cut become region material
+- fixed: regions with holes that overlap other copper are joined only where a hole removes that copper; the joined polygon keeps the object attribute (.TO) only if all its parts have the same one
+- fixed: the Eraser no longer cuts a record that it only touches at the edge; a cut flash no longer keeps its old flash center
+- changed: the default of Preferences > Gerber Editor > Load is now Apertures (was Regions)
+- changed: the save is faster: the check of the aperture shape compares the vertices first and does the full shape test only when the vertices differ; the geometry is no longer copied twice; the save of a board of 2730 pads takes 0.34 s (was 0.45 s)
+
+Application:
+
+- fixed: 2 instances that start at the same time with a new data folder no longer stop with "FileExistsError"; both can make the data and preprocessors folders
+
+09.11.2026
+
+Isolation:
+
+- fixed: in the Polygon Selection mode a click on the copper did not highlight the polygon; the selection color already holds an alpha value, and the tool added a second one
+- fixed: in the Polygon Selection mode a right click did not start the isolation; the mouse press flag stayed set, so each right click was taken as a drag; now only a pan with the right button stops it
+
+09.11.2026
+
 Isolation:
 
 - new: the Voronoi strategy; one pass follows the boundaries between the nets, so the job removes the least copper; each path is checked against the real cutter sweep, and a gap narrower than the tool stops the job with its location shown on the canvas
