@@ -6,7 +6,46 @@ Based on FlatCAM:
 
 CHANGELOG for FlatCAM Evo
 
+09.11.2026
+
+Isolation:
+
+- new: the Voronoi strategy; one pass follows the boundaries between the nets, so the job removes the least copper; each path is checked against the real cutter sweep, and a gap narrower than the tool stops the job with its location shown on the canvas
+- new: each tool in the table keeps its own strategy (Offset or Voronoi), Voronoi spacing and Pad isolation; a table with both strategies makes both
+- new: if the copper perimeter needs more Voronoi sites than the limit, the spacing grows (up to half the tool diameter) with a warning, instead of a failure
+- changed: the boundary object with flashes inside its outline uses the concave hull of the board; an outline without flashes (the usual cutout Gerber, or a Geometry) keeps the enclosed area as before
+- fixed: a Voronoi geometry stays valid after a change of units; a move, scale, rotate or edit still asks to make the geometry again
+- new: Tcl isolate takes -strategy, -voronoi_spacing and -pad_isolation; the Voronoi strategy needs -boundary
+
+Copper Clearing and Paint:
+
+- new: the Crosshatch method; 2 families of parallel lines at the set angle and at the angle + 90 degrees
+- new: the Angle field is enabled only for the Crosshatch method; Tcl copper_clear and paint take -angle and warn when the method is not Crosshatch
+- fixed: the tools database saves the Crosshatch angle of a tool from an older database
+
+Preprocessors:
+
+- new: Buildbotics, Fanuc, FluidNC, Haas, Heidenhain_ISO, LinuxCNC, Mach3, Mach4, PlanetCNC, Sinumerik, TinyG and UCCNC
+- Fanuc and Haas programs start and end with % and an O number, and end with M30; Sinumerik selects the ISO dialect (G291) and ends with M30; Heidenhain ISO numbers the blocks and calls the tool with T<n> G17 S<rpm>
+- Mach3, Mach4, UCCNC and PlanetCNC end the program with M02
+- fixed: a very short dwell is no longer written as 0 or with an exponent (G4 P1e-05)
+- fixed: the Fanuc, Haas and Sinumerik tool change uses the Start Z of the first tool
+
+Route optimizer (issue #83):
+
+- fixed: on Linux the OR-Tools route optimizer failed with a decimal comma in the system locale (Qt sets LC_NUMERIC from the system, and protobuf reads the default 0.5 of a parameter with the comma); the application, each pool child and each route solve now set LC_NUMERIC to "C" when the locale has a decimal comma
+- fixed: a broken OR-Tools install (for example a protobuf descriptor error) no longer stops camlib from loading; the optimizer falls back to the greedy order
+
+Help:
+
+- changed: the Help menu links open the Gerber Layer Format Specification revision 2024-05 and the XNC Format Specification revision 2021-11 at the new Ucamco addresses
+- RELEASE 1.06
+
 08.11.2026
+
+Copper Clearing:
+
+- changed: the factory clearing method is Standard instead of Seed; on the measured boards a Standard job takes 21 to 51 % less machining time (fewer lifts), with the same cleared area and no uncut islands; the time ranking stays the same with machine acceleration; saved preferences and tools keep their method
 
 Updater:
 
