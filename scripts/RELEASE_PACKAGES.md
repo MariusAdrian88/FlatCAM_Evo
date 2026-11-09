@@ -37,9 +37,9 @@ An unknown release/tag fails rather than creating a new release. Duplicate runs 
 `make_freeze.py` is not required. It follows that script's `lib/` resource layout and includes the dynamically
 loaded OpenGL and OR-Tools modules and the in-app update-checking package. It doesn't build the Windows updater.
 
-Builds use Python 3.11 and conda-forge for GDAL, Rasterio, FreeType and Tcl/Tk. The Python requirements come from
-`requirements.txt`. NumPy 1.26.4 and OR-Tools 9.14.6206 are selected together so a newer OR-Tools doesn't force
-NumPy 2 into the native-library environment. cx_Freeze is pinned to 8.7.3.
+Builds use Python 3.13 and conda-forge for GDAL, Rasterio (1.4.0 or newer), FreeType, Tcl/Tk and NumPy 2. Conda
+installs NumPy, so pip doesn't replace the NumPy that the native libraries are built against. The Python requirements
+come from `requirements.txt`. OR-Tools is pinned to 9.14.6206 and cx_Freeze to 8.7.3.
 
 Linux builds run on Ubuntu 22.04. This doesn't guarantee compatibility with every Linux distribution: native
 library requirements and host graphics drivers still matter. The AppImage tool and runtime are downloaded by
