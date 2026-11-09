@@ -1,6 +1,7 @@
 # ##########################################################
-# FlatCAM: 2D Post-processing for Manufacturing             #
+# FlatCAM Evo: 2D Post-processing for Manufacturing        #
 # Native OrCAD PCB / Cadence Allegro board (.brd) reader    #
+# Author: Marius Stanciu (c)                                #
 # MIT Licence                                             #
 # ##########################################################
 

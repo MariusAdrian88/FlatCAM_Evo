@@ -1,10 +1,8 @@
 # ###########################################################
-# FlatCAM: 2D Post-processing for Manufacturing             #
-# http://flatcam.org                                        #
-# Author: Juan Pablo Caram (c)                              #
-# Date: 2/5/2014                                            #
-# MIT Licence                                               #
-# Modified by Marius Stanciu (2019)                          #
+# FlatCAM Evo: 2D Post-processing for Manufacturing        #
+# https://github.com/MariusAdrian88/FlatCAM_Evo            #
+# MIT Licence                                              #
+# by Marius Stanciu (2019)                                  #
 # ###########################################################
 
 from PyQt6 import QtGui, QtWidgets, QtCore

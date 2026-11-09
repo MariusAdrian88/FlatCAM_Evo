@@ -1,6 +1,6 @@
 # ###########################################################
-# FlatCAM: 2D Post-processing for Manufacturing             #
-# http://flatcam.org                                        #
+# FlatCAM Evo: 2D Post-processing for Manufacturing        #
+# https://github.com/MariusAdrian88/FlatCAM_Evo            #
 # Author: Juan Pablo Caram (c)                              #
 # Date: 2/5/2014                                            #
 # MIT Licence                                               #
@@ -268,8 +268,8 @@ class App(QtCore.QObject):
 
     # ################################### Version and VERSION DATE ##################################################
     # version = "Unstable"
-    version = "1.05"
-    version_date = "2026/11/06"
+    version = "1.06"
+    version_date = "2026/11/09"
     beta = False
 
     # current date now
@@ -288,9 +288,10 @@ class App(QtCore.QObject):
     # Manual URL
     manual_url = "http://flatcam.org/manual/index.html"
     video_url = "https://www.youtube.com/playlist?list=PLVvP2SYRpx-AQgNlfoxw93tXUXon7G94_"
-    gerber_spec_url = ("https://www.ucamco.com/files/downloads/file/81/"
-                       "The_Gerber_File_Format_specification.pdf?7ac957791daba2cdf4c2c913f67a43da")
-    excellon_spec_url = "https://www.ucamco.com/files/downloads/file/305/the_xnc_file_format_specification.pdf"
+    gerber_spec_url = ("https://www.ucamco.com/files/downloads/file_en/456/"
+                       "gerber-layer-format-specification-revision-2022-02_en.pdf?ac97011bf6bce9aaf0b1aac43d84b05f")
+    excellon_spec_url = ("https://www.ucamco.com/files/downloads/file_en/452/"
+                         "xnc-format-specification-revision-2021-11_en.pdf?2ccd0fdd6dd78e87ed52185bbd06038b")
     bug_report_url = "https://github.com/MariusAdrian88/FlatCAM_Evo/issues"
     donate_url = ("https://www.paypal.com/cgi-bin/webscr?cmd="
                   "_donations&business=WLTJJ3Q77D98L&currency_code=USD&source=url")

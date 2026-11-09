@@ -1,5 +1,5 @@
 # ##########################################################
-# FlatCAM: 2D Post-processing for Manufacturing            #
+# FlatCAM Evo: 2D Post-processing for Manufacturing        #
 # File: SingleInstance.py                                  #
 # ##########################################################
 

@@ -1,5 +1,6 @@
 # ##########################################################
-# FlatCAM: native Proteus project container/version facade #
+# FlatCAM Evo: native Proteus project container/version facade #
+# Author: Marius Stanciu (c)                                #
 # MIT Licence                                             #
 # ##########################################################
 

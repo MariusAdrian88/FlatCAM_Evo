@@ -1,5 +1,6 @@
 # ##########################################################
-# FlatCAM: native Proteus 8 saved PCB geometry reader       #
+# FlatCAM Evo: native Proteus 8 saved PCB geometry reader       #
+# Author: Marius Stanciu (c)                                #
 # MIT Licence                                             #
 # ##########################################################
 

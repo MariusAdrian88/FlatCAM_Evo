@@ -1,6 +1,6 @@
 # ##########################################################
-# FlatCAM: 2D Post-processing for Manufacturing            #
-# http://flatcam.org                                       #
+# FlatCAM Evo: 2D Post-processing for Manufacturing        #
+# https://github.com/MariusAdrian88/FlatCAM_Evo            #
 # Author: Juan Pablo Caram (c)                             #
 # Date: 2/5/2014                                           #
 # MIT Licence                                              #

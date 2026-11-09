@@ -1,6 +1,7 @@
 # ##########################################################
-# FlatCAM: 2D Post-processing for Manufacturing             #
+# FlatCAM Evo: 2D Post-processing for Manufacturing        #
 # Native Altium PCB6 geometry reader                       #
+# Author: Marius Stanciu (c)                                #
 # MIT Licence                                             #
 # ##########################################################
 

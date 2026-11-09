@@ -1,7 +1,5 @@
 # ##########################################################
-# FlatCAM: 2D Post-processing for Manufacturing            #
-# Author: Dennis Hayrullin (c)                             #
-# Date: 2016                                               #
+# FlatCAM Evo: 2D Post-processing for Manufacturing        #                                          #
 # MIT Licence                                              #
 # ##########################################################
 
