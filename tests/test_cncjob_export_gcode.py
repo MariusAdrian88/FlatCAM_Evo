@@ -83,6 +83,332 @@ def test_unknown_preprocessor_of_a_saved_job_exports_with_the_default_one(kind):
     assert 'Gone_Machine' in job.app.inform.emit.call_args[0][0]
 
 
+@pytest.mark.parametrize('kind', ['Geometry', 'Excellon'])
+@pytest.mark.parametrize('ppname,stored_name,multitool,footer_enabled,expected', [
+    ('LinuxCNC', 'default', True, False, True),
+    ('LinuxCNC', 'default', False, True, True),
+    ('default', 'LinuxCNC', True, False, False),
+    ('default', 'default', False, True, True),
+    ('Roland_MDX_20', 'default', True, False, False),
+    ('Roland_MDX_20', 'default', False, True, True),
+])
+def test_footer_uses_the_saved_tool_profile_and_follows_the_user_postamble(
+        kind, ppname, stored_name, multitool, footer_enabled, expected):
+    job = _job(kind, ppname)
+    job.pp_geometry_name = job.pp_excellon_name = stored_name
+    job.multitool = multitool
+    job.gcode = 'BODY_SINGLE\n'
+    app_option = job._app_option
+    job._app_option = lambda key, fallback=None: footer_enabled if key == 'cncjob_footer' else app_option(key, fallback)
+    job.gcode_footer = CNCJobObject.gcode_footer
+
+    text = CNCJobObject.export_gcode(job, postamble='M9\n(APPEND: shutdown)', to_file=True).getvalue()
+
+    body = 'BODY_TOOL_1\nBODY_TOOL_2' if multitool else 'BODY_SINGLE'
+    assert body in text and text.index(body) < text.index('M9')
+    assert text.count('M02') == int(expected)
+    assert text.rstrip().endswith('M02' if expected else '(APPEND: shutdown)')
+
+
+def test_controllers_that_need_a_program_end_get_it_after_the_postamble():
+    for ppname in ('Mach3', 'Mach4', 'UCCNC', 'PlanetCNC', 'LinuxCNC'):
+        job = _job('Geometry', ppname)
+        job.gcode_footer = CNCJobObject.gcode_footer
+
+        text = CNCJobObject.export_gcode(job, postamble='M9', to_file=True).getvalue()
+
+        assert text.rstrip().splitlines()[-2:] == ['M9', 'M02'], ppname
+
+
+@pytest.mark.parametrize('kind', ['Geometry', 'Excellon'])
+def test_fanuc_export_envelope_follows_the_user_postamble(kind):
+    job = _job(kind, 'Fanuc')
+
+    text = CNCJobObject.export_gcode(job, postamble='M9\n(APPEND: shutdown)', to_file=True).getvalue()
+
+    lines = text.rstrip('\n').splitlines()
+    assert lines[:2] == ['%', 'O0001']
+    assert lines[-2:] == ['M30', '%']
+    assert text.count('M30') == 1
+    assert text.index('BODY_TOOL_1') < text.index('BODY_TOOL_2') < text.index('M9') < text.index('M30')
+
+
+@pytest.mark.parametrize('footer_enabled', [False, True])
+def test_fanuc_program_end_is_written_once(footer_enabled):
+    job = _job('Geometry', 'Fanuc')
+    app_option = job._app_option
+    job._app_option = lambda key, fallback=None: footer_enabled if key == 'cncjob_footer' else app_option(key, fallback)
+    job.gcode_footer = CNCJobObject.gcode_footer
+
+    text = CNCJobObject.export_gcode(job, postamble='M9', to_file=True).getvalue()
+
+    # the app option writes its own M02; without it the envelope ends with M30. Never both
+    end = 'M02' if footer_enabled else 'M30'
+    assert text.count('M30') + text.count('M02') == 1
+    assert text.rstrip().splitlines()[-2:] == [end, '%']
+    assert text.index('M9') < text.index(end)
+
+
+def test_fanuc_envelope_is_the_same_in_a_saved_file(tmp_path):
+    job = _job('Geometry', 'Fanuc')
+    text = CNCJobObject.export_gcode(job, postamble='M9', to_file=True).getvalue()
+
+    path = tmp_path / 'fanuc.nc'
+    CNCJobObject.export_gcode(job, filename=str(path), postamble='M9')
+
+    assert path.read_text(encoding='utf-8') == text
+
+
+@pytest.mark.parametrize('ppname', ['Fanuc', 'Haas'])
+@pytest.mark.parametrize('footer_enabled', [False, True])
+def test_industrial_envelope_preserves_the_user_program_end(ppname, footer_enabled):
+    job = _job('Geometry', ppname)
+    app_option = job._app_option
+    job._app_option = lambda key, fallback=None: footer_enabled if key == 'cncjob_footer' else app_option(key, fallback)
+    job.gcode_footer = CNCJobObject.gcode_footer
+    postamble = 'M9\nM30'
+
+    text = CNCJobObject.export_gcode(job, postamble=postamble, to_file=True).getvalue()
+
+    assert postamble in text
+    assert text.rstrip().endswith(('M02\n%' if footer_enabled else 'M30\n%'))
+
+
+def test_export_supports_legacy_profiles_and_does_not_hide_formatter_errors():
+    job = _job('Geometry', 'custom')
+    pp = SimpleNamespace(include_header=True)
+    job.app.preprocessors = dict(PREPROCESSORS, custom=pp)
+    assert 'BODY_TOOL_1\nBODY_TOOL_2' in _export(job)
+
+    pp.finalize_gcode = Mock(side_effect=ValueError('invalid program'))
+    with pytest.raises(ValueError, match='invalid program'):
+        _export(job)
+
+
+@pytest.mark.parametrize('kind', ['Geometry', 'Excellon'])
+def test_haas_export_envelope_follows_the_user_postamble(kind):
+    job = _job(kind, 'Haas')
+
+    text = CNCJobObject.export_gcode(job, postamble='M9\n(APPEND: shutdown)', to_file=True).getvalue()
+
+    lines = text.rstrip('\n').splitlines()
+    assert lines[:2] == ['%', 'O00001']
+    assert lines[-2:] == ['M30', '%']
+    assert text.count('M30') == 1
+    assert text.index('BODY_TOOL_1') < text.index('BODY_TOOL_2') < text.index('M9') < text.index('M30')
+
+
+def test_sinumerik_complete_file_starts_at_g291_and_ends_after_the_postamble():
+    from tests.test_preprocessors_no_swallowed_errors import params
+
+    job = _job('Geometry', 'Sinumerik')
+    job.multitool = False
+    job.gcode = 'G00 X1.0000 Y2.0000\n'
+    job.gc_start = PREPROCESSORS['Sinumerik'].start_code(params()) + '\n'
+    job.gcode_footer = CNCJobObject.gcode_footer
+
+    text = CNCJobObject.export_gcode(job, preamble='(PREAMBLE)', postamble='M9\n(APPEND: shutdown)',
+                                     to_file=True).getvalue()
+
+    lines = text.rstrip('\n').splitlines()
+    assert lines[0] == 'G291'
+    assert 'HEADER' not in text
+    assert '%' not in text and not re.search(r'^O\d+', text, re.M)
+    assert 'M02' not in text and 'G290' not in text
+    assert text.count('M30') == 1
+    assert lines[-1] == 'M30'
+    assert text.index('G291') < text.index('(PREAMBLE)') < text.index('G00 X1.0000') < text.index('M9') < \
+        text.index('M30')
+
+
+def test_sinumerik_saved_file_matches_the_export_and_ends_after_the_postamble(tmp_path):
+    from tests.test_preprocessors_no_swallowed_errors import params
+
+    job = _job('Geometry', 'Sinumerik')
+    job.multitool = False
+    job.gcode = 'G00 X1.0000 Y2.0000\n'
+    job.gc_start = PREPROCESSORS['Sinumerik'].start_code(params()) + '\n'
+    job.gcode_footer = CNCJobObject.gcode_footer
+
+    text = CNCJobObject.export_gcode(job, postamble='M9', to_file=True).getvalue()
+    path = tmp_path / 'job.MPF'
+    CNCJobObject.export_gcode(job, filename=str(path), postamble='M9')
+    saved = path.read_text(encoding='utf-8')
+
+    assert saved == text
+    assert saved.startswith('G291\n') and saved.rstrip().endswith('M30')
+
+
+def test_tinyg_complete_file_ends_with_m02_after_the_postamble():
+    from tests.test_preprocessors_no_swallowed_errors import params
+
+    job = _job('Geometry', 'TinyG')
+    job.multitool = False
+    job.gcode = 'G00 X1.0000 Y2.0000\n'
+    job.gc_start = PREPROCESSORS['TinyG'].start_code(params()) + '\n'
+    job.gcode_footer = CNCJobObject.gcode_footer
+
+    text = CNCJobObject.export_gcode(job, preamble='(PREAMBLE)', postamble='M9\n(APPEND: shutdown)',
+                                     to_file=True).getvalue()
+
+    lines = text.rstrip('\n').splitlines()
+    # plain text: no TinyG queue-control '%' and no program number
+    assert '%' not in text and not re.search(r'^O\d+', text, re.M)
+    assert text.count('M02') == 1
+    assert lines[-1] == 'M02'
+    assert text.index('G21') < text.index('(PREAMBLE)') < text.index('G00 X1.0000') < text.index('M9') < \
+        text.index('M02')
+
+
+def test_buildbotics_complete_file_ends_with_m02_after_the_postamble():
+    from tests.test_preprocessors_no_swallowed_errors import params
+
+    job = _job('Geometry', 'Buildbotics')
+    job.multitool = False
+    job.gcode = 'G00 X1.0000 Y2.0000\nM5\n'
+    job.gc_start = PREPROCESSORS['Buildbotics'].start_code(params()) + '\n'
+    job.gcode_footer = CNCJobObject.gcode_footer
+
+    text = CNCJobObject.export_gcode(job, preamble='(PREAMBLE)', postamble='M9\n(APPEND: shutdown)',
+                                     to_file=True).getvalue()
+
+    lines = text.rstrip('\n').splitlines()
+    # a plain .nc program: no queue-control '%' and no program number
+    assert '%' not in text and not re.search(r'^O\d+', text, re.M)
+    # one executable program end, after the postamble; the start comment also names M02
+    assert sum(1 for line in lines if line.strip() == 'M02') == 1
+    assert lines[-1] == 'M02'
+    assert text.index('G21') < text.index('(PREAMBLE)') < text.index('G00 X1.0000') < text.index('M5') < \
+        text.index('M9') < text.rindex('M02')
+
+
+@pytest.mark.parametrize('units,word,feed,plunge', [('MM', 'G71', '250.00', '60.00'),
+                                                    ('IN', 'G70', '2500.00', '600.00')])
+def test_heidenhain_iso_complete_file_envelope_feeds_and_restarts(units, word, feed, plunge):
+    from tests.test_preprocessors_no_swallowed_errors import params
+
+    pp = PREPROCESSORS['Heidenhain_ISO']
+    p = params(units=units, feedrate=250.0, z_feedrate=60.0, xy_toolchange=[5.0, 7.0])
+    body = '\n'.join([pp.startz_code(p), pp.toolchange_code(p), pp.spindle_code(p), pp.rapid_code(p),
+                      pp.down_code(p), pp.linear_code(p), pp.up_to_zero_code(p), pp.lift_code(p),
+                      pp.spindle_stop_code(p), pp.end_code(p)])
+    job = _job('Geometry', 'Heidenhain_ISO')
+    job.multitool = False
+    job.gcode = body + '\n'
+    job.gc_start = pp.start_code(p) + '\n'
+    # the export uses the unit word written into the saved start block, not the settings of the application
+    job.units = 'IN' if units == 'MM' else 'MM'
+    job.gcode_footer = CNCJobObject.gcode_footer
+
+    text = CNCJobObject.export_gcode(job, preamble='; PREAMBLE', postamble='; POSTAMBLE', to_file=True).getvalue()
+    lines = text.rstrip('\n').splitlines()
+
+    assert lines[0] == '%%FLATCAM %s *' % word
+    assert lines[-1] == 'N99999999 %%FLATCAM %s *' % word
+    assert text.index('; PREAMBLE') < text.index('; POSTAMBLE') < text.rindex('M02') < text.index('N99999999')
+    assert len(re.findall(r'^N\d+ M02 \*$', text, re.M)) == 1
+    # the X-Y and both Z cutting moves carry the feed; in G70 it is programmed in 1/10 inch/min
+    assert re.search(r'^N\d+ G01 X\S+ Y\S+ F%s \*$' % re.escape(feed), text, re.M)
+    assert re.search(r'^N\d+ G01 Z-1.5000 F%s \*$' % re.escape(plunge), text, re.M)
+    assert re.search(r'^N\d+ G01 Z0 F%s \*$' % re.escape(plunge), text, re.M)
+    # inch coordinates stay inches; only the feed is multiplied by ten
+    assert 'X1.0000 Y2.0000' in text
+    # every interior block is numbered and ends with the DIN/ISO block delimiter
+    for line in lines[1:]:
+        assert re.match(r'^N\d+ |^N99999999 ', line), line
+        assert line.endswith('*'), line
+    # the mandatory stop is followed by the tool call (number and speed of the changed tool) and the spindle start
+    assert text.index('M00') < text.index('T1 G17 S10000') < text.index('M03') < text.index('G01 X')
+    assert re.findall(r'(?<![A-Za-z])T\d+[^*]*', text) == ['T1 G17 S10000 ']
+    assert not re.search(r'(?<![A-Za-z])M0?6\b', text)
+
+
+def test_heidenhain_iso_saved_file_matches_the_stringio_and_keeps_an_explicit_end(tmp_path):
+    from tests.test_preprocessors_no_swallowed_errors import params
+
+    pp = PREPROCESSORS['Heidenhain_ISO']
+    p = params(units='IN', feedrate=10.0, z_feedrate=6.0)
+    job = _job('Geometry', 'Heidenhain_ISO')
+    job.multitool = False
+    job.gcode = pp.linear_code(p) + '\n'
+    job.gc_start = pp.start_code(p) + '\n'
+    job.gcode_footer = CNCJobObject.gcode_footer
+
+    text = CNCJobObject.export_gcode(job, postamble='M30', to_file=True).getvalue()
+    path = tmp_path / 'job.I'
+    CNCJobObject.export_gcode(job, filename=str(path), postamble='M30')
+    saved = path.read_text(encoding='utf-8')
+
+    assert saved == text
+    assert saved.splitlines()[0] == '%FLATCAM G70 *'
+    assert saved.rstrip().endswith('N99999999 %FLATCAM G70 *')
+    # the user's M30 is the program end: no second M02 is added before the envelope
+    assert not re.search(r'^N\d+ M02 \*$', saved, re.M)
+    assert re.search(r'^N\d+ M30 \*$', saved, re.M)
+
+
+@pytest.mark.parametrize('postamble,ends', [
+    ('N700 M30 *\nN710 ; finished *', 0),
+    ('N700 M30 ; finished\n; trailing note', 0),
+    ('; M30\nN710 ; M02 *', 1),
+    ('FN 0: Q1 = +30\n; M30 is not a command', 1),
+])
+def test_heidenhain_iso_snippet_end_detection(postamble, ends):
+    job = _job('Geometry', 'Heidenhain_ISO')
+    job.gc_start = '%FLATCAM G71 *\n'
+    text = CNCJobObject.export_gcode(job, postamble=postamble, to_file=True).getvalue()
+    assert len(re.findall(r'^N\d+ M02 \*$', text, re.M)) == ends
+    if not ends:
+        assert 'N700 M30' in text
+
+
+def test_heidenhain_iso_numbered_comments_do_not_split_blocks_or_change_expressions():
+    job = _job('Geometry', 'Heidenhain_ISO')
+    job.gc_start = '%FLATCAM G71 *\n'
+    text = CNCJobObject.export_gcode(
+        job, preamble='N700 ; a * b~ *\nN710 FN 3: Q1 = +2 * +3 *', to_file=True).getvalue()
+    comment = next(line for line in text.splitlines() if line.startswith('N700 '))
+    assert comment.count('*') == 1 and not comment[:-1].rstrip().endswith('~')
+    assert 'N710 FN 3: Q1 = +2 * +3 *' in text
+
+
+@pytest.mark.parametrize('units,multidepth,extracut', [('MM', False, False), ('IN', True, True)])
+def test_heidenhain_iso_generated_milling_restarts_and_keeps_motion_feeds(units, multidepth, extracut):
+    from shapely import LinearRing
+    from tests.test_cncjob_gcode_speed import gcode_job
+
+    job = gcode_job('Heidenhain_ISO')
+    job.units = units
+    job.app.options['tools_mill_optimization_type'] = 'R'
+    geo = SimpleNamespace(solid_geometry=[LinearRing([(1, 1), (2, 1), (2, 2), (1, 1)])],
+                          obj_options={'name': 'g'})
+    body, start = job.generate_from_geometry_2(
+        geo, tooldia=0.1, z_cut=-0.2, z_move=2, feedrate=30, feedrate_z=6, feedrate_rapid=100,
+        spindlespeed=10000, toolchange=True, toolchangez=15, toolchangexy='5, 7',
+        multidepth=multidepth, depthpercut=0.1, extracut=extracut, extracut_length=0.1,
+        endz=1, endxy='8, 9', pp_geometry_name='Heidenhain_ISO', is_first=True)
+    exported = _job('Geometry', 'Heidenhain_ISO')
+    exported.multitool = False
+    exported.gcode, exported.gc_start = body, start
+    text = _export(exported)
+    spindle_on = False
+    cuts = 0
+    for line in text.splitlines()[1:-1]:
+        code = re.sub(r'^N\d+\s+', '', line).split(';', 1)[0].rstrip(' *')
+        if code in ('M00', 'M05'):
+            spindle_on = False
+        elif code in ('M03', 'M04'):
+            spindle_on = True
+        elif code.startswith('G01 '):
+            assert spindle_on, line
+            feed = 6 if ' Z' in code else 30
+            assert code.endswith(' F%.2f' % (feed * (10 if units == 'IN' else 1))), line
+            cuts += 1
+    assert cuts > 3
+    assert text.index('G00 Z2.0000', text.index('M05', text.index('M03'))) < text.index('G00 X8.0000 Y9.0000')
+    assert text.index('G00 X8.0000 Y9.0000') < text.index('G00 Z1.0000')
+
+
 def test_a_name_with_parentheses_stays_inside_the_header_comment():
     # GRBL, FluidNC and LinuxCNC end a '( ... )' comment at the first ')': 'board (1)' left G-code text on the line
     def header(name, ppname):
@@ -92,7 +418,8 @@ def test_a_name_with_parentheses_stays_inside_the_header_comment():
         job.app.version = job.app.version_date = '1'
         return CNCJobObject.gcode_header(job)
 
-    for ppname in ('default', 'Toolchange_Probe_MACH3'):
+    for ppname in ('default', 'Toolchange_Probe_MACH3', 'Fanuc', 'Haas', 'FluidNC', 'LinuxCNC', 'Mach3', 'Mach4',
+                   'PlanetCNC', 'UCCNC'):
         for name, written in (('board (1)-F_Cu.gbr_iso_cnc', 'board [1]-F_Cu.gbr_iso_cnc'),
                               ('job\nG0 X0', 'job G0 X0')):
             text = header(name, ppname)

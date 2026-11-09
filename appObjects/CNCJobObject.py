@@ -1,6 +1,6 @@
 # ##########################################################
-# FlatCAM: 2D Post-processing for Manufacturing            #
-# http://flatcam.org                                       #
+# FlatCAM Evo: 2D Post-processing for Manufacturing        #
+# https://github.com/MariusAdrian88/FlatCAM_Evo            #
 # Author: Juan Pablo Caram (c)                             #
 # Date: 2/5/2014                                           #
 # MIT Licence                                              #
@@ -1095,7 +1095,7 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
 
         global_gcode = self.gcode if glob_gcode == '' else glob_gcode
         start_code = self.gc_start if s_code == '' else s_code
-        include_header = True
+        pp = None
 
         if preamble == '' and default_snippets:
             preamble = self._app_option("cncjob_prepend")
@@ -1118,25 +1118,24 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
             try:
                 first_key = list(self.tools.keys())[0]
                 try:
-                    include_header = self.app.preprocessors[self.tools[first_key]['data']['tools_mill_ppname_g']]
+                    pp = self.app.preprocessors[self.tools[first_key]['data']['tools_mill_ppname_g']]
                 except KeyError:
                     try:
                         # for older loaded projects
                         self.app.log.debug(
                             "CNCJobObject.export_gcode() --> old project detected. Results are unreliable.")
-                        include_header = self.app.preprocessors[self._app_option('ppname_g')]
+                        pp = self.app.preprocessors[self._app_option('ppname_g')]
                     except KeyError:
                         # for older loaded projects
                         self.app.log.debug(
                             "CNCJobObject.export_gcode() --> old project detected. Results are unreliable.")
-                        include_header = self.app.preprocessors[self._app_option('tools_mill_ppname_g')]
+                        pp = self.app.preprocessors[self._app_option('tools_mill_ppname_g')]
 
-                include_header = include_header.include_header
             except (TypeError, IndexError):
-                include_header = self.app.preprocessors['default'].include_header
+                pp = self.app.preprocessors['default']
             except KeyError:
                 _warn_missing_preprocessor(self)
-                include_header = self.app.preprocessors['default'].include_header
+                pp = self.app.preprocessors['default']
 
         # if this dict is not empty then the object is an Excellon object
         if self.obj_options['type'].lower() == 'excellon':
@@ -1144,28 +1143,32 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
             try:
                 first_key = list(self.tools.keys())[0]
                 try:
-                    include_header = self.app.preprocessors[
+                    pp = self.app.preprocessors[
                         self.tools[first_key]['data']['tools_drill_ppname_e']
-                    ].include_header
+                    ]
                 except KeyError:
                     # for older loaded projects
                     try:
-                        include_header = self.app.preprocessors[
+                        pp = self.app.preprocessors[
                             self.tools[first_key]['data']['ppname_e']
-                        ].include_header
+                        ]
                     except KeyError:
                         self.app.log.debug(
                             "CNCJobObject.export_gcode() --> old project detected. Results are unreliable.")
                         # for older loaded projects
-                        include_header = self.app.preprocessors[
+                        pp = self.app.preprocessors[
                             self._app_option('tools_drill_ppname_e')
-                        ].include_header
+                        ]
             except TypeError:
                 # when self.tools is empty - old projects
-                include_header = self.app.preprocessors['default'].include_header
+                pp = self.app.preprocessors['default']
             except KeyError:
                 _warn_missing_preprocessor(self)
-                include_header = self.app.preprocessors['default'].include_header
+                pp = self.app.preprocessors['default']
+
+        include_header = pp.include_header if pp is not None else True
+        # Use the resolved saved-job profile for both header and required program-end footer.
+        include_footer = getattr(pp, 'include_footer', False)
 
         gcode = ''
 
@@ -1186,7 +1189,7 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
 
             # g = sstart_code + '\n' + preamble + '\n' + gcode + '\n' + postamble
             g = ''
-            end_gcode = self.gcode_footer() if self._app_option('cncjob_footer') is True else ''
+            end_gcode = self.gcode_footer() if self._app_option('cncjob_footer') is True or include_footer else ''
             if preamble != '' and postamble != '':
                 g = start_code + '\n' + preamble + '\n' + gcode + '\n' + postamble + '\n' + end_gcode
             if preamble == '':
@@ -1218,7 +1221,7 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
             else:
                 gcode += global_gcode
 
-            end_gcode = self.gcode_footer() if self._app_option('cncjob_footer') is True else ''
+            end_gcode = self.gcode_footer() if self._app_option('cncjob_footer') is True or include_footer else ''
 
             # detect if using a HPGL preprocessor
             hpgl = False
@@ -1269,6 +1272,12 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
                     g = self.gc_header + start_code + '\n' + preamble + '\n' + gcode + '\n' + end_gcode
                 if preamble == '' and postamble == '':
                     g = self.gc_header + start_code + '\n' + gcode + '\n' + end_gcode
+
+        finalize_gcode = getattr(pp, 'finalize_gcode', None)
+        if callable(finalize_gcode):
+            finalized = finalize_gcode(g)
+            if isinstance(finalized, str):
+                g = finalized
 
         return CNCJobObject._write_gcode(self, g, filename, to_file)
 

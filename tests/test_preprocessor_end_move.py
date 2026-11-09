@@ -48,7 +48,9 @@ def rapid_moves(gcode, start):
     return moves
 
 
-@pytest.mark.parametrize('name', PREPROCESSORS[::5])
+@pytest.mark.parametrize('name', PREPROCESSORS[::5] + ['Buildbotics', 'Fanuc', 'Haas', 'Sinumerik', 'TinyG', 'FluidNC',
+                                                      'LinuxCNC', 'Mach3', 'Mach4', 'PlanetCNC', 'UCCNC',
+                                                      'Heidenhain_ISO'])
 def test_end_xy_move_is_not_made_below_the_travel_z(name):
     gcode = preprocessor(name).end_code(params(z_end=0.5))
     moves = rapid_moves(gcode, LAST_POINT + (TRAVEL_Z,))

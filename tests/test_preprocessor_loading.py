@@ -90,7 +90,7 @@ def test_builtin_preprocessors_load_from_another_working_directory(registry, app
 
     assert result is appPreProcessor.preprocessors
     expected = builtin_class_names()
-    assert {'default', 'GRBL_11', 'GRBL_laser', 'Marlin'} <= expected
+    assert {'default', 'GRBL_11', 'Fanuc', 'Haas', 'GRBL_laser', 'Marlin'} <= expected
     assert sorted(expected - set(result)) == []
     for name, pp in result.items():
         assert type(pp).__name__ == name

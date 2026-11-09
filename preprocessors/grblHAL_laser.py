@@ -1,6 +1,6 @@
 # ##########################################################
-# FlatCAM: 2D Post-processing for Manufacturing            #
-# File Author: Matthieu Berthomé                           #
+# FlatCAM Evo: 2D Post-processing for Manufacturing        #
+# Author: Marius Stanciu (c)                                #
 # MIT Licence                                              #
 # ##########################################################
 

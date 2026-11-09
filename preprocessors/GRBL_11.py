@@ -241,7 +241,7 @@ G00 Z{z_toolchange}
     def dwell_code(self, p):
         gcode = ''
         if p.dwelltime:
-            gcode += 'G4 P' + str(p.dwelltime)
+            gcode += 'G4 P' + self.plain_number(p.dwelltime)
         return gcode
 
     def spindle_stop_code(self, p):

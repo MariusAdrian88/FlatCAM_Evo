@@ -8,6 +8,7 @@
 
 import importlib.util
 import os
+from decimal import Decimal
 import sys
 from abc import ABCMeta, abstractmethod
 import math     # keep this: older preprocessors get it with 'from appPreProcessor import *'
@@ -91,8 +92,31 @@ class PreProc(object, metaclass=ABCPreProcRegister):
     def dwell_code(self, p):
         # the dwell time is in seconds
         if p.dwelltime:
-            return 'G4 P' + str(p.dwelltime)
+            return 'G4 P' + self.plain_number(p.dwelltime)
         return ''
+
+    @staticmethod
+    def plain_number(value):
+        """A number as text without an exponent (1e-05 is 0.00001); the text of a normal value is unchanged."""
+        text = str(value)
+        return format(Decimal(text), 'f') if 'e' in text.lower() else text
+
+    @staticmethod
+    def seconds_text(value, decimals=3):
+        """A dwell time in seconds with fixed decimals; a tiny value is kept at the smallest step, not rounded to 0."""
+        text = '%.*f' % (decimals, float(value))
+        return text if float(text) else '%.*f' % (decimals, 10.0 ** -decimals)
+
+    @staticmethod
+    def patch(text, old, new):
+        """Replace the text of a parent block; fail when the parent text changed instead of dropping the change."""
+        if old not in text:
+            raise ValueError('The parent preprocessor text changed, the expected block is missing: %r' % old)
+        return text.replace(old, new, 1)
+
+    def finalize_gcode(self, gcode):
+        """Optional final formatting of the assembled file, for a controller that needs a program envelope."""
+        return gcode
 
     def position_code(self, p):
         x_pos, y_pos = self.bed_xy(p)

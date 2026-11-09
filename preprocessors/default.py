@@ -259,7 +259,7 @@ G00 Z{z_toolchange}
     def dwell_code(self, p):
         # set a pause after the spindle is started allowing the spindle to reach the set spindle spped, before move
         if p.dwelltime:
-            return 'G4 P' + str(p.dwelltime)
+            return 'G4 P' + self.plain_number(p.dwelltime)
         return ''
 
     def spindle_stop_code(self, p):

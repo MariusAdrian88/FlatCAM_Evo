@@ -239,6 +239,352 @@ def test_grblhal_tool_change_leaves_the_pause_to_the_firmware():
     assert not re.search(r'^M6$', no_m6, re.M)
 
 
+def test_fluidnc_tool_change_keeps_the_pause_that_its_m6_does_not_make():
+    # FluidNC supports M6, but a standard FluidNC M6 only selects the tool/spindle and returns at once; the
+    # operator pause is the M0 after it (unlike grblHAL, whose M6 waits in the Tool state)
+    pp = PREPROCESSORS['FluidNC']
+    g = pp.toolchange_code(params(xy_toolchange=[5.0, 7.0]))
+    assert_in_order(g, ['M5', 'G00 Z15.0000', 'G00 X5.0000 Y7.0000', 'T1', 'M6', 'M0'])
+    assert '(MSG ' in g
+
+
+def test_linuxcnc_start_and_tool_change():
+    pp = PREPROCESSORS['LinuxCNC']
+    for units, select in (('MM', 'G21'), ('IN', 'G20')):
+        start = pp.start_code(params(units=units))
+        assert start.rstrip().endswith('\n%s\nG90\nG17\nG94\nG40\nG49' % select)
+        # Preserve the operator's path-control mode and tolerance; don't pick a coordinate system.
+        assert not re.search(r'^G(?:61(?:\.1)?|64)(?:\s|$)', start, re.M)
+        assert 'G54' not in start
+    t = pp.toolchange_code(params(xy_toolchange=[5.0, 7.0]))
+    assert_in_order(t, ['M5', 'G00 Z15.0000', 'G00 X5.0000 Y7.0000', 'T1', 'M6'])
+    # LinuxCNC M6 pauses for the tool change (hal_manualtoolchange); M0 would pause a second time
+    assert not re.search(r'^M0$', t, re.M)
+    end = pp.end_code(params(xy_end=[10.0, 20.0]))
+    assert_in_order(end, ['G00 Z15.0000', 'G00 X10.0000 Y20.0000'])
+    # LinuxCNC needs a program end, but export_gcode writes it after the user postamble
+    assert not re.search(r'^M2$', end, re.M)
+
+
+def test_fanuc_start_block_and_manual_setup_stop():
+    pp = PREPROCESSORS['Fanuc']
+    for units, select in (('MM', 'G21'), ('IN', 'G20')):
+        start = pp.start_code(params(units=units))
+        assert_in_order(start, [select, 'G17', 'G90', 'G94', 'G40', 'G49', 'G80', 'M05'])
+        # the unconditional stop comes before the first generated axis move
+        assert start.rstrip().endswith('M00')
+        # no inferred compensation, work offset, reference return, path control or coolant
+        for pattern in (r'^G43', r'^G5[34]', r'^G28', r'^G6[14]', r'^M0?6\s*$', r'^T\d', r'^M0?[789]\s*$'):
+            assert not re.search(pattern, start, re.M), pattern
+
+
+def test_fanuc_manual_tool_change_reestablishes_the_reference():
+    pp = PREPROCESSORS['Fanuc']
+    g = pp.toolchange_code(params(xy_toolchange=[5.0, 7.0]))
+    assert_in_order(g, ['M05', 'G00 Z15.0000', 'G00 X5.0000 Y7.0000', 'M00'])
+    assert 'FlatCAM tool 1' in g and 'Dia = 0.8000 mm' in g and 'reestablish' in g
+    assert not re.search(r'^(T\d|M0?6)\s*$', g, re.M)
+    # no configured tool-change X-Y: the safe Z retract and the pause only
+    g = pp.toolchange_code(params())
+    assert_in_order(g, ['M05', 'G00 Z15.0000', 'M00'])
+    assert 'G00 X' not in g
+
+
+def test_fanuc_dwell_is_x_seconds():
+    pp = PREPROCESSORS['Fanuc']
+    assert pp.dwell_code(params(dwelltime=1.234)) == 'G04 X1.234'
+    assert pp.dwell_code(params(dwelltime=0)) == ''
+
+
+def test_haas_start_block_and_manual_setup_stop():
+    pp = PREPROCESSORS['Haas']
+    for units, select in (('MM', 'G21'), ('IN', 'G20')):
+        start = pp.start_code(params(units=units))
+        assert_in_order(start, [select, 'G17', 'G90', 'G94', 'G40', 'G49', 'G80', 'M05'])
+        # the unconditional stop comes before the first generated axis move
+        assert start.rstrip().endswith('M00')
+        # NGC may apply a tool length offset automatically, so G49 has to cancel it explicitly
+        assert re.search(r'^G49$', start, re.M)
+        # no inferred compensation, work offset, reference return, path control, coolant or tool call
+        for pattern in (r'^G43', r'^G5[34]', r'^G28', r'^G53', r'^G6[14]', r'^G187', r'^M0?6\s*$', r'^T\d',
+                        r'^[HD]\d', r'^M0?[789]\s*$'):
+            assert not re.search(pattern, start, re.M), pattern
+
+
+def test_haas_manual_tool_change_has_no_tool_call_or_compensation():
+    pp = PREPROCESSORS['Haas']
+    g = pp.toolchange_code(params(xy_toolchange=[5.0, 7.0]))
+    assert_in_order(g, ['M05', 'G00 Z15.0000', 'G00 X5.0000 Y7.0000', 'M00'])
+    assert 'FlatCAM tool 1' in g and 'Dia = 0.8000 mm' in g and 'reestablish' in g
+    assert not re.search(r'^(T\d|M0?6|[HD]\d|G43)\b', g, re.M)
+    # no configured tool-change X-Y: the safe Z retract and the pause only
+    g = pp.toolchange_code(params())
+    assert_in_order(g, ['M05', 'G00 Z15.0000', 'M00'])
+    assert 'G00 X' not in g
+
+
+def test_haas_dwell_is_p_with_decimal_seconds():
+    pp = PREPROCESSORS['Haas']
+    # HAAS reads G04 P with a decimal point as seconds; without one, P10 is 10 milliseconds
+    assert pp.dwell_code(params(dwelltime=10)) == 'G04 P10.000'
+    assert pp.dwell_code(params(dwelltime=1.234)) == 'G04 P1.234'
+    assert pp.dwell_code(params(dwelltime=0)) == ''
+
+
+def test_sinumerik_start_block_selects_the_iso_dialect_first():
+    pp = PREPROCESSORS['Sinumerik']
+    for units, select in (('MM', 'G21'), ('IN', 'G20')):
+        start = pp.start_code(params(units=units))
+        # G291 is the first block and is alone in its block; the metadata and the setup comments follow it
+        assert start.splitlines()[0] == 'G291'
+        assert start.count('G291') == 1
+        assert not start.startswith('(')
+        assert_in_order(start, ['G291', select, 'G17', 'G90', 'G94', 'G40', 'G49', 'G80', 'M05', 'M00'])
+        assert start.rstrip().endswith('M00')
+        assert start.index('(TOOL DIAMETER:') > start.index(select)
+        assert start.index('(Spindle Speed:') > start.index(select)
+        # no inferred compensation, work offset, reference return, path control, coolant or tool call
+        for pattern in (r'^G43', r'^G5[34]', r'^G28', r'^G53', r'^G6[14]', r'^G187', r'^M0?6\s*$', r'^T\d',
+                        r'^[HD]\d', r'^M0?[789]\s*$'):
+            assert not re.search(pattern, start, re.M), pattern
+
+
+def test_sinumerik_manual_tool_change_and_dwell():
+    pp = PREPROCESSORS['Sinumerik']
+    g = pp.toolchange_code(params(xy_toolchange=[5.0, 7.0]))
+    assert_in_order(g, ['M05', 'G00 Z15.0000', 'G00 X5.0000 Y7.0000', 'M00'])
+    assert 'FlatCAM tool 1' in g and 'Dia = 0.8000 mm' in g and 'reestablish' in g
+    assert not re.search(r'^(T\d|M0?6|[HD]\d|G43)\b', g, re.M)
+    # no configured tool-change X-Y: the safe Z retract and the pause only
+    g = pp.toolchange_code(params())
+    assert_in_order(g, ['M05', 'G00 Z15.0000', 'M00'])
+    assert 'G00 X' not in g
+    # G04 X is a decimal number of seconds with G94 active; P would be internal units
+    assert pp.dwell_code(params(dwelltime=1.234)) == 'G04 X1.234'
+    assert pp.dwell_code(params(dwelltime=0)) == ''
+
+
+def test_sinumerik_has_no_fanuc_program_envelope():
+    pp = PREPROCESSORS['Sinumerik']
+    assert pp.include_header is False and pp.include_footer is True
+    gcode = 'G291\nG21\nG00 X1.0000 Y2.0000\nM30\n'
+    assert pp.finalize_gcode(gcode) == gcode
+
+
+def test_sinumerik_iso_program_ends_with_m30_without_returning_to_siemens_mode():
+    pp = PREPROCESSORS['Sinumerik']
+    # the ISO dialect manual ends every G291 program with M30 and never switches back; Reset restores the default mode
+    for tail in ('M02', 'M2'):
+        out = pp.finalize_gcode('G291\nG21\nG00 X1.0000 Y2.0000\n%s\n' % tail)
+        assert out == 'G291\nG21\nG00 X1.0000 Y2.0000\nM30\n'
+    assert pp.finalize_gcode('G291\nG00 X1.0000') == 'G291\nG00 X1.0000\nM30\n'
+    assert 'G290' not in out
+
+
+def test_heidenhain_iso_start_block_uses_din_iso_and_no_fanuc_resets():
+    pp = PREPROCESSORS['Heidenhain_ISO']
+    for units, word in (('MM', 'G71'), ('IN', 'G70')):
+        start = pp.start_code(params(units=units))
+        lines = start.splitlines()
+        assert lines[0] == '%%FLATCAM %s *' % word
+        assert_in_order(start, ['G17', 'G90', 'G40', 'M00'])
+        assert start.rstrip().endswith('M00')
+        assert '(SETUP:' not in start
+        assert all(line.startswith((';', '%')) or re.match(r'^(G|M)\d', line) for line in lines)
+        assert sum(line.count('*') for line in lines) == 1
+        # TNC G20 is a working plane and G80 tilts it; G49/G94 and the FANUC compensation and offsets are not used
+        for pattern in (r'^G2[01]\b', r'^G49\b', r'^G94\b', r'^G80\b', r'^G43', r'^G44', r'^G28\b', r'^G53\b',
+                        r'^G54\b', r'^G99\b', r'^T\d', r'^M0?6\b'):
+            assert not re.search(pattern, start, re.M), pattern
+
+
+def test_heidenhain_iso_tool_change_and_spindle_blocks():
+    pp = PREPROCESSORS['Heidenhain_ISO']
+    g = pp.toolchange_code(params(xy_toolchange=[5.0, 7.0]))
+    assert_in_order(g, ['M05', 'G00 Z15.0000', 'G00 X5.0000 Y7.0000', 'M00'])
+    assert 'FlatCAM tool 1' in g and 'Dia = 0.8000 mm' in g and 'reestablish' in g
+    assert not re.search(r'^(T\d|M0?6|[HD]\d|G43|G44)\b', g, re.M)
+    # the CNCjob writes the spindle start after the tool change; the tool change itself must not hide one
+    assert 'M03' not in g and 'M04' not in g
+    # the speed is set by the tool call of the tool that the tool change names
+    assert pp.spindle_code(params(spindlespeed=10000, spindledir='CW')) == 'T1 G17 S10000\nM03'
+    assert pp.spindle_code(params(spindlespeed=12000, spindledir='CCW', tool=3)) == 'T3 G17 S12000\nM04'
+    assert 'Change to FlatCAM tool 3' in pp.toolchange_code(params(tool=3))
+    assert pp.spindle_code(params(spindlespeed=None)) == 'M03'
+    assert pp.spindle_stop_code(params()) == 'M05'
+
+
+def test_heidenhain_iso_feeds_dwell_and_comments():
+    pp = PREPROCESSORS['Heidenhain_ISO']
+    mm = params(units='MM', feedrate=250.0, z_feedrate=60.0, dwelltime=1.234567)
+    inch = params(units='IN', feedrate=250.0, z_feedrate=60.0, dwelltime=1.234567)
+    assert pp.linear_code(mm).endswith(' F250.00')
+    assert pp.linear_code(inch).endswith(' F2500.00')
+    assert pp.down_code(mm) == 'G01 Z-1.5000 F60.00'
+    assert pp.down_code(inch) == 'G01 Z-1.5000 F600.00'
+    assert pp.up_to_zero_code(mm) == 'G01 Z0 F60.00'
+    assert pp.up_to_zero_code(inch) == 'G01 Z0 F600.00'
+    # the G01 moves carry their feed; no coordinate-free feed block
+    assert pp.feedrate_code(mm) == '' and pp.z_feedrate_code(mm) == ''
+    # G04 F is in seconds in both unit modes
+    assert pp.dwell_code(mm) == 'G04 F1.234567'
+    assert pp.dwell_code(inch) == 'G04 F1.234567'
+    assert pp.dwell_code(params(dwelltime=0.00001)) == 'G04 F0.00001'
+    assert pp.dwell_code(params(dwelltime=0)) == ''
+    # generated comments are conservative blocks: no newline, no '*' and no trailing '~'
+    assert pp._comment('a*b\nc~') == '; a b c'
+    # the header shows the values of the job in the units of the job, not the 1/10 inch/min of the G70 blocks
+    start = pp.start_code(params(units='IN', feedrate=100.0, z_feedrate=60.0, feedrate_rapid=1500.0))
+    assert '; Feedrate_XY: 100.0 in/min' in start and '; Feedrate_Z: 60.0 in/min' in start
+    assert '; Feedrate rapids 1500.0 in/min' in start
+
+
+def test_heidenhain_iso_envelope_uses_the_saved_units_and_numbers_blocks():
+    pp = PREPROCESSORS['Heidenhain_ISO']
+    text = pp.finalize_gcode('%FLATCAM G70 *\nG17\nG90\nM30\n')
+    lines = text.splitlines()
+    assert lines[0] == '%FLATCAM G70 *'
+    assert lines[-1] == 'N99999999 %FLATCAM G70 *'
+    assert [re.match(r'^N(\d+) ', line).group(1) for line in lines[1:-1]] == ['10', '20', '30']
+    # the user's M30 is the program end; no second M02 is added
+    assert not re.search(r'^N\d+ M02 \*$', text, re.M)
+    assert all(line.endswith('*') for line in lines[1:])
+    # a standalone comment is a block of its own and is sanitized
+    text = pp.finalize_gcode('%FLATCAM G71 *\n; a*b ~\nG17\n')
+    assert text.splitlines()[1] == 'N10 ; a b *'
+    assert text.splitlines()[-1] == 'N99999999 %FLATCAM G71 *'
+
+
+def test_tinyg_start_block_selects_units_and_leaves_offsets_to_the_operator():
+    pp = PREPROCESSORS['TinyG']
+    for units, select in (('MM', 'G21'), ('IN', 'G20')):
+        start = pp.start_code(params(units=units))
+        assert_in_order(start, [select, 'G90', 'G17', 'G94'])
+        # the work zero, path control and tool offset are the operator's: no compensation, work offset, reference
+        # return, blending or tool call
+        for pattern in (r'^G43', r'^G49', r'^G5[34]', r'^G28', r'^G53', r'^G6[14]', r'^M0?6\s*$', r'^T\d'):
+            assert not re.search(pattern, start, re.M), pattern
+
+
+def test_tinyg_manual_tool_change_stops_the_spindle_and_pauses_before_the_tool_operation():
+    pp = PREPROCESSORS['TinyG']
+    g = pp.toolchange_code(params(xy_toolchange=[5.0, 7.0]))
+    assert_in_order(g, ['M5', 'G00 Z15.0000', 'G00 X5.0000 Y7.0000', 'M0'])
+    assert 'FlatCAM tool 1' in g and 'Dia = 0.8000 mm' in g and 'work Z' in g
+    assert not re.search(r'^(T\d|M0?6)\s*$', g, re.M)
+    # no configured tool-change X-Y: the safe Z retract and the pause only
+    g = pp.toolchange_code(params())
+    assert_in_order(g, ['M5', 'G00 Z15.0000', 'M0'])
+    assert 'G00 X' not in g
+    # M3/M4 drive the spindle at the set speed, M5 stops it
+    assert pp.spindle_code(params(spindledir='CW')) == 'M3 S10000'
+    assert pp.spindle_code(params(spindledir='CCW', spindlespeed=8000)) == 'M4 S8000'
+    assert pp.spindle_stop_code(params()) == 'M5'
+
+
+def test_tinyg_dwell_is_decimal_seconds():
+    pp = PREPROCESSORS['TinyG']
+    for time in (1.234, 10, 0.0001):
+        code = pp.dwell_code(params(dwelltime=time))
+        assert code.startswith('G4 P')
+        assert float(code[4:]) == time
+    assert pp.dwell_code(params(dwelltime=0)) == ''
+
+
+def test_buildbotics_start_block_leaves_the_setup_to_the_controller():
+    pp = PREPROCESSORS['Buildbotics']
+    for units, select in (('MM', 'G21'), ('IN', 'G20')):
+        start = pp.start_code(params(units=units))
+        assert_in_order(start, [select, 'G90', 'G17', 'G94'])
+        # no inferred compensation, work offset, reference return, blending, coolant or tool call
+        for pattern in (r'^G43', r'^G49', r'^G5[34]', r'^G28', r'^G53', r'^G6[14]', r'^M0?6\s*$', r'^T\d',
+                        r'^M0?[789]\s*$'):
+            assert not re.search(pattern, start, re.M), pattern
+
+
+def test_buildbotics_manual_tool_change_has_no_tool_call_or_m6():
+    pp = PREPROCESSORS['Buildbotics']
+    g = pp.toolchange_code(params(xy_toolchange=[5.0, 7.0]))
+    assert_in_order(g, ['M5', 'G00 Z15.0000', 'G00 X5.0000 Y7.0000', 'M0'])
+    assert 'FlatCAM tool 1' in g and 'Dia = 0.8000 mm' in g and 'work Z' in g
+    assert not re.search(r'^(T\d|M0?6)\s*$', g, re.M)
+    # no configured tool-change X-Y: the safe Z retract and the pause only
+    g = pp.toolchange_code(params())
+    assert_in_order(g, ['M5', 'G00 Z15.0000', 'M0'])
+    assert 'G00 X' not in g
+
+
+def test_buildbotics_dwell_and_spindle_match_the_camotics_interpreter():
+    pp = PREPROCESSORS['Buildbotics']
+    for time in (1.234, 10, 0.0001):
+        code = pp.dwell_code(params(dwelltime=time))
+        assert code.startswith('G4 P')
+        assert float(code[4:]) == time
+    assert pp.dwell_code(params(dwelltime=0)) == ''
+    assert pp.spindle_code(params(spindledir='CW')) == 'M3 S10000'
+    assert pp.spindle_code(params(spindledir='CCW', spindlespeed=8000)) == 'M4 S8000'
+    assert pp.spindle_stop_code(params()) == 'M5'
+
+
+def test_mach3_and_mach4_manual_tool_changes():
+    for name, pause in (('Mach3', 'M0'), ('Mach4', 'M00 (')):
+        pp = PREPROCESSORS[name]
+        g = pp.toolchange_code(params(xy_toolchange=[5.0, 7.0]))
+        assert_in_order(g, ['M5', 'G00 Z15.0000', 'G00 X5.0000 Y7.0000', 'T1', 'M6', pause])
+    # Mach4 shows the tool message in the M00 block and reads a decimal P as seconds
+    mach4 = PREPROCESSORS['Mach4']
+    assert 'M00 (Change to Tool Dia = 0.8000)' in mach4.toolchange_code(params())
+    assert mach4.dwell_code(params()) == 'G4 P1.000'
+
+
+def test_planetcnc_and_uccnc_keep_an_explicit_manual_pause():
+    # Neither controller is guaranteed to pause at M6: PlanetCNC needs Tool Change > Action > Message/Pause, and
+    # UCCNC can ignore M6 or run a macro that returns. M0 and the tool message are written explicitly.
+    for name in ('PlanetCNC', 'UCCNC'):
+        pp = PREPROCESSORS[name]
+        g = pp.toolchange_code(params(xy_toolchange=[5.0, 7.0]))
+        assert_in_order(g, ['M5', 'G00 Z15.0000', 'G00 X5.0000 Y7.0000', 'T1', 'M6', 'M0'])
+        assert '(MSG, Change to Tool Dia = 0.8000)' in g
+    # PlanetCNC G4 P is seconds; UCCNC default G4 P is milliseconds
+    assert PREPROCESSORS['PlanetCNC'].dwell_code(params()) == 'G4 P1.0'
+    assert PREPROCESSORS['UCCNC'].dwell_code(params()) == 'G4 P1000'
+
+
+
+def test_a_tiny_dwell_is_never_zero_or_scientific():
+    for name in ('default', 'GRBL_11', 'LinuxCNC', 'Mach3', 'Mach4', 'UCCNC', 'PlanetCNC', 'FluidNC', 'TinyG',
+                 'Buildbotics', 'Fanuc', 'Haas', 'Sinumerik', 'Heidenhain_ISO'):
+        code = PREPROCESSORS[name].dwell_code(params(dwelltime=0.00001))
+        match = re.fullmatch(r'G0?4 [XPF](\d+(\.\d+)?)', code)
+        assert match and float(match.group(1)) > 0, (name, code)
+    # normal values are unchanged
+    assert PREPROCESSORS['default'].dwell_code(params(dwelltime=1.5)) == 'G4 P1.5'
+    assert PREPROCESSORS['UCCNC'].dwell_code(params(dwelltime=0.0001)) == 'G4 P1'
+
+
+def test_fanuc_family_tool_change_goes_to_the_start_z_for_the_first_tool():
+    for name in ('Fanuc', 'Haas', 'Sinumerik'):
+        pp = PREPROCESSORS[name]
+        assert 'G00 Z20.0000' in pp.toolchange_code(params(startz=20.0, is_first_tool=True)), name
+        assert 'G00 Z15.0000' in pp.toolchange_code(params(startz=20.0, is_first_tool=False)), name
+
+
+def test_a_changed_parent_start_block_fails_loudly():
+    from preprocessors.default import default
+    from preprocessors.GRBL_11 import GRBL_11
+
+    def parent(self, p):
+        return 'G21\nG90\nG17\nG94\n'
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(GRBL_11, 'start_code', parent)
+        patch.setattr(default, 'start_code', parent)
+        for name in ('Fanuc', 'Haas', 'Sinumerik', 'LinuxCNC', 'FluidNC', 'TinyG', 'Buildbotics', 'Mach3', 'Mach4',
+                     'UCCNC', 'PlanetCNC'):
+            with pytest.raises(ValueError):
+                PREPROCESSORS[name].start_code(params())
+
+
 @pytest.mark.parametrize('xy', [[5.0, 7.0]])
 def test_probe_tool_change(xy):
     pp = PREPROCESSORS['Toolchange_Probe_MACH3']

@@ -4,6 +4,8 @@ Run from the repository root:
     .venv/Scripts/python -m pytest tests/test_cncjob_gcode_speed.py -q
 """
 import json
+from hashlib import sha256
+import math
 import re
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -237,6 +239,112 @@ class TestMillingGcodeFixes:
                 __, gcode = multi_geo_gcode(paths, data=dict(tools_mill_optimization_type=opt_type))
         for end in ('X5.0000 Y0.0000', 'X0.0000 Y5.0000', 'X9.0000 Y9.0000'):
             assert end in gcode
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Validated Voronoi paths: the certified geometry reaches the G-code grid unsimplified
+# ---------------------------------------------------------------------------------------------------------------------
+VALIDATED = dict(tools_iso_validated_paths=True, tools_iso_voronoi_coord_decimals=4,
+                 tools_iso_voronoi_precision_margin=0.0)
+NEAR_LINE = [(0, 0), (5, 0.001), (10, 0)]
+
+
+def validated_data(paths, diameter=0.1, units='IN'):
+    return dict(VALIDATED, tools_iso_voronoi_path_signature=sha256(
+        shapely.GeometryCollection(paths).normalize().wkb).hexdigest(),
+        tools_iso_voronoi_units=units, tools_iso_voronoi_tooldia=diameter)
+
+
+@pytest.mark.parametrize('change', ['edit', 'units', 'diameter', 'bed', 'legacy', 'segment', 'extra-cut'])
+@pytest.mark.parametrize('single', [False, True])
+def test_voronoi_generation_data_cannot_authorize_changed_output(change, single):
+    paths = [LineString(NEAR_LINE)]
+    data = dict(VALIDATED, tools_iso_voronoi_path_signature=sha256(
+        shapely.GeometryCollection(paths).normalize().wkb).hexdigest(),
+        tools_iso_voronoi_units='MM', tools_iso_voronoi_tooldia=0.1)
+    job = gcode_job('default')
+    job.units = 'MM'
+    diameter = 0.1
+    if change == 'edit':
+        paths = [shapely.affinity.scale(paths[0], xfact=0.5, yfact=0.5, origin=(0, 0))]
+    elif change == 'units':
+        job.units = 'IN'
+    elif change == 'diameter':
+        diameter = 0.2
+    elif change == 'bed':
+        job._bed_skew_x = 0.01
+    elif change == 'segment':
+        job.seg_x = 0.25
+    elif change == 'extra-cut':
+        data.update(tools_mill_extracut=True, tools_mill_extracut_length=0.5)
+    else:
+        data.pop('tools_iso_voronoi_path_signature')
+    data['tools_mill_tooldia'] = diameter
+    if single:
+        geo = SimpleNamespace(solid_geometry=paths, obj_options={'name': 'g'}, tools={1: {'data': data}})
+        result = job.generate_from_geometry_2(
+            geo, tooldia=diameter, pp_geometry_name='default',
+            extracut=data.get('tools_mill_extracut', False),
+            extracut_length=data.get('tools_mill_extracut_length', 0.0))
+    else:
+        __, result = multi_geo_gcode(paths, job=job, data=data)
+    assert result == 'fail'
+
+
+def test_validated_paths_are_not_simplified_again():
+    paths = [LineString(NEAR_LINE)]
+    __, code = multi_geo_gcode(paths, data=validated_data(paths))
+    assert 'X5.0000 Y0.0010' in code
+
+    __, plain = multi_geo_gcode([LineString(NEAR_LINE)])
+    assert 'X5.0000 Y0.0010' not in plain
+
+
+@pytest.mark.parametrize('single', [False, True])
+def test_voronoi_rejects_output_with_an_uncertified_coordinate_grid(single):
+    paths = [LineString(NEAR_LINE)]
+    data = validated_data(paths)
+    job = gcode_job('Roland_MDX_20')
+    if single:
+        geo = SimpleNamespace(solid_geometry=paths, obj_options={'name': 'g'}, tools={1: {'data': data}})
+        result = job.generate_from_geometry_2(
+            geo, tooldia=0.1, z_cut=-0.05, z_move=2.0, pp_geometry_name='Roland_MDX_20')
+    else:
+        __, result = multi_geo_gcode(paths, pp_name='Roland_MDX_20', job=job, data=data)
+    assert result == 'fail'
+
+
+@pytest.mark.parametrize('data', [
+    dict(VALIDATED, tools_mill_multidepth=True, tools_mill_depthperpass=0.01),
+    dict(VALIDATED, tools_mill_extracut=True, tools_mill_extracut_length=0.0),
+], ids=['multidepth', 'extra-cut'])
+def test_validated_paths_are_not_simplified_in_multidepth_and_extra_cut(data):
+    ring = LinearRing([(0, 0), (5, 0.001), (10, 0), (10, 10), (0, 10)])
+    settings = validated_data([ring])
+    settings.update(data)
+    __, code = multi_geo_gcode([ring], data=settings)
+    assert 'X5.0000 Y0.0010' in code
+
+
+def test_validated_paths_refuse_a_coarser_output_grid():
+    job = gcode_job('default')
+    job.coords_decimals = 3
+    __, result = multi_geo_gcode([LineString([(0, 0), (1, 0)])], job=job, data=dict(VALIDATED))
+    assert result == 'fail'
+    assert any('coordinate decimals' in str(call.args[0]) for call in job.app.inform.emit.call_args_list)
+
+
+def test_single_geometry_entry_does_not_simplify_validated_paths():
+    job = gcode_job('default')
+    recording_exclusion(job)
+    job.app.options['tools_mill_optimization_type'] = 'R'
+    geo = SimpleNamespace(solid_geometry=[LineString(NEAR_LINE)], obj_options={'name': 'g'},
+                          tools={1: {'data': validated_data([LineString(NEAR_LINE)])}})
+    result = job.generate_from_geometry_2(
+        geo, tooldia=0.1, tolerance=0.005, z_cut=-0.1, z_move=2.0, feedrate=300.0, feedrate_z=100.0,
+        feedrate_rapid=1000.0, pp_geometry_name='default', tool_no=1, is_first=True)
+    assert result != 'fail'
+    assert 'X5.0000 Y0.0010' in result[0]
 
 
 # ---------------------------------------------------------------------------------------------------------------------
