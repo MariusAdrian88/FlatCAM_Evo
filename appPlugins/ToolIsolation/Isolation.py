@@ -3181,7 +3181,7 @@ class ToolIsolation(Geometry, AppTool):
         color = self.app.options.get(
             'global_sel_draw_color',
             (getattr(self.app, "defaults", None) or AppDefaults.factory_defaults).get(
-                'global_sel_draw_color', AppDefaults.factory_defaults.get('global_sel_draw_color'))) + 'AF'
+                'global_sel_draw_color', AppDefaults.factory_defaults.get('global_sel_draw_color')))[:7] + 'AF'
 
         new_polys = []
         new_wkb = []
@@ -3276,6 +3276,7 @@ class ToolIsolation(Geometry, AppTool):
         self.app.worker_task.emit({'fcn': worker_task, 'params': [self]})
 
     def on_poly_mouse_click_release(self, event):
+        self.app.mouse_down = False
         event_pos = event.pos
         right_button = 2
 
@@ -3316,7 +3317,7 @@ class ToolIsolation(Geometry, AppTool):
                                     _("Click to add next polygon or right click to start."))
                 )
             self.app.tool_shapes.redraw()
-        elif event.button == right_button and self.app.event_is_dragging is False:
+        elif event.button == right_button and self.app.ui.popMenu.mouse_is_panning is False:
             # the selection is taken first: ending the mode clears it
             poly_list = list(self.poly_dict.values())
             interiors = self.ui.poly_int_cb.get_value() is True

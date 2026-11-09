@@ -359,6 +359,60 @@ def plugin(_headless_qt):  # noqa: F811
     sip.delete(tool)
 
 
+def test_polygon_selection_highlights_and_toggles_copper(plugin, monkeypatch):
+    from appGUI.VisPyVisuals import ShapeCollectionVisual
+
+    monkeypatch.setattr('appGUI.VisPyVisuals.set_state', Mock())  # No OpenGL canvas in this test.
+    shapes = ShapeCollectionVisual(layers=1, pool=None,
+                                   fcoptions={'global_graphic_engine_3d_no_mp': True})
+    plugin.app.tool_shapes = shapes
+    plugin.app.plotcanvas.translate_coords.side_effect = lambda pos: pos
+    plugin.app.grid_status.return_value = False
+    plugin.app.selection_type = None
+    plugin.grb_obj = SimpleNamespace(solid_geometry=[box(0, 0, 2, 2)])
+    event = SimpleNamespace(pos=(1, 1), button=1)
+
+    plugin.on_poly_mouse_click_release(event)
+
+    assert len(shapes.data) == 1
+    buffers = next(iter(shapes.data.values()))
+    assert len(buffers['mesh_tris']) > 0
+    assert len(buffers['line_pts']) > 0
+
+    plugin.on_poly_mouse_click_release(event)
+
+    assert not shapes.data
+
+
+@pytest.mark.parametrize('panning', [False, True])
+def test_polygon_selection_right_click_finishes_unless_panning(plugin, panning):
+    polygon = box(0, 0, 2, 2)
+    plugin.app.plotcanvas.translate_coords.side_effect = lambda pos: pos
+    plugin.app.grid_status.return_value = False
+    # The normal press handler stays connected; even a stationary press sets this flag.
+    plugin.app.mouse_down = True
+    plugin.app.event_is_dragging = True
+    plugin.app.ui.popMenu.mouse_is_panning = panning
+    plugin.poly_sel_disconnect_flag = True
+    plugin.poly_dict[1] = polygon
+    plugin._selected_tool_ids = lambda: [1]
+    plugin.iso_tools = {1: {'tooldia': DIA, 'data': {}}}
+    plugin.run_settings = lambda: {}
+    submitted = []
+    plugin.isolate_in_worker = lambda **kwargs: submitted.append(kwargs)
+
+    plugin.on_poly_mouse_click_release(SimpleNamespace(pos=(1, 1), button=2))
+
+    if panning:
+        assert not submitted
+        assert plugin.poly_sel_disconnect_flag
+    else:
+        assert len(submitted) == 1
+        assert submitted[0]['geometry'][0].equals(polygon)
+        assert submitted[0]['sel_tools'] == [1]
+        assert not plugin.poly_sel_disconnect_flag
+
+
 def run_plugin(plugin, gerber, combine, passes=PASSES, e_passes=0, boundary=None, trace_boundary=False,
                envelope=None, tooldia=DIA, **kwargs):
     """Calls isolate(); envelope: a stand-in for generate_envelope(), else the real one is used."""
