@@ -78,6 +78,10 @@ def appimage_command():
 
 
 if __name__ == '__main__':
+    sys.path.insert(0, str(ROOT))
+    from scripts.freeze_compat import patch_scanner
+
+    patch_scanner()
     from cx_Freeze import Executable, setup
 
     metadata = bundle_metadata()
