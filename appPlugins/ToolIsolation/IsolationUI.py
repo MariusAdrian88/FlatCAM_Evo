@@ -656,13 +656,14 @@ class IsoUI:
         self.area_shape_label.hide()
         self.area_shape_radio.hide()
 
-        # Boundary: limit the isolation to the area enclosed by the outline of an object
+        # Boundary: strategy-specific enclosure around an object
         self.boundary_cb = FCCheckBox(label=_('Boundary'))
-        self.boundary_cb.setToolTip(_("Limit the isolation to the area enclosed by the outline of an object,\n"
-                                      "e.g. the board outline (Edge Cuts Gerber) or a shape drawn in a Geometry.\n"
-                                      "The paths outside it are cut off, and the passes stop when one is\n"
-                                      "completely outside it. Useful with many passes: the outer passes\n"
-                                      "no longer spread far outside the board."))
+        self.boundary_cb.setToolTip(_("Use the area of a Gerber or Geometry outline object (e.g. Edge Cuts) as a boundary.\n"
+                                      "Voronoi uses its convex hull and cuts its compensated outer perimeter\n"
+                                      "to enclose complete islands, with extra working room for the full cutter.\n"
+                                      "Offset uses the area enclosed by the outline (the concave hull of all its\n"
+                                      "shapes if the object has flashes inside the outline): paths outside it are cut off,\n"
+                                      "and passes stop when one is completely outside it."))
         self.boundary_cb.setObjectName("i_boundary")
         gen_grid.addWidget(self.boundary_cb, 24, 0)
 
@@ -670,7 +671,7 @@ class IsoUI:
         self.type_boundary_radio = RadioSet([{'label': _("Geometry"), 'value': 'geometry'},
                                              {'label': _("Gerber"), 'value': 'gerber'}])
         self.type_boundary_radio.setToolTip(
-            _("The type of the object whose outline is the boundary.\n"
+            _("The type of the object whose hull is the boundary.\n"
               "What is selected here will dictate the kind\n"
               "of objects that will populate the 'Object' combobox.")
         )
@@ -678,7 +679,7 @@ class IsoUI:
 
         # The boundary object
         self.boundary_obj_combo = FCComboBox()
-        self.boundary_obj_combo.setToolTip(_("Object whose outline limits the isolation."))
+        self.boundary_obj_combo.setToolTip(_("Boundary object: convex hull for Voronoi, enclosed area (concave hull if it has flashes) for Offset."))
         self.boundary_obj_combo.setModel(self.app.collection)
         self.boundary_obj_combo.setRootModelIndex(self.app.collection.index(0, 0, QtCore.QModelIndex()))
         self.boundary_obj_combo.is_last = True
@@ -697,6 +698,49 @@ class IsoUI:
                                                      self.boundary_obj_combo,
                                                      self.trace_boundary_cb
                                                  ])
+
+        # Isolation strategy
+        self.strategy_label = FCLabel('%s:' % _("Strategy"))
+        self.strategy_label.setToolTip(
+            _("Offset: buffer the copper with the tool radius (the classic isolation).\n"
+              "Voronoi: cut only the borders between different copper bodies, from sampled boundaries.\n"
+              "Voronoi needs Boundary, All copper, Full isolation and one positive pass.\n"
+              "Rest machining, exclusions, pad passes and leftovers are not supported.\n"
+              "Boundary tracing is ignored; no contour is made around a single body."))
+        self.strategy_combo = RadioSet([{'label': _("Offset"), 'value': 'offset'},
+                                        {'label': _("Voronoi"), 'value': 'voronoi'}])
+        self.strategy_combo.set_value('offset')
+        self.strategy_combo.setObjectName("i_strategy")
+        self.strategy_combo.setToolTip(self.strategy_label.toolTip())
+        gen_grid.addWidget(self.strategy_label, 30, 0)
+        gen_grid.addWidget(self.strategy_combo, 30, 1)
+
+        # Sampling step of the Voronoi strategy
+        self.voronoi_spacing_label = FCLabel('%s:' % _("Voronoi spacing"))
+        self.voronoi_spacing_label.setToolTip(
+            _("Sampling step along the copper boundaries for the Voronoi strategy,\n"
+              "in the application units (mm or inch). This bounds sample intervals, not the toolpath error.\n"
+              "The run stops with a message when the 20000 sample-site budget is exceeded;\n"
+              "increase the spacing instead of lowering the requested accuracy."))
+        self.voronoi_spacing_entry = FCDoubleSpinner()
+        self.voronoi_spacing_entry.set_precision(self.decimals)
+        self.voronoi_spacing_entry.set_range(0.00001, 10000.0000)
+        self.voronoi_spacing_entry.setSingleStep(0.01)
+        self.voronoi_spacing_entry.setObjectName("i_voronoi_spacing")
+        gen_grid.addWidget(self.voronoi_spacing_label, 32, 0)
+        gen_grid.addWidget(self.voronoi_spacing_entry, 32, 1)
+        self.voronoi_pads_cb = FCCheckBox(_("Pad isolation"))
+        self.voronoi_pads_cb.setObjectName("i_voronoi_pads")
+        self.voronoi_pads_cb.set_value(False)
+        self.voronoi_pads_cb.setToolTip(_(
+            "After Voronoi generation, add partial cuts around flashed pad outlines with the same cutter and depth.\n"
+            "Original trace and polygon connections stay intact; pads inside pours may have no safe room.\n"
+            "Region-only and negative images are skipped. This is not solder mask or guaranteed thermal relief.\n"
+            "The combined paths use normal CNC path ordering, not a separate machining phase."))
+        gen_grid.addWidget(self.voronoi_pads_cb, 34, 0, 1, 2)
+        self.strategy_combo.activated_custom.connect(self.on_strategy_changed)
+        self.boundary_cb.stateChanged.connect(self.on_strategy_changed)
+        self.on_strategy_changed()
 
         GLay.set_common_column_size([tool_grid, new_tool_grid, tool_param_grid, v_grid, gen_grid], 0)
 
@@ -749,6 +793,13 @@ class IsoUI:
         self.tools_box.addWidget(self.reset_button)
         # ############################ FINSIHED GUI ###################################
         # #############################################################################
+
+    def on_strategy_changed(self, *args):
+        voronoi = self.strategy_combo.get_value() == 'voronoi'
+        self.trace_boundary_cb.setEnabled(self.boundary_cb.get_value() and not voronoi)
+        self.voronoi_spacing_entry.setEnabled(voronoi)
+        self.voronoi_spacing_label.setEnabled(voronoi)
+        self.voronoi_pads_cb.setEnabled(voronoi)
 
     def confirmation_message(self, accepted, minval, maxval):
         if accepted is False:

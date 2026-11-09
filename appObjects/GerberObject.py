@@ -1,6 +1,6 @@
 # ##########################################################
-# FlatCAM: 2D Post-processing for Manufacturing            #
-# http://flatcam.org                                       #
+# FlatCAM Evo: 2D Post-processing for Manufacturing        #
+# https://github.com/MariusAdrian88/FlatCAM_Evo            #
 # Author: Juan Pablo Caram (c)                             #
 # Date: 2/5/2014                                           #
 # MIT Licence                                              #
@@ -20,12 +20,13 @@ from appObjects.AppObjectTemplate import FlatCAMObj, OffsetUiMixin, PropertiesPa
 from camlib import flatten_shapely_geometry, isolation_leftover_paths, clip_paths_to_area, area_outline_paths, \
     boundary_passes_message, milling_orient, pass_covers_area, gerber_quad_segs
 
-from shapely import MultiLineString, LinearRing, MultiPolygon, Polygon, LineString, Point
+from shapely import MultiLineString, LinearRing, MultiPolygon, Polygon, LineString, Point, GeometryCollection
 from shapely.ops import unary_union
 from appParsers.DXF.writer import build_dxf
 
 import numpy as np
 from copy import deepcopy
+from hashlib import sha256
 
 from appHandlers.appHistory import history_of
 import gettext
@@ -555,7 +556,7 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
     def isolate(self, iso_type=None, geometry=None, dia=None, passes=None, overlap=None, outname=None, combine=None,
                 milling_type=None, plot=True, clear_leftovers=None, boundary=None, trace_boundary=False,
                 pad_passes=None, tool_shape=None, vtipdia=None, vtipangle=None, cutz=None, simplify=None,
-                except_geo=None, rest=False):
+                except_geo=None, rest=False, strategy=None, voronoi_spacing=None, pad_isolation=None):
         """
         Creates an isolation routing geometry object in the project.
 
@@ -572,9 +573,10 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
         :param plot: Boolean:   if to plot the resulting geometry object
         :param clear_leftovers: Boolean: add paths that clear the copper left between the passes where the passes of
                                 2 features meet (camlib.isolation_leftover_paths()); full isolation with combined passes
-        :param boundary:        Polygon / MultiPolygon (e.g. the board area, camlib.outline_area()) or None. The paths
-                                are clipped to it, and the passes stop at the first one that is completely outside
-                                it (the next ones, further out, would be outside too)
+        :param boundary:        Polygon / MultiPolygon from camlib.outline_area(), or None. Voronoi cuts its convex hull's
+                                compensated perimeter and reserves a diameter-wide working collar plus output-grid
+                                and buffer-approximation room. Offset clips paths to it and stops at the first
+                                pass that is completely outside it
         :param trace_boundary:  Boolean: also add the outline of the boundary as a path (once)
         :param pad_passes:      number of extra passes around the pads only, after the last pass
         :param tool_shape:      index of the tool tip shape (tools_iso_tool_shape); 5 is the V shape
@@ -585,6 +587,11 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
         :param except_geo:      geometry in which no isolation path is left
         :param rest:            Boolean: rest machining with all the diameters of dia, the biggest first; one object
                                 with all the tools results
+        :param strategy:        'offset' (the default) or 'voronoi'. Voronoi isolates different copper bodies from
+                                each other: it needs a boundary, one positive pass and full isolation
+        :param voronoi_spacing: sampling step along the copper boundaries for the Voronoi strategy, in object units
+        :param pad_isolation:   optional partial flashed-pad halos after Voronoi generation, preserving original copper;
+                                ignored by Offset. CNC path ordering is unchanged
         :return:                'fail' if no object could be made, else None
         """
         # imported here: the plugin package imports the objects
@@ -619,6 +626,19 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
             vtipangle = float(self._app_option("tools_iso_vtipangle"))
         if cutz is None:
             cutz = float(self._app_option("tools_iso_cutz"))
+        strategy = self._app_option("tools_iso_strategy", "offset") if strategy is None else strategy
+        if isinstance(strategy, int) and not isinstance(strategy, bool):
+            strategy = ('offset', 'voronoi')[strategy] if 0 <= strategy <= 1 else 'offset'
+        strategy = str(strategy).lower()
+        if strategy not in ('offset', 'voronoi'):
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _("The isolation strategy must be Offset or Voronoi."))
+            return 'fail'
+        if voronoi_spacing is None:
+            voronoi_spacing = float(self._app_option("tools_iso_voronoi_spacing", 0.05))
+        if pad_isolation is None:
+            pad_isolation = bool(self._app_option("tools_iso_voronoi_pads", False))
+        pad_isolation = bool(pad_isolation) and strategy == 'voronoi'
+        pad_report = None
 
         # the tool diameters, signed: a negative one isolates inside the copper
         if tool_shape == ToolIsolation.V_SHAPE_INDEX:
@@ -667,6 +687,9 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
                 'tools_iso_pad_passes':     pad_passes,
                 'tools_iso_combine_passes': combine,
                 'tools_iso_rest':           bool(rest),
+                'tools_iso_strategy':       strategy,
+                'tools_iso_voronoi_spacing': float(voronoi_spacing),
+                'tools_iso_voronoi_pads':    pad_isolation,
                 'tools_iso_simplification': simplify > 0,
                 'tools_iso_simplification_tol': simplify if simplify > 0 else data.get(
                     'tools_iso_simplification_tol'),
@@ -699,6 +722,17 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
                 for nr, (tooldia, paths) in enumerate(tools, start=1):
                     data = tool_data(app_obj, tooldia)
                     data['name'] = name
+                    if strategy == 'voronoi':
+                        if pad_report is not None:
+                            data['tools_iso_voronoi_pad_report'] = pad_report
+                        data.update({
+                            'tools_iso_validated_paths': True,
+                            'tools_iso_voronoi_coord_decimals': coord_decimals,
+                            'tools_iso_voronoi_path_signature': sha256(
+                                GeometryCollection(paths).normalize().wkb).hexdigest(),
+                            'tools_iso_voronoi_units': self.units.upper(),
+                            'tools_iso_voronoi_tooldia': tooldia,
+                        })
                     geo_obj.tools[nr] = {'tooldia': tooldia, 'data': data, 'solid_geometry': paths}
 
                 if plot:
@@ -706,6 +740,74 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
                                                               geo_obj.obj_options["name"]))
 
             return self.app.app_obj.new_object("geometry", name, iso_init, plot=plot)
+
+        if strategy == 'voronoi':
+            if rest:
+                self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                    "The Voronoi strategy does not support Rest Machining. Use the Offset strategy."))
+                return 'fail'
+            if passes != 1:
+                self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                    "The Voronoi strategy uses one pass: it has no pass-width interpretation."))
+                return 'fail'
+            if iso_t != 2:
+                self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                    "The Voronoi strategy needs Full isolation; exteriors or interiors alone are not supported."))
+                return 'fail'
+            if dias[0] < 0:
+                self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                    "The Voronoi strategy does not support a negative tool diameter (inside-only isolation)."))
+                return 'fail'
+            if pad_passes > 0:
+                self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                    "The Voronoi strategy does not support extra pad passes."))
+                return 'fail'
+            if clear_leftovers:
+                self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                    "The Voronoi strategy does not support clearing leftovers."))
+                return 'fail'
+            if except_geo is not None:
+                self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                    "The Voronoi strategy does not support an excluded area."))
+                return 'fail'
+            if boundary is None:
+                self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                    "Voronoi isolation needs a boundary object (the board outline)."))
+                return 'fail'
+
+            tool_dia = abs(dias[0])
+            isolation_area = boundary.convex_hull
+            try:
+                coord_decimals = int(self.app.options.get('cncjob_coords_decimals', 4))
+            except (TypeError, ValueError):
+                coord_decimals = 4
+            try:
+                __, boundary = IsolationGen.voronoi_working_bounds(isolation_area, tool_dia, coord_decimals)
+                paths = IsolationGen.voronoi_isolation(
+                    work_geo, boundary, tool_dia, voronoi_spacing, units=self.units,
+                    simplify_tol=simplify if simplify > 0 else 0.0, coord_decimals=coord_decimals,
+                    abort=lambda: self.app.abort_flag, isolation_area=isolation_area)
+                if pad_isolation:
+                    paths, pad_report = IsolationGen.voronoi_pad_isolation(
+                        paths, self, boundary, tool_dia, coord_decimals=coord_decimals,
+                        abort=lambda: self.app.abort_flag, isolation_area=isolation_area)
+            except IsolationGen.VoronoiAborted:
+                self.app.inform.emit('[WARNING_NOTCL] %s' % _("Voronoi isolation aborted."))
+                return 'fail'
+            except IsolationGen.VoronoiIsolationError as err:
+                self.app.inform.emit('[ERROR_NOTCL] %s' % str(err))
+                return 'fail'
+
+            if pad_report is not None:
+                message = _("Pad isolation: %d unique surviving flashed pads; %d with added cuts; %d skipped.") % (
+                    pad_report['candidates'], pad_report['cut'], pad_report['skipped'])
+                if not pad_report['candidates']:
+                    message += ' ' + _("No supported flashed-pad provenance; region-only and negative images are skipped.")
+                elif pad_report['skipped']:
+                    message += ' ' + _("Skipped pads have no additional safe room with this cutter and output precision.")
+                self.app.inform.emit(('[INFO_NOTCL] ' if pad_report['cut'] else '[WARNING_NOTCL] ') + message)
+            name = (iso_stem + "_voronoi") if outname is None else outname
+            return make_object(name, [(tool_dia, paths)])
 
         def report_boundary(name, made, wanted):
             report = boundary_passes_message(name, made, wanted)

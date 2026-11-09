@@ -359,11 +359,16 @@ def find_tool_uid(tool_dia, tools_storage, decimals):
 
 def tool_params(tool_uid, tools_storage):
     data = tools_storage[tool_uid]['data']
+    try:
+        angle = float(data.get('tools_paint_crosshatch_angle', 0.0) or 0.0)
+    except (TypeError, ValueError):
+        angle = 0.0
     return {
         'over': float(data['tools_paint_overlap']) / 100.0,
         'conn': data['tools_paint_connect'],
         'cont': data['tools_paint_contour'],
-        'offset': float(data['tools_paint_offset'])
+        'offset': float(data['tools_paint_offset']),
+        'angle': angle
     }
 
 
@@ -614,13 +619,25 @@ def laser_lines(poly_g, tool_diameter, over, conn, cont, prog_plot, circle_steps
 
 def paint_polygon(poly_g, tool_diameter, paint_method, over, conn, cont, prog_plot, circle_steps,
                   clear_shrink, clear_seed, clear_lines, apertures=None, geometry_circle_steps=64,
-                  fill_lines=None, progress=None, index=None):
+                  fill_lines=None, progress=None, index=None, crosshatch_angle=0.0, clear_crosshatch=None):
     result = None
     if paint_method == 3:
         result = laser_lines(poly_g, tool_diameter, over, conn, cont, prog_plot, circle_steps,
                              geometry_circle_steps, apertures, clear_seed, clear_lines, fill_lines, index)
         if result == 'fail':
             return result
+    elif paint_method == 5:
+        if clear_crosshatch is None:
+            return None
+        try:
+            result = clear_crosshatch(poly_g, tooldia=tool_diameter, steps_per_circle=circle_steps,
+                                      overlap=over, contour=cont, connect=conn, prog_plot=prog_plot,
+                                      angle=crosshatch_angle)
+        except grace:
+            return 'fail'
+        except Exception as err:
+            log.error('ToolPaint.paint_polygon_worker() Crosshatch --> %s' % str(err))
+            result = None
     else:
         methods = {0: clear_shrink, 1: clear_seed, 2: clear_lines}
         sequence = (2, 1, 0) if paint_method == 4 else (paint_method,)

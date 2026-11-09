@@ -555,6 +555,9 @@ class AppDefaults:
         "tools_iso_overlap": 10,
         "tools_iso_milling_type": "cl",
         "tools_iso_isotype": "full",
+        "tools_iso_strategy": "offset",
+        "tools_iso_voronoi_spacing": 0.05,
+        "tools_iso_voronoi_pads": False,
 
         "tools_iso_rest":           False,
         "tools_iso_combine_passes": True,
@@ -762,7 +765,8 @@ class AppDefaults:
         "tools_ncc_operation": 'clear',
         "tools_ncc_overlap": 40,
         "tools_ncc_margin": 1.0,
-        "tools_ncc_method": 1,  # SEED
+        "tools_ncc_method": 0,  # STANDARD: the shortest machining time (fewer lifts), the same cleared area
+        "tools_ncc_crosshatch_angle": 0.0,  # degrees; first family of the Crosshatch method
         "tools_ncc_connect": True,
         "tools_ncc_contour": True,
         "tools_ncc_rest": False,
@@ -808,6 +812,7 @@ class AppDefaults:
         "tools_paint_overlap": 20,
         "tools_paint_offset": 0.0,
         "tools_paint_method": 0,
+        "tools_paint_crosshatch_angle": 0.0,   # degrees; first family of the Crosshatch method
         "tools_paint_selectmethod": 0,
         "tools_paint_area_shape": "square",
         "tools_paint_connect": True,

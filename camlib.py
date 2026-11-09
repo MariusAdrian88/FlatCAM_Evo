@@ -38,6 +38,7 @@ import ezdxf
 from ezdxf import recover
 
 import math
+from hashlib import sha256
 from time import monotonic
 
 # See: http://toblerity.org/shapely/manual.html
@@ -84,7 +85,8 @@ def _ortools_available(arch):
     try:
         from ortools.constraint_solver import pywrapcp      # noqa
         from ortools.constraint_solver import routing_enums_pb2     # noqa
-    except ImportError:
+    except Exception:
+        # ImportError, or a broken install (e.g. a protobuf descriptor error): camlib must still import
         return False
     return True
 
@@ -1923,78 +1925,36 @@ class Geometry(object):
 
         return geom_elems
 
-    def clear_polygon_lines(
-            self,
-            polygon: Polygon,
-            tooldia: int | float | str,
-            steps_per_circle: int,
-            overlap: float = 0.15,
-            connect: bool = True,
-            contour: bool = True,
-            simplify_tol: float = 0.0,
-            prog_plot: bool = False,
-    ):
+    def _scan_lines(self, polygon, margin_poly, tooldia, overlap, simplify_tol=0.0, prog_plot=False,
+                    horizontal=True, transform=None):
+        """The scan lines of one family inside margin_poly, cut from bands of SCAN_BAND_LINES lines.
+
+        horizontal: True for lines of constant y, False for lines of constant x.
+        transform:  optional callable applied to every line, e.g. to rotate a family back into the polygon frame.
         """
-        Creates geometry inside a polygon for a tool to cover
-        the whole area.
-
-        This algorithm draws horizontal lines inside the polygon.
-
-        :param polygon:             The polygon being painted.
-        :type polygon:              shapely.geometry.Polygon
-        :param tooldia:             Tool diameter.
-        :param steps_per_circle:    how many linear segments to use to approximate a circle
-        :param overlap:             Tool path overlap percentage.
-        :param connect:             Connect lines to avoid tool lifts.
-        :param contour:             Paint around the edges.
-        :param simplify_tol:        Simplification tolerance
-        :param prog_plot:           boolean; if to use the progressive plotting
-        :return:
-        """
-
-        # log.debug("camlib.clear_polygon_lines()")
-        quad_segs = circle_quad_segs(steps_per_circle)
-        # The distance of the margin from the boundary and the distance of the first and last scan line from the
-        # edge of the bounding box. The scan lines at the edge must lie inside the margin, so they use the same value.
+        left, bot, right, top = polygon.bounds
         margin_dist = tooldia / 1.99999999
         edge_dist = tooldia / 1.999999999
-        if not isinstance(polygon, Polygon):
-            self.app.log.debug("camlib.Geometry.clear_polygon_lines() --> Not a Polygon but %s" % str(type(polygon)))
-            return None
-
-        # The toolpaths
-        # Index first and last points in paths
-        def get_pts(o):
-            return [o.coords[0], o.coords[-1]]
-
-        geoms = AppRTreeStorage()
-        geoms.get_points = get_pts
-        # the paths are collected and go in the storage in 1 batch (bulk load) when all are made
-        new_paths = []
-
+        step = tooldia * (1 - overlap)
+        if (not math.isfinite(tooldia) or tooldia <= 0 or not math.isfinite(overlap)
+                or not 0 <= overlap < 1 or not math.isfinite(step) or step <= 0):
+            raise ValueError('Scan lines require a positive finite tool diameter and overlap in [0, 1).')
         lines_trimmed = []
+        last_update = 0.0
+        band = None
 
-        # Bounding box
-        left, bot, right, top = polygon.bounds
+        def add_line(line):
+            parts = flatten_shapely_geometry(line, simplify_tolerance=simplify_tol)
+            if transform is not None:
+                parts = [transform(part) for part in parts]
+            lines_trimmed.extend(parts)
+            if prog_plot:
+                for part in parts:
+                    self.plot_temp_shapes(part)
 
         try:
-            # The contour touches the outline: its arcs follow the clearing error of the Preferences.
-            edge_segs, strict = clearing_edge(self.app, margin_dist, quad_segs)
-            margin_poly = clearing_margin(polygon, margin_dist, edge_segs, strict)
-            margin_poly = margin_poly.simplify(simplify_tol)
-        except Exception:
-            self.app.log.debug("camlib.Geometry.clear_polygon_lines() --> Could not buffer the Polygon")
-            return None
-
-        last_update = 0.0
-        # The cut of a scan line costs O(size of the polygon). Each line is cut from a band of SCAN_BAND_LINES lines,
-        # clipped from the margin polygon: about 12x faster on a board polygon of 14600 vertices (same result).
-        step = tooldia * (1 - overlap)
-        band = None
-        # decide the direction of the lines
-        if abs(left - right) >= abs(top - bot):
-            # First line
-            try:
+            if horizontal:
+                # First line
                 y = top - margin_dist
                 band_end = y
                 while y > bot + edge_dist:
@@ -2013,32 +1973,14 @@ class Geometry(object):
                     if band is None or y < band_end:
                         band_end = y - Geometry.SCAN_BAND_LINES * step
                         band = shapely.clip_by_rect(margin_poly, left - 1, band_end - step, right + 1, y + step)
-                    line = LineString([(left, y), (right, y)])
-                    line = line.intersection(band)
-                    line = flatten_shapely_geometry(line, simplify_tolerance=simplify_tol)
-                    lines_trimmed += line
+                    add_line(LineString([(left, y), (right, y)]).intersection(band))
                     y -= step
-                    if prog_plot:
-                        self.plot_temp_shapes(line)
 
                 # Last line
                 y = bot + margin_dist
-                line = LineString([(left, y), (right, y)])
-                line = line.intersection(margin_poly)
-
-                lines_geometry = flatten_shapely_geometry(line, simplify_tolerance=simplify_tol)
-                for ll in lines_geometry:
-                    lines_trimmed.append(ll)
-                    if prog_plot:
-                        self.plot_temp_shapes(ll)
-            except grace:
-                raise
-            except Exception as e:
-                self.app.log.error('camlib.Geometry.clear_polygon_lines() Processing poly --> %s' % str(e))
-                return None
-        else:
-            # First line
-            try:
+                add_line(LineString([(left, y), (right, y)]).intersection(margin_poly))
+            else:
+                # First line
                 x = left + margin_dist
                 band_end = x
                 while x < right - edge_dist:
@@ -2057,29 +1999,98 @@ class Geometry(object):
                     if band is None or x > band_end:
                         band_end = x + Geometry.SCAN_BAND_LINES * step
                         band = shapely.clip_by_rect(margin_poly, x - step, bot - 1, band_end + step, top + 1)
-                    line = LineString([(x, top), (x, bot)])
-                    line = line.intersection(band)
-                    line = flatten_shapely_geometry(line, simplify_tolerance=simplify_tol)
-                    lines_trimmed += line
+                    add_line(LineString([(x, top), (x, bot)]).intersection(band))
                     x += step
-                    if prog_plot:
-                        self.plot_temp_shapes(line)
 
                 # Last line
                 x = right - margin_dist
-                line = LineString([(x, top), (x, bot)])
-                line = line.intersection(margin_poly)
+                add_line(LineString([(x, top), (x, bot)]).intersection(margin_poly))
+        except grace:
+            raise
+        except Exception as e:
+            self.app.log.error('camlib.Geometry.clear_polygon_lines() Processing poly --> %s' % str(e))
+            return None
+        return lines_trimmed
 
-                lines_geometry = flatten_shapely_geometry(line, simplify_tolerance=simplify_tol)
-                for ll in lines_geometry:
-                    lines_trimmed.append(ll)
-                    if prog_plot:
-                        self.plot_temp_shapes(ll)
-            except grace:
-                raise
-            except Exception as e:
-                self.app.log.error('camlib.Geometry.clear_polygon_lines() Processing poly --> %s' % str(e))
-                return None
+    def clear_polygon_lines(
+            self,
+            polygon: Polygon,
+            tooldia: int | float | str,
+            steps_per_circle: int,
+            overlap: float = 0.15,
+            connect: bool = True,
+            contour: bool = True,
+            simplify_tol: float = 0.0,
+            prog_plot: bool = False,
+            angle: float | None = None,
+    ):
+        """
+        Creates geometry inside a polygon for a tool to cover
+        the whole area.
+
+        This algorithm draws parallel lines inside the polygon.
+
+        :param polygon:             The polygon being painted.
+        :type polygon:              shapely.geometry.Polygon
+        :param tooldia:             Tool diameter.
+        :param steps_per_circle:    how many linear segments to use to approximate a circle
+        :param overlap:             Tool path overlap percentage.
+        :param connect:             Connect lines to avoid tool lifts.
+        :param contour:             Paint around the edges.
+        :param simplify_tol:        Simplification tolerance
+        :param prog_plot:           boolean; if to use the progressive plotting
+        :param angle:               Direction of the lines, in degrees. None keeps the automatic direction:
+                                    the lines follow the longest side of the bounding box.
+        :return:
+        """
+
+        # log.debug("camlib.clear_polygon_lines()")
+        quad_segs = circle_quad_segs(steps_per_circle)
+        # The distance of the margin from the boundary and the distance of the first and last scan line from the
+        # edge of the bounding box. The scan lines at the edge must lie inside the margin, so they use the same value.
+        margin_dist = tooldia / 1.99999999
+        if not isinstance(polygon, Polygon):
+            self.app.log.debug("camlib.Geometry.clear_polygon_lines() --> Not a Polygon but %s" % str(type(polygon)))
+            return None
+
+        # The toolpaths
+        # Index first and last points in paths
+        def get_pts(o):
+            return [o.coords[0], o.coords[-1]]
+
+        geoms = AppRTreeStorage()
+        geoms.get_points = get_pts
+        # the paths are collected and go in the storage in 1 batch (bulk load) when all are made
+        new_paths = []
+
+        # Bounding box
+        left, bot, right, top = polygon.bounds
+
+        try:
+            # The contour touches the outline: its arcs follow the clearing error of the Preferences.
+            edge_segs, strict = clearing_edge(self.app, margin_dist, quad_segs)
+            margin_poly = clearing_margin(polygon, margin_dist, edge_segs, strict)
+            margin_poly = margin_poly.simplify(simplify_tol)
+        except Exception:
+            self.app.log.debug("camlib.Geometry.clear_polygon_lines() --> Could not buffer the Polygon")
+            return None
+
+        # A forced angle rotates the polygon to a fixed frame; the axis is forced too, so the longest-side
+        # heuristic cannot turn the requested direction by 90 degrees.
+        scan_polygon, scan_margin, transform = polygon, margin_poly, None
+        if angle is not None:
+            angle = crosshatch_angle(angle)
+            scan_polygon = affinity.rotate(polygon, -angle, origin=(0, 0))
+            scan_margin = affinity.rotate(margin_poly, -angle, origin=(0, 0))
+            transform = lambda geo, a=angle: affinity.rotate(geo, a, origin=(0, 0))
+            horizontal = True
+        else:
+            horizontal = abs(left - right) >= abs(top - bot)
+
+        lines_trimmed = Geometry._scan_lines(self, scan_polygon, scan_margin, tooldia, overlap, simplify_tol,
+                                             prog_plot, horizontal, transform)
+        if lines_trimmed is None:
+            return None
 
         if prog_plot:
             self.temp_shapes.redraw()
@@ -2120,6 +2131,112 @@ class Geometry(object):
         # Optimization: Reduce lifts
         if connect:
             # log.debug("Reducing tool lifts...")
+            self.app.inform_no_echo.emit(_("Connect: reducing tool lifts. This may take a while, please wait..."))
+            self.app.proc_container.update_view_text(' %s' % _("Connecting..."), clear=True)
+            geoms_conn = Geometry.paint_connect(geoms, polygon, tooldia, steps_per_circle)
+            if geoms_conn:
+                return geoms_conn
+
+        return geoms
+
+    def clear_polygon_crosshatch(
+            self,
+            polygon: Polygon,
+            tooldia: int | float | str,
+            steps_per_circle: int,
+            overlap: float = 0.15,
+            connect: bool = True,
+            contour: bool = True,
+            simplify_tol: float = 0.0,
+            prog_plot: bool = False,
+            angle: float = 0.0,
+    ):
+        """
+        Creates geometry inside a polygon for a tool to cover the whole area with two perpendicular families of
+        parallel lines, at ``angle`` and ``angle + 90`` degrees, and one contour.
+
+        :param polygon:             The polygon being painted.
+        :param tooldia:             Tool diameter.
+        :param steps_per_circle:    how many linear segments to use to approximate a circle
+        :param overlap:             Tool path overlap percentage.
+        :param connect:             Connect lines to avoid tool lifts.
+        :param contour:             Paint around the edges, once for both families.
+        :param simplify_tol:        Simplification tolerance
+        :param prog_plot:           boolean; if to use the progressive plotting
+        :param angle:               Direction of the first family, in degrees; normalized to [0, 180).
+        :return:
+        """
+        quad_segs = circle_quad_segs(steps_per_circle)
+        margin_dist = tooldia / 1.99999999
+        if not isinstance(polygon, Polygon):
+            self.app.log.debug(
+                "camlib.Geometry.clear_polygon_crosshatch() --> Not a Polygon but %s" % str(type(polygon)))
+            return None
+
+        def get_pts(o):
+            return [o.coords[0], o.coords[-1]]
+
+        geoms = AppRTreeStorage()
+        geoms.get_points = get_pts
+        new_paths = []
+
+        try:
+            # The contour touches the outline: its arcs follow the clearing error of the Preferences.
+            edge_segs, strict = clearing_edge(self.app, margin_dist, quad_segs)
+            margin_poly = clearing_margin(polygon, margin_dist, edge_segs, strict)
+            margin_poly = margin_poly.simplify(simplify_tol)
+        except Exception:
+            self.app.log.debug("camlib.Geometry.clear_polygon_crosshatch() --> Could not buffer the Polygon")
+            return None
+
+        angle = crosshatch_angle(angle)
+        scan_paths = []
+        for family in (angle, angle + 90.0):
+            scan_polygon = affinity.rotate(polygon, -family, origin=(0, 0))
+            scan_margin = affinity.rotate(margin_poly, -family, origin=(0, 0))
+            lines = Geometry._scan_lines(
+                self, scan_polygon, scan_margin, tooldia, overlap, simplify_tol, prog_plot, True,
+                lambda geo, a=family: affinity.rotate(geo, a, origin=(0, 0)))
+            if lines is None:
+                return None
+            scan_paths.extend(lines)
+
+        if prog_plot:
+            self.temp_shapes.redraw()
+
+        # Every scan line stays whole: a union of the two families would cut each line at each crossing.
+        for line in scan_paths:
+            if isinstance(line, LineString) or isinstance(line, LinearRing):
+                if not line.is_empty:
+                    new_paths.append(line)
+            else:
+                self.app.log.debug(
+                    "camlib.Geometry.clear_polygon_crosshatch(). Not a line: %s" % str(type(line)))
+
+        # One gap repair for the combined sweep of the two families, not one per family.
+        if not contour:
+            new_paths.extend(margin_gap_rings(margin_poly, new_paths, tooldia / 2.0, quad_segs))
+
+        # One contour, shared by the two families.
+        if contour:
+            margin_poly_geo = flatten_shapely_geometry(margin_poly, simplify_tolerance=simplify_tol)
+            for poly in margin_poly_geo:
+                if isinstance(poly, Polygon) and not poly.is_empty:
+                    new_paths.append(poly.exterior)
+                    if prog_plot:
+                        self.plot_temp_shapes(poly.exterior)
+                    for ints in poly.interiors:
+                        new_paths.append(ints)
+                        if prog_plot:
+                            self.plot_temp_shapes(ints)
+
+        geoms.insert_many(new_paths)
+
+        if prog_plot:
+            self.temp_shapes.redraw()
+
+        # Optimization: Reduce lifts
+        if connect:
             self.app.inform_no_echo.emit(_("Connect: reducing tool lifts. This may take a while, please wait..."))
             self.app.proc_container.update_view_text(' %s' % _("Connecting..."), clear=True)
             geoms_conn = Geometry.paint_connect(geoms, polygon, tooldia, steps_per_circle)
@@ -3641,16 +3758,22 @@ class CNCjob(Geometry):
     def _ortools_solve(self, locations, depot, metaheuristic, opt_time):
         """(route, objective) of the OR-Tools search; in the process pool if the app has one."""
         pool = getattr(self.app, 'pool', None)
-        if pool is None:
-            route, objective = RouteSolver.solve_route(locations, depot, metaheuristic, opt_time)
-        else:
-            res = pool.apply_async(RouteSolver.solve_route, (locations, depot, metaheuristic, opt_time))
-            while not res.ready():
-                res.wait(0.1)
-                if self.app.abort_flag:
-                    # the child ends its search on its own
-                    raise grace
-            route, objective = res.get()
+        try:
+            if pool is None:
+                route, objective = RouteSolver.solve_route(locations, depot, metaheuristic, opt_time)
+            else:
+                res = pool.apply_async(RouteSolver.solve_route, (locations, depot, metaheuristic, opt_time))
+                while not res.ready():
+                    res.wait(0.1)
+                    if self.app.abort_flag:
+                        # the child ends its search on its own
+                        raise grace
+                route, objective = res.get()
+        except grace:
+            raise
+        except Exception as err:
+            self.app.log.warning("OR-tools failed (%s), using the nearest-neighbour route." % str(err))
+            route, objective = RouteSolver.greedy_route(locations, depot)
         if self.app.abort_flag:
             # graceful abort requested by the user
             raise grace
@@ -4495,6 +4618,51 @@ class CNCjob(Geometry):
         return self._mill_geometry_paths(tool, tools, first_pt, flat_geometry, temp_solid_geometry,
                                          opt_type, opt_time, is_first, is_last, toolchange)
 
+    def _check_voronoi_output(self, data, geometry, tooldia, offset, extracut=False, extracut_length=0.0,
+                              pp_geometry_name='default'):
+        """Guard generation-space paths, not a certificate for edited geometry or machine-space transforms."""
+        if pp_geometry_name != 'default':
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                "Validated Voronoi paths require the default milling preprocessor. "
+                "Other output coordinate grids have not been certified."))
+            return False
+        output_decimals = getattr(self, 'coords_decimals', None)
+        if output_decimals is None:
+            output_decimals = self._app_option('cncjob_coords_decimals')
+        try:
+            stored_decimals = int(data['tools_iso_voronoi_coord_decimals'])
+            if stored_decimals < 0 or int(output_decimals) < stored_decimals:
+                raise ValueError
+        except (KeyError, TypeError, ValueError, OverflowError):
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                "The Voronoi output coordinate decimals are missing or coarser than the generation grid. "
+                "Raise the coordinate decimals or regenerate the isolation."))
+            return False
+        if data.get('tools_iso_voronoi_path_signature') != voronoi_path_signature(geometry):
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                "The Voronoi paths were changed or moved (move, scale, rotate, edit), or their generation data is "
+                "missing. Regenerate the isolation before making a CNC job."))
+            return False
+        stored_dia = data.get('tools_iso_voronoi_tooldia')
+        if data.get('tools_iso_voronoi_units') != self.units.upper() or stored_dia is None or \
+                not math.isclose(float(stored_dia), float(tooldia), rel_tol=1e-9, abs_tol=1e-9) or offset:
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                "The units, the tool diameter or the offset of the Voronoi isolation changed. "
+                "Regenerate the isolation with the current settings before making a CNC job."))
+            return False
+        if any(getattr(self, key, 0) for key in
+               ('_bed_skew_x', '_bed_skew_y', '_bed_offset_x', '_bed_offset_y')):
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                "Voronoi clearance was checked in geometry coordinates, not with bed transforms. "
+                "Disable bed transforms; machine-space clearance validation is not available."))
+            return False
+        if self.seg_x > 0 or self.seg_y > 0 or (extracut and extracut_length):
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                "Voronoi paths cannot be interpolated after clearance validation. "
+                "Disable segmentation and use zero-length Extra Cut or disable Extra Cut."))
+            return False
+        return True
+
     def load_mill_tool_params(self, tool, tools, last_pt, tolerance, is_first, use_ui):
         """Load and validate the current tool's shared Milling preprocessor parameters."""
         tool_dict = tools[tool]['data']
@@ -4505,6 +4673,15 @@ class CNCjob(Geometry):
         self.tooldia = float(tool_dict['tools_mill_tooldia'])
         self.use_ui = use_ui
         self.tolerance = tolerance
+        if tool_dict.get('tools_iso_validated_paths'):
+            # Preserve the generated paths; this does not recertify edits or machine-space transforms.
+            self.tolerance = 0.0
+            if not self._check_voronoi_output(tool_dict, tools[tool]['solid_geometry'], self.tooldia,
+                                              tool_dict.get('tools_mill_offset_value', 0),
+                                              tool_dict.get('tools_mill_extracut', False),
+                                              tool_dict.get('tools_mill_extracut_length', 0),
+                                              pp_geometry_name=tool_dict['tools_mill_ppname_g']):
+                return 'fail'
         self.pp_geometry_name = tool_dict['tools_mill_ppname_g']
         self.pp_geometry = get_preprocessor(self.app, self.pp_geometry_name)
         # Depth parameters for the current tool must be loaded before validation.
@@ -5950,6 +6127,16 @@ class CNCjob(Geometry):
         """
         self.app.log.debug("Executing camlib.CNCJob.generate_from_geometry_2()")
         self.area_exclusion = bool(area_exclusion)
+
+        # Validated Voronoi paths are already on the output coordinate grid and must not be simplified again.
+        for _tool in (getattr(geo_obj, 'tools', {}) or {}).values():
+            _data = _tool.get('data', {}) if isinstance(_tool, dict) else {}
+            if not _data.get('tools_iso_validated_paths'):
+                continue
+            tolerance = 0.0
+            if not self._check_voronoi_output(_data, geo_obj.solid_geometry, tooldia, offset,
+                                              extracut, extracut_length, pp_geometry_name=pp_geometry_name):
+                return 'fail'
 
         # if solid_geometry is empty raise an exception
         if not geo_obj.solid_geometry:
@@ -9497,6 +9684,20 @@ def circle_quad_segs(steps_per_circle) -> int:
     return max(1, math.ceil(int(steps_per_circle) / 4))
 
 
+def crosshatch_angle(angle) -> float:
+    """
+    :param angle:   the direction of a crosshatch family, in degrees
+    :return:        the angle normalized to [0, 180); a non-finite value is 0
+    """
+    try:
+        angle = float(angle)
+    except (TypeError, ValueError):
+        return 0.0
+    if not math.isfinite(angle):
+        return 0.0
+    return angle % 180.0
+
+
 def exact_fit(radius):
     """
     The distance that a margin backs down at an exact fit: the cutter may touch the outline, never cut past it. The
@@ -9833,11 +10034,11 @@ def seed_band_margin(margin, center):
 
 
 # a merged polygon without holes that covers less than this part of its bounding box is the band of an outline that
-# is not closed (see outline_area())
+# is not closed (see enclosed_outline_area())
 OUTLINE_BAND_RATIO = 0.05
 
 
-def outline_area(geometry):
+def enclosed_outline_area(geometry):
     """
     The area enclosed by the outlines in a geometry: e.g. the board area from the outline in an Edge Cuts Gerber
     (the outline is drawn as a band, a polygon with a hole) or from a shape drawn in a Geometry object.
@@ -9879,6 +10080,60 @@ def outline_area(geometry):
     merged = unary_union(areas)
     filled = [Polygon(p.exterior) for p in flatten_shapely_geometry(merged) if isinstance(p, Polygon)]
     return unary_union(filled) if filled else None
+
+
+def outline_area(geometry, has_flashes=False):
+    """
+    The boundary area of an outline (cutout) object. Without flashes (a normal outline Gerber, or a Geometry) it is
+    the area enclosed by the outline (see enclosed_outline_area()). An object with flashes (pads) gets a concave
+    enclosure around all its shapes, including the gaps between disconnected shapes: the tightest concave hull, with
+    no holes or added margin. Source polygons and enclosed linework are retained so the vertex-based hull cannot cut
+    through them. Inner outlines (cutouts) are not taken out.
+
+    :param geometry:    Shapely geometry or a (nested) list of them
+    :param has_flashes: True if the object has flashes (pads) inside the outline: the concave hull is used
+    :return:            Polygon or MultiPolygon, or None if the boundary has no area
+    """
+    if not has_flashes:
+        return enclosed_outline_area(geometry)
+
+    shapes = [geo if geo.is_valid else shapely.make_valid(geo) for geo in flatten_shapely_geometry(geometry)]
+    source = unary_union(shapes)
+    hull = shapely.concave_hull(source, ratio=0.0, allow_holes=False)
+    if not isinstance(hull, Polygon) or hull.is_empty:
+        return None
+
+    areas = [hull, source]
+    lines = [geo for geo in flatten_shapely_geometry(source) if isinstance(geo, (LineString, LinearRing))]
+    if lines:
+        # Include faces where the hull crosses source lines, just as source polygons are retained.
+        areas += list(shapely.ops.polygonize(unary_union([hull.boundary] + lines)))
+
+    merged = unary_union(areas)
+    filled = [Polygon(p.exterior) for p in flatten_shapely_geometry(merged) if isinstance(p, Polygon)]
+    area = unary_union(filled)
+    if not area.covers(source):
+        # Overlay roundoff can put source edges just outside the enclosure despite an empty difference.
+        area = area.buffer(64 * math.ulp(max(abs(value) for value in source.bounds)), join_style='mitre')
+    return area
+
+
+def voronoi_path_signature(geometry):
+    """The signature of generated Voronoi paths: it changes when the paths are moved, scaled, rotated or edited."""
+    return sha256(GeometryCollection(flatten_shapely_geometry(geometry)).normalize().wkb).hexdigest()
+
+def boundary_area(boundary_obj):
+    """
+    The boundary area of a cutout / outline object (see outline_area()): the concave hull when it is a Gerber with
+    flashes (pads) inside the outline, the area enclosed by the outline otherwise (a normal outline Gerber, a Geometry).
+
+    :param boundary_obj:    Gerber or Geometry object
+    :return:                Polygon or MultiPolygon, or None if the object gives no area
+    """
+    flashes = getattr(boundary_obj, 'kind', None) == 'gerber' and any(
+        isinstance(geo.get('follow'), Point) and geo.get('solid') is not None
+        for aperture in boundary_obj.tools.values() for geo in aperture['geometry'])
+    return outline_area(boundary_obj.solid_geometry, flashes)
 
 
 def clip_paths_to_area(geometry, area):

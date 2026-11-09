@@ -1,5 +1,5 @@
 from tclCommands.TclCommand import TclCommandSignaled
-from camlib import outline_area
+from camlib import boundary_area
 
 import collections
 
@@ -50,7 +50,10 @@ class TclCommandIsolate(TclCommandSignaled):
         ('cutz', float),
         ('simplify', float),
         ('except_obj', str),
-        ('rest', str)
+        ('rest', str),
+        ('strategy', str),
+        ('voronoi_spacing', float),
+        ('pad_isolation', str)
     ])
 
     # array of mandatory options for current Tcl command: required = {'name','outname'}
@@ -77,12 +80,17 @@ class TclCommandIsolate(TclCommandSignaled):
             ('clear_leftovers', 'Also add paths that clear the copper left between the passes where the passes of '
                                 'two features meet (full isolation with combined passes). '
                                 'Can be True (1) or False (0)'),
-            ('boundary', 'Name of a Gerber or Geometry object whose outline limits the isolation, e.g. the board '
-                         'outline (Edge Cuts). The paths outside it are cut off and the passes stop when one is '
-                         'completely outside it.'),
+            ('boundary', 'Name of a Gerber or Geometry boundary object. Voronoi uses its convex hull and cuts '
+                         'the compensated outer perimeter to enclose complete islands, with extra working room '
+                         'for the full cutter. Offset uses the area enclosed by its outline (the concave hull if the object has flashes): paths outside it '
+                         'are cut off and passes stop when one is completely outside it.'),
             ('trace_boundary', 'Also add one path along the boundary outline. Can be True (1) or False (0).'),
             ('milling_type', 'cl for climb milling or cv for conventional milling.'),
             ('pad_passes', 'Number of extra passes around the pads only, after the last pass.'),
+            ('pad_isolation', 'With Voronoi, add partial halos around surviving flashed pads using the same cutter '
+                              'and depth. Original traces and polygons are preserved. Pads with no safe room and '
+                              'region-only or negative images are reported and skipped. True (1) or False (0). '
+                              'Ignored by Offset. Normal CNC path ordering applies; not a separate machining phase.'),
             ('tool_shape', 'Shape of the tool tip: C1, C2, C3, C4, B, V or L. For V the tool diameter is the '
                            'effective one, computed from -vtipdia, -vtipangle and -cutz.'),
             ('vtipdia', 'Tip diameter of the V-shaped tool. Giving it selects the V shape.'),
@@ -94,13 +102,21 @@ class TclCommandIsolate(TclCommandSignaled):
                            'are cut off inside it.'),
             ('rest', 'Rest machining: the Gerber is isolated with every tool of the -dia list, the biggest first, '
                      'and the next tool isolates what the previous one could not. One Geometry object with all '
-                     'the tools results. Can be True (1) or False (0).')
+                     'the tools results. Can be True (1) or False (0).'),
+            ('strategy', 'offset (default) or voronoi. Voronoi isolates different copper bodies from each other: '
+                         'it needs -boundary, one positive pass and full isolation. Rest machining, exclusions, '
+                         'pad passes and leftovers are unsupported. Boundary tracing is ignored.'),
+            ('voronoi_spacing', 'Sampling step along the copper boundaries for the Voronoi strategy, in the '
+                                'application units. This bounds sample intervals, not the toolpath error. Default: the '
+                                'Isolation preferences.')
         ]),
         'examples': ['isolate my_gerber -dia 0.1 -passes 2 -overlap 10 -combine True -iso_type 2 -outname out_geo',
                      'isolate my_gerber -dia 0.1 -passes 20 -overlap 10 -clear_leftovers True',
                      'isolate my_gerber -dia 0.1 -passes 50 -overlap 10 -boundary my_edge_cuts -trace_boundary True',
                      'isolate my_gerber -dia 0.4,0.2,0.1 -rest True',
                      'isolate my_gerber -tool_shape V -vtipdia 0.1 -vtipangle 30 -cutz -0.07 -milling_type cv',
+                     'isolate my_gerber -dia 0.1 -passes 1 -strategy voronoi -boundary my_edge_cuts '
+                     '-voronoi_spacing 0.05',
                      'isolate gerber_top,gerber_bottom -dia 0.1 -pad_passes 2 -except_obj keep_out']
     }
 
@@ -163,7 +179,19 @@ class TclCommandIsolate(TclCommandSignaled):
             args['clear_leftovers'] = self._bool(args, 'clear_leftovers', None)
         if 'trace_boundary' in args:
             args['trace_boundary'] = self._bool(args, 'trace_boundary', None)
+        if 'pad_isolation' in args:
+            args['pad_isolation'] = self._bool(args, 'pad_isolation', None)
         args['rest'] = rest
+
+        if 'strategy' in args:
+            strategy = args['strategy'].strip().lower()
+            if strategy not in ('offset', 'voronoi'):
+                self.raise_tcl_error("The strategy must be offset or voronoi.")
+            args['strategy'] = strategy
+        if 'voronoi_spacing' in args and args['voronoi_spacing'] <= 0:
+            self.raise_tcl_error("The Voronoi spacing must be positive.")
+        if args.get('strategy') == 'voronoi' and 'boundary' not in args:
+            self.raise_tcl_error("The Voronoi strategy needs -boundary (the board outline).")
 
         if 'passes' in args and args['passes'] < 1:
             self.raise_tcl_error("The number of passes must be at least 1.")
@@ -212,9 +240,9 @@ class TclCommandIsolate(TclCommandSignaled):
             if boundary_obj is None:
                 self.raise_tcl_error("Object not found: %s" % args['boundary'])
                 return "fail"
-            args['boundary'] = outline_area(boundary_obj.solid_geometry)
+            args['boundary'] = boundary_area(boundary_obj)
             if args['boundary'] is None:
-                self.raise_tcl_error("The object %s has no outline that encloses an area." %
+                self.raise_tcl_error("The boundary object %s encloses no area." %
                                      boundary_obj.obj_options['name'])
                 return "fail"
 

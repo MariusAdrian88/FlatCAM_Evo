@@ -344,12 +344,13 @@ class PaintUI:
               "- Laser-lines: Active only for Gerber objects.\n"
               "Will create lines that follow the traces.\n"
               "- Combo: In case of failure a new method will be picked from the above\n"
-              "in the order specified.")
+              "in the order specified.\n"
+              "- Crosshatch: Two perpendicular families of parallel lines.")
         )
 
         self.method_combo = FCComboBox2()
         self.method_combo.addItems(
-            [_("Standard"), _("Seed"), _("Lines"), _("Laser_lines"), _("Combo")]
+            [_("Standard"), _("Seed"), _("Lines"), _("Laser_lines"), _("Combo"), _("Crosshatch")]
         )
         idx = self.method_combo.findText(_("Laser_lines"))
         self.method_combo.model().item(idx).setEnabled(False)  # type: ignore[union-attr]
@@ -358,6 +359,22 @@ class PaintUI:
 
         param_grid.addWidget(methodlabel, 4, 0)
         param_grid.addWidget(self.method_combo, 4, 1)
+
+        # Crosshatch angle
+        self.crosshatch_angle_label = FCLabel('%s:' % _('Angle'))
+        self.crosshatch_angle_label.setToolTip(
+            _("Direction of the first family of lines of the Crosshatch method, in degrees.\n"
+              "The second family is at 90 degrees from it.")
+        )
+        self.crosshatch_angle_entry = FCDoubleSpinner(callback=self.confirmation_message)
+        self.crosshatch_angle_entry.set_precision(self.decimals)
+        self.crosshatch_angle_entry.setWrapping(True)
+        self.crosshatch_angle_entry.setRange(0.0000, 179.9999)
+        self.crosshatch_angle_entry.setSingleStep(45)
+        self.crosshatch_angle_entry.setObjectName('p_crosshatch_angle')
+
+        param_grid.addWidget(self.crosshatch_angle_label, 5, 0)
+        param_grid.addWidget(self.crosshatch_angle_entry, 5, 1)
 
         # Connect lines
         self.connect_cb = FCCheckBox('%s' % _("Connect"))
@@ -556,6 +573,11 @@ class PaintUI:
             self.offset_entry.show()
             self.rest_offset_label.hide()
             self.rest_offset_entry.hide()
+
+    def on_method_changed(self, val=None):
+        enabled = self.method_combo.get_value() == 5  # Crosshatch
+        self.crosshatch_angle_label.setEnabled(enabled)
+        self.crosshatch_angle_entry.setEnabled(enabled)
 
     def on_selection(self):
         sel_combo = self.select_method_combo.get_value()

@@ -79,6 +79,46 @@ class DatabaseCase(unittest.TestCase):
 
 
 class EditorChecks(DatabaseCase):
+    def test_isolation_strategy_and_spacing_can_be_edited_saved_and_reset_for_legacy(self):
+        import appDatabase
+        db = self.database({'7': record(3)})
+        db.select_tool('7')
+        db.ui.iso_strategy_combo.set_value('voronoi')
+        db.ui.iso_voronoi_spacing_entry.set_value(0.2)
+        db.ui.iso_voronoi_spacing_entry.returnPressed.emit()
+        db.ui.iso_voronoi_pads_cb.set_value(True)
+        self.assertTrue(db.on_save_tools_db())
+        saved = appDatabase.load_tools_database(self.path, self.app.options)
+        self.assertEqual('voronoi', saved['7']['data']['tools_iso_strategy'])
+        self.assertEqual(0.2, saved['7']['data']['tools_iso_voronoi_spacing'])
+        self.assertTrue(saved['7']['data']['tools_iso_voronoi_pads'])
+        legacy = record(3)
+        legacy['data'].pop('tools_iso_strategy')
+        legacy['data'].pop('tools_iso_voronoi_spacing')
+        legacy['data'].pop('tools_iso_voronoi_pads')
+        db.storage_to_form(legacy)
+        self.assertEqual('offset', db.ui.iso_strategy_combo.get_value())
+        self.assertEqual(0.05, db.ui.iso_voronoi_spacing_entry.get_value())
+        self.assertFalse(db.ui.iso_voronoi_pads_cb.get_value())
+        self.assertEqual([], self.slot_errors)
+
+    def test_legacy_crosshatch_angle_does_not_inherit_the_previous_record_and_is_saved_when_edited(self):
+        for target, key, entry in ((5, 'tools_ncc_crosshatch_angle', 'ncc_crosshatch_angle_entry'),
+                                   (4, 'tools_paint_crosshatch_angle', 'paint_crosshatch_angle_entry')):
+            with self.subTest(parameter=key):
+                db = self.database({'7': record(target)})
+                legacy = record(target)
+                legacy['data'].pop(key)
+                getattr(db.ui, entry).set_value(75.0)
+                db.storage_to_form(legacy)
+                self.assertEqual(0.0, getattr(db.ui, entry).get_value())
+                # an old DB tool without the key: editing the angle writes it
+                db.db_tool_dict['7']['data'].pop(key, None)
+                db.select_tool('7')
+                getattr(db.ui, entry).set_value(135.0)
+                getattr(db.ui, entry).returnPressed.emit()
+                self.assertEqual(135.0, db.db_tool_dict['7']['data'][key])
+
     def test_typed_cutting_parameters_with_units_are_saved_without_changing_values(self):
         import appDatabase
         from PyQt6.QtTest import QTest
@@ -91,7 +131,12 @@ class EditorChecks(DatabaseCase):
             (1, 'tools_mill_feedrate', '150', 150.0),
             (1, 'tools_mill_spindlespeed', '12000', 12000.0),
             (2, 'tools_drill_spindlespeed', '14000', 14000),
-            (4, 'tools_paint_overlap', '32.5', 32.5))
+            (4, 'tools_paint_overlap', '32.5', 32.5),
+            (4, 'tools_paint_crosshatch_angle', '135', 135.0),
+            (5, 'tools_ncc_crosshatch_angle', '45', 45.0))
+        # the angle spinners accept input for the Crosshatch method only
+        db.ui.paint_method_combo.set_value(5)
+        db.ui.ncc_method_combo.set_value(4)
         for target, key, text, expected in cases:
             with self.subTest(parameter=key):
                 db.ui.properties_combo.setCurrentIndex(db.ui.properties_combo.findData(target))

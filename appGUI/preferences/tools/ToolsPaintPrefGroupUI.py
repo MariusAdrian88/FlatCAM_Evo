@@ -193,7 +193,8 @@ class ToolsPaintPrefGroupUI(OptionsGroupUI):
               "- Laser-lines: Active only for Gerber objects.\n"
               "Will create lines that follow the traces.\n"
               "- Combo: In case of failure a new method will be picked from the above\n"
-              "in the order specified.")
+              "in the order specified.\n"
+              "- Crosshatch: Two perpendicular families of parallel lines.")
         )
 
         # self.paintmethod_combo = RadioSet([
@@ -203,11 +204,30 @@ class ToolsPaintPrefGroupUI(OptionsGroupUI):
         # ], orientation='vertical', compact=True)
         self.paintmethod_combo = FCComboBox2()
         self.paintmethod_combo.addItems(
-            [_("Standard"), _("Seed"), _("Lines"), _("Laser_lines"), _("Combo")]
+            [_("Standard"), _("Seed"), _("Lines"), _("Laser_lines"), _("Combo"), _("Crosshatch")]
         )
 
         tool_grid.addWidget(methodlabel, 4, 0)
         tool_grid.addWidget(self.paintmethod_combo, 4, 1)
+
+        # Crosshatch angle
+        self.crosshatch_angle_label = FCLabel('%s:' % _('Angle'))
+        self.crosshatch_angle_label.setToolTip(
+            _("Direction of the first family of lines of the Crosshatch method, in degrees.\n"
+              "The second family is at 90 degrees from it.")
+        )
+        self.crosshatch_angle_entry = FCDoubleSpinner()
+        self.crosshatch_angle_entry.set_precision(self.decimals)
+        self.crosshatch_angle_entry.setWrapping(True)
+        self.crosshatch_angle_entry.setRange(0.0000, 179.9999)
+        self.crosshatch_angle_entry.setSingleStep(45)
+
+        tool_grid.addWidget(self.crosshatch_angle_label, 5, 0)
+        tool_grid.addWidget(self.crosshatch_angle_entry, 5, 1)
+
+        # The angle applies to Crosshatch only (index 5); the combo signal also fires on a programmatic load.
+        self.paintmethod_combo.currentIndexChanged.connect(self.on_method_changed)
+        self.on_method_changed()
 
         # Connect lines
         self.pathconnect_cb = FCCheckBox('%s' % _("Connect"))
@@ -363,3 +383,8 @@ class ToolsPaintPrefGroupUI(OptionsGroupUI):
         GLay.set_common_column_size([tool_grid, param_grid, gen_grid], 0)
 
         self.layout.addStretch(1)
+
+    def on_method_changed(self, val=None):
+        enabled = self.paintmethod_combo.get_value() == 5  # Crosshatch
+        self.crosshatch_angle_label.setEnabled(enabled)
+        self.crosshatch_angle_entry.setEnabled(enabled)

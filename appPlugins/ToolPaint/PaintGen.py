@@ -289,6 +289,7 @@ class PaintGen:
             cont,
             prog_plot,
             obj,
+            angle=0.0,
     ):
 
         # the tool path arcs have the radius of the tool
@@ -320,7 +321,9 @@ class PaintGen:
             getattr(self.parent_tool, 'clear_polygon_seed', None),
             getattr(self.parent_tool, 'clear_polygon_lines', None),
             apertures=apertures, geometry_circle_steps=geometry_circle_steps,
-            fill_lines=getattr(self.parent_tool, 'fill_with_lines', None), progress=progress, index=index)
+            fill_lines=getattr(self.parent_tool, 'fill_with_lines', None), progress=progress, index=index,
+            crosshatch_angle=angle,
+            clear_crosshatch=getattr(self.parent_tool, 'clear_polygon_crosshatch', None))
         if result is None:
             self.app.inform.emit('[ERROR_NOTCL] %s' % _('Geometry could not be painted completely'))
         return result
@@ -590,6 +593,7 @@ class PaintGen:
             paint_method=self._tool_method(tool_params, params, painted_object),
             obj=painted_object,
             prog_plot=params.prog_plot,
+            angle=tool_params.get('angle', 0.0),
         )
 
     def _simplify_geometry(self, geometry_list, simplification_value):
@@ -749,7 +753,7 @@ class PaintGen:
             method = self._tool_method(settings, params, painted_object)
             return self.paint_polygon_worker(
                 polygon, diameter, 2 if method == 3 else method,
-                settings['over'], settings['conn'], True, False, None)
+                settings['over'], settings['conn'], True, False, None, settings.get('angle', 0.0))
 
         def cleanup(domain, diameter, previous, generate_paths, boundary_first):
             return residual_cleanup(self.app, domain, diameter, self._steps_at(diameter / 2, painted_object), previous,

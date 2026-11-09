@@ -1,5 +1,5 @@
 # ##########################################################
-# FlatCAM: 2D Post-processing for Manufacturing            #
+# FlatCAM Evo: 2D Post-processing for Manufacturing        #
 # File Modified: Marius Adrian Stanciu (c)                 #
 # Date: 3/10/2019                                          #
 # MIT Licence                                              #
@@ -166,6 +166,7 @@ class ToolPaint(Geometry, AppTool):
             "tools_paint_overlap":   self.ui.overlap_entry,
             "tools_paint_offset":    self.ui.offset_entry,
             "tools_paint_method":    self.ui.method_combo,
+            "tools_paint_crosshatch_angle": self.ui.crosshatch_angle_entry,
             "tools_paint_connect":    self.ui.connect_cb,
             "tools_paint_contour":   self.ui.contour_cb,
             "tools_paint_final_cleanup": self.ui.final_cleanup_cb,
@@ -175,6 +176,7 @@ class ToolPaint(Geometry, AppTool):
             'p_overlap':    "tools_paint_overlap",
             'p_offset':     "tools_paint_offset",
             'p_method':     "tools_paint_method",
+            'p_crosshatch_angle': "tools_paint_crosshatch_angle",
             'p_connect':    "tools_paint_connect",
             'p_contour':    "tools_paint_contour",
             'p_final_cleanup': "tools_paint_final_cleanup",
@@ -331,6 +333,12 @@ class ToolPaint(Geometry, AppTool):
         self.ui.select_method_combo.currentIndexChanged.connect(self.ui.on_selection)
 
         try:
+            self.ui.method_combo.currentIndexChanged.disconnect(self.ui.on_method_changed)
+        except (TypeError, RuntimeError, AttributeError):
+            pass
+        self.ui.method_combo.currentIndexChanged.connect(self.ui.on_method_changed)
+
+        try:
             self.ui.reference_type_combo.currentIndexChanged.disconnect(self.on_reference_combo_changed)
         except (TypeError, RuntimeError, AttributeError):
             pass
@@ -407,6 +415,7 @@ class ToolPaint(Geometry, AppTool):
             "tools_paint_overlap":   self.ui.overlap_entry,
             "tools_paint_offset":    self.ui.offset_entry,
             "tools_paint_method":    self.ui.method_combo,
+            "tools_paint_crosshatch_angle": self.ui.crosshatch_angle_entry,
             "tools_paint_connect":    self.ui.connect_cb,
             "tools_paint_contour":   self.ui.contour_cb,
             "tools_paint_final_cleanup": self.ui.final_cleanup_cb,
@@ -488,6 +497,11 @@ class ToolPaint(Geometry, AppTool):
             "tools_paint_offset", app_defaults.get("tools_paint_offset", AppDefaults.factory_defaults.get("tools_paint_offset"))))
         self.ui.method_combo.set_value(self.app.options.get(
             "tools_paint_method", app_defaults.get("tools_paint_method", AppDefaults.factory_defaults.get("tools_paint_method"))))
+        self.ui.crosshatch_angle_entry.set_value(self.app.options.get(
+            "tools_paint_crosshatch_angle",
+            app_defaults.get("tools_paint_crosshatch_angle",
+                             AppDefaults.factory_defaults.get("tools_paint_crosshatch_angle", 0.0))))
+        self.ui.on_method_changed()
         self.ui.select_method_combo.set_value(self.app.options.get(
             "tools_paint_selectmethod",
             app_defaults.get("tools_paint_selectmethod", AppDefaults.factory_defaults.get("tools_paint_selectmethod"))))
@@ -778,11 +792,13 @@ class ToolPaint(Geometry, AppTool):
 
     def storage_to_form(self, dict_storage):
         dict_storage.setdefault('tools_paint_final_cleanup', False)
+        dict_storage.setdefault('tools_paint_crosshatch_angle', 0.0)
         for k in self.form_fields:
             try:
                 self.form_fields[k].set_value(dict_storage[k])
             except Exception as err:
                 self.app.log.error("ToolPaint.storage.form() --> %s" % str(err))
+        self.ui.on_method_changed()
 
     def form_to_storage(self):
         if self.ui.tools_table.rowCount() == 0:

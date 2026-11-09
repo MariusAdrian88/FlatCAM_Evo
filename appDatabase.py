@@ -969,12 +969,32 @@ class ToolsDB2UI:
 
         self.ncc_method_combo = FCComboBox2()
         self.ncc_method_combo.addItems(
-            [_("Standard"), _("Seed"), _("Lines"), _("Combo")]
+            [_("Standard"), _("Seed"), _("Lines"), _("Combo"), _("Crosshatch")]
         )
         self.ncc_method_combo.setObjectName("gdb_n_method")
 
         self.grid2.addWidget(methodlabel, 17, 0)
         self.grid2.addWidget(self.ncc_method_combo, 17, 1)
+
+        # Crosshatch angle
+        self.ncc_anglelabel = FCLabel('%s:' % _('Angle'))
+        self.ncc_anglelabel.setToolTip(
+            _("Direction of the first family of lines of the Crosshatch method, in degrees.\n"
+              "The second family is at 90 degrees from it.")
+        )
+        self.ncc_crosshatch_angle_entry = FCDoubleSpinner()
+        self.ncc_crosshatch_angle_entry.set_precision(self.decimals)
+        self.ncc_crosshatch_angle_entry.setWrapping(True)
+        self.ncc_crosshatch_angle_entry.setRange(0.0000, 179.9999)
+        self.ncc_crosshatch_angle_entry.setSingleStep(45)
+        self.ncc_crosshatch_angle_entry.setObjectName("gdb_n_crosshatch_angle")
+
+        self.grid2.addWidget(self.ncc_anglelabel, 21, 0)
+        self.grid2.addWidget(self.ncc_crosshatch_angle_entry, 21, 1)
+
+        # The angle applies to Crosshatch only; the combo signal also fires on a programmatic load.
+        self.ncc_method_combo.currentIndexChanged.connect(self.on_crosshatch_method_changed)
+        self.on_crosshatch_method_changed()
 
         # Connect lines
         self.ncc_connect_cb = FCCheckBox('%s' % _("Connect"))
@@ -1090,7 +1110,7 @@ class ToolsDB2UI:
 
         self.paint_method_combo = FCComboBox2()
         self.paint_method_combo.addItems(
-            [_("Standard"), _("Seed"), _("Lines"), _("Laser_lines"), _("Combo")]
+            [_("Standard"), _("Seed"), _("Lines"), _("Laser_lines"), _("Combo"), _("Crosshatch")]
         )
         idx = self.paint_method_combo.findText(_("Laser_lines"))
         self.paint_method_combo.model().item(idx).setEnabled(False)
@@ -1099,6 +1119,21 @@ class ToolsDB2UI:
 
         self.grid3.addWidget(methodlabel, 7, 0)
         self.grid3.addWidget(self.paint_method_combo, 7, 1)
+
+        self.paint_anglelabel = FCLabel('%s:' % _('Angle'))
+        self.paint_anglelabel.setToolTip(_(
+            "Direction of the first family of lines of the Crosshatch method, in degrees.\n"
+            "The second family is at 90 degrees from it."))
+        self.paint_crosshatch_angle_entry = FCDoubleSpinner()
+        self.paint_crosshatch_angle_entry.set_precision(self.decimals)
+        self.paint_crosshatch_angle_entry.setWrapping(True)
+        self.paint_crosshatch_angle_entry.set_range(0.0000, 179.9999)
+        self.paint_crosshatch_angle_entry.setSingleStep(45)
+        self.paint_crosshatch_angle_entry.setObjectName('gdb_p_crosshatch_angle')
+        self.grid3.addWidget(self.paint_anglelabel, 8, 0)
+        self.grid3.addWidget(self.paint_crosshatch_angle_entry, 8, 1)
+        self.paint_method_combo.currentIndexChanged.connect(self.on_crosshatch_method_changed)
+        self.on_crosshatch_method_changed()
 
         # Connect lines
         self.path_connect_cb = FCCheckBox('%s' % _("Connect"))
@@ -1201,6 +1236,37 @@ class ToolsDB2UI:
 
         self.grid4.addWidget(self.iso_type_label, 8, 0)
         self.grid4.addWidget(self.iso_type_radio, 8, 1)
+
+        strategy_label = FCLabel('%s:' % _('Strategy'))
+        self.iso_strategy_combo = RadioSet([{'label': _('Offset'), 'value': 'offset'},
+                                            {'label': _('Voronoi'), 'value': 'voronoi'}])
+        self.iso_strategy_combo.setObjectName("gdb_i_strategy")
+        self.iso_strategy_combo.setToolTip(_(
+            "Voronoi needs a board boundary, All copper, Full isolation and one positive pass.\n"
+            "Rest machining, exclusions, pad passes and leftovers are not supported."))
+        self.grid4.addWidget(strategy_label, 10, 0)
+        self.grid4.addWidget(self.iso_strategy_combo, 10, 1)
+
+        spacing_label = FCLabel('%s:' % _('Voronoi spacing'))
+        self.iso_voronoi_spacing_entry = FCDoubleSpinner()
+        self.iso_voronoi_spacing_entry.set_precision(self.decimals)
+        self.iso_voronoi_spacing_entry.set_range(0.00001, 10000.0000)
+        self.iso_voronoi_spacing_entry.setSingleStep(0.01)
+        self.iso_voronoi_spacing_entry.setObjectName("gdb_i_voronoi_spacing")
+        self.iso_voronoi_spacing_entry.setToolTip(_("Copper boundary sampling step, in the library units."))
+        self.grid4.addWidget(spacing_label, 12, 0)
+        self.grid4.addWidget(self.iso_voronoi_spacing_entry, 12, 1)
+        self.iso_voronoi_pads_cb = FCCheckBox(_('Pad isolation'))
+        self.iso_voronoi_pads_cb.setObjectName("gdb_i_voronoi_pads")
+        self.iso_voronoi_pads_cb.set_value(False)
+        self.iso_voronoi_pads_cb.setToolTip(_(
+            "Add partial flashed-pad cuts after Voronoi generation with the same cutter and depth.\n"
+            "Preserve original traces and polygons; skip pads with no safe room.\n"
+            "Not solder mask or guaranteed thermal relief. Normal CNC path ordering applies."))
+        self.grid4.addWidget(self.iso_voronoi_pads_cb, 14, 0, 1, 2)
+        self.iso_voronoi_pads_cb.setEnabled(False)
+        self.iso_strategy_combo.activated_custom.connect(
+            lambda *args: self.iso_voronoi_pads_cb.setEnabled(self.iso_strategy_combo.get_value() == 'voronoi'))
 
         # ###########################################################################
         # ################ DRILLING UI form #########################################
@@ -1769,6 +1835,17 @@ class ToolsDB2UI:
         # ############################ FINSIHED GUI ###################################
         # #############################################################################
 
+    def on_crosshatch_method_changed(self, val=None):
+        """The Crosshatch angle is used by the Crosshatch method only (NCC index 4, Paint index 5)."""
+        for combo, crosshatch_idx, label, entry in (
+                ('ncc_method_combo', 4, 'ncc_anglelabel', 'ncc_crosshatch_angle_entry'),
+                ('paint_method_combo', 5, 'paint_anglelabel', 'paint_crosshatch_angle_entry')):
+            if not all(hasattr(self, name) for name in (combo, label, entry)):
+                continue    # the widgets of this tool type aren't built yet
+            enabled = getattr(self, combo).get_value() == crosshatch_idx
+            getattr(self, label).setEnabled(enabled)
+            getattr(self, entry).setEnabled(enabled)
+
     def confirmation_message(self, accepted, minval, maxval):
         if accepted is False:
             self.app.inform[str, bool].emit('[WARNING_NOTCL] %s: [%.*f, %.*f]' % (_("Edited value is out of range"),
@@ -1868,6 +1945,7 @@ class ToolsDB2(QtWidgets.QWidget):
             "tools_ncc_overlap":        self.ui.ncc_overlap_entry,
             "tools_ncc_margin":         self.ui.ncc_margin_entry,
             "tools_ncc_method":         self.ui.ncc_method_combo,
+            "tools_ncc_crosshatch_angle": self.ui.ncc_crosshatch_angle_entry,
             "tools_ncc_connect":        self.ui.ncc_connect_cb,
             "tools_ncc_contour":        self.ui.ncc_contour_cb,
             "tools_ncc_final_cleanup":  self.ui.ncc_final_cleanup_cb,
@@ -1878,6 +1956,7 @@ class ToolsDB2(QtWidgets.QWidget):
             "tools_paint_overlap":      self.ui.paint_overlap_entry,
             "tools_paint_offset":       self.ui.paint_offset_entry,
             "tools_paint_method":       self.ui.paint_method_combo,
+            "tools_paint_crosshatch_angle": self.ui.paint_crosshatch_angle_entry,
             "tools_paint_connect":      self.ui.path_connect_cb,
             "tools_paint_contour":      self.ui.paint_contour_cb,
             "tools_paint_final_cleanup": self.ui.paint_final_cleanup_cb,
@@ -1887,6 +1966,9 @@ class ToolsDB2(QtWidgets.QWidget):
             "tools_iso_overlap":        self.ui.iso_overlap_entry,
             "tools_iso_milling_type":   self.ui.iso_milling_type_radio,
             "tools_iso_isotype":        self.ui.iso_type_radio,
+            "tools_iso_strategy":       self.ui.iso_strategy_combo,
+            "tools_iso_voronoi_spacing": self.ui.iso_voronoi_spacing_entry,
+            "tools_iso_voronoi_pads": self.ui.iso_voronoi_pads_cb,
 
             # Drilling
             "tools_drill_cutz":             self.ui.drill_cutz_entry,
@@ -1959,6 +2041,7 @@ class ToolsDB2(QtWidgets.QWidget):
             "gdb_n_overlap":        "tools_ncc_overlap",
             "gdb_n_margin":         "tools_ncc_margin",
             "gdb_n_method":         "tools_ncc_method",
+            "gdb_n_crosshatch_angle": "tools_ncc_crosshatch_angle",
             "gdb_n_connect":        "tools_ncc_connect",
             "gdb_n_contour":        "tools_ncc_contour",
             "gdb_n_final_cleanup":  "tools_ncc_final_cleanup",
@@ -1970,6 +2053,7 @@ class ToolsDB2(QtWidgets.QWidget):
             'gdb_p_overlap':        "tools_paint_overlap",
             'gdb_p_offset':         "tools_paint_offset",
             'gdb_p_method':         "tools_paint_method",
+            'gdb_p_crosshatch_angle': "tools_paint_crosshatch_angle",
             'gdb_p_connect':        "tools_paint_connect",
             'gdb_p_contour':        "tools_paint_contour",
             'gdb_p_final_cleanup':  "tools_paint_final_cleanup",
@@ -1979,6 +2063,9 @@ class ToolsDB2(QtWidgets.QWidget):
             "gdb_i_overlap":        "tools_iso_overlap",
             "gdb_i_milling_type":   "tools_iso_milling_type",
             "gdb_i_iso_type":       "tools_iso_isotype",
+            "gdb_i_strategy":       "tools_iso_strategy",
+            "gdb_i_voronoi_spacing": "tools_iso_voronoi_spacing",
+            "gdb_i_voronoi_pads": "tools_iso_voronoi_pads",
 
             # Drilling
             "gdb_e_cutz":               "tools_drill_cutz",
@@ -2317,6 +2404,11 @@ class ToolsDB2(QtWidgets.QWidget):
     def storage_to_form(self, dict_storage):
         self.ui_disconnect()
         values = dict(dict_storage['data'])
+        values.setdefault('tools_ncc_crosshatch_angle', 0.0)
+        values.setdefault('tools_paint_crosshatch_angle', 0.0)
+        values.setdefault('tools_iso_strategy', 'offset')
+        values.setdefault('tools_iso_voronoi_spacing', 0.05)
+        values.setdefault('tools_iso_voronoi_pads', False)
         values.update(name=dict_storage['name'], tooldia=dict_storage['tooldia'])
         for key, widget in self.form_fields.items():
             if key in values:
@@ -2336,7 +2428,9 @@ class ToolsDB2(QtWidgets.QWidget):
                 new_option_value = self.form_fields[option_changed].get_value()
                 if option_changed in tooluid_val:
                     tooluid_val[option_changed] = new_option_value
-                if option_changed in tooluid_val['data']:
+                if option_changed in tooluid_val['data'] or option_changed in (
+                        'tools_iso_strategy', 'tools_iso_voronoi_spacing', 'tools_iso_voronoi_pads',
+                        'tools_ncc_crosshatch_angle', 'tools_paint_crosshatch_angle'):
                     tooluid_val['data'][option_changed] = new_option_value
         self.ui_connect()
 

@@ -15,7 +15,7 @@ import appTranslation as fcTranslate
 import builtins
 
 from camlib import grace, flatten_shapely_geometry, residual_cleanup, object_circle_steps, clearing_simplification, \
-    project_units, clearing_error
+    project_units, clearing_error, crosshatch_angle
 from appParsers.feature_access import fused_solid
 from appCommon.SafeEval import safe_eval
 from appPlugins.ToolNCC import NccModel
@@ -468,7 +468,7 @@ class NccGen:
         return area, staged['tools'], warning
 
     def clear_polygon_worker(self, pol, tooldia, ncc_method, ncc_overlap, ncc_connect, ncc_contour, prog_plot,
-                             simplify_tol=0.0):
+                             simplify_tol=0.0, angle=0.0):
 
         # Resolve engines lazily: unbound callers may supply only the selected engine.
         paths, messages = NccModel.clear_polygon(
@@ -477,7 +477,8 @@ class NccGen:
                                 self.app.app_units),
             lambda *args, **kwargs: self.parent_tool.clear_polygon_shrink(*args, **kwargs),
             lambda *args, **kwargs: self.parent_tool.clear_polygon_seed(*args, **kwargs),
-            lambda *args, **kwargs: self.parent_tool.clear_polygon_lines(*args, **kwargs), simplify_tol)
+            lambda *args, **kwargs: self.parent_tool.clear_polygon_lines(*args, **kwargs), simplify_tol,
+            lambda *args, **kwargs: self.parent_tool.clear_polygon_crosshatch(*args, **kwargs), angle)
         for message in messages:
             self.app.inform.emit(message)
         if paths is None:
@@ -777,6 +778,7 @@ class NccGen:
             milling_type=None,
             simplification=None,
             exclusion_areas=None,
+            angle=None,
     ):
         """
         Tcl adapter. Synchronous calls finish object creation before returning.
@@ -793,6 +795,11 @@ class NccGen:
         connect = bool(connect if connect is not None else self._option('tools_ncc_connect', False))
         contour = bool(contour if contour is not None else self._option('tools_ncc_contour', True))
         method = int(method if method is not None else self._option('tools_ncc_method', 0))
+        if method == 4:
+            angle = crosshatch_angle(angle if angle is not None
+                                     else self._option('tools_ncc_crosshatch_angle', 0.0))
+        else:
+            angle = None
         if order is None:
             order = self._option('tools_ncc_order', 0)
         order = {"0": 0, "1": 1, "2": 2, "no": 0, "fwd": 1, "rev": 2}.get(str(order).strip().lower())
@@ -823,6 +830,8 @@ class NccGen:
         for value in snapshot.values():
             if NccModel.in_diameters(value['tooldia'], diameters, self.decimals):
                 value['data']['tools_ncc_final_cleanup'] = final_cleanup
+                if angle is not None:
+                    value['data']['tools_ncc_crosshatch_angle'] = angle
         reference = None if sel_obj is None or sel_obj == 0 else sel_obj
         if select_method == 0:
             region = NccModel.entire_object(flatten_shapely_geometry(ncc_obj.solid_geometry))

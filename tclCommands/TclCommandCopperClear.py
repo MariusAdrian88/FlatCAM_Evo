@@ -1,6 +1,6 @@
 from tclCommands.TclCommand import TclCommand
 from appPlugins.ToolNCC.NccGen import NccGen
-from camlib import flatten_shapely_geometry
+from camlib import crosshatch_angle, flatten_shapely_geometry
 from shapely.geometry import Polygon, box as shapely_box
 
 import collections
@@ -41,6 +41,7 @@ class TclCommandCopperClear(TclCommand):
         ('order', str),
         ('margin', float),
         ('method', str),
+        ('angle', float),
         ('connect', str),
         ('contour', str),
         ('offset', float),
@@ -76,7 +77,11 @@ class TclCommandCopperClear(TclCommand):
                       '"no" -> the order used is the one provided.'
                       '"fwd" -> tools are ordered from smallest to biggest.'
                       '"rev" -> tools are ordered from biggest to smallest.'),
-            ('method', 'Algorithm for copper clearing. Can be: "standard", "seed", "lines" or "combo".'),
+            ('method', 'Algorithm for copper clearing. Can be: "standard", "seed", "lines", "combo" or '
+                       '"crosshatch".'),
+            ('angle', 'Direction of the first family of lines of the Crosshatch method, in degrees. '
+                      'The second family is at 90 degrees from it. Float number.\n'
+                      'Used only with the "crosshatch" method; with another method it is ignored with a warning.'),
             ('connect', 'Draw lines to minimize tool lifts. True (1) or False (0)'),
             ('contour', 'Cut around the perimeter of the painting. True (1) or False (0)'),
             ('rest', 'Use rest-machining. True (1) or False (0)'),
@@ -180,12 +185,27 @@ class TclCommandCopperClear(TclCommand):
 
         method = None
         if 'method' in args:
-            methods = {'standard': 0, 'seed': 1, 'lines': 2, 'combo': 3}
+            methods = {'standard': 0, 'seed': 1, 'lines': 2, 'combo': 3, 'crosshatch': 4}
             if str(args['method']) not in methods:
-                self.raise_tcl_error("Supported methods are: 'standard', 'seed', 'lines' and 'combo'.")
+                self.raise_tcl_error(
+                    "Supported methods are: 'standard', 'seed', 'lines', 'combo' and 'crosshatch'.")
             method = methods[str(args['method'])]
 
-        connect = self._bool_arg(args, 'connect')
+        angle = None
+        if (method if method is not None else int(self._app_option('tools_ncc_method', 0))) == 4:
+            try:
+                angle = float(args['angle'] if 'angle' in args else
+                              self._app_option("tools_ncc_crosshatch_angle", 0.0))
+            except (TypeError, ValueError):
+                self.raise_tcl_error('Crosshatch angle must be a finite number.')
+            if not math.isfinite(angle):
+                self.raise_tcl_error('Crosshatch angle must be a finite number.')
+            angle = crosshatch_angle(angle)
+        elif 'angle' in args:
+            self.app.inform.emit('[WARNING_NOTCL] %s' % "The -angle is ignored: it applies to the 'crosshatch' "
+                                                         "method only.")
+
+        connect =self._bool_arg(args, 'connect')
         contour = self._bool_arg(args, 'contour')
         rest = self._bool_arg(args, 'rest')
         final_cleanup = self._bool_arg(args, 'final_cleanup')
@@ -256,6 +276,8 @@ class TclCommandCopperClear(TclCommand):
                            ("tools_ncc_overlap", overlap)):
             if value is not None:
                 default_data[key] = value
+        if angle is not None:
+            default_data["tools_ncc_crosshatch_angle"] = angle
         ncc_tools = {}
         for tool_uid, tool in enumerate(tools, 1):
             ncc_tools[tool_uid] = {
@@ -291,6 +313,7 @@ class TclCommandCopperClear(TclCommand):
             has_offset=has_offset,
             offset=offset,
             method=method,
+            angle=angle,
             outname=outname,
             connect=connect,
             contour=contour,

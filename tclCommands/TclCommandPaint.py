@@ -42,6 +42,7 @@ class TclCommandPaint(TclCommand):
         ('order', str),
         ('offset', float),
         ('method', str),
+        ('angle', float),
         ('connect', str),
         ('contour', str),
         ('rest', str),
@@ -77,7 +78,11 @@ class TclCommandPaint(TclCommand):
                       '"no" -> the order used is the one provided.\n'
                       '"fwd" -> tools are ordered from smallest to biggest.\n'
                       '"rev" -> tools are ordered from biggest to smallest.'),
-            ('method', 'Algorithm for painting. Can be: "standard", "seed", "lines", "laser_lines", "combo".'),
+            ('method', 'Algorithm for painting. Can be: "standard", "seed", "lines", "laser_lines", "combo", '
+                       '"crosshatch".'),
+            ('angle', 'Direction of the first family of lines of the Crosshatch method, in degrees. Float number.\n'
+                      'The second family is at 90 degrees from it. Default: the Paint preference.\n'
+                      'Used only with the "crosshatch" method; with another method it is ignored with a warning.'),
             ('connect', 'Draw lines to minimize tool lifts. True (1) or False (0)'),
             ('contour', 'Cut around the perimeter of the painting. True (1) or False (0)'),
             ('rest', 'Use rest machining. True (1) or False (0). Default: the Paint preference.'),
@@ -183,17 +188,31 @@ class TclCommandPaint(TclCommand):
         simplification = clearing_simplification(self.app, simplification)
 
         if 'method' in args:
-            methods = {'standard': 0, 'seed': 1, 'lines': 2, 'laser_lines': 3, 'combo': 4}
+            methods = {'standard': 0, 'seed': 1, 'lines': 2, 'laser_lines': 3, 'combo': 4, 'crosshatch': 5}
             method = methods.get(str(args['method']))
             if method is None:
                 msg = "Method not supported or typo.\n" \
-                      "Supported methods are: 'standard', 'seed', 'lines', 'laser_lines' and 'combo'."
+                      "Supported methods are: 'standard', 'seed', 'lines', 'laser_lines', 'combo' and 'crosshatch'."
                 self.app.log.error(msg)
                 self.raise_tcl_error(msg)
         else:
             method = int(self._app_option("tools_paint_method"))
 
-        connect = self._bool_option(args, 'connect', 'tools_paint_connect')
+        angle = 0.0
+        if method == 5:
+            try:
+                angle = float(args['angle'] if 'angle' in args else
+                              self._app_option("tools_paint_crosshatch_angle", 0.0))
+            except (TypeError, ValueError):
+                self.raise_tcl_error('Crosshatch angle must be a finite number.')
+            if not math.isfinite(angle):
+                self.raise_tcl_error('Crosshatch angle must be a finite number.')
+            angle %= 180.0
+        elif 'angle' in args:
+            self.app.inform.emit('[WARNING_NOTCL] %s' % "The -angle is ignored: it applies to the 'crosshatch' "
+                                                         "method only.")
+
+        connect =self._bool_option(args, 'connect', 'tools_paint_connect')
         contour = self._bool_option(args, 'contour', 'tools_paint_contour')
         rest = self._bool_option(args, 'rest', 'tools_paint_rest')
         final_cleanup = self._bool_option(args, 'final_cleanup', 'tools_paint_final_cleanup')
@@ -233,6 +252,7 @@ class TclCommandPaint(TclCommand):
             "tools_paint_tipangle":            float(self._app_option("tools_paint_tipangle")),
             "tools_paint_offset":       offset,
             "tools_paint_method":       method,
+            "tools_paint_crosshatch_angle": angle,
             "tools_paint_selectmethod": select,
             "tools_paint_connect":      connect,
             "tools_paint_contour":      contour,

@@ -3,6 +3,7 @@ kernels), then the controller and panel (tool table, area selection, exclusion z
 button) built headless with offscreen Qt and a MagicMock app."""
 
 import functools
+import math
 import os
 import sys
 from copy import deepcopy
@@ -242,6 +243,139 @@ def test_tcl_combo_method_and_simplification_are_used():
 
 
 # ---------------------------------------------------------------------------------------------------------------
+# crosshatch method
+# ---------------------------------------------------------------------------------------------------------------
+def crosshatch_table(angle_a=30.0, angle_b=75.0):
+    data_a = dict(TOOL_DATA, tools_ncc_method=4, tools_ncc_crosshatch_angle=angle_a,
+                  tools_ncc_final_cleanup=True)
+    data_b = dict(TOOL_DATA, tools_ncc_method=4, tools_ncc_crosshatch_angle=angle_b,
+                  tools_ncc_final_cleanup=True)
+    return {1: {'tooldia': 2.0, 'data': data_a, 'solid_geometry': []},
+            2: {'tooldia': 1.0, 'data': data_b, 'solid_geometry': []}}
+
+
+def test_invalid_unused_crosshatch_angle_does_not_break_other_methods():
+    tools = crosshatch_table()
+    for tool in tools.values():
+        tool['data']['tools_ncc_method'] = 0
+        tool['data']['tools_ncc_crosshatch_angle'] = 'invalid'
+    areas = {1: MultiPolygon([box(0, 0, 10, 10)]), 2: MultiPolygon([box(0, 0, 10, 10)])}
+    calls = []
+
+    def clear(**kw):
+        calls.append(kw['ncc_method'])
+        assert 'angle' not in kw
+        return [LineString([(0, 1), (1, 1)])]
+
+    NccModel.generate_tools('gui_normal', tools, NccModel.copy_tools(tools), [2.0, 1.0], areas, 'n', 4, 32,
+                            clear, lambda: None, lambda text: None)
+    assert calls == [0, 0]
+
+
+def directions(paths):
+    """The directions of the path segments, in degrees in [0, 180)."""
+    angles = set()
+    for path in paths:
+        coords = list(path.coords)
+        for (x0, y0), (x1, y1) in zip(coords, coords[1:]):
+            if math.hypot(x1 - x0, y1 - y0) > 1e-6:
+                angles.add(round(math.degrees(math.atan2(y1 - y0, x1 - x0)) % 180.0, 6))
+    return angles
+
+
+def real_crosshatch_clear():
+    """A clear_paths callback that clears with the real Crosshatch kernel and the angle it receives."""
+    from test_clearing_paths import make_geometry
+    geometry = make_geometry()
+
+    def clear(pol, tooldia, ncc_method, ncc_overlap, ncc_connect, ncc_contour, angle=0.0, **kw):
+        assert ncc_method == 4
+        paths, __ = NccModel.clear_polygon(
+            pol, tooldia, 4, ncc_overlap, ncc_connect, ncc_contour, False, 64,
+            None, None, None, 0.0, crosshatch=geometry.clear_polygon_crosshatch, angle=angle)
+        return paths
+    return clear
+
+
+def test_ncc_crosshatch_method_clears_in_two_directions():
+    paths = real_crosshatch_clear()(box(0, 0, 12, 3), 1.0, 4, 0.2, False, True, angle=45.0)
+    assert {45.0, 135.0} <= directions(paths)
+
+
+@pytest.mark.parametrize('mode', ['gui_normal', 'gui_rest'])
+def test_each_tool_clears_at_its_own_crosshatch_angle(mode):
+    tools = crosshatch_table(30.0, 75.0)
+    area = MultiPolygon([box(0, 0, 10, 10)])
+    generated, domains, *_ = NccModel.generate_tools(
+        mode, tools, NccModel.copy_tools(tools), [2.0, 1.0], {1: area, 2: area}, 'n', 4, 32,
+        real_crosshatch_clear(), lambda: None, lambda text: None)
+    assert {30.0, 120.0} <= directions(generated[1]['solid_geometry'])
+    assert not {75.0, 165.0} & directions(generated[1]['solid_geometry'])
+    if 2 in generated:
+        assert not {30.0, 120.0} & directions(generated[2]['solid_geometry'])
+    # the final cleanup uses the angle of its own (smallest) tool
+    cleaned, __ = NccModel.finish_cleanup(
+        tools, generated, {1: area, 2: area}, 'n', 32,
+        lambda domain, dia, steps, used, generate: (generate(domain, dia), None),
+        real_crosshatch_clear(), lambda: None)
+    cleanup = cleaned[2]['solid_geometry'][cleaned[2]['ncc_cleanup_start']:]
+    assert {75.0, 165.0} <= directions(cleanup)
+
+
+@pytest.mark.parametrize('edge', ['touch', 'strict'])
+def test_rotated_crosshatch_simplification_keeps_the_cutter_out_of_curved_copper(edge):
+    from shapely.geometry import Point
+    from camlib import clearing_simplification
+    from test_clearing_paths import make_geometry
+    geometry = make_geometry()
+    geometry.app.app_units = 'MM'
+    geometry.app.options = {'tools_clearing_edge': edge, 'tools_clearing_error': 2.0}
+    area = box(0, 0, 12, 10).difference(Point(6, 5).buffer(2, quad_segs=64))
+    paths, _ = NccModel.clear_polygon(
+        area, 1.0, 4, 0.2, False, True, False, 64, None, None, None,
+        clearing_simplification(geometry.app, 0.1), geometry.clear_polygon_crosshatch, 37.5)
+    assert paths
+    allowance = 0.002 if edge == 'touch' else 0.0
+    assert min(area.boundary.distance(path) for path in paths) >= 0.5 - allowance - 1e-9
+
+
+def test_crosshatch_cleanup_uses_the_same_invalid_angle_fallback_as_clearing():
+    from test_clearing_paths import make_geometry
+    geometry = make_geometry()
+    tools = {1: crosshatch_table(angle_a='invalid')[1]}
+    area = box(0, 0, 8, 6)
+
+    def clear(**kw):
+        return NccModel.clear_polygon(
+            kw['pol'], kw['tooldia'], kw['ncc_method'], kw['ncc_overlap'], kw['ncc_connect'],
+            kw['ncc_contour'], False, 64, None, None, None,
+            crosshatch=geometry.clear_polygon_crosshatch, angle=kw['angle'])[0]
+
+    generated, domains, *_ = NccModel.generate_tools(
+        'gui_normal', tools, tools, [2.0], {1: area}, 'n', 4, 64,
+        clear, lambda: None, lambda text: None)
+    cleaned, _ = NccModel.finish_cleanup(
+        tools, generated, domains, 'n', 64,
+        lambda domain, dia, steps, previous, generate: (generate(domain, dia), None),
+        clear, lambda: None)
+    assert cleaned[1]['solid_geometry']
+    assert unary_union(cleaned[1]['solid_geometry']).equals(unary_union(generated[1]['solid_geometry']))
+
+
+def test_tcl_legacy_positional_arguments_still_generate_geometry():
+    gen, output = make_gen([1.0])
+    gen.app.app_obj = gen.parent_tool
+    gen._compute_area_to_clear_handler = lambda **kw: MultiPolygon([box(0, 0, 8, 6)])
+    gen.clear_polygon_worker = lambda **kw: [LineString([(1, 1), (7, 1)])]
+    source = SimpleNamespace(kind='geometry', solid_geometry=[box(2, 2, 3, 3)])
+    result = gen.clear_copper_tcl(
+        source, None, [box(0, 0, 8, 6)], [1.0], [], 0, False, 0, 1, 'legacy',
+        0.2, False, True, 0, 0, False, gen.ncc_tools, False, False, False)
+    assert result != 'fail'
+    assert output.tools[1]['solid_geometry'] == [LineString([(1, 1), (7, 1)])]
+
+
+# ---------------------------------------------------------------------------------------------------------------
 # rest machining
 # ---------------------------------------------------------------------------------------------------------------
 def rest_tools(*dias):
@@ -384,6 +518,35 @@ def prepare_run(t, **objects):
 
 def geometry_object(name, *boxes):
     return SimpleNamespace(kind='geometry', solid_geometry=list(boxes), obj_options={'name': name})
+
+
+def test_legacy_tool_angle_does_not_leak_from_previous_tool(tool):
+    import json
+
+    data = next(iter(tool.ncc_tools.values()))['data']
+    data.pop('tools_ncc_crosshatch_angle', None)
+    tool.ui.tools_table.selectRow(0)
+    tool.ui.crosshatch_angle_entry.set_value(45.0)
+    tool.storage_to_form(data)
+    assert tool.ui.crosshatch_angle_entry.get_value() == 0.0
+    tool.ui.crosshatch_angle_entry.set_value(135.0)
+    tool.ui.crosshatch_angle_entry.returnPressed.emit()
+    assert data['tools_ncc_crosshatch_angle'] == 135.0
+    tool.storage_to_form(json.loads(json.dumps(data)))
+    assert tool.ui.crosshatch_angle_entry.get_value() == 135.0
+
+
+def test_crosshatch_angle_is_read_from_the_preferences(tool):
+    tool.app.options['tools_ncc_crosshatch_angle'] = 37.5
+    tool.set_tool_ui()
+    assert tool.ui.crosshatch_angle_entry.get_value() == 37.5
+
+
+def test_crosshatch_angle_is_enabled_only_for_the_crosshatch_method(tool):
+    tool.ui.method_combo.set_value(0)
+    assert not tool.ui.crosshatch_angle_entry.isEnabled()
+    tool.ui.method_combo.set_value(4)
+    assert tool.ui.crosshatch_angle_entry.isEnabled()
 
 
 def test_exclusion_zones_reach_the_handler_in_every_mode(tool):

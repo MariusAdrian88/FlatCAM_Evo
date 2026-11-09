@@ -218,7 +218,7 @@ def generate_envelope(geometry, offset, invert, envelope_iso_type, isolation_geo
 
 
 def clear_polygon(pol, tooldia, method, overlap, connect, contour, prog_plot, circle_steps,
-                  shrink, seed, lines, simplify_tol=0.0):
+                  shrink, seed, lines, simplify_tol=0.0, crosshatch=None, angle=0.0):
     """Return paths plus status messages; only Geometry engine callbacks enter this kernel."""
     cp = None
     messages = []
@@ -227,6 +227,12 @@ def clear_polygon(pol, tooldia, method, overlap, connect, contour, prog_plot, ci
         if method in methods:
             cp = methods[method](pol, tooldia, steps_per_circle=circle_steps, overlap=overlap,
                                  contour=contour, connect=connect, prog_plot=prog_plot)
+        elif method == 4:
+            if crosshatch is not None:
+                # Simplify only below, where each chord's cutter sweep is checked against the original polygon.
+                cp = crosshatch(pol, tooldia, steps_per_circle=circle_steps, overlap=overlap,
+                                contour=contour, connect=connect, prog_plot=prog_plot,
+                                simplify_tol=0.0, angle=angle)
         elif method == 3:
             for engine, message in (
                     (lines, _('Clearing the polygon with the method: lines.')),
@@ -248,7 +254,7 @@ def clear_polygon(pol, tooldia, method, overlap, connect, contour, prog_plot, ci
     except grace:
         return 'fail', messages
     except Exception as err:
-        label = {0: 'Standard', 1: 'Seed', 2: 'Lines', 3: 'Combo'}.get(method, '')
+        label = {0: 'Standard', 1: 'Seed', 2: 'Lines', 3: 'Combo', 4: 'Crosshatch'}.get(method, '')
         log.error("ToolNcc.clear_polygon_worker() %s --> %s" % (label, str(err)))
     if cp and cp.objects:
         paths = []
@@ -392,6 +398,12 @@ def generate_tools(mode, tool_settings, tools_storage, diameters, areas, name, d
         data = tool_settings[uid]['data']
         tool_overlap = overlap if tcl else float(data['tools_ncc_overlap']) / 100
         tool_method = method if tcl else data['tools_ncc_method']
+        tool_crosshatch_angle = 0.0
+        if tool_method == 4:
+            try:
+                tool_crosshatch_angle = float(data.get('tools_ncc_crosshatch_angle', 0.0) or 0.0)
+            except (TypeError, ValueError):
+                tool_crosshatch_angle = 0.0
         tool_connect = connect if tcl or rest else data['tools_ncc_connect']
         tool_contour = contour if tcl or rest else data['tools_ncc_contour']
         used_diameter = diameter - 1e-12 if mode == 'tcl_rest' else diameter
@@ -410,11 +422,14 @@ def generate_tools(mode, tool_settings, tools_storage, diameters, areas, name, d
                 if not isinstance(pol, Polygon) or not pol.is_valid or pol.is_empty:
                     continue
                 try:
-                    result = clear_paths(
+                    clear_kwargs = dict(
                         pol=pol, tooldia=used_diameter, ncc_method=tool_method,
                         ncc_overlap=tool_overlap, ncc_connect=tool_connect, ncc_contour=tool_contour,
                         simplify_tol=simplify_tol,
                         prog_plot=prog_plot if not tcl else False)
+                    if tool_method == 4:
+                        clear_kwargs['angle'] = tool_crosshatch_angle
+                    result = clear_paths(**clear_kwargs)
                 except grace:
                     raise
                 except Exception as err:
@@ -487,11 +502,15 @@ def finish_cleanup(tools_storage, generated, domains, name, circle_steps, cleanu
     data = dict(tool['data'], **(settings or {}))
 
     def generate_paths(pol, dia):
-        return clear_paths(
-            pol=pol, tooldia=dia, ncc_method=data.get('tools_ncc_method', 0),
+        method = data.get('tools_ncc_method', 0)
+        kwargs = dict(
+            pol=pol, tooldia=dia, ncc_method=method,
             ncc_overlap=float(data.get('tools_ncc_overlap', 40)) / 100,
             ncc_connect=data.get('tools_ncc_connect', False), ncc_contour=data.get('tools_ncc_contour', True),
             prog_plot=False)
+        if method == 4:
+            kwargs['angle'] = data.get('tools_ncc_crosshatch_angle', 0.0)
+        return clear_paths(**kwargs)
 
     paths, residual = cleanup_paths(domain, diameter, circle_steps, tools.values(), generate_paths)
     check_abort()

@@ -238,10 +238,48 @@ class ToolsISOPrefGroupUI(OptionsGroupUI):
         tool_grid.addWidget(self.iso_type_label, 10, 0)
         tool_grid.addWidget(self.iso_type_radio, 10, 1, 1, 2)
 
+        # Isolation strategy
+        strategy_label = FCLabel('%s:' % _('Strategy'))
+        strategy_label.setToolTip(
+            _("Offset: buffer the copper with the tool radius (the classic isolation).\n"
+              "Voronoi: cut only the borders between different copper bodies, from sampled boundaries.\n"
+              "Voronoi needs Boundary, All copper, Full isolation and one positive pass.\n"
+              "Rest machining, exclusions, pad passes and leftovers are not supported.\n"
+              "Boundary tracing is ignored; no contour is made around a single body."))
+        self.strategy_combo = RadioSet([{'label': _('Offset'), 'value': 'offset'},
+                                        {'label': _('Voronoi'), 'value': 'voronoi'}])
+        self.strategy_combo.set_value('offset')
+
+        tool_grid.addWidget(strategy_label, 12, 0)
+        tool_grid.addWidget(self.strategy_combo, 12, 1, 1, 2)
+
+        # Voronoi sampling step
+        voronoi_spacing_label = FCLabel('%s:' % _('Voronoi spacing'))
+        voronoi_spacing_label.setToolTip(
+            _("Sampling step along the copper boundaries for the Voronoi strategy,\n"
+              "in the application units. This bounds sample intervals, not the toolpath error."))
+        self.voronoi_spacing_entry = FCDoubleSpinner()
+        self.voronoi_spacing_entry.set_precision(self.decimals)
+        self.voronoi_spacing_entry.set_range(0.00001, 10000.0000)
+        self.voronoi_spacing_entry.setSingleStep(0.01)
+
+        tool_grid.addWidget(voronoi_spacing_label, 14, 0)
+        tool_grid.addWidget(self.voronoi_spacing_entry, 14, 1, 1, 2)
+        self.voronoi_pads_cb = FCCheckBox(_('Pad isolation'))
+        self.voronoi_pads_cb.set_value(False)
+        self.voronoi_pads_cb.setToolTip(_(
+            "Add partial cuts around flashed pad outlines after Voronoi generation, with the same cutter and depth.\n"
+            "Preserve original trace and polygon connections; skip pads with no safe room.\n"
+            "Not solder mask or guaranteed thermal relief. Normal CNC path ordering applies."))
+        tool_grid.addWidget(self.voronoi_pads_cb, 15, 0, 1, 3)
+        self.voronoi_pads_cb.setEnabled(False)
+        self.strategy_combo.activated_custom.connect(
+            lambda *args: self.voronoi_pads_cb.setEnabled(self.strategy_combo.get_value() == 'voronoi'))
+
         separator_line = QtWidgets.QFrame()
         separator_line.setFrameShape(QtWidgets.QFrame.Shape.HLine)
         separator_line.setFrameShadow(QtWidgets.QFrame.Shadow.Sunken)
-        tool_grid.addWidget(separator_line, 12, 0, 1, 3)
+        tool_grid.addWidget(separator_line, 16, 0, 1, 3)
 
         # #############################################################################################################
         # General Parameters Frame

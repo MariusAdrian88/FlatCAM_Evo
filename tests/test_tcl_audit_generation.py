@@ -174,10 +174,11 @@ def test_split_geometry_populates_root_and_only_the_selected_tool():
 
 # selection, factory and multipart output contracts for clearing and cutout commands
 
-def _ncc_run(args, source_kind='gerber', other=None):
+def _ncc_run(args, source_kind='gerber', other=None, options=None):
     objects = {'g': SimpleNamespace(kind=source_kind, decimals=4)}
     objects.update(other or {})
     app = factory_app(objects['g'])
+    app.options.update(options or {})
     app.collection.get_by_name.side_effect = lambda n: objects.get(n)
     app.ncclear_tool = Mock()
     app.ncclear_tool.gen.clear_copper_tcl.return_value = None
@@ -190,6 +191,33 @@ def test_ncc_rejects_inconsistent_new_options():
     other = {'lines': SimpleNamespace(kind='geometry', solid_geometry=[box(0, 0, 1, 1).exterior])}
     with pytest.raises(FCShell.TclErrorException):
         _ncc_run({'all': None, 'area': '0,0,1,1'}, source_kind='gerber', other=other)
+
+
+def test_ncc_crosshatch_method_and_angle_reach_the_tool_data():
+    kwargs = _ncc_run({'all': None, 'method': 'crosshatch', 'angle': 45.0})
+    tool_data = kwargs['tools_storage'][1]['data']
+    assert tool_data['tools_ncc_method'] == 4
+    assert tool_data['tools_ncc_crosshatch_angle'] == 45.0
+
+
+def test_ncc_lines_ignores_unused_crosshatch_angle():
+    kwargs = _ncc_run({'all': None, 'method': 'lines'})
+    assert kwargs['tools_storage'][1]['data']['tools_ncc_method'] == 2
+
+
+def test_ncc_crosshatch_rejects_invalid_angles():
+    for angle in (float('nan'), float('inf'), 'invalid'):
+        with pytest.raises(FCShell.TclErrorException):
+            _ncc_run({'all': None, 'method': 'crosshatch', 'angle': angle})
+
+
+def test_ncc_crosshatch_preference_honors_explicit_angle_and_validates_it():
+    options = {'tools_ncc_method': 4, 'tools_ncc_crosshatch_angle': 10.0}
+    kwargs = _ncc_run({'all': None, 'angle': -45.0}, options=options)
+    assert kwargs['tools_storage'][1]['data']['tools_ncc_crosshatch_angle'] == 135.0
+    assert kwargs['angle'] == 135.0
+    with pytest.raises(FCShell.TclErrorException):
+        _ncc_run({'all': None, 'angle': float('nan')}, options=options)
 
 
 def test_cutout_keeps_all_input_components():
@@ -238,6 +266,28 @@ def test_paint_reports_bad_values_and_failures_to_the_script():
         getattr(gen, method).return_value = 'fail'
         with pytest.raises(FCShell.TclErrorException):
             command.execute(dict(extra, name='g'), [])
+
+
+def test_paint_crosshatch_method_and_angle_reach_the_tool_data():
+    command, app, gen = paint_command()
+    command.execute({'name': 'g', 'method': 'crosshatch', 'angle': 45.0}, [])
+    tool_data = gen.paint_poly_all.call_args.kwargs['tools_storage'][1]['data']
+    assert tool_data['tools_paint_method'] == 5
+    assert tool_data['tools_paint_crosshatch_angle'] == 45.0
+
+
+def test_paint_lines_ignores_unused_crosshatch_angle():
+    command, app, gen = paint_command(tools_paint_crosshatch_angle=float('nan'))
+    command.execute({'name': 'g', 'method': 'lines'}, [])
+    assert gen.paint_poly_all.call_args.kwargs['tools_storage'][1]['data']['tools_paint_method'] == 2
+
+
+def test_paint_crosshatch_rejects_invalid_angles():
+    command, app, gen = paint_command()
+    for angle in (float('nan'), float('inf'), 'invalid'):
+        with pytest.raises(FCShell.TclErrorException):
+            command.execute({'name': 'g', 'method': 'crosshatch', 'angle': angle}, [])
+    gen.paint_poly_all.assert_not_called()
 
 
 # geometry / CNC consistency for Tcl editing and tool selection

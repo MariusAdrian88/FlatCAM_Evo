@@ -1,6 +1,6 @@
 # ##########################################################
-# FlatCAM: 2D Post-processing for Manufacturing            #
-# http://flatcam.org                                       #
+# FlatCAM Evo: 2D Post-processing for Manufacturing        #
+# https://github.com/MariusAdrian88/FlatCAM_Evo            #
 # Author: Juan Pablo Caram (c)                             #
 # Date: 2/5/2014                                           #
 # MIT Licence                                              #
@@ -19,7 +19,7 @@ from shapely import MultiLineString, LinearRing, Polygon, MultiPolygon, LineStri
 from shapely.affinity import scale, translate
 from shapely.ops import unary_union
 
-from camlib import (Geometry, flatten_shapely_geometry, translate_geometry, affine_geometry, affine_geometry_many,
+from camlib import (voronoi_path_signature, Geometry, flatten_shapely_geometry, translate_geometry, affine_geometry, affine_geometry_many,
                     affine_scale_matrix)
 from appCommon.SafeEval import safe_eval
 
@@ -1276,7 +1276,7 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
         length_keys = ('cutz', 'depthperpass', 'travelz', 'feedrate', 'feedrate_z', 'feedrate_rapid',
                        'endz', 'toolchangez', 'startz', 'tooldia', 'offset_value', 'extracut_length',
                        'vtipdia', 'z_p_depth', 'probe_plate', 'feedrate_probe', 'area_overz',
-                       'polish_margin', 'milling_dia')
+                       'polish_margin', 'milling_dia', 'tools_iso_voronoi_spacing', 'tools_iso_voronoi_tooldia')
 
         def convert_length(value):
             return float(value) * 25.4 if units.upper() == 'MM' else float(value) / 25.4
@@ -1317,6 +1317,11 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
             self.app.inform.emit('[ERROR_NOTCL] %s: %s' % (_("Cannot convert geometry units"), str(err)))
             return 'fail'
 
+        # Voronoi paths that are still the generated ones stay valid in the new units: the scaled paths are signed
+        # again. Edited paths keep their old signature and are refused by the CNC job.
+        generated = {uid for uid, tool in self.tools.items() if tool.get('data', {}).get('tools_iso_validated_paths')
+                     and tool['data'].get('tools_iso_voronoi_path_signature') ==
+                     voronoi_path_signature(tool.get('solid_geometry', []))}
         self._photocarve_unit_change = True
         try:
             Geometry.convert_units(self, units)
@@ -1333,6 +1338,13 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
             if 'solid_geometry' in self.tools[uid]:
                 geometry = self.tools[uid]['solid_geometry']
                 tool['solid_geometry'] = convert_z(geometry) if mark and not mark['z_is_power'] else deepcopy(geometry)
+        for uid in generated:
+            data = tools[uid]['data']
+            data['tools_iso_voronoi_units'] = units.upper()
+            # the output grid of the validated paths: a coarser unit needs fewer decimals, a finer one more
+            decimals = int(data.get('tools_iso_voronoi_coord_decimals', 0))
+            data['tools_iso_voronoi_coord_decimals'] = decimals + 2 if units.upper() == 'IN' else max(decimals - 1, 0)
+            data['tools_iso_voronoi_path_signature'] = voronoi_path_signature(tools[uid]['solid_geometry'])
         if mark:
             mark['xy_err'] = convert_length(mark['xy_err'])
             mark['units'] = units.upper()

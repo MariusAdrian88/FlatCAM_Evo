@@ -2,6 +2,7 @@
 import os
 import sys
 import unittest
+import math
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -51,7 +52,8 @@ class TestNarrowChannel(unittest.TestCase):
                     self.assertTrue(any(path.intersects(channel) for path in paths))
 
     def test_every_method_cuts_the_channel(self):
-        for method in ('clear_polygon_shrink', 'clear_polygon_seed', 'clear_polygon_lines'):
+        for method in ('clear_polygon_shrink', 'clear_polygon_seed', 'clear_polygon_lines',
+                       'clear_polygon_crosshatch'):
             self.check(lambda area, steps: getattr(camlib.Geometry, method)(
                 self.geometry, area, self.tooldia, steps, connect=False))
 
@@ -84,6 +86,73 @@ class TestScanLinesCoverTheEdgeStrip(unittest.TestCase):
             with self.subTest(steps=steps):
                 margin, paths = self.run_lines(box(0, 0, 20, 10), steps)
                 self.check_levels([c[1] for path in paths for c in path.coords], margin.bounds[1], margin.bounds[3])
+
+    def test_automatic_axis_unchanged(self):
+        # Without an explicit angle the lines still follow the longest side of the bounding box.
+        for steps in STEPS:
+            with self.subTest(steps=steps):
+                margin, paths = self.run_lines(box(0, 0, 10, 20), steps)
+                self.check_levels([c[0] for path in paths for c in path.coords], margin.bounds[0], margin.bounds[2])
+
+
+class TestCrosshatch(unittest.TestCase):
+    def setUp(self):
+        self.geometry = make_geometry()
+        self.geometry.app.units = 'MM'
+        self.geometry.app.options = {'global_tolerance': 0}
+        self.tooldia = 1.0
+        self.area = box(0, 0, 12, 3)
+
+    def directions(self, paths):
+        angles = set()
+        for path in paths:
+            coords = list(path.coords)
+            for (x0, y0), (x1, y1) in zip(coords, coords[1:]):
+                if math.hypot(x1 - x0, y1 - y0) > 1e-6:
+                    angles.add(round(math.degrees(math.atan2(y1 - y0, x1 - x0)) % 180.0, 6))
+        return angles
+
+    def run_crosshatch(self, angle):
+        return list(self.geometry.clear_polygon_crosshatch(
+            self.area, self.tooldia, 64, overlap=0.2, connect=False, contour=False, angle=angle).get_objects())
+
+    def test_direction_families(self):
+        # A non-square polygon would turn a single automatic family by 90 degrees; both families must be there.
+        for angle in (0.0, 45.0, 90.0):
+            with self.subTest(angle=angle):
+                expected = {round(angle % 180.0, 6), round((angle + 90.0) % 180.0, 6)}
+                self.assertEqual(self.directions(self.run_crosshatch(angle)), expected)
+
+    def test_angle_is_normalized(self):
+        for angle, expected in ((180.0, 0.0), (-45.0, 135.0), (float('nan'), 0.0)):
+            with self.subTest(angle=angle):
+                families = {round(expected, 6), round((expected + 90.0) % 180.0, 6)}
+                self.assertEqual(self.directions(self.run_crosshatch(angle)), families)
+
+    def test_contour_is_added_once(self):
+        area = box(0, 0, 10.6, 10).difference(box(4, 4, 6, 6))
+        paths = list(self.geometry.clear_polygon_crosshatch(
+            area, self.tooldia, 64, overlap=0.2, connect=False, contour=True, angle=45).get_objects())
+        rings = [path for path in paths if path.is_ring and not path.is_empty]
+        self.assertEqual(len(rings), 2)  # the outer boundary and the hole
+        coords = [tuple((round(x, 9), round(y, 9)) for x, y in path.coords) for path in rings]
+        self.assertEqual(len(coords), len(set(coords)))
+
+    def test_crosshatch_keeps_each_scan_line_whole(self):
+        # Cutting every line at every crossing grew the path count with the square of the line count.
+        box_10 = box(0, 0, 10, 10)
+        counts = {}
+        for method in ('clear_polygon_lines', 'clear_polygon_crosshatch'):
+            result = getattr(self.geometry, method)(box_10, 0.2, 16, overlap=0.4, connect=False, contour=True)
+            counts[method] = len(list(result.get_objects()))
+        self.assertLessEqual(counts['clear_polygon_crosshatch'], 3 * counts['clear_polygon_lines'])
+
+    def test_invalid_scan_spacing_is_rejected(self):
+        for method in ('clear_polygon_lines', 'clear_polygon_crosshatch'):
+            for diameter, overlap in ((1.0, float('nan')), (1.0, 1.0), (1.0, 1.1), (0.0, 0.2), (-1.0, 0.2)):
+                with self.subTest(method=method, diameter=diameter, overlap=overlap):
+                    with self.assertRaises(ValueError):
+                        getattr(self.geometry, method)(self.area, diameter, 64, overlap=overlap, connect=False)
 
 def sweep_of(paths, tooldia):
     return unary_union([path.buffer(tooldia / 2, quad_segs=32) for path in paths])
@@ -121,7 +190,8 @@ class TestClearingCoverage(unittest.TestCase):
 
     def test_area_methods(self):
         for name, (area, tooldia) in self.SHAPES.items():
-            for method in ('clear_polygon_shrink', 'clear_polygon_seed', 'clear_polygon_lines'):
+            for method in ('clear_polygon_shrink', 'clear_polygon_seed', 'clear_polygon_lines',
+                           'clear_polygon_crosshatch'):
                 for contour in (True, False):
                     if method == 'clear_polygon_shrink' and not contour:
                         continue
@@ -130,13 +200,25 @@ class TestClearingCoverage(unittest.TestCase):
                                                                 contour=contour)
                         self.check(area, tooldia, list(result.get_objects()), contour)
 
+    def test_rotated_crosshatch_coverage_and_connections(self):
+        for name in ('hole', 'neck', 'branch'):
+            area, tooldia = self.SHAPES[name]
+            for angle in (-45.0, 17.0, 90.0):
+                for contour in (False, True):
+                    for connect in (False, True):
+                        with self.subTest(shape=name, angle=angle, contour=contour, connect=connect):
+                            result = self.geometry.clear_polygon_crosshatch(
+                                area, tooldia, 64, overlap=0.2, connect=connect, contour=contour, angle=angle)
+                            self.check(area, tooldia, list(result.get_objects()), contour)
+
     def test_exact_fit_touches_the_outline(self):
         # An L slot and a trace exactly as wide as the tool: the cutter touches both walls, it cuts past them only by
         # the back-down of the margin (0.1 um here).
         slot = unary_union([box(0, 0, 8, 1), box(7, 0, 8, 6)])
         trace = LineString([(0, 0), (6, 0), (6, 4)])
         runs = {method: lambda method=method: getattr(self.geometry, method)(slot, 1.0, 64, overlap=0.2, connect=False)
-                for method in ('clear_polygon_shrink', 'clear_polygon_seed', 'clear_polygon_lines')}
+                for method in ('clear_polygon_shrink', 'clear_polygon_seed', 'clear_polygon_lines',
+                               'clear_polygon_crosshatch')}
         runs['fill_with_lines'] = lambda: self.geometry.fill_with_lines(trace, 1.0, 1.0, 64, connect=False)
         for name, run in runs.items():
             with self.subTest(method=name):
@@ -152,7 +234,8 @@ class TestClearingCoverage(unittest.TestCase):
         reach = area.buffer(-0.5, quad_segs=256).buffer(0.5, quad_segs=256)
         for edge in ('touch', 'strict'):
             for error_um in (0.5, 10.0):
-                for method in ('clear_polygon_shrink', 'clear_polygon_seed', 'clear_polygon_lines'):
+                for method in ('clear_polygon_shrink', 'clear_polygon_seed', 'clear_polygon_lines',
+                               'clear_polygon_crosshatch'):
                     with self.subTest(edge=edge, error=error_um, method=method):
                         self.geometry.app.options = {'global_tolerance': 0, 'tools_clearing_error': error_um,
                                                      'tools_clearing_edge': edge}
@@ -175,7 +258,8 @@ class TestClearingCoverage(unittest.TestCase):
         self.geometry.app.options = {'global_tolerance': 0, 'tools_clearing_error': 2.0, 'tools_clearing_edge': 'strict'}
         for width in (1.0, 1.002):
             area = unary_union([box(0, 0, 10, 10).difference(copper), box(10, 5 - width / 2, 14, 5 + width / 2)])
-            for method in ('clear_polygon_shrink', 'clear_polygon_seed', 'clear_polygon_lines'):
+            for method in ('clear_polygon_shrink', 'clear_polygon_seed', 'clear_polygon_lines',
+                           'clear_polygon_crosshatch'):
                 with self.subTest(width=width, method=method):
                     paths = list(getattr(self.geometry, method)(area, 1.0, 64, overlap=0.2,
                                                                  connect=False).get_objects())

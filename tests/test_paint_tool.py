@@ -160,6 +160,26 @@ def _drawn_area(t):
     return area
 
 
+def test_legacy_tool_angle_does_not_leak_from_previous_tool(painter):
+    import json
+
+    data = next(iter(painter.paint_tools.values()))['data']
+    data.pop('tools_paint_crosshatch_angle', None)
+    painter.ui.crosshatch_angle_entry.set_value(45.0)
+    painter.storage_to_form(data)
+    assert painter.ui.crosshatch_angle_entry.get_value() == 0.0
+    painter.ui.crosshatch_angle_entry.set_value(135.0)
+    painter.ui.crosshatch_angle_entry.returnPressed.emit()
+    assert data['tools_paint_crosshatch_angle'] == 135.0
+    painter.storage_to_form(json.loads(json.dumps(data)))
+    assert painter.ui.crosshatch_angle_entry.get_value() == 135.0
+    # the angle is editable for the Crosshatch method only
+    for method, enabled in ((2, False), (5, True)):
+        data['tools_paint_method'] = method
+        painter.storage_to_form(data)
+        assert painter.ui.crosshatch_angle_entry.isEnabled() is enabled
+
+
 def test_selected_objects_do_not_need_the_source_combo(painter):
     # two Gerbers selected in the Project tab, no Geometry object: the source combo is empty
     first = SimpleNamespace(kind='gerber', solid_geometry=[box(0, 0, 2, 2)],
@@ -181,4 +201,3 @@ def test_selected_objects_do_not_need_the_source_combo(painter):
     painter.app.worker_task.emit.side_effect = lambda task: task['fcn'](*task['params'])
     assert _drawn_area(painter) == pytest.approx(8.0)
     assert not any('Object not found' in str(call.args[0]) for call in painter.app.inform.emit.call_args_list)
-

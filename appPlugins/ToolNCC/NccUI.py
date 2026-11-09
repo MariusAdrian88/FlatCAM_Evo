@@ -384,12 +384,28 @@ class NccUI:
 
         self.method_combo = FCComboBox2()
         self.method_combo.addItems(
-            [_("Standard"), _("Seed"), _("Lines"), _("Combo")]
+            [_("Standard"), _("Seed"), _("Lines"), _("Combo"), _("Crosshatch")]
         )
         self.method_combo.setObjectName("n_method")
 
         par_grid.addWidget(self.method_label, 6, 0)
         par_grid.addWidget(self.method_combo, 6, 1)
+
+        # Crosshatch angle
+        self.crosshatch_angle_label = FCLabel('%s:' % _('Angle'))
+        self.crosshatch_angle_label.setToolTip(
+            _("Direction of the first family of lines of the Crosshatch method, in degrees.\n"
+              "The second family is at 90 degrees from it.")
+        )
+        self.crosshatch_angle_entry = FCDoubleSpinner(callback=self.confirmation_message)
+        self.crosshatch_angle_entry.set_precision(self.decimals)
+        self.crosshatch_angle_entry.setWrapping(True)
+        self.crosshatch_angle_entry.setRange(0.0000, 179.9999)
+        self.crosshatch_angle_entry.setSingleStep(45)
+        self.crosshatch_angle_entry.setObjectName("n_crosshatch_angle")
+
+        par_grid.addWidget(self.crosshatch_angle_label, 7, 0)
+        par_grid.addWidget(self.crosshatch_angle_entry, 7, 1)
 
         # Margin
         self.margin_label = FCLabel('%s:' % _('Margin'))
@@ -714,6 +730,8 @@ class NccUI:
             self.overlap_entry.setEnabled(False)
             self.method_label.setEnabled(False)
             self.method_combo.setEnabled(False)
+            self.crosshatch_angle_label.setEnabled(False)
+            self.crosshatch_angle_entry.setEnabled(False)
             self.margin_label.setEnabled(False)
             self.margin_entry.setEnabled(False)
             self.connect_cb.setEnabled(False)
@@ -736,6 +754,12 @@ class NccUI:
             self.final_cleanup_cb.setEnabled(True)
             self.offset_choice_cb.setEnabled(True)
             self.offset_entry.setEnabled(True)
+            self.on_method_changed()
+
+    def on_method_changed(self, val=None):
+        enabled = self.method_combo.get_value() == 4 and self.op_radio.get_value() != 'iso'
+        self.crosshatch_angle_label.setEnabled(enabled)
+        self.crosshatch_angle_entry.setEnabled(enabled)
 
     def on_selection(self):
         sel_combo = self.select_method_combo.get_value()

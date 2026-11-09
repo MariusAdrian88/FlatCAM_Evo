@@ -1,5 +1,5 @@
 # ##########################################################
-# FlatCAM: 2D Post-processing for Manufacturing            #
+# FlatCAM Evo: 2D Post-processing for Manufacturing        #
 # File Modified by: Marius Adrian Stanciu (c)              #
 # Date: 3/10/2019                                          #
 # MIT Licence                                              #
@@ -164,6 +164,7 @@ class ToolNcc(Geometry, AppTool):
             "tools_ncc_overlap":        self.ui.overlap_entry,
             "tools_ncc_margin":         self.ui.margin_entry,
             "tools_ncc_method":         self.ui.method_combo,
+            "tools_ncc_crosshatch_angle": self.ui.crosshatch_angle_entry,
             "tools_ncc_connect":        self.ui.connect_cb,
             "tools_ncc_contour":        self.ui.contour_cb,
             "tools_ncc_final_cleanup":  self.ui.final_cleanup_cb,
@@ -178,6 +179,7 @@ class ToolNcc(Geometry, AppTool):
             "n_overlap":        "tools_ncc_overlap",
             "n_margin":         "tools_ncc_margin",
             "n_method":         "tools_ncc_method",
+            "n_crosshatch_angle": "tools_ncc_crosshatch_angle",
             "n_connect":        "tools_ncc_connect",
             "n_contour":        "tools_ncc_contour",
             "n_final_cleanup":  "tools_ncc_final_cleanup",
@@ -346,6 +348,12 @@ class ToolNcc(Geometry, AppTool):
         except (TypeError, RuntimeError, AttributeError):
             pass
         self.ui.order_combo.currentIndexChanged.connect(self.on_order_changed)
+
+        try:
+            self.ui.method_combo.currentIndexChanged.disconnect(self.ui.on_method_changed)
+        except (TypeError, RuntimeError, AttributeError):
+            pass
+        self.ui.method_combo.currentIndexChanged.connect(self.ui.on_method_changed)
 
         try:
             self.ui.type_obj_radio.activated_custom.disconnect(self.on_type_obj_index_changed)
@@ -699,6 +707,7 @@ class ToolNcc(Geometry, AppTool):
             "tools_ncc_overlap":        self.ui.overlap_entry,
             "tools_ncc_margin":         self.ui.margin_entry,
             "tools_ncc_method":         self.ui.method_combo,
+            "tools_ncc_crosshatch_angle": self.ui.crosshatch_angle_entry,
             "tools_ncc_connect":        self.ui.connect_cb,
             "tools_ncc_contour":        self.ui.contour_cb,
             "tools_ncc_final_cleanup":  self.ui.final_cleanup_cb,
@@ -753,6 +762,11 @@ class ToolNcc(Geometry, AppTool):
         self.ui.method_combo.set_value(self.app.options.get(
             "tools_ncc_method",
             app_defaults.get("tools_ncc_method", AppDefaults.factory_defaults.get("tools_ncc_method"))))
+        self.ui.crosshatch_angle_entry.set_value(self.app.options.get(
+            "tools_ncc_crosshatch_angle",
+            app_defaults.get("tools_ncc_crosshatch_angle",
+                             AppDefaults.factory_defaults.get("tools_ncc_crosshatch_angle", 0.0))))
+        self.ui.on_method_changed()
         self.ui.connect_cb.set_value(self.app.options.get(
             "tools_ncc_connect",
             app_defaults.get("tools_ncc_connect", AppDefaults.factory_defaults.get("tools_ncc_connect"))))
@@ -1147,6 +1161,7 @@ class ToolNcc(Geometry, AppTool):
 
     def storage_to_form(self, dict_storage):
         dict_storage.setdefault('tools_ncc_final_cleanup', False)
+        dict_storage.setdefault('tools_ncc_crosshatch_angle', 0.0)
         for form_key in self.form_fields:
             for storage_key in dict_storage:
                 if form_key == storage_key:
@@ -1155,6 +1170,7 @@ class ToolNcc(Geometry, AppTool):
                     except Exception as e:
                         self.app.log.error("ToolNcc.storage_to_form() --> %s" % str(e))
                         pass
+        self.ui.on_method_changed()
 
     def form_to_storage(self):
         if self.ui.tools_table.rowCount() == 0:

@@ -226,11 +226,30 @@ class ToolsNCCPrefGroupUI(OptionsGroupUI):
         # ], orientation='vertical', compact=True)
         self.ncc_method_combo = FCComboBox2()
         self.ncc_method_combo.addItems(
-            [_("Standard"), _("Seed"), _("Lines"), _("Combo")]
+            [_("Standard"), _("Seed"), _("Lines"), _("Combo"), _("Crosshatch")]
         )
 
         tool_grid.addWidget(methodlabel, 4, 0)
         tool_grid.addWidget(self.ncc_method_combo, 4, 1)
+
+        # Crosshatch angle
+        self.crosshatch_angle_label = FCLabel('%s:' % _('Angle'))
+        self.crosshatch_angle_label.setToolTip(
+            _("Direction of the first family of lines of the Crosshatch method, in degrees.\n"
+              "The second family is at 90 degrees from it.")
+        )
+        self.crosshatch_angle_entry = FCDoubleSpinner()
+        self.crosshatch_angle_entry.set_precision(self.decimals)
+        self.crosshatch_angle_entry.setWrapping(True)
+        self.crosshatch_angle_entry.set_range(0.0000, 179.9999)
+        self.crosshatch_angle_entry.setSingleStep(45)
+
+        tool_grid.addWidget(self.crosshatch_angle_label, 5, 0)
+        tool_grid.addWidget(self.crosshatch_angle_entry, 5, 1)
+
+        # The angle applies to Crosshatch only (index 4); the combo signal also fires on a programmatic load.
+        self.ncc_method_combo.currentIndexChanged.connect(self.on_method_changed)
+        self.on_method_changed()
 
         # Connect lines
         self.ncc_connect_cb = FCCheckBox('%s' % _("Connect"))
@@ -395,3 +414,8 @@ class ToolsNCCPrefGroupUI(OptionsGroupUI):
         GLay.set_common_column_size([par_grid, tool_grid, gen_grid], 0)
 
         self.layout.addStretch(1)
+
+    def on_method_changed(self, val=None):
+        enabled = self.ncc_method_combo.get_value() == 4  # Crosshatch
+        self.crosshatch_angle_label.setEnabled(enabled)
+        self.crosshatch_angle_entry.setEnabled(enabled)

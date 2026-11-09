@@ -2,6 +2,7 @@
 import os
 import sys
 import unittest
+import math
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -79,6 +80,31 @@ class TestPaintGeometry(unittest.TestCase):
         self.assertAlmostEqual(PaintModel.reference_area(split).area, 16, places=4)
         # An open path encloses nothing and must not become a hull.
         self.assertEqual(PaintModel.reference_area([LineString([(0, 0), (4, 0), (4, 4)])]).area, 0)
+
+    def test_crosshatch_tool_settings_reach_the_geometry(self):
+        # The per-tool method and angle go through the same settings dict that the worker uses.
+        area = box(0, 0, 12, 3)
+        settings = PaintModel.tool_params(1, {1: {'tooldia': 1.0, 'data': {
+            'tools_paint_overlap': 20, 'tools_paint_connect': False,
+            'tools_paint_contour': False, 'tools_paint_offset': 0.0,
+            'tools_paint_crosshatch_angle': 45.0}}})
+        self.assertEqual(settings['angle'], 45.0)
+        result = PaintModel.paint_polygon(
+            area, 1.0, 5, settings['over'], settings['conn'], settings['cont'], False, 64,
+            self.geometry.clear_polygon_shrink, self.geometry.clear_polygon_seed,
+            self.geometry.clear_polygon_lines, crosshatch_angle=settings['angle'],
+            clear_crosshatch=self.geometry.clear_polygon_crosshatch)
+        angles = set()
+        for path in result.get_objects():
+            coords = list(path.coords)
+            for (x0, y0), (x1, y1) in zip(coords, coords[1:]):
+                if math.hypot(x1 - x0, y1 - y0) > 1e-6:
+                    angles.add(round(math.degrees(math.atan2(y1 - y0, x1 - x0)) % 180.0, 6))
+        self.assertEqual(angles, {45.0, 135.0})
+        for bad in ('invalid', None, ''):
+            data = {'tools_paint_overlap': 20, 'tools_paint_connect': False, 'tools_paint_contour': False,
+                    'tools_paint_offset': 0.0, 'tools_paint_crosshatch_angle': bad}
+            self.assertEqual(PaintModel.tool_params(1, {1: {'tooldia': 1.0, 'data': data}})['angle'], 0.0)
 
 if __name__ == '__main__':
     unittest.main()

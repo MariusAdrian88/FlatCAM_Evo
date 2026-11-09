@@ -19,6 +19,7 @@ from typing import Iterable
 import numpy as np
 import sys
 import math
+from hashlib import sha256
 
 import shapely
 from shapely import LineString, MultiLineString, Polygon, MultiPolygon, Point, LinearRing
@@ -30,7 +31,7 @@ import appTranslation as fcTranslate
 import builtins
 
 from appDatabase import load_tools_database, tools_database_error_message
-from camlib import Geometry, grace, flatten_shapely_geometry, polygon_gap_pairs, outline_area, clip_paths_to_area, \
+from camlib import Geometry, grace, flatten_shapely_geometry, polygon_gap_pairs, outline_area, boundary_area, clip_paths_to_area, \
     area_outline_paths, boundary_passes_message, isolation_leftover_paths, milling_orient, pass_covers_area
 from appCommon.SafeEval import safe_eval
 from appPlugins.ToolIsolation.IsolationUI import IsoUI
@@ -60,6 +61,20 @@ def pad_solids(gerber_obj, geometry=None):
     return [pads[idx] for idx in sorted(set(touched.tolist()))]
 
 
+def tool_strategy(value):
+    """
+    The isolation strategy of a tool as 'offset' or 'voronoi' (None: Offset, as in an old tool; 0 / 1 are accepted).
+
+    :return:    'offset', 'voronoi', or None if the value is not a strategy
+    """
+    if value is None:
+        return 'offset'
+    if isinstance(value, int) and not isinstance(value, bool):
+        return ('offset', 'voronoi')[value] if 0 <= value <= 1 else None
+    value = str(value).lower()
+    return value if value in ('offset', 'voronoi') else None
+
+
 def tools_for_run(tools_storage, sel_tools):
     """
     The selected tools copied for one isolation run: each has its own data and none has the geometry of an earlier run.
@@ -77,6 +92,8 @@ def tools_for_object(run_tools, uids):
 
 class ToolIsolation(Geometry, AppTool):
     optimal_found_sig = QtCore.pyqtSignal(float)
+    # The generator runs in a worker: the failure region is drawn by a queued signal, never on the worker thread.
+    voronoi_diagnostic_sig = QtCore.pyqtSignal(object)
 
     def __init__(self, app):
         self.app = app
@@ -102,6 +119,8 @@ class ToolIsolation(Geometry, AppTool):
         # the signals of the app and of the plugin itself: connected once, the UI is rebuilt in set_tool_ui()
         # Custom Signal
         self.optimal_found_sig.connect(self.on_optimal_found)
+        self.voronoi_diagnostic_sig.connect(self.on_voronoi_diagnostic)
+        self._voronoi_diagnostic_token = object()
         # Cleanup on Graceful exit (CTRL+ALT+X combo key)
         self.app.cleanup.connect(self.set_tool_ui)
 
@@ -187,7 +206,10 @@ class ToolIsolation(Geometry, AppTool):
             "tools_iso_overlap":        self.ui.iso_overlap_entry,
             "tools_iso_milling_type":   self.ui.milling_type_radio,
             "tools_iso_combine":        self.ui.combine_passes_cb,
-            "tools_iso_isotype":        self.ui.iso_type_radio
+            "tools_iso_isotype":        self.ui.iso_type_radio,
+            "tools_iso_strategy":       self.ui.strategy_combo,
+            "tools_iso_voronoi_spacing": self.ui.voronoi_spacing_entry,
+            "tools_iso_voronoi_pads": self.ui.voronoi_pads_cb
         }
 
         self.name2option = {
@@ -200,7 +222,10 @@ class ToolIsolation(Geometry, AppTool):
             "i_overlap":        "tools_iso_overlap",
             "i_milling_type":   "tools_iso_milling_type",
             "i_combine":        "tools_iso_combine",
-            "i_iso_type":       "tools_iso_isotype"
+            "i_iso_type":       "tools_iso_isotype",
+            "i_strategy":       "tools_iso_strategy",
+            "i_voronoi_spacing": "tools_iso_voronoi_spacing",
+            "i_voronoi_pads": "tools_iso_voronoi_pads"
         }
 
     def install(self, icon=None, separator=None, **kwargs):
@@ -333,6 +358,29 @@ class ToolIsolation(Geometry, AppTool):
     def on_optimal_found(self, val):
         self.ui.new_tooldia_entry.set_value(float(val))
 
+    def on_voronoi_diagnostic(self, payload):
+        """Clears or draws the Voronoi failure region; this slot always runs on the GUI thread."""
+        if (payload or {}).get('token') is not self._voronoi_diagnostic_token:
+            return
+        if payload.get('action') == 'pad_report':
+            report = payload['report']
+            message = _("Pad isolation: %d unique surviving flashed pads; %d with added cuts; %d skipped.") % (
+                report['candidates'], report['cut'], report['skipped'])
+            if not report['candidates']:
+                message += ' ' + _("No supported flashed-pad provenance; region-only and negative images are skipped.")
+            elif report['skipped']:
+                message += ' ' + _("Skipped pads have no additional safe room with this cutter and output precision.")
+            self.app.inform.emit(('[INFO_NOTCL] ' if report['cut'] else '[WARNING_NOTCL] ') + message)
+            return
+        try:
+            self.temp_shapes.clear(update=True)
+            region = (payload or {}).get('region')
+            if region is not None and not region.is_empty:
+                self.temp_shapes.add(shape=region, color='#FF0000CC', update=True, layer=0)
+                self.temp_shapes.redraw()
+        except Exception as err:
+            self.app.log.debug("ToolIsolation.on_voronoi_diagnostic() -> %s" % str(err))
+
     def on_milling_button_click(self):
         self.app.milling_tool.run()
 
@@ -354,7 +402,7 @@ class ToolIsolation(Geometry, AppTool):
 
     def get_boundary_area(self):
         """
-        The boundary area from the UI: the area enclosed by the outline of the selected object.
+        The boundary area from the UI: a concave enclosure around the selected object's geometry.
 
         :return:    Polygon / MultiPolygon, None when the boundary is not used, or 'fail' (with a message)
         """
@@ -366,14 +414,15 @@ class ToolIsolation(Geometry, AppTool):
             self.app.inform.emit('[ERROR_NOTCL] %s' % _("No boundary object is selected."))
             return 'fail'
 
-        area = outline_area(boundary_obj.solid_geometry)
+        area = boundary_area(boundary_obj)
         if area is None:
             self.app.inform.emit('[ERROR_NOTCL] %s: %s' % (
-                _("The boundary object has no outline that encloses an area"), boundary_obj.obj_options['name']))
+                _("The boundary object encloses no area"), boundary_obj.obj_options['name']))
             return 'fail'
         return area
 
     def set_tool_ui(self):
+        self._voronoi_diagnostic_token = object()
         # leave a running selection mode (canvas handlers, grid snap, shapes) before the UI is rebuilt
         try:
             self.end_selection_mode()
@@ -402,7 +451,10 @@ class ToolIsolation(Geometry, AppTool):
             "tools_iso_overlap":        self.ui.iso_overlap_entry,
             "tools_iso_milling_type":   self.ui.milling_type_radio,
             "tools_iso_combine":        self.ui.combine_passes_cb,
-            "tools_iso_isotype":        self.ui.iso_type_radio
+            "tools_iso_isotype":        self.ui.iso_type_radio,
+            "tools_iso_strategy":       self.ui.strategy_combo,
+            "tools_iso_voronoi_spacing": self.ui.voronoi_spacing_entry,
+            "tools_iso_voronoi_pads": self.ui.voronoi_pads_cb
         }
 
         # reset the value to prepare for another isolation
@@ -447,6 +499,17 @@ class ToolIsolation(Geometry, AppTool):
             "tools_iso_order", app_defaults.get("tools_iso_order", AppDefaults.factory_defaults.get("tools_iso_order"))))
         self.ui.tool_shape_combo.set_value(self.app.options.get(
             "tools_iso_tool_shape", app_defaults.get("tools_iso_tool_shape", AppDefaults.factory_defaults.get("tools_iso_tool_shape"))))
+
+        strategy_value = str(self.app.options.get(
+            "tools_iso_strategy",
+            app_defaults.get("tools_iso_strategy", AppDefaults.factory_defaults.get("tools_iso_strategy")))).lower()
+        self.ui.strategy_combo.set_value('voronoi' if strategy_value == 'voronoi' else 'offset')
+        self.ui.voronoi_spacing_entry.set_value(self.app.options.get(
+            "tools_iso_voronoi_spacing",
+            app_defaults.get("tools_iso_voronoi_spacing",
+                              AppDefaults.factory_defaults.get("tools_iso_voronoi_spacing"))))
+        self.ui.voronoi_pads_cb.set_value(self.app.options.get(
+            "tools_iso_voronoi_pads", app_defaults.get("tools_iso_voronoi_pads", False)))
 
         self.ui.tipdia_entry.set_value(self.app.options.get(
             "tools_iso_vtipdia", app_defaults.get("tools_iso_vtipdia", AppDefaults.factory_defaults.get("tools_iso_vtipdia"))))
@@ -591,8 +654,8 @@ class ToolIsolation(Geometry, AppTool):
 
         prog_plot = True if self.app.options.get(
             "tools_iso_plotting", app_defaults.get("tools_iso_plotting", AppDefaults.factory_defaults.get("tools_iso_plotting"))) == 'progressive' else False
-        if prog_plot:
-            self.temp_shapes.clear(update=True)
+        # also removes a Voronoi failure region from a previous run
+        self.temp_shapes.clear(update=True)
 
         self.sel_rect = []
 
@@ -1192,13 +1255,15 @@ class ToolIsolation(Geometry, AppTool):
 
     def storage_to_form(self, dict_storage):
         for form_key in self.form_fields:
-            for storage_key in dict_storage:
-                if form_key == storage_key:
-                    try:
-                        self.form_fields[form_key].set_value(dict_storage[form_key])
-                    except Exception as e:
-                        self.app.log.error("ToolIsolation.storage_to_form() --> %s" % str(e))
-                        pass
+            if form_key in dict_storage:
+                try:
+                    self.form_fields[form_key].set_value(dict_storage[form_key])
+                except Exception as e:
+                    self.app.log.error("ToolIsolation.storage_to_form() --> %s" % str(e))
+                    pass
+            elif form_key in ('tools_iso_strategy', 'tools_iso_voronoi_spacing', 'tools_iso_voronoi_pads'):
+                # an old saved tool has no strategy: it is an Offset tool
+                self.form_fields[form_key].set_value(AppDefaults.factory_defaults.get(form_key))
 
     def form_to_storage(self):
         if self.ui.tools_table.rowCount() == 0:
@@ -1230,7 +1295,8 @@ class ToolIsolation(Geometry, AppTool):
                     new_option_value = self.form_fields[option_changed].get_value()
                     if option_changed in tooluid_val:
                         tooluid_val[option_changed] = new_option_value
-                    if option_changed in tooluid_val['data']:
+                    if option_changed in tooluid_val['data'] or option_changed in (
+                            'tools_iso_strategy', 'tools_iso_voronoi_spacing', 'tools_iso_voronoi_pads'):
                         tooluid_val['data'][option_changed] = new_option_value
 
         self.blockSignals(False)
@@ -1996,7 +2062,10 @@ class ToolIsolation(Geometry, AppTool):
 
         :return:    the keyword arguments of isolate() (the boundary area included: None, a polygon or 'fail')
         """
+        self._voronoi_diagnostic_token = object()
+        self.voronoi_diagnostic_sig.emit({'action': 'clear', 'token': self._voronoi_diagnostic_token})
         return {
+            'diagnostic_token': self._voronoi_diagnostic_token,
             'combine': self.ui.combine_passes_cb.get_value(),
             'iso_except': self.ui.except_cb.get_value(),
             'e_passes': self.ui.pad_passes_entry.get_value(),
@@ -2134,6 +2203,10 @@ class ToolIsolation(Geometry, AppTool):
             self.ui.simplify_cb.get_value()
         simplification_tol = args['simplification_tol'] if 'simplification_tol' in args else \
             self.ui.sim_tol_entry.get_value()
+        ui = getattr(self, 'ui', None)
+        # use_clear_leftovers: True/False (combined passes only)
+        use_clear_leftovers = args['clear_leftovers'] if 'clear_leftovers' in args else (
+            ui.clear_leftovers_cb.get_value() if ui is not None else False)
         # the object of the exclusion areas
         # (None: area_subtraction() reads the widget)
         self._exc_name = args.get('exc_name')
@@ -2158,7 +2231,23 @@ class ToolIsolation(Geometry, AppTool):
 
         # the run uses its own copy of the selected tools, so the plugin tools keep no geometry and no run values
         run_tools = tools_for_run(tools_storage, sel_tools)
+        # the strategy, the Voronoi spacing and the pad isolation are values of each tool; one given in args
+        # (e.g. by a script) is for all the tools
+        strategy_given = args.get('strategy')
+        if strategy_given is not None and tool_strategy(strategy_given) is None:
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _("The isolation strategy must be Offset or Voronoi."))
+            return 'fail'
         for run_tool in run_tools.values():
+            tool_data = run_tool['data']
+            strategy = tool_strategy(strategy_given if strategy_given is not None
+                                     else tool_data.get('tools_iso_strategy'))
+            if strategy is None:
+                self.app.inform.emit('[ERROR_NOTCL] %s' % _("The isolation strategy must be Offset or Voronoi."))
+                return 'fail'
+            voronoi_spacing = args['voronoi_spacing'] if args.get('voronoi_spacing') is not None else \
+                tool_data.get('tools_iso_voronoi_spacing', 0.05)
+            pad_isolation = args['pad_isolation'] if args.get('pad_isolation') is not None else \
+                tool_data.get('tools_iso_voronoi_pads', False)
             run_tool['data'].update({
                 "tools_iso_rest": use_rest,
                 "tools_iso_combine_passes": use_combine,
@@ -2170,13 +2259,37 @@ class ToolIsolation(Geometry, AppTool):
                 "tools_mill_job_type": 2,  # _("Isolation")
                 # generated Isolation paths are already the tool centerline: Milling must not offset them again
                 "tools_iso_centerline": True,
-                "tools_mill_tool_shape": tool_tip_shape,
+                "tools_mill_tool_shape": run_tool['data'].get('tools_mill_tool_shape', tool_tip_shape)
+                    if strategy == 'voronoi' else tool_tip_shape,
+                "tools_iso_strategy": strategy,
+                "tools_iso_voronoi_spacing": float(voronoi_spacing),
+                "tools_iso_voronoi_pads": bool(pad_isolation) and strategy == 'voronoi',
             })
+        voronoi_tools = [uid for uid in sel_tools if run_tools[uid]['data']['tools_iso_strategy'] == 'voronoi']
 
         prog_plot = self.app.options.get(
             "tools_iso_plotting", app_defaults.get("tools_iso_plotting", AppDefaults.factory_defaults.get("tools_iso_plotting")))
 
         try:
+            if voronoi_tools:
+                if selection_type != 0 or use_area_exception:
+                    self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                        "The Voronoi strategy needs All copper; area, polygon and reference selections are not supported."))
+                    return 'fail'
+                # each Voronoi tool uses its own spacing and pad isolation (its tool data)
+                if self.voronoi_isolation(
+                        iso_obj=isolated_obj, iso2geo=geometry, tools_storage=run_tools, sel_tools=voronoi_tools,
+                        boundary=boundary, use_rest=use_rest,
+                        negative_dia=negative_dia, iso_except=use_iso_except, extra_passes=use_extra_passes,
+                        clear_leftovers=use_clear_leftovers, limited_area=limited_area,
+                        simp_en=use_simplification, simp_tol=simplification_tol, plot=plot,
+                        diagnostic_token=args.get('diagnostic_token')) == 'fail':
+                    return 'fail'
+                # the tools of the Offset strategy follow
+                sel_tools = [uid for uid in sel_tools if uid not in voronoi_tools]
+                if not sel_tools:
+                    return None
+
             if use_combine:
                 if use_rest:
                     return self.combined_rest(iso_obj=isolated_obj, iso2geo=geometry, tools_storage=run_tools,
@@ -2388,6 +2501,187 @@ class ToolIsolation(Geometry, AppTool):
 
         # Switch notebook to Properties page
         # self.app.ui.notebook.setCurrentWidget(self.app.ui.properties_tab)
+
+    def voronoi_isolation(self, iso_obj, iso2geo, tools_storage, sel_tools, boundary, spacing=None,
+                          use_rest=False, negative_dia=None, iso_except=False, extra_passes=0,
+                          clear_leftovers=False, limited_area=None, simp_en=False, simp_tol=0.001, plot=True,
+                          diagnostic_token=None):
+        """
+        Inter-body Voronoi isolation: one object for each selected tool, one pass, no contour around a single body.
+
+        :param iso_obj:         the isolated Gerber object
+        :param iso2geo:         specific geometry to isolate
+        :param tools_storage:   the tools of this run
+        :param sel_tools:       the selected tool uids
+        :param boundary:        island enclosure, made convex; its compensated perimeter is cut, with a working collar
+                                for the full cutter width, output rounding and polygonal buffer approximation
+        :param spacing:         sampling step along the copper boundaries, in the application units; None: the
+                                "tools_iso_voronoi_spacing" of each tool
+        :param use_rest:        rest machining is not supported by this strategy
+        :param negative_dia:    a negative diameter isolates inside the copper; not supported
+        :param iso_except:      an excluded area is not supported
+        :param extra_passes:    pad passes are not supported
+        :param clear_leftovers: leftover clearing is not supported
+        :param limited_area:    a limited area is not supported
+        :param simp_en:         simplify the generated paths and re-check the cutter sweep
+        :param simp_tol:        simplification tolerance
+        :param plot:            if to plot the resulting geometry object
+        :return:                'fail' if nothing was isolated (an error was reported), else None
+        """
+        if use_rest:
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                "The Voronoi strategy does not support Rest Machining. Use the Offset strategy for rest machining."))
+            return 'fail'
+        if negative_dia:
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                "The Voronoi strategy does not support a negative tool diameter (inside-only isolation)."))
+            return 'fail'
+        if iso_except or limited_area:
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                "The Voronoi strategy does not support an excluded or a limited area."))
+            return 'fail'
+        if extra_passes or clear_leftovers:
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                "The Voronoi strategy does not support extra pad passes or clearing leftovers."))
+            return 'fail'
+        if boundary is None:
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                "Voronoi isolation needs the Boundary option: select the board outline object."))
+            return 'fail'
+
+        # A rerun must not leave the previous failure region on the canvas.
+        if diagnostic_token is None:
+            diagnostic_token = self._voronoi_diagnostic_token
+        self.voronoi_diagnostic_sig.emit({'action': 'clear', 'token': diagnostic_token})
+        boundary = boundary.convex_hull
+        work_geo = iso_obj.solid_geometry if iso2geo is None else iso2geo
+        prepared = []
+        # Generation-space checks only: preserve these paths and reject stale metadata at CNC generation.
+        try:
+            coord_decimals = int(self.app.options.get('cncjob_coords_decimals', 4))
+        except (TypeError, ValueError):
+            coord_decimals = 4
+        for tool in sel_tools:
+            if self.app.abort_flag:
+                raise grace
+
+            tool_data = tools_storage[tool]['data']
+            passes = int(tool_data['tools_iso_passes'])
+            iso_type = tool_data['tools_iso_isotype']
+            if passes != 1:
+                self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                    "The Voronoi strategy uses one pass: it has no pass-width interpretation."))
+                return 'fail'
+            if iso_type != 'full':
+                self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                    "The Voronoi strategy needs Full isolation; exteriors or interiors alone are not supported."))
+                return 'fail'
+
+            tool_spacing = float(spacing if spacing is not None else tool_data.get('tools_iso_voronoi_spacing', 0.05))
+            tool_dia = float(tools_storage[tool]['tooldia'])
+            tool_shape = tool_data.get('tools_mill_tool_shape')
+            if tool_shape in (self.V_SHAPE_INDEX, 'V', 'v'):
+                effective = IsolationGen.v_effective_diameter(tool_data)
+                if effective is None:
+                    self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                        "The effective diameter of the V-shaped tool is not valid."))
+                    return 'fail'
+                tool_dia = effective
+            if not math.isfinite(tool_dia) or tool_dia <= 0:
+                self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                    "Voronoi isolation needs a positive, finite effective tool diameter."))
+                return 'fail'
+
+            # Include physical cutter room for the compensated outer partition edges and output rounding.
+            __, tool_boundary = IsolationGen.voronoi_working_bounds(boundary, tool_dia, coord_decimals)
+            try:
+                gen_report = {}
+                paths = IsolationGen.voronoi_isolation(
+                    work_geo, tool_boundary, tool_dia, tool_spacing, units=self.units,
+                    simplify_tol=simp_tol if simp_en else 0.0, coord_decimals=coord_decimals,
+                    abort=lambda: self.app.abort_flag, isolation_area=boundary, report=gen_report)
+                if gen_report.get('spacing', tool_spacing) > tool_spacing:
+                    # a big board: the requested spacing would give more sites than the budget
+                    self.app.inform.emit('[WARNING_NOTCL] %s' % (_(
+                        "The Voronoi spacing was increased from %.4f to %.4f %s to stay within the site budget.") %
+                        (tool_spacing, gen_report['spacing'], self.units)))
+                    tool_spacing = gen_report['spacing']
+                pad_report = None
+                if tool_data.get('tools_iso_voronoi_pads', False):
+                    paths, pad_report = IsolationGen.voronoi_pad_isolation(
+                        paths, iso_obj, tool_boundary, tool_dia, coord_decimals=coord_decimals,
+                        abort=lambda: self.app.abort_flag, isolation_area=boundary)
+            except IsolationGen.VoronoiAborted:
+                self.app.inform.emit('[WARNING_NOTCL] %s' % _("Voronoi isolation aborted."))
+                return 'fail'
+            except IsolationGen.VoronoiIsolationError as err:
+                self.app.inform.emit('[ERROR_NOTCL] %s' % str(err))
+                diagnostics = getattr(err, 'diagnostics', None) or {}
+                region = diagnostics.get('region_geometry')
+                if region is not None and not region.is_empty:
+                    self.voronoi_diagnostic_sig.emit({'action': 'show', 'region': region, 'token': diagnostic_token})
+                return 'fail'
+
+            outname = "%s_%.*f_voronoi" % (iso_obj.obj_options["name"], self.decimals, float(tool_dia))
+            # two tools with the same diameter in the name (e.g. 0.1 and 0.1004) must not share an object name
+            base_name, count = outname, 1
+            while outname in [item[0] for item in prepared]:
+                count += 1
+                outname = "%s_%d" % (base_name, count)
+            obj_data = deepcopy(tool_data)
+            obj_data.pop('tools_iso_voronoi_pad_report', None)
+            if pad_report is not None:
+                obj_data['tools_iso_voronoi_pad_report'] = pad_report
+            obj_data.update({
+                "name": outname,
+                "tools_mill_tooldia": float(tool_dia),
+                "tools_mill_job_type": 2,  # _("Isolation")
+                "tools_iso_centerline": True,
+                "tools_iso_strategy": "voronoi",
+                "tools_iso_voronoi_spacing": tool_spacing,
+                # The paths were validated on this output grid and must not be simplified again by the CNC job.
+                "tools_iso_validated_paths": True,
+                "tools_iso_voronoi_coord_decimals": coord_decimals,
+                "tools_iso_voronoi_path_signature": sha256(
+                    shapely.GeometryCollection(paths).normalize().wkb).hexdigest(),
+                "tools_iso_voronoi_units": self.units.upper(),
+                "tools_iso_voronoi_tooldia": float(tool_dia),
+            })
+            prepared.append((outname, paths, tool_dia, obj_data))
+
+        if not prepared:
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _("Voronoi isolation geometry could not be generated."))
+            return 'fail'
+        if self.app.abort_flag:
+            raise grace
+
+        # Publish only after every selected tool has passed clearance and separation checks.
+        for outname, paths, tool_dia, obj_data in prepared:
+            if 'tools_iso_voronoi_pad_report' in obj_data:
+                self.voronoi_diagnostic_sig.emit({
+                    'action': 'pad_report', 'token': diagnostic_token,
+                    'report': obj_data['tools_iso_voronoi_pad_report']})
+            def iso_init(geo_obj, fc_obj, paths=paths, tool_dia=tool_dia, obj_data=obj_data):
+                geo_obj.obj_options["tools_mill_tooldia"] = str(tool_dia)
+                geo_obj.solid_geometry = list(paths)
+                geo_obj.tools = {
+                    1: {
+                        'tooldia':          float(tool_dia),
+                        'data':             deepcopy(obj_data),
+                        'solid_geometry':   list(geo_obj.solid_geometry)
+                    }
+                }
+                if not geo_obj.solid_geometry:
+                    msg = '[ERROR_NOTCL] %s: %s' % (_("Empty Geometry in"), geo_obj.obj_options["name"])
+                    fc_obj.inform.emit(msg)
+                    return 'fail'
+                if self.validation_status:
+                    msg = '[success] %s: %s' % (_("Isolation geometry created"), geo_obj.obj_options["name"])
+                    fc_obj.inform.emit(msg)
+                geo_obj.multigeo = True
+
+            a_select = True if self.validation_status else False
+            self.new_object("geometry", outname, iso_init, source=iso_obj, plot=plot, autoselected=a_select)
 
     def combined_rest(self, iso_obj, iso2geo, tools_storage, lim_area, sel_tools, iso_except=False, forced_rest=False,
                       order=0, negative_dia=None, simp_en=False, simp_tol=0.001, plot=True, boundary=None,
@@ -2965,6 +3259,9 @@ class ToolIsolation(Geometry, AppTool):
         """
         validation = self.pending_validation
         self.pending_validation = None
+        self._voronoi_diagnostic_token = object()
+        kwargs['diagnostic_token'] = self._voronoi_diagnostic_token
+        self.voronoi_diagnostic_sig.emit({'action': 'clear', 'token': self._voronoi_diagnostic_token})
 
         def worker_task(iso_class):
             with iso_class.app.proc_container.new('%s ...' % _("Isolating")):
