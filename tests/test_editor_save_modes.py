@@ -13,9 +13,10 @@ from appEditors.appGerberEditor import AppGerberEditor, edit_copy_name, get_fini
 from appHandlers.appIO import appIO
 from appMain import App
 from appObjects.GeometryObject import GeometryObject
+from appParsers.ParseGerber import Gerber
 
 from tests.helpers_objects import (  # noqa: F401,E402
-    app, _headless_qt, make_gerber, make_same_diameter_excellon, NATIVE_GBR,
+    app, _headless_qt, make_gerber, make_same_diameter_excellon, NATIVE_GBR, MIXED_GBR, assert_poly_equiv,
 )
 
 BOUNDS_KEYS = ('xmin', 'ymin', 'xmax', 'ymax')
@@ -165,6 +166,51 @@ def test_gerber_in_place_build_failure_leaves_the_source_unchanged(app):
     on_complete.assert_not_called()
     assert app.inform.emit.call_args.args[0].startswith('[ERROR_NOTCL]')
     assert repr(sorted(source.tools)) == tools_before and source.solid_geometry is solid_before
+
+
+@pytest.mark.parametrize('mode', ['save', 'save_as_new'])
+def test_gerber_save_modes_keep_the_native_flashes_of_a_clear_object(app, mode):
+    source = make_gerber(app, MIXED_GBR, name='board')
+    expected = source.solid_geometry
+    tools = AppGerberEditor.build_edit_tools(source.tools, source.solid_geometry, apertures=True)
+    storage = {ap: {**{k: v for k, v in tool.items() if k != 'geometry'},
+                    'geometry': [SimpleNamespace(geo=dict(rec)) for rec in tool['geometry']]}
+               for ap, tool in tools.items()}
+    editor = gerber_stand_in(app, source, storage)
+    editor.deactivate_grb_editor = Mock()
+    app.connect_custom_signal = Mock()
+    app.worker_task = Mock()
+
+    if mode == 'save_as_new':
+        created = []
+
+        def new_object(kind, name, initialize):
+            obj = type(source)(name, app)
+            initialize(obj, app)
+            created.append(obj)
+            return obj
+
+        app.app_obj.new_object.side_effect = new_object
+        AppGerberEditor.update_fcgerber(editor)
+        job = app.worker_task.emit.call_args.args[0]
+        job['fcn'](*job['params'])
+        app.connect_custom_signal.call_args.args[0](app.custom_signal.emit.call_args.args[0])
+        saved = created[0]
+    else:
+        editor.build_edited_gerber = lambda name, records: AppGerberEditor.build_edited_gerber(editor, name, records)
+        AppGerberEditor.update_fcgerber_in_place(editor)
+        job = app.worker_task.emit.call_args.args[0]
+        job['fcn'](*job['params'])
+        app.connect_custom_signal.call_args.args[0](app.custom_signal.emit.call_args.args[0])
+        saved = source
+
+    parsed = Gerber(app, steps_per_circle=64)
+    assert parsed.parse_lines(saved.source_file.splitlines()) is None
+    flashes = {ap: [rec for rec in tool.get('geometry', ()) if isinstance(rec.get('follow'), Point)]
+               for ap, tool in parsed.tools.items() if tool.get('type') in ('C', 'R', 'O')}
+    assert flashes.get(11) and flashes.get(12) and flashes.get(17)
+    assert 'ADD11R' in saved.source_file and 'ADD12O' in saved.source_file
+    assert_poly_equiv(parsed.solid_geometry, expected, rel=1e-3, abs_tol=1e-2)
 
 
 

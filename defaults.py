@@ -365,7 +365,7 @@ class AppDefaults:
         "gerber_editor_newtype": 'C',
         "gerber_editor_newdim": "0.5, 0.5",
         # 0 = Regions, 1 = Apertures: how the editor loads an object with clear features
-        "gerber_editor_load": 0,
+        "gerber_editor_load": 1,
         "gerber_editor_array_size": 5,
         "gerber_editor_lin_dir": 'X',
         "gerber_editor_lin_pitch": 0.1,

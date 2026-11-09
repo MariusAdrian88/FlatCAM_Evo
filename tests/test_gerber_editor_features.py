@@ -294,13 +294,14 @@ def test_intersection_of_disjoint_shapes_fails_and_keeps_sources():
 # 8. Dimension edit of R and O apertures: a flash that is no longer the aperture shape (cut by a clear feature or
 # edited) is not replaced by a new full flash
 
-@pytest.mark.parametrize('kind, cut', [('R', False), ('R', True)])
+@pytest.mark.parametrize('kind, cut', [('R', False), ('R', True), ('R', 'shallow'), ('O', False), ('O', 'shallow')])
 def test_dimension_edit_resizes_only_plain_flashes(kind, cut):
     meta = {'type': kind, 'size': math.hypot(2.0, 1.0), 'width': 2.0, 'height': 1.0}
     editor = make_editor({})
     plain = box(-1, -0.5, 1, 0.5) if kind == 'R' else \
         Gerber.create_flash_geometry(editor, Point(0, 0), meta, gerber_steps(editor.app, 0.5))
-    solid = plain.difference(box(0.5, -1, 2, 1)) if cut else plain
+    cutter = box(0.998, -0.1, 1.1, 0.1) if cut == 'shallow' else box(0.5, -1, 2, 1)
+    solid = plain.difference(cutter) if cut else plain
     flash = DrawToolShape({'solid': solid, 'follow': Point(0, 0)})
     editor = make_editor({10: dict(meta, geometry=[flash])})
     editor.history.reset()
@@ -321,6 +322,18 @@ def test_dimension_edit_resizes_only_plain_flashes(kind, cut):
     else:
         assert shape.geo['solid'].bounds == pytest.approx((-2, -1, 2, 1), abs=1e-3)
         assert len(editor.history.undo_stack) == 1
+        editor.app.options['gerber_circle_steps_mode'] = 'fixed'
+        editor.app.options['gerber_circle_steps'] = 128
+        with QtCore.QSignalBlocker(table):
+            table.item(0, 4).setText('6, 3')
+            table.setCurrentCell(0, 4)
+        editor.on_tool_edit()
+        (shape,) = editor.storage_dict[10]['geometry']
+        assert shape.geo['solid'].bounds == pytest.approx((-3, -1.5, 3, 1.5), abs=1e-3)
+        expected = box(-3, -1.5, 3, 1.5) if kind == 'R' else \
+            Gerber.create_flash_geometry(editor, Point(0, 0), editor.storage_dict[10], 128)
+        assert shape.geo['solid'].equals(expected)
+        assert len(editor.history.undo_stack) == 2
 
 
 # 9. Marked polygons list

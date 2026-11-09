@@ -6,8 +6,8 @@
 # ##########################################################
 
 from appHandlers.appHistory import history_of
-from appEditors.grb_plugins.GrbCommon import (gerber_steps, gerber_quad, DrawToolUtilityShape, DrawToolShape, DrawTool, ShapeToolEditorGrb,
-                                                   numeric_aperture_codes)
+from appEditors.grb_plugins.GrbCommon import (gerber_steps, gerber_quad, stored_quad_candidates, DrawToolUtilityShape,
+                                                   DrawToolShape, DrawTool, ShapeToolEditorGrb, numeric_aperture_codes)
 from appCommon.clipper_ops import MIN_SHAPES as CLIPPER_MIN_SHAPES, boolean_geometry as clipper_boolean
 from appParsers.clipper_fuse import fuse_parts
 
@@ -39,7 +39,7 @@ from appEditors.vertex_grips import VertexGrips
 from appEditors.cursor_text import show_cursor_text, hide_cursor_text
 from appEditors.editor_corner import corner_point, next_bend_mode, bend_mode_message
 from appEditors.grb_plugins.GrbDrawingPlugin import RegionDrawingPanel, copper_pour
-from appParsers.ParseGerber import Gerber
+from appParsers.ParseGerber import Gerber, _flash_shape, _translate_shape
 
 # import inspect
 
@@ -82,6 +82,60 @@ def aperture_rank(key):
     if isinstance(key, str) and key.isascii() and key.isdigit():
         return 0, int(key)
     return 1, str(key)
+
+
+def noise_precision(bounds):
+    """
+    The coordinate precision of a geometry with these bounds: 1e-7 object units (below the 1e-6 output grid), or
+    eight floating-point ULPs at large coordinates.
+    """
+    scale = max((abs(value) for value in bounds), default=0.0)
+    return max(math.ulp(scale) * 8, 1e-7)
+
+
+def difference_is_numeric_sliver(difference, bounds):
+    """
+    True when a geometric difference is only boundary noise: no part of it is thicker than the coordinate
+    precision (see noise_precision()). Features with an inradius at or below this precision are indistinguishable
+    from noise.
+    """
+    if difference.is_empty:
+        return True
+    precision = noise_precision(bounds)
+    # a part thicker than the precision holds a disc of that radius: a smaller total area is only noise
+    if difference.area <= math.pi * precision * precision:
+        return True
+    for part in shapely.get_parts(difference):
+        if part.is_empty:
+            continue
+        if not part.buffer(-precision).is_empty:
+            return False
+    return True
+
+
+def cut_is_numeric_sliver(solids, new_solids):
+    """
+    For each solid and the part of it that a cut keeps, True when the cut removes only boundary noise (see
+    difference_is_numeric_sliver()). Vectorized: the kept part is inside the solid, so the lost area is the
+    difference of the areas, and only a lost area that can hold a disc of the precision needs the buffer test.
+
+    :param solids:      numpy array of the original solids
+    :param new_solids:  numpy array of the cut solids, same length
+    :return:            numpy bool array
+    """
+    bounds = shapely.bounds(solids)
+    scale = np.nanmax(np.abs(bounds), axis=1) if len(bounds) else np.zeros(0)
+    precision = np.maximum(np.spacing(np.nan_to_num(scale)) * 8, 1e-7)
+    noise = shapely.area(solids) - shapely.area(new_solids) <= np.pi * precision * precision
+    check = np.flatnonzero(~noise)
+    if len(check):
+        lost = shapely.difference(solids[check], new_solids[check])
+        parts, owner = shapely.get_parts(lost, return_index=True)
+        thick = ~shapely.is_empty(shapely.buffer(parts, -precision[check][owner]))
+        has_thick = np.zeros(len(check), dtype=bool)
+        has_thick[owner[thick]] = True
+        noise[check] = ~has_thick
+    return noise
 
 
 class PadEditorGrb(ShapeToolEditorGrb):
@@ -2777,9 +2831,13 @@ class EraserEditorGrb(ShapeToolEditorGrb):
                     if not eraser_sel_shapes.intersects(solid_data):
                         continue
 
-                    # only the shapes touched by the eraser are cut
-                    to_delete.append(idx)
                     geos = solid_data.difference(eraser_sel_shapes).buffer(0)
+                    # a record the eraser only grazes is not cut: ignore a sliver that is only boundary noise
+                    if not geos.is_empty and \
+                            difference_is_numeric_sliver(solid_data.difference(geos), solid_data.bounds):
+                        continue
+                    # only the shapes the eraser changes are cut
+                    to_delete.append(idx)
                     if geos.is_empty:
                         continue
 
@@ -2787,9 +2845,13 @@ class EraserEditorGrb(ShapeToolEditorGrb):
                     if 'to' in geo_el.geo:
                         new_geo_el['to'] = geo_el.geo['to']
                     follow_data = geo_el.geo.get('follow')
-                    if follow_data is not None:
+                    if isinstance(follow_data, Point):
+                        # the cut record is no longer a flash: keep no stale flash center
+                        follow_data = geos.exterior if isinstance(geos, Polygon) else geos.boundary
+                    elif follow_data is not None:
                         if eraser_sel_shapes.intersects(follow_data):
                             follow_data = follow_data.difference(eraser_sel_shapes)
+                    if follow_data is not None:
                         new_geo_el['follow'] = deepcopy(follow_data)
                     intersection_geo_list.append(DrawToolShape(new_geo_el))
             except KeyError:
@@ -4632,16 +4694,7 @@ class AppGerberEditor(QtCore.QObject):
 
     def _is_plain_flash(self, geo, aperture):
         """True if the 'solid' of a flash record of an 'R' or 'O' aperture is the full shape of the aperture."""
-        solid, follow = geo.get('solid'), geo['follow']
-        width, height = float(aperture['width']), float(aperture['height'])
-        if solid is None or solid.is_empty or not getattr(geo.get('clear'), 'is_empty', True):
-            return False
-        if str(aperture['type']) == 'R':
-            plain = box(follow.x - width / 2, follow.y - height / 2, follow.x + width / 2, follow.y + height / 2)
-        else:
-            plain = Gerber.create_flash_geometry(self, follow, aperture, gerber_steps(self.app, min(width, height) / 2))
-        # compare the footprints, not the vertex order or the circle steps
-        return solid.hausdorff_distance(plain) <= max(min(width, height) * 0.005, 1e-8)
+        return AppGerberEditor._record_is_native(self, self, aperture, geo)
 
     def _apply_tool_edit(self):
         """Apply the edited aperture table cell. Return True when the table must be rebuilt."""
@@ -4697,8 +4750,11 @@ class AppGerberEditor(QtCore.QObject):
                     return 'fail'
                 # the edit makes new full flashes: a flash with another shape (cut or edited) would lose its shape
                 aperture = self.storage_dict[ap_code_old]
+                native_cache = SimpleNamespace(app=self.app, units=getattr(self, 'units', None),
+                                               _shape_cache={}, quads={})
                 if str(aperture['type']) in ('R', 'O') and \
-                        not all(self._is_plain_flash(shape.geo, aperture) for shape in aperture['geometry']
+                        not all(AppGerberEditor._record_is_native(self, self, aperture, shape.geo, native_cache)
+                                for shape in aperture['geometry']
                                 if isinstance(shape.geo.get('follow'), Point)):
                     self.app.inform.emit('[WARNING_NOTCL] %s' %
                                          _("Dimension editing supports flashes with the aperture shape only."))
@@ -5494,17 +5550,27 @@ class AppGerberEditor(QtCore.QObject):
                 cutters[group] = shapely.union_all(removed[part_idx[starts[group]:ends[group]]])
             hit = rec_idx[starts]
             new_solids = shapely.difference(solids[hit], cutters)
+            # a record the removed parts only graze keeps its native flash or track: the composed solid and a
+            # flash polygon never match to the last bit, so ignore the slivers that are only boundary noise
+            affected = ~cut_is_numeric_sliver(solids[hit], new_solids)
             follows = np.array([records[i].get('follow') for i in hit], dtype=object)
             has_follow = np.array([follow is not None for follow in follows], dtype=bool)
             new_follows = np.empty(len(hit), dtype=object)
             new_follows[has_follow] = shapely.difference(follows[has_follow], cutters[has_follow])
-            for i, new_solid, new_follow in zip(hit, new_solids, new_follows):
+            for i, new_solid, new_follow in zip(hit[affected], new_solids[affected], new_follows[affected]):
                 cut[id(records[i])] = (new_solid, new_follow)
 
-        new_tools = {}
+        new_tools = {apid: {key: value for key, value in tool.items() if key != 'geometry'}
+                     for apid, tool in tools.items()}
+        for tool in new_tools.values():
+            tool['geometry'] = []
+        region_key = next((key for key, tool in new_tools.items() if tool.get('type') == 'REG'), None)
+        if region_key is None:
+            region_key = 0 if 0 not in new_tools else max(numeric_aperture_codes(new_tools), default=0) + 1
+            new_tools[region_key] = {'type': 'REG', 'size': 0.0, 'geometry': []}
+        region = new_tools[region_key]['geometry']
         for apid, tool in tools.items():
-            new_tools[apid] = {key: value for key, value in tool.items() if key != 'geometry'}
-            geometry = new_tools[apid]['geometry'] = []
+            geometry = new_tools[apid]['geometry']
             for record in tool.get('geometry', ()):
                 if record.get('solid') is None or record['solid'].is_empty:
                     continue
@@ -5512,18 +5578,15 @@ class AppGerberEditor(QtCore.QObject):
                 if id(record) not in cut:
                     geometry.append(new_record)
                     continue
-                new_solid, new_follow = cut[id(record)]
-                # the editor draws only a Polygon solid: each polygon of the cut is a record
-                for part in shapely.get_parts(new_solid):
+                # the cut is no longer a flash or a track of the aperture: it becomes region material
+                for part in shapely.get_parts(cut[id(record)][0]):
                     if not isinstance(part, Polygon) or part.is_empty:
                         continue
-                    part_record = dict(new_record, solid=part)
-                    if tool.get('type') == 'REG':
-                        part_record['follow'] = part.exterior
-                    elif new_follow is not None:
-                        piece = new_follow.intersection(part)
-                        part_record['follow'] = part.boundary if piece.is_empty else piece
-                    geometry.append(part_record)
+                    part_record = {key: value for key, value in new_record.items()
+                                   if key not in ('solid', 'follow')}
+                    part_record['solid'] = part
+                    part_record['follow'] = part.exterior
+                    region.append(part_record)
         return new_tools
 
     @staticmethod
@@ -5791,10 +5854,143 @@ class AppGerberEditor(QtCore.QObject):
                     local_storage_dict[aperture] = deepcopy(storage_dict[aperture])
         return local_storage_dict
 
+    def _record_is_native(self, owner, aperture, record, cache=None):
+        """
+        True if the native writer can draw this record with the aperture it belongs to: a flash or a track whose
+        footprint still matches the aperture. A cut or otherwise changed record, and every aperture type the writer
+        can not declare, is saved as region material instead.
+
+        Compare the entire footprint at the stored resolution candidates, not just its vertices: a cut can replace
+        two edges by a chord with both endpoints still on the aperture outline.
+        """
+        kind = str(aperture.get('type'))
+        solid, follow = record.get('solid'), record.get('follow')
+        if kind not in Gerber.NATIVE_WRITER_APERTURE_TYPES or aperture.get('hole'):
+            return False
+        if not getattr(record.get('clear'), 'is_empty', True) or follow is None or follow.is_empty:
+            return False
+        if solid is None or solid.is_empty or not isinstance(solid, Polygon):
+            return False
+
+        def candidates(radius):
+            if cache is None:
+                return stored_quad_candidates(self, radius)
+            if radius not in cache.quads:
+                cache.quads[radius] = tuple(stored_quad_candidates(self, radius))
+            return list(cache.quads[radius])
+
+        precision = noise_precision(solid.bounds)
+
+        def matches(plain):
+            # the same vertices in the same order, each within the precision, are only noise (a cut changes the
+            # count); other vertices need the test of the whole footprint
+            return solid.equals_exact(plain, precision) or \
+                difference_is_numeric_sliver(solid.symmetric_difference(plain), solid.bounds)
+
+        def template(key, make):
+            # origin templates only; the cache of the save keeps them for all the records of the aperture
+            if cache is None:
+                return make()
+            if key not in cache._shape_cache:
+                cache._shape_cache[key] = (make(), None)
+            return cache._shape_cache[key][0]
+
+        def flash_template(quad):
+            # Only origin templates live in the operation cache; translated footprints are never retained.
+            return _flash_shape(owner if cache is None else cache, aperture, quad * 4)
+
+        if isinstance(follow, Point):
+            if solid.interiors:
+                return False
+            solid_vertices = shapely.get_coordinates(solid.exterior)
+            offset = np.array((follow.x, follow.y))
+            known_vertices = None if cache is None else cache.__dict__.setdefault('vertices', {})
+
+            def same_vertices_at_follow(shape):
+                # the fast test of matches() on the origin template: no translated copy, no new geometry
+                if not isinstance(shape, Polygon) or shape.is_empty or shape.interiors:
+                    return False
+                if known_vertices is None:
+                    vertices = shapely.get_coordinates(shape.exterior)
+                else:
+                    # the templates live in the cache of the save, so their ids are stable
+                    vertices = known_vertices.get(id(shape))
+                    if vertices is None:
+                        vertices = known_vertices[id(shape)] = shapely.get_coordinates(shape.exterior)
+                if len(vertices) != len(solid_vertices):
+                    return False
+                delta = solid_vertices - vertices - offset
+                return float(np.einsum('ij,ij->i', delta, delta).max()) <= precision * precision
+
+            if kind == 'R':
+                width, height = float(aperture.get('width', 0)), float(aperture.get('height', 0))
+                if not math.isfinite(width) or not math.isfinite(height) or width <= 0 or height <= 0:
+                    return False
+                half_width, half_height = width / 2, height / 2
+                # a parsed flash: the parser expands the R template by 1e-7 (round corners); the vertices match
+                parsed = template(('editor_R_parsed', width, height),
+                                  lambda: box(-half_width, -half_height, half_width, half_height).buffer(0.0000001))
+                # The classification of the footprint must use the unexpanded rectangle (a drawn pad).
+                plain = template(('editor_R', width, height),
+                                 lambda: box(-half_width, -half_height, half_width, half_height))
+                if same_vertices_at_follow(parsed) or same_vertices_at_follow(plain):
+                    return True
+                return difference_is_numeric_sliver(
+                    solid.symmetric_difference(_translate_shape(plain, follow.x, follow.y)), solid.bounds)
+            if kind == 'C':
+                radius = float(aperture.get('size', 0)) / 2
+            else:
+                width, height = float(aperture.get('width', 0)), float(aperture.get('height', 0))
+                if not math.isfinite(width) or not math.isfinite(height) or width <= 0 or height <= 0:
+                    return False
+                radius = min(width, height) / 2
+            if not math.isfinite(radius) or radius <= 0:
+                return False
+            quads = candidates(radius)
+            # A drawn/imported flash may predate both stored preferences; verify its inferred sampling in full.
+            segments = len(solid.exterior.coords) - 1
+            if kind == 'O' and width != height:
+                segments -= 2
+            if segments >= 4 and segments % 4 == 0:
+                inferred = segments // 4
+                quads = [inferred] + [quad for quad in quads if quad != inferred]
+            templates = [flash_template(quad) for quad in quads]
+            if any(same_vertices_at_follow(shape) for shape in templates):
+                return True
+            for shape in templates:
+                if shape is None or shape.is_empty:
+                    continue
+                plain = _translate_shape(shape, follow.x, follow.y)
+                if difference_is_numeric_sliver(solid.symmetric_difference(plain), solid.bounds):
+                    return True
+                if kind == 'C' or width == height:
+                    # A circular flash has no preferred orientation, including the phase of its polygon sampling.
+                    x, y = solid.exterior.coords[0]
+                    px, py = plain.exterior.coords[0]
+                    phase = math.atan2(y - follow.y, x - follow.x) - math.atan2(py - follow.y, px - follow.x)
+                    plain = rotate(plain, phase, origin=(follow.x, follow.y), use_radians=True)
+                    if matches(plain):
+                        return True
+            return False
+        if kind != 'C':
+            return False
+        width = float(aperture.get('size', 0))
+        if not math.isfinite(width) or width <= 0:
+            return False
+        for quad in candidates(width / 2):
+            plain = follow.buffer(width / 2, quad_segs=quad)
+            if matches(plain):
+                return True
+        return False
+
     def _fill_edited_gerber(self, grb_obj, app_obj, out_name, local_storage_dict):
         """
         Fill a Gerber object with the edited content: tools, solid and follow geometry, aperture macros, options.
         It reads the source object (self.gerber_obj) and writes only to grb_obj.
+
+        Records that still match their aperture stay native flashes or tracks. Damaged records and the aperture
+        types that the native writer can not declare become region records of one REG aperture, so a mixed object
+        keeps its surviving flashes instead of being saved whole as regions.
 
         :param grb_obj:             the GerberObject to fill
         :param app_obj:             the App
@@ -5804,62 +6000,141 @@ class AppGerberEditor(QtCore.QObject):
         """
         poly_buffer = []
         follow_buffer = []
+        native_tools = {}
+        region_records = []
+        native_cache = SimpleNamespace(app=self.app, units=getattr(self.gerber_obj, 'units', None),
+                                       _shape_cache={}, quads={})
+        region_key = next((key for key, aperture in local_storage_dict.items()
+                           if aperture.get('type') == 'REG'), None)
+
+        # Shapely 2 geometries are immutable: the new object can share them with the storage, with no copy
+        def add_to_buffers(record):
+            if record.get('solid') is not None:
+                poly_buffer.append(record['solid'])
+            if record.get('follow') is not None:
+                follow_buffer.append(record['follow'])
 
         for storage_apcode, storage_val in local_storage_dict.items():
-            grb_obj.tools[storage_apcode] = {}
+            aperture = {k: v for k, v in storage_val.items() if k != 'geometry'}
+            native_records = []
+            for geo_el in storage_val.get('geometry', ()):
+                geometric_data = geo_el.geo
+                # An explicit empty solid is not a native flash/track, even if its old follow remains.
+                # Keep clear-only data; never recreate copper from the stale follow.
+                if geometric_data.get('solid') is not None and geometric_data['solid'].is_empty:
+                    geometric_data = {key: value for key, value in geometric_data.items()
+                                      if key not in ('solid', 'follow')}
+                new_geo_el = {}
+                if 'solid' in geometric_data:
+                    new_geo_el['solid'] = geometric_data['solid']
+                if 'follow' in geometric_data:
+                    new_geo_el['follow'] = geometric_data['follow']
+                elif 'solid' in new_geo_el:
+                    solid = new_geo_el['solid']
+                    new_geo_el['follow'] = solid.exterior if isinstance(solid, Polygon) else solid.boundary
+                if 'clear' in geometric_data:
+                    new_geo_el['clear'] = geometric_data['clear']
+                if geometric_data.get('to') is not None:
+                    new_geo_el['to'] = deepcopy(geometric_data['to'])
+                if not new_geo_el:
+                    continue
 
-            for k, val in storage_val.items():
-                if k == 'geometry':
-                    grb_obj.tools[storage_apcode][k] = []
-                    for geo_el in val:
-                        geometric_data = geo_el.geo
-                        # An explicit empty solid is not a native flash/track, even if its old follow remains.
-                        # Keep clear-only data; never recreate copper from the stale follow.
-                        if geometric_data.get('solid') is not None and geometric_data['solid'].is_empty:
-                            geometric_data = {key: value for key, value in geometric_data.items()
-                                              if key not in ('solid', 'follow')}
-                        new_geo_el = {}
-                        if 'solid' in geometric_data:
-                            new_geo_el['solid'] = geometric_data['solid']
-                            poly_buffer.append(deepcopy(new_geo_el['solid']))
+                solid = new_geo_el.get('solid')
+                if 'clear' in new_geo_el or solid is None:
+                    # clear-only records keep their aperture: the export falls back to regions for them
+                    native_records.append(new_geo_el)
+                    add_to_buffers(new_geo_el)
+                    continue
+                if AppGerberEditor._record_is_native(self, self.gerber_obj, aperture, new_geo_el, native_cache):
+                    native_records.append(new_geo_el)
+                    add_to_buffers(new_geo_el)
+                    continue
+                # damaged or writer-unsupported material: one region record per polygon, never a flash or track
+                for part in shapely.get_parts(flatten_shapely_geometry(solid)):
+                    if not isinstance(part, Polygon) or part.is_empty:
+                        continue
+                    part_record = {key: value for key, value in new_geo_el.items()
+                                   if key not in ('solid', 'follow', 'clear')}
+                    part_record['solid'] = part
+                    part_record['follow'] = part.exterior
+                    region_records.append(part_record)
+            if native_records:
+                native_tools[storage_apcode] = dict(aperture, geometry=native_records)
 
-                        if 'follow' in geometric_data:
-                            # if isinstance(geometric_data['follow'], Polygon):
-                            #     buff_val = -(int(storage_val['size']) / 2)
-                            #     geo_f = (geometric_data['follow'].buffer(buff_val)).exterior
-                            #     new_geo_el['follow'] = geo_f
-                            # else:
-                            #     new_geo_el['follow'] = geometric_data['follow']
-                            new_geo_el['follow'] = geometric_data['follow']
-                            follow_buffer.append(deepcopy(new_geo_el['follow']))
-                        else:
-                            if 'solid' in geometric_data:
-                                solid = geometric_data['solid']
-                                geo_f = solid.exterior if isinstance(solid, Polygon) else solid.boundary
-                                new_geo_el['follow'] = geo_f
-                                follow_buffer.append(deepcopy(new_geo_el['follow']))
+        if region_records:
+            if region_key is None:
+                region_key = 0 if 0 not in native_tools else \
+                    max(numeric_aperture_codes(native_tools), default=0) + 1
+            region_meta = {'type': 'REG', 'size': 0.0}
+            if region_key in local_storage_dict:
+                region_meta.update({k: v for k, v in local_storage_dict[region_key].items() if k != 'geometry'})
+            # A hole is a global clear. Only records whose holes erase another record's copper need a union.
+            source_regions = region_records
+            region_solids = [record['solid'] for record in source_regions]
+            holes = [(i, Polygon(ring)) for i, solid in enumerate(region_solids) for ring in solid.interiors]
+            if holes:
+                region_tree = shapely.STRtree(region_solids)
+                parents = list(range(len(source_regions)))
+                sizes = [1] * len(source_regions)
 
-                        if 'clear' in geometric_data:
-                            new_geo_el['clear'] = geometric_data['clear']
+                def root(i):
+                    while parents[i] != i:
+                        parents[i] = parents[parents[i]]
+                        i = parents[i]
+                    return i
 
-                        if new_geo_el:
-                            if geometric_data.get('to') is not None:
-                                new_geo_el['to'] = geometric_data['to']
-                            grb_obj.tools[storage_apcode][k].append(deepcopy(new_geo_el))
-                else:
-                    grb_obj.tools[storage_apcode][k] = val
+                for owner_index, hole in holes:
+                    for other in region_tree.query(hole, predicate='intersects'):
+                        if other == owner_index or hole.intersection(region_solids[other]).area <= 0:
+                            continue
+                        a, b = root(owner_index), root(other)
+                        if a != b:
+                            if sizes[a] < sizes[b]:
+                                a, b = b, a
+                            parents[b] = a
+                            sizes[a] += sizes[b]
+                groups = {}
+                for i in range(len(source_regions)):
+                    groups.setdefault(root(i), []).append(i)
+                region_records = []
+                for group in groups.values():
+                    if len(group) == 1:
+                        region_records.append(source_regions[group[0]])
+                        continue
+                    parts = list(shapely.get_parts(shapely.union_all([region_solids[i] for i in group])))
+                    members = set(group)
+                    for part in parts:
+                        if not isinstance(part, Polygon) or part.is_empty:
+                            continue
+                        contributors = group if len(parts) == 1 else [
+                            i for i in region_tree.query(part, predicate='intersects')
+                            if i in members and part.intersection(region_solids[i]).area > 0]
+                        part_record = {'solid': part, 'follow': part.exterior}
+                        # Each output polygon gets only the attribute state shared by its copper contributors.
+                        to_values = [source_regions[i].get('to') for i in contributors]
+                        shared_to = to_values[0] if to_values and all(value == to_values[0] for value in to_values) else None
+                        if shared_to is not None:
+                            part_record['to'] = shared_to
+                        region_records.append(part_record)
+            for record in region_records:
+                add_to_buffers(record)
+            # the region writer draws each polygon with its holes; larger polygons first keeps nested islands
+            region_records.sort(key=lambda record: Polygon(record['solid'].exterior).area, reverse=True)
+            # The native writer reserves integer 0 for regions; renamed REG apertures otherwise flatten the board.
+            native_tools[0 if 0 not in native_tools else region_key] = dict(region_meta, geometry=region_records)
 
+        grb_obj.tools = native_tools
         grb_obj.aperture_macros = deepcopy(self.gerber_obj.aperture_macros)
         # the X2/X3 attributes of the source: the ids of the kept records still point into this table
         for attr in ('to_attributes', 'attributes', 'file_attributes'):
             if getattr(self.gerber_obj, attr, None):
                 setattr(grb_obj, attr, deepcopy(getattr(self.gerber_obj, attr)))
-        # the rebuilt records don't prove that they represent the edited result: keep the flag
-        # an object loaded as regions (it had clear features) is saved through the region export too: it keeps
-        # the holes and the islands of the regions in any order
-        grb_obj.export_as_regions = bool(getattr(self.gerber_obj, 'export_as_regions', False) or
-                                         getattr(self, 'loaded_as_regions', False) or
-                                         any(isinstance(poly, MultiPolygon) for poly in poly_buffer))
+        # an object loaded as whole regions is saved through the region export too: it keeps the holes and the
+        # islands of the regions in any order. A storage with native apertures is saved as a mixed object.
+        whole_regions = bool(getattr(self, 'loaded_as_regions', False) and
+                             all(str(aperture.get('type')) == 'REG'
+                                 for aperture in local_storage_dict.values()))
+        grb_obj.export_as_regions = bool(getattr(self.gerber_obj, 'export_as_regions', False) or whole_regions)
 
         follow_buffer = flatten_shapely_geometry(follow_buffer)
 
@@ -5871,7 +6146,7 @@ class AppGerberEditor(QtCore.QObject):
             new_poly = new_poly.buffer(0.00000001)
             new_poly = new_poly.buffer(-0.00000001)
             new_poly = flatten_shapely_geometry(new_poly)
-        grb_obj.solid_geometry = deepcopy(new_poly)
+        grb_obj.solid_geometry = new_poly
 
         grb_obj.follow_geometry = follow_buffer
 

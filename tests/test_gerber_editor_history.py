@@ -259,7 +259,15 @@ def test_buffer_undo_redo_save_reparse_preserves_material_and_export_mode(app, d
         result = app.custom_signal.emit.call_args.args[0]
         assert 'error' not in result
         saved = result['obj']
-        assert saved.export_as_regions is (mode != 'undo')
+        # a changed record that no longer matches its aperture is written as a region; the untouched records
+        # keep their native apertures, so the object is no longer forced into the whole-board region export
+        assert saved.export_as_regions is False
+        if mode == 'undo':
+            assert any(isinstance(rec.get('follow'), Point) for tool in saved.tools.values()
+                       if tool.get('type') in ('C', 'R', 'O') for rec in tool.get('geometry', ()))
+        else:
+            assert not any(isinstance(rec.get('follow'), Point) for tool in saved.tools.values()
+                           for rec in tool.get('geometry', ()))
         expected = unary_union([shape.geo['solid'] for aperture in editor.storage_dict.values()
                                 for shape in aperture.get('geometry', ())])
         for text in (saved.source_file, export_gerber_text(app, saved)):
@@ -329,9 +337,10 @@ def test_save_keeps_the_object_attributes_of_unchanged_and_moved_records_but_not
     records = [rec for tool in source.tools.values() for rec in tool['geometry']]
     for number, rec in enumerate(records):
         rec['to'] = 1 + number % 2
-    storage = gerber_storage(source)
-    first = next(iter(storage))
-    storage[first]['geometry'].append(SimpleNamespace(geo={'solid': Point(30, 30).buffer(1), 'follow': Point(30, 30)}))
+        storage = gerber_storage(source)
+        first = next(iter(storage))
+        new_flash = source.create_flash_geometry(Point(30, 30), source.tools[first])
+        storage[first]['geometry'].append(SimpleNamespace(geo={'solid': new_flash, 'follow': Point(30, 30)}))
     AppGerberEditor.build_edited_gerber(gerber_stand_in(app, source, storage), 'board', storage)
     saved = app.custom_signal.emit.call_args.args[0]['obj']
     assert saved.to_attributes == source.to_attributes
