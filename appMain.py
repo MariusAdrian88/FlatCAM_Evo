@@ -860,13 +860,14 @@ class App(QtCore.QObject):
             self.log.debug('Data folder from FLATCAM_DATA_PATH: ' + self.data_path)
 
         # ################################# Setup folders and files ##################################################
+        # exist_ok: more than one instance can start at the same time and make the folder between check and make
         if not os.path.exists(self.data_path):
-            os.makedirs(self.data_path)
+            os.makedirs(self.data_path, exist_ok=True)
             self.log.debug('Created data folder: ' + self.data_path)
 
         self.preprocessorpaths = self.preprocessors_path()
         if not os.path.exists(self.preprocessorpaths):
-            os.makedirs(self.preprocessorpaths)
+            os.makedirs(self.preprocessorpaths, exist_ok=True)
             self.log.debug('Created preprocessors folder: ' + self.preprocessorpaths)
 
         # A stable library survives application upgrades; the legacy JSON stays untouched.
