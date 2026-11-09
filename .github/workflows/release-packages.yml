@@ -9,6 +9,11 @@ on:
         description: Existing release tag to build and upload to
         required: true
         type: string
+      source_ref:
+        description: Branch, tag or commit to build from (empty = the release tag)
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
@@ -46,7 +51,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: refs/tags/${{ env.RELEASE_TAG }}
+          ref: ${{ inputs.source_ref || format('refs/tags/{0}', env.RELEASE_TAG) }}
           persist-credentials: false
 
       - name: Check release exists
@@ -70,7 +75,7 @@ jobs:
 
       - name: Install native and Python dependencies
         run: |
-          conda install -y gdal rasterio freetype tk pillow 'numpy=1.26.4'
+          conda install -y gdal 'rasterio>=1.4.0' freetype tk pillow 'numpy=1.26.4'
           python -m pip install -r requirements.txt 'numpy==1.26.4' 'ortools==9.14.6206' 'cx-Freeze==8.7.3'
           python install_optional.py
           python -m pip check
