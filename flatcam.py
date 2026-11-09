@@ -1,6 +1,7 @@
 
 import sys
 import os
+import locale
 import traceback
 from datetime import datetime
 
@@ -220,6 +221,9 @@ if __name__ == '__main__':
             pass
 
     app = QtWidgets.QApplication(sys.argv)
+    # Qt takes the LC_NUMERIC of the system on Unix; C libraries (protobuf, OR-Tools) then fail on a decimal comma.
+    # The pool is made later, so its children get "C" too. RouteSolver.solve_route resets it again for other paths.
+    locale.setlocale(locale.LC_NUMERIC, "C")
     app.aboutToQuit.connect(_install_shutdown_message_handler)
 
     # The listener for the files of a second launch starts here, before the App is built: files opened together in the

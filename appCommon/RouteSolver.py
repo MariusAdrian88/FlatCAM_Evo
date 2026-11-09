@@ -1,9 +1,20 @@
 # OR-Tools route solver. Light on purpose: a pool child imports this module, so no camlib, Qt or app here.
+import locale
 import logging
 
 import numpy as np
 
 log = logging.getLogger('base')
+
+
+def use_c_numeric_locale():
+    """Sets LC_NUMERIC to "C" if the C locale has a decimal comma.
+
+    Qt sets the C locale from the system on Unix. protobuf (in OR-Tools) then reads the default 0.5 of a parameter
+    with a decimal comma and fails (issue 83). Each process that uses OR-Tools needs the reset: the app, a pool child
+    and a test that made its own QApplication."""
+    if locale.localeconv()['decimal_point'] != '.':
+        locale.setlocale(locale.LC_NUMERIC, "C")
 
 # above this many locations the distance matrix (n x n) is not built
 MAX_MATRIX_POINTS = 2000
@@ -62,6 +73,7 @@ def solve_route(locations, depot=0, metaheuristic=False, opt_time=0):
                     (len(locations), MAX_MATRIX_POINTS))
         return greedy_route(locations, depot)
 
+    use_c_numeric_locale()
     from ortools.constraint_solver import pywrapcp, routing_enums_pb2
 
     manager = pywrapcp.RoutingIndexManager(len(locations), 1, depot)

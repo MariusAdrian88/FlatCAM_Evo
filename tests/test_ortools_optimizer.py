@@ -96,3 +96,18 @@ def _random_locs(count):
     return [(random.uniform(0, 100), random.uniform(0, 100)) for _ in range(count)]
 
 
+def test_solver_error_falls_back_to_the_greedy_route(monkeypatch):
+    # e.g. protobuf fails to parse floats under a decimal-comma locale (issue 83): the job must still get a route
+    from appCommon import RouteSolver
+
+    def broken(*args, **kwargs):
+        raise TypeError("Couldn't build proto file into descriptor pool")
+
+    monkeypatch.setattr(RouteSolver, 'solve_route', broken)
+    cnc = make_cnc()
+    cnc.app.pool = None
+    locs = [(0.0, 0.0), (10.0, 0.0), (1.0, 0.0), (5.0, 0.0)]
+    route, objective = cnc._ortools_solve(locs, 0, True, 1)
+    assert route == [0, 2, 3, 1]
+    assert objective == pytest.approx(10.0)
+    cnc.app.log.warning.assert_called()
