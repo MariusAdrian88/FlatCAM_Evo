@@ -318,8 +318,11 @@ class PCBGeometry:
             if key not in self._meshes:
                 holes = boolean([self.source_geometry(src, units) for src in plated])
                 # Only exposed drill walls are plated: never cap a hole or coat the board's outside edge.
-                walls = shapely.intersection(shapely.orient_polygons(holes).boundary, board.boundary)
-                coords, indices = shapely.get_coordinates(shapely.get_parts(walls), return_index=True)
+                # A line-line overlay of the drilled board and the holes often returns only points; a
+                # line-polygon overlay keeps the walls. Reversed board rings run like the hole exteriors.
+                walls = shapely.reverse(shapely.intersection(shapely.orient_polygons(board).boundary,
+                                                             shapely.buffer(holes, 1e-6)))
+                coords, indices = shapely.get_coordinates(list(parts(walls)), return_index=True)
                 edges = indices[:-1] == indices[1:]
                 p, q = coords[:-1][edges] - origin, coords[1:][edges] - origin
                 vertices = np.zeros((len(p), 4, 3), dtype=np.float32)

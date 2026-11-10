@@ -32,6 +32,13 @@ PCB 3D Viewer:
 - fixed: the bounding box no longer includes the silkscreen layers when other layers are selected
 - fixed: line ends closer than 1 um are joined; an imported Altium outline whose arcs end 1 database unit from their lines did not close, so the board was lost
 - changed: the automatic outline choice prefers the Profile layer, then Edge.Cuts, GKO, a layer with "outline" in its name, and the Keep-out layer last
+- added: an Export section at the bottom of the panel with 2 buttons: 3D PDF (the existing export) and STEP
+- added: the STEP export writes a STEP AP214 file in millimeters with the project XY coordinates, without a CAD kernel; each layer is a part of a "PCB" assembly with its color, and the board opacity becomes transparency
+- added: STEP content "Board" (the default) holds only the board body with its outline, cutouts, thickness and holes, as one solid, for the fit of a case (1.4 MB for a board with 328 holes, about 3 s to import in FreeCAD); "All layers" also holds copper, soldermask, legend and the plated hole walls (much larger and slower to import)
+- added: the solids are closed B-rep solids whose faces share their edges, so a CAD application reads them without repairs; Gerber circles and arcs become true circle edges and cylinder walls, so holes are round
+- added: the STEP export simplifies straight chains to 20 um and the legend outlines to 50 um, and snaps the corners to a 0.1 um grid; in "All layers", a copper pour or a soldermask with more than 32 holes is cut into adjacent tiles, because a face with hundreds of holes imports very slowly
+- added: the export shows its progress in the activity monitor and in a progress bar of the Export section (a busy bar for the 3D PDF)
+- fixed: the plated drill walls were often missing; the wall lines came from a line-to-line overlay that gave only points, now from the board edges inside the holes
 
 Gerber Editor:
 

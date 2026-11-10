@@ -9,8 +9,8 @@ from PyQt6 import QtCore, QtWidgets
 
 from appTool import AppTool
 from appGUI.GUIElements import FCFileSaveDialog, VerticalScrollArea
-from . import PDF3DWriter
-from .PCBViewerExport import export_bounds, export_meshes, render_poster
+from . import PDF3DWriter, STEPWriter
+from .PCBViewerExport import export_bounds, export_meshes, export_solids, render_poster
 from .PCBViewerGen import PCBGeometry, Source
 from .PCBViewerUI import PCBViewerUI
 from .PCBViewerView import PCBView
@@ -30,6 +30,7 @@ class ToolPCBViewer(AppTool):
     layer_ready = QtCore.pyqtSignal(int, object)
     build_done = QtCore.pyqtSignal(int, str)
     export_done = QtCore.pyqtSignal(int, str, str)
+    export_progress = QtCore.pyqtSignal(int, int)
 
     def __init__(self, app):
         super().__init__(app)
@@ -47,6 +48,7 @@ class ToolPCBViewer(AppTool):
         self._completed_units = None
         self._exporting = False
         self._export_job = 0
+        self._export_kind = 'PDF'
         self._export_cancel = Event()
         self._export_lock = Lock()
         self._timer = QtCore.QTimer(self)
@@ -56,6 +58,7 @@ class ToolPCBViewer(AppTool):
         self.layer_ready.connect(self.on_layer_ready, QtCore.Qt.ConnectionType.QueuedConnection)
         self.build_done.connect(self.on_build_done, QtCore.Qt.ConnectionType.QueuedConnection)
         self.export_done.connect(self.on_export_done, QtCore.Qt.ConnectionType.QueuedConnection)
+        self.export_progress.connect(self.on_export_progress, QtCore.Qt.ConnectionType.QueuedConnection)
         app.cleanup.connect(self.on_plugin_cleanup)
         app.app_obj.object_changed.connect(self.on_object_changed)
         app.object_status_changed.connect(self.on_object_changed)
@@ -92,6 +95,7 @@ class ToolPCBViewer(AppTool):
         self.clear_ui(self.layout)
         self.ui = PCBViewerUI(self.layout, self.app)
         self.ui.export_pdf_button.clicked.connect(self.on_export_pdf)
+        self.ui.export_step_button.clicked.connect(self.on_export_step)
         source = source or self.app.collection.get_active()
         if source is not None and source.kind == 'gerber':
             for name in ('copper_top', 'copper_bottom', 'overlay_top', 'overlay_bottom'):
@@ -270,32 +274,99 @@ class ToolPCBViewer(AppTool):
 
     def update_export_button(self):
         if self.ui is not None:
-            self.ui.export_pdf_button.setEnabled(self._active and self._ready and not self._pending
-                                                 and not self._running and not self._exporting)
+            enabled = self._active and self._ready and not self._pending and not self._running and not self._exporting
+            self.ui.export_pdf_button.setEnabled(enabled)
+            self.ui.export_step_button.setEnabled(enabled)
 
-    def on_export_pdf(self):
+    def _begin_export(self, caption, default_name, ext_filter, kind, status):
+        """Ask for the destination; return (job, cancelled, filename, layers, values, units) or None."""
         if (not self._active or not self._ready or self._pending or self._running or self._exporting
                 or self.view is None or not self.view.alive):
-            return
+            return None
         request = self._export_job
         filename, _filter = FCFileSaveDialog.get_saved_filename(
-            caption=_("Export 3D PDF"), directory=self.app.get_last_save_folder() + '/PCB.pdf',
-            ext_filter='PDF Files (*.pdf);;All Files (*.*)')
+            caption=caption, directory=self.app.get_last_save_folder() + '/' + default_name, ext_filter=ext_filter)
         if not filename:
-            return
+            return None
         # A modal dialog can process selection changes or cleanup before returning.
         if (request != self._export_job or not self._active or not self._ready
                 or self._pending or self._running or self._exporting):
-            return
-        values = self.ui.values()
-        layers = self._completed_layers
-        units = self._completed_units
+            return None
         self._export_job += 1
-        job = self._export_job
+        self._export_kind = kind
         cancelled = self._export_cancel = Event()
         self._exporting = True
         self.update_export_button()
-        self.ui.status.setText(_("Exporting 3D PDF…"))
+        self.ui.status.setText(status)
+        # The STEP writer reports its steps; the PDF export shows a busy bar.
+        self.ui.show_export_progress(0 if kind == 'STEP' else None)
+        return self._export_job, cancelled, str(filename), self._completed_layers, self.ui.values(), \
+            self._completed_units
+
+    def on_export_progress(self, job, percent):
+        if job == self._export_job and self._exporting and self.ui is not None:
+            self.ui.show_export_progress(percent)
+
+    def _reporter(self, job):
+        """A progress callable for the worker thread: it sends only changed percents, through queued signals."""
+        last = [-1]
+
+        def report(fraction):
+            percent = int(fraction * 100)
+            if percent != last[0]:
+                last[0] = percent
+                self.export_progress.emit(job, percent)
+                self.app.proc_container.update_view_text(' %d%%' % percent)
+        return report
+
+    def _commit(self, cancelled, filename, suffix, write):
+        """Write to a temporary file in the destination folder, then replace the destination."""
+        temporary = None
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, dir=os.path.dirname(os.path.abspath(filename)),
+                                             suffix=suffix) as output:
+                temporary = output.name
+            if write(temporary) is False:
+                return False
+            # Cleanup and commit share this lock so a closed session cannot replace the destination.
+            with self._export_lock:
+                if cancelled.is_set():
+                    return False
+                os.replace(temporary, filename)
+                return True
+        finally:
+            if temporary is not None and os.path.exists(temporary):
+                os.unlink(temporary)
+
+    def on_export_step(self):
+        started = self._begin_export(_("Export STEP"), 'PCB.step',
+                                     'STEP Files (*.step *.stp);;All Files (*.*)', 'STEP', _("Exporting STEP…"))
+        if started is not None:
+            board_only = self.ui.step_content.get_value() == 'board'
+            self.app.worker_task.emit({'fcn': self.export_step, 'params': list(started) + [board_only]})
+
+    def export_step(self, job, cancelled, filename, layers, values, units, board_only=False):
+        error = ''
+        saved = False
+        try:
+            with self.app.proc_container.new('%s...' % _("Exporting STEP")):
+                if not cancelled.is_set():
+                    report = self._reporter(job)
+                    solids = export_solids(layers, values, units, board_only)
+                    saved = self._commit(cancelled, filename, '.step', lambda path: STEPWriter.write(
+                        path, solids, units, os.path.splitext(os.path.basename(filename))[0] or 'PCB',
+                        cancelled=cancelled.is_set, progress=report))
+        except Exception as err:
+            error = str(err)
+        finally:
+            self.export_done.emit(job, filename if saved else '', error)
+
+    def on_export_pdf(self):
+        started = self._begin_export(_("Export 3D PDF"), 'PCB.pdf', 'PDF Files (*.pdf);;All Files (*.*)',
+                                     'PDF', _("Exporting 3D PDF…"))
+        if started is None:
+            return
+        job, cancelled, filename, layers, values, units = started
         try:
             frame = PDF3DWriter.export_frame(export_bounds(layers, values, units))
         except ValueError as err:
@@ -310,36 +381,21 @@ class ToolPCBViewer(AppTool):
         if cancelled.is_set():
             return
         self.app.worker_task.emit({'fcn': self.export_pdf,
-                                   'params': [job, cancelled, str(filename), layers, values, units, frame, poster]})
+                                   'params': [job, cancelled, filename, layers, values, units, frame, poster]})
 
     def export_pdf(self, job, cancelled, filename, layers, values, units, frame, poster):
-        temporary = None
         error = ''
         saved = False
         try:
-            if cancelled.is_set():
-                return
-            u3d = write_scene(export_meshes(layers, values, units))
-            if cancelled.is_set():
-                return
-            with tempfile.NamedTemporaryFile(delete=False, dir=os.path.dirname(os.path.abspath(filename)),
-                                             suffix='.pdf') as output:
-                temporary = output.name
-            PDF3DWriter.write(temporary, u3d, frame['bounds'], page_size=frame['page_size'], poster=poster)
-            # Cleanup and commit share this lock so a closed session cannot replace the destination.
-            with self._export_lock:
-                if cancelled.is_set():
-                    return
-                os.replace(temporary, filename)
-                saved = True
+            with self.app.proc_container.new('%s...' % _("Exporting 3D PDF")):
+                if not cancelled.is_set():
+                    u3d = write_scene(export_meshes(layers, values, units))
+                    if not cancelled.is_set():
+                        saved = self._commit(cancelled, filename, '.pdf', lambda path: PDF3DWriter.write(
+                            path, u3d, frame['bounds'], page_size=frame['page_size'], poster=poster))
         except Exception as err:
             error = str(err)
         finally:
-            try:
-                if temporary is not None and os.path.exists(temporary):
-                    os.unlink(temporary)
-            except OSError as err:
-                error = str(err) if not error else error + '\n' + str(err)
             self.export_done.emit(job, filename if saved else '', error)
 
     def on_export_done(self, job, filename, error):
@@ -347,14 +403,17 @@ class ToolPCBViewer(AppTool):
             return
         self._exporting = False
         self.update_export_button()
+        self.ui.show_export_progress(-1)
         if error:
             self.ui.status.setText(error)
             self.app.inform.emit('[ERROR_NOTCL] %s' % error)
         elif filename:
-            self.ui.status.setText(_("3D PDF exported"))
+            kind = self._export_kind
+            message = _("STEP exported") if kind == 'STEP' else _("3D PDF exported")
+            self.ui.status.setText(message)
             if getattr(self.app, 'file_saved', None) is not None:
-                self.app.file_saved.emit('PDF', filename)
-            self.app.inform.emit('[success] %s: %s' % (_("3D PDF exported"), filename))
+                self.app.file_saved.emit(kind, filename)
+            self.app.inform.emit('[success] %s: %s' % (message, filename))
 
     def on_canvas_destroyed(self, canvas):
         if self.view is None or self.view.canvas is not canvas:
@@ -383,6 +442,8 @@ class ToolPCBViewer(AppTool):
         self._ready = False
         self._completed_layers = ()
         self.update_export_button()
+        if self.ui is not None:
+            self.ui.show_export_progress(-1)
         self._timer.stop()
         if self.view is not None:
             self.view.clear()

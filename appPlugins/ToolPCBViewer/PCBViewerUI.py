@@ -75,12 +75,52 @@ class PCBViewerUI:
         self.status = FCLabel('')
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
-        self.export_pdf_button = FCButton(_('Export 3D PDF'))
-        self.export_pdf_button.setToolTip(_("Requires a PDF reader with U3D support, such as Adobe Acrobat or Foxit.\n"
-                                          "Other readers display the static PCB preview."))
-        self.export_pdf_button.setEnabled(False)
-        layout.addWidget(self.export_pdf_button)
+        layout.addWidget(FCLabel(_("Export"), color='indigo', bold=True))
+        frame = FCFrame()
+        export = GLay(v_spacing=5, h_spacing=3)
+        frame.setLayout(export)
+        layout.addWidget(frame)
+        self.export_pdf_button = FCButton(_('3D PDF'))
+        self.export_pdf_button.setIcon(QtGui.QIcon(self.app.resource_location + '/pdf32.png'))
+        self.export_pdf_button.setToolTip(_("Export the PCB to a 3D PDF file.\n"
+                                            "Requires a PDF reader with U3D support, such as Adobe Acrobat or Foxit.\n"
+                                            "Other readers display the static PCB preview."))
+        self.export_step_button = FCButton(_('STEP'))
+        self.export_step_button.setIcon(QtGui.QIcon(self.app.resource_location + '/export.png'))
+        self.export_step_button.setToolTip(_("Export the PCB to a STEP file (AP214) for MCAD applications.\n"
+                                             "Each layer is a part of the assembly, with its color."))
+        self.step_content = RadioSet([{'label': _('Board'), 'value': 'board'},
+                                      {'label': _('All layers'), 'value': 'all'}])
+        self.step_content.set_value('board')
+        step_label = FCLabel('%s:' % _("STEP"))
+        tooltip = _("Content of the STEP file.\n"
+                    "Board: the board body with its outline, cutouts and holes; small and fast, for the fit "
+                    "of a case.\n"
+                    "All layers: also copper, soldermask and legend; much larger and slower to import.")
+        step_label.setToolTip(tooltip)
+        self.step_content.setToolTip(tooltip)
+        export.addWidget(step_label, 0, 0)
+        export.addWidget(self.step_content, 0, 1)
+        for column, button in enumerate((self.export_pdf_button, self.export_step_button)):
+            button.setEnabled(False)
+            export.addWidget(button, 1, column)
+        self.export_progress = QtWidgets.QProgressBar()
+        self.export_progress.setRange(0, 100)
+        self.export_progress.setVisible(False)
+        export.addWidget(self.export_progress, 2, 0, 1, 2)
         layout.addStretch()
+
+    def show_export_progress(self, percent=None):
+        """Show the export progress; None shows a busy bar for an export without steps, -1 hides the bar."""
+        if percent is not None and percent < 0:
+            self.export_progress.setVisible(False)
+            return
+        if percent is None:
+            self.export_progress.setRange(0, 0)
+        else:
+            self.export_progress.setRange(0, 100)
+            self.export_progress.setValue(percent)
+        self.export_progress.setVisible(True)
 
     def on_mask_color_changed(self, value):
         entry = self.colors['overlay']

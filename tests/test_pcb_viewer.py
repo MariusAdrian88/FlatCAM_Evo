@@ -145,6 +145,8 @@ def viewer_app():
     app.decimals = 4
     app.resource_location = 'assets/resources'
     app.plugin_tab_locked = False
+    from unittest.mock import MagicMock
+    app.proc_container = MagicMock()
     app.collection = Collection()
     app.collection.objects = [SimpleNamespace(kind='gerber', obj_options={'name': 'source'}, units='MM',
                                               solid_geometry=[box(1000, 2000, 1020, 2010)], follow_geometry=[]),
@@ -342,6 +344,97 @@ def test_pcb_export_mesh_roundtrip_preserves_precision_stack_and_sources(units):
         assert layer.origin == origin
 
 
+def _step_solids(text):
+    """Decode the extruded solids of a STEP file: {layer: [(volume, open_edges, arcs), ...]} and the layer colors.
+
+    The volume is the area of the top face, with the circular segments of its arc edges, times the height.
+    """
+    import re
+    assert text.startswith('ISO-10303-21;') and text.rstrip().endswith('END-ISO-10303-21;')
+    entities = {int(number): (kind, body) for number, kind, body in
+                re.findall(r'^#(\d+)=([A-Z_0-9]+)\((.*)\);$', text, re.MULTILINE)}
+    refs = lambda body: [int(item) for item in re.findall(r'#(\d+)', body)]
+    point = lambda ref: np.array([float(v) for v in re.search(r'\(([^()]*)\)$', entities[ref][1])[1].split(',')])
+    vertex = lambda ref: point(refs(entities[ref][1])[0])
+    solids, colors = {}, {}
+    for number, (kind, body) in entities.items():
+        if kind != 'MANIFOLD_SOLID_BREP':
+            continue
+        layer = re.match(r"'(.*)_\d+'", body)[1]
+        uses, caps, heights, arcs = {}, {}, [], 0
+        for face in refs(entities[refs(body)[0]][1]):
+            area, levels = 0.0, set()
+            for bound in refs(entities[face][1])[:-1]:
+                for oriented in refs(entities[refs(entities[bound][1])[0]][1]):
+                    edge = refs(entities[oriented][1])[0]
+                    forward = entities[oriented][1].endswith('.T.')
+                    start, end, curve = refs(entities[edge][1])[:3]
+                    uses.setdefault(edge, []).append(forward)
+                    a, b = vertex(start), vertex(end)
+                    if not forward:
+                        a, b = b, a
+                    levels.update((a[2], b[2]))
+                    heights.extend((a[2], b[2]))
+                    area += (a[0] * b[1] - b[0] * a[1]) / 2
+                    if entities[curve][0] == 'CIRCLE':
+                        arcs += 1
+                        center = point(refs(entities[refs(entities[curve][1])[0]][1])[0])
+                        radius = float(entities[curve][1].rsplit(',', 1)[1])
+                        u, v = a[:2] - center[:2], b[:2] - center[:2]
+                        sweep = np.arctan2(u[0] * v[1] - u[1] * v[0], u @ v)
+                        area += radius ** 2 / 2 * (sweep - np.sin(sweep))
+            if len(levels) == 1:
+                caps[levels.pop()] = area
+        # A closed shell uses each edge once in each direction.
+        open_edges = sum(1 for senses in uses.values() if sorted(senses) != [False, True])
+        top, bottom = max(heights), min(heights)
+        assert caps[top] == pytest.approx(-caps[bottom], rel=1e-9)
+        solids.setdefault(layer, []).append((caps[top] * (top - bottom), open_edges, arcs))
+    for number, (kind, body) in entities.items():
+        if kind == 'STYLED_ITEM':
+            brep = refs(body)[-1]
+            layer = re.match(r"'(.*)_\d+'", entities[brep][1])[1]
+            chain = refs(body)[0]
+            while entities[chain][0] != 'COLOUR_RGB':
+                chain = refs(entities[chain][1])[0]
+            colors[layer] = tuple(float(v) for v in entities[chain][1].split(',')[1:])
+    return solids, colors
+
+
+@pytest.mark.parametrize('units', ['MM', 'IN'])
+def test_pcb_export_step_writes_closed_layer_solids_in_millimeters(tmp_path, units):
+    from appPlugins.ToolPCBViewer import STEPWriter
+    from appPlugins.ToolPCBViewer.PCBViewerExport import export_solids
+    factor = 1 / 25.4 if units == 'IN' else 1
+    outline = box(0, 0, 20 * factor, 10 * factor)
+    drill = Point(10 * factor, 5 * factor).buffer(factor, quad_segs=8)
+    pads = [box(2 * factor, factor, 3 * factor, 2 * factor), box(15 * factor, 6 * factor, 17 * factor, 9 * factor)]
+    layers = build({'outline': source([outline], units=units), 'copper_top': source(pads, units=units),
+                    'drills_pth_drills': source([drill], units=units)}, units)
+    path = tmp_path / 'board.step'
+    assert STEPWriter.write(str(path), export_solids(tuple(layers.values()), _export_material(), units), units)
+    solids, colors = _step_solids(path.read_text('ascii'))
+    assert set(solids) == {'board', 'copper_top', 'plating'}
+    assert all(open_edges == 0 for items in solids.values() for _volume, open_edges, _arcs in items)
+    # The polygonized drill is a true circle in the STEP file: a CAD application reads a round hole.
+    (board_volume, _open, arcs), = solids['board']
+    assert arcs >= 3 * 2 and board_volume == pytest.approx((200 - np.pi) * 0.8, rel=1e-5)
+    assert sorted(volume for volume, _open, _arcs in solids['copper_top']) == pytest.approx(
+        [0.018, 6 * 0.018], rel=1e-4)
+    # An 18 um copper tube around the 32-gon hole; 1 um of arc fit is 2 % of its volume.
+    (plating_volume, _open, arcs), = solids['plating']
+    assert arcs >= 6 * 2 and plating_volume == pytest.approx(4 * np.pi * 0.009 / np.cos(np.pi / 32) * 0.818,
+                                                             rel=2e-2)
+    assert colors['copper_top'] == pytest.approx((1, 0.843137, 0), abs=1e-6)
+    # A board with more holes than the tile limit of copper and mask stays one solid, without seams.
+    drills = [Point((1 + i % 10 * 1.8) * factor, (1 + i // 10 * 2) * factor).buffer(0.3 * factor) for i in range(40)]
+    layers = build({'outline': source([outline], units=units), 'drills': source(drills, units=units)}, units)
+    STEPWriter.write(str(path), export_solids(tuple(layers.values()), _export_material(), units, board_only=True),
+                     units)
+    solids, _colors = _step_solids(path.read_text('ascii'))
+    assert list(solids) == ['board'] and len(solids['board']) == 1
+
+
 def test_pcb_export_frame_fits_projected_bounds_with_five_percent_padding():
     import itertools
     from appPlugins.ToolPCBViewer.PDF3DWriter import export_frame
@@ -487,6 +580,33 @@ def test_pcb_export_controller_writes_ui_geometry_opacity_and_snapshot(viewer_ap
     shader = scene['shaders'][shading['shader_lists'][0][0]]
     assert scene['materials'][shader['material']]['opacity'] == pytest.approx(96 / 255)
     assert any(b'/Subtype /Image' in dictionary for dictionary, _payload in streams.values())
+
+
+def test_pcb_export_step_button_writes_the_preview_stack(viewer_app, monkeypatch, tmp_path):
+    path = tmp_path / 'board.step'
+    path.write_text('Original destination')
+    tool, app, qapp = _export_tool(viewer_app, monkeypatch, path)
+    tool.ui.board_thickness.set_value(1.2)
+    tasks = []
+    app.worker_task.disconnect()
+    app.worker_task.connect(tasks.append)
+    assert tool.ui.export_step_button.isEnabled()
+    tool.on_export_step()
+    assert not tool.ui.export_step_button.isEnabled() and not tool.ui.export_pdf_button.isEnabled()
+    assert not tool.ui.export_progress.isHidden()
+    job, = tasks
+    job['fcn'](*job['params'])
+    app.proc_container.new.assert_called()
+    qapp.processEvents()
+    assert tool.ui.export_progress.isHidden()
+    solids, _colors = _step_solids(path.read_text('ascii'))
+    # The default content is the board body for the fit of a case.
+    assert set(solids) == {'board'}
+    (volume, open_edges, _arcs), = solids['board']
+    board, = [layer for layer in tool._completed_layers if layer.name == 'board']
+    assert open_edges == 0 and volume == pytest.approx(board.geometry.area * 1.2, rel=1e-3)
+    assert set(tmp_path.iterdir()) == {path}
+    assert tool.ui.export_step_button.isEnabled()
 
 
 def test_pcb_export_readiness_blocks_pending_failed_and_closed_preview(viewer_app, monkeypatch, tmp_path):
