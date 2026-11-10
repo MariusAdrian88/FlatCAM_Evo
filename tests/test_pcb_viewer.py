@@ -31,8 +31,8 @@ def test_concave_outline_nested_cutouts_and_drilled_mesh():
     island = box(3, 3, 4, 4)
     drill = Point(17, 5).buffer(0.5, quad_segs=16)
     outline = source(follow=[LineString(p.exterior.coords) for p in (shell, cutout, island)])
-    layers = build({'outline': outline, 'drills': source([drill]), 'copper_top': source([shell])})
     expected = shell.difference(cutout).union(island).difference(drill)
+    layers = build({'outline': outline, 'drills': source([drill]), 'copper_top': source([expected])})
     board = layers['board']
     assert board.geometry.symmetric_difference(expected).area < 1e-8
     assert layers['copper_top'].geometry.symmetric_difference(expected).area < 1e-8
@@ -62,7 +62,7 @@ def test_soldermask_is_negative_clipped_and_drilled_on_both_sides():
     layers = build({'outline': source([board]), 'drills': source([drill]),
                     'soldermask_top': source([opening]), 'soldermask_bottom': source([opening]),
                     'overlay_top': source([box(-5, -5, 15, 15)])})
-    # All selected geometry contributes to the common bounds; this overhanging overlay is centered on the board.
+    # The overhanging overlay is clipped to the board.
     assert not layers['soldermask_top'].geometry.covers(Point(2, 2))
     assert layers['soldermask_top'].geometry.covers(Point(8, 2))
     assert not layers['soldermask_bottom'].geometry.covers(Point(2, 2))
@@ -79,6 +79,23 @@ def test_preview_without_outline_uses_combined_bounds_and_handles_empty_layers()
     assert layers['soldermask_top'].geometry.is_empty
     with pytest.raises(ValueError, match='[Oo]bject|[Gg]eometry'):
         build({})
+
+
+def test_outline_annotations_do_not_shape_the_board():
+    # A mechanical layer: the board with a cutout, a frame and a glyph away from it, and a glyph drawn on the copper.
+    board, cutout, letter = box(0, 0, 20, 10), box(14, 3, 17, 6), box(4, 4, 6, 6)
+    frame, glyph = box(30, 0, 60, 20), box(25, 2, 26, 3)
+    copper = source([board.difference(cutout).buffer(-0.5)])
+    notes = source([box(22, 1, 40, 30)])
+    # The board is drawn as lines; one end is one Altium unit (2.54 nm) away, as imported arcs can be.
+    edges = [LineString([(0, 0), (20, 0), (20, 10)]), LineString([(20, 10), (0, 10), (0, 2.54e-6)])]
+    outline = source(follow=edges + [LineString(p.exterior.coords) for p in (cutout, letter, frame, glyph)])
+    layers = build({'outline': outline, 'copper_top': copper, 'overlay_top': notes})
+    assert layers['board'].geometry.symmetric_difference(board.difference(cutout)).area < 1e-8
+    # Annotations only: the board is the box of the other layers, without the overlay annotations.
+    layers = build({'outline': source(follow=[LineString(glyph.exterior.coords)]), 'copper_top': copper,
+                    'overlay_top': notes})
+    assert layers['board'].geometry.bounds == (0.5, 0.5, 19.5, 9.5)
     with pytest.raises(ValueError, match='[Oo]utline|[Cc]losed'):
         build({'outline': source(follow=[LineString([(0, 0), (1, 1)])]), 'copper_top': copper})
 

@@ -99,14 +99,15 @@ class ToolPCBViewer(AppTool):
         gerbers = [(obj.obj_options['name'], re.sub('[^a-z0-9]', '', obj.obj_options['name'].lower()))
                    for obj in self.app.collection.get_list() if obj.kind == 'gerber']
         for role, aliases in (
-                ('outline', ('gko', 'edgecuts', 'keepout')),
+                ('outline', ('profile', 'edgecuts', 'gko', 'outline', 'keepout')),
                 ('copper_top', ('gtl', 'topcopper', 'toplayer', 'fcu')),
                 ('copper_bottom', ('gbl', 'bottomcopper', 'bottomlayer', 'bcu')),
                 ('overlay_top', ('gto', 'topoverlay', 'fsilks')),
                 ('overlay_bottom', ('gbo', 'bottomoverlay', 'bsilks')),
                 ('soldermask_top', ('gts', 'topsolder', 'fmask')),
                 ('soldermask_bottom', ('gbs', 'bottomsolder', 'bmask'))):
-            match = next((name for name, normalized in gerbers if any(alias in normalized for alias in aliases)), None)
+            # The first alias wins: a Profile layer is a better outline than a Keep-out layer.
+            match = next((name for alias in aliases for name, normalized in gerbers if alias in normalized), None)
             if match is not None:
                 self.ui.combos[role].set_value(match)
         for combo in self.ui.combos.values():

@@ -102,6 +102,32 @@ def boolean(subject, clip=(), operation='union'):
     return left.difference(right) if operation == 'difference' else left.intersection(right)
 
 
+def join_ends(lines, tolerance):
+    """Line ends closer than the tolerance become one point: an imported arc can end one database unit from its line."""
+    lines = shapely.get_parts(np.array(lines, dtype=object))
+    coords, index = shapely.get_coordinates(lines, return_index=True)
+    if not len(coords):
+        return lines
+    starts = np.r_[0, np.flatnonzero(np.diff(index)) + 1]
+    rows = np.r_[starts, np.r_[starts[1:], len(coords)] - 1]
+    points = shapely.points(coords[rows])
+    left, right = shapely.STRtree(points).query(points, predicate='dwithin', distance=tolerance)
+    parent = np.arange(len(rows))
+
+    def root(item):
+        while parent[item] != item:
+            parent[item] = parent[parent[item]]
+            item = parent[item]
+        return item
+
+    for first, second in zip(left[left != right], right[left != right]):
+        first, second = root(first), root(second)
+        if first != second:
+            parent[max(first, second)] = min(first, second)
+    coords[rows] = coords[rows[[root(item) for item in range(len(rows))]]]
+    return shapely.set_coordinates(lines.copy(), coords)
+
+
 def extrude_mesh(geometry):
     """Caps and ring walls at Z=0..1; scaling the visual changes thickness without triangulating again."""
     polys = polygons(geometry)
@@ -177,14 +203,71 @@ class PCBGeometry:
         if outline:
             lines = [geo.boundary if isinstance(geo, Polygon) else geo for geo in raw
                      if isinstance(geo, Polygon) or geo.geom_type in ('LineString', 'LinearRing')]
-            precision = 1e-6 / (25.4 if units.upper() == 'IN' else 1)
-            geometry = shapely.build_area(shapely.union_all(shapely.set_precision(lines, precision)))
+            scale = 25.4 if units.upper() == 'IN' else 1
+            lines = join_ends(lines, 1e-3 / scale)
+            geometry = shapely.build_area(shapely.union_all(shapely.set_precision(lines, 1e-6 / scale)))
             if geometry.is_empty:
                 raise ValueError('The mechanical outline must contain closed contours or filled regions.')
         else:
             geometry = boolean(raw)
         self._sources[key] = geometry
         return geometry
+
+    def board_shape(self, sources, units):
+        """
+        The outline areas that hold the other layers. Outline layers often carry annotations: a frame or text far from
+        the board, and text on the board that would cut holes in it. Without other layers the outline stays as it is.
+        """
+        outline = sources['outline']
+        layers = tuple(src for name, src in sorted(sources.items()) if name != 'outline')
+        # Overlay annotations are often outside the board: the other layers decide when they exist.
+        weighed = tuple(src for name, src in sorted(sources.items()) if name != 'outline' and
+                        not name.startswith('overlay')) or layers
+        coppers = tuple(sources[name] for name in ('copper_top', 'copper_bottom') if name in sources)
+        key = (outline, units, 'board', layers)
+        if key in self._sources:
+            return self._sources[key]
+        areas = polygons(self.source_geometry(outline, units, outline=True))
+        x, y, weights = [], [], []
+        for src in weighed:
+            parts = np.array(polygons(src.solid), dtype=object)
+            if not len(parts):
+                continue
+            factor = (25.4 if src.units.upper() == 'IN' else 1) / (25.4 if units.upper() == 'IN' else 1)
+            xy = shapely.get_coordinates(shapely.point_on_surface(parts)) * factor
+            x.append(xy[:, 0])
+            y.append(xy[:, 1])
+            weights.append(shapely.area(parts) * factor ** 2)
+        if not weights:
+            self._sources[key] = shapely.union_all(areas)
+            return self._sources[key]
+        x, y, weights = np.concatenate(x), np.concatenate(y), np.concatenate(weights)
+        held = np.zeros(len(areas))
+        for index, area in enumerate(areas):
+            shapely.prepare(area)
+            held[index] = weights[shapely.contains_xy(area, x, y)].sum()
+        # A board holds a real share of the other layers; a panel has more than one board.
+        kept = [area for area, value in zip(areas, held) if value >= 0.05 * held.max()]
+        if held[held >= 0.05 * held.max()].sum() < 0.5 * weights.sum():
+            # No board contour on this layer, only annotations: use the bounding box as without an outline.
+            self._sources[key] = None
+            return None
+        shells = [Polygon(area.exterior) for area in kept]
+        tree = shapely.STRtree(shells)
+        # Areas inside a kept board are islands in its cutouts.
+        nested = [area for area, value in zip(areas, held) if value < 0.05 * held.max() and
+                  len(tree.query(area.representative_point(), predicate='within'))]
+        if coppers:
+            copper = boolean([self.source_geometry(src, units) for src in coppers])
+            filled = []
+            for area in kept:
+                # Copper cannot be in a cutout: a hole that holds copper is text drawn on the board.
+                holes = [ring for ring in area.interiors
+                         if Polygon(ring).intersection(copper).area < 0.1 * Polygon(ring).area]
+                filled.append(Polygon(area.exterior, holes) if len(holes) < len(area.interiors) else area)
+            kept = filled
+        self._sources[key] = boolean(kept + nested)
+        return self._sources[key]
 
     def build(self, sources, units='MM', cancelled=lambda: False):
         """Yield the substrate first, then completed layers in the project's original XY coordinates."""
@@ -194,18 +277,23 @@ class PCBGeometry:
         # Keep the last board's mesh variants, not every board ever opened in this project.
         if len(self._meshes) > 24:
             self._meshes.clear()
-        outline = self.source_geometry(sources['outline'], units, outline=True) if 'outline' in sources else None
+        outline = self.board_shape(sources, units) if 'outline' in sources else None
         bounds_list = []
         for name, src in sources.items():
             if cancelled():
                 return
             if name == 'outline':
-                bounds_list.append(outline.bounds)
+                if outline is not None:
+                    bounds_list.append((name, outline.bounds))
                 continue
             solid = polygons(src.solid)
             if solid:
                 factor = (25.4 if src.units.upper() == 'IN' else 1) / (25.4 if units.upper() == 'IN' else 1)
-                bounds_list.append(shapely.total_bounds(solid) * factor)
+                bounds_list.append((name, shapely.total_bounds(solid) * factor))
+        # Overlay annotations are often outside the board: the other layers set the box when they exist.
+        if any(not name.startswith('overlay') for name, value in bounds_list):
+            bounds_list = [item for item in bounds_list if not item[0].startswith('overlay')]
+        bounds_list = [value for name, value in bounds_list]
         bounds = np.full(4, np.nan)
         if bounds_list:
             array = np.array(bounds_list)
@@ -215,7 +303,9 @@ class PCBGeometry:
         reference = tuple(bounds)
         drills = tuple(dict.fromkeys(src for name, src in sources.items() if name.startswith('drills')))
         plated = tuple(dict.fromkeys(src for name, src in sources.items() if name.startswith('drills_pth_')))
-        board_key = (sources.get('outline'), drills, reference, units)
+        # The board shape depends on the other layers when there is an outline.
+        board_key = (sources.get('outline'), drills, reference, units,
+                     tuple(src for name, src in sorted(sources.items()) if 'outline' in sources and name != 'outline'))
         if board_key not in self._meshes:
             board = outline if outline is not None else box(*bounds)
             if drills:
