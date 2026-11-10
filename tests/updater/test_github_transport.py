@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 import hashlib
 import io
 import json
@@ -161,6 +162,14 @@ def test_http_rate_limit_network_and_json_errors_fail_safely():
     with pytest.raises(TransportError, match="rate limit"):
         GitHubReleaseTransport(opener=FakeOpener([rate_limited])).list_releases()
 
+    # the message tells the local time when GitHub resets the limit
+    reset = 1794330433
+    headers = {"X-RateLimit-Remaining": "0", "X-RateLimit-Reset": str(reset)}
+    exhausted = urllib.error.HTTPError(RELEASES_URL, 403, "Forbidden", headers, None)
+    expected = datetime.datetime.fromtimestamp(reset).strftime("%H:%M")
+    with pytest.raises(TransportError, match=f"rate limit.*after {expected}"):
+        GitHubReleaseTransport(opener=FakeOpener([exhausted])).list_releases()
+
     offline = urllib.error.URLError("offline")
     with pytest.raises(TransportError):
         GitHubReleaseTransport(opener=FakeOpener([offline])).list_releases()
@@ -172,6 +181,47 @@ def test_http_rate_limit_network_and_json_errors_fail_safely():
     not_a_list = FakeResponse(b'{"message": "bad"}')
     with pytest.raises(TransportError, match="not a list"):
         GitHubReleaseTransport(opener=FakeOpener([not_a_list])).list_releases()
+
+
+def test_release_list_cache_saves_requests_for_its_lifetime(tmp_path, monkeypatch):
+    cache = tmp_path / "github_releases_cache.json"
+    clock = [1000.0]
+    monkeypatch.setattr("services.updater.github.transport.time.time", lambda: clock[0])
+
+    def transport(responses, seconds=600, repository=DEFAULT_REPOSITORY):
+        opener = FakeOpener(responses)
+        return GitHubReleaseTransport(repository, opener=opener, cache_path=cache, cache_seconds=seconds), opener
+
+    first, opener = transport([_releases_response([_release_json("v1.1")])])
+    assert [r.tag for r in first.list_releases()] == ["v1.1"]
+    assert len(opener.requests) == 1
+
+    # an app restart inside the lifetime does not ask GitHub
+    clock[0] += 599
+    again, opener = transport([])
+    assert [r.tag for r in again.list_releases()] == ["v1.1"]
+    assert opener.requests == []
+
+    # a forced check (lifetime 0) asks GitHub and refreshes the cache
+    forced, opener = transport([_releases_response([_release_json("v1.2")])], seconds=0)
+    assert [r.tag for r in forced.list_releases()] == ["v1.2"]
+    assert len(opener.requests) == 1
+
+    # another repository does not use the cached list
+    other, opener = transport([_releases_response([])], repository="owner/repo")
+    assert other.list_releases() == ()
+    assert len(opener.requests) == 1
+
+    # after the lifetime the transport asks GitHub again
+    clock[0] += 601
+    late, opener = transport([_releases_response([_release_json("v1.3")])])
+    assert [r.tag for r in late.list_releases()] == ["v1.3"]
+    assert len(opener.requests) == 1
+
+    # a corrupt cache file is ignored
+    cache.write_text("{not json", encoding="utf-8")
+    broken, opener = transport([_releases_response([_release_json("v1.4")])])
+    assert [r.tag for r in broken.list_releases()] == ["v1.4"]
 
 
 def _malformed_entries():

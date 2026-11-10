@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import datetime
 import hashlib
 import json
 import logging
 import os
 import re
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -139,6 +141,8 @@ class GitHubReleaseTransport:
         timeout: float = 30.0,
         chunk_size: int = 1024 * 1024,
         api_host: str = API_HOST,
+        cache_path=None,
+        cache_seconds: float = 0,
     ) -> None:
         self.owner, self.repo = normalize_repository(repository)
         self.repository = f"{self.owner}/{self.repo}"
@@ -146,6 +150,10 @@ class GitHubReleaseTransport:
         self.timeout = timeout
         self.chunk_size = chunk_size
         self.api_host = api_host.lower()
+        # the release list of the last request, so that app restarts do not use up the 60 GitHub requests per hour;
+        # list_releases() uses it while it is younger than cache_seconds and writes it after each request
+        self.cache_path = Path(cache_path) if cache_path else None
+        self.cache_seconds = cache_seconds
 
     @staticmethod
     def _close(response) -> None:
@@ -163,7 +171,12 @@ class GitHubReleaseTransport:
             return TransportError("The GitHub repository is not accessible (HTTP 404).")
         remaining = headers.get("X-RateLimit-Remaining") if headers is not None else None
         if code == 429 or (code == 403 and str(remaining).strip() == "0"):
-            return TransportError(f"GitHub rate limit reached (HTTP {code}).")
+            reset = headers.get("X-RateLimit-Reset") if headers is not None else None
+            try:
+                after = f" Try again after {datetime.datetime.fromtimestamp(int(reset)).strftime('%H:%M')}."
+            except (TypeError, ValueError, OverflowError, OSError):
+                after = ""
+            return TransportError(f"GitHub rate limit reached (HTTP {code}).{after}")
         if code == 403:
             return TransportError("GitHub denied access (HTTP 403).")
         return TransportError(f"GitHub request returned HTTP {code}.")
@@ -293,9 +306,43 @@ class GitHubReleaseTransport:
                 raise TransportError("GitHub release asset has an invalid sha256 digest.")
         return ReleaseAsset(name=name, url=url, size=size, sha256=sha256)
 
+    def _cached_items(self, url: str):
+        """Return the raw release entries of the cache file, or None when it is missing, stale or for another URL."""
+        if self.cache_path is None or self.cache_seconds <= 0:
+            return None
+        try:
+            data = json.loads(self.cache_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, ValueError):
+            return None
+        if not isinstance(data, dict) or data.get("url") != url or not isinstance(data.get("items"), list):
+            return None
+        age = time.time() - data.get("time", 0) if isinstance(data.get("time"), (int, float)) else -1
+        if not 0 <= age < self.cache_seconds:
+            return None
+        return data["items"]
+
+    def _write_cache(self, url: str, items) -> None:
+        if self.cache_path is None:
+            return
+        try:
+            self.cache_path.parent.mkdir(parents=True, exist_ok=True)
+            temp = self.cache_path.with_name(self.cache_path.name + ".tmp")
+            temp.write_text(json.dumps({"url": url, "time": time.time(), "items": items}), encoding="utf-8")
+            os.replace(temp, self.cache_path)
+        except OSError as exc:
+            _log.debug("Could not write the GitHub release cache: %s", exc)
+
     def list_releases(self) -> tuple[GitHubRelease, ...]:
         """List every published stable release across all release pages."""
         url = self._releases_url()
+        cached = self._cached_items(url)
+        if cached is not None:
+            try:
+                return tuple(release for release in map(self._release, cached) if release is not None)
+            except TransportError:
+                pass  # a damaged cache entry: ask GitHub
+        first_url = url
+        items: list = []
         visited: set[str] = set()
         releases: list[GitHubRelease] = []
         for _ in range(MAX_PAGES):
@@ -314,7 +361,9 @@ class GitHubReleaseTransport:
                 release = self._release(item)
                 if release is not None:
                     releases.append(release)
+                    items.append(item)
             if not next_url:
+                self._write_cache(first_url, items)
                 return tuple(releases)
             url = self._validate_pagination(next_url)
         raise TransportError("GitHub releases pagination exceeded the page limit.")

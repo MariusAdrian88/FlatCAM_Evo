@@ -26,6 +26,10 @@ from .transport import (
     canonical_version,
 )
 
+# the file in the data folder that keeps the last GitHub release list, and how long the start check reuses it
+RELEASE_CACHE_NAME = "github_releases_cache.json"
+RELEASE_CACHE_SECONDS = 10 * 60
+
 
 def _platform_name(value) -> str:
     """Normalize a platform identifier to windows, linux, macos, or other."""
@@ -293,11 +297,15 @@ class GitHubUpdateChecker:
             _emit(app, "update_check_result", result)
             return result
 
+        if isinstance(transport, GitHubReleaseTransport) and getattr(app, "data_path", None):
+            # a forced check (the menu) always asks GitHub; the check at app start reuses a recent answer
+            transport.cache_path = Path(app.data_path) / RELEASE_CACHE_NAME
+            transport.cache_seconds = 0 if forced else RELEASE_CACHE_SECONDS
         try:
             releases = transport.list_releases()
         except (OSError, RuntimeError, TypeError, ValueError) as exc:
             result = self._payload("error", channel, app, error=str(exc))
-            _inform(app, "Failed checking for the latest version. Could not retrieve a valid release list.")
+            _inform(app, f"Failed checking for the latest version. {exc}")
             _emit(app, "update_check_result", result)
             return result
 

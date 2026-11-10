@@ -238,7 +238,8 @@ def test_transport_failures_become_safe_error_payloads(tmp_path):
     assert payload["status"] == "error"
     assert "404" in payload["error"]
     assert app.update_check_result.payloads == [payload]
-    assert app.inform.payloads
+    # the status bar message tells the reason, not only that the check failed
+    assert "404" in app.inform.payloads[-1]
 
     malformed = _app(tmp_path)
     payload = _checker(malformed, FakeTransport(error=ValueError("bad release metadata")), tmp_path).run_check(malformed)
