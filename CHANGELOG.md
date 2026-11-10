@@ -24,6 +24,13 @@ Import:
 - fixed (PcbDoc and CSPcbDoc): TrueType text has the height of ascender + descender, starts its ink at the text position and is not kerned, as Altium places it
 - fixed (PcbDoc and CSPcbDoc): a dimension line stops before its value text and starts again after it (the TEXTGAP of the dimension), the text is centred across the line, and the line and arrows use the arrow line width
 - checked against the Gerber X2 files of CircuitMaker Pro 2.0.5 for the fixture board: copper, planes, mask and paste differ by less than 0.05 %
+- added: File > Import > PADS Layout PCB (.asc, .pcb) imports a PADS Layout board: the ASCII format 9.4 to 10.0 and the older V2005.0 dialect (units BASIC, MILS, METRIC, INCHES), and the native binary .pcb of version 0x2026 and 0x2027; the entry is also in the Import dialog and in the PCB Boards group of the Welcome screen
+- added: the PADS import makes a Gerber object for each copper layer (1 to 32 routing layers) and for the named technical layers (silkscreen, explicit mask and paste shapes), PTH and NPTH Excellon objects (round drills and slots), and the board profile with its cutouts
+- added: the PADS import reads the embedded decals and part types (with alternate and modified decals), top and mirrored bottom placements, round, square, rectangular, oval and finger pads with offsets and rounded or chamfered corners, per-layer pad stacks, straight and arc routes, vias with partial drill spans, and line, circle and arc graphics
+- added: the PADS import reconstructs the copper pours from their boundaries (with the thermal connections and clearances of the rules), the teardrops and the lettering (Romansim text with a substitute font and a warning); airwires on layer 0 do not become copper, and a via shared by more than 1 route gives 1 drill
+- added: the attribute labels (Ref.Des. and Part Type) of the top or bottom copper layer go to the silkscreen layer of that side; a label of an inner copper layer or of layer 0 is skipped with a warning, so a label never becomes copper
+- not imported (PADS): unsupported copper (planes without pour boundaries, saved hatch caches, odd or annular pads, jumpers, non-default teardrop styles) fails the import with a message, and gives no partial board; the mask and paste openings that PADS CAM adds from the rules are not guessed
+- fixed: a failed board import stopped with a second error in the log call, so the status bar did not show "Import failed." and its cause; now it shows them
 
 PCB 3D Viewer:
 
@@ -59,6 +66,18 @@ Canvas speed:
 Preferences:
 
 - added: General > App Settings > "Ask to save on exit" (on by default); when it is off, the application closes without the question about unsaved projects and discards their changes
+
+Updater:
+
+- changed: the update check at the start of the application keeps the GitHub release list for 10 minutes in the data folder (github_releases_cache.json), so many restarts do not use up the 60 GitHub requests per hour; Help > Check for Updates always asks GitHub
+- changed: a failed update check shows its cause in the status bar; at the GitHub rate limit the message tells the time when the next check can work
+
+Translations:
+
+- updated: the strings of the new imports, the STEP export and the new preferences in all languages
+- changed: the splash screen images (light and dark theme)
+- updated the version string
+- RELEASE 1.07
 
 09.11.2026
 
