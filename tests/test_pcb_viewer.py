@@ -1236,3 +1236,32 @@ def test_closing_either_pcb_tab_closes_its_partner_and_can_reopen(viewer_app, cl
     pending['fcn'](*pending['params'])
     qapp.processEvents()
     assert tool.view.layers['board'][1]
+
+
+def test_layer_order_follows_the_camera_in_the_drawn_frame(viewer_app):
+    from appPlugins.ToolPCBViewer.PCBViewerView import PCBView
+    app, qapp = viewer_app
+    canvas = app.plotcanvas3d
+    view = PCBView(canvas)
+    material = {'board_thickness': 0.8, 'copper_thickness': 18, 'mask_thickness': 100,
+                'board_color': '#80402080', 'copper_color': '#FFD700FF', 'board_alpha': 128,
+                'overlay_color': '#FF0000FF', 'soldermask_color': '#FF000080'}
+    layers = build({'outline': source([box(1000, 2000, 1020, 2010)]),
+                    'overlay_top': source([box(1002, 2002, 1004, 2004)]),
+                    'overlay_bottom': source([box(1002, 2002, 1004, 2004)])})
+    for layer in layers.values():
+        view.set_layer(layer)
+    view.update_style(material, 'MM')
+
+    def drawn_order(side):
+        canvas.view.camera.set_view(side)
+        canvas.set_current()
+        canvas.events.draw()
+        return [name for _order, name in sorted((meshes[0].order, name) for name, (_layer, meshes)
+                                                in view.layers.items())]
+
+    top, bottom = drawn_order('top'), drawn_order('bottom')
+    assert top[1] == bottom[1] == 'board'
+    assert top[::-1] == bottom
+    assert drawn_order('top') == top
+    view.clear()

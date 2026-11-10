@@ -212,8 +212,17 @@ class TestExitWithProjects(unittest.TestCase):
         lifecycle = AppLifecycle.__new__(AppLifecycle)
         lifecycle.app = app
         lifecycle.inform = app.inform
+        lifecycle.options, lifecycle.defaults = {}, {}
         lifecycle.quit_application = Mock(return_value=True)
         return lifecycle, projects, start
+
+    def test_ask_save_off_quits_without_a_question(self):
+        lifecycle, projects, start = self.make_lifecycle([SimpleNamespace(name='A')])
+        lifecycle.options['global_ask_save_on_exit'] = False
+        lifecycle.final_save()
+        projects.ask_save.assert_not_called()
+        projects.save_context.assert_not_called()
+        lifecycle.quit_application.assert_called_once_with()
 
     def test_each_dirty_project_is_asked(self):
         first, second = SimpleNamespace(name='A'), SimpleNamespace(name='B')
@@ -256,6 +265,7 @@ class TestExitWithProjects(unittest.TestCase):
         lifecycle = AppLifecycle.__new__(AppLifecycle)
         lifecycle.app = app
         lifecycle.inform = app.inform
+        lifecycle.options, lifecycle.defaults = {}, {}
         # the real quit_application(); only the answer of the Tools Database question is mocked
         lifecycle.quit_application = MethodType(AppLifecycle.quit_application, lifecycle)
         lifecycle._confirm_tools_database = Mock(return_value=False)

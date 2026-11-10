@@ -94,8 +94,6 @@ class AppCanvasEvents(QtCore.QObject):
         self.app.pos_jump = event_pos
         self.ui.popMenu.mouse_is_panning = False
 
-        self.on_plugin_mouse_move(pos=event_pos)
-
         if origin_click is None:
             # if the RMB is clicked and mouse is moving over plot then 'panning_action' is True
             if event.button == pan_button and self.app.event_is_dragging == 1:
@@ -105,7 +103,10 @@ class AppCanvasEvents(QtCore.QObject):
                     self.ui.popMenu.popup_active = False
                     return
                 self.ui.popMenu.mouse_is_panning = True
+                # A pan keeps the same point under the cursor: no plugin work for each move.
                 return
+
+        self.on_plugin_mouse_move(pos=event_pos)
 
         if self.app.rel_point1 is None:
             return

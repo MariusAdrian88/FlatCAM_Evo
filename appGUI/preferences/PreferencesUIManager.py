@@ -146,6 +146,7 @@ class PreferencesUIManager(QtCore.QObject):
             "global_pan_button": self.ui.general_pref_form.general_app_set_group.pan_button_radio,
             "global_mselect_key": self.ui.general_pref_form.general_app_set_group.mselect_radio,
             "global_delete_confirmation": self.ui.general_pref_form.general_app_set_group.delete_conf_cb,
+            "global_ask_save_on_exit": self.ui.general_pref_form.general_app_set_group.ask_save_exit_cb,
             "global_history_steps": self.ui.general_pref_form.general_app_set_group.history_steps_spinner,
             "global_history_memory_mb": self.ui.general_pref_form.general_app_set_group.history_memory_spinner,
             "global_allow_edit_in_project_tab": self.ui.general_pref_form.general_app_set_group.allow_edit_cb,

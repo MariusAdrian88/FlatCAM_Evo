@@ -285,13 +285,14 @@ class AppLifecycle(QtCore.QObject):
             return
 
         # with more than 1 project, ask about each project that has unsaved changes
+        ask_save = self.options.get("global_ask_save_on_exit", self.defaults.get("global_ask_save_on_exit", True))
         projects = getattr(self.app, 'projects', None)
         if projects is not None:
             start = projects.active
             # quit_application() also asks a question (the Tools Database) and can refuse the quit
             quitting = False
             try:
-                for ctx in projects.dirty_contexts():
+                for ctx in (projects.dirty_contexts() if ask_save else []):
                     answer = projects.ask_save(ctx)
                     if answer == 'cancel' or (answer == 'yes' and not projects.save_context(ctx, visuals=False)):
                         return
@@ -309,7 +310,7 @@ class AppLifecycle(QtCore.QObject):
                     pass
             return
 
-        if self.app.should_we_save and self.app.collection.get_list():
+        if ask_save and self.app.should_we_save and self.app.collection.get_list():
             msgbox = FCMessageBox(parent=self.app.ui)
             title = _("Save changes")
             txt = _("There are files/objects modified.\n"

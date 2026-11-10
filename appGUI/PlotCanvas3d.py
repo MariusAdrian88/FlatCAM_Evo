@@ -7,12 +7,14 @@ from PyQt6 import QtCore, QtWidgets
 from PyQt6.QtGui import QFont, QFontMetricsF, QPalette
 # from PyQt6.QtCore import QSettings
 
+import os
 import time
 from itertools import product
 
 import vispy.scene as scene
 from vispy.scene.cameras.base_camera import BaseCamera
-from vispy.util import keys
+from vispy.scene.cameras.arcball import _arcball
+from vispy.util import keys, transforms
 from vispy.util.quaternion import Quaternion
 from vispy.color import Color
 from vispy.visuals.markers import MarkersVisual
@@ -20,6 +22,7 @@ from appGUI.VisPyVisuals import ShapeGroup, ShapeCollection, TextCollection, Tex
 from appGUI.ViewCube import ViewCube
 from vispy.scene.visuals import InfiniteLine, Line, Rectangle, Text, XYZAxis
 from appDatabase import _database_option
+from appGUI.VisPyPatches import hold_gc_during_drag, new_patches_enabled
 
 import gettext
 import appTranslation as fcTranslate
@@ -31,6 +34,8 @@ from vispy.geometry import Rect
 fcTranslate.apply_language('strings')
 if '_' not in builtins.__dict__:
     _ = gettext.gettext
+
+_BASIS = {}  # (up, forward, right) of an ArcballCamera -> its constant axis mapping matrix
 
 white = Color("#ffffff")
 black = Color("#000000")
@@ -56,7 +61,8 @@ class PlotCanvas3d(QtCore.QObject, scene.SceneCanvas):
         # super(PlotCanvas, self).__init__()
         # QtCore.QObject.__init__(self)
         # VisPyCanvas.__init__(self)
-        super().__init__()
+        # Qt presents the QOpenGLWidget itself; the VisPy swap in paintGL only waits for vertical blanks.
+        super().__init__(autoswap=os.environ.get('FLATCAM_VISPY_PATCHES') == '0')
 
         # VisPyCanvas does not allow new attributes. Override.
         self.unfreeze()
@@ -201,6 +207,7 @@ class PlotCanvas3d(QtCore.QObject, scene.SceneCanvas):
         self.view.events.resize.connect(self.on_view_resize)
         self.context_menu = self.create_context_menu()
         self.graph_event_connect('mouse_release', self.on_mouse_release)
+        hold_gc_during_drag(self)
         self._camera_reference = 'lmb'
         self.camera_reference = camera_reference
 
@@ -594,14 +601,26 @@ class Camera_3D(scene.ArcballCamera):
         if scale == self.scale_factor:
             return
         factor = scale / self.scale_factor
+        if not new_patches_enabled():
+            if center is not None:
+                anchor = np.zeros(3)
+                anchor[:min(len(center), 3)] = center[:3]
+                self.center = anchor + (np.asarray(self.center) - anchor) * factor
+            if self._distance is not None:
+                self.distance *= factor
+            self.scale_factor = scale
+            self._view_modified = True
+            return
+        # the same values as above, written together: one transform update instead of up to three
         if center is not None:
             anchor = np.zeros(3)
             anchor[:min(len(center), 3)] = center[:3]
-            self.center = anchor + (np.asarray(self.center) - anchor) * factor
+            self._center = tuple(float(v) for v in anchor + (np.asarray(self.center) - anchor) * factor)
         if self._distance is not None:
-            self.distance *= factor
-        self.scale_factor = scale
+            self._distance = float(self._distance * factor)
+        self._scale_factor = abs(float(scale))
         self._view_modified = True
+        self.view_changed()
 
     def _screen_to_world(self, pos, reference=None):
         reference = self.center if reference is None else reference
@@ -631,25 +650,88 @@ class Camera_3D(scene.ArcballCamera):
                     self._rotation_anchor = self._screen_to_world(start)
         if self._trackball_rotation:
             anchor = self._rotation_anchor
-            projected = self._scene_transform.map((*anchor, 1))
-            screen = projected[:2] / projected[3]
-            self._event_value = previous
-            super()._update_rotation(event)
-            self._view_modified = True
-            self.center = np.asarray(self.center) + anchor - self._screen_to_world(screen, anchor)
+            screen = self._project(anchor)
+            if not self._one_update_rotation():
+                self._event_value = previous
+                super()._update_rotation(event)
+                self._view_modified = True
+                self.center = np.asarray(self.center) + anchor - self._screen_to_world(screen, anchor)
+                return
+            # ArcballCamera._update_rotation: the new orientation of this move, then the pivot is put back on screen
+            size = self._viewbox.size
+            p2 = event.pos[:2]
+            p1 = np.asarray(previous)[:2]
+            quaternion = Quaternion(*_arcball(p2, size)) * Quaternion(*_arcball(p1, size)) * self._quaternion
+            self._event_value = p2
+            self._rotate_to(quaternion, anchor, screen)
         else:
             self.rotate_about(delta, self._rotation_anchor)
 
+    def _one_update_rotation(self):
+        """True when a rotation move may write orientation and center together (one transform update). Only the
+        orthographic camera (fov 0, the only one the application uses): a perspective projection with the 1e6 depth
+        range is too ill-conditioned for a second way of computing the same numbers to match the float32 matrices."""
+        return (new_patches_enabled() and self._fov == 0 and self._viewbox is not None
+                and self._scene_transform is not None)
+
     def rotate_about(self, delta, anchor):
         """Rotate by screen-space angles while keeping a world-space pivot fixed on screen."""
-        projected = self._scene_transform.map((*anchor, 1))
-        pos = projected[:2] / projected[3]
+        pos = self._project(anchor)
         horizontal = Quaternion.create_from_axis_angle(-delta[0], 0, 1, 0)
         vertical = Quaternion.create_from_axis_angle(-delta[1], 1, 0, 0)
-        self._quaternion = vertical * horizontal * self._quaternion
+        if not self._one_update_rotation():
+            self._quaternion = vertical * horizontal * self._quaternion
+            self._view_modified = True
+            self.view_changed()
+            self.center = np.asarray(self.center) + anchor - self._screen_to_world(pos, anchor)
+            return
+        self._rotate_to(vertical * horizontal * self._quaternion, anchor, pos)
+
+    def _rotate_to(self, quaternion, anchor, screen):
+        """Set a new orientation and the center that keeps the world point 'anchor' at the screen position 'screen',
+        with one transform update. It is the center of the two-step version: the anchor is unprojected with the new
+        orientation and the old center, and the center moves by the difference."""
+        matrix = self._scene_matrix(quaternion, self.center)
+        depth = np.array((*anchor, 1.0)) @ matrix
+        point = np.array((screen[0], screen[1], depth[2] / depth[3], 1.0)) @ np.linalg.inv(matrix)
+        center = np.asarray(self.center) + anchor - point[:3] / point[3]
+        self._quaternion = quaternion
+        self._center = tuple(float(v) for v in center)
         self._view_modified = True
         self.view_changed()
-        self.center = np.asarray(self.center) + anchor - self._screen_to_world(pos, anchor)
+
+    def _scene_matrix(self, quaternion, center):
+        """The scene transform matrix (row vectors) for an orientation and a center, without changing the camera: the
+        product that PerspectiveCamera._update_transform and Base3DRotationCamera._update_camera_pos build. The viewbox
+        mapping, the projection and the distance are the current ones; a rotation changes none of them."""
+        up, forward, right = self._get_dim_vectors()
+        key = (tuple(up), tuple(forward), tuple(right))
+        basis = _BASIS.get(key)
+        if basis is None:
+            basis = _BASIS[key] = transforms.affine_map(
+                np.array([(0, 0, 0), (0, 0, -1), (1, 0, 0), (0, 1, 0)]), np.array([(0, 0, 0), forward, right, up])).T
+        rot, x, y, z = quaternion.get_axis_angle()
+        camera = np.linalg.multi_dot((
+            basis, transforms.translate(-self._actual_distance * forward),
+            transforms.rotate(180 * rot / np.pi, (x, z, y)),
+            transforms.scale([1.0 / a for a in self._flip_factors]), transforms.translate(center)))
+        return np.linalg.inv(camera) @ self._projection_viewbox()
+
+    def _projection_viewbox(self):
+        """The projection followed by the viewbox mapping (scale, then translate), as one matrix."""
+        scale, translate = self._viewbox_tr.scale, self._viewbox_tr.translate
+        viewbox = np.eye(4)
+        viewbox[0, 0], viewbox[1, 1], viewbox[2, 2] = scale[:3]
+        viewbox[3, :3] = translate[:3]
+        return self._projection.matrix @ viewbox
+
+    def _project(self, point):
+        """Screen position (x, y) of a world point with the current view."""
+        if not self._one_update_rotation():
+            projected = self._scene_transform.map((*point, 1))
+            return projected[:2] / projected[3]
+        projected = np.array((*point, 1.0)) @ np.linalg.inv(self.transform.matrix) @ self._projection_viewbox()
+        return projected[:2] / projected[3]
 
     # def viewbox_mouse_event(self, event):
     #     """

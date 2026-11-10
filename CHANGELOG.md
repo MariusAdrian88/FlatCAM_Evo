@@ -44,6 +44,22 @@ Gerber Editor:
 
 - changed: a save with clear features clips only the parts of the solid that the clear features touch, and no longer makes a deep copy of the storage; the save of a large board is faster
 
+Canvas speed:
+
+- changed: the pan of the 2D canvas follows the cursor at the refresh rate of the display (measured on a 90 Hz display: 13-21 FPS before, 88 FPS now, the paint of a frame 35 ms before, 4 ms now); the picture is the same, no detail is removed during the pan
+- fixed: each frame waited about 3 vertical blanks in a second buffer swap; Qt presents the canvas, so VisPy no longer swaps (2D and 3D canvas)
+- fixed: a mouse move that came less than 10 ms after the previous one was lost during a drag, so the view stopped behind the cursor; no move of a drag is lost now, and the view ends exactly at the cursor
+- changed: the view moves 1 time for each frame during a pan (all moves since the last frame are applied together), a camera move sends 1 redraw request and not about 120, the rulers compute their range 1 time for each frame (same ticks and labels), and the VisPy work for each draw call is smaller (1 command flush for a frame, no GL error query, no state copy)
+- fixed: with a large board, the garbage collector of Python could stop a pan for about 200 ms; it does not look at the loaded objects while a mouse button is down
+- changed (3D canvas, PCB 3D Viewer): a rotate move and a zoom step update the view 1 time and not 2 or 3 times; with the old code the 3D views ran at 16-21 FPS, now a small board runs at about 80 FPS and a dense board (1.5 million triangles) at about 65 FPS, where the graphics processor is the limit
+- added: FLATCAM_VISPY_PATCHES=0 (environment variable) switches these changes off for a comparison; FLATCAM_CANVAS_PROF=1 prints the frame times of the canvas to the log
+- changed: a pan no longer sends each mouse move to the active plugin (the point under the cursor does not change)
+- changed (PCB 3D Viewer): the layer sort runs only when the camera or the layers changed, not in each frame
+
+Preferences:
+
+- added: General > App Settings > "Ask to save on exit" (on by default); when it is off, the application closes without the question about unsaved projects and discards their changes
+
 09.11.2026
 
 Gerber Editor:

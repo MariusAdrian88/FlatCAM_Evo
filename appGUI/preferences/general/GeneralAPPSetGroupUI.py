@@ -517,6 +517,15 @@ class GeneralAPPSetGroupUI(OptionsGroupUI):
         )
         par_grid.addWidget(self.delete_conf_cb, 0, 0, 1, 2)
 
+        # Ask to save on exit
+        self.ask_save_exit_cb = FCCheckBox(_('Ask to save on exit'))
+        self.ask_save_exit_cb.setToolTip(
+            _("When checked the application will ask to save the project(s)\n"
+              "with unsaved changes when the application is closed.\n"
+              "When unchecked the unsaved changes are discarded on exit.")
+        )
+        par_grid.addWidget(self.ask_save_exit_cb, 1, 0, 1, 2)
+
         self.allow_edit_cb = FCCheckBox(_("Allow Edit"))
         self.allow_edit_cb.setToolTip(
             _("When checked, the user can edit the object names in the Project Tab\n"

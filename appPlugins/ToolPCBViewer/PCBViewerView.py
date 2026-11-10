@@ -5,6 +5,7 @@ from PyQt6 import sip
 from vispy import scene
 from vispy.geometry import MeshData
 
+from appGUI.VisPyPatches import new_patches_enabled
 from .PCBViewerGen import layer_styles
 
 
@@ -12,6 +13,9 @@ class PCBView:
     def __init__(self, canvas):
         self.canvas = canvas
         self.layers = {}
+        # the camera matrix of the last layer sort; None when the layers changed since (the sort must run again)
+        self._sorted_for = None
+        self._heights = {}  # layer name -> z of its mesh transform, kept until the layers change
         self._depth = canvas.view.camera.depth_value
         self._saved = [(node, node.visible) for node in canvas.view.scene.children
                        if node is not canvas.view.camera]
@@ -28,6 +32,7 @@ class PCBView:
         return not sip.isdeleted(self.canvas.native)
 
     def set_layer(self, layer):
+        self._invalidate()
         previous = self.layers.get(layer.name)
         if previous is not None:
             if previous[0].vertices is layer.vertices:
@@ -49,6 +54,7 @@ class PCBView:
         self.layers[layer.name] = layer, meshes
 
     def begin_build(self, names):
+        self._invalidate()
         for name in list(self.layers):
             _layer, meshes = self.layers[name]
             for mesh in meshes:
@@ -59,6 +65,7 @@ class PCBView:
                 del self.layers[name]
 
     def update_style(self, values, units):
+        self._invalidate()
         styles = layer_styles((layer for layer, _meshes in self.layers.values()), values, units)
         heights = {name: (style['z'], style['thickness']) for name, style in styles.items()}
         for name, (layer, meshes) in self.layers.items():
@@ -79,16 +86,29 @@ class PCBView:
         self.sort_layers()
         self.canvas.update()
 
+    def _invalidate(self):
+        """The layers or their transforms changed: the next sort runs, and the layer heights are read again."""
+        self._sorted_for = None
+        self._heights.clear()
+
     def sort_layers(self, event=None):
         if not self.layers:
             return
         camera = self.canvas.view.camera
+        # The order depends on the camera matrix and on the layers only: a frame with the same matrix as the last
+        # sort (the view did not move) keeps the order it has.
+        matrix = camera.transform.matrix.tobytes()
+        if matrix == self._sorted_for and new_patches_enabled():
+            return
+        self._sorted_for = matrix
         reference = self.layers['board'][0].origin if 'board' in self.layers else (0, 0)
         layers = []
         for name, (_layer, meshes) in self.layers.items():
             if not meshes:
                 continue
-            z = meshes[0].transform.map((0, 0, 0.5))[2]
+            z = self._heights.get(name)
+            if z is None:
+                z = self._heights[name] = meshes[0].transform.map((0, 0, 0.5))[2]
             # Parallel PCB layers share a depth reference, even when their artwork is off-center.
             depth = camera.transform.imap((*reference, z, 1))[2]
             layers.append((depth, name, meshes))
@@ -104,6 +124,7 @@ class PCBView:
             self.canvas.scene.events.children_change()
 
     def clear(self):
+        self._invalidate()
         if not self.alive:
             self.layers.clear()
             return

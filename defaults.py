@@ -281,6 +281,7 @@ class AppDefaults:
         "global_mselect_key": 'Control',
 
         "global_delete_confirmation": True,
+        "global_ask_save_on_exit": True,
         "global_history_steps": 100,
         "global_history_memory_mb": 256,
         "global_allow_edit_in_project_tab": False,

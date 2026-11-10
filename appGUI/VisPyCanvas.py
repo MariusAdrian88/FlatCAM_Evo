@@ -17,6 +17,7 @@ from vispy.scene.cameras.base_camera import BaseCamera
 from vispy.color import Color
 from appGUI.VisPyVisuals import GridLines
 
+import os
 import time
 
 white = Color("#ffffff")
@@ -27,7 +28,8 @@ class VisPyCanvas(scene.SceneCanvas):
 
     def __init__(self, config=None):
         # scene.SceneCanvas.__init__(self, keys=None, config=config)
-        super().__init__(config=config, keys=None)
+        # Qt presents the QOpenGLWidget itself; the VisPy swap in paintGL only waits for vertical blanks.
+        super().__init__(config=config, keys=None, autoswap=os.environ.get('FLATCAM_VISPY_PATCHES') == '0')
 
         self.unfreeze()
 
@@ -135,15 +137,30 @@ class VisPyCanvas(scene.SceneCanvas):
 
         self.grid.set_gl_state(depth_test=False)
 
+        # The pending pan of a drag is applied before the scene is drawn. 'first': before SceneCanvas.on_draw, so
+        # that the update request of the new view merges into the draw that is running.
+        self.events.draw.connect(self._flush_pan_on_draw, position='first')
+
+        from appGUI.VisPyPatches import hold_gc_during_drag
+        hold_gc_during_drag(self)
+
         self.freeze()
 
         # self.measure_fps()
+
+    def _flush_pan_on_draw(self, event=None):
+        self.view.camera.flush_pan()
+
+    def render(self, *args, **kwargs):
+        self.view.camera.flush_pan()
+        return super().render(*args, **kwargs)
 
     def translate_coords(self, pos):
         """
         Translate pixels to FlatCAM units.
 
         """
+        self.view.camera.flush_pan()
         tr = self.grid.get_transform('canvas', 'visual')
         return tr.map(pos)
 
@@ -159,6 +176,7 @@ class VisPyCanvas(scene.SceneCanvas):
         """
         Translate FlatCAM units to logical canvas pixels (the inverse of translate_coords).
         """
+        self.view.camera.flush_pan()
         tr = self.grid.get_transform('visual', 'canvas')
         return tr.map(pos)
 
@@ -172,8 +190,17 @@ class VisPyCanvas(scene.SceneCanvas):
 
 class Camera(scene.PanZoomCamera):
 
+    # A pan drag is applied one time per frame: the first and the newest cursor position (canvas pixels) of the
+    # moves that were not applied yet. PanZoomCamera.__init__ sets the rect before our __init__ body runs.
+    _pan_from = None
+    _pan_to = None
+    _defer_pan = False
+
     def __init__(self, **kwargs):
         super(Camera, self).__init__(**kwargs)
+
+        from appGUI.VisPyPatches import new_patches_enabled
+        self._defer_pan = new_patches_enabled()
 
         self.minimum_scene_size = 0.01
         self.maximum_scene_size = 10000
@@ -186,9 +213,43 @@ class Camera(scene.PanZoomCamera):
 
         self.zoom_callback = lambda *args: None
 
+    def flush_pan(self):
+        """Apply the pending pan of a drag: the point under the first cursor position moves to the newest one."""
+        p1, p2 = self._pan_from, self._pan_to
+        if p1 is None:
+            return
+        self._pan_from = self._pan_to = None
+        self.pan(self._transform.imap(p1) - self._transform.imap(p2))
+
+    # Every reader and writer of the view applies the pending pan first, so that none sees a stale view.
+    @property
+    def rect(self):
+        self.flush_pan()
+        return self._rect
+
+    @rect.setter
+    def rect(self, args):
+        self.flush_pan()
+        scene.PanZoomCamera.rect.fset(self, args)
+
+    @property
+    def center(self):
+        self.flush_pan()
+        return scene.PanZoomCamera.center.fget(self)
+
+    @center.setter
+    def center(self, center):
+        self.flush_pan()
+        scene.PanZoomCamera.center.fset(self, center)
+
     def zoom(self, factor, center=None):
+        self.flush_pan()
         center = center if (center is not None) else self.center
         super(Camera, self).zoom(factor, center)
+
+    def viewbox_resize_event(self, event):
+        self.flush_pan()
+        super(Camera, self).viewbox_resize_event(event)
 
     def viewbox_mouse_event(self, event):
         """
@@ -206,10 +267,18 @@ class Camera(scene.PanZoomCamera):
         # key modifiers
         modifiers = event.mouse_event.modifiers
 
-        # Limit mouse move events
+        # Limit non-pan input events
         last_event = event.last_event
         t = time.time()
-        if t - self.last_time > 0.015:
+        is_pan_move = (event.type == 'mouse_move' and event.press_event is not None
+                       and event.button == int(self.pan_button_setting) and not modifiers)
+        if not is_pan_move:
+            self.flush_pan()
+        if is_pan_move:
+            self.last_time = t
+            # A pending throttled zoom delta must not become a pan delta or survive the pan.
+            self.last_event = None
+        elif t - self.last_time > 0.015:
             self.last_time = t
             if self.last_event:
                 last_event = self.last_event
@@ -243,9 +312,15 @@ class Camera(scene.PanZoomCamera):
                 # Translate
                 p1 = np.array(last_event.pos)[:2]
                 p2 = np.array(event.pos)[:2]
-                p1s = self._transform.imap(p1)
-                p2s = self._transform.imap(p2)
-                self.pan(p1s-p2s)
+                if self._defer_pan:
+                    if self._pan_from is None:
+                        self._pan_from = p1
+                    self._pan_to = p2
+                    self._viewbox.update()
+                else:
+                    p1s = self._transform.imap(p1)
+                    p2s = self._transform.imap(p2)
+                    self.pan(p1s-p2s)
                 event.handled = True
             elif event.button in [2, 3] and 'Shift' in modifiers:
                 # Zoom
