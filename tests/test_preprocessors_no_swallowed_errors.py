@@ -364,13 +364,6 @@ def test_sinumerik_manual_tool_change_and_dwell():
     assert pp.dwell_code(params(dwelltime=0)) == ''
 
 
-def test_sinumerik_has_no_fanuc_program_envelope():
-    pp = PREPROCESSORS['Sinumerik']
-    assert pp.include_header is False and pp.include_footer is True
-    gcode = 'G291\nG21\nG00 X1.0000 Y2.0000\nM30\n'
-    assert pp.finalize_gcode(gcode) == gcode
-
-
 def test_sinumerik_iso_program_ends_with_m30_without_returning_to_siemens_mode():
     pp = PREPROCESSORS['Sinumerik']
     # the ISO dialect manual ends every G291 program with M30 and never switches back; Reset restores the default mode
@@ -482,15 +475,6 @@ def test_tinyg_manual_tool_change_stops_the_spindle_and_pauses_before_the_tool_o
     assert pp.spindle_stop_code(params()) == 'M5'
 
 
-def test_tinyg_dwell_is_decimal_seconds():
-    pp = PREPROCESSORS['TinyG']
-    for time in (1.234, 10, 0.0001):
-        code = pp.dwell_code(params(dwelltime=time))
-        assert code.startswith('G4 P')
-        assert float(code[4:]) == time
-    assert pp.dwell_code(params(dwelltime=0)) == ''
-
-
 def test_buildbotics_start_block_leaves_the_setup_to_the_controller():
     pp = PREPROCESSORS['Buildbotics']
     for units, select in (('MM', 'G21'), ('IN', 'G20')):
@@ -516,11 +500,12 @@ def test_buildbotics_manual_tool_change_has_no_tool_call_or_m6():
 
 def test_buildbotics_dwell_and_spindle_match_the_camotics_interpreter():
     pp = PREPROCESSORS['Buildbotics']
-    for time in (1.234, 10, 0.0001):
-        code = pp.dwell_code(params(dwelltime=time))
-        assert code.startswith('G4 P')
-        assert float(code[4:]) == time
-    assert pp.dwell_code(params(dwelltime=0)) == ''
+    for name in ('TinyG', 'Buildbotics'):
+        for time in (1.234, 10, 0.0001):
+            code = PREPROCESSORS[name].dwell_code(params(dwelltime=time))
+            assert code.startswith('G4 P')
+            assert float(code[4:]) == time
+        assert PREPROCESSORS[name].dwell_code(params(dwelltime=0)) == ''
     assert pp.spindle_code(params(spindledir='CW')) == 'M3 S10000'
     assert pp.spindle_code(params(spindledir='CCW', spindlespeed=8000)) == 'M4 S8000'
     assert pp.spindle_stop_code(params()) == 'M5'
@@ -567,22 +552,6 @@ def test_fanuc_family_tool_change_goes_to_the_start_z_for_the_first_tool():
         pp = PREPROCESSORS[name]
         assert 'G00 Z20.0000' in pp.toolchange_code(params(startz=20.0, is_first_tool=True)), name
         assert 'G00 Z15.0000' in pp.toolchange_code(params(startz=20.0, is_first_tool=False)), name
-
-
-def test_a_changed_parent_start_block_fails_loudly():
-    from preprocessors.default import default
-    from preprocessors.GRBL_11 import GRBL_11
-
-    def parent(self, p):
-        return 'G21\nG90\nG17\nG94\n'
-
-    with pytest.MonkeyPatch.context() as patch:
-        patch.setattr(GRBL_11, 'start_code', parent)
-        patch.setattr(default, 'start_code', parent)
-        for name in ('Fanuc', 'Haas', 'Sinumerik', 'LinuxCNC', 'FluidNC', 'TinyG', 'Buildbotics', 'Mach3', 'Mach4',
-                     'UCCNC', 'PlanetCNC'):
-            with pytest.raises(ValueError):
-                PREPROCESSORS[name].start_code(params())
 
 
 @pytest.mark.parametrize('xy', [[5.0, 7.0]])

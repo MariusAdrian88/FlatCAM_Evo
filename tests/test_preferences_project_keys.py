@@ -155,26 +155,27 @@ class TestExcellonPreferences(unittest.TestCase):
 # The Preferences window: the real forms of MainGUI, the real PreferencesUIManager, opened as the menu opens it
 # ------------------------------------------------------------------------------------------------------------------
 
-@pytest.fixture
-def pref_app(tmp_path, monkeypatch):
-    """An App mock with a real MainGUI and PreferencesUIManager; yields it with the Preferences window open."""
+@pytest.fixture(scope='module')
+def _pref_env(tmp_path_factory):
+    """One real MainGUI (1.7 s to build) for the module; pref_app puts it back to the factory state for each test."""
     from appGUI.MainGUI import MainGUI
     from appHandlers.appUIActions import AppUIActions
+    tmp_path = tmp_path_factory.mktemp('prefs')
     qapp = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
     defaults = AppDefaults(beta=False)
     app = MagicMock(decimals=4, resource_location='assets/resources', data_path=str(tmp_path))
     app.defaults = defaults
     app.options = AppOptions(version='test', baseline=defaults, defaults=defaults)
+    monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(OptionsGroupUI, 'app', app)
     ui = MainGUI(app)
     app.ui = ui
     app.preferencesUiManager = PreferencesUIManager(defaults, str(tmp_path), ui, MagicMock(), app.options)
-    app.preferencesUiManager.defaults_write_form()
     app.ui_actions = AppUIActions(app)
     app.on_preferences = app.ui_actions.on_preferences
     app.on_toggle_preferences = app.ui_actions.on_toggle_preferences
-    app.on_preferences()
-    yield app
+    factory = deepcopy(dict(defaults))
+    yield app, factory
     if ui.preferences_window is not None:
         ui.preferences_window.close_quietly()
     # a full MainGUI left to the interpreter exit crashes the process
@@ -182,6 +183,28 @@ def pref_app(tmp_path, monkeypatch):
     ui.deleteLater()
     QtCore.QCoreApplication.sendPostedEvents(None, QtCore.QEvent.Type.DeferredDelete.value)
     qapp.processEvents()
+    monkeypatch.undo()
+
+
+@pytest.fixture
+def pref_app(_pref_env):
+    """An App mock with a real MainGUI and PreferencesUIManager; yields it with the Preferences window open."""
+    from appGUI import shortcuts
+    app, factory = _pref_env
+    ui = app.ui
+    if ui.preferences_window is not None:
+        ui.preferences_window.close_quietly()
+    shortcuts.registry().reset_all()
+    app.defaults.update(deepcopy(factory))
+    app.options.update(deepcopy(factory))
+    manager = app.preferencesUiManager
+    manager.defaults_write_form()
+    manager.preferences_changed_flag = False
+    app.on_preferences()
+    yield app
+    if ui.preferences_window is not None:
+        ui.preferences_window.close_quietly()
+    shortcuts.registry().reset_all()
 
 
 def answer_save_question(monkeypatch, answer, module='appGUI.preferences.PreferencesUIManager'):

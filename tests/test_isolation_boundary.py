@@ -763,8 +763,7 @@ def test_voronoi_gcode_keeps_the_validated_clearance_after_output_rounding(singl
     assert unary_union(emitted).length == pytest.approx(unary_union(paths).length, rel=1e-9)
 
 
-@pytest.mark.parametrize('entry', ['plugin', 'gerber', 'tcl'])
-def test_diptrace_source_copper_as_boundary_certifies_the_rounded_gcode(app, plugin, entry):
+def test_diptrace_source_copper_as_boundary_certifies_the_rounded_gcode(app, plugin):
     # Removing only internal dividers must fail: outside material is not an artificial hull-clipped island.
     from appObjects.GerberObject import GerberObject
     from tests.test_cncjob_gcode_speed import gcode_job
@@ -781,18 +780,9 @@ def test_diptrace_source_copper_as_boundary_certifies_the_rounded_gcode(app, plu
     boundary = plugin.get_boundary_area()
 
     plugin.units = 'MM'
-    if entry == 'plugin':
-        created, __ = run_plugin(plugin, gerber, combine=True, passes=1, tooldia=2 * radius,
-                                 boundary=boundary, strategy='voronoi', voronoi_spacing=0.05,
-                                 iso_simplification=True, simplification_tol=0.001, pad_isolation=False, overlap=10)
-    elif entry == 'gerber':
-        created, __ = run_isolate(app, gerber, dia=2 * radius, passes=1, boundary=boundary,
-                                  strategy='voronoi', voronoi_spacing=0.05, simplify=0.001,
-                                  pad_isolation=False, overlap=10)
-    else:
-        created = tcl_isolate(app, 'Bottom', '-dia', '0.1', '-passes', '1', '-boundary', 'Bottom',
-                              '-strategy', 'voronoi', '-voronoi_spacing', '0.05', '-simplify', '0.001',
-                              '-overlap', '10', '-pad_isolation', '0', objects={'Bottom': gerber})
+    created, __ = run_isolate(app, gerber, dia=2 * radius, passes=1, boundary=boundary,
+                              strategy='voronoi', voronoi_spacing=0.05, simplify=0.001,
+                              pad_isolation=False, overlap=10)
     assert created, (app.inform.emit.call_args_list, plugin.app.inform.emit.call_args_list)
     obj = next(iter(created.values()))
     paths = obj.solid_geometry

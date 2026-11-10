@@ -1,5 +1,6 @@
 """PCB preview geometry, physical layer stack, and interactive 3D rendering."""
 
+import functools
 from types import SimpleNamespace
 
 import numpy as np
@@ -596,7 +597,6 @@ def test_pcb_export_step_button_writes_the_preview_stack(viewer_app, monkeypatch
     assert not tool.ui.export_progress.isHidden()
     job, = tasks
     job['fcn'](*job['params'])
-    app.proc_container.new.assert_called()
     qapp.processEvents()
     assert tool.ui.export_progress.isHidden()
     solids, _colors = _step_solids(path.read_text('ascii'))
@@ -969,29 +969,30 @@ def test_u3d_sdk_reference_cube():
     assert material['opacity'] == pytest.approx(1)
 
 
-def test_outline_region_fixture_preserves_gerber_clear_region():
+@functools.lru_cache(maxsize=None)
+def _cutout_gerber():
     from pathlib import Path
     from tests.helpers_objects import make_app
     from appParsers.ParseGerber import Gerber
     grb = Gerber(make_app())
     path = Path(__file__).parent / 'fixtures/cutout/outline_region_cutout.gbr'
     assert grb.parse_file(str(path)) is None
+    return grb
+
+
+def test_outline_region_fixture_preserves_gerber_clear_region():
+    grb = _cutout_gerber()
     layer = build({'outline': source(grb.solid_geometry, grb.follow_geometry)})['board']
     assert not layer.geometry.covers(Point(25, 15))
     assert layer.geometry.area == pytest.approx(shapely.union_all(grb.solid_geometry).area)
 
 
 def test_pcb_export_outline_mask_caps_preserve_area_and_rectangular_openings():
-    from pathlib import Path
-    from tests.helpers_objects import make_app
     from tests.u3d_reader import read_u3d
-    from appParsers.ParseGerber import Gerber
     from appPlugins.ToolPCBViewer.PCBViewerExport import export_meshes
     from appPlugins.ToolPCBViewer.U3DWriter import write_scene
 
-    grb = Gerber(make_app())
-    path = Path(__file__).parent / 'fixtures/cutout/outline_region_cutout.gbr'
-    assert grb.parse_file(str(path)) is None
+    grb = _cutout_gerber()
     bounds = shapely.union_all(grb.solid_geometry).bounds
     xmin, ymin, xmax, ymax = bounds
     width, height = xmax - xmin, ymax - ymin

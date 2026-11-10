@@ -1,6 +1,8 @@
 # Test files that run_core.py skips (the full gate, run_gate.py, still runs them).
 # Format: <path>  # <measured seconds in one 8-worker run>   (one per line; blank and # lines are ignored)
 # Regenerate: time every file with pytest --junitxml, list the slowest files until the rest runs in about 30-35 s.
+tests/test_pads_parser.py  # 39 s serial (4 real PADS boards, 6-9 s parse each)
+tests/test_pcbdoc_parser.py  # 21 s serial (CircuitMaker board against its Gerber X2 output)
 tests/test_app_history_plugins.py  # 12.7 s
 tests/test_drilling_gen.py  # 11.5 s
 tests/test_sprint_layout_e2e.py  # 8.7 s

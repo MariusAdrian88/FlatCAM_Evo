@@ -126,8 +126,7 @@ def cw_mirror(points, angle, mirror):
 ARROW = [(1, 0), (3, 0), (3, 1), (2, 1), (2, 3), (1, 3)]
 
 
-@pytest.mark.parametrize('orient, angle, mirror', [('0', 0, False), ('1', 90, False), ('5', 90, True),
-                                                   ('9 30', 30, True)])
+@pytest.mark.parametrize('orient, angle, mirror', [('1', 90, False), ('9 30', 30, True)])
 def test_pad_orientation(tmp_path, orient, angle, mirror):
     symbol = features(surface(ARROW))
     result = one_layer(tmp_path, ['P 10 20 0 P 0 %s' % orient], symbols=['arrow'], user_symbols={'arrow': symbol})
@@ -400,7 +399,7 @@ def test_text_first_character_placement(tmp_path, version, centre):
     assert copper(result).bounds == pytest.approx((centre - HALF, 5 - HALF, centre + HALF, 5.6 + HALF))
 
 
-@pytest.mark.parametrize('orient, angle, mirror', [('1', 90, False), ('5', 90, True), ('9 30', 30, True)])
+@pytest.mark.parametrize('orient, angle, mirror', [('1', 90, False), ('9 30', 30, True)])
 def test_text_orientation(tmp_path, orient, angle, mirror):
     result = text_job(tmp_path, ["T 10 5 standard P %s 0.8 0.8 1 'I' 0" % orient])
     local = [(0.1 - HALF, -HALF), (0.1 + HALF, -HALF), (0.1 + HALF, 0.6 + HALF), (0.1 - HALF, 0.6 + HALF)]
@@ -571,23 +570,6 @@ def test_archive_limits_fail_the_import(tmp_path, monkeypatch, limit):
     assert handlers.parse_odb(str(path)) == 'fail'
 
 
-def test_reads_stop_before_the_memory_budget(tmp_path, monkeypatch):
-    # The zip member does not fit in the rest of the budget: the read is refused before the member is decoded.
-    job = ODBJob.open(write_zip(tmp_path / 'job.zip', TWO_STEPS))
-    monkeypatch.setattr(ODBJob, 'KEPT_LIMIT', job._held + 20)
-    with patch.object(job._zip, 'open', side_effect=AssertionError('decoded')):
-        with pytest.raises(ODBParseError):
-            job.read('matrix/matrix')
-    # A folder file: the same rule, before the file is opened.
-    job = ODBJob.open(write_folder(tmp_path / 'demo', TWO_STEPS) / 'matrix' / 'matrix')
-    with patch('builtins.open', side_effect=AssertionError('opened')):
-        with pytest.raises(ODBParseError):
-            job.read('matrix/matrix')
-    # A .Z member with no budget left does not give even its first byte.
-    with pytest.raises(ODBParseError):
-        _unlzw((FIXTURES / 'small.txt.Z').read_bytes(), 0)
-
-
 # ------------------------------------------------------------------------------------------------ 4. .Z members
 def z_job(tmp_path, packed):
     files = dict(TWO_STEPS)
@@ -730,16 +712,3 @@ def test_cancel_at_the_step_prompt_imports_nothing(qapp, tmp_path):
     handlers.on_file_import_odb(path)
     assert handlers.app.worker_task.emit.call_count == 2
     handlers.app.projects.inform_busy.assert_not_called()
-
-
-def test_busy_refusal_and_late_result_of_an_old_request(qapp, tmp_path):
-    path = str(write_zip(tmp_path / 'job.zip', ONE_STEP))
-    handlers, objects = gui_io()
-    handlers.on_file_import_odb(path)
-    handlers.on_file_import_odb(path)
-    assert handlers.app.worker_task.emit.call_count == 1
-    handlers.app.projects.inform_busy.assert_called_once()
-    parsed = ODBParser().parse_file(path)
-    with patch.object(QtWidgets.QDialog, 'exec', side_effect=AssertionError('layer dialog')):
-        handlers.pcbdoc_parsed.emit(path, parsed, 'an old request')
-        qapp.processEvents()

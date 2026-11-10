@@ -3707,3 +3707,40 @@ tests/updater/test_updater_apply.py::TestUpdaterApplication::test_source_edits_a
 tests/updater/test_updater_integration.py::test_rollback_action_requires_valid_restore_point_and_waits_for_ack  # 2026-11-08 updater rework: replaced by test_revert_update_needs_a_previous_release_record_and_installs_it_as_a_revert_job
 tests/test_gerber_editor_clear.py::TestBuildEditTools::test_clear_object_is_loaded_as_its_composed_geometry  # 2026-11-09 Gerber editor keeps apertures: renamed to test_clear_object_can_still_be_loaded_as_its_composed_geometry
 tests/test_gerber_editor_clear.py::TestEditorSaveWithClear::test_loaded_as_regions_keeps_the_composed_geometry[True]  # 2026-11-09 Gerber editor keeps apertures: replaced by test_save_keeps_the_composed_geometry
+# 2026-11-10 prune of the new import, isolation, preprocessor and 3D canvas tests
+tests/test_pads_parser.py::test_native_sdb_decodes_placements_and_references_without_ascii[LCORE_2-8230-C4-position0-90-counts0]  # prune 2026-11-10: reader-internal decode facts, covered by the native-vs-ASCII copper/drill/silkscreen equality
+tests/test_pads_parser.py::test_native_sdb_decodes_placements_and_references_without_ascii[TMS1mmX19-8231-JM3-position1-270-counts1]  # prune 2026-11-10: reader-internal decode facts, covered by the native-vs-ASCII equality
+tests/test_pads_parser.py::test_native_sdb_rejects_truncation_and_out_of_range_references[header]  # prune 2026-11-10: same branch as footer truncation
+tests/test_pads_parser.py::test_native_sdb_rejects_truncation_and_out_of_range_references[extent]  # prune 2026-11-10: same branch as directory out-of-range
+tests/test_pads_parser.py::test_native_lcore_hole_diameters_and_design_positions_include_vias  # prune 2026-11-10: merged into test_native_board_imports_copper_outline_and_positioned_drilling[LCORE_2] (imported NPTH/via drills)
+tests/test_pads_parser.py::test_native_drill_plating_is_the_stored_flag_and_equals_the_ascii_declaration[LCORE_2-counts0]  # prune 2026-11-10: merged into test_native_board_imports_copper_outline_and_positioned_drilling
+tests/test_pads_parser.py::test_native_drill_plating_is_the_stored_flag_and_equals_the_ascii_declaration[TMS1mmX19-counts1]  # prune 2026-11-10: merged into test_native_board_imports_copper_outline_and_positioned_drilling
+tests/test_pads_parser.py::test_native_board_imports_copper_outline_and_positioned_drilling[LCORE_2-20-0]  # prune 2026-11-10: renamed, new id [LCORE_2-counts0-20-0] (merged with plating test)
+tests/test_pads_parser.py::test_native_board_imports_copper_outline_and_positioned_drilling[TMS1mmX19-83-3]  # prune 2026-11-10: renamed, new id [TMS1mmX19-counts1-83-3] (merged with plating test)
+tests/test_pads_parser.py::test_native_saved_copper_and_curved_outline_match_verified_ascii_records[LCORE_2]  # prune 2026-11-10: merged into test_native_board_equals_its_ascii_twin_in_saved_copper_outline_and_silkscreen[LCORE_2]
+tests/test_pads_parser.py::test_native_saved_copper_and_curved_outline_match_verified_ascii_records[TMS1mmX19]  # prune 2026-11-10: merged into test_native_board_equals_its_ascii_twin_in_saved_copper_outline_and_silkscreen[TMS1mmX19]
+tests/test_pads_parser.py::test_native_tms_copper_with_thermal_and_antipad_pad_rows_equals_ascii  # prune 2026-11-10: merged into the ASCII-twin test [TMS1mmX19]
+tests/test_pads_parser.py::test_native_labels_and_text_match_the_ascii_silkscreen[LCORE_2]  # prune 2026-11-10: merged into the ASCII-twin test [LCORE_2] (stroke bounds/area compare, no slow union)
+tests/test_pads_parser.py::test_native_labels_and_text_match_the_ascii_silkscreen[TMS1mmX19]  # prune 2026-11-10: merged into the ASCII-twin test [TMS1mmX19]
+tests/test_pads_parser.py::test_native_clearance_rules_equal_the_ascii_rule_table  # prune 2026-11-10: reader-internal rule table, the file's own clearance is checked by the pour clearance test
+tests/test_pads_parser.py::test_native_lcore_copper_with_pours_matches_the_ascii_import_of_the_same_rules  # prune 2026-11-10: 6 s extra full ASCII parse for pour slivers; routed copper equality stays in the teardrop test, pours in the clearance test
+tests/test_pads_parser.py::test_native_pour_clearance_does_not_use_default_drawing_linewidth  # prune 2026-11-10: kept under the same id, but now compares the clearance rule rows (no 9 s re-parse)
+tests/test_pcbdoc_import.py::TestPcbDocImport::test_pads_chooser_imports_layers_and_drills_in_project_units  # prune 2026-11-10: moved to tests/test_pads_parser.py (TestPadsImportWorker::test_chooser_imports_layers_and_drills_in_project_units)
+tests/test_pcbdoc_import.py::TestPcbDocImport::test_rejected_pads_import_reports_failure_and_releases_worker_request  # prune 2026-11-10: moved to tests/test_pads_parser.py (TestPadsImportWorker::test_rejected_import_reports_failure_and_releases_worker_request)
+tests/test_pcbdoc_import.py::TestPcbDocImport::test_native_lcore_exports_both_copper_layers_and_drills_in_inches  # prune 2026-11-10: moved to tests/test_pads_parser.py::TestPadsImportWorker::test_native_board_exports_both_copper_layers_and_drills[LCORE_2.pcb]
+tests/test_pcbdoc_import.py::TestPcbDocImport::test_native_tms_exports_both_copper_layers_round_holes_and_slots  # prune 2026-11-10: moved to tests/test_pads_parser.py::TestPadsImportWorker::test_native_board_exports_both_copper_layers_and_drills[TMS1mmX19.pcb]
+tests/test_pcbdoc_import.py::TestPcbDocImport::test_2005_full_lcore_exports_both_copper_layers_and_drills_in_inches  # prune 2026-11-10: removed (ASCII LCORE round-trip: same export path as the native one and ClaySight chooser test)
+tests/test_pcbdoc_import.py::TestPcbDocImport::_pads_board_roundtrip  # prune 2026-11-10: helper moved into tests/test_pads_parser.py as the native export test
+tests/test_odb_import.py::test_reads_stop_before_the_memory_budget  # prune 2026-11-10: mock-only call-order check, archive limit tests cover refusal
+tests/test_odb_import.py::test_busy_refusal_and_late_result_of_an_old_request  # prune 2026-11-10: mock/call-count only
+tests/test_odb_import.py::test_pad_orientation[0-0-False]  # prune 2026-11-10: same branch as other orientations
+tests/test_odb_import.py::test_pad_orientation[5-90-True]  # prune 2026-11-10: same branch as 9 30 mirror case
+tests/test_odb_import.py::test_text_orientation[5-90-True]  # prune 2026-11-10: same branch as 9 30 mirror case
+tests/test_pcbdoc_parser.py::TestPcbDocParser::test_stream_roles_are_found_by_content_without_names  # prune 2026-11-10: private _stream_roles; CircuitMaker e2e test covers hidden names
+tests/test_isolation_boundary.py::test_diptrace_source_copper_as_boundary_certifies_the_rounded_gcode[plugin]  # prune 2026-11-10: entry points share the Voronoi path; entry wiring covered by test_voronoi_pad_option_reaches_final_certified_gcode[3 entries]
+tests/test_isolation_boundary.py::test_diptrace_source_copper_as_boundary_certifies_the_rounded_gcode[tcl]  # prune 2026-11-10: same as above
+tests/test_isolation_boundary.py::test_diptrace_source_copper_as_boundary_certifies_the_rounded_gcode[gerber]  # prune 2026-11-10: renamed to unparametrized id (no [gerber])
+tests/test_preprocessors_no_swallowed_errors.py::test_a_changed_parent_start_block_fails_loudly  # prune 2026-11-10: monkeypatched parent start_code, pins inheritance design only
+tests/test_preprocessors_no_swallowed_errors.py::test_sinumerik_has_no_fanuc_program_envelope  # prune 2026-11-10: folded into test_sinumerik_iso_program_ends_with_m30_without_returning_to_siemens_mode
+tests/test_preprocessors_no_swallowed_errors.py::test_tinyg_dwell_is_decimal_seconds  # prune 2026-11-10: folded into test_buildbotics_dwell_and_spindle_match_the_camotics_interpreter (TinyG loop)
+tests/test_plotcanvas3d.py::TestPlotCanvas3d::test_2d_non_pan_input_keeps_the_existing_throttle  # prune 2026-11-10: pinned exact throttle timings and handled flags of the camera, not a visible result

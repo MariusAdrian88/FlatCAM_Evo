@@ -400,12 +400,20 @@ def welcome_startup(qapp, monkeypatch, tmp_path):
         def place_on_cursor_screen(self):
             pass
 
+    class Splash(QtWidgets.QWidget):
+        # QSplashScreen.show() and finish() each wait 1 s for a window exposure that the offscreen platform lacks
+        def finish(self, widget):
+            self.close()
+
+        def showMessage(self, *args, **kwargs):
+            pass
+
     defaults = AppDefaults(beta=False)
     defaults.old_defaults_found = False
     options = AppOptions(version='test', baseline=defaults, defaults=defaults)
     options.update({'global_welcome': True, 'global_systray_icon': False, 'global_version_check': False})
     app = StartupApp(qapp=qapp, ui=Window(), headless=False, defaults=defaults, options=options,
-                          splash=QtWidgets.QSplashScreen(), log=Mock(), inform=Mock(), trayIcon=None,
+                          splash=Splash(), log=Mock(), inform=Mock(), trayIcon=None,
                           refresh_rollback_action=Mock(), new_launch=None, file_open_filter=None,
                           cmd_line_shellvar='', cmd_line_shellfile='', cmd_line_command='',
                           _open_requests=deque(), _open_busy=False, _open_retry_pending=False,

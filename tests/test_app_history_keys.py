@@ -314,7 +314,7 @@ class _Recorder:
     def press(self, key, modifiers, from_list):
         """Press 1 key; returns the calls that it made, as text."""
         gui = self.gui
-        gui.reset_mock()
+        gui.mock_calls.clear()      # only mock_calls are read; reset_mock() walks every child and is slow
         self.modifiers = modifiers
         event = int(key) if from_list else _VispyEvent(vispy_key(key))
         try:

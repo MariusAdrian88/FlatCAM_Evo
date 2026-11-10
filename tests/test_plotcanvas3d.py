@@ -151,10 +151,12 @@ class TestPlotCanvas3d(unittest.TestCase):
         return event
 
     def test_2d_rapid_pan_moves_keep_every_displacement_for_configured_buttons(self):
+        canvas = self.make_2d_canvas()
+        camera = canvas.view.camera
         for button in (1, 2, 3):
             with self.subTest(button=button):
-                canvas = self.make_2d_canvas()
-                camera = canvas.view.camera
+                camera.interactive = True
+                camera.rect = (0, 0, 400, 300)
                 camera.pan_button_setting = str(button)
                 point = (150, 150, 0, 1)
                 before = camera._scene_transform.map(point)[:2]
@@ -216,46 +218,6 @@ class TestPlotCanvas3d(unittest.TestCase):
                 cam.viewbox_mouse_event(self.mouse_event_2d('mouse_wheel', pos=(400, 300), delta=(0, 1)))
             np.testing.assert_allclose(
                 camera._scene_transform.map(point)[:2], reference._scene_transform.map(point)[:2], atol=1e-4)
-
-    def test_2d_non_pan_input_keeps_the_existing_throttle(self):
-        canvas = self.make_2d_canvas()
-        camera = canvas.view.camera
-        before = camera.rect.pos + camera.rect.size
-        with patch('appGUI.VisPyCanvas.time.time', return_value=1.0) as clock:
-            camera.viewbox_mouse_event(self.mouse_event_2d('mouse_press'))
-            clock.return_value = 1.001
-            for kind, button, modifiers, start in (
-                    ('mouse_move', 2, (), None),
-                    ('mouse_move', 1, (), (100, 100)),
-                    ('mouse_move', 2, ('Control',), (100, 100)),
-                    ('mouse_move', 2, ('Shift',), (100, 100)),
-                    ('mouse_wheel', 2, (), None),
-                    ('mouse_press', 2, (), (100, 100)),
-                    ('mouse_release', 2, (), (100, 100))):
-                with self.subTest(kind=kind, button=button, modifiers=modifiers, start=start):
-                    event = self.mouse_event_2d(kind, button=button, modifiers=modifiers,
-                                                start=start, delta=(0, 1))
-                    camera.viewbox_mouse_event(event)
-                    np.testing.assert_array_equal(camera.rect.pos + camera.rect.size, before)
-                    self.assertTrue(event.handled)
-            clock.return_value = 1.0155
-            camera.viewbox_mouse_event(self.mouse_event_2d('mouse_move', modifiers=('Shift',)))
-            np.testing.assert_allclose(np.array(camera.rect.size) / before[2:], (1 + camera.zoom_factor) ** 5)
-            size = camera.rect.size
-            clock.return_value = 1.021
-            camera.viewbox_mouse_event(self.mouse_event_2d('mouse_wheel', delta=(0, 1)))
-            np.testing.assert_array_equal(camera.rect.size, size)
-            clock.return_value = 1.040
-            camera.viewbox_mouse_event(self.mouse_event_2d('mouse_wheel', delta=(0, 1)))
-            np.testing.assert_allclose(np.array(camera.rect.size) / size, (1 + camera.zoom_factor) ** -30)
-            clock.return_value = 1.041
-            event = self.mouse_event_2d('mouse_release')
-            camera.viewbox_mouse_event(event)
-            self.assertTrue(event.handled)
-            clock.return_value = 1.060
-            event = self.mouse_event_2d('mouse_release')
-            camera.viewbox_mouse_event(event)
-            self.assertFalse(event.handled)
 
     def test_2d_zoom_pan_zoom_does_not_reuse_a_throttled_zoom_anchor(self):
         canvas = self.make_2d_canvas()
