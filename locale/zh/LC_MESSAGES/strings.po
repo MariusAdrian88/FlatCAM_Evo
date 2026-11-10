@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "POT-Creation-Date: 2022-05-17 14:38+0300\n"
-"PO-Revision-Date: 2026-11-10 01:20+0100\n"
+"PO-Revision-Date: 2026-11-10 20:37+0100\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: zh_CN\n"
@@ -111,7 +111,7 @@ msgstr "书签已移除。"
 msgid "Export Bookmarks"
 msgstr "导出书签"
 
-#: Bookmark.py:302 appGUI/MainGUI.py:739
+#: Bookmark.py:302 appGUI/MainGUI.py:747
 msgid "Bookmarks"
 msgstr "书签"
 
@@ -123,23 +123,23 @@ msgstr "书签"
 #: appEditors/geo_plugins/GeoPaintPlugin.py:174
 #: appEditors/geo_plugins/GeoTransformationPlugin.py:221
 #: appEditors/grb_plugins/GrbOperationDialogs.py:81
-#: appEditors/grb_plugins/GrbTransformationPlugin.py:403 appGUI/MainGUI.py:3200
-#: appGUI/MainGUI.py:3318 appGUI/shortcut_actions.py:579
+#: appEditors/grb_plugins/GrbTransformationPlugin.py:403 appGUI/MainGUI.py:3208
+#: appGUI/MainGUI.py:3326 appGUI/shortcut_actions.py:579
 #: appGUI/shortcut_actions.py:735 appGUI/shortcut_actions.py:815
-#: appGUI/shortcut_actions.py:916 appHandlers/appIO.py:744
-#: appHandlers/appIO.py:788 appHandlers/appIO.py:832 appHandlers/appIO.py:857
-#: appHandlers/appIO.py:897 appHandlers/appIO.py:921 appHandlers/appIO.py:973
-#: appHandlers/appIO.py:1043 appHandlers/appIO.py:1079
-#: appHandlers/appIO.py:1125 appHandlers/appIO.py:1167
-#: appHandlers/appIO.py:1210 appHandlers/appIO.py:1251
-#: appHandlers/appIO.py:1293 appHandlers/appIO.py:1341
-#: appHandlers/appIO.py:1405 appHandlers/appIO.py:1435
-#: appHandlers/appIO.py:1465 appHandlers/appIO.py:1713
-#: appHandlers/appIO.py:1750 appHandlers/appIO.py:1793
-#: appHandlers/appIO.py:1832 appHandlers/appIO.py:1953
-#: appHandlers/appIO.py:2000 appHandlers/appIO.py:2415
-#: appHandlers/appIO.py:2451 appHandlers/appIO.py:3561
-#: appHandlers/appIO.py:3618 appHandlers/appObjectOps.py:490 appMain.py:1937
+#: appGUI/shortcut_actions.py:916 appHandlers/appIO.py:845
+#: appHandlers/appIO.py:889 appHandlers/appIO.py:933 appHandlers/appIO.py:958
+#: appHandlers/appIO.py:998 appHandlers/appIO.py:1022 appHandlers/appIO.py:1074
+#: appHandlers/appIO.py:1144 appHandlers/appIO.py:1180
+#: appHandlers/appIO.py:1226 appHandlers/appIO.py:1268
+#: appHandlers/appIO.py:1311 appHandlers/appIO.py:1352
+#: appHandlers/appIO.py:1394 appHandlers/appIO.py:1442
+#: appHandlers/appIO.py:1506 appHandlers/appIO.py:1536
+#: appHandlers/appIO.py:1566 appHandlers/appIO.py:1814
+#: appHandlers/appIO.py:1851 appHandlers/appIO.py:1894
+#: appHandlers/appIO.py:1933 appHandlers/appIO.py:2054
+#: appHandlers/appIO.py:2101 appHandlers/appIO.py:2516
+#: appHandlers/appIO.py:2552 appHandlers/appIO.py:3662
+#: appHandlers/appIO.py:3719 appHandlers/appObjectOps.py:490 appMain.py:1937
 #: appMain.py:1973 appMain.py:3151 appObjects/CNCJobObject.py:905
 #: appObjects/DocumentObject.py:275 appObjects/ObjectCollection.py:287
 #: appParsers/ParseGerber.py:2800 appParsers/ParseGerber.py:2840
@@ -170,10 +170,10 @@ msgstr "书签"
 msgid "Cancelled."
 msgstr "已取消。"
 
-#: Bookmark.py:317 appEditors/appTextEditor.py:610 appHandlers/appIO.py:2331
-#: appHandlers/appIO.py:2385 appHandlers/appIO.py:2574
-#: appHandlers/appIO.py:2749 appHandlers/appIO.py:2838
-#: appHandlers/appIO.py:4320 appMain.py:3156 appObjects/CNCJobObject.py:1338
+#: Bookmark.py:317 appEditors/appTextEditor.py:610 appHandlers/appIO.py:2432
+#: appHandlers/appIO.py:2486 appHandlers/appIO.py:2675
+#: appHandlers/appIO.py:2850 appHandlers/appIO.py:2939
+#: appHandlers/appIO.py:4421 appMain.py:3156 appObjects/CNCJobObject.py:1338
 #: appPlugins/Common/levelling_core.py:1747 appPlugins/ToolFilm/Film.py:490
 #: appPlugins/ToolLevelling/Levelling.py:500
 #: appPlugins/ToolSolderPaste/SolderPaste.py:1205
@@ -184,8 +184,8 @@ msgstr ""
 "权限被拒绝，无法保存。\n"
 "文件很可能正被另一个应用程序占用，因而无法访问。"
 
-#: Bookmark.py:328 Bookmark.py:359 appDatabase.py:2462 defaults.py:1391
-#: defaults.py:1683
+#: Bookmark.py:328 Bookmark.py:359 appDatabase.py:2462 defaults.py:1392
+#: defaults.py:1684
 msgid "Could not load the file."
 msgstr "无法打开文件。"
 
@@ -349,8 +349,8 @@ msgid "General"
 msgstr "常规"
 
 # auto-review 2026-10-09: corrected
-#: appDatabase.py:145 appDatabase.py:569 appGUI/MainGUI.py:1372
-#: appGUI/MainGUI.py:2629 appGUI/ObjectUI.py:768 appGUI/ObjectUI.py:1044
+#: appDatabase.py:145 appDatabase.py:569 appGUI/MainGUI.py:1380
+#: appGUI/MainGUI.py:2637 appGUI/ObjectUI.py:768 appGUI/ObjectUI.py:1044
 #: appGUI/ToolLibrary.py:14 appGUI/preferences/PreferencesWindow.py:33
 #: appGUI/shortcut_actions.py:160 appPlugins/ToolMilling/Milling.py:304
 #: appPlugins/ToolMilling/Milling.py:306 appPlugins/ToolMilling/Milling.py:325
@@ -358,8 +358,8 @@ msgstr "常规"
 msgid "Milling"
 msgstr "铣削"
 
-#: appDatabase.py:145 appDatabase.py:569 appGUI/MainGUI.py:1370
-#: appGUI/MainGUI.py:2627 appGUI/ObjectUI.py:760 appGUI/ToolLibrary.py:14
+#: appDatabase.py:145 appDatabase.py:569 appGUI/MainGUI.py:1378
+#: appGUI/MainGUI.py:2635 appGUI/ObjectUI.py:760 appGUI/ToolLibrary.py:14
 #: appGUI/preferences/PreferencesWindow.py:32 appGUI/shortcut_actions.py:151
 #: appPlugins/ToolDrilling/Drilling.py:84
 #: appPlugins/ToolDrilling/Drilling.py:228
@@ -368,8 +368,8 @@ msgid "Drilling"
 msgstr "钻孔"
 
 #: appDatabase.py:146 appDatabase.py:149 appDatabase.py:317 appDatabase.py:569
-#: appDatabase.py:900 appEditors/appGCodeEditor.py:211 appGUI/MainGUI.py:1377
-#: appGUI/MainGUI.py:2634 appGUI/ToolLibrary.py:14
+#: appDatabase.py:900 appEditors/appGCodeEditor.py:211 appGUI/MainGUI.py:1385
+#: appGUI/MainGUI.py:2642 appGUI/ToolLibrary.py:14
 #: appGUI/preferences/PreferencesWindow.py:44
 #: appGUI/preferences/tools/ToolsNCCPrefGroupUI.py:163
 #: appGUI/shortcut_actions.py:156 appObjects/CNCJobObject.py:306
@@ -381,23 +381,23 @@ msgstr "隔离"
 
 #: appDatabase.py:146 appDatabase.py:569 appEditors/appGeoEditor.py:127
 #: appEditors/geo_plugins/GeoPaintPlugin.py:269
-#: appEditors/geo_plugins/GeoPaintPlugin.py:384 appGUI/MainGUI.py:859
-#: appGUI/MainGUI.py:1381 appGUI/MainGUI.py:1492 appGUI/MainGUI.py:1940
-#: appGUI/MainGUI.py:2639 appGUI/MainGUI.py:2748 appGUI/ObjectUI.py:1052
+#: appEditors/geo_plugins/GeoPaintPlugin.py:384 appGUI/MainGUI.py:867
+#: appGUI/MainGUI.py:1389 appGUI/MainGUI.py:1500 appGUI/MainGUI.py:1948
+#: appGUI/MainGUI.py:2647 appGUI/MainGUI.py:2756 appGUI/ObjectUI.py:1052
 #: appGUI/ToolLibrary.py:14 appGUI/preferences/PreferencesWindow.py:46
 #: appPlugins/ToolPaint/Paint.py:282 appPlugins/ToolPaint/PaintUI.py:47
 msgid "Paint"
 msgstr "绘制"
 
-#: appDatabase.py:146 appDatabase.py:569 appGUI/MainGUI.py:1379
-#: appGUI/MainGUI.py:2637 appGUI/ObjectUI.py:417 appGUI/ObjectUI.py:1062
+#: appDatabase.py:146 appDatabase.py:569 appGUI/MainGUI.py:1387
+#: appGUI/MainGUI.py:2645 appGUI/ObjectUI.py:417 appGUI/ObjectUI.py:1062
 #: appGUI/ToolLibrary.py:14 appGUI/preferences/PreferencesWindow.py:45
 #: appPlugins/ToolNCC/Ncc.py:264 appPlugins/ToolNCC/NccUI.py:33
 msgid "NCC"
 msgstr "NCC"
 
-#: appDatabase.py:146 appDatabase.py:569 appGUI/MainGUI.py:1389
-#: appGUI/MainGUI.py:2647 appGUI/ObjectUI.py:388 appGUI/ToolLibrary.py:14
+#: appDatabase.py:146 appDatabase.py:569 appGUI/MainGUI.py:1397
+#: appGUI/MainGUI.py:2655 appGUI/ObjectUI.py:388 appGUI/ToolLibrary.py:14
 #: appGUI/preferences/PreferencesWindow.py:34 appGUI/shortcut_actions.py:61
 #: appPlugins/ToolCutOut/CutOut.py:230 appPlugins/ToolCutOut/CutOutUI.py:22
 msgid "Cutout"
@@ -426,8 +426,8 @@ msgstr "抛光"
 #: appDatabase.py:150 appDatabase.py:316 appEditors/appGeoEditor.py:123
 #: appEditors/appGeoEditor.py:4618 appEditors/appGeoEditor.py:6047
 #: appEditors/appGeoEditor.py:6057 appEditors/appGeoEditor.py:6126
-#: appEditors/appGeoEditor.py:6440 appGUI/MainGUI.py:804 appGUI/MainGUI.py:1481
-#: appGUI/MainGUI.py:1921 appGUI/MainGUI.py:2739
+#: appEditors/appGeoEditor.py:6440 appGUI/MainGUI.py:812 appGUI/MainGUI.py:1489
+#: appGUI/MainGUI.py:1929 appGUI/MainGUI.py:2747
 #: appPlugins/ToolMilling/MillingUI.py:458
 msgid "Path"
 msgstr "路径"
@@ -442,8 +442,8 @@ msgstr "内"
 msgid "Out"
 msgstr "外"
 
-#: appDatabase.py:150 appDatabase.py:316 appGUI/MainGUI.py:1088
-#: appGUI/MainGUI.py:1906
+#: appDatabase.py:150 appDatabase.py:316 appGUI/MainGUI.py:1096
+#: appGUI/MainGUI.py:1914
 #: appGUI/preferences/general/GeneralGUIPrefGroupUI.py:118
 #: appHandlers/appPlotManager.py:411 appPlugins/ToolMilling/MillingUI.py:458
 #: appPlugins/ToolMilling/MillingUI.py:466
@@ -681,27 +681,27 @@ msgstr ""
 # auto-review 2026-10-09: corrected
 #: appDatabase.py:610
 msgid "V-Dia"
-msgstr "V-直径"
+msgstr "V形刀尖直径"
 
 #: appDatabase.py:612
 msgid ""
 "V-Dia.\n"
 "Diameter of the tip for V-Shape Tools."
 msgstr ""
-"V-直径。\n"
+"V形刀尖直径。\n"
 "V形刀具的尖端直径。"
 
 # auto-review 2026-10-09: corrected
 #: appDatabase.py:624
 msgid "V-Angle"
-msgstr "V角度"
+msgstr "V形刀尖角度"
 
 #: appDatabase.py:626
 msgid ""
 "V-Agle.\n"
 "Angle at the tip for the V-Shape Tools."
 msgstr ""
-"V-角度。\n"
+"V形刀尖角度。\n"
 "V形刀具尖端的角度。"
 
 # auto-review 2026-10-09: corrected
@@ -768,7 +768,7 @@ msgstr ""
 #: appGUI/preferences/tools/ToolsNCCPrefGroupUI.py:98
 #: appGUI/preferences/tools/ToolsPaintPrefGroupUI.py:101
 #: appGUI/preferences/tools/ToolsPaintPrefGroupUI.py:109
-#: appHandlers/appIO.py:3358 appPlugins/ToolCalculators/CalculatorUI.py:150
+#: appHandlers/appIO.py:3459 appPlugins/ToolCalculators/CalculatorUI.py:150
 #: appPlugins/ToolCutOut/CutOutUI.py:204
 #: appPlugins/ToolDrilling/DrillingUI.py:204
 #: appPlugins/ToolIsolation/IsolationUI.py:334
@@ -818,7 +818,7 @@ msgstr ""
 #: appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:95
 #: appGUI/preferences/tools/ToolsGrblSenderPrefGroupUI.py:95
 #: appGUI/preferences/tools/ToolsMillPrefGroupUI.py:128
-#: appHandlers/appIO.py:3358 appPlugins/ToolDrilling/DrillingUI.py:246
+#: appHandlers/appIO.py:3459 appPlugins/ToolDrilling/DrillingUI.py:246
 #: appPlugins/ToolDrilling/DrillingUI.py:1085
 #: appPlugins/ToolMilling/MillingUI.py:718
 #: appPlugins/ToolMilling/MillingUI.py:1367
@@ -878,7 +878,7 @@ msgstr ""
 
 #: appDatabase.py:791 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:200
 #: appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:167
-#: appHandlers/appIO.py:3358 appPlugins/ToolMilling/MillingUI.py:736
+#: appHandlers/appIO.py:3459 appPlugins/ToolMilling/MillingUI.py:736
 msgid "Feedrate X-Y"
 msgstr "X-Y进给速度"
 
@@ -894,7 +894,7 @@ msgstr ""
 #: appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:156
 #: appGUI/preferences/tools/ToolsMillPrefGroupUI.py:215
 #: appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:194
-#: appHandlers/appIO.py:3359 appPlugins/ToolDrilling/DrillingUI.py:263
+#: appHandlers/appIO.py:3460 appPlugins/ToolDrilling/DrillingUI.py:263
 #: appPlugins/ToolMilling/MillingUI.py:751
 msgid "Feedrate Z"
 msgstr "Z向进给速度"
@@ -927,7 +927,7 @@ msgstr ""
 
 #: appDatabase.py:840 appDatabase.py:1408
 #: appGUI/preferences/tools/ToolsMillPrefGroupUI.py:231
-#: appHandlers/appIO.py:3359 appPlugins/ToolDrilling/DrillingUI.py:302
+#: appHandlers/appIO.py:3460 appPlugins/ToolDrilling/DrillingUI.py:302
 #: appPlugins/ToolDrilling/DrillingUI.py:1103
 #: appPlugins/ToolMilling/MillingUI.py:821
 #: appPlugins/ToolMilling/MillingUI.py:1385
@@ -953,7 +953,7 @@ msgstr ""
 #: appPlugins/ToolSolderPaste/SolderPasteUI.py:370
 #: appPlugins/ToolSolderPaste/SolderPasteUI.py:408
 msgid "Dwell"
-msgstr "转速到达延迟"
+msgstr "停留"
 
 #: appDatabase.py:857 appDatabase.py:1425
 msgid ""
@@ -961,13 +961,13 @@ msgid ""
 "Check this if a delay is needed to allow\n"
 "the spindle motor to reach its set speed."
 msgstr ""
-"转速到达延迟。\n"
+"停留。\n"
 "如果需要延时以使主轴电机\n"
 "达到设定转速，请勾选此项。"
 
 #: appDatabase.py:868 appDatabase.py:1436
 msgid "Dwelltime"
-msgstr "转速到达延迟时间"
+msgstr "停留时间"
 
 # auto-review 2026-10-09: corrected
 #: appDatabase.py:870 appDatabase.py:1438
@@ -975,7 +975,7 @@ msgid ""
 "Dwell Time.\n"
 "A delay used to allow the motor spindle reach its set speed."
 msgstr ""
-"转速到达延迟时间。\n"
+"停留时间。\n"
 "用于使电机主轴达到其设定速度的延迟。"
 
 #: appDatabase.py:892 appPlugins/ToolNCC/NccUI.py:312
@@ -1883,7 +1883,7 @@ msgstr ""
 "间隙的类型：\n"
 "- 桥接 -> 切割将被桥接中断\n"
 "- 切薄 -> 与“桥接”相同，但通过部分铣削间隙使其变薄\n"
-"- M-Bites -> “打孔连接” - 与“桥接”相同，但覆盖有钻孔"
+"- M-Bites -> “鼠咬孔” - 与“桥接”相同，但覆盖有钻孔"
 
 # auto-review 2026-10-09: corrected
 #: appDatabase.py:1657 appGUI/preferences/tools/ToolsCutoutPrefGroupUI.py:204
@@ -1902,7 +1902,7 @@ msgstr ""
 #: appDatabase.py:1675 appGUI/preferences/tools/ToolsCutoutPrefGroupUI.py:225
 #: appPlugins/ToolCutOut/CutOutUI.py:347
 msgid "The drill hole diameter when doing mouse bites."
-msgstr "进行打孔连接时的钻孔直径。"
+msgstr "鼠咬孔的钻孔直径。"
 
 #: appDatabase.py:1686 appEditors/exc_plugins/ExcCopyPlugin.py:304
 #: appEditors/geo_plugins/GeoCopyPlugin.py:300
@@ -1921,7 +1921,7 @@ msgstr "间距"
 
 #: appDatabase.py:1688 appGUI/preferences/tools/ToolsCutoutPrefGroupUI.py:237
 msgid "The spacing between drill holes when doing mouse bites."
-msgstr "打孔连接时钻孔之间的间距。"
+msgstr "鼠咬孔的孔间距。"
 
 #: appDatabase.py:1707 appGUI/preferences/tools/ToolsCutoutPrefGroupUI.py:60
 #: appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:199
@@ -2021,11 +2021,11 @@ msgstr "复制"
 #: appGUI/ApertureLibrary.py:63 appGUI/GUIElements.py:566
 #: appGUI/GUIElements.py:1349 appGUI/GUIElements.py:1597
 #: appGUI/GUIElements.py:2101 appGUI/GUIElements.py:2387
-#: appGUI/GUIElements.py:4941 appGUI/MainGUI.py:544 appGUI/MainGUI.py:843
-#: appGUI/MainGUI.py:902 appGUI/MainGUI.py:1028 appGUI/MainGUI.py:1108
-#: appGUI/MainGUI.py:1312 appGUI/MainGUI.py:1461 appGUI/MainGUI.py:1536
-#: appGUI/MainGUI.py:1604 appGUI/MainGUI.py:2022 appGUI/MainGUI.py:2571
-#: appGUI/MainGUI.py:2719 appGUI/MainGUI.py:2783 appGUI/MainGUI.py:2852
+#: appGUI/GUIElements.py:4941 appGUI/MainGUI.py:552 appGUI/MainGUI.py:851
+#: appGUI/MainGUI.py:910 appGUI/MainGUI.py:1036 appGUI/MainGUI.py:1116
+#: appGUI/MainGUI.py:1320 appGUI/MainGUI.py:1469 appGUI/MainGUI.py:1544
+#: appGUI/MainGUI.py:1612 appGUI/MainGUI.py:2030 appGUI/MainGUI.py:2579
+#: appGUI/MainGUI.py:2727 appGUI/MainGUI.py:2791 appGUI/MainGUI.py:2860
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:404
 #: appGUI/shortcut_actions.py:397 appGUI/shortcut_actions.py:626
 #: appGUI/shortcut_actions.py:775 appHandlers/appObjectOps.py:970
@@ -2042,11 +2042,11 @@ msgid "Remove a selection of tools in the Tools Database."
 msgstr "从刀具数据库中删除所选刀具。"
 
 # auto-review 2026-10-09: corrected
-#: appDatabase.py:1785 appGUI/MainGUI.py:344 appGUI/MainGUI.py:1112
+#: appDatabase.py:1785 appGUI/MainGUI.py:352 appGUI/MainGUI.py:1120
 #: appGUI/preferences/excellon/ExcellonExpPrefGroupUI.py:21
 #: appGUI/preferences/geometry/GeometryExpPrefGroupUI.py:21
 #: appGUI/preferences/gerber/GerberExpPrefGroupUI.py:21
-#: appPlugins/ToolFilm/FilmUI.py:287
+#: appPlugins/ToolFilm/FilmUI.py:287 appPlugins/ToolPCBViewer/PCBViewerUI.py:78
 msgid "Export"
 msgstr "导出"
 
@@ -2055,9 +2055,9 @@ msgid "Save the Tools Database to a custom text file."
 msgstr "将刀具数据库保存到自定义文本文件中。"
 
 #: appDatabase.py:1792 appEditors/appGeoEditor.py:126
-#: appEditors/appGerberEditor.py:3508 appGUI/ImportDialog.py:123
-#: appGUI/MainGUI.py:282 appGUI/MainGUI.py:837 appGUI/MainGUI.py:1531
-#: appGUI/MainGUI.py:1595 appGUI/MainGUI.py:2779
+#: appEditors/appGerberEditor.py:3508 appGUI/ImportDialog.py:133
+#: appGUI/MainGUI.py:282 appGUI/MainGUI.py:845 appGUI/MainGUI.py:1539
+#: appGUI/MainGUI.py:1603 appGUI/MainGUI.py:2787
 msgid "Import"
 msgstr "导入"
 
@@ -2067,7 +2067,7 @@ msgstr "从自定义文本文件加载刀具数据库信息。"
 
 # auto-review 2026-10-09: corrected
 #: appDatabase.py:1799 appGUI/ApertureLibrary.py:64 appGUI/MainGUI.py:228
-#: appGUI/MainGUI.py:1110 appGUI/ObjectUI.py:1457
+#: appGUI/MainGUI.py:1118 appGUI/ObjectUI.py:1457
 #: appGUI/preferences/PreferencesWindow.py:519 appMain.py:2760
 #: appObjects/ObjectCollection.py:640
 msgid "Save"
@@ -2099,13 +2099,13 @@ msgstr ""
 #: appDatabase.py:1818 appDatabase.py:3108 appGUI/GUIElements.py:2976
 #: appGUI/GUIElements.py:3046 appGUI/GUIElements.py:3107
 #: appGUI/GUIElements.py:3172 appGUI/GUIElements.py:4879
-#: appGUI/preferences/PreferencesUIManager.py:1192
+#: appGUI/preferences/PreferencesUIManager.py:1193
 #: appGUI/preferences/PreferencesWindow.py:511
 #: appGUI/preferences/general/GeneralShortcutsGroupUI.py:208
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:426
 #: appGUI/shortcut_actions.py:879 appGUI/shortcut_actions.py:977
 #: appGUI/shortcut_actions.py:980 appGUI/shortcut_actions.py:988
-#: appHandlers/appIO.py:3953 appHandlers/appLifecycle.py:325
+#: appHandlers/appIO.py:4054 appHandlers/appLifecycle.py:326
 #: appHandlers/appObjectOps.py:955 appHandlers/appProjects.py:555
 #: appMain.py:2766 appMain.py:3514 appObjects/AppObject.py:87
 #: appPlugins/ToolGcodeSender/Sender.py:4583
@@ -2128,7 +2128,7 @@ msgstr "取消"
 #: appEditors/grb_plugins/GrbCopyPlugin.py:459
 #: appEditors/grb_plugins/GrbCopyPlugin.py:468
 #: appEditors/grb_plugins/GrbPadArrayPlugin.py:335
-#: appEditors/grb_plugins/GrbPadArrayPlugin.py:344 appGUI/MainGUI.py:3233
+#: appEditors/grb_plugins/GrbPadArrayPlugin.py:344 appGUI/MainGUI.py:3241
 #: appGUI/ObjectUI.py:158 appGUI/ObjectUI.py:169
 #: appPlugins/ToolAlignObjects/AlignUI.py:332
 #: appPlugins/ToolAlignObjects/AlignUI.py:343
@@ -2284,7 +2284,7 @@ msgstr "从数据库复制"
 msgid "Delete from DB"
 msgstr "从数据库删除"
 
-#: appDatabase.py:2367 appHandlers/appLifecycle.py:314
+#: appDatabase.py:2367 appHandlers/appLifecycle.py:315
 #: appHandlers/appProjects.py:545
 msgid "Save changes"
 msgstr "保存更改"
@@ -2294,7 +2294,7 @@ msgid "Replace library from file…"
 msgstr "从文件替换库…"
 
 #: appDatabase.py:2446 appDatabase.py:2753 appDatabase.py:2963
-#: appDatabase.py:2988 appDatabase.py:3077 appGUI/MainGUI.py:614
+#: appDatabase.py:2988 appDatabase.py:3077 appGUI/MainGUI.py:622
 #: appHandlers/appUIActions.py:39 appHandlers/appUIActions.py:52
 #: appHandlers/appUIActions.py:815 appPlugins/ToolCutOut/CutOut.py:595
 #: appPlugins/ToolIsolation/Isolation.py:3663
@@ -2311,7 +2311,7 @@ msgstr "从文件加载刀具数据库"
 msgid "Application units changed. Reopen the tool library before adding tools."
 msgstr "应用程序单位已更改。添加刀具前请重新打开刀具库。"
 
-#: appDatabase.py:2547 appGUI/MainGUI.py:578 appGUI/MainGUI.py:1665
+#: appDatabase.py:2547 appGUI/MainGUI.py:586 appGUI/MainGUI.py:1673
 #: appGUI/preferences/PreferencesWindow.py:346 appGUI/shortcut_actions.py:68
 msgid "Preferences"
 msgstr "首选项"
@@ -2329,7 +2329,7 @@ msgid "Tools Dia"
 msgstr "刀具直径"
 
 #: appDatabase.py:2547 appEditors/appExcEditor.py:3657
-#: appEditors/appExcEditor.py:3663 appGUI/MainGUI.py:3230
+#: appEditors/appExcEditor.py:3663 appGUI/MainGUI.py:3238
 #: appObjects/GeometryObject.py:730 appPlugins/ToolDrilling/Drilling.py:2073
 #: appPlugins/ToolIsolation/Isolation.py:1863
 #: appPlugins/ToolMilling/Milling.py:2709
@@ -2460,23 +2460,23 @@ msgstr ""
 "一个或多个刀具已被编辑。\n"
 "是否保存？"
 
-#: appDatabase.py:3106 appGUI/MainGUI.py:2502
-#: appGUI/preferences/PreferencesUIManager.py:1191
-#: appGUI/preferences/PreferencesUIManager.py:1368
+#: appDatabase.py:3106 appGUI/MainGUI.py:2510
+#: appGUI/preferences/PreferencesUIManager.py:1192
+#: appGUI/preferences/PreferencesUIManager.py:1369
 #: appGUI/preferences/PreferencesWindow.py:538
 #: appGUI/preferences/general/GeneralGUIPrefGroupUI.py:560
-#: appHandlers/appLifecycle.py:323 appHandlers/appProjects.py:532
+#: appHandlers/appLifecycle.py:324 appHandlers/appProjects.py:532
 #: appHandlers/appProjects.py:553 appMain.py:2086 appMain.py:2760
 #: appObjects/CNCJobObject.py:893 appPlugins/ToolGcodeSender/Sender.py:4611
 #: appTranslation.py:130
 msgid "Yes"
 msgstr "是"
 
-#: appDatabase.py:3107 appGUI/MainGUI.py:2503
-#: appGUI/preferences/PreferencesUIManager.py:1369
+#: appDatabase.py:3107 appGUI/MainGUI.py:2511
+#: appGUI/preferences/PreferencesUIManager.py:1370
 #: appGUI/preferences/PreferencesWindow.py:539
 #: appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:300
-#: appHandlers/appLifecycle.py:324 appHandlers/appProjects.py:533
+#: appHandlers/appLifecycle.py:325 appHandlers/appProjects.py:533
 #: appHandlers/appProjects.py:554 appMain.py:2087 appMain.py:2764
 #: appObjects/CNCJobObject.py:894 appPlugins/ToolDrilling/DrillingUI.py:878
 #: appPlugins/ToolGcodeSender/Sender.py:4612 appTranslation.py:131
@@ -2492,15 +2492,15 @@ msgstr "已取消从数据库添加刀具。"
 # auto-review 2026-10-09: fuzzy confirmed
 #: appEditors/appExcEditor.py:69 appEditors/appExcEditor.py:291
 #: appEditors/appExcEditor.py:309 appEditors/appExcEditor.py:5631
-#: appGUI/MainGUI.py:882 appGUI/MainGUI.py:2007
+#: appGUI/MainGUI.py:890 appGUI/MainGUI.py:2015
 #| msgid "Slots"
 msgid "Drill"
 msgstr "钻孔"
 
 #: appEditors/appExcEditor.py:69 appEditors/appExcEditor.py:979
 #: appEditors/appExcEditor.py:996 appEditors/appExcEditor.py:5631
-#: appEditors/exc_plugins/ExcSlotArrayPlugin.py:167 appGUI/MainGUI.py:890
-#: appGUI/MainGUI.py:2012
+#: appEditors/exc_plugins/ExcSlotArrayPlugin.py:167 appGUI/MainGUI.py:898
+#: appGUI/MainGUI.py:2020
 msgid "Slot"
 msgstr "槽"
 
@@ -2598,9 +2598,9 @@ msgstr "完成。"
 #: appEditors/appGerberEditor.py:1656 appEditors/appGerberEditor.py:4663
 #: appEditors/geo_plugins/GeoImportImagePlugin.py:134
 #: appEditors/geo_plugins/GeoSimplificationPlugin.py:106
-#: appHandlers/appEdit.py:829 appHandlers/appIO.py:1975
-#: appHandlers/appIO.py:2102 appHandlers/appIO.py:3671
-#: appHandlers/appIO.py:4210 appHandlers/appIO.py:4239
+#: appHandlers/appEdit.py:829 appHandlers/appIO.py:2076
+#: appHandlers/appIO.py:2203 appHandlers/appIO.py:3772
+#: appHandlers/appIO.py:4311 appHandlers/appIO.py:4340
 #: appHandlers/appObjectOps.py:54 appHandlers/appObjectOps.py:86
 #: appHandlers/appObjectOps.py:542 appHandlers/appObjectOps.py:734
 #: appHandlers/appObjectOps.py:973 appHandlers/appPlotManager.py:476
@@ -2648,7 +2648,7 @@ msgstr "若要添加钻孔阵列，请首先在刀具表中选择一个刀具"
 
 # auto-review 2026-10-09: corrected
 #: appEditors/appExcEditor.py:550 appEditors/appExcEditor.py:567
-#: appGUI/MainGUI.py:879 appGUI/MainGUI.py:2009
+#: appGUI/MainGUI.py:887 appGUI/MainGUI.py:2017
 msgid "Drill Array"
 msgstr "钻孔阵列"
 
@@ -2714,7 +2714,7 @@ msgid "To add an Slot Array first select a tool in Tool Table"
 msgstr "若要添加槽阵列，请首先在刀具表中选择一个刀具"
 
 #: appEditors/appExcEditor.py:1361 appEditors/appExcEditor.py:1377
-#: appGUI/MainGUI.py:887 appGUI/MainGUI.py:2014
+#: appGUI/MainGUI.py:895 appGUI/MainGUI.py:2022
 msgid "Slot Array"
 msgstr "槽阵列"
 
@@ -2780,11 +2780,11 @@ msgstr "未选择任何内容。"
 #: appEditors/appGeoEditor.py:6834 appGUI/GUIElements.py:552
 #: appGUI/GUIElements.py:1335 appGUI/GUIElements.py:1583
 #: appGUI/GUIElements.py:2089 appGUI/GUIElements.py:2377
-#: appGUI/GUIElements.py:4936 appGUI/MainGUI.py:538 appGUI/MainGUI.py:834
-#: appGUI/MainGUI.py:899 appGUI/MainGUI.py:1025 appGUI/MainGUI.py:1106
-#: appGUI/MainGUI.py:1309 appGUI/MainGUI.py:1459 appGUI/MainGUI.py:1529
-#: appGUI/MainGUI.py:1602 appGUI/MainGUI.py:2020 appGUI/MainGUI.py:2568
-#: appGUI/MainGUI.py:2717 appGUI/MainGUI.py:2777 appGUI/MainGUI.py:2850
+#: appGUI/GUIElements.py:4936 appGUI/MainGUI.py:546 appGUI/MainGUI.py:842
+#: appGUI/MainGUI.py:907 appGUI/MainGUI.py:1033 appGUI/MainGUI.py:1114
+#: appGUI/MainGUI.py:1317 appGUI/MainGUI.py:1467 appGUI/MainGUI.py:1537
+#: appGUI/MainGUI.py:1610 appGUI/MainGUI.py:2028 appGUI/MainGUI.py:2576
+#: appGUI/MainGUI.py:2725 appGUI/MainGUI.py:2785 appGUI/MainGUI.py:2858
 #: appGUI/shortcut_actions.py:643 appGUI/shortcut_actions.py:793
 #: appObjects/ExcellonObject.py:652 appPlugins/ToolDrilling/Drilling.py:373
 #: appPlugins/ToolMilling/Milling.py:632 appPlugins/ToolMilling/Milling.py:643
@@ -2814,8 +2814,8 @@ msgstr "圆形阵列无效。"
 #: appEditors/appExcEditor.py:2857 appGUI/GUIElements.py:529
 #: appGUI/GUIElements.py:1312 appGUI/GUIElements.py:1560
 #: appGUI/GUIElements.py:2066 appGUI/GUIElements.py:2360
-#: appGUI/GUIElements.py:4919 appGUI/MainGUI.py:446 appGUI/MainGUI.py:453
-#: appGUI/MainGUI.py:3139 appGUI/MainGUI.py:3144 appGUI/shortcut_actions.py:98
+#: appGUI/GUIElements.py:4919 appGUI/MainGUI.py:454 appGUI/MainGUI.py:461
+#: appGUI/MainGUI.py:3147 appGUI/MainGUI.py:3152 appGUI/shortcut_actions.py:98
 #: appGUI/shortcut_actions.py:370 appGUI/shortcut_actions.py:604
 #: appGUI/shortcut_actions.py:760 appHandlers/appHistory.py:724
 msgid "Undo"
@@ -2824,8 +2824,8 @@ msgstr "撤销"
 #: appEditors/appExcEditor.py:2858 appGUI/GUIElements.py:536
 #: appGUI/GUIElements.py:1319 appGUI/GUIElements.py:1567
 #: appGUI/GUIElements.py:2073 appGUI/GUIElements.py:2365
-#: appGUI/GUIElements.py:4924 appGUI/MainGUI.py:449 appGUI/MainGUI.py:454
-#: appGUI/MainGUI.py:3140 appGUI/MainGUI.py:3144 appGUI/shortcut_actions.py:99
+#: appGUI/GUIElements.py:4924 appGUI/MainGUI.py:457 appGUI/MainGUI.py:462
+#: appGUI/MainGUI.py:3148 appGUI/MainGUI.py:3152 appGUI/shortcut_actions.py:99
 #: appGUI/shortcut_actions.py:100 appGUI/shortcut_actions.py:371
 #: appGUI/shortcut_actions.py:372 appGUI/shortcut_actions.py:605
 #: appGUI/shortcut_actions.py:606 appGUI/shortcut_actions.py:761
@@ -3204,7 +3204,7 @@ msgstr "删除要素"
 msgid "Convert slots to drills"
 msgstr "将槽转换为钻孔"
 
-#: appEditors/appExcEditor.py:5959 appGUI/MainGUI.py:874 appGUI/ObjectUI.py:632
+#: appEditors/appExcEditor.py:5959 appGUI/MainGUI.py:882 appGUI/ObjectUI.py:632
 #: appGUI/shortcut_actions.py:46 appGUI/shortcut_actions.py:60
 msgid "Excellon Editor"
 msgstr "Excellon编辑器"
@@ -3651,18 +3651,18 @@ msgstr "要素捕捉使用项目单位中配置的最大捕捉距离。"
 #: appEditors/appExcEditor.py:6334 appEditors/appGCodeEditor.py:76
 #: appEditors/appGCodeEditor.py:77 appEditors/appGCodeEditor.py:954
 #: appEditors/appGeoEditor.py:4483 appEditors/appGerberEditor.py:8856
-#: appGUI/MainGUI.py:464 appGUI/MainGUI.py:2026 appMain.py:2750
+#: appGUI/MainGUI.py:472 appGUI/MainGUI.py:2034 appMain.py:2750
 msgid "Exit Editor"
 msgstr "退出编辑器"
 
 #: appEditors/appExcEditor.py:6337 appEditors/appGCodeEditor.py:957
 #: appEditors/appGeoEditor.py:4486 appEditors/appGerberEditor.py:8859
-#: appGUI/MainGUI.py:1303 appGUI/MainGUI.py:2563
+#: appGUI/MainGUI.py:1311 appGUI/MainGUI.py:2571
 msgid "Exit from Editor."
 msgstr "从编辑器退出。"
 
 #: appEditors/appGCodeEditor.py:78 appGUI/GUIElements.py:4962
-#: appGUI/MainGUI.py:232 appGUI/MainGUI.py:464
+#: appGUI/MainGUI.py:232 appGUI/MainGUI.py:472
 msgid "Ctrl+S"
 msgstr "Ctrl+S"
 
@@ -3755,29 +3755,29 @@ msgstr "在光标位置插入上面的代码。"
 #: appEditors/appGeoEditor.py:122 appEditors/appGeoEditor.py:5060
 #: appEditors/appGeoEditor.py:5303
 #: appEditors/geo_plugins/GeoCirclePlugin.py:139
-#: appEditors/geo_plugins/GeoCirclePlugin.py:191 appGUI/MainGUI.py:788
-#: appGUI/MainGUI.py:1473 appGUI/MainGUI.py:1926 appGUI/MainGUI.py:2731
+#: appEditors/geo_plugins/GeoCirclePlugin.py:191 appGUI/MainGUI.py:796
+#: appGUI/MainGUI.py:1481 appGUI/MainGUI.py:1934 appGUI/MainGUI.py:2739
 msgid "Circle"
 msgstr "圆"
 
 #: appEditors/appGeoEditor.py:122 appEditors/appGeoEditor.py:5557
-#: appGUI/MainGUI.py:792 appGUI/MainGUI.py:1475 appGUI/MainGUI.py:1930
-#: appGUI/MainGUI.py:2733
+#: appGUI/MainGUI.py:800 appGUI/MainGUI.py:1483 appGUI/MainGUI.py:1938
+#: appGUI/MainGUI.py:2741
 msgid "Arc"
 msgstr "圆弧"
 
 #: appEditors/appGeoEditor.py:122 appEditors/appGeoEditor.py:5580
 #: appEditors/appGeoEditor.py:5715
 #: appEditors/geo_plugins/GeoRectanglePlugin.py:176
-#: appEditors/geo_plugins/GeoRectanglePlugin.py:228 appGUI/MainGUI.py:796
-#: appGUI/MainGUI.py:1477 appGUI/MainGUI.py:1923 appGUI/MainGUI.py:2735
+#: appEditors/geo_plugins/GeoRectanglePlugin.py:228 appGUI/MainGUI.py:804
+#: appGUI/MainGUI.py:1485 appGUI/MainGUI.py:1931 appGUI/MainGUI.py:2743
 msgid "Rectangle"
 msgstr "矩形"
 
 # auto-review 2026-10-21: new
 #: appEditors/appGeoEditor.py:123 appEditors/appGeoEditor.py:3767
-#: appEditors/appGeoEditor.py:5838 appGUI/MainGUI.py:800 appGUI/MainGUI.py:1483
-#: appGUI/MainGUI.py:1928 appGUI/MainGUI.py:2741
+#: appEditors/appGeoEditor.py:5838 appGUI/MainGUI.py:808 appGUI/MainGUI.py:1491
+#: appGUI/MainGUI.py:1936 appGUI/MainGUI.py:2749
 #: appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:626
 #: appGUI/preferences/tools/ToolsFollowPrefGroupUI.py:60
 #: appGUI/preferences/tools/ToolsISOPrefGroupUI.py:384
@@ -3799,25 +3799,25 @@ msgstr "多边形"
 msgid "Split"
 msgstr "拆分"
 
-#: appEditors/appGeoEditor.py:124 appGUI/MainGUI.py:1508 appGUI/MainGUI.py:2764
+#: appEditors/appGeoEditor.py:124 appGUI/MainGUI.py:1516 appGUI/MainGUI.py:2772
 msgid "Explode"
 msgstr "分解"
 
 #: appEditors/appGeoEditor.py:124 appEditors/appGeoEditor.py:1091
 #: appEditors/appGeoEditor.py:6496 appEditors/appGeoEditor.py:6500
-#: appEditors/grb_plugins/GrbVertices.py:206 appGUI/MainGUI.py:848
-#: appGUI/MainGUI.py:908 appGUI/MainGUI.py:1033 appGUI/MainGUI.py:1465
-#: appGUI/MainGUI.py:1541 appGUI/MainGUI.py:1609 appGUI/MainGUI.py:1962
-#: appGUI/MainGUI.py:2035 appGUI/MainGUI.py:2723 appGUI/MainGUI.py:2789
-#: appGUI/MainGUI.py:2857 appGUI/shortcut_actions.py:65
+#: appEditors/grb_plugins/GrbVertices.py:206 appGUI/MainGUI.py:856
+#: appGUI/MainGUI.py:916 appGUI/MainGUI.py:1041 appGUI/MainGUI.py:1473
+#: appGUI/MainGUI.py:1549 appGUI/MainGUI.py:1617 appGUI/MainGUI.py:1970
+#: appGUI/MainGUI.py:2043 appGUI/MainGUI.py:2731 appGUI/MainGUI.py:2797
+#: appGUI/MainGUI.py:2865 appGUI/shortcut_actions.py:65
 #: appGUI/shortcut_actions.py:657 appGUI/shortcut_actions.py:801
 #: appPlugins/ToolMove/Move.py:37 appPlugins/ToolMove/Move.py:249
 msgid "Move"
 msgstr "移动"
 
 #: appEditors/appGeoEditor.py:125 appEditors/geo_plugins/GeoTextPlugin.py:244
-#: appEditors/geo_plugins/GeoTextPlugin.py:329 appGUI/MainGUI.py:808
-#: appGUI/MainGUI.py:1486 appGUI/MainGUI.py:1934 appGUI/MainGUI.py:2744
+#: appEditors/geo_plugins/GeoTextPlugin.py:329 appGUI/MainGUI.py:816
+#: appGUI/MainGUI.py:1494 appGUI/MainGUI.py:1942 appGUI/MainGUI.py:2752
 msgid "Text"
 msgstr "文本"
 
@@ -3830,21 +3830,21 @@ msgstr "文本"
 #: appEditors/grb_plugins/GrbBufferPlugin.py:164
 #: appEditors/grb_plugins/GrbBufferPlugin.py:173
 #: appEditors/grb_plugins/GrbTransformationPlugin.py:178
-#: appEditors/grb_plugins/GrbTransformationPlugin.py:703 appGUI/MainGUI.py:851
-#: appGUI/MainGUI.py:952 appGUI/MainGUI.py:1490 appGUI/MainGUI.py:1587
-#: appGUI/MainGUI.py:1938 appGUI/MainGUI.py:1985 appGUI/MainGUI.py:2746
-#: appGUI/MainGUI.py:2835
+#: appEditors/grb_plugins/GrbTransformationPlugin.py:703 appGUI/MainGUI.py:859
+#: appGUI/MainGUI.py:960 appGUI/MainGUI.py:1498 appGUI/MainGUI.py:1595
+#: appGUI/MainGUI.py:1946 appGUI/MainGUI.py:1993 appGUI/MainGUI.py:2754
+#: appGUI/MainGUI.py:2843
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:258
 #: appGUI/shortcut_actions.py:641 appObjects/GerberObject.py:456
 #: appPlugins/ToolIsolation/Isolation.py:1973
 #: appPlugins/ToolTransform/TransformUI.py:28
 msgid "Buffer"
-msgstr "缓冲区"
+msgstr "缓冲"
 
 #: appEditors/appGeoEditor.py:125 appEditors/appGerberEditor.py:2420
 #: appEditors/appGerberEditor.py:6922
 #: appEditors/geo_plugins/GeoSimplificationPlugin.py:290
-#: appEditors/grb_plugins/GrbSimplificationPlugin.py:200 appGUI/MainGUI.py:1488
+#: appEditors/grb_plugins/GrbSimplificationPlugin.py:200 appGUI/MainGUI.py:1496
 #: appGUI/ObjectUI.py:1153
 #: appGUI/preferences/gerber/GerberAdvOptPrefGroupUI.py:77
 #: appGUI/preferences/tools/ToolsISOPrefGroupUI.py:347
@@ -3859,9 +3859,9 @@ msgid "Import image"
 msgstr "导入图像"
 
 # auto-review 2026-10-09: fuzzy confirmed
-#: appEditors/appGeoEditor.py:126 appGUI/MainGUI.py:965 appGUI/MainGUI.py:1494
-#: appGUI/MainGUI.py:1598 appGUI/MainGUI.py:1942 appGUI/MainGUI.py:1991
-#: appGUI/MainGUI.py:2750 appGUI/MainGUI.py:2846
+#: appEditors/appGeoEditor.py:126 appGUI/MainGUI.py:973 appGUI/MainGUI.py:1502
+#: appGUI/MainGUI.py:1606 appGUI/MainGUI.py:1950 appGUI/MainGUI.py:1999
+#: appGUI/MainGUI.py:2758 appGUI/MainGUI.py:2854
 #| msgid "Transformations"
 msgid "Eraser"
 msgstr "橡皮擦"
@@ -4036,8 +4036,8 @@ msgstr "应用"
 #: appEditors/grb_plugins/GrbVertices.py:214
 #: appEditors/text_editor/find_bar.py:82 appGUI/ApertureLibrary.py:64
 #: appGUI/TitleBar.py:291 appGUI/TitleBar.py:346 appGUI/TitleBar.py:347
-#: appGUI/WelcomeDialog.py:180 appGUI/shortcut_actions.py:1003
-#: appHandlers/appIO.py:3761 appHandlers/appUIActions.py:137
+#: appGUI/WelcomeDialog.py:183 appGUI/shortcut_actions.py:1003
+#: appHandlers/appIO.py:3862 appHandlers/appUIActions.py:137
 #: appHandlers/appUIActions.py:385 appHandlers/appUIActions.py:559
 #: appPlugins/ToolGcodeSender/SenderSimulation.py:229
 msgid "Close"
@@ -4238,8 +4238,8 @@ msgid "Geometry operation in progress. Wait for it to finish, then retry."
 msgstr "几何操作进行中。请等待其完成后再重试。"
 
 #: appEditors/appGeoEditor.py:1941 appEditors/appGeoEditor.py:2115
-#: appGUI/MainGUI.py:166 appGUI/MainGUI.py:1856 appGUI/WelcomeDialog.py:31
-#: appGUI/WelcomeDialog.py:54 appGUI/preferences/PreferencesWindow.py:71
+#: appGUI/MainGUI.py:166 appGUI/MainGUI.py:1864 appGUI/WelcomeDialog.py:31
+#: appGUI/WelcomeDialog.py:57 appGUI/preferences/PreferencesWindow.py:71
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:77
 #: appObjects/ObjectCollection.py:398 appPlugins/ToolAlignObjects/AlignUI.py:75
 #: appPlugins/ToolAlignObjects/AlignUI.py:115
@@ -4380,7 +4380,7 @@ msgstr "栅格"
 #: appPlugins/ToolFiducials/FiducialsUI.py:151
 #: appPlugins/ToolGcodeSender/SenderEcutIO.py:223
 #: appPlugins/ToolMilling/MillingUI.py:1228
-#: appPlugins/ToolPCBViewer/PCBViewerUI.py:104
+#: appPlugins/ToolPCBViewer/PCBViewerUI.py:144
 #: appPlugins/ToolReport/ReportUI.py:256 appPlugins/ToolReport/ReportUI.py:259
 #: appPlugins/ToolReport/ReportUI.py:262 appPlugins/ToolReport/ReportUI.py:292
 #: appPlugins/ToolReport/ReportUI.py:299 appPlugins/ToolReport/ReportUI.py:302
@@ -4426,7 +4426,7 @@ msgstr "正在编辑多几何Geometry，刀具"
 msgid "with diameter"
 msgstr "直径"
 
-#: appEditors/appGeoEditor.py:3633 appHandlers/appIO.py:1862
+#: appEditors/appGeoEditor.py:3633 appHandlers/appIO.py:1963
 msgid "A save of the project is running. Wait until it ends."
 msgstr "项目正在保存。请等待其结束。"
 
@@ -4839,9 +4839,9 @@ msgid "Max length"
 msgstr "最大长度"
 
 #: appEditors/appGeoEditor.py:4444 appEditors/appGerberEditor.py:8540
-#: appGUI/MainGUI.py:972 appGUI/MainGUI.py:1445 appGUI/MainGUI.py:1471
-#: appGUI/MainGUI.py:1547 appGUI/MainGUI.py:2703 appGUI/MainGUI.py:2729
-#: appGUI/MainGUI.py:2795
+#: appGUI/MainGUI.py:980 appGUI/MainGUI.py:1453 appGUI/MainGUI.py:1479
+#: appGUI/MainGUI.py:1555 appGUI/MainGUI.py:2711 appGUI/MainGUI.py:2737
+#: appGUI/MainGUI.py:2803
 msgid "Select"
 msgstr "选择"
 
@@ -5219,8 +5219,8 @@ msgid "You need to preselect a aperture in the Aperture Table that has a size."
 msgstr "请先在光圈表中选择一个尺寸非零的光圈。"
 
 #: appEditors/appGerberEditor.py:180 appEditors/appGerberEditor.py:211
-#: appGUI/MainGUI.py:929 appGUI/MainGUI.py:1549 appGUI/MainGUI.py:1967
-#: appGUI/MainGUI.py:2797
+#: appGUI/MainGUI.py:937 appGUI/MainGUI.py:1557 appGUI/MainGUI.py:1975
+#: appGUI/MainGUI.py:2805
 msgid "Pad"
 msgstr "焊盘"
 
@@ -5235,8 +5235,8 @@ msgid ""
 msgstr "光圈类型不兼容。请选择“C”、“R”或“O”类型的光圈。"
 
 #: appEditors/appGerberEditor.py:488 appEditors/appGerberEditor.py:505
-#: appGUI/MainGUI.py:932 appGUI/MainGUI.py:1551 appGUI/MainGUI.py:1969
-#: appGUI/MainGUI.py:2799
+#: appGUI/MainGUI.py:940 appGUI/MainGUI.py:1559 appGUI/MainGUI.py:1977
+#: appGUI/MainGUI.py:2807
 msgid "Pad Array"
 msgstr "焊盘阵列"
 
@@ -5258,8 +5258,8 @@ msgstr "选定间距角度的项目太多。"
 msgid "Select shape(s) and then click ..."
 msgstr "选择形状，然后单击..."
 
-#: appEditors/appGerberEditor.py:934 appGUI/MainGUI.py:814
-#: appGUI/MainGUI.py:1503 appGUI/MainGUI.py:1948 appGUI/MainGUI.py:2759
+#: appEditors/appGerberEditor.py:934 appGUI/MainGUI.py:822
+#: appGUI/MainGUI.py:1511 appGUI/MainGUI.py:1956 appGUI/MainGUI.py:2767
 msgid "Polygonize"
 msgstr "多边形化"
 
@@ -5267,13 +5267,13 @@ msgstr "多边形化"
 msgid "Failed. Nothing selected."
 msgstr "失败。未选择任何内容。"
 
-#: appEditors/appGerberEditor.py:1022 appGUI/MainGUI.py:938
-#: appGUI/MainGUI.py:1558 appGUI/MainGUI.py:1975 appGUI/MainGUI.py:2806
+#: appEditors/appGerberEditor.py:1022 appGUI/MainGUI.py:946
+#: appGUI/MainGUI.py:1566 appGUI/MainGUI.py:1983 appGUI/MainGUI.py:2814
 msgid "Region"
 msgstr "区域"
 
-#: appEditors/appGerberEditor.py:1273 appGUI/MainGUI.py:919
-#: appGUI/MainGUI.py:1571 appGUI/MainGUI.py:2819
+#: appEditors/appGerberEditor.py:1273 appGUI/MainGUI.py:927
+#: appGUI/MainGUI.py:1579 appGUI/MainGUI.py:2827
 msgid "Copper Pour"
 msgstr "覆铜"
 
@@ -5303,8 +5303,8 @@ msgid "No copper remains inside the outline."
 msgstr "轮廓内没有剩余的铜。"
 
 #: appEditors/appGerberEditor.py:1387 appEditors/appGerberEditor.py:1404
-#: appGUI/MainGUI.py:935 appGUI/MainGUI.py:1553 appGUI/MainGUI.py:1973
-#: appGUI/MainGUI.py:2801
+#: appGUI/MainGUI.py:943 appGUI/MainGUI.py:1561 appGUI/MainGUI.py:1981
+#: appGUI/MainGUI.py:2809
 msgid "Track"
 msgstr "走线"
 
@@ -5341,9 +5341,9 @@ msgstr "简化所选光圈..."
 
 #: appEditors/appGerberEditor.py:2310
 #: appEditors/geo_plugins/GeoSimplificationPlugin.py:206
-#: appEditors/grb_plugins/GrbSimplificationPlugin.py:116 appGUI/MainGUI.py:855
-#: appGUI/MainGUI.py:955 appGUI/MainGUI.py:1589 appGUI/MainGUI.py:1936
-#: appGUI/MainGUI.py:2837 appGUI/ObjectUI.py:1101
+#: appEditors/grb_plugins/GrbSimplificationPlugin.py:116 appGUI/MainGUI.py:863
+#: appGUI/MainGUI.py:963 appGUI/MainGUI.py:1597 appGUI/MainGUI.py:1944
+#: appGUI/MainGUI.py:2845 appGUI/ObjectUI.py:1101
 #: appGUI/preferences/tools/ToolsFollowPrefGroupUI.py:104
 #: appGUI/preferences/tools/ToolsNCCPrefGroupUI.py:395
 #: appGUI/preferences/tools/ToolsPaintPrefGroupUI.py:353
@@ -5590,9 +5590,9 @@ msgid ""
 "There are no Aperture definitions in the file. Aborting Gerber creation."
 msgstr "文件中没有光圈定义。正在中止Gerber创建。"
 
-#: appEditors/appGerberEditor.py:6174 appHandlers/appIO.py:3064
-#: appHandlers/appIO.py:3152 appHandlers/appIO.py:3445
-#: appHandlers/appIO.py:3510 appHandlers/appUIActions.py:870
+#: appEditors/appGerberEditor.py:6174 appHandlers/appIO.py:3165
+#: appHandlers/appIO.py:3253 appHandlers/appIO.py:3546
+#: appHandlers/appIO.py:3611 appHandlers/appUIActions.py:870
 #: appObjects/AppObject.py:411 appObjects/GeometryObject.py:671
 #: appParsers/ParseExcellon.py:386 appPlugins/ToolMilling/Milling.py:3248
 #: appPlugins/ToolPcbWizard/PcbWizard.py:302
@@ -5652,8 +5652,8 @@ msgstr "几何已更改。请重试简化。"
 msgid "Add shapes"
 msgstr "添加形状"
 
-#: appEditors/appGerberEditor.py:7065 appHandlers/appCanvasEvents.py:346
-#: appHandlers/appCanvasEvents.py:368 appObjects/ExcellonObject.py:688
+#: appEditors/appGerberEditor.py:7065 appHandlers/appCanvasEvents.py:347
+#: appHandlers/appCanvasEvents.py:369 appObjects/ExcellonObject.py:688
 #: appPlugins/ToolDrilling/Drilling.py:2002
 #: appPlugins/ToolMilling/Milling.py:3702
 msgid "Copied to clipboard."
@@ -5726,8 +5726,8 @@ msgstr "没有可缩放的光圈。请至少选择一个光圈，然后重试。
 #: appEditors/appGerberEditor.py:8095 appEditors/appGerberEditor.py:8770
 #: appEditors/geo_plugins/GeoTransformationPlugin.py:704
 #: appEditors/grb_plugins/GrbTransformationPlugin.py:191
-#: appEditors/grb_plugins/GrbTransformationPlugin.py:700 appGUI/MainGUI.py:959
-#: appGUI/MainGUI.py:1591 appGUI/MainGUI.py:1987 appGUI/MainGUI.py:2839
+#: appEditors/grb_plugins/GrbTransformationPlugin.py:700 appGUI/MainGUI.py:967
+#: appGUI/MainGUI.py:1599 appGUI/MainGUI.py:1995 appGUI/MainGUI.py:2847
 #: appGUI/ObjectUI.py:121 appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:43
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:172
 #: appGUI/shortcut_actions.py:664 appObjects/AppObjectTemplate.py:685
@@ -5749,8 +5749,8 @@ msgstr "未标记任何多边形。没有多边形在限制范围内。"
 msgid "Delete marked polygons"
 msgstr "删除已标记的多边形"
 
-#: appEditors/appGerberEditor.py:8205 appGUI/MainGUI.py:913
-#: appGUI/MainGUI.py:1965 appGUI/ObjectUI.py:244 appGUI/shortcut_actions.py:44
+#: appEditors/appGerberEditor.py:8205 appGUI/MainGUI.py:921
+#: appGUI/MainGUI.py:1973 appGUI/ObjectUI.py:244 appGUI/shortcut_actions.py:44
 #: appGUI/shortcut_actions.py:59
 msgid "Gerber Editor"
 msgstr "Gerber编辑器"
@@ -5761,7 +5761,7 @@ msgid "Jump to any retained state of this editing session."
 msgstr "跳转到本次编辑会话的任一保留状态。"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8253 appGUI/MainGUI.py:1002
+#: appEditors/appGerberEditor.py:8253 appGUI/MainGUI.py:1010
 #: appGUI/ObjectUI.py:293
 #: appGUI/preferences/gerber/GerberEditorPrefGroupUI.py:127
 #: appObjects/AppObjectTemplate.py:855 appPlugins/ToolFollow/FollowUI.py:78
@@ -6085,8 +6085,8 @@ msgstr "材料交集"
 msgid "Material Difference"
 msgstr "材料差集"
 
-#: appEditors/appGerberEditor.py:8639 appGUI/MainGUI.py:925
-#: appGUI/MainGUI.py:1582 appGUI/MainGUI.py:2830
+#: appEditors/appGerberEditor.py:8639 appGUI/MainGUI.py:933
+#: appGUI/MainGUI.py:1590 appGUI/MainGUI.py:2838
 msgid "Diff. Keep"
 msgstr "差集保留"
 
@@ -6611,7 +6611,7 @@ msgstr ""
 #: appEditors/grb_plugins/GrbPadPlugin.py:161
 #: appEditors/grb_plugins/GrbTrackPlugin.py:161
 #: appEditors/grb_plugins/GrberRegionPlugin.py:160 appGUI/GUIElements.py:5449
-#: appGUI/MainGUI.py:602 appGUI/MainGUI.py:829
+#: appGUI/MainGUI.py:610 appGUI/MainGUI.py:837
 #: appGUI/preferences/excellon/ExcellonEditorPrefGroupUI.py:99
 #: appGUI/preferences/excellon/ExcellonEditorPrefGroupUI.py:210
 #: appGUI/preferences/excellon/ExcellonEditorPrefGroupUI.py:269
@@ -6639,7 +6639,7 @@ msgstr "X"
 #: appEditors/grb_plugins/GrbPadPlugin.py:169
 #: appEditors/grb_plugins/GrbTrackPlugin.py:169
 #: appEditors/grb_plugins/GrberRegionPlugin.py:168 appGUI/GUIElements.py:5456
-#: appGUI/MainGUI.py:605
+#: appGUI/MainGUI.py:613
 #: appGUI/preferences/excellon/ExcellonEditorPrefGroupUI.py:100
 #: appGUI/preferences/excellon/ExcellonEditorPrefGroupUI.py:211
 #: appGUI/preferences/excellon/ExcellonEditorPrefGroupUI.py:270
@@ -7175,8 +7175,8 @@ msgid "Convert the loaded image and place its paths on the canvas."
 msgstr "转换已加载的图像，将其路径放到画布上。"
 
 # auto-review 2026-10-21: new
-#: appEditors/geo_plugins/GeoImportImagePlugin.py:68 appGUI/MainGUI.py:840
-#: appGUI/MainGUI.py:1533 appGUI/MainGUI.py:2781
+#: appEditors/geo_plugins/GeoImportImagePlugin.py:68 appGUI/MainGUI.py:848
+#: appGUI/MainGUI.py:1541 appGUI/MainGUI.py:2789
 #: appPlugins/ToolImage/ImageUI.py:308
 msgid "Import Image"
 msgstr "导入图像"
@@ -7438,7 +7438,7 @@ msgstr "对象"
 #: appPlugins/ToolMarkers/MarkersUI.py:184 appPlugins/ToolNCC/NccUI.py:587
 #: appPlugins/ToolPaint/PaintUI.py:456
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:219
-#: appPlugins/ToolTransform/TransformUI.py:68 defaults.py:889
+#: appPlugins/ToolTransform/TransformUI.py:68 defaults.py:890
 msgid "Selection"
 msgstr "选择"
 
@@ -7955,7 +7955,7 @@ msgstr ""
 
 #: appEditors/geo_plugins/GeoTransformationPlugin.py:1065
 #: appEditors/grb_plugins/GrbTransformationPlugin.py:1059
-#: appGUI/MainGUI.py:1316 appGUI/MainGUI.py:2575
+#: appGUI/MainGUI.py:1324 appGUI/MainGUI.py:2583
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:280
 #: appPlugins/ToolDistance/Distance.py:196
 #: appPlugins/ToolDistance/DistanceUI.py:15
@@ -8088,7 +8088,7 @@ msgid "{n} drawn pads converted to flashes"
 msgstr "已将 {n} 个绘制焊盘转为光圈印记"
 
 #: appEditors/grb_plugins/GrbAutoPlugin.py:219
-#: appEditors/grb_plugins/GrbOperationDialogs.py:143 appGUI/MainGUI.py:1018
+#: appEditors/grb_plugins/GrbOperationDialogs.py:143 appGUI/MainGUI.py:1026
 msgid "Teardrops"
 msgstr "泪滴"
 
@@ -8335,7 +8335,7 @@ msgid "Geometry changed. Retry the operation."
 msgstr "几何已更改。请重试此操作。"
 
 #: appEditors/grb_plugins/GrbOperationDialogs.py:87
-#: appEditors/grb_plugins/GrbSelectionPlugin.py:138 appGUI/MainGUI.py:984
+#: appEditors/grb_plugins/GrbSelectionPlugin.py:138 appGUI/MainGUI.py:992
 msgid "Step and Repeat"
 msgstr "步进重复"
 
@@ -8352,7 +8352,7 @@ msgid "There are no apertures."
 msgstr "没有光圈。"
 
 #: appEditors/grb_plugins/GrbOperationDialogs.py:104
-#: appEditors/grb_plugins/GrbSelectionPlugin.py:168 appGUI/MainGUI.py:986
+#: appEditors/grb_plugins/GrbSelectionPlugin.py:168 appGUI/MainGUI.py:994
 msgid "Transcode"
 msgstr "转码"
 
@@ -8361,7 +8361,7 @@ msgid "Move the selection to the aperture"
 msgstr "将所选内容移动到光圈"
 
 #: appEditors/grb_plugins/GrbOperationDialogs.py:120
-#: appEditors/grb_plugins/GrbSelectionPlugin.py:203 appGUI/MainGUI.py:988
+#: appEditors/grb_plugins/GrbSelectionPlugin.py:203 appGUI/MainGUI.py:996
 msgid "Snap to Grid"
 msgstr "捕捉到栅格"
 
@@ -8373,7 +8373,7 @@ msgstr "栅格 X"
 msgid "Grid Y"
 msgstr "栅格 Y"
 
-#: appEditors/grb_plugins/GrbOperationDialogs.py:129 appGUI/MainGUI.py:1006
+#: appEditors/grb_plugins/GrbOperationDialogs.py:129 appGUI/MainGUI.py:1014
 msgid "Renumber"
 msgstr "重新编号"
 
@@ -8381,7 +8381,7 @@ msgstr "重新编号"
 msgid "First aperture code"
 msgstr "第一个光圈代码"
 
-#: appEditors/grb_plugins/GrbOperationDialogs.py:136 appGUI/MainGUI.py:1016
+#: appEditors/grb_plugins/GrbOperationDialogs.py:136 appGUI/MainGUI.py:1024
 msgid "Drawn Pads to Flashes"
 msgstr "绘制焊盘转光圈印记"
 
@@ -8393,7 +8393,7 @@ msgstr "长度 (%)"
 msgid "Width (%)"
 msgstr "宽度 (%)"
 
-#: appEditors/grb_plugins/GrbOperationDialogs.py:151 appGUI/MainGUI.py:1020
+#: appEditors/grb_plugins/GrbOperationDialogs.py:151 appGUI/MainGUI.py:1028
 msgid "Snowman Fillets"
 msgstr "雪人形圆角"
 
@@ -8549,7 +8549,7 @@ msgstr ""
 msgid "Regions with clear geometry can't be clipped."
 msgstr "带清除几何的区域无法裁剪。"
 
-#: appEditors/grb_plugins/GrbTrackEditPlugin.py:179 appGUI/MainGUI.py:992
+#: appEditors/grb_plugins/GrbTrackEditPlugin.py:179 appGUI/MainGUI.py:1000
 msgid "Clip"
 msgstr "裁剪"
 
@@ -8562,7 +8562,7 @@ msgstr "裁剪矩形必须具有宽度和高度。"
 msgid "Clip and replace with pad"
 msgstr "裁剪并替换为焊盘"
 
-#: appEditors/grb_plugins/GrbTrackEditPlugin.py:250 appGUI/MainGUI.py:996
+#: appEditors/grb_plugins/GrbTrackEditPlugin.py:250 appGUI/MainGUI.py:1004
 msgid "Stretch"
 msgstr "拉伸"
 
@@ -9181,7 +9181,7 @@ msgstr "只读"
 
 #: appGUI/GUIElements.py:529 appGUI/GUIElements.py:1312
 #: appGUI/GUIElements.py:1560 appGUI/GUIElements.py:2066
-#: appGUI/GUIElements.py:2360 appGUI/GUIElements.py:4919 appGUI/MainGUI.py:446
+#: appGUI/GUIElements.py:2360 appGUI/GUIElements.py:4919 appGUI/MainGUI.py:454
 msgid "Ctrl+Z"
 msgstr "Ctrl+Z"
 
@@ -9194,7 +9194,7 @@ msgstr "Ctrl+Y"
 
 #: appGUI/GUIElements.py:545 appGUI/GUIElements.py:1328
 #: appGUI/GUIElements.py:1576 appGUI/GUIElements.py:2082
-#: appGUI/GUIElements.py:2372 appGUI/GUIElements.py:4931 appGUI/MainGUI.py:1956
+#: appGUI/GUIElements.py:2372 appGUI/GUIElements.py:4931 appGUI/MainGUI.py:1964
 #: appGUI/ObjectUI.py:1228 appGUI/preferences/cncjob/CNCJobOptPrefGroupUI.py:62
 msgid "Cut"
 msgstr "剪切"
@@ -9207,7 +9207,7 @@ msgstr "Ctrl+X"
 
 #: appGUI/GUIElements.py:552 appGUI/GUIElements.py:1335
 #: appGUI/GUIElements.py:1583 appGUI/GUIElements.py:2089
-#: appGUI/GUIElements.py:2377 appGUI/GUIElements.py:4936 appGUI/MainGUI.py:538
+#: appGUI/GUIElements.py:2377 appGUI/GUIElements.py:4936 appGUI/MainGUI.py:546
 msgid "Ctrl+C"
 msgstr "Ctrl+C"
 
@@ -9233,8 +9233,8 @@ msgstr "Del"
 
 #: appGUI/GUIElements.py:575 appGUI/GUIElements.py:1358
 #: appGUI/GUIElements.py:1606 appGUI/GUIElements.py:2108
-#: appGUI/GUIElements.py:2394 appGUI/GUIElements.py:4948 appGUI/MainGUI.py:572
-#: appGUI/MainGUI.py:709 appGUI/shortcut_actions.py:105
+#: appGUI/GUIElements.py:2394 appGUI/GUIElements.py:4948 appGUI/MainGUI.py:580
+#: appGUI/MainGUI.py:717 appGUI/shortcut_actions.py:105
 #: appGUI/shortcut_actions.py:609 appGUI/shortcut_actions.py:765
 #: appPlugins/ToolIsolation/IsolationUI.py:624
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:237
@@ -9245,7 +9245,7 @@ msgstr "全选"
 # auto-review 2026-10-09: corrected
 #: appGUI/GUIElements.py:575 appGUI/GUIElements.py:1358
 #: appGUI/GUIElements.py:1606 appGUI/GUIElements.py:2108
-#: appGUI/GUIElements.py:2394 appGUI/GUIElements.py:4948 appGUI/MainGUI.py:572
+#: appGUI/GUIElements.py:2394 appGUI/GUIElements.py:4948 appGUI/MainGUI.py:580
 msgid "Ctrl+A"
 msgstr "Ctrl+A"
 
@@ -9273,9 +9273,9 @@ msgstr "µm"
 #: appGUI/GUIElements.py:3106 appGUI/GUIElements.py:3171
 #: appGUI/GUIElements.py:4878
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:425
-#: appHandlers/appIO.py:946 appHandlers/appIO.py:1022 appHandlers/appIO.py:1383
-#: appHandlers/appIO.py:3952 appHandlers/appObjectOps.py:954
-#: appHandlers/appUIActions.py:690
+#: appHandlers/appIO.py:1047 appHandlers/appIO.py:1123
+#: appHandlers/appIO.py:1484 appHandlers/appIO.py:4053
+#: appHandlers/appObjectOps.py:954 appHandlers/appUIActions.py:690
 msgid "Ok"
 msgstr "确定"
 
@@ -9349,7 +9349,7 @@ msgstr "输入 >help< 开始使用"
 msgid "Jog the Y axis."
 msgstr "点动Y轴。"
 
-#: appGUI/GUIElements.py:5382 appGUI/MainGUI.py:556
+#: appGUI/GUIElements.py:5382 appGUI/MainGUI.py:564
 #: appHandlers/appObjectOps.py:511
 msgid "Move to Origin"
 msgstr "移到原点"
@@ -9425,13 +9425,13 @@ msgid "Will show/hide the GUI."
 msgstr "将显示/隐藏 GUI。"
 
 #: appGUI/GUIElements.py:5831 appGUI/MainGUI.py:194
-#: appGUI/shortcut_actions.py:116 appHandlers/appIO.py:849
-#: appHandlers/appIO.py:852 appHandlers/appIO.py:3791 appHandlers/appIO.py:4027
+#: appGUI/shortcut_actions.py:116 appHandlers/appIO.py:950
+#: appHandlers/appIO.py:953 appHandlers/appIO.py:3892 appHandlers/appIO.py:4128
 msgid "Open Project"
 msgstr "打开项目"
 
-#: appGUI/GUIElements.py:5837 appGUI/MainGUI.py:201 appHandlers/appIO.py:725
-#: appHandlers/appIO.py:730
+#: appGUI/GUIElements.py:5837 appGUI/MainGUI.py:201 appHandlers/appIO.py:826
+#: appHandlers/appIO.py:831
 msgid "Open Gerber"
 msgstr "打开Gerber文件"
 
@@ -9439,21 +9439,21 @@ msgstr "打开Gerber文件"
 msgid "Ctrl+G"
 msgstr "Ctrl+G"
 
-#: appGUI/GUIElements.py:5842 appGUI/MainGUI.py:206 appHandlers/appIO.py:770
-#: appHandlers/appIO.py:775
+#: appGUI/GUIElements.py:5842 appGUI/MainGUI.py:206 appHandlers/appIO.py:871
+#: appHandlers/appIO.py:876
 msgid "Open Excellon"
 msgstr "打开Excellon"
 
-#: appGUI/GUIElements.py:5842 appGUI/MainGUI.py:206 appGUI/MainGUI.py:965
+#: appGUI/GUIElements.py:5842 appGUI/MainGUI.py:206 appGUI/MainGUI.py:973
 msgid "Ctrl+E"
 msgstr "Ctrl+E"
 
-#: appGUI/GUIElements.py:5847 appGUI/MainGUI.py:211 appHandlers/appIO.py:813
-#: appHandlers/appIO.py:818
+#: appGUI/GUIElements.py:5847 appGUI/MainGUI.py:211 appHandlers/appIO.py:914
+#: appHandlers/appIO.py:919
 msgid "Open G-Code"
 msgstr "打开G代码"
 
-#: appGUI/GUIElements.py:5857 appGUI/MainGUI.py:432 appGUI/UpdateDialog.py:303
+#: appGUI/GUIElements.py:5857 appGUI/MainGUI.py:440 appGUI/UpdateDialog.py:303
 msgid "Exit"
 msgstr "退出"
 
@@ -9463,7 +9463,7 @@ msgstr "SVG 作为 Geometry"
 
 #: appGUI/ImportDialog.py:29 appGUI/ImportDialog.py:40
 #: appGUI/ImportDialog.py:51 appGUI/WelcomeDialog.py:31
-#: appGUI/WelcomeDialog.py:266
+#: appGUI/WelcomeDialog.py:269
 msgid "Geometry object"
 msgstr "Geometry 对象"
 
@@ -9479,7 +9479,7 @@ msgid "SVG as Gerber"
 msgstr "SVG 作为 Gerber"
 
 #: appGUI/ImportDialog.py:34 appGUI/ImportDialog.py:45
-#: appGUI/WelcomeDialog.py:43 appGUI/WelcomeDialog.py:267
+#: appGUI/WelcomeDialog.py:45 appGUI/WelcomeDialog.py:270
 msgid "Gerber object"
 msgstr "Gerber 对象"
 
@@ -9523,13 +9523,13 @@ msgid ""
 "vinyl cutters."
 msgstr "读取 HPGL/2 绘图文件中的笔移动路径，这是笔式绘图仪和刻字机使用的格式。"
 
-#: appGUI/ImportDialog.py:57 appGUI/MainGUI.py:1128
+#: appGUI/ImportDialog.py:57 appGUI/MainGUI.py:1136
 #: appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:277
 #: appPlugins/ToolFilm/FilmUI.py:301
 msgid "PDF"
 msgstr "PDF"
 
-#: appGUI/ImportDialog.py:58 appGUI/ImportDialog.py:107
+#: appGUI/ImportDialog.py:58 appGUI/ImportDialog.py:117
 msgid "Gerber and Excellon objects"
 msgstr "Gerber 和 Excellon 对象"
 
@@ -9571,52 +9571,62 @@ msgid "Reads a native Altium Designer board."
 msgstr "读取原生 Altium Designer 电路板。"
 
 #: appGUI/ImportDialog.py:79
+msgid "CircuitStudio / CircuitMaker PCB"
+msgstr "CircuitStudio / CircuitMaker PCB"
+
+#: appGUI/ImportDialog.py:80
+msgid ""
+"Reads a native Altium CircuitStudio or CircuitMaker board, including split "
+"planes."
+msgstr "读取原生 Altium CircuitStudio 或 CircuitMaker 电路板，包括分割平面。"
+
+#: appGUI/ImportDialog.py:82
 msgid "Proteus PCB"
 msgstr "Proteus PCB"
 
-#: appGUI/ImportDialog.py:80
+#: appGUI/ImportDialog.py:83
 msgid ""
 "Reads a native Proteus 8 or 9 project. If the project has more than one "
 "board, the import reads the boards one after the other."
 msgstr "读取原生 Proteus 8 或 9 工程。如果工程包含多块电路板，导入将依次读取各块板。"
 
-#: appGUI/ImportDialog.py:83
+#: appGUI/ImportDialog.py:86
 msgid "KiCad PCB"
 msgstr "KiCad PCB"
 
-#: appGUI/ImportDialog.py:84
+#: appGUI/ImportDialog.py:87
 msgid "Reads a native KiCad board."
 msgstr "读取原生 KiCad 电路板。"
 
-#: appGUI/ImportDialog.py:86
+#: appGUI/ImportDialog.py:89
 msgid "Sprint Layout 6"
 msgstr "Sprint Layout 6"
 
-#: appGUI/ImportDialog.py:87
+#: appGUI/ImportDialog.py:90
 msgid "Reads a native Sprint Layout 6 board."
 msgstr "读取原生 Sprint Layout 6 电路板。"
 
-#: appGUI/ImportDialog.py:89
+#: appGUI/ImportDialog.py:92
 msgid "Eagle Board"
 msgstr "Eagle Board"
 
-#: appGUI/ImportDialog.py:90
+#: appGUI/ImportDialog.py:93
 msgid "Reads a native Eagle board, the XML format of Eagle 6 and later."
 msgstr "读取原生 Eagle 电路板，即 Eagle 6 及更高版本的 XML 格式。"
 
-#: appGUI/ImportDialog.py:92
+#: appGUI/ImportDialog.py:95
 msgid "OrCAD/Allegro Board"
 msgstr "OrCAD/Allegro Board"
 
-#: appGUI/ImportDialog.py:93
+#: appGUI/ImportDialog.py:96
 msgid "Reads a native OrCAD or Allegro board, the binary format."
 msgstr "读取原生 OrCAD 或 Allegro 电路板，即二进制格式。"
 
-#: appGUI/ImportDialog.py:95
+#: appGUI/ImportDialog.py:98
 msgid "DipTrace PCB"
 msgstr "DipTrace PCB"
 
-#: appGUI/ImportDialog.py:96
+#: appGUI/ImportDialog.py:99
 msgid ""
 "Reads supported native DipTrace boards, including multilayer designs. "
 "Imports saved copper, pads, vias, drilling, outlines, mask, paste and "
@@ -9626,11 +9636,24 @@ msgstr ""
 "读取受支持的原生 DipTrace "
 "电路板，包括多层设计。导入已保存的铜层、焊盘、过孔、钻孔、轮廓、阻焊层、锡膏层和文档图层。导入时会报告不受支持的记录和不可用的图稿。"
 
-#: appGUI/ImportDialog.py:100
+#: appGUI/ImportDialog.py:103
+msgid "PADS Layout PCB"
+msgstr "PADS Layout PCB"
+
+#: appGUI/ImportDialog.py:104
+msgid ""
+"Reads PADS Layout ASCII 9.4 to 10.0 and V2005.0, and native binary "
+"0x2026/0x2027. Imports tracks, pads, vias, drilling, outlines and explicit "
+"mask/paste shapes. Pours, teardrops and lettering are reconstructed. "
+"Attribute labels of copper layers go to the silkscreen layers. Review the "
+"import warnings and generated artwork before manufacture."
+msgstr "读取 PADS Layout ASCII 9.4 至 10.0 和 V2005.0，以及原生二进制 0x2026/0x2027。导入走线、焊盘、过孔、钻孔、轮廓和显式阻焊层/锡膏层形状。重建覆铜、泪滴和文字。铜层的属性标签会转到丝印层。制造前请检查导入警告和生成的图稿。"
+
+#: appGUI/ImportDialog.py:110
 msgid "ODB++ Job"
 msgstr "ODB++ 作业"
 
-#: appGUI/ImportDialog.py:101
+#: appGUI/ImportDialog.py:111
 msgid ""
 "Reads an ODB++ job: a .tgz, .tar or .zip archive, or the matrix file of an "
 "unpacked job. Imports the graphic layers, the drill layers and the board "
@@ -9638,49 +9661,49 @@ msgid ""
 msgstr ""
 "读取 ODB++ 作业: .tgz、.tar 或 .zip 压缩包, 或已解压作业的 matrix 文件。导入一个步骤的图形层、钻孔层和板框。"
 
-#: appGUI/ImportDialog.py:110
+#: appGUI/ImportDialog.py:120
 msgid "Vector Files"
 msgstr "矢量文件"
 
-#: appGUI/ImportDialog.py:110
+#: appGUI/ImportDialog.py:120
 msgid "Raster Images"
 msgstr "位图"
 
-#: appGUI/ImportDialog.py:110 appGUI/WelcomeDialog.py:55
+#: appGUI/ImportDialog.py:120 appGUI/WelcomeDialog.py:58
 msgid "PCB Boards"
 msgstr "PCB 电路板"
 
-#: appGUI/ImportDialog.py:136 appPlugins/ToolGcodeSender/SenderUI.py:243
+#: appGUI/ImportDialog.py:146 appPlugins/ToolGcodeSender/SenderUI.py:243
 msgid "Search"
 msgstr "搜索"
 
-#: appGUI/ImportDialog.py:169
+#: appGUI/ImportDialog.py:179
 msgid "File type"
 msgstr "文件类型"
 
-#: appGUI/ImportDialog.py:170
+#: appGUI/ImportDialog.py:180
 msgid "Creates"
 msgstr "创建"
 
-#: appGUI/ImportDialog.py:181
+#: appGUI/ImportDialog.py:191
 msgid "Click Import to select the file."
 msgstr "点击“导入...”以选择文件。"
 
-#: appGUI/ImportDialog.py:194 appGUI/ProjectSelector.py:74
+#: appGUI/ImportDialog.py:204 appGUI/ProjectSelector.py:74
 #: appGUI/preferences/general/GeneralShortcutsGroupUI.py:222
 msgid "Import..."
 msgstr "导入..."
 
-#: appGUI/ImportDialog.py:286
+#: appGUI/ImportDialog.py:296
 msgid "Select an import in the list."
 msgstr "在列表中选择一个导入项。"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/ImportDialog.py:288
+#: appGUI/ImportDialog.py:298
 msgid "No import matches the search."
 msgstr "没有与搜索匹配的导入项。"
 
-#: appGUI/MainGUI.py:138 appGUI/MainGUI.py:140 appGUI/MainGUI.py:1843
+#: appGUI/MainGUI.py:138 appGUI/MainGUI.py:140 appGUI/MainGUI.py:1851
 msgid "Toggle Panel"
 msgstr "切换面板"
 
@@ -9701,14 +9724,14 @@ msgstr "Ctrl+N"
 msgid "Will create a new, blank project"
 msgstr "将创建一个新的空白项目"
 
-#: appGUI/MainGUI.py:162 appGUI/MainGUI.py:1854 appGUI/WelcomeDialog.py:341
+#: appGUI/MainGUI.py:162 appGUI/MainGUI.py:1862 appGUI/WelcomeDialog.py:344
 #: appMain.py:2824 appObjects/AppObject.py:538
 #: appObjects/ObjectCollection.py:609 appPlugins/ToolCompare/CompareUI.py:68
 #: appPlugins/ToolGcodeSender/SenderUI.py:269
 msgid "New"
 msgstr "新建"
 
-#: appGUI/MainGUI.py:166 appGUI/MainGUI.py:800 appGUI/MainGUI.py:938
+#: appGUI/MainGUI.py:166 appGUI/MainGUI.py:808 appGUI/MainGUI.py:946
 msgid "N"
 msgstr "N"
 
@@ -9716,8 +9739,8 @@ msgstr "N"
 msgid "Will create a new, empty Geometry Object."
 msgstr "将创建一个新的空Geometry对象。"
 
-#: appGUI/MainGUI.py:171 appGUI/MainGUI.py:1271 appGUI/MainGUI.py:2529
-#: appGUI/WelcomeDialog.py:40 appGUI/preferences/PreferencesWindow.py:69
+#: appGUI/MainGUI.py:171 appGUI/MainGUI.py:1279 appGUI/MainGUI.py:2537
+#: appGUI/WelcomeDialog.py:42 appGUI/preferences/PreferencesWindow.py:69
 #: appGUI/preferences/geometry/GeometryExpPrefGroupUI.py:66
 #: appGUI/preferences/tools/ToolsPanelizePrefGroupUI.py:95
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:75
@@ -9746,11 +9769,11 @@ msgstr "将创建一个新的空Geometry对象。"
 #: appPlugins/ToolPanelize/PanelizeUI.py:234
 #: appPlugins/ToolRulesCheck/RulesCheckUI.py:68 appPlugins/ToolSub/SubUI.py:75
 #: appPlugins/ToolTransform/Transform.py:170
-#: appPlugins/ToolTransform/TransformUI.py:96 defaults.py:890
+#: appPlugins/ToolTransform/TransformUI.py:96 defaults.py:891
 msgid "Gerber"
 msgstr "Gerber"
 
-#: appGUI/MainGUI.py:171 appGUI/MainGUI.py:851 appGUI/MainGUI.py:952
+#: appGUI/MainGUI.py:171 appGUI/MainGUI.py:859 appGUI/MainGUI.py:960
 msgid "B"
 msgstr "B"
 
@@ -9758,8 +9781,8 @@ msgstr "B"
 msgid "Will create a new, empty Gerber Object."
 msgstr "将创建一个新的空Gerber对象。"
 
-#: appGUI/MainGUI.py:176 appGUI/MainGUI.py:1274 appGUI/MainGUI.py:1860
-#: appGUI/MainGUI.py:2532 appGUI/WelcomeDialog.py:45
+#: appGUI/MainGUI.py:176 appGUI/MainGUI.py:1282 appGUI/MainGUI.py:1868
+#: appGUI/MainGUI.py:2540 appGUI/WelcomeDialog.py:47
 #: appGUI/preferences/PreferencesWindow.py:70
 #: appGUI/preferences/tools/Tools2PunchGerberPrefGroupUI.py:100
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:76
@@ -9799,7 +9822,7 @@ msgstr "将创建一个新的空Excellon对象。"
 msgid "Document"
 msgstr "文档"
 
-#: appGUI/MainGUI.py:183 appGUI/MainGUI.py:882 appGUI/MainGUI.py:949
+#: appGUI/MainGUI.py:183 appGUI/MainGUI.py:890 appGUI/MainGUI.py:957
 msgid "D"
 msgstr "D"
 
@@ -9819,8 +9842,8 @@ msgstr "打开配置"
 msgid "Recent projects"
 msgstr "近期项目"
 
-#: appGUI/MainGUI.py:225 appGUI/WelcomeDialog.py:271
-#: appGUI/WelcomeDialog.py:282
+#: appGUI/MainGUI.py:225 appGUI/WelcomeDialog.py:274
+#: appGUI/WelcomeDialog.py:285
 msgid "Recent files"
 msgstr "近期文件"
 
@@ -9841,12 +9864,12 @@ msgstr "Ctrl+Shift+S"
 msgid "Scripting"
 msgstr "脚本"
 
-#: appGUI/MainGUI.py:257 appGUI/MainGUI.py:1360 appGUI/MainGUI.py:2617
+#: appGUI/MainGUI.py:257 appGUI/MainGUI.py:1368 appGUI/MainGUI.py:2625
 msgid "New Script"
 msgstr "新脚本"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:259 appGUI/MainGUI.py:1362 appGUI/MainGUI.py:2619
+#: appGUI/MainGUI.py:259 appGUI/MainGUI.py:1370 appGUI/MainGUI.py:2627
 msgid "Open Script"
 msgstr "打开脚本"
 
@@ -9854,7 +9877,7 @@ msgstr "打开脚本"
 msgid "Open Example"
 msgstr "打开示例"
 
-#: appGUI/MainGUI.py:265 appGUI/MainGUI.py:1364 appGUI/MainGUI.py:2621
+#: appGUI/MainGUI.py:265 appGUI/MainGUI.py:1372 appGUI/MainGUI.py:2629
 msgid "Run Script"
 msgstr "运行脚本"
 
@@ -9887,53 +9910,61 @@ msgstr "HPGL2 作为Geometry对象"
 msgid "Altium PCB (.PcbDoc)"
 msgstr "Altium PCB (.PcbDoc)"
 
-# auto-review 2026-10-21: new
 #: appGUI/MainGUI.py:314
+msgid "CircuitStudio / CircuitMaker PCB (.CSPcbDoc)"
+msgstr "CircuitStudio / CircuitMaker PCB（.CSPcbDoc）"
+
+# auto-review 2026-10-21: new
+#: appGUI/MainGUI.py:318
 msgid "Proteus PCB (.pdsprj)"
 msgstr "Proteus PCB (.pdsprj)"
 
 # auto-review 2026-10-21: new
-#: appGUI/MainGUI.py:318
+#: appGUI/MainGUI.py:322
 msgid "KiCad PCB (.kicad_pcb)"
 msgstr "KiCad PCB (.kicad_pcb)"
 
 # auto-review 2026-10-21: new
-#: appGUI/MainGUI.py:322
+#: appGUI/MainGUI.py:326
 msgid "Sprint Layout 6 (.lay6)"
 msgstr "Sprint Layout 6 (.lay6)"
 
 # auto-review 2026-10-21: new
-#: appGUI/MainGUI.py:326
+#: appGUI/MainGUI.py:330
 msgid "Eagle Board (.brd)"
 msgstr "Eagle Board (.brd)"
 
-#: appGUI/MainGUI.py:330
+#: appGUI/MainGUI.py:334
 msgid "OrCAD/Allegro Board (.brd)"
 msgstr "OrCAD/Allegro Board (.brd)"
 
-#: appGUI/MainGUI.py:334
+#: appGUI/MainGUI.py:338
 msgid "DipTrace PCB (.dip)"
 msgstr "DipTrace PCB (.dip)"
 
-#: appGUI/MainGUI.py:338
+#: appGUI/MainGUI.py:342
+msgid "PADS Layout PCB (.asc, .pcb)"
+msgstr "PADS Layout PCB（.asc, .pcb）"
+
+#: appGUI/MainGUI.py:346
 msgid "ODB++ Job (.tgz, .zip, folder)"
 msgstr "ODB++ 作业 (.tgz, .zip, 文件夹)"
 
-#: appGUI/MainGUI.py:349 appHandlers/appIO.py:1032 appHandlers/appIO.py:1037
+#: appGUI/MainGUI.py:357 appHandlers/appIO.py:1133 appHandlers/appIO.py:1138
 #: appPlugins/ToolQRCode/QRCode.py:694
 msgid "Export SVG"
 msgstr "导出SVG"
 
-#: appGUI/MainGUI.py:354 appHandlers/appIO.py:1394 appHandlers/appIO.py:1399
+#: appGUI/MainGUI.py:362 appHandlers/appIO.py:1495 appHandlers/appIO.py:1500
 msgid "Export DXF"
 msgstr "导出DXF"
 
-#: appGUI/MainGUI.py:361 appHandlers/appIO.py:955
+#: appGUI/MainGUI.py:369 appHandlers/appIO.py:1056
 #: appPlugins/ToolQRCode/QRCode.py:690
 msgid "Export PNG"
 msgstr "导出PNG"
 
-#: appGUI/MainGUI.py:363
+#: appGUI/MainGUI.py:371
 msgid ""
 "Will export an image in PNG format,\n"
 "the saved image will contain the visual \n"
@@ -9942,11 +9973,11 @@ msgstr ""
 "将以PNG格式导出图像，\n"
 "保存的图像将包含当前在FlatCAM绘图区域中的视觉信息。"
 
-#: appGUI/MainGUI.py:373 appHandlers/appIO.py:1282 appHandlers/appIO.py:1287
+#: appGUI/MainGUI.py:381 appHandlers/appIO.py:1383 appHandlers/appIO.py:1388
 msgid "Export Excellon"
 msgstr "导出Excellon"
 
-#: appGUI/MainGUI.py:375
+#: appGUI/MainGUI.py:383
 msgid ""
 "Will export an Excellon Object as Excellon file,\n"
 "the coordinates format, the file units and zeros\n"
@@ -9956,11 +9987,11 @@ msgstr ""
 "坐标格式、文件单位和零抑制方式\n"
 "在首选项 -> Excellon导出中设置。"
 
-#: appGUI/MainGUI.py:383 appHandlers/appIO.py:1330 appHandlers/appIO.py:1335
+#: appGUI/MainGUI.py:391 appHandlers/appIO.py:1431 appHandlers/appIO.py:1436
 msgid "Export Gerber"
 msgstr "导出Gerber"
 
-#: appGUI/MainGUI.py:385
+#: appGUI/MainGUI.py:393
 msgid ""
 "Will export an Gerber Object as Gerber file,\n"
 "the coordinates format, the file units and zeros\n"
@@ -9970,61 +10001,61 @@ msgstr ""
 "坐标格式、文件单位和零抑制方式\n"
 "在首选项 -> Gerber导出中设置。"
 
-#: appGUI/MainGUI.py:395
+#: appGUI/MainGUI.py:403
 msgid "Backup"
 msgstr "备份"
 
-#: appGUI/MainGUI.py:400
+#: appGUI/MainGUI.py:408
 msgid "Import Preferences from file"
 msgstr "从文件导入首选项"
 
-#: appGUI/MainGUI.py:407
+#: appGUI/MainGUI.py:415
 msgid "Export Preferences to file"
 msgstr "将首选项导出到文件"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:416 appGUI/preferences/PreferencesUIManager.py:1359
+#: appGUI/MainGUI.py:424 appGUI/preferences/PreferencesUIManager.py:1360
 msgid "Save Preferences"
 msgstr "保存首选项"
 
-#: appGUI/MainGUI.py:423 appGUI/shortcut_actions.py:118
+#: appGUI/MainGUI.py:431 appGUI/shortcut_actions.py:118
 msgid "Print (PDF)"
 msgstr "打印 (PDF)"
 
-#: appGUI/MainGUI.py:423
+#: appGUI/MainGUI.py:431
 msgid "Ctrl+P"
 msgstr "Ctrl+P"
 
-#: appGUI/MainGUI.py:443 appGUI/MainGUI.py:1104 appGUI/MainGUI.py:2024
+#: appGUI/MainGUI.py:451 appGUI/MainGUI.py:1112 appGUI/MainGUI.py:2032
 #: appMain.py:2488 appMain.py:2845 appObjects/ObjectCollection.py:641
 msgid "Edit"
 msgstr "编辑"
 
-#: appGUI/MainGUI.py:449
+#: appGUI/MainGUI.py:457
 msgid "Ctrl+Shift+Z"
 msgstr "Ctrl+Shift+Z"
 
-#: appGUI/MainGUI.py:461
+#: appGUI/MainGUI.py:469
 msgid "Edit Object"
 msgstr "编辑对象"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:461 appGUI/MainGUI.py:817 appGUI/MainGUI.py:946
+#: appGUI/MainGUI.py:469 appGUI/MainGUI.py:825 appGUI/MainGUI.py:954
 msgid "E"
 msgstr "E"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:477
+#: appGUI/MainGUI.py:485
 msgid "Conversion"
 msgstr "转换"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:481
+#: appGUI/MainGUI.py:489
 msgid "Convert Single to MultiGeo"
 msgstr "单几何转多几何"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:483
+#: appGUI/MainGUI.py:491
 msgid ""
 "Will convert a Geometry object from single_geometry type\n"
 "to a multi_geometry type."
@@ -10033,11 +10064,11 @@ msgstr ""
 "转换为multi_geometry（多重几何体）类型。"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:488
+#: appGUI/MainGUI.py:496
 msgid "Convert Multi to SingleGeo"
 msgstr "多几何转单几何"
 
-#: appGUI/MainGUI.py:490
+#: appGUI/MainGUI.py:498
 msgid ""
 "Will convert a Geometry object from multi_geometry type\n"
 "to a single_geometry type."
@@ -10045,31 +10076,31 @@ msgstr ""
 "将Geometry对象从multi_geometry（多重几何体）类型\n"
 "转换为single_geometry（单一几何体）类型。"
 
-#: appGUI/MainGUI.py:497
+#: appGUI/MainGUI.py:505
 msgid "Convert Any to Geo"
 msgstr "将任意数据转换为Geometry"
 
-#: appGUI/MainGUI.py:500
+#: appGUI/MainGUI.py:508
 msgid "Convert Any to Gerber"
 msgstr "将任意数据转换为Gerber"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:503
+#: appGUI/MainGUI.py:511
 msgid "Convert Any to Excellon"
 msgstr "将任意数据转换为Excellon"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:508
+#: appGUI/MainGUI.py:516
 msgid "Join Objects"
 msgstr "合并对象"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:511
+#: appGUI/MainGUI.py:519
 msgid "Join Geo/Gerber/Exc -> Geo"
 msgstr "合并Geo/Gerber/Exc -> Geo"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:513
+#: appGUI/MainGUI.py:521
 msgid ""
 "Merge a selection of objects, which can be of type:\n"
 "- Gerber\n"
@@ -10083,75 +10114,75 @@ msgstr ""
 "- Geometry）\n"
 "合并为一个新的组合Geometry对象。"
 
-#: appGUI/MainGUI.py:521
+#: appGUI/MainGUI.py:529
 msgid "Join Excellon(s) -> Excellon"
 msgstr "合并Excellon -> Excellon"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:523
+#: appGUI/MainGUI.py:531
 msgid "Merge a selection of Excellon objects into a new combo Excellon object."
 msgstr "将选定的Excellon对象合并到新的组合Excellon对象中。"
 
-#: appGUI/MainGUI.py:527
+#: appGUI/MainGUI.py:535
 msgid "Join Gerber(s) -> Gerber"
 msgstr "合并Gerber -> Gerber"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:529
+#: appGUI/MainGUI.py:537
 msgid "Merge a selection of Gerber objects into a new combo Gerber object."
 msgstr "将选定的Gerber对象合并到新的组合Gerber对象中。"
 
 # auto-review 2026-10-09: fuzzy corrected
-#: appGUI/MainGUI.py:544 appGUI/MainGUI.py:843 appGUI/MainGUI.py:902
-#: appGUI/MainGUI.py:1028
+#: appGUI/MainGUI.py:552 appGUI/MainGUI.py:851 appGUI/MainGUI.py:910
+#: appGUI/MainGUI.py:1036
 #| msgid "Move"
 msgid "DEL"
 msgstr "DEL"
 
-#: appGUI/MainGUI.py:550 appGUI/MainGUI.py:2031
+#: appGUI/MainGUI.py:558 appGUI/MainGUI.py:2039
 msgid "Num Move"
 msgstr "数值移动"
 
-#: appGUI/MainGUI.py:553 appGUI/MainGUI.py:1322 appGUI/MainGUI.py:2581
+#: appGUI/MainGUI.py:561 appGUI/MainGUI.py:1330 appGUI/MainGUI.py:2589
 #: appGUI/shortcut_actions.py:209 appHandlers/appObjectOps.py:417
 msgid "Set Origin"
 msgstr "设置原点"
 
-#: appGUI/MainGUI.py:553 appGUI/MainGUI.py:788
+#: appGUI/MainGUI.py:561 appGUI/MainGUI.py:796
 msgid "O"
 msgstr "O"
 
-#: appGUI/MainGUI.py:556
+#: appGUI/MainGUI.py:564
 msgid "Shift+O"
 msgstr "Shift+O"
 
-#: appGUI/MainGUI.py:559 appHandlers/appEdit.py:760 appHandlers/appEdit.py:777
+#: appGUI/MainGUI.py:567 appHandlers/appEdit.py:760 appHandlers/appEdit.py:777
 #: appHandlers/appEdit.py:798
 msgid "Custom Origin"
 msgstr "自定义原点"
 
-#: appGUI/MainGUI.py:563
+#: appGUI/MainGUI.py:571
 msgid "Jump to Location"
 msgstr "转到位置"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:563
+#: appGUI/MainGUI.py:571
 msgid "J"
 msgstr "J"
 
-#: appGUI/MainGUI.py:566 appGUI/shortcut_actions.py:127
+#: appGUI/MainGUI.py:574 appGUI/shortcut_actions.py:127
 msgid "Locate in Object"
 msgstr "在对象中定位"
 
-#: appGUI/MainGUI.py:566
+#: appGUI/MainGUI.py:574
 msgid "Shift+J"
 msgstr "Shift+J"
 
-#: appGUI/MainGUI.py:578
+#: appGUI/MainGUI.py:586
 msgid "Shift+P"
 msgstr "Shift+P"
 
-#: appGUI/MainGUI.py:584 appGUI/preferences/cncjob/CNCJobOptPrefGroupUI.py:22
+#: appGUI/MainGUI.py:592 appGUI/preferences/cncjob/CNCJobOptPrefGroupUI.py:22
 #: appGUI/preferences/excellon/ExcellonOptPrefGroupUI.py:22
 #: appGUI/preferences/geometry/GeometryOptPrefGroupUI.py:22
 #: appGUI/preferences/gerber/GerberOptPrefGroupUI.py:24
@@ -10160,583 +10191,583 @@ msgstr "Shift+P"
 msgid "Options"
 msgstr "选项"
 
-#: appGUI/MainGUI.py:587
+#: appGUI/MainGUI.py:595
 msgid "Rotate Selection"
 msgstr "旋转选择"
 
-#: appGUI/MainGUI.py:587
+#: appGUI/MainGUI.py:595
 msgid "Shift+(R)"
 msgstr "Shift+(R)"
 
-#: appGUI/MainGUI.py:593 appGUI/shortcut_actions.py:138
+#: appGUI/MainGUI.py:601 appGUI/shortcut_actions.py:138
 #: appHandlers/appObjectOps.py:293
 msgid "Skew on X axis"
 msgstr "在X轴上倾斜"
 
-#: appGUI/MainGUI.py:593
+#: appGUI/MainGUI.py:601
 msgid "Shift+X"
 msgstr "Shift+X"
 
-#: appGUI/MainGUI.py:596 appGUI/shortcut_actions.py:139
+#: appGUI/MainGUI.py:604 appGUI/shortcut_actions.py:139
 #: appHandlers/appObjectOps.py:346
 msgid "Skew on Y axis"
 msgstr "在Y轴上倾斜"
 
-#: appGUI/MainGUI.py:596
+#: appGUI/MainGUI.py:604
 msgid "Shift+Y"
 msgstr "Shift+Y"
 
-#: appGUI/MainGUI.py:602 appHandlers/appObjectOps.py:178
+#: appGUI/MainGUI.py:610 appHandlers/appObjectOps.py:178
 msgid "Flip on X axis"
 msgstr "在X轴上翻转"
 
-#: appGUI/MainGUI.py:605 appHandlers/appObjectOps.py:124
+#: appGUI/MainGUI.py:613 appHandlers/appObjectOps.py:124
 msgid "Flip on Y axis"
 msgstr "在Y轴上翻转"
 
-#: appGUI/MainGUI.py:611
+#: appGUI/MainGUI.py:619
 msgid "View source"
 msgstr "查看源文件"
 
-#: appGUI/MainGUI.py:611
+#: appGUI/MainGUI.py:619
 msgid "Alt+S"
 msgstr "Alt+S"
 
-#: appGUI/MainGUI.py:614
+#: appGUI/MainGUI.py:622
 msgid "Ctrl+D"
 msgstr "Ctrl+D"
 
-#: appGUI/MainGUI.py:620
+#: appGUI/MainGUI.py:628
 msgid "Experimental"
 msgstr "试验性"
 
-#: appGUI/MainGUI.py:624
+#: appGUI/MainGUI.py:632
 msgid "3D Area"
 msgstr "三维区域"
 
-#: appGUI/MainGUI.py:631 appGUI/MainGUI.py:1839
+#: appGUI/MainGUI.py:639 appGUI/MainGUI.py:1847
 msgid "View"
 msgstr "视图"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:633
+#: appGUI/MainGUI.py:641
 msgid "Restore Layout"
 msgstr "恢复布局"
 
-#: appGUI/MainGUI.py:637 appGUI/shortcut_actions.py:141
+#: appGUI/MainGUI.py:645 appGUI/shortcut_actions.py:141
 msgid "Enable all"
 msgstr "全部启用"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:637
+#: appGUI/MainGUI.py:645
 msgid "Alt+1"
 msgstr "Alt+1"
 
-#: appGUI/MainGUI.py:640 appGUI/shortcut_actions.py:142
+#: appGUI/MainGUI.py:648 appGUI/shortcut_actions.py:142
 msgid "Disable all"
 msgstr "全部禁用"
 
-#: appGUI/MainGUI.py:640
+#: appGUI/MainGUI.py:648
 msgid "Alt+2"
 msgstr "Alt+2"
 
-#: appGUI/MainGUI.py:643
+#: appGUI/MainGUI.py:651
 msgid "Enable non-selected"
 msgstr "启用非选定项"
 
-#: appGUI/MainGUI.py:643
+#: appGUI/MainGUI.py:651
 msgid "Alt+3"
 msgstr "Alt+3"
 
-#: appGUI/MainGUI.py:646
+#: appGUI/MainGUI.py:654
 msgid "Disable non-selected"
 msgstr "禁用非选定项"
 
-#: appGUI/MainGUI.py:646
+#: appGUI/MainGUI.py:654
 msgid "Alt+4"
 msgstr "Alt+4"
 
-#: appGUI/MainGUI.py:652 appGUI/MainGUI.py:1350 appGUI/MainGUI.py:1846
-#: appGUI/MainGUI.py:2609 appGUI/shortcut_actions.py:217
+#: appGUI/MainGUI.py:660 appGUI/MainGUI.py:1358 appGUI/MainGUI.py:1854
+#: appGUI/MainGUI.py:2617 appGUI/shortcut_actions.py:217
 #: appGUI/shortcut_actions.py:405 appGUI/shortcut_actions.py:668
 #: appGUI/shortcut_actions.py:785
 msgid "Zoom Fit"
 msgstr "最佳缩放"
 
-#: appGUI/MainGUI.py:652
+#: appGUI/MainGUI.py:660
 msgid "V"
 msgstr "V"
 
-#: appGUI/MainGUI.py:655 appGUI/MainGUI.py:1346 appGUI/MainGUI.py:2605
+#: appGUI/MainGUI.py:663 appGUI/MainGUI.py:1354 appGUI/MainGUI.py:2613
 #: appGUI/shortcut_actions.py:220 appGUI/shortcut_actions.py:401
 #: appGUI/shortcut_actions.py:632 appGUI/shortcut_actions.py:779
 #: appGUI/shortcut_actions.py:997
 msgid "Zoom In"
 msgstr "放大"
 
-#: appGUI/MainGUI.py:655
+#: appGUI/MainGUI.py:663
 msgid "="
 msgstr "="
 
-#: appGUI/MainGUI.py:658 appGUI/MainGUI.py:1348 appGUI/MainGUI.py:2607
+#: appGUI/MainGUI.py:666 appGUI/MainGUI.py:1356 appGUI/MainGUI.py:2615
 #: appGUI/shortcut_actions.py:223 appGUI/shortcut_actions.py:400
 #: appGUI/shortcut_actions.py:630 appGUI/shortcut_actions.py:778
 #: appGUI/shortcut_actions.py:998
 msgid "Zoom Out"
 msgstr "缩小"
 
-#: appGUI/MainGUI.py:658
+#: appGUI/MainGUI.py:666
 msgid "-"
 msgstr "-"
 
-#: appGUI/MainGUI.py:664
+#: appGUI/MainGUI.py:672
 msgid "Redraw All"
 msgstr "全部重绘"
 
-#: appGUI/MainGUI.py:664
+#: appGUI/MainGUI.py:672
 msgid "F5"
 msgstr "F5"
 
-#: appGUI/MainGUI.py:669 appGUI/shortcut_actions.py:125
+#: appGUI/MainGUI.py:677 appGUI/shortcut_actions.py:125
 msgid "Toggle Code Editor"
 msgstr "切换代码编辑器"
 
-#: appGUI/MainGUI.py:669
+#: appGUI/MainGUI.py:677
 msgid "Shift+E"
 msgstr "Shift+E"
 
-#: appGUI/MainGUI.py:673
+#: appGUI/MainGUI.py:681
 msgid "Toggle FullScreen"
 msgstr "切换全屏"
 
-#: appGUI/MainGUI.py:673
+#: appGUI/MainGUI.py:681
 msgid "Alt+F10"
 msgstr "Alt+F10"
 
-#: appGUI/MainGUI.py:676 appGUI/shortcut_actions.py:121
+#: appGUI/MainGUI.py:684 appGUI/shortcut_actions.py:121
 msgid "Toggle Plot Area"
 msgstr "切换绘图区"
 
-#: appGUI/MainGUI.py:676
+#: appGUI/MainGUI.py:684
 msgid "Ctrl+F10"
 msgstr "Ctrl+F10"
 
-#: appGUI/MainGUI.py:679
+#: appGUI/MainGUI.py:687
 msgid "Toggle Project/Properties/Tool"
 msgstr "切换项目/属性/工具"
 
-#: appGUI/MainGUI.py:679
+#: appGUI/MainGUI.py:687
 msgid "`"
 msgstr "`"
 
-#: appGUI/MainGUI.py:683
+#: appGUI/MainGUI.py:691
 msgid "Toggle Grid Snap"
 msgstr "切换栅格捕捉"
 
-#: appGUI/MainGUI.py:683
+#: appGUI/MainGUI.py:691
 msgid "G"
 msgstr "G"
 
-#: appGUI/MainGUI.py:686 appGUI/shortcut_actions.py:84
+#: appGUI/MainGUI.py:694 appGUI/shortcut_actions.py:84
 msgid "Toggle Grid Lines"
 msgstr "切换栅格线"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:686
+#: appGUI/MainGUI.py:694
 msgid "Shift+G"
 msgstr "Shift+G"
 
-#: appGUI/MainGUI.py:689
+#: appGUI/MainGUI.py:697
 msgid "Toggle Axis"
 msgstr "切换坐标轴"
 
-#: appGUI/MainGUI.py:689
+#: appGUI/MainGUI.py:697
 msgid "Shift+A"
 msgstr "Shift+A"
 
-#: appGUI/MainGUI.py:692
+#: appGUI/MainGUI.py:700
 msgid "Toggle Workspace"
 msgstr "切换工作区"
 
-#: appGUI/MainGUI.py:692
+#: appGUI/MainGUI.py:700
 msgid "Shift+W"
 msgstr "Shift+W"
 
-#: appGUI/MainGUI.py:695 appGUI/shortcut_actions.py:86
+#: appGUI/MainGUI.py:703 appGUI/shortcut_actions.py:86
 msgid "Toggle HUD"
 msgstr "切换HUD"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:695
+#: appGUI/MainGUI.py:703
 msgid "Shift+H"
 msgstr "Shift+H"
 
-#: appGUI/MainGUI.py:700
+#: appGUI/MainGUI.py:708
 msgid "Error Log"
 msgstr "错误日志"
 
-#: appGUI/MainGUI.py:705 appPlugins/ToolCompare/CompareUI.py:46
+#: appGUI/MainGUI.py:713 appPlugins/ToolCompare/CompareUI.py:46
 msgid "Objects"
 msgstr "对象"
 
-#: appGUI/MainGUI.py:712 appPlugins/ToolIsolation/IsolationUI.py:630
+#: appGUI/MainGUI.py:720 appPlugins/ToolIsolation/IsolationUI.py:630
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:240
 msgid "Deselect All"
 msgstr "取消全选"
 
-#: appGUI/MainGUI.py:717 appGUI/ObjectUI.py:368 appGUI/ObjectUI.py:750
+#: appGUI/MainGUI.py:725 appGUI/ObjectUI.py:368 appGUI/ObjectUI.py:750
 #: appGUI/ObjectUI.py:1034 appGUI/ObjectUI.py:1424
 #: appGUI/preferences/PreferencesWindow.py:75
 msgid "Plugins"
 msgstr "插件"
 
-#: appGUI/MainGUI.py:721 appGUI/MainGUI.py:1358 appGUI/MainGUI.py:2615
+#: appGUI/MainGUI.py:729 appGUI/MainGUI.py:1366 appGUI/MainGUI.py:2623
 msgid "Command Line"
 msgstr "命令行"
 
-#: appGUI/MainGUI.py:721 appGUI/MainGUI.py:820 appGUI/MainGUI.py:959
+#: appGUI/MainGUI.py:729 appGUI/MainGUI.py:828 appGUI/MainGUI.py:967
 msgid "S"
 msgstr "S"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:726
+#: appGUI/MainGUI.py:734
 msgid "Help"
 msgstr "帮助"
 
-#: appGUI/MainGUI.py:729
+#: appGUI/MainGUI.py:737
 msgid "Obsolete Online Help"
 msgstr "在线帮助（已过时）"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:729
+#: appGUI/MainGUI.py:737
 msgid "F1"
 msgstr "F1"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:732
+#: appGUI/MainGUI.py:740
 msgid "Check for Updates"
 msgstr "检查更新"
 
-#: appGUI/MainGUI.py:735
+#: appGUI/MainGUI.py:743
 msgid "Revert to Previous Version"
 msgstr "恢复到上一版本"
 
-#: appGUI/MainGUI.py:743 appHandlers/appUIActions.py:515
+#: appGUI/MainGUI.py:751 appHandlers/appUIActions.py:515
 #: appHandlers/appUIActions.py:524
 msgid "Bookmarks Manager"
 msgstr "书签管理"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:748
+#: appGUI/MainGUI.py:756
 msgid "Report a bug"
 msgstr "报告错误"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:752
+#: appGUI/MainGUI.py:760
 msgid "Excellon Specification"
 msgstr "Excellon规范"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:755
+#: appGUI/MainGUI.py:763
 msgid "Gerber Specification"
 msgstr "Gerber规范"
 
-#: appGUI/MainGUI.py:761 appGUI/shortcut_actions.py:179
+#: appGUI/MainGUI.py:769 appGUI/shortcut_actions.py:179
 #: appGUI/shortcut_actions.py:444 appGUI/shortcut_actions.py:671
 #: appGUI/shortcut_actions.py:788
 msgid "Shortcuts List"
 msgstr "快捷键列表"
 
-#: appGUI/MainGUI.py:761
+#: appGUI/MainGUI.py:769
 msgid "F3"
 msgstr "F3"
 
-#: appGUI/MainGUI.py:764
+#: appGUI/MainGUI.py:772
 msgid "YouTube Channel"
 msgstr "YouTube频道"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:764
+#: appGUI/MainGUI.py:772
 msgid "F4"
 msgstr "F4"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:770
+#: appGUI/MainGUI.py:778
 msgid "Donate"
 msgstr "捐赠"
 
-#: appGUI/MainGUI.py:774 appHandlers/appUIActions.py:334
+#: appGUI/MainGUI.py:782 appHandlers/appUIActions.py:334
 msgid "How To"
 msgstr "操作指南"
 
-#: appGUI/MainGUI.py:778 appGUI/WelcomeDialog.py:320
+#: appGUI/MainGUI.py:786 appGUI/WelcomeDialog.py:323
 #: appHandlers/appUIActions.py:111
 msgid "About"
 msgstr "关于"
 
-#: appGUI/MainGUI.py:783 appGUI/MainGUI.py:1919
+#: appGUI/MainGUI.py:791 appGUI/MainGUI.py:1927
 msgid "Geo Editor"
 msgstr "几何体编辑器"
 
-#: appGUI/MainGUI.py:792 appGUI/MainGUI.py:879 appGUI/MainGUI.py:932
+#: appGUI/MainGUI.py:800 appGUI/MainGUI.py:887 appGUI/MainGUI.py:940
 msgid "A"
 msgstr "A"
 
-#: appGUI/MainGUI.py:796 appGUI/MainGUI.py:895
+#: appGUI/MainGUI.py:804 appGUI/MainGUI.py:903
 msgid "R"
 msgstr "R"
 
-#: appGUI/MainGUI.py:804 appGUI/MainGUI.py:929 appGUI/ObjectUI.py:1394
+#: appGUI/MainGUI.py:812 appGUI/MainGUI.py:937 appGUI/ObjectUI.py:1394
 #: appGUI/ObjectUI.py:1405
 msgid "P"
 msgstr "P"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:808 appGUI/MainGUI.py:935
+#: appGUI/MainGUI.py:816 appGUI/MainGUI.py:943
 msgid "T"
 msgstr "T"
 
-#: appGUI/MainGUI.py:812 appGUI/MainGUI.py:1498 appGUI/MainGUI.py:1946
-#: appGUI/MainGUI.py:2754 appGUI/preferences/tools/ToolsFollowPrefGroupUI.py:90
+#: appGUI/MainGUI.py:820 appGUI/MainGUI.py:1506 appGUI/MainGUI.py:1954
+#: appGUI/MainGUI.py:2762 appGUI/preferences/tools/ToolsFollowPrefGroupUI.py:90
 #: appPlugins/ToolFollow/FollowUI.py:145
 msgid "Union"
 msgstr "并集"
 
-#: appGUI/MainGUI.py:812
+#: appGUI/MainGUI.py:820
 msgid "U"
 msgstr "U"
 
-#: appGUI/MainGUI.py:817 appGUI/MainGUI.py:1511 appGUI/MainGUI.py:1950
-#: appGUI/MainGUI.py:2767
+#: appGUI/MainGUI.py:825 appGUI/MainGUI.py:1519 appGUI/MainGUI.py:1958
+#: appGUI/MainGUI.py:2775
 msgid "Intersection"
 msgstr "交集"
 
-#: appGUI/MainGUI.py:820 appGUI/MainGUI.py:1513 appGUI/MainGUI.py:1952
-#: appGUI/MainGUI.py:2769
+#: appGUI/MainGUI.py:828 appGUI/MainGUI.py:1521 appGUI/MainGUI.py:1960
+#: appGUI/MainGUI.py:2777
 msgid "Subtraction"
 msgstr "差集"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:824 appGUI/MainGUI.py:1519 appGUI/MainGUI.py:1954
-#: appGUI/MainGUI.py:2771
+#: appGUI/MainGUI.py:832 appGUI/MainGUI.py:1527 appGUI/MainGUI.py:1962
+#: appGUI/MainGUI.py:2779
 msgid "Alt Subtraction"
 msgstr "替代差集"
 
-#: appGUI/MainGUI.py:829 appGUI/MainGUI.py:1527 appGUI/MainGUI.py:2775
+#: appGUI/MainGUI.py:837 appGUI/MainGUI.py:1535 appGUI/MainGUI.py:2783
 msgid "Cut Path"
 msgstr "切割路径"
 
-#: appGUI/MainGUI.py:834 appGUI/MainGUI.py:899 appGUI/MainGUI.py:1025
+#: appGUI/MainGUI.py:842 appGUI/MainGUI.py:907 appGUI/MainGUI.py:1033
 msgid "C"
 msgstr "C"
 
-#: appGUI/MainGUI.py:848 appGUI/MainGUI.py:908 appGUI/MainGUI.py:1033
+#: appGUI/MainGUI.py:856 appGUI/MainGUI.py:916 appGUI/MainGUI.py:1041
 msgid "M"
 msgstr "M"
 
-#: appGUI/MainGUI.py:859
+#: appGUI/MainGUI.py:867
 msgid "I"
 msgstr "I"
 
-#: appGUI/MainGUI.py:863 appGUI/MainGUI.py:968 appGUI/MainGUI.py:1538
-#: appGUI/MainGUI.py:1606 appGUI/MainGUI.py:1958 appGUI/MainGUI.py:1995
-#: appGUI/MainGUI.py:2785 appGUI/MainGUI.py:2854
+#: appGUI/MainGUI.py:871 appGUI/MainGUI.py:976 appGUI/MainGUI.py:1546
+#: appGUI/MainGUI.py:1614 appGUI/MainGUI.py:1966 appGUI/MainGUI.py:2003
+#: appGUI/MainGUI.py:2793 appGUI/MainGUI.py:2862
 #: appGUI/preferences/PreferencesWindow.py:38 appGUI/shortcut_actions.py:167
 #: appHandlers/appObjectOps.py:216 appHandlers/appObjectOps.py:276
 #: appHandlers/appObjectOps.py:329
 msgid "Transform"
 msgstr "变换"
 
-#: appGUI/MainGUI.py:863 appGUI/MainGUI.py:968
+#: appGUI/MainGUI.py:871 appGUI/MainGUI.py:976
 msgid "Alt+R"
 msgstr "Alt+R"
 
-#: appGUI/MainGUI.py:868 appGUI/shortcut_actions.py:403
+#: appGUI/MainGUI.py:876 appGUI/shortcut_actions.py:403
 #: appGUI/shortcut_actions.py:655 appGUI/shortcut_actions.py:783
 msgid "Toggle Corner Snap"
 msgstr "切换角捕捉"
 
-#: appGUI/MainGUI.py:868
+#: appGUI/MainGUI.py:876
 msgid "K"
 msgstr "K"
 
-#: appGUI/MainGUI.py:887
+#: appGUI/MainGUI.py:895
 msgid "Q"
 msgstr "Q"
 
-#: appGUI/MainGUI.py:890
+#: appGUI/MainGUI.py:898
 msgid "W"
 msgstr "W"
 
-#: appGUI/MainGUI.py:895 appGUI/MainGUI.py:1455 appGUI/MainGUI.py:2017
-#: appGUI/MainGUI.py:2709 appGUI/shortcut_actions.py:808
+#: appGUI/MainGUI.py:903 appGUI/MainGUI.py:1463 appGUI/MainGUI.py:2025
+#: appGUI/MainGUI.py:2717 appGUI/shortcut_actions.py:808
 msgid "Resize Drill"
 msgstr "调整钻孔大小"
 
-#: appGUI/MainGUI.py:917 appGUI/MainGUI.py:1567 appGUI/MainGUI.py:2815
+#: appGUI/MainGUI.py:925 appGUI/MainGUI.py:1575 appGUI/MainGUI.py:2823
 msgid "Rect. Reg"
 msgstr "矩形区域"
 
-#: appGUI/MainGUI.py:921 appGUI/MainGUI.py:1574 appGUI/MainGUI.py:2822
+#: appGUI/MainGUI.py:929 appGUI/MainGUI.py:1582 appGUI/MainGUI.py:2830
 msgid "Text Reg"
 msgstr "文本区域"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:923 appGUI/MainGUI.py:1578 appGUI/MainGUI.py:2826
+#: appGUI/MainGUI.py:931 appGUI/MainGUI.py:1586 appGUI/MainGUI.py:2834
 msgid "Arc Follow"
 msgstr "圆弧 FOLLOW"
 
-#: appGUI/MainGUI.py:943 appGUI/MainGUI.py:1560 appGUI/MainGUI.py:1977
-#: appGUI/MainGUI.py:2808
+#: appGUI/MainGUI.py:951 appGUI/MainGUI.py:1568 appGUI/MainGUI.py:1985
+#: appGUI/MainGUI.py:2816
 msgid "Poligonize"
 msgstr "转为多边形"
 
-#: appGUI/MainGUI.py:943
+#: appGUI/MainGUI.py:951
 msgid "Alt+N"
 msgstr "Alt+N"
 
-#: appGUI/MainGUI.py:946 appGUI/MainGUI.py:1563 appGUI/MainGUI.py:1979
-#: appGUI/MainGUI.py:2811
+#: appGUI/MainGUI.py:954 appGUI/MainGUI.py:1571 appGUI/MainGUI.py:1987
+#: appGUI/MainGUI.py:2819
 msgid "SemiDisc"
 msgstr "半圆盘"
 
-#: appGUI/MainGUI.py:949 appGUI/MainGUI.py:1565 appGUI/MainGUI.py:1981
-#: appGUI/MainGUI.py:2813
+#: appGUI/MainGUI.py:957 appGUI/MainGUI.py:1573 appGUI/MainGUI.py:1989
+#: appGUI/MainGUI.py:2821
 msgid "Disc"
 msgstr "圆盘"
 
-#: appGUI/MainGUI.py:962 appGUI/MainGUI.py:1593 appGUI/MainGUI.py:1989
-#: appGUI/MainGUI.py:2841
+#: appGUI/MainGUI.py:970 appGUI/MainGUI.py:1601 appGUI/MainGUI.py:1997
+#: appGUI/MainGUI.py:2849
 msgid "Mark Area"
 msgstr "标记区域"
 
-#: appGUI/MainGUI.py:962
+#: appGUI/MainGUI.py:970
 msgid "Alt+A"
 msgstr "Alt+A"
 
-#: appGUI/MainGUI.py:974
+#: appGUI/MainGUI.py:982
 msgid "Invert Selection"
 msgstr "反选"
 
-#: appGUI/MainGUI.py:976
+#: appGUI/MainGUI.py:984
 msgid "Pads Only"
 msgstr "仅焊盘"
 
-#: appGUI/MainGUI.py:978
+#: appGUI/MainGUI.py:986
 msgid "Tracks Only"
 msgstr "仅走线"
 
-#: appGUI/MainGUI.py:980
+#: appGUI/MainGUI.py:988
 msgid "Regions Only"
 msgstr "仅区域"
 
-#: appGUI/MainGUI.py:982
+#: appGUI/MainGUI.py:990
 msgid "Select Chain"
 msgstr "选择走线链"
 
-#: appGUI/MainGUI.py:990
+#: appGUI/MainGUI.py:998
 msgid "Track Edit"
 msgstr "走线编辑"
 
-#: appGUI/MainGUI.py:994
+#: appGUI/MainGUI.py:1002
 msgid "Clip and Replace with Pad"
 msgstr "裁剪并替换为焊盘"
 
-#: appGUI/MainGUI.py:998
+#: appGUI/MainGUI.py:1006
 msgid "Insert Elbow"
 msgstr "插入拐角"
 
-#: appGUI/MainGUI.py:1000
+#: appGUI/MainGUI.py:1008
 msgid "Insert 90° Elbow"
 msgstr "插入 90° 拐角"
 
-#: appGUI/MainGUI.py:1004
+#: appGUI/MainGUI.py:1012
 msgid "Delete Unused"
 msgstr "删除未用项"
 
-#: appGUI/MainGUI.py:1008
+#: appGUI/MainGUI.py:1016
 msgid "Merge Duplicates"
 msgstr "合并重复项"
 
-#: appGUI/MainGUI.py:1010
+#: appGUI/MainGUI.py:1018
 msgid "Round Sizes"
 msgstr "圆整尺寸"
 
-#: appGUI/MainGUI.py:1012
+#: appGUI/MainGUI.py:1020
 msgid "Select Same Type"
 msgstr "选择相同类型"
 
-#: appGUI/MainGUI.py:1014 appPlugins/ToolCutOut/CutOutUI.py:383
+#: appGUI/MainGUI.py:1022 appPlugins/ToolCutOut/CutOutUI.py:383
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:231
 msgid "Automatic"
 msgstr "自动"
 
-#: appGUI/MainGUI.py:1050
+#: appGUI/MainGUI.py:1058
 msgid "Enable Plot"
 msgstr "启用绘图"
 
-#: appGUI/MainGUI.py:1052
+#: appGUI/MainGUI.py:1060
 msgid "Disable Plot"
 msgstr "禁用绘图"
 
-#: appGUI/MainGUI.py:1056 appGUI/MainGUI.py:1874
+#: appGUI/MainGUI.py:1064 appGUI/MainGUI.py:1882
 msgid "Set Color"
 msgstr "设置颜色"
 
-#: appGUI/MainGUI.py:1059 appGUI/MainGUI.py:1877
+#: appGUI/MainGUI.py:1067 appGUI/MainGUI.py:1885
 #: appHandlers/appPlotManager.py:390
 msgid "Red"
 msgstr "红色"
 
-#: appGUI/MainGUI.py:1062 appGUI/MainGUI.py:1880
+#: appGUI/MainGUI.py:1070 appGUI/MainGUI.py:1888
 #: appHandlers/appPlotManager.py:392
 msgid "Blue"
 msgstr "蓝色"
 
-#: appGUI/MainGUI.py:1065 appGUI/MainGUI.py:1883
+#: appGUI/MainGUI.py:1073 appGUI/MainGUI.py:1891
 #: appHandlers/appPlotManager.py:395
 msgid "Yellow"
 msgstr "黄色"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:1068 appGUI/MainGUI.py:1886
+#: appGUI/MainGUI.py:1076 appGUI/MainGUI.py:1894
 #: appHandlers/appPlotManager.py:397
 msgid "Green"
 msgstr "绿色"
 
-#: appGUI/MainGUI.py:1071 appGUI/MainGUI.py:1889
+#: appGUI/MainGUI.py:1079 appGUI/MainGUI.py:1897
 #: appHandlers/appPlotManager.py:399
 msgid "Purple"
 msgstr "紫色"
 
-#: appGUI/MainGUI.py:1074 appGUI/MainGUI.py:1892
+#: appGUI/MainGUI.py:1082 appGUI/MainGUI.py:1900
 #: appHandlers/appPlotManager.py:401
 msgid "Brown"
 msgstr "棕色"
 
-#: appGUI/MainGUI.py:1077 appGUI/MainGUI.py:1895
+#: appGUI/MainGUI.py:1085 appGUI/MainGUI.py:1903
 #: appHandlers/appPlotManager.py:403
 msgid "Indigo"
 msgstr "靛青"
 
-#: appGUI/MainGUI.py:1080 appGUI/MainGUI.py:1898
+#: appGUI/MainGUI.py:1088 appGUI/MainGUI.py:1906
 #: appHandlers/appPlotManager.py:405 appHandlers/appPlotManager.py:481
 msgid "White"
 msgstr "白色"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:1083 appGUI/MainGUI.py:1901
+#: appGUI/MainGUI.py:1091 appGUI/MainGUI.py:1909
 #: appHandlers/appPlotManager.py:407
 msgid "Black"
 msgstr "黑色"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:1093 appGUI/MainGUI.py:1911
+#: appGUI/MainGUI.py:1101 appGUI/MainGUI.py:1919
 #: appHandlers/appPlotManager.py:445
 msgid "Opacity"
 msgstr "不透明度"
 
-#: appGUI/MainGUI.py:1096 appGUI/MainGUI.py:1914
+#: appGUI/MainGUI.py:1104 appGUI/MainGUI.py:1922
 #: appGUI/preferences/general/GeneralGUIPrefGroupUI.py:117
 #: appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:50
 #: appGUI/preferences/tools/ToolsISOPrefGroupUI.py:65
@@ -10750,115 +10781,115 @@ msgstr "不透明度"
 msgid "Default"
 msgstr "默认"
 
-#: appGUI/MainGUI.py:1101
+#: appGUI/MainGUI.py:1109
 msgid "View Source"
 msgstr "查看源文件"
 
-#: appGUI/MainGUI.py:1116
+#: appGUI/MainGUI.py:1124
 msgid "DXF"
 msgstr "DXF"
 
-#: appGUI/MainGUI.py:1120 appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:275
+#: appGUI/MainGUI.py:1128 appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:275
 #: appPlugins/ToolFilm/FilmUI.py:299
 msgid "SVG"
 msgstr "SVG"
 
-#: appGUI/MainGUI.py:1124 appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:276
+#: appGUI/MainGUI.py:1132 appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:276
 #: appPlugins/ToolFilm/FilmUI.py:300
 msgid "PNG"
 msgstr "PNG"
 
-#: appGUI/MainGUI.py:1132 appGUI/MainGUI.py:1500 appGUI/MainGUI.py:1555
-#: appGUI/MainGUI.py:2756 appGUI/MainGUI.py:2803
+#: appGUI/MainGUI.py:1140 appGUI/MainGUI.py:1508 appGUI/MainGUI.py:1563
+#: appGUI/MainGUI.py:2764 appGUI/MainGUI.py:2811
 msgid "Join"
 msgstr "连接"
 
-#: appGUI/MainGUI.py:1134
+#: appGUI/MainGUI.py:1142
 msgid "As Gerber"
 msgstr "作为 Gerber"
 
-#: appGUI/MainGUI.py:1136
+#: appGUI/MainGUI.py:1144
 msgid "As Excellon"
 msgstr "作为 Excellon"
 
-#: appGUI/MainGUI.py:1138
+#: appGUI/MainGUI.py:1146
 msgid "As Geometry"
 msgstr "作为 Geometry"
 
-#: appGUI/MainGUI.py:1142 appGUI/MainGUI.py:1155 appGUI/MainGUI.py:1764
-#: appGUI/MainGUI.py:2037 appHandlers/appUIActions.py:1087 appMain.py:2627
+#: appGUI/MainGUI.py:1150 appGUI/MainGUI.py:1163 appGUI/MainGUI.py:1772
+#: appGUI/MainGUI.py:2045 appHandlers/appUIActions.py:1087 appMain.py:2627
 #: appMain.py:3009
 msgid "Properties"
 msgstr "属性"
 
-#: appGUI/MainGUI.py:1155 appGUI/MainGUI.py:1748 appGUI/MainGUI.py:1863
-#: appGUI/WelcomeDialog.py:29 appGUI/WelcomeDialog.py:54
+#: appGUI/MainGUI.py:1163 appGUI/MainGUI.py:1756 appGUI/MainGUI.py:1871
+#: appGUI/WelcomeDialog.py:29 appGUI/WelcomeDialog.py:57
 #: appGUI/preferences/general/GeneralShortcutsGroupUI.py:291
-#: appHandlers/appIO.py:1938 appHandlers/appProjects.py:71 appMain.py:2633
+#: appHandlers/appIO.py:2039 appHandlers/appProjects.py:71 appMain.py:2633
 #: appMain.py:3013
 msgid "Project"
 msgstr "项目"
 
-#: appGUI/MainGUI.py:1174
+#: appGUI/MainGUI.py:1182
 msgid "File Toolbar"
 msgstr "文件工具栏"
 
-#: appGUI/MainGUI.py:1181
+#: appGUI/MainGUI.py:1189
 msgid "Edit Toolbar"
 msgstr "编辑工具栏"
 
-#: appGUI/MainGUI.py:1186
+#: appGUI/MainGUI.py:1194
 msgid "View Toolbar"
 msgstr "视图工具栏"
 
-#: appGUI/MainGUI.py:1191
+#: appGUI/MainGUI.py:1199
 msgid "Shell Toolbar"
 msgstr "控制台工具栏"
 
-#: appGUI/MainGUI.py:1196
+#: appGUI/MainGUI.py:1204
 msgid "Plugin Toolbar"
 msgstr "插件工具栏"
 
-#: appGUI/MainGUI.py:1207
+#: appGUI/MainGUI.py:1215
 msgid "Excellon Editor Toolbar"
 msgstr "Excellon编辑器工具栏"
 
-#: appGUI/MainGUI.py:1219
+#: appGUI/MainGUI.py:1227
 msgid "Geometry Editor Toolbar"
 msgstr "Geometry编辑器工具栏"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:1229
+#: appGUI/MainGUI.py:1237
 msgid "Gerber Editor Toolbar"
 msgstr "Gerber编辑器工具栏"
 
-#: appGUI/MainGUI.py:1240
+#: appGUI/MainGUI.py:1248
 msgid "Delta Coordinates Toolbar"
 msgstr "增量坐标工具栏"
 
-#: appGUI/MainGUI.py:1244
+#: appGUI/MainGUI.py:1252
 msgid "Coordinates Toolbar"
 msgstr "坐标工具栏"
 
-#: appGUI/MainGUI.py:1248
+#: appGUI/MainGUI.py:1256
 msgid "Grid Toolbar"
 msgstr "栅格工具栏"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:1258
+#: appGUI/MainGUI.py:1266
 msgid "Status Toolbar"
 msgstr "状态工具栏"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:1272 appGUI/MainGUI.py:2530
+#: appGUI/MainGUI.py:1280 appGUI/MainGUI.py:2538
 msgid "Open a Gerber file."
 msgstr "打开Gerber文件。"
 
-#: appGUI/MainGUI.py:1275 appGUI/MainGUI.py:2533
+#: appGUI/MainGUI.py:1283 appGUI/MainGUI.py:2541
 msgid "Open a Excellon file."
 msgstr "打开Excellon文件。"
 
-#: appGUI/MainGUI.py:1282 appGUI/MainGUI.py:2540 appGUI/ObjectUI.py:1633
+#: appGUI/MainGUI.py:1290 appGUI/MainGUI.py:2548 appGUI/ObjectUI.py:1633
 #: appGUI/preferences/cncjob/CNCJobEditorPrefGroupUI.py:22
 #: appGUI/preferences/excellon/ExcellonEditorPrefGroupUI.py:18
 #: appGUI/preferences/geometry/GeometryEditorPrefGroupUI.py:21
@@ -10868,79 +10899,79 @@ msgid "Editor"
 msgstr "编辑器"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:1287 appGUI/MainGUI.py:2545
+#: appGUI/MainGUI.py:1295 appGUI/MainGUI.py:2553
 msgid "Exit Edit"
 msgstr "退出编辑"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:1310 appGUI/MainGUI.py:2569
+#: appGUI/MainGUI.py:1318 appGUI/MainGUI.py:2577
 msgid "Copy a selection of objects."
 msgstr "复制所选对象。"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:1313 appGUI/MainGUI.py:2572
+#: appGUI/MainGUI.py:1321 appGUI/MainGUI.py:2580
 msgid "Delete a selection of objects."
 msgstr "删除所选对象。"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:1317 appGUI/MainGUI.py:2576
+#: appGUI/MainGUI.py:1325 appGUI/MainGUI.py:2584
 msgid "Measure a distance between two or more points."
 msgstr "测量两个或多个点之间的距离。"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:1323 appGUI/MainGUI.py:2582
+#: appGUI/MainGUI.py:1331 appGUI/MainGUI.py:2590
 msgid "Set an origin to a custom location."
 msgstr "将原点设置到自定义位置。"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:1332 appGUI/MainGUI.py:2591
+#: appGUI/MainGUI.py:1340 appGUI/MainGUI.py:2599
 msgid "Jump to"
 msgstr "跳转到"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:1333 appGUI/MainGUI.py:2592
+#: appGUI/MainGUI.py:1341 appGUI/MainGUI.py:2600
 msgid "Move the mouse cursor to a defined position and center into view."
 msgstr "将鼠标光标移动到指定位置，并使该位置在视图中居中。"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:1335 appGUI/MainGUI.py:2594
+#: appGUI/MainGUI.py:1343 appGUI/MainGUI.py:2602
 msgid "Locate"
 msgstr "定位"
 
-#: appGUI/MainGUI.py:1336 appGUI/MainGUI.py:2595
+#: appGUI/MainGUI.py:1344 appGUI/MainGUI.py:2603
 msgid "Locate a predefined position on a selected object."
 msgstr "在所选对象上定位预定义的位置。"
 
-#: appGUI/MainGUI.py:1342 appGUI/MainGUI.py:1850 appGUI/MainGUI.py:2601
+#: appGUI/MainGUI.py:1350 appGUI/MainGUI.py:1858 appGUI/MainGUI.py:2609
 msgid "Replot"
 msgstr "重画"
 
-#: appGUI/MainGUI.py:1344 appGUI/MainGUI.py:1848 appGUI/MainGUI.py:2603
+#: appGUI/MainGUI.py:1352 appGUI/MainGUI.py:1856 appGUI/MainGUI.py:2611
 msgid "Clear Plot"
 msgstr "清除绘图"
 
-#: appGUI/MainGUI.py:1383 appGUI/MainGUI.py:2641
+#: appGUI/MainGUI.py:1391 appGUI/MainGUI.py:2649
 msgid "Carve"
 msgstr "雕刻"
 
-#: appGUI/MainGUI.py:1384 appGUI/MainGUI.py:2642
+#: appGUI/MainGUI.py:1392 appGUI/MainGUI.py:2650
 msgid "Carve a loaded picture into a material."
 msgstr "将已加载的图片雕刻到材料上。"
 
-#: appGUI/MainGUI.py:1391 appGUI/MainGUI.py:2649
+#: appGUI/MainGUI.py:1399 appGUI/MainGUI.py:2657
 #: appGUI/preferences/tools/ToolsCutoutPrefGroupUI.py:118
 #: appPlugins/ToolCutOut/CutOutUI.py:85
 msgid "Panel"
 msgstr "拼板"
 
-#: appGUI/MainGUI.py:1393 appGUI/MainGUI.py:2651 appGUI/ObjectUI.py:403
+#: appGUI/MainGUI.py:1401 appGUI/MainGUI.py:2659 appGUI/ObjectUI.py:403
 #: appGUI/preferences/PreferencesWindow.py:35 appPlugins/ToolFilm/Film.py:118
 #: appPlugins/ToolFilm/FilmUI.py:19
 msgid "Film"
 msgstr "胶片"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:1395 appGUI/MainGUI.py:2653
+#: appGUI/MainGUI.py:1403 appGUI/MainGUI.py:2661
 #: appGUI/preferences/PreferencesWindow.py:48 appGUI/shortcut_actions.py:53
 #: appPlugins/ToolDblSided/DblSided.py:203
 #: appPlugins/ToolDblSided/DblSidedUI.py:16
@@ -10948,11 +10979,11 @@ msgid "2-Sided"
 msgstr "双面"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:1400 appGUI/MainGUI.py:2658
+#: appGUI/MainGUI.py:1408 appGUI/MainGUI.py:2666
 msgid "Align"
 msgstr "对齐"
 
-#: appGUI/MainGUI.py:1407 appGUI/MainGUI.py:2665
+#: appGUI/MainGUI.py:1415 appGUI/MainGUI.py:2673
 #: appGUI/preferences/tools/Tools2CThievingPrefGroupUI.py:361
 #: appPlugins/ToolCopperThieving/CopperThieving.py:509
 #: appPlugins/ToolCopperThieving/CopperThieving.py:521
@@ -10962,46 +10993,46 @@ msgid "Thieving"
 msgstr "盗铜"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:1409 appGUI/MainGUI.py:2667
+#: appGUI/MainGUI.py:1417 appGUI/MainGUI.py:2675
 #: appGUI/preferences/PreferencesWindow.py:40 appGUI/shortcut_actions.py:55
 #: appGUI/shortcut_actions.py:149 appPlugins/ToolMarkers/Markers.py:152
 #: appPlugins/ToolMarkers/MarkersUI.py:16
 msgid "Markers"
 msgstr "标记"
 
-#: appGUI/MainGUI.py:1411
+#: appGUI/MainGUI.py:1419
 msgid "Punch"
 msgstr "打孔"
 
-#: appGUI/MainGUI.py:1413 appGUI/MainGUI.py:2671
+#: appGUI/MainGUI.py:1421 appGUI/MainGUI.py:2679
 #: appGUI/preferences/PreferencesWindow.py:37 appGUI/shortcut_actions.py:150
 #: appPlugins/ToolCalculators/Calculator.py:86
 #: appPlugins/ToolCalculators/CalculatorUI.py:22
 msgid "Calculators"
 msgstr "计算器"
 
-#: appGUI/MainGUI.py:1447 appGUI/MainGUI.py:2705 appGUI/shortcut_actions.py:796
+#: appGUI/MainGUI.py:1455 appGUI/MainGUI.py:2713 appGUI/shortcut_actions.py:796
 msgid "Add Drill"
 msgstr "添加钻孔"
 
-#: appGUI/MainGUI.py:1449 appGUI/MainGUI.py:2707 appGUI/shortcut_actions.py:790
+#: appGUI/MainGUI.py:1457 appGUI/MainGUI.py:2715 appGUI/shortcut_actions.py:790
 msgid "Add Drill Array"
 msgstr "添加钻孔阵列"
 
-#: appGUI/MainGUI.py:1451 appGUI/MainGUI.py:2711 appGUI/shortcut_actions.py:786
+#: appGUI/MainGUI.py:1459 appGUI/MainGUI.py:2719 appGUI/shortcut_actions.py:786
 msgid "Add Slot"
 msgstr "添加槽"
 
-#: appGUI/MainGUI.py:1453 appGUI/MainGUI.py:2713 appGUI/shortcut_actions.py:805
+#: appGUI/MainGUI.py:1461 appGUI/MainGUI.py:2721 appGUI/shortcut_actions.py:805
 msgid "Add Slot Array"
 msgstr "添加槽阵列"
 
-#: appGUI/MainGUI.py:1501 appGUI/MainGUI.py:2757
+#: appGUI/MainGUI.py:1509 appGUI/MainGUI.py:2765
 msgid ""
 "Join selected lines into polylines. Uses the Join tolerance in Properties."
 msgstr "将所选线段连接为折线。使用“属性”中的连接容差。"
 
-#: appGUI/MainGUI.py:1505 appGUI/MainGUI.py:2761
+#: appGUI/MainGUI.py:1513 appGUI/MainGUI.py:2769
 msgid ""
 "Create polygons from selected closed paths or enclosing segments.\n"
 "Unused open segments are kept. Endpoints must meet exactly."
@@ -11010,7 +11041,7 @@ msgstr ""
 "未使用的开放线段将被保留。端点必须精确相接。"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:1515
+#: appGUI/MainGUI.py:1523
 msgid ""
 "Polygon Subtraction. First selected is the target.\n"
 "The rest of the selected is subtracted from the first.\n"
@@ -11020,7 +11051,7 @@ msgstr ""
 "从第一个中减去所选的其余部分。\n"
 "第一个选择的被替换为结果。"
 
-#: appGUI/MainGUI.py:1521
+#: appGUI/MainGUI.py:1529
 msgid ""
 "Alt Subtraction. First selected is the target.\n"
 "The rest of the selected is subtracted from the first.\n"
@@ -11030,36 +11061,36 @@ msgstr ""
 "从第一个中减去所选的其余部分。\n"
 "除了结果之外，还保留第一个选择。"
 
-#: appGUI/MainGUI.py:1556 appGUI/MainGUI.py:2804
+#: appGUI/MainGUI.py:1564 appGUI/MainGUI.py:2812
 msgid "Join selected connected track sections into one track."
 msgstr "将所选相连的走线段连接为一条走线。"
 
-#: appGUI/MainGUI.py:1568 appGUI/MainGUI.py:2816
+#: appGUI/MainGUI.py:1576 appGUI/MainGUI.py:2824
 msgid "Rectangular Region"
 msgstr "矩形区域"
 
-#: appGUI/MainGUI.py:1575 appGUI/MainGUI.py:2823
+#: appGUI/MainGUI.py:1583 appGUI/MainGUI.py:2831
 msgid "Text Region"
 msgstr "文本区域"
 
-#: appGUI/MainGUI.py:1579 appGUI/MainGUI.py:2827
+#: appGUI/MainGUI.py:1587 appGUI/MainGUI.py:2835
 msgid "Arc: Circular Follow"
 msgstr "圆弧：圆形 FOLLOW"
 
-#: appGUI/MainGUI.py:1583 appGUI/MainGUI.py:2831
+#: appGUI/MainGUI.py:1591 appGUI/MainGUI.py:2839
 msgid "Difference: Keep Cutters"
 msgstr "差集：保留切割器"
 
-#: appGUI/MainGUI.py:1619
+#: appGUI/MainGUI.py:1627
 msgid "Snap to grid"
 msgstr "捕捉到栅格"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:1622
+#: appGUI/MainGUI.py:1630
 msgid "Grid X snapping distance"
 msgstr "栅格X捕捉距离"
 
-#: appGUI/MainGUI.py:1627
+#: appGUI/MainGUI.py:1635
 msgid ""
 "When active, value on Grid_X\n"
 "is copied to the Grid_Y value."
@@ -11067,29 +11098,29 @@ msgstr ""
 "激活时，栅格X的值\n"
 "将复制到栅格Y。"
 
-#: appGUI/MainGUI.py:1634
+#: appGUI/MainGUI.py:1642
 msgid "Grid Y snapping distance"
 msgstr "栅格Y捕捉距离"
 
-#: appGUI/MainGUI.py:1645
+#: appGUI/MainGUI.py:1653
 msgid "Snap to corner"
 msgstr "捕捉到角点"
 
-#: appGUI/MainGUI.py:1649 appGUI/preferences/general/GeneralAPPSetGroupUI.py:78
+#: appGUI/MainGUI.py:1657 appGUI/preferences/general/GeneralAPPSetGroupUI.py:78
 #: appGUI/preferences/general/GeneralAppSettingsGroupUI.py:147
 msgid "Max. magnet distance"
 msgstr "最大吸附距离"
 
-#: appGUI/MainGUI.py:1659
+#: appGUI/MainGUI.py:1667
 msgid "Toggle the display of axis on canvas"
 msgstr "在画布上切换轴的显示"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:1671
+#: appGUI/MainGUI.py:1679
 msgid "HUD (Heads up display)"
 msgstr "HUD (平视显示器)"
 
-#: appGUI/MainGUI.py:1677
+#: appGUI/MainGUI.py:1685
 #: appGUI/preferences/general/GeneralAPPSetGroupUI.py:106
 #: appGUI/preferences/general/GeneralAppSettingsGroupUI.py:157
 msgid ""
@@ -11099,7 +11130,7 @@ msgstr ""
 "在画布上绘制一个界限矩形。\n"
 "目的是标示工作区域的边界。"
 
-#: appGUI/MainGUI.py:1690
+#: appGUI/MainGUI.py:1698
 msgid ""
 "Relative measurement.\n"
 "Reference is last click position"
@@ -11107,7 +11138,7 @@ msgstr ""
 "相对测量。\n"
 "参考是最后一次单击的位置"
 
-#: appGUI/MainGUI.py:1698
+#: appGUI/MainGUI.py:1706
 msgid ""
 "Absolute measurement.\n"
 "Reference is (X=0, Y= 0) position"
@@ -11116,80 +11147,80 @@ msgstr ""
 "参考是（X=0，Y=0）位置"
 
 # auto-review 2026-10-21: new
-#: appGUI/MainGUI.py:1705 appGUI/shortcut_actions.py:67
+#: appGUI/MainGUI.py:1713 appGUI/shortcut_actions.py:67
 msgid "TCL Shell"
 msgstr "TCL控制台"
 
-#: appGUI/MainGUI.py:1717
+#: appGUI/MainGUI.py:1725
 msgid "GCode Console"
 msgstr "G代码控制台"
 
-#: appGUI/MainGUI.py:1794 appGUI/MainGUI.py:1802 appGUI/MainGUI.py:3059
-#: appGUI/MainGUI.py:3065
+#: appGUI/MainGUI.py:1802 appGUI/MainGUI.py:1810 appGUI/MainGUI.py:3067
+#: appGUI/MainGUI.py:3073
 #: appGUI/preferences/general/GeneralShortcutsGroupUI.py:289
-#: appHandlers/appIO.py:1641 appMain.py:3016
+#: appHandlers/appIO.py:1742 appMain.py:3016
 msgid "Plot Area"
 msgstr "绘图区"
 
-#: appGUI/MainGUI.py:1841
+#: appGUI/MainGUI.py:1849
 msgid "Toggle Visibility"
 msgstr "切换可见性"
 
-#: appGUI/MainGUI.py:1868
+#: appGUI/MainGUI.py:1876
 msgid "Grids"
 msgstr "栅格"
 
-#: appGUI/MainGUI.py:2005
+#: appGUI/MainGUI.py:2013
 msgid "Exc Editor"
 msgstr "Exc编辑器"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:2033
+#: appGUI/MainGUI.py:2041
 msgid "Move2Origin"
 msgstr "移动到原点"
 
-#: appGUI/MainGUI.py:2063
+#: appGUI/MainGUI.py:2071
 #: appGUI/preferences/general/GeneralAppPrefGroupUI.py:45
 msgid "The application dimensional units is millimeter."
 msgstr "应用程序的尺寸单位为毫米。"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:2122
+#: appGUI/MainGUI.py:2130
 msgid "Lock Toolbars"
 msgstr "锁定工具栏"
 
-#: appGUI/MainGUI.py:2129
+#: appGUI/MainGUI.py:2137
 msgid "Show Text"
 msgstr "显示文本"
 
 # auto-review 2026-10-21: new
-#: appGUI/MainGUI.py:2329 appGUI/MainGUI.py:2341 appHandlers/appIO.py:1648
-#: appHandlers/appIO.py:4039 appMain.py:1395
+#: appGUI/MainGUI.py:2337 appGUI/MainGUI.py:2349 appHandlers/appIO.py:1749
+#: appHandlers/appIO.py:4140 appMain.py:1395
 msgid "New Project - Not saved"
 msgstr "新项目-未保存"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:2342 appGUI/TitleBar.py:410
+#: appGUI/MainGUI.py:2350 appGUI/TitleBar.py:410
 msgid "Untitled"
 msgstr "未命名"
 
-#: appGUI/MainGUI.py:2377
+#: appGUI/MainGUI.py:2385
 msgid "Detachable Tabs"
 msgstr "可分离选项卡"
 
-#: appGUI/MainGUI.py:2482
+#: appGUI/MainGUI.py:2490
 msgid "FlatCAM Preferences Folder opened."
 msgstr "FlatCAM首选项文件夹已打开。"
 
-#: appGUI/MainGUI.py:2494 appGUI/preferences/PreferencesWindow.py:500
+#: appGUI/MainGUI.py:2502 appGUI/preferences/PreferencesWindow.py:500
 msgid "Clear GUI Settings"
 msgstr "清除GUI设置"
 
-#: appGUI/MainGUI.py:2495
+#: appGUI/MainGUI.py:2503
 msgid "Are you sure you want to delete the GUI Settings? \n"
 msgstr "是否确实要删除GUI设置？\n"
 
-#: appGUI/MainGUI.py:2669 appGUI/preferences/PreferencesWindow.py:57
+#: appGUI/MainGUI.py:2677 appGUI/preferences/PreferencesWindow.py:57
 #: appGUI/shortcut_actions.py:155 appPlugins/ToolPunchGerber/PunchGerber.py:57
 #: appPlugins/ToolPunchGerber/PunchGerber.py:210
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:16
@@ -11197,37 +11228,37 @@ msgstr "是否确实要删除GUI设置？\n"
 msgid "Punch Gerber"
 msgstr "打孔Gerber"
 
-#: appGUI/MainGUI.py:2843
+#: appGUI/MainGUI.py:2851
 msgid "Import Shape"
 msgstr "导入形状"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:2878
+#: appGUI/MainGUI.py:2886
 msgid "Key Shortcut List"
 msgstr "快捷键列表"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:3218
+#: appGUI/MainGUI.py:3226
 msgid "Go to Line ..."
 msgstr "转到行..."
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:3219 appPlugins/ToolGcodeSender/Sender.py:527
+#: appGUI/MainGUI.py:3227 appPlugins/ToolGcodeSender/Sender.py:527
 msgid "Line"
 msgstr "行"
 
 # auto-review 2026-10-21: new
-#: appGUI/MainGUI.py:3331
+#: appGUI/MainGUI.py:3339
 msgid ""
 "An updater operation is active. Cancel it or wait for it to finish before "
 "closing FlatCAM."
 msgstr "更新程序正在运行。请先取消或等待其完成，再关闭FlatCAM。"
 
-#: appGUI/MainGUI.py:3338 appHandlers/appLifecycle.py:284
+#: appGUI/MainGUI.py:3346 appHandlers/appLifecycle.py:284
 msgid "Saving the project. FlatCAM closes when the save ends."
 msgstr "正在保存项目。保存完成后 FlatCAM 将关闭。"
 
-#: appGUI/MainGUI.py:3382
+#: appGUI/MainGUI.py:3390
 msgid "Shortcut Key List"
 msgstr "快捷键列表"
 
@@ -11997,12 +12028,12 @@ msgid "Grid disabled."
 msgstr "栅格已禁用。"
 
 # auto-review 2026-10-21: new
-#: appGUI/PlotCanvas3d.py:216
+#: appGUI/PlotCanvas3d.py:223
 msgid "Toggle Grid"
 msgstr "切换栅格"
 
 # auto-review 2026-10-21: new
-#: appGUI/PlotCanvas3d.py:217 appGUI/ViewCube.py:68
+#: appGUI/PlotCanvas3d.py:224 appGUI/ViewCube.py:68
 #: appPlugins/ToolGcodeSender/SenderUI.py:99
 msgid "Fit View"
 msgstr "适应视图"
@@ -12645,189 +12676,193 @@ msgid ""
 "processing."
 msgstr "将矢量图稿导入为几何对象以进行加工，或导入为 Gerber 以处理 PCB。"
 
-#: appGUI/WelcomeDialog.py:44
+#: appGUI/WelcomeDialog.py:46
 msgid "Open PCB artwork, or create a blank Gerber object."
 msgstr "打开 PCB 图稿，或创建空白 Gerber 对象。"
 
-#: appGUI/WelcomeDialog.py:45
+#: appGUI/WelcomeDialog.py:47
 msgid "Excellon object"
 msgstr "Excellon 对象"
 
-#: appGUI/WelcomeDialog.py:46
+#: appGUI/WelcomeDialog.py:48
 msgid "Open drilling data, or create a blank Excellon object."
 msgstr "打开钻孔数据，或创建空白 Excellon 对象。"
 
-#: appGUI/WelcomeDialog.py:47 appObjects/ObjectCollection.py:400
+#: appGUI/WelcomeDialog.py:49
+msgid "ODB++"
+msgstr "ODB++"
+
+#: appGUI/WelcomeDialog.py:50 appObjects/ObjectCollection.py:400
 msgid "Script"
 msgstr "脚本"
 
-#: appGUI/WelcomeDialog.py:47
+#: appGUI/WelcomeDialog.py:50
 msgid "Script object"
 msgstr "脚本对象"
 
-#: appGUI/WelcomeDialog.py:48
+#: appGUI/WelcomeDialog.py:51
 msgid ""
 "Open a script for editing without executing it, or create a blank script."
 msgstr "打开脚本进行编辑而不执行，或创建空白脚本。"
 
-#: appGUI/WelcomeDialog.py:49
+#: appGUI/WelcomeDialog.py:52
 msgid "Doc"
 msgstr "文档"
 
-#: appGUI/WelcomeDialog.py:49
+#: appGUI/WelcomeDialog.py:52
 msgid "Document object"
 msgstr "文档对象"
 
-#: appGUI/WelcomeDialog.py:50
+#: appGUI/WelcomeDialog.py:53
 msgid "Open a FlatCAM Evo document, or create a blank document."
 msgstr "打开 FlatCAM Evo 文档，或创建空白文档。"
 
-#: appGUI/WelcomeDialog.py:55
+#: appGUI/WelcomeDialog.py:58
 msgid "PCB Manufacturing files"
 msgstr "PCB 制造文件"
 
-#: appGUI/WelcomeDialog.py:139
+#: appGUI/WelcomeDialog.py:142
 msgid "Welcome to FlatCAM Evo"
 msgstr "欢迎使用 FlatCAM Evo"
 
-#: appGUI/WelcomeDialog.py:170 appGUI/WelcomeDialog.py:323
+#: appGUI/WelcomeDialog.py:173 appGUI/WelcomeDialog.py:326
 msgid "CAM tools for PCB manufacturing, machining and more."
 msgstr "用于 PCB 制造、机械加工等的 CAM 工具。"
 
-#: appGUI/WelcomeDialog.py:181
+#: appGUI/WelcomeDialog.py:184
 msgid "Continue to workspace"
 msgstr "进入工作区"
 
-#: appGUI/WelcomeDialog.py:200 appGUI/preferences/PreferencesWindow.py:67
+#: appGUI/WelcomeDialog.py:203 appGUI/preferences/PreferencesWindow.py:67
 #: appGUI/shortcut_actions.py:41
 msgid "Application"
 msgstr "应用程序"
 
-#: appGUI/WelcomeDialog.py:211
+#: appGUI/WelcomeDialog.py:214
 msgid "Search file types…"
 msgstr "搜索文件类型…"
 
-#: appGUI/WelcomeDialog.py:212
+#: appGUI/WelcomeDialog.py:215
 msgid "Search file types"
 msgstr "搜索文件类型"
 
-#: appGUI/WelcomeDialog.py:223
+#: appGUI/WelcomeDialog.py:226
 msgid "File types"
 msgstr "文件类型"
 
-#: appGUI/WelcomeDialog.py:232
+#: appGUI/WelcomeDialog.py:235
 msgid "Start something"
 msgstr "开始操作"
 
-#: appGUI/WelcomeDialog.py:265
+#: appGUI/WelcomeDialog.py:268
 msgid "Import as"
 msgstr "导入为"
 
-#: appGUI/WelcomeDialog.py:275
+#: appGUI/WelcomeDialog.py:278
 msgid "Last 5 · selected type"
 msgstr "最近 5 个 · 所选类型"
 
-#: appGUI/WelcomeDialog.py:289
+#: appGUI/WelcomeDialog.py:292
 msgid "No recent files of this type."
 msgstr "没有此类型的最近文件。"
 
-#: appGUI/WelcomeDialog.py:302
+#: appGUI/WelcomeDialog.py:305
 msgid "Contributors"
 msgstr "贡献者"
 
-#: appGUI/WelcomeDialog.py:303 appHandlers/appUIActions.py:242
+#: appGUI/WelcomeDialog.py:306 appHandlers/appUIActions.py:242
 msgid "FlatCAM Author"
 msgstr "FlatCAM作者"
 
-#: appGUI/WelcomeDialog.py:304 appHandlers/appUIActions.py:246
+#: appGUI/WelcomeDialog.py:307 appHandlers/appUIActions.py:246
 msgid "FlatCAM Evo Author/Maintainer"
 msgstr "FlatCAM Evo 作者/维护者"
 
-#: appGUI/WelcomeDialog.py:306
+#: appGUI/WelcomeDialog.py:309
 msgid "Developer"
 msgstr "开发者"
 
-#: appGUI/WelcomeDialog.py:309 appHandlers/appUIActions.py:277
+#: appGUI/WelcomeDialog.py:312 appHandlers/appUIActions.py:277
 msgid "Translator"
 msgstr "译者"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/WelcomeDialog.py:317 appHandlers/appUIActions.py:206
+#: appGUI/WelcomeDialog.py:320 appHandlers/appUIActions.py:206
 msgid "License"
 msgstr "许可证"
 
-#: appGUI/WelcomeDialog.py:319 appHandlers/appUIActions.py:153
+#: appGUI/WelcomeDialog.py:322 appHandlers/appUIActions.py:153
 msgid "Licensed under the MIT license"
 msgstr "基于 MIT 许可证授权"
 
-#: appGUI/WelcomeDialog.py:331
+#: appGUI/WelcomeDialog.py:334
 msgid "Show this screen next time"
 msgstr "下次显示此屏幕"
 
-#: appGUI/WelcomeDialog.py:337
+#: appGUI/WelcomeDialog.py:340
 msgid "Continue"
 msgstr "继续"
 
-#: appGUI/WelcomeDialog.py:339
+#: appGUI/WelcomeDialog.py:342
 msgid "Browse…"
 msgstr "浏览…"
 
-#: appGUI/WelcomeDialog.py:351
+#: appGUI/WelcomeDialog.py:354
 msgid ""
 "A FlatCAM Evo project keeps your objects and their settings together. "
 "Select FlatCAM Evo Project to reopen saved work or start an empty project."
 msgstr "FlatCAM Evo 项目会将对象及其设置保存在一起。选择 FlatCAM Evo 项目可重新打开已保存的工作，或开始一个空白项目。"
 
-#: appGUI/WelcomeDialog.py:353
+#: appGUI/WelcomeDialog.py:356
 msgid ""
 "Import drawings, vector artwork and images for machining, cutting or "
 "engraving, or create a blank Geometry object. Select a file type to see its "
 "import options and recent files."
 msgstr "导入图纸、矢量图稿和图像以进行加工、切割或雕刻，或创建空白几何对象。选择文件类型可查看其导入选项和最近文件。"
 
-#: appGUI/WelcomeDialog.py:355
+#: appGUI/WelcomeDialog.py:358
 msgid ""
 "Work with Gerber artwork and Excellon drilling files, or add scripts and "
 "documents to your project. Select a file type to open an existing file or "
 "create a supported blank object."
 msgstr "使用 Gerber 图稿和 Excellon 钻孔文件，或将脚本和文档添加到项目中。选择文件类型可打开现有文件或创建受支持的空白对象。"
 
-#: appGUI/WelcomeDialog.py:357
+#: appGUI/WelcomeDialog.py:360
 msgid ""
 "Import a native PCB design from a supported board editor. Choose its "
 "format, then select the layers and drilling to bring into FlatCAM Evo."
 msgstr "从受支持的电路板编辑器导入原生 PCB 设计。选择其格式，然后选择要导入 FlatCAM Evo 的图层和钻孔数据。"
 
-#: appGUI/WelcomeDialog.py:605
+#: appGUI/WelcomeDialog.py:608
 msgid "Select a category or file type."
 msgstr "选择类别或文件类型。"
 
-#: appGUI/WelcomeDialog.py:605
+#: appGUI/WelcomeDialog.py:608
 msgid "No file type matches the search."
 msgstr "无匹配的文件类型。"
 
-#: appGUI/WelcomeDialog.py:612
+#: appGUI/WelcomeDialog.py:615
 msgid "New object only"
 msgstr "仅新建对象"
 
-#: appGUI/WelcomeDialog.py:660
+#: appGUI/WelcomeDialog.py:663
 #: appGUI/preferences/general/GeneralShortcutsGroupUI.py:473
 #: appPlugins/ToolQRCode/QRCode.py:691 appPlugins/ToolQRCode/QRCode.py:695
 msgid "All Files"
 msgstr "所有文件"
 
-#: appGUI/WelcomeDialog.py:670 appHandlers/appIO.py:2917
-#: appHandlers/appIO.py:2982 appHandlers/appIO.py:3084
-#: appHandlers/appIO.py:3135 appHandlers/appIO.py:3215
-#: appHandlers/appIO.py:3517 appHandlers/appIO.py:3578
-#: appHandlers/appIO.py:3855 appPlugins/ToolImage/Image.py:161
+#: appGUI/WelcomeDialog.py:673 appHandlers/appIO.py:3018
+#: appHandlers/appIO.py:3083 appHandlers/appIO.py:3185
+#: appHandlers/appIO.py:3236 appHandlers/appIO.py:3316
+#: appHandlers/appIO.py:3618 appHandlers/appIO.py:3679
+#: appHandlers/appIO.py:3956 appPlugins/ToolImage/Image.py:161
 #: appPlugins/ToolPdf/PdfImport.py:133
 msgid "File no longer available."
 msgstr "文件不再可用。"
 
-#: appGUI/WelcomeDialog.py:698 appHandlers/appIO.py:3056
-#: appHandlers/appIO.py:3437 appHandlers/appIO.py:3502
-#: appHandlers/appIO.py:3585
+#: appGUI/WelcomeDialog.py:701 appHandlers/appIO.py:3157
+#: appHandlers/appIO.py:3538 appHandlers/appIO.py:3603
+#: appHandlers/appIO.py:3686
 msgid "Failed to open file"
 msgstr "无法打开文件"
 
@@ -12889,39 +12924,39 @@ msgstr ""
 "以直线段近似圆时\n"
 "所用的圆步数。"
 
-#: appGUI/preferences/PreferencesUIManager.py:1154
+#: appGUI/preferences/PreferencesUIManager.py:1155
 msgid "Preferences applied."
 msgstr "首选项已应用。"
 
-#: appGUI/preferences/PreferencesUIManager.py:1183
+#: appGUI/preferences/PreferencesUIManager.py:1184
 msgid "Application will restart"
 msgstr "应用程序将重新启动"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/preferences/PreferencesUIManager.py:1184
+#: appGUI/preferences/PreferencesUIManager.py:1185
 #: appGUI/preferences/PreferencesWindow.py:536
 msgid "Are you sure you want to continue?"
 msgstr "您确定要继续吗？"
 
-#: appGUI/preferences/PreferencesUIManager.py:1290
+#: appGUI/preferences/PreferencesUIManager.py:1291
 msgid "Preferences default values are restored."
 msgstr "首选项已恢复默认值。"
 
-#: appGUI/preferences/PreferencesUIManager.py:1319 appHandlers/appIO.py:2460
+#: appGUI/preferences/PreferencesUIManager.py:1320 appHandlers/appIO.py:2561
 msgid "Failed to write defaults to file."
 msgstr "未能将默认值写入文件。"
 
-#: appGUI/preferences/PreferencesUIManager.py:1323
-#: appGUI/preferences/PreferencesUIManager.py:1377
+#: appGUI/preferences/PreferencesUIManager.py:1324
+#: appGUI/preferences/PreferencesUIManager.py:1378
 msgid "Preferences saved."
 msgstr "首选项已保存。"
 
-#: appGUI/preferences/PreferencesUIManager.py:1335
+#: appGUI/preferences/PreferencesUIManager.py:1336
 msgid "Preferences edited but not saved."
 msgstr "已编辑但未保存首选项。"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/preferences/PreferencesUIManager.py:1360
+#: appGUI/preferences/PreferencesUIManager.py:1361
 msgid ""
 "One or more values are changed.\n"
 "Do you want to save?"
@@ -12929,7 +12964,7 @@ msgstr ""
 "更改了一个或多个值。\n"
 "你想保存吗？"
 
-#: appGUI/preferences/PreferencesUIManager.py:1399
+#: appGUI/preferences/PreferencesUIManager.py:1400
 msgid "Preferences closed without saving."
 msgstr "首选项已关闭，未保存更改。"
 
@@ -14297,24 +14332,36 @@ msgstr ""
 "触发删除对象操作时，\n"
 "应用程序都会要求用户确认。"
 
-#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:520
+#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:521
+msgid "Ask to save on exit"
+msgstr "退出时询问保存"
+
+#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:523
+msgid ""
+"When checked the application will ask to save the project(s)\n"
+"with unsaved changes when the application is closed.\n"
+"When unchecked the unsaved changes are discarded on exit."
+msgstr "选中时，关闭应用程序会询问是否保存已更改的项目。\n"
+"未选中时，退出时会丢弃未保存的更改。"
+
+#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:529
 msgid "Allow Edit"
 msgstr "允许编辑"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:522
+#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:531
 msgid ""
 "When checked, the user can edit the object names in the Project Tab\n"
 "by clicking on the object name. Active after restart."
 msgstr "选中时，用户可以通过单击对象名称在项目选项卡中编辑对象名称。重启后激活。"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:528
+#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:537
 #: appGUI/preferences/general/GeneralAppSettingsGroupUI.py:264
 msgid "\"Open\" behavior"
 msgstr "“打开”行为"
 
-#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:530
+#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:539
 #: appGUI/preferences/general/GeneralAppSettingsGroupUI.py:265
 msgid ""
 "When checked the path for the last saved file is used when saving files,\n"
@@ -14329,24 +14376,24 @@ msgstr ""
 "未选中时，打开文件使用最后一次使用的路径：\n"
 "可能是保存文件的路径，也可能是打开文件的路径。"
 
-#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:539
+#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:548
 #: appGUI/preferences/general/GeneralAppSettingsGroupUI.py:272
 msgid "Enable ToolTips"
 msgstr "启用工具提示"
 
-#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:541
+#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:550
 #: appGUI/preferences/general/GeneralAppSettingsGroupUI.py:273
 msgid ""
 "Check this box if you want to have toolTips displayed\n"
 "when hovering with mouse over items throughout the App."
 msgstr "如果您希望在整个应用程序中鼠标悬停在项目上时显示工具提示，请选中此框。"
 
-#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:550
+#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:559
 #: appGUI/preferences/general/GeneralAppSettingsGroupUI.py:278
 msgid "Bookmarks limit"
 msgstr "书签限制"
 
-#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:552
+#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:561
 #: appGUI/preferences/general/GeneralAppSettingsGroupUI.py:279
 msgid ""
 "The maximum number of bookmarks that may be installed in the menu.\n"
@@ -14356,29 +14403,29 @@ msgstr ""
 "可安装在菜单中的书签的最大数目。\n"
 "书签管理器中的书签数量可能会更多，但菜单中只能容纳这么多。"
 
-#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:561
+#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:570
 #: appGUI/preferences/general/GeneralAppSettingsGroupUI.py:286
 msgid "Activity Icon"
 msgstr "活动图标"
 
-#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:563
+#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:572
 #: appGUI/preferences/general/GeneralAppSettingsGroupUI.py:287
 msgid "Select the GIF that show activity when FlatCAM is active."
 msgstr "选择FlatCAM活动时显示活动的GIF。"
 
-#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:574
+#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:583
 msgid "Undo steps"
 msgstr "撤销步数"
 
-#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:576
+#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:585
 msgid "The number of actions that Undo can go back, for each project."
 msgstr "每个项目中“撤销”可以回退的操作次数。"
 
-#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:583
+#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:592
 msgid "Undo RAM"
 msgstr "撤销内存"
 
-#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:585
+#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:594
 msgid ""
 "The memory that the Undo history can keep for each project.\n"
 "The oldest steps are dropped first. In megabytes."
@@ -15039,7 +15086,7 @@ msgstr ""
 # auto-review 2026-10-09: new
 #: appGUI/preferences/general/GeneralGUIPrefGroupUI.py:190
 msgid "Selection Outline"
-msgstr "选择形状轮廓"
+msgstr "选择轮廓"
 
 #: appGUI/preferences/general/GeneralGUIPrefGroupUI.py:192
 msgid "If checked, the selection shape is an outline."
@@ -15081,7 +15128,7 @@ msgstr "颜色"
 
 #: appGUI/preferences/general/GeneralGUIPrefGroupUI.py:238
 msgid "Left-Right Selection Color"
-msgstr "从左到右选择的颜色"
+msgstr "左向右选择颜色"
 
 # auto-review 2026-10-09: corrected
 #: appGUI/preferences/general/GeneralGUIPrefGroupUI.py:243
@@ -15107,7 +15154,7 @@ msgstr "设置“从左到右”选择框的填充透明度。"
 
 #: appGUI/preferences/general/GeneralGUIPrefGroupUI.py:278
 msgid "Right-Left Selection Color"
-msgstr "从右到左选择的颜色"
+msgstr "右向左选择颜色"
 
 # auto-review 2026-10-09: corrected
 #: appGUI/preferences/general/GeneralGUIPrefGroupUI.py:284
@@ -15150,7 +15197,7 @@ msgstr "设置形状被选中时的颜色。"
 
 #: appGUI/preferences/general/GeneralGUIPrefGroupUI.py:351
 msgid "Project Items Color"
-msgstr "项目项的颜色"
+msgstr "项目项颜色"
 
 #: appGUI/preferences/general/GeneralGUIPrefGroupUI.py:357
 #: appGUI/preferences/general/GeneralGUIPrefGroupUI.py:389
@@ -15364,7 +15411,7 @@ msgstr "移除所选命令的按键。"
 
 #: appGUI/preferences/general/GeneralShortcutsGroupUI.py:206
 msgid "Assign it here and clear the other"
-msgstr "分配给此命令并解除另一命令的绑定"
+msgstr "绑定此命令并解绑另一命令"
 
 #: appGUI/preferences/general/GeneralShortcutsGroupUI.py:215
 msgid "Reset shortcut"
@@ -18835,7 +18882,7 @@ msgid "Network port"
 msgstr "网络端口"
 
 #: appGUI/preferences/tools/ToolsGrblSenderPrefGroupUI.py:69
-#: appHandlers/appIO.py:501 appPlugins/ToolGcodeSender/SenderUI.py:355
+#: appHandlers/appIO.py:606 appPlugins/ToolGcodeSender/SenderUI.py:355
 msgid "Step"
 msgstr "步进值"
 
@@ -20986,19 +21033,19 @@ msgstr "Gerber编辑器"
 msgid "EXCELLON EDITOR"
 msgstr "Excellon编辑器"
 
-#: appHandlers/appCanvasEvents.py:620 appHandlers/appCanvasEvents.py:627
-#: appHandlers/appCanvasEvents.py:634 appHandlers/appCanvasEvents.py:641
+#: appHandlers/appCanvasEvents.py:621 appHandlers/appCanvasEvents.py:628
+#: appHandlers/appCanvasEvents.py:635 appHandlers/appCanvasEvents.py:642
 #: appObjects/ObjectCollection.py:1477
 msgid "selected"
 msgstr "已选择"
 
 #: appHandlers/appEdit.py:152 appHandlers/appEdit.py:236
-#: appHandlers/appEdit.py:415 appHandlers/appIO.py:934
-#: appHandlers/appIO.py:1006 appHandlers/appIO.py:1098
-#: appHandlers/appIO.py:1143 appHandlers/appIO.py:1186
-#: appHandlers/appIO.py:1228 appHandlers/appIO.py:1269
-#: appHandlers/appIO.py:1314 appHandlers/appIO.py:1365
-#: appHandlers/appIO.py:1980 appHandlers/appObjectOps.py:103
+#: appHandlers/appEdit.py:415 appHandlers/appIO.py:1035
+#: appHandlers/appIO.py:1107 appHandlers/appIO.py:1199
+#: appHandlers/appIO.py:1244 appHandlers/appIO.py:1287
+#: appHandlers/appIO.py:1329 appHandlers/appIO.py:1370
+#: appHandlers/appIO.py:1415 appHandlers/appIO.py:1466
+#: appHandlers/appIO.py:2081 appHandlers/appObjectOps.py:103
 #: appHandlers/appObjectOps.py:157 appHandlers/appObjectOps.py:212
 #: appHandlers/appObjectOps.py:273 appHandlers/appObjectOps.py:326
 #: appHandlers/appObjectOps.py:645 appHandlers/appObjectOps.py:973
@@ -21164,83 +21211,95 @@ msgid "The object could not be made again."
 msgstr "无法重新创建该对象。"
 
 # auto-review 2026-10-21: new
-#: appHandlers/appIO.py:182
+#: appHandlers/appIO.py:191
 msgid "Import Proteus PCB"
 msgstr "导入 Proteus PCB"
 
 # auto-review 2026-10-21: new
-#: appHandlers/appIO.py:184
+#: appHandlers/appIO.py:193
 msgid "Import KiCad PCB"
 msgstr "导入 KiCad PCB"
 
 # auto-review 2026-10-21: new
-#: appHandlers/appIO.py:186
+#: appHandlers/appIO.py:195
 msgid "Import Sprint Layout"
 msgstr "导入 Sprint Layout"
 
 # auto-review 2026-10-21: new
-#: appHandlers/appIO.py:188
+#: appHandlers/appIO.py:197
 msgid "Import Eagle Board"
 msgstr "导入 Eagle Board"
 
-#: appHandlers/appIO.py:190
+#: appHandlers/appIO.py:199
 msgid "Import OrCAD/Allegro Board"
 msgstr "导入 OrCAD/Allegro Board"
 
 # auto-review 2026-10-21: new
-#: appHandlers/appIO.py:192
+#: appHandlers/appIO.py:201
 msgid "Import DipTrace PCB"
 msgstr "导入 DipTrace PCB"
 
-#: appHandlers/appIO.py:194
+#: appHandlers/appIO.py:203
+msgid "Import PADS PCB"
+msgstr "导入 PADS PCB"
+
+#: appHandlers/appIO.py:205
 msgid "Import ODB++ Job"
 msgstr "导入 ODB++ 作业"
 
-#: appHandlers/appIO.py:195
+#: appHandlers/appIO.py:207
+msgid "Import CircuitStudio / CircuitMaker PCB"
+msgstr "导入 CircuitStudio / CircuitMaker PCB"
+
+#: appHandlers/appIO.py:208
 msgid "Import Altium PCB"
 msgstr "导入 Altium PCB"
 
-#: appHandlers/appIO.py:278
+#: appHandlers/appIO.py:269
+msgid "Reading the board file. Wait..."
+msgstr "正在读取电路板文件，请稍候……"
+
+#: appHandlers/appIO.py:352
 msgid ""
 "Proteus import stopped. Previously imported boards remain open; the import "
 "is incomplete."
 msgstr "Proteus 导入已停止。此前已导入的电路板保持打开状态；导入未完成。"
 
-#: appHandlers/appIO.py:307
+#: appHandlers/appIO.py:381
 msgid "Invalid Proteus board name: %s"
 msgstr "无效的 Proteus 电路板名称：%s"
 
-#: appHandlers/appIO.py:327 appHandlers/appIO.py:362 appHandlers/appIO.py:691
-#: appHandlers/appIO.py:2958 appHandlers/appIO.py:3022
+#: appHandlers/appIO.py:401 appHandlers/appIO.py:439 appHandlers/appIO.py:792
+#: appHandlers/appIO.py:3059 appHandlers/appIO.py:3123
 msgid "Import failed."
 msgstr "导入失败。"
 
-#: appHandlers/appIO.py:433
+#: appHandlers/appIO.py:522
 msgid "The ODB++ job has more than 1 step. Select the step:"
 msgstr "ODB++ 作业有多个步骤 (step)。请选择步骤:"
 
-#: appHandlers/appIO.py:447
+#: appHandlers/appIO.py:536
 msgid "Tent vias"
 msgstr "过孔盖油"
 
-#: appHandlers/appIO.py:447
+#: appHandlers/appIO.py:536
 msgid "Open vias"
 msgstr "过孔开窗"
 
-#: appHandlers/appIO.py:450
+#: appHandlers/appIO.py:539
 msgid "The board does not store via tenting (a DipTrace export setting)."
 msgstr "该电路板未保存过孔盖油设置（DipTrace 导出设置）。"
 
-#: appHandlers/appIO.py:459
+#: appHandlers/appIO.py:548
 msgid "Solder-mask swell"
 msgstr "阻焊层扩展"
 
-#: appHandlers/appIO.py:459
+#: appHandlers/appIO.py:548
 msgid "Paste-mask shrink"
 msgstr "锡膏层收缩"
 
 # auto-review 2026-10-21: new
-#: appHandlers/appIO.py:464
+#: appHandlers/appIO.py:553
 msgid ""
 "This older board does not store its inherited export settings.\n"
 "Enter the value used in the source DipTrace installation (mm).\n"
@@ -21252,13 +21311,13 @@ msgstr ""
 "取消将使受影响的开口不被导入。\n"
 "\n"
 
-#: appHandlers/appIO.py:502
+#: appHandlers/appIO.py:607
 msgid "Select layers and drill groups to import:"
 msgstr "选择要导入的图层和钻孔组："
 
-#: appHandlers/appIO.py:736 appHandlers/appIO.py:780 appHandlers/appIO.py:824
-#: appHandlers/appIO.py:889 appHandlers/appIO.py:1771 appHandlers/appIO.py:3641
-#: appHandlers/appIO.py:3838
+#: appHandlers/appIO.py:837 appHandlers/appIO.py:881 appHandlers/appIO.py:925
+#: appHandlers/appIO.py:990 appHandlers/appIO.py:1872 appHandlers/appIO.py:3742
+#: appHandlers/appIO.py:3939
 msgid ""
 "Canvas initialization started.\n"
 "Canvas initialization finished in"
@@ -21266,307 +21325,307 @@ msgstr ""
 "画布初始化已开始。\n"
 "画布初始化完成，耗时"
 
-#: appHandlers/appIO.py:739
+#: appHandlers/appIO.py:840
 msgid "Opening Gerber file."
 msgstr "正在打开Gerber文件。"
 
-#: appHandlers/appIO.py:783
+#: appHandlers/appIO.py:884
 msgid "Opening Excellon file."
 msgstr "正在打开Excellon文件。"
 
-#: appHandlers/appIO.py:827
+#: appHandlers/appIO.py:928
 msgid "Opening G-Code file."
 msgstr "正在打开G代码文件。"
 
-#: appHandlers/appIO.py:880 appHandlers/appIO.py:884
+#: appHandlers/appIO.py:981 appHandlers/appIO.py:985
 msgid "Open HPGL2"
 msgstr "打开HPGL2"
 
-#: appHandlers/appIO.py:892
+#: appHandlers/appIO.py:993
 msgid "Opening HPGL2 file."
 msgstr "正在打开HPGL2文件。"
 
-#: appHandlers/appIO.py:914 appHandlers/appIO.py:917
+#: appHandlers/appIO.py:1015 appHandlers/appIO.py:1018
 msgid "Open Configuration File"
 msgstr "打开配置文件"
 
-#: appHandlers/appIO.py:938
+#: appHandlers/appIO.py:1039
 msgid "Only Gerber, Excellon and Geometry objects can be exported as an image."
 msgstr "只有 Gerber、Excellon 和 Geometry 对象可以导出为图像。"
 
-#: appHandlers/appIO.py:958
+#: appHandlers/appIO.py:1059
 msgid "Export PDF"
 msgstr "导出 PDF"
 
-#: appHandlers/appIO.py:1014
+#: appHandlers/appIO.py:1115
 msgid "Only Geometry, Gerber and CNCJob objects can be used."
 msgstr "只能使用Geometry、Gerber和CNC任务对象。"
 
-#: appHandlers/appIO.py:1062
+#: appHandlers/appIO.py:1163
 msgid "Data must be a 3D array with last dimension 3 or 4"
 msgstr "数据必须是最后一个维度为3或4的三维数组"
 
-#: appHandlers/appIO.py:1068 appHandlers/appIO.py:1073
+#: appHandlers/appIO.py:1169 appHandlers/appIO.py:1174
 msgid "Export PNG Image"
 msgstr "导出PNG图形"
 
-#: appHandlers/appIO.py:1103 appHandlers/appIO.py:1319
+#: appHandlers/appIO.py:1204 appHandlers/appIO.py:1420
 msgid "Failed. Only Gerber objects can be saved as Gerber files..."
 msgstr "失败。只有Gerber对象可以保存为Gerber文件..."
 
-#: appHandlers/appIO.py:1119
+#: appHandlers/appIO.py:1220
 msgid "Save Gerber source file"
 msgstr "保存Gerber源文件"
 
-#: appHandlers/appIO.py:1148
+#: appHandlers/appIO.py:1249
 msgid "Failed. Only Script objects can be saved as TCL Script files..."
 msgstr "失败。只有脚本对象可以保存为TCL脚本文件..."
 
-#: appHandlers/appIO.py:1161
+#: appHandlers/appIO.py:1262
 msgid "Save Script source file"
 msgstr "保存脚本源文件"
 
-#: appHandlers/appIO.py:1191
+#: appHandlers/appIO.py:1292
 msgid "Failed. Only Document objects can be saved as Document files..."
 msgstr "失败。只有文档对象可以保存为文档文件..."
 
-#: appHandlers/appIO.py:1204
+#: appHandlers/appIO.py:1305
 msgid "Save Document source file"
 msgstr "保存文档源文件"
 
-#: appHandlers/appIO.py:1233 appHandlers/appIO.py:1274
-#: appHandlers/appIO.py:2504
+#: appHandlers/appIO.py:1334 appHandlers/appIO.py:1375
+#: appHandlers/appIO.py:2605
 msgid "Failed. Only Excellon objects can be saved as Excellon files..."
 msgstr "失败。只有Excellon对象可以保存为Excellon文件..."
 
-#: appHandlers/appIO.py:1241 appHandlers/appIO.py:1246
+#: appHandlers/appIO.py:1342 appHandlers/appIO.py:1347
 msgid "Save Excellon source file"
 msgstr "保存Excellon源文件"
 
-#: appHandlers/appIO.py:1371
+#: appHandlers/appIO.py:1472
 msgid "Unsupported objects were skipped."
 msgstr "已跳过不受支持的对象。"
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appIO.py:1373
+#: appHandlers/appIO.py:1474
 msgid ""
 "Only Gerber, Excellon, Geometry and CNCJob objects can be exported as DXF."
 msgstr "只有 Gerber、Excellon、Geometry 和 CNCJob 对象可以导出为 DXF。"
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appIO.py:1422 appHandlers/appIO.py:1426
+#: appHandlers/appIO.py:1523 appHandlers/appIO.py:1527
 msgid "Import SVG"
 msgstr "导入SVG"
 
-#: appHandlers/appIO.py:1452 appHandlers/appIO.py:1456
+#: appHandlers/appIO.py:1553 appHandlers/appIO.py:1557
 msgid "Import DXF"
 msgstr "导入DXF"
 
-#: appHandlers/appIO.py:1514 appMain.py:2141 appMain.py:2383
+#: appHandlers/appIO.py:1615 appMain.py:2141 appMain.py:2383
 msgid "Cannot reset Tcl while a script is running."
 msgstr "脚本运行时无法重置Tcl。"
 
 # auto-review 2026-10-09: new
-#: appHandlers/appIO.py:1584 appHandlers/appIO.py:1612
-#: appHandlers/appIO.py:1647 appHandlers/appIO.py:1668
+#: appHandlers/appIO.py:1685 appHandlers/appIO.py:1713
+#: appHandlers/appIO.py:1748 appHandlers/appIO.py:1769
 msgid "seconds"
 msgstr "秒"
 
 # auto-review 2026-10-09: new
-#: appHandlers/appIO.py:1628
+#: appHandlers/appIO.py:1729
 msgid "A tab"
 msgstr "一个标签页"
 
 # auto-review 2026-10-09: new
-#: appHandlers/appIO.py:1635
+#: appHandlers/appIO.py:1736
 msgid "%s remains open because its closure was canceled."
 msgstr "%s仍保持打开，因为关闭操作已被取消。"
 
-#: appHandlers/appIO.py:1637
+#: appHandlers/appIO.py:1738
 msgid "%d tabs remain open because their closure was canceled."
 msgstr "%d 个标签页仍保持打开，因为关闭操作已被取消。"
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appIO.py:1647
+#: appHandlers/appIO.py:1748
 msgid "Project created in"
 msgstr "项目创建于"
 
-#: appHandlers/appIO.py:1650
+#: appHandlers/appIO.py:1751
 msgid "New Project created"
 msgstr "新项目已创建"
 
-#: appHandlers/appIO.py:1680
+#: appHandlers/appIO.py:1781
 msgid "New TCL script file created in Code Editor."
 msgstr "在代码编辑器中创建的新TCL脚本文件。"
 
-#: appHandlers/appIO.py:1707 appHandlers/appIO.py:1709
-#: appHandlers/appIO.py:1744 appHandlers/appIO.py:1746
+#: appHandlers/appIO.py:1808 appHandlers/appIO.py:1810
+#: appHandlers/appIO.py:1845 appHandlers/appIO.py:1847
 msgid "Open TCL script"
 msgstr "打开TCL脚本"
 
-#: appHandlers/appIO.py:1773
+#: appHandlers/appIO.py:1874
 msgid "Executing ScriptObject file."
 msgstr "正在执行脚本对象文件。"
 
-#: appHandlers/appIO.py:1781 appHandlers/appIO.py:1785 appMain.py:2075
+#: appHandlers/appIO.py:1882 appHandlers/appIO.py:1886 appMain.py:2075
 msgid "Run TCL script"
 msgstr "运行TCL脚本"
 
-#: appHandlers/appIO.py:1804
+#: appHandlers/appIO.py:1905
 msgid "TCL script file opened in Code Editor and executed."
 msgstr "TCL脚本文件在代码编辑器中打开并执行。"
 
 # auto-review 2026-10-21: new
-#: appHandlers/appIO.py:1809
+#: appHandlers/appIO.py:1910
 msgid "Failed to execute script"
 msgstr "脚本执行失败"
 
 # auto-review 2026-10-21: new
-#: appHandlers/appIO.py:1830 appHandlers/appProjects.py:690
+#: appHandlers/appIO.py:1931 appHandlers/appProjects.py:690
 msgid "Overwrite"
 msgstr "覆盖"
 
 # auto-review 2026-10-21: new
-#: appHandlers/appIO.py:1830 appHandlers/appProjects.py:691
+#: appHandlers/appIO.py:1931 appHandlers/appProjects.py:691
 msgid "The file already exists"
 msgstr "文件已存在"
 
-#: appHandlers/appIO.py:1831 appHandlers/appProjects.py:692
+#: appHandlers/appIO.py:1932 appHandlers/appProjects.py:692
 msgid "Do you want to overwrite it?"
 msgstr "是否要覆盖它？"
 
 # auto-review 2026-10-21: new
-#: appHandlers/appIO.py:1859 appHandlers/appIO.py:3925
-#: appHandlers/appIO.py:3965 appHandlers/appIO.py:4186
-#: appHandlers/appLifecycle.py:276 appHandlers/appLifecycle.py:393
-#: appHandlers/appLifecycle.py:406 appTranslation.py:235
+#: appHandlers/appIO.py:1960 appHandlers/appIO.py:4026
+#: appHandlers/appIO.py:4066 appHandlers/appIO.py:4287
+#: appHandlers/appLifecycle.py:276 appHandlers/appLifecycle.py:394
+#: appHandlers/appLifecycle.py:407 appTranslation.py:235
 msgid "Geometry save is running. Wait until it ends."
 msgstr "几何保存正在进行中。请等待其结束。"
 
-#: appHandlers/appIO.py:1897 appHandlers/appProjects.py:698
+#: appHandlers/appIO.py:1998 appHandlers/appProjects.py:698
 msgid "The project was not saved"
 msgstr "项目未保存"
 
 # auto-review 2026-10-09: fuzzy corrected
-#: appHandlers/appIO.py:1941 appHandlers/appIO.py:1947
+#: appHandlers/appIO.py:2042 appHandlers/appIO.py:2048
 #: appHandlers/appProjects.py:572
 #| msgid "General"
 msgid "Save Project As ..."
 msgstr "项目另存为..."
 
 # auto-review 2026-10-09: new
-#: appHandlers/appIO.py:1972
+#: appHandlers/appIO.py:2073
 msgid "General_print"
 msgstr "常规_打印"
 
-#: appHandlers/appIO.py:1980
+#: appHandlers/appIO.py:2081
 msgid "Print everything in the workspace."
 msgstr "将打印工作区中的所有内容。"
 
-#: appHandlers/appIO.py:1986 appHandlers/appIO.py:1994
+#: appHandlers/appIO.py:2087 appHandlers/appIO.py:2095
 msgid "Save Object as PDF ..."
 msgstr "对象另存为PDF..."
 
-#: appHandlers/appIO.py:2004
+#: appHandlers/appIO.py:2105
 msgid "Printing PDF ..."
 msgstr "正在打印PDF..."
 
-#: appHandlers/appIO.py:2193
+#: appHandlers/appIO.py:2294
 msgid "PDF file saved to"
 msgstr "PDF文件保存到"
 
-#: appHandlers/appIO.py:2341
+#: appHandlers/appIO.py:2442
 msgid "%s file exported to"
 msgstr "%s 文件已导出到"
 
-#: appHandlers/appIO.py:2344 appHandlers/appIO.py:2377
-#: appHandlers/appIO.py:2594 appHandlers/appIO.py:2768
-#: appHandlers/appIO.py:2856
+#: appHandlers/appIO.py:2445 appHandlers/appIO.py:2478
+#: appHandlers/appIO.py:2695 appHandlers/appIO.py:2869
+#: appHandlers/appIO.py:2957
 msgid "Exporting ..."
 msgstr "导出中..."
 
-#: appHandlers/appIO.py:2348 appHandlers/appIO.py:2353
-#: appHandlers/appIO.py:2599 appHandlers/appIO.py:2606
-#: appHandlers/appIO.py:2773 appHandlers/appIO.py:2780
-#: appHandlers/appIO.py:2861 appHandlers/appIO.py:2868
+#: appHandlers/appIO.py:2449 appHandlers/appIO.py:2454
+#: appHandlers/appIO.py:2700 appHandlers/appIO.py:2707
+#: appHandlers/appIO.py:2874 appHandlers/appIO.py:2881
+#: appHandlers/appIO.py:2962 appHandlers/appIO.py:2969
 msgid "Could not export."
 msgstr "无法导出。"
 
-#: appHandlers/appIO.py:2392
+#: appHandlers/appIO.py:2493
 msgid "SVG file exported to"
 msgstr "SVG文件导出到"
 
-#: appHandlers/appIO.py:2407 appHandlers/appIO.py:2411
+#: appHandlers/appIO.py:2508 appHandlers/appIO.py:2512
 msgid "Import FlatCAM Preferences"
 msgstr "导入FlatCAM首选项"
 
-#: appHandlers/appIO.py:2423
+#: appHandlers/appIO.py:2524
 msgid "Imported Defaults from"
 msgstr "已从文件导入默认值："
 
-#: appHandlers/appIO.py:2442 appHandlers/appIO.py:2448
+#: appHandlers/appIO.py:2543 appHandlers/appIO.py:2549
 msgid "Export FlatCAM Preferences"
 msgstr "导出FlatCAM首选项"
 
-#: appHandlers/appIO.py:2466
+#: appHandlers/appIO.py:2567
 msgid "Exported preferences to"
 msgstr "将首选项导出到"
 
-#: appHandlers/appIO.py:2583
+#: appHandlers/appIO.py:2684
 msgid "Excellon file exported to"
 msgstr "Excellon文件导出到"
 
-#: appHandlers/appIO.py:2758
+#: appHandlers/appIO.py:2859
 msgid "Gerber file exported to"
 msgstr "Gerber文件导出到"
 
-#: appHandlers/appIO.py:2845
+#: appHandlers/appIO.py:2946
 msgid "DXF file exported to"
 msgstr "DXF文件导出到"
 
-#: appHandlers/appIO.py:2900
+#: appHandlers/appIO.py:3001
 msgid "The drills of the SVG file could not be created."
 msgstr "无法创建 SVG 文件的钻孔。"
 
-#: appHandlers/appIO.py:2927 appHandlers/appIO.py:2992
+#: appHandlers/appIO.py:3028 appHandlers/appIO.py:3093
 msgid ""
 "Not supported type is picked as parameter. Only Geometry and Gerber are "
 "supported"
 msgstr "选择不支持的类型作为参数。仅支持Geometry和Gerber"
 
-#: appHandlers/appIO.py:2948 appHandlers/appIO.py:3012
-#: appHandlers/appIO.py:3114 appHandlers/appIO.py:3194
-#: appHandlers/appIO.py:3410 appHandlers/appIO.py:3478
-#: appHandlers/appIO.py:3538 appHandlers/appIO.py:3599
+#: appHandlers/appIO.py:3049 appHandlers/appIO.py:3113
+#: appHandlers/appIO.py:3215 appHandlers/appIO.py:3295
+#: appHandlers/appIO.py:3511 appHandlers/appIO.py:3579
+#: appHandlers/appIO.py:3639 appHandlers/appIO.py:3700
 #: appPlugins/ToolImage/Image.py:234 appPlugins/ToolPdf/PdfImport.py:247
 msgid "Opened"
 msgstr "已打开"
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appIO.py:2950 appHandlers/appIO.py:3014
+#: appHandlers/appIO.py:3051 appHandlers/appIO.py:3115
 #: appPlugins/ToolImage/Image.py:225 appPlugins/ToolPcbWizard/PcbWizard.py:321
 #: tclCommands/TclCommandImportSvg.py:87
 msgid "Importing"
 msgstr "导入"
 
-#: appHandlers/appIO.py:3059 appHandlers/appIO.py:3440
-#: appHandlers/appIO.py:3505
+#: appHandlers/appIO.py:3160 appHandlers/appIO.py:3541
+#: appHandlers/appIO.py:3606
 msgid "Failed to parse file"
 msgstr "无法解析文件"
 
-#: appHandlers/appIO.py:3071
+#: appHandlers/appIO.py:3172
 msgid "Object is not Gerber file or empty. Aborting object creation."
 msgstr "对象不是Gerber文件或为空。正在中止对象创建。"
 
 # auto-review 2026-10-09: new
-#: appHandlers/appIO.py:3087 appHandlers/appIO.py:3176
-#: appHandlers/appIO.py:3394 appHandlers/appIO.py:3464
-#: appHandlers/appIO.py:3520 appHandlers/appIO.py:3591
+#: appHandlers/appIO.py:3188 appHandlers/appIO.py:3277
+#: appHandlers/appIO.py:3495 appHandlers/appIO.py:3565
+#: appHandlers/appIO.py:3621 appHandlers/appIO.py:3692
 #: tclCommands/TclCommandOpenDXF.py:106
 msgid "Opening"
 msgstr "打开中"
 
-#: appHandlers/appIO.py:3095
+#: appHandlers/appIO.py:3196
 msgid ""
 "The Gerber file is DAMAGED. We could open it but the file parsing PARTIALLY "
 "FAILED.\n"
@@ -21582,175 +21641,175 @@ msgstr ""
 "!!! 请检查文件 !!! --- 部分铜特征（焊盘、走线等）缺失 !!!\n"
 "!!! 请检查文件 !!! --- 部分铜特征（焊盘、走线等）缺失 !!!\n"
 
-#: appHandlers/appIO.py:3107
+#: appHandlers/appIO.py:3208
 msgid "Open Gerber failed. Probable not a Gerber file."
 msgstr "打开Gerber失败。可能不是Gerber文件。"
 
-#: appHandlers/appIO.py:3145 appPlugins/ToolPcbWizard/PcbWizard.py:294
+#: appHandlers/appIO.py:3246 appPlugins/ToolPcbWizard/PcbWizard.py:294
 msgid "This is not Excellon file."
 msgstr "这不是Excellon文件。"
 
-#: appHandlers/appIO.py:3148
+#: appHandlers/appIO.py:3249
 msgid "Cannot open file"
 msgstr "无法打开文件"
 
-#: appHandlers/appIO.py:3173 appPlugins/ToolPcbWizard/PcbWizard.py:316
+#: appHandlers/appIO.py:3274 appPlugins/ToolPcbWizard/PcbWizard.py:316
 #: appPlugins/ToolPdf/PdfImport.py:280
 msgid "No geometry found in file"
 msgstr "在文件中找不到几何图形"
 
-#: appHandlers/appIO.py:3187
+#: appHandlers/appIO.py:3288
 msgid "Open Excellon file failed. Probable not an Excellon file."
 msgstr "打开Excellon文件失败。可能不是Excellon文件。"
 
-#: appHandlers/appIO.py:3237
+#: appHandlers/appIO.py:3338
 msgid "Reading GCode file"
 msgstr "读取G代码文件"
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appIO.py:3242 appPlugins/ToolPdf/PdfImport.py:185
+#: appHandlers/appIO.py:3343 appPlugins/ToolPdf/PdfImport.py:185
 msgid "Failed to open"
 msgstr "无法打开"
 
-#: appHandlers/appIO.py:3280 appHandlers/appIO.py:3282
+#: appHandlers/appIO.py:3381 appHandlers/appIO.py:3383
 msgid "This is not GCODE"
 msgstr "这不是G代码文件"
 
-#: appHandlers/appIO.py:3289
+#: appHandlers/appIO.py:3390
 msgid "The G-code has unsupported parts"
 msgstr "G代码含不支持的部分"
 
-#: appHandlers/appIO.py:3291
+#: appHandlers/appIO.py:3392
 msgid "no G20/G21 in the file, the units of the application are assumed"
 msgstr "文件无G20/G21，假定使用应用单位"
 
-#: appHandlers/appIO.py:3360
+#: appHandlers/appIO.py:3461
 msgid "Not in the file, the default values are used"
 msgstr "文件中无，使用默认值"
 
-#: appHandlers/appIO.py:3363
+#: appHandlers/appIO.py:3464
 msgid "No tool diameter in the file for the tools %s: the default %s is used"
 msgstr "文件中刀具 %s 无直径：使用默认值 %s"
 
-#: appHandlers/appIO.py:3403
+#: appHandlers/appIO.py:3504
 msgid "Failed to create the CNCJob object from the G-code file."
 msgstr "无法从G代码文件创建CNC任务对象。"
 
-#: appHandlers/appIO.py:3412
+#: appHandlers/appIO.py:3513
 msgid "G-code without complete tool data"
 msgstr "G代码缺少刀具数据"
 
-#: appHandlers/appIO.py:3459
+#: appHandlers/appIO.py:3560
 msgid "Object is not HPGL2 file or empty. Aborting object creation."
 msgstr "对象不是HPGL2文件或为空。正在中止对象创建。"
 
-#: appHandlers/appIO.py:3471
+#: appHandlers/appIO.py:3572
 msgid "Failed. Probable not a HPGL2 file."
 msgstr "失败。可能不是HPGL2文件。"
 
-#: appHandlers/appIO.py:3497
+#: appHandlers/appIO.py:3598
 msgid "TCL script file opened in Code Editor."
 msgstr "TCL脚本文件在代码编辑器中打开。"
 
-#: appHandlers/appIO.py:3531
+#: appHandlers/appIO.py:3632
 msgid "Failed to open TCL Script."
 msgstr "无法打开TCL脚本。"
 
-#: appHandlers/appIO.py:3556 appHandlers/appIO.py:3558
+#: appHandlers/appIO.py:3657 appHandlers/appIO.py:3659
 msgid "Open Document"
 msgstr "打开文档"
 
-#: appHandlers/appIO.py:3595
+#: appHandlers/appIO.py:3696
 msgid "Failed to open Document."
 msgstr "无法打开文档。"
 
-#: appHandlers/appIO.py:3613 appHandlers/appIO.py:3615
+#: appHandlers/appIO.py:3714 appHandlers/appIO.py:3716
 msgid "Open Geometry"
 msgstr "打开 Geometry"
 
-#: appHandlers/appIO.py:3628
+#: appHandlers/appIO.py:3729
 msgid "Unsupported file type"
 msgstr "不支持的文件类型"
 
-#: appHandlers/appIO.py:3644
+#: appHandlers/appIO.py:3745
 msgid "Opening FlatCAM Config file."
 msgstr "正在打开FlatCAM配置文件。"
 
-#: appHandlers/appIO.py:3744
+#: appHandlers/appIO.py:3845
 msgid "Source files relinked"
 msgstr "源文件已重新链接"
 
-#: appHandlers/appIO.py:3753
+#: appHandlers/appIO.py:3854
 msgid "These source files were not found"
 msgstr "未找到以下源文件"
 
-#: appHandlers/appIO.py:3758
+#: appHandlers/appIO.py:3859
 msgid "Missing Source Files"
 msgstr "缺少源文件"
 
-#: appHandlers/appIO.py:3760
+#: appHandlers/appIO.py:3861
 msgid "Locate folder..."
 msgstr "定位文件夹..."
 
-#: appHandlers/appIO.py:3766
+#: appHandlers/appIO.py:3867
 msgid "Locate the folder of the source files"
 msgstr "定位源文件所在的文件夹"
 
-#: appHandlers/appIO.py:3788 tclCommands/TclCommandOpenProject.py:88
+#: appHandlers/appIO.py:3889 tclCommands/TclCommandOpenProject.py:88
 msgid "Failed to open project file"
 msgstr "无法打开项目文件"
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appIO.py:3814 appHandlers/appIO.py:3815
+#: appHandlers/appIO.py:3915 appHandlers/appIO.py:3916
 msgid "A project is loading. Wait until it ends."
 msgstr "项目正在加载。请等待其结束。"
 
-#: appHandlers/appIO.py:3835
+#: appHandlers/appIO.py:3936
 msgid "Loading Project ... Please Wait ..."
 msgstr "正在加载项目...请稍候..."
 
 # auto-review 2026-10-09: fuzzy corrected
-#: appHandlers/appIO.py:3841
+#: appHandlers/appIO.py:3942
 #| msgid "Parsing"
 msgid "Opening FlatCAM Project file."
 msgstr "正在打开FlatCAM项目文件。"
 
-#: appHandlers/appIO.py:3846
+#: appHandlers/appIO.py:3947
 msgid "Parsing..."
 msgstr "解析中..."
 
-#: appHandlers/appIO.py:3867
+#: appHandlers/appIO.py:3968
 msgid "Invalid project structure"
 msgstr "项目结构无效"
 
-#: appHandlers/appIO.py:3884
+#: appHandlers/appIO.py:3985
 msgid "Unknown error"
 msgstr "未知错误"
 
-#: appHandlers/appIO.py:3914
+#: appHandlers/appIO.py:4015
 msgid "The units of the project are now used"
 msgstr "现在使用项目的单位"
 
-#: appHandlers/appIO.py:3931
+#: appHandlers/appIO.py:4032
 msgid "The project was made with a newer app version"
 msgstr "该项目由较新版本的应用程序创建"
 
-#: appHandlers/appIO.py:3932 appHandlers/appIO.py:3961
+#: appHandlers/appIO.py:4033 appHandlers/appIO.py:4062
 msgid "It may not load correctly."
 msgstr "可能无法正确加载。"
 
 # auto-review 2026-10-09: fuzzy corrected
-#: appHandlers/appIO.py:3935
+#: appHandlers/appIO.py:4036
 #| msgid "New Project"
 msgid "Newer Project"
 msgstr "较新的项目"
 
 # auto-review 2026-10-09: new
-#: appHandlers/appIO.py:3943
+#: appHandlers/appIO.py:4044
 msgid "Legacy Project"
 msgstr "旧版项目"
 
-#: appHandlers/appIO.py:3944
+#: appHandlers/appIO.py:4045
 msgid ""
 "The project was made with an older app version.\n"
 "It may not load correctly.\n"
@@ -21762,71 +21821,71 @@ msgstr ""
 "\n"
 "是否继续？"
 
-#: appHandlers/appIO.py:3960
+#: appHandlers/appIO.py:4061
 msgid "The project was made with an older app version."
 msgstr "该项目由较旧版本的应用程序创建。"
 
-#: appHandlers/appIO.py:3972
+#: appHandlers/appIO.py:4073
 msgid "The units of the project are not valid. They are ignored."
 msgstr "项目的单位无效。已忽略。"
 
-#: appHandlers/appIO.py:4020
+#: appHandlers/appIO.py:4121
 msgid "Some objects could not be added."
 msgstr "部分对象无法添加。"
 
-#: appHandlers/appIO.py:4022
+#: appHandlers/appIO.py:4123
 msgid "Loading was cancelled."
 msgstr "加载已取消。"
 
-#: appHandlers/appIO.py:4023
+#: appHandlers/appIO.py:4124
 msgid "Project loaded without some objects"
 msgstr "项目已加载，但缺少部分对象"
 
 # auto-review 2026-10-09: fuzzy corrected
-#: appHandlers/appIO.py:4029
+#: appHandlers/appIO.py:4130
 #| msgid "Loading"
 msgid "Project loaded from"
 msgstr "已从文件加载项目："
 
-#: appHandlers/appIO.py:4134 appObjects/AppObject.py:84
+#: appHandlers/appIO.py:4235 appObjects/AppObject.py:84
 #: appObjects/AppObject.py:169 appObjects/AppObject.py:171
 msgid "Loading..."
 msgstr "读取中..."
 
-#: appHandlers/appIO.py:4152
+#: appHandlers/appIO.py:4253
 msgid "The name or the kind of the object is missing."
 msgstr "缺少对象的名称或类型。"
 
-#: appHandlers/appIO.py:4166
+#: appHandlers/appIO.py:4267
 msgid "The object could not be created."
 msgstr "无法创建该对象。"
 
-#: appHandlers/appIO.py:4194
+#: appHandlers/appIO.py:4295
 msgid "Saving Project ..."
 msgstr "正在保存项目..."
 
-#: appHandlers/appIO.py:4234
+#: appHandlers/appIO.py:4335
 msgid "The object is used by another application."
 msgstr "另一个应用程序正在使用该对象。"
 
-#: appHandlers/appIO.py:4244 appHandlers/appIO.py:4261
+#: appHandlers/appIO.py:4345 appHandlers/appIO.py:4362
 msgid "Project saved to"
 msgstr "项目保存到"
 
-#: appHandlers/appIO.py:4254
+#: appHandlers/appIO.py:4355
 msgid "Failed to parse saved project file"
 msgstr "无法分析已保存的项目文件"
 
 # auto-review 2026-10-21: new
-#: appHandlers/appIO.py:4256
+#: appHandlers/appIO.py:4357
 msgid "Retry to save it."
 msgstr "请重试以保存它。"
 
-#: appHandlers/appIO.py:4278
+#: appHandlers/appIO.py:4379
 msgid "Failed to save the project"
 msgstr "无法保存项目"
 
-#: appHandlers/appIO.py:4304
+#: appHandlers/appIO.py:4405
 msgid "Save cancelled because source file is empty. Try to export the file."
 msgstr "由于源文件为空，已取消保存。尝试导出该文件。"
 
@@ -21835,7 +21894,7 @@ msgid "Stop the running script before restarting."
 msgstr "重启前请停止运行中的脚本。"
 
 # auto-review 2026-10-09: fuzzy corrected
-#: appHandlers/appLifecycle.py:272 appHandlers/appLifecycle.py:389
+#: appHandlers/appLifecycle.py:272 appHandlers/appLifecycle.py:390
 #| msgid ""
 #| "There are files/objects modified in FlatCAM. \n"
 #| "Do you want to Save the project?"
@@ -21843,7 +21902,7 @@ msgid "Stop the running script before closing."
 msgstr "关闭前请停止运行中的脚本。"
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appLifecycle.py:315
+#: appHandlers/appLifecycle.py:316
 msgid ""
 "There are files/objects modified.\n"
 "Do you want to Save the project?"
@@ -22793,38 +22852,38 @@ msgid "Failed to load the source code for the selected object"
 msgstr "无法加载所选对象的源代码"
 
 # auto-review 2026-10-09: corrected
-#: appMain.py:4348
+#: appMain.py:4350
 msgid "Cannot open image file. Image tool is not available."
 msgstr "无法打开图像文件。图像工具不可用。"
 
-#: appMain.py:4411
+#: appMain.py:4415
 msgid "Failed to load recent item list."
 msgstr "无法加载近期文件列表。"
 
-#: appMain.py:4435
+#: appMain.py:4439
 msgid "Recent files list was reset."
 msgstr "最近的文件列表已重置。"
 
-#: appMain.py:4448
+#: appMain.py:4452
 msgid "Recent projects list was reset."
 msgstr "最近的项目列表已重置。"
 
-#: appMain.py:4473
+#: appMain.py:4477
 msgid "Clear Recent projects"
 msgstr "清除最近的项目"
 
 # auto-review 2026-10-09: new
-#: appMain.py:4497
+#: appMain.py:4501
 msgid "Clear Recent files"
 msgstr "清除最近的文件"
 
 # auto-review 2026-10-21: new
-#: appMain.py:4542
+#: appMain.py:4546
 msgid "Failed checking for the latest version."
 msgstr "检查最新版本失败。"
 
 # auto-review 2026-10-21: new
-#: appMain.py:4566
+#: appMain.py:4570
 msgid ""
 "OpenGL canvas initialization failed.\n"
 "Check your graphics drivers and OpenGL support, including remote desktop or "
@@ -22835,19 +22894,19 @@ msgstr ""
 "请检查显卡驱动和 OpenGL 支持，包括远程桌面或虚拟机的图形设置。\n"
 "技术细节可在应用程序日志和错误详情中查看。"
 
-#: appMain.py:4571
+#: appMain.py:4575
 msgid "OpenGL initialization failed"
 msgstr "OpenGL 初始化失败"
 
-#: appMain.py:4739
+#: appMain.py:4743
 msgid "Activate the script's project before running it."
 msgstr "运行脚本前请激活其所属项目。"
 
-#: appMain.py:4742
+#: appMain.py:4746
 msgid "A script is already running."
 msgstr "脚本已在运行。"
 
-#: appMain.py:4749
+#: appMain.py:4753
 msgid "Timed-out script work is still running; changes are not rolled back."
 msgstr "超时的脚本仍在运行；更改不回滚。"
 
@@ -25032,7 +25091,7 @@ msgstr "点击以选择比较颜色。"
 #: appPlugins/ToolCopperThieving/CopperThieving.py:243
 #: appPlugins/ToolCopperThieving/CopperThieving.py:262
 msgid "Lines Grid works only for 'itself' reference ..."
-msgstr "线条栅格仅适用于“自身”参考..."
+msgstr "线网格仅适用于“自身”参考..."
 
 # auto-review 2026-10-09: corrected
 #: appPlugins/ToolCopperThieving/CopperThieving.py:251
@@ -25042,12 +25101,12 @@ msgstr "已选择实体填充。"
 # auto-review 2026-10-09: corrected
 #: appPlugins/ToolCopperThieving/CopperThieving.py:254
 msgid "Dots grid fill selected."
-msgstr "已选择点栅格填充。"
+msgstr "已选择点网格填充。"
 
 # auto-review 2026-10-09: corrected
 #: appPlugins/ToolCopperThieving/CopperThieving.py:257
 msgid "Squares grid fill selected."
-msgstr "已选择方形栅格填充。"
+msgstr "已选择方格网格填充。"
 
 #: appPlugins/ToolCopperThieving/CopperThieving.py:283
 #: appPlugins/ToolCopperThieving/CopperThieving.py:334
@@ -25135,7 +25194,7 @@ msgstr "盗铜工具。准备用铜填充的区域。"
 
 #: appPlugins/ToolCopperThieving/CopperThieving.py:519
 msgid "Copper Thieving Tool. Appending new geometry and buffering."
-msgstr "盗铜工具。添加新几何体和缓冲区。"
+msgstr "盗铜工具。添加新几何体并进行缓冲。"
 
 #: appPlugins/ToolCopperThieving/CopperThieving.py:522
 msgid "Create geometry"
@@ -25373,7 +25432,7 @@ msgstr ""
 #: appPlugins/ToolCutOut/CutOutGen.py:683
 #: appPlugins/ToolCutOut/CutOutGen.py:956
 msgid "Mouse bite diameter and spacing must produce a positive finite step."
-msgstr "打孔连接的直径和间距必须产生正的有限步距。"
+msgstr "鼠咬孔的直径和间距必须产生正的有限步距。"
 
 # auto-review 2026-10-09: corrected
 #: appPlugins/ToolCutOut/CutOut.py:772 appPlugins/ToolCutOut/CutOut.py:959
@@ -25771,7 +25830,7 @@ msgid ""
 "Edge-to-edge spacing between mouse-bite holes.\n"
 "Center pitch equals drill diameter plus this spacing."
 msgstr ""
-"打孔连接孔之间的边到边间距。\n"
+"鼠咬孔之间的孔边间距。\n"
 "中心间距等于钻孔直径加上此间距。"
 
 # auto-review 2026-10-21: new
@@ -29003,7 +29062,7 @@ msgstr "工作位置"
 
 # auto-review 2026-10-21: new
 #: appPlugins/ToolGcodeSender/Sender.py:5805
-#: appPlugins/ToolPCBViewer/PCBViewer.py:126
+#: appPlugins/ToolPCBViewer/PCBViewer.py:131
 msgid "The Plot 3D tab is not available."
 msgstr "“绘制 3D”选项卡不可用。"
 
@@ -32757,25 +32816,43 @@ msgstr "计算铜特征之间的最小距离，这将允许确定用于隔离或
 msgid "PCB 3D Viewer"
 msgstr "PCB 3D 查看器"
 
-#: appPlugins/ToolPCBViewer/PCBViewer.py:215
+#: appPlugins/ToolPCBViewer/PCBViewer.py:220
 msgid "Building PCB preview…"
 msgstr "正在构建 PCB 预览…"
 
-#: appPlugins/ToolPCBViewer/PCBViewer.py:261
+#: appPlugins/ToolPCBViewer/PCBViewer.py:266
 msgid "PCB preview ready"
 msgstr "PCB 预览已就绪"
 
-#: appPlugins/ToolPCBViewer/PCBViewer.py:281
-#: appPlugins/ToolPCBViewer/PCBViewerUI.py:78
+#: appPlugins/ToolPCBViewer/PCBViewer.py:342
+msgid "Export STEP"
+msgstr "导出 STEP"
+
+#: appPlugins/ToolPCBViewer/PCBViewer.py:343
+msgid "Exporting STEP…"
+msgstr "正在导出 STEP…"
+
+#: appPlugins/ToolPCBViewer/PCBViewer.py:352
+msgid "Exporting STEP"
+msgstr "正在导出 STEP"
+
+#: appPlugins/ToolPCBViewer/PCBViewer.py:365
 msgid "Export 3D PDF"
 msgstr "导出 3D PDF"
 
-#: appPlugins/ToolPCBViewer/PCBViewer.py:297
+#: appPlugins/ToolPCBViewer/PCBViewer.py:366
 msgid "Exporting 3D PDF…"
 msgstr "正在导出 3D PDF…"
 
-#: appPlugins/ToolPCBViewer/PCBViewer.py:353
-#: appPlugins/ToolPCBViewer/PCBViewer.py:356
+#: appPlugins/ToolPCBViewer/PCBViewer.py:390
+msgid "Exporting 3D PDF"
+msgstr "正在导出 3D PDF"
+
+#: appPlugins/ToolPCBViewer/PCBViewer.py:412
+msgid "STEP exported"
+msgstr "STEP 已导出"
+
+#: appPlugins/ToolPCBViewer/PCBViewer.py:412
 msgid "3D PDF exported"
 msgstr "3D PDF 已导出"
 
@@ -32813,20 +32890,56 @@ msgstr ""
 "闭合的电路板轮廓，包括切口。\n"
 "如果没有外轮廓，预览将使用合并后的边界框。"
 
-#: appPlugins/ToolPCBViewer/PCBViewerUI.py:79
+#: appPlugins/ToolPCBViewer/PCBViewerUI.py:83
+msgid "3D PDF"
+msgstr "3D PDF"
+
+#: appPlugins/ToolPCBViewer/PCBViewerUI.py:85
 msgid ""
+"Export the PCB to a 3D PDF file.\n"
 "Requires a PDF reader with U3D support, such as Adobe Acrobat or Foxit.\n"
 "Other readers display the static PCB preview."
-msgstr ""
+msgstr "将 PCB 导出为 3D PDF 文件。\n"
 "需要支持 U3D 的 PDF 阅读器，例如 Adobe Acrobat 或 Foxit。\n"
-"其他阅读器显示 PCB 的静态预览。"
+"其他阅读器会显示静态 PCB 预览。"
 
+#: appPlugins/ToolPCBViewer/PCBViewerUI.py:88
 #: appPlugins/ToolPCBViewer/PCBViewerUI.py:95
+msgid "STEP"
+msgstr "STEP"
+
+#: appPlugins/ToolPCBViewer/PCBViewerUI.py:90
+msgid ""
+"Export the PCB to a STEP file (AP214) for MCAD applications.\n"
+"Each layer is a part of the assembly, with its color."
+msgstr "将 PCB 导出为用于 MCAD 的 STEP 文件（AP214）。\n"
+"每层作为装配体的一个部件，保留各自的颜色。"
+
+#: appPlugins/ToolPCBViewer/PCBViewerUI.py:92
+msgid "Board"
+msgstr "电路板"
+
+#: appPlugins/ToolPCBViewer/PCBViewerUI.py:93
+msgid "All layers"
+msgstr "所有图层"
+
+#: appPlugins/ToolPCBViewer/PCBViewerUI.py:96
+msgid ""
+"Content of the STEP file.\n"
+"Board: the board body with its outline, cutouts and holes; small and fast, "
+"for the fit of a case.\n"
+"All layers: also copper, soldermask and legend; much larger and slower to "
+"import."
+msgstr "STEP 文件的内容。\n"
+"电路板：包含轮廓、切口和孔的电路板主体；文件较小、速度较快，适合检查外壳配合。\n"
+"所有图层：还包括铜层、阻焊层和丝印层；文件大得多，导入速度也更慢。"
+
+#: appPlugins/ToolPCBViewer/PCBViewerUI.py:135
 msgid "Color:"
 msgstr "颜色："
 
 # auto-review 2026-10-09: new
-#: appPlugins/ToolPCBViewer/PCBViewerUI.py:108
+#: appPlugins/ToolPCBViewer/PCBViewerUI.py:148
 msgid "Clear selection"
 msgstr "清除选择"
 
@@ -36250,7 +36363,7 @@ msgid ""
 "(more passes are needed for it)."
 msgstr "已完成全部 %d 次走刀；边界内的区域可能尚未清除（还需要更多走刀）。"
 
-#: defaults.py:1399 defaults.py:1692
+#: defaults.py:1400 defaults.py:1693
 msgid "Failed to parse defaults file."
 msgstr "无法解析默认设置文件。"
 
@@ -36622,6 +36735,13 @@ msgstr "减除对象没有面积。"
 #: tclCommands/TclCommandSubtractRectangle.py:62
 msgid "No Geometry name in args. Provide a name and try again."
 msgstr "参数中没有Geometry名称。请提供名称，然后重试。"
+
+#~ msgid ""
+#~ "Requires a PDF reader with U3D support, such as Adobe Acrobat or Foxit.\n"
+#~ "Other readers display the static PCB preview."
+#~ msgstr ""
+#~ "需要支持 U3D 的 PDF 阅读器，例如 Adobe Acrobat 或 Foxit。\n"
+#~ "其他阅读器显示 PCB 的静态预览。"
 
 # auto-review 2026-10-21: new
 #~ msgid "The boundary object's concave hull has no area"

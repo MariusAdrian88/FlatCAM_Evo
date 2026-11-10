@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "POT-Creation-Date: 2022-05-17 14:36+0300\n"
-"PO-Revision-Date: 2026-11-10 01:20+0100\n"
+"PO-Revision-Date: 2026-11-10 20:37+0100\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: tr_TR\n"
@@ -107,7 +107,7 @@ msgstr "Yer işareti kaldırıldı."
 msgid "Export Bookmarks"
 msgstr "Yer İşaretlerini Dışa Aktar"
 
-#: Bookmark.py:302 appGUI/MainGUI.py:739
+#: Bookmark.py:302 appGUI/MainGUI.py:747
 msgid "Bookmarks"
 msgstr "Yer İşaretleri"
 
@@ -119,23 +119,23 @@ msgstr "Yer İşaretleri"
 #: appEditors/geo_plugins/GeoPaintPlugin.py:174
 #: appEditors/geo_plugins/GeoTransformationPlugin.py:221
 #: appEditors/grb_plugins/GrbOperationDialogs.py:81
-#: appEditors/grb_plugins/GrbTransformationPlugin.py:403 appGUI/MainGUI.py:3200
-#: appGUI/MainGUI.py:3318 appGUI/shortcut_actions.py:579
+#: appEditors/grb_plugins/GrbTransformationPlugin.py:403 appGUI/MainGUI.py:3208
+#: appGUI/MainGUI.py:3326 appGUI/shortcut_actions.py:579
 #: appGUI/shortcut_actions.py:735 appGUI/shortcut_actions.py:815
-#: appGUI/shortcut_actions.py:916 appHandlers/appIO.py:744
-#: appHandlers/appIO.py:788 appHandlers/appIO.py:832 appHandlers/appIO.py:857
-#: appHandlers/appIO.py:897 appHandlers/appIO.py:921 appHandlers/appIO.py:973
-#: appHandlers/appIO.py:1043 appHandlers/appIO.py:1079
-#: appHandlers/appIO.py:1125 appHandlers/appIO.py:1167
-#: appHandlers/appIO.py:1210 appHandlers/appIO.py:1251
-#: appHandlers/appIO.py:1293 appHandlers/appIO.py:1341
-#: appHandlers/appIO.py:1405 appHandlers/appIO.py:1435
-#: appHandlers/appIO.py:1465 appHandlers/appIO.py:1713
-#: appHandlers/appIO.py:1750 appHandlers/appIO.py:1793
-#: appHandlers/appIO.py:1832 appHandlers/appIO.py:1953
-#: appHandlers/appIO.py:2000 appHandlers/appIO.py:2415
-#: appHandlers/appIO.py:2451 appHandlers/appIO.py:3561
-#: appHandlers/appIO.py:3618 appHandlers/appObjectOps.py:490 appMain.py:1937
+#: appGUI/shortcut_actions.py:916 appHandlers/appIO.py:845
+#: appHandlers/appIO.py:889 appHandlers/appIO.py:933 appHandlers/appIO.py:958
+#: appHandlers/appIO.py:998 appHandlers/appIO.py:1022 appHandlers/appIO.py:1074
+#: appHandlers/appIO.py:1144 appHandlers/appIO.py:1180
+#: appHandlers/appIO.py:1226 appHandlers/appIO.py:1268
+#: appHandlers/appIO.py:1311 appHandlers/appIO.py:1352
+#: appHandlers/appIO.py:1394 appHandlers/appIO.py:1442
+#: appHandlers/appIO.py:1506 appHandlers/appIO.py:1536
+#: appHandlers/appIO.py:1566 appHandlers/appIO.py:1814
+#: appHandlers/appIO.py:1851 appHandlers/appIO.py:1894
+#: appHandlers/appIO.py:1933 appHandlers/appIO.py:2054
+#: appHandlers/appIO.py:2101 appHandlers/appIO.py:2516
+#: appHandlers/appIO.py:2552 appHandlers/appIO.py:3662
+#: appHandlers/appIO.py:3719 appHandlers/appObjectOps.py:490 appMain.py:1937
 #: appMain.py:1973 appMain.py:3151 appObjects/CNCJobObject.py:905
 #: appObjects/DocumentObject.py:275 appObjects/ObjectCollection.py:287
 #: appParsers/ParseGerber.py:2800 appParsers/ParseGerber.py:2840
@@ -167,10 +167,10 @@ msgid "Cancelled."
 msgstr "İptal edildi."
 
 # auto-review 2026-10-09: corrected
-#: Bookmark.py:317 appEditors/appTextEditor.py:610 appHandlers/appIO.py:2331
-#: appHandlers/appIO.py:2385 appHandlers/appIO.py:2574
-#: appHandlers/appIO.py:2749 appHandlers/appIO.py:2838
-#: appHandlers/appIO.py:4320 appMain.py:3156 appObjects/CNCJobObject.py:1338
+#: Bookmark.py:317 appEditors/appTextEditor.py:610 appHandlers/appIO.py:2432
+#: appHandlers/appIO.py:2486 appHandlers/appIO.py:2675
+#: appHandlers/appIO.py:2850 appHandlers/appIO.py:2939
+#: appHandlers/appIO.py:4421 appMain.py:3156 appObjects/CNCJobObject.py:1338
 #: appPlugins/Common/levelling_core.py:1747 appPlugins/ToolFilm/Film.py:490
 #: appPlugins/ToolLevelling/Levelling.py:500
 #: appPlugins/ToolSolderPaste/SolderPaste.py:1205
@@ -181,8 +181,8 @@ msgstr ""
 "Erişim reddedildi, kaydetmek mümkün değil.\n"
 "Büyük olasılıkla başka bir uygulama dosyayı açık tutuyor ve erişilemiyor."
 
-#: Bookmark.py:328 Bookmark.py:359 appDatabase.py:2462 defaults.py:1391
-#: defaults.py:1683
+#: Bookmark.py:328 Bookmark.py:359 appDatabase.py:2462 defaults.py:1392
+#: defaults.py:1684
 msgid "Could not load the file."
 msgstr "Dosya yüklenemedi."
 
@@ -358,8 +358,8 @@ msgstr ""
 msgid "General"
 msgstr "Genel"
 
-#: appDatabase.py:145 appDatabase.py:569 appGUI/MainGUI.py:1372
-#: appGUI/MainGUI.py:2629 appGUI/ObjectUI.py:768 appGUI/ObjectUI.py:1044
+#: appDatabase.py:145 appDatabase.py:569 appGUI/MainGUI.py:1380
+#: appGUI/MainGUI.py:2637 appGUI/ObjectUI.py:768 appGUI/ObjectUI.py:1044
 #: appGUI/ToolLibrary.py:14 appGUI/preferences/PreferencesWindow.py:33
 #: appGUI/shortcut_actions.py:160 appPlugins/ToolMilling/Milling.py:304
 #: appPlugins/ToolMilling/Milling.py:306 appPlugins/ToolMilling/Milling.py:325
@@ -367,8 +367,8 @@ msgstr "Genel"
 msgid "Milling"
 msgstr "Frezeleme"
 
-#: appDatabase.py:145 appDatabase.py:569 appGUI/MainGUI.py:1370
-#: appGUI/MainGUI.py:2627 appGUI/ObjectUI.py:760 appGUI/ToolLibrary.py:14
+#: appDatabase.py:145 appDatabase.py:569 appGUI/MainGUI.py:1378
+#: appGUI/MainGUI.py:2635 appGUI/ObjectUI.py:760 appGUI/ToolLibrary.py:14
 #: appGUI/preferences/PreferencesWindow.py:32 appGUI/shortcut_actions.py:151
 #: appPlugins/ToolDrilling/Drilling.py:84
 #: appPlugins/ToolDrilling/Drilling.py:228
@@ -378,8 +378,8 @@ msgstr "Delme"
 
 # auto-review 2026-10-09: corrected
 #: appDatabase.py:146 appDatabase.py:149 appDatabase.py:317 appDatabase.py:569
-#: appDatabase.py:900 appEditors/appGCodeEditor.py:211 appGUI/MainGUI.py:1377
-#: appGUI/MainGUI.py:2634 appGUI/ToolLibrary.py:14
+#: appDatabase.py:900 appEditors/appGCodeEditor.py:211 appGUI/MainGUI.py:1385
+#: appGUI/MainGUI.py:2642 appGUI/ToolLibrary.py:14
 #: appGUI/preferences/PreferencesWindow.py:44
 #: appGUI/preferences/tools/ToolsNCCPrefGroupUI.py:163
 #: appGUI/shortcut_actions.py:156 appObjects/CNCJobObject.py:306
@@ -391,24 +391,24 @@ msgstr "İzolasyon"
 
 #: appDatabase.py:146 appDatabase.py:569 appEditors/appGeoEditor.py:127
 #: appEditors/geo_plugins/GeoPaintPlugin.py:269
-#: appEditors/geo_plugins/GeoPaintPlugin.py:384 appGUI/MainGUI.py:859
-#: appGUI/MainGUI.py:1381 appGUI/MainGUI.py:1492 appGUI/MainGUI.py:1940
-#: appGUI/MainGUI.py:2639 appGUI/MainGUI.py:2748 appGUI/ObjectUI.py:1052
+#: appEditors/geo_plugins/GeoPaintPlugin.py:384 appGUI/MainGUI.py:867
+#: appGUI/MainGUI.py:1389 appGUI/MainGUI.py:1500 appGUI/MainGUI.py:1948
+#: appGUI/MainGUI.py:2647 appGUI/MainGUI.py:2756 appGUI/ObjectUI.py:1052
 #: appGUI/ToolLibrary.py:14 appGUI/preferences/PreferencesWindow.py:46
 #: appPlugins/ToolPaint/Paint.py:282 appPlugins/ToolPaint/PaintUI.py:47
 msgid "Paint"
 msgstr "Çizim"
 
-#: appDatabase.py:146 appDatabase.py:569 appGUI/MainGUI.py:1379
-#: appGUI/MainGUI.py:2637 appGUI/ObjectUI.py:417 appGUI/ObjectUI.py:1062
+#: appDatabase.py:146 appDatabase.py:569 appGUI/MainGUI.py:1387
+#: appGUI/MainGUI.py:2645 appGUI/ObjectUI.py:417 appGUI/ObjectUI.py:1062
 #: appGUI/ToolLibrary.py:14 appGUI/preferences/PreferencesWindow.py:45
 #: appPlugins/ToolNCC/Ncc.py:264 appPlugins/ToolNCC/NccUI.py:33
 msgid "NCC"
 msgstr "Bakır Temizleme"
 
 # auto-review 2026-10-09: corrected
-#: appDatabase.py:146 appDatabase.py:569 appGUI/MainGUI.py:1389
-#: appGUI/MainGUI.py:2647 appGUI/ObjectUI.py:388 appGUI/ToolLibrary.py:14
+#: appDatabase.py:146 appDatabase.py:569 appGUI/MainGUI.py:1397
+#: appGUI/MainGUI.py:2655 appGUI/ObjectUI.py:388 appGUI/ToolLibrary.py:14
 #: appGUI/preferences/PreferencesWindow.py:34 appGUI/shortcut_actions.py:61
 #: appPlugins/ToolCutOut/CutOut.py:230 appPlugins/ToolCutOut/CutOutUI.py:22
 msgid "Cutout"
@@ -438,8 +438,8 @@ msgstr "Parlatma"
 #: appDatabase.py:150 appDatabase.py:316 appEditors/appGeoEditor.py:123
 #: appEditors/appGeoEditor.py:4618 appEditors/appGeoEditor.py:6047
 #: appEditors/appGeoEditor.py:6057 appEditors/appGeoEditor.py:6126
-#: appEditors/appGeoEditor.py:6440 appGUI/MainGUI.py:804 appGUI/MainGUI.py:1481
-#: appGUI/MainGUI.py:1921 appGUI/MainGUI.py:2739
+#: appEditors/appGeoEditor.py:6440 appGUI/MainGUI.py:812 appGUI/MainGUI.py:1489
+#: appGUI/MainGUI.py:1929 appGUI/MainGUI.py:2747
 #: appPlugins/ToolMilling/MillingUI.py:458
 msgid "Path"
 msgstr "Yol"
@@ -454,8 +454,8 @@ msgstr "İç"
 msgid "Out"
 msgstr "Dış"
 
-#: appDatabase.py:150 appDatabase.py:316 appGUI/MainGUI.py:1088
-#: appGUI/MainGUI.py:1906
+#: appDatabase.py:150 appDatabase.py:316 appGUI/MainGUI.py:1096
+#: appGUI/MainGUI.py:1914
 #: appGUI/preferences/general/GeneralGUIPrefGroupUI.py:118
 #: appHandlers/appPlotManager.py:411 appPlugins/ToolMilling/MillingUI.py:458
 #: appPlugins/ToolMilling/MillingUI.py:466
@@ -789,7 +789,7 @@ msgstr ""
 #: appGUI/preferences/tools/ToolsNCCPrefGroupUI.py:98
 #: appGUI/preferences/tools/ToolsPaintPrefGroupUI.py:101
 #: appGUI/preferences/tools/ToolsPaintPrefGroupUI.py:109
-#: appHandlers/appIO.py:3358 appPlugins/ToolCalculators/CalculatorUI.py:150
+#: appHandlers/appIO.py:3459 appPlugins/ToolCalculators/CalculatorUI.py:150
 #: appPlugins/ToolCutOut/CutOutUI.py:204
 #: appPlugins/ToolDrilling/DrillingUI.py:204
 #: appPlugins/ToolIsolation/IsolationUI.py:334
@@ -840,7 +840,7 @@ msgstr ""
 #: appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:95
 #: appGUI/preferences/tools/ToolsGrblSenderPrefGroupUI.py:95
 #: appGUI/preferences/tools/ToolsMillPrefGroupUI.py:128
-#: appHandlers/appIO.py:3358 appPlugins/ToolDrilling/DrillingUI.py:246
+#: appHandlers/appIO.py:3459 appPlugins/ToolDrilling/DrillingUI.py:246
 #: appPlugins/ToolDrilling/DrillingUI.py:1085
 #: appPlugins/ToolMilling/MillingUI.py:718
 #: appPlugins/ToolMilling/MillingUI.py:1367
@@ -901,7 +901,7 @@ msgstr ""
 
 #: appDatabase.py:791 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:200
 #: appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:167
-#: appHandlers/appIO.py:3358 appPlugins/ToolMilling/MillingUI.py:736
+#: appHandlers/appIO.py:3459 appPlugins/ToolMilling/MillingUI.py:736
 msgid "Feedrate X-Y"
 msgstr "X-Y İlerleme Hızı"
 
@@ -917,7 +917,7 @@ msgstr ""
 #: appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:156
 #: appGUI/preferences/tools/ToolsMillPrefGroupUI.py:215
 #: appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:194
-#: appHandlers/appIO.py:3359 appPlugins/ToolDrilling/DrillingUI.py:263
+#: appHandlers/appIO.py:3460 appPlugins/ToolDrilling/DrillingUI.py:263
 #: appPlugins/ToolMilling/MillingUI.py:751
 msgid "Feedrate Z"
 msgstr "Z İlerleme Hızı"
@@ -951,7 +951,7 @@ msgstr ""
 # auto-review 2026-10-09: corrected
 #: appDatabase.py:840 appDatabase.py:1408
 #: appGUI/preferences/tools/ToolsMillPrefGroupUI.py:231
-#: appHandlers/appIO.py:3359 appPlugins/ToolDrilling/DrillingUI.py:302
+#: appHandlers/appIO.py:3460 appPlugins/ToolDrilling/DrillingUI.py:302
 #: appPlugins/ToolDrilling/DrillingUI.py:1103
 #: appPlugins/ToolMilling/MillingUI.py:821
 #: appPlugins/ToolMilling/MillingUI.py:1385
@@ -2087,11 +2087,11 @@ msgstr "Çoğalt"
 #: appGUI/ApertureLibrary.py:63 appGUI/GUIElements.py:566
 #: appGUI/GUIElements.py:1349 appGUI/GUIElements.py:1597
 #: appGUI/GUIElements.py:2101 appGUI/GUIElements.py:2387
-#: appGUI/GUIElements.py:4941 appGUI/MainGUI.py:544 appGUI/MainGUI.py:843
-#: appGUI/MainGUI.py:902 appGUI/MainGUI.py:1028 appGUI/MainGUI.py:1108
-#: appGUI/MainGUI.py:1312 appGUI/MainGUI.py:1461 appGUI/MainGUI.py:1536
-#: appGUI/MainGUI.py:1604 appGUI/MainGUI.py:2022 appGUI/MainGUI.py:2571
-#: appGUI/MainGUI.py:2719 appGUI/MainGUI.py:2783 appGUI/MainGUI.py:2852
+#: appGUI/GUIElements.py:4941 appGUI/MainGUI.py:552 appGUI/MainGUI.py:851
+#: appGUI/MainGUI.py:910 appGUI/MainGUI.py:1036 appGUI/MainGUI.py:1116
+#: appGUI/MainGUI.py:1320 appGUI/MainGUI.py:1469 appGUI/MainGUI.py:1544
+#: appGUI/MainGUI.py:1612 appGUI/MainGUI.py:2030 appGUI/MainGUI.py:2579
+#: appGUI/MainGUI.py:2727 appGUI/MainGUI.py:2791 appGUI/MainGUI.py:2860
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:404
 #: appGUI/shortcut_actions.py:397 appGUI/shortcut_actions.py:626
 #: appGUI/shortcut_actions.py:775 appHandlers/appObjectOps.py:970
@@ -2107,11 +2107,11 @@ msgstr "Sil"
 msgid "Remove a selection of tools in the Tools Database."
 msgstr "Seçili uçları veri tabanından kaldırır."
 
-#: appDatabase.py:1785 appGUI/MainGUI.py:344 appGUI/MainGUI.py:1112
+#: appDatabase.py:1785 appGUI/MainGUI.py:352 appGUI/MainGUI.py:1120
 #: appGUI/preferences/excellon/ExcellonExpPrefGroupUI.py:21
 #: appGUI/preferences/geometry/GeometryExpPrefGroupUI.py:21
 #: appGUI/preferences/gerber/GerberExpPrefGroupUI.py:21
-#: appPlugins/ToolFilm/FilmUI.py:287
+#: appPlugins/ToolFilm/FilmUI.py:287 appPlugins/ToolPCBViewer/PCBViewerUI.py:78
 msgid "Export"
 msgstr "Dışa Aktar"
 
@@ -2121,9 +2121,9 @@ msgid "Save the Tools Database to a custom text file."
 msgstr "Uç Veri Tabanını özel bir metin dosyasına kaydeder."
 
 #: appDatabase.py:1792 appEditors/appGeoEditor.py:126
-#: appEditors/appGerberEditor.py:3508 appGUI/ImportDialog.py:123
-#: appGUI/MainGUI.py:282 appGUI/MainGUI.py:837 appGUI/MainGUI.py:1531
-#: appGUI/MainGUI.py:1595 appGUI/MainGUI.py:2779
+#: appEditors/appGerberEditor.py:3508 appGUI/ImportDialog.py:133
+#: appGUI/MainGUI.py:282 appGUI/MainGUI.py:845 appGUI/MainGUI.py:1539
+#: appGUI/MainGUI.py:1603 appGUI/MainGUI.py:2787
 msgid "Import"
 msgstr "İçe Aktar"
 
@@ -2133,7 +2133,7 @@ msgid "Load the Tools Database information's from a custom text file."
 msgstr "Uç Veri Tabanı bilgilerini özel bir metin dosyasından yükler."
 
 #: appDatabase.py:1799 appGUI/ApertureLibrary.py:64 appGUI/MainGUI.py:228
-#: appGUI/MainGUI.py:1110 appGUI/ObjectUI.py:1457
+#: appGUI/MainGUI.py:1118 appGUI/ObjectUI.py:1457
 #: appGUI/preferences/PreferencesWindow.py:519 appMain.py:2760
 #: appObjects/ObjectCollection.py:640
 msgid "Save"
@@ -2164,13 +2164,13 @@ msgstr ""
 #: appDatabase.py:1818 appDatabase.py:3108 appGUI/GUIElements.py:2976
 #: appGUI/GUIElements.py:3046 appGUI/GUIElements.py:3107
 #: appGUI/GUIElements.py:3172 appGUI/GUIElements.py:4879
-#: appGUI/preferences/PreferencesUIManager.py:1192
+#: appGUI/preferences/PreferencesUIManager.py:1193
 #: appGUI/preferences/PreferencesWindow.py:511
 #: appGUI/preferences/general/GeneralShortcutsGroupUI.py:208
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:426
 #: appGUI/shortcut_actions.py:879 appGUI/shortcut_actions.py:977
 #: appGUI/shortcut_actions.py:980 appGUI/shortcut_actions.py:988
-#: appHandlers/appIO.py:3953 appHandlers/appLifecycle.py:325
+#: appHandlers/appIO.py:4054 appHandlers/appLifecycle.py:326
 #: appHandlers/appObjectOps.py:955 appHandlers/appProjects.py:555
 #: appMain.py:2766 appMain.py:3514 appObjects/AppObject.py:87
 #: appPlugins/ToolGcodeSender/Sender.py:4583
@@ -2193,7 +2193,7 @@ msgstr "İptal"
 #: appEditors/grb_plugins/GrbCopyPlugin.py:459
 #: appEditors/grb_plugins/GrbCopyPlugin.py:468
 #: appEditors/grb_plugins/GrbPadArrayPlugin.py:335
-#: appEditors/grb_plugins/GrbPadArrayPlugin.py:344 appGUI/MainGUI.py:3233
+#: appEditors/grb_plugins/GrbPadArrayPlugin.py:344 appGUI/MainGUI.py:3241
 #: appGUI/ObjectUI.py:158 appGUI/ObjectUI.py:169
 #: appPlugins/ToolAlignObjects/AlignUI.py:332
 #: appPlugins/ToolAlignObjects/AlignUI.py:343
@@ -2351,7 +2351,7 @@ msgstr "Veri Tabanından Kopyala"
 msgid "Delete from DB"
 msgstr "Veri Tabanından Sil"
 
-#: appDatabase.py:2367 appHandlers/appLifecycle.py:314
+#: appDatabase.py:2367 appHandlers/appLifecycle.py:315
 #: appHandlers/appProjects.py:545
 msgid "Save changes"
 msgstr "Değişiklikleri Kaydet"
@@ -2362,7 +2362,7 @@ msgstr "Kütüphaneyi dosyadan değiştir…"
 
 # auto-review 2026-10-09: corrected
 #: appDatabase.py:2446 appDatabase.py:2753 appDatabase.py:2963
-#: appDatabase.py:2988 appDatabase.py:3077 appGUI/MainGUI.py:614
+#: appDatabase.py:2988 appDatabase.py:3077 appGUI/MainGUI.py:622
 #: appHandlers/appUIActions.py:39 appHandlers/appUIActions.py:52
 #: appHandlers/appUIActions.py:815 appPlugins/ToolCutOut/CutOut.py:595
 #: appPlugins/ToolIsolation/Isolation.py:3663
@@ -2383,7 +2383,7 @@ msgstr ""
 "açın.Uygulama birimleri değişti. Uç eklemeden önce uç kütüphanesini yeniden "
 "açın."
 
-#: appDatabase.py:2547 appGUI/MainGUI.py:578 appGUI/MainGUI.py:1665
+#: appDatabase.py:2547 appGUI/MainGUI.py:586 appGUI/MainGUI.py:1673
 #: appGUI/preferences/PreferencesWindow.py:346 appGUI/shortcut_actions.py:68
 msgid "Preferences"
 msgstr "Ayarlar"
@@ -2401,7 +2401,7 @@ msgid "Tools Dia"
 msgstr "Uç Çapı"
 
 #: appDatabase.py:2547 appEditors/appExcEditor.py:3657
-#: appEditors/appExcEditor.py:3663 appGUI/MainGUI.py:3230
+#: appEditors/appExcEditor.py:3663 appGUI/MainGUI.py:3238
 #: appObjects/GeometryObject.py:730 appPlugins/ToolDrilling/Drilling.py:2073
 #: appPlugins/ToolIsolation/Isolation.py:1863
 #: appPlugins/ToolMilling/Milling.py:2709
@@ -2550,23 +2550,23 @@ msgstr ""
 "Bir veya daha fazla uç düzenlendi.\n"
 "Kaydetmek istiyor musunuz?"
 
-#: appDatabase.py:3106 appGUI/MainGUI.py:2502
-#: appGUI/preferences/PreferencesUIManager.py:1191
-#: appGUI/preferences/PreferencesUIManager.py:1368
+#: appDatabase.py:3106 appGUI/MainGUI.py:2510
+#: appGUI/preferences/PreferencesUIManager.py:1192
+#: appGUI/preferences/PreferencesUIManager.py:1369
 #: appGUI/preferences/PreferencesWindow.py:538
 #: appGUI/preferences/general/GeneralGUIPrefGroupUI.py:560
-#: appHandlers/appLifecycle.py:323 appHandlers/appProjects.py:532
+#: appHandlers/appLifecycle.py:324 appHandlers/appProjects.py:532
 #: appHandlers/appProjects.py:553 appMain.py:2086 appMain.py:2760
 #: appObjects/CNCJobObject.py:893 appPlugins/ToolGcodeSender/Sender.py:4611
 #: appTranslation.py:130
 msgid "Yes"
 msgstr "Evet"
 
-#: appDatabase.py:3107 appGUI/MainGUI.py:2503
-#: appGUI/preferences/PreferencesUIManager.py:1369
+#: appDatabase.py:3107 appGUI/MainGUI.py:2511
+#: appGUI/preferences/PreferencesUIManager.py:1370
 #: appGUI/preferences/PreferencesWindow.py:539
 #: appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:300
-#: appHandlers/appLifecycle.py:324 appHandlers/appProjects.py:533
+#: appHandlers/appLifecycle.py:325 appHandlers/appProjects.py:533
 #: appHandlers/appProjects.py:554 appMain.py:2087 appMain.py:2764
 #: appObjects/CNCJobObject.py:894 appPlugins/ToolDrilling/DrillingUI.py:878
 #: appPlugins/ToolGcodeSender/Sender.py:4612 appTranslation.py:131
@@ -2580,14 +2580,14 @@ msgstr "Uç Veri Tabanından uç ekleme işlemi iptal edildi."
 
 #: appEditors/appExcEditor.py:69 appEditors/appExcEditor.py:291
 #: appEditors/appExcEditor.py:309 appEditors/appExcEditor.py:5631
-#: appGUI/MainGUI.py:882 appGUI/MainGUI.py:2007
+#: appGUI/MainGUI.py:890 appGUI/MainGUI.py:2015
 msgid "Drill"
 msgstr "Delik"
 
 #: appEditors/appExcEditor.py:69 appEditors/appExcEditor.py:979
 #: appEditors/appExcEditor.py:996 appEditors/appExcEditor.py:5631
-#: appEditors/exc_plugins/ExcSlotArrayPlugin.py:167 appGUI/MainGUI.py:890
-#: appGUI/MainGUI.py:2012
+#: appEditors/exc_plugins/ExcSlotArrayPlugin.py:167 appGUI/MainGUI.py:898
+#: appGUI/MainGUI.py:2020
 msgid "Slot"
 msgstr "Yuva"
 
@@ -2685,9 +2685,9 @@ msgstr "Tamamlandı."
 #: appEditors/appGerberEditor.py:1656 appEditors/appGerberEditor.py:4663
 #: appEditors/geo_plugins/GeoImportImagePlugin.py:134
 #: appEditors/geo_plugins/GeoSimplificationPlugin.py:106
-#: appHandlers/appEdit.py:829 appHandlers/appIO.py:1975
-#: appHandlers/appIO.py:2102 appHandlers/appIO.py:3671
-#: appHandlers/appIO.py:4210 appHandlers/appIO.py:4239
+#: appHandlers/appEdit.py:829 appHandlers/appIO.py:2076
+#: appHandlers/appIO.py:2203 appHandlers/appIO.py:3772
+#: appHandlers/appIO.py:4311 appHandlers/appIO.py:4340
 #: appHandlers/appObjectOps.py:54 appHandlers/appObjectOps.py:86
 #: appHandlers/appObjectOps.py:542 appHandlers/appObjectOps.py:734
 #: appHandlers/appObjectOps.py:973 appHandlers/appPlotManager.py:476
@@ -2733,7 +2733,7 @@ msgid "To add an Drill Array first select a tool in Tool Table"
 msgstr "Delik dizisi eklemek için önce Uç Tablosundan bir uç seçin"
 
 #: appEditors/appExcEditor.py:550 appEditors/appExcEditor.py:567
-#: appGUI/MainGUI.py:879 appGUI/MainGUI.py:2009
+#: appGUI/MainGUI.py:887 appGUI/MainGUI.py:2017
 msgid "Drill Array"
 msgstr "Delik Dizisi"
 
@@ -2795,7 +2795,7 @@ msgid "To add an Slot Array first select a tool in Tool Table"
 msgstr "Yuva dizisi eklemek için önce Uç Tablosundan bir uç seçin"
 
 #: appEditors/appExcEditor.py:1361 appEditors/appExcEditor.py:1377
-#: appGUI/MainGUI.py:887 appGUI/MainGUI.py:2014
+#: appGUI/MainGUI.py:895 appGUI/MainGUI.py:2022
 msgid "Slot Array"
 msgstr "Yuva Dizisi"
 
@@ -2859,11 +2859,11 @@ msgstr "Hiçbir şey seçilmedi."
 #: appEditors/appGeoEditor.py:6834 appGUI/GUIElements.py:552
 #: appGUI/GUIElements.py:1335 appGUI/GUIElements.py:1583
 #: appGUI/GUIElements.py:2089 appGUI/GUIElements.py:2377
-#: appGUI/GUIElements.py:4936 appGUI/MainGUI.py:538 appGUI/MainGUI.py:834
-#: appGUI/MainGUI.py:899 appGUI/MainGUI.py:1025 appGUI/MainGUI.py:1106
-#: appGUI/MainGUI.py:1309 appGUI/MainGUI.py:1459 appGUI/MainGUI.py:1529
-#: appGUI/MainGUI.py:1602 appGUI/MainGUI.py:2020 appGUI/MainGUI.py:2568
-#: appGUI/MainGUI.py:2717 appGUI/MainGUI.py:2777 appGUI/MainGUI.py:2850
+#: appGUI/GUIElements.py:4936 appGUI/MainGUI.py:546 appGUI/MainGUI.py:842
+#: appGUI/MainGUI.py:907 appGUI/MainGUI.py:1033 appGUI/MainGUI.py:1114
+#: appGUI/MainGUI.py:1317 appGUI/MainGUI.py:1467 appGUI/MainGUI.py:1537
+#: appGUI/MainGUI.py:1610 appGUI/MainGUI.py:2028 appGUI/MainGUI.py:2576
+#: appGUI/MainGUI.py:2725 appGUI/MainGUI.py:2785 appGUI/MainGUI.py:2858
 #: appGUI/shortcut_actions.py:643 appGUI/shortcut_actions.py:793
 #: appObjects/ExcellonObject.py:652 appPlugins/ToolDrilling/Drilling.py:373
 #: appPlugins/ToolMilling/Milling.py:632 appPlugins/ToolMilling/Milling.py:643
@@ -2891,8 +2891,8 @@ msgstr "Geçersiz dairesel dizi."
 #: appEditors/appExcEditor.py:2857 appGUI/GUIElements.py:529
 #: appGUI/GUIElements.py:1312 appGUI/GUIElements.py:1560
 #: appGUI/GUIElements.py:2066 appGUI/GUIElements.py:2360
-#: appGUI/GUIElements.py:4919 appGUI/MainGUI.py:446 appGUI/MainGUI.py:453
-#: appGUI/MainGUI.py:3139 appGUI/MainGUI.py:3144 appGUI/shortcut_actions.py:98
+#: appGUI/GUIElements.py:4919 appGUI/MainGUI.py:454 appGUI/MainGUI.py:461
+#: appGUI/MainGUI.py:3147 appGUI/MainGUI.py:3152 appGUI/shortcut_actions.py:98
 #: appGUI/shortcut_actions.py:370 appGUI/shortcut_actions.py:604
 #: appGUI/shortcut_actions.py:760 appHandlers/appHistory.py:724
 msgid "Undo"
@@ -2902,8 +2902,8 @@ msgstr "Geri Al"
 #: appEditors/appExcEditor.py:2858 appGUI/GUIElements.py:536
 #: appGUI/GUIElements.py:1319 appGUI/GUIElements.py:1567
 #: appGUI/GUIElements.py:2073 appGUI/GUIElements.py:2365
-#: appGUI/GUIElements.py:4924 appGUI/MainGUI.py:449 appGUI/MainGUI.py:454
-#: appGUI/MainGUI.py:3140 appGUI/MainGUI.py:3144 appGUI/shortcut_actions.py:99
+#: appGUI/GUIElements.py:4924 appGUI/MainGUI.py:457 appGUI/MainGUI.py:462
+#: appGUI/MainGUI.py:3148 appGUI/MainGUI.py:3152 appGUI/shortcut_actions.py:99
 #: appGUI/shortcut_actions.py:100 appGUI/shortcut_actions.py:371
 #: appGUI/shortcut_actions.py:372 appGUI/shortcut_actions.py:605
 #: appGUI/shortcut_actions.py:606 appGUI/shortcut_actions.py:761
@@ -3285,7 +3285,7 @@ msgstr "Özelliği sil"
 msgid "Convert slots to drills"
 msgstr "Yuvaları deliklere dönüştür"
 
-#: appEditors/appExcEditor.py:5959 appGUI/MainGUI.py:874 appGUI/ObjectUI.py:632
+#: appEditors/appExcEditor.py:5959 appGUI/MainGUI.py:882 appGUI/ObjectUI.py:632
 #: appGUI/shortcut_actions.py:46 appGUI/shortcut_actions.py:60
 msgid "Excellon Editor"
 msgstr "Excellon Düzenleyici"
@@ -3750,18 +3750,18 @@ msgstr ""
 #: appEditors/appExcEditor.py:6334 appEditors/appGCodeEditor.py:76
 #: appEditors/appGCodeEditor.py:77 appEditors/appGCodeEditor.py:954
 #: appEditors/appGeoEditor.py:4483 appEditors/appGerberEditor.py:8856
-#: appGUI/MainGUI.py:464 appGUI/MainGUI.py:2026 appMain.py:2750
+#: appGUI/MainGUI.py:472 appGUI/MainGUI.py:2034 appMain.py:2750
 msgid "Exit Editor"
 msgstr "Düzenleyiciden Çık"
 
 #: appEditors/appExcEditor.py:6337 appEditors/appGCodeEditor.py:957
 #: appEditors/appGeoEditor.py:4486 appEditors/appGerberEditor.py:8859
-#: appGUI/MainGUI.py:1303 appGUI/MainGUI.py:2563
+#: appGUI/MainGUI.py:1311 appGUI/MainGUI.py:2571
 msgid "Exit from Editor."
 msgstr "Düzenleyiciden çıkın."
 
 #: appEditors/appGCodeEditor.py:78 appGUI/GUIElements.py:4962
-#: appGUI/MainGUI.py:232 appGUI/MainGUI.py:464
+#: appGUI/MainGUI.py:232 appGUI/MainGUI.py:472
 msgid "Ctrl+S"
 msgstr "Ctrl+S"
 
@@ -3861,28 +3861,28 @@ msgstr "Yukarıdaki Kodu imleç konumuna ekleyin."
 #: appEditors/appGeoEditor.py:122 appEditors/appGeoEditor.py:5060
 #: appEditors/appGeoEditor.py:5303
 #: appEditors/geo_plugins/GeoCirclePlugin.py:139
-#: appEditors/geo_plugins/GeoCirclePlugin.py:191 appGUI/MainGUI.py:788
-#: appGUI/MainGUI.py:1473 appGUI/MainGUI.py:1926 appGUI/MainGUI.py:2731
+#: appEditors/geo_plugins/GeoCirclePlugin.py:191 appGUI/MainGUI.py:796
+#: appGUI/MainGUI.py:1481 appGUI/MainGUI.py:1934 appGUI/MainGUI.py:2739
 msgid "Circle"
 msgstr "Daire"
 
 #: appEditors/appGeoEditor.py:122 appEditors/appGeoEditor.py:5557
-#: appGUI/MainGUI.py:792 appGUI/MainGUI.py:1475 appGUI/MainGUI.py:1930
-#: appGUI/MainGUI.py:2733
+#: appGUI/MainGUI.py:800 appGUI/MainGUI.py:1483 appGUI/MainGUI.py:1938
+#: appGUI/MainGUI.py:2741
 msgid "Arc"
 msgstr "Yay"
 
 #: appEditors/appGeoEditor.py:122 appEditors/appGeoEditor.py:5580
 #: appEditors/appGeoEditor.py:5715
 #: appEditors/geo_plugins/GeoRectanglePlugin.py:176
-#: appEditors/geo_plugins/GeoRectanglePlugin.py:228 appGUI/MainGUI.py:796
-#: appGUI/MainGUI.py:1477 appGUI/MainGUI.py:1923 appGUI/MainGUI.py:2735
+#: appEditors/geo_plugins/GeoRectanglePlugin.py:228 appGUI/MainGUI.py:804
+#: appGUI/MainGUI.py:1485 appGUI/MainGUI.py:1931 appGUI/MainGUI.py:2743
 msgid "Rectangle"
 msgstr "Dikdörtgen"
 
 #: appEditors/appGeoEditor.py:123 appEditors/appGeoEditor.py:3767
-#: appEditors/appGeoEditor.py:5838 appGUI/MainGUI.py:800 appGUI/MainGUI.py:1483
-#: appGUI/MainGUI.py:1928 appGUI/MainGUI.py:2741
+#: appEditors/appGeoEditor.py:5838 appGUI/MainGUI.py:808 appGUI/MainGUI.py:1491
+#: appGUI/MainGUI.py:1936 appGUI/MainGUI.py:2749
 #: appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:626
 #: appGUI/preferences/tools/ToolsFollowPrefGroupUI.py:60
 #: appGUI/preferences/tools/ToolsISOPrefGroupUI.py:384
@@ -3905,25 +3905,25 @@ msgid "Split"
 msgstr "Böl"
 
 # auto-review 2026-10-09: new
-#: appEditors/appGeoEditor.py:124 appGUI/MainGUI.py:1508 appGUI/MainGUI.py:2764
+#: appEditors/appGeoEditor.py:124 appGUI/MainGUI.py:1516 appGUI/MainGUI.py:2772
 msgid "Explode"
 msgstr "Parçala"
 
 #: appEditors/appGeoEditor.py:124 appEditors/appGeoEditor.py:1091
 #: appEditors/appGeoEditor.py:6496 appEditors/appGeoEditor.py:6500
-#: appEditors/grb_plugins/GrbVertices.py:206 appGUI/MainGUI.py:848
-#: appGUI/MainGUI.py:908 appGUI/MainGUI.py:1033 appGUI/MainGUI.py:1465
-#: appGUI/MainGUI.py:1541 appGUI/MainGUI.py:1609 appGUI/MainGUI.py:1962
-#: appGUI/MainGUI.py:2035 appGUI/MainGUI.py:2723 appGUI/MainGUI.py:2789
-#: appGUI/MainGUI.py:2857 appGUI/shortcut_actions.py:65
+#: appEditors/grb_plugins/GrbVertices.py:206 appGUI/MainGUI.py:856
+#: appGUI/MainGUI.py:916 appGUI/MainGUI.py:1041 appGUI/MainGUI.py:1473
+#: appGUI/MainGUI.py:1549 appGUI/MainGUI.py:1617 appGUI/MainGUI.py:1970
+#: appGUI/MainGUI.py:2043 appGUI/MainGUI.py:2731 appGUI/MainGUI.py:2797
+#: appGUI/MainGUI.py:2865 appGUI/shortcut_actions.py:65
 #: appGUI/shortcut_actions.py:657 appGUI/shortcut_actions.py:801
 #: appPlugins/ToolMove/Move.py:37 appPlugins/ToolMove/Move.py:249
 msgid "Move"
 msgstr "Taşı"
 
 #: appEditors/appGeoEditor.py:125 appEditors/geo_plugins/GeoTextPlugin.py:244
-#: appEditors/geo_plugins/GeoTextPlugin.py:329 appGUI/MainGUI.py:808
-#: appGUI/MainGUI.py:1486 appGUI/MainGUI.py:1934 appGUI/MainGUI.py:2744
+#: appEditors/geo_plugins/GeoTextPlugin.py:329 appGUI/MainGUI.py:816
+#: appGUI/MainGUI.py:1494 appGUI/MainGUI.py:1942 appGUI/MainGUI.py:2752
 msgid "Text"
 msgstr "Metin"
 
@@ -3936,10 +3936,10 @@ msgstr "Metin"
 #: appEditors/grb_plugins/GrbBufferPlugin.py:164
 #: appEditors/grb_plugins/GrbBufferPlugin.py:173
 #: appEditors/grb_plugins/GrbTransformationPlugin.py:178
-#: appEditors/grb_plugins/GrbTransformationPlugin.py:703 appGUI/MainGUI.py:851
-#: appGUI/MainGUI.py:952 appGUI/MainGUI.py:1490 appGUI/MainGUI.py:1587
-#: appGUI/MainGUI.py:1938 appGUI/MainGUI.py:1985 appGUI/MainGUI.py:2746
-#: appGUI/MainGUI.py:2835
+#: appEditors/grb_plugins/GrbTransformationPlugin.py:703 appGUI/MainGUI.py:859
+#: appGUI/MainGUI.py:960 appGUI/MainGUI.py:1498 appGUI/MainGUI.py:1595
+#: appGUI/MainGUI.py:1946 appGUI/MainGUI.py:1993 appGUI/MainGUI.py:2754
+#: appGUI/MainGUI.py:2843
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:258
 #: appGUI/shortcut_actions.py:641 appObjects/GerberObject.py:456
 #: appPlugins/ToolIsolation/Isolation.py:1973
@@ -3950,7 +3950,7 @@ msgstr "Tampon"
 #: appEditors/appGeoEditor.py:125 appEditors/appGerberEditor.py:2420
 #: appEditors/appGerberEditor.py:6922
 #: appEditors/geo_plugins/GeoSimplificationPlugin.py:290
-#: appEditors/grb_plugins/GrbSimplificationPlugin.py:200 appGUI/MainGUI.py:1488
+#: appEditors/grb_plugins/GrbSimplificationPlugin.py:200 appGUI/MainGUI.py:1496
 #: appGUI/ObjectUI.py:1153
 #: appGUI/preferences/gerber/GerberAdvOptPrefGroupUI.py:77
 #: appGUI/preferences/tools/ToolsISOPrefGroupUI.py:347
@@ -3964,9 +3964,9 @@ msgstr "Sadeleştir"
 msgid "Import image"
 msgstr "Görüntüyü içe aktar"
 
-#: appEditors/appGeoEditor.py:126 appGUI/MainGUI.py:965 appGUI/MainGUI.py:1494
-#: appGUI/MainGUI.py:1598 appGUI/MainGUI.py:1942 appGUI/MainGUI.py:1991
-#: appGUI/MainGUI.py:2750 appGUI/MainGUI.py:2846
+#: appEditors/appGeoEditor.py:126 appGUI/MainGUI.py:973 appGUI/MainGUI.py:1502
+#: appGUI/MainGUI.py:1606 appGUI/MainGUI.py:1950 appGUI/MainGUI.py:1999
+#: appGUI/MainGUI.py:2758 appGUI/MainGUI.py:2854
 msgid "Eraser"
 msgstr "Silgi"
 
@@ -4141,8 +4141,8 @@ msgstr "Uygula"
 #: appEditors/grb_plugins/GrbVertices.py:214
 #: appEditors/text_editor/find_bar.py:82 appGUI/ApertureLibrary.py:64
 #: appGUI/TitleBar.py:291 appGUI/TitleBar.py:346 appGUI/TitleBar.py:347
-#: appGUI/WelcomeDialog.py:180 appGUI/shortcut_actions.py:1003
-#: appHandlers/appIO.py:3761 appHandlers/appUIActions.py:137
+#: appGUI/WelcomeDialog.py:183 appGUI/shortcut_actions.py:1003
+#: appHandlers/appIO.py:3862 appHandlers/appUIActions.py:137
 #: appHandlers/appUIActions.py:385 appHandlers/appUIActions.py:559
 #: appPlugins/ToolGcodeSender/SenderSimulation.py:229
 msgid "Close"
@@ -4362,8 +4362,8 @@ msgstr "Geometri işlemi sürüyor. Bitmesini bekleyip yeniden deneyin."
 
 # auto-review 2026-10-09: corrected
 #: appEditors/appGeoEditor.py:1941 appEditors/appGeoEditor.py:2115
-#: appGUI/MainGUI.py:166 appGUI/MainGUI.py:1856 appGUI/WelcomeDialog.py:31
-#: appGUI/WelcomeDialog.py:54 appGUI/preferences/PreferencesWindow.py:71
+#: appGUI/MainGUI.py:166 appGUI/MainGUI.py:1864 appGUI/WelcomeDialog.py:31
+#: appGUI/WelcomeDialog.py:57 appGUI/preferences/PreferencesWindow.py:71
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:77
 #: appObjects/ObjectCollection.py:398 appPlugins/ToolAlignObjects/AlignUI.py:75
 #: appPlugins/ToolAlignObjects/AlignUI.py:115
@@ -4502,7 +4502,7 @@ msgstr "Izgara"
 #: appPlugins/ToolFiducials/FiducialsUI.py:151
 #: appPlugins/ToolGcodeSender/SenderEcutIO.py:223
 #: appPlugins/ToolMilling/MillingUI.py:1228
-#: appPlugins/ToolPCBViewer/PCBViewerUI.py:104
+#: appPlugins/ToolPCBViewer/PCBViewerUI.py:144
 #: appPlugins/ToolReport/ReportUI.py:256 appPlugins/ToolReport/ReportUI.py:259
 #: appPlugins/ToolReport/ReportUI.py:262 appPlugins/ToolReport/ReportUI.py:292
 #: appPlugins/ToolReport/ReportUI.py:299 appPlugins/ToolReport/ReportUI.py:302
@@ -4548,7 +4548,7 @@ msgid "with diameter"
 msgstr "çapı"
 
 # auto-review 2026-10-21: new
-#: appEditors/appGeoEditor.py:3633 appHandlers/appIO.py:1862
+#: appEditors/appGeoEditor.py:3633 appHandlers/appIO.py:1963
 msgid "A save of the project is running. Wait until it ends."
 msgstr "Projenin kaydı sürüyor. Bitene kadar bekleyin."
 
@@ -4990,9 +4990,9 @@ msgid "Max length"
 msgstr "Maks uzunluk"
 
 #: appEditors/appGeoEditor.py:4444 appEditors/appGerberEditor.py:8540
-#: appGUI/MainGUI.py:972 appGUI/MainGUI.py:1445 appGUI/MainGUI.py:1471
-#: appGUI/MainGUI.py:1547 appGUI/MainGUI.py:2703 appGUI/MainGUI.py:2729
-#: appGUI/MainGUI.py:2795
+#: appGUI/MainGUI.py:980 appGUI/MainGUI.py:1453 appGUI/MainGUI.py:1479
+#: appGUI/MainGUI.py:1555 appGUI/MainGUI.py:2711 appGUI/MainGUI.py:2737
+#: appGUI/MainGUI.py:2803
 msgid "Select"
 msgstr "Seç"
 
@@ -5372,8 +5372,8 @@ msgid "You need to preselect a aperture in the Aperture Table that has a size."
 msgstr "Önce Apertür Tablosundan boyutu olan bir apertür seçmelisiniz."
 
 #: appEditors/appGerberEditor.py:180 appEditors/appGerberEditor.py:211
-#: appGUI/MainGUI.py:929 appGUI/MainGUI.py:1549 appGUI/MainGUI.py:1967
-#: appGUI/MainGUI.py:2797
+#: appGUI/MainGUI.py:937 appGUI/MainGUI.py:1557 appGUI/MainGUI.py:1975
+#: appGUI/MainGUI.py:2805
 msgid "Pad"
 msgstr "Ped"
 
@@ -5390,8 +5390,8 @@ msgid ""
 msgstr "Uyumsuz apertür tipi. 'C', 'R' veya 'O' tipinde bir apertür seçin."
 
 #: appEditors/appGerberEditor.py:488 appEditors/appGerberEditor.py:505
-#: appGUI/MainGUI.py:932 appGUI/MainGUI.py:1551 appGUI/MainGUI.py:1969
-#: appGUI/MainGUI.py:2799
+#: appGUI/MainGUI.py:940 appGUI/MainGUI.py:1559 appGUI/MainGUI.py:1977
+#: appGUI/MainGUI.py:2807
 msgid "Pad Array"
 msgstr "Ped Dizisi"
 
@@ -5415,8 +5415,8 @@ msgstr "Seçilen aralık açısı için çok fazla öge var."
 msgid "Select shape(s) and then click ..."
 msgstr "Şekilleri seçin ve ardından tıklayın..."
 
-#: appEditors/appGerberEditor.py:934 appGUI/MainGUI.py:814
-#: appGUI/MainGUI.py:1503 appGUI/MainGUI.py:1948 appGUI/MainGUI.py:2759
+#: appEditors/appGerberEditor.py:934 appGUI/MainGUI.py:822
+#: appGUI/MainGUI.py:1511 appGUI/MainGUI.py:1956 appGUI/MainGUI.py:2767
 msgid "Polygonize"
 msgstr "Çokgene dönüştür"
 
@@ -5424,13 +5424,13 @@ msgstr "Çokgene dönüştür"
 msgid "Failed. Nothing selected."
 msgstr "Hata. Hiçbir şey seçilmedi."
 
-#: appEditors/appGerberEditor.py:1022 appGUI/MainGUI.py:938
-#: appGUI/MainGUI.py:1558 appGUI/MainGUI.py:1975 appGUI/MainGUI.py:2806
+#: appEditors/appGerberEditor.py:1022 appGUI/MainGUI.py:946
+#: appGUI/MainGUI.py:1566 appGUI/MainGUI.py:1983 appGUI/MainGUI.py:2814
 msgid "Region"
 msgstr "Alan"
 
-#: appEditors/appGerberEditor.py:1273 appGUI/MainGUI.py:919
-#: appGUI/MainGUI.py:1571 appGUI/MainGUI.py:2819
+#: appEditors/appGerberEditor.py:1273 appGUI/MainGUI.py:927
+#: appGUI/MainGUI.py:1579 appGUI/MainGUI.py:2827
 msgid "Copper Pour"
 msgstr "Bakır Dökümü"
 
@@ -5461,8 +5461,8 @@ msgid "No copper remains inside the outline."
 msgstr "Sınırın içinde bakır kalmıyor."
 
 #: appEditors/appGerberEditor.py:1387 appEditors/appGerberEditor.py:1404
-#: appGUI/MainGUI.py:935 appGUI/MainGUI.py:1553 appGUI/MainGUI.py:1973
-#: appGUI/MainGUI.py:2801
+#: appGUI/MainGUI.py:943 appGUI/MainGUI.py:1561 appGUI/MainGUI.py:1981
+#: appGUI/MainGUI.py:2809
 msgid "Track"
 msgstr "Yol"
 
@@ -5499,9 +5499,9 @@ msgstr "Seçili apertürleri sadeleştirin ..."
 
 #: appEditors/appGerberEditor.py:2310
 #: appEditors/geo_plugins/GeoSimplificationPlugin.py:206
-#: appEditors/grb_plugins/GrbSimplificationPlugin.py:116 appGUI/MainGUI.py:855
-#: appGUI/MainGUI.py:955 appGUI/MainGUI.py:1589 appGUI/MainGUI.py:1936
-#: appGUI/MainGUI.py:2837 appGUI/ObjectUI.py:1101
+#: appEditors/grb_plugins/GrbSimplificationPlugin.py:116 appGUI/MainGUI.py:863
+#: appGUI/MainGUI.py:963 appGUI/MainGUI.py:1597 appGUI/MainGUI.py:1944
+#: appGUI/MainGUI.py:2845 appGUI/ObjectUI.py:1101
 #: appGUI/preferences/tools/ToolsFollowPrefGroupUI.py:104
 #: appGUI/preferences/tools/ToolsNCCPrefGroupUI.py:395
 #: appGUI/preferences/tools/ToolsPaintPrefGroupUI.py:353
@@ -5756,9 +5756,9 @@ msgid ""
 "There are no Aperture definitions in the file. Aborting Gerber creation."
 msgstr "Dosyada apertür tanımı yok. Gerber oluşturma işlemi iptal ediliyor."
 
-#: appEditors/appGerberEditor.py:6174 appHandlers/appIO.py:3064
-#: appHandlers/appIO.py:3152 appHandlers/appIO.py:3445
-#: appHandlers/appIO.py:3510 appHandlers/appUIActions.py:870
+#: appEditors/appGerberEditor.py:6174 appHandlers/appIO.py:3165
+#: appHandlers/appIO.py:3253 appHandlers/appIO.py:3546
+#: appHandlers/appIO.py:3611 appHandlers/appUIActions.py:870
 #: appObjects/AppObject.py:411 appObjects/GeometryObject.py:671
 #: appParsers/ParseExcellon.py:386 appPlugins/ToolMilling/Milling.py:3248
 #: appPlugins/ToolPcbWizard/PcbWizard.py:302
@@ -5819,8 +5819,8 @@ msgstr "Geometri değişti. Basitleştirmeyi yeniden deneyin."
 msgid "Add shapes"
 msgstr "Şekil ekle"
 
-#: appEditors/appGerberEditor.py:7065 appHandlers/appCanvasEvents.py:346
-#: appHandlers/appCanvasEvents.py:368 appObjects/ExcellonObject.py:688
+#: appEditors/appGerberEditor.py:7065 appHandlers/appCanvasEvents.py:347
+#: appHandlers/appCanvasEvents.py:369 appObjects/ExcellonObject.py:688
 #: appPlugins/ToolDrilling/Drilling.py:2002
 #: appPlugins/ToolMilling/Milling.py:3702
 msgid "Copied to clipboard."
@@ -5890,8 +5890,8 @@ msgstr "Ölçeklenecek apertür yok. En az bir apertür seçip tekrar deneyin."
 #: appEditors/appGerberEditor.py:8095 appEditors/appGerberEditor.py:8770
 #: appEditors/geo_plugins/GeoTransformationPlugin.py:704
 #: appEditors/grb_plugins/GrbTransformationPlugin.py:191
-#: appEditors/grb_plugins/GrbTransformationPlugin.py:700 appGUI/MainGUI.py:959
-#: appGUI/MainGUI.py:1591 appGUI/MainGUI.py:1987 appGUI/MainGUI.py:2839
+#: appEditors/grb_plugins/GrbTransformationPlugin.py:700 appGUI/MainGUI.py:967
+#: appGUI/MainGUI.py:1599 appGUI/MainGUI.py:1995 appGUI/MainGUI.py:2847
 #: appGUI/ObjectUI.py:121 appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:43
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:172
 #: appGUI/shortcut_actions.py:664 appObjects/AppObjectTemplate.py:685
@@ -5912,8 +5912,8 @@ msgstr "Çokgenler işaretlenmedi. Hiçbiri sınırlara uymuyor."
 msgid "Delete marked polygons"
 msgstr "İşaretli çokgenleri sil"
 
-#: appEditors/appGerberEditor.py:8205 appGUI/MainGUI.py:913
-#: appGUI/MainGUI.py:1965 appGUI/ObjectUI.py:244 appGUI/shortcut_actions.py:44
+#: appEditors/appGerberEditor.py:8205 appGUI/MainGUI.py:921
+#: appGUI/MainGUI.py:1973 appGUI/ObjectUI.py:244 appGUI/shortcut_actions.py:44
 #: appGUI/shortcut_actions.py:59
 msgid "Gerber Editor"
 msgstr "Gerber Düzenleyici"
@@ -5923,7 +5923,7 @@ msgid "Jump to any retained state of this editing session."
 msgstr "Bu düzenleme oturumunun tutulan herhangi bir durumuna geç."
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8253 appGUI/MainGUI.py:1002
+#: appEditors/appGerberEditor.py:8253 appGUI/MainGUI.py:1010
 #: appGUI/ObjectUI.py:293
 #: appGUI/preferences/gerber/GerberEditorPrefGroupUI.py:127
 #: appObjects/AppObjectTemplate.py:855 appPlugins/ToolFollow/FollowUI.py:78
@@ -6273,8 +6273,8 @@ msgstr "Malzeme Kesişimi"
 msgid "Material Difference"
 msgstr "Malzeme Farkı"
 
-#: appEditors/appGerberEditor.py:8639 appGUI/MainGUI.py:925
-#: appGUI/MainGUI.py:1582 appGUI/MainGUI.py:2830
+#: appEditors/appGerberEditor.py:8639 appGUI/MainGUI.py:933
+#: appGUI/MainGUI.py:1590 appGUI/MainGUI.py:2838
 msgid "Diff. Keep"
 msgstr "Fark. Koru"
 
@@ -6795,7 +6795,7 @@ msgstr ""
 #: appEditors/grb_plugins/GrbPadPlugin.py:161
 #: appEditors/grb_plugins/GrbTrackPlugin.py:161
 #: appEditors/grb_plugins/GrberRegionPlugin.py:160 appGUI/GUIElements.py:5449
-#: appGUI/MainGUI.py:602 appGUI/MainGUI.py:829
+#: appGUI/MainGUI.py:610 appGUI/MainGUI.py:837
 #: appGUI/preferences/excellon/ExcellonEditorPrefGroupUI.py:99
 #: appGUI/preferences/excellon/ExcellonEditorPrefGroupUI.py:210
 #: appGUI/preferences/excellon/ExcellonEditorPrefGroupUI.py:269
@@ -6823,7 +6823,7 @@ msgstr "X"
 #: appEditors/grb_plugins/GrbPadPlugin.py:169
 #: appEditors/grb_plugins/GrbTrackPlugin.py:169
 #: appEditors/grb_plugins/GrberRegionPlugin.py:168 appGUI/GUIElements.py:5456
-#: appGUI/MainGUI.py:605
+#: appGUI/MainGUI.py:613
 #: appGUI/preferences/excellon/ExcellonEditorPrefGroupUI.py:100
 #: appGUI/preferences/excellon/ExcellonEditorPrefGroupUI.py:211
 #: appGUI/preferences/excellon/ExcellonEditorPrefGroupUI.py:270
@@ -7337,8 +7337,8 @@ msgid "Convert the loaded image and place its paths on the canvas."
 msgstr "Yüklenen görüntüyü dönüştürüp yollarını çalışma alanına yerleştirin."
 
 # auto-review 2026-10-21: new
-#: appEditors/geo_plugins/GeoImportImagePlugin.py:68 appGUI/MainGUI.py:840
-#: appGUI/MainGUI.py:1533 appGUI/MainGUI.py:2781
+#: appEditors/geo_plugins/GeoImportImagePlugin.py:68 appGUI/MainGUI.py:848
+#: appGUI/MainGUI.py:1541 appGUI/MainGUI.py:2789
 #: appPlugins/ToolImage/ImageUI.py:308
 msgid "Import Image"
 msgstr "Görüntü İçe Aktar"
@@ -7597,7 +7597,7 @@ msgstr "Nesne"
 #: appPlugins/ToolMarkers/MarkersUI.py:184 appPlugins/ToolNCC/NccUI.py:587
 #: appPlugins/ToolPaint/PaintUI.py:456
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:219
-#: appPlugins/ToolTransform/TransformUI.py:68 defaults.py:889
+#: appPlugins/ToolTransform/TransformUI.py:68 defaults.py:890
 msgid "Selection"
 msgstr "Seçim"
 
@@ -8140,7 +8140,7 @@ msgstr ""
 
 #: appEditors/geo_plugins/GeoTransformationPlugin.py:1065
 #: appEditors/grb_plugins/GrbTransformationPlugin.py:1059
-#: appGUI/MainGUI.py:1316 appGUI/MainGUI.py:2575
+#: appGUI/MainGUI.py:1324 appGUI/MainGUI.py:2583
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:280
 #: appPlugins/ToolDistance/Distance.py:196
 #: appPlugins/ToolDistance/DistanceUI.py:15
@@ -8275,7 +8275,7 @@ msgid "{n} drawn pads converted to flashes"
 msgstr "{n} çizilen ped flaşa dönüştürüldü"
 
 #: appEditors/grb_plugins/GrbAutoPlugin.py:219
-#: appEditors/grb_plugins/GrbOperationDialogs.py:143 appGUI/MainGUI.py:1018
+#: appEditors/grb_plugins/GrbOperationDialogs.py:143 appGUI/MainGUI.py:1026
 msgid "Teardrops"
 msgstr "Damlalar"
 
@@ -8546,7 +8546,7 @@ msgid "Geometry changed. Retry the operation."
 msgstr "Geometri değişti. İşlemi yeniden deneyin."
 
 #: appEditors/grb_plugins/GrbOperationDialogs.py:87
-#: appEditors/grb_plugins/GrbSelectionPlugin.py:138 appGUI/MainGUI.py:984
+#: appEditors/grb_plugins/GrbSelectionPlugin.py:138 appGUI/MainGUI.py:992
 msgid "Step and Repeat"
 msgstr "Adım ve Tekrar"
 
@@ -8563,7 +8563,7 @@ msgid "There are no apertures."
 msgstr "Apertür yok."
 
 #: appEditors/grb_plugins/GrbOperationDialogs.py:104
-#: appEditors/grb_plugins/GrbSelectionPlugin.py:168 appGUI/MainGUI.py:986
+#: appEditors/grb_plugins/GrbSelectionPlugin.py:168 appGUI/MainGUI.py:994
 msgid "Transcode"
 msgstr "Kodu Değiştir"
 
@@ -8572,7 +8572,7 @@ msgid "Move the selection to the aperture"
 msgstr "Seçimi apertüre taşı"
 
 #: appEditors/grb_plugins/GrbOperationDialogs.py:120
-#: appEditors/grb_plugins/GrbSelectionPlugin.py:203 appGUI/MainGUI.py:988
+#: appEditors/grb_plugins/GrbSelectionPlugin.py:203 appGUI/MainGUI.py:996
 msgid "Snap to Grid"
 msgstr "Izgaraya Tuttur"
 
@@ -8584,7 +8584,7 @@ msgstr "Izgara X"
 msgid "Grid Y"
 msgstr "Izgara Y"
 
-#: appEditors/grb_plugins/GrbOperationDialogs.py:129 appGUI/MainGUI.py:1006
+#: appEditors/grb_plugins/GrbOperationDialogs.py:129 appGUI/MainGUI.py:1014
 msgid "Renumber"
 msgstr "Yeniden Numarala"
 
@@ -8592,7 +8592,7 @@ msgstr "Yeniden Numarala"
 msgid "First aperture code"
 msgstr "İlk apertür kodu"
 
-#: appEditors/grb_plugins/GrbOperationDialogs.py:136 appGUI/MainGUI.py:1016
+#: appEditors/grb_plugins/GrbOperationDialogs.py:136 appGUI/MainGUI.py:1024
 msgid "Drawn Pads to Flashes"
 msgstr "Çizilen Pedleri Flaşa Dönüştür"
 
@@ -8604,7 +8604,7 @@ msgstr "Uzunluk (%)"
 msgid "Width (%)"
 msgstr "Genişlik (%)"
 
-#: appEditors/grb_plugins/GrbOperationDialogs.py:151 appGUI/MainGUI.py:1020
+#: appEditors/grb_plugins/GrbOperationDialogs.py:151 appGUI/MainGUI.py:1028
 msgid "Snowman Fillets"
 msgstr "Snowman Dolguları"
 
@@ -8773,7 +8773,7 @@ msgstr ""
 msgid "Regions with clear geometry can't be clipped."
 msgstr "Bakır temizleme geometrisi içeren bölgeler kırpılamaz."
 
-#: appEditors/grb_plugins/GrbTrackEditPlugin.py:179 appGUI/MainGUI.py:992
+#: appEditors/grb_plugins/GrbTrackEditPlugin.py:179 appGUI/MainGUI.py:1000
 msgid "Clip"
 msgstr "Kırp"
 
@@ -8786,7 +8786,7 @@ msgstr "Kırpma dikdörtgeninin genişliği ve yüksekliği olmalıdır."
 msgid "Clip and replace with pad"
 msgstr "Kırp ve ped ile değiştir"
 
-#: appEditors/grb_plugins/GrbTrackEditPlugin.py:250 appGUI/MainGUI.py:996
+#: appEditors/grb_plugins/GrbTrackEditPlugin.py:250 appGUI/MainGUI.py:1004
 msgid "Stretch"
 msgstr "Uzat"
 
@@ -9418,7 +9418,7 @@ msgstr "Salt Okunur"
 
 #: appGUI/GUIElements.py:529 appGUI/GUIElements.py:1312
 #: appGUI/GUIElements.py:1560 appGUI/GUIElements.py:2066
-#: appGUI/GUIElements.py:2360 appGUI/GUIElements.py:4919 appGUI/MainGUI.py:446
+#: appGUI/GUIElements.py:2360 appGUI/GUIElements.py:4919 appGUI/MainGUI.py:454
 msgid "Ctrl+Z"
 msgstr "Ctrl+Z"
 
@@ -9430,7 +9430,7 @@ msgstr "Ctrl+Y"
 
 #: appGUI/GUIElements.py:545 appGUI/GUIElements.py:1328
 #: appGUI/GUIElements.py:1576 appGUI/GUIElements.py:2082
-#: appGUI/GUIElements.py:2372 appGUI/GUIElements.py:4931 appGUI/MainGUI.py:1956
+#: appGUI/GUIElements.py:2372 appGUI/GUIElements.py:4931 appGUI/MainGUI.py:1964
 #: appGUI/ObjectUI.py:1228 appGUI/preferences/cncjob/CNCJobOptPrefGroupUI.py:62
 msgid "Cut"
 msgstr "Kes"
@@ -9443,7 +9443,7 @@ msgstr "Ctrl+X"
 
 #: appGUI/GUIElements.py:552 appGUI/GUIElements.py:1335
 #: appGUI/GUIElements.py:1583 appGUI/GUIElements.py:2089
-#: appGUI/GUIElements.py:2377 appGUI/GUIElements.py:4936 appGUI/MainGUI.py:538
+#: appGUI/GUIElements.py:2377 appGUI/GUIElements.py:4936 appGUI/MainGUI.py:546
 msgid "Ctrl+C"
 msgstr "Ctrl+C"
 
@@ -9467,8 +9467,8 @@ msgstr "Del"
 
 #: appGUI/GUIElements.py:575 appGUI/GUIElements.py:1358
 #: appGUI/GUIElements.py:1606 appGUI/GUIElements.py:2108
-#: appGUI/GUIElements.py:2394 appGUI/GUIElements.py:4948 appGUI/MainGUI.py:572
-#: appGUI/MainGUI.py:709 appGUI/shortcut_actions.py:105
+#: appGUI/GUIElements.py:2394 appGUI/GUIElements.py:4948 appGUI/MainGUI.py:580
+#: appGUI/MainGUI.py:717 appGUI/shortcut_actions.py:105
 #: appGUI/shortcut_actions.py:609 appGUI/shortcut_actions.py:765
 #: appPlugins/ToolIsolation/IsolationUI.py:624
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:237
@@ -9478,7 +9478,7 @@ msgstr "Tümünü Seç"
 
 #: appGUI/GUIElements.py:575 appGUI/GUIElements.py:1358
 #: appGUI/GUIElements.py:1606 appGUI/GUIElements.py:2108
-#: appGUI/GUIElements.py:2394 appGUI/GUIElements.py:4948 appGUI/MainGUI.py:572
+#: appGUI/GUIElements.py:2394 appGUI/GUIElements.py:4948 appGUI/MainGUI.py:580
 msgid "Ctrl+A"
 msgstr "Ctrl+A"
 
@@ -9503,9 +9503,9 @@ msgstr "µm"
 #: appGUI/GUIElements.py:3106 appGUI/GUIElements.py:3171
 #: appGUI/GUIElements.py:4878
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:425
-#: appHandlers/appIO.py:946 appHandlers/appIO.py:1022 appHandlers/appIO.py:1383
-#: appHandlers/appIO.py:3952 appHandlers/appObjectOps.py:954
-#: appHandlers/appUIActions.py:690
+#: appHandlers/appIO.py:1047 appHandlers/appIO.py:1123
+#: appHandlers/appIO.py:1484 appHandlers/appIO.py:4053
+#: appHandlers/appObjectOps.py:954 appHandlers/appUIActions.py:690
 msgid "Ok"
 msgstr "Tamam"
 
@@ -9575,7 +9575,7 @@ msgstr "Başlamak için >help< yazın"
 msgid "Jog the Y axis."
 msgstr "Y eksenini ilerletin."
 
-#: appGUI/GUIElements.py:5382 appGUI/MainGUI.py:556
+#: appGUI/GUIElements.py:5382 appGUI/MainGUI.py:564
 #: appHandlers/appObjectOps.py:511
 msgid "Move to Origin"
 msgstr "Orijine Taşı"
@@ -9654,13 +9654,13 @@ msgid "Will show/hide the GUI."
 msgstr "GUI'yi gösterecek/gizleyecektir."
 
 #: appGUI/GUIElements.py:5831 appGUI/MainGUI.py:194
-#: appGUI/shortcut_actions.py:116 appHandlers/appIO.py:849
-#: appHandlers/appIO.py:852 appHandlers/appIO.py:3791 appHandlers/appIO.py:4027
+#: appGUI/shortcut_actions.py:116 appHandlers/appIO.py:950
+#: appHandlers/appIO.py:953 appHandlers/appIO.py:3892 appHandlers/appIO.py:4128
 msgid "Open Project"
 msgstr "Proje Aç"
 
-#: appGUI/GUIElements.py:5837 appGUI/MainGUI.py:201 appHandlers/appIO.py:725
-#: appHandlers/appIO.py:730
+#: appGUI/GUIElements.py:5837 appGUI/MainGUI.py:201 appHandlers/appIO.py:826
+#: appHandlers/appIO.py:831
 msgid "Open Gerber"
 msgstr "Gerber'i Aç"
 
@@ -9668,22 +9668,22 @@ msgstr "Gerber'i Aç"
 msgid "Ctrl+G"
 msgstr "Ctrl+G"
 
-#: appGUI/GUIElements.py:5842 appGUI/MainGUI.py:206 appHandlers/appIO.py:770
-#: appHandlers/appIO.py:775
+#: appGUI/GUIElements.py:5842 appGUI/MainGUI.py:206 appHandlers/appIO.py:871
+#: appHandlers/appIO.py:876
 msgid "Open Excellon"
 msgstr "Excellon'u Aç"
 
-#: appGUI/GUIElements.py:5842 appGUI/MainGUI.py:206 appGUI/MainGUI.py:965
+#: appGUI/GUIElements.py:5842 appGUI/MainGUI.py:206 appGUI/MainGUI.py:973
 msgid "Ctrl+E"
 msgstr "Ctrl+E"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/GUIElements.py:5847 appGUI/MainGUI.py:211 appHandlers/appIO.py:813
-#: appHandlers/appIO.py:818
+#: appGUI/GUIElements.py:5847 appGUI/MainGUI.py:211 appHandlers/appIO.py:914
+#: appHandlers/appIO.py:919
 msgid "Open G-Code"
 msgstr "G-code Aç"
 
-#: appGUI/GUIElements.py:5857 appGUI/MainGUI.py:432 appGUI/UpdateDialog.py:303
+#: appGUI/GUIElements.py:5857 appGUI/MainGUI.py:440 appGUI/UpdateDialog.py:303
 msgid "Exit"
 msgstr "Çıkış"
 
@@ -9693,7 +9693,7 @@ msgstr "SVG (Geometri)"
 
 #: appGUI/ImportDialog.py:29 appGUI/ImportDialog.py:40
 #: appGUI/ImportDialog.py:51 appGUI/WelcomeDialog.py:31
-#: appGUI/WelcomeDialog.py:266
+#: appGUI/WelcomeDialog.py:269
 msgid "Geometry object"
 msgstr "Geometri nesnesi"
 
@@ -9712,7 +9712,7 @@ msgid "SVG as Gerber"
 msgstr "SVG (Gerber)"
 
 #: appGUI/ImportDialog.py:34 appGUI/ImportDialog.py:45
-#: appGUI/WelcomeDialog.py:43 appGUI/WelcomeDialog.py:267
+#: appGUI/WelcomeDialog.py:45 appGUI/WelcomeDialog.py:270
 msgid "Gerber object"
 msgstr "Gerber nesnesi"
 
@@ -9769,13 +9769,13 @@ msgstr ""
 "Kalemli çizicilerin ve vinil kesicilerin formatı olan bir HPGL/2 çizim "
 "dosyasının kalem hareketlerini okur."
 
-#: appGUI/ImportDialog.py:57 appGUI/MainGUI.py:1128
+#: appGUI/ImportDialog.py:57 appGUI/MainGUI.py:1136
 #: appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:277
 #: appPlugins/ToolFilm/FilmUI.py:301
 msgid "PDF"
 msgstr "PDF"
 
-#: appGUI/ImportDialog.py:58 appGUI/ImportDialog.py:107
+#: appGUI/ImportDialog.py:58 appGUI/ImportDialog.py:117
 msgid "Gerber and Excellon objects"
 msgstr "Gerber ve Excellon nesneleri"
 
@@ -9825,10 +9825,22 @@ msgid "Reads a native Altium Designer board."
 msgstr "Yerel bir Altium Designer kartını okur."
 
 #: appGUI/ImportDialog.py:79
+msgid "CircuitStudio / CircuitMaker PCB"
+msgstr "CircuitStudio / CircuitMaker PCB"
+
+#: appGUI/ImportDialog.py:80
+msgid ""
+"Reads a native Altium CircuitStudio or CircuitMaker board, including split "
+"planes."
+msgstr ""
+"Bölünmüş bakır düzlemleri dahil yerel bir Altium CircuitStudio veya "
+"CircuitMaker kartını okur."
+
+#: appGUI/ImportDialog.py:82
 msgid "Proteus PCB"
 msgstr "Proteus PCB"
 
-#: appGUI/ImportDialog.py:80
+#: appGUI/ImportDialog.py:83
 msgid ""
 "Reads a native Proteus 8 or 9 project. If the project has more than one "
 "board, the import reads the boards one after the other."
@@ -9836,43 +9848,43 @@ msgstr ""
 "Yerel bir Proteus 8 veya 9 projesini okur. Projede birden fazla kart varsa, "
 "içe aktarma kartları birbiri ardına okur."
 
-#: appGUI/ImportDialog.py:83
+#: appGUI/ImportDialog.py:86
 msgid "KiCad PCB"
 msgstr "KiCad PCB"
 
-#: appGUI/ImportDialog.py:84
+#: appGUI/ImportDialog.py:87
 msgid "Reads a native KiCad board."
 msgstr "Yerel bir KiCad kartını okur."
 
-#: appGUI/ImportDialog.py:86
+#: appGUI/ImportDialog.py:89
 msgid "Sprint Layout 6"
 msgstr "Sprint Layout 6"
 
-#: appGUI/ImportDialog.py:87
+#: appGUI/ImportDialog.py:90
 msgid "Reads a native Sprint Layout 6 board."
 msgstr "Yerel bir Sprint Layout 6 kartını okur."
 
-#: appGUI/ImportDialog.py:89
+#: appGUI/ImportDialog.py:92
 msgid "Eagle Board"
 msgstr "Eagle Board"
 
-#: appGUI/ImportDialog.py:90
+#: appGUI/ImportDialog.py:93
 msgid "Reads a native Eagle board, the XML format of Eagle 6 and later."
 msgstr "Yerel bir Eagle kartını okur, Eagle 6 ve sonrasının XML formatı."
 
-#: appGUI/ImportDialog.py:92
+#: appGUI/ImportDialog.py:95
 msgid "OrCAD/Allegro Board"
 msgstr "OrCAD/Allegro Board"
 
-#: appGUI/ImportDialog.py:93
+#: appGUI/ImportDialog.py:96
 msgid "Reads a native OrCAD or Allegro board, the binary format."
 msgstr "Yerel bir OrCAD veya Allegro kartını okur, ikili format."
 
-#: appGUI/ImportDialog.py:95
+#: appGUI/ImportDialog.py:98
 msgid "DipTrace PCB"
 msgstr "DipTrace PCB"
 
-#: appGUI/ImportDialog.py:96
+#: appGUI/ImportDialog.py:99
 msgid ""
 "Reads supported native DipTrace boards, including multilayer designs. "
 "Imports saved copper, pads, vias, drilling, outlines, mask, paste and "
@@ -9884,11 +9896,30 @@ msgstr ""
 "ve dokümantasyon katmanlarını içe aktarır. Desteklenmeyen kayıtlar ve "
 "kullanılamayan çizimler içe aktarma sırasında bildirilir."
 
-#: appGUI/ImportDialog.py:100
+#: appGUI/ImportDialog.py:103
+msgid "PADS Layout PCB"
+msgstr "PADS Layout PCB"
+
+#: appGUI/ImportDialog.py:104
+msgid ""
+"Reads PADS Layout ASCII 9.4 to 10.0 and V2005.0, and native binary "
+"0x2026/0x2027. Imports tracks, pads, vias, drilling, outlines and explicit "
+"mask/paste shapes. Pours, teardrops and lettering are reconstructed. "
+"Attribute labels of copper layers go to the silkscreen layers. Review the "
+"import warnings and generated artwork before manufacture."
+msgstr ""
+"PADS Layout ASCII 9.4–10.0 ve V2005.0 biçimlerini ve yerel ikili "
+"0x2026/0x2027 biçimini okur. İzleri, pedleri, viaları, delikleri, dış hatları "
+"ve tanımlı lehim maskesi/pastası şekillerini içe aktarır. Bakır dolgular, damla şekilleri ve "
+"yazılar yeniden oluşturulur. Bakır katmanların öznitelik etiketleri serigrafi "
+"katmanlarına aktarılır. Üretimden önce içe aktarma uyarılarını ve oluşturulan "
+"çizimleri inceleyin."
+
+#: appGUI/ImportDialog.py:110
 msgid "ODB++ Job"
 msgstr "ODB++ İşi"
 
-#: appGUI/ImportDialog.py:101
+#: appGUI/ImportDialog.py:111
 msgid ""
 "Reads an ODB++ job: a .tgz, .tar or .zip archive, or the matrix file of an "
 "unpacked job. Imports the graphic layers, the drill layers and the board "
@@ -9898,48 +9929,48 @@ msgstr ""
 "matrix dosyası. Bir adımın grafik katmanlarını, delme katmanlarını ve kart "
 "profilini içe aktarır."
 
-#: appGUI/ImportDialog.py:110
+#: appGUI/ImportDialog.py:120
 msgid "Vector Files"
 msgstr "Vektör Dosyaları"
 
-#: appGUI/ImportDialog.py:110
+#: appGUI/ImportDialog.py:120
 msgid "Raster Images"
 msgstr "Raster Görüntüler"
 
-#: appGUI/ImportDialog.py:110 appGUI/WelcomeDialog.py:55
+#: appGUI/ImportDialog.py:120 appGUI/WelcomeDialog.py:58
 msgid "PCB Boards"
 msgstr "PCB Kartları"
 
-#: appGUI/ImportDialog.py:136 appPlugins/ToolGcodeSender/SenderUI.py:243
+#: appGUI/ImportDialog.py:146 appPlugins/ToolGcodeSender/SenderUI.py:243
 msgid "Search"
 msgstr "Ara"
 
-#: appGUI/ImportDialog.py:169
+#: appGUI/ImportDialog.py:179
 msgid "File type"
 msgstr "Dosya türü"
 
-#: appGUI/ImportDialog.py:170
+#: appGUI/ImportDialog.py:180
 msgid "Creates"
 msgstr "Oluşturur"
 
-#: appGUI/ImportDialog.py:181
+#: appGUI/ImportDialog.py:191
 msgid "Click Import to select the file."
 msgstr "Dosyayı seçmek için İçe Aktar düğmesine tıklayın."
 
-#: appGUI/ImportDialog.py:194 appGUI/ProjectSelector.py:74
+#: appGUI/ImportDialog.py:204 appGUI/ProjectSelector.py:74
 #: appGUI/preferences/general/GeneralShortcutsGroupUI.py:222
 msgid "Import..."
 msgstr "İçe Aktar..."
 
-#: appGUI/ImportDialog.py:286
+#: appGUI/ImportDialog.py:296
 msgid "Select an import in the list."
 msgstr "Listeden bir içe aktarma türü seçin."
 
-#: appGUI/ImportDialog.py:288
+#: appGUI/ImportDialog.py:298
 msgid "No import matches the search."
 msgstr "Aramayla eşleşen içe aktarma türü yok."
 
-#: appGUI/MainGUI.py:138 appGUI/MainGUI.py:140 appGUI/MainGUI.py:1843
+#: appGUI/MainGUI.py:138 appGUI/MainGUI.py:140 appGUI/MainGUI.py:1851
 msgid "Toggle Panel"
 msgstr "Paneli Aç/Kapat"
 
@@ -9960,14 +9991,14 @@ msgstr "Ctrl+N"
 msgid "Will create a new, blank project"
 msgstr "Yeni, boş bir proje oluşturur"
 
-#: appGUI/MainGUI.py:162 appGUI/MainGUI.py:1854 appGUI/WelcomeDialog.py:341
+#: appGUI/MainGUI.py:162 appGUI/MainGUI.py:1862 appGUI/WelcomeDialog.py:344
 #: appMain.py:2824 appObjects/AppObject.py:538
 #: appObjects/ObjectCollection.py:609 appPlugins/ToolCompare/CompareUI.py:68
 #: appPlugins/ToolGcodeSender/SenderUI.py:269
 msgid "New"
 msgstr "Yeni"
 
-#: appGUI/MainGUI.py:166 appGUI/MainGUI.py:800 appGUI/MainGUI.py:938
+#: appGUI/MainGUI.py:166 appGUI/MainGUI.py:808 appGUI/MainGUI.py:946
 msgid "N"
 msgstr "N"
 
@@ -9976,8 +10007,8 @@ msgstr "N"
 msgid "Will create a new, empty Geometry Object."
 msgstr "Yeni, boş bir Geometri nesnesi oluşturur."
 
-#: appGUI/MainGUI.py:171 appGUI/MainGUI.py:1271 appGUI/MainGUI.py:2529
-#: appGUI/WelcomeDialog.py:40 appGUI/preferences/PreferencesWindow.py:69
+#: appGUI/MainGUI.py:171 appGUI/MainGUI.py:1279 appGUI/MainGUI.py:2537
+#: appGUI/WelcomeDialog.py:42 appGUI/preferences/PreferencesWindow.py:69
 #: appGUI/preferences/geometry/GeometryExpPrefGroupUI.py:66
 #: appGUI/preferences/tools/ToolsPanelizePrefGroupUI.py:95
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:75
@@ -10006,11 +10037,11 @@ msgstr "Yeni, boş bir Geometri nesnesi oluşturur."
 #: appPlugins/ToolPanelize/PanelizeUI.py:234
 #: appPlugins/ToolRulesCheck/RulesCheckUI.py:68 appPlugins/ToolSub/SubUI.py:75
 #: appPlugins/ToolTransform/Transform.py:170
-#: appPlugins/ToolTransform/TransformUI.py:96 defaults.py:890
+#: appPlugins/ToolTransform/TransformUI.py:96 defaults.py:891
 msgid "Gerber"
 msgstr "Gerber"
 
-#: appGUI/MainGUI.py:171 appGUI/MainGUI.py:851 appGUI/MainGUI.py:952
+#: appGUI/MainGUI.py:171 appGUI/MainGUI.py:859 appGUI/MainGUI.py:960
 msgid "B"
 msgstr "B"
 
@@ -10018,8 +10049,8 @@ msgstr "B"
 msgid "Will create a new, empty Gerber Object."
 msgstr "Yeni boş bir Gerber nesnesi oluşturur."
 
-#: appGUI/MainGUI.py:176 appGUI/MainGUI.py:1274 appGUI/MainGUI.py:1860
-#: appGUI/MainGUI.py:2532 appGUI/WelcomeDialog.py:45
+#: appGUI/MainGUI.py:176 appGUI/MainGUI.py:1282 appGUI/MainGUI.py:1868
+#: appGUI/MainGUI.py:2540 appGUI/WelcomeDialog.py:47
 #: appGUI/preferences/PreferencesWindow.py:70
 #: appGUI/preferences/tools/Tools2PunchGerberPrefGroupUI.py:100
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:76
@@ -10059,7 +10090,7 @@ msgstr "Yeni, boş bir Excellon nesnesi oluşturur."
 msgid "Document"
 msgstr "Belge"
 
-#: appGUI/MainGUI.py:183 appGUI/MainGUI.py:882 appGUI/MainGUI.py:949
+#: appGUI/MainGUI.py:183 appGUI/MainGUI.py:890 appGUI/MainGUI.py:957
 msgid "D"
 msgstr "D"
 
@@ -10079,8 +10110,8 @@ msgstr "Yapılandırmayı Aç"
 msgid "Recent projects"
 msgstr "Son Projeler"
 
-#: appGUI/MainGUI.py:225 appGUI/WelcomeDialog.py:271
-#: appGUI/WelcomeDialog.py:282
+#: appGUI/MainGUI.py:225 appGUI/WelcomeDialog.py:274
+#: appGUI/WelcomeDialog.py:285
 msgid "Recent files"
 msgstr "Son Dosyalar"
 
@@ -10103,12 +10134,12 @@ msgid "Scripting"
 msgstr "Komut Dosyaları"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:257 appGUI/MainGUI.py:1360 appGUI/MainGUI.py:2617
+#: appGUI/MainGUI.py:257 appGUI/MainGUI.py:1368 appGUI/MainGUI.py:2625
 msgid "New Script"
 msgstr "Yeni Komut Dosyası"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:259 appGUI/MainGUI.py:1362 appGUI/MainGUI.py:2619
+#: appGUI/MainGUI.py:259 appGUI/MainGUI.py:1370 appGUI/MainGUI.py:2627
 msgid "Open Script"
 msgstr "Komut Dosyası Aç"
 
@@ -10116,7 +10147,7 @@ msgstr "Komut Dosyası Aç"
 msgid "Open Example"
 msgstr "Örneği Aç"
 
-#: appGUI/MainGUI.py:265 appGUI/MainGUI.py:1364 appGUI/MainGUI.py:2621
+#: appGUI/MainGUI.py:265 appGUI/MainGUI.py:1372 appGUI/MainGUI.py:2629
 msgid "Run Script"
 msgstr "Komut Dosyasını Çalıştır"
 
@@ -10153,54 +10184,62 @@ msgid "Altium PCB (.PcbDoc)"
 msgstr "Altium PCB (.PcbDoc)"
 
 #: appGUI/MainGUI.py:314
+msgid "CircuitStudio / CircuitMaker PCB (.CSPcbDoc)"
+msgstr "CircuitStudio / CircuitMaker PCB (.CSPcbDoc)"
+
+#: appGUI/MainGUI.py:318
 msgid "Proteus PCB (.pdsprj)"
 msgstr "Proteus PCB (.pdsprj)"
 
 # auto-review 2026-10-21: new
-#: appGUI/MainGUI.py:318
+#: appGUI/MainGUI.py:322
 msgid "KiCad PCB (.kicad_pcb)"
 msgstr "KiCad PCB (.kicad_pcb)"
 
 # auto-review 2026-10-21: new
-#: appGUI/MainGUI.py:322
+#: appGUI/MainGUI.py:326
 msgid "Sprint Layout 6 (.lay6)"
 msgstr "Sprint Layout 6 (.lay6)"
 
 # auto-review 2026-10-21: new
-#: appGUI/MainGUI.py:326
+#: appGUI/MainGUI.py:330
 msgid "Eagle Board (.brd)"
 msgstr "Eagle Board (.brd)"
 
 # auto-review 2026-10-21: new
-#: appGUI/MainGUI.py:330
+#: appGUI/MainGUI.py:334
 msgid "OrCAD/Allegro Board (.brd)"
 msgstr "OrCAD/Allegro Board (.brd)"
 
-#: appGUI/MainGUI.py:334
+#: appGUI/MainGUI.py:338
 msgid "DipTrace PCB (.dip)"
 msgstr "DipTrace PCB (.dip)"
 
-#: appGUI/MainGUI.py:338
+#: appGUI/MainGUI.py:342
+msgid "PADS Layout PCB (.asc, .pcb)"
+msgstr "PADS Layout PCB (.asc, .pcb)"
+
+#: appGUI/MainGUI.py:346
 msgid "ODB++ Job (.tgz, .zip, folder)"
 msgstr "ODB++ İşi (.tgz, .zip, klasör)"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:349 appHandlers/appIO.py:1032 appHandlers/appIO.py:1037
+#: appGUI/MainGUI.py:357 appHandlers/appIO.py:1133 appHandlers/appIO.py:1138
 #: appPlugins/ToolQRCode/QRCode.py:694
 msgid "Export SVG"
 msgstr "SVG'yi Dışa Aktar"
 
-#: appGUI/MainGUI.py:354 appHandlers/appIO.py:1394 appHandlers/appIO.py:1399
+#: appGUI/MainGUI.py:362 appHandlers/appIO.py:1495 appHandlers/appIO.py:1500
 msgid "Export DXF"
 msgstr "DXF'i Dışa Aktar"
 
-#: appGUI/MainGUI.py:361 appHandlers/appIO.py:955
+#: appGUI/MainGUI.py:369 appHandlers/appIO.py:1056
 #: appPlugins/ToolQRCode/QRCode.py:690
 msgid "Export PNG"
 msgstr "PNG'yi Dışa Aktar"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:363
+#: appGUI/MainGUI.py:371
 msgid ""
 "Will export an image in PNG format,\n"
 "the saved image will contain the visual \n"
@@ -10210,11 +10249,11 @@ msgstr ""
 "kaydedilen görüntü, FlatCAM çalışma alanında\n"
 "o anda görünen görsel bilgileri içerir."
 
-#: appGUI/MainGUI.py:373 appHandlers/appIO.py:1282 appHandlers/appIO.py:1287
+#: appGUI/MainGUI.py:381 appHandlers/appIO.py:1383 appHandlers/appIO.py:1388
 msgid "Export Excellon"
 msgstr "Excellon'u Dışa Aktar"
 
-#: appGUI/MainGUI.py:375
+#: appGUI/MainGUI.py:383
 msgid ""
 "Will export an Excellon Object as Excellon file,\n"
 "the coordinates format, the file units and zeros\n"
@@ -10224,11 +10263,11 @@ msgstr ""
 "dışa aktarır, koordinat biçimi, birimler ve sıfırlar \n"
 "Ayarlar -> Excellon'u Dışa Aktar'da ayarlanır."
 
-#: appGUI/MainGUI.py:383 appHandlers/appIO.py:1330 appHandlers/appIO.py:1335
+#: appGUI/MainGUI.py:391 appHandlers/appIO.py:1431 appHandlers/appIO.py:1436
 msgid "Export Gerber"
 msgstr "Gerber'i Dışa Aktar"
 
-#: appGUI/MainGUI.py:385
+#: appGUI/MainGUI.py:393
 msgid ""
 "Will export an Gerber Object as Gerber file,\n"
 "the coordinates format, the file units and zeros\n"
@@ -10238,58 +10277,58 @@ msgstr ""
 "dışa aktarır, koordinat biçimi, birimler ve sıfırlar \n"
 "Ayarlar -> Gerber'i Dışa Aktar'da ayarlanır."
 
-#: appGUI/MainGUI.py:395
+#: appGUI/MainGUI.py:403
 msgid "Backup"
 msgstr "Yedekleme"
 
-#: appGUI/MainGUI.py:400
+#: appGUI/MainGUI.py:408
 msgid "Import Preferences from file"
 msgstr "Ayarları Dosyadan İçe Aktar"
 
-#: appGUI/MainGUI.py:407
+#: appGUI/MainGUI.py:415
 msgid "Export Preferences to file"
 msgstr "Ayarları Dosyaya Aktar"
 
-#: appGUI/MainGUI.py:416 appGUI/preferences/PreferencesUIManager.py:1359
+#: appGUI/MainGUI.py:424 appGUI/preferences/PreferencesUIManager.py:1360
 msgid "Save Preferences"
 msgstr "Ayarları Kaydet"
 
-#: appGUI/MainGUI.py:423 appGUI/shortcut_actions.py:118
+#: appGUI/MainGUI.py:431 appGUI/shortcut_actions.py:118
 msgid "Print (PDF)"
 msgstr "Yazdır (PDF)"
 
-#: appGUI/MainGUI.py:423
+#: appGUI/MainGUI.py:431
 msgid "Ctrl+P"
 msgstr "Ctrl+P"
 
-#: appGUI/MainGUI.py:443 appGUI/MainGUI.py:1104 appGUI/MainGUI.py:2024
+#: appGUI/MainGUI.py:451 appGUI/MainGUI.py:1112 appGUI/MainGUI.py:2032
 #: appMain.py:2488 appMain.py:2845 appObjects/ObjectCollection.py:641
 msgid "Edit"
 msgstr "Düzenle"
 
-#: appGUI/MainGUI.py:449
+#: appGUI/MainGUI.py:457
 msgid "Ctrl+Shift+Z"
 msgstr "Ctrl+Shift+Z"
 
-#: appGUI/MainGUI.py:461
+#: appGUI/MainGUI.py:469
 msgid "Edit Object"
 msgstr "Nesneyi Düzenle"
 
-#: appGUI/MainGUI.py:461 appGUI/MainGUI.py:817 appGUI/MainGUI.py:946
+#: appGUI/MainGUI.py:469 appGUI/MainGUI.py:825 appGUI/MainGUI.py:954
 msgid "E"
 msgstr "E"
 
-#: appGUI/MainGUI.py:477
+#: appGUI/MainGUI.py:485
 msgid "Conversion"
 msgstr "Dönüştür"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:481
+#: appGUI/MainGUI.py:489
 msgid "Convert Single to MultiGeo"
 msgstr "Tekli Geometriyi Çoklu Geometriye Dönüştür"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:483
+#: appGUI/MainGUI.py:491
 msgid ""
 "Will convert a Geometry object from single_geometry type\n"
 "to a multi_geometry type."
@@ -10298,12 +10337,12 @@ msgstr ""
 "çoklu geometri türüne dönüştürür."
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:488
+#: appGUI/MainGUI.py:496
 msgid "Convert Multi to SingleGeo"
 msgstr "Çoklu Geometriyi Tekli Geometriye Dönüştür"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:490
+#: appGUI/MainGUI.py:498
 msgid ""
 "Will convert a Geometry object from multi_geometry type\n"
 "to a single_geometry type."
@@ -10312,29 +10351,29 @@ msgstr ""
 "tekli geometri türüne dönüştürür."
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:497
+#: appGUI/MainGUI.py:505
 msgid "Convert Any to Geo"
 msgstr "Herhangi Birini Geometriye Dönüştür"
 
-#: appGUI/MainGUI.py:500
+#: appGUI/MainGUI.py:508
 msgid "Convert Any to Gerber"
 msgstr "Herhangi Birini Gerber'e Dönüştür"
 
-#: appGUI/MainGUI.py:503
+#: appGUI/MainGUI.py:511
 msgid "Convert Any to Excellon"
 msgstr "Herhangi Birini Excellon'a Dönüştür"
 
-#: appGUI/MainGUI.py:508
+#: appGUI/MainGUI.py:516
 msgid "Join Objects"
 msgstr "Nesneleri Birleştir"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:511
+#: appGUI/MainGUI.py:519
 msgid "Join Geo/Gerber/Exc -> Geo"
 msgstr "Geometri/Gerber/Excellon Birleştir -> Geometri"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:513
+#: appGUI/MainGUI.py:521
 msgid ""
 "Merge a selection of objects, which can be of type:\n"
 "- Gerber\n"
@@ -10349,12 +10388,12 @@ msgstr ""
 "yeni bir karma Geometri nesnesinde birleştirir."
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:521
+#: appGUI/MainGUI.py:529
 msgid "Join Excellon(s) -> Excellon"
 msgstr "Excellon'ları Birleştir -> Excellon"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:523
+#: appGUI/MainGUI.py:531
 msgid "Merge a selection of Excellon objects into a new combo Excellon object."
 msgstr ""
 "Seçili Excellon nesnelerini yeni bir birleşik Excellon nesnesinde "
@@ -10362,66 +10401,66 @@ msgstr ""
 "birleştirir."
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:527
+#: appGUI/MainGUI.py:535
 msgid "Join Gerber(s) -> Gerber"
 msgstr "Gerber'leri Birleştir -> Gerber"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:529
+#: appGUI/MainGUI.py:537
 msgid "Merge a selection of Gerber objects into a new combo Gerber object."
 msgstr ""
 "Seçili Gerber nesnelerini yeni bir birleşik Gerber nesnesinde "
 "birleştirin.Seçili Gerber nesnelerini yeni bir karma Gerber nesnesinde "
 "birleştirir."
 
-#: appGUI/MainGUI.py:544 appGUI/MainGUI.py:843 appGUI/MainGUI.py:902
-#: appGUI/MainGUI.py:1028
+#: appGUI/MainGUI.py:552 appGUI/MainGUI.py:851 appGUI/MainGUI.py:910
+#: appGUI/MainGUI.py:1036
 msgid "DEL"
 msgstr "DEL"
 
-#: appGUI/MainGUI.py:550 appGUI/MainGUI.py:2031
+#: appGUI/MainGUI.py:558 appGUI/MainGUI.py:2039
 msgid "Num Move"
 msgstr "Koordinata Taşı"
 
-#: appGUI/MainGUI.py:553 appGUI/MainGUI.py:1322 appGUI/MainGUI.py:2581
+#: appGUI/MainGUI.py:561 appGUI/MainGUI.py:1330 appGUI/MainGUI.py:2589
 #: appGUI/shortcut_actions.py:209 appHandlers/appObjectOps.py:417
 msgid "Set Origin"
 msgstr "Orijini Ayarla"
 
-#: appGUI/MainGUI.py:553 appGUI/MainGUI.py:788
+#: appGUI/MainGUI.py:561 appGUI/MainGUI.py:796
 msgid "O"
 msgstr "O"
 
-#: appGUI/MainGUI.py:556
+#: appGUI/MainGUI.py:564
 msgid "Shift+O"
 msgstr "Shift+O"
 
-#: appGUI/MainGUI.py:559 appHandlers/appEdit.py:760 appHandlers/appEdit.py:777
+#: appGUI/MainGUI.py:567 appHandlers/appEdit.py:760 appHandlers/appEdit.py:777
 #: appHandlers/appEdit.py:798
 msgid "Custom Origin"
 msgstr "Orijini Özelleştir"
 
-#: appGUI/MainGUI.py:563
+#: appGUI/MainGUI.py:571
 msgid "Jump to Location"
 msgstr "Konuma Atla"
 
-#: appGUI/MainGUI.py:563
+#: appGUI/MainGUI.py:571
 msgid "J"
 msgstr "J"
 
-#: appGUI/MainGUI.py:566 appGUI/shortcut_actions.py:127
+#: appGUI/MainGUI.py:574 appGUI/shortcut_actions.py:127
 msgid "Locate in Object"
 msgstr "Nesnede Bul"
 
-#: appGUI/MainGUI.py:566
+#: appGUI/MainGUI.py:574
 msgid "Shift+J"
 msgstr "Shift+J"
 
-#: appGUI/MainGUI.py:578
+#: appGUI/MainGUI.py:586
 msgid "Shift+P"
 msgstr "Shift+P"
 
-#: appGUI/MainGUI.py:584 appGUI/preferences/cncjob/CNCJobOptPrefGroupUI.py:22
+#: appGUI/MainGUI.py:592 appGUI/preferences/cncjob/CNCJobOptPrefGroupUI.py:22
 #: appGUI/preferences/excellon/ExcellonOptPrefGroupUI.py:22
 #: appGUI/preferences/geometry/GeometryOptPrefGroupUI.py:22
 #: appGUI/preferences/gerber/GerberOptPrefGroupUI.py:24
@@ -10430,580 +10469,580 @@ msgstr "Shift+P"
 msgid "Options"
 msgstr "Seçenekler"
 
-#: appGUI/MainGUI.py:587
+#: appGUI/MainGUI.py:595
 msgid "Rotate Selection"
 msgstr "Seçimi Döndür"
 
-#: appGUI/MainGUI.py:587
+#: appGUI/MainGUI.py:595
 msgid "Shift+(R)"
 msgstr "Shift+(R)"
 
-#: appGUI/MainGUI.py:593 appGUI/shortcut_actions.py:138
+#: appGUI/MainGUI.py:601 appGUI/shortcut_actions.py:138
 #: appHandlers/appObjectOps.py:293
 msgid "Skew on X axis"
 msgstr "X Ekseninde Eğrilt"
 
-#: appGUI/MainGUI.py:593
+#: appGUI/MainGUI.py:601
 msgid "Shift+X"
 msgstr "Shift+X"
 
-#: appGUI/MainGUI.py:596 appGUI/shortcut_actions.py:139
+#: appGUI/MainGUI.py:604 appGUI/shortcut_actions.py:139
 #: appHandlers/appObjectOps.py:346
 msgid "Skew on Y axis"
 msgstr "Y Ekseninde Eğrilt"
 
-#: appGUI/MainGUI.py:596
+#: appGUI/MainGUI.py:604
 msgid "Shift+Y"
 msgstr "Shift+Y"
 
-#: appGUI/MainGUI.py:602 appHandlers/appObjectOps.py:178
+#: appGUI/MainGUI.py:610 appHandlers/appObjectOps.py:178
 msgid "Flip on X axis"
 msgstr "X Ekseninde Çevir"
 
-#: appGUI/MainGUI.py:605 appHandlers/appObjectOps.py:124
+#: appGUI/MainGUI.py:613 appHandlers/appObjectOps.py:124
 msgid "Flip on Y axis"
 msgstr "Y Ekseninde Çevir"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:611
+#: appGUI/MainGUI.py:619
 msgid "View source"
 msgstr "Kodu Görüntüle"
 
-#: appGUI/MainGUI.py:611
+#: appGUI/MainGUI.py:619
 msgid "Alt+S"
 msgstr "Alt+S"
 
-#: appGUI/MainGUI.py:614
+#: appGUI/MainGUI.py:622
 msgid "Ctrl+D"
 msgstr "Ctrl+D"
 
-#: appGUI/MainGUI.py:620
+#: appGUI/MainGUI.py:628
 msgid "Experimental"
 msgstr "Deneysel"
 
-#: appGUI/MainGUI.py:624
+#: appGUI/MainGUI.py:632
 msgid "3D Area"
 msgstr "3D Alan"
 
-#: appGUI/MainGUI.py:631 appGUI/MainGUI.py:1839
+#: appGUI/MainGUI.py:639 appGUI/MainGUI.py:1847
 msgid "View"
 msgstr "Görünüm"
 
-#: appGUI/MainGUI.py:633
+#: appGUI/MainGUI.py:641
 msgid "Restore Layout"
 msgstr "Düzeni Geri Yükle"
 
-#: appGUI/MainGUI.py:637 appGUI/shortcut_actions.py:141
+#: appGUI/MainGUI.py:645 appGUI/shortcut_actions.py:141
 msgid "Enable all"
 msgstr "Tümünü Etkinleştir"
 
-#: appGUI/MainGUI.py:637
+#: appGUI/MainGUI.py:645
 msgid "Alt+1"
 msgstr "Alt+1"
 
-#: appGUI/MainGUI.py:640 appGUI/shortcut_actions.py:142
+#: appGUI/MainGUI.py:648 appGUI/shortcut_actions.py:142
 msgid "Disable all"
 msgstr "Tümünü Devre Dışı Bırak"
 
-#: appGUI/MainGUI.py:640
+#: appGUI/MainGUI.py:648
 msgid "Alt+2"
 msgstr "Alt+2"
 
-#: appGUI/MainGUI.py:643
+#: appGUI/MainGUI.py:651
 msgid "Enable non-selected"
 msgstr "Seçili Olmayanları Etkinleştir"
 
-#: appGUI/MainGUI.py:643
+#: appGUI/MainGUI.py:651
 msgid "Alt+3"
 msgstr "Alt+3"
 
-#: appGUI/MainGUI.py:646
+#: appGUI/MainGUI.py:654
 msgid "Disable non-selected"
 msgstr "Seçili Olmayanları Devre Dışı Bırak"
 
-#: appGUI/MainGUI.py:646
+#: appGUI/MainGUI.py:654
 msgid "Alt+4"
 msgstr "Alt+4"
 
-#: appGUI/MainGUI.py:652 appGUI/MainGUI.py:1350 appGUI/MainGUI.py:1846
-#: appGUI/MainGUI.py:2609 appGUI/shortcut_actions.py:217
+#: appGUI/MainGUI.py:660 appGUI/MainGUI.py:1358 appGUI/MainGUI.py:1854
+#: appGUI/MainGUI.py:2617 appGUI/shortcut_actions.py:217
 #: appGUI/shortcut_actions.py:405 appGUI/shortcut_actions.py:668
 #: appGUI/shortcut_actions.py:785
 msgid "Zoom Fit"
 msgstr "Ekrana Sığdır"
 
-#: appGUI/MainGUI.py:652
+#: appGUI/MainGUI.py:660
 msgid "V"
 msgstr "V"
 
-#: appGUI/MainGUI.py:655 appGUI/MainGUI.py:1346 appGUI/MainGUI.py:2605
+#: appGUI/MainGUI.py:663 appGUI/MainGUI.py:1354 appGUI/MainGUI.py:2613
 #: appGUI/shortcut_actions.py:220 appGUI/shortcut_actions.py:401
 #: appGUI/shortcut_actions.py:632 appGUI/shortcut_actions.py:779
 #: appGUI/shortcut_actions.py:997
 msgid "Zoom In"
 msgstr "Yakınlaştır"
 
-#: appGUI/MainGUI.py:655
+#: appGUI/MainGUI.py:663
 msgid "="
 msgstr "="
 
-#: appGUI/MainGUI.py:658 appGUI/MainGUI.py:1348 appGUI/MainGUI.py:2607
+#: appGUI/MainGUI.py:666 appGUI/MainGUI.py:1356 appGUI/MainGUI.py:2615
 #: appGUI/shortcut_actions.py:223 appGUI/shortcut_actions.py:400
 #: appGUI/shortcut_actions.py:630 appGUI/shortcut_actions.py:778
 #: appGUI/shortcut_actions.py:998
 msgid "Zoom Out"
 msgstr "Uzaklaştır"
 
-#: appGUI/MainGUI.py:658
+#: appGUI/MainGUI.py:666
 msgid "-"
 msgstr "-"
 
-#: appGUI/MainGUI.py:664
+#: appGUI/MainGUI.py:672
 msgid "Redraw All"
 msgstr "Tümünü Yeniden Çiz"
 
-#: appGUI/MainGUI.py:664
+#: appGUI/MainGUI.py:672
 msgid "F5"
 msgstr "F5"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:669 appGUI/shortcut_actions.py:125
+#: appGUI/MainGUI.py:677 appGUI/shortcut_actions.py:125
 msgid "Toggle Code Editor"
 msgstr "Kod Düzenleyiciyi Aç/Kapat"
 
-#: appGUI/MainGUI.py:669
+#: appGUI/MainGUI.py:677
 msgid "Shift+E"
 msgstr "Shift+E"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:673
+#: appGUI/MainGUI.py:681
 msgid "Toggle FullScreen"
 msgstr "Tam Ekranı Aç/Kapat"
 
-#: appGUI/MainGUI.py:673
+#: appGUI/MainGUI.py:681
 msgid "Alt+F10"
 msgstr "Alt+F10"
 
-#: appGUI/MainGUI.py:676 appGUI/shortcut_actions.py:121
+#: appGUI/MainGUI.py:684 appGUI/shortcut_actions.py:121
 msgid "Toggle Plot Area"
 msgstr "Çizim Alanı Etkin/Devre Dışı"
 
-#: appGUI/MainGUI.py:676
+#: appGUI/MainGUI.py:684
 msgid "Ctrl+F10"
 msgstr "Ctrl+F10"
 
-#: appGUI/MainGUI.py:679
+#: appGUI/MainGUI.py:687
 msgid "Toggle Project/Properties/Tool"
 msgstr "Yan Paneli Aç/Kapat"
 
-#: appGUI/MainGUI.py:679
+#: appGUI/MainGUI.py:687
 msgid "`"
 msgstr "`"
 
-#: appGUI/MainGUI.py:683
+#: appGUI/MainGUI.py:691
 msgid "Toggle Grid Snap"
 msgstr "Izgaraya Tutturmayı Aç/Kapat"
 
-#: appGUI/MainGUI.py:683
+#: appGUI/MainGUI.py:691
 msgid "G"
 msgstr "G"
 
-#: appGUI/MainGUI.py:686 appGUI/shortcut_actions.py:84
+#: appGUI/MainGUI.py:694 appGUI/shortcut_actions.py:84
 msgid "Toggle Grid Lines"
 msgstr "Izgarayı Göster/Gizle"
 
-#: appGUI/MainGUI.py:686
+#: appGUI/MainGUI.py:694
 msgid "Shift+G"
 msgstr "Shift+G"
 
-#: appGUI/MainGUI.py:689
+#: appGUI/MainGUI.py:697
 msgid "Toggle Axis"
 msgstr "Ekseni Göster/Gizle"
 
-#: appGUI/MainGUI.py:689
+#: appGUI/MainGUI.py:697
 msgid "Shift+A"
 msgstr "Shift+A"
 
-#: appGUI/MainGUI.py:692
+#: appGUI/MainGUI.py:700
 msgid "Toggle Workspace"
 msgstr "Çalışma Alanı Etkin/Devre Dışı"
 
-#: appGUI/MainGUI.py:692
+#: appGUI/MainGUI.py:700
 msgid "Shift+W"
 msgstr "Shift+W"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:695 appGUI/shortcut_actions.py:86
+#: appGUI/MainGUI.py:703 appGUI/shortcut_actions.py:86
 msgid "Toggle HUD"
 msgstr "Koordinat Ekranını Göster/Gizle"
 
-#: appGUI/MainGUI.py:695
+#: appGUI/MainGUI.py:703
 msgid "Shift+H"
 msgstr "Shift+H"
 
-#: appGUI/MainGUI.py:700
+#: appGUI/MainGUI.py:708
 msgid "Error Log"
 msgstr "Hata Kayıt Dosyası"
 
-#: appGUI/MainGUI.py:705 appPlugins/ToolCompare/CompareUI.py:46
+#: appGUI/MainGUI.py:713 appPlugins/ToolCompare/CompareUI.py:46
 msgid "Objects"
 msgstr "Nesneler"
 
-#: appGUI/MainGUI.py:712 appPlugins/ToolIsolation/IsolationUI.py:630
+#: appGUI/MainGUI.py:720 appPlugins/ToolIsolation/IsolationUI.py:630
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:240
 msgid "Deselect All"
 msgstr "Tüm Seçimleri Kaldır"
 
-#: appGUI/MainGUI.py:717 appGUI/ObjectUI.py:368 appGUI/ObjectUI.py:750
+#: appGUI/MainGUI.py:725 appGUI/ObjectUI.py:368 appGUI/ObjectUI.py:750
 #: appGUI/ObjectUI.py:1034 appGUI/ObjectUI.py:1424
 #: appGUI/preferences/PreferencesWindow.py:75
 msgid "Plugins"
 msgstr "Eklentiler"
 
-#: appGUI/MainGUI.py:721 appGUI/MainGUI.py:1358 appGUI/MainGUI.py:2615
+#: appGUI/MainGUI.py:729 appGUI/MainGUI.py:1366 appGUI/MainGUI.py:2623
 msgid "Command Line"
 msgstr "Komut Satırı"
 
-#: appGUI/MainGUI.py:721 appGUI/MainGUI.py:820 appGUI/MainGUI.py:959
+#: appGUI/MainGUI.py:729 appGUI/MainGUI.py:828 appGUI/MainGUI.py:967
 msgid "S"
 msgstr "S"
 
-#: appGUI/MainGUI.py:726
+#: appGUI/MainGUI.py:734
 msgid "Help"
 msgstr "Yardım"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:729
+#: appGUI/MainGUI.py:737
 msgid "Obsolete Online Help"
 msgstr "Eski Çevrimiçi Yardım"
 
-#: appGUI/MainGUI.py:729
+#: appGUI/MainGUI.py:737
 msgid "F1"
 msgstr "F1"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:732
+#: appGUI/MainGUI.py:740
 msgid "Check for Updates"
 msgstr "Güncellemeleri Denetle"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:735
+#: appGUI/MainGUI.py:743
 msgid "Revert to Previous Version"
 msgstr "Önceki Sürüme Dön"
 
-#: appGUI/MainGUI.py:743 appHandlers/appUIActions.py:515
+#: appGUI/MainGUI.py:751 appHandlers/appUIActions.py:515
 #: appHandlers/appUIActions.py:524
 msgid "Bookmarks Manager"
 msgstr "Yer İşaretleri Yöneticisi"
 
-#: appGUI/MainGUI.py:748
+#: appGUI/MainGUI.py:756
 msgid "Report a bug"
 msgstr "Hata Bildirimi"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:752
+#: appGUI/MainGUI.py:760
 msgid "Excellon Specification"
 msgstr "Excellon Format Tanımı"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:755
+#: appGUI/MainGUI.py:763
 msgid "Gerber Specification"
 msgstr "Gerber Format Tanımı"
 
-#: appGUI/MainGUI.py:761 appGUI/shortcut_actions.py:179
+#: appGUI/MainGUI.py:769 appGUI/shortcut_actions.py:179
 #: appGUI/shortcut_actions.py:444 appGUI/shortcut_actions.py:671
 #: appGUI/shortcut_actions.py:788
 msgid "Shortcuts List"
 msgstr "Klavye Kısayol Listesi"
 
-#: appGUI/MainGUI.py:761
+#: appGUI/MainGUI.py:769
 msgid "F3"
 msgstr "F3"
 
-#: appGUI/MainGUI.py:764
+#: appGUI/MainGUI.py:772
 msgid "YouTube Channel"
 msgstr "YouTube Kanalı"
 
-#: appGUI/MainGUI.py:764
+#: appGUI/MainGUI.py:772
 msgid "F4"
 msgstr "F4"
 
-#: appGUI/MainGUI.py:770
+#: appGUI/MainGUI.py:778
 msgid "Donate"
 msgstr "Bağış Yap"
 
-#: appGUI/MainGUI.py:774 appHandlers/appUIActions.py:334
+#: appGUI/MainGUI.py:782 appHandlers/appUIActions.py:334
 msgid "How To"
 msgstr "Nasıl Yapılır"
 
-#: appGUI/MainGUI.py:778 appGUI/WelcomeDialog.py:320
+#: appGUI/MainGUI.py:786 appGUI/WelcomeDialog.py:323
 #: appHandlers/appUIActions.py:111
 msgid "About"
 msgstr "Hakkında"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:783 appGUI/MainGUI.py:1919
+#: appGUI/MainGUI.py:791 appGUI/MainGUI.py:1927
 msgid "Geo Editor"
 msgstr "Geometri Düzenleyici"
 
-#: appGUI/MainGUI.py:792 appGUI/MainGUI.py:879 appGUI/MainGUI.py:932
+#: appGUI/MainGUI.py:800 appGUI/MainGUI.py:887 appGUI/MainGUI.py:940
 msgid "A"
 msgstr "A"
 
-#: appGUI/MainGUI.py:796 appGUI/MainGUI.py:895
+#: appGUI/MainGUI.py:804 appGUI/MainGUI.py:903
 msgid "R"
 msgstr "R"
 
-#: appGUI/MainGUI.py:804 appGUI/MainGUI.py:929 appGUI/ObjectUI.py:1394
+#: appGUI/MainGUI.py:812 appGUI/MainGUI.py:937 appGUI/ObjectUI.py:1394
 #: appGUI/ObjectUI.py:1405
 msgid "P"
 msgstr "P"
 
-#: appGUI/MainGUI.py:808 appGUI/MainGUI.py:935
+#: appGUI/MainGUI.py:816 appGUI/MainGUI.py:943
 msgid "T"
 msgstr "T"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:812 appGUI/MainGUI.py:1498 appGUI/MainGUI.py:1946
-#: appGUI/MainGUI.py:2754 appGUI/preferences/tools/ToolsFollowPrefGroupUI.py:90
+#: appGUI/MainGUI.py:820 appGUI/MainGUI.py:1506 appGUI/MainGUI.py:1954
+#: appGUI/MainGUI.py:2762 appGUI/preferences/tools/ToolsFollowPrefGroupUI.py:90
 #: appPlugins/ToolFollow/FollowUI.py:145
 msgid "Union"
 msgstr "Birleşim"
 
-#: appGUI/MainGUI.py:812
+#: appGUI/MainGUI.py:820
 msgid "U"
 msgstr "U"
 
-#: appGUI/MainGUI.py:817 appGUI/MainGUI.py:1511 appGUI/MainGUI.py:1950
-#: appGUI/MainGUI.py:2767
+#: appGUI/MainGUI.py:825 appGUI/MainGUI.py:1519 appGUI/MainGUI.py:1958
+#: appGUI/MainGUI.py:2775
 msgid "Intersection"
 msgstr "Kesişim"
 
-#: appGUI/MainGUI.py:820 appGUI/MainGUI.py:1513 appGUI/MainGUI.py:1952
-#: appGUI/MainGUI.py:2769
+#: appGUI/MainGUI.py:828 appGUI/MainGUI.py:1521 appGUI/MainGUI.py:1960
+#: appGUI/MainGUI.py:2777
 msgid "Subtraction"
 msgstr "Çıkarma"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:824 appGUI/MainGUI.py:1519 appGUI/MainGUI.py:1954
-#: appGUI/MainGUI.py:2771
+#: appGUI/MainGUI.py:832 appGUI/MainGUI.py:1527 appGUI/MainGUI.py:1962
+#: appGUI/MainGUI.py:2779
 msgid "Alt Subtraction"
 msgstr "Alternatif Çıkarma"
 
-#: appGUI/MainGUI.py:829 appGUI/MainGUI.py:1527 appGUI/MainGUI.py:2775
+#: appGUI/MainGUI.py:837 appGUI/MainGUI.py:1535 appGUI/MainGUI.py:2783
 msgid "Cut Path"
 msgstr "Yolu Kes"
 
-#: appGUI/MainGUI.py:834 appGUI/MainGUI.py:899 appGUI/MainGUI.py:1025
+#: appGUI/MainGUI.py:842 appGUI/MainGUI.py:907 appGUI/MainGUI.py:1033
 msgid "C"
 msgstr "C"
 
-#: appGUI/MainGUI.py:848 appGUI/MainGUI.py:908 appGUI/MainGUI.py:1033
+#: appGUI/MainGUI.py:856 appGUI/MainGUI.py:916 appGUI/MainGUI.py:1041
 msgid "M"
 msgstr "M"
 
-#: appGUI/MainGUI.py:859
+#: appGUI/MainGUI.py:867
 msgid "I"
 msgstr "I"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:863 appGUI/MainGUI.py:968 appGUI/MainGUI.py:1538
-#: appGUI/MainGUI.py:1606 appGUI/MainGUI.py:1958 appGUI/MainGUI.py:1995
-#: appGUI/MainGUI.py:2785 appGUI/MainGUI.py:2854
+#: appGUI/MainGUI.py:871 appGUI/MainGUI.py:976 appGUI/MainGUI.py:1546
+#: appGUI/MainGUI.py:1614 appGUI/MainGUI.py:1966 appGUI/MainGUI.py:2003
+#: appGUI/MainGUI.py:2793 appGUI/MainGUI.py:2862
 #: appGUI/preferences/PreferencesWindow.py:38 appGUI/shortcut_actions.py:167
 #: appHandlers/appObjectOps.py:216 appHandlers/appObjectOps.py:276
 #: appHandlers/appObjectOps.py:329
 msgid "Transform"
 msgstr "Dönüştür"
 
-#: appGUI/MainGUI.py:863 appGUI/MainGUI.py:968
+#: appGUI/MainGUI.py:871 appGUI/MainGUI.py:976
 msgid "Alt+R"
 msgstr "Alt+R"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:868 appGUI/shortcut_actions.py:403
+#: appGUI/MainGUI.py:876 appGUI/shortcut_actions.py:403
 #: appGUI/shortcut_actions.py:655 appGUI/shortcut_actions.py:783
 msgid "Toggle Corner Snap"
 msgstr "Köşeye Tutturmayı Aç/Kapat"
 
-#: appGUI/MainGUI.py:868
+#: appGUI/MainGUI.py:876
 msgid "K"
 msgstr "K"
 
-#: appGUI/MainGUI.py:887
+#: appGUI/MainGUI.py:895
 msgid "Q"
 msgstr "Q"
 
-#: appGUI/MainGUI.py:890
+#: appGUI/MainGUI.py:898
 msgid "W"
 msgstr "W"
 
-#: appGUI/MainGUI.py:895 appGUI/MainGUI.py:1455 appGUI/MainGUI.py:2017
-#: appGUI/MainGUI.py:2709 appGUI/shortcut_actions.py:808
+#: appGUI/MainGUI.py:903 appGUI/MainGUI.py:1463 appGUI/MainGUI.py:2025
+#: appGUI/MainGUI.py:2717 appGUI/shortcut_actions.py:808
 msgid "Resize Drill"
 msgstr "Deliği Yeniden Boyutlandır"
 
-#: appGUI/MainGUI.py:917 appGUI/MainGUI.py:1567 appGUI/MainGUI.py:2815
+#: appGUI/MainGUI.py:925 appGUI/MainGUI.py:1575 appGUI/MainGUI.py:2823
 msgid "Rect. Reg"
 msgstr "Dikd. Bölge"
 
-#: appGUI/MainGUI.py:921 appGUI/MainGUI.py:1574 appGUI/MainGUI.py:2822
+#: appGUI/MainGUI.py:929 appGUI/MainGUI.py:1582 appGUI/MainGUI.py:2830
 msgid "Text Reg"
 msgstr "Metin Bölge"
 
-#: appGUI/MainGUI.py:923 appGUI/MainGUI.py:1578 appGUI/MainGUI.py:2826
+#: appGUI/MainGUI.py:931 appGUI/MainGUI.py:1586 appGUI/MainGUI.py:2834
 msgid "Arc Follow"
 msgstr "Yay Takibi"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:943 appGUI/MainGUI.py:1560 appGUI/MainGUI.py:1977
-#: appGUI/MainGUI.py:2808
+#: appGUI/MainGUI.py:951 appGUI/MainGUI.py:1568 appGUI/MainGUI.py:1985
+#: appGUI/MainGUI.py:2816
 msgid "Poligonize"
 msgstr "Çokgenleştir"
 
-#: appGUI/MainGUI.py:943
+#: appGUI/MainGUI.py:951
 msgid "Alt+N"
 msgstr "Alt+N"
 
-#: appGUI/MainGUI.py:946 appGUI/MainGUI.py:1563 appGUI/MainGUI.py:1979
-#: appGUI/MainGUI.py:2811
+#: appGUI/MainGUI.py:954 appGUI/MainGUI.py:1571 appGUI/MainGUI.py:1987
+#: appGUI/MainGUI.py:2819
 msgid "SemiDisc"
 msgstr "Yarım Daire"
 
-#: appGUI/MainGUI.py:949 appGUI/MainGUI.py:1565 appGUI/MainGUI.py:1981
-#: appGUI/MainGUI.py:2813
+#: appGUI/MainGUI.py:957 appGUI/MainGUI.py:1573 appGUI/MainGUI.py:1989
+#: appGUI/MainGUI.py:2821
 msgid "Disc"
 msgstr "Daire"
 
-#: appGUI/MainGUI.py:962 appGUI/MainGUI.py:1593 appGUI/MainGUI.py:1989
-#: appGUI/MainGUI.py:2841
+#: appGUI/MainGUI.py:970 appGUI/MainGUI.py:1601 appGUI/MainGUI.py:1997
+#: appGUI/MainGUI.py:2849
 msgid "Mark Area"
 msgstr "Alan İşaretle"
 
-#: appGUI/MainGUI.py:962
+#: appGUI/MainGUI.py:970
 msgid "Alt+A"
 msgstr "Alt+A"
 
-#: appGUI/MainGUI.py:974
+#: appGUI/MainGUI.py:982
 msgid "Invert Selection"
 msgstr "Seçimi Ters Çevir"
 
-#: appGUI/MainGUI.py:976
+#: appGUI/MainGUI.py:984
 msgid "Pads Only"
 msgstr "Yalnızca Pedler"
 
-#: appGUI/MainGUI.py:978
+#: appGUI/MainGUI.py:986
 msgid "Tracks Only"
 msgstr "Yalnızca İzler"
 
-#: appGUI/MainGUI.py:980
+#: appGUI/MainGUI.py:988
 msgid "Regions Only"
 msgstr "Yalnızca Bölgeler"
 
-#: appGUI/MainGUI.py:982
+#: appGUI/MainGUI.py:990
 msgid "Select Chain"
 msgstr "Zinciri Seç"
 
-#: appGUI/MainGUI.py:990
+#: appGUI/MainGUI.py:998
 msgid "Track Edit"
 msgstr "İz Düzenleme"
 
-#: appGUI/MainGUI.py:994
+#: appGUI/MainGUI.py:1002
 msgid "Clip and Replace with Pad"
 msgstr "Kırp ve Pedle Değiştir"
 
-#: appGUI/MainGUI.py:998
+#: appGUI/MainGUI.py:1006
 msgid "Insert Elbow"
 msgstr "Dirsek Ekle"
 
-#: appGUI/MainGUI.py:1000
+#: appGUI/MainGUI.py:1008
 msgid "Insert 90° Elbow"
 msgstr "90° Dirsek Ekle"
 
-#: appGUI/MainGUI.py:1004
+#: appGUI/MainGUI.py:1012
 msgid "Delete Unused"
 msgstr "Kullanılmayanları Sil"
 
-#: appGUI/MainGUI.py:1008
+#: appGUI/MainGUI.py:1016
 msgid "Merge Duplicates"
 msgstr "Yinelenenleri Birleştir"
 
-#: appGUI/MainGUI.py:1010
+#: appGUI/MainGUI.py:1018
 msgid "Round Sizes"
 msgstr "Boyutları Yuvarla"
 
-#: appGUI/MainGUI.py:1012
+#: appGUI/MainGUI.py:1020
 msgid "Select Same Type"
 msgstr "Aynı Türü Seç"
 
-#: appGUI/MainGUI.py:1014 appPlugins/ToolCutOut/CutOutUI.py:383
+#: appGUI/MainGUI.py:1022 appPlugins/ToolCutOut/CutOutUI.py:383
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:231
 msgid "Automatic"
 msgstr "Otomatik"
 
-#: appGUI/MainGUI.py:1050
+#: appGUI/MainGUI.py:1058
 msgid "Enable Plot"
 msgstr "Çizimi Etkinleştir"
 
-#: appGUI/MainGUI.py:1052
+#: appGUI/MainGUI.py:1060
 msgid "Disable Plot"
 msgstr "Çizimi Devre Dışı Bırak"
 
-#: appGUI/MainGUI.py:1056 appGUI/MainGUI.py:1874
+#: appGUI/MainGUI.py:1064 appGUI/MainGUI.py:1882
 msgid "Set Color"
 msgstr "Rengi Ayarla"
 
-#: appGUI/MainGUI.py:1059 appGUI/MainGUI.py:1877
+#: appGUI/MainGUI.py:1067 appGUI/MainGUI.py:1885
 #: appHandlers/appPlotManager.py:390
 msgid "Red"
 msgstr "Kırmızı"
 
-#: appGUI/MainGUI.py:1062 appGUI/MainGUI.py:1880
+#: appGUI/MainGUI.py:1070 appGUI/MainGUI.py:1888
 #: appHandlers/appPlotManager.py:392
 msgid "Blue"
 msgstr "Mavi"
 
-#: appGUI/MainGUI.py:1065 appGUI/MainGUI.py:1883
+#: appGUI/MainGUI.py:1073 appGUI/MainGUI.py:1891
 #: appHandlers/appPlotManager.py:395
 msgid "Yellow"
 msgstr "Sarı"
 
-#: appGUI/MainGUI.py:1068 appGUI/MainGUI.py:1886
+#: appGUI/MainGUI.py:1076 appGUI/MainGUI.py:1894
 #: appHandlers/appPlotManager.py:397
 msgid "Green"
 msgstr "Yeşil"
 
-#: appGUI/MainGUI.py:1071 appGUI/MainGUI.py:1889
+#: appGUI/MainGUI.py:1079 appGUI/MainGUI.py:1897
 #: appHandlers/appPlotManager.py:399
 msgid "Purple"
 msgstr "Mor"
 
-#: appGUI/MainGUI.py:1074 appGUI/MainGUI.py:1892
+#: appGUI/MainGUI.py:1082 appGUI/MainGUI.py:1900
 #: appHandlers/appPlotManager.py:401
 msgid "Brown"
 msgstr "Kahverengi"
 
-#: appGUI/MainGUI.py:1077 appGUI/MainGUI.py:1895
+#: appGUI/MainGUI.py:1085 appGUI/MainGUI.py:1903
 #: appHandlers/appPlotManager.py:403
 msgid "Indigo"
 msgstr "Çivit Mavisi"
 
-#: appGUI/MainGUI.py:1080 appGUI/MainGUI.py:1898
+#: appGUI/MainGUI.py:1088 appGUI/MainGUI.py:1906
 #: appHandlers/appPlotManager.py:405 appHandlers/appPlotManager.py:481
 msgid "White"
 msgstr "Beyaz"
 
-#: appGUI/MainGUI.py:1083 appGUI/MainGUI.py:1901
+#: appGUI/MainGUI.py:1091 appGUI/MainGUI.py:1909
 #: appHandlers/appPlotManager.py:407
 msgid "Black"
 msgstr "Siyah"
 
-#: appGUI/MainGUI.py:1093 appGUI/MainGUI.py:1911
+#: appGUI/MainGUI.py:1101 appGUI/MainGUI.py:1919
 #: appHandlers/appPlotManager.py:445
 msgid "Opacity"
 msgstr "Opaklık"
 
-#: appGUI/MainGUI.py:1096 appGUI/MainGUI.py:1914
+#: appGUI/MainGUI.py:1104 appGUI/MainGUI.py:1922
 #: appGUI/preferences/general/GeneralGUIPrefGroupUI.py:117
 #: appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:50
 #: appGUI/preferences/tools/ToolsISOPrefGroupUI.py:65
@@ -11017,116 +11056,116 @@ msgstr "Opaklık"
 msgid "Default"
 msgstr "Varsayılan"
 
-#: appGUI/MainGUI.py:1101
+#: appGUI/MainGUI.py:1109
 msgid "View Source"
 msgstr "Kodu Görüntüle"
 
-#: appGUI/MainGUI.py:1116
+#: appGUI/MainGUI.py:1124
 msgid "DXF"
 msgstr "DXF"
 
-#: appGUI/MainGUI.py:1120 appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:275
+#: appGUI/MainGUI.py:1128 appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:275
 #: appPlugins/ToolFilm/FilmUI.py:299
 msgid "SVG"
 msgstr "SVG"
 
-#: appGUI/MainGUI.py:1124 appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:276
+#: appGUI/MainGUI.py:1132 appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:276
 #: appPlugins/ToolFilm/FilmUI.py:300
 msgid "PNG"
 msgstr "PNG"
 
-#: appGUI/MainGUI.py:1132 appGUI/MainGUI.py:1500 appGUI/MainGUI.py:1555
-#: appGUI/MainGUI.py:2756 appGUI/MainGUI.py:2803
+#: appGUI/MainGUI.py:1140 appGUI/MainGUI.py:1508 appGUI/MainGUI.py:1563
+#: appGUI/MainGUI.py:2764 appGUI/MainGUI.py:2811
 msgid "Join"
 msgstr "Birleştir"
 
-#: appGUI/MainGUI.py:1134
+#: appGUI/MainGUI.py:1142
 msgid "As Gerber"
 msgstr "Gerber olarak"
 
-#: appGUI/MainGUI.py:1136
+#: appGUI/MainGUI.py:1144
 msgid "As Excellon"
 msgstr "Excellon olarak"
 
-#: appGUI/MainGUI.py:1138
+#: appGUI/MainGUI.py:1146
 msgid "As Geometry"
 msgstr "Geometri olarak"
 
-#: appGUI/MainGUI.py:1142 appGUI/MainGUI.py:1155 appGUI/MainGUI.py:1764
-#: appGUI/MainGUI.py:2037 appHandlers/appUIActions.py:1087 appMain.py:2627
+#: appGUI/MainGUI.py:1150 appGUI/MainGUI.py:1163 appGUI/MainGUI.py:1772
+#: appGUI/MainGUI.py:2045 appHandlers/appUIActions.py:1087 appMain.py:2627
 #: appMain.py:3009
 msgid "Properties"
 msgstr "Özellikler"
 
-#: appGUI/MainGUI.py:1155 appGUI/MainGUI.py:1748 appGUI/MainGUI.py:1863
-#: appGUI/WelcomeDialog.py:29 appGUI/WelcomeDialog.py:54
+#: appGUI/MainGUI.py:1163 appGUI/MainGUI.py:1756 appGUI/MainGUI.py:1871
+#: appGUI/WelcomeDialog.py:29 appGUI/WelcomeDialog.py:57
 #: appGUI/preferences/general/GeneralShortcutsGroupUI.py:291
-#: appHandlers/appIO.py:1938 appHandlers/appProjects.py:71 appMain.py:2633
+#: appHandlers/appIO.py:2039 appHandlers/appProjects.py:71 appMain.py:2633
 #: appMain.py:3013
 msgid "Project"
 msgstr "Proje"
 
-#: appGUI/MainGUI.py:1174
+#: appGUI/MainGUI.py:1182
 msgid "File Toolbar"
 msgstr "Dosya Araç Çubuğu"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:1181
+#: appGUI/MainGUI.py:1189
 msgid "Edit Toolbar"
 msgstr "Düzenleme Araç Çubuğu"
 
-#: appGUI/MainGUI.py:1186
+#: appGUI/MainGUI.py:1194
 msgid "View Toolbar"
 msgstr "Görünüm Araç Çubuğu"
 
-#: appGUI/MainGUI.py:1191
+#: appGUI/MainGUI.py:1199
 msgid "Shell Toolbar"
 msgstr "Komut Araç Çubuğu"
 
-#: appGUI/MainGUI.py:1196
+#: appGUI/MainGUI.py:1204
 msgid "Plugin Toolbar"
 msgstr "Eklenti Araç Çubuğu"
 
-#: appGUI/MainGUI.py:1207
+#: appGUI/MainGUI.py:1215
 msgid "Excellon Editor Toolbar"
 msgstr "Excellon Düzenleyici Araç Çubuğu"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:1219
+#: appGUI/MainGUI.py:1227
 msgid "Geometry Editor Toolbar"
 msgstr "Geometri Düzenleyici Araç Çubuğu"
 
-#: appGUI/MainGUI.py:1229
+#: appGUI/MainGUI.py:1237
 msgid "Gerber Editor Toolbar"
 msgstr "Gerber Düzenleyici Araç Çubuğu"
 
-#: appGUI/MainGUI.py:1240
+#: appGUI/MainGUI.py:1248
 msgid "Delta Coordinates Toolbar"
 msgstr "Fark Koordinatları Araç Çubuğu"
 
-#: appGUI/MainGUI.py:1244
+#: appGUI/MainGUI.py:1252
 msgid "Coordinates Toolbar"
 msgstr "Koordinatlar Araç Çubuğu"
 
-#: appGUI/MainGUI.py:1248
+#: appGUI/MainGUI.py:1256
 msgid "Grid Toolbar"
 msgstr "Izgara Araç Çubuğu"
 
-#: appGUI/MainGUI.py:1258
+#: appGUI/MainGUI.py:1266
 msgid "Status Toolbar"
 msgstr "Durum Araç Çubuğu"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:1272 appGUI/MainGUI.py:2530
+#: appGUI/MainGUI.py:1280 appGUI/MainGUI.py:2538
 msgid "Open a Gerber file."
 msgstr "Bir Gerber dosyası açın."
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:1275 appGUI/MainGUI.py:2533
+#: appGUI/MainGUI.py:1283 appGUI/MainGUI.py:2541
 msgid "Open a Excellon file."
 msgstr "Bir Excellon dosyası açın."
 
-#: appGUI/MainGUI.py:1282 appGUI/MainGUI.py:2540 appGUI/ObjectUI.py:1633
+#: appGUI/MainGUI.py:1290 appGUI/MainGUI.py:2548 appGUI/ObjectUI.py:1633
 #: appGUI/preferences/cncjob/CNCJobEditorPrefGroupUI.py:22
 #: appGUI/preferences/excellon/ExcellonEditorPrefGroupUI.py:18
 #: appGUI/preferences/geometry/GeometryEditorPrefGroupUI.py:21
@@ -11135,80 +11174,80 @@ msgstr "Bir Excellon dosyası açın."
 msgid "Editor"
 msgstr "Düzenleyici"
 
-#: appGUI/MainGUI.py:1287 appGUI/MainGUI.py:2545
+#: appGUI/MainGUI.py:1295 appGUI/MainGUI.py:2553
 msgid "Exit Edit"
 msgstr "Düzenlemeden Çık"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:1310 appGUI/MainGUI.py:2569
+#: appGUI/MainGUI.py:1318 appGUI/MainGUI.py:2577
 msgid "Copy a selection of objects."
 msgstr "Seçili nesneleri kopyalayın."
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:1313 appGUI/MainGUI.py:2572
+#: appGUI/MainGUI.py:1321 appGUI/MainGUI.py:2580
 msgid "Delete a selection of objects."
 msgstr "Seçili nesneleri silin."
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:1317 appGUI/MainGUI.py:2576
+#: appGUI/MainGUI.py:1325 appGUI/MainGUI.py:2584
 msgid "Measure a distance between two or more points."
 msgstr "İki veya daha fazla nokta arasındaki mesafeyi ölçün."
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:1323 appGUI/MainGUI.py:2582
+#: appGUI/MainGUI.py:1331 appGUI/MainGUI.py:2590
 msgid "Set an origin to a custom location."
 msgstr "Orijini özel bir konuma ayarlayın."
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:1332 appGUI/MainGUI.py:2591
+#: appGUI/MainGUI.py:1340 appGUI/MainGUI.py:2599
 msgid "Jump to"
 msgstr "Konuma Git"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:1333 appGUI/MainGUI.py:2592
+#: appGUI/MainGUI.py:1341 appGUI/MainGUI.py:2600
 msgid "Move the mouse cursor to a defined position and center into view."
 msgstr "Fare imlecini belirtilen konuma taşıyın ve görünümü oraya ortalayın."
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:1335 appGUI/MainGUI.py:2594
+#: appGUI/MainGUI.py:1343 appGUI/MainGUI.py:2602
 msgid "Locate"
 msgstr "Bul"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:1336 appGUI/MainGUI.py:2595
+#: appGUI/MainGUI.py:1344 appGUI/MainGUI.py:2603
 msgid "Locate a predefined position on a selected object."
 msgstr "Seçili nesne üzerinde önceden tanımlı bir konumu bulun."
 
-#: appGUI/MainGUI.py:1342 appGUI/MainGUI.py:1850 appGUI/MainGUI.py:2601
+#: appGUI/MainGUI.py:1350 appGUI/MainGUI.py:1858 appGUI/MainGUI.py:2609
 msgid "Replot"
 msgstr "Yeniden Çiz"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:1344 appGUI/MainGUI.py:1848 appGUI/MainGUI.py:2603
+#: appGUI/MainGUI.py:1352 appGUI/MainGUI.py:1856 appGUI/MainGUI.py:2611
 msgid "Clear Plot"
 msgstr "Çizimi Temizle"
 
-#: appGUI/MainGUI.py:1383 appGUI/MainGUI.py:2641
+#: appGUI/MainGUI.py:1391 appGUI/MainGUI.py:2649
 msgid "Carve"
 msgstr "Kazı"
 
-#: appGUI/MainGUI.py:1384 appGUI/MainGUI.py:2642
+#: appGUI/MainGUI.py:1392 appGUI/MainGUI.py:2650
 msgid "Carve a loaded picture into a material."
 msgstr "Yüklü bir resmi malzemeye kazıyın."
 
-#: appGUI/MainGUI.py:1391 appGUI/MainGUI.py:2649
+#: appGUI/MainGUI.py:1399 appGUI/MainGUI.py:2657
 #: appGUI/preferences/tools/ToolsCutoutPrefGroupUI.py:118
 #: appPlugins/ToolCutOut/CutOutUI.py:85
 msgid "Panel"
 msgstr "Panel"
 
-#: appGUI/MainGUI.py:1393 appGUI/MainGUI.py:2651 appGUI/ObjectUI.py:403
+#: appGUI/MainGUI.py:1401 appGUI/MainGUI.py:2659 appGUI/ObjectUI.py:403
 #: appGUI/preferences/PreferencesWindow.py:35 appPlugins/ToolFilm/Film.py:118
 #: appPlugins/ToolFilm/FilmUI.py:19
 msgid "Film"
 msgstr "PCB Filmi"
 
-#: appGUI/MainGUI.py:1395 appGUI/MainGUI.py:2653
+#: appGUI/MainGUI.py:1403 appGUI/MainGUI.py:2661
 #: appGUI/preferences/PreferencesWindow.py:48 appGUI/shortcut_actions.py:53
 #: appPlugins/ToolDblSided/DblSided.py:203
 #: appPlugins/ToolDblSided/DblSidedUI.py:16
@@ -11216,11 +11255,11 @@ msgid "2-Sided"
 msgstr "2 Taraflı PCB"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:1400 appGUI/MainGUI.py:2658
+#: appGUI/MainGUI.py:1408 appGUI/MainGUI.py:2666
 msgid "Align"
 msgstr "Hizala"
 
-#: appGUI/MainGUI.py:1407 appGUI/MainGUI.py:2665
+#: appGUI/MainGUI.py:1415 appGUI/MainGUI.py:2673
 #: appGUI/preferences/tools/Tools2CThievingPrefGroupUI.py:361
 #: appPlugins/ToolCopperThieving/CopperThieving.py:509
 #: appPlugins/ToolCopperThieving/CopperThieving.py:521
@@ -11229,7 +11268,7 @@ msgstr "Hizala"
 msgid "Thieving"
 msgstr "Dolgu"
 
-#: appGUI/MainGUI.py:1409 appGUI/MainGUI.py:2667
+#: appGUI/MainGUI.py:1417 appGUI/MainGUI.py:2675
 #: appGUI/preferences/PreferencesWindow.py:40 appGUI/shortcut_actions.py:55
 #: appGUI/shortcut_actions.py:149 appPlugins/ToolMarkers/Markers.py:152
 #: appPlugins/ToolMarkers/MarkersUI.py:16
@@ -11237,41 +11276,41 @@ msgid "Markers"
 msgstr "Köşe İşaretleri"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:1411
+#: appGUI/MainGUI.py:1419
 msgid "Punch"
 msgstr "Delik Açma"
 
-#: appGUI/MainGUI.py:1413 appGUI/MainGUI.py:2671
+#: appGUI/MainGUI.py:1421 appGUI/MainGUI.py:2679
 #: appGUI/preferences/PreferencesWindow.py:37 appGUI/shortcut_actions.py:150
 #: appPlugins/ToolCalculators/Calculator.py:86
 #: appPlugins/ToolCalculators/CalculatorUI.py:22
 msgid "Calculators"
 msgstr "Hesap Makinesi"
 
-#: appGUI/MainGUI.py:1447 appGUI/MainGUI.py:2705 appGUI/shortcut_actions.py:796
+#: appGUI/MainGUI.py:1455 appGUI/MainGUI.py:2713 appGUI/shortcut_actions.py:796
 msgid "Add Drill"
 msgstr "Delik Ekle"
 
-#: appGUI/MainGUI.py:1449 appGUI/MainGUI.py:2707 appGUI/shortcut_actions.py:790
+#: appGUI/MainGUI.py:1457 appGUI/MainGUI.py:2715 appGUI/shortcut_actions.py:790
 msgid "Add Drill Array"
 msgstr "Delik Dizisi Ekle"
 
-#: appGUI/MainGUI.py:1451 appGUI/MainGUI.py:2711 appGUI/shortcut_actions.py:786
+#: appGUI/MainGUI.py:1459 appGUI/MainGUI.py:2719 appGUI/shortcut_actions.py:786
 msgid "Add Slot"
 msgstr "Yuva Ekle"
 
-#: appGUI/MainGUI.py:1453 appGUI/MainGUI.py:2713 appGUI/shortcut_actions.py:805
+#: appGUI/MainGUI.py:1461 appGUI/MainGUI.py:2721 appGUI/shortcut_actions.py:805
 msgid "Add Slot Array"
 msgstr "Yuva Dizisi Ekle"
 
-#: appGUI/MainGUI.py:1501 appGUI/MainGUI.py:2757
+#: appGUI/MainGUI.py:1509 appGUI/MainGUI.py:2765
 msgid ""
 "Join selected lines into polylines. Uses the Join tolerance in Properties."
 msgstr ""
 "Seçili çizgileri çoklu çizgilere birleştir. Özellikler'deki Birleştirme "
 "toleransını kullanır."
 
-#: appGUI/MainGUI.py:1505 appGUI/MainGUI.py:2761
+#: appGUI/MainGUI.py:1513 appGUI/MainGUI.py:2769
 msgid ""
 "Create polygons from selected closed paths or enclosing segments.\n"
 "Unused open segments are kept. Endpoints must meet exactly."
@@ -11279,7 +11318,7 @@ msgstr ""
 "Seçili kapalı yollardan veya çevreleyen kenarlardan çokgenler oluştur.\n"
 "Kullanılmayan açık kenarlar korunur. Uç noktalar tam olarak buluşmalıdır."
 
-#: appGUI/MainGUI.py:1515
+#: appGUI/MainGUI.py:1523
 msgid ""
 "Polygon Subtraction. First selected is the target.\n"
 "The rest of the selected is subtracted from the first.\n"
@@ -11290,7 +11329,7 @@ msgstr ""
 "İlk seçilen sonuç ile değiştirilir."
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:1521
+#: appGUI/MainGUI.py:1529
 msgid ""
 "Alt Subtraction. First selected is the target.\n"
 "The rest of the selected is subtracted from the first.\n"
@@ -11300,35 +11339,35 @@ msgstr ""
 "Seçilenlerin geri kalanı ilkinden çıkarılır.\n"
 "İlk seçilen, sonucun yanında korunur."
 
-#: appGUI/MainGUI.py:1556 appGUI/MainGUI.py:2804
+#: appGUI/MainGUI.py:1564 appGUI/MainGUI.py:2812
 msgid "Join selected connected track sections into one track."
 msgstr "Seçili bağlı iz bölümlerini tek bir ize birleştir."
 
-#: appGUI/MainGUI.py:1568 appGUI/MainGUI.py:2816
+#: appGUI/MainGUI.py:1576 appGUI/MainGUI.py:2824
 msgid "Rectangular Region"
 msgstr "Dikdörtgen Bölge"
 
-#: appGUI/MainGUI.py:1575 appGUI/MainGUI.py:2823
+#: appGUI/MainGUI.py:1583 appGUI/MainGUI.py:2831
 msgid "Text Region"
 msgstr "Metin Bölgesi"
 
-#: appGUI/MainGUI.py:1579 appGUI/MainGUI.py:2827
+#: appGUI/MainGUI.py:1587 appGUI/MainGUI.py:2835
 msgid "Arc: Circular Follow"
 msgstr "Yay: Dairesel Takip"
 
-#: appGUI/MainGUI.py:1583 appGUI/MainGUI.py:2831
+#: appGUI/MainGUI.py:1591 appGUI/MainGUI.py:2839
 msgid "Difference: Keep Cutters"
 msgstr "Fark: Kesicileri Koru"
 
-#: appGUI/MainGUI.py:1619
+#: appGUI/MainGUI.py:1627
 msgid "Snap to grid"
 msgstr "Izgaraya Tuttur"
 
-#: appGUI/MainGUI.py:1622
+#: appGUI/MainGUI.py:1630
 msgid "Grid X snapping distance"
 msgstr "X ızgara tutturma mesafesi"
 
-#: appGUI/MainGUI.py:1627
+#: appGUI/MainGUI.py:1635
 msgid ""
 "When active, value on Grid_X\n"
 "is copied to the Grid_Y value."
@@ -11336,29 +11375,29 @@ msgstr ""
 "Etkin olduğunda, Izgara X üzerindeki değer\n"
 "Izgara Y değerine kopyalanır."
 
-#: appGUI/MainGUI.py:1634
+#: appGUI/MainGUI.py:1642
 msgid "Grid Y snapping distance"
 msgstr "Y ızgara tutturma mesafesi"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:1645
+#: appGUI/MainGUI.py:1653
 msgid "Snap to corner"
 msgstr "Köşeye Tuttur"
 
-#: appGUI/MainGUI.py:1649 appGUI/preferences/general/GeneralAPPSetGroupUI.py:78
+#: appGUI/MainGUI.py:1657 appGUI/preferences/general/GeneralAPPSetGroupUI.py:78
 #: appGUI/preferences/general/GeneralAppSettingsGroupUI.py:147
 msgid "Max. magnet distance"
 msgstr "Maksimum Tutturma Mesafesi"
 
-#: appGUI/MainGUI.py:1659
+#: appGUI/MainGUI.py:1667
 msgid "Toggle the display of axis on canvas"
 msgstr "Çalışma alanındaki ekseni göster/gizle"
 
-#: appGUI/MainGUI.py:1671
+#: appGUI/MainGUI.py:1679
 msgid "HUD (Heads up display)"
 msgstr "HUD (Koordinat Ekranı)"
 
-#: appGUI/MainGUI.py:1677
+#: appGUI/MainGUI.py:1685
 #: appGUI/preferences/general/GeneralAPPSetGroupUI.py:106
 #: appGUI/preferences/general/GeneralAppSettingsGroupUI.py:157
 msgid ""
@@ -11368,7 +11407,7 @@ msgstr ""
 "Çalışma alanı üzerine sınırlayıcı bir dikdörtgen oluşturun.\n"
 "Amaç, çalışmamızın sınırlarını göstermektir."
 
-#: appGUI/MainGUI.py:1690
+#: appGUI/MainGUI.py:1698
 msgid ""
 "Relative measurement.\n"
 "Reference is last click position"
@@ -11377,7 +11416,7 @@ msgstr ""
 "Referans, son tıklama konumudur"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:1698
+#: appGUI/MainGUI.py:1706
 msgid ""
 "Absolute measurement.\n"
 "Reference is (X=0, Y= 0) position"
@@ -11385,82 +11424,82 @@ msgstr ""
 "Mutlak ölçüm.\n"
 "Referans (X = 0, Y = 0) konumudur"
 
-#: appGUI/MainGUI.py:1705 appGUI/shortcut_actions.py:67
+#: appGUI/MainGUI.py:1713 appGUI/shortcut_actions.py:67
 msgid "TCL Shell"
 msgstr "Komut Satırı"
 
 # auto-review 2026-10-21: new
-#: appGUI/MainGUI.py:1717
+#: appGUI/MainGUI.py:1725
 msgid "GCode Console"
 msgstr "G-code Konsolu"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:1794 appGUI/MainGUI.py:1802 appGUI/MainGUI.py:3059
-#: appGUI/MainGUI.py:3065
+#: appGUI/MainGUI.py:1802 appGUI/MainGUI.py:1810 appGUI/MainGUI.py:3067
+#: appGUI/MainGUI.py:3073
 #: appGUI/preferences/general/GeneralShortcutsGroupUI.py:289
-#: appHandlers/appIO.py:1641 appMain.py:3016
+#: appHandlers/appIO.py:1742 appMain.py:3016
 msgid "Plot Area"
 msgstr "Çizim Alanı"
 
-#: appGUI/MainGUI.py:1841
+#: appGUI/MainGUI.py:1849
 msgid "Toggle Visibility"
 msgstr "Görünürlüğü Değiştir"
 
-#: appGUI/MainGUI.py:1868
+#: appGUI/MainGUI.py:1876
 msgid "Grids"
 msgstr "Izgara"
 
-#: appGUI/MainGUI.py:2005
+#: appGUI/MainGUI.py:2013
 msgid "Exc Editor"
 msgstr "Excellon Düzenleyici"
 
-#: appGUI/MainGUI.py:2033
+#: appGUI/MainGUI.py:2041
 msgid "Move2Origin"
 msgstr "Orijine Taşı"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:2063
+#: appGUI/MainGUI.py:2071
 #: appGUI/preferences/general/GeneralAppPrefGroupUI.py:45
 msgid "The application dimensional units is millimeter."
 msgstr "Uygulamanın ölçü birimi milimetredir."
 
-#: appGUI/MainGUI.py:2122
+#: appGUI/MainGUI.py:2130
 msgid "Lock Toolbars"
 msgstr "Araç Çubuklarını Kilitle"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:2129
+#: appGUI/MainGUI.py:2137
 msgid "Show Text"
 msgstr "Simge Yazılarını Göster"
 
-#: appGUI/MainGUI.py:2329 appGUI/MainGUI.py:2341 appHandlers/appIO.py:1648
-#: appHandlers/appIO.py:4039 appMain.py:1395
+#: appGUI/MainGUI.py:2337 appGUI/MainGUI.py:2349 appHandlers/appIO.py:1749
+#: appHandlers/appIO.py:4140 appMain.py:1395
 msgid "New Project - Not saved"
 msgstr "Yeni Proje - Kaydedilmedi"
 
 # auto-review 2026-10-21: new
-#: appGUI/MainGUI.py:2342 appGUI/TitleBar.py:410
+#: appGUI/MainGUI.py:2350 appGUI/TitleBar.py:410
 msgid "Untitled"
 msgstr "Adsız"
 
-#: appGUI/MainGUI.py:2377
+#: appGUI/MainGUI.py:2385
 msgid "Detachable Tabs"
 msgstr "Ayrılabilir Sekmeler"
 
-#: appGUI/MainGUI.py:2482
+#: appGUI/MainGUI.py:2490
 msgid "FlatCAM Preferences Folder opened."
 msgstr "FlatCAM Ayarları Klasörü açıldı."
 
-#: appGUI/MainGUI.py:2494 appGUI/preferences/PreferencesWindow.py:500
+#: appGUI/MainGUI.py:2502 appGUI/preferences/PreferencesWindow.py:500
 msgid "Clear GUI Settings"
 msgstr "Arayüz Ayarlarını Sıfırla"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:2495
+#: appGUI/MainGUI.py:2503
 msgid "Are you sure you want to delete the GUI Settings? \n"
 msgstr "Arayüz ayarlarını silmek istediğinizden emin misiniz? \n"
 
-#: appGUI/MainGUI.py:2669 appGUI/preferences/PreferencesWindow.py:57
+#: appGUI/MainGUI.py:2677 appGUI/preferences/PreferencesWindow.py:57
 #: appGUI/shortcut_actions.py:155 appPlugins/ToolPunchGerber/PunchGerber.py:57
 #: appPlugins/ToolPunchGerber/PunchGerber.py:210
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:16
@@ -11468,25 +11507,25 @@ msgstr "Arayüz ayarlarını silmek istediğinizden emin misiniz? \n"
 msgid "Punch Gerber"
 msgstr "Gerber Delik Yeri Açma"
 
-#: appGUI/MainGUI.py:2843
+#: appGUI/MainGUI.py:2851
 msgid "Import Shape"
 msgstr "Şekli İçe Aktar"
 
-#: appGUI/MainGUI.py:2878
+#: appGUI/MainGUI.py:2886
 msgid "Key Shortcut List"
 msgstr "Klavye Kısayol Listesi"
 
-#: appGUI/MainGUI.py:3218
+#: appGUI/MainGUI.py:3226
 msgid "Go to Line ..."
 msgstr "Satıra Git ..."
 
 # auto-review 2026-10-09: corrected
-#: appGUI/MainGUI.py:3219 appPlugins/ToolGcodeSender/Sender.py:527
+#: appGUI/MainGUI.py:3227 appPlugins/ToolGcodeSender/Sender.py:527
 msgid "Line"
 msgstr "Satır"
 
 # auto-review 2026-10-09: new
-#: appGUI/MainGUI.py:3331
+#: appGUI/MainGUI.py:3339
 msgid ""
 "An updater operation is active. Cancel it or wait for it to finish before "
 "closing FlatCAM."
@@ -11495,11 +11534,11 @@ msgstr ""
 "veya bitmesini bekleyin."
 
 # auto-review 2026-10-21: new
-#: appGUI/MainGUI.py:3338 appHandlers/appLifecycle.py:284
+#: appGUI/MainGUI.py:3346 appHandlers/appLifecycle.py:284
 msgid "Saving the project. FlatCAM closes when the save ends."
 msgstr "Proje kaydediliyor. Kayıt bittiğinde FlatCAM kapanır."
 
-#: appGUI/MainGUI.py:3382
+#: appGUI/MainGUI.py:3390
 msgid "Shortcut Key List"
 msgstr "Klavye Kısayol Listesi"
 
@@ -12335,12 +12374,12 @@ msgid "Grid disabled."
 msgstr "Izgara devre dışı bırakıldı."
 
 # auto-review 2026-10-21: new
-#: appGUI/PlotCanvas3d.py:216
+#: appGUI/PlotCanvas3d.py:223
 msgid "Toggle Grid"
 msgstr "Izgarayı Göster/Gizle"
 
 # auto-review 2026-10-21: new
-#: appGUI/PlotCanvas3d.py:217 appGUI/ViewCube.py:68
+#: appGUI/PlotCanvas3d.py:224 appGUI/ViewCube.py:68
 #: appPlugins/ToolGcodeSender/SenderUI.py:99
 msgid "Fit View"
 msgstr "Ekrana Sığdır"
@@ -13035,137 +13074,141 @@ msgstr ""
 "Vektör çizimlerini talaşlı imalat için Geometri veya PCB işleme için Gerber "
 "olarak içe aktarın."
 
-#: appGUI/WelcomeDialog.py:44
+#: appGUI/WelcomeDialog.py:46
 msgid "Open PCB artwork, or create a blank Gerber object."
 msgstr "PCB çizimini açın veya boş bir Gerber nesnesi oluşturun."
 
-#: appGUI/WelcomeDialog.py:45
+#: appGUI/WelcomeDialog.py:47
 msgid "Excellon object"
 msgstr "Excellon nesnesi"
 
-#: appGUI/WelcomeDialog.py:46
+#: appGUI/WelcomeDialog.py:48
 msgid "Open drilling data, or create a blank Excellon object."
 msgstr "Delme verilerini açın veya boş bir Excellon nesnesi oluşturun."
 
-#: appGUI/WelcomeDialog.py:47 appObjects/ObjectCollection.py:400
+#: appGUI/WelcomeDialog.py:49
+msgid "ODB++"
+msgstr "ODB++"
+
+#: appGUI/WelcomeDialog.py:50 appObjects/ObjectCollection.py:400
 msgid "Script"
 msgstr "Komut dosyası"
 
-#: appGUI/WelcomeDialog.py:47
+#: appGUI/WelcomeDialog.py:50
 msgid "Script object"
 msgstr "Komut dosyası nesnesi"
 
-#: appGUI/WelcomeDialog.py:48
+#: appGUI/WelcomeDialog.py:51
 msgid ""
 "Open a script for editing without executing it, or create a blank script."
 msgstr ""
 "Bir komut dosyasını çalıştırmadan düzenlemek için açın veya boş bir komut "
 "dosyası oluşturun."
 
-#: appGUI/WelcomeDialog.py:49
+#: appGUI/WelcomeDialog.py:52
 msgid "Doc"
 msgstr "Belge"
 
-#: appGUI/WelcomeDialog.py:49
+#: appGUI/WelcomeDialog.py:52
 msgid "Document object"
 msgstr "Belge nesnesi"
 
-#: appGUI/WelcomeDialog.py:50
+#: appGUI/WelcomeDialog.py:53
 msgid "Open a FlatCAM Evo document, or create a blank document."
 msgstr "Bir FlatCAM Evo belgesi açın veya boş bir belge oluşturun."
 
-#: appGUI/WelcomeDialog.py:55
+#: appGUI/WelcomeDialog.py:58
 msgid "PCB Manufacturing files"
 msgstr "PCB üretim dosyaları"
 
-#: appGUI/WelcomeDialog.py:139
+#: appGUI/WelcomeDialog.py:142
 msgid "Welcome to FlatCAM Evo"
 msgstr "FlatCAM Evo'ya hoş geldiniz"
 
-#: appGUI/WelcomeDialog.py:170 appGUI/WelcomeDialog.py:323
+#: appGUI/WelcomeDialog.py:173 appGUI/WelcomeDialog.py:326
 msgid "CAM tools for PCB manufacturing, machining and more."
 msgstr "PCB üretimi, talaşlı imalat ve daha fazlası için CAM araçları."
 
-#: appGUI/WelcomeDialog.py:181
+#: appGUI/WelcomeDialog.py:184
 msgid "Continue to workspace"
 msgstr "Çalışma alanına geç"
 
-#: appGUI/WelcomeDialog.py:200 appGUI/preferences/PreferencesWindow.py:67
+#: appGUI/WelcomeDialog.py:203 appGUI/preferences/PreferencesWindow.py:67
 #: appGUI/shortcut_actions.py:41
 msgid "Application"
 msgstr "Uygulama"
 
-#: appGUI/WelcomeDialog.py:211
+#: appGUI/WelcomeDialog.py:214
 msgid "Search file types…"
 msgstr "Dosya türlerini ara…"
 
-#: appGUI/WelcomeDialog.py:212
+#: appGUI/WelcomeDialog.py:215
 msgid "Search file types"
 msgstr "Dosya türlerini ara"
 
-#: appGUI/WelcomeDialog.py:223
+#: appGUI/WelcomeDialog.py:226
 msgid "File types"
 msgstr "Dosya türleri"
 
-#: appGUI/WelcomeDialog.py:232
+#: appGUI/WelcomeDialog.py:235
 msgid "Start something"
 msgstr "Başla"
 
-#: appGUI/WelcomeDialog.py:265
+#: appGUI/WelcomeDialog.py:268
 msgid "Import as"
 msgstr "Şu şekilde içe aktar"
 
-#: appGUI/WelcomeDialog.py:275
+#: appGUI/WelcomeDialog.py:278
 msgid "Last 5 · selected type"
 msgstr "Son 5 · seçili tür"
 
-#: appGUI/WelcomeDialog.py:289
+#: appGUI/WelcomeDialog.py:292
 msgid "No recent files of this type."
 msgstr "Bu türde yakın zamanda kullanılan dosya yok."
 
-#: appGUI/WelcomeDialog.py:302
+#: appGUI/WelcomeDialog.py:305
 msgid "Contributors"
 msgstr "Katkıda bulunanlar"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/WelcomeDialog.py:303 appHandlers/appUIActions.py:242
+#: appGUI/WelcomeDialog.py:306 appHandlers/appUIActions.py:242
 msgid "FlatCAM Author"
 msgstr "FlatCAM Yazarı"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/WelcomeDialog.py:304 appHandlers/appUIActions.py:246
+#: appGUI/WelcomeDialog.py:307 appHandlers/appUIActions.py:246
 msgid "FlatCAM Evo Author/Maintainer"
 msgstr "FlatCAM Evo Yazarı / Bakımını Yapan"
 
-#: appGUI/WelcomeDialog.py:306
+#: appGUI/WelcomeDialog.py:309
 msgid "Developer"
 msgstr "Geliştirici"
 
-#: appGUI/WelcomeDialog.py:309 appHandlers/appUIActions.py:277
+#: appGUI/WelcomeDialog.py:312 appHandlers/appUIActions.py:277
 msgid "Translator"
 msgstr "Çevirmen"
 
-#: appGUI/WelcomeDialog.py:317 appHandlers/appUIActions.py:206
+#: appGUI/WelcomeDialog.py:320 appHandlers/appUIActions.py:206
 msgid "License"
 msgstr "Lisans"
 
-#: appGUI/WelcomeDialog.py:319 appHandlers/appUIActions.py:153
+#: appGUI/WelcomeDialog.py:322 appHandlers/appUIActions.py:153
 msgid "Licensed under the MIT license"
 msgstr "MIT lisanslıdır"
 
-#: appGUI/WelcomeDialog.py:331
+#: appGUI/WelcomeDialog.py:334
 msgid "Show this screen next time"
 msgstr "Sonraki açılışta bu ekranı göster"
 
-#: appGUI/WelcomeDialog.py:337
+#: appGUI/WelcomeDialog.py:340
 msgid "Continue"
 msgstr "Devam et"
 
-#: appGUI/WelcomeDialog.py:339
+#: appGUI/WelcomeDialog.py:342
 msgid "Browse…"
 msgstr "Gözat…"
 
-#: appGUI/WelcomeDialog.py:351
+#: appGUI/WelcomeDialog.py:354
 msgid ""
 "A FlatCAM Evo project keeps your objects and their settings together. "
 "Select FlatCAM Evo Project to reopen saved work or start an empty project."
@@ -13174,7 +13217,7 @@ msgstr ""
 "Kaydedilmiş bir projeyi yeniden açmak veya boş bir proje başlatmak için "
 "FlatCAM Evo Projesi'ni seçin."
 
-#: appGUI/WelcomeDialog.py:353
+#: appGUI/WelcomeDialog.py:356
 msgid ""
 "Import drawings, vector artwork and images for machining, cutting or "
 "engraving, or create a blank Geometry object. Select a file type to see its "
@@ -13185,7 +13228,7 @@ msgstr ""
 "aktarma seçeneklerini ve yakın zamanda kullanılan dosyaları görmek için bir "
 "dosya türü seçin."
 
-#: appGUI/WelcomeDialog.py:355
+#: appGUI/WelcomeDialog.py:358
 msgid ""
 "Work with Gerber artwork and Excellon drilling files, or add scripts and "
 "documents to your project. Select a file type to open an existing file or "
@@ -13195,7 +13238,7 @@ msgstr ""
 "komut dosyaları ve belgeler ekleyin. Var olan bir dosyayı açmak ya da "
 "desteklenen boş bir nesne oluşturmak için bir dosya türü seçin."
 
-#: appGUI/WelcomeDialog.py:357
+#: appGUI/WelcomeDialog.py:360
 msgid ""
 "Import a native PCB design from a supported board editor. Choose its "
 "format, then select the layers and drilling to bring into FlatCAM Evo."
@@ -13204,36 +13247,36 @@ msgstr ""
 "içe aktarın. Biçimini seçin, ardından FlatCAM Evo'ya aktarmak için "
 "katmanları ve delme verilerini seçin."
 
-#: appGUI/WelcomeDialog.py:605
+#: appGUI/WelcomeDialog.py:608
 msgid "Select a category or file type."
 msgstr "Bir kategori veya dosya türü seçin."
 
-#: appGUI/WelcomeDialog.py:605
+#: appGUI/WelcomeDialog.py:608
 msgid "No file type matches the search."
 msgstr "Aramayla eşleşen dosya türü yok."
 
-#: appGUI/WelcomeDialog.py:612
+#: appGUI/WelcomeDialog.py:615
 msgid "New object only"
 msgstr "Yalnızca yeni nesne"
 
-#: appGUI/WelcomeDialog.py:660
+#: appGUI/WelcomeDialog.py:663
 #: appGUI/preferences/general/GeneralShortcutsGroupUI.py:473
 #: appPlugins/ToolQRCode/QRCode.py:691 appPlugins/ToolQRCode/QRCode.py:695
 msgid "All Files"
 msgstr "Tüm Dosyalar"
 
-#: appGUI/WelcomeDialog.py:670 appHandlers/appIO.py:2917
-#: appHandlers/appIO.py:2982 appHandlers/appIO.py:3084
-#: appHandlers/appIO.py:3135 appHandlers/appIO.py:3215
-#: appHandlers/appIO.py:3517 appHandlers/appIO.py:3578
-#: appHandlers/appIO.py:3855 appPlugins/ToolImage/Image.py:161
+#: appGUI/WelcomeDialog.py:673 appHandlers/appIO.py:3018
+#: appHandlers/appIO.py:3083 appHandlers/appIO.py:3185
+#: appHandlers/appIO.py:3236 appHandlers/appIO.py:3316
+#: appHandlers/appIO.py:3618 appHandlers/appIO.py:3679
+#: appHandlers/appIO.py:3956 appPlugins/ToolImage/Image.py:161
 #: appPlugins/ToolPdf/PdfImport.py:133
 msgid "File no longer available."
 msgstr "Dosya artık mevcut değil."
 
-#: appGUI/WelcomeDialog.py:698 appHandlers/appIO.py:3056
-#: appHandlers/appIO.py:3437 appHandlers/appIO.py:3502
-#: appHandlers/appIO.py:3585
+#: appGUI/WelcomeDialog.py:701 appHandlers/appIO.py:3157
+#: appHandlers/appIO.py:3538 appHandlers/appIO.py:3603
+#: appHandlers/appIO.py:3686
 msgid "Failed to open file"
 msgstr "Dosya açılamadı"
 
@@ -13293,38 +13336,38 @@ msgstr ""
 "Dairelerin doğrusal yaklaşımı \n"
 "için daire adımlarının sayısı."
 
-#: appGUI/preferences/PreferencesUIManager.py:1154
+#: appGUI/preferences/PreferencesUIManager.py:1155
 msgid "Preferences applied."
 msgstr "Ayar değişiklikleri uygulandı."
 
-#: appGUI/preferences/PreferencesUIManager.py:1183
+#: appGUI/preferences/PreferencesUIManager.py:1184
 msgid "Application will restart"
 msgstr "Uygulama Yeniden Başlatılacak"
 
-#: appGUI/preferences/PreferencesUIManager.py:1184
+#: appGUI/preferences/PreferencesUIManager.py:1185
 #: appGUI/preferences/PreferencesWindow.py:536
 msgid "Are you sure you want to continue?"
 msgstr "Devam etmek istiyor musunuz?"
 
-#: appGUI/preferences/PreferencesUIManager.py:1290
+#: appGUI/preferences/PreferencesUIManager.py:1291
 msgid "Preferences default values are restored."
 msgstr "Varsayılan ayarlar geri yüklendi."
 
-#: appGUI/preferences/PreferencesUIManager.py:1319 appHandlers/appIO.py:2460
+#: appGUI/preferences/PreferencesUIManager.py:1320 appHandlers/appIO.py:2561
 msgid "Failed to write defaults to file."
 msgstr "Varsayılan değerler dosyaya yazılamadı."
 
-#: appGUI/preferences/PreferencesUIManager.py:1323
-#: appGUI/preferences/PreferencesUIManager.py:1377
+#: appGUI/preferences/PreferencesUIManager.py:1324
+#: appGUI/preferences/PreferencesUIManager.py:1378
 msgid "Preferences saved."
 msgstr "Ayarlar kaydedildi."
 
-#: appGUI/preferences/PreferencesUIManager.py:1335
+#: appGUI/preferences/PreferencesUIManager.py:1336
 msgid "Preferences edited but not saved."
 msgstr "Ayarlar değiştirildi; ancak kaydedilmedi."
 
 # auto-review 2026-10-09: corrected
-#: appGUI/preferences/PreferencesUIManager.py:1360
+#: appGUI/preferences/PreferencesUIManager.py:1361
 msgid ""
 "One or more values are changed.\n"
 "Do you want to save?"
@@ -13333,7 +13376,7 @@ msgstr ""
 "Kaydetmek istiyor musunuz?"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/preferences/PreferencesUIManager.py:1399
+#: appGUI/preferences/PreferencesUIManager.py:1400
 msgid "Preferences closed without saving."
 msgstr "Ayarlar kaydedilmeden kapatıldı."
 
@@ -14723,12 +14766,26 @@ msgstr ""
 "tuş kısayoluyla nesneleri sil işlemi her gerçekleştirildiğinde\n"
 "kullanıcı onayı ister."
 
-#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:520
+#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:521
+msgid "Ask to save on exit"
+msgstr "Çıkışta kaydetmeyi sor"
+
+#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:523
+msgid ""
+"When checked the application will ask to save the project(s)\n"
+"with unsaved changes when the application is closed.\n"
+"When unchecked the unsaved changes are discarded on exit."
+msgstr ""
+"İşaretliyse uygulama kapanırken kaydedilmemiş değişiklikleri olan\n"
+"projeleri kaydetmeyi sorar.\n"
+"İşaretli değilse kaydedilmemiş değişiklikler çıkışta kaybolur."
+
+#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:529
 msgid "Allow Edit"
 msgstr "Düzenlemeye İzin Ver"
 
 # auto-review 2026-10-09: corrected
-#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:522
+#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:531
 msgid ""
 "When checked, the user can edit the object names in the Project Tab\n"
 "by clicking on the object name. Active after restart."
@@ -14737,12 +14794,12 @@ msgstr ""
 "nesne adları düzenlenebilir. Yeniden başlatınca etkin olur."
 
 # auto-review 2026-10-09: corrected
-#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:528
+#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:537
 #: appGUI/preferences/general/GeneralAppSettingsGroupUI.py:264
 msgid "\"Open\" behavior"
 msgstr "Açma/Kaydetme Yollarını Ayrı Tut"
 
-#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:530
+#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:539
 #: appGUI/preferences/general/GeneralAppSettingsGroupUI.py:265
 msgid ""
 "When checked the path for the last saved file is used when saving files,\n"
@@ -14757,12 +14814,12 @@ msgstr ""
 "Onay kutusu seçili olmadığında, dosyaları açma veya kaydetme yolu\n"
 "en son kullanılan yoldur."
 
-#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:539
+#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:548
 #: appGUI/preferences/general/GeneralAppSettingsGroupUI.py:272
 msgid "Enable ToolTips"
 msgstr "İpuçlarını Etkinleştir"
 
-#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:541
+#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:550
 #: appGUI/preferences/general/GeneralAppSettingsGroupUI.py:273
 msgid ""
 "Check this box if you want to have toolTips displayed\n"
@@ -14771,12 +14828,12 @@ msgstr ""
 "Uygulama genelinde öğelerin üzerine geldiğinizde araç \n"
 "ipuçlarının görünmesini istiyorsanız bu onay kutusunu işaretleyin."
 
-#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:550
+#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:559
 #: appGUI/preferences/general/GeneralAppSettingsGroupUI.py:278
 msgid "Bookmarks limit"
 msgstr "Yer İşareti Sayısı"
 
-#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:552
+#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:561
 #: appGUI/preferences/general/GeneralAppSettingsGroupUI.py:279
 msgid ""
 "The maximum number of bookmarks that may be installed in the menu.\n"
@@ -14787,29 +14844,29 @@ msgstr ""
 "Yer işareti yöneticisindeki yer işareti sayısı daha fazla\n"
 "olabilir; ancak menü yalnızca bu belirtilen sayıyı içerir."
 
-#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:561
+#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:570
 #: appGUI/preferences/general/GeneralAppSettingsGroupUI.py:286
 msgid "Activity Icon"
 msgstr "Etkinlik Simgesi"
 
-#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:563
+#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:572
 #: appGUI/preferences/general/GeneralAppSettingsGroupUI.py:287
 msgid "Select the GIF that show activity when FlatCAM is active."
 msgstr "FlatCAM etkinken etkinliği gösteren GIF'i seçin."
 
-#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:574
+#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:583
 msgid "Undo steps"
 msgstr "Geri alma adımları"
 
-#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:576
+#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:585
 msgid "The number of actions that Undo can go back, for each project."
 msgstr "Her proje için Geri Al'ın geri alabileceği işlem sayısı."
 
-#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:583
+#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:592
 msgid "Undo RAM"
 msgstr "Geri Al RAM"
 
-#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:585
+#: appGUI/preferences/general/GeneralAPPSetGroupUI.py:594
 msgid ""
 "The memory that the Undo history can keep for each project.\n"
 "The oldest steps are dropped first. In megabytes."
@@ -19427,7 +19484,7 @@ msgid "Network port"
 msgstr "Ağ portu"
 
 #: appGUI/preferences/tools/ToolsGrblSenderPrefGroupUI.py:69
-#: appHandlers/appIO.py:501 appPlugins/ToolGcodeSender/SenderUI.py:355
+#: appHandlers/appIO.py:606 appPlugins/ToolGcodeSender/SenderUI.py:355
 msgid "Step"
 msgstr "Adım"
 
@@ -21653,19 +21710,19 @@ msgstr "GERBER DÜZENLEYİCİ"
 msgid "EXCELLON EDITOR"
 msgstr "EXCELLON DÜZENLEYİCİ"
 
-#: appHandlers/appCanvasEvents.py:620 appHandlers/appCanvasEvents.py:627
-#: appHandlers/appCanvasEvents.py:634 appHandlers/appCanvasEvents.py:641
+#: appHandlers/appCanvasEvents.py:621 appHandlers/appCanvasEvents.py:628
+#: appHandlers/appCanvasEvents.py:635 appHandlers/appCanvasEvents.py:642
 #: appObjects/ObjectCollection.py:1477
 msgid "selected"
 msgstr "seçildi"
 
 #: appHandlers/appEdit.py:152 appHandlers/appEdit.py:236
-#: appHandlers/appEdit.py:415 appHandlers/appIO.py:934
-#: appHandlers/appIO.py:1006 appHandlers/appIO.py:1098
-#: appHandlers/appIO.py:1143 appHandlers/appIO.py:1186
-#: appHandlers/appIO.py:1228 appHandlers/appIO.py:1269
-#: appHandlers/appIO.py:1314 appHandlers/appIO.py:1365
-#: appHandlers/appIO.py:1980 appHandlers/appObjectOps.py:103
+#: appHandlers/appEdit.py:415 appHandlers/appIO.py:1035
+#: appHandlers/appIO.py:1107 appHandlers/appIO.py:1199
+#: appHandlers/appIO.py:1244 appHandlers/appIO.py:1287
+#: appHandlers/appIO.py:1329 appHandlers/appIO.py:1370
+#: appHandlers/appIO.py:1415 appHandlers/appIO.py:1466
+#: appHandlers/appIO.py:2081 appHandlers/appObjectOps.py:103
 #: appHandlers/appObjectOps.py:157 appHandlers/appObjectOps.py:212
 #: appHandlers/appObjectOps.py:273 appHandlers/appObjectOps.py:326
 #: appHandlers/appObjectOps.py:645 appHandlers/appObjectOps.py:973
@@ -21843,44 +21900,56 @@ msgstr "Kaynak yenilenemedi"
 msgid "The object could not be made again."
 msgstr "Nesne yeniden oluşturulamadı."
 
-#: appHandlers/appIO.py:182
+#: appHandlers/appIO.py:191
 msgid "Import Proteus PCB"
 msgstr "Proteus PCB'yi İçe Aktar"
 
 # auto-review 2026-10-21: new
-#: appHandlers/appIO.py:184
+#: appHandlers/appIO.py:193
 msgid "Import KiCad PCB"
 msgstr "KiCad PCB'yi İçe Aktar"
 
 # auto-review 2026-10-21: new
-#: appHandlers/appIO.py:186
+#: appHandlers/appIO.py:195
 msgid "Import Sprint Layout"
 msgstr "Sprint Layout'u İçe Aktar"
 
 # auto-review 2026-10-21: new
-#: appHandlers/appIO.py:188
+#: appHandlers/appIO.py:197
 msgid "Import Eagle Board"
 msgstr "Eagle Board'u İçe Aktar"
 
 # auto-review 2026-10-21: new
-#: appHandlers/appIO.py:190
+#: appHandlers/appIO.py:199
 msgid "Import OrCAD/Allegro Board"
 msgstr "OrCAD/Allegro Board'u İçe Aktar"
 
-#: appHandlers/appIO.py:192
+#: appHandlers/appIO.py:201
 msgid "Import DipTrace PCB"
 msgstr "DipTrace PCB'yi İçe Aktar"
 
-#: appHandlers/appIO.py:194
+#: appHandlers/appIO.py:203
+msgid "Import PADS PCB"
+msgstr "PADS PCB'yi İçe Aktar"
+
+#: appHandlers/appIO.py:205
 msgid "Import ODB++ Job"
 msgstr "ODB++ İşini İçe Aktar"
 
+#: appHandlers/appIO.py:207
+msgid "Import CircuitStudio / CircuitMaker PCB"
+msgstr "CircuitStudio / CircuitMaker PCB'yi İçe Aktar"
+
 # auto-review 2026-10-21: new
-#: appHandlers/appIO.py:195
+#: appHandlers/appIO.py:208
 msgid "Import Altium PCB"
 msgstr "Altium PCB'yi İçe Aktar"
 
-#: appHandlers/appIO.py:278
+#: appHandlers/appIO.py:269
+msgid "Reading the board file. Wait..."
+msgstr "Kart dosyası okunuyor. Bekleyin..."
+
+#: appHandlers/appIO.py:352
 msgid ""
 "Proteus import stopped. Previously imported boards remain open; the import "
 "is incomplete."
@@ -21888,40 +21957,40 @@ msgstr ""
 "Proteus içe aktarımı durduruldu. Daha önce içe aktarılan kartlar açık "
 "kalır; içe aktarma eksik."
 
-#: appHandlers/appIO.py:307
+#: appHandlers/appIO.py:381
 msgid "Invalid Proteus board name: %s"
 msgstr "Geçersiz Proteus kart adı: %s"
 
-#: appHandlers/appIO.py:327 appHandlers/appIO.py:362 appHandlers/appIO.py:691
-#: appHandlers/appIO.py:2958 appHandlers/appIO.py:3022
+#: appHandlers/appIO.py:401 appHandlers/appIO.py:439 appHandlers/appIO.py:792
+#: appHandlers/appIO.py:3059 appHandlers/appIO.py:3123
 msgid "Import failed."
 msgstr "İçe aktarma başarısız oldu."
 
-#: appHandlers/appIO.py:433
+#: appHandlers/appIO.py:522
 msgid "The ODB++ job has more than 1 step. Select the step:"
 msgstr "ODB++ işinde 1'den fazla adım (step) var. Adımı seçin:"
 
-#: appHandlers/appIO.py:447
+#: appHandlers/appIO.py:536
 msgid "Tent vias"
 msgstr "Örtülü vialar"
 
-#: appHandlers/appIO.py:447
+#: appHandlers/appIO.py:536
 msgid "Open vias"
 msgstr "Açık vialar"
 
-#: appHandlers/appIO.py:450
+#: appHandlers/appIO.py:539
 msgid "The board does not store via tenting (a DipTrace export setting)."
 msgstr "Kart via örtme bilgisini saklamıyor (bir DipTrace dışa aktarma ayarı)."
 
-#: appHandlers/appIO.py:459
+#: appHandlers/appIO.py:548
 msgid "Solder-mask swell"
 msgstr "Lehim maskesi genişlemesi"
 
-#: appHandlers/appIO.py:459
+#: appHandlers/appIO.py:548
 msgid "Paste-mask shrink"
 msgstr "Pasta maskesi daralması"
 
-#: appHandlers/appIO.py:464
+#: appHandlers/appIO.py:553
 msgid ""
 "This older board does not store its inherited export settings.\n"
 "Enter the value used in the source DipTrace installation (mm).\n"
@@ -21934,14 +22003,14 @@ msgstr ""
 "\n"
 
 # auto-review 2026-10-21: new
-#: appHandlers/appIO.py:502
+#: appHandlers/appIO.py:607
 msgid "Select layers and drill groups to import:"
 msgstr "İçe aktarılacak katmanları ve delik gruplarını seçin:"
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appIO.py:736 appHandlers/appIO.py:780 appHandlers/appIO.py:824
-#: appHandlers/appIO.py:889 appHandlers/appIO.py:1771 appHandlers/appIO.py:3641
-#: appHandlers/appIO.py:3838
+#: appHandlers/appIO.py:837 appHandlers/appIO.py:881 appHandlers/appIO.py:925
+#: appHandlers/appIO.py:990 appHandlers/appIO.py:1872 appHandlers/appIO.py:3742
+#: appHandlers/appIO.py:3939
 msgid ""
 "Canvas initialization started.\n"
 "Canvas initialization finished in"
@@ -21949,104 +22018,104 @@ msgstr ""
 "Çalışma alanı başlatılıyor.\n"
 "Çalışma alanı başlatma süresi"
 
-#: appHandlers/appIO.py:739
+#: appHandlers/appIO.py:840
 msgid "Opening Gerber file."
 msgstr "Gerber dosyası açılıyor."
 
-#: appHandlers/appIO.py:783
+#: appHandlers/appIO.py:884
 msgid "Opening Excellon file."
 msgstr "Excellon dosyası açılıyor."
 
-#: appHandlers/appIO.py:827
+#: appHandlers/appIO.py:928
 msgid "Opening G-Code file."
 msgstr "G-Kodu dosyası açılıyor."
 
-#: appHandlers/appIO.py:880 appHandlers/appIO.py:884
+#: appHandlers/appIO.py:981 appHandlers/appIO.py:985
 msgid "Open HPGL2"
 msgstr "HPGL2'yi Açın"
 
-#: appHandlers/appIO.py:892
+#: appHandlers/appIO.py:993
 msgid "Opening HPGL2 file."
 msgstr "HPGL2 dosyası açılıyor."
 
-#: appHandlers/appIO.py:914 appHandlers/appIO.py:917
+#: appHandlers/appIO.py:1015 appHandlers/appIO.py:1018
 msgid "Open Configuration File"
 msgstr "Yapılandırma Dosyasını Aç"
 
-#: appHandlers/appIO.py:938
+#: appHandlers/appIO.py:1039
 msgid "Only Gerber, Excellon and Geometry objects can be exported as an image."
 msgstr ""
 "Yalnızca Gerber, Excellon ve Geometri nesneleri görüntü olarak dışa "
 "aktarılabilir.Yalnızca Gerber, Excellon ve Geometri nesneleri görüntü "
 "olarak dışa aktarılabilir."
 
-#: appHandlers/appIO.py:958
+#: appHandlers/appIO.py:1059
 msgid "Export PDF"
 msgstr "PDF'i Dışa Aktar"
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appIO.py:1014
+#: appHandlers/appIO.py:1115
 msgid "Only Geometry, Gerber and CNCJob objects can be used."
 msgstr "Yalnızca Geometri, Gerber ve CNC İşi nesneleri kullanılabilir."
 
-#: appHandlers/appIO.py:1062
+#: appHandlers/appIO.py:1163
 msgid "Data must be a 3D array with last dimension 3 or 4"
 msgstr "Verilerin son boyutu 3 veya 4 olan bir 3D dizi olması gerekir"
 
-#: appHandlers/appIO.py:1068 appHandlers/appIO.py:1073
+#: appHandlers/appIO.py:1169 appHandlers/appIO.py:1174
 msgid "Export PNG Image"
 msgstr "PNG Görüntüsünü Dışa Aktar"
 
-#: appHandlers/appIO.py:1103 appHandlers/appIO.py:1319
+#: appHandlers/appIO.py:1204 appHandlers/appIO.py:1420
 msgid "Failed. Only Gerber objects can be saved as Gerber files..."
 msgstr ""
 "Başarısız. Yalnızca Gerber nesneleri Gerber dosyaları olarak "
 "kaydedilebilir...Hata. Sadece Gerber nesneleri Gerber dosyaları olarak "
 "kaydedilebilir ..."
 
-#: appHandlers/appIO.py:1119
+#: appHandlers/appIO.py:1220
 msgid "Save Gerber source file"
 msgstr "Gerber kaynak dosyasını kaydet"
 
-#: appHandlers/appIO.py:1148
+#: appHandlers/appIO.py:1249
 msgid "Failed. Only Script objects can be saved as TCL Script files..."
 msgstr ""
 "Başarısız. Yalnızca Betik nesneleri TCL Betik dosyaları olarak "
 "kaydedilebilir...Hata. Yalnızca komut dosyası nesneleri TCL komut dosyaları "
 "olarak kaydedilebilir ..."
 
-#: appHandlers/appIO.py:1161
+#: appHandlers/appIO.py:1262
 msgid "Save Script source file"
 msgstr "Komut dosyası kaynak dosyasını kaydet"
 
-#: appHandlers/appIO.py:1191
+#: appHandlers/appIO.py:1292
 msgid "Failed. Only Document objects can be saved as Document files..."
 msgstr ""
 "Başarısız. Yalnızca Belge nesneleri Belge dosyaları olarak "
 "kaydedilebilir...Hata. Yalnızca Belge nesneleri Belge dosyaları olarak "
 "kaydedilebilir ..."
 
-#: appHandlers/appIO.py:1204
+#: appHandlers/appIO.py:1305
 msgid "Save Document source file"
 msgstr "Belgenin kaynak dosyasını kaydet"
 
-#: appHandlers/appIO.py:1233 appHandlers/appIO.py:1274
-#: appHandlers/appIO.py:2504
+#: appHandlers/appIO.py:1334 appHandlers/appIO.py:1375
+#: appHandlers/appIO.py:2605
 msgid "Failed. Only Excellon objects can be saved as Excellon files..."
 msgstr ""
 "Başarısız. Yalnızca Excellon nesneleri Excellon dosyaları olarak "
 "kaydedilebilir...Hata. Yalnızca Excellon nesneleri Excellon dosyaları "
 "olarak kaydedilebilir ..."
 
-#: appHandlers/appIO.py:1241 appHandlers/appIO.py:1246
+#: appHandlers/appIO.py:1342 appHandlers/appIO.py:1347
 msgid "Save Excellon source file"
 msgstr "Excellon kaynak dosyasını kaydet"
 
-#: appHandlers/appIO.py:1371
+#: appHandlers/appIO.py:1472
 msgid "Unsupported objects were skipped."
 msgstr "Desteklenmeyen nesneler atlandı."
 
-#: appHandlers/appIO.py:1373
+#: appHandlers/appIO.py:1474
 msgid ""
 "Only Gerber, Excellon, Geometry and CNCJob objects can be exported as DXF."
 msgstr ""
@@ -22054,180 +22123,180 @@ msgstr ""
 "aktarılabilir."
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appIO.py:1422 appHandlers/appIO.py:1426
+#: appHandlers/appIO.py:1523 appHandlers/appIO.py:1527
 msgid "Import SVG"
 msgstr "SVG'yi İçe Aktar"
 
-#: appHandlers/appIO.py:1452 appHandlers/appIO.py:1456
+#: appHandlers/appIO.py:1553 appHandlers/appIO.py:1557
 msgid "Import DXF"
 msgstr "DXF'i İçe Aktar"
 
-#: appHandlers/appIO.py:1514 appMain.py:2141 appMain.py:2383
+#: appHandlers/appIO.py:1615 appMain.py:2141 appMain.py:2383
 msgid "Cannot reset Tcl while a script is running."
 msgstr "Komut dosyası çalışırken Tcl sıfırlanamaz."
 
-#: appHandlers/appIO.py:1584 appHandlers/appIO.py:1612
-#: appHandlers/appIO.py:1647 appHandlers/appIO.py:1668
+#: appHandlers/appIO.py:1685 appHandlers/appIO.py:1713
+#: appHandlers/appIO.py:1748 appHandlers/appIO.py:1769
 msgid "seconds"
 msgstr "saniye"
 
 # auto-review 2026-10-09: new
-#: appHandlers/appIO.py:1628
+#: appHandlers/appIO.py:1729
 msgid "A tab"
 msgstr "Bir sekme"
 
 # auto-review 2026-10-09: new
-#: appHandlers/appIO.py:1635
+#: appHandlers/appIO.py:1736
 msgid "%s remains open because its closure was canceled."
 msgstr "%s, kapatılması iptal edildiği için açık kaldı."
 
 # auto-review 2026-10-09: new
-#: appHandlers/appIO.py:1637
+#: appHandlers/appIO.py:1738
 msgid "%d tabs remain open because their closure was canceled."
 msgstr "Kapatılmaları iptal edildiği için %d sekme açık kaldı."
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appIO.py:1647
+#: appHandlers/appIO.py:1748
 msgid "Project created in"
 msgstr "Proje oluşturma süresi"
 
-#: appHandlers/appIO.py:1650
+#: appHandlers/appIO.py:1751
 msgid "New Project created"
 msgstr "Yeni proje oluşturuldu"
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appIO.py:1680
+#: appHandlers/appIO.py:1781
 msgid "New TCL script file created in Code Editor."
 msgstr "Kod Düzenleyici'de yeni TCL komut dosyası oluşturuldu."
 
-#: appHandlers/appIO.py:1707 appHandlers/appIO.py:1709
-#: appHandlers/appIO.py:1744 appHandlers/appIO.py:1746
+#: appHandlers/appIO.py:1808 appHandlers/appIO.py:1810
+#: appHandlers/appIO.py:1845 appHandlers/appIO.py:1847
 msgid "Open TCL script"
 msgstr "TCL Komut Dosyasını Aç"
 
-#: appHandlers/appIO.py:1773
+#: appHandlers/appIO.py:1874
 msgid "Executing ScriptObject file."
 msgstr "FlatCAM komut dosyası çalışıyor."
 
-#: appHandlers/appIO.py:1781 appHandlers/appIO.py:1785 appMain.py:2075
+#: appHandlers/appIO.py:1882 appHandlers/appIO.py:1886 appMain.py:2075
 msgid "Run TCL script"
 msgstr "TCL komut dosyasını çalıştır"
 
-#: appHandlers/appIO.py:1804
+#: appHandlers/appIO.py:1905
 msgid "TCL script file opened in Code Editor and executed."
 msgstr "TCL komut dosyası Kod Düzenleyici'de açıldı ve yürütüldü."
 
-#: appHandlers/appIO.py:1809
+#: appHandlers/appIO.py:1910
 msgid "Failed to execute script"
 msgstr "Komut dosyası çalıştırılamadı"
 
 # auto-review 2026-10-21: new
-#: appHandlers/appIO.py:1830 appHandlers/appProjects.py:690
+#: appHandlers/appIO.py:1931 appHandlers/appProjects.py:690
 msgid "Overwrite"
 msgstr "Üzerine yaz"
 
 # auto-review 2026-10-21: new
-#: appHandlers/appIO.py:1830 appHandlers/appProjects.py:691
+#: appHandlers/appIO.py:1931 appHandlers/appProjects.py:691
 msgid "The file already exists"
 msgstr "Dosya zaten var"
 
 # auto-review 2026-10-21: new
-#: appHandlers/appIO.py:1831 appHandlers/appProjects.py:692
+#: appHandlers/appIO.py:1932 appHandlers/appProjects.py:692
 msgid "Do you want to overwrite it?"
 msgstr "Üzerine yazmak istiyor musunuz?"
 
-#: appHandlers/appIO.py:1859 appHandlers/appIO.py:3925
-#: appHandlers/appIO.py:3965 appHandlers/appIO.py:4186
-#: appHandlers/appLifecycle.py:276 appHandlers/appLifecycle.py:393
-#: appHandlers/appLifecycle.py:406 appTranslation.py:235
+#: appHandlers/appIO.py:1960 appHandlers/appIO.py:4026
+#: appHandlers/appIO.py:4066 appHandlers/appIO.py:4287
+#: appHandlers/appLifecycle.py:276 appHandlers/appLifecycle.py:394
+#: appHandlers/appLifecycle.py:407 appTranslation.py:235
 msgid "Geometry save is running. Wait until it ends."
 msgstr "Geometri kaydı çalışıyor. Bitmesini bekleyin."
 
 # auto-review 2026-10-21: new
-#: appHandlers/appIO.py:1897 appHandlers/appProjects.py:698
+#: appHandlers/appIO.py:1998 appHandlers/appProjects.py:698
 msgid "The project was not saved"
 msgstr "Proje kaydedilmedi"
 
-#: appHandlers/appIO.py:1941 appHandlers/appIO.py:1947
+#: appHandlers/appIO.py:2042 appHandlers/appIO.py:2048
 #: appHandlers/appProjects.py:572
 msgid "Save Project As ..."
 msgstr "Projeyi Farklı Kaydet ..."
 
-#: appHandlers/appIO.py:1972
+#: appHandlers/appIO.py:2073
 msgid "General_print"
 msgstr "Genel baskı"
 
-#: appHandlers/appIO.py:1980
+#: appHandlers/appIO.py:2081
 msgid "Print everything in the workspace."
 msgstr "Çalışma alanındaki her şeyi yazdırın."
 
-#: appHandlers/appIO.py:1986 appHandlers/appIO.py:1994
+#: appHandlers/appIO.py:2087 appHandlers/appIO.py:2095
 msgid "Save Object as PDF ..."
 msgstr "Nesneyi PDF Olarak Kaydet ..."
 
-#: appHandlers/appIO.py:2004
+#: appHandlers/appIO.py:2105
 msgid "Printing PDF ..."
 msgstr "PDF yazdırılıyor ..."
 
-#: appHandlers/appIO.py:2193
+#: appHandlers/appIO.py:2294
 msgid "PDF file saved to"
 msgstr "PDF dosyası şuraya kaydedildi"
 
-#: appHandlers/appIO.py:2341
+#: appHandlers/appIO.py:2442
 msgid "%s file exported to"
 msgstr "%s dosyası şuraya aktarıldı"
 
-#: appHandlers/appIO.py:2344 appHandlers/appIO.py:2377
-#: appHandlers/appIO.py:2594 appHandlers/appIO.py:2768
-#: appHandlers/appIO.py:2856
+#: appHandlers/appIO.py:2445 appHandlers/appIO.py:2478
+#: appHandlers/appIO.py:2695 appHandlers/appIO.py:2869
+#: appHandlers/appIO.py:2957
 msgid "Exporting ..."
 msgstr "Dışa aktarılıyor ..."
 
-#: appHandlers/appIO.py:2348 appHandlers/appIO.py:2353
-#: appHandlers/appIO.py:2599 appHandlers/appIO.py:2606
-#: appHandlers/appIO.py:2773 appHandlers/appIO.py:2780
-#: appHandlers/appIO.py:2861 appHandlers/appIO.py:2868
+#: appHandlers/appIO.py:2449 appHandlers/appIO.py:2454
+#: appHandlers/appIO.py:2700 appHandlers/appIO.py:2707
+#: appHandlers/appIO.py:2874 appHandlers/appIO.py:2881
+#: appHandlers/appIO.py:2962 appHandlers/appIO.py:2969
 msgid "Could not export."
 msgstr "Dışa aktarılamadı."
 
-#: appHandlers/appIO.py:2392
+#: appHandlers/appIO.py:2493
 msgid "SVG file exported to"
 msgstr "SVG dosyası şuraya aktarıldı"
 
-#: appHandlers/appIO.py:2407 appHandlers/appIO.py:2411
+#: appHandlers/appIO.py:2508 appHandlers/appIO.py:2512
 msgid "Import FlatCAM Preferences"
 msgstr "FlatCAM Ayarlarını İçe Aktar"
 
-#: appHandlers/appIO.py:2423
+#: appHandlers/appIO.py:2524
 msgid "Imported Defaults from"
 msgstr "Varsayılan değerler şuradan alındı"
 
-#: appHandlers/appIO.py:2442 appHandlers/appIO.py:2448
+#: appHandlers/appIO.py:2543 appHandlers/appIO.py:2549
 msgid "Export FlatCAM Preferences"
 msgstr "FlatCAM Ayarlarını Dışa Aktar"
 
-#: appHandlers/appIO.py:2466
+#: appHandlers/appIO.py:2567
 msgid "Exported preferences to"
 msgstr "Ayarlar şuraya aktarıldı"
 
-#: appHandlers/appIO.py:2583
+#: appHandlers/appIO.py:2684
 msgid "Excellon file exported to"
 msgstr "Excellon dosyası şuraya aktarıldı"
 
-#: appHandlers/appIO.py:2758
+#: appHandlers/appIO.py:2859
 msgid "Gerber file exported to"
 msgstr "Gerber dosyası şuraya aktarıldı"
 
-#: appHandlers/appIO.py:2845
+#: appHandlers/appIO.py:2946
 msgid "DXF file exported to"
 msgstr "DXF dosyası şuraya aktarıldı"
 
-#: appHandlers/appIO.py:2900
+#: appHandlers/appIO.py:3001
 msgid "The drills of the SVG file could not be created."
 msgstr "SVG dosyasının delikleri oluşturulamadı."
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appIO.py:2927 appHandlers/appIO.py:2992
+#: appHandlers/appIO.py:3028 appHandlers/appIO.py:3093
 msgid ""
 "Not supported type is picked as parameter. Only Geometry and Gerber are "
 "supported"
@@ -22236,40 +22305,40 @@ msgstr ""
 "Gerber desteklenir"
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appIO.py:2948 appHandlers/appIO.py:3012
-#: appHandlers/appIO.py:3114 appHandlers/appIO.py:3194
-#: appHandlers/appIO.py:3410 appHandlers/appIO.py:3478
-#: appHandlers/appIO.py:3538 appHandlers/appIO.py:3599
+#: appHandlers/appIO.py:3049 appHandlers/appIO.py:3113
+#: appHandlers/appIO.py:3215 appHandlers/appIO.py:3295
+#: appHandlers/appIO.py:3511 appHandlers/appIO.py:3579
+#: appHandlers/appIO.py:3639 appHandlers/appIO.py:3700
 #: appPlugins/ToolImage/Image.py:234 appPlugins/ToolPdf/PdfImport.py:247
 msgid "Opened"
 msgstr "Açıldı"
 
-#: appHandlers/appIO.py:2950 appHandlers/appIO.py:3014
+#: appHandlers/appIO.py:3051 appHandlers/appIO.py:3115
 #: appPlugins/ToolImage/Image.py:225 appPlugins/ToolPcbWizard/PcbWizard.py:321
 #: tclCommands/TclCommandImportSvg.py:87
 msgid "Importing"
 msgstr "İçe aktarılıyor"
 
-#: appHandlers/appIO.py:3059 appHandlers/appIO.py:3440
-#: appHandlers/appIO.py:3505
+#: appHandlers/appIO.py:3160 appHandlers/appIO.py:3541
+#: appHandlers/appIO.py:3606
 msgid "Failed to parse file"
 msgstr "Dosya okunamadı"
 
-#: appHandlers/appIO.py:3071
+#: appHandlers/appIO.py:3172
 msgid "Object is not Gerber file or empty. Aborting object creation."
 msgstr ""
 "Nesne Gerber dosyası değil veya boş. Nesne oluşturma iptal ediliyor.Nesne "
 "bir Gerber dosyası değil veya boş. Nesne oluşturma işlemi iptal ediliyor."
 
-#: appHandlers/appIO.py:3087 appHandlers/appIO.py:3176
-#: appHandlers/appIO.py:3394 appHandlers/appIO.py:3464
-#: appHandlers/appIO.py:3520 appHandlers/appIO.py:3591
+#: appHandlers/appIO.py:3188 appHandlers/appIO.py:3277
+#: appHandlers/appIO.py:3495 appHandlers/appIO.py:3565
+#: appHandlers/appIO.py:3621 appHandlers/appIO.py:3692
 #: tclCommands/TclCommandOpenDXF.py:106
 msgid "Opening"
 msgstr "Açılıyor"
 
 # auto-review 2026-10-09: new
-#: appHandlers/appIO.py:3095
+#: appHandlers/appIO.py:3196
 msgid ""
 "The Gerber file is DAMAGED. We could open it but the file parsing PARTIALLY "
 "FAILED.\n"
@@ -22289,176 +22358,176 @@ msgstr ""
 "!!! DOSYAYI KONTROL EDİN !!! --- BAZI bakır elemanlar (pedler, yollar vb.) "
 "EKSİK !!!\n"
 
-#: appHandlers/appIO.py:3107
+#: appHandlers/appIO.py:3208
 msgid "Open Gerber failed. Probable not a Gerber file."
 msgstr ""
 "Gerber açma başarısız. Muhtemelen bir Gerber dosyası değil.Gerber'i açma "
 "işlemi başarısız oldu. Bu, muhtemelen bir Gerber dosyası değil."
 
-#: appHandlers/appIO.py:3145 appPlugins/ToolPcbWizard/PcbWizard.py:294
+#: appHandlers/appIO.py:3246 appPlugins/ToolPcbWizard/PcbWizard.py:294
 msgid "This is not Excellon file."
 msgstr "Bu Excellon dosyası değil."
 
-#: appHandlers/appIO.py:3148
+#: appHandlers/appIO.py:3249
 msgid "Cannot open file"
 msgstr "Dosya açılamıyor"
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appIO.py:3173 appPlugins/ToolPcbWizard/PcbWizard.py:316
+#: appHandlers/appIO.py:3274 appPlugins/ToolPcbWizard/PcbWizard.py:316
 #: appPlugins/ToolPdf/PdfImport.py:280
 msgid "No geometry found in file"
 msgstr "Dosyada geometri bulunamadı"
 
-#: appHandlers/appIO.py:3187
+#: appHandlers/appIO.py:3288
 msgid "Open Excellon file failed. Probable not an Excellon file."
 msgstr "Excellon dosyası açılamadı. Bu muhtemelen bir Excellon dosyası değil."
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appIO.py:3237
+#: appHandlers/appIO.py:3338
 msgid "Reading GCode file"
 msgstr "G-code dosyası okunuyor"
 
-#: appHandlers/appIO.py:3242 appPlugins/ToolPdf/PdfImport.py:185
+#: appHandlers/appIO.py:3343 appPlugins/ToolPdf/PdfImport.py:185
 msgid "Failed to open"
 msgstr "Açılamadı"
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appIO.py:3280 appHandlers/appIO.py:3282
+#: appHandlers/appIO.py:3381 appHandlers/appIO.py:3383
 msgid "This is not GCODE"
 msgstr "Bu bir G-code dosyası değil"
 
-#: appHandlers/appIO.py:3289
+#: appHandlers/appIO.py:3390
 msgid "The G-code has unsupported parts"
 msgstr "G-kodunda desteklenmeyen bölümler var"
 
-#: appHandlers/appIO.py:3291
+#: appHandlers/appIO.py:3392
 msgid "no G20/G21 in the file, the units of the application are assumed"
 msgstr "G20/G21 yok, uygulama birimleri varsayıldı"
 
-#: appHandlers/appIO.py:3360
+#: appHandlers/appIO.py:3461
 msgid "Not in the file, the default values are used"
 msgstr "Dosyada yok, varsayılan değerler kullanıldı"
 
-#: appHandlers/appIO.py:3363
+#: appHandlers/appIO.py:3464
 msgid "No tool diameter in the file for the tools %s: the default %s is used"
 msgstr "%s uçlarının çapı yok, varsayılan %s kullanıldı"
 
-#: appHandlers/appIO.py:3403
+#: appHandlers/appIO.py:3504
 msgid "Failed to create the CNCJob object from the G-code file."
 msgstr "G-kodundan CNC İşi oluşturulamadı."
 
-#: appHandlers/appIO.py:3412
+#: appHandlers/appIO.py:3513
 msgid "G-code without complete tool data"
 msgstr "Eksik uç verisi olan G-kodu"
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appIO.py:3459
+#: appHandlers/appIO.py:3560
 msgid "Object is not HPGL2 file or empty. Aborting object creation."
 msgstr ""
 "Nesne HPGL2 dosyası değil veya boş. Nesne oluşturma iptal ediliyor.Nesne "
 "bir HPGL2 dosyası değil veya boş. Nesne oluşturma işlemi iptal ediliyor."
 
-#: appHandlers/appIO.py:3471
+#: appHandlers/appIO.py:3572
 msgid "Failed. Probable not a HPGL2 file."
 msgstr "Başarısız oldu. Muhtemelen bir HPGL2 dosyası değil."
 
-#: appHandlers/appIO.py:3497
+#: appHandlers/appIO.py:3598
 msgid "TCL script file opened in Code Editor."
 msgstr "TCL komut dosyası Kod Düzenleyici'de açıldı."
 
-#: appHandlers/appIO.py:3531
+#: appHandlers/appIO.py:3632
 msgid "Failed to open TCL Script."
 msgstr "TCL komut dosyası açılamadı."
 
-#: appHandlers/appIO.py:3556 appHandlers/appIO.py:3558
+#: appHandlers/appIO.py:3657 appHandlers/appIO.py:3659
 msgid "Open Document"
 msgstr "Belge aç"
 
-#: appHandlers/appIO.py:3595
+#: appHandlers/appIO.py:3696
 msgid "Failed to open Document."
 msgstr "Belge açılamadı."
 
-#: appHandlers/appIO.py:3613 appHandlers/appIO.py:3615
+#: appHandlers/appIO.py:3714 appHandlers/appIO.py:3716
 msgid "Open Geometry"
 msgstr "Geometri aç"
 
-#: appHandlers/appIO.py:3628
+#: appHandlers/appIO.py:3729
 msgid "Unsupported file type"
 msgstr "Desteklenmeyen dosya türü"
 
-#: appHandlers/appIO.py:3644
+#: appHandlers/appIO.py:3745
 msgid "Opening FlatCAM Config file."
 msgstr "FlatCAM yapılandırma dosyası açılıyor."
 
-#: appHandlers/appIO.py:3744
+#: appHandlers/appIO.py:3845
 msgid "Source files relinked"
 msgstr "Kaynak dosyalar yeniden bağlandı"
 
-#: appHandlers/appIO.py:3753
+#: appHandlers/appIO.py:3854
 msgid "These source files were not found"
 msgstr "Bu kaynak dosyalar bulunamadı"
 
-#: appHandlers/appIO.py:3758
+#: appHandlers/appIO.py:3859
 msgid "Missing Source Files"
 msgstr "Eksik Kaynak Dosyalar"
 
-#: appHandlers/appIO.py:3760
+#: appHandlers/appIO.py:3861
 msgid "Locate folder..."
 msgstr "Klasörü bul..."
 
-#: appHandlers/appIO.py:3766
+#: appHandlers/appIO.py:3867
 msgid "Locate the folder of the source files"
 msgstr "Kaynak dosyaların klasörünü bulun"
 
-#: appHandlers/appIO.py:3788 tclCommands/TclCommandOpenProject.py:88
+#: appHandlers/appIO.py:3889 tclCommands/TclCommandOpenProject.py:88
 msgid "Failed to open project file"
 msgstr "Proje dosyası açılamadı"
 
-#: appHandlers/appIO.py:3814 appHandlers/appIO.py:3815
+#: appHandlers/appIO.py:3915 appHandlers/appIO.py:3916
 msgid "A project is loading. Wait until it ends."
 msgstr "Bir proje yükleniyor. Bitmesini bekleyin."
 
-#: appHandlers/appIO.py:3835
+#: appHandlers/appIO.py:3936
 msgid "Loading Project ... Please Wait ..."
 msgstr "Proje Yükleniyor ... Lütfen Bekleyiniz ..."
 
-#: appHandlers/appIO.py:3841
+#: appHandlers/appIO.py:3942
 msgid "Opening FlatCAM Project file."
 msgstr "FlatCAM proje dosyası açılıyor."
 
-#: appHandlers/appIO.py:3846
+#: appHandlers/appIO.py:3947
 msgid "Parsing..."
 msgstr "Okunuyor..."
 
-#: appHandlers/appIO.py:3867
+#: appHandlers/appIO.py:3968
 msgid "Invalid project structure"
 msgstr "Geçersiz proje yapısı"
 
-#: appHandlers/appIO.py:3884
+#: appHandlers/appIO.py:3985
 msgid "Unknown error"
 msgstr "Bilinmeyen hata"
 
-#: appHandlers/appIO.py:3914
+#: appHandlers/appIO.py:4015
 msgid "The units of the project are now used"
 msgstr "Projenin birimleri artık kullanılıyor"
 
-#: appHandlers/appIO.py:3931
+#: appHandlers/appIO.py:4032
 msgid "The project was made with a newer app version"
 msgstr "Proje daha yeni bir uygulama sürümüyle oluşturulmuş"
 
-#: appHandlers/appIO.py:3932 appHandlers/appIO.py:3961
+#: appHandlers/appIO.py:4033 appHandlers/appIO.py:4062
 msgid "It may not load correctly."
 msgstr "Doğru yüklenmeyebilir."
 
-#: appHandlers/appIO.py:3935
+#: appHandlers/appIO.py:4036
 msgid "Newer Project"
 msgstr "Daha Yeni Proje"
 
-#: appHandlers/appIO.py:3943
+#: appHandlers/appIO.py:4044
 msgid "Legacy Project"
 msgstr "Eski Proje"
 
-#: appHandlers/appIO.py:3944
+#: appHandlers/appIO.py:4045
 msgid ""
 "The project was made with an older app version.\n"
 "It may not load correctly.\n"
@@ -22470,71 +22539,71 @@ msgstr ""
 "\n"
 "Devam etmek istiyor musunuz?"
 
-#: appHandlers/appIO.py:3960
+#: appHandlers/appIO.py:4061
 msgid "The project was made with an older app version."
 msgstr "Proje daha eski bir uygulama sürümüyle oluşturulmuş."
 
-#: appHandlers/appIO.py:3972
+#: appHandlers/appIO.py:4073
 msgid "The units of the project are not valid. They are ignored."
 msgstr "Projenin birimleri geçerli değil. Yok sayıldı."
 
-#: appHandlers/appIO.py:4020
+#: appHandlers/appIO.py:4121
 msgid "Some objects could not be added."
 msgstr "Bazı nesneler eklenemedi."
 
-#: appHandlers/appIO.py:4022
+#: appHandlers/appIO.py:4123
 msgid "Loading was cancelled."
 msgstr "Yükleme iptal edildi."
 
-#: appHandlers/appIO.py:4023
+#: appHandlers/appIO.py:4124
 msgid "Project loaded without some objects"
 msgstr "Proje bazı nesneler olmadan yüklendi"
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appIO.py:4029
+#: appHandlers/appIO.py:4130
 msgid "Project loaded from"
 msgstr "Proje şuradan yüklendi"
 
-#: appHandlers/appIO.py:4134 appObjects/AppObject.py:84
+#: appHandlers/appIO.py:4235 appObjects/AppObject.py:84
 #: appObjects/AppObject.py:169 appObjects/AppObject.py:171
 msgid "Loading..."
 msgstr "Yükleniyor..."
 
-#: appHandlers/appIO.py:4152
+#: appHandlers/appIO.py:4253
 msgid "The name or the kind of the object is missing."
 msgstr "Nesnenin adı veya türü eksik."
 
-#: appHandlers/appIO.py:4166
+#: appHandlers/appIO.py:4267
 msgid "The object could not be created."
 msgstr "Nesne oluşturulamadı."
 
-#: appHandlers/appIO.py:4194
+#: appHandlers/appIO.py:4295
 msgid "Saving Project ..."
 msgstr "Proje kaydediliyor ..."
 
-#: appHandlers/appIO.py:4234
+#: appHandlers/appIO.py:4335
 msgid "The object is used by another application."
 msgstr "Nesne başka bir uygulama tarafından kullanılıyor."
 
-#: appHandlers/appIO.py:4244 appHandlers/appIO.py:4261
+#: appHandlers/appIO.py:4345 appHandlers/appIO.py:4362
 msgid "Project saved to"
 msgstr "Proje şuraya kaydedildi"
 
-#: appHandlers/appIO.py:4254
+#: appHandlers/appIO.py:4355
 msgid "Failed to parse saved project file"
 msgstr "Kaydedilmiş proje dosyası okunamadı"
 
-#: appHandlers/appIO.py:4256
+#: appHandlers/appIO.py:4357
 msgid "Retry to save it."
 msgstr "Lütfen kaydetmek için tekrar deneyin."
 
 # auto-review 2026-10-21: new
-#: appHandlers/appIO.py:4278
+#: appHandlers/appIO.py:4379
 msgid "Failed to save the project"
 msgstr "Proje kaydedilemedi"
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appIO.py:4304
+#: appHandlers/appIO.py:4405
 msgid "Save cancelled because source file is empty. Try to export the file."
 msgstr ""
 "Kaynak dosya boş olduğu için kaydetme iptal edildi. Dosyayı dışa aktarmayı "
@@ -22545,12 +22614,12 @@ msgstr ""
 msgid "Stop the running script before restarting."
 msgstr "Yeniden başlatmadan önce komut dosyasını durdurun."
 
-#: appHandlers/appLifecycle.py:272 appHandlers/appLifecycle.py:389
+#: appHandlers/appLifecycle.py:272 appHandlers/appLifecycle.py:390
 msgid "Stop the running script before closing."
 msgstr "Kapatmadan önce komut dosyasını durdurun."
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appLifecycle.py:315
+#: appHandlers/appLifecycle.py:316
 msgid ""
 "There are files/objects modified.\n"
 "Do you want to Save the project?"
@@ -23504,37 +23573,37 @@ msgid "Failed to load the source code for the selected object"
 msgstr "Seçilen nesnenin kaynak kodu yüklenemedi"
 
 # auto-review 2026-10-09: new
-#: appMain.py:4348
+#: appMain.py:4350
 msgid "Cannot open image file. Image tool is not available."
 msgstr "Görüntü dosyası açılamıyor. Görüntü aracı kullanılamıyor."
 
-#: appMain.py:4411
+#: appMain.py:4415
 msgid "Failed to load recent item list."
 msgstr "Son dosya listesi yüklenemedi."
 
-#: appMain.py:4435
+#: appMain.py:4439
 msgid "Recent files list was reset."
 msgstr "Son dosyalar listesi temizlendi."
 
-#: appMain.py:4448
+#: appMain.py:4452
 msgid "Recent projects list was reset."
 msgstr "Son projeler listesi temizlendi."
 
-#: appMain.py:4473
+#: appMain.py:4477
 msgid "Clear Recent projects"
 msgstr "Son Projeleri Temizle"
 
-#: appMain.py:4497
+#: appMain.py:4501
 msgid "Clear Recent files"
 msgstr "Listeyi Temizle"
 
 # auto-review 2026-10-09: new
-#: appMain.py:4542
+#: appMain.py:4546
 msgid "Failed checking for the latest version."
 msgstr "En son sürüm kontrol edilemedi."
 
 # auto-review 2026-10-21: new
-#: appMain.py:4566
+#: appMain.py:4570
 msgid ""
 "OpenGL canvas initialization failed.\n"
 "Check your graphics drivers and OpenGL support, including remote desktop or "
@@ -23547,19 +23616,19 @@ msgstr ""
 "Teknik ayrıntılar uygulama günlüğünde ve hata ayrıntılarında mevcuttur."
 
 # auto-review 2026-10-21: new
-#: appMain.py:4571
+#: appMain.py:4575
 msgid "OpenGL initialization failed"
 msgstr "OpenGL başlatılamadı"
 
-#: appMain.py:4739
+#: appMain.py:4743
 msgid "Activate the script's project before running it."
 msgstr "Çalıştırmadan önce projesini etkinleştirin."
 
-#: appMain.py:4742
+#: appMain.py:4746
 msgid "A script is already running."
 msgstr "Komut dosyası zaten çalışıyor."
 
-#: appMain.py:4749
+#: appMain.py:4753
 msgid "Timed-out script work is still running; changes are not rolled back."
 msgstr "Zaman aşımına uğrayan iş hâlâ çalışıyor; değişiklikler geri alınmaz."
 
@@ -30137,7 +30206,7 @@ msgstr "İş konumu"
 
 # auto-review 2026-10-21: new
 #: appPlugins/ToolGcodeSender/Sender.py:5805
-#: appPlugins/ToolPCBViewer/PCBViewer.py:126
+#: appPlugins/ToolPCBViewer/PCBViewer.py:131
 msgid "The Plot 3D tab is not available."
 msgstr "3B Göster sekmesi kullanılamıyor."
 
@@ -34117,25 +34186,43 @@ msgstr ""
 msgid "PCB 3D Viewer"
 msgstr "PCB 3B Görüntüleyici"
 
-#: appPlugins/ToolPCBViewer/PCBViewer.py:215
+#: appPlugins/ToolPCBViewer/PCBViewer.py:220
 msgid "Building PCB preview…"
 msgstr "PCB önizlemesi oluşturuluyor…"
 
-#: appPlugins/ToolPCBViewer/PCBViewer.py:261
+#: appPlugins/ToolPCBViewer/PCBViewer.py:266
 msgid "PCB preview ready"
 msgstr "PCB önizlemesi hazır"
 
-#: appPlugins/ToolPCBViewer/PCBViewer.py:281
-#: appPlugins/ToolPCBViewer/PCBViewerUI.py:78
+#: appPlugins/ToolPCBViewer/PCBViewer.py:342
+msgid "Export STEP"
+msgstr "STEP Dışa Aktar"
+
+#: appPlugins/ToolPCBViewer/PCBViewer.py:343
+msgid "Exporting STEP…"
+msgstr "STEP dışa aktarılıyor…"
+
+#: appPlugins/ToolPCBViewer/PCBViewer.py:352
+msgid "Exporting STEP"
+msgstr "STEP dışa aktarılıyor"
+
+#: appPlugins/ToolPCBViewer/PCBViewer.py:365
 msgid "Export 3D PDF"
 msgstr "3B PDF Dışa Aktar"
 
-#: appPlugins/ToolPCBViewer/PCBViewer.py:297
+#: appPlugins/ToolPCBViewer/PCBViewer.py:366
 msgid "Exporting 3D PDF…"
 msgstr "3B PDF dışa aktarılıyor…"
 
-#: appPlugins/ToolPCBViewer/PCBViewer.py:353
-#: appPlugins/ToolPCBViewer/PCBViewer.py:356
+#: appPlugins/ToolPCBViewer/PCBViewer.py:390
+msgid "Exporting 3D PDF"
+msgstr "3B PDF dışa aktarılıyor"
+
+#: appPlugins/ToolPCBViewer/PCBViewer.py:412
+msgid "STEP exported"
+msgstr "STEP dışa aktarıldı"
+
+#: appPlugins/ToolPCBViewer/PCBViewer.py:412
 msgid "3D PDF exported"
 msgstr "3B PDF dışa aktarıldı"
 
@@ -34173,19 +34260,60 @@ msgstr ""
 "İç kesimler dahil kapalı kart konturları.\n"
 "Sınır yoksa önizlemede birleşik sınırlayıcı çerçeve kullanılır."
 
-#: appPlugins/ToolPCBViewer/PCBViewerUI.py:79
+#: appPlugins/ToolPCBViewer/PCBViewerUI.py:83
+msgid "3D PDF"
+msgstr "3B PDF"
+
+#: appPlugins/ToolPCBViewer/PCBViewerUI.py:85
 msgid ""
+"Export the PCB to a 3D PDF file.\n"
 "Requires a PDF reader with U3D support, such as Adobe Acrobat or Foxit.\n"
 "Other readers display the static PCB preview."
 msgstr ""
+"PCB'yi 3B PDF dosyasına aktarın.\n"
 "Adobe Acrobat veya Foxit gibi U3D destekli bir PDF okuyucu gerektirir.\n"
-"Diğer okuyucular PCB'nin statik önizlemesini gösterir."
+"Diğer okuyucular statik PCB önizlemesini görüntüler."
 
+#: appPlugins/ToolPCBViewer/PCBViewerUI.py:88
 #: appPlugins/ToolPCBViewer/PCBViewerUI.py:95
+msgid "STEP"
+msgstr "STEP"
+
+#: appPlugins/ToolPCBViewer/PCBViewerUI.py:90
+msgid ""
+"Export the PCB to a STEP file (AP214) for MCAD applications.\n"
+"Each layer is a part of the assembly, with its color."
+msgstr ""
+"PCB'yi MCAD uygulamaları için STEP dosyasına (AP214) aktarın.\n"
+"Her katman, kendi rengiyle montajın bir parçasıdır."
+
+#: appPlugins/ToolPCBViewer/PCBViewerUI.py:92
+msgid "Board"
+msgstr "Kart"
+
+#: appPlugins/ToolPCBViewer/PCBViewerUI.py:93
+msgid "All layers"
+msgstr "Tüm katmanlar"
+
+#: appPlugins/ToolPCBViewer/PCBViewerUI.py:96
+msgid ""
+"Content of the STEP file.\n"
+"Board: the board body with its outline, cutouts and holes; small and fast, "
+"for the fit of a case.\n"
+"All layers: also copper, soldermask and legend; much larger and slower to "
+"import."
+msgstr ""
+"STEP dosyasının içeriği.\n"
+"Kart: dış hat, iç kesimler ve delikleriyle kart gövdesi; kasa uyumu için "
+"küçük dosya, hızlı aktarım.\n"
+"Tüm katmanlar: bakır, lehim maskesi ve serigrafi de dahil; dosya çok daha "
+"büyük, içe aktarım daha yavaştır."
+
+#: appPlugins/ToolPCBViewer/PCBViewerUI.py:135
 msgid "Color:"
 msgstr "Renk:"
 
-#: appPlugins/ToolPCBViewer/PCBViewerUI.py:108
+#: appPlugins/ToolPCBViewer/PCBViewerUI.py:148
 msgid "Clear selection"
 msgstr "Seçimi temizle"
 
@@ -37881,7 +38009,7 @@ msgstr ""
 "(bunun için daha fazla geçiş gerekir)."
 
 # auto-review 2026-10-09: corrected
-#: defaults.py:1399 defaults.py:1692
+#: defaults.py:1400 defaults.py:1693
 msgid "Failed to parse defaults file."
 msgstr "Varsayılan ayarlar dosyası okunamadı."
 
@@ -38255,6 +38383,13 @@ msgstr "Çıkarıcıların alanı yok."
 #: tclCommands/TclCommandSubtractRectangle.py:62
 msgid "No Geometry name in args. Provide a name and try again."
 msgstr "Bağımsız değişkenlerde Geometri adı yok. Bir ad girip tekrar deneyin."
+
+#~ msgid ""
+#~ "Requires a PDF reader with U3D support, such as Adobe Acrobat or Foxit.\n"
+#~ "Other readers display the static PCB preview."
+#~ msgstr ""
+#~ "Adobe Acrobat veya Foxit gibi U3D destekli bir PDF okuyucu gerektirir.\n"
+#~ "Diğer okuyucular PCB'nin statik önizlemesini gösterir."
 
 #~ msgid "The boundary object's concave hull has no area"
 #~ msgstr "Sınır nesnesinin içbükey zarfının alanı yok"
