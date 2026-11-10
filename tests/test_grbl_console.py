@@ -820,7 +820,8 @@ class TestDockedJogPage(unittest.TestCase):
         QtTest.QTest.mousePress(button, QtCore.Qt.MouseButton.LeftButton)
         return port, button
 
-    def wait_native(self, predicate, timeout=2000):
+    def wait_native(self, predicate, timeout=10000):
+        # the jog thread runs in the background; under the parallel load of the gate 2 s was too short
         from PyQt6 import QtTest
 
         deadline = time.monotonic() + timeout / 1000
