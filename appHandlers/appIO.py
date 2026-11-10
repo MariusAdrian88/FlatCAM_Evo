@@ -392,7 +392,7 @@ class appIO(QtCore.QObject):
                                    'params': [self.import_pcbdoc_objects,
                                               [state['filename'], board, layers, drills, firmware]]})
         except Exception as error:
-            self.log.error('Proteus import: %s', error)
+            self.log.error('Proteus import: %s' % error)
             self.inform.emit('[ERROR_NOTCL] %s: %s' % (_('Import failed.'), error))
             state['failed'] = True
         finally:
@@ -427,7 +427,7 @@ class appIO(QtCore.QObject):
         try:
             parsed = make_parser().parse_file(filename, **(parse_kwargs or {}))
         except Exception as error:
-            self.log.error('%s import: %s', self.PCB_FORMATS[kind]['log'], error)
+            self.log.error('%s import: %s' % (self.PCB_FORMATS[kind]['log'], error))
             self.inform.emit('[ERROR_NOTCL] %s: %s' % (_('Import failed.'), error))
             self.pcbdoc_parse_failed.emit(request)
             return 'fail'
@@ -767,7 +767,7 @@ class appIO(QtCore.QObject):
                     break
                 created = True
         except Exception as error:
-            self.log.error('%s object import: %s', pcb_format['log'], error)
+            self.log.error('%s object import: %s' % (pcb_format['log'], error))
             failed = True
         finally:
             if created and not proteus:
