@@ -337,6 +337,10 @@ class MainGUI(QtWidgets.QMainWindow):
             QtGui.QIcon(self.app.resource_location + '/import.png'),
             '%s...' % _('DipTrace PCB (.dip)'), self)
         self.menufileimport.addAction(self.menufileimportdiptrace)
+        self.menufileimportpads = QtGui.QAction(
+            QtGui.QIcon(self.app.resource_location + '/import.png'),
+            '%s...' % _('PADS Layout PCB (.asc, .pcb)'), self)
+        self.menufileimport.addAction(self.menufileimportpads)
         self.menufileimportodb = QtGui.QAction(
             QtGui.QIcon(self.app.resource_location + '/import.png'),
             '%s...' % _('ODB++ Job (.tgz, .zip, folder)'), self)

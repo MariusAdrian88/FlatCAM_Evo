@@ -4327,6 +4327,7 @@ class App(QtCore.QObject):
             "eagle_brd": self.resource_location + "/flatcam_icon16.png",
             "allegro_brd": self.resource_location + "/flatcam_icon16.png",
             "diptrace": self.resource_location + "/flatcam_icon16.png",
+            "pads": self.resource_location + "/flatcam_icon16.png",
             "odb": self.resource_location + "/flatcam_icon16.png",
             "excellon": self.resource_location + "/drill16.png",
             'geometry': self.resource_location + "/geometry16.png",
@@ -4360,6 +4361,7 @@ class App(QtCore.QObject):
             'eagle_brd': self.f_handlers.on_file_import_eagle_brd,
             'allegro_brd': self.f_handlers.on_file_import_allegro_brd,
             'diptrace': self.f_handlers.on_file_import_diptrace,
+            'pads': self.f_handlers.on_file_import_pads,
             'odb': self.f_handlers.on_file_import_odb,
             'gerber': lambda fname: self.worker_task.emit({
                 'fcn': self.f_handlers.open_gerber,

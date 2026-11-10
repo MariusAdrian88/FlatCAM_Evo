@@ -59,6 +59,7 @@ class AppSignalConnector(QtCore.QObject):
         self.ui.menufileimporteagle.triggered.connect(lambda: self.app.f_handlers.on_file_import_eagle_brd())
         self.ui.menufileimportallegro.triggered.connect(lambda: self.app.f_handlers.on_file_import_allegro_brd())
         self.ui.menufileimportdiptrace.triggered.connect(lambda: self.app.f_handlers.on_file_import_diptrace())
+        self.ui.menufileimportpads.triggered.connect(lambda: self.app.f_handlers.on_file_import_pads())
         self.ui.menufileimportodb.triggered.connect(lambda: self.app.f_handlers.on_file_import_odb())
         self.ui.menufileexportsvg.triggered.connect(self.app.f_handlers.on_file_export_svg)
         self.ui.menufileexportpng.triggered.connect(self.app.f_handlers.on_file_export_png)

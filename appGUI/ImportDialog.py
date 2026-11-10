@@ -100,6 +100,13 @@ def import_entries(app):
                    'Imports saved copper, pads, vias, drilling, outlines, mask, paste and documentation layers. '
                    'Unsupported records and unavailable artwork are reported during import.'),
          'run': lambda: handlers.on_file_import_diptrace()},
+        {'key': 'pads', 'title': _('PADS Layout PCB'), 'ext': '.asc .pcb',
+         'text': _('Reads PADS Layout ASCII 9.4 to 10.0 and V2005.0, and native binary 0x2026/0x2027. '
+                   'Imports tracks, pads, vias, drilling, outlines and explicit mask/paste shapes. '
+                   'Pours, teardrops and lettering are reconstructed. Attribute labels of copper layers '
+                   'go to the silkscreen layers. '
+                   'Review the import warnings and generated artwork before manufacture.'),
+         'run': lambda: handlers.on_file_import_pads()},
         {'key': 'odb', 'title': _('ODB++ Job'), 'ext': '.tgz .zip',
          'text': _('Reads an ODB++ job: a .tgz, .tar or .zip archive, or the matrix file of an unpacked job. '
                    'Imports the graphic layers, the drill layers and the board profile of one step.'),

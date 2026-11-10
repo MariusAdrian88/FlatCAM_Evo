@@ -53,7 +53,7 @@ def welcome_entries(app):
               _('Open a FlatCAM Evo document, or create a blank document.'), 'notes16_1.png'),
     ]
     boards = [entry for entry in imports.values() if entry['key'] in (
-        'pcbdoc', 'cspcbdoc', 'proteus', 'kicad_pcb', 'sprint_layout', 'eagle_brd', 'allegro_brd', 'diptrace')]
+        'pcbdoc', 'cspcbdoc', 'proteus', 'kicad_pcb', 'sprint_layout', 'eagle_brd', 'allegro_brd', 'diptrace', 'pads')]
     return [(_('Project'), [project]), (_('Geometry'), geometry),
             (_('PCB Manufacturing files'), pcb), (_('PCB Boards'), boards)]
 

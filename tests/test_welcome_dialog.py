@@ -20,7 +20,7 @@ def welcome(qapp):
     handlers = Mock()
     for name in ('open_document', 'open_hpgl2', 'import_dxf', 'import_svg', 'open_gerber',
                  'open_excellon', 'open_script', 'open_project', 'on_file_import_sprint_layout',
-                 'on_file_import_diptrace', 'import_pdf'):
+                 'on_file_import_diptrace', 'on_file_import_pads', 'import_pdf'):
         getattr(handlers, name).side_effect = lambda *args, kind=name: opened.append((kind, args))
     app = SimpleNamespace(
         ui=QtWidgets.QWidget(), resource_location='assets/resources', version='1.2.3', version_date='2026/11/07',
@@ -56,7 +56,7 @@ def test_manufacturing_and_cad_icons_render_in_both_themes(welcome, resources):
 def test_search_and_creation_availability(welcome):
     dialog, app, opened = welcome
     assert dialog.tabs.currentIndex() == 0
-    assert {'pcbdoc', 'proteus', 'kicad_pcb', 'sprint_layout', 'eagle_brd', 'allegro_brd', 'diptrace'} <= set(dialog.entries)
+    assert {'pcbdoc', 'proteus', 'kicad_pcb', 'sprint_layout', 'eagle_brd', 'allegro_brd', 'diptrace', 'pads'} <= set(dialog.entries)
     dialog.filter_entry.setText('sprint')
     assert dialog.visible_keys() == ['sprint_layout']
     assert not dialog.new_button.isEnabled()
@@ -139,6 +139,7 @@ def test_recent_files_match_type_limit_and_survive_bad_history(welcome, tmp_path
     ('hpgl2', 'geometry', '.plt', 'open_hpgl2'),
     ('dxf', 'geometry', '.dxf', 'import_dxf'),
     ('sprint_layout', 'sprint_lay6', '.lay6', 'on_file_import_sprint_layout'),
+    ('pads', 'pads', '.asc', 'on_file_import_pads'),
 ])
 def test_recent_opens_exact_file_with_correct_handler(welcome, tmp_path, key, history_kind, suffix, handler):
     dialog, app, opened = welcome

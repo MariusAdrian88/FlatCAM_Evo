@@ -174,6 +174,9 @@ class appIO(QtCore.QObject):
         'diptrace': {
             'ext': '.dip', 'filter': 'DipTrace PCB (*.dip *.DIP)',
             'log': 'DipTrace PCB', 'name_first': True},
+        'pads': {
+            'ext': ('.asc', '.pcb'), 'filter': 'PADS Layout PCB (*.asc *.ASC *.pcb *.PCB)',
+            'log': 'PADS PCB', 'name_first': False},
         # Only the ODB++ menu entry reaches this format: the parser finds the job by content and sets
         # parsed.source_kind, so the extension is never used to recognize it.
         'odb': {
@@ -196,6 +199,8 @@ class appIO(QtCore.QObject):
             return _('Import OrCAD/Allegro Board')
         if kind == 'diptrace':
             return _('Import DipTrace PCB')
+        if kind == 'pads':
+            return _('Import PADS PCB')
         if kind == 'odb':
             return _('Import ODB++ Job')
         if kind == 'cspcbdoc':
@@ -413,6 +418,9 @@ class appIO(QtCore.QObject):
     def on_file_import_diptrace(self, name=None):
         self._import_pcb_file('diptrace', name, self.parse_diptrace)
 
+    def on_file_import_pads(self, name=None):
+        self._import_pcb_file('pads', name, self.parse_pads)
+
     def on_file_import_odb(self, name=None):
         self._import_pcb_file('odb', name, self.parse_odb)
 
@@ -477,6 +485,12 @@ class appIO(QtCore.QObject):
             from appParsers.ParseDipTrace import DipTraceParser
             return DipTraceParser(app=self.app, opening_defaults=opening_defaults)
         return self._parse_pcb_file('diptrace', filename, make_parser, request)
+
+    def parse_pads(self, filename, *, request=None):
+        def make_parser():
+            from appParsers.ParsePADS import PADSParser
+            return PADSParser(app=self.app)
+        return self._parse_pcb_file('pads', filename, make_parser, request)
 
     def parse_odb(self, filename, step=None, *, request=None):
         # step None: a job with more than 1 step gives a metadata result, and the app asks for the step
