@@ -4320,12 +4320,14 @@ class App(QtCore.QObject):
         icons = {
             "gerber": self.resource_location + "/flatcam_icon16.png",
             "pcbdoc": self.resource_location + "/flatcam_icon16.png",
+            "cspcbdoc": self.resource_location + "/flatcam_icon16.png",
             "proteus": self.resource_location + "/flatcam_icon16.png",
             "kicad_pcb": self.resource_location + "/flatcam_icon16.png",
             "sprint_lay6": self.resource_location + "/flatcam_icon16.png",
             "eagle_brd": self.resource_location + "/flatcam_icon16.png",
             "allegro_brd": self.resource_location + "/flatcam_icon16.png",
             "diptrace": self.resource_location + "/flatcam_icon16.png",
+            "odb": self.resource_location + "/flatcam_icon16.png",
             "excellon": self.resource_location + "/drill16.png",
             'geometry': self.resource_location + "/geometry16.png",
             "cncjob": self.resource_location + "/cnc16.png",
@@ -4351,12 +4353,14 @@ class App(QtCore.QObject):
 
         openers = {
             'pcbdoc': self.f_handlers.on_file_import_pcbdoc,
+            'cspcbdoc': self.f_handlers.on_file_import_cspcbdoc,
             'proteus': self.f_handlers.on_file_import_proteus,
             'kicad_pcb': self.f_handlers.on_file_import_kicad_pcb,
             'sprint_lay6': self.f_handlers.on_file_import_sprint_layout,
             'eagle_brd': self.f_handlers.on_file_import_eagle_brd,
             'allegro_brd': self.f_handlers.on_file_import_allegro_brd,
             'diptrace': self.f_handlers.on_file_import_diptrace,
+            'odb': self.f_handlers.on_file_import_odb,
             'gerber': lambda fname: self.worker_task.emit({
                 'fcn': self.f_handlers.open_gerber,
                 'params': [fname]

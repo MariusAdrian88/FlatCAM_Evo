@@ -40,6 +40,19 @@ def welcome(qapp):
     app.ui.deleteLater()
 
 
+@pytest.mark.parametrize('resources', ['assets/resources', 'assets/resources/dark_resources'])
+def test_manufacturing_and_cad_icons_render_in_both_themes(welcome, resources):
+    from appGUI.WelcomeDialog import welcome_entries
+    dialog, app, opened = welcome
+    app.resource_location = resources
+    entries = {entry['key']: entry for title, group in welcome_entries(app) for entry in group}
+    for key in ('odb', 'dxf'):
+        image = QtGui.QImage(entries[key]['icon'])
+        assert image.size() == QtCore.QSize(64, 64)
+        pixmap = QtGui.QIcon(entries[key]['icon']).pixmap(18, 18)
+        assert not pixmap.isNull()
+
+
 def test_search_and_creation_availability(welcome):
     dialog, app, opened = welcome
     assert dialog.tabs.currentIndex() == 0

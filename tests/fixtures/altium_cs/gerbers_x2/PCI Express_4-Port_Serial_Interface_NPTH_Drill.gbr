@@ -1,0 +1,31 @@
+%TF.GenerationSoftware,Altium Limited,CircuitMaker Pro,2.0.5 (2.0.5.71)*%
+G04 Layer_Color=0*
+%FSLAX25Y25*%
+%MOIN*%
+%TF.SameCoordinates,A393C6CC-2694-4EA4-A593-4C4253009B51*%
+%TF.FilePolarity,Positive*%
+%TF.FileFunction,NonPlated,1,4,NPTH,Drill*%
+%TF.Part,Single*%
+G01*
+G75*
+%TA.AperFunction,ComponentDrill*%
+%ADD87C,0.12992*%
+D87*
+X44492Y343094D02*
+D03*
+Y298095D02*
+D03*
+X44291Y77894D02*
+D03*
+Y122894D02*
+D03*
+X44492Y196095D02*
+D03*
+Y151094D02*
+D03*
+Y269595D02*
+D03*
+Y224594D02*
+D03*
+%TF.MD5,500dfb1ff84d06591d89ad144a8c0053*%
+M02*

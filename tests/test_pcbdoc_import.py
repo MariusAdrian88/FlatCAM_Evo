@@ -75,7 +75,7 @@ class TestPcbDocImport(unittest.TestCase):
         job = self.app.worker_task.emit.call_args.args[0]
         with patch.object(self.io, 'pcbdoc_parsed') as signal:
             job['fcn'](*job['params'])
-        source, parsed = signal.emit.call_args.args
+        source, parsed, _request = signal.emit.call_args.args
         self.assertEqual(source, filename)
 
         def choose(selection):
@@ -138,7 +138,7 @@ class TestPcbDocImport(unittest.TestCase):
         job = self.app.worker_task.emit.call_args.args[0]
         with patch.object(self.io, 'pcbdoc_parsed') as signal:
             job['fcn'](*job['params'])
-        source, resolved = signal.emit.call_args.args
+        source, resolved, _request = signal.emit.call_args.args
         self.assertEqual(source, filename)
         region = box(16.4, 15.1, 17.9, 16.6)
         for layer, offset in (('Top Mask', 0.1), ('Top Paste', 0.05)):
@@ -371,6 +371,100 @@ class TestPcbDocImport(unittest.TestCase):
             self.qapp.processEvents()
             self.app.projects.new.assert_not_called()
             self.app.file_opened.emit.assert_not_called()
+        # the finished Proteus flow leaves no import in flight
+        self.io.on_file_import_kicad_pcb('next.kicad_pcb')
+        self.assertEqual(self.app.worker_task.emit.call_args.args[0]['params'], ['next.kicad_pcb'])
+        self.app.projects.inform_busy.assert_not_called()
+
+    # ---------------------------------------------------------------- the in-flight request of a board import
+    def _token_app(self):
+        self.app.ui = QtWidgets.QWidget()
+        self.app.get_last_folder = Mock(return_value='')
+        self.app.projects.inform_busy = Mock()
+
+    def _run(self, job):
+        result = job['fcn'](*job['params'])
+        self.qapp.processEvents()
+        return result
+
+    def test_cancelled_file_picker_does_not_block_the_next_import(self):
+        self._token_app()
+        with patch.object(QtWidgets.QFileDialog, 'getOpenFileName', return_value=('', '')):
+            self.io.on_file_import_kicad_pcb()
+        self.app.worker_task.emit.assert_not_called()
+        self.io.on_file_import_kicad_pcb('board.kicad_pcb')
+        self.app.worker_task.emit.assert_called_once()
+        self.app.projects.inform_busy.assert_not_called()
+
+    def test_layer_dialog_opens_before_the_parse_ends_and_its_cancel_ends_the_import(self):
+        self._token_app()
+        self.io.on_file_import_kicad_pcb('one.kicad_pcb')
+        job = self.app.worker_task.emit.call_args.args[0]
+        dialog = self.app.ui.findChild(QtWidgets.QDialog)
+        self.assertTrue(dialog.isVisible())
+        dialog.reject()
+        self.qapp.processEvents()
+        # the late result of the cancelled parse opens no dialog
+        with patch('appParsers.ParseKiCadPcb.KiCadPcbParser'), \
+                patch.object(QtWidgets.QDialog, 'exec', side_effect=AssertionError('layer dialog')):
+            self._run(job)
+        self.io.on_file_import_kicad_pcb('two.kicad_pcb')
+        self.app.projects.inform_busy.assert_not_called()
+
+    def test_second_import_is_refused_while_a_parse_is_pending(self):
+        self._token_app()
+        self.io.on_file_import_kicad_pcb('one.kicad_pcb')
+        self.io.on_file_import_eagle_brd('two.brd')
+        self.app.worker_task.emit.assert_called_once()
+        self.app.projects.inform_busy.assert_called_once()
+
+    def test_old_failure_notification_does_not_end_a_newer_import(self):
+        self._token_app()
+        self.io.on_file_import_kicad_pcb('one.kicad_pcb')
+        first = self.app.worker_task.emit.call_args.args[0]
+        with patch('appParsers.ParseKiCadPcb.KiCadPcbParser') as parser:
+            parser.return_value.parse_file.side_effect = ValueError('bad board')
+            self.assertEqual(self._run(first), 'fail')
+            self.io.on_file_import_kicad_pcb('two.kicad_pcb')
+            second = self.app.worker_task.emit.call_args.args[0]
+            self.assertEqual(second['params'], ['two.kicad_pcb'])
+            # the first job runs again (a late duplicate): its failure must not end the second import
+            self._run(first)
+        self.io.on_file_import_kicad_pcb('three.kicad_pcb')
+        self.assertEqual(self.app.worker_task.emit.call_args.args[0]['params'], ['two.kicad_pcb'])
+        self.app.projects.inform_busy.assert_called_once()
+
+    def test_aborted_parse_does_not_block_the_next_import(self):
+        self._token_app()
+        self.io.on_file_import_kicad_pcb('one.kicad_pcb')
+        job = self.app.worker_task.emit.call_args.args[0]
+        self.app.abort_flag = True
+        self._run(job)
+        self.app.abort_flag = False
+        self.io.on_file_import_kicad_pcb('two.kicad_pcb')
+        self.assertEqual(self.app.worker_task.emit.call_args.args[0]['params'], ['two.kicad_pcb'])
+        self.app.projects.inform_busy.assert_not_called()
+
+    def test_diptrace_reparse_keeps_the_opening_defaults_and_the_request(self):
+        self._token_app()
+        self.io.on_file_import_diptrace('board.dip')
+        job = self.app.worker_task.emit.call_args.args[0]
+        first = SimpleNamespace(opening_defaults=None, missing_opening_defaults={'mask'}, warnings=[],
+                                layers={}, drill_groups={})
+        resolved = SimpleNamespace(opening_defaults={'mask': 0.1}, warnings=[], layers={}, drill_groups={})
+        with patch('appParsers.ParseDipTrace.DipTraceParser') as parser, \
+                patch.object(QtWidgets.QInputDialog, 'getDouble', return_value=(0.1, True)), \
+                patch.object(QtWidgets.QDialog, 'exec', return_value=QtWidgets.QDialog.DialogCode.Rejected) as dialog:
+            parser.return_value.parse_file.side_effect = [first, resolved]
+            self._run(job)
+            reparse = self.app.worker_task.emit.call_args.args[0]
+            self.assertIsNot(reparse, job)
+            self._run(reparse)
+        self.assertEqual(parser.call_args.kwargs['opening_defaults'], {'mask': 0.1})
+        # the re-parse result reached the layer dialog: it kept the request of the first parse
+        dialog.assert_called_once()
+        self.io.on_file_import_kicad_pcb('next.kicad_pcb')
+        self.app.projects.inform_busy.assert_not_called()
 
     def test_region_export_reimport_preserves_negative_holes_and_islands(self):
         from appObjects.GerberObject import GerberObject

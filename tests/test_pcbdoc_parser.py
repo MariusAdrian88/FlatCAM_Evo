@@ -294,8 +294,10 @@ class TestPcbDocParser(unittest.TestCase):
         values = PcbDocParser._props(board_data[4:])
         values['LAYER39NETNAME'] = 'GND'
         rules = b'\0\0' + properties({'RULEKIND': 'PlaneClearance', 'CLEARANCE': '0.5mm'})
-        rules += b'\0\0' + properties({'RULEKIND': 'PlaneConnect', 'CONNECTSTYLE': 'Relief',
-            'AIRGAPWIDTH': '0.5mm', 'RELIEFCONDUCTORWIDTH': '0.3mm', 'RELIEFENTRIES': 4})
+        # the relief and the clearance start at the hole edge (r = 0.5): air gap from r = 1.1 to r = 1.5
+        rules += b'\0\0' + properties({'RULEKIND': 'PlaneConnect', 'NETSCOPE': 'AnyNet',
+            'PLANECONNECTSTYLE': 'Relief', 'RELIEFEXPANSION': '1mm', 'RELIEFAIRGAP': '0.4mm',
+            'RELIEFCONDUCTORWIDTH': '0.3mm', 'RELIEFENTRIES': 4})
         parser = PcbDocParser()._parse_streams({'Board6': properties(values), 'Pads6': bytes(data),
                                               'Nets6': properties({'NAME': 'GND'}), 'Rules6': rules})
         copper = unary_union(parser.layers[39]['solid_geometry'])
@@ -304,7 +306,9 @@ class TestPcbDocParser(unittest.TestCase):
         values['LAYER39NETNAME'] = 'VCC'
         parser = PcbDocParser()._parse_streams({'Board6': properties(values), 'Pads6': bytes(data),
                                               'Nets6': properties({'NAME': 'GND'}), 'Rules6': rules})
-        self.assertFalse(unary_union(parser.layers[39]['solid_geometry']).contains(Point(6.3, 5)))
+        copper = unary_union(parser.layers[39]['solid_geometry'])
+        self.assertFalse(copper.contains(Point(5.9, 5)))
+        self.assertTrue(copper.contains(Point(6.1, 5)))
 
     def check_true_type_font_counters_remain_holes(self):
         parser = self.parser()
@@ -386,6 +390,73 @@ class TestPcbDocParser(unittest.TestCase):
         self.assertEqual(sum(len(t['drills']) for g in parser.drill_groups.values() for t in g.values()), 8)
         for layer in parser.layers.values():
             self.assertTrue(all(isinstance(p, Polygon) and p.is_valid for p in layer['solid_geometry']))
+
+    def test_stream_roles_are_found_by_content_without_names(self):
+        # CircuitStudio and CircuitMaker hide the stream names; the content alone must give the same streams.
+        import olefile
+
+        filename = Path(__file__).parent / 'fixtures' / 'altium' / 'I2C_level_shifter.PcbDoc'
+        with olefile.OleFileIO(str(filename)) as container:
+            storages = {entry[0]: container.openstream(entry).read()
+                        for entry in container.listdir() if len(entry) == 2 and entry[1] == 'Data'}
+        from appParsers.ParseCSPcbDoc import CSPcbDocParser
+        roles = CSPcbDocParser._stream_roles(storages)
+        self.assertEqual({role: name for role, name in roles.items() if storages[name]},
+                         {role: role for role in roles if storages[role]})
+        for role in ('Board6', 'Polygons6', 'Rules6', 'Nets6', 'Components6', 'Dimensions6', 'Arcs6', 'Pads6',
+                     'Tracks6', 'Texts6', 'Regions6', 'ShapeBasedRegions6', 'BoardRegions', 'WideStrings6',
+                     'EmbeddedFonts6'):
+            self.assertEqual(roles.get(role), role)
+
+    def test_circuitmaker_board_matches_its_gerber_x2_output(self):
+        # The board and its Gerber X2 files from CircuitMaker Pro 2.0.5: split planes, hole based plane clearance,
+        # no connection by a PlaneConnect rule for different nets, via mask from the pad, no paste on multilayer pads.
+        from collections import Counter
+        from shapely.affinity import scale
+        from appHandlers.appIO import appIO
+        from appParsers.ParseCSPcbDoc import CSPcbDocParser
+        from appParsers.ParseGerber import Gerber
+        from test_sprint_layout_e2e import _app
+
+        fixture = Path(__file__).parent / 'fixtures' / 'altium_cs'
+        filename = fixture / 'PCI Express_4-Port_Serial_Interface.CSPcbDoc'
+        self.assertEqual(appIO._pcb_source_kind(filename), 'cspcbdoc')
+        app = _app('MM')
+        parser = CSPcbDocParser(app, circle_steps=128).parse_file(filename)
+
+        def reference(name):
+            gerber = Gerber(app, steps_per_circle=128)
+            gerber.parse_file(str(fixture / 'gerbers_x2' / ('PCI Express_4-Port_Serial_Interface_%s.gbr' % name)))
+            return gerber, scale(unary_union(gerber.solid_geometry), 25.4, 25.4, origin=(0, 0))
+
+        profile = scale(unary_union(reference('Profile')[0].follow_geometry), 25.4, 25.4, origin=(0, 0))
+        for actual, expected in zip(parser.board_outline.bounds, profile.bounds):
+            self.assertAlmostEqual(actual, expected, delta=0.001)
+        board = Polygon(parser.board_outline.exterior)
+        window = board.buffer(1)
+        for layer, name, limit in ((1, 'Copper_Signal_Top', 2e-4), (32, 'Copper_Signal_Bot', 2e-4),
+                                   (40, 'Copper_Plane_1', 1e-4), (39, 'Copper_Plane_2', 1e-4),
+                                   (37, 'Soldermask_Top', 5e-4), (38, 'Soldermask_Bot', 5e-4),
+                                   (35, 'Paste_Top', 1e-3), (36, 'Paste_Bot', 1e-3)):
+            expected = reference(name)[1]
+            if 39 <= layer <= 54:
+                expected = board.difference(expected)    # negative plane files draw the clearances
+            expected = expected.intersection(window)
+            actual = unary_union(parser.layers[layer]['solid_geometry']).intersection(window)
+            self.assertLess(actual.symmetric_difference(expected).area / expected.area, limit, name)
+        # the width dimension (Mechanical 13): its value text interrupts the line and is centred across it
+        for dimension in (reference('Mechanical_13')[1], unary_union(parser.layers[69]['solid_geometry'])):
+            self.assertTrue(dimension.covers(Point(38.0, 115.75)))
+            self.assertFalse(dimension.covers(Point(38.8, 115.75)))
+            text = dimension.intersection(box(38.8, 115, 41.58, 116.5)).bounds
+            self.assertAlmostEqual((text[1] + text[3]) / 2, 115.75, delta=0.02)
+        drills = Counter()
+        for group, tools in parser.drill_groups.items():
+            for tool in tools.values():
+                drills[(group[:4], round(tool['tooldia'], 3))] += len(tool['drills'])
+        self.assertEqual(drills, Counter({('PTH_', 0.254): 169, ('PTH_', 0.9): 97, ('PTH_', 0.305): 33,
+                                          ('PTH_', 1.0): 19, ('PTH_', 1.63): 8, ('PTH_', 3.175): 2,
+                                          ('NPTH', 3.3): 8}))
 
 
 @pytest.mark.diptrace

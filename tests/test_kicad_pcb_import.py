@@ -113,7 +113,7 @@ class TestKiCadPcbImport(unittest.TestCase):
             with patch.object(self.io, 'pcbdoc_parsed') as parsed_signal:
                 self.assertIsNone(self.io.parse_kicad_pcb(good))
         parsed_signal.emit.assert_called_once()
-        filename, parsed = parsed_signal.emit.call_args.args
+        filename, parsed, _request = parsed_signal.emit.call_args.args
         self.assertEqual(filename, good)
         self.assertIsInstance(parsed, KiCadPcbParser)
         self.assertIn('F.Cu', parsed.layers)

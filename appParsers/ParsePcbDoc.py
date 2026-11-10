@@ -19,7 +19,7 @@ import struct
 from typing import Any
 import zlib
 
-from shapely import LineString, MultiLineString, Point, Polygon, box
+from shapely import LineString, MultiLineString, Point, Polygon, box, get_coordinates
 from shapely.affinity import rotate, scale, translate
 from shapely.ops import unary_union
 
@@ -138,6 +138,9 @@ class PcbDocParser:
         self.app = app
         self._options = getattr(app, 'options', None)
         self.circle_steps = circle_steps
+        # the installed fonts, scanned once for the texts with a font that is not embedded
+        self._installed_fonts = None
+        self._font_metrics = {}
         self._reset()
 
     def _reset(self):
@@ -147,6 +150,7 @@ class PcbDocParser:
         self.record_counts = {}
         self.origin = (0.0, 0.0)
         self.board_outline = Polygon()
+        self._outline_chord_error = 0.0
         self.copper_layers = []
         self._names = {}
         self._board = {}
@@ -158,6 +162,7 @@ class PcbDocParser:
         self._cutouts = []
         self._pour_solids = {}
         self._pour_cutouts = {}
+        self._splits = {}
         self._fonts = {}
         self._wide_strings = {}
         self._overrides = {}
@@ -315,8 +320,11 @@ class PcbDocParser:
             if int(values.get('BENDINGLINECOUNT', 0)):
                 raise PcbDocParseError('Bent board stack regions are not supported')
             region = self._region(data)[5]
-            # Altium expands its stack-region boundary by a few raw units.
+            # Altium expands its stack-region boundary by a few raw units. The arcs of the two outlines have
+            # different chords: the stack region uses its ARCRESOLUTION, the Board6 outline uses _steps().
             tolerance = 10 * self.UNIT
+            if self._outline_chord_error:
+                tolerance += self._outline_chord_error + self._unit(values.get('ARCRESOLUTION', '0.5mil'))
             if not region.buffer(tolerance).covers(self.board_outline) or \
                     not self.board_outline.buffer(tolerance).covers(region):
                 raise PcbDocParseError('Board stack region differs from the Board6 outline')
@@ -384,8 +392,17 @@ class PcbDocParser:
         for index, value in enumerate(self._polygons):
             if value.get('HATCHSTYLE') == 'None' or value.get('SHELVED', 'FALSE') == 'TRUE':
                 continue
-            if 39 <= self._layer_id(value.get('LAYER', 'TOP')) <= 54:
-                raise PcbDocParseError('Split-plane polygon net domains require verified native connection geometry')
+            layer = self._layer_id(value.get('LAYER', 'TOP'))
+            if 39 <= layer <= 54:
+                # A split plane is a net domain of the plane; its split lines are negative tracks of the layer.
+                if value.get('POLYGONTYPE') != 'Split Plane':
+                    raise PcbDocParseError('Unsupported polygon type on a plane layer: %s' %
+                                           value.get('POLYGONTYPE'))
+                net = int(value.get('NET', -1))
+                if not 0 <= net < len(self._nets):
+                    raise PcbDocParseError('Split plane %d has no valid net' % index)
+                self._splits.setdefault(layer, []).append((self._nets[net], self._property_outline(value)[0]))
+                continue
             found = any(item[3] == index for item in saved) or any(
                 self._at(parts[0], 'H', 5) == index for name in ('Tracks6', 'Arcs6') for parts in records[name])
             if not found:
@@ -419,12 +436,33 @@ class PcbDocParser:
             current = int(self._board.get('LAYER%dNEXT' % current, 32 if current == 1 else 0))
         if self.copper_layers[-1] != 32:
             raise PcbDocParseError('Copper stackup does not end at Bottom Layer')
+        self.board_outline, self._outline_chord_error = self._property_outline(self._board)
+
+    def _property_outline(self, props):
+        """The polygon of the VXn/VYn vertices of a property record and the largest chord error of its arcs."""
         vertices = []
+        chord_error = 0.0
         index = 0
-        while 'VX%d' % index in self._board:
-            vertices.extend(self._property_vertex(self._board, index))
+        while 'VX%d' % index in props:
+            points = self._property_vertex(props, index)
+            # an arc goes from its start angle to its end angle, but the outline can go through it the other way
+            if len(points) > 1 and vertices and \
+                    math.dist(vertices[-1], points[-1]) < math.dist(vertices[-1], points[0]):
+                points.reverse()
+            if len(points) > 1:
+                radius = self._unit(props['R%d' % index])
+                chord_error = max(chord_error, radius * (1 - math.cos(math.pi / self._steps(radius))))
+            vertices.extend(points)
             index += 1
-        self.board_outline = self._polygon(vertices)
+        return self._polygon(vertices), chord_error
+
+    def _plane_net(self, layer):
+        """The net of the whole plane layer: '' for no net, None when the board does not tell."""
+        name = self._board.get('LAYER%dNETNAME' % layer, self._board.get('PLANE%dNETNAME' % (layer - 38)))
+        if name is None:
+            return None
+        name = name.strip()
+        return '' if name == '(No Net)' else name
 
     def _property_vertex(self, props, index):
         suffix = str(index)
@@ -463,11 +501,25 @@ class PcbDocParser:
             raise PcbDocParseError('Region has fewer than three vertices')
         try:
             geo = Polygon(shell, holes)
+            if not geo.is_empty and not geo.is_valid:
+                # Saved integer coordinates can make loops of 1 or 2 raw units: remove those vertices.
+                shell = PcbDocParser._without_noise(shell)
+                holes = [PcbDocParser._without_noise(hole) for hole in holes]
+                if len(shell) >= 3 and all(len(hole) >= 3 for hole in holes):
+                    geo = Polygon(shell, holes)
         except (ValueError, TypeError) as error:
             raise PcbDocParseError('Invalid region vertices') from error
         if geo.is_empty or not geo.is_valid:
             raise PcbDocParseError('Invalid region topology (self-intersection or invalid hole)')
         return geo
+
+    @staticmethod
+    def _without_noise(points):
+        result = []
+        for point in points:
+            if not result or math.dist(result[-1], point) > 3 * PcbDocParser.UNIT:
+                result.append(point)
+        return result
 
     @staticmethod
     def _polygons_of(geo):
@@ -518,7 +570,11 @@ class PcbDocParser:
             if extended:
                 rounded, x, y, cx, cy, radius, start, end = reader.unpack('Biiiiidd')
                 if rounded:
-                    vertices.extend(self._arc(self._xy(cx, cy), radius * self.UNIT, start, end))
+                    points = self._arc(self._xy(cx, cy), radius * self.UNIT, start, end)
+                    # the region can go through the arc from its end angle to its start angle
+                    if vertices and math.dist(vertices[-1], points[-1]) < math.dist(vertices[-1], points[0]):
+                        points.reverse()
+                    vertices.extend(points)
                 else:
                     vertices.append(self._xy(x, y))
             else:
@@ -724,6 +780,9 @@ class PcbDocParser:
                     (paste, 101, 86, 'PasteMaskExpansion'), (solder, 102, 90, 'SolderMaskExpansion')):
                 if target == solder and data[1] & tent:
                     continue
+                # Altium makes paste only for the pads of the top and the bottom layer, not for multilayer pads
+                if target == paste and layer == 74:
+                    continue
                 prefix = 'SOLDER' if target == solder else 'PASTE'
                 mask_mode, manual = self._mask_override(self._overrides.get(('Pad', index)), prefix,
                                                        data[mode_offset], self._at(data, 'i', expansion_offset) * self.UNIT)
@@ -863,7 +922,8 @@ class PcbDocParser:
             expansion = self._expansion(mode, expansion, 'SolderMaskExpansion', dict(context, layer=layer))
             if expansion is None:
                 continue
-            from_hole = len(data) > 74 and data[67] & 1
+            # "from the hole edge" is an option of the manual expansion; with the rule, the mask starts at the pad
+            from_hole = mode == 2 and len(data) > 74 and data[67] & 1
             if mode == 2 and from_hole and not shapes[layer].is_empty and \
                     hole + 2 * expansion <= shapes[layer].bounds[2] - shapes[layer].bounds[0]:
                 continue
@@ -1017,11 +1077,26 @@ class PcbDocParser:
                        self._unit(props['REFERENCE%dPOINTY' % i]) - self.origin[1]) for i in range(2)]
         positions = [sum((reference[i] - anchor[i]) * axis[i] for i in range(2)) for reference in references]
         ends = [(anchor[0] + position * axis[0], anchor[1] + position * axis[1]) for position in positions]
-        width = self._unit(props.get('LINEWIDTH', '10mil'))
+        # the dimension line and the arrows have the arrow line width; LINEWIDTH is not the drawn width
+        width = self._unit(props.get('ARROWLINEWIDTH', props.get('LINEWIDTH', '10mil')))
         if width <= 0 or abs(positions[0] - positions[1]) <= self.UNIT:
             raise PcbDocParseError('Invalid linear dimension geometry')
-        follow = LineString(ends)
-        self._add(layer, follow.buffer(width / 2, quad_segs=self._segs(width / 2)), follow)
+        text_gap = self._unit(props.get('TEXTGAP', '10mil'))
+        if text_gap < 0:
+            raise PcbDocParseError('Invalid dimension text gap')
+        # the text first: a text on the dimension line is centred across it and interrupts it
+        span = self._dimension_text(props, layer, abs(positions[1] - positions[0]), angle, anchor, axis, normal,
+                                    width, text_gap)
+        low, high = sorted(positions)
+        pieces = [(low, high)]
+        if span is not None:
+            pieces = [(low, min(high, span[0] - text_gap)), (max(low, span[1] + text_gap), high)]
+        for start, stop in pieces:
+            if stop - start <= self.UNIT:
+                continue
+            follow = LineString([(anchor[0] + position * axis[0], anchor[1] + position * axis[1])
+                                 for position in (start, stop)])
+            self._add(layer, follow.buffer(width / 2, quad_segs=self._segs(width / 2)), follow)
         gap = self._unit(props.get('EXTENSIONPICKGAP', '10mil'))
         extra = self._unit(props.get('EXTENSIONOFFSET', '10mil'))
         extension_width = self._unit(props.get('EXTENSIONLINEWIDTH', props.get('LINEWIDTH', '10mil')))
@@ -1044,11 +1119,18 @@ class PcbDocParser:
                        end[1] + sign * arrow_length * axis[1] + side * arrow_size / 2 * normal[1])
                 arrow = LineString([end, tip])
                 self._add(layer, arrow.buffer(width / 2, quad_segs=self._segs(width / 2)), arrow)
+
+    def _dimension_text(self, props, layer, length, angle, anchor, axis, normal, width, text_gap):
+        """
+        Add the value text of a linear dimension. If the text touches the dimension line, the text is centred across
+        the line and the return value is the text span along the line (positions from 'anchor'), for the line gap.
+        Else the return value is None.
+        """
         units = props.get('TEXTDIMENSIONUNIT', 'Millimeters')
         factors = {'Millimeters': 1, 'Centimeters': 10, 'Inches': 25.4, 'Mils': 0.0254}
         if units not in factors:
             raise PcbDocParseError('Unsupported dimension display units %s' % units)
-        value = abs(positions[1] - positions[0]) / factors[units]
+        value = length / factors[units]
         precision = int(props.get('TEXTPRECISION', 2))
         if not 0 <= precision <= 12:
             raise PcbDocParseError('Invalid dimension precision')
@@ -1068,14 +1150,25 @@ class PcbDocParser:
         if props.get('TEXT1MIRROR', 'FALSE') == 'TRUE':
             geo = scale(geo, xfact=-1, yfact=1, origin=(0, 0))
             text_follows = [scale(line, xfact=-1, yfact=1, origin=(0, 0)) for line in text_follows]
-        geo = rotate(geo, float(props.get('TEXT1ANGLE', angle)), origin=(0, 0))
-        geo = translate(geo, xoff=self._unit(props['TEXT1X']) - self.origin[0],
-                         yoff=self._unit(props['TEXT1Y']) - self.origin[1])
-        self._add(layer, geo)
-        self.layers[layer]['follow_geometry'].extend([
-            translate(rotate(line, float(props.get('TEXT1ANGLE', angle)), origin=(0, 0)),
-                      xoff=self._unit(props['TEXT1X']) - self.origin[0],
-                      yoff=self._unit(props['TEXT1Y']) - self.origin[1]) for line in text_follows])
+        text_angle = float(props.get('TEXT1ANGLE', angle))
+        offset = [self._unit(props['TEXT1X']) - self.origin[0], self._unit(props['TEXT1Y']) - self.origin[1]]
+        geo = rotate(geo, text_angle, origin=(0, 0))
+        text_follows = [rotate(line, text_angle, origin=(0, 0)) for line in text_follows]
+        span = None
+        if not geo.is_empty:
+            # the text ink in the frame of the dimension line: along the axis and across it, from the anchor
+            points = [(x + offset[0] - anchor[0], y + offset[1] - anchor[1])
+                      for x, y in get_coordinates(geo.convex_hull)]
+            along = [x * axis[0] + y * axis[1] for x, y in points]
+            across = [x * normal[0] + y * normal[1] for x, y in points]
+            if min(across) - text_gap - width / 2 < 0 < max(across) + text_gap + width / 2:
+                shift = -(min(across) + max(across)) / 2
+                offset = [offset[0] + shift * normal[0], offset[1] + shift * normal[1]]
+                span = (min(along), max(along))
+        self._add(layer, translate(geo, xoff=offset[0], yoff=offset[1]))
+        self.layers[layer]['follow_geometry'].extend(
+            [translate(line, xoff=offset[0], yoff=offset[1]) for line in text_follows])
+        return span
 
     def _font_geometry(self, text, name, style, height):
         """Use native FreeType contours; containment parity retains counters/islands."""
@@ -1087,15 +1180,23 @@ class PcbDocParser:
             raise PcbDocParseError('Non-positive text height')
         font = self._fonts.get((name, style))
         if font is None:
-            fonts = ParseFont(self.app)
-            fonts.get_fonts_by_types()
-            mapping = {'Regular': fonts.regular_f, 'Bold': fonts.bold_f,
-                       'Italic': fonts.italic_f, 'Bold Italic': fonts.bold_italic_f}[style]
+            if self._installed_fonts is None:
+                fonts = ParseFont(self.app)
+                fonts.get_fonts_by_types()
+                self._installed_fonts = {'Regular': fonts.regular_f, 'Bold': fonts.bold_f,
+                                         'Italic': fonts.italic_f, 'Bold Italic': fonts.bold_italic_f}
+            mapping = self._installed_fonts[style]
             if name not in mapping:
                 raise PcbDocParseError('Source font is not installed or embedded: %s %s' % (name, style))
             font = mapping[name]
         face = freetype.Face(io.BytesIO(font)) if isinstance(font, bytes) \
             else freetype.Face(font, index=getattr(font, 'face_index', 0))
+        # The text height is the full height of the font, the ascender to the descender (checked against the
+        # Gerber files of CircuitMaker): the cap height is that part of it.
+        full = face.ascender - face.descender
+        face.load_glyph(face.get_char_index('H'), FT_LOAD_FLAGS['FT_LOAD_NO_SCALE'])
+        if full > 0:
+            height *= face.glyph.metrics.height / full
         face.set_char_size(64 * 100)
         load_flags = FT_LOAD_FLAGS['FT_LOAD_NO_HINTING'] | FT_LOAD_FLAGS['FT_LOAD_NO_BITMAP']
         cap = face.get_char_index('H')
@@ -1106,19 +1207,16 @@ class PcbDocParser:
         factor = height / cap_height
         pen_x = 0
         pen_y = 0
-        previous = 0
         geometry = []
+        # no kerning: the Gerber files of CircuitMaker place each glyph at the advance of the one before it
         for char in text.replace('\r\n', '\n'):
             if char == '\n':
                 pen_x = 0
                 pen_y -= height * 1.5 / factor
-                previous = 0
                 continue
             glyph = face.get_char_index(char)
             if not glyph:
                 raise PcbDocParseError('Font %s has no glyph for %r' % (name, char))
-            if previous:
-                pen_x += face.get_kerning(previous, char).x
             face.load_glyph(glyph, load_flags)
             outline = face.glyph.outline
             contours = []
@@ -1138,8 +1236,69 @@ class PcbDocParser:
                 result = result.union(contour) if depth % 2 == 0 else result.difference(contour)
             geometry.append(translate(result, xoff=pen_x, yoff=pen_y))
             pen_x += face.glyph.advance.x
-            previous = char
-        return scale(unary_union(geometry), xfact=factor, yfact=factor, origin=(0, 0))
+        geo = scale(unary_union(geometry), xfact=factor, yfact=factor, origin=(0, 0))
+        # the ink of the first glyph starts at the text position, not its left side bearing; the baseline is at it
+        return geo if geo.is_empty else translate(geo, xoff=-geo.bounds[0])
+
+    def _plane_cuts(self, layer):
+        """
+        The clearances and the thermal reliefs of a plane layer, checked against the Gerber files of CircuitMaker:
+        only a hole reaches a plane, so a pad without a hole makes no cut and the clearance starts at the hole edge.
+        Each split plane is a net domain; outside them the net of the whole plane applies.
+        """
+        plane_name = self._plane_net(layer)
+        # the smallest split plane first: the net domain that holds a pad
+        splits = sorted(self._splits.get(layer, []), key=lambda split: split[1].area)
+        cuts = []
+        for pad in self._pads:
+            hole = pad['hole']
+            if layer not in pad['shapes'] or hole.is_empty:
+                continue
+            context = dict(pad['context'], layer=layer)
+            rule = self._rule('PlaneClearance', context)
+            if not rule or 'CLEARANCE' not in rule:
+                raise PcbDocParseError('Missing applicable PlaneClearance rule/value')
+            clearance = self._unit(rule['CLEARANCE'])
+            if clearance < 0:
+                raise PcbDocParseError('Negative plane clearance')
+            antipad = hole.buffer(clearance, quad_segs=self._segs(clearance))
+            center = hole.centroid
+            domain = next((net for net, area in splits if area.covers(center)), plane_name)
+            if context['net'] and domain is None:
+                raise PcbDocParseError('Unavailable plane %d net assignment for connected pad/via' % layer)
+            connect = None
+            if domain and context['net'] == domain:
+                # A connection is always between the same net: a rule only for different nets does not apply.
+                connect = next((value for value in self._rules if value.get('RULEKIND') == 'PlaneConnect'
+                                and value.get('NETSCOPE', 'AnyNet') != 'DifferentNets'
+                                and self._scope(value.get('SCOPE1EXPRESSION', 'All'), context)), None)
+            if connect is None:
+                cuts.append(antipad)
+                continue
+            # Altium saves the PlaneConnect rule with PLANECONNECTSTYLE, RELIEFEXPANSION and RELIEFAIRGAP
+            style = connect.get('PLANECONNECTSTYLE', connect.get('CONNECTSTYLE'))
+            if style == 'Direct':
+                continue
+            if style == 'NoConnect':
+                cuts.append(antipad)
+            elif style == 'Relief':
+                # Not checked against Gerber files: the example boards have no relief connection to a plane.
+                expansion = self._unit(connect.get('RELIEFEXPANSION', '20mil'))
+                gap = self._unit(connect.get('RELIEFAIRGAP', connect.get('AIRGAPWIDTH', '10mil')))
+                width = self._unit(connect.get('RELIEFCONDUCTORWIDTH', '10mil'))
+                entries = int(connect.get('RELIEFENTRIES', 4))
+                if entries not in (2, 4) or width <= 0 or gap <= 0 or expansion <= 0:
+                    raise PcbDocParseError('Unsupported plane thermal relief')
+                outer = hole.buffer(expansion, quad_segs=self._segs(expansion))
+                inner = hole.buffer(max(expansion - gap, 0), quad_segs=self._segs(expansion))
+                radius = outer.bounds[2] - outer.bounds[0]
+                spokes = [rotate(box(center.x, center.y - width / 2, center.x + radius,
+                                     center.y + width / 2), i * 360 / entries, origin=center)
+                          for i in range(entries)]
+                cuts.append(outer.difference(inner).difference(unary_union(spokes)))
+            else:
+                raise PcbDocParseError('Unsupported plane connection style: %s' % style)
+        return cuts
 
     def _finish(self):
         cutouts = unary_union(self._cutouts)
@@ -1147,50 +1306,7 @@ class PcbDocParser:
             if not 39 <= layer <= 54:
                 continue
             negative = unary_union(self.layers.get(layer, {}).get('solid_geometry', []))
-            copper = self.board_outline.difference(negative)
-            plane_name = self._board.get('LAYER%dNETNAME' % layer, '')
-            for pad in self._pads:
-                if layer not in pad['shapes']:
-                    continue
-                context = dict(pad['context'], layer=layer)
-                shape = pad['shapes'][layer]
-                hole = pad['hole']
-                rule = self._rule('PlaneClearance', context)
-                if not rule or 'CLEARANCE' not in rule:
-                    raise PcbDocParseError('Missing applicable PlaneClearance rule/value')
-                clearance = self._unit(rule['CLEARANCE'])
-                if clearance < 0:
-                    raise PcbDocParseError('Negative plane clearance')
-                if context['net'] and 'LAYER%dNETNAME' % layer not in self._board:
-                    raise PcbDocParseError('Unavailable plane %d net assignment for connected pad/via' % layer)
-                if not plane_name or context['net'] != plane_name:
-                    copper = copper.difference(shape.union(hole).buffer(clearance, quad_segs=self._segs(clearance)))
-                    continue
-                connect = self._rule('PlaneConnect', context)
-                if connect is None:
-                    raise PcbDocParseError('Missing PlaneConnect rule for connected plane pad')
-                style = connect.get('CONNECTSTYLE')
-                if style == 'Direct':
-                    continue
-                if style == 'NoConnect':
-                    copper = copper.difference(shape.union(hole).buffer(clearance, quad_segs=self._segs(clearance)))
-                elif style == 'Relief':
-                    gap = self._unit(connect.get('AIRGAPWIDTH', '10mil'))
-                    width = self._unit(connect.get('RELIEFCONDUCTORWIDTH', '10mil'))
-                    entries = int(connect.get('RELIEFENTRIES', 4))
-                    if entries not in (2, 4) or width <= 0 or gap <= 0:
-                        raise PcbDocParseError('Unsupported plane thermal relief')
-                    clearance_geo = shape.buffer(gap, quad_segs=self._segs(gap))
-                    center = hole.centroid if not hole.is_empty else shape.centroid
-                    radius = max(clearance_geo.bounds[2] - clearance_geo.bounds[0],
-                                 clearance_geo.bounds[3] - clearance_geo.bounds[1])
-                    spokes = [rotate(box(center.x, center.y - width / 2, center.x + radius,
-                                          center.y + width / 2), i * 360 / entries, origin=center)
-                              for i in range(entries)]
-                    relief = clearance_geo.difference(shape.union(unary_union(spokes)))
-                    copper = copper.difference(relief)
-                else:
-                    raise PcbDocParseError('Unsupported plane connection style: %s' % style)
+            copper = self.board_outline.difference(unary_union([negative, *self._plane_cuts(layer)]))
             if layer in self.layers:
                 self.layers[layer]['solid_geometry'] = []
             self._add(layer, copper)

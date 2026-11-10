@@ -25,6 +25,7 @@ from svglib.svglib import svg2rlg
 from xml.dom.minidom import parseString as parse_xml_string
 from lxml import etree as ET
 
+import functools
 import html
 import time
 import sys
@@ -79,8 +80,12 @@ class ProjectLoadError(Exception):
 
 
 class appIO(QtCore.QObject):
-    pcbdoc_parsed = QtCore.pyqtSignal(str, object)
-    pcbdoc_outputs_ready = QtCore.pyqtSignal(str)
+    # board import through the PcbDoc pipeline: filename, parsed result, request id (see _import_pcb_file)
+    pcbdoc_parsed = QtCore.pyqtSignal(str, object, object)
+    # the parse of a board import stopped (error, abort): request id
+    pcbdoc_parse_failed = QtCore.pyqtSignal(object)
+    # the objects of a board import exist: filename, source kind (a key of PCB_FORMATS)
+    pcbdoc_outputs_ready = QtCore.pyqtSignal(str, str)
     project_load_requested = QtCore.pyqtSignal(object, bool, bool, object, bool)
     project_load_failed = QtCore.pyqtSignal(str)
     project_objects_requested = QtCore.pyqtSignal(object, str, object, bool)
@@ -107,6 +112,11 @@ class appIO(QtCore.QObject):
         self.options = self.app.options
         self.pagesize = {}
         self._pcb_import = None
+        # the board import whose parse or dialog is in flight: None or its request id
+        self._pcb_request = None
+        self._pcb_request_count = 0
+        # the layer dialog that is open while the parse of the in-flight request runs: None or (request, dialog)
+        self._pcb_dialog = None
         self._pcb_timer = QtCore.QTimer(self)
         self._pcb_timer.setInterval(50)
         self._pcb_timer.timeout.connect(self._advance_pcb_import)
@@ -117,6 +127,7 @@ class appIO(QtCore.QObject):
 
         self.app.new_project_signal.connect(self.on_new_project_house_keeping)
         self.pcbdoc_parsed.connect(self.on_pcbdoc_parsed, Qt.ConnectionType.QueuedConnection)
+        self.pcbdoc_parse_failed.connect(self._release_pcb_request, Qt.ConnectionType.QueuedConnection)
         self.pcbdoc_outputs_ready.connect(self.on_pcbdoc_outputs_ready, Qt.ConnectionType.QueuedConnection)
         self.project_load_requested.connect(self._open_project)
         self.project_load_failed.connect(self._on_project_load_failed, Qt.ConnectionType.QueuedConnection)
@@ -141,6 +152,10 @@ class appIO(QtCore.QObject):
         'proteus': {
             'ext': '.pdsprj', 'filter': 'Proteus Project (*.pdsprj *.PDSPRJ)',
             'log': 'Proteus PCB', 'name_first': False},
+        # before 'pcbdoc': the name of a .CSPcbDoc file also ends with '.pcbdoc'
+        'cspcbdoc': {
+            'ext': '.cspcbdoc', 'filter': 'CircuitStudio / CircuitMaker PCB (*.CSPcbDoc *.cspcbdoc)',
+            'log': 'CircuitStudio PCB', 'name_first': True},
         'pcbdoc': {
             'ext': '.pcbdoc', 'filter': 'Altium PCB (*.PcbDoc *.pcbdoc)',
             'log': 'Altium PCB', 'name_first': True},
@@ -159,6 +174,11 @@ class appIO(QtCore.QObject):
         'diptrace': {
             'ext': '.dip', 'filter': 'DipTrace PCB (*.dip *.DIP)',
             'log': 'DipTrace PCB', 'name_first': True},
+        # Only the ODB++ menu entry reaches this format: the parser finds the job by content and sets
+        # parsed.source_kind, so the extension is never used to recognize it.
+        'odb': {
+            'ext': None, 'filter': 'ODB++ (*.tgz *.tar.gz *.tar *.zip matrix);;All Files (*.*)',
+            'log': 'ODB++', 'name_first': False},
     }
 
     @staticmethod
@@ -176,19 +196,27 @@ class appIO(QtCore.QObject):
             return _('Import OrCAD/Allegro Board')
         if kind == 'diptrace':
             return _('Import DipTrace PCB')
+        if kind == 'odb':
+            return _('Import ODB++ Job')
+        if kind == 'cspcbdoc':
+            return _('Import CircuitStudio / CircuitMaker PCB')
         return _('Import Altium PCB')
 
     @staticmethod
-    def _pcb_source_kind(filename):
+    def _pcb_source_kind(filename, parsed=None):
         """
         Which native PCB format a file imported through the PcbDoc pipeline is: a key of PCB_FORMATS.
-        Unrecognized extensions are Altium. Eagle and Allegro boards both use
+        A parsed result that carries its source_kind (ODB++) decides; the file name is not read again.
+        Else unrecognized extensions are Altium. Eagle and Allegro boards both use
         the .brd extension, so the content decides: an Eagle board is XML, an Allegro board starts with a binary
         magic number. A file that cannot be read stays an Eagle board.
         """
+        source_kind = getattr(parsed, 'source_kind', None)
+        if isinstance(source_kind, str) and source_kind in appIO.PCB_FORMATS:
+            return source_kind
         name = str(filename).lower()
         for kind, pcb_format in appIO.PCB_FORMATS.items():
-            if name.endswith(pcb_format['ext']):
+            if pcb_format['ext'] and name.endswith(pcb_format['ext']):
                 if kind in ('eagle_brd', 'allegro_brd'):
                     return appIO._brd_source_kind(filename)
                 return kind
@@ -206,8 +234,74 @@ class appIO(QtCore.QObject):
             return 'allegro_brd'
         return 'eagle_brd'
 
+    def _pcb_busy(self):
+        return (self._pcb_request is not None or self._pcb_import is not None or self._proteus_import is not None
+                or self.app.projects.is_busy())
+
+    def _release_pcb_request(self, request):
+        """End the in-flight board import 'request'. An old notification does not end a newer request."""
+        if request is not None and request == self._pcb_request:
+            self._pcb_request = None
+            self._close_pcb_dialog(request)
+
+    def _new_pcb_dialog(self, kind, waiting=False):
+        """
+        The layer dialog of a board import. A waiting dialog shows that the parse runs, with Cancel only;
+        _fill_pcb_dialog() puts the layers in it when the parse ends.
+        """
+        dialog = QtWidgets.QDialog(self.app.ui)
+        dialog.setWindowTitle(self._pcb_title(kind))
+        layout = QtWidgets.QVBoxLayout(dialog)
+        buttons = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.StandardButton.Ok | QtWidgets.QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        dialog.pcb_buttons = buttons
+        dialog.pcb_waiting = None
+        if waiting:
+            dialog.pcb_waiting = QtWidgets.QWidget(dialog)
+            waiting_layout = QtWidgets.QVBoxLayout(dialog.pcb_waiting)
+            waiting_layout.addWidget(QtWidgets.QLabel(_('Reading the board file. Wait...')))
+            progress = QtWidgets.QProgressBar()
+            progress.setRange(0, 0)
+            waiting_layout.addWidget(progress)
+            waiting_layout.addStretch()
+            layout.addWidget(dialog.pcb_waiting)
+            buttons.button(QtWidgets.QDialogButtonBox.StandardButton.Ok).setEnabled(False)
+        layout.addWidget(buttons)
+        dialog.resize(460, 500)
+        return dialog
+
+    def _open_pcb_dialog(self, kind, request):
+        """Show the layer dialog at once, in its waiting state, while the worker parses the file."""
+        if not isinstance(self.app.ui, QtWidgets.QWidget):
+            return      # no GUI
+        dialog = self._new_pcb_dialog(kind, waiting=True)
+        self._pcb_dialog = (request, dialog)
+        dialog.rejected.connect(lambda: self._on_pcb_dialog_cancel(request, dialog))
+        dialog.open()
+
+    def _on_pcb_dialog_cancel(self, request, dialog):
+        # Cancel while the parse runs: the request ends and its late result is ignored
+        if self._pcb_dialog is not None and self._pcb_dialog[1] is dialog:
+            self._release_pcb_request(request)
+
+    def _close_pcb_dialog(self, request):
+        if self._pcb_dialog is None or self._pcb_dialog[0] != request:
+            return
+        dialog = self._pcb_dialog[1]
+        self._pcb_dialog = None
+        dialog.hide()
+        dialog.deleteLater()
+
+    def _pcb_parent(self, request):
+        """The parent of a question during the import: the waiting layer dialog, if there is one."""
+        if self._pcb_dialog is not None and self._pcb_dialog[0] == request:
+            return self._pcb_dialog[1]
+        return self.app.ui
+
     def _import_pcb_file(self, kind, name, parse_fcn):
-        if self._pcb_import is not None or self._proteus_import is not None or self.app.projects.is_busy():
+        if self._pcb_busy():
             self.app.projects.inform_busy()
             return
         if name is None:
@@ -215,20 +309,31 @@ class appIO(QtCore.QObject):
             name, _filter = QtWidgets.QFileDialog.getOpenFileName(
                 parent=self.app.ui, caption=self._pcb_title(kind),
                 directory=self.app.get_last_folder(), filter=pcb_format['filter'])
-        if name:
-            self.worker_task.emit({'fcn': parse_fcn, 'params': [name]})
+            # the picker is modal: another import can start while it is open
+            if name and self._pcb_busy():
+                self.app.projects.inform_busy()
+                return
+        if not name:
+            return
+        self._pcb_request_count += 1
+        self._pcb_request = request = self._pcb_request_count
+        self._open_pcb_dialog(kind, request)
+        self.worker_task.emit({'fcn': functools.partial(parse_fcn, request=request), 'params': [name]})
 
     def on_file_import_pcbdoc(self, name=None):
         self._import_pcb_file('pcbdoc', name, self.parse_pcbdoc)
 
+    def on_file_import_cspcbdoc(self, name=None):
+        self._import_pcb_file('cspcbdoc', name, self.parse_cspcbdoc)
+
     def on_file_import_proteus(self, name=None):
         self._import_pcb_file('proteus', name, self.parse_proteus)
 
-    def parse_proteus(self, filename):
+    def parse_proteus(self, filename, *, request=None):
         def make_parser():
             from appParsers.ParseProteus import ProteusParser
             return ProteusParser(app=self.app)
-        return self._parse_pcb_file('proteus', filename, make_parser)
+        return self._parse_pcb_file('proteus', filename, make_parser, request)
 
     def _advance_proteus_import(self):
         """Advance only on the GUI thread, after construction, insertion and plotting have drained."""
@@ -308,61 +413,106 @@ class appIO(QtCore.QObject):
     def on_file_import_diptrace(self, name=None):
         self._import_pcb_file('diptrace', name, self.parse_diptrace)
 
-    def _parse_pcb_file(self, kind, filename, make_parser):
+    def on_file_import_odb(self, name=None):
+        self._import_pcb_file('odb', name, self.parse_odb)
+
+    def _parse_pcb_file(self, kind, filename, make_parser, request, parse_kwargs=None):
+        """
+        The worker task of a board import. Each call ends with exactly 1 signal that carries the request id:
+        pcbdoc_parsed (a result) or pcbdoc_parse_failed (an error or an abort).
+        """
         if self.app.abort_flag:
+            self.pcbdoc_parse_failed.emit(request)
             return
         try:
-            parsed = make_parser().parse_file(filename)
+            parsed = make_parser().parse_file(filename, **(parse_kwargs or {}))
         except Exception as error:
             self.log.error('%s import: %s', self.PCB_FORMATS[kind]['log'], error)
             self.inform.emit('[ERROR_NOTCL] %s: %s' % (_('Import failed.'), error))
+            self.pcbdoc_parse_failed.emit(request)
             return 'fail'
-        if not self.app.abort_flag:
-            self.pcbdoc_parsed.emit(filename, parsed)
+        if self.app.abort_flag:
+            self.pcbdoc_parse_failed.emit(request)
+            return
+        self.pcbdoc_parsed.emit(filename, parsed, request)
 
-    def parse_pcbdoc(self, filename):
+    def parse_pcbdoc(self, filename, *, request=None):
         def make_parser():
             from appParsers.ParsePcbDoc import PcbDocParser
             return PcbDocParser(app=self.app)
-        return self._parse_pcb_file('pcbdoc', filename, make_parser)
+        return self._parse_pcb_file('pcbdoc', filename, make_parser, request)
 
-    def parse_kicad_pcb(self, filename):
+    def parse_cspcbdoc(self, filename, *, request=None):
+        def make_parser():
+            from appParsers.ParseCSPcbDoc import CSPcbDocParser
+            return CSPcbDocParser(app=self.app)
+        return self._parse_pcb_file('cspcbdoc', filename, make_parser, request)
+
+    def parse_kicad_pcb(self, filename, *, request=None):
         def make_parser():
             from appParsers.ParseKiCadPcb import KiCadPcbParser
             return KiCadPcbParser(app=self.app)
-        return self._parse_pcb_file('kicad_pcb', filename, make_parser)
+        return self._parse_pcb_file('kicad_pcb', filename, make_parser, request)
 
-    def parse_sprint_layout(self, filename):
+    def parse_sprint_layout(self, filename, *, request=None):
         def make_parser():
             from appParsers.ParseSprintLayout import SprintLayoutParser
             return SprintLayoutParser(app=self.app)
-        return self._parse_pcb_file('sprint_lay6', filename, make_parser)
+        return self._parse_pcb_file('sprint_lay6', filename, make_parser, request)
 
-    def parse_eagle_brd(self, filename):
+    def parse_eagle_brd(self, filename, *, request=None):
         def make_parser():
             from appParsers.ParseEagleBrd import EagleBrdParser
             return EagleBrdParser(app=self.app)
-        return self._parse_pcb_file('eagle_brd', filename, make_parser)
+        return self._parse_pcb_file('eagle_brd', filename, make_parser, request)
 
-    def parse_allegro_brd(self, filename):
+    def parse_allegro_brd(self, filename, *, request=None):
         def make_parser():
             from appParsers.ParseAllegroBrd import AllegroBrdParser
             return AllegroBrdParser(app=self.app)
-        return self._parse_pcb_file('allegro_brd', filename, make_parser)
+        return self._parse_pcb_file('allegro_brd', filename, make_parser, request)
 
-    def parse_diptrace(self, filename, opening_defaults=None):
+    def parse_diptrace(self, filename, opening_defaults=None, *, request=None):
         def make_parser():
             from appParsers.ParseDipTrace import DipTraceParser
             return DipTraceParser(app=self.app, opening_defaults=opening_defaults)
-        return self._parse_pcb_file('diptrace', filename, make_parser)
+        return self._parse_pcb_file('diptrace', filename, make_parser, request)
 
-    @QtCore.pyqtSlot(str, object)
-    def on_pcbdoc_parsed(self, filename, parsed):
+    def parse_odb(self, filename, step=None, *, request=None):
+        # step None: a job with more than 1 step gives a metadata result, and the app asks for the step
+        def make_parser():
+            from appParsers.ParseODB import ODBParser
+            return ODBParser(app=self.app)
+        return self._parse_pcb_file('odb', filename, make_parser, request, {'step': step})
+
+    @QtCore.pyqtSlot(str, object, object)
+    def on_pcbdoc_parsed(self, filename, parsed, request=None):
+        # request None: a direct call for one board of a Proteus project (the token is already transferred)
+        if request is not None and request != self._pcb_request:
+            return      # a late result after a cancel, or of an older request
         if self.app.abort_flag:
+            self._release_pcb_request(request)
             return
-        kind = self._pcb_source_kind(filename)
+        kind = self._pcb_source_kind(filename, parsed)
         if self._pcb_import is not None:
             self.app.projects.inform_busy()
+            self._release_pcb_request(request)
+            return
+        if kind == 'odb' and getattr(parsed, 'step', None) is None:
+            steps = list(getattr(parsed, 'steps', []))
+            if not steps:
+                self._release_pcb_request(request)
+                return
+            default = getattr(parsed, 'default_step', None)
+            step, accepted = QtWidgets.QInputDialog.getItem(
+                self._pcb_parent(request), self._pcb_title(kind), _('The ODB++ job has more than 1 step. Select the step:'),
+                steps, steps.index(default) if default in steps else 0, False)
+            if not accepted or self.app.abort_flag:
+                self._release_pcb_request(request)
+                return
+            # the same request continues: the geometry parse of the chosen step, then the layer dialog
+            self.worker_task.emit({'fcn': functools.partial(self.parse_odb, request=request),
+                                   'params': [filename, step]})
             return
         if kind == 'diptrace' and getattr(parsed, 'opening_defaults', None) is None:
             opening_defaults = {}
@@ -371,10 +521,11 @@ class appIO(QtCore.QObject):
                 # Via tenting is a DipTrace export setting; the parse used Tent.
                 choices = [_('Tent vias'), _('Open vias')]
                 choice, accepted = QtWidgets.QInputDialog.getItem(
-                    self.app.ui, self._pcb_title(kind),
+                    self._pcb_parent(request), self._pcb_title(kind),
                     _('The board does not store via tenting (a DipTrace export setting).'),
                     choices, 0, False)
                 if self.app.abort_flag:
+                    self._release_pcb_request(request)
                     return
                 if accepted and choice == choices[1]:
                     opening_defaults['vias'] = 'open'
@@ -384,19 +535,24 @@ class appIO(QtCore.QObject):
                 if key not in missing:
                     continue
                 value, accepted = QtWidgets.QInputDialog.getDouble(
-                    self.app.ui, self._pcb_title(kind),
+                    self._pcb_parent(request), self._pcb_title(kind),
                     _('This older board does not store its inherited export settings.\n'
                       'Enter the value used in the source DipTrace installation (mm).\n'
                       'Cancel leaves affected openings unimported.\n\n') + label,
                     0.0, -9.999999, 9.999999, 6)
                 if self.app.abort_flag:
+                    self._release_pcb_request(request)
                     return
                 if accepted:
                     opening_defaults[key] = value
             if opening_defaults:
-                self.worker_task.emit({'fcn': self.parse_diptrace, 'params': [filename, opening_defaults]})
+                # the same request continues with the re-parse
+                self.worker_task.emit({'fcn': functools.partial(self.parse_diptrace, request=request),
+                                       'params': [filename, opening_defaults]})
                 return
         if kind == 'proteus' and hasattr(parsed, 'boards'):
+            # the request ends here: the Proteus flow has its own busy guard (_proteus_import)
+            self._release_pcb_request(request)
             if self._proteus_import is not None:
                 self.app.projects.inform_busy()
                 return
@@ -410,12 +566,31 @@ class appIO(QtCore.QObject):
         pcb_format = self.PCB_FORMATS[kind]
         default_layers = getattr(parsed, 'default_layers', None)
         default_drills = getattr(parsed, 'default_drill_groups', None)
-        dialog = QtWidgets.QDialog(self.app.ui)
-        dialog.setWindowTitle(self._pcb_title(kind))
+        # the dialog that waits for this parse, else a new one (one board of a Proteus project)
+        dialog = None
+        if self._pcb_dialog is not None and request is not None and self._pcb_dialog[0] == request:
+            dialog = self._pcb_dialog[1]
+            self._pcb_dialog = None
+        if dialog is None:
+            dialog = self._new_pcb_dialog(kind)
+        if dialog.pcb_waiting is not None:
+            # out of the dialog now, so a search of the dialog children does not find it
+            dialog.pcb_waiting.setParent(None)
+            dialog.pcb_waiting.deleteLater()
+            dialog.pcb_waiting = None
+        dialog.pcb_buttons.button(QtWidgets.QDialogButtonBox.StandardButton.Ok).setEnabled(True)
         if kind == 'proteus':
             dialog.setWindowTitle('%s - %s' % (self._pcb_title(kind), parsed.name))
-        layout = QtWidgets.QVBoxLayout(dialog)
-        layout.addWidget(QtWidgets.QLabel(_('Select layers and drill groups to import:')))
+        layout = dialog.layout()
+
+        def add(widget):
+            # above the buttons
+            layout.insertWidget(layout.count() - 1, widget)
+
+        if kind == 'odb':
+            # to change the step, the user cancels and imports again
+            add(QtWidgets.QLabel('%s: %s' % (_('Step'), parsed.step)))
+        add(QtWidgets.QLabel(_('Select layers and drill groups to import:')))
         scroll = QtWidgets.QScrollArea(dialog)
         scroll.setWidgetResizable(True)
         content = QtWidgets.QWidget()
@@ -440,26 +615,25 @@ class appIO(QtCore.QObject):
             choices.addWidget(checkbox)
             drills[group] = checkbox
         scroll.setWidget(content)
-        layout.addWidget(scroll)
+        add(scroll)
         warnings = list(parsed.warnings)
         if kind == 'proteus' and self._proteus_import is not None:
             warnings = self._proteus_import['warnings'] + warnings
         if warnings:
-            if kind == 'proteus':
+            if kind in ('proteus', 'odb'):
                 warning = QtWidgets.QPlainTextEdit('\n'.join(dict.fromkeys(warnings)))
                 warning.setReadOnly(True)
                 warning.setMaximumHeight(160)
             else:
                 warning = QtWidgets.QLabel('\n'.join(warnings))
                 warning.setWordWrap(True)
-            layout.addWidget(warning)
-        buttons = QtWidgets.QDialogButtonBox(
-            QtWidgets.QDialogButtonBox.StandardButton.Ok | QtWidgets.QDialogButtonBox.StandardButton.Cancel)
-        buttons.accepted.connect(dialog.accept)
-        buttons.rejected.connect(dialog.reject)
-        layout.addWidget(buttons)
-        dialog.resize(460, 500)
-        if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted or self.app.abort_flag:
+            add(warning)
+        accepted = dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted
+        # deleted at the next event loop pass: the checkboxes are read before it
+        dialog.deleteLater()
+        # the request ends with the dialog: on a cancel, on no selection, or at the hand-off to _pcb_import
+        self._release_pcb_request(request)
+        if not accepted or self.app.abort_flag:
             return
         selected_layers = [key for key, checkbox in layers.items() if checkbox.isChecked()]
         selected_drills = [key for key, checkbox in drills.items() if checkbox.isChecked()]
@@ -495,8 +669,13 @@ class appIO(QtCore.QObject):
             return
         units = self.app.app_units.upper()
         factor = 1 / 25.4 if units == 'IN' else 1
-        pcb_format = self.PCB_FORMATS[self._pcb_source_kind(filename)]
-        proteus = self._pcb_source_kind(filename) == 'proteus'
+        source_kind = self._pcb_source_kind(filename, parsed)
+        pcb_format = self.PCB_FORMATS[source_kind]
+        proteus = source_kind == 'proteus'
+        base_name = os.path.splitext(os.path.basename(filename))[0]
+        if source_kind == 'odb' and getattr(parsed, 'name', ''):
+            # an ODB++ job can be a folder picked by its matrix file: the job name, not 'matrix'
+            base_name = parsed.name
 
         def converted(value):
             if isinstance(value, dict):
@@ -529,7 +708,7 @@ class appIO(QtCore.QObject):
                         if not any(tool.get('drills') or tool.get('slots') for tool in data.values()):
                             continue
                         label = key if pcb_format['name_first'] else str(key).replace('.', '_')
-                    name = '%s_%s' % (os.path.splitext(os.path.basename(filename))[0], label)
+                    name = '%s_%s' % (base_name, label)
                     source_extension = None
                     if proteus:
                         label = str(key)
@@ -593,17 +772,17 @@ class appIO(QtCore.QObject):
         finally:
             if created and not proteus:
                 if not self.app.abort_flag:
-                    self.pcbdoc_outputs_ready.emit(filename)
+                    self.pcbdoc_outputs_ready.emit(filename, source_kind)
                 self.worker_task.emit({'fcn': self.app.plot_all, 'params': [True, False, True], 'priority': 'low'})
         if failed:
             self.inform.emit('[ERROR_NOTCL] %s' % _('Import failed.'))
             return 'fail'
 
-    @QtCore.pyqtSlot(str)
-    def on_pcbdoc_outputs_ready(self, filename):
+    @QtCore.pyqtSlot(str, str)
+    def on_pcbdoc_outputs_ready(self, filename, kind):
         if self.app.abort_flag:
             return
-        self.app.file_opened.emit(self._pcb_source_kind(filename), filename)
+        self.app.file_opened.emit(kind, filename)
 
     def on_file_open_gerber(self, name=None):
         """

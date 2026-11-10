@@ -76,6 +76,9 @@ def import_entries(app):
         {'key': 'pcbdoc', 'title': _('Altium PCB'), 'ext': '.PcbDoc',
          'text': _('Reads a native Altium Designer board.'),
          'run': lambda: handlers.on_file_import_pcbdoc()},
+        {'key': 'cspcbdoc', 'title': _('CircuitStudio / CircuitMaker PCB'), 'ext': '.CSPcbDoc',
+         'text': _('Reads a native Altium CircuitStudio or CircuitMaker board, including split planes.'),
+         'run': lambda: handlers.on_file_import_cspcbdoc()},
         {'key': 'proteus', 'title': _('Proteus PCB'), 'ext': '.pdsprj',
          'text': _('Reads a native Proteus 8 or 9 project. If the project has more than one board, '
                    'the import reads the boards one after the other.'),
@@ -97,6 +100,10 @@ def import_entries(app):
                    'Imports saved copper, pads, vias, drilling, outlines, mask, paste and documentation layers. '
                    'Unsupported records and unavailable artwork are reported during import.'),
          'run': lambda: handlers.on_file_import_diptrace()},
+        {'key': 'odb', 'title': _('ODB++ Job'), 'ext': '.tgz .zip',
+         'text': _('Reads an ODB++ job: a .tgz, .tar or .zip archive, or the matrix file of an unpacked job. '
+                   'Imports the graphic layers, the drill layers and the board profile of one step.'),
+         'run': lambda: handlers.on_file_import_odb()},
     ]
     for entry in boards:
         entry['icon'] = res + '/import.png'

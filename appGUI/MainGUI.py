@@ -309,6 +309,10 @@ class MainGUI(QtWidgets.QMainWindow):
             QtGui.QIcon(self.app.resource_location + '/import.png'),
             '%s...' % _('Altium PCB (.PcbDoc)'), self)
         self.menufileimport.addAction(self.menufileimportpcbdoc)
+        self.menufileimportcspcbdoc = QtGui.QAction(
+            QtGui.QIcon(self.app.resource_location + '/import.png'),
+            '%s...' % _('CircuitStudio / CircuitMaker PCB (.CSPcbDoc)'), self)
+        self.menufileimport.addAction(self.menufileimportcspcbdoc)
         self.menufileimportproteus = QtGui.QAction(
             QtGui.QIcon(self.app.resource_location + '/import.png'),
             '%s...' % _('Proteus PCB (.pdsprj)'), self)
@@ -333,6 +337,10 @@ class MainGUI(QtWidgets.QMainWindow):
             QtGui.QIcon(self.app.resource_location + '/import.png'),
             '%s...' % _('DipTrace PCB (.dip)'), self)
         self.menufileimport.addAction(self.menufileimportdiptrace)
+        self.menufileimportodb = QtGui.QAction(
+            QtGui.QIcon(self.app.resource_location + '/import.png'),
+            '%s...' % _('ODB++ Job (.tgz, .zip, folder)'), self)
+        self.menufileimport.addAction(self.menufileimportodb)
         self.menufileimport.addSeparator()
 
         # Export ...

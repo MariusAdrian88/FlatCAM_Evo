@@ -6,8 +6,8 @@
 ![Platforms](https://img.shields.io/badge/Platforms-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)
 
 **FlatCAM Evo** is a free, open-source 2D CAM program for PCB manufacturing. It reads the files that a PCB design
-program makes (Gerber, Excellon, board files of Altium, KiCad, Eagle, OrCAD/Allegro, DipTrace, Proteus and Sprint
-Layout) and makes the
+program makes (Gerber, Excellon, ODB++ jobs, board files of Altium, KiCad, Eagle, OrCAD/Allegro, DipTrace, Proteus
+and Sprint Layout) and makes the
 G-code that a CNC router, a CNC mill or a laser needs to make the board: isolation routing, copper clearing, drilling,
 slot milling, board cutout, solder paste dispensing and more. It also carves and laser-engraves photos (Photo Carve).
 
@@ -49,7 +49,7 @@ The workflow has 4 steps:
 
 1. **Load** the manufacturing files of the board: Gerber layers (copper, solder mask, silkscreen, outline) and
    Excellon drill files. You can also import a complete board file (Altium, KiCad, Eagle, OrCAD/Allegro, DipTrace,
-   Proteus, Sprint Layout 6), or SVG, DXF, PDF, HPGL2, images and G-code files. For Photo Carve, you load a photo.
+   Proteus, Sprint Layout 6), an ODB++ job, or SVG, DXF, PDF, HPGL2, images and G-code files. For Photo Carve, you load a photo.
 2. **Prepare** the objects: move, mirror (for 2-sided boards), rotate, scale, panelize, join, or edit them in the
    built-in editors.
 3. **Generate** the toolpaths with a plugin: isolation routing around the tracks, removal of the copper that is not
@@ -69,8 +69,9 @@ The program keeps all objects of a job in 1 **project** file (`.FlatPrj`).
   **Excellon** (drills, routed and drilled slots, pattern repeat, incremental coordinates, the plated flag of each
   tool, all number formats, and the XNC format 2019.02 with its attributes). The attributes stay with the objects
   through the editors, Panelize, Join and the export.
-- **Direct import of PCB board files**: Altium `.PcbDoc`, KiCad `.kicad_pcb`, Eagle `.brd`, OrCAD/Allegro `.brd`,
-  DipTrace `.dip`, Proteus `.pdsprj` and Sprint Layout 6 `.lay6`. Each copper or mask layer becomes a Gerber
+- **Direct import of PCB board files**: Altium `.PcbDoc`, CircuitStudio / CircuitMaker `.CSPcbDoc`, KiCad `.kicad_pcb`, Eagle `.brd`, OrCAD/Allegro `.brd`,
+  DipTrace `.dip`, Proteus `.pdsprj`, Sprint Layout 6 `.lay6` and ODB++ jobs (`.tgz`, `.tar`, `.zip` or an
+  unpacked folder). Each copper or mask layer becomes a Gerber
   object, and each drill group becomes an Excellon object. `Ctrl+I` opens an Import dialog with all the imports in
   groups and a search box.
 - **G-code import**: any G-code file becomes a CNCJob object with its tools, toolpaths, drill hits and estimated
@@ -669,12 +670,14 @@ A step keeps only the changed shapes, so the history stays small on a large boar
 | Photo (PNG, JPG, BMP, TIF) for carving or laser engraving | Photo Carve plugin | Geometry |
 | PCB Wizard Excellon + `.INF` | File > Import | Excellon |
 | Altium PCB (`.PcbDoc`) | File > Import | Gerber and Excellon objects |
+| CircuitStudio / CircuitMaker PCB (`.CSPcbDoc`) | File > Import | Gerber and Excellon objects |
 | KiCad PCB (`.kicad_pcb`) | File > Import | Gerber and Excellon objects |
 | Eagle board (`.brd`, XML) | File > Import | Gerber and Excellon objects |
 | OrCAD/Allegro board (`.brd`) | File > Import | Gerber and Excellon objects |
 | DipTrace PCB (`.dip`) | File > Import | Gerber and Excellon objects |
 | Proteus PCB (`.pdsprj`) | File > Import | Gerber and Excellon objects, firmware files as Documents |
 | Sprint Layout 6 (`.lay6`) | File > Import | Gerber and Excellon objects |
+| ODB++ job (`.tgz`, `.tar`, `.zip`, unpacked folder) | File > Import | Gerber and Excellon objects |
 
 The board file imports show a dialog where you select the layers and drill groups. A board that you import into a
 project that has objects opens in a new project. Some limits apply:
@@ -684,7 +687,14 @@ project that has objects opens in a new project. Some limits apply:
 - **DipTrace**: file versions 37 to 60 (DipTrace 3.x to 5.x), also multilayer boards. The import asks if the vias
   are tented or open, because the `.dip` file does not hold this setting. Net classes, design rules and pour
   refills are not imported.
+- **CircuitStudio / CircuitMaker**: the `.CSPcbDoc` boards of Altium CircuitStudio and CircuitMaker, also split
+  planes. The text uses the TrueType fonts of the board; a font that is not embedded must be installed.
 - **Proteus**: Proteus 8 and 9 projects. Each board of a project goes into its own project.
+- **ODB++**: ODB++ Design 8.x jobs. The program finds the archive type by its content, so a renamed archive also
+  opens. For an unpacked job, select its `matrix/matrix` file. A job with more than 1 step asks for the step; a
+  panel step is flattened with all its copies. The import reads only the graphics: the graphic layers, the drill
+  layers and the board profile. Drill lines and oval drill pads become Excellon slots. EDA data, netlist, BOM, stackup, barcodes and flipped step-repeat copies are not
+  imported.
 
 The other imports also have these features:
 

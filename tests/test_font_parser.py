@@ -197,13 +197,15 @@ def test_font_collections_use_the_indexed_face(tmp_path):
     assert outline.bounds[2] - outline.bounds[0] == pytest.approx(1.6, rel=1e-3)
     assert advance == pytest.approx(1.8)
 
-    # the PcbDoc importer reads the same face: 10mm cap height makes this 800 unit 'o' 16mm wide
+    # the PcbDoc importer reads the same face: a 10mm text is the full font height (ascender 800 to descender
+    # -200), so the 500 unit cap is 5mm and this 800 unit 'o' is 8mm wide
     layout = PcbDocParser()
     layout._fonts[('CollOther', 'Regular')] = entry
     single = layout._font_geometry('o', 'CollOther', 'Regular', 10.0)
-    assert single.bounds[2] - single.bounds[0] == pytest.approx(16.0, rel=1e-3)
-    kerned = layout._font_geometry('oo', 'CollOther', 'Regular', 10.0)
-    assert kerned.bounds[2] - kerned.bounds[0] == pytest.approx(32.0, rel=1e-3)
+    assert single.bounds[2] - single.bounds[0] == pytest.approx(8.0, rel=1e-3)
+    # and like Altium it does not kern: the second 'o' starts 1 advance (10mm) after the first
+    pair = layout._font_geometry('oo', 'CollOther', 'Regular', 10.0)
+    assert pair.bounds[2] - pair.bounds[0] == pytest.approx(18.0, rel=1e-3)
 
 
 @pytest.fixture(scope='session')

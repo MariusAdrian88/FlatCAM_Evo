@@ -34,6 +34,8 @@ def welcome_entries(app):
         vector = imports[kind + '_geometry']
         vector.update(key=kind, title=kind.upper(),
                       text=_('Import vector artwork as Geometry for machining, or as Gerber for PCB processing.'))
+        if kind == 'dxf':
+            vector['icon'] = app.resource_location + '/dxf64.png'
         geometry.append(vector)
     geometry.extend(imports[key] for key in ('hpgl2', 'image', 'pdf') if key in imports)
     pcb = [
@@ -44,13 +46,14 @@ def welcome_entries(app):
               _('Open PCB artwork, or create a blank Gerber object.'), 'flatcam_icon16.png'),
         entry('excellon', _('Excellon'), '.drl .txt .xln .drd .tap .exc .ncd .xnc', _('Excellon object'),
               _('Open drilling data, or create a blank Excellon object.'), 'drill16.png'),
+        dict(imports['odb'], title=_('ODB++'), icon=app.resource_location + '/odb64.png'),
         entry('script', _('Script'), '.FlatScript .tcl', _('Script object'),
               _('Open a script for editing without executing it, or create a blank script.'), 'script_new24.png'),
         entry('document', _('Doc'), '.FlatDoc', _('Document object'),
               _('Open a FlatCAM Evo document, or create a blank document.'), 'notes16_1.png'),
     ]
     boards = [entry for entry in imports.values() if entry['key'] in (
-        'pcbdoc', 'proteus', 'kicad_pcb', 'sprint_layout', 'eagle_brd', 'allegro_brd', 'diptrace')]
+        'pcbdoc', 'cspcbdoc', 'proteus', 'kicad_pcb', 'sprint_layout', 'eagle_brd', 'allegro_brd', 'diptrace')]
     return [(_('Project'), [project]), (_('Geometry'), geometry),
             (_('PCB Manufacturing files'), pcb), (_('PCB Boards'), boards)]
 

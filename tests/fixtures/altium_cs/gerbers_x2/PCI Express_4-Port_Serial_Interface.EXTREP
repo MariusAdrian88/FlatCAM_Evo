@@ -1,0 +1,32 @@
+------------------------------------------------------------------------------------------
+Gerber File Extension Report For: PCI Express_4-Port_Serial_Interface.GBR   10-Nov-26  8:50:13 AM
+------------------------------------------------------------------------------------------
+
+
+------------------------------------------------------------------------------------------
+Layer Extension     Layer Description                      
+------------------------------------------------------------------------------------------
+.gbr                TopLayer                                
+.gbr                InternalPlane2                          
+.gbr                InternalPlane1                          
+.gbr                BottomLayer                             
+.gbr                Bottom Pad Master                       
+.gbr                Top Pad Master                          
+.gbr                TopPaste                                
+.gbr                BottomOverlay                           
+.gbr                BottomPaste                             
+.gbr                TopSolder                               
+.gbr                TopOverlay                              
+.gbr                BottomSolder                            
+.gbr                KeepOutLayer                            
+.gbr                PCI-SIG Dimensions                      
+.gbr                Mechanical7                             
+.gbr                Mechanical15                            
+.gbr                PCI-SIG Outline                         
+.gbr                PCI-SIG Notes                           
+.gbr                Template                                
+.gbr                Mechanical11                            
+.gbr                Profile                                 
+.gbr                Non-plated through-hole drill file      
+.gbr                Plated through-hole drill file          
+------------------------------------------------------------------------------------------

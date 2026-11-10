@@ -1,0 +1,509 @@
+*************************************************************
+FileName = PCI Express_4-Port_Serial_Interface.GBR
+AutoAperture = True
+*************************************************************
+Generating : TopLayer
+      File : PCI Express_4-Port_Serial_Interface_Copper_Signal_Top.gbr
+
+    Adding Layer      : TopLayer
+
+    Adding Layer      : MultiLayer
+
+
+Used DCodes :
+    D10
+    D11
+    D12
+    D13
+    D14
+    D15
+    D16
+    D17
+    D18
+    D19
+    D20
+    D21
+    D22
+    D23
+    D24
+    D25
+    D26
+    D27
+    D28
+    D29
+    D30
+    D31
+    D32
+    D33
+    D34
+    D35
+    D36
+    D37
+    D38
+    D39
+    D40
+    D41
+    D42
+    D43
+    D44
+    D45
+    D46
+    D47
+    D48
+    D49
+    D50
+    D51
+    D52
+*************************************************************
+
+*************************************************************
+Generating : InternalPlane2
+      File : PCI Express_4-Port_Serial_Interface_Copper_Plane_1.gbr
+
+    Adding Layer      : InternalPlane2
+
+    Adding Layer      : MultiLayer
+
+
+Used DCodes :
+    D53
+    D54
+    D55
+    D56
+    D57
+    D58
+    D59
+    D60
+    D61
+    D62
+    D63
+    D64
+    D65
+    D66
+    D67
+*************************************************************
+
+*************************************************************
+Generating : InternalPlane1
+      File : PCI Express_4-Port_Serial_Interface_Copper_Plane_2.gbr
+
+    Adding Layer      : InternalPlane1
+
+    Adding Layer      : MultiLayer
+
+
+Used DCodes :
+    D53
+    D55
+    D56
+    D57
+    D58
+    D59
+    D60
+    D61
+    D62
+    D63
+    D64
+    D65
+    D66
+    D67
+*************************************************************
+
+*************************************************************
+Generating : BottomLayer
+      File : PCI Express_4-Port_Serial_Interface_Copper_Signal_Bot.gbr
+
+    Adding Layer      : BottomLayer
+
+    Adding Layer      : MultiLayer
+
+
+Used DCodes :
+    D10
+    D11
+    D23
+    D24
+    D32
+    D34
+    D35
+    D36
+    D38
+    D39
+    D40
+    D41
+    D42
+    D43
+    D44
+    D45
+    D46
+    D47
+    D48
+    D49
+    D50
+    D51
+    D52
+*************************************************************
+
+*************************************************************
+Generating : Bottom Pad Master
+      File : PCI Express_4-Port_Serial_Interface_Pads_Bot.gbr
+
+    Adding Layer      : BottomLayer
+
+    Adding Layer      : MultiLayer
+
+
+Used DCodes :
+    D23
+    D24
+    D38
+    D39
+    D40
+    D41
+    D42
+    D43
+    D44
+    D45
+    D46
+    D47
+    D48
+    D49
+*************************************************************
+
+*************************************************************
+Generating : Top Pad Master
+      File : PCI Express_4-Port_Serial_Interface_Pads_Top.gbr
+
+    Adding Layer      : TopLayer
+
+    Adding Layer      : MultiLayer
+
+
+Used DCodes :
+    D12
+    D13
+    D14
+    D15
+    D16
+    D17
+    D18
+    D19
+    D20
+    D21
+    D22
+    D23
+    D24
+    D25
+    D26
+    D27
+    D28
+    D29
+    D30
+    D31
+    D38
+    D39
+    D40
+    D41
+    D42
+    D43
+    D44
+    D45
+    D46
+    D47
+    D48
+    D49
+*************************************************************
+
+*************************************************************
+Generating : TopPaste
+      File : PCI Express_4-Port_Serial_Interface_Paste_Top.gbr
+
+    Adding Layer      : TopPaste
+
+    Adding Layer      : TopLayer
+
+    Adding Layer      : MultiLayer
+
+
+Used DCodes :
+    D12
+    D13
+    D14
+    D15
+    D16
+    D17
+    D18
+    D19
+    D20
+    D21
+    D22
+    D23
+    D24
+    D26
+    D27
+    D28
+    D29
+    D30
+    D31
+*************************************************************
+
+*************************************************************
+Generating : BottomOverlay
+      File : PCI Express_4-Port_Serial_Interface_Legend_Bot.gbr
+
+    Adding Layer      : BottomOverlay
+
+
+Used DCodes :
+    D55
+    D68
+    D69
+    D70
+*************************************************************
+
+*************************************************************
+Generating : BottomPaste
+      File : PCI Express_4-Port_Serial_Interface_Paste_Bot.gbr
+
+    Adding Layer      : BottomPaste
+
+    Adding Layer      : BottomLayer
+
+    Adding Layer      : MultiLayer
+
+
+Used DCodes :
+    D23
+    D24
+*************************************************************
+
+*************************************************************
+Generating : TopSolder
+      File : PCI Express_4-Port_Serial_Interface_Soldermask_Top.gbr
+
+    Adding Layer      : TopSolder
+
+    Adding Layer      : TopLayer
+
+    Adding Layer      : MultiLayer
+
+
+Used DCodes :
+    D12
+    D13
+    D14
+    D15
+    D16
+    D17
+    D18
+    D19
+    D20
+    D21
+    D22
+    D23
+    D24
+    D26
+    D27
+    D28
+    D29
+    D30
+    D31
+    D38
+    D39
+    D40
+    D41
+    D42
+    D43
+    D45
+    D46
+    D47
+    D48
+    D49
+    D50
+    D52
+    D71
+    D72
+*************************************************************
+
+*************************************************************
+Generating : TopOverlay
+      File : PCI Express_4-Port_Serial_Interface_Legend_Top.gbr
+
+    Adding Layer      : TopOverlay
+
+
+Used DCodes :
+    D10
+    D55
+    D68
+    D69
+    D70
+    D73
+    D74
+    D75
+    D76
+    D77
+    D78
+    D79
+*************************************************************
+
+*************************************************************
+Generating : BottomSolder
+      File : PCI Express_4-Port_Serial_Interface_Soldermask_Bot.gbr
+
+    Adding Layer      : BottomSolder
+
+    Adding Layer      : BottomLayer
+
+    Adding Layer      : MultiLayer
+
+
+Used DCodes :
+    D23
+    D24
+    D38
+    D39
+    D40
+    D41
+    D42
+    D43
+    D45
+    D46
+    D47
+    D48
+    D49
+    D50
+    D51
+    D52
+    D71
+    D72
+*************************************************************
+
+*************************************************************
+Generating : KeepOutLayer
+      File : PCI Express_4-Port_Serial_Interface_Keep-out.gbr
+
+    Adding Layer      : KeepOutLayer
+
+
+Used DCodes :
+    D75
+    D80
+*************************************************************
+
+*************************************************************
+Generating : PCI-SIG Dimensions
+      File : PCI Express_4-Port_Serial_Interface_Mechanical_13.gbr
+
+    Adding Layer      : PCI-SIG Dimensions
+
+
+Used DCodes :
+    D75
+*************************************************************
+
+*************************************************************
+Generating : Mechanical7
+      File : PCI Express_4-Port_Serial_Interface_Mechanical_7.gbr
+
+    Adding Layer      : Mechanical7
+
+
+Used DCodes :
+    D55
+    D75
+    D77
+    D81
+    D82
+*************************************************************
+
+*************************************************************
+Generating : Mechanical15
+      File : PCI Express_4-Port_Serial_Interface_Mechanical_15.gbr
+
+    Adding Layer      : Mechanical15
+
+
+Used DCodes :
+    D75
+    D83
+*************************************************************
+
+*************************************************************
+Generating : PCI-SIG Outline
+      File : PCI Express_4-Port_Serial_Interface_Mechanical_1.gbr
+
+    Adding Layer      : PCI-SIG Outline
+
+
+Used DCodes :
+    D75
+    D84
+    D85
+*************************************************************
+
+*************************************************************
+Generating : PCI-SIG Notes
+      File : PCI Express_4-Port_Serial_Interface_Mechanical_6.gbr
+
+    Adding Layer      : PCI-SIG Notes
+
+
+Used DCodes :
+*************************************************************
+
+*************************************************************
+Generating : Template
+      File : PCI Express_4-Port_Serial_Interface_Mechanical_16.gbr
+
+    Adding Layer      : Template
+
+
+Used DCodes :
+*************************************************************
+
+*************************************************************
+Generating : Mechanical11
+      File : PCI Express_4-Port_Serial_Interface_Mechanical_11.gbr
+
+    Adding Layer      : Mechanical11
+
+
+Used DCodes :
+*************************************************************
+
+*************************************************************
+Generating : Profile
+      File : PCI Express_4-Port_Serial_Interface_Profile.gbr
+
+
+Used DCodes :
+    D86
+*************************************************************
+
+*************************************************************
+Generating : Non-plated through-hole drill file
+      File : PCI Express_4-Port_Serial_Interface_NPTH_Drill.gbr
+
+
+Used DCodes :
+    D87
+*************************************************************
+
+*************************************************************
+Generating : Plated through-hole drill file
+      File : PCI Express_4-Port_Serial_Interface_PTH_Drill.gbr
+
+
+Used DCodes :
+    D88
+    D89
+    D90
+    D91
+    D92
+    D93
+    D94
+    D95
+    D96
+*************************************************************
+
