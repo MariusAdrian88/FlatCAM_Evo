@@ -672,7 +672,13 @@ class LayerDialog:
 
 @pytest.fixture
 def qapp():
-    return QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    yield app
+    # an import that a test leaves pending keeps its window modal layer dialog open: cancel it like the user
+    for widget in app.topLevelWidgets():
+        if isinstance(widget, QtWidgets.QDialog) and widget.isVisible():
+            widget.reject()
+    app.processEvents()
 
 
 @pytest.mark.parametrize('file_name', ['board.dat', 'board.brd'])

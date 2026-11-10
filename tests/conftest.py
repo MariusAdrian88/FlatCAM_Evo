@@ -87,6 +87,37 @@ finally:
     sys.argv = _saved_argv
 
 
+# Each App makes a process pool of cpu_count / 4 processes, and a test App stays alive until its worker ends: a gate
+# run had 44 pool processes beside its 8 workers, and the load made other tests fail at random. All Apps of a test
+# process share 1 pool of 2 processes. It starts at its first use, and the quit code of an App does not stop it.
+def _share_one_pool():
+    module = sys.modules.get('appMain')
+    if module is None:
+        return
+    import multiprocessing.pool
+    shared = []
+
+    class SharedPool:
+        def __getattr__(self, name):
+            if not shared:
+                shared.append(multiprocessing.pool.Pool(processes=2, maxtasksperchild=100))
+            return getattr(shared[0], name)
+
+        def close(self):
+            pass
+
+        def terminate(self):
+            pass
+
+        def join(self):
+            pass
+
+    module.Pool = lambda *args, **kwargs: SharedPool()
+
+
+_share_one_pool()
+
+
 # The GUI tests show real windows. A window with WA_DontShowOnScreen is shown for Qt (visible, laid out, grab()
 # works, the window states change) but it does not appear on the desktop, so the tests do not flash windows.
 # Set FLATCAM_TEST_SHOW_WINDOWS=1 to see the windows.

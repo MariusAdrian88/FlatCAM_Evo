@@ -53,6 +53,11 @@ class TestPcbDocImport(unittest.TestCase):
         self.io.export_excellon = Mock(return_value='M48\nM30\n')
 
     def tearDown(self):
+        # an import that a test leaves pending keeps its window modal layer dialog open: cancel it like the user
+        ui = getattr(self.app, 'ui', None)
+        if isinstance(ui, QtWidgets.QWidget):
+            for dialog in ui.findChildren(QtWidgets.QDialog):
+                dialog.reject()
         self.qapp.processEvents()
 
     @pytest.mark.diptrace
