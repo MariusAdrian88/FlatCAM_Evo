@@ -6,6 +6,37 @@ Based on FlatCAM:
 
 CHANGELOG for FlatCAM Evo
 
+10.11.2026
+
+Import:
+
+- added: File > Import > ODB++ Job imports an ODB++ job (ODB++ Design 8.x): a .tgz, .tar.gz, .tar or .zip archive, or an unpacked folder (select its matrix/matrix file); the program finds the archive type by its content, so a renamed archive also opens
+- added: each graphic layer of the job becomes a Gerber object (copper, mask, paste, silkscreen on by default; document, component, misc and rout layers listed off), each drill layer gives PTH and NPTH Excellon objects (drill lines and oval drill pads become slots, as KiCad writes the oblong holes), and the board profile becomes a thin outline layer
+- added: the import reads the standard and user symbols, pad rotation and mirror, lines and arcs swept with round or square symbols, surfaces with holes, negative features, negative plane layers (clipped to the layer profile), text with the stroke font of the job and its dynamic variables, and .Z compressed members
+- added: a job with more than 1 step asks for the step; a panel step is flattened with all its step-repeat copies, in the order of the job, so a later copy covers or erases the earlier ones
+- added: the archive reads are bounded (member size, compression ratio, total memory); unsafe members (absolute paths, '..', links), repeated member paths and archives with more than 1 job are refused; a malformed feature record or an unfinished surface fails the import, so a damaged job gives no partial objects
+- not imported: EDA data, netlist, components, BOM, stackup, barcodes and flipped step-repeat copies (a warning tells which)
+- fixed: a second board import that started while the first one was still parsed could open 2 layer dialogs; now each board import is one request, and the next import starts only after the dialog of the first one closes, is cancelled or fails
+- changed: the recent files list records the format that the import found, not the format of the file extension
+- added: File > Import > CircuitStudio / CircuitMaker PCB (.CSPcbDoc) imports a native board of Altium CircuitStudio or CircuitMaker Pro; the storages of the file have GUID names, so the importer finds each one by its content
+- changed: the layer dialog of all board imports opens at once, with "Reading the board file. Wait..." and a busy bar; the layer list appears in the same dialog when the parse ends; Cancel during the parse ends the import
+- fixed (PcbDoc and CSPcbDoc): split planes, the net of each internal plane, the plane clearance and thermal relief from the hole size (with the PlaneConnect rule keys; a rule for different nets never connects), the via solder mask from the hole with the manual expansion, no paste on multilayer pads, the arc direction in outlines and regions, regions of 1 or 2 units
+- fixed (PcbDoc and CSPcbDoc): TrueType text has the height of ascender + descender, starts its ink at the text position and is not kerned, as Altium places it
+- fixed (PcbDoc and CSPcbDoc): a dimension line stops before its value text and starts again after it (the TEXTGAP of the dimension), the text is centred across the line, and the line and arrows use the arrow line width
+- checked against the Gerber X2 files of CircuitMaker Pro 2.0.5 for the fixture board: copper, planes, mask and paste differ by less than 0.05 %
+
+PCB 3D Viewer:
+
+- fixed: an outline layer with a drawing frame, notes or text away from the board no longer gives a wrong board; only the outline areas that hold the copper, mask and drill layers stay (all boards of a panel stay), and a hole in the board that holds copper is text, not a cutout
+- fixed: an outline layer without a board contour, only notes, gives the bounding box of the other layers, as without an outline
+- fixed: the bounding box no longer includes the silkscreen layers when other layers are selected
+- fixed: line ends closer than 1 um are joined; an imported Altium outline whose arcs end 1 database unit from their lines did not close, so the board was lost
+- changed: the automatic outline choice prefers the Profile layer, then Edge.Cuts, GKO, a layer with "outline" in its name, and the Keep-out layer last
+
+Gerber Editor:
+
+- changed: a save with clear features clips only the parts of the solid that the clear features touch, and no longer makes a deep copy of the storage; the save of a large board is faster
+
 09.11.2026
 
 Gerber Editor:
@@ -21,8 +52,6 @@ Gerber Editor:
 Application:
 
 - fixed: 2 instances that start at the same time with a new data folder no longer stop with "FileExistsError"; both can make the data and preprocessors folders
-
-09.11.2026
 
 Isolation:
 
