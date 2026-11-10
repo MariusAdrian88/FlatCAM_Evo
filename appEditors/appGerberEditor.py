@@ -5503,9 +5503,17 @@ class AppGerberEditor(QtCore.QObject):
             return tools
 
         from appParsers.feature_access import normalize_polygonal
-        solid = normalize_polygonal(solid_geometry if solid_geometry is not None else [])
         if apertures:
-            return AppGerberEditor.clip_edit_tools(tools, solid, clears)
+            # clip_edit_tools() needs the solid only where the clear features are: take the parts whose bounding
+            # box meets the union of the clears (no predicate: a part can be invalid, and its make_valid output
+            # stays inside its envelope) and skip the union of the whole board
+            clear_union = shapely.union_all(np.array(clears, dtype=object))
+            parts = [part for part in flatten_shapely_geometry(solid_geometry if solid_geometry is not None else [])
+                     if part is not None and not part.is_empty]
+            if parts:
+                parts = [parts[i] for i in np.unique(shapely.STRtree(parts).query(clear_union))]
+            return AppGerberEditor.clip_edit_tools(tools, normalize_polygonal(parts), [clear_union])
+        solid = normalize_polygonal(solid_geometry if solid_geometry is not None else [])
         polygons = [solid] if isinstance(solid, Polygon) else list(solid.geoms)
         polygons = [poly for poly in polygons if not poly.is_empty]
         polygons.sort(key=lambda poly: Polygon(poly.exterior).area, reverse=True)
@@ -5525,7 +5533,8 @@ class AppGerberEditor(QtCore.QObject):
         The work is done on shapely arrays: one tree query finds the (record, removed part) pairs.
 
         :param tools:   the apertures dictionary of the source Gerber object; it is not changed
-        :param solid:   the composed solid of the source Gerber object (Polygon or MultiPolygon)
+        :param solid:   the composed solid of the source Gerber object, or only its parts that touch the clear
+                        features (Polygon or MultiPolygon)
         :param clears:  the clear geometries of the records
         :return:        a new apertures dictionary with the same aperture codes
         """
@@ -5844,15 +5853,11 @@ class AppGerberEditor(QtCore.QObject):
     @staticmethod
     def _storage_with_geometry(storage_dict):
         """
-        A deep copy of the apertures of the editor storage that have geometry.
+        The apertures of the editor storage that have geometry, each as a new dictionary with the same values.
+        No deep copy: the storage comes detached from _save_storage(), _fill_edited_gerber() does not change it,
+        and Shapely 2 geometries are immutable.
         """
-        local_storage_dict = {}
-        for aperture in storage_dict:
-            if 'geometry' in storage_dict[aperture]:
-                # add aperture only if it has geometry
-                if len(storage_dict[aperture]['geometry']) > 0:
-                    local_storage_dict[aperture] = deepcopy(storage_dict[aperture])
-        return local_storage_dict
+        return {key: dict(aperture) for key, aperture in storage_dict.items() if len(aperture.get('geometry', ())) > 0}
 
     def _record_is_native(self, owner, aperture, record, cache=None):
         """
