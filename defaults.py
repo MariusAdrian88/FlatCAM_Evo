@@ -179,6 +179,12 @@ class AppDefaults:
         "global_shell_at_startup": False,  # Show the shell at startup.
         "global_project_at_startup": False,
         "global_welcome": True,
+        # ids of the Welcome screen categories that are collapsed; changed in memory, saved at shutdown
+        "global_welcome_collapsed": ['geometry', 'boards'],
+        # Welcome screen category id -> the key of its last selected file type; also saved at shutdown only
+        "global_welcome_last": {},
+        # the file type that the Welcome screen selects when it opens; also saved at shutdown only
+        "global_welcome_selected": 'project',
         "global_project_caching": False,
         "global_version_check": True,
         "global_update_url": DEFAULT_UPDATE_URL,

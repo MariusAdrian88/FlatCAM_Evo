@@ -442,3 +442,99 @@ X0Y20000000D01*
 G37*
 M02*
 '''
+
+
+_PCB_IMPORT_QAPP = None
+
+
+def pcb_import_stub():
+    """A small app stub for the board import path of appIO (file chooser, worker, layer dialog, objects).
+
+    Returns (app, io_handler, objects): ``objects`` gets a (kind, name, obj) tuple for each created object. The
+    production Gerber and Excellon exporters run unchanged on the stub objects.
+    """
+    os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+    from PyQt6 import QtWidgets
+    from appHandlers.appIO import appIO
+    from appObjects.ExcellonObject import ExcellonObject
+    from appObjects.GerberObject import GerberObject
+    from defaults import AppDefaults
+
+    global _PCB_IMPORT_QAPP
+    # a QApplication without a reference is deleted at once, and the next QWidget crashes the process
+    _PCB_IMPORT_QAPP = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    app = SimpleNamespace(log=Mock(), inform=Mock(), splash=None, worker_task=Mock(), app_units='MM',
+                          new_project_signal=Mock(), abort_flag=False, app_obj=Mock(), plot_all=Mock(),
+                          file_opened=Mock(), resource_location='assets/resources', ui=QtWidgets.QWidget(),
+                          get_last_folder=Mock(return_value=''), project_filename=None, should_we_save=False,
+                          decimals=4, plotcanvas=Mock(), proc_container=Mock(), version='test', version_date='test')
+    app.defaults = AppDefaults()
+    app.options = dict(app.defaults.defaults)
+    app.projects = SimpleNamespace(is_busy=lambda: False, inform_busy=Mock(),
+                                   active=SimpleNamespace(collection=SimpleNamespace(get_list=lambda: [])))
+    io_handler = appIO(app)
+    app.f_handlers = io_handler
+    objects = []
+
+    def create(kind, name, initialize, **kwargs):
+        obj = SimpleNamespace(obj_options={'name': name}, create_geometry=Mock())
+        assert initialize(obj, app) != 'fail'
+        objects.append((kind, name, obj))
+        return obj
+
+    def exported(name, filename, local_use, use_thread):
+        local_use.app = app
+        local_use.export_gerber = lambda *args, **kwargs: GerberObject.export_gerber(local_use, *args, **kwargs)
+        return type(io_handler).export_gerber(io_handler, name, filename, local_use, use_thread)
+
+    def exported_drills(name, filename, local_use, use_thread):
+        local_use.app = app
+        local_use.export_excellon = lambda *args, **kwargs: ExcellonObject.export_excellon(local_use, *args, **kwargs)
+        with patch('appHandlers.appIO.ExcellonObject', SimpleNamespace):
+            return type(io_handler).export_excellon(io_handler, name, filename, local_use, use_thread)
+
+    app.app_obj.new_object.side_effect = create
+    io_handler.export_gerber = Mock(side_effect=exported)
+    io_handler.export_excellon = Mock(side_effect=exported_drills)
+    return app, io_handler, objects
+
+
+def run_pcb_import(app, io_handler, key, filename, choose):
+    """Import ``filename`` through the Import dialog entry ``key``.
+
+    ``choose(dialog)`` sets the checkboxes of the layer dialog. Each worker job runs in place; a job that parses
+    again (a step or PCB choice) runs too. Returns (layer dialogs shown, the last parsed result).
+    """
+    from PyQt6 import QtWidgets
+    from appGUI.ImportDialog import ImportDialog
+
+    dialog = ImportDialog(app)
+    dialog.select(key)
+    dialog.accept()
+    with patch.object(QtWidgets.QFileDialog, 'getOpenFileName', return_value=(filename, '')):
+        dialog.run_selected()
+    shown, parsed = [], None
+
+    def exec_layer_dialog(selection):
+        shown.append(selection)
+        choose(selection)
+        return QtWidgets.QDialog.DialogCode.Accepted
+
+    try:
+        with patch.object(QtWidgets.QDialog, 'exec', exec_layer_dialog):
+            for _ in range(4):
+                job = app.worker_task.emit.call_args.args[0]
+                app.worker_task.emit.reset_mock()
+                with patch.object(io_handler, 'pcbdoc_parsed') as signal:
+                    assert job['fcn'](*job['params']) != 'fail'
+                if signal.emit.called:
+                    source, parsed, request = signal.emit.call_args.args
+                    io_handler.on_pcbdoc_parsed(source, parsed, request)
+                if not app.worker_task.emit.called:
+                    break
+        QtWidgets.QApplication.processEvents()
+    finally:
+        for left in app.ui.findChildren(QtWidgets.QDialog):
+            left.reject()
+        QtWidgets.QApplication.processEvents()
+    return shown, parsed

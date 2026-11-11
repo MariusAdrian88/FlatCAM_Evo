@@ -15,8 +15,8 @@ Allegro importer (facts only, no code); every field read here was compared with 
 board. Only two layouts were checked this way (17.2 and the 0x00150200 format of 24.1); they are read without
 a remark. The other 17.x and 18.x/19.0 releases are tried with the layout the KiCad notes give for them, but
 they were never compared with a Gerber: they are read only if the whole file walks cleanly and every
-coordinate and size is sane (strict gate), and the result carries a warning. 16.x and older, and unknown
-formats, are refused by name.
+coordinate and size is sane (strict gate), and the result carries a warning. 16.x boards go to their own
+reader (ParseAllegroBrd16). 15.x and older, 17.0-17.1 and unknown formats are refused by name.
 
 Output is in millimetres, Y up, in the board's own coordinates (the frame of Allegro's photoplot output).
 Copper is built from tracks, stored shape fills (with their voids), pads and vias. Anything that would
@@ -202,6 +202,13 @@ class AllegroBrdParser:
         try:
             if not isinstance(data, (bytes, bytearray)):
                 raise AllegroBrdParseError('parse_bytes needs bytes')
+            if type(self) is AllegroBrdParser:
+                # 16.x boards have their own reader; it subclasses this one, so the guard stops a recursion and
+                # the import stays local (that module imports this one)
+                from appParsers.ParseAllegroBrd16 import is_16x, parse_into
+                if is_16x(data):
+                    parse_into(self, data)
+                    return self
             self._d = bytes(data)
             self._parse()
         except AllegroBrdParseError as error:
@@ -290,11 +297,15 @@ class AllegroBrdParser:
         layout = _layout_for(magic)
         if layout is None:
             known = _KNOWN_RELEASES.get(magic)
+            if (magic >> 16) == 0x0012:
+                raise AllegroBrdParseError(
+                    'Allegro 15.x boards are not supported (magic 0x%08X): open and save the board in Allegro 16 '
+                    'or newer first' % self._u32(0))
             if known or (magic >> 16) == 0x0013 or magic < 0x00140400 and (magic >> 16) == 0x0014:
                 raise AllegroBrdParseError(
                     'Allegro %s boards are not supported (magic 0x%08X): releases before 17.2 store padstacks, '
                     'drills and many blocks differently. Open and save the board in Allegro 17.2 or newer first' % (
-                        known or '16.x/17.0-17.1', self._u32(0)))
+                        known or '17.0-17.1', self._u32(0)))
             raise AllegroBrdParseError('Not an Allegro board or an unknown release (magic 0x%08X)' % self._u32(0))
         self.version, self._ver, checked = layout
         role = self._u32(8) if len(data) >= 12 else 0

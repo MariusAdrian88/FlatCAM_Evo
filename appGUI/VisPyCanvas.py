@@ -83,22 +83,25 @@ class VisPyCanvas(scene.SceneCanvas):
         self.yaxis = scene.AxisWidget(
             orientation='left', axis_color=tick_color, text_color=tick_color, font_size=a_fsize, axis_width=1
         )
-        self.yaxis.width_max = 55
-        self.yaxis.axis._text.rotation = 45
-        self.grid_widget.add_widget(self.yaxis, row=1, col=0)
-
+        # The tick labels sit beside their major tick, past the minor ticks (VisPyPatches.beside_tick_labels): the
+        # vertical ones turned 90 degrees CCW. Each axis is as thick as its labels need, from the font metrics.
+        self.yaxis.axis._text.rotation = -90
         self.xaxis = scene.AxisWidget(
-            orientation='bottom', axis_color=tick_color, text_color=tick_color, font_size=a_fsize, axis_width=1,
-            anchors=['center', 'bottom']
-        )
-        # Reserve only the ticks, horizontal labels and a small bottom gap.
+            orientation='bottom', axis_color=tick_color, text_color=tick_color, font_size=a_fsize, axis_width=1)
         font = QFont(self.xaxis.axis._text.face)
         font.setPointSizeF(self.xaxis.axis.tick_font_size)
-        label_height = QFontMetricsF(font, self.native).ascent()
-        axis_height = np.ceil(self.xaxis.axis.major_tick_length +
-                              self.xaxis.axis.tick_label_margin + label_height + 4)
-        self.xaxis.height_min = axis_height
-        self.xaxis.height_max = axis_height
+        metrics = QFontMetricsF(font, self.native)
+        gap_out = 2
+        for axis, side in ((self.yaxis, 'left'), (self.xaxis, 'bottom')):
+            axis.axis.unfreeze()
+            axis.axis.flatcam_beside_labels = {'side': side, 'metrics': metrics, 'gap_along': 3, 'gap_out': gap_out}
+            axis.axis.freeze()
+        # the labels run from past the minor ticks (still beside the major tick) to their ascent, plus a small gap
+        thickness = np.ceil(max(self.xaxis.axis.major_tick_length,
+                                self.xaxis.axis.minor_tick_length + gap_out + metrics.ascent()) + 3)
+        self.yaxis.width_min = self.yaxis.width_max = thickness
+        self.grid_widget.add_widget(self.yaxis, row=1, col=0)
+        self.xaxis.height_min = self.xaxis.height_max = thickness
         self.grid_widget.add_widget(self.xaxis, row=2, col=1)
 
         right_padding = self.grid_widget.add_widget(row=0, col=2, row_span=2)
@@ -134,6 +137,8 @@ class VisPyCanvas(scene.SceneCanvas):
             self.grid = GridLines(parent=self.view.scene, color='dimgray')
         else:
             self.grid = GridLines(parent=self.view.scene, color='#dededeff')
+            # the major lines were too bright on the dark canvas: dimmer, but still brighter than the minor lines
+            self.grid.set_major_scale(0.5)
 
         self.grid.set_gl_state(depth_test=False)
 

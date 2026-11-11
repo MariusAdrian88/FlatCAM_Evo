@@ -17,6 +17,11 @@ if '_' not in builtins.__dict__:
 
 
 CATEGORY_ROLE = KEY_ROLE + 1
+# stable ids of the welcome_entries() categories: the stored collapse state uses them, not the translated titles
+CATEGORY_IDS = ('project', 'pcb', 'geometry', 'boards')
+COLLAPSED_KEY = 'global_welcome_collapsed'
+LAST_KEY = 'global_welcome_last'
+SELECTED_KEY = 'global_welcome_selected'
 
 
 def welcome_entries(app):
@@ -47,15 +52,18 @@ def welcome_entries(app):
         entry('excellon', _('Excellon'), '.drl .txt .xln .drd .tap .exc .ncd .xnc', _('Excellon object'),
               _('Open drilling data, or create a blank Excellon object.'), 'drill16.png'),
         dict(imports['odb'], title=_('ODB++'), icon=app.resource_location + '/odb64.png'),
+        dict(imports['ipc2581'], title=_('IPC-2581')),
         entry('script', _('Script'), '.FlatScript .tcl', _('Script object'),
               _('Open a script for editing without executing it, or create a blank script.'), 'script_new24.png'),
         entry('document', _('Doc'), '.FlatDoc', _('Document object'),
               _('Open a FlatCAM Evo document, or create a blank document.'), 'notes16_1.png'),
     ]
     boards = [entry for entry in imports.values() if entry['key'] in (
-        'pcbdoc', 'cspcbdoc', 'proteus', 'kicad_pcb', 'sprint_layout', 'eagle_brd', 'allegro_brd', 'diptrace', 'pads')]
-    return [(_('Project'), [project]), (_('Geometry'), geometry),
-            (_('PCB Manufacturing files'), pcb), (_('PCB Boards'), boards)]
+        'pcbdoc', 'cspcbdoc', 'proteus', 'kicad_pcb', 'sprint_layout', 'eagle_brd', 'allegro_brd', 'diptrace', 'pads',
+        'easyeda_pro')]
+    # in the order of CATEGORY_IDS
+    return [(_('Project'), [project]), (_('PCB Manufacturing files'), pcb),
+            (_('Geometry'), geometry), (_('PCB Boards'), boards)]
 
 
 def recent_files(app, key):
@@ -250,6 +258,14 @@ class WelcomeDialog(QtWidgets.QDialog):
         self.details_label.setMinimumHeight(43)
         self.details_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignTop | QtCore.Qt.AlignmentFlag.AlignLeft)
         right.addWidget(self.details_label)
+        # a category node expands only on a double click: this link does it for the users who do not know that
+        self.expand_link = QtWidgets.QLabel()
+        self.expand_link.setObjectName('welcome_expand')
+        self.expand_link.setTextFormat(QtCore.Qt.TextFormat.RichText)
+        self.expand_link.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.LinksAccessibleByMouse |
+                                                 QtCore.Qt.TextInteractionFlag.LinksAccessibleByKeyboard)
+        self.expand_link.linkActivated.connect(self.toggle_category)
+        right.addWidget(self.expand_link)
         right.addSpacing(12)
         badges = QtWidgets.QHBoxLayout()
         badges.setSpacing(8)
@@ -353,17 +369,20 @@ class WelcomeDialog(QtWidgets.QDialog):
         category_texts = (
             _('A FlatCAM Evo project keeps your objects and their settings together. '
               'Select FlatCAM Evo Project to reopen saved work or start an empty project.'),
-            _('Import drawings, vector artwork and images for machining, cutting or engraving, '
-              'or create a blank Geometry object. Select a file type to see its import options and recent files.'),
             _('Work with Gerber artwork and Excellon drilling files, or add scripts and documents to your project. '
               'Select a file type to open an existing file or create a supported blank object.'),
+            _('Import drawings, vector artwork and images for machining, cutting or engraving, '
+              'or create a blank Geometry object. Select a file type to see its import options and recent files.'),
             _('Import a native PCB design from a supported board editor. Choose its format, '
               'then select the layers and drilling to bring into FlatCAM Evo.'),
         )
-        for (title, entries), description in zip(welcome_entries(app), category_texts):
+        # changes of the expansion are kept only while this is True: not the ones made by the search or by select()
+        self._track_expansion = False
+        collapsed = self.collapsed_categories()
+        for (title, entries), category_id, description in zip(welcome_entries(app), CATEGORY_IDS, category_texts):
             group = QtWidgets.QTreeWidgetItem(self.tree, [title.upper()])
             group.setFlags(QtCore.Qt.ItemFlag.ItemIsEnabled | QtCore.Qt.ItemFlag.ItemIsSelectable)
-            group.setData(0, CATEGORY_ROLE, {'title': title, 'text': description})
+            group.setData(0, CATEGORY_ROLE, {'title': title, 'text': description, 'id': category_id})
             font = group.font(0)
             font.setBold(True)
             font.setPixelSize(10)
@@ -391,7 +410,9 @@ class WelcomeDialog(QtWidgets.QDialog):
                 item.setToolTip(0, '%s (%s)' % (entry['title'], entry['ext']))
                 item.setSizeHint(0, QtCore.QSize(1, 34))
                 self.entries[entry['key']] = entry
-            group.setExpanded(True)
+            group.setExpanded(category_id not in collapsed)
+        self.tree.itemExpanded.connect(self.expansion_changed)
+        self.tree.itemCollapsed.connect(self.expansion_changed)
         self.tree.currentItemChanged.connect(self.selection_changed)
         self.filter_entry.textChanged.connect(self.apply_filter)
         self.object_type.currentIndexChanged.connect(self.selection_changed)
@@ -399,7 +420,10 @@ class WelcomeDialog(QtWidgets.QDialog):
         self.recent_list.itemClicked.connect(self.open_recent)
         self.recent_list.itemActivated.connect(self.open_recent)
         self.recent_list.currentItemChanged.connect(self.scroll_recent_into_view)
-        self.select('project')
+        # the file type selected last time (its category opens to show it); an unknown key falls back to Project
+        selected = app.options.get(SELECTED_KEY, app.defaults.get(SELECTED_KEY, 'project'))
+        self.select(selected if selected in self.entries else 'project')
+        self._track_expansion = True
         order = (self.close_button, links, self.tabs.tabBar(), self.filter_entry, self.tree, self.object_type,
                  self.recent_list, self.next_time, self.continue_button, self.browse_button, self.new_button)
         for first, second in zip(order, order[1:]):
@@ -504,6 +528,7 @@ class WelcomeDialog(QtWidgets.QDialog):
             QDialog#welcome_dialog QListWidget:focus {{ border: none; outline: none; padding: 0; margin: 0; }}
             QDialog#welcome_dialog #welcome_eyebrow {{ font-size: 10px; font-weight: 700; color: {c['accent']}; }}
             QDialog#welcome_dialog #welcome_type {{ font-size: 25px; font-weight: 600; }}
+            QDialog#welcome_dialog #welcome_expand {{ font-size: 17px; font-weight: 600; padding-top: 10px; }}
             QDialog#welcome_dialog #welcome_note, QDialog#welcome_dialog #welcome_empty {{
                 font-size: 13px; color: {c['muted']};
             }}
@@ -566,12 +591,74 @@ class WelcomeDialog(QtWidgets.QDialog):
             for child in range(group.childCount()):
                 yield group.child(child)
 
+    def groups(self):
+        return [self.tree.topLevelItem(index) for index in range(self.tree.topLevelItemCount())]
+
+    def collapsed_categories(self):
+        stored = self.app.options.get(COLLAPSED_KEY, self.app.defaults.get(COLLAPSED_KEY, ['geometry', 'boards']))
+        return set(stored) if isinstance(stored, (list, tuple, set)) else {'geometry', 'boards'}
+
+    def restore_expansion(self):
+        tracked, self._track_expansion = self._track_expansion, False
+        collapsed = self.collapsed_categories()
+        for group in self.groups():
+            group.setExpanded(group.data(0, CATEGORY_ROLE)['id'] not in collapsed)
+        self._track_expansion = tracked
+
+    def expansion_changed(self, item):
+        # only in memory: AppLifecycle.quit_application() writes the options to the defaults file at shutdown
+        if self._track_expansion and not self.filter_entry.text().strip():
+            self.app.options[COLLAPSED_KEY] = [group.data(0, CATEGORY_ROLE)['id'] for group in self.groups()
+                                               if not group.isExpanded()]
+        if self._track_expansion and item.isExpanded() and not self.filter_entry.text().strip():
+            # a category opened by the user shows its last selected file type again
+            last = self.last_entries().get(item.data(0, CATEGORY_ROLE)['id'])
+            for child in range(item.childCount()):
+                if item.child(child).data(0, KEY_ROLE) == last:
+                    self.tree.setCurrentItem(item.child(child))
+                    break
+        if item is self.tree.currentItem():
+            self.update_expand_link()
+
+    def last_entries(self):
+        stored = self.app.options.get(LAST_KEY, self.app.defaults.get(LAST_KEY, {}))
+        return stored if isinstance(stored, dict) else {}
+
+    def remember_entry(self, item):
+        # only in memory, like the collapse state; a new dict, so the default value is never changed in place
+        group = item.parent()
+        if not self._track_expansion or group is None:
+            return
+        category_id = group.data(0, CATEGORY_ROLE)['id']
+        if self.app.options.get(SELECTED_KEY) != item.data(0, KEY_ROLE):
+            self.app.options[SELECTED_KEY] = item.data(0, KEY_ROLE)
+        last = self.last_entries()
+        if last.get(category_id) != item.data(0, KEY_ROLE):
+            self.app.options[LAST_KEY] = dict(last, **{category_id: item.data(0, KEY_ROLE)})
+
+    def toggle_category(self, *args):
+        current = self.tree.currentItem()
+        if current is not None and current.parent() is None:
+            current.setExpanded(not current.isExpanded())
+
+    def update_expand_link(self):
+        current = self.tree.currentItem()
+        group = current is not None and not current.isHidden() and current.parent() is None and current.childCount()
+        self.expand_link.setVisible(bool(group))
+        if group:
+            self.expand_link.setText('<a style="color:%s;text-decoration:none" href="toggle">%s</a>' % (
+                self.colors['accent'], escape(_('Collapse') if current.isExpanded() else _('Expand'))))
+
     def visible_keys(self):
         return [item.data(0, KEY_ROLE) for item in self.items() if not item.isHidden()]
 
     def select(self, key):
         for item in self.items():
             if item.data(0, KEY_ROLE) == key:
+                # a file type in a collapsed category is shown; this is not kept as the user's choice
+                tracked, self._track_expansion = self._track_expansion, False
+                item.parent().setExpanded(True)
+                self._track_expansion = tracked
                 self.tree.setCurrentItem(item)
                 return
 
@@ -588,7 +675,17 @@ class WelcomeDialog(QtWidgets.QDialog):
         for index in range(self.tree.topLevelItemCount()):
             group = self.tree.topLevelItem(index)
             group.setHidden(all(group.child(child).isHidden() for child in range(group.childCount())))
+        if words:
+            # the matches of a search are shown in every category; the stored state comes back when it is cleared
+            tracked, self._track_expansion = self._track_expansion, False
+            for group in self.groups():
+                group.setExpanded(True)
+            self._track_expansion = tracked
+        else:
+            self.restore_expansion()
         current = self.tree.currentItem()
+        # the first match that the search selects is not the user's choice: it is not kept as the last entry
+        tracked, self._track_expansion = self._track_expansion, False
         if current is None or current.isHidden():
             keys = self.visible_keys()
             if keys:
@@ -596,6 +693,7 @@ class WelcomeDialog(QtWidgets.QDialog):
             else:
                 self.tree.setCurrentItem(None)
         self.selection_changed()
+        self._track_expansion = tracked
 
     def selection_changed(self, *args):
         key = self.selected_key()
@@ -603,6 +701,8 @@ class WelcomeDialog(QtWidgets.QDialog):
         current = self.tree.currentItem()
         category = current.data(0, CATEGORY_ROLE) if current is not None and not current.isHidden() else None
         selection = entry or category
+        if entry is not None:
+            self.remember_entry(current)
         self.browse_button.setEnabled(entry is not None and key != 'geometry')
         self.new_button.setEnabled(key in ('project', 'geometry', 'gerber', 'excellon', 'script', 'document'))
         empty_title = _('Select a category or file type.') if self.visible_keys() else _('No file type matches the search.')
@@ -629,6 +729,7 @@ class WelcomeDialog(QtWidgets.QDialog):
         self.recent_list.setVisible(self.recent_list.count() > 0)
         # The details area owns scrolling; the file list must not introduce a second viewport.
         self.recent_list.setFixedHeight(self.recent_list.count() * RecentFileDelegate.row_height)
+        self.update_expand_link()
         self.tab_changed()
 
     def scroll_recent_into_view(self, item, previous=None):

@@ -16,3 +16,5 @@ tests/test_grbl_view3d.py::SenderLifecycle3dTest::test_cleanup_after_manual_3d_c
 tests/test_pcbdoc_parser.py::TestDipTraceBoard  # opt-in DipTrace tests (FLATCAM_TEST_DIPTRACE=1)
 tests/test_pcbdoc_import.py::TestPcbDocImport::test_diptrace_chooser_imports_selected_native_layers_and_holes_in_project_units  # opt-in DipTrace test (FLATCAM_TEST_DIPTRACE=1)
 tests/test_pcbdoc_import.py::TestPcbDocImport::test_legacy_diptrace_source_export_values_create_missing_mask_and_paste  # opt-in DipTrace test (FLATCAM_TEST_DIPTRACE=1)
+tests/test_parser_fuzz.py::test_parser_survives_mutated_input[diptrace]  # opt-in DipTrace test (FLATCAM_TEST_DIPTRACE=1)
+tests/test_allegro16_parser.py::TestAllegro16Corpus  # opt-in Allegro 16.x corpus tests (ALLEGRO16_EXAMPLES=<folder>)

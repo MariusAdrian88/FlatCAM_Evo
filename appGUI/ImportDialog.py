@@ -107,10 +107,21 @@ def import_entries(app):
                    'go to the silkscreen layers. '
                    'Review the import warnings and generated artwork before manufacture.'),
          'run': lambda: handlers.on_file_import_pads()},
+        {'key': 'easyeda_pro', 'title': _('EasyEDA Pro PCB'), 'ext': '.epro .epro2 .epcb .zip',
+         'text': _('Reads an EasyEDA Pro project (V2 and V3) or a single PCB document. '
+                   'Imports tracks, pads, vias, stored pour fills, drilling, outlines and mask/paste openings. '
+                   'Text is skipped. Unsupported copper stops the import.'),
+         'run': lambda: handlers.on_file_import_easyeda_pro()},
         {'key': 'odb', 'title': _('ODB++ Job'), 'ext': '.tgz .zip',
          'text': _('Reads an ODB++ job: a .tgz, .tar or .zip archive, or the matrix file of an unpacked job. '
                    'Imports the graphic layers, the drill layers and the board profile of one step.'),
          'run': lambda: handlers.on_file_import_odb()},
+        {'key': 'ipc2581', 'title': _('IPC-2581 Board'), 'ext': '.xml .cvg .gz .zip',
+         'text': _('Reads an IPC-2581 revision B or C file, plain, gzip or zip. '
+                   'Imports the copper, mask, paste, silkscreen and outline layers, '
+                   'the plated and non-plated holes with slots, and the board profile of one step. '
+                   'Unsupported copper shapes stop the import.'),
+         'run': lambda: handlers.on_file_import_ipc2581()},
     ]
     for entry in boards:
         entry['icon'] = res + '/import.png'

@@ -174,6 +174,12 @@ class appIO(QtCore.QObject):
         'diptrace': {
             'ext': '.dip', 'filter': 'DipTrace PCB (*.dip *.DIP)',
             'log': 'DipTrace PCB', 'name_first': True},
+        # before 'pads': '.epcb' also ends with '.pcb'. The .zip backups of a project are recognized by content
+        # (the parser sets parsed.source_kind).
+        'easyeda_pro': {
+            'ext': ('.epro', '.epro2', '.epcb', '.epru'),
+            'filter': 'EasyEDA Pro Project (*.epro *.epro2 *.epcb *.epru *.zip);;All Files (*.*)',
+            'log': 'EasyEDA Pro PCB', 'name_first': False},
         'pads': {
             'ext': ('.asc', '.pcb'), 'filter': 'PADS Layout PCB (*.asc *.ASC *.pcb *.PCB)',
             'log': 'PADS PCB', 'name_first': False},
@@ -182,6 +188,10 @@ class appIO(QtCore.QObject):
         'odb': {
             'ext': None, 'filter': 'ODB++ (*.tgz *.tar.gz *.tar *.zip matrix);;All Files (*.*)',
             'log': 'ODB++', 'name_first': False},
+        # Only the IPC-2581 menu entry reaches this format (.xml is too generic): the parser sets parsed.source_kind.
+        'ipc2581': {
+            'ext': None, 'filter': 'IPC-2581 (*.xml *.XML *.cvg *.xml.gz *.zip);;All Files (*.*)',
+            'log': 'IPC-2581', 'name_first': False},
     }
 
     @staticmethod
@@ -203,6 +213,10 @@ class appIO(QtCore.QObject):
             return _('Import PADS PCB')
         if kind == 'odb':
             return _('Import ODB++ Job')
+        if kind == 'ipc2581':
+            return _('Import IPC-2581 Board')
+        if kind == 'easyeda_pro':
+            return _('Import EasyEDA Pro PCB')
         if kind == 'cspcbdoc':
             return _('Import CircuitStudio / CircuitMaker PCB')
         return _('Import Altium PCB')
@@ -424,6 +438,12 @@ class appIO(QtCore.QObject):
     def on_file_import_odb(self, name=None):
         self._import_pcb_file('odb', name, self.parse_odb)
 
+    def on_file_import_ipc2581(self, name=None):
+        self._import_pcb_file('ipc2581', name, self.parse_ipc2581)
+
+    def on_file_import_easyeda_pro(self, name=None):
+        self._import_pcb_file('easyeda_pro', name, self.parse_easyeda_pro)
+
     def _parse_pcb_file(self, kind, filename, make_parser, request, parse_kwargs=None):
         """
         The worker task of a board import. Each call ends with exactly 1 signal that carries the request id:
@@ -499,6 +519,19 @@ class appIO(QtCore.QObject):
             return ODBParser(app=self.app)
         return self._parse_pcb_file('odb', filename, make_parser, request, {'step': step})
 
+    def parse_ipc2581(self, filename, *, request=None):
+        def make_parser():
+            from appParsers.ParseIPC2581 import IPC2581Parser
+            return IPC2581Parser(app=self.app)
+        return self._parse_pcb_file('ipc2581', filename, make_parser, request)
+
+    def parse_easyeda_pro(self, filename, pcb=None, *, request=None):
+        # pcb None: a project with more than 1 PCB gives a metadata result, and the app asks for the PCB
+        def make_parser():
+            from appParsers.ParseEasyEDAPro import EasyEDAProParser
+            return EasyEDAProParser(app=self.app)
+        return self._parse_pcb_file('easyeda_pro', filename, make_parser, request, {'pcb': pcb})
+
     @QtCore.pyqtSlot(str, object, object)
     def on_pcbdoc_parsed(self, filename, parsed, request=None):
         # request None: a direct call for one board of a Proteus project (the token is already transferred)
@@ -527,6 +560,22 @@ class appIO(QtCore.QObject):
             # the same request continues: the geometry parse of the chosen step, then the layer dialog
             self.worker_task.emit({'fcn': functools.partial(self.parse_odb, request=request),
                                    'params': [filename, step]})
+            return
+        if kind == 'easyeda_pro' and getattr(parsed, 'pcb', None) is None:
+            pcbs = list(getattr(parsed, 'pcbs', []))
+            if not pcbs:
+                self._release_pcb_request(request)
+                return
+            default = getattr(parsed, 'default_pcb', None)
+            pcb, accepted = QtWidgets.QInputDialog.getItem(
+                self._pcb_parent(request), self._pcb_title(kind), _('The project has more than 1 PCB. Select the PCB:'),
+                pcbs, pcbs.index(default) if default in pcbs else 0, False)
+            if not accepted or self.app.abort_flag:
+                self._release_pcb_request(request)
+                return
+            # the same request continues: the geometry parse of the chosen PCB, then the layer dialog
+            self.worker_task.emit({'fcn': functools.partial(self.parse_easyeda_pro, request=request),
+                                   'params': [filename, pcb]})
             return
         if kind == 'diptrace' and getattr(parsed, 'opening_defaults', None) is None:
             opening_defaults = {}
@@ -604,6 +653,8 @@ class appIO(QtCore.QObject):
         if kind == 'odb':
             # to change the step, the user cancels and imports again
             add(QtWidgets.QLabel('%s: %s' % (_('Step'), parsed.step)))
+        elif kind == 'easyeda_pro' and len(getattr(parsed, 'pcbs', ())) > 1:
+            add(QtWidgets.QLabel('%s: %s' % (_('PCB'), parsed.pcb)))
         add(QtWidgets.QLabel(_('Select layers and drill groups to import:')))
         scroll = QtWidgets.QScrollArea(dialog)
         scroll.setWidgetResizable(True)
@@ -634,7 +685,7 @@ class appIO(QtCore.QObject):
         if kind == 'proteus' and self._proteus_import is not None:
             warnings = self._proteus_import['warnings'] + warnings
         if warnings:
-            if kind in ('proteus', 'odb'):
+            if kind in ('proteus', 'odb', 'ipc2581', 'easyeda_pro'):
                 warning = QtWidgets.QPlainTextEdit('\n'.join(dict.fromkeys(warnings)))
                 warning.setReadOnly(True)
                 warning.setMaximumHeight(160)
@@ -690,6 +741,11 @@ class appIO(QtCore.QObject):
         if source_kind == 'odb' and getattr(parsed, 'name', ''):
             # an ODB++ job can be a folder picked by its matrix file: the job name, not 'matrix'
             base_name = parsed.name
+        elif source_kind == 'ipc2581':
+            # board.xml.gz -> board
+            for suffix in ('.xml', '.cvg'):
+                if base_name.lower().endswith(suffix):
+                    base_name = base_name[:-len(suffix)]
 
         def converted(value):
             if isinstance(value, dict):
@@ -2726,7 +2782,7 @@ class appIO(QtCore.QObject):
             last_folder = self.app.options.get("global_last_folder", self.app.defaults.get("global_last_folder", self.app.defaults.factory_defaults.get("global_last_folder")))
             filename = last_save if last_save is not None else last_folder
 
-        self.log.debug("export_gerber()")
+        # self.log.debug("export_gerber()")
 
         if local_use is None:
             try:

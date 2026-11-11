@@ -29,6 +29,7 @@ from appGUI.preferences.tools.PluginsEngravingPreferencesUI import PluginsEngrav
 from appGUI.preferences.utilities.UtilPreferencesUI import UtilPreferencesUI
 
 import subprocess
+import math
 import os
 import platform
 import sys
@@ -341,10 +342,18 @@ class MainGUI(QtWidgets.QMainWindow):
             QtGui.QIcon(self.app.resource_location + '/import.png'),
             '%s...' % _('PADS Layout PCB (.asc, .pcb)'), self)
         self.menufileimport.addAction(self.menufileimportpads)
+        self.menufileimporteasyedapro = QtGui.QAction(
+            QtGui.QIcon(self.app.resource_location + '/import.png'),
+            '%s...' % _('EasyEDA Pro PCB (.epro, .epro2, .epcb)'), self)
+        self.menufileimport.addAction(self.menufileimporteasyedapro)
         self.menufileimportodb = QtGui.QAction(
             QtGui.QIcon(self.app.resource_location + '/import.png'),
             '%s...' % _('ODB++ Job (.tgz, .zip, folder)'), self)
         self.menufileimport.addAction(self.menufileimportodb)
+        self.menufileimportipc2581 = QtGui.QAction(
+            QtGui.QIcon(self.app.resource_location + '/import.png'),
+            '%s...' % _('IPC-2581 Board (.xml, .cvg, .gz, .zip)'), self)
+        self.menufileimport.addAction(self.menufileimportipc2581)
         self.menufileimport.addSeparator()
 
         # Export ...
@@ -1697,6 +1706,18 @@ class MainGUI(QtWidgets.QMainWindow):
         self.rel_position_label.setMinimumWidth(110)
         self.rel_position_label.setToolTip(_("Relative measurement.\nReference is last click position"))
         self.delta_coords_toolbar.addWidget(self.rel_position_label)
+        self._location_values = (0, 0, 0, 0)
+        self.delta_coords_menu = QtWidgets.QMenu(self.delta_coords_toolbar)
+        self.polar_coords_action = self.delta_coords_menu.addAction(_('Polar Coords'))
+        self.polar_coords_action.setCheckable(True)
+        self.polar_coords_action.toggled.connect(self._update_location_labels)
+        self.polar_coords_action.toggled.connect(
+            lambda: self.app.plotcanvas.apply_hud_options()
+            if getattr(self.app.plotcanvas, 'hud_enabled', False) else None)
+        for widget in (self.delta_coords_toolbar, self.rel_position_label):
+            widget.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.CustomContextMenu)
+            widget.customContextMenuRequested.connect(
+                lambda point, target=widget: self.delta_coords_menu.exec(target.mapToGlobal(point)))
 
         # #######################################################################
         # ####################### Coordinates TOOLBAR ###########################
@@ -2297,6 +2318,13 @@ class MainGUI(QtWidgets.QMainWindow):
         # Set the Delta position label
         if dx is None or dy is None or (dx is None and dy is None):
             self.rel_position_label.setText("")
+        elif self.polar_coords_action.isChecked():
+            radius = math.hypot(dx, dy)
+            theta = math.degrees(math.atan2(dy, dx)) % 360 if dx or dy else 0.0
+            radius_dec = str(self.app.dec_format(radius, self.app.decimals)) if radius else '0.0'
+            theta_dec = str(self.app.dec_format(theta, self.app.decimals)) if theta else '0.0'
+            self.rel_position_label.setText("<b>R</b>: %s&nbsp;&nbsp;  <b>θ</b>: "
+                                            "%s°&nbsp;&nbsp;&nbsp;&nbsp;" % (radius_dec, theta_dec))
         else:
             dx_dec = str(self.app.dec_format(dx, self.app.decimals)) if dx else '0.0'
             dy_dec = str(self.app.dec_format(dy, self.app.decimals)) if dy else '0.0'

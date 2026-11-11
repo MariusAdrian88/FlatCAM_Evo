@@ -289,13 +289,9 @@ class TestAllegroHeaderErrors(unittest.TestCase):
         self.assertRaisesWith('Unsupported block type 0x0B', builder.build())
 
     def test_releases_before_17_2_are_refused_by_name(self):
-        for magic, name in ((0x00130000, '16.0'), (0x00130400, '16.2'), (0x00130500, '16.2'), (0x00130C00, '16.4'),
-                            (0x00131000, '16.5'), (0x00131500, '16.6')):
-            with self.subTest(release=name):
-                data = Builder(magic=magic).build()
-                self.assertRaisesWith('Allegro %s boards are not supported' % name, data)
-        # unknown 16.x and 17.0/17.1 magic numbers are refused too, and unknown families stay unknown
-        self.assertRaisesWith('boards are not supported', Builder(magic=0x00130900).build())
+        # 16.x boards go to their own reader (tests/test_allegro16_parser.py); 15.x and 17.0/17.1 are refused by
+        # name, and unknown families stay unknown
+        self.assertRaisesWith('Allegro 15.x boards are not supported', Builder(magic=0x00120A0C).build())
         self.assertRaisesWith('boards are not supported', Builder(magic=0x00140200).build())
         self.assertRaisesWith('unknown release', Builder(magic=0x00991100).build())
         self.assertRaisesWith('unknown release', Builder(magic=0x00160200).build())

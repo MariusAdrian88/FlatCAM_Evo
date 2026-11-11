@@ -130,6 +130,9 @@ class PlotCanvas3d(QtCore.QObject, scene.SceneCanvas):
         self.grid = GridLines(
             parent=self.view.scene, color=grid_color, grid_bounds=(0, size, 0, size), border_width=0
         )
+        if grid_color != 'dimgray':
+            # dark canvas: dimmer major lines, as on the 2D canvas
+            self.grid.set_major_scale(0.5)
         # The grid's transparent screen quad must not occlude the toolpath.
         self.grid.set_gl_state('translucent', depth_test=False, cull_face=False)
         self.workspace_line = Line(

@@ -253,7 +253,8 @@ class TestPlotCanvas3d(unittest.TestCase):
                 'mouse_move', pos=(160, 130), last=(150, 125), modifiers=('Shift',)
             ))
             np.testing.assert_allclose(np.array(camera.rect.size) / size, (1 + camera.zoom_factor) ** 15)
-            np.testing.assert_allclose(camera._scene_transform.map(anchor), anchor_before, atol=1e-5)
+            # a reused stale anchor is off by whole pixels; the float rounding of the transform stays below 1e-4 px
+            np.testing.assert_allclose(camera._scene_transform.map(anchor), anchor_before, atol=1e-4)
 
     def test_fit_toolpath_bounds_with_canvas_padding(self):
         canvas = self.make_canvas()

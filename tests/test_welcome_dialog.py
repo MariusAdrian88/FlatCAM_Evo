@@ -5,6 +5,7 @@ from unittest.mock import Mock
 import pytest
 from PyQt6 import QtCore, QtGui, QtTest, QtWidgets
 
+from appGUI.WelcomeDialog import CATEGORY_IDS
 from defaults import AppDefaults, AppOptions
 
 
@@ -85,9 +86,56 @@ def test_category_keyboard_selection_and_enter_never_start_a_file_action(welcome
     assert app.f_handlers.method_calls == [] and app.app_obj.method_calls == []
 
 
+def test_categories_order_collapse_state_and_expand_link(welcome, qapp):
+    from appGUI.WelcomeDialog import WelcomeDialog
+    dialog, app, opened = welcome
+    groups = dialog.groups()
+    assert [group.text(0) for group in groups] == ['PROJECT', 'PCB MANUFACTURING FILES', 'GEOMETRY', 'PCB BOARDS']
+    project, pcb, geometry, boards = groups
+    # first start: Geometry and PCB Boards are collapsed
+    assert project.isExpanded() and pcb.isExpanded() and not geometry.isExpanded() and not boards.isExpanded()
+    # the Expand link of a category does what a double click does
+    dialog.tree.setCurrentItem(boards)
+    assert dialog.expand_link.isVisible() and '>Expand<' in dialog.expand_link.text()
+    dialog.expand_link.linkActivated.emit('toggle')
+    assert boards.isExpanded() and '>Collapse<' in dialog.expand_link.text()
+    dialog.tree.setCurrentItem(pcb)
+    dialog.toggle_category()
+    assert not pcb.isExpanded()
+    dialog.select('pads')
+    assert not dialog.expand_link.isVisible()
+    # a category opened again selects its last file type
+    dialog.tree.setCurrentItem(boards)
+    dialog.toggle_category()
+    dialog.toggle_category()
+    assert boards.isExpanded() and dialog.selected_key() == 'pads'
+    # a search shows the matches of every category, but is not kept
+    dialog.filter_entry.setText('dxf')
+    assert geometry.isExpanded()
+    dialog.filter_entry.clear()
+    assert not geometry.isExpanded()
+    # kept in memory only: the defaults file is written at shutdown, not on each change
+    assert sorted(app.options['global_welcome_collapsed']) == ['geometry', 'pcb']
+    assert app.options['global_welcome_last'] == {'boards': 'pads'}
+    assert AppDefaults.factory_defaults['global_welcome_last'] == {}
+    app.preferencesUiManager.save_defaults.assert_not_called()
+    again = WelcomeDialog(app, app.ui)
+    try:
+        assert [group.isExpanded() for group in again.groups()] == [True, False, False, True]
+        # the next start selects the file type picked last
+        assert again.selected_key() == 'pads'
+        again.tree.setCurrentItem(again.groups()[3])
+        again.toggle_category()
+        again.toggle_category()
+        assert again.selected_key() == 'pads'
+    finally:
+        again.deleteLater()
+        qapp.processEvents()
+
+
 def test_search_keeps_valid_category_and_reserves_no_match_for_zero_results(welcome):
     dialog, app, opened = welcome
-    category = dialog.tree.topLevelItem(1)
+    category = dialog.tree.topLevelItem(CATEGORY_IDS.index('geometry'))
     dialog.tree.setCurrentItem(category)
     dialog.filter_entry.setText('geometry')
     assert dialog.tree.currentItem() is category

@@ -30,3 +30,4 @@ tests/ecut/test_ecut_settings_sender.py  # 4.8 s
 tests/test_grbl_toolchange.py  # 4.8 s
 tests/test_gerber_follow_ops.py  # 4.6 s
 tests/test_gerber_track_bend.py  # 4.4 s
+tests/test_parser_fuzz.py  # 14 s serial (mutated inputs of the parsers, the regression corpus)

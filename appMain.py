@@ -4329,6 +4329,8 @@ class App(QtCore.QObject):
             "diptrace": self.resource_location + "/flatcam_icon16.png",
             "pads": self.resource_location + "/flatcam_icon16.png",
             "odb": self.resource_location + "/flatcam_icon16.png",
+            "ipc2581": self.resource_location + "/flatcam_icon16.png",
+            "easyeda_pro": self.resource_location + "/flatcam_icon16.png",
             "excellon": self.resource_location + "/drill16.png",
             'geometry': self.resource_location + "/geometry16.png",
             "cncjob": self.resource_location + "/cnc16.png",
@@ -4363,6 +4365,8 @@ class App(QtCore.QObject):
             'diptrace': self.f_handlers.on_file_import_diptrace,
             'pads': self.f_handlers.on_file_import_pads,
             'odb': self.f_handlers.on_file_import_odb,
+            'ipc2581': self.f_handlers.on_file_import_ipc2581,
+            'easyeda_pro': self.f_handlers.on_file_import_easyeda_pro,
             'gerber': lambda fname: self.worker_task.emit({
                 'fcn': self.f_handlers.open_gerber,
                 'params': [fname]

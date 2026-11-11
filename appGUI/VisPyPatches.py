@@ -242,6 +242,59 @@ _scene_draw_depth = [0]
 _camera_step = [0]
 
 
+def beside_tick_labels(axis, layout, tick_pos, labels, tick_label_pos, anchors, axis_label_pos):
+    """
+    Put each tick label beside its major tick, in pixels: after the tick along the axis (to the right on the bottom
+    axis; upwards on the left axis, where the text is turned 90 degrees CCW) and out of the axis past the minor ticks.
+    A label that would reach the next labelled tick or pass the end of the axis is dropped; when the labels are wider
+    than the major step, only every n-th tick value keeps its label (by value, so the labels do not jump in a pan).
+
+    :param layout:  {'side': 'bottom' | 'left', 'metrics': QFontMetricsF of the tick font, 'gap_along': px,
+                    'gap_out': px}
+    """
+    labels = list(labels)
+    count = len(labels)
+    if count == 0:
+        return tick_pos, labels, tick_label_pos, anchors, axis_label_pos
+    trs = axis.transforms
+    to_doc = trs.get_transform('visual', 'document')
+    to_visual = trs.get_transform('document', 'visual')
+    # the major tick origins come first, one in 2 rows (Ticker._get_tick_positions)
+    origins = np.asarray(to_doc.map(np.asarray(tick_pos)[0:2 * count:2]))[:, :2]
+    ends = np.asarray(to_doc.map(np.asarray(axis.pos)))[:, :2]
+    gap_along, out = layout['gap_along'], axis.minor_tick_length + layout['gap_out']
+    if layout['side'] == 'bottom':
+        # VisPy's text frame is Y up: 'bottom' puts the glyphs below the point on the screen
+        along, sign, offset, anchors = 0, 1., (gap_along, out), ['left', 'bottom']
+    else:
+        # document y grows downwards: "after the tick" of the turned text is up; turned 90 degrees CCW, 'top' puts
+        # the glyphs left of the point (away from the axis)
+        along, sign, offset, anchors = 1, -1., (-out, -gap_along), ['left', 'top']
+    metrics = layout['metrics']
+    widths = np.array([metrics.horizontalAdvance(label) for label in labels])
+    need = widths + gap_along + 2
+    keep = np.ones(count, dtype=bool)
+    if count > 1:
+        spacing = np.min(np.abs(np.diff(origins[:, along])))
+        step = int(np.ceil(np.max(need) / spacing)) if spacing > 0 else count
+        if step > 1:
+            try:
+                values = np.array([float(label) for label in labels])
+                major = np.min(np.abs(np.diff(values)))
+                keep = np.round(values / major).astype(np.int64) % step == 0
+            except (ValueError, ZeroDivisionError, FloatingPointError):
+                keep = np.arange(count) % step == 0
+    # nothing past the far end of the axis
+    far = np.max(ends[:, along] * sign) * sign
+    keep &= (origins[:, along] + sign * need) * sign <= far * sign
+    origins = origins[keep]
+    labels = [label for label, kept in zip(labels, keep) if kept]
+    if not labels:
+        return tick_pos, labels, np.zeros((0, 2)), anchors, axis_label_pos
+    positions = np.asarray(to_visual.map(origins + np.asarray(offset, dtype=float)))[:, :2]
+    return tick_pos, labels, positions, anchors, axis_label_pos
+
+
 _axis_pending = weakref.WeakKeyDictionary()  # AxisVisual -> AxisWidget whose linked view changed since the last read
 
 
@@ -637,6 +690,21 @@ def apply_patches():
             return NotImplementedError
 
     Ticker._get_tick_frac_labels = _get_tick_frac_labels
+
+    # Tick labels beside their major tick, for the axes that carry a 'flatcam_beside_labels' layout (the 2D canvas);
+    # the other axes (the 3D canvas) keep the VisPy placement.
+    if not getattr(Ticker.get_update, 'flatcam_patch', False):
+        _original_get_update = Ticker.get_update
+
+        def _get_update(self):
+            result = _original_get_update(self)
+            layout = getattr(self.axis, 'flatcam_beside_labels', None)
+            if layout is None:
+                return result
+            return beside_tick_labels(self.axis, layout, *result)
+
+        _get_update.flatcam_patch = True
+        Ticker.get_update = _get_update
 
     # Keep axis glyph buffers while panning; positions and styles still update normally.
     def _update_subvisuals(self):

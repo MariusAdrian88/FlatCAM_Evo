@@ -6,6 +6,42 @@ Based on FlatCAM:
 
 CHANGELOG for FlatCAM Evo
 
+11.11.2026
+
+Import:
+
+- added: File > Import > IPC-2581 Board (.xml, .cvg, .gz, .zip) imports an IPC-2581 revision B or C file, plain, gzip or zip; the entry is also in the Import dialog and in the PCB Manufacturing files group of the Welcome screen
+- not imported (IPC-2581): packages, components, BOM, stackup and netlists; a copper or outline feature that cannot be drawn exactly stops the import with its name, the same feature on another layer is skipped with a warning
+- added: File > Import > EasyEDA Pro PCB (.epro, .epro2, .epcb) imports an EasyEDA Pro project (V2 and V3), a single PCB document or a .zip backup of a project; the entry is also in the Import dialog and in the PCB Boards group of the Welcome screen; a project with more than 1 PCB asks for the PCB, and the layer dialog shows the PCB name
+- not imported (EasyEDA Pro): text; copper that cannot be read exactly stops the import and gives no partial board
+- added: the Allegro import reads the native .brd boards of Allegro 16.x (16.0 to 16.6) with a separate reader; the boards of 16.4 and 16.6 were compared with the Allegro Gerber and drill output, 16.0, 16.2 and 16.5 boards import with a warning
+- changed: the Allegro import refuses 15.x boards by name and asks to save them in Allegro 16 or newer; 17.0-17.1 boards are still refused
+
+Welcome screen:
+
+- changed: the categories are now Project, PCB Manufacturing files, Geometry and PCB Boards, in this order; Geometry and PCB Boards are collapsed by default
+- added: the collapse state of each category, the last selected file type of each category and the file type selected last are kept, and saved at shutdown
+- added: an Expand / Collapse link in the details of a selected category, because a category node expands only on a double click
+- changed: a search shows its matches in all categories, and the stored collapse state comes back when the search text is cleared
+
+Canvas:
+
+- changed (2D canvas): each tick label of the rulers sits beside its major tick, past the minor ticks; the labels of the vertical ruler are turned 90 degrees, and a label that does not have the space is left out by value, so the labels do not jump during a pan
+- changed: the major grid lines on a dark canvas are dimmer (2D canvas and 3D canvas); they stay brighter than the minor lines
+- added: a right click on the delta coordinates toolbar opens a menu with "Polar Coords"; when it is checked, the toolbar and the HUD show the relative position as R and θ (degrees) and not as Dx and Dy
+
+Linux AppImage:
+
+- fixed: the AppImage did not start on a Linux desktop without the X11 keyboard and cursor libraries of Qt; cx_Freeze left out the libxkbcommon and libxcb libraries, now the AppImage holds them
+- changed: the AppImage targets glibc 2.28 (for example AlmaLinux / RHEL 8, Debian 10, Ubuntu 20.04 and newer); the native extensions compile against a glibc 2.28 sysroot, and the Linux build stays on PyQt6 6.9 (Qt 6.10 and newer need glibc 2.34)
+- added: the release build checks that no binary of the AppImage needs a glibc newer than 2.28 (scripts/check_glibc.py)
+- added: the release build starts the AppImage on a clean AlmaLinux 8 X11 desktop in a container, without network and without the libraries of the build host; the check fails if the main window does not open, if a critical error dialog opens or if the VisPy canvas renders a blank picture, and it keeps a picture of the canvas
+- added: the release workflow has 2 new inputs for a manual run: "publish" (off: a validation build that does not upload the packages) and "linux_only" (builds only the AppImage)
+
+Tests:
+
+- added: a fuzz harness for the board parsers (tests/fuzz_parsers.py); a damaged file must give a result or the parse error of its parser, never another exception, a NaN coordinate or an invalid polygon
+
 10.11.2026
 
 Import:

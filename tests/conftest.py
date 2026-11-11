@@ -310,6 +310,9 @@ TIMING_TESTS = os.environ.get('FLATCAM_TEST_TIMING') == '1'
 # DipTrace parser tests take minutes; they run only for a change of the DipTrace importer. Mark such a test with
 # @pytest.mark.diptrace and set FLATCAM_TEST_DIPTRACE=1 to run it.
 DIPTRACE_TESTS = os.environ.get('FLATCAM_TEST_DIPTRACE') == '1'
+# Allegro 16.x board tests need the sample boards and their Gerber films (not in the repository: sizes and licences).
+# Mark such a test with @pytest.mark.allegro16 and set ALLEGRO16_EXAMPLES to the corpus folder (D:\1.Development\Allegro_corpus).
+ALLEGRO16_TESTS = os.path.isdir(os.environ.get('ALLEGRO16_EXAMPLES', ''))
 _HARDWARE_BLOCKED = 'real hardware access is blocked in tests; mark the test hardware and set FLATCAM_TEST_HARDWARE=1'
 
 
@@ -317,6 +320,7 @@ def pytest_configure(config):
     config.addinivalue_line('markers', 'hardware: needs a connected E-Cut or GRBL board (FLATCAM_TEST_HARDWARE=1)')
     config.addinivalue_line('markers', 'timing: measures GUI responsiveness, not reliable in a full run (FLATCAM_TEST_TIMING=1)')
     config.addinivalue_line('markers', 'diptrace: slow DipTrace importer test (FLATCAM_TEST_DIPTRACE=1)')
+    config.addinivalue_line('markers', 'allegro16: Allegro 16.x board test on the sample corpus (ALLEGRO16_EXAMPLES=<folder>)')
     # slow tests are never skipped. The fast default run is: pytest tests -m "not slow". A plain run does all tests.
     config.addinivalue_line('markers', 'slow: takes a long time (benchmarks, big boards, subprocess runs); deselect with -m "not slow"')
     # pytest resets the warning filters for each test; this line keeps the SWIG filter in the tests
@@ -327,9 +331,12 @@ def pytest_collection_modifyitems(config, items):
     skip_hardware = pytest.mark.skip(reason='hardware test: set FLATCAM_TEST_HARDWARE=1 to run it')
     skip_timing = pytest.mark.skip(reason='timing test: set FLATCAM_TEST_TIMING=1 to run it')
     skip_diptrace = pytest.mark.skip(reason='DipTrace test: set FLATCAM_TEST_DIPTRACE=1 to run it')
+    skip_allegro16 = pytest.mark.skip(reason='Allegro 16.x corpus test: set ALLEGRO16_EXAMPLES to the corpus folder')
     for item in items:
         if not DIPTRACE_TESTS and item.get_closest_marker('diptrace'):
             item.add_marker(skip_diptrace)
+        if not ALLEGRO16_TESTS and item.get_closest_marker('allegro16'):
+            item.add_marker(skip_allegro16)
         if not HARDWARE_TESTS and item.get_closest_marker('hardware'):
             item.add_marker(skip_hardware)
         if not TIMING_TESTS and item.get_closest_marker('timing'):

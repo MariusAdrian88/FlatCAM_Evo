@@ -8,6 +8,7 @@
 from PyQt6 import QtCore, QtGui
 
 import logging
+import math
 from appGUI.VisPyCanvas import VisPyCanvas, Color
 from appGUI.VisPyVisuals import ShapeGroup, ShapeCollection, TextCollection, TextGroup, Cursor, CursorText
 from appDatabase import _database_option
@@ -384,14 +385,20 @@ class PlotCanvas(QtCore.QObject, VisPyCanvas):
         # units
         units = self.fcapp.app_units.lower()
 
+        polar = self.fcapp.ui.polar_coords_action.isChecked()
+        labels = ('R:', 'θ:', 'X:', 'Y:') if polar else ('Dx:', 'Dy:', 'X:', 'Y:')
+        if polar:
+            dx, dy = (math.hypot(dx or 0, dy or 0),
+                      math.degrees(math.atan2(dy or 0, dx or 0)) % 360 if dx or dy else 0.0)
         dx_dec = str(self.fcapp.dec_format(dx, self.fcapp.decimals)) if dx else '0.0'
         dy_dec = str(self.fcapp.dec_format(dy, self.fcapp.decimals)) if dy else '0.0'
         x_dec = str(self.fcapp.dec_format(x, self.fcapp.decimals)) if x else '0.0'
         y_dec = str(self.fcapp.dec_format(y, self.fcapp.decimals)) if y else '0.0'
         values = (dx_dec, dy_dec, x_dec, y_dec)
         value_width = max(len(value) for value in values)
-        hud_text = ['%s %s [%s]' % (label.ljust(3), value.rjust(value_width), units)
-                    for label, value in zip(('Dx:', 'Dy:', 'X:', 'Y:'), values)]
+        hud_text = ['%s %s%s' % (label.ljust(3), value.rjust(value_width),
+                                '°' if polar and label == 'θ:' else ' [%s]' % units)
+                    for label, value in zip(labels, values)]
 
         # font size
         q_settings = QtCore.QSettings("Open Source", "FlatCAM_EVO")

@@ -1308,11 +1308,24 @@ class GridLinesVisual(VisPyGridLinesVisual):
             '        if (abs(local_pos.y) < 2. * px.y) { y_alpha = 0.; }\n'
             '    }\n'
             '    float alpha = (((log(max(x_alpha, y_alpha))/log(10.)) + 2.) / 3.);'
+        ).replace(
+            # the levels differ only in alpha: up to about 0.59 for the major lines, 0.26 for the minor ones. The part
+            # above the minor level is scaled, so the major levels get dimmer, keep their order and stay brighter than
+            # the minor lines (the border of bounded grids is set after this and stays opaque).
+            '    if (alpha == 0.) {\n        discard;\n    }\n',
+            '    if (alpha == 0.) {\n        discard;\n    }\n'
+            '    if (alpha > 0.26) { alpha = 0.26 + (alpha - 0.26) * $major_scale; }\n'
         ))
         self._grid_color_fn['color'] = Color(color).rgba
         self._grid_color_fn['scale'] = scale
         self._grid_color_fn['hide_axes'] = 0.0
+        self._grid_color_fn['major_scale'] = 1.0
         self.shared_program.frag['get_data'] = self._grid_color_fn
+
+    def set_major_scale(self, factor):
+        """Scale of the alpha above the minor-line level: below 1 the major lines get dimmer, the minor ones stay."""
+        self._grid_color_fn['major_scale'] = float(factor)
+        self.update()
 
     def set_hide_axes(self, state):
         self._grid_color_fn['hide_axes'] = 1.0 if state else 0.0
