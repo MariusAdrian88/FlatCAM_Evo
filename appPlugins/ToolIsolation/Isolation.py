@@ -31,7 +31,7 @@ import appTranslation as fcTranslate
 import builtins
 
 from appDatabase import load_tools_database, tools_database_error_message
-from camlib import Geometry, grace, flatten_shapely_geometry, polygon_gap_pairs, outline_area, boundary_area, clip_paths_to_area, \
+from camlib import deepcopy_keep_geometry, Geometry, grace, flatten_shapely_geometry, polygon_gap_pairs, outline_area, boundary_area, clip_paths_to_area, \
     area_outline_paths, boundary_passes_message, isolation_leftover_paths, milling_orient, pass_covers_area
 from appCommon.SafeEval import safe_eval
 from appPlugins.ToolIsolation.IsolationUI import IsoUI
@@ -1031,9 +1031,9 @@ class ToolIsolation(Geometry, AppTool):
         # sort the tools dictionary having the 'tooldia' as sorting key
         new_tools_list = []
         if order == 1:  # "Forward"
-            new_tools_list = deepcopy(sorted(self.iso_tools.items(), key=lambda x: x[1]['tooldia'], reverse=False))
+            new_tools_list = deepcopy_keep_geometry(sorted(self.iso_tools.items(), key=lambda x: x[1]['tooldia'], reverse=False))
         elif order == 2:  # "Reverse"
-            new_tools_list = deepcopy(sorted(self.iso_tools.items(), key=lambda x: x[1]['tooldia'], reverse=True))
+            new_tools_list = deepcopy_keep_geometry(sorted(self.iso_tools.items(), key=lambda x: x[1]['tooldia'], reverse=True))
 
         # recreate the tools dictionary in a ordered fashion; each tool keeps its uid
         self.iso_tools.clear()

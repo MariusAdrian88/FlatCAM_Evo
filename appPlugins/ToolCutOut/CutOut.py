@@ -17,6 +17,7 @@ from appPlugins.ToolCutOut.CutOutGen import (
 )
 from appDatabase import load_tools_database, tools_database_error_message
 from defaults import AppDefaults
+from camlib import deepcopy_keep_geometry
 
 import math
 from contextlib import nullcontext
@@ -710,7 +711,7 @@ class CutOut(AppTool):
                     holes = result.holes
                     def geo_init(geo_obj, app_object):
                         geo_obj.multigeo = True
-                        geo_obj.solid_geometry = deepcopy(solid_geo)
+                        geo_obj.solid_geometry = deepcopy_keep_geometry(solid_geo)
 
                         geo_obj.tools[1] = deepcopy(cut_tool_dict)
                         geo_obj.tools[1]['tooldia'] = str(abs(cut_dia))
@@ -901,7 +902,7 @@ class CutOut(AppTool):
 
                     def geo_init(geo_obj, application_obj):
                         geo_obj.multigeo = True
-                        geo_obj.solid_geometry = deepcopy(solid_geo)
+                        geo_obj.solid_geometry = deepcopy_keep_geometry(solid_geo)
 
                         geo_obj.tools[1] = deepcopy(cut_tool_dict)
                         geo_obj.tools[1]['tooldia'] = str(abs(cut_dia))
@@ -1099,7 +1100,7 @@ class CutOut(AppTool):
                               "Escape cancels all changes in this session."))
         self.app.geo_editor.tool_shape.enabled = True
         self.mb_manual_cuts[:] = []
-        self.manual_solid_geo = deepcopy(self.flatten(self.man_cutout_obj.solid_geometry))
+        self.manual_solid_geo = deepcopy_keep_geometry(self.flatten(self.man_cutout_obj.solid_geometry))
 
         if self.ui.gaptype_combo.get_value() == 2:  # "mouse bytes"
             b_dia = (self.cutting_dia / 2.0) - (mb_dia / 2.0)
@@ -1130,7 +1131,7 @@ class CutOut(AppTool):
 
         # Keep previews out of history until the session is accepted. Escape must not leave
         # redoable milling gaps whose pending mouse-bite drilling has been discarded.
-        self.manual_session = (self.man_cutout_obj, deepcopy({
+        self.manual_session = (self.man_cutout_obj, deepcopy_keep_geometry({
             'solid_geometry': self.man_cutout_obj.solid_geometry,
             'tools': self.man_cutout_obj.tools,
             'multigeo': self.man_cutout_obj.multigeo
@@ -1321,10 +1322,10 @@ class CutOut(AppTool):
             self.app.inform.emit('[ERROR_NOTCL] %s' % str(err))
             return
 
-        tools = deepcopy(obj.tools)
+        tools = deepcopy_keep_geometry(obj.tools)
         for tool_id in (1, 99):
             if tool_id in original['tools']:
-                tools[tool_id] = deepcopy(original['tools'][tool_id])
+                tools[tool_id] = deepcopy_keep_geometry(original['tools'][tool_id])
             else:
                 tools.pop(tool_id, None)
         if bridges:
@@ -1349,7 +1350,7 @@ class CutOut(AppTool):
                     })
                 tools[99]['solid_geometry'] = _cutout_paths(unary_union(
                     _cutout_paths(tools[99].get('solid_geometry', [])) + [bridge[1] for bridge in bridges]))
-        obj.solid_geometry = geometry if bridges else deepcopy(original['solid_geometry'])
+        obj.solid_geometry = geometry if bridges else deepcopy_keep_geometry(original['solid_geometry'])
         obj.multigeo = True if bridges else original['multigeo']
         obj.tools = tools
         cuts = unary_union([part for bridge in bridges for part in bridge[3]])
@@ -1378,7 +1379,7 @@ class CutOut(AppTool):
         self.mouse_is_dragging = False
         self.app.geo_editor.tool_shape.clear(update=True)
         # Only the cutout's tools are session-owned. Keep other tools and object options.
-        restored_tools = deepcopy(obj.tools)
+        restored_tools = deepcopy_keep_geometry(obj.tools)
         for tool_id in (1, 99):
             if tool_id in original['tools']:
                 restored_tools[tool_id] = original['tools'][tool_id]
@@ -1613,7 +1614,7 @@ class CutOut(AppTool):
 
                 with self.app.proc_container.new("Generating Excellon ..."):
                     manual_source = self.man_cutout_obj
-                    manual_cuts = deepcopy(self.mb_manual_cuts)
+                    manual_cuts = deepcopy_keep_geometry(self.mb_manual_cuts)
                     outname_exc = manual_source.obj_options["name"] + "_mouse_bites"
                     self.app.collection.promise(outname_exc)
                     self.mb_manual_cuts[:] = []

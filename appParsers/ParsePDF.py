@@ -16,7 +16,7 @@ from shapely.ops import polygonize, unary_union
 
 from copy import copy, deepcopy
 import numpy as np
-from camlib import circle_quad_segs, gerber_quad_segs
+from camlib import circle_quad_segs, gerber_quad_segs, deepcopy_keep_geometry
 import re
 import logging
 
@@ -183,21 +183,21 @@ class PdfParser:
                     else:
                         new_el = {'solid': poly, 'follow': poly.exterior, 'order': self._geometry_order}
                     self._geometry_order += 1
-                    apertures_dict[aperture_id]['geometry'].append(deepcopy(new_el))
+                    apertures_dict[aperture_id]['geometry'].append(new_el)
             elif isinstance(pdf_geo, Polygon):
                 if clear_geo:
                     new_el = {'clear': pdf_geo, 'order': self._geometry_order}
                 else:
                     new_el = {'solid': pdf_geo, 'follow': pdf_geo.exterior, 'order': self._geometry_order}
                 self._geometry_order += 1
-                apertures_dict[aperture_id]['geometry'].append(deepcopy(new_el))
+                apertures_dict[aperture_id]['geometry'].append(new_el)
             else:
                 if clear_geo:
                     new_el = {'clear': pdf_geo, 'order': self._geometry_order}
                 else:
                     new_el = {'solid': pdf_geo, 'follow': pdf_geo, 'order': self._geometry_order}
                 self._geometry_order += 1
-                apertures_dict[aperture_id]['geometry'].append(deepcopy(new_el))
+                apertures_dict[aperture_id]['geometry'].append(new_el)
 
     @staticmethod
     def _has_solid_geometry(layer: dict) -> bool:
@@ -808,7 +808,7 @@ class PdfParser:
             polygons = geometry.geoms if isinstance(geometry, MultiPolygon) else [geometry]
             for polygon in polygons:
                 ctx.clear_apertures_dict[0]['geometry'].append({
-                    'clear': deepcopy(polygon),
+                    'clear': polygon,
                     'order': self._geometry_order
                 })
                 self._geometry_order += 1
@@ -1406,10 +1406,10 @@ class PdfParser:
             Finalized object_dict
         """
         if apertures_dict:
-            object_dict[layer_nr] = deepcopy(apertures_dict)
+            object_dict[layer_nr] = deepcopy_keep_geometry(apertures_dict)
 
         if clear_apertures_dict[0]['geometry']:
-            object_dict[0] = deepcopy(clear_apertures_dict)
+            object_dict[0] = deepcopy_keep_geometry(clear_apertures_dict)
 
         for layer_nr, layer in object_dict.items():
             if layer_nr != 0:

@@ -10,7 +10,7 @@ from appTool import AppTool
 from appGUI.GUIElements import VerticalScrollArea
 
 from appCommon.Common import LoudDict, GracefulException
-from camlib import flatten_shapely_geometry
+from camlib import flatten_shapely_geometry, deepcopy_keep_geometry
 from defaults import AppDefaults
 from appPlugins.ToolCopperThieving.CopperThievingGen import (
     copper_fill, robber_bar_data, plating_mask, GridParameterError)
@@ -499,11 +499,12 @@ class ToolCopperThieving(AppTool):
         line_spacing = self.ui.lines_spacing_entry.get_value()
 
         bbox_type = self.ui.bbox_type_radio.get_value()
-        source_geometry = deepcopy(self.grb_object.solid_geometry)
+        source_geometry = deepcopy_keep_geometry(self.grb_object.solid_geometry)
         working_ref = thieving_obj if ref_obj is None else ref_obj
         reference_geometry = working_ref if ref_selected == 1 else getattr(working_ref, 'solid_geometry', None)
         reference_kind = getattr(working_ref, 'kind', None)
-        target_geometry = source_geometry if thieving_obj is self.grb_object else deepcopy(thieving_obj.solid_geometry)
+        target_geometry = (source_geometry if thieving_obj is self.grb_object
+                           else deepcopy_keep_geometry(thieving_obj.solid_geometry))
 
         def job_thread_thieving(tool_obj):
             with tool_obj.app.proc_container.new('%s ...' % _("Thieving")):
@@ -565,11 +566,11 @@ class ToolCopperThieving(AppTool):
                     grb_obj.multigeo = False
                     grb_obj.follow = deepcopy(self.grb_object.follow)
                     grb_obj.tools = new_apertures
-                    grb_obj.solid_geometry = deepcopy(flatten_shapely_geometry(new_solid_geo))
+                    grb_obj.solid_geometry = deepcopy_keep_geometry(flatten_shapely_geometry(new_solid_geo))
                     old_follow = [] if self.grb_object.follow_geometry is None else \
-                        deepcopy(self.grb_object.follow_geometry)
+                        deepcopy_keep_geometry(self.grb_object.follow_geometry)
                     grb_obj.follow_geometry = flatten_shapely_geometry(old_follow) + [
-                        deepcopy(poly.exterior) for poly in new_fill if isinstance(poly, Polygon)]
+                        poly.exterior for poly in new_fill if isinstance(poly, Polygon)]
                     # Export the composed copper so region holes can't erase source islands.
                     grb_obj.export_as_regions = True
 
@@ -642,9 +643,9 @@ class ToolCopperThieving(AppTool):
                     grb_obj.source_file = []
                     grb_obj.multigeo = False
                     grb_obj.follow = False
-                    grb_obj.follow_geometry = deepcopy(new_follow_geo)
-                    grb_obj.tools = deepcopy(new_apertures)
-                    grb_obj.solid_geometry = deepcopy(flatten_shapely_geometry(new_solid_geometry))
+                    grb_obj.follow_geometry = deepcopy_keep_geometry(new_follow_geo)
+                    grb_obj.tools = deepcopy_keep_geometry(new_apertures)
+                    grb_obj.solid_geometry = deepcopy_keep_geometry(flatten_shapely_geometry(new_solid_geometry))
 
                     app_obj.proc_container.update_view_text(' %s' % _("Append source file"))
                     # update the source file with the new geometry:

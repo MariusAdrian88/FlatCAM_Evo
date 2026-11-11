@@ -1,4 +1,4 @@
-from copy import deepcopy
+from camlib import deepcopy_keep_geometry
 
 from shapely import Point, LineString
 from shapely.ops import unary_union
@@ -49,7 +49,7 @@ def punch_geometry(solid_geometry, tools, selected_apertures, method, value, dec
         return max(1, int(steps(radius) if callable(steps) else steps) // 4)
 
     source = normalize_polygonal(solid_geometry)
-    apertures = deepcopy(tools)
+    apertures = deepcopy_keep_geometry(tools)
     new_apid = max(int(apid) for apid in apertures)
     holes = {}
     seen = set()
@@ -61,7 +61,7 @@ def punch_geometry(solid_geometry, tools, selected_apertures, method, value, dec
         seen.add(key)
         if size not in holes:
             holes[size] = {'type': 'C', 'size': size, 'geometry': []}
-        holes[size]['geometry'].append({'clear': deepcopy(geo)})
+        holes[size]['geometry'].append({'clear': geo})
 
     # pads to punch: (apid, idx, aperture, record)
     pads = []
@@ -133,5 +133,5 @@ def punch_geometry(solid_geometry, tools, selected_apertures, method, value, dec
 
     for aperture in holes.values():
         new_apid += 1
-        apertures[new_apid] = deepcopy(aperture)
+        apertures[new_apid] = deepcopy_keep_geometry(aperture)
     return punched, apertures

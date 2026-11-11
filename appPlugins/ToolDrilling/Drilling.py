@@ -13,7 +13,7 @@ from appGUI.GUIElements import VerticalScrollArea, FCLabel, FCButton, FCFrame, G
     OptionalInputSection, OptionalHideInputSection
 from appDatabase import load_tools_database, tools_database_error_message
 from appCommon.ToolDatabase import matching_tools
-from camlib import Geometry, flatten_shapely_geometry, object_quad_segs
+from camlib import Geometry, flatten_shapely_geometry, object_quad_segs, deepcopy_keep_geometry
 from appCommon.SafeEval import safe_eval
 from appCommon.Common import ExclusionAreas
 from appPlugins.ToolDrilling import DrillingGen
@@ -912,7 +912,7 @@ class ToolDrilling(Geometry, AppTool):
         new_uid = 1
 
         for current_uid in current_uid_list:
-            new_tools[new_uid] = deepcopy(self.excellon_tools[current_uid])
+            new_tools[new_uid] = deepcopy_keep_geometry(self.excellon_tools[current_uid])
             new_uid += 1
 
         self.excellon_tools = new_tools
@@ -1558,7 +1558,7 @@ class ToolDrilling(Geometry, AppTool):
         self.app.log.debug("ToolDrilling.replace_tools()")
 
         if self.excellon_obj:
-            new_tools_dict = deepcopy(self.excellon_tools)
+            new_tools_dict = deepcopy_keep_geometry(self.excellon_tools)
 
             for orig_tool, orig_tool_val in self.excellon_tools.items():
                 orig_tooldia = orig_tool_val['tooldia']

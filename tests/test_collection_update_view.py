@@ -2,6 +2,7 @@
 
 import os
 import unittest
+import pytest
 from types import SimpleNamespace
 from unittest import mock
 
@@ -11,6 +12,7 @@ from PyQt6 import QtCore, QtGui, QtTest, QtWidgets
 from PyQt6.QtTest import QSignalSpy
 
 from appObjects.ObjectCollection import ObjectCollection, TreeItem
+from libs import qdarktheme
 
 _qapp = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
 
@@ -76,6 +78,57 @@ class TestUpdateView(unittest.TestCase):
         selected = view.selectionModel().selectedIndexes()
         self.assertEqual([s.internalPointer() for s in selected], [self.g2_item])
 
+
+
+@pytest.mark.parametrize("theme", ["light", "dark"])
+@pytest.mark.parametrize("active", [False, True])
+@pytest.mark.parametrize("plot", [False, True])
+@pytest.mark.parametrize("swatch", [False, True])
+def test_selected_project_text_uses_preferences(theme, active, plot, swatch):
+    col = make_collection()
+    view = col.view
+    view.setStyleSheet(qdarktheme.load_stylesheet(theme))
+    obj, _ = add_item(col, "gerber", "MMMMMMMM")
+    obj.obj_options["plot"] = plot
+    if swatch:
+        obj.fill_color = "#FFFF00FF"
+    col.app.options["global_proj_item_color_" + theme] = "#E020A0FF"
+    col.app.options["global_proj_item_dis_color_" + theme] = "#20C060FF"
+    group = col.index(col.root_item.child_items.index(col.group_items["gerber"]), 0, QtCore.QModelIndex())
+    index = col.index(0, 0, group)
+    settings = QtCore.QSettings("Open Source", "FlatCAM_EVO")
+    previous = settings.value("theme")
+    settings.setValue("theme", theme)
+    try:
+        option = QtWidgets.QStyleOptionViewItem()
+        option.initFrom(view)
+        option.widget = view
+        option.rect = QtCore.QRect(0, 0, 240, 32)
+        option.state |= QtWidgets.QStyle.StateFlag.State_Selected | QtWidgets.QStyle.StateFlag.State_Enabled
+        if active:
+            option.state |= QtWidgets.QStyle.StateFlag.State_Active
+        else:
+            option.state &= ~QtWidgets.QStyle.StateFlag.State_Active
+        image = QtGui.QImage(240, 32, QtGui.QImage.Format.Format_RGB32)
+        image.fill(QtGui.QColor("white"))
+        painter = QtGui.QPainter(image)
+        view.itemDelegate().paint(painter, option, index)
+        painter.end()
+        expected = QtGui.QColor("#E020A0" if plot else "#20C060")
+        assert any(image.pixelColor(x, y) == expected for x in range(20, 180) for y in range(32))
+        background = ("#4CA6E5" if active else "#E4E6F2") if theme == "light" else (
+            "#004875" if active else "#393D41")
+        assert image.pixelColor(190, 16) == QtGui.QColor(background)
+        if swatch:
+            rect = view.swatch_rect(index, option.rect)
+            assert image.pixelColor(rect.center()) == QtGui.QColor("yellow")
+        assert col.data(group, QtCore.Qt.ItemDataRole.ForegroundRole) is None
+    finally:
+        if previous is None:
+            settings.remove("theme")
+        else:
+            settings.setValue("theme", previous)
+        view.deleteLater()
 
 
 class TestDragReorder(unittest.TestCase):

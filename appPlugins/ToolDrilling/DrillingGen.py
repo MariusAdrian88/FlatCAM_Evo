@@ -9,7 +9,7 @@ import shapely
 from shapely import LineString
 from shapely.ops import unary_union
 
-from camlib import flatten_shapely_geometry
+from camlib import flatten_shapely_geometry, deepcopy_keep_geometry
 from defaults import AppDefaults
 import appTranslation as fcTranslate
 
@@ -33,7 +33,7 @@ def merge_same_diameter_tools(tools):
         dia = tool_val['tooldia']
         if dia not in id_by_dia:
             id_by_dia[dia] = tool_id
-            merged[tool_id] = deepcopy(tool_val)
+            merged[tool_id] = deepcopy_keep_geometry(tool_val)
             continue
 
         target = merged[id_by_dia[dia]]

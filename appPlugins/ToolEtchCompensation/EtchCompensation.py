@@ -19,6 +19,7 @@ import appPlugins.ToolEtchCompensation as etch_plugin
 import logging
 import traceback
 from copy import deepcopy
+from camlib import deepcopy_keep_geometry
 
 import gettext
 import appTranslation as fcTranslate
@@ -345,7 +346,7 @@ class ToolEtchCompensation(AppTool):
                     new_obj.obj_options['name'] = outname
                     new_obj.fill_color = deepcopy(src.fill_color)
                     new_obj.outline_color = deepcopy(src.outline_color)
-                    new_obj.follow_geometry = deepcopy(getattr(src, 'follow_geometry', []))
+                    new_obj.follow_geometry = deepcopy_keep_geometry(getattr(src, 'follow_geometry', []))
                     new_obj.aperture_macros = deepcopy(getattr(src, 'aperture_macros', {}))
                     new_obj.export_as_regions = bool(getattr(src, 'export_as_regions', False))
                     new_obj.multigeo = getattr(src, 'multigeo', False)

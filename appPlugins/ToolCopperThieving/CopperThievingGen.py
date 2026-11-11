@@ -5,7 +5,7 @@ from shapely.affinity import translate
 from shapely.ops import unary_union
 
 from appCommon.Common import GracefulException
-from camlib import flatten_shapely_geometry
+from camlib import flatten_shapely_geometry, deepcopy_keep_geometry
 
 
 class GridParameterError(ValueError):
@@ -32,22 +32,22 @@ def robber_bar(solid_geometry, margin, thickness, circle_steps=64):
 def robber_bar_data(solid_geometry, tools, follow_geometry, margin, thickness, circle_steps=64):
     """Return the bar outputs and independent merged Gerber geometry and apertures."""
     line, bar = robber_bar(solid_geometry, margin, thickness, circle_steps)
-    apertures = deepcopy(tools)
+    apertures = deepcopy_keep_geometry(tools)
     aperture_found = None
     for ap_id, ap_val in tools.items():
         if ap_val['type'] == 'C' and ap_val['size'] == thickness:
             aperture_found = ap_id
             break
     if aperture_found:
-        apertures[aperture_found]['geometry'].append(deepcopy({'solid': bar, 'follow': line}))
+        apertures[aperture_found]['geometry'].append({'solid': bar, 'follow': line})
     else:
         # Gerber aperture ids start at 10; the REG key 0 of the generated apertures does not count
         new_apid = max([10] + [int(key) + 1 for key in apertures])
         apertures[new_apid] = {
             'type': 'C', 'size': deepcopy(thickness),
-            'geometry': [deepcopy({'solid': bar, 'follow': line})]}
-    geometry = deepcopy(_flat(solid_geometry)) + [deepcopy(bar)]
-    follows = deepcopy(_flat(follow_geometry)) + [deepcopy(line)]
+            'geometry': [{'solid': bar, 'follow': line}]}
+    geometry = deepcopy_keep_geometry(_flat(solid_geometry)) + [bar]
+    follows = deepcopy_keep_geometry(_flat(follow_geometry)) + [line]
     return line, bar, unary_union(geometry), apertures, follows
 
 
@@ -164,11 +164,11 @@ def copper_fill(solid_geometry, tools, reference_geometry, reference_kind, refer
                 if isinstance(poly, Polygon) and not poly.is_empty]
 
     report('Append geometry')
-    apertures = deepcopy(tools)
+    apertures = deepcopy_keep_geometry(tools)
     if 0 not in apertures:
         apertures[0] = {'type': 'REG', 'size': 0.0, 'geometry': []}
     for poly in flatten_shapely_geometry(fill):
-        apertures[0]['geometry'].append(deepcopy({'solid': poly, 'follow': poly.exterior}))
+        apertures[0]['geometry'].append({'solid': poly, 'follow': poly.exterior})
     merged = MultiPolygon(geometry + flatten_shapely_geometry(fill)).buffer(0.0000001).buffer(-0.0000001)
     return fill, merged, apertures
 
@@ -178,7 +178,7 @@ def plating_mask(solid_geometry, tools, follow_geometry, thieving_geometry, robb
     quad_segs = _quad_segs(circle_steps)
     geo_list = []
     if only_pads is False:
-        geo_list = deepcopy(_flat(solid_geometry))
+        geo_list = deepcopy_keep_geometry(_flat(solid_geometry))
     else:
         for aperture in tools.values():
             for elem in aperture.get('geometry', []):
@@ -186,21 +186,21 @@ def plating_mask(solid_geometry, tools, follow_geometry, thieving_geometry, robb
                     geo_list.append(elem['solid'])
     if clearance != 0:
         geo_list = [geo.buffer(clearance, quad_segs=quad_segs) for geo in geo_list]
-    thieving = deepcopy(_flat(thieving_geometry))
-    robber = unary_union(deepcopy(_flat(robber_geometry)))
+    thieving = deepcopy_keep_geometry(_flat(thieving_geometry))
+    robber = unary_union(deepcopy_keep_geometry(_flat(robber_geometry)))
     if clearance != 0:
         robber = robber.buffer(clearance, quad_segs=quad_segs)
-    robber_line = unary_union(deepcopy(_flat(robber_follow)))
-    follows = deepcopy(_flat(follow_geometry))
+    robber_line = unary_union(deepcopy_keep_geometry(_flat(robber_follow)))
+    follows = deepcopy_keep_geometry(_flat(follow_geometry))
     if only_pads:
-        follows = [deepcopy(elem['follow']) for aperture in tools.values()
+        follows = [elem['follow'] for aperture in tools.values()
                    for elem in aperture.get('geometry', [])
                    if isinstance(elem.get('follow'), Point) and 'solid' in elem]
     if thieving and choice in [0, 1]:
         for poly in thieving:
             geo_list.append(poly.buffer(clearance, quad_segs=quad_segs))
             if isinstance(poly, Polygon) and not poly.is_empty:
-                follows.append(deepcopy(poly.exterior))
+                follows.append(poly.exterior)
     if not robber.is_empty and choice in [0, 2]:
         follows.append(robber_line)
         geo_list.append(robber)

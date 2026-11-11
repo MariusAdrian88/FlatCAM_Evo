@@ -30,7 +30,7 @@ from appParsers.PdfStreamParser import (
     get_pdf_parser,
     PdfParserError,
 )
-from camlib import grace, flatten_shapely_geometry
+from camlib import grace, flatten_shapely_geometry, deepcopy_keep_geometry
 
 fcTranslate.apply_language('strings')
 if '_' not in builtins.__dict__:
@@ -313,7 +313,7 @@ class ToolPDF(AppTool):
                 pass
 
             grb_obj.solid_geometry = flatten_shapely_geometry(poly_buff)
-            grb_obj.follow_geometry = deepcopy(follow_buf)
+            grb_obj.follow_geometry = deepcopy_keep_geometry(follow_buf)
             grb_obj.tools = _region_tools(poly_buff)
             grb_obj.regenerate_source(name=outname)
 

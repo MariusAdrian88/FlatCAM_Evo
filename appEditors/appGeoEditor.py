@@ -24,6 +24,7 @@ from weakref import WeakKeyDictionary, WeakSet, ref
 from camlib import distance, arc, three_point_circle, Geometry, AppRTreeStorage, flatten_shapely_geometry, \
     translate_geometry, affine_translate_matrix, affine_rotate_matrix, affine_scale_matrix, affine_skew_matrix, \
     affine_mirror_matrix, affine_geometry_many, object_circle_steps, object_quad_segs
+from camlib import deepcopy_keep_geometry
 from appGUI.GUIElements import FCLabel, GLay, FCDoubleSpinner, FCTree, FCButton, FCFrame, FCCheckBox, FCEntry, \
     FCTextEdit, show_selected_rows
 from appGUI.VisPyVisuals import ShapeCollection
@@ -7597,7 +7598,7 @@ class FCImport(DrawTool):
         if not self.picked:
             self.app.inform.emit('[WARNING_NOTCL] %s' % _("No shape picked."))
             return
-        shapes = [DrawToolShape(deepcopy(item['geo'])) for item in self.picked]
+        shapes = [DrawToolShape(deepcopy_keep_geometry(item['geo'])) for item in self.picked]
         if self.draw_app.add_shape(shapes) == 'fail':
             return 'fail'
         self.picked = []

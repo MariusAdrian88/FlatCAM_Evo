@@ -17,6 +17,7 @@ from shapely import affinity
 from shapely.geometry import Polygon, LineString
 
 from appGUI.VisPyVisuals import ShapeCollectionVisual, ShapeGroup
+from appObjects.AppObjectTemplate import plot_transformed_many
 from tests.helpers_objects import make_app, make_same_diameter_excellon
 
 OPTS = {"global_graphic_engine_3d_no_mp": True, "global_backface_culling": True}
@@ -125,6 +126,73 @@ class TestTransformKeys(unittest.TestCase):
         self.assertAlmostEqual(float(slot[:, 0].max()), 52.5, delta=0.02)
         self.assertAlmostEqual(float(slot[:, 1].min()), 4.5, delta=0.02)
         self.assertAlmostEqual(float(slot[:, 1].max()), 5.5, delta=0.02)
+
+
+class TestPlotTransformedMany(unittest.TestCase):
+    MATRIX = (1.0, 0.0, 0.0, 1.0, 3.0, -2.0)
+
+    @classmethod
+    def setUpClass(cls):
+        # the merge of the buffers into the GL visuals needs a canvas; a fake one is enough
+        from vispy.gloo.context import FakeCanvas
+        cls._canvas = FakeCanvas()
+
+    def test_batch_maps_all_objects_with_one_redraw(self):
+        app = make_app()
+        shared = new_collection()
+        objs = [make_same_diameter_excellon(app, name=n) for n in ('a', 'b')]
+        for obj in objs:
+            obj.shapes = ShapeGroup(shared)
+            obj.plot()
+        objs[1].offset((20, 0))
+        objs[1].plot()
+        for obj in objs:
+            obj.offset((3, -2))
+
+        with patch.object(ShapeCollectionVisual, '_ShapeCollectionVisual__update') as update:
+            self.assertEqual(plot_transformed_many(objs, self.MATRIX), [True, True])
+        self.assertEqual(update.call_count, 1)
+
+        ref = new_collection()
+        for obj in objs:
+            obj.shapes = ShapeGroup(ref)
+            obj.plot()
+        got = sorted_pts(np.concatenate([shared.data[k]['line_pts'] for k in sorted(shared.data)]))
+        want = sorted_pts(np.concatenate([ref.data[k]['line_pts'] for k in sorted(ref.data)]))
+        np.testing.assert_allclose(got, want, atol=2e-3)
+
+    def test_cncjob_with_annotations_is_mapped_without_a_new_plot(self):
+        from collections import defaultdict
+        from unittest.mock import Mock
+        from appGUI.VisPyVisuals import TextCollectionVisual, TextGroup
+        from appObjects.CNCJobObject import CNCJobObject
+
+        app = make_app()
+        app.preprocessors = defaultdict(Mock)
+        job = CNCJobObject('job', app)
+        paths = [Polygon([(0, 0), (4, 0), (4, 3), (3.8, 3), (3.8, 0.2), (0, 0.2)]), Polygon([(8, 1), (8.4, 1), (9, 5)])]
+        collection = new_collection()
+        job.shapes = ShapeGroup(collection)
+        job.shapes.add_batch([{'shape': p, 'color': '#FF0000FF', 'face_color': '#00FF00FF'} for p in paths])
+        job.mark_full_plot()
+        positions = [(0.0, 0.0), (4.0, 3.0), (8.0, 1.0)]
+        job.annotation = TextGroup(TextCollectionVisual())
+        job.annotation.set(text=['1', '2', '3'], pos=list(positions))
+        job.annotations_dict = {0.2: {'pos': list(positions), 'text': ['1', '2', '3']}}
+        job.plot = Mock()
+
+        self.assertTrue(job.plot_transformed(self.MATRIX))
+        job.plot.assert_not_called()
+
+        ref = new_collection()
+        ref.add_batch([{'shape': to_affine(self.MATRIX, p), 'color': '#FF0000FF', 'face_color': '#00FF00FF'}
+                       for p in paths])
+        for k, rk in zip(sorted(collection.data), sorted(ref.data)):
+            np.testing.assert_allclose(sorted_pts(collection.data[k]['mesh_vertices']),
+                                       sorted_pts(ref.data[rk]['mesh_vertices']), atol=2e-3)
+        want = [(x + 3.0, y - 2.0) for x, y in positions]
+        np.testing.assert_allclose(job.annotation._collection.data[0]['pos'], want)
+        np.testing.assert_allclose(job.annotations_dict[0.2]['pos'], want)
 
 
 if __name__ == '__main__':

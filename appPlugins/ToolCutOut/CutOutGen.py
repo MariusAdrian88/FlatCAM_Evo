@@ -5,13 +5,12 @@ import gettext
 import logging
 import math
 from collections import namedtuple
-from copy import deepcopy
 
 import shapely
 from shapely import Polygon, MultiPolygon, GeometryCollection, box, Point, LineString, MultiLineString, LinearRing
 from shapely.ops import unary_union, linemerge, polygonize_full, substring
 
-from camlib import flatten_shapely_geometry
+from camlib import flatten_shapely_geometry, deepcopy_keep_geometry
 from appParsers.feature_access import fused_solid
 import appTranslation as fcTranslate
 
@@ -450,7 +449,7 @@ def freeform_cutout_paths(cutout_obj, kind, cut_dia, margin, gaps, gapsize, conv
         pass
     if has_mouse_bites is True:
         gapsize -= abs(cut_dia) / 2
-        mb_object_geo = deepcopy(object_geo)
+        mb_object_geo = deepcopy_keep_geometry(object_geo)
         if kind == 'single':
             mb_object_geo = unary_union(mb_object_geo)
             if cutout_obj.kind == 'gerber':
@@ -1028,7 +1027,7 @@ def rectangular_cutout_paths(object_geo, source_kind, kind, gaps, gapsize, gap_t
         pass
     if has_mouse_bites is True:
         gapsize -= abs(cut_dia) / 2
-        mb_object_geo = deepcopy(object_geo)
+        mb_object_geo = deepcopy_keep_geometry(object_geo)
         if kind == 'single':
             mb_object_geo = unary_union(mb_object_geo)
             xmin, ymin, xmax, ymax = mb_object_geo.bounds

@@ -11,7 +11,7 @@ from appGUI.GUIElements import VerticalScrollArea
 from appCommon.Common import LoudDict
 from appPlugins.ToolFiducials.FiducialsGen import auto_points, fiducial_geometry, fiducial_shapes
 from appPlugins.ToolFiducials.FiducialsUI import FidoUI
-from camlib import flatten_shapely_geometry
+from camlib import flatten_shapely_geometry, deepcopy_keep_geometry
 
 import logging
 from copy import deepcopy
@@ -362,7 +362,7 @@ class ToolFiducials(AppTool):
             grb_obj.follow = deepcopy(g_obj.follow)
             grb_obj.tools = new_apertures
             grb_obj.solid_geometry = solid_geometry
-            old_follow = [] if g_obj.follow_geometry is None else deepcopy(g_obj.follow_geometry)
+            old_follow = [] if g_obj.follow_geometry is None else deepcopy_keep_geometry(g_obj.follow_geometry)
             grb_obj.follow_geometry = flatten_shapely_geometry(old_follow) + flatten_shapely_geometry(geo_list)
 
             grb_obj.regenerate_source(name=outname)

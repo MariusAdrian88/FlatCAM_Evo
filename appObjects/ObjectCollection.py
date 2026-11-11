@@ -220,7 +220,7 @@ class ProjectItemDelegate(QtWidgets.QStyledItemDelegate):
     def paint(self, painter, option, index):
         rect = self.view.swatch_rect(index, option.rect)
         if rect is None:
-            super().paint(painter, option, index)
+            self._paint_item(painter, option, index)
             return
 
         # the background (selection, hover) goes on the whole row, the text stops before the swatch
@@ -229,13 +229,34 @@ class ProjectItemDelegate(QtWidgets.QStyledItemDelegate):
         text_option = QtWidgets.QStyleOptionViewItem(option)
         text_option.rect = QtCore.QRect(option.rect)
         text_option.rect.setRight(rect.left() - self.SWATCH_MARGIN)
-        super().paint(painter, text_option, index)
+        self._paint_item(painter, text_option, index)
 
         painter.save()
         painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
         painter.setPen(QtGui.QPen(QColor('dimgray'), 1))
         painter.setBrush(QColor(index.internalPointer().obj.fill_color[:7]))
         painter.drawRoundedRect(QtCore.QRectF(rect).adjusted(0.5, 0.5, -0.5, -0.5), 4, 4)
+        painter.restore()
+
+    def _paint_item(self, painter, option, index):
+        foreground = index.data(Qt.ItemDataRole.ForegroundRole)
+        if not option.state & QtWidgets.QStyle.StateFlag.State_Selected or not isinstance(foreground, QtGui.QBrush):
+            super().paint(painter, option, index)
+            return
+
+        # Selected-item stylesheets override the model brush, so paint only the label outside the style.
+        text_option = QtWidgets.QStyleOptionViewItem(option)
+        self.initStyleOption(text_option, index)
+        style = option.widget.style() if option.widget else QtWidgets.QApplication.style()
+        text_rect = style.subElementRect(QtWidgets.QStyle.SubElement.SE_ItemViewItemText, text_option, option.widget)
+        text = text_option.fontMetrics.elidedText(text_option.text, text_option.textElideMode, text_rect.width())
+        text_option.text = ''
+        style.drawControl(QtWidgets.QStyle.ControlElement.CE_ItemViewItem, text_option, painter, option.widget)
+        painter.save()
+        painter.setClipRect(text_rect, Qt.ClipOperation.IntersectClip)
+        painter.setFont(text_option.font)
+        painter.setPen(QtGui.QPen(foreground, 1))
+        painter.drawText(text_rect, int(text_option.displayAlignment), text)
         painter.restore()
 
     def dragEnterEvent(self, event):
@@ -758,7 +779,7 @@ class ObjectCollection(QtCore.QAbstractItemModel):
             if obj:
                 return QtGui.QBrush(color) if obj.obj_options["plot"] else QtGui.QBrush(color_disabled)
             else:
-                return index.internalPointer().data(index.column())
+                return None
 
         elif role == Qt.ItemDataRole.DecorationRole:
             icon = index.internalPointer().icon

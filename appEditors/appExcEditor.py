@@ -7,6 +7,7 @@
 
 from appHandlers.appHistory import history_of
 from camlib import distance, arc, translate_geometry, object_circle_steps, circle_quad_segs
+from camlib import deepcopy_keep_geometry
 
 from PyQt6 import QtCore, QtWidgets, QtGui
 from PyQt6.QtCore import Qt
@@ -2657,7 +2658,7 @@ def tools_with_data(old_tools, new_tools, olddia_newdia, data_defaults, decimals
     :return: dict of tools
     """
     matches = match_tool_data(old_tools, new_tools, olddia_newdia, decimals)
-    result = deepcopy(new_tools)
+    result = deepcopy_keep_geometry(new_tools)
     for new_id, old_id in matches.items():
         if old_id is not None and old_tools[old_id].get('data'):
             result[new_id]['data'] = deepcopy(old_tools[old_id]['data'])

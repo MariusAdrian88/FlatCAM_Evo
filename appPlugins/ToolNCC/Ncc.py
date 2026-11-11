@@ -35,7 +35,7 @@ import builtins
 from appPlugins.ToolNCC.NccGen import NccGen
 from appDatabase import load_tools_database, tools_database_error_message
 from defaults import AppDefaults
-from camlib import Geometry, grace, flatten_shapely_geometry, object_circle_steps
+from camlib import Geometry, grace, flatten_shapely_geometry, object_circle_steps, deepcopy_keep_geometry
 from appCommon.SafeEval import safe_eval
 from appCommon.ToolDatabase import matching_tools
 from appPlugins.ToolNCC import NccModel
@@ -1279,7 +1279,7 @@ class ToolNcc(Geometry, AppTool):
         new_uid = 1
 
         for current_uid in current_uid_list:
-            new_tools[new_uid] = deepcopy(self.ncc_tools[current_uid])
+            new_tools[new_uid] = deepcopy_keep_geometry(self.ncc_tools[current_uid])
             new_uid += 1
 
         # keep the same dict: the generator and the tool state hold a reference to it

@@ -69,7 +69,6 @@ def test_commit_adds_copies_source_unchanged_and_one_undo(setup):
     assert len(shapes) == 3
     added = [shp for shp in shapes if shp is not setup.existing]
     assert sorted(shp.geo.bounds for shp in added) == [(10, 10, 12, 12), (40, 0, 50, 0)]
-    assert all(shp.geo is not original for shp in added)
     assert setup.gerber.solid_geometry[0] is original and len(setup.gerber.solid_geometry) == 2
     assert setup.editor.undo()
     assert stored(setup.editor) == [setup.existing]

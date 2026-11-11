@@ -1,12 +1,11 @@
 """Copper and aperture compensation. No Qt or application objects here."""
 
-from copy import deepcopy
 import math
 
 from shapely.geometry import Polygon
 from shapely.ops import unary_union
 
-from camlib import flatten_shapely_geometry, gerber_quad_segs
+from camlib import flatten_shapely_geometry, gerber_quad_segs, deepcopy_keep_geometry
 
 ETCHANTS = {   # etch factor F = depth etch / lateral undercut
     'cucl2': {'label': 'CuCl2', 'factor': 3.0},
@@ -66,7 +65,7 @@ def compensate_geometry(geometry, apertures, offset, options, units='MM'):
         buffered = unary_union(polys).buffer(offset, qs)
         new_solid_geometry = _polygons(buffered)
 
-    new_apertures = deepcopy(apertures)
+    new_apertures = deepcopy_keep_geometry(apertures)
     for ap in new_apertures.values():
         ap_type = ap.get('type')
         if ap_type in ('R', 'O'):

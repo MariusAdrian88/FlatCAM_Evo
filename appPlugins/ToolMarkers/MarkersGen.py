@@ -4,7 +4,7 @@ import math
 from copy import deepcopy
 from shapely import LineString, Point, MultiPolygon
 from shapely.ops import unary_union
-from camlib import flatten_shapely_geometry, gerber_quad_segs
+from camlib import flatten_shapely_geometry, gerber_quad_segs, deepcopy_keep_geometry
 
 
 def _flat(geometry):
@@ -83,7 +83,7 @@ def create_marker_geometry(points_storage, marker_type, line_thickness, line_len
 
 
 def gerber_marker_data(tools, solid_geometry, follow_geometry, marker_geometry, line_thickness, options, units='MM'):
-    new_apertures = deepcopy(tools)
+    new_apertures = deepcopy_keep_geometry(tools)
     aperture_found = None
     for ap_id, ap_val in new_apertures.items():
         if ap_val['type'] == 'C' and math.isclose(ap_val['size'], line_thickness, abs_tol=1e-9):
@@ -97,7 +97,7 @@ def gerber_marker_data(tools, solid_geometry, follow_geometry, marker_geometry, 
             geo_buff = geo.buffer(line_thickness / 2.0, quad_segs=quad_segs, join_style="mitre")
             geo_buff_list.append(geo_buff)
             dict_el = {'follow': geo, 'solid': geo_buff}
-            new_apertures[aperture_found]['geometry'].append(deepcopy(dict_el))
+            new_apertures[aperture_found]['geometry'].append(dict_el)
     else:
         ap_keys = list(new_apertures.keys())
         new_apid = int(max(ap_keys)) + 1 if ap_keys else 10
@@ -106,7 +106,7 @@ def gerber_marker_data(tools, solid_geometry, follow_geometry, marker_geometry, 
             geo_buff = geo.buffer(line_thickness / 2.0, quad_segs=quad_segs, join_style="mitre")
             geo_buff_list.append(geo_buff)
             dict_el = {'follow': geo, 'solid': geo_buff}
-            new_apertures[new_apid]['geometry'].append(deepcopy(dict_el))
+            new_apertures[new_apid]['geometry'].append(dict_el)
 
     s_list = []
     if solid_geometry:
@@ -129,7 +129,7 @@ def gerber_marker_data(tools, solid_geometry, follow_geometry, marker_geometry, 
 
 
 def geometry_marker_data(tools, solid_geometry, marker_geometry, tooldia, new_data):
-    new_tools = deepcopy(tools)
+    new_tools = deepcopy_keep_geometry(tools)
     tool_found = None
     for tool, tool_dict in new_tools.items():
         if math.isclose(tool_dict['tooldia'], tooldia, abs_tol=1e-9):

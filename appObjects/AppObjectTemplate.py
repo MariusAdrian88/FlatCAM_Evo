@@ -23,6 +23,7 @@ from shapely import Polygon, MultiPolygon, Point, LineString
 
 from copy import deepcopy, copy
 import sys
+import logging
 import uuid
 import math
 import sys
@@ -345,16 +346,18 @@ class FlatCAMObj(QtCore.QObject):
         self._full_plot_sig = None
         return True
 
-    def plot_transformed(self, matrix, kind=None):
+    def plot_transformed(self, matrix, kind=None, update=True):
         """
         Update the plot after an affine transform of the geometry of this object, without a new triangulation:
-        the vertex arrays of the shapes of the last full plot are mapped by the matrix. If that is not possible
-        (no full plot, text annotations, a shape without buffers) it plots the object again.
-        Like plot(), it runs in the calling thread (the plugins call it from a worker thread).
+        the vertex arrays of the shapes of the last full plot are mapped by the matrix, and the positions of the
+        text annotations too. If that is not possible (no full plot, a shape without buffers) it plots the object
+        again. Like plot(), it runs in the calling thread (the plugins call it from a worker thread).
         The simplification tolerance of the last plot stays as it was (it was applied before the transform).
 
         :param matrix:  shapely 6-tuple (a, b, d, e, xoff, yoff) that was applied to the geometry
         :param kind:    passed to plot() on fallback
+        :param update:  False to skip the redraw of the collections (plot_transformed_many() does one for all
+                        the objects). A fallback plot() redraws at once.
         :return:        True if the shapes were mapped, False if plot() was called
         """
         if self.deleted:
@@ -362,11 +365,11 @@ class FlatCAMObj(QtCore.QObject):
 
         done = False
         try:
-            annotation = getattr(self, 'annotation', None)
-            has_text = annotation is not None and getattr(annotation, '_index', None) is not None
-            if not has_text and self._has_full_plot() and hasattr(self.shapes, 'transform'):
+            if self._has_full_plot() and hasattr(self.shapes, 'transform'):
                 # the shapes keep their keys, so the signature of the full plot stays valid
-                done = bool(self.shapes.transform(matrix, update=True))
+                done = bool(self.shapes.transform(matrix, update=update))
+                if done:
+                    self._transform_annotations(matrix, update)
         except Exception as e:
             self.app.log.debug("FlatCAMObj.plot_transformed() --> %s" % str(e))
             done = False
@@ -374,6 +377,21 @@ class FlatCAMObj(QtCore.QObject):
         if not done:
             self.plot(kind=kind) if kind is not None else self.plot()
         return done
+
+    def _transform_annotations(self, matrix, update):
+        # map the text annotations of the plot (CNCJob) and their model-side copy by the matrix
+        annotation = getattr(self, 'annotation', None)
+        if annotation is not None and hasattr(annotation, 'transform'):
+            annotation.transform(matrix, update=update)
+
+        annotations = getattr(self, 'annotations_dict', None)
+        if annotations:
+            a, b, d, e, xoff, yoff = (float(v) for v in matrix)
+            for item in annotations.values():
+                if len(item['pos']):
+                    pts = np.asarray(item['pos'], dtype=np.float64)[:, :2]
+                    item['pos'] = [(x, y) for x, y in zip((pts[:, 0] * a + pts[:, 1] * b + xoff).tolist(),
+                                                          (pts[:, 0] * d + pts[:, 1] * e + yoff).tolist())]
 
     def _shapes_signature(self):
         try:
@@ -1304,3 +1322,36 @@ class FlatCAMObj(QtCore.QObject):
 
         # Set flag
         self.deleted = True
+
+
+def plot_transformed_many(objects, matrix):
+    """
+    plot_transformed() for several objects with ONE redraw of each shared collection, not one for each object.
+    An object that cannot be mapped is plotted again (its own redraw). Safe from a worker thread, like plot().
+
+    :param objects: the objects that got the same matrix
+    :param matrix:  shapely 6-tuple (a, b, d, e, xoff, yoff) that was applied to the geometry of the objects
+    :return:        list: True for an object that was mapped, False for one that was plotted again
+    """
+    results = []
+    collections = {}
+    for obj in objects:
+        done = bool(obj.plot_transformed(matrix, update=False))
+        results.append(done)
+        if not done:
+            continue
+        shapes = getattr(obj.shapes, '_collection', None)
+        if shapes is not None:
+            collections[id(shapes)] = shapes
+        annotation = getattr(obj, 'annotation', None)
+        if getattr(annotation, '_index', None) is not None:
+            collections[id(annotation._collection)] = annotation._collection
+
+    for collection in collections.values():
+        try:
+            # a shape collection needs the list: it collects the results of the pool; a text collection has none
+            collection.redraw([]) if hasattr(collection, 'transform_keys') else collection.redraw()
+        except Exception as e:
+            logging.getLogger('base').debug("plot_transformed_many() --> %s" % str(e))
+    return results
+

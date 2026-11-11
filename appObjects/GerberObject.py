@@ -18,7 +18,7 @@ from appParsers.gerber_attributes import attribute_changes, merge_to_table, rema
 from appObjects.AppObjectTemplate import FlatCAMObj, OffsetUiMixin, PropertiesPanelMixin, ObjectDeleted, ValidationError
 
 from camlib import flatten_shapely_geometry, isolation_leftover_paths, clip_paths_to_area, area_outline_paths, \
-    boundary_passes_message, milling_orient, pass_covers_area, gerber_quad_segs
+    boundary_passes_message, milling_orient, pass_covers_area, gerber_quad_segs, deepcopy_keep_geometry
 
 from shapely import MultiLineString, LinearRing, MultiPolygon, Polygon, LineString, Point, GeometryCollection
 from shapely.ops import unary_union
@@ -134,7 +134,9 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
     def copy_from(self, src):
         """
         Make this (new, empty) Gerber a copy of ``src``. Used by both copy paths of AppObjectOps
-        (``on_copy_command`` and ``on_copy_object2``). Everything is deep-copied, nothing is shared with ``src``.
+        (``on_copy_command`` and ``on_copy_object2``). Everything is deep-copied, nothing mutable is shared with
+        ``src``: the geometry fields go through deepcopy_keep_geometry() (new containers, the immutable Shapely
+        geometries are shared).
 
         Copied: solid_geometry, follow_geometry, tools (the apertures with their geometry), aperture_macros,
         source_file, export_as_regions (the apertures of a region-exported object do not describe its geometry,
@@ -151,9 +153,9 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
         :param src: the GerberObject to copy
         :return:    None
         """
-        self.solid_geometry = deepcopy(src.solid_geometry)
-        self.follow_geometry = deepcopy(getattr(src, 'follow_geometry', self.follow_geometry))
-        self.tools = deepcopy(src.tools)
+        self.solid_geometry = deepcopy_keep_geometry(src.solid_geometry)
+        self.follow_geometry = deepcopy_keep_geometry(getattr(src, 'follow_geometry', self.follow_geometry))
+        self.tools = deepcopy_keep_geometry(src.tools)
         self.aperture_macros = deepcopy(getattr(src, 'aperture_macros', self.aperture_macros))
         self.source_file = deepcopy(getattr(src, 'source_file', self.source_file))
         self.export_as_regions = bool(getattr(src, 'export_as_regions', False))
@@ -1598,7 +1600,7 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
 
                 for ap in grb.tools:
                     if ap not in grb_final.tools:
-                        grb_final.tools[ap] = deepcopy(grb.tools[ap])
+                        grb_final.tools[ap] = deepcopy_keep_geometry(grb.tools[ap])
                         remap_to_ids(grb_final.tools[ap], to_map)
                     else:
                         # create a list of integers out of the grb.tools keys and find the max of that value
@@ -1608,7 +1610,7 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
                         grb_final.tools[max_ap]['geometry'] = []
 
                         for k, v in grb.tools[ap].items():
-                            grb_final.tools[max_ap][k] = deepcopy(v)
+                            grb_final.tools[max_ap][k] = deepcopy_keep_geometry(v)
                         remap_to_ids(grb_final.tools[max_ap], to_map)
 
         # once the aperture metadata of a source can't describe its geometry, it can't describe the merge either

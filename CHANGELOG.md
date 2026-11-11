@@ -29,6 +29,10 @@ Canvas:
 - changed (2D canvas): each tick label of the rulers sits beside its major tick, past the minor ticks; the labels of the vertical ruler are turned 90 degrees, and a label that does not have the space is left out by value, so the labels do not jump during a pan
 - changed: the major grid lines on a dark canvas are dimmer (2D canvas and 3D canvas); they stay brighter than the minor lines
 - added: a right click on the delta coordinates toolbar opens a menu with "Polar Coords"; when it is checked, the toolbar and the HUD show the relative position as R and θ (degrees) and not as Dx and Dy
+- changed: the 2D canvas keeps the vertices of the shapes of each object in a cached block; a change of 1 object joins only that block, so the canvas updates faster on a project with many large objects
+- changed: the 2D canvas draws the filled shapes and the outlines with its own light visuals; the old visuals stay available with the environment variables FLATCAM_VISPY_INDEXED_MESH=0 and FLATCAM_VISPY_SEGMENT_LINE=0
+- changed: the Move and Transform plugins keep the plot of an object and map its vertices by the move, also the text of a CNCJob; the canvas is redrawn once for all the moved objects, so a move of large objects is faster
+- fixed: the label of a selected object in the Project tab did not use the color of the preferences (plot on / off colors) with a selection style sheet; it does now
 
 Linux AppImage:
 
@@ -50,6 +54,12 @@ Distance:
 - fixed: the unit labels of the Distance plugin kept the old unit after a change of the units
 - fixed: the delta coordinates of the status bar stayed relative to the points of a finished measurement
 - fixed: a change of the "Multi-Point" checkbox during a measurement left a broken measurement; it now stops or cancels the measurement
+
+Performance:
+
+- changed: the source text of a Gerber, Excellon or Geometry object is made in the background after a move; "Done" of the Move plugin no longer waits for it, and saving the project, Save source and View source wait for it
+- changed: a copy made right after a move no longer stops the window while the source text is made (2.8 s on a 2.4 MB Gerber); the copy gets its own source text in the background
+- changed: Copy, Join, Convert, Panelize, the eraser, the import and the aperture resize of the Gerber editor, and the plugins (Copper Thieving, Cutout, Drilling, Etch Compensation, Fiducials, Isolation, Markers, Milling, NCC, Paint, Punch Gerber, Solder Paste and others) share the immutable geometry with the source object and copy only the lists and the tables; the copy of a small Gerber went from 25-32 ms to 0.8-2.7 ms, and large boards make their objects faster, with the same result
 
 Tests:
 

@@ -12,6 +12,7 @@ from appCommon.clipper_ops import MIN_SHAPES as CLIPPER_MIN_SHAPES, boolean_geom
 from appParsers.clipper_fuse import fuse_parts
 
 from camlib import distance, arc, three_point_circle, flatten_shapely_geometry, translate_geometry
+from camlib import deepcopy_keep_geometry
 from appGUI.GUIElements import *
 from appCommon.ToolDatabase import read_apertures
 from appGUI.ApertureLibrary import open_aperture_library
@@ -2841,7 +2842,7 @@ class EraserEditorGrb(ShapeToolEditorGrb):
                     if geos.is_empty:
                         continue
 
-                    new_geo_el = {'solid': deepcopy(geos)}
+                    new_geo_el = {'solid': geos}
                     if 'to' in geo_el.geo:
                         new_geo_el['to'] = geo_el.geo['to']
                     follow_data = geo_el.geo.get('follow')
@@ -2852,7 +2853,7 @@ class EraserEditorGrb(ShapeToolEditorGrb):
                         if eraser_sel_shapes.intersects(follow_data):
                             follow_data = follow_data.difference(eraser_sel_shapes)
                     if follow_data is not None:
-                        new_geo_el['follow'] = deepcopy(follow_data)
+                        new_geo_el['follow'] = deepcopy_keep_geometry(follow_data)
                     intersection_geo_list.append(DrawToolShape(new_geo_el))
             except KeyError:
                 pass
@@ -2921,7 +2922,7 @@ class EraserEditorGrb(ShapeToolEditorGrb):
                 new_geo_el['follow'] = translate(geom.geo['follow'], xoff=dx, yoff=dy)
             if 'clear' in geom.geo:
                 new_geo_el['clear'] = translate(geom.geo['clear'], xoff=dx, yoff=dy)
-            geo_list.append(deepcopy(new_geo_el))
+            geo_list.append(new_geo_el)
         return DrawToolUtilityShape(geo_list)
 
 
@@ -3406,7 +3407,7 @@ class ImportEditorGrb(QtCore.QObject, DrawTool):
                                                                             face_color=f_color,
                                                                             visible=True)
                                         new_ap_dict = {k: v for k, v in edit_tools[apid].items() if k != 'geometry'}
-                                        new_ap_dict['geometry'] = [DrawToolShape(deepcopy(geo_el))]
+                                        new_ap_dict['geometry'] = [DrawToolShape(deepcopy_keep_geometry(geo_el))]
                                         new_ap_dict['shape_id'] = shape_id
                                         self.sel_storage.append(new_ap_dict)
                                         added_poly_count += 1
@@ -3464,7 +3465,7 @@ class ImportEditorGrb(QtCore.QObject, DrawTool):
                                             new_ap_dict = {
                                                 k: v for k, v in edit_tools[apid].items() if k != 'geometry'
                                             }
-                                            new_ap_dict['geometry'] = [DrawToolShape(deepcopy(geo_el))]
+                                            new_ap_dict['geometry'] = [DrawToolShape(deepcopy_keep_geometry(geo_el))]
                                             new_ap_dict['shape_id'] = shape_id
                                             self.sel_storage.append(new_ap_dict)
                                             added_poly_count += 1
@@ -3485,7 +3486,7 @@ class ImportEditorGrb(QtCore.QObject, DrawTool):
                                             new_ap_dict = {
                                                 k: v for k, v in edit_tools[apid].items() if k != 'geometry'
                                             }
-                                            new_ap_dict['geometry'] = [DrawToolShape(deepcopy(geo_el))]
+                                            new_ap_dict['geometry'] = [DrawToolShape(deepcopy_keep_geometry(geo_el))]
                                             new_ap_dict['shape_id'] = shape_id
                                             self.sel_storage.append(new_ap_dict)
                                             added_poly_count += 1
@@ -4808,15 +4809,15 @@ class AppGerberEditor(QtCore.QObject):
                 if 'solid' in g_data:
                     if 'follow' in g_data:
                         if isinstance(g_data['follow'], Point):
-                            new_geo_el['solid'] = deepcopy(g_data['solid'].buffer(adjust_size, quad_segs=quad_segs))
+                            new_geo_el['solid'] = g_data['solid'].buffer(adjust_size, quad_segs=quad_segs)
                         else:
-                            new_geo_el['solid'] = deepcopy(g_data['solid'].buffer(adjust_size, join_style="mitre"))
+                            new_geo_el['solid'] = g_data['solid'].buffer(adjust_size, join_style="mitre")
                     else:
                         new_geo_el['solid'] = g_data['solid'].buffer(adjust_size, quad_segs=quad_segs)
                 if 'follow' in g_data:
-                    new_geo_el['follow'] = deepcopy(g_data['follow'])
+                    new_geo_el['follow'] = deepcopy_keep_geometry(g_data['follow'])
                 if 'clear' in g_data:
-                    new_geo_el['clear'] = deepcopy(g_data['clear'].buffer(adjust_size, join_style="mitre"))
+                    new_geo_el['clear'] = g_data['clear'].buffer(adjust_size, join_style="mitre")
                 geometry.append(DrawToolShape(new_geo_el))
 
             replacements = dict(zip(self.storage_dict[ap_code_old]['geometry'], geometry))
@@ -4855,11 +4856,11 @@ class AppGerberEditor(QtCore.QObject):
                                 maxx = x + (new_width / 2)
                                 maxy = y + (new_height / 2)
                                 geo = box(xmin=minx, ymin=miny, xmax=maxx, ymax=maxy)
-                                new_geo_el['solid'] = deepcopy(geo)
+                                new_geo_el['solid'] = geo
                             else:
-                                new_geo_el['solid'] = deepcopy(g_data['solid'].buffer(buff_val_lines, join_style="mitre"))
+                                new_geo_el['solid'] = g_data['solid'].buffer(buff_val_lines, join_style="mitre")
                     if 'follow' in g_data:
-                        new_geo_el['follow'] = deepcopy(g_data['follow'])
+                        new_geo_el['follow'] = deepcopy_keep_geometry(g_data['follow'])
                     if 'clear' in g_data:
                         if 'follow' in g_data:
                             if isinstance(g_data['follow'], Point):
@@ -4870,9 +4871,9 @@ class AppGerberEditor(QtCore.QObject):
                                 maxx = x + (new_width / 2)
                                 maxy = y + (new_height / 2)
                                 geo = box(xmin=minx, ymin=miny, xmax=maxx, ymax=maxy)
-                                new_geo_el['clear'] = deepcopy(geo)
+                                new_geo_el['clear'] = geo
                             else:
-                                new_geo_el['clear'] = deepcopy(g_data['clear'].buffer(buff_val_lines, join_style="mitre"))
+                                new_geo_el['clear'] = g_data['clear'].buffer(buff_val_lines, join_style="mitre")
                     geometry.append(DrawToolShape(new_geo_el))
 
                 replacements = dict(zip(self.storage_dict[ap_code_old]['geometry'], geometry))
@@ -6040,7 +6041,7 @@ class AppGerberEditor(QtCore.QObject):
                 if 'clear' in geometric_data:
                     new_geo_el['clear'] = geometric_data['clear']
                 if geometric_data.get('to') is not None:
-                    new_geo_el['to'] = deepcopy(geometric_data['to'])
+                    new_geo_el['to'] = deepcopy_keep_geometry(geometric_data['to'])
                 if not new_geo_el:
                     continue
 

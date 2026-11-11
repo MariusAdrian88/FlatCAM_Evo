@@ -7,6 +7,7 @@
 
 from appHandlers.appHistory import (history_of, object_state, restore_object_state, states_equal,
                                     transform_metadata, SnapshotStep, HistoryManager, invert_matrix, HistoryError)
+from appHandlers.appSourceRegen import flush as flush_source
 from PyQt6 import QtWidgets, QtCore
 from appTool import AppTool
 from appGUI.GUIElements import VerticalScrollArea
@@ -564,6 +565,8 @@ class ToolTransform(AppTool):
                     return
 
             with self.app.proc_container.new('%s...' % title):
+                # a source text that a move left pending is made now: the step keeps the text for a restore
+                flush_source(self.app, obj_list)
                 failed = []
                 done = 0
                 history = history_of(self.app)

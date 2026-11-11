@@ -9,6 +9,7 @@
 
 from appHandlers.appHistory import history_of, object_state, SnapshotStep
 from appCommon.TclExecution import catch_tcl, completion_code
+from appHandlers.appSourceRegen import flush as flush_source
 from collections import deque
 
 from PyQt6 import QtCore, QtGui, QtWidgets  # noqa
@@ -2693,6 +2694,7 @@ class App(QtCore.QObject):
         :param source:  the GeometryObject that is edited
         :return:        the new GeometryObject, or None if it could not be made
         """
+        flush_source(self, [source])
         def init(new_obj, app_obj):
             new_obj.copy_from(source)
             for key, val in source.obj_options.items():
@@ -4249,6 +4251,7 @@ class App(QtCore.QObject):
                 return 'fail'
         else:
             try:
+                flush_source(self, [obj])
                 file = StringIO(obj.source_file)
             except (AttributeError, TypeError):
                 self.inform.emit('[WARNING_NOTCL] %s' %

@@ -25,7 +25,7 @@ import builtins
 
 from appEditors.appTextEditor import AppTextEditor
 
-from camlib import CNCjob
+from camlib import CNCjob, deepcopy_keep_geometry
 
 from appPlugins.Common.levelling_core import LevellingCoreMixin, _AlContext, _iter_polygons, VORONOI_ENABLED, MAX_AVOID_TRIES
 from appPlugins.ToolLevelling.LevellingGen import generate_probing_gcode
@@ -644,7 +644,7 @@ class ToolLevelling(LevellingCoreMixin, CNCjob, AppTool):
                         new_obj.pp_geometry_name = getattr(target_obj, 'pp_geometry_name', 'default')
                         new_obj.pp_excellon_name = getattr(target_obj, 'pp_excellon_name', 'default')
                         new_obj.pp_solderpaste_name = getattr(target_obj, 'pp_solderpaste_name', None)
-                        new_obj.exc_tools = deepcopy(getattr(target_obj, 'exc_tools', {}))
+                        new_obj.exc_tools = deepcopy_keep_geometry(getattr(target_obj, 'exc_tools', {}))
                         # deepcopy(target_obj.tools) also carries over each tool's
                         # 'solid_geometry' unchanged, on purpose: levelling only ever
                         # rewrites the Z word of cutting moves, never X/Y, so the XY
@@ -654,7 +654,7 @@ class ToolLevelling(LevellingCoreMixin, CNCjob, AppTool):
                         # GeometryObject-only flag (single vs. multi-tool *Geometry*
                         # source). CNCJob objects track multi-tool-ness with
                         # 'multitool' instead, which is copied above.
-                        new_obj.tools = deepcopy(target_obj.tools)
+                        new_obj.tools = deepcopy_keep_geometry(target_obj.tools)
 
                         # accumulate the object-level gcode / gcode_parsed across all tools,
                         # in target_obj.tools order (the same order export_gcode() concatenates

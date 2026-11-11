@@ -20,7 +20,7 @@ from shapely.affinity import scale, translate
 from shapely.ops import unary_union
 
 from camlib import (voronoi_path_signature, Geometry, flatten_shapely_geometry, translate_geometry, affine_geometry, affine_geometry_many,
-                    affine_scale_matrix)
+                    affine_scale_matrix, deepcopy_keep_geometry)
 from appCommon.SafeEval import safe_eval
 
 import shapely
@@ -199,7 +199,8 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
     def copy_from(self, src):
         """
         Make this (new, empty) Geometry a copy of ``src``. Used by both copy paths of AppObjectOps. Everything is
-        deep-copied, nothing is shared with ``src``.
+        deep-copied, nothing mutable is shared with ``src``: the geometry fields go through
+        deepcopy_keep_geometry() (new containers, the immutable Shapely geometries are shared).
 
         Copied: solid_geometry, follow_geometry, tools (with the per-tool 'data' and, for a multi-geometry, the
         per-tool solid_geometry), multigeo (without it a multi-geometry copy reads the tools as single-geometry),
@@ -215,9 +216,9 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
         :param src: the GeometryObject to copy
         :return:    None
         """
-        self.solid_geometry = deepcopy(src.solid_geometry)
-        self.follow_geometry = deepcopy(getattr(src, 'follow_geometry', self.follow_geometry))
-        self.tools = deepcopy(src.tools)
+        self.solid_geometry = deepcopy_keep_geometry(src.solid_geometry)
+        self.follow_geometry = deepcopy_keep_geometry(getattr(src, 'follow_geometry', self.follow_geometry))
+        self.tools = deepcopy_keep_geometry(src.tools)
         self.multigeo = getattr(src, 'multigeo', self.multigeo)
         self.tooluid = getattr(src, 'tooluid', self.tooluid)
         self.units = getattr(src, 'units', self.units)
@@ -424,12 +425,12 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
             # following convoluted way of changing the keys from string to float type
             temp_tools = {}
             for tool_uid_key in self.tools:
-                val = deepcopy(self.tools[int(tool_uid_key)])
+                val = deepcopy_keep_geometry(self.tools[int(tool_uid_key)])
                 new_key = deepcopy(int(tool_uid_key))
                 temp_tools[new_key] = val
 
             self.tools.clear()
-            self.tools = deepcopy(temp_tools)
+            self.tools = deepcopy_keep_geometry(temp_tools)
 
         if not isinstance(self.ui, GeometryObjectUI):
             self.app.log.debug("Expected a GeometryObjectUI, got %s" % type(self.ui))
@@ -553,7 +554,7 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
                         flattened_geo = self.flatten_list(obj_list=geometry)
                         for geo in flattened_geo:
                             new_tool_geo.append(geo.simplify(tolerance=tol))
-                        self.tools[tool]['solid_geometry'] = deepcopy(new_tool_geo)
+                        self.tools[tool]['solid_geometry'] = deepcopy_keep_geometry(new_tool_geo)
 
                     # update the solid_geometry
                     total_geo = []
@@ -709,7 +710,7 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
             for tool_uid_key in list(tools_dict.keys()):
                 tool_cnt += 1
 
-                dia_cnc_dict = deepcopy(tools_dict[tool_uid_key])
+                dia_cnc_dict = deepcopy_keep_geometry(tools_dict[tool_uid_key])
                 tooldia_val = app_obj.dec_format(float(tools_dict[tool_uid_key]['tooldia']), self.decimals)
                 dia_cnc_dict.update({
                     'tooldia': tooldia_val
@@ -816,7 +817,7 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
                     app_obj.inform.emit('[ERROR] %s: %s' % (_("G-Code processing failed with error"), str(er)))
 
                 job_obj.tools.update({
-                    tool_uid_key: deepcopy(dia_cnc_dict)
+                    tool_uid_key: deepcopy_keep_geometry(dia_cnc_dict)
                 })
                 dia_cnc_dict.clear()
 
@@ -863,7 +864,7 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
             total_gcode = ''
             for tooluid_key in list(tools_dict.keys()):
                 tool_cnt += 1
-                dia_cnc_dict = deepcopy(tools_dict[tooluid_key])
+                dia_cnc_dict = deepcopy_keep_geometry(tools_dict[tooluid_key])
                 tooldia_val = app_obj.dec_format(float(tools_dict[tooluid_key]['tooldia']), self.decimals)
                 dia_cnc_dict.update({
                     'tooldia': tooldia_val
@@ -961,13 +962,13 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
                 #     geo['geom'] for geo in dia_cnc_dict['gcode_parsed'] if geo['geom'].is_valid is True
                 # ])
                 try:
-                    dia_cnc_dict['solid_geometry'] = deepcopy(tool_solid_geometry)
+                    dia_cnc_dict['solid_geometry'] = deepcopy_keep_geometry(tool_solid_geometry)
                     app_obj.inform.emit('[success] %s...' % _("Finished G-Code processing"))
                 except Exception as ee:
                     app_obj.inform.emit('[ERROR] %s: %s' % (_("G-Code processing failed with error"), str(ee)))
 
                 job_obj.tools.update({
-                    tooluid_key: deepcopy(dia_cnc_dict)
+                    tooluid_key: deepcopy_keep_geometry(dia_cnc_dict)
                 })
                 dia_cnc_dict.clear()
 
@@ -1304,7 +1305,7 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
                         storage[key] = type(value)(convert_length(coord) for coord in value)
 
         options = deepcopy(dict(self.obj_options))
-        tools = deepcopy(self.tools)
+        tools = deepcopy_keep_geometry(self.tools)
         mark = options.get('photocarve')
         try:
             convert_values(options)
@@ -1337,7 +1338,7 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
         for uid, tool in tools.items():
             if 'solid_geometry' in self.tools[uid]:
                 geometry = self.tools[uid]['solid_geometry']
-                tool['solid_geometry'] = convert_z(geometry) if mark and not mark['z_is_power'] else deepcopy(geometry)
+                tool['solid_geometry'] = convert_z(geometry) if mark and not mark['z_is_power'] else deepcopy_keep_geometry(geometry)
         for uid in generated:
             data = tools[uid]['data']
             data['tools_iso_voronoi_units'] = units.upper()
@@ -1586,7 +1587,7 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
 
                 # the solid geometry can be a list (e.g. the isolation geometry), a multi-geometry or a single geometry
                 if geo_obj.solid_geometry is not None:
-                    new_solid_geometry += deepcopy(flatten_shapely_geometry(geo_obj.solid_geometry))
+                    new_solid_geometry += deepcopy_keep_geometry(flatten_shapely_geometry(geo_obj.solid_geometry))
 
                 # find the tool_uid maximum value in the geo_final
                 try:
@@ -1599,7 +1600,7 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
                 if geo_obj.kind != 'gerber' and geo_obj.kind != 'excellon':
                     for tool_uid in geo_obj.tools:
                         max_uid += 1
-                        new_tools[max_uid] = deepcopy(geo_obj.tools[tool_uid])
+                        new_tools[max_uid] = deepcopy_keep_geometry(geo_obj.tools[tool_uid])
 
         geo_final.obj_options.update(new_options)
         geo_final.solid_geometry = new_solid_geometry
@@ -1663,9 +1664,9 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
                 if last_tool is not None and (new_solid_geo or not geo_final.multigeo):
                     final_tools[new_tool_nr] = \
                         {
-                            k: deepcopy(new_tools[last_tool][k]) for k in new_tools[last_tool] if k != 'solid_geometry'
+                            k: deepcopy_keep_geometry(new_tools[last_tool][k]) for k in new_tools[last_tool] if k != 'solid_geometry'
                         }
-                    final_tools[new_tool_nr]['solid_geometry'] = deepcopy(new_solid_geo)
+                    final_tools[new_tool_nr]['solid_geometry'] = deepcopy_keep_geometry(new_solid_geo)
                     new_tool_nr += 1
         else:
             final_tools = new_tools

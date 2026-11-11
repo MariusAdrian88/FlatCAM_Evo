@@ -16,7 +16,7 @@ from appEditors.appTextEditor import AppTextEditor
 from appObjects.AppObjectTemplate import FlatCAMObj, PropertiesPanelMixin, ObjectDeleted
 from appGUI.GUIElements import FCFileSaveDialog, FCCheckBox, FCMessageBox, checkbox_column_width, opposite_direction
 from appGUI.ObjectUI import CNCObjectUI
-from camlib import CNCjob
+from camlib import CNCjob, deepcopy_keep_geometry
 from appParsers.DXF.writer import build_dxf
 
 import os
@@ -1752,9 +1752,9 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
                 convert_canonical_values(tool_dia_copy.get('data', {}))
 
             temp_tools_dict.update({
-                tooluid_key: deepcopy(tool_dia_copy)
+                tooluid_key: deepcopy_keep_geometry(tool_dia_copy)
             })
             tool_dia_copy.clear()
 
         self.tools.clear()
-        self.tools = deepcopy(temp_tools_dict)
+        self.tools = deepcopy_keep_geometry(temp_tools_dict)

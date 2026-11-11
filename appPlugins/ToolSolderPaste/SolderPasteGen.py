@@ -1,6 +1,6 @@
 """Solder-paste paths, CNC tool settings and G-code headers from explicit data."""
 
-from copy import deepcopy
+from camlib import deepcopy_keep_geometry
 
 from shapely import LineString
 
@@ -42,7 +42,7 @@ def cnc_tools(geometry_tools, current_tools):
     """Apply current machine settings while retaining planned geometry and quantities."""
     geometry_settings = {PREFIX + key for key in ('volume_mode', 'placement', 'thickness',
                                                  'volume', 'overlap', 'dot_dia', 'margin')}
-    tools = {uid: deepcopy(tool) for uid, tool in geometry_tools.items() if tool['solid_geometry']}
+    tools = {uid: deepcopy_keep_geometry(tool) for uid, tool in geometry_tools.items() if tool['solid_geometry']}
     for uid, tool in tools.items():
         current = current_tools.get(uid)
         if current and current['tooldia'] == tool['tooldia']:

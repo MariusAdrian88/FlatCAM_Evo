@@ -7,7 +7,7 @@ from appGUI.GUIElements import DialogBoxChoice
 from appCommon.SafeEval import safe_eval
 from appHandlers.appJoinConvert import JOIN_KINDS, join_sources
 from appHandlers.appObjectOps import _finish_origin_move, history_guard
-from camlib import affine_translate_matrix
+from camlib import affine_translate_matrix, deepcopy_keep_geometry
 
 from copy import deepcopy
 from shapely import MultiPolygon, Polygon, LinearRing, LineString, Point, unary_union
@@ -118,7 +118,7 @@ class appEditor(QtCore.QObject):
 
         def initialize_from_gerber(new_obj, app_obj):
             app_obj.log.debug("Gerber converted to Geometry: %s" % str(obj.obj_options["name"]))
-            new_obj.solid_geometry = deepcopy(obj.solid_geometry)
+            new_obj.solid_geometry = deepcopy_keep_geometry(obj.solid_geometry)
             try:
                 new_obj.follow_geometry = obj.follow_geometry
             except AttributeError:
@@ -126,9 +126,9 @@ class appEditor(QtCore.QObject):
 
             new_obj.obj_options.update(deepcopy(default_data))
             new_obj.obj_options["tools_mill_tooldia"] = tools_diameters[0] if tools_diameters else 0.0
-            new_obj.tools = deepcopy(tools)
+            new_obj.tools = deepcopy_keep_geometry(tools)
             for k in new_obj.tools:
-                new_obj.tools[k]['solid_geometry'] = deepcopy(obj.solid_geometry)
+                new_obj.tools[k]['solid_geometry'] = deepcopy_keep_geometry(obj.solid_geometry)
 
         def initialize_from_excellon(new_obj, app_obj):
             app_obj.log.debug("Excellon converted to Geometry: %s" % str(obj.obj_options["name"]))
@@ -136,16 +136,16 @@ class appEditor(QtCore.QObject):
             for tool in obj.tools:
                 for geo in obj.tools[tool]['solid_geometry']:
                     solid_geo.append(geo)
-            new_obj.solid_geometry = deepcopy(solid_geo)
+            new_obj.solid_geometry = deepcopy_keep_geometry(solid_geo)
             if not new_obj.solid_geometry:
                 app_obj.log.warning("convert_any2geo() failed")
                 return 'fail'
 
             new_obj.obj_options.update(deepcopy(default_data))
             new_obj.obj_options["tools_mill_tooldia"] = tools_diameters[0] if tools_diameters else 0.0
-            new_obj.tools = deepcopy(tools)
+            new_obj.tools = deepcopy_keep_geometry(tools)
             for k in new_obj.tools:
-                new_obj.tools[k]['solid_geometry'] = deepcopy(obj.solid_geometry)
+                new_obj.tools[k]['solid_geometry'] = deepcopy_keep_geometry(obj.solid_geometry)
 
         if not self.collection.get_selected():
             self.log.warning("appEditor.convert_any2geo --> No object selected")
@@ -186,10 +186,10 @@ class appEditor(QtCore.QObject):
                     new_elem['follow'] = obj_orig.exterior
                 except AttributeError:
                     pass
-                apertures[0]['geometry'].append(deepcopy(new_elem))
+                apertures[0]['geometry'].append(deepcopy_keep_geometry(new_elem))
 
-            obj_init.solid_geometry = deepcopy(obj.solid_geometry)
-            obj_init.tools = deepcopy(apertures)
+            obj_init.solid_geometry = deepcopy_keep_geometry(obj.solid_geometry)
+            obj_init.tools = deepcopy_keep_geometry(apertures)
 
             if not obj_init.tools:
                 app_obj.log.warning("convert_any2gerber() failed")
@@ -211,7 +211,7 @@ class appEditor(QtCore.QObject):
                         'solid': geo,
                         'follow': geo.exterior
                     }
-                    apertures[aperture_id]['geometry'].append(deepcopy(new_el))
+                    apertures[aperture_id]['geometry'].append(deepcopy_keep_geometry(new_el))
 
                 aperture_id += 1
 
@@ -224,8 +224,8 @@ class appEditor(QtCore.QObject):
             solid_geometry = MultiPolygon(solid_geometry)
             solid_geometry = solid_geometry.buffer(0.0000001)
 
-            obj_init.solid_geometry = deepcopy(solid_geometry)
-            obj_init.tools = deepcopy(apertures)
+            obj_init.solid_geometry = deepcopy_keep_geometry(solid_geometry)
+            obj_init.tools = deepcopy_keep_geometry(apertures)
 
             if not obj_init.tools:
                 app_obj.log.warning("convert_any2gerber() failed")
@@ -291,7 +291,7 @@ class appEditor(QtCore.QObject):
                     for tool in tools:
                         if app_obj.dec_format(tools[tool]["tooldia"], digits) == app_obj.dec_format(new_dia, digits):
                             tools[tool]['drills'].append(new_drill)
-                            tools[tool]['solid_geometry'].append(deepcopy(new_drill_geo))
+                            tools[tool]['solid_geometry'].append(deepcopy_keep_geometry(new_drill_geo))
                 else:
                     tools[tool_uid] = {}
                     tools[tool_uid]['tooldia'] = new_dia
@@ -305,7 +305,7 @@ class appEditor(QtCore.QObject):
                 except (TypeError, AttributeError):
                     obj_init.solid_geometry = [new_drill_geo]
 
-            obj_init.tools = deepcopy(tools)
+            obj_init.tools = deepcopy_keep_geometry(tools)
             obj_init.solid_geometry = unary_union(obj_init.solid_geometry)
 
             if not obj_init.solid_geometry:
@@ -344,7 +344,7 @@ class appEditor(QtCore.QObject):
                                         if app_obj.dec_format(tools[tool]["tooldia"], digits) == formatted_new_dia:
                                             if new_drill not in tools[tool]['drills']:
                                                 tools[tool]['drills'].append(new_drill)
-                                                tools[tool]['solid_geometry'].append(deepcopy(new_drill_geo))
+                                                tools[tool]['solid_geometry'].append(deepcopy_keep_geometry(new_drill_geo))
                                 else:
                                     tools[tool_uid] = {
                                         'tooldia': new_dia,
@@ -388,7 +388,7 @@ class appEditor(QtCore.QObject):
                                                 '%.*f' % (self.decimals, new_dia)):
                                             if new_slot not in tools[tool]['slots']:
                                                 tools[tool]['slots'].append(new_slot)
-                                                tools[tool]['solid_geometry'].append(deepcopy(new_slot_geo))
+                                                tools[tool]['solid_geometry'].append(deepcopy_keep_geometry(new_slot_geo))
                                 else:
                                     tools[tool_uid] = {}
                                     tools[tool_uid]['tooldia'] = new_dia
@@ -402,7 +402,7 @@ class appEditor(QtCore.QObject):
                                 except (TypeError, AttributeError):
                                     obj_init.solid_geometry = [new_slot_geo]
 
-            obj_init.tools = deepcopy(tools)
+            obj_init.tools = deepcopy_keep_geometry(tools)
             obj_init.solid_geometry = unary_union(obj_init.solid_geometry)
 
             if not obj_init.solid_geometry:
@@ -470,7 +470,7 @@ class appEditor(QtCore.QObject):
         with history_of(self.app).snapshot(_("Convert to MultiGeo"), [obj]):
             obj.multigeo = True
             for tooluid, dict_value in obj.tools.items():
-                dict_value['solid_geometry'] = deepcopy(obj.solid_geometry)
+                dict_value['solid_geometry'] = deepcopy_keep_geometry(obj.solid_geometry)
 
             if not isinstance(obj.solid_geometry, list):
                 obj.solid_geometry = [obj.solid_geometry]
@@ -508,13 +508,13 @@ class appEditor(QtCore.QObject):
             obj.multigeo = False
             total_solid_geometry = []
             for tool_uid, dict_value in obj.tools.items():
-                total_solid_geometry += deepcopy(dict_value['solid_geometry'])
+                total_solid_geometry += deepcopy_keep_geometry(dict_value['solid_geometry'])
                 # clear the original geometry
                 if isinstance(dict_value['solid_geometry'], list):
                     dict_value['solid_geometry'][:] = []
                 else:
                     dict_value['solid_geometry'] = []
-            obj.solid_geometry = deepcopy(total_solid_geometry)
+            obj.solid_geometry = deepcopy_keep_geometry(total_solid_geometry)
         obj.plot()
 
         self.app.should_we_save = True

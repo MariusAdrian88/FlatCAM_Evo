@@ -38,6 +38,7 @@ from appDatabase import load_tools_database, tools_database_error_message
 from defaults import AppDefaults
 from appCommon.SafeEval import safe_eval
 from camlib import (
+    deepcopy_keep_geometry,
     Geometry,
     grace,
     flatten_shapely_geometry,
@@ -909,7 +910,7 @@ class ToolPaint(Geometry, AppTool):
         new_uid = 1
 
         for current_uid in current_uid_list:
-            new_tools[new_uid] = deepcopy(self.paint_tools[current_uid])
+            new_tools[new_uid] = deepcopy_keep_geometry(self.paint_tools[current_uid])
             new_uid += 1
 
         # keep the same dict object: PaintGen shares it
@@ -1327,7 +1328,7 @@ class ToolPaint(Geometry, AppTool):
             self.app.tool_shapes.clear(update=True)
 
             if self.poly_dict:
-                poly_list = deepcopy(list(self.poly_dict.values()))
+                poly_list = deepcopy_keep_geometry(list(self.poly_dict.values()))
                 self.last_polygons = list(poly_list)
                 self.gen.paint_poly(self.paint_obj, inside_pt=(curr_pos[0], curr_pos[1]), poly_list=poly_list,
                                 tooldia=self.tooldia_list)

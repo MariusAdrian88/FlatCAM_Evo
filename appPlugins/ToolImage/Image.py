@@ -11,6 +11,7 @@ from appGUI.GUIElements import VerticalScrollArea
 from appPlugins.ToolImage.ImageImportMixin import ImageImportMixin
 
 from copy import deepcopy
+from camlib import deepcopy_keep_geometry
 import os
 
 from shapely import LineString, MultiLineString, Polygon, MultiPolygon
@@ -197,7 +198,7 @@ class ToolImage(ImageImportMixin, AppTool):
                 new_data = {k: v for k, v in self.app.options.items()}
                 geo_obj.tools.update({
                     1: {'tooldia': tooldia, 'data': deepcopy(new_data),
-                        'solid_geometry': deepcopy(geo_obj.solid_geometry)}
+                        'solid_geometry': deepcopy_keep_geometry(geo_obj.solid_geometry)}
                 })
                 geo_obj.tools[1]['data']['name'] = name
                 if svg_text is not None:

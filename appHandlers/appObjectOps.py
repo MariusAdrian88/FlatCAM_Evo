@@ -21,6 +21,7 @@ from camlib import (affine_mirror_matrix, affine_rotate_matrix, affine_skew_matr
 from appHandlers.appHistory import supports_matrix, transform_metadata
 
 import builtins
+from appHandlers.appSourceRegen import schedule as schedule_source, waiting as source_waiting
 import gettext
 
 if '_' not in builtins.__dict__:
@@ -796,6 +797,8 @@ class AppObjectOps(QtCore.QObject):
         self.defaults.report_usage("on_copy_command()")
 
         for obj in self.app.collection.get_selected():
+            stale_source = source_waiting(self.app, obj)
+            new_obj = None
             obj_name = obj.obj_options["name"]
 
             def initialize(obj_init, app_obj):
@@ -821,11 +824,11 @@ class AppObjectOps(QtCore.QObject):
 
             try:
                 if obj.kind == 'excellon':
-                    self.app.app_obj.new_object("excellon", str(obj_name) + "_copy", initialize_excellon)
+                    new_obj = self.app.app_obj.new_object("excellon", str(obj_name) + "_copy", initialize_excellon)
                 elif obj.kind == 'gerber':
-                    self.app.app_obj.new_object("gerber", str(obj_name) + "_copy", initialize)
+                    new_obj = self.app.app_obj.new_object("gerber", str(obj_name) + "_copy", initialize)
                 elif obj.kind == 'geometry':
-                    self.app.app_obj.new_object("geometry", str(obj_name) + "_copy", initialize)
+                    new_obj = self.app.app_obj.new_object("geometry", str(obj_name) + "_copy", initialize)
                 elif obj.kind == 'script':
                     self.app.app_obj.new_object("script", str(obj_name) + "_copy", initialize_script)
                 elif obj.kind == 'document':
@@ -835,9 +838,24 @@ class AppObjectOps(QtCore.QObject):
                     self.inform.emit('[WARNING_NOTCL] %s' % _("CNCJob objects cannot be copied."))
             except Exception as e:
                 self.log.error("Copy operation failed: %s for object: %s" % (str(e), str(obj_name)))
+            self._schedule_copy_source(stale_source, new_obj)
+
+    def _schedule_copy_source(self, stale_source, new_obj):
+        """
+        The source object waited for its source text (moved a moment ago): the copy has the old text, so it gets
+        its own text in the background. The copy does not wait for the export in the GUI thread.
+
+        :param stale_source:    True if the source text of the copied object was not made yet
+        :param new_obj:         the result of new_object()
+        :return:                None
+        """
+        if stale_source and new_obj is not None and not isinstance(new_obj, str):
+            schedule_source(self.app, [new_obj])
 
     def on_copy_object2(self, custom_name):
         for obj in self.app.collection.get_selected():
+            stale_source = source_waiting(self.app, obj)
+            new_obj = None
             obj_name = obj.obj_options["name"]
             outname = str(obj_name) + custom_name
 
@@ -860,13 +878,14 @@ class AppObjectOps(QtCore.QObject):
             try:
                 from appObjects.ObjectCollection import ExcellonObject, GerberObject, GeometryObject
                 if isinstance(obj, ExcellonObject):
-                    self.app.app_obj.new_object("excellon", outname, initialize_excellon)
+                    new_obj = self.app.app_obj.new_object("excellon", outname, initialize_excellon)
                 elif isinstance(obj, GerberObject):
-                    self.app.app_obj.new_object("gerber", outname, initialize_gerber)
+                    new_obj = self.app.app_obj.new_object("gerber", outname, initialize_gerber)
                 elif isinstance(obj, GeometryObject):
-                    self.app.app_obj.new_object("geometry", outname, initialize_geometry)
+                    new_obj = self.app.app_obj.new_object("geometry", outname, initialize_geometry)
             except Exception as er:
                 return "Operation failed: %s" % str(er)
+            self._schedule_copy_source(stale_source, new_obj)
 
     def on_rename_object(self, text):
         """

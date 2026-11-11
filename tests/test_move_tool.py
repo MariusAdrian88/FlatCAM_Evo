@@ -158,3 +158,120 @@ def test_invalid_move_offset_is_rejected_before_any_change(tool, offset):
 
 
 
+
+
+@pytest.fixture
+def source_tool(tool):
+    """A move tool on a real headless app: objects regenerate their source with the real exports."""
+    from appHandlers.appHistory import HistoryManager
+    from appHandlers.appIO import appIO
+    from tests.helpers_objects import make_app
+
+    app = make_app()
+    app.f_handlers = appIO(app)
+    app.headless, app.projects, app.delete_selection_shape = False, SimpleNamespace(is_busy=lambda: False), Mock()
+    app.proc_container.new.side_effect = lambda text: nullcontext()
+    app.collection = SimpleNamespace(get_list=lambda: [], get_by_name=lambda name: app.objects[name],
+                                     get_selected=lambda: [])
+    app.objects = {}
+    app.history = HistoryManager(app, collection=app.collection)
+    tool.app = app
+    with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
+        yield tool
+
+
+def real_object(tool, kind):
+    from appObjects.GeometryObject import GeometryObject
+    from tests.helpers_objects import make_excellon, make_gerber
+
+    app = tool.app
+    if kind == 'geometry':
+        obj = GeometryObject('obj', app)
+        obj.solid_geometry = [LineString([(0, 0), (4, 0)]), Polygon([(1, 1), (3, 1), (3, 3)])]
+        obj.source_file = 'stale text'
+    else:
+        obj = (make_gerber if kind == 'gerber' else make_excellon)(app, name='obj')
+        assert obj.regenerate_source() is True
+        obj.ui = SimpleNamespace(aperture_table_visibility_cb=QtWidgets.QCheckBox())
+    obj.plot, obj.set_offset_values = Mock(), Mock()
+    app.objects['obj'] = obj
+    return obj
+
+
+def move_and_finish(tool, obj, offset):
+    """Run the move job and its GUI completion. The background source task is left queued."""
+    tool.move_handler(offset, objects=[obj])
+    task = tool.app.worker_task.emit.call_args_list[-1].args[0]
+    task['fcn'](*task['params'])
+    QtTest.QTest.qWait(20)
+
+
+@pytest.mark.parametrize('kind', ['geometry', 'gerber', 'excellon'])
+def test_source_follows_the_move_after_done_and_a_flush(source_tool, kind):
+    from appHandlers.appSourceRegen import flush
+    tool = source_tool
+    obj = real_object(tool, kind)
+    old = obj.source_file
+    move_and_finish(tool, obj, (3, -5))
+
+    assert any('[success]' in call.args[0] for call in tool.app.inform.emit.call_args_list), (
+        tool.app.inform.emit.call_args_list, tool.app.log.exception.call_args_list)
+    assert obj.source_file == old  # "Done" does not wait for the export
+    flush(tool.app)
+    assert obj.source_file != old
+    if kind == 'geometry':  # a DXF text has a GUID and a time stamp: look for the moved coordinates
+        assert '-5.0' in obj.source_file
+    else:
+        assert obj.source_file == obj.regenerate_source(store=False)
+
+
+def test_save_source_right_after_a_move_writes_the_new_text(source_tool, tmp_path):
+    tool = source_tool
+    obj = real_object(tool, 'gerber')
+    move_and_finish(tool, obj, (3, -5))
+    target = tmp_path / 'saved.gbr'
+    tool.app.f_handlers.save_source_file('obj', str(target))
+    assert obj.source_file in target.read_text()
+    assert obj.source_file == obj.regenerate_source(store=False)
+
+
+def test_two_quick_moves_give_the_source_of_the_final_position(source_tool):
+    from appHandlers.appSourceRegen import flush
+    tool = source_tool
+    obj = real_object(tool, 'gerber')
+    old = obj.source_file
+    move_and_finish(tool, obj, (3, -5))
+    move_and_finish(tool, obj, (1, 1))
+    flush(tool.app)
+    assert obj.source_file != old and obj.source_file == obj.regenerate_source(store=False)
+    assert obj.bounds()[0] == pytest.approx(make_start_xmin(tool) + 4, abs=1e-6)
+
+
+def test_copy_right_after_a_move_does_not_wait_and_gets_the_moved_source(source_tool):
+    from appHandlers.appObjectOps import AppObjectOps
+    from appHandlers.appSourceRegen import flush
+    from appObjects.GerberObject import GerberObject
+    tool = source_tool
+    app = tool.app
+    obj = real_object(tool, 'gerber')
+    old = obj.source_file
+    move_and_finish(tool, obj, (3, -5))
+    made = []
+
+    def new_object(kind, name, initialize, *args, **kwargs):
+        made.append(GerberObject(name, app))
+        initialize(made[-1], app)
+        return made[-1]
+
+    app.app_obj.new_object.side_effect = new_object
+    app.collection.get_selected = lambda: [obj]
+    AppObjectOps(app).on_copy_command()
+    assert obj.source_file == old  # the copy did not run the export of the source in the GUI thread
+    flush(app)
+    assert obj.source_file != old
+    assert made[0].source_file == made[0].regenerate_source(store=False) != old
+
+
+def make_start_xmin(tool):
+    from tests.helpers_objects import make_gerber
+    return make_gerber(tool.app, name='ref').bounds()[0]

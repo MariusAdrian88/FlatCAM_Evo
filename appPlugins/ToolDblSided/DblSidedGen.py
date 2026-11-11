@@ -2,7 +2,7 @@
 
 from shapely import Point
 from shapely.affinity import scale
-from copy import deepcopy
+from camlib import deepcopy_keep_geometry
 import math
 from concurrent.futures import ThreadPoolExecutor
 
@@ -156,7 +156,7 @@ def source_view(obj):
         return obj
     view = Excellon(obj.app)
     view.kind = 'excellon'
-    view.tools = deepcopy(obj.tools)
+    view.tools = deepcopy_keep_geometry(obj.tools)
     _remove_generated(view.tools)
     view.create_geometry()
     return view

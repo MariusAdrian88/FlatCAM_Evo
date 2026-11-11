@@ -1007,7 +1007,7 @@ class ToolMilling(Geometry, AppTool):
         new_uid = 1
 
         for current_uid in current_uid_list:
-            new_tools[new_uid] = deepcopy(self.target_obj.tools[current_uid])
+            new_tools[new_uid] = deepcopy_keep_geometry(self.target_obj.tools[current_uid])
             new_uid += 1
 
         self.target_obj.tools = new_tools
@@ -1034,7 +1034,7 @@ class ToolMilling(Geometry, AppTool):
 
         try:
             for current_uid in current_uid_list:
-                new_tools[new_uid] = deepcopy(self.target_obj.tools[current_uid])
+                new_tools[new_uid] = deepcopy_keep_geometry(self.target_obj.tools[current_uid])
                 new_uid += 1
         except Exception as err:
             self.app.log.error("ToolMilling.on_geo_rebuild_ui() -> %s" % str(err))
@@ -2511,7 +2511,7 @@ class ToolMilling(Geometry, AppTool):
             tooluid: {
                 'tooldia':          new_tdia,
                 'data':             deepcopy(new_tools_dict),
-                'solid_geometry':   deepcopy(self.target_obj.solid_geometry if new_geo is None else new_geo)
+                'solid_geometry':   deepcopy_keep_geometry(self.target_obj.solid_geometry if new_geo is None else new_geo)
             }
         })
         self.target_obj.tools[tooluid]['data']['name'] = deepcopy(self.target_obj.obj_options['name'])
@@ -2575,7 +2575,7 @@ class ToolMilling(Geometry, AppTool):
                 self.tooluid: {
                     'tooldia':          tooldia,
                     'data':             deepcopy(last_data),
-                    'solid_geometry':   deepcopy(last_solid_geometry)
+                    'solid_geometry':   deepcopy_keep_geometry(last_solid_geometry)
                 }
             })
         else:
@@ -2583,7 +2583,7 @@ class ToolMilling(Geometry, AppTool):
                 self.tooluid: {
                     'tooldia':          tooldia,
                     'data':             deepcopy(self.default_data),
-                    'solid_geometry':   deepcopy(self.target_obj.solid_geometry if new_geo is None else new_geo)
+                    'solid_geometry':   deepcopy_keep_geometry(self.target_obj.solid_geometry if new_geo is None else new_geo)
                 }
             })
 
@@ -2668,7 +2668,7 @@ class ToolMilling(Geometry, AppTool):
             self.tooluid: {
                 'tooldia': tooldia,
                 'data': new_data,
-                'solid_geometry': deepcopy(self.target_obj.solid_geometry)
+                'solid_geometry': deepcopy_keep_geometry(self.target_obj.solid_geometry)
             }
         })
 
@@ -2765,7 +2765,7 @@ class ToolMilling(Geometry, AppTool):
                 return
             for tooluid_copy in uids:
                 try:
-                    new_tool = deepcopy(self.target_obj.tools[tooluid_copy])
+                    new_tool = deepcopy_keep_geometry(self.target_obj.tools[tooluid_copy])
                 except KeyError as e:
                     self.app.log.error("on_tool_copy() --> " + str(e))
                     continue
@@ -2774,7 +2774,7 @@ class ToolMilling(Geometry, AppTool):
         else:
             # we copy all tools in tools_table_mill_geo; each copy has its own uid
             try:
-                temp_tools = deepcopy(self.target_obj.tools)
+                temp_tools = deepcopy_keep_geometry(self.target_obj.tools)
                 for tooluid in temp_tools:
                     max_uid += 1
                     self.target_obj.tools[max_uid] = temp_tools[tooluid]
@@ -2812,13 +2812,13 @@ class ToolMilling(Geometry, AppTool):
             # if no tool is left after the delete, we move the solid_geometry as a property of the object
             # otherwise there will be nothing to hold it
             if tools and all(int(key) in uids for key in tools):
-                self.target_obj.solid_geometry = deepcopy(tools[next(iter(tools))]['solid_geometry'])
+                self.target_obj.solid_geometry = deepcopy_keep_geometry(tools[next(iter(tools))]['solid_geometry'])
             for key in [key for key in tools if int(key) in uids]:
                 tools.pop(key, None)
         else:
             # we delete all tools in tools_table_mill_geo; the geometry stays in the object
             if tools:
-                self.target_obj.solid_geometry = deepcopy(tools[next(iter(tools))]['solid_geometry'])
+                self.target_obj.solid_geometry = deepcopy_keep_geometry(tools[next(iter(tools))]['solid_geometry'])
             tools.clear()
 
         self.app.plot_all()
@@ -2929,7 +2929,7 @@ class ToolMilling(Geometry, AppTool):
                 for tooluid_key, tooluid_value in self.target_obj.tools.items():
                     if int(tooluid_key) == tooluid:
                         self.sel_tools.update({
-                            tooluid: deepcopy(tooluid_value)
+                            tooluid: deepcopy_keep_geometry(tooluid_value)
                         })
 
             self.paint_excellon_cncjpb()

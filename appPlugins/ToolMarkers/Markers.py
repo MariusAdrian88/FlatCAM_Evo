@@ -11,6 +11,7 @@ from appGUI.GUIElements import VerticalScrollArea
 
 import logging
 from copy import deepcopy
+from camlib import deepcopy_keep_geometry
 
 import gettext
 import appTranslation as fcTranslate
@@ -554,7 +555,7 @@ class ToolMarkers(AppTool):
 
             geo_obj.multitool = True
             geo_obj.multigeo = True
-            geo_obj.tools = deepcopy(new_tools)
+            geo_obj.tools = deepcopy_keep_geometry(new_tools)
 
         ret = self.new_object('geometry', outname, initialize, source=new_geo_obj, plot=True, autoselected=False)
 

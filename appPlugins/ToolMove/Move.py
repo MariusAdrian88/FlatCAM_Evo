@@ -8,6 +8,8 @@
 from PyQt6 import QtCore
 from appTool import AppTool
 from appHandlers.appHistory import history_of, supports_matrix, transform_metadata
+from appObjects.AppObjectTemplate import plot_transformed_many
+from appHandlers.appSourceRegen import schedule as schedule_source, supersede as supersede_source
 from camlib import affine_translate_matrix
 from appPlugins.ToolMove.MoveGen import selection_corners, translated_box, selection_shape
 from appPlugins.ToolMove.MoveUI import MoveUI
@@ -238,6 +240,8 @@ class ToolMove(AppTool):
                 return None, error or str(err)
             return bounds, error
 
+        source_objs = [obj for obj in obj_list if obj.kind in ('gerber', 'excellon', 'geometry')]
+
         def job_move(app_obj):
             try:
                 with self.app.proc_container.new('%s...' % _("Moving")):
@@ -250,6 +254,10 @@ class ToolMove(AppTool):
                     no_matrix = [obj for obj in obj_list if not supports_matrix(obj)]
                     before = {id(obj): transform_metadata(obj) if history.is_recording() else {}
                               for obj in obj_list if supports_matrix(obj)}
+                    # A source text that is in the making for an older move is now obsolete: drop it, so no
+                    # export reads the geometry while offset() changes it. The new text is scheduled below.
+                    for obj in source_objs:
+                        supersede_source(obj)
                     t_start = time.perf_counter()
                     with history.group(label), history.snapshot(label, no_matrix):
                         if len(obj_list) == 1:
@@ -271,29 +279,37 @@ class ToolMove(AppTool):
                         if error is not None and result['error'] is None:
                             result['error'] = error
 
-                    # Plot before exporting, and refresh even a partially moved object on failure.
-                    t_plot = t_source = 0.0
-                    for sel_obj in obj_list:
+                    # Plot block. The shapes of the last plot are mapped by the offset, with no new triangulation
+                    # and 1 redraw for all the objects. An object that failed is plotted again from its geometry.
+                    t_start = time.perf_counter()
+                    moved = [obj for obj, (_bounds, error) in zip(obj_list, offset_results) if error is None]
+                    try:
+                        plot_transformed_many(moved, affine_translate_matrix(dx, dy))
+                    except Exception as err:
+                        app_obj.app.log.exception('ToolMove.move_handler() refresh')
+                        result['error'] = str(err)
+                    for sel_obj, (_bounds, error) in zip(obj_list, offset_results):
+                        if error is None:
+                            continue
                         try:
-                            t_start = time.perf_counter()
                             sel_obj.plot()
-                            t_plot += time.perf_counter() - t_start
-                            if sel_obj.kind in ('gerber', 'excellon'):
-                                t_start = time.perf_counter()
-                                regenerated = sel_obj.regenerate_source()
-                                t_source += time.perf_counter() - t_start
-                                if regenerated is False:
-                                    raise ValueError('Source regeneration failed')
                         except Exception as err:
                             app_obj.app.log.exception('ToolMove.move_handler() refresh')
                             result['error'] = str(err)
+                    t_plot = time.perf_counter() - t_start
 
-                    app_obj.app.log.debug("ToolMove.move_handler() %d objects: offset %.3fs, plot %.3fs, source %.3fs" %
-                                          (len(obj_list), t_offset, t_plot, t_source))
+                    app_obj.app.log.debug("ToolMove.move_handler() %d objects: offset %.3fs, plot %.3fs" %
+                                          (len(obj_list), t_offset, t_plot))
             except Exception as err:
                 app_obj.app.log.exception('ToolMove.move_handler()')
                 result['error'] = str(err)
             finally:
+                # The source text is made after "Done", in the background (appSourceRegen). A CNCJob did it in
+                # offset_one. Also after a failure: the text must follow the geometry as it is now.
+                try:
+                    schedule_source(app_obj.app, source_objs)
+                except Exception:
+                    app_obj.app.log.exception('ToolMove.move_handler() source')
                 # always reach the GUI: the in-flight state is released there
                 app_obj.move_finished.emit(result)
 

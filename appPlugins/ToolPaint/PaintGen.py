@@ -2,7 +2,7 @@
 from PyQt6 import QtCore, QtWidgets     # noqa
 
 from dataclasses import dataclass, field
-from copy import copy, deepcopy
+from copy import copy
 
 import numpy as np
 
@@ -22,6 +22,7 @@ import appTranslation as fcTranslate
 import builtins
 
 from camlib import (
+    deepcopy_keep_geometry,
     grace,
     flatten_shapely_geometry,
     residual_cleanup,
@@ -523,7 +524,7 @@ class PaintGen:
             rest_machining_choice=rest_choice,
             simplification_value=simplification_value,
             prog_plot=self._option("tools_paint_plotting") == 'progressive',
-            tools_storage=deepcopy(source_tools),
+            tools_storage=deepcopy_keep_geometry(source_tools),
             output_object_name=outname if outname is not None else self.obj_name + "_paint",
             rest_offset=rest_offset_value,
             paint_method_explicit=method is not None,

@@ -4,7 +4,7 @@ import math
 import re
 from copy import deepcopy
 
-from camlib import AttrDict, grace
+from camlib import AttrDict, grace, deepcopy_keep_geometry
 from appParsers.ParseGCode import parse_gcode
 
 from .PhotoCarveModel import PhotoCarveError, xy_budget, _
@@ -129,7 +129,7 @@ def make_photocarve_cncjob(new_cncjob_obj, app_obj, context):
     # The CNCJob does not keep the source image: it is in the Geometry, and the project would hold it 2 times.
     mark = {key: deepcopy(value) for key, value in context['geo_obj'].obj_options['photocarve'].items()
             if key != 'source'}
-    tools = deepcopy(context['tools_dict'])
+    tools = deepcopy_keep_geometry(context['tools_dict'])
     try:
         for record in tools.values():
             record['data'].update(context['overrides'])

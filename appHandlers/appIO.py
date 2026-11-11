@@ -6,7 +6,7 @@ from PyQt6.QtCore import Qt
 
 from appGUI.GUIElements import FCFileSaveDialog, FCMessageBox, add_case_variants
 from appObjects.ProjectContext import same_path
-from camlib import dict2obj, ParseError, geometry_wkt_cache, project_json_default
+from camlib import dict2obj, ParseError, geometry_wkt_cache, project_json_default, deepcopy_keep_geometry
 from defaults import project_options, clean_project_options, normalize_units
 from appParsers.ParseHPGL2 import HPGL2
 from appParsers.ParseGerber import Gerber
@@ -26,6 +26,7 @@ from xml.dom.minidom import parseString as parse_xml_string
 from lxml import etree as ET
 
 import functools
+from appHandlers.appSourceRegen import flush as flush_source, supersede
 import html
 import time
 import sys
@@ -2655,6 +2656,7 @@ class appIO(QtCore.QObject):
                 return "Could not retrieve object: %s" % obj_name
         else:
             obj = local_use
+            supersede(local_use)
 
         if not isinstance(obj, ExcellonObject):
             self.inform.emit('[ERROR_NOTCL] %s' %
@@ -2791,6 +2793,7 @@ class appIO(QtCore.QObject):
                 return 'fail'
         else:
             obj = local_use
+            supersede(local_use)
 
         # updated units
         g_units = self.app.options.get("gerber_exp_units", self.app.defaults.get("gerber_exp_units", self.app.defaults.factory_defaults.get("gerber_exp_units")))
@@ -2970,6 +2973,7 @@ class appIO(QtCore.QObject):
                 return 'fail'
         else:
             obj = local_use
+            supersede(local_use)
 
         def build_doc():
             if not objs or len(objs) < 2:
@@ -3605,8 +3609,8 @@ class appIO(QtCore.QObject):
                 return "fail"
 
             geo_obj.multigeo = True
-            geo_obj.solid_geometry = deepcopy(obj.solid_geometry)
-            geo_obj.tools = deepcopy(obj.tools)
+            geo_obj.solid_geometry = deepcopy_keep_geometry(obj.solid_geometry)
+            geo_obj.tools = deepcopy_keep_geometry(obj.tools)
             geo_obj.source_file = deepcopy(obj.source_file)
 
             del obj
@@ -4361,6 +4365,7 @@ class appIO(QtCore.QObject):
             # Only the project keys go into the project file. The application settings stay in the defaults.
             app_options = project_options(self.app.options)
             try:
+                flush_source(self.app)
                 objs = [obj.to_dict() for obj in self.app.collection.get_list()]
             except Exception as e:
                 self.log.error("Failed to serialize the objects for: %s because: %s" % (str(filename), str(e)))
@@ -4457,6 +4462,7 @@ class appIO(QtCore.QObject):
         if isinstance(obj, ScriptObject):
             return obj.save_file(filename)
 
+        flush_source(self.app, [obj])
         if not obj.source_file:
             msg = _("Save cancelled because source file is empty. Try to export the file.")
             self.inform.emit('[ERROR_NOTCL] %s' % msg)  # noqa

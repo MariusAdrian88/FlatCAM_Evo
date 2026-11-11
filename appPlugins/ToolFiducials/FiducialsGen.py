@@ -1,12 +1,11 @@
 """Copper and preview geometry for fiducials."""
 
 import math
-from copy import deepcopy
 
 from shapely import LineString, Point, Polygon, box
 from shapely.ops import unary_union
 
-from camlib import flatten_shapely_geometry, gerber_quad_segs
+from camlib import flatten_shapely_geometry, gerber_quad_segs, deepcopy_keep_geometry
 
 
 def make_square_poly(center_pt, side_size):
@@ -54,7 +53,7 @@ def fiducial_geometry(points_list, tools, solid_geometry, fid_size, fid_type, li
     :return:    the new apertures, the union of the old solid geometry and the fiducials, the flat list of the
                 fiducial geometries (the center lines for the cross type, the polygons for the others)
     """
-    new_apertures = deepcopy(tools)
+    new_apertures = deepcopy_keep_geometry(tools)
     geo_list = []
     for pt in points_list:
         geo_list += fiducial_shapes(pt, fid_size, fid_type, line_thickness, options, units)
@@ -94,7 +93,7 @@ def fiducial_geometry(points_list, tools, solid_geometry, fid_size, fid_type, li
         else:
             solid, follow = geo, geo.centroid
         solids.append(solid)
-        new_apertures[aperture_found]['geometry'].append(deepcopy({'follow': follow, 'solid': solid}))
+        new_apertures[aperture_found]['geometry'].append({'follow': follow, 'solid': solid})
     flat_geo = flatten_shapely_geometry(solid_geometry)
     s_list = (list(flat_geo) if flat_geo else []) + solids
     return new_apertures, unary_union(s_list), geo_list

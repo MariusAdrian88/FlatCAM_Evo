@@ -89,6 +89,24 @@ def test_multigeo_objects_are_joined_as_in_the_gui(app):
     assert len(parts(joined.tools[1]['solid_geometry'])) == len(parts(a.solid_geometry)) + len(parts(b.solid_geometry))
 
 
+def test_joined_object_does_not_share_containers_with_the_sources(app):
+    a, b = isolation(app, 'a'), isolation(app, 'b')
+    before = (len(a.solid_geometry), tool_geometry(a), tool_geometry(b))
+
+    ret, created = run_join(app, {'a': a, 'b': b}, '-outname', 'joined')
+    assert ret != 'fail'
+    joined = created['joined']
+    joined.solid_geometry.clear()
+    for tool in joined.tools.values():
+        parts_list = tool['solid_geometry']
+        if isinstance(parts_list, list):
+            parts_list.clear()
+        tool['data']['name'] = 'changed'
+
+    assert (len(a.solid_geometry), tool_geometry(a), tool_geometry(b)) == before
+    assert a.tools[1]['data'].get('name') != 'changed'
+
+
 def test_list_solid_geometry_is_flattened_without_errors(app):
     a, b = isolation(app, 'a'), isolation(app, 'b')
     assert isinstance(a.solid_geometry, list)

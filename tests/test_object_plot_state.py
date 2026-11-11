@@ -155,7 +155,7 @@ def test_tool_color_swatch_updates_the_tool_color_and_its_shapes(monkeypatch, so
     def painted_colors():
         # These are the merged arrays consumed by VisPy, not the per-shape storage.
         return ([line._color.copy() if line.visible else np.empty((0, 4)) for line in collection._lines],
-                [mesh.mesh_data.get_face_colors().copy() if mesh.visible else np.empty((0, 4))
+                [mesh.vertex_colors.copy() if mesh.visible else np.empty((0, 4))
                  for mesh in collection._meshes])
 
     before_lines, before_meshes = painted_colors()
@@ -165,7 +165,7 @@ def test_tool_color_swatch_updates_the_tool_color_and_its_shapes(monkeypatch, so
     selected = np.array((10 / 255, 20 / 255, 30 / 255, 128 / 255))
     for key, data in collection.data.items():
         layer = data['layer']
-        n_lines, n_faces = len(data['line_pts']), len(data['mesh_tris']) // 3
+        n_lines, n_faces = len(data['line_pts']), len(data['mesh_vertices'])
         if key in obj.shape_indexes_dict[tool_no]:
             expected_lines[layer][line_offsets[layer]:line_offsets[layer] + n_lines] = selected
             expected_meshes[layer][mesh_offsets[layer]:mesh_offsets[layer] + n_faces] = selected

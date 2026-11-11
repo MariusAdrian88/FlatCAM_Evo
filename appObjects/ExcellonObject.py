@@ -27,7 +27,7 @@ import shapely
 from appParsers.DXF.writer import build_dxf
 from shapely import LineString
 
-from camlib import object_circle_steps
+from camlib import object_circle_steps, deepcopy_keep_geometry
 
 import gettext
 import appTranslation as fcTranslate
@@ -236,7 +236,8 @@ class ExcellonObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Excellon):
     def copy_from(self, src):
         """
         Make this (new, empty) Excellon a copy of ``src``. Used by both copy paths of AppObjectOps. Everything is
-        deep-copied, nothing is shared with ``src``.
+        deep-copied, nothing mutable is shared with ``src``: tools and solid_geometry go through
+        deepcopy_keep_geometry() (new containers, the immutable Shapely geometries are shared).
 
         Copied: tools (drills, slots, per-tool solid_geometry and the per-tool 'data', so 2 tools of the same
         diameter with different data stay different), solid_geometry (rebuilt with create_geometry() only if the
@@ -252,8 +253,8 @@ class ExcellonObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Excellon):
         :param src: the ExcellonObject to copy
         :return:    None
         """
-        self.tools = deepcopy(src.tools)
-        self.solid_geometry = deepcopy(src.solid_geometry)
+        self.tools = deepcopy_keep_geometry(src.tools)
+        self.solid_geometry = deepcopy_keep_geometry(src.solid_geometry)
         self.source_file = deepcopy(getattr(src, 'source_file', self.source_file))
         self.units = getattr(src, 'units', self.units)
         self.zeros = getattr(src, 'zeros', self.zeros)
@@ -1350,7 +1351,7 @@ class ExcellonObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Excellon):
         self.shapes.redraw()
         self.ui_connect()
 
-    def plot_transformed(self, matrix, kind=None):
+    def plot_transformed(self, matrix, kind=None, update=True):
         """
         Scale and skew move the drills and slots but keep the tool diameters, so the holes stay circles: only a rigid
         transform (rotate, mirror, offset) can map the plotted shapes. Any other matrix plots the object again.
@@ -1361,7 +1362,7 @@ class ExcellonObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Excellon):
                 return False
             self.plot(kind=kind) if kind is not None else self.plot()
             return False
-        return super().plot_transformed(matrix, kind=kind)
+        return super().plot_transformed(matrix, kind=kind, update=update)
 
     @staticmethod
     def _valid_tool_color(color):
@@ -1556,7 +1557,7 @@ class ExcellonObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Excellon):
 
             for tool in exc.tools:
                 toolid += 1
-                new_tools[toolid] = deepcopy(exc.tools[tool])
+                new_tools[toolid] = deepcopy_keep_geometry(exc.tools[tool])
                 tool_sources[toolid] = src_index
                 for kind in ('drills', 'slots'):
                     ids = hole_ids(new_tools[toolid], kind)
@@ -1565,13 +1566,13 @@ class ExcellonObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Excellon):
                     else:
                         new_tools[toolid].pop(kind + '_to', None)
 
-            exc_final.tools = deepcopy(new_tools)
+            exc_final.tools = deepcopy_keep_geometry(new_tools)
             # add the zeros and units to the exc_final object
             exc_final.zeros = deepcopy(exc.zeros)
             exc_final.units = deepcopy(exc.units)
             total_geo += exc.solid_geometry
 
-        exc_final.solid_geometry = deepcopy(total_geo)
+        exc_final.solid_geometry = deepcopy_keep_geometry(total_geo)
 
         # the object attributes: the TF stays only when all the sources have the same one
         tfs = [(vars(exc).get('attributes') or {}).get('TF') or {} for exc in flattened_list]

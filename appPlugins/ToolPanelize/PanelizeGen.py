@@ -1,16 +1,15 @@
 """Panel conversion data, using the shared panelization algorithms."""
 
-from copy import deepcopy
-
 from shapely import Polygon
 
 from appParsers import panelize_core
+from camlib import deepcopy_keep_geometry
 
 
 def geometry_from_gerber(tools, solid_geometry, offsets, abort=None, progress=None):
-    tools = deepcopy(tools)
+    tools = deepcopy_keep_geometry(tools)
     for tid in tools:
-        tools[tid]['solid_geometry'] = deepcopy(solid_geometry)
+        tools[tid]['solid_geometry'] = deepcopy_keep_geometry(solid_geometry)
     return panelize_core.panelize_geometry(tools, solid_geometry, True, offsets, abort=abort, progress=progress)
 
 

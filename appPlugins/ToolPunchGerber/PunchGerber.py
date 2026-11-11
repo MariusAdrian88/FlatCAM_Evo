@@ -17,7 +17,7 @@ from shapely import Point
 import gettext
 import appTranslation as fcTranslate
 import builtins
-from camlib import Geometry, object_circle_steps
+from camlib import Geometry, object_circle_steps, deepcopy_keep_geometry
 from defaults import AppDefaults
 from appParsers.feature_access import iter_features
 
@@ -406,8 +406,8 @@ class ToolPunchGerber(Geometry, AppTool):
             new_obj.obj_options['name'] = outname
             new_obj.fill_color = deepcopy(grb_obj.fill_color)
             new_obj.outline_color = deepcopy(grb_obj.outline_color)
-            new_obj.tools = deepcopy(apertures)
-            new_obj.solid_geometry = deepcopy(solid)
+            new_obj.tools = deepcopy_keep_geometry(apertures)
+            new_obj.solid_geometry = deepcopy_keep_geometry(solid)
             new_obj.regenerate_source(name=outname)
 
         self.new_object('gerber', outname, init_func, source=grb_obj, autoselected=False)
