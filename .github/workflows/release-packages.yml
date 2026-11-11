@@ -120,13 +120,34 @@ jobs:
 
       - name: Check Linux GUI without network or build-host libraries
         if: runner.os == 'Linux'
+        timeout-minutes: 6
         run: |
           docker build -t flatcam-appimage-smoke -f scripts/appimage-smoke.Dockerfile scripts
-          docker run --rm --network none --user 1000:1000 \
+          mkdir -p build/gui-smoke
+          chmod 777 build/gui-smoke
+          timeout --kill-after=10s 180s docker run --rm --init --network none --user 1000:1000 \
             --cap-drop ALL --security-opt no-new-privileges \
             -v "$PWD/squashfs-root:/app:ro" \
             -v "$PWD/scripts/check_appimage.sh:/check_appimage.sh:ro" \
+            -v "$PWD/build/gui-smoke:/results" \
             flatcam-appimage-smoke
+          python - <<'PY'
+          import numpy as np
+          from PIL import Image
+
+          frame = np.load('build/gui-smoke/canvas.npy', allow_pickle=False)
+          if frame.ndim != 3 or frame.shape[2] != 4 or np.ptp(frame[:, :, :3]) == 0:
+              raise RuntimeError('VisPy did not render a nonblank RGBA framebuffer')
+          Image.fromarray(frame).save('build/gui-smoke/canvas.png')
+          PY
+
+      - name: Save rendered VisPy canvas
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: FlatCAM_EVO-linux-canvas
+          path: build/gui-smoke/canvas.png
+          if-no-files-found: error
 
       - name: Name release asset
         run: |

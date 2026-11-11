@@ -108,6 +108,9 @@ if __name__ == '__main__':
         },
         'bdist_dmg': {'volume_label': 'FlatCAM EVO', 'applications_shortcut': True},
     }
+    if sys.platform == 'linux':
+        # cx_Freeze excludes /usr/lib by default, including Qt's required X11 keyboard and cursor helpers.
+        options['build_exe']['bin_includes'] = ['libxkbcommon*.so*', 'libxcb*.so*']
     icon = ROOT / 'assets' / 'resources' / 'app256.png'
     if sys.platform == 'darwin':
         from PIL import Image
