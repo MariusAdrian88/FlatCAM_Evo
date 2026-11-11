@@ -13,6 +13,7 @@ multigeo / tooluid (Geometry); multigeo, int_digits, frac_digits (Gerber); the E
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+import numpy as np
 import pytest
 from PyQt6.QtCore import QObject
 from shapely.geometry import LineString, Point, box
@@ -325,3 +326,149 @@ class TestMerge_0B1:
         src.tools[10]['geometry'].append({'solid': box(9, 9, 10, 10)})
         assert final.tools[10]['size'] == 0.2
         assert len(final.tools[10]['geometry']) == 1
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# the plot of a copy takes the triangulation of the source
+# ---------------------------------------------------------------------------------------------------------------
+
+PLOT_OPTS = {"global_graphic_engine_3d_no_mp": True, "global_backface_culling": True}
+PLOT_COMBOS = [pytest.param(k, p, id='%s-%s' % (k, p)) for k, p in COMBOS if k in ('gerber', 'excellon', 'geometry')]
+
+
+@pytest.fixture
+def canvas():
+    # the merge of the buffers into the GL visuals needs a canvas; a fake one is enough
+    from vispy.gloo.context import FakeCanvas
+    return FakeCanvas()
+
+
+def plot_into(obj, kind, collection, color='#112233FF', face_color='#44556677'):
+    from appGUI.VisPyVisuals import ShapeGroup
+    obj.shapes = ShapeGroup(collection)
+    obj.outline_color, obj.fill_color = color, face_color
+    obj.obj_options['solid'] = True       # the outline mode of the Excellon plots shape by shape: not reused
+    if kind == 'gerber':
+        obj.plot(color=color, face_color=face_color)
+    else:
+        obj.plot()
+
+
+def shared_plot_app(app):
+    """Every object of the app gets its shape group in ONE collection, as on the canvas."""
+    from appGUI.VisPyVisuals import ShapeCollectionVisual, ShapeGroup
+    collection = ShapeCollectionVisual(linewidth=1, layers=3, pool=None, fcoptions=PLOT_OPTS)
+    app.plotcanvas.new_shape_group.side_effect = lambda *a, **k: ShapeGroup(collection)
+    return collection
+
+
+def plotted(obj):
+    """The stored buffers of the shapes of an object, in plot order."""
+    data = obj.shapes._collection.data
+    return [{k: (np.array(v) if isinstance(v, np.ndarray) else v) for k, v in data[i].items()}
+            for i in obj.shapes._indexes]
+
+
+def assert_same_plot(got, want):
+    assert len(got) == len(want) > 0
+    for g, w in zip(got, want):
+        assert g.keys() == w.keys()
+        for k in g:
+            if isinstance(w[k], np.ndarray):
+                np.testing.assert_array_equal(g[k], w[k], err_msg=k)
+            else:
+                assert g[k] == w[k], k
+
+
+COPY_COLORS = {'color': '#AA0000FF', 'face_color': '#00BB0099'}
+
+
+def copy_plot(app, source, kind, path):
+    """Copy through the real handler, then plot the copy; returns the copy and the number of triangulations."""
+    from unittest.mock import patch
+    import appGUI.VisPyVisuals as vv
+    clone = run_path(app, source, kind, path)
+    with patch.object(vv, '_update_shape_buffers', wraps=vv._update_shape_buffers) as built:
+        plot_into(clone, kind, source.shapes._collection, **COPY_COLORS)
+    return clone, built.call_count
+
+
+@pytest.mark.parametrize('kind,path', PLOT_COMBOS)
+def test_copy_plot_reuses_the_triangulation_of_the_source(app, canvas, kind, path):
+    source = SOURCES[kind](app)
+    plot_into(source, kind, shared_plot_app(app))
+    source_plot = plotted(source)
+
+    clone, triangulated = copy_plot(app, source, kind, path)
+    assert triangulated == 0
+
+    # the same buffers as a normal full plot of the copy (nothing to reuse any more), with the colors of the copy
+    got = plotted(clone)
+    plot_into(clone, kind, shared_plot_app(app), **COPY_COLORS)
+    assert_same_plot(got, plotted(clone))
+    assert_same_plot(plotted(source), source_plot)
+
+
+def test_copy_plot_is_independent_of_the_source(app, canvas):
+    from appObjects.AppObjectTemplate import plot_transformed_many
+    collection = shared_plot_app(app)
+    source = SOURCES['gerber'](app)
+    plot_into(source, 'gerber', collection)
+    clone, triangulated = copy_plot(app, source, 'gerber', 'command')
+    assert triangulated == 0
+    source_before, clone_before = plotted(source), plotted(clone)
+
+    # move the source: the copy keeps its place
+    source.offset((5.0, -3.0))
+    plot_transformed_many([source], (1.0, 0.0, 0.0, 1.0, 5.0, -3.0))
+    assert_same_plot(plotted(clone), clone_before)
+    assert not np.array_equal(plotted(source)[0]['line_pts'], source_before[0]['line_pts'])
+
+    # move the copy: the source keeps its place
+    moved = plotted(source)
+    clone.offset((1.0, 1.0))
+    plot_transformed_many([clone], (1.0, 0.0, 0.0, 1.0, 1.0, 1.0))
+    assert_same_plot(plotted(source), moved)
+
+    # the source is deleted: the copy still has its shapes
+    after_move = plotted(clone)
+    source.shapes.clear(update=True)
+    assert_same_plot(plotted(clone), after_move)
+    assert all(i in collection.data for i in clone.shapes._indexes)
+
+
+@pytest.mark.parametrize('kind', ['gerber', 'excellon', 'geometry'])
+def test_copy_plot_falls_back_to_a_full_plot(app, canvas, kind):
+    from appObjects.AppObjectTemplate import plot_transformed_many
+    collection = shared_plot_app(app)
+
+    def full_plot_of_moved_copy(clone):
+        reference = SOURCES[kind](app)
+        reference.offset((4.0, 2.0))
+        plot_into(reference, kind, shared_plot_app(app), **COPY_COLORS)
+        assert_same_plot(plotted(clone), plotted(reference))
+
+    # the source was never plotted
+    source = SOURCES[kind](app)
+    source.offset((4.0, 2.0))
+    clone, triangulated = copy_plot(app, source, kind, 'command')
+    assert triangulated > 0
+    full_plot_of_moved_copy(clone)
+
+    # the geometry of the source changed after its plot, without a new plot: the copy of the new geometry
+    # must not get the old buffers
+    source = SOURCES[kind](app)
+    plot_into(source, kind, collection)
+    source.offset((4.0, 2.0))
+    clone, triangulated = copy_plot(app, source, kind, 'command')
+    assert triangulated > 0
+    full_plot_of_moved_copy(clone)
+
+    # the plot of the source was mapped by the move: no plot to trust for the copy
+    source = SOURCES[kind](app)
+    plot_into(source, kind, collection)
+    source.offset((4.0, 2.0))
+    plot_transformed_many([source], (1.0, 0.0, 0.0, 1.0, 4.0, 2.0))
+    clone, triangulated = copy_plot(app, source, kind, 'command')
+    assert triangulated > 0
+    full_plot_of_moved_copy(clone)

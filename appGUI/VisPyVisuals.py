@@ -165,6 +165,14 @@ def _cached_hover_buffers(bounds, units, color, face_color):
 _NO_BLOCK = object()
 
 
+def _rgba_of(col, rows):
+    # a color is parsed only if the shape has vertices to paint
+    if not rows:
+        return np.zeros(4, dtype=np.float32)
+    rgba = _cached_color_rgba(col) if isinstance(col, str) else Color(col).rgba
+    return np.asarray(rgba, dtype=np.float32)
+
+
 def _join(chunks, empty_shape, dtype):
     # one C-ordered copy (np.concatenate of broadcast color views gives a Fortran-ordered array, which gloo copies again)
     if not chunks:
@@ -223,7 +231,24 @@ class ShapeGroup(object):
         keys = self._collection.add_batch(shapes_data, block=self, **kwargs)
         self._indexes.extend(keys)
         return keys
-    
+
+    def snapshot(self):
+        """
+        The finished buffers of the shapes of the group (see ShapeCollectionVisual.snapshot()), or None.
+        """
+        return self._collection.snapshot(list(self._indexes))
+
+    def add_batch_copy(self, snapshots, shapes_data, **kwargs):
+        """
+        add_batch() with the buffers of another group (snapshot()) instead of a new triangulation.
+
+        :return: list of the keys, or None if the buffers do not fit the shapes (nothing is added then)
+        """
+        keys = self._collection.add_batch_copy(snapshots, shapes_data, block=self, **kwargs)
+        if keys is not None:
+            self._indexes.extend(keys)
+        return keys
+
     def remove(self, idx, update=False):
         self._indexes.remove(idx)
         self._collection.remove(idx, False)
@@ -1034,12 +1059,7 @@ class ShapeCollectionVisual(CompoundVisual):
         if linewidth:
             self._line_width = linewidth
 
-        def rgba_of(col, rows):
-            # a color is parsed only if the shape has vertices to paint
-            if not rows:
-                return np.zeros(4, dtype=np.float32)
-            rgba = _cached_color_rgba(col) if isinstance(col, str) else Color(col).rgba
-            return np.asarray(rgba, dtype=np.float32)
+        rgba_of = _rgba_of
 
         self.key_lock.acquire(True)
         self.last_key += 1
@@ -1063,6 +1083,76 @@ class ShapeCollectionVisual(CompoundVisual):
         self._register(key, block)
         self._dirty = True
         return key
+
+    def snapshot(self, keys):
+        """
+        The finished buffers of shapes, to give them to add_batch_copy() of any collection. The position arrays are
+        shared and never changed in place (transform_keys() makes new ones), so the entries stay valid when the shapes
+        are moved or removed after this call. Never waits for the process pool.
+
+        :param keys:    shape keys of this collection
+        :return:        list of the data dicts (shallow copies) in the order of the keys, or None if a shape is
+                        removed or has no finished buffers yet (pending in the pool)
+        """
+        with self.update_lock:
+            out = []
+            for k in keys:
+                d = self.data.get(k)
+                if d is None or 'geometry' in d or k in self.results:
+                    return None
+                out.append(dict(d))
+        return out
+
+    def add_batch_copy(self, snapshots, shapes_data, layer=1, tolerance=0.001, linewidth=None, visible=True,
+                       block=None):
+        """
+        add_batch() for shapes that have buffers already (snapshot() of the same shapes): no simplification and no
+        triangulation, only the color buffers are new. A shape is taken only if it would get the same buffers from a
+        normal add_batch(): same layer, tolerance and alpha, and a color / face color that is None in both or in none.
+
+        :return: list of the new keys, or None if a shape does not fit; nothing is added then
+        """
+        if len(snapshots) != len(shapes_data):
+            return None
+
+        entries = []
+        for src, item in zip(snapshots, shapes_data):
+            item_layer = item.get('layer', layer)
+            color, face_color = item.get('color'), item.get('face_color')
+            if item_layer != src['layer'] or item.get('tolerance', tolerance) != src.get('tolerance') or \
+                    item.get('alpha') != src.get('alpha') or (color is None) != (src.get('color') is None) or \
+                    (face_color is None) != (src.get('face_color') is None):
+                return None
+            self._check_layer(item_layer)
+            entries.append({
+                'color': color,
+                'alpha': item.get('alpha'),
+                'face_color': face_color,
+                'visible': visible,
+                'layer': item_layer,
+                'tolerance': src.get('tolerance'),
+                'mesh_vertices': src['mesh_vertices'],
+                'mesh_tris': src['mesh_tris'],
+                'mesh_rgba': _rgba_of(face_color, len(src['mesh_tris'])),
+                'line_pts': src['line_pts'],
+                'line_rgba': _rgba_of(color, len(src['line_pts']))
+            })
+
+        if linewidth:
+            self._line_width = linewidth
+
+        keys = []
+        self.key_lock.acquire(True)
+        for entry in entries:
+            self.last_key += 1
+            keys.append(self.last_key)
+            self.data[self.last_key] = entry
+        self.key_lock.release()
+
+        for k in keys:
+            self._register(k, block)
+        self._dirty = True
+        return keys
 
     def remove(self, key, update=False):
         """

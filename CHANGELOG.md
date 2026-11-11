@@ -60,6 +60,7 @@ Performance:
 - changed: the source text of a Gerber, Excellon or Geometry object is made in the background after a move; "Done" of the Move plugin no longer waits for it, and saving the project, Save source and View source wait for it
 - changed: a copy made right after a move no longer stops the window while the source text is made (2.8 s on a 2.4 MB Gerber); the copy gets its own source text in the background
 - changed: Copy, Join, Convert, Panelize, the eraser, the import and the aperture resize of the Gerber editor, and the plugins (Copper Thieving, Cutout, Drilling, Etch Compensation, Fiducials, Isolation, Markers, Milling, NCC, Paint, Punch Gerber, Solder Paste and others) share the immutable geometry with the source object and copy only the lists and the tables; the copy of a small Gerber went from 25-32 ms to 0.8-2.7 ms, and large boards make their objects faster, with the same result
+- changed: the plot of a copy of a Gerber, Excellon or Geometry object uses the triangulation of the source object and does not triangulate the same shapes again; the plot of the copy of a Gerber with 1350 shapes went from about 150 ms to about 10 ms; the copy gets a normal plot when the plot of the source is not complete, when the source was moved or transformed, and for an Excellon in outline mode
 
 Tests:
 

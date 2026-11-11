@@ -804,6 +804,7 @@ class AppObjectOps(QtCore.QObject):
             def initialize(obj_init, app_obj):
                 try:
                     obj_init.copy_from(obj)
+                    obj_init.reuse_plot_of(obj)
                 except Exception as cerr:
                     app_obj.log.error("App.on_copy_command() --> %s" % str(cerr))
                     return "fail"
@@ -813,6 +814,7 @@ class AppObjectOps(QtCore.QObject):
                 if not obj_init.tools:
                     app_obj.log.debug("on_copy_command() --> no excellon tools")
                     return 'fail'
+                obj_init.reuse_plot_of(obj)
 
             def initialize_script(new_obj, app_obj):
                 app_obj.log.debug("Script copied.")
@@ -861,12 +863,14 @@ class AppObjectOps(QtCore.QObject):
 
             def initialize_geometry(obj_init, app_obj):
                 obj_init.copy_from(obj)
+                obj_init.reuse_plot_of(obj)
 
             def initialize_gerber(obj_init, app_obj):
                 obj_init.copy_from(obj)
                 if not obj_init.tools:
                     app_obj.log.debug("on_copy_object2() --> no gerber apertures")
                     return 'fail'
+                obj_init.reuse_plot_of(obj)
 
             def initialize_excellon(new_obj, app_obj):
                 new_obj.copy_from(obj)
@@ -874,6 +878,7 @@ class AppObjectOps(QtCore.QObject):
                     app_obj.log.debug("on_copy_object2() --> no excellon tools")
                     return 'fail'
                 new_obj.regenerate_source(name=outname)
+                new_obj.reuse_plot_of(obj)
 
             try:
                 from appObjects.ObjectCollection import ExcellonObject, GerberObject, GeometryObject

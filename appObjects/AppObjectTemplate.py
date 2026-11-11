@@ -225,6 +225,11 @@ class FlatCAMObj(QtCore.QObject):
         # signature of the shapes made by the last full plot; see mark_full_plot() and show_plotted_shapes()
         self._full_plot_sig = None
 
+        # (shape count, hash of the geometry) of the shapes of the last full plot, one batch; see reuse_plot_of()
+        self._plot_fp = None
+        self._plot_batches = 0
+        self._reuse_src = None
+
         self.muted_ui = False
         self.deleted = False
 
@@ -344,7 +349,42 @@ class FlatCAMObj(QtCore.QObject):
 
         self.clear()
         self._full_plot_sig = None
+        self._plot_fp = None
+        self._plot_batches = 0
         return True
+
+    def reuse_plot_of(self, src):
+        """
+        Call it in the initializer of a copy, after copy_from(). The next plot() of this object takes the buffers
+        (the triangulation) of the last full plot of ``src`` for its shapes, with its own colors, instead of
+        triangulating the same geometry again. It does so only if the shapes are the same: the shape count and a hash
+        of all the coordinates (and the types) must match, the plot of ``src`` must be complete, with finished
+        buffers and not mapped by a transform since. Otherwise (and on any error) it plots as usual.
+
+        :param src: the object this one is a copy of
+        :return:    None
+        """
+        self._reuse_src = src
+
+    def _reuse_plot(self, src, shapes_data, fp, tolerance, kwargs):
+        # the keys of the shapes with the buffers of src, or None if the plot of src cannot be trusted for these shapes
+        try:
+            group = src.shapes
+            if fp is None or src is self or src.deleted or not hasattr(group, 'snapshot') or \
+                    not hasattr(self.shapes, 'add_batch_copy'):
+                return None
+            if src._plot_fp != fp or not src._has_full_plot() or len(group._indexes) != fp[0]:
+                return None
+            buffers = group.snapshot()
+
+            # A transform of src sets _plot_fp to None before it maps the buffers: if the plot is still valid now,
+            # the buffers of the snapshot are the ones that were hashed.
+            if buffers is None or src._plot_fp != fp or not src._has_full_plot():
+                return None
+            return self.shapes.add_batch_copy(buffers, shapes_data, tolerance=tolerance, **kwargs)
+        except Exception as e:
+            self.app.log.debug("FlatCAMObj._reuse_plot() --> %s" % str(e))
+            return None
 
     def plot_transformed(self, matrix, kind=None, update=True):
         """
@@ -362,6 +402,9 @@ class FlatCAMObj(QtCore.QObject):
         """
         if self.deleted:
             return False
+
+        # first: a copy that reads the buffers (reuse_plot_of) must not take mapped ones for the old geometry
+        self._plot_fp = None
 
         done = False
         try:
@@ -463,6 +506,8 @@ class FlatCAMObj(QtCore.QObject):
         if self.deleted:
             raise ObjectDeleted()
         else:
+            # a plot with single shapes is not a batch that a copy can take
+            self._plot_fp = None
             key = self.shapes.add(tolerance=tol, **kwargs)
         return key
 
@@ -478,6 +523,16 @@ class FlatCAMObj(QtCore.QObject):
 
         if self.deleted:
             raise ObjectDeleted()
+
+        # Only a plot of exactly one batch is described by the hash; a copy takes the buffers once, at its first batch
+        fp = shapes_fingerprint(shapes_data)
+        src, self._reuse_src = self._reuse_src, None
+        self._plot_batches += 1
+        self._plot_fp = fp if self._plot_batches == 1 else None
+        if src is not None:
+            keys = self._reuse_plot(src, shapes_data, fp, tol, kwargs)
+            if keys is not None:
+                return keys
 
         return self.shapes.add_batch(shapes_data, tolerance=tol, **kwargs)
 
@@ -1322,6 +1377,34 @@ class FlatCAMObj(QtCore.QObject):
 
         # Set flag
         self.deleted = True
+
+
+def shapes_fingerprint(shapes_data):
+    """
+    (shape count, hash) of the geometry of a batch of shapes: the order, the types, the size of each shape, of each
+    part and of each polygon ring, and all the coordinates. The same fingerprint means the same shapes, so the same
+    triangulation. None if it cannot be made.
+    """
+    try:
+        import hashlib
+        import shapely
+        geoms = np.empty(len(shapes_data), dtype=object)
+        for i, item in enumerate(shapes_data):
+            geoms[i] = item['shape']
+        parts = shapely.get_parts(geoms)
+        digest = hashlib.blake2b(digest_size=16)
+        for values, dtype in ((shapely.get_type_id(geoms), np.int8),
+                              (shapely.get_num_coordinates(geoms), np.int64),
+                              (shapely.get_type_id(parts), np.int8),
+                              (shapely.get_num_coordinates(parts), np.int64),
+                              (shapely.get_num_coordinates(shapely.get_rings(parts)), np.int64),
+                              (shapely.get_coordinates(geoms), np.float64)):
+            data = np.ascontiguousarray(values, dtype=dtype).tobytes()
+            digest.update(len(data).to_bytes(8, 'little'))
+            digest.update(data)
+        return len(geoms), digest.digest()
+    except Exception:
+        return None
 
 
 def plot_transformed_many(objects, matrix):
