@@ -14,6 +14,10 @@ on:
         required: false
         default: ''
         type: string
+      publish:
+        description: Upload packages to the release (disable for a validation build)
+        default: true
+        type: boolean
 
 permissions:
   contents: read
@@ -114,6 +118,16 @@ jobs:
           hdiutil create -volname 'FlatCAM EVO' -srcfolder build/dmg -ov -format UDZO dist/FlatCAM_EVO.dmg
           hdiutil verify dist/FlatCAM_EVO.dmg
 
+      - name: Check Linux GUI without network or build-host libraries
+        if: runner.os == 'Linux'
+        run: |
+          docker build -t flatcam-appimage-smoke -f scripts/appimage-smoke.Dockerfile scripts
+          docker run --rm --network none --user 1000:1000 \
+            --cap-drop ALL --security-opt no-new-privileges \
+            -v "$PWD/squashfs-root:/app:ro" \
+            -v "$PWD/scripts/check_appimage.sh:/check_appimage.sh:ro" \
+            flatcam-appimage-smoke
+
       - name: Name release asset
         run: |
           python - <<'PY'
@@ -141,6 +155,7 @@ jobs:
           if-no-files-found: error
 
       - name: Attach package to release
+        if: github.event_name == 'release' || inputs.publish
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "$RELEASE_TAG" "$RELEASE_ASSET" --repo "$GH_REPO" --clobber
