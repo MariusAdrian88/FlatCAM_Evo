@@ -82,7 +82,9 @@ jobs:
         run: |
           conda install -y gdal 'rasterio>=1.4.0' freetype tk pillow 'numpy>=2'
           if [[ "$PACKAGE_PLATFORM" == linux ]]; then
-            conda install -y libxkbcommon xcb-util-cursor xcb-util-wm xcb-util-keysyms
+            conda install -y libxkbcommon xcb-util-cursor xcb-util-wm xcb-util-keysyms \
+              cxx-compiler 'sysroot_linux-64=2.28' 'freeze_core>=0.6.1'
+            conda activate flatcam-build
           fi
           python -m pip install -r requirements.txt 'ortools==9.14.6206' 'cx-Freeze==8.7.3'
           python install_optional.py
