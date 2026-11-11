@@ -18,6 +18,10 @@ on:
         description: Upload packages to the release (disable for a validation build)
         default: true
         type: boolean
+      linux_only:
+        description: Build only the Linux AppImage
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -36,13 +40,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-22.04
-            platform: linux
-            arch: x86_64
-          - os: macos-15
-            platform: macos
-            arch: arm64
+        include: ${{ fromJSON(inputs.linux_only && '[{"os":"ubuntu-22.04","platform":"linux","arch":"x86_64"}]' || '[{"os":"ubuntu-22.04","platform":"linux","arch":"x86_64"},{"os":"macos-15","platform":"macos","arch":"arm64"}]') }}
     defaults:
       run:
         shell: bash -el {0}
@@ -78,8 +76,14 @@ jobs:
           channel-priority: strict
 
       - name: Install native and Python dependencies
+        env:
+          CONDA_OVERRIDE_GLIBC: ${{ matrix.platform == 'linux' && '2.28' || '' }}
+          PIP_CONSTRAINT: ${{ matrix.platform == 'linux' && format('{0}/scripts/constraints-linux.txt', github.workspace) || '' }}
         run: |
           conda install -y gdal 'rasterio>=1.4.0' freetype tk pillow 'numpy>=2'
+          if [[ "$PACKAGE_PLATFORM" == linux ]]; then
+            conda install -y libxkbcommon xcb-util-cursor xcb-util-wm xcb-util-keysyms
+          fi
           python -m pip install -r requirements.txt 'ortools==9.14.6206' 'cx-Freeze==8.7.3'
           python install_optional.py
           python -m pip check
@@ -89,7 +93,7 @@ jobs:
         if: runner.os == 'Linux'
         env:
           APPIMAGE_EXTRACT_AND_RUN: '1'
-        run: python scripts/freeze_release.py bdist_appimage
+        run: LD_LIBRARY_PATH="$CONDA_PREFIX/lib" python scripts/freeze_release.py bdist_appimage
 
       - name: Build macOS app
         if: runner.os == 'macOS'
@@ -103,6 +107,7 @@ jobs:
           if [[ "$PACKAGE_PLATFORM" == linux ]]; then
             image=(dist/*.AppImage)
             "${image[0]}" --appimage-extract
+            python scripts/check_glibc.py squashfs-root
             python scripts/check_release.py squashfs-root/AppRun
           else
             python scripts/check_release.py build/FlatCAM_EVO.app/Contents/MacOS/FlatCAM
