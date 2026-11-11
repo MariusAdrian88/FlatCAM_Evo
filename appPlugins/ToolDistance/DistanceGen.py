@@ -23,6 +23,48 @@ def point_distance(pos, previous):
     return math.sqrt(dx ** 2 + dy ** 2)
 
 
+# Click state machine. The tool stays active across measurements:
+#   READY (no open measurement)  left -> NEW            right -> EXIT
+#   OPEN, single, 1 point        left -> COMPLETE       right -> CANCEL
+#   OPEN, single, 2 points       left -> NEW            right -> CLOSE
+#   OPEN, multipoint             left -> ADD            right -> CLOSE (CANCEL with < 2 points)
+NEW, ADD, COMPLETE, CLOSE, CANCEL, EXIT = 'new', 'add', 'complete', 'close', 'cancel', 'exit'
+
+
+def click_action(is_open, button, multipoint, n_points):
+    """Action for a mouse click (button 1 = left, 2 = right); None for other buttons."""
+    if button == 1:
+        if not is_open or n_points == 0 or (not multipoint and n_points >= 2):
+            return NEW
+        return ADD if multipoint else COMPLETE
+    if button == 2:
+        if not is_open:
+            return EXIT
+        return CLOSE if n_points >= 2 else CANCEL
+    return None
+
+
+def preview_active(is_open, multipoint, n_points):
+    """True while the rubber-band segment from the last point to the cursor is shown."""
+    return is_open and n_points > 0 and (multipoint or n_points == 1)
+
+
+def format_length(value, decimals):
+    return '%.*f' % (decimals, abs(value))
+
+
+def dimension_segments(points, decimals, cursor=None):
+    """(p0, p1, length text) of each committed segment, plus the preview to the cursor when given.
+
+    Zero-length segments are left out: they have no direction to draw.
+    """
+    pts = [(p[0], p[1]) for p in points]
+    pairs = list(zip(pts, pts[1:]))
+    if cursor is not None and pts:
+        pairs.append((pts[-1], (cursor[0], cursor[1])))
+    return [(a, b, format_length(point_distance(b, a), decimals)) for a, b in pairs if a != b]
+
+
 def app_snap_centers(kind, features, current_pt):
     clicked_geo = []
     for feature in features:

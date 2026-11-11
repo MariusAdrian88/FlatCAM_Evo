@@ -2724,6 +2724,10 @@ class App(QtCore.QObject):
         if self.call_source == 'app':
             return
 
+        # a measurement started in the editor stops first: it gives the mouse and call_source back to the editor
+        if self.call_source == 'measurement' and self.distance_tool is not None and self.distance_tool.active:
+            self.distance_tool.on_exit()
+
         if self.call_source == 'geo_editor' and AppGeoEditor.reject_busy(self.geo_editor):
             return 'fail'
         if (self.call_source == 'grb_editor' and isinstance(self.grb_editor, AppGerberEditor) and

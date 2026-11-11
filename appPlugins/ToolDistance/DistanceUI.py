@@ -19,6 +19,8 @@ class DistanceUI:
         self.decimals = self.app.decimals
         self.layout = layout
         self.units = self.app.app_units.lower()
+        # the unit labels of the tab; set_units() follows a units change of the app
+        self.unit_labels = []
 
         title_label = FCLabel("<font size=4><b>%s</b></font><br>" % self.pluginName)
         self.layout.addWidget(title_label)
@@ -65,7 +67,7 @@ class DistanceUI:
         self.start_entry.setToolTip(_("This is measuring Start point coordinates."))
         coords_grid.addWidget(self.start_label, 0, 0)
         coords_grid.addWidget(self.start_entry, 0, 1)
-        coords_grid.addWidget(FCLabel("%s" % self.units), 0, 2)
+        coords_grid.addWidget(self.unit_label(), 0, 2)
 
         self.stop_label = FCLabel("%s:" % _('End point'))
         self.stop_label.setToolTip(_("This is the measuring Stop point coordinates."))
@@ -75,7 +77,7 @@ class DistanceUI:
         self.stop_entry.setToolTip(_("This is the measuring Stop point coordinates."))
         coords_grid.addWidget(self.stop_label, 2, 0)
         coords_grid.addWidget(self.stop_entry, 2, 1)
-        coords_grid.addWidget(FCLabel("%s" % self.units), 2, 2)
+        coords_grid.addWidget(self.unit_label(), 2, 2)
 
         # Results Frame
         self.res_label = FCLabel('%s' % _("Results"), color='red', bold=True)
@@ -93,7 +95,7 @@ class DistanceUI:
         self.distance_x_entry.setToolTip(_("This is the distance measured over the X axis."))
         res_grid.addWidget(self.distance_x_label, 0, 0)
         res_grid.addWidget(self.distance_x_entry, 0, 1)
-        res_grid.addWidget(FCLabel("%s" % self.units), 0, 2)
+        res_grid.addWidget(self.unit_label(), 0, 2)
 
         self.distance_y_label = FCLabel('%s:' % _("Dy"))
         self.distance_y_label.setToolTip(_("This is the distance measured over the Y axis."))
@@ -103,7 +105,7 @@ class DistanceUI:
         self.distance_y_entry.setToolTip(_("This is the distance measured over the Y axis."))
         res_grid.addWidget(self.distance_y_label, 2, 0)
         res_grid.addWidget(self.distance_y_entry, 2, 1)
-        res_grid.addWidget(FCLabel("%s" % self.units), 2, 2)
+        res_grid.addWidget(self.unit_label(), 2, 2)
 
         self.angle_label = FCLabel('%s:' % _("Angle"))
         self.angle_label.setToolTip(_("This is orientation angle of the measuring line."))
@@ -139,7 +141,7 @@ class DistanceUI:
         self.total_distance_entry.setToolTip(_("This is the point to point Euclidian distance."))
         res_grid.addWidget(self.total_distance_label, 10, 0)
         res_grid.addWidget(self.total_distance_entry, 10, 1)
-        res_grid.addWidget(FCLabel("%s" % self.units), 10, 2)
+        res_grid.addWidget(self.unit_label(), 10, 2)
 
         self.segment_distance_label = FCLabel('%s:' % _("Segment"))
         self.segment_distance_entry = FCEntry()
@@ -149,7 +151,7 @@ class DistanceUI:
         self.segment_distance_entry.setToolTip(_("Current preview segment, or last committed segment when finished."))
         res_grid.addWidget(self.segment_distance_label, 12, 0)
         res_grid.addWidget(self.segment_distance_entry, 12, 1)
-        res_grid.addWidget(FCLabel("%s" % self.units), 12, 2)
+        res_grid.addWidget(self.unit_label(), 12, 2)
         self.point_count_label = FCLabel('%s:' % _("Points"))
         self.point_count_entry = FCEntry()
         self.point_count_entry.setReadOnly(True)
@@ -164,24 +166,15 @@ class DistanceUI:
         GLay.set_common_column_size([param_grid, coords_grid, res_grid], 0)
         self.layout.addStretch(1)
 
-    @staticmethod
-    def add_utility_shape(shapes, meas_line):
-        settings = QtCore.QSettings("Open Source", "FlatCAM_EVO")
-        if settings.contains("theme"):
-            theme = settings.value('theme', type=str)
-        else:
-            theme = 'default'
-        if settings.contains("dark_canvas"):
-            dark_canvas = settings.value('dark_canvas', type=bool)
-        else:
-            dark_canvas = False
-        if (theme == 'default' or theme == 'light') and not dark_canvas:
-            color = '#000000FF'
-        else:
-            color = '#FFFFFFFF'
-        shape = shapes.add(meas_line, color=color, update=False, layer=0, tolerance=None, linewidth=2)
-        shapes.redraw()
-        return shape
+    def unit_label(self):
+        label = FCLabel("%s" % self.units)
+        self.unit_labels.append(label)
+        return label
+
+    def set_units(self, units):
+        self.units = units
+        for label in self.unit_labels:
+            label.setText("%s" % units)
 
     def reset_results(self, decimals):
         self.angle_entry.set_value('%.*f' % (decimals, 0.0))

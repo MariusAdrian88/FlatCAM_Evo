@@ -8,18 +8,17 @@
 from PyQt6 import QtWidgets, QtCore
 from appTool import AppTool
 from appGUI.GUIElements import VerticalScrollArea
-from camlib import AppRTreeStorage
-from appEditors.appGeoEditor import DrawToolShape
 from defaults import AppDefaults
 from appPlugins.ToolDistance.DistanceUI import DistanceUI
 from appPlugins.ToolDistance.DistanceGen import (
-    point_distance, point_deltas, measurement_angle, closest_center, app_snap_index, editor_snap_index)
+    point_distance, point_deltas, measurement_angle, closest_center, app_snap_index, editor_snap_index,
+    click_action, preview_active, dimension_segments, NEW, CLOSE, CANCEL, EXIT)
 
 import logging
 from copy import copy
 import numpy as np
 
-from shapely import Point, LineString
+from shapely import Point
 
 import gettext
 import appTranslation as fcTranslate
@@ -49,20 +48,22 @@ class Distance(AppTool):
         self.ui = DistanceUI(layout=self.layout, app=self.app)
         self.pluginName = self.ui.pluginName
 
-        # store here the first click and second click of the measurement process
+        # the committed points of the current (or last closed) measurement
         self.points = []
 
+        # the tool is active (it owns the canvas mouse events)
         self.active = False
-        self.clicked_meas = None
-        self.meas_line = None
+        # a measurement is open (OPEN state); False is the READY state
+        self.measuring = False
+        # last cursor position, the free end of the preview segment
+        self.cursor_pos = None
+        # units of the values shown on the Tool tab; a units change makes them stale
+        self.results_units = None
 
         self.original_call_source = 'app'
 
         # monitor if the tool was used
         self.tool_done = False
-
-        # holds the key for the last plotted utility shape
-        self.last_shape = None
 
         self.total_distance = 0.0
 
@@ -83,8 +84,10 @@ class Distance(AppTool):
             "global_cursor_type",
             app_defaults.get("global_cursor_type", AppDefaults.factory_defaults.get("global_cursor_type")))
 
-        # VisPy visuals
-        self.sel_shapes = self.app.plotcanvas.new_shape_collection(layers=1)
+        # dimension graphics (DimensionLines), made on the first draw
+        self.dims = None
+        # segments of the earlier measurements of this tool session; they stay on the canvas until the tool stops
+        self.kept_segments = []
 
         # Signals
         self.ui.measure_btn.clicked.connect(self.on_start_measuring)
@@ -157,15 +160,16 @@ class Distance(AppTool):
         self.units = self.app.app_units.lower()
 
     def reset_measurement(self):
-        self.points[:] = []
+        # The Tool tab is not touched: its values survive a tool restart. Only the start of a new
+        # measurement (begin_measurement) clears them.
+        self.points = []
+        self.measuring = False
         self.tool_done = False
-        self.last_shape = None
         self.total_distance = 0.0
-        self.clicked_meas = 0
         self.mouse_is_dragging = False
         self.invalidate_snap_cache()
-        self.delete_all_shapes()
-        self.initial_view()
+        self.kept_segments = []
+        self.clear_dimensions()
 
     def install(self, icon=None, separator=None, **kwargs):
         AppTool.install(self, icon, separator, shortcut='Ctrl+M', **kwargs)
@@ -233,8 +237,11 @@ class Distance(AppTool):
         self.app.ui.grid_snap_btn.trigger()
         self.app.ui.grid_snap_btn.trigger()
 
-        # initial view of the layout
-        self.initial_view()
+        DistanceUI.set_units(self.ui, self.units)
+        # the results of the last measurement stay on the tab unless the units changed since
+        if self.results_units != self.units:
+            self.initial_view()
+            self.results_units = self.units
 
         big_cursor = self.ui.big_cursor_cb.get_value()
         self.app.on_cursor_type(val="big" if big_cursor else "small", control_cursor=True)
@@ -335,10 +342,10 @@ class Distance(AppTool):
         if not self.active:
             return
         owns_interaction = self.app.call_source == 'measurement'
-        # DISABLE the Measuring TOOL
+        # DISABLE the Measuring TOOL. The Tool tab keeps the values of the last measurement.
         self.active = False
+        self.measuring = False
         self.points = []
-        self.last_shape = None
         self.total_distance = 0.0
         self.mouse_is_dragging = False
         self.invalidate_snap_cache()
@@ -349,8 +356,9 @@ class Distance(AppTool):
 
         self.ui_disconnect()
 
-        # delete the measuring line
-        self.delete_all_shapes()
+        # remove the dimension graphics of all the measurements
+        self.kept_segments = []
+        self.clear_dimensions()
 
         if not owns_interaction:
             return
@@ -376,21 +384,69 @@ class Distance(AppTool):
         if len(self.points) > 1:
             self.total_distance += point_distance(self.points[-1], self.points[-2])
         self.display_committed_results()
+        self.redraw_dimensions()
         if not self.ui.multipoint_cb.get_value():
             if len(self.points) == 1:
                 self.app.inform.emit(_("Click on the DESTINATION point ..."))
             else:
                 self.tool_done = True
-                self.on_exit()
-                self.app.inform.emit("[success] %s" % _("Done."))
+                self.app.inform.emit("[success] %s %s" % (_("Done."), self.next_step_hint()))
             return
-        self.delete_utility_shape(self.last_shape)
-        self.last_shape = None
-        if len(self.points) > 1:
-            self.add_utility_shape(self.points[-2], self.points[-1])
-            # last_shape identifies only the uncommitted preview, never a saved segment.
-            self.last_shape = None
         self.app.inform.emit(_("Click to add next point or right click to finish. Backspace removes the last point."))
+
+    @staticmethod
+    def next_step_hint():
+        return _("Left click: new measurement. Right click: exit.")
+
+    def begin_measurement(self):
+        """Left click in READY: clear the tab; the click becomes point 1. The graphics of the earlier
+        measurements stay on the canvas until the tool stops."""
+        self.kept_segments += dimension_segments(self.points, self.decimals)
+        self.points = []
+        self.total_distance = 0.0
+        self.measuring = True
+        self.tool_done = False
+        self.initial_view()
+        self.results_units = self.units
+        self.redraw_dimensions()
+
+    def close_measurement(self, cancel=False):
+        """Right click in OPEN: back to READY. A close keeps the tab values and the committed graphics;
+        a cancel (fewer than 2 points) leaves zeros on the tab and removes only its own graphics."""
+        self.measuring = False
+        if cancel:
+            self.points = []
+            self.total_distance = 0.0
+            self.initial_view()
+            self.redraw_dimensions()
+            self.app.inform.emit("[WARNING_NOTCL] %s %s" % (_("Cancelled."), self.next_step_hint()))
+            return
+        self.display_committed_results()
+        self.redraw_dimensions()
+        self.tool_done = True
+        self.app.inform.emit("[success] %s %s" % (_("Done."), self.next_step_hint()))
+
+    def dimension_lines(self):
+        if self.dims is None:
+            # imported here: the visual is needed only once the tool draws
+            from appGUI.DimensionVisual import DimensionLines
+            self.dims = DimensionLines(self.canvas)
+        return self.dims
+
+    def redraw_dimensions(self):
+        """Earlier measurements, the committed segments and, while the measurement takes points, the preview
+        to the cursor."""
+        show_preview = preview_active(self.measuring, self.ui.multipoint_cb.get_value(), len(self.points))
+        cursor = self.cursor_pos if show_preview else None
+        segments = self.kept_segments + dimension_segments(self.points, self.decimals, cursor)
+        if segments:
+            self.dimension_lines().set_data(segments)
+        else:
+            self.clear_dimensions()
+
+    def clear_dimensions(self):
+        if self.dims is not None:
+            self.dims.clear()
 
     def display_committed_results(self):
         start = self.points[0] if self.points else (0.0, 0.0)
@@ -406,16 +462,19 @@ class Distance(AppTool):
         self.app.ui.update_location_labels(dx=dx, dy=dy, x=end[0], y=end[1])
 
     def undo_last_point(self):
-        if not self.active or not self.ui.multipoint_cb.get_value() or not self.points:
+        if not self.active or not self.measuring or not self.ui.multipoint_cb.get_value() or not self.points:
             return
         self.points.pop()
         self.total_distance = sum(point_distance(b, a) for a, b in zip(self.points, self.points[1:]))
-        self.delete_all_shapes()
-        self.last_shape = None
-        for start, end in zip(self.points, self.points[1:]):
-            self.add_utility_shape(start, end)
-        self.last_shape = None
+        if not self.points:
+            # nothing left to measure from: back to READY
+            self.measuring = False
+            self.initial_view()
+            self.redraw_dimensions()
+            self.app.inform.emit(_("MEASURING: Click on the Start point ..."))
+            return
         self.display_committed_results()
+        self.redraw_dimensions()
 
     def invalidate_snap_cache(self, *args):
         self._snap_cache = {}
@@ -482,9 +541,9 @@ class Distance(AppTool):
 
     def on_multipoint_measurement_changed(self, val):
         DistanceUI.on_multipoint_measurement_changed(self.ui, val)
-        if self.active:
-            self.reset_measurement()
-            self.app.inform.emit(_("MEASURING: Click on the Start point ..."))
+        if self.active and self.measuring:
+            # the open measurement belongs to the other mode: close it as a right click would
+            self.close_measurement(cancel=len(self.points) < 2)
 
     def on_cursor_change(self, val):
         self.app.options['tools_dist_big_cursor'] = bool(val)
@@ -529,16 +588,18 @@ class Distance(AppTool):
         self.mouse_is_dragging = False
         if dragging:
             return
-        if event.button == 2:
-            if self.ui.multipoint_cb.get_value():
-                self.display_committed_results()
-                self.tool_done = True
-                self.app.inform.emit("[success] %s" % _("Done."))
-            else:
-                self.app.inform.emit('[WARNING_NOTCL] %s' % _("Cancelled."))
-            self.on_exit()
+        action = click_action(self.measuring, event.button, self.ui.multipoint_cb.get_value(), len(self.points))
+        if action is None:
             return
-        if event.button != 1:
+        if action == EXIT:
+            already_done = self.tool_done
+            self.on_exit()
+            self.close_plugin_tab()
+            if already_done:
+                self.app.inform.emit('%s' % _("Done."))
+            return
+        if action in (CLOSE, CANCEL):
+            self.close_measurement(cancel=action == CANCEL)
             return
         snap_enabled = self.ui.snap_center_cb.get_value()
 
@@ -555,10 +616,13 @@ class Distance(AppTool):
             pos = self.snap_handler(pos=(pos_canvas[0], pos_canvas[1]))
 
         if pos is not None and self.active:
+            if action == NEW:
+                self.begin_measurement()
             # Reset here the relative coordinates so there is a new reference on the click position
             if len(self.points) == 1:
                 self.app.ui.update_location_labels(0.0, 0.0, pos[0], pos[1])
 
+            self.cursor_pos = pos
             self.points.append(pos)
             self.calculate_distance(pos=pos)
 
@@ -589,10 +653,10 @@ class Distance(AppTool):
             # ------------------------------------------------------------
             dx = pos[0]
             dy = pos[1]
-            if len(self.points) == 1:
+            if self.measuring and len(self.points) == 1:
                 dx = pos[0] - float(self.points[0][0])
                 dy = pos[1] - float(self.points[0][1])
-            elif len(self.points) == 2:
+            elif self.measuring and len(self.points) == 2:
                 dx = float(self.points[1][0]) - float(self.points[0][0])
                 dy = float(self.points[1][1]) - float(self.points[0][1])
             self.app.ui.update_location_labels(dx=dx, dy=dy, x=pos[0], y=pos[1])
@@ -606,12 +670,12 @@ class Distance(AppTool):
             self.app.plotcanvas.on_update_text_hud('0.0', '0.0', '0.0', '0.0')
             return
 
+        self.cursor_pos = pos
+        if not preview_active(self.measuring, multipoint, len(self.points)):
+            return
         try:
             if multipoint is False:
                 if len(self.points) == 1:
-                    # update utility geometry
-                    self.sel_shapes.clear()
-                    self.add_utility_shape(start_pos=pos)
                     # update angle
                     angle_val = self.update_angle(dx=dx, dy=dy)
                     self.display_angle(angle_val)
@@ -626,17 +690,12 @@ class Distance(AppTool):
                     self.display_distance(dist_val)
                     DistanceUI.display_feedback(self.ui, dist_val, len(self.points), self.decimals)
             else:
-                # update utility geometry
-                if self.points:
-                    if self.last_shape is not None:
-                        self.sel_shapes.remove(self.last_shape, update=False)
-                    self.add_utility_shape(start_pos=self.points[-1], end_pos=pos)
-                    segment = self.update_distance(pos, prev_pos=self.points[-1])
-                    self.display_distance(self.total_distance + segment)
-                    self.display_end(self.update_end_point(pos))
-                    DistanceUI.display_feedback(self.ui, segment, len(self.points), self.decimals)
-                else:
-                    self.delete_utility_shape(self.last_shape)
+                segment = self.update_distance(pos, prev_pos=self.points[-1])
+                self.display_distance(self.total_distance + segment)
+                self.display_end(self.update_end_point(pos))
+                DistanceUI.display_feedback(self.ui, segment, len(self.points), self.decimals)
+            # dimension graphics: committed segments + the live preview segment
+            self.redraw_dimensions()
         except Exception as e:
             self.app.log.error("Distance.on_mouse_move() update --> %s" % str(e))
             self.app.ui.update_location_labels(None, None, None, None)
@@ -676,39 +735,32 @@ class Distance(AppTool):
     def display_distance(self, val):
         DistanceUI.display_distance(self.ui, val, self.decimals)
 
-    def add_utility_shape(self, start_pos, end_pos=None):
-        # draw the new shape of the utility geometry
-        if end_pos is None:
-            meas_line = LineString([start_pos, self.points[0]])
-        else:
-            meas_line = LineString([start_pos, end_pos])
-
-        self.last_shape = DistanceUI.add_utility_shape(self.sel_shapes, meas_line)
-
-    def delete_all_shapes(self):
-        self.sel_shapes.clear()
-        self.sel_shapes.redraw()
-
-    def delete_utility_shape(self, shape):
-        if shape is not None:
-            self.sel_shapes.remove(shape, update=True)
-
-    @staticmethod
-    def make_storage():
-        # ## Shape storage.
-        storage = AppRTreeStorage()
-        storage.get_points = DrawToolShape.get_pts
-
-        return storage
-
     def on_plugin_cleanup(self):
         self.on_exit()
+        if self.dims is not None:
+            self.dims.delete()
+            self.dims = None
 
     def hideEvent(self, event):
         super().hideEvent(event)
         # takeWidget() also runs while refreshing this plugin. Check ownership
         # after the replacement has been installed, not in the middle of that swap.
         QtCore.QTimer.singleShot(0, self.on_plugin_hidden)
+
+    def close_plugin_tab(self):
+        """Close the Plugin tab when it shows this plugin. The result fields keep their values for the next start."""
+        ui = self.app.ui
+        if ui.plugin_scroll_area.widget() is not self:
+            return
+        idx = ui.notebook.indexOf(ui.plugin_tab)
+        if idx < 0:
+            return
+        # the Properties tab: in an editor it holds the editor UI
+        ui.notebook.setCurrentWidget(ui.properties_tab)
+        ui.notebook.removeTab(idx)
+        # with no objects in the project the notebook has nothing to show
+        if not self.app.collection.get_list():
+            ui.splitter.setSizes([0, 1])
 
     def on_plugin_hidden(self):
         if self.active and self.app.ui.plugin_scroll_area.widget() is not self:

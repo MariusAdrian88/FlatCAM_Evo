@@ -65,7 +65,6 @@ class TestExcellon:
 def measuring(_headless_qt):
     from PyQt6 import QtCore
     from vispy.gloo.context import FakeCanvas
-    from appGUI.VisPyVisuals import ShapeCollectionVisual
 
     class ObjectSignals(QtCore.QObject):
         object_changed = QtCore.pyqtSignal(object)
@@ -78,7 +77,6 @@ def measuring(_headless_qt):
     fake_app.defaults = {}
     fake_app.call_source = 'app'
     fake_app.dec_format.side_effect = lambda value, decimals: round(value, decimals)
-    fake_app.plotcanvas.new_shape_collection.return_value = ShapeCollectionVisual(pool=None)
     fake_app.plotcanvas.translate_coords.side_effect = lambda pos: pos
     fake_app.plotcanvas.cursor_color = '#FF0000FF'
     fake_app.collection.get_list.return_value = []
@@ -159,4 +157,144 @@ def test_pending_gerber_transform_updates_measurement_snap_and_history(measuring
     assert measuring.resolve_snap((.2, .2)) == (0, 0)
     assert measuring.resolve_snap((5.2, .2)) == (5.2, .2)
 
+
+class FakeDimensionLines:
+    """Stands in for appGUI.DimensionVisual.DimensionLines; keeps what would be on the canvas."""
+
+    def __init__(self):
+        self.segments = []
+
+    def set_data(self, segments):
+        self.segments = list(segments)
+
+    def clear(self):
+        self.segments = []
+
+    def set_color(self, color):
+        pass
+
+    def refresh(self):
+        pass
+
+    def delete(self):
+        self.segments = []
+
+
+@pytest.fixture
+def dist(measuring):
+    measuring.dims = FakeDimensionLines()
+    return measuring
+
+
+def total(tool):
+    return tool.ui.total_distance_entry.text()
+
+
+def test_right_click_closes_the_measurement_and_keeps_the_tab_and_the_tool(dist):
+    release(dist, (0, 0))
+    release(dist, (3, 4))
+    release(dist, button=2)
+    assert dist.active
+    assert total(dist) == '5.0000'
+    assert dist.dims.segments == [((0, 0), (3, 4), '5.0000')]
+
+
+def test_second_right_click_stops_the_tool_and_the_tab_keeps_the_last_result(dist):
+    notebook = dist.app.ui.notebook
+    dist.app.ui.plugin_scroll_area.widget.return_value = dist
+    notebook.indexOf.return_value = 2
+    release(dist, (0, 0))
+    release(dist, (3, 4))
+    release(dist, button=2)
+    notebook.removeTab.assert_not_called()
+    release(dist, button=2)
+    notebook.removeTab.assert_called_once_with(2)      # the Plugin tab closes
+    assert not dist.active
+    assert total(dist) == '5.0000'
+    assert dist.dims.segments == []
+    assert dist.ui.measure_btn.isEnabled()
+
+
+def test_left_click_after_a_close_clears_the_tab_and_previews_the_live_length(dist):
+    release(dist, (0, 0))
+    release(dist, (3, 4))
+    release(dist, button=2)
+    release(dist, (10, 10))
+    assert total(dist) == '0.0000'
+    assert dist.ui.point_count_entry.text() == '1'
+    assert dist.dims.segments == [((0, 0), (3, 4), '5.0000')]
+    move(dist, (10, 13))
+    assert dist.dims.segments == [((0, 0), (3, 4), '5.0000'), ((10, 10), (10, 13), '3.0000')]
+    assert total(dist) == '3.0000'
+    move(dist, (16, 18))
+    assert dist.dims.segments == [((0, 0), (3, 4), '5.0000'), ((10, 10), (16, 18), '10.0000')]
+
+
+def test_single_mode_third_left_click_starts_a_new_measurement(dist):
+    release(dist, (0, 0))
+    release(dist, (3, 4))
+    move(dist, (9, 9))
+    assert dist.dims.segments == [((0, 0), (3, 4), '5.0000')]
+    release(dist, (1, 1))
+    assert dist.active
+    assert dist.ui.point_count_entry.text() == '1'
+    release(dist, (1, 3))
+    assert total(dist) == '2.0000'
+    assert dist.dims.segments == [((0, 0), (3, 4), '5.0000'), ((1, 1), (1, 3), '2.0000')]
+    # a cancelled start removes only its own graphics; the stop of the tool removes all
+    release(dist, (7, 7))
+    release(dist, button=2)
+    assert dist.dims.segments == [((0, 0), (3, 4), '5.0000'), ((1, 1), (1, 3), '2.0000')]
+    release(dist, button=2)
+    assert not dist.active
+    assert dist.dims.segments == []
+
+
+def test_right_click_on_a_lone_start_point_cancels_it(dist):
+    release(dist, (0, 0))
+    move(dist, (3, 4))
+    release(dist, button=2)
+    assert dist.active
+    assert total(dist) == '0.0000'
+    assert dist.dims.segments == []
+
+
+def test_multipoint_right_click_keeps_committed_segments_and_drops_the_preview(dist):
+    dist.ui.multipoint_cb.set_value(True)
+    release(dist, (0, 0))
+    release(dist, (3, 4))
+    move(dist, (3, 10))
+    assert dist.dims.segments == [((0, 0), (3, 4), '5.0000'), ((3, 4), (3, 10), '6.0000')]
+    assert total(dist) == '11.0000'
+    release(dist, button=2)
+    assert dist.active
+    assert dist.dims.segments == [((0, 0), (3, 4), '5.0000')]
+    assert total(dist) == '5.0000'
+
+
+def test_right_drag_pan_neither_closes_nor_stops(dist):
+    release(dist, (0, 0))
+    release(dist, (3, 4))
+    dist.on_mouse_move(SimpleNamespace(pos=(5, 5), is_dragging=True))
+    release(dist, (6, 6), button=2)
+    release(dist, button=2)
+    assert dist.active
+    assert dist.dims.segments == [((0, 0), (3, 4), '5.0000')]
+
+
+def test_editor_exit_stops_a_running_measurement(dist):
+    from appMain import App
+    dist.on_exit()
+    app = dist.app
+    app.call_source = 'grb_editor'
+    app.distance_tool = dist
+    app.ui.notebook.count.return_value = 0
+    dist.on_start_measuring()
+    release(dist, (0, 0))
+    release(dist, (3, 4))
+    app.defaults = MagicMock()
+    App.on_editing_finished(app, cleanup=True)
+    assert not dist.active
+    assert dist.dims.segments == []
+    assert app.command_active is None
 

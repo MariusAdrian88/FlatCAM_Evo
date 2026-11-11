@@ -38,9 +38,23 @@ Linux AppImage:
 - added: the release build starts the AppImage on a clean AlmaLinux 8 X11 desktop in a container, without network and without the libraries of the build host; the check fails if the main window does not open, if a critical error dialog opens or if the VisPy canvas renders a blank picture, and it keeps a picture of the canvas
 - added: the release workflow has 2 new inputs for a manual run: "publish" (off: a validation build that does not upload the packages) and "linux_only" (builds only the AppImage)
 
+Distance:
+
+- changed: the Distance plugin stays active after a measurement; a left click with no open measurement starts a new measurement and clears the results of the Plugin tab; in the 2-point mode the 2nd left click completes the measurement and a 3rd left click starts a new one
+- changed: the 1st right click stops the measurement and keeps its results in the Plugin tab; the 2nd right click stops the plugin and closes the Plugin tab; the results stay in the fields for the next start (also after Escape and after a restart of the plugin); a right click on a lone start point cancels only that point
+- changed: the measurement line is now a dimension line: thin, with an arrowhead at each end and the length written in a gap in the middle, along the direction of the line; the length updates during the mouse move; the arrows and the text keep their size on the screen at each zoom; a line too short on the screen stays whole, with the text above it
+- changed: the dimension lines of all the measurements stay on the canvas until the plugin stops; in the multi-point mode each segment shows its own length
+- added: a VisPy visual for dimension lines (appGUI/DimensionVisual.py): 1 line visual, 1 mesh for the arrowheads and 1 text visual for all the segments; it replaces the shape collection of the Distance plugin, so the mouse move no longer builds Shapely geometry
+- changed: the measurement started from the Geometry, Gerber and Excellon editors has the same behavior; the 2nd right click brings the editor tab back
+- fixed: the exit of an editor during a measurement did not stop the Distance plugin; the cursor, the grid state and the active command were not restored
+- fixed: the unit labels of the Distance plugin kept the old unit after a change of the units
+- fixed: the delta coordinates of the status bar stayed relative to the points of a finished measurement
+- fixed: a change of the "Multi-Point" checkbox during a measurement left a broken measurement; it now stops or cancels the measurement
+
 Tests:
 
 - added: a fuzz harness for the board parsers (tests/fuzz_parsers.py); a damaged file must give a result or the parse error of its parser, never another exception, a NaN coordinate or an invalid polygon
+- fixed: the child processes of the tests (the headless runs of flatcam.py) wrote the theme, the layout and other settings into the real settings of the user; they now get the same settings replacement as the test process (tests/child_site/sitecustomize.py)
 
 10.11.2026
 
