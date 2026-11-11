@@ -89,3 +89,20 @@ def test_app_takes_a_relative_folder_from_the_working_folder_at_the_start(tmp_pa
 
     assert restarted.data_path == app.data_path
 
+
+def test_a_child_process_of_the_tests_does_not_use_the_settings_of_the_user(tmp_path):
+    # tests start flatcam.py --headless in a new process: its QSettings wrote the theme 'light' into the registry
+    import subprocess
+    code = ("from PyQt6.QtCore import QSettings; import os; "
+            "print(QSettings('Open Source', 'FlatCAM_EVO').fileName()); print(os.environ['FLATCAM_DATA_PATH'])")
+    done = subprocess.run([sys.executable, '-c', code], cwd=str(tmp_path), capture_output=True, text=True,
+                          timeout=60)
+
+    assert done.returncode == 0, done.stderr
+    settings_file, data_path = done.stdout.splitlines()
+    assert not settings_file.upper().startswith('\\HKEY'), settings_file
+    assert Path(settings_file).suffix == '.ini'
+    folder = Path(os.environ['FLATCAM_TEST_SETTINGS_DIR']).resolve()
+    assert folder in Path(settings_file).resolve().parents
+    assert data_path == os.environ['FLATCAM_DATA_PATH']
+

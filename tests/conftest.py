@@ -49,29 +49,20 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # The tests must not write the settings of the user: a test run wrote the layout 'standard' into the registry, and
 # FlatCAM then started with the standard layout. QSettings("Open Source", "FlatCAM_EVO") goes to an INI file of
 # this test session. Qt ignores QSettings.setDefaultFormat() for this constructor, so the class is replaced before
-# the application modules import it.
+# the application modules import it. The child processes of the tests get the same replacement from
+# tests/child_site/sitecustomize.py, through PYTHONPATH.
 def _isolate_qsettings():
     import atexit
     import shutil
     import tempfile
-    try:
-        from PyQt6 import QtCore
-    except ImportError:
-        return
+    from tests.child_site import sitecustomize as child_site
     folder = tempfile.mkdtemp(prefix='flatcam-test-settings-')
     atexit.register(shutil.rmtree, folder, True)
-    native = QtCore.QSettings
-
-    class TestSettings(native):
-        def __init__(self, *args, **kwargs):
-            if len(args) >= 2 and isinstance(args[1], native.Format):
-                super().__init__(*args, **kwargs)     # an explicit file: QSettings(path, format)
-                return
-            names = [arg for arg in args if isinstance(arg, str)] or ['default']
-            path = os.path.join(folder, *[name.replace(os.sep, '_') for name in names]) + '.ini'
-            super().__init__(path, native.Format.IniFormat)
-
-    QtCore.QSettings = TestSettings
+    os.environ[child_site.SETTINGS_DIR_ENV] = folder
+    site_folder = os.path.dirname(os.path.abspath(child_site.__file__))
+    paths = [path for path in os.environ.get('PYTHONPATH', '').split(os.pathsep) if path and path != site_folder]
+    os.environ['PYTHONPATH'] = os.pathsep.join([site_folder] + paths)
+    child_site.isolate_qsettings(folder)
 
 
 _isolate_qsettings()
