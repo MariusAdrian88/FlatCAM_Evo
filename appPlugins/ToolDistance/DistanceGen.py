@@ -1,7 +1,9 @@
 """Distance math and geometry-only snap selection."""
 
 import math
-from shapely import Point, MultiLineString, Polygon
+import numpy as np
+import shapely
+from shapely import Point, MultiLineString, LineString, LinearRing, Polygon
 from shapely.strtree import STRtree
 from appParsers.feature_access import iter_features
 from camlib import flatten_shapely_geometry
@@ -99,6 +101,52 @@ def exc_snap_position(geometry, pos):
     return pos
 
 
+def trace_half_width(size):
+    """Half the width of a trace: half the aperture 'size' (the diameter of a C aperture), 0 when it is unknown."""
+    return size / 2.0 if isinstance(size, (int, float)) and not isinstance(size, bool) and size > 0 else 0.0
+
+
+class VertexIndex:
+    """End points and vertices of the Gerber traces, queried with an STRtree.
+
+    ``vertices`` is a list of ``(coordinates, half width)``. A vertex snaps when the cursor is not farther than
+    ``max(half width of its trace, tolerance)``; the tolerance is the screen tolerance in data units. With
+    ``copper`` given, only the vertices that lie on the composed copper are kept: a vertex a clear object
+    erased is not a target.
+    """
+
+    def __init__(self, vertices, copper=None):
+        coords = np.array([v[0] for v in vertices], dtype=float).reshape(-1, 2)
+        halves = np.array([v[1] for v in vertices], dtype=float)
+        if copper is not None and len(coords):
+            hits = STRtree(copper).query(shapely.points(coords), predicate='covered_by')[0]
+            keep = np.unique(hits)
+            coords, halves = coords[keep], halves[keep]
+        self.coords, self.halves = coords, halves
+        self.max_half = float(halves.max()) if len(halves) else 0.0
+        self.tree = STRtree(shapely.points(coords)) if len(coords) else None
+
+    def closest(self, current_pt, tolerance=0.0):
+        if self.tree is None:
+            return None
+        tolerance = tolerance if tolerance == tolerance and tolerance > 0 else 0.0
+        hits = self.tree.query(current_pt, predicate='dwithin', distance=max(self.max_half, tolerance))
+        best = None
+        for i in hits:
+            d = math.hypot(self.coords[i][0] - current_pt.x, self.coords[i][1] - current_pt.y)
+            if d <= max(self.halves[i], tolerance) and (best is None or (d, int(i)) < best):
+                best = (d, int(i))
+        return None if best is None else Point(self.coords[best[1]])
+
+
+def trace_vertices(follow, size):
+    """The ``(xy, half width)`` entries of a trace follow line; nothing for any other geometry."""
+    if not isinstance(follow, (LineString, MultiLineString, LinearRing)) or follow.is_empty:
+        return []
+    half = trace_half_width(size)
+    return [((float(x), float(y)), half) for x, y in shapely.get_coordinates(follow)]
+
+
 class SnapIndex:
     """A session snapshot: footprint containment first, nearest center second.
 
@@ -111,6 +159,13 @@ class SnapIndex:
         self.centers = centers
         self.copper = None if copper is None else STRtree(copper)
         self.editor_shapes: list | None = None
+        self.vertex_source = None     # callable that builds the VertexIndex on first use
+        self._vertices = None
+
+    def closest_vertex(self, current_pt, tolerance=0.0):
+        if self._vertices is None and self.vertex_source is not None:
+            self._vertices = self.vertex_source()
+        return None if self._vertices is None else self._vertices.closest(current_pt, tolerance)
 
     def closest(self, current_pt):
         if self.copper is not None and not self.copper.query(current_pt, predicate='covered_by').size:
@@ -143,7 +198,16 @@ def app_snap_index(obj):
         footprints.append(feature.solid)
         centers.append(feature.follow if obj.kind == 'gerber' else feature.solid.centroid)
     copper = flatten_shapely_geometry(obj.solid_geometry) if obj.kind == 'gerber' else None
-    return SnapIndex(footprints, centers, copper=copper)
+    index = SnapIndex(footprints, centers, copper=copper)
+    if obj.kind == 'gerber':
+        def build():
+            vertices = []
+            for feature in iter_features(obj):
+                if feature.kind == 'route' and feature.polarity == 'dark':
+                    vertices.extend(trace_vertices(feature.follow, feature.size))
+            return VertexIndex(vertices, copper)
+        index.vertex_source = build
+    return index
 
 
 def editor_snap_index(source, storage_dict):
@@ -176,4 +240,17 @@ def editor_snap_index(source, storage_dict):
     index = SnapIndex(footprints, centers)
     if source == 'exc_editor':
         index.editor_shapes = editor_shapes
+    else:
+        def build():
+            vertices = []
+            for key, storage in storage_dict.items():
+                if key == 0 or storage.get('type') == 'REG':
+                    continue
+                for shape in storage.get('geometry', ()):
+                    geometry = shape.geo
+                    solid = geometry.get('solid')
+                    if solid is not None and not solid.is_empty:
+                        vertices.extend(trace_vertices(geometry.get('follow'), storage.get('size')))
+            return VertexIndex(vertices)
+        index.vertex_source = build
     return index

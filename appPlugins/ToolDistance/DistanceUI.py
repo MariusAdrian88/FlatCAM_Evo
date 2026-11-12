@@ -39,6 +39,11 @@ class DistanceUI:
               "including its boundary. Hovering doesn't move the mouse pointer.")
         )
         param_grid.addWidget(self.snap_center_cb, 0, 0, 1, 2)
+        self.snap_vertex_cb = FCCheckBox(_("Snap to vertex"))
+        self.snap_vertex_cb.setToolTip(
+            _("Snap to the end points and the vertices of the traces (Gerber lines).")
+        )
+        param_grid.addWidget(self.snap_vertex_cb, 1, 0, 1, 2)
         self.multipoint_cb = FCCheckBox(_("Multi-Point"))
         self.multipoint_cb.setToolTip(
             _("Make a measurement over multiple distance segments.\n"

@@ -134,7 +134,8 @@ def full_state(obj):
     tools = {}
     for apid, tool in obj.tools.items():
         meta = {k: (id(v) if k == 'macro' else v) for k, v in tool.items() if k != 'geometry'}
-        records = [{k: (v.wkb, v.geom_type) for k, v in rec.items()} for rec in tool.get('geometry', ())]
+        records = [{k: ((v.wkb, v.geom_type) if hasattr(v, 'wkb') else v) for k, v in rec.items()}
+                   for rec in tool.get('geometry', ())]
         tools[apid] = (meta, records)
     return {
         'tools': tools,

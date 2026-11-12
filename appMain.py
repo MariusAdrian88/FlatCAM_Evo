@@ -3192,12 +3192,15 @@ class App(QtCore.QObject):
         self.log.debug("   %s" % kind)
         self.log.debug("   %s" % filename)
 
+        from appGUI.WelcomeDialog import unique_recent
+
         record = {'kind': str(kind), 'filename': str(filename)}
-        # a file that is opened again moves to the top of the list
-        target = self.recent_projects if record['kind'] == 'project' else self.recent
-        if record in target:
-            target.remove(record)
-        target.insert(0, record)
+        # a file that is opened again moves to the top of the list; the same file with other slashes or other case
+        # (Windows) is the same record
+        if record['kind'] == 'project':
+            self.recent_projects = unique_recent([record] + self.recent_projects)
+        else:
+            self.recent = unique_recent([record] + self.recent)
 
         if len(self.recent) > self.options.get('global_recent_limit', self.defaults.get('global_recent_limit')):  # Limit reached
             self.recent.pop()
@@ -4324,6 +4327,8 @@ class App(QtCore.QObject):
 
         :return:
         """
+        from appGUI.WelcomeDialog import unique_recent
+
         icons = {
             "gerber": self.resource_location + "/flatcam_icon16.png",
             "pcbdoc": self.resource_location + "/flatcam_icon16.png",
@@ -4424,9 +4429,9 @@ class App(QtCore.QObject):
             except (OSError, ValueError) as error:
                 self.log.error('Failed to load %s: %s', basename, error)
                 self.inform.emit('[WARNING_NOTCL] %s' % _("Failed to load recent item list."))
-            setattr(self, attribute, [record for record in records if isinstance(record, dict)
-                                     and isinstance(record.get('kind'), str)
-                                     and isinstance(record.get('filename'), str) and record['filename']])
+            setattr(self, attribute, unique_recent([
+                record for record in records if isinstance(record, dict) and isinstance(record.get('kind'), str)
+                and isinstance(record.get('filename'), str) and record['filename']]))
 
         # Closure needed to create callbacks in a loop.
         # Otherwise, late binding occurs.

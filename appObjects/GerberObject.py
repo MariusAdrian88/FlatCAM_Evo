@@ -25,6 +25,7 @@ from shapely.ops import unary_union
 from appParsers.DXF.writer import build_dxf
 
 import numpy as np
+import shapely
 from copy import deepcopy
 from hashlib import sha256
 
@@ -159,6 +160,8 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
         self.aperture_macros = deepcopy(getattr(src, 'aperture_macros', self.aperture_macros))
         self.source_file = deepcopy(getattr(src, 'source_file', self.source_file))
         self.export_as_regions = bool(getattr(src, 'export_as_regions', False))
+        # the copied records keep their 'seq' numbers
+        self.records_in_order = getattr(src, 'records_in_order', False) is True
         # the X2 / X3 attributes: the 'to' ids of the copied records refer to the table
         for name in ('attributes', 'to_attributes', 'file_attributes'):
             if hasattr(src, name):
@@ -1387,7 +1390,7 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
             self.app.log.error("%s.export_dxf() -> %s" % (type(self).__name__, str(e)))
             return None
 
-    def export_gerber(self, whole, fract, g_zeros='L', factor=1):
+    def export_gerber(self, whole, fract, g_zeros='L', factor=1, parts=False):
         """
         Creates a Gerber file content to be exported to a file.
 
@@ -1395,6 +1398,8 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
         :param fract: how many decimals in coordinates
         :param g_zeros: type of the zero suppression used: LZ or TZ; string
         :param factor: factor to be applied onto the Gerber coordinates
+        :param parts: True: return (definitions of the block apertures, body) instead of one text, so a Step and
+                      Repeat block can hold the body only
         :return: Gerber_code
         """
         # self.app.log.debug("GerberObject.export_gerber() --> Generating the Gerber code from the selected Gerber file")
@@ -1475,6 +1480,79 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
         # Gerber code is stored here
         gerber_parts = []
 
+        # The records in order, each one as its own object (see appParsers.gerber_export_plan): the clear objects stay
+        # clear objects, each flash keeps its flash point. (Per aperture, as below, a clear object would erase the
+        # wrong objects, and the region export keeps no flash.) The block apertures are definitions: they are returned
+        # apart for a caller that puts the body in a Step and Repeat block.
+        if Gerber.uses_record_plan(self):
+            from appParsers.gerber_export_plan import build_export_plan
+            plan = build_export_plan(self)
+            definitions = []
+            for code, pieces in plan.blocks.items():
+                definitions.append('%%ABD%d*%%\n' % code)
+                for piece in pieces:
+                    definitions.append('G36*\n')
+                    definitions.append(path_code(piece.exterior.coords, skip_repeated=False))
+                    definitions.append('D02*\nG37*\n')
+                definitions.append('%AB*%\n')
+
+            # The points of all the flashes and the centre lines, read in one call. A point equal to the one
+            # before it in the same line is left out, as path_code() does.
+            ap_items = [item for item in plan.items if item[0] != 'region']
+            follows = np.empty(len(ap_items), dtype=object)
+            follows[:] = [item[2] for item in ap_items]
+            is_flash = (shapely.get_type_id(follows) == 0).tolist() if len(follows) else []
+            coords, owner = shapely.get_coordinates(follows, return_index=True)
+            if len(coords) > 1:
+                keep = np.ones(len(coords), dtype=bool)
+                keep[1:] = (owner[1:] != owner[:-1]) | np.any(coords[1:] != coords[:-1], axis=1)
+                coords, owner = coords[keep], owner[keep]
+            counts = np.bincount(owner, minlength=len(follows))
+            starts = (np.cumsum(counts) - counts).tolist()
+            counts = counts.tolist()
+            values = (coords * factor).ravel().tolist()
+
+            selected = None
+            polarity = 'D'
+            number = -1
+            write_to = bool(to_table)
+            for kind, code, _point, is_clear, geo_elem in plan.items:
+                if write_to:
+                    gerber_parts.append(to_code(geo_elem or {}))
+                if is_clear != (polarity == 'C'):
+                    polarity = 'C' if is_clear else 'D'
+                    gerber_parts.append('%%LP%s*%%\n' % polarity)
+                if kind == 'region':
+                    gerber_parts.append('G36*\n')
+                    gerber_parts.append(path_code(code.exterior.coords, skip_repeated=False))
+                    gerber_parts.append('D02*\nG37*\n')
+                    if code.interiors:
+                        # a part that kept its holes (hole_free_parts() could not open them): the holes in the
+                        # other polarity
+                        gerber_parts.append('%%LP%s*%%\n' % ('D' if is_clear else 'C'))
+                        for ring in code.interiors:
+                            gerber_parts.append('G36*\n')
+                            gerber_parts.append(path_code(ring.coords, skip_repeated=False))
+                            gerber_parts.append('D02*\nG37*\n')
+                        gerber_parts.append('%%LP%s*%%\n' % polarity)
+                    continue
+                if code != selected:
+                    selected = code
+                    gerber_parts.append('D%s*\n' % str(code))
+                number += 1
+                count = counts[number]
+                first = 2 * starts[number]
+                points = tuple(values[first:first + 2 * count])
+                if is_flash[number]:
+                    gerber_parts.append(clean(flash_fmt % points))
+                else:
+                    gerber_parts.append(clean((move_fmt + draw_fmt * (count - 1)) % points))
+            if polarity == 'C':
+                gerber_parts.append('%LPD*%\n')
+            if parts:
+                return ''.join(definitions), ''.join(gerber_parts)
+            return ''.join(definitions) + ''.join(gerber_parts)
+
         # apertures processing
         try:
             if 0 in self.tools:
@@ -1528,9 +1606,9 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
 
         if not self.tools:
             self.app.log.debug("FlatCAMObj.GerberObject.export_gerber() --> Gerber Object is empty: no apertures.")
-            return 'fail'
+            return ('', 'fail') if parts else 'fail'
 
-        return ''.join(gerber_parts)
+        return ('', ''.join(gerber_parts)) if parts else ''.join(gerber_parts)
 
     def from_dict(self, d):
         FlatCAMObj.from_dict(self, d)
@@ -1598,6 +1676,13 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
                         grb_final.to_attributes = {}
                     to_map = merge_to_table(grb_final.to_attributes, src_to)
 
+                # The 'seq' numbers of the records of grb come after the ones already in grb_final: the export
+                # then writes the objects of grb after the objects before it, each object with its own order
+                # (the export adds what the order of 2 objects can not give, see gerber_export_plan).
+                seq_offset = 1 + max((record['seq'] for tool in grb_final.tools.values()
+                                      for record in tool.get('geometry') or ()
+                                      if type(record.get('seq')) is int), default=-1)
+                first_new = {id(tool) for tool in grb_final.tools.values()}
                 for ap in grb.tools:
                     if ap not in grb_final.tools:
                         grb_final.tools[ap] = deepcopy_keep_geometry(grb.tools[ap])
@@ -1612,6 +1697,13 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
                         for k, v in grb.tools[ap].items():
                             grb_final.tools[max_ap][k] = deepcopy_keep_geometry(v)
                         remap_to_ids(grb_final.tools[max_ap], to_map)
+                if seq_offset:
+                    for tool in grb_final.tools.values():
+                        if id(tool) in first_new:
+                            continue
+                        for record in tool.get('geometry') or ():
+                            if type(record.get('seq')) is int:
+                                record['seq'] += seq_offset
 
         # once the aperture metadata of a source can't describe its geometry, it can't describe the merge either
         grb_final.export_as_regions = bool(getattr(grb_final, 'export_as_regions', False) or

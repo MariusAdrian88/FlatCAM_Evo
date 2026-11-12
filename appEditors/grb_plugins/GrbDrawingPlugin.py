@@ -70,7 +70,10 @@ def copper_pour(editor, outline, clearance, quad_segs):
         raise ValueError(_("Clearance exceeds the coordinate range."))
     result = outline
     for index in sorted(tree.query(box(*bounds))):
-        solid = refs[index][2].geo['solid']
+        solid = refs[index][2].geo.get('solid')
+        if solid is None or solid.is_empty:
+            # a clear object (Native load) is no copper
+            continue
         parts = solid.geoms if isinstance(solid, MultiPolygon) else [solid]
         for polygon in parts:
             if not isinstance(polygon, Polygon):

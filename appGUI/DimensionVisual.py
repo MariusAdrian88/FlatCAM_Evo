@@ -121,16 +121,19 @@ class DimensionLines:
     # drawn after the plotted objects (order 0) of the view scene
     ORDER = 1
 
-    def __init__(self, plotcanvas, color=None, font_size=9, line_width=1.0):
+    def __init__(self, plotcanvas, color=None, font_size=9, line_width=1.0, bold=False):
         """
         :param plotcanvas:  the plot canvas (app.plotcanvas)
         :param color:       any VisPy color; None follows the canvas theme (white on a dark canvas, else black)
         :param font_size:   text size in points
-        :param line_width:  line width in pixels
+        :param line_width:  line width in pixels; above 1 the lines are drawn as quads of the mesh (the GL line
+                            width above 1 px is not supported by all drivers)
+        :param bold:        bold text
         """
         self.canvas = plotcanvas
         self.font_size = float(font_size)
-        self.line_width = float(line_width)
+        self.line_width = max(float(line_width), 1.0)
+        self.bold = bool(bold)
         self.color = color if color is not None else self._theme_color(plotcanvas)
 
         self._segments = []
@@ -149,12 +152,12 @@ class DimensionLines:
 
         parent = plotcanvas.view.scene
         self.line = scene.visuals.Line(pos=np.zeros((2, 2), dtype=np.float32), connect='segments',
-                                       width=self.line_width, color=self.color, method='gl', antialias=False,
+                                       width=1.0, color=self.color, method='gl', antialias=False,
                                        parent=parent)
         self.mesh = scene.visuals.Mesh(vertices=np.zeros((3, 2), dtype=np.float32),
                                        faces=np.array([[0, 1, 2]], dtype=np.uint32), color=self.color, parent=parent)
         # glyphs made on the CPU like the HUD text: the GPU atlas can be corrupted by the culling state of the objects
-        self.text = scene.visuals.Text('', color=self.color, font_size=self.font_size, method='cpu',
+        self.text = scene.visuals.Text('', color=self.color, font_size=self.font_size, bold=self.bold, method='cpu',
                                        anchor_x='center', anchor_y='center', parent=parent)
         for visual in (self.line, self.mesh, self.text):
             visual.set_gl_state('translucent', depth_test=False)
@@ -266,6 +269,27 @@ class DimensionLines:
                            color=color)
         self.text.color = color
 
+    def set_style(self, line_width=None, font_size=None, bold=None):
+        """
+        :param line_width:  line width in pixels (None keeps it)
+        :param font_size:   text size in points (None keeps it)
+        :param bold:        bold text (None keeps it)
+        :return:            None
+        """
+        if line_width is not None:
+            self.line_width = max(float(line_width), 1.0)
+        if font_size is not None:
+            self.font_size = float(font_size)
+        if bold is not None:
+            self.bold = bool(bold)
+        if self._camera is None:
+            return
+        self.text.font_size = self.font_size
+        self.text.bold = self.bold
+        # the glyphs are made again for the new font
+        self._last_text = None
+        self.refresh()
+
     def refresh(self):
         """Lay out the stored dimensions again for the current zoom."""
         if self._camera is None:
@@ -304,16 +328,31 @@ class DimensionLines:
             return
 
         font_px = self._font_px()
+        width = self.line_width
+        # the arrowheads grow with the line width, else a thick line hides them
+        arrow_len = 10.0 + 2.0 * (width - 1.0)
+        arrow_half = 3.5 + 0.75 * (width - 1.0)
+        half_w = width / 2.0 / ppu
         line_pts = []
         tri_pts = []
         texts = []
         text_pos = []
         text_rot = []
         for p0, p1, label in self._segments:
-            lay = dimension_layout(p0, p1, ppu, estimate_text_width_px(label, font_px))
+            lay = dimension_layout(p0, p1, ppu, estimate_text_width_px(label, font_px), arrow_len_px=arrow_len,
+                                   arrow_half_width_px=arrow_half)
             for a, b in lay['lines']:
-                line_pts.append(a)
-                line_pts.append(b)
+                if width <= 1.0:
+                    line_pts.append(a)
+                    line_pts.append(b)
+                    continue
+                length = math.hypot(b[0] - a[0], b[1] - a[1])
+                if length == 0.0:
+                    continue
+                nx, ny = -(b[1] - a[1]) / length * half_w, (b[0] - a[0]) / length * half_w
+                c0, c1 = (a[0] + nx, a[1] + ny), (a[0] - nx, a[1] - ny)
+                c2, c3 = (b[0] - nx, b[1] - ny), (b[0] + nx, b[1] + ny)
+                tri_pts.extend((c0, c1, c2, c0, c2, c3))
             for tri in lay['arrows']:
                 tri_pts.extend(tri)
             if label and lay['lines']:

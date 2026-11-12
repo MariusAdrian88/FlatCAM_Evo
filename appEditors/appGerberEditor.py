@@ -74,6 +74,80 @@ CLICK_DRAG_THRESHOLD_PX = 5
 EDITOR_ACTION_PROPERTY = 'grb_editor_action'
 
 
+# the outline color of a clear (LPC) record in the Native load mode
+CLEAR_OUTLINE_COLOR = '#FF0000FF'
+
+
+def drawn_geometry(geo):
+    """
+    The geometry that the editor draws and picks for a record: its 'solid', or, for a clear record (a non-empty
+    'clear' and no non-empty 'solid'), its 'clear'.
+
+    :param geo: the geometry dict of a record
+    :return:    a shapely geometry, or None (the 'solid' as it is, when the record has no usable geometry)
+    """
+    solid = geo.get('solid')
+    if solid is not None and not solid.is_empty:
+        return solid
+    clear = geo.get('clear')
+    if clear is not None and not getattr(clear, 'is_empty', True):
+        return clear
+    return solid
+
+
+def is_clear_record(geo):
+    """True for a clear (LPC) record: a non-empty 'clear' and no non-empty 'solid'."""
+    solid = geo.get('solid')
+    return (solid is None or solid.is_empty) and not getattr(geo.get('clear'), 'is_empty', True)
+
+
+def native_display_geometries(shapes, cache):
+    """
+    The geometry that the canvas shows for each record of a Native load: a dark record without the clear records
+    that come after it in the file (a higher 'seq'), so the view is the composed copper. A clear record and a
+    record with no 'seq' (a new drawing, on top of all) show their drawn_geometry().
+
+    :param shapes:  the DrawToolShape of the storage
+    :param cache:   a dict that this function keeps between calls: an unchanged record and unchanged clear records
+                    give the same object again, so the canvas can keep its buffers
+    :return:        a dict {shape: shapely geometry or None}
+    """
+    clears, clear_seqs = [], []
+    for shape in shapes:
+        seq = shape.geo.get('seq')
+        if isinstance(seq, int) and is_clear_record(shape.geo):
+            clears.append(shape.geo['clear'])
+            clear_seqs.append(seq)
+    result = {shape: drawn_geometry(shape.geo) for shape in shapes}
+    # the dark records that can be under a clear record
+    dark = [shape for shape in shapes if clears and isinstance(shape.geo.get('seq'), int) and
+            not is_clear_record(shape.geo) and result[shape] is not None and not result[shape].is_empty]
+    hits = {}
+    if dark:
+        dark_idx, clear_idx = STRtree(clears).query([result[shape] for shape in dark], predicate='intersects')
+        dark_seqs = np.fromiter((shape.geo['seq'] for shape in dark), dtype=np.int64, count=len(dark))
+        keep = np.asarray(clear_seqs, dtype=np.int64)[clear_idx] > dark_seqs[dark_idx]
+        for d, c in sorted(zip(dark_idx[keep].tolist(), clear_idx[keep].tolist())):
+            hits.setdefault(d, []).append(clears[c])
+
+    kept = {}
+    for d, later in hits.items():
+        shape = dark[d]
+        geometry = result[shape]
+        later = tuple(later)
+        old = cache.get(shape)
+        if old is not None and old[0] is geometry and len(old[1]) == len(later) and \
+                all(a is b for a, b in zip(old[1], later)):
+            shown = old[2]
+        else:
+            shown = geometry.difference(unary_union(later))
+        kept[shape] = (geometry, later, shown)
+        result[shape] = shown
+    cache.clear()
+    cache.update(kept)
+    return result
+
+
 def aperture_rank(key):
     """
     Total order for aperture keys that can be int or str: numeric keys first (by value), the rest by their text.
@@ -2612,7 +2686,7 @@ class MoveEditorGrb(ShapeToolEditorGrb):
 
         for select_shape in self.draw_app.get_selected():
             geometric_data = select_shape.geo
-            geo_list.append(geometric_data['solid'])
+            geo_list.append(drawn_geometry(geometric_data))
 
         xmin, ymin, xmax, ymax = get_shapely_list_bounds(geo_list)
 
@@ -2674,7 +2748,9 @@ class MoveEditorGrb(ShapeToolEditorGrb):
                     # slice assignment: storage_dict keeps a reference to this list
                     storage[:] = [shape for shape in storage if id(shape) not in shape_ids]
                 # the moved (or copied) record keeps the object attributes (TO id) of its source
-                moved = [DrawToolShape(dict(geo_el, **({'to': shape.geo['to']} if 'to' in shape.geo else {})))
+                # (also its 'seq': the place in the file of a Native load)
+                moved = [DrawToolShape(dict(geo_el, **{key: shape.geo[key] for key in ('to', 'seq')
+                                                       if key in shape.geo}))
                          for shape, geo_el in zip(shapes, self.translated_elements(shapes, dx, dy))]
                 storage.extend(moved)
                 # a pure translation keeps the flash semantics of the records: no export re-validation
@@ -3731,6 +3807,7 @@ class AppGerberEditor(QtCore.QObject):
 
         # set when the stored geometry can no longer be saved as native apertures (the save writes regions)
         self.loaded_as_regions = False
+        self.native_load = False
 
         # this will flag if the Editor "tools" are launched from key shortcuts (True) or from menu toolbar (False)
         self.launched_from_shortcuts = False
@@ -4063,10 +4140,12 @@ class AppGerberEditor(QtCore.QObject):
             self.app.inform.emit('[ERROR_NOTCL] %s' % result['error'])
             # nothing was loaded: leave a clean state
             self.loaded_as_regions = False
+            self.native_load = False
             self.history.notify()
             return
         self.storage_dict.update(result['storage'])
         self.loaded_as_regions = result['regions']
+        self.native_load = bool(result.get('native'))
         self.autoload_apertures()
         self.touch_geometry()
         self.on_multiprocessing_finished()
@@ -4931,7 +5010,7 @@ class AppGerberEditor(QtCore.QObject):
 
         # update the GUI only with the last selected shape information's
         last_sel_geo = self.selected[-1].geo
-        last_sel_geo_solid = last_sel_geo.get('solid')
+        last_sel_geo_solid = drawn_geometry(last_sel_geo)
 
         # zoom on selected
         if last_sel_geo_solid is not None and not last_sel_geo_solid.is_empty:
@@ -5047,6 +5126,7 @@ class AppGerberEditor(QtCore.QObject):
         self.oldapcode_newapcode = {}
         self.tid2apcode = {}
         self.loaded_as_regions = False
+        self.native_load = False
         self.geo_to_delete = []
 
         self.shapes.enabled = True
@@ -5302,6 +5382,7 @@ class AppGerberEditor(QtCore.QObject):
         self.selected = []
         self.geo_to_delete = []
         self.loaded_as_regions = False
+        self.native_load = False
         self.storage_dict.clear()
         self.touch_geometry()
         self._pick_cache = None
@@ -5309,6 +5390,7 @@ class AppGerberEditor(QtCore.QObject):
         self._rendered_shapes.clear()
         self._rendered_selection.clear()
         self._rendered_geometry = {}
+        self._native_view_cache = {}
         self._render_style = None
         self._render_had_utility = False
         self._render_state = None
@@ -5453,21 +5535,27 @@ class AppGerberEditor(QtCore.QObject):
         pending = self.history.reserve()
         source = self.gerber_obj
         # read at each open: 0 loads an object with clear features as regions, 1 keeps its apertures
-        load_apertures = self.app.options.get(
+        load_mode = self.app.options.get(
             "gerber_editor_load",
             self.app.defaults.get(
                 "gerber_editor_load",
                 self.app.defaults.factory_defaults.get("gerber_editor_load")
             )
-        ) == 1
+        )
+        load_apertures = load_mode == 1
+        # 2 = Native: the records as they are, clear objects included
+        load_native = load_mode == 2
 
         def load():
-            result = {'pending': pending}
+            result = {'pending': pending, 'native': load_native}
             with self.app.proc_container.new('%s ...' % _("Loading")):
                 try:
-                    tools = AppGerberEditor.build_edit_tools(source.tools, source.solid_geometry,
-                                                             apertures=load_apertures)
-                    result['regions'] = tools is not source.tools
+                    if load_native:
+                        tools = source.tools
+                    else:
+                        tools = AppGerberEditor.build_edit_tools(source.tools, source.solid_geometry,
+                                                                 apertures=load_apertures)
+                    result['regions'] = tools is not source.tools and not load_native
                     jobs = [self.pool.apply_async(AppGerberEditor.add_apertures, args=(key, value))
                             for key, value in tools.items()]
                     result['storage'] = {key: deepcopy(value) for key, value in (job.get() for job in jobs)}
@@ -5487,8 +5575,8 @@ class AppGerberEditor(QtCore.QObject):
 
         * as its composed geometry (the polarity is already applied there): one region 'aperture' 0 with 1 record
           per polygon, the largest exterior first;
-        * with ``apertures`` set, as its apertures, with the clear features cut from the 'solid' and the 'follow'
-          of the records (see clip_edit_tools()).
+        * with ``apertures`` set, as its apertures, with clear-cut records turned into region material
+          (see clip_edit_tools()).
 
         An object without clear features is loaded as it is.
 
@@ -5528,9 +5616,8 @@ class AppGerberEditor(QtCore.QObject):
         remove. That area is the part of the clear features that is not in the composed solid, so the cut needs no
         order of the records, and the union of the cut records is the composed solid.
 
-        The records that hold only a clear feature are dropped, and no record keeps its 'clear'. The editor draws only
-        a Polygon solid, so each polygon of a cut record is a record, with the part of the 'follow' inside it: a
-        region gets the exterior of its polygon, a flash whose 'follow' point the cut removes gets the boundary.
+        The records that hold only a clear feature are dropped, and no record keeps its 'clear'. Each polygon of a
+        cut record becomes region material, with its exterior as the 'follow'; intact records keep their apertures.
         The work is done on shapely arrays: one tree query finds the (record, removed part) pairs.
 
         :param tools:   the apertures dictionary of the source Gerber object; it is not changed
@@ -5547,28 +5634,30 @@ class AppGerberEditor(QtCore.QObject):
         cut = {}
         if len(removed) and records:
             solids = np.array([record['solid'] for record in records], dtype=object)
-            rec_idx, part_idx = shapely.STRtree(removed).query(solids, predicate='intersects')
+            # Query prepares each complex removed part once, rather than testing it anew for every small record.
+            part_idx, rec_idx = shapely.STRtree(solids).query(removed, predicate='intersects')
             order = np.argsort(rec_idx, kind='stable')
             rec_idx, part_idx = rec_idx[order], part_idx[order]
             starts = np.flatnonzero(np.r_[True, rec_idx[1:] != rec_idx[:-1]]) if len(rec_idx) else rec_idx
             ends = np.r_[starts[1:], len(rec_idx)]
-            # a record with 1 removed part is cut by that part, the others by the union of their parts
+            # Reuse each cutter union; keeping the union also preserves the original contour starting vertices.
             cutters = np.empty(len(starts), dtype=object)
             single = (ends - starts) == 1
             cutters[single] = removed[part_idx[starts[single]]]
+            unions = {}
             for group in np.flatnonzero(~single):
-                cutters[group] = shapely.union_all(removed[part_idx[starts[group]:ends[group]]])
+                parts = part_idx[starts[group]:ends[group]]
+                key = tuple(parts)
+                if key not in unions:
+                    unions[key] = shapely.union_all(removed[parts])
+                cutters[group] = unions[key]
             hit = rec_idx[starts]
             new_solids = shapely.difference(solids[hit], cutters)
             # a record the removed parts only graze keeps its native flash or track: the composed solid and a
             # flash polygon never match to the last bit, so ignore the slivers that are only boundary noise
             affected = ~cut_is_numeric_sliver(solids[hit], new_solids)
-            follows = np.array([records[i].get('follow') for i in hit], dtype=object)
-            has_follow = np.array([follow is not None for follow in follows], dtype=bool)
-            new_follows = np.empty(len(hit), dtype=object)
-            new_follows[has_follow] = shapely.difference(follows[has_follow], cutters[has_follow])
-            for i, new_solid, new_follow in zip(hit[affected], new_solids[affected], new_follows[affected]):
-                cut[id(records[i])] = (new_solid, new_follow)
+            for i, new_solid in zip(hit[affected], new_solids[affected]):
+                cut[id(records[i])] = new_solid
 
         new_tools = {apid: {key: value for key, value in tool.items() if key != 'geometry'}
                      for apid, tool in tools.items()}
@@ -5589,7 +5678,7 @@ class AppGerberEditor(QtCore.QObject):
                     geometry.append(new_record)
                     continue
                 # the cut is no longer a flash or a track of the aperture: it becomes region material
-                for part in shapely.get_parts(cut[id(record)][0]):
+                for part in shapely.get_parts(cut[id(record)]):
                     if not isinstance(part, Polygon) or part.is_empty:
                         continue
                     part_record = {key: value for key, value in new_record.items()
@@ -5800,6 +5889,8 @@ class AppGerberEditor(QtCore.QObject):
         source.follow_geometry = follow_geometry
         source.aperture_macros = aperture_macros
         source.export_as_regions = export_as_regions
+        # the records come from the editor now, not from the file; a Native save numbered them in file order
+        source.records_in_order = bool(getattr(edited, 'records_in_order', False))
         source.multigeo = False
         source.follow = False
         for attr in ('to_attributes', 'attributes', 'file_attributes'):
@@ -5849,7 +5940,8 @@ class AppGerberEditor(QtCore.QObject):
     def _save_context(editor):
         return SimpleNamespace(app=editor.app, gerber_obj=editor.gerber_obj,
                                gerber_obj_options=dict(editor.gerber_obj_options),
-                               loaded_as_regions=getattr(editor, 'loaded_as_regions', False), results=[])
+                               loaded_as_regions=getattr(editor, 'loaded_as_regions', False),
+                               native_load=getattr(editor, 'native_load', False), results=[])
 
     @staticmethod
     def _storage_with_geometry(storage_dict):
@@ -6008,6 +6100,9 @@ class AppGerberEditor(QtCore.QObject):
         follow_buffer = []
         native_tools = {}
         region_records = []
+        # Native load: the records keep the order of the file and the clear ones are kept
+        native = bool(getattr(self, 'native_load', False))
+        saved_order = []
         native_cache = SimpleNamespace(app=self.app, units=getattr(self.gerber_obj, 'units', None),
                                        _shape_cache={}, quads={})
         region_key = next((key for key, aperture in local_storage_dict.items()
@@ -6044,6 +6139,12 @@ class AppGerberEditor(QtCore.QObject):
                     new_geo_el['to'] = deepcopy_keep_geometry(geometric_data['to'])
                 if not new_geo_el:
                     continue
+                if native:
+                    # the position in the file (None: a new drawing) and the position in the storage
+                    if isinstance(geometric_data.get('seq'), int):
+                        new_geo_el['seq'] = geometric_data['seq']
+                    new_geo_el['_ord'] = len(saved_order)
+                    saved_order.append(None)
 
                 solid = new_geo_el.get('solid')
                 if 'clear' in new_geo_el or solid is None:
@@ -6077,7 +6178,9 @@ class AppGerberEditor(QtCore.QObject):
             # A hole is a global clear. Only records whose holes erase another record's copper need a union.
             source_regions = region_records
             region_solids = [record['solid'] for record in source_regions]
-            holes = [(i, Polygon(ring)) for i, solid in enumerate(region_solids) for ring in solid.interiors]
+            # Native load: the export writes the region holes without global clears, so no grouping
+            holes = [] if native else \
+                [(i, Polygon(ring)) for i, solid in enumerate(region_solids) for ring in solid.interiors]
             if holes:
                 region_tree = shapely.STRtree(region_solids)
                 parents = list(range(len(source_regions)))
@@ -6125,7 +6228,8 @@ class AppGerberEditor(QtCore.QObject):
             for record in region_records:
                 add_to_buffers(record)
             # the region writer draws each polygon with its holes; larger polygons first keeps nested islands
-            region_records.sort(key=lambda record: Polygon(record['solid'].exterior).area, reverse=True)
+            if not native:
+                region_records.sort(key=lambda record: Polygon(record['solid'].exterior).area, reverse=True)
             # The native writer reserves integer 0 for regions; renamed REG apertures otherwise flatten the board.
             native_tools[0 if 0 not in native_tools else region_key] = dict(region_meta, geometry=region_records)
 
@@ -6144,14 +6248,52 @@ class AppGerberEditor(QtCore.QObject):
 
         follow_buffer = flatten_shapely_geometry(follow_buffer)
 
-        parts = flatten_shapely_geometry(poly_buffer)
-        # Clipper2 closing of the whole board (20x faster than the GEOS buffer pair); None: use GEOS
-        new_poly = fuse_parts(parts) if len(parts) >= CLIPPER_MIN_SHAPES else None
-        if not new_poly:
-            new_poly = MultiPolygon(parts)
-            new_poly = new_poly.buffer(0.00000001)
-            new_poly = new_poly.buffer(-0.00000001)
-            new_poly = flatten_shapely_geometry(new_poly)
+        def close_parts(parts):
+            # Clipper2 closing of the whole board (20x faster than the GEOS buffer pair); None: use GEOS
+            closed = fuse_parts(parts) if len(parts) >= CLIPPER_MIN_SHAPES else None
+            if not closed:
+                closed = MultiPolygon(parts)
+                closed = closed.buffer(0.00000001)
+                closed = closed.buffer(-0.00000001)
+                closed = flatten_shapely_geometry(closed)
+            return closed
+
+        if native:
+            # all the records in the order of the file; new drawings (no 'seq') on top, in storage order
+            ordered = [record for tool in native_tools.values() for record in tool['geometry']]
+            ordered.sort(key=lambda record: (record.get('seq', float('inf')), record['_ord']))
+            for number, record in enumerate(ordered):
+                record['seq'] = number
+                del record['_ord']
+            # the composition: runs of the same polarity, a dark run is added, a clear run is removed
+            runs = []
+            for record in ordered:
+                solid, clear = record.get('solid'), record.get('clear')
+                for polarity, geometry in (('dark', solid), ('clear', clear)):
+                    if geometry is None or getattr(geometry, 'is_empty', True):
+                        continue
+                    if runs and runs[-1][0] == polarity:
+                        runs[-1][1].append(geometry)
+                    else:
+                        runs.append((polarity, [geometry]))
+            composed = []
+            for polarity, geometries in runs:
+                if polarity == 'dark':
+                    run = close_parts(flatten_shapely_geometry(geometries))
+                    run = list(run) if isinstance(run, (list, tuple)) else [run]
+                    composed = run if not composed else \
+                        flatten_shapely_geometry(shapely.union_all(np.array(composed + run, dtype=object)))
+                elif composed:
+                    cutter = shapely.union_all(np.array(flatten_shapely_geometry(geometries), dtype=object))
+                    composed = flatten_shapely_geometry(
+                        shapely.difference(shapely.union_all(np.array(composed, dtype=object)), cutter))
+            new_poly = composed
+            grb_obj.records_in_order = not any(
+                not getattr(record.get('solid'), 'is_empty', True) and not getattr(record.get('clear'), 'is_empty', True)
+                for record in ordered)
+        else:
+            new_poly = close_parts(flatten_shapely_geometry(poly_buffer))
+            grb_obj.records_in_order = False
         grb_obj.solid_geometry = new_poly
 
         grb_obj.follow_geometry = follow_buffer
@@ -6440,13 +6582,15 @@ class AppGerberEditor(QtCore.QObject):
         refs = []
         solids = []
         self._shape_apertures = {}
+        # Native load: pick what the canvas shows (a click in a cleared gap does not pick the record under it)
+        shown = self.shown_geometries() if getattr(self, 'native_load', False) else None
         for ap_key in sorted(self.storage_dict, key=aperture_rank):
             for idx, shape in enumerate(self.storage_dict[ap_key].get('geometry', ())):
                 self._shape_apertures.setdefault(shape, set()).add(ap_key)
                 geo = getattr(shape, 'geo', None)
                 if not isinstance(geo, dict):
                     continue
-                solid = geo.get('solid')
+                solid = drawn_geometry(geo) if shown is None else shown.get(shape)
                 if solid is None or solid.is_empty:
                     continue
                 refs.append((ap_key, idx, shape))
@@ -6483,7 +6627,7 @@ class AppGerberEditor(QtCore.QObject):
                 follow_dist = float('inf')
             else:
                 follow_dist = pt.distance(follow)
-            key = (round(float(dist), 9), shape.geo['solid'].area, follow_dist, aperture_rank(ap_key), idx, int(pos))
+            key = (round(float(dist), 9), drawn_geometry(shape.geo).area, follow_dist, aperture_rank(ap_key), idx, int(pos))
             keyed.append((key, shape, ap_key))
         keyed.sort(key=lambda item: item[0])
         return [(shape, ap_key) for __, shape, ap_key in keyed]
@@ -6595,7 +6739,7 @@ class AppGerberEditor(QtCore.QObject):
                 shape = refs[int(idx)][2]
                 follow = shape.geo.get('follow')
                 if isinstance(follow, Point) and not follow.is_empty:
-                    pads.append((shape.geo['solid'].area, point.distance(follow), int(idx),
+                    pads.append((drawn_geometry(shape.geo).area, point.distance(follow), int(idx),
                                  (follow.x, follow.y)))
             if pads:
                 self.active_snap_type = 'pad'
@@ -7466,15 +7610,15 @@ class AppGerberEditor(QtCore.QObject):
 
         try:
             for el in geometry:
-                geometric_data = el['solid']
+                geometric_data = drawn_geometry(el)
                 # Add the new utility shape
                 self.tool_shape.add(
                     shape=geometric_data, color=self.get_draw_color(),
                     # face_color=self.app.options['global_alt_sel_fill'],
                     update=False, layer=0, tolerance=None
                 )
-        except TypeError:
-            geometric_data = geometry['solid']
+        except (TypeError, AttributeError):
+            geometric_data = drawn_geometry(geometry)
             # Add the new utility shape
             self.tool_shape.add(
                 shape=geometric_data,
@@ -7534,13 +7678,32 @@ class AppGerberEditor(QtCore.QObject):
         for changed, color in (
                 (self._rendered_selection - selected, self.get_draw_color()),
                 (selected - self._rendered_selection, self.get_sel_color())):
-            indexes = {index for shape in changed for index in self._rendered_shapes.get(shape, ())}
-            if indexes:
-                # Match the alpha applied by plot_shape() to solid geometry.
-                color = color[:7] + 'AF'
-                self.shapes.redraw(indexes=indexes, update_colors=(color, color))
+            # a deselected clear record goes back to its outline color
+            for clear_group, group_color in ((False, color),
+                                             (True, CLEAR_OUTLINE_COLOR if color == self.get_draw_color() else color)):
+                indexes = {index for shape in changed if is_clear_record(shape.geo) == clear_group
+                           for index in self._rendered_shapes.get(shape, ())}
+                if indexes:
+                    # Match the alpha applied by plot_shape() to solid geometry.
+                    group_color = group_color[:7] + 'AF'
+                    self.shapes.redraw(indexes=indexes, update_colors=(group_color, group_color))
         self._rendered_selection = selected
         self.vertex_grips.sync()
+
+    def shown_geometries(self):
+        """
+        The geometry that the canvas shows for each record of the storage: drawn_geometry(), or, for a Native load,
+        native_display_geometries() (the dark records without the later clear records).
+
+        :return: a dict {DrawToolShape: shapely geometry or None}
+        """
+        shapes = [elem for storage in self.storage_dict.values() for elem in storage.get('geometry', ())]
+        if not getattr(self, 'native_load', False):
+            return {elem: drawn_geometry(elem.geo) for elem in shapes}
+        cache = getattr(self, '_native_view_cache', None)
+        if cache is None:
+            cache = self._native_view_cache = {}
+        return native_display_geometries(shapes, cache)
 
     def plot_all(self):
         """
@@ -7569,15 +7732,19 @@ class AppGerberEditor(QtCore.QObject):
             previous = getattr(self, '_rendered_geometry', {})
             reusable = self._render_state is not None and getattr(self, '_render_style', None) == style and \
                 not self.utility and not getattr(self, '_render_had_utility', False)
-            current = {elem: elem.geo.get('solid') for storage in self.storage_dict.values()
-                       for elem in storage.get('geometry', ())}
+            current = self.shown_geometries()
             if reusable:
                 # Color updates refer to the existing merged mesh. Apply them before changing its membership.
+                # A clear record is an outline in its own color when it is not selected.
                 for changed, color in ((self._rendered_selection - selected, draw_color),
                                        (selected - self._rendered_selection, sel_draw_color)):
-                    indexes = {index for elem in changed for index in self._rendered_shapes.get(elem, ())}
-                    if indexes:
-                        self.shapes.redraw(indexes=indexes, update_colors=(color[:7] + 'AF', color[:7] + 'AF'))
+                    for clear_group, group_color in ((False, color),
+                                                     (True, CLEAR_OUTLINE_COLOR if color == draw_color else color)):
+                        indexes = {index for elem in changed if is_clear_record(elem.geo) == clear_group
+                                   for index in self._rendered_shapes.get(elem, ())}
+                        if indexes:
+                            self.shapes.redraw(indexes=indexes,
+                                               update_colors=(group_color[:7] + 'AF', group_color[:7] + 'AF'))
                 for elem in list(self._rendered_shapes):
                     if elem not in current or previous.get(elem) is not current[elem]:
                         for index in self._rendered_shapes.pop(elem):
@@ -7593,13 +7760,18 @@ class AppGerberEditor(QtCore.QObject):
                     for elem in self.storage_dict[storage]['geometry']:
                         if elem in self._rendered_shapes:
                             continue
-                        if 'solid' in elem.geo:
-                            geometric_data = elem.geo['solid']
+                        if 'solid' in elem.geo or 'clear' in elem.geo:
+                            geometric_data = current.get(elem)
                             if geometric_data is None or geometric_data.is_empty:
                                 continue
 
+                            clear = is_clear_record(elem.geo)
                             if elem in selected:
-                                indexes = self.plot_shape(geometry=geometric_data, color=sel_draw_color, linewidth=2)
+                                indexes = self.plot_shape(geometry=geometric_data, color=sel_draw_color, linewidth=2,
+                                                          fill=not clear)
+                            elif clear:
+                                indexes = self.plot_shape(geometry=geometric_data, color=CLEAR_OUTLINE_COLOR,
+                                                          fill=False)
                             else:
                                 indexes = self.plot_shape(geometry=geometric_data, color=draw_color)
                             if indexes:
@@ -7635,7 +7807,9 @@ class AppGerberEditor(QtCore.QObject):
         synced = self._render_state == (self.geometry_revision, count)
         self.is_modified = True
         self.touch_geometry()
-        if not synced:
+        # Native load: a changed record can change the view of the records under a clear one, so plot_all() (it
+        # plots again only the records whose shown geometry changed)
+        if not synced or getattr(self, 'native_load', False):
             history = getattr(self, 'history', None)
             if isinstance(history, GerberHistory) and history.depth:
                 history.needs_plot = True
@@ -7647,7 +7821,7 @@ class AppGerberEditor(QtCore.QObject):
         transform_keys = getattr(self.shapes, 'transform_keys', None)
         if matrix is not None and transform_keys is not None and transform_keys(keys, matrix, update=True) is True:
             if hasattr(self, '_rendered_geometry'):
-                self._rendered_geometry.update((shape, shape.geo.get('solid')) for shape in shapes)
+                self._rendered_geometry.update((shape, drawn_geometry(shape.geo)) for shape in shapes)
             self._render_state = (self.geometry_revision, count)
             self.vertex_grips.sync()
             return
@@ -7661,22 +7835,25 @@ class AppGerberEditor(QtCore.QObject):
             self.shapes.remove(key)
         for shape in shapes:
             self._rendered_shapes.pop(shape, None)
-            solid = shape.geo.get('solid')
+            solid = drawn_geometry(shape.geo)
             if solid is None or solid.is_empty:
                 continue
+            clear = is_clear_record(shape.geo)
             if shape in selected:
-                indexes = self.plot_shape(geometry=solid, color=sel_color, linewidth=2)
+                indexes = self.plot_shape(geometry=solid, color=sel_color, linewidth=2, fill=not clear)
+            elif clear:
+                indexes = self.plot_shape(geometry=solid, color=CLEAR_OUTLINE_COLOR, fill=False)
             else:
                 indexes = self.plot_shape(geometry=solid, color=draw_color)
             if indexes:
                 self._rendered_shapes.setdefault(shape, []).extend(indexes)
         self.shapes.redraw()
         if hasattr(self, '_rendered_geometry'):
-            self._rendered_geometry.update((shape, shape.geo.get('solid')) for shape in shapes)
+            self._rendered_geometry.update((shape, drawn_geometry(shape.geo)) for shape in shapes)
         self._render_state = (self.geometry_revision, count)
         self.vertex_grips.sync()
 
-    def plot_shape(self, geometry=None, color='#000000FF', linewidth=1):
+    def plot_shape(self, geometry=None, color='#000000FF', linewidth=1, fill=True):
         """
         Plots a geometric object without rendering and returns its collection indexes.
 
@@ -7693,12 +7870,13 @@ class AppGerberEditor(QtCore.QObject):
             geometry = self.active_tool.geometry
 
         try:
-            return [self.shapes.add(shape=geometry.geo, color=color, face_color=color, layer=0,
+            return [self.shapes.add(shape=geometry.geo, color=color, face_color=color if fill else None, layer=0,
                                     tolerance=self.tolerance)]
         except AttributeError:
             if len(color) == 9:
                 color = color[:7] + 'AF'
-            return [self.shapes.add(shape=part, color=color, face_color=color, layer=0, tolerance=self.tolerance)
+            return [self.shapes.add(shape=part, color=color, face_color=color if fill else None, layer=0,
+                                    tolerance=self.tolerance)
                     for part in shapely.get_parts(geometry) if not isinstance(part, Point) and not part.is_empty]
 
     def on_shape_complete(self):
@@ -7792,7 +7970,7 @@ class AppGerberEditor(QtCore.QObject):
         for ap_code in self.storage_dict:
             for geo_el in self.storage_dict[ap_code]['geometry']:
                 actual_geo = geo_el.geo
-                solid = actual_geo.get('solid')
+                solid = drawn_geometry(actual_geo)
                 if solid is not None and not solid.is_empty:
                     edit_geo.append(solid)
 

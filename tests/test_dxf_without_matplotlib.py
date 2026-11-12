@@ -163,6 +163,59 @@ def test_buffered_drill_is_one_circle(fmt):
     assert not list(doc.modelspace().query('LWPOLYLINE POLYLINE'))
 
 
+@pytest.mark.parametrize('fmt', ['R2010', 'R12'])
+def test_repeated_rounded_shapes_keep_arcs_and_exact_vertices(fmt):
+    from shapely import affinity
+    from shapely.geometry import LineString, Point
+    rounded = LineString([(0, 0), (4, 0), (5, 2)]).buffer(0.3, quad_segs=8)
+    drill = Point(1, 1).buffer(0.5, quad_segs=8)
+    offsets = [(0.0, 0.0), (37.1, 12.7), (-80.3, 1.1)]
+    shapes = [affinity.translate(g, dx, dy) for dx, dy in offsets for g in (rounded, drill)]
+    doc = _writer()([{'name': 'a', 'geometry': shapes, 'width': 0.1}], 'MM', fmt)
+    assert doc is not None
+    msp = doc.modelspace()
+    polylines = list(msp.query('LWPOLYLINE POLYLINE'))
+    circles = list(msp.query('CIRCLE'))
+    assert len(polylines) == 3 and len(circles) == 3
+
+    def bulges(p):
+        if p.dxftype() == 'POLYLINE':
+            return [v.dxf.bulge for v in p.vertices]
+        return [pt[4] for pt in p.get_points()]
+
+    def verts(p):
+        if p.dxftype() == 'POLYLINE':
+            return [tuple(v.dxf.location)[:2] for v in p.vertices]
+        return [tuple(pt[:2]) for pt in p.get_points()]
+
+    assert any(bulges(polylines[0]))
+    for k, (dx, dy) in enumerate(offsets):
+        assert bulges(polylines[k]) == pytest.approx(bulges(polylines[0]), abs=1e-8)
+        assert circles[k].dxf.radius == pytest.approx(circles[0].dxf.radius, abs=1e-8)
+        assert tuple(circles[k].dxf.center)[:2] == pytest.approx((1 + dx, 1 + dy), abs=1e-6)
+        expected = {(round(x, 9), round(y, 9)) for x, y in shapes[2 * k].exterior.coords}
+        assert {(round(x, 9), round(y, 9)) for x, y in verts(polylines[k])} <= expected
+
+
+def test_a_shape_almost_equal_to_an_exported_circle_is_fitted_with_its_own_tolerance():
+    # with a tight tolerance the 2nd ring (1 vertex moved by 1e-8) is no circle; the circle before it must not
+    # decide its fit
+    from shapely import affinity
+    from shapely.geometry import Point, Polygon
+    circle = Point(0, 0).buffer(5.0, quad_segs=8)
+    coords = list(affinity.translate(circle, 20.0, 0.0).exterior.coords)[:-1]
+    coords[3] = (coords[3][0] + 1e-8, coords[3][1])
+    build = _writer()
+
+    def kinds(shapes):
+        doc = build([{'name': 'a', 'geometry': shapes}], 'MM', 'R2010', tolerance=1e-10)
+        return [e.dxftype() for e in doc.modelspace()]
+
+    alone = kinds([Polygon(coords)])
+    assert alone == ['LWPOLYLINE']
+    assert kinds([circle, Polygon(coords)]) == ['CIRCLE'] + alone
+
+
 if __name__ != '__main__':   # the probe run must not import heavy modules before the import blocker
     from tests.helpers_objects import app, _headless_qt  # noqa: F401
 

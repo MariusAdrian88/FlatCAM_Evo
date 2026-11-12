@@ -315,13 +315,22 @@ class Gerber(Geometry):
         # The export then writes the composed solid_geometry as regions. A project without it loads as False.
         self.export_as_regions: bool = False
 
+        # 'records_in_order' (see its comment below) is saved together with the 'seq' numbers of the records.
+        # A project without it loads as False.
         self.ser_attrs += ['int_digits', 'frac_digits', 'aperture_macros', 'source_file', 'export_as_regions',
-                           'attributes', 'to_attributes', 'file_attributes']
+                           'attributes', 'to_attributes', 'file_attributes', 'records_in_order']
 
         self._Gerber_inited = True
 
     # Aperture types the native Gerber writer can declare (appIO.export_gerber).
     NATIVE_WRITER_APERTURE_TYPES = ('C', 'R', 'O')
+
+    # True while the records of the apertures are the objects of a parsed file, in the order of their 'seq'
+    # numbers. The parser sets it. A copy and a panel of copies that do not touch keep it; so does a move, a
+    # rotation, a mirror, a scale and a skew (they change all the objects in the same way). Everything else that
+    # makes or changes records must leave it False (the default of a new object) or set it to False: a buffer,
+    # the editor, a join, a plugin. With False, an object with clear objects is exported as regions.
+    records_in_order = False
 
     def needs_region_export(self) -> bool:
         """
@@ -331,8 +340,9 @@ class Gerber(Geometry):
         * ``export_as_regions`` is set (the aperture metadata no longer matches the geometry);
         * an aperture is of a type the writer cannot declare (anything but C, R, O; the region
           'aperture' 0 of type 'REG' is written natively, so it does not count);
-        * a record holds a non-empty 'clear' geometry. Records have no global order, so the native
-          writer, which groups them per aperture, cannot keep a dark -> clear -> dark sequence;
+        * a record holds a non-empty 'clear' geometry and the order of the records in the file is not known
+          (see ``records_in_file_order``). With the order, the native writer keeps the dark -> clear -> dark
+          sequence;
         * a record of an 'R' aperture is not a flash of that aperture. The parser draws a track of an 'R'
           aperture as a box around its end points, and the native writer would flash the aperture at the
           end point instead;
@@ -347,6 +357,7 @@ class Gerber(Geometry):
         obj_options = getattr(self, 'obj_options', None) or {}
         if obj_options.get('pcbdoc_import', False):
             return True
+        has_clear = False
         for apid, tool in (getattr(self, 'tools', None) or {}).items():
             if apid == 0 and tool.get('type') == 'REG':
                 pass
@@ -359,33 +370,197 @@ class Gerber(Geometry):
                 clear = record.get('clear')
                 # None, or a non-geometry like the [] of older code, counts as no clear geometry
                 if not getattr(clear, 'is_empty', True):
-                    return True
+                    has_clear = True
+                    if tool.get('type') == 'R' and not _is_rectangle_flash(tool, {'solid': clear}):
+                        return True
                 if tool.get('type') == 'R' and not _is_rectangle_flash(tool, record):
                     return True
+        # dark and clear objects are written natively only in the order of the file
+        return has_clear and Gerber.records_in_file_order(self) is None
+
+    def uses_region_export(self) -> bool:
+        """
+        True if the export writes only the composed solid_geometry as regions (no aperture, no flash). Only an
+        object of a PCB document import that ``needs_region_export`` is written so: its records are not the objects
+        of a Gerber file. Every other object keeps its records (see ``uses_record_plan``). Call it through the class.
+        """
+        obj_options = getattr(self, 'obj_options', None) or {}
+        return bool(obj_options.get('pcbdoc_import', False)) and Gerber.needs_region_export(self)
+
+    def uses_record_plan(self) -> bool:
+        """
+        True if the export writes the records through ``appParsers.gerber_export_plan``: in order, each flash with its
+        flash point (an aperture or a block aperture), each track with its aperture where the aperture describes it,
+        the clear objects as clear objects. That is the case when the per-aperture writer can not write the object
+        as it is: ``needs_region_export`` is True, or a record is a clear object, or a region has a hole (the
+        per-aperture writer makes a hole a clear object of the whole image). Not for ``uses_region_export``.
+        Call it through the class: it only reads the attributes.
+        """
+        if Gerber.uses_region_export(self):
+            return False
+        if Gerber.needs_region_export(self):
+            return True
+        for apid, tool in (getattr(self, 'tools', None) or {}).items():
+            region = tool.get('type') == 'REG'
+            for record in tool.get('geometry') or ():
+                if not getattr(record.get('clear'), 'is_empty', True):
+                    return True
+                if region:
+                    solid = record.get('solid')
+                    if isinstance(solid, (Polygon, MultiPolygon)) and \
+                            any(part.interiors for part in flatten_shapely_geometry(solid)):
+                        return True
         return False
+
+    def records_in_file_order(self) -> Optional[list]:
+        """
+        The records of all the apertures in the order of the Gerber file they were read from, for a native export
+        of an object that has clear objects (a clear object erases only the objects before it).
+
+        The order is the 'seq' number that the parser gives to each record. The result is None, and the export
+        must write regions, if the order is not known or a record can not be written as it is:
+
+        * ``records_in_order`` of the object is not True (see its comment in the class);
+        * a record has no 'seq', or 2 records have the same 'seq' (records added by an editor or a plugin, 2 joined
+          objects, a project saved by an older version);
+        * a record of the region aperture 0 is not a polygon without holes;
+        * a record of another aperture has no 'follow' point or line (the flash position or the centre line);
+        * a record has dark and clear geometry at once.
+
+        A record with no geometry is left out. Call it through the class: it only reads ``obj.tools``.
+
+        :return: list of (aperture id, record, True for a clear record), sorted, or None
+        """
+        if getattr(self, 'records_in_order', False) is not True:
+            return None
+        apids, records, regions = [], [], []
+        for apid, tool in (getattr(self, 'tools', None) or {}).items():
+            geometry = tool.get('geometry') or ()
+            apids.extend([apid] * len(geometry))
+            records.extend(geometry)
+            regions.extend([apid == 0 and tool.get('type') == 'REG'] * len(geometry))
+        count = len(records)
+        if not count:
+            return []
+
+        seqs = [record.get('seq') for record in records]
+        if any(type(seq) is not int for seq in seqs) or len(set(seqs)) != count:
+            return None
+
+        # the geometry of all the records is checked in a few calls (a value that is no geometry is "no geometry")
+        def column(key):
+            values = np.empty(count, dtype=object)
+            values[:] = [value if isinstance(value, BaseGeometry) else None
+                         for value in (record.get(key) for record in records)]
+            return values
+
+        clear, solid, follow = column('clear'), column('solid'), column('follow')
+        is_clear = ~(shapely.is_missing(clear) | shapely.is_empty(clear))
+        is_dark = ~(shapely.is_missing(solid) | shapely.is_empty(solid))
+        if bool((is_clear & is_dark).any()):
+            return None
+        used = is_clear | is_dark
+        region = np.array(regions, dtype=bool)
+        image = np.where(is_clear, clear, solid)
+        # a region record: a polygon (type 3) without holes
+        in_region = used & region
+        if bool(in_region.any()):
+            if bool((shapely.get_type_id(image[in_region]) != 3).any()) or \
+                    bool((shapely.get_num_interior_rings(image[in_region]) != 0).any()):
+                return None
+        # any other record: the flash point (type 0) or the centre line (types 1 and 2), not empty
+        other = used & ~region
+        if bool(other.any()):
+            kinds = shapely.get_type_id(follow[other])
+            if bool(((kinds < 0) | (kinds > 2)).any()) or bool(shapely.is_empty(follow[other]).any()):
+                return None
+
+        order = np.argsort(np.array(seqs, dtype=np.int64), kind='stable')
+        order = order[used[order]].tolist()
+        clear_flags = is_clear.tolist()
+        return [(apids[i], records[i], clear_flags[i]) for i in order]
+
+    def region_export_polygons(self) -> list:
+        """
+        The valid, disjoint polygons of ``solid_geometry`` for the region export. Same copper as
+        ``feature_access.normalize_polygonal`` (flatten, ``make_valid`` on each part, keep the polygonal parts,
+        union), but a large input skips the slow GEOS union when it can:
+        1. No union at all, if every part is valid and no two parts touch or overlap. This is the usual case: the
+           solid_geometry of a parsed Gerber is composed already. The check does not hold the Python lock.
+        2. Clipper2 union, if all its polygons are valid (it holds the Python lock while it runs).
+        3. The GEOS union.
+        A small input always uses the GEOS union.
+
+        Call it through the class, ``Gerber.region_export_polygons(obj)``: it only reads ``obj.solid_geometry``.
+        """
+        parts = []
+        for geo in flatten_shapely_geometry(self.solid_geometry if self.solid_geometry is not None else []):
+            if geo is None or geo.is_empty:
+                continue
+            geo = shapely.make_valid(geo)
+            for part in flatten_shapely_geometry(geo):
+                if isinstance(part, Polygon) and not part.is_empty:
+                    parts.append(part)
+        if not parts:
+            return []
+
+        from appCommon import clipper_ops
+        if len(parts) >= clipper_ops.MIN_SHAPES:
+            # parts that do not touch each other need no union
+            if bool(shapely.is_valid(np.array(parts, dtype=object)).all()):
+                # In small batches, and stop at the first pair: a query of all the parts at once makes the list of
+                # ALL the pairs that intersect, which grows with the square of the number of overlapping parts.
+                tree = STRtree(parts)
+                apart = True
+                for start in range(0, len(parts), 32):
+                    first, second = tree.query(parts[start:start + 32], predicate='intersects')
+                    if (first + start != second).any():
+                        apart = False
+                        break
+                if apart:
+                    return parts
+            merged = clipper_ops.union(parts)
+            if merged and bool(shapely.is_valid(np.array(merged, dtype=object)).all()) \
+                    and not any(p.is_empty for p in merged):
+                return list(merged)
+
+        result = unary_union(parts)
+        polygons = [result] if isinstance(result, Polygon) else [g for g in result.geoms if isinstance(g, Polygon)]
+        return [p for p in polygons if not p.is_empty]
 
     def region_export_tools(self) -> dict:
         """
         Build a tools dictionary that holds the composed ``solid_geometry`` (polarity already applied) as
         region records under the region 'aperture' 0, ready for ``GerberObject.export_gerber``.
 
-        Method: ``feature_access.normalize_polygonal`` (flatten the geometry, repair every part with
+        Method: ``region_export_polygons`` (flatten the geometry, repair every part with
         ``make_valid``, keep the polygonal parts, union them), so the result is a valid set of disjoint polygons
         with their holes. The polygons are sorted by the area of their exterior, largest first. The writer draws each polygon as a dark region
         for the exterior, followed by clear regions for its interior rings, then switches back to dark.
         A polygon that lies inside the hole of another one has a smaller exterior, so it is drawn after
         the clear ring and is not erased by it. That keeps holes and nested islands.
 
-        The method does not change the object.
+        A panel gives its polygons ready-made, for 1 export: ``region_polygons_once`` in the attributes of the object
+        (the polygons of the source moved to each copy, see the Panelize plugin). They are taken out here, so a later
+        export of a changed object never gets them.
+
+        The method does not change the object (but it removes ``region_polygons_once``).
 
         :return: tools dictionary with 1 'REG' aperture, key 0
         """
-        # imported here: appParsers.feature_access imports camlib, like this module
-        from appParsers.feature_access import normalize_polygonal
-        solid = normalize_polygonal(self.solid_geometry if self.solid_geometry is not None else [])
-        polygons = [solid] if isinstance(solid, Polygon) else list(solid.geoms)
-        polygons = [p for p in polygons if not p.is_empty]
-        polygons.sort(key=lambda poly: Polygon(poly.exterior).area, reverse=True)
+        polygons = None
+        try:
+            polygons = self.__dict__.pop('region_polygons_once', None)
+        except Exception:
+            pass
+        if not isinstance(polygons, list):
+            # called through the class: the export calls Gerber.region_export_tools(obj) with objects that are
+            # not a Gerber
+            polygons = Gerber.region_export_polygons(self)
+        if polygons:
+            # stable sort by the area of the exterior, largest first; one call for all the polygons
+            areas = shapely.area(shapely.polygons(shapely.get_exterior_ring(np.array(polygons, dtype=object))))
+            polygons = [polygons[i] for i in np.argsort(-areas, kind='stable').tolist()]
         return {0: {'type': 'REG', 'size': 0, 'geometry': [{'solid': poly} for poly in polygons]}}
 
     def aperture_parse(
@@ -849,8 +1024,9 @@ class Gerber(Geometry):
                         polarity = 'C' if is_clear else 'D'
                         if polarity != current_polarity:
                             change_polarity(polarity)
+                        # 'seq' is not copied: the copy gets its own number when it is stored
                         moved = {key: geo if key == 'to' else _translate_shape(geo, dx, dy)
-                                 for key, geo in geo_dict.items()}
+                                 for key, geo in geo_dict.items() if key != 'seq'}
                         if 'follow' in moved:
                             follow_buffer.append(moved['follow'])
                         poly = moved.get('clear') if is_clear else moved.get('solid')
@@ -1729,6 +1905,9 @@ class Gerber(Geometry):
             # Build source_file from accumulated lines
             self.source_file = '\n'.join(source_lines) + '\n'
 
+            # the records are the objects of the file, with their 'seq' numbers (see records_in_file_order())
+            self.records_in_order = True
+
             # Compose the layers closed by the polarity changes. Without earlier layers nothing changes: the last layer
             # is applied directly to the (empty) solid_geometry below.
             if earlier_layers:
@@ -2060,6 +2239,9 @@ class Gerber(Geometry):
             to_id = state.to_id
             if to_id:
                 geo_dict['to'] = to_id
+        # 'seq': the number of the object in the file. A clear object erases only the objects before it, so the
+        # writer needs this order to write dark and clear objects natively (see Gerber.records_in_file_order()).
+        geo_dict['seq'] = self._record_seq = vars(self).get('_record_seq', -1) + 1
         record = (aperture_id, geo_dict, self.is_lpc)
         if self._sr_rec is not None:
             self._sr_rec.append(record)
@@ -2846,6 +3028,8 @@ class Gerber(Geometry):
                 self.tools[apid] = new_tool
             self.solid_geometry = flatten_shapely_geometry(new_solid)
             self.export_as_regions = target.export_as_regions
+            # a grown clear object is not what the grown copper has: the records no longer give the copper in order
+            self.records_in_order = False
         else:
             # Multiplicative buffer (Stage 3): see plan_multiplicative_buffer(). Nothing is assigned until every step
             # has succeeded, so a rejection or a failure leaves the object unchanged.
@@ -2878,6 +3062,7 @@ class Gerber(Geometry):
                 self.tools[apid] = new_tool
             self.solid_geometry = new_solid
             self.export_as_regions = new_flag
+            self.records_in_order = False
         if muted is False:
             self.app.inform.emit('[success] %s' % _("Gerber Buffer done."))
         self.app.proc_container.new_text = ''

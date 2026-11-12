@@ -40,6 +40,7 @@ def _sections():
         ('plugin_pref_form', 'tools_markers_group', _("Markers")),
         ('plugin_pref_form', 'tools_sub_group', _("Subtract")),
         ('plugin_pref_form', 'tools_compare_group', _("Compare")),
+        ('plugin_pref_form', 'tools_distance_group', _("Distance")),
         ('plugin_pref_form', 'tools_follow_group', _("Follow")),
         ('plugin_eng_pref_form', 'tools_iso_group', _("Isolation")),
         ('plugin_eng_pref_form', 'tools_ncc_group', _("NCC")),

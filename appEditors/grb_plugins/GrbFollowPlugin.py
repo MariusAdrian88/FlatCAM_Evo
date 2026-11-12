@@ -44,7 +44,9 @@ def circular_aperture(aperture):
 
 def check_junctions(editor, entries):
     """An endpoint can have one continuation, never an interior crossing or a third incident path."""
-    selected = {shape for shape in editor.selected if isinstance(shape.geo.get('follow'), LineString)}
+    # a clear object (Native load, no 'solid') is not a track of copper: the FOLLOW tools leave it as it is
+    selected = {shape for shape in editor.selected if isinstance(shape.geo.get('follow'), LineString)
+                and shape.geo.get('solid') is not None and not shape.geo['solid'].is_empty}
     lines = [shape.geo.get('follow') for aperture in editor.storage_dict.values()
              for shape in aperture.get('geometry', ()) if shape not in selected
              and getattr(shape.geo.get('follow'), 'geom_type', '') in

@@ -41,6 +41,7 @@ APP_TOOL_PREFIXES = ('tools_grbl_', 'tools_calc_')
 APP_TOOL_SUFFIXES = ('_plotting', '_big_cursor', '_preprocessor_list')
 APP_TOOL_KEYS = frozenset((
     'tools_al_controller', 'tools_gcode_fit_view', 'tools_dist_snap_center',
+    'tools_dist_snap_vertex',
     'tools_opt_precision', 'tools_qrcode_sel_limit', 'tools_qrcode_min_module',
 ))
 # Application keys that Import Preferences (File -> Backup) does not take from the file: the source of the updates. A
@@ -372,7 +373,8 @@ class AppDefaults:
         "gerber_editor_newtype": 'C',
         "gerber_editor_newdim": "0.5, 0.5",
         # 0 = Regions, 1 = Apertures: how the editor loads an object with clear features
-        "gerber_editor_load": 1,
+        # 0 Regions, 1 Apertures (clear objects cut out), 2 Native (clear objects kept, in the order of the file)
+        "gerber_editor_load": 2,
         "gerber_editor_array_size": 5,
         "gerber_editor_lin_dir": 'X',
         "gerber_editor_lin_pitch": 0.1,
@@ -881,6 +883,7 @@ class AppDefaults:
         "tools_panelize_constrainx": 200.0,
         "tools_panelize_constrainy": 290.0,
         "tools_panelize_panel_type": 'gerber',
+        "tools_panelize_step_repeat": False,
 
         # Calculators Tool
         "tools_calc_vshape_tip_dia": 0.2,
@@ -974,7 +977,16 @@ class AppDefaults:
 
         # Distance Tool
         "tools_dist_snap_center": False,
+        "tools_dist_snap_vertex": True,
         "tools_dist_big_cursor": True,
+        "tools_dist_line_width": 1.0,
+        "tools_dist_text_size": 9,
+        "tools_dist_text_bold": False,
+        # colors of the dimension lines; the editor colors contrast with the editor shapes (black/white + blue)
+        "tools_dist_app_color_light": '#000000FF',
+        "tools_dist_app_color_dark": '#FFFFFFFF',
+        "tools_dist_editor_color_light": '#E65C00FF',
+        "tools_dist_editor_color_dark": '#00C800FF',
 
         # Markers Tool
         "tools_markers_thickness": 0.1,

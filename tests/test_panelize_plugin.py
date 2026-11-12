@@ -45,7 +45,8 @@ class Value:
 
 
 def run_plugin(app, src, box_obj=None, rows=2, cols=3, spacing=5.0, panel_type='gerber', optimize=False,
-               constrain=None, before=None, name=None, box_name=None, fail_job=False, reference=None):
+               constrain=None, before=None, name=None, box_name=None, fail_job=False, reference=None,
+               step_repeat=False):
     """Returns (created, informs). constrain = (max_x, max_y) switches the constrain option on. before: a list that
     receives the messages shown before the worker task runs (the GUI-thread part)."""
     app.f_handlers = appIO(app)
@@ -82,7 +83,8 @@ def run_plugin(app, src, box_obj=None, rows=2, cols=3, spacing=5.0, panel_type='
         reference_radio=Value(reference or ('bbox' if box_obj is None else 'object')),
         spacing_columns=Value(spacing), spacing_rows=Value(spacing), rows=Value(rows), columns=Value(cols),
         x_width_entry=Value(constrain[0] if constrain else 0.0), y_height_entry=Value(constrain[1] if constrain else 0.0),
-        constrain_cb=Value(bool(constrain)), optimization_cb=Value(optimize), panel_type_radio=Value(panel_type))
+        constrain_cb=Value(bool(constrain)), optimization_cb=Value(optimize), panel_type_radio=Value(panel_type),
+        step_repeat_cb=Value(step_repeat))
     plugin.on_panelize()
     if before is not None:
         before.extend(informs)
@@ -256,6 +258,115 @@ def test_constraint_smaller_than_one_board_does_not_schedule_a_panel(app):
     created, informs = run_plugin(app, src, constrain=(0.001, 0.001))
     assert not created
     app.collection.promise.assert_not_called()
+
+
+@pytest.mark.parametrize('spacing', [5.0, -1.0])       # copies apart (polygons of the source, moved) / overlapping
+def test_gerber_panel_exported_as_regions_has_the_copper_of_the_panel(app, tmp_path, spacing):
+    from appParsers.ParseGerber import Gerber
+    src = make_gerber(app, name='g')
+    created, informs = run_plugin(app, src, spacing=spacing)
+    pan = created['g_panelized']
+    assert Gerber.needs_region_export(pan)
+    again = reparse_gerber(app, pan.source_file, tmp_path)
+    want = polygon_union(pan.solid_geometry)
+    assert polygon_union(again.solid_geometry).symmetric_difference(want).area < 1e-6 * want.area
+    assert 'region_polygons_once' not in vars(pan)      # a later export of a changed panel makes its own union
+
+
+CLEAR_GBR = 'tests/fixtures/orcad_17.2/Copper_Bottom.art'         # dark and clear objects, small
+
+
+def flash_count(obj):
+    return sum(1 for tool in obj.tools.values() if tool.get('type') != 'REG' for record in tool.get('geometry', ())
+               if record.get('follow') is not None and record['follow'].geom_type == 'Point'
+               and not getattr(record.get('solid'), 'is_empty', True))
+
+
+def same_copper(app, pan, tmp_path):
+    again = reparse_gerber(app, pan.source_file, tmp_path)
+    want = polygon_union(pan.solid_geometry)
+    assert polygon_union(again.solid_geometry).symmetric_difference(want).area <= 2e-3 * want.area
+    return again
+
+
+@pytest.mark.parametrize('spacing', [5.0, -1.0])
+def test_panel_of_a_gerber_with_clear_objects_keeps_its_apertures(app, tmp_path, spacing):
+    # copies apart: the records are written in the order of the file, copy after copy, with their apertures.
+    # overlapping copies: a clear object of a copy erases another copy; the export adds that copper back as regions
+    # at the end. In both cases each flash stays a flash.
+    src = make_gerber(app, CLEAR_GBR, name='g')
+    created, informs = run_plugin(app, src, spacing=spacing)
+    pan = created['g_panelized']
+    assert '%ADD' in pan.source_file and '%LPC*%' in pan.source_file
+    again = same_copper(app, pan, tmp_path)
+    assert flash_count(again) == flash_count(pan) == 6 * flash_count(src)
+
+
+@pytest.mark.parametrize('spacing, used', [(5.0, True), (-1.0, False)])
+def test_step_and_repeat_option_writes_one_copy_in_a_block(app, tmp_path, spacing, used):
+    for path in (CLEAR_GBR, None):                    # native records with clear objects / block apertures (AM)
+        src = make_gerber(app, path, name='g') if path else make_gerber(app, name='g')
+        plain = run_plugin(app, src, spacing=spacing)[0]['g_panelized']
+        pan = run_plugin(app, src, spacing=spacing, step_repeat=True)[0]['g_panelized']
+        assert ('%SRX3Y2I' in pan.source_file and pan.source_file.count('%SR*%') == 1) is used
+        if path:
+            assert (len(pan.source_file) < len(plain.source_file) / 3) is used
+        # the block apertures are defined before the Step and Repeat block, not in it
+        assert pan.source_file.find('%ABD') < pan.source_file.find('%SRX') or '%SRX' not in pan.source_file or \
+            '%ABD' not in pan.source_file
+        same_copper(app, pan, tmp_path)
+        assert_coords_close(pan.solid_geometry, plain.solid_geometry)       # the panel itself is the same
+
+
+@pytest.mark.parametrize('answer, made', [('Yes', True), ('No', False)])
+def test_panel_larger_than_the_free_memory_asks_the_user(app, monkeypatch, answer, made):
+    import sys
+    module = sys.modules[Panelize.__module__]
+    shown = []
+
+    class Box:
+        def __init__(self, parent=None):
+            pass
+
+        def __getattr__(self, name):
+            return lambda *a, **k: None
+
+        def setInformativeText(self, text):
+            shown.append(text)
+
+        def addButton(self, text, role):
+            return text
+
+        def clickedButton(self):
+            return answer
+
+    monkeypatch.setattr(module, 'FCMessageBox', Box)
+    monkeypatch.setattr(module, 'free_memory', lambda: 1)
+    created, informs = run_plugin(app, make_gerber(app, name='g'))
+    assert len(shown) == 1 and '6' in shown[0]          # the question names the 2 x 3 copies
+    assert bool(created) is made
+
+    # the free memory is not known: no question, the panel is made
+    monkeypatch.setattr(module, 'free_memory', lambda: None)
+    created, informs = run_plugin(app, make_gerber(app, name='g'))
+    assert len(shown) == 1 and created
+
+
+def test_free_memory_of_linux_and_macos_text():
+    from appCommon.memory import free_memory, parse_meminfo, parse_vm_stat
+    meminfo = "MemTotal:       16303428 kB\nMemFree:          812340 kB\nMemAvailable:    9876543 kB\nBuffers: 1 kB\n"
+    assert parse_meminfo(meminfo) == 9876543 * 1024
+    assert parse_meminfo("MemTotal: 100 kB\nMemFree: 40 kB\n") == 40 * 1024      # kernel without MemAvailable
+    assert parse_meminfo("nothing") is None
+    vm_stat = ("Mach Virtual Memory Statistics: (page size of 16384 bytes)\n"
+               "Pages free:                               10000.\n"
+               "Pages active:                            500000.\n"
+               "Pages inactive:                           20000.\n"
+               "Pages speculative:                         3000.\n"
+               "Pages purgeable:                           4000.\n")
+    assert parse_vm_stat(vm_stat) == 37000 * 16384
+    assert parse_vm_stat("nothing") is None
+    assert free_memory() is None or free_memory() > 0      # the branch of this operating system
 
 
 def test_worker_exception_clears_promise_and_reports_error(app):

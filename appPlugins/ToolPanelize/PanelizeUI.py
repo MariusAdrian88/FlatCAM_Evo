@@ -252,6 +252,17 @@ class PanelizeUI:
         )
         grid3.addWidget(self.optimization_cb, 2, 0, 1, 2)
 
+        # Step and Repeat
+        self.step_repeat_cb = FCCheckBox('%s' % _("Step and Repeat"))
+        self.step_repeat_cb.setToolTip(
+            _("Active only for a Gerber panel of a Gerber object.\n"
+              "When checked, the source of the panel has one copy\n"
+              "inside a Gerber Step and Repeat block (SR command).\n"
+              "The source is small and fast to make.\n"
+              "A reader without Step and Repeat support cannot read it.")
+        )
+        grid3.addWidget(self.step_repeat_cb, 3, 0, 1, 2)
+
         # Constrains
         self.constrain_cb = FCCheckBox('%s:' % _("Constrain panel within"))
         self.constrain_cb.setToolTip(

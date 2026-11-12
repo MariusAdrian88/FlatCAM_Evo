@@ -4,6 +4,7 @@ import os
 import locale
 import traceback
 from datetime import datetime
+import warnings
 
 from multiprocessing import freeze_support
 
@@ -18,6 +19,13 @@ if __name__ == '__mp_main__' or '--multiprocessing-fork' in sys.argv:
 
 MIN_VERSION_MAJOR = 3
 MIN_VERSION_MINOR = 10
+
+warnings.filterwarnings(
+    "ignore",
+    message="'__version__' is deprecated and slated for removal in Python 3.20",
+    category=DeprecationWarning,
+    module=r"OpenGL\.raw\.GL\._types",
+)
 
 
 def debug_trace():

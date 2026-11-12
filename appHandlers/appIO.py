@@ -2767,7 +2767,7 @@ class appIO(QtCore.QObject):
             if local_use is not None:
                 return ret_val
 
-    def export_gerber(self, obj_name, filename, local_use=None, use_thread=True):
+    def export_gerber(self, obj_name, filename, local_use=None, use_thread=True, step_repeat=None):
         """
         Exports a Gerber Object to a Gerber file.
 
@@ -2777,6 +2777,10 @@ class appIO(QtCore.QObject):
                             When not None, the value will be the actual Gerber object for which to create
                             the Gerber code
         :param use_thread:  if to be run in a separate thread
+        :param step_repeat: None, or (columns, rows, step in X, step in Y) in the units of the object: the image
+                            of the object is written inside a Gerber Step and Repeat block (SR command), so a
+                            reader makes columns x rows copies of it. The caller makes sure that the copies do
+                            not touch (see panelize_core.step_repeat_grid).
         :return:
         """
         if filename is None:
@@ -2810,7 +2814,11 @@ class appIO(QtCore.QObject):
         # P and AM apertures, dark/clear sequences, transformed metadata and PCB-document imports can't be
         # written natively: the composed geometry is exported as regions
         # (called through the class: it only reads attributes, so stand-in objects work too)
-        use_regions = Gerber.needs_region_export(obj)
+        use_regions = Gerber.uses_region_export(obj)
+        # the records in order with their flashes (appParsers.gerber_export_plan); an aperture that no record uses
+        # is declared too, it makes no image
+        use_plan = not use_regions and Gerber.uses_record_plan(obj)
+        declare_apertures = not use_regions
 
         def make_gerber():
             try:
@@ -2834,7 +2842,7 @@ class appIO(QtCore.QObject):
 
                 # the region export writes the composed geometry only, so it declares no aperture
                 ta_state = {}
-                for apid in ({} if use_regions else obj.tools):
+                for apid in (obj.tools if declare_apertures else {}):
                     if obj.tools[apid]['type'] in ('C', 'R', 'O'):
                         ta = obj.tools[apid].get('attributes') or {}
                         for line in attribute_changes('TA', ta_state, ta):
@@ -2880,8 +2888,12 @@ class appIO(QtCore.QObject):
                 footer = 'M02*\n'
 
                 tools = obj.tools
+                definitions = ''
                 try:
-                    if use_regions:
+                    if use_plan:
+                        definitions, gerber_code = obj.export_gerber(g_whole, g_fract, g_zeros=g_zeros, factor=factor,
+                                                                     parts=True)
+                    elif use_regions:
                         # Union overlaps so region holes don't clear other solids. Draw islands last.
                         obj.tools = Gerber.region_export_tools(obj)
                         gerber_code = obj.export_gerber(g_whole, g_fract, g_zeros='L', factor=factor)
@@ -2898,7 +2910,14 @@ class appIO(QtCore.QObject):
                 if obj.obj_options.get('pcbdoc_import', False) and (not gerber_code or gerber_code == 'fail'):
                     return 'fail'
 
-                exported_gerber = ''.join([header, gerber_code, footer])
+                if step_repeat is not None and gerber_code and gerber_code != 'fail':
+                    sr_cols, sr_rows, sr_x, sr_y = step_repeat
+                    # the steps are decimal numbers in the units of the file; a step of a single column or row is 0
+                    gerber_code = '%%SRX%dY%dI%.8fJ%.8f*%%\n%s%%SR*%%\n' % (
+                        int(sr_cols), int(sr_rows), float(sr_x) * factor, float(sr_y) * factor, gerber_code)
+
+                # the block apertures are defined before the body (and before a Step and Repeat block)
+                exported_gerber = ''.join([header, definitions, gerber_code, footer])
 
                 if local_use is None:
                     try:

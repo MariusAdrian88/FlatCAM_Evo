@@ -15,6 +15,7 @@ from appPlugins.ToolDistance.DistanceGen import (
     click_action, preview_active, dimension_segments, NEW, CLOSE, CANCEL, EXIT)
 
 import logging
+import math
 from copy import copy
 import numpy as np
 
@@ -27,6 +28,8 @@ import builtins
 fcTranslate.apply_language('strings')
 if '_' not in builtins.__dict__:
     _ = gettext.gettext
+
+SNAP_VERTEX_TOLERANCE_PX = 10    # screen tolerance of the snap to a trace vertex
 
 log = logging.getLogger('base')
 
@@ -221,16 +224,24 @@ class Distance(AppTool):
             'tools_dist_big_cursor',
             app_defaults.get('tools_dist_big_cursor', AppDefaults.factory_defaults.get('tools_dist_big_cursor'))))
 
+        self.ui.snap_vertex_cb.set_value(self.app.options.get(
+            'tools_dist_snap_vertex',
+            app_defaults.get('tools_dist_snap_vertex', AppDefaults.factory_defaults.get('tools_dist_snap_vertex'))))
+
         snap_center = self.app.options.get(
             'tools_dist_snap_center',
             app_defaults.get('tools_dist_snap_center', AppDefaults.factory_defaults.get('tools_dist_snap_center')))
+        snap_vertex = self.ui.snap_vertex_cb.get_value()
         self.on_snap_toggled(snap_center)
+        self.on_snap_vertex_toggled(snap_vertex)
 
-        try:
-            self.ui.snap_center_cb.toggled.disconnect()
-        except (AttributeError, TypeError):
-            pass
+        for cb in (self.ui.snap_center_cb, self.ui.snap_vertex_cb):
+            try:
+                cb.toggled.disconnect()
+            except (AttributeError, TypeError):
+                pass
         self.ui.snap_center_cb.toggled.connect(self.on_snap_toggled)
+        self.ui.snap_vertex_cb.toggled.connect(self.on_snap_vertex_toggled)
 
         # this is a hack; seems that triggering the grid will make the visuals better
         # trigger it twice to return to the original state
@@ -262,6 +273,25 @@ class Distance(AppTool):
             if self.app.ui.grid_snap_btn.isChecked():
                 self.app.ui.grid_snap_btn.trigger()
 
+    def on_snap_vertex_toggled(self, state):
+        self.app.options['tools_dist_snap_vertex'] = state
+        if state and self.active:
+            # the vertices of the traces are off the grid
+            if self.app.ui.grid_snap_btn.isChecked():
+                self.app.ui.grid_snap_btn.trigger()
+
+    def snap_flags(self):
+        """(snap to center, snap to vertex) as set in the plugin."""
+        return bool(self.ui.snap_center_cb.get_value()), bool(self.ui.snap_vertex_cb.get_value())
+
+    def screen_tolerance(self):
+        """The snap distance of SNAP_VERTEX_TOLERANCE_PX screen pixels in data units (0 when the canvas has no scale)."""
+        try:
+            value = float(self.app.plotcanvas.pixel_size()) * SNAP_VERTEX_TOLERANCE_PX
+        except (AttributeError, TypeError, ValueError):
+            return 0.0
+        return value if math.isfinite(value) and value > 0 else 0.0
+
     def on_start_measuring(self):
         if self.active:
             self.on_exit()
@@ -278,6 +308,10 @@ class Distance(AppTool):
         self.ui.measure_btn.setText('%s...' % _("Working"))
 
         self.init_plugin()
+        if self.dims is not None:
+            # the call source (app or editor) or the Preferences can change between two starts
+            self.dims.set_color(self.dimension_color())
+            self.dims.set_style(**self.dimension_style())
         self.ui_connect()
         self.set_tool_ui()
 
@@ -430,8 +464,31 @@ class Distance(AppTool):
         if self.dims is None:
             # imported here: the visual is needed only once the tool draws
             from appGUI.DimensionVisual import DimensionLines
-            self.dims = DimensionLines(self.canvas)
+            self.dims = DimensionLines(self.canvas, color=self.dimension_color(), **self.dimension_style())
         return self.dims
+
+    def dimension_style(self):
+        """Line width, text size and bold text of the dimension lines, from the Preferences."""
+        app_defaults = getattr(self.app, "defaults", None) or AppDefaults.factory_defaults
+
+        def option(key):
+            return self.app.options.get(key, app_defaults.get(key, AppDefaults.factory_defaults.get(key)))
+
+        return {'line_width': float(option('tools_dist_line_width')),
+                'font_size': float(option('tools_dist_text_size')),
+                'bold': bool(option('tools_dist_text_bold'))}
+
+    def dimension_color(self):
+        """The color of the dimension lines from the Preferences: App or Editor color, for the light or dark canvas."""
+        app_defaults = getattr(self.app, "defaults", None) or AppDefaults.factory_defaults
+
+        def option(key):
+            return self.app.options.get(key, app_defaults.get(key, AppDefaults.factory_defaults.get(key)))
+
+        # the same test as the PlotCanvas: the Dark theme or the Dark Canvas option make a dark canvas
+        dark = option('global_theme') not in ('default', 'light') or bool(option('global_dark_canvas'))
+        place = 'editor' if self.original_call_source in ('geo_editor', 'exc_editor', 'grb_editor') else 'app'
+        return option('tools_dist_%s_color_%s' % (place, 'dark' if dark else 'light'))
 
     def redraw_dimensions(self):
         """Earlier measurements, the committed segments and, while the measurement takes points, the preview
@@ -479,10 +536,13 @@ class Distance(AppTool):
     def invalidate_snap_cache(self, *args):
         self._snap_cache = {}
 
-    def resolve_snap(self, pos):
+    def resolve_snap(self, pos, center=True, vertex=False):
+        """The snapped position. A pad / drill center wins; else, with ``vertex``, the nearest trace vertex."""
         current_pt = Point(pos)
         cache = self._snap_cache
         centers = []
+        vertices = []
+        tolerance = self.screen_tolerance() if vertex else 0.0
         source = self.original_call_source
         if source == 'app':
             objects = self.app.collection.get_list()
@@ -493,9 +553,14 @@ class Distance(AppTool):
                 cached = cache.get(key)
                 if cached is None or cached[0] is not obj.tools or cached[1] is not obj.solid_geometry:
                     cached = cache[key] = (obj.tools, obj.solid_geometry, app_snap_index(obj))
-                center = cached[2].closest(current_pt)
-                if center is not None:
-                    centers.append(center)
+                if center:
+                    hit = cached[2].closest(current_pt)
+                    if hit is not None:
+                        centers.append(hit)
+                if vertex:
+                    hit = cached[2].closest_vertex(current_pt, tolerance)
+                    if hit is not None:
+                        vertices.append(hit)
         elif source in ('exc_editor', 'grb_editor'):
             editor = self.app.exc_editor if source == 'exc_editor' else self.app.grb_editor
             storage = editor.storage_dict
@@ -508,16 +573,22 @@ class Distance(AppTool):
             if key not in cache:
                 cache.clear()
                 cache[key] = editor_snap_index(source, storage)
-            center = cache[key].closest(current_pt)
-            if center is not None:
-                centers.append(center)
-        if not centers:
+            if center:
+                hit = cache[key].closest(current_pt)
+                if hit is not None:
+                    centers.append(hit)
+            if vertex and source == 'grb_editor':
+                hit = cache[key].closest_vertex(current_pt, tolerance)
+                if hit is not None:
+                    vertices.append(hit)
+        candidates = centers or vertices
+        if not candidates:
             return pos
-        center = closest_center(centers, current_pt)
+        center = closest_center(candidates, current_pt)
         return center.x, center.y
 
-    def snap_handler(self, pos):
-        snapped = self.resolve_snap(pos)
+    def snap_handler(self, pos, center=True, vertex=False):
+        snapped = self.resolve_snap(pos, center, vertex)
         if snapped == pos:
             return pos
         pos = snapped
@@ -556,10 +627,11 @@ class Distance(AppTool):
 
     def update_position_info(self, pos_canvas):
         pos = (pos_canvas[0], pos_canvas[1])
-        snap_center = self.ui.snap_center_cb.get_value()
-        grid = self.app.grid_status() and not snap_center
-        if snap_center:
-            pos = self.resolve_snap(pos)
+        snap_center, snap_vertex = self.snap_flags()
+        snapping = snap_center or snap_vertex
+        grid = self.app.grid_status() and not snapping
+        if snapping:
+            pos = self.resolve_snap(pos, snap_center, snap_vertex)
         elif grid:
             pos = self.app.geo_editor.snap(*pos)
         if self.ui.big_cursor_cb.get_value() or grid or pos != tuple(pos_canvas):
@@ -601,7 +673,8 @@ class Distance(AppTool):
         if action in (CLOSE, CANCEL):
             self.close_measurement(cancel=action == CANCEL)
             return
-        snap_enabled = self.ui.snap_center_cb.get_value()
+        snap_center, snap_vertex = self.snap_flags()
+        snap_enabled = snap_center or snap_vertex
 
         event_pos = event.pos
 
@@ -613,7 +686,7 @@ class Distance(AppTool):
             else:
                 pos = pos_canvas[0], pos_canvas[1]
         else:
-            pos = self.snap_handler(pos=(pos_canvas[0], pos_canvas[1]))
+            pos = self.snap_handler((pos_canvas[0], pos_canvas[1]), snap_center, snap_vertex)
 
         if pos is not None and self.active:
             if action == NEW:

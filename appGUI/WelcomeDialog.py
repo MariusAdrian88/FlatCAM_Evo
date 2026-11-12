@@ -66,6 +66,23 @@ def welcome_entries(app):
             (_('Geometry'), geometry), (_('PCB Boards'), boards)]
 
 
+def recent_path_key(filename):
+    """One key for one file: 'D:/a/b.gbr' and 'D:\\a\\B.gbr' are the same file on Windows. On Linux and macOS,
+    normpath and normcase keep a backslash and the case, as those systems do."""
+    return os.path.normcase(os.path.normpath(filename))
+
+
+def unique_recent(records):
+    """The records without a later copy of the same file and kind (the first, most recent, record stays)."""
+    seen, result = set(), []
+    for record in records:
+        key = (str(record.get('kind', '')).lower(), recent_path_key(record['filename']))
+        if key not in seen:
+            seen.add(key)
+            result.append(record)
+    return result
+
+
 def recent_files(app, key):
     """Read the existing histories, including their legacy kind names. Never reinterpret HPGL as DXF."""
     if key is None:
@@ -73,7 +90,7 @@ def recent_files(app, key):
     history = getattr(app, 'recent_projects' if key == 'project' else 'recent', [])
     if not isinstance(history, (list, tuple)):
         return []
-    result = []
+    result, seen = [], set()
     for record in history:
         if not isinstance(record, dict):
             continue
@@ -84,7 +101,8 @@ def recent_files(app, key):
         kind = {'sprint_lay6': 'sprint_layout', 'hpgl': 'hpgl2'}.get(kind, kind)
         if kind == 'geometry':
             kind = {'.plt': 'hpgl2', '.svg': 'svg', '.dxf': 'dxf'}.get(os.path.splitext(filename)[1].lower())
-        if kind == key and filename not in result:
+        if kind == key and recent_path_key(filename) not in seen:
+            seen.add(recent_path_key(filename))
             result.append(filename)
             if len(result) == 5:
                 break

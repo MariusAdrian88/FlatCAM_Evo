@@ -111,17 +111,31 @@ def test_gerber_dark_clear_dark_keeps_composed_geometry_per_copy():
     }
     offs = [(0.0, 0.0), (20.0, 0.0), (0.0, 30.0)]
     new_tools, solid = pc.panelize_gerber(tools, [composed], offs)
-    assert len(solid) == 3
-    for off, geo in zip(offs, solid):
-        assert_poly_equiv(geo, affinity.translate(composed, *off))
+    assert len(solid) == 6 and all(isinstance(g, Polygon) for g in solid)  # ring + dot per copy
+    for index, off in enumerate(offs):
+        chunk = solid[2 * index:2 * index + 2]
+        assert_poly_equiv(shapely.MultiPolygon(chunk), affinity.translate(composed, *off))
         # the ring (dark minus clear) has a hole, the inner dot fills it again: area 100 - 36 + 4
-        assert polygon_union(geo).area == pytest.approx(68.0)
+        assert polygon_union(chunk).area == pytest.approx(68.0)
     # the clear record stays a clear record, with no 'solid' key
     assert [list(r) for r in new_tools[11]['geometry']] == [['clear', 'follow']] * 3
     assert [list(r) for r in new_tools[10]['geometry']] == [['solid', 'follow']] * 6
     # record order: copy 1 of both dark records, then copy 2, ...
     assert new_tools[10]['geometry'][1]['solid'].bounds == (4, 4, 6, 6)
     assert new_tools[10]['geometry'][2]['solid'].bounds == (20, 0, 30, 10)
+
+
+def test_gerber_panel_solid_is_a_flat_list_of_simple_geometries():
+    """A MultiPolygon in the solid would not plot: the panel solid holds its parts."""
+    multi = MultiPolygon([box(0, 0, 1, 1), box(3, 3, 4, 4)])
+    tools = {10: {'type': 'C', 'size': 1.0, 'geometry': [{'solid': [box(0, 0, 1, 1), [Point(5, 5)]], 'follow': None}]}}
+    new_tools, solid = pc.panelize_gerber(tools, multi, [(0, 0), (10, 0)])
+    assert len(solid) == 4 and all(isinstance(g, Polygon) for g in solid)
+    assert solid[2].bounds == (10, 0, 11, 1) and solid[3].bounds == (13, 3, 14, 4)
+    # a list-valued field stays a flat list, None stays None
+    records = new_tools[10]['geometry']
+    assert [g.bounds for g in records[1]['solid']] == [(10, 0, 11, 1), (15, 5, 15, 5)]
+    assert records[1]['follow'] is None
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -193,6 +207,26 @@ class TestGeometry:
         assert tools[1]['solid_geometry'][0].length == pytest.approx(70.0)
 
 
+@pytest.mark.parametrize('offsets, snap_overlaps', [
+    ([(0, 0), (30, 0), (0, 30), (30, 30)], False),   # copies apart: the source is merged once
+    ([(0, 0), (30, 0), (0, 30), (30, 30)], True),
+    ([(0, 0), (10, 0), (20, 0)], True),              # copies touch: the lines of all copies are merged
+    ([(0, 0), (0, 0)], False),                       # 2 copies at the same place: their paths are cut once
+])
+def test_optimize_panel_lines_equals_merge_tool_lines(offsets, snap_overlaps):
+    ring = LineString([(0, 0), (10, 0), (10, 10), (0, 10), (0, 0)])
+    src_tools = {1: {'solid_geometry': [ring, LineString([(2, 2), (8, 2)]), box(4, 4, 5, 5)]}}
+    expected, _ = pc.panelize_geometry(src_tools, [], True, offsets)
+    result, _ = pc.panelize_geometry(src_tools, [], True, offsets)
+    pc.merge_tool_lines(expected, snap_overlaps=snap_overlaps)
+    pc.optimize_panel_lines(src_tools, result, offsets, snap_overlaps=snap_overlaps)
+    want, got = expected[1]['solid_geometry'], result[1]['solid_geometry']
+    assert len(got) == len(want) == 1 + len(offsets) and got[0].equals(want[0])
+    assert len(got[0].geoms) == len(want[0].geoms)
+    assert got[0].length == pytest.approx(want[0].length)                # no path is cut 2 times
+    assert all(a.equals_exact(b, 0) for a, b in zip(got[1:], want[1:]))  # the polygons are kept
+
+
 # ---------------------------------------------------------------------------------------------------------------
 # abort / progress
 # ---------------------------------------------------------------------------------------------------------------
@@ -208,6 +242,26 @@ class TestAbortAndProgress:
             pc.panelize_excellon(exc.tools, offs, abort=lambda: True)
         with pytest.raises(grace):
             pc.panelize_geometry({}, [box(0, 0, 1, 1)], False, offs, abort=lambda: True)
+
+    def test_abort_during_the_last_records_of_the_last_copy_gives_no_panel(self, app):
+        src = make_gerber(app, name='g')
+        offs = pc.grid_offsets(src.bounds(), 2, 2, 5, 5)
+        last_apid = list(src.tools)[-1]
+        state = {'abort': False}
+
+        class LateAbort(dict):
+            # a record value that is copied for each copy: the abort arrives while the last record is rebuilt
+            def __deepcopy__(self, memo):
+                state['abort'] = state.get('copies', 0) + 1 == len(offs)
+                state['copies'] = state.get('copies', 0) + 1
+                return LateAbort(self)
+
+        tools = {apid: dict(tool) for apid, tool in src.tools.items()}
+        records = [dict(r) for r in tools[last_apid]['geometry']]
+        records[-1]['mark'] = LateAbort()
+        tools[last_apid]['geometry'] = records
+        with pytest.raises(grace):
+            pc.panelize_gerber(tools, src.solid_geometry, offs, abort=lambda: state['abort'])
 
 # ---------------------------------------------------------------------------------------------------------------
 # gerber_tools_from_geometry

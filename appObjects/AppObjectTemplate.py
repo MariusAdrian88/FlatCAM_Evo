@@ -229,6 +229,9 @@ class FlatCAMObj(QtCore.QObject):
         self._plot_fp = None
         self._plot_batches = 0
         self._reuse_src = None
+        self._reuse_offsets = None
+        self._plot_shapes = None
+        self._own_plot = None
 
         self.muted_ui = False
         self.deleted = False
@@ -347,13 +350,26 @@ class FlatCAMObj(QtCore.QObject):
         if self.deleted:
             return False
 
+        # A new plot of the same geometry (a color or Multi-Color change) takes the buffers of the plot that is on
+        # the canvas now: add_shapes_batch() uses them if the fingerprint of the shapes is the same.
+        self._own_plot = None
+        try:
+            own_fp = self._plot_fp
+            if own_fp is not None and self._has_full_plot() and hasattr(self.shapes, 'snapshot'):
+                buffers = self.shapes.snapshot()
+                if buffers is not None and self._plot_fp == own_fp and self._has_full_plot():
+                    self._own_plot = (own_fp, buffers)
+        except Exception as e:
+            self.app.log.debug("FlatCAMObj.plot() own buffers --> %s" % str(e))
+
         self.clear()
         self._full_plot_sig = None
         self._plot_fp = None
         self._plot_batches = 0
+        self._plot_shapes = None
         return True
 
-    def reuse_plot_of(self, src):
+    def reuse_plot_of(self, src, offsets=None):
         """
         Call it in the initializer of a copy, after copy_from(). The next plot() of this object takes the buffers
         (the triangulation) of the last full plot of ``src`` for its shapes, with its own colors, instead of
@@ -361,10 +377,83 @@ class FlatCAMObj(QtCore.QObject):
         of all the coordinates (and the types) must match, the plot of ``src`` must be complete, with finished
         buffers and not mapped by a transform since. Otherwise (and on any error) it plots as usual.
 
-        :param src: the object this one is a copy of
-        :return:    None
+        With ``offsets`` (list of (dx, dy)) this object is a panel: len(offsets) copies of the shapes of ``src``, in
+        copy-major order, each copy moved by its offset. The plot then takes the buffers of ``src`` and moves them
+        by each offset, if the geometry proves to be that (else the normal plot runs).
+
+        :param src:     the object this one is a copy of
+        :param offsets: list of (dx, dy) of the copies of a panel, or None for a plain copy
+        :return:        None
         """
         self._reuse_src = src
+        self._reuse_offsets = offsets
+
+    def _reuse_translated_plot(self, src, shapes_data, fp, tolerance, kwargs, offsets):
+        # the keys of the shapes of a panel with the buffers of src moved by the offsets, or None if not valid
+        try:
+            import shapely
+            group = src.shapes
+            # The shapes of the last full plot of src and the fingerprint of that plot, read as one value. The
+            # buffers are taken later: they are used only if src still has THIS plot then (same fingerprint, same
+            # shapes), so a new plot or a transform of src between the check and the snapshot gives a normal plot.
+            src_plot = src._plot_shapes
+            if fp is None or src is self or src.deleted or not hasattr(group, 'snapshot') or \
+                    not hasattr(self.shapes, 'add_batch_copy') or src_plot is None:
+                return None
+            src_fp, src_shapes = src_plot
+            if src_fp is None or src._plot_fp != src_fp:
+                return None
+            n = len(src_shapes)
+            offsets = np.asarray(offsets, dtype=np.float64).reshape(-1, 2)
+            count = len(offsets)
+            if n == 0 or count == 0 or len(shapes_data) != n * count or len(group._indexes) != n or \
+                    not src._has_full_plot():
+                return None
+
+            # copy-major: shape i is shape (i mod n) of the source moved by offsets[i // n]
+            src_geoms = np.empty(n, dtype=object)
+            src_geoms[:] = src_shapes
+            pan_geoms = np.empty(n * count, dtype=object)
+            for i, item in enumerate(shapes_data):
+                pan_geoms[i] = item['shape']
+            src_types = shapely.get_type_id(src_geoms)
+            src_counts = shapely.get_num_coordinates(src_geoms)
+            if not (shapely.get_type_id(pan_geoms).reshape(count, n) == src_types[None, :]).all() or \
+                    not (shapely.get_num_coordinates(pan_geoms).reshape(count, n) == src_counts[None, :]).all():
+                return None
+            src_parts = shapely.get_parts(src_geoms)
+            src_rings = shapely.get_num_coordinates(shapely.get_rings(src_parts))
+            pan_parts = shapely.get_parts(pan_geoms)
+            pan_rings = shapely.get_num_coordinates(shapely.get_rings(pan_parts))
+            if len(pan_parts) != len(src_parts) * count or len(pan_rings) != len(src_rings) * count or \
+                    not (shapely.get_type_id(pan_parts).reshape(count, -1) == shapely.get_type_id(src_parts)).all() or \
+                    not (shapely.get_num_coordinates(pan_parts).reshape(count, -1) ==
+                         shapely.get_num_coordinates(src_parts)).all() or \
+                    not (pan_rings.reshape(count, -1) == src_rings).all():
+                return None
+            src_xy = shapely.get_coordinates(src_geoms)
+            pan_xy = shapely.get_coordinates(pan_geoms).reshape(count, len(src_xy), 2)
+            if not np.allclose(pan_xy - offsets[:, None, :], src_xy[None], atol=1e-9, rtol=0):
+                return None
+
+            buffers = group.snapshot()
+            if buffers is None or len(buffers) != n or src._plot_fp != src_fp or src._plot_shapes is not src_plot \
+                    or not src._has_full_plot():
+                return None
+            entries = []
+            for dx, dy in offsets:
+                off = np.array([dx, dy], dtype=np.float64)
+                for d in buffers:
+                    d2 = dict(d)
+                    if len(d['mesh_vertices']):
+                        d2['mesh_vertices'] = (d['mesh_vertices'] + off).astype(d['mesh_vertices'].dtype)
+                    if len(d['line_pts']):
+                        d2['line_pts'] = (d['line_pts'] + off).astype(d['line_pts'].dtype)
+                    entries.append(d2)
+            return self.shapes.add_batch_copy(entries, shapes_data, tolerance=tolerance, **kwargs)
+        except Exception as e:
+            self.app.log.debug("FlatCAMObj._reuse_translated_plot() --> %s" % str(e))
+            return None
 
     def _reuse_plot(self, src, shapes_data, fp, tolerance, kwargs):
         # the keys of the shapes with the buffers of src, or None if the plot of src cannot be trusted for these shapes
@@ -453,6 +542,8 @@ class FlatCAMObj(QtCore.QObject):
         :return: None
         """
         self._full_plot_sig = self._shapes_signature()
+        # a plot that did not use the buffers of the plot before it must not keep them in memory
+        self._own_plot = None
 
     def show_plotted_shapes(self, visible, kind=None):
         """
@@ -529,8 +620,27 @@ class FlatCAMObj(QtCore.QObject):
         src, self._reuse_src = self._reuse_src, None
         self._plot_batches += 1
         self._plot_fp = fp if self._plot_batches == 1 else None
+        # (fingerprint, shapes) of a one-batch plot, as one value: a panel checks its geometry against these shapes
+        self._plot_shapes = (fp, [item['shape'] for item in shapes_data]) \
+            if self._plot_batches == 1 and fp is not None else None
+        offsets, self._reuse_offsets = self._reuse_offsets, None
         if src is not None:
-            keys = self._reuse_plot(src, shapes_data, fp, tol, kwargs)
+            if offsets is not None:
+                keys = self._reuse_translated_plot(src, shapes_data, fp, tol, kwargs, offsets)
+            else:
+                keys = self._reuse_plot(src, shapes_data, fp, tol, kwargs)
+            if keys is not None:
+                return keys
+
+        # the buffers of the last plot of this object, taken by plot() before it cleared the shapes
+        own, self._own_plot = self._own_plot, None
+        if own is not None and self._plot_batches == 1 and fp is not None and own[0] == fp \
+                and hasattr(self.shapes, 'add_batch_copy'):
+            try:
+                keys = self.shapes.add_batch_copy(own[1], shapes_data, tolerance=tol, **kwargs)
+            except Exception as e:
+                self.app.log.debug("FlatCAMObj.add_shapes_batch() own buffers --> %s" % str(e))
+                keys = None
             if keys is not None:
                 return keys
 

@@ -36,9 +36,12 @@ def _records(editor):
 
 
 def _kind(aperture, shape):
-    """'region' | 'pad' | 'track' | None"""
+    """'region' | 'pad' | 'track' | None (a clear object: the track tools leave it as it is)"""
     if aperture.get('type') == 'REG':
         return 'region'
+    solid = shape.geo.get('solid')
+    if solid is None or solid.is_empty:
+        return None
     follow = shape.geo.get('follow')
     if isinstance(follow, Point):
         return None if follow.is_empty else 'pad'

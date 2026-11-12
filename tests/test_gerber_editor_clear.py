@@ -7,10 +7,11 @@ from unittest.mock import MagicMock
 
 import pytest
 from PyQt6 import QtCore
-from shapely.affinity import rotate
+from shapely.affinity import rotate, translate
 from shapely.geometry import LineString, Point, Polygon, box
 
-from appEditors.appGerberEditor import AppGerberEditor, EraserEditorGrb, ImportEditorGrb
+from appEditors.appGerberEditor import (AppGerberEditor, EraserEditorGrb, ImportEditorGrb, MoveEditorGrb,
+                                        is_clear_record, native_display_geometries)
 from appEditors.grb_plugins.GrbTransformationPlugin import affine_selection
 from camlib import affine_translate_matrix
 from appEditors.grb_plugins.GrbCommon import DrawToolShape
@@ -31,7 +32,7 @@ def snapshot(tools):
     return re.sub(r' at 0x[0-9A-Fa-f]+', '', repr(tools))
 
 
-def editor_save(app, source, tools, loaded_as_regions=False):
+def editor_save(app, source, tools, loaded_as_regions=False, native_load=False):
     """The real build_edited_gerber() (the worker step of the save) on a stand-in editor, fed with a storage built
     from ``tools`` (what the editor holds after the load). Returns the detached edited Gerber object."""
     storage = {}
@@ -43,7 +44,7 @@ def editor_save(app, source, tools, loaded_as_regions=False):
     app.custom_signal = MagicMock()
     app.main_thread = QtCore.QThread.currentThread()
     stand_in = SimpleNamespace(app=app, gerber_obj=source, gerber_obj_options=source.obj_options, results=[1],
-                               loaded_as_regions=loaded_as_regions)
+                               loaded_as_regions=loaded_as_regions, native_load=native_load)
     AppGerberEditor.build_edited_gerber(stand_in, 'edited', storage)
     result = app.custom_signal.emit.call_args.args[0]
     assert 'obj' in result, result
@@ -51,6 +52,17 @@ def editor_save(app, source, tools, loaded_as_regions=False):
 
 
 class TestBuildEditTools:
+    def test_board_wide_clear_keeps_copper_and_apertures(self, app):
+        source = make_gerber(app, 'tests/fixtures/freePCB.gbr')
+        before = snapshot(source.tools)
+        tools = AppGerberEditor.build_edit_tools(source.tools, source.solid_geometry, apertures=True)
+        assert snapshot(source.tools) == before
+        assert set(tools) == set(source.tools)
+        assert all('clear' not in rec for tool in tools.values() for rec in tool['geometry'])
+        assert any(isinstance(rec.get('follow'), Point) for tool in tools.values() for rec in tool['geometry'])
+        union = polygon_union([rec['solid'] for tool in tools.values() for rec in tool['geometry']])
+        assert_poly_equiv(union, source.solid_geometry)
+
     def test_clear_object_keeps_intact_flashes_and_moves_damaged_material_to_regions(self, app):
         source = make_gerber(app, MIXED_GBR)
         tools = AppGerberEditor.build_edit_tools(source.tools, source.solid_geometry, apertures=True)
@@ -493,3 +505,100 @@ class TestImportWithClear:
         affine_selection(tool.draw_app.selected, affine_translate_matrix(100, 0))
         assert tool.draw_app.selected[0].geo['solid'].bounds[0] == pytest.approx(original.bounds[0] + 100)
         assert snapshot(source.tools) == before
+
+
+ORCAD_CLEAR = 'tests/fixtures/orcad_17.2/Copper_Bottom.art'
+
+
+def native_records(source):
+    """The storage the editor holds after a Native load: the records of the source as they are."""
+    return {ap: {**tool, 'geometry': [dict(rec) for rec in tool['geometry']]} for ap, tool in source.tools.items()}
+
+
+def clear_count(tools):
+    return sum(1 for tool in tools.values() for rec in tool['geometry'] if 'clear' in rec)
+
+
+class TestNativeLoad:
+    def test_unchanged_native_save_keeps_clear_objects_and_copper(self, app, tmp_path):
+        source = make_gerber(app, ORCAD_CLEAR)
+        assert clear_count(source.tools) > 0
+        edited = editor_save(app, source, native_records(source), native_load=True)
+        assert clear_count(edited.tools) == clear_count(source.tools)
+        assert set(edited.tools) == set(source.tools)
+        assert edited.records_in_order is True
+        copper = polygon_union(source.solid_geometry)
+        assert sym_diff_area(polygon_union(edited.solid_geometry), copper) < 1e-6 * copper.area
+        # the file of the saved object keeps the clear objects and the flashes
+        again = reparse_gerber(app, edited.source_file, tmp_path)
+        assert clear_count(again.tools) == clear_count(source.tools)
+        flashes = [sum(1 for tool in obj.tools.values() for rec in tool['geometry']
+                       if isinstance(rec.get('follow'), Point) and 'solid' in rec) for obj in (source, again)]
+        assert flashes[0] == flashes[1] > 0
+        assert sym_diff_area(polygon_union(again.solid_geometry), copper) < 1e-3 * copper.area
+
+    @staticmethod
+    def clear_scene(source):
+        records = sorted((rec for tool in source.tools.values() for rec in tool['geometry']),
+                         key=lambda rec: rec['seq'])
+        clear = next(rec for rec in records if 'clear' in rec)
+        earlier = polygon_union([rec['solid'] for rec in records if 'solid' in rec and rec['seq'] < clear['seq']])
+        later = polygon_union([rec['solid'] for rec in records if 'solid' in rec and rec['seq'] > clear['seq']])
+        others = polygon_union([rec['clear'] for rec in records if 'clear' in rec and rec is not clear])
+        return clear, earlier, later, others
+
+    def test_moved_clear_object_erases_its_new_place_and_frees_the_old_one(self, app):
+        source = make_gerber(app, ORCAD_CLEAR)
+        copper = polygon_union(source.solid_geometry)
+        clear, earlier, later, others = self.clear_scene(source)
+        old_spot = clear['clear'].difference(copper).intersection(earlier).difference(later).difference(others)
+        assert old_spot.area > 0
+        # a place where the moved clear object erases material that only earlier records give
+        for dx, dy in ((3, 0), (-3, 0), (0, 3), (0, -3), (6, 0), (-6, 0), (0, 6), (0, -6)):
+            moved = translate(clear['clear'], dx, dy)
+            new_spot = moved.intersection(copper).intersection(earlier).difference(later).difference(others) \
+                .difference(clear['clear'])
+            if new_spot.area > 0:
+                break
+        assert new_spot.area > 0
+        tools = native_records(source)
+        for tool in tools.values():
+            for index, rec in enumerate(tool['geometry']):
+                if rec['seq'] == clear['seq'] and 'clear' in rec:
+                    tool['geometry'][index] = dict(
+                        MoveEditorGrb.translated_elements([SimpleNamespace(geo=rec)], dx, dy)[0], seq=rec['seq'])
+        edited = editor_save(app, source, tools, native_load=True)
+        result = polygon_union(edited.solid_geometry)
+        assert result.contains(old_spot.representative_point())
+        assert not result.contains(new_spot.representative_point())
+        assert clear_count(edited.tools) == clear_count(source.tools)
+
+    def test_native_view_shows_the_composed_copper(self, app):
+        # the canvas of a Native load shows each dark record without the later clear objects, as the Apertures load
+        source = make_gerber(app, 'tests/fixtures/freePCB.gbr')
+        shapes = [DrawToolShape(rec) for tool in native_records(source).values() for rec in tool['geometry']]
+        shown = native_display_geometries(shapes, {})
+        dark = polygon_union([shown[s] for s in shapes
+                              if not is_clear_record(s.geo) and shown[s] is not None and not shown[s].is_empty])
+        copper = polygon_union(source.solid_geometry)
+        assert sym_diff_area(dark, copper) < 1e-6 * copper.area
+        # an unchanged scene gives the same objects again (the canvas keeps its buffers)
+        cache = {}
+        first = native_display_geometries(shapes, cache)
+        assert all(native_display_geometries(shapes, cache)[s] is first[s] for s in shapes)
+
+    def test_new_drawing_over_a_clear_object_is_copper(self, app):
+        source = make_gerber(app, ORCAD_CLEAR)
+        clear = next(rec for tool in source.tools.values() for rec in tool['geometry'] if 'clear' in rec)
+        spot = clear['clear'].representative_point()
+        tools = native_records(source)
+        ap = next(key for key, tool in tools.items() if tool['type'] == 'C' and tool['geometry'])
+        drawn = spot.buffer(0.3)
+        tools[ap]['geometry'].append({'solid': drawn, 'follow': spot})
+        edited = editor_save(app, source, tools, native_load=True)
+        assert polygon_union(edited.solid_geometry).contains(drawn.buffer(-0.01))
+        # it comes after every record of the file, so a later export keeps it above the clear object
+        seqs = {id(rec): rec['seq'] for tool in edited.tools.values() for rec in tool['geometry']}
+        new = next(rec for tool in edited.tools.values() for rec in tool['geometry']
+                   if rec.get('solid') is not None and rec['solid'].equals(drawn))
+        assert seqs[id(new)] == max(seqs.values()) == len(seqs) - 1

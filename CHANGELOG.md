@@ -6,6 +6,41 @@ Based on FlatCAM:
 
 CHANGELOG for FlatCAM Evo
 
+12.11.2026
+
+Gerber export:
+
+- changed: the Gerber export keeps the clear objects (%LPC) and the flashes of a parsed file; the parser gives each object its number in the file, and the export writes the objects in that order, with the aperture and polarity changes, so a dark -> clear -> dark sequence is not composed into regions any more
+- changed: a move, rotation, mirror, scale, skew, copy and a panel whose copies do not touch keep the order of the file; a buffer, the Gerber editor, a join or a plugin that changes the objects make the export compose the objects again
+- added: if the order of the objects is not known, the export still keeps each object (a C, R or O aperture, a block aperture %AB for any other flash, regions without holes for the rest) and adds clear and dark patch regions, so the file gives the same copper; only the PCB document imports are still exported as regions
+- added: the project file saves the order state of a Gerber object; a project of an older version loads with the order unknown
+
+Gerber editor:
+
+- added: a 3rd load mode "Native" in Preferences > Gerber > Editor (the new default); the editor keeps the clear objects (drawn with a red outline) and saves all objects in the order of the file
+
+Panelize:
+
+- added: the "Step and Repeat" option (Panelize plugin and Preferences): a Gerber panel of a Gerber object is written as 1 copy in a %SR block; only for a regular grid whose copies do not touch; a panel of 150 copies of a 120 KB Gerber went from 24.5 s to 1.5 s for the copies and 0.007 s for the text
+- added: the plugin compares an estimate of the memory of the panel with the free memory and asks before a "Large panel" is made (Windows, Linux and macOS)
+- changed: the copies of a Gerber panel are moved in one batch, the panel geometry of a Geometry object is moved once, the panel reuses the plot of the source object, and the panel lines of the source are merged once
+- changed: a Gerber with clear objects moves the region polygons of the source to each copy and does not join all the copies; the union does not stop the window any more
+- changed: the DXF writer fits the arcs incrementally and keeps a fit cache per document; the region export of a Gerber joins the regions with Clipper2 only when they touch
+
+Distance:
+
+- added: "Snap to vertex" snaps to the end points and the vertices of the traces (Gerber lines)
+- added: a Distance page in Preferences > Plugins, with the line width (1 to 10 px; the arrowheads grow with it), the text size, a bold text option and the color of the dimension lines; each color has an App Color and an Editor Color, for the light canvas and for the dark canvas (the Dark theme or the Dark Canvas option)
+- changed: the default Editor Color is dark orange on a light canvas and green on a dark canvas, so the dimension lines contrast with the black or white shapes and the blue selection of the editors
+
+Welcome screen:
+
+- fixed: the same file opened with other slashes or with other letter case (Windows) was listed 2 times in the recent files; the history and the Welcome screen now keep 1 record for 1 file
+
+Startup:
+
+- changed: the DeprecationWarning of PyOpenGL about '__version__' is not shown at the start any more
+
 11.11.2026
 
 Import:

@@ -182,8 +182,12 @@ class DrawTool(object):
                 return minx, miny, maxx, maxy
             else:
                 # it's a Shapely object, return it's bounds
-                if 'solid' in o.geo:
-                    return o.geo['solid'].bounds
+                # a clear object (Native load) has only its 'clear' geometry
+                geo = o.geo.get('solid')
+                if geo is None or geo.is_empty:
+                    geo = o.geo.get('clear', geo)
+                if geo is not None:
+                    return geo.bounds
 
         return bounds_rec(obj)
 

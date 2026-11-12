@@ -7,10 +7,12 @@
 
 from PyQt6 import QtWidgets, QtCore
 from appTool import AppTool
-from appGUI.GUIElements import VerticalScrollArea
+from appGUI.GUIElements import VerticalScrollArea, FCMessageBox
+from appCommon.memory import free_memory, format_size
 from appPlugins.ToolPanelize.PanelizeUI import PanelizeUI
 from appPlugins.ToolPanelize import PanelizeGen
 from appParsers import panelize_core
+from appParsers.ParseGerber import Gerber
 from defaults import AppDefaults
 
 import logging
@@ -174,6 +176,10 @@ class Panelize(AppTool):
             "tools_panelize_optimization",
             app_defaults.get("tools_panelize_optimization", AppDefaults.factory_defaults.get("tools_panelize_optimization")))
         self.ui.optimization_cb.set_value(optimized_path_cb)
+
+        self.ui.step_repeat_cb.set_value(self.app.options.get(
+            "tools_panelize_step_repeat",
+            app_defaults.get("tools_panelize_step_repeat", AppDefaults.factory_defaults.get("tools_panelize_step_repeat"))))
 
         c_cb = self.app.options.get(
             "tools_panelize_constrain",
@@ -357,13 +363,20 @@ class Panelize(AppTool):
                     self.app.inform.emit('[ERROR_NOTCL] %s' % _("The reference object does not fit the constrain area."))
                     return
 
-            offsets = panelize_core.grid_offsets(box_bounds, rows, columns, spacing_columns, spacing_rows)
+            # Only the check of the bounds and of the spacing runs here (1 copy). The worker makes the list of
+            # all the offsets: a large grid must not block the GUI thread.
+            panelize_core.grid_offsets(box_bounds, 1, 1, spacing_columns, spacing_rows)
         except (ValueError, TypeError) as e:
             self.app.log.error("Panelize.on_panelize() --> %s" % str(e))
             self.app.inform.emit('[ERROR_NOTCL] %s' % str(e))
             return
 
+        if not self.confirm_panel_memory(panel_source_obj, rows * columns):
+            self.app.inform.emit('[WARNING_NOTCL] %s' % _("Cancelled."))
+            return
+
         to_optimize = self.ui.optimization_cb.get_value()
+        step_repeat = self.ui.step_repeat_cb.get_value() is True
 
         def abort():
             return self.app.abort_flag
@@ -379,6 +392,7 @@ class Panelize(AppTool):
         def panelize_worker():
             if panel_source_obj is not None:
                 self.app.inform.emit(_("Generating panel ... "))
+                offsets = panelize_core.grid_offsets(box_bounds, rows, columns, spacing_columns, spacing_rows)
 
                 def job_init_excellon(obj_fin, app_obj):
                     obj_fin.multitool = True
@@ -433,7 +447,8 @@ class Panelize(AppTool):
                         if to_optimize is True:
                             app_obj.inform.emit('%s' % _("Optimizing the overlapping paths."))
 
-                        panelize_core.merge_tool_lines(new_obj.tools, snap_overlaps=to_optimize is True, abort=abort)
+                        panelize_core.optimize_panel_lines(panel_source_obj.tools, new_obj.tools, offsets,
+                                                           snap_overlaps=to_optimize is True, abort=abort)
 
                         if to_optimize is True:
                             app_obj.inform.emit('%s' % _("Optimization complete."))
@@ -446,12 +461,57 @@ class Panelize(AppTool):
                     # app_obj.log.debug("Finished creating a unary_union for the panel.")
                     app_obj.proc_container.update_view_text('')
 
+                def source_with_step_repeat(new_obj):
+                    """
+                    The Step and Repeat option: the source text of the panel is the export of ONE copy (the source
+                    object) inside a Gerber Step and Repeat block. Only for a Gerber source on a regular grid whose
+                    copies do not touch: a clear object of a copy must not reach another copy.
+
+                    :return: True if the source text was made
+                    """
+                    if not step_repeat or panel_source_obj.kind != 'gerber':
+                        return False
+                    grid = panelize_core.step_repeat_grid(
+                        panelize_core.source_bounds(panel_source_obj.tools, panel_source_obj.solid_geometry),
+                        offsets, rows, columns)
+                    if grid is None:
+                        return False
+                    # The export reads tools and solid_geometry of the object it gets. The panel is not in the
+                    # project yet, so for the time of the export it holds the data of the source (the source
+                    # object itself is not given to the export: that stops its own pending source work).
+                    panel_data = new_obj.tools, new_obj.solid_geometry
+                    # the region polygons of the PANEL must not be written as the one copy of the block
+                    panel_regions = vars(new_obj).pop('region_polygons_once', None)
+                    new_obj.tools, new_obj.solid_geometry = panel_source_obj.tools, panel_source_obj.solid_geometry
+                    try:
+                        text = self.app.f_handlers.export_gerber(
+                            obj_name=outname, filename=None, local_use=new_obj, use_thread=False, step_repeat=grid)
+                    finally:
+                        new_obj.tools, new_obj.solid_geometry = panel_data
+                    if not isinstance(text, str) or text == 'fail':
+                        if panel_regions is not None:
+                            new_obj.region_polygons_once = panel_regions
+                        return False
+                    new_obj.source_file = text
+                    return True
+
                 def job_init_gerber(new_obj, app_obj):
                     if panel_source_obj.kind == 'gerber':
                         new_obj.tools, new_obj.solid_geometry = panelize_core.panelize_gerber(
                             panel_source_obj.tools, panel_source_obj.solid_geometry, offsets, abort=abort,
                             progress=progress)
                         panelize_core.copy_gerber_attributes(new_obj, panel_source_obj)
+                        # The panel is the source moved to each offset: its plot uses the triangulation of the
+                        # source (the plot checks this and makes a normal plot if it is not so).
+                        new_obj.reuse_plot_of(panel_source_obj, offsets=offsets)
+                        # A panel that is exported as regions needs the union of its copper. For copies that do
+                        # not touch, that is the union of the source moved to each copy: the export takes these
+                        # polygons (1 time) and makes no union of the whole panel.
+                        if Gerber.uses_region_export(new_obj):
+                            region_polygons = panelize_core.panel_region_polygons(
+                                Gerber.region_export_polygons(panel_source_obj), offsets, abort=abort)
+                            if region_polygons is not None:
+                                new_obj.region_polygons_once = region_polygons
                     else:
                         # The Gerber apertures are made from the Geometry before panelizing.
                         new_obj.tools, new_obj.solid_geometry, as_regions = PanelizeGen.gerber_from_geometry(
@@ -468,7 +528,12 @@ class Panelize(AppTool):
 
                     app_obj.inform.emit('%s' % _("Generating panel ... Adding the source code."))
 
-                    new_obj.regenerate_source(name=outname)
+                    try:
+                        if not source_with_step_repeat(new_obj):
+                            new_obj.regenerate_source(name=outname)
+                    finally:
+                        # never kept: it is valid only for the geometry of this moment
+                        vars(new_obj).pop('region_polygons_once', None)
 
                     # new_obj.solid_geometry = unary_union(new_obj.solid_geometry)
                     # app_obj.log.debug("Finished creating a unary_union for the panel.")
@@ -510,6 +575,37 @@ class Panelize(AppTool):
 
         self.app.collection.promise(outname)
         self.app.worker_task.emit({'fcn': job_thread, 'params': [self.app]})
+
+    def confirm_panel_memory(self, source_obj, copies):
+        """
+        Compares the estimated memory of the panel with the free memory of the computer. If the panel needs more,
+        the user sees the 2 numbers and decides. No question if the operating system does not give the free memory.
+
+        :param source_obj: the object to panelize
+        :param copies:     number of copies (rows * columns)
+        :return:           True to make the panel
+        """
+        needed = panelize_core.panel_memory_estimate(
+            getattr(source_obj, 'tools', None), getattr(source_obj, 'solid_geometry', None), copies)
+        free = free_memory()
+        if free is None or needed <= free:
+            return True
+
+        msgbox = FCMessageBox(parent=self.app.ui)
+        title = _("Large panel")
+        msgbox.setWindowTitle(title)
+        msgbox.setText('<b>%s</b>' % title)
+        msgbox.setInformativeText(
+            _("The panel has {copies} copies and needs about {needed} of memory.\n"
+              "The free memory is {free}.\n"
+              "The application can become slow or stop.\n\n"
+              "Do you want to continue?").format(copies=copies, needed=format_size(needed), free=format_size(free)))
+        msgbox.setIcon(QtWidgets.QMessageBox.Icon.Warning)
+        bt_yes = msgbox.addButton(_('Yes'), QtWidgets.QMessageBox.ButtonRole.YesRole)
+        bt_no = msgbox.addButton(_('No'), QtWidgets.QMessageBox.ButtonRole.NoRole)
+        msgbox.setDefaultButton(bt_no)
+        msgbox.exec()
+        return msgbox.clickedButton() == bt_yes
 
     def reset_fields(self):
         self.ui.object_combo.setRootModelIndex(self.app.collection.index(0, 0, QtCore.QModelIndex()))

@@ -653,6 +653,7 @@ class PreferencesUIManager(QtCore.QObject):
             "tools_panelize_constrainx": self.ui.plugin_pref_form.tools_panelize_group.px_width_entry,
             "tools_panelize_constrainy": self.ui.plugin_pref_form.tools_panelize_group.py_height_entry,
             "tools_panelize_panel_type": self.ui.plugin_pref_form.tools_panelize_group.panel_type_radio,
+            "tools_panelize_step_repeat": self.ui.plugin_pref_form.tools_panelize_group.pstep_repeat_cb,
 
             # Calculators Tool
             "tools_calc_vshape_tip_dia": self.ui.plugin_pref_form.tools_calculators_group.tip_dia_entry,
@@ -717,6 +718,15 @@ class PreferencesUIManager(QtCore.QObject):
 
             # Compare Plugin
             "tools_compare_tolerance": self.ui.plugin_pref_form.tools_compare_group.tolerance_entry,
+
+            # Distance Plugin
+            "tools_dist_line_width": self.ui.plugin_pref_form.tools_distance_group.line_width_entry,
+            "tools_dist_text_size": self.ui.plugin_pref_form.tools_distance_group.text_size_entry,
+            "tools_dist_text_bold": self.ui.plugin_pref_form.tools_distance_group.text_bold_cb,
+            "tools_dist_app_color_light": self.ui.plugin_pref_form.tools_distance_group.app_color_light_entry,
+            "tools_dist_app_color_dark": self.ui.plugin_pref_form.tools_distance_group.app_color_dark_entry,
+            "tools_dist_editor_color_light": self.ui.plugin_pref_form.tools_distance_group.editor_color_light_entry,
+            "tools_dist_editor_color_dark": self.ui.plugin_pref_form.tools_distance_group.editor_color_dark_entry,
 
             # Follow Plugin
             "tools_follow_simplification": self.ui.plugin_pref_form.tools_follow_group.simplification_cb,

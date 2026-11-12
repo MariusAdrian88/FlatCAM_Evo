@@ -121,10 +121,12 @@ class GerberEditorPrefGroupUI(OptionsGroupUI):
         self.load_label.setToolTip(
             _("How the editor loads a Gerber object that has clear (negative) features.\n"
               "- Regions: Load the object as one region aperture (0), with one polygon for each solid area. Fast.\n"
-              "- Apertures: Keep the apertures. Slow load.")
+              "- Apertures: Keep the apertures. Slow load.\n"
+              "- Native: Keep the apertures and the clear objects as they are, in the order of the file. "
+              "The clear objects show as outlines.")
         )
         self.load_combo = FCComboBox2()
-        self.load_combo.addItems([_("Regions"), _("Apertures")])
+        self.load_combo.addItems([_("Regions"), _("Apertures"), _("Native")])
 
         param_grid.addWidget(self.load_label, 12, 0)
         param_grid.addWidget(self.load_combo, 12, 1)

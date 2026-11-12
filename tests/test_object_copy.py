@@ -472,3 +472,131 @@ def test_copy_plot_falls_back_to_a_full_plot(app, canvas, kind):
     clone, triangulated = copy_plot(app, source, kind, 'command')
     assert triangulated > 0
     full_plot_of_moved_copy(clone)
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# the plot of a panel (copies of the source moved by offsets) takes the triangulation of the source
+# ---------------------------------------------------------------------------------------------------------------
+
+PANEL_OFFSETS = [(0.0, 0.0), (30.0, 0.0), (0.0, 25.5), (30.0, 25.5)]
+
+
+def panel_of(app, source, offsets, change=None):
+    """A Gerber whose shapes are the plotted shapes of the source, copy-major, one copy per offset."""
+    from shapely import affinity
+    base = [g for g in shapely_parts(source.solid_geometry)]
+    shapes = [affinity.translate(g, dx, dy) for dx, dy in offsets for g in base]
+    if change:
+        shapes = change(shapes)
+    panel = gerber_source(app)
+    panel.solid_geometry = shapes
+    panel.reuse_plot_of(source, offsets=offsets)
+    return panel
+
+
+def shapely_parts(geometry):
+    import shapely
+    geoms = np.empty(1, dtype=object)
+    geoms[0] = shapely.GeometryCollection(list(geometry) if isinstance(geometry, (list, tuple)) else [geometry])
+    return list(shapely.get_parts(shapely.get_parts(geoms)))
+
+
+def assert_close_plot(got, want, atol=2e-5):
+    # a fresh triangulation of moved polygons may pick other (equally valid) triangles: only their count is compared
+    assert len(got) == len(want) > 0
+    for g, w in zip(got, want):
+        for k in w:
+            if k == 'mesh_tris' and atol:
+                assert np.shape(g[k]) == np.shape(w[k])
+            elif isinstance(w[k], np.ndarray) and w[k].dtype.kind == 'f':
+                np.testing.assert_allclose(g[k], w[k], atol=atol, rtol=0, err_msg=k)
+            elif isinstance(w[k], np.ndarray):
+                np.testing.assert_array_equal(g[k], w[k], err_msg=k)
+            else:
+                assert g[k] == w[k], k
+
+
+def panel_plot(app, source, offsets, change=None):
+    """Plot the panel with reuse; returns the panel, the number of triangulations and a fresh plot of the same shapes."""
+    from unittest.mock import patch
+    import appGUI.VisPyVisuals as vv
+    panel = panel_of(app, source, offsets, change)
+    with patch.object(vv, '_update_shape_buffers', wraps=vv._update_shape_buffers) as built:
+        plot_into(panel, 'gerber', source.shapes._collection, **COPY_COLORS)
+    got = plotted(panel)
+    panel.shapes.clear(update=False)
+    plot_into(panel, 'gerber', shared_plot_app(app), **COPY_COLORS)
+    return panel, built.call_count, got, plotted(panel)
+
+
+def test_panel_plot_reuses_the_triangulation_of_the_source(app, canvas):
+    source = gerber_source(app)
+    plot_into(source, 'gerber', shared_plot_app(app))
+    panel, triangulated, got, fresh = panel_plot(app, source, PANEL_OFFSETS)
+    assert triangulated == 0
+    assert len(got) == len(plotted(source)) * len(PANEL_OFFSETS)
+    assert_close_plot(got, fresh)
+
+
+def test_a_new_plot_with_other_colors_keeps_the_triangulation(app, canvas):
+    # Multi-Color (or a color change) plots the same geometry again: no new triangulation, only new colors
+    from unittest.mock import patch
+    import appGUI.VisPyVisuals as vv
+    source = gerber_source(app)
+    plot_into(source, 'gerber', shared_plot_app(app))
+    first = plotted(source)
+    with patch.object(vv, '_update_shape_buffers', wraps=vv._update_shape_buffers) as built:
+        source.plot(**COPY_COLORS)
+    again = plotted(source)
+    assert built.call_count == 0
+    assert len(again) == len(first) > 0
+    for new, old in zip(again, first):
+        np.testing.assert_array_equal(new['mesh_vertices'], old['mesh_vertices'])
+        np.testing.assert_array_equal(new['mesh_tris'], old['mesh_tris'])
+        np.testing.assert_array_equal(new['line_pts'], old['line_pts'])
+        assert not np.array_equal(new['mesh_rgba'], old['mesh_rgba'])
+
+    # changed geometry: a normal plot, with the buffers of the new geometry
+    from shapely import affinity
+    source.solid_geometry = [affinity.translate(g, 50.0, 0.0) for g in shapely_parts(source.solid_geometry)]
+    with patch.object(vv, '_update_shape_buffers', wraps=vv._update_shape_buffers) as built:
+        source.plot(color='#112233FF', face_color='#44556677')
+    assert built.call_count > 0
+    assert plotted(source)[0]['mesh_vertices'][:, 0].min() > first[0]['mesh_vertices'][:, 0].min() + 40
+
+
+def test_panel_plot_does_not_take_the_buffers_of_a_later_plot_of_the_source(app, canvas):
+    # the source is plotted again, at another place, after the panel checked its shapes and before it takes the
+    # buffers: the panel must show its own geometry, not the moved source
+    from shapely import affinity
+    source = gerber_source(app)
+    plot_into(source, 'gerber', shared_plot_app(app))
+    group = source.shapes
+    snapshot = group.snapshot
+
+    def plot_again_then_snapshot():
+        group.snapshot = snapshot
+        source.solid_geometry = [affinity.translate(g, 100.0, 0.0) for g in shapely_parts(source.solid_geometry)]
+        group.clear(update=False)
+        source.plot(color='#112233FF', face_color='#44556677')
+        return snapshot()
+
+    group.snapshot = plot_again_then_snapshot
+    panel, triangulated, got, fresh = panel_plot(app, source, PANEL_OFFSETS)
+    assert group.snapshot is snapshot           # the late plot of the source did run
+    assert_close_plot(got, fresh)
+
+
+def test_panel_plot_falls_back_when_the_shapes_do_not_match(app, canvas):
+    from shapely import affinity
+
+    def one_shape_changed(shapes):
+        shapes[3] = affinity.scale(shapes[3], 1.5, 1.5)
+        return shapes
+
+    source = gerber_source(app)
+    plot_into(source, 'gerber', shared_plot_app(app))
+    for change in (one_shape_changed, lambda shapes: shapes[:-1]):
+        panel, triangulated, got, fresh = panel_plot(app, source, PANEL_OFFSETS, change)
+        assert triangulated > 0
+        assert_close_plot(got, fresh, atol=0)

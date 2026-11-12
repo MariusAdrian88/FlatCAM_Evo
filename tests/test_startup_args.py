@@ -380,6 +380,21 @@ def test_invalid_recent_history_does_not_prevent_startup(qapp, tmp_path, history
     assert app.ui.recent_projects.actions()[0].text() == 'board.FlatPrj'
 
 
+def test_a_file_opened_with_other_slashes_is_one_history_record(tmp_path):
+    """The Welcome screen listed 'D:\\gerb\\a.gbr' and 'D:/gerb/a.gbr' as 2 files."""
+    from appGUI.WelcomeDialog import recent_files
+    native = os.path.join(str(tmp_path), 'gerb', 'a.gbr')
+    other = native.replace(os.sep, '/') if os.sep == '\\' else native.replace('/', '//')
+    app = SimpleNamespace(recent=[], recent_projects=[], options={'global_recent_limit': 10},
+                          defaults={'global_recent_limit': 10}, log=Mock(),
+                          app_obj=SimpleNamespace(load_batches=True))
+    for name in (native, other, os.path.join(str(tmp_path), 'b.drl'), native):
+        appMain.App.register_recent(app, 'excellon' if name.endswith('.drl') else 'gerber', name)
+    assert [record['filename'] for record in app.recent] == [native, os.path.join(str(tmp_path), 'b.drl')]
+    app.recent.append({'kind': 'gerber', 'filename': other})      # an old history file with the copy
+    assert recent_files(app, 'gerber') == [native]
+
+
 @pytest.fixture
 def welcome_startup(qapp, monkeypatch, tmp_path):
     from collections import deque

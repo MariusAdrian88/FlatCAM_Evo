@@ -31,7 +31,9 @@ def selection_bounds(shapes):
 
     :return: the tuple, or None if there is no geometry
     """
-    solids = [shape.geo['solid'] for shape in shapes if shape.geo.get('solid') is not None]
+    # a clear object (Native load) has only its 'clear' geometry
+    solids = [shape.geo['solid'] if shape.geo.get('solid') is not None else shape.geo['clear'] for shape in shapes
+              if shape.geo.get('solid') is not None or shape.geo.get('clear') is not None]
     if not solids:
         return None
     arr = np.empty(len(solids), dtype=object)

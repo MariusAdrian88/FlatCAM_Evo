@@ -304,10 +304,11 @@ def geometry_wkb(geo):
 
 
 def tools_wkb(gbr):
-    """WKB of every geometry stored per aperture."""
+    """WKB of every geometry stored per aperture; other record values (the 'seq' number) as they are."""
     result = {}
     for code, tool in sorted(gbr.tools.items()):
-        result[code] = [(key, shapely.to_wkb(geo)) for item in tool['geometry'] for key, geo in sorted(item.items())]
+        result[code] = [(key, shapely.to_wkb(geo) if isinstance(geo, shapely.Geometry) else geo)
+                        for item in tool['geometry'] for key, geo in sorted(item.items())]
     return result
 
 

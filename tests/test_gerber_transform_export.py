@@ -192,6 +192,12 @@ def record_count(obj, apid):
     return len(obj.tools[apid]['geometry'])
 
 
+def flash_count(obj):
+    """The dark flashes of an object: the records with a flash point (the snap of the Distance tool uses them)."""
+    return sum(1 for tool in obj.tools.values() if tool.get('type') != 'REG' for record in tool.get('geometry', ())
+               if isinstance(record.get('follow'), Point) and not getattr(record.get('solid'), 'is_empty', True))
+
+
 # ---------------------------------------------------------------------------------------------------------------
 # the table: flag and metadata
 # ---------------------------------------------------------------------------------------------------------------
@@ -286,9 +292,9 @@ class TestFlagIsSticky:
             step(obj)
             assert obj.export_as_regions is True
         text = export_gerber_text(app, obj)
-        assert '%ADD' not in text and 'G36*' in text
         again = reparse_gerber(app, text, tmp_path)
         assert_composed_equal(again.solid_geometry, obj.solid_geometry, 'sticky')
+        assert flash_count(again) == flash_count(obj) > 0
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -320,24 +326,43 @@ class TestTableExportRoundTrip:
                 if key in old_tool:
                     assert new_tool[key] == pytest.approx(old_tool[key], abs=1e-5), (kind, tid, key)
         else:
-            assert '%ADD' not in text and 'G36*' in text, (kind, tid)
-            assert set(again.tools) == {0}
+            # the metadata can not describe the records: each flash is a block aperture flashed at its point
+            assert flash_count(again) == flash_count(obj), (kind, tid)
 
 
 class TestUntransformedAndMixedFixtures:
     @pytest.mark.parametrize('kind', ['AM'])
-    def test_untransformed_p_and_macro_round_trip_through_the_regions(self, app, tmp_path, kind):
-        """The writer cannot declare P and AM apertures: the object goes through the region export before any
-        transform, without the flag. This separates the writer limit from a transform regression."""
+    def test_untransformed_p_and_macro_flashes_stay_flashes(self, app, tmp_path, kind):
+        """The writer cannot declare P and AM apertures: each flash is a block aperture with the shape of the flash,
+        flashed at its point, before any transform and without the flag."""
         obj, apid = load(app, kind)
         assert obj.export_as_regions is False
         assert obj.needs_region_export() is True
         text = export_gerber_text(app, obj)
-        assert '%ADD' not in text and 'G36*' in text
+        assert '%ABD' in text
         again = reparse_gerber(app, text, tmp_path)
         assert_composed_equal(again.solid_geometry, obj.solid_geometry, kind)
-        assert record_count(again, 0) == record_count(obj, apid)
+        assert flash_count(again) == record_count(obj, apid)
 
+
+    def test_dark_and_clear_objects_are_written_with_their_apertures_in_file_order(self, app, tmp_path):
+        """A parsed file with clear objects keeps its apertures in the export: the records are written in the
+        order of the file. Without that order (records made by an editor, a join, an older project) the records are
+        still written with their apertures; the export adds at the end what their order can not give."""
+        obj = make_gerber(app, 'tests/fixtures/orcad_17.2/Copper_Bottom.art', name='clear')
+        assert obj.needs_region_export() is False
+        text = export_gerber_text(app, obj)
+        assert '%ADD' in text and '%LPC*%' in text
+        again = reparse_gerber(app, text, tmp_path)
+        assert_composed_equal(again.solid_geometry, obj.solid_geometry, 'file order')
+        assert set(again.tools) == set(obj.tools)
+
+        obj.records_in_order = False
+        text = export_gerber_text(app, obj)
+        assert '%ADD' in text and '%LPC*%' in text
+        again = reparse_gerber(app, text, tmp_path)
+        assert_composed_equal(again.solid_geometry, obj.solid_geometry, 'no order')
+        assert flash_count(again) == flash_count(obj) > 0
 
     @pytest.mark.parametrize('tid', ['buffer_mitre'])
     def test_region_with_a_hole(self, app, tmp_path, tid):
@@ -362,6 +387,27 @@ class TestUntransformedAndMixedFixtures:
         assert {ap: record_count(again, ap) for ap in again.tools} == {ap: record_count(obj, ap) for ap in obj.tools}
 
 
+class TestLargeRegionExport:
+    @pytest.mark.parametrize('overlapping', [True, False])
+    @pytest.mark.parametrize('with_clipper', [True, False])
+    def test_many_parts_export_the_same_copper(self, app, tmp_path, monkeypatch, overlapping, with_clipper):
+        """80 or more parts take the Clipper2 / no-union / GEOS branches of the region export; the copper stays."""
+        if not with_clipper:
+            from appCommon import clipper_ops
+            monkeypatch.setattr(clipper_ops, 'union', lambda geoms: None)
+        step = 1.0 if overlapping else 3.0
+        geometry = [box(i * step, 0, i * step + 1.5, 1) for i in range(70)]
+        ring = box(0, 5, 4, 9).difference(box(1, 6, 3, 8))
+        geometry += [ring] + [box(i * 3.0, 12, i * 3.0 + 1, 13) for i in range(10)]
+        obj = make_gerber(app, NATIVE_GBR)
+        obj.solid_geometry = geometry
+        obj.export_as_regions = True
+        again = reparse_gerber(app, export_gerber_text(app, obj), tmp_path)
+        assert_poly_equiv(again.solid_geometry, geometry)
+        assert interior_count(again.solid_geometry) == 1
+        assert len(parts(polygon_union(again.solid_geometry))) == len(parts(polygon_union(geometry)))
+
+
 # ---------------------------------------------------------------------------------------------------------------
 # project save and load
 # ---------------------------------------------------------------------------------------------------------------
@@ -373,9 +419,9 @@ class TestProjectSaveLoad:
         _, restored = save_and_load(app, [obj], tmp_path)
         assert restored[0].export_as_regions is True
         text = export_gerber_text(app, restored[0])
-        assert '%ADD' not in text
         again = reparse_gerber(app, text, tmp_path)
         assert_composed_equal(again.solid_geometry, obj.solid_geometry, 'project flag')
+        assert flash_count(again) == flash_count(obj) > 0
 
 
 def region_gerber(app, geometry, name='reg'):
@@ -467,9 +513,10 @@ def flagged_native(app, name='flagged'):
 def assert_exports_composed_geometry(app, obj, expected, tmp_path, msg):
     """The exported file, parsed back by the real parser, equals the expected composed geometry."""
     text = export_gerber_text(app, obj)
-    assert '%ADD' not in text and 'G36*' in text, msg   # it went through the region export
     again = reparse_gerber(app, text, tmp_path, name='again_' + msg.replace(' ', '_'))
     assert_poly_equiv(again.solid_geometry, expected, rel=1e-6, abs_tol=1e-4, msg=msg)
+    # the flashes stay flashes (aperture or block aperture)
+    assert flash_count(again) == flash_count(obj), msg
 
 
 class TestLifecycleCopy:
@@ -500,16 +547,16 @@ class TestLifecycleMerge:
 
 
 class TestLifecycleProject:
-    def test_project_without_the_field_loads_as_false(self, app, tmp_path):
-        source = make_gerber(app, NATIVE_GBR)
+    def save_and_load(self, app, tmp_path, source, change=None):
+        """Save the object in a project file and give the object that the project load builds from it."""
         app.collection.get_list.return_value = [source]
         app.collection.get_active.return_value = None
-        path = str(tmp_path / 'old.FlatPrj')
+        path = str(tmp_path / 'saved.FlatPrj')
         io = appIO(app)
         io.save_project(path, silent=True)
         proj = load_project_file(path, object_hook=dict2obj)
-        assert 'export_as_regions' in proj['objs'][0]
-        del proj['objs'][0]['export_as_regions']
+        if change is not None:
+            change(proj['objs'][0])
 
         restored = []
 
@@ -521,8 +568,36 @@ class TestLifecycleProject:
         app.app_obj.new_object.side_effect = new_object
         app.worker_task.emit.side_effect = lambda task: task['fcn'](*task['params'])
         io.restore_project_objects(proj, path, True, False)
-        assert restored[0].export_as_regions is False
-        assert_poly_equiv(restored[0].solid_geometry, source.solid_geometry, rel=1e-6, abs_tol=1e-4, msg='old')
+        return restored[0]
+
+    def test_project_without_the_field_loads_as_false(self, app, tmp_path):
+        source = make_gerber(app, NATIVE_GBR)
+
+        def old_project(saved):
+            assert 'export_as_regions' in saved
+            del saved['export_as_regions']
+
+        restored = self.save_and_load(app, tmp_path, source, old_project)
+        assert restored.export_as_regions is False
+        assert_poly_equiv(restored.solid_geometry, source.solid_geometry, rel=1e-6, abs_tol=1e-4, msg='old')
+
+    def test_clear_objects_keep_their_apertures_after_a_project_load(self, app, tmp_path):
+        """The project keeps the file order of the objects: the export of the loaded object is the file order. A
+        project without that field (an older version) and an object saved after a buffer have no known order: the
+        export still writes the flashes and the clear objects, and adds what the order can not give."""
+        source = make_gerber(app, 'tests/fixtures/orcad_17.2/Copper_Bottom.art', name='clear')
+        flashes = flash_count(source)
+        assert flashes > 0
+        loaded = self.save_and_load(app, tmp_path, source)
+        older = self.save_and_load(app, tmp_path, source, lambda saved: saved.pop('records_in_order', None))
+        source.buffer(0.05, 'mitre')
+        buffered = self.save_and_load(app, tmp_path, source)
+        for msg, obj in (('loaded project', loaded), ('older', older), ('buffer', buffered)):
+            text = export_gerber_text(app, obj)
+            assert '%LPC*%' in text, msg
+            again = reparse_gerber(app, text, tmp_path)
+            assert_composed_equal(again.solid_geometry, obj.solid_geometry, msg)
+            assert flash_count(again) == flashes, msg
 
 
 class TestLifecycleEditor:
@@ -548,8 +623,8 @@ class TestLifecycleEditor:
         edited = self.run_editor_save(app, source)
         assert edited.export_as_regions is True
         assert_exports_composed_geometry(app, edited, edited.solid_geometry, tmp_path, 'editor')
-        # the source_file made by the editor went through the region export too
-        assert '%ADD' not in edited.source_file and 'G36*' in edited.source_file
+        # the source_file made by the editor keeps the flashes too
+        assert flash_count(reparse_gerber(app, edited.source_file, tmp_path)) == flash_count(edited)
         assert_poly_equiv(edited.solid_geometry, source.solid_geometry, rel=1e-4, abs_tol=1e-3, msg='editor')
 
 

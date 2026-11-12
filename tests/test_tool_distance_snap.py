@@ -173,6 +173,9 @@ class FakeDimensionLines:
     def set_color(self, color):
         pass
 
+    def set_style(self, line_width=None, font_size=None, bold=None):
+        pass
+
     def refresh(self):
         pass
 
@@ -298,3 +301,84 @@ def test_editor_exit_stops_a_running_measurement(dist):
     assert dist.dims.segments == []
     assert app.command_active is None
 
+
+
+def trace_obj(points, size=0.2, clear=None, copper=None):
+    from shapely import LineString
+    line = LineString(points)
+    solid = line.buffer(size / 2.0)
+    records = [{'solid': solid, 'follow': line}]
+    if clear is not None:
+        records.append({'clear': clear})
+    return SimpleNamespace(kind='gerber', obj_options={'plot': True},
+                           solid_geometry=[solid.difference(clear)] if clear is not None else [solid],
+                           tools={1: {'type': 'C', 'size': size, 'geometry': records}})
+
+
+class TestVertexSnap:
+    def test_snaps_to_end_points_and_inner_vertices(self, measuring):
+        measuring.app.plotcanvas.pixel_size.return_value = 0.001
+        measuring.app.collection.get_list.return_value = [trace_obj([(0, 0), (10, 0), (10, 5)])]
+        assert measuring.resolve_snap((0.05, 0.02), center=False, vertex=True) == pytest.approx((0, 0))
+        assert measuring.resolve_snap((10.04, -0.03), center=False, vertex=True) == pytest.approx((10, 0))
+        assert measuring.resolve_snap((9.98, 5.02), center=False, vertex=True) == pytest.approx((10, 5))
+        # beyond the half width (0.1) and the screen tolerance (0.01): no snap
+        assert measuring.resolve_snap((5, 0.02), center=False, vertex=True) == (5, 0.02)
+        assert measuring.resolve_snap((0.5, 0), center=False, vertex=True) == (0.5, 0)
+
+    def test_screen_tolerance_widens_the_radius_for_thin_traces(self, measuring):
+        measuring.app.collection.get_list.return_value = [trace_obj([(0, 0), (10, 0)], size=0.02)]
+        measuring.app.plotcanvas.pixel_size.return_value = 0.001
+        assert measuring.resolve_snap((0.05, 0), center=False, vertex=True) == (0.05, 0)
+        measuring.app.plotcanvas.pixel_size.return_value = 0.01      # 10 px = 0.1
+        assert measuring.resolve_snap((0.05, 0), center=False, vertex=True) == pytest.approx((0, 0))
+
+    def test_off_means_no_vertex_snap(self, measuring):
+        measuring.app.plotcanvas.pixel_size.return_value = 0.001
+        measuring.app.collection.get_list.return_value = [trace_obj([(0, 0), (10, 0)])]
+        assert measuring.resolve_snap((0.05, 0), center=True, vertex=False) == (0.05, 0)
+
+    def test_a_vertex_erased_by_a_clear_object_is_not_a_target(self, measuring):
+        measuring.app.plotcanvas.pixel_size.return_value = 0.001
+        measuring.app.collection.get_list.return_value = [
+            trace_obj([(0, 0), (10, 0)], clear=box(-1, -1, 1, 1))]
+        assert measuring.resolve_snap((0.05, 0), center=False, vertex=True) == (0.05, 0)
+        assert measuring.resolve_snap((9.95, 0), center=False, vertex=True) == pytest.approx((10, 0))
+
+    def test_the_pad_center_wins_over_a_vertex(self, measuring):
+        measuring.app.plotcanvas.pixel_size.return_value = 0.001
+        trace = trace_obj([(0, 0), (10, 0)])
+        pad = flash(center=(0.5, 0), solid=Point(0.5, 0).buffer(0.6))
+        pad.solid_geometry = trace.solid_geometry + pad.solid_geometry
+        pad.tools[2] = trace.tools[1]
+        measuring.app.collection.get_list.return_value = [pad]
+        assert measuring.resolve_snap((0.05, 0), center=True, vertex=True) == pytest.approx((0.5, 0))
+        assert measuring.resolve_snap((0.05, 0), center=False, vertex=True) == pytest.approx((0, 0))
+
+    def test_the_toggles_gate_the_snap_and_release_the_grid(self, measuring):
+        measuring.app.plotcanvas.pixel_size.return_value = 0.001
+        measuring.app.collection.get_list.return_value = [trace_obj([(0, 0), (10, 0)])]
+        measuring.ui.snap_center_cb.set_value(False)
+        measuring.ui.snap_vertex_cb.set_value(False)
+        assert measuring.update_position_info((0.05, 0)) == (0.05, 0)
+        measuring.ui.snap_vertex_cb.set_value(True)
+        assert measuring.update_position_info((0.05, 0)) == pytest.approx((0, 0))
+        measuring.app.ui.grid_snap_btn.isChecked.return_value = True
+        measuring.on_snap_vertex_toggled(True)
+        measuring.app.ui.grid_snap_btn.trigger.assert_called()
+
+    def test_grb_editor_trace_vertices_and_edits(self, measuring, _headless_qt):
+        from shapely import LineString
+        from test_gerber_editor_pick import make_editor, aperture
+        from appEditors.appGerberEditor import DrawToolShape
+        line = LineString([(0, 0), (10, 0)])
+        trace = DrawToolShape({'solid': line.buffer(0.1), 'follow': line})
+        editor = make_editor({10: aperture([trace])})
+        measuring.app.grb_editor = editor
+        measuring.original_call_source = 'grb_editor'
+        measuring.app.plotcanvas.pixel_size.return_value = 0.001
+        assert measuring.resolve_snap((9.97, 0.02), center=False, vertex=True) == pytest.approx((10, 0))
+        assert measuring.resolve_snap((9.97, 0.02), center=False, vertex=False) == (9.97, 0.02)
+        editor.storage_dict[10]['geometry'].clear()
+        editor.geometry_revision += 1
+        assert measuring.resolve_snap((9.97, 0.02), center=False, vertex=True) == (9.97, 0.02)

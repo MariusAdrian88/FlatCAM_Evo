@@ -114,6 +114,17 @@ class ToolsPanelizePrefGroupUI(OptionsGroupUI):
         )
         param_grid.addWidget(self.poptimization_cb, 10, 0, 1, 2)
 
+        # Step and Repeat
+        self.pstep_repeat_cb = FCCheckBox('%s' % _("Step and Repeat"))
+        self.pstep_repeat_cb.setToolTip(
+            _("Active only for a Gerber panel of a Gerber object.\n"
+              "When checked, the source of the panel has one copy\n"
+              "inside a Gerber Step and Repeat block (SR command).\n"
+              "The source is small and fast to make.\n"
+              "A reader without Step and Repeat support cannot read it.")
+        )
+        param_grid.addWidget(self.pstep_repeat_cb, 11, 0, 1, 2)
+
         # ## Constrains
         self.pconstrain_cb = FCCheckBox('%s:' % _("Constrain within"))
         self.pconstrain_cb.setToolTip(
