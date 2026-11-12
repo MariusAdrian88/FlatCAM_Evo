@@ -104,6 +104,28 @@ def geo(parser, key):
 
 
 class TestSprintLayoutErrors(unittest.TestCase):
+    def test_polygon_encoded_pad_is_flash_but_polygon_fill_is_region(self):
+        pts = [(fu(x), fy(y, BOARD_MM)) for x, y in ((9, 9), (11, 9), (11, 11), (9, 11))]
+        pad = obj(2, pts=pts, x=fu(10), y=fy(10, BOARD_MM), shape=2, rin=3000, mask=1)
+        fill = obj(4, pts=[(fu(x), fy(y, BOARD_MM)) for x, y in ((1, 1), (3, 1), (2, 3))], layer=1)
+        parsed = SprintLayoutParser().parse_bytes(sprint_file([board([(2, pad), (4, fill)])]))
+        for layer in ('C1', 'C2', 'M1', 'M2'):
+            records = [r for t in parsed.layers[layer]['tools'].values()
+                       if t['type'] == 'AB' for r in t['geometry']]
+            self.assertEqual(len(records), 1, layer)
+            self.assertTrue(records[0]['follow'].equals(Point(10, 10)))
+        self.assertEqual(len(parsed.layers['C1']['tools'][0]['geometry']), 1)
+
+    def test_source_flash_and_stroke_records_preserve_geometry(self):
+        from types import SimpleNamespace
+        data = valid_two_object_file()
+        baseline = SprintLayoutParser().parse_bytes(data)
+        parsed = SprintLayoutParser(app=SimpleNamespace(options={'gerber_board_import_mode': 'primitives'})).parse_bytes(data)
+        records = [r for t in parsed.layers['C1']['tools'].values() if t['type'] == 'C' for r in t['geometry']]
+        self.assertTrue(any(isinstance(r['follow'], Point) for r in records))
+        self.assertTrue(any(r['follow'].geom_type == 'LineString' for r in records))
+        self.assertTrue(geo(parsed, 'C1').equals(geo(baseline, 'C1')))
+
     def assertRaisesWith(self, fragment, data):
         with self.assertRaises(SprintLayoutParseError) as context:
             SprintLayoutParser().parse_bytes(data)

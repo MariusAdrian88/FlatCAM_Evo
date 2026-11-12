@@ -11,12 +11,14 @@ from shapely.geometry import GeometryCollection, Point, Polygon
 from shapely.ops import unary_union
 
 from appHandlers.appIO import appIO
+from appCommon.ProjectFile import load_project_file, save_project_file
 from appObjects.ExcellonObject import ExcellonObject
 from appObjects.GerberObject import GerberObject
 from appParsers.ParseExcellon import Excellon
 from appParsers.ParseGerber import Gerber
 from appParsers.ParseKiCadPcb import KiCadPcbParser
 from defaults import AppDefaults
+from camlib import dict2obj, geometry_wkt_cache, project_json_default
 
 import pytest
 
@@ -246,6 +248,195 @@ class TestKiCadPcbFixtureRoundTrip(unittest.TestCase):
                     tolerance = max(0.01 * factor, expected.area * 0.0001, expected.length * 0.5e-4)
                     self.assertLessEqual(difference, tolerance,
                                          'layer %s geometry differs by %s' % (layer, difference))
+
+
+@pytest.mark.parametrize('units', ['MM', 'IN'])
+def test_native_primitives_survive_object_creation_and_gerber_roundtrip(units, tmp_path):
+    app = _app(units)
+    app.options['gerber_board_import_mode'] = 'primitives'
+    app.options['gerber_exp_decimals'] = 6
+    text = '''(kicad_pcb (version 20240108)
+      (layers (0 "F.Cu" signal) (31 "B.Cu" signal))
+      (segment (start 0 0) (end 4 0) (width 0.4) (layer "F.Cu") (net 1))
+      (via (at 4 0) (size 1) (drill 0.4) (layers "F.Cu" "B.Cu") (net 1))
+      (footprint "pads" (layer "F.Cu") (at 0 0)
+        (pad "1" smd rect (at 0 0) (size 1.2 0.8) (layers "F.Cu"))
+        (pad "2" smd oval (at 2 0 90) (size 1.4 0.6) (layers "F.Cu"))
+        (pad "3" smd rect (at 7 0 30) (size 1.2 0.8) (layers "F.Cu")))
+      (zone (net 1) (layer "F.Cu")
+        (filled_polygon (layer "F.Cu") (pts (xy -1 -1) (xy 1 -1) (xy 1 -3) (xy -1 -3)))))'''
+    baseline = KiCadPcbParser(app=SimpleNamespace(options={'gerber_board_import_mode': 'regions'})).parse_text(text)
+    assert {tool['type'] for tool in baseline.layers['F.Cu']['tools'].values()} == {'REG'}
+    parsed = KiCadPcbParser(app=app).parse_text(text)
+    tools = parsed.layers['F.Cu']['tools']
+    assert {tool['type'] for tool in tools.values()} == {'REG', 'C', 'R', 'O', 'AB'}
+    blocks = [r for t in tools.values() if t['type'] == 'AB' for r in t['geometry']]
+    assert len(blocks) == 1
+    assert blocks[0]['follow'].equals(Point(7, 0))
+    assert any(isinstance(record.get('follow'), Point) for tool in tools.values()
+               for record in tool['geometry'])
+    assert any(getattr(record.get('follow'), 'geom_type', '') == 'LineString'
+               for tool in tools.values() for record in tool['geometry'])
+    assert _union(parsed.layers['F.Cu']['solid_geometry']).equals(
+        _union(baseline.layers['F.Cu']['solid_geometry']))
+
+    QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    io = appIO(app)
+    objects = {}
+
+    def create(kind, name, initialize, **kwargs):
+        obj = NativeGerberObject(name, app) if kind == 'gerber' else NativeExcellonObject(name, app)
+        assert initialize(obj, app) != 'fail'
+        objects[kind] = obj
+        return obj
+
+    app.app_obj.new_object.side_effect = create
+    assert io.import_pcbdoc_objects('primitives.kicad_pcb', parsed, ['F.Cu'], list(parsed.drill_groups)) is None
+    obj = objects['gerber']
+    assert not Gerber.uses_region_export(obj)
+    assert objects['excellon'].tools
+    state = {field: getattr(obj, field) for field in (
+        'obj_options', 'tools', 'solid_geometry', 'follow_geometry', 'units', 'source_file')}
+    project_file = tmp_path / 'primitives.FlatPrj'
+    save_project_file(str(project_file), state, default=project_json_default(geometry_wkt_cache(state)))
+    saved = load_project_file(str(project_file), object_hook=dict2obj)
+    restored = NativeGerberObject('restored', app)
+    restored.ser_attrs = list(state)
+    restored.from_dict(saved)
+    # The project object loader restores JSON's string tool keys to integers.
+    restored.tools = {int(key): tool for key, tool in restored.tools.items()}
+    assert not Gerber.uses_region_export(restored)
+    assert {tool['type'] for tool in restored.tools.values()} == {'REG', 'C', 'R', 'O', 'AB'}
+    filename = tmp_path / 'primitives.gbr'
+    filename.write_text(io.export_gerber('restored', str(filename), local_use=restored, use_thread=False))
+    reloaded = Gerber(app)
+    assert reloaded.parse_file(str(filename)) != 'fail'
+    assert {'C', 'R', 'O'}.issubset({tool['type'] for tool in reloaded.tools.values()})
+    assert any(isinstance(record.get('follow'), Point) for tool in reloaded.tools.values()
+               for record in tool.get('geometry', []))
+    factor = 1 if units == 'MM' else 1 / 25.4
+    expected = scale(_union(baseline.layers['F.Cu']['solid_geometry']),
+                     xfact=factor, yfact=factor, origin=(0, 0))
+    assert expected.symmetric_difference(_union(reloaded.solid_geometry)).area < 0.002 * factor ** 2
+
+
+@pytest.mark.parametrize('module,parser_name,fixture', [
+    ('ParseKiCadPcb', 'KiCadPcbParser', 'kicad/Easyduino_RP2040.kicad_pcb'),
+    ('ParsePcbDoc', 'PcbDocParser', 'altium/I2C_level_shifter.PcbDoc'),
+    ('ParseCSPcbDoc', 'CSPcbDocParser', 'altium_cs/PCI Express_4-Port_Serial_Interface.CSPcbDoc'),
+    ('ParseSprintLayout', 'SprintLayoutParser', 'sprint_layout_6/cata.lay6'),
+    ('ParseEagleBrd', 'EagleBrdParser', 'eagle_cad/Pcb39.brd'),
+    ('ParsePADS', 'PADSParser', 'pads/LCORE_2.pcb'),
+    ('ParseAllegroBrd', 'AllegroBrdParser', 'orcad_17.2/proiectCAD.brd'),
+])
+def test_other_native_source_records_survive_gerber_roundtrip(module, parser_name, fixture, tmp_path):
+    import importlib
+    app = _app('MM')
+    app.options.update(gerber_board_import_mode='primitives', gerber_exp_decimals=6)
+    filename = Path(__file__).parent / 'fixtures' / fixture
+    parser_class = getattr(importlib.import_module('appParsers.' + module), parser_name)
+    parsed = parser_class(app=app).parse_file(filename)
+    layers = []
+    for key, layer in parsed.layers.items():
+        follows = [r.get('follow') for t in layer['tools'].values() for r in t.get('geometry', [])]
+        if any(isinstance(f, Point) for f in follows) and any(getattr(f, 'geom_type', '') == 'LineString' for f in follows):
+            layers.append(key)
+    assert layers, 'the board must retain both source flashes and source tracks'
+    keys = [1, 32, 35, 36, 37, 38, 33, 34, 57] if module == 'ParsePcbDoc' else layers[:1]
+    owned_format = module in ('ParseKiCadPcb', 'ParseEagleBrd', 'ParseSprintLayout')
+    if owned_format:
+        keys = list(parsed.layers)
+        expected_blocks = {
+            'ParseKiCadPcb': {'F.Cu': 156, 'F.Mask': 156, 'F.Paste': 160},
+            'ParseEagleBrd': {'Top': 36, 'Bottom': 36, 'tStop': 36, 'bStop': 36},
+            'ParseSprintLayout': {'C1': 10, 'C2': 10, 'M1': 10, 'M2': 10},
+        }[module]
+        for key, count in expected_blocks.items():
+            assert sum(len(t['geometry']) for t in parsed.layers[key]['tools'].values()
+                       if t['type'] == 'AB') == count
+    objects = []
+
+    def create(kind, name, initialize, **kwargs):
+        obj = NativeGerberObject(name, app)
+        assert initialize(obj, app) != 'fail'
+        objects.append(obj)
+        return obj
+
+    app.app_obj.new_object.side_effect = create
+    io = appIO(app)
+    assert io.import_pcbdoc_objects(str(filename), parsed, keys, []) is None
+    for key, obj in zip(keys, objects):
+        if module == 'ParsePcbDoc':
+            source_follows = [r.get('follow') for t in parsed.layers[key]['tools'].values()
+                              for r in t['geometry']]
+            assert sum(getattr(f, 'geom_type', '') == 'LineString' for f in source_follows) == \
+                {1: 80, 32: 20, 33: 48, 34: 27, 57: 26}.get(key, 0)
+            if key not in (1, 32):
+                assert all(t['type'] != 'REG' for t in parsed.layers[key]['tools'].values())
+        exported = tmp_path / ('native_%s.gbr' % key)
+        exported.write_text(obj.source_file)
+        reloaded = Gerber(app)
+        assert reloaded.parse_file(str(exported)) != 'fail'
+        follows = [r.get('follow') for t in reloaded.tools.values() for r in t.get('geometry', [])]
+        flashes = [f for f in follows if isinstance(f, Point)]
+        if owned_format:
+            source_flashes = [r['follow'] for t in parsed.layers[key]['tools'].values()
+                              for r in t['geometry'] if isinstance(r.get('follow'), Point)]
+            assert len(flashes) == len(source_flashes)
+            unmatched = list(source_flashes)
+            for flash in flashes:
+                index = min(range(len(unmatched)), key=lambda i: flash.distance(unmatched[i]))
+                assert flash.distance(unmatched.pop(index)) < 0.000001
+        elif module != 'ParsePcbDoc' or key in (1, 32, 35, 36, 37, 38):
+            assert flashes
+        if module == 'ParsePcbDoc' and key in (1, 32, 35, 36, 37, 38):
+            assert len(flashes) == {1: 22, 32: 20, 35: 14, 36: 12, 37: 22, 38: 20}[key]
+            source_flashes = [r['follow'] for t in parsed.layers[key]['tools'].values()
+                              for r in t['geometry'] if isinstance(r.get('follow'), Point)]
+            assert sorted((round(f.x, 5), round(f.y, 5)) for f in flashes) == sorted(
+                (round(f.x, 5), round(f.y, 5)) for f in source_flashes)
+        if key in layers or (module == 'ParsePcbDoc' and key in (33, 34, 57)):
+            assert any(getattr(f, 'geom_type', '') == 'LineString' for f in follows)
+        expected = _union(parsed.layers[key]['solid_geometry'])
+        difference = expected.symmetric_difference(_union(reloaded.solid_geometry))
+        # Both readers tessellate curves to the default 2 um deviation; export rounds to a 1 nm grid.
+        assert difference.buffer(-0.003).is_empty
+        assert difference.area < expected.length * 0.003
+
+
+def test_clipped_source_feature_falls_back_without_losing_overlaps_holes_or_islands(tmp_path):
+    from appParsers.board_primitives import BoardPrimitives
+    from shapely.geometry import LineString, box
+    from camlib import circle_quad_segs, gerber_circle_steps
+
+    app = _app('MM')
+    app.options['gerber_board_import_mode'] = 'primitives'
+    app.options['gerber_exp_decimals'] = 6
+    recorder = BoardPrimitives(app.options)
+    quad = circle_quad_segs(gerber_circle_steps(app.options, 1, 'MM'))
+    intact = Point(0, 0).buffer(1, quad_segs=quad)
+    clipped = Point(4, 0).buffer(1, quad_segs=quad)
+    track = LineString([(0, 0), (4, 0)])
+    stroke = track.buffer(0.2)
+    ring = box(-3, -3, 8, 3).difference(box(-2, 1, 2, 2))
+    island = box(-1.5, 1.2, -1, 1.7)
+    target = unary_union([ring, island, intact, clipped, stroke]).difference(box(4, -2, 6, 2))
+    recorder.flash('top', intact, (0, 0), 'circle', 2, 2)
+    recorder.flash('top', clipped, (4, 0), 'circle', 2, 2)
+    recorder.stroke('top', stroke, track, 0.4)
+    result = {'solid_geometry': [target], 'tools': {}}
+    recorder.finish('top', result)
+    flashes = [record for tool in result['tools'].values() for record in tool['geometry']
+               if isinstance(record.get('follow'), Point)]
+    assert len(flashes) == 1 and flashes[0]['follow'].equals(Point(0, 0))
+    obj = NativeGerberObject('clipped', app)
+    obj.obj_options.update(pcbdoc_import=True, pcbdoc_primitives=True)
+    obj.tools, obj.solid_geometry = result['tools'], [target]
+    filename = tmp_path / 'clipped.gbr'
+    filename.write_text(appIO(app).export_gerber('clipped', str(filename), local_use=obj, use_thread=False))
+    reloaded = Gerber(app)
+    assert reloaded.parse_file(str(filename)) != 'fail'
+    assert target.symmetric_difference(_union(reloaded.solid_geometry)).area < 0.002
 
 
 if __name__ == '__main__':

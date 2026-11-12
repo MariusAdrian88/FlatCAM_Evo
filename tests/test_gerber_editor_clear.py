@@ -10,8 +10,9 @@ from PyQt6 import QtCore
 from shapely.affinity import rotate, translate
 from shapely.geometry import LineString, Point, Polygon, box
 
-from appEditors.appGerberEditor import (AppGerberEditor, EraserEditorGrb, ImportEditorGrb, MoveEditorGrb,
-                                        is_clear_record, native_display_geometries)
+from appEditors.appGerberEditor import (AppGerberEditor, CopyEditorGrb, EraserEditorGrb, ImportEditorGrb, MoveEditorGrb,
+                                        PadEditorGrb, PadArrayEditorGrb, is_clear_record, native_display_geometries)
+from test_gerber_editor_pick import make_editor
 from appEditors.grb_plugins.GrbTransformationPlugin import affine_selection
 from camlib import affine_translate_matrix
 from appEditors.grb_plugins.GrbCommon import DrawToolShape
@@ -25,6 +26,197 @@ from tests.helpers_objects import (  # noqa: F401,E402
 
 SLOT = Point(15, 33)        # on the track of the 6.0 aperture, cut by the clear slot
 REFILLED = Point(15, 35)    # the later dark disc fills the middle again
+
+
+@pytest.mark.parametrize('definition', [
+    '%ADD10P,3X5X22*%',
+    '%AMCUSTOM*1,1,3,0,0*1,0,1,0,0*%\n%ADD10CUSTOM*%',
+    '%ABD10*%\nG36*\nX-1000000Y-1000000D02*\nX1000000Y-1000000D01*\n'
+    'X1000000Y1000000D01*\nX-1000000Y1000000D01*\nX-1000000Y-1000000D01*\nG37*\n%AB*%',
+    '%ADD10C,3X1*%',
+    '%ADD10R,3X2*%\n%LR37*%',
+])
+def test_native_complex_flash_save_keeps_centres_and_copper(app, tmp_path, definition):
+    path = tmp_path / 'complex.gbr'
+    path.write_text('%FSLAX46Y46*%\n%MOMM*%\n' + definition +
+                    '\nD10*\nX5000000Y5000000D03*\nM02*')
+    source = make_gerber(app, str(path))
+    tools = native_records(source)
+    unchanged = editor_save(app, source, tools, native_load=True)
+    assert any(rec.get('follow') == Point(5, 5) for tool in unchanged.tools.values() if tool['type'] != 'REG'
+               for rec in tool['geometry'])
+    storage = {key: dict(tool, geometry=[DrawToolShape(dict(rec)) for rec in tool['geometry']])
+               for key, tool in tools.items()}
+    editor = make_editor(storage)
+    editor.native_load = True
+    editor.gerber_obj = source
+    editor.selected = [shape for tool in storage.values() for shape in tool['geometry']]
+    before = [dict(shape.geo) for shape in editor.selected]
+    editor.last_aperture_selected = next(key for key, ap in storage.items() if ap['geometry'])
+    for placement in (PadEditorGrb, PadArrayEditorGrb):
+        placer = placement.__new__(placement)
+        placer.draw_app = editor
+        stamped = placer.util_shape((15, 12))
+        assert stamped is not None
+        assert stamped['follow'] == Point(15, 12)
+        assert stamped['solid'].equals(translate(before[0]['solid'], 10, 7))
+        placer.points = (15, 12)
+        placer.ui = MagicMock()
+        placer.array_type, placer.pad_array_dir = 'linear', 'X'
+        placer.pad_array_size, placer.pad_pitch = 2, 6
+        placer.make()
+        placed = placer.geometry if isinstance(placer.geometry, list) else [placer.geometry]
+        assert placer.complete
+        assert len(placed) == (2 if placement is PadArrayEditorGrb else 1)
+        placed = [shape.geo for shape in placed]
+        placed_tools = {editor.last_aperture_selected: dict(storage[editor.last_aperture_selected],
+                                                          geometry=[before[0]] + placed)}
+        saved = editor_save(app, source, placed_tools, native_load=True)
+        parsed = reparse_gerber(app, export_gerber_text(app, saved), tmp_path)
+        assert_poly_equiv(parsed.solid_geometry, polygon_union([before[0]['solid']] +
+                                                              [rec['solid'] for rec in placed]),
+                          rel=1e-5, abs_tol=1e-5)
+        assert sorted((rec['follow'].x, rec['follow'].y) for ap in parsed.tools.values()
+                      for rec in ap['geometry'] if isinstance(rec.get('follow'), Point)) == \
+            ([(5, 5), (15, 12), (21, 12)] if placement is PadArrayEditorGrb else [(5, 5), (15, 12)])
+    # Definitions remain usable before their first source flash exists.
+    if 'LR' not in definition:
+        aperture = storage[editor.last_aperture_selected]
+        original = aperture['geometry']
+        aperture['geometry'] = []
+        editor.selected = []
+        editor._fixed_steps = source._fixed_steps
+        editor.app.options = source.app.options
+        defined = placer.util_shape((5, 5))
+        assert defined is not None
+        assert_poly_equiv(defined['solid'], before[0]['solid'], rel=1e-5, abs_tol=1e-5)
+        aperture['geometry'] = original
+        editor.selected = list(original)
+    spot = before[0]['solid'].representative_point()
+    assert editor.pick_at((spot.x, spot.y))[0] is editor.selected[0]
+    editor.history.reset()
+    for operation in (CopyEditorGrb, MoveEditorGrb):
+        editor.sync_aperture_rows(storage)
+        tool = operation(editor)
+        editor.active_tool = tool
+        tool.origin, tool.destination = (0, 0), (4, 2)
+        tool.make()
+        assert editor.undo()
+        assert [shape.geo for ap in storage.values() for shape in ap['geometry']] == before
+        assert editor.redo()
+        moved = [shape.geo for ap in storage.values() for shape in ap['geometry']
+                 if shape.geo.get('follow') == Point(9, 7)]
+        assert len(moved) == 1 and moved[0]['solid'].equals(translate(before[0]['solid'], 4, 2))
+        if operation is CopyEditorGrb:
+            assert editor.undo()
+    tools = {key: dict(tool, geometry=[shape.geo for shape in tool['geometry']]) for key, tool in storage.items()}
+    edited = editor_save(app, source, tools, native_load=True)
+    flashes = [rec for tool in edited.tools.values() if tool['type'] != 'REG'
+               for rec in tool['geometry'] if isinstance(rec.get('follow'), Point)]
+    assert len(flashes) == 1 and flashes[0]['follow'].equals(Point(9, 7))
+    for saved, offset in ((unchanged, (0, 0)), (edited, (4, 2))):
+        expected = translate(polygon_union(source.solid_geometry), *offset)
+        for text in (saved.source_file, export_gerber_text(app, saved)):
+            parsed = reparse_gerber(app, text, tmp_path)
+            centres = [rec['follow'] for tool in parsed.tools.values() for rec in tool['geometry']
+                       if isinstance(rec.get('follow'), Point)]
+            assert centres == [Point(5 + offset[0], 5 + offset[1])]
+            assert_poly_equiv(parsed.solid_geometry, expected, rel=1e-5, abs_tol=1e-5)
+
+
+def test_native_custom_group_keeps_distinct_footprints_holes_islands_and_order(app, tmp_path):
+    source = make_gerber(app, NATIVE_GBR)
+    ring = box(0, 0, 6, 6).difference(box(1, 1, 5, 5))
+    island = box(2, 2, 3, 3)
+    records = [
+        {'solid': ring.union(box(7, 0, 8, 1)), 'follow': Point(3, 3), 'seq': 0},
+        {'solid': island, 'follow': Point(2.5, 2.5), 'seq': 1},
+        {'clear': box(0, 0, 1, 2), 'follow': Point(0.5, 1), 'seq': 2},
+        {'solid': box(0, 0, 0.5, 1), 'follow': Point(0.25, 0.5), 'seq': 3},
+    ]
+    tools = {10: {'type': 'AB', 'size': 0.0, 'geometry': records}}
+    edited = editor_save(app, source, tools, native_load=True)
+    expected = ring.union(box(7, 0, 8, 1)).union(island).difference(records[2]['clear']).union(records[3]['solid'])
+    for text in (edited.source_file, export_gerber_text(app, edited)):
+        parsed = reparse_gerber(app, text, tmp_path)
+        assert_poly_equiv(parsed.solid_geometry, expected, rel=1e-6, abs_tol=1e-6)
+        assert sorted((rec['follow'].x, rec['follow'].y) for ap in parsed.tools.values()
+                      for rec in ap['geometry'] if isinstance(rec.get('follow'), Point)) == \
+            sorted((rec['follow'].x, rec['follow'].y) for rec in records)
+
+
+def test_pad_source_choice_does_not_merge_custom_flashes(app, monkeypatch):
+    ring = box(0, 0, 6, 6).difference(box(1, 1, 5, 5)).union(box(8, 0, 9, 1))
+    first = DrawToolShape({'solid': ring, 'follow': Point(3, 3)})
+    second = DrawToolShape({'solid': box(10, 0, 11, 1), 'follow': Point(10.5, 0.5)})
+    clear = DrawToolShape({'clear': box(0, 0, 2, 2), 'follow': Point(1, 1)})
+    editor = make_editor({10: {'type': 'AB', 'size': 0.0, 'geometry': [first, second, clear]}})
+    editor.last_aperture_selected = 10
+    for placement in (PadEditorGrb, PadArrayEditorGrb):
+        placer = placement.__new__(placement)
+        placer.draw_app = editor
+        editor.selected = []
+        assert placer.util_shape((20, 20)) is None
+        editor.selected = [clear]
+        assert placer.util_shape((20, 20)) is None
+        editor.selected = [first]
+        stamped = placer.util_shape((20, 20))
+        assert stamped['solid'].equals(translate(ring, 17, 17))
+        assert stamped['follow'] == Point(20, 20)
+        editor.storage_dict[10]['geometry'] = [first, clear]
+        editor.selected = []
+        assert placer.util_shape((20, 20))['solid'].equals(stamped['solid'])
+        editor.storage_dict[10]['geometry'] = [first, second, clear]
+
+    editor.storage_dict[10]['geometry'] = [first, clear]
+    editor.snap_x, editor.snap_y = 20, 20
+    editor.app.mouse_pos = (20, 20)
+    plugin = MagicMock()
+    values = {'axis_radio': 'X', 'array_dir_radio': 'CW', 'array_type_radio': 'linear',
+              'array_size_entry': 2, 'pitch_entry': 10, 'linear_angle_entry': 0,
+              'circular_angle_entry': 90, 'radius_entry': 10}
+    for name, value in values.items():
+        getattr(plugin.ui, name).get_value.return_value = value
+    monkeypatch.setattr('appEditors.appGerberEditor.PadEditorTool', MagicMock(return_value=plugin))
+    monkeypatch.setattr('appEditors.appGerberEditor.GrbPadArrayEditorTool', MagicMock(return_value=plugin))
+    for placement in (PadEditorGrb, PadArrayEditorGrb):
+        editor.selected = []
+        placer = placement(editor)
+        assert not placer.dont_execute
+        editor.active_tool = placer
+        placer.points = (20, 20)
+        placer.make()
+        records = placer.geometry if isinstance(placer.geometry, list) else [placer.geometry]
+        assert len(records) == (2 if placement is PadArrayEditorGrb else 1)
+        for index, record in enumerate(records):
+            assert record.geo['follow'] == Point(20 + 10 * index, 20)
+            assert record.geo['solid'].equals(translate(ring, 17 + 10 * index, 17))
+        editor.history.reset()
+        editor.on_grb_shape_complete(editor.current_storage)
+        assert editor.undo()
+        assert editor.storage_dict[10]['geometry'] == [first, clear]
+        assert editor.redo()
+        assert editor.undo()
+        if placement is PadArrayEditorGrb:
+            placer.origin = (20, 20)
+            circular = placer.circular_util_shape(10, 0)
+            assert [rec.geo['follow'] for rec in circular] == [Point(30, 20), Point(20, 10)]
+            assert_poly_equiv(circular[0].geo['solid'], rotate(translate(ring, 27, 17), 180,
+                                                              origin=(30, 20)))
+            plugin.ui.axis_radio.get_value.return_value = 'Y'
+            plugin.ui.array_size_entry.get_value.return_value = 3
+            plugin.ui.pitch_entry.get_value.return_value = 4
+            editor.app.geo_editor.snap = lambda x, y: (x, y)
+            editor.on_shape_complete = MagicMock()
+            placer.add_pad_array((40, 40))
+            assert [shape.geo['follow'] for shape in editor.storage_dict[10]['geometry'][2:]] == \
+                [Point(40, 40), Point(40, 44), Point(40, 48)]
+            assert editor.undo()
+            assert editor.storage_dict[10]['geometry'] == [first, clear]
+
+    editor.storage_dict[10]['geometry'] = []
+    empty = PadArrayEditorGrb(editor)
+    assert empty.dont_execute
 
 
 def snapshot(tools):

@@ -24,6 +24,7 @@ from shapely.affinity import rotate, scale, translate
 from shapely.ops import unary_union
 
 from camlib import circle_quad_segs, gerber_circle_steps
+from appParsers.board_primitives import BoardPrimitives
 
 
 class PcbDocParseError(ValueError):
@@ -144,6 +145,7 @@ class PcbDocParser:
         self._reset()
 
     def _reset(self):
+        self._primitives = BoardPrimitives(self._options)
         self.layers = {}
         self.drill_groups = {}
         self.warnings = []
@@ -633,6 +635,14 @@ class PcbDocParser:
             result['follow_geometry'].append(follow)
         else:
             self._add(layer, geo, follow)
+        if name in ('Tracks6', 'Arcs6') and not 39 <= layer <= 54:
+            self._primitives.stroke(layer, geo, follow, width)
+        elif name == 'Fills6' and not 39 <= layer <= 54:
+            angle = self._at(data, 'd', 29)
+            self._primitives.flash(layer, geo, geo.centroid,
+                                   'rect' if abs(angle - round(angle / 90) * 90) <= 1e-8 else 'block',
+                                   abs(last[0] - first[0]), abs(last[1] - first[1]),
+                                   angle)
         override = self._overrides.get(({'Tracks6': 'Track', 'Arcs6': 'Arc', 'Fills6': 'Fill'}[name], index))
         if override and layer in (1, 32):
             context = self._context(data, 'Track' if name == 'Tracks6' else 'Arc' if name == 'Arcs6' else 'Fill')
@@ -641,7 +651,14 @@ class PcbDocParser:
                 mode, manual = self._mask_override(override, prefix, 0, 0)
                 expansion = self._expansion(mode, manual, rule, context)
                 if expansion is not None:
-                    self._add(target, geo.buffer(expansion, quad_segs=self._segs(expansion)))
+                    opening = geo.buffer(expansion, quad_segs=self._segs(expansion))
+                    self._add(target, opening)
+                    if name in ('Tracks6', 'Arcs6'):
+                        self._primitives.stroke(target, opening, follow, width + 2 * expansion)
+                    else:
+                        self._primitives.flash(target, opening, geo.centroid, 'block',
+                                               abs(last[0] - first[0]) + 2 * expansion,
+                                               abs(last[1] - first[1]) + 2 * expansion)
 
     def _shape(self, width, height, shape, alt=0, corner=0):
         if width < 0 or height < 0:
@@ -735,7 +752,7 @@ class PcbDocParser:
         applicable = span if layer == 74 else [layer]
         context = self._context(data, 'Pad')
         context['multilayer'] = layer == 74
-        shapes = {}
+        shapes, centres, sizes = {}, {}, {}
         for copper in applicable:
             outer = 0 if copper == 1 or mode == 0 or layer != 74 else 2 if copper == 32 else 1
             width, height = self._at(data, 'ii', 21 + outer * 8)
@@ -752,6 +769,7 @@ class PcbDocParser:
             if stack and stack_index is not None:
                 alt, corner = stack[532 + stack_index], stack[564 + stack_index]
             geo = self._shape(width * self.UNIT, height * self.UNIT, shape, alt, corner)
+            offset = (0.0, 0.0)
             if stack and stack_index is not None and self._at(data, 'i', 45):
                 offset = (self._at(stack, 'i', 275 + stack_index * 4) * self.UNIT,
                           self._at(stack, 'i', 403 + stack_index * 4) * self.UNIT)
@@ -759,8 +777,18 @@ class PcbDocParser:
                 geo = translate(geo, xoff=offset[0], yoff=offset[1])
             geo = translate(rotate(geo, angle, origin=(0, 0)), xoff=position[0], yoff=position[1])
             shapes[copper] = geo
+            centres[copper] = translate(rotate(Point(offset), angle, origin=(0, 0)), *position)
+            sizes[copper] = (width * self.UNIT, height * self.UNIT)
             if not 39 <= copper <= 54:
                 self._add(copper, geo)
+                centre = centres[copper]
+                native_shape = ('rect' if corner == 0 else 'oval' if corner == 100 else 'custom') if alt == 9 \
+                    else 'circle' if shape == 1 and width == height else {1: 'oval', 2: 'rect'}.get(shape, 'custom')
+                if native_shape == 'custom' or (native_shape != 'circle' and
+                        abs(angle - round(angle / 90) * 90) > 1e-8):
+                    native_shape = 'block'
+                self._primitives.flash(copper, geo, centre, native_shape,
+                                       width * self.UNIT, height * self.UNIT, angle)
         diameter = self._at(data, 'i', 45) * self.UNIT
         hole_shape = stack[262] if stack else 0
         if hole_shape not in (0, 2) and diameter:
@@ -788,7 +816,11 @@ class PcbDocParser:
                                                        data[mode_offset], self._at(data, 'i', expansion_offset) * self.UNIT)
                 expansion = self._expansion(mask_mode, manual, rule, dict(context, layer=copper))
                 if expansion is not None:
-                    self._add(target, shapes[copper].buffer(expansion, quad_segs=self._segs(expansion)))
+                    opening = shapes[copper].buffer(expansion, quad_segs=self._segs(expansion))
+                    self._add(target, opening)
+                    width, height = sizes[copper]
+                    self._primitives.flash(target, opening, centres[copper], 'block',
+                                           width + 2 * expansion, height + 2 * expansion)
 
     def _context(self, data, kind):
         net = self._at(data, 'H', 3)
@@ -896,17 +928,19 @@ class PcbDocParser:
         mode = data[74] if len(data) > 74 else 0
         if mode not in (0, 1, 2) or (len(data) > 74 and len(data) < 203):
             raise PcbDocParseError('Invalid extended via pad stack')
-        shapes = {}
+        shapes, sizes = {}, {}
         for layer in span:
             size = diameter
             if mode:
                 offset = 0 if layer == 1 else 31 if layer == 32 else 1 if mode == 1 else layer - 1
                 if 0 <= offset < 32:
                     size = self._at(data, 'i', 75 + offset * 4) * self.UNIT
+            sizes[layer] = size
             shapes[layer] = self._shape(size, size, 1)
             shapes[layer] = translate(shapes[layer], xoff=position[0], yoff=position[1])
             if not 39 <= layer <= 54:
                 self._add(layer, shapes[layer])
+                self._primitives.flash(layer, shapes[layer], position, 'circle', size, size)
         drill = self._drill(position, hole, True, span)
         context = self._context(data, 'Via')
         self._pads.append({'shapes': shapes, 'hole': drill, 'net': self._at(data, 'H', 3), 'context': context})
@@ -928,7 +962,10 @@ class PcbDocParser:
                     hole + 2 * expansion <= shapes[layer].bounds[2] - shapes[layer].bounds[0]:
                 continue
             base = drill if from_hole else shapes[layer]
-            self._add(target, base.buffer(expansion, quad_segs=self._segs(expansion)))
+            opening = base.buffer(expansion, quad_segs=self._segs(expansion))
+            self._add(target, opening)
+            size = (hole if from_hole else sizes[layer]) + 2 * expansion
+            self._primitives.flash(target, opening, position, 'block', size, size)
 
     def _read_wide_strings(self, data):
         reader = _Reader(data, 'WideStrings6')
@@ -1023,9 +1060,15 @@ class PcbDocParser:
         geo = translate(rotate(geo, rotation, origin=(0, 0)), xoff=position[0], yoff=position[1])
         self._add(layer, geo)
         if layer in self.layers:
-            self.layers[layer]['follow_geometry'].extend([
-                translate(rotate(line, rotation, origin=(0, 0)), xoff=position[0], yoff=position[1])
-                for line in follows])
+            for line in follows:
+                follow = translate(rotate(line, rotation, origin=(0, 0)),
+                                   xoff=position[0], yoff=position[1])
+                self.layers[layer]['follow_geometry'].append(follow)
+                if not 39 <= layer <= 54:
+                    width = self._at(data, 'i', 36) * self.UNIT
+                    solid = translate(rotate(line.buffer(width / 2, quad_segs=self._segs(width / 2)),
+                                             rotation, origin=(0, 0)), xoff=position[0], yoff=position[1])
+                    self._primitives.stroke(layer, solid, follow, width)
 
     def _stroke_geometry(self, text, height, width):
         """Render original measured/extrapolated line glyphs at the saved stroke width."""
@@ -1096,7 +1139,9 @@ class PcbDocParser:
                 continue
             follow = LineString([(anchor[0] + position * axis[0], anchor[1] + position * axis[1])
                                  for position in (start, stop)])
-            self._add(layer, follow.buffer(width / 2, quad_segs=self._segs(width / 2)), follow)
+            solid = follow.buffer(width / 2, quad_segs=self._segs(width / 2))
+            self._add(layer, solid, follow)
+            self._primitives.stroke(layer, solid, follow, width)
         gap = self._unit(props.get('EXTENSIONPICKGAP', '10mil'))
         extra = self._unit(props.get('EXTENSIONOFFSET', '10mil'))
         extension_width = self._unit(props.get('EXTENSIONLINEWIDTH', props.get('LINEWIDTH', '10mil')))
@@ -1110,7 +1155,9 @@ class PcbDocParser:
                 direction = tuple((end[i] - reference[i]) / distance for i in range(2))
                 extension = LineString([(reference[0] + gap * direction[0], reference[1] + gap * direction[1]),
                                         (end[0] + extra * direction[0], end[1] + extra * direction[1])])
-                self._add(layer, extension.buffer(extension_width / 2, quad_segs=self._segs(extension_width / 2)), extension)
+                solid = extension.buffer(extension_width / 2, quad_segs=self._segs(extension_width / 2))
+                self._add(layer, solid, extension)
+                self._primitives.stroke(layer, solid, extension, extension_width)
             sign = 1 if positions[1 - index] > positions[index] else -1
             if props.get('ARROWPOSITION', 'Inside') == 'Outside':
                 sign *= -1
@@ -1118,7 +1165,9 @@ class PcbDocParser:
                 tip = (end[0] + sign * arrow_length * axis[0] + side * arrow_size / 2 * normal[0],
                        end[1] + sign * arrow_length * axis[1] + side * arrow_size / 2 * normal[1])
                 arrow = LineString([end, tip])
-                self._add(layer, arrow.buffer(width / 2, quad_segs=self._segs(width / 2)), arrow)
+                solid = arrow.buffer(width / 2, quad_segs=self._segs(width / 2))
+                self._add(layer, solid, arrow)
+                self._primitives.stroke(layer, solid, arrow, width)
 
     def _dimension_text(self, props, layer, length, angle, anchor, axis, normal, width, text_gap):
         """
@@ -1166,8 +1215,12 @@ class PcbDocParser:
                 offset = [offset[0] + shift * normal[0], offset[1] + shift * normal[1]]
                 span = (min(along), max(along))
         self._add(layer, translate(geo, xoff=offset[0], yoff=offset[1]))
-        self.layers[layer]['follow_geometry'].extend(
-            [translate(line, xoff=offset[0], yoff=offset[1]) for line in text_follows])
+        for line in text_follows:
+            follow = translate(line, xoff=offset[0], yoff=offset[1])
+            self.layers[layer]['follow_geometry'].append(follow)
+            text_width = self._unit(props.get('TEXTLINEWIDTH', '6mil'))
+            solid = follow.buffer(text_width / 2, quad_segs=self._segs(text_width / 2))
+            self._primitives.stroke(layer, solid, follow, text_width)
         return span
 
     def _font_geometry(self, text, name, style, height):
@@ -1321,5 +1374,6 @@ class PcbDocParser:
             result['solid_geometry'] = polygons
             result['tools'] = {0: {'type': 'REG', 'size': 0.0,
                                     'geometry': [{'solid': polygon} for polygon in polygons]}}
+            self._primitives.finish(layer, result)
             if not polygons:
                 del self.layers[layer]

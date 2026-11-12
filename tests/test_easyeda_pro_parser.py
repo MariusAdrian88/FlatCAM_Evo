@@ -113,6 +113,68 @@ def test_v3_result_shape_and_text_warning():
     assert any('Text is not stored as polygons' in warning for warning in parsed.warnings)
 
 
+@pytest.mark.parametrize('units', ['MM', 'IN'])
+def test_source_primitives_preserve_geometry_and_gerber_roundtrip(tmp_path, units):
+    from types import SimpleNamespace
+    from shapely.affinity import scale
+    from tests.test_kicad_pcb_e2e import _app, _union, NativeGerberObject
+    from appHandlers.appIO import appIO
+    from appParsers.ParseGerber import Gerber
+
+    app = _app(units)
+    app.options.update(gerber_board_import_mode='primitives', gerber_exp_decimals=6)
+    parsed = parser(app=app).parse_file(PROJECT)
+    normal = parser(app=SimpleNamespace(options={'gerber_board_import_mode': 'regions'})).parse_file(PROJECT)
+    assert parsed.drill_groups == normal.drill_groups
+    for key, layer in parsed.layers.items():
+        expected = union(normal, key)
+        assert expected.equals(unary_union(layer['solid_geometry']))
+        records = [record for tool in layer['tools'].values() for record in tool['geometry']]
+        assert expected.symmetric_difference(unary_union([r['solid'] for r in records])).area < 1e-8
+    copper = parsed.layers['Top Layer']
+    follows = [r.get('follow') for t in copper['tools'].values() for r in t['geometry']]
+    assert any(isinstance(f, Point) for f in follows)
+    assert any(getattr(f, 'geom_type', '') == 'LineString' for f in follows)
+    assert any(t['type'] == 'REG' for t in copper['tools'].values())  # saved pours
+    assert sum(len(t['geometry']) for t in copper['tools'].values() if t['type'] == 'AB') == 4
+    objects = []
+
+    def create(kind, name, initialize, **kwargs):
+        obj = NativeGerberObject(name, app)
+        assert initialize(obj, app) != 'fail'
+        objects.append(obj)
+        return obj
+
+    app.app_obj.new_object.side_effect = create
+    keys = ['Top Layer', 'Top Solder Mask Layer', 'Top Paste Mask Layer', 'Top Silkscreen Layer', 'Board Outline Layer']
+    assert all(any(isinstance(r.get('follow'), Point) for t in parsed.layers[key]['tools'].values()
+                   for r in t['geometry']) for key in keys if key not in ('Top Silkscreen Layer', 'Board Outline Layer'))
+    assert appIO(app).import_pcbdoc_objects(str(PROJECT), parsed, keys, []) is None
+    for key, obj in zip(keys, objects):
+        blocks = [r for t in parsed.layers[key]['tools'].values() if t['type'] == 'AB' for r in t['geometry']]
+        if blocks:
+            assert '%ABD' in obj.source_file
+        filename = tmp_path / (key + '.gbr')
+        filename.write_text(obj.source_file)
+        loaded = Gerber(app)
+        assert loaded.parse_file(str(filename)) != 'fail'
+        follows = [r.get('follow') for t in loaded.tools.values() for r in t['geometry']]
+        points = [scale(f, 25.4, 25.4, origin=(0, 0)) if units == 'IN' else f
+                  for f in follows if isinstance(f, Point)]
+        assert all(any(p.distance(r['follow']) < 0.0001 for p in points) for r in blocks)
+        if key not in ('Top Silkscreen Layer', 'Board Outline Layer'):
+            assert any(isinstance(f, Point) for f in follows)
+        if key in ('Top Layer', 'Top Silkscreen Layer', 'Board Outline Layer'):
+            assert any(getattr(f, 'geom_type', '') == 'LineString' for f in follows)
+        expected = union(parsed, key)
+        actual = _union(loaded.solid_geometry)
+        if units == 'IN':
+            actual = scale(actual, 25.4, 25.4, origin=(0, 0))
+        difference = expected.symmetric_difference(actual)
+        assert difference.buffer(-0.003).is_empty
+        assert difference.area < expected.length * 0.003
+
+
 # ---------------------------------------------------------------------------------------------------------------
 # synthetic V2 projects (record layout of github.com/easyeda/easyeda-file-format-v2, checked against real files)
 # ---------------------------------------------------------------------------------------------------------------
@@ -179,6 +241,11 @@ def test_footprint_placement_at_a_non_zero_angle(tmp_path, side, layer_id, coppe
     shape = union(parsed, copper)
     center = expect((10, 4), 30)
     assert shape.centroid.distance(Point((500 + center[0]) * 0.0254, (300 + center[1]) * 0.0254)) < 1e-3
+    for layer in parsed.layers.values():
+        blocks = [r for t in layer['tools'].values() if t['type'] == 'AB' for r in t['geometry']]
+        assert len(blocks) == 1
+        assert blocks[0]['follow'].distance(Point((500 + center[0]) * 0.0254,
+                                                 (300 + center[1]) * 0.0254)) < 1e-8
     corner = expect((10 + 10, 4 + 5), 30)                     # a corner of the 20 x 10 mil pad
     assert shape.buffer(1e-4).contains(Point((500 + corner[0]) * 0.0254, (300 + corner[1]) * 0.0254))
     assert math.isclose(shape.area, 20 * 10 * 0.0254 ** 2, rel_tol=1e-6)
@@ -195,11 +262,50 @@ def test_pour_uses_the_stored_fill(tmp_path):
     assert bounds == pytest.approx((-0.1, -1.37, 2.64, 0.1), abs=1e-6)
 
 
+def test_v2_apertures_use_source_dimensions_and_preserve_transformed_custom_pads(tmp_path):
+    from types import SimpleNamespace
+
+    records = [pad('r', '1', 0, 0), pad('o', '2', 100, 0, shape=('OVAL', 40, 20), angle=90),
+               pad('c', '3', 200, 0, shape=('ELLIPSE', 30, 30)),
+               pad('e', '4', 300, 0, shape=('ELLIPSE', 40, 20)), pad('a', '5', 400, 0, angle=30)]
+    path = project(tmp_path, pcb_text(*records))
+    normal = parser().parse_file(path)
+    parsed = parser(app=SimpleNamespace(options={'gerber_board_import_mode': 'primitives'})).parse_file(path)
+    tools = parsed.layers['Top Layer']['tools']
+    assert {t['type'] for t in tools.values()} == {'C', 'R', 'O', 'AB'}
+    oval, = [t for t in tools.values() if t['type'] == 'O']
+    assert (oval['width'], oval['height']) == pytest.approx((20 * 0.0254, 40 * 0.0254))
+    centres = [r['follow'].x for t in tools.values() for r in t['geometry'] if isinstance(r.get('follow'), Point)]
+    assert sorted(centres) == pytest.approx([0, 2.54, 5.08, 7.62, 10.16])
+    for key, layer in parsed.layers.items():
+        represented = unary_union([r['solid'] for t in layer['tools'].values() for r in t['geometry']])
+        assert represented.symmetric_difference(union(normal, key)).area < 1e-10
+
+
 def test_pour_without_stored_fill_fails(tmp_path):
     records = [['POUR', 'e8', 0, 'GND', 1, 0.2, 'POUR1', 0, [['R', 0, 0, 100, -50, 0, 0]], ['SOLID', 8], 0, 0]]
     from appParsers.ParseEasyEDAPro import EasyEDAProParseError
     with pytest.raises(EasyEDAProParseError, match='POUR1.*no stored fill'):
         parser().parse_file(project(tmp_path, pcb_text(*records)))
+
+
+def test_explicit_fill_shapes_keep_source_flashes_but_polygons_remain_regions(tmp_path):
+    from types import SimpleNamespace
+
+    records = [['FILL', 'r', 0, '', 7, 0.2, 0, [['R', 100, 100, 20, 10, 0, 2]], 0],
+               ['FILL', 'c', 0, '', 7, 0.2, 0, [['CIRCLE', 200, 100, 10]], 0],
+               ['FILL', 'p', 0, '', 7, 0.2, 0, [[300, 100, 'L', 320, 100, 310, 90]], 0]]
+    path = project(tmp_path, pcb_text(*records))
+    parsed = parser().parse_file(path)
+    normal = parser(app=SimpleNamespace(options={'gerber_board_import_mode': 'regions'})).parse_file(path)
+    layer = parsed.layers['Top Paste Mask Layer']
+    flashes = [r for t in layer['tools'].values() if t['type'] == 'AB' for r in t['geometry']]
+    assert len(flashes) == 2
+    assert all(any(r['follow'].distance(Point(x * 0.0254, y * 0.0254)) < 1e-8 for r in flashes)
+               for x, y in ((110, 95), (200, 100)))
+    assert any(t['type'] == 'REG' for t in layer['tools'].values())
+    represented = unary_union([r['solid'] for t in layer['tools'].values() for r in t['geometry']])
+    assert represented.symmetric_difference(union(normal, 'Top Paste Mask Layer')).area < 1e-10
 
 
 def test_holes_plated_slot_and_non_plated(tmp_path):

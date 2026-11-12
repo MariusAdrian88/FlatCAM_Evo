@@ -28,6 +28,47 @@ def real(name, extension):
     return PADSParser(circle_steps=128).parse_file(FIXTURES / (name + extension))
 
 
+@pytest.mark.parametrize('extension', ['.asc', '.pcb'])
+def test_source_primitives_preserve_ascii_and_native_board_geometry(extension):
+    from appParsers.ParsePADS import PADSParser
+    baseline = PADSParser(app=SimpleNamespace(options={'gerber_board_import_mode': 'regions'}),
+                          circle_steps=128).parse_file(FIXTURES / ('LCORE_2' + extension))
+    parsed = real('LCORE_2', extension)
+    records = [r for layer in parsed.layers.values() for t in layer['tools'].values()
+               if t['type'] == 'C' for r in t['geometry']]
+    assert any(isinstance(r.get('follow'), Point) for r in records)
+    assert any(isinstance(r.get('follow'), LineString) for r in records)
+    from test_allegro_brd_parser import export_layer
+    expected = {25: (0, 264), 22: (0, 131), 23: (0, 17), 24: (0, 16), 26: (0, 22),
+                27: (0, 21), 29: (0, 13), 30: (0, 2), 'Outline': (0, 1),
+                1: (39, 118), 2: (62, 119)}
+    for key, layer in parsed.layers.items():
+        assert unary_union(layer['solid_geometry']).equals(unary_union(baseline.layers[key]['solid_geometry']))
+        records = [r for t in layer['tools'].values() for r in t['geometry']]
+        assert sum(isinstance(r.get('follow'), Point) for r in records) == expected[key][0], key
+        strokes = [r for r in records if isinstance(r.get('follow'), LineString)]
+        if key in parsed.copper_layers:
+            # Substitute glyph buffers can protrude outside composed text; retain every saved route/graphic instead.
+            paths = baseline.layers[key]['follow_geometry']
+            assert len(paths) == expected[key][1], key
+            assert all(any(path.equals(r['follow']) for r in strokes) for path in paths), key
+        else:
+            assert len(strokes) == expected[key][1], key
+        assert unary_union([r['solid'] for r in records]).symmetric_difference(
+            unary_union(layer['solid_geometry'])).area < 1e-9, key
+        exported, code = export_layer(layer, circle_steps=128)
+        assert code.count('D03*') == expected[key][0]
+        assert unary_union(exported.solid_geometry).symmetric_difference(
+            unary_union(layer['solid_geometry'])).area < 0.01, key
+        # Every saved graphic/text stroke on the technical layers remains independently selectable.
+        if key in (26, 27, 'Outline'):
+            strokes = [r for t in layer['tools'].values() for r in t['geometry']
+                       if isinstance(r.get('follow'), LineString)]
+            assert strokes, key
+            assert unary_union([r['solid'] for r in strokes]).symmetric_difference(
+                unary_union(layer['solid_geometry'])).area < 1e-9
+
+
 def patched_lcore_text():
     """LCORE_2.asc with the binary's clearance distances.
 
@@ -474,10 +515,30 @@ COPCUT 5 0 0 1
 B COPPER 0 0 1 1
 COPCIR 2 0 0 1
 2 2.5
-3 2.5'''))
+3 2.5
+C COPPER 0 0 2 1
+COPCIR 2 0 0 1
+10 2.5
+12 2.5
+COPCUT 5 0 0 1
+11 0
+13 0
+13 5
+11 5
+11 0'''))
     copper = unary_union(result.layers[1]['solid_geometry'])
     assert copper.covers(Point(2.5, 2.5))
     assert not copper.covers(Point(1.5, 1.5))
+    flashes = [r for t in result.layers[1]['tools'].values() for r in t['geometry']
+               if isinstance(r.get('follow'), Point)]
+    assert len(flashes) == 1
+    assert flashes[0]['follow'].distance(Point(2.5, 2.5)) < 1e-12
+    assert copper.covers(Point(10.5, 2.5))
+    assert not copper.covers(Point(11.5, 2.5))
+    from test_allegro_brd_parser import export_layer
+    exported, code = export_layer(result.layers[1], circle_steps=128)
+    assert code.count('D03*') == 1  # the partially cut circle must not be restored by a flash
+    assert unary_union(exported.solid_geometry).symmetric_difference(copper).area < 1e-5
 
 
 def test_documented_94_decal_without_linestyle_field():
@@ -539,6 +600,14 @@ P D UND 0 0 0 0
 U1 P 0 0 0 U N 0 -1 0 -1 0''' % corner))
     expected = 8 - ((4 - math.pi) if corner > 0 else 2) * corner ** 2
     assert unary_union(result.layers[1]['solid_geometry']).area == pytest.approx(expected, abs=0.0001)
+    flashes = [r for t in result.layers[1]['tools'].values() if t['type'] == 'AB' for r in t['geometry']]
+    assert len(flashes) == 1
+    assert flashes[0]['follow'].equals(Point(0, 0))
+    assert flashes[0]['solid'].equals(unary_union(result.layers[1]['solid_geometry']))
+    from test_allegro_brd_parser import export_layer
+    exported, code = export_layer(result.layers[1], units='IN')
+    assert code.count('D03*') == 1
+    assert unary_union(exported.solid_geometry).symmetric_difference(flashes[0]['solid']).area < 0.0001
 
 
 @pytest.mark.parametrize(('body', 'message'), [

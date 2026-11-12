@@ -209,6 +209,78 @@ def layers_of(parsed):
 
 
 class TestAllegro16Synthetic(unittest.TestCase):
+    def test_shape_symbol_pads_with_outline_only_sizes_keep_flashes(self):
+        from test_allegro_brd_parser import export_layer
+        builder = Builder16()
+        shape_key = builder.key()
+        vertices = [(-0.6, -0.4), (0.6, -0.4), (0.2, 0.5), (-0.6, -0.4)]
+        keys = [builder.key() for _ in range(3)]
+        for i in range(3):
+            segment = bytearray(40)
+            segment[0] = 0x15
+            put(segment, 4, keys[i], '<I')
+            put(segment, 8, keys[i + 1] if i < 2 else shape_key, '<I')
+            put(segment, 12, shape_key, '<I')
+            for j, value in enumerate((*vertices[i], *vertices[i + 1])):
+                put(segment, 24 + 4 * j, round(value * MM))
+            builder.add(segment)
+        shape = bytearray(68)
+        shape[0] = 0x28
+        put(shape, 4, shape_key, '<I')
+        put(shape, 12, builder.footprint_definition(), '<I')
+        put(shape, 32, keys[0], '<I')
+        builder.add(shape)
+        stack = builder.padstack('SHAPE', 0.6, 0.3)
+        block = bytearray(builder.blocks[-1])
+        for slot in (1, 13, 16):
+            at = 88 + 28 * slot
+            block[at] = 0x16
+            put(block, at + 4, 0)
+            put(block, at + 8, 0)
+            put(block, at + 12, round(0.2 * MM))
+            put(block, at + 16, round(-0.1 * MM))
+            put(block, at + 20, shape_key, '<I')
+        builder.blocks[-1] = bytes(block)
+        builder.via(20, 30, stack)
+        parsed = AllegroBrd16Parser().parse_bytes(builder.build())
+        self.assertEqual(set(parsed.layers), {'TOP', 'BOTTOM', 'SOLDERMASK_TOP'})
+        for name, layer in parsed.layers.items():
+            records = [r for t in layer['tools'].values() if t['type'] == 'AB' for r in t['geometry']]
+            self.assertEqual(len(records), 1, name)
+            self.assertLess(records[0]['follow'].distance(Point(20.2, 29.9)), 0.00003)
+            exported, code = export_layer(layer)
+            self.assertEqual(code.count('D03*'), 1)
+            self.assertLess(unary_union(exported.solid_geometry).symmetric_difference(
+                records[0]['solid']).area, 1e-5)
+
+    def test_rotated_filled_rectangles_keep_source_flashes(self):
+        from types import SimpleNamespace
+        from test_allegro_brd_parser import export_layer
+        for magic in (MAGIC_164, MAGIC_166):
+            builder = Builder16(magic)
+            for cls, sub in ((0x06, 0), (0x09, 0xF4), (0x09, 0xED)):
+                block = bytearray(52)
+                block[0], block[2], block[3] = 0x24, cls, sub
+                put(block, 4, builder.key(), '<I')
+                for i, value in enumerate((10, 20, 12, 21)):
+                    put(block, 20 + i * 4, round(value * MM))
+                put(block, 48, 37000)
+                builder.add(block)
+            data = builder.build()
+            parsed = AllegroBrd16Parser().parse_bytes(data)
+            regions = AllegroBrd16Parser(app=SimpleNamespace(options={'gerber_board_import_mode': 'regions'})) \
+                .parse_bytes(data)
+            self.assertEqual(set(parsed.layers), {'TOP', 'SOLDERMASK_TOP', 'PASTEMASK_TOP'})
+            for name, layer in parsed.layers.items():
+                records = [r for t in layer['tools'].values() if t['type'] == 'AB' for r in t['geometry']]
+                self.assertEqual(len(records), 1, name)
+                self.assertTrue(records[0]['follow'].equals(records[0]['solid'].centroid))
+                original = unary_union(regions.layers[name]['solid_geometry'])
+                self.assertTrue(unary_union(layer['solid_geometry']).equals(original))
+                exported, code = export_layer(layer)
+                self.assertEqual(code.count('D03*'), 1)
+                self.assertLess(unary_union(exported.solid_geometry).symmetric_difference(original).area, 1e-5)
+
     def test_16_4_and_16_6_boards_are_read(self):
         for magic, name in ((MAGIC_164, '16.4'), (MAGIC_166, '16.6')):
             with self.subTest(release=name):
@@ -262,6 +334,23 @@ class TestAllegro16Synthetic(unittest.TestCase):
                 self.assertTrue(layers['IN1'].contains(Point(5, 5.25)))      # the pad its track reaches
                 self.assertEqual(layers['IN1'].contains(Point(20, 5.25)), keeps)
                 self.assertTrue(layers['TOP'].contains(Point(20, 5.25)))     # outer pads stay
+
+    def test_only_connected_inner_pads_keep_flash_records(self):
+        from types import SimpleNamespace
+        builder = Builder16(layers=('TOP', 'IN1', 'IN2', 'BOTTOM'))
+        stack = builder.padstack('VIA4', 0.6, 0.3, layers=4)
+        net = builder.net()
+        builder.via(5, 5, stack, net=net)
+        builder.via(20, 5, stack, net=net)
+        builder.track(1, [('line', (5, 5), (10, 5))], 0.2, owner=net)
+        builder.film([1], False)
+        builder.film([0], True)
+        parsed = AllegroBrd16Parser(app=SimpleNamespace(options={'gerber_board_import_mode': 'primitives'})) \
+            .parse_bytes(builder.build())
+        records = [r for t in parsed.layers['IN1']['tools'].values() for r in t['geometry']]
+        flashes = [r['follow'] for r in records if isinstance(r.get('follow'), Point)]
+        self.assertEqual(len(flashes), 1)
+        self.assertLess(flashes[0].distance(Point(5, 5)), 0.00002)  # the builder quantizes board coordinates
 
     def test_16_x_data_is_routed_for_the_base_reader(self):
         builder = Builder16()

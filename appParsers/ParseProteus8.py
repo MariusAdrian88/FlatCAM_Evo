@@ -23,6 +23,7 @@ from shapely.affinity import affine_transform
 from shapely.ops import unary_union
 
 from camlib import circle_quad_segs, gerber_circle_steps
+from appParsers.board_primitives import BoardPrimitives
 
 
 class ProteusParseError(ValueError):
@@ -121,6 +122,7 @@ class Proteus8Parser:
     def __init__(self, app=None):
         self.app = app
         self._options = getattr(app, 'options', None)
+        self._primitives = BoardPrimitives(self._options)
         self.layers = {}
         self.drill_groups = {}
         self.warnings = []
@@ -410,10 +412,11 @@ class Proteus8Parser:
                 'angle': angle, 'reflection': reflection, 'height': height / self.SCALE,
                 'width': width / self.SCALE, 'font': font, 'visible': bool(data[30] & 1)}
 
-    def _text_geometry(self, text, width, height, font):
+    def _text_geometry(self, text, width, height, font, strokes=None):
         if not text.strip() or width <= 0 or height <= 0:
             return Polygon()
         geometry = None
+        follows = []
         if font not in ('Vector Font', 'Default Font', ''):
             from appParsers.ParseFont import ParseFont
             # Scanning the system fonts takes seconds: do it once per process, not once per board.
@@ -431,22 +434,31 @@ class Proteus8Parser:
             from appParsers.ParseKiCadPcb import KiCadPcbParser
             if not hasattr(self, '_text_engine'):
                 self._text_engine = KiCadPcbParser(app=self.app)
-            geometry, _ = self._text_engine._text_geometry(text, width, height, height / 10, [], False)
+            geometry, follows = self._text_engine._text_geometry(text, width, height, height / 10, [], False)
             self._warn('Native vector or unavailable font text uses the existing approximate PCB stroke font; '
                        'verify glyph shapes and spacing before fabrication')
         if geometry.is_empty:
             return geometry
         # Saved text anchors are independent of the component's own placement.
         minx, miny, maxx, maxy = geometry.bounds
+        if strokes is not None:
+            for line in follows:
+                solid = line.buffer(height / 20, quad_segs=self._text_engine._segs(height / 20))
+                shift = (1, 0, 0, 1, -(minx + maxx) / 2, -(miny + maxy) / 2)
+                strokes.append((affine_transform(solid, shift), affine_transform(line, shift), height / 10))
         self._warn('Native text anchor alignment is centered; verify text spacing and alignment before fabrication')
         return affine_transform(geometry, (1, 0, 0, 1, -(minx + maxx) / 2, -(miny + maxy) / 2))
 
     def _attribute_geometry(self, attribute, layer):
         if not attribute['visible']:
             return
-        shape = self._text_geometry(attribute['text'], attribute['width'], attribute['height'], attribute['font'])
+        strokes = []
+        shape = self._text_geometry(attribute['text'], attribute['width'], attribute['height'], attribute['font'], strokes)
         matrix = self._matrix(attribute['x'], attribute['y'], attribute['angle'], attribute['reflection'])
         self._add(layer, affine_transform(shape, matrix))
+        for solid, line, width in strokes:
+            self._primitives.stroke(self._layer(layer), affine_transform(solid, matrix),
+                                    affine_transform(line, matrix), width)
 
     def _objects(self, r):
         while True:
@@ -568,22 +580,31 @@ class Proteus8Parser:
                 if number > 15:  # stack mask/paste entries, already grown by the stack guard
                     if supported_span:
                         self._add(number, affine_transform(shape, matrix))
+                        entry = number - 22
+                        subfields, _ = self._style_names[extra[entry]]
+                        guard = self._length(fields[4]) if number in (38, 39) and fields[4] else 0.0
+                        self._flash_style(number, affine_transform(shape, matrix), subfields, matrix, guard)
                     continue
                 target = number if supported_span else 'Pad span 0x%x (layer %d; unverified)' % (span, number)
                 self._add(target, affine_transform(shape, matrix))
+                subfields, _ = self._style_names[extra[number]]
+                self._flash_style(target, affine_transform(shape, matrix), subfields, matrix)
         elif geometry is not None:
             shape = affine_transform(geometry, matrix)
             for number in layers:
                 target = number if supported_span else 'Pad span 0x%x (layer %d; unverified)' % (span, number)
                 self._add(target, shape)
+                self._flash_style(target, shape, fields, matrix)
             if supported_span:
                 guard = self._length(fields[5]) if len(fields) > 5 and fields[5] else 0.0
                 opening = affine_transform(geometry.buffer(guard, quad_segs=self._segs(guard)), matrix)
                 for number in layers:
                     if number in (0, 15):
                         self._add(38 if number == 0 else 39, opening)
+                        self._flash_style(38 if number == 0 else 39, opening, fields, matrix, guard)
                 if span in (0, 15) and fields[1] in ('RSMPAD', 'CSMPAD'):
                     self._add(40 if span == 0 else 41, shape)
+                    self._flash_style(40 if span == 0 else 41, shape, fields, matrix)
                 self._warn('Per-pad mask suppression and paste reduction/suppression rules are not fully '
                            'verified; ordinary pad guard gaps and unchanged eligible SMD paste are used')
         if drill > 0:
@@ -597,6 +618,35 @@ class Proteus8Parser:
         if supported_span:
             return [number for number in geometry if number <= 15] if isinstance(geometry, dict) else layers
         return []
+
+    def _flash_style(self, layer, solid, fields, matrix, grow=0.0):
+        if not self._primitives.enabled or solid.is_empty:
+            return
+        kind = fields[1]
+        if kind == 'PSMPAD':
+            left, bottom, right, top = solid.bounds
+            self._primitives.flash(self._layer(layer), solid, (matrix[4], matrix[5]), 'block',
+                                   right - left, top - bottom)
+            return
+        if kind not in ('CPAD', 'CSMPAD', 'CVIA', 'SPAD', 'RSMPAD', 'DPAD'):
+            return
+        width, height = self._length(fields[2]), self._length(fields[3])
+        aperture = 'block'
+        if kind in ('CPAD', 'CSMPAD', 'CVIA') and width == height:
+            aperture = 'circle'
+        elif kind in ('SPAD', 'RSMPAD', 'DPAD'):
+            radius = self._length(fields[8])
+            if kind == 'DPAD' and not radius:
+                radius = min(width, height) / 2
+            if radius == min(width, height) / 2:
+                aperture = 'oval'
+            elif radius == 0 and grow == 0:
+                aperture = 'rect'
+        angle = math.degrees(math.atan2(matrix[2], matrix[0]))
+        if aperture in ('rect', 'oval') and abs(angle - round(angle / 90) * 90) > 1e-8:
+            aperture = 'block'
+        self._primitives.flash(self._layer(layer), solid, (matrix[4], matrix[5]), aperture,
+                               width + 2 * grow, height + 2 * grow, angle)
 
     def _pad_shape(self, fields, extra, r: _Reader, layers, stack=False):
         name, kind = fields[:2]
@@ -712,6 +762,7 @@ class Proteus8Parser:
         r.cstring()
         shape = None
         follow = None
+        text_strokes = []
         if kind == 0:
             values = r.unpack('iiii')
             points = [(values[0] / self.SCALE, values[1] / self.SCALE),
@@ -752,10 +803,13 @@ class Proteus8Parser:
             text = r.cstring()
             if self.TITLE_FROM_ARTWORK and layer == 36 and not self.name and text and not text.startswith('@'):
                 self.name = text
-            shape = self._text_geometry(text, width_text / self.SCALE, height / self.SCALE, font)
-            shape = affine_transform(shape, self._matrix(x / self.SCALE, y / self.SCALE,
-                                                        (rotation & 0xffff) - (0x10000 if rotation & 0x8000 else 0),
-                                                        (rotation >> 16) & 3))
+            shape = self._text_geometry(text, width_text / self.SCALE, height / self.SCALE, font, text_strokes)
+            text_matrix = self._matrix(x / self.SCALE, y / self.SCALE,
+                                       (rotation & 0xffff) - (0x10000 if rotation & 0x8000 else 0),
+                                       (rotation >> 16) & 3)
+            shape = affine_transform(shape, text_matrix)
+            text_strokes = [(affine_transform(solid, text_matrix), affine_transform(line, text_matrix), stroke)
+                            for solid, line, stroke in text_strokes]
         elif kind == 7:
             points, metadata = self._path_points(r)
             if any(value in (2, 3) for value in metadata):
@@ -773,6 +827,24 @@ class Proteus8Parser:
             shape = affine_transform(shape, matrix)
             follow = affine_transform(follow, matrix) if follow is not None else None
             self._add(layer, shape, follow)
+            for solid, line, stroke in text_strokes:
+                self._primitives.stroke(self._layer(layer), affine_transform(solid, matrix),
+                                        affine_transform(line, matrix), stroke)
+            if follow is not None:
+                self._primitives.stroke(self._layer(layer), shape, follow, width)
+            elif kind == 2:
+                center = affine_transform(Point(x / self.SCALE, y / self.SCALE), matrix)
+                diameter = 2 * radius / self.SCALE
+                self._primitives.flash(self._layer(layer), shape, center, 'circle', diameter, diameter)
+            elif kind == 1:
+                local = self._matrix(x / self.SCALE, y / self.SCALE, rotation, 0)
+                center = affine_transform(affine_transform(Point(width_rect / self.SCALE / 2,
+                                                                  height / self.SCALE / 2), local), matrix)
+                angle = math.degrees(math.atan2(matrix[2], matrix[0]))
+                angle += (1 if matrix[0] * matrix[3] - matrix[1] * matrix[2] > 0 else -1) * rotation / 10
+                self._primitives.flash(self._layer(layer), shape, center,
+                                       'rect' if abs(angle - round(angle / 90) * 90) <= 1e-8 else 'block',
+                                       width_rect / self.SCALE, height / self.SCALE, angle)
 
     def _path_points(self, r):
         count = r.count(10)
@@ -856,7 +928,9 @@ class Proteus8Parser:
                 r.number('B')
                 r.pstring()
                 follow = LineString(points)
-                self._add(layer, self._stroke(points, self._trace_styles[style]), follow)
+                solid = self._stroke(points, self._trace_styles[style])
+                self._add(layer, solid, follow)
+                self._primitives.stroke(self._layer(layer), solid, follow, self._trace_styles[style])
                 if layer != layer_list:
                     self._warn('Route layer %d differs from list %d; explicit route layer retained' %
                                (layer, layer_list))
@@ -909,6 +983,7 @@ class Proteus8Parser:
                 'follow_geometry': self._follows.get(name, []),
                 'tools': {0: {'type': 'REG', 'size': 0.0,
                               'geometry': [{'solid': polygon} for polygon in polygons]}}}
+            self._primitives.finish(name, self.layers[self._layer_key(name)])
         self.default_layers = [self._layer_key(self._layer_names[layer])
                                for layer in self._copper + [36, 37, 38, 39, 40, 41, 59]
                                if layer in self._layer_names

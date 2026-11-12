@@ -15,6 +15,181 @@ FIXTURE = Path(__file__).parent / 'fixtures' / 'ipc2581' / 'Easyduino_RP2040.xml
 NS = 'http://webstds.ipc.org/2581'
 
 
+def assert_native_roundtrip(parsed, key, tmp_path):
+    from tests.test_kicad_pcb_e2e import _app, NativeGerberObject, Gerber, appIO, _union
+    app = _app('MM')
+    app.options.update(gerber_board_import_mode='primitives', gerber_exp_decimals=6)
+    objects = []
+
+    def create(kind, name, initialize, **kwargs):
+        obj = NativeGerberObject(name, app)
+        assert initialize(obj, app) != 'fail'
+        objects.append(obj)
+        return obj
+
+    app.app_obj.new_object.side_effect = create
+    assert appIO(app).import_pcbdoc_objects('board', parsed, [key], []) is None
+    exported = tmp_path / 'native.gbr'
+    exported.write_text(objects[0].source_file)
+    reloaded = Gerber(app)
+    assert reloaded.parse_file(str(exported)) != 'fail'
+    follows = [r.get('follow') for t in reloaded.tools.values() for r in t.get('geometry', [])]
+    source_follows = [r.get('follow') for t in parsed.layers[key]['tools'].values() for r in t['geometry']]
+    source_centres = sorted((f.x, f.y) for f in source_follows if isinstance(f, Point))
+    exported_centres = sorted((f.x, f.y) for f in follows if isinstance(f, Point))
+    assert len(exported_centres) == len(source_centres)
+    for actual, expected_centre in zip(exported_centres, source_centres):
+        assert actual == pytest.approx(expected_centre, abs=1e-6)
+    if any(isinstance(f, LineString) for f in source_follows):
+        assert any(isinstance(f, LineString) for f in follows)
+    expected = _union(parsed.layers[key]['solid_geometry'])
+    difference = expected.symmetric_difference(_union(reloaded.solid_geometry))
+    assert difference.buffer(-0.003).is_empty
+    assert difference.area < expected.length * 0.003
+    return reloaded
+
+
+def test_preserved_dictionary_primitives_transforms_and_clear(tmp_path):
+    from types import SimpleNamespace
+    dictionaries = ('<DictionaryStandard units="MILLIMETER"><EntryStandard id="r"><RectCenter width="2" height="1"/>'
+                    '</EntryStandard><EntryStandard id="o"><Oval width="2" height="1"/></EntryStandard>'
+                    '<EntryStandard id="c"><Circle diameter="1"/></EntryStandard></DictionaryStandard>')
+    xml = doc(pad('<StandardPrimitiveRef id="r"/>', (4, 0), '<Xform mirror="true" rotation="90" scale="2"/>')
+              + pad('<StandardPrimitiveRef id="o"/>', (8, 0))
+              + pad('<StandardPrimitiveRef id="c"/>')
+              + '<Set><Features><Xform mirror="true" rotation="90" scale="2"/><Location x="10" y="10"/>'
+                '<Location x="20" y="10"/><Line startX="0" startY="0" endX="3" endY="0">'
+                '<LineDesc lineWidth="0.3" lineEnd="ROUND"/></Line></Features></Set>'
+              + '<Set polarity="NEGATIVE"><Features><Circle diameter="0.4"/></Features></Set>',
+              dictionaries=dictionaries)
+    baseline = parse(xml)
+    parsed = IPC2581Parser(app=SimpleNamespace(options={'gerber_board_import_mode': 'primitives'}),
+                           circle_steps=64).parse_bytes(xml.encode())
+    tools = parsed.layers['L1']['tools']
+    assert {'C', 'R', 'O', 'REG'} <= {t['type'] for t in tools.values()}
+    assert any(t['type'] == 'R' and t['width'] == 2 and t['height'] == 4 for t in tools.values())
+    assert sum(isinstance(r.get('follow'), Point) for t in tools.values() for r in t['geometry']) == 2
+    assert layer_geometry(parsed).equals(layer_geometry(baseline))
+    assert_native_roundtrip(parsed, 'L1', tmp_path)
+
+
+def test_preserved_point_stroke_and_custom_symbol():
+    from types import SimpleNamespace
+    xml = doc('<Set><Features><Line startX="0" startY="0" endX="0" endY="0">'
+              '<LineDesc lineWidth="1" lineEnd="ROUND"/></Line></Features></Set>'
+              + pad('<UserPrimitiveRef id="custom"/>', (5, 0)),
+              dictionaries='<DictionaryUser units="MILLIMETER"><EntryUser id="custom"><UserSpecial>'
+                           '<Circle diameter="2"/>' + square(0, 0, 2, 2)
+                           + '</UserSpecial></EntryUser></DictionaryUser>')
+    parsed = IPC2581Parser(app=SimpleNamespace(options={'gerber_board_import_mode': 'primitives'}),
+                           circle_steps=64).parse_bytes(xml.encode())
+    records = [r for t in parsed.layers['L1']['tools'].values() for r in t['geometry']
+               if isinstance(r.get('follow'), Point)]
+    assert len(records) == 2
+    assert {tuple(r['follow'].coords)[0] for r in records} == {(0, 0), (5, 0)}
+    assert layer_geometry(parsed).equals(layer_geometry(parse(xml)))
+
+
+def test_preserved_padstack_dictionary_reuse_and_negative_layer(tmp_path):
+    from types import SimpleNamespace
+    dictionary = ('<DictionaryStandard units="MICRON"><EntryStandard id="r"><RectCenter width="2000" height="1000"/>'
+                  '</EntryStandard><EntryStandard id="c"><Circle diameter="1000"/></EntryStandard>'
+                  '</DictionaryStandard>')
+    stack = ('<PadStackDef name="p"><PadstackPadDef layerRef="L1"><Xform rotation="90" scale="2"/>'
+             '<Location x="1" y="0"/><StandardPrimitiveRef id="r"/></PadstackPadDef></PadStackDef>')
+    features = ('<Set><Pad padstackDefRef="p"><Xform mirror="true" rotation="90" scale="0.5"/>'
+                '<Location x="4" y="4"/></Pad></Set>'
+                + pad('<StandardPrimitiveRef id="r"/>', (8, 0), '<Xform rotation="45"/>')
+                + pad('<StandardPrimitiveRef id="c"/>', (0, 0))
+                + pad('<StandardPrimitiveRef id="c"/>', (2, 0))
+                + '<Set><Features><Arc startX="0" startY="8" endX="2" endY="8" centerX="1" centerY="8" '
+                  'clockwise="false"><LineDesc lineWidth="0.2" lineEnd="ROUND"/></Arc></Features></Set>')
+    for polarity in ('POSITIVE', 'NEGATIVE'):
+        xml = doc(features, dictionaries=dictionary, steps_extra=stack, polarity=polarity,
+                  profile='<Profile><Polygon><PolyBegin x="-5" y="-5"/><PolyStepSegment x="15" y="-5"/>'
+                          '<PolyStepSegment x="15" y="15"/><PolyStepSegment x="-5" y="15"/></Polygon></Profile>')
+        baseline = parse(xml)
+        parsed = IPC2581Parser(app=SimpleNamespace(options={'gerber_board_import_mode': 'primitives'}),
+                               circle_steps=64).parse_bytes(xml.encode())
+        assert layer_geometry(parsed).equals(layer_geometry(baseline))
+        tools = parsed.layers['L1']['tools']
+        if polarity == 'NEGATIVE':
+            assert {t['type'] for t in tools.values()} == {'REG'}
+        else:
+            rectangles = [t for t in tools.values() if t['type'] == 'R']
+            assert len(rectangles) == 1
+            assert (rectangles[0]['width'], rectangles[0]['height']) == pytest.approx((2, 1))
+            assert rectangles[0]['geometry'][0]['follow'].equals(Point(4, 3.5))
+            assert sum(isinstance(r.get('follow'), Point) for t in tools.values() for r in t['geometry']) == 4
+            assert_native_roundtrip(parsed, 'L1', tmp_path)
+
+
+@pytest.mark.parametrize('units,factor', [('MILLIMETER', 1), ('INCH', 25.4)])
+def test_nested_user_pad_holes_decorations_and_source_centres(tmp_path, units, factor):
+    from types import SimpleNamespace
+    dictionary = ('<DictionaryUser units="MILLIMETER"><EntryUser id="custom"><UserSpecial><UserSpecial>'
+                  + square(-2, -2, 2, 2) + '<Circle diameter="1"><FillDesc fillProperty="VOID"/></Circle>'
+                  '</UserSpecial></UserSpecial></EntryUser></DictionaryUser>')
+    xf = '<Xform mirror="true" rotation="30" scale="2" xOffset="1" yOffset="2"/>'
+    xml = doc(pad('<UserPrimitiveRef id="custom"/>', (10, 5), xf)
+              + pad('<UserPrimitiveRef id="custom"/>', (20, 5), xf)
+              + pad('<RectCenter width="2" height="1"/>', (40, 5), '<Xform rotation="45"/>')
+              + pad('<Circle diameter="2"><LineDesc lineWidth="0.2"/></Circle>', (50, 5))
+              + '<Set><Features><Line startX="60" startY="0" endX="63" endY="0">'
+                '<LineDesc lineWidth="0.2" lineEnd="ROUND"/></Line></Features></Set>',
+              dictionaries=dictionary, units=units)
+    parsed = IPC2581Parser(circle_steps=64).parse_bytes(xml.encode())
+    baseline = IPC2581Parser(app=SimpleNamespace(options={'gerber_board_import_mode': 'regions'}),
+                            circle_steps=64).parse_bytes(xml.encode())
+    flashes = [r for t in parsed.layers['L1']['tools'].values() for r in t['geometry']
+               if isinstance(r.get('follow'), Point)]
+    assert len(flashes) == 4
+    centres = sorted((r['follow'].x, r['follow'].y) for r in flashes)
+    for actual, expected in zip(centres, [(11, 7), (21, 7), (40, 5), (50, 5)]):
+        assert actual == pytest.approx(tuple(v * factor for v in expected))
+    assert sum(len(r['solid'].interiors) for r in flashes) == 2
+    assert layer_geometry(parsed).equals(layer_geometry(baseline))
+    reloaded = assert_native_roundtrip(parsed, 'L1', tmp_path)
+    assert sum(isinstance(r.get('follow'), Point) for t in reloaded.tools.values() for r in t['geometry']) == 4
+
+
+def test_negative_layer_retains_only_restored_uncut_custom_pad(tmp_path):
+    from types import SimpleNamespace
+    dictionary = ('<DictionaryUser units="MILLIMETER"><EntryUser id="p"><UserSpecial>'
+                  + square(-2, -2, 2, 2) + '<RectCenter width="1" height="1">'
+                  '<FillDesc fillProperty="VOID"/></RectCenter></UserSpecial></EntryUser></DictionaryUser>')
+    xml = doc('<Set><Features>' + square(-5, -5, 5, 5) + '</Features></Set>'
+              '<Set polarity="NEGATIVE"><Pad><Location x="0" y="0"/><Xform rotation="30"/>'
+              '<UserPrimitiveRef id="p"/></Pad><Pad><Location x="10" y="0"/>'
+              '<UserPrimitiveRef id="p"/></Pad></Set>', dictionaries=dictionary, polarity='NEGATIVE',
+              profile='<Profile><Polygon><PolyBegin x="-10" y="-10"/><PolyStepSegment x="10" y="-10"/>'
+                      '<PolyStepSegment x="10" y="10"/><PolyStepSegment x="-10" y="10"/></Polygon></Profile>')
+    parsed = IPC2581Parser(circle_steps=64).parse_bytes(xml.encode())
+    baseline = IPC2581Parser(app=SimpleNamespace(options={'gerber_board_import_mode': 'regions'}),
+                            circle_steps=64).parse_bytes(xml.encode())
+    flashes = [r for t in parsed.layers['L1']['tools'].values() for r in t['geometry']
+               if isinstance(r.get('follow'), Point)]
+    assert len(flashes) == 1 and flashes[0]['follow'].equals(Point(0, 0))
+    assert len(flashes[0]['solid'].interiors) == 1
+    assert layer_geometry(parsed).equals(layer_geometry(baseline))
+    assert_native_roundtrip(parsed, 'L1', tmp_path)
+
+
+def test_preserved_real_ipc_board_matches_regions(tmp_path):
+    from types import SimpleNamespace
+    parsed = IPC2581Parser(app=SimpleNamespace(options={'gerber_board_import_mode': 'primitives'})).parse_file(FIXTURE)
+    assert parsed.drill_groups.keys() == easyduino().drill_groups.keys()
+    assert parsed.warnings == easyduino().warnings
+    for name in parsed.layers:
+        assert layer_geometry(parsed, name).equals(layer_geometry(easyduino(), name))
+        assert_native_roundtrip(parsed, name, tmp_path)
+    for name, flashes, strokes in [('F.Cu', 320, 465), ('In1.Cu', 135, 0), ('In2.Cu', 135, 3),
+                                  ('B.Cu', 138, 102), ('F.Mask', 238, 0), ('B.Mask', 56, 0), ('F.Paste', 177, 0)]:
+        records = [r for t in parsed.layers[name]['tools'].values() for r in t['geometry']]
+        assert sum(isinstance(r.get('follow'), Point) for r in records) == flashes
+        assert sum(isinstance(r.get('follow'), LineString) for r in records) == strokes
+
+
 def doc(features='', function='CONDUCTOR', polarity='POSITIVE', units='MILLIMETER', revision='C', dictionaries='',
         layers='', profile='', steps_extra='', layer_features=None):
     """A minimal IPC-2581 board: the layer 'L1' with the given LayerFeature content."""

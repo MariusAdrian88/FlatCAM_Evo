@@ -23,6 +23,7 @@ from shapely.ops import polygonize, unary_union
 
 from camlib import circle_quad_segs, gerber_circle_steps
 from appParsers.ParsePcbDoc import PcbDocParser
+from appParsers.board_primitives import BoardPrimitives
 
 
 class KiCadPcbParseError(ValueError):
@@ -174,6 +175,7 @@ class KiCadPcbParser:
     # ------------------------------------------------------------------ state
 
     def _reset(self):
+        self._primitives = BoardPrimitives(self._options)
         self.layers = {}
         self.drill_groups = {}
         self.warnings = []
@@ -539,6 +541,7 @@ class KiCadPcbParser:
         follow = LineString(points) if len(set(points)) > 1 else None
         geo = self._stroke(points, width)
         self._add(layer[1], geo, [follow] if follow is not None else None)
+        self._primitives.stroke(layer[1], geo, follow if follow is not None else Point(points[0]), width)
         self._remember(layer[1], self._net(node), geo)
 
     def _via(self, node):
@@ -566,15 +569,20 @@ class KiCadPcbParser:
         keep_end = self._flag(node, 'keep_end_layers')
         for layer in span:
             if prune and len(self.copper_layers) > 2 and not (keep_end and layer in (span[0], span[-1])):
-                self._pending.append((layer, net, pad))
+                self._pending.append((layer, net, pad, ((x, y), 'circle', size, size, 0.0)))
             else:
                 self._add(layer, pad)
+                self._primitives.flash(layer, pad, (x, y), 'circle', size, size)
                 self._remember(layer, net, pad)
         self._drill((x, y), drill, True, (span[0], span[-1]))
         tenting = self._sides(self._child(node, 'tenting'), self._tenting)
         for side, layer, mask in (('front', outer_front, 'F.Mask'), ('back', outer_back, 'B.Mask')):
             if layer in span and not tenting[side]:
-                self._add(mask, Point(x, y).buffer(size / 2 + self._mask_margin, quad_segs=self._segs(size / 2 + self._mask_margin)))
+                opening = Point(x, y).buffer(size / 2 + self._mask_margin,
+                                             quad_segs=self._segs(size / 2 + self._mask_margin))
+                self._add(mask, opening)
+                self._primitives.flash(mask, opening, (x, y), 'circle',
+                                       size + 2 * self._mask_margin, size + 2 * self._mask_margin)
 
     def _span(self, first, last):
         try:
@@ -608,11 +616,12 @@ class KiCadPcbParser:
 
     def _resolve_pending(self):
         """Annular rings marked remove_unused_layers: keep those that touch same-net copper on that layer."""
-        for layer, net, shape in self._pending:
+        for layer, net, shape, primitive in self._pending:
             if net is None:
                 continue
             if any(other == net and geo.intersects(shape) for other, geo in self._conn.get(layer, [])):
                 self._add(layer, shape)
+                self._primitives.flash(layer, shape, *primitive)
         if self._pending:
             self._warn('prune', 'Pads/vias with "remove unused layers": unconnected inner rings were dropped '
                                 'using a same-net touch test (approximation of the KiCad connectivity)')
@@ -741,6 +750,14 @@ class KiCadPcbParser:
         if solid.is_empty and not follows:
             return
         self._add(layer[1], self._place(solid, at), [self._place(line, at) for line in follows])
+        width = self._width_of(node)
+        if not self._fill_of(node) and follows and width > 0:
+            self._primitives.stroke(layer[1], self._place(solid, at), self._place(follows[0], at), width)
+        elif self._fill_of(node) and node[0].split('_')[-1] in ('rect', 'circle') and not solid.is_empty:
+            minx, miny, maxx, maxy = solid.bounds
+            self._primitives.flash(layer[1], self._place(solid, at),
+                                   self._place(Point((minx + maxx) / 2, (miny + maxy) / 2), at),
+                                   'block', maxx - minx, maxy - miny)
 
     # ------------------------------------------------------------------ text
 
@@ -850,6 +867,12 @@ class KiCadPcbParser:
         solid = translate(rotate(solid, angle, origin=(0, 0)), position[0], position[1])
         follows = [translate(rotate(line, angle, origin=(0, 0)), position[0], position[1]) for line in follows]
         self._add(layer, self._place(solid, at), [self._place(line, at) for line in follows])
+        if self._primitives.enabled:
+            placed_solid = self._place(solid, at)
+            for line in follows:
+                stroke = line.buffer(thickness / 2, quad_segs=self._segs(thickness / 2))
+                self._primitives.stroke(layer, self._place(stroke, at).intersection(placed_solid),
+                                        self._place(line, at), thickness)
 
     def _text_at(self, node):
         at = self._child(node, 'at')
@@ -1130,6 +1153,17 @@ class KiCadPcbParser:
         def put(shape):
             return translate(rotate(shape, angle, origin=(0, 0)), centre[0], centre[1])
 
+        native_shape = spec['shape'] if spec['shape'] in ('circle', 'rect', 'oval') and not spec['chamfered'] else 'block'
+
+        def add_pad(layer, shape, grow=0.0):
+            self._add(layer, shape)
+            width, height = spec['w'] + 2 * grow, spec['h'] + 2 * grow
+            if native_shape == 'block' and not shape.is_empty:
+                minx, miny, maxx, maxy = shape.bounds
+                width, height = maxx - minx, maxy - miny
+            self._primitives.flash(layer, shape, centre, native_shape,
+                                   width, height, angle)
+
         # Hole first: it decides whether an NPTH pad leaves any copper.
         hole_geo = None
         drill = self._drill_spec(node, number)
@@ -1156,24 +1190,25 @@ class KiCadPcbParser:
                         body.difference(hole_geo.buffer(1e-6)).area < 1e-9:
                     continue        # Pad no bigger than its hole: no copper
                 if prune and not (keep_end and layer in (self.copper_layers[0], self.copper_layers[-1])):
-                    self._pending.append((layer, net, body))
+                    self._pending.append((layer, net, body, (centre, native_shape,
+                                          spec['w'], spec['h'], angle)))
                 else:
-                    self._add(layer, body)
+                    add_pad(layer, body)
                     self._remember(layer, net, body)
             elif layer.endswith('.Cu'):
                 continue        # Layer the board does not have (footprint written for more layers)
             elif layer.endswith('.Mask'):
                 margin = self._margin(self._value(node, 'solder_mask_margin'), local['mask'], self._mask_margin)
-                self._add(layer, put(self._pad_shape(spec, margin)))
+                add_pad(layer, put(self._pad_shape(spec, margin)), margin)
             elif layer.endswith('.Paste'):
                 margin = self._margin(self._value(node, 'solder_paste_margin'), local['paste'],
                                       self._paste_margin)
                 ratio = self._margin(self._value(node, 'solder_paste_margin_ratio'), local['ratio'],
                                      self._paste_ratio)
                 grow = margin + min(spec['w'], spec['h']) * ratio
-                self._add(layer, put(self._pad_shape(spec, grow)))
+                add_pad(layer, put(self._pad_shape(spec, grow)), grow)
             else:
-                self._add(layer, body)
+                add_pad(layer, body)
 
     # ------------------------------------------------------------------ result
 
@@ -1210,6 +1245,7 @@ class KiCadPcbParser:
                 'solid_geometry': polygons,
                 'follow_geometry': list(self._follows.get(layer, [])),
                 'tools': {0: {'type': 'REG', 'size': 0.0, 'geometry': [{'solid': polygon} for polygon in polygons]}}}
+            self._primitives.finish(layer, self.layers[layer])
         self.default_layers = [name for name in self.layers
                                if name in self.copper_layers or name in self.DEFAULT_TECH]
         if self._text_used:

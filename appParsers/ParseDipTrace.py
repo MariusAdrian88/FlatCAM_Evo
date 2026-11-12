@@ -55,6 +55,7 @@ from shapely.affinity import rotate, scale, translate
 from shapely.ops import unary_union
 
 from appParsers.ParseKiCadPcb import KiCadPcbParser
+from appParsers.board_primitives import BoardPrimitives
 
 
 class DipTraceParseError(ValueError):
@@ -159,6 +160,7 @@ class DipTraceParser:
         self._reset()
 
     def _reset(self):
+        self._primitives = BoardPrimitives(getattr(self.app, 'options', None))
         self.layers = {}
         self.drill_groups = {}
         self.default_layers = []
@@ -231,7 +233,9 @@ class DipTraceParser:
     def _stroke(self, layer, points, width):
         if not 0 < width < 100:
             raise DipTraceParseError('Invalid DipTrace stroke width: %s' % width)
-        self._add(layer, self._geometry._stroke(points, width), LineString(points))
+        solid, follow = self._geometry._stroke(points, width), LineString(points)
+        self._add(layer, solid, follow)
+        self._primitives.stroke(layer, solid, follow, width)
 
     def _parse(self, data):
         reader = _Reader(data)
@@ -352,6 +356,7 @@ class DipTraceParser:
                     'solid_geometry': polygons,
                     'follow_geometry': self._follows.get(layer, []),
                     'tools': {0: {'type': 'REG', 'size': 0.0, 'geometry': [{'solid': p} for p in polygons]}}}
+                self._primitives.finish(layer, self.layers[layer])
         for group, tools in self._drills.items():
             if tools:
                 self.drill_groups[group] = {i: tool for i, (_, tool) in enumerate(sorted(tools.items()), 1)}
@@ -953,12 +958,15 @@ class DipTraceParser:
         segments = []
         for _ in range(2):
             rectangles = []
+            flashes = []
             for _ in range(reader.count(16)):
                 a, b = reader.point(), reader.point()
                 if a[0] == b[0] or a[1] == b[1]:
                     raise DipTraceParseError('Invalid DipTrace paste-segment rectangle')
                 rectangles.append(box(min(a[0], b[0]), min(a[1], b[1]), max(a[0], b[0]), max(a[1], b[1])))
-            segments.append(unary_union(rectangles))
+                flashes.append((rectangles[-1], ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2),
+                                abs(b[0] - a[0]), abs(b[1] - a[1])))
+            segments.append((unary_union(rectangles), flashes))
         return segments
 
     def _pad_extensions(self, data, component, count):
@@ -1033,11 +1041,18 @@ class DipTraceParser:
             shape = translate(self._pad_outline(style, width, height, vertices, corner=corner), *offset)
             shape = self._place(translate(rotate(shape, angle, origin=(0, 0)), *xy), component)
             center = self._place(Point(xy), component)
+            flash_center = self._place(translate(rotate(Point(offset), angle, origin=(0, 0)), *xy), component)
+            flash_angle = component['angle'] + angle
+            flash_shape = ('circle' if style == 0 and width == height else
+                           'rect' if style == 2 and not corner else 'oval' if style == 1 else 'block')
+            if flash_shape in ('rect', 'oval') and abs(flash_angle - round(flash_angle / 90) * 90) > 1e-8:
+                flash_shape = 'block'
             outer = self._copper_layers[-1 if bool(component['bottom']) ^ bool(pad_side) else 0]
             for layer in ([outer] if mount else self._copper_layers):
                 if layer in plane['hidden'] or (plane['blind'] and layer not in plane['blind']):
                     continue
                 copper = shape
+                copper_shape, copper_width, copper_height, copper_center = flash_shape, width, height, flash_center
                 settings = self.copper_layers.get(layer, {})
                 if not mount and settings.get('type') == 1 and settings['plane_pad'] == 1:
                     if not 0 < drill < 100 or (hole_type and not 0 < slot < 100):
@@ -1046,7 +1061,11 @@ class DipTraceParser:
                     copper = self._pad_outline(1, drill + 2 * ring,
                                                (slot if hole_type else drill) + 2 * ring, [])
                     copper = self._place(translate(rotate(copper, angle, origin=(0, 0)), *xy), component)
+                    copper_shape = ('oval' if abs(flash_angle - round(flash_angle / 90) * 90) <= 1e-8 else 'block')
+                    copper_width, copper_height = drill + 2 * ring, (slot if hole_type else drill) + 2 * ring
+                    copper_center = center
                 self._add(layer, copper, center)
+                self._primitives.flash(layer, copper, copper_center, copper_shape, copper_width, copper_height, flash_angle)
             terminal_layer = ('Bottom' if bool(component['bottom']) ^ bool(pad_side) else 'Top') + ' Terminals'
             terminals = translate(terminals, *offset)
             self._add(terminal_layer, self._place(translate(rotate(terminals, angle, origin=(0, 0)), *xy), component))
@@ -1097,7 +1116,7 @@ class DipTraceParser:
                 paste = Polygon()
                 if paste_open:
                     if segmented and segments is not None:
-                        paste = segments[local_side]
+                        paste = segments[local_side][0]
                     elif shrink is not None:
                         paste = translate(self._pad_outline(style, width, height, vertices, -shrink, corner), *offset)
                     paste = self._place(translate(rotate(paste, angle, origin=(0, 0)), *xy), component)
@@ -1108,8 +1127,26 @@ class DipTraceParser:
                         opening = translate(self._pad_outline(style, width, height, vertices, mask_offset, corner), *offset)
                         opening = self._place(translate(rotate(opening, angle, origin=(0, 0)), *xy), component)
                     self._add(name + ' Mask', opening, center)
+                    if not (mask_mode == 3 and segmented):
+                        self._primitives.flash(name + ' Mask', opening, flash_center, flash_shape,
+                                               width + 2 * mask_offset, height + 2 * mask_offset, flash_angle)
                 if paste_open:
                     self._add(name + ' Paste', paste, center)
+                    if not segmented:
+                        self._primitives.flash(name + ' Paste', paste, flash_center, flash_shape,
+                                               width - 2 * shrink, height - 2 * shrink, flash_angle)
+                if segmented and segments is not None and self._primitives.enabled:
+                    for rectangle, midpoint, w, h in segments[local_side][1]:
+                        solid = self._place(translate(rotate(rectangle, angle, origin=(0, 0)), *xy), component)
+                        midpoint = self._place(translate(rotate(Point(midpoint), angle, origin=(0, 0)), *xy), component)
+                        if paste_open:
+                            self._primitives.flash(name + ' Paste', solid, midpoint,
+                                                   'rect' if abs(flash_angle - round(flash_angle / 90) * 90) <= 1e-8 else 'block',
+                                                   w, h, flash_angle)
+                        if mask_open and mask_mode == 3:
+                            self._primitives.flash(name + ' Mask', solid, midpoint,
+                                                   'rect' if abs(flash_angle - round(flash_angle / 90) * 90) <= 1e-8 else 'block',
+                                                   w, h, flash_angle)
             if not mount and drill > 0:
                 group = 'PTH' if span == self._copper_layers else 'PTH_%d-%d' % (span[0], span[-1])
                 self._hole(center, drill, slot if hole_type else drill,
@@ -1182,6 +1219,7 @@ class DipTraceParser:
                                 center.x, center.y)
             for side in ('Top', 'Bottom'):
                 self._add(side + ' Mask', opening, center)
+                self._primitives.flash(side + ' Mask', opening, center, 'circle', drill, drill)
 
     def _component_graphics(self, reader, component):
         dimensions = _Reader(component['local_dimensions'])
@@ -1249,8 +1287,11 @@ class DipTraceParser:
                                angle=angle, component=component, font=font, vector=vector,
                                spacing=spacing, align=align)
             else:
-                shape, follow = self._graphic(kind, points, line_width if line_width > 0 else 0.1524)
-                self._add(layer, self._place(shape, component), self._place(follow, component))
+                line_width = line_width if line_width > 0 else 0.1524
+                shape, follow = self._graphic(kind, points, line_width)
+                shape, follow = self._place(shape, component), self._place(follow, component)
+                self._add(layer, shape, follow)
+                self._record_graphic(layer, kind, points, shape, follow, line_width, component)
 
     def _component_text(self, data, component, records):
         if not records or component['placement'] is None:
@@ -1295,6 +1336,23 @@ class DipTraceParser:
         if len(matches) != 1:
             raise DipTraceParseError('Missing or ambiguous DipTrace component graphic extensions in %s' % component['ref'])
         return matches[0]
+
+    def _record_graphic(self, layer, kind, points, solid, follow, width, component=None):
+        if not self._primitives.enabled:
+            return
+        if kind in (4, 5) and len(points) == 2:
+            a, b = points
+            center = Point((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+            angle = 0
+            if component is not None:
+                center, angle = self._place(center, component), component['angle']
+            aperture = 'rect' if kind == 4 else 'oval'
+            if abs(angle - round(angle / 90) * 90) > 1e-8:
+                aperture = 'block'
+            self._primitives.flash(layer, solid, center, aperture,
+                                   abs(b[0] - a[0]), abs(b[1] - a[1]), angle)
+        elif kind in (1, 2, 3, 6, 8):
+            self._primitives.stroke(layer, solid, follow, width)
 
     def _graphic(self, kind, points, width):
         if kind in (1, 8) and len(points) >= 2:
@@ -1387,6 +1445,7 @@ class DipTraceParser:
                 service = None
         runs = []
         for index, line in enumerate(text.split('\n')):
+            follows = []
             if service is not None:
                 rendered = service.render(line, (font,), False, False)
                 if rendered is None:
@@ -1404,12 +1463,14 @@ class DipTraceParser:
                 width = outline.bounds[2] - outline.bounds[0]
                 self.warnings.append('DipTrace vector text uses the existing approximate PCB stroke font; '
                                      'verify glyphs, spacing and alignment before fabrication.')
-            runs.append((outline, width, index))
+            runs.append((outline, width, index, follows))
         width = max((run[1] for run in runs), default=0)
         outlines = []
-        for outline, advance, index in runs:
+        paths = []
+        for outline, advance, index, follows in runs:
             offset = width - advance if align == 1 else (0 if align == 2 else (width - advance) / 2)
             outlines.append(translate(outline, offset, -index * height * spacing))
+            paths.extend(translate(path, offset, -index * height * spacing) for path in follows)
         solid = unary_union(outlines)
         if solid.is_empty:
             return
@@ -1423,6 +1484,16 @@ class DipTraceParser:
         if component is not None:
             solid = self._place(solid, component)
         self._add(layer, solid)
+        for path in paths:
+            path_solid = path.buffer(stroke / 2, quad_segs=self._geometry._segs(stroke / 2))
+            placed = []
+            for geometry in (path_solid, path):
+                geometry = translate(geometry, x, y)
+                if mirror:
+                    geometry = scale(geometry, xfact=-1, yfact=1, origin=(0, 0))
+                geometry = translate(rotate(geometry, angle, origin=(0, 0)), *position)
+                placed.append(self._place(geometry, component) if component is not None else geometry)
+            self._primitives.stroke(layer, placed[0], placed[1], stroke)
 
     def _board_graphics(self, reader):
         records = []
@@ -1512,6 +1583,8 @@ class DipTraceParser:
                 mapping = {0: 1, 1: 6, 2: 2, 3: 4, 4: 3, 5: 5, 8: 8, 9: 9}
                 shape, follow = self._graphic(mapping.get(kind, -1), points, width if width > 0 else 0.1524)
                 self._add(layer, shape, follow)
+                self._record_graphic(layer, mapping.get(kind, -1), points, shape, follow,
+                                     width if width > 0 else 0.1524)
             elif self.version not in self.MODERN:
                 if kind == 6 and points:
                     self._text(layer, record['text'], points[0], record['size'], record['aspect'],
@@ -1848,11 +1921,14 @@ class DipTraceParser:
                 shape = self._geometry._pad_shape({'shape': 'circle', 'w': via, 'h': via})
                 for copper in span:
                     pad = shape
+                    diameter = via
                     settings = self.copper_layers.get(copper, {})
                     if settings.get('type') == 1 and settings['plane_pad'] == 1:
                         diameter = drill + 2 * settings['ring']
                         pad = self._geometry._pad_shape({'shape': 'circle', 'w': diameter, 'h': diameter})
-                    self._add(copper, translate(pad, *xy), Point(xy))
+                    solid = translate(pad, *xy)
+                    self._add(copper, solid, Point(xy))
+                    self._primitives.flash(copper, solid, xy, 'circle', diameter, diameter)
                 group = 'PTH' if span == self._copper_layers else 'PTH_%d-%d' % (span[0], span[-1])
                 self._hole(Point(xy), drill, group=group)
                 # A route point has no mask state (Habitat, SJTwo): the import's via choice.
@@ -1870,6 +1946,7 @@ class DipTraceParser:
                     for name, copper in (('Top', self._copper_layers[0]), ('Bottom', self._copper_layers[-1])):
                         if copper in span and size > 0:
                             self._add(name + ' Mask', opening, Point(xy))
+                            self._primitives.flash(name + ' Mask', opening, xy, 'circle', size, size)
         return route_end
 
     def _pours(self, data, font):

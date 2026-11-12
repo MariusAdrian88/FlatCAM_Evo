@@ -169,6 +169,7 @@ class PADSParser(PcbDocParser):
             result['solid_geometry'] = polygons
             result['tools'] = {0: {'type': 'REG', 'size': 0.0,
                                    'geometry': [{'solid': polygon} for polygon in polygons]}}
+            self._primitives.finish(layer, result)
         if not self.layers and not self.drill_groups:
             raise PADSParseError('PADS export contains no manufacturing geometry')
         if sections.get('REUSE'):
@@ -303,7 +304,7 @@ class PADSParser(PcbDocParser):
         if kind == 'TAG':
             if count != 0 or fields[layer_index] not in ('0', '1'):
                 raise PADSParseError('Invalid PADS tag')
-            return kind, int(fields[layer_index]), Polygon(), LineString(), Polygon()
+            return kind, int(fields[layer_index]), Polygon(), LineString(), Polygon(), 0.0, None
         width, layer = self._number(fields[2]) * unit, int(fields[layer_index])
         if width < 0 or not 0 <= layer <= 250:
             raise PADSParseError('Invalid PADS piece width/layer')
@@ -316,12 +317,15 @@ class PADSParser(PcbDocParser):
             vertices.append((point, fields))
         if count < 2:
             raise PADSParseError('PADS piece has fewer than two vertices')
+        flash = None
         if kind in ('CIRCLE', 'COPCIR', 'COPCCO', 'BRDCIR', 'KPTCIR', 'CIRCUR'):
             if count != 2:
                 raise PADSParseError('PADS circle needs two diameter endpoints')
             first, last = vertices[0][0], vertices[1][0]
             center = Point((first[0] + last[0]) / 2, (first[1] + last[1]) / 2)
             radius = math.dist(first, last) / 2
+            if kind in ('COPCIR', 'CIRCUR'):
+                flash = (center, radius * 2)
             solid = center.buffer(radius, quad_segs=self._segs(radius))
             path = LineString(solid.exterior.coords) if not solid.is_empty else LineString()
         else:
@@ -347,7 +351,7 @@ class PADSParser(PcbDocParser):
             geo = path.buffer(width / 2, quad_segs=self._segs(width / 2)) if width else Polygon()
         else:
             raise PADSParseError('Unsupported PADS piece: %s' % kind)
-        return kind, layer, geo, path, solid
+        return kind, layer, geo, path, solid, width, flash
 
     @staticmethod
     def _placed(geo, position, angle, mirrored):
@@ -374,7 +378,7 @@ class PADSParser(PcbDocParser):
                 self._graphics(group, position, angle, mirrored, decal, board)
             return
         positive, negative = {}, {}
-        for kind, layer, geo, path, solid in pieces:
+        for kind, layer, geo, path, solid, width, flash in pieces:
             if kind.startswith('KPT'):
                 targets = self.copper_layers if layer == 0 else [layer]
                 for target in targets:
@@ -400,6 +404,15 @@ class PADSParser(PcbDocParser):
                     negative.setdefault(target, []).append(transformed)
                 else:
                     positive.setdefault(target, []).append(transformed)
+                    if board or kind in ('OPEN', 'CLOSED', 'CIRCLE', 'COPOPN'):
+                        self._primitives.stroke(target, transformed,
+                                                self._placed(path, position, angle, mirrored),
+                                                0.001 if board else width)
+                    elif flash is not None:
+                        centre, diameter = flash
+                        self._primitives.flash(target, transformed,
+                                               self._placed(centre, position, angle, mirrored),
+                                               'circle', diameter, diameter)
                 if not path.is_empty:
                     result = self.layers.setdefault(target, {'name': self._names.get(target, 'PADS Layer %s' % target),
                                                             'solid_geometry': [], 'follow_geometry': [], 'tools': {}})
@@ -419,7 +432,7 @@ class PADSParser(PcbDocParser):
             pieces = [self._piece(rows, self.unit) for _ in range(self._count(fields[4]))]
             if kind == 'COPCUT':
                 # Unassociated voids constrain generated pours, never pads or routed tracks.
-                for _, layer, _, _, solid in pieces:
+                for _, layer, _, _, solid, _width, _flash in pieces:
                     for target in self.copper_layers if layer == 0 else [layer]:
                         self._pour_keepouts.setdefault(target, []).append(translate(solid, *position))
             else:
@@ -512,20 +525,30 @@ class PADSParser(PcbDocParser):
             raise PADSParseError('Unsupported PADS text justification')
         xoff = {'LEFT': 0, 'CENTER': -pen / 2, 'RIGHT': -pen}[hjust]
         yoff = {'DOWN': 0, 'CENTER': -height * 0.69 / 2, 'UP': -height * 0.69}[vjust]
-        geo = translate(geo, xoff=xoff, yoff=yoff)
-        if fields[6] == 'M':
-            geo = scale(geo, xfact=-1, yfact=1, origin=(0, 0))
-        geo = rotate(geo, self._number(fields[2]), origin=(0, 0))
-        geo = translate(geo, *(self._number(value) * unit for value in fields[:2]))
+        artwork = []
+        if not self._primitives.enabled:
+            paths = []
+        solids = [path.buffer(width / 2, quad_segs=self._segs(width / 2)) for path in paths] \
+            if self._primitives.enabled else []
+        count = len(paths)
+        for item in [geo] + paths + solids:
+            item = translate(item, xoff=xoff, yoff=yoff)
+            if fields[6] == 'M':
+                item = scale(item, xfact=-1, yfact=1, origin=(0, 0))
+            item = rotate(item, self._number(fields[2]), origin=(0, 0))
+            item = translate(item, *(self._number(value) * unit for value in fields[:2]))
+            artwork.append(self._placed(item, position, angle, mirrored))
+        geo, paths, solids = artwork[0], artwork[1:1 + count], artwork[1 + count:]
         if label:
             target = self._label_layer(int(fields[3]), mirrored)
-            if target is not None:
-                self._add(target, self._placed(geo, position, angle, mirrored))
+            targets = [target] if target is not None else []
         else:
             targets = self.copper_layers if int(fields[3]) == 0 else [int(fields[3])]
-            for target in targets:
-                target = self._opposite.get(target, target) if mirrored else target
-                self._add(target, self._placed(geo, position, angle, mirrored))
+            targets = [self._opposite.get(target, target) if mirrored else target for target in targets]
+        for target in targets:
+            self._add(target, geo)
+            for path, solid in zip(paths, solids):
+                self._primitives.stroke(target, solid, path, width)
         self._warn('Romansim lettering is substituted with FlatCAM stroke glyphs; case is preserved, '
                    'but glyph shapes, spacing and metrics are approximate, not original PADS artwork.')
 
@@ -661,6 +684,20 @@ class PADSParser(PcbDocParser):
             target = self._opposite.get(layer, layer) if mirrored else layer
             geo = self._placed(translate(geo, *terminal), position, angle, mirrored)
             self._add(target, geo)
+            size, kind = self._number(fields[0]) * unit, fields[1]
+            pad_angle = self._number(fields[2]) if kind in ('RF', 'OF') else 0.0
+            length = self._number(fields[3]) * unit if kind in ('RF', 'OF') else size
+            offset = self._number(fields[4]) * unit if kind in ('RF', 'OF') else 0.0
+            corner_index = 5 if kind == 'RF' else 2
+            corner = self._number(fields[corner_index]) if self.version != (2005, 0) and \
+                kind in ('RF', 'S') and len(fields) > corner_index else 0.0
+            native_shape = 'circle' if kind == 'R' else 'oval' if kind == 'OF' else 'rect' if corner == 0 else 'block'
+            centre = translate(rotate(Point(offset, 0), pad_angle, origin=(0, 0)), *terminal)
+            centre = self._placed(centre, position, angle, mirrored)
+            rotation = 180 - angle - pad_angle if mirrored else angle + pad_angle
+            if native_shape in ('rect', 'oval') and abs(rotation - round(rotation / 90) * 90) > 1e-8:
+                native_shape = 'block'
+            self._primitives.flash(target, geo, centre, native_shape, length, size, rotation)
             if target in self.copper_layers and not geo.is_empty:
                 self._pad_items.append((target, self._current_net, geo))
         _, (diameter, plated, slotangle, slotlength, slotoffset) = self._pad_shape(stack[-2], unit, mounted=True)
@@ -750,7 +787,9 @@ class PADSParser(PcbDocParser):
                     raise PADSParseError('PADS track has no positive width')
                 elif points[0] != points[-1]:
                     follow = LineString(points)
-                    self._add(layer, follow.buffer(width / 2, quad_segs=self._segs(width / 2)), follow)
+                    solid = follow.buffer(width / 2, quad_segs=self._segs(width / 2))
+                    self._add(layer, solid, follow)
+                    self._primitives.stroke(layer, solid, follow, width)
                     self._track_items.append((layer, self._current_net, follow, width))
                     for direction, endpoint, neighbour, marked in (
                             (1, point, points[1], 'N' in drops),

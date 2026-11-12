@@ -59,6 +59,33 @@ def rounded(values, digits=4):
 
 
 class TestEagleParseErrors(unittest.TestCase):
+    def test_rounded_mirrored_smd_keeps_copper_mask_and_paste_flashes(self):
+        parsed = parse(doc(libs=package_lib(
+            '<smd name="1" x="2" y="0" dx="2" dy="1" roundness="40" layer="1" rot="R35"/>'),
+            elements=element(10, 10, 'MR90')))
+        for layer in ('Bottom', 'bStop', 'bCream'):
+            records = [r for t in parsed.layers[layer]['tools'].values()
+                       if t['type'] == 'AB' for r in t['geometry']]
+            self.assertEqual(len(records), 1, layer)
+            self.assertAlmostEqual(records[0]['follow'].x, 10)
+            self.assertAlmostEqual(records[0]['follow'].y, 12)
+            self.assertLess(records[0]['solid'].symmetric_difference(copper(parsed, layer)).area, 1e-12)
+
+    def test_source_flash_and_stroke_records_preserve_geometry(self):
+        from types import SimpleNamespace
+        text = doc(libs=package_lib('<pad name="1" x="0" y="0" drill="0.4" diameter="1"/>'
+                                    '<smd name="2" x="2" y="0" dx="1.2" dy="0.8" layer="1"/>'),
+                   elements=element(0, 0),
+                   signals='<signal name="n"><wire x1="0" y1="0" x2="4" y2="0" width="0.4" layer="1"/>'
+                           '<via x="4" y="0" extent="1-16" drill="0.4" diameter="1"/></signal>')
+        baseline = parse(text)
+        parsed = EagleBrdParser(app=SimpleNamespace(options={'gerber_board_import_mode': 'primitives'})).parse_text(text)
+        tools = parsed.layers['Top']['tools']
+        self.assertTrue({'C', 'R'}.issubset({t['type'] for t in tools.values()}))
+        self.assertTrue(any(getattr(r.get('follow'), 'geom_type', '') == 'LineString'
+                            for t in tools.values() for r in t['geometry']))
+        self.assertTrue(copper(parsed, 'Top').equals(copper(baseline, 'Top')))
+
     def assertParseError(self, text, pattern):
         with self.assertRaisesRegex(EagleBrdParseError, pattern):
             parse(text)

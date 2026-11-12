@@ -24,6 +24,7 @@ from shapely.geometry import LineString, MultiPoint, Point, Polygon, box
 from shapely.ops import unary_union
 
 from camlib import circle_quad_segs, gerber_circle_steps
+from appParsers.board_primitives import BoardPrimitives
 
 PROFILE_WIDTH_MM = 0.01
 
@@ -1151,12 +1152,13 @@ class StrokeFont:
 
 class _Item:
     """One feature of a stream: polarity 'P' or 'N', its shape and the centre line (L, A) for follow geometry."""
-    __slots__ = ('pol', 'shape', 'follow')
+    __slots__ = ('pol', 'shape', 'follow', 'primitive')
 
-    def __init__(self, pol, shape, follow=None):
+    def __init__(self, pol, shape, follow=None, primitive=None):
         self.pol = pol
         self.shape = shape
         self.follow = follow
+        self.primitive = primitive
 
 
 class _Drill:
@@ -1411,7 +1413,26 @@ class _Renderer:
             if rec.kind == 'P':
                 shape = self._pad_shape(rec, ff)
                 if shape is not None:
-                    items.append(_Item(pol, shape))
+                    primitive = None
+                    if parser._primitives.enabled:
+                        x0, y0, x1, y1 = shape.bounds
+                        primitive = ('block', x1 - x0, y1 - y0,
+                                     LineString([(rec.x, rec.y), (rec.x + 1, rec.y)]))
+                    if parser._primitives.enabled and not rec.resize:
+                        name, factor = ff.symbol_factor(rec.symbol)
+                        standard = _standard_split(name)
+                        if standard and standard[0] in ('r', 's', 'rect', 'oval'):
+                            prefix, rest = standard
+                            raw, mode, radius, corners, flags = _split_params(rest)
+                            if not mode and not flags and raw:
+                                kind = {'r': 'circle', 's': 'rect', 'rect': 'rect', 'oval': 'oval'}.get(prefix)
+                                if kind and (len(raw) == 1 if prefix in ('r', 's') else len(raw) == 2):
+                                    w, h = raw[0] * factor, raw[-1] * factor
+                                    angle = math.radians(rec.angle if rec.mirror else -rec.angle)
+                                    axis = LineString([(rec.x, rec.y),
+                                                       (rec.x + math.cos(angle), rec.y + math.sin(angle))])
+                                    primitive = (kind, w, h, axis)
+                    items.append(_Item(pol, shape, primitive=primitive))
             elif rec.kind in ('L', 'A'):
                 entry = ff.symbol_factor(rec.symbol)
                 if entry is None:
@@ -1427,7 +1448,10 @@ class _Renderer:
                 if shape.is_empty:
                     continue
                 follow = LineString(points) if len(set(points)) > 1 else None
-                items.append(_Item(pol, shape, follow))
+                primitive = None
+                if parser._primitives.enabled and sweep[0] == 'r':
+                    primitive = ('stroke', sweep[1], sweep[1], follow if follow is not None else Point(points[0]))
+                items.append(_Item(pol, shape, follow, primitive))
             elif rec.kind == 'S':
                 shape = self._surface_shape(rec)
                 if not shape.is_empty:
@@ -1508,7 +1532,9 @@ class _Renderer:
                 for item in items:
                     shape = item.shape.intersection(boundary)
                     if not shape.is_empty:
-                        inverted.append(_Item('N' if item.pol == 'P' else 'P', shape))
+                        # Retain the uncut source solid only; clipped features must stay regions.
+                        primitive = item.primitive if item.primitive is not None and shape.equals(item.shape) else None
+                        inverted.append(_Item('N' if item.pol == 'P' else 'P', shape, primitive=primitive))
                 items = inverted
         self._streams[key] = items
         return items
@@ -1564,8 +1590,13 @@ class _Renderer:
             child_items = self.full_stream(child, layer, stack + (step,))
             for matrix in matrices:
                 for item in child_items:
+                    primitive = item.primitive
+                    if primitive is not None:
+                        kind, w, h, path = primitive
+                        primitive = (kind, w, h, affinity.affine_transform(path, matrix))
                     items.append(_Item(item.pol, affinity.affine_transform(item.shape, matrix),
-                                       None if item.follow is None else affinity.affine_transform(item.follow, matrix)))
+                                       None if item.follow is None else affinity.affine_transform(item.follow, matrix),
+                                       primitive))
         self._full[key] = items
         return items
 
@@ -1698,6 +1729,7 @@ class ODBParser:
         self._reset()
 
     def _reset(self):
+        self._primitives = BoardPrimitives(self._options)
         self.source_kind = 'odb'
         self.layers = {}
         self.drill_groups = {}
@@ -1842,6 +1874,18 @@ class ODBParser:
                 follow = []
             if not solid and not follow:
                 continue
+            for item in items:
+                if item.pol != 'P' or item.primitive is None:
+                    continue
+                kind, w, h, path = item.primitive
+                if kind == 'stroke':
+                    self._primitives.stroke(entry['name'], item.shape, path, w)
+                else:
+                    start, end = path.coords
+                    angle = math.degrees(math.atan2(end[1] - start[1], end[0] - start[0]))
+                    if kind in ('rect', 'oval') and abs(angle / 90 - round(angle / 90)) > 1e-10:
+                        kind = 'block'
+                    self._primitives.flash(entry['name'], item.shape, Point(start), kind, w, h, angle)
             self._add_layer(entry['name'], solid, follow)
             if on:
                 default_layers.append(entry['name'])
@@ -1866,6 +1910,7 @@ class ODBParser:
         self.layers[name] = {'name': name, 'solid_geometry': polygons, 'follow_geometry': follow,
                              'tools': {0: {'type': 'REG', 'size': 0.0,
                                            'geometry': [{'solid': polygon} for polygon in polygons]}}}
+        self._primitives.finish(name, self.layers[name])
 
     def _build_profile(self, step, default_layers):
         """The layer 'profile': a thin outline of the step profile rings."""

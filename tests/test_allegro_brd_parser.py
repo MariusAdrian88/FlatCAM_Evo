@@ -271,6 +271,34 @@ def parse(builder):
     return AllegroBrdParser().parse_bytes(builder.build())
 
 
+def export_layer(layer, units='MM', circle_steps=None):
+    """Exercise the production board-object export, including aperture declarations and blocks."""
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    from appHandlers.appIO import appIO
+    from appObjects.GerberObject import GerberObject
+    from appParsers.ParseGerber import Gerber
+    from defaults import AppDefaults
+
+    defaults = AppDefaults()
+    app = SimpleNamespace(defaults=defaults, options=dict(defaults.defaults), version='test', version_date='test',
+                          app_units='MM', abort_flag=False)
+    app.options.update(gerber_exp_units=units, gerber_exp_integer=4, gerber_exp_decimals=7, gerber_exp_zeros='L')
+    obj = SimpleNamespace(tools=layer['tools'], solid_geometry=layer['solid_geometry'], units='MM',
+                          obj_options={'pcbdoc_import': True, 'pcbdoc_primitives': True})
+    obj.export_gerber = lambda *args, **kwargs: GerberObject.export_gerber(obj, *args, **kwargs)
+    io = SimpleNamespace(app=app, app_units='MM', log=Mock(), inform=Mock())
+    code = appIO.export_gerber(io, 'board', 'unused.gbr', local_use=obj, use_thread=False)
+    assert code != 'fail'
+    app.decimals, app.log, app.inform, app.proc_container = 4, Mock(), Mock(), Mock()
+    app.plotcanvas = Mock()
+    result = Gerber(app=app, steps_per_circle=circle_steps)
+    assert result.parse_lines(code.splitlines()) != 'fail'
+    if result.units != 'MM':
+        result.convert_units('MM')
+    return result, code
+
+
 class TestAllegroHeaderErrors(unittest.TestCase):
     def assertRaisesWith(self, text, data):
         with self.assertRaises(AllegroBrdParseError) as context:
@@ -299,6 +327,27 @@ class TestAllegroHeaderErrors(unittest.TestCase):
 
 
 class TestAllegroGeometry(unittest.TestCase):
+    def test_rotated_and_custom_padstacks_keep_all_openings(self):
+        from types import SimpleNamespace
+        builder = Builder()
+        for i, shape in enumerate((SH_RECT, SH_OBLONG_Y, 0x1B, 0x1C)):
+            stack = builder.smd_padstack('PAD%d' % i, shape, 1.0, 0.5, mask=1.2, paste=0.9)
+            builder.footprint(10 + i * 3, 20, 37, [(0, 0, stack, 0)], bottom=True)
+        data = builder.build()
+        parsed = AllegroBrdParser().parse_bytes(data)
+        regions = AllegroBrdParser(app=SimpleNamespace(options={'gerber_board_import_mode': 'regions'})) \
+            .parse_bytes(data)
+        for name, layer in parsed.layers.items():
+            flashes = [r for t in layer['tools'].values() if t['type'] == 'AB' for r in t['geometry']]
+            self.assertEqual(len(flashes), 4, name)
+            self.assertEqual(sorted(round(r['follow'].x) for r in flashes), [10, 13, 16, 19])
+            self.assertTrue(unary_union(layer['solid_geometry']).equals(
+                unary_union(regions.layers[name]['solid_geometry'])))
+            exported, code = export_layer(layer)
+            self.assertEqual(code.count('D03*'), 4)
+            self.assertLess(unary_union(exported.solid_geometry).symmetric_difference(
+                unary_union(layer['solid_geometry'])).area, 1e-5)
+
     def test_track_and_round_pad_copper_mask_and_drill(self):
         builder = Builder()
         stack = builder.through_padstack('PAD60', 1.524, 0.914, mask=1.905)
@@ -590,6 +639,22 @@ class TestAllegroFixtureBoards(unittest.TestCase):
         self.assertEqual(sum(len(t['drills']) for t in parsed.drill_groups['PTH'].values()), 26)
         self.assertEqual(sum(len(t['drills']) for t in parsed.drill_groups['NPTH'].values()), 4)
         self.assertEqual([round(v, 2) for v in parsed.board_outline.bounds], [0.0, 0.0, 70.0, 55.0])
+        from types import SimpleNamespace
+        from shapely.geometry import LineString
+        regions = AllegroBrdParser(app=SimpleNamespace(options={'gerber_board_import_mode': 'regions'})) \
+            .parse_file(FIXTURE)
+        expected = {'TOP': (30, 33), 'BOTTOM': (30, 27), 'SOLDERMASK_TOP': (26, 0),
+                    'SOLDERMASK_BOTTOM': (26, 0), 'SILKSCREEN_TOP': (0, 243),
+                    'ASSEMBLY_TOP': (0, 86), 'OUTLINE': (0, 1)}
+        for name, layer in parsed.layers.items():
+            records = [r for t in layer['tools'].values() for r in t['geometry']]
+            self.assertEqual((sum(isinstance(r.get('follow'), Point) for r in records),
+                              sum(isinstance(r.get('follow'), LineString) for r in records)), expected[name], name)
+            original = unary_union(regions.layers[name]['solid_geometry'])
+            self.assertTrue(unary_union(layer['solid_geometry']).equals(original))
+            exported, code = export_layer(layer)
+            self.assertEqual(code.count('D03*'), expected[name][0], name)
+            self.assertLess(unary_union(exported.solid_geometry).symmetric_difference(original).area, 0.01, name)
 
 
 if __name__ == '__main__':

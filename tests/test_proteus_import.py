@@ -50,10 +50,74 @@ def test_all_embedded_boards_have_native_names_and_exportable_geometry(parsed):
         for layer in board.layers.values():
             assert layer['solid_geometry']
             assert all(geo.is_valid and not geo.is_empty for geo in layer['solid_geometry'])
-            assert layer['tools'][0]['type'] == 'REG'
-            assert layer['tools'][0]['geometry']
+            assert layer['tools']
+            represented = unary_union([r['solid'] for t in layer['tools'].values() for r in t['geometry']])
+            assert represented.symmetric_difference(unary_union(layer['solid_geometry'])).area < 1e-8
         assert all('tooldia' in tool and 'drills' in tool and 'slots' in tool
                    for tools in board.drill_groups.values() for tool in tools.values())
+
+
+@pytest.mark.parametrize('project', [PROJECT, PROJECT9], ids=['proteus8', 'proteus9'])
+@pytest.mark.parametrize('units', ['MM', 'IN'])
+def test_source_primitives_preserve_geometry_and_gerber_roundtrip(tmp_path, project, units):
+    from types import SimpleNamespace
+    from shapely.affinity import scale
+    from tests.test_kicad_pcb_e2e import _app, _union, NativeGerberObject
+    from appHandlers.appIO import appIO
+    from appParsers.ParseGerber import Gerber
+
+    app = _app(units)
+    app.options.update(gerber_board_import_mode='primitives', gerber_exp_decimals=6)
+    normal = ProteusParser(app=SimpleNamespace(options={'gerber_board_import_mode': 'regions'})).parse_file(project)
+    preserved = ProteusParser(app=app).parse_file(project)
+    for before, board in zip(normal.boards, preserved.boards):
+        assert before.drill_groups == board.drill_groups
+        for key, layer in board.layers.items():
+            expected = unary_union(before.layers[key]['solid_geometry'])
+            assert expected.equals(unary_union(layer['solid_geometry']))
+            represented = unary_union([r['solid'] for t in layer['tools'].values() for r in t['geometry']])
+            assert expected.symmetric_difference(represented).area < 1e-8
+    board = preserved.boards[-1]
+    copper = board.layers['Top Copper.GTL']
+    follows = [r.get('follow') for t in copper['tools'].values() for r in t['geometry']]
+    assert any(isinstance(f, Point) for f in follows)
+    assert any(getattr(f, 'geom_type', '') == 'LineString' for f in follows)
+    objects = []
+
+    def create(kind, name, initialize, **kwargs):
+        obj = NativeGerberObject(name, app)
+        assert initialize(obj, app) != 'fail'
+        objects.append(obj)
+        return obj
+
+    app.app_obj.new_object.side_effect = create
+    keys = [key for key in board.default_layers if key.endswith(('.GTL', '.GTS', '.GTP', '.GTO'))]
+    assert all(any(isinstance(r.get('follow'), Point) for t in board.layers[key]['tools'].values()
+                   for r in t['geometry']) for key in keys if not key.endswith('.GTO'))
+    assert appIO(app).import_pcbdoc_objects(str(project), board, keys, []) is None
+    for key, obj in zip(keys, objects):
+        blocks = [r for t in board.layers[key]['tools'].values() if t['type'] == 'AB' for r in t['geometry']]
+        if blocks:
+            assert '%ABD' in obj.source_file
+        filename = tmp_path / (key + '.gbr')
+        filename.write_text(obj.source_file)
+        loaded = Gerber(app)
+        assert loaded.parse_file(str(filename)) != 'fail'
+        follows = [r.get('follow') for t in loaded.tools.values() for r in t['geometry']]
+        points = [scale(f, 25.4, 25.4, origin=(0, 0)) if units == 'IN' else f
+                  for f in follows if isinstance(f, Point)]
+        assert all(any(p.distance(r['follow']) < 0.0001 for p in points) for r in blocks)
+        if not key.endswith('.GTO'):
+            assert any(isinstance(f, Point) for f in follows)
+        if key.endswith(('.GTL', '.GTO')):
+            assert any(getattr(f, 'geom_type', '') == 'LineString' for f in follows)
+        expected = unary_union(board.layers[key]['solid_geometry'])
+        actual = _union(loaded.solid_geometry)
+        if units == 'IN':
+            actual = scale(actual, 25.4, 25.4, origin=(0, 0))
+        difference = expected.symmetric_difference(actual)
+        assert difference.buffer(-0.003).is_empty
+        assert difference.area < expected.length * 0.003
 
 
 def test_wireless_drills_are_native_not_the_later_export(parsed):
@@ -180,10 +244,12 @@ def test_identified_manufacturing_layers_are_default_but_unknown_graphics_are_no
     (0, 'RSMPAD', {'GTS'}, 'GTP'),
     (0x800000000000ffff, 'CPAD', {'GTS', 'GBS'}, None),
     (0x1000000000000000, 'RSMPAD', set(), None)])
-def test_ordinary_native_pad_openings_follow_actual_side_and_radial_guard(span, kind, mask_extensions, paste_extension):
+@pytest.mark.parametrize('mode', ['regions', 'primitives'])
+def test_ordinary_native_pad_openings_follow_actual_side_and_radial_guard(span, kind, mask_extensions, paste_extension, mode):
+    from types import SimpleNamespace
     from appParsers.ParseProteus8 import Proteus8Parser, _Reader
 
-    board = Proteus8Parser()
+    board = Proteus8Parser(app=SimpleNamespace(options={'gerber_board_import_mode': mode}))
     board._copper = [0, 15]
     board._remember_layer(0, 'Top Copper')
     board._remember_layer(15, 'Bottom Copper')
@@ -208,6 +274,18 @@ def test_ordinary_native_pad_openings_follow_actual_side_and_radial_guard(span, 
         assert paste.bounds == pytest.approx((9, 19.5, 11, 20.5))
         expected_area = 2 if kind == 'RSMPAD' else unit_disc().area / 2
         assert paste.area == pytest.approx(expected_area)
+        if mode == 'primitives':
+            assert any(t['type'] == 'R' for t in board.layers[pastes[0]]['tools'].values())
+    if mode == 'primitives':
+        for name, layer in board.layers.items():
+            flashes = [r for t in layer['tools'].values() for r in t['geometry']
+                       if isinstance(r.get('follow'), Point)]
+            assert len(flashes) == 1
+            assert flashes[0]['follow'].equals(Point(10, 20))
+            if name.endswith(('.GTS', '.GBS')) or kind == 'CPAD':
+                assert {t['type'] for t in layer['tools'].values()} == {'AB'}
+            represented = unary_union([r['solid'] for t in layer['tools'].values() for r in t['geometry']])
+            assert represented.symmetric_difference(unary_union(layer['solid_geometry'])).area < 1e-10
 
 
 def test_wireless_openings_mask_custom_antenna_without_paste_or_outline(parsed):
@@ -227,6 +305,16 @@ def test_wireless_openings_mask_custom_antenna_without_paste_or_outline(parsed):
     assert not mask.covers(Point(0, 0.27))
     assert not bottom.covers(Point(0, 0.27))
     assert unary_union(board.layers['Board Outline.GKO']['solid_geometry']).covers(Point(0, 0.27))
+    copper = [r for t in board.layers['Top Copper.GTL']['tools'].values() if t['type'] == 'AB'
+              for r in t['geometry']]
+    assert len(copper) == 1
+    assert copper[0]['follow'].equals(Point(74.2, 24.8))
+    assert copper[0]['solid'].area == pytest.approx(301.5)
+    openings = [r for t in board.layers['Top Resist.GTS']['tools'].values() if t['type'] == 'AB'
+                for r in t['geometry'] if r['solid'].area > 290]
+    assert len(openings) == 1
+    assert openings[0]['follow'].equals(copper[0]['follow'])
+    assert openings[0]['solid'].equals(copper[0]['solid'])
 
 
 def test_actual_version_nine_project_uses_its_native_schema():
@@ -274,6 +362,27 @@ def test_native_reference_text_changes_silkscreen_not_copper(tmp_path, label, ex
     assert len(different) == 1
     assert different[0].endswith(extension)
     assert different[0] in changed.default_layers
+
+
+def test_vector_text_retains_placed_source_paths():
+    from types import SimpleNamespace
+    from appParsers.ParseProteus8 import Proteus8Parser
+
+    attribute = {'text': 'L', 'width': 1.0, 'height': 1.0, 'font': 'Vector Font',
+                 'x': 10.0, 'y': 20.0, 'angle': 370, 'reflection': 1, 'visible': True}
+    boards = []
+    for mode in ('regions', 'primitives'):
+        board = Proteus8Parser(app=SimpleNamespace(options={'gerber_board_import_mode': mode}))
+        board._attribute_geometry(attribute, 36)
+        board._finish()
+        boards.append(board)
+    layer = boards[1].layers['Top Silk Screen.GTO']
+    assert {t['type'] for t in layer['tools'].values()} == {'C'}
+    records = [r for t in layer['tools'].values() for r in t['geometry']]
+    assert records and all(getattr(r['follow'], 'geom_type', '') == 'LineString' for r in records)
+    expected = unary_union(boards[0].layers['Top Silk Screen.GTO']['solid_geometry'])
+    assert unary_union([r['solid'] for r in records]).symmetric_difference(expected).area < 1e-10
+    assert expected.distance(Point(10, 20)) < 1
 
 
 @pytest.mark.parametrize('damage', ['truncated'])
@@ -341,7 +450,9 @@ def test_native_tools_survive_existing_exports_and_reparse(parsed, project):
 
     app = SimpleNamespace(log=Mock(), inform=Mock(), abort_flag=False, decimals=5, app_units='MM',
                           plotcanvas=Mock(), options=dict(AppDefaults().defaults))
-    board = parsed.boards[3] if project == PROJECT else ProteusParser().parse_file(project).boards[0]
+    # This body-only export has no aperture definitions and intentionally exercises region output.
+    app.options['gerber_board_import_mode'] = 'regions'
+    board = ProteusParser(app=app).parse_file(project).boards[3 if project == PROJECT else 0]
     for name in board.default_layers:
         layer = board.layers[name]
         obj = SimpleNamespace(app=app, tools=layer['tools'])

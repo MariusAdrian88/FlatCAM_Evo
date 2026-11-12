@@ -23,6 +23,81 @@ from appParsers.ParseODB import ODBJob, ODBParseError, ODBParser, _unlzw  # noqa
 STEPS = 64          # circle steps: the expected shapes use the same quad_segs
 
 
+def test_preserved_primitives_nested_repeats_and_clear(tmp_path):
+    root = write_job(str(tmp_path / 'job'), [{'name': 'top'}], {
+        'pcb': {'layers': {'top': {'features': features([
+            'P 0 0 0 P 0 0', 'P 3 0 1 P 0 0', 'P 6 0 2 P 0 0',
+            'L 0 3 4 3 0 P 0', 'P 0 0 3 N 0 0'], ['r1000', 'rect2000x1000', 'oval2000x1000', 'r500'])}}},
+        'panel': {'stephdr': 'STEP-REPEAT {\nNAME=pcb\nX=10\nY=10\nNX=2\nDX=15\nANGLE=90\nMIRROR=YES\n}\n'},
+        'outer': {'stephdr': 'STEP-REPEAT {\nNAME=panel\nX=20\nY=20\n}\n'}})
+    baseline = ODBParser(circle_steps=STEPS).parse_file(root, step='outer')
+    app = SimpleNamespace(options={'gerber_board_import_mode': 'primitives'})
+    parsed = ODBParser(app=app, circle_steps=STEPS).parse_file(root, step='outer')
+    tools = parsed.layers['top']['tools']
+    assert {'C', 'R', 'O', 'REG'} <= {t['type'] for t in tools.values()}
+    assert sum(isinstance(r.get('follow'), Point) for t in tools.values() for r in t['geometry']) == 4
+    assert same(copper(parsed), copper(baseline))
+    from tests.test_ipc2581_parser import assert_native_roundtrip
+    assert_native_roundtrip(parsed, 'top', tmp_path)
+
+
+def test_preserved_negative_layer_keeps_only_intact_source_features(tmp_path):
+    root = write_job(str(tmp_path / 'job'), [{'name': 'top', 'polarity': 'NEGATIVE'}], {
+        'pcb': {'profile': features(surface(rect_ring(-5, -5, 12, 8))),
+                'layers': {'top': {'features': features([
+                    'P 0 0 0 P 0 0', 'P 0 0 1 N 0 0',
+                    'P 6 0 2 N 0 8 45',
+                    'A 3 3 5 3 4 3 1 N 0 N'], ['r2000', 'r500', 'rect2000x1000'])}}}})
+    baseline = ODBParser(circle_steps=STEPS).parse_file(root)
+    parsed = ODBParser(app=SimpleNamespace(options={'gerber_board_import_mode': 'primitives'}),
+                       circle_steps=STEPS).parse_file(root)
+    tools = parsed.layers['top']['tools']
+    flashes = [r for t in tools.values() for r in t['geometry'] if isinstance(r.get('follow'), Point)]
+    assert len(flashes) == 2
+    assert {tuple(r['follow'].coords)[0] for r in flashes} == {(0, 0), (6, 0)}
+    assert all(t['type'] != 'R' for t in tools.values())
+    assert any(isinstance(r.get('follow'), LineString) for t in tools.values() for r in t['geometry'])
+    assert same(copper(parsed), copper(baseline))
+    from tests.test_ipc2581_parser import assert_native_roundtrip
+    assert_native_roundtrip(parsed, 'top', tmp_path)
+
+
+@pytest.mark.parametrize('units,coordinate,size', [('MM', 1, 1000), ('INCH', 1 / 25.4, 1000 / 25.4)])
+def test_custom_decorated_resized_pads_keep_source_centres_through_repeats(tmp_path, units, coordinate, size):
+    custom = features(surface(rect_ring(1, -1, 3, 1), [rect_ring(1.5, -0.5, 2.5, 0.5)]))
+    lines = ['P 0 0 0 P 0 8 30',
+             'P %s 0 1 P 0 8 45' % (6 * coordinate),
+             'P %s 0 -1 2 %s P 0 0' % (12 * coordinate, size / 5),
+             'P %s 0 3 P 0 0' % (18 * coordinate),
+             'P %s 0 4 P 0 0' % (24 * coordinate),
+             'P %s 0 5 N 0 0' % (24 * coordinate),
+             'L 0 %s %s %s 5 P 0' % (5 * coordinate, 4 * coordinate, 5 * coordinate)]
+    root = write_job(str(tmp_path / 'job'), [{'name': 'top'}], {
+        'pcb': {'layers': {'top': {'features': features(lines, ['custom', 'rect%sx%s' % (2 * size, size),
+                    'r%s' % size, 'cross%sx%sx%sx%sx%sx%s' % (2 * size, 2 * size, size / 2, size / 2, size, size),
+                    'rect%sx%s' % (2 * size, size), 'r%s' % (size / 2)], units)}}},
+        'panel': {'stephdr': repeat_block('pcb', 10, 10, 30, 0, 2, 1, angle=30, mirror='YES')},
+        'outer': {'stephdr': repeat_block('panel', 20, 20, 0, 0, 1, 1)}},
+        symbols={'custom': custom})
+    baseline = ODBParser(app=SimpleNamespace(options={'gerber_board_import_mode': 'regions'}),
+                         circle_steps=STEPS).parse_file(root, step='outer')
+    parsed = ODBParser(circle_steps=STEPS).parse_file(root, step='outer')
+    records = [r for t in parsed.layers['top']['tools'].values() for r in t['geometry']
+               if isinstance(r.get('follow'), Point)]
+    assert len(records) == 8
+    assert sum(bool(p.interiors) for r in records for p in ([r['solid']] if isinstance(r['solid'], Polygon)
+                                                         else r['solid'].geoms)) == 2
+    expected = cw_mirror([(x, 0) for x in (0, 6, 12, 18)], 30, True)
+    actual = sorted((r['follow'].x, r['follow'].y) for r in records)
+    expected = sorted((x + offset, y + 30) for offset in (30, 60) for x, y in expected)
+    for actual_centre, expected_centre in zip(actual, expected):
+        assert actual_centre == pytest.approx(expected_centre)
+    assert same(copper(parsed), copper(baseline))
+    from tests.test_ipc2581_parser import assert_native_roundtrip
+    reloaded = assert_native_roundtrip(parsed, 'top', tmp_path)
+    assert sum(isinstance(r.get('follow'), Point) for t in reloaded.tools.values() for r in t['geometry']) == 8
+
+
 # ----------------------------------------------------------------------------------------------------------------------
 # Job builder
 # ----------------------------------------------------------------------------------------------------------------------
@@ -320,7 +395,7 @@ def test_oval_drill_pads_are_slots(tmp_path):
     assert flat(tools[0.8]['drills']) == pytest.approx([30, 5])
 
 
-def test_kicad_zip_job_has_the_connector_slots():
+def test_kicad_zip_job_has_the_connector_slots(tmp_path):
     result = ODBParser().parse_file(Path(__file__).parent / 'fixtures' / 'odb++' / 'Easyduino_RP2040-odb.zip')
     assert (result.step, result.name) == ('PCB', 'Easyduino_RP2040-odb')
     assert 'F.CU' in result.layers and 'EDGE.CUTS' in result.layers
@@ -330,6 +405,17 @@ def test_kicad_zip_job_has_the_connector_slots():
         [140.36, -80.55, 140.36, -79.45, 140.36, -76.2, 140.36, -75.4,
          149, -80.55, 149, -79.45, 149, -76.2, 149, -75.4])
     assert not any('skipped' in w for w in result.warnings)
+    baseline = ODBParser(app=SimpleNamespace(options={'gerber_board_import_mode': 'regions'})).parse_file(
+        Path(__file__).parent / 'fixtures' / 'odb++' / 'Easyduino_RP2040-odb.zip')
+    from tests.test_ipc2581_parser import assert_native_roundtrip
+    for name in result.layers:
+        assert same(copper(result, name), copper(baseline, name))
+        assert_native_roundtrip(result, name, tmp_path)
+    for name, flashes, strokes in [('F.CU', 320, 465), ('IN1.CU', 135, 0), ('IN2.CU', 135, 3),
+                                  ('B.CU', 138, 102), ('F.MASK', 238, 0), ('B.MASK', 56, 0), ('F.PASTE', 177, 0)]:
+        records = [r for t in result.layers[name]['tools'].values() for r in t['geometry']]
+        assert sum(isinstance(r.get('follow'), Point) for r in records) == flashes
+        assert sum(isinstance(r.get('follow'), LineString) for r in records) == strokes
 
 
 # ----------------------------------------------------------------------------------------------------------------------

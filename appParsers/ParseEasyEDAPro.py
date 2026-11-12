@@ -50,6 +50,7 @@ from shapely.geometry import box as shapely_box
 from shapely.ops import polygonize, unary_union
 
 from camlib import circle_quad_segs, gerber_circle_steps
+from appParsers.board_primitives import BoardPrimitives
 
 MIL_MM = 0.0254
 POURED_MM = 0.254            # unit of the pour results and of the font cache: 0.01 inch
@@ -656,6 +657,7 @@ class EasyEDAProParser:
         self._reset()
 
     def _reset(self):
+        self._primitives = BoardPrimitives(getattr(self.app, 'options', None))
         self.layers = {}
         self.drill_groups = {}
         self.default_layers = []
@@ -1184,6 +1186,18 @@ class EasyEDAProParser:
         shape = self._shape_geo(record.get('defaultPad'), what)
         place = _Placement(cx, cy, angle)
         shape_def = record['defaultPad']
+        shape_kind = _text(shape_def.get('padType')).upper()
+        w, h = 0.0, 0.0
+        if shape_kind in ('ROUND', 'ELLIPSE', 'OVAL', 'RECT'):
+            w = abs(_number(shape_def.get('width'), what + ' width')) * MIL_MM
+            h = abs(_number(shape_def.get('height', shape_def.get('width')), what + ' height')) * MIL_MM
+        aperture = ('circle' if shape_kind in ('ROUND', 'ELLIPSE') and abs(w - h) < 1e-9 else
+                    'oval' if shape_kind == 'OVAL' else
+                    'rect' if shape_kind == 'RECT' and not _opt(shape_def.get('radius')) else 'block')
+        if aperture == 'block' and not shape.is_empty:
+            left, bottom, right, top = shape.bounds
+            w, h = right - left, top - bottom
+        flashes = {('copper', ''): (w, h)}
         if _text(shape_def.get('padType')).upper() in ('POLYGON', 'POLY'):
             # the polygon of a pad is in footprint coordinates (measured against Gerber files, see TRACE easyeda-pro.ts)
             copper = shapely_rotate(shape, angle, origin=(cx, cy)) if angle % 360 else shape
@@ -1201,12 +1215,14 @@ class EasyEDAProParser:
                 continue
             expansion = _number(record[key], what + ' mask expansion') if record.get(key) is not None else rule
             mask[name] = self._grow(copper, expansion * MIL_MM, round_=sharp is False)
+            flashes['mask', name] = (w + 2 * expansion * MIL_MM, h + 2 * expansion * MIL_MM)
         if layer in ('TOP', 'BOTTOM') and not copper.is_empty:
             name = 'Top' if layer == 'TOP' else 'Bot'
             key = 'topPasteExpansion' if layer == 'TOP' else 'bottomPasteExpansion'
             rule = self._paste_rule[side + name]
             expansion = _number(record[key], what + ' paste expansion') if record.get(key) is not None else rule
             paste[name] = self._grow(copper, expansion * MIL_MM, round_=sharp is False)
+            flashes['paste', name] = (w + 2 * expansion * MIL_MM, h + 2 * expansion * MIL_MM)
         hole = None
         spec = record.get('hole')
         if spec:
@@ -1230,6 +1246,7 @@ class EasyEDAProParser:
                 hole = {'centre': centre, 'diameter': diameter, 'ends': ends,
                         'plated': plated is None or plated not in (False, 0, '0', 'false')}
         return {'id': rid, 'num': number, 'layer': layer, 'copper': copper, 'mask': mask, 'paste': paste, 'hole': hole,
+                'flash': (aperture, (cx, cy), angle, flashes),
                 'unused': [int(v) for v in (record.get('unusedInnerLayers') or []) if isinstance(v, (int, float))],
                 'signature': self._pad_signature(record, table)}
 
@@ -1245,6 +1262,11 @@ class EasyEDAProParser:
 
     def _emit_pad(self, pad, place):
         flip = place.flip
+        aperture, centre, angle, sizes = pad['flash']
+        centre = place.pt(centre)
+        angle = math.degrees(math.atan2(place.m[2], place.m[0])) + (-angle if flip else angle)
+        if aperture in ('rect', 'oval') and abs(angle - round(angle / 90) * 90) > 1e-8:
+            aperture = 'block'
         layer = FLIP_TYPE.get(pad['layer'], pad['layer']) if flip else pad['layer']
         if not pad['copper'].is_empty:
             geo = place.geo(pad['copper'])
@@ -1252,18 +1274,24 @@ class EasyEDAProParser:
                 if layer_id in pad['unused'] and layer_id not in (self.copper_ids[0], self.copper_ids[-1]):
                     continue
                 self._add(layer_id, geo)
+                w, h = sizes['copper', '']
+                self._primitives.flash(self._keys[layer_id], geo, centre, aperture, w, h, angle)
         for name, geo in pad['mask'].items():
             side = ('TOP_SOLDER_MASK' if name == 'Top' else 'BOT_SOLDER_MASK')
             side = FLIP_TYPE.get(side, side) if flip else side
             if not geo.is_empty:
                 for layer_id in self._targets(side):
                     self._add(layer_id, place.geo(geo))
+                    w, h = sizes['mask', name]
+                    self._primitives.flash(self._keys[layer_id], place.geo(geo), centre, aperture, w, h, angle)
         for name, geo in pad['paste'].items():
             side = ('TOP_PASTE_MASK' if name == 'Top' else 'BOT_PASTE_MASK')
             side = FLIP_TYPE.get(side, side) if flip else side
             if not geo.is_empty:
                 for layer_id in self._targets(side):
                     self._add(layer_id, place.geo(geo))
+                    w, h = sizes['paste', name]
+                    self._primitives.flash(self._keys[layer_id], place.geo(geo), centre, aperture, w, h, angle)
         hole = pad['hole']
         if hole is not None:
             group = 'PTH_Through' if hole['plated'] else 'NPTH_Through'
@@ -1301,6 +1329,7 @@ class EasyEDAProParser:
             if layer_id in unused and layer_id not in (self.copper_ids[0], self.copper_ids[-1]):
                 continue
             self._add(layer_id, pad)
+            self._primitives.flash(self._keys[layer_id], pad, centre, 'circle', diameter, diameter)
         for name, key, rule, mask_type in (('Top', 'topSolderExpansion', self._mask_rule['viaTop'], 'TOP_SOLDER_MASK'),
                                            ('Bot', 'bottomSolderExpansion', self._mask_rule['viaBot'], 'BOT_SOLDER_MASK')):
             expansion = _number(record[key], what + ' mask expansion') if record.get(key) is not None else rule
@@ -1308,7 +1337,9 @@ class EasyEDAProParser:
             if radius > 0:
                 side = FLIP_TYPE.get(mask_type, mask_type) if place.flip else mask_type
                 for layer_id in self._targets(side):
-                    self._add(layer_id, self._circle(centre[0], centre[1], radius))
+                    opening = self._circle(centre[0], centre[1], radius)
+                    self._add(layer_id, opening)
+                    self._primitives.flash(self._keys[layer_id], opening, centre, 'circle', 2 * radius, 2 * radius)
         if hole > 0:
             self._drill('PTH_Through_Via', hole, centre)
 
@@ -1353,6 +1384,7 @@ class EasyEDAProParser:
                 geo = self._area(self._paths(record.get('path'), MIL_MM))
                 for layer_id in self._targets(layer):
                     self._add(layer_id, place.geo(geo))
+                    self._record_fill(layer_id, record, place, place.geo(geo))
             else:
                 self._note('keepout', 'Keepout and other regions that are not copper were skipped.', 1)
             return
@@ -1378,6 +1410,8 @@ class EasyEDAProParser:
                 parts.append(geo)
                 if line is not None:
                     lines.append(line)
+                    for layer_id in self._targets(layer):
+                        self._primitives.stroke(self._keys[layer_id], place.geo(geo), place.geo(line), width)
             solid = unary_union(parts) if parts else Polygon()
             follow = lines
         elif kind in ('FILL', 'TEARDROP'):
@@ -1397,6 +1431,29 @@ class EasyEDAProParser:
             follow = [place.geo(follow)]
         for layer_id in self._targets(layer):
             self._add(layer_id, solid, follow)
+            if kind in ('LINE', 'ARC', 'CARC') and follow:
+                self._primitives.stroke(self._keys[layer_id], solid, follow[0], width)
+            elif kind == 'FILL':
+                self._record_fill(layer_id, record, place, solid, width)
+
+    def _record_fill(self, layer_id, record, place, solid, width=0.0):
+        # Only explicit source circles/rectangles, never a fitted polygon or a composed fill.
+        path = record.get('path')
+        if isinstance(path, list) and len(path) == 1 and isinstance(path[0], list):
+            path = path[0]
+        if not isinstance(path, list) or not path or solid.is_empty:
+            return
+        if path[0] == 'R':
+            x, y, w, h = [_number(v, 'fill rectangle') * MIL_MM for v in path[1:5]]
+            w, h = abs(w), abs(h)
+            centre = place.pt((x + w / 2, y - h / 2))
+        elif path[0] == 'CIRCLE':
+            x, y, radius = [_number(v, 'fill circle') * MIL_MM for v in path[1:4]]
+            w = h = 2 * abs(radius)
+            centre = place.pt((x, y))
+        else:
+            return
+        self._primitives.flash(self._keys[layer_id], solid, centre, 'block', w + width, h + width)
 
     def _multi_fill(self, record, place):
         """A fill on the multi-layer is a hole of the board: a circle is a non-plated drill, any other shape a cutout."""
@@ -1491,6 +1548,7 @@ class EasyEDAProParser:
             for line, width in self._outline_lines:
                 solid, follow = self._stroke(list(line.coords), width or OUTLINE_WIDTH_MM)
                 self._add(outline_id, solid, follow)
+                self._primitives.stroke(self._keys[outline_id], solid, follow, width or OUTLINE_WIDTH_MM)
 
     def _finish(self):
         self._outline()
@@ -1509,6 +1567,7 @@ class EasyEDAProParser:
             polygons.sort(key=lambda polygon: Polygon(polygon.exterior).area, reverse=True)
             self.layers[key] = {'name': key, 'solid_geometry': polygons, 'follow_geometry': list(self._follows.get(key, [])),
                                 'tools': {0: {'type': 'REG', 'size': 0.0, 'geometry': [{'solid': p} for p in polygons]}}}
+            self._primitives.finish(key, self.layers[key])
         self.default_layers = [key for key in self.layers]
         self.default_drill_groups = None
         if not self.layers and not self.drill_groups:

@@ -213,6 +213,66 @@ def cut_is_numeric_sliver(solids, new_solids):
     return noise
 
 
+def pad_flash(draw_app, point):
+    """Place a source flash, never a union of an aperture's unrelated records."""
+    aperture = draw_app.storage_dict.get(draw_app.last_aperture_selected)
+    if aperture is None:
+        draw_app.app.inform.emit(_("Select an aperture in the Aperture Table."))
+        return None
+    # Like the pick/snap indexes, retain validation only until the editor geometry or session changes.
+    state = (id(draw_app.storage_dict), draw_app.geometry_revision, draw_app.history.session,
+             draw_app.last_aperture_selected, id(aperture), id(aperture['geometry']), len(aperture['geometry']),
+             repr({key: value for key, value in aperture.items() if key != 'geometry'}),
+             frozenset(id(shape) for shape in draw_app.selected))
+    cache = getattr(draw_app, '_pad_flash_cache', None)
+    if cache is not None and cache[0] == state:
+        candidates = [cache[1]]
+    else:
+        sources = []
+        selected = []
+        selected_ids = state[-1]
+        for shape in aperture['geometry']:
+            rec = shape.geo
+            solid, follow = rec.get('solid'), rec.get('follow')
+            if (is_clear_record(rec) or not isinstance(follow, Point) or follow.is_empty or
+                    not isinstance(solid, (Polygon, MultiPolygon)) or solid.is_empty or
+                    not solid.is_valid or not math.isfinite(solid.area) or solid.area <= 0):
+                continue
+            sources.append(rec)
+            if id(shape) in selected_ids:
+                selected.append(rec)
+        candidates = selected or sources
+    if candidates:
+        template = candidates[0]
+        origin = template['follow']
+        footprint = translate(template['solid'], -origin.x, -origin.y) if len(candidates) > 1 else None
+        for rec in candidates[1:]:
+            centre = rec['follow']
+            other = translate(rec['solid'], -centre.x, -centre.y)
+            if not difference_is_numeric_sliver(footprint.symmetric_difference(other), footprint.bounds):
+                draw_app.app.inform.emit(_("Select one source flash for this aperture; its footprints differ."))
+                return None
+        draw_app._pad_flash_cache = (state, template)
+        result = deepcopy(template)
+        # Sequence belongs to the new placement, not the source's original exposure order.
+        result.pop('seq', None)
+        for key in ('solid', 'clear', 'follow'):
+            if key in result:
+                result[key] = translate(result[key], point[0] - origin.x, point[1] - origin.y)
+        return result
+    try:
+        footprint = _flash_shape(draw_app, aperture)
+    except (KeyError, TypeError, ValueError, ZeroDivisionError):
+        footprint = None
+    if (not isinstance(footprint, (Polygon, MultiPolygon)) or footprint.is_empty or
+            not footprint.is_valid or not math.isfinite(footprint.area) or footprint.area <= 0):
+        draw_app.app.inform.emit(_("Aperture has no valid positive flash footprint. Select a source flash."))
+        return None
+    template = {'solid': footprint, 'follow': Point(0, 0)}
+    draw_app._pad_flash_cache = (state, template)
+    return {'solid': translate(footprint, *point), 'follow': Point(point)}
+
+
 class PadEditorGrb(ShapeToolEditorGrb):
     """
     Resulting type: Polygon
@@ -235,7 +295,7 @@ class PadEditorGrb(ShapeToolEditorGrb):
         QtGui.QGuiApplication.setOverrideCursor(self.cursor)
 
         try:
-            self.radius = float(self.draw_app.storage_dict[self.draw_app.last_aperture_selected]['size']) / 2
+            self.radius = float(self.draw_app.storage_dict[self.draw_app.last_aperture_selected].get('size', 0)) / 2
         except KeyError:
             self.draw_app.app.inform.emit('[ERROR_NOTCL] %s' %
                                           _("You need to preselect a aperture in the Aperture Table that has a size."))
@@ -257,9 +317,7 @@ class PadEditorGrb(ShapeToolEditorGrb):
         self.pad_tool.length = self.draw_app.last_length
         self.ui = self.pad_tool.ui
 
-        if self.radius == 0:
-            self.draw_app.app.inform.emit('[WARNING_NOTCL] %s' %
-                                          _("Aperture size is zero. It needs to be greater than zero."))
+        if pad_flash(self.draw_app, (0, 0)) is None:
             self.dont_execute = True
             return
         else:
@@ -300,7 +358,7 @@ class PadEditorGrb(ShapeToolEditorGrb):
         self.start_msg = _("Click to place ...")
 
     def set_plugin_ui(self):
-        dia = float(self.draw_app.storage_dict[self.draw_app.last_aperture_selected]['size'])
+        dia = float(self.draw_app.storage_dict[self.draw_app.last_aperture_selected].get('size', 0))
         self.ui.dia_entry.set_value(dia)
         self.ui.x_entry.set_value(float(self.draw_app.snap_x))
         self.ui.y_entry.set_value(float(self.draw_app.snap_y))
@@ -317,6 +375,8 @@ class PadEditorGrb(ShapeToolEditorGrb):
         self.draw_app.last_length = self.pad_tool.length
         self.points = self.ui.x_entry.get_value(), self.ui.y_entry.get_value()
         self.make()
+        if not self.complete:
+            return
         self.draw_app.on_grb_shape_complete(self.draw_app.current_storage)
         self.draw_app.build_ui()
         self.draw_app.select_tool("pad")
@@ -336,60 +396,22 @@ class PadEditorGrb(ShapeToolEditorGrb):
     def util_shape(self, point):
         # updating values here allows us to change the aperture on the fly, after the Tool has been started
         self.storage_obj = self.draw_app.storage_dict[self.draw_app.last_aperture_selected]['geometry']
-        self.radius = float(self.draw_app.storage_dict[self.draw_app.last_aperture_selected]['size']) / 2
-
-        # if those cause KeyError exception it means that the aperture type is not 'R'. Only 'R' type has those keys
-        try:
-            self.half_width = float(self.draw_app.storage_dict[self.draw_app.last_aperture_selected]['width']) / 2
-        except KeyError:
-            pass
-        try:
-            self.half_height = float(self.draw_app.storage_dict[self.draw_app.last_aperture_selected]['height']) / 2
-        except KeyError:
-            pass
         if point[0] is None and point[1] is None:
-            point_x = self.draw_app.x
-            point_y = self.draw_app.y
-        else:
-            point_x = point[0]
-            point_y = point[1]
-
-        ap_type = self.draw_app.storage_dict[self.draw_app.last_aperture_selected]['type']
-        if ap_type == 'C':
-            new_geo_el = {}
-
-            center = Point([point_x, point_y])
-            new_geo_el['solid'] = center.buffer(self.radius, quad_segs=gerber_quad(self.draw_app.app, self.radius))
-            new_geo_el['follow'] = center
-            return new_geo_el
-        elif ap_type == 'R':
-            new_geo_el = {}
-
-            p1 = (point_x - self.half_width, point_y - self.half_height)
-            p2 = (point_x + self.half_width, point_y - self.half_height)
-            p3 = (point_x + self.half_width, point_y + self.half_height)
-            p4 = (point_x - self.half_width, point_y + self.half_height)
-            center = Point([point_x, point_y])
-            new_geo_el['solid'] = Polygon([p1, p2, p3, p4, p1])
-            new_geo_el['follow'] = center
-            return new_geo_el
-        elif ap_type == 'O':
-            # the same obround as a flash of the Gerber parser
-            center = Point([point_x, point_y])
-            aperture = self.draw_app.storage_dict[self.draw_app.last_aperture_selected]
-            steps = gerber_steps(self.draw_app.app, min(self.half_width, self.half_height))
-            return {'solid': Gerber.create_flash_geometry(self.draw_app, center, aperture, steps), 'follow': center}
-        else:
-            self.draw_app.app.inform.emit(_(
-                "Incompatible aperture type. Select an aperture with type 'C', 'R' or 'O'."))
-            return None
+            point = self.draw_app.x, self.draw_app.y
+        return pad_flash(self.draw_app, point)
 
     def make(self):
+        self.complete = False
         self.draw_app.current_storage = self.storage_obj
         try:
-            self.geometry = DrawToolShape(self.util_shape(self.points))
+            record = self.util_shape(self.points)
+            if record is None:
+                return
+            self.geometry = DrawToolShape(record)
+            self.draw_app.current_storage = self.storage_obj
         except Exception as e:
             log.error("AppGerberEditor.PadEditorGrb.make() --> %s" % str(e))
+            return
 
         self.draw_app.in_action = False
         self.complete = True
@@ -500,7 +522,7 @@ class PadArrayEditorGrb(ShapeToolEditorGrb):
         self.cursor_data_control = True
 
         try:
-            self.radius = float(self.draw_app.storage_dict[self.draw_app.last_aperture_selected]['size']) / 2
+            self.radius = float(self.draw_app.storage_dict[self.draw_app.last_aperture_selected].get('size', 0)) / 2
         except KeyError:
             self.draw_app.app.inform.emit('[ERROR_NOTCL] %s' %
                                           _("You need to preselect a aperture in the Aperture Table that has a size."))
@@ -511,9 +533,7 @@ class PadArrayEditorGrb(ShapeToolEditorGrb):
             self.draw_app.select_tool('select')
             return
 
-        if self.radius == 0:
-            self.draw_app.app.inform.emit('[WARNING_NOTCL] %s' %
-                                          _("Aperture size is zero. It needs to be greater than zero."))
+        if pad_flash(self.draw_app, (0, 0)) is None:
             self.dont_execute = True
             return
         else:
@@ -596,7 +616,7 @@ class PadArrayEditorGrb(ShapeToolEditorGrb):
             self.draw_app.app.inform.emit(_("Click on the circular array Center position"))
 
     def set_plugin_ui(self):
-        dia = float(self.draw_app.storage_dict[self.draw_app.last_aperture_selected]['size'])
+        dia = float(self.draw_app.storage_dict[self.draw_app.last_aperture_selected].get('size', 0))
         self.ui.dia_entry.set_value(dia)
         self.ui.x_entry.set_value(float(self.draw_app.snap_x))
         self.ui.y_entry.set_value(float(self.draw_app.snap_y))
@@ -692,21 +712,9 @@ class PadArrayEditorGrb(ShapeToolEditorGrb):
                         ((dx + (x_adj * item)), (dy + (y_adj * item)))
                     )
 
-                if static is None or static is False:
-                    new_geo_el = {}
-
-                    if 'solid' in geo_el:
-                        new_geo_el['solid'] = translate(
-                            geo_el['solid'], xoff=(dx - self.last_dx), yoff=(dy - self.last_dy)
-                        )
-                    if 'follow' in geo_el:
-                        new_geo_el['follow'] = translate(
-                            geo_el['follow'], xoff=(dx - self.last_dx), yoff=(dy - self.last_dy)
-                        )
-                    geo_el_list.append(new_geo_el)
-
-                else:
-                    geo_el_list.append(geo_el)
+                if geo_el is None:
+                    return None
+                geo_el_list.append(geo_el)
             # self.origin = data
 
             self.last_dx = dx
@@ -757,55 +765,7 @@ class PadArrayEditorGrb(ShapeToolEditorGrb):
                     log.error("AppGerberEditor.PadArrayEditorGrb.utility_geometry() -> %s" % str(e))
 
     def util_shape(self, point):
-        # updating values here allows us to change the aperture on the fly, after the Tool has been started
-        self.storage_obj = self.draw_app.storage_dict[self.draw_app.last_aperture_selected]['geometry']
-        self.radius = float(self.draw_app.storage_dict[self.draw_app.last_aperture_selected]['size']) / 2
-
-        # if those cause KeyError exception it means that the aperture type is not 'R'. Only 'R' type has those keys
-        try:
-            self.half_width = float(self.draw_app.storage_dict[self.draw_app.last_aperture_selected]['width']) / 2
-        except KeyError:
-            pass
-        try:
-            self.half_height = float(self.draw_app.storage_dict[self.draw_app.last_aperture_selected]['height']) / 2
-        except KeyError:
-            pass
-
-        if point[0] is None and point[1] is None:
-            point_x = self.draw_app.x
-            point_y = self.draw_app.y
-        else:
-            point_x = point[0]
-            point_y = point[1]
-
-        ap_type = self.draw_app.storage_dict[self.draw_app.last_aperture_selected]['type']
-        if ap_type == 'C':
-            new_geo_el = {}
-
-            center = Point([point_x, point_y])
-            new_geo_el['solid'] = center.buffer(self.radius, quad_segs=gerber_quad(self.draw_app.app, self.radius))
-            new_geo_el['follow'] = center
-            return new_geo_el
-        elif ap_type == 'R':
-            new_geo_el = {}
-
-            p1 = (point_x - self.half_width, point_y - self.half_height)
-            p2 = (point_x + self.half_width, point_y - self.half_height)
-            p3 = (point_x + self.half_width, point_y + self.half_height)
-            p4 = (point_x - self.half_width, point_y + self.half_height)
-            new_geo_el['solid'] = Polygon([p1, p2, p3, p4, p1])
-            new_geo_el['follow'] = Point([point_x, point_y])
-            return new_geo_el
-        elif ap_type == 'O':
-            # the same obround as a flash of the Gerber parser
-            center = Point([point_x, point_y])
-            aperture = self.draw_app.storage_dict[self.draw_app.last_aperture_selected]
-            steps = gerber_steps(self.draw_app.app, min(self.half_width, self.half_height))
-            return {'solid': Gerber.create_flash_geometry(self.draw_app, center, aperture, steps), 'follow': center}
-        else:
-            self.draw_app.app.inform.emit(_(
-                "Incompatible aperture type. Select an aperture with type 'C', 'R' or 'O'."))
-            return None
+        return PadEditorGrb.util_shape(self, point)
 
     def circular_util_shape(self, radius, angle):
         self.pad_direction = self.ui.array_dir_radio.get_value()
@@ -819,12 +779,13 @@ class PadArrayEditorGrb(ShapeToolEditorGrb):
                 y = self.origin[1] + radius * math.sin(-angle_radians + angle)
 
                 geo = self.util_shape((x, y))
-                geo_sol = rotate(geo['solid'], angle=(math.pi - angle_radians + angle), use_radians=True)
-                geo_fol = rotate(geo['follow'], angle=(math.pi - angle_radians + angle), use_radians=True)
-                geo_el = {
-                    'solid': geo_sol,
-                    'follow': geo_fol
-                }
+                if geo is None:
+                    return []
+                geo_el = dict(geo)
+                for key in ('solid', 'clear', 'follow'):
+                    if key in geo_el:
+                        geo_el[key] = rotate(geo_el[key], angle=(math.pi - angle_radians + angle),
+                                             origin=(x, y), use_radians=True)
                 circular_geo.append(DrawToolShape(geo_el))
         else:
             for i in range(self.pad_array_size):
@@ -833,17 +794,19 @@ class PadArrayEditorGrb(ShapeToolEditorGrb):
                 y = self.origin[1] + radius * math.sin(angle_radians + angle)
 
                 geo = self.util_shape((x, y))
-                geo_sol = rotate(geo['solid'], angle=(angle_radians + angle - math.pi), use_radians=True)
-                geo_fol = rotate(geo['follow'], angle=(angle_radians + angle - math.pi), use_radians=True)
-                geo_el = {
-                    'solid': geo_sol,
-                    'follow': geo_fol
-                }
+                if geo is None:
+                    return []
+                geo_el = dict(geo)
+                for key in ('solid', 'clear', 'follow'):
+                    if key in geo_el:
+                        geo_el[key] = rotate(geo_el[key], angle=(angle_radians + angle - math.pi),
+                                             origin=(x, y), use_radians=True)
                 circular_geo.append(DrawToolShape(geo_el))
 
         return circular_geo
 
     def make(self):
+        self.complete = False
         self.geometry = []
         geo = None
 
@@ -862,6 +825,9 @@ class PadArrayEditorGrb(ShapeToolEditorGrb):
                         ((self.points[0] + (x_adj * item)), (self.points[1] + (y_adj * item)))
                     )
 
+                if geo is None:
+                    self.geometry = []
+                    return
                 self.geometry.append(DrawToolShape(geo))
         else:  # 'Circular'
             if (self.pad_circular_angle * self.pad_array_size) > 360:
@@ -881,8 +847,11 @@ class PadArrayEditorGrb(ShapeToolEditorGrb):
             initial_angle = math.asin((self.destination[1] - self.origin[1]) / radius)
 
             circular_geo = self.circular_util_shape(radius, initial_angle)
+            if not circular_geo:
+                return
             self.geometry += circular_geo
 
+        self.draw_app.current_storage = self.storage_obj
         self.complete = True
         self.draw_app.app.inform.emit('[success] %s' % _("Done."))
         self.draw_app.in_action = False
@@ -948,6 +917,11 @@ class PadArrayEditorGrb(ShapeToolEditorGrb):
     def add_pad_array(self, array_pos):
         self.radius = self.ui.radius_entry.get_value()
         self.array_type = self.ui.array_type_radio.get_value()
+        self.pad_array_dir = self.ui.axis_radio.get_value()
+        self.pad_array_size = self.ui.array_size_entry.get_value()
+        self.pad_pitch = self.ui.pitch_entry.get_value()
+        self.pad_linear_angle = self.ui.linear_angle_entry.get_value()
+        self.pad_circular_angle = self.ui.circular_angle_entry.get_value()
 
         curr_pos = self.draw_app.app.geo_editor.snap(array_pos[0], array_pos[1])
         self.draw_app.snap_x = curr_pos[0]
@@ -958,6 +932,8 @@ class PadArrayEditorGrb(ShapeToolEditorGrb):
         self.destination = ((self.origin[0] + self.radius), self.origin[1])
         self.flag_for_circ_array = True
         self.make()
+        if not self.complete:
+            return
 
         if self.draw_app.current_storage is not None:
             self.draw_app.on_grb_shape_complete(self.draw_app.current_storage)
@@ -2747,10 +2723,8 @@ class MoveEditorGrb(ShapeToolEditorGrb):
                 if remove_source:
                     # slice assignment: storage_dict keeps a reference to this list
                     storage[:] = [shape for shape in storage if id(shape) not in shape_ids]
-                # the moved (or copied) record keeps the object attributes (TO id) of its source
-                # (also its 'seq': the place in the file of a Native load)
-                moved = [DrawToolShape(dict(geo_el, **{key: shape.geo[key] for key in ('to', 'seq')
-                                                       if key in shape.geo}))
+                # Translation changes the geometry, not the source attributes or the place in file order.
+                moved = [DrawToolShape(dict(shape.geo, **geo_el))
                          for shape, geo_el in zip(shapes, self.translated_elements(shapes, dx, dy))]
                 storage.extend(moved)
                 # a pure translation keeps the flash semantics of the records: no export re-validation
@@ -4491,9 +4465,7 @@ class AppGerberEditor(QtCore.QObject):
                     '%.*f, %.*f' % (self.decimals, self.storage_dict[ap_code]['diam'],
                                     self.decimals, self.storage_dict[ap_code]['nVertices'])
                 )
-                ap_dim_item.setFlags(QtCore.Qt.ItemFlag.ItemIsSelectable |
-                                     QtCore.Qt.ItemFlag.ItemIsEnabled |
-                                     QtCore.Qt.ItemFlag.ItemIsEditable)
+                ap_dim_item.setFlags(QtCore.Qt.ItemFlag.ItemIsSelectable | QtCore.Qt.ItemFlag.ItemIsEnabled)
             else:
                 ap_dim_item = QtWidgets.QTableWidgetItem('')
                 ap_dim_item.setFlags(QtCore.Qt.ItemFlag.ItemIsSelectable | QtCore.Qt.ItemFlag.ItemIsEnabled)
@@ -6086,9 +6058,9 @@ class AppGerberEditor(QtCore.QObject):
         Fill a Gerber object with the edited content: tools, solid and follow geometry, aperture macros, options.
         It reads the source object (self.gerber_obj) and writes only to grb_obj.
 
-        Records that still match their aperture stay native flashes or tracks. Damaged records and the aperture
-        types that the native writer can not declare become region records of one REG aperture, so a mixed object
-        keeps its surviving flashes instead of being saved whole as regions.
+        Records that still match their aperture stay native flashes or tracks. Native-mode polygonal flashes keep
+        their source centres and exact footprints; the record-plan exporter supplies blocks where needed.
+        Other damaged records become region material.
 
         :param grb_obj:             the GerberObject to fill
         :param app_obj:             the App
@@ -6099,6 +6071,8 @@ class AppGerberEditor(QtCore.QObject):
         poly_buffer = []
         follow_buffer = []
         native_tools = {}
+        block_tools = {}
+        next_block_code = max(numeric_aperture_codes(local_storage_dict), default=9) + 1
         region_records = []
         # Native load: the records keep the order of the file and the clear ones are kept
         native = bool(getattr(self, 'native_load', False))
@@ -6126,6 +6100,8 @@ class AppGerberEditor(QtCore.QObject):
                     geometric_data = {key: value for key, value in geometric_data.items()
                                       if key not in ('solid', 'follow')}
                 new_geo_el = {}
+                if native:
+                    new_geo_el.update(deepcopy_keep_geometry(geometric_data))
                 if 'solid' in geometric_data:
                     new_geo_el['solid'] = geometric_data['solid']
                 if 'follow' in geometric_data:
@@ -6147,6 +6123,23 @@ class AppGerberEditor(QtCore.QObject):
                     saved_order.append(None)
 
                 solid = new_geo_el.get('solid')
+                follow = new_geo_el.get('follow')
+                image = solid if solid is not None else new_geo_el.get('clear')
+                if native and aperture.get('type') != 'REG' and isinstance(follow, Point) and \
+                        not follow.is_empty and isinstance(image, (Polygon, MultiPolygon)) and not image.is_empty:
+                    # Direct C/R/O declarations must never restore an edited or transformed footprint.
+                    if aperture.get('type') in Gerber.NATIVE_WRITER_APERTURE_TYPES and not aperture.get('hole') and \
+                            not AppGerberEditor._record_is_native(
+                                self, self.gerber_obj, aperture, {'solid': image, 'follow': follow}, native_cache):
+                        if storage_apcode not in block_tools:
+                            block_tools[storage_apcode] = next_block_code
+                            native_tools[next_block_code] = dict(aperture, type='AB', geometry=[])
+                            next_block_code += 1
+                        native_tools[block_tools[storage_apcode]]['geometry'].append(new_geo_el)
+                    else:
+                        native_records.append(new_geo_el)
+                    add_to_buffers(new_geo_el)
+                    continue
                 if 'clear' in new_geo_el or solid is None:
                     # clear-only records keep their aperture: the export falls back to regions for them
                     native_records.append(new_geo_el)

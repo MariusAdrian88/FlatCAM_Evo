@@ -404,6 +404,10 @@ class AllegroBrd16Parser(AllegroBrdParser):
         if name not in self._skip:
             super()._add(name, geo, follow)
 
+    def _record_pad_component(self, name, solid, comp, matrix):
+        if name not in self._skip:
+            super()._record_pad_component(name, solid, comp, matrix)
+
     def _build_pads_and_vias(self):
         last = len(self._etch_names) - 1
         self._dynamic = bool(self._u8(self._DYNAMIC_SUPPRESSION_AT))
@@ -435,9 +439,10 @@ class AllegroBrd16Parser(AllegroBrdParser):
                 continue
             shape = self._apply(shape, matrix)
             if board_layer in self._suppressed and not (via and g in (0, len(span) - 1)):
-                self._inner_pads.append((board_layer, shape, net))
+                self._inner_pads.append((board_layer, shape, net, comp, matrix))
             else:
                 self._add(self._copper_name(board_layer), shape)
+                self._record_pad_component(self._copper_name(board_layer), shape, comp, matrix)
         return None
 
     def _is_net(self, key):
@@ -465,13 +470,13 @@ class AllegroBrd16Parser(AllegroBrdParser):
     def _drop_unrouted_inner_layers(self):
         """Put in the pads of the suppressed internal layers that copper of their own net touches."""
         pads = {}
-        for board_layer, shape, net in self._inner_pads:
-            pads.setdefault(board_layer, []).append((shape, net))
+        for board_layer, shape, net, comp, matrix in self._inner_pads:
+            pads.setdefault(board_layer, []).append((shape, net, comp, matrix))
         etch = {}
         for board_layer, net, item in self._etch_nets:
             etch.setdefault(board_layer, []).append((net, item))
         for board_layer, entries in pads.items():
-            shapes = [shape for shape, _net in entries]
+            shapes = [entry[0] for entry in entries]
             tree = STRtree(shapes)
             keep = [False] * len(entries)
             for net, item in etch.get(board_layer, []):
@@ -480,14 +485,15 @@ class AllegroBrd16Parser(AllegroBrdParser):
                 for i in tree.query(item, predicate='intersects'):
                     if entries[i][1] == net:
                         keep[i] = True
-            for i, (shape, net) in enumerate(entries):
+            for i, (shape, net, _comp, _matrix) in enumerate(entries):
                 if not keep[i] and net:
                     # pads of one net that overlap (a via in a pad) connect each other
                     keep[i] = any(j != i and entries[j][1] == net for j in tree.query(shape, predicate='intersects'))
             name = self._copper_name(board_layer)
-            for i, (shape, _net) in enumerate(entries):
+            for i, (shape, _net, comp, matrix) in enumerate(entries):
                 if keep[i]:
                     self._add(name, shape)
+                    self._record_pad_component(name, shape, comp, matrix)
             if not all(keep):
                 self._warn('nfp', 'Unconnected pads of internal layers were left out (as the board asks)')
         self._inner_pads = []
@@ -541,9 +547,14 @@ class AllegroBrd16Parser(AllegroBrdParser):
                 if cls == C_ETCH:
                     self._routed.add(name)
                 if cls == C_ETCH or name.startswith(('SOLDERMASK', 'PASTEMASK')):
-                    self._add(name, Polygon(ring[:-1]), [line])
+                    solid = Polygon(ring[:-1])
+                    self._add(name, solid, [line])
+                    self._primitives.flash(name, solid, solid.centroid,
+                                           'rect' if abs(rot - round(rot / 90) * 90) <= 1e-8 else 'block',
+                                           abs(x2 - x1), abs(y2 - y1), rot)
                 else:
                     self._add(name, self._stroke(ring, self.HAIRLINE), [line])
+                    self._primitives.stroke(name, self._stroke(ring, self.HAIRLINE), line, self.HAIRLINE)
 
     def _padstack(self, key):
         cached = key in self._padstacks

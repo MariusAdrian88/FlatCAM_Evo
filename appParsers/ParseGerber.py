@@ -346,7 +346,7 @@ class Gerber(Geometry):
         * a record of an 'R' aperture is not a flash of that aperture. The parser draws a track of an 'R'
           aperture as a box around its end points, and the native writer would flash the aperture at the
           end point instead;
-        * the object comes from a PCB document import (``obj_options['pcbdoc_import']``).
+        * the object comes from a PCB document import without validated source primitive records.
 
         The method only reads the object.
 
@@ -355,7 +355,7 @@ class Gerber(Geometry):
         if getattr(self, 'export_as_regions', False):
             return True
         obj_options = getattr(self, 'obj_options', None) or {}
-        if obj_options.get('pcbdoc_import', False):
+        if obj_options.get('pcbdoc_import', False) and not obj_options.get('pcbdoc_primitives', False):
             return True
         has_clear = False
         for apid, tool in (getattr(self, 'tools', None) or {}).items():
@@ -381,11 +381,12 @@ class Gerber(Geometry):
     def uses_region_export(self) -> bool:
         """
         True if the export writes only the composed solid_geometry as regions (no aperture, no flash). Only an
-        object of a PCB document import that ``needs_region_export`` is written so: its records are not the objects
-        of a Gerber file. Every other object keeps its records (see ``uses_record_plan``). Call it through the class.
+        object of a PCB document import without validated source primitives that ``needs_region_export`` is written
+        so. Other objects keep their records (see ``uses_record_plan``). Call it through the class.
         """
         obj_options = getattr(self, 'obj_options', None) or {}
-        return bool(obj_options.get('pcbdoc_import', False)) and Gerber.needs_region_export(self)
+        return bool(obj_options.get('pcbdoc_import', False)) and \
+            not obj_options.get('pcbdoc_primitives', False) and Gerber.needs_region_export(self)
 
     def uses_record_plan(self) -> bool:
         """

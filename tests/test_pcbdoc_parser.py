@@ -152,6 +152,25 @@ def reference_linear_strokes(filename, diameter):
 
 
 class TestPcbDocParser(unittest.TestCase):
+    def test_source_primitives_and_per_feature_cutout_fallback(self):
+        from types import SimpleNamespace
+        from appParsers.ParseCSPcbDoc import CSPcbDocParser
+
+        data = {'Board6': board(), 'Tracks6': track() + track(start=(7, 2), end=(9, 2)) +
+                                             track(start=(2, 7), end=(2, 7)),
+                'Pads6': pad(size=(2, 2)) + pad(layer=1, size=(3, 2), shape=2, hole=0, rotation=30),
+                'Regions6': region(list(box(7.5, 1, 8, 3).exterior.coords), cutout=True)}
+        baseline = PcbDocParser(app=SimpleNamespace(options={'gerber_board_import_mode': 'regions'}))._parse_streams(data)
+        for cls in (PcbDocParser, CSPcbDocParser):
+            parsed = cls(app=SimpleNamespace(options={'gerber_board_import_mode': 'primitives'}))._parse_streams(data)
+            layer = parsed.layers[1]
+            self.assertEqual({tool['type'] for tool in layer['tools'].values()}, {'REG', 'C', 'AB'})
+            records = [record for tool in layer['tools'].values() for record in tool['geometry']]
+            self.assertEqual(sum(isinstance(r.get('follow'), Point) for r in records), 3)
+            self.assertEqual(sum(isinstance(r.get('follow'), LineString) for r in records), 1)
+            self.assertTrue(unary_union(layer['solid_geometry']).equals(
+                unary_union(baseline.layers[1]['solid_geometry'])))
+
     def parser(self, streams=None, stack=(1, 32)):
         self.assertIsNotNone(PcbDocParser, 'native PcbDoc parser is not implemented')
         parser = PcbDocParser()
@@ -178,10 +197,13 @@ class TestPcbDocParser(unittest.TestCase):
         self.check_true_type_font_counters_remain_holes()
         self.check_dimension_annotations_render_on_native_layer()
     def check_regions_preserve_holes_and_nested_islands_for_export(self):
+        from types import SimpleNamespace
+
         outer = list(box(0, 0, 9, 9).exterior.coords)
         inner = list(box(2, 2, 7, 7).exterior.coords)
         island = list(box(3, 3, 4, 4).exterior.coords)
-        parser = self.parser({'Regions6': region(outer, [inner]) + region(island)})
+        parser = PcbDocParser(app=SimpleNamespace(options={'gerber_board_import_mode': 'regions'}))
+        parser._parse_streams({'Board6': board((1, 32)), 'Regions6': region(outer, [inner]) + region(island)})
         layer = parser.layers[1]
         self.assertAlmostEqual(unary_union(layer['solid_geometry']).area, 57)
         exported = Polygon()
@@ -343,6 +365,11 @@ class TestPcbDocParser(unittest.TestCase):
             self.assertFalse(original.is_empty, text)
             # Altium's export accumulates integer coordinate quantization per glyph.
             self.assertLessEqual(expected.hausdorff_distance(original), quantum * (len(text) + 1), text)
+            retained = unary_union([r['follow'] for t in parser.layers[33]['tools'].values()
+                                    for r in t['geometry'] if isinstance(r.get('follow'), LineString)
+                                    and window.covers(r['follow'])])
+            self.assertFalse(retained.is_empty, text)
+            self.assertLessEqual(expected.hausdorff_distance(retained), quantum * (len(text) + 1), text)
             checked.add(text)
         self.assertEqual(checked, {'H1', 'H2', 'R1', 'R2', 'R3', 'R4', 'T1', 'T2', '3.3V'})
 
@@ -564,6 +591,14 @@ class TestDipTraceBoard(unittest.TestCase):
                 for layer in ('Top Mask', 'Bottom Mask'):
                     self.assertLess(unary_union(parsed.layers[layer]['solid_geometry']).symmetric_difference(
                         unary_union(openings)).area, 1e-8)
+                for layer in (0, 1, 'Top Mask', 'Bottom Mask'):
+                    tools = parsed.layers[layer]['tools']
+                    flashes = [r for t in tools.values() for r in t['geometry']
+                               if isinstance(r.get('follow'), Point)]
+                    self.assertEqual(len(flashes), 8)
+                    self.assertTrue(all(any(r['follow'].distance(p) < 1e-8 for r in flashes) for p in drills))
+                    blocks = [r for t in tools.values() if t['type'] == 'AB' for r in t['geometry']]
+                    self.assertEqual(len(blocks), 2)
 
     def test_legacy_string_layouts_preserve_outer_layer_pads_and_mechanical_holes(self):
         from appParsers.ParseDipTrace import DipTraceParser
@@ -638,6 +673,12 @@ class TestDipTraceBoard(unittest.TestCase):
                 hole = next(iter(parsed.drill_groups['NPTH'].values()))
                 self.assertEqual(hole['tooldia'], 1)
                 self.assertLess(hole['drills'][0].distance(Point(10, 18)), 1e-8)
+                for side in ('Top', 'Bottom'):
+                    flashes = [r for t in parsed.layers[side + ' Mask']['tools'].values() if t['type'] == 'C'
+                               for r in t['geometry'] if isinstance(r.get('follow'), Point)]
+                    self.assertEqual(len(flashes), 1)
+                    self.assertLess(flashes[0]['follow'].distance(Point(10, 18)), 1e-8)
+                    self.assertLess(flashes[0]['solid'].symmetric_difference(opening).area, 1e-8)
 
     def test_legacy_v40_native_placements_and_drilling_preserve_board_geometry(self):
         import tempfile
@@ -860,6 +901,11 @@ class TestDipTraceBoard(unittest.TestCase):
                     actual = unary_union(parsed.layers[layer]['solid_geometry']).intersection(box(247, 247, 253, 253))
                     opening = expected.buffer(margin) if margin else expected
                     self.assertLess(actual.symmetric_difference(place(opening)).area, 1e-8, layer)
+                    blocks = [r for t in parsed.layers[layer]['tools'].values() if t['type'] == 'AB'
+                              for r in t['geometry'] if r['follow'].within(box(247, 247, 253, 253))]
+                    self.assertEqual(len(blocks), 1, layer)
+                    self.assertLess(blocks[0]['follow'].distance(place(Point(0, 0))), 1e-8)
+                    self.assertLess(blocks[0]['solid'].symmetric_difference(place(opening)).area, 1e-8)
                 terminal_shape = Point(0, 0.025).buffer(0.1, quad_segs=64).intersection(box(-0.1, 0.025, 0.1, 0.125))
                 terminal_shape = terminal_shape.union(box(-0.1, -0.125, 0.1, 0.025))
                 layer = ('Bottom' if bottom else 'Top') + ' Terminals'
@@ -869,6 +915,7 @@ class TestDipTraceBoard(unittest.TestCase):
                                     for tool in parsed.drill_groups['PTH'].values() for point in tool['drills']))
 
     def test_native_segmented_paste_and_by_paste_mask_keep_individual_rectangles(self):
+        from types import SimpleNamespace
         from appParsers.ParseDipTrace import DipTraceParser
         from shapely.affinity import scale, translate
 
@@ -888,10 +935,11 @@ class TestDipTraceBoard(unittest.TestCase):
         bottom = number(1, 3) + b''.join(number(x) + number(y) for x, y in
                                          ((-18000, -9000), (18000, 9000)))
         data[407747:407753] = top + bottom
-        for flipped in (True,):
-            with self.subTest(bottom=flipped):
+        for mode in ('regions', 'primitives'):
+            flipped = True
+            with self.subTest(bottom=flipped, mode=mode):
                 data[32411] = int(flipped)
-                parsed = DipTraceParser().parse_bytes(data)
+                parsed = DipTraceParser(app=SimpleNamespace(options={'gerber_board_import_mode': mode})).parse_bytes(data)
                 for side, expected in (('Top', box(-0.8, -0.6, -0.2, 0.6).union(box(0.2, -0.6, 0.8, 0.6))),
                                        ('Bottom', box(-0.6, -0.3, 0.6, 0.3))):
                     if flipped:
@@ -902,6 +950,11 @@ class TestDipTraceBoard(unittest.TestCase):
                         actual = unary_union(parsed.layers[side + suffix]['solid_geometry']).intersection(
                             box(248, 248, 252, 252))
                         self.assertLess(actual.symmetric_difference(expected).area, 1e-8)
+                        if mode == 'primitives':
+                            flashes = [r['solid'] for t in parsed.layers[side + suffix]['tools'].values()
+                                       if t['type'] == 'R' for r in t['geometry']
+                                       if r['follow'].within(box(248, 248, 252, 252))]
+                            self.assertLess(unary_union(flashes).symmetric_difference(expected).area, 1e-8)
 
     def test_native_inner_signal_layers_and_mirrored_arbitrary_angle_slots(self):
         import math
@@ -934,6 +987,68 @@ class TestDipTraceBoard(unittest.TestCase):
         for slot in before:
             expected = scale(rotate(slot, stored_angle, origin=center), -1, 1, origin=center)
             self.assertTrue(any(expected.hausdorff_distance(actual) < 1e-8 for actual in after))
+
+@pytest.mark.diptrace
+@pytest.mark.parametrize('units', ['MM', 'IN'])
+def test_diptrace_source_primitives_preserve_geometry_and_gerber_roundtrip(tmp_path, units):
+    from types import SimpleNamespace
+    from shapely.affinity import scale
+    from tests.test_kicad_pcb_e2e import _app, _union, NativeGerberObject
+    from appHandlers.appIO import appIO
+    from appParsers.ParseDipTrace import DipTraceParser
+    from appParsers.ParseGerber import Gerber
+
+    app = _app(units)
+    app.options.update(gerber_board_import_mode='primitives', gerber_exp_decimals=6)
+    filename = TestDipTraceBoard.FIXTURE
+    normal = DipTraceParser(app=SimpleNamespace(options={'gerber_board_import_mode': 'regions'})).parse_file(filename)
+    parsed = DipTraceParser(app=app).parse_file(filename)
+    assert normal.drill_groups == parsed.drill_groups
+    for key, layer in parsed.layers.items():
+        expected = unary_union(normal.layers[key]['solid_geometry'])
+        assert expected.equals(unary_union(layer['solid_geometry']))
+        represented = unary_union([r['solid'] for t in layer['tools'].values() for r in t['geometry']])
+        assert expected.symmetric_difference(represented).area < 1e-8
+    copper = parsed.layers[0]
+    follows = [r.get('follow') for t in copper['tools'].values() for r in t['geometry']]
+    assert any(isinstance(f, Point) for f in follows)
+    assert any(getattr(f, 'geom_type', '') == 'LineString' for f in follows)
+    objects = []
+
+    def create(kind, name, initialize, **kwargs):
+        obj = NativeGerberObject(name, app)
+        assert initialize(obj, app) != 'fail'
+        objects.append(obj)
+        return obj
+
+    app.app_obj.new_object.side_effect = create
+    keys = [0, 'Top Mask', 'Top Paste', 'Top Silk']
+    assert all(any(isinstance(r.get('follow'), Point) for t in parsed.layers[key]['tools'].values()
+                   for r in t['geometry']) for key in keys)
+    assert appIO(app).import_pcbdoc_objects(str(filename), parsed, keys, []) is None
+    for key, obj in zip(keys, objects):
+        blocks = [r for t in parsed.layers[key]['tools'].values() if t['type'] == 'AB' for r in t['geometry']]
+        if blocks:
+            assert '%ABD' in obj.source_file
+        exported = tmp_path / (str(key) + '.gbr')
+        exported.write_text(obj.source_file)
+        loaded = Gerber(app)
+        assert loaded.parse_file(str(exported)) != 'fail'
+        follows = [r.get('follow') for t in loaded.tools.values() for r in t['geometry']]
+        points = [scale(f, 25.4, 25.4, origin=(0, 0)) if units == 'IN' else f
+                  for f in follows if isinstance(f, Point)]
+        assert all(any(p.distance(r['follow']) < 0.0001 for p in points) for r in blocks)
+        assert any(isinstance(f, Point) for f in follows)
+        if key == 0:
+            assert any(getattr(f, 'geom_type', '') == 'LineString' for f in follows)
+        expected = unary_union(parsed.layers[key]['solid_geometry'])
+        actual = _union(loaded.solid_geometry)
+        if units == 'IN':
+            actual = scale(actual, 25.4, 25.4, origin=(0, 0))
+        difference = expected.symmetric_difference(actual)
+        assert difference.buffer(-0.003).is_empty
+        assert difference.area < expected.length * 0.003
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -45,6 +45,7 @@ from shapely.affinity import affine_transform
 from shapely.ops import polygonize, unary_union
 
 from camlib import circle_quad_segs, gerber_circle_steps
+from appParsers.board_primitives import BoardPrimitives
 from appParsers.ParseKiCadPcb import KiCadPcbParser
 
 
@@ -148,6 +149,7 @@ class AllegroBrdParser:
     # ------------------------------------------------------------------ state
 
     def _reset(self):
+        self._primitives = BoardPrimitives(self._options)
         self.layers = {}
         self.drill_groups = {}
         self.warnings = []
@@ -859,7 +861,27 @@ class AllegroBrdParser:
             comp = stack['comps'][_FIXED_COMPS + _PER_LAYER * g + _SLOT_PAD]
             shape = self._comp_shape(comp, 'copper of padstack %s' % stack['name'])
             if shape is not None:
-                self._add(self._copper_name(board_layer), self._apply(shape, matrix))
+                name = self._copper_name(board_layer)
+                solid = self._apply(shape, matrix)
+                self._add(name, solid)
+                self._record_pad_component(name, solid, comp, matrix)
+
+    def _record_pad_component(self, name, solid, comp, matrix):
+        if not self._primitives.enabled:
+            return
+        shape = {SH_CIRCLE: 'circle', SH_SQUARE: 'rect', SH_RECT: 'rect',
+                 SH_OBLONG_X: 'oval', SH_OBLONG_Y: 'oval'}.get(comp['type'], 'block')
+        width = comp['w']
+        height = width if comp['type'] in (SH_CIRCLE, SH_SQUARE) else comp['h']
+        centre = self._apply(Point(comp['ox'], comp['oy']), matrix)
+        angle = math.degrees(math.atan2(matrix[3], matrix[0]))
+        if shape in ('rect', 'oval') and abs(angle - round(angle / 90) * 90) > 1e-8:
+            shape = 'block'
+        if shape == 'block':
+            # Shape-symbol padstacks can store their dimensions only in the referenced outline.
+            x1, y1, x2, y2 = solid.bounds
+            width, height = x2 - x1, y2 - y1
+        self._primitives.flash(name, solid, centre, shape, width, height, angle)
 
     def _pad_masks(self, stack, matrix, flip, allowed):
         """Mask and paste openings; slot 0 of each pair belongs to the side the padstack is defined on."""
@@ -873,7 +895,10 @@ class AllegroBrdParser:
                 shape = self._comp_shape(comps[slots[i]], '%s of padstack %s' % (kind.lower().strip('_'),
                                                                                   stack['name']))
                 if shape is not None:
-                    self._add(kind + sides[i], self._apply(shape, matrix))
+                    name = kind + sides[i]
+                    solid = self._apply(shape, matrix)
+                    self._add(name, solid)
+                    self._record_pad_component(name, solid, comps[slots[i]], matrix)
 
     # ------------------------------------------------------------------ drills
 
@@ -947,6 +972,8 @@ class AllegroBrdParser:
                     else:
                         effective = self.HAIRLINE
                 solids.append(self._stroke(points, effective))
+                for name in targets:
+                    self._primitives.stroke(name, solids[-1], LineString(points), effective)
                 if len(set(points)) > 1:
                     follows.append(LineString(points))
             for name in targets:
@@ -966,6 +993,7 @@ class AllegroBrdParser:
                     self._warn('zero-track', 'Zero-width tracks on copper layers were skipped')
                 solids.append(self._stroke(points, width))
                 follows.append(LineString(points))
+                self._primitives.stroke(name, solids[-1], follows[-1], width)
             self._add(name, unary_union(solids) if solids else None, follows)
 
     def _shape_polygon(self, o, key):
@@ -1020,6 +1048,8 @@ class AllegroBrdParser:
                     # an outline is a line, however the shape is filled
                     ring = list(polygon.exterior.coords)
                     self._add(name, self._stroke(ring, self.HAIRLINE), lines)
+                    self._primitives.stroke(name, self._stroke(ring, self.HAIRLINE),
+                                            LineString(ring), self.HAIRLINE)
                     continue
                 if name.startswith(('SILKSCREEN', 'ASSEMBLY')):
                     self._warn('shape-fill', 'Shapes on silkscreen and assembly layers are drawn filled')
@@ -1056,6 +1086,7 @@ class AllegroBrdParser:
             line = LineString(ring)
             for name in targets:
                 self._add(name, self._stroke(ring, self.HAIRLINE), [line])
+                self._primitives.stroke(name, self._stroke(ring, self.HAIRLINE), line, self.HAIRLINE)
 
     # ------------------------------------------------------------------ text
 
@@ -1153,12 +1184,16 @@ class AllegroBrdParser:
                 continue
             matrix = self._compose((1.0, 0.0, x, 0.0, 1.0, y), self._rotation(rot))
             solid = self._apply(solid, matrix)
+            stroke_solids = [self._apply(line.buffer(stroke / 2, quad_segs=self._segs(stroke / 2)), matrix)
+                             for line in follows] if self._primitives.enabled else []
             follows = [self._apply(line, matrix) for line in follows]
             for name in targets:
                 if name in self._etch_names:
                     self._warn('text-copper', 'Text on copper layers is drawn with the approximate stroke font; '
                                               'check it before using those layers')
                 self._add(name, solid, follows)
+                for line, stroke_solid in zip(follows, stroke_solids):
+                    self._primitives.stroke(name, stroke_solid, line, stroke)
 
     # ------------------------------------------------------------------ main parse
 
@@ -1234,6 +1269,7 @@ class AllegroBrdParser:
                 'solid_geometry': polygons,
                 'follow_geometry': list(self._follows.get(name, [])),
                 'tools': {0: {'type': 'REG', 'size': 0.0, 'geometry': [{'solid': polygon} for polygon in polygons]}}}
+            self._primitives.finish(name, self.layers[name])
         self.default_layers = [name for name in self.layers if not name.startswith('ASSEMBLY')]
         if self._untested:
             self._strict_gate()

@@ -169,6 +169,7 @@ class PreferencesUIManager(QtCore.QObject):
             "gerber_clean_apertures": self.ui.gerber_pref_form.gerber_gen_group.gerber_clean_cb,
             "gerber_extra_buffering": self.ui.gerber_pref_form.gerber_gen_group.gerber_extra_buffering,
             "gerber_plot_on_select": self.ui.gerber_pref_form.gerber_gen_group.gerber_plot_on_select_cb,
+            "gerber_board_import_mode": self.ui.gerber_pref_form.gerber_gen_group.board_import_radio,
             "gerber_plot_fill": self.ui.gerber_pref_form.gerber_gen_group.fill_color_entry,
             "gerber_plot_line": self.ui.gerber_pref_form.gerber_gen_group.line_color_entry,
             "gerber_plot_line_enable": self.ui.gerber_pref_form.gerber_gen_group.enable_line_cb,

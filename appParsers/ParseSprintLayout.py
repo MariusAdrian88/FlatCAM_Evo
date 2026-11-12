@@ -54,6 +54,7 @@ from shapely import LineString, Point, Polygon, box, set_precision
 from shapely.ops import polygonize, unary_union
 
 from camlib import circle_quad_segs, gerber_circle_steps
+from appParsers.board_primitives import BoardPrimitives
 
 
 class SprintLayoutParseError(ValueError):
@@ -130,6 +131,7 @@ class SprintLayoutParser:
     # ------------------------------------------------------------------ state
 
     def _reset(self):
+        self._primitives = BoardPrimitives(self._options)
         self.layers = {}
         self.drill_groups = {}
         self.warnings = []
@@ -418,6 +420,19 @@ class SprintLayoutParser:
                 else:
                     raise SprintLayoutParseError('SMD pad on unsupported layer %d' % item.layer)
                 self._add_copper(keys, shape, item, (), mask_keys if item.mask else ())
+                if self._primitives.enabled:
+                    minx, miny, maxx, maxy = shape.bounds
+                    pad_width, pad_height = maxx - minx, maxy - miny
+                    native_shape = 'circle' if item.shape == 1 else 'block'
+                    centre = self._mm(item.x, item.y)
+                    for key in keys:
+                        self._primitives.flash(key, shape, centre, native_shape, pad_width, pad_height)
+                    if item.mask:
+                        opening = shape.buffer(self.MASK_EXPANSION,
+                                               quad_segs=self._segs(self.MASK_EXPANSION), join_style=2)
+                        for key in mask_keys:
+                            self._primitives.flash('M' + key[1], opening, centre, native_shape,
+                                                   pad_width + 2 * self.MASK_EXPANSION, pad_height + 2 * self.MASK_EXPANSION)
             else:
                 self._object(item)
 
@@ -487,7 +502,14 @@ class SprintLayoutParser:
         if width <= 0:
             self._skip('zero', 'Zero-width lines were skipped')
         follow = [LineString(points)] if any(point != points[0] for point in points) else []
-        self._place(key, self._stroke(points, width), follow, item, mask)
+        shape = self._stroke(points, width)
+        self._place(key, shape, follow, item, mask)
+        centre_line = follow[0] if follow else Point(points[0])
+        self._primitives.stroke(key, shape, centre_line, width)
+        if self._primitives.enabled and mask and key in ('C1', 'C2'):
+            opening = shape.buffer(self.MASK_EXPANSION,
+                                   quad_segs=self._segs(self.MASK_EXPANSION), join_style=2)
+            self._primitives.stroke('M' + key[1], opening, centre_line, width + 2 * self.MASK_EXPANSION)
 
     def _poly(self, item, key):
         points = self._points(item)
@@ -519,6 +541,19 @@ class SprintLayoutParser:
         if key not in self.COPPER and key != 'O':
             self._approx.add('circles')
         self._place(key, shape, [], item, bool(item.mask))
+        if item.rin == 0:
+            size = 2 * item.rout * self.UNIT
+            self._primitives.flash(key, shape, center, 'circle', size, size)
+        else:
+            radius = (item.rout + item.rin) * self.UNIT / 2
+            follow = LineString(Point(center).buffer(radius, quad_segs=self._segs(radius)).exterior.coords)
+            self._primitives.stroke(key, shape, follow, (item.rout - item.rin) * self.UNIT)
+        if item.mask and key in ('C1', 'C2'):
+            opening = shape.buffer(self.MASK_EXPANSION,
+                                   quad_segs=self._segs(self.MASK_EXPANSION), join_style=2)
+            self._primitives.flash('M' + key[1], opening, center, 'block',
+                                   2 * item.rout * self.UNIT + 2 * self.MASK_EXPANSION,
+                                   2 * item.rout * self.UNIT + 2 * self.MASK_EXPANSION)
 
     # -- drills, outline, finishing
 
@@ -562,6 +597,7 @@ class SprintLayoutParser:
                 'solid_geometry': polygons,
                 'follow_geometry': list(self._follows.get(key, [])),
                 'tools': {0: {'type': 'REG', 'size': 0.0, 'geometry': [{'solid': polygon} for polygon in polygons]}}}
+            self._primitives.finish(key, self.layers[key])
         self.default_layers = [key for key in self.DEFAULT if key in self.layers]
         for message, count in self._skipped.values():
             self.warnings.append('%s (%d)' % (message, count))

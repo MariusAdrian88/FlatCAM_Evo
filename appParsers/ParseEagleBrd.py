@@ -25,6 +25,7 @@ from shapely.ops import polygonize, unary_union
 
 from camlib import circle_quad_segs, gerber_circle_steps
 from appParsers.ParseKiCadPcb import KiCadPcbParser
+from appParsers.board_primitives import BoardPrimitives
 
 
 class EagleBrdParseError(ValueError):
@@ -98,6 +99,7 @@ class EagleBrdParser:
     # ------------------------------------------------------------------ state
 
     def _reset(self):
+        self._primitives = BoardPrimitives(self._options)
         self.layers = {}
         self.drill_groups = {}
         self.warnings = []
@@ -563,14 +565,25 @@ class EagleBrdParser:
             kind = self._kind(number)
             size = max(diameter, self._restring_diameter(drill, kind, 'Pad'))
             outline = self._pad_shape(shape, size, kind, first)
-            self._add(number, self._apply(outline, place))
+            solid = self._apply(outline, place)
+            self._add(number, solid)
+            effective = self._effective_shape(shape, kind, first)
+            length = size * (1 + self._rules['psElongationLong' if effective == 'long' else
+                                            'psElongationOffset'] / 100) if effective in ('long', 'offset') else size
+            flash_centre = self._apply_pt(((length - size) / 2 if effective == 'offset' else 0, 0), place)
+            native_shape = {'round': 'circle', 'square': 'rect', 'long': 'oval', 'offset': 'oval'}.get(effective, 'block')
+            rotation = math.degrees(math.atan2(place[3], place[0]))
+            self._primitives.flash(number, solid, flash_centre, native_shape, length, size, rotation)
             side = 29 if number == self.copper_layers[0] else (30 if number == self.copper_layers[-1] else None)
             if side and stop:
                 minor = min(*self._extent_of(outline))
                 frame = self._frame('Stop', minor, minor)
                 join = self._join(self._effective_shape(shape, kind, first))
                 opening = outline.buffer(frame, quad_segs=self._segs(frame), join_style=join)
-                self._add(side, self._apply(opening, place))
+                opening = self._apply(opening, place)
+                self._add(side, opening)
+                self._primitives.flash(side, opening, flash_centre, native_shape,
+                                       length + 2 * frame, size + 2 * frame, rotation)
 
     def _effective_shape(self, shape, kind, first):
         """Library shape, unless the Shapes design rules (psTop, psBottom, psFirst) force another."""
@@ -621,10 +634,15 @@ class EagleBrdParser:
                 outline = self._octagon(size)
                 outline = affine_transform(outline, (1, 0, 0, 1, x, y))
             self._add(number, outline)
+            self._primitives.flash(number, outline, (x, y), {'round': 'circle', 'square': 'rect'}.get(shape, 'block'),
+                                   size, size)
             side = 29 if number == self.copper_layers[0] else (30 if number == self.copper_layers[-1] else None)
             if side and not (limit > 0 and drill < limit):
                 frame = self._frame('Stop', size, size)
-                self._add(side, outline.buffer(frame, quad_segs=self._segs(frame), join_style=self._join(shape)))
+                opening = outline.buffer(frame, quad_segs=self._segs(frame), join_style=self._join(shape))
+                self._add(side, opening)
+                self._primitives.flash(side, opening, (x, y), {'round': 'circle', 'square': 'rect'}.get(shape, 'block'),
+                                       size + 2 * frame, size + 2 * frame)
 
     def _smd(self, node, xf, mirror):
         x, y = self._attr(node, 'x'), self._attr(node, 'y')
@@ -654,18 +672,29 @@ class EagleBrdParser:
             raise EagleBrdParseError('SMD pad "%s" has a mirrored rotation' % node.get('name', ''))
         place = self._compose(xf, self._matrix(x, y, angle, False))
         outline = self._rounded_box(dx, dy, radius)
-        self._add(number, self._apply(outline, place))
+        solid = self._apply(outline, place)
+        self._add(number, solid)
+        centre = self._apply_pt((0, 0), place)
+        rotation = math.degrees(math.atan2(place[3], place[0]))
+        native_shape = 'rect' if radius == 0 else 'oval' if radius == smaller / 2 else 'block'
+        self._primitives.flash(number, solid, centre, native_shape, dx, dy, rotation)
         join = 'round' if radius > 0 else 'mitre'
         top = number == self.copper_layers[0]
         if node.get('stop', 'yes') != 'no':
             frame = self._frame('Stop', dx, dy)
             opening = outline.buffer(frame, quad_segs=self._segs(frame), join_style=join)
-            self._add(29 if top else 30, self._apply(opening, place))
+            opening = self._apply(opening, place)
+            self._add(29 if top else 30, opening)
+            self._primitives.flash(29 if top else 30, opening, centre, native_shape,
+                                   dx + 2 * frame, dy + 2 * frame, rotation)
         if node.get('cream', 'yes') != 'no':
             frame = self._frame('Cream', dx, dy)
             paste = outline.buffer(-frame, quad_segs=self._segs(-frame), join_style=join) if frame else outline
             if not paste.is_empty:
-                self._add(31 if top else 32, self._apply(paste, place))
+                paste = self._apply(paste, place)
+                self._add(31 if top else 32, paste)
+                self._primitives.flash(31 if top else 32, paste, centre, native_shape,
+                                       dx - 2 * frame, dy - 2 * frame, rotation)
 
     def _hole(self, node, xf):
         x, y = self._attr(node, 'x'), self._attr(node, 'y')
@@ -744,6 +773,8 @@ class EagleBrdParser:
         if solid.is_empty and not follow:
             return
         self._add(number, solid, follow, strict=where == 'signal')
+        if not (curve and node.get('cap', 'round') == 'flat'):
+            self._primitives.stroke(number, solid, follow[0] if follow else Point(points[0]), width)
 
     def _circle(self, node, xf, mirror):
         number = self._layer_of(node, mirror)
@@ -760,6 +791,10 @@ class EagleBrdParser:
             solid = self._disc(radius + width / 2, centre).difference(
                 self._disc(max(radius - width / 2, 0), centre))
         self._add(number, solid, [ring])
+        if width == 0:
+            self._primitives.flash(number, solid, centre, 'circle', 2 * radius, 2 * radius)
+        else:
+            self._primitives.stroke(number, solid, ring, width)
 
     def _rectangle(self, node, xf, mirror):
         number = self._layer_of(node, mirror)
@@ -773,6 +808,8 @@ class EagleBrdParser:
                 (1.0, 0.0, -(x1 + x2) / 2, 0.0, 1.0, -(y1 + y2) / 2)))
         shape = self._apply(shape, xf)
         self._add(number, shape, [LineString(list(shape.exterior.coords))] if not shape.is_empty else None)
+        self._primitives.flash(number, shape, self._apply_pt(((x1 + x2) / 2, (y1 + y2) / 2), xf),
+                               'block', abs(x2 - x1), abs(y2 - y1))
 
     def _polygon(self, node, xf, mirror):
         number = self._layer_of(node, mirror)
@@ -882,6 +919,13 @@ class EagleBrdParser:
         if solid.is_empty:
             return
         self._add(number, self._apply(solid, place), [self._apply(line, place) for line in follows])
+        if self._primitives.enabled:
+            width = size * ratio / 100
+            placed_solid = self._apply(solid, place)
+            for line in follows:
+                stroke = line.buffer(width / 2, quad_segs=engine._segs(width / 2))
+                self._primitives.stroke(number, self._apply(stroke, place).intersection(placed_solid),
+                                        self._apply(line, place), width)
 
     # ------------------------------------------------------------------ elements
 
@@ -955,6 +999,7 @@ class EagleBrdParser:
                 'solid_geometry': polygons,
                 'follow_geometry': list(self._follows.get(number, [])),
                 'tools': {0: {'type': 'REG', 'size': 0.0, 'geometry': [{'solid': polygon} for polygon in polygons]}}}
+            self._primitives.finish(number, self.layers[self._name_of(number)])
         self.copper_layers = [self._name_of(number) for number in self.copper_layers]
         defaults = [self._name_of(number) for number in self.DEFAULT_TECH]
         self.default_layers = [name for name in self.layers if name in self.copper_layers or name in defaults]

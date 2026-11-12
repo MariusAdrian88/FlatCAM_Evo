@@ -50,6 +50,7 @@ from shapely.ops import polygonize, unary_union
 from shapely.validation import make_valid
 
 from camlib import circle_quad_segs, gerber_circle_steps
+from appParsers.board_primitives import BoardPrimitives
 
 PROFILE_WIDTH_MM = 0.01
 MAX_BYTES = 1 << 29                 # file, or the XML of an archive
@@ -167,6 +168,10 @@ class IPC2581Parser:
         self._reset()
 
     def _reset(self):
+        self._primitives = BoardPrimitives(self._options)
+        self._primitive_buffer = None
+        self._last_primitives = []
+        self._primitive_cache = {}
         self.source_kind = 'ipc2581'
         self.layers = {}
         self.drill_groups = {}
@@ -644,13 +649,19 @@ class IPC2581Parser:
             self._follow_buffer.append(LineString(clean))
         if len(clean) == 1:
             if end == 'ROUND':
-                return Point(clean[0]).buffer(radius, quad_segs=self._quad(radius))
+                solid = Point(clean[0]).buffer(radius, quad_segs=self._quad(radius))
+                if self._primitive_buffer is not None:
+                    self._primitive_buffer.append(('stroke', solid, Point(clean[0]), width, width, 0.0))
+                return solid
             if end == 'SQUARE':
                 return box(clean[0][0] - radius, clean[0][1] - radius, clean[0][0] + radius, clean[0][1] + radius)
             return Polygon()
         cap = {'ROUND': 1, 'SQUARE': 3}.get(end, 2)
-        return LineString(clean).buffer(radius, quad_segs=self._quad(radius), cap_style=cap,
+        solid = LineString(clean).buffer(radius, quad_segs=self._quad(radius), cap_style=cap,
                                         join_style=1 if end == 'ROUND' else 2)
+        if end == 'ROUND' and self._primitive_buffer is not None:
+            self._primitive_buffer.append(('stroke', solid, LineString(clean), width, width, 0.0))
+        return solid
 
     def _stroke_node(self, node, factor):
         tag = _local(node)
@@ -676,7 +687,29 @@ class IPC2581Parser:
             return Polygon()
         return self._stroke(points + [points[0]], line)
 
-    def _feature(self, node, factor):
+    def _feature(self, node, factor, source_pad=False):
+        if not self._primitives.enabled:
+            return self._feature_geometry(node, factor)
+        parent = self._primitive_buffer
+        self._primitive_buffer = []
+        try:
+            result = self._feature_geometry(node, factor)
+            records = self._primitive_buffer
+            tag = _local(node)
+            if (source_pad and tag == 'UserSpecial') or (
+                    not records and (source_pad or tag not in STROKES + ('Polygon', 'Contour', 'UserSpecial'))):
+                solid = result[0]
+                if not solid.is_empty:
+                    x0, y0, x1, y1 = solid.bounds
+                    records = [('block', solid, Point(0, 0), x1 - x0, y1 - y0, 0.0)]
+        finally:
+            self._primitive_buffer = parent
+        if parent is not None:
+            parent.extend(records)
+        self._last_primitives = records
+        return result
+
+    def _feature_geometry(self, node, factor):
         """(geometry at its own origin in mm, negative) of one feature element."""
         tag = _local(node)
         if tag in ('StandardPrimitiveRef', 'UserPrimitiveRef'):
@@ -692,10 +725,13 @@ class IPC2581Parser:
                 self._set_line = self._set_fill = self._follow_buffer = None
                 self._resolving.add((tag, key))
                 try:
-                    self._cache[(tag, key)] = self._feature(entry[0], entry[1])
+                    self._cache[(tag, key)] = self._feature(entry[0], entry[1], source_pad=True)
+                    self._primitive_cache[(tag, key)] = self._last_primitives
                 finally:
                     self._resolving.discard((tag, key))
                     self._set_line, self._set_fill, self._follow_buffer = saved
+            elif self._primitive_buffer is not None:
+                self._primitive_buffer.extend(self._primitive_cache.get((tag, key), []))
             return self._cache[(tag, key)]
         if tag == 'UserSpecial':
             items = [self._feature(child, factor) for child in _children(node)
@@ -711,7 +747,33 @@ class IPC2581Parser:
             raise _Unsupported('Text')
         geometry, carrier = self._base_shape(node, factor)
         line, fill = self._descs(carrier, factor)
-        return self._decorate(geometry, line, fill)
+        result = self._decorate(geometry, line, fill)
+        if self._primitive_buffer is not None and not (line and line[0] > 0) and fill in (None, 'FILL', 'VOID'):
+            kind = {'Circle': 'circle', 'RectCenter': 'rect', 'RectCorner': 'rect', 'Oval': 'oval'}.get(tag)
+            if kind:
+                if tag == 'Circle':
+                    w = h = self._number(node, 'diameter', factor)
+                    centre = Point(0, 0)
+                elif tag == 'RectCorner':
+                    x0, y0 = self._number(node, 'lowerLeftX', factor), self._number(node, 'lowerLeftY', factor)
+                    x1, y1 = self._number(node, 'upperRightX', factor), self._number(node, 'upperRightY', factor)
+                    w, h, centre = abs(x1 - x0), abs(y1 - y0), Point((x0 + x1) / 2, (y0 + y1) / 2)
+                else:
+                    w, h = self._number(node, 'width', factor), self._number(node, 'height', factor)
+                    centre = Point(0, 0)
+                self._primitive_buffer.append((kind, geometry, centre, w, h, 0.0))
+        return result
+
+    def _place_primitives(self, records, xf, at):
+        mirror, scale, rotation, _dx, _dy = xf if xf else (False, 1.0, 0.0, 0.0, 0.0)
+        placed = []
+        for kind, solid, path, w, h, angle in records:
+            angle = rotation + (180 - angle if mirror else angle)
+            if kind in ('rect', 'oval') and abs(angle / 90 - round(angle / 90)) > 1e-10:
+                kind = 'block'
+            placed.append((kind, self._apply(solid, xf, at), self._apply(path, xf, at),
+                           w * scale, h * scale, angle))
+        return placed
 
     @staticmethod
     def _merge(items):
@@ -793,7 +855,7 @@ class IPC2581Parser:
             info = layer_info[name]
             if info['kind'] is None:
                 continue
-            entry = built.setdefault(name, {'items': [], 'follow': [], 'holes': []})
+            entry = built.setdefault(name, {'items': [], 'follow': [], 'holes': [], 'primitives': []})
             for node in _children(feature_layer):
                 if _local(node) == 'Set':
                     self._read_set(node, info, entry)
@@ -818,6 +880,11 @@ class IPC2581Parser:
                 outline_lines.extend(entry['follow'])
             if not polygons and not entry['follow']:
                 continue
+            for shape, solid, path, w, h, angle in entry['primitives']:
+                if shape == 'stroke':
+                    self._primitives.stroke(name, solid, path, w)
+                else:
+                    self._primitives.flash(name, solid, path, shape, w, h, angle)
             self._add_layer(name, polygons, entry['follow'])
             if kind in DEFAULT_ON:
                 self.default_layers.append(name)
@@ -837,6 +904,7 @@ class IPC2581Parser:
         self.layers[name] = {'name': name, 'solid_geometry': polygons, 'follow_geometry': follow,
                              'tools': {0: {'type': 'REG', 'size': 0.0,
                                            'geometry': [{'solid': polygon} for polygon in polygons]}}}
+        self._primitives.finish(name, self.layers[name])
 
     def _outline_from_lines(self, lines):
         faces = list(polygonize(unary_union(lines)))
@@ -916,7 +984,9 @@ class IPC2581Parser:
         if feature is None:
             self._padstack_pad(node, info, entry, set_negative, at, xf)
             return
-        geometry, void = self._feature(feature, factor)
+        geometry, void = self._feature(feature, factor, source_pad=True)
+        if not (set_negative or void) or info['polarity'] == 'NEGATIVE':
+            entry['primitives'].extend(self._place_primitives(self._last_primitives, xf, at))
         self._add_item(entry, self._apply(geometry, xf, at), set_negative or void)
 
     def _padstack_pad(self, node, info, entry, set_negative, at, xf):
@@ -929,10 +999,13 @@ class IPC2581Parser:
             location = next((c for c in _children(pad) if _local(c) == 'Location'), None)
             if feature is None or location is None:
                 continue
-            geometry, void = self._feature(feature, factor)
-            inner = self._apply(geometry, self._xform(next((c for c in _children(pad)
-                                                            if _local(c) == 'Xform'), None), factor),
-                                (self._number(location, 'x', factor), self._number(location, 'y', factor)))
+            geometry, void = self._feature(feature, factor, source_pad=True)
+            inner_xf = self._xform(next((c for c in _children(pad) if _local(c) == 'Xform'), None), factor)
+            inner_at = (self._number(location, 'x', factor), self._number(location, 'y', factor))
+            inner = self._apply(geometry, inner_xf, inner_at)
+            if not (set_negative or void) or info['polarity'] == 'NEGATIVE':
+                records = self._place_primitives(self._last_primitives, inner_xf, inner_at)
+                entry['primitives'].extend(self._place_primitives(records, xf, at))
             self._add_item(entry, self._apply(inner, xf, at), set_negative or void)
 
     def _read_features(self, node, entry, set_negative, factor, follow_on):
@@ -954,6 +1027,7 @@ class IPC2581Parser:
             vertices = max(1, sum(len(p.exterior.coords) for p in _polygons(geometry)))
             self._spend(vertices * len(placements) if len(placements) > 1 else 0)
             for at in placements:
+                entry['primitives'].extend(self._place_primitives(self._last_primitives, xf, at))
                 self._add_item(entry, self._apply(geometry, xf, at), set_negative or void)
                 for line in lines:
                     entry['follow'].append(self._apply(line, xf, at))

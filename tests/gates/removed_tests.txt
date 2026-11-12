@@ -3744,3 +3744,7 @@ tests/test_preprocessors_no_swallowed_errors.py::test_a_changed_parent_start_blo
 tests/test_preprocessors_no_swallowed_errors.py::test_sinumerik_has_no_fanuc_program_envelope  # prune 2026-11-10: folded into test_sinumerik_iso_program_ends_with_m30_without_returning_to_siemens_mode
 tests/test_preprocessors_no_swallowed_errors.py::test_tinyg_dwell_is_decimal_seconds  # prune 2026-11-10: folded into test_buildbotics_dwell_and_spindle_match_the_camotics_interpreter (TinyG loop)
 tests/test_plotcanvas3d.py::TestPlotCanvas3d::test_2d_non_pan_input_keeps_the_existing_throttle  # prune 2026-11-10: pinned exact throttle timings and handled flags of the camera, not a visible result
+tests/test_gerber_transform_export.py::TestUntransformedAndMixedFixtures::test_untransformed_p_and_macro_round_trip_through_the_regions[AM]  # 2026-11-12: renamed to test_untransformed_p_and_macro_flashes_stay_flashes[AM] (flashes are now kept)
+tests/test_proteus_import.py::test_ordinary_native_pad_openings_follow_actual_side_and_radial_guard[0-RSMPAD-mask_extensions0-GTP]  # 2026-11-12: new 'mode' parameter (regions/primitives) changed the id
+tests/test_proteus_import.py::test_ordinary_native_pad_openings_follow_actual_side_and_radial_guard[1152921504606846976-RSMPAD-mask_extensions2-None]  # 2026-11-12: new 'mode' parameter (regions/primitives) changed the id
+tests/test_proteus_import.py::test_ordinary_native_pad_openings_follow_actual_side_and_radial_guard[9223372036854841343-CPAD-mask_extensions1-None]  # 2026-11-12: new 'mode' parameter (regions/primitives) changed the id

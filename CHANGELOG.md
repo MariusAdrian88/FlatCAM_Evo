@@ -18,6 +18,13 @@ Gerber export:
 Gerber editor:
 
 - added: a 3rd load mode "Native" in Preferences > Gerber > Editor (the new default); the editor keeps the clear objects (drawn with a red outline) and saves all objects in the order of the file
+- changed: the Pad and Pad Array tools place a copy of a source flash of the selected aperture (also a block aperture or a pad of a board import); if the flashes of the aperture have different shapes, the tool asks to select 1 of them; the pads of a pad array keep the clear part of the source flash
+
+Board import:
+
+- added: the option "Native board import" in Preferences > Gerber > General: "Preserve primitives" (the new default) or "Regions"; with "Preserve primitives", the pads, vias and tracks of a board become Gerber flashes (C, R, O or a block aperture) and strokes, and the rest of the copper stays regions
+- changed: the KiCad, Eagle, Altium (PcbDoc and CircuitStudio), Allegro (17.x and 16.x), DipTrace, Proteus, PADS, Sprint Layout, EasyEDA Pro, IPC-2581 and ODB++ imports keep the primitives of each layer; a feature that a cutout or a negative layer clips stays a region, so the copper does not change
+- changed: the Gerber export of such an object writes its flashes and strokes and not only regions; the option affects only new board imports, a Gerber file import does not change
 
 Panelize:
 

@@ -166,6 +166,16 @@ class GerberGenPrefGroupUI(OptionsGroupUI):
         )
         param_grid.addWidget(self.gerber_plot_on_select_cb, 4, 0, 1, 3)
 
+        self.board_import_label = FCLabel('%s:' % _('Native board import'))
+        self.board_import_radio = RadioSet([{'label': _('Regions'), 'value': 'regions'},
+                                           {'label': _('Preserve primitives'), 'value': 'primitives'}], compact=True)
+        self.board_import_radio.setToolTip(
+            _('Import native PCB layers as regions, or preserve source pads, vias and tracks (default)\n'
+              'as Gerber aperture flashes and strokes where supported. Complex or clipped features remain regions.\n'
+              'This affects new board imports only; ordinary Gerber imports are unchanged.'))
+        param_grid.addWidget(self.board_import_label, 6, 0, 1, 3)
+        param_grid.addWidget(self.board_import_radio, 7, 0, 1, 3)
+
         # #############################################################################################################
         # Layers Frame
         # #############################################################################################################

@@ -316,6 +316,7 @@ class AppDefaults:
         "gerber_clean_apertures": True,
         "gerber_extra_buffering": False,
         "gerber_plot_on_select": True,
+        "gerber_board_import_mode": 'primitives',
 
         "gerber_plot_fill": '#BBF268BF',
         "gerber_plot_line_enable": True,

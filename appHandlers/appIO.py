@@ -801,6 +801,7 @@ class appIO(QtCore.QObject):
                         if layer_extension is not None:
                             obj.obj_options['proteus_layer_extension'] = layer_extension
                         if object_kind == 'gerber':
+                            obj.obj_options['pcbdoc_primitives'] = source.get('preserve_primitives', False)
                             obj.tools = converted(source['tools'])
                             obj.solid_geometry = converted(source['solid_geometry'])
                             obj.follow_geometry = converted(source['follow_geometry'])

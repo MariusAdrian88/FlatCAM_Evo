@@ -91,6 +91,21 @@ class TestKiCadPcbVias(unittest.TestCase):
         self.assertEqual(list(parser.drill_groups), ['PTH_F.Cu-In1.Cu'])
 
 class TestKiCadPcbPads(unittest.TestCase):
+    def test_rotated_and_rounded_source_flashes_survive_on_all_pad_layers(self):
+        parser = parse(footprint(''.join(
+            '(pad "%d" smd %s (at %d 2 35) (size 2 1) %s '
+            '(layers "F.Cu" "F.Mask" "F.Paste"))' % (index, shape, index * 4, extra)
+            for index, (shape, extra) in enumerate((('rect', ''), ('oval', ''),
+                                                    ('roundrect', '(roundrect_rratio 0.25)'))))))
+        for layer in ('F.Cu', 'F.Mask', 'F.Paste'):
+            records = [record for tool in parser.layers[layer]['tools'].values()
+                       if tool['type'] == 'AB' for record in tool['geometry']]
+            self.assertEqual(len(records), 3, layer)
+            self.assertEqual([(r['follow'].x, r['follow'].y) for r in records],
+                             [(0, -2), (4, -2), (8, -2)])
+            self.assertLess(unary_union([r['solid'] for r in records]).symmetric_difference(
+                geo(parser, layer)).area, 1e-12)
+
     def test_pad_shapes_have_expected_outlines(self):
         cases = {
             'circle': ('(size 2 2)', circle_area(1)),
