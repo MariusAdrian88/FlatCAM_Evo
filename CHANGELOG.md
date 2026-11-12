@@ -6,6 +6,15 @@ Based on FlatCAM:
 
 CHANGELOG for FlatCAM Evo
 
+13.11.2026
+
+Translations:
+
+- updated: the translation template and the strings in all languages
+- changed: the splash screen images (light and dark theme)
+- updated the version string
+- RELEASE 1.08
+
 12.11.2026
 
 Gerber export:
@@ -45,6 +54,12 @@ Panelize:
 - changed: the DXF writer fits the arcs incrementally and keeps a fit cache per document; the region export of a Gerber joins the regions with Clipper2 only when they touch
 - fixed: macOS: the free memory counted the purgeable pages 2 times, so the "Large panel" question came too late
 - changed: the arc fit cache of the DXF writer keeps 20000 paths at most
+- changed: a big Geometry panel is much faster: its DXF source writes 1 copy as a block and an INSERT for each copy; a panel of 49 copies of a board with 1658 paths went from 22.1 s to 0.8 s and its source from 14.8 MB to 316 KB
+- changed: a Gerber panel takes the export plan of its source, moved to each copy, if the copies cannot touch; the 49 copy panel of a 286 KB Gerber went from 3.9 s to 2.5 s
+- changed: the native Gerber export writes the tracks and flashes of an aperture and the outlines of the regions in batches
+- changed: the slots of an Excellon panel are made once for each tool and moved to each copy (with 200 slots: 3.5 times faster)
+- changed: the paths of a Geometry panel are merged once from the source paths when the copies cannot touch
+- fixed: an Excellon panel made its drill circles before it took the units of the source, so the circles of an inch file could get the wrong number of segments
 
 Distance:
 
@@ -61,6 +76,14 @@ Welcome screen:
 Startup:
 
 - changed: the DeprecationWarning of PyOpenGL about '__version__' is not shown at the start any more
+
+Plot:
+
+- changed: the plot of a panel takes the triangulation of its source also for a source with many tools; if the source has no plot, a panel of 8 or more copies prepares 1 copy and moves it to the others; at 49 copies a Gerber panel plot went from 10.0 s to 0.8 s, a Geometry panel from 3.9 s to 0.7 s and an Excellon panel from 4.6 s to 0.3 s
+- changed: the canvas joins the shape buffers faster (the colors of a layer in 1 step); a new plot of a big object is about 2 times faster
+- changed: the outline plot of an Excellon object is made in 1 batch
+- fixed: the canvas could draw while the background update changed the buffers, and the frame (with the HUD) was not drawn
+- fixed: a canvas layer whose buffers do not fit is skipped and the rest of the frame is drawn; the error is in the log 1 time
 
 11.11.2026
 
