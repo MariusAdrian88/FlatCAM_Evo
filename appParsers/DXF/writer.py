@@ -24,6 +24,8 @@ MIN_ARC_POINTS = 4
 # A cached arc fit is used for a path only if the shape of the path differs from the cached shape by not more than
 # this part of the fit tolerance.
 CACHE_SHAPE_PART = 1e-3
+# The cache holds a key and a shape copy per distinct path: it stops growing at this many entries.
+MAX_CACHE_ENTRIES = 20000
 MIN_CIRCLE_POINTS = 8
 
 
@@ -262,7 +264,9 @@ class _Writer:
             elif hit is None:
                 kind, fit = self._fit(pts, closed)
                 x0, y0 = pts[0]
-                if kind == 'C':
+                if len(self.cache) >= MAX_CACHE_ENTRIES:
+                    pass                                  # full: later paths are fitted, not cached (same output)
+                elif kind == 'C':
                     self.cache[key] = ('C', (fit[0] - x0, fit[1] - y0, fit[2]), shape)
                 else:
                     self.cache[key] = ('P', fit, shape)

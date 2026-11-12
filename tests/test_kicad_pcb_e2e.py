@@ -439,5 +439,34 @@ def test_clipped_source_feature_falls_back_without_losing_overlaps_holes_or_isla
     assert target.symmetric_difference(_union(reloaded.solid_geometry)).area < 0.002
 
 
+@pytest.mark.parametrize('pads', [1, 70])      # 1: the GEOS path, 70: the Clipper2 path (64 shapes or more)
+def test_pads_in_a_pour_stay_connected_to_it_in_the_exported_gerber(tmp_path, pads):
+    from appParsers.board_primitives import BoardPrimitives
+    from shapely.geometry import box
+
+    app = _app('MM')
+    app.options['gerber_board_import_mode'] = 'primitives'
+    recorder = BoardPrimitives(app.options)
+    pour = box(0, 0, 40, 40)
+    # off the 4-decimal export grid, so the export rounds the region vertices and the flash positions differently
+    centres = [(1.234567 + 3.7 * (i % 10), 1.765432 + 3.7 * (i // 10)) for i in range(pads)]
+    for x, y in centres:
+        recorder.flash('top', Point(x, y).buffer(0.6, quad_segs=16), (x, y), 'circle', 1.2, 1.2)
+    result = {'solid_geometry': [pour], 'tools': {}}
+    recorder.finish('top', result)
+    assert sum(isinstance(r.get('follow'), Point) for t in result['tools'].values() for r in t['geometry']) == pads
+    obj = NativeGerberObject('pour', app)
+    obj.obj_options.update(pcbdoc_import=True, pcbdoc_primitives=True)
+    obj.records_in_order = True
+    obj.tools, obj.solid_geometry = result['tools'], [pour]
+    filename = tmp_path / 'pour.gbr'
+    filename.write_text(appIO(app).export_gerber('pour', str(filename), local_use=obj, use_thread=False))
+    reloaded = Gerber(app)
+    assert reloaded.parse_file(str(filename)) != 'fail'
+    # one copper island: no pad is cut off from the pour by a hairline gap
+    copper = _union(reloaded.solid_geometry)
+    assert copper.geom_type == 'Polygon' and not copper.interiors
+
+
 if __name__ == '__main__':
     unittest.main()

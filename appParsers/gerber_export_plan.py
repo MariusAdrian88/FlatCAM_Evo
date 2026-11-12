@@ -263,7 +263,8 @@ def build_export_plan(obj, first_block_code=None):
     from appParsers.ParseGerber import Gerber, _is_rectangle_flash
 
     tools = getattr(obj, 'tools', None) or {}
-    ordered = Gerber.records_in_file_order(obj)
+    # a region with holes is written as hole-free pieces below, so it does not make the order unknown
+    ordered = Gerber.records_in_file_order(obj, allow_region_holes=True)
     # export_as_regions: the records may no longer describe the copper, solid_geometry is the truth
     trusted = ordered is not None and not getattr(obj, 'export_as_regions', False)
     if ordered is None:

@@ -26,7 +26,9 @@ class PreferencesUIManager(QtCore.QObject):
     # the colours kept as '#RRGGBBAA': their alpha (the characters 7:9) is set with an alpha slider
     alpha_color_keys = ('gerber_plot_fill', 'gerber_plot_line', 'excellon_plot_fill', 'excellon_plot_line',
                         'cncjob_travel_fill', 'cncjob_travel_line', 'global_sel_fill', 'global_sel_line',
-                        'global_alt_sel_fill', 'global_alt_sel_line')
+                        'global_alt_sel_fill', 'global_alt_sel_line',
+                        'tools_dist_app_color_light', 'tools_dist_app_color_dark',
+                        'tools_dist_editor_color_light', 'tools_dist_editor_color_dark')
 
     def __init__(self, defaults: AppDefaults, data_path: str, ui, inform, options):
         """

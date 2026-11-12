@@ -1390,7 +1390,7 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
             self.app.log.error("%s.export_dxf() -> %s" % (type(self).__name__, str(e)))
             return None
 
-    def export_gerber(self, whole, fract, g_zeros='L', factor=1, parts=False):
+    def export_gerber(self, whole, fract, g_zeros='L', factor=1, parts=False, use_plan=None):
         """
         Creates a Gerber file content to be exported to a file.
 
@@ -1400,6 +1400,10 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
         :param factor: factor to be applied onto the Gerber coordinates
         :param parts: True: return (definitions of the block apertures, body) instead of one text, so a Step and
                       Repeat block can hold the body only
+        :param use_plan: True: write the records through the export plan; False: write per aperture; None: decide
+                         here (``Gerber.uses_record_plan``). A caller that needs the type of the result (a tuple for
+                         ``parts``) decides once and passes its decision, so a change of the object in between can
+                         not give another writer.
         :return: Gerber_code
         """
         # self.app.log.debug("GerberObject.export_gerber() --> Generating the Gerber code from the selected Gerber file")
@@ -1484,7 +1488,9 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
         # clear objects, each flash keeps its flash point. (Per aperture, as below, a clear object would erase the
         # wrong objects, and the region export keeps no flash.) The block apertures are definitions: they are returned
         # apart for a caller that puts the body in a Step and Repeat block.
-        if Gerber.uses_record_plan(self):
+        if use_plan is None:
+            use_plan = Gerber.uses_record_plan(self)
+        if use_plan:
             from appParsers.gerber_export_plan import build_export_plan
             plan = build_export_plan(self)
             definitions = []

@@ -14,17 +14,27 @@ Gerber export:
 - changed: a move, rotation, mirror, scale, skew, copy and a panel whose copies do not touch keep the order of the file; a buffer, the Gerber editor, a join or a plugin that changes the objects make the export compose the objects again
 - added: if the order of the objects is not known, the export still keeps each object (a C, R or O aperture, a block aperture %AB for any other flash, regions without holes for the rest) and adds clear and dark patch regions, so the file gives the same copper; only the PCB document imports are still exported as regions
 - added: the project file saves the order state of a Gerber object; a project of an older version loads with the order unknown
+- fixed: the block apertures (%AB) got the aperture attributes (%TA) of the last C, R or O aperture; the export now clears them (%TD) before the block apertures
+- fixed: the export decided its method 2 times (before the export and in the worker); a change of the object between the 2 decisions left the block apertures out of the file
+- changed: a region with holes does not make the order of the objects unknown any more; the export of such a file is about 10 times faster (3000 flashes and 20 regions with holes: 0.75 s -> 0.06 s)
 
 Gerber editor:
 
 - added: a 3rd load mode "Native" in Preferences > Gerber > Editor (the new default); the editor keeps the clear objects (drawn with a red outline) and saves all objects in the order of the file
 - changed: the Pad and Pad Array tools place a copy of a source flash of the selected aperture (also a block aperture or a pad of a board import); if the flashes of the aperture have different shapes, the tool asks to select 1 of them; the pads of a pad array keep the clear part of the source flash
+- fixed: the Native load of an object whose order is not known (a project of an older version, an object after a buffer, a join or a plugin) changed the copper when the editor saved it; the editor now uses the Apertures load for such an object
+- fixed: a copy made with the Move tool kept the place of its source in the file order, so a later clear object could erase the copy
+- fixed: the Pad and Pad Array tools copied the object attributes (pin, net) of the source flash to the new pads
+- changed: the preview of the Pad Array tool makes the pad template once for each preview, not once for each pad
 
 Board import:
 
 - added: the option "Native board import" in Preferences > Gerber > General: "Preserve primitives" (the new default) or "Regions"; with "Preserve primitives", the pads, vias and tracks of a board become Gerber flashes (C, R, O or a block aperture) and strokes, and the rest of the copper stays regions
 - changed: the KiCad, Eagle, Altium (PcbDoc and CircuitStudio), Allegro (17.x and 16.x), DipTrace, Proteus, PADS, Sprint Layout, EasyEDA Pro, IPC-2581 and ODB++ imports keep the primitives of each layer; a feature that a cutout or a negative layer clips stays a region, so the copper does not change
 - changed: the Gerber export of such an object writes its flashes and strokes and not only regions; the option affects only new board imports, a Gerber file import does not change
+- changed: a board import with "Preserve primitives" is faster: the CircuitStudio board of the tests (5.4 MB) went from about 25 s to about 9 s for the parse (version 1.07 with regions: 6.3 s) and from 7.9 s to 2.8 s for the objects; the layer copper is not joined a second time, Clipper2 finds the features that a cutout clips and makes the regions, and the Gerber export trusts the records of the import
+- fixed: in the exported Gerber a pad or a track in a copper pour only touched the region of the pour, and the rounding of the export could open a hairline gap (about 1e-7 mm) that cut the pad off the pour; the regions now overlap the features they touch by 5 µm, the copper does not change
+- fixed: Proteus: the primitives of a layer renamed to "Mechanical N" were lost and the layer was exported as regions
 
 Panelize:
 
@@ -33,12 +43,16 @@ Panelize:
 - changed: the copies of a Gerber panel are moved in one batch, the panel geometry of a Geometry object is moved once, the panel reuses the plot of the source object, and the panel lines of the source are merged once
 - changed: a Gerber with clear objects moves the region polygons of the source to each copy and does not join all the copies; the union does not stop the window any more
 - changed: the DXF writer fits the arcs incrementally and keeps a fit cache per document; the region export of a Gerber joins the regions with Clipper2 only when they touch
+- fixed: macOS: the free memory counted the purgeable pages 2 times, so the "Large panel" question came too late
+- changed: the arc fit cache of the DXF writer keeps 20000 paths at most
 
 Distance:
 
 - added: "Snap to vertex" snaps to the end points and the vertices of the traces (Gerber lines)
 - added: a Distance page in Preferences > Plugins, with the line width (1 to 10 px; the arrowheads grow with it), the text size, a bold text option and the color of the dimension lines; each color has an App Color and an Editor Color, for the light canvas and for the dark canvas (the Dark theme or the Dark Canvas option)
 - changed: the default Editor Color is dark orange on a light canvas and green on a dark canvas, so the dimension lines contrast with the black or white shapes and the blue selection of the editors
+- fixed: an empty or a partial color in the Distance preferences stopped each measurement with an error; the colors are now checked, and a bad color falls back to the default
+- fixed: the color of the dimension lines followed the theme options and not the canvas on the screen, so after a theme change without a restart a light canvas got the dark canvas color
 
 Welcome screen:
 
@@ -47,6 +61,10 @@ Welcome screen:
 Startup:
 
 - changed: the DeprecationWarning of PyOpenGL about '__version__' is not shown at the start any more
+
+GitHub:
+
+- fixed: the translation issue template linked to a document that was removed
 
 11.11.2026
 

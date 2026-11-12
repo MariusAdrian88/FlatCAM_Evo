@@ -802,6 +802,9 @@ class appIO(QtCore.QObject):
                             obj.obj_options['proteus_layer_extension'] = layer_extension
                         if object_kind == 'gerber':
                             obj.obj_options['pcbdoc_primitives'] = source.get('preserve_primitives', False)
+                            # the preserved records are numbered dark records (BoardPrimitives.finish): their
+                            # order is known, so the export trusts them
+                            obj.records_in_order = bool(source.get('preserve_primitives', False))
                             obj.tools = converted(source['tools'])
                             obj.solid_geometry = converted(source['solid_geometry'])
                             obj.follow_geometry = converted(source['follow_geometry'])
@@ -2871,6 +2874,11 @@ class appIO(QtCore.QObject):
                             height=(factor * obj.tools[apid]['height'])
                         )
 
+                # the aperture attributes stay set for every aperture defined after them: the block apertures
+                # (%ABD) are written after the header and must not inherit the last aperture's attributes
+                for line in attribute_changes('TA', ta_state, {}):
+                    header += line + '\n'
+
                 header += '\n'
 
                 # obsolete units but some software may need it
@@ -2893,11 +2901,11 @@ class appIO(QtCore.QObject):
                 try:
                     if use_plan:
                         definitions, gerber_code = obj.export_gerber(g_whole, g_fract, g_zeros=g_zeros, factor=factor,
-                                                                     parts=True)
+                                                                     parts=True, use_plan=True)
                     elif use_regions:
                         # Union overlaps so region holes don't clear other solids. Draw islands last.
                         obj.tools = Gerber.region_export_tools(obj)
-                        gerber_code = obj.export_gerber(g_whole, g_fract, g_zeros='L', factor=factor)
+                        gerber_code = obj.export_gerber(g_whole, g_fract, g_zeros='L', factor=factor, use_plan=False)
                         if g_zeros == 'T':
                             # Pad the magnitude, not the sign, for valid negative region coordinates.
                             gerber_code = re.sub(
@@ -2905,7 +2913,8 @@ class appIO(QtCore.QObject):
                                 lambda match: '%s%s%s' % (match[1], match[2], match[3].zfill(g_whole + g_fract)),
                                 gerber_code)
                     else:
-                        gerber_code = obj.export_gerber(g_whole, g_fract, g_zeros=g_zeros, factor=factor)
+                        gerber_code = obj.export_gerber(g_whole, g_fract, g_zeros=g_zeros, factor=factor,
+                                                        use_plan=False)
                 finally:
                     obj.tools = tools
                 if obj.obj_options.get('pcbdoc_import', False) and (not gerber_code or gerber_code == 'fail'):

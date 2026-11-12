@@ -36,8 +36,9 @@ def parse_meminfo(text: str) -> Optional[int]:
 
 def parse_vm_stat(text: str) -> Optional[int]:
     """
-    Free memory from the output of the ``vm_stat`` command (macOS): the free, the inactive, the speculative and the
-    purgeable pages, times the page size. macOS gives these pages to a process that asks for memory.
+    Free memory from the output of the ``vm_stat`` command (macOS): the free, the inactive, and the speculative
+    pages, times the page size (purgeable pages are already in the active and inactive counts). macOS gives these
+    pages to a process that asks for memory.
 
     :param text: output of vm_stat
     :return:     bytes, or None if the page size or the free pages were not found
@@ -47,7 +48,7 @@ def parse_vm_stat(text: str) -> Optional[int]:
     if not size or not free:
         return None
     pages = int(free.group(1))
-    for key in ('Pages inactive', 'Pages speculative', 'Pages purgeable'):
+    for key in ('Pages inactive', 'Pages speculative'):
         match = re.search(r'^%s:\s+(\d+)' % key, text, re.MULTILINE)
         if match:
             pages += int(match.group(1))

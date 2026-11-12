@@ -364,7 +364,7 @@ def test_free_memory_of_linux_and_macos_text():
                "Pages inactive:                           20000.\n"
                "Pages speculative:                         3000.\n"
                "Pages purgeable:                           4000.\n")
-    assert parse_vm_stat(vm_stat) == 37000 * 16384
+    assert parse_vm_stat(vm_stat) == 33000 * 16384      # purgeable pages are already active or inactive
     assert parse_vm_stat("nothing") is None
     assert free_memory() is None or free_memory() > 0      # the branch of this operating system
 

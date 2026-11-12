@@ -794,3 +794,66 @@ class TestNativeLoad:
         new = next(rec for tool in edited.tools.values() for rec in tool['geometry']
                    if rec.get('solid') is not None and rec['solid'].equals(drawn))
         assert seqs[id(new)] == max(seqs.values()) == len(seqs) - 1
+
+
+class TestNativeLoadFallback:
+    @staticmethod
+    def saved_copper_gap(app, source, load_mode):
+        tools, native, regions = AppGerberEditor.select_load_tools(source, load_mode)
+        records = {ap: {**tool, 'geometry': [dict(rec) for rec in tool['geometry']]} for ap, tool in tools.items()}
+        edited = editor_save(app, source, records, loaded_as_regions=regions, native_load=native)
+        copper = polygon_union(source.solid_geometry)
+        return native, sym_diff_area(polygon_union(edited.solid_geometry), copper) / copper.area
+
+    def test_native_load_of_a_file_order_object_stays_native(self, app):
+        native, gap = self.saved_copper_gap(app, make_gerber(app, ORCAD_CLEAR), 2)
+        assert native and gap < 1e-6
+
+    def test_native_load_of_a_buffered_object_falls_back_and_saves_its_copper(self, app):
+        source = make_gerber(app, ORCAD_CLEAR)
+        source.buffer(0.05)
+        native, gap = self.saved_copper_gap(app, source, 2)
+        assert not native
+        assert gap < 1e-3
+
+
+
+def transfer(operation, shapes, dx=2.0, dy=0.0):
+    storage = {'10': {'geometry': list(shapes)}}
+    tool = operation.__new__(operation)
+    tool.origin, tool.destination, tool.selected_apertures = (0.0, 0.0), (dx, dy), ['10']
+    selected = list(shapes)
+    tool.draw_app = SimpleNamespace(
+        storage_dict=storage, selected=selected, get_selected=lambda: selected, touch_geometry=MagicMock(),
+        delete_utility_geometry=MagicMock(), tool_shape=MagicMock(), plot_all=MagicMock(), build_ui=MagicMock(),
+        app=SimpleNamespace(inform=MagicMock(), jump_signal=MagicMock(), proc_container=MagicMock()))
+    tool.make()
+    return storage['10']['geometry']
+
+
+class TestSequenceOfMovedAndCopied:
+    @staticmethod
+    def record():
+        return DrawToolShape({'solid': box(0, 0, 1, 1), 'follow': Point(0.5, 0.5), 'seq': 7})
+
+    def test_copy_is_a_new_drawing_without_a_place_in_the_file_order(self):
+        source = self.record()
+        result = transfer(CopyEditorGrb, [source])
+        assert result[0] is source and source.geo['seq'] == 7
+        assert 'seq' not in result[1].geo
+
+    def test_move_keeps_the_place_in_the_file_order(self):
+        result = transfer(MoveEditorGrb, [self.record()])
+        assert len(result) == 1 and result[0].geo['seq'] == 7
+
+
+def test_pad_placed_from_a_source_flash_does_not_carry_its_object_attributes():
+    source = DrawToolShape({'solid': box(0, 0, 2, 2), 'follow': Point(1, 1), 'seq': 3, 'to': 5})
+    editor = make_editor({10: {'type': 'R', 'size': 0.0, 'geometry': [source]}})
+    editor.last_aperture_selected = 10
+    for placement in (PadEditorGrb, PadArrayEditorGrb):
+        placer = placement.__new__(placement)
+        placer.draw_app = editor
+        placed = placer.util_shape((20, 20))
+        assert placed['follow'] == Point(20, 20)
+        assert 'to' not in placed and 'seq' not in placed

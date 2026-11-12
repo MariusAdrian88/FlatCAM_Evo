@@ -382,3 +382,16 @@ class TestVertexSnap:
         editor.storage_dict[10]['geometry'].clear()
         editor.geometry_revision += 1
         assert measuring.resolve_snap((9.97, 0.02), center=False, vertex=True) == (9.97, 0.02)
+
+
+@pytest.mark.parametrize('bad', ['', '#12', 'nonsense', None])
+def test_a_bad_measure_color_falls_back_to_the_default(measuring, bad):
+    from vispy.color import Color
+    for key in ('tools_dist_app_color_light', 'tools_dist_app_color_dark',
+                'tools_dist_editor_color_light', 'tools_dist_editor_color_dark'):
+        measuring.app.options[key] = bad
+    color = measuring.dimension_color()
+    Color(color)
+    from defaults import AppDefaults
+    assert color == AppDefaults.factory_defaults[
+        'tools_dist_app_color_dark' if color.upper().startswith('#FFFFFF') else 'tools_dist_app_color_light']

@@ -76,7 +76,8 @@ def test_source_primitives_preserve_geometry_and_gerber_roundtrip(tmp_path, proj
             expected = unary_union(before.layers[key]['solid_geometry'])
             assert expected.equals(unary_union(layer['solid_geometry']))
             represented = unary_union([r['solid'] for t in layer['tools'].values() for r in t['geometry']])
-            assert expected.symmetric_difference(represented).area < 1e-8
+            # the regions come from a Clipper2 difference (1e-9 grid): they can miss a feature by a grid step
+            assert expected.symmetric_difference(represented).area < 1e-7
     board = preserved.boards[-1]
     copper = board.layers['Top Copper.GTL']
     follows = [r.get('follow') for t in copper['tools'].values() for r in t['geometry']]
@@ -481,3 +482,11 @@ def test_native_tools_survive_existing_exports_and_reparse(parsed, project):
         assert actual == expected
         total += len(actual)
     assert total == (128 if project == PROJECT else 27)
+
+
+def test_a_layer_renamed_to_mechanical_keeps_its_primitive_records(tmp_path):
+    from types import SimpleNamespace
+    path = island_project(tmp_path / 'mech.pdsprj', graphics=(25,))
+    app = SimpleNamespace(options={'gerber_board_import_mode': 'primitives', 'gerber_exp_decimals': 6})
+    layer = ProteusParser(app=app).parse_file(path).boards[0].layers['Mechanical 1.GM1']
+    assert any(tool['type'] != 'REG' for tool in layer['tools'].values())

@@ -130,7 +130,8 @@ def test_source_primitives_preserve_geometry_and_gerber_roundtrip(tmp_path, unit
         expected = union(normal, key)
         assert expected.equals(unary_union(layer['solid_geometry']))
         records = [record for tool in layer['tools'].values() for record in tool['geometry']]
-        assert expected.symmetric_difference(unary_union([r['solid'] for r in records])).area < 1e-8
+        # the regions come from a Clipper2 difference (1e-9 grid): they can miss a feature by a grid step
+        assert expected.symmetric_difference(unary_union([r['solid'] for r in records])).area < 1e-7
     copper = parsed.layers['Top Layer']
     follows = [r.get('follow') for t in copper['tools'].values() for r in t['geometry']]
     assert any(isinstance(f, Point) for f in follows)

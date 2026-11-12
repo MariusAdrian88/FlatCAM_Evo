@@ -962,6 +962,8 @@ class Proteus8Parser:
             self._solids[label] = self._solids.pop(old)
             if old in self._follows:
                 self._follows[label] = self._follows.pop(old)
+            if old in self._primitives.layers:
+                self._primitives.layers[label] = self._primitives.layers.pop(old)
             self._warn('Native layer %d has no verified Proteus name; imported as Mechanical %d (GM%d), '
                        'not a default layer' % (layer, number, number))
 

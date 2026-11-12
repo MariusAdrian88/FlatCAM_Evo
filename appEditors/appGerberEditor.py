@@ -213,8 +213,32 @@ def cut_is_numeric_sliver(solids, new_solids):
     return noise
 
 
-def pad_flash(draw_app, point):
-    """Place a source flash, never a union of an aperture's unrelated records."""
+def pad_flash(draw_app, point, prepared=None):
+    """Place a source flash, never a union of an aperture's unrelated records.
+
+    :param prepared:    the result of pad_flash_template(), to place many flashes (an array) with one validation
+    """
+    if prepared is None:
+        prepared = pad_flash_template(draw_app)
+        if prepared is None:
+            return None
+    template, origin, from_source = prepared
+    if not from_source:
+        return {'solid': translate(template['solid'], *point), 'follow': Point(point)}
+    result = deepcopy(template)
+    # Sequence belongs to the new placement, not the source's original exposure order.
+    result.pop('seq', None)
+    # The object attributes (pin, net, ...) belong to the source flash, not to the new pad.
+    result.pop('to', None)
+    for key in ('solid', 'clear', 'follow'):
+        if key in result:
+            result[key] = translate(result[key], point[0] - origin.x, point[1] - origin.y)
+    return result
+
+
+def pad_flash_template(draw_app):
+    """The validated source flash of the selected aperture: (template, origin, True), the flash of the aperture
+    definition: (template, None, False), or None after a message."""
     aperture = draw_app.storage_dict.get(draw_app.last_aperture_selected)
     if aperture is None:
         draw_app.app.inform.emit(_("Select an aperture in the Aperture Table."))
@@ -253,13 +277,7 @@ def pad_flash(draw_app, point):
                 draw_app.app.inform.emit(_("Select one source flash for this aperture; its footprints differ."))
                 return None
         draw_app._pad_flash_cache = (state, template)
-        result = deepcopy(template)
-        # Sequence belongs to the new placement, not the source's original exposure order.
-        result.pop('seq', None)
-        for key in ('solid', 'clear', 'follow'):
-            if key in result:
-                result[key] = translate(result[key], point[0] - origin.x, point[1] - origin.y)
-        return result
+        return template, origin, True
     try:
         footprint = _flash_shape(draw_app, aperture)
     except (KeyError, TypeError, ValueError, ZeroDivisionError):
@@ -270,7 +288,7 @@ def pad_flash(draw_app, point):
         return None
     template = {'solid': footprint, 'follow': Point(0, 0)}
     draw_app._pad_flash_cache = (state, template)
-    return {'solid': translate(footprint, *point), 'follow': Point(point)}
+    return template, None, False
 
 
 class PadEditorGrb(ShapeToolEditorGrb):
@@ -393,12 +411,12 @@ class PadEditorGrb(ShapeToolEditorGrb):
         else:
             return None
 
-    def util_shape(self, point):
+    def util_shape(self, point, prepared=None):
         # updating values here allows us to change the aperture on the fly, after the Tool has been started
         self.storage_obj = self.draw_app.storage_dict[self.draw_app.last_aperture_selected]['geometry']
         if point[0] is None and point[1] is None:
             point = self.draw_app.x, self.draw_app.y
-        return pad_flash(self.draw_app, point)
+        return pad_flash(self.draw_app, point, prepared)
 
     def make(self):
         self.complete = False
@@ -688,6 +706,11 @@ class PadArrayEditorGrb(ShapeToolEditorGrb):
                                           _("The value is not Float. Check for comma instead of dot separator."))
             return
 
+        # the source flash is validated once for all the elements of the array
+        prepared = pad_flash_template(self.draw_app)
+        if prepared is None:
+            return None
+
         if self.array_type == 'linear':  # 'Linear'
             if data[0] is None and data[1] is None:
                 dx = self.draw_app.x
@@ -702,14 +725,14 @@ class PadArrayEditorGrb(ShapeToolEditorGrb):
 
             for item in range(self.pad_array_size):
                 if self.pad_array_dir == 'X':
-                    geo_el = self.util_shape(((dx + (self.pad_pitch * item)), dy))
+                    geo_el = self.util_shape(((dx + (self.pad_pitch * item)), dy), prepared)
                 if self.pad_array_dir == 'Y':
-                    geo_el = self.util_shape((dx, (dy + (self.pad_pitch * item))))
+                    geo_el = self.util_shape((dx, (dy + (self.pad_pitch * item))), prepared)
                 if self.pad_array_dir == 'A':
                     x_adj = self.pad_pitch * math.cos(math.radians(self.pad_linear_angle))
                     y_adj = self.pad_pitch * math.sin(math.radians(self.pad_linear_angle))
                     geo_el = self.util_shape(
-                        ((dx + (x_adj * item)), (dy + (y_adj * item)))
+                        ((dx + (x_adj * item)), (dy + (y_adj * item))), prepared
                     )
 
                 if geo_el is None:
@@ -746,7 +769,7 @@ class PadArrayEditorGrb(ShapeToolEditorGrb):
                     # draw the temp geometry
                     initial_angle = math.asin((cdy - self.origin[1]) / radius)
 
-                    temp_circular_geo = self.circular_util_shape(radius, initial_angle)
+                    temp_circular_geo = self.circular_util_shape(radius, initial_angle, prepared)
 
                     # draw the line
                     temp_points = [x for x in self.pt]
@@ -764,13 +787,17 @@ class PadArrayEditorGrb(ShapeToolEditorGrb):
                 except Exception as e:
                     log.error("AppGerberEditor.PadArrayEditorGrb.utility_geometry() -> %s" % str(e))
 
-    def util_shape(self, point):
-        return PadEditorGrb.util_shape(self, point)
+    def util_shape(self, point, prepared=None):
+        return PadEditorGrb.util_shape(self, point, prepared)
 
-    def circular_util_shape(self, radius, angle):
+    def circular_util_shape(self, radius, angle, prepared=None):
         self.pad_direction = self.ui.array_dir_radio.get_value()
         self.pad_circular_angle = self.ui.circular_angle_entry.get_value()
 
+        if prepared is None:
+            prepared = pad_flash_template(self.draw_app)
+            if prepared is None:
+                return []
         circular_geo = []
         if self.pad_direction == 'CW':
             for i in range(self.pad_array_size):
@@ -778,7 +805,7 @@ class PadArrayEditorGrb(ShapeToolEditorGrb):
                 x = self.origin[0] + radius * math.cos(-angle_radians + angle)
                 y = self.origin[1] + radius * math.sin(-angle_radians + angle)
 
-                geo = self.util_shape((x, y))
+                geo = self.util_shape((x, y), prepared)
                 if geo is None:
                     return []
                 geo_el = dict(geo)
@@ -793,7 +820,7 @@ class PadArrayEditorGrb(ShapeToolEditorGrb):
                 x = self.origin[0] + radius * math.cos(angle_radians + angle)
                 y = self.origin[1] + radius * math.sin(angle_radians + angle)
 
-                geo = self.util_shape((x, y))
+                geo = self.util_shape((x, y), prepared)
                 if geo is None:
                     return []
                 geo_el = dict(geo)
@@ -811,18 +838,21 @@ class PadArrayEditorGrb(ShapeToolEditorGrb):
         geo = None
 
         self.draw_app.current_storage = self.storage_obj
+        prepared = pad_flash_template(self.draw_app)
+        if prepared is None:
+            return
 
         if self.array_type == 'linear':  # 'Linear'
             for item in range(self.pad_array_size):
                 if self.pad_array_dir == 'X':
-                    geo = self.util_shape(((self.points[0] + (self.pad_pitch * item)), self.points[1]))
+                    geo = self.util_shape(((self.points[0] + (self.pad_pitch * item)), self.points[1]), prepared)
                 if self.pad_array_dir == 'Y':
-                    geo = self.util_shape((self.points[0], (self.points[1] + (self.pad_pitch * item))))
+                    geo = self.util_shape((self.points[0], (self.points[1] + (self.pad_pitch * item))), prepared)
                 if self.pad_array_dir == 'A':
                     x_adj = self.pad_pitch * math.cos(math.radians(self.pad_linear_angle))
                     y_adj = self.pad_pitch * math.sin(math.radians(self.pad_linear_angle))
                     geo = self.util_shape(
-                        ((self.points[0] + (x_adj * item)), (self.points[1] + (y_adj * item)))
+                        ((self.points[0] + (x_adj * item)), (self.points[1] + (y_adj * item))), prepared
                     )
 
                 if geo is None:
@@ -846,7 +876,7 @@ class PadArrayEditorGrb(ShapeToolEditorGrb):
                 radius = -radius
             initial_angle = math.asin((self.destination[1] - self.origin[1]) / radius)
 
-            circular_geo = self.circular_util_shape(radius, initial_angle)
+            circular_geo = self.circular_util_shape(radius, initial_angle, prepared)
             if not circular_geo:
                 return
             self.geometry += circular_geo
@@ -2726,6 +2756,10 @@ class MoveEditorGrb(ShapeToolEditorGrb):
                 # Translation changes the geometry, not the source attributes or the place in file order.
                 moved = [DrawToolShape(dict(shape.geo, **geo_el))
                          for shape, geo_el in zip(shapes, self.translated_elements(shapes, dx, dy))]
+                if not remove_source:
+                    # a copy is a new drawing: no place in the file order (a later clear object must not erase it)
+                    for shape in moved:
+                        shape.geo.pop('seq', None)
                 storage.extend(moved)
                 # a pure translation keeps the flash semantics of the records: no export re-validation
                 history = getattr(self.draw_app, 'history', None)
@@ -5514,20 +5548,13 @@ class AppGerberEditor(QtCore.QObject):
                 self.app.defaults.factory_defaults.get("gerber_editor_load")
             )
         )
-        load_apertures = load_mode == 1
-        # 2 = Native: the records as they are, clear objects included
-        load_native = load_mode == 2
-
         def load():
-            result = {'pending': pending, 'native': load_native}
+            result = {'pending': pending, 'native': False}
             with self.app.proc_container.new('%s ...' % _("Loading")):
                 try:
-                    if load_native:
-                        tools = source.tools
-                    else:
-                        tools = AppGerberEditor.build_edit_tools(source.tools, source.solid_geometry,
-                                                                 apertures=load_apertures)
-                    result['regions'] = tools is not source.tools and not load_native
+                    tools, native, regions = AppGerberEditor.select_load_tools(source, load_mode)
+                    result['native'] = native
+                    result['regions'] = regions
                     jobs = [self.pool.apply_async(AppGerberEditor.add_apertures, args=(key, value))
                             for key, value in tools.items()]
                     result['storage'] = {key: deepcopy(value) for key, value in (job.get() for job in jobs)}
@@ -5536,6 +5563,23 @@ class AppGerberEditor(QtCore.QObject):
                 self.load_result.emit(result)
 
         self.app.worker_task.emit({'fcn': load, 'params': []})
+
+    @staticmethod
+    def select_load_tools(source, load_mode):
+        """
+        The apertures dictionary that the editor loads for a load mode (0 regions, 1 apertures, 2 native).
+
+        The Native load takes the records as they are, and the save composes them in the order of their 'seq'. An
+        object whose records are not in the order of the file (no 'seq', joined, buffered or plugin-edited) is loaded
+        as the Apertures load, so the saved copper is the copper of the object.
+
+        :return:    (tools, native load really used, tools are regions)
+        """
+        native = load_mode == 2 and Gerber.records_in_file_order(source) is not None
+        if native:
+            return source.tools, True, False
+        tools = AppGerberEditor.build_edit_tools(source.tools, source.solid_geometry, apertures=load_mode in (1, 2))
+        return tools, False, tools is not source.tools
 
     @staticmethod
     def build_edit_tools(tools, solid_geometry, apertures=False):

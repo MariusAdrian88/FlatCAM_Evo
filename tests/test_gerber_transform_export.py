@@ -777,3 +777,52 @@ class TestGerberAttributeExport:
         assert ['Net,A'] in [r[2] for r in x2_records(again)]
 
 
+
+
+TA_BLOCK_GBR = """%FSLAX46Y46*%
+%MOMM*%
+%TA.AperFunction,Conductor*%
+%ADD10C,0.2*%
+%ADD11P,1.5X5*%
+%TD*%
+G01*
+%LPD*%
+D10*
+X0Y0D02*
+X5000000Y0D01*
+D11*
+X8000000Y1000000D03*
+M02*
+"""
+
+
+class TestExportAttributeLeakAndSingleDecision:
+    @pytest.fixture
+    def block_gerber(self, app, tmp_path):
+        path = tmp_path / 'ta_block.gbr'
+        path.write_text(TA_BLOCK_GBR)
+        grb = GerberObject('ta_block', app)
+        assert grb.parse_file(str(path)) is None
+        return grb
+
+    def test_block_apertures_do_not_inherit_the_aperture_attributes(self, app, block_gerber):
+        text = export_gerber_text(app, block_gerber)
+        assert '%ABD' in text and '%TA.AperFunction,Conductor' in text
+        before_blocks = text[:text.index('%ABD')]
+        last_ta = max(before_blocks.rfind('%TA.'), before_blocks.rfind('%TD*%'))
+        assert before_blocks.startswith('G04') and before_blocks[last_ta:].startswith('%TD*%')
+
+    def test_a_transform_between_the_decision_and_the_export_keeps_the_step_and_repeat_valid(
+            self, app, block_gerber, monkeypatch):
+        from appParsers.ParseGerber import Gerber
+        calls = []
+
+        def flipping(obj):
+            calls.append(1)
+            return True if len(calls) == 1 else False
+
+        monkeypatch.setattr(Gerber, 'uses_record_plan', staticmethod(flipping))
+        out = appIO(app).export_gerber('ta_block', None, local_use=block_gerber, use_thread=False,
+                                       step_repeat=(2, 1, 20.0, 0.0))
+        assert isinstance(out, str) and out != 'fail'
+        assert '%ABD' in out and out.index('%ABD') < out.index('%SRX')

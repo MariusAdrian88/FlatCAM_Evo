@@ -485,10 +485,26 @@ class Distance(AppTool):
         def option(key):
             return self.app.options.get(key, app_defaults.get(key, AppDefaults.factory_defaults.get(key)))
 
-        # the same test as the PlotCanvas: the Dark theme or the Dark Canvas option make a dark canvas
-        dark = option('global_theme') not in ('default', 'light') or bool(option('global_dark_canvas'))
+        # the same source as the canvas: the QSettings keys 'theme' and 'dark_canvas' (written at startup)
+        try:
+            settings = QtCore.QSettings("Open Source", "FlatCAM_EVO")
+            theme = settings.value('theme', type=str) if settings.contains("theme") else 'default'
+            dark_canvas = settings.value('dark_canvas', type=bool) if settings.contains("dark_canvas") else False
+        except Exception:
+            theme, dark_canvas = 'default', False
+        dark = theme not in ('default', 'light') or bool(dark_canvas)
         place = 'editor' if self.original_call_source in ('geo_editor', 'exc_editor', 'grb_editor') else 'app'
-        return option('tools_dist_%s_color_%s' % (place, 'dark' if dark else 'light'))
+        key = 'tools_dist_%s_color_%s' % (place, 'dark' if dark else 'light')
+        color = option(key)
+        try:
+            from vispy.color import Color
+            if not isinstance(color, str):
+                raise ValueError(color)
+            Color(color)
+        except Exception:
+            # a partial or empty text of the Preferences must not break each measurement
+            color = AppDefaults.factory_defaults[key]
+        return color
 
     def redraw_dimensions(self):
         """Earlier measurements, the committed segments and, while the measurement takes points, the preview

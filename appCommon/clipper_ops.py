@@ -312,6 +312,44 @@ def boolean(subject, clip, op: str) -> list[Polygon] | None:
         return None
 
 
+def difference_with_shrunk(subject, clip, shrunk_clip, shrink: float) -> list[Polygon] | None:
+    """
+    ``subject - clip - (shrunk_clip shrunk by shrink)``. The shrunk paths stay in Clipper (no round trip through
+    Shapely).
+
+    :param subject: Polygons / MultiPolygons
+    :param clip: Polygons / MultiPolygons subtracted as they are (may be empty)
+    :param shrunk_clip: Polygons / MultiPolygons subtracted after a shrink of their union, with mitred corners
+    :param shrink: the distance in input units (> 0)
+    :return: list of Polygons, or None on error
+    """
+    if pyclipr is None or not shrink > 0:
+        return None
+    try:
+        parts = [polygon_parts(geoms) for geoms in (subject, clip, shrunk_clip)]
+        if any(polys is None for polys in parts):
+            return None
+        subj_paths, clip_paths, shrunk_paths = (prepare_paths(polys) for polys in parts)
+        if subj_paths is None or clip_paths is None or shrunk_paths is None:
+            return None
+        if not subj_paths:
+            return []
+        if shrunk_paths:
+            worker = pyclipr.ClipperOffset()
+            worker.scaleFactor = SCALE
+            worker.addPaths(shrunk_paths, pyclipr.JoinType.Miter, pyclipr.EndType.Polygon)
+            shrunk_paths = worker.execute(-float(shrink))
+        worker = pyclipr.Clipper()
+        worker.scaleFactor = SCALE
+        worker.addPaths(subj_paths, pyclipr.Subject)
+        for paths in (clip_paths, shrunk_paths):
+            if len(paths):
+                worker.addPaths(paths, pyclipr.Clip)
+        return tree_to_polygons(worker.execute2(pyclipr.Difference, pyclipr.FillRule.NonZero))
+    except Exception:
+        return None
+
+
 def boolean_geometry(subject, clip, op: str, min_shapes: int = MIN_SHAPES):
     """
     Boolean operation of many polygons (the editor operations on a whole board), as one Shapely geometry.

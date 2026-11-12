@@ -413,7 +413,7 @@ class Gerber(Geometry):
                         return True
         return False
 
-    def records_in_file_order(self) -> Optional[list]:
+    def records_in_file_order(self, allow_region_holes: bool = False) -> Optional[list]:
         """
         The records of all the apertures in the order of the Gerber file they were read from, for a native export
         of an object that has clear objects (a clear object erases only the objects before it).
@@ -424,7 +424,8 @@ class Gerber(Geometry):
         * ``records_in_order`` of the object is not True (see its comment in the class);
         * a record has no 'seq', or 2 records have the same 'seq' (records added by an editor or a plugin, 2 joined
           objects, a project saved by an older version);
-        * a record of the region aperture 0 is not a polygon without holes;
+        * a record of the region aperture 0 is not a polygon without holes (with ``allow_region_holes``: not a
+          polygon; the export plan writes a polygon with holes as hole-free pieces of the same polarity);
         * a record of another aperture has no 'follow' point or line (the flash position or the centre line);
         * a record has dark and clear geometry at once.
 
@@ -467,7 +468,8 @@ class Gerber(Geometry):
         in_region = used & region
         if bool(in_region.any()):
             if bool((shapely.get_type_id(image[in_region]) != 3).any()) or \
-                    bool((shapely.get_num_interior_rings(image[in_region]) != 0).any()):
+                    (not allow_region_holes and
+                     bool((shapely.get_num_interior_rings(image[in_region]) != 0).any())):
                 return None
         # any other record: the flash point (type 0) or the centre line (types 1 and 2), not empty
         other = used & ~region
