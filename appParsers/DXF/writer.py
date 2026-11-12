@@ -8,7 +8,7 @@ import math
 
 import ezdxf
 import numpy as np
-from shapely import get_coordinates
+from shapely import get_coordinates, get_type_id, get_num_coordinates, bounds
 from ezdxf import colors as ezcolors
 from ezdxf.lldxf.const import VALID_DXF_LINEWEIGHTS
 from shapely.geometry import (Point, MultiPoint, LineString, LinearRing, Polygon, MultiLineString,
@@ -313,7 +313,58 @@ def _extent(layers):
     return max(max(xs) - min(xs), max(ys) - min(ys))
 
 
-def build_dxf(layers, units, dxf_format, fit_arcs=True, tolerance=None):
+def _panel_repetition(geometry, offsets):
+    """Prove copy-ordered repetition of the final paths, never of the source tool paths."""
+    leaves = []
+
+    def walk(g):
+        if isinstance(g, (list, tuple)):
+            return all(walk(part) for part in g)
+        if isinstance(g, (MultiPolygon, MultiLineString, MultiPoint, GeometryCollection)):
+            return all(walk(part) for part in g.geoms)
+        if isinstance(g, (Polygon, LineString, LinearRing, Point)):
+            if not g.is_empty:
+                leaves.append(g)
+            return True
+        return False
+
+    try:
+        offsets = np.asarray(offsets, dtype=float)
+        if offsets.ndim != 2 or offsets.shape[1] != 2 or len(offsets) < 2 or not np.isfinite(offsets).all():
+            return None
+        if not walk(geometry) or not leaves or len(leaves) % len(offsets):
+            return None
+        # No validity check: the writer writes coordinates, and a line of 2 near-equal points is invalid in only
+        # some copies after the move. The coordinate check below is the proof.
+        n = len(leaves) // len(offsets)
+        types = get_type_id(leaves).reshape(len(offsets), n)
+        counts = get_num_coordinates(leaves).reshape(len(offsets), n)
+        if not (types == types[0]).all() or not (counts == counts[0]).all():
+            return None
+        # Coordinate counts alone cannot distinguish an exterior from interior rings.
+        for i, g in enumerate(leaves):
+            if isinstance(g, Polygon):
+                base = leaves[i % n]
+                if ([len(g.exterior.coords)] + [len(r.coords) for r in g.interiors] !=
+                        [len(base.exterior.coords)] + [len(r.coords) for r in base.interiors]):
+                    return None
+        coords = get_coordinates(leaves).reshape(len(offsets), -1, 2)
+        relative = offsets - offsets[0]
+        expected = coords[0] + relative[:, None, :]
+        # Only arithmetic roundoff from translations is allowed, not the arc-fit tolerance.
+        roundoff = 8 * np.finfo(float).eps * (np.abs(coords[0]) + np.abs(offsets[0]) +
+                                             np.abs(offsets[:, None, :]) + np.abs(expected))
+        if not np.isfinite(coords).all() or not (np.abs(coords - expected) <= roundoff).all():
+            return None
+        b = bounds(leaves)
+        final_bounds = (float(b[:, 0].min()), float(b[:, 1].min()),
+                        float(b[:, 2].max()), float(b[:, 3].max()))
+        return leaves[:n], relative, final_bounds
+    except (TypeError, ValueError, AttributeError):
+        return None
+
+
+def build_dxf(layers, units, dxf_format, fit_arcs=True, tolerance=None, *, panel_offsets=None):
     """
     Build an ezdxf drawing from layers of Shapely geometry.
 
@@ -324,6 +375,7 @@ def build_dxf(layers, units, dxf_format, fit_arcs=True, tolerance=None):
     :param fit_arcs:    circles become CIRCLE, arc runs (>= 4 points on one circle) become polyline bulges
     :param tolerance:   max distance of a point from the fitted circle. Default: 1e-4 * max(1, extent of
                         all geometry), in drawing units (0.0001 for small parts, relative for big ones).
+    :param panel_offsets: optional one-export hint; only proven repetitions use blocks and INSERTs.
     :return:            the ezdxf drawing, or None on failure (never a partial drawing)
     """
     try:
@@ -338,8 +390,7 @@ def build_dxf(layers, units, dxf_format, fit_arcs=True, tolerance=None):
         tol = tolerance if tolerance is not None else 1e-4 * max(1.0, _extent(layers))
 
         used = set()
-        all_bounds = []
-        fit_cache = {}
+        names = []
         for item in layers:
             base = layer_name(item.get('name', '0'))
             name, k = base, 2
@@ -347,6 +398,11 @@ def build_dxf(layers, units, dxf_format, fit_arcs=True, tolerance=None):
                 name = '%s_%d' % (base, k)
                 k += 1
             used.add(name.lower())
+            names.append(name)
+
+        all_bounds = []
+        fit_cache = {}
+        for item, name in zip(layers, names):
             if name != '0':
                 layer = doc.layers.add(name)
             else:
@@ -361,12 +417,29 @@ def build_dxf(layers, units, dxf_format, fit_arcs=True, tolerance=None):
             if lw is not None:
                 layer.dxf.lineweight = lw
             writer = _Writer(doc, fit_arcs, tol, item.get('width'), fit_cache)
-            writer.add(item.get('geometry'), name)
-            all_bounds.extend(writer.bounds)
+            repeated = _panel_repetition(item.get('geometry'), panel_offsets) if panel_offsets is not None else None
+            if repeated is None:
+                writer.add(item.get('geometry'), name)
+                all_bounds.extend(writer.bounds)
+            else:
+                geometry, relative, final_bounds = repeated
+                block_name, k = 'FC_PANEL', 1
+                while block_name in doc.blocks or block_name.lower() in used or block_name in doc.layers:
+                    block_name = 'FC_PANEL_%d' % k
+                    k += 1
+                writer.msp = doc.blocks.new(block_name)
+                writer.add(geometry, '0')
+                for dx, dy in relative:
+                    doc.modelspace().add_blockref(block_name, (dx, dy), dxfattribs={'layer': name})
+                all_bounds.append(final_bounds)
 
         if all_bounds:
             doc.header['$EXTMIN'] = (min(b[0] for b in all_bounds), min(b[1] for b in all_bounds), 0.0)
             doc.header['$EXTMAX'] = (max(b[2] for b in all_bounds), max(b[3] for b in all_bounds), 0.0)
+            if panel_offsets is not None:
+                # ezdxf copies layout extents back to the headers when serializing.
+                doc.modelspace().dxf.extmin = doc.header['$EXTMIN']
+                doc.modelspace().dxf.extmax = doc.header['$EXTMAX']
     except Exception as e:
         log.error('build_dxf() --> %s' % str(e))
         return None

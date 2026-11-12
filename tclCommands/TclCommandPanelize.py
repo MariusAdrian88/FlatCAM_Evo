@@ -191,9 +191,11 @@ class TclCommandPanelize(TclCommand):
                                 "TclCommandPanelize.execute().panelize2.job_init_excellon() Options:--> %s" %
                                 str(e))
 
-                obj_fin.create_geometry()
+                # the units first: the circle steps of the drill polygons depend on them
                 obj_fin.zeros = obj.zeros
                 obj_fin.units = obj.units
+                panelize_core.create_panel_excellon_geometry(obj_fin, obj.tools, offsets, abort=abort)
+                obj_fin.reuse_plot_of(obj, offsets=offsets)
                 app_obj.inform.emit('%s' % _("Generating panel ... Adding the source code."))
                 obj_fin.regenerate_source(name=outname)
 
@@ -201,6 +203,7 @@ class TclCommandPanelize(TclCommand):
                 obj_fin.multigeo = obj.multigeo
                 obj_fin.tools, obj_fin.solid_geometry = panelize_core.panelize_geometry(
                     obj.tools, obj.solid_geometry, obj.multigeo, offsets, abort=abort)
+                obj_fin.reuse_plot_of(obj, offsets=offsets)
                 obj_fin.regenerate_source(name=outname)
 
             def job_init_gerber(obj_fin, app_obj):

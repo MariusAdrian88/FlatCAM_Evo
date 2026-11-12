@@ -399,6 +399,10 @@ class Gerber(Geometry):
         """
         if Gerber.uses_region_export(self):
             return False
+        # a panel with its plan ready-made (appParsers.panelize_core.panel_export_plan): its source uses the plan and
+        # the copies have the same records, so the check of all the records of the panel is not needed
+        if getattr(self, '__dict__', {}).get('export_plan_once') is not None:
+            return True
         if Gerber.needs_region_export(self):
             return True
         for apid, tool in (getattr(self, 'tools', None) or {}).items():

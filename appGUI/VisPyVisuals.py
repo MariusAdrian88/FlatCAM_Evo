@@ -177,11 +177,21 @@ def _join(chunks, empty_shape, dtype):
     # one C-ordered copy (np.concatenate of broadcast color views gives a Fortran-ordered array, which gloo copies again)
     if not chunks:
         return np.empty(empty_shape, dtype=dtype)
+    # Always a new array of the plain (builtin) dtype: the buffers from the process pool are unpickled, and their
+    # float32 dtype is not builtin. Gloo reads such an array as single floats, so a (N, 2) array became 2N vertices
+    # ("All attributes must have the same size"). One C call fills it, also from broadcast color views.
     out = np.empty((sum(len(c) for c in chunks),) + chunks[0].shape[1:], dtype=dtype)
-    pos = 0
-    for c in chunks:
-        out[pos:pos + len(c)] = c
-        pos += len(c)
+    np.concatenate(chunks, out=out, casting='unsafe')
+    return out
+
+
+def _plain(arr, dtype):
+    """The array as a C-ordered array of the plain (builtin) dtype, for gloo (see _join); no copy if it is one."""
+    arr = np.asarray(arr)
+    if arr.dtype.isbuiltin == 1 and arr.dtype == dtype and arr.flags.c_contiguous:
+        return arr
+    out = np.empty(arr.shape, dtype=dtype)
+    out[...] = arr
     return out
 
 
@@ -487,6 +497,20 @@ def stop_deferred_updates():
     _deferred_updater.stop()
 
 
+_reported_mismatch = set()
+
+
+def _report_buffer_mismatch(visual, where, positions, colors):
+    # one log entry per visual and place, with the call stack: it shows the code that gave the bad buffers
+    key = (id(visual), where)
+    if key in _reported_mismatch:
+        return
+    _reported_mismatch.add(key)
+    import traceback
+    log.error("VisPyVisuals: %s of %s skipped, %s positions and %s colors\n%s" % (
+        where, type(visual).__name__, positions, colors, ''.join(traceback.format_stack(limit=12))))
+
+
 class IndexedMeshVisual(Visual):
     """
     Filled 2D triangles from an indexed mesh, without the expansion to triangle corners that MeshVisual does at
@@ -528,6 +552,16 @@ class IndexedMeshVisual(Visual):
         vertices (N, 2) float32, faces (M, 3) uint32, vertex_colors (N, 4) float32. No data: nothing is drawn.
         The arrays go to the buffers as they are (no copy), so they must not change afterwards.
         """
+        if vertices is not None and len(vertices) and faces is not None and len(faces):
+            # all the arrays are checked before a buffer changes: an error between the buffers left new positions
+            # with old colors, and every later draw failed ("All attributes must have the same size")
+            vertices = _plain(vertices, np.float32)
+            faces = _plain(faces, np.uint32)
+            vertex_colors = None if vertex_colors is None else _plain(vertex_colors, np.float32)
+            if vertex_colors is None or vertex_colors.shape != (len(vertices), 4):
+                _report_buffer_mismatch(self, 'set_data', len(vertices),
+                                        None if vertex_colors is None else vertex_colors.shape)
+                vertices = None
         if vertices is None or len(vertices) == 0 or faces is None or len(faces) == 0:
             vertices = faces = vertex_colors = None
             self._bounds = None
@@ -544,12 +578,19 @@ class IndexedMeshVisual(Visual):
         """Only the color buffer changes. A wrong count (the vertices changed meanwhile) is ignored."""
         if self.vertices is None or len(vertex_colors) != len(self.vertices):
             return
+        vertex_colors = _plain(vertex_colors, np.float32)
         self._colors.set_data(vertex_colors)
         self.vertex_colors = vertex_colors
         self.update()
 
     def _prepare_draw(self, view):
-        return self.vertices is not None
+        if self.vertices is None:
+            return False
+        if self._positions.size != self._colors.size:
+            # never drop the whole frame (the other layers, the HUD) for one bad visual
+            _report_buffer_mismatch(self, 'draw', self._positions.size, self._colors.size)
+            return False
+        return True
 
     @staticmethod
     def _prepare_transforms(view):
@@ -629,7 +670,7 @@ class SegmentLineVisual(Visual):
 
     @staticmethod
     def _f32(arr):
-        return arr if arr.dtype == np.float32 and arr.flags.c_contiguous else np.ascontiguousarray(arr, np.float32)
+        return _plain(arr, np.float32)
 
     def set_data(self, pos=None, color=None, width=None):
         """
@@ -658,6 +699,10 @@ class SegmentLineVisual(Visual):
 
     def _prepare_draw(self, view):
         if self._pos is None or self._width == 0:
+            return False
+        if self._pos_vbo.size != self._color_vbo.size:
+            # never drop the whole frame (the other layers, the HUD) for one bad visual
+            _report_buffer_mismatch(self, 'draw', self._pos_vbo.size, self._color_vbo.size)
             return False
         # as _GLLineVisual: the width in pixels depends on the zoom of the transform chain
         self.update_gl_state(line_smooth=True)
@@ -753,6 +798,10 @@ class ShapeCollectionVisual(CompoundVisual):
         self.key_lock = threading.Lock()
         self.results_lock = threading.Lock()
         self.update_lock = threading.Lock()
+        # Held while the buffers of the visuals are set and while they are drawn: the deferred updater sets the
+        # positions, the colors and the indexes in its own thread, one after another, and a draw between them sees
+        # buffers of different sizes ("All attributes must have the same size") and drops the frame.
+        self._apply_lock = threading.RLock()
 
         # Process pool
         self.pool = pool
@@ -1116,6 +1165,20 @@ class ShapeCollectionVisual(CompoundVisual):
             return None
 
         entries = []
+        parsed = {}
+
+        def rgba_of(col, rows):
+            # the copies of a panel have few colors: each one is parsed once (a new array is never changed in place)
+            if not rows:
+                return np.zeros(4, dtype=np.float32)
+            try:
+                rgba = parsed.get(col)
+            except TypeError:
+                return _rgba_of(col, rows)
+            if rgba is None:
+                rgba = parsed[col] = _rgba_of(col, rows)
+            return rgba
+
         for src, item in zip(snapshots, shapes_data):
             item_layer = item.get('layer', layer)
             color, face_color = item.get('color'), item.get('face_color')
@@ -1133,9 +1196,9 @@ class ShapeCollectionVisual(CompoundVisual):
                 'tolerance': src.get('tolerance'),
                 'mesh_vertices': src['mesh_vertices'],
                 'mesh_tris': src['mesh_tris'],
-                'mesh_rgba': _rgba_of(face_color, len(src['mesh_tris'])),
+                'mesh_rgba': rgba_of(face_color, len(src['mesh_tris'])),
                 'line_pts': src['line_pts'],
-                'line_rgba': _rgba_of(color, len(src['line_pts']))
+                'line_rgba': rgba_of(color, len(src['line_pts']))
             })
 
         if linewidth:
@@ -1480,11 +1543,17 @@ class ShapeCollectionVisual(CompoundVisual):
         """
         n = len(self._meshes) + 1
         top = n - 1
+        # per layer: the arrays of the shapes, and the color and the vertex count of each shape (the colors are
+        # repeated for every vertex in one call per layer, not one view per shape)
         line_pts = [[] for _ in range(n)]
-        line_colors = [[] for _ in range(n)]
+        line_rgba = [[] for _ in range(n)]
+        line_rows = [[] for _ in range(n)]
         mesh_verts = [[] for _ in range(n)]
         mesh_tris = [[] for _ in range(n)]
-        mesh_colors = [[] for _ in range(n)]
+        tri_offsets = [[] for _ in range(n)]
+        tri_rows = [[] for _ in range(n)]
+        mesh_rgba = [[] for _ in range(n)]
+        mesh_rows = [[] for _ in range(n)]
         vert_counts = [0] * n
         data = self.data
         top_keys = self._top_keys
@@ -1494,28 +1563,41 @@ class ShapeCollectionVisual(CompoundVisual):
             if d is None or not d['visible'] or 'line_pts' not in d:
                 continue
             layer = top if key in top_keys else d['layer']
-            line_pts[layer].append(d['line_pts'])
-            # one color per shape, repeated for every vertex (a view, copied by np.concatenate)
-            line_colors[layer].append(np.broadcast_to(d['line_rgba'], (len(d['line_pts']), 4)))
+            pts = d['line_pts']
+            line_pts[layer].append(pts)
+            line_rgba[layer].append(d['line_rgba'])
+            line_rows[layer].append(len(pts))
 
             tris = d['mesh_tris']
-            if len(tris) > 0 and len(d['mesh_vertices']) > 0:
-                offset = vert_counts[layer]
-                mesh_tris[layer].append(tris if offset == 0 else tris + offset)
-                mesh_verts[layer].append(d['mesh_vertices'])
-                mesh_colors[layer].append(np.broadcast_to(d['mesh_rgba'], (len(d['mesh_vertices']), 4)))
-                vert_counts[layer] += len(d['mesh_vertices'])
+            verts = d['mesh_vertices']
+            if len(tris) > 0 and len(verts) > 0:
+                mesh_tris[layer].append(tris)
+                tri_offsets[layer].append(vert_counts[layer])
+                tri_rows[layer].append(len(tris))
+                mesh_verts[layer].append(verts)
+                mesh_rgba[layer].append(d['mesh_rgba'])
+                mesh_rows[layer].append(len(verts))
+                vert_counts[layer] += len(verts)
+
+        def colors(rgba, rows):
+            if not rgba:
+                return np.empty((0, 4), dtype=np.float32)
+            return np.repeat(np.asarray(rgba, dtype=np.float32).reshape(-1, 4), rows, axis=0)
 
         cache = []
         for i in range(n):
             if not line_pts[i]:
                 cache.append(None)
                 continue
+            tris = _join(mesh_tris[i], (0,), np.uint32)
+            if len(tris):
+                # the indexes of each shape are local to the shape: add the first vertex of the shape in the block
+                tris += np.repeat(np.asarray(tri_offsets[i], dtype=np.uint32), tri_rows[i])
             cache.append((_join(line_pts[i], (0, 2), np.float32),
-                          _join(line_colors[i], (0, 4), np.float32),
+                          colors(line_rgba[i], line_rows[i]),
                           _join(mesh_verts[i], (0, 2), np.float32),
-                          _join(mesh_tris[i], (0,), np.uint32),
-                          _join(mesh_colors[i], (0, 4), np.float32)))
+                          tris,
+                          colors(mesh_rgba[i], mesh_rows[i])))
         return cache
 
     def _join_layers(self, blocks):
@@ -1567,32 +1649,39 @@ class ShapeCollectionVisual(CompoundVisual):
         # Set GPU state once, outside the mesh loop (Step 1a optimization)
         set_state(polygon_offset_fill=False)
 
-        # Updating meshes
-        for i, mesh in enumerate(meshes):
-            mesh.visible = len(mesh_vertices[i]) > 0
-            if len(mesh_vertices[i]) > 0:
-                mesh.set_data(
-                    vertices=mesh_vertices[i],
-                    faces=mesh_tris[i].reshape((-1, 3)),
-                    vertex_colors=mesh_colors[i]
-                )
-            else:
-                mesh.set_data()
+        # all the buffers of all the visuals at once for a draw (see _apply_lock)
+        with self._apply_lock:
+            # Updating meshes
+            for i, mesh in enumerate(meshes):
+                mesh.visible = len(mesh_vertices[i]) > 0
+                if len(mesh_vertices[i]) > 0:
+                    mesh.set_data(
+                        vertices=mesh_vertices[i],
+                        faces=mesh_tris[i].reshape((-1, 3)),
+                        vertex_colors=mesh_colors[i]
+                    )
+                else:
+                    mesh.set_data()
 
-            mesh._bounds_changed()
+                mesh._bounds_changed()
 
-        # Updating lines
-        for i, line in enumerate(lines):
-            if len(line_pts[i]) > 0:
-                line.visible = True
-                line.set_data(pos=line_pts[i], color=line_colors[i], width=self._line_width)
-            else:
-                # line.clear_data()
-                line.visible = False
+            # Updating lines
+            for i, line in enumerate(lines):
+                if len(line_pts[i]) > 0:
+                    line.visible = True
+                    line.set_data(pos=line_pts[i], color=line_colors[i], width=self._line_width)
+                else:
+                    # line.clear_data()
+                    line.visible = False
 
-            line._bounds_changed()
+                line._bounds_changed()
 
         self._bounds_changed()
+
+    def draw(self):
+        # waits for buffers that are being set in the deferred updater thread (see _apply_lock)
+        with self._apply_lock:
+            CompoundVisual.draw(self)
 
     def pending_ready(self) -> bool:
         """

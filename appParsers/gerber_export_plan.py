@@ -248,7 +248,9 @@ def _block_key(shape):
 
 def build_export_plan(obj, first_block_code=None):
     """
-    Plan the export of the records of a Gerber object (see the module comment). The object is only read.
+    Plan the export of the records of a Gerber object (see the module comment). The object is only read, but
+    ``export_plan_once`` is removed from its attributes: a panel gives its plan ready-made for 1 export (see
+    ``appParsers.panelize_core.panel_export_plan``), so a later export of a changed object never gets it.
 
     :param obj:                 a Gerber object (or an object with the same attributes)
     :param first_block_code:    the first D code of the block apertures; default: after the codes of obj.tools
@@ -261,6 +263,10 @@ def build_export_plan(obj, first_block_code=None):
                                 ``patched``: count of the regions added for the differences
     """
     from appParsers.ParseGerber import Gerber, _is_rectangle_flash
+
+    panel_plan = vars(obj).pop('export_plan_once', None)
+    if panel_plan is not None and first_block_code is None:
+        return panel_plan
 
     tools = getattr(obj, 'tools', None) or {}
     # a region with holes is written as hole-free pieces below, so it does not make the order unknown

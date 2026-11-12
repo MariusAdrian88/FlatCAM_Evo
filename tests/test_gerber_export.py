@@ -1136,6 +1136,59 @@ M02*
 EXPECTED_AREA = 3 * math.pi * 0.25  # 3 circles of diameter 1
 
 
+@pytest.mark.parametrize('zeros,fract', [('L', 3), ('T', 3), ('L', 0), ('T', 0)])
+@pytest.mark.parametrize('attributed', [False, True])
+def test_native_writer_mixed_follows_keep_exact_commands(zeros, fract, attributed):
+    records = [{'follow': Point(-1, 2), 'to': 1},
+               {'follow': LineString([(0, 0), (0, 0), (-2, 3), (-2, 3)]), 'to': 2},
+               {'follow': Point(), 'to': 0},
+               {'follow': shapely.LinearRing([(0, 0), (1, 0), (1, 1), (0, 0)])}]
+    obj = SimpleNamespace(app=make_app(), tools={
+        10: {'type': 'C', 'geometry': records * 300},
+        11: {'type': 'R', 'geometry': [{'follow': Point(1, 1)}]}})
+    if attributed:
+        obj.to_attributes = {1: {'.N': ['one']}, 2: {'.N': ['two']}}
+
+    def command(x, y, code):
+        fmt = '%+0*.*f' if zeros == 'T' else '%.*f'
+        def number(value):
+            args = (4 + 1 + (fract + 1 if fract else 0), fract, value * 2) if zeros == 'T' else (fract, value * 2)
+            return (fmt % args).replace('.', '').replace('+', '')
+        return 'X%sY%sD%s*\n' % (number(x), number(y), code)
+
+    body = command(-1, 2, '03')
+    track = command(0, 0, '02') + command(-2, 3, '01')
+    ring = command(0, 0, '02') + command(1, 0, '01') + command(1, 1, '01') + command(0, 0, '01')
+    if attributed:
+        body = '%TO.N,one*%\n' + body + '%TO.N,two*%\n' + track + '%TD*%\n' + ring
+    else:
+        body += track + ring
+    expected = 'D10*\n' + body * 300 + 'D11*\n' + command(1, 1, '03')
+    assert GerberObject.export_gerber(obj, 4, fract, zeros, factor=2, use_plan=False) == expected
+
+
+@pytest.mark.parametrize('special,commands', [
+    ([{'follow': Point(3, 4), 'clear': Point(5, 6)}], 'X3Y4D03*\n%LPC*%\nX5Y6D03*\n%LPD*%\n'),
+    ([{'follow': box(0, 0, 1, 1)}, {'follow': None}, {}], ''),
+    ([{'follow': LineString([(0, 0, 0), (0, 0, 1), (1, 1, 1)])}], 'X0Y0D02*\nX0Y0D01*\nX1Y1D01*\n'),
+    ([{'follow': LineString([(0, 0), (0, 0)])}], 'X0Y0D02*\n')])
+def test_native_writer_fallback_keeps_clear_and_unsupported_follows_in_order(special, commands):
+    records = [{'follow': Point(1, 2)}] * 128
+    records += special + [{'follow': Point(7, 8)}]
+    obj = SimpleNamespace(app=make_app(), tools={10: {'type': 'O', 'geometry': records}})
+    expected = 'D10*\n' + 'X1Y2D03*\n' * 128 + commands + 'X7Y8D03*\n'
+    assert GerberObject.export_gerber(obj, 4, 0, use_plan=False) == expected
+
+
+def test_native_writer_empty_chunks_and_attributes_across_chunk_boundary():
+    obj = SimpleNamespace(app=make_app(), to_attributes={1: {'.N': ['one']}}, tools={
+        10: {'type': 'O', 'geometry': [{'follow': Point(), 'to': 1}] * 1025 +
+                                    [{'follow': Point(1, 2), 'to': 1}, {'follow': Point(3, 4)}]},
+        11: {'type': 'C', 'geometry': []}})
+    expected = 'D10*\n%TO.N,one*%\nX1Y2D03*\n%TD*%\nX3Y4D03*\nD11*\n'
+    assert GerberObject.export_gerber(obj, 4, 0, parts=True, use_plan=False) == ('', expected)
+
+
 def test_clipper_branch_full_buffering(tmp_path):
     """gerber_buffering == 'full': the macro flash of 2 separate circles (a MultiPolygon) must not break the union."""
     app = make_app()

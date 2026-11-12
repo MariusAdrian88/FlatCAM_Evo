@@ -143,6 +143,79 @@ class TestExcellon:
                     assert (new_start.x, new_start.y, new_stop.x, new_stop.y) == \
                         pytest.approx((start.x + dx, start.y + dy, stop.x + dx, stop.y + dy))
 
+@pytest.mark.parametrize('slots', [
+    [(Point(0, 0), Point(2, 1)), (Point(3, 2), Point(3, 2))],
+    [(Point(0, 0, 4), Point(2, 1, 5))],
+])
+def test_excellon_panel_polygons_match_rebuild(app, slots):
+    src = {1: {'tooldia': 0.8, 'drills': [Point(1, 2)], 'slots': slots,
+               'drills_to': [7], 'slots_to': [8] * len(slots), 'data': {'feed': 12},
+               'solid_geometry': [box(-100, -100, 100, 100)]},
+           2: {'tooldia': 1.3, 'slots': [(Point(1, 1), Point(2, 3))]},
+           3: {'tooldia': 0.4, 'drills': [Point(4, 5)]}, 4: {'tooldia': 2.0}}
+    before = freeze(src)
+    offsets = [(0, 0), (10, 0), (0, 12)]
+    got, want = ExcellonObject('got', app), ExcellonObject('want', app)
+    got.tools = pc.panelize_excellon(src, offsets)
+    want.tools = pc.panelize_excellon(src, offsets)
+    # Destination settings, not the stale source polygons, determine the seed.
+    got.circle_steps = want.circle_steps = lambda radius: 28
+    got.tools[1]['tooldia'] = want.tools[1]['tooldia'] = 1.2
+    assert want.create_geometry() is None
+    pc.create_panel_excellon_geometry(got, src, offsets)
+    assert freeze(src) == before
+    assert len(got.solid_geometry) == len(want.solid_geometry)
+    for tid in want.tools:
+        assert got.tools[tid]['data'] == want.tools[tid]['data']
+        assert len(got.tools[tid]['solid_geometry']) == len(want.tools[tid]['solid_geometry'])
+    assert all(a.equals_exact(b, 1e-12) for a, b in zip(got.solid_geometry, want.solid_geometry))
+    assert got.tools[1]['drills_to'] == [7] * 3
+    assert got.tools[1]['slots_to'] == [8] * (3 * len(slots))
+    old = freeze((got.tools, got.solid_geometry))
+    with pytest.raises(grace):
+        pc.create_panel_excellon_geometry(got, src, offsets, abort=lambda: True)
+    assert freeze((got.tools, got.solid_geometry)) == old
+
+def test_excellon_panel_last_batch_abort_and_failure_publish_nothing(app, monkeypatch):
+    src = {1: {'tooldia': 0.8, 'slots': [(Point(0, 0), Point(2, 1))]}}
+    dst = ExcellonObject('dst', app)
+    dst.tools = pc.panelize_excellon(src, [(0, 0)])
+    before = freeze((dst.tools, dst.solid_geometry))
+    state = {'abort': False}
+    translate = pc.translate_geometry
+
+    def late_abort(*args, **kwargs):
+        result = translate(*args, **kwargs)
+        state['abort'] = True
+        return result
+
+    monkeypatch.setattr(pc, 'translate_geometry', late_abort)
+    with pytest.raises(grace):
+        pc.create_panel_excellon_geometry(dst, src, [(0, 0)], abort=lambda: state['abort'])
+    assert freeze((dst.tools, dst.solid_geometry)) == before
+    # An invalid later tool must not publish the completed first tool either.
+    dst.tools[2] = {'tooldia': 'invalid', 'drills': [], 'slots': []}
+    before = freeze((dst.tools, dst.solid_geometry))
+    with pytest.raises(TypeError):
+        pc.create_panel_excellon_geometry(dst, src, [(0, 0)])
+    assert freeze((dst.tools, dst.solid_geometry)) == before
+
+@pytest.mark.parametrize('slots', [[], [(Point(), Point(1, 1))], [((0, 0), (1, 1))]])
+def test_excellon_panel_unusual_slots_keep_builder_semantics(app, slots):
+    src = {1: {'tooldia': 0.8, 'slots': slots}}
+    dst, ref = ExcellonObject('dst', app), ExcellonObject('ref', app)
+    dst.tools, ref.tools = deepcopy(src), deepcopy(src)
+    result = ref.create_geometry()
+    if result == 'fail':
+        with pytest.raises(Exception):
+            pc.create_panel_excellon_geometry(dst, src, [(0, 0)])
+    else:
+        pc.create_panel_excellon_geometry(dst, src, [(0, 0)])
+        assert freeze(dst.solid_geometry) == freeze(ref.solid_geometry)
+    dst.tools = pc.panelize_excellon({1: {'tooldia': 0.8}}, [])
+    pc.create_panel_excellon_geometry(dst, src, [])
+    assert dst.solid_geometry == []
+
 class TestGeometry:
     def tools_multigeo(self):
         line = LineString([(0, 0), (10, 0)])
@@ -200,6 +273,49 @@ def test_optimize_panel_lines_equals_merge_tool_lines(offsets, snap_overlaps):
     assert len(got[0].geoms) == len(want[0].geoms)
     assert got[0].length == pytest.approx(want[0].length)                # no path is cut 2 times
     assert all(a.equals_exact(b, 0) for a, b in zip(got[1:], want[1:]))  # the polygons are kept
+
+
+@pytest.mark.parametrize('offsets', [[(0, 0), (30, 0)], [(0, 0), (10, 0)],
+                                      [(0, 0), (5, 0)], [(0, 0), (10 + 5e-8, 0)], [], [(0, 0)]])
+@pytest.mark.parametrize('snap_overlaps', [False, True])
+def test_panelize_geometry_optimized_matches_two_stage(offsets, snap_overlaps):
+    line = LineString([(0, 0), (5, 5), (10, 0)])
+    source = {1: {'data': {'depth': [-1]}, 'solid_geometry': [line, line,
+                  LineString([(0, 4), (10, 4)]), LineString([(0, 4 + 5e-8), (10, 4 + 5e-8)]),
+                  box(-50, -50, 50, 50), LineString()]},
+              2: {'solid_geometry': [LineString([(0, 0), (40, 0)]), Point(2, 3)]},
+              3: {'solid_geometry': [box(0, 0, 1, 1), LineString(),
+                                      shapely.GeometryCollection([line, Point(1, 2)])]},
+              4: {'solid_geometry': [LineString()]}}
+    solid = [line, LineString()]
+    before = freeze(source)
+    expected, expected_solid = pc.panelize_geometry(source, solid, True, offsets)
+    pc.optimize_panel_lines(source, expected, offsets, snap_overlaps=snap_overlaps)
+    result, result_solid = pc.panelize_geometry_optimized(
+        source, solid, True, iter(offsets), snap_overlaps=snap_overlaps)
+    assert freeze(result_solid) == freeze(expected_solid)
+    for tid in source:
+        got, want = result[tid]['solid_geometry'], expected[tid]['solid_geometry']
+        assert len(got) == len(want)
+        for a, b in zip(got, want):
+            assert a.geom_type == b.geom_type
+            assert a.equals_exact(b, 1e-12)
+            assert a.length == pytest.approx(b.length)
+        assert got is not source[tid]['solid_geometry']
+    result[1]['data']['depth'].append(-2)
+    assert freeze(source) == before
+    plain = pc.panelize_geometry_optimized(source, solid, False, offsets)
+    assert freeze(plain) == freeze(pc.panelize_geometry(source, solid, False, offsets))
+    with pytest.raises(grace):
+        pc.panelize_geometry_optimized(source, solid, True, offsets, abort=lambda: True)
+
+    cancelled = {'value': False}
+    def progress(*args):
+        cancelled['value'] = True
+    if offsets:
+        with pytest.raises(grace):
+            pc.panelize_geometry_optimized(source, solid, True, offsets,
+                                          abort=lambda: cancelled['value'], progress=progress)
 
 class TestAbortAndProgress:
     def test_abort_raises_grace(self, app):
@@ -468,6 +584,8 @@ def test_gerber_plugin_equals_tcl(app):
 
 def test_excellon_plugin_equals_tcl(app):
     src = make_excellon(app, name='e')
+    src.tools[1]['slots'].append((Point(1, 1), Point(3, 2)))
+    src.tools[1]['solid_geometry'] = [box(-100, -100, 100, 100)]
     _, tcl = run_panelize(app, src, 'e', '-rows', '2', '-columns', '3', '-spacing_columns', '5',
                           '-spacing_rows', '5', '-outname', 'q')
     created, _ = run_plugin(app, src, panel_type='gerber')
@@ -478,7 +596,19 @@ def test_excellon_plugin_equals_tcl(app):
         assert [(a.x, a.y, b.x, b.y) for a, b in pan.tools[tid]['slots']] == \
             pytest.approx(np.array([(a.x, a.y, b.x, b.y) for a, b in ref.tools[tid]['slots']]))
     assert pan.bounds() == pytest.approx(ref.bounds())
+    assert_coords_close(pan.solid_geometry, ref.solid_geometry)
     assert pan.source_file.startswith('M48')
+    for obj in (pan, ref):
+        again = ExcellonObject('again', app)
+        assert again.parse_lines(obj.source_file.splitlines(keepends=True)) is None
+        assert again.create_geometry() is None
+        for tid, tool in obj.tools.items():
+            assert again.tools[tid]['tooldia'] == pytest.approx(tool['tooldia'])
+            assert_coords_close(again.tools[tid]['drills'], tool['drills'])
+            assert len(again.tools[tid]['slots']) == len(tool['slots'])
+            for got, want in zip(again.tools[tid]['slots'], tool['slots']):
+                assert_coords_close(list(got), list(want))
+        assert_poly_equiv(again.solid_geometry, obj.solid_geometry)
 
 def test_constrain_reduces_the_grid(app):
     src = make_gerber(app, name='g')
@@ -507,6 +637,32 @@ def test_geometry_plugin_multigeo_merges_the_shared_borders(app):
     assert len(fused) == 1 and fused[0].length == pytest.approx(70.0)
     # the composed solid_geometry is flat
     assert all(not isinstance(g, (list, tuple)) for g in pan.solid_geometry) and len(pan.solid_geometry) == 4
+
+@pytest.mark.parametrize('spacing, optimize', [(5.0, False), (0.0, True)])
+def test_geometry_panel_dxf_roundtrip_and_move(app, spacing, optimize):
+    from appParsers.DXF import dxf_to_shapes
+    app.options['geometry_dxf_format'] = 'R2010'
+    src = make_geometry(app, True)
+    src.tools[1]['solid_geometry'].append(LineString([(2, 2), (3, 4), (4, 2)]))
+    created, _ = run_plugin(app, src, panel_type='geometry', rows=1, cols=2,
+                            spacing=spacing, optimize=optimize)
+    pan = created['src_panelized']
+
+    def check(doc):
+        got = dxf_to_shapes(doc)
+        want = list(parts(pan.tools[1]['solid_geometry']))
+        assert len(got) == len(want)
+        assert all(a.equals_exact(b, 1e-9) for a, b in zip(got, want))
+        assert unary_union(got).bounds == pytest.approx(unary_union(want).bounds)
+
+    doc = ezdxf.read(StringIO(pan.source_file))
+    assert bool(doc.modelspace().query('INSERT')) == (not optimize)
+    check(doc)
+    pan.offset((17.5, -4.0))
+    pan.regenerate_source()
+    moved_doc = ezdxf.read(StringIO(pan.source_file))
+    assert not moved_doc.modelspace().query('INSERT')
+    check(moved_doc)
 
 @pytest.mark.parametrize('multigeo', [False, True])
 def test_geometry_source_to_gerber_panel_solid(app, multigeo):
@@ -617,6 +773,28 @@ def same_copper(app, pan, tmp_path):
     want = polygon_union(pan.solid_geometry)
     assert polygon_union(again.solid_geometry).symmetric_difference(want).area <= 2e-3 * want.area
     return again
+
+@pytest.mark.parametrize('spacing', [5.0, -0.5, 0.01])
+def test_normal_panel_keeps_patched_copper_and_flashes(app, tmp_path, spacing):
+    src = GerberObject('g', app)
+    src.tools = {10: {'type': 'R', 'size': 2.0, 'width': 2.0, 'height': 2.0,
+                     'geometry': [{'solid': box(0, 0, 2, 2), 'follow': Point(1, 1), 'seq': 0}]}}
+    # Edited copper: the record needs both a clear patch and a dark patch. Keep its flash in the file.
+    src.solid_geometry = [box(0.1, 0, 2, 2).difference(box(0.5, 0.5, 1.5, 1.5)),
+                          box(2.5, 0, 3, 0.5), box(0, 2.5, 0.5, 3)]
+    src.export_as_regions = True
+    src.records_in_order = True
+    # Overlapping copies or grown correction patches reaching a neighbour need the whole-panel check.
+    created, _ = run_plugin(app, src, rows=1, cols=2, spacing=spacing)
+    pan = created['g_panelized']
+    assert '%SR' not in pan.source_file
+    again = reparse_gerber(app, pan.source_file, tmp_path)
+    assert polygon_union(again.solid_geometry).symmetric_difference(polygon_union(pan.solid_geometry)).area < 1e-8
+    assert flash_count(again) == 2
+    # A later export after moving the panel must use its new geometry.
+    pan.offset((10, 20))
+    pan.regenerate_source()
+    same_copper(app, pan, tmp_path)
 
 @pytest.mark.parametrize('spacing', [5.0, -1.0])
 def test_panel_of_a_gerber_with_clear_objects_keeps_its_apertures(app, tmp_path, spacing):

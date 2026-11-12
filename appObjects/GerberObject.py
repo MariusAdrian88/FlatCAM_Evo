@@ -1518,6 +1518,16 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
             counts = counts.tolist()
             values = (coords * factor).ravel().tolist()
 
+            # The exteriors of all the regions, read in one call (written with all their points, as before).
+            regions = np.empty(len(plan.items) - len(ap_items), dtype=object)
+            regions[:] = [item[1] for item in plan.items if item[0] == 'region']
+            r_coords, r_owner = shapely.get_coordinates(shapely.get_exterior_ring(regions), return_index=True)
+            r_counts = np.bincount(r_owner, minlength=len(regions))
+            r_starts = (np.cumsum(r_counts) - r_counts).tolist()
+            r_counts = r_counts.tolist()
+            r_values = (r_coords * factor).ravel().tolist()
+            r_number = -1
+
             selected = None
             polarity = 'D'
             number = -1
@@ -1529,8 +1539,15 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
                     polarity = 'C' if is_clear else 'D'
                     gerber_parts.append('%%LP%s*%%\n' % polarity)
                 if kind == 'region':
+                    r_number += 1
+                    count = r_counts[r_number]
                     gerber_parts.append('G36*\n')
-                    gerber_parts.append(path_code(code.exterior.coords, skip_repeated=False))
+                    if count:
+                        first = 2 * r_starts[r_number]
+                        gerber_parts.append(clean((move_fmt + draw_fmt * (count - 1)) %
+                                                  tuple(r_values[first:first + 2 * count])))
+                    else:
+                        gerber_parts.append(path_code(code.exterior.coords, skip_repeated=False))
                     gerber_parts.append('D02*\nG37*\n')
                     if code.interiors:
                         # a part that kept its holes (hole_free_parts() could not open them): the holes in the
@@ -1559,6 +1576,42 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
                 return ''.join(definitions), ''.join(gerber_parts)
             return ''.join(definitions) + ''.join(gerber_parts)
 
+        def native_records(records, aperture_type):
+            # Bound coordinate/formatting temporaries; below 128 records batching costs more than it saves.
+            for offset in range(0, len(records), 1024):
+                chunk = records[offset:offset + 1024]
+                codes = None
+                if aperture_type in ('C', 'R', 'O') and len(chunk) >= 128:
+                    try:
+                        if all('follow' in rec and 'clear' not in rec for rec in chunk):
+                            follows = np.empty(len(chunk), dtype=object)
+                            follows[:] = [rec['follow'] for rec in chunk]
+                            types = shapely.get_type_id(follows)
+                            if (np.all(np.isin(types, [0, 1, 2])) and
+                                    np.all(shapely.get_coordinate_dimension(follows) == 2) and
+                                    np.all(shapely.is_valid(follows))):
+                                coords, owner = shapely.get_coordinates(follows, return_index=True)
+                                if np.all(np.isfinite(coords)):
+                                    keep = np.ones(len(coords), dtype=bool)
+                                    keep[1:] = ((owner[1:] != owner[:-1]) |
+                                                np.any(coords[1:] != coords[:-1], axis=1))
+                                    coords, owner = coords[keep], owner[keep]
+                                    counts = np.bincount(owner, minlength=len(chunk))
+                                    starts = (np.cumsum(counts) - counts).tolist()
+                                    values = (coords * factor).ravel().tolist()
+                                    codes = []
+                                    for kind, start, count in zip(types.tolist(), starts, counts.tolist()):
+                                        points = tuple(values[2 * start:2 * (start + count)])
+                                        fmt = flash_fmt if kind == 0 else move_fmt + draw_fmt * (count - 1)
+                                        codes.append(clean(fmt % points) if count else '')
+                    except Exception:
+                        # Unsupported follows retain the original per-record logging and output.
+                        codes = None
+                if codes is None:
+                    yield from ((rec, None) for rec in chunk)
+                else:
+                    yield from zip(chunk, codes)
+
         # apertures processing
         try:
             if 0 in self.tools:
@@ -1578,8 +1631,12 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
             else:
                 gerber_parts.append('D%s*\n' % str(apid))
                 if 'geometry' in self.tools[apid]:
-                    for geo_elem in self.tools[apid]['geometry']:
-                        gerber_parts.append(to_code(geo_elem))
+                    for geo_elem, code in native_records(self.tools[apid]['geometry'], self.tools[apid]['type']):
+                        if to_table:
+                            gerber_parts.append(to_code(geo_elem))
+                        if code is not None:
+                            gerber_parts.append(code)
+                            continue
                         try:
                             if 'follow' in geo_elem:
                                 geo = geo_elem['follow']

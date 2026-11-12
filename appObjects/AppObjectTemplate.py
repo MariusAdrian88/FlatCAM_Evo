@@ -381,12 +381,19 @@ class FlatCAMObj(QtCore.QObject):
         copy-major order, each copy moved by its offset. The plot then takes the buffers of ``src`` and moves them
         by each offset, if the geometry proves to be that (else the normal plot runs).
 
+        Cancellation that could expose coarse float32 source rounding at the destination falls back to a normal
+        plot; translated tessellation is not promised to be bitwise identical to a fresh one.
+
         :param src:     the object this one is a copy of
         :param offsets: list of (dx, dy) of the copies of a panel, or None for a plain copy
         :return:        None
         """
         self._reuse_src = src
         self._reuse_offsets = offsets
+        if offsets is not None:
+            # kept for every later plot: the copies of the panel take the buffers of its first copy (see
+            # _reuse_own_copies), also when src has no plot; a changed geometry fails the check and plots as usual
+            self._panel_offsets = offsets
 
     def _reuse_translated_plot(self, src, shapes_data, fp, tolerance, kwargs, offsets):
         # the keys of the shapes of a panel with the buffers of src moved by the offsets, or None if not valid
@@ -410,50 +417,198 @@ class FlatCAMObj(QtCore.QObject):
                     not src._has_full_plot():
                 return None
 
-            # copy-major: shape i is shape (i mod n) of the source moved by offsets[i // n]
             src_geoms = np.empty(n, dtype=object)
             src_geoms[:] = src_shapes
             pan_geoms = np.empty(n * count, dtype=object)
             for i, item in enumerate(shapes_data):
                 pan_geoms[i] = item['shape']
-            src_types = shapely.get_type_id(src_geoms)
-            src_counts = shapely.get_num_coordinates(src_geoms)
-            if not (shapely.get_type_id(pan_geoms).reshape(count, n) == src_types[None, :]).all() or \
-                    not (shapely.get_num_coordinates(pan_geoms).reshape(count, n) == src_counts[None, :]).all():
+            pan_counts = shapely.get_num_coordinates(pan_geoms)
+            if not pan_counts.all():
                 return None
-            src_parts = shapely.get_parts(src_geoms)
-            src_rings = shapely.get_num_coordinates(shapely.get_rings(src_parts))
-            pan_parts = shapely.get_parts(pan_geoms)
-            pan_rings = shapely.get_num_coordinates(shapely.get_rings(pan_parts))
-            if len(pan_parts) != len(src_parts) * count or len(pan_rings) != len(src_rings) * count or \
-                    not (shapely.get_type_id(pan_parts).reshape(count, -1) == shapely.get_type_id(src_parts)).all() or \
-                    not (shapely.get_num_coordinates(pan_parts).reshape(count, -1) ==
-                         shapely.get_num_coordinates(src_parts)).all() or \
-                    not (pan_rings.reshape(count, -1) == src_rings).all():
+            pan_xy = shapely.get_coordinates(pan_geoms)
+
+            # Runs: the panel holds each run of source shapes (the drills of a tool, then its slots, ...) copy after
+            # copy. order[j] is the source shape of panel shape j, copy[j] the index of its offset.
+            found = FlatCAMObj._panel_runs(pan_xy[np.cumsum(pan_counts) - pan_counts], n, offsets)
+            if found is None:
                 return None
-            src_xy = shapely.get_coordinates(src_geoms)
-            pan_xy = shapely.get_coordinates(pan_geoms).reshape(count, len(src_xy), 2)
-            if not np.allclose(pan_xy - offsets[:, None, :], src_xy[None], atol=1e-9, rtol=0):
+            order, copy = found
+            if not FlatCAMObj._is_translated(src_geoms, pan_geoms, pan_counts, pan_xy, order, copy, offsets,
+                                             tolerance):
                 return None
 
             buffers = group.snapshot()
             if buffers is None or len(buffers) != n or src._plot_fp != src_fp or src._plot_shapes is not src_plot \
                     or not src._has_full_plot():
                 return None
-            entries = []
-            for dx, dy in offsets:
-                off = np.array([dx, dy], dtype=np.float64)
-                for d in buffers:
-                    d2 = dict(d)
-                    if len(d['mesh_vertices']):
-                        d2['mesh_vertices'] = (d['mesh_vertices'] + off).astype(d['mesh_vertices'].dtype)
-                    if len(d['line_pts']):
-                        d2['line_pts'] = (d['line_pts'] + off).astype(d['line_pts'].dtype)
-                    entries.append(d2)
+            entries = FlatCAMObj._moved_buffers(buffers, order, copy, offsets)
             return self.shapes.add_batch_copy(entries, shapes_data, tolerance=tolerance, **kwargs)
         except Exception as e:
             self.app.log.debug("FlatCAMObj._reuse_translated_plot() --> %s" % str(e))
             return None
+
+    # A panel prepares 1 copy itself only from this many copies: the other way, the process pool prepares all the
+    # shapes at the same time, which is faster for a few copies.
+    SELF_PANEL_MIN_COPIES = 8
+
+    def _reuse_own_copies(self, shapes_data, tolerance, kwargs, offsets):
+        """
+        The keys of the shapes of a panel whose copies are the shapes of its first copy moved by the offsets, without a
+        source: the shapes of the first copy are prepared here (simplified, triangulated) and their buffers are moved to
+        every other copy. None if the shapes are not that (then the normal plot runs).
+        """
+        try:
+            import shapely
+            from appGUI.VisPyVisuals import _update_shape_buffers
+            if not hasattr(self.shapes, 'add_batch_copy'):
+                return None
+            moves = np.asarray(offsets, dtype=np.float64).reshape(-1, 2)
+            count, total = len(moves), len(shapes_data)
+            if count < FlatCAMObj.SELF_PANEL_MIN_COPIES or total == 0 or total % count:
+                return None
+            n = total // count
+            # the moves from the first copy: they stay valid when the whole panel is moved
+            moves = moves - moves[0]
+            pan_geoms = np.empty(total, dtype=object)
+            for i, item in enumerate(shapes_data):
+                pan_geoms[i] = item['shape']
+            pan_counts = shapely.get_num_coordinates(pan_geoms)
+            if not pan_counts.all():
+                return None
+            pan_xy = shapely.get_coordinates(pan_geoms)
+            found = FlatCAMObj._panel_runs(pan_xy[np.cumsum(pan_counts) - pan_counts], n, moves)
+            if found is None:
+                return None
+            order, copy = found
+            # first[i]: the panel shape that is source shape i (its copy at the first offset)
+            first = np.empty(n, dtype=np.intp)
+            in_first = np.flatnonzero(copy == 0)
+            first[order[in_first]] = in_first
+            if not FlatCAMObj._is_translated(pan_geoms[first], pan_geoms, pan_counts, pan_xy, order, copy, moves,
+                                             tolerance):
+                return None
+
+            layer = kwargs.get('layer', 1)
+            buffers = []
+            for j in first.tolist():
+                item = shapes_data[j]
+                buffers.append(_update_shape_buffers({
+                    'geometry': item['shape'], 'color': item.get('color'), 'alpha': item.get('alpha'),
+                    'face_color': item.get('face_color'), 'layer': item.get('layer', layer),
+                    'tolerance': item.get('tolerance', tolerance)}))
+            entries = FlatCAMObj._moved_buffers(buffers, order, copy, moves)
+            return self.shapes.add_batch_copy(entries, shapes_data, tolerance=tolerance, **kwargs)
+        except Exception as e:
+            self.app.log.debug("FlatCAMObj._reuse_own_copies() --> %s" % str(e))
+            return None
+
+    @staticmethod
+    def _is_translated(src_geoms, pan_geoms, pan_counts, pan_xy, order, copy, moves, tolerance):
+        """
+        True if panel shape j is source shape order[j] moved by moves[copy[j]]: the same type, the same parts and rings
+        with the same point counts, every point within 1e-9, and no float32 rounding of the source made visible.
+        """
+        import shapely
+        n = len(src_geoms)
+        src_counts = shapely.get_num_coordinates(src_geoms)
+        if not src_counts.all() or not (shapely.get_type_id(pan_geoms) == shapely.get_type_id(src_geoms)[order]).all() \
+                or not (pan_counts == src_counts[order]).all():
+            return False
+        gather = FlatCAMObj._gather
+        # the parts and their rings must have the structure of the parts and rings of the source shape
+        src_parts, src_part_owner = shapely.get_parts(src_geoms, return_index=True)
+        pan_parts, pan_part_owner = shapely.get_parts(pan_geoms, return_index=True)
+        src_np = np.bincount(src_part_owner, minlength=n)
+        if not (np.bincount(pan_part_owner, minlength=len(pan_geoms)) == src_np[order]).all():
+            return False
+        parts = gather(np.cumsum(src_np) - src_np, src_np, order)
+        if not (shapely.get_type_id(pan_parts) == shapely.get_type_id(src_parts)[parts]).all() or \
+                not (shapely.get_num_coordinates(pan_parts) == shapely.get_num_coordinates(src_parts)[parts]).all():
+            return False
+        src_rings, src_ring_owner = shapely.get_rings(src_parts, return_index=True)
+        pan_rings, pan_ring_owner = shapely.get_rings(pan_parts, return_index=True)
+        src_nr = np.bincount(src_ring_owner, minlength=len(src_parts))
+        if not (np.bincount(pan_ring_owner, minlength=len(pan_parts)) == src_nr[parts]).all():
+            return False
+        rings = gather(np.cumsum(src_nr) - src_nr, src_nr, parts)
+        if not (shapely.get_num_coordinates(pan_rings) == shapely.get_num_coordinates(src_rings)[rings]).all():
+            return False
+        src_xy = shapely.get_coordinates(src_geoms)
+        expected = src_xy[gather(np.cumsum(src_counts) - src_counts, src_counts, order)] + \
+            np.repeat(moves[copy], pan_counts, axis=0)
+        if not np.allclose(pan_xy, expected, atol=1e-9, rtol=0):
+            return False
+
+        # Cancellation must not expose coarse source float32 rounding near the destination origin.
+        # Bound the inherited error by max(one destination ULP, min(drawing tolerance, 1e-6 units));
+        # the final float32 conversion can add another destination ULP relative to a fresh plot.
+        low, high = src_xy.min(axis=0), src_xy.max(axis=0)
+        cancelling = ((moves > 0) & (low < 0)) | ((moves < 0) & (high > 0))
+        if cancelling.any():
+            dest_low, dest_high = low + moves, high + moves
+            dest_scale = np.minimum(np.abs(dest_low), np.abs(dest_high))
+            dest_scale[(dest_low <= 0) & (dest_high >= 0)] = 0
+            with np.errstate(over='ignore', invalid='ignore'):
+                source_error = np.spacing(np.maximum(np.abs(low), np.abs(high)).astype(np.float32)) / 2
+                allowed = np.maximum(np.spacing(dest_scale.astype(np.float32)), min(abs(tolerance or 0), 1e-6))
+            if (cancelling & (~np.isfinite(source_error) | ~np.isfinite(allowed) |
+                              (source_error > allowed))).any():
+                return False
+        return True
+
+    @staticmethod
+    def _moved_buffers(buffers, order, copy, moves):
+        # the buffers of panel shape j: buffers[order[j]] moved by moves[copy[j]] (new position arrays, same colors)
+        entries = []
+        for i, k in zip(order.tolist(), copy.tolist()):
+            d = buffers[i]
+            off = moves[k]
+            d2 = dict(d)
+            if len(d['mesh_vertices']):
+                d2['mesh_vertices'] = (d['mesh_vertices'] + off).astype(d['mesh_vertices'].dtype)
+            if len(d['line_pts']):
+                d2['line_pts'] = (d['line_pts'] + off).astype(d['line_pts'].dtype)
+            entries.append(d2)
+        return entries
+
+    @staticmethod
+    def _gather(starts, counts, select):
+        # the indexes of the items of the groups ``select`` (group g: starts[g] .. starts[g] + counts[g]), in order
+        sizes = counts[select]
+        return np.repeat(starts[select] - (np.cumsum(sizes) - sizes), sizes) + np.arange(int(sizes.sum()))
+
+    @staticmethod
+    def _panel_runs(pan_first, n, offsets):
+        """
+        The runs of a panel plot: a run of L source shapes is in the panel L * len(offsets) times, copy after copy.
+        A run ends where its first shape comes again, moved by offsets[1] - offsets[0]. Only a candidate: the caller
+        checks every coordinate.
+
+        :param pan_first:   (n * len(offsets), 2) the first point of each panel shape
+        :param n:           the number of the source shapes
+        :param offsets:     (len(offsets), 2) array
+        :return:            (order, copy) int arrays (source shape and offset index of each panel shape), or None
+        """
+        count = len(offsets)
+        if count == 1:
+            return np.arange(n), np.zeros(n, dtype=np.intp)
+        step = offsets[1] - offsets[0]
+        orders, copies = [], []
+        p = s = 0
+        while s < n:
+            window = pan_first[p + 1:p + n - s + 1]
+            hits = np.flatnonzero(np.all(np.abs(window - (pan_first[p] + step)) <= 1e-9, axis=1))
+            if not hits.size:
+                return None
+            length = int(hits[0]) + 1
+            if s + length > n:
+                return None
+            index = np.arange(length * count)
+            orders.append(s + index % length)
+            copies.append(index // length)
+            p += length * count
+            s += length
+        return np.concatenate(orders), np.concatenate(copies)
 
     def _reuse_plot(self, src, shapes_data, fp, tolerance, kwargs):
         # the keys of the shapes with the buffers of src, or None if the plot of src cannot be trusted for these shapes
@@ -604,13 +759,14 @@ class FlatCAMObj(QtCore.QObject):
 
     def add_shapes_batch(self, shapes_data, **kwargs):
         """
-        Batch version of add_shape(). Submits all shapes in one pool call.
+        Batch version of add_shape(). Submits all shapes in one pool call unless synchronous=True.
 
         :param shapes_data: list of dicts with keys: 'shape', 'color', 'face_color', 'alpha', 'layer', 'tolerance'
-        :param kwargs: passed to ShapeCollectionVisual.add_batch()
+        :param kwargs: passed to ShapeCollectionVisual.add_batch(); synchronous prepares uncached shapes locally
         :return: list of shape keys
         """
         tol = kwargs.pop('tolerance', self.drawing_tolerance)
+        synchronous = kwargs.pop('synchronous', False)
 
         if self.deleted:
             raise ObjectDeleted()
@@ -644,6 +800,15 @@ class FlatCAMObj(QtCore.QObject):
             if keys is not None:
                 return keys
 
+        panel_offsets = vars(self).get('_panel_offsets')
+        if panel_offsets is not None and self._plot_batches == 1 and fp is not None:
+            keys = self._reuse_own_copies(shapes_data, tol, kwargs, panel_offsets)
+            if keys is not None:
+                return keys
+
+        if synchronous:
+            # Keep the batch fingerprint for later reuse without pool serialization of cheap outline rings.
+            return [self.shapes.add(**{'tolerance': tol, **kwargs, **item}) for item in shapes_data]
         return self.shapes.add_batch(shapes_data, tolerance=tol, **kwargs)
 
     def add_mark_shape(self, **kwargs):

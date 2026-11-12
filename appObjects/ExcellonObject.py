@@ -1431,25 +1431,30 @@ class ExcellonObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Excellon):
                     for tool, (start, end) in tool_ranges.items():
                         self.shape_indexes_dict[tool] = list(keys[start:end])
             else:
-                # Non-solid mode: plot outlines only (fewer shapes, keep individual add)
+                # Keep the rings in tool order, with one submission for the whole outline plot.
+                batch = []
+                tool_ranges = {}
                 for tool in self.tools:
                     geo_color = self.tools[tool].get('multicolor')
                     if not self._valid_tool_color(geo_color):
                         geo_color = None
+                    batch_start = len(batch)
                     for geo in self.tools[tool]['solid_geometry']:
-                        idx = self.add_shape(shape=geo.exterior,
-                                             color=geo_color if geo_color is not None else 'red', visible=visible)
-                        try:
-                            self.shape_indexes_dict[tool].append(idx)
-                        except KeyError:
-                            self.shape_indexes_dict[tool] = [idx]
+                        batch.append({'shape': geo.exterior,
+                                      'color': geo_color if geo_color is not None else 'red'})
                         for ints in geo.interiors:
-                            idx = self.add_shape(shape=ints,
-                                                 color=geo_color if geo_color is not None else 'orange', visible=visible)
-                            try:
-                                self.shape_indexes_dict[tool].append(idx)
-                            except KeyError:
-                                self.shape_indexes_dict[tool] = [idx]
+                            batch.append({'shape': ints,
+                                          'color': geo_color if geo_color is not None else 'orange'})
+                    if len(batch) > batch_start:
+                        tool_ranges[tool] = (batch_start, len(batch))
+
+                if batch:
+                    # Pool serialization costs more than preparing these line-only rings locally.
+                    keys = self.add_shapes_batch(
+                        batch, visible=visible,
+                        synchronous=self._app_option('global_graphic_engine_3d_no_mp') is not True)
+                    for tool, (start, end) in tool_ranges.items():
+                        self.shape_indexes_dict[tool] = list(keys[start:end])
 
             self.shapes.redraw()
             self.mark_full_plot()

@@ -27,16 +27,17 @@ Contract (all functions)
 
 from copy import deepcopy
 from math import isfinite
+from types import SimpleNamespace
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
 import numpy as np
 import shapely
-from shapely.geometry import LineString, MultiLineString, MultiPolygon, Polygon
+from shapely.geometry import LineString, MultiLineString, MultiPolygon, Point, Polygon
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import linemerge, snap, unary_union
 
-from camlib import grace, new_rtree_index, translate_geometry
-from appParsers.ParseExcellon import hole_ids
+from camlib import circle_quad_segs, grace, new_rtree_index, translate_geometry
+from appParsers.ParseExcellon import Excellon, hole_ids
 
 Offset = Tuple[float, float]
 
@@ -206,7 +207,7 @@ def panelize_excellon(src_tools: Dict[Any, dict], offsets: Iterable[Offset],
 
     The new tools keep the tool data (``tooldia``, ``data``, ...; deep-copied). 'drills' are new Points and 'slots'
     are new ``(start Point, stop Point)`` tuples (also when the source slots are lists). 'solid_geometry' is reset to
-    an empty list: the caller runs ``create_geometry()`` on the new object.
+    an empty list: the caller builds the polygons on the new object.
 
     :param src_tools: Excellon tools ({tid: {'tooldia', 'drills', 'slots', 'data', ...}})
     :param offsets:   list of (dx, dy)
@@ -250,7 +251,51 @@ def panelize_excellon(src_tools: Dict[Any, dict], offsets: Iterable[Offset],
                     tools[tid]['slots_to'].extend(tool['slots_to'])
                 done_slots += len(slots)
                 _report(progress, element, done_slots, total_slots, 'S:')
+    _check_abort(abort)
     return tools
+
+
+def create_panel_excellon_geometry(dst, src_tools, offsets: Iterable[Offset],
+                                   abort: Optional[Callable[[], bool]] = None) -> None:
+    """
+    Build polygons for tools from ``panelize_excellon`` using the destination's diameter and circle settings.
+    Plain 2D slots are buffered once per source tool, then moved copy by copy. Other slots use the existing
+    builder on the translated primitives. Drills keep the fast circle-template builder. Source solids are never
+    read. Publish only after all tools and the final abort check succeed; errors propagate to the object factory.
+    """
+    offsets = list(offsets)
+    tools, solid = {}, []
+    for tid, tool in dst.tools.items():
+        _check_abort(abort)
+        new_tool = dict(tool)
+        if not new_tool.get('data'):
+            new_tool['data'] = deepcopy(getattr(dst, 'default_data', {}))
+        radius = tool['tooldia'] / 2.0
+        quad_segs = circle_quad_segs(dst.circle_steps(radius))
+        geometry = Excellon._buffer_drills(tool.get('drills', []), radius, quad_segs)
+        slots = src_tools[tid].get('slots') or []
+        fast = bool(offsets) and bool(slots) and all(
+            isinstance(slot, (list, tuple)) and len(slot) == 2
+            and all(isinstance(point, Point) for point in slot) for slot in slots)
+        if fast:
+            ends = np.array([point for slot in slots for point in slot], dtype=object)
+            fast = not shapely.has_z(ends).any() and not shapely.is_empty(ends).any() \
+                and np.isfinite(shapely.get_coordinates(ends)).all() \
+                and all(isfinite(v) for offset in offsets for v in offset)
+        if fast:
+            seed = Excellon._buffer_slots(slots, radius, quad_segs)
+            for dx, dy in offsets:
+                _check_abort(abort)
+                geometry.extend(translate_geometry(seed, dx, dy))
+        else:
+            _check_abort(abort)
+            geometry.extend(Excellon._buffer_slots(tool.get('slots', []), radius, quad_segs))
+        new_tool['solid_geometry'] = geometry
+        tools[tid] = new_tool
+        solid.extend(geometry)
+    _check_abort(abort)
+    dst.tools = tools
+    dst.solid_geometry = solid
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -447,6 +492,53 @@ def panel_region_polygons(source_polygons: list, offsets: Iterable[Offset],
         _check_abort(abort)
         moved.extend(translate_geometry(list(source_polygons), dx, dy))
     return moved
+
+
+def panel_export_plan(source, offsets: Iterable[Offset], abort: Optional[Callable[[], bool]] = None):
+    """
+    The plan of the record export of a Gerber panel (see ``appParsers.gerber_export_plan.build_export_plan``),
+    made from the plan of its source: the plan of the source moved to every offset, copy after copy.
+
+    This is the plan of the panel only if the written objects of 2 copies cannot touch: a clear object of a copy
+    must not erase copper of another copy. That is checked on the bounds of all the geometry of the source, then
+    again with the correction regions of the plan (they can grow beyond the source). If the copies can touch, the
+    result is None: the caller must let the export plan the whole panel.
+
+    :param source:  the source Gerber object (only read)
+    :param offsets: list of (dx, dy)
+    :return:        SimpleNamespace as ``build_export_plan`` returns it, or None
+    """
+    from appParsers.gerber_export_plan import build_export_plan
+
+    offsets = list(offsets)
+    bounds = source_bounds(source.tools, source.solid_geometry)
+    if not offsets or bounds is None or \
+            not _copies_are_apart(offsets, bounds[2] - bounds[0], bounds[3] - bounds[1]):
+        return None
+
+    _check_abort(abort)
+    plan = build_export_plan(source)
+    regions = [item[1] for item in plan.items if item[0] == 'region']
+    if regions:
+        xmin, ymin, xmax, ymax = shapely.total_bounds(
+            np.array([shapely.box(*bounds), *regions], dtype=object)).tolist()
+        if not _copies_are_apart(offsets, xmax - xmin, ymax - ymin):
+            return None
+
+    # a region item holds its polygon, any other item its flash point or centre line
+    geometry = [item[1] if item[0] == 'region' else item[2] for item in plan.items]
+    items = []
+    for dx, dy in offsets:
+        _check_abort(abort)
+        moved = translate_geometry(geometry, dx, dy)
+        for (kind, code, _follow, is_clear, record), geo in zip(plan.items, moved):
+            if kind == 'region':
+                items.append((kind, geo, None, is_clear, record))
+            else:
+                items.append((kind, code, geo, is_clear, record))
+    _check_abort(abort)
+    return SimpleNamespace(items=items, blocks=plan.blocks, trusted=plan.trusted,
+                           patched=plan.patched * len(offsets))
 
 
 def copy_gerber_attributes(dst, src) -> None:
@@ -683,6 +775,67 @@ def _copies_are_apart(offsets: List[Offset], width: float, height: float) -> boo
     return True
 
 
+def _source_panel_lines(src_lines, offsets, snap_overlaps, abort):
+    """Final line group for separated copies, or None when full-panel fusion is required."""
+    _check_abort(abort)
+    if not src_lines or not offsets:
+        return None
+    xmin, ymin, xmax, ymax = MultiLineString(src_lines).bounds
+    if not all(isfinite(v) for v in (xmin, ymin, xmax, ymax)) \
+            or not _copies_are_apart(offsets, xmax - xmin, ymax - ymin):
+        return None
+    if snap_overlaps and len(src_lines) > 1:
+        _snap_lines(src_lines, abort)
+    _check_abort(abort)
+    merged = linemerge(src_lines)
+    if merged.is_empty:
+        return []
+    fused = unary_union(merged)
+    parts = list(getattr(fused, 'geoms', [fused]))
+    moved = []
+    for dx, dy in offsets:
+        _check_abort(abort)
+        moved.extend(translate_geometry(parts, dx, dy))
+    return [moved[0] if len(moved) == 1 else MultiLineString(moved)]
+
+
+def panelize_geometry_optimized(src_tools: Dict[Any, dict], src_solid, multigeo: bool,
+                                offsets: Iterable[Offset], abort=None, progress=None, *,
+                                snap_overlaps: bool = False) -> Tuple[Dict[Any, dict], list]:
+    """GUI Geometry construction with final tool lines built directly where copies cannot interact.
+
+    Composed solids and non-lines still use ``panelize_geometry``. Ineligible tools use the established
+    full-panel optimizer. The default builder (also used by Tcl) deliberately does not optimize lines.
+    """
+    _check_abort(abort)
+    offsets = list(offsets)
+    if not multigeo:
+        result = panelize_geometry(src_tools, src_solid, multigeo, offsets, abort=abort, progress=progress)
+        _check_abort(abort)
+        return result
+    construction_tools = dict(src_tools)
+    final_lines = {}
+    for tid, tool in src_tools.items():
+        _check_abort(abort)
+        geometry = _split_multi(tool.get('solid_geometry'))
+        lines, other_geo = _split_lines(geometry)
+        fast = _source_panel_lines(lines, offsets, snap_overlaps, abort)
+        if fast is not None:
+            final_lines[tid] = fast
+            construction_tools[tid] = dict(tool, solid_geometry=other_geo)
+    tools, solid = panelize_geometry(construction_tools, src_solid, True, offsets,
+                                    abort=abort, progress=progress)
+    for tid, tool in tools.items():
+        _check_abort(abort)
+        if tid in final_lines:
+            tool['solid_geometry'] = final_lines[tid] + tool['solid_geometry']
+        else:
+            optimize_panel_lines({tid: src_tools[tid]}, {tid: tool}, offsets,
+                                 snap_overlaps=snap_overlaps, abort=abort)
+    _check_abort(abort)
+    return tools, solid
+
+
 def optimize_panel_lines(src_tools: Dict[Any, dict], tools: Dict[Any, dict], offsets: Iterable[Offset],
                          snap_overlaps: bool = False, abort: Optional[Callable[[], bool]] = None) -> None:
     """
@@ -704,27 +857,9 @@ def optimize_panel_lines(src_tools: Dict[Any, dict], tools: Dict[Any, dict], off
             src_lines, _ = _split_lines(_split_multi(src_tool.get('solid_geometry')))
             lines, other_geo = _split_lines(tool.get('solid_geometry'))
             if src_lines and len(lines) == len(src_lines) * len(offsets):
-                xmin, ymin, xmax, ymax = MultiLineString(src_lines).bounds
-                if all(isfinite(v) for v in (xmin, ymin, xmax, ymax)) \
-                        and _copies_are_apart(offsets, xmax - xmin, ymax - ymin):
-                    fast = (src_lines, other_geo)
+                fast = _source_panel_lines(src_lines, offsets, snap_overlaps, abort)
         if fast is None:
             merge_tool_lines({tid: tool}, snap_overlaps=snap_overlaps, abort=abort)
             continue
 
-        src_lines, other_geo = fast
-        if snap_overlaps and len(src_lines) > 1:
-            _snap_lines(src_lines, abort)
-        _check_abort(abort)
-        merged = linemerge(src_lines)
-        if merged.is_empty:
-            tool['solid_geometry'] = other_geo
-            continue
-        fused = unary_union(merged)
-        parts = list(getattr(fused, 'geoms', [fused]))
-        moved = []
-        for dx, dy in offsets:
-            _check_abort(abort)
-            moved.extend(translate_geometry(parts, dx, dy))
-        fused_lines = moved[0] if len(moved) == 1 else MultiLineString(moved)
-        tool['solid_geometry'] = [fused_lines] + other_geo
+        tool['solid_geometry'] = fast + other_geo

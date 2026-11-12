@@ -485,12 +485,23 @@ def shapely_parts(geometry):
 
 
 def assert_close_plot(got, want, atol=2e-5):
-    # a fresh triangulation of moved polygons may pick other (equally valid) triangles: only their count is compared
+    # Translated polygons may triangulate differently; compare the filled coverage, not triangle indices.
+    from shapely import Polygon, union_all
     assert len(got) == len(want) > 0
     for g, w in zip(got, want):
+        if atol:
+            def coverage(entry):
+                triangles = np.asarray(entry['mesh_tris']).reshape(-1, 3)
+                return union_all([Polygon(entry['mesh_vertices'][triangle]) for triangle in triangles])
+            actual, expected = coverage(g), coverage(w)
+            assert actual.is_empty == expected.is_empty
+            if not expected.is_empty:
+                assert actual.hausdorff_distance(expected) <= atol
+                assert actual.symmetric_difference(expected).area <= \
+                    atol * (actual.length + expected.length) + atol ** 2
         for k in w:
-            if k == 'mesh_tris' and atol:
-                assert np.shape(g[k]) == np.shape(w[k])
+            if k in ('mesh_tris', 'mesh_vertices') and atol:
+                continue
             elif isinstance(w[k], np.ndarray) and w[k].dtype.kind == 'f':
                 np.testing.assert_allclose(g[k], w[k], atol=atol, rtol=0, err_msg=k)
             elif isinstance(w[k], np.ndarray):

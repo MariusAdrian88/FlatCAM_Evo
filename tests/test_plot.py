@@ -15,6 +15,7 @@ Tests for the fast plot toggle: show or hide the shapes of the last full plot wi
 import sys
 import os
 import unittest
+import pytest
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -30,6 +31,313 @@ def setUpModule():
     global _fake_canvas
     from vispy.gloo.context import FakeCanvas
     _fake_canvas = FakeCanvas()
+
+
+@pytest.mark.parametrize('solid', [False, True])
+@pytest.mark.parametrize('cache', ['valid', 'uncached', 'deleted', 'mismatch', 'pending'])
+def test_excellon_panel_cached_plot_matches_fresh(solid, cache):
+    from copy import deepcopy
+    from shapely.affinity import translate
+    from tests.test_object_copy import plotted, assert_close_plot
+    import appGUI.VisPyVisuals as visuals
+    from unittest.mock import patch
+
+    from vispy.gloo.context import FakeCanvas
+    canvas = FakeCanvas()
+    app = make_app()
+    source = make_excellon(app)
+    polygon = Polygon([(0, 0), (4, 0), (4, 4), (0, 4)],
+                      holes=[[(1, 1), (1, 2), (2, 2), (2, 1)]])
+    # 2 tools: the panel holds the copies tool after tool, not copy after copy
+    drill = Polygon([(5, 0), (6, 0), (6, 1), (5, 1)])
+    source.tools = {1: {'solid_geometry': [polygon], 'multicolor': (0.1, 0.2, 0.3, 1.0)},
+                    2: {'solid_geometry': [drill], 'multicolor': (0.1, 0.2, 0.3, 1.0)}}
+    source.solid_geometry = [polygon, drill]
+    source.obj_options.update(solid=solid, multicolored=False, plot=True)
+    source.shapes = ShapeGroup(_new_collection())
+    source.plot()
+    before = plotted(source)
+    if cache == 'uncached':
+        source.shapes.clear(update=True)
+    elif cache == 'deleted':
+        source.deleted = True
+    elif cache == 'pending':
+        source.shapes.snapshot = lambda: None
+    panel = make_excellon(app)
+    panel.tools = deepcopy(source.tools)
+    panel.tools[1]['solid_geometry'] = [translate(polygon, xoff=x) for x in (0, 10)]
+    panel.tools[1]['multicolor'] = (0.8, 0.4, 0.2, 1.0)
+    panel.tools[2]['solid_geometry'] = [translate(drill, xoff=x) for x in (0, 10)]
+    panel.tools[2]['multicolor'] = (0.8, 0.4, 0.2, 1.0)
+    panel.solid_geometry = panel.tools[1]['solid_geometry'] + panel.tools[2]['solid_geometry']
+    if cache == 'mismatch':
+        panel.tools[1]['solid_geometry'][1] = translate(polygon.buffer(0.1), xoff=10)
+    panel.obj_options.update(solid=solid, multicolored=False, plot=False)
+    panel.shapes = ShapeGroup(_new_collection())
+    panel.reuse_plot_of(source, offsets=[(0, 0), (10, 0)])
+    with patch.object(visuals, '_update_shape_buffers', wraps=visuals._update_shape_buffers) as prepared:
+        panel.plot()
+    cached = plotted(panel)
+    assert (prepared.call_count == 0) == (cache == 'valid')
+    assert len(panel.shape_indexes_dict[1]) == (2 if solid else 4)
+    assert all(not entry['visible'] for entry in cached)
+    panel.shapes = ShapeGroup(_new_collection())
+    panel.plot()
+    assert_close_plot(cached, plotted(panel))
+    if cache != 'uncached':
+        assert_close_plot(before, plotted(source))
+    assert panel.show_plotted_shapes(True)
+    panel.shapes.update_visibility(False, indexes=panel.shape_indexes_dict[1] + panel.shape_indexes_dict[2])
+    assert all(not entry['visible'] for entry in plotted(panel))
+
+
+@pytest.mark.parametrize('kind,overflow', [('geometry', False), ('excellon', False),
+                                         ('gerber', False), ('geometry', True)])
+@pytest.mark.filterwarnings('error::RuntimeWarning')
+def test_panel_cancellation_keeps_fresh_rendering_precision(kind, overflow):
+    from shapely import LineString
+    from shapely.affinity import translate
+    from vispy.gloo.context import FakeCanvas
+    from tests.test_object_copy import geometry_source, gerber_source, plotted, assert_close_plot
+    canvas = FakeCanvas()
+    app = make_app()
+    polygon = translate(Polygon([(0, 0), (.02, 0), (.02, .01), (0, .01)]),
+                        xoff=-1000.00003, yoff=-1000.00003)
+    offset = (1000, 1000)
+    if overflow:
+        polygon = LineString([(-1e39, 0), (-1e39, 1)])
+        offset = (1e39, 0)
+    factory = {'geometry': geometry_source, 'excellon': make_excellon, 'gerber': gerber_source}[kind]
+    source, panel = factory(app), factory(app)
+    for obj, geometry in ((source, polygon), (panel, translate(polygon, *offset))):
+        obj.multigeo = False
+        obj.solid_geometry = [geometry]
+        obj.tools = {1: {'solid_geometry': [geometry]}}
+        obj.obj_options.update(solid=True, multicolored=False, plot=True)
+        obj.shapes = ShapeGroup(_new_collection())
+    original = polygon.wkb
+    with np.errstate(over='ignore', invalid='ignore'):
+        source.plot()
+    panel.reuse_plot_of(source, offsets=[offset])
+    panel.plot()
+    got = plotted(panel)
+    panel.shapes = ShapeGroup(_new_collection())
+    panel.plot()
+    assert_close_plot(got, plotted(panel), atol=1e-6)
+    assert float(got[0]['line_pts'][:, 0].min()) == pytest.approx(0 if overflow else -.00003, abs=1e-9)
+    assert polygon.wkb == original
+
+
+@pytest.mark.parametrize('change', ['none', 'diameter', 'resolution', 'style', 'tolerance'])
+def test_rebuilt_excellon_panel_uses_destination_rendering(change):
+    from shapely import Point
+    from vispy.gloo.context import FakeCanvas
+    from unittest.mock import patch
+    import appGUI.VisPyVisuals as visuals
+    from appParsers import panelize_core
+    from tests.test_object_copy import plotted, assert_close_plot
+    canvas = FakeCanvas()
+    app = make_app()
+    source, panel = make_excellon(app), make_excellon(app)
+    source.tools = {1: {'tooldia': .8, 'drills': [Point(1, 2)],
+                        'slots': [(Point(3, 2), Point(4, 3))]}}
+    source.circle_steps = lambda radius: 16
+    source.create_geometry()
+    for obj in (source, panel):
+        obj.obj_options.update(solid=True, multicolored=False, plot=True)
+        obj.shapes = ShapeGroup(_new_collection())
+    if change == 'style':
+        source.fill_color = None
+    source.plot()
+    before = plotted(source)
+    offsets = [(10, 0)]
+    panel.tools = panelize_core.panelize_excellon(source.tools, offsets)
+    panel.circle_steps = lambda radius: 32 if change == 'resolution' else 16
+    if change == 'diameter':
+        panel.tools[1]['tooldia'] = 1.2
+    if change == 'tolerance':
+        panel.drawing_tolerance = source.drawing_tolerance / 2
+    panelize_core.create_panel_excellon_geometry(panel, source.tools, offsets)
+    geometry = [shape.wkb for shape in panel.solid_geometry]
+    panel.reuse_plot_of(source, offsets=offsets)
+    with patch.object(visuals, '_update_shape_buffers', wraps=visuals._update_shape_buffers) as prepared:
+        panel.plot()
+    got = plotted(panel)
+    assert (prepared.call_count == 0) == (change == 'none')
+    panel.shapes = ShapeGroup(_new_collection())
+    panel.plot()
+    assert_close_plot(got, plotted(panel))
+    assert_close_plot(before, plotted(source))
+    assert [shape.wkb for shape in panel.solid_geometry] == geometry
+
+
+@pytest.mark.parametrize('hidden', [False, True])
+@pytest.mark.parametrize('no_mp', [False, True])
+def test_excellon_outline_tools_match_individual_ring_rendering(hidden, no_mp):
+    from vispy.gloo.context import FakeCanvas
+    from tests.test_object_copy import plotted, assert_close_plot
+    canvas = FakeCanvas()
+    app = make_app()
+    app.options['global_graphic_engine_3d_no_mp'] = no_mp
+    obj = make_excellon(app)
+    polygon = Polygon([(0, 0), (4, 0), (4, 4), (0, 4)],
+                      holes=[[(1, 1), (1, 2), (2, 2), (2, 1)]])
+    obj.tools = {1: {'solid_geometry': [polygon]},
+                 2: {'solid_geometry': []},
+                 3: {'solid_geometry': [polygon], 'multicolor': (0.1, 0.2, 0.3, 1.0)}}
+    obj.obj_options.update(solid=False, multicolored=False, plot=not hidden)
+    obj.shapes = ShapeGroup(_new_collection())
+    obj.plot()
+    expected = ShapeGroup(_new_collection())
+    for color in (None, (0.1, 0.2, 0.3, 1.0)):
+        expected.add(shape=polygon.exterior, color=color or 'red', visible=not hidden,
+                     tolerance=obj.drawing_tolerance)
+        expected.add(shape=polygon.interiors[0], color=color or 'orange', visible=not hidden,
+                     tolerance=obj.drawing_tolerance)
+    expected.redraw()
+    assert_close_plot(plotted(obj), plotted(SimpleNamespace(shapes=expected)))
+    keys = list(obj.shapes._indexes)
+    assert obj.shape_indexes_dict == {1: keys[:2], 3: keys[2:]}
+    obj.shapes.update_visibility(False, indexes=obj.shape_indexes_dict[1])
+    obj.shapes.update_visibility(True, indexes=obj.shape_indexes_dict[3])
+    assert [entry['visible'] for entry in plotted(obj)] == [False, False, True, True]
+    obj.tools = {2: {'solid_geometry': []}}
+    obj.plot()
+    assert not obj.shapes._indexes
+    assert obj.shape_indexes_dict == {}
+
+
+@pytest.mark.parametrize('mode', ['single', 'multigeo_single', 'multi', 'fused', 'shared_border',
+                                 'uncached', 'deleted', 'stale', 'partial', 'selected', 'own'])
+def test_geometry_panel_reuse_or_fallback_matches_fresh(mode):
+    from shapely import LineString
+    from vispy.gloo.context import FakeCanvas
+    from tests.test_object_copy import geometry_source, plotted, assert_close_plot
+    from appParsers import panelize_core
+    import appGUI.VisPyVisuals as visuals
+    from unittest.mock import patch
+    canvas = FakeCanvas()
+    app = make_app()
+    source = geometry_source(app)
+    source.multigeo = mode in ('multigeo_single', 'multi', 'partial', 'selected', 'fused', 'shared_border', 'own')
+    if mode in ('multigeo_single', 'shared_border'):
+        source.tools = {1: source.tools[1]}
+    paths = [LineString([(0, 0), (1, 0)]), LineString([(1, 0), (2, 0)])]
+    source.solid_geometry = paths
+    for tool in source.tools.values():
+        tool['solid_geometry'] = paths
+    source.shapes = ShapeGroup(_new_collection())
+    if mode != 'uncached':
+        source.plot(plot_tool=1 if mode == 'partial' else None)
+    if mode == 'deleted':
+        source.deleted = True
+    if mode == 'stale':
+        source.solid_geometry = [LineString([(0, 0), (5, 1)])]
+    panel = geometry_source(app)
+    panel.multigeo = source.multigeo
+    offsets = [(0, 0), (10, 0)]
+    if mode == 'shared_border':
+        offsets = [(0, 0), (1, 0)]
+    if mode == 'own':
+        # merged paths do not match the source, but every copy is the first copy moved
+        offsets = [(10.0 * k, 3.0 * (k % 2)) for k in range(8)]
+    builder = panelize_core.panelize_geometry_optimized if mode in ('fused', 'shared_border', 'own') \
+        else panelize_core.panelize_geometry
+    panel.tools, panel.solid_geometry = builder(
+        source.tools, source.solid_geometry, source.multigeo, offsets)
+    for tool in panel.tools.values():
+        tool['data']['override_color'] = '#987654FF'
+    panel.shapes = ShapeGroup(_new_collection())
+    panel.reuse_plot_of(source, offsets=offsets)
+    with patch.object(visuals, '_update_shape_buffers', wraps=visuals._update_shape_buffers) as prepared:
+        panel.plot(plot_tool=1 if mode == 'selected' else None)
+    got = plotted(panel)
+    assert (prepared.call_count == 0) == (mode in ('single', 'multigeo_single', 'multi'))
+    if mode == 'own':
+        assert prepared.call_count * len(offsets) == len(got)
+    panel.shapes = ShapeGroup(_new_collection())
+    panel.plot(plot_tool=1 if mode == 'selected' else None)
+    assert_close_plot(got, plotted(panel))
+
+
+def test_draw_waits_for_all_buffers_of_a_rebuild():
+    # The deferred updater sets the buffers in its thread. A draw between the positions and the colors dropped the
+    # frame ("All attributes must have the same size"): a draw must see all the new buffers or none.
+    import threading
+    import time
+    from unittest.mock import patch
+    from vispy.gloo.context import FakeCanvas
+    canvas = FakeCanvas()
+    collection = _new_collection()
+    _add_squares(ShapeGroup(collection), 3)
+    mesh_type, line_type = type(collection._meshes[0]), type(collection._lines[0])
+    seen, drawing = [], {}
+
+    def record_mesh(visual):
+        seen.append(('mesh', len(visual.vertices), len(visual.vertex_colors)))
+
+    def record_line(visual):
+        seen.append(('line', len(visual._pos), len(visual._color)))
+
+    real_set_data = mesh_type.set_data
+
+    def set_data_then_draw(visual, *args, **kwargs):
+        real_set_data(visual, *args, **kwargs)
+        if 'thread' not in drawing and kwargs.get('vertices') is not None:
+            # a draw from the GUI thread right after the positions of the first visual
+            drawing['thread'] = threading.Thread(target=collection.draw)
+            drawing['thread'].start()
+            time.sleep(0.05)
+            drawing['during'] = list(seen)
+
+    with patch.object(mesh_type, 'draw', record_mesh), patch.object(line_type, 'draw', record_line), \
+            patch.object(mesh_type, 'set_data', set_data_then_draw):
+        collection._rebuild_visuals()
+        drawing['thread'].join(2)
+    assert drawing['during'] == []
+    assert seen and all(positions == colors for _kind, positions, colors in seen)
+
+
+def test_unpickled_pool_buffers_keep_one_vertex_per_point():
+    # The process pool returns the buffers unpickled: their float32 dtype is not builtin, and gloo read a (N, 2)
+    # array of such a dtype as 2N vertices (128 positions for 64 colors: the frame and the HUD were not drawn).
+    import pickle
+    from vispy.gloo.context import FakeCanvas
+    canvas = FakeCanvas()
+    collection = _new_collection()
+    # one shape in the layer: a single chunk kept the dtype through np.concatenate
+    _add_squares(ShapeGroup(collection), 1)
+    for key, d in collection.data.items():
+        collection.data[key] = pickle.loads(pickle.dumps(d))
+    assert collection.data[key]['line_pts'].dtype.isbuiltin != 1
+    collection._rebuild_visuals()
+    mesh, line = collection._meshes[1], collection._lines[1]
+    assert mesh._positions.size == mesh._colors.size == len(mesh.vertices) > 0
+    assert line._pos_vbo.size == line._color_vbo.size == len(line._pos) > 0
+    assert mesh._prepare_draw(mesh) is not False
+
+
+def test_bad_mesh_buffers_never_drop_the_frame():
+    # A mesh with 64 positions and 32 colors failed every draw of the canvas (the HUD was gone with it).
+    from vispy.gloo.context import FakeCanvas
+    canvas = FakeCanvas()
+    collection = _new_collection()
+    mesh = collection._meshes[0]
+    square = np.array([(0, 0), (1, 0), (1, 1), (0, 1)], dtype=np.float32)
+    faces = np.array([(0, 1, 2), (0, 2, 3)], dtype=np.uint32)
+    mesh.set_data(vertices=square, faces=faces, vertex_colors=np.ones((4, 4)))
+    assert mesh._colors.size == mesh._positions.size == 4
+    # colors that do not fit: nothing changes
+    mesh.set_data(vertices=np.vstack([square, square + 2]), faces=faces, vertex_colors=np.ones((4, 4)))
+    assert mesh.vertices is None and mesh._prepare_draw(mesh) is False
+    # buffers that differ anyway: the visual skips its draw, the other visuals still draw
+    mesh.set_data(vertices=square, faces=faces, vertex_colors=np.ones((4, 4), dtype=np.float32))
+    mesh._colors.set_data(np.ones((2, 4), dtype=np.float32))
+    assert mesh._prepare_draw(mesh) is False
+    line = collection._lines[0]
+    line.set_data(pos=square, color=np.ones((4, 4), dtype=np.float32))
+    line._color_vbo.set_data(np.ones((2, 4), dtype=np.float32))
+    assert line._prepare_draw(line) is False
 
 
 def _square(x):

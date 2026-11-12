@@ -628,7 +628,8 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
         """Return a complete DXF drawing of the object on layers, or None on failure."""
         try:
             return build_dxf(self.dxf_layers(), self.app.app_units, self._app_option('geometry_dxf_format'),
-                             fit_arcs=bool(self._app_option('geometry_dxf_arcs', True)))
+                             fit_arcs=bool(self._app_option('geometry_dxf_arcs', True)),
+                             panel_offsets=getattr(self, 'dxf_panel_offsets_once', None))
         except Exception as e:
             self.app.log.error("%s.export_dxf() -> %s" % (type(self).__name__, str(e)))
             return None

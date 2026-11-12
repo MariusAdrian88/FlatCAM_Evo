@@ -150,18 +150,21 @@ def test_polygon_rings_are_closed_2d_polylines(fmt, kind, units, insunits):
 
 
 @pytest.mark.parametrize('fmt', ['R2010', 'R12'])
-def test_repeated_rounded_shapes_keep_arcs_and_exact_vertices(fmt):
+@pytest.mark.parametrize('panel', [False, True])
+def test_repeated_rounded_shapes_keep_arcs_and_exact_vertices(fmt, panel):
     from shapely import affinity
     from shapely.geometry import LineString, Point
     rounded = LineString([(0, 0), (4, 0), (5, 2)]).buffer(0.3, quad_segs=8)
     drill = Point(1, 1).buffer(0.5, quad_segs=8)
     offsets = [(0.0, 0.0), (37.1, 12.7), (-80.3, 1.1)]
     shapes = [affinity.translate(g, dx, dy) for dx, dy in offsets for g in (rounded, drill)]
-    doc = _writer()([{'name': 'a', 'geometry': shapes, 'width': 0.1}], 'MM', fmt)
+    doc = _writer()([{'name': 'a', 'geometry': shapes, 'width': 0.1}], 'MM', fmt,
+                    panel_offsets=offsets if panel else None)
     assert doc is not None
     msp = doc.modelspace()
-    polylines = list(msp.query('LWPOLYLINE POLYLINE'))
-    circles = list(msp.query('CIRCLE'))
+    entities = [e for insert in msp for e in insert.virtual_entities()] if panel else list(msp)
+    polylines = [e for e in entities if e.dxftype() in ('LWPOLYLINE', 'POLYLINE')]
+    circles = [e for e in entities if e.dxftype() == 'CIRCLE']
     assert len(polylines) == 3 and len(circles) == 3
 
     def bulges(p):
@@ -181,6 +184,68 @@ def test_repeated_rounded_shapes_keep_arcs_and_exact_vertices(fmt):
         assert tuple(circles[k].dxf.center)[:2] == pytest.approx((1 + dx, 1 + dy), abs=1e-6)
         expected = {(round(x, 9), round(y, 9)) for x, y in shapes[2 * k].exterior.coords}
         assert {(round(x, 9), round(y, 9)) for x, y in verts(polylines[k])} <= expected
+
+
+@pytest.mark.parametrize('fmt, units', [('R2010', 'MM'), ('R2010', 'IN'), ('R12', 'IN')])
+def test_panel_blocks_preserve_paths_holes_and_attributes(fmt, units):
+    from io import StringIO
+    import ezdxf
+    from shapely import affinity
+    from shapely.geometry import LineString, MultiLineString
+    offsets = [(7.0, 3.0), (27.1, 3.0), (7.0, 23.2)]
+    line = LineString([(1, 2), (2, 3), (4, 2)])
+    shapes = [affinity.translate(g, x, y) for x, y in offsets for g in (line, _box_with_hole())]
+    layers = [{'name': 'board', 'geometry': shapes, 'width': 0.2,
+               'color': '#FF0000', 'lineweight': 0.4}]
+    build = _writer()
+    doc = build(layers, units, fmt, panel_offsets=offsets)
+    stream = StringIO()
+    doc.write(stream)
+    doc = ezdxf.read(StringIO(stream.getvalue()))
+    inserts = list(doc.modelspace().query('INSERT'))
+    assert len(inserts) == len(offsets)
+    expanded = [e for insert in inserts for e in insert.virtual_entities()]
+    ordinary = build(layers, units, fmt)
+    assert tuple(doc.header['$EXTMIN']) == pytest.approx(tuple(ordinary.header['$EXTMIN']))
+    assert tuple(doc.header['$EXTMAX']) == pytest.approx(tuple(ordinary.header['$EXTMAX']))
+    assert [_xy(e) for e in expanded] == [_xy(e) for e in ordinary.modelspace()]
+    assert [e.is_closed for e in expanded] == [e.is_closed for e in ordinary.modelspace()]
+    assert all(e.dxf.layer == 'board' for e in inserts)
+    assert all(e.dxf.layer == '0' for e in doc.blocks.get(inserts[0].dxf.name))
+    assert build(layers, units, fmt, panel_offsets=offsets).header['$MEASUREMENT'] == (units == 'MM')
+    if fmt == 'R12':
+        assert doc.layers.get('board').dxf.color == 1
+        assert all(e.dxf.default_start_width == 0.2 for e in expanded)
+    else:
+        assert doc.units == (4 if units == 'MM' else 1)
+        assert doc.layers.get('board').dxf.true_color == 0xFF0000
+        assert doc.layers.get('board').dxf.lineweight == 40
+        assert all(e.dxf.const_width == 0.2 for e in expanded)
+    # Copy-ordered MultiLineString parts can be factored, but a changed final path cannot.
+    lines = [affinity.translate(line, x, y) for x, y in offsets]
+    assert len(build([{'geometry': MultiLineString(lines)}], units, fmt,
+                     panel_offsets=offsets).modelspace().query('INSERT')) == 3
+    # A near-zero line can lose its 2nd point to the rounding of the move in some copies only (real boards do).
+    tiny = [LineString([(x + 1, y + 2), (x + 1 + (1e-14 if k == 0 else 0.0), y + 2)])
+            for k, (x, y) in enumerate(offsets)]
+    with_tiny = [g for k in range(3) for g in (affinity.translate(line, *offsets[k]), tiny[k])]
+    assert len(build([{'geometry': with_tiny}], units, fmt,
+                     panel_offsets=offsets).modelspace().query('INSERT')) == 3
+    for geometry in (shapes[::2] + shapes[1::2], lines[:-1] + [line]):
+        changed = [{'geometry': geometry}]
+        fallback = build(changed, units, fmt, panel_offsets=offsets)
+        assert not fallback.modelspace().query('INSERT')
+        assert [_xy(e) for e in fallback.modelspace()] == [
+            _xy(e) for e in build(changed, units, fmt).modelspace()]
+    for hint in ([], [(0, 0)], [(0, 0), (float('nan'), 0)], ['bad']):
+        fallback = build(layers, units, fmt, panel_offsets=hint)
+        assert not fallback.modelspace().query('INSERT')
+        assert [_xy(e) for e in fallback.modelspace()] == [_xy(e) for e in ordinary.modelspace()]
+    named = build([dict(layers[0], name=n) for n in ('FC_PANEL', 'FC_PANEL', 'FC_PANEL_1')],
+                  units, fmt, panel_offsets=offsets)
+    blocks = {e.dxf.name.lower() for e in named.modelspace().query('INSERT')}
+    assert len(blocks) == 3
+    assert blocks.isdisjoint(layer.dxf.name.lower() for layer in named.layers)
 
 
 def test_a_shape_almost_equal_to_an_exported_circle_is_fitted_with_its_own_tolerance():

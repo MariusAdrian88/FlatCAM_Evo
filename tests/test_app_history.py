@@ -1482,6 +1482,8 @@ def test_geo_tool_actions_undo_redo(fc, no_plot):
     n = _steps(fc)
     mt.on_tool_delete()
     _pump()
+    _settle_m4(fc)
+    assert not fc.projects.is_busy()
     assert _steps(fc) == n + 1
     s6 = _tools(geo)
     assert len(s6) == len(s5) - 1
@@ -1491,6 +1493,8 @@ def test_geo_tool_actions_undo_redo(fc, no_plot):
     n = _steps(fc)
     mt.on_tool_delete(all_tools=True)
     _pump()
+    _settle_m4(fc)
+    assert not fc.projects.is_busy()
     assert _steps(fc) == n + 1
     assert not geo.tools
     assert fc.history.undo() and _tools(geo) == s6

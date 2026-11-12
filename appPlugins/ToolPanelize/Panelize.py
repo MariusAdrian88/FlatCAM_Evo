@@ -411,9 +411,13 @@ class Panelize(AppTool):
                             except KeyError:
                                 app_obj.log.warning("Failed to copy option. %s" % str(option))
 
-                    obj_fin.create_geometry()
+                    # the units first: the circle steps of the drill polygons depend on them
                     obj_fin.zeros = panel_source_obj.zeros
                     obj_fin.units = panel_source_obj.units
+                    panelize_core.create_panel_excellon_geometry(
+                        obj_fin, panel_source_obj.tools, offsets, abort=abort)
+                    # Reuse only if the submitted rings/polygons match the cached source at these offsets.
+                    obj_fin.reuse_plot_of(panel_source_obj, offsets=offsets)
                     app_obj.inform.emit('%s' % _("Generating panel ... Adding the source code."))
                     obj_fin.regenerate_source(name=outname)
                     app_obj.proc_container.update_view_text('')
@@ -421,9 +425,15 @@ class Panelize(AppTool):
                 def job_init_geometry(new_obj, app_obj):
                     if panel_source_obj.kind == 'geometry':
                         new_obj.multigeo = panel_source_obj.multigeo
-                        new_obj.tools, new_obj.solid_geometry = panelize_core.panelize_geometry(
+                        if panel_source_obj.multigeo is True and to_optimize is True:
+                            app_obj.inform.emit('%s' % _("Optimizing the overlapping paths."))
+                        new_obj.tools, new_obj.solid_geometry = panelize_core.panelize_geometry_optimized(
                             panel_source_obj.tools, panel_source_obj.solid_geometry, panel_source_obj.multigeo,
-                            offsets, abort=abort, progress=progress)
+                            offsets, abort=abort, progress=progress, snap_overlaps=to_optimize is True)
+                        # Merged/snapped paths fail the plot's geometry check and render normally.
+                        new_obj.reuse_plot_of(panel_source_obj, offsets=offsets)
+                        if panel_source_obj.multigeo is True and to_optimize is True:
+                            app_obj.inform.emit('%s' % _("Optimization complete."))
                     elif panel_source_obj.kind == 'gerber':
                         # The Geometry tool table is made before panelizing, like convert_any2geo does: every tool
                         # holds the composed copper of the Gerber.
@@ -437,25 +447,13 @@ class Panelize(AppTool):
                         new_obj.obj_options.update(deepcopy(default_data))
                         new_obj.obj_options["tools_mill_tooldia"] = tools_diameters[0] if tools_diameters else 0.0
 
-                    # #################################################################################################
-                    # ###########################   Path Optimization   ###############################################
-                    # #################################################################################################
-                    if panel_source_obj.kind == 'geometry' and panel_source_obj.multigeo is True:
-                        # I'm going to do this only here as a fix for panelizing cutouts
-                        # I'm going to separate linestrings out of the solid geometry from other
-                        # possible type of elements and apply unary_union on them to fuse them
-                        if to_optimize is True:
-                            app_obj.inform.emit('%s' % _("Optimizing the overlapping paths."))
-
-                        panelize_core.optimize_panel_lines(panel_source_obj.tools, new_obj.tools, offsets,
-                                                           snap_overlaps=to_optimize is True, abort=abort)
-
-                        if to_optimize is True:
-                            app_obj.inform.emit('%s' % _("Optimization complete."))
-
-
                     app_obj.inform.emit('%s' % _("Generating panel ... Adding the source code."))
-                    new_obj.regenerate_source(name=outname)
+                    try:
+                        new_obj.dxf_panel_offsets_once = offsets
+                        new_obj.regenerate_source(name=outname)
+                    finally:
+                        # The hint is valid only for this panel's current final paths.
+                        vars(new_obj).pop('dxf_panel_offsets_once', None)
 
                     # new_obj.solid_geometry = unary_union(obj_fin.solid_geometry)
                     # app_obj.log.debug("Finished creating a unary_union for the panel.")
@@ -530,10 +528,16 @@ class Panelize(AppTool):
 
                     try:
                         if not source_with_step_repeat(new_obj):
+                            # The copies of the source have the same records: the check of the source is enough.
+                            # A plan the export does not use is removed below.
+                            if panel_source_obj.kind == 'gerber' and Gerber.uses_record_plan(panel_source_obj):
+                                new_obj.export_plan_once = panelize_core.panel_export_plan(
+                                    panel_source_obj, offsets, abort=abort)
                             new_obj.regenerate_source(name=outname)
                     finally:
                         # never kept: it is valid only for the geometry of this moment
                         vars(new_obj).pop('region_polygons_once', None)
+                        vars(new_obj).pop('export_plan_once', None)
 
                     # new_obj.solid_geometry = unary_union(new_obj.solid_geometry)
                     # app_obj.log.debug("Finished creating a unary_union for the panel.")
