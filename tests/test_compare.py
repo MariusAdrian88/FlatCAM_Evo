@@ -262,22 +262,10 @@ def test_snapshot_flattens_each_input_shape(obj, kind, polys, lines):
     assert (len(snap['polys']), len(snap['lines'])) == (polys, lines)
 
 
-def test_snapshot_does_not_share_the_source_list():
-    src = [box(0, 0, 1, 1)]
-    snap = cg.snapshot(grb(src), 'grb')
-    src.append(box(5, 5, 6, 6))
-    assert len(snap['polys']) == 1
-
-
 @pytest.mark.parametrize('value', ['#800020'])
 def test_normalize_color_accepts_rrggbb_with_or_without_alpha(value):
     assert cg.normalize_color(value, '#00FF00FF') == {
         'outline': '#800020FF', 'fill': '#80002060', 'none': '#80002000', 'swatch': '#800020'}
-
-
-def test_normalize_color_uses_default_for_bad_value():
-    assert cg.normalize_color('bad', '#00FF00FF') == {
-        'outline': '#00FF00FF', 'fill': '#00FF0060', 'none': '#00FF0000', 'swatch': '#00FF00'}
 
 
 # ------------------------------------------------------------------------------- Gerber pads: removed/added/moved

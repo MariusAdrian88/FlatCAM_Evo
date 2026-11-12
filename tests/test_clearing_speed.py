@@ -24,7 +24,7 @@ finally:
     sys.argv = _saved_argv
 
 from test_clearing_paths import make_geometry
-from test_paint_geometry import storage_of
+from test_paint import storage_of
 
 PAD_CENTERS = [(x, y) for x in range(3, 29, 3) for y in range(3, 20, 3)]
 # (getattr and create=True: on the code before the bands the seed tests run too, and show its ring-by-ring cut)

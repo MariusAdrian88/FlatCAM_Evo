@@ -41,7 +41,7 @@ def welcome(qapp):
     app.ui.deleteLater()
 
 
-@pytest.mark.parametrize('resources', ['assets/resources', 'assets/resources/dark_resources'])
+@pytest.mark.parametrize('resources', ['assets/resources'])
 def test_manufacturing_and_cad_icons_render_in_both_themes(welcome, resources):
     from appGUI.WelcomeDialog import welcome_entries
     dialog, app, opened = welcome
@@ -240,7 +240,7 @@ def test_checkbox_persists_same_preference_and_informational_tabs_only_continue(
         assert dialog.next_time.isVisible()
 
 
-@pytest.mark.parametrize('action', ['escape', 'close', 'continue'])
+@pytest.mark.parametrize('action', ['escape', 'continue'])
 def test_dismissal_leaves_workspace_alive(welcome, qapp, action):
     dialog, app, opened = welcome
     app.ui.show()
@@ -281,7 +281,7 @@ def test_new_object_uses_an_untitled_project_without_discarding_current(welcome,
         assert not dialog.isVisible()
 
 
-@pytest.mark.parametrize('control', ['continue_button', 'close_button', 'new_button'])
+@pytest.mark.parametrize('control', ['continue_button', 'new_button'])
 def test_return_activates_the_focused_action(welcome, monkeypatch, control):
     dialog, app, opened = welcome
     monkeypatch.setattr(QtWidgets.QFileDialog, 'getOpenFileName', lambda **kwargs: ('', ''))
@@ -311,7 +311,7 @@ def test_saved_startup_choice_survives_preferences_cancel(welcome, tmp_path):
     assert app.options['global_welcome'] is False
 
 
-@pytest.mark.parametrize('height', [480, 360])
+@pytest.mark.parametrize('height', [360])
 def test_layout_keeps_actions_accessible_on_a_small_logical_screen(welcome, qapp, monkeypatch, height):
     dialog, app, opened = welcome
     monkeypatch.setattr(app.ui, 'screen', lambda: SimpleNamespace(

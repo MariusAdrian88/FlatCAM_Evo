@@ -9,11 +9,11 @@ from appEditors.appGeoEditor import AppGeoEditor
 from appEditors.grb_plugins.GrbCommon import DrawToolShape
 from appEditors.grb_plugins.GrbTrackBend import sweep_parameters
 from appGUI.MainGUI import MainGUI
-from tests.test_editor_corner import track_tool_with_storage, track_click
+from tests.test_gerber_editor import track_tool_with_storage, track_click
 from tests.test_gerber_follow_ops import editor_for, track, flash, footprint
-from tests.test_gerber_editor_pick import make_select
-from tests.test_geo_editor_join import join_editor
-from tests.test_vertex_grips import FakeCollection
+from tests.test_gerber_editor import make_select
+from tests.test_geo_editor import join_editor
+from tests.test_geo_editor import FakeCollection_vertex_grips as FakeCollection
 
 
 @pytest.mark.parametrize('coords', [[(0, 0), (5, 0), (8, 4)]])

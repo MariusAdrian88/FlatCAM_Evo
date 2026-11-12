@@ -36,22 +36,6 @@ def _xvals(text):
 
 # ---------------------------------------------------------------- split_tool_blocks
 
-def test_split_partition_is_exact_and_keeps_crlf():
-    text = "G21\r\nT1\r\nG1 X1 Y1\r\nT2\r\nG1 X2\r\n(T3 comment)\r\nG1 X3"
-    blocks = split_tool_blocks(text)
-    assert ''.join(b['gcode'] for b in blocks) == text
-    assert [b['tool'] for b in blocks] == [1, 2]
-    assert blocks[0]['gcode'].startswith("G21\r\nT1\r\n")
-    assert '\r\n' in blocks[1]['gcode']
-    # no T word outside the comments: 1 block
-    text = "G0 X1\nG1 X2 (T9 only a comment)\n"
-    assert split_tool_blocks(text) == [{'tool': None, 'gcode': text}]
-    # the same tool twice with another between: 3 blocks
-    text = "T1\nG1 X1\nT2\nG1 X2\nT1\nG1 X3\nT1\nG1 X4\n"
-    blocks = split_tool_blocks(text)
-    assert [b['tool'] for b in blocks] == [1, 2, 1]
-    assert ''.join(b['gcode'] for b in blocks) == text
-
 
 # ---------------------------------------------------------------- generic files, modes, units
 

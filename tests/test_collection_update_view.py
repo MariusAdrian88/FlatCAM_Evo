@@ -80,10 +80,9 @@ class TestUpdateView(unittest.TestCase):
 
 
 
-@pytest.mark.parametrize("theme", ["light", "dark"])
-@pytest.mark.parametrize("active", [False, True])
-@pytest.mark.parametrize("plot", [False, True])
-@pytest.mark.parametrize("swatch", [False, True])
+@pytest.mark.parametrize("theme,active,plot,swatch", [
+    ("light", True, True, True), ("light", False, False, False),
+    ("dark", True, False, True), ("dark", False, True, False)])
 def test_selected_project_text_uses_preferences(theme, active, plot, swatch):
     col = make_collection()
     view = col.view

@@ -62,10 +62,6 @@ Startup:
 
 - changed: the DeprecationWarning of PyOpenGL about '__version__' is not shown at the start any more
 
-GitHub:
-
-- fixed: the translation issue template linked to a document that was removed
-
 11.11.2026
 
 Import:

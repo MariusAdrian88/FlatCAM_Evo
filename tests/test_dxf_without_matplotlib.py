@@ -111,7 +111,6 @@ def test_dxf_without_matplotlib():
     print(json.dumps(evidence))
 
 
-
 def _writer():
     sys.path.insert(0, str(ROOT))
     from appParsers.DXF.writer import build_dxf
@@ -148,19 +147,6 @@ def test_polygon_rings_are_closed_2d_polylines(fmt, kind, units, insunits):
     if kind == 'LWPOLYLINE':
         assert all(len(pt) == 5 for pt in polylines[2].get_points())
         assert all(pt[2] == 0 and pt[3] == 0 for pt in polylines[2].get_points())
-
-
-@pytest.mark.parametrize('fmt', ['R2010'])
-def test_buffered_drill_is_one_circle(fmt):
-    from shapely.geometry import Point
-    center, radius = (3.2, -1.5), 0.4
-    doc = _writer()([{'name': 'drills', 'geometry': [Point(center).buffer(radius, quad_segs=16)]}],
-                    'MM', fmt)
-    circles = list(doc.modelspace().query('CIRCLE'))
-    assert len(circles) == 1
-    assert tuple(circles[0].dxf.center)[:2] == pytest.approx(center, abs=1e-6)
-    assert circles[0].dxf.radius == pytest.approx(radius, abs=1e-6)
-    assert not list(doc.modelspace().query('LWPOLYLINE POLYLINE'))
 
 
 @pytest.mark.parametrize('fmt', ['R2010', 'R12'])

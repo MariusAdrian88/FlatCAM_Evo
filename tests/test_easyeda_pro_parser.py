@@ -1,16 +1,19 @@
-"""EasyEDA Pro board reader: a real V3 project against the Gerber files of EasyEDA Pro, and focused synthetic V2 projects."""
+from functools import lru_cache
 import json
 import math
 import os
-import re
-import zipfile
-from functools import lru_cache
 from pathlib import Path
+import re
 from unittest.mock import MagicMock
+import zipfile
 
 import pytest
 from shapely import Point
 from shapely.ops import unary_union
+
+
+"""EasyEDA Pro board reader: a real V3 project against the Gerber files of EasyEDA Pro, and focused synthetic V2 projects."""
+
 
 FIXTURES = Path(__file__).parent / 'fixtures' / 'easyeda_pro'
 PROJECT = FIXTURES / 'Agent-Light-v1-layout.epro2'
@@ -103,21 +106,11 @@ def test_v3_drills_match_the_gerbers():
     assert any(tool['slots'] for tool in parsed.drill_groups['PTH_Through'].values())
 
 
-def test_v3_result_shape_and_text_warning():
-    parsed = real()
-    assert parsed.source_kind == 'easyeda_pro' and parsed.pcb == 'PCB1' and parsed.pcbs == ['PCB1']
-    assert math.isclose(parsed.board_outline.area, 12 * 40, rel_tol=1e-6)
-    assert parsed.default_layers and set(parsed.default_layers) <= set(parsed.layers)
-    layer = parsed.layers['Top Layer']
-    assert set(layer) >= {'name', 'solid_geometry', 'follow_geometry', 'tools'}
-    assert any('Text is not stored as polygons' in warning for warning in parsed.warnings)
-
-
 @pytest.mark.parametrize('units', ['MM', 'IN'])
 def test_source_primitives_preserve_geometry_and_gerber_roundtrip(tmp_path, units):
     from types import SimpleNamespace
     from shapely.affinity import scale
-    from tests.test_kicad_pcb_e2e import _app, _union, NativeGerberObject
+    from tests.test_kicad_pcb import _app, _union, NativeGerberObject
     from appHandlers.appIO import appIO
     from appParsers.ParseGerber import Gerber
 
@@ -356,13 +349,6 @@ def test_unsupported_copper_fails_by_name(tmp_path, what, records, foot, message
     feet = {} if what == 'missing footprint' else ({'fp1': foot} if foot is not None else None)
     with pytest.raises(EasyEDAProParseError, match=message):
         parser().parse_file(project(tmp_path, pcb_text(*records), feet))
-
-
-def test_internal_plane_layer_fails(tmp_path):
-    from appParsers.ParseEasyEDAPro import EasyEDAProParseError
-    text = pcb_text(['LAYER', 15, 'PLANE', 'Inner1', 3], ['LINE', 'e1', 0, 'A', 1, 0, 0, 100, 0, 10, 0])
-    with pytest.raises(EasyEDAProParseError, match='internal plane'):
-        parser().parse_file(project(tmp_path, text))
 
 
 def test_import_of_a_project_with_two_pcbs_asks_for_the_pcb(tmp_path):

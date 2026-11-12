@@ -127,7 +127,7 @@ def test_app_snap_respects_boundary_visibility_and_composed_copper(measuring):
 def test_pending_gerber_transform_updates_measurement_snap_and_history(measuring, _headless_qt):
     from concurrent.futures import ThreadPoolExecutor
     from appEditors.grb_plugins.GrbTransformationPlugin import queue_transform
-    from test_gerber_editor_pick import make_editor, aperture, pad
+    from test_gerber_editor import make_editor, aperture, pad
 
     editor = make_editor({10: aperture([pad(0, 0, 1)])})
     editor.selected = list(editor.storage_dict[10]['geometry'])
@@ -369,7 +369,7 @@ class TestVertexSnap:
 
     def test_grb_editor_trace_vertices_and_edits(self, measuring, _headless_qt):
         from shapely import LineString
-        from test_gerber_editor_pick import make_editor, aperture
+        from test_gerber_editor import make_editor, aperture
         from appEditors.appGerberEditor import DrawToolShape
         line = LineString([(0, 0), (10, 0)])
         trace = DrawToolShape({'solid': line.buffer(0.1), 'follow': line})

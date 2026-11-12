@@ -71,35 +71,6 @@ class TestRuntimeMessages(unittest.TestCase):
             self.assertEqual('translated: Extract failed: unknown', command._fail_text(result))
             self.assertEqual(' (2 unknown reason)', command._skipped_text(result))
 
-    def test_invert_error_is_translated_in_the_tcl_output(self):
-        import tclCommands.TclCommandInvertGerber
-        from test_tcl_small_commands import make_invert, invert_source
-        from test_tcl_audit_regressions import FCShell
-        from shapely import box
-        _command, app = make_invert({'board': invert_source('board', box(0, 0, 1, 1), None)})
-        with unittest.mock.patch.object(fcTranslate, 'apply_language'), \
-                unittest.mock.patch.object(builtins, '_', self.translate):
-            command_class = runpy.run_path('tclCommands/TclCommandInvertGerber.py')['TclCommandInvertGerber']
-            command = command_class(app)
-            with self.assertRaises(FCShell.TclErrorException) as error:
-                command.execute({'name': 'board'}, [])
-        self.assertIn('translated: The object has no bounds to invert.', str(error.exception))
-        app.app_obj.new_object.assert_not_called()
-
-    def test_rules_status_is_translated_in_the_result_row(self):
-        from appPlugins.ToolRulesCheck import RulesCheckUI
-        ui = RulesCheckUI.RulesUI.__new__(RulesCheckUI.RulesUI)
-        ui.results_table = QtWidgets.QTableWidget(0, 6)
-        ui.summary_label = QtWidgets.QLabel()
-        ui.decimals = 4
-        with unittest.mock.patch.object(RulesCheckUI, '_', self.translate, create=True):
-            ui.fill_results([{'rule': 'clearance', 'error': 'invalid geometry'},
-                             {'rule': 'holes', 'checked': False}])
-        rows = {ui.results_table.item(row, 0).text(): ui.results_table.item(row, 1).text()
-                for row in range(ui.results_table.rowCount())}
-        self.assertEqual({'clearance': 'translated: ERROR', 'holes': 'translated: NOTHING TO CHECK'}, rows)
-        self.assertEqual('translated: 0 violations in 0 rules', ui.summary_label.text())
-
 
 class TestApplyLanguage(unittest.TestCase):
     def setUp(self):

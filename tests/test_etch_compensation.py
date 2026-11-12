@@ -8,7 +8,7 @@ from shapely.geometry import Point, Polygon, box
 from shapely.ops import unary_union
 
 from appPlugins.ToolEtchCompensation import ToolEtchCompensation
-from test_tcl_audit_generation import factory_app
+from test_tcl_commands import factory_app
 from test_tcl_audit_regressions import FCShell
 from appPlugins.ToolEtchCompensation.EtchCompensationGen import compensate_geometry, lateral_offset_um
 

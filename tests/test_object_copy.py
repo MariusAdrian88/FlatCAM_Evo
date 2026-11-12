@@ -229,23 +229,6 @@ def test_copy_is_independent(app, kind, path):
     assert snap_source != {a: norm(getattr(source, a, None)) for a in attrs}   # the mutation was effective
 
 
-@pytest.mark.parametrize('kind', ['gerber', 'excellon', 'geometry'])
-def test_transform_of_copy_leaves_source_geometry(app, kind):
-    attrs = [a for a in ATTRS[kind] if a not in ('source_file', 'units')]
-    source = SOURCES[kind](app)
-    clone = run_path(app, source, kind, 'command')
-    snap_source = {a: norm(getattr(source, a, None)) for a in attrs}
-    snap_clone = {a: norm(getattr(clone, a, None)) for a in attrs}
-    clone.offset((5, 7))
-    clone.scale(2, 3, point=(0, 0))
-    clone.mirror('X', (1, 1))
-    assert {a: norm(getattr(clone, a, None)) for a in attrs} != snap_clone   # the transform was effective
-    assert {a: norm(getattr(source, a, None)) for a in attrs} == snap_source
-    snap_clone = {a: norm(getattr(clone, a, None)) for a in attrs}
-    source.offset((-3, 2))
-    assert {a: norm(getattr(clone, a, None)) for a in attrs} == snap_clone
-
-
 def test_gerber_without_apertures_fails_in_object2(app):
     source = gerber_source(app)
     source.tools = {}

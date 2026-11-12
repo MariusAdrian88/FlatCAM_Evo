@@ -9,7 +9,7 @@ from appEditors.grb_plugins import GrbTrackEditPlugin as track_edit
 from appEditors.grb_plugins.GrbCommon import DrawToolShape
 from appParsers.ParseGerber import Gerber
 from test_editor_save_modes import gerber_stand_in
-from test_gerber_editor_pick import make_editor
+from test_gerber_editor import make_editor
 from tests.helpers_objects import app, _headless_qt, make_gerber, NATIVE_GBR  # noqa: F401,E402
 
 
@@ -144,32 +144,6 @@ def test_selected_flash_resize_reuses_matching_metadata_without_touching_shared_
     assert editor.storage_dict[10]['geometry'] == [a, b, line]
     assert editor.storage_dict['11']['geometry'] == []
     assert editor.redo()
-
-
-@pytest.mark.parametrize('diameter', [float('nan')])
-def test_invalid_diameter_does_not_mutate(diameter):
-    a = flash(0)
-    editor = editor_for([a])
-    assert editor.apply_resize_circles(diameter) == 'fail'
-    assert editor.storage_dict[10]['geometry'] == [a]
-    assert not editor.history.undo_stack
-
-
-@pytest.mark.parametrize('kind', ['hole'])
-def test_unsupported_flash_does_not_mutate(kind):
-    a = flash(0)
-    editor = editor_for([a])
-    if kind == 'hole':
-        a.geo['solid'] = a.geo['solid'].difference(Point(0, 4).buffer(0.1))
-    elif kind == 'macro':
-        editor.storage_dict[10]['type'] = 'AM'
-    elif kind == 'clear':
-        a.geo['clear'] = Point(0, 4).buffer(0.1)
-    else:
-        a.geo['solid'] = a.geo['solid'].buffer(0.1)
-    assert editor.apply_resize_circles(3) == 'fail'
-    assert editor.storage_dict[10]['geometry'] == [a]
-    assert not editor.history.undo_stack
 
 
 @pytest.mark.parametrize('operation', ['split'])

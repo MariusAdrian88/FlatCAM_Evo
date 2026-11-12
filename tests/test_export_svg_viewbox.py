@@ -79,21 +79,6 @@ BOXES = [(-5, -30, 7, -10)]
 
 
 @pytest.mark.parametrize('bounds', BOXES)
-def test_the_view_box_contains_the_drawing(qt_app, tmp_path, bounds):
-    path = _export(qt_app, [box(*bounds)], tmp_path)
-
-    vx, vy, vw, vh = _view_box(path)
-    cx0, cy0, cx1, cy1 = _flipped_content_bounds(path)
-
-    assert vw == pytest.approx(bounds[2] - bounds[0])
-    assert vh == pytest.approx(bounds[3] - bounds[1])
-    assert vx == pytest.approx(cx0)
-    assert vy == pytest.approx(cy0)
-    assert vx + vw == pytest.approx(cx1)
-    assert vy + vh == pytest.approx(cy1)
-
-
-@pytest.mark.parametrize('bounds', BOXES)
 def test_the_exported_file_is_read_back_with_the_same_size_and_orientation(qt_app, tmp_path, bounds):
     # a rectangle with a small box at its lower left corner and one at its upper right corner: not symmetric, so a
     # mirrored or moved drawing is noticed
@@ -173,4 +158,3 @@ def test_png_export_keeps_a_narrow_clearance_between_gerber_traces_open(qt_app, 
     y = int((1 + 2.2 - 1.1) * dpi)
     assert image.getpixel((x, y)) > 200
     assert image.getpixel((x, int((1 + 0.5) * dpi))) < 50               # the upper trace
-

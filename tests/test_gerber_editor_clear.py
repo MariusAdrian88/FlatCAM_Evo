@@ -12,7 +12,7 @@ from shapely.geometry import LineString, Point, Polygon, box
 
 from appEditors.appGerberEditor import (AppGerberEditor, CopyEditorGrb, EraserEditorGrb, ImportEditorGrb, MoveEditorGrb,
                                         PadEditorGrb, PadArrayEditorGrb, is_clear_record, native_display_geometries)
-from test_gerber_editor_pick import make_editor
+from test_gerber_editor import make_editor, editor_save
 from appEditors.grb_plugins.GrbTransformationPlugin import affine_selection
 from camlib import affine_translate_matrix
 from appEditors.grb_plugins.GrbCommon import DrawToolShape
@@ -224,23 +224,6 @@ def snapshot(tools):
     return re.sub(r' at 0x[0-9A-Fa-f]+', '', repr(tools))
 
 
-def editor_save(app, source, tools, loaded_as_regions=False, native_load=False):
-    """The real build_edited_gerber() (the worker step of the save) on a stand-in editor, fed with a storage built
-    from ``tools`` (what the editor holds after the load). Returns the detached edited Gerber object."""
-    storage = {}
-    for ap, tool in tools.items():
-        storage[ap] = {k: v for k, v in tool.items() if k != 'geometry'}
-        storage[ap]['geometry'] = [SimpleNamespace(geo=dict(rec)) for rec in tool['geometry']]
-    app.app_units = 'MM'
-    app.f_handlers = appIO(app)
-    app.custom_signal = MagicMock()
-    app.main_thread = QtCore.QThread.currentThread()
-    stand_in = SimpleNamespace(app=app, gerber_obj=source, gerber_obj_options=source.obj_options, results=[1],
-                               loaded_as_regions=loaded_as_regions, native_load=native_load)
-    AppGerberEditor.build_edited_gerber(stand_in, 'edited', storage)
-    result = app.custom_signal.emit.call_args.args[0]
-    assert 'obj' in result, result
-    return result['obj']
 
 
 class TestBuildEditTools:

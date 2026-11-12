@@ -119,7 +119,7 @@ def test_cncjob_multigeo_laser_power_from_spindlespeed():
 
 
 def milling_cncjob(make_source, *argv, pp='default'):
-    from test_milling_single_geometry_tools import MillingHarness
+    from test_milling import MillingHarness
     app, jobs = laser_app()
     source = make_source(app)
     app.preprocessors['default'] = default()

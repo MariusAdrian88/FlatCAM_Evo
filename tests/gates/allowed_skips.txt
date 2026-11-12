@@ -20,3 +20,10 @@ tests/test_parser_fuzz.py::test_parser_survives_mutated_input[diptrace]  # opt-i
 tests/test_allegro16_parser.py::TestAllegro16Corpus  # opt-in Allegro 16.x corpus tests (ALLEGRO16_EXAMPLES=<folder>)
 tests/test_pcbdoc_parser.py::test_diptrace_source_primitives_preserve_geometry_and_gerber_roundtrip[MM]  # opt-in DipTrace test (FLATCAM_TEST_DIPTRACE=1)
 tests/test_pcbdoc_parser.py::test_diptrace_source_primitives_preserve_geometry_and_gerber_roundtrip[IN]  # opt-in DipTrace test (FLATCAM_TEST_DIPTRACE=1)
+
+# 2026-11-12 test prune: the new ids of moved tests
+tests/test_startup.py::TestPosixLaunchers::test_an_appimage_mount_is_the_application_folder  # POSIX paths only (moved in the prune 2026-11-12)
+tests/updater/test_updater.py::test_apply_and_rollback_preserve_execute_bits  # needs UNIX permission bits (moved in the prune 2026-11-12)
+tests/test_pcbdoc.py::TestDipTraceBoard  # opt-in DipTrace tests (FLATCAM_TEST_DIPTRACE=1) (moved in the prune 2026-11-12)
+tests/test_pcbdoc.py::test_diptrace_source_primitives_preserve_geometry_and_gerber_roundtrip[MM]  # opt-in DipTrace test (FLATCAM_TEST_DIPTRACE=1) (moved in the prune 2026-11-12)
+tests/test_pcbdoc.py::test_diptrace_source_primitives_preserve_geometry_and_gerber_roundtrip[IN]  # opt-in DipTrace test (FLATCAM_TEST_DIPTRACE=1) (moved in the prune 2026-11-12)

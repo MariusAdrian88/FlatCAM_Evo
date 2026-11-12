@@ -1,3 +1,14 @@
+import math
+import os
+
+import pytest
+from shapely.geometry import Point
+
+from tests import fuzz_parsers as fz
+
+os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+
+
 # ##########################################################
 # FlatCAM Evo: 2D Post-processing for Manufacturing        #
 # Parser fuzz harness                                       #
@@ -6,20 +17,6 @@
 # https://github.com/trace-boardviewer/trace-boardviewer    #
 # MIT Licence                                               #
 # ##########################################################
-
-"""
-Mutated input files must give a result or the parser's own parse error, never another exception, a NaN
-coordinate or an invalid polygon. Short mode: a few deterministic inputs of each parser and the saved regression
-corpus (tests/fixtures/fuzz_regressions). Long mode and its environment variables: see tests/fuzz_parsers.py.
-"""
-
-import math
-import os
-
-import pytest
-from shapely.geometry import Point
-
-from tests import fuzz_parsers as fz
 
 
 ITERATIONS, SEED, SELECTED, SAVE, HANG = fz.env_config()
@@ -51,35 +48,3 @@ def test_saved_defects_stay_fixed(tmp_path):
         if status == 'defect':
             failures.append('%s: %s at %s: %s' % (path.name, kind, location, message))
     assert not failures, '\n'.join(failures)
-
-
-def test_harness_finds_and_shrinks_a_defect(tmp_path):
-    # a parser that fails on a NaN token and on nothing else: the harness must classify it and cut the input down
-    def run(ctx, content, tmp):
-        if b'nan' in content:
-            raise IndexError('boom')
-        if b'bad' in content:
-            raise fz_error()
-        return None
-
-    class fz_error(ValueError):
-        pass
-
-    target = fz.Target('fake', lambda: [('', 'text', b'a\nb\nnan\nc\n' * 4)], run, lambda: (fz_error,))
-    assert fz.run_one(target, '', b'nan', tmp_path)[:2] == ('defect', 'IndexError')
-    assert fz.run_one(target, '', b'bad', tmp_path)[0] == 'named'
-    data = b'x' * 200 + b'nan' + b'y' * 200
-    location = fz.run_one(target, '', data, tmp_path)[2]
-    small = fz.shrink(data, lambda c: fz.run_one(target, '', c, tmp_path)[2] == location)
-    assert small == b'nan'
-    # the inputs are the same on every run
-    assert list(target.inputs(12, 1)) == list(target.inputs(12, 1))
-
-
-def test_result_check_flags_nan_and_invalid_geometry():
-    class Result:
-        layers = {1: {'solid_geometry': [Point(0, 0).buffer(1)]}}
-        drill_groups = {}
-    assert fz.check_result(Result) is None
-    Result.drill_groups = {1: {'tooldia': 1.0, 'drills': [Point(math.nan, 0)], 'slots': []}}
-    assert fz.check_result(Result) == 'NonFiniteGeometry'

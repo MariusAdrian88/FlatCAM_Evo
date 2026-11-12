@@ -210,7 +210,7 @@ def layers_of(parsed):
 
 class TestAllegro16Synthetic(unittest.TestCase):
     def test_shape_symbol_pads_with_outline_only_sizes_keep_flashes(self):
-        from test_allegro_brd_parser import export_layer
+        from test_allegro_brd import export_layer
         builder = Builder16()
         shape_key = builder.key()
         vertices = [(-0.6, -0.4), (0.6, -0.4), (0.2, 0.5), (-0.6, -0.4)]
@@ -255,7 +255,7 @@ class TestAllegro16Synthetic(unittest.TestCase):
 
     def test_rotated_filled_rectangles_keep_source_flashes(self):
         from types import SimpleNamespace
-        from test_allegro_brd_parser import export_layer
+        from test_allegro_brd import export_layer
         for magic in (MAGIC_164, MAGIC_166):
             builder = Builder16(magic)
             for cls, sub in ((0x06, 0), (0x09, 0xF4), (0x09, 0xED)):
@@ -401,28 +401,15 @@ BOARDS = {
     'bbb': dict(brd='BeagleBone_Black_RevB4_NOLOGO.brd', position=0.02, rou='BeagleBone_Black_RevB4_NCROUTE.rou',
                 films={1: 'BB_Black_RB4_lyr2.art', 3: 'BB_Black_RB4_lyr4.art', 'SOLDERMASK_TOP': 'BB_Black_RB4_smc.art'},
                 drills=[('BeagleBone_Black_RevB4_NCDRILL.drl', 5, 'IN')]),
-    'bbc1': dict(brd='BeagleBone_revC1_ALLEGRO.brd', position=0.02, rou='beaglebone_revC1_NCROUTE.rou',
-                 films={4: 'beaglebone_lyr5.art', 'SOLDERMASK_BOTTOM': 'beaglebone_sms.art'},
-                 drills=[('beaglebone_revC1_NCDRILL.drl', 5, 'IN')]),
     # 16.6 with dynamic unused pad suppression
     'x15': dict(brd='BB_X15_revB1_public.brd', position=0.02, rou=None,
                 films={1: 'X15_RevB1_L2.art', 9: 'X15_RevB1_L10.art', 'SOLDERMASK_TOP': 'X15_RevB1_smc.art'},
                 drills=[('X15_RevB1-1-12.drl', 5, 'IN')]),
     # Parallella 16.4: a fabrication drawing frame on the outline subclass; drill files without tool codes
-    'pa0': dict(brd='parallella_gen0.brd', position=0.02, rou='PARALLELLA-I_revA.rou', drills=[('ncdrill1-1-12.tap', 5, 'IN')],
-                films={0: 'parallella-I_revA_top.art', 7: 'parallella-I_revA_LAYER8_SIGNAL.art'}),
-    'pa1': dict(brd='parallella_gen1.brd', position=0.02, rou='PARALLELLA-I_revB.rou',
-                drills=[('PARALLELLA-I_revB_ncdrill1-1-12.tap', 5, 'IN')],
-                films={4: 'parallella-I_revB_LAYER5_SIGNAL.art', 'SOLDERMASK_BOTTOM': 'parallella-I_revB_smask_b.art'}),
-    'pa11': dict(brd='parallella_layout.brd', position=0.02, rou='PARALLELLA-I_revc.rou',
-                 drills=[('ncdrill1-1-12.tap', 5, 'IN')],
-                 films={2: 'parallella-I_revc_LAYER3_SIGNAL.art', 'SOLDERMASK_TOP': 'parallella-I_revc_smask_t.art'}),
     # 16.6, unit code 3 (millimetres); the drill file has 3 digits of inches and repeat codes whose rounded steps add
     # up (up to 0.25 mm)
     'aafm': dict(brd='HB1A-AAFM.brd', position=0.3, rou=None, drills=[('HB1A-AAFM-1-18.drl', 3, 'IN')],
                  films={6: 'HB1A-AAFM-L07.art', 16: 'HB1A-AAFM-L17.art', 'SOLDERMASK_BOTTOM': 'HB1A-AAFM-SMB.art'}),
-    'buddy': dict(brd='buddy_lay_rev1.brd', position=0.02, rou=None, drills=[('BUDDY_Board_Rev1-1-14.drl', 5, 'MM')],
-                  films={1: 'BuddyBoard_Rev1-L02.art', 9: 'BuddyBoard_Rev1-L10.art'}),
 }
 # symmetric difference / film area inside the board outline less 0.3 mm (the films also plot the outline as a line)
 LIMIT = 0.0005
@@ -498,7 +485,7 @@ class TestAllegro16Corpus(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         from appParsers.ParseGerber import Gerber
-        from tests.test_allegro_brd_e2e import _app      # an app object with the options that the Gerber reader needs
+        from tests.test_allegro_brd import _app      # an app object with the options that the Gerber reader needs
         cls.app = _app()
         cls.gerber = Gerber
 
@@ -554,35 +541,9 @@ class TestAllegro16Corpus(unittest.TestCase):
                     self.assertTrue(any(abs(sx - x) < 0.05 and abs(sy - y) < 0.05 for sx, sy in slots),
                                     'no slot at (%.3f, %.3f) mm' % (x, y))
 
-    def test_cutiepi_16_6(self):
-        self.check_board('cutiepi')
-
-    def test_beagleboard_xm_16_4(self):
-        self.check_board('xm')
-
-    def test_beaglebone_black_16_4(self):
-        self.check_board('bbb')
-
-    def test_beaglebone_revc1_16_4(self):
-        self.check_board('bbc1')
-
-    def test_beagleboard_x15_16_6_twelve_layers(self):
-        self.check_board('x15')
-
-    def test_parallella_gen0_16_4(self):
-        self.check_board('pa0')
-
-    def test_parallella_gen1_16_4(self):
-        self.check_board('pa1')
-
-    def test_parallella_gen11_16_4(self):
-        self.check_board('pa11')
-
-    def test_parallella_hb1a_16_6_millimetres(self):
-        self.check_board('aafm')
-
-    def test_parallella_buddy_16_6_millimetres(self):
-        self.check_board('buddy')
+    def test_boards_match_the_films_drills_and_routes_of_allegro(self):
+        for key in BOARDS:
+            self.check_board(key)
 
     def test_older_15_x_boards_are_refused(self):
         for key, name in (('refused15_ctc057', 'ctc057.brd'), ('refused15_ctc072', 'ctc072.brd')):

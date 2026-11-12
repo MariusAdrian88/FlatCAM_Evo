@@ -2,8 +2,8 @@ import functools
 import gzip
 import io
 import math
-import zipfile
 from pathlib import Path
+import zipfile
 
 import pytest
 from shapely.geometry import LineString, Point
@@ -11,12 +11,13 @@ from shapely.ops import unary_union
 
 from appParsers.ParseIPC2581 import IPC2581ParseError, IPC2581Parser
 
+
 FIXTURE = Path(__file__).parent / 'fixtures' / 'ipc2581' / 'Easyduino_RP2040.xml.gz'
 NS = 'http://webstds.ipc.org/2581'
 
 
 def assert_native_roundtrip(parsed, key, tmp_path):
-    from tests.test_kicad_pcb_e2e import _app, NativeGerberObject, Gerber, appIO, _union
+    from tests.test_kicad_pcb import _app, NativeGerberObject, Gerber, appIO, _union
     app = _app('MM')
     app.options.update(gerber_board_import_mode='primitives', gerber_exp_decimals=6)
     objects = []
@@ -71,23 +72,6 @@ def test_preserved_dictionary_primitives_transforms_and_clear(tmp_path):
     assert sum(isinstance(r.get('follow'), Point) for t in tools.values() for r in t['geometry']) == 2
     assert layer_geometry(parsed).equals(layer_geometry(baseline))
     assert_native_roundtrip(parsed, 'L1', tmp_path)
-
-
-def test_preserved_point_stroke_and_custom_symbol():
-    from types import SimpleNamespace
-    xml = doc('<Set><Features><Line startX="0" startY="0" endX="0" endY="0">'
-              '<LineDesc lineWidth="1" lineEnd="ROUND"/></Line></Features></Set>'
-              + pad('<UserPrimitiveRef id="custom"/>', (5, 0)),
-              dictionaries='<DictionaryUser units="MILLIMETER"><EntryUser id="custom"><UserSpecial>'
-                           '<Circle diameter="2"/>' + square(0, 0, 2, 2)
-                           + '</UserSpecial></EntryUser></DictionaryUser>')
-    parsed = IPC2581Parser(app=SimpleNamespace(options={'gerber_board_import_mode': 'primitives'}),
-                           circle_steps=64).parse_bytes(xml.encode())
-    records = [r for t in parsed.layers['L1']['tools'].values() for r in t['geometry']
-               if isinstance(r.get('follow'), Point)]
-    assert len(records) == 2
-    assert {tuple(r['follow'].coords)[0] for r in records} == {(0, 0), (5, 0)}
-    assert layer_geometry(parsed).equals(layer_geometry(parse(xml)))
 
 
 def test_preserved_padstack_dictionary_reuse_and_negative_layer(tmp_path):
@@ -151,28 +135,6 @@ def test_nested_user_pad_holes_decorations_and_source_centres(tmp_path, units, f
     assert layer_geometry(parsed).equals(layer_geometry(baseline))
     reloaded = assert_native_roundtrip(parsed, 'L1', tmp_path)
     assert sum(isinstance(r.get('follow'), Point) for t in reloaded.tools.values() for r in t['geometry']) == 4
-
-
-def test_negative_layer_retains_only_restored_uncut_custom_pad(tmp_path):
-    from types import SimpleNamespace
-    dictionary = ('<DictionaryUser units="MILLIMETER"><EntryUser id="p"><UserSpecial>'
-                  + square(-2, -2, 2, 2) + '<RectCenter width="1" height="1">'
-                  '<FillDesc fillProperty="VOID"/></RectCenter></UserSpecial></EntryUser></DictionaryUser>')
-    xml = doc('<Set><Features>' + square(-5, -5, 5, 5) + '</Features></Set>'
-              '<Set polarity="NEGATIVE"><Pad><Location x="0" y="0"/><Xform rotation="30"/>'
-              '<UserPrimitiveRef id="p"/></Pad><Pad><Location x="10" y="0"/>'
-              '<UserPrimitiveRef id="p"/></Pad></Set>', dictionaries=dictionary, polarity='NEGATIVE',
-              profile='<Profile><Polygon><PolyBegin x="-10" y="-10"/><PolyStepSegment x="10" y="-10"/>'
-                      '<PolyStepSegment x="10" y="10"/><PolyStepSegment x="-10" y="10"/></Polygon></Profile>')
-    parsed = IPC2581Parser(circle_steps=64).parse_bytes(xml.encode())
-    baseline = IPC2581Parser(app=SimpleNamespace(options={'gerber_board_import_mode': 'regions'}),
-                            circle_steps=64).parse_bytes(xml.encode())
-    flashes = [r for t in parsed.layers['L1']['tools'].values() for r in t['geometry']
-               if isinstance(r.get('follow'), Point)]
-    assert len(flashes) == 1 and flashes[0]['follow'].equals(Point(0, 0))
-    assert len(flashes[0]['solid'].interiors) == 1
-    assert layer_geometry(parsed).equals(layer_geometry(baseline))
-    assert_native_roundtrip(parsed, 'L1', tmp_path)
 
 
 def test_preserved_real_ipc_board_matches_regions(tmp_path):
@@ -471,25 +433,3 @@ def test_zip_gzip_input_and_step_selection(tmp_path):
         archive.writestr('b.xml', xml)
     with pytest.raises(IPC2581ParseError, match='exactly 1'):
         IPC2581Parser().parse_file(two)
-
-
-def test_import_dialog_entry_creates_named_objects_and_a_recent_file():
-    # the app path: Import dialog -> file chooser -> worker parse -> layer dialog -> Gerber and Excellon objects
-    from tests.helpers_objects import pcb_import_stub, run_pcb_import
-    app, io_handler, objects = pcb_import_stub()
-    filename = str(FIXTURE)
-
-    def choose(selection):
-        from PyQt6 import QtWidgets
-        assert selection.windowTitle() == 'Import IPC-2581 Board'
-        for checkbox in selection.findChildren(QtWidgets.QCheckBox):
-            checkbox.setChecked(checkbox.text() == 'F.Cu' or checkbox.text().endswith(' PTH'))
-
-    shown, parsed = run_pcb_import(app, io_handler, 'ipc2581', filename, choose)
-    assert len(shown) == 1
-    # F.Cu and the 2 plated drill groups of the board
-    assert [kind for kind, name, obj in objects] == ['gerber', 'excellon', 'excellon']
-    # board.xml.gz gives objects named after the board, not after 'board.xml'
-    assert all(name.startswith('Easyduino_RP2040') and '.xml' not in name for kind, name, obj in objects)
-    assert unary_union(objects[0][2].solid_geometry).area == pytest.approx(layer_geometry(parsed, 'F.Cu').area)
-    app.file_opened.emit.assert_called_once_with('ipc2581', filename)

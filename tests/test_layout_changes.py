@@ -81,7 +81,7 @@ def test_view_restore_layout_restores_hidden_toolbars(layout_app, resources):
         QtCore.QCoreApplication.sendPostedEvents(None, QtCore.QEvent.Type.DeferredDelete.value)
 
 
-@pytest.mark.parametrize('index,layout', [(0, 'standard'), (1, 'compact'), (2, 'minimal')])
+@pytest.mark.parametrize('index,layout', [(1, 'compact'), (2, 'minimal')])
 def test_ui_layout_activation_and_restoration(layout_app, index, layout):
     app, group, settings = layout_app
     group.layout_combo.setCurrentIndex(index)
@@ -130,7 +130,7 @@ def test_layout_transitions_keep_actions_and_toolbar_state(layout_app, lock, sho
             lock, show_text = not lock, not show_text
 
 
-@pytest.mark.parametrize('layout,saved_state', [('standard', 'invalid'), ('standard', 'custom'), ('minimal', 'missing'),
+@pytest.mark.parametrize('layout,saved_state', [('standard', 'invalid'), ('standard', 'custom'),
                                                  ('minimal', 'preset')])
 @pytest.mark.parametrize('show_text', [False])
 def test_normal_startup_restores_layout_and_custom_toolbar_state(

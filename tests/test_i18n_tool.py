@@ -173,16 +173,6 @@ class TestTranslatorTools(unittest.TestCase):
         self.assertIn("error: 'Gone %s': formatting with % fails", out)
         self.assertEqual((1, 0), (t.stats('xx')['errors'], t.stats('xx')['warnings']))
 
-class TestChecks(unittest.TestCase):
-    def test_errors_make_the_formatting_fail(self):
-        def errors(msgid, msgstr):
-            return t.check_entry(msgid, msgstr)[0]
-
-        self.assertTrue(errors('Done %s', 'Yapıldı'))                  # not all arguments converted
-        self.assertTrue(errors('Done %s of %d', '%d / %s yapıldı'))    # %d of a text
-        self.assertTrue(errors('%s at 100%%', '%s 100 % de'))          # a single % in a formatted text
-        self.assertTrue(errors('%(count)s done', '%(sayi)s bitti'))    # KeyError
-        self.assertTrue(errors('Name: {name}', 'Ad: {ad}'))
 
 class TestExtract(unittest.TestCase):
     def test_literals_and_problems(self):

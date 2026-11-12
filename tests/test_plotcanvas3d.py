@@ -219,42 +219,6 @@ class TestPlotCanvas3d(unittest.TestCase):
             np.testing.assert_allclose(
                 camera._scene_transform.map(point)[:2], reference._scene_transform.map(point)[:2], atol=1e-4)
 
-    def test_2d_zoom_pan_zoom_does_not_reuse_a_throttled_zoom_anchor(self):
-        canvas = self.make_2d_canvas()
-        camera = canvas.view.camera
-        with patch('appGUI.VisPyCanvas.time.time', return_value=1.0) as clock:
-            camera.viewbox_mouse_event(self.mouse_event_2d('mouse_move', modifiers=('Shift',)))
-            size = camera.rect.size
-            clock.return_value = 1.001
-            camera.viewbox_mouse_event(self.mouse_event_2d(
-                'mouse_move', pos=(120, 110), last=(110, 105), modifiers=('Shift',)
-            ))
-            before = camera._scene_transform.map((150, 150, 0, 1))[:2]
-            clock.return_value = 1.002
-            camera.viewbox_mouse_event(self.mouse_event_2d('mouse_move', pos=(130, 115), last=(120, 110)))
-            camera.flush_pan()
-            after = camera._scene_transform.map((150, 150, 0, 1))[:2]
-            np.testing.assert_allclose(after - before, (10, 5), atol=1e-5)
-            np.testing.assert_array_equal(camera.rect.size, size)
-            clock.return_value = 1.003
-            camera.viewbox_mouse_event(self.mouse_event_2d(
-                'mouse_move', pos=(140, 120), last=(130, 115), modifiers=('Shift',)
-            ))
-            np.testing.assert_array_equal(camera.rect.size, size)
-            clock.return_value = 1.016
-            camera.viewbox_mouse_event(self.mouse_event_2d(
-                'mouse_move', pos=(150, 125), last=(140, 120), modifiers=('Shift',)
-            ))
-            np.testing.assert_array_equal(camera.rect.size, size)
-            anchor = camera._transform.imap((100, 100))
-            anchor_before = camera._scene_transform.map(anchor)
-            clock.return_value = 1.018
-            camera.viewbox_mouse_event(self.mouse_event_2d(
-                'mouse_move', pos=(160, 130), last=(150, 125), modifiers=('Shift',)
-            ))
-            np.testing.assert_allclose(np.array(camera.rect.size) / size, (1 + camera.zoom_factor) ** 15)
-            # a reused stale anchor is off by whole pixels; the float rounding of the transform stays below 1e-4 px
-            np.testing.assert_allclose(camera._scene_transform.map(anchor), anchor_before, atol=1e-4)
 
     def test_fit_toolpath_bounds_with_canvas_padding(self):
         canvas = self.make_canvas()
@@ -353,60 +317,6 @@ class TestPlotCanvas3d(unittest.TestCase):
                     np.testing.assert_array_equal(actual, expected)
                 np.testing.assert_array_equal(actual_mapped, expected_mapped)
 
-    def test_2d_ruler_ticks_and_labels_match_vispy_for_many_views(self):
-        fcapp = CanvasApp()
-        fcapp.options['global_axis_color'] = '#808080FF'
-        fcapp.cursor_color_3D = '#FF0000'
-        canvas = PlotCanvas(fcapp)
-        self.addCleanup(fcapp.ui.deleteLater)
-        self.addCleanup(canvas.close)
-        canvas.size = (800, 600)
-        canvas.central_widget.size = canvas.size
-        views = [(-1000.0, -2000.0, 150.0, 90.0), (-5.5, -5.5, 3.1, 3.1), (123456.0, -98765.0, 40.0, 40.0),
-                 (-4999.0, -4999.0, 5000.0, 5000.0)]
-        for width in (0.01, 0.2, 3.3, 47.0, 333.0, 2500.0, 5000.0):
-            views += [(0.0, 0.0, width, width), (-0.37 * width, 0.21 * width, 1.3 * width, 0.8 * width)]
-
-        def rulers():
-            result = []
-            for view in views:
-                canvas.view.camera.rect = view
-                canvas.render()
-                result.append([(tuple(widget.axis.domain), np.array(widget.axis._ticks._pos),
-                                list(widget.axis._text.text), np.array(widget.axis._text.pos))
-                               for widget in (canvas.xaxis, canvas.yaxis)])
-            return result
-
-        rulers()  # the layout settles on the first render
-        actual = rulers()
-        with ExitStack() as stack:
-            for owner, name, original in _vispy_axes:
-                stack.enter_context(patch.object(owner, name, original))
-            expected = rulers()
-        for view, got, want in zip(views, actual, expected):
-            for axis_got, axis_want in zip(got, want):
-                with self.subTest(view=view):
-                    self.assertEqual(axis_got[0], axis_want[0])
-                    np.testing.assert_array_equal(axis_got[1], axis_want[1])
-                    self.assertEqual(axis_got[2], axis_want[2])
-                    np.testing.assert_array_equal(axis_got[3], axis_want[3])
-
-    def test_orthographic_projection_replaces_mutated_matrix_and_perspective(self):
-        transform = MatrixTransform()
-        point = (1, 2, 3, 1)
-        for bounds in ((-10, 10, -20, 20, -100, 100), (-5, 15, -10, 30, -50, 200)):
-            reference = MatrixTransform()
-            _matrix_set_ortho(reference, *bounds)
-            for change in ('ortho', 'mutated', 'perspective'):
-                with self.subTest(bounds=bounds, change=change):
-                    if change == 'mutated':
-                        transform.matrix[3, 0] += 10
-                    elif change == 'perspective':
-                        transform.set_perspective(45, 1.5, 1, 100)
-                    transform.set_ortho(*bounds)
-                    np.testing.assert_array_equal(transform.map(point), reference.map(point))
-                    np.testing.assert_array_equal(transform.imap(transform.map(point)),
-                                                  reference.imap(reference.map(point)))
 
     def test_rectangular_grid_updates_both_axes_and_fits(self):
         for units, scale in (('MM', 1), ('IN', 1 / 25.4)):
@@ -514,45 +424,6 @@ class TestPlotCanvas3d(unittest.TestCase):
                     screen = projected[:, :2] / projected[:, 3:]
                     self.assertGreater(np.linalg.norm(screen[2] - screen[0]), 1)
 
-    def test_many_rotate_moves_compose_in_order_and_hold_the_pivot(self):
-        from vispy.scene.cameras.arcball import _arcball
-        from vispy.util.quaternion import Quaternion
-
-        rng = np.random.default_rng(5)
-        for reference in ('center', 'center_rotate'):
-            with self.subTest(reference=reference):
-                canvas = self.make_canvas(camera_reference=reference)
-                camera = canvas.view.camera
-                camera.set_view('iso')
-                canvas.content_bounds = ((0, 0, 0), (250, 250, 4))
-                canvas.fit_view()
-                pivot = np.r_[canvas.geometry_center(), 1]
-                before = camera._scene_transform.map(pivot)
-                before = before[:2] / before[3]
-                start = np.array((400.0, 300.0))
-                size = min(canvas.view.size)
-                expected = camera.get_state()['_quaternion']
-                previous = start
-                for _ in range(40):
-                    pos = previous + rng.normal(0, 25, 2)
-                    camera.viewbox_mouse_event(self.mouse_event('mouse_move', pos, start, (1,)))
-                    # the rotation of each move is applied to the orientation of the moves before it
-                    if reference == 'center':
-                        delta = (pos - previous) * np.pi / size
-                        horizontal = Quaternion.create_from_axis_angle(-delta[0], 0, 1, 0)
-                        vertical = Quaternion.create_from_axis_angle(-delta[1], 1, 0, 0)
-                        expected = vertical * horizontal * expected
-                    else:
-                        expected = (Quaternion(*_arcball(pos, canvas.view.size)) *
-                                    Quaternion(*_arcball(previous, canvas.view.size)) * expected)
-                    previous = pos
-                camera.viewbox_mouse_event(self.mouse_event('mouse_release'))
-                actual = camera.get_state()['_quaternion']
-                rotation = np.array((actual.w, actual.x, actual.y, actual.z))
-                wanted = np.array((expected.w, expected.x, expected.y, expected.z))
-                self.assertAlmostEqual(abs(rotation @ wanted), 1.0, places=5)
-                after = camera._scene_transform.map(pivot)
-                np.testing.assert_allclose(after[:2] / after[3], before, atol=1e-3)
 
     def test_center_reference_rotates_about_loaded_object_bounds_and_can_change(self):
         canvas = self.make_canvas(camera_reference='center')

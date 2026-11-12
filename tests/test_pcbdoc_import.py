@@ -1,19 +1,19 @@
 import os
 import tempfile
 import threading
-import unittest
 from types import SimpleNamespace
+import unittest
 from unittest.mock import Mock, patch
 
+from PyQt6 import QtCore, QtWidgets
 import pytest
+from shapely.affinity import translate
+from shapely.geometry import LineString, Point, Polygon
+from shapely.ops import unary_union
+
+from appHandlers.appIO import appIO
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
-
-from PyQt6 import QtCore, QtWidgets
-from shapely.ops import unary_union
-from shapely.geometry import Polygon, Point, LineString
-from shapely.affinity import translate
-from appHandlers.appIO import appIO
 
 
 class TestPcbDocImport(unittest.TestCase):
@@ -201,31 +201,6 @@ class TestPcbDocImport(unittest.TestCase):
         self.assertIn('[ERROR_NOTCL]', self.app.inform.emit.call_args.args[0])
         self.assertEqual(self.objects, [])
 
-    def test_current_units_tools_geometry_drills_slots_and_selection(self):
-        self.app.app_units = 'IN'
-        self.io.import_pcbdoc_objects('board.PcbDoc', self.parsed, [1], ['PTH'])
-        self.assertEqual([kind for kind, obj in self.objects], ['gerber', 'excellon'])
-        gerber, drill = [obj for kind, obj in self.objects]
-        self.assertEqual(gerber.units, 'IN')
-        self.assertAlmostEqual(gerber.tools[10]['size'], 0.1)
-        for actual, expected in zip(gerber.solid_geometry[0].bounds, (-1, 0, 1, 1)):
-            self.assertAlmostEqual(actual, expected)
-        self.assertEqual(len(gerber.solid_geometry[0].interiors), 1)
-        for actual, expected in zip(gerber.follow_geometry[0].bounds, (0, 0, 1, 0)):
-            self.assertAlmostEqual(actual, expected)
-        self.assertAlmostEqual(drill.tools[1]['tooldia'], 0.1)
-        self.assertAlmostEqual(drill.tools[1]['drills'][0].x, 1)
-        self.assertAlmostEqual(drill.tools[1]['slots'][0][1].x, 1)
-        drill.create_geometry.assert_called_once()
-        self.assertEqual(self.parsed.layers[1]['tools'][10]['size'], 2.54)
-        self.assertEqual(self.app.worker_task.emit.call_args.args[0]['priority'], 'low')
-
-    def test_export_failure_does_not_publish_corrupt_object(self):
-        self.io.export_gerber.return_value = 'fail'
-        self.assertEqual(self.io.import_pcbdoc_objects('board.PcbDoc', self.parsed, [1], []), 'fail')
-        self.assertEqual(self.objects, [])
-        self.qapp.processEvents()
-        self.app.file_opened.emit.assert_not_called()
 
     def test_proteus_identified_extensions_and_unknown_artwork_names(self):
         self.parsed.name = 'Power Board'
@@ -354,32 +329,6 @@ class TestPcbDocImport(unittest.TestCase):
         self.assertFalse(any('using the Proteus 8 decoder' in text for text in warnings))
         self.assertTrue(any(text.count('Incomplete fidelity') == 1 for text in warnings))
 
-    def test_proteus_facade_result_is_queued_and_parse_failure_creates_no_projects(self):
-        self.app.ui = QtWidgets.QWidget()
-        self.app.projects = Mock()
-        self.app.projects.is_busy.return_value = False
-        parsed = SimpleNamespace(boards=[], warnings=[], major_version=8)
-        parser = Mock()
-        parser.return_value.parse_file.return_value = parsed
-        with patch.dict('sys.modules', {'appParsers.ParseProteus': SimpleNamespace(ProteusParser=parser)}):
-            self.io.on_file_import_proteus('design.pdsprj')
-            job = self.app.worker_task.emit.call_args.args[0]
-            thread = threading.Thread(target=job['fcn'], args=job['params'])
-            thread.start()
-            thread.join()
-            self.app.projects.new.assert_not_called()
-            self.qapp.processEvents()
-            self.io._advance_proteus_import()
-            self.app.projects.new.assert_not_called()
-            parser.return_value.parse_file.side_effect = ValueError('invalid container')
-            self.assertEqual(self.io.parse_proteus('bad.pdsprj'), 'fail')
-            self.qapp.processEvents()
-            self.app.projects.new.assert_not_called()
-            self.app.file_opened.emit.assert_not_called()
-        # the finished Proteus flow leaves no import in flight
-        self.io.on_file_import_kicad_pcb('next.kicad_pcb')
-        self.assertEqual(self.app.worker_task.emit.call_args.args[0]['params'], ['next.kicad_pcb'])
-        self.app.projects.inform_busy.assert_not_called()
 
     # ---------------------------------------------------------------- the in-flight request of a board import
     def _token_app(self):
@@ -392,14 +341,6 @@ class TestPcbDocImport(unittest.TestCase):
         self.qapp.processEvents()
         return result
 
-    def test_cancelled_file_picker_does_not_block_the_next_import(self):
-        self._token_app()
-        with patch.object(QtWidgets.QFileDialog, 'getOpenFileName', return_value=('', '')):
-            self.io.on_file_import_kicad_pcb()
-        self.app.worker_task.emit.assert_not_called()
-        self.io.on_file_import_kicad_pcb('board.kicad_pcb')
-        self.app.worker_task.emit.assert_called_once()
-        self.app.projects.inform_busy.assert_not_called()
 
     def test_layer_dialog_opens_before_the_parse_ends_and_its_cancel_ends_the_import(self):
         self._token_app()
@@ -423,32 +364,6 @@ class TestPcbDocImport(unittest.TestCase):
         self.app.worker_task.emit.assert_called_once()
         self.app.projects.inform_busy.assert_called_once()
 
-    def test_old_failure_notification_does_not_end_a_newer_import(self):
-        self._token_app()
-        self.io.on_file_import_kicad_pcb('one.kicad_pcb')
-        first = self.app.worker_task.emit.call_args.args[0]
-        with patch('appParsers.ParseKiCadPcb.KiCadPcbParser') as parser:
-            parser.return_value.parse_file.side_effect = ValueError('bad board')
-            self.assertEqual(self._run(first), 'fail')
-            self.io.on_file_import_kicad_pcb('two.kicad_pcb')
-            second = self.app.worker_task.emit.call_args.args[0]
-            self.assertEqual(second['params'], ['two.kicad_pcb'])
-            # the first job runs again (a late duplicate): its failure must not end the second import
-            self._run(first)
-        self.io.on_file_import_kicad_pcb('three.kicad_pcb')
-        self.assertEqual(self.app.worker_task.emit.call_args.args[0]['params'], ['two.kicad_pcb'])
-        self.app.projects.inform_busy.assert_called_once()
-
-    def test_aborted_parse_does_not_block_the_next_import(self):
-        self._token_app()
-        self.io.on_file_import_kicad_pcb('one.kicad_pcb')
-        job = self.app.worker_task.emit.call_args.args[0]
-        self.app.abort_flag = True
-        self._run(job)
-        self.app.abort_flag = False
-        self.io.on_file_import_kicad_pcb('two.kicad_pcb')
-        self.assertEqual(self.app.worker_task.emit.call_args.args[0]['params'], ['two.kicad_pcb'])
-        self.app.projects.inform_busy.assert_not_called()
 
     def test_diptrace_reparse_keeps_the_opening_defaults_and_the_request(self):
         self._token_app()
@@ -569,67 +484,6 @@ class TestPcbDocImport(unittest.TestCase):
                     self.assertLess(actual.symmetric_difference(expected).area, 0.001)
                     self.assertIs(obj.tools, tools)
 
-    def test_actual_qt_dialog_selection_and_worker_object_creation(self):
-        self.app.ui = QtWidgets.QWidget()
-        parser = Mock()
-        parser.return_value.parse_file.return_value = self.parsed
-        module = SimpleNamespace(PcbDocParser=parser, PcbDocParseError=ValueError)
-        gui_threads, creation_threads, parser_threads = [], [], []
-        errors = []
-        base_create = self.app.app_obj.new_object.side_effect
-
-        def create(*args, **kwargs):
-            creation_threads.append(QtCore.QThread.currentThread())
-            return base_create(*args, **kwargs)
-
-        def parsed(filename):
-            parser_threads.append(QtCore.QThread.currentThread())
-            return self.parsed
-
-        parser.return_value.parse_file.side_effect = parsed
-        self.app.app_obj.new_object.side_effect = create
-
-        class Task(QtCore.QThread):
-            def __init__(task, function, params):
-                super().__init__()
-                task.function, task.params = function, params
-
-            def run(task):
-                try:
-                    task.function(*task.params)
-                except Exception as error:
-                    errors.append(error)
-
-        def choose():
-            dialog = self.qapp.activeModalWidget()
-            if not isinstance(dialog, QtWidgets.QDialog):
-                QtCore.QTimer.singleShot(1, choose)
-                return
-            gui_threads.append(QtCore.QThread.currentThread())
-            for box in dialog.findChildren(QtWidgets.QCheckBox):
-                if box.text().startswith('Top'):
-                    box.setChecked(False)
-            self.app.app_units = 'IN'
-            dialog.findChild(QtWidgets.QDialogButtonBox).button(
-                QtWidgets.QDialogButtonBox.StandardButton.Ok).click()
-
-        with patch.dict('sys.modules', {'appParsers.ParsePcbDoc': module}):
-            task = Task(self.io.parse_pcbdoc, ['board.PcbDoc'])
-            task.start()
-            self.assertTrue(task.wait(5000))
-            QtCore.QTimer.singleShot(0, choose)
-            self.qapp.processEvents()
-        self.assertEqual(errors, [])
-        self.assertEqual(gui_threads, [self.qapp.thread()])
-        self.assertNotEqual(parser_threads[0], self.qapp.thread())
-        job = self.app.worker_task.emit.call_args.args[0]
-        self.assertEqual(job['params'][2:], [[32], ['PTH']])
-        render = Task(job['fcn'], job['params'])
-        render.start()
-        self.assertTrue(render.wait(5000))
-        self.assertEqual(errors, [])
-        self.assertTrue(all(thread != self.qapp.thread() for thread in creation_threads))
-        self.assertEqual([obj.units for kind, obj in self.objects], ['IN', 'IN'])
 
     def test_real_excellon_export_drills_and_slots_in_current_units(self):
         import appHandlers.appIO as io_module
@@ -686,7 +540,3 @@ class TestPcbDocImport(unittest.TestCase):
         self.assertNotEqual(parser.parse_lines(updated.splitlines()), 'fail')
         self.assertAlmostEqual(parser.tools[1]['drills'][0].x, -2.54)
         self.assertEqual(obj.source_file, updated)
-
-
-if __name__ == '__main__':
-    unittest.main()

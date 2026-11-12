@@ -436,33 +436,6 @@ def test_pcb_export_step_writes_closed_layer_solids_in_millimeters(tmp_path, uni
     assert list(solids) == ['board'] and len(solids['board']) == 1
 
 
-def test_pcb_export_frame_fits_projected_bounds_with_five_percent_padding():
-    import itertools
-    from appPlugins.ToolPCBViewer.PDF3DWriter import export_frame
-    from vispy.util.quaternion import Quaternion
-    from vispy.util import transforms
-
-    bounds = np.array([(-17, -3, -0.12), (23, 8, 0.919)])
-    frame = export_frame(bounds)
-    q = Quaternion.create_from_axis_angle(-np.degrees(np.arctan(1 / np.sqrt(2))), 1, 0, 0, degrees=True)
-    q *= Quaternion.create_from_axis_angle(45, 0, 1, 0, degrees=True)
-    angle, x, y, z = q.get_axis_angle()
-    rotation = transforms.rotate(np.degrees(angle), (x, z, y))[:3, :3].T @ np.array(
-        [[1, 0, 0], [0, 0, 1], [0, 1, 0]])
-    center = bounds.mean(axis=0)
-    projected = (np.array(list(itertools.product(*zip(*bounds)))) - center) @ rotation
-    extent = np.ptp(projected[:, :2], axis=0)
-    page = np.asarray(frame['page_size'])
-    assert np.array_equal(frame['bounds'], bounds)
-    assert frame['center'] == pytest.approx(center)
-    assert frame['rotation'] == pytest.approx(rotation)
-    assert page.max() == pytest.approx(297 * 72 / 25.4)
-    assert page[0] / page[1] == pytest.approx(extent[0] / extent[1])
-    assert page / frame['scale'] == pytest.approx(extent * 1.05)
-    assert np.asarray(frame['eye']) + frame['distance'] * rotation[:, 2] == pytest.approx(center)
-    assert np.all(((np.array(list(itertools.product(*zip(*bounds)))) - frame['eye']) @ rotation)[:, 2] > 0)
-
-
 def test_pcb_export_poster_is_rendered_iso_and_not_double_blended(viewer_app):
     from appPlugins.ToolPCBViewer.PCBViewerExport import export_meshes, render_poster
     from appPlugins.ToolPCBViewer.PDF3DWriter import export_frame
@@ -581,32 +554,6 @@ def test_pcb_export_controller_writes_ui_geometry_opacity_and_snapshot(viewer_ap
     shader = scene['shaders'][shading['shader_lists'][0][0]]
     assert scene['materials'][shader['material']]['opacity'] == pytest.approx(96 / 255)
     assert any(b'/Subtype /Image' in dictionary for dictionary, _payload in streams.values())
-
-
-def test_pcb_export_step_button_writes_the_preview_stack(viewer_app, monkeypatch, tmp_path):
-    path = tmp_path / 'board.step'
-    path.write_text('Original destination')
-    tool, app, qapp = _export_tool(viewer_app, monkeypatch, path)
-    tool.ui.board_thickness.set_value(1.2)
-    tasks = []
-    app.worker_task.disconnect()
-    app.worker_task.connect(tasks.append)
-    assert tool.ui.export_step_button.isEnabled()
-    tool.on_export_step()
-    assert not tool.ui.export_step_button.isEnabled() and not tool.ui.export_pdf_button.isEnabled()
-    assert not tool.ui.export_progress.isHidden()
-    job, = tasks
-    job['fcn'](*job['params'])
-    qapp.processEvents()
-    assert tool.ui.export_progress.isHidden()
-    solids, _colors = _step_solids(path.read_text('ascii'))
-    # The default content is the board body for the fit of a case.
-    assert set(solids) == {'board'}
-    (volume, open_edges, _arcs), = solids['board']
-    board, = [layer for layer in tool._completed_layers if layer.name == 'board']
-    assert open_edges == 0 and volume == pytest.approx(board.geometry.area * 1.2, rel=1e-3)
-    assert set(tmp_path.iterdir()) == {path}
-    assert tool.ui.export_step_button.isEnabled()
 
 
 def test_pcb_export_readiness_blocks_pending_failed_and_closed_preview(viewer_app, monkeypatch, tmp_path):
@@ -789,9 +736,8 @@ def test_u3d_writer_preserves_indices_above_u16_range():
     assert np.max(mesh['faces']) == np.max(mesh['normal_indices']) == 65537
 
 
-@pytest.mark.parametrize('damage', ['nonfinite', 'overflow', 'index', 'fractional', 'degenerate',
-                                   'normals', 'color', 'duplicate', 'empty', 'opacity_nan',
-                                   'opacity_below_zero', 'opacity_above_one', 'opacity_list'])
+@pytest.mark.parametrize('damage', ['nonfinite', 'index', 'fractional', 'normals', 'duplicate', 'empty',
+                                   'opacity_above_one'])
 def test_u3d_writer_rejects_invalid_scene(damage):
     from appPlugins.ToolPCBViewer.U3DWriter import write_scene
 

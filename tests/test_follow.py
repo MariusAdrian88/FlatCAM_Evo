@@ -8,7 +8,7 @@ import pytest
 from shapely import LineString, Point
 from shapely.geometry import box
 
-from test_tcl_audit_generation import factory_app
+from test_tcl_commands import factory_app
 from test_tcl_audit_regressions import FCShell
 
 # FollowGen is Qt free; load it by path so the plugin package (which imports Qt) is not needed

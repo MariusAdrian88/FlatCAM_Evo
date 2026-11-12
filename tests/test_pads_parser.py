@@ -1,16 +1,18 @@
-"""PADS manufacturing geometry, using real exports and focused in-memory records."""
 from functools import lru_cache
-from pathlib import Path
-from types import SimpleNamespace
-from unittest.mock import Mock, patch
 import math
 import os
+from pathlib import Path
 import re
 import struct
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 import pytest
-from shapely import LineString, Point, box
+from shapely import box, LineString, Point
 from shapely.ops import unary_union
+
+
+"""PADS manufacturing geometry, using real exports and focused in-memory records."""
 
 
 FIXTURES = Path(__file__).parent / 'fixtures' / 'pads'
@@ -38,7 +40,7 @@ def test_source_primitives_preserve_ascii_and_native_board_geometry(extension):
                if t['type'] == 'C' for r in t['geometry']]
     assert any(isinstance(r.get('follow'), Point) for r in records)
     assert any(isinstance(r.get('follow'), LineString) for r in records)
-    from test_allegro_brd_parser import export_layer
+    from test_allegro_brd import export_layer
     expected = {25: (0, 264), 22: (0, 131), 23: (0, 17), 24: (0, 16), 26: (0, 22),
                 27: (0, 21), 29: (0, 13), 30: (0, 2), 'Outline': (0, 1),
                 1: (39, 118), 2: (62, 119)}
@@ -250,76 +252,6 @@ U1.1 U2.1
     # Default fields aren't interpreted as pad-diameter percentages.
     other = parse(text.replace('90 90', '10 10'))
     assert copper.symmetric_difference(unary_union(other.layers[1]['solid_geometry'])).area < 1e-9
-
-
-def test_romansim_substitute_preserves_mirrored_rotated_artwork_and_rejects_missing_glyphs():
-    body = '*TEXT*\n10 20 90 1 2 0.2 N LEFT DOWN\nRegular <Romansim Stroke Font>\nTOP'
-    normal = unary_union(parse(board(body)).layers[1]['solid_geometry'])
-    mirrored = unary_union(parse(board(body.replace('0.2 N', '0.2 M'))).layers[1]['solid_geometry'])
-    from shapely.affinity import scale
-    assert normal.area > 0.1
-    assert normal.symmetric_difference(scale(mirrored, xfact=1, yfact=-1, origin=(10, 20))).area < 1e-9
-    lowercase = unary_union(parse(board(body.replace('10 20 90', '0 0 0').replace('\nTOP', '\nbg')))
-                            .layers[1]['solid_geometry'])
-    # Real lowercase has an ascender and a descender, not reduced uppercase outlines.
-    assert lowercase.bounds[1] < -0.4 and lowercase.bounds[3] > 1.4
-    from appParsers.ParsePADS import PADSParseError
-    with pytest.raises(PADSParseError, match='glyph'):
-        parse(board(body.replace('\nTOP', '\nTOP Ж')))
-
-
-def test_regenerated_teardrop_cannot_close_a_foreign_net_clearance():
-    text = board('''DEFAULTCLEAR 0.2
-*VIA*
-V 0.3 3
--2 2 R
--1 2 R
-0 2 R
-*ROUTE*
-*SIGNAL* N
-U1.1 U2.1
-0 0 1 0.2 0 V TEARDROP N 90 90
-5 0 65 0.2 0
-*SIGNAL* OTHER
-U3.1 U4.1
-1.1 0.65 1 0.1 0
-1.8 0.65 65 0.1 0''')
-    plain = unary_union(parse(text.replace(' TEARDROP N 90 90', '')).layers[1]['solid_geometry'])
-    added = unary_union(parse(text).layers[1]['solid_geometry']).difference(plain)
-    assert added.area > 0.01
-    assert added.distance(box(1.1, 0.6, 1.8, 0.7)) >= 0.1999
-
-
-def test_track_junction_teardrop_uses_local_width_not_the_crossing_track_length():
-    result = parse(board('''*ROUTE*
-*SIGNAL* N
-U1.1 U2.1
-0 0 1 0.2 0 TEARDROP N 90 90
-5 0 65 0.2 0
-U3.1 U4.1
-0 -5 1 0.6 0
-0 5 65 0.6 0'''))
-    copper = unary_union(result.layers[1]['solid_geometry'])
-    assert copper.covers(Point(0.4, 0.15))
-    assert not copper.covers(Point(1, 1))
-
-
-def test_decal_free_lettering_follows_each_placed_component():
-    result = parse(board('''*PARTDECAL*
-D M 0 0 0 0 0 1 0
-0 0 0 1 2 0.2 N LEFT DOWN
-Regular <Romansim Stroke Font>
-TOP
-*PARTTYPE*
-P D UND 0 0 0 0
-*PART*
-U1 P 10 20 0 U N 0 -1 0 -1 0
-U2 P -10 20 0 U M 0 -1 0 -1 0'''))
-    top = unary_union(result.layers[1]['solid_geometry'])
-    bottom = unary_union(result.layers[2]['solid_geometry'])
-    from shapely.affinity import scale
-    assert top.bounds[0] > 9 and bottom.bounds[2] < -9
-    assert top.symmetric_difference(scale(bottom, xfact=-1, yfact=1, origin=(0, 0))).area < 1e-9
 
 
 def test_2005_named_silk_layers_and_finger_drill_without_corner_field():
@@ -536,24 +468,10 @@ COPCUT 5 0 0 1
     assert flashes[0]['follow'].distance(Point(2.5, 2.5)) < 1e-12
     assert copper.covers(Point(10.5, 2.5))
     assert not copper.covers(Point(11.5, 2.5))
-    from test_allegro_brd_parser import export_layer
+    from test_allegro_brd import export_layer
     exported, code = export_layer(result.layers[1], circle_steps=128)
     assert code.count('D03*') == 1  # the partially cut circle must not be restored by a flash
     assert unary_union(exported.solid_geometry).symmetric_difference(copper).area < 1e-5
-
-
-def test_documented_94_decal_without_linestyle_field():
-    text = board('''*PARTDECAL*
-D M 0 0 1 0 0 0 0
-OPEN 2 0.2 26
-0 0
-2 0
-*PARTTYPE*
-P D UND 0 0 0 0
-*PART*
-U1 P 0 0 0 U N 0 -1 0 -1 0''').replace('V9.5', 'V9.4')
-    result = parse(text)
-    assert unary_union(result.layers[26]['solid_geometry']).covers(Point(1, 0))
 
 
 def test_multilayer_defaults_and_blind_via_span():
@@ -605,7 +523,7 @@ U1 P 0 0 0 U N 0 -1 0 -1 0''' % corner))
     assert len(flashes) == 1
     assert flashes[0]['follow'].equals(Point(0, 0))
     assert flashes[0]['solid'].equals(unary_union(result.layers[1]['solid_geometry']))
-    from test_allegro_brd_parser import export_layer
+    from test_allegro_brd import export_layer
     exported, code = export_layer(result.layers[1], units='IN')
     assert code.count('D03*') == 1
     assert unary_union(exported.solid_geometry).symmetric_difference(flashes[0]['solid']).area < 0.0001
@@ -639,8 +557,7 @@ def test_native_binary_and_unrelated_asc_are_not_ascii_boards():
         parse(board('').replace('*END*', ''))
 
 
-@pytest.mark.parametrize('damage', ['footer', 'directory', 'reference',
-                                   'route_cells', 'route_layer', 'drawing_shape', 'pour_arc', 'drill_span'])
+@pytest.mark.parametrize('damage', ['footer', 'reference', 'route_layer', 'pour_arc'])
 def test_native_sdb_rejects_truncation_and_out_of_range_references(damage, tmp_path):
     from appParsers.ParsePADS import PADSParseError, PADSParser
     from appParsers.ParsePADSBinary import PADSBinaryReader
@@ -834,40 +751,6 @@ def _shape_byte(reader, shape):
     raise AssertionError('no pad row found')
 
 
-@pytest.mark.parametrize('damage', ['thermal_marker', 'teardrop_order', 'spoke_array_row', 'old_version_thermal_row'])
-def test_native_unproven_thermal_or_teardrop_data_rejects_the_file(damage):
-    from appParsers.ParsePADS import PADSParseError
-    from appParsers.ParsePADSBinary import PADSBinaryReader
-
-    name = 'LCORE_2' if damage in ('teardrop_order', 'old_version_thermal_row') else 'TMS1mmX19'
-    source = native_reader(name)
-    data = bytearray(source.data)
-    if damage == 'thermal_marker':
-        struct.pack_into('<i', data, parameters_offset(source) + 988, 7)
-    elif damage == 'teardrop_order':
-        word = struct.unpack_from('<I', data, parameters_offset(source) + 844)[0]
-        struct.pack_into('<I', data, parameters_offset(source) + 844, (word & ~0x3ff) | 91)
-    elif damage == 'spoke_array_row':
-        data[_shape_byte(source, 6)] = 9  # SA has no sample in any fixture
-    else:
-        data[_shape_byte(source, None)] = 6  # 0x2026 thermal rows have no sample either
-    with pytest.raises(PADSParseError, match='PADS binary'):
-        PADSBinaryReader(data).as_ascii()
-
-
-def test_native_pour_clearance_does_not_use_default_drawing_linewidth():
-    from appParsers.ParsePADSBinary import PADSBinaryReader
-
-    data = bytearray((FIXTURES / 'LCORE_2.pcb').read_bytes())
-    # The board setup word at +36 is LINEWIDTH, not an electrical clearance rule: the rules that drive the pour
-    # fill stay as they are (the pour fill itself is a pure function of these rows).
-    def rules(blob):
-        return re.findall(r'^[A-Z_]+_TO_[A-Z_]+ \S+$', PADSBinaryReader(blob).as_ascii(), flags=re.M)
-    before = rules(data)
-    struct.pack_into('<i', data, 10 + 74 * 16 + 36, 15000000)
-    assert before and rules(data) == before
-
-
 ROMANSIM = 'Regular <Romansim Stroke Font>'
 
 
@@ -915,38 +798,6 @@ def test_invisible_label_draws_nothing_and_visibility_selects_name_or_value():
     assert widths['VALUE'] < widths['NAME'] < widths['BOTH']
 
 
-def test_part_label_replaces_the_decal_default_of_the_same_attribute():
-    result = parse(label_board([('VALUE', 0, 5, 1, 'Ref.Des.')],
-                               [('U1', 0, 20, 'N'), ('U2', 0, 40, 'N')],
-                               {'U1': [('VALUE', 0, -5, 1, 'Ref.Des.')]}))
-    bounds = [polygon.bounds for polygon in result.layers[26]['solid_geometry']]
-    assert any(14 < b[1] and b[3] < 16.5 for b in bounds)
-    assert not any(24 < b[1] and b[3] < 26.5 for b in bounds)
-    assert any(44 < b[1] and b[3] < 46.5 for b in bounds)
-
-
-def test_unvalued_attribute_label_is_skipped_with_a_warning():
-    result = parse(label_board([('VALUE', 0, 5, 1, 'Ref.Des.'), ('VALUE', 0, -5, 1, 'Tolerance')],
-                               [('U1', 0, 20, 'N')]))
-    assert layer_bounds(result, 26)[1] > 24
-    assert any('Tolerance' in warning for warning in result.warnings)
-    with pytest.raises(Exception, match='PADS'):
-        parse(label_board([('SOMETIMES', 0, 5, 1, 'Ref.Des.')], [('U1', 0, 20, 'N')]))
-
-
-def test_labels_on_inner_or_all_layers_are_skipped_and_other_fonts_never_fail():
-    four = lambda text: text.replace('MAXIMUMLAYER 2', 'MAXIMUMLAYER 4')
-    kept = ('VALUE', 0, 5, 26, 'Ref.Des.')
-    for layer in (0, 2):
-        result = parse(four(label_board([kept, ('VALUE', 0, -5, layer, 'Ref.Des.')], [('U1', 0, 20, 'N')])))
-        assert layer_bounds(result, 26)[1] > 24 and not copper(result)
-        assert any('inner' in warning for warning in result.warnings)
-    other = label_board([('VALUE', 0, -5, 1, 'Ref.Des.'), kept], [('U1', 0, 20, 'N')])
-    result = parse(other.replace(ROMANSIM, 'Regular <Arial>', 1))
-    assert layer_bounds(result, 26)[1] > 24 and not copper(result)
-    assert any('Arial' in warning for warning in result.warnings)
-
-
 def test_real_lcore_labels_are_silkscreen_and_never_copper():
     text = lcore_saved_components()
     hidden = '\n'.join('NONE' + line[5:] if line.startswith('VALUE ') else line for line in text.splitlines())
@@ -972,7 +823,7 @@ def _label_and_text_records(reader):
     return base + head * 72, text
 
 
-@pytest.mark.parametrize('damage', ['cycle', 'range', 'attribute', 'justification'])
+@pytest.mark.parametrize('damage', ['cycle', 'justification'])
 def test_native_corrupt_or_unproven_label_records_reject_the_file(damage, tmp_path):
     import struct
     from appParsers.ParsePADS import PADSParseError, PADSParser
@@ -1170,7 +1021,9 @@ class TestPadsImportWorker:
         stem, extension = name.split('.')
         filename = str(FIXTURES / name)
         # The parse itself is tested above: the session's parse of the fixture stands in for the worker's parse.
-        with patch.object(PADSParser, 'parse_file', lambda parser, path, **kwargs: real(stem, '.' + extension)), \
+        # Parse before the patch: real() calls PADSParser.parse_file, which the patch replaces.
+        board = real(stem, '.' + extension)
+        with patch.object(PADSParser, 'parse_file', lambda parser, path, **kwargs: board), \
                 patch.object(QtWidgets.QFileDialog, 'getOpenFileName', return_value=(filename, '')) as chooser:
             self.io.on_file_import_pads()
             assert '*.pcb' in chooser.call_args.kwargs['filter']

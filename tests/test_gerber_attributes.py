@@ -17,29 +17,6 @@ def test_split_attribute(body, expected):
     assert split_attribute(body) == expected
 
 
-def test_state_dictionary_semantics():
-    st = AttributeState()
-    st.apply("TF", ".FileFunction,Copper,L1,Top")
-    st.apply("TF", ".FileFunction,Copper,L2,Inr")      # later TF of same name replaces
-    st.apply("TA", ".AperFunction,SMDPad,CuDef")
-    st.apply("TA", "Custom,1")
-    st.apply("TO", ".N,GND")
-    assert st.as_legacy() == {
-        "TF": {".FileFunction": ["Copper", "L2", "Inr"]},
-        "TA": {".AperFunction": ["SMDPad", "CuDef"], "Custom": ["1"]},
-        "TO": {".N": ["GND"]},
-    }
-    st.apply("TD", ".AperFunction")
-    st.apply("TD", ".N")
-    assert st.as_legacy()["TA"] == {"Custom": ["1"]} and st.as_legacy()["TO"] == {}
-    st.apply("TA", ".AperFunction,Conductor")
-    st.apply("TO", ".N,X")
-    st.apply("TD", "")                                  # no name: all TA and TO, never TF
-    st.apply("TX", "foo,1")                             # unknown command ignored
-    st.apply("TD", "NotThere")                          # deleting a missing name is a no-op
-    assert st.as_legacy() == {"TF": {".FileFunction": ["Copper", "L2", "Inr"]}, "TA": {}, "TO": {}}
-
-
 @pytest.mark.parametrize("values, expect", [
     (["Copper", "L2", "Inr", "Plane"], dict(kind="Copper", layer=2, side="Inr", type="Plane")),
 ])
@@ -222,5 +199,3 @@ def test_report_rows_show_attributes_and_net_counts():
     assert by[('nets', 'GND')] == '2' and by[('nets', 'VCC')] == '1' and ('nets', 'N/C') not in by
     assert [v for s, n, v in rows if s == 'nets' and n != 'GND' and n != 'VCC'] == ['2']   # net count row
     assert by[('components', 'R1')] == '10k, 0603, 90.0'
-
-

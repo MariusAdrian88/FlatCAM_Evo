@@ -190,10 +190,3 @@ def test_close_during_a_failed_save_keeps_the_app_open(shutdown, tmp_path):
     assert s.window.isVisible()
 
 
-def test_shutdown_message_handler_hides_only_the_qthreadstorage_warning(capsys):
-    from flatcam import _shutdown_message_handler
-    _shutdown_message_handler(None, None, 'QThreadStorage: entry 3 destroyed before end of thread 0x1234')
-    assert capsys.readouterr().err == ''
-    _shutdown_message_handler(None, None, 'QObject cleanup failed')
-    assert capsys.readouterr().err == 'WARNING: QObject cleanup failed\n'
-

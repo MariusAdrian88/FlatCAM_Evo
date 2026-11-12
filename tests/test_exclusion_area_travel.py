@@ -18,7 +18,7 @@ from shapely.geometry import LineString, Point, Polygon, box
 from appCommon.Common import ExclusionAreas
 from appPlugins.ToolDrilling import ToolDrilling
 from camlib import CNCjob
-from test_cncjob_gcode_speed import gcode_job
+from test_cncjob_export_gcode import gcode_job
 from tests.helpers_objects import make_app_0b as make_app, make_excellon_0b as make_excellon  # noqa: F401,E402
 
 TOOLDIA = 1.0
@@ -241,7 +241,7 @@ WIDE_AREA = box(4, -2, 6, 8)
 
 def drilling_lines(overz, travelz):
     """The Drilling plugin G-code (excellon_tool_gcode_gen) of the holes (0, 6) and (10, 6), from (0, 0)."""
-    from test_drilling_gen import make_app as make_gen_app, tool_dict
+    from test_drilling import make_app as make_gen_app, tool_dict
 
     app = make_gen_app(excellon_search_time=1)
     app.exc_areas = exclusion_areas(WIDE_AREA)
