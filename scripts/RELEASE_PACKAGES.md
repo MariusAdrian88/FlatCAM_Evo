@@ -3,6 +3,8 @@
 `.github/workflows/release-packages.yml` builds these assets with cx_Freeze:
 
 - `FlatCAM_EVO-<tag>-linux-x86_64.AppImage`
+- `FlatCAM_EVO-<tag>-linux-x86_64.AppImage.zsync` (for AppImageUpdate; the AppImage embeds
+  `gh-releases-zsync|<owner>|<repo>|latest|FlatCAM_EVO-*-linux-x86_64.AppImage.zsync`)
 - `FlatCAM_EVO-<tag>-macos-arm64.dmg` (Apple Silicon)
 - `FlatCAM_EVO-<tag>-macos-x86_64.dmg` (Intel)
 

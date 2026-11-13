@@ -8,6 +8,13 @@ CHANGELOG for FlatCAM Evo
 
 13.11.2026
 
+Linux release package:
+
+- added: the AppImage holds the update information (gh-releases-zsync, the latest release), so AppImageUpdate and similar tools can update it
+- added: the release workflow publishes a .zsync file next to the AppImage; the workflow makes it after the rename of the asset and checks the update information in the AppImage
+
+13.11.2026
+
 Translations:
 
 - updated: the translation template and the strings in all languages

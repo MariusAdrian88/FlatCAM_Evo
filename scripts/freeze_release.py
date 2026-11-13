@@ -5,6 +5,7 @@ or, on macOS: python scripts/freeze_release.py bdist_dmg
 """
 
 import ast
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -108,6 +109,10 @@ if __name__ == '__main__':
         },
         'bdist_dmg': {'volume_label': 'FlatCAM EVO', 'applications_shortcut': True},
     }
+    update_information = os.environ.get('APPIMAGE_UPDATE_INFORMATION')
+    if update_information:
+        # Embedded for AppImageUpdate, e.g. gh-releases-zsync|owner|repo|latest|FlatCAM_EVO-*-linux-x86_64.AppImage.zsync
+        options['bdist_appimage']['updateinformation'] = update_information
     if sys.platform == 'linux':
         # cx_Freeze excludes /usr/lib by default, including Qt's required X11 keyboard and cursor helpers.
         options['build_exe']['bin_includes'] = ['libxkbcommon*.so*', 'libxcb*.so*']

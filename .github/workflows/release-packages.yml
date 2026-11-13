@@ -65,7 +65,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgl1 libegl1 libxkbcommon-x11-0 libxcb-cursor0 libxcb-xinerama0 libpulse0
+          sudo apt-get install -y libgl1 libegl1 libxkbcommon-x11-0 libxcb-cursor0 libxcb-xinerama0 libpulse0 zsync
 
       - uses: conda-incubator/setup-miniconda@v3
         with:
@@ -95,6 +95,7 @@ jobs:
         if: runner.os == 'Linux'
         env:
           APPIMAGE_EXTRACT_AND_RUN: '1'
+          APPIMAGE_UPDATE_INFORMATION: gh-releases-zsync|${{ github.repository_owner }}|${{ github.event.repository.name }}|latest|FlatCAM_EVO-*-linux-${{ matrix.arch }}.AppImage.zsync
         run: LD_LIBRARY_PATH="$CONDA_PREFIX/lib" python scripts/freeze_release.py bdist_appimage
 
       - name: Build macOS app
@@ -176,15 +177,33 @@ jobs:
               stream.write(f'RELEASE_ASSET={destination.as_posix()}\n')
           PY
 
+      - name: Make AppImage zsync file
+        if: runner.os == 'Linux'
+        env:
+          APPIMAGE_UPDATE_INFORMATION: gh-releases-zsync|${{ github.repository_owner }}|${{ github.event.repository.name }}|latest|FlatCAM_EVO-*-linux-${{ matrix.arch }}.AppImage.zsync
+        run: |
+          embedded="$("$RELEASE_ASSET" --appimage-updateinformation)"
+          if [[ "$embedded" != "$APPIMAGE_UPDATE_INFORMATION" ]]; then
+            echo "Embedded update information is '$embedded', expected '$APPIMAGE_UPDATE_INFORMATION'" >&2
+            exit 1
+          fi
+          # appimagetool names its .zsync after the build name; make it again for the renamed asset.
+          rm -f dist/*.zsync
+          name="$(basename "$RELEASE_ASSET")"
+          (cd dist && zsyncmake -u "$name" -o "$name.zsync" "$name")
+          echo "RELEASE_ZSYNC=$RELEASE_ASSET.zsync" >> "$GITHUB_ENV"
+
       - name: Save package as workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: FlatCAM_EVO-${{ matrix.platform }}-${{ matrix.arch }}
-          path: ${{ env.RELEASE_ASSET }}
+          path: |
+            ${{ env.RELEASE_ASSET }}
+            ${{ env.RELEASE_ZSYNC }}
           if-no-files-found: error
 
       - name: Attach package to release
         if: github.event_name == 'release' || inputs.publish
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$RELEASE_TAG" "$RELEASE_ASSET" --repo "$GH_REPO" --clobber
+        run: gh release upload "$RELEASE_TAG" "$RELEASE_ASSET" ${RELEASE_ZSYNC:+"$RELEASE_ZSYNC"} --repo "$GH_REPO" --clobber
