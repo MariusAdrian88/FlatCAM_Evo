@@ -506,8 +506,16 @@ class TestAppOptionsMergedView(unittest.TestCase):
     def test_load_project_converts_default_lengths_the_file_lacks(self):
         defaults, options, _calls = self.make()
         defaults['units'] = 'MM'
+        # the clearing lengths: offset value, V-tip / new diameters, simplification (all in the units of the defaults)
+        lengths = ('tools_ncc_offset_value', 'tools_mill_offset_value', 'tools_ncc_tipdia', 'tools_paint_newdia',
+                   'tools_iso_vtipdia', 'tools_ncc_simplification', 'tools_paint_simplification')
+        for key in lengths:
+            defaults[key] = 2.54
         options.load_project({'units': 'IN', 'gerber_bboxmargin': 0.5})
         self.assertAlmostEqual(options['excellon_drill_tooldia'], 0.8 / 25.4)
+        for key in lengths:
+            self.assertAlmostEqual(options[key], 0.1, msg=key)
+        self.assertIs(options['tools_iso_simplification'], defaults['tools_iso_simplification'])
         self.assertEqual(options['gerber_bboxmargin'], 0.5)
         options.load_project({'units': 'MM'})
         self.assertEqual(options['excellon_drill_tooldia'], 0.8)

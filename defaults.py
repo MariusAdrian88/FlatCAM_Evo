@@ -78,7 +78,8 @@ def normalize_units(value):
 
 
 _LENGTH_KEY_TAIL = re.compile(
-    r'(tooldia|_dia|margin|cutz|travelz|toolchangez|endz|startz|depth|feedrate\w*|offset)$')
+    r'(tooldia|_dia|tipdia|newdia|margin|cutz|travelz|toolchangez|endz|startz|depth|feedrate\w*|offset|offset_value'
+    r'|_simplification)$')
 
 
 def convert_length_options(options, from_units, to_units):
