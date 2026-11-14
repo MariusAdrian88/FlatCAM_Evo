@@ -435,6 +435,27 @@ class ApertureIndex:
         return [self.entries[i] for i in sorted(self.tree.query(poly_g, predicate='contains').tolist())]
 
 
+class RegionIndex:
+    """
+    The aperture elements of a laser-lines polygon when an exclusion cut the selection: the elements whose follow lies
+    inside the selection with the offset (before the exclusion was subtracted) and that touch the polygon. The
+    centre lines are clipped to the polygon afterwards.
+    """
+
+    def __init__(self, index, region):
+        self.index = index
+        self.region = region
+
+    def inside(self, poly_g):
+        pairs = self.index.inside(self.region)
+        if not pairs:
+            return pairs
+        # the copper of the element (its solid) decides: a flash whose centre is excluded still has free copper
+        shapes = [element.get('solid') or element['follow'] for _aperture, element in pairs]
+        touching = shapely.intersects(np.array(shapes, dtype=object), poly_g)
+        return [pair for pair, touch in zip(pairs, touching.tolist()) if touch]
+
+
 def aperture_index(apertures):
     return ApertureIndex(apertures)
 

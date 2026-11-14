@@ -709,5 +709,239 @@ class TestBoundedStandardOffsets(unittest.TestCase):
         self.assertLess(cut_fast.symmetric_difference(cut_slow).area, 0.01 * cut_slow.area)
         self.assertTrue(cut_slow.difference(cut_fast).buffer(-0.4 * 0.15 / 2).is_empty)
 
+
+# ==============================================================================================================
+# Paint exclusion areas (Stage 4c): the physical domain, the allowed cutter centers, the strict boundary
+# ==============================================================================================================
+from appParsers.feature_access import fused_solid  # noqa: E402
+from appPlugins.Common.clearing import regions  # noqa: E402
+from test_clearing_golden import Plugin, qapp  # noqa: E402,F401  (the real-plugin harness of the golden tests)
+
+# a round flash (1.6 mm, at 5,5) and a vertical trace (1 mm wide, x = 7, y 2..8)
+EXCL_GBR = """%FSLAX46Y46*%
+%MOMM*%
+%ADD10C,1.600000*%
+%ADD11C,1.000000*%
+G01*
+D10*
+X5000000Y5000000D03*
+D11*
+X7000000Y2000000D02*
+X7000000Y8000000D01*
+M02*
+"""
+STRICT = 1e-9
+
+
+@pytest.fixture(scope='module')
+def excl_board(qapp, tmp_path_factory):
+    from unittest.mock import patch
+    from helpers_objects import make_app, make_gerber
+    path = tmp_path_factory.mktemp('excl') / 'board.gbr'
+    path.write_text(EXCL_GBR)
+    with patch('appObjects.AppObjectTemplate.ShapeCollection'):
+        yield make_gerber(make_app(), str(path), 'board')
+
+
+def excluded_run(qapp, tmp_path, board, tools, exclusion, rest=False, tcl=None):
+    """Paint all of the board with the real plugin; the exclusion zone is drawn into the panel. {dia: paths}."""
+    plugin = Plugin(qapp, tmp_path, 'paint', board, list(tools), tool_data=tools)
+    try:
+        if exclusion is not None:
+            plugin.tool.exclusion_list.append(exclusion)
+            plugin.tool.ui.excl_cb.set_value(True)
+        if tcl is None:
+            result = plugin.tool.gen.paint_poly_all(
+                board, tooldia=list(tools), outname='board_paint', plot=False, run_threaded=False, rest=rest,
+                rest_offset=0.0)
+            assert result != 'fail'
+        else:
+            tcl(plugin)
+        return {row['tooldia']: [p for p in row['solid_geometry'] if p is not None and not p.is_empty]
+                for row in plugin.result().tools.values()}
+    finally:
+        plugin.close()
+
+
+def physical_domain_of(board, offset, exclusion):
+    return unary_union(regions.physical_domain(regions.buffer_geometry(fused_solid(board), offset), exclusion))
+
+
+def nearest_to(paths, exclusion):
+    return min(shapely.distance(path, exclusion) for path in paths)
+
+
+def swept_by(paths_by_dia):
+    return unary_union([regions.swept_area(paths, dia, 32) for dia, paths in paths_by_dia.items()])
+
+
+def uncut_strip(domain, swept, edge_x, side, band):
+    """The width of the uncut strip that touches the straight exclusion edge x = edge_x (side -1: domain at x<edge)."""
+    widths = []
+    for part in regions.polygon_parts(domain.difference(swept).intersection(band)):
+        if side > 0 and part.bounds[0] < edge_x + 1e-6:
+            widths.append(part.bounds[2] - edge_x)
+        elif side < 0 and part.bounds[2] > edge_x - 1e-6:
+            widths.append(edge_x - part.bounds[0])
+    return max(widths, default=0.0)
+
+
+FLASH_AND_TRACE_CUT = box(5.4, 3.5, 7.0, 6.5)          # a straight edge in the flash (x = 5.4) and in the trace (x = 7)
+EXCL_CASES = {
+    'standard': (dict(method=0, overlap=20, connect=False, contour=True), False),
+    'negative_offset': (dict(method=0, overlap=20, connect=False, contour=True, offset=-0.05), False),
+    'rest_cleanup': (dict(method=0, overlap=20, connect=False, contour=True, final_cleanup=True), True),
+}
+
+
+@pytest.mark.parametrize('case', list(EXCL_CASES))
+def test_paint_exclusion_cuts_the_free_copper_and_keeps_the_cutter_out(case, excl_board, qapp, tmp_path):
+    """
+    An exclusion over part of a flash and part of a trace (Standard, a negative offset, rest machining with the
+    final cleanup). Engine residual (physical domain minus swept) is the normal edge stock; selection coverage
+    (selection minus swept) is the excluded area plus that stock. The strict boundary holds and nothing is cleared
+    twice at the straight exclusion edge.
+    """
+    row, rest = EXCL_CASES[case]
+    tools = {0.2: row} if not rest else {0.4: dict(row, final_cleanup=False), 0.2: row}
+    zone = FLASH_AND_TRACE_CUT
+    paths = excluded_run(qapp, tmp_path, excl_board, tools, zone, rest=rest)
+    offset = row.get('offset', 0.0)
+    dia = min(paths)
+    domain = physical_domain_of(excl_board, offset, zone)
+    selection = unary_union(regions.buffer_geometry(fused_solid(excl_board), offset))
+    assert selection.intersection(zone).area > 0.5 and not domain.intersects(zone.buffer(-1e-9))
+
+    # strict boundary: the true distance of every path to the ORIGINAL zone, for every tool
+    for tool_dia, tool_paths in paths.items():
+        assert tool_paths and nearest_to(tool_paths, zone) >= tool_dia / 2 - STRICT, case
+
+    swept = swept_by(paths)
+    # engine residual: no stock that holds a disc of 10 % of the tool (corner residue only)
+    residual = domain.difference(swept)
+    assert residual.buffer(-0.1 * dia).is_empty
+    # selection coverage: the selection minus swept is the zone (cut away) plus that same edge stock
+    coverage = selection.difference(swept)
+    assert coverage.difference(zone).buffer(-0.1 * dia).is_empty
+    assert coverage.area == pytest.approx(selection.intersection(zone).area + residual.area, abs=1e-3)
+    # the uncut strip at the straight edges (flash x = 5.4, trace x = 7) is the normal edge error, not a clearance
+    if case != 'negative_offset':
+        flash_strip = uncut_strip(domain, swept, 5.4, -1, box(4.0, 4.7, 5.4, 5.3))
+        trace_strip = uncut_strip(domain, swept, 7.0, 1, box(7.0, 3.8, 7.6, 6.2))
+        assert flash_strip <= 0.01 * dia and trace_strip <= 0.01 * dia, (flash_strip, trace_strip)
+
+
+def test_paint_exclusion_on_the_selection_edge_keeps_the_cutter_inside_the_selection(excl_board, qapp, tmp_path):
+    """
+    A zone that ends on the centre line of a trace as wide as the tool: the strict boundary must not re-join the cut
+    centre line around the zone through the stock outside the selection (the cutter would cut outside the copper).
+    """
+    dia, zone = 0.9, box(6.0, 4.9, 7.0, 5.1)            # the 1 mm trace at x = 7 leaves 0.05 mm of room per side
+    selection = unary_union(regions.buffer_geometry(fused_solid(excl_board), 0.0))
+    tools = {dia: dict(method=0, overlap=20, connect=False, contour=True)}
+    from unittest.mock import patch
+    from appPlugins.ToolPaint.PaintGen import PaintGen
+    original = PaintGen._enforce_exclusion
+
+    def enforce_on_the_centre_line(self, found, painted_object):
+        # the kernels keep clear of the zone themselves: hand the strict boundary the one centre line that fails it
+        for tool in found.values():
+            tool['solid_geometry'] = [LineString([(7.0, 2.05), (7.0, 7.95)])]
+        original(self, found, painted_object)
+
+    with patch.object(PaintGen, '_enforce_exclusion', enforce_on_the_centre_line):
+        paths = excluded_run(qapp, tmp_path, excl_board, tools, zone)[dia]
+    assert paths and nearest_to(paths, zone) >= dia / 2 - STRICT
+    # the normal edge error of the kernels is far below 1 um here
+    for path in paths:
+        assert selection.covers(path) and shapely.distance(path, selection.boundary) >= dia / 2 - 1e-3, path.wkt
+
+
+def test_paint_exclusion_with_sharp_corners_shows_no_chord_error(excl_board, qapp, tmp_path):
+    """A needle-sharp zone corner: the chord error of the round buffers must not bring the cutter nearer than r."""
+    needle = Polygon([(5.3, 5.0), (7.0, 5.15), (7.0, 4.85)])
+    paths = excluded_run(qapp, tmp_path, excl_board, {0.2: dict(method=0, overlap=20, connect=False, contour=True)},
+                         needle)
+    assert nearest_to(paths[0.2], needle) >= 0.1 - STRICT
+    domain = physical_domain_of(excl_board, 0.0, needle)
+    # engine residual: what the round cutter can reach (the domain opened by r) is cleared; the acute wedges of the
+    # needle are out of reach for any cutter
+    reachable = domain.buffer(-0.1, 32).buffer(0.1, 32)
+    assert domain.difference(swept_by(paths)).intersection(reachable).buffer(-0.02).is_empty
+
+
+def test_paint_exclusion_fragments_keep_the_cut_direction(excl_board, qapp, tmp_path):
+    """
+    Every outer ring (pieces cut or re-joined by the zone too) has the wall on the same side of the travel: all on
+    one side for climb, all on the other for conv.
+    """
+    zone = Polygon([(5.3, 5.0), (7.0, 5.15), (7.0, 4.85)])
+    wall = physical_domain_of(excl_board, 0.0, zone).boundary
+    sides = {}
+    for direction in ('climb', 'conv'):
+        tools = {0.2: dict(method=0, overlap=20, connect=False, contour=True, clear_milling=direction)}
+        found = set()
+        for piece in excluded_run(qapp, tmp_path / direction, excl_board, tools, zone)[0.2]:
+            coords = piece.coords
+            if piece.length < 0.3:
+                continue
+            (x0, y0), (x1, y1) = coords[len(coords) // 2 - 1], coords[len(coords) // 2]
+            middle = Point((x0 + x1) / 2, (y0 + y1) / 2)
+            if not 0.09 < wall.distance(middle) < 0.12:
+                continue
+            wx, wy = shapely.ops.nearest_points(middle, wall)[1].coords[0]
+            found.add(math.copysign(1, (x1 - x0) * (wy - middle.y) - (y1 - y0) * (wx - middle.x)))
+        sides[direction] = found
+    assert len(sides['climb']) == 1 and len(sides['conv']) == 1 and sides['climb'] != sides['conv'], sides
+
+
+LASER_CASES = {
+    # the zone covers the centre of the flash and leaves the ring of copper around it
+    'flash_centre': (box(4.6, 4.6, 5.4, 5.4), lambda p: p.distance(Point(5, 5)) > 0.4),
+    # the zone crosses the follow line of the trace and leaves copper on both sides
+    'trace_crossed': (box(6.4, 4.5, 7.6, 5.5), lambda p: p.bounds[1] > 5.5 or p.bounds[3] < 4.5),
+}
+
+
+@pytest.mark.parametrize('case', list(LASER_CASES))
+def test_paint_laser_lines_with_an_exclusion_keep_the_free_material(case, excl_board, qapp, tmp_path):
+    """
+    Laser lines find their elements before the zone is subtracted, then clip the center lines. Selection coverage:
+    the copper outside the zone neighbourhood keeps its paths; none comes nearer than r; there is no swarm of
+    fragments.
+    """
+    zone, on_free_copper = LASER_CASES[case]
+    tools = {0.3: dict(method=3, overlap=20, connect=True, contour=True)}
+    before = excluded_run(qapp, tmp_path / 'a', excl_board, tools, None)[0.3]
+    paths = excluded_run(qapp, tmp_path / 'b', excl_board, tools, zone)[0.3]
+    assert paths and nearest_to(paths, zone) >= 0.15 - STRICT
+    assert any(on_free_copper(p) for p in paths)
+    if case == 'trace_crossed':
+        assert any(p.bounds[1] > 5.5 for p in paths) and any(p.bounds[3] < 4.5 for p in paths)
+    assert len(paths) <= 2 * len(before) + 8
+    # the clip adds no short fragments (the kernel itself may leave a degenerate path, with or without the zone)
+    assert sum(p.length < 0.015 for p in paths) <= sum(p.length < 0.015 for p in before)
+
+
+def test_paint_tcl_exclude_gives_the_paths_of_the_gui_zone(excl_board, qapp, tmp_path):
+    """`paint -exclude <object>` draws the same paths as the same zone in the panel."""
+    from tclCommands.TclCommandPaint import TclCommandPaint
+    row = dict(method=0, overlap=20, connect=False, contour=True)
+    gui = excluded_run(qapp, tmp_path / 'gui', excl_board, {0.2: row}, FLASH_AND_TRACE_CUT)
+
+    def script(plugin):
+        app = plugin.app
+        app.paint_tool = plugin.tool
+        app.collection.objects['keep_out'] = SimpleNamespace(
+            kind='geometry', solid_geometry=[FLASH_AND_TRACE_CUT], obj_options={'name': 'keep_out'})
+        TclCommandPaint(app).execute(
+            {'name': 'board', 'tooldia': '0.2', 'method': 'standard', 'overlap': 20.0, 'offset': 0.0, 'connect': '0',
+             'contour': '1', 'rest': '0', 'final_cleanup': '0', 'exclude': 'keep_out', 'outname': 'board_paint'}, [])
+
+    tcl = excluded_run(qapp, tmp_path / 'tcl', excl_board, {0.2: row}, None, tcl=script)
+    as_coords = lambda found: [[tuple(round(c, 6) for c in p.coords[0]), p.length] for p in found[0.2]]  # noqa: E731
+    assert tcl[0.2] and as_coords(tcl) == as_coords(gui)
+
+
 if __name__ == '__main__':
     unittest.main()

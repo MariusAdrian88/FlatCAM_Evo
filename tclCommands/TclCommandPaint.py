@@ -1,8 +1,9 @@
 from tclCommands.TclCommand import TclCommand
-from appPlugins.ToolPaint.PaintGen import PaintGen
-from camlib import clearing_simplification
+from appPlugins.ToolPaint.PaintGen import GUI_ZONES, PaintGen
+from camlib import clearing_simplification, flatten_shapely_geometry
 
-from shapely import box
+from shapely import Polygon, box
+from shapely.ops import unary_union
 
 import collections
 import math
@@ -50,6 +51,7 @@ class TclCommandPaint(TclCommand):
         ('simplification', float),
         ('final_cleanup', str),
         ('clear_milling', str),
+        ('exclude', str),
 
         ('all', str),
         ('single', str),
@@ -95,6 +97,8 @@ class TclCommandPaint(TclCommand):
                               'False (0). Default: the Paint preference.'),
             ('clear_milling', 'Cut direction of the painting passes: "none", "climb" or "conv". '
                               'Default: the Paint preference.'),
+            ('exclude', 'Name of a Geometry or Gerber object. Its polygons are never painted: the cutter keeps '
+                        'its radius away from them. A Geometry object that has only lines is rejected.'),
             ('all', 'Optional compatibility flag; bare -all is accepted. Its value is ignored, even False. '
                     'All polygons are painted by default unless -single, -ref, -box or -area is used; '
                     '-all overrides none of them.'),
@@ -111,7 +115,8 @@ class TclCommandPaint(TclCommand):
         'examples': ["paint obj_name -tooldia 0.3 -offset 0.1 -method 'seed' -all",
                      "paint obj_name -tooldia 0.3 -offset 0.1 -method 'seed' -single 3.3,2.0",
                      "paint obj_name -tooldia 1,0.3 -rest 1 -rest_offset 0.05 -area 0,0,20,10",
-                     "paint obj_name -tooldia 0.3 -ref ref_obj_name -final_cleanup 1 -simplification 0.005"]
+                     "paint obj_name -tooldia 0.3 -ref ref_obj_name -final_cleanup 1 -simplification 0.005",
+                     "paint obj_name -tooldia 0.3 -exclude keep_out"]
     }
 
     def execute(self, args, unnamed_args):
@@ -225,6 +230,21 @@ class TclCommandPaint(TclCommand):
         if clear_milling not in ('none', 'climb', 'conv'):
             self.raise_tcl_error("-clear_milling must be 'none', 'climb' or 'conv'.")
 
+        exclusion = None
+        if 'exclude' in args:
+            try:
+                exclude_obj = self.app.collection.get_by_name(str(args['exclude']))
+            except Exception as e:
+                self.app.log.error("TclCommandPaint.execute() --> %s" % str(e))
+                exclude_obj = None
+            if exclude_obj is None or exclude_obj.kind not in ('geometry', 'gerber'):
+                self.raise_tcl_error('Exclusion object not found or unsupported: %s' % args['exclude'])
+            zones = [poly for poly in flatten_shapely_geometry(exclude_obj.solid_geometry)
+                     if isinstance(poly, Polygon) and not poly.is_empty]
+            if not zones:
+                self.raise_tcl_error('The exclusion object has no polygons: %s' % args['exclude'])
+            exclusion = unary_union(zones)
+
         if 'outname' in args:
             outname = args['outname']
         else:
@@ -294,7 +314,19 @@ class TclCommandPaint(TclCommand):
         if self.app.paint_tool.gen is None:
             self.app.paint_tool.gen = PaintGen(self.app.paint_tool)
         gen = self.app.paint_tool.gen
+        # a script never uses the zones drawn in the panel: only its own -exclude
+        gen.exclusion_source = exclusion
+        try:
+            ret_val = self._paint(gen, select, obj, args, common)
+        finally:
+            gen.exclusion_source = GUI_ZONES
 
+        if ret_val == 'fail':
+            self.raise_tcl_error('Paint failed for %s. See the log for the reason.' % name)
+        return ret_val
+
+    def _paint(self, gen, select, obj, args, common):
+        """Run the job of the selection mode; the arguments are already checked."""
         if select == 0:     # all the polygons
             ret_val = gen.paint_poly_all(obj=obj, **common)
         elif select == 1:   # a single polygon
@@ -315,9 +347,6 @@ class TclCommandPaint(TclCommand):
             if ref_obj is None or ref_obj.kind not in ('geometry', 'gerber'):
                 self.raise_tcl_error('Reference object not found or unsupported: %s' % ref_name)
             ret_val = gen.paint_poly_ref(obj=obj, sel_obj=ref_obj, **common)
-
-        if ret_val == 'fail':
-            self.raise_tcl_error('Paint failed for %s. See the log for the reason.' % name)
         return ret_val
 
     def _bool_option(self, args, key, pref):

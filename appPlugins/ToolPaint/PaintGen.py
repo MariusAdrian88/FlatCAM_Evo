@@ -4,14 +4,18 @@ from PyQt6 import QtCore, QtWidgets     # noqa
 from dataclasses import dataclass, field, replace
 from copy import copy
 
+import math
+
 import numpy as np
 
 import traceback
 
+import shapely
 from shapely import (
     Polygon,
     MultiPolygon,
 )
+from shapely.geometry.base import BaseGeometry
 from shapely.ops import unary_union
 
 from typing import TYPE_CHECKING, Union
@@ -21,6 +25,7 @@ import appTranslation as fcTranslate
 import builtins
 
 from camlib import (
+    AppRTreeStorage,
     deepcopy_keep_geometry,
     grace,
     flatten_shapely_geometry,
@@ -34,6 +39,7 @@ from defaults import AppDefaults
 from appParsers.feature_access import fused_solid
 from appCommon.SafeEval import safe_eval
 from appPlugins.ToolPaint import PaintModel
+from appPlugins.Common.clearing import regions
 from appPlugins.Common.clearing.job import ClearingJob, PAINT, stock_is_left
 from appPlugins.Common.clearing.params import (
     JobSpec, SourceSnapshot, copy_geometry, freeze_options, tool_spec, tool_direction)
@@ -73,6 +79,9 @@ class PaintSelectionError(Exception):
 
 
 PAINT_PROFILE = replace(PAINT, user_errors=(PaintSelectionError,))
+
+# PaintGen.clear_exclusions: use the zones drawn in the panel (the default); Tcl sets a geometry or None
+GUI_ZONES = object()
 
 
 class _MainThreadCall(QtCore.QObject):
@@ -132,6 +141,10 @@ class PaintGen:
         self._gui_call = _MainThreadCall()
 
     # The controller owns this state; read it live (and write through) instead of copying it at construction.
+    # the clear_exclusions of the next job: GUI_ZONES (the zones of the panel), None or a geometry (Tcl). The G-code
+    # travel areas of the application (app.exc_areas) are a different thing.
+    exclusion_source = GUI_ZONES
+
     paint_tools = _live_state('paint_tools')
     temp_shapes = _live_state('temp_shapes')
     first_click = _live_state('first_click')
@@ -309,6 +322,18 @@ class PaintGen:
             }
             self.app.inform.emit(messages[method])
 
+        # An exclusion that reaches this piece: the laser lines find their elements in the selection before the
+        # exclusion was subtracted, then every center line is clipped to the allowed cutter centers.
+        exclusion = getattr(self, '_exclusion', None)
+        around = None
+        if exclusion is not None and poly_g.intersects(self._expansion(tool_diameter / 2, obj)):
+            around = poly_g
+        if paint_method == 3 and exclusion is not None:
+            region = self._selection_around(poly_g)
+            if region.intersects(exclusion):
+                index = PaintModel.RegionIndex(index, region)
+                around = poly_g
+
         result = PaintModel.paint_polygon(
             poly_g, tool_diameter, paint_method, over, conn, cont, prog_plot, circle_steps,
             getattr(self.parent_tool, 'clear_polygon_shrink', None),
@@ -320,6 +345,12 @@ class PaintGen:
             clear_crosshatch=getattr(self.parent_tool, 'clear_polygon_crosshatch', None), direction=direction)
         if result is None:
             self.app.inform.emit('[ERROR_NOTCL] %s' % _('Geometry could not be painted completely'))
+        elif around is not None and not isinstance(result, str):
+            # laser lines: every path is clipped to this piece (the next piece clips its own side of the same element)
+            paths = self._keep_clear(result.get_objects(), tool_diameter / 2, obj,
+                                     domain=around if paint_method == 3 else None)
+            result = AppRTreeStorage()
+            result.insert_many(paths)
         return result
 
     def resolve_job(
@@ -365,9 +396,15 @@ class PaintGen:
             uid = self._find_tool_uid(diameter, params.tools_storage)
             if uid is not None:
                 specs.append(tool_spec(uid, diameter, params.tools_storage[uid]['data'], 'tools_paint_', 'offset'))
+        exclusion = self.exclusion_source
+        if exclusion is GUI_ZONES:
+            zones = getattr(self.parent_tool, 'clear_exclusions', None)
+            exclusion = zones() if callable(zones) else None
+        if not isinstance(exclusion, BaseGeometry) or exclusion.is_empty:
+            exclusion = None
         return JobSpec(
             tools=specs, rest=bool(params.rest_machining_choice), order=params.tool_ordering, selection=selection,
-            margin=0.0, simplification=params.simplification_value, plot=plot,
+            margin=0.0, exclusion=exclusion, simplification=params.simplification_value, plot=plot,
             outname=params.output_object_name, options=options, source=SourceSnapshot.of(painted_object),
             origin=painted_object, selection_fn=geometry if callable(geometry) else None,
             geometry=None if callable(geometry) else copy_geometry(geometry), storage=params.tools_storage,
@@ -382,6 +419,11 @@ class PaintGen:
             simplification_value=spec.simplification, prog_plot=spec.prog_plot,
             tools_storage=deepcopy_keep_geometry(spec.storage), output_object_name=spec.outname,
             rest_offset=spec.rest_offset, paint_method_explicit=spec.method_explicit)
+        # the exclusion state of this job (one PaintGen copy lives for one job)
+        self._exclusion = spec.exclusion
+        self._pre_selection = {}
+        self._pre_tree = None
+        self._expansions = {}
         selected = spec.geometry
         if spec.selection_fn is not None:
             selected = spec.selection_fn()
@@ -559,7 +601,59 @@ class PaintGen:
         return method
 
     def _buffer_geometry(self, geometry, offset):
-        return PaintModel.buffer_geometry(geometry, offset)
+        """
+        The selection with the offset. With an exclusion this is the physical domain: the offset comes first, then
+        the original exclusion is subtracted. The selection with the offset before the subtraction is kept for the
+        laser lines.
+        """
+        polygons = PaintModel.buffer_geometry(geometry, offset)
+        exclusion = getattr(self, '_exclusion', None)
+        if exclusion is None:
+            return polygons
+        self._pre_selection[offset] = polygons
+        self._pre_tree = None
+        return regions.physical_domain(polygons, exclusion)
+
+    def _expansion(self, radius, obj):
+        """The conservative expansion of the exclusion by the cutter radius (cached for the job) and its quad_segs."""
+        key = round(radius, 9)
+        found = self._expansions.get(key)
+        if found is None:
+            quad = max(16, self._steps_at(radius, obj) // 4)
+            found = self._expansions[key] = regions.cutter_expansion(self._exclusion, radius, quad)
+        return found
+
+    def _selection_around(self, piece):
+        """The selection with the offset, before the exclusion was subtracted, around a physical-domain piece."""
+        if self._pre_tree is None:
+            flat = [polygon for polygons in self._pre_selection.values() for polygon in polygons]
+            self._pre_tree = (flat, shapely.STRtree(flat))
+        flat, tree = self._pre_tree
+        hits = tree.query(piece, predicate='intersects').tolist()
+        return unary_union([flat[i] for i in hits]) if hits else piece
+
+    def _physical_selection(self, offset):
+        """The selection with the offset, before the exclusion was subtracted (all offsets when it is unknown)."""
+        found = self._pre_selection.get(offset)
+        if found is None:
+            found = [polygon for polygons in self._pre_selection.values() for polygon in polygons]
+        return unary_union(found) if found else None
+
+    def _keep_clear(self, paths, radius, obj, domain=None, offset=None):
+        """
+        Clip center lines to the allowed cutter centers and check them with the true distance to the original
+        exclusion. A bridge around a zone is only used where the cutter stays inside the selection (the normal edge
+        error allowed). Returns the new paths; a piece that still fails the check is dropped with a warning.
+        """
+        quad = max(16, self._steps_at(radius, obj) // 4)
+        tolerance = clearing_error(self.app) or radius * (1 - math.cos(math.pi / (4 * quad)))
+        paths, failed = regions.clip_clear(paths, self._exclusion, radius, self._expansion(radius, obj), domain,
+                                           min_length=radius * 0.1, physical=self._physical_selection(offset),
+                                           tolerance=tolerance)
+        if failed:
+            self.app.inform.emit('[WARNING_NOTCL] %s' % (_("Paths too close to an exclusion zone were dropped: %d")
+                                                         % failed))
+        return paths
 
     def _process_polygon(self, polygon, tool_dia, tool_params, params, painted_object):
         return self.paint_polygon_worker(
@@ -689,6 +783,7 @@ class PaintGen:
             self._check_abort()
             for tool in tools.values():
                 tool['data']['output_object_name'] = params.output_object_name
+            self._enforce_exclusion(finished['output_tools'] if rest else tools, painted_object)
             output.tools = finished['output_tools'] if rest else dict(tools)
             for tool in output.tools.values():
                 tool['data']['output_object_name'] = params.output_object_name
@@ -706,6 +801,34 @@ class PaintGen:
             return 'fail'
         finally:
             self._cleanup_progressive_plotting()
+
+    def _enforce_exclusion(self, tools, painted_object):
+        """
+        The strict boundary: the final center lines of every tool (after the simplification and the cleanup) keep
+        the cutter radius from the ORIGINAL exclusion, measured with the true segment distance. A path that fails is
+        clipped again (the direction is kept); a piece that still fails is dropped with a warning.
+        """
+        if getattr(self, '_exclusion', None) is None:
+            return
+        for uid in list(tools):
+            tool = tools[uid]
+            paths = list(tool.get('solid_geometry') or [])
+            if not paths:
+                continue
+            radius = float(tool['tooldia']) / 2.0
+            start = tool.get('paint_cleanup_start')
+            split = len(paths) if start is None else min(int(start), len(paths))
+            # the cleanup marker follows the standard paths: keep both parts apart
+            try:
+                offset = float((tool.get('data') or {}).get('tools_paint_offset'))
+            except (TypeError, ValueError):
+                offset = None
+            head = self._keep_clear(paths[:split], radius, painted_object, offset=offset)
+            tail = self._keep_clear(paths[split:], radius, painted_object, offset=offset)
+            tool['solid_geometry'] = head + tail
+            if start is not None:
+                tool['paint_cleanup_start'] = len(head)
+        self._remove_empty_tools(tools)
 
     def _cleanup_result(self, geometry, tools, output_tools, params, diameters, rest_offset, painted_object=None):
         def process_polygon(polygon, diameter, settings):
@@ -758,7 +881,7 @@ class PaintGen:
             target_geo = unary_union(flatten_shapely_geometry(self._source_geometry(obj)))
         return PaintModel.area_intersection(target_geo, areas, self._check_abort)
 
-    def preview_area(self, objects, mode, offsets, reference=None, zones=None, polygons=None):
+    def preview_area(self, objects, mode, offsets, reference=None, zones=None, polygons=None, exclusion=None):
         """
         The area that Generate would paint: the selected polygons of every object, shrunk by every offset in use,
         merged. Runs in the worker: no toolpaths, no Qt widgets.
@@ -785,7 +908,7 @@ class PaintGen:
         parts = []
         for offset in offsets:
             self._check_abort()
-            parts.extend(PaintModel.buffer_geometry(selected, offset))
+            parts.extend(regions.physical_domain(PaintModel.buffer_geometry(selected, offset), exclusion))
         return unary_union(parts) if parts else None
 
     def _resolve_selection(self, select, run_threaded, obj):

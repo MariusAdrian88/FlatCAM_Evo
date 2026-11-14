@@ -538,7 +538,50 @@ class PaintUI:
         )
         gen_grid.addWidget(self.valid_cb, 12, 0, 1, 2)
 
-        GLay.set_common_column_size([obj_grid, tool_grid, new_tool_grid, param_grid, gen_grid], 0)
+        # #############################################################################################################
+        # Exclusion areas Frame
+        # #############################################################################################################
+        self.excl_label = FCLabel('%s' % _("Exclusion areas"), color='red', bold=True)
+        self.excl_label.setToolTip(_("Zones drawn on the canvas that are left out of the painting."))
+        self.tools_box.addWidget(self.excl_label)
+
+        excl_frame = FCFrame()
+        self.tools_box.addWidget(excl_frame)
+
+        excl_grid = GLay(v_spacing=5, h_spacing=3)
+        excl_frame.setLayout(excl_grid)
+
+        self.excl_cb = FCCheckBox(_("Use exclusion areas"))
+        self.excl_cb.setToolTip(
+            _("When checked, the cutter keeps its radius away from the zones below,\n"
+              "for the Generate and the Preview buttons.")
+        )
+        excl_grid.addWidget(self.excl_cb, 0, 0, 1, 2)
+
+        self.excl_shape_label = FCLabel('%s:' % _("Shape"))
+        self.excl_shape_label.setToolTip(_("The kind of shape used to draw an exclusion zone."))
+        self.excl_shape_radio = RadioSet([{'label': _("Square"), 'value': 'square'},
+                                          {'label': _("Polygon"), 'value': 'polygon'}], compact=True)
+        excl_grid.addWidget(self.excl_shape_label, 2, 0)
+        excl_grid.addWidget(self.excl_shape_radio, 2, 1)
+
+        self.excl_count_label = FCLabel('%s:' % _("Zones"))
+        self.excl_count_label.setToolTip(_("The number of exclusion zones drawn."))
+        self.excl_count_value = FCLabel('0')
+        excl_grid.addWidget(self.excl_count_label, 4, 0)
+        excl_grid.addWidget(self.excl_count_value, 4, 1)
+
+        self.excl_add_button = FCButton(_("Add area"))
+        self.excl_add_button.setToolTip(
+            _("Draw exclusion zones on the canvas.\n"
+              "Left click to draw, right click or Escape to finish.")
+        )
+        self.excl_delete_button = FCButton(_("Delete all"))
+        self.excl_delete_button.setToolTip(_("Remove all the exclusion zones."))
+        excl_grid.addWidget(self.excl_add_button, 6, 0)
+        excl_grid.addWidget(self.excl_delete_button, 6, 1)
+
+        GLay.set_common_column_size([obj_grid, tool_grid, new_tool_grid, param_grid, gen_grid, excl_grid], 0)
 
         # #############################################################################################################
         # Preview Button

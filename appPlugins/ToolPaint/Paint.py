@@ -28,6 +28,7 @@ import numpy as np
 from numpy import inf as Inf    # noqa
 
 from shapely import Polygon
+from shapely.ops import unary_union
 
 import gettext
 import appTranslation as fcTranslate
@@ -128,6 +129,12 @@ class ToolPaint(Geometry, AppTool):
         self.poly_sel_disconnect_flag = False
 
         self.area_to_paint_list = []
+
+        # True while the zones drawn on the canvas are exclusion zones and not the area to paint
+        self.exclusion_mode = False
+        # the exclusion zones, drawn in their own color for as long as the plugin is open (not saved)
+        self.exclusion_list: list[Polygon] = []
+        self._exclusion_shapes = None
 
         # store here if the grid snapping is active
         self.grid_status_memory = False
@@ -392,6 +399,8 @@ class ToolPaint(Geometry, AppTool):
 
         for signal, slot in (
                 (self.ui.preview_button.clicked, self.on_preview),
+                (self.ui.excl_add_button.clicked, self.on_add_exclusion),
+                (self.ui.excl_delete_button.clicked, self.on_delete_exclusions),
                 (self.ui.obj_combo.currentIndexChanged, self.on_source_changed),
                 (self.ui.select_method_combo.currentIndexChanged, self.clear_preview),
                 (self.ui.multi_objects_cb.stateChanged, self.clear_preview),
@@ -404,10 +413,14 @@ class ToolPaint(Geometry, AppTool):
 
     def set_tool_ui(self):
         app_defaults = getattr(self.app, "defaults", None) or AppDefaults.factory_defaults
-        # a Reset drops the preview and the zones / polygons of the last run
+        # a Reset drops the preview, the exclusion zones and the zones / polygons of the last run
         self.clear_preview()
         self.last_zones = []
         self.last_polygons = []
+        self.exclusion_list.clear()
+        self.ui.excl_count_value.setText('0')
+        if self._exclusion_shapes is not None:
+            self._exclusion_shapes.clear(update=True)
 
         self.clear_ui(self.layout)
         self.ui = PaintUI(layout=self.layout, app=self.app)
@@ -1357,7 +1370,7 @@ class ToolPaint(Geometry, AppTool):
 
         event_pos = (x, y)
 
-        shape_type = self.ui.area_shape_radio.get_value()
+        shape_type = self.shape_type()
 
         curr_pos = self.app.plotcanvas.translate_coords(event_pos)
         if self.app.grid_status():
@@ -1406,7 +1419,7 @@ class ToolPaint(Geometry, AppTool):
                 return ""
         elif event.button == right_button and self.mouse_is_dragging is False:
 
-            shape_type = self.ui.area_shape_radio.get_value()
+            shape_type = self.shape_type()
 
             if shape_type == "square":
                 self.first_click = False
@@ -1438,6 +1451,7 @@ class ToolPaint(Geometry, AppTool):
 
             # the selection is finished (or abandoned with a single point): clear the rubber band, the zone
             # outlines and the click state
+            exclusion_mode = self.exclusion_mode
             self.reset_selection_state()
 
             self.app.plotcanvas.graph_event_disconnect('mouse_release', self.on_mouse_release)
@@ -1458,13 +1472,20 @@ class ToolPaint(Geometry, AppTool):
             if len(self.area_to_paint_list) == 0:
                 return
 
+            if exclusion_mode:
+                self.exclusion_list.extend(self.area_to_paint_list)
+                self.area_to_paint_list.clear()
+                self.update_exclusions()
+                self.app.inform.emit('[success] %s' % _("Exclusion zones added."))
+                return
+
             self.last_zones = list(self.area_to_paint_list)
             self.gen.paint_area_selection_option(self.area_to_paint_list)
 
     # called on mouse move
     def on_mouse_move(self, event):
         app_defaults = getattr(self.app, "defaults", None) or AppDefaults.factory_defaults
-        shape_type = self.ui.area_shape_radio.get_value()
+        shape_type = self.shape_type()
 
         event_pos = event.pos
         event_is_dragging = event.is_dragging
@@ -1589,6 +1610,70 @@ class ToolPaint(Geometry, AppTool):
         """The plugin is closing: do not leave the canvas in the selection mode, take the preview off the canvas."""
         self.end_selection()
         self.clear_preview()
+        self.exclusion_list.clear()
+        if self._exclusion_shapes is not None:
+            self._exclusion_shapes.clear(update=True)
+
+    # ------------------------------------------------------------------------------------------------------------
+    # exclusion zones
+    # ------------------------------------------------------------------------------------------------------------
+    def shape_type(self):
+        """The shape of the zone being drawn: the exclusion shape in exclusion mode, else the area selection one."""
+        radio = self.ui.excl_shape_radio if self.exclusion_mode else self.ui.area_shape_radio
+        return radio.get_value()
+
+    def on_add_exclusion(self):
+        """Let the user draw exclusion zones with the area selection mouse handlers (right click or Escape ends)."""
+        if self.area_sel_disconnect_flag is True or self.poly_sel_disconnect_flag is True:
+            return
+        self.clear_preview()
+        self.app.inform.emit('[WARNING_NOTCL] %s' % _("Click the start point of the area."))
+        self.area_to_paint_list.clear()
+        self.exclusion_mode = True
+        self.first_click = False
+        self.cursor_pos = None
+        self.mouse_is_dragging = False
+        self.points.clear()
+        self.poly_drawn = False
+
+        self.app.plotcanvas.graph_event_disconnect('mouse_press', self.app.on_mouse_click_over_plot)
+        self.app.plotcanvas.graph_event_disconnect('mouse_move', self.app.on_mouse_move_over_plot)
+        self.app.plotcanvas.graph_event_disconnect('mouse_release', self.app.on_mouse_click_release_over_plot)
+
+        self.app.plotcanvas.graph_event_connect('mouse_release', self.on_mouse_release)
+        self.app.plotcanvas.graph_event_connect('mouse_move', self.on_mouse_move)
+        self.app.plotcanvas.graph_event_connect('key_press', self.on_key_press)
+
+        self.area_sel_disconnect_flag = True
+        self.app.ui.notebook.setDisabled(True)
+
+    def on_delete_exclusions(self):
+        self.exclusion_list.clear()
+        self.update_exclusions()
+
+    def clear_exclusions(self):
+        """The exclusion zones as one geometry, or None when they are off or there are none."""
+        try:
+            use = bool(self.ui.excl_cb.get_value())
+        except RuntimeError:
+            return None
+        return unary_union(self.exclusion_list) if use and self.exclusion_list else None
+
+    def update_exclusions(self):
+        """Show the count of the zones and draw them in their own color."""
+        self.ui.excl_count_value.setText(str(len(self.exclusion_list)))
+        self.clear_preview()
+        if self._exclusion_shapes is None:
+            try:
+                self._exclusion_shapes = self.app.plotcanvas.new_shape_collection(layers=1)
+            except Exception as e:
+                self.app.log.error("ToolPaint.update_exclusions() --> %s" % str(e))
+                return
+        self._exclusion_shapes.clear(update=False)
+        for poly in self.exclusion_list:
+            self._exclusion_shapes.add(poly, color='#CC0000FF', face_color='#CC000040', update=False, layer=0,
+                                       tolerance=None)
+        self._exclusion_shapes.redraw()
 
     # ------------------------------------------------------------------------------------------------------------
     # the preview of the area to paint
@@ -1656,7 +1741,8 @@ class ToolPaint(Geometry, AppTool):
             offsets = {float(self.paint_tools[uid]['data'].get('tools_paint_offset', 0.0)) for uid in uids}
 
         params = dict(objects=objects, mode=mode, offsets=sorted(offsets), reference=reference,
-                      zones=list(self.last_zones), polygons=list(self.last_polygons), token=self._preview_token)
+                      zones=list(self.last_zones), polygons=list(self.last_polygons),
+                      exclusion=self.clear_exclusions(), token=self._preview_token)
         self.app.inform.emit(_("Computing the area to paint ..."))
         self.app.worker_task.emit({'fcn': self.preview_job, 'params': [params]})
 
@@ -1667,7 +1753,7 @@ class ToolPaint(Geometry, AppTool):
             with self.app.proc_container.new('%s...' % _("Preview")):
                 area = self.gen.preview_area(
                     params['objects'], params['mode'], params['offsets'], reference=params['reference'],
-                    zones=params['zones'], polygons=params['polygons'])
+                    zones=params['zones'], polygons=params['polygons'], exclusion=params['exclusion'])
         except grace:
             error = _("Aborted. The preview was not computed.")
         except Exception as e:
@@ -1730,6 +1816,7 @@ class ToolPaint(Geometry, AppTool):
         self.mouse_is_dragging = False
         self.points.clear()
         self.poly_drawn = False
+        self.exclusion_mode = False
 
         self.delete_moving_selection_shape()
         self.delete_tool_selection_shape()
