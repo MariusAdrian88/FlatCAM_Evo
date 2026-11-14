@@ -240,7 +240,7 @@ def generate_rest(area, diameters, clear_paths, clearing_error, app=None, copper
     start = time.perf_counter()
     generated, domains, residual, failed, last = NccModel.generate_tools(
         'rest', table, NccModel.copy_tools(table), diameters, areas, 'bench', DECIMALS, CIRCLE_STEPS,
-        clear_paths, lambda: None, lambda text: None, connect=connect, contour=CONTOUR,
+        clear_paths, lambda: None, lambda text: None,
         simplify_tol=SIMPLIFICATION, initial_tools={}, clearing_error=clearing_error)
     if final_cleanup:
         generated, cleanup_residual = NccModel.finish_cleanup(

@@ -540,7 +540,8 @@ class NccUI:
         self.rest_connect_cb = FCCheckBox('%s' % _("Connect"))
         self.rest_connect_cb.setToolTip(
             _("Draw lines between resulting\n"
-              "segments to minimize tool lifts.")
+              "segments to minimize tool lifts.\n"
+              "A change applies to all tools in the table.")
         )
         gen_grid.addWidget(self.rest_connect_cb, 4, 0)
 
@@ -548,7 +549,8 @@ class NccUI:
         self.rest_contour_cb = FCCheckBox('%s' % _("Contour"))
         self.rest_contour_cb.setToolTip(
             _("Cut around the perimeter of the polygon\n"
-              "to trim rough edges.")
+              "to trim rough edges.\n"
+              "A change applies to all tools in the table.")
         )
         gen_grid.addWidget(self.rest_contour_cb, 4, 1)
 

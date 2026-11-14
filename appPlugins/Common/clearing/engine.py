@@ -260,14 +260,6 @@ def sweep_segments(diameter, edge_error, steps, to_segs=circle_quad_segs):
     return error_quad_segs(diameter / 2.0, edge_error) if edge_error else to_segs(steps)
 
 
-def rest_connect_contour(tool_values, form_values, rest_params):
-    """
-    (connect, contour) of a rest tool. rest_params "tool": the values of the tool row (Paint); "form": the rest values
-    of the panel override the row (NCC). Temporary flag: Stage 3 makes it "tool" for both.
-    """
-    return tuple(form_values if rest_params == "form" else tool_values)
-
-
 def rest_sweep(polygon, diameter, settings, process_polygon, simplify, simplification, keep_stock, edge_error=None,
                quad_segs=16):
     """Paint one rest polygon: (status, elements, swept); status is ok, skipped or failed."""

@@ -343,6 +343,13 @@ class ToolNcc(Geometry, AppTool):
             pass
         self.ui.rest_cb.stateChanged.connect(self.ui.on_rest_machining_check)
 
+        for widget in (self.ui.rest_connect_cb, self.ui.rest_contour_cb):
+            try:
+                widget.clicked.disconnect(self.on_rest_connect_contour_clicked)
+            except (TypeError, RuntimeError, AttributeError):
+                pass
+            widget.clicked.connect(self.on_rest_connect_contour_clicked)
+
         try:
             self.ui.order_combo.currentIndexChanged.disconnect(self.on_order_changed)
         except (TypeError, RuntimeError, AttributeError):
@@ -1199,6 +1206,16 @@ class ToolNcc(Geometry, AppTool):
                         tooluid_val['data'][option_changed] = new_option_value
 
         self.blockSignals(False)
+
+    def on_rest_connect_contour_clicked(self):
+        """The rest Connect and Contour widgets apply to all rows: a rest run reads Connect and Contour per row."""
+        widget = self.sender()
+        key = 'tools_ncc_connect' if widget is self.ui.rest_connect_cb else 'tools_ncc_contour'
+        value = bool(widget.get_value())
+        for tool in self.ncc_tools.values():
+            tool['data'][key] = value
+        if len(set(index.row() for index in self.ui.tools_table.selectedIndexes())) == 1:
+            self.update_ui()
 
     def on_apply_param_to_all_clicked(self):
         if self.ui.tools_table.rowCount() == 0:

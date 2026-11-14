@@ -323,7 +323,7 @@ def _generate_normal(tool_settings, tools_storage, diameters, areas, name, decim
 
 
 def _generate_rest(tool_settings, tools_storage, diameters, areas, name, decimals, circle_steps, clear_paths,
-                   check_abort, progress, connect, contour, simplify_tol, prog_plot,
+                   check_abort, progress, simplify_tol, prog_plot,
                    initial_tools, tool_progress, clearing_error):
     """The rest modes of generate_tools through the shared engine: each tool clears the stock the larger ones left."""
     storage = copy_tools(tools_storage)
@@ -351,11 +351,10 @@ def _generate_rest(tool_settings, tools_storage, diameters, areas, name, decimal
                 angle = float(data.get('tools_ncc_crosshatch_angle', 0.0) or 0.0)
             except (TypeError, ValueError):
                 angle = 0.0
-        # NCC rest: the connect and contour of the panel override the values of the tool row.
-        tool_connect, tool_contour = engine.rest_connect_contour(
-            (data.get('tools_ncc_connect', False), data.get('tools_ncc_contour', True)), (connect, contour), "form")
-        return engine.ToolRun(uid, domain, dict(overlap=tool_overlap, method=tool_method, connect=tool_connect,
-                                                contour=tool_contour, angle=angle))
+        # each tool follows the Connect and Contour of its own row
+        return engine.ToolRun(uid, domain, dict(
+            overlap=tool_overlap, method=tool_method, connect=data.get('tools_ncc_connect', False),
+            contour=data.get('tools_ncc_contour', True), angle=angle))
 
     def sweep(polygon, diameter, run, segments, keep_stock):
         if polygon is None or polygon.is_empty or not polygon.is_valid:
@@ -433,20 +432,19 @@ def _generate_rest(tool_settings, tools_storage, diameters, areas, name, decimal
 
 
 def generate_tools(mode, tool_settings, tools_storage, diameters, areas, name, decimals, circle_steps,
-                   clear_paths, check_abort, progress, connect=False, contour=True,
-                   simplify_tol=0.0, prog_plot=False, initial_tools=None, tool_progress=None,
+                   clear_paths, check_abort, progress, simplify_tol=0.0, prog_plot=False, initial_tools=None, tool_progress=None,
                    clearing_error=None):
     """Generate the tools of a GUI or Tcl job from resolved data (both resolvers fill the same tool rows).
 
     mode 'normal': each tool clears its complete domain with the settings of its row.
-    mode 'rest': each tool clears the stock the larger tools left (actual cutter sweeps); connect and contour are
-    the rest values of the job.
+    mode 'rest': each tool clears the stock the larger tools left (actual cutter sweeps), with the connect and
+    contour of its own row.
     """
     if mode != 'rest':
         return _generate_normal(tool_settings, tools_storage, diameters, areas, name, decimals, clear_paths,
                                 check_abort, progress, simplify_tol, prog_plot, initial_tools, tool_progress)
     return _generate_rest(tool_settings, tools_storage, diameters, areas, name, decimals, circle_steps,
-                          clear_paths, check_abort, progress, connect, contour, simplify_tol,
+                          clear_paths, check_abort, progress, simplify_tol,
                           prog_plot, initial_tools, tool_progress, clearing_error)
 
 

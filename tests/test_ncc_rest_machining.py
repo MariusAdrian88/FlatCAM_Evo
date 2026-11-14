@@ -133,6 +133,46 @@ def test_rest_margin_and_exact_swept_area_are_used():
     assert list(output.tools) == [2, 1]
 
 
+def test_rest_tools_follow_their_own_connect_and_contour_not_the_panel():
+    """The rest widgets say connect off / contour on; each row has its own values and the output follows the rows."""
+    area = MultiPolygon([box(0, 0, 10, 10)])
+    gen, output = make_gen([2.0, 1.0])
+    rows = gen.parent_tool.ncc_tools
+    rows[1]['data'].update(tools_ncc_connect=True, tools_ncc_contour=False)
+    rows[2]['data'].update(tools_ncc_connect=False, tools_ncc_contour=True)
+    seen = {}
+
+    def clear(**kw):
+        seen[round(kw['tooldia'], 4)] = (kw['ncc_connect'], kw['ncc_contour'])
+        return [LineString([(1, 1), (9, 1)])]
+
+    gen.compute_clipping_region = Mock(return_value=(area, 'geometry'))
+    gen.apply_margin_to_clipping_region = Mock(return_value=area)
+    gen.compute_area_to_clear = Mock(return_value=(area, 0))
+    gen.clear_polygon_worker = clear
+    gen.ncc_handler(SimpleNamespace(kind='geometry', solid_geometry=[box(2, 2, 3, 3)]), [2.0, 1.0], [],
+                    run_threaded=False)
+    assert seen == {2.0: (True, False), 1.0: (False, True)}
+
+
+def test_rest_connect_and_contour_widgets_apply_to_all_rows(qapp, tmp_path):
+    from test_clearing_golden import Plugin
+    plugin = Plugin(qapp, tmp_path, 'ncc', SimpleNamespace(kind='gerber'), [0.5, 0.25],
+                    tool_data={0.5: dict(connect=False, contour=True), 0.25: dict(connect=True, contour=False)})
+    try:
+        plugin.tool.connect_signals()
+        ui = plugin.tool.ui
+        ui.rest_connect_cb.set_value(True)      # a programmatic change does not touch the rows
+        ui.rest_contour_cb.set_value(False)
+        assert [r['data']['tools_ncc_connect'] for r in plugin.tool.ncc_tools.values()] == [False, True]
+        ui.rest_connect_cb.click()              # a user click: on -> off
+        ui.rest_contour_cb.click()              # off -> on
+        rows = plugin.tool.ncc_tools.values()
+        assert [(r['data']['tools_ncc_connect'], r['data']['tools_ncc_contour']) for r in rows] == [(False, True)] * 2
+    finally:
+        plugin.close()
+
+
 @pytest.mark.parametrize("order, preference, expected", [
     ("fwd", 2, [1, 2]), (1, 2, [1, 2]),
 ])

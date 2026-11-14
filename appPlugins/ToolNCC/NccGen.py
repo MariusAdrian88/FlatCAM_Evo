@@ -742,7 +742,7 @@ class NccGen:
             'rest' if rest else 'normal', tool_settings, snapshot, diameters, areas,
             name, self.decimals, self.circle_steps, self.clear_polygon_worker,
             lambda: NccGen._process_events_and_check_abort(self),
-            self.app.proc_container.update_view_text, connect=spec.connect, contour=spec.contour,
+            self.app.proc_container.update_view_text,
             simplify_tol=spec.simplification, prog_plot=spec.prog_plot, initial_tools=staged['tools'],
             clearing_error=clearing_error(self.app),
             tool_progress=lambda diameter: self._tool_progress(diameter, spec.units))
