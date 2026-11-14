@@ -378,7 +378,11 @@ def test_document_typing_is_classified_after_a_pause_and_every_reader_sees_it(no
     fmt.setFontWeight(QtGui.QFont.Weight.Bold)
     cursor.mergeCharFormat(fmt)
     assert not doc.ui.type_label.text().endswith('HTML')  # a keystroke does not classify
-    QtTest.QTest.qWait(450)  # the pause: the timer classifies without any reader
+    # the pause: the timer classifies without any reader (wait for it: a fixed wait failed under the gate load)
+    for _step in range(100):
+        if doc.ui.type_label.text().endswith('HTML'):
+            break
+        QtTest.QTest.qWait(50)
     assert doc.ui.type_label.text().endswith('HTML')
     edit.setPlainText('last words')
     doc.close_editor()  # a pending edit is kept, and no timer fires on the closed editor
