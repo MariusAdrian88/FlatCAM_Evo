@@ -22,10 +22,12 @@ from typing import Literal
 import builtins
 import gettext
 
+import numpy as np
 from PyQt6 import QtCore, QtWidgets
+from shapely import total_bounds
 
 import appTranslation as fcTranslate
-from camlib import grace
+from camlib import grace, flatten_shapely_geometry
 
 fcTranslate.apply_language('strings')
 if '_' not in builtins.__dict__:
@@ -98,10 +100,53 @@ class SnapshotSelf:
         object.__setattr__(self, name, value)
 
 
+def incomplete_text():
+    return _("Some areas were not cleared with these tools.")
+
+
+def stock_is_left(stock, last_diameter, failed=False):
+    """
+    The incomplete rule of both tools: the stock left after the last tool must not hold a disc of 10 % of the
+    diameter of that tool (the opening by 0.1 * dia). A round tool leaves the residue of a convex 90 degree corner,
+    which holds at most a disc of 0.086 * dia, so corners stay silent. A strip or a gap that is wider than 0.2 * dia
+    holds the disc: a strip narrower than the tool still counts. ``failed`` is a polygon that no tool could clear when
+    there is no stock to measure.
+    """
+    if stock is None:
+        return bool(failed)
+    return not stock.buffer(-0.1 * (last_diameter or 0.0)).is_empty
+
+
+def set_output_bounds(app, output, solid_geometry):
+    try:
+        # Bounds don't need another topological union of the completed toolpaths.
+        a, b, c, d = total_bounds(solid_geometry) if solid_geometry else (np.nan,) * 4
+        output.obj_options['xmin'] = a
+        output.obj_options['ymin'] = b
+        output.obj_options['xmax'] = c
+        output.obj_options['ymax'] = d
+    except Exception as ee:
+        app.log.error("Clearing job: output bounds error --> %s" % str(ee))
+        return False
+    return True
+
+
+def validate_output_geometry(app, output):
+    if not any(tool['solid_geometry'] for tool in output.tools.values()):
+        app.log.error(
+            "There is no clearing geometry in the file.\n"
+            "Usually it means that the tool diameter is too big for the cleared geometry.\n"
+            "Change the parameters and try again."
+        )
+        return False
+    return True
+
+
 @dataclass(frozen=True)
 class JobProfile:
     """
-    How a tool publishes and reports today. Stage 3.5 unifies these; until then each tool keeps its behavior.
+    How a tool publishes and reports: only the real differences of NCC and Paint. The bounds, the validation, the
+    incomplete flag and the failure handling are shared (ClearingJob).
     """
     name: str
     factory: Literal['tool', 'app'] = 'tool'            # new_object of the controller, or of the application
@@ -112,7 +157,6 @@ class JobProfile:
     exception_inform: bool = False                      # '[ERROR] Failed.' at once
     exception_log: Literal['debug', 'error'] = 'debug'
     exception_trace: Literal['none', 'stack', 'format'] = 'none'
-    failure_tail: bool = False                          # remove the promise, report the cancel / the failure
     process_events: Literal['always', 'gui'] = 'always'
     clear_temp_shapes: bool = False                     # the progressive plotting shapes
     user_errors: tuple = ()
@@ -122,7 +166,7 @@ NCC_GUI = JobProfile('ncc_gui', exception_inform=True, clear_temp_shapes=True)
 NCC_TCL = JobProfile('ncc_tcl', factory='app', plot_to_factory=True, link_source=False, done_message=False,
                      exception_log='error', exception_trace='stack')
 PAINT = JobProfile('paint', plot_to_factory=True, return_result=True,
-                   exception_log='error', exception_trace='format', failure_tail=True, process_events='gui')
+                   exception_log='error', exception_trace='format', process_events='gui')
 
 
 class ClearingJob:
@@ -137,6 +181,24 @@ class ClearingJob:
     def __init__(self, driver, profile: JobProfile):
         self.driver = driver
         self.profile = profile
+
+    @staticmethod
+    def finish_output(driver, output, app_obj, stock=None, last_diameter=None, failed=False, warn=True):
+        """
+        The shared end of a generate_output: set the bounds from the generated geometry, validate the output and set
+        the incomplete flag (a warning when ``warn``). Returns 'fail' (reported once) or None.
+        """
+        paths = [path for tool in output.tools.values() for path in tool['solid_geometry']]
+        if not set_output_bounds(driver.app, output, flatten_shapely_geometry(paths)) or \
+                not validate_output_geometry(driver.app, output):
+            driver._failure_reported = True
+            app_obj.inform.emit('[ERROR] %s' % _("Failed."))
+            return 'fail'
+        incomplete = stock_is_left(stock, last_diameter, failed)
+        driver.app.poly_not_cleared = incomplete
+        if incomplete and warn:
+            driver.app.inform.emit('[WARNING_NOTCL] %s' % incomplete_text())
+        return None
 
     def snapshot_driver(self, spec):
         """A copy of the driver that sees only the spec: no widgets, the snapshot app and the snapshot tool."""
@@ -217,16 +279,13 @@ class ClearingJob:
                 else:
                     app_instance.proc_container.view.set_idle()
 
-            if profile.failure_tail:
-                if ret == 'fail' or ret is None:
-                    # The promised name will never come: do not leave the app waiting for it.
-                    app.collection.remove_promise(name)
-                    if app.abort_flag:
-                        app.inform.emit('[WARNING_NOTCL] %s' % _("Cancelled."))
-                    elif not runner._failure_reported:
-                        app.inform.emit('[ERROR] %s' % _("Failed."))
-                    return 'fail'
-            elif ret == 'fail':
+            if ret == 'fail':
+                # The promised name will never come: do not leave the app waiting for it.
+                app.collection.remove_promise(name)
+                if app.abort_flag:
+                    app.inform.emit('[WARNING_NOTCL] %s' % _("Cancelled."))
+                elif not runner._failure_reported:
+                    app.inform.emit('[ERROR] %s' % _("Failed."))
                 return 'fail'
 
             if profile.done_message:

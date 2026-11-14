@@ -537,7 +537,8 @@ class NccGen:
             exclusion_areas=self.parent_tool.exclusion_areas(),
         )
 
-    def _publish_result(self, output, tools, name, last_tool, failed, residual, warning, mill_data=None):
+    def _publish_result(self, output, tools, name, last_tool, failed, residual, warning, mill_data=None,
+                        last_diameter=None):
         """
         Publish only after generation and cleanup both succeeded. The output object gets its own copies; the tool
         table of the plugin is never written here.
@@ -558,13 +559,18 @@ class NccGen:
                 value['data'].update(mill_data)
         output.tools = tools
         output.obj_options['tools_mill_tooldia'] = str(last_tool)
-        if residual is not None:
+        cleaned = residual is not None
+        if cleaned:
             output.ncc_cleanup_residual = residual
-            failed = not residual.is_empty
-            if failed:
+            if not residual.is_empty:
                 self.app.inform.emit('[WARNING_NOTCL] %s' % _(
                     'Final cleanup finished. Some residual copper could not be cleared with this tool.'))
-        self.app.poly_not_cleared = failed
+        # the rest stock was measured by the rule of both tools (failed); the cleanup residual replaces it
+        if ClearingJob.finish_output(self, output, self.app, stock=residual if cleaned else None,
+                                     last_diameter=last_diameter, failed=failed and not cleaned,
+                                     warn=not cleaned) == 'fail':
+            self.app.poly_not_cleared = False
+            return 'fail'
         if warning:
             self.app.inform.emit('[WARNING] %s: %s %s.' % (
                 _("NCC Tool clear all done but the copper features isolation is broken for"),
@@ -693,6 +699,13 @@ class NccGen:
 
     def generate_output(self, spec, prepared, output, app_obj):
         """ClearingJob hook: fill the output object from the spec (one path for the GUI and for Tcl)."""
+        result = self._generate_output(spec, output)
+        if isinstance(result, str) and result == 'fail':
+            # every failure of the generation reported itself with a message
+            self._failure_reported = True
+        return result
+
+    def _generate_output(self, spec, output):
         cleared_object = spec.source
         rest = spec.rest
         name = spec.outname
@@ -752,7 +765,7 @@ class NccGen:
         if spec.prog_plot:
             self.temp_shapes.clear(update=True)
         return self._publish_result(output, generated, name, '0.0' if rest else last,
-                                    failed, cleanup_residual, warning, dict(spec.mill_data))
+                                    failed, cleanup_residual, warning, dict(spec.mill_data), last)
 
     def ncc_handler(
             self,

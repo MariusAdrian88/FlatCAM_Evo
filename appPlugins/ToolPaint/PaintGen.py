@@ -11,7 +11,6 @@ import traceback
 from shapely import (
     Polygon,
     MultiPolygon,
-    total_bounds,
 )
 from shapely.ops import unary_union
 
@@ -600,30 +599,6 @@ class PaintGen:
             if not tools_storage[uid]['solid_geometry']:
                 tools_storage.pop(uid, None)
 
-    def _set_output_bounds(self, output_obj, solid_geometry):
-        try:
-            # Bounds don't need another topological union of the completed toolpaths.
-            a, b, c, d = total_bounds(solid_geometry) if solid_geometry else (np.nan,) * 4
-            output_obj.obj_options['xmin'] = a
-            output_obj.obj_options['ymin'] = b
-            output_obj.obj_options['xmax'] = c
-            output_obj.obj_options['ymax'] = d
-        except Exception as ee:
-            self.app.log.error("ToolPaint.paint_poly.job_init() bounds error --> %s" % str(ee))
-            return False
-        return True
-
-    def _validate_output_geometry(self, output_obj):
-        has_solid_geo = sum(1 for uid in output_obj.tools if output_obj.tools[uid]['solid_geometry'])
-        if has_solid_geo == 0:
-            self.app.log.error(
-                "There is no Painting Geometry in the file.\n"
-                "Usually it means that the tool diameter is too big for the painted geometry.\n"
-                "Change the painting parameters and try again."
-            )
-            return False
-        return True
-
     def _generate_paint_worker(self, output_geo_object, app_obj, params, sorted_paint_tools, geometry, painted_object, plot):
         return self._generate_worker(output_geo_object, app_obj, params, sorted_paint_tools,
                                      geometry, painted_object, rest=False)
@@ -680,7 +655,9 @@ class PaintGen:
                           # a simplified path and the rest stock keep the Clearing Error of the Preferences, or
                           # the error of the circle steps of the tool
                           edge_error=clearing_error(self.app),
-                          steps_at=lambda diameter: self._steps_at(diameter / 2, painted_object))
+                          steps_at=lambda diameter: self._steps_at(diameter / 2, painted_object),
+                          # laser lines follow the apertures: they do not aim at the full coverage
+                          measures_stock=lambda settings: self._tool_method(settings, params, painted_object) != 3)
             if rest:
                 result = PaintModel.generate_rest_paint(
                     geometry, params.tools_storage, diameters, params.simplification_value, self.decimals,
@@ -707,8 +684,6 @@ class PaintGen:
                 self.app.inform.emit('[ERROR_NOTCL] %s' % _(
                     "There is no geometry to process or the tool diameter is too big."))
                 return 'fail'
-            # The paths are already independent toolpaths: a union would only cost time and node the lines.
-            solid_geometry = flatten_shapely_geometry(finished['paths'])
             self._check_abort()
             for tool in tools.values():
                 tool['data']['output_object_name'] = params.output_object_name
@@ -716,10 +691,11 @@ class PaintGen:
             for tool in output.tools.values():
                 tool['data']['output_object_name'] = params.output_object_name
             output.obj_options['tools_mill_tooldia'] = '0.0' if rest else str(result['last_diameter'])
-            if not self._set_output_bounds(output, solid_geometry) or not self._validate_output_geometry(output):
-                self._failure_reported = True
-                app_obj.inform.emit('[ERROR] %s' % _("Failed."))
-                return 'fail'
+            # the final cleanup measures the stock itself and warns about it
+            cleaned = finished['residual'] is not None
+            return ClearingJob.finish_output(
+                self, output, app_obj, stock=finished['residual'] if cleaned else result.get('stock'),
+                last_diameter=result.get('last_diameter'), warn=not cleaned)
         except grace:
             return 'fail'
         finally:

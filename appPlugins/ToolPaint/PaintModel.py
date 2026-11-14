@@ -36,12 +36,15 @@ def sweep_quad_segs(diameter, edge_error, quad_segs):
 
 def generate_paint(geometry, tools_storage, diameters, ordering, simplification, decimals,
                    process_polygon, check_abort=None, progress=None, tool_started=None,
-                   find_uid=None, get_params=None, buffer=None, simplify=None, edge_error=None, steps_at=None):
+                   find_uid=None, get_params=None, buffer=None, simplify=None, edge_error=None, steps_at=None,
+                   measures_stock=None):
     """
     Generate independent tool passes without publishing or changing caller-owned tools.
 
     :param edge_error:  the Clearing Error in the units of the geometry; None uses the error of the circle steps
     :param steps_at:    callable: the circle steps of a tool diameter; None uses 64
+    :param measures_stock: callable(settings) -> False when the last tool does not aim at the full coverage (laser
+                        lines); the result has no 'stock' then
     """
     tools = {uid: {**{key: value for key, value in tool.items() if key != 'paint_cleanup_start'},
                    'data': deepcopy(tool.get('data', {})), 'solid_geometry': []}
@@ -90,6 +93,7 @@ def generate_paint(geometry, tools_storage, diameters, ordering, simplification,
 
     def store(run, diameter, paths):
         tools[run.uid]['solid_geometry'] = [path for path in paths if path and not path.is_empty]
+        state['last'] = (run, diameter, tools[run.uid]['solid_geometry'])
 
     outcome = engine.run_tools(
         diameters, resolve, clear, store, check_abort or (lambda: None), begin=begin, polygon_done=polygon_done,
@@ -100,7 +104,13 @@ def generate_paint(geometry, tools_storage, diameters, ordering, simplification,
         return 'fail'
     if check_abort is not None:
         check_abort()
-    return {'tools': tools, 'warnings': warnings, 'last_diameter': last_diameter}
+    stock = None
+    if 'last' in state and (measures_stock is None or measures_stock(state['last'][0].settings)):
+        # the stock of the last tool: its own domain without the area that it swept
+        run, diameter, paths = state['last']
+        segments = sweep_quad_segs(diameter, edge_error, tool_quad_segs(steps_at, diameter))
+        stock = unary_union(run.domain).difference(swept_area(paths, diameter, segments))
+    return {'tools': tools, 'warnings': warnings, 'last_diameter': last_diameter, 'stock': stock}
 
 
 def rest_sweep(polygon, diameter, settings, process_polygon, simplify, simplification, keep_stock, edge_error=None,
@@ -113,7 +123,7 @@ def rest_sweep(polygon, diameter, settings, process_polygon, simplify, simplific
 def generate_rest_paint(geometry, tools_storage, diameters, simplification, decimals,
                         process_polygon, check_abort=None, progress=None, tool_started=None,
                         rest_offset=0, find_uid=None, get_params=None, buffer=None, simplify=None, edge_error=None,
-                        steps_at=None):
+                        steps_at=None, measures_stock=None):
     """Rest passes: the stock left for the next tool is what the swept paths of this tool did not cover.
 
     Tools always run from the largest diameter to the smallest. edge_error and steps_at: see generate_paint().
@@ -155,6 +165,7 @@ def generate_rest_paint(geometry, tools_storage, diameters, simplification, deci
             state['progress'] = progress(number, total, state['progress'])
 
     def store(run, diameter, cleared):
+        state['last'] = (run, diameter, list(cleared))
         if cleared:
             tools[run.uid]['solid_geometry'] = list(cleared)
             output_tools[run.uid] = dict(tools[run.uid])
@@ -169,7 +180,16 @@ def generate_rest_paint(geometry, tools_storage, diameters, simplification, deci
         return 'fail'
     if check_abort is not None:
         check_abort()
-    return {'tools': tools, 'output_tools': output_tools, 'warnings': warnings}
+    stock = outcome.stock
+    if stock is not None and 'last' in state and (measures_stock is None or measures_stock(state['last'][0].settings)):
+        # the last tool leaves the stock it did not sweep (the loop subtracts only what a next tool still needs)
+        run, diameter, cleared = state['last']
+        segments = sweep_quad_segs(diameter, edge_error, tool_quad_segs(steps_at, diameter))
+        stock = stock.difference(swept_area(cleared, diameter, segments))
+    else:
+        stock = None
+    return {'tools': tools, 'output_tools': output_tools, 'warnings': warnings, 'stock': stock,
+            'last_diameter': outcome.last}
 
 
 def final_cleanup(geometry, tools_storage, output_tools, diameters, decimals, process_polygon,

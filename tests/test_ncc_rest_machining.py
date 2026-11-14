@@ -41,7 +41,7 @@ def make_gen(tools, known=None, options=None, units='MM'):
     app = SimpleNamespace(
         units=units, app_units=units, options=defaults,
         defaults=SimpleNamespace(get=defaults.get, factory_defaults=defaults, report_usage=Mock()),
-        log=Mock(), inform=Mock(), inform_shell=Mock(), proc_container=Mock(), abort_flag=False,
+        log=Mock(), inform=Mock(), inform_shell=Mock(), proc_container=Mock(), abort_flag=False, collection=Mock(),
         dec_format=lambda value, decimals: round(value, decimals),
     )
     gen.app = app
@@ -103,6 +103,24 @@ def run_rest(area, tools, clear, tcl=False, source=None, rest=True, known=None, 
 
 def messages_of(gen):
     return [call.args[0] for call in gen.app.inform.emit.call_args_list]
+
+
+@pytest.mark.parametrize('tcl', [False, True])
+def test_job_without_geometry_removes_the_promise_and_reports_the_failure_once(tcl):
+    gen, output = run_rest(MultiPolygon([box(0, 0, 4, 4)]), [1.0], lambda **kw: None, rest=False, tcl=tcl)
+    assert gen.app.collection.remove_promise.call_count == 1
+    assert [text for text in messages_of(gen) if text.startswith('[ERROR')] != []
+    assert len([text for text in messages_of(gen) if text.startswith('[ERROR')]) == 1
+    assert not any(value['solid_geometry'] for value in output.tools.values())
+
+
+def test_published_output_has_bounds_and_an_incomplete_job_warns():
+    from appPlugins.Common.clearing.job import incomplete_text
+    area = MultiPolygon([box(0, 0, 4, 4)])
+    gen, output = run_rest(area, [1.0], lambda **kw: [LineString([(1, 1), (3, 1)])], rest=True)
+    assert (output.obj_options['xmin'], output.obj_options['xmax']) == (1, 3)
+    assert gen.app.poly_not_cleared is True
+    assert '[WARNING_NOTCL] %s' % incomplete_text() in messages_of(gen)
 
 
 def test_smaller_tool_is_tried_when_largest_cannot_fit():

@@ -411,7 +411,6 @@ def rest_worker(geometry, diameters, method=2, overlap=0.15, connect=False):
     worker.parent_tool = geometry
     worker.ui = SimpleNamespace(rest_offset_entry=SimpleNamespace(get_value=lambda: 0))
     worker._cleanup_progressive_plotting = Mock()
-    worker._validate_output_geometry = lambda output_obj: bool(output_obj.tools)
     params = SimpleNamespace(
         paint_method=method, prog_plot=False, simplification_value=0,
         output_object_name='benchmark', tools_storage={
@@ -451,6 +450,20 @@ class TestPaintPerformance(unittest.TestCase):
         with mock.patch.object(clipper_ops, 'pyclipr', None):
             self.assertEqual(PaintModel.swept_area(paths, diameter, quad).symmetric_difference(expected).area, 0.0)
         self.assertTrue(PaintModel.swept_area([], diameter, quad).is_empty)
+
+    def test_job_with_stock_left_warns_but_still_publishes(self):
+        from appPlugins.Common.clearing.job import incomplete_text
+        # a 0.5 wide strip that the 1.0 tool cannot enter stays unpainted; the corners of a pad are not stock
+        disc = Point(5, 5).buffer(5, quad_segs=32)
+        board = unary_union([disc, box(10, 4.75, 14, 5.25)])
+        for polygon, incomplete in ((board, True), (disc, False), (box(0, 0, 4, 3), False)):
+            with self.subTest(incomplete=incomplete):
+                worker, params = rest_worker(self.geometry, [1.0], method=0)
+                output = SimpleNamespace(tools={}, obj_options={})
+                result = worker._generate_paint_worker(output, worker.app, params, [1.0], [polygon], None, False)
+                messages = [call.args[0] for call in worker.app.inform.emit.call_args_list]
+                assert result != 'fail' and output.tools[1]['solid_geometry']
+                assert ('[WARNING_NOTCL] %s' % incomplete_text() in messages) is incomplete
 
     def test_rest_tool_clears_the_stock_that_is_narrower_than_it(self):
         # The 1.0 tool leaves the corners of the area and strips around the hole; the 0.4 tool crosses the cut area
