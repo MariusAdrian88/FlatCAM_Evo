@@ -8,6 +8,26 @@ CHANGELOG for FlatCAM Evo
 
 14.11.2026
 
+Copper Clearing (NCC) and Paint:
+
+- changed: NCC and Paint use 1 shared clearing code (region helpers, fill engine, rest machining, final cleanup, job, controller base, area selector, panel builders); the 2 plugins, their menus, shortcuts, Tcl commands and preference keys stay separate
+- added: Direction (None / Climb / Conv) for each tool in NCC and Paint, also in the Preferences, the Tools Database and the Tcl commands (-clear_milling); climb = the wall on the right with an M3 spindle (outer rings counter-clockwise, rings around islands clockwise); the scan lines of Lines / Crosshatch and Laser Lines are not oriented; with a direction the G-code keeps the path direction: the optimizer does not reverse paths and a multi-depth open path lifts, travels back and cuts every depth in the same direction
+- added: Paint exclusion areas (square or polygon), as in NCC; the cutter keeps the tool radius from every zone (true distance check), also for Laser Lines and after a negative offset; Tcl paint -exclude <object name>
+- added: NCC Polygon Selection: click the copper-free regions to clear; Tcl ncc -single x,y
+- changed: Tcl ncc runs the same clearing as the GUI and takes only its own arguments, never the values of the NCC panel or its tool table; old scripts that use ncc without -rest now get the paths of the GUI (the legacy inset is removed)
+- changed: NCC rest machining uses the Connect / Contour of each tool row (as Paint); the rest Connect / Contour of the panel apply their value to all the rows
+- changed: the NCC final cleanup uses the rules of Paint: the next smallest tool that has an area left, the boundary first when Connect is off, the cutter radius applied 1 time
+- added: NCC and Paint warn "Some areas were not cleared with these tools." when stock that holds a disc of 0.1 x the last tool diameter is left (the corner residue of a round tool does not count); the final cleanup messages use the same rule
+- fixed: a queued NCC or Paint job no longer takes options, tool table or source geometry changes made after its start
+- fixed: an NCC job that makes no geometry removes its waiting entry from the Project list and reports the failure 1 time
+- fixed: Paint Polygon Selection left the panel enabled (a second Generate stacked the mouse handlers); an NCC selection could end on a right-button pan; the NCC add-tool shortcut called a method that did not exist; NCC opened its tab when a plugin tab was locked; a drag-drop in the Paint tool table kept the Forward / Reverse order
+- fixed: a project in other units converts the clearing lengths too: NCC / Milling offset value, V-tip and new tool diameters, NCC / Paint simplification
+
+G-code:
+
+- fixed: a multi-depth path reversed closed rings at every depth, so an isolation path made climb was cut conventional at every second depth; a closed path now keeps its direction
+- fixed: each depth of a multi-depth path took the travel from the start point of the path: with exclusion areas the route started at the wrong point and its moves could go out as G00 at cutting depth; each depth now starts from the real tool position and makes no travel when it starts where the last depth ended
+
 README:
 
 - changed: the README is short: a list of the features, the links (wiki, releases, videos, branches), a quick start and the install from the source code; the install details, the data folder, the update steps and the plugin descriptions are in the wiki

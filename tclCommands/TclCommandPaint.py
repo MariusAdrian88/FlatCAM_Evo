@@ -68,37 +68,47 @@ class TclCommandPaint(TclCommand):
     help = {
         'main': "Paint polygons in the specified object by covering them with toolpaths.\n"
                 "Defaults to all polygons. Use only one of -single, -ref (or -box) or -area to restrict the "
-                "selection.",
+                "selection.\n"
+                "The command uses only its own arguments and the tools_paint_* preferences. It does not read the "
+                "Paint panel, its tool table or its exclusion areas.",
         'args': collections.OrderedDict([
             ('name', 'Name of the source Geometry object. String.'),
             ('tooldia', 'Diameter of the tools to be used. Can be a comma separated list of diameters.\n'
+                        'Default: the Paint preference.\n'
                         'WARNING: No space is allowed between tool diameters. E.g: correct: 0.5,1 / incorrect: 0.5, 1'),
             ('overlap', 'Percentage of tool diameter to overlap current pass over previous pass. Float [0, 99.9999]\n'
-                        'E.g: for a 25% from tool diameter overlap use -overlap 25'),
-            ('offset', 'Distance from the polygon border where painting starts. Float number.'),
+                        'E.g: for a 25% from tool diameter overlap use -overlap 25\n'
+                        'Default: the Paint preference.'),
+            ('offset', 'Distance from the polygon border where painting starts. Float number.\n'
+                       'Default: the Paint preference.'),
             ('order', 'Can have the values: "no", "fwd" and "rev". String.\n'
                       'It is useful when there are multiple tools in tooldia parameter.\n'
                       '"no" -> the order used is the one provided.\n'
                       '"fwd" -> tools are ordered from smallest to biggest.\n'
                       '"rev" -> tools are ordered from biggest to smallest.'),
             ('method', 'Algorithm for painting. Can be: "standard", "seed", "lines", "laser_lines", "combo", '
-                       '"crosshatch".'),
+                       '"crosshatch". Default: the Paint preference.'),
             ('angle', 'Direction of the first family of lines of the Crosshatch method, in degrees. Float number.\n'
                       'The second family is at 90 degrees from it. Default: the Paint preference.\n'
                       'Used only with the "crosshatch" method; with another method it is ignored with a warning.'),
-            ('connect', 'Draw lines to minimize tool lifts. True (1) or False (0)'),
-            ('contour', 'Cut around the perimeter of the painting. True (1) or False (0)'),
+            ('connect', 'Draw lines to minimize tool lifts. True (1) or False (0). Default: the Paint preference.'),
+            ('contour', 'Cut around the perimeter of the painting. True (1) or False (0). '
+                        'Default: the Paint preference.'),
             ('rest', 'Use rest machining. True (1) or False (0). Default: the Paint preference.'),
             ('rest_offset', 'Distance from the polygon border kept by the rest machining. Float number.\n'
                             'Default: the Paint preference.'),
             ('simplification', 'Tolerance for simplifying the toolpaths, in the units of the object. Float >= 0.\n'
                                'Default: the Paint preference (in millimeters, converted to the units of the app).'),
-            ('final_cleanup', 'After painting, use the smallest tool to paint the reachable gaps. True (1) or '
-                              'False (0). Default: the Paint preference.'),
+            ('final_cleanup', 'After painting, use the next smallest tool that has a domain left to paint the '
+                              'reachable gaps. The cutter stays inside the free area, and the border is cut '
+                              'first if -connect is 0. True (1) or False (0). Default: the Paint preference.'),
             ('clear_milling', 'Cut direction of the painting passes: "none", "climb" or "conv". '
-                              'Default: the Paint preference.'),
+                              'Default: the Paint preference.\n'
+                              'Climb = the wall on the right with an M3 spindle. The "lines" and "crosshatch" '
+                              'scan lines and the "laser_lines" are not oriented.'),
             ('exclude', 'Name of a Geometry or Gerber object. Its polygons are never painted: the cutter keeps '
-                        'its radius away from them. A Geometry object that has only lines is rejected.'),
+                        'its radius away from them (no overlap with the zones). '
+                        'A Geometry object that has only lines is rejected.'),
             ('all', 'Optional compatibility flag; bare -all is accepted. Its value is ignored, even False. '
                     'All polygons are painted by default unless -single, -ref, -box or -area is used; '
                     '-all overrides none of them.'),
@@ -110,13 +120,14 @@ class TclCommandPaint(TclCommand):
             ('single', 'Value is in format x,y or (x,y). Example: 2.0,1.1\n'
                        'If used will paint a single polygon specified by "x" and "y" values.\n'
                        'WARNING: No spaces allowed in the value. Use dot decimals separator.'),
-            ('outname', 'Name of the resulting Geometry object. String. No spaces.'),
+            ('outname', 'Name of the resulting Geometry object. String. No spaces. Default: <name>_paint.'),
         ]),
         'examples': ["paint obj_name -tooldia 0.3 -offset 0.1 -method 'seed' -all",
                      "paint obj_name -tooldia 0.3 -offset 0.1 -method 'seed' -single 3.3,2.0",
                      "paint obj_name -tooldia 1,0.3 -rest 1 -rest_offset 0.05 -area 0,0,20,10",
                      "paint obj_name -tooldia 0.3 -ref ref_obj_name -final_cleanup 1 -simplification 0.005",
-                     "paint obj_name -tooldia 0.3 -exclude keep_out"]
+                     "paint obj_name -tooldia 0.3 -exclude keep_out",
+                     "paint obj_name -tooldia 0.3 -clear_milling climb -method 'seed'"]
     }
 
     def execute(self, args, unnamed_args):

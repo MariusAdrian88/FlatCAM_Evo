@@ -66,37 +66,48 @@ class TclCommandCopperClear(TclCommand):
 
     # structured help for current command, args needs to be ordered
     help = {
-        'main': "Clear excess copper in polygons. Basically it's a negative Paint.",
+        'main': "Clear excess copper in polygons. Basically it's a negative Paint.\n"
+                "It runs the same clearing as the NCC plugin, but it uses only its own arguments and the "
+                "tools_ncc_* preferences. It does not read the NCC panel or its tool table.\n"
+                "Select exactly one area: -all, -box (or -ref), -area or -single.",
         'args': collections.OrderedDict([
             ('name', 'Name of the source Geometry object. String.'),
             ('tooldia', 'Diameter of the tool to be used. Can be a comma separated list of diameters.\n'
+                        'Default: the NCC preference.\n'
                         'WARNING: No space is allowed between tool diameters. E.g: correct: 0.5,1 / incorrect: 0.5, 1'),
             ('overlap', 'Percentage of tool diameter to overlap current pass over previous pass. Float [0, 99.9999]\n'
-                        'E.g: for a 25% from tool diameter overlap use -overlap 25'),
-            ('margin', 'Bounding box margin. Float number.'),
+                        'E.g: for a 25% from tool diameter overlap use -overlap 25\n'
+                        'Default: the NCC preference.'),
+            ('margin', 'Bounding box margin. Float number. Default: the NCC preference.'),
             ('order', 'Can have the values: "no", "fwd" and "rev". String.'
                       'It is useful when there are multiple tools in tooldia parameter.'
                       '"no" -> the order used is the one provided.'
                       '"fwd" -> tools are ordered from smallest to biggest.'
                       '"rev" -> tools are ordered from biggest to smallest.'),
             ('method', 'Algorithm for copper clearing. Can be: "standard", "seed", "lines", "combo" or '
-                       '"crosshatch".'),
+                       '"crosshatch". Default: the NCC preference.'),
             ('angle', 'Direction of the first family of lines of the Crosshatch method, in degrees. '
                       'The second family is at 90 degrees from it. Float number.\n'
                       'Used only with the "crosshatch" method; with another method it is ignored with a warning.'),
-            ('connect', 'Draw lines to minimize tool lifts. True (1) or False (0)'),
-            ('contour', 'Cut around the perimeter of the painting. True (1) or False (0)'),
-            ('rest', 'Use rest-machining. True (1) or False (0)'),
+            ('connect', 'Draw lines to minimize tool lifts. True (1) or False (0). Default: the NCC preference.'),
+            ('contour', 'Cut around the perimeter of the clearing. True (1) or False (0). '
+                        'Default: the NCC preference.'),
+            ('rest', 'Use rest-machining. True (1) or False (0). Default: the NCC preference.\n'
+                     'Every tool gets the -connect and -contour values of this command.'),
             ('offset', 'If used, the copper clearing will finish to a distance from copper features. Float number.\n'
                        'Without it, the Offset preferences are used.'),
             ('iso_tooldia', 'Comma separated diameters of isolation tools. Gerber source object only.\n'
                             'Without it, no isolation is generated.'),
             ('milling_type', 'Milling type of the isolation tools: "cl" (climb) or "cv" (conventional).\n'
                              'Used only together with -iso_tooldia.'),
-            ('final_cleanup', 'Remove the residual copper with the smallest tool after clearing. '
-                              'True (1) or False (0)'),
-            ('clear_milling', 'Cut direction of the clearing passes: "none", "climb" or "conv". '
+            ('final_cleanup', 'After clearing, remove the residual copper with the next smallest tool that has a '
+                              'domain left. It follows the rules of Paint: the cutter stays inside the free area, '
+                              'and the border is cut first if -connect is 0. True (1) or False (0). '
                               'Default: the NCC preference.'),
+            ('clear_milling', 'Cut direction of the clearing passes: "none", "climb" or "conv". '
+                              'Default: the NCC preference.\n'
+                              'Climb = the wall on the right with an M3 spindle. The "lines" and "crosshatch" '
+                              'scan lines are not oriented.'),
             ('simplification', 'Maximum deviation allowed when simplifying the toolpaths, in the units of the '
                                'application. 0 disables it. Float number.'),
             ('exclude', 'Name of a Geometry or Gerber object. Its polygons are never cleared. '
@@ -106,16 +117,20 @@ class TclCommandCopperClear(TclCommand):
                     'Select exactly one mode: -all, -box <value> or -area <value>.'),
             ('box', 'Name of the reference object. Requires a value. Select exactly one mode: '
                     '-all (or -all 1), -box <value> or -area <value>.'),
+            ('ref', 'Same as -box.'),
             ('area', 'Rectangle to clear: "xmin,ymin,xmax,ymax" in application units, no spaces. '
                      'Select exactly one mode: -all, -box <value> or -area <value>.'),
             ('single', 'Point "x,y" in application units, no spaces. Clears the copper-free region that contains '
-                       'the point. Select exactly one mode: -all, -box <value>, -area <value> or -single <value>.'),
+                       'the point, as a click in Polygon Selection. '
+                       'Select exactly one mode: -all, -box <value>, -area <value> or -single <value>.'),
             ('outname', 'Name of the resulting Geometry object. String. No spaces.\n'
                         'Default: <name>_ncc, or <name>_ncc_rm with rest machining.'),
         ]),
         'examples': ["ncc obj_name -tooldia 0.3,1 -overlap 10 -margin 1.0 -method 'lines' -all",
                      "ncc gerber_name -tooldia 0.5 -iso_tooldia 0.2,0.1 -milling_type cl -area 0,0,50,30 "
-                     "-exclude keep_out -simplification 0.01 -plot 1"]
+                     "-exclude keep_out -simplification 0.01 -plot 1",
+                     "ncc gerber_name -tooldia 1,0.3 -rest 1 -final_cleanup 1 -clear_milling climb -all",
+                     "ncc gerber_name -tooldia 0.3 -single 12.5,4.0"]
     }
 
     def _bool_arg(self, args, key):

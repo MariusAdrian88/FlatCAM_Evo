@@ -926,7 +926,7 @@ class NccGen:
         clear_milling = str(clear_milling if clear_milling is not None
                             else self._option('tools_ncc_clear_milling', 'none')).lower()
         if clear_milling not in ('none', 'climb', 'conv'):
-            self.app.inform.emit('[ERROR_NOTCL] %s' % _("The clear_milling must be none, climb or conv."))
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _("Direction must be none, climb or conv."))
             return 'fail'
         # the strict clearing edge never simplifies, also with an explicit Tcl value
         simplify_tol = clearing_simplification(
