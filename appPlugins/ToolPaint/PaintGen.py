@@ -1,7 +1,7 @@
 
 from PyQt6 import QtCore, QtWidgets     # noqa
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from copy import copy
 
 import numpy as np
@@ -35,6 +35,9 @@ from defaults import AppDefaults
 from appParsers.feature_access import fused_solid
 from appCommon.SafeEval import safe_eval
 from appPlugins.ToolPaint import PaintModel
+from appPlugins.Common.clearing.job import ClearingJob, PAINT
+from appPlugins.Common.clearing.params import (
+    JobSpec, SourceSnapshot, copy_geometry, freeze_options, kernel_steps_of, tool_spec)
 
 if TYPE_CHECKING:
     from appObjects.GerberObject import GerberObject
@@ -43,19 +46,6 @@ if TYPE_CHECKING:
 fcTranslate.apply_language('strings')
 if '_' not in builtins.__dict__:
     _ = gettext.gettext
-
-
-class _PaintAppSnapshot:
-    """Freeze generation options while forwarding live services and cancellation."""
-    def __init__(self, app):
-        self._app = app
-        # Shallow: the generators only read option values, none of them mutates one.
-        self.options = dict(app.options)
-        self.defaults = dict(getattr(app, 'defaults', None) or AppDefaults.factory_defaults)
-        self.units = app.units
-
-    def __getattr__(self, name):
-        return getattr(self._app, name)
 
 
 def gerber_copper_for_paint(obj):
@@ -81,6 +71,9 @@ class Params:
 
 class PaintSelectionError(Exception):
     """The polygons to paint could not be selected; the message is meant for the user."""
+
+
+PAINT_PROFILE = replace(PAINT, user_errors=(PaintSelectionError,))
 
 
 class _MainThreadCall(QtCore.QObject):
@@ -329,6 +322,86 @@ class PaintGen:
             self.app.inform.emit('[ERROR_NOTCL] %s' % _('Geometry could not be painted completely'))
         return result
 
+    def resolve_job(
+            self,
+            painted_object,
+            geometry,
+            tooldia=None,
+            order=None,
+            method=None,
+            outname=None,
+            tools_storage=None,
+            plot=True,
+            rest=None,
+            rest_offset=None,
+            simplification=None,
+            selection='all',
+    ):
+        """
+        The Paint resolver: read the widgets, the tool table and the options into a JobSpec. The run reads only the
+        spec. Call it on a copy of the controller.
+
+        :return: the JobSpec; 'fail' when no tool is selected
+        """
+        params = self._create_params(
+            order=order,
+            method=method,
+            rest=rest,
+            outname=outname,
+            tools_storage=tools_storage,
+            rest_offset=rest_offset,
+            simplification=simplification,
+        )
+        sorted_paint_tools = self._parse_tool_diameters(tooldia)
+        if sorted_paint_tools == 'fail':
+            return 'fail'
+        sorted_paint_tools = list(sorted_paint_tools)
+        check_valid = bool(self._ui_value('valid_cb', 'tools_paint_check_valid'))
+        options = freeze_options(self.app)
+        units = self.app.units
+        app_units = getattr(self.app, 'app_units', units)
+        steps = kernel_steps_of(options, getattr(painted_object, 'units', None) or self.units)
+        specs = []
+        for diameter in sorted_paint_tools:
+            uid = self._find_tool_uid(diameter, params.tools_storage)
+            if uid is not None:
+                specs.append(tool_spec(uid, diameter, params.tools_storage[uid]['data'], 'tools_paint_', 'offset'))
+        return JobSpec(
+            tools=specs, rest=bool(params.rest_machining_choice), order=params.tool_ordering, selection=selection,
+            margin=0.0, simplification=params.simplification_value, simplify_rule='dwithin', plot=plot,
+            outname=params.output_object_name, options=options, kernel_steps=steps, sweep_steps=steps,
+            edge_error=clearing_error(self.app), kind='paint', source=SourceSnapshot.of(painted_object),
+            origin=painted_object, selection_fn=geometry if callable(geometry) else None,
+            geometry=None if callable(geometry) else copy_geometry(geometry), storage=params.tools_storage,
+            diameters=tuple(sorted_paint_tools), check_validity=check_valid, prog_plot=params.prog_plot,
+            decimals=self.decimals, units=units, app_units=app_units, method=params.paint_method,
+            method_explicit=params.paint_method_explicit, rest_offset=params.rest_offset)
+
+    def prepare_job(self, spec):
+        """ClearingJob hook: the selection runs inside the job (on the worker thread when threaded), then the check."""
+        self._job_params = params = Params(
+            tool_ordering=spec.order, paint_method=spec.method, rest_machining_choice=spec.rest,
+            simplification_value=spec.simplification, prog_plot=spec.prog_plot,
+            tools_storage=deepcopy_keep_geometry(spec.storage), output_object_name=spec.outname,
+            rest_offset=spec.rest_offset, paint_method_explicit=spec.method_explicit)
+        selected = spec.geometry
+        if spec.selection_fn is not None:
+            selected = spec.selection_fn()
+            if not selected:
+                self.app.log.warning('No polygon found.')
+                self.app.inform.emit('[WARNING] %s' % _('No polygon found.'))
+                self._failure_reported = True
+                return False, None
+        if spec.check_validity and self._tools_do_not_fit(selected, list(spec.diameters), params):
+            self._failure_reported = True
+            return False, None
+        return True, selected
+
+    def generate_output(self, spec, prepared, output, app_obj):
+        """ClearingJob hook: fill the output object from the spec."""
+        worker = self._generate_rest_paint_worker if spec.rest else self._generate_paint_worker
+        return worker(output, app_obj, self._job_params, list(spec.diameters), prepared, spec.source, spec.plot)
+
     def paint_handler(
             self,
             painted_object: Union["GeometryObject", "GerberObject"],
@@ -343,6 +416,7 @@ class PaintGen:
             run_threaded=True,
             rest_offset=None,
             simplification=None,
+            selection='all',
     ):
         """
         Paints a given geometry.
@@ -362,114 +436,19 @@ class PaintGen:
         :param run_threaded:
         :param rest_offset:     rest machining offset; None = the form value
         :param simplification:  output tolerance in the object's units; None = the application option
+        :param selection:       how the polygons were selected: all, area, reference or click
         :return: 'fail' on failure (not threaded)
         """
 
         # Each queued callback owns its settings, not the shared controller's next job.
         self = copy(self)
-        self.app = _PaintAppSnapshot(self.app)
-        params = self._create_params(
-            order=order,
-            method=method,
-            rest=rest,
-            outname=outname,
-            tools_storage=tools_storage,
-            rest_offset=rest_offset,
-            simplification=simplification,
-        )
-
-        sorted_paint_tools = self._parse_tool_diameters(tooldia)
-        if sorted_paint_tools == 'fail':
-            return 'fail'
-        sorted_paint_tools = list(sorted_paint_tools)
-        check_valid = bool(self._ui_value('valid_cb', 'tools_paint_check_valid'))
-
-        proc = None
-        if run_threaded:
-            proc = self.app.proc_container.new('%s...' % _("Working"))
-        else:
-            self.app.proc_container.view.set_busy('%s...' % _("Working"))
-            if _on_gui_thread():
-                QtWidgets.QApplication.processEvents()
-
-        def job_thread(app_instance, proc):
-            ret = None
-            self._failure_reported = False
-            try:
-                selected = geometry
-                if callable(selected):
-                    selected = selected()
-                    if not selected:
-                        self.app.log.warning('No polygon found.')
-                        self.app.inform.emit('[WARNING] %s' % _('No polygon found.'))
-                        self._failure_reported = True
-                        ret = 'fail'
-                if ret != 'fail' and check_valid and self._tools_do_not_fit(selected, sorted_paint_tools, params):
-                    self._failure_reported = True
-                    ret = 'fail'
-                if ret == 'fail':
-                    pass
-                elif params.rest_machining_choice:
-                    ret = self.parent_tool.new_object(
-                        "geometry",
-                        params.output_object_name,
-                        lambda o, a: self._generate_rest_paint_worker(
-                            o,
-                            a,
-                            params,
-                            sorted_paint_tools,
-                            selected,
-                            painted_object,
-                            plot,
-                        ),
-                        plot=plot,
-                        source=painted_object,
-                        autoselected=False,
-                    )
-                else:
-                    ret = self.parent_tool.new_object(
-                        "geometry",
-                        params.output_object_name,
-                        lambda o, a: self._generate_paint_worker(
-                            o, a, params, sorted_paint_tools, selected, painted_object, plot),
-                        plot=plot,
-                        source=painted_object,
-                        autoselected=False,
-                    )
-            except grace:
-                app_instance.log.debug("PaintGen.paint_handler.job_thread() -> Graceful exit.")
-                ret = 'fail'
-            except PaintSelectionError as err:
-                self.app.inform.emit('[ERROR_NOTCL] %s' % str(err))
-                self._failure_reported = True
-                ret = 'fail'
-            except Exception as err:
-                app_instance.log.error(f"PaintGen.paint_handler.job_thread() -> Exception: {str(err)}")
-                app_instance.log.debug(traceback.format_exc())
-                ret = 'fail'
-            finally:
-                if proc is not None:
-                    proc.done()
-                else:
-                    app_instance.proc_container.view.set_idle()
-
-            if ret == 'fail' or ret is None:
-                # The promised name will never come: do not leave the app waiting for it.
-                self.app.collection.remove_promise(params.output_object_name)
-                if self.app.abort_flag:
-                    self.app.inform.emit('[WARNING_NOTCL] %s' % _("Cancelled."))
-                elif not self._failure_reported:
-                    self.app.inform.emit('[ERROR] %s' % _("Failed."))
-                return 'fail'
-
-            self.app.inform.emit('[success] %s' % _("Done."))
-            return ret
-
-        if run_threaded:
-            self.app.collection.promise(params.output_object_name)
-            self.app.worker_task.emit({'fcn': job_thread, 'params': [self.app, proc]})
-        else:
-            return job_thread(app_instance=self.app, proc=proc)
+        spec = self.resolve_job(
+            painted_object, geometry, tooldia=tooldia, order=order, method=method, outname=outname,
+            tools_storage=tools_storage, plot=plot, rest=rest, rest_offset=rest_offset,
+            simplification=simplification, selection=selection)
+        if isinstance(spec, str):
+            return spec
+        return ClearingJob(self, PAINT_PROFILE).run(spec, run_threaded)
 
     def _tools_do_not_fit(self, selected, diameters, params):
         """
@@ -826,15 +805,17 @@ class PaintGen:
             parts.extend(PaintModel.buffer_geometry(selected, offset))
         return unary_union(parts) if parts else None
 
-    def _resolve_selection(self, select, run_threaded):
+    def _resolve_selection(self, select, run_threaded, obj):
         """
+        select(source) works on the copy of the object that is made now: a later edit does not change the job.
         Threaded: the selection runs inside the job, on the worker thread, so the GUI stays responsive.
         Not threaded: it runs now and the polygons are returned; None when there is nothing to paint.
         """
+        source = SourceSnapshot.of(obj)
         if run_threaded:
-            return select
+            return lambda: select(source)
         try:
-            selected = select()
+            selected = select(source)
         except grace:
             self.app.inform.emit('[WARNING_NOTCL] %s' % _("Cancelled."))
             return None
@@ -890,20 +871,22 @@ class PaintGen:
         self._announce_start(obj, _("Normal painting polygon task started."))
 
         if inside_pt and poly_list is None:
-            def select():
+            def select(source):
                 self._check_abort()
-                geometry = self._source_geometry(obj)
-                if obj.kind == 'gerber':
+                geometry = self._source_geometry(source)
+                if source.kind == 'gerber':
                     geometry = flatten_shapely_geometry(geometry)
                 polygon = PaintModel.select_polygon(geometry, inside_pt)
                 return [polygon] if polygon else []
         elif poly_list:
-            def select():
-                return poly_list
+            fixed_list = copy_geometry(poly_list)
+
+            def select(source):
+                return copy_geometry(fixed_list)
         else:
             return 'fail'
 
-        polygon_list = self._resolve_selection(select, run_threaded)
+        polygon_list = self._resolve_selection(select, run_threaded, obj)
         if polygon_list is None:
             return 'fail'
 
@@ -920,6 +903,7 @@ class PaintGen:
             rest=rest,
             rest_offset=rest_offset,
             simplification=simplification,
+            selection='click' if inside_pt else 'area',
         )
 
     def paint_poly_all(
@@ -957,10 +941,10 @@ class PaintGen:
 
         self._announce_start(obj, _("Paint all polygons task started."))
 
-        def select():
-            return self.select_all(obj)
+        def select(source):
+            return self.select_all(source)
 
-        painted_area = self._resolve_selection(select, run_threaded)
+        painted_area = self._resolve_selection(select, run_threaded, obj)
         if painted_area is None:
             return 'fail'
 
@@ -977,6 +961,7 @@ class PaintGen:
             rest=rest,
             rest_offset=rest_offset,
             simplification=simplification,
+            selection='all',
         )
 
     def _paint_poly_single(self):
@@ -1101,9 +1086,11 @@ class PaintGen:
         :return: 'fail' on failure when not threaded
         """
 
+        reference_geometry = copy_geometry(getattr(sel_obj, 'solid_geometry', None))
+
         def reference_area():
             try:
-                return PaintModel.reference_area(sel_obj.solid_geometry)
+                return PaintModel.reference_area(reference_geometry)
             except grace:
                 raise
             except Exception as e:
@@ -1111,6 +1098,7 @@ class PaintGen:
                 raise PaintSelectionError(_("No object available.")) from e
 
         return self.paint_poly_area_worker(
+            selection='reference',
             painted_object=obj,
             areas_to_paint=reference_area,
             tooldia=tooldia,
@@ -1139,6 +1127,7 @@ class PaintGen:
             rest=None,
             rest_offset=None,
             simplification=None,
+            selection='area',
     ):
         """
         Paints all polygons in this object that are within the sel_obj object
@@ -1161,12 +1150,14 @@ class PaintGen:
 
         self._announce_start(painted_object, _("Painting area task started."))
 
-        def select():
-            # this is where heavy lifting is done and creating the geometry to be painted
-            areas = areas_to_paint() if callable(areas_to_paint) else areas_to_paint
-            return self.select_in_areas(painted_object, areas)
+        fixed_areas = areas_to_paint if callable(areas_to_paint) else copy_geometry(areas_to_paint)
 
-        p_geo_list = self._resolve_selection(select, run_threaded)
+        def select(source):
+            # this is where heavy lifting is done and creating the geometry to be painted
+            areas = fixed_areas() if callable(fixed_areas) else copy_geometry(fixed_areas)
+            return self.select_in_areas(source, areas)
+
+        p_geo_list = self._resolve_selection(select, run_threaded, painted_object)
         if p_geo_list is None:
             return 'fail'
 
@@ -1183,4 +1174,5 @@ class PaintGen:
             rest=rest,
             rest_offset=rest_offset,
             simplification=simplification,
+            selection=selection,
         )

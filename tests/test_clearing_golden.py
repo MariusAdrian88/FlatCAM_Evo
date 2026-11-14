@@ -596,3 +596,67 @@ def test_clearing_golden(case, boards, qapp, tmp_path):
     finally:
         plugin.close()
     check_golden(case, tools, metrics)
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# queued jobs: a resolved job owns its settings (plan: "What fully resolved means")
+# ---------------------------------------------------------------------------------------------------------------
+QUEUED_DATA = {0.4: dict(method=0, overlap=25, connect=True, contour=True),
+               0.25: dict(method=2, overlap=30, connect=False, contour=True)}
+
+
+def _spoil(plugin, kind, board):
+    """Everything a later edit can change: options, the tool table and the source geometry."""
+    plugin.app.options.update({'tools_clearing_edge': 'strict', 'tools_clearing_error': 50.0,
+                               'global_tolerance': 0.5, 'gerber_circle_steps_mode': 'fixed',
+                               'gerber_circle_steps': 8, 'geometry_circle_steps_mode': 'fixed',
+                               'geometry_circle_steps': 8})
+    for row in plugin.tools.values():
+        row['data']['tools_%s_method' % kind] = 1
+        row['data']['tools_%s_overlap' % kind] = 80
+        row['data']['tools_%s_connect' % kind] = False
+    board.solid_geometry = box(0, 0, 2, 2)
+
+
+def _run_queued(boards, qapp, tmp_path, kind, start):
+    """The tools of the job run at once, and of the same job queued, then spoiled, then run."""
+    board = boards['crop']
+    plugin = Plugin(qapp, tmp_path / 'direct', kind, board, list(QUEUED_DATA), tool_data=QUEUED_DATA)
+    try:
+        start(plugin, threaded=False)
+        expected = tools_snapshot(plugin.result())
+    finally:
+        plugin.close()
+    plugin = Plugin(qapp, tmp_path / 'queued', kind, board, list(QUEUED_DATA), tool_data=QUEUED_DATA)
+    tasks = []
+    plugin.app.worker_task.emit.side_effect = tasks.append
+    saved = board.solid_geometry
+    try:
+        start(plugin, threaded=True)
+        assert len(tasks) == 1
+        _spoil(plugin, kind, board)
+        tasks[0]['fcn'](*tasks[0]['params'])
+        actual = tools_snapshot(plugin.result())
+    finally:
+        board.solid_geometry = saved
+        plugin.close()
+    assert expected and actual == expected
+
+
+def test_ncc_queued_job_ignores_later_changes(boards, qapp, tmp_path):
+    def start(plugin, threaded):
+        if threaded:
+            run_ncc_click(plugin, margin=0.5)
+        else:
+            plugin.app.worker_task.emit.side_effect = lambda task: task['fcn'](*task['params'])
+            run_ncc_click(plugin, margin=0.5)
+    _run_queued(boards, qapp, tmp_path, 'ncc', start)
+
+
+def test_paint_queued_job_ignores_later_changes(boards, qapp, tmp_path):
+    def start(plugin, threaded):
+        dias = [row['tooldia'] for row in plugin.tools.values()]
+        result = plugin.tool.gen.paint_poly_all(
+            plugin.source, tooldia=dias, outname='board_paint', plot=False, run_threaded=threaded, rest=False)
+        assert result != 'fail'
+    _run_queued(boards, qapp, tmp_path, 'paint', start)
