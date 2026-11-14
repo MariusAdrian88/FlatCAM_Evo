@@ -10,6 +10,8 @@ from shapely.geometry import base
 from shapely.ops import linemerge, unary_union
 
 from appCommon import clipper_ops
+from appPlugins.Common.clearing.regions import (  # noqa: F401  re-export until Stage 7
+    buffer_geometry, merge_overlapping, polygon_parts, swept_area)
 from camlib import (AppRTreeStorage, accepted_error, circle_quad_segs, clearing_margin, error_quad_segs,
                     flatten_shapely_geometry, grace, rest_area)
 
@@ -27,63 +29,6 @@ def sweep_quad_segs(diameter, edge_error, quad_segs):
     Error, else the error of the circle steps), so the slivers of the sweep are not stock. More would only cost time.
     """
     return error_quad_segs(diameter / 2.0, edge_error) if edge_error else quad_segs
-
-
-def polygon_parts(geometry):
-    """Polygonal parts of any geometry; invalid parts are repaired instead of dropped."""
-    parts = []
-    for part in flatten_shapely_geometry(geometry):
-        if not part.is_valid:
-            part = make_valid(part)
-        parts.extend(sub for sub in flatten_shapely_geometry(part)
-                     if isinstance(sub, Polygon) and not sub.is_empty)
-    return parts
-
-
-def merge_overlapping(geometry):
-    """Union the source polygons whose interiors overlap; disjoint polygons are returned untouched.
-
-    Overlapping sources (DXF/SVG) would otherwise be painted twice, giving duplicate toolpaths.
-    """
-    items = []
-    for part in flatten_shapely_geometry(geometry):
-        if isinstance(part, Polygon) and not part.is_valid:
-            items.extend(polygon_parts(part))
-        else:
-            items.append(part)
-    polygons = [(index, item) for index, item in enumerate(items) if isinstance(item, Polygon)]
-    if len(polygons) < 2:
-        return items
-    geoms = [item for _index, item in polygons]
-    root = list(range(len(geoms)))
-
-    def find(i):
-        while root[i] != i:
-            root[i] = root[root[i]]
-            i = root[i]
-        return i
-
-    first, second = STRtree(geoms).query(geoms, predicate='intersects')
-    for i, j in zip(first.tolist(), second.tolist()):
-        if i < j and find(i) != find(j) and geoms[i].relate_pattern(geoms[j], '2********'):
-            root[find(j)] = find(i)
-    groups = {}
-    for i in range(len(geoms)):
-        groups.setdefault(find(i), []).append(i)
-    if all(len(members) == 1 for members in groups.values()):
-        return items
-    merged, dropped = {}, set()
-    for members in groups.values():
-        if len(members) > 1:
-            merged[polygons[members[0]][0]] = polygon_parts(unary_union([geoms[i] for i in members]))
-            dropped.update(polygons[i][0] for i in members[1:])
-    result = []
-    for index, item in enumerate(items):
-        if index in merged:
-            result.extend(merged[index])
-        elif index not in dropped:
-            result.append(item)
-    return result
 
 
 def generate_paint(geometry, tools_storage, diameters, ordering, simplification, decimals,
@@ -169,20 +114,6 @@ def rest_sweep(polygon, diameter, settings, process_polygon, simplify, simplific
                                  edge_error, quad_segs) if result else []
     swept = swept_area(elements, diameter, sweep_quad_segs(diameter, edge_error, quad_segs)) if keep_stock else None
     return 'ok', elements, swept
-
-
-def swept_area(paths, diameter, quad_segs=16):
-    """The area that the cutter of this diameter sweeps along the paths."""
-    paths = [path for path in paths if path is not None and not path.is_empty]
-    if not paths:
-        return Polygon()
-    # Clipper2 offsets all open paths in one pass (2 to 5x faster than GEOS); like GEOS its round ends stay inside the
-    # true circle sweep by the arc tolerance of the quad_segs. None (no pyclipr, not lines): the GEOS code below.
-    parts = clipper_ops.offset_lines(paths, diameter / 2.0, clipper_ops.arc_tolerance(diameter / 2.0, quad_segs))
-    if parts is not None:
-        return Polygon() if not parts else parts[0] if len(parts) == 1 else MultiPolygon(parts)
-    # A buffer for each path, then 1 union: the same area, about 4x faster than the buffer of the union.
-    return shapely.union_all(shapely.buffer(paths, diameter / 2.0, quad_segs=quad_segs))
 
 
 def simplified_inside(paths, simplify, tolerance, polygon, diameter, edge_error=None, quad_segs=16):
@@ -370,17 +301,6 @@ def tool_params(tool_uid, tools_storage):
         'offset': float(data['tools_paint_offset']),
         'angle': angle
     }
-
-
-def buffer_geometry(geometry, offset):
-    """Buffer every polygon by -offset; a neck or dumbbell that splits in two yields two polygons."""
-    buffered = []
-    for polygon in flatten_shapely_geometry(geometry):
-        result = polygon.buffer(-offset)
-        if result and not result.is_empty:
-            buffered.extend(part for part in flatten_shapely_geometry(result)
-                            if isinstance(part, Polygon) and not part.is_empty)
-    return buffered
 
 
 def check_tools_fit(geometry, diameters, offsets=None):

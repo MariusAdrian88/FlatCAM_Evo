@@ -13,7 +13,8 @@ from shapely.ops import unary_union
 
 from camlib import (clearing_margin, error_quad_segs, flatten_shapely_geometry, grace, polygon_gap_pairs,
                     rest_area)
-from appPlugins.ToolPaint.PaintModel import swept_area
+from appPlugins.Common.clearing.regions import (  # noqa: F401  re-export until Stage 7
+    apply_margin, complement, offset_geometry, swept_area)
 
 log = logging.getLogger('base')
 
@@ -114,61 +115,6 @@ def reference_area(source_geometry, reference_geometry, reference_kind):
         return flatten_shapely_geometry(unary_union(source_geometry).convex_hull.intersection(
             unary_union(reference_geometry).convex_hull))
     return None
-
-
-def apply_margin(region, reference_kind, clipping_type, margin, check_abort=None):
-    if clipping_type == 0 or (clipping_type == 2 and reference_kind == 'gerber'):
-        # reference_area() returns a flattened list for a Gerber reference
-        return unary_union(region).buffer(distance=margin, join_style=base.JOIN_STYLE.mitre)
-    if clipping_type == 1 or (clipping_type == 2 and reference_kind == 'geometry'):
-        buffered = []
-        for poly in region:
-            if check_abort is not None:
-                check_abort()
-            buffered.append(poly.buffer(distance=margin, join_style=base.JOIN_STYLE.mitre))
-        return unary_union(buffered)
-    return None
-
-
-def offset_geometry(geometry, has_offset, offset):
-    if has_offset is True:
-        if isinstance(geometry, list):
-            geometry = MultiPolygon(geometry)
-        return geometry.buffer(distance=offset)
-    return geometry
-
-
-def complement(target, boundary=None, check_abort=None, progress=None):
-    if isinstance(target, list):
-        target = MultiPolygon(target)
-    if isinstance(target, (LineString, LinearRing, Polygon)):
-        geo_len = 1
-    elif isinstance(target, (MultiPolygon, MultiLineString)):
-        geo_len = len(target.geoms)
-    else:
-        geo_len = len(target)
-    if boundary is None:
-        boundary = target.envelope
-    try:
-        return boundary.difference(target)
-    except Exception as err:
-        log.error("NCCGen.get_ncc_empty_area() --> %s" % str(err))
-        try:
-            old_disp_number = 0
-            target_geoms = target.geoms if isinstance(target, MultiPolygon) else target
-            for pol_nr, element in enumerate(target_geoms, 1):
-                if check_abort is not None:
-                    check_abort()
-                boundary = boundary.difference(element)
-                disp_number = int(np.interp(pol_nr, [0, geo_len], [0, 100]))
-                if old_disp_number < disp_number <= 100:
-                    if progress is not None:
-                        progress(' %d%%' % disp_number)
-                    old_disp_number = disp_number
-            return boundary
-        except Exception as err:
-            log.error("NCCGen.get_ncc_empty_area() --> %s" % str(err))
-            return 'fail'
 
 
 def poly2rings(poly):
