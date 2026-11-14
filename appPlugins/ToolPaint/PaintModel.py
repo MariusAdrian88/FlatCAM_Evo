@@ -12,10 +12,9 @@ from shapely.ops import linemerge, unary_union
 from appCommon import clipper_ops
 from appPlugins.Common.clearing import engine
 from appPlugins.Common.clearing.params import tool_direction
-from appPlugins.Common.clearing.engine import FillKernels, simplified_inside  # noqa: F401  re-export until Stage 7
+from appPlugins.Common.clearing.engine import FillKernels
 from appPlugins.Common.clearing.methods import PAINT_METHODS
-from appPlugins.Common.clearing.regions import (  # noqa: F401  re-export until Stage 7
-    buffer_geometry, merge_overlapping, polygon_parts, swept_area)
+from appPlugins.Common.clearing.regions import buffer_geometry, merge_overlapping, polygon_parts, swept_area
 from camlib import (AppRTreeStorage, circle_quad_segs, clearing_margin, error_quad_segs,
                     flatten_shapely_geometry, grace)
 

@@ -5397,3 +5397,55 @@ tests/test_welcome_dialog.py::test_dismissal_leaves_workspace_alive[close]  # pr
 tests/test_welcome_dialog.py::test_return_activates_the_focused_action[close_button]  # prune 2026-11-12: deleted (pinning or duplicate)
 tests/test_welcome_dialog.py::test_layout_keeps_actions_accessible_on_a_small_logical_screen[480]  # prune 2026-11-12: deleted (pinning or duplicate)
 tests/updater/test_updater_integration.py::test_checker_converts_network_and_malformed_failures_to_safe_results[source0]  # prune 2026-11-12: deleted (pinning or duplicate)
+
+# 2026-11-14: NCC/Paint shared engine, Stage 7 test fold; tests/test_ncc_rest_machining.py renamed to tests/test_ncc.py.
+tests/test_ncc_rest_machining.py::test_job_without_geometry_removes_the_promise_and_reports_the_failure_once[False]  # renamed: same test as tests/test_ncc.py::test_job_without_geometry_removes_the_promise_and_reports_the_failure_once[False]
+tests/test_ncc_rest_machining.py::test_job_without_geometry_removes_the_promise_and_reports_the_failure_once[True]  # renamed: same test as tests/test_ncc.py::test_job_without_geometry_removes_the_promise_and_reports_the_failure_once[True]
+tests/test_ncc_rest_machining.py::test_published_output_has_bounds_and_an_incomplete_job_warns  # renamed: same test as tests/test_ncc.py::test_published_output_has_bounds_and_an_incomplete_job_warns
+tests/test_ncc_rest_machining.py::test_smaller_tool_is_tried_when_largest_cannot_fit  # renamed: same test as tests/test_ncc.py::test_smaller_tool_is_tried_when_largest_cannot_fit
+tests/test_ncc_rest_machining.py::test_rest_margin_and_exact_swept_area_are_used  # renamed: same test as tests/test_ncc.py::test_rest_margin_and_exact_swept_area_are_used
+tests/test_ncc_rest_machining.py::test_rest_tools_follow_their_own_connect_and_contour_not_the_panel  # renamed: same test as tests/test_ncc.py::test_rest_tools_follow_their_own_connect_and_contour_not_the_panel
+tests/test_ncc_rest_machining.py::test_rest_connect_and_contour_widgets_apply_to_all_rows  # renamed: same test as tests/test_ncc.py::test_rest_connect_and_contour_widgets_apply_to_all_rows
+tests/test_ncc_rest_machining.py::test_tcl_order_accepts_names_numbers_and_the_preference[fwd-2-expected0]  # renamed: same test as tests/test_ncc.py::test_tcl_order_accepts_names_numbers_and_the_preference[fwd-2-expected0]
+tests/test_ncc_rest_machining.py::test_tcl_order_accepts_names_numbers_and_the_preference[1-2-expected1]  # renamed: same test as tests/test_ncc.py::test_tcl_order_accepts_names_numbers_and_the_preference[1-2-expected1]
+tests/test_ncc_rest_machining.py::test_normal_run_publishes_only_the_geometry_of_this_run  # renamed: same test as tests/test_ncc.py::test_normal_run_publishes_only_the_geometry_of_this_run
+tests/test_ncc_rest_machining.py::test_run_does_not_change_the_tool_table  # renamed: same test as tests/test_ncc.py::test_run_does_not_change_the_tool_table
+tests/test_ncc_rest_machining.py::test_empty_area_to_clear_is_reported_not_replaced_by_the_envelope  # renamed: same test as tests/test_ncc.py::test_empty_area_to_clear_is_reported_not_replaced_by_the_envelope
+tests/test_ncc_rest_machining.py::test_every_isolation_tool_counts_for_the_area  # renamed: same test as tests/test_ncc.py::test_every_isolation_tool_counts_for_the_area
+tests/test_ncc_rest_machining.py::test_exclusion_keeps_the_isolation_cutter_out[exclusion0]  # single-case parametrize removed: tests/test_ncc.py::test_exclusion_keeps_the_isolation_cutter_out
+tests/test_ncc_rest_machining.py::test_tcl_combo_method_and_simplification_are_used  # renamed: same test as tests/test_ncc.py::test_tcl_combo_method_and_simplification_are_used
+tests/test_ncc_rest_machining.py::test_invalid_unused_crosshatch_angle_does_not_break_other_methods  # renamed: same test as tests/test_ncc.py::test_invalid_unused_crosshatch_angle_does_not_break_other_methods
+tests/test_ncc_rest_machining.py::test_ncc_crosshatch_method_clears_in_two_directions  # deleted: duplicate of test_ncc.py::test_each_tool_clears_at_its_own_crosshatch_angle and tests/test_clearing_paths.py::TestCrosshatch::test_direction_families
+tests/test_ncc_rest_machining.py::test_each_tool_clears_at_its_own_crosshatch_angle[normal]  # renamed: same test as tests/test_ncc.py::test_each_tool_clears_at_its_own_crosshatch_angle[normal]
+tests/test_ncc_rest_machining.py::test_each_tool_clears_at_its_own_crosshatch_angle[rest]  # renamed: same test as tests/test_ncc.py::test_each_tool_clears_at_its_own_crosshatch_angle[rest]
+tests/test_ncc_rest_machining.py::test_rotated_crosshatch_simplification_keeps_the_cutter_out_of_curved_copper[touch]  # renamed: same test as tests/test_ncc.py::test_rotated_crosshatch_simplification_keeps_the_cutter_out_of_curved_copper[touch]
+tests/test_ncc_rest_machining.py::test_rotated_crosshatch_simplification_keeps_the_cutter_out_of_curved_copper[strict]  # renamed: same test as tests/test_ncc.py::test_rotated_crosshatch_simplification_keeps_the_cutter_out_of_curved_copper[strict]
+tests/test_ncc_rest_machining.py::test_crosshatch_cleanup_uses_the_same_invalid_angle_fallback_as_clearing  # renamed: same test as tests/test_ncc.py::test_crosshatch_cleanup_uses_the_same_invalid_angle_fallback_as_clearing
+tests/test_ncc_rest_machining.py::test_tcl_legacy_positional_arguments_still_generate_geometry  # renamed: same test as tests/test_ncc.py::test_tcl_legacy_positional_arguments_still_generate_geometry
+tests/test_ncc_rest_machining.py::test_rest_reports_failure_only_when_copper_free_area_remains  # renamed: same test as tests/test_ncc.py::test_rest_reports_failure_only_when_copper_free_area_remains
+tests/test_ncc_rest_machining.py::test_rest_leaves_stock_for_the_final_cleanup_of_the_smallest_tool  # renamed: same test as tests/test_ncc.py::test_rest_leaves_stock_for_the_final_cleanup_of_the_smallest_tool
+tests/test_ncc_rest_machining.py::test_final_cleanup_follows_the_paint_rules[False-None-expected0]  # renamed: same test as tests/test_ncc.py::test_final_cleanup_follows_the_paint_rules[False-None-expected0]
+tests/test_ncc_rest_machining.py::test_final_cleanup_follows_the_paint_rules[True-None-expected1]  # renamed: same test as tests/test_ncc.py::test_final_cleanup_follows_the_paint_rules[True-None-expected1]
+tests/test_ncc_rest_machining.py::test_final_cleanup_follows_the_paint_rules[False-copper2-expected2]  # renamed: same test as tests/test_ncc.py::test_final_cleanup_follows_the_paint_rules[False-copper2-expected2]
+tests/test_ncc_rest_machining.py::test_tcl_rest_does_not_send_slivers_to_the_clearing  # renamed: same test as tests/test_ncc.py::test_tcl_rest_does_not_send_slivers_to_the_clearing
+tests/test_ncc_rest_machining.py::test_tcl_final_cleanup_reaches_the_tools_and_exclusion_the_area  # renamed: same test as tests/test_ncc.py::test_tcl_final_cleanup_reaches_the_tools_and_exclusion_the_area
+tests/test_ncc_rest_machining.py::test_tcl_follows_only_its_arguments_not_the_panel_or_the_tool_table[False]  # renamed: same test as tests/test_ncc.py::test_tcl_follows_only_its_arguments_not_the_panel_or_the_tool_table[False]
+tests/test_ncc_rest_machining.py::test_tcl_follows_only_its_arguments_not_the_panel_or_the_tool_table[True]  # renamed: same test as tests/test_ncc.py::test_tcl_follows_only_its_arguments_not_the_panel_or_the_tool_table[True]
+tests/test_ncc_rest_machining.py::test_tcl_resolver_builds_the_tool_rows_from_the_arguments  # renamed: same test as tests/test_ncc.py::test_tcl_resolver_builds_the_tool_rows_from_the_arguments
+tests/test_ncc_rest_machining.py::test_check_validity_names_the_tools_that_are_too_big  # renamed: same test as tests/test_ncc.py::test_check_validity_names_the_tools_that_are_too_big
+tests/test_ncc_rest_machining.py::test_legacy_tool_angle_does_not_leak_from_previous_tool  # renamed: same test as tests/test_ncc.py::test_legacy_tool_angle_does_not_leak_from_previous_tool
+tests/test_ncc_rest_machining.py::test_crosshatch_angle_is_read_from_the_preferences  # renamed: same test as tests/test_ncc.py::test_crosshatch_angle_is_read_from_the_preferences
+tests/test_ncc_rest_machining.py::test_crosshatch_angle_is_enabled_only_for_the_crosshatch_method  # merged into tests/test_ncc.py::test_legacy_tool_angle_does_not_leak_from_previous_tool
+tests/test_ncc_rest_machining.py::test_exclusion_zones_reach_the_handler_in_every_mode  # renamed: same test as tests/test_ncc.py::test_exclusion_zones_reach_the_handler_in_every_mode
+tests/test_ncc_rest_machining.py::test_empty_faces_are_the_copper_free_regions  # renamed: same test as tests/test_ncc.py::test_empty_faces_are_the_copper_free_regions
+tests/test_ncc_rest_machining.py::test_click_in_an_empty_region_clears_that_face_only  # renamed: same test as tests/test_ncc.py::test_click_in_an_empty_region_clears_that_face_only
+tests/test_ncc_rest_machining.py::test_tcl_single_point_gives_the_same_paths_as_the_click  # renamed: same test as tests/test_ncc.py::test_tcl_single_point_gives_the_same_paths_as_the_click
+tests/test_ncc_rest_machining.py::test_final_cleanup_rings_have_the_direction_in_the_gcode[climb]  # renamed: same test as tests/test_ncc.py::test_final_cleanup_rings_have_the_direction_in_the_gcode[climb]
+tests/test_ncc_rest_machining.py::test_final_cleanup_rings_have_the_direction_in_the_gcode[conv]  # renamed: same test as tests/test_ncc.py::test_final_cleanup_rings_have_the_direction_in_the_gcode[conv]
+tests/test_ncc_rest_machining.py::test_tcl_resolver_carries_the_clearing_direction_and_fails_on_a_bad_one  # renamed: same test as tests/test_ncc.py::test_tcl_resolver_carries_the_clearing_direction_and_fails_on_a_bad_one
+tests/test_ncc_rest_machining.py::test_direction_widget_goes_into_the_row_data[ncc]  # renamed: same test as tests/test_ncc.py::test_direction_widget_goes_into_the_row_data[ncc]
+tests/test_ncc_rest_machining.py::test_direction_widget_goes_into_the_row_data[paint]  # renamed: same test as tests/test_ncc.py::test_direction_widget_goes_into_the_row_data[paint]
+tests/test_clearing_paths.py::TestClearingDirection::test_joined_rings_keep_their_direction  # deleted: covered by tests/test_clearing_engine.py::test_every_ring_is_cut_in_the_direction_at_every_depth[*-True] (joined rings in the G-code)
+tests/test_clearing_engine.py::test_direction_none_calls_the_kernels_as_before_and_the_laser_lines_get_none  # deleted: pinned kernel call arguments; covered by the none-direction goldens in tests/test_clearing_golden.py and tests/test_clearing_paths.py::TestClearingCoverage::test_laser_lines
+tests/test_ncc_rest_machining.py::test_each_tool_clears_at_its_own_crosshatch_angle[gui_normal]  # renamed: mode gui_normal -> normal (Stage 3.2), now tests/test_ncc.py::test_each_tool_clears_at_its_own_crosshatch_angle[normal]
+tests/test_ncc_rest_machining.py::test_each_tool_clears_at_its_own_crosshatch_angle[gui_rest]  # renamed: mode gui_rest -> rest (Stage 3.2), now tests/test_ncc.py::test_each_tool_clears_at_its_own_crosshatch_angle[rest]

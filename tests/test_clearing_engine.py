@@ -1,4 +1,4 @@
-"""The clearing direction through the shared engine: the kernels get it, the laser lines do not, and the final G-code
+"""The clearing direction through the shared engine: the final G-code
 cuts every ring of a polygon with a hole (and every depth) in the chosen direction, with Connect off and on."""
 import os
 import sys
@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from shapely.geometry import Point, box  # noqa: E402
 
 from appPlugins.Common.clearing import engine  # noqa: E402
-from appPlugins.Common.clearing.methods import NCC_METHODS, PAINT_METHODS  # noqa: E402
+from appPlugins.Common.clearing.methods import NCC_METHODS  # noqa: E402
 from test_clearing_paths import make_geometry, turn  # noqa: E402
 from test_cncjob_export_gcode import gcode_tokens, multi_geo_gcode  # noqa: E402
 
@@ -70,30 +70,6 @@ def test_every_ring_is_cut_in_the_direction_at_every_depth(direction, method, co
                 found += 1
     # every ring is cut at both depths
     assert found == 2 * len(kernel_rings)
-
-
-def test_direction_none_calls_the_kernels_as_before_and_the_laser_lines_get_none():
-    seen = {}
-
-    def kernel(pol, tooldia, **kwargs):
-        seen.update(kwargs)
-        return None
-
-    def laser(*args):
-        seen['laser_args'] = len(args)
-        return None
-
-    kernels = engine.FillKernels(shrink=kernel, seed=kernel, lines=kernel, crosshatch=kernel, fill_lines=kernel)
-    for direction in ('none', 'climb'):
-        for method in range(5):
-            seen.clear()
-            engine.fill_polygon(AREA, 1.0, method, 0.5, False, True, False, kernels, PAINT_METHODS,
-                                lambda dia, kind: 32, laser=laser, direction=direction)
-            has = 'direction' in seen
-            if PAINT_METHODS.kernel(method) == 'laser_lines':
-                assert not has and seen['laser_args'] == 13
-            else:
-                assert has is (direction == 'climb')
 
 
 # ---------------------------------------------------------------------------------------------------------------

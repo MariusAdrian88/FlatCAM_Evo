@@ -599,7 +599,7 @@ class PaintGen:
         the original exclusion is subtracted. The selection with the offset before the subtraction is kept for the
         laser lines.
         """
-        polygons = PaintModel.buffer_geometry(geometry, offset)
+        polygons = regions.buffer_geometry(geometry, offset)
         exclusion = getattr(self, '_exclusion', None)
         if exclusion is None:
             return polygons
@@ -901,7 +901,7 @@ class PaintGen:
         parts = []
         for offset in offsets:
             self._check_abort()
-            parts.extend(regions.physical_domain(PaintModel.buffer_geometry(selected, offset), exclusion))
+            parts.extend(regions.physical_domain(regions.buffer_geometry(selected, offset), exclusion))
         return unary_union(parts) if parts else None
 
     def _resolve_selection(self, select, run_threaded, obj):

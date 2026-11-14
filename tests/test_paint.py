@@ -20,6 +20,7 @@ from shapely import box, LineString, Polygon, Point, MultiPolygon, linestrings, 
 from PyQt6 import QtWidgets
 from appPlugins.ToolPaint.Paint import ToolPaint
 from defaults import AppDefaults, AppOptions
+from appPlugins.Common.clearing import regions
 from appPlugins.ToolPaint import PaintModel
 from shapely.ops import unary_union
 from shapely.affinity import scale
@@ -363,7 +364,7 @@ class TestPaintSimplification(unittest.TestCase):
                     return getattr(geometry, method)(polygon, diameter, 32, overlap=settings['over'], connect=False)
                 raw = PaintModel.generate_paint([area], storage, [1.0], 0, 0.0, 4, process)
                 simple = PaintModel.generate_paint([area], storage, [1.0], 0, 0.01, 4, process)
-                cut = [PaintModel.swept_area(result['tools'][1]['solid_geometry'], 1.0).intersection(copper).area
+                cut = [regions.swept_area(result['tools'][1]['solid_geometry'], 1.0).intersection(copper).area
                        for result in (raw, simple)]
                 # the copper cut of the original paths is the chord error of 32 steps; the simplification adds none
                 self.assertLess(cut[1], cut[0] + 1e-6)
@@ -443,13 +444,13 @@ class TestPaintPerformance(unittest.TestCase):
         diameter, quad = 0.4, 8
         expected = shapely.union_all(shapely.buffer(paths, diameter / 2, quad_segs=quad))
         tolerance = clipper_ops.arc_tolerance(diameter / 2, quad)
-        swept = PaintModel.swept_area(paths, diameter, quad)
+        swept = regions.swept_area(paths, diameter, quad)
         self.assertTrue(swept.is_valid)
         self.assertLess(swept.symmetric_difference(expected).area, expected.length * tolerance)
         self.assertEqual(swept.difference(expected.buffer(2 * tolerance)).area, 0.0)
         with mock.patch.object(clipper_ops, 'pyclipr', None):
-            self.assertEqual(PaintModel.swept_area(paths, diameter, quad).symmetric_difference(expected).area, 0.0)
-        self.assertTrue(PaintModel.swept_area([], diameter, quad).is_empty)
+            self.assertEqual(regions.swept_area(paths, diameter, quad).symmetric_difference(expected).area, 0.0)
+        self.assertTrue(regions.swept_area([], diameter, quad).is_empty)
 
     def test_job_with_stock_left_warns_but_still_publishes(self):
         from appPlugins.Common.clearing.job import incomplete_text
@@ -512,7 +513,7 @@ class TestPaintPerformance(unittest.TestCase):
                 def process(polygon, diameter, settings):
                     return getattr(geometry, method)(polygon, diameter, 64, overlap=settings['over'], connect=False)
                 tools = PaintModel.generate_rest_paint([area], storage, [1.0, 0.4], 0.0, 4, process)['tools']
-                swept = camlib.unary_union([PaintModel.swept_area(tool['solid_geometry'], tool['tooldia'])
+                swept = camlib.unary_union([regions.swept_area(tool['solid_geometry'], tool['tooldia'])
                                             for tool in tools.values()])
                 reach = area.buffer(-0.2, quad_segs=32).buffer(0.2, quad_segs=32)
                 self.assertLess(reach.difference(swept).area, 1e-3)

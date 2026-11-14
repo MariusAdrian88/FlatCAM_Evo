@@ -381,7 +381,7 @@ class NccGen:
             self.app.inform.emit('[ERROR_NOTCL] %s' % _("The reference object type is not supported."))
             return 'fail'
         try:
-            result = NccModel.apply_margin(
+            result = regions.apply_margin(
                 clipping_region, box_kind, clipping_type, margin, lambda: NccGen._check_abort(self))
         except grace:
             raise
@@ -1024,7 +1024,7 @@ class NccGen:
 
     def _compute_area_to_clear_handler(self, target, boundary=None):
         """Return the complement of target inside boundary, retaining the public Tcl seam."""
-        ret_val = NccModel.complement(
+        ret_val = regions.complement(
             target, boundary, lambda: NccGen._process_events_and_check_abort(self),
             lambda text: self.app.proc_container.update_view_text(text))
         if isinstance(ret_val, str):

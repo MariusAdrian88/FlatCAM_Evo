@@ -91,11 +91,12 @@ def lib():
         try:
             import camlib
             from appPlugins.ToolNCC import NccModel
-            from appPlugins.ToolPaint import PaintModel
+            from appPlugins.Common.clearing import engine, regions
             from defaults import AppDefaults
         finally:
             sys.argv = saved
-        _lib = {'camlib': camlib, 'NccModel': NccModel, 'PaintModel': PaintModel, 'AppDefaults': AppDefaults}
+        _lib = {'camlib': camlib, 'NccModel': NccModel, 'engine': engine, 'regions': regions,
+                'AppDefaults': AppDefaults}
     return _lib
 
 
@@ -261,13 +262,13 @@ def generate_rest(area, diameters, clear_paths, clearing_error, app=None, copper
 # ----------------------------------------------------------------------------------------------------------------
 
 def swept(paths, diameter, quad_segs):
-    return lib()['PaintModel'].swept_area(line_paths(paths), diameter, quad_segs)
+    return lib()['regions'].swept_area(line_paths(paths), diameter, quad_segs)
 
 
 def audit(variant, run, clearing_error):
     """The quality numbers of a run: the protected copper, what is left reachable, and the channel checks."""
     NccModel, camlib = lib()['NccModel'], lib()['camlib']
-    quad = NccModel.quad_segs(CIRCLE_STEPS)
+    quad = lib()['engine'].quad_segs(CIRCLE_STEPS)
     area, copper = variant['area'], variant['copper']
     cut_tools = [dia for dia, paths in run['paths'].items() if paths]
     everything = unary_union([swept(paths, dia, quad) for dia, paths in run['paths'].items() if paths]
@@ -498,9 +499,9 @@ def gerber_variant(case):
         obj.convert_units('MM')
     copper = ncc_gerber_copper(obj, None)
     region = NccModel.entire_object(obj.solid_geometry)
-    boundary = NccModel.apply_margin(region, None, 0, MARGIN)
+    boundary = lib()['regions'].apply_margin(region, None, 0, MARGIN)
     area, __, __, warnings = NccModel.prepare_area(
-        copper, boundary, [], {}, 'bench', DECIMALS, False, 0.0, MARGIN, None, None, NccModel.complement,
+        copper, boundary, [], {}, 'bench', DECIMALS, False, 0.0, MARGIN, None, None, lib()['regions'].complement,
         lambda: None, None, CIRCLE_STEPS)
     if isinstance(area, str):
         raise RuntimeError('%s: the area to clear is %s' % (case, area))

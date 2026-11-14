@@ -366,29 +366,6 @@ class TestClearingDirection(unittest.TestCase):
                     camlib.clipper_ops.PolygonOffsetter, 'offset', return_value=None):
                 self.check_rings(direction)
 
-    def test_joined_rings_keep_their_direction(self):
-        for direction in ('climb', 'conv'):
-            for name in ('shrink', 'seed'):
-                with self.subTest(direction=direction, kernel=name):
-                    rings = self.rings_of(self.kernel(name, direction, False))
-                    joined = [np.asarray(path.coords) for path in self.kernel(name, direction, True)]
-                    checked = 0
-                    for ring in rings:
-                        role = self.role(ring)
-                        if role is None:
-                            continue
-                        # the ring is in a joined path, in the order it was made, with the turn of its role
-                        for coords in joined:
-                            starts = np.flatnonzero(np.all(np.isclose(coords, ring[0]), axis=1))
-                            runs = [coords[i:i + len(ring)] for i in starts]
-                            runs = [run for run in runs if len(run) == len(ring) and np.allclose(run, ring)]
-                            if runs:
-                                self.assertEqual(turn(runs[0]), self.expect(direction)[role])
-                                checked += 1
-                                break
-                    self.assertEqual(checked, len([ring for ring in rings if self.role(ring)]))
-                    self.assertGreaterEqual(checked, 2)
-
     def test_seed_arcs_turn_the_same_way_around_the_seed(self):
         for direction, sign in (('climb', 1), ('conv', -1)):
             with self.subTest(direction=direction):

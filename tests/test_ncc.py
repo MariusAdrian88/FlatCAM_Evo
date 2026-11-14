@@ -23,6 +23,7 @@ from shapely.ops import unary_union  # noqa: E402
 from appMain import App  # noqa: E402
 import camlib  # noqa: E402
 from camlib import rest_area  # noqa: E402
+from appPlugins.Common.clearing import regions  # noqa: E402
 from appPlugins.ToolNCC import NccModel  # noqa: E402
 from appPlugins.ToolNCC.Ncc import ToolNcc  # noqa: E402
 from appPlugins.ToolNCC.NccGen import NccGen  # noqa: E402
@@ -238,9 +239,9 @@ def test_run_does_not_change_the_tool_table():
 
 
 def test_empty_area_to_clear_is_reported_not_replaced_by_the_envelope():
-    assert NccModel.complement(box(0, 0, 1, 1), Polygon()).is_empty
-    assert NccModel.complement(box(0, 0, 1, 1), None).is_empty
-    assert NccModel.complement(box(0, 0, 1, 1), box(-1, -1, 2, 2)).area == pytest.approx(8.0)
+    assert regions.complement(box(0, 0, 1, 1), Polygon()).is_empty
+    assert regions.complement(box(0, 0, 1, 1), None).is_empty
+    assert regions.complement(box(0, 0, 1, 1), box(-1, -1, 2, 2)).area == pytest.approx(8.0)
     gen, output = run_rest(MultiPolygon([box(0, 0, 10, 10)]), [2.0], lambda **kw: pytest.fail('cleared'),
                            real_area=True, boundary=Polygon(), rest=False)
     assert not output.tools
@@ -256,7 +257,7 @@ def test_every_isolation_tool_counts_for_the_area():
         return NccModel.prepare_area(
             box(0, 0, 1, 1), boundary, [0.2, 0.4], tools, 'n', 4, False, 0.0, 1.0, 'cl',
             lambda radius, invert: envelopes[round(radius, 1)], lambda target, boundary=None:
-            NccModel.complement(target, boundary), lambda: None)
+            regions.complement(target, boundary), lambda: None)
 
     area = run({0.1: small, 0.2: big})[0]
     assert area.area == pytest.approx(100 - 4)
@@ -266,18 +267,18 @@ def test_every_isolation_tool_counts_for_the_area():
     assert run({0.1: 'fail', 0.2: 'fail'})[0] == 'fail'
 
 
-@pytest.mark.parametrize('exclusion', [box(1, 1, 3, 5)])
-def test_exclusion_keeps_the_isolation_cutter_out(exclusion):
+def test_exclusion_keeps_the_isolation_cutter_out():
     """The exclusion zones protect the isolation paths too, measured with the cutter radius, not only the clearing."""
     tools = {1: line_tool(0.2)}
     copper = box(2, 2, 4, 4)
+    exclusion = box(1, 1, 3, 5)
     _area, iso, _broken, _warnings = NccModel.prepare_area(
         copper, box(0, 0, 10, 10), [0.2], tools, 'n', 4, False, 0.0, 1.0, 'cl',
         lambda radius, invert: copper.buffer(radius, 8),
-        lambda target, boundary=None: NccModel.complement(target, boundary), lambda: None, exclusion)
+        lambda target, boundary=None: regions.complement(target, boundary), lambda: None, exclusion)
     paths = iso[1]['solid_geometry']
     assert paths
-    sweep = unary_union([path.buffer(0.1, 32) for path in paths]) if paths else Polygon()
+    sweep = unary_union([path.buffer(0.1, 32) for path in paths])
     assert sweep.intersection(exclusion).area == pytest.approx(0, abs=1e-9)
 
 
@@ -354,11 +355,6 @@ def real_crosshatch_clear():
             None, None, None, 0.0, crosshatch=geometry.clear_polygon_crosshatch, angle=angle)
         return paths
     return clear
-
-
-def test_ncc_crosshatch_method_clears_in_two_directions():
-    paths = real_crosshatch_clear()(box(0, 0, 12, 3), 1.0, 4, 0.2, False, True, angle=45.0)
-    assert {45.0, 135.0} <= directions(paths)
 
 
 @pytest.mark.parametrize('mode', ['normal', 'rest'])
@@ -707,19 +703,17 @@ def test_legacy_tool_angle_does_not_leak_from_previous_tool(tool):
     assert data['tools_ncc_crosshatch_angle'] == 135.0
     tool.storage_to_form(json.loads(json.dumps(data)))
     assert tool.ui.crosshatch_angle_entry.get_value() == 135.0
+    # the angle is editable for the Crosshatch method only
+    tool.ui.method_combo.set_value(0)
+    assert not tool.ui.crosshatch_angle_entry.isEnabled()
+    tool.ui.method_combo.set_value(4)
+    assert tool.ui.crosshatch_angle_entry.isEnabled()
 
 
 def test_crosshatch_angle_is_read_from_the_preferences(tool):
     tool.app.options['tools_ncc_crosshatch_angle'] = 37.5
     tool.set_tool_ui()
     assert tool.ui.crosshatch_angle_entry.get_value() == 37.5
-
-
-def test_crosshatch_angle_is_enabled_only_for_the_crosshatch_method(tool):
-    tool.ui.method_combo.set_value(0)
-    assert not tool.ui.crosshatch_angle_entry.isEnabled()
-    tool.ui.method_combo.set_value(4)
-    assert tool.ui.crosshatch_angle_entry.isEnabled()
 
 
 def test_exclusion_zones_reach_the_handler_in_every_mode(tool):

@@ -13,11 +13,10 @@ from shapely.ops import unary_union
 
 from camlib import clearing_margin, flatten_shapely_geometry, grace, polygon_gap_pairs
 from appPlugins.Common.clearing import engine
-from appPlugins.Common.clearing.engine import FillKernels, quad_segs  # noqa: F401  re-export until Stage 7
+from appPlugins.Common.clearing.engine import FillKernels, quad_segs
 from appPlugins.Common.clearing.methods import NCC_METHODS
 from appPlugins.Common.clearing.params import tool_direction
-from appPlugins.Common.clearing.regions import (  # noqa: F401  re-export until Stage 7
-    apply_margin, complement, offset_geometry, swept_area)
+from appPlugins.Common.clearing.regions import offset_geometry, swept_area
 
 log = logging.getLogger('base')
 
