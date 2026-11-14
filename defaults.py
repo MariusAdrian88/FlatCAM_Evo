@@ -783,6 +783,7 @@ class AppDefaults:
         "tools_ncc_contour": True,
         "tools_ncc_rest": False,
         "tools_ncc_final_cleanup": False,
+        "tools_ncc_clear_milling": 'none',  # clearing cut direction: none | climb | conv
         "tools_ncc_offset_choice": False,
         "tools_ncc_offset_value": 0.0000,
         "tools_ncc_ref": 0,     # ITSELF
@@ -830,6 +831,7 @@ class AppDefaults:
         "tools_paint_connect": True,
         "tools_paint_contour": True,
         "tools_paint_final_cleanup": False,
+        "tools_paint_clear_milling": 'none',  # clearing cut direction: none | climb | conv
         "tools_paint_plotting": 'normal',
         "tools_paint_rest": False,
         "tools_paint_rest_offset": 0.0,

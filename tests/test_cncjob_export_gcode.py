@@ -924,6 +924,36 @@ def multi_geo_gcode(paths, pp_name='default', job=None, uid=1, data=None, **kwar
     result = job.geometry_tool_gcode_gen(uid, tools, (0, 0), (0, 0), 0.005, **kwargs)
     return job, (result if result == 'fail' else result[0])
 
+def gcode_tokens(gcode, travel_z=2.0):
+    """
+    The motion of a G-code as tokens: 'rapid' (G00 in XY), 'cut' (G01 in XY), 'up' (Z at the travel height or above),
+    'down' (Z below 0), and the XY points of each cut: from each plunge to the next plunge or lift, the position of the
+    plunge first. Returns (tokens, cuts, rapids at a cutting depth).
+    """
+    tokens, cuts, current, pos, z, low_rapids = [], [], None, (0.0, 0.0), travel_z, []
+    for line in gcode.splitlines():
+        code = re.match(r'G0([01])\b', line)
+        if not code:
+            continue
+        axes = {key: float(value) for key, value in re.findall(r'([XYZ])(-?[\d.]+)', line)}
+        if 'X' in axes or 'Y' in axes:
+            pos = (axes.get('X', pos[0]), axes.get('Y', pos[1]))
+            tokens.append('cut' if code.group(1) == '1' else 'rapid')
+            if code.group(1) == '1' and current is not None:
+                current.append(pos)
+            elif code.group(1) == '0' and z < travel_z:
+                low_rapids.append(line)
+        if 'Z' in axes:
+            z = axes['Z']
+            if z < 0:
+                tokens.append('down')
+                current = [pos]
+                cuts.append(current)
+            else:
+                tokens.append('up')
+                current = None
+    return tokens, cuts, low_rapids
+
 def run_with_deadline(function, seconds=15):
     import threading
     box = []
@@ -1025,6 +1055,61 @@ class TestMillingGcodeFixes:
         # the second depth starts where the first one ended
         second = re.split(r'(?m)^G01 Z-', gcode)[2]
         assert re.findall(r'^G01 X(-?[\d.]+) Y(-?[\d.]+)', second, re.M)[0] == ('3.0000', '1.0000')
+
+    @staticmethod
+    def keep_direction_gcode(path, route=None):
+        job = gcode_job('default')
+        job.z_cut = -0.3
+        job.z_depthpercut = 0.1
+        calls = []
+
+        def travel_coordinates(**kw):
+            calls.append((kw['start_point'], kw['end_point']))
+            return route(kw) if route else [(None, kw['end_point'])]
+
+        job.app.exc_areas = SimpleNamespace(travel_coordinates=travel_coordinates)
+        gcode, geometry = job.create_gcode_multi_pass(path, 0.1, False, 0.0, 0, job.pp_geometry, 2.0,
+                                                      old_point=(0, 0), keep_direction=True)
+        return gcode, calls, geometry
+
+    def test_keep_direction_open_path_returns_to_its_start_at_travel_height(self):
+        path = LineString([(1, 1), (3, 1), (3, 3)])
+        gcode, calls, geometry = self.keep_direction_gcode(path)
+        tokens, cuts, low_rapids = gcode_tokens(gcode)
+        # every depth cuts the path in the same direction, from its start
+        assert cuts == [[(1, 1), (3, 1), (3, 3)]] * 3
+        assert list(geometry.coords) == list(path.coords)
+        # retract at the real end, travel back, plunge, cut: no XY travel at a cutting depth
+        assert ' '.join(tokens).count('cut up rapid down cut') == 2
+        assert low_rapids == []
+        # the return starts at the real end point of the previous pass
+        assert calls == [((0, 0), (1, 1)), ((3, 3), (1, 1)), ((3, 3), (1, 1))]
+
+    def test_keep_direction_return_goes_through_the_routing_around_a_protected_area(self):
+        # a hole or an exclusion between the end and the start: the routing gives a detour (2 legs) at the travel Z
+        path = LineString([(1, 1), (3, 1), (3, 3)])
+        gcode, calls, __ = self.keep_direction_gcode(
+            path, route=lambda kw: [(None, (5, 5)), (None, kw['end_point'])] if kw['start_point'] == (3, 3)
+            else [(None, kw['end_point'])])
+        tokens, cuts, low_rapids = gcode_tokens(gcode)
+        assert ' '.join(tokens).count('cut up rapid rapid down cut') == 2
+        assert re.findall(r'^G00 X5.0000 Y5.0000', gcode, re.M) == ['G00 X5.0000 Y5.0000'] * 2
+        assert low_rapids == []
+        assert cuts == [[(1, 1), (3, 1), (3, 3)]] * 3
+
+    def test_keep_direction_job_does_not_reverse_a_path_in_the_optimizer(self):
+        # the optimizer cuts the second path from its last point (6, 0) when it may reverse it
+        paths = [LineString([(0, 0), (5, 0)]), LineString([(10, 0), (6, 0)])]
+        for keep, second in ((False, [(6, 0), (10, 0)]), (True, [(10, 0), (6, 0)])):
+            __, gcode = multi_geo_gcode(paths, data=dict(tools_mill_keep_direction=keep))
+            cuts = gcode_tokens(gcode)[1]
+            assert cuts == [[(0, 0), (5, 0)], second]
+        __, gcode = multi_geo_gcode(paths, data=dict(
+            tools_mill_keep_direction=True, tools_mill_multidepth=True, tools_mill_depthperpass=0.1,
+            tools_mill_cutz=-0.3))
+        tokens, cuts, low_rapids = gcode_tokens(gcode)
+        assert cuts == [[(0, 0), (5, 0)]] * 3 + [[(10, 0), (6, 0)]] * 3
+        assert low_rapids == []
 
     def test_extra_cut_goes_on_along_the_path_after_the_start_point(self):
         # the isolation ring of a 0.3 x 0.3 mm pad for a 0.1 mm tool, Extra Cut 1.0: before, the tool went from the

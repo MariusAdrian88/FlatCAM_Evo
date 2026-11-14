@@ -37,6 +37,12 @@ def _number(data, key, default=0.0):
         return float(default)
 
 
+def tool_direction(data, prefix):
+    """The clearing direction of a tool row: 'climb', 'conv' or 'none' (the key is ``<prefix>clear_milling``)."""
+    value = str(data.get(prefix + 'clear_milling', 'none')).lower() if data else 'none'
+    return value if value in ('climb', 'conv') else 'none'
+
+
 def tool_spec(uid, dia, data, prefix, offset_key):
     """
     The ToolSpec of one row of a tool table. ``prefix`` is ``tools_ncc_`` or ``tools_paint_``; the overlap is kept
@@ -48,7 +54,7 @@ def tool_spec(uid, dia, data, prefix, offset_key):
         overlap=_number(data, prefix + 'overlap'), angle=_number(data, prefix + 'crosshatch_angle'),
         connect=bool(data.get(prefix + 'connect', False)), contour=bool(data.get(prefix + 'contour', True)),
         offset=_number(data, prefix + offset_key), cleanup=bool(data.get(prefix + 'final_cleanup', False)),
-        data=deepcopy_keep_geometry(data))
+        direction=tool_direction(data, prefix), data=deepcopy_keep_geometry(data))
 
 
 def copy_geometry(geometry):

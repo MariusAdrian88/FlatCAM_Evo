@@ -59,14 +59,18 @@ class FillKernels:
 
 
 def fill_polygon(pol, tooldia, method, overlap, connect, contour, prog_plot, kernels, methods: MethodMap,
-                 kernel_steps, angle=0.0, on_attempt=None, laser=None, apertures=None, index=None, tag='clearing'):
+                 kernel_steps, angle=0.0, on_attempt=None, laser=None, apertures=None, index=None, tag='clearing',
+                 direction='none'):
     """
     Fill one polygon with the kernel of the method. Returns the kernel storage, None (nothing was cleared) or
     FAIL (the job was aborted). on_attempt(key) is called before each kernel of the combo, with the key 'lines',
     'seed' or 'shrink'. laser is the laser-lines function (Paint), called with the aperture context.
+    direction ('climb' or 'conv') goes to the kernels that make rings; 'none' calls them as before. The laser
+    lines get no direction.
     """
     key = methods.kernel(method) if method in methods else None
     steps = kernel_steps(tooldia, None)
+    extra = {'direction': direction} if direction in ('climb', 'conv') else {}
     result = None
     if key == 'laser_lines':
         if laser is None:
@@ -82,7 +86,7 @@ def fill_polygon(pol, tooldia, method, overlap, connect, contour, prog_plot, ker
         try:
             # Simplify only afterwards, where each chord's cutter sweep is checked against the original polygon.
             result = kernels.crosshatch(pol, tooldia, steps_per_circle=steps, overlap=overlap, contour=contour,
-                                        connect=connect, prog_plot=prog_plot, simplify_tol=0.0, angle=angle)
+                                        connect=connect, prog_plot=prog_plot, simplify_tol=0.0, angle=angle, **extra)
         except grace:
             return FAIL
         except Exception as err:
@@ -96,7 +100,7 @@ def fill_polygon(pol, tooldia, method, overlap, connect, contour, prog_plot, ker
                 on_attempt(name)
             try:
                 result = fills[name](pol, tooldia, steps_per_circle=steps, overlap=overlap,
-                                     contour=contour, connect=connect, prog_plot=prog_plot)
+                                     contour=contour, connect=connect, prog_plot=prog_plot, **extra)
             except grace:
                 return FAIL
             except Exception as err:
@@ -372,6 +376,7 @@ class CleanupJob:
     domain: object
     generate: Callable
     connect: bool = False
+    direction: str = 'none'
 
 
 def final_cleanup(candidates, prepare: Callable, previous: Callable, cleanup: Callable, store: Callable,
@@ -398,7 +403,8 @@ def final_cleanup(candidates, prepare: Callable, previous: Callable, cleanup: Ca
         if job is None:
             continue
         boundary_first = not job.connect
-        paths, residual = cleanup(job.domain, diameter, previous(), job.generate, boundary_first)
+        extra = {'direction': job.direction} if job.direction in ('climb', 'conv') else {}
+        paths, residual = cleanup(job.domain, diameter, previous(), job.generate, boundary_first, **extra)
         check_abort()
         if paths:
             store(uid, paths)

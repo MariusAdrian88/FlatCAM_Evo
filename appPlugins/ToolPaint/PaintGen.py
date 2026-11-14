@@ -36,7 +36,7 @@ from appCommon.SafeEval import safe_eval
 from appPlugins.ToolPaint import PaintModel
 from appPlugins.Common.clearing.job import ClearingJob, PAINT, stock_is_left
 from appPlugins.Common.clearing.params import (
-    JobSpec, SourceSnapshot, copy_geometry, freeze_options, tool_spec)
+    JobSpec, SourceSnapshot, copy_geometry, freeze_options, tool_spec, tool_direction)
 
 if TYPE_CHECKING:
     from appObjects.GerberObject import GerberObject
@@ -283,6 +283,7 @@ class PaintGen:
             prog_plot,
             obj,
             angle=0.0,
+            direction='none',
     ):
 
         # the tool path arcs have the radius of the tool
@@ -316,7 +317,7 @@ class PaintGen:
             apertures=apertures, geometry_circle_steps=geometry_circle_steps,
             fill_lines=getattr(self.parent_tool, 'fill_with_lines', None), progress=progress, index=index,
             crosshatch_angle=angle,
-            clear_crosshatch=getattr(self.parent_tool, 'clear_polygon_crosshatch', None))
+            clear_crosshatch=getattr(self.parent_tool, 'clear_polygon_crosshatch', None), direction=direction)
         if result is None:
             self.app.inform.emit('[ERROR_NOTCL] %s' % _('Geometry could not be painted completely'))
         return result
@@ -571,6 +572,7 @@ class PaintGen:
             obj=painted_object,
             prog_plot=params.prog_plot,
             angle=tool_params.get('angle', 0.0),
+            direction=tool_params.get('direction', 'none'),
         )
 
     def _simplify_geometry(self, geometry_list, simplification_value):
@@ -690,6 +692,10 @@ class PaintGen:
             output.tools = finished['output_tools'] if rest else dict(tools)
             for tool in output.tools.values():
                 tool['data']['output_object_name'] = params.output_object_name
+                # the G-code keeps the cut direction of the clearing (the laser lines have none)
+                if (tool_direction(tool['data'], 'tools_paint_') != 'none' and self._tool_method(
+                        {'method': tool['data'].get('tools_paint_method')}, params, painted_object) != 3):
+                    tool['data']['tools_mill_keep_direction'] = True
             output.obj_options['tools_mill_tooldia'] = '0.0' if rest else str(result['last_diameter'])
             # the final cleanup measures the stock itself and warns about it
             cleaned = finished['residual'] is not None
@@ -706,11 +712,12 @@ class PaintGen:
             method = self._tool_method(settings, params, painted_object)
             return self.paint_polygon_worker(
                 polygon, diameter, 2 if method == 3 else method,
-                settings['over'], settings['conn'], True, False, None, settings.get('angle', 0.0))
+                settings['over'], settings['conn'], True, False, None, settings.get('angle', 0.0),
+                settings.get('direction', 'none'))
 
-        def cleanup(domain, diameter, previous, generate_paths, boundary_first):
+        def cleanup(domain, diameter, previous, generate_paths, boundary_first, direction='none'):
             return residual_cleanup(self.app, domain, diameter, self._steps_at(diameter / 2, painted_object), previous,
-                                    generate_paths, physical=True, boundary_first=boundary_first)
+                                    generate_paths, physical=True, boundary_first=boundary_first, direction=direction)
 
         return PaintModel.final_cleanup(
             geometry, tools, output_tools, diameters, self.decimals, process_polygon, cleanup,

@@ -475,6 +475,28 @@ class TestPaintPerformance(unittest.TestCase):
                 assert result != 'fail'
                 assert any('Final paint finished' in text for text in messages) is message
 
+    def test_clearing_direction_reaches_the_rings_the_cleanup_and_the_output_flag(self):
+        import numpy as np
+        from test_clearing_engine import AREA, rings, role
+        from test_clearing_paths import turn
+        for direction, outer in (('climb', 1), ('conv', -1), ('none', None)):
+            with self.subTest(direction=direction):
+                worker, params = rest_worker(self.geometry, [1.0], method=0, overlap=0.5)
+                params.tools_storage[1]['data'].update(tools_paint_clear_milling=direction, tools_paint_final_cleanup=True)
+                output = SimpleNamespace(tools={}, obj_options={})
+                self.assertNotEqual(worker._generate_paint_worker(output, worker.app, params, [1.0], [AREA], None, False),
+                                    'fail')
+                data = output.tools[1]['data']
+                self.assertIs(data.get('tools_mill_keep_direction', False), outer is not None)
+                made = [ring for ring in rings(output.tools[1]['solid_geometry']) if role(ring)]
+                self.assertGreater(len(made), 3)
+                if outer is not None:
+                    for ring in made:
+                        self.assertEqual(turn(ring), outer if role(ring) == 'outer' else -outer)
+                else:
+                    # no direction: the rings are as made (not one turn for every outer ring)
+                    self.assertGreaterEqual(len({(role(ring), turn(ring)) for ring in made}), 3)
+
     def test_rest_tool_clears_the_stock_that_is_narrower_than_it(self):
         # The 1.0 tool leaves the corners of the area and strips around the hole; the 0.4 tool crosses the cut area
         # to reach them and stays inside the area.

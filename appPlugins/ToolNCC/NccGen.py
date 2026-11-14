@@ -23,7 +23,7 @@ from appPlugins.ToolNCC import NccModel
 from appPlugins.Common.clearing import regions
 from appPlugins.Common.clearing.job import ClearingJob, NCC_GUI, NCC_TCL, stock_is_left
 from appPlugins.Common.clearing.params import (
-    JobSpec, SourceSnapshot, copy_geometry, freeze_options, tool_spec)
+    JobSpec, SourceSnapshot, copy_geometry, freeze_options, tool_spec, tool_direction)
 from appObjects.ProjectContext import unique_name
 
 if TYPE_CHECKING:
@@ -496,7 +496,7 @@ class NccGen:
         return area, staged['tools'], warning
 
     def clear_polygon_worker(self, pol, tooldia, ncc_method, ncc_overlap, ncc_connect, ncc_contour, prog_plot,
-                             simplify_tol=0.0, angle=0.0):
+                             simplify_tol=0.0, angle=0.0, direction='none'):
 
         # Resolve engines lazily: unbound callers may supply only the selected engine.
         paths, messages = NccModel.clear_polygon(
@@ -506,7 +506,7 @@ class NccGen:
             lambda *args, **kwargs: self.parent_tool.clear_polygon_shrink(*args, **kwargs),
             lambda *args, **kwargs: self.parent_tool.clear_polygon_seed(*args, **kwargs),
             lambda *args, **kwargs: self.parent_tool.clear_polygon_lines(*args, **kwargs), simplify_tol,
-            lambda *args, **kwargs: self.parent_tool.clear_polygon_crosshatch(*args, **kwargs), angle)
+            lambda *args, **kwargs: self.parent_tool.clear_polygon_crosshatch(*args, **kwargs), angle, direction)
         for message in messages:
             self.app.inform.emit(message)
         if paths is None:
@@ -521,9 +521,9 @@ class NccGen:
         copper = ncc_gerber_copper(source) if source is not None and source.kind == 'gerber' else None
         return NccModel.finish_cleanup(
             tools, generated, domains, name,
-            lambda domain, dia, previous, generate, boundary_first: residual_cleanup(
+            lambda domain, dia, previous, generate, boundary_first, direction='none': residual_cleanup(
                 self.app, domain, dia, self.circle_steps, previous, generate, physical=True,
-                boundary_first=boundary_first),
+                boundary_first=boundary_first, direction=direction),
             self.clear_polygon_worker, lambda: NccGen._process_events_and_check_abort(self), copper)
 
     def final_cleanup(self, output, tools_storage, domains, name, source=None):
@@ -594,6 +594,10 @@ class NccGen:
         if mill_data:
             for value in tools.values():
                 value['data'].update(mill_data)
+        for value in tools.values():
+            # the G-code keeps the cut direction of the clearing: no reversal of a path
+            if tool_direction(value['data'], 'tools_ncc_') != 'none':
+                value['data']['tools_mill_keep_direction'] = True
         output.tools = tools
         output.obj_options['tools_mill_tooldia'] = str(last_tool)
         cleaned = residual is not None

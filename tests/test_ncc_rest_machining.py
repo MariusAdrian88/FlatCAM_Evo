@@ -21,6 +21,7 @@ from shapely.geometry import LineString, MultiPolygon, Polygon, box  # noqa: E40
 from shapely.ops import unary_union  # noqa: E402
 
 from appMain import App  # noqa: E402
+import camlib  # noqa: E402
 from camlib import rest_area  # noqa: E402
 from appPlugins.ToolNCC import NccModel  # noqa: E402
 from appPlugins.ToolNCC.Ncc import ToolNcc  # noqa: E402
@@ -843,3 +844,71 @@ def test_tcl_single_point_gives_the_same_paths_as_the_click(tool):
     gui, scripted = (sorted(round(c, 6) for p in paths_of(o) for c in p.bounds) for o in outputs)
     assert gui and gui == scripted
     assert all(path.bounds[0] > 10.5 for path in paths_of(outputs[0]))
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# clearing direction
+# ---------------------------------------------------------------------------------------------------------------
+@pytest.mark.parametrize('direction', ['climb', 'conv'])
+def test_final_cleanup_rings_have_the_direction_in_the_gcode(direction):
+    import numpy as np
+    from shapely.geometry import Point
+    from test_clearing_engine import ring_runs
+    from test_clearing_paths import make_geometry, swept_around, turn
+    from test_cncjob_export_gcode import gcode_tokens, multi_geo_gcode
+
+    geometry = make_geometry()
+    geometry.app.units = 'MM'
+    geometry.app.options = {'global_tolerance': 0}
+    app = SimpleNamespace(options={'global_tolerance': 0.005}, abort_flag=False, units='MM', app_units='MM', log=Mock())
+    area = MultiPolygon([box(0, 0, 30, 30).difference(Point(15, 15).buffer(5, quad_segs=16))])
+    tools = rest_tools(3.0, 1.0)
+    tools[2]['data'].update(tools_ncc_method=0, tools_ncc_final_cleanup=True, tools_ncc_clear_milling=direction)
+    # each tool clears a single line: the stock that is left goes to the final cleanup of the smallest tool
+    lines = {3.0: [LineString([(3, 3), (27, 3)])], 1.0: [LineString([(1, 29), (29, 29)])]}
+    generated, domains, *__ = NccModel.generate_tools(
+        'rest', tools, NccModel.copy_tools(tools), [3.0, 1.0], {1: area, 2: area}, 'n', 4, 32,
+        lambda **kw: lines[round(kw['tooldia'], 4)], lambda: None, lambda text: None)
+
+    def clear_paths(**kw):
+        return NccModel.clear_polygon(
+            kw['pol'], kw['tooldia'], kw['ncc_method'], kw['ncc_overlap'], kw['ncc_connect'], kw['ncc_contour'],
+            False, 32, geometry.clear_polygon_shrink, geometry.clear_polygon_seed, geometry.clear_polygon_lines,
+            direction=kw.get('direction', 'none'))[0]
+
+    cleaned, __, ___ = NccModel.finish_cleanup(
+        tools, generated, domains, 'out',
+        lambda domain, dia, previous, generate, boundary_first, direction='none': camlib.residual_cleanup(
+            app, domain, dia, 32, previous, generate, physical=True, boundary_first=boundary_first,
+            direction=direction),
+        clear_paths, lambda: None)
+    paths = cleaned[2]['solid_geometry'][cleaned[2]['ncc_cleanup_start']:]
+    outer = 1 if direction == 'climb' else -1
+
+    # the islands of the stock: the copper disc and the band that the first tool swept
+    islands = [Point(15, 15).buffer(5, quad_segs=16), LineString([(3, 3), (27, 3)]).buffer(1.5)]
+
+    def expected(coords):
+        # a ring that hugs an island (an inset of the stock around it) is a hole ring: CW for a climb cut
+        ring = Polygon(coords)
+        around = any(ring.contains(island) and ring.exterior.distance(island) < 3.0 for island in islands)
+        return -outer if around else outer
+
+    rings = [np.asarray(path.coords) for path in paths if len(path.coords) > 3 and path.coords[0] == path.coords[-1]]
+    assert len(rings) >= 4 and {expected(ring) for ring in rings} == {1, -1}
+    assert all(turn(ring) == expected(ring) for ring in rings)
+    # the pieces of the boundary of the cutter-center area around the hole (made by the cleanup itself) turn like
+    # the rings around the island: CW for a climb cut
+    pieces = [path for path in paths if path.coords[0] != path.coords[-1]
+              and np.hypot(*(np.asarray(path.coords) - (15, 15)).T).max() < 5.6]
+    assert len(pieces) >= 3
+    assert {swept_around(piece, (15, 15)) for piece in pieces} == {-outer}
+
+    # the final G-code: the cleanup rings keep the direction at both depths
+    __, gcode = multi_geo_gcode(cleaned[2]['solid_geometry'], data=dict(
+        tools_mill_keep_direction=True, tools_mill_multidepth=True, tools_mill_depthperpass=0.1,
+        tools_mill_cutz=-0.2))
+    cuts = gcode_tokens(gcode)[1]
+    for ring in rings:
+        runs = [run for cut in cuts for run in ring_runs(np.asarray(cut), ring)]
+        assert len(runs) == 2 and {turn(run) for run in runs} == {expected(ring)}

@@ -11,6 +11,7 @@ from shapely.ops import linemerge, unary_union
 
 from appCommon import clipper_ops
 from appPlugins.Common.clearing import engine
+from appPlugins.Common.clearing.params import tool_direction
 from appPlugins.Common.clearing.engine import FillKernels, simplified_inside  # noqa: F401  re-export until Stage 7
 from appPlugins.Common.clearing.methods import PAINT_METHODS
 from appPlugins.Common.clearing.regions import (  # noqa: F401  re-export until Stage 7
@@ -233,7 +234,7 @@ def final_cleanup(geometry, tools_storage, output_tools, diameters, decimals, pr
                 return 'fail'
             return list(result.get_objects()) if result else []
 
-        return engine.CleanupJob(domain, generate_paths, settings['conn'])
+        return engine.CleanupJob(domain, generate_paths, settings['conn'], settings.get('direction', 'none'))
 
     def store(uid, paths):
         tool = tools[uid]
@@ -271,7 +272,8 @@ def tool_params(tool_uid, tools_storage):
         'conn': data['tools_paint_connect'],
         'cont': data['tools_paint_contour'],
         'offset': float(data['tools_paint_offset']),
-        'angle': angle
+        'angle': angle,
+        'direction': tool_direction(data, 'tools_paint_')
     }
 
 
@@ -511,7 +513,8 @@ def laser_lines(poly_g, tool_diameter, over, conn, cont, prog_plot, circle_steps
 
 def paint_polygon(poly_g, tool_diameter, paint_method, over, conn, cont, prog_plot, circle_steps,
                   clear_shrink, clear_seed, clear_lines, apertures=None, geometry_circle_steps=64,
-                  fill_lines=None, progress=None, index=None, crosshatch_angle=0.0, clear_crosshatch=None):
+                  fill_lines=None, progress=None, index=None, crosshatch_angle=0.0, clear_crosshatch=None,
+                  direction='none'):
     kernels = FillKernels(shrink=clear_shrink, seed=clear_seed, lines=clear_lines, crosshatch=clear_crosshatch,
                           fill_lines=fill_lines)
     order = {'lines': 2, 'seed': 1, 'shrink': 0}
@@ -522,4 +525,5 @@ def paint_polygon(poly_g, tool_diameter, paint_method, over, conn, cont, prog_pl
     return engine.fill_polygon(
         poly_g, tool_diameter, paint_method, over, conn, cont, prog_plot, kernels, PAINT_METHODS, kernel_steps,
         angle=crosshatch_angle, on_attempt=(lambda key: progress(order[key])) if progress is not None else None,
-        laser=laser_lines, apertures=apertures, index=index, tag='ToolPaint.paint_polygon_worker')
+        laser=laser_lines, apertures=apertures, index=index, tag='ToolPaint.paint_polygon_worker',
+        direction=direction)

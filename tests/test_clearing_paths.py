@@ -4,6 +4,7 @@ import sys
 import unittest
 import math
 from types import SimpleNamespace
+from unittest import mock
 from unittest.mock import Mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -13,7 +14,8 @@ _saved_argv = sys.argv
 sys.argv = [sys.argv[0]]
 try:
     import camlib
-    from shapely import LineString, MultiLineString, box
+    import numpy as np
+    from shapely import LineString, MultiLineString, Point, box
     from shapely.ops import unary_union
 finally:
     sys.argv = _saved_argv
@@ -292,6 +294,160 @@ class TestClearingCoverage(unittest.TestCase):
                                                            connect=False, contour=contour)
                     self.check(follow.buffer(aperture / 2, quad_segs=32), tooldia, list(result.get_objects()),
                                contour)
+
+
+def turn(coords):
+    """+1 for a CCW closed run, -1 for CW (the sign of the shoelace area)."""
+    xy = np.asarray(coords, dtype=float)
+    return 1 if 0.5 * float(np.sum(xy[:, 0] * np.roll(xy[:, 1], -1) - np.roll(xy[:, 0], -1) * xy[:, 1])) > 0 else -1
+
+
+def swept_around(path, center):
+    """+1 if the path turns CCW around the center, else -1."""
+    xy = np.asarray(path.coords) - center
+    return 1 if float(np.sum(xy[:-1, 0] * xy[1:, 1] - xy[1:, 0] * xy[:-1, 1])) > 0 else -1
+
+
+class TestClearingDirection(unittest.TestCase):
+    """
+    The wall on the right (climb): the rings of the outer boundary of the domain are CCW, the rings around an island
+    (a hole) are CW; conventional is the opposite. Also when the rings are joined, and without Clipper.
+    """
+    CENTER = (10.0, 10.0)
+
+    def setUp(self):
+        self.geometry = make_geometry()
+        self.geometry.app.units = 'MM'
+        self.geometry.app.options = {'global_tolerance': 0}
+        self.area = box(0, 0, 20, 20).difference(Point(self.CENTER).buffer(4, quad_segs=16))
+
+    def role(self, ring):
+        """'outer' for a ring of the outer boundary, 'hole' for a ring around the island, by the distance to the hole."""
+        dist = np.hypot(*(np.asarray(ring) - self.CENTER).T)
+        if dist.max() < 7.0:
+            return 'hole'
+        if dist.min() > 7.0:
+            return 'outer'
+        return None
+
+    def kernel(self, name, direction, connect):
+        if name == 'shrink':
+            result = camlib.Geometry.clear_polygon_shrink(self.geometry, self.area, 1.0, 32, overlap=0.5,
+                                                          connect=connect, direction=direction)
+        else:
+            result = camlib.Geometry.clear_polygon_seed(self.geometry, self.area, 1.0, 32, overlap=0.5,
+                                                        connect=connect, contour=True, direction=direction)
+        return list(result.get_objects())
+
+    @staticmethod
+    def rings_of(paths):
+        return [list(path.coords) for path in paths if len(path.coords) > 3 and path.coords[0] == path.coords[-1]]
+
+    @staticmethod
+    def expect(direction):
+        outer = 1 if direction == 'climb' else -1
+        return {'outer': outer, 'hole': -outer}
+
+    def check_rings(self, direction):
+        seen = set()
+        for ring in self.rings_of(self.kernel('shrink', direction, False)):
+            role = self.role(ring)
+            self.assertIsNotNone(role)
+            seen.add(role)
+            self.assertEqual(turn(ring), self.expect(direction)[role])
+        self.assertEqual(seen, {'outer', 'hole'})
+
+    def test_rings_by_role_without_connect(self):
+        for direction in ('climb', 'conv'):
+            with self.subTest(direction=direction, clipper=True):
+                self.check_rings(direction)
+            # Clipper and GEOS give opposite rings: without Clipper the result is the same
+            with self.subTest(direction=direction, clipper=False), mock.patch.object(
+                    camlib.clipper_ops.PolygonOffsetter, 'offset', return_value=None):
+                self.check_rings(direction)
+
+    def test_joined_rings_keep_their_direction(self):
+        for direction in ('climb', 'conv'):
+            for name in ('shrink', 'seed'):
+                with self.subTest(direction=direction, kernel=name):
+                    rings = self.rings_of(self.kernel(name, direction, False))
+                    joined = [np.asarray(path.coords) for path in self.kernel(name, direction, True)]
+                    checked = 0
+                    for ring in rings:
+                        role = self.role(ring)
+                        if role is None:
+                            continue
+                        # the ring is in a joined path, in the order it was made, with the turn of its role
+                        for coords in joined:
+                            starts = np.flatnonzero(np.all(np.isclose(coords, ring[0]), axis=1))
+                            runs = [coords[i:i + len(ring)] for i in starts]
+                            runs = [run for run in runs if len(run) == len(ring) and np.allclose(run, ring)]
+                            if runs:
+                                self.assertEqual(turn(runs[0]), self.expect(direction)[role])
+                                checked += 1
+                                break
+                    self.assertEqual(checked, len([ring for ring in rings if self.role(ring)]))
+                    self.assertGreaterEqual(checked, 2)
+
+    def test_seed_arcs_turn_the_same_way_around_the_seed(self):
+        for direction, sign in (('climb', 1), ('conv', -1)):
+            with self.subTest(direction=direction):
+                paths = list(camlib.Geometry.clear_polygon_seed(
+                    self.geometry, box(0, 0, 20, 20), 1.0, 32, seedpoint=Point(3, 3), overlap=0.5, connect=False,
+                    contour=False, direction=direction).get_objects())
+                arcs = [path for path in paths if path.coords[0] != path.coords[-1]]
+                self.assertGreater(len(arcs), 5)
+                for arc in arcs:
+                    self.assertEqual(swept_around(arc, (3, 3)), sign)
+
+    def test_lines_keep_the_zigzag_and_orient_only_the_rings(self):
+        for name in ('clear_polygon_lines', 'clear_polygon_crosshatch'):
+            with self.subTest(kernel=name):
+                kernel = getattr(camlib.Geometry, name)
+                plain = list(kernel(self.geometry, self.area, 1.0, 32, overlap=0.2, connect=True).get_objects())
+                climb = list(kernel(self.geometry, self.area, 1.0, 32, overlap=0.2, connect=True,
+                                    direction='climb').get_objects())
+                # the scan lines are not oriented and keep the zig-zag of the join
+                self.assertEqual(len(plain), len(climb))
+                self.assertEqual(sum(len(p.coords) for p in plain), sum(len(p.coords) for p in climb))
+                rings = self.rings_of(kernel(self.geometry, self.area, 1.0, 32, overlap=0.2, connect=False,
+                                             direction='climb').get_objects())
+                self.assertEqual({turn(ring) for ring in rings if self.role(ring) == 'outer'}, {1})
+                self.assertEqual({turn(ring) for ring in rings if self.role(ring) == 'hole'}, {-1})
+
+    def test_paint_connect_keep_direction_never_reverses_a_path(self):
+        paths = [LineString([(x, 0), (x, 5)]) for x in range(0, 12)]
+        paths += [LineString([(30, 30), (31, 30)]), LineString([(31, 31), (30, 31)])]
+        results = {}
+        for keep in (True, False):
+            storage = camlib.AppRTreeStorage()
+            storage.get_points = lambda o: [o.coords[0], o.coords[-1]]
+            storage.insert_many(paths)
+            joined = camlib.Geometry.paint_connect(storage, box(-5, -5, 40, 40), 0.1, 32, keep_direction=keep)
+            results[keep] = [np.asarray(path.coords) for path in joined.get_objects()]
+
+        def steps(runs, start, end):
+            """How many times the path start -> end is walked in these runs as consecutive points."""
+            return sum(1 for run in runs for i in range(len(run) - 1)
+                       if np.allclose(run[i], start) and np.allclose(run[i + 1], end))
+
+        for path in paths:
+            start, end = path.coords[0], path.coords[-1]
+            self.assertEqual(steps(results[True], start, end), 1)
+            self.assertEqual(steps(results[True], end, start), 0)
+        # the old join reverses an open path when its last point is the nearest
+        self.assertTrue(any(steps(results[False], path.coords[-1], path.coords[0]) for path in paths))
+
+    def test_clip_pieces_of_a_ring_keep_its_direction(self):
+        ring = Point(0, 0).buffer(10, quad_segs=16)
+        clip = box(-20, -3, 20, 3)
+        for direction, sign in (('climb', 1), ('conv', -1)):
+            with self.subTest(direction=direction):
+                boundary = camlib.oriented_boundary(ring, direction)
+                pieces = camlib.flatten_shapely_geometry(boundary.intersection(clip))
+                self.assertEqual(len(pieces), 3)
+                for piece in pieces:
+                    self.assertEqual(swept_around(piece, (0, 0)), sign)
 
 
 if __name__ == '__main__':

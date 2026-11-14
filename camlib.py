@@ -1446,7 +1446,8 @@ class Geometry(object):
             overlap=0.15,
             connect=True,
             contour=True,
-            prog_plot=False
+            prog_plot=False,
+            direction=None
     ):
         """
         Creates geometry inside a polygon for a tool to cover
@@ -1454,6 +1455,9 @@ class Geometry(object):
 
         This algorithm shrinks the edges of the polygon and takes
         the resulting edges as toolpaths.
+
+        direction: None keeps the paths as made; 'climb' or 'conv' orients every ring (margin, insets, gap rings and
+        the sides of the gaps) by the wall rule of appPlugins.Common.clearing.direction and joins without reversal.
 
         :param polygon:             Polygon to clear.
         :param tooldia:             Diameter of the tool.
@@ -1500,10 +1504,9 @@ class Geometry(object):
         current = clearing_margin(polygon, tooldia / 2, edge_segs, strict)
         current = flatten_shapely_geometry(current)
 
+        direction = clearing_direction(direction)
         for p in current:
-            new_paths.append(p.exterior)
-            for i in p.interiors:
-                new_paths.append(i)
+            new_paths.extend(polygon_ring_paths(p, direction))
 
         # Ring k (the boundary of the inset P_k) covers the points of P_k up to 1 radius inside it. The points
         # farther inside (P_k eroded by the radius) must be in reach of the next inset P_k+1. If the step is
@@ -1528,6 +1531,8 @@ class Geometry(object):
                 half = half.difference(reach)
             gaps = [gap for gap in flatten_shapely_geometry(half)
                     if isinstance(gap, Polygon) and gap.area > sliver * sliver]
+            if direction is not None:
+                gaps = [oriented_polygon(gap, direction) for gap in gaps]
             if gaps:
                 new_paths.extend(gap_paths(gaps))
 
@@ -1557,7 +1562,7 @@ class Geometry(object):
                 chosen[todo[done]] = sides[todo[done]]
             paths = []
             for gap, side in zip(gaps, chosen):
-                paths.extend([side] if side is not None else [gap.exterior, *gap.interiors])
+                paths.extend([side] if side is not None else [gap.exterior, *gap.interiors])  # oriented gaps
             return paths
 
         # The contour (the margin) touches the outline: it keeps the edge accuracy of the circle steps and of Geo
@@ -1624,7 +1629,8 @@ class Geometry(object):
 
                 added_flag = bool(cl_pol_list)
                 for part in cl_pol_list:
-                    for ring in (part.exterior, *part.interiors):
+                    # Clipper (exterior CCW) and GEOS (exterior CW) differ: every ring is oriented here.
+                    for ring in polygon_ring_paths(part, direction):
                         new_paths.append(ring)
                         if prog_plot:
                             self.plot_temp_shapes(ring)
@@ -1678,7 +1684,8 @@ class Geometry(object):
             # log.debug("Reducing tool lifts...")
             self.app.inform_no_echo.emit(_("Connect: reducing tool lifts. This may take a while, please wait..."))
             self.app.proc_container.update_view_text(' %s' % _("Connecting..."), clear=True)
-            geoms = Geometry.paint_connect(geoms, polygon, tooldia, int(steps_per_circle))
+            geoms = Geometry.paint_connect(geoms, polygon, tooldia, int(steps_per_circle),
+                                           keep_direction=direction is not None)
 
         return geoms
 
@@ -1693,10 +1700,14 @@ class Geometry(object):
             contour: bool = True,
             simplify_tol: float = 0.0,
             prog_plot: bool = False,
+            direction=None,
     ):
         """
         Creates geometry inside a polygon for a tool to cover
         the whole area.
+
+        direction: None keeps the paths as made. 'climb' or 'conv': the arcs turn CCW (climb) or CW (conv) around the
+        seed, the contour and gap rings follow the wall rule of their polygon, and the join does not reverse a path.
 
         This algorithm starts with a seed point inside the polygon
         and draws circles around it. Arcs inside the polygons are
@@ -1717,6 +1728,7 @@ class Geometry(object):
         """
 
         # log.debug("camlib.clear_polygon_seed()")
+        direction = clearing_direction(direction)
 
         # Shapely uses segments per quadrant, not per full circle.
         quad_segs = circle_quad_segs(steps_per_circle)
@@ -1801,25 +1813,28 @@ class Geometry(object):
                 # path can be a collection of paths.
                 path_geometry = flatten_shapely_geometry(path, simplify_tolerance=simplify_tol)
                 for p in path_geometry:
+                    if direction is not None:
+                        # All the arcs turn the same way around the seed (a GEOS ring and its clip may differ).
+                        p = oriented_sweep(p, seed_xy, direction)
                     new_paths.append(p)
                     if prog_plot:
                         self.plot_temp_shapes(p)
 
         # The rings do not reach the corners and bays of the margin that are farther than the ring step.
         if not contour:
-            new_paths.extend(margin_gap_rings(path_margin, new_paths, tooldia / 2.0, quad_segs))
+            new_paths.extend(margin_gap_rings(path_margin, new_paths, tooldia / 2.0, quad_segs, direction))
 
         # Clean inside edges (contours) of the original polygon
         if contour:
             buffered_poly = autolist(buffered_margin)
             buffered_poly: list[Polygon] = [x.simplify(simplify_tol) for x in buffered_poly]
-            outer_edges = [x.exterior for x in buffered_poly]
+            outer_edges = [oriented_ring(x.exterior, direction) for x in buffered_poly]
 
             inner_edges = []
             # Over resulting polygons
             for x in buffered_poly:
                 for y in x.interiors:  # Over interiors of each polygon
-                    inner_edges.append(y)
+                    inner_edges.append(oriented_ring(y, direction, hole=True))
 
             for g in outer_edges + inner_edges:
                 if g and not g.is_empty:
@@ -1841,7 +1856,8 @@ class Geometry(object):
             # log.debug("Reducing tool lifts...")
             self.app.inform_no_echo.emit(_("Connect: reducing tool lifts. This may take a while, please wait..."))
             self.app.proc_container.update_view_text(' %s' % _("Connecting..."), clear=True)
-            geoms_conn = Geometry.paint_connect(geom_elems, polygon_to_clear, tooldia, steps_per_circle)
+            geoms_conn = Geometry.paint_connect(geom_elems, polygon_to_clear, tooldia, steps_per_circle,
+                                                keep_direction=direction is not None)
             if geoms_conn:
                 return geoms_conn
 
@@ -1945,12 +1961,16 @@ class Geometry(object):
             simplify_tol: float = 0.0,
             prog_plot: bool = False,
             angle: float | None = None,
+            direction=None,
     ):
         """
         Creates geometry inside a polygon for a tool to cover
         the whole area.
 
         This algorithm draws parallel lines inside the polygon.
+
+        direction: None keeps the paths as made. 'climb' or 'conv' orients the contour and gap rings only (by the
+        wall rule); the scan lines are not oriented and the join keeps its zig-zag.
 
         :param polygon:             The polygon being painted.
         :type polygon:              shapely.geometry.Polygon
@@ -1967,6 +1987,7 @@ class Geometry(object):
         """
 
         # log.debug("camlib.clear_polygon_lines()")
+        direction = clearing_direction(direction)
         quad_segs = circle_quad_segs(steps_per_circle)
         # The distance of the margin from the boundary and the distance of the first and last scan line from the
         # edge of the bounding box. The scan lines at the edge must lie inside the margin, so they use the same value.
@@ -2030,17 +2051,18 @@ class Geometry(object):
 
         # The scan grid is global: margin edges parallel to the lines and narrow branches can fall between 2 lines.
         if not contour:
-            new_paths.extend(margin_gap_rings(margin_poly, new_paths, tooldia / 2.0, quad_segs))
+            new_paths.extend(margin_gap_rings(margin_poly, new_paths, tooldia / 2.0, quad_segs, direction))
 
         # Add margin (contour) to storage
         if contour:
             margin_poly_geo = flatten_shapely_geometry(margin_poly, simplify_tolerance=simplify_tol)
             for poly in margin_poly_geo:
                 if isinstance(poly, Polygon) and not poly.is_empty:
-                    new_paths.append(poly.exterior)
+                    exterior, *interiors = polygon_ring_paths(poly, direction)
+                    new_paths.append(exterior)
                     if prog_plot:
-                        self.plot_temp_shapes(poly.exterior)
-                    for ints in poly.interiors:
+                        self.plot_temp_shapes(exterior)
+                    for ints in interiors:
                         new_paths.append(ints)
                         if prog_plot:
                             self.plot_temp_shapes(ints)
@@ -2072,10 +2094,14 @@ class Geometry(object):
             simplify_tol: float = 0.0,
             prog_plot: bool = False,
             angle: float = 0.0,
+            direction=None,
     ):
         """
         Creates geometry inside a polygon for a tool to cover the whole area with two perpendicular families of
         parallel lines, at ``angle`` and ``angle + 90`` degrees, and one contour.
+
+        direction: None keeps the paths as made. 'climb' or 'conv' orients the contour and gap rings only; the
+        scan lines are not oriented.
 
         :param polygon:             The polygon being painted.
         :param tooldia:             Tool diameter.
@@ -2088,6 +2114,7 @@ class Geometry(object):
         :param angle:               Direction of the first family, in degrees; normalized to [0, 180).
         :return:
         """
+        direction = clearing_direction(direction)
         quad_segs = circle_quad_segs(steps_per_circle)
         margin_dist = tooldia / 1.99999999
         if not isinstance(polygon, Polygon):
@@ -2137,17 +2164,18 @@ class Geometry(object):
 
         # One gap repair for the combined sweep of the two families, not one per family.
         if not contour:
-            new_paths.extend(margin_gap_rings(margin_poly, new_paths, tooldia / 2.0, quad_segs))
+            new_paths.extend(margin_gap_rings(margin_poly, new_paths, tooldia / 2.0, quad_segs, direction))
 
         # One contour, shared by the two families.
         if contour:
             margin_poly_geo = flatten_shapely_geometry(margin_poly, simplify_tolerance=simplify_tol)
             for poly in margin_poly_geo:
                 if isinstance(poly, Polygon) and not poly.is_empty:
-                    new_paths.append(poly.exterior)
+                    exterior, *interiors = polygon_ring_paths(poly, direction)
+                    new_paths.append(exterior)
                     if prog_plot:
-                        self.plot_temp_shapes(poly.exterior)
-                    for ints in poly.interiors:
+                        self.plot_temp_shapes(exterior)
+                    for ints in interiors:
                         new_paths.append(ints)
                         if prog_plot:
                             self.plot_temp_shapes(ints)
@@ -2366,10 +2394,13 @@ class Geometry(object):
         return
 
     @staticmethod
-    def paint_connect(storage, boundary, tooldia, steps_per_circle, max_walk=None):
+    def paint_connect(storage, boundary, tooldia, steps_per_circle, max_walk=None, keep_direction=False):
         """
         Connects paths that results in a connection segment that is
         within the paint area. This avoids unnecessary tool lifting.
+
+        keep_direction: a connector goes from the end of a path to the START of the next one and no path is
+        reversed (the paths keep the cut direction they were made with).
 
         :param storage: Geometry to be optimized.
         :type storage: AppRTreeStorage
@@ -2393,6 +2424,13 @@ class Geometry(object):
         # ## Index first and last points in paths
         def get_pts(o):
             return [o.coords[0], o.coords[-1]]
+
+        if keep_direction:
+            # Only the start of a path is a point of entry: the nearest path is always entered at its start.
+            starts = AppRTreeStorage()
+            starts.get_points = lambda o: [o.coords[0]]
+            starts.insert_many([o for o in storage.objects if o is not None])
+            storage = starts
 
         # storage = AppRTreeStorage()
         # storage.get_points = get_pts
@@ -3748,11 +3786,12 @@ class CNCjob(Geometry):
             last = path[-1]
         return path
 
-    def geo_optimized_rtree(self, geometry: BaseGeometry | list[BaseGeometry]):
+    def geo_optimized_rtree(self, geometry: BaseGeometry | list[BaseGeometry], keep_direction=False):
         """
         The order to cut the paths of the geometry: a nearest neighbour walk from (0, 0) (see appCommon.PathOrder), then
         a pass that shortens the rapid travel. A path can be cut from its first or its last point.
 
+        :param keep_direction: no path is reversed: each path is entered at its first point
         :return: list of (entry point, path) or 'fail' if there is no path
         """
         self.app.log.debug("Ordering the paths before generating G-Code...")
@@ -3773,7 +3812,10 @@ class CNCjob(Geometry):
                 new_shapes.append(work_geo)
 
         # if there are no locations then go to the next tool
-        locations = order_paths(new_shapes, start=(0.0, 0.0))
+        if keep_direction:
+            locations = order_directed_paths(new_shapes, start=(0.0, 0.0))
+        else:
+            locations = order_paths(new_shapes, start=(0.0, 0.0))
         if not locations:
             return 'fail'
 
@@ -4699,6 +4741,8 @@ class CNCjob(Geometry):
                              opt_type, opt_time, is_first, is_last, toolchange):
         p = self.pp_geometry
         t_gcode = ''
+        # the clearing keeps its cut direction (climb / conventional): no path is reversed
+        keep_direction = bool(tools[tool]['data'].get('tools_mill_keep_direction', False))
 
         # #########################################################################################################
         # ############ Create the data. ###########################################################################
@@ -4752,7 +4796,7 @@ class CNCjob(Geometry):
             optimized_locations = self.optimized_travelling_salesman(locations)
             optimized_path = [(loc, g) for loc in optimized_locations for g in geo_storage[loc]]
         elif opt_type == 'R':
-            optimized_path = self.geo_optimized_rtree(temp_solid_geometry)
+            optimized_path = self.geo_optimized_rtree(temp_solid_geometry, keep_direction=keep_direction)
             if optimized_path == 'fail':
                 self.no_usable_geometry_notice(self.tooldia)
                 return 'fail'
@@ -4874,7 +4918,8 @@ class CNCjob(Geometry):
             else:
                 gc, geo = self.create_gcode_multi_pass(geo, current_tooldia, self.extracut,
                                                        self.extracut_length, self.tolerance,
-                                                       z_move=self.z_move, postproc=p, old_point=current_pt)
+                                                       z_move=self.z_move, postproc=p, old_point=current_pt,
+                                                       keep_direction=keep_direction)
                 gcode_parts.append(gc)
 
             current_pt = geo.coords[-1]
@@ -5834,8 +5879,13 @@ class CNCjob(Geometry):
         return len(coords) > 2 and tuple(coords[0][:2]) == tuple(coords[-1][:2])
 
     def create_gcode_multi_pass(self, geometry, cdia, extracut, extracut_length, tolerance, postproc, z_move,
-                                old_point=(0, 0)):
+                                old_point=(0, 0), keep_direction=False):
         """
+
+        keep_direction: no path is reversed between the depths. A closed path continues at its start. An open path
+        is cut like this at each next depth: the tool retracts at the real end of the previous pass, travels back to
+        the start of the path (with the routing around the exclusion areas, at the travel Z), plunges there and
+        cuts the path in the same direction.
 
         :param geometry:            A Shapely Geometry (LineString or LinearRing) which is the path to be cut
         :type geometry:             LineString, LinearRing
@@ -5902,6 +5952,9 @@ class CNCjob(Geometry):
                 # a closed path ends where it started
                 cur_pt = start_pt if self._is_closed_path(geometry) else geometry.coords[-1]
                 first_depth = False
+                if keep_direction and depth > z_cut and not self._is_closed_path(geometry):
+                    # retract at the real end of this pass: the next depth travels back to the start of the path
+                    pass_parts.append(self.doformat(p.lift_code, x=cur_pt[0], y=cur_pt[1]))
 
             # Ignore multi-pass for points.
             elif isinstance(geometry, Point):
@@ -5912,7 +5965,7 @@ class CNCjob(Geometry):
 
             # Reverse coordinates if not a loop, so we can continue cutting without returning to the beginning.
             # A closed path is never reversed: it keeps its direction (climb / conventional) at every depth.
-            if isinstance(geometry, LineString) and not self._is_closed_path(geometry):
+            if isinstance(geometry, LineString) and not self._is_closed_path(geometry) and not keep_direction:
                 geometry = LineString(list(geometry.coords)[::-1])
                 reverse = True
         gcode_multi_pass += ''.join(pass_parts)
@@ -8214,6 +8267,27 @@ def trim_covered_ends(path, radius, parts, parts_tree, covered=None) -> tuple:
             segments[kept[reaches_stock[kept]]])
 
 
+def order_directed_paths(paths, start=(0.0, 0.0)):
+    """
+    The order to cut paths that keep their direction: a nearest neighbour walk from `start` over the first points,
+    each path entered at its first point and left at its last. Returns a list of (first point, path).
+    """
+    paths = [path for path in paths if path is not None and not path.is_empty and len(path.coords)]
+    if not paths:
+        return []
+    storage = AppRTreeStorage()
+    storage.get_points = lambda path: [path.coords[0]]
+    storage.insert_many(paths)
+    ordered = []
+    current = start
+    for __ in range(len(paths)):
+        pt, path = storage.nearest(current)
+        storage.remove(path)
+        ordered.append((tuple(path.coords[0]), path))
+        current = path.coords[-1]
+    return ordered
+
+
 def order_cleanup_paths(paths, app=None):
     """Shorten rapids only; retain endpoints, direction, cutter paths and lift count."""
     if len(paths) < 4:
@@ -8243,14 +8317,25 @@ def order_cleanup_paths(paths, app=None):
     return ordered if travel(ordered) < travel(paths) else paths
 
 
+def oriented_boundary(region, direction):
+    """The boundary of a polygon region as one MultiLineString whose rings follow the wall rule of the direction."""
+    rings = [ring for part in flatten_shapely_geometry(region) if isinstance(part, Polygon) and not part.is_empty
+             for ring in polygon_ring_paths(part, direction)]
+    return MultiLineString([list(ring.coords) for ring in rings])
+
+
 def residual_cleanup(app, domain, diameter, circle_steps, previous_tools, generate_paths, physical=False,
-                     boundary_first=True):
+                     boundary_first=True, direction=None):
     """Target residual stock while keeping the complete cutter in the original domain.
+
+    direction: 'climb' or 'conv' orients the boundary rings that the cleanup makes itself (the paths of
+    generate_paths come oriented by the caller); a piece of a ring keeps the direction of its ring.
 
     Shared by NCC and Paint; callers own tool selection, settings and output storage.
     Work component-by-component and index previous paths rather than unioning a board
     of centerlines. A residual narrower than the cutter can use already-cleared room.
     """
+    direction = clearing_direction(direction)
     # Paint circle_steps counts a full circle; retain NCC's historical quadrant
     # count. At least 16 segments/quadrant keeps coverage estimates conservative.
     steps = max(16, circle_quad_segs(circle_steps) if physical else circle_steps)
@@ -8308,8 +8393,14 @@ def residual_cleanup(app, domain, diameter, circle_steps, previous_tools, genera
         target_parts = parts
         reach = (unary_union(shapely.buffer(parts, radius, quad_segs=steps)) if physical
                  else target.buffer(radius, quad_segs=steps))
-        candidates = flatten_shapely_geometry(target.boundary.intersection(centers))
-        candidates.extend(flatten_shapely_geometry(centers.boundary.intersection(reach)))
+        if direction is None:
+            candidates = flatten_shapely_geometry(target.boundary.intersection(centers))
+            candidates.extend(flatten_shapely_geometry(centers.boundary.intersection(reach)))
+        else:
+            # The rings are oriented where they are made, before the clip and the trim: the clip and the trim keep
+            # the order of the coordinates, so a piece of a ring keeps the direction of its ring.
+            candidates = flatten_shapely_geometry(oriented_boundary(target, direction).intersection(centers))
+            candidates.extend(flatten_shapely_geometry(oriented_boundary(centers, direction).intersection(reach)))
         shapely.prepare(reach)
         shapely.prepare(component)
         boundary = component.boundary
@@ -8851,7 +8942,38 @@ def clearing_margin(polygon, radius, quad_segs, strict=False):
     return unary_union([base, *strips]) if strips else base
 
 
-def margin_gap_rings(margin, paths, radius, quad_segs):
+def clearing_direction(direction):
+    """'climb' or 'conv' stay; any other value (None, 'none') is no direction."""
+    return direction if direction in ('climb', 'conv') else None
+
+
+def polygon_ring_paths(polygon, direction=None):
+    """[exterior, *interiors] of a polygon, oriented by the wall rule when a direction is set."""
+    if direction is None:
+        return [polygon.exterior, *polygon.interiors]
+    from appPlugins.Common.clearing.direction import polygon_rings
+    return polygon_rings(polygon, direction)
+
+
+def oriented_polygon(polygon, direction):
+    from appPlugins.Common.clearing.direction import orient_polygon
+    return orient_polygon(polygon, direction)
+
+
+def oriented_ring(ring, direction, hole=False):
+    """A ring of the wall rule: the exterior of a polygon (hole False) or an interior (hole True)."""
+    if direction is None:
+        return ring
+    from appPlugins.Common.clearing.direction import orient_ring, outer_ccw
+    return orient_ring(ring, outer_ccw(direction) != hole)
+
+
+def oriented_sweep(path, center, direction):
+    from appPlugins.Common.clearing.direction import orient_sweep
+    return orient_sweep(path, center, direction)
+
+
+def margin_gap_rings(margin, paths, radius, quad_segs, direction=None):
     """
     The rings around the parts of the margin (the region of the cutter center) that no path reaches by the cutter
     radius: a local contour for a clearing without contour. Points that stay uncovered by less than the tessellation
@@ -8875,8 +8997,7 @@ def margin_gap_rings(margin, paths, radius, quad_segs):
     rings = []
     for part in flatten_shapely_geometry(gap):
         if isinstance(part, Polygon) and part.area > sliver * sliver:
-            rings.append(part.exterior)
-            rings.extend(part.interiors)
+            rings.extend(polygon_ring_paths(part, direction))
     return rings
 
 

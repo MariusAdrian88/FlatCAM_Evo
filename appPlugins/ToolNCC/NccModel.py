@@ -15,6 +15,7 @@ from camlib import clearing_margin, flatten_shapely_geometry, grace, polygon_gap
 from appPlugins.Common.clearing import engine
 from appPlugins.Common.clearing.engine import FillKernels, quad_segs  # noqa: F401  re-export until Stage 7
 from appPlugins.Common.clearing.methods import NCC_METHODS
+from appPlugins.Common.clearing.params import tool_direction
 from appPlugins.Common.clearing.regions import (  # noqa: F401  re-export until Stage 7
     apply_margin, complement, offset_geometry, swept_area)
 
@@ -161,7 +162,7 @@ def generate_envelope(geometry, offset, invert, envelope_iso_type, isolation_geo
 
 
 def clear_polygon(pol, tooldia, method, overlap, connect, contour, prog_plot, circle_steps,
-                  shrink, seed, lines, simplify_tol=0.0, crosshatch=None, angle=0.0):
+                  shrink, seed, lines, simplify_tol=0.0, crosshatch=None, angle=0.0, direction='none'):
     """Return paths plus status messages; only Geometry engine callbacks enter this kernel."""
     messages = []
     attempts = {'lines': _('Clearing the polygon with the method: lines.'),
@@ -175,7 +176,7 @@ def clear_polygon(pol, tooldia, method, overlap, connect, contour, prog_plot, ci
     paths = engine.clear_polygon(
         pol, tooldia,
         lambda: engine.fill_polygon(pol, tooldia, method, overlap, connect, contour, prog_plot, kernels,
-                                    NCC_METHODS, kernel_steps, angle=angle,
+                                    NCC_METHODS, kernel_steps, angle=angle, direction=direction,
                                     on_attempt=lambda key: messages.append(attempts[key]), tag='ToolNcc'),
         kernel_steps, 'covers', simplify_tol)
     return paths, messages
@@ -278,7 +279,8 @@ def _generate_normal(tool_settings, tools_storage, diameters, areas, name, decim
             except (TypeError, ValueError):
                 angle = 0.0
         settings = dict(overlap=float(data['tools_ncc_overlap']) / 100, method=tool_method,
-                        connect=data['tools_ncc_connect'], contour=data['tools_ncc_contour'], angle=angle)
+                        connect=data['tools_ncc_connect'], contour=data['tools_ncc_contour'], angle=angle,
+                        direction=tool_direction(data, 'tools_ncc_'))
         return engine.ToolRun(uid, domain, settings)
 
     def clear(pol, diameter, run):
@@ -289,6 +291,8 @@ def _generate_normal(tool_settings, tools_storage, diameters, areas, name, decim
             prog_plot=prog_plot)
         if values['method'] == 4:
             clear_kwargs['angle'] = values['angle']
+        if values.get('direction', 'none') != 'none':
+            clear_kwargs['direction'] = values['direction']
         return clear_paths(**clear_kwargs)
 
     def parts(polygon):
@@ -354,7 +358,8 @@ def _generate_rest(tool_settings, tools_storage, diameters, areas, name, decimal
         # each tool follows the Connect and Contour of its own row
         return engine.ToolRun(uid, domain, dict(
             overlap=tool_overlap, method=tool_method, connect=data.get('tools_ncc_connect', False),
-            contour=data.get('tools_ncc_contour', True), angle=angle))
+            contour=data.get('tools_ncc_contour', True), angle=angle,
+            direction=tool_direction(data, 'tools_ncc_')))
 
     def sweep(polygon, diameter, run, segments, keep_stock):
         if polygon is None or polygon.is_empty or not polygon.is_valid:
@@ -374,6 +379,8 @@ def _generate_rest(tool_settings, tools_storage, diameters, areas, name, decimal
                 simplify_tol=simplify_tol, prog_plot=prog_plot)
             if values['method'] == 4:
                 clear_kwargs['angle'] = values['angle']
+            if values.get('direction', 'none') != 'none':
+                clear_kwargs['direction'] = values['direction']
             result = clear_paths(**clear_kwargs)
             check_abort()
             if result == 'fail':
@@ -466,6 +473,7 @@ def finish_cleanup(tools_storage, generated, domains, name, cleanup_paths, clear
         state['tool'] = tool
         state['diameter'] = float(tool['tooldia'])
         data = tool['data']
+        direction = tool_direction(data, 'tools_ncc_')
 
         def generate_paths(pol, dia):
             method = data.get('tools_ncc_method', 0)
@@ -476,9 +484,11 @@ def finish_cleanup(tools_storage, generated, domains, name, cleanup_paths, clear
                 prog_plot=False)
             if method == 4:
                 kwargs['angle'] = data.get('tools_ncc_crosshatch_angle', 0.0)
+            if direction != 'none':
+                kwargs['direction'] = direction
             return clear_paths(**kwargs)
 
-        return engine.CleanupJob(domain, generate_paths, bool(data.get('tools_ncc_connect', False)))
+        return engine.CleanupJob(domain, generate_paths, bool(data.get('tools_ncc_connect', False)), direction)
 
     def store(uid, paths):
         tool = state['tool']
