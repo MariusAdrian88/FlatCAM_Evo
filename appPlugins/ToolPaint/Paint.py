@@ -10,9 +10,7 @@ from PyQt6.QtCore import Qt     # noqa
 
 from appPlugins.ToolPaint.PaintUI import PaintUI
 from appPlugins.ToolPaint.PaintGen import PaintGen
-from appTool import AppTool
 from appGUI.GUIElements import (
-    VerticalScrollArea,
     FCComboBox,
     FCCheckBox,
     RadioSet,
@@ -21,10 +19,8 @@ from appGUI.GUIElements import (
 )
 
 
-from contextlib import contextmanager
 from copy import deepcopy
 import math
-import numpy as np
 from numpy import inf as Inf    # noqa
 
 from shapely import Polygon
@@ -38,6 +34,8 @@ from appParsers.ParseGerber import Gerber
 from appDatabase import load_tools_database, tools_database_error_message
 from defaults import AppDefaults
 from appCommon.SafeEval import safe_eval
+from appPlugins.Common.clearing.controller_base import ClearingToolBase, signals_blocked
+from appPlugins.Common.clearing.methods import PAINT_METHODS
 from camlib import (
     deepcopy_keep_geometry,
     Geometry,
@@ -48,16 +46,6 @@ from camlib import (
 fcTranslate.apply_language('strings')
 if '_' not in builtins.__dict__:
     _ = gettext.gettext
-
-
-@contextmanager
-def _signals_blocked(obj):
-    """Block the signals of obj and restore them on every exit path."""
-    obj.blockSignals(True)
-    try:
-        yield
-    finally:
-        obj.blockSignals(False)
 
 
 def _valid_tooldia(value):
@@ -84,7 +72,13 @@ def tool_rows_order(paint_tools, order, decimals):
     return uids
 
 
-class ToolPaint(Geometry, AppTool):
+class ToolPaint(Geometry, ClearingToolBase):
+
+    key_prefix = 'tools_paint'
+    tools_attr = 'paint_tools'
+    tool_target = 4
+    method_map = PAINT_METHODS
+    usage_name = "ToolPaint()"
 
     # (job token, result): the preview job hands the area to paint (or an error text) to the GUI thread
     preview_done_sig = QtCore.pyqtSignal(int, object)
@@ -93,7 +87,7 @@ class ToolPaint(Geometry, AppTool):
         self.app = app
         self.decimals = self.app.decimals
 
-        AppTool.__init__(self, app)
+        ClearingToolBase.__init__(self, app)
         # no fixed steps: the circles follow the preferences "Circles" of Geometry (PaintGen._steps_at())
         Geometry.__init__(self, app=app)
 
@@ -119,49 +113,13 @@ class ToolPaint(Geometry, AppTool):
         self.paint_tools = {}
         self.tooluid = 0
 
-        self.first_click = False
-        self.cursor_pos = None
-        self.mouse_is_dragging = False
-
-
-        # disconnect flags
-        self.area_sel_disconnect_flag = False
-        self.poly_sel_disconnect_flag = False
-
-        self.area_to_paint_list = []
-
-        # True while the zones drawn on the canvas are exclusion zones and not the area to paint
-        self.exclusion_mode = False
-        # the exclusion zones, drawn in their own color for as long as the plugin is open (not saved)
-        self.exclusion_list: list[Polygon] = []
-        self._exclusion_shapes = None
-
-        # store here if the grid snapping is active
-        self.grid_status_memory = False
-
-        # dict to store the polygons selected for painting; key is the shape added to be plotted and value is the poly
-        self.poly_dict = {}
-
-        # the zones of the last Area Selection run and the polygons of the last Polygon Selection run:
-        # the Preview of these modes uses them
-        self.last_zones: list[Polygon] = []
+        # the polygons of the last Polygon Selection run: the Preview of that mode uses them
         self.last_polygons: list[Polygon] = []
-        # the shape collection of the preview, made on the first use
-        self._preview_shapes = None
-        self._preview_drawn = False
-        # a preview result is drawn only if no clear_preview() happened since its job started
-        self._preview_token = 0
 
         # store here the default data for Geometry Data
         self.default_data = {}
 
         self.tool_type_item_options = ["C1", "C2", "C3", "C4", "B", "V", "L"]
-
-        # store here the points for the "Polygon" area selection shape
-        self.points = []
-        # set this as True when in middle of drawing a "Polygon" area selection shape
-        # it is made False by first click to signify that the shape is complete
-        self.poly_drawn = False
 
         # #############################################################################
         # ######################### Tool GUI ##########################################
@@ -224,203 +182,66 @@ class ToolPaint(Geometry, AppTool):
         self.ui.reference_combo.obj_type = {0: "Gerber", 1: "Excellon", 2: "Geometry"}[obj_type]
 
     def install(self, icon=None, separator=None, **kwargs):
-        AppTool.install(self, icon, separator, shortcut='Alt+P', **kwargs)
+        ClearingToolBase.install(self, icon, separator, shortcut='Alt+P', **kwargs)
 
-    def run(self, toggle=True):
-        self.app.defaults.report_usage("ToolPaint()")
+    def tab_title(self):
+        return _("Paint")
 
-        # AppTool.run() does nothing while the Plugin tab is locked; do not touch the tabs or the UI either
-        if self.app.plugin_tab_locked is True:
+    def generate_slot(self):
+        return self.gen.on_paint_button_click
+
+    def type_obj_slot(self):
+        return self.on_type_obj_changed
+
+    def multi_objects_widget(self):
+        return self.ui.multi_objects_cb
+
+    def reset_last_regions(self):
+        self.last_zones = []
+        self.last_polygons = []
+
+    def extra_signals(self):
+        return [
+            (self.ui.new_tooldia_entry.returnPressed, self.on_tool_add),
+            (self.ui.select_method_combo.currentIndexChanged, self.clear_preview),
+        ]
+
+    # ------------------------------------------------------------------------------------------------------------
+    # the canvas selection
+    # ------------------------------------------------------------------------------------------------------------
+    def start_click_selection(self):
+        """
+        Polygon Selection: a left click adds / removes the polygon of the object under the cursor, a right click or
+        Enter paints the picked polygons, Escape cancels. The panel is disabled until then.
+        """
+        if not isinstance(self.paint_obj, (Gerber, Geometry)):
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _("The selected object is not a Gerber or Geometry object."))
             return
+        # Gerber is a Geometry subclass, so both kinds are flattened: a MultiPolygon is many polygons
+        self.selector.start('click', commit=self.on_polygons_picked,
+                            faces=flatten_shapely_geometry(self.paint_obj.solid_geometry),
+                            tolerance=self.paint_obj.drawing_tolerance)
 
-        if toggle:
-            # if the splitter is hidden, display it
-            if self.app.ui.splitter.sizes()[0] == 0:
-                self.app.ui.splitter.setSizes([1, 1])
+    def on_polygons_picked(self, points, faces):
+        poly_list = deepcopy_keep_geometry(list(faces))
+        self.last_polygons = list(poly_list)
+        self.gen.paint_poly(self.paint_obj, inside_pt=points[-1], poly_list=poly_list, tooldia=self.tooldia_list)
 
-            # if the Tool Tab is hidden display it, else hide it but only if the objectName is the same
-            found_idx = None
-            for idx in range(self.app.ui.notebook.count()):
-                if self.app.ui.notebook.widget(idx).objectName() == "plugin_tab":
-                    found_idx = idx
-                    break
-            # show the Tab
-            if not found_idx:
-                try:
-                    self.app.ui.notebook.addTab(self.app.ui.plugin_tab, _("Plugin"))
-                except RuntimeError:
-                    self.app.ui.plugin_tab = QtWidgets.QWidget()
-                    self.app.ui.plugin_tab.setObjectName("plugin_tab")
-                    self.app.ui.plugin_tab_layout = QtWidgets.QVBoxLayout(self.app.ui.plugin_tab)
-                    self.app.ui.plugin_tab_layout.setContentsMargins(2, 2, 2, 2)
+    def on_zones_selected(self, zones):
+        # the Preview of this mode draws these zones
+        self.last_zones = list(zones)
+        self.gen.paint_area_selection_option(zones)
 
-                    self.app.ui.plugin_scroll_area = VerticalScrollArea()
-                    self.app.ui.plugin_tab_layout.addWidget(self.app.ui.plugin_scroll_area)
-                    self.app.ui.notebook.addTab(self.app.ui.plugin_tab, _("Plugin"))
-                # focus on Tool Tab
-                self.app.ui.notebook.setCurrentWidget(self.app.ui.plugin_tab)
+    def on_paint_tool_add_from_db_executed(self, tool):
+        return self.on_tool_add_from_db_executed(tool)
 
-            try:
-                if self.app.ui.plugin_scroll_area.widget().objectName() == self.pluginName and found_idx:
-                    # if the Tool Tab is not focused, focus on it
-                    if not self.app.ui.notebook.currentWidget() is self.app.ui.plugin_tab:
-                        # focus on Tool Tab
-                        self.app.ui.notebook.setCurrentWidget(self.app.ui.plugin_tab)
-                    else:
-                        # else remove the Tool Tab
-                        self.app.ui.notebook.setCurrentWidget(self.app.ui.properties_tab)
-                        self.app.ui.notebook.removeTab(2)
-
-                        # if there are no objects loaded in the app then hide the Notebook widget
-                        if not self.app.collection.get_list():
-                            self.app.ui.splitter.setSizes([0, 1])
-            except AttributeError:
-                pass
-        else:
-            if self.app.ui.splitter.sizes()[0] == 0:
-                self.app.ui.splitter.setSizes([1, 1])
-
-        super().run()
-
-        self.set_tool_ui()
-        self.build_ui()
-
-        # all the tools are selected by default
-        self.ui.tools_table.selectAll()
-        self.update_ui()
-
-        self.app.ui.notebook.setTabText(2, _("Paint"))
-
-    def clear_context_menu(self):
-        self.ui.tools_table.removeContextMenu()
-
-    def init_context_menu(self):
-        self.ui.tools_table.setupContextMenu()
-        self.ui.tools_table.addContextMenu(
-            _("Add"), self.on_add_tool_by_key, icon=QtGui.QIcon(self.app.resource_location + "/plus16.png")
-        )
-        self.ui.tools_table.addContextMenu(
-            _("Add from DB"), self.on_paint_tool_add_from_db_clicked, icon=QtGui.QIcon(self.app.resource_location + "/plus16.png")
-        )
-        self.ui.tools_table.addContextMenu(
-            _("Delete"), lambda:
-            self.on_tool_delete(rows_to_delete=None, all_tools=None),
-            icon=QtGui.QIcon(self.app.resource_location + "/delete32.png")
-        )
-
-    def connect_signals(self):
-        # #############################################################################
-        # ################################# Signals ###################################
-        # #############################################################################
-        try:
-            self.ui.level.toggled.disconnect(self.on_level_changed)
-        except (TypeError, RuntimeError, AttributeError):
-            pass
-        self.ui.level.toggled.connect(self.on_level_changed)
-
-        try:
-            self.ui.new_tooldia_entry.returnPressed.disconnect(self.on_tool_add)
-        except (TypeError, RuntimeError, AttributeError):
-            pass
-        self.ui.new_tooldia_entry.returnPressed.connect(self.on_tool_add)
-
-        try:
-            self.ui.deltool_btn.clicked.disconnect(self.on_tool_delete)
-        except (TypeError, RuntimeError, AttributeError):
-            pass
-        self.ui.deltool_btn.clicked.connect(self.on_tool_delete)
-
-        try:
-            self.ui.generate_button.clicked.disconnect(self.gen.on_paint_button_click)
-        except (TypeError, RuntimeError, AttributeError):
-            pass
-        self.ui.generate_button.clicked.connect(self.gen.on_paint_button_click)
-
-        try:
-            self.ui.select_method_combo.currentIndexChanged.disconnect(self.ui.on_selection)
-        except (TypeError, RuntimeError, AttributeError):
-            pass
-        self.ui.select_method_combo.currentIndexChanged.connect(self.ui.on_selection)
-
-        try:
-            self.ui.method_combo.currentIndexChanged.disconnect(self.ui.on_method_changed)
-        except (TypeError, RuntimeError, AttributeError):
-            pass
-        self.ui.method_combo.currentIndexChanged.connect(self.ui.on_method_changed)
-
-        try:
-            self.ui.reference_type_combo.currentIndexChanged.disconnect(self.on_reference_combo_changed)
-        except (TypeError, RuntimeError, AttributeError):
-            pass
-        self.ui.reference_type_combo.currentIndexChanged.connect(self.on_reference_combo_changed)
-
-        try:
-            self.ui.type_obj_radio.activated_custom.disconnect(self.on_type_obj_changed)
-        except (TypeError, RuntimeError, AttributeError):
-            pass
-        self.ui.type_obj_radio.activated_custom.connect(self.on_type_obj_changed)
-
-        try:
-            self.ui.apply_param_to_all.clicked.disconnect(self.on_apply_param_to_all_clicked)
-        except (TypeError, RuntimeError, AttributeError):
-            pass
-        self.ui.apply_param_to_all.clicked.connect(self.on_apply_param_to_all_clicked)
-
-        try:
-            self.ui.search_and_add_btn.clicked.disconnect(self.on_tool_add)
-        except (TypeError, RuntimeError, AttributeError):
-            pass
-        self.ui.search_and_add_btn.clicked.connect(lambda: self.on_tool_add())
-
-        try:
-            self.ui.addtool_from_db_btn.clicked.disconnect(self.on_paint_tool_add_from_db_clicked)
-        except (TypeError, RuntimeError, AttributeError):
-            pass
-        self.ui.addtool_from_db_btn.clicked.connect(self.on_paint_tool_add_from_db_clicked)
-
-        try:
-            self.app.proj_selection_changed.disconnect(self.on_object_selection_changed)
-        except (TypeError, RuntimeError, AttributeError):
-            pass
-        self.app.proj_selection_changed.connect(self.on_object_selection_changed)
-
-        try:
-            self.ui.reset_button.clicked.disconnect(self.set_tool_ui)
-        except (TypeError, RuntimeError, AttributeError):
-            pass
-        self.ui.reset_button.clicked.connect(self.set_tool_ui)
-
-        try:
-            self.app.cleanup.disconnect(self.set_tool_ui)
-        except (TypeError, RuntimeError, AttributeError):
-            pass
-        # Cleanup on Graceful exit (CTRL+ALT+X combo key)
-        self.app.cleanup.connect(self.set_tool_ui)
-
-        for signal, slot in (
-                (self.ui.preview_button.clicked, self.on_preview),
-                (self.ui.excl_add_button.clicked, self.on_add_exclusion),
-                (self.ui.excl_delete_button.clicked, self.on_delete_exclusions),
-                (self.ui.obj_combo.currentIndexChanged, self.on_source_changed),
-                (self.ui.select_method_combo.currentIndexChanged, self.clear_preview),
-                (self.ui.multi_objects_cb.stateChanged, self.clear_preview),
-                (self.preview_done_sig, self.on_preview_done)):
-            try:
-                signal.disconnect(slot)
-            except (TypeError, RuntimeError, AttributeError):
-                pass
-            signal.connect(slot)
+    def on_paint_tool_add_from_db_clicked(self):
+        return self.on_tool_add_from_db_clicked()
 
     def set_tool_ui(self):
         app_defaults = getattr(self.app, "defaults", None) or AppDefaults.factory_defaults
-        # a Reset drops the preview, the exclusion zones and the zones / polygons of the last run
-        self.clear_preview()
-        self.last_zones = []
-        self.last_polygons = []
-        self.exclusion_list.clear()
-        self.ui.excl_count_value.setText('0')
-        if self._exclusion_shapes is not None:
-            self._exclusion_shapes.clear(update=True)
+        # a Reset drops the selection, the preview, the exclusion zones and the zones / polygons of the last run
+        self.reset_drawn_regions()
 
         self.clear_ui(self.layout)
         self.ui = PaintUI(layout=self.layout, app=self.app)
@@ -622,11 +443,6 @@ class ToolPaint(Geometry, AppTool):
         if self.default_data.get("tools_paint_selectmethod") == 1:
             self.ui.tools_table.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
 
-        # forget any half-made selection of the previous session
-        self.reset_selection_state()
-        self.poly_dict.clear()
-        self.area_to_paint_list = []
-
         self.ui.tools_table.drag_drop_sig.connect(self.rebuild_ui)
 
         # #############################################################################
@@ -634,20 +450,6 @@ class ToolPaint(Geometry, AppTool):
         # #############################################################################
         self.gen = PaintGen(self)
         self.connect_signals()
-
-    def change_level(self, level):
-        """
-
-        :param level:   application level: either 'b' or 'a'
-        :type level:    str
-        :return:
-        """
-
-        if level == 'a':
-            self.ui.level.setChecked(True)
-        else:
-            self.ui.level.setChecked(False)
-        self.on_level_changed(self.ui.level.isChecked())
 
     def on_level_changed(self, checked):
         if not checked:
@@ -705,111 +507,6 @@ class ToolPaint(Geometry, AppTool):
             # Context Menu section
             self.ui.tools_table.setupContextMenu()
 
-    def on_toggle_all_rows(self):
-        """
-        will toggle the selection of all rows in Tools table
-
-        :return:
-        """
-        sel_model = self.ui.tools_table.selectionModel()
-        sel_indexes = sel_model.selectedIndexes()
-
-        # it will iterate over all indexes which means all items in all columns, too but I'm interested only on rows
-        sel_rows = set()
-        for idx in sel_indexes:
-            sel_rows.add(idx.row())
-
-        if len(sel_rows) == self.ui.tools_table.rowCount():
-            self.ui.tools_table.clearSelection()
-            self.ui.tool_data_label.setText(
-                "<b>%s: <font color='#0000FF'>%s</font></b>" % (_('Parameters for'), _("No Tool Selected"))
-            )
-        else:
-            self.ui.tools_table.selectAll()
-            self.ui.tool_data_label.setText(
-                "<b>%s: <font color='#0000FF'>%s</font></b>" % (_('Parameters for'), _("Multiple Tools"))
-            )
-
-    def on_row_selection_change(self):
-        sel_model = self.ui.tools_table.selectionModel()
-        sel_indexes = sel_model.selectedIndexes()
-
-        # it will iterate over all indexes which means all items in all columns too, but I'm interested only on rows
-        sel_rows = set()
-        for idx in sel_indexes:
-            sel_rows.add(idx.row())
-
-        # update UI only if only one row is selected otherwise having multiple rows selected will deform information
-        # for the rows other that the current one (first selected)
-        if len(sel_rows) == 1:
-            self.update_ui()
-
-    def on_object_selection_changed(self, current):
-        found_idx = None
-        for tab_idx in range(self.app.ui.notebook.count()):
-            if self.app.ui.notebook.tabText(tab_idx) == self.ui.pluginName:
-                found_idx = True
-                break
-
-        if found_idx:
-            try:
-                name = current.indexes()[0].internalPointer().obj.obj_options['name']
-                kind = current.indexes()[0].internalPointer().obj.kind
-
-                if kind in ['gerber', 'geometry']:
-                    self.ui.type_obj_radio.set_value(kind)
-
-                self.ui.obj_combo.set_value(name)
-            except Exception:
-                pass
-
-    def update_ui(self):
-        with _signals_blocked(self):
-            sel_rows = set()
-            table_items = self.ui.tools_table.selectedItems()
-            if table_items:
-                for it in table_items:
-                    sel_rows.add(it.row())
-
-            if not sel_rows:
-                self.ui.generate_button.setDisabled(True)
-                self.ui.tool_data_label.setText(
-                    "<b>%s: <font color='#0000FF'>%s</font></b>" % (_('Parameters for'), _("No Tool Selected"))
-                )
-                return
-            else:
-                self.ui.generate_button.setDisabled(False)
-
-            for current_row in sel_rows:
-                # populate the form with the data from the tool associated with the row parameter
-                try:
-                    item = self.ui.tools_table.item(current_row, 3)
-                    if item is None:
-                        return 'fail'
-                    tooluid = int(item.text())
-                except Exception as e:
-                    self.app.log.error("Tool missing. Add a tool in the Tool Table. %s" % str(e))
-                    return
-
-                # update the QLabel that shows for which Tool we have the parameters in the UI form
-                if len(sel_rows) == 1:
-                    cr = self.ui.tools_table.item(current_row, 0).text()
-                    self.ui.tool_data_label.setText(
-                        "<b>%s: <font color='#0000FF'>%s %s</font></b>" % (_('Parameters for'), _("Tool"), cr)
-                    )
-
-                    try:
-                        # set the form with data from the newly selected tool
-                        for tooluid_key, tooluid_value in list(self.paint_tools.items()):
-                            if int(tooluid_key) == tooluid:
-                                self.storage_to_form(tooluid_value['data'])
-                    except Exception as e:
-                        self.app.log.error("ToolPaint ---> update_ui() " + str(e))
-                else:
-                    self.ui.tool_data_label.setText(
-                        "<b>%s: <font color='#0000FF'>%s</font></b>" % (_('Parameters for'), _("Multiple Tools"))
-                    )
-
     def storage_to_form(self, dict_storage):
         dict_storage.setdefault('tools_paint_final_cleanup', False)
         dict_storage.setdefault('tools_paint_clear_milling', 'none')
@@ -821,37 +518,13 @@ class ToolPaint(Geometry, AppTool):
                 self.app.log.error("ToolPaint.storage.form() --> %s" % str(err))
         self.ui.on_method_changed()
 
-    def form_to_storage(self):
-        if self.ui.tools_table.rowCount() == 0:
-            # there is no tool in tool table, so we can't save the GUI elements values to storage
-            return
-
-        with _signals_blocked(self):
-            widget_changed = self.sender()
-            wdg_objname = widget_changed.objectName()
-            option_changed = self.name2option[wdg_objname]
-
-            rows = sorted(set(index.row() for index in self.ui.tools_table.selectedIndexes()))
-            for row in rows:
-                if row < 0:
-                    row = 0
-                tooluid_item = int(self.ui.tools_table.item(row, 3).text())
-
-                for tooluid_key, tooluid_val in self.paint_tools.items():
-                    if int(tooluid_key) == tooluid_item:
-                        new_option_value = self.form_fields[option_changed].get_value()
-                        if option_changed in tooluid_val:
-                            tooluid_val[option_changed] = new_option_value
-                        if option_changed in tooluid_val['data']:
-                            tooluid_val['data'][option_changed] = new_option_value
-
     def on_apply_param_to_all_clicked(self):
         if self.ui.tools_table.rowCount() == 0:
             # there is no tool in tool table, so we can't save the GUI elements values to storage
             self.app.log.debug("ToolPaint.on_apply_param_to_all_clicked() --> no tool in Tools Table, aborting.")
             return
 
-        with _signals_blocked(self):
+        with signals_blocked(self):
             # the form shows the parameters of the selected row
             sel_rows = sorted({it.row() for it in self.ui.tools_table.selectedItems()})
             row = sel_rows[0] if sel_rows else self.ui.tools_table.currentRow()
@@ -918,27 +591,6 @@ class ToolPaint(Geometry, AppTool):
 
     def on_order_changed(self, order):
         self.build_ui()
-
-    def rebuild_ui(self):
-        # read the table tools uid
-        current_uid_list = []
-        for row in range(self.ui.tools_table.rowCount()):
-            uid = int(self.ui.tools_table.item(row, 3).text())
-            current_uid_list.append(uid)
-
-        new_tools = {}
-        new_uid = 1
-
-        for current_uid in current_uid_list:
-            new_tools[new_uid] = deepcopy_keep_geometry(self.paint_tools[current_uid])
-            new_uid += 1
-
-        # keep the same dict object: PaintGen shares it
-        self.paint_tools.clear()
-        self.paint_tools.update(new_tools)
-
-        # the tools table changed therefore we need to rebuild it
-        QtCore.QTimer.singleShot(20, self.build_ui)
 
     def build_ui(self):
         self.ui_disconnect()
@@ -1064,7 +716,7 @@ class ToolPaint(Geometry, AppTool):
             return
 
         add_default_tool = False
-        with _signals_blocked(self):
+        with signals_blocked(self):
             try:
                 tools_db_dict = load_tools_database(filename, self.app.options, target=4,
                                                    diameter=truncated_tooldia,
@@ -1163,7 +815,7 @@ class ToolPaint(Geometry, AppTool):
                 self.app.inform.emit('[WARNING_NOTCL] %s %s' % (_("Cancelled."), _("Tool already in Tool Table.")))
             return
 
-        with _signals_blocked(self):
+        with signals_blocked(self):
             self.paint_tools.update({
                 int(self.tooluid): {
                     'tooldia':          truncated_tooldia,
@@ -1190,7 +842,7 @@ class ToolPaint(Geometry, AppTool):
         edited_row = item.row()
         editeduid = int(self.ui.tools_table.item(edited_row, 3).text())
 
-        with _signals_blocked(self):
+        with signals_blocked(self):
             text = self.ui.tools_table.item(edited_row, 1).text()
             try:
                 new_tool_dia = float(text)
@@ -1224,433 +876,6 @@ class ToolPaint(Geometry, AppTool):
         # rebuilding the table also restores the old diameter in the cell when the edit was rejected
         self.build_ui()
 
-    def on_tool_delete(self, rows_to_delete=None, all_tools=None):
-        """
-        Will delete a tool in the tool table
-
-        :param rows_to_delete:  which rows to delete; a row number or a list of row numbers
-        :param all_tools:       delete all tools in the tool table
-        :return:
-        """
-        deleted_tools_list = []
-
-        with _signals_blocked(self):
-            if all_tools:
-                self.paint_tools.clear()
-            else:
-                if rows_to_delete is not None and not isinstance(rows_to_delete, bool):
-                    if isinstance(rows_to_delete, (int, np.integer)):
-                        rows_to_delete = [rows_to_delete]
-                    rows = list(rows_to_delete)
-                else:
-                    # clicked() passes a bool here, the context menu passes None: use the selected rows
-                    rows = sorted({it.row() for it in self.ui.tools_table.selectedItems()})
-
-                for row in rows:
-                    if row is None or row < 0:
-                        continue
-                    try:
-                        deleted_tools_list.append(int(self.ui.tools_table.item(row, 3).text()))
-                    except (AttributeError, ValueError):
-                        continue
-
-                if not deleted_tools_list:
-                    self.app.inform.emit('[WARNING_NOTCL] %s' % _("Delete failed. Select a tool to delete."))
-                    return
-
-                for t in deleted_tools_list:
-                    self.paint_tools.pop(t, None)
-
-        if not all_tools:
-            self.app.inform.emit('[success] %s' % _("Tools deleted from Tool Table."))
-        self.build_ui()
-
-    # To be called after clicking on the plot.
-    def on_single_poly_mouse_release(self, event):
-        app_defaults = getattr(self.app, "defaults", None) or AppDefaults.factory_defaults
-        event_pos = event.pos
-        right_button = 2
-        event_is_dragging = self.app.event_is_dragging
-
-        try:
-            x = float(event_pos[0])
-            y = float(event_pos[1])
-        except TypeError:
-            return
-
-        event_pos = (x, y)
-        curr_pos = self.app.plotcanvas.translate_coords(event_pos)
-
-        # do paint single only for left mouse clicks
-        if event.button == 1:
-            # Gerber is a Geometry subclass, so both kinds are flattened: a MultiPolygon is many polygons
-            if isinstance(self.paint_obj, (Gerber, Geometry)):
-                paint_geo = flatten_shapely_geometry(self.paint_obj.solid_geometry)
-            else:
-                self.app.inform.emit('[ERROR_NOTCL] %s' % _("The selected object is not a Gerber or Geometry object."))
-                return None
-            clicked_poly = self.find_polygon(point=(curr_pos[0], curr_pos[1]), geoset=paint_geo)
-
-            if clicked_poly:
-                if clicked_poly not in self.poly_dict.values():
-                    shape_id = self.app.tool_shapes.add(tolerance=self.paint_obj.drawing_tolerance,
-                                                        layer=0,
-                                                        shape=clicked_poly,
-                                                        color=self.app.options.get(
-                                                            'global_sel_draw_color',
-                                                            app_defaults.get('global_sel_draw_color',
-                                                                             AppDefaults.factory_defaults.get('global_sel_draw_color'))) + 'AF',
-                                                        face_color=self.app.options.get(
-                                                            'global_sel_draw_color',
-                                                            app_defaults.get('global_sel_draw_color',
-                                                                             AppDefaults.factory_defaults.get('global_sel_draw_color'))) + 'AF',
-                                                        visible=True)
-                    self.poly_dict[shape_id] = clicked_poly
-                    self.app.inform.emit(
-                        '%s: %d. %s' % (_("Added polygon"),
-                                        int(len(self.poly_dict)),
-                                        _("Click to add next polygon or right click to start."))
-                    )
-                else:
-                    try:
-                        for k, v in list(self.poly_dict.items()):
-                            if v == clicked_poly:
-                                self.app.tool_shapes.remove(k)
-                                self.poly_dict.pop(k)
-                                break
-                    except TypeError:
-                        return
-                    self.app.inform.emit(
-                        '%s. %s' % (_("Removed polygon"),
-                                    _("Click to add/remove next polygon or right click to start."))
-                    )
-
-                self.app.tool_shapes.redraw()
-            else:
-                self.app.inform.emit(_("No polygon detected under click position."))
-
-        elif event.button == right_button and event_is_dragging is False:
-            # restore the Grid snapping if it was active before
-            if self.grid_status_memory is True:
-                self.app.ui.grid_snap_btn.trigger()
-
-            self.app.plotcanvas.graph_event_disconnect('mouse_release', self.on_single_poly_mouse_release)
-            self.app.plotcanvas.graph_event_disconnect('key_press', self.on_key_press)
-
-            self.app.plotcanvas.graph_event_connect('mouse_press',
-                                                                  self.app.on_mouse_click_over_plot)
-            self.app.plotcanvas.graph_event_connect('mouse_release',
-                                                                  self.app.on_mouse_click_release_over_plot)
-
-            # disconnect flags
-            self.poly_sel_disconnect_flag = False
-
-            self.app.tool_shapes.clear(update=True)
-
-            if self.poly_dict:
-                poly_list = deepcopy_keep_geometry(list(self.poly_dict.values()))
-                self.last_polygons = list(poly_list)
-                self.gen.paint_poly(self.paint_obj, inside_pt=(curr_pos[0], curr_pos[1]), poly_list=poly_list,
-                                tooldia=self.tooldia_list)
-                self.poly_dict.clear()
-            else:
-                self.app.inform.emit('[ERROR_NOTCL] %s' % _("List of single polygons is empty. Aborting."))
-
-    # To be called after clicking on the plot.
-    def on_mouse_release(self, event):
-        event_pos = event.pos
-        # event_is_dragging = event.is_dragging
-        right_button = 2
-
-        try:
-            x = float(event_pos[0])
-            y = float(event_pos[1])
-        except TypeError:
-            return
-
-        event_pos = (x, y)
-
-        shape_type = self.shape_type()
-
-        curr_pos = self.app.plotcanvas.translate_coords(event_pos)
-        if self.app.grid_status():
-            curr_pos = self.app.geo_editor.snap(curr_pos[0], curr_pos[1])
-
-        x1, y1 = curr_pos[0], curr_pos[1]
-
-        # do paint single only for left mouse clicks
-        if event.button == 1:
-            if shape_type == "square":
-                if not self.first_click:
-                    self.first_click = True
-                    self.app.inform.emit('[WARNING_NOTCL] %s' % _("Click the end point of the area."))
-
-                    self.cursor_pos = self.app.plotcanvas.translate_coords(event_pos)
-                    if self.app.grid_status():
-                        self.cursor_pos = self.app.geo_editor.snap(self.cursor_pos[0], self.cursor_pos[1])
-                else:
-                    self.app.inform.emit(_("Zone added. Click to start adding next zone or right click to finish."))
-                    self.app.delete_selection_shape()
-
-                    x0, y0 = self.cursor_pos[0], self.cursor_pos[1]
-                    pt1 = (x0, y0)
-                    pt2 = (x1, y0)
-                    pt3 = (x1, y1)
-                    pt4 = (x0, y1)
-
-                    self.area_to_paint_list.append(
-                        Polygon(
-                            [pt1, pt2, pt3, pt4]
-                        )
-                    )
-
-                    # add a temporary shape on canvas
-                    self.draw_tool_selection_shape(old_coords=(x0, y0), coords=(x1, y1))
-
-                    self.first_click = False
-                    return
-            else:
-                self.points.append((x1, y1))
-
-                if len(self.points) > 1:
-                    self.poly_drawn = True
-                    self.app.inform.emit(_("Click on next Point or click right mouse button to complete ..."))
-
-                return ""
-        elif event.button == right_button and self.mouse_is_dragging is False:
-
-            shape_type = self.shape_type()
-
-            if shape_type == "square":
-                self.first_click = False
-            else:
-                # if we finish to add a polygon
-                if self.poly_drawn is True:
-                    try:
-                        # try to add the point where we last clicked if it is not already in the self.points
-                        last_pt = (x1, y1)
-                        if last_pt != self.points[-1]:
-                            self.points.append(last_pt)
-                    except IndexError:
-                        pass
-
-                    # we need to add a Polygon and a Polygon can be made only from at least 3 points
-                    if len(self.points) > 2:
-                        self.delete_moving_selection_shape()
-                        pol = Polygon(self.points)
-                        # do not add invalid polygons even if they are drawn by utility geometry
-                        if pol.is_valid:
-                            self.area_to_paint_list.append(pol)
-                            self.draw_selection_shape_polygon(points=self.points)
-                            self.app.inform.emit(
-                                _("Zone added. Click to start adding next zone or right click to finish."))
-
-                    self.points.clear()
-                    self.poly_drawn = False
-                    return
-
-            # the selection is finished (or abandoned with a single point): clear the rubber band, the zone
-            # outlines and the click state
-            exclusion_mode = self.exclusion_mode
-            self.reset_selection_state()
-
-            self.app.plotcanvas.graph_event_disconnect('mouse_release', self.on_mouse_release)
-            self.app.plotcanvas.graph_event_disconnect('mouse_move', self.on_mouse_move)
-            self.app.plotcanvas.graph_event_disconnect('key_press', self.on_key_press)
-
-            self.app.plotcanvas.graph_event_connect('mouse_press',
-                                                                  self.app.on_mouse_click_over_plot)
-            self.app.plotcanvas.graph_event_connect('mouse_move',
-                                                                  self.app.on_mouse_move_over_plot)
-            self.app.plotcanvas.graph_event_connect('mouse_release',
-                                                                  self.app.on_mouse_click_release_over_plot)
-
-            # disconnect flags
-            self.area_sel_disconnect_flag = False
-            self.app.ui.notebook.setDisabled(False)
-
-            if len(self.area_to_paint_list) == 0:
-                return
-
-            if exclusion_mode:
-                self.exclusion_list.extend(self.area_to_paint_list)
-                self.area_to_paint_list.clear()
-                self.update_exclusions()
-                self.app.inform.emit('[success] %s' % _("Exclusion zones added."))
-                return
-
-            self.last_zones = list(self.area_to_paint_list)
-            self.gen.paint_area_selection_option(self.area_to_paint_list)
-
-    # called on mouse move
-    def on_mouse_move(self, event):
-        app_defaults = getattr(self.app, "defaults", None) or AppDefaults.factory_defaults
-        shape_type = self.shape_type()
-
-        event_pos = event.pos
-        event_is_dragging = event.is_dragging
-
-        try:
-            x = float(event_pos[0])
-            y = float(event_pos[1])
-        except TypeError:
-            return
-
-        curr_pos = self.app.plotcanvas.translate_coords((x, y))
-
-        # detect mouse dragging motion
-        if event_is_dragging == 1:
-            self.mouse_is_dragging = True
-        else:
-            self.mouse_is_dragging = False
-
-        # update the cursor position
-        if self.app.grid_status():
-            # Update cursor
-            curr_pos = self.app.geo_editor.snap(curr_pos[0], curr_pos[1])
-
-            self.app.app_cursor.set_data(np.asarray([(curr_pos[0], curr_pos[1])]),
-                                         symbol='++', edge_color=self.app.plotcanvas.cursor_color,
-                                         edge_width=self.app.options.get(
-                                             "global_cursor_width",
-                                             app_defaults.get("global_cursor_width",
-                                                              AppDefaults.factory_defaults.get("global_cursor_width"))),
-                                         size=self.app.options.get(
-                                             "global_cursor_size",
-                                             app_defaults.get("global_cursor_size",
-                                                              AppDefaults.factory_defaults.get("global_cursor_size"))))
-
-        if self.cursor_pos is None:
-            self.cursor_pos = (0, 0)
-
-        self.app.dx = curr_pos[0] - float(self.cursor_pos[0])
-        self.app.dy = curr_pos[1] - float(self.cursor_pos[1])
-
-        # # update the positions on status bar
-        # self.app.ui.position_label.setText("&nbsp;<b>X</b>: %.4f&nbsp;&nbsp;   "
-        #                                    "<b>Y</b>: %.4f&nbsp;" % (curr_pos[0], curr_pos[1]))
-        # self.app.ui.rel_position_label.setText("<b>Dx</b>: %.4f&nbsp;&nbsp;  <b>Dy</b>: "
-        #                                        "%.4f&nbsp;&nbsp;&nbsp;&nbsp;" % (self.app.dx, self.app.dy))
-        self.app.ui.update_location_labels(self.app.dx, self.app.dy, curr_pos[0], curr_pos[1])
-
-        # units = self.app.app_units.lower()
-        # self.app.plotcanvas.text_hud.text = \
-        #     'Dx:\t{:<.4f} [{:s}]\nDy:\t{:<.4f} [{:s}]\n\nX:  \t{:<.4f} [{:s}]\nY:  \t{:<.4f} [{:s}]'.format(
-        #         self.app.dx, units, self.app.dy, units, curr_pos[0], units, curr_pos[1], units)
-        self.app.plotcanvas.on_update_text_hud(self.app.dx, self.app.dy, curr_pos[0], curr_pos[1])
-
-        # draw the utility geometry
-        if shape_type == "square":
-            if self.first_click:
-                self.app.draw_moving_selection_shape(old_coords=(self.cursor_pos[0], self.cursor_pos[1]),
-                                                     coords=(curr_pos[0], curr_pos[1]))
-        else:
-            self.draw_moving_selection_shape_poly(points=self.points, data=(curr_pos[0], curr_pos[1]))
-
-    def on_key_press(self, event):
-        # modifiers = QtWidgets.QApplication.keyboardModifiers()
-
-        # events out of the self.app.collection view (it's about Project Tab) are of type int
-        if isinstance(event, int):
-            key = event
-        # events from the GUI are of type QKeyEvent
-        elif isinstance(event, QtGui.QKeyEvent):
-            key = event.key()
-
-        # events from Vispy are of type KeyEvent
-        else:
-            key = event.key
-
-        if key == QtCore.Qt.Key.Key_Escape or key == 'Escape':
-            self.end_selection()
-
-    def end_selection(self):
-        """
-        Leave the area / polygon selection mode: give the canvas back to the app, enable the panel and forget the
-        half-made selection. Used by the Escape key and when the plugin closes.
-        """
-        if self.area_sel_disconnect_flag is True:
-            try:
-                self.app.plotcanvas.graph_event_disconnect('mouse_release', self.on_mouse_release)
-                self.app.plotcanvas.graph_event_disconnect('mouse_move', self.on_mouse_move)
-                self.app.plotcanvas.graph_event_disconnect('key_press', self.on_key_press)
-            except Exception as e:
-                self.app.log.error("ToolPaint.end_selection() _1 --> %s" % str(e))
-
-            self.app.plotcanvas.graph_event_connect('mouse_press', self.app.on_mouse_click_over_plot)
-            self.app.plotcanvas.graph_event_connect('mouse_move', self.app.on_mouse_move_over_plot)
-            self.app.plotcanvas.graph_event_connect('mouse_release', self.app.on_mouse_click_release_over_plot)
-
-            self.area_sel_disconnect_flag = False
-            self.app.ui.notebook.setDisabled(False)
-
-        if self.poly_sel_disconnect_flag is True:
-            try:
-                # restore the Grid snapping if it was active before
-                if self.grid_status_memory is True:
-                    self.app.ui.grid_snap_btn.trigger()
-
-                self.app.plotcanvas.graph_event_disconnect('mouse_release', self.on_single_poly_mouse_release)
-                self.app.plotcanvas.graph_event_disconnect('key_press', self.on_key_press)
-
-                self.app.tool_shapes.clear(update=True)
-            except Exception as e:
-                self.app.log.error("ToolPaint.end_selection() _2 --> %s" % str(e))
-
-            self.app.plotcanvas.graph_event_connect('mouse_release', self.app.on_mouse_click_release_over_plot)
-            self.app.plotcanvas.graph_event_connect('mouse_press', self.app.on_mouse_click_over_plot)
-            self.app.ui.notebook.setDisabled(False)
-
-            self.poly_sel_disconnect_flag = False
-
-        self.poly_dict.clear()
-        self.reset_selection_state()
-
-    def on_plugin_cleanup(self):
-        """The plugin is closing: do not leave the canvas in the selection mode, take the preview off the canvas."""
-        self.end_selection()
-        self.clear_preview()
-        self.exclusion_list.clear()
-        if self._exclusion_shapes is not None:
-            self._exclusion_shapes.clear(update=True)
-
-    # ------------------------------------------------------------------------------------------------------------
-    # exclusion zones
-    # ------------------------------------------------------------------------------------------------------------
-    def shape_type(self):
-        """The shape of the zone being drawn: the exclusion shape in exclusion mode, else the area selection one."""
-        radio = self.ui.excl_shape_radio if self.exclusion_mode else self.ui.area_shape_radio
-        return radio.get_value()
-
-    def on_add_exclusion(self):
-        """Let the user draw exclusion zones with the area selection mouse handlers (right click or Escape ends)."""
-        if self.area_sel_disconnect_flag is True or self.poly_sel_disconnect_flag is True:
-            return
-        self.clear_preview()
-        self.app.inform.emit('[WARNING_NOTCL] %s' % _("Click the start point of the area."))
-        self.area_to_paint_list.clear()
-        self.exclusion_mode = True
-        self.first_click = False
-        self.cursor_pos = None
-        self.mouse_is_dragging = False
-        self.points.clear()
-        self.poly_drawn = False
-
-        self.app.plotcanvas.graph_event_disconnect('mouse_press', self.app.on_mouse_click_over_plot)
-        self.app.plotcanvas.graph_event_disconnect('mouse_move', self.app.on_mouse_move_over_plot)
-        self.app.plotcanvas.graph_event_disconnect('mouse_release', self.app.on_mouse_click_release_over_plot)
-
-        self.app.plotcanvas.graph_event_connect('mouse_release', self.on_mouse_release)
-        self.app.plotcanvas.graph_event_connect('mouse_move', self.on_mouse_move)
-        self.app.plotcanvas.graph_event_connect('key_press', self.on_key_press)
-
-        self.area_sel_disconnect_flag = True
-        self.app.ui.notebook.setDisabled(True)
-
-    def on_delete_exclusions(self):
-        self.exclusion_list.clear()
-        self.update_exclusions()
-
     def clear_exclusions(self):
         """The exclusion zones as one geometry, or None when they are off or there are none."""
         try:
@@ -1658,22 +883,6 @@ class ToolPaint(Geometry, AppTool):
         except RuntimeError:
             return None
         return unary_union(self.exclusion_list) if use and self.exclusion_list else None
-
-    def update_exclusions(self):
-        """Show the count of the zones and draw them in their own color."""
-        self.ui.excl_count_value.setText(str(len(self.exclusion_list)))
-        self.clear_preview()
-        if self._exclusion_shapes is None:
-            try:
-                self._exclusion_shapes = self.app.plotcanvas.new_shape_collection(layers=1)
-            except Exception as e:
-                self.app.log.error("ToolPaint.update_exclusions() --> %s" % str(e))
-                return
-        self._exclusion_shapes.clear(update=False)
-        for poly in self.exclusion_list:
-            self._exclusion_shapes.add(poly, color='#CC0000FF', face_color='#CC000040', update=False, layer=0,
-                                       tolerance=None)
-        self._exclusion_shapes.redraw()
 
     # ------------------------------------------------------------------------------------------------------------
     # the preview of the area to paint
@@ -1773,7 +982,7 @@ class ToolPaint(Geometry, AppTool):
         if not polygons:
             self.app.inform.emit('[WARNING_NOTCL] %s' % _("The area to paint is empty."))
             return
-        store = self._preview_store()
+        store = self._shape_store('_preview_shapes')
         if store is None:
             return
         store.clear(update=False)
@@ -1782,44 +991,6 @@ class ToolPaint(Geometry, AppTool):
         store.redraw()
         self._preview_drawn = True
         self.app.inform.emit('[success] %s' % _("Preview of the area to paint."))
-
-    def _preview_store(self):
-        """The shape collection of the preview, created on the first use (None without a canvas)."""
-        if self._preview_shapes is None:
-            try:
-                self._preview_shapes = self.app.plotcanvas.new_shape_collection(layers=1)
-            except Exception as e:
-                self.app.log.error("ToolPaint._preview_store() --> %s" % str(e))
-                return None
-        return self._preview_shapes
-
-    def on_source_changed(self, *args):
-        """The object to paint changed: its preview and the zones / polygons of the last run do not apply any more."""
-        self.last_zones = []
-        self.last_polygons = []
-        self.clear_preview()
-
-    def clear_preview(self, *args):
-        """Remove the preview from the canvas; a job still running will not draw its result."""
-        self._preview_token += 1
-        if self._preview_drawn and self._preview_shapes is not None:
-            self._preview_shapes.clear(update=True)
-        self._preview_drawn = False
-
-    def reset_selection_state(self):
-        """
-        Forget a half-made area/polygon selection: click state, cursor position, drag flag, polygon points and the
-        rubber band / zone outlines on the canvas. The lists are cleared in place because PaintGen shares them.
-        """
-        self.first_click = False
-        self.cursor_pos = None
-        self.mouse_is_dragging = False
-        self.points.clear()
-        self.poly_drawn = False
-        self.exclusion_mode = False
-
-        self.delete_moving_selection_shape()
-        self.delete_tool_selection_shape()
 
     # noinspection PyUnresolvedReferences
     def ui_connect(self):
@@ -1989,32 +1160,7 @@ class ToolPaint(Geometry, AppTool):
 
         return bounds_rec(geometry)
 
-    def on_paint_tool_add_from_db_executed(self, tool):
-        """
-        Here add the tool from DB  in the selected geometry object
-        :return:
-        """
-        tool_from_db = deepcopy(tool)
-
-        if tool['data']['tool_target'] not in [0, 4]:   # [General, Paint]
-            self.app.inform.emit('[ERROR_NOTCL] %s' % _("Selected tool can't be used here. Pick another."))
-            return 'fail'
-
-        res = self.on_paint_tool_from_db_inserted(tool=tool_from_db)
-
-        if res == 'fail':
-            return 'fail'
-        self.app.inform.emit('[success] %s' % _("Tool from DB added in Tool Table."))
-
-        # select last tool added
-        toolid = res
-        for row in range(self.ui.tools_table.rowCount()):
-            if int(self.ui.tools_table.item(row, 3).text()) == toolid:
-                self.ui.tools_table.selectRow(row)
-        self.on_row_selection_change()
-        return res
-
-    def on_paint_tool_from_db_inserted(self, tool):
+    def on_tool_from_db_inserted(self, tool):
         """
         Called from the Tools DB object through an App method when adding a tool from Tools Database
         :param tool: a dict with the tool data
@@ -2079,26 +1225,6 @@ class ToolPaint(Geometry, AppTool):
                 break
 
         return tooluid
-
-    def on_paint_tool_add_from_db_clicked(self):
-        """
-        Called when the user wants to add a new tool from Tools Database. It will create the Tools Database object
-        and display the Tools Database tab in the form needed for the Tool adding
-        :return: None
-        """
-
-        # if the Tools Database is already opened focus on it
-        for idx in range(self.app.ui.plot_tab_area.count()):
-            if self.app.ui.plot_tab_area.tabText(idx) == _("Tools Database"):
-                self.app.ui.plot_tab_area.setCurrentWidget(self.app.tools_db_tab)
-                break
-        ret_val = self.app.on_tools_database(source='paint')
-        if ret_val == 'fail':
-            return
-        self.app.tools_db_tab.ok_to_add = True
-        self.app.tools_db_tab.ui.buttons_frame.hide()
-        self.app.tools_db_tab.ui.add_tool_from_db.show()
-        self.app.tools_db_tab.ui.cancel_tool_from_db.show()
 
     def reset_fields(self):
         self.ui.obj_combo.setRootModelIndex(self.app.collection.index(0, 0, QtCore.QModelIndex()))

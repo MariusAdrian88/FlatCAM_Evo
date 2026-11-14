@@ -147,11 +147,6 @@ class PaintGen:
 
     paint_tools = _live_state('paint_tools')
     temp_shapes = _live_state('temp_shapes')
-    first_click = _live_state('first_click')
-    cursor_pos = _live_state('cursor_pos')
-    mouse_is_dragging = _live_state('mouse_is_dragging')
-    poly_drawn = _live_state('poly_drawn')
-    points = _live_state('points')
 
     def _option(self, key):
         app_defaults = getattr(self.app, "defaults", None) or AppDefaults.factory_defaults
@@ -171,7 +166,7 @@ class PaintGen:
         self.app.defaults.report_usage("on_paint_button_click")
         app_defaults = getattr(self.app, "defaults", None) or AppDefaults.factory_defaults
 
-        self.parent_tool.reset_selection_state()
+        self.parent_tool.end_selection()
         self.parent_tool.clear_preview()
 
         prog_plot = True if self.app.options.get(
@@ -180,8 +175,6 @@ class PaintGen:
         ) == 'progressive' else False
         if prog_plot:
             self.temp_shapes.clear(update=True)
-
-        self.parent_tool.area_to_paint_list = []
 
         self.select_method = self.ui.select_method_combo.get_value()
 
@@ -1073,70 +1066,10 @@ class PaintGen:
     def _paint_poly_single(self):
         self.parent_tool.paint_obj = self.paint_obj
         self.parent_tool.tooldia_list = self.tooldia_list
-
-        # disengage the grid snapping since it may be hard to click on polygons with grid snapping on
-        if self.app.ui.grid_snap_btn.isChecked():
-            self.parent_tool.grid_status_memory = True
-            self.app.ui.grid_snap_btn.trigger()
-        else:
-            self.parent_tool.grid_status_memory = False
-
-        self.app.inform.emit('[WARNING_NOTCL] %s' % _("Click on a polygon to paint it."))
-
-        self.app.plotcanvas.graph_event_connect(
-            'mouse_release',
-            self.parent_tool.on_single_poly_mouse_release,
-        )
-        self.app.plotcanvas.graph_event_connect(
-            'key_press',
-            self.parent_tool.on_key_press,
-        )
-
-        self.app.plotcanvas.graph_event_disconnect(
-            'mouse_release',
-            self.app.on_mouse_click_release_over_plot,
-        )
-        self.app.plotcanvas.graph_event_disconnect(
-            'mouse_press',
-            self.app.on_mouse_click_over_plot,
-        )
-
-        # disconnect flags
-        self.parent_tool.poly_sel_disconnect_flag = True
+        self.parent_tool.start_click_selection()
 
     def _paint_poly_area(self):
-        self.app.inform.emit('[WARNING_NOTCL] %s' % _("Click the start point of the area."))
-
-        self.app.plotcanvas.graph_event_disconnect(
-            'mouse_press',
-            self.app.on_mouse_click_over_plot,
-        )
-        self.app.plotcanvas.graph_event_disconnect(
-            'mouse_move',
-            self.app.on_mouse_move_over_plot,
-        )
-        self.app.plotcanvas.graph_event_disconnect(
-            'mouse_release',
-            self.app.on_mouse_click_release_over_plot,
-        )
-
-        self.app.plotcanvas.graph_event_connect(
-            'mouse_release',
-            self.parent_tool.on_mouse_release,
-        )
-        self.app.plotcanvas.graph_event_connect(
-            'mouse_move',
-            self.parent_tool.on_mouse_move,
-        )
-        self.app.plotcanvas.graph_event_connect(
-            'key_press',
-            self.parent_tool.on_key_press,
-        )
-
-        # disconnect flags
-        self.parent_tool.area_sel_disconnect_flag = True
-        # disable the "notebook" until the process is finished
-        self.app.ui.notebook.setDisabled(True)
+        self.parent_tool.start_area_selection()
 
     def _paint_poly_reference(self):
         self.bound_obj_name = self.ui.reference_combo.currentText()

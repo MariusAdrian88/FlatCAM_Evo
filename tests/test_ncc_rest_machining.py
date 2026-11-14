@@ -797,8 +797,8 @@ def click_ncc(t, points):
     t.ui.select_method_combo.set_value(3)
     t.gen.on_ncc_click()
     for x, y in points:
-        t.on_click_release(click_event(1, x, y))
-    t.on_click_release(click_event(2))
+        t.selector.on_click_release(click_event(1, x, y))
+    t.selector.on_click_release(click_event(2))
 
 
 def test_empty_faces_are_the_copper_free_regions():
