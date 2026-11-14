@@ -990,6 +990,42 @@ class TestMillingGcodeFixes:
         assert loaded['z_cut'] == -2.0
         assert loaded['gcode'] == gcode
 
+    @staticmethod
+    def multi_depth_gcode(path):
+        job = gcode_job('default')
+        job.z_cut = -0.3
+        job.z_depthpercut = 0.1
+        calls = []
+        job.app.exc_areas = SimpleNamespace(
+            travel_coordinates=lambda **kw: calls.append(kw['start_point']) or [(None, kw['end_point'])])
+        gcode, __ = job.create_gcode_multi_pass(path, 0.1, False, 0.0, 0, job.pp_geometry, 2.0, old_point=(0, 0))
+        return gcode, calls
+
+    def test_closed_path_keeps_its_direction_at_every_depth(self):
+        # an isolation ring made climb must not turn conventional at the next depth
+        gcode, __ = self.multi_depth_gcode(LinearRing([(1, 1), (3, 1), (3, 3), (1, 3)]))
+        depths = re.split(r'(?m)^G01 Z-', gcode)[1:]
+        assert len(depths) == 3
+        turns = set()
+        for depth in depths:
+            pts = [(float(x), float(y)) for x, y in re.findall(r'^G01 X(-?[\d.]+) Y(-?[\d.]+)', depth, re.M)]
+            turns.add(shapely.Polygon(pts).exterior.is_ccw)
+        assert len(turns) == 1
+
+    def test_next_depth_makes_no_travel_move_at_cutting_depth(self):
+        gcode, calls = self.multi_depth_gcode(LineString([(1, 1), (3, 1), (3, 3)]))
+        assert calls == [(0, 0)]
+        z = 2.0
+        for line in gcode.splitlines():
+            axes = dict(re.findall(r'([XYZ])(-?[\d.]+)', line))
+            if 'Z' in axes:
+                z = float(axes['Z'])
+            if re.match(r'G0+\s', line) and ('X' in axes or 'Y' in axes):
+                assert z >= 2.0, line
+        # the second depth starts where the first one ended
+        second = re.split(r'(?m)^G01 Z-', gcode)[2]
+        assert re.findall(r'^G01 X(-?[\d.]+) Y(-?[\d.]+)', second, re.M)[0] == ('3.0000', '1.0000')
+
     def test_extra_cut_goes_on_along_the_path_after_the_start_point(self):
         # the isolation ring of a 0.3 x 0.3 mm pad for a 0.1 mm tool, Extra Cut 1.0: before, the tool went from the
         # start point straight to a later vertex (across the corner, into the pad) and walked back

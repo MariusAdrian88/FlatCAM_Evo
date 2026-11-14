@@ -5827,6 +5827,12 @@ class CNCjob(Geometry):
 
         return gcode_single_pass
 
+    @staticmethod
+    def _is_closed_path(path):
+        """True if the first and the last point of the path are the same."""
+        coords = path.coords
+        return len(coords) > 2 and tuple(coords[0][:2]) == tuple(coords[-1][:2])
+
     def create_gcode_multi_pass(self, geometry, cdia, extracut, extracut_length, tolerance, postproc, z_move,
                                 old_point=(0, 0)):
         """
@@ -5868,6 +5874,8 @@ class CNCjob(Geometry):
 
         depth = 0
         reverse = False
+        cur_pt = old_point
+        first_depth = True
         # the chunks are joined 1 time: a str += in a loop copies the whole string each time
         pass_parts = []
         while depth > z_cut:
@@ -5877,19 +5885,23 @@ class CNCjob(Geometry):
             if depth < z_cut:
                 depth = z_cut
 
-            # Cut at specific depth and do not lift the tool.
-            # Note: linear2gcode() will use G00 to move to the first point in the path, but it should be already
-            # at the first point if the tool is down (in the material).  So, an extra G00 should show up but
-            # is inconsequential.
+            # Cut at specific depth and do not lift the tool: the tool is already at the start of the path, at the
+            # end of the previous depth, so no travel move (no G00 at a cutting depth) is made after the first depth.
             # the preprocessors get the depth as a float: a Decimal fails in float arithmetic (Roland, ISEL ICP)
             if isinstance(geometry, LineString) or isinstance(geometry, LinearRing):
+                start_pt = geometry.coords[0]
+                at_start = (not first_depth) and \
+                    abs(start_pt[0] - cur_pt[0]) < 1e-9 and abs(start_pt[1] - cur_pt[1]) < 1e-9
                 if extracut is False or not geometry.is_ring:
                     pass_parts.append(self.linear2gcode(geometry, cdia, tolerance=tolerance, z_cut=float(depth),
-                                                          up=False, z_move=z_move, old_point=old_point))
+                                                          up=False, z_move=z_move, old_point=cur_pt, cont=at_start))
                 else:
                     pass_parts.append(self.linear2gcode_extra(geometry, cdia, extracut_length, tolerance=tolerance,
                                                                 z_move=z_move, z_cut=float(depth), up=False,
-                                                                old_point=old_point))
+                                                                old_point=cur_pt, cont=at_start))
+                # a closed path ends where it started
+                cur_pt = start_pt if self._is_closed_path(geometry) else geometry.coords[-1]
+                first_depth = False
 
             # Ignore multi-pass for points.
             elif isinstance(geometry, Point):
@@ -5899,7 +5911,8 @@ class CNCjob(Geometry):
                 self.app.log.warning("G-code generation not implemented for %s" % (str(type(geometry))))
 
             # Reverse coordinates if not a loop, so we can continue cutting without returning to the beginning.
-            if isinstance(geometry, LineString):
+            # A closed path is never reversed: it keeps its direction (climb / conventional) at every depth.
+            if isinstance(geometry, LineString) and not self._is_closed_path(geometry):
                 geometry = LineString(list(geometry.coords)[::-1])
                 reverse = True
         gcode_multi_pass += ''.join(pass_parts)
@@ -5909,8 +5922,8 @@ class CNCjob(Geometry):
             if isinstance(geometry, LineString):
                 geometry = LineString(list(geometry.coords)[::-1])
 
-        # Lift the tool
-        gcode_multi_pass += self.doformat(p.lift_code, x=old_point[0], y=old_point[1])
+        # Lift the tool where the last depth ended
+        gcode_multi_pass += self.doformat(p.lift_code, x=cur_pt[0], y=cur_pt[1])
         return gcode_multi_pass, geometry
 
     def codes_split(self, gline):
