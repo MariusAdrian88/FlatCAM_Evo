@@ -283,10 +283,8 @@ class MillingUI:
 
         self.tools_table_mill_geo.horizontalHeaderItem(4).setToolTip(
             _(
-                "Plot column. It is visible only for MultiGeo geometries, meaning geometries that holds the geometry\n"
-                "data into the tools. For those geometries, deleting the tool will delete the geometry data also,\n"
-                "so be WARNED. From the checkboxes on each row it can be enabled/disabled the plot on canvas\n"
-                "for the corresponding tool."
+                "Deleting a tool also deletes its geometry data.\n"
+                "The checkboxes enable or disable plotting for the corresponding tool."
             ))
 
         # Hide the Tools Table on start

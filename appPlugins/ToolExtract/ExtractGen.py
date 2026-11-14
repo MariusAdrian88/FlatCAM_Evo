@@ -372,8 +372,6 @@ def extract_cutout(geometry, margin, thickness, shape='rect'):
 
 def apply_result(obj, res):
     """Fill a new Gerber object from a non-excellon ExtractResult."""
-    obj.multitool = False
-    obj.multigeo = False
     obj.follow = False
     obj.tools = res.tools
     obj.solid_geometry = res.solid_geometry

@@ -70,7 +70,7 @@ class ToolSub(AppTool):
         # the signals of the tool and of the app are connected ONCE; only the widgets are connected again
         self.job_done.connect(self.on_job_done)
         self.app.object_status_changed.connect(self.on_objects_changed)
-        self.app.proj_selection_changed.connect(self.on_object_selection_changed)
+        self.connect_selection_signal()
 
     def install(self, icon=None, separator=None, **kwargs):
         AppTool.install(self, icon, separator, shortcut='Alt+W', **kwargs)
@@ -160,6 +160,8 @@ class ToolSub(AppTool):
         ui.reset_button.clicked.connect(self.set_tool_ui)
 
     def set_tool_ui(self, *args):
+        # the close of the plugin tab disconnects this signal
+        self.connect_selection_signal()
         self.clear_preview()
         self._name_edited = False
         self._current_sub = None
@@ -218,7 +220,7 @@ class ToolSub(AppTool):
 
     def tool_entries(self, obj):
         """[(id, label)] of the apertures / tools that can be selected on an object."""
-        if obj is None or (obj.kind == 'geometry' and not getattr(obj, 'multigeo', False)):
+        if obj is None:
             return []
         out = []
         for tid, tool in (getattr(obj, 'tools', None) or {}).items():

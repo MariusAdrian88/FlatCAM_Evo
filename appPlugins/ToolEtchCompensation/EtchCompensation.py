@@ -349,7 +349,6 @@ class ToolEtchCompensation(AppTool):
                     new_obj.follow_geometry = deepcopy_keep_geometry(getattr(src, 'follow_geometry', []))
                     new_obj.aperture_macros = deepcopy(getattr(src, 'aperture_macros', {}))
                     new_obj.export_as_regions = bool(getattr(src, 'export_as_regions', False))
-                    new_obj.multigeo = getattr(src, 'multigeo', False)
                     new_obj.tools = res['apertures']
                     new_obj.solid_geometry = res['solid_geometry']
                     new_obj.regenerate_source(name=outname)

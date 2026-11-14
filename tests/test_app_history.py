@@ -266,6 +266,35 @@ def test_matrix_undo_redo(fc, no_plot):
     assert fc.history.redo() and np.allclose(_bounds(grb), b1)
 
 
+def test_two_tool_matrix_translation_undo_redo(fc, no_plot):
+    from shapely import LineString
+    from shapely.affinity import translate
+
+    paths = [LineString([(0, 0), (2, 0)]), LineString([(10, 3), (12, 3)])]
+
+    def init(obj, app):
+        obj.tools = {uid: dict(obj.default_tool(), solid_geometry=[path])
+                     for uid, path in enumerate(paths, 1)}
+
+    geo = fc.app_obj.new_object('geometry', 'two_tool_matrix', init, plot=False)
+    matrix = (1, 0, 0, 1, 5, -2)
+    apply_matrix_to_object(geo, matrix)
+    fc.history.record_matrix('translate', [(geo, matrix)])
+
+    def check(expected):
+        assert list(geo.tools) == [1, 2]
+        for uid, path in enumerate(expected, 1):
+            assert len(geo.tools[uid]['solid_geometry']) == 1
+            assert geo.tools[uid]['solid_geometry'][0].equals_exact(path, 1e-9)
+
+    moved = [translate(path, xoff=5, yoff=-2) for path in paths]
+    check(moved)
+    assert fc.history.undo()
+    check(paths)
+    assert fc.history.redo()
+    check(moved)
+
+
 def test_delete_undo_rebuilds_same_uid_and_later_steps_work(fc, no_plot):
     exc = _load(fc, 'excellon', 'unify_mixed.drl', 'e_del')
     uid, b0 = exc.history_uid, _bounds(exc)
@@ -291,6 +320,224 @@ def test_create_undo_redo(fc, no_plot):
     assert fc.history.undo() and fc.history.find(uid) is None
     assert len(fc.collection.get_list()) == count
     assert fc.history.redo() and fc.history.find(uid) is not None
+
+
+@pytest.mark.parametrize('visible,close', [(False, 'toggle'), (True, 'replace')])
+def test_film_restores_workspace_and_view_on_close(fc, no_plot, visible, close, monkeypatch):
+    from vispy.geometry import Rect
+    from appPlugins.ToolFilm.Film import Film
+    from appGUI.PlotCanvas import PlotCanvas
+    # Create a real canvas for this test (fc is headless with NullCanvas)
+    real_canvas = PlotCanvas(fc)
+    real_canvas.size = (800, 600)
+    monkeypatch.setattr(fc, 'plotcanvas', real_canvas)
+    canvas = fc.plotcanvas
+    workspace_cb = fc.ui.general_pref_form.general_app_set_group.workspace_cb
+    previous_visible = workspace_cb.get_value()
+    previous_rect = Rect(canvas.view.camera.rect)
+    workspace_cb.set_value(visible)
+    fc.on_workspace()
+    canvas.view.camera.rect = Rect(23, 41, 30, 15)
+    original = Rect(canvas.view.camera.rect)
+    plugin_tab_present = fc.ui.notebook.indexOf(fc.ui.plugin_tab) >= 0
+    film = Film(fc)
+    try:
+        monkeypatch.setattr(fc, 'plugin_tab_locked', True)
+        film.run(toggle=False)
+        assert workspace_cb.get_value() == visible
+        assert canvas.view.camera.rect == original
+        monkeypatch.setattr(fc, 'plugin_tab_locked', False)
+        fc.ui.notebook.removeTab(fc.ui.notebook.indexOf(fc.ui.plugin_tab))
+        film.run(toggle=True)
+        assert fc.ui.notebook.indexOf(fc.ui.plugin_tab) >= 0
+        assert fc.ui.plugin_scroll_area.widget() is film
+        assert fc.ui.notebook.currentWidget() is fc.ui.plugin_tab
+        assert fc.options['global_workspace'] and workspace_cb.get_value()
+        assert canvas.workspace_line.parent is canvas.view.scene
+        rect = canvas.view.camera.rect
+        (left, right), (bottom, top) = (canvas.workspace_line.bounds(axis) for axis in (0, 1))
+        assert rect.left < left and rect.right > right
+        assert rect.bottom < bottom and rect.top > top
+        canvas.view.camera.rect = Rect(-10, -20, 50, 60)
+        film.run(toggle=False)
+        if close == 'toggle':
+            film.run(toggle=True)
+        else:
+            fc.ui.plugin_scroll_area.takeWidget()
+            replacement = QtWidgets.QWidget()
+            fc.ui.plugin_scroll_area.setWidget(replacement)
+            QtWidgets.QApplication.processEvents()
+        assert fc.options['global_workspace'] == visible
+        assert workspace_cb.get_value() == visible
+        assert (canvas.workspace_line.parent is canvas.view.scene) == visible
+        assert canvas.view.camera.rect == original
+        film.on_plugin_cleanup()
+        assert canvas.view.camera.rect == original
+    finally:
+        film.on_plugin_cleanup()
+        fc.ui.plugin_scroll_area.takeWidget()
+        film.deleteLater()
+        if not plugin_tab_present:
+            fc.ui.notebook.removeTab(fc.ui.notebook.indexOf(fc.ui.plugin_tab))
+        workspace_cb.set_value(previous_visible)
+        fc.on_workspace()
+        canvas.view.camera.rect = previous_rect
+        real_canvas.close()
+        QtWidgets.QApplication.processEvents()
+
+
+def _click_document(fc, doc):
+    from PyQt6.QtTest import QTest
+    view = fc.collection.view
+    view.show()
+    view.expandAll()
+    group = fc.collection.group_items['document']
+    parent = fc.collection.index(group.row(), 0, QtCore.QModelIndex())
+    index = fc.collection.index(next(i for i, item in enumerate(group.child_items) if item.obj is doc), 0, parent)
+    view.scrollTo(index)
+    QtWidgets.QApplication.processEvents()
+    QTest.mouseClick(view.viewport(), QtCore.Qt.MouseButton.LeftButton, pos=view.visualRect(index).center())
+    QtWidgets.QApplication.processEvents()
+
+
+@pytest.mark.parametrize('document_type', ['pdf', 'text', 'html'])
+def test_document_selection_does_not_open_but_click_and_reclick_do(fc, no_plot, document_type):
+    from tests.test_pdf_viewer import pdf_bytes
+    context = fc.projects.new()
+    try:
+        def init(doc, app):
+            if document_type == 'pdf':
+                doc.set_pdf(pdf_bytes())
+            else:
+                doc.document_type = document_type
+                doc.source_file = '<p>Click document</p>' if document_type == 'html' else 'Click document'
+        doc = fc.app_obj.new_object('document', 'click-document', init, plot=False)
+        area = fc.ui.plot_tab_area
+        editor = next(tab for tab in fc.pdf_viewer.tabs if tab.owner is doc) if document_type == 'pdf' else doc.document_editor_tab
+        area.closeTab(area.indexOf(editor))
+        fc.collection.set_all_inactive()
+        fc.ui.notebook.setCurrentWidget(fc.ui.properties_tab)
+        fc.collection.set_active(doc.obj_options['name'])
+        fc.collection.update_view(doc)
+        QtWidgets.QApplication.processEvents()
+        assert area.indexOf(editor) < 0
+        assert not any(tab.owner is doc for tab in fc.pdf_viewer.tabs)
+        assert fc.ui.properties_scroll_area.widget() is doc.ui
+        for _ in range(2):
+            _click_document(fc, doc)
+            editor = area.currentWidget()
+            if document_type == 'pdf':
+                assert editor.owner is doc and editor.data == doc.pdf_data
+            else:
+                assert editor is doc.document_editor_tab
+                assert editor.code_editor.toPlainText() == 'Click document'
+            area.setCurrentWidget(fc.ui.plot_tab)
+        area.closeTab(area.indexOf(editor))
+        fc.collection.set_all_inactive()
+        fc.collection.view.selectAll()
+        QtWidgets.QApplication.processEvents()
+        assert area.indexOf(editor) < 0
+        assert not any(tab.owner is doc for tab in fc.pdf_viewer.tabs)
+        fc.collection.set_all_inactive()
+        view = fc.collection.view
+        parent = fc.collection.index(fc.collection.group_items['document'].row(), 0, QtCore.QModelIndex())
+        view.setCurrentIndex(fc.collection.index(doc.item.row(), 0, parent))
+        assert fc.collection.get_active() is doc
+        assert area.indexOf(editor) < 0
+        assert not any(tab.owner is doc for tab in fc.pdf_viewer.tabs)
+        other = fc.projects.new()
+        assert fc.projects.switch(context)
+        _settle(fc)
+        assert not any(tab.owner is doc for tab in fc.pdf_viewer.tabs)
+        assert area.indexOf(editor) < 0
+        assert fc.projects.close(other, force=True)
+    finally:
+        fc.projects.close(context, force=True)
+
+
+@pytest.mark.parametrize('caching', [False, True])
+def test_pdf_document_tree_activation_delete_undo_and_project_storage(fc, no_plot, tmp_path, monkeypatch, caching):
+    from PyQt6.QtTest import QSignalSpy
+    from tests.test_pdf_viewer import pdf_bytes
+    from appCommon.ProjectFile import load_project_file
+    from camlib import dict2obj
+    monkeypatch.setitem(fc.options, 'global_project_caching', caching)
+    context = fc.projects.new()
+    assert context is not None
+    data = pdf_bytes()
+    source = tmp_path / 'project_document.pdf'
+    source.write_bytes(data)
+    monkeypatch.setattr('appHandlers.appIO.QtWidgets.QFileDialog.getOpenFileNames',
+                        lambda **kwargs: ([str(source)], ''))
+    fc.ui.menufileopenpdf.trigger()
+    _settle(fc)
+    doc = fc.collection.get_by_name(source.name)
+    assert doc is not None
+    assert doc.kind == 'document' and doc.document_type == 'pdf'
+    uid = doc.history_uid
+    area = fc.ui.plot_tab_area
+    tab = next(tab for tab in fc.pdf_viewer.tabs if tab.owner is doc)
+    other = fc.projects.new()
+    assert other is not None
+    _settle(fc)
+    assert fc.projects.switch(context)
+    _settle(fc)
+    doc.build_ui()
+    assert sum(area.widget(index).owner is doc for index in range(area.count())
+               if hasattr(area.widget(index), 'owner')) == 1
+    tab = next(tab for tab in fc.pdf_viewer.tabs if tab.owner is doc)
+    area.closeTab(area.indexOf(tab))
+    fc.collection.set_all_inactive()
+    fc.collection.set_active(doc.obj_options['name'])
+    QtWidgets.QApplication.processEvents()
+    assert not any(tab.owner is doc for tab in fc.pdf_viewer.tabs)
+    _click_document(fc, doc)
+    assert area.currentWidget().owner is doc
+    assert area.currentWidget().data == data
+    tab = area.currentWidget()
+    area.closeTab(area.indexOf(tab))
+    _click_document(fc, doc)
+    assert area.currentWidget().owner is doc
+    replacement = pdf_bytes(rotation=90)
+    with fc.history.snapshot('Replace PDF', [doc]):
+        doc.set_pdf(replacement)
+        fc.app_obj.object_changed.emit(doc)
+    assert area.currentWidget().data == replacement
+    assert fc.history.undo()
+    assert area.currentWidget().data == data
+    assert fc.history.undo()
+    assert not any(tab.owner is doc for tab in fc.pdf_viewer.tabs)
+    assert fc.history.redo()
+    _settle(fc)
+    restored = fc.history.find(uid)
+    assert restored is not doc and restored.pdf_data == data
+    source.unlink()
+    path = str(tmp_path / 'documents.FlatPrj')
+    assert fc.f_handlers.save_project(path, silent=True)
+    entry = next(entry for entry in load_project_file(path, object_hook=dict2obj)['objs']
+                 if entry['obj_options']['name'] == restored.obj_options['name'])
+    assert entry['kind'] == 'document' and entry['document_type'] == 'pdf'
+    assert entry['source_file'] == restored.source_file
+    _settle(fc)
+    assert fc.projects.close(context, force=True)
+    assert not any(getattr(area.widget(index), 'owner', None) is restored for index in range(area.count()))
+    assert not any(tab.owner is restored for tab in fc.pdf_viewer.tabs)
+    _settle(fc)
+    completed = QSignalSpy(fc.f_handlers.project_load_done)
+    fc.f_handlers.open_project(path)
+    assert completed or completed.wait(10000)
+    assert completed[0][0]
+    _settle(fc)
+    loaded = fc.collection.get_by_name('project_document.pdf')
+    assert loaded is not None and loaded.pdf_data == data
+    fc.collection.set_all_inactive()
+    fc.collection.set_active(loaded.obj_options['name'])
+    assert not any(tab.owner is loaded for tab in fc.pdf_viewer.tabs)
+    _click_document(fc, loaded)
+    assert area.currentWidget().owner is loaded
+    assert area.currentWidget().data == data
+    assert fc.projects.close(fc.projects.active, force=True)
+    assert not any(tab.owner is loaded for tab in fc.pdf_viewer.tabs)
 
 
 def _select(fc, monkeypatch, objs):
@@ -855,14 +1102,12 @@ def _area(obj):
     return unary_union(geo if isinstance(geo, list) else [geo]).area
 
 
-def _geometry(fc, name, multigeo=False):
+def _geometry(fc, name):
     """A Geometry object with a closed contour (a 20 x 10 rectangle) and 1 tool."""
     contour = LineString(list(box(0, 0, 20, 10).exterior.coords))
 
     def init(obj, _app):
-        obj.solid_geometry = [contour]
-        obj.tools = {1: {'tooldia': 1.0, 'data': {'name': name}, 'solid_geometry': [contour] if multigeo else []}}
-        obj.multigeo = multigeo
+        obj.tools = {1: {'tooldia': 1.0, 'data': {'name': name}, 'solid_geometry': [contour]}}
     return fc.app_obj.new_object('geometry', name, init, plot=False)
 
 
@@ -1197,15 +1442,16 @@ def test_manual_cutout_click_is_a_snapshot_step(fc, no_plot):
     geo.plot = lambda *a, **k: None
     CutOut, stub = _cutout_stub(fc, geo)
     keys0 = sorted(geo.tools)
+    original = list(geo.tools[1]['solid_geometry'])
     n = _stack(fc)
     CutOut.on_manual_cutout(stub, (10.0, 0.0))
     _one_step(fc, n, 'Manual Cutout')
-    assert geo.multigeo is True and 99 in geo.tools
+    assert 99 in geo.tools
     solid1 = geo.tools[1]['solid_geometry']
     assert fc.history.undo()
-    assert geo.multigeo is False and sorted(geo.tools) == keys0 and geo.tools[1]['solid_geometry'] == []
+    assert sorted(geo.tools) == keys0 and geo.tools[1]['solid_geometry'] == original
     assert fc.history.redo()
-    assert geo.multigeo is True and 99 in geo.tools
+    assert 99 in geo.tools
     assert geo.tools[1]['solid_geometry'].equals(solid1) if hasattr(solid1, 'equals') else True
 
 
@@ -1267,18 +1513,18 @@ def test_manual_cutout_session_cancel_and_finish_preserve_history(fc, no_plot):
     geo.obj_options['session_note'] = 'keep'
     tool.on_mouse_click_release(SimpleNamespace(pos=(0, 0), button=2))
     _one_step(fc, n, 'Manual Cutout')
-    finished = unary_union(geo.solid_geometry)
+    finished = unary_union(geo.tools[1]['solid_geometry'])
     assert 99 in geo.tools
     assert finished.distance(Point(10, 0)) < 1e-7
     assert finished.distance(Point(5, 10)) > 1.0
     thin = unary_union(geo.tools[99]['solid_geometry'])
     assert thin.length == pytest.approx(3.0)
     assert fc.history.undo(), fc.history.blocked_reason()
-    assert 99 not in geo.tools and not geo.multigeo
+    assert 99 not in geo.tools
     assert unary_union(geo.solid_geometry).length == pytest.approx(60)
     assert geo.obj_options['session_note'] == 'keep'
     assert fc.history.redo()
-    assert unary_union(geo.solid_geometry).equals(finished) and 99 in geo.tools
+    assert unary_union(geo.tools[1]['solid_geometry']).equals(finished) and 99 in geo.tools
     assert unary_union(geo.tools[99]['solid_geometry']).equals(thin)
 
 
@@ -1388,7 +1634,7 @@ def _load_exc(fc, name):
 def _new_geo(fc, name):
 
     def init(obj, _app):
-        obj.solid_geometry = box(0, 0, 10, 10)
+        obj.tools[1]['solid_geometry'] = [box(0, 0, 10, 10)]
     return fc.app_obj.new_object('geometry', name, init, plot=False)
 
 
@@ -1495,9 +1741,8 @@ def test_geo_tool_actions_undo_redo(fc, no_plot):
     _pump()
     _settle_m4(fc)
     assert not fc.projects.is_busy()
-    assert _steps(fc) == n + 1
-    assert not geo.tools
-    assert fc.history.undo() and _tools(geo) == s6
+    assert _steps(fc) == n
+    assert _tools(geo) == s6
 
 
 def test_geo_field_edit_is_one_undo_step(fc, no_plot):
@@ -1788,21 +2033,18 @@ class TestEditorHistory(unittest.TestCase):
             self.assertEqual(obj.solid_geometry, new)
 
 
-def test_real_multigeo_geometry_edit_is_one_step_and_undo_gives_the_old_tool_geometry(app):
+def test_real_geometry_edit_is_one_step_and_undo_gives_the_old_tool_geometry(app):
     # what App.on_editing_finished and update_editor_geometry() do for a Save in place, with a real GeometryObject
 
     old, new = box(0, 0, 1, 1), box(0, 0, 5, 5)
     obj = GeometryObject('geo', app)
     obj.history_uid = 'g1'
-    obj.multigeo = True
     obj.tools = {1: {'tooldia': 1.0, 'data': {'tools_mill_tooldia': 1.0}, 'solid_geometry': [old]}}
-    obj.solid_geometry = [old]
     obj.plot = Mock()
     obj.set_offset_values = Mock()
     history_app = make_app_objs([obj])
     begin(history_app, obj)
     obj.tools[1]['solid_geometry'] = [new]
-    obj.solid_geometry = [new]
     saved(history_app, obj)
     assert [s.label for s in history_app.history.undo_stack] == ['Edit']
     assert history_app.history.undo()
@@ -1829,21 +2071,27 @@ from appHandlers.appHistory import (HistoryManager, MatrixStep, SnapshotStep, Gr
 from appHandlers.appObjectOps import AppObjectOps
 
 
-class Object:
+class Object(appHistory.Geometry):
     kind = 'geometry'
-    ser_attrs = ['obj_options', 'solid_geometry']
+    ser_attrs = ['obj_options', 'tools']
 
     def __init__(self, uid):
         self.history_uid = uid
         self.obj_options = LoudDict(name=uid, plot=True)
-        self.solid_geometry = [Point(1, 2)]
-        self.multigeo = False
+        self.tools = {1: {'solid_geometry': [Point(1, 2)]}}
         self.plot = Mock()
         self.set_offset_values = Mock()
 
     def from_dict(self, state):
         self.obj_options.update(state['obj_options'])
-        self.solid_geometry = state['solid_geometry']
+        self.tools = state['tools']
+
+    @property
+    def solid_geometry(self):
+        return self.tools[1]['solid_geometry']
+
+    def _store_shapes(self, shapes):
+        self.tools[1]['solid_geometry'] = shapes
 
     def bounds(self):
         return self.solid_geometry[0].bounds
@@ -1881,7 +2129,7 @@ def test_partial_group_rolls_back_and_can_retry():
     h, objects = setup_history()
     a, b = objects
     before = object_state(a)
-    a.solid_geometry = [Point(8, 9)]
+    a.tools[1]['solid_geometry'] = [Point(8, 9)]
     after = object_state(a)
     # Undo runs the snapshot before the matrix; plotting b then fails once.
     b.plot.side_effect = [RuntimeError('plot'), None, None]
@@ -1917,7 +2165,7 @@ def test_matrix_metadata_options_presence_roundtrip():
     h, objects = setup_history()
     obj = objects[0]
     before = transform_metadata(obj)
-    obj.solid_geometry = [Point(3, 2)]
+    obj.tools[1]['solid_geometry'] = [Point(3, 2)]
     obj.obj_options['offset_x'] = 2
     h.record_matrix('move', [(obj, (1, 0, 0, 1, 2, 0), before)])
     assert h.undo() and 'offset_x' not in obj.obj_options

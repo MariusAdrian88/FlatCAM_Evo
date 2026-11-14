@@ -157,7 +157,7 @@ def snapshot(obj, kind):
             tools[uid] = {'dia': float(tool.get('tooldia', 0.0) or 0.0), 'drills': drills, 'slots': slots}
         return {'kind': 'exc', 'units': units, 'tools': tools}
 
-    if kind == 'geo' and getattr(obj, 'multigeo', False):
+    if kind == 'geo':
         flat = []
         for tool in (getattr(obj, 'tools', None) or {}).values():
             flat.extend(_flat(tool.get('solid_geometry')))

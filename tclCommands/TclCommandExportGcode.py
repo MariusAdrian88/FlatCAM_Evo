@@ -21,7 +21,7 @@ class TclCommandExportGcode(TclCommandSignaled):
         new
         open_gerber tests/gerber_files/simple1.gbr -outname margin
         isolate margin -dia 3
-        cncjob margin_iso
+        cncjob margin_iso_combined
         set EXPORT [export_gcode margin_iso_cnc]
         write_gcode margin_iso_cnc_1 /tmp/file.gcode ${EXPORT}
 

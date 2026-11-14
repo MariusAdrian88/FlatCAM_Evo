@@ -1006,6 +1006,20 @@ def test_keyboard_shortcuts_page_reports_a_key_in_use_before_it_is_assigned(pref
         assert 'Ctrl+Shift+B' in pref_app.ui.shortcuts_tab.sh_app.toPlainText()
         assert pref_app.ui.menueditjump.text().endswith('\tCtrl+Shift+B')
 
+        # the fine zoom: the key is the wheel and only its modifiers change; Shift+Wheel pans, the plain wheel zooms
+        assert 'Alt+Wheel' in pref_app.ui.shortcuts_tab.sh_app.toPlainText()
+        editor.select('app.fine_zoom')
+        assert editor.key_entry.sequence == 'Wheel' and not editor.key_entry.isEnabled()
+        for taken in ('Shift', ''):
+            editor.modifier_combo.setCurrentIndex(editor.modifier_combo.findData(taken))
+            assert not editor.assign() and not editor.replace_button.isVisibleTo(editor)
+            editor.cancel()
+        editor.modifier_combo.setCurrentIndex(editor.modifier_combo.findData('Ctrl+Alt'))
+        assert editor.assign()
+        pref_app.preferencesUiManager.on_save_button(save_to_file=False)
+        assert shortcuts.wheel_modifiers('app.fine_zoom') == {'Control', 'Alt'}
+        assert 'Ctrl+Alt+Wheel' in pref_app.ui.shortcuts_tab.sh_app.toPlainText()
+
         # Reset must ask before taking a factory key that was assigned to another command.
         editor.reset_all()
         assert not editor.request('app.jump', 'B')

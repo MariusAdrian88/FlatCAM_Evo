@@ -15,10 +15,12 @@ PROGRAMMERS = (
     'Cedric Dussud', 'Chris Hemingway', 'David Kahler', 'Damian Wrobel', 'Daniel Sallin',
     'Bruno Vunderl', 'Gonzalo Lopez', 'Jakob Staudt', 'Mike Smith', 'Barnaby Walters',
     'Steve Martina', 'Thomas Duffin', 'Andrey Kultyapov', 'Alex Lazar', 'Chris Breneman',
-    'Eric Varsanyi', 'Lubos Medovarsky', '@Idechix', '@SM', '@grbf', '@Symonty', '@mgix',
+    'Eric Varsanyi', 'Lubos Medovarsky', '@Idechix', '@SM', '@grbd', '@Symonty', '@mgix',
     'Emily Ellis', 'Maksym Stetsyuk', 'Peter Nitschneider', 'Bogusz Jagoda', 'Andre Spahlinger',
     'Hans Boot', 'Dmitriy Klabukov', 'Robert Niemöller', 'Adam Coddington', 'Ali Khalil',
     'Maftei Albert-Alexandru', '@gargamel778', '@ErkanGench', '@michaelosthege',
+    'Tuna Celik', 'Marco Marche', 'Dmitriy Zakharkin', 'Todd Stellanova', 'Itay Shem-tov',
+    '@FlyingSamson', '@ExordiumAndTerminus', '@Kestas',
 )
 
 TRANSLATORS = (

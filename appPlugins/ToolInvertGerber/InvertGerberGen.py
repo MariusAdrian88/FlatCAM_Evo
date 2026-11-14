@@ -80,10 +80,12 @@ def reference_area(obj, mode, circle_steps, target_units=None):
     """
     factor = units_factor(target_units, _obj_units(obj)) if target_units else 1.0
     shape = object_area(obj, steps=circle_steps)
-    parts = _flat(getattr(obj, 'solid_geometry', None))
-    if getattr(obj, 'multigeo', False):
+    if obj.kind == 'geometry':
+        parts = []
         for tool in (getattr(obj, 'tools', None) or {}).values():
             parts.extend(_flat(tool.get('solid_geometry')))
+    else:
+        parts = _flat(getattr(obj, 'solid_geometry', None))
     if shape.is_empty:
         lines = [g for g in parts if g.geom_type in ('LineString', 'LinearRing')]
         shape = unary_union(list(polygonize(unary_union(lines)))) if lines else shape

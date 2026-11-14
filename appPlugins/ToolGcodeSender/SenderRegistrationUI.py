@@ -874,8 +874,8 @@ class SenderRegistrationUI(QtWidgets.QWidget):
 
     @staticmethod
     def _object_geometries(obj):
-        """Every shapely geometry of an object, including the tool paths of a multigeo Geometry."""
-        if str(getattr(obj, 'kind', '')).lower() == 'geometry' and getattr(obj, 'multigeo', False):
+        """Every shapely geometry of an object, including its tool paths."""
+        if str(getattr(obj, 'kind', '')).lower() == 'geometry':
             tools = getattr(obj, 'tools', None)
             if isinstance(tools, dict):
                 out = []

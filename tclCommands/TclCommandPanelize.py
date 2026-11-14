@@ -173,7 +173,6 @@ class TclCommandPanelize(TclCommand):
             self.app.inform.emit("Generating panel ... Please wait.")
 
             def job_init_excellon(obj_fin, app_obj):
-                obj_fin.multitool = True
                 obj_fin.tools = panelize_core.panelize_excellon(obj.tools, offsets, abort=abort)
                 obj_fin.solid_geometry = []
                 # the holes keep their TO ids, so the table of the ids goes with them
@@ -200,9 +199,9 @@ class TclCommandPanelize(TclCommand):
                 obj_fin.regenerate_source(name=outname)
 
             def job_init_geometry(obj_fin, app_obj):
-                obj_fin.multigeo = obj.multigeo
-                obj_fin.tools, obj_fin.solid_geometry = panelize_core.panelize_geometry(
-                    obj.tools, obj.solid_geometry, obj.multigeo, offsets, abort=abort)
+                # the Geometry object keeps only the shapes of its tools: no composed copy to translate
+                obj_fin.tools, _composed = panelize_core.panelize_geometry(
+                    obj.tools, [], offsets, abort=abort)
                 obj_fin.reuse_plot_of(obj, offsets=offsets)
                 obj_fin.regenerate_source(name=outname)
 

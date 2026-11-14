@@ -449,8 +449,6 @@ class TclCommandDrillcncjob(TclCommandSignaled):
             # ################# Set parameters #########################################################
             # ##########################################################################################
             cnc_job_obj.obj_options['type'] = 'Excellon'
-            cnc_job_obj.multigeo = True
-            cnc_job_obj.multitool = True
             cnc_job_obj.used_tools = use_tools
 
             # preprocessor

@@ -15,6 +15,9 @@ the key only from one of them (SOURCE_CANVAS, SOURCE_PROJECT): Del on the plot a
 Project tab deletes it from the list, F2 renames only in the Project tab.
 
 The key sequences are kept in Qt's portable text ('Ctrl+Shift+S', 'Esc', 'Del'); on macOS Qt shows Ctrl as Cmd.
+
+A wheel action (wheel=True) has the mouse wheel as its key: 'Alt+Wheel'. Only its modifiers change; the code of the
+canvas that turns the wheel reads them with wheel_modifiers(). dispatch() never runs a wheel action.
 """
 
 import json
@@ -103,8 +106,9 @@ class Shortcut:
     """1 action of the registry."""
 
     def __init__(self, aid, name, context, default, run=None, source=SOURCE_ANY, phase=PHASE_MAIN, f3=True,
-                 f3_name=None):
+                 f3_name=None, wheel=False):
         self.id = aid
+        self.wheel = wheel          # an editable action whose key is the mouse wheel with modifiers (no run)
         self.name = name
         self.context = context
         self.default = normalize(default)
@@ -117,16 +121,39 @@ class Shortcut:
 
     @property
     def editable(self):
-        return self.run is not None
+        return self.run is not None or self.wheel
 
     def __repr__(self):
         return '<Shortcut %s %r>' % (self.id, self.key)
+
+
+# the key of a wheel action: the mouse wheel ('Alt+Wheel')
+WHEEL = 'Wheel'
+# the vispy names of the modifiers of the portable text
+_VISPY_MODIFIERS = {'Ctrl': 'Control', 'Alt': 'Alt', 'Shift': 'Shift', 'Meta': 'Meta'}
+
+
+def is_wheel(sequence):
+    return bool(sequence) and (sequence == WHEEL or sequence.endswith('+' + WHEEL))
+
+
+def _normalize_wheel(text):
+    """'alt+wheel' -> 'Alt+Wheel'; '' when the modifiers are not modifiers."""
+    mods = text[:-len(WHEEL)].rstrip('+')
+    if not mods:
+        return WHEEL
+    sequence = normalize(mods + '+A')
+    if not sequence or key_of(sequence) != 'A' or not modifiers_of(sequence):
+        return ''
+    return sequence[:-1] + WHEEL
 
 
 def normalize(sequence):
     """The portable text of a key sequence ('ctrl+s' -> 'Ctrl+S'); '' for no key or a text that is not a key."""
     if not sequence:
         return ''
+    if str(sequence).casefold().endswith(WHEEL.casefold()):
+        return _normalize_wheel(str(sequence))
     seq = QtGui.QKeySequence.fromString(str(sequence), PORTABLE)
     if seq.count() != 1:
         return ''
@@ -142,6 +169,10 @@ def native_text(sequence):
     """The key sequence as the user sees it (Cmd on macOS); Return is named Enter, as the keys show it."""
     if not sequence:
         return ''
+    if is_wheel(sequence):
+        mods = modifiers_of(sequence)
+        mods = QtGui.QKeySequence.fromString(mods + '+A', PORTABLE).toString(NATIVE)[:-1] if mods else ''
+        return mods + _("Wheel")
     text = QtGui.QKeySequence.fromString(sequence, PORTABLE).toString(NATIVE)
     return text.replace('Return', 'Enter')
 
@@ -202,6 +233,8 @@ def modifiers_of(sequence):
     """'Ctrl+Shift+S' -> 'Ctrl+Shift'; 'S' -> ''."""
     if not sequence:
         return ''
+    if is_wheel(sequence):
+        return sequence[:-len(WHEEL)].rstrip('+')
     combination = QtGui.QKeySequence.fromString(sequence, PORTABLE)[0]
     mods = combination.keyboardModifiers()
     if mods == Qt.KeyboardModifier.NoModifier:
@@ -213,6 +246,8 @@ def key_of(sequence):
     """'Ctrl+Shift+S' -> 'S'."""
     if not sequence:
         return ''
+    if is_wheel(sequence):
+        return WHEEL
     combination = QtGui.QKeySequence.fromString(sequence, PORTABLE)[0]
     return QtGui.QKeySequence(QtCore.QKeyCombination(combination.key())).toString(PORTABLE)
 
@@ -414,6 +449,21 @@ def registry():
 
 def dispatch(ui, context, key, modifiers):
     return registry().dispatch(ui, context, key, modifiers)
+
+
+def wheel_modifiers(aid):
+    """The vispy names of the modifiers of a wheel action ({'Alt'}), or None when the action has no key."""
+    key = registry().key(aid)
+    if not is_wheel(key):
+        return None
+    mods = modifiers_of(key)
+    return {_VISPY_MODIFIERS[m] for m in mods.split('+')} if mods else set()
+
+
+def wheel_matches(aid, modifiers):
+    """True if the vispy modifiers of a wheel event are the modifiers of the wheel action."""
+    wanted = wheel_modifiers(aid)
+    return wanted is not None and {getattr(m, 'name', m) for m in modifiers} == wanted
 
 
 def apply_options(app):

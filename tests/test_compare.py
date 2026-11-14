@@ -27,7 +27,7 @@ def grb(shapes, units='MM'):
 
 
 def geo(shapes, units='MM'):
-    return NS(units=units, multigeo=False, solid_geometry=shapes)
+    return NS(units=units, tools={1: {'solid_geometry': shapes}})
 
 
 def exc(dia, drills=(), slots=(), units='MM'):
@@ -125,9 +125,9 @@ def test_line_on_tile_edge_is_kept_at_full_length(monkeypatch):
     assert sum(p.length for p in res.removed.line_paths) == pytest.approx(1, abs=1e-9)
 
 
-def test_multigeo_change_in_one_tool_only():
+def test_change_in_one_tool_only():
     def mg(t2):
-        return NS(units='MM', multigeo=True, solid_geometry=[],
+        return NS(units='MM',
                   tools={'1': {'solid_geometry': [box(0, 0, 2, 2)]}, '2': {'solid_geometry': [t2]}})
 
     res = compare(mg(box(10, 0, 12, 2)), mg(box(10, 0, 11, 2)), 'geo')
@@ -246,7 +246,7 @@ def test_cancel_after_first_check_raises_cancelled(monkeypatch, build):
         cg.compare(cg.snapshot(old, kind), cg.snapshot(new, kind), kind, tol, cancelled)
 
 
-MULTIGEO = NS(units='MM', multigeo=True, solid_geometry=[],
+TOOL_GEOMETRY = NS(units='MM',
               tools={'1': {'solid_geometry': box(0, 0, 1, 1)},
                      '2': {'solid_geometry': LineString([(0, 0), (1, 1)])}})
 
@@ -255,7 +255,7 @@ MULTIGEO = NS(units='MM', multigeo=True, solid_geometry=[],
     pytest.param(grb(box(0, 0, 1, 1)), 'grb', 1, 0, id='scalar-polygon'),
     pytest.param(grb(LineString([(0, 0), (1, 1)])), 'grb', 0, 1, id='scalar-line'),
     pytest.param(grb([[box(0, 0, 1, 1)], [LineString([(0, 0), (1, 1)])]]), 'grb', 1, 1, id='nested-list'),
-    pytest.param(MULTIGEO, 'geo', 1, 1, id='multigeo-tools'),
+    pytest.param(TOOL_GEOMETRY, 'geo', 1, 1, id='tool-shapes'),
 ])
 def test_snapshot_flattens_each_input_shape(obj, kind, polys, lines):
     snap = cg.snapshot(obj, kind)
@@ -371,9 +371,10 @@ def start(fc, tag, old_shapes, new_shapes, kind='grb'):
     for suffix, shapes in (('old', old_shapes), ('new', new_shapes)):
         def init(obj, app, shapes=shapes):
             obj.units = 'MM'
-            obj.solid_geometry = shapes
             if kind == 'geo':
-                obj.multigeo = False
+                obj.tools[1]['solid_geometry'] = shapes
+            else:
+                obj.solid_geometry = shapes
         fc.app_obj.new_object('geometry' if kind == 'geo' else 'gerber', f'{tag}-{suffix}', init)
     tool = fc.compare_tool
     if fc.ui.notebook.indexOf(fc.ui.plugin_tab) < 0:
@@ -583,5 +584,3 @@ def test_swatch_colors_are_saved_and_used_by_current_and_next_comparison(fc, job
         pool.close()
         pool.join()
         tool.on_plugin_cleanup()
-
-

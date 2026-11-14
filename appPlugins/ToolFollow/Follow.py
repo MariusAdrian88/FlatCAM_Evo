@@ -384,12 +384,9 @@ class ToolFollow(AppTool):
                 outname = unique_name(_base_name(src.obj_options['name']) + params['suffix'], names)
                 data = FollowGen.geometry_data(self.app.options, outname)
                 tools = FollowGen.follow_tools(groups, data, params['decimals'])
-                lines = [line for _dia, group_lines in groups for line in group_lines]
 
-                def init_func(new_obj, app_obj, lines=lines, tools=tools, tooldia=groups[0][0]):
-                    new_obj.multigeo = True
+                def init_func(new_obj, app_obj, tools=tools, tooldia=groups[0][0]):
                     new_obj.obj_options["tools_mill_tooldia"] = tooldia
-                    new_obj.solid_geometry = lines
                     new_obj.tools = tools
 
                 ret = self.new_object('geometry', outname, init_func, source=src)

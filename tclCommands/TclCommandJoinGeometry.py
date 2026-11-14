@@ -65,15 +65,10 @@ class TclCommandJoinGeometry(TclCommand):
                 return "fail"
             objs.append(obj)
 
-        # as Edit -> Join: the objects are all MultiGeo or all SingleGeo, and the result is of the same type
-        if len({bool(obj.multigeo) for obj in objs}) != 1:
-            self.app.log.error("Failed join. The Geometry objects are of different types (MultiGeo and SingleGeo).")
-            return "fail"
-        multi_geo = bool(objs[0].multigeo)
         fuse_tools = self._app_option("geometry_merge_fuse_tools")
 
         def initialize(obj_, app):
-            return GeometryObject.merge(objs, obj_, multi_geo=multi_geo, fuse_tools=fuse_tools, log=app.log)
+            return GeometryObject.merge(objs, obj_, fuse_tools=fuse_tools, log=app.log)
 
         if objs and len(objs) >= 2:
             self.check_result(self.app.app_obj.new_object("geometry", outname, initialize, plot=False))

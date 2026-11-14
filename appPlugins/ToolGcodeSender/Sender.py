@@ -817,6 +817,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         # the signals of the tool and of the app live as long as the tool;
         # set_tool_ui() calls this method again for each new LevelUI, so
         # connect them only 1 time
+        # (not the selection signal: the close of the plugin tab disconnects it)
+        self.connect_selection_signal()
         if not getattr(self, '_al_core_signals_connected', False):
             self._al_core_signals_connected = True
             self.grbl_port_closed_sig.connect(self._on_grbl_port_closed)
@@ -842,8 +844,6 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self.app.collection.rowsInserted.connect(self._select_available_excellon)
             self.app.collection.rowsRemoved.connect(self._select_available_excellon)
             self.app.collection.modelReset.connect(self._select_available_excellon)
-            # When object selection on canvas change
-            self.app.proj_selection_changed.connect(self.on_object_selection_changed)
             # Cleanup on Graceful exit (CTRL+ALT+X combo key)
             self.app.cleanup.connect(self.on_reset_tool)
             self.app.cleanup.connect(self._grbl_disconnect)

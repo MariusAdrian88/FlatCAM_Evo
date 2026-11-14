@@ -186,10 +186,6 @@ class ToolImage(ImageImportMixin, AppTool):
                 app_obj.log.debug("ToolImage.import_image() -> empty geometry.")
                 return 'fail'
 
-            geo_obj.multigeo = False
-            geo_obj.multitool = False
-            geo_obj.solid_geometry = image_geo
-
             if obj_type == 'geometry':
                 app_defaults = getattr(self.app, "defaults", None) or AppDefaults.factory_defaults
                 tooldia = float(self.app.options.get(
@@ -198,7 +194,7 @@ class ToolImage(ImageImportMixin, AppTool):
                 new_data = {k: v for k, v in self.app.options.items()}
                 geo_obj.tools.update({
                     1: {'tooldia': tooldia, 'data': deepcopy(new_data),
-                        'solid_geometry': deepcopy_keep_geometry(geo_obj.solid_geometry)}
+                        'solid_geometry': deepcopy_keep_geometry(image_geo)}
                 })
                 geo_obj.tools[1]['data']['name'] = name
                 if svg_text is not None:
@@ -206,6 +202,7 @@ class ToolImage(ImageImportMixin, AppTool):
                 else:
                     geo_obj.regenerate_source()
             else:
+                geo_obj.solid_geometry = image_geo
                 if 0 not in geo_obj.tools:
                     geo_obj.tools[0] = {'type': 'REG', 'size': 0.0, 'geometry': []}
                 try:

@@ -2573,7 +2573,7 @@ def test_material_regions_preserve_holes_islands_and_history(operation):
 def test_import_polygon_sources_and_index_lifecycle(kind):
     polygon = box(0, 0, 10, 10).difference(box(2, 2, 8, 8))
     source = SimpleNamespace(kind=kind, obj_options={'name': 'source', 'plot': True},
-                             solid_geometry=[polygon], drawing_tolerance=0.001, multigeo=False)
+                             solid_geometry=[polygon], drawing_tolerance=0.001)
     tool = SimpleNamespace(app=SimpleNamespace(collection=MagicMock()),
                            draw_app=SimpleNamespace(gerber_obj=object()))
     tool.app.collection.get_list.return_value = [source]

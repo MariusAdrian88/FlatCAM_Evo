@@ -113,11 +113,15 @@ _share_one_pool()
 # works, the window states change) but it does not appear on the desktop, so the tests do not flash windows.
 # Set FLATCAM_TEST_SHOW_WINDOWS=1 to see the windows.
 _window_filter = None
+# The QApplication of the run. The test or the fixture that made it may hold the only reference, and that wrapper is
+# collected later at a random moment: Qt then deletes the QApplication, and PyQt deletes every parentless Python-owned
+# QObject, so the running test fails with "wrapped C/C++ object of type ... has been deleted".
+_qapplication = None
 
 
 def _install_window_filter():
-    global _window_filter
-    if _window_filter is not None or os.environ.get('FLATCAM_TEST_SHOW_WINDOWS'):
+    global _window_filter, _qapplication
+    if _window_filter is not None:
         return
     try:
         from PyQt6 import QtCore, QtWidgets
@@ -125,6 +129,9 @@ def _install_window_filter():
         return
     app = QtWidgets.QApplication.instance()
     if app is None:
+        return
+    _qapplication = app
+    if os.environ.get('FLATCAM_TEST_SHOW_WINDOWS'):
         return
 
     class HideWindows(QtCore.QObject):

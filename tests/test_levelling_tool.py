@@ -280,7 +280,6 @@ class FakeNewCNCJob:
         self.obj_options = {}
         self.tools = {}
         self.units = None
-        self.multitool = None
         self.used_tools = None
         self.gc_start = None
         self.prepend_snippet = None
@@ -311,7 +310,6 @@ def make_apply_target(tools_gcode_by_key):
         kind='cncjob',
         obj_options={'name': 'job1', 'type': 'Geometry'},
         units='MM',
-        multitool=True,
         used_tools=list(tools_gcode_by_key.keys()),
         gc_start='G21\nG90\n',
         prepend_snippet='',
@@ -1174,7 +1172,6 @@ def make_real_cncjob():
     )
     obj.obj_options = {'type': 'Geometry', 'name': 'job1'}
     obj.tools = {}
-    obj.multitool = True
     obj.used_tools = []
     obj.gc_start = ''
     obj.prepend_snippet = ''

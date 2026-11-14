@@ -363,7 +363,7 @@ class LevellingCoreMixin:
             return 'fail'
 
         try:
-            self.solid_geo = unary_union([geo['geom'] for geo in loaded_obj.gcode_parsed if geo['kind'][0] == 'C'])
+            self.solid_geo = unary_union([geo['geom'] for geo in loaded_obj.program_parsed() if geo['kind'][0] == 'C'])
         except (TypeError, KeyError, IndexError):
             self.solid_geo = None
 

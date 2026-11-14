@@ -66,8 +66,8 @@ def test_failed_export_keeps_the_old_source(app, bad):
     assert grb.source_file == 'old text'
 
 
-@pytest.mark.parametrize('units,unit_code,multigeo', [('MM', 4, False), ('IN', 1, True)])
-def test_geometry_real_dxf_snapshot_and_project_boundary(app, tmp_path, units, unit_code, multigeo):
+@pytest.mark.parametrize('units,unit_code', [('MM', 4), ('IN', 1)])
+def test_geometry_real_dxf_snapshot_and_project_boundary(app, tmp_path, units, unit_code):
     """GEO-09: the usable DXF snapshot is text in the existing project source field."""
     app.app_units = units
     app.options['geometry_dxf_format'] = 'R2010'
@@ -75,11 +75,7 @@ def test_geometry_real_dxf_snapshot_and_project_boundary(app, tmp_path, units, u
     polygon = Polygon([(0, 0), (4, 0), (4, 4), (0, 4)],
                       holes=[[(1, 1), (2, 1), (2, 2), (1, 2)]])
     line = LineString([(5, 0), (6, 1)])
-    geo.multigeo = multigeo
-    geo.solid_geometry = [polygon, line]
-    if multigeo:
-        geo.solid_geometry = []
-        geo.tools = {1: {'solid_geometry': [polygon]}, 2: {'solid_geometry': [line]}}
+    geo.tools = {1: {'solid_geometry': [polygon]}, 2: {'solid_geometry': [line]}}
 
     assert geo.regenerate_source() is True
     filename = tmp_path / 'snapshot.dxf'

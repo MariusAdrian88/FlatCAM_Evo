@@ -138,14 +138,14 @@ def make_subtract(objects):
 
 
 def sub_gerber(name, geo):
-    return SimpleNamespace(kind='gerber', multigeo=False, obj_options={'name': name, 'units': 'MM'},
+    return SimpleNamespace(kind='gerber', obj_options={'name': name, 'units': 'MM'},
                            solid_geometry=[geo],
                            tools={10: {'type': 'C', 'size': 1.0, 'geometry': [{'solid': geo, 'follow': geo.exterior}]}})
 
 
 def sub_excellon(name, x, y):
     from shapely import Point
-    return SimpleNamespace(kind='excellon', multigeo=False, obj_options={'name': name, 'units': 'MM'},
+    return SimpleNamespace(kind='excellon', obj_options={'name': name, 'units': 'MM'},
                            solid_geometry=[],
                            tools={1: {'tooldia': 1.0, 'drills': [Point(x, y)], 'slots': [], 'solid_geometry': []}})
 
@@ -178,7 +178,7 @@ def test_subtract_objects_bad_input_is_a_tcl_error_and_creates_nothing():
     from test_tcl_audit_regressions import FCShell
     objects = {'cu': sub_gerber('cu', box(0, 0, 10, 10)), 'mask': sub_gerber('mask', box(5, 0, 11, 10)),
                'drl': sub_excellon('drl', 1, 1), 'far': sub_gerber('far', box(50, 50, 51, 51)),
-               'nothing': SimpleNamespace(kind='excellon', multigeo=False, obj_options={'name': 'nothing'},
+               'nothing': SimpleNamespace(kind='excellon', obj_options={'name': 'nothing'},
                                           solid_geometry=[], tools={})}
     command, app = make_subtract(objects)
     for args in ({'target': 'cu', 'subtractors': 'cu,mask'},
@@ -205,7 +205,7 @@ def make_invert(objects):
 
 
 def invert_source(name, copper, bounds):
-    return SimpleNamespace(kind='gerber', multigeo=False, obj_options={'name': name, 'units': 'MM'},
+    return SimpleNamespace(kind='gerber', obj_options={'name': name, 'units': 'MM'},
                            solid_geometry=[copper], bounds=lambda: bounds)
 
 

@@ -229,6 +229,9 @@ if __name__ == '__main__':
             pass
 
     app = QtWidgets.QApplication(sys.argv)
+    if App.cmd_line_headless and os.environ.get('FLATCAM_RELEASE_PDF_SMOKE') == '1':
+        from appCommon.ReleaseSmoke import pdf_runtime_smoke
+        pdf_runtime_smoke(app)
     # Qt takes the LC_NUMERIC of the system on Unix; C libraries (protobuf, OR-Tools) then fail on a decimal comma.
     # The pool is made later, so its children get "C" too. RouteSolver.solve_route resets it again for other paths.
     locale.setlocale(locale.LC_NUMERIC, "C")

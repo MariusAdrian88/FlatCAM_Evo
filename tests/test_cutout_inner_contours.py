@@ -53,8 +53,7 @@ class _Collection(QtGui.QStandardItemModel):
 def make_geometry(app, name, geos):
     from appObjects.GeometryObject import GeometryObject
     obj = GeometryObject(name, app)
-    obj.solid_geometry = geos
-    obj.multigeo = False
+    obj.tools[1]['solid_geometry'] = geos
     return obj
 
 
@@ -474,6 +473,24 @@ def _geometry(tool):
     return next(obj for obj in tool.test_app.created.values() if obj.kind == 'geometry')
 
 
+@pytest.mark.parametrize('rectangular, inner', [(False, False), (False, True), (True, False)])
+def test_recut_uses_the_full_depth_tool_not_the_thin_gap_tool(cutout_app, rectangular, inner):
+    recut_source = make_geometry(cutout_app.test_app, 'previous_cutout', [box(0, 0, 50, 30).exterior])
+    recut_source.tools[99] = {'tooldia': 2.4, 'data': {'tools_mill_cutz': -0.8},
+                              'solid_geometry': [LineString([(50, 12), (52, 12), (52, 18)])]}
+    # A shallow bridge operation must not change the contour or bounds of the full-depth recut.
+    results = []
+    for with_thin in (True, False):
+        if not with_thin:
+            recut_source.tools.pop(99)
+        _configure(cutout_app, recut_source, rectangular=rectangular, gap_type=0, gaps='None', kind='panel')
+        cutout_app.ui.is_outline_cb.set_value(inner)
+        cutout_app.ui.inner_cb.set_value(inner)
+        _generate(cutout_app, rectangular)
+        results.append(shapely.unary_union(flat(_geometry(cutout_app).tools[1]['solid_geometry'])))
+    assert results[0].equals(results[1])
+
+
 def _drills(tool):
     return [point for obj in tool.test_app.created.values() if obj.kind == 'excellon'
             for data in obj.tools.values() for point in data['drills']]
@@ -483,6 +500,7 @@ def _manual_target(tool, geometry, name='manual'):
     app = tool.test_app
     source = make_geometry(app, name, geometry)
     source.tools = {1: deepcopy(tool.cut_tool_dict)}
+    source.tools[1]['solid_geometry'] = deepcopy(geometry)
     source.plot = Mock()
     source.build_ui = Mock()
     tool.man_cutout_obj = source
@@ -533,7 +551,7 @@ def test_escape_restores_manual_session_and_next_finish_has_no_stale_bites(cutou
     cutout_app.ui.thin_depth_entry.set_value(-0.8)
     cutout_app.ui.mb_dia_entry.set_value(0.6)
     cutout_app.ui.mb_spacing_entry.set_value(0.3)
-    original = deepcopy((source.solid_geometry, source.tools, source.multigeo))
+    original = deepcopy((source.solid_geometry, source.tools))
     cutout_app.on_manual_gap_click()
     cutout_app.on_manual_cutout((25, 0))
     cutout_app.on_manual_cutout((50, 15))
@@ -547,7 +565,7 @@ def test_escape_restores_manual_session_and_next_finish_has_no_stale_bites(cutou
     source.tools[2] = {'tooldia': 0.5, 'data': {}, 'solid_geometry': []}
     original[1][2] = deepcopy(source.tools[2])
     cutout_app.on_key_press(SimpleNamespace(key='Escape'))
-    assert states_equal((source.solid_geometry, source.tools, source.multigeo), original)
+    assert states_equal((source.solid_geometry, source.tools), original)
     assert source.obj_options['session_note'] == 'keep this unrelated edit'
     assert not app.created
     # A new session must not drill the cancelled gaps when it finishes.
@@ -589,22 +607,22 @@ def test_manual_bridge_edit_rebuilds_overlaps_and_keeps_inner_contours(cutout_ap
     click((24, 0))
     # A neighboring contour inside that footprint remains available for placement.
     click((24, 0.5))
-    assert inner.intersection(unary_union(flat(source.solid_geometry))).length == pytest.approx(inner.length - 6.4)
+    assert inner.intersection(unary_union(flat(source.tools[1]['solid_geometry']))).length == pytest.approx(inner.length - 6.4)
     click((24, 0.5))
     cutout_app.on_key_press(SimpleNamespace(key='Delete'))
-    assert inner.difference(unary_union(flat(source.solid_geometry))).length < 1e-7
+    assert inner.difference(unary_union(flat(source.tools[1]['solid_geometry']))).length < 1e-7
     click((20, 0))
     cutout_app.on_key_press(SimpleNamespace(key='Delete'))
     selected, gap, _ = _manual_gap_geometry([outer, inner], (24, 0), 2.4, 4.0)
     expected = _manual_subtract_selected([outer, inner], selected, gap)
-    assert unary_union(flat(source.solid_geometry)).equals(expected)
+    assert unary_union(flat(source.tools[1]['solid_geometry'])).equals(expected)
     click((24, 0))
     # Selection doesn't change machining geometry until the destination is accepted.
-    assert unary_union(flat(source.solid_geometry)).equals(expected)
+    assert unary_union(flat(source.tools[1]['solid_geometry'])).equals(expected)
     click((25, 30))
     selected, gap, _ = _manual_gap_geometry([outer, inner], (25, 30), 2.4, 4.0)
     expected = _manual_subtract_selected([outer, inner], selected, gap)
-    assert unary_union(flat(source.solid_geometry)).equals(expected)
+    assert unary_union(flat(source.tools[1]['solid_geometry'])).equals(expected)
     assert unary_union(flat(source.tools[1]['solid_geometry'])).equals(expected)
     if gap_type == 1:
         assert unary_union(flat(source.tools[99]['solid_geometry'])).equals(gap)
@@ -614,7 +632,7 @@ def test_manual_bridge_edit_rebuilds_overlaps_and_keeps_inner_contours(cutout_ap
     expected = _manual_subtract_selected([outer, inner], selected, gap)
     click((24, 0))
     cutout_app.on_mouse_click_release(SimpleNamespace(pos=(0, 0), button=2))
-    assert unary_union(flat(source.solid_geometry)).equals(expected)
+    assert unary_union(flat(source.tools[1]['solid_geometry'])).equals(expected)
     if gap_type == 2:
         holes = _drills(cutout_app)
         assert holes and all(point.y == pytest.approx(0.9) for point in holes)
@@ -622,14 +640,14 @@ def test_manual_bridge_edit_rebuilds_overlaps_and_keeps_inner_contours(cutout_ap
         assert not _drills(cutout_app)
     # Removing every new bridge in a later session preserves completed gaps and Thin tools.
     from appHandlers.appHistory import states_equal
-    original = deepcopy((source.solid_geometry, source.tools, source.multigeo))
+    original = deepcopy((source.solid_geometry, source.tools))
     cutout_app.on_manual_gap_click()
     click((50, 15))
     click((50, 15))
     cutout_app.on_key_press(SimpleNamespace(key='Delete'))
-    assert states_equal((source.solid_geometry, source.tools, source.multigeo), original)
+    assert states_equal((source.solid_geometry, source.tools), original)
     cutout_app.on_mouse_click_release(SimpleNamespace(pos=(0, 0), button=2))
-    assert states_equal((source.solid_geometry, source.tools, source.multigeo), original)
+    assert states_equal((source.solid_geometry, source.tools), original)
 
 
 @pytest.mark.parametrize('source_name,kind,margin,convex', [
@@ -676,6 +694,30 @@ def test_rectangular_thin_paths_partition_the_full_contour(cutout_app, source_ki
 
 
 RECTANGLE = box(0, 0, 50, 30).exterior
+
+@pytest.mark.parametrize('order', [(99, 2, 1), (1, 2, 99)])
+def test_joined_geometry_cutout_keeps_all_full_depth_contours(cutout_app, order):
+    from appPlugins.ToolCutOut.CutOutGen import freeform_cutout_paths, any_cutout_handler
+    outer = box(0, 0, 50, 30).exterior
+    inner = box(10, 10, 20, 20).exterior
+    shallow = box(60, 0, 70, 10).exterior
+    source = make_geometry(cutout_app.test_app, 'joined', [])
+    tools = {1: {'solid_geometry': [outer], 'data': {'tools_mill_cutz': -2}},
+             2: {'solid_geometry': [inner], 'data': {'tools_mill_cutz': -2}},
+             99: {'solid_geometry': [shallow], 'data': {'tools_mill_cutz': -0.5,
+                                                       'override_color': '#29a3a3fa'}}}
+    source.tools = {uid: tools[uid] for uid in order}
+    result = freeform_cutout_paths(source, 'single', 1, 0, 'None', 1, False, 0, 0,
+                                  0.5, 0.5, any_cutout_handler, inner_active=True)
+    assert not result.failed
+    assert unary_union(flat(result.solid_geo)).equals(unary_union([outer, inner]))
+    # An ordinary user tool numbered 99 is not a shallow CutOut record.
+    source.tools[99]['data'].pop('override_color')
+    source.tools[99]['data']['tools_mill_cutz'] = -2
+    result = freeform_cutout_paths(source, 'panel', 1, 0, 'None', 1, False, 0, 0,
+                                  0.5, 0.5, any_cutout_handler, inner_active=True)
+    assert unary_union(flat(result.solid_geo)).equals(unary_union([outer, inner, shallow]))
+
 U_SHAPE = Polygon([(0, 0), (50, 0), (50, 30), (35, 30), (35, 10),
                    (15, 10), (15, 30), (0, 30)]).exterior
 
@@ -723,4 +765,3 @@ def test_mouse_bites_follow_margin_rows_and_keep_spacing(cutout_app, rectangular
             values = sorted(point.y if index < 2 else point.x for point in group)
             assert len(values) == 6
             assert all(b - a == pytest.approx(0.9) for a, b in zip(values, values[1:]))
-

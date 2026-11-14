@@ -19,11 +19,12 @@ from shapely.geometry import LinearRing, LineString, MultiPolygon, Point, Polygo
 from shapely.ops import unary_union
 from appObjects.GeometryObject import GeometryObject
 from appPlugins.ToolIsolation import IsolationGen, ToolIsolation
+from appPlugins.ToolIsolation.IsolationJob import IsolationJob
 from camlib import clip_paths_to_area, outline_area, PassBuffers, flatten_shapely_geometry, isolation_leftover_paths
 from defaults import AppDefaults
 from tclCommands.TclCommandIsolate import TclCommandIsolate
 from test_plugin_geometry_bases import make_tool_app
-from tests.helpers_objects import app, _headless_qt, make_gerber
+from tests.helpers_objects import app, _headless_qt, make_gerber, make_app_0b
 from appTool import AppTool
 from appMain import App
 from appPlugins.ToolOptimal import ToolOptimal
@@ -149,7 +150,7 @@ def test_boundary_hull_only_with_flashes_else_the_area_enclosed_by_the_outline(a
     parts = [box(0, 0, 1, 4), box(3, 0, 4, 1)]
     if kind == 'geometry':
         boundary_obj = GeometryObject('boundary', app)
-        boundary_obj.solid_geometry = [[LineString(p.exterior.coords)] for p in parts]
+        boundary_obj.tools[1]['solid_geometry'] = [[LineString(p.exterior.coords)] for p in parts]
     else:
         follow = Point(0.5, 2) if kind == 'gerber-flashes' else LineString(parts[0].exterior.coords)
         boundary_obj = make_gerber(app, name='boundary')
@@ -180,27 +181,38 @@ def test_clip_keeps_the_paths_inside_and_cuts_the_crossing_ones():
     assert length_outside(paths, area) == pytest.approx(0.0)
     assert unary_union(paths).length > inside.exterior.length
 
-def run_isolate(app, gerber, **kwargs):
-    """Calls isolate(); returns ({object name: Geometry object}, the pass numbers of the computed envelopes)."""
+def run_isolate(app, gerber, dia=DIA, overlap=OVERLAP, passes=1, iso_type=2, milling_type=None, outname=None,
+                boundary=None, simplify=None, **settings):
+    """
+    Runs the isolation job (the one of the plugin and of the Tcl isolate) with plain values.
+    Returns ({object name: Geometry object}, the pass numbers of the computed envelopes, the result).
+    """
     created = {}
 
     def new_object(kind, name, initialize, plot=True, **kw):
         obj = GeometryObject(name, app)
-        assert initialize(obj, app) != 'fail'
+        if initialize(obj, app) == 'fail':
+            return 'fail'
         created[name] = obj
         return 'ok'
 
     app.app_obj.new_object = Mock(side_effect=new_object)
-    envelope = Mock(wraps=gerber.generate_envelope)
-    gerber.generate_envelope = envelope
-    gerber.isolate(dia=kwargs.pop('dia', DIA), overlap=kwargs.pop('overlap', OVERLAP),
-                   iso_type=2, plot=False, **kwargs)
-    return created, [c.kwargs['nr_passes'] for c in envelope.call_args_list]
+    data = {'tools_iso_passes': passes, 'tools_iso_overlap': overlap,
+            'tools_iso_isotype': ('ext', 'int', 'full')[iso_type]}
+    if milling_type is not None:
+        data['tools_iso_milling_type'] = milling_type
+    if simplify is not None:
+        settings.update(iso_simplification=bool(simplify), simplification_tol=simplify or 0.001)
+    tools = IsolationGen.iso_tools(app.options, [dia], app.decimals, data=data, defaults=app.defaults)
+    with patch.object(IsolationGen, 'generate_envelope', wraps=IsolationGen.generate_envelope) as envelope:
+        result = IsolationJob.run_headless(app, gerber, tools, settings=settings, boundary=boundary,
+                                           outname=outname, plot=False)
+    return created, [c.kwargs['nr_passes'] for c in envelope.call_args_list], result
 
 def test_combined_passes_stop_at_the_boundary(app):
     gerber = make_gerber(app, name='g')
     board = board_of(gerber)
-    created, computed = run_isolate(app, gerber, passes=PASSES, combine=True, outname='iso', boundary=board)
+    created, computed, __ = run_isolate(app, gerber, passes=PASSES, combine=True, outname='iso', boundary=board)
 
     # the last pass computed is the first one completely outside the board; it is not kept
     made = len(computed) - 1
@@ -212,25 +224,17 @@ def test_combined_passes_stop_at_the_boundary(app):
 
 def test_without_a_boundary_all_the_passes_are_made(app):
     gerber = make_gerber(app, name='g')
-    created, computed = run_isolate(app, gerber, passes=3, combine=True, outname='iso')
+    created, computed, __ = run_isolate(app, gerber, passes=3, combine=True, outname='iso', simplify=0)
     assert computed == [0, 1, 2]
     # the envelopes are kept as they are (polygons), not clipped to paths
     assert all(isinstance(g, Polygon) for g in created['iso'].solid_geometry)
 
-@pytest.mark.parametrize('combine', [True], ids=['combined'])
-def test_no_pass_inside_the_boundary_fails(app, combine):
+def test_no_pass_inside_the_boundary_fails(app):
     gerber = make_gerber(app, name='g')
-    initialized = []
-
-    def new_object(kind, name, initialize, plot=True, **kw):
-        initialized.append(initialize(GeometryObject(name, app), app))
-        return 'fail' if initialized[-1] == 'fail' else 'ok'
-
-    app.app_obj.new_object = Mock(side_effect=new_object)
     # with trace_boundary an object holding only the outline must not be made either
-    result = gerber.isolate(dia=DIA, passes=PASSES, overlap=OVERLAP, iso_type=2, plot=False, combine=combine,
-                            outname='iso' if combine else None, boundary=far_box_of(gerber), trace_boundary=True)
-    assert result == 'fail'
+    created, __, result = run_isolate(app, gerber, passes=PASSES, combine=True, outname='iso',
+                                      boundary=far_box_of(gerber), trace_boundary=True)
+    assert result == 'fail' and not created
 
 def run_tcl(app, gerber, edge, *argv):
     app.shell = Mock()
@@ -253,10 +257,10 @@ def test_tcl_boundary_is_the_area_enclosed_by_the_outline_object(app):
         created[name] = obj
 
     app.app_obj.new_object = Mock(side_effect=new_object)
-    run_tcl(app, gerber, edge, '-passes', str(PASSES), '-boundary', 'edge', '-trace_boundary', '1')
+    run_tcl(app, gerber, edge, '-passes', str(PASSES), '-boundary', 'edge', '-trace_boundary', '1', '-simplify', '0')
 
     area = outline_area(edge.solid_geometry)
-    paths = created['g_iso'].solid_geometry
+    paths = created['g_iso_combined'].solid_geometry
     assert length_outside(paths, area) == pytest.approx(0.0)
     assert sum(1 for g in paths if isinstance(g, LinearRing) and Polygon(g).equals(area)) == 1
 
@@ -283,20 +287,69 @@ def tcl_isolate(app, *argv, objects=None):
 
 def test_tcl_milling_direction_pad_passes_and_simplify_change_the_paths(app):
     def ccw(milling):
-        iso = tcl_isolate(app, 'g', '-dia', '0.2', '-milling_type', milling, '-simplify', '0')['g_iso']
+        iso = tcl_isolate(app, 'g', '-dia', '0.2', '-milling_type', milling, '-simplify', '0')['g_iso_combined']
         return [p.exterior.is_ccw for p in iso.solid_geometry]
 
     assert ccw('cl') == [not flag for flag in ccw('cv')]
 
-    plain = tcl_isolate(app, 'g', '-dia', '0.2')['g_iso']
-    padded = tcl_isolate(app, 'g', '-dia', '0.2', '-pad_passes', '2')['g_iso']
+    plain = tcl_isolate(app, 'g', '-dia', '0.2')['g_iso_combined']
+    padded = tcl_isolate(app, 'g', '-dia', '0.2', '-pad_passes', '2')['g_iso_combined']
     assert len(padded.solid_geometry) > len(plain.solid_geometry)
 
     def vertices(tolerance):
-        iso = tcl_isolate(app, 'g', '-dia', '0.2', '-simplify', tolerance)['g_iso']
+        iso = tcl_isolate(app, 'g', '-dia', '0.2', '-simplify', tolerance)['g_iso_combined']
         return sum(len(p.exterior.coords) for p in iso.solid_geometry)
 
     assert vertices('0.3') < vertices('0')
+
+def test_tcl_several_diameters_are_several_tools_or_rest_machining(app):
+    separate = tcl_isolate(app, 'g', '-dia', '0.4,0.2', '-passes', '1', '-combine', '0')
+    assert sorted(separate) == ['g_0.2000_iso', 'g_0.4000_iso']
+    combined = tcl_isolate(app, 'g', '-dia', '0.4,0.2', '-passes', '1', '-combine', '1')
+    assert list(combined) == ['g_iso_combined'] and sorted(combined['g_iso_combined'].tools) == [1, 2]
+    rest = tcl_isolate(app, 'g', '-dia', '0.4,0.2', '-passes', '1', '-rest', '1')
+    assert list(rest) == ['g_iso_rest']
+
+def test_tcl_reference_object_and_area_limit_the_isolated_copper(app):
+    gerber = make_gerber(app, name='g')
+    minx, miny, maxx, maxy = unary_union(gerber.solid_geometry).bounds
+    half = box(minx - 5, miny - 5, (minx + maxx) / 2, maxy + 5)
+    reference = SimpleNamespace(obj_options={'name': 'ref'}, solid_geometry=[half], kind='geometry')
+    objects = {'g': gerber, 'ref': reference}
+
+    def paths(*argv):
+        iso = tcl_isolate(app, 'g', '-dia', '0.2', '-simplify', '0', *argv, objects=objects)['g_iso_combined']
+        return unary_union([g.boundary if isinstance(g, Polygon) else g for g in iso.solid_geometry])
+
+    everything = paths()
+    # the copper under the reference object is not isolated
+    assert 0 < paths('-ref_obj', 'ref').length < everything.length
+    # the paths stop at the area
+    area = box(minx - 5, miny - 5, (minx + maxx) / 2, maxy + 5)
+    limited = paths('-area', '%s,%s,%s,%s' % area.bounds)
+    assert 0 < limited.length < everything.length
+    assert length_outside([limited], area) == pytest.approx(0.0)
+
+def test_tcl_db_tool_takes_the_named_tool_and_check_valid_only_reports(app):
+    app.tools_database_path = lambda: 'tools.sqlite3'
+    # -db_tool takes the named tool (its diameter and values); the options of the command still win
+    named = {'7': {'name': 'Fine V', 'tooldia': 0.15, 'data': {'tools_iso_passes': 3, 'tools_mill_tool_shape': 0}}}
+    with patch('appDatabase.load_tools_database', return_value=named):
+        created = tcl_isolate(app, 'g', '-db_tool', 'fine v', '-combine', '0')
+        assert sorted(created) == ['g_0.1500_iso1', 'g_0.1500_iso2', 'g_0.1500_iso3']
+        created = tcl_isolate(app, 'g', '-db_tool', 'Fine V', '-combine', '0', '-passes', '1', '-dia', '0.25')
+        assert list(created) == ['g_0.2500_iso']
+        with pytest.raises(Exception, match='Other'):
+            tcl_isolate(app, 'g', '-db_tool', 'Other')
+    # a database that can not be read stops the command: nothing is made with other values
+    with patch('appDatabase.load_tools_database', side_effect=OSError('no file')):
+        with pytest.raises(Exception, match='no file'):
+            tcl_isolate(app, 'g', '-db_tool', 'Fine V')
+
+    # a tool that is too big for the gaps is reported, the isolation is made anyway
+    created = tcl_isolate(app, 'g', '-dia', '3', '-passes', '1', '-check_valid', '1')
+    assert created
+    assert any('Incomplete isolation' in str(call) for call in app.inform.emit.call_args_list)
 
 def test_tcl_except_object_is_left_without_isolation(app):
     gerber = make_gerber(app, name='g')
@@ -304,7 +357,7 @@ def test_tcl_except_object_is_left_without_isolation(app):
     half = box(minx - 5, miny - 5, (minx + maxx) / 2, maxy + 5)
     keep_out = SimpleNamespace(obj_options={'name': 'keep'}, solid_geometry=[half], kind='geometry')
     objects = {'g': gerber, 'keep': keep_out}
-    iso = tcl_isolate(app, 'g', '-dia', '0.2', '-except_obj', 'keep', objects=objects)['g_iso']
+    iso = tcl_isolate(app, 'g', '-dia', '0.2', '-except_obj', 'keep', objects=objects)['g_iso_combined']
     assert iso.solid_geometry
     assert unary_union([g.boundary if isinstance(g, Polygon) else g for g in iso.solid_geometry]).intersection(
         half.buffer(-1e-6)).length == pytest.approx(0.0)
@@ -377,7 +430,7 @@ def run_plugin(plugin, gerber, combine, passes=PASSES, e_passes=0, boundary=None
     created = {}
 
     def new_object(kind, name, initialize, **kwargs):
-        obj = SimpleNamespace(obj_options={'name': name})
+        obj = GeometryObject(name, make_app_0b())
         if initialize(obj, plugin.app) == 'fail':
             return 'fail'
         created[name] = obj
@@ -386,7 +439,7 @@ def run_plugin(plugin, gerber, combine, passes=PASSES, e_passes=0, boundary=None
     spy = Mock(side_effect=envelope) if envelope else Mock(wraps=plugin.generate_envelope)
     plugin.generate_envelope = spy
     # geometry: the whole object (with None the separate passes need the fix of the 'All' selection)
-    options = dict(iso_except=False, e_passes=e_passes, area_except=False, area_shape='square', rest=False,
+    options = dict(iso_except=False, e_passes=e_passes, area_shape='square', rest=False,
                    sel_type=0, tip_shape='C1', iso_simplification=False, simplification_tol=0.001,
                    boundary=boundary, trace_boundary=trace_boundary)
     options.update(kwargs)
@@ -651,8 +704,7 @@ def _gcode_cut_paths(code):
     close()
     return paths
 
-@pytest.mark.parametrize('single', [False, True])
-def test_voronoi_gcode_keeps_the_validated_clearance_after_output_rounding(single):
+def test_voronoi_gcode_keeps_the_validated_clearance_after_output_rounding():
     from tests.test_cncjob_export_gcode import multi_geo_gcode, validated_data, gcode_job
 
     bodies = [Point(0, 0).buffer(3), box(6, -5, 40, 5)]
@@ -665,13 +717,7 @@ def test_voronoi_gcode_keeps_the_validated_clearance_after_output_rounding(singl
     data.update(tools_mill_tooldia=2 * radius, tools_mill_offset_value=0.0)
     job = gcode_job('default')
     job.units = 'MM'
-    if single:
-        geo = SimpleNamespace(solid_geometry=paths, obj_options={'name': 'g'}, tools={1: {'data': data}})
-        code, __ = job.generate_from_geometry_2(
-            geo, tooldia=2 * radius, tolerance=0.005, z_cut=-0.05, z_move=2.0,
-            feedrate=300, feedrate_z=100, feedrate_rapid=1000, pp_geometry_name='default')
-    else:
-        job, code = multi_geo_gcode(paths, data=data, job=job)
+    job, code = multi_geo_gcode(paths, data=data, job=job)
     emitted = _gcode_cut_paths(code)
     assert emitted
     # the rounded G-code paths still stay in the board, clear the copper and separate the bodies
@@ -695,7 +741,7 @@ def test_diptrace_source_copper_as_boundary_certifies_the_rounded_gcode(app, plu
     boundary = plugin.get_boundary_area()
 
     plugin.units = 'MM'
-    created, __ = run_isolate(app, gerber, dia=2 * radius, passes=1, boundary=boundary,
+    created, __, __ = run_isolate(app, gerber, dia=2 * radius, passes=1, boundary=boundary,
                               strategy='voronoi', voronoi_spacing=0.05, simplify=0.001,
                               pad_isolation=False, overlap=10)
     assert created, (app.inform.emit.call_args_list, plugin.app.inform.emit.call_args_list)
@@ -760,7 +806,7 @@ def test_voronoi_plugin_failed_second_tool_leaves_no_partial_objects(app, plugin
     plugin.pending_validation = None
     plugin.isolate_in_worker(
         isolated_obj=gerber, sel_tools=[1, 2], tools_storage=storage, plot=False, combine=True,
-        iso_except=False, e_passes=0, area_except=False, area_shape='square', rest=False, sel_type=0,
+        iso_except=False, e_passes=0, area_shape='square', rest=False, sel_type=0,
         tip_shape=0, iso_simplification=False, simplification_tol=0.001, boundary=box(-2, -2, 12, 12),
         trace_boundary=False, strategy='voronoi', voronoi_spacing=0.1, pad_isolation=pad_isolation)
     job = plugin.app.worker_task.emit.call_args.args[0]
@@ -778,7 +824,7 @@ def test_voronoi_plugin_uses_validated_vbit_width(app, plugin, angle):
     created = []
 
     def new_object(kind, name, initialize, **kwargs):
-        obj = SimpleNamespace(obj_options={'name': name})
+        obj = GeometryObject(name, make_app_0b())
         assert initialize(obj, plugin.app) != 'fail'
         created.append(obj)
 
@@ -787,7 +833,7 @@ def test_voronoi_plugin_uses_validated_vbit_width(app, plugin, angle):
     # The working collar must use the effective V-bit width, not the nominal tool diameter.
     boundary = box(-2 + diameter / 2, -2, 12 - diameter / 2, 12)
     result = plugin.isolate(
-        gerber, [1], storage, plot=False, combine=True, iso_except=False, e_passes=0, area_except=False,
+        gerber, [1], storage, plot=False, combine=True, iso_except=False, e_passes=0,
         area_shape='square', rest=False, sel_type=0, tip_shape=0, iso_simplification=False,
         simplification_tol=0.001, boundary=boundary, trace_boundary=False,
         strategy='voronoi', voronoi_spacing=0.1)
@@ -819,8 +865,7 @@ def test_voronoi_generated_tool_spacing_converts_with_geometry_units(app):
     obj = GeometryObject('iso', app)
     obj.units = 'MM'
     obj.ui_disconnect = Mock()
-    obj.multigeo = True
-    obj.solid_geometry = [LineString([(0, 0), (10, 0)])]
+    obj.tools[1]['solid_geometry'] = [LineString([(0, 0), (10, 0)])]
     data = validated_data(obj.solid_geometry, diameter=DIA, units='MM')
     data.update(tools_iso_strategy='voronoi', tools_iso_voronoi_spacing=0.05, tools_mill_tooldia=DIA)
     obj.tools = {1: {'tooldia': DIA, 'solid_geometry': list(obj.solid_geometry), 'data': data}}
@@ -846,14 +891,14 @@ def test_each_tool_runs_with_its_own_strategy_spacing_and_name(app, plugin):
     created = {}
 
     def new_object(kind, name, initialize, **kwargs):
-        obj = SimpleNamespace(obj_options={'name': name})
+        obj = GeometryObject(name, make_app_0b())
         if initialize(obj, plugin.app) == 'fail':
             return 'fail'
         created[name] = obj
 
     plugin.app.app_obj.new_object.side_effect = new_object
     plugin.isolate(gerber, [1, 2, 3], storage, geometry=gerber.solid_geometry, plot=False, combine=True,
-                   iso_except=False, e_passes=0, area_except=False, area_shape='square', rest=False, sel_type=0,
+                   iso_except=False, e_passes=0, area_shape='square', rest=False, sel_type=0,
                    tip_shape=0, iso_simplification=False, simplification_tol=0.001, boundary=box(-2, -2, 12, 12),
                    trace_boundary=False)
 
@@ -872,8 +917,7 @@ def test_voronoi_paths_stay_certified_after_a_units_change_but_not_after_an_edit
         obj = GeometryObject('iso', app)
         obj.units = 'MM'
         obj.ui_disconnect = Mock()
-        obj.multigeo = True
-        obj.solid_geometry = [LineString([(0, 0), (10, 0)])]
+        obj.tools[1]['solid_geometry'] = [LineString([(0, 0), (10, 0)])]
         data = validated_data(obj.solid_geometry, diameter=DIA, units='MM')
         data.update(tools_iso_strategy='voronoi', tools_iso_voronoi_spacing=0.05, tools_mill_tooldia=DIA)
         obj.tools = {1: {'tooldia': DIA, 'solid_geometry': list(obj.solid_geometry), 'data': data}}
@@ -1030,7 +1074,7 @@ def test_voronoi_pad_option_reaches_final_certified_gcode(app, plugin, entry):
                               '-strategy', 'voronoi', '-voronoi_spacing', '0.1', '-pad_isolation', '1',
                               objects={'g': gerber, 'edge': edge})
     else:
-        created, __ = run_isolate(app, gerber, passes=1, strategy='voronoi', voronoi_spacing=0.1,
+        created, __, __ = run_isolate(app, gerber, passes=1, strategy='voronoi', voronoi_spacing=0.1,
                                   boundary=board, pad_isolation=True)
     obj = next(iter(created.values()))
     data = obj.tools[1]['data']
@@ -1081,7 +1125,7 @@ def run_isolate_isolation_separate_passes(tool, app, gerber, passes, storage=Non
         return 'ok'
 
     tool.app.app_obj.new_object = Mock(side_effect=new_object)
-    options = dict(combine=False, iso_except=False, e_passes=0, area_except=False, area_shape='square', rest=False,
+    options = dict(combine=False, iso_except=False, e_passes=0, area_shape='square', rest=False,
                    sel_type=0, tip_shape='C1', iso_simplification=False, simplification_tol=0.001)
     options.update(kwargs)
     created.result = tool.isolate(isolated_obj=gerber, sel_tools=list(sel_tools), plot=False,
@@ -1224,6 +1268,31 @@ def test_selected_gerbers_are_isolated_in_one_run(tool, app, multi, selection, e
 
     assert sorted(created) == expected
 
+
+@pytest.mark.parametrize('rest, found', [(False, True), (True, True), (False, False)])
+def test_isolation_excludes_the_named_object_without_widgets(app, plugin, rest, found):
+    gerber = make_gerber(app, name='script')
+    gerber.solid_geometry = [box(0, 0, 2, 2)]
+    excluded = box(-1, -1, 1, 3)
+    plugin.app.collection.get_by_name = lambda name: SimpleNamespace(
+        solid_geometry=[excluded]) if found and name == 'excluded' else None
+    plugin.ui.tools_table = SimpleNamespace(
+        selectedItems=lambda: [SimpleNamespace(row=lambda: 0)],
+        item=lambda row, col: SimpleNamespace(text=lambda: str(DIA)))
+    # the combo box holds another name: only the name in the settings counts. A caller may still pass area_except.
+    plugin.ui.exc_obj_combo.currentText = lambda: 'other'
+    created, __ = run_plugin(plugin, gerber, combine=True, passes=2, rest=rest, iso_except=True,
+                             exc_name='excluded', area_except=True)
+    if not found:
+        assert not created
+        return
+    assert len(created) == 1
+    paths = unary_union(next(iter(created.values())).solid_geometry)
+    assert paths.length > 0
+    assert paths.intersection(excluded.buffer(-1e-8)).is_empty
+    assert paths.bounds[2] > 2
+
+
 def isolate_native(entries):
     """Isolates a native board region (a record with a 'solid' only) or a pad (with a 'follow' point)."""
     solid = entries[0]['solid']
@@ -1233,6 +1302,7 @@ def isolate_native(entries):
     tool = SimpleNamespace(app=app, decimals=4, validation_status=True,
                            generate_envelope=Mock(return_value=[envelope]))
     tool.new_object = lambda *args, **kwargs: AppTool.new_object(tool, *args, **kwargs)
+    tool._exclusion_geometry = lambda *args: ToolIsolation._exclusion_geometry(tool, *args)
     source = SimpleNamespace(obj_options={'name': 'native'}, solid_geometry=[solid],
                              tools={0: {'type': 'REG', 'size': 0, 'geometry': entries}},
                              isolation_buffers=Mock())
@@ -1242,7 +1312,8 @@ def isolate_native(entries):
     created = []
 
     def create(kind, name, initialize, **kwargs):
-        obj = SimpleNamespace(obj_options={'name': name})
+        from tests.helpers_objects import make_app_0b
+        obj = GeometryObject(name, make_app_0b())
         assert initialize(obj, app) != 'fail'
         created.append(obj)
         return obj
@@ -1250,11 +1321,11 @@ def isolate_native(entries):
     app.app_obj.new_object.side_effect = create
     ToolIsolation.isolate(
         tool, source, [1], storage, geometry=source.solid_geometry, plot=False,
-        combine=False, iso_except=False, e_passes=1, area_except=False,
+        combine=False, iso_except=False, e_passes=1,
         area_shape='square', rest=False, sel_type=0, tip_shape='C1',
         iso_simplification=False, simplification_tol=0.001, boundary=None)
     assert len(created) == 1
-    assert created[0].multigeo
+    assert created[0].tools
     assert created[0].tools[1]['tooldia'] == 0.2
     return unary_union(created[0].solid_geometry), envelope, source
 
@@ -1661,23 +1732,10 @@ def test_abort_is_raised_in_the_caller():
     with pytest.raises(GracefulException):
         buffers.get(0)
 
-def run_isolate_isolation_parallel_passes(app, gerber, **kwargs):
-    """Calls isolate() and returns {object name: Geometry object built by the init callback}."""
-    created = {}
-
-    def new_object(kind, name, initialize, plot=True, **kw):
-        obj = GeometryObject(name, app)
-        assert initialize(obj, app) != 'fail'
-        created[name] = obj
-        return 'ok'
-
-    app.app_obj.new_object = Mock(side_effect=new_object)
-    gerber.isolate(dia=DIA_isolation_parallel_passes, overlap=OVERLAP_isolation_parallel_passes, iso_type=2, milling_type='cl', plot=False, **kwargs)
-    return created
-
 def make_tool(app):
     tool = SimpleNamespace(app=app, decimals=4, validation_status=True, temp_shapes=Mock())
     tool.generate_envelope = lambda *args, **kwargs: ToolIsolation.generate_envelope(tool, *args, **kwargs)
+    tool._exclusion_geometry = lambda *args: ToolIsolation._exclusion_geometry(tool, *args)
     return tool
 
 def tools_storage_isolation_parallel_passes(passes, milling_type):
@@ -1811,19 +1869,9 @@ def make_strips_gerber(app, name='g'):
     return obj
 
 def run_isolate_isolation_leftovers(app, gerber, dia=DIA_isolation_leftovers, **kwargs):
-    """Calls isolate() and returns {object name: Geometry object built by the init callback}."""
-    created = {}
-
-    def new_object(kind, name, initialize, plot=True, **kw):
-        assert kind == 'geometry'
-        obj = GeometryObject(name, app)
-        assert initialize(obj, app) != 'fail'
-        created[name] = obj
-        return 'ok'
-
-    app.app_obj.new_object = Mock(side_effect=new_object)
-    gerber.isolate(dia=dia, overlap=OVERLAP_isolation_leftovers, passes=4, plot=False, outname='iso', **kwargs)
-    return created
+    """Runs the isolation job and returns {object name: Geometry object}."""
+    return run_isolate(app, gerber, dia=dia, overlap=OVERLAP_isolation_leftovers, passes=4, outname='iso',
+                       **kwargs)[0]
 
 def wkb_list_isolation_leftovers(geometries):
     return [g.wkb_hex for g in geometries]
@@ -1862,7 +1910,7 @@ def run_plugin_isolation_leftovers(tool, app, gerber, **kwargs):
     storage = tools_storage_isolation_leftovers(4)
     storage[1]['data']['tools_iso_milling_type'] = kwargs.pop('milling_type', 'cl')
     tool.isolate(isolated_obj=gerber, sel_tools=[1], tools_storage=storage, plot=False,
-                 combine=True, iso_except=False, e_passes=0, area_except=False, area_shape='square', rest=False,
+                 combine=True, iso_except=False, e_passes=0, area_shape='square', rest=False,
                  sel_type=0, tip_shape='C1', iso_simplification=False, simplification_tol=0.001, **kwargs)
     (obj,) = created.values()
     return obj
@@ -2002,7 +2050,7 @@ def test_pad_with_one_hole_that_the_tool_cannot_enter_goes_to_the_smaller_tool()
 
 
 # ==============================================================================================================
-# test_isolate_combine_passes: GerberObject.isolate(combine=True) must keep every pass.
+# test_isolate_combine_passes: the isolation job with combine=True must keep every pass.
 # ==============================================================================================================
 
 DIA_isolate_combine_passes = 0.2
@@ -2010,23 +2058,9 @@ DIA_isolate_combine_passes = 0.2
 OVERLAP_isolate_combine_passes = 10  # percent
 
 def run_isolate_isolate_combine_passes(app, gerber, **kwargs):
-    """Calls isolate() and returns {object name: Geometry object built by the init callback}."""
-    created = {}
-
-    def new_object(kind, name, initialize, plot=True, **kw):
-        assert kind == 'geometry'
-        obj = GeometryObject(name, app)
-        assert initialize(obj, app) != 'fail'
-        created[name] = obj
-        return 'ok'
-
-    app.app_obj.new_object = Mock(side_effect=new_object)
-    gerber.isolate(dia=DIA_isolate_combine_passes, overlap=OVERLAP_isolate_combine_passes, iso_type=2, plot=False, **kwargs)
-    return created
-
-def expected_offsets(passes):
-    """Offset of the centre line of every pass from the copper, as isolate() computes it."""
-    return [DIA_isolate_combine_passes * ((2 * n + 1) / 2.0) - n * (OVERLAP_isolate_combine_passes / 100.0) * DIA_isolate_combine_passes for n in range(passes)]
+    """Runs the isolation job and returns {object name: Geometry object}."""
+    return run_isolate(app, gerber, dia=DIA_isolate_combine_passes, overlap=OVERLAP_isolate_combine_passes,
+                       **kwargs)[0]
 
 @pytest.mark.parametrize('passes', [3])
 def test_combined_result_is_the_union_of_the_separate_passes(app, passes):
@@ -2053,7 +2087,108 @@ def test_the_marker_of_the_real_isolation_output_is_consumed_by_milling(app):
     created = run_isolate_isolate_combine_passes(app, make_gerber(app, name='g'), passes=1, combine=True)
     (obj,) = created.values()
     data = dict(obj.tools[1]['data'], tools_mill_offset_type=1)
-    __, job = milling_job(1, multigeo=False, from_tcl=True, data=data)
-    __, plain = milling_job(1, multigeo=False, from_tcl=True, data=dict(tools_mill_offset_type=0))
+    __, job = milling_job(1, from_tcl=True, data=data)
+    __, plain = milling_job(1, from_tcl=True, data=dict(tools_mill_offset_type=0))
     assert job != 'fail' and plain != 'fail'
     assert xy_cuts(job.tools[1]['gcode']) == xy_cuts(plain.tools[1]['gcode'])
+
+
+# ==============================================================================================================
+# The headless run: an object from the app only, no plugin and no widgets.
+# ==============================================================================================================
+
+def headless_run(app, outname=None, dias=(DIA,), result='made', **settings):
+    """IsolationJob.run_headless() on the app only; returns ({name: Geometry object}, the result)."""
+    from appPlugins.ToolIsolation.IsolationJob import IsolationJob
+    created = {}
+
+    def new_object(kind, name, initialize, **kw):
+        assert kw['plot'] is False
+        obj = GeometryObject(name, app)
+        assert initialize(obj, app) != 'fail'
+        created[name] = obj
+        return 'fail' if result == 'fail' else obj
+
+    app.app_obj.new_object = Mock(side_effect=new_object)
+    # a progressive preference must not draw in a run that does not plot
+    app.options['tools_iso_plotting'] = 'progressive'
+    gerber = make_gerber(app, name='g')
+    modes = []
+    real = gerber.isolation_geometry
+    gerber.isolation_geometry = lambda *a, **kw: (modes.append(kw['prog_plot']), real(*a, **kw))[1]
+    tools = IsolationGen.iso_tools(app.options, dias, app.decimals, data={'tools_iso_passes': 1})
+    out = IsolationJob.run_headless(app, gerber, tools, settings=settings, outname=outname)
+    if not settings.get('rest'):
+        assert set(modes) == {'normal'}
+    return created, out
+
+@pytest.mark.parametrize('rest', [False, True])
+def test_headless_run_names_the_only_object_with_the_outname(app, rest):
+    created, result = headless_run(app, outname='out', combine=True, rest=rest)
+    assert result is None and list(created) == ['out']
+    assert created['out'].solid_geometry
+    assert all(tool['data']['name'] == 'out' for tool in created['out'].tools.values())
+
+def test_headless_run_of_several_objects_keeps_the_plugin_suffixes(app):
+    created, result = headless_run(app, outname='out', dias=(0.5, 0.3), combine=False)
+    assert result is None and sorted(created) == ['out_0.3000_iso', 'out_0.5000_iso']
+    assert all(tool['data']['name'] == name for name, obj in created.items() for tool in obj.tools.values())
+    created, __ = headless_run(app, dias=(0.5, 0.3), combine=False)
+    assert sorted(created) == ['g_0.3000_iso', 'g_0.5000_iso']
+
+def test_headless_run_fails_when_no_object_was_made(app):
+    created, result = headless_run(app, outname='out', result='fail')
+    assert result == 'fail'
+
+def test_headless_empty_tools_fails_without_publishing(app):
+    from appPlugins.ToolIsolation.IsolationJob import IsolationJob
+    app.app_obj.new_object = Mock()
+    created = []
+    assert IsolationJob.run_headless(app, make_gerber(app), {}, created=created) == 'fail'
+    assert created == []
+    app.app_obj.new_object.assert_not_called()
+
+@pytest.mark.parametrize('failure', ['abort', 'fail'])
+def test_headless_abort_discards_queued_output(app, failure):
+    from camlib import grace
+    gerber = make_gerber(app, name='g')
+    tools = IsolationGen.iso_tools(app.options, [0.5, 0.3], app.decimals, data={'tools_iso_passes': 1})
+    original = IsolationGen.generate_envelope
+    calls = []
+
+    def envelope(*args, **kwargs):
+        calls.append(None)
+        if len(calls) == 2:
+            if failure == 'abort':
+                raise grace
+            return 'fail'
+        return original(*args, **kwargs)
+
+    app.app_obj.new_object = Mock()
+    with patch.object(IsolationGen, 'generate_envelope', side_effect=envelope):
+        assert IsolationJob.run_headless(app, gerber, tools, outname='out',
+                                         settings={'combine': False}) == 'fail'
+    app.app_obj.new_object.assert_not_called()
+
+def test_headless_uncombined_empty_copper_reports_failure(app):
+    gerber = make_gerber(app, name='g')
+    gerber.solid_geometry = []
+    tools = IsolationGen.iso_tools(app.options, [0.5], app.decimals, data={'tools_iso_passes': 1})
+    app.app_obj.new_object = Mock()
+    assert IsolationJob.run_headless(app, gerber, tools, outname='out',
+                                     settings={'combine': False}) == 'fail'
+    app.app_obj.new_object.assert_not_called()
+
+@pytest.mark.parametrize('dia, inside', [('-0.2', True), ('0.2', False)])
+def test_tcl_vbit_diameter_sign_selects_the_real_path_side(app, dia, inside):
+    gerber = make_gerber(app, name='g')
+    gerber.solid_geometry = [box(0, 0, 10, 10)]
+    output = tcl_isolate(app, 'g', '-dia', dia, '-tool_shape', 'V', '-vtipdia', '0.1',
+                         '-vtipangle', '30', '-cutz', '-0.1', '-passes', '1', '-simplify', '0',
+                         objects={'g': gerber})
+    paths = shapely.unary_union(next(iter(output.values())).solid_geometry)
+    if inside:
+        assert box(0, 0, 10, 10).covers(paths)
+        assert paths.bounds[0] > 0
+    else:
+        assert paths.bounds[0] < 0

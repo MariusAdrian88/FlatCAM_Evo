@@ -64,7 +64,7 @@ class TclCommandInteriors(TclCommandSignaled):
             self.raise_tcl_error('Expected Geometry, got %s %s.' % (name, type(obj)))
 
         def geo_init(geo_obj, app_obj):
-            geo_obj.solid_geometry = obj_interiors
+            geo_obj.tools[1]['solid_geometry'] = obj_interiors
 
         obj_interiors = obj.get_interiors()
         result = self.app.app_obj.new_object('geometry', outname, geo_init, plot=False)

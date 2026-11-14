@@ -124,7 +124,7 @@ def test_moved_cncjob_exports_the_moved_gcode_also_after_undo_redo(tool):
     path = [(10, 0), (10, 5), (14, 5)]
     with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
         job = CNCJobObject('job', make_app_0b())
-    job.multitool, job.obj_options['type'] = True, 'Geometry'
+    job.obj_options['type'] = 'Geometry'
     job.gcode_parsed = [{'geom': LineString(path), 'kind': ['C', 'S']}]
     job.tools = {1: {'gcode': 'G00 X10.0000 Y0.0000\nG01 X10.0000 Y5.0000\nG01 X14.0000 Y5.0000\n',
                      'gcode_parsed': job.gcode_parsed, 'solid_geometry': [LineString(path)],
@@ -187,7 +187,7 @@ def real_object(tool, kind):
     app = tool.app
     if kind == 'geometry':
         obj = GeometryObject('obj', app)
-        obj.solid_geometry = [LineString([(0, 0), (4, 0)]), Polygon([(1, 1), (3, 1), (3, 3)])]
+        obj.tools[1]['solid_geometry'] = [LineString([(0, 0), (4, 0)]), Polygon([(1, 1), (3, 1), (3, 3)])]
         obj.source_file = 'stale text'
     else:
         obj = (make_gerber if kind == 'gerber' else make_excellon)(app, name='obj')

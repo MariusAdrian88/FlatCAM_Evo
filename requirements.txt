@@ -42,8 +42,13 @@ Pillow>=9.1
 pyserial>=3.4
 # pikepdf>=2.0  # Optional - for enhanced PDF support. Set pdf_python_parser=false in defaults.py to enable.
 
-pyopengl>=3.1.10
-PyQt6>=6.1.0
+# PyOpenGL 3.x reads ctypes.__version__, deprecated in Python 3.15; fixed upstream in 4.x.
+pyopengl>=3.1.10; python_version < "3.15"
+pyopengl==4.0.0a9; python_version >= "3.15"
+# Verified PDF viewer runtime pair; Linux wheels require glibc >=2.34.
+PyQt6==6.12.0
+PyQt6-Qt6==6.12.0
+PyQt6-Pdf==6.140.0
 
 freetype-py
 vispy>=0.17.0

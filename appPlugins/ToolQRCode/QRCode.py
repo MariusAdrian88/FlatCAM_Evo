@@ -567,8 +567,6 @@ class QRCode(AppTool):
                         grb_obj.obj_options[opt] = deepcopy(src.obj_options[opt])
             grb_obj.obj_options['name'] = outname
             grb_obj.units = params['units']
-            grb_obj.multitool = False
-            grb_obj.multigeo = False
             grb_obj.follow = False
             grb_obj.tools = tools
             grb_obj.solid_geometry = solid_geometry

@@ -234,6 +234,7 @@ class AppTextEditor(QtWidgets.QWidget):
         self.code_editor.textChanged.connect(self.handleTextChanged)
         self.file_filter = None     # filter of the Open and Save dialogs; None: the G-code files
         self.save_handler = None    # called by the Save button instead of handleSaveGCode()
+        self.open_handler = None    # called with the chosen path by handleOpen() instead of loading it as text
         self.buttonOpen.clicked.connect(self.on_open_clicked)
         self.buttonSave.clicked.connect(self.on_save_clicked)
         self.buttonPrint.clicked.connect(self.handlePrint)
@@ -251,7 +252,7 @@ class AppTextEditor(QtWidgets.QWidget):
             shortcut.setContext(QtCore.Qt.ShortcutContext.WidgetWithChildrenShortcut)
             shortcut.activated.connect(callback)
 
-        self.code_editor.set_model_data(self._tcl_keywords() or [])
+        self.code_editor.set_model_data(getattr(getattr(self.app, 'regFK', None), 'myKeywords', None) or [])
 
         self.code_edited = ''
 
@@ -269,8 +270,8 @@ class AppTextEditor(QtWidgets.QWidget):
         return value if isinstance(value, str) else default
 
     def _tcl_keywords(self):
-        """The Tcl command names of the app (a stub app may have none)."""
-        return getattr(getattr(self.app, 'regFK', None), 'myKeywords', None)
+        """The words that the Tcl lexer colors (a stub app may have none); the auto-completer has more words."""
+        return getattr(getattr(self.app, 'regFK', None), 'color_keywords', None)
 
     def set_language(self, language):
         """Sets the language of the code ('gcode', 'gerber', 'excellon', 'tcl', 'plain'); the shown lines are
@@ -338,6 +339,10 @@ class AppTextEditor(QtWidgets.QWidget):
     def set_save_handler(self, handler):
         """A function without arguments that the Save button calls instead of handleSaveGCode(); None: the default."""
         self.save_handler = handler
+
+    def set_open_handler(self, handler):
+        """A function taking the chosen path that handleOpen() calls instead of loading the file as text."""
+        self.open_handler = handler
 
     def on_open_clicked(self):
         self.handleOpen(filt=self.file_filter)
@@ -427,6 +432,8 @@ class AppTextEditor(QtWidgets.QWidget):
             caption=_('Open file'), directory=self.app.get_last_folder(), filter=_filter_)
 
         if path:
+            if self.open_handler is not None:
+                return self.open_handler(path)
             owner = getattr(self, 'script_owner', None)
             if owner is not None:
                 try:

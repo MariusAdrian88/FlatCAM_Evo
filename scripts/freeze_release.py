@@ -37,6 +37,40 @@ def bundle_metadata(source=ROOT / 'appMain.py'):
     }
 
 
+def class_literals(source, class_name, names):
+    """Literal class attributes of a module, read with ast so that no Qt or GUI code is imported at build time."""
+    tree = ast.parse(Path(source).read_text(encoding='utf-8'))
+    cls = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == class_name)
+    return {
+        target.id: ast.literal_eval(node.value)
+        for node in cls.body if isinstance(node, ast.Assign)
+        for target in node.targets
+        if isinstance(target, ast.Name) and target.id in names
+    }
+
+
+def mac_document_types(source=ROOT / 'appCommon' / 'RegisterFileKeywords.py'):
+    """The file types of the macOS bundle: the same UTIs and extensions that RegisterFK registers.
+
+    They must be in the Info.plist of the release, because the plist can not be changed after the code signing.
+    """
+    extensions = class_literals(source, 'Extensions', ('grb_list', 'exc_list', 'gcode_list', 'prj_list', 'conf_list'))
+    utis = class_literals(source, 'RegisterFK', ('ASSOC_UTI',))['ASSOC_UTI']
+    owned = [('project', 'FlatCAM Project', 'prj_list'), ('config', 'FlatCAM Config', 'conf_list')]
+    documents = []
+    exported = []
+    for key, title, attr in owned:
+        documents.append({'CFBundleTypeName': title, 'CFBundleTypeRole': 'Editor', 'LSHandlerRank': 'Owner',
+                          'LSItemContentTypes': [utis[key]]})
+        exported.append({'UTTypeIdentifier': utis[key], 'UTTypeDescription': title,
+                         'UTTypeConformsTo': ['public.data'],
+                         'UTTypeTagSpecification': {'public.filename-extension': list(extensions[attr])}})
+    for title, attr in (('Gerber file', 'grb_list'), ('Excellon file', 'exc_list'), ('G-code file', 'gcode_list')):
+        documents.append({'CFBundleTypeName': title, 'CFBundleTypeRole': 'Editor', 'LSHandlerRank': 'Alternate',
+                          'CFBundleTypeExtensions': list(extensions[attr])})
+    return {'CFBundleDocumentTypes': documents, 'UTExportedTypeDeclarations': exported}
+
+
 def appimage_command():
     """Return a bdist_appimage that passes the AppDir checks of the current appimagetool.
 
@@ -99,13 +133,15 @@ if __name__ == '__main__':
             'include_files': include_files,
             # These packages load modules by name at runtime.
             'packages': ['OpenGL', 'ortools', 'services.updater'],
+            # Qt's cx_Freeze hooks collect the platform-specific PDF/SVG libraries and print plugins.
+            'includes': ['PyQt6.QtPdf', 'PyQt6.QtPdfWidgets', 'PyQt6.QtPrintSupport', 'PyQt6.QtSvg'],
             'excludes': ['pandas'],
         },
         'bdist_appimage': {'target_name': 'FlatCAM_EVO'},
         'bdist_mac': {
             'bundle_name': 'FlatCAM_EVO',
             'codesign_identity': '-',
-            'plist_items': list(metadata.items()),
+            'plist_items': list(metadata.items()) + list(mac_document_types().items()),
         },
         'bdist_dmg': {'volume_label': 'FlatCAM EVO', 'applications_shortcut': True},
     }

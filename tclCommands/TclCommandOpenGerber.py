@@ -51,7 +51,7 @@ class TclCommandOpenGerber(TclCommandSignaled):
 
         if 'follow' in args:
             self.raise_tcl_error("The 'follow' parameter is obsolete. To create 'follow' geometry use the 'follow' "
-                                 "parameter for the Tcl Command isolate()")
+                                 "parameter for the Tcl Command isolate")
 
         if 'filename' not in args:
             return

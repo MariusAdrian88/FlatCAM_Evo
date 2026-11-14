@@ -73,7 +73,7 @@ def params(kind='Geometry', **kw):
              tools={1: {'tooldia': 0.8, 'nr_drills': 3, 'data': {}}}, feedrate=100.0, z_feedrate=60.0,
              feedrate_rapid=1500.0, spindlespeed=10000, spindledir='CW', dwelltime=1.0, feedrate_probe=25.0,
              z_p_depth=-10.0, laser_on_code='M3', laser_min_power=0, fr_rapids=1500, decimals=4, coords_decimals=4,
-             fr_decimals=2, steps_per_circle=64, toolchange=True, multidepth=False, use_ui=False, multigeo=False,
+             fr_decimals=2, steps_per_circle=64, toolchange=True, multidepth=False, use_ui=False,
              pp_geometry_name='x', pp_excellon_name='x', _bed_offset_x=0.0, _bed_offset_y=0.0, _bed_skew_x=0.0,
              _bed_skew_y=0.0, _bed_limit_x=100.0, _bed_limit_y=100.0,
              obj_options=dict(type=kind, tool_dia=0.8, xmin=0.0, xmax=1.0, ymin=0.0, ymax=1.0))
@@ -83,6 +83,18 @@ def params(kind='Geometry', **kw):
 def assert_in_order(text, parts):
     positions = [text.find(part) for part in parts]
     assert -1 not in positions and positions == sorted(positions), text
+
+@pytest.mark.parametrize('pp_name', ['GRBL_laser_z', 'Marlin_laser_z'])
+def test_laser_z_header_lists_each_tool_with_its_minimum_power(pp_name):
+    p = params(use_ui=True, laser_min_power=5,
+               tools={1: {'tooldia': 0.2, 'data': {'tools_mill_feedrate': 300, 'tools_mill_travelz': 2,
+                                                  'tools_mill_spindlespeed': 900, 'tools_mill_min_power': 5}}})
+
+    text = PREPROCESSORS[pp_name].start_code(p)
+
+    assert 'Tool: 1 -> Dia: 0.2' in text
+    assert 'Tool: 1 -> Power: 900' in text
+    assert 'Tool: 1 -> Minimum Power: 5' in text
 
 def test_plotter_units_position_and_feedrate():
     # an inch job drives the same plotter position as the mm job; the plotter takes integers (also for a Decimal
@@ -556,7 +568,7 @@ def test_no_preprocessor_swallows_an_exception():
                 app, job = _job(kind, pp_name, end_xy=variant.pop('end_xy'))
                 job.tools[1]['data'] = dict(DRILL_DATA)
                 job.x, job.y, job.oldx, job.oldy, job.use_ui = 5.0, 6.0, 5.0, 6.0, False
-                job.laser_on_code, job.laser_min_power, job.multigeo = 'M03', 0.0, True
+                job.laser_on_code, job.laser_min_power = 'M03', 0.0
                 for key, value in variant.items():
                     setattr(job, key, value)
                 for method in METHODS:

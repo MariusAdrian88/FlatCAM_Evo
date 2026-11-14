@@ -138,11 +138,11 @@ def test_generate_makes_one_geometry_per_source_in_one_undo_step_with_unique_nam
     assert [(k, n) for k, n, _o in tool.created] == [('geometry', 'a_follow_1'), ('geometry', 'b_follow')]
     assert all(o.in_group for _k, _n, o in tool.created)
     obj = tool.created[1][2]
-    assert obj.multigeo is True and obj.obj_options['tools_mill_tooldia'] == 0.1
+    assert obj.obj_options['tools_mill_tooldia'] == 0.1
     tool_1 = obj.tools[1]
     assert tool_1['tooldia'] == 0.1 and tool_1['offset'] == 'Path'
     assert tool_1['data']['name'] == 'b_follow' and tool_1['data']['cutz'] == -0.1
-    assert total_length(obj.solid_geometry) == pytest.approx(10.0)
+    assert total_length([g for t in obj.tools.values() for g in t['solid_geometry']]) == pytest.approx(10.0)
     assert any(m.startswith('[success]') and 'b_follow' in m for m in messages(tool))
 
 
@@ -155,7 +155,7 @@ def test_area_job_uses_the_zones_copied_in_the_gui_thread():
     assert not tool.selecting and tool.sel_rect == []
     (_kind, _name, obj), = tool.created
     # the horizontal path is inside the zone, the vertical one is clipped to its first unit
-    assert total_length(obj.solid_geometry) == pytest.approx(6.0)
+    assert total_length([g for t in obj.tools.values() for g in t['solid_geometry']]) == pytest.approx(6.0)
 
 
 # Tcl follow
@@ -194,16 +194,16 @@ def test_default_call_makes_a_geometry_with_merged_lines_and_no_points():
     kind, name, new = created(app)
     assert (kind, name) == ('geometry', 'cu_follow')
     assert app.app_obj.new_object.call_args[1]['plot'] is False
-    assert new.multigeo is True
-    assert all(isinstance(g, LineString) for g in new.solid_geometry)
-    assert sorted(g.length for g in new.solid_geometry) == pytest.approx([10.0, 10.0])
+    paths = [g for tool in new.tools.values() for g in tool['solid_geometry']]
+    assert all(isinstance(g, LineString) for g in paths)
+    assert sorted(g.length for g in paths) == pytest.approx([10.0, 10.0])
     assert new.tools[1]['tooldia'] == pytest.approx(2.4)
-    assert new.tools[1]['solid_geometry'] == new.solid_geometry
+    assert new.tools[1]['solid_geometry'] == paths
 
 
 def test_box_clips_the_paths():
     _kind, _name, new = created(run_follow({'box': '0,-1,4,1', 'outname': 'part'}))
-    assert [g.bounds for g in new.solid_geometry] == [pytest.approx((0, 0, 4, 0))]
+    assert [g.bounds for tool in new.tools.values() for g in tool['solid_geometry']] == [pytest.approx((0, 0, 4, 0))]
 
 
 @pytest.mark.parametrize('args', [{'box': '100,100,110,110'}, {'dia_mode': 'nope'}])
@@ -213,4 +213,3 @@ def test_bad_input_or_empty_result_is_a_tcl_error_and_creates_nothing(args):
     with pytest.raises(FCShell.TclErrorException):
         TclCommandFollow(app).execute({'name': 'cu.gtl', **args}, [])
     app.app_obj.new_object.assert_not_called()
-

@@ -927,6 +927,8 @@ class PreferencesWindow(QtWidgets.QWidget):
         if not self._quiet_close:
             # the close button of the window, Esc or the Preferences icon of the status bar
             self.manager.on_close_preferences_tab(parent=self.ui)
+        # every close (Save, Cancel, close button, Esc, status bar icon) removes the highlight of the status bar icon
+        self.ui.pref_status_label.setStyleSheet("")
         settings = QSettings("Open Source", "FlatCAM_EVO")
         settings.setValue(self.settings_key, (self.width(), self.height()))
         del settings

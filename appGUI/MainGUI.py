@@ -212,6 +212,11 @@ class MainGUI(QtWidgets.QMainWindow):
             QtGui.QIcon(self.app.resource_location + '/code.png'), '%s...\t%s' % (_('Open G-Code'), ''), self)
         self.menufile_open.addAction(self.menufileopengcode)
 
+        self.menufileopenpdf = QtGui.QAction(
+            QtGui.QIcon(self.app.resource_location + '/notes16_1.png'), _('Open Document...'), self)
+        self.menufileopenpdf.setToolTip(_('Open a PDF, text or HTML file as a project Document.'))
+        self.menufile_open.addAction(self.menufileopenpdf)
+
         self.menufile_open.addSeparator()
 
         # Open Config File...
@@ -493,22 +498,6 @@ class MainGUI(QtWidgets.QMainWindow):
         self.menuedit_convert = self.menuedit.addMenu(
             QtGui.QIcon(self.app.resource_location + '/convert24.png'), _('Conversion'))
 
-        self.menuedit_convert_sg2mg = self.menuedit_convert.addAction(
-            QtGui.QIcon(self.app.resource_location + '/convert24.png'),
-            '%s\t%s' % (_('Convert Single to MultiGeo'), ''))
-        self.menuedit_convert_sg2mg.setToolTip(
-            _("Will convert a Geometry object from single_geometry type\n"
-              "to a multi_geometry type.")
-        )
-        self.menuedit_convert_mg2sg = self.menuedit_convert.addAction(
-            QtGui.QIcon(self.app.resource_location + '/convert24.png'),
-            '%s\t%s' % (_('Convert Multi to SingleGeo'), ''))
-        self.menuedit_convert_mg2sg.setToolTip(
-            _("Will convert a Geometry object from multi_geometry type\n"
-              "to a single_geometry type.")
-        )
-        # Separator
-        self.menuedit_convert.addSeparator()
         self.menueditconvert_any2geo = self.menuedit_convert.addAction(
             QtGui.QIcon(self.app.resource_location + '/copy_geo.png'),
             '%s\t%s' % (_('Convert Any to Geo'), ''))

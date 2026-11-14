@@ -292,11 +292,10 @@ def _on(doc, layer, kind):
     return [e for e in doc.modelspace().query(kind) if e.dxf.layer == layer]
 
 
-def test_multigeo_geometry_layers_per_tool_and_single_polygon(object_app):
+def test_geometry_layers_per_tool_and_single_polygon(object_app):
     from shapely.geometry import LineString, box
     from appObjects.GeometryObject import GeometryObject
     obj = _named(GeometryObject('geo', object_app), 'geo')
-    obj.multigeo = True
     obj.tools = {1: {'tooldia': 0.4, 'solid_geometry': box(0, 0, 4, 4)},          # a single Polygon (was a TypeError)
                  2: {'tooldia': 1.0, 'solid_geometry': [LineString([(0, 0), (5, 5)])]}}
     doc = obj.export_dxf()

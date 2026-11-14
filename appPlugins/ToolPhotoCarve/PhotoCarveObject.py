@@ -9,7 +9,7 @@ from copy import deepcopy
 
 import numpy as np
 from PIL import Image
-from shapely import LineString, Point, force_2d
+from shapely import LineString, Point
 
 from .PhotoCarveModel import DEFAULTS, Pass, ToolShape, PhotoCarveError, xy_budget, _
 
@@ -104,7 +104,7 @@ def passes_from_cncjob(cnc_obj, arc_res):
     if mark and mark.get('certified') is False:
         warnings.append(_('This CNCJob was converted to other units and is not certified; '
                          'the simulation shows its converted G-code.'))
-    records = cnc_obj.tools or {1: {'gcode': cnc_obj.gcode, 'tooldia': cnc_obj.obj_options.get('tooldia', 0)}}
+    records = cnc_obj.tools
     header = getattr(cnc_obj, 'gc_start', '')
     expected = header + ''.join(record.get('gcode', '') for record in records.values())
 
@@ -155,7 +155,7 @@ def passes_from_cncjob(cnc_obj, arc_res):
 def build_geometry(result, params, milldefaults, source=None):
     """Build independent multigeometry records using captured inputs only.
 
-    The aggregate is XY for plotting; each tool keeps its XYZ or incoming laser power in Z.
+    Each tool keeps its XYZ or incoming laser power in Z.
     The caller stores ``photocarve`` in the geometry object's obj_options.
     ``source`` is the record of embed_source(): the mark keeps it, so that the job opens again in Photo Carve.
     """
@@ -165,7 +165,7 @@ def build_geometry(result, params, milldefaults, source=None):
     mark = {'version': 1, 'mode': params.mode, 'z_is_power': laser, 'units': params.units,
             'contract': {'vcarve': 'groove', 'halftone': 'dot', 'laser': 'laser'}.get(params.mode, 'column'),
             'xy_err': xy_budget(params.decimals, params.skew), 'tools': {}}
-    tools, aggregate = {}, []
+    tools = {}
     passes = sorted(result.passes, key=lambda part: part.role != 'rough')
     for part in passes:
         if part.z_is_power != laser:
@@ -198,13 +198,12 @@ def build_geometry(result, params, milldefaults, source=None):
         if laser:
             data['tools_mill_laser_on'] = 'M04'
         tools[uid] = {'tooldia': cutter['diameter'], 'data': data, 'solid_geometry': geometry}
-        aggregate.extend(force_2d(item) for item in geometry)
         mark['tools'][str(uid)] = cutter
     if not tools:
         raise PhotoCarveError(_('The image produced no engraving paths.'))
     if source:
         mark['source'] = source
-    return {'tools': tools, 'solid_geometry': aggregate, 'photocarve': mark}
+    return {'tools': tools, 'photocarve': mark}
 
 
 def validate_tools(tools, mark):

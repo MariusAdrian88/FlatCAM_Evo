@@ -145,7 +145,6 @@ class ObjectBoundsTest(unittest.TestCase):
 
     def test_geometry_single(self):
         g = self.geometry()
-        g.multigeo = False
         expect = {None: (0, 0, 0, 0)}
         g.solid_geometry = None
         self.assertEqual(g.bounds(), expect[None])
@@ -291,13 +290,12 @@ def same(test, a, b):
                 test.assertAlmostEqual(ca[2], cb[2], places=9)
 
 
-def build(multigeo):
-    geo = Geometry(make_app())
-    geo.kind, geo.multigeo = 'geometry', multigeo
-    geo.solid_geometry = sample()
-    if multigeo:
-        geo.tools = {1: {'solid_geometry': sample(), 'data': {}}, 2: {'solid_geometry': box(1, 1, 3, 3)},
-                     3: {'solid_geometry': []}}
+def build():
+    from unittest.mock import patch
+    with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
+        geo = GeometryObject('paths', make_app())
+    geo.tools = {1: {'solid_geometry': sample(), 'data': {}}, 2: {'solid_geometry': box(1, 1, 3, 3)},
+                 3: {'solid_geometry': []}}
     return geo
 
 
@@ -313,18 +311,15 @@ OPS = {
 
 class TestGeometryTransforms(unittest.TestCase):
 
-    def test_single_and_multigeo_match_shapely(self):
+    def test_tools_match_shapely(self):
         for name, (op, ref, any_it) in OPS.items():
-            for multigeo in (False, True):
-                with self.subTest(op=name, multigeo=multigeo):
-                    geo = build(multigeo)
-                    op(geo)
-                    same(self, reference(sample(), ref, any_it), geo.solid_geometry if not multigeo
-                         else geo.tools[1]['solid_geometry'])
-                    if multigeo:
-                        same(self, ref(box(1, 1, 3, 3)), geo.tools[2]['solid_geometry'])
-                        self.assertEqual(geo.tools[3]['solid_geometry'], [])
-                        self.assertEqual(geo.tools[1]['data'], {})
+            with self.subTest(op=name):
+                geo = build()
+                op(geo)
+                same(self, reference(sample(), ref, any_it), geo.tools[1]['solid_geometry'])
+                same(self, ref(box(1, 1, 3, 3)), geo.tools[2]['solid_geometry'])
+                self.assertEqual(geo.tools[3]['solid_geometry'], [])
+                self.assertEqual(geo.tools[1]['data'], {})
 
     def test_cncjob_transforms(self):
         for name, method, ref in (
@@ -338,7 +333,8 @@ class TestGeometryTransforms(unittest.TestCase):
                 job = SimpleNamespace(
                     app=make_app(), gcode_parsed=[{'geom': g, 'kind': ['C', 'F']} for g in geoms],
                     create_geometry=lambda: None, _affine_gcode_parsed=CNCjob._affine_gcode_parsed,
-                    tools={}, multitool=False, gcode='', steps_per_circle=16, xy_toolchange=None, xy_end=None)
+                    tools={}, gcode='', steps_per_circle=16, xy_toolchange=None, xy_end=None)
+                job.tools = {1: {'gcode_parsed': job.gcode_parsed}}
                 job._fixed_points = lambda j=job: CNCjob._fixed_points(j)
                 job._transform = lambda matrix, j=job: CNCjob._transform(j, matrix)
                 job._transform_native = lambda matrix, j=job: CNCjob._transform_native(j, matrix)
@@ -364,7 +360,6 @@ def _native_job(gcode='G00 X10.0000 Y0.0000\nG01 X10.0000 Y5.0000\n'):
     geo = [{'geom': LineString([(10, 0), (10, 5)]), 'kind': ['C', 'S']}]
     with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
         job = CNCJobObject('job', make_app())
-    job.multitool = True
     job.obj_options['type'] = 'Geometry'
     job.tools = {1: {'gcode': gcode, 'gcode_parsed': geo, 'solid_geometry': [],
                      'data': {'tools_mill_ppname_g': 'default'}}}
@@ -376,6 +371,7 @@ def test_offset_of_an_imported_job_moves_the_text_and_the_plot_together(tmp_path
     from appParsers.ParseGCode import parse_gcode
 
     job, original = _imported_job(tmp_path)
+    job.gcode = ''
 
     job.offset((5.0, 2.0))
 
@@ -389,6 +385,14 @@ def test_offset_of_an_imported_job_moves_the_text_and_the_plot_together(tmp_path
     # the cutting moves of the file (1, 1)-(10, 1) and (3, 3)-(3, 9), moved
     plotted = shapely.unary_union([g['geom'] for g in job.gcode_parsed if g['kind'][0] == 'C']).bounds
     assert plotted == pytest.approx((1 + 5, 1 + 2, 10 + 5, 9 + 2))
+
+
+def test_cncjob_bounds_include_every_stored_tool():
+    job = _native_job()
+    job.tools[1]['solid_geometry'] = [LineString([(-5, -2), (1, 1)])]
+    job.tools[2] = {'solid_geometry': [LineString([(10, 3), (20, 8)])]}
+
+    assert job.bounds() == (-5, -2, 20, 8)
 
 
 def test_rotate_of_a_native_job_changes_the_exported_gcode_and_the_plot():
@@ -405,6 +409,7 @@ def test_rotate_of_a_native_job_changes_the_exported_gcode_and_the_plot():
 def test_imported_job_with_a_subprogram_is_not_moved_and_tells_the_user(tmp_path):
     job, _ = _imported_job(tmp_path)
     job.gcode = job.gcode + 'M98 P1000\r\n'
+    next(iter(job.tools.values()))['gcode'] += 'M98 P1000\r\n'
     text, plotted = job.gcode, [g['geom'].wkt for g in job.gcode_parsed]
     job.app.inform.reset_mock()
 
@@ -458,7 +463,7 @@ def test_menu_flip_of_a_cncjob_updates_the_saved_gcode_also_after_undo_redo():
 
 def test_a_closed_contour_erosion_that_splits_keeps_every_piece():
     geo = Geometry(make_app())
-    geo.kind, geo.multigeo = 'geometry', False
+    geo.kind = 'geometry'
     geo.geo_steps_per_circle = 64
     geo.solid_geometry = LinearRing([(0, 0), (4, 0), (4, 1), (6, 1), (6, 0), (10, 0), (10, 4),
                                      (6, 4), (6, 3), (4, 3), (4, 4), (0, 4)])
@@ -474,7 +479,7 @@ def test_geometry_unit_conversion_preserves_each_tool_geometry_and_data():
 
     with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
         geo = GeometryObject('board', make_app())
-    geo.units, geo.multigeo = 'MM', True
+    geo.units = 'MM'
     geo.ui_disconnect = Mock()
     geo.tools = {
         1: {'tooldia': 6.0, 'solid_geometry': [LineString([(0, 0), (25.4, 12.7)])],
@@ -510,6 +515,29 @@ def test_geometry_unit_conversion_preserves_each_tool_geometry_and_data():
     assert original[1]['data']['extra']['preserve'] == [1]
 
 
+def test_geometry_object_shows_in_place_changes_of_tool_shapes():
+    from unittest.mock import patch
+
+    with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
+        geo = GeometryObject('board', make_app())
+    line = [LineString([(0, 0), (1, 0)]), LineString([(0, 1), (1, 1)])]
+    geo.tools = {1: {'solid_geometry': line}, 2: {'solid_geometry': [LineString([(5, 5), (6, 6)])]}}
+    assert len(geo.solid_geometry) == 3 and geo.bounds() == (0, 0, 6, 6)   # the first read fills any cache
+
+    line.append(LineString([(0, 0), (0, 9)]))                              # append in place
+    assert len(geo.solid_geometry) == 4 and geo.bounds() == (0, 0, 6, 9)
+    line[0] = LineString([(-3, 0), (1, 0)])                                # replace in place
+    assert geo.bounds() == (-3, 0, 6, 9)
+    geo.tools[2]['solid_geometry'].clear()                                 # a tool loses its shapes
+    assert len(geo.solid_geometry) == 3 and geo.bounds() == (-3, 0, 1, 9)
+    geo.tools[2]['solid_geometry'] = Polygon([(10, 10), (12, 10), (12, 12)])   # a single shape, not in a list
+    assert geo.bounds() == (-3, 0, 12, 12)
+    del geo.tools[2]
+    assert geo.bounds() == (-3, 0, 1, 9)
+    geo.solid_geometry.append(Point(50, 50))                               # the returned list is a copy
+    assert geo.bounds() == (-3, 0, 1, 9)
+
+
 def test_cncjob_unit_conversion_scales_canonical_tool_metadata_and_round_trips():
     import re
     from unittest.mock import patch
@@ -543,7 +571,7 @@ def test_cncjob_unit_conversion_scales_canonical_tool_metadata_and_round_trips()
 
     with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
         job = CNCJobObject('job', make_app())
-    job.units, job.multitool, job.gcode_parsed = 'MM', True, []
+    job.units, job.gcode_parsed = 'MM', []
     job.tools = {
         1: {'tooldia': 3.0, 'offset': 0.5, 'gcode': 'G21\nG1 X10 Z-1 F100\n',
             'gcode_parsed': [], 'solid_geometry': [],
@@ -707,11 +735,11 @@ class TestLocalizedGeometryFixes(unittest.TestCase):
         for ring, poly in zip(normal, reversed_geo.geoms):
             self.assertEqual(list(ring.coords)[::-1], list(poly.exterior.coords))
         geo.app.collection.get_by_name.return_value = geo
-        output = SimpleNamespace()
+        output = SimpleNamespace(tools={1: {}})
         geo.app.app_obj.new_object.side_effect = lambda kind, name, init, **kwargs: init(output, geo.app)
         TclCommandInteriors.execute(SimpleNamespace(app=geo.app), {'name': 'source'}, [])
-        self.assertTrue(all(isinstance(ring, LinearRing) for ring in output.solid_geometry))
-        self.assertEqual(len(output.solid_geometry), 2)
+        self.assertTrue(all(isinstance(ring, LinearRing) for ring in output.tools[1]['solid_geometry']))
+        self.assertEqual(len(output.tools[1]['solid_geometry']), 2)
 
     def cut(self, target, cutter):
         shapes = [SimpleNamespace(geo=target), SimpleNamespace(geo=cutter)]
@@ -746,7 +774,6 @@ class TestLocalizedGeometryFixes(unittest.TestCase):
         self.assertAlmostEqual(len(geo.solid_geometry[0].exterior.coords) - 1, steps, delta=2)
 
         geo.solid_geometry = [LineString([(0, 0), (4, 0)])]
-        geo.multigeo = False
         geo.buffer(1.0, 'round', None)
         # a buffered line is two round caps: about one full circle of vertices, not four
         self.assertLessEqual(len(geo.solid_geometry[0].exterior.coords) - 1, steps + 4)
@@ -887,5 +914,118 @@ class TestIsEmpty:
         exc = ExcellonObject('e', app)
         assert grb.tools == {} and is_empty(grb) is True
         assert is_empty(exc) is True
+
+
+from tests.test_app_history import fc as geometry_factory_app
+
+
+def test_generic_factory_geometry_has_default_tool_before_initializer(geometry_factory_app):
+    app = geometry_factory_app
+    previous = app.options['tools_mill_tooldia']
+    seen = {}
+
+    def initialize(obj, app):
+        seen['tools'] = list(obj.tools)
+        obj.tools[1]['solid_geometry'] = [LineString([(0, 0), (1, 0)])]
+
+    try:
+        app.options['tools_mill_tooldia'] = '0.3, 1.0'
+        obj = app.app_obj.new_object('geometry', 'factory_paths', initialize, plot=False)
+        assert seen['tools'] == [1]
+        assert obj.tools[1]['tooldia'] == 0.3
+        assert len(obj.solid_geometry) == 1
+    finally:
+        app.options['tools_mill_tooldia'] = previous
+
+
+def test_geometry_shapes_live_only_in_the_tools():
+    from unittest.mock import patch
+
+    with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
+        geo = GeometryObject('paths', make_app())
+    a, b = LineString([(0, 0), (1, 0)]), LineString([(0, 1), (1, 1)])
+    geo.tools = {1: dict(geo.default_tool(), solid_geometry=[a]),
+                 2: dict(geo.default_tool(), solid_geometry=[[b]])}
+    assert geo.solid_geometry == [a, b]
+    assert geo.bounds() == (0, 0, 1, 1)
+    with pytest.raises(AttributeError):
+        geo.solid_geometry = []
+    geo.add_polyline([(2, 1), (3, 1)], tool=2)
+    assert geo.tools[1]['solid_geometry'] == [a]
+    assert len(geo.solid_geometry) == 3
+    geo.offset((5, 2))
+    assert geo.bounds() == (5, 2, 8, 3)
+    saved = geo.to_dict()
+    assert 'solid_geometry' not in saved
+
+
+def test_geometry_svg_union_subtraction_and_buffer_keep_tool_shapes(tmp_path):
+    from unittest.mock import patch
+
+    svg = tmp_path / 'outline.svg'
+    svg.write_text('<svg xmlns="http://www.w3.org/2000/svg" width="20mm" height="10mm" '
+                   'viewBox="0 0 20 10"><rect x="2" y="2" width="10" height="5"/></svg>', encoding='utf-8')
+    with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
+        geo = GeometryObject('outline', make_app())
+    geo.import_svg(str(svg), 'geometry', flip=False, units='MM')
+    geo.union()
+    before = geo.bounds()
+    geo.subtract_polygon(box(-1, -1, 5, 20))
+    assert geo.tools[1]['solid_geometry'] and geo.bounds() != before
+    assert geo.bounds()[0] == pytest.approx(5)
+    assert '<' in geo.export_svg()
+    before = geo.bounds()
+    assert geo.buffer(0.1, 'round', None) != 'fail'
+    assert geo.bounds()[0] < before[0]
+
+
+def test_film_geometry_reload_plots_filled_colors_holes_and_world_strokes():
+    import json
+    from unittest.mock import patch
+    from camlib import dict2obj, to_dict
+    from appPlugins.ToolFilm import FilmGen
+    from tests.helpers_objects import make_app
+    from tests.test_film import TestExportFilm
+
+    source = Polygon([(2, 2), (8, 2), (8, 8), (2, 8)], [[(4, 4), (6, 4), (6, 6), (4, 6)]])
+    snapshot = TestExportFilm.snapshot(source, box(0, 0, 10, 10), negative=True)
+    snapshot.update(color='#123456', stroke=0.2)
+    artifact = FilmGen.generate_film(snapshot)
+    with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
+        original = GeometryObject('film', make_app())
+        restored = GeometryObject('reloaded', make_app())
+    original.tools[1]['solid_geometry'] = artifact['geometry']
+    # a project saved before the slim film options still carries the SVG text and the per-shape styles
+    original.obj_options['film'] = {'svg': artifact['data'], 'layers': [
+        dict(layer, styles=[{'fill': layer['color'], 'stroke_width': 0}]) for layer in artifact['film']['layers']]}
+    restored.from_dict(json.loads(json.dumps(original.to_dict(), default=to_dict), object_hook=dict2obj))
+    restored.add_shapes_batch = Mock()
+    restored.shapes._indexes = []
+    restored.plot()
+    batch = restored.add_shapes_batch.call_args.args[0]
+    painted = {color: unary_union([item['shape'] for item in batch if item['face_color'] == color])
+               for color in ('#123456', '#EDCBA9')}
+    assert painted['#123456'].contains(Point(5, 5))
+    assert not painted['#EDCBA9'].contains(Point(5, 5))
+    assert painted['#EDCBA9'].contains(Point(1.81, 5))
+    assert not painted['#EDCBA9'].contains(Point(1.79, 5))
+    assert all(item['color'] is None and item['tolerance'] == 0 for item in batch)
+    assert restored.bounds() == original.bounds()
+
+
+def test_film_object_with_edited_geometry_plots_all_its_shapes():
+    from unittest.mock import patch
+    from tests.helpers_objects import make_app
+
+    with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
+        obj = GeometryObject('film', make_app())
+    shapes = [box(i * 3, 0, i * 3 + 2, 2) for i in range(5)]
+    obj.tools[1]['solid_geometry'] = shapes
+    obj.obj_options['film'] = {'layers': [{'color': '#123456'}, {'color': '#EDCBA9'}]}
+    obj.add_shapes_batch = Mock()
+    obj.shapes._indexes = []
+    obj.plot()
+    batch = obj.add_shapes_batch.call_args.args[0]
+    assert unary_union([item['shape'] for item in batch]).equals(unary_union(shapes))
 
 

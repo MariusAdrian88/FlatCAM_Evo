@@ -66,8 +66,8 @@ class ToolMarkers(AppTool):
         # storage for temporary shapes when adding manual markers
         self.temp_shapes = self.app.sel_shapes
 
-        # app signal: connect only once, the plugin UI (and its widgets) is rebuilt on every run
-        self.app.proj_selection_changed.connect(self.on_object_selection_changed)
+        # app signal: 1 connection; connect_signals_at_init() makes it again after the close of the plugin tab
+        self.connect_selection_signal()
 
     def on_insert_type_changed(self, val):
         obj_type = 2 if val == 'geo' else 0
@@ -156,6 +156,7 @@ class ToolMarkers(AppTool):
         AppTool.install(self, icon, separator, shortcut='Alt+B', **kwargs)
 
     def connect_signals_at_init(self):
+        self.connect_selection_signal()
 
         # #############################################################################
         # ############################ SIGNALS ########################################
@@ -495,8 +496,6 @@ class ToolMarkers(AppTool):
                 if opt != 'name':
                     grb_obj.obj_options[opt] = deepcopy(new_grb_obj.obj_options[opt])
             grb_obj.obj_options['name'] = outname
-            grb_obj.multitool = False
-            grb_obj.multigeo = False
             grb_obj.follow = deepcopy(new_grb_obj.follow)
             grb_obj.tools = new_apertures
             grb_obj.solid_geometry = solid_geometry
@@ -551,10 +550,6 @@ class ToolMarkers(AppTool):
                 "tools_mill_tooldia",
                 app_obj.defaults.get("tools_mill_tooldia",
                                      app_obj.defaults.factory_defaults.get("tools_mill_tooldia")))
-            geo_obj.solid_geometry = solid_geometry
-
-            geo_obj.multitool = True
-            geo_obj.multigeo = True
             geo_obj.tools = deepcopy_keep_geometry(new_tools)
 
         ret = self.new_object('geometry', outname, initialize, source=new_geo_obj, plot=True, autoselected=False)

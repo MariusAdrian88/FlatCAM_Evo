@@ -760,32 +760,7 @@ class AppObject(QtCore.QObject):
         outname = 'new_geo' if new_name is None else new_name
 
         def initialize(new_obj, app):
-            new_obj.multitool = True
-            new_obj.multigeo = True
-
-            # store here the default data for Geometry Data
-            default_data = {}
-            for opt_key, opt_val in app.options.items():
-                if opt_key.find('geometry' + "_") == 0:
-                    oname = opt_key[len('geometry') + 1:]
-                    default_data[oname] = self._app_option(opt_key)
-                if opt_key.find('tools_') == 0:
-                    default_data[opt_key] = self._app_option(opt_key)
-
-            new_obj.tools = {
-                1: {
-                    'tooldia':          float(self._app_option("tools_mill_tooldia")),
-                    'offset':           'Path',
-                    'offset_value':     0.0,
-                    'type':             'Rough',
-                    'tool_type':        'C1',
-                    'data':             deepcopy(default_data),
-                    'solid_geometry':   []
-                }
-            }
-
             new_obj.tools[1]['data']['name'] = outname
-            new_obj.solid_geometry = []
             new_obj.source_file = ''
 
         if self.new_object('geometry', outname, initialize, plot=False) == 'fail':
@@ -803,9 +778,7 @@ class AppObject(QtCore.QObject):
         outname = 'new_grb' if new_name is None else new_name
 
         def initialize(new_obj, app):
-            new_obj.multitool = False
             new_obj.source_file = ''
-            new_obj.multigeo = False
             new_obj.follow = False
             new_obj.tools = {}
             new_obj.solid_geometry = []

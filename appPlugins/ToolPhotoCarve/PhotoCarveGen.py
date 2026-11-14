@@ -352,9 +352,6 @@ class PhotoCarveGen:
                         self.tool.generation_message_sig.emit(token, '[ERROR_NOTCL]', str(err))
                         return 'fail'
                     geo.tools = built['tools']
-                    geo.solid_geometry = built['solid_geometry']
-                    geo.multigeo = True
-                    geo.multitool = True
                     geo.obj_options['photocarve'] = built['photocarve']
                     geo._publish_guard = current
 

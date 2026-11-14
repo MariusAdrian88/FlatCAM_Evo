@@ -333,6 +333,25 @@ def _manual_subtract_selected(geometry, selected, gap_line, expected_gap_length=
     return unary_union(result)
 
 
+def cutout_source_geometry(cutout_obj):
+    """All source tools, except the designated shallow CutOut bridge record."""
+    if cutout_obj.kind == 'geometry':
+        geometry = []
+        for uid, tool in cutout_obj.tools.items():
+            data = tool.get('data') or {}
+            if str(uid) == '99':
+                try:
+                    depth = float(data['tools_mill_cutz'])
+                    if any(float(other.get('data', {}).get('tools_mill_cutz', depth)) < depth < 0
+                           for other_uid, other in cutout_obj.tools.items() if str(other_uid) != '99'):
+                        continue
+                except (KeyError, TypeError, ValueError):
+                    pass
+            geometry.extend(flatten_shapely_geometry(tool.get('solid_geometry', [])))
+        return geometry
+    return cutout_obj.solid_geometry
+
+
 def freeform_cutout_paths(cutout_obj, kind, cut_dia, margin, gaps, gapsize, convex_box, gap_type, thin_entry,
                           mb_dia, mb_spacing, handler, inner_active=False, inner_gaps=False,
                           fused_solid_fn=fused_solid):
@@ -356,11 +375,7 @@ def freeform_cutout_paths(cutout_obj, kind, cut_dia, margin, gaps, gapsize, conv
     if cutout_obj.kind == 'gerber':
         object_geo = gerber_cutout_geometry(cutout_obj, convex_box, fused_solid_fn)
     else:
-        if cutout_obj.multigeo is False:
-            object_geo = cutout_obj.solid_geometry
-        else:
-            t_first = list(cutout_obj.tools.keys())[0]
-            object_geo = cutout_obj.tools[t_first]['solid_geometry']
+        object_geo = cutout_source_geometry(cutout_obj)
     if kind == 'single':
         object_geo = unary_union(object_geo)
         if cutout_obj.kind == 'gerber':
@@ -687,10 +702,8 @@ def _inner_contour_paths(cutout_obj, kind, cut_dia, margin, gaps, gapsize, conve
     gapsize = gapsize + abs(cut_dia)
     if gerber:
         source = cutout_obj
-    elif cutout_obj.multigeo is False:
-        source = cutout_obj.solid_geometry
     else:
-        source = cutout_obj.tools[list(cutout_obj.tools.keys())[0]]['solid_geometry']
+        source = cutout_source_geometry(cutout_obj)
     contours = outline_contours(source, bool(convex_box) and gerber, kind, result.warnings, fused_solid_fn)
     if not any(c.side == 'inner' for c in contours):
         result.warnings.append(_("No inner contour found. Is this a board outline file?"))

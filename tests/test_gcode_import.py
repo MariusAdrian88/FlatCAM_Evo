@@ -386,8 +386,8 @@ def _native_words(line):
     return {k: float(v) for k, v in _WORD.findall(line)}
 
 
-def _native_job(text, multitool):
-    """A CNCjob holding ``text`` as native (not imported) G-code, single tool or multitool."""
+def _native_job(text):
+    """A CNCjob holding ``text`` as native (not imported) per-tool G-code."""
     from types import SimpleNamespace
     from unittest.mock import MagicMock
     import shapely.geometry
@@ -413,25 +413,19 @@ def _native_job(text, multitool):
     job.gcode = text
     job.gcode_parsed = parsed
     job.solid_geometry = shapely.geometry.LineString([(0, 0), (1, 1)])
-    job.multitool = multitool
-    if multitool:
-        job.tools = {1: {'gcode': text, 'gcode_parsed': parsed, 'solid_geometry': job.solid_geometry,
-                         'tooldia': 0.4, 'data': {}}}
-        job.used_tools = [1]
-    else:
-        job.tools = {}
-        job.used_tools = []
+    job.tools = {1: {'gcode': text, 'gcode_parsed': parsed, 'solid_geometry': job.solid_geometry,
+                     'tooldia': 0.4, 'data': {}}}
+    job.used_tools = [1]
     return job
 
 
 def _native_text(job):
-    return job.tools[1]['gcode'] if job.multitool else job.gcode
+    return job.tools[1]['gcode']
 
 
-@pytest.mark.parametrize('multitool', [False])
-def test_native_scale_doubles_arc_offsets_and_non_uniform_scale_linearizes_the_arc(multitool):
+def test_native_scale_doubles_arc_offsets_and_non_uniform_scale_linearizes_the_arc():
     text = "G21 G90\nG0 X0 Y0\nG2 X2 Y0 I1 J0 F100\n"
-    job = _native_job(text, multitool)
+    job = _native_job(text)
     job.scale(2, 2, point=(0, 0))
     arc = _native_text(job).splitlines()[2]
     assert re.search(r'\bG2\b', arc)
@@ -440,7 +434,7 @@ def test_native_scale_doubles_arc_offsets_and_non_uniform_scale_linearizes_the_a
     assert w['I'] == pytest.approx(2) and w['J'] == pytest.approx(0)
     assert w['F'] == pytest.approx(100)
 
-    job = _native_job(text, multitool)
+    job = _native_job(text)
     job.scale(2, 1, point=(0, 0))
     out_lines = _native_text(job).splitlines()
     assert not any(re.search(r'\bG[23]\b', line) for line in out_lines)
@@ -448,8 +442,7 @@ def test_native_scale_doubles_arc_offsets_and_non_uniform_scale_linearizes_the_a
     assert last['X'] == pytest.approx(4) and last['Y'] == pytest.approx(0)
 
 
-@pytest.mark.parametrize('multitool', [False])
-def test_native_offset_moves_absolute_xy_and_nothing_else(multitool):
+def test_native_offset_moves_absolute_xy_and_nothing_else():
     text = "G21 G90\nG0 X0 Y0\nG1 X5 Y5 F100\nG91\nG1 X1 Y1\nG90\nG53 G0 X0 Y0\n(X1.0 Y2.0)\n"
     # (source line, expected words after the offset; None = the line must stay byte for byte)
     cases = [
@@ -462,7 +455,7 @@ def test_native_offset_moves_absolute_xy_and_nothing_else(multitool):
         ("G53 G0 X0 Y0", {'X': 0, 'Y': 0}),      # machine coordinates: not shifted
         ("(X1.0 Y2.0)", None),
     ]
-    job = _native_job(text, multitool)
+    job = _native_job(text)
     job.offset((10, 5))
     out_lines = _native_text(job).splitlines()
     assert len(out_lines) == len(cases)
@@ -478,10 +471,10 @@ def test_native_offset_moves_absolute_xy_and_nothing_else(multitool):
 
 def test_native_convert_units_in_to_mm_scales_lengths_and_feed_and_switches_g20():
     text = "G20\n(Spindle Speed: 1000)\nG1 X1 Y2 Z-0.1 F10\nG2 X2 Y2 I0.5 J0\n"
-    job = _native_job(text, multitool=False)
+    job = _native_job(text)
     job.units = 'IN'
     job.convert_units('MM')
-    out = job.gcode
+    out = _native_text(job)
     lines = out.splitlines()
     assert re.search(r'\bG21\b', lines[0]) and not re.search(r'\bG20\b', out)
     assert lines[1] == "(Spindle Speed: 1000)"
@@ -494,7 +487,7 @@ def test_native_convert_units_in_to_mm_scales_lengths_and_feed_and_switches_g20(
 @pytest.mark.parametrize('transform', ['rotate'])
 def test_native_transforms_keep_the_toolchange_and_end_positions(transform):
     text = "G21 G90\nG00 X5 Y6\nM6\nG00 X1 Y2\nG1 Z-0.1 F50\nG1 X3 Y4 F100\nG00 Z5\nG00 X-7 Y8\n"
-    job = _native_job(text, multitool=False)
+    job = _native_job(text)
     job.xy_toolchange = [5, 6]
     job.xy_end = [-7, 8]
     if transform == 'rotate':
@@ -503,7 +496,7 @@ def test_native_transforms_keep_the_toolchange_and_end_positions(transform):
     else:
         job.offset((10, 5))
         moved = lambda x, y: (x + 10, y + 5)
-    lines = job.gcode.splitlines()
+    lines = _native_text(job).splitlines()
     assert len(lines) == 8
     tc = _native_words(lines[1])
     assert tc['X'] == pytest.approx(5) and tc['Y'] == pytest.approx(6)
@@ -524,7 +517,7 @@ _SQUARE_TWO_PASSES = (
 
 def test_native_transform_moves_every_approach_move_before_a_cut():
     # the end position is the start of the closed path, as when End X,Y is empty (xy_end = last point)
-    job = _native_job(_SQUARE_TWO_PASSES, multitool=False)
+    job = _native_job(_SQUARE_TWO_PASSES)
     job.xy_toolchange = None
     job.xy_end = [0, 0]
     job.offset((10, 5))

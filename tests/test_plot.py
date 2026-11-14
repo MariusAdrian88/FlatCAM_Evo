@@ -110,9 +110,9 @@ def test_panel_cancellation_keeps_fresh_rendering_precision(kind, overflow):
     factory = {'geometry': geometry_source, 'excellon': make_excellon, 'gerber': gerber_source}[kind]
     source, panel = factory(app), factory(app)
     for obj, geometry in ((source, polygon), (panel, translate(polygon, *offset))):
-        obj.multigeo = False
-        obj.solid_geometry = [geometry]
-        obj.tools = {1: {'solid_geometry': [geometry]}}
+        if kind != 'geometry':
+            obj.solid_geometry = [geometry]
+        obj.tools = {1: {'solid_geometry': [geometry], 'data': {}}}
         obj.obj_options.update(solid=True, multicolored=False, plot=True)
         obj.shapes = ShapeGroup(_new_collection())
     original = polygon.wkb
@@ -207,7 +207,7 @@ def test_excellon_outline_tools_match_individual_ring_rendering(hidden, no_mp):
     assert obj.shape_indexes_dict == {}
 
 
-@pytest.mark.parametrize('mode', ['single', 'multigeo_single', 'multi', 'fused', 'shared_border',
+@pytest.mark.parametrize('mode', ['single', 'multi', 'fused', 'shared_border',
                                  'uncached', 'deleted', 'stale', 'partial', 'selected', 'own'])
 def test_geometry_panel_reuse_or_fallback_matches_fresh(mode):
     from shapely import LineString
@@ -219,11 +219,9 @@ def test_geometry_panel_reuse_or_fallback_matches_fresh(mode):
     canvas = FakeCanvas()
     app = make_app()
     source = geometry_source(app)
-    source.multigeo = mode in ('multigeo_single', 'multi', 'partial', 'selected', 'fused', 'shared_border', 'own')
-    if mode in ('multigeo_single', 'shared_border'):
+    if mode in ('single', 'shared_border'):
         source.tools = {1: source.tools[1]}
     paths = [LineString([(0, 0), (1, 0)]), LineString([(1, 0), (2, 0)])]
-    source.solid_geometry = paths
     for tool in source.tools.values():
         tool['solid_geometry'] = paths
     source.shapes = ShapeGroup(_new_collection())
@@ -232,9 +230,8 @@ def test_geometry_panel_reuse_or_fallback_matches_fresh(mode):
     if mode == 'deleted':
         source.deleted = True
     if mode == 'stale':
-        source.solid_geometry = [LineString([(0, 0), (5, 1)])]
+        source.tools[1]['solid_geometry'] = [LineString([(0, 0), (5, 1)])]
     panel = geometry_source(app)
-    panel.multigeo = source.multigeo
     offsets = [(0, 0), (10, 0)]
     if mode == 'shared_border':
         offsets = [(0, 0), (1, 0)]
@@ -243,8 +240,8 @@ def test_geometry_panel_reuse_or_fallback_matches_fresh(mode):
         offsets = [(10.0 * k, 3.0 * (k % 2)) for k in range(8)]
     builder = panelize_core.panelize_geometry_optimized if mode in ('fused', 'shared_border', 'own') \
         else panelize_core.panelize_geometry
-    panel.tools, panel.solid_geometry = builder(
-        source.tools, source.solid_geometry, source.multigeo, offsets)
+    panel.tools, panel_geometry = builder(
+        source.tools, source.solid_geometry, offsets)
     for tool in panel.tools.values():
         tool['data']['override_color'] = '#987654FF'
     panel.shapes = ShapeGroup(_new_collection())
@@ -252,7 +249,7 @@ def test_geometry_panel_reuse_or_fallback_matches_fresh(mode):
     with patch.object(visuals, '_update_shape_buffers', wraps=visuals._update_shape_buffers) as prepared:
         panel.plot(plot_tool=1 if mode == 'selected' else None)
     got = plotted(panel)
-    assert (prepared.call_count == 0) == (mode in ('single', 'multigeo_single', 'multi'))
+    assert (prepared.call_count == 0) == (mode in ('single', 'multi'))
     if mode == 'own':
         assert prepared.call_count * len(offsets) == len(got)
     panel.shapes = ShapeGroup(_new_collection())

@@ -118,9 +118,7 @@ class Panelize(AppTool):
         self.ui.type_obj_combo.currentIndexChanged.connect(self.on_type_obj_index_changed)
         self.ui.type_box_combo.currentIndexChanged.connect(self.on_type_box_index_changed)
 
-        if not getattr(self, '_selection_signal_connected', False):
-            self.app.proj_selection_changed.connect(self.on_object_selection_changed)
-            self._selection_signal_connected = True
+        self.connect_selection_signal()
 
         self.ui.reset_button.clicked.connect(self.set_tool_ui)
 
@@ -395,7 +393,6 @@ class Panelize(AppTool):
                 offsets = panelize_core.grid_offsets(box_bounds, rows, columns, spacing_columns, spacing_rows)
 
                 def job_init_excellon(obj_fin, app_obj):
-                    obj_fin.multitool = True
                     obj_fin.tools = panelize_core.panelize_excellon(
                         panel_source_obj.tools, offsets, abort=abort, progress=progress)
                     obj_fin.solid_geometry = []
@@ -424,15 +421,15 @@ class Panelize(AppTool):
 
                 def job_init_geometry(new_obj, app_obj):
                     if panel_source_obj.kind == 'geometry':
-                        new_obj.multigeo = panel_source_obj.multigeo
-                        if panel_source_obj.multigeo is True and to_optimize is True:
+                        if to_optimize is True:
                             app_obj.inform.emit('%s' % _("Optimizing the overlapping paths."))
-                        new_obj.tools, new_obj.solid_geometry = panelize_core.panelize_geometry_optimized(
-                            panel_source_obj.tools, panel_source_obj.solid_geometry, panel_source_obj.multigeo,
+                        # the Geometry object keeps only the shapes of its tools: no composed copy to translate
+                        new_obj.tools, _composed = panelize_core.panelize_geometry_optimized(
+                            panel_source_obj.tools, [],
                             offsets, abort=abort, progress=progress, snap_overlaps=to_optimize is True)
                         # Merged/snapped paths fail the plot's geometry check and render normally.
                         new_obj.reuse_plot_of(panel_source_obj, offsets=offsets)
-                        if panel_source_obj.multigeo is True and to_optimize is True:
+                        if to_optimize is True:
                             app_obj.inform.emit('%s' % _("Optimization complete."))
                     elif panel_source_obj.kind == 'gerber':
                         # The Geometry tool table is made before panelizing, like convert_any2geo does: every tool
@@ -441,9 +438,8 @@ class Panelize(AppTool):
                         if built is None:
                             raise ValueError("The tool diameters of the Geometry could not be read.")
                         default_data, built_tools, tools_diameters = built
-                        new_obj.tools, new_obj.solid_geometry = PanelizeGen.geometry_from_gerber(
+                        new_obj.tools, panel_geometry = PanelizeGen.geometry_from_gerber(
                             built_tools, panel_source_obj.solid_geometry, offsets, abort=abort, progress=progress)
-                        new_obj.multigeo = True
                         new_obj.obj_options.update(deepcopy(default_data))
                         new_obj.obj_options["tools_mill_tooldia"] = tools_diameters[0] if tools_diameters else 0.0
 
@@ -513,15 +509,12 @@ class Panelize(AppTool):
                     else:
                         # The Gerber apertures are made from the Geometry before panelizing.
                         new_obj.tools, new_obj.solid_geometry, as_regions = PanelizeGen.gerber_from_geometry(
-                            panel_source_obj.tools, panel_source_obj.solid_geometry, panel_source_obj.multigeo,
+                            panel_source_obj.tools, panel_source_obj.solid_geometry,
                             offsets, abort=abort, progress=progress)
-                        new_obj.multitool = False
-                        new_obj.multigeo = True
                         new_obj.follow = False
-                        new_obj.follow_geometry = []
-                        # The native writer draws a region record only if its 'solid' is a polygon: a line or a
-                        # point is written as a stroke or a flash with no aperture, which parses back as nothing.
-                        # Such a panel is exported as regions of its composed solid_geometry instead.
+                        new_obj.follow_geometry = [rec['follow'] for tool in new_obj.tools.values()
+                                                   for rec in tool['geometry'] if 'follow' in rec]
+                        # Keep the region records and the diameter-backed strokes / flashes in the native writer.
                         new_obj.export_as_regions = as_regions
 
                     app_obj.inform.emit('%s' % _("Generating panel ... Adding the source code."))

@@ -15,7 +15,7 @@ class TclCommandCncjob(TclCommandSignaled):
         new
         open_gerber tests/gerber_files/simple1.gbr -outname margin
         isolate margin -dia 3
-        cncjob margin_iso
+        cncjob margin_iso_combined
     """
 
     # array of all command aliases, to be able use  old names for backward compatibility (add_poly, add_polygon)
@@ -317,31 +317,20 @@ class TclCommandCncjob(TclCommandSignaled):
         for key in [k for k in extra if k == 'tools' or k.startswith('tools_mill_milling_')]:
             extra.pop(key)   # Excellon only
 
-        if not obj.multigeo and not extra:
-            return self.check_result(obj.generatecncjob(use_thread=False, plot=False, **args))
-
-        if not obj.multigeo:
-            # The options of the Milling plugin (offset, polishing, optimization...) are made by the plugin: the
-            # single-geometry object goes in as a one-tool multi-geometry object.
-            geo_obj = self._single_as_multigeo(obj, args, given)
-            local_tools_dict = geo_obj.tools
-            for tool in local_tools_dict.values():
-                tool['data']['tools_mill_spindlespeed'] = args["spindlespeed"]
-                tool['data']['tools_mill_min_power'] = args['las_min_pwr']
+        geo_obj = obj
+        # a tool without settings (an odd old file) cannot make a job
+        local_tools_dict = {uid: tool for uid, tool in deepcopy_keep_geometry(obj.tools).items() if 'data' in tool}
+        if not local_tools_dict:
+            self.raise_tcl_error('cncjob: no tool with settings in the object %s.' % str(obj.obj_options['name']))
+            return 'fail'
+        single_tool = len(local_tools_dict) == 1
+        if 'dia' in given and not single_tool:
+            self.app.inform.emit('[WARNING_NOTCL] cncjob: -dia is ignored for an object with several tools, '
+                                 'every tool keeps its own diameter.')
+        for tool in local_tools_dict.values():
+            self._apply_to_tool(tool['data'], args, given)
+            if 'dia' in given and single_tool:
                 tool['data']['tools_mill_tooldia'] = args["dia"]
-        else:
-            geo_obj = obj
-            local_tools_dict = deepcopy_keep_geometry(obj.tools)
-            single_tool = len(local_tools_dict) == 1
-            if 'dia' in given and not single_tool:
-                self.app.inform.emit('[WARNING_NOTCL] cncjob: -dia is ignored for an object with several tools, '
-                                     'every tool keeps its own diameter.')
-            for tool in local_tools_dict.values():
-                if 'data' not in tool:
-                    continue
-                self._apply_to_tool(tool['data'], args, given)
-                if 'dia' in given and single_tool:
-                    tool['data']['tools_mill_tooldia'] = args["dia"]
         for tool in local_tools_dict.values():
             tool['data'].update(extra)
 
@@ -450,27 +439,6 @@ class TclCommandCncjob(TclCommandSignaled):
                     (args.get('spindlespeed') or 0.0)
             else:
                 data['tools_mill_spindlespeed'] = args.get('spindlespeed')
-
-    def _single_as_multigeo(self, obj, args, given):
-        from appPlugins.ToolMilling.Milling import HybridGeoExc
-        geo = HybridGeoExc(app=self.app)
-        geo.obj_options.update(deepcopy(dict(obj.obj_options)))
-        geo.solid_geometry = obj.solid_geometry
-        data = {key: deepcopy(val) for key, val in obj.obj_options.items() if key.startswith('tools_mill_')}
-        data['seg_x'] = self._app_option('geometry_seg_x')
-        data['seg_y'] = self._app_option('geometry_seg_y')
-        data.update(self._mill_data(args, set(args)))
-        data['tools_mill_toolchange'] = args["toolchange"]
-        data['tools_mill_dwell'] = args["dwell"]
-        data['tools_mill_dwelltime'] = args["dwelltime"]
-        data['tools_mill_multidepth'] = args["multidepth"]
-        data['tools_mill_depthperpass'] = args["dpp"]
-        data['tools_mill_extracut'] = args["extracut"]
-        data['tools_mill_extracut_length'] = args["extracut_length"]
-        data['tools_mill_toolchangez'] = args["toolchangez"]
-        geo.tools = {1: {'tooldia': args["dia"], 'data': data,
-                         'solid_geometry': deepcopy_keep_geometry(obj.solid_geometry)}}
-        return geo
 
     def _run_milling_handler(self, obj, geo_obj, tools_dict, args, extra, disable_offset=False):
         milling = self.app.milling_tool

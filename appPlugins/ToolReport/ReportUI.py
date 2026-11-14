@@ -114,21 +114,6 @@ class ReportUI:
 
         self.treeWidget.addChild(
             obj_type, ['%s:' % _('Object Type'), ('%s' % (obj.kind.upper()))], True, font=font, font_items=1)
-        try:
-            self.treeWidget.addChild(obj_type,
-                                     [
-                                         '%s:' % _('Geo Type'),
-                                         ('%s' % (
-                                             {
-                                                 False: _("Single-Geo"),
-                                                 True: _("Multi-Geo")
-                                             }[obj.multigeo])
-                                          )
-                                     ],
-                                     True)
-        except Exception as e:
-            self.app.log.error("Properties.addItems() --> %s" % str(e))
-
         self.treeWidget.addChild(obj_name, [obj.obj_options['name']])
 
         start_calculations(obj, dims)

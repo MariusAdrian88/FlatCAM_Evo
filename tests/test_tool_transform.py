@@ -44,7 +44,6 @@ class FakeObj:
         self.kind = kind
         self.geo = Geometry(MagicMock())
         self.geo.app = app
-        self.geo.multigeo = False
         self.geo.solid_geometry = [Polygon([(0, 0), (4, 0), (4, 2), (1, 3)])]
         self.obj_options = {'name': name}
         self.tools = {}
@@ -309,7 +308,7 @@ class TransformUiTest(unittest.TestCase):
             with self.subTest(linked=linked), patch('appObjects.AppObjectTemplate.ShapeCollection', MagicMock()):
                 app, history = self.make_real_app()
                 obj = GeometryObject('real', app)
-                obj.solid_geometry = [Polygon([(0, 0), (4, 0), (4, 2), (1, 3)])]
+                obj.tools[1]['solid_geometry'] = [Polygon([(0, 0), (4, 0), (4, 2), (1, 3)])]
                 obj.plot_transformed = MagicMock(return_value=True)
                 original = obj.bounds()
                 callback = obj.obj_options.callback

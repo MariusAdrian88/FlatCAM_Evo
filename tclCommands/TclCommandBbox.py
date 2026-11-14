@@ -90,7 +90,7 @@ class TclCommandBbox(TclCommand):
                 bounding_box = box(*obj.bounds()).buffer(float(margin))
                 if not rounded:  # Remove rounded corners
                     bounding_box = bounding_box.envelope
-                geo_obj.solid_geometry = bounding_box
+                geo_obj.tools[1]['solid_geometry'] = [bounding_box]
 
             self.check_result(self.app.app_obj.new_object("geometry", args['outname'], geo_init, plot=False))
         except Exception as e:

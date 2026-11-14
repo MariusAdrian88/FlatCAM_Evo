@@ -218,7 +218,6 @@ class ExcellonObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Excellon):
         # store the source file here
         self.source_file = ""
 
-        self.multigeo = False
         self.units_found = self.app.app_units
 
         self.fill_color = self._app_option('excellon_plot_fill')
@@ -1126,7 +1125,10 @@ class ExcellonObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Excellon):
             geo_obj.obj_options["tools_mill_tooldia"] = str(tooldia)
             # the CNC job reads tools_mill_multidepth
             geo_obj.obj_options["tools_mill_multidepth"] = self._milling_multidepth(app_obj)
-            geo_obj.solid_geometry = MillingGen.milling_drills_geometry(
+            geo_obj.tools[1]['tooldia'] = tooldia
+            geo_obj.tools[1]['data'].update(tools_mill_tooldia=tooldia,
+                                          tools_mill_multidepth=geo_obj.obj_options["tools_mill_multidepth"])
+            geo_obj.tools[1]['solid_geometry'] = MillingGen.milling_drills_geometry(
                 self.tools, tools, tooldia, steps=self._milling_steps, decimals=self.decimals)
 
             if not geo_obj.solid_geometry:
@@ -1180,7 +1182,10 @@ class ExcellonObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Excellon):
             geo_obj.obj_options['type'] = 'Excellon Geometry'
             geo_obj.obj_options["tools_mill_tooldia"] = str(tooldia)
             geo_obj.obj_options["tools_mill_multidepth"] = self._milling_multidepth(app_obj)
-            geo_obj.solid_geometry = MillingGen.milling_slots_geometry(
+            geo_obj.tools[1]['tooldia'] = tooldia
+            geo_obj.tools[1]['data'].update(tools_mill_tooldia=tooldia,
+                                          tools_mill_multidepth=geo_obj.obj_options["tools_mill_multidepth"])
+            geo_obj.tools[1]['solid_geometry'] = MillingGen.milling_slots_geometry(
                 self.tools, use_tools, tooldia, self.decimals, self._milling_steps, line_string=LineString)
             if not geo_obj.solid_geometry:
                 self.app.log.debug("FAIL: No geometry generated.")

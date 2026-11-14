@@ -453,7 +453,7 @@ class TestCameraPublicWorkflow(unittest.TestCase):
         camera.current_camera_id = lambda: 'cam-A'
         camera.preview_usable = lambda: True
         obj = GeometryObject('board', make_app())
-        obj.solid_geometry = [LineString([(0, 0), (10, 0)])]
+        obj.tools[1]['solid_geometry'] = [LineString([(0, 0), (10, 0)])]
         obj.plot = MagicMock()
         obj.plot_transformed = MagicMock()
         tool.app.collection.get_list = lambda: [obj]

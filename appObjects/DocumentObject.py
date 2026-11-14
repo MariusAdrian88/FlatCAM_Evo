@@ -10,14 +10,19 @@
 # ##########################################################
 
 from copy import deepcopy
+import base64
+from pathlib import Path
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer, QBuffer
+from PyQt6 import QtPdf, QtGui, QtCore, QtWidgets
 
 from appEditors.appTextEditor import AppTextEditor
 from appGUI.GUIElements import FCFileSaveDialog
 from appEditors.text_editor.rich_toolbar import RichTextToolbar
-from appObjects.AppObjectTemplate import *
+# from appObjects.AppObjectTemplate import *
 from appGUI.ObjectUI import DocumentObjectUI
+
+from appObjects.AppObjectTemplate import FlatCAMObj
 
 import gettext
 import appTranslation as fcTranslate
@@ -50,6 +55,21 @@ class DocumentObject(FlatCAMObj):
     default_alpha_level = None
     ui_type = DocumentObjectUI
 
+    # the editor text is classified once, a moment after the typing stops; reading source_file flushes it
+    _source_file = ''
+    _text_dirty = False
+    _classify_timer = None
+
+    @property
+    def source_file(self):
+        self._flush_text()
+        return self._source_file
+
+    @source_file.setter
+    def source_file(self, value):
+        self._source_file = value
+        self._text_dirty = False
+
     def __init__(self, name, app):
         self.app = app
         self.decimals = self.app.decimals
@@ -60,7 +80,8 @@ class DocumentObject(FlatCAMObj):
         self.kind = "document"
         self.units = ''
 
-        self.ser_attrs = ['obj_options', 'kind', 'source_file']
+        self.ser_attrs = ['obj_options', 'kind', 'source_file', 'document_type']
+        self.document_type = 'text'
         self.source_file = ''
         self.doc_code = ''
 
@@ -70,6 +91,7 @@ class DocumentObject(FlatCAMObj):
         self.font_underline = None
 
         self.document_editor_tab = None
+        self.rich_toolbar = None
 
         self._read_only = False
         self.units_found = self.app.app_units
@@ -83,6 +105,43 @@ class DocumentObject(FlatCAMObj):
         :return:    None
         """
         self.source_file = deepcopy(getattr(src, 'source_file', self.source_file))
+        # noinspection PyUnresolvedReferences
+        self.document_type = getattr(src, 'document_type', 'html' if Qt.mightBeRichText(self.source_file) else 'text')
+
+    @property
+    def pdf_data(self):
+        return base64.b64decode(self.source_file, validate=True)
+
+    def set_pdf(self, data):
+        """Validate before replacing the retained PDF; base64 keeps project JSON lossless."""
+        document = QtPdf.QPdfDocument(None)
+        buffer = QBuffer(document)
+        buffer.setData(data)
+        buffer.open(QtCore.QIODevice.OpenModeFlag.ReadOnly)
+        try:
+            document.load(buffer)
+            if document.status() != QtPdf.QPdfDocument.Status.Ready or not document.pageCount():
+                raise ValueError(_('Invalid or unsupported PDF document.'))
+        finally:
+            document.close()
+            buffer.close()
+        self.source_file = base64.b64encode(data).decode('ascii')
+        self.document_type = 'pdf'
+
+    def parse_file(self, filename):
+        try:
+            path = Path(filename)
+            if path.suffix.lower() == '.pdf':
+                self.set_pdf(path.read_bytes())
+            else:
+                content = path.read_text(encoding='utf-8-sig')
+                if '\x00' in content:
+                    raise ValueError(_('The file is not a text document.'))
+                self.source_file = content
+                self.document_type = 'html' if path.suffix.lower() in ('.html', '.htm', '.flatdoc') else 'text'
+        except (OSError, ValueError) as error:
+            self.app.inform.emit('[ERROR_NOTCL] %s: %s' % (_('Failed to open Document.'), error))
+            return 'fail'
 
     def set_ui(self, ui):
         FlatCAMObj.set_ui(self, ui)
@@ -100,6 +159,15 @@ class DocumentObject(FlatCAMObj):
         # Show/Hide Advanced Options
         app_mode = self._app_option("global_app_level")
         self.change_level(app_mode)
+
+        self.ui.type_label.setText('%s: %s' % (_('Type'), self.document_type.upper()))
+        if self.document_type == 'pdf':
+            for index in range(self.ui.custom_box.count()):
+                widget = self.ui.custom_box.itemAt(index).widget()
+                if widget is not None and widget is not self.ui.type_label:
+                    widget.hide()
+            self.build_ui()
+            return
 
         self.document_editor_tab = AppTextEditor(app=self.app)
 
@@ -120,17 +188,18 @@ class DocumentObject(FlatCAMObj):
             self.document_editor_tab.code_editor, font_sizes=font_sizes, resource_location=self.ui.resource_loc)
         self.document_editor_tab.add_toolbar_row(self.rich_toolbar)
 
-        flt = "FlatCAM Docs (*.FlatDoc);;HTML Files (*.html *.htm);;Text Files (*.txt);;PDF Files (*.pdf);;" \
-              "All Files (*.*)"
+        # both cases: the file dialogs of Linux match the patterns case-sensitively
+        flt = _("Documents (*.txt *.TXT *.html *.HTML *.htm *.HTM *.FlatDoc *.flatdoc *.FLATDOC);;"
+                "Text Files (*.txt *.TXT);;HTML Files (*.html *.HTML *.htm *.HTM);;"
+                "FlatCAM Docs (*.FlatDoc *.flatdoc *.FLATDOC);;All Files (*.*)")
         # ######################################################################
         # ######################## SIGNALS #####################################
         # ######################################################################
         self.ui.level.toggled.connect(self.on_level_changed)
 
         self.document_editor_tab.set_file_filter(flt)
-        self.document_editor_tab.set_save_handler(lambda: self.save_document(filt=flt))
-
-        self.document_editor_tab.code_editor.textChanged.connect(self.on_text_changed)
+        self.document_editor_tab.set_save_handler(self.save_document)
+        self.document_editor_tab.set_open_handler(self.open_file_in_editor)
 
         self.ui.font_type_cb.currentFontChanged.connect(self.apply_default_font)
         self.ui.font_size_cb.activated.connect(self.apply_default_font)
@@ -141,18 +210,9 @@ class DocumentObject(FlatCAMObj):
         self.ui.tab_size_spinner.returnPressed.connect(self.on_tab_size_change)
         # #######################################################################
 
-        # self.document_editor_tab.handleTextChanged()
-
-        try:
-            if QtGui.Qt.mightBeRichText(self.source_file):
-                # self.document_editor_tab.code_editor.setHtml(self.source_file)
-                self.document_editor_tab.load_text(self.source_file, move_to_start=True, clear_text=True, as_html=True)
-            else:
-                # for line in self.source_file.splitlines():
-                #     self.document_editor_tab.code_editor.append(line)
-                self.document_editor_tab.load_text(self.source_file, move_to_start=True, clear_text=True, as_html=False)
-        except AttributeError:
-            self.document_editor_tab.load_text(self.source_file, move_to_start=True, clear_text=True, as_html=True)
+        self.document_editor_tab.load_text(self.source_file, move_to_start=True, clear_text=True,
+                                           as_html=self.document_type == 'html')
+        self.document_editor_tab.code_editor.textChanged.connect(self.on_text_changed)
 
         self.on_selection_color_entry(self._app_option("document_sel_color"))
         # self.on_font_color_entry(self.app.options["document_font_color"])
@@ -175,22 +235,41 @@ class DocumentObject(FlatCAMObj):
             self._read_only = False
 
     def build_ui(self):
+        if getattr(self, '_load_batch', None) is not None:
+            return
         FlatCAMObj.build_ui(self)
-        tab_here = False
+        if self.document_type == 'pdf':
+            return self.app.pdf_viewer.open_document(self)
+        editor = self.document_editor_tab
+        if editor is None:
+            return
+        area = self.app.ui.plot_tab_area
+        self.app.pdf_viewer.reattach(editor)
+        if area.indexOf(editor) < 0:
+            area.addTab(editor, self.obj_options['name'])
+        area.setTabText(area.indexOf(editor), self.obj_options['name'])
+        editor.setObjectName(self.obj_options['name'] + '_editor_tab')
+        area.setCurrentWidget(editor)
 
-        # try to not add too many times a tab that it is already installed
-        for idx in range(self.app.ui.plot_tab_area.count()):
-            if self.app.ui.plot_tab_area.widget(idx).objectName() == self.obj_options['name'] + "_editor_tab":
-                tab_here = True
-                break
+    def close_editor(self):
+        self._flush_text()
+        if self._classify_timer is not None:
+            self._classify_timer.stop()
+        self.app.pdf_viewer.close_owned_tabs(self)
+        editor = self.document_editor_tab
+        if editor is not None:
+            self.app.pdf_viewer.reattach(editor)
+            area = self.app.ui.plot_tab_area
+            index = area.indexOf(editor)
+            if index >= 0:
+                area.removeTab(index)
+            editor.deleteLater()
+            self.document_editor_tab = None
+            self.rich_toolbar = None
 
-        # add the tab if it is not already added
-        if tab_here is False:
-            self.app.ui.plot_tab_area.addTab(self.document_editor_tab, '%s' % _("Document Editor"))
-            self.document_editor_tab.setObjectName(self.obj_options['name'] + "_editor_tab")
-
-        # Switch plot_area to CNCJob tab
-        self.app.ui.plot_tab_area.setCurrentWidget(self.document_editor_tab)
+    def delete(self):
+        self.close_editor()
+        FlatCAMObj.delete(self)
 
     def on_level_changed(self, checked):
         if not checked:
@@ -233,8 +312,64 @@ class DocumentObject(FlatCAMObj):
         self.ui.tab_size_spinner.returnPressed.connect(self.on_tab_size_change)
 
     def on_text_changed(self):
-        self.source_file = self.document_editor_tab.code_editor.toHtml()
-        # print(self.source_file)
+        self._text_dirty = True
+        if self._classify_timer is None:
+            self._classify_timer = QTimer()
+            self._classify_timer.setSingleShot(True)
+            self._classify_timer.setInterval(300)
+            self._classify_timer.timeout.connect(self._flush_text)
+        self._classify_timer.start()
+        self.mark_project_dirty()
+
+    def mark_project_dirty(self):
+        collection =getattr(self, '_document_collection', None)
+        if collection is not None and collection is not self.app.collection:
+            for context in getattr(getattr(self.app, 'projects', None), 'contexts', []):
+                if context.collection is collection:
+                    context.should_we_save = True
+                    return
+        else:
+            self.app.should_we_save = True
+
+    def open_file_in_editor(self, path):
+        """The Open button of the text editor: .html/.htm/.FlatDoc load as HTML, other files as plain text."""
+        suffix = Path(path).suffix.lower()
+        if suffix == '.pdf':
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _('A PDF opens with File > Open > Open Document.'))
+            return 'fail'
+        try:
+            text = Path(path).read_text(encoding='utf-8-sig')
+            if '\x00' in text:
+                raise ValueError(_('The file is not a text document.'))
+        except (OSError, ValueError) as error:
+            self.app.inform.emit('[ERROR_NOTCL] %s: %s' % (_('Failed to open Document.'), error))
+            return 'fail'
+        as_html = suffix in ('.html', '.htm', '.flatdoc')
+        self.document_editor_tab.load_text(text, move_to_start=True, clear_text=True, as_html=as_html)
+        self._text_dirty = False
+        self._source_file = text
+        self.document_type = 'html' if as_html else 'text'
+        self.ui.type_label.setText('%s: %s' % (_('Type'), self.document_type.upper()))
+        self.mark_project_dirty()
+
+    def _flush_text(self):
+        """Take the text of the editor into source_file and document_type (html when it has formatting)."""
+        if not self._text_dirty:
+            return
+        self._text_dirty = False
+        if self._classify_timer is not None:
+            self._classify_timer.stop()
+        if self.document_editor_tab is None:
+            return
+        editor = self.document_editor_tab.code_editor
+        plain = QtGui.QTextDocument()
+        plain.setDefaultFont(editor.document().defaultFont())
+        plain.setPlainText(editor.toPlainText())
+        html_text = editor.toHtml()
+        formatted = html_text != plain.toHtml()
+        self.document_type = 'html' if formatted else 'text'
+        self._source_file = html_text if formatted else editor.toPlainText()
+        self.ui.type_label.setText('%s: %s' % (_('Type'), self.document_type.upper()))
 
     def apply_default_font(self, *_args):
         """Apply the font and size of the left panel to the whole document, in one Undo step."""
@@ -261,40 +396,83 @@ class DocumentObject(FlatCAMObj):
         self.rich_toolbar.sync()
 
     def save_document(self, filt=None):
-        """Save by the extension: .FlatDoc / .html keep the formatting, .txt is plain text, .pdf is printed."""
-        editor = self.document_editor_tab.code_editor
-        try:
-            filename = str(FCFileSaveDialog.get_saved_filename(
-                caption=_("Export Code ..."),
-                directory=str(self.app.options.get('global_last_folder', '')) + '/' + str(self.obj_options['name']),
-                ext_filter=filt or "FlatCAM Docs (*.FlatDoc);;All Files (*.*)")[0])
-        except TypeError:
-            filename = str(FCFileSaveDialog.get_saved_filename(
-                caption=_("Export Code ..."), ext_filter=filt or "FlatCAM Docs (*.FlatDoc);;All Files (*.*)")[0])
+        """Export retained PDF bytes, plain text, or formatted HTML without changing the project object."""
+        self._flush_text()
+        own = {'pdf': 'pdf', 'html': 'html', 'text': 'txt'}[self.document_type]
+        # (extension to append, filter text) per format; the own type is offered first
+        formats = {'txt': ('.txt', _('Text Files (*.txt)')), 'html': ('.html', _('HTML Files (*.html *.htm)')),
+                   'flatdoc': ('.FlatDoc', _('FlatCAM Docs (*.FlatDoc)')), 'pdf': ('.pdf', _('PDF Files (*.pdf)'))}
+        offered = ['pdf'] if own == 'pdf' else [own] + [key for key in formats if key != own]
+        by_extension = {'.txt': 'txt', '.html': 'html', '.htm': 'html', '.flatdoc': 'flatdoc', '.pdf': 'pdf'}
+        filename, selected = FCFileSaveDialog.get_saved_filename(
+            caption=_('Save Document'),
+            directory=str(Path(self.app.get_last_save_folder()) / self.obj_options['name']),
+            ext_filter=filt or ';;'.join(formats[key][1] for key in offered), append_extension=False)
         if not filename:
-            self.app.inform.emit('[WARNING_NOTCL] %s' % _("Cancelled."))
-            return
-
-        ext = filename.rpartition('.')[2].lower()
+            return False
+        chosen = filename
+        fmt = by_extension.get(Path(filename).suffix.lower())
+        if fmt not in offered:
+            fmt = next((key for key in offered if formats[key][1] == selected), own)
+            filename += formats[fmt][0]
+        if filename != chosen and Path(filename).exists() and QtWidgets.QMessageBox.question(
+                self.app.ui, _('Overwrite file?'), _('The file already exists. Replace it?')) != \
+                QtWidgets.QMessageBox.StandardButton.Yes:
+            return False
         try:
-            if ext == 'pdf':
-                writer = QtGui.QPdfWriter(filename)
+            output = QtCore.QSaveFile(filename)
+            if not output.open(QtCore.QIODevice.OpenModeFlag.WriteOnly):
+                raise OSError(output.errorString())
+            if fmt == 'pdf' and own != 'pdf':
+                writer = QtGui.QPdfWriter(output)
                 writer.setPageLayout(self._pdf_page_layout())
-                editor.document().print(writer)
-            elif ext == 'txt':
-                with open(filename, 'w', encoding='utf-8') as f:
-                    f.write(editor.toPlainText())
+                self._export_qdocument().print(writer)
+                del writer
+                if output.error() != QtCore.QFileDevice.FileError.NoError:
+                    output.cancelWriting()
+                    raise OSError(output.errorString())
             else:
-                with open(filename, 'w', encoding='utf-8') as f:
-                    f.write(editor.toHtml())
-        except OSError as err:
+                data = self._export_bytes(fmt)
+                if output.write(data) != len(data):
+                    output.cancelWriting()
+                    raise OSError(output.errorString())
+            if not output.commit():
+                raise OSError(output.errorString())
+        except (OSError, ValueError) as err:
             self.app.inform.emit('[ERROR_NOTCL] %s: %s' % (_("Could not save the file"), str(err)))
-            return
+            return False
 
-        self.document_editor_tab.buttonSave.setStyleSheet("")
-        self.document_editor_tab.buttonSave.setIcon(QtGui.QIcon(self.app.resource_location + '/save_as.png'))
+        if self.document_editor_tab is not None:
+            self.document_editor_tab.buttonSave.setStyleSheet("")
+            self.document_editor_tab.buttonSave.setIcon(QtGui.QIcon(self.app.resource_location + '/save_as.png'))
         self.app.file_saved.emit('document', filename)
         self.app.inform.emit('%s: %s' % (_("Saved to"), filename))
+        return True
+
+    def _export_qdocument(self):
+        """The formatted document: the one of the editor (keeps the fonts), else built from source_file."""
+        if self.document_editor_tab is not None:
+            return self.document_editor_tab.code_editor.document()
+        doc = QtGui.QTextDocument()
+        if self.document_type == 'html':
+            doc.setHtml(self.source_file)
+        else:
+            doc.setPlainText(self.source_file)
+        return doc
+
+    def _export_bytes(self, fmt):
+        """The bytes to write for fmt 'txt' or 'html'/'flatdoc' (the retained bytes for a PDF Document)."""
+        if self.document_type == 'pdf':
+            return self.pdf_data
+        if fmt == 'txt':
+            text = self.source_file if self.document_type == 'text' else self._export_qdocument().toPlainText()
+        elif self.document_type == 'html':
+            text = self.source_file
+        else:
+            doc = QtGui.QTextDocument()
+            doc.setPlainText(self.source_file)
+            text = doc.toHtml()
+        return text.encode('utf-8')
 
     def _pdf_page_layout(self):
         """The page of the workspace (mm) and the PDF margins of the Preferences (in the app units)."""
@@ -343,7 +521,7 @@ class DocumentObject(FlatCAMObj):
     def buffer(self, distance, join, factor=None):
         pass
 
-    def bounds(self, flatten=False):
+    def bounds(self, flatten=False):    # noqa
         return None, None, None, None
 
     def to_dict(self):
@@ -376,3 +554,6 @@ class DocumentObject(FlatCAMObj):
             # an older file may not have all the attributes
             if attr in d:
                 setattr(self, attr, d[attr])
+        if 'document_type' not in d:
+            # noinspection PyUnresolvedReferences
+            self.document_type = 'html' if Qt.mightBeRichText(self.source_file) else 'text'

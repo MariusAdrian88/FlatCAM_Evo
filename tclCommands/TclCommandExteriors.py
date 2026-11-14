@@ -63,7 +63,7 @@ class TclCommandExteriors(TclCommandSignaled):
             self.raise_tcl_error('Expected Geometry, got %s %s.' % (name, type(obj)))
 
         def geo_init(geo_obj, app_obj):
-            geo_obj.solid_geometry = obj_exteriors
+            geo_obj.tools[1]['solid_geometry'] = obj_exteriors
 
         obj_exteriors = obj.get_exteriors()
         result = self.app.app_obj.new_object('geometry', outname, geo_init, plot=False)

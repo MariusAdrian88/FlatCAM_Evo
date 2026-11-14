@@ -137,3 +137,23 @@ def register_all_commands(app, commands):
                     'help': command_instance.get_decorated_help(),
                     'description': description
                 }
+
+
+def command_keywords():
+    """
+    The names (aliases included), the option names and the argument names of all the Tcl commands, read from the
+    command classes: the auto-completer always knows the commands as they are.
+
+    :return:    (sorted command names, sorted option and argument names)
+    """
+    names, options = set(), set()
+    for key, mod in list(sys.modules.items()):
+        if not key.startswith('tclCommands.TclCommand') or key == 'tclCommands.TclCommand':
+            continue
+        class_type = getattr(mod, key.split('.')[1], None)
+        if class_type is None:
+            continue
+        names.update(getattr(class_type, 'aliases', None) or [])
+        options.update((getattr(class_type, 'option_types', None) or {}).keys())
+        options.update((getattr(class_type, 'arg_names', None) or {}).keys())
+    return sorted(names), sorted(options - names)

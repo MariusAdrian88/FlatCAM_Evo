@@ -128,7 +128,6 @@ class TclCommandCutout(TclCommand):
         gaps_par = gaps_par.upper()
 
         def geo_init_me(geo_obj, app_obj):
-            geo_obj.multigeo = True
             solid_geo = []
 
             gapsize = gapsize_par + dia_par
@@ -166,9 +165,7 @@ class TclCommandCutout(TclCommand):
                 # there are not lines but polygon
                 pass
 
-            geo_obj.solid_geometry = solid_geo
-
-            if not geo_obj.solid_geometry:
+            if not solid_geo:
                 app_obj.log.warning("TclCommandCutout.execute(). No geometry after cutout.")
                 return "fail"
 
@@ -178,7 +175,7 @@ class TclCommandCutout(TclCommand):
                 1: {
                     'tooldia': dia_par,
                     'data': default_tool_data,
-                    'solid_geometry': deepcopy(geo_obj.solid_geometry)
+                    'solid_geometry': deepcopy(solid_geo)
                 }
             }
             geo_obj.tools[1]['data']['tools_cutout_tooldia'] = dia_par

@@ -255,11 +255,10 @@ class TestSolvers(unittest.TestCase):
         self.assertEqual(snap(idx, 13.0, 0.2, 0.1), (12.0, 0.0))
 
 class _FakeObj:
-    def __init__(self, kind, tools=None, solid_geometry=None, multigeo=False):
+    def __init__(self, kind, tools=None, solid_geometry=None):
         self.kind = kind
         self.tools = tools or {}
         self.solid_geometry = solid_geometry
-        self.multigeo = multigeo
         self.circle_steps = lambda radius: 64
 
 if __name__ == '__main__':
@@ -278,7 +277,7 @@ MATRICES = {
 
 def _geometry(app):
     obj = GeometryObject('geo', app)
-    obj.solid_geometry = [LineString([(0, 0), (5, 0), (5, 3)]), LineString([(1, 1), (2, 7)])]
+    obj.tools[1]['solid_geometry'] = [LineString([(0, 0), (5, 0), (5, 3)]), LineString([(1, 1), (2, 7)])]
     return obj
 
 def _make(app, kind):

@@ -56,9 +56,7 @@ class TclCommandSplitGeometry(TclCommand):
 
         for uid in list(obj.tools.keys()):
             def initialize(new_obj, app):
-                new_obj.multigeo = True
                 new_obj.tools = {uid: deepcopy(obj.tools[uid])}
-                new_obj.solid_geometry = deepcopy(obj.tools[uid]['solid_geometry'])
             name = "{0}_tool_{1}".format(args['source_name'], uid)
             self.check_result(self.app.app_obj.new_object(
                 "geometry", name, initialize, plot=False))

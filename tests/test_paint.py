@@ -256,8 +256,10 @@ def painter(qapp, tmp_path):
     t.build_ui()
     t.ui.tools_table.selectAll()
     board = SimpleNamespace(kind='geometry', solid_geometry=[box(0, 0, 4, 4), box(10, 0, 14, 4)],
-                            obj_options={'name': 'board'}, multigeo=False, tools={})
+                            obj_options={'name': 'board'})
     ref = SimpleNamespace(kind='geometry', solid_geometry=[box(-1, -1, 5, 5)], obj_options={'name': 'ref'})
+    for obj in (board, ref):
+        obj.tools = {1: {'solid_geometry': obj.solid_geometry}}
     app.collection.objects.update(board=board, ref=ref)
     t.ui.obj_combo.currentText = lambda: 'board'
     t.ui.reference_combo.currentText = lambda: 'ref'

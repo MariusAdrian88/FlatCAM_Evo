@@ -2,12 +2,13 @@
 
 import math
 import re
-from io import StringIO
+import xml.etree.ElementTree as ElementTree
+from io import StringIO, BytesIO
 
 from shapely import LineString, Point, Polygon, LinearRing
 from shapely.affinity import scale, skew
 from shapely.ops import unary_union
-from camlib import flatten_shapely_geometry
+from camlib import flatten_shapely_geometry, circle_quad_segs
 from reportlab.graphics import renderPDF
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import inch, mm
@@ -18,8 +19,19 @@ from svglib.svglib import svg2rlg
 svg_style_re = re.compile(r' (fill|stroke)="#[0-9a-fA-F]+"| opacity="[^"]*"')
 
 
-class PunchTooBigError(Exception):
+class FilmError(ValueError):
+    """A failure with a code; the controller maps the code to a translated text."""
+
+    def __init__(self, code, message):
+        super().__init__(message)
+        self.code = code
+
+
+class PunchTooBigError(FilmError):
     """The punch hole is not smaller than an aperture of the film object."""
+
+    def __init__(self, message='Punch hole size is bigger than an aperture'):
+        super().__init__('punch_too_big', message)
 
 
 def transform_geometry(geo_list, scale_factor_x=None, scale_factor_y=None, scale_reference='center', scale_type=0,
@@ -108,14 +120,7 @@ def get_complementary(color_param):
 
 def negative_background_geometry(box_geo, r_box, c_hull, margin):
     join_s = "round" if r_box else "mitre"
-    if isinstance(box_geo, (LineString, LinearRing)):
-        neg_geo = Polygon(box_geo)
-    elif isinstance(box_geo, Polygon):
-        neg_geo = Polygon(box_geo.exterior)
-    elif c_hull:
-        neg_geo = box_geo.convex_hull
-    else:
-        neg_geo = box_geo.envelope
+    neg_geo = box_geo.convex_hull if c_hull else box_geo.envelope
     if margin:
         neg_geo = neg_geo.buffer(margin, join_style=join_s)
     return neg_geo
@@ -166,52 +171,202 @@ def punch_geometry(solid_geometry, tools, punch_size=None, holes=None):
     return film_geo.difference(punching_geo)
 
 
-svg_size_re = re.compile(r'<svg\b[^>]*?\swidth="([\d.eE+-]+)(mm|in|cm|pt|px)?"[^>]*?\sheight="([\d.eE+-]+)(mm|in|cm|pt|px)?"')
+svg_size_re = re.compile(r'<svg\b[^>]*?\swidth="([\d.eE+-]+)(mm|in|cm|pt|px)?"'
+                         r'[^>]*?\sheight="([\d.eE+-]+)(mm|in|cm|pt|px)?"')
 svg_unit_inches = {'mm': 1 / 25.4, 'cm': 1 / 2.54, 'in': 1.0, 'pt': 1 / 72, 'px': 1 / 96, None: 1 / 96}
 
 
-def render_svg_png(svg_text, filename, dpi=72):
-    """Render the SVG to a white-background PNG with QtSvg at its physical size for the DPI, DPI stored in the file."""
-    from PyQt6 import QtCore, QtGui, QtSvg
+PNG_WORKING_MEMORY_LIMIT = 512 * 1024 * 1024
 
+
+def png_dimensions(svg_text, dpi):
+    """Preflight before allocation: 32 bytes/pixel for render, encode, retained bytes,
+    preview decode/pixmap and transient copies, plus 32 MiB and twice the SVG storage.
+    The conservative working-memory estimate is limited to 512 MiB and each side to 32767 pixels.
+    """
     match = svg_size_re.search(svg_text)
-    if match is None:
-        raise ValueError('The SVG has no width and height.')
+    if match is None or not math.isfinite(dpi) or dpi <= 0:
+        raise FilmError('png_invalid', 'Invalid SVG dimensions or PNG DPI.')
     width_in = float(match.group(1)) * svg_unit_inches[match.group(2)]
     height_in = float(match.group(3)) * svg_unit_inches[match.group(4)]
+    if not all(math.isfinite(value) and value > 0 for value in (width_in, height_in)):
+        raise FilmError('png_invalid', 'Invalid SVG dimensions.')
     width_px = max(1, int(width_in * dpi + 0.5))
     height_px = max(1, int(height_in * dpi + 0.5))
+    estimate = width_px * height_px * 32 + 32 * 1024 * 1024 + 2 * len(svg_text.encode('utf-8'))
+    if max(width_px, height_px) > 32767 or estimate > PNG_WORKING_MEMORY_LIMIT:
+        raise FilmError('png_too_large', 'PNG exceeds the 512 MiB working-memory limit. Reduce DPI or film dimensions.')
+    return width_px, height_px
+
+
+def render_svg_png(svg_text, filename, dpi=72):
+    """Render a finished, DPI-tagged PNG; filename=None retains the encoded bytes."""
+    from PyQt6 import QtCore, QtGui, QtSvg
+
+    width_px, height_px = png_dimensions(svg_text, dpi)
 
     renderer = QtSvg.QSvgRenderer(QtCore.QByteArray(svg_text.encode('utf-8')))
     if not renderer.isValid():
-        raise ValueError('The SVG cannot be rendered.')
+        raise FilmError('render_failed', 'The SVG cannot be rendered.')
     image = QtGui.QImage(width_px, height_px, QtGui.QImage.Format.Format_RGB32)
+    if image.isNull():
+        raise FilmError('png_too_large', 'Cannot allocate PNG image.')
     image.fill(QtGui.QColor('white'))
     painter = QtGui.QPainter(image)
     painter.setRenderHints(QtGui.QPainter.RenderHint.Antialiasing | QtGui.QPainter.RenderHint.SmoothPixmapTransform)
-    renderer.render(painter, QtCore.QRectF(0, 0, width_px, height_px))
-    painter.end()
+    if not painter.isActive():
+        raise FilmError('render_failed', 'Cannot start PNG renderer.')
+    try:
+        renderer.render(painter, QtCore.QRectF(0, 0, width_px, height_px))
+    finally:
+        painter.end()
     dots_per_meter = int(round(dpi / 0.0254))
     image.setDotsPerMeterX(dots_per_meter)
     image.setDotsPerMeterY(dots_per_meter)
-    if not image.save(filename, 'PNG'):
-        raise OSError('Cannot write %s' % filename)
+    buffer = QtCore.QBuffer()
+    if not buffer.open(QtCore.QIODevice.OpenModeFlag.WriteOnly) or not image.save(buffer, 'PNG'):
+        raise OSError('Cannot encode PNG.')
+    data = bytes(buffer.data())
+    buffer.close()
+    if filename is not None:
+        with open(filename, 'wb') as output:
+            output.write(data)
+    return data
+
+
+def render_film(svg_text, file_type, page_size, units, box_bounds, dpi=72):
+    """Render and validate the complete artifact without a destination or mutable UI."""
+    if file_type == 'svg':
+        return svg_text
+    if file_type == 'png':
+        return render_svg_png(svg_text, None, dpi)
+    if file_type != 'pdf':
+        raise FilmError('render_failed', 'Unsupported film format.')
+    output = BytesIO()
+    drawing = svg2rlg(StringIO(svg_text))
+    if drawing is None:
+        raise FilmError('render_failed', 'Cannot render SVG document.')
+    if page_size is None:
+        renderPDF.drawToFile(drawing, output)
+    else:
+        unit = inch if units.upper() == 'IN' else mm
+        pdf_canvas = canvas.Canvas(output, pagesize=page_size)
+        pdf_canvas.translate(box_bounds[0] * unit, box_bounds[1] * unit)
+        renderPDF.draw(drawing, pdf_canvas, 0, 0)
+        pdf_canvas.save()
+    data = output.getvalue()
+    import pikepdf
+    with pikepdf.Pdf.open(BytesIO(data)) as document:
+        if not document.pages:
+            raise FilmError('render_failed', 'Generated PDF has no pages.')
+    return data
+
+
+def svg_stroke_geometry(geometry, width):
+    """SVG's default butt caps and miter joins; over-limit joins bevel, not GEOS miter-clip."""
+    radius = width / 2
+    faces = [geometry.buffer(radius, cap_style='flat', join_style='bevel')]
+    for line in flatten_shapely_geometry(geometry):
+        points = list(line.coords)
+        if len(points) > 2 and points[0] == points[-1]:
+            points = [points[-2]] + points
+        for first, vertex, last in zip(points, points[1:], points[2:]):
+            ax, ay = vertex[0] - first[0], vertex[1] - first[1]
+            bx, by = last[0] - vertex[0], last[1] - vertex[1]
+            alen, blen = math.hypot(ax, ay), math.hypot(bx, by)
+            if not alen or not blen:
+                continue
+            ax, ay, bx, by = ax / alen, ay / alen, bx / blen, by / blen
+            cross, dot = ax * by - ay * bx, ax * bx + ay * by
+            if not cross or 1 + dot < 2 / 4 ** 2:
+                continue
+            side = 1 if cross > 0 else -1
+            nx, ny, mx, my = side * ay, -side * ax, side * by, -side * bx
+            x, y = vertex[:2]
+            faces.append(Polygon([(x + radius * nx, y + radius * ny),
+                                  (x + radius * (nx + mx) / (1 + dot),
+                                   y + radius * (ny + my) / (1 + dot)),
+                                  (x + radius * mx, y + radius * my)]))
+    return unary_union(faces)
+
+
+def film_paint_geometry(source, stroke, circle_steps=32):
+    """Bake Shapely SVG fill/stroke into world-unit faces, not screen-pixel outlines."""
+    painted = []
+    quad_segs = circle_quad_segs(circle_steps)
+    for geometry in flatten_shapely_geometry(source):
+        if geometry.is_empty:
+            continue
+        element = ElementTree.fromstring(create_svg_geometry(geometry, stroke))
+        width = float(element.get('stroke-width', '0'))
+        if isinstance(geometry, Point):
+            # SVG circles are tessellated just as other curved Geometry faces are.
+            face = geometry.buffer(float(element.get('r')) + width / 2, quad_segs=quad_segs)
+        elif isinstance(geometry, Polygon):
+            face = geometry.union(svg_stroke_geometry(geometry.boundary, width))
+        else:
+            face = svg_stroke_geometry(geometry, width)
+        painted.append(face)
+    return unary_union(painted)
+
+
+def generate_film(snapshot):
+    """Generate from immutable geometry and copied settings captured on the GUI thread."""
+    source = snapshot['geometry']
+    if snapshot.get('punch'):
+        source = punch_geometry(source, snapshot['tools'], punch_size=snapshot.get('punch_size'),
+                                holes=snapshot.get('holes'))
+        if source is None or source.is_empty:
+            raise FilmError('punch_unchanged', 'Punching produced no changed film geometry.')
+    box_geo, source = transform_geometry([snapshot['box'], source], **snapshot['transform'])
+    if box_geo.is_empty or source.is_empty:
+        raise FilmError('empty', 'Film or box geometry is empty.')
+    margin, color = snapshot['margin'], snapshot['color']
+    svg_geo = create_svg_geometry(source, snapshot['stroke'])
+    bounds = source.bounds
+    if snapshot['negative']:
+        svg = create_negative_svg(svg_geo, box_geo.bounds, snapshot['rounded'], box_geo,
+                                  snapshot['convex'], margin, color, 1.0, snapshot['units'].lower())
+        background = negative_background_geometry(box_geo, snapshot['rounded'], snapshot['convex'], margin)
+        bounds = unary_union([source, background]).bounds
+    else:
+        svg = create_positive_svg(svg_geo, box_geo.bounds, margin, color, 1.0, snapshot['units'].lower())
+    page_size = snapshot['page_size']
+    if snapshot['format'] == 'pdf':
+        xmin, ymin, xmax, ymax = bounds
+        if page_size is None:
+            page_xmax = box_geo.bounds[2] - box_geo.bounds[0] + 2 * margin
+            page_ymax = box_geo.bounds[3] - box_geo.bounds[1] + 2 * margin
+            xmin, xmax = xmin - box_geo.bounds[0] + margin, xmax - box_geo.bounds[0] + margin
+            ymin, ymax = ymin - box_geo.bounds[1] + margin, ymax - box_geo.bounds[1] + margin
+        else:
+            unit = inch if snapshot['units'].upper() == 'IN' else mm
+            page_xmax, page_ymax = page_size[0] / unit, page_size[1] / unit
+            xmin, xmax, ymin, ymax = xmin + margin, xmax + margin, ymin + margin, ymax + margin
+        if xmax < 0 or ymax < 0 or xmin > page_xmax or ymin > page_ymax:
+            raise FilmError('outside_page', 'The artwork must intersect the selected page or box plus border.')
+    data = render_film(svg, snapshot['format'], page_size, snapshot['units'], box_geo.bounds, snapshot['dpi'])
+    artifact = {'data': data, 'svg': svg, 'format': snapshot['format'], 'dpi': snapshot['dpi'],
+                'name': snapshot['name'] + '_film.' + snapshot['format']}
+    if snapshot['format'] == 'svg':
+        artwork = film_paint_geometry(source, snapshot['stroke'], snapshot.get('circle_steps', 32))
+        paint_color = get_complementary(color) if snapshot['negative'] else color
+        geometry = [artwork]
+        layers = [{'color': paint_color}]
+        if snapshot['negative']:
+            # Opaque SVG overpainting: retain complementary artwork OUTSIDE the box too.
+            # Disjoint faces avoid relying on coplanar VisPy mesh draw order.
+            geometry.insert(0, background.difference(artwork))
+            layers.insert(0, {'color': color})
+        # the project keeps only the colors; the SVG text stays in artifact['data'] for Save
+        artifact.update(geometry=geometry, units=snapshot['units'], film={'layers': layers})
+    return artifact
 
 
 def write_output_file(content2save, filename, file_type, page_size, units, box_bounds, dpi=72):
-    """Render to disk. The controller owns validation, errors and notifications."""
-    if file_type == 'svg':
-        with open(filename, 'w') as fp:
-            fp.write(content2save)
-    elif file_type == 'png':
-        render_svg_png(content2save, filename, dpi)
-    else:
-        unit = inch if units == 'IN' else mm
-        drawing = svg2rlg(StringIO(content2save))
-        if page_size is None:
-            renderPDF.drawToFile(drawing, filename)
-        else:
-            my_canvas = canvas.Canvas(filename, pagesize=page_size)
-            my_canvas.translate(box_bounds[0] * unit, box_bounds[1] * unit)
-            renderPDF.draw(drawing, my_canvas, 0, 0)
-            my_canvas.save()
+    """Compatibility entry point for object-image exports; Film saves its retained artifact instead."""
+    data = render_film(content2save, file_type, page_size, units, box_bounds, dpi)
+    if isinstance(data, str):
+        data = data.encode('utf-8')
+    with open(filename, 'wb') as output:
+        output.write(data)

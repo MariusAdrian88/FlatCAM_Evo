@@ -333,7 +333,7 @@ def test_entering_an_editor_captures_the_layout_before_toolbars_change(qt_app, k
               geo_edit_toolbar=toolbar, grb_edit_toolbar=toolbar, exc_edit_toolbar=toolbar)
     ui.notebook.count.return_value = 0
     ui.splitter.sizes.return_value = [120, 400]
-    obj = Mock(kind=kind, multigeo=False)
+    obj = Mock(kind=kind)
     app = Mock(call_source='app', ui=ui)
     app.collection.get_active.return_value = obj
     getattr(getattr(app, attribute), method).side_effect = lambda *args: toolbar.show()

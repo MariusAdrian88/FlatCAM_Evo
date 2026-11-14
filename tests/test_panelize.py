@@ -217,16 +217,16 @@ def test_excellon_panel_unusual_slots_keep_builder_semantics(app, slots):
     assert dst.solid_geometry == []
 
 class TestGeometry:
-    def tools_multigeo(self):
+    def geometry_tools(self):
         line = LineString([(0, 0), (10, 0)])
         return {1: {'tooldia': 1.0, 'data': {'cutz': -1.0},
                     'solid_geometry': [line, MultiLineString([[(0, 5), (10, 5)], [(0, 6), (10, 6)]]),
                                        LineString()]}}
 
-    def test_multigeo_tools_and_solid(self):
-        tools_in = self.tools_multigeo()
+    def test_tools_and_solid(self):
+        tools_in = self.geometry_tools()
         solid_in = [LineString([(0, 0), (10, 0)]), [LineString([(1, 1), (2, 2)])]]
-        tools, solid = pc.panelize_geometry(tools_in, solid_in, True, [(0, 0), (20, 0)])
+        tools, solid = pc.panelize_geometry(tools_in, solid_in, [(0, 0), (20, 0)])
         geos = tools[1]['solid_geometry']
         assert len(geos) == 6  # 3 non-empty parts x 2 copies, the empty one dropped
         assert all(isinstance(g, LineString) for g in geos)
@@ -236,17 +236,10 @@ class TestGeometry:
         assert len(solid) == 4 and all(isinstance(g, LineString) for g in solid)
         assert solid[2].bounds == (20, 0, 30, 0) and solid[3].bounds == (21, 1, 22, 2)
 
-    def test_non_multigeo_keeps_tools_and_is_flat(self):
-        tools_in = {1: {'tooldia': 1.0, 'solid_geometry': [box(0, 0, 1, 1)]}}
-        poly = MultiPolygon([box(0, 0, 1, 1), box(3, 3, 4, 4)])
-        tools, solid = pc.panelize_geometry(tools_in, poly, False, [(0, 0), (10, 0), (0, 10)])
-        assert tools == tools_in and tools is not tools_in and tools[1] is not tools_in[1]
-        assert len(solid) == 6 and all(isinstance(g, Polygon) for g in solid)  # Multi split
-
     def test_merge_tool_lines_fuses_shared_borders(self):
         # 2 copies of a square outline side by side share the vertical border x = 10
         outline = [LineString([(0, 0), (10, 0), (10, 10), (0, 10), (0, 0)])]
-        tools, _ = pc.panelize_geometry({1: {'solid_geometry': outline}}, [], True, [(0, 0), (10, 0)])
+        tools, _ = pc.panelize_geometry({1: {'solid_geometry': outline}}, [], [(0, 0), (10, 0)])
         assert len(tools[1]['solid_geometry']) == 2
         pc.merge_tool_lines(tools)
         fused = tools[1]['solid_geometry']
@@ -264,8 +257,8 @@ class TestGeometry:
 def test_optimize_panel_lines_equals_merge_tool_lines(offsets, snap_overlaps):
     ring = LineString([(0, 0), (10, 0), (10, 10), (0, 10), (0, 0)])
     src_tools = {1: {'solid_geometry': [ring, LineString([(2, 2), (8, 2)]), box(4, 4, 5, 5)]}}
-    expected, _ = pc.panelize_geometry(src_tools, [], True, offsets)
-    result, _ = pc.panelize_geometry(src_tools, [], True, offsets)
+    expected, _ = pc.panelize_geometry(src_tools, [], offsets)
+    result, _ = pc.panelize_geometry(src_tools, [], offsets)
     pc.merge_tool_lines(expected, snap_overlaps=snap_overlaps)
     pc.optimize_panel_lines(src_tools, result, offsets, snap_overlaps=snap_overlaps)
     want, got = expected[1]['solid_geometry'], result[1]['solid_geometry']
@@ -289,10 +282,10 @@ def test_panelize_geometry_optimized_matches_two_stage(offsets, snap_overlaps):
               4: {'solid_geometry': [LineString()]}}
     solid = [line, LineString()]
     before = freeze(source)
-    expected, expected_solid = pc.panelize_geometry(source, solid, True, offsets)
+    expected, expected_solid = pc.panelize_geometry(source, solid, offsets)
     pc.optimize_panel_lines(source, expected, offsets, snap_overlaps=snap_overlaps)
     result, result_solid = pc.panelize_geometry_optimized(
-        source, solid, True, iter(offsets), snap_overlaps=snap_overlaps)
+        source, solid, iter(offsets), snap_overlaps=snap_overlaps)
     assert freeze(result_solid) == freeze(expected_solid)
     for tid in source:
         got, want = result[tid]['solid_geometry'], expected[tid]['solid_geometry']
@@ -304,17 +297,15 @@ def test_panelize_geometry_optimized_matches_two_stage(offsets, snap_overlaps):
         assert got is not source[tid]['solid_geometry']
     result[1]['data']['depth'].append(-2)
     assert freeze(source) == before
-    plain = pc.panelize_geometry_optimized(source, solid, False, offsets)
-    assert freeze(plain) == freeze(pc.panelize_geometry(source, solid, False, offsets))
     with pytest.raises(grace):
-        pc.panelize_geometry_optimized(source, solid, True, offsets, abort=lambda: True)
+        pc.panelize_geometry_optimized(source, solid, offsets, abort=lambda: True)
 
     cancelled = {'value': False}
     def progress(*args):
         cancelled['value'] = True
     if offsets:
         with pytest.raises(grace):
-            pc.panelize_geometry_optimized(source, solid, True, offsets,
+            pc.panelize_geometry_optimized(source, solid, offsets,
                                           abort=lambda: cancelled['value'], progress=progress)
 
 class TestAbortAndProgress:
@@ -327,7 +318,7 @@ class TestAbortAndProgress:
         with pytest.raises(grace):
             pc.panelize_excellon(exc.tools, offs, abort=lambda: True)
         with pytest.raises(grace):
-            pc.panelize_geometry({}, [box(0, 0, 1, 1)], False, offs, abort=lambda: True)
+            pc.panelize_geometry({}, [box(0, 0, 1, 1)], offs, abort=lambda: True)
 
     def test_abort_during_the_last_records_of_the_last_copy_gives_no_panel(self, app):
         src = make_gerber(app, name='g')
@@ -349,34 +340,42 @@ class TestAbortAndProgress:
         with pytest.raises(grace):
             pc.panelize_gerber(tools, src.solid_geometry, offs, abort=lambda: state['abort'])
 
-def test_gerber_tools_from_geometry_single_geo():
-    ring = LineString([(0, 0), (10, 0), (10, 10), (0, 10), (0, 0)])
-    pad = box(20, 0, 22, 2)
-    src_tools = {1: {'tooldia': 1.0, 'data': {}, 'solid_geometry': []}}
-    src = [MultiPolygon([box(0, 0, 1, 1), box(5, 5, 6, 6)]), [pad], ring]
-    before = deepcopy(src)
-    tools, solid = pc.gerber_tools_from_geometry(src_tools, src, False)
-    assert list(tools) == [0] and tools[0]['type'] == 'REG' and tools[0]['size'] == 0.0
-    records = tools[0]['geometry']
-    # the MultiPolygon is split; the closed line stays a line, as in the returned solid
-    assert len(records) == 4 and len(solid) == 4
-    assert [type(r['solid']) for r in records] == [Polygon, Polygon, Polygon, LineString]
-    assert all(r['follow'].equals(r['solid'].exterior) for r in records[:3])
-    assert records[3]['solid'].equals(ring) and records[3]['follow'].equals(ring)
-    # every record has the same geometry as its solid entry: the export and the plot show the same copper
-    assert all(r['solid'].equals(s) for r, s in zip(records, solid))
-    assert freeze(src) == freeze(before)
-
-def test_gerber_tools_from_geometry_multigeo_fills_lines_like_the_former_panel_code():
-    open_line = LineString([(0, 0), (4, 0), (4, 4)])
+def test_gerber_tools_from_geometry_preserves_open_paths_and_polygon_holes(app, tmp_path):
+    open_line = LineString([(0, 0), (10, 0), (10, 5)])
     two_points = LineString([(10, 0), (12, 0)])
-    src_tools = {1: {'tooldia': 1.0, 'data': {}, 'solid_geometry': [open_line, two_points]}}
-    tools, solid = pc.gerber_tools_from_geometry(src_tools, [], True)
-    records = tools[0]['geometry']
-    assert [type(r['solid']) for r in records] == [Polygon, LineString]
-    assert records[0]['solid'].area == pytest.approx(8.0)
-    assert records[0]['follow'].equals(records[0]['solid'].exterior)
-    assert solid.symmetric_difference(shapely.unary_union([r['solid'] for r in records])).area < 1e-9
+    ring = LineString([(20, 0), (24, 0), (24, 4), (20, 0)])
+    polygon = Polygon([(30, 0), (40, 0), (40, 10), (30, 10)],
+                      holes=[[(32, 2), (38, 2), (38, 8), (32, 8)]])
+    src_tools = {1: {'tooldia': 1.0, 'data': {}, 'solid_geometry': [open_line, two_points, ring, polygon]}}
+    tools, solid = pc.gerber_tools_from_geometry(src_tools, [])
+    expected = unary_union([open_line.buffer(0.5), two_points.buffer(0.5), Polygon(ring), polygon])
+    assert solid.symmetric_difference(expected).area < 1e-9
+    src = GeometryObject('outline', app)
+    src.tools = src_tools
+    created, __ = run_plugin(app, src, rows=1, cols=1)
+    panel = next(iter(created.values()))
+    reparsed = reparse_gerber(app, panel.source_file, tmp_path)
+    # The parser tessellates round caps with its adaptive circle tolerance.
+    assert polygon_union(reparsed.solid_geometry).hausdorff_distance(polygon_union(panel.solid_geometry)) < 0.002
+    follows = unary_union([rec['follow'] for aperture in reparsed.tools.values()
+                           for rec in aperture['geometry'] if 'follow' in rec])
+    assert follows.covers(open_line)
+
+def test_geometry_panel_flash_and_degenerate_ring_export(app, tmp_path):
+    src = GeometryObject('point', app)
+    src.tools = {1: {'tooldia': 1.0, 'data': {},
+                     'solid_geometry': [Point(3, 4), LineString([(0, 0), (0, 0)])]}}
+    created, __ = run_plugin(app, src, rows=1, cols=1)
+    panel = next(iter(created.values()))
+    reparsed = reparse_gerber(app, panel.source_file, tmp_path)
+    assert polygon_union(reparsed.solid_geometry).hausdorff_distance(polygon_union(panel.solid_geometry)) < 0.002
+    assert polygon_union(reparsed.solid_geometry).area > 1
+
+@pytest.mark.parametrize('width', [None, 0, -1, float('nan')])
+def test_geometry_panel_strokes_need_a_real_width(width):
+    with pytest.raises(ValueError, match='diameter'):
+        pc.gerber_tools_from_geometry({1: {'tooldia': width,
+                                          'solid_geometry': [LineString([(0, 0), (1, 0)])]}}, [])
 
 TOLERANCE = 1e-7
 
@@ -619,20 +618,17 @@ def test_constrain_reduces_the_grid(app):
     pan = created['g_panelized']
     assert len(parts(pan.solid_geometry)) == 2 * len(parts(src.solid_geometry))
 
-def make_geometry(app, multigeo):
+def make_geometry(app):
     src = GeometryObject('src', app)
-    src.multigeo = multigeo
     src.units = 'MM'
     outline = LineString([(0, 0), (10, 0), (10, 10), (0, 10), (0, 0)])
-    src.solid_geometry = [outline, [box(2, 2, 3, 3)]]
     src.tools = {1: {'tooldia': 1.0, 'data': {}, 'solid_geometry': [outline]}}
     return src
 
-def test_geometry_plugin_multigeo_merges_the_shared_borders(app):
-    src = make_geometry(app, True)
+def test_geometry_plugin_merges_the_shared_borders(app):
+    src = make_geometry(app)
     created, informs = run_plugin(app, src, panel_type='geometry', rows=1, cols=2, spacing=0.0, optimize=True)
     pan = created['src_panelized']
-    assert pan.multigeo is True
     fused = pan.tools[1]['solid_geometry']
     assert len(fused) == 1 and fused[0].length == pytest.approx(70.0)
     # the composed solid_geometry is flat
@@ -642,7 +638,7 @@ def test_geometry_plugin_multigeo_merges_the_shared_borders(app):
 def test_geometry_panel_dxf_roundtrip_and_move(app, spacing, optimize):
     from appParsers.DXF import dxf_to_shapes
     app.options['geometry_dxf_format'] = 'R2010'
-    src = make_geometry(app, True)
+    src = make_geometry(app)
     src.tools[1]['solid_geometry'].append(LineString([(2, 2), (3, 4), (4, 2)]))
     created, _ = run_plugin(app, src, panel_type='geometry', rows=1, cols=2,
                             spacing=spacing, optimize=optimize)
@@ -664,17 +660,12 @@ def test_geometry_panel_dxf_roundtrip_and_move(app, spacing, optimize):
     assert not moved_doc.modelspace().query('INSERT')
     check(moved_doc)
 
-@pytest.mark.parametrize('multigeo', [False, True])
-def test_geometry_source_to_gerber_panel_solid(app, multigeo):
-    src = make_geometry(app, multigeo)
+def test_geometry_source_to_gerber_panel_solid(app):
+    src = make_geometry(app)
     created, _ = run_plugin(app, src, panel_type='gerber', rows=1, cols=2, spacing=0.0)
     pan = created['src_panelized']
-    assert pan.multigeo is True and pan.source_file.startswith('G04*')
-    if multigeo:
-        # rebuilt from the tool lines: the 2 outlines fused into 1 polygon
-        assert polygon_union(pan.solid_geometry).area == pytest.approx(200.0)
-    else:
-        assert len(parts(pan.solid_geometry)) == 4
+    assert pan.source_file.startswith('G04*')
+    assert polygon_union(pan.solid_geometry).area == pytest.approx(200.0)
 
 def test_source_excellon_without_slots_or_drills_keys_is_not_changed(app):
     src = make_excellon(app, name='e')
@@ -693,7 +684,6 @@ def test_gerber_to_geometry_panel_is_the_translated_copper_with_tools_and_a_dxf_
     created, _ = run_plugin(app, src, panel_type='geometry', rows=2, cols=2)
     pan = created['g_panelized']
     src_area = polygon_union(src.solid_geometry).area
-    assert pan.multigeo is True
     assert pan.tools
     for tool in pan.tools.values():
         assert polygon_union(tool['solid_geometry']).area == pytest.approx(4 * src_area)
@@ -705,23 +695,17 @@ def test_gerber_to_geometry_panel_is_the_translated_copper_with_tools_and_a_dxf_
     # a Geometry keeps its source as DXF text
     assert pan.source_file and len(ezdxf.read(StringIO(pan.source_file)).modelspace()) > 0
 
-def make_poly_geometry(app, multigeo):
+def make_poly_geometry(app):
     """A Geometry made of polygons only: 3 elements."""
     src = GeometryObject('src', app)
-    src.multigeo = multigeo
     src.units = 'MM'
     polys = [box(0, 0, 4, 4), box(6, 0, 8, 2), box(10, 0, 12, 2)]
-    src.solid_geometry = list(polys)
-    if multigeo:
-        src.tools = {1: {'tooldia': 1.0, 'data': {}, 'solid_geometry': polys[:2]},
-                     2: {'tooldia': 2.0, 'data': {}, 'solid_geometry': polys[2:]}}
-    else:
-        src.tools = {1: {'tooldia': 1.0, 'data': {}, 'solid_geometry': []}}
+    src.tools = {1: {'tooldia': 1.0, 'data': {}, 'solid_geometry': polys[:2]},
+                 2: {'tooldia': 2.0, 'data': {}, 'solid_geometry': polys[2:]}}
     return src
 
-@pytest.mark.parametrize('multigeo', [False, True], ids=['single-geo', 'multigeo'])
-def test_geometry_to_gerber_panel_keeps_the_records_and_has_a_source(app, multigeo):
-    src = make_poly_geometry(app, multigeo)
+def test_geometry_to_gerber_panel_keeps_the_records_and_has_a_source(app):
+    src = make_poly_geometry(app)
     created, _ = run_plugin(app, src, panel_type='gerber', rows=2, cols=2)
     pan = created['src_panelized']
     assert pan.tools[0]['type'] == 'REG'
@@ -729,19 +713,20 @@ def test_geometry_to_gerber_panel_keeps_the_records_and_has_a_source(app, multig
     assert len(records) == 4 * 3
     assert polygon_union([r['solid'] for r in records]).symmetric_difference(
         polygon_union(pan.solid_geometry)).area < 1e-6
-    assert pan.multigeo is True and pan.multitool is False and pan.follow is False
+    assert pan.follow is False
     assert pan.export_as_regions is False
     assert isinstance(pan.source_file, str) and pan.source_file.strip()
 
-def test_geometry_to_gerber_panel_with_a_line_exports_as_regions(app, tmp_path):
-    src = make_poly_geometry(app, False)
-    src.solid_geometry = [box(0, 0, 4, 4), LineString([(6, 0), (9, 3)])]
+def test_geometry_to_gerber_panel_exports_regions_and_strokes(app, tmp_path):
+    src = make_poly_geometry(app)
+    src.tools = {1: src.tools[1]}
+    src.tools[1]['solid_geometry'] = [box(0, 0, 4, 4), LineString([(6, 0), (9, 3)])]
     created, _ = run_plugin(app, src, panel_type='gerber', rows=1, cols=2)
     pan = created['src_panelized']
-    assert pan.export_as_regions is True
     assert isinstance(pan.source_file, str) and pan.source_file.strip()
     again = reparse_gerber(app, pan.source_file, tmp_path)
-    assert polygon_union(again.solid_geometry).area == pytest.approx(2 * 16)
+    assert polygon_union(again.solid_geometry).area > 2 * 16
+    assert polygon_union(again.solid_geometry).hausdorff_distance(polygon_union(pan.solid_geometry)) < 0.002
 
 def test_constraint_smaller_than_one_board_does_not_schedule_a_panel(app):
     src = make_gerber(app, name='g')

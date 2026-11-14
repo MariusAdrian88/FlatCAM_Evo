@@ -866,3 +866,130 @@ class TestJumpTo(unittest.TestCase):
                 np.testing.assert_array_less(np.abs(screen[:2] - pixel), 0.500001)
                 np.testing.assert_allclose(canvas.translate_coords_2(canvas.translate_coords(pixel)[:2])[:2],
                                            pixel, atol=1e-5)
+
+
+# ======================================================================
+# path completion of the auto-completer (Tcl Shell, Script, text editor)
+# ======================================================================
+def _path_tree(root):
+    """A folder with 2 sub-folders and 3 files, one of them a Gerber file."""
+    (root / 'beta').mkdir()
+    (root / 'Alpha').mkdir()
+    (root / 'my boards').mkdir()
+    (root / 'my boards' / 'top.gtl').write_text('')
+    for name in ('zeta.gbr', 'Board.drl', 'notes.txt'):
+        (root / name).write_text('')
+    return root
+
+
+def _typed(widget, text):
+    widget.setFocus()
+    widget.completer.setWidget(widget)
+    QTest.keyClicks(widget, text)
+
+
+def _popup_rows(widget):
+    model = widget.completer.completionModel()
+    return [model.index(row, 0).data() for row in range(model.rowCount())] \
+        if widget.completer.popup().isVisible() else []
+
+
+def _shell_line(widget):
+    return widget.toPlainText()
+
+
+@pytest.fixture
+def script_editor():
+    from appGUI.GUIElements import FCPlainTextAreaExtended
+    editor = FCPlainTextAreaExtended()
+    editor.completer_enable = True
+    editor.set_model_data(['open_gerber', 'open_excellon'])
+    editor.show()
+    yield editor
+    editor.completer.popup().hide()
+    editor.close()
+
+
+def test_path_completion_lists_the_folders_first_then_the_files(script_editor, tmp_path):
+    root = _path_tree(tmp_path).as_posix()
+    _typed(script_editor, 'set f %s/' % root)
+    assert _popup_rows(script_editor) == ['Alpha/', 'beta/', 'my boards/', 'Board.drl', 'notes.txt', 'zeta.gbr']
+
+
+def test_path_completion_after_open_gerber_lists_only_gerber_files(script_editor, tmp_path):
+    root = _path_tree(tmp_path).as_posix()
+    _typed(script_editor, 'open_gerber %s/' % root)
+    assert _popup_rows(script_editor) == ['Alpha/', 'beta/', 'my boards/', 'zeta.gbr']
+
+
+def test_path_completion_goes_down_into_a_folder_and_ends_with_the_file(script_editor, tmp_path):
+    root = _path_tree(tmp_path).as_posix()
+    _typed(script_editor, 'open_gerber %s/my' % root)
+    assert _popup_rows(script_editor) == ['my boards/']
+    QTest.keyClick(script_editor, QtCore.Qt.Key.Key_Tab)
+    # a folder name with a space: Tcl needs the braces
+    assert _shell_line(script_editor) == 'open_gerber {%s/my boards/' % root
+    assert _popup_rows(script_editor) == ['top.gtl']
+    QTest.keyClick(script_editor, QtCore.Qt.Key.Key_Tab)
+    assert _shell_line(script_editor) == 'open_gerber {%s/my boards/top.gtl} ' % root
+    assert not script_editor.completer.popup().isVisible()
+
+
+def test_path_completion_never_lists_a_network_path_and_a_lone_slash_is_no_path(monkeypatch):
+    import os
+    from appGUI import path_completion
+
+    def no_listing(folder):
+        raise AssertionError('a network folder was listed: %s' % folder)
+
+    monkeypatch.setattr(os, 'scandir', no_listing)
+    for line in ('open_gerber \\\\10.255.255.1\\share\\', 'open_gerber //server/share/sub/x'):
+        assert path_completion.path_completions(line)[1] == []
+    # a division in a Tcl expression is no path; a name after the start or a drive root is
+    for line in ('set a [expr $b /', 'cd ~', 'cd ./', 'cd ../', 'cd ~/'):
+        assert path_completion.path_at_cursor(line) is None
+    for line in ('cd ./ap', 'cd ../x', 'cd ~/Do', 'cd /us', 'cd C:/', 'cd C:\\Us'):
+        assert path_completion.path_at_cursor(line) is not None
+
+
+@pytest.mark.parametrize('name, inserted', [
+    ('a[1].gbr', 'open_gerber {{{d}/a[1].gbr}} '),
+    ('b$x;#.gbr', 'open_gerber {{{d}/b$x;#.gbr}} '),
+    ('c{x.gbr', 'open_gerber {d}/c\\{{x.gbr '),
+    ('i\U0001F600j k.gbr', 'open_gerber {{{d}/i\U0001F600j k.gbr}} '),
+])
+def test_path_completion_quotes_a_name_for_tcl(tmp_path, name, inserted):
+    from appGUI.GUIElements import FCPlainTextAreaExtended
+    (tmp_path / name).write_text('')
+    editor = FCPlainTextAreaExtended()
+    editor.completer_enable = True
+    editor.set_model_data(['open_gerber'])
+    editor.show()
+    try:
+        root = tmp_path.as_posix()
+        _typed(editor, 'open_gerber %s/%s' % (root, name[:1]))
+        QTest.keyClick(editor, QtCore.Qt.Key.Key_Tab)
+        assert _shell_line(editor) == inserted.format(d=root)
+    finally:
+        editor.completer.popup().hide()
+        editor.close()
+
+
+def test_tcl_shell_line_completes_paths_and_keywords(tmp_path):
+    from appGUI.GUIElements import _ExpandableTextEdit
+    edit = _ExpandableTextEdit(None, None)
+    edit.set_model_data(['open_gerber', 'open_excellon'])
+    edit.show()
+    try:
+        root = _path_tree(tmp_path).as_posix()
+        _typed(edit, 'open_excellon %s/Bo' % root)
+        assert _popup_rows(edit) == ['Board.drl']
+        QTest.keyClick(edit, QtCore.Qt.Key.Key_Tab)
+        assert _shell_line(edit) == 'open_excellon %s/Board.drl ' % root
+        # a word that is not a path keeps the keyword completion
+        edit.clear()
+        _typed(edit, 'open_g')
+        assert _popup_rows(edit) == ['open_gerber']
+    finally:
+        edit.completer.popup().hide()
+        edit.close()

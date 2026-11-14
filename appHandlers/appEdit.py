@@ -86,6 +86,10 @@ class appEditor(QtCore.QObject):
             except Exception as e:
                 self.log.error("appEditor.build_geometry_tool_table() --> %s" % str(e))
                 return None
+        if not tools_diameters:
+            # every Geometry keeps at least 1 tool: without a diameter there is no tool to make
+            self.log.error("appEditor.build_geometry_tool_table() --> no tool diameter in the preferences")
+            return None
 
         tools = {}
         t_id = 0
@@ -113,12 +117,12 @@ class appEditor(QtCore.QObject):
 
         built = self.build_geometry_tool_table()
         if built is None:
+            self.inform.emit('[ERROR_NOTCL] %s' % _("The tool diameter in the Preferences is not valid."))
             return 'fail'
         default_data, tools, tools_diameters = built
 
         def initialize_from_gerber(new_obj, app_obj):
             app_obj.log.debug("Gerber converted to Geometry: %s" % str(obj.obj_options["name"]))
-            new_obj.solid_geometry = deepcopy_keep_geometry(obj.solid_geometry)
             try:
                 new_obj.follow_geometry = obj.follow_geometry
             except AttributeError:
@@ -136,8 +140,7 @@ class appEditor(QtCore.QObject):
             for tool in obj.tools:
                 for geo in obj.tools[tool]['solid_geometry']:
                     solid_geo.append(geo)
-            new_obj.solid_geometry = deepcopy_keep_geometry(solid_geo)
-            if not new_obj.solid_geometry:
+            if not solid_geo:
                 app_obj.log.warning("convert_any2geo() failed")
                 return 'fail'
 
@@ -145,7 +148,7 @@ class appEditor(QtCore.QObject):
             new_obj.obj_options["tools_mill_tooldia"] = tools_diameters[0] if tools_diameters else 0.0
             new_obj.tools = deepcopy_keep_geometry(tools)
             for k in new_obj.tools:
-                new_obj.tools[k]['solid_geometry'] = deepcopy_keep_geometry(obj.solid_geometry)
+                new_obj.tools[k]['solid_geometry'] = deepcopy_keep_geometry(solid_geo)
 
         if not self.collection.get_selected():
             self.log.warning("appEditor.convert_any2geo --> No object selected")
@@ -180,7 +183,8 @@ class appEditor(QtCore.QObject):
                 }
             }
 
-            for obj_orig in obj.solid_geometry:
+            shapes = list({geo.normalize().wkb: geo for geo in obj.solid_geometry}.values())
+            for obj_orig in shapes:
                 new_elem = {'solid': obj_orig}
                 try:
                     new_elem['follow'] = obj_orig.exterior
@@ -188,7 +192,7 @@ class appEditor(QtCore.QObject):
                     pass
                 apertures[0]['geometry'].append(deepcopy_keep_geometry(new_elem))
 
-            obj_init.solid_geometry = deepcopy_keep_geometry(obj.solid_geometry)
+            obj_init.solid_geometry = deepcopy_keep_geometry(shapes)
             obj_init.tools = deepcopy_keep_geometry(apertures)
 
             if not obj_init.tools:
@@ -267,10 +271,8 @@ class appEditor(QtCore.QObject):
 
             obj_init.solid_geometry = []
 
-            for tool in obj.tools:
-                print(obj.tools[tool])
-
-            for geo in obj.solid_geometry:
+            shapes = {geo.normalize().wkb: geo for geo in obj.solid_geometry}
+            for geo in shapes.values():
                 if not isinstance(geo, (Polygon, MultiPolygon, LinearRing)):
                     continue
 
@@ -445,82 +447,6 @@ class appEditor(QtCore.QObject):
                 self.log.error("appEditor.convert_any2excellon() --> %s" % str(e))
                 return "Operation failed: %s" % str(e)
 
-    def on_convert_singlegeo_to_multigeo(self):
-        """
-        Called for converting a Geometry object from single-geo to multi-geo.
-        Single-geo Geometry objects store their geometry data into self.solid_geometry.
-        Multi-geo Geometry objects store their geometry data into the `self.tools` dictionary, each key
-        (a tool actually) having as a value another dictionary. This value dictionary has
-        one of its keys 'solid_geometry' which holds the solid-geometry of that tool.
-
-        :return: None
-        """
-        self.defaults.report_usage("on_convert_singlegeo_to_multigeo()")
-
-        obj = self.collection.get_active()
-
-        if obj is None:
-            self.inform.emit('[ERROR_NOTCL] %s' % _("Failed. Select a Geometry Object and try again."))
-            return
-
-        if not isinstance(obj, GeometryObject):
-            self.inform.emit('[ERROR_NOTCL] %s: %s' % (_("Expected a GeometryObject, got"), type(obj)))
-            return
-
-        with history_of(self.app).snapshot(_("Convert to MultiGeo"), [obj]):
-            obj.multigeo = True
-            for tooluid, dict_value in obj.tools.items():
-                dict_value['solid_geometry'] = deepcopy_keep_geometry(obj.solid_geometry)
-
-            if not isinstance(obj.solid_geometry, list):
-                obj.solid_geometry = [obj.solid_geometry]
-
-        # obj.solid_geometry[:] = []
-        obj.plot()
-
-        self.app.should_we_save = True
-
-        self.inform.emit('[success] %s' % _("A Geometry object was converted to MultiGeo type."))
-
-    def on_convert_multigeo_to_singlegeo(self):
-        """
-        Called for converting a Geometry object from multi-geo to single-geo.
-        Single-geo Geometry objects store their geometry data into self.solid_geometry.
-        Multi-geo Geometry objects store their geometry data into the self.tools dictionary, each key (a tool actually)
-        having as a value another dictionary. This value dictionary has one of its keys 'solid_geometry' which holds
-        the solid-geometry of that tool.
-
-        :return: None
-        """
-        self.defaults.report_usage("on_convert_multigeo_to_singlegeo()")
-
-        obj = self.collection.get_active()
-
-        if obj is None:
-            self.inform.emit('[ERROR_NOTCL] %s' % _("Failed. Select a Geometry Object and try again."))
-            return
-
-        if not isinstance(obj, GeometryObject):
-            self.inform.emit('[ERROR_NOTCL] %s: %s' % (_("Expected a GeometryObject, got"), type(obj)))
-            return
-
-        with history_of(self.app).snapshot(_("Convert to SingleGeo"), [obj]):
-            obj.multigeo = False
-            total_solid_geometry = []
-            for tool_uid, dict_value in obj.tools.items():
-                total_solid_geometry += deepcopy_keep_geometry(dict_value['solid_geometry'])
-                # clear the original geometry
-                if isinstance(dict_value['solid_geometry'], list):
-                    dict_value['solid_geometry'][:] = []
-                else:
-                    dict_value['solid_geometry'] = []
-            obj.solid_geometry = deepcopy_keep_geometry(total_solid_geometry)
-        obj.plot()
-
-        self.app.should_we_save = True
-
-        self.inform.emit('[success] %s' % _("A Geometry object was converted to SingleGeo type."))
-
     def on_edit_join(self, name=None):
         """
         Callback for Edit->Join. Joins the selected geometry objects into
@@ -534,10 +460,7 @@ class appEditor(QtCore.QObject):
             self.inform.emit('[ERROR_NOTCL] %s' % _("Certified photo engraving cannot be joined."))
             return 'fail'
 
-        obj_name_single = str(name) if name else "Combo_SingleGeo"
-        obj_name_multi = str(name) if name else "Combo_MultiGeo"
-
-        geo_type_set = set()
+        obj_name = str(name) if name else "Combo_Geometry"
 
         objs = self.collection.get_selected()
 
@@ -546,37 +469,17 @@ class appEditor(QtCore.QObject):
                              (_("At least two objects are required for join. Objects currently selected"), len(objs)))
             return 'fail'
 
-        for obj in objs:
-            geo_type_set.add(obj.multigeo)
-
-        # if len(geo_type_list) == 1 means that all list elements are the same
-        if len(geo_type_set) != 1:
-            self.inform.emit('[ERROR] %s' %
-                             _("Failed join. The Geometry objects are of different types.\n"
-                               "At least one is MultiGeo type and the other is SingleGeo type. A possibility is to "
-                               "convert from one to another and retry joining \n"
-                               "but in the case of converting from MultiGeo to SingleGeo, informations may be lost and "
-                               "the result may not be what was expected. \n"
-                               "Check the generated GCODE."))
-            return
-
         fuse_tools = self.options.get(
             "geometry_merge_fuse_tools",
             self.defaults.get("geometry_merge_fuse_tools",
                               self.defaults.factory_defaults.get("geometry_merge_fuse_tools"))
         )
 
-        # Determine parameters based on the check
-        # Since len(geo_type_set) == 1, we just need to check which value is in the set
-        is_multi_geo = True in geo_type_set  # True if all are multigeo, False if all are singlegeo
-        obj_name = obj_name_multi if is_multi_geo else obj_name_single
-
         # Define initialize function once
         def initialize(geo_obj, app):
             GeometryObject.merge(
                 geo_list=objs,
                 geo_final=geo_obj,
-                multi_geo=is_multi_geo,  # Use the determined flag
                 fuse_tools=fuse_tools,
                 log=app.log
             )
@@ -696,7 +599,7 @@ class appEditor(QtCore.QObject):
                 return 'fail'
             default_data, geo_tools, __ = built
 
-        sources, skipped, multigeo = join_sources(objs, kind, decimals=self.decimals,
+        sources, skipped = join_sources(objs, kind, decimals=self.decimals,
                                                   quad_segs=max(1, int(option("gerber_circle_steps")) // 4),
                                                   geo_tools=geo_tools)
 
@@ -724,11 +627,11 @@ class appEditor(QtCore.QObject):
                                      fuse_tools=option("excellon_merge_fuse_tools"), log=app.log,
                                      inform=app.inform.emit)
         else:
-            name = 'Combo_MultiGeo' if multigeo else 'Combo_SingleGeo'
+            name = 'Combo_Geometry'
 
             def initialize(new_obj, app):
                 new_obj.obj_options.update(deepcopy(default_data))
-                GeometryObject.merge(geo_list=sources, geo_final=new_obj, multi_geo=multigeo,
+                GeometryObject.merge(geo_list=sources, geo_final=new_obj,
                                      fuse_tools=option("geometry_merge_fuse_tools"), log=app.log)
                 for tool_data in new_obj.tools.values():
                     if isinstance(tool_data.get('data'), dict):

@@ -357,6 +357,11 @@ class ToolsISOPrefGroupUI(OptionsGroupUI):
         gen_grid.addWidget(self.simplify_cb, 4, 0)
         gen_grid.addWidget(self.sim_tol_entry, 4, 1)
 
+        # Also cut along the boundary (when a boundary is used)
+        self.trace_boundary_cb = FCCheckBox(label=_('Trace the boundary'))
+        self.trace_boundary_cb.setToolTip(_("Also add one path along the boundary outline."))
+        gen_grid.addWidget(self.trace_boundary_cb, 5, 0, 1, 3)
+
         # Isolation Scope
         self.select_label = FCLabel('%s:' % _("Selection"))
         self.select_label.setToolTip(

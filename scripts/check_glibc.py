@@ -8,7 +8,7 @@ from pathlib import Path
 
 if __name__ == '__main__':
     root = Path(sys.argv[1]).resolve(strict=True)
-    ceiling: tuple[int, int] = (2, 28)
+    ceiling: tuple[int, int] = (2, 34)
     highest = (0, 0)
     checked = 0
     failures = []
@@ -30,5 +30,5 @@ if __name__ == '__main__':
     if not checked:
         raise SystemExit('No ELF binaries found in the AppDir')
     if failures:
-        raise SystemExit('AppImage exceeds the glibc 2.28 baseline:\n' + '\n'.join(failures))
+        raise SystemExit('AppImage exceeds the glibc 2.34 baseline:\n' + '\n'.join(failures))
     print(f'Checked {checked} ELF binaries; highest required glibc: {highest[0]}.{highest[1]}')

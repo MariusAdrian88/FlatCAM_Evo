@@ -13,8 +13,7 @@ Conversion rules:
 - To Gerber: an Excellon drill is a flash and a slot is a track of a circular aperture with the tool diameter.
   A Geometry polygon is a region. A Geometry path or point with a tool diameter is a track or a flash of a circular
   aperture with that diameter; a closed path without a tool diameter is a region.
-- To Geometry: the shapes of a Gerber or of an Excellon object, with the default Geometry tools. If one of the
-  Geometry objects is MultiGeo, the result is MultiGeo and the SingleGeo objects give their shapes to their tools.
+- To Geometry: the shapes of a Gerber or of an Excellon object, with the default Geometry tools.
 """
 
 import math
@@ -48,13 +47,16 @@ def as_float(value):
 def geometry_shapes(obj):
     """
     :param obj: a Geometry object
-    :return:    [(tool diameter, shapes)]: of each tool for a MultiGeo object, else the shapes of the object with the
-                diameter of its first tool (0.0 if it has no tool)
+    :return:    [(tool diameter, shapes)] for each tool; a shape that more than 1 tool holds (an old single-geo
+                object gave its shapes to every tool) is only in the first of these tools
     """
-    if getattr(obj, 'multigeo', False):
-        return [(as_float(tool.get('tooldia')), parts(tool.get('solid_geometry'))) for tool in obj.tools.values()]
-    dias = [as_float(tool.get('tooldia')) for tool in (obj.tools or {}).values()]
-    return [(dias[0] if dias else 0.0, parts(obj.solid_geometry))]
+    seen = set()
+    result = []
+    for tool in obj.tools.values():
+        shapes = [g for g in parts(tool.get('solid_geometry')) if g not in seen]
+        seen.update(shapes)
+        result.append((as_float(tool.get('tooldia')), shapes))
+    return result
 
 
 def segments(line):
@@ -261,13 +263,12 @@ def object_shapes(obj):
     return parts(obj.solid_geometry)
 
 
-def geometry_source(shapes, multigeo, geo_tools):
-    """A SingleGeo or a MultiGeo source with the shapes in the object and in each of its tools."""
+def geometry_source(shapes, geo_tools):
+    """A Geometry source with independent tool records."""
     tools = deepcopy(geo_tools)
     for tool in tools.values():
         tool['solid_geometry'] = list(shapes)
-    return SimpleNamespace(kind='geometry', obj_options={}, solid_geometry=list(shapes), tools=tools,
-                           multigeo=multigeo)
+    return SimpleNamespace(kind='geometry', obj_options={}, tools=tools)
 
 
 def join_sources(objs, kind, decimals=4, quad_segs=16, geo_tools=None):
@@ -277,26 +278,17 @@ def join_sources(objs, kind, decimals=4, quad_segs=16, geo_tools=None):
     :param decimals:    the decimals of the tool and aperture diameters
     :param quad_segs:   the segments in a quarter of a circle of a Gerber flash or track
     :param geo_tools:   the default tools of a converted Geometry (their 'solid_geometry' is replaced)
-    :return:            (sources, skipped, multigeo): the sources for the merge() of the kind, the number of shapes
-                        that can not be converted, and for a Geometry if the result is MultiGeo
+    :return:            (sources, skipped): merge sources and the number of shapes that can not be converted
     """
-    multigeo = any(o.kind == 'geometry' and getattr(o, 'multigeo', False) for o in objs)
     sources = []
     skipped = 0
 
     for obj in objs:
-        if obj.kind == kind and (kind != 'geometry' or getattr(obj, 'multigeo', False) == multigeo):
+        if obj.kind == kind:
             sources.append(obj)
         elif kind == 'geometry':
-            if obj.kind == 'geometry':
-                # a SingleGeo object in a MultiGeo join: its tools get its shapes
-                shapes = parts(obj.solid_geometry)
-                tools = obj.tools if obj.tools else geo_tools or {}
-                source = geometry_source(shapes, True, tools)
-                source.obj_options = obj.obj_options
-            else:
-                shapes = object_shapes(obj)
-                source = geometry_source(shapes, multigeo, geo_tools or {})
+            shapes = object_shapes(obj)
+            source = geometry_source(shapes, geo_tools or {})
             if shapes:
                 sources.append(source)
         elif kind == 'excellon':
@@ -315,4 +307,4 @@ def join_sources(objs, kind, decimals=4, quad_segs=16, geo_tools=None):
                                                solid_geometry=apertures.solid, follow_geometry=apertures.follow,
                                                export_as_regions=apertures.has_holes))
 
-    return sources, skipped, multigeo
+    return sources, skipped

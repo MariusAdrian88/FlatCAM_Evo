@@ -15,13 +15,15 @@ from appObjects.AppObjectTemplate import FlatCAMObj, OffsetUiMixin, PropertiesPa
 from appGUI.GUIElements import FCCheckBox, checkbox_column_width, opposite_direction
 from appGUI.ObjectUI import GeometryObjectUI
 
-from shapely import MultiLineString, LinearRing, Polygon, MultiPolygon, LineString
+from shapely import MultiLineString, LinearRing, Polygon, MultiPolygon, LineString, Point, MultiPoint, GeometryCollection
 from shapely.affinity import scale, translate
 from shapely.ops import unary_union
 
 from camlib import (voronoi_path_signature, Geometry, flatten_shapely_geometry, translate_geometry, affine_geometry, affine_geometry_many,
-                    affine_scale_matrix, deepcopy_keep_geometry)
+                    affine_scale_matrix, deepcopy_keep_geometry, first_tool_dia, list_total_bounds,
+                    buffer_geometry_many, scale_geometries_by_center)
 from appCommon.SafeEval import safe_eval
+from defaults import AppDefaults
 
 import shapely
 
@@ -42,6 +44,29 @@ import builtins
 fcTranslate.apply_language('strings')
 if '_' not in builtins.__dict__:
     _ = gettext.gettext
+
+
+_SINGLE_TYPES = frozenset((Point, LineString, LinearRing, Polygon))
+_SHAPE_TYPES = _SINGLE_TYPES | {MultiPoint, MultiLineString, MultiPolygon, GeometryCollection}
+
+
+def _collect_leaves(item, leaves):
+    """
+    Append the shape leaves of ``item`` (lists and tuples walked recursively, a multi-part shape is 1 leaf) to
+    ``leaves``. Return False for anything else (a generator, a set, ...): the caller must not cache then.
+    """
+    kind = type(item)
+    if kind is list or kind is tuple:
+        for child in item:
+            if type(child) in _SHAPE_TYPES:
+                leaves.append(child)
+            elif not _collect_leaves(child, leaves):
+                return False
+        return True
+    if kind in _SHAPE_TYPES:
+        leaves.append(item)
+        return True
+    return False
 
 
 class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
@@ -73,6 +98,133 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
     launch_job = QtCore.pyqtSignal()
 
     ui_type = GeometryObjectUI
+
+    @property
+    def solid_geometry(self):
+        """
+        All tool shapes, flattened, without fusing them. A shape that more than 1 tool mills (an old single-geo
+        object gave its shapes to every tool) is in the list 1 time.
+        """
+        # No invalidation calls: the writers of ``tools`` are too many. The cache key is a fingerprint taken at each
+        # access: per tool, its id and the id() of every shape leaf. The cache holds the leaves (strong references),
+        # so a freed shape can not give its id to a new one while the entry lives. Key, leaves and result are 1
+        # tuple in 1 assignment: a thread never pairs a key with a wrong result.
+        snapshot = []
+        leaves = []
+        key = []
+        for uid, tool in list(self.tools.items()):
+            shapes = tool.get('solid_geometry')
+            if shapes is None:
+                continue
+            start = len(leaves)
+            if not _collect_leaves(shapes, leaves):
+                # a kind of container that is not fingerprinted: no cache
+                return self._build_solid_geometry(self.tools.values())
+            snapshot.append(leaves[start:])
+            key.append((uid, tuple(map(id, snapshot[-1]))))
+        key = tuple(key)
+        cached = self.__dict__.get('_solid_geometry_cache')
+        if cached is not None and cached[0] == key:
+            return list(cached[2])
+        flat = []
+        for tool_leaves in snapshot:
+            for leaf in tool_leaves:
+                if type(leaf) in _SINGLE_TYPES:
+                    if not leaf.is_empty:
+                        flat.append(leaf)
+                else:
+                    flat.extend(flatten_shapely_geometry(leaf))
+        result = list(dict.fromkeys(flat))
+        self._solid_geometry_cache = (key, snapshot, result)
+        return list(result)
+
+    @staticmethod
+    def _build_solid_geometry(tools):
+        return list(dict.fromkeys(
+            g for tool in tools if tool.get('solid_geometry') is not None
+            for g in flatten_shapely_geometry(tool['solid_geometry'])))
+
+    def _first_tool(self):
+        """The id of the first tool; an object without tools gets the default tool."""
+        if not self.tools:
+            self.tools[1] = self.default_tool()
+        return next(iter(self.tools))
+
+    def tool_shapes(self, tool_id):
+        """The flat list of the shapes of 1 tool."""
+        shapes = self.tools[tool_id].get('solid_geometry')
+        return [] if shapes is None else flatten_shapely_geometry(shapes)
+
+    def shared_tools(self, tool_id):
+        """
+        The ids of the tools that hold the same shapes as the tool ``tool_id``, that tool included. Tools share
+        their shapes in an object that had 1 geometry for all its tools (an old single-geo project, Gerber to
+        Geometry with more than 1 diameter): there a change of the shapes is a change for all these tools.
+        """
+        reference = self.tool_shapes(tool_id)
+        same = []
+        for uid in self.tools:
+            shapes = reference if uid == tool_id else self.tool_shapes(uid)
+            if len(shapes) == len(reference) and all(a is b or a == b for a, b in zip(shapes, reference)):
+                same.append(uid)
+        return same
+
+    def _store_shapes(self, shapes):
+        self.tools[self._first_tool()]['solid_geometry'] = shapes
+
+    def _add_shape(self, shape, tool=None):
+        if tool is None or tool not in self.tools:
+            tool = self._first_tool()
+        record = self.tools[tool]
+        shapes = record.get('solid_geometry')
+        if not isinstance(shapes, list):
+            shapes = [] if shapes is None else [shapes]
+        shapes.append(shape)
+        record['solid_geometry'] = shapes
+
+    def _per_tool(self, fn):
+        for tool in self.tools.values():
+            tool['solid_geometry'] = fn(tool.get('solid_geometry', []))
+
+    def bounds(self, flatten=False):
+        shapes = [g for g in self.solid_geometry if g is not None and not g.is_empty]
+        if not shapes:
+            return 0, 0, 0, 0
+        return tuple(float(v) for v in shapely.total_bounds(shapes))
+
+    def _affine_solid_geometry(self, matrix, any_iterable=False):
+        keys = list(self.tools)
+        results = affine_geometry_many([self.tools[k].get('solid_geometry', []) for k in keys],
+                                       matrix, any_iterable)
+        for key, result in zip(keys, results):
+            self.tools[key]['solid_geometry'] = result
+
+    def union(self):
+        self._per_tool(lambda shapes: [unary_union(self.flatten(shapes))])
+        self.obj_options.update(zip(('xmin', 'ymin', 'xmax', 'ymax'), self.bounds()))
+
+    def subtract_polygon(self, points):
+        polygon = points if isinstance(points, Polygon) else Polygon(points)
+        if not polygon.is_valid or polygon.is_empty:
+            return 'fail'
+        updated = {uid: [unary_union([path.difference(polygon)
+                                     for path in self.flatten(tool.get('solid_geometry', []), pathonly=True)
+                                     if isinstance(path, (LineString, LinearRing, MultiLineString))])]
+                   for uid, tool in self.tools.items()}
+        for uid, shapes in updated.items():
+            self.tools[uid]['solid_geometry'] = shapes
+        self.obj_options.update(zip(('xmin', 'ymin', 'xmax', 'ymax'), self.bounds()))
+
+    def _buffer_geometry(self, distance, quad_segs, join, factor, only_exterior):
+        keys = list(self.tools)
+        shapes = [self.tools[k].get('solid_geometry', []) for k in keys]
+        results = ([scale_geometries_by_center(s, distance) for s in shapes] if factor else
+                   buffer_geometry_many(shapes, distance, quad_segs, join, only_exterior=only_exterior))
+        return {key: flatten_shapely_geometry(result) for key, result in zip(keys, results)}
+
+    def _store_buffer(self, result):
+        for key, shapes in result.items():
+            self.tools[key]['solid_geometry'] = shapes
 
     def __init__(self, name, app):
         self.app = app
@@ -146,7 +298,7 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
                             }
                 }
         '''
-        self.tools = {}
+        self.tools = {1: self.default_tool()}
 
         # this dict is to store those elements (tools) of self.tools that are selected in the self.geo_tools_table
         # those elements are the ones used for generating GCode
@@ -158,10 +310,6 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
 
         # flag to store if the V-Shape tool is selected in self.ui.geo_tools_table
         self.v_tool_type = None
-
-        # flag to store if the Geometry is type 'multi-geometry' meaning that each tool has its own geometry
-        # the default value is False
-        self.multigeo = False
 
         # flag to store if the geometry is part of a special group of geometries that can't be processed by the default
         # engine of FlatCAM. Most likely are generated by some tools and are special cases of geometries.
@@ -190,11 +338,62 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
         # Always append to it because it carries contents
         # from predecessors.
         self.source_file = ''
-        self.ser_attrs += ['obj_options', 'kind', 'multigeo', 'fill_color', 'outline_color', 'alpha_level', 'source_file']
+        self.ser_attrs += ['obj_options', 'kind', 'fill_color', 'outline_color', 'alpha_level', 'source_file']
+        self.ser_attrs.remove('solid_geometry')
+
+    def to_dict(self):
+        d = super().to_dict()
+        # constant for the previous release: it reads the shapes of the tools only when it finds this key True
+        d['multigeo'] = True
+        return d
 
     def from_dict(self, d):
         # Older geometry project objects did not persist the interchange snapshot.
-        super().from_dict(dict(d, source_file=d.get('source_file', '')))
+        d = dict(d, source_file=d.get('source_file', ''))
+        single_geo = d.get('multigeo') is False
+        if single_geo or (
+                d.get('multigeo') is None and d.get('solid_geometry') and
+                not any(tool.get('solid_geometry') for tool in (d.get('tools') or {}).values())):
+            shared = d.get('solid_geometry') or []
+            shared = list(shared) if isinstance(shared, (list, tuple)) else [shared]
+            tools = {tid: dict(tool) for tid, tool in (d.get('tools') or {}).items()}
+            if not tools:
+                tools = {1: self.default_tool()}
+            # Keep legacy setting names: Milling resolves them without overwriting saved values with defaults.
+            # An old single-geo object milled its shared shapes with every tool; the copies in the tools could be
+            # older than the shared shapes (scale, offset and the editor changed only the shared shapes).
+            for tool in tools.values():
+                if (single_geo and shared) or not tool.get('solid_geometry'):
+                    tool['solid_geometry'] = list(shared)
+            d['tools'] = tools
+        tools = d.get('tools') or {}
+        if not tools:
+            # an old object without tools: its shapes (if it has some) go into a default tool
+            shapes = d.get('solid_geometry')
+            tool = self.default_tool()
+            tool['solid_geometry'] = [] if shapes is None else (
+                list(shapes) if isinstance(shapes, (list, tuple)) else [shapes])
+            d['tools'] = {1: tool}
+        elif any(tool.get('solid_geometry') is None for tool in tools.values()):
+            d['tools'] = {tid: dict(tool, solid_geometry=[]) if tool.get('solid_geometry') is None else tool
+                          for tid, tool in tools.items()}
+        super().from_dict(d)
+
+    def default_tool(self):
+        """The Milling defaults for a new Geometry tool, without shapes."""
+        data = {}
+        for key in self.app.options:
+            if key.startswith('geometry_'):
+                data[key[len('geometry_'):]] = deepcopy(self._app_option(key))
+            elif key.startswith('tools_'):
+                data[key] = deepcopy(self._app_option(key))
+        try:
+            tooldia = first_tool_dia(self._app_option('tools_mill_tooldia'))
+        except Exception:
+            # the preference is free text: an empty or bad text gives the factory diameter
+            tooldia = first_tool_dia(AppDefaults.factory_defaults['tools_mill_tooldia'])
+        return {'tooldia': tooldia, 'offset': 'Path',
+                'offset_value': 0.0, 'type': 'Rough', 'tool_type': 'C1', 'data': data, 'solid_geometry': []}
 
     def copy_from(self, src):
         """
@@ -202,24 +401,18 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
         deep-copied, nothing mutable is shared with ``src``: the geometry fields go through
         deepcopy_keep_geometry() (new containers, the immutable Shapely geometries are shared).
 
-        Copied: solid_geometry, follow_geometry, tools (with the per-tool 'data' and, for a multi-geometry, the
-        per-tool solid_geometry), multigeo (without it a multi-geometry copy reads the tools as single-geometry),
+        Copied: follow_geometry, tools (with the per-tool data and shapes),
         tooluid (the counter of the tool ids: a copy that restarts at 0 hands out ids that already exist in
         its tools), units and source_file (only if the source has one, an imported SVG / DXF has).
 
         Not copied, on purpose: obj_options (the new object takes the current app defaults), sel_tools and the
         UI / plot state.
 
-        The 2 old paths copied the geometries and tools; ``on_copy_command`` copied source_file,
-        ``on_copy_object2`` did not; both lost multigeo and tooluid.
-
         :param src: the GeometryObject to copy
         :return:    None
         """
-        self.solid_geometry = deepcopy_keep_geometry(src.solid_geometry)
         self.follow_geometry = deepcopy_keep_geometry(getattr(src, 'follow_geometry', self.follow_geometry))
         self.tools = deepcopy_keep_geometry(src.tools)
-        self.multigeo = getattr(src, 'multigeo', self.multigeo)
         self.tooluid = getattr(src, 'tooluid', self.tooluid)
         self.units = getattr(src, 'units', self.units)
         if 'photocarve' in src.obj_options:
@@ -356,12 +549,7 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
             # when the tools table is empty there will be this error but once the table is populated it will go away
             self.app.log.error('GeometryObject.build_ui() -> %s' % str(e))
 
-        # disable the Plot column in Tool Table if the geometry is SingleGeo as it is not needed
-        # and can create some problems
-        if self.multigeo is False:
-            self.ui.geo_tools_table.setColumnHidden(6, True)
-        else:
-            self.ui.geo_tools_table.setColumnHidden(6, False)
+        self.ui.geo_tools_table.setColumnHidden(6, False)
 
         self.ui_connect()
 
@@ -391,46 +579,11 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
         # fill in self.default_data values from self.obj_options
         self.default_data.update(self.obj_options)
 
-        if isinstance(self.obj_options["tools_mill_tooldia"], float):
-            tools_list = [self.obj_options["tools_mill_tooldia"]]
-        else:
-            try:
-                temp_tools = self.obj_options["tools_mill_tooldia"].split(",")
-                tools_list = [
-                    float(safe_eval(dia)) for dia in temp_tools if dia != ''
-                ]
-            except Exception as e:
-                self.app.log.error("GeometryObject.set_ui() -> At least one tool diameter needed. "
-                                   "Verify in Edit -> Preferences -> Geometry General -> Tool dia. %s" % str(e))
-                return
-
         self.tooluid += 1
 
-        if not self.tools:
-            for toold in tools_list:
-                new_data = deepcopy(self.default_data)
-                self.tools.update({
-                    self.tooluid: {
-                        'tooldia': self.app.dec_format(float(toold), self.decimals),
-                        'data': new_data,
-                        'solid_geometry': self.solid_geometry
-                    }
-                })
-                self.tooluid += 1
-        else:
-            # if self.tools is not empty then it can safely be assumed that it comes from an opened project.
-            # Because of the serialization the self.tools list on project save, the dict keys (members of self.tools
-            # are each a dict) are turned into strings, so we rebuild the self.tools elements so the keys are
-            # again float type; dicts don't like having keys changed when iterated through therefore the need for the
-            # following convoluted way of changing the keys from string to float type
-            temp_tools = {}
-            for tool_uid_key in self.tools:
-                val = deepcopy_keep_geometry(self.tools[int(tool_uid_key)])
-                new_key = deepcopy(int(tool_uid_key))
-                temp_tools[new_key] = val
-
-            self.tools.clear()
-            self.tools = deepcopy_keep_geometry(temp_tools)
+        # the tool ids are numbers: a project file and some importers give them as text
+        self._first_tool()
+        self.tools = {int(uid): deepcopy_keep_geometry(tool) for uid, tool in self.tools.items()}
 
         if not isinstance(self.ui, GeometryObjectUI):
             self.app.log.debug("Expected a GeometryObjectUI, got %s" % type(self.ui))
@@ -556,13 +709,6 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
                             new_tool_geo.append(geo.simplify(tolerance=tol))
                         self.tools[tool]['solid_geometry'] = deepcopy_keep_geometry(new_tool_geo)
 
-                    # update the solid_geometry
-                    total_geo = []
-                    for tool in self.tools:
-                        total_geo += self.tools[tool]['solid_geometry']
-
-                    self.solid_geometry = unary_union(total_geo)
-
                 # plot the new geometry
                 self.app.plot_all()
 
@@ -600,28 +746,31 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
             self.ui.geo_tools_table.setCurrentItem(self.ui.geo_tools_table.item(row, 0))
 
     def dxf_layers(self):
-        """DXF layers: one for the object, or one per tool ("<name>_T<id>") of a multi-geo object in tool mode."""
+        """DXF layers: one for the object, or one per tool ("<name>_T<id>") in tool mode."""
         name = self.obj_options.get('name') or 'geometry'
         color = self._app_option(self.plot_default_line_option or 'geometry_plot_line', None)
-        if self.multigeo and self._app_option('geometry_dxf_layers', 'tool') != 'object':
+        if self._app_option('geometry_dxf_layers', 'tool') != 'object':
             layers = []
+            done = set()
             for tool_id, tool in self.tools.items():
                 geometry = tool.get('solid_geometry')
                 if geometry is None or (hasattr(geometry, 'is_empty') and geometry.is_empty) or \
                         (isinstance(geometry, (list, tuple)) and not geometry):
                     continue
+                if tool_id in done:
+                    # the same shapes as an earlier tool: a second layer would hold every shape a second time
+                    continue
+                done.update(self.shared_tools(tool_id))
                 try:
                     weight = float(tool.get('tooldia') or 0.0) or None
                 except (TypeError, ValueError):
                     weight = None
                 layers.append({'name': "%s_T%s" % (name, tool_id), 'geometry': geometry, 'color': color,
                                'lineweight': weight})
+            if len(layers) == 1:
+                layers[0]['name'] = name
             return layers
-        if self.multigeo:
-            geometry = [tool.get('solid_geometry') for tool in self.tools.values()
-                        if tool.get('solid_geometry') is not None]
-        else:
-            geometry = self.solid_geometry
+        geometry = self.solid_geometry
         return [{'name': name, 'geometry': geometry, 'color': color}]
 
     def export_dxf(self):
@@ -633,535 +782,6 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
         except Exception as e:
             self.app.log.error("%s.export_dxf() -> %s" % (type(self).__name__, str(e)))
             return None
-
-    def mtool_gen_cncjob(self, outname=None, tools_dict=None, seg_x=None, seg_y=None,
-                         plot=True, use_thread=True):
-        """
-        Creates a multi-tool CNCJob out of this Geometry object.
-        The actual work is done by the target CNCJobObject object's
-        `generate_from_geometry_2()` method.
-
-        :param outname:
-        :param tools_dict:      a dictionary that holds the whole data needed to create the Gcode
-                                (including the solid_geometry)
-        :param seg_x:            number of segments on the X axis, for auto-levelling
-        :param seg_y:            number of segments on the Y axis, for auto-levelling
-        :param plot:            if True the generated object will be plotted; if False will not be plotted
-        :param use_thread:      if True use threading
-        :return:                None
-        """
-
-        if self.obj_options.get('photocarve'):
-            self.app.inform.emit('[ERROR_NOTCL] %s' % _("Use Milling to generate a certified photo engraving CNC job."))
-            return 'fail'
-
-        # use the name of the first tool selected in self.geo_tools_table which has the diameter passed as tool_dia
-        outname = "%s_%s" % (self.obj_options["name"], 'cnc') if outname is None else outname
-
-        tools_dict = self.sel_tools if tools_dict is None else tools_dict
-        seg_x = seg_x if seg_x is not None else float(self._app_option('geometry_seg_x'))
-        seg_y = seg_y if seg_y is not None else float(self._app_option('geometry_seg_y'))
-
-        try:
-            xmin = self.obj_options['xmin']
-            ymin = self.obj_options['ymin']
-            xmax = self.obj_options['xmax']
-            ymax = self.obj_options['ymax']
-        except Exception as e:
-            self.app.log.error("FlatCAMObj.GeometryObject.mtool_gen_cncjob() --> %s\n" % str(e))
-
-            msg = '[ERROR] %s' % _("An internal error has occurred. See shell.\n")
-            msg += '%s' % str(e)
-            msg += traceback.format_exc()
-            self.app.inform.emit(msg)
-            return
-
-        # force everything as MULTI-GEO
-        # self.multigeo = True
-
-        # Object initialization function for app.app_obj.new_object()
-        # RUNNING ON SEPARATE THREAD!
-        def job_init_single_geometry(job_obj, app_obj):
-            self.app.log.debug("Creating a CNCJob out of a single-geometry")
-            assert job_obj.kind == 'cncjob', "Initializer expected a CNCJobObject, got %s" % type(job_obj)
-
-            job_obj.obj_options['xmin'] = xmin
-            job_obj.obj_options['ymin'] = ymin
-            job_obj.obj_options['xmax'] = xmax
-            job_obj.obj_options['ymax'] = ymax
-
-            # count the tools
-            tool_cnt = 0
-
-            # dia_cnc_dict = {}
-
-            # this turn on the FlatCAMCNCJob plot for multiple tools
-            job_obj.multitool = True
-            job_obj.multigeo = False
-            job_obj.tools.clear()
-
-            job_obj.seg_x = seg_x if seg_x else float(self._app_option("geometry_seg_x"))
-            job_obj.seg_y = seg_y if seg_y else float(self._app_option("geometry_seg_y"))
-
-            job_obj.z_p_depth = float(self._app_option("tools_mill_z_p_depth"))
-            job_obj.probe_plate = float(self._app_option("tools_mill_probe_plate", 0.0))
-            job_obj.feedrate_probe = float(self._app_option("tools_mill_feedrate_probe"))
-
-            total_gcode = ''
-            for tool_uid_key in list(tools_dict.keys()):
-                tool_cnt += 1
-
-                dia_cnc_dict = deepcopy_keep_geometry(tools_dict[tool_uid_key])
-                tooldia_val = app_obj.dec_format(float(tools_dict[tool_uid_key]['tooldia']), self.decimals)
-                dia_cnc_dict.update({
-                    'tooldia': tooldia_val
-                })
-
-                if dia_cnc_dict['data']['tools_mill_offset_type'] == 'in':
-                    tool_offset = -dia_cnc_dict['tooldia'] / 2
-                elif dia_cnc_dict['data']['tools_mill_offset_type'].lower() == 'out':
-                    tool_offset = dia_cnc_dict['tooldia'] / 2
-                elif dia_cnc_dict['data']['tools_mill_offset_type'].lower() == 'custom':
-                    try:
-                        offset_value = float(self.ui.tool_offset_entry.get_value())
-                    except ValueError:
-                        # try to convert comma to decimal point. if it's still not working error message and return
-                        try:
-                            offset_value = float(self.ui.tool_offset_entry.get_value().replace(',', '.'))
-                        except ValueError:
-                            app_obj.inform.emit('[ERROR_NOTCL] %s' % _("Wrong value format entered, use a number."))
-                            return
-                    if offset_value:
-                        tool_offset = float(offset_value)
-                    else:
-                        app_obj.inform.emit(
-                            '[WARNING] %s' % _("Tool Offset is selected in Tool Table but no value is provided.\n"
-                                               "Add a Tool Offset or change the Offset Type.")
-                        )
-                        return
-                else:
-                    tool_offset = 0.0
-
-                dia_cnc_dict['data']['tools_mill_offset_type'] = tool_offset
-
-                z_cut = tools_dict[tool_uid_key]['data']["tools_mill_cutz"]
-                z_move = tools_dict[tool_uid_key]['data']["tools_mill_travelz"]
-                feedrate = tools_dict[tool_uid_key]['data']["tools_mill_feedrate"]
-                feedrate_z = tools_dict[tool_uid_key]['data']["tools_mill_feedrate_z"]
-                feedrate_rapid = tools_dict[tool_uid_key]['data']["tools_mill_feedrate_rapid"]
-                multidepth = tools_dict[tool_uid_key]['data']["tools_mill_multidepth"]
-                extracut = tools_dict[tool_uid_key]['data']["tools_mill_extracut"]
-                extracut_length = tools_dict[tool_uid_key]['data']["tools_mill_extracut_length"]
-                depthpercut = tools_dict[tool_uid_key]['data']["tools_mill_depthperpass"]
-                toolchange = tools_dict[tool_uid_key]['data']["tools_mill_toolchange"]
-                toolchangez = tools_dict[tool_uid_key]['data']["tools_mill_toolchangez"]
-                toolchangexy = tools_dict[tool_uid_key]['data']["tools_mill_toolchangexy"]
-                startz = tools_dict[tool_uid_key]['data']["tools_mill_startz"]
-                endz = tools_dict[tool_uid_key]['data']["tools_mill_endz"]
-                endxy = self.obj_options["tools_mill_endxy"]
-                spindlespeed = tools_dict[tool_uid_key]['data']["tools_mill_spindlespeed"]
-                dwell = tools_dict[tool_uid_key]['data']["tools_mill_dwell"]
-                dwelltime = tools_dict[tool_uid_key]['data']["tools_mill_dwelltime"]
-                pp_geometry_name = tools_dict[tool_uid_key]['data']["tools_mill_ppname_g"]
-
-                spindledir = self._app_option('tools_mill_spindledir')
-                tool_solid_geometry = self.solid_geometry
-
-                job_obj.coords_decimals = self._app_option("cncjob_coords_decimals")
-                job_obj.fr_decimals = self._app_option("cncjob_fr_decimals")
-
-                # Propagate options
-                job_obj.obj_options["tooldia"] = tooldia_val
-                job_obj.obj_options['type'] = 'Geometry'
-                job_obj.obj_options['tool_dia'] = tooldia_val
-
-                tool_lst = list(tools_dict.keys())
-                is_first = True if tool_uid_key == tool_lst[0] else False
-
-                # it seems that the tolerance needs to be a lot lower value than 0.01, and it was hardcoded initially
-                # to a value of 0.0005 which is 20 times less than 0.01
-                tol = float(self._app_option('global_tolerance')) / 20
-                # on failure the result is the bare 'fail' string, not a (gcode, start_gcode) pair
-                gen = job_obj.generate_from_geometry_2(
-                    self, tooldia=tooldia_val, offset=tool_offset, tolerance=tol,
-                    z_cut=z_cut, z_move=z_move,
-                    feedrate=feedrate, feedrate_z=feedrate_z, feedrate_rapid=feedrate_rapid,
-                    spindlespeed=spindlespeed, spindle_dir=spindledir, dwell=dwell, dwelltime=dwelltime,
-                    multidepth=multidepth, depthpercut=depthpercut,
-                    extracut=extracut, extracut_length=extracut_length, startz=startz, endz=endz, endxy=endxy,
-                    toolchange=toolchange, toolchangez=toolchangez, toolchangexy=toolchangexy,
-                    pp_geometry_name=pp_geometry_name,
-                    tool_no=tool_cnt, is_first=is_first)
-
-                if gen == 'fail':
-                    self.app.log.debug("GeometryObject.mtool_gen_cncjob() --> generate_from_geometry2() failed")
-                    return 'fail'
-                res, start_gcode = gen
-
-                dia_cnc_dict['gcode'] = res
-                if start_gcode != '':
-                    job_obj.gc_start = start_gcode
-
-                total_gcode += res
-
-                self.app.inform.emit('[success] %s' % _("G-Code parsing in progress..."))
-                dia_cnc_dict['gcode_parsed'] = job_obj.gcode_parse(tool_data=tools_dict[tool_uid_key]['data'])
-                app_obj.inform.emit('[success] %s' % _("G-Code parsing finished..."))
-
-                # commented this; there is no need for the actual GCode geometry - the original one will serve as well
-                # for bounding box values
-                # dia_cnc_dict['solid_geometry'] = unary_union([geo['geom'] for geo in dia_cnc_dict['gcode_parsed']])
-                try:
-                    dia_cnc_dict['solid_geometry'] = tool_solid_geometry
-                    app_obj.inform.emit('[success] %s...' % _("Finished G-Code processing"))
-                except Exception as er:
-                    app_obj.inform.emit('[ERROR] %s: %s' % (_("G-Code processing failed with error"), str(er)))
-
-                job_obj.tools.update({
-                    tool_uid_key: deepcopy_keep_geometry(dia_cnc_dict)
-                })
-                dia_cnc_dict.clear()
-
-            job_obj.source_file = job_obj.gc_start + total_gcode
-
-        # Object initialization function for app.app_obj.new_object()
-        # RUNNING ON SEPARATE THREAD!
-        def job_init_multi_geometry(job_obj, app_obj):
-            self.app.log.debug("Creating a CNCJob out of a multi-geometry")
-            assert job_obj.kind == 'cncjob', "Initializer expected a CNCJobObject, got %s" % type(job_obj)
-
-            job_obj.obj_options['xmin'] = xmin
-            job_obj.obj_options['ymin'] = ymin
-            job_obj.obj_options['xmax'] = xmax
-            job_obj.obj_options['ymax'] = ymax
-
-            # count the tools
-            tool_cnt = 0
-
-            # dia_cnc_dict = {}
-
-            # this turn on the FlatCAMCNCJob plot for multiple tools
-            job_obj.multitool = True
-            job_obj.multigeo = True
-            job_obj.tools.clear()
-
-            job_obj.seg_x = seg_x if seg_x else float(self._app_option("geometry_seg_x"))
-            job_obj.seg_y = seg_y if seg_y else float(self._app_option("geometry_seg_y"))
-
-            job_obj.z_p_depth = float(self._app_option("tools_mill_z_p_depth"))
-            job_obj.probe_plate = float(self._app_option("tools_mill_probe_plate", 0.0))
-            job_obj.feedrate_probe = float(self._app_option("tools_mill_feedrate_probe"))
-
-            # make sure that trying to make a CNCJob from an empty file is not creating an app crash
-            if not self.solid_geometry:
-                a = 0
-                for tooluid_key in self.tools:
-                    if self.tools[tooluid_key]['solid_geometry'] is None:
-                        a += 1
-                if a == len(self.tools):
-                    app_obj.inform.emit('[ERROR_NOTCL] %s...' % _('Cancelled. Empty file, it has no geometry'))
-                    return 'fail'
-
-            total_gcode = ''
-            for tooluid_key in list(tools_dict.keys()):
-                tool_cnt += 1
-                dia_cnc_dict = deepcopy_keep_geometry(tools_dict[tooluid_key])
-                tooldia_val = app_obj.dec_format(float(tools_dict[tooluid_key]['tooldia']), self.decimals)
-                dia_cnc_dict.update({
-                    'tooldia': tooldia_val
-                })
-                if "optimization_type" not in tools_dict[tooluid_key]['data']:
-                    optimization_type = self._app_option("tools_mill_optimization_type")
-                    tools_dict[tooluid_key]['data']["tools_mill_optimization_type"] = optimization_type
-
-                # find the tool_dia associated with the tooluid_key
-                # search in the self.tools for the sel_tool_dia and when found see what tooluid has
-                # on the found tooluid in self.tools we also have the solid_geometry that interest us
-                # for k, v in self.tools.items():
-                #     if float('%.*f' % (self.decimals, float(v['tooldia']))) == tooldia_val:
-                #         current_uid = int(k)
-                #         break
-
-                if dia_cnc_dict['data']['tools_mill_offset_type'].lower() == 'in':
-                    tool_offset = -tooldia_val / 2
-                elif dia_cnc_dict['data']['tools_mill_offset_type'].lower() == 'out':
-                    tool_offset = tooldia_val / 2
-                elif dia_cnc_dict['data']['tools_mill_offset_type'].lower() == 'custom':
-                    offset_value = float(self.ui.tool_offset_entry.get_value())
-                    if offset_value:
-                        tool_offset = float(offset_value)
-                    else:
-                        self.app.inform.emit('[WARNING] %s' %
-                                             _("Tool Offset is selected in Tool Table but "
-                                               "no value is provided.\n"
-                                               "Add a Tool Offset or change the Offset Type."))
-                        return
-                else:
-                    tool_offset = 0.0
-
-                dia_cnc_dict['data']['tools_mill_offset_type'] = tool_offset
-
-                # z_cut = tools_dict[tooluid_key]['data']["cutz"]
-                # z_move = tools_dict[tooluid_key]['data']["travelz"]
-                # feedrate = tools_dict[tooluid_key]['data']["feedrate"]
-                # feedrate_z = tools_dict[tooluid_key]['data']["feedrate_z"]
-                # feedrate_rapid = tools_dict[tooluid_key]['data']["feedrate_rapid"]
-                # multidepth = tools_dict[tooluid_key]['data']["multidepth"]
-                # extracut = tools_dict[tooluid_key]['data']["extracut"]
-                # extracut_length = tools_dict[tooluid_key]['data']["extracut_length"]
-                # depthpercut = tools_dict[tooluid_key]['data']["depthperpass"]
-                # toolchange = tools_dict[tooluid_key]['data']["toolchange"]
-                # toolchangez = tools_dict[tooluid_key]['data']["toolchangez"]
-                # toolchangexy = tools_dict[tooluid_key]['data']["toolchangexy"]
-                # startz = tools_dict[tooluid_key]['data']["startz"]
-                # endz = tools_dict[tooluid_key]['data']["endz"]
-                # endxy = self.obj_options["endxy"]
-                # spindlespeed = tools_dict[tooluid_key]['data']["spindlespeed"]
-                # dwell = tools_dict[tooluid_key]['data']["dwell"]
-                # dwelltime = tools_dict[tooluid_key]['data']["dwelltime"]
-                # pp_geometry_name = tools_dict[tooluid_key]['data']["ppname_g"]
-                #
-                # spindledir = self.app.options['geometry_spindledir']
-                tool_solid_geometry = self.tools[tooluid_key]['solid_geometry']
-
-                job_obj.coords_decimals = self._app_option("cncjob_coords_decimals")
-                job_obj.fr_decimals = self._app_option("cncjob_fr_decimals")
-
-                # Propagate options
-                job_obj.obj_options["tooldia"] = tooldia_val
-                job_obj.obj_options['type'] = 'Geometry'
-                job_obj.obj_options['tool_dia'] = tooldia_val
-
-                # it seems that the tolerance needs to be a lot lower value than 0.01, and it was hardcoded initially
-                # to a value of 0.0005 which is 20 times less than 0.01
-                tol = float(self._app_option('global_tolerance')) / 20
-
-                tool_lst = list(tools_dict.keys())
-                is_first = True if tooluid_key == tool_lst[0] else False
-                is_last = True if tooluid_key == tool_lst[-1] else False
-                gen = job_obj.geometry_tool_gcode_gen(tooluid_key, tools_dict, first_pt=(0, 0),
-                                                      tolerance=tol,
-                                                      is_first=is_first, is_last=is_last,
-                                                      toolchange=True)
-                if gen == 'fail':
-                    self.app.log.debug("GeometryObject.mtool_gen_cncjob() --> generate_from_geometry2() failed")
-                    return 'fail'
-                res, start_gcode = gen
-                dia_cnc_dict['gcode'] = res
-                total_gcode += res
-
-                if start_gcode != '':
-                    job_obj.gc_start = start_gcode
-
-                app_obj.inform.emit('[success] %s' % _("G-Code parsing in progress..."))
-                dia_cnc_dict['gcode_parsed'] = job_obj.gcode_parse(tool_data=tools_dict[tooluid_key]['data'])
-                app_obj.inform.emit('[success] %s' % _("G-Code parsing finished..."))
-
-                # commented this; there is no need for the actual GCode geometry - the original one will serve as well
-                # for bounding box values
-                # geo_for_bound_values = unary_union([
-                #     geo['geom'] for geo in dia_cnc_dict['gcode_parsed'] if geo['geom'].is_valid is True
-                # ])
-                try:
-                    dia_cnc_dict['solid_geometry'] = deepcopy_keep_geometry(tool_solid_geometry)
-                    app_obj.inform.emit('[success] %s...' % _("Finished G-Code processing"))
-                except Exception as ee:
-                    app_obj.inform.emit('[ERROR] %s: %s' % (_("G-Code processing failed with error"), str(ee)))
-
-                job_obj.tools.update({
-                    tooluid_key: deepcopy_keep_geometry(dia_cnc_dict)
-                })
-                dia_cnc_dict.clear()
-
-            job_obj.source_file = total_gcode
-
-        if use_thread:
-            # To be run in separate thread
-            def job_thread(a_obj):
-                if self.multigeo is False:
-                    with self.app.proc_container.new('%s...' % _("Generating")):
-                        ret_val = a_obj.app_obj.new_object("cncjob", outname, job_init_single_geometry, plot=plot)
-                        if ret_val != 'fail':
-                            a_obj.inform.emit('[success] %s: %s' % (_("CNCjob created"), outname))
-                else:
-                    with self.app.proc_container.new('%s...' % _("Generating")):
-                        ret_val = a_obj.app_obj.new_object("cncjob", outname, job_init_multi_geometry, plot=plot)
-                        if ret_val != 'fail':
-                            a_obj.inform.emit('[success] %s: %s' % (_("CNCjob created"), outname))
-
-            # Create a promise with the name
-            self.app.collection.promise(outname)
-            # Send to worker
-            self.app.worker_task.emit({'fcn': job_thread, 'params': [self.app]})
-        else:
-            if self.solid_geometry:
-                self.app.app_obj.new_object("cncjob", outname, job_init_single_geometry, plot=plot)
-            else:
-                self.app.app_obj.new_object("cncjob", outname, job_init_multi_geometry, plot=plot)
-
-    def generatecncjob(self, outname=None, dia=None, offset=None, z_cut=None, z_move=None, feedrate=None,
-                       feedrate_z=None, feedrate_rapid=None, spindlespeed=None, dwell=None, dwelltime=None,
-                       las_min_pwr=0.0,
-                       multidepth=None, dpp=None, toolchange=None, toolchangez=None, toolchangexy=None,
-                       extracut=None, extracut_length=None, startz=None, endz=None, endxy=None, pp=None,
-                       seg_x=None, seg_y=None, use_thread=True, plot=True, **args):
-        """
-        Only used by the TCL Command Cncjob.
-        Creates a CNCJob out of this Geometry object. The actual
-        work is done by the target camlib.CNCjob
-        `generate_from_geometry_2()` method.
-
-        :param outname:         Name of the new object
-        :param dia:             Tool diameter
-        :param offset:
-        :param z_cut:           Cut depth (negative value)
-        :param z_move:          Height of the tool when travelling (not cutting)
-        :param feedrate:        Feed rate while cutting on X - Y plane
-        :param feedrate_z:      Feed rate while cutting on Z plane
-        :param feedrate_rapid:  Feed rate while moving with rapids
-        :param spindlespeed:    Spindle speed (RPM)
-        :param dwell:
-        :param dwelltime:
-        :param las_min_pwr:     Float. Set the power for a laser (when used due of a preprocessor) when not cutting
-        :param multidepth:      Bool: If True use the `dpp` parameter
-        :param dpp:             Depth for each pass when multidepth parameter is True. Positive value.
-        :param toolchange:
-        :param toolchangez:
-        :param toolchangexy:    A sequence ox X,Y coordinates: a 2-length tuple or a string.
-                                Coordinates in X,Y plane for the Toolchange event
-        :param extracut:
-        :param extracut_length:
-        :param startz:
-        :param endz:
-        :param endxy:           A sequence ox X,Y coordinates: a 2-length tuple or a string.
-                                Coordinates in X, Y plane for the last move after ending the job.
-        :param pp:              Name of the preprocessor
-        :param seg_x:
-        :param seg_y:
-        :param use_thread:
-        :param plot:
-        :return: None
-        """
-
-        self.app.log.debug("FlatCAMGeometry.GeometryObject.generatecncjob()")
-
-        if self.obj_options.get('photocarve'):
-            self.app.inform.emit('[ERROR_NOTCL] %s' % _("Use Milling to generate a certified photo engraving CNC job."))
-            return 'fail'
-
-        tooldia = dia if dia is not None else float(self.obj_options["tools_mill_tooldia"])
-        outname = outname if outname is not None else self.obj_options["name"]
-
-        z_cut = z_cut if z_cut is not None else float(self.obj_options["tools_mill_cutz"])
-        z_move = z_move if z_move is not None else float(self.obj_options["tools_mill_travelz"])
-
-        feedrate = feedrate if feedrate is not None else float(self.obj_options["tools_mill_feedrate"])
-        feedrate_z = feedrate_z if feedrate_z is not None else float(self.obj_options["tools_mill_feedrate_z"])
-        feedrate_rapid = feedrate_rapid if feedrate_rapid is not None else float(self.obj_options[
-                                                                                     "tools_mill_feedrate_rapid"])
-
-        multidepth = multidepth if multidepth is not None else self.obj_options["tools_mill_multidepth"]
-        depthperpass = dpp if dpp is not None else float(self.obj_options["tools_mill_depthperpass"])
-
-        seg_x = seg_x if seg_x is not None else float(self._app_option('geometry_seg_x'))
-        seg_y = seg_y if seg_y is not None else float(self._app_option('geometry_seg_y'))
-
-        extracut = extracut if extracut is not None else float(self.obj_options["tools_mill_extracut"])
-        extracut_length = extracut_length if extracut_length is not None else float(self.obj_options[
-                                                                                        "tools_mill_extracut_length"])
-
-        startz = startz if startz is not None else self.obj_options["tools_mill_startz"]
-        endz = endz if endz is not None else float(self.obj_options["tools_mill_endz"])
-
-        endxy = endxy if endxy else self.obj_options["tools_mill_endxy"]
-        if isinstance(endxy, str):
-            endxy = re.sub(r'[()\[\]]', '', endxy)
-            if endxy and endxy != '':
-                endxy = [float(safe_eval(a)) for a in endxy.split(",")]
-
-        toolchangez = toolchangez if toolchangez is not None else float(self.obj_options["tools_mill_toolchangez"])
-
-        toolchangexy = toolchangexy if toolchangexy else self.obj_options["tools_mill_toolchangexy"]
-        if isinstance(toolchangexy, str):
-            toolchangexy = re.sub(r'[()\[\]]', '', toolchangexy)
-            if toolchangexy and toolchangexy != '':
-                toolchangexy = [float(safe_eval(a)) for a in toolchangexy.split(",")]
-
-        toolchange = toolchange if toolchange is not None else self.obj_options["tools_mill_toolchange"]
-
-        offset = offset if offset else 0.0
-
-        # int or None.
-        spindlespeed = spindlespeed if spindlespeed is not None else self.obj_options['tools_mill_spindlespeed']
-        las_min_pwr = las_min_pwr if las_min_pwr is not None else self.obj_options['tools_mill_min_power']
-        dwell = dwell if dwell is not None else self.obj_options["tools_mill_dwell"]
-        dwelltime = dwelltime if dwelltime is not None else float(self.obj_options["tools_mill_dwelltime"])
-
-        ppname_g = pp if pp else self.obj_options["tools_mill_ppname_g"]
-
-        # Object initialization function for app.app_obj.new_object()
-        # RUNNING ON SEPARATE THREAD!
-        def job_init(job_obj, app_obj):
-            assert job_obj.kind == 'cncjob', "Initializer expected a CNCJobObject, got %s" % type(job_obj)
-
-            # Propagate options
-            job_obj.obj_options["tooldia"] = tooldia
-            job_obj.obj_options["tools_mill_tooldia"] = tooldia
-
-            job_obj.coords_decimals = self._app_option("cncjob_coords_decimals")
-            job_obj.fr_decimals = self._app_option("cncjob_fr_decimals")
-
-            job_obj.obj_options['type'] = 'Geometry'
-            job_obj.obj_options['tool_dia'] = tooldia
-
-            job_obj.seg_x = seg_x
-            job_obj.seg_y = seg_y
-
-            job_obj.z_p_depth = float(self.obj_options["tools_mill_z_p_depth"])
-            job_obj.probe_plate = float(self.obj_options.get("tools_mill_probe_plate", 0.0))
-            job_obj.feedrate_probe = float(self.obj_options["tools_mill_feedrate_probe"])
-
-            job_obj.obj_options['xmin'] = self.obj_options['xmin']
-            job_obj.obj_options['ymin'] = self.obj_options['ymin']
-            job_obj.obj_options['xmax'] = self.obj_options['xmax']
-            job_obj.obj_options['ymax'] = self.obj_options['ymax']
-
-            # it seems that the tolerance needs to be a lot lower value than 0.01, and it was hardcoded initially
-            # to a value of 0.0005 which is 20 times less than 0.01
-            tol = float(self._app_option('global_tolerance')) / 20
-            gen = job_obj.generate_from_geometry_2(
-                self, tooldia=tooldia, offset=offset, tolerance=tol, z_cut=z_cut, z_move=z_move, feedrate=feedrate,
-                feedrate_z=feedrate_z, feedrate_rapid=feedrate_rapid, spindlespeed=spindlespeed, dwell=dwell,
-                dwelltime=dwelltime, laser_min_power=las_min_pwr, multidepth=multidepth, depthpercut=depthperpass,
-                toolchange=toolchange,
-                toolchangez=toolchangez, toolchangexy=toolchangexy, extracut=extracut, extracut_length=extracut_length,
-                startz=startz, endz=endz, endxy=endxy, pp_geometry_name=ppname_g, is_first=True)
-            if gen == 'fail':
-                self.app.log.debug("GeometryObject.generatecncjob() --> generate_from_geometry2() failed")
-                return 'fail'
-            res, start_gcode = gen
-
-            if start_gcode != '':
-                job_obj.gc_start = start_gcode
-
-            job_obj.source_file = start_gcode + res
-            job_obj.gcode_parse()
-            app_obj.inform.emit('[success] %s...' % _("Finished G-Code processing"))
-
-        if use_thread:
-            # To be run in separate thread
-            def job_thread(app_obj):
-                with self.app.proc_container.new('%s...' % _("Generating")):
-                    app_obj.app_obj.new_object("cncjob", outname, job_init, plot=plot)
-                    app_obj.inform.emit('[success] %s: %s' % (_("CNCjob created"), outname))
-
-            # Create a promise with the name
-            self.app.collection.promise(outname)
-            # Send to worker
-            self.app.worker_task.emit({'fcn': job_thread, 'params': [self.app]})
-        else:
-            result = self.app.app_obj.new_object("cncjob", outname, job_init, plot=plot)
-            return 'fail' if result == 'fail' or result is False else None
 
     def scale(self, xfactor, yfactor=None, point=None):
         """
@@ -1206,17 +826,7 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
 
         matrix = affine_scale_matrix(xfactor, yfactor, (px, py))
 
-        if self.multigeo is True:
-            keys = list(self.tools)
-            results = affine_geometry_many([self.tools[k]['solid_geometry'] for k in keys], matrix)
-            for k, res in zip(keys, results):
-                self.tools[k]['solid_geometry'] = res
-
-        try:
-            self.solid_geometry = affine_geometry(self.solid_geometry, matrix)
-        except AttributeError:
-            self.solid_geometry = []
-            return
+        self._affine_solid_geometry(matrix)
 
         self.app.proc_container.new_text = ''
         self.app.inform.emit('[success] %s' % _("Done."))
@@ -1249,22 +859,14 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
         if dx == 0 and dy == 0:
             return
 
-        if self.multigeo is True:
-            tool_count = len(self.tools)
-            old_disp_number = 0
-            if tool_count > 0:
-                for idx, tool in enumerate(self.tools.keys()):
-                    self.tools[tool]['solid_geometry'] = translate_geometry(
-                        self.tools[tool]['solid_geometry'], dx, dy
-                    )
-                    # Progress tracking per tool
-                    disp_number = int(np.interp(idx + 1, [0, tool_count], [0, 100]))
-                    if old_disp_number < disp_number <= 100:
-                        self.app.proc_container.update_view_text(' %d%%' % disp_number)
-                        old_disp_number = disp_number
-
-        # Main solid_geometry
-        self.solid_geometry = translate_geometry(self.solid_geometry, dx, dy)
+        tool_count = len(self.tools)
+        old_disp_number = 0
+        for idx, tool in enumerate(self.tools):
+            self.tools[tool]['solid_geometry'] = translate_geometry(self.tools[tool]['solid_geometry'], dx, dy)
+            disp_number = int(np.interp(idx + 1, [0, tool_count], [0, 100]))
+            if old_disp_number < disp_number <= 100:
+                self.app.proc_container.update_view_text(' %d%%' % disp_number)
+                old_disp_number = disp_number
 
         self.app.proc_container.new_text = ''
         self.app.inform.emit('[success] %s' % _("Done."))
@@ -1353,8 +955,6 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
             for cutter in mark['tools'].values():
                 cutter['diameter'] = convert_length(cutter['diameter'])
                 cutter['tip_diameter'] = convert_length(cutter['tip_diameter'])
-            if not mark['z_is_power']:
-                self.solid_geometry = convert_z(self.solid_geometry)
         self.obj_options.update(options)
         self.tools = tools
         return factor
@@ -1414,7 +1014,7 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
         :param kind:        added so there is no error when a project is loaded, and it has both geometry and CNCJob,
                             because CNCJob require the 'kind' parameter. Perhaps the FlatCAMObj.plot()
                             has to be rewritten
-        :param plot_tool:   plot a specific tool for multigeo objects
+        :param plot_tool:   plot a specific tool
         :return:
         """
 
@@ -1430,8 +1030,21 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
             visible = self.obj_options['plot'] if visible is None else visible
 
             # plot solid geometries found as members of self.tools attribute dict
-            # for MultiGeo
-            if self.multigeo is True:  # geo multi tool usage
+            film_layers = (self.obj_options.get('film') or {}).get('layers')
+            film_geometry = []
+            if film_layers:
+                for tool in self.tools.values():
+                    shapes = tool.get('solid_geometry')
+                    film_geometry += [] if shapes is None else (
+                        list(shapes) if isinstance(shapes, (list, tuple)) else [shapes])
+            if film_layers and len(film_geometry) == len(film_layers):
+                # Film faces already include world-unit SVG strokes and opaque overpainting.
+                # An edited geometry (a flat list of other length) plots normally.
+                for geometry, layer in zip(film_geometry, film_layers):
+                    for face in flatten_shapely_geometry(geometry):
+                        batch.append({'shape': face, 'color': None, 'face_color': layer['color'],
+                                      'layer': self.PLOT_LAYER, 'tolerance': 0})
+            else:
                 if plot_tool is None:
                     for tooluid_key in self.tools:
                         solid_geometry = self.tools[tooluid_key]['solid_geometry']
@@ -1451,15 +1064,6 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
                             self._app_option("geometry_plot_line")
 
                     batch.extend(self._collect_elements(solid_geometry, color=color))
-            else:
-                # plot solid geometry that may be a direct attribute of the geometry object
-                # for SingleGeo
-                if self.solid_geometry:
-                    solid_geometry = self.solid_geometry
-                    color = self._app_option("geometry_plot_line")
-
-                    batch.extend(self._collect_elements(solid_geometry, color=color))
-
             if batch:
                 self.add_shapes_batch(batch, visible=visible)
 
@@ -1539,13 +1143,12 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
         self.plot()
 
     @staticmethod
-    def merge(geo_list, geo_final, multi_geo=None, fuse_tools=None, log=None):
+    def merge(geo_list, geo_final, fuse_tools=None, log=None):
         """
         Merges the geometry of objects in grb_list into the geometry of geo_final.
 
         :param geo_list:    List of GerberObject Objects to join.
         :param geo_final:   Destination GerberObject object.
-        :param multi_geo:   if the merged geometry objects are of type MultiGeo
         :param fuse_tools:  If True will try to fuse tools of the same type and with equal tool parameters
         :param log:         A logging object
         :return: None
@@ -1559,11 +1162,6 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
             geo_final.app.inform.emit('[ERROR_NOTCL] %s' % _("Certified photo engraving cannot be joined."))
             return 'fail'
 
-        if geo_final.solid_geometry is None:
-            geo_final.solid_geometry = []
-
-        geo_final.solid_geometry = flatten_shapely_geometry(geo_final.solid_geometry)
-        new_solid_geometry = []
         new_options = {}
         new_tools = {}
 
@@ -1581,15 +1179,6 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
                 GeometryObject.merge(geo_list=geo_obj, geo_final=geo_final, log=log)
             # If not list, just append
             else:
-                if multi_geo is None or multi_geo is False:
-                    geo_final.multigeo = False
-                else:
-                    geo_final.multigeo = True
-
-                # the solid geometry can be a list (e.g. the isolation geometry), a multi-geometry or a single geometry
-                if geo_obj.solid_geometry is not None:
-                    new_solid_geometry += deepcopy_keep_geometry(flatten_shapely_geometry(geo_obj.solid_geometry))
-
                 # find the tool_uid maximum value in the geo_final
                 try:
                     max_uid = max([int(i) for i in new_tools.keys()])
@@ -1600,11 +1189,16 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
                 # to merge the obj.tools as it is likely there is none to merge.
                 if geo_obj.kind != 'gerber' and geo_obj.kind != 'excellon':
                     for tool_uid in geo_obj.tools:
-                        max_uid += 1
-                        new_tools[max_uid] = deepcopy_keep_geometry(geo_obj.tools[tool_uid])
+                        new_uid = int(tool_uid)
+                        if new_uid in new_tools:
+                            new_uid = max_uid + 1
+                        max_uid = max(max_uid, new_uid)
+                        new_tools[new_uid] = deepcopy_keep_geometry(geo_obj.tools[tool_uid])
+                else:
+                    new_tools[max_uid + 1] = geo_final.default_tool()
+                    new_tools[max_uid + 1]['solid_geometry'] = deepcopy_keep_geometry(geo_obj.solid_geometry)
 
         geo_final.obj_options.update(new_options)
-        geo_final.solid_geometry = new_solid_geometry
 
         if new_tools and fuse_tools is True:
             # merge the geometries of the tools that share the same tool diameter and the same tool_type
@@ -1620,11 +1214,11 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
 
             # find tools that have the same type (job) and group them by type
             for k, v in new_tools.items():
-                same_type[v['data']['tools_mill_job_type']].append(k)
+                same_type[v['data'].get('tools_mill_job_type')].append(k)
 
             # find tools that have the same tool_type and group them by tool_type
             for k, v in new_tools.items():
-                same_tool_type[v['data']['tools_mill_tool_shape']].append(k)
+                same_tool_type[v['data'].get('tools_mill_tool_shape')].append(k)
 
             # find the intersections in the above groups
             intersect_list = []
@@ -1661,8 +1255,7 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
                     new_solid_geo += flatten_shapely_geometry(new_tools[old_tool]['solid_geometry'])
                     last_tool = old_tool
 
-                # SingleGeo tools use the object's geometry, so their own geometry can be empty.
-                if last_tool is not None and (new_solid_geo or not geo_final.multigeo):
+                if last_tool is not None:
                     final_tools[new_tool_nr] = \
                         {
                             k: deepcopy_keep_geometry(new_tools[last_tool][k]) for k in new_tools[last_tool] if k != 'solid_geometry'
@@ -1672,9 +1265,8 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
         else:
             final_tools = new_tools
 
-        # if not final_tools:
-        #     return 'fail'
-        geo_final.tools = final_tools
+        # every Geometry keeps at least 1 tool, also when the sources had no shapes
+        geo_final.tools = final_tools or {1: geo_final.default_tool()}
 
     @staticmethod
     def get_pts(o):

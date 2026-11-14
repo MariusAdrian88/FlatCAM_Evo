@@ -4,7 +4,8 @@ from appHandlers.appJoinConvert import HoleTools
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtCore import Qt
 
-from appGUI.GUIElements import FCFileSaveDialog, FCMessageBox, add_case_variants
+from appGUI.GUIElements import FCFileSaveDialog, FCMessageBox, add_case_variants, ext_patterns
+from appCommon.RegisterFileKeywords import Extensions
 from appObjects.ProjectContext import same_path
 from camlib import dict2obj, ParseError, geometry_wkt_cache, project_json_default, deepcopy_keep_geometry
 from defaults import project_options, clean_project_options, normalize_units
@@ -833,6 +834,7 @@ class appIO(QtCore.QObject):
                 def init_document(obj, app, source=text):
                     # Escaped preformatted text: '#include <...>' must not be read as rich text.
                     obj.source_file = '<pre>%s</pre>' % html.escape(source)
+                    obj.document_type = 'html'  # a plain text document shows the proportional font
 
                 name = '%s_%s' % (parsed.name, path.replace('\\', '/').rsplit('/', 1)[-1])
                 result = self.app.app_obj.new_object('document', name, init_document, plot=False,
@@ -869,11 +871,9 @@ class appIO(QtCore.QObject):
 
         self.log.debug("on_file_open_gerber()")
 
-        _filter_ = "Gerber Files (*.gbr *.ger *.gtl *.gbl *.gts *.gbs *.gtp *.gbp *.gto *.gbo *.gm1 *.gml *.gm3 " \
-                   "*.gko *.cmp *.sol *.stc *.sts *.plc *.pls *.crc *.crs *.tsm *.bsm *.ly2 *.ly15 *.dim *.mil *.grb " \
-                   "*.top *.bot *.smt *.smb *.sst *.ssb *.spt *.spb *.pho *.gdo *.art *.gbd *.outline *.gdl *.gme);;" \
+        _filter_ = "Gerber Files (%s);;" % ext_patterns(Extensions.grb_list) + \
                    "Protel Files (*.gtl *.gbl *.gts *.gbs *.gto *.gbo *.gtp *.gbp *.gml *.gm1 *.gm3 *.gko " \
-                   "*.outline);;" \
+                   "*.gpt *.gpb *.outline);;" \
                    "Eagle Files (*.cmp *.sol *.stc *.sts *.plc *.pls *.crc *.crs *.tsm *.bsm *.ly2 *.ly15 *.dim " \
                    "*.mil);;" \
                    "OrCAD Files (*.top *.bot *.smt *.smb *.sst *.ssb *.spt *.spb);;" \
@@ -924,8 +924,7 @@ class appIO(QtCore.QObject):
 
         self.log.debug("on_file_open_excellon()")
 
-        _filter_ = "Excellon Files (*.drl *.txt *.xln *.drd *.tap *.exc *.ncd *.xnc);;" \
-                   "All Files (*.*)"
+        _filter_ = "Excellon Files (%s);;All Files (*.*)" % ext_patterns(Extensions.exc_list)
         _filter_ = add_case_variants(_filter_)
         if name is None:
             try:
@@ -965,9 +964,7 @@ class appIO(QtCore.QObject):
         self.log.debug("on_file_open_gcode()")
 
         # https://bobcadsupport.com/helpdesk/index.php?/Knowledgebase/Article/View/13/5/known-g-code-file-extensions
-        _filter_ = "G-Code Files (*.txt *.nc *.ncc *.tap *.gcode *.cnc *.ecs *.fnc *.dnc *.ncg *.gc *.fan *.fgc" \
-                   " *.din *.xpi *.hnc *.h *.i *.ncp *.min *.gcd *.rol *.knc *.mpr *.ply *.out *.eia *.sbp *.mpf);;" \
-                   "All Files (*.*)"
+        _filter_ = "G-Code Files (*.txt %s);;All Files (*.*)" % ext_patterns(Extensions.gcode_list)
         _filter_ = add_case_variants(_filter_)
 
         if name is None:
@@ -1033,8 +1030,7 @@ class appIO(QtCore.QObject):
         """
         self.log.debug("on_file_open_hpgl2()")
 
-        _filter_ = "HPGL2 Files (*.plt);;" \
-                   "All Files (*.*)"
+        _filter_ = "HPGL2 Files (%s);;All Files (*.*)" % ext_patterns(Extensions.hpgl_list)
         _filter_ = add_case_variants(_filter_)
 
         if name is None:
@@ -1348,34 +1344,12 @@ class appIO(QtCore.QObject):
             self.inform.emit('[ERROR_NOTCL] %s' % _("No object is selected."))
             return
 
-        # Check for more compatible types and add as required
-        if not isinstance(obj, ScriptObject):
+        if getattr(obj, 'kind', None) != 'document':
             self.inform.emit('[ERROR_NOTCL] %s' % _("Failed. Only Document objects can be saved as Document files..."))
             return
 
-        name = self.app.collection.get_active().obj_options["name"]
-
-        _filter = "FlatCAM Documents (*.FlatDoc);;All Files (*.*)"
-        try:
-            filename, _f = FCFileSaveDialog.get_saved_filename(
-                caption="Save Document source file",
-                directory=self.app.get_last_save_folder() + '/' + name,
-                ext_filter=_filter)
-        except TypeError:
-            filename, _f = FCFileSaveDialog.get_saved_filename(
-                caption=_("Save Document source file"),
-                ext_filter=_filter)
-
-        filename = str(filename)
-
-        if filename == "":
-            self.inform.emit('[WARNING_NOTCL] %s' % _("Cancelled."))
-            return
-        else:
-            self.save_source_file(name, filename)
-            if self.app.options.get("global_open_style", self.app.defaults.get("global_open_style")) is False:
-                self.app.file_opened.emit("Document", filename)
-            self.app.file_saved.emit("Document", filename)
+        # the Document saves its own type: the retained PDF bytes, the HTML or the plain text
+        obj.save_document()
 
     def on_file_save_excellon(self):
         """
@@ -2439,7 +2413,7 @@ class appIO(QtCore.QObject):
         :param dpi:     the resolution asked for; it is raised to IMAGE_MIN_DPI if it is lower
         :return:        (the SVG text, the resolution)
         """
-        if obj.kind == 'geometry' and obj.multigeo:
+        if obj.kind == 'geometry':
             flat_geo = []
             for tool in obj.tools.values():
                 flat_geo += obj.flatten(tool['solid_geometry'])
@@ -3126,7 +3100,6 @@ class appIO(QtCore.QObject):
                 return 'fail'
 
             drills.extend(getattr(geo_obj, 'svg_drills', None) or [])
-            geo_obj.multigeo = True
 
             # the text of the parsed file, for the source view and the project: a byte that is not UTF-8 is
             # replaced, so the code page of the system can not fail the import
@@ -3488,8 +3461,6 @@ class appIO(QtCore.QObject):
                 pp_name = 'default'
 
             job_obj.units = units
-            job_obj.multitool = True
-            job_obj.multigeo = False
             job_obj.gcode_imported = True
             job_obj.obj_options['type'] = parsed['type']
             job_obj.obj_options['gcode_units'] = parsed.get('units') or ''
@@ -3637,8 +3608,6 @@ class appIO(QtCore.QObject):
                 app_obj.inform.emit(msg)
                 return "fail"
 
-            geo_obj.multigeo = True
-            geo_obj.solid_geometry = deepcopy_keep_geometry(obj.solid_geometry)
             geo_obj.tools = deepcopy_keep_geometry(obj.tools)
             geo_obj.source_file = deepcopy(obj.source_file)
 
@@ -3729,14 +3698,17 @@ class appIO(QtCore.QObject):
 
     def on_file_open_document(self, name=None):
         """
-        Ask for FlatDoc files and open each one as a Document object.
+        Ask for PDF, text or HTML files and open each one as a Document object.
 
-        :param name:    name of a FlatDoc file to open, no dialog if given
+        :param name:    name of a document to open, no dialog if given
         :return:        None
         """
         self.log.debug("on_file_open_document()")
 
-        _filter_ = "FlatCAM Documents (*.FlatDoc);;All Files (*.*)"
+        # both cases: the file dialogs of Linux match the patterns case-sensitively
+        _filter_ = _("Documents (*.pdf *.PDF *.txt *.TXT *.html *.HTML *.htm *.HTM *.FlatDoc *.flatdoc *.FLATDOC);;"
+                     "PDF Files (*.pdf *.PDF);;Text Files (*.txt *.TXT);;HTML Files (*.html *.HTML *.htm *.HTM);;"
+                     "FlatCAM Docs (*.FlatDoc *.flatdoc *.FLATDOC);;All Files (*.*)")
 
         if name:
             filenames = [name]
@@ -3757,9 +3729,9 @@ class appIO(QtCore.QObject):
 
     def open_document(self, filename, outname=None):
         """
-        Open a FlatDoc file and make a Document object with its text. Thread-safe.
+        Open a file as a retained PDF, text or HTML Document object. Thread-safe.
 
-        :param filename:    FlatDoc file
+        :param filename:    document file
         :param outname:     name of the new object, None takes the name of the file
         :return:            'fail' on error
         """
@@ -3768,15 +3740,8 @@ class appIO(QtCore.QObject):
             self.inform.emit('[ERROR_NOTCL] %s' % _("File no longer available."))
             return 'fail'
 
-        try:
-            with open(filename, "r", encoding="utf-8") as opened_doc:
-                content = opened_doc.read()
-        except (IOError, UnicodeDecodeError) as e:
-            self.inform.emit('[ERROR_NOTCL] %s: %s. %s' % (_("Failed to open file"), filename, str(e)))
-            return 'fail'
-
         def obj_init(doc_obj, app_obj):
-            doc_obj.source_file = content
+            return doc_obj.parse_file(filename)
 
         with self.app.proc_container.new('%s...' % _("Opening")):
             doc_name = outname or filename.split('/')[-1].split('\\')[-1]
@@ -3787,6 +3752,7 @@ class appIO(QtCore.QObject):
 
             self.app.file_opened.emit("document", filename)
             self.inform.emit('[success] %s: %s' % (_("Opened"), filename))
+            return ret_val
 
     def on_file_open_geometry(self):
         """
@@ -4281,8 +4247,6 @@ class appIO(QtCore.QObject):
                         new_obj.tools = entry['cnc_tools']
                     if 'exc_cnc_tools' in entry and entry['exc_cnc_tools']:
                         new_obj.tools = entry['exc_cnc_tools']
-                        # add the used_tools (all of them will be used)
-                        new_obj.used_tools = [float(k) for k in new_obj.tools.keys()]
                         # add a missing key, 'tooldia' used for plotting CNCJob objects
                         for td in new_obj.tools:
                             new_obj.tools[td]['tooldia'] = float(td)
@@ -4313,6 +4277,22 @@ class appIO(QtCore.QObject):
                 # #############################################################################################
 
                 if new_obj.kind == 'cncjob':
+                    # from_dict() already matched the selection to the tools (and converted old jobs)
+                    selected = new_obj.used_tools
+                    if entry.get('cnc_tools') or entry.get('exc_cnc_tools'):
+                        # The legacy records replaced the tools restored by from_dict().
+                        selected = entry.get('used_tools')
+
+                    def tool_key(uid):
+                        try:
+                            return float(uid)
+                        except (TypeError, ValueError):
+                            return str(uid)
+
+                    # Match the selection to the final keys, after JSON and legacy tool restoration.
+                    keys = {tool_key(uid): uid for uid in new_obj.tools}
+                    new_obj.used_tools = list(new_obj.tools) if selected is None else list(dict.fromkeys(
+                        keys[tool_key(uid)] for uid in selected if tool_key(uid) in keys))
                     # some attributes are serialized, so we need to take this into consideration in
                     # CNCJob.set_ui()
                     new_obj.is_loaded_from_project = True

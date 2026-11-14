@@ -302,8 +302,6 @@ class ToolCopperThieving(AppTool):
                 if opt != 'name':
                     grb_obj.obj_options[opt] = deepcopy(self.grb_object.obj_options[opt])
             grb_obj.obj_options['name'] = outname
-            grb_obj.multitool = False
-            grb_obj.multigeo = False
             grb_obj.follow = deepcopy(self.grb_object.follow)
             grb_obj.tools = new_apertures
             grb_obj.solid_geometry = geo_obj
@@ -562,8 +560,6 @@ class ToolCopperThieving(AppTool):
                         if opt != 'name':
                             grb_obj.obj_options[opt] = deepcopy(self.grb_object.obj_options[opt])
                     grb_obj.obj_options['name'] = outname
-                    grb_obj.multitool = False
-                    grb_obj.multigeo = False
                     grb_obj.follow = deepcopy(self.grb_object.follow)
                     grb_obj.tools = new_apertures
                     grb_obj.solid_geometry = deepcopy_keep_geometry(flatten_shapely_geometry(new_solid_geo))
@@ -639,9 +635,7 @@ class ToolCopperThieving(AppTool):
                         if opt != 'name':
                             grb_obj.obj_options[opt] = deepcopy(sm_object.obj_options[opt])
                     grb_obj.obj_options['name'] = outname
-                    grb_obj.multitool = False
                     grb_obj.source_file = []
-                    grb_obj.multigeo = False
                     grb_obj.follow = False
                     grb_obj.follow_geometry = deepcopy_keep_geometry(new_follow_geo)
                     grb_obj.tools = deepcopy_keep_geometry(new_apertures)

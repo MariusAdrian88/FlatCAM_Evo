@@ -54,7 +54,6 @@ class CutOut(AppTool):
         self.add_object_creation_controls()
         self.pluginName = self.ui.pluginName
         self.connect_signals_at_init()
-        self.app.proj_selection_changed.connect(self.on_object_selection_changed)
 
         self.cutting_gapsize = 0.0
         self.cutting_dia = 0.0
@@ -237,6 +236,7 @@ class CutOut(AppTool):
         # #############################################################################
         # ############################ SIGNALS ########################################
         # #############################################################################
+        self.connect_selection_signal()
         self.ui.level.toggled.connect(self.on_level_changed)
 
         self.ui.generate_cutout_btn.clicked.connect(self.on_cutout_generation)
@@ -710,12 +710,9 @@ class CutOut(AppTool):
                     gaps_solid_geo = result.gaps_solid_geo
                     holes = result.holes
                     def geo_init(geo_obj, app_object):
-                        geo_obj.multigeo = True
-                        geo_obj.solid_geometry = deepcopy_keep_geometry(solid_geo)
-
                         geo_obj.tools[1] = deepcopy(cut_tool_dict)
                         geo_obj.tools[1]['tooldia'] = str(abs(cut_dia))
-                        geo_obj.tools[1]['solid_geometry'] = geo_obj.solid_geometry
+                        geo_obj.tools[1]['solid_geometry'] = deepcopy_keep_geometry(solid_geo)
 
                         geo_obj.tools[1]['data']['name'] = outname
                         geo_obj.tools[1]['data']['tools_mill_tooldia'] = str(abs(cut_dia))
@@ -753,7 +750,6 @@ class CutOut(AppTool):
                         if not holes:
                             return 'fail'
 
-                        exc_obj.multigeo = True
                         exc_obj.tools = {}
                         exc_obj.add_tool(mb_dia, drills=holes)
                         exc_obj.create_geometry()
@@ -882,12 +878,7 @@ class CutOut(AppTool):
             def job_thread(self_c, app_obj, gaps, gapsize, gap_type, cut_dia, margin, mb_dia, mb_spacing, thin_entry,
                            has_mouse_bites):
                 try:
-                    if cutout_obj.multigeo is False:
-                        object_geo = cutout_obj.solid_geometry
-                    else:
-                        # first tool in the tools dict
-                        t_first = list(cutout_obj.tools.keys())[0]
-                        object_geo = cutout_obj.tools[t_first]['solid_geometry']
+                    object_geo = CutOutGen.cutout_source_geometry(cutout_obj)
 
                     result = CutOutGen.rectangular_cutout_paths(
                         object_geo, cutout_obj.kind, kind, gaps, gapsize, gap_type, cut_dia, margin,
@@ -901,12 +892,9 @@ class CutOut(AppTool):
                     holes = result.holes
 
                     def geo_init(geo_obj, application_obj):
-                        geo_obj.multigeo = True
-                        geo_obj.solid_geometry = deepcopy_keep_geometry(solid_geo)
-
                         geo_obj.tools[1] = deepcopy(cut_tool_dict)
                         geo_obj.tools[1]['tooldia'] = str(abs(cut_dia))
-                        geo_obj.tools[1]['solid_geometry'] = geo_obj.solid_geometry
+                        geo_obj.tools[1]['solid_geometry'] = deepcopy_keep_geometry(solid_geo)
 
                         geo_obj.tools[1]['data']['name'] = outname
                         geo_obj.tools[1]['data']['tools_mill_tooldia'] = str(abs(cut_dia))
@@ -1071,6 +1059,11 @@ class CutOut(AppTool):
                                  (_("Geometry object for manual cutout not found"), self.man_cutout_obj))
             return
 
+        # the session reads the shapes of tool 1 at each mouse move: refuse the object before the session starts
+        if 1 not in self.man_cutout_obj.tools or 'data' not in self.man_cutout_obj.tools[1]:
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _("No tool in the Geometry object."))
+            return
+
         self.cutting_dia = abs(self.ui.dia.get_value())
         if not math.isfinite(self.cutting_dia) or self.cutting_dia == 0:
             self.app.inform.emit('[ERROR_NOTCL] %s' %
@@ -1132,9 +1125,7 @@ class CutOut(AppTool):
         # Keep previews out of history until the session is accepted. Escape must not leave
         # redoable milling gaps whose pending mouse-bite drilling has been discarded.
         self.manual_session = (self.man_cutout_obj, deepcopy_keep_geometry({
-            'solid_geometry': self.man_cutout_obj.solid_geometry,
-            'tools': self.man_cutout_obj.tools,
-            'multigeo': self.man_cutout_obj.multigeo
+            'tools': self.man_cutout_obj.tools
         }))
         self.manual_bridges = []
         self.selected_manual_bridge = None
@@ -1188,7 +1179,7 @@ class CutOut(AppTool):
 
         try:
             selected_path, gap_line, cut_poly = _manual_gap_geometry(
-                self.man_cutout_obj.solid_geometry,
+                self.man_cutout_obj.tools[1]['solid_geometry'],
                 (snapped_pos[0], snapped_pos[1]),
                 self.ui.dia.get_value(),
                 self.ui.gapsize.get_value())
@@ -1207,7 +1198,7 @@ class CutOut(AppTool):
         try:
             expected_gap_length = abs(float(self.ui.dia.get_value())) + float(self.ui.gapsize.get_value())
             new_solid_geometry = _manual_subtract_selected(
-                self.man_cutout_obj.solid_geometry, selected_path, gap_line,
+                self.man_cutout_obj.tools[1]['solid_geometry'], selected_path, gap_line,
                 expected_gap_length=expected_gap_length)
         except (TypeError, ValueError) as err:
             self.app.inform.emit('[ERROR_NOTCL] %s' % str(err))
@@ -1232,12 +1223,9 @@ class CutOut(AppTool):
                 new_solid_geometry = linemerge(new_solid_geometry)
             except ValueError:
                 pass
-            self.man_cutout_obj.solid_geometry = new_solid_geometry
 
             # then do it on each tool in the manual cutout Geometry object
             try:
-                self.man_cutout_obj.multigeo = True
-
                 self.man_cutout_obj.tools[1]['solid_geometry'] = new_solid_geometry
                 self.man_cutout_obj.tools[1]['data']['name'] = self.man_cutout_obj.obj_options['name'] + '_cutout'
                 self.man_cutout_obj.tools[1]['data']['tools_mill_cutz'] = self.ui.cutz_entry.get_value()
@@ -1282,7 +1270,7 @@ class CutOut(AppTool):
             else:
                 pos = self.app.geo_editor.snap(click_pos[0], click_pos[1])
                 path, line, poly = _manual_gap_geometry(
-                    original['solid_geometry'], pos, self.ui.dia.get_value(), self.ui.gapsize.get_value())
+                    original['tools'][1]['solid_geometry'], pos, self.ui.dia.get_value(), self.ui.gapsize.get_value())
                 _validate_thin_depth(self.ui.gaptype_combo.get_value(), True,
                                      self.ui.cutz_entry.get_value(), self.ui.thin_depth_entry.get_value())
                 bites = []
@@ -1294,7 +1282,7 @@ class CutOut(AppTool):
                         # The drill row belongs on the board side: a contour enclosing material
                         # is offset inward, a hole boundary outward. Winding is unreliable, so the
                         # side comes from the original contour nesting.
-                        offset *= _manual_material_side(original['solid_geometry'], path)
+                        offset *= _manual_material_side(original['tools'][1]['solid_geometry'], path)
                         mb_paths = _cutout_paths(Polygon(path).buffer(offset))
                     else:
                         mb_paths = _cutout_paths(self.mb_manual_solid_geo)
@@ -1310,7 +1298,7 @@ class CutOut(AppTool):
             # Subtract all intervals together on their original contour. Overlapping bridges
             # must keep their shared gap when either bridge is moved or removed.
             paths = []
-            for path in _cutout_paths(original['solid_geometry']):
+            for path in _cutout_paths(original['tools'][1]['solid_geometry']):
                 gaps = [bridge[1] for bridge in bridges if bridge[0].equals(path)]
                 paths.extend(_cutout_paths(_manual_subtract_selected([path], path, gaps)) if gaps else [path])
             geometry = unary_union(paths)
@@ -1350,8 +1338,6 @@ class CutOut(AppTool):
                     })
                 tools[99]['solid_geometry'] = _cutout_paths(unary_union(
                     _cutout_paths(tools[99].get('solid_geometry', [])) + [bridge[1] for bridge in bridges]))
-        obj.solid_geometry = geometry if bridges else deepcopy_keep_geometry(original['solid_geometry'])
-        obj.multigeo = True if bridges else original['multigeo']
         obj.tools = tools
         cuts = unary_union([part for bridge in bridges for part in bridge[3]])
         try:
@@ -1460,16 +1446,11 @@ class CutOut(AppTool):
             except ValueError as err:
                 app_obj.inform.emit('[ERROR_NOTCL] %s' % str(err))
                 return 'fail'
-            if solid_geo is not None:
-                geo_obj.solid_geometry = solid_geo
-
-            geo_obj.multigeo = True
-
             geo_obj.tools.update({
                 1: deepcopy(cut_tool_dict)
             })
             geo_obj.tools[1]['tooldia'] = str(dia)
-            geo_obj.tools[1]['solid_geometry'] = geo_obj.solid_geometry
+            geo_obj.tools[1]['solid_geometry'] = solid_geo if solid_geo is not None else []
 
             geo_obj.tools[1]['data']['name'] = outname
             geo_obj.tools[1]['data']['tools_mill_tooldia'] = str(dia)
@@ -1485,7 +1466,7 @@ class CutOut(AppTool):
         self.cutting_gapsize = float(self.ui.gapsize.get_value())
         try:
             __, __, cut_poly = _manual_gap_geometry(
-                self.manual_session[1]['solid_geometry'] if self.manual_session is not None else
+                self.manual_session[1]['tools'][1]['solid_geometry'] if self.manual_session is not None else
                 self.man_cutout_obj.solid_geometry,
                 pos,
                 self.cutting_dia,
@@ -1501,7 +1482,7 @@ class CutOut(AppTool):
             return
         center = self.manual_bridges[self.selected_manual_bridge][4]
         if pos is not None:
-            path = min(_cutout_paths(self.manual_session[1]['solid_geometry']), key=Point(pos).distance)
+            path = min(_cutout_paths(self.manual_session[1]['tools'][1]['solid_geometry']), key=Point(pos).distance)
             center = path.interpolate(path.project(Point(pos)))
         half = 4 * self.canvas.pixel_size()
         self.app.geo_editor.tool_shape.add(
@@ -1556,7 +1537,7 @@ class CutOut(AppTool):
             pos = (float(pos[0]), float(pos[1]))
             if self.manual_session is not None and self.manual_bridges and self.selected_manual_bridge is None:
                 point = Point(pos)
-                nearest = min(_cutout_paths(self.manual_session[1]['solid_geometry']), key=point.distance)
+                nearest = min(_cutout_paths(self.manual_session[1]['tools'][1]['solid_geometry']), key=point.distance)
                 hits = [index for index, bridge in enumerate(self.manual_bridges)
                         if bridge[0].equals(nearest) and bridge[2].covers(point)]
                 if hits:

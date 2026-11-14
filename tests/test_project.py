@@ -125,6 +125,33 @@ def test_saved_project_has_only_project_options(tmp_path):
     assert all(is_project_key(key) for key in proj['options'])
 
 
+def test_saved_geometry_and_cncjob_hold_the_keys_the_previous_release_reads(tmp_path):
+    # The previous release can not run in this suite: it was checked by hand (it showed an empty Geometry without them).
+    from unittest.mock import patch
+    from shapely.geometry import LineString
+    from appObjects.CNCJobObject import CNCJobObject
+    from appObjects.GeometryObject import GeometryObject
+    from tests.helpers_objects import make_app_0b
+    app = make_app()
+    with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
+        geo = GeometryObject('geo', app)
+        job_app = make_app_0b()
+        job = CNCJobObject('job', job_app)
+        job_back = CNCJobObject('job_back', job_app)
+    lines = {1: LineString([(0, 0), (1, 1)]), 2: LineString([(5, 5), (9, 5)])}
+    geo.tools = {uid: dict(geo.default_tool(), solid_geometry=[line]) for uid, line in lines.items()}
+    proj, restored = save_and_load(app, [geo], tmp_path)
+    assert proj['objs'][0]['multigeo'] is True
+    assert {uid: t['solid_geometry'] for uid, t in restored[0].tools.items()} == {uid: [line] for uid, line in lines.items()}
+
+    job.tools = {uid: {'gcode': 'G1 X%d\n' % uid, 'gcode_parsed': [], 'solid_geometry': [], 'data': {}, 'tooldia': 0.5}
+                 for uid in (1, 2)}
+    saved = job.to_dict()
+    assert saved['multitool'] is True
+    job_back.from_dict(saved)
+    assert {uid: t['gcode'] for uid, t in job_back.tools.items()} == {1: 'G1 X1\n', 2: 'G1 X2\n'}
+
+
 def test_save_project_reports_success_and_failure(tmp_path):
     app = make_app()
     io = appIO(app)
@@ -148,6 +175,92 @@ def test_save_project_object_serialization_error_is_a_failure(tmp_path):
 
 
 class TestProjectRoundTrip:
+    def test_cnc_selection_survives_project_restore(self, app, tmp_path):
+        from copy import deepcopy
+        from pathlib import Path
+        from appObjects.CNCJobObject import CNCJobObject
+        from appGUI.ObjectUI import CNCObjectUI
+        from tests.test_cncjob_export_gcode import _ui_app
+
+        app.__dict__.update(_ui_app().__dict__)
+        app.collection.get_list.return_value = []
+        fixture = Path(__file__).parent / 'data' / 'single_tool_model' / 'old_imported_cnc.json'
+        # an object cut from a project that the previous application saved
+        original = load_project_file(str(fixture), object_hook=dict2obj)['objs'][0]
+        for alias in ('original', 'tools', 'cnc_tools', 'exc_cnc_tools'):
+            for selected in ((None, [], ['1']) if alias == 'original' else (None, [], [3, '1'], ['1'])):
+                entry = deepcopy(original)
+                tool = deepcopy(next(iter(entry['tools'].values())))
+                tool['gcode'] = entry['gcode']
+                tool['gcode_parsed'] = entry['gcode_parsed']
+                if alias != 'original':
+                    tool.setdefault('data', {}).update({
+                        'tools_mill_offset_value': 'Path', 'tools_mill_job_type': 0,
+                        'tools_mill_tool_shape': 0})
+                    entry['tools'] = {str(uid): deepcopy(tool) for uid in (1, 2, 3)}
+                    if alias != 'tools':
+                        entry[alias] = entry.pop('tools')
+                if alias != 'original' or selected is not None:
+                    entry.pop('used_tools', None)
+                    if selected is not None:
+                        entry['used_tools'] = selected
+                path = tmp_path / 'cnc.FlatPrj'
+                save_project_file(str(path), {'objs': [entry], 'options': {}, 'version': 9.0}, default=to_dict)
+                project = load_project_file(str(path), object_hook=dict2obj)
+                restored = []
+
+                def new_object(kind, name, initialize, *args, **kwargs):
+                    job = CNCJobObject(name, app)
+                    assert initialize(job, app) != 'fail'
+                    restored.append(job)
+                    return job
+
+                app.app_obj.new_object.side_effect = new_object
+                app.worker_task.emit.side_effect = lambda task: task['fcn'](*task['params'])
+                appIO(app).restore_project_objects(project, str(path), True, False)
+                assert len(restored) == 1
+                job = restored[0]
+                expected = [1, 2, 3] if selected is None else [int(uid) for uid in selected]
+                if alias == 'original' and selected is None:
+                    expected = [1]
+                assert job.used_tools == expected, (alias, selected)
+                assert list(job.tools) == ([1] if alias == 'original' else [1, 2, 3])
+                for record in job.tools.values():
+                    assert record['gcode'] == tool['gcode']
+                    assert record['data'] == tool['data']
+                    assert record['gcode_parsed'] == tool['gcode_parsed']
+                job.set_ui(CNCObjectUI(app=app))
+                if alias == 'exc_cnc_tools':
+                    job.build_excellon_cnc_tools()
+                    table = job.ui.exc_cnc_tools_table
+                else:
+                    job.build_cnc_tools_table()
+                    table = job.ui.cnc_tools_table
+                assert table.rowCount() == len(expected)
+                assert all(table.item(row, 1) is not None for row in range(len(expected)))
+                job.plot2 = Mock()
+                job.shapes._indexes = []
+                job.plot()
+                assert job.plot2.call_count == len(expected)
+
+        # an old single-tool job saved an empty selection: after the load its only tool is shown
+        # (a job of the previous application saves its preprocessor as 'tools_mill_ppname_g'; one of FlatCAM 8.99 as
+        # 'ppname_g')
+        for key in ('tools_mill_ppname_g', 'ppname_g'):
+            entry = load_project_file(str(fixture.parent / 'old_single_tool_cnc.json'),
+                                      object_hook=dict2obj)['objs'][0]
+            assert entry['used_tools'] == [] and entry['tools'] == {}
+            options = {k: v for k, v in entry['obj_options'].items() if k != 'tools_mill_ppname_g'}
+            entry.update(obj_options=dict(options, **{key: 'GRBL_11'}))
+            path = tmp_path / 'old_cnc.FlatPrj'
+            save_project_file(str(path), {'objs': [entry], 'options': {}, 'version': 9.0}, default=to_dict)
+            restored.clear()
+            appIO(app).restore_project_objects(load_project_file(str(path), object_hook=dict2obj), str(path),
+                                               True, False)
+            assert restored[0].used_tools == [1]
+            # the preprocessor saved with the job makes the header, not the current preference
+            assert restored[0].tools[1]['data']['tools_mill_ppname_g'] == 'GRBL_11', key
+
     def test_gerber_and_excellon_survive_save_and_restore(self, app, tmp_path):
         grb = make_gerber(app, name='grb')
         exc = make_excellon(app, name='exc')
@@ -479,7 +592,7 @@ class TestProjectLoadCleanup(unittest.TestCase):
                 self.critical.reset_mock()
 
 
-    def restore_objects(self, objs):
+    def restore_objects(self, objs, object_factory=None):
         """Restore objects with a factory that builds simple objects. Non-interactive: no dialogs."""
         class Obj:
             def __init__(self, kind, name):
@@ -501,7 +614,7 @@ class TestProjectLoadCleanup(unittest.TestCase):
         created = []
 
         def new_object(kind, name, initialize, **kwargs):
-            obj = Obj(kind, name)
+            obj = object_factory(kind, name) if object_factory else Obj(kind, name)
             if initialize(obj, self.app) == 'fail':
                 return 'fail'
             created.append((name, obj))
@@ -515,6 +628,31 @@ class TestProjectLoadCleanup(unittest.TestCase):
         task = self.tasks.pop()
         task['fcn'](*task['params'])
         return created
+
+    def test_legacy_cnc_tool_aliases_restore_the_tools_that_are_exported_and_plotted(self):
+        from tests.test_cncjob_export_gcode import _ui_job, _ui_app
+        from preprocessors.default import default
+
+        path = LineString([(2, 3), (8, 9)])
+        parsed = [{'geom': path, 'kind': ['C', 'S']}]
+        for alias, key in (('cnc_tools', '7'), ('exc_cnc_tools', '0.8')):
+            with self.subTest(alias=alias):
+                app = _ui_app()
+                app.preprocessors = {'default': default()}
+                job = _ui_job(app)
+                saved = job.to_dict()
+                saved.pop('used_tools', None)
+                saved.update(tools={}, multitool=True,
+                             **{alias: {key: {'tooldia': 0.8, 'data': {}, 'gcode': 'G1 X8 Y9\n',
+                                             'gcode_parsed': parsed, 'solid_geometry': [path]}}})
+                created = self.restore_objects([saved], object_factory=lambda kind, name: job)
+                self.assertEqual(len(created), 1)
+                job.plot2 = Mock()
+                job.mark_full_plot = Mock()
+                job.plot()
+                self.assertEqual(job.plot2.call_count, 1)
+                self.assertEqual(job.plot2.call_args.kwargs['gcode_parsed'], parsed)
+                self.assertIn('G1 X8 Y9', job.export_gcode(to_file=True).getvalue())
 
     def test_script_and_bad_objects_do_not_stop_the_load(self):
         opened = Mock()
@@ -730,8 +868,7 @@ class TestJoinAs(unittest.TestCase):
                 target = Excellon(app)
                 target.obj_options = {}
             else:
-                target = SimpleNamespace(kind=obj_kind, solid_geometry=None, tools={}, obj_options={},
-                                         multigeo=False)
+                target = SimpleNamespace(kind=obj_kind, solid_geometry=None, tools={}, obj_options={})
             initialize(target, app)
             made.update(kind=obj_kind, obj=target)
 
@@ -752,9 +889,8 @@ class TestJoinAs(unittest.TestCase):
                 {'solid': LineString([(10, 0), (12, 0)]).buffer(0.4), 'follow': Point(11, 0)}]},
             0: {'type': 'REG', 'size': 0.0, 'geometry': [{'solid': box(20, 0, 22, 1)}]},
         })
-        geo = obj('geometry', 'geo', multigeo=False,
-                  solid_geometry=[Point(30, 0).buffer(1.5), LineString([(40, 0), (42, 0)])],
-                  tools={1: {'tooldia': 0.5, 'data': {}, 'solid_geometry': []}})
+        geo = obj('geometry', 'geo', tools={1: {'tooldia': 0.5, 'data': {},
+                  'solid_geometry': [Point(30, 0).buffer(1.5), LineString([(40, 0), (42, 0)])]}})
         app, exc = self.join('excellon', grb, geo)
 
         drills = sorted((round(t['tooldia'], 3), round(p.x, 3), round(p.y, 3))
@@ -773,7 +909,7 @@ class TestJoinAs(unittest.TestCase):
         exc = obj('excellon', 'exc', tools={1: {'tooldia': 1.0, 'drills': [Point(0, 0)],
                                                 'slots': [(Point(0, 2), Point(4, 2))],
                                                 'solid_geometry': [Point(0, 0).buffer(0.5)]}})
-        geo = obj('geometry', 'geo', multigeo=True, solid_geometry=[],
+        geo = obj('geometry', 'geo',
                   tools={1: {'tooldia': 0.2, 'data': {},
                              'solid_geometry': [LineString([(0, 10), (5, 10)]), box(20, 0, 22, 1)]}})
         grb = obj('gerber', 'grb', solid_geometry=[box(30, 0, 31, 1)], follow_geometry=[],
@@ -789,19 +925,20 @@ class TestJoinAs(unittest.TestCase):
         for x, y in ((0, 0), (2, 2), (2.5, 10), (21, 0.5), (30.5, 0.5)):
             self.assertTrue(res.solid_geometry.contains(Point(x, y)), (x, y))
 
-    def test_as_geometry_keeps_single_and_multi_geo_shapes(self):
+    def test_as_geometry_keeps_all_tool_shapes(self):
         from shapely.geometry import LineString, Point, box
         from shapely import unary_union
 
         data = {'tools_mill_job_type': 'Rough', 'tools_mill_tool_shape': 'C1'}
-        single = obj('geometry', 'single', multigeo=False, solid_geometry=[LineString([(0, 0), (5, 0)])],
-                     tools={1: {'tooldia': 0.5, 'data': dict(data), 'solid_geometry': []}})
-        multi = obj('geometry', 'multi', multigeo=True, solid_geometry=[],
+        single = obj('geometry', 'single',
+                     tools={1: {'tooldia': 0.5, 'data': dict(data),
+                                'solid_geometry': [LineString([(0, 0), (5, 0)])]}})
+        multi = obj('geometry', 'multi',
                     tools={1: {'tooldia': 1.0, 'data': dict(data), 'solid_geometry': [box(10, 0, 11, 1)]}})
         grb = obj('gerber', 'grb', solid_geometry=[box(20, 0, 21, 1)], tools={})
         __, res = self.join('geometry', single, multi, grb)
 
-        self.assertTrue(res.multigeo)
+        self.assertEqual(len(res.tools), 3)
         joined = unary_union(shapes_of(res.tools, 'solid_geometry'))
         for x, y in ((2.5, 0), (10.5, 0.5), (20.5, 0.5)):
             self.assertTrue(joined.intersects(Point(x, y)), (x, y))

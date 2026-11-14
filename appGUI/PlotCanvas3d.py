@@ -23,6 +23,7 @@ from appGUI.ViewCube import ViewCube
 from vispy.scene.visuals import InfiniteLine, Line, Rectangle, Text, XYZAxis
 from appDatabase import _database_option
 from appGUI.VisPyPatches import hold_gc_during_drag, new_patches_enabled
+from appGUI import shortcuts
 
 import gettext
 import appTranslation as fcTranslate
@@ -825,9 +826,10 @@ class Camera_3D(scene.ArcballCamera):
 
         if event.type == 'mouse_wheel':
             modifiers = event.mouse_event.modifiers
-            fine = tuple(modifiers) == (keys.SHIFT,)
+            fine = bool(modifiers) and shortcuts.wheel_matches('app.fine_zoom', modifiers)
             if not modifiers or fine:
-                # Shift: 10 times finer steps; some platforms send the Shift wheel as a horizontal delta
+                # the fine zoom key (factory Alt): 10 times finer steps; some platforms send the wheel with a modifier
+                # (Alt on Windows) as a horizontal delta
                 step = event.delta[1] if event.delta[1] or not fine else event.delta[0]
                 center = self._screen_to_world(event.pos)
                 scale = (1 + self.zoom_factor) ** (-step * (3 if fine else 30))

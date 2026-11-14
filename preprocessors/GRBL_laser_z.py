@@ -31,7 +31,7 @@ class GRBL_laser_z(PreProc):
         ymin = '%.*f' % (p.coords_decimals, p['obj_options']['ymin'])
         ymax = '%.*f' % (p.coords_decimals, p['obj_options']['ymax'])
 
-        if p['use_ui'] is True and p['multigeo']:
+        if p['use_ui'] is True:
             def tool_value(val, *keys):
                 # the Milling keys, then the Drilling keys; '-' if the tool has none of them
                 data = val.get('data') or {}
@@ -55,6 +55,10 @@ class GRBL_laser_z(PreProc):
             for tool, val in p['tools'].items():
                 gcode += '(Tool: %s -> ' % str(tool) + 'Power: %s' % \
                          str(tool_value(val, "tools_mill_spindlespeed", "tools_drill_spindlespeed")) + ')\n'
+            gcode += '\n(LASER MINIMUM POWER: )\n'
+            for tool, val in p['tools'].items():
+                gcode += '(Tool: %s -> ' % str(tool) + 'Minimum Power: %s' % \
+                         str(tool_value(val, "tools_mill_min_power", "tools_drill_min_power")) + ')\n'
         else:
             gcode += '(Feedrate: ' + str(p['feedrate']) + units + '/min' + ')\n'
             gcode += '(Z Focus: ' + str(p['z_move']) + units + ')\n'

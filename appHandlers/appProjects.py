@@ -309,6 +309,14 @@ class ProjectManager(QtCore.QObject):
         if self.displayed is ctx:
             self.displayed = None
 
+        # Close Document editors before clearing shapes
+        for obj in ctx.collection.get_list():
+            if getattr(obj, 'kind', None) == 'document':
+                try:
+                    ctx.collection.close_object_editor(obj)
+                except Exception as err:
+                    self.app.log.error("ProjectManager._dispose() closing document --> %s" % str(err))
+
         for obj in ctx.collection.get_list():
             try:
                 obj.clear(update=False)

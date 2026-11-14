@@ -7,7 +7,7 @@ source, and the copy must not share data with the source (mutate either one, the
 
 XFAIL_OLD lists the (kind, path, attribute) combinations the OLD per-path code lost (all fixed by copy_from, so it is empty now).
 Old-code losses: aperture_macros in on_copy_command; follow_geometry and source_file in on_copy_object2 (Gerber);
-multigeo / tooluid (Geometry); multigeo, int_digits, frac_digits (Gerber); the Excellon file format attributes.
+tooluid (Geometry); int_digits, frac_digits (Gerber); the Excellon file format attributes.
 """
 
 from types import SimpleNamespace
@@ -91,7 +91,6 @@ def gerber_source(app):
     obj = make_gerber(app)
     assert obj.aperture_macros and obj.follow_geometry
     obj.export_as_regions = True
-    obj.multigeo = True
     obj.int_digits = 2
     obj.frac_digits = 5
     obj.units = 'MM'
@@ -115,7 +114,6 @@ def excellon_source(app):
 def geometry_source(app):
     obj = GeometryObject('geo', app)
     obj.units = 'MM'
-    obj.multigeo = True
     obj.tooluid = 2
     shape_a = [box(0, 0, 4, 4), box(10, 10, 12, 13)]
     shape_b = [LineString([(0, 0), (5, 5)]).buffer(0.5)]
@@ -123,7 +121,6 @@ def geometry_source(app):
         1: {'tooldia': 1.0, 'data': {'cutz': -0.5, 'name': 'first'}, 'solid_geometry': shape_a},
         2: {'tooldia': 2.0, 'data': {'cutz': -1.5, 'name': 'second'}, 'solid_geometry': shape_b},
     }
-    obj.solid_geometry = shape_a + shape_b
     obj.follow_geometry = [LineString([(0, 0), (5, 5)])]
     obj.source_file = 'geometry source text'
     obj.obj_options['name'] = 'geo'
@@ -161,11 +158,11 @@ SOURCES = {'gerber': gerber_source, 'excellon': excellon_source, 'geometry': geo
 # the attributes copy_from specifies, per kind
 ATTRS = {
     'gerber': ['solid_geometry', 'follow_geometry', 'tools', 'aperture_macros', 'source_file', 'export_as_regions',
-               'multigeo', 'int_digits', 'frac_digits', 'units'],
+               'int_digits', 'frac_digits', 'units'],
     'excellon': ['tools', 'solid_geometry', 'source_file', 'units', 'zeros', 'excellon_format_upper_mm',
                  'excellon_format_lower_mm', 'excellon_format_upper_in', 'excellon_format_lower_in',
                  'excellon_units'],
-    'geometry': ['solid_geometry', 'follow_geometry', 'tools', 'multigeo', 'tooluid', 'source_file', 'units'],
+    'geometry': ['solid_geometry', 'follow_geometry', 'tools', 'tooluid', 'source_file', 'units'],
     'script': ['source_file'],
     'document': ['source_file'],
 }

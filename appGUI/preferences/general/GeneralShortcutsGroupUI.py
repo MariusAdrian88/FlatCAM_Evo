@@ -8,6 +8,9 @@ The Keyboard Shortcuts page of the Preferences (section Application): the table 
 the modifiers and a field where the key is pressed. A key that is already used where the action works is reported before
 it is assigned.
 
+A wheel action (the fine zoom) has the mouse wheel as its key: the key field shows the wheel and only the modifiers
+change.
+
 The page is 1 field of the Preferences form (ShortcutsEditor, option 'global_shortcuts'): get_value() gives the keys
 that differ from the factory keys, so Save, Apply, Cancel, the marks of the changed settings and "Reset page to
 defaults" work as on the other pages. The keys work after Save or Apply.
@@ -389,6 +392,10 @@ class ShortcutsEditor(QtWidgets.QWidget):
         self.modifier_combo.setCurrentIndex(max(index, 0))
         self.key_entry.set_sequence(shortcuts.key_of(key))
         self.reset_button.setEnabled(editable and key != action.default)
+        if action.wheel:
+            # the key is the mouse wheel: only the modifiers change
+            self.key_entry.set_sequence(shortcuts.WHEEL)
+            self.key_entry.setEnabled(False)
 
     def _on_key_captured(self, sequence):
         """

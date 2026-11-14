@@ -368,6 +368,7 @@ class PreferencesUIManager(QtCore.QObject):
             "tools_iso_rest":           self.ui.plugin_eng_pref_form.tools_iso_group.rest_cb,
             "tools_iso_combine_passes": self.ui.plugin_eng_pref_form.tools_iso_group.combine_passes_cb,
             "tools_iso_clear_leftovers": self.ui.plugin_eng_pref_form.tools_iso_group.clear_leftovers_cb,
+            "tools_iso_trace_boundary": self.ui.plugin_eng_pref_form.tools_iso_group.trace_boundary_cb,
             "tools_iso_check_valid":    self.ui.plugin_eng_pref_form.tools_iso_group.valid_cb,
             "tools_iso_isoexcept":      self.ui.plugin_eng_pref_form.tools_iso_group.except_cb,
             "tools_iso_selection":      self.ui.plugin_eng_pref_form.tools_iso_group.select_combo,

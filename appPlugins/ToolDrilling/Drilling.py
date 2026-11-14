@@ -2426,7 +2426,6 @@ class ToolDrilling(Geometry, AppTool):
             cnc_job_obj.fr_decimals = int(self.app.options.get(
                 "cncjob_fr_decimals",
                 app_defaults.get("cncjob_fr_decimals", AppDefaults.factory_defaults.get("cncjob_fr_decimals"))))
-            cnc_job_obj.multitool = True
 
             # it does not matter for the Excellon codes because we are not going to autolevel GCode out of Excellon
             # but it is here for uniformity between the Geometry and Excellon objects

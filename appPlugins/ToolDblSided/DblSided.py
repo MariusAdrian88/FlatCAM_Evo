@@ -128,7 +128,6 @@ class DblSidedTool(AppTool):
         # set True if mouse events are locally connected
         self.local_connected = False
 
-        self.app.proj_selection_changed.connect(self.on_object_selection_changed)
         self.app.collection.rowsInserted.connect(self.refresh_basic_sources)
         self.app.collection.rowsRemoved.connect(self.refresh_basic_sources)
         self.app.collection.modelReset.connect(self.refresh_basic_sources)
@@ -206,6 +205,7 @@ class DblSidedTool(AppTool):
         # #############################################################################
         # ############################ SIGNALS ########################################
         # #############################################################################
+        self.connect_selection_signal()
         self.ui.level.toggled.connect(self.on_level_changed)
 
         self.ui.object_type_combo.currentIndexChanged.connect(self.on_object_type)

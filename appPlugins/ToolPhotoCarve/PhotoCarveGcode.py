@@ -140,7 +140,6 @@ def make_photocarve_cncjob(new_cncjob_obj, app_obj, context):
     used = sorted(tools, key=lambda uid: mark['tools'][str(uid)]['role'] != 'rough')
     cnc.obj_options.update(context['bounds'])
     cnc.obj_options.update(type='Geometry', photocarve=mark)
-    cnc.multitool = cnc.multigeo = True
     cnc.units = context['units']
     cnc.seg_x, cnc.seg_y = context['seg_x'], context['seg_y']
     cnc.coords_decimals = context['options']['cncjob_coords_decimals']

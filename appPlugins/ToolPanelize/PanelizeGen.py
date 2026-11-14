@@ -2,15 +2,13 @@
 
 from copy import deepcopy
 
-from shapely import Polygon
-
 from appParsers import panelize_core
 from camlib import translate_geometry
 
 
 def geometry_from_gerber(tools, solid_geometry, offsets, abort=None, progress=None):
     """
-    The multigeo tools of a Geometry panel made from a Gerber: every tool holds the copper of every copy.
+    The tools of a Geometry panel made from a Gerber: every tool holds the copper of every copy.
 
     The copper is translated once per copy. The tools share the (immutable) translated geometries, but each tool has
     its own list and its own metadata. Empty geometries are dropped from the tools and kept in the composed solid.
@@ -35,9 +33,8 @@ def geometry_from_gerber(tools, solid_geometry, offsets, abort=None, progress=No
     return new_tools, solid
 
 
-def gerber_from_geometry(tools, solid_geometry, multigeo, offsets, abort=None, progress=None):
-    src_tools, src_solid = panelize_core.gerber_tools_from_geometry(tools, solid_geometry, multigeo)
+def gerber_from_geometry(tools, solid_geometry, offsets, abort=None, progress=None):
+    src_tools, src_solid = panelize_core.gerber_tools_from_geometry(tools, solid_geometry)
     result_tools, result_solid = panelize_core.panelize_gerber(
         src_tools, src_solid, offsets, abort=abort, progress=progress)
-    as_regions = any(not isinstance(rec.get('solid'), Polygon) for rec in result_tools[0]['geometry'])
-    return result_tools, result_solid, as_regions
+    return result_tools, result_solid, False

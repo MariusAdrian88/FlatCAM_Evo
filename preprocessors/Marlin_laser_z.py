@@ -39,7 +39,7 @@ class Marlin_laser_z(PreProc):
         ymin = '%.*f' % (p.coords_decimals, p['obj_options']['ymin'])
         ymax = '%.*f' % (p.coords_decimals, p['obj_options']['ymax'])
 
-        if p['use_ui'] is True and p['multigeo']:
+        if p['use_ui'] is True:
             gcode += '\n;TOOLS DIAMETER: \n'
             for tool, val in p['tools'].items():
                 gcode += ';Tool: %s -> ' % str(tool) + 'Dia: %s' % str(val["tooldia"]) + '\n'
@@ -59,9 +59,9 @@ class Marlin_laser_z(PreProc):
             for tool, val in p['tools'].items():
                 gcode += ';Tool: %s -> ' % str(tool) + 'Power: %s' % \
                          self.tool_value(val, 'tools_mill_spindlespeed', 'tools_drill_spindlespeed') + '\n'
-            gcode += '\n;LASER MIN POWER: \n'
+            gcode += '\n;LASER MINIMUM POWER: \n'
             for tool, val in p['tools'].items():
-                gcode += ';Tool: %s -> ' % str(tool) + 'Power: %s' % \
+                gcode += ';Tool: %s -> ' % str(tool) + 'Minimum Power: %s' % \
                          self.tool_value(val, 'tools_mill_min_power', 'tools_drill_min_power') + '\n'
         else:
             gcode += ';Feedrate: %s %s/min\n' % (str(p['feedrate']), units)

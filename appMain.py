@@ -1202,7 +1202,8 @@ class App(QtCore.QObject):
             log=self.log,
             keywords=KeyWords(),
             extensions=Extensions(),
-            new_version=self.new_version_start
+            new_version=self.new_version_start,
+            preprocessors=self.preprocessors
         )
 
         # ##################################### UPDATE PREFERENCES GUI FORMS ########################################
@@ -2289,6 +2290,10 @@ class App(QtCore.QObject):
         self.pdf_tool.install(icon=QtGui.QIcon(self.resource_location + '/pdf32.png'),
                               pos=self.ui.menufileimport,
                               separator=True)
+        # Keep one application-level PDFViewer across install_tools() reinstalls
+        if not hasattr(self, 'pdf_viewer') or self.pdf_viewer is None:
+            self.pdf_viewer = PDFViewer(self)
+            self.ui.menufileopenpdf.triggered.connect(self.pdf_viewer.open_dialog)
 
         try:
             if 'ToolImage' in globals():
@@ -2540,37 +2545,22 @@ class App(QtCore.QObject):
             # store the Geometry Editor Toolbar visibility before entering the Editor
             self.geo_editor.toolbar_old_state = True if self.ui.geo_edit_toolbar.isVisible() else False
 
-            # we set the notebook to hidden
-            # self.ui.splitter.setSizes([0, 1])
-            if edited_object.multigeo is True:
-                sel_rows = set()
-                for item in edited_object.ui.geo_tools_table.selectedItems():
-                    sel_rows.add(item.row())
-                sel_rows = list(sel_rows)
-
-                if len(sel_rows) > 1:
-                    self.inform.emit('[WARNING_NOTCL] %s' %
-                                     _("Simultaneous editing of tools geometry in a MultiGeo Geometry "
-                                       "is not possible.\n"
-                                       "Edit only one geometry at a time."))
-                    self.ui.menuobjects.setDisabled(False)
-                    return
-
-                if not sel_rows:
-                    self.inform.emit('[WARNING_NOTCL] %s.' % _("No Tool Selected"))
-                    self.ui.menuobjects.setDisabled(False)
-                    return
-
-                # determine the tool dia of the selected tool
-                # selected_tooldia = float(edited_object.ui.geo_tools_table.item(sel_rows[0], 1).text())
-                sel_id = int(edited_object.ui.geo_tools_table.item(sel_rows[0], 5).text())
-
-                multi_tool = sel_id
-                self.log.debug("Editing MultiGeo Geometry with tool diameter: %s" % str(multi_tool))
-                self.geo_editor.edit_geometry(edited_object, multigeo_tool=multi_tool)
-            else:
-                self.log.debug("Editing SingleGeo Geometry with tool diameter.")
-                self.geo_editor.edit_geometry(edited_object)
+            sel_rows = {item.row() for item in edited_object.ui.geo_tools_table.selectedItems()}
+            if len(sel_rows) > 1:
+                self.inform.emit('[WARNING_NOTCL] %s' % _("Edit only one geometry at a time."))
+                self.ui.menuobjects.setDisabled(False)
+                return
+            edited_tool = (int(edited_object.ui.geo_tools_table.item(next(iter(sel_rows)), 5).text())
+                           if sel_rows else None)
+            if edited_tool is None and edited_object.tools and \
+                    len(edited_object.shared_tools(next(iter(edited_object.tools)))) != len(edited_object.tools):
+                # tools with different shapes: the user must say which one to edit
+                self.inform.emit('[WARNING_NOTCL] %s' % _("No Tool Selected"))
+                self.ui.menuobjects.setDisabled(False)
+                return
+            if self.geo_editor.edit_geometry(edited_object, edited_tool=edited_tool) == 'fail':
+                self.ui.menuobjects.setDisabled(False)
+                return 'fail'
 
             # set call source to the Editor we go into
             self.call_source = 'geo_editor'
@@ -4399,7 +4389,10 @@ class App(QtCore.QObject):
                 'fcn': self.f_handlers.open_script,
                 'params': [fname]
             }),
-            "document": None,
+            "document": lambda fname: self.worker_task.emit({
+                'fcn': self.f_handlers.open_document,
+                'params': [fname]
+            }),
             'project': self.f_handlers.open_project,
             'svg': lambda fname: self.worker_task.emit({
                 'fcn': self.f_handlers.import_svg,

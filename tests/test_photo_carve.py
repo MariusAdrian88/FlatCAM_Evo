@@ -353,7 +353,6 @@ def test_build_geometry_keeps_xyz_orders_rough_first_and_copies_defaults(model):
     assert built['photocarve']['tools']['2']['role'] == 'finish'
     assert built['tools'][1]['solid_geometry'][0].geom_type == 'Point'
     assert np.asarray(built['tools'][2]['solid_geometry'][0].coords)[:, 2].tolist() == [-0.1, -0.5]
-    assert all(not geometry.has_z for geometry in built['solid_geometry'])
     first, second = built['tools'][1]['data'], built['tools'][2]['data']
     assert first['tools_mill_tool_shape'] == 0 and second['tools_mill_tool_shape'] == 5
     assert second['tools_mill_vtipdia'] == 0.2 and second['tools_mill_vtipangle'] == 60
@@ -482,7 +481,7 @@ def test_certified_geometry_lifecycle():
     with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
         obj = GeometryObject('photo', make_app_0b())
         copied = GeometryObject('copy', obj.app)
-    obj.tools, obj.solid_geometry, obj.multigeo = built['tools'], built['solid_geometry'], True
+    obj.tools = built['tools']
     obj.obj_options['photocarve'] = built['photocarve']
     copied.copy_from(obj)
     assert copied.obj_options['photocarve'] == obj.obj_options['photocarve']
@@ -491,8 +490,6 @@ def test_certified_geometry_lifecycle():
     assert obj.scale(2) == 'fail'
     assert obj.skew(10, 0, (0, 0)) == 'fail'
     assert obj.tools[1]['solid_geometry'][0].wkt == before
-    assert obj.mtool_gen_cncjob() == 'fail'
-    assert obj.generatecncjob() == 'fail'
     assert GeometryObject.merge([obj], copied) == 'fail'
     obj.offset((2, 3))
     obj.rotate(90, (2, 3))
@@ -505,7 +502,7 @@ def test_certified_geometry_lifecycle():
     from appHandlers.appEdit import appEditor
     from types import SimpleNamespace
     from unittest.mock import Mock
-    obj = SimpleNamespace(kind='geometry', multigeo=True, obj_options={'photocarve': {'version': 1}})
+    obj = SimpleNamespace(kind='geometry', obj_options={'photocarve': {'version': 1}})
     harness = SimpleNamespace(defaults=Mock(), call_source='app', inform=Mock(),
                               collection=SimpleNamespace(get_active=lambda: obj,
                                                          get_selected=lambda: [obj, obj]))
@@ -561,7 +558,7 @@ def test_photo_save_load_keeps_xyz_and_certificate(tmp_path):
         image = picture.copy()
     params = model.JobParams(image_px=image.size, width=40, spacing=0.3, mode='laser', strategy='floyd')
     built['photocarve']['source'] = objects.embed_source(image, 'D:/photos/image.png', params)
-    obj.tools, obj.solid_geometry, obj.multigeo = built['tools'], built['solid_geometry'], True
+    obj.tools = built['tools']
     obj.obj_options['photocarve'] = built['photocarve']
     data = {'objs': [obj.to_dict()]}
     path = str(tmp_path / 'photo.FlatPrj')
@@ -569,7 +566,7 @@ def test_photo_save_load_keeps_xyz_and_certificate(tmp_path):
     restored = load_project_file(path)['objs'][0]
     restored_obj.from_dict(restored)
     assert restored_obj.obj_options['photocarve'] == built['photocarve']
-    assert restored_obj.multigeo
+    assert restored_obj.solid_geometry
     assert list(restored_obj.tools['1']['solid_geometry'][0].coords) == list(built['tools'][1]['solid_geometry'][0].coords)
     # The project holds the source image and the job parameters: Photo Carve opens them again, also in inch.
     picture, filename, options = objects.read_source(restored_obj.obj_options['photocarve'], 'MM')
@@ -742,7 +739,7 @@ def test_marked_cnc_transforms_refuse_before_mutation():
     job, built = _writer_job()
     job.obj_options['photocarve'] = built['photocarve']
     job.gcode = 'G0 X0 Y0 Z2\nG1 X10 Z-1'
-    job.multitool, job.gcode_parsed = False, []
+    job.gcode_parsed = []
     before = job.gcode
     assert job.scale(0.1) == 'fail'
     assert job.skew(10, 0, (0, 0)) == 'fail'
@@ -776,7 +773,7 @@ def test_marked_cnc_unit_conversion_motion_and_certificate():
         _, built = _writer_job('GRBL_laser' if laser else 'default', laser=laser)
         with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
             job = CNCJobObject('photo', make_app_0b())
-        job.units, job.multitool = 'MM', True
+        job.units = 'MM'
         job.gcode_parsed = []
         job.tools = deepcopy(built['tools'])
         job.tools[1]['data'].update(tools_mill_vtipdia=0.02, tools_mill_endxy=[25.4, 50.8])
@@ -803,5 +800,3 @@ def test_marked_cnc_unit_conversion_motion_and_certificate():
             assert spans[-1].x1 == pytest.approx(25.4 * factor, abs=0.003)
             assert spans[-1].z1 == pytest.approx(-2.54 * factor, abs=0.003)
             assert spans[-1].s == 505
-
-

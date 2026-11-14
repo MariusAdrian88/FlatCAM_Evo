@@ -248,14 +248,14 @@ def import_source_objects(objects, edited_obj):
 
 def import_source_geometries(obj, app_units=None):
     """
-    The shapes of a project object, flat: Shapely polygons and paths. A multi-geo Geometry gives the shapes of all
+    The shapes of a project object, flat: Shapely polygons and paths. A Geometry gives the shapes of all
     its tools. If the object has other units than app_units, the shapes are scaled to app_units. Needs no GUI.
 
     :param obj:         Geometry, Gerber or Excellon object
     :param app_units:   'MM' or 'IN'; None for no unit check
     :return:            list of Shapely geometries (copies are made on commit)
     """
-    if obj.kind == 'geometry' and getattr(obj, 'multigeo', False):
+    if obj.kind == 'geometry':
         sources = [tool.get('solid_geometry') for tool in obj.tools.values()]
     else:
         sources = [obj.solid_geometry]
@@ -380,8 +380,8 @@ class AppGeoEditor(QtCore.QObject):
         self.x = None  # Current mouse cursor pos
         self.y = None
 
-        # if we edit a multigeo geometry store here the tool number
-        self.multigeo_tool = None
+        # The tool whose shapes are being edited.
+        self.edited_tool = None
 
         # Current snapped mouse pos
         self.snap_x = None
@@ -1625,6 +1625,7 @@ class AppGeoEditor(QtCore.QObject):
 
         self.disconnect_canvas_event_handlers()
         self.storage = self.make_storage()
+        self.edited_tool = None
 
         grips = getattr(self, 'vertex_grips', None)
         if grips is not None:
@@ -3486,16 +3487,20 @@ class AppGeoEditor(QtCore.QObject):
         AppGeoEditor.snap_feedback(self, snap_kind)
         return snap_x, snap_y
 
-    def edit_geometry(self, fcgeometry, multigeo_tool=None):
+    def edit_geometry(self, fcgeometry, edited_tool=None):
         """
         Imports the geometry from the given FlatCAM Geometry object
         into the editor.
 
         :param fcgeometry:      GeometryObject
-        :param multigeo_tool:   A tool for the case of the edited geometry being of type 'multigeo'
+        :param edited_tool:     Tool id to edit; None selects the first tool
         :return:                None
         """
         assert isinstance(fcgeometry, Geometry), "Expected a Geometry, got %s" % type(fcgeometry)
+
+        if not fcgeometry.tools:
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _("No tool in the Geometry object."))
+            return 'fail'
 
         if self.deactivate() == 'fail':
             return 'fail'
@@ -3541,19 +3546,18 @@ class AppGeoEditor(QtCore.QObject):
             else:
                 milling_type = 1  # CW motion = conventional milling (spindle is rotating CCW)
 
-        self.multigeo_tool = multigeo_tool
+        self.edited_tool = next(iter(fcgeometry.tools)) if edited_tool is None else edited_tool
+        # the tools that hold the same shapes as the edited tool get the edited shapes too
+        shared_tools = getattr(fcgeometry, 'shared_tools', None)
+        self.edited_tools = shared_tools(self.edited_tool) if shared_tools else [self.edited_tool]
 
         def worker_job(editor_obj):
             # Link shapes into editor.
             with editor_obj.app.proc_container.new(_("Working...")):
                 editor_obj.app.inform.emit(_("Loading the Geometry into the Editor..."))
 
-                if self.multigeo_tool:
-                    editor_obj.multigeo_tool = self.multigeo_tool
-                    geo_to_edit = editor_obj.flatten(geometry=fcgeometry.tools[self.multigeo_tool]['solid_geometry'],
-                                                     orient_val=milling_type)
-                else:
-                    geo_to_edit = editor_obj.flatten(geometry=fcgeometry.solid_geometry, orient_val=milling_type)
+                geo_to_edit = editor_obj.flatten(geometry=fcgeometry.tools[self.edited_tool]['solid_geometry'],
+                                                 orient_val=milling_type)
 
                 # ####################################################################################################
                 # remove the invalid geometry and also the Points as those are not relevant for the Editor
@@ -3581,18 +3585,7 @@ class AppGeoEditor(QtCore.QObject):
                 # trigger a build of the UI
                 self.build_ui_sig.emit()
 
-                if multigeo_tool:
-                    editor_obj.app.inform.emit(
-                        '[WARNING_NOTCL] %s: %s %s: %s' % (
-                            _("Editing MultiGeo Geometry, tool"),
-                            str(self.multigeo_tool),
-                            _("with diameter"),
-                            str(fcgeometry.tools[self.multigeo_tool]['tooldia'])
-                        )
-                    )
-                    tooldia = float(fcgeometry.tools[self.multigeo_tool]['data']['tools_mill_tooldia'])
-                else:
-                    tooldia = float(fcgeometry.obj_options['tools_mill_tooldia'])
+                tooldia = float(fcgeometry.tools[self.edited_tool]['tooldia'])
                 # the grid button and the tool diameter entry are widgets: on_load_done() sets them in the GUI thread
                 self.load_done.emit(tooldia)
 
@@ -3646,17 +3639,15 @@ class AppGeoEditor(QtCore.QObject):
                     new_geometry.append(new_geo)
                 new_geometry = flatten_shapely_geometry(new_geometry)
 
-                if self.multigeo_tool:
-                    tool = fcgeometry.tools[self.multigeo_tool]
-                    if new_dia != float(tool['tooldia']):
-                        tool['tooldia'] = new_dia
-                        tool['data']['tools_mill_tooldia'] = new_dia
-                    tool['solid_geometry'] = list(new_geometry)
-                    self.multigeo_tool = None
-                elif new_dia != float(fcgeometry.obj_options['tools_mill_tooldia']):
-                    fcgeometry.obj_options['tools_mill_tooldia'] = new_dia
-
-                fcgeometry.solid_geometry = new_geometry
+                tool = fcgeometry.tools[self.edited_tool]
+                tool['tooldia'] = new_dia
+                tool.setdefault('data', {})['tools_mill_tooldia'] = new_dia
+                tool['solid_geometry'] = list(new_geometry)
+                for uid in getattr(self, 'edited_tools', None) or ():
+                    if uid != self.edited_tool and uid in fcgeometry.tools:
+                        fcgeometry.tools[uid]['solid_geometry'] = list(new_geometry)
+                # the edited shapes no longer match the layers of a generated film
+                fcgeometry.obj_options.pop('film', None)
 
                 try:
                     bounds = fcgeometry.bounds()

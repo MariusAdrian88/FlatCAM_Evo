@@ -146,7 +146,7 @@ def _extract_command(**tools):
     from unittest.mock import Mock
     from tclCommands.TclCommandExtract import TclCommandExtract
     from test_tcl_audit_regressions import object_app
-    gerber = SimpleNamespace(kind='gerber', multigeo=False, obj_options={'name': 'board.gbr', 'units': 'MM'},
+    gerber = SimpleNamespace(kind='gerber', obj_options={'name': 'board.gbr', 'units': 'MM'},
                              tools=tools or {10: circ(1.0, (0, 0), (5, 0))},
                              solid_geometry=[box(-1, -1, 6, 3)])
     app = object_app(None)

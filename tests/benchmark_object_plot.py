@@ -40,7 +40,7 @@ def make_object(kind, geometry, solid=True, follow=False):
     obj = SimpleNamespace(
         deleted=False, obj_options={'plot': True, 'solid': solid, 'follow': follow, 'multicolored': False},
         outline_color='#204080FF', fill_color='#4080FFFF', solid_geometry=geometry,
-        follow_geometry=geometry, multigeo=False, batch=[], times={},
+        follow_geometry=geometry, tools={1: {'solid_geometry': geometry, 'data': {}}}, batch=[], times={},
         app=SimpleNamespace(log=logging.getLogger('benchmark')))
     obj.random_color = lambda: '#4080FFFF'
     obj._app_option = lambda key: True if key == 'gerber_plot_line_enable' else '#204080FF'

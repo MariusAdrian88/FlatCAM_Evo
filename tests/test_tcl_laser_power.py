@@ -45,17 +45,21 @@ def run(command_class, app, *argv):
 
 
 def laser_on_lines(gcode):
-    return {line for line in gcode.splitlines() if line.startswith('M03')}
+    import re
+    return {'M03 S%g' % float(power) for power in re.findall(r'^M0?3 S([\d.]+)', gcode, re.MULTILINE)}
 
 
 def cncjob_gcode(*argv, power=None):
+    from test_milling import MillingHarness
     app, jobs = laser_app()
+    app.regFK, app.ui, app.inform_no_echo = Mock(), Mock(), Mock()
+    app.milling_tool = MillingHarness(app=app, target_obj=None, sel_tools={}, units='MM', decimals=4,
+                                     circle_steps=16, new_object=app.app_obj.new_object)
     source = GeometryObject('src', app)
-    source.solid_geometry = [LineString([(0, 0), (10, 0), (10, 10)])]
-    source.multigeo = False
+    source.tools[1]['solid_geometry'] = [LineString([(0, 0), (10, 0), (10, 10)])]
     source.obj_options.update(zip(('xmin', 'ymin', 'xmax', 'ymax'), source.bounds()))
     if power is not None:
-        source.obj_options['tools_mill_spindlespeed'] = power
+        source.tools[1]['data']['tools_mill_spindlespeed'] = power
     app.collection.get_by_name = Mock(return_value=source)
     run(TclCommandCncjob, app, '-dia', '0.1', '-z_cut', '0', '-feedrate', '1000', *argv)
     return jobs[0].source_file
@@ -83,7 +87,7 @@ def test_cncjob_laser_power(argv, expected):
 
 
 @pytest.mark.parametrize('argv, expected', [
-    (('-las_power', '300', '-spindlespeed', '500'), {'M03 S300.0'}),
+    (('-las_power', '300', '-spindlespeed', '500'), {'M03 S300'}),
     ((), {'M03 S0'}),
 ], ids=['las_power_first', 'no_power'])
 def test_drillcncjob_laser_power(argv, expected):
@@ -97,11 +101,11 @@ def test_without_las_power_the_laser_power_of_the_object_or_of_each_tool_is_used
     assert laser_on_lines(drillcncjob_gcode(power=800)) == {'M03 S800'}
     # a power given in the command still wins
     assert laser_on_lines(cncjob_gcode('-las_power', '300', power=800)) == {'M03 S300'}
-    assert laser_on_lines(drillcncjob_gcode('-las_power', '300', power=800)) == {'M03 S300.0'}
+    assert laser_on_lines(drillcncjob_gcode('-las_power', '300', power=800)) == {'M03 S300'}
 
 
-def test_cncjob_multigeo_laser_power_from_spindlespeed():
-    source = Mock(kind='geometry', multigeo=True)
+def test_cncjob_tool_laser_power_from_spindlespeed():
+    source = Mock(kind='geometry')
     source.tools = {7: {'data': {}, 'solid_geometry': [LineString([(0, 0), (1, 0)])]}}
     source.obj_options = {}
     app = make_app()
@@ -145,8 +149,7 @@ def milling_cncjob(make_source, *argv, pp='default'):
 
 def line_source(app):
     source = GeometryObject('src', app)
-    source.solid_geometry = [LineString([(0, 0), (10, 0), (10, 10)])]
-    source.multigeo = False
+    source.tools[1]['solid_geometry'] = [LineString([(0, 0), (10, 0), (10, 10)])]
     source.obj_options.update(zip(('xmin', 'ymin', 'xmax', 'ymax'), source.bounds()))
     return source
 

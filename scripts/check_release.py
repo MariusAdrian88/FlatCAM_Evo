@@ -38,13 +38,16 @@ def check_release(executable):
             env.pop(name, None)
         env['QT_QPA_PLATFORM'] = 'offscreen'
         env['FLATCAM_DATA_PATH'] = str(Path(folder) / 'settings')
+        env['FLATCAM_RELEASE_PDF_SMOKE'] = '1'
         result = subprocess.run(
             [executable, '--headless', f'--command={command}'],
             cwd=folder, env=env, capture_output=True, text=True, timeout=180,
         )
         print(result.stdout)
         print(result.stderr, file=sys.stderr)
-        if result.returncode or 'FLATCAM_RELEASE_SMOKE_OK' not in result.stdout:
+        if result.returncode or any(marker not in result.stdout for marker in
+                                    ('FLATCAM_RELEASE_SMOKE_OK', 'FLATCAM_PDF_RUNTIME_SMOKE_OK',
+                                     'FLATCAM_FILM_PREVIEW_SMOKE_OK')):
             raise RuntimeError(f'Frozen FlatCAM startup failed (exit code {result.returncode})')
 
 

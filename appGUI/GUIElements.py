@@ -2184,6 +2184,9 @@ class FCTextAreaExtended(FCTextEdit):
         self.completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
 
     def insertCompletion(self, completion):
+        if self.completer.path_token is not None:
+            self.completer.insert_path(self, completion)
+            return
         tc = self.textCursor()
         extra = (len(completion) - len(self.completer.completionPrefix()))
 
@@ -2289,7 +2292,7 @@ class FCTextAreaExtended(FCTextEdit):
         else:
             super(FCTextAreaExtended, self).keyPressEvent(event)
 
-        if self.completer_enable:
+        if self.completer_enable and not self.completer.complete_path(self):
             tc.select(QTextCursor.SelectionType.WordUnderCursor)
             cr = self.cursorRect()
 
@@ -2298,8 +2301,7 @@ class FCTextAreaExtended(FCTextEdit):
                 popup = self.completer.popup()
                 popup.setCurrentIndex(self.completer.completionModel().index(0, 0))
 
-                cr.setWidth(self.completer.popup().sizeHintForColumn(0)
-                            + self.completer.popup().verticalScrollBar().sizeHint().width())
+                cr.setWidth(completer_popup_width(self.completer))
                 self.completer.complete(cr)
             else:
                 self.completer.popup().hide()
@@ -2417,6 +2419,9 @@ class FCPlainTextAreaExtended(QtWidgets.QPlainTextEdit):
         self.completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
 
     def insertCompletion(self, completion):
+        if self.completer.path_token is not None:
+            self.completer.insert_path(self, completion)
+            return
         tc = self.textCursor()
         extra = (len(completion) - len(self.completer.completionPrefix()))
 
@@ -2599,7 +2604,7 @@ class FCPlainTextAreaExtended(QtWidgets.QPlainTextEdit):
         else:
             super(FCPlainTextAreaExtended, self).keyPressEvent(event)
 
-        if self.completer_enable:
+        if self.completer_enable and not self.completer.complete_path(self):
             tc.select(QTextCursor.SelectionType.WordUnderCursor)
             cr = self.cursorRect()
 
@@ -2608,8 +2613,7 @@ class FCPlainTextAreaExtended(QtWidgets.QPlainTextEdit):
                 popup = self.completer.popup()
                 popup.setCurrentIndex(self.completer.completionModel().index(0, 0))
 
-                cr.setWidth(self.completer.popup().sizeHintForColumn(0)
-                            + self.completer.popup().verticalScrollBar().sizeHint().width())
+                cr.setWidth(completer_popup_width(self.completer))
                 self.completer.complete(cr)
             else:
                 self.completer.popup().hide()
@@ -5142,6 +5146,9 @@ class _ExpandableTextEdit(FCTextEdit):
         self.completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
 
     def insertCompletion(self, completion):
+        if self.completer.path_token is not None:
+            self.completer.insert_path(self, completion)
+            return
         tc = self.textCursor()
         extra = (len(completion) - len(self.completer.completionPrefix()))
 
@@ -5210,6 +5217,8 @@ class _ExpandableTextEdit(FCTextEdit):
         tc = self.textCursor()
 
         QTextEdit.keyPressEvent(self, event)
+        if self.completer.complete_path(self):
+            return
         tc.select(QTextCursor.SelectionType.WordUnderCursor)
         cr = self.cursorRect()
 
@@ -5218,8 +5227,7 @@ class _ExpandableTextEdit(FCTextEdit):
             popup = self.completer.popup()
             popup.setCurrentIndex(self.completer.completionModel().index(0, 0))
 
-            cr.setWidth(self.completer.popup().sizeHintForColumn(0)
-                        + self.completer.popup().verticalScrollBar().sizeHint().width())
+            cr.setWidth(completer_popup_width(self.completer))
             self.completer.complete(cr)
         else:
             self.completer.popup().hide()
@@ -5246,6 +5254,35 @@ class _ExpandableTextEdit(FCTextEdit):
         self.insertPlainText(mime_data.text())
 
 
+def completer_popup_width(completer):
+    """
+    Width that shows the longest completion in full.
+
+    QListView.sizeHintForColumn() measures only the rows in the viewport, so a longer
+    completion further down the list was clipped. Measure every row of the model.
+    """
+    popup = completer.popup()
+    model = completer.completionModel()
+    fm = popup.fontMetrics()
+    column = completer.completionColumn()
+    text_w = 0
+    for row in range(model.rowCount()):
+        text = model.data(model.index(row, column))
+        if text:
+            text_w = max(text_w, fm.horizontalAdvance(str(text)))
+
+    # the style pads each item (the Windows 11 style pads more than the delegate size hint says)
+    style = popup.style()
+    item_pad = 2 * (style.pixelMetric(QtWidgets.QStyle.PixelMetric.PM_FocusFrameHMargin, None, popup) + 1)
+    item_w = max(text_w + item_pad, popup.sizeHintForColumn(0)) + fm.averageCharWidth()
+    width = item_w + 2 * popup.frameWidth() + popup.verticalScrollBar().sizeHint().width()
+
+    screen = popup.screen() if popup.screen() is not None else QtWidgets.QApplication.primaryScreen()
+    if screen is not None:
+        width = min(width, screen.availableGeometry().width())
+    return width
+
+
 class MyCompleter(QCompleter):
     insertText = QtCore.pyqtSignal(str)
 
@@ -5255,6 +5292,10 @@ class MyCompleter(QCompleter):
         self.highlighted.connect(self.setHighlighted)
 
         self.lastSelected = ''
+        # the path completion: its own model (no parent, setModel() must not delete it) and the path at the cursor
+        self.path_model = QtCore.QStringListModel()
+        self.keyword_model = None
+        self.path_token = None
 
         # self.popup().installEventFilter(self)
 
@@ -5268,6 +5309,93 @@ class MyCompleter(QCompleter):
 
     def getSelected(self):
         return self.lastSelected
+
+    def complete_path(self, widget):
+        """
+        Shows the entries of the folder of the path at the cursor of the text widget: the folders first, then the
+        files (only the files of the Tcl command, e.g. the Gerber files after open_gerber).
+
+        :param widget:  the text widget (QTextEdit or QPlainTextEdit) that owns this completer
+        :return:        True if the word at the cursor is a path; False lets the keyword completion work
+        """
+        from appGUI.path_completion import path_completions
+
+        cursor = widget.textCursor()
+        line = cursor.block().text()[:cursor.positionInBlock()]
+        token, entries = path_completions(line)
+        if token is None:
+            self.path_token = None
+            if self.model() is self.path_model:
+                self.setModel(self.keyword_model)
+            return False
+
+        if self.model() is not self.path_model:
+            # the model of the widget; it has no parent, so setModel() does not delete it
+            self.keyword_model = self.model()
+            self.setModel(self.path_model)
+        self.path_token = token
+        self.path_model.setStringList(entries)
+        # the entries are filtered and sorted already: no prefix, so the popup keeps their order
+        self.setCompletionPrefix('')
+        # a file name typed in full: nothing to complete, Enter runs the command
+        if not entries or entries == [token.partial]:
+            self.popup().hide()
+            return True
+        self.popup().setCurrentIndex(self.completionModel().index(0, 0))
+        self.lastSelected = entries[0]
+        rect = widget.cursorRect()
+        rect.setWidth(completer_popup_width(self))
+        self.complete(rect)
+        return True
+
+    def insert_path(self, widget, entry):
+        """
+        Puts a folder entry in place of the partial name at the cursor. A folder ends with '/' and its own entries
+        are shown next; a file ends the path. A name with a space puts the path in braces, as Tcl needs it.
+
+        :param widget:  the text widget that owns this completer
+        :param entry:   the selected entry ('name/' for a folder)
+        """
+        token = self.path_token
+        self.popup().hide()
+        if token is None or not entry:
+            return
+        cursor = widget.textCursor()
+        cursor.beginEditBlock()
+        # the cursor counts UTF-16 units, Python counts code points (a name with an emoji)
+        def units(text):
+            return len(text.encode('utf-16-le')) // 2
+
+        cursor.setPosition(cursor.position() - units(token.partial), QTextCursor.MoveMode.KeepAnchor)
+        cursor.removeSelectedText()
+        opener = token.opener
+        if not opener and any(char in entry for char in ' \t[]$;"#{}\\'):
+            unbalanced = entry.count('{') != entry.count('}') or '\\' in entry
+            if unbalanced:
+                # braces can not protect an unbalanced brace: a backslash before each special character does
+                entry = re.sub(r'([\s\[\]$;"#{}\\])', r'\\\1', entry)
+            elif any(char in entry for char in ' \t[]$;"#'):
+                start = cursor.position() - units(token.text) + units(token.partial)
+                brace = QTextCursor(cursor)
+                brace.setPosition(start)
+                brace.insertText('{')
+                opener = '{'
+        cursor.insertText(entry)
+        is_folder = entry.endswith('/')
+        if not is_folder:
+            closer = '}' if opener == '{' else opener
+            following = widget.document().characterAt(cursor.position())
+            if closer and following == closer:
+                cursor.movePosition(QTextCursor.MoveOperation.Right)
+            elif closer:
+                cursor.insertText(closer)
+            cursor.insertText(' ')
+        cursor.endEditBlock()
+        widget.setTextCursor(cursor)
+        if is_folder:
+            self.complete_path(widget)
+        else:
+            self.path_token = None
 
 
 def add_case_variants(ext_filter):
@@ -5296,19 +5424,25 @@ def add_case_variants(ext_filter):
     return ';;'.join(groups)
 
 
+def ext_patterns(extensions):
+    """The QFileDialog patterns of a list of extensions: ['gbr', 'gtl'] -> '*.gbr *.gtl'."""
+    return ' '.join('*.%s' % ext for ext in extensions)
+
+
 class FCFileSaveDialog(QtWidgets.QFileDialog):
 
     def __init__(self, *args):
         super(FCFileSaveDialog, self).__init__(*args)
 
     @staticmethod
-    def get_saved_filename(parent=None, caption='', directory='', ext_filter='', initialFilter=''):
+    def get_saved_filename(parent=None, caption='', directory='', ext_filter='', initialFilter='',
+                           append_extension=True):
         filename, _filter = QtWidgets.QFileDialog.getSaveFileName(parent=parent, caption=caption,
                                                                   directory=directory, filter=ext_filter,
                                                                   initialFilter=initialFilter)
 
         filename = str(filename)
-        if filename == '':
+        if filename == '' or not append_extension:
             return filename, _filter
 
         extension = '.' + _filter.strip(')').rpartition('.')[2]

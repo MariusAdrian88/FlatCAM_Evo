@@ -144,10 +144,10 @@ class ToolLevelling(LevellingCoreMixin, CNCjob, AppTool):
             self.build_al_table_sig.connect(self.build_al_table)
             self.apply_autolevel_sig.connect(self.apply_autolevel)
             self.show_probing_geo_sig.connect(self._on_show_probing_geo_sig)
-            # When object selection on canvas change
-            self.app.proj_selection_changed.connect(self.on_object_selection_changed)
             # Cleanup on Graceful exit (CTRL+ALT+X combo key)
             self.app.cleanup.connect(self.set_tool_ui)
+        # When object selection on canvas change; the close of the plugin tab disconnects this signal
+        self.connect_selection_signal()
         self.ui.level.toggled.connect(self.on_level_changed)
 
         self.ui.persist_probe_preference = self.persist_probe_preference
@@ -635,7 +635,6 @@ class ToolLevelling(LevellingCoreMixin, CNCjob, AppTool):
                             {k: v for k, v in target_obj.obj_options.items() if k != 'name'}
                         )
                         new_obj.units = target_obj.units
-                        new_obj.multitool = target_obj.multitool
                         new_obj.used_tools = list(target_obj.used_tools)
                         new_obj.gc_start = target_obj.gc_start
                         new_obj.prepend_snippet = target_obj.prepend_snippet
@@ -649,11 +648,6 @@ class ToolLevelling(LevellingCoreMixin, CNCjob, AppTool):
                         # 'solid_geometry' unchanged, on purpose: levelling only ever
                         # rewrites the Z word of cutting moves, never X/Y, so the XY
                         # footprint stays identical to the source object's.
-                        #
-                        # 'multigeo' is intentionally NOT copied here: it is a
-                        # GeometryObject-only flag (single vs. multi-tool *Geometry*
-                        # source). CNCJob objects track multi-tool-ness with
-                        # 'multitool' instead, which is copied above.
                         new_obj.tools = deepcopy_keep_geometry(target_obj.tools)
 
                         # accumulate the object-level gcode / gcode_parsed across all tools,

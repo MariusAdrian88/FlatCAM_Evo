@@ -6,12 +6,114 @@ Based on FlatCAM:
 
 CHANGELOG for FlatCAM Evo
 
+14.11.2026
+
+README:
+
+- changed: the README is short: a list of the features, the links (wiki, releases, videos, branches), a quick start and the install from the source code; the install details, the data folder, the update steps and the plugin descriptions are in the wiki
+
+Shell and script auto-completer:
+
+- added: the preference names (for set_sys / get_sys) are in the auto-completer; the script editor does not color them, so the coloring keeps its speed
+
+File associations:
+
+- changed: Preferences > Utilities: the group "FlatCAM Files associations" is now "File Associations"; the tooltips no longer say that the associations work only in Windows, and they say that only Windows needs a new logon
+- fixed: Linux AppImage: the registration writes the AppImage file into the desktop entry (it wrote the temporary mount of the AppImage, so the association broke after the application closed) and copies the icon into the icon theme of the user
+- fixed: Linux: the first start does not take an extension that the system already gives to another file type, as on Windows
+- fixed: macOS release: the application registers itself with the file types that its Info.plist declares (written at build time) and writes no second launcher bundle with the same id; an old launcher bundle of FlatCAM in ~/Applications is removed
+- changed: macOS source run: the launcher bundle has its own id (org.flatcam.evo.launcher); a launcher bundle of an older version is taken over
+
+Geometry and CNCJob tools:
+
+- changed: a Geometry object keeps its shapes only in its tools and a CNCJob keeps its program only in its tools; the single-geo / multi-geo and single-tool / multi-tool kinds are removed, with the 2 conversions of the Edit menu; an old project is converted when it opens
+- changed: a preprocessor of the user that reads p['multigeo'] or p['multitool'] must drop these names (they are no longer given)
+- changed: the Tcl command cncjob uses the generation of the Milling plugin for every Geometry object: a value that is not given comes from the tools of the object (it came from the preferences for an old single-geo object), every tool of the object is milled, and the job does not end with a move to X0 Y0 if no end point is set (give -endxy for it)
+- changed: the Tcl command join_geometry joins every Geometry objects (it refused an old single-geo with a multi-geo object)
+- changed: the bounds of a CNCJob are the bounds of all its tools (they were the bounds of the last tool)
+- changed: the Geometry Editor edits the selected tool; the tools that hold the same shapes as that tool (an old single-geo object, Gerber to Geometry with more than 1 diameter) get the edited shapes too; with tools of different shapes and no selected tool, the editor asks for a tool
+- fixed: Join as Gerber / Excellon and Extract take a shape that more than 1 tool holds only 1 time (the tracks and the drills were doubled)
+- fixed: DXF export: tools with the same shapes are 1 layer (every shape was there 1 time per tool); an object with 1 layer keeps the name of the object for it
+- fixed: an empty or bad text in Preferences > Tools Dia no longer stops the creation of every Geometry object (the factory diameter is used)
+- fixed: an old project with a tool without shapes or with an object without tools opens and can be edited, plotted and transformed
+- fixed: an old CNCJob with its program on the object and none in its tools exports that program (the export was empty)
+- fixed: the Tcl command cncjob skips a tool without settings and says so when no tool is left
+- changed: Panelize of a Geometry object no longer moves a second, unused copy of the shapes
+- changed: the list of all the shapes of a Geometry object is kept until a tool shape changes (100,000 lines: 7 ms for each read, it was 170 ms)
+- removed: the unused G-code generators generate_from_geometry_2 and generate_from_multitool_geometry of camlib.py; their tests now run the generator of the Milling plugin
+- fixed: a project saved by this release opens with its Geometry shapes and its CNCJob programs in the previous release (after a Revert of the updater the Geometry objects were empty): the saved Geometry and CNCJob objects hold the multigeo / multitool mark of the old format
+- changed: the tests of old projects use objects saved by the previous release, with the G-code of the previous release as the expected text
+
+Plugins:
+
+- fixed: Film, Cutout, 2-Sided, Markers, Subtract, Panelize, Levelling and the G-code Sender follow the selection of the Project tab again after a plugin tab was closed (the close removed their connection); the connection is made 1 time
+- fixed: Film: the union of the source shapes runs in the worker thread (it blocked the window for a big object)
+- fixed: Manual cutout: a Geometry object without the tool 1 is refused when the session starts (a mouse move raised an error)
+- fixed: the Tcl command isolate with -strategy voronoi -pad_isolation reports the pads that got cuts and the skipped pads
+
+Shell and script path completion:
+
+- fixed: a network path (\\server\share, a mapped network drive) is not listed: a server that does not answer blocked the window
+- fixed: a lone /, ~, ./ or ../ opens no list, so Enter runs the line
+- fixed: a completed name with [ ] $ ; " # is put in braces (or escaped when it has a brace)
+- changed: the script editor colors only the Tcl words, the commands with their options and the preprocessors; the file extensions, the folders and the user name stay in the auto-completer
+
 13.11.2026
 
 Linux release package:
 
 - added: the AppImage holds the update information (gh-releases-zsync, the latest release), so AppImageUpdate and similar tools can update it
 - added: the release workflow publishes a .zsync file next to the AppImage; the workflow makes it after the rename of the asset and checks the update information in the AppImage
+- changed: the Linux AppImage needs glibc 2.34 or newer (it needed 2.28): the Qt PDF runtime (PyQt6 6.12 with PyQt6-Pdf) has no wheels for older glibc; RHEL / AlmaLinux 8, Ubuntu 20.04 and Debian 11 cannot run the new AppImage; the build uses a 2.34 sysroot and the smoke test image is AlmaLinux 9
+- added: the release check also runs a PDF runtime test and a Film preview test in the frozen application (FLATCAM_RELEASE_PDF_SMOKE)
+
+Document consolidation:
+
+- added: File > Open > Open Document imports PDF, UTF-8 text and other text extensions via All Files, HTML and legacy FlatCAM projects as Document objects
+- added: a PDF Document embeds the original PDF and opens in the PDF Viewer; text and HTML files open in the built-in text editor
+- added: clicking a Document in the project tree opens or focuses its viewer; the project file saves the embedded content
+- added: a standalone Save exports a PDF Document to .pdf, plain text to .txt and formatted rich text to .html
+- changed: the Film Generate button creates a persistent _film Geometry object for SVG or a _film PDF Document for PDF; both stay in the project after closing Film
+- changed: clicking Generate again in the same Film session updates the tracked output instead of making a new object; PNG remains a transient preview
+- changed: Film Save reuses a valid artifact; if none exists or the settings changed, it generates first
+- changed: the _film Geometry of an SVG film plots its layers in their film colors; an edit in the Geometry Editor removes the film layers, so the edited geometry plots normally
+- changed: the Rules Check report (the plugin and the Tcl command check_rules) is an HTML Document
+
+Mouse wheel shortcuts:
+
+- added: the fine zoom (a 1/10 zoom step, 2D and 3D) is a shortcut of its own, Alt+Wheel by default (the 3D view used Shift+Wheel); Preferences > General > Shortcuts changes its modifiers, and the key field shows the wheel
+- added: the shortcut list shows the wheel actions of the plot area: Wheel zooms, Shift+Wheel and Ctrl+Wheel pan by a grid step (2D)
+
+Isolation:
+
+- changed: the generation of the isolation geometry is in IsolationJob, a part without widgets; the plugin keeps the widgets, reads the settings and starts the job
+- changed: the plugin can run without its widgets (IsolationJob.run_headless): the tool table and the settings come from the preferences, nothing is plotted and the run returns 'fail' when it makes no object
+- fixed: the excluded area object is read once before the run; a deleted or renamed object stops the run with an error message (it crashed the worker)
+- removed: the "area exception" setting: it always read the same check box as the exclusion (Except), so one branch never ran
+- added: Preferences > Plugins > Isolation > Trace the boundary: the plugin opens with this value (it was always on) and the Tcl command isolate takes it as its default
+- fixed: an outname of the run is also the name stored in the tool data of the new object
+
+Tcl command isolate:
+
+- changed: isolate runs the generation of the Isolation plugin, not a second copy of it; GerberObject.isolate() is removed, so the Gerber object no longer imports the plugin
+- changed: an option that is not given takes the Isolation preference (rest, combine, pad passes, simplification, forced rest, clear leftovers, trace boundary); the tool diameter is rounded to the decimals of the application, as in the tool table
+- changed: the object names follow the plugin: <gerber>_iso_combined, <gerber>_<dia>_iso<n>, <gerber>_iso_rest, <gerber>_<dia>_voronoi; -outname gives the name (several objects get the suffix of the plugin); a script that uses <gerber>_iso without -outname must change
+- added: -dia with a list and without -rest isolates with several tools in one run, as the tool table does
+- added: the options -forced_rest, -ref_obj (the Reference Object selection), -area x1,y1,x2,y2[,...] (the Area selection: 2 points are a rectangle, more points a polygon), -db_tool <name> (a tool of the Tools Database; the options of the command win over its values) and -check_valid
+- fixed: without -tool_shape, the run keeps the tip shape of its tools (the preference replaced the shape of a database tool)
+- changed: the examples of the Tcl help use the new names (cncjob, export_gcode, geocutout)
+
+Shell and script auto-completer:
+
+- changed: the auto-completer reads its words when the application starts: the Tcl words from the interpreter (the Tcl 9 commands included), the Tcl commands with their options and arguments from the command classes, and the preprocessors (the user's own included); a new command, option or preprocessor needs no list edit
+- removed: the fixed word lists: 746 names of the Tcl C library that a script can not use, the old list of the Tcl commands and the option words
+- added: the booleans, the file types of the application (FlatPrj, FlatConfig, FlatScript, FlatDoc), the file extensions, the important folders of the computer and the name of the user
+- changed: the auto-completer list in the Preferences is only for the user's own words (empty by default); a word can have spaces (they were removed)
+
+Other:
+
+- changed: the README is a short overview (170 lines, it had 791) with links to the user manual wiki, the downloads, the video tutorials and the changelog
+- changed: Help > About: more contributor names; the handle @grbf is now @grbd
 
 13.11.2026
 

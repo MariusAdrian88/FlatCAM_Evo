@@ -196,9 +196,6 @@ class HybridGeoExc:
         self.obj_options['xmax'] = 0
         self.obj_options['ymax'] = 0
 
-        self.multigeo = True
-        self.multitool = True
-
 
 def tool_setting_problems(data, generation=False):
     """
@@ -1259,12 +1256,7 @@ class ToolMilling(Geometry, AppTool):
         self.ui.tools_table_mill_geo.setMinimumHeight(self.ui.tools_table_mill_geo.getHeight())
         self.ui.tools_table_mill_geo.setMaximumHeight(self.ui.tools_table_mill_geo.getHeight())
 
-        # disable the Plot column in Tool Table if the geometry is SingleGeo as it is not needed
-        # and can create some problems
-        if self.target_obj and self.target_obj.multigeo is True:
-            self.ui.tools_table_mill_geo.setColumnHidden(4, False)
-        else:
-            self.ui.tools_table_mill_geo.setColumnHidden(4, True)
+        self.ui.tools_table_mill_geo.setColumnHidden(4, False)
 
         self.ui.tools_table_mill_geo.selectAll()
 
@@ -1518,6 +1510,8 @@ class ToolMilling(Geometry, AppTool):
         if obj is not None and obj.tools:
             last_key = list(obj.tools.keys())[-1]
             self.to_form(storage=self._form_tool_data(obj, last_key))
+            if obj.kind == 'geometry':
+                self.general_fields_to_form(obj)
 
         self.on_level_changed(self.ui.level.isChecked())
 
@@ -1563,11 +1557,22 @@ class ToolMilling(Geometry, AppTool):
                 self.ui.generate_cnc_button.setDisabled(False)
                 last_key = list(self.target_obj.tools.keys())[-1]
                 self.to_form(storage=self._form_tool_data(self.target_obj, last_key))
+                if self.ui.target_radio.get_value() == 'geo':
+                    self.general_fields_to_form(self.target_obj)
             else:
                 self.ui.param_frame.setDisabled(True)
                 self.ui.generate_cnc_button.setDisabled(True)
 
         self.set_photocarve_ui()
+
+    GENERAL_FIELDS = ('tools_mill_toolchange', 'tools_mill_toolchangez', 'tools_mill_toolchangexy',
+                      'tools_mill_endxy', 'tools_mill_endz', 'tools_mill_ppname_g', 'tools_mill_area_exclusion',
+                      'tools_mill_area_shape', 'tools_mill_area_strategy', 'tools_mill_area_overz')
+
+    def general_fields_to_form(self, obj):
+        """Load job-wide settings from the first tool, including legacy setting names."""
+        data = self._form_tool_data(obj, next(iter(obj.tools)))
+        self.to_form(storage={key: data[key] for key in self.GENERAL_FIELDS if key in data})
 
     def fill_pp_combo(self, allowed=None):
         """
@@ -2142,10 +2147,7 @@ class ToolMilling(Geometry, AppTool):
         self.current_row = t_table.currentRow()
 
         for storage_key in dict_storage:
-            if storage_key in self.form_fields and storage_key not in \
-                    ["tools_mill_toolchange", "tools_mill_toolchangez", "tools_mill_endxy", "tools_mill_endz",
-                     "tools_mill_ppname_g", "tools_mill_area_exclusion",
-                     "tools_mill_area_shape", "tools_mill_area_strategy", "tools_mill_area_overz"]:
+            if storage_key in self.form_fields and storage_key not in self.GENERAL_FIELDS:
 
                 try:
                     self.form_fields[storage_key].set_value(dict_storage[storage_key])
@@ -2809,17 +2811,16 @@ class ToolMilling(Geometry, AppTool):
                 self.ui_connect()
                 self.build_ui_sig.emit()
                 return
-            # if no tool is left after the delete, we move the solid_geometry as a property of the object
-            # otherwise there will be nothing to hold it
             if tools and all(int(key) in uids for key in tools):
-                self.target_obj.solid_geometry = deepcopy_keep_geometry(tools[next(iter(tools))]['solid_geometry'])
+                self.app.inform.emit('[WARNING_NOTCL] %s' % _("The object must keep at least one tool."))
+                self.ui_connect()
+                return
             for key in [key for key in tools if int(key) in uids]:
                 tools.pop(key, None)
         else:
-            # we delete all tools in tools_table_mill_geo; the geometry stays in the object
-            if tools:
-                self.target_obj.solid_geometry = deepcopy_keep_geometry(tools[next(iter(tools))]['solid_geometry'])
-            tools.clear()
+            self.app.inform.emit('[WARNING_NOTCL] %s' % _("The object must keep at least one tool."))
+            self.ui_connect()
+            return
 
         self.app.plot_all()
 
@@ -2837,16 +2838,7 @@ class ToolMilling(Geometry, AppTool):
         self.app.inform.emit('[success] %s' % _("Tool was deleted in Tool Table."))
 
         obj_active = self.target_obj
-        # if the object was MultiGeo, and now it has no tool at all (therefore no geometry)
-        # we make it back SingleGeo
-        if self.ui.tools_table_mill_geo.rowCount() <= 0:
-            obj_active.multigeo = False
-            obj_active.obj_options['xmin'] = 0
-            obj_active.obj_options['ymin'] = 0
-            obj_active.obj_options['xmax'] = 0
-            obj_active.obj_options['ymax'] = 0
-
-        if obj_active.multigeo is True:
+        if obj_active.kind == 'geometry':
             try:
                 xmin, ymin, xmax, ymax = obj_active.bounds()
                 obj_active.obj_options['xmin'] = xmin
@@ -3125,7 +3117,7 @@ class ToolMilling(Geometry, AppTool):
         """
         Creates a multi-tool CNCJob out of this Geometry object.
         The actual work is done by the target CNCJobObject object's
-        `generate_from_geometry_2()` method.
+        `geometry_tool_gcode_gen()` method.
 
         :param geo_obj:         a Geometry object that is used as the parameter for this function
         :param toolchange:
@@ -3200,7 +3192,7 @@ class ToolMilling(Geometry, AppTool):
         tools_dict = self.sel_tools if tools_dict is None else tools_dict
         # Tcl jobs can reach this entry without opening the plugin. Multi-geometry plugin jobs use the form's
         # preprocessor, so only warn here when the resolved tool preprocessor will be used.
-        self._complete_milling_tool_data(tools_dict, tool_pp_used=from_tcl or not geo_obj.multigeo)
+        self._complete_milling_tool_data(tools_dict, tool_pp_used=from_tcl)
         if not self._tool_settings_allow_a_job(tools_dict):
             return None
 
@@ -3262,17 +3254,15 @@ class ToolMilling(Geometry, AppTool):
         overrides = {}
         if not from_tcl:
             # not the custom offset: the form shows only the value of the selected row, each tool keeps its own value
-            fields = {}
-            if geo_obj.multigeo:
-                fields.update({
-                    'tools_mill_toolchangez': 'toolchangez_entry',
-                    'tools_mill_toolchangexy': 'toolchangexy_entry',
-                    'tools_mill_endz': 'endz_entry', 'tools_mill_endxy': 'endxy_entry',
-                    'tools_mill_z_p_depth': 'pdepth_entry', 'tools_mill_feedrate_probe': 'feedrate_probe_entry',
-                    'tools_mill_probe_plate': 'probe_plate_entry',
-                    'tools_mill_area_exclusion': 'exclusion_cb', 'tools_mill_area_shape': 'area_shape_radio',
-                    'tools_mill_area_strategy': 'strategy_radio', 'tools_mill_area_overz': 'over_z_entry',
-                    'tools_mill_ppname_g': 'pp_geo_name_cb'})
+            fields = {
+                'tools_mill_toolchangez': 'toolchangez_entry',
+                'tools_mill_toolchangexy': 'toolchangexy_entry',
+                'tools_mill_endz': 'endz_entry', 'tools_mill_endxy': 'endxy_entry',
+                'tools_mill_z_p_depth': 'pdepth_entry', 'tools_mill_feedrate_probe': 'feedrate_probe_entry',
+                'tools_mill_probe_plate': 'probe_plate_entry',
+                'tools_mill_area_exclusion': 'exclusion_cb', 'tools_mill_area_shape': 'area_shape_radio',
+                'tools_mill_area_strategy': 'strategy_radio', 'tools_mill_area_overz': 'over_z_entry',
+                'tools_mill_ppname_g': 'pp_geo_name_cb'}
             for key, widget in fields.items():
                 try:
                     overrides[key] = deepcopy(getattr(self.ui, widget).get_value())
@@ -3282,7 +3272,7 @@ class ToolMilling(Geometry, AppTool):
 
         return {
             'geo_obj': geo_obj, 'source_obj': source_obj, 'outname': outname, 'tools_dict': tools_dict,
-            'multigeo': geo_obj.multigeo, 'used_tools': list(tools_dict),
+            'used_tools': list(tools_dict),
             'bounds': {'xmin': xmin, 'ymin': ymin, 'xmax': xmax, 'ymax': ymax},
             'seg_x': seg_x, 'seg_y': seg_y, 'toolchange': toolchange,
             'disable_offset': disable_offset, 'from_tcl': from_tcl,
@@ -3335,101 +3325,11 @@ class ToolMilling(Geometry, AppTool):
             return None
         return offset
 
-    def _initialize_single_geometry_cnc_job(self, new_cncjob_obj, app_obj, context):
-        self.app.log.debug("Creating a CNCJob out of a single-geometry")
+    def _initialize_cnc_job(self, new_cncjob_obj, app_obj, context):
+        self.app.log.debug("Creating a CNCJob out of Geometry")
         assert new_cncjob_obj.kind == 'cncjob', "Initializer expected a CNCJobObject, got %s" % type(new_cncjob_obj)
         geo_obj, tools_dict = context['geo_obj'], context['tools_dict']
         new_cncjob_obj.obj_options.update(context['bounds'])
-        new_cncjob_obj.multitool = True
-        new_cncjob_obj.multigeo = False
-        new_cncjob_obj.tools.clear()
-        new_cncjob_obj.seg_x = context['seg_x']
-        new_cncjob_obj.seg_y = context['seg_y']
-        new_cncjob_obj.z_p_depth = float(context['geo_options']['tools_mill_z_p_depth'])
-        new_cncjob_obj.probe_plate = float(context['geo_options'].get('tools_mill_probe_plate', 0.0))
-        new_cncjob_obj.feedrate_probe = float(context['geo_options']['tools_mill_feedrate_probe'])
-        used_tools = context['used_tools']
-        new_cncjob_obj.used_tools = used_tools
-        total_gcode = ''
-        for tool_cnt, tool_uid_key in enumerate(used_tools, 1):
-            data = tools_dict[tool_uid_key]['data']
-            # the tool record of the job: its own data (the diameter and the offset change), the rest is shared
-            dia_cnc_dict = dict(tools_dict[tool_uid_key], data=dict(data))
-            tooldia_val = app_obj.dec_format(float(data['tools_mill_tooldia']), context['decimals'])
-            dia_cnc_dict['data']['tools_mill_tooldia'] = tooldia_val
-            data.setdefault('tools_mill_optimization_type', context['geo_options']['tools_mill_optimization_type'])
-
-            offset_type = dia_cnc_dict['data']['tools_mill_offset_type']
-            tool_offset = MillingGen.milling_offset(offset_type, tooldia_val, 0.0)
-            if offset_type == 3:
-                offset_value = self._custom_offset(app_obj, data['tools_mill_offset_value'])
-                if offset_value is None:
-                    return 'fail'
-                tool_offset = MillingGen.milling_offset(offset_type, tooldia_val, offset_value)
-            if context['disable_offset'] is True:
-                tool_offset = 0.0
-            # the Isolation plugin / GerberObject.isolate mark their generated paths as an already offset centerline.
-            # The tools_iso_* keys and the informative job type are not markers: every Milling tool can carry them.
-            if data.get('tools_iso_centerline') is True:
-                tool_offset = 0.0
-            dia_cnc_dict['data']['tools_mill_offset_value'] = tool_offset
-            tool_solid_geometry = geo_obj.solid_geometry
-            new_cncjob_obj.coords_decimals = context['options']['cncjob_coords_decimals']
-            new_cncjob_obj.fr_decimals = context['options']['cncjob_fr_decimals']
-            new_cncjob_obj.obj_options['tooldia'] = tooldia_val
-            new_cncjob_obj.obj_options['type'] = 'Geometry'
-            new_cncjob_obj.obj_options['tool_dia'] = tooldia_val
-
-            glob_tol = float(context['options']['global_tolerance'])
-            tol = glob_tol / 20 if context['units'].lower() == 'in' else glob_tol
-            # append=False: the returned G-code (and the parsed one below) holds only this tool
-            # on failure the result is the bare 'fail' string, not a (gcode, start_gcode) pair
-            gen = new_cncjob_obj.generate_from_geometry_2(
-                geo_obj, append=False, tooldia=tooldia_val, offset=tool_offset, tolerance=tol,
-                z_cut=data['tools_mill_cutz'], z_move=data['tools_mill_travelz'],
-                feedrate=data['tools_mill_feedrate'], feedrate_z=data['tools_mill_feedrate_z'],
-                feedrate_rapid=data['tools_mill_feedrate_rapid'], spindlespeed=data['tools_mill_spindlespeed'],
-                spindle_dir=data.get('tools_mill_spindledir', context['options']['tools_mill_spindledir']),
-                dwell=data['tools_mill_dwell'], dwelltime=data['tools_mill_dwelltime'],
-                laser_min_power=data['tools_mill_min_power'], laser_on_code=data['tools_mill_laser_on'],
-                multidepth=data['tools_mill_multidepth'] and 'laser' not in str(data['tools_mill_ppname_g']).lower(),
-                depthpercut=data['tools_mill_depthperpass'],
-                extracut=data['tools_mill_extracut'], extracut_length=data['tools_mill_extracut_length'],
-                startz=data['tools_mill_startz'], endz=data['tools_mill_endz'], endxy=data['tools_mill_endxy'],
-                toolchange=data['tools_mill_toolchange'], toolchangez=data['tools_mill_toolchangez'],
-                toolchangexy=data['tools_mill_toolchangexy'], pp_geometry_name=data['tools_mill_ppname_g'],
-                area_exclusion=data.get('tools_mill_area_exclusion', context['options']['tools_mill_area_exclusion']),
-                tool_no=tool_cnt, is_first=tool_uid_key == used_tools[0],
-                opt_type=data.get('tools_mill_optimization_type'), opt_time=data.get('tools_mill_search_time'))
-            if gen == 'fail':
-                self.app.log.debug("GeometryObject.mtool_gen_cncjob() --> generate_from_geometry2() failed")
-                return 'fail'
-            res, start_gcode = gen
-            dia_cnc_dict['gcode'] = res
-            if start_gcode != '':
-                new_cncjob_obj.gc_start = start_gcode
-            total_gcode += res
-            self.app.inform.emit('[success] %s' % _("G-Code parsing in progress..."))
-            parsed = new_cncjob_obj.gcode_parse(tool_data=data)
-            # the job keeps this list as its own parsed G-code until the next tool; the tool gets a list of its own
-            dia_cnc_dict['gcode_parsed'] = list(parsed) if isinstance(parsed, list) else parsed
-            app_obj.inform.emit('[success] %s' % _("G-Code parsing finished..."))
-            dia_cnc_dict['solid_geometry'] = deepcopy_keep_geometry(tool_solid_geometry)
-            app_obj.inform.emit('[success] %s...' % _("Finished G-Code processing"))
-            new_cncjob_obj.tools[tool_uid_key] = dia_cnc_dict
-        # the job itself keeps the G-code of all the tools, as before
-        new_cncjob_obj.gcode = total_gcode
-        if len(used_tools) > 1:
-            new_cncjob_obj.gcode_parse(tool_data=data)
-        new_cncjob_obj.source_file = new_cncjob_obj.gc_start + total_gcode
-
-    def _initialize_multi_geometry_cnc_job(self, new_cncjob_obj, app_obj, context):
-        self.app.log.debug("Creating a CNCJob out of a multi-geometry")
-        assert new_cncjob_obj.kind == 'cncjob', "Initializer expected a CNCJobObject, got %s" % type(new_cncjob_obj)
-        geo_obj, tools_dict = context['geo_obj'], context['tools_dict']
-        new_cncjob_obj.obj_options.update(context['bounds'])
-        new_cncjob_obj.multitool = True
-        new_cncjob_obj.multigeo = True
         new_cncjob_obj.tools.clear()
         new_cncjob_obj.seg_x = context['seg_x']
         new_cncjob_obj.seg_y = context['seg_y']
@@ -3486,6 +3386,7 @@ class ToolMilling(Geometry, AppTool):
 
             # Keep the original shared-storage updates after the per-tool copy and polishing.
             data.update(context['overrides'])
+            dia_cnc_dict['data'].update(context['overrides'])
             offset_type = dia_cnc_dict['data']['tools_mill_offset_type']
             tool_offset = MillingGen.milling_offset(offset_type, tooldia_val, 0.0)
             if offset_type == 3:
@@ -3495,7 +3396,7 @@ class ToolMilling(Geometry, AppTool):
                 tool_offset = MillingGen.milling_offset(offset_type, tooldia_val, offset_value)
             if context['disable_offset'] is True:
                 tool_offset = 0.0
-            # the Isolation plugin / GerberObject.isolate mark their generated paths as an already offset centerline.
+            # the Isolation plugin and the Tcl isolate command mark their generated paths as an already offset centerline.
             # The tools_iso_* keys and the informative job type are not markers: every Milling tool can carry them.
             if data.get('tools_iso_centerline') is True:
                 tool_offset = 0.0
@@ -3540,8 +3441,7 @@ class ToolMilling(Geometry, AppTool):
         new_cncjob_obj.source_file = total_gcode
 
     def _submit_cnc_job_creation(self, context, plot, use_thread):
-        initializer = self._initialize_multi_geometry_cnc_job if context['multigeo'] else \
-            self._initialize_single_geometry_cnc_job
+        initializer = self._initialize_cnc_job
         if context['geo_obj'].obj_options.get('photocarve'):
             from appPlugins.ToolPhotoCarve.PhotoCarveGcode import make_photocarve_cncjob
             initializer = make_photocarve_cncjob

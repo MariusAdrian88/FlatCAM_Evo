@@ -26,22 +26,17 @@ def gerber(tools, units='MM', name='grb'):
     clears = [el['clear'] for t in tools.values() for el in t['geometry'] if 'clear' in el]
     if clears:
         solid = solid.difference(unary_union(clears))          # the app keeps solid_geometry polarity resolved
-    return NS(kind='gerber', tools=tools, solid_geometry=solid, multigeo=False,
+    return NS(kind='gerber', tools=tools, solid_geometry=solid,
               obj_options={'units': units, 'name': name})
 
 
 def geometry(shapes, units='MM', name='geo'):
-    return NS(kind='geometry', tools={}, solid_geometry=shapes, multigeo=False,
+    return NS(kind='geometry', tools={1: {'solid_geometry': shapes}}, solid_geometry=shapes,
               obj_options={'units': units, 'name': name})
 
 
-def multigeo(shapes_by_uid, units='MM'):
-    tools = {uid: {'solid_geometry': s} for uid, s in shapes_by_uid.items()}
-    return NS(kind='geometry', tools=tools, solid_geometry=[], multigeo=True, obj_options={'units': units})
-
-
 def excellon(tools, units='MM', name='exc'):
-    return NS(kind='excellon', tools=tools, solid_geometry=[], multigeo=False,
+    return NS(kind='excellon', tools=tools, solid_geometry=[],
               obj_options={'units': units, 'name': name})
 
 
@@ -137,7 +132,8 @@ def plugin(fc, monkeypatch):
         fc.collection.delete_by_name(name)
     fc.history.clear()
     for shapes, name in ((box(0, 0, 10, 10), 'tgt'), (box(4, 4, 6, 6), 'cut')):
-        fc.app_obj.new_object('geometry', name, lambda o, a, s=shapes: setattr(o, 'solid_geometry', [s]), plot=False)
+        fc.app_obj.new_object('geometry', name,
+                              lambda o, a, s=shapes: o.tools[1].update(solid_geometry=[s]), plot=False)
     return fc.sub_tool
 
 
@@ -183,4 +179,3 @@ def test_undo_brings_back_target_and_subtractors_in_one_step(fc, plugin):
     _pump(fc, plugin)
     assert fc.collection.get_names() == ['tgt']
     assert sum(g.area for g in fc.collection.get_by_name('tgt').solid_geometry) < 100.0
-

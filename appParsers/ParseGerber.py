@@ -130,7 +130,6 @@ class Gerber(Geometry):
 
         app = cast(App, app)
         self.app: App = app
-        self.multigeo = None
 
         # How to approximate a circle with lines.
         # The segments of each circle follow the preferences (see _circle_steps_of()); steps_per_circle is the fixed
@@ -2628,7 +2627,6 @@ class Gerber(Geometry):
 
         self.app.log.debug("Parsing DXF file geometry into a Gerber object geometry.")
 
-        self.multigeo = True
 
         # Parse into list of shapely objects
         try:

@@ -1,0 +1,57 @@
+# Durable delivery for the local, git-ignored Windows build script.
+# From the repository root, with the original script present:
+#   git apply --check scripts/make_freeze_pdf.patch
+#   git apply scripts/make_freeze_pdf.patch
+# Already applied locally; --reverse --check verifies that state without changing files.
+# It keeps the Qt PDF and print support files, collects the PDF modules, and runs scripts/check_release.py on
+# FlatCAM-cli.exe after the build (use --no-check to skip). The check does not print on a real printer.
+diff --git a/make_freeze.py b/make_freeze.py
+--- a/make_freeze.py
++++ b/make_freeze.py
+@@ -63,9 +63,7 @@ PRUNE_PATTERNS = (
+     # build-time files: old wheels in assets, gettext sources (the app reads only the .mo files)
+     "*.whl",
+     "LC_MESSAGES/*.po",
+-    # Qt: PDF image plugin and its DLL, unused image formats, TLS, TUIO touch, network information, minimal platform
+-    "Qt6/bin/Qt6Pdf.dll",
+-    "imageformats/qpdf.dll",
++    # Qt: unused image formats, TLS, TUIO touch, network information, minimal platform
+     "imageformats/qjpeg.dll",
+     "imageformats/qwebp.dll",
+     "imageformats/qtiff.dll",
+@@ -94,7 +92,7 @@ PRUNE_PATTERNS = (
+ # modules and plugins load, directly or through other DLLs.
+ # multimedia: the camera of the G-code Sender (QtMultimedia); its ffmpeg plugin keeps the av*/sw* DLLs in bin.
+ # Without the folder Qt prints "No QtMultimedia backends found" and the camera shows no video.
+-QT_PLUGIN_DIRS = ("generic", "iconengines", "imageformats", "multimedia", "platforms", "styles")
++QT_PLUGIN_DIRS = ("generic", "iconengines", "imageformats", "multimedia", "platforms", "printsupport", "styles")
+ 
+ # These remain unset until a build is requested. Tests can replace either
+ # value without installing cx_Freeze.
+@@ -195,6 +193,8 @@ def create_main_freezer(target_dir: Path, root: Path = ROOT, icon=None):
+         target_dir=Path(target_dir),
+         include_files=get_main_include_files(root),
+         packages=main_packages(),
++        # the PDF Viewer, the Film previews and printing; the same list as scripts/freeze_release.py
++        includes=["PyQt6.QtPdf", "PyQt6.QtPdfWidgets", "PyQt6.QtPrintSupport", "PyQt6.QtSvg"],
+         excludes=list(_MAIN_EXCLUDES),
+     )
+ 
+@@ -504,9 +504,17 @@ def main(argv: list[str] | None = None) -> int:
+     parser.add_argument("--zip", action="store_true",
+                         help="also write the GitHub release asset (flatcam-evo-<App.version>-win64-update.zip) next "
+                              "to the build")
++    parser.add_argument("--no-check", action="store_true",
++                        help="do not start the frozen build for the smoke check (scripts/check_release.py)")
+     args = parser.parse_args(argv)
+     output_dir = build(Path(args.build_dir) if args.build_dir else None)
+     print(f"Frozen build created at: {output_dir}")
++    if not args.no_check:
++        # the same headless smoke check as the Linux and macOS release jobs: startup, PDF runtime, Film previews,
++        # on the pruned tree; FlatCAM-cli.exe has the console that the check reads
++        from scripts.check_release import check_release
++        check_release(output_dir / CLI_EXE_NAME)
++        print("Smoke check passed")
+     if args.zip:
+         archive = make_update_zip(output_dir)
+         print(f"Update archive created at: {archive} ({archive.stat().st_size / 2**20:.1f} MiB, "

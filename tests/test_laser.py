@@ -112,19 +112,6 @@ def test_the_warning_follows_the_laser_off_lines_of_each_laser_preprocessor(pp_n
     assert len(laser_warnings(app)) == (1 if 'laser OFF' in gcode else 0)
 
 @pytest.mark.parametrize('min_power', [250])
-def test_single_geometry_job_warns_when_the_laser_off_lines_keep_the_laser_on(min_power):
-    app = laser_app()
-    geo = Geometry(app)
-    geo.solid_geometry = mill_paths()
-    job = laser_job(app)
-    gcode, __ = job.generate_from_geometry_2(geo, tooldia=0.1, tolerance=0.001, z_cut=0, z_move=2, feedrate=1000,
-                                             feedrate_z=100, feedrate_rapid=1000, spindlespeed=500,
-                                             laser_min_power=min_power, pp_geometry_name='GRBL_laser',
-                                             is_first=True)
-    assert ('(laser OFF)' in gcode) is bool(min_power)
-    assert len(laser_warnings(app)) == (1 if min_power else 0)
-
-@pytest.mark.parametrize('min_power', [250])
 def test_drillcncjob_tcl_command_warns_when_the_laser_off_lines_keep_the_laser_on(min_power):
     from tclCommands.TclCommandDrillcncjob import TclCommandDrillcncjob
 

@@ -1025,8 +1025,7 @@ class GeometryObjectUI(ObjectUI):
               "L = laser")
         )
         self.geo_tools_table.horizontalHeaderItem(6).setToolTip(
-            _("Plot column. It is visible only for MultiGeo Geometry objects.\n"
-              "Enable plot for the selected tool geometry."))
+            _("Enable plot for the selected tool geometry."))
 
         # #############################################################################################################
         # PLUGINS Frame
@@ -1576,6 +1575,9 @@ class DocumentObjectUI(ObjectUI):
         self.name_entry.setFocusPolicy(QtCore.Qt.FocusPolicy.StrongFocus)
         self.name_hlay.addWidget(name_label)
         self.name_hlay.addWidget(self.name_entry)
+
+        self.type_label = FCLabel()
+        self.custom_box.addWidget(self.type_label)
 
         # Plot CB - this is added only for compatibility; other FlatCAM objects expect it, the mechanism is already
         # established, and I don't want to change it right now

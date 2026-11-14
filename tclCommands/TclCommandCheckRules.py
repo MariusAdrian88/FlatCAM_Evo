@@ -136,6 +136,7 @@ class TclCommandCheckRules(TclCommand):
 
             def init(new_obj, app_obj):
                 new_obj.source_file = report
+                new_obj.document_type = 'html'
                 new_obj.read_only = True
 
             self.check_result(self.app.app_obj.new_object('document', str(args['outname']), init, plot=False))

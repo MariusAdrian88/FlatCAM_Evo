@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import tempfile
+import runpy
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -120,6 +121,34 @@ class TestMakeFreeze(unittest.TestCase):
         self.assertNotIn("build.py", names)
         self.assertIn("updater/FlatCAMUpdater.exe", names)
 
+    def test_pruning_keeps_pdf_svg_and_print_runtime_dependencies(self):
+        root = Path(self._tempdir.name)
+        qt = root / 'lib/PyQt6/Qt6'
+        required = [
+            qt / 'bin/Qt6Pdf.dll', qt / 'bin/Qt6Svg.dll', qt / 'bin/Qt6PrintSupport.dll',
+            qt / 'plugins/imageformats/qpdf.dll', qt / 'plugins/printsupport/windowsprintersupport.dll',
+            qt.parent / 'QtPdf.pyd', qt.parent / 'QtPdfWidgets.pyd', qt.parent / 'QtPrintSupport.pyd',
+        ]
+        for path in required:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b'required runtime')
+        unused = qt / 'bin/Qt6Unused.dll'
+        unused.write_bytes(b'unused runtime')
+
+        def dependencies(path):
+            return {
+                'QtPdf.pyd': [qt / 'bin/Qt6Pdf.dll'],
+                'QtPdfWidgets.pyd': [qt / 'bin/Qt6Pdf.dll'],
+                'QtPrintSupport.pyd': [qt / 'bin/Qt6PrintSupport.dll'],
+                'Qt6Pdf.dll': [qt / 'bin/Qt6Svg.dll'],
+            }.get(Path(path).name, [])
+
+        make_freeze.prune_build_dir(root)
+        make_freeze.trim_qt_runtime(root, dependencies=dependencies)
+        for path in required:
+            self.assertTrue(path.is_file(), str(path.relative_to(root)))
+        self.assertFalse(unused.exists())
+
 
     def setUp(self):
         import tempfile
@@ -132,9 +161,44 @@ class TestMakeFreeze(unittest.TestCase):
 
 class TestReleasePackaging(unittest.TestCase):
 
+    def test_pdf_runtime_smoke_loads_and_renders_owned_bytes(self):
+        from PyQt6 import QtWidgets
+        from appCommon.ReleaseSmoke import pdf_runtime_smoke
+        application = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+        pdf_runtime_smoke(application)
+
+    def test_linux_release_accepts_glibc_234_and_rejects_newer_requirements(self):
+        script = Path(__file__).resolve().parents[1] / 'scripts/check_glibc.py'
+        for version in ('2.34', '2.35'):
+            with self.subTest(version=version), tempfile.TemporaryDirectory() as folder:
+                (Path(folder) / 'library.so').write_bytes(b'\x7fELF')
+                result = SimpleNamespace(stdout='Name: GLIBC_' + version)
+                with patch('sys.argv', [str(script), folder]), patch('subprocess.run', return_value=result):
+                    if version == '2.34':
+                        runpy.run_path(str(script), run_name='__main__')
+                    else:
+                        with self.assertRaises(SystemExit):
+                            runpy.run_path(str(script), run_name='__main__')
+
+    def test_release_bundle_declares_the_document_types_that_the_app_registers(self):
+        from scripts import freeze_release
+        from appCommon.RegisterFileKeywords import Extensions, RegisterFK
+        plist = dict(freeze_release.mac_document_types())
+        docs = {d['CFBundleTypeName']: d for d in plist['CFBundleDocumentTypes']}
+        self.assertEqual(docs['FlatCAM Project']['LSItemContentTypes'], [RegisterFK.ASSOC_UTI['project']])
+        self.assertEqual(docs['FlatCAM Config']['LSHandlerRank'], 'Owner')
+        self.assertEqual(docs['Gerber file']['LSHandlerRank'], 'Alternate')
+        self.assertEqual(docs['Gerber file']['CFBundleTypeExtensions'], Extensions.grb_list)
+        self.assertEqual(docs['Excellon file']['CFBundleTypeExtensions'], Extensions.exc_list)
+        self.assertEqual(docs['G-code file']['CFBundleTypeExtensions'], Extensions.gcode_list)
+        exported = {e['UTTypeIdentifier']: e['UTTypeTagSpecification']['public.filename-extension']
+                    for e in plist['UTExportedTypeDeclarations']}
+        self.assertEqual(exported, {'org.flatcam.evo.project': ['flatprj'], 'org.flatcam.evo.config': ['flatconfig']})
+
     def test_release_rejects_missing_or_corrupt_bundled_resources(self):
         catalog_data = (Path(__file__).resolve().parents[1] / 'locale/de/LC_MESSAGES/strings.mo').read_bytes()
-        for state in ('valid', 'missing_preprocessor', 'missing_translation', 'corrupt_translation'):
+        for state in ('valid', 'missing_preprocessor', 'missing_translation', 'corrupt_translation',
+                      'missing_pdf_smoke'):
             with self.subTest(state=state), tempfile.TemporaryDirectory() as folder:
                 root = Path(folder)
                 executable = root / 'FlatCAM'
@@ -147,7 +211,10 @@ class TestReleasePackaging(unittest.TestCase):
                     catalog = root / 'lib/locale/de/LC_MESSAGES/strings.mo'
                     catalog.parent.mkdir(parents=True)
                     catalog.write_bytes(b'corrupt' if state == 'corrupt_translation' else catalog_data)
-                result = SimpleNamespace(returncode=0, stdout='FLATCAM_RELEASE_SMOKE_OK', stderr='')
+                stdout = 'FLATCAM_RELEASE_SMOKE_OK'
+                if state != 'missing_pdf_smoke':
+                    stdout += '\nFLATCAM_PDF_RUNTIME_SMOKE_OK\nFLATCAM_FILM_PREVIEW_SMOKE_OK'
+                result = SimpleNamespace(returncode=0, stdout=stdout, stderr='')
                 with patch('scripts.check_release.subprocess.run', return_value=result):
                     if state == 'valid':
                         check_release(executable)

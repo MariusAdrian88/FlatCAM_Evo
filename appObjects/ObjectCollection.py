@@ -527,6 +527,7 @@ class ObjectCollection(QtCore.QAbstractItemModel):
         # self.view.activated.connect(self.on_item_activated)
         self.view.keyPressed.connect(self.app.ui.keyPressEvent)
         self.view.mouseReleased.connect(self.on_list_click_release)
+        self.view.clicked.connect(self.on_list_click)
         # self.view.clicked.connect(self.on_mouse_down)
         self.view.customContextMenuRequested.connect(self.on_menu_request)
 
@@ -1040,6 +1041,8 @@ class ObjectCollection(QtCore.QAbstractItemModel):
         # ############################################################################################################
         if obj.kind == 'script':
             obj._script_collection = self
+        elif obj.kind == 'document':
+            obj._document_collection = self
         if obj.kind != 'script' or getattr(obj, '_load_batch', None) is None:
             obj.set_ui(obj.ui_type(app=self.app))
             obj.build_ui()
@@ -1142,6 +1145,9 @@ class ObjectCollection(QtCore.QAbstractItemModel):
         return None
 
     def close_object_editor(self, obj):
+        if obj.kind == 'document':
+            obj.close_editor()
+            return
         tabs = self.app.ui.plot_tab_area
         if obj.kind == 'script':
             editor = getattr(obj, 'script_editor_tab', None)
@@ -1510,12 +1516,23 @@ class ObjectCollection(QtCore.QAbstractItemModel):
             return
 
         # make sure that if the Properties Tab is selected then the Object UI is updated (built)
-        self.app.on_notebook_tab_changed()
+        active_obj = self.get_active()
+        if active_obj is not None and active_obj.kind == 'document':
+            # Selection refreshes Properties, not the Document viewer/editor.
+            if self.app.ui.notebook.currentWidget() is self.app.ui.properties_tab:
+                FlatCAMObj.build_ui(active_obj)
+        else:
+            self.app.on_notebook_tab_changed()
 
         # don't emit the signal if there is more than one objects selected
         # this signal is intended to be emitted for a single selection in the collection view
         if len(self.get_selected()) == 1:
             self.app.proj_selection_changed.emit(current, previous)
+
+    def on_list_click(self, index):
+        obj = index.internalPointer().obj
+        if obj is not None and obj.kind == 'document':
+            self.on_item_activated(index)
 
     def on_list_click_release(self, button):
         # works only for mouse button 1 (left click)

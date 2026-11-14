@@ -43,6 +43,19 @@ class AppTool(QtWidgets.QWidget):
 
         self.menuAction = None
 
+    def connect_selection_signal(self):
+        """
+        Connect on_object_selection_changed() to app.proj_selection_changed, exactly 1 time. The close of the
+        plugin tab disconnects every slot of that signal, so a plugin calls this at each run: a slot that is still
+        connected is removed first, a second call makes no second connection.
+        """
+        signal = self.app.proj_selection_changed
+        try:
+            signal.disconnect(self.on_object_selection_changed)
+        except (TypeError, RuntimeError, AttributeError):
+            pass
+        signal.connect(self.on_object_selection_changed)
+
     def set_project_collection(self, old_collection, collection):
         """Move project selectors without rebuilding the plugin. run() resets the tool's form when opened."""
         if old_collection is collection:

@@ -562,37 +562,31 @@ def copy_gerber_attributes(dst, src) -> None:
 # Geometry
 # ---------------------------------------------------------------------------------------------------------------
 
-def panelize_geometry(src_tools: Dict[Any, dict], src_solid, multigeo: bool, offsets: Iterable[Offset],
+def panelize_geometry(src_tools: Dict[Any, dict], src_solid, offsets: Iterable[Offset],
                       abort: Optional[Callable[[], bool]] = None,
                       progress: Optional[Callable[[int, int, str], None]] = None) -> Tuple[Dict[Any, dict], list]:
     """
-    Copies the solid_geometry of a Geometry (and, if ``multigeo``, the 'solid_geometry' of every tool) to every
+    Copies the aggregate and the 'solid_geometry' of every tool to every
     offset. Multi* parts are split, so the result is a flat list of simple geometries. Empty geometries are dropped
     from the tools, kept in the composed solid_geometry (as before).
-
-    A non-multigeo Geometry keeps its tools unchanged (deep copy).
 
     :return: (new tools, new flat solid_geometry list)
     """
     tools = {}
     for tid, tool in src_tools.items():
-        if multigeo:
-            new_tool = {k: deepcopy(v) for k, v in tool.items() if k != 'solid_geometry'}
-            new_tool['solid_geometry'] = []
-        else:
-            new_tool = deepcopy(tool)
+        new_tool = {k: deepcopy(v) for k, v in tool.items() if k != 'solid_geometry'}
+        new_tool['solid_geometry'] = []
         tools[tid] = new_tool
 
     # Flatten and split the immutable source once, rather than for every copy.
     source_solid = _split_multi(src_solid)
-    source_tools = {tid: _split_multi(tool.get('solid_geometry')) for tid, tool in src_tools.items()} if multigeo else {}
+    source_tools = {tid: _split_multi(tool.get('solid_geometry')) for tid, tool in src_tools.items()}
     solid = []
     for element, (dx, dy) in enumerate(offsets, start=1):
-        if multigeo:
-            for tid, geometry in source_tools.items():
-                _check_abort(abort)
-                moved = translate_geometry(geometry, dx, dy)
-                tools[tid]['solid_geometry'].extend(g for g in moved if not g.is_empty)
+        for tid, geometry in source_tools.items():
+            _check_abort(abort)
+            moved = translate_geometry(geometry, dx, dy)
+            tools[tid]['solid_geometry'].extend(g for g in moved if not g.is_empty)
 
         _check_abort(abort)
         solid.extend(translate_geometry(source_solid, dx, dy))
@@ -600,61 +594,68 @@ def panelize_geometry(src_tools: Dict[Any, dict], src_solid, multigeo: bool, off
     return tools, solid
 
 
-def gerber_tools_from_geometry(src_tools: Dict[Any, dict], src_solid, multigeo: bool) -> Tuple[Dict[Any, dict], list]:
+def gerber_tools_from_geometry(src_tools: Dict[Any, dict], src_solid) -> Tuple[Dict[Any, dict], list]:
     """
     Builds the Gerber apertures of a Geometry, to panelize it as a Gerber. The result is the input of
     ``panelize_gerber``.
 
-    Everything goes to the region 'aperture' 0 (type 'REG', size 0.0). Each element becomes 1 record:
-
-    * a polygon: ``{'solid': polygon, 'follow': polygon.exterior}``;
-    * anything else (line, point, ...): ``{'solid': geo, 'follow': geo}``.
+    Polygons go to region aperture 0; open paths and points use circular apertures with their tool diameter.
 
     The elements are:
 
-    * ``multigeo``: the parts of the 'solid_geometry' of every tool in ``src_tools`` (Multi* split, empty ones
-      dropped). A line is merged with ``linemerge`` first, if that works, then turned into a filled polygon if
-      ``Polygon(line)`` accepts it (an open line of 3 or more points too: the former panel code did this). The
+    The parts of the 'solid_geometry' of every tool in ``src_tools`` (Multi* split, empty ones
+      dropped). A line is merged with ``linemerge`` first, if that works; only a simple closed ring is filled. The
       returned solid is the union of the record solids, so it shows the same copper as the records.
-    * not ``multigeo``: the parts of ``src_solid`` (Multi* split). A line stays a line: the returned solid is that
-      flat list, and a filled record would hold copper that the solid does not have.
 
     The inputs are not changed: geometry is immutable, so the records hold the same geometry objects.
 
     :param src_tools:  tools of the Geometry ({tid: {'solid_geometry': [...], ...}})
     :param src_solid:  solid_geometry of the Geometry (geometry or (nested) list)
-    :param multigeo:   True if the geometry is in the tools
-    :return:           (apertures {0: {'type': 'REG', 'size': 0.0, 'geometry': [records]}}, composed solid_geometry)
+    :return:           (region and circular apertures, composed copper geometry)
     """
-    if multigeo:
-        elements = []
-        for tool in src_tools.values():
-            elements.extend(g for g in _split_multi(tool.get('solid_geometry')) if not g.is_empty)
-    else:
-        elements = _split_multi(src_solid)
+    elements = []
+    for tool in src_tools.values():
+        elements.extend((g, tool.get('tooldia')) for g in _split_multi(tool.get('solid_geometry'))
+                        if not g.is_empty)
 
     records = []
-    for geo in elements:
-        if multigeo:
+    tools = {0: {'type': 'REG', 'size': 0.0, 'geometry': []}}
+    apertures = {}
+    for geo, diameter in elements:
+        try:
+            geo = linemerge(geo)
+        except Exception:
+            pass
+        if isinstance(geo, LineString) and geo.is_ring:
             try:
-                geo = linemerge(geo)
-            except Exception:
-                pass
-            try:
-                geo = Polygon(geo)
-            except Exception:
+                polygon = Polygon(geo)
+                if polygon.is_valid and polygon.area > 0:
+                    geo = polygon
+            except (ValueError, shapely.errors.ShapelyError):
                 pass
         if isinstance(geo, Polygon):
             record = {'solid': geo, 'follow': geo.exterior}
+            tools[0]['geometry'].append(record)
         else:
-            record = {'solid': geo, 'follow': geo}
+            try:
+                diameter = float(diameter)
+            except (TypeError, ValueError):
+                raise ValueError('Geometry strokes require a positive finite tool diameter.') from None
+            if not isfinite(diameter) or diameter <= 0:
+                raise ValueError('Geometry strokes require a positive finite tool diameter.')
+            if not isinstance(geo, (LineString, Point)):
+                raise ValueError('Unsupported Geometry for Gerber export.')
+            if isinstance(geo, LineString) and geo.length == 0:
+                geo = Point(geo.coords[0])
+            record = {'solid': geo.buffer(diameter / 2), 'follow': geo}
+            if diameter not in apertures:
+                aperture = len(apertures) + 10
+                apertures[diameter] = aperture
+                tools[aperture] = {'type': 'C', 'size': diameter, 'geometry': []}
+            tools[apertures[diameter]]['geometry'].append(record)
         records.append(record)
 
-    if multigeo:
-        solid = unary_union([r['solid'] for r in records])
-    else:
-        solid = list(elements)
-    tools = {0: {'type': 'REG', 'size': 0.0, 'geometry': records}}
+    solid = unary_union([r['solid'] for r in records])
     return tools, solid
 
 
@@ -735,7 +736,7 @@ def _snap_lines(lines: List[LineString], abort: Optional[Callable[[], bool]]) ->
 def merge_tool_lines(tools: Dict[Any, dict], snap_overlaps: bool = False,
                      abort: Optional[Callable[[], bool]] = None) -> None:
     """
-    Path optimization of the multigeo tools of a panel (the cutout fix): in every tool the lines are merged with
+    Path optimization of the tools of a panel (the cutout fix): in every tool the lines are merged with
     ``linemerge`` and fused with ``unary_union`` so the border shared by 2 neighbour copies is cut once. With
     ``snap_overlaps`` the lines are first snapped to each other (tolerance 1e-7) so almost-touching paths fuse.
     A dynamic R-tree skips distant pairs while preserving the original snapping order. Dense overlapping bounds
@@ -799,7 +800,7 @@ def _source_panel_lines(src_lines, offsets, snap_overlaps, abort):
     return [moved[0] if len(moved) == 1 else MultiLineString(moved)]
 
 
-def panelize_geometry_optimized(src_tools: Dict[Any, dict], src_solid, multigeo: bool,
+def panelize_geometry_optimized(src_tools: Dict[Any, dict], src_solid,
                                 offsets: Iterable[Offset], abort=None, progress=None, *,
                                 snap_overlaps: bool = False) -> Tuple[Dict[Any, dict], list]:
     """GUI Geometry construction with final tool lines built directly where copies cannot interact.
@@ -809,10 +810,6 @@ def panelize_geometry_optimized(src_tools: Dict[Any, dict], src_solid, multigeo:
     """
     _check_abort(abort)
     offsets = list(offsets)
-    if not multigeo:
-        result = panelize_geometry(src_tools, src_solid, multigeo, offsets, abort=abort, progress=progress)
-        _check_abort(abort)
-        return result
     construction_tools = dict(src_tools)
     final_lines = {}
     for tid, tool in src_tools.items():
@@ -823,7 +820,7 @@ def panelize_geometry_optimized(src_tools: Dict[Any, dict], src_solid, multigeo:
         if fast is not None:
             final_lines[tid] = fast
             construction_tools[tid] = dict(tool, solid_geometry=other_geo)
-    tools, solid = panelize_geometry(construction_tools, src_solid, True, offsets,
+    tools, solid = panelize_geometry(construction_tools, src_solid, offsets,
                                     abort=abort, progress=progress)
     for tid, tool in tools.items():
         _check_abort(abort)
@@ -841,7 +838,7 @@ def optimize_panel_lines(src_tools: Dict[Any, dict], tools: Dict[Any, dict], off
     """
     Same result as ``merge_tool_lines`` on the tools of a panel, made faster when the copies cannot interact.
 
-    ``tools`` are the multigeo tools made by ``panelize_geometry(src_tools, ..., offsets)``. For a tool whose copies
+    ``tools`` are the tools made by ``panelize_geometry(src_tools, ..., offsets)``. For a tool whose copies
     stay apart (see ``_copies_are_apart``, measured on the real bounds of its lines) the lines of the SOURCE tool
     are snapped (if asked) and merged once and the merged parts are moved to every offset; the parts of all the
     copies make one MultiLineString (copy by copy). Any other tool, or a tool that does not look as expected, goes

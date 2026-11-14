@@ -152,12 +152,9 @@ class TclCommandFollow(TclCommand):
         outname = str(args.get('outname') or (os.path.splitext(name)[0] + suffix))
         data = FollowGen.geometry_data(self.app.options, outname)
         tools = FollowGen.follow_tools(groups, data, int(getattr(self.app, 'decimals', 4)))
-        lines = [line for _dia, found in groups for line in found]
 
         def init(new_obj, app_obj):
-            new_obj.multigeo = True
             new_obj.obj_options['tools_mill_tooldia'] = groups[0][0]
-            new_obj.solid_geometry = lines
             new_obj.tools = tools
 
         self.check_result(self.app.app_obj.new_object('geometry', outname, init, plot=False))

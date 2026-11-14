@@ -11,6 +11,7 @@ import logging
 import math
 from appGUI.VisPyCanvas import VisPyCanvas, Color
 from appGUI.VisPyVisuals import ShapeGroup, ShapeCollection, TextCollection, TextGroup, Cursor, CursorText
+from appGUI import shortcuts
 from appDatabase import _database_option
 from vispy.scene.visuals import InfiniteLine, Line, Rectangle, Text
 
@@ -715,8 +716,10 @@ class PlotCanvas(QtCore.QObject, VisPyCanvas):
         pan_delta_y = _database_option(self.fcapp, "global_gridy")
         curr_pos = event.pos
 
-        # Controlled pan by mouse wheel
-        if 'Shift' in modifiers:
+        # Controlled pan by mouse wheel; not with the modifiers of the fine zoom (the camera zooms)
+        if modifiers and shortcuts.wheel_matches('app.fine_zoom', modifiers):
+            pass
+        elif 'Shift' in modifiers:
             p1 = np.array(curr_pos)[:2]
 
             if event.delta[1] > 0:

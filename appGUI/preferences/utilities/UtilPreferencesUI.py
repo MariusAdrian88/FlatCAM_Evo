@@ -46,6 +46,7 @@ class UtilPreferencesUI(QtWidgets.QWidget):
 
         self.vlay.addWidget(self.fa_excellon_group)
         self.vlay.addWidget(self.fa_gcode_group)
+        self.vlay.addStretch()
 
         self.layout.addLayout(self.vlay)
         self.layout.addWidget(self.fa_gerber_group)

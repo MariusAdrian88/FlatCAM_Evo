@@ -553,9 +553,6 @@ class NccGen:
             for value in tools.values():
                 value['data'].update(mill_data)
         output.tools = tools
-        output.solid_geometry = [path for value in tools.values()
-                                 for path in flatten_shapely_geometry(value['solid_geometry'])]
-        output.multigeo = True
         output.obj_options['tools_mill_tooldia'] = str(last_tool)
         if residual is not None:
             output.ncc_cleanup_residual = residual

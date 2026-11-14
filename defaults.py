@@ -572,6 +572,7 @@ class AppDefaults:
         "tools_iso_rest":           False,
         "tools_iso_combine_passes": True,
         "tools_iso_clear_leftovers": False,
+        "tools_iso_trace_boundary": True,
         "tools_iso_check_valid":    False,
         "tools_iso_isoexcept":      False,
         "tools_iso_selection":      0,
@@ -1151,39 +1152,17 @@ class AppDefaults:
         # Utilities
         # file associations
         "fa_excellon": 'drd, drill, drl, exc, ncd, tap, xln, xnc',
-        "fa_gcode": 'cnc, din, dnc, ecs, eia, fan, fgc, fnc, gc, gcd, gcode, hnc, min, mpf, mpr, nc, ncc, '
+        "fa_gcode": 'cnc, din, dnc, ecs, eia, fan, fgc, fnc, gc, gcd, gco, gcode, hnc, knc, min, mpf, mpr, nc, ncc, '
                     'ncg, ncp, ngc, out, ply, rol, sbp, tap, xpi',
-        "fa_gerber": 'art, bot, bsm, cmp, crc, crs, dim, gb0, gb1, gb2, gb3, gb4, gb5, gb6, gb7, gb8, gb9, gbd, '
-                     'gbl, gbo, gbp, gbr, gbs, gdo, ger, gko, gm1, gm2, gm3, grb, gtl, gto, gtp, gts, ly15, ly2, '
-                     'mil, outline, pho, plc, pls, smb, smt, sol, spb, spt, ssb, sst, stc, sts, top, tsm',
+        "fa_gerber": 'art, bot, bsm, cmp, crc, crs, dim, g1, g2, g3, g4, g5, g6, g7, g8, g9, g10, g11, g12, g13, '
+                     'g14, g15, g16, gb0, gb1, gb2, gb3, gb4, gb5, gb6, gb7, gb8, gb9, gba, gbd, gbl, gbo, gbp, gbr, '
+                     'gbs, gd1, gdo, ger, gg1, gko, gl2, gl3, gl4, gl5, gm1, gm2, gm3, gm4, gm5, gm6, gm7, gm8, gm9, '
+                     'gm10, gm11, gm12, gm13, gm14, gm15, gm16, gp1, gp2, gp3, gp4, gp5, gp6, gp7, gp8, gpb, gpt, '
+                     'grb, gta, gtl, gto, gtp, gts, ly15, ly2, mil, outline, pho, plc, pls, smb, smt, sol, spb, spt, '
+                     'ssb, sst, stc, sts, top, tsm',
         # Keyword list
-        "util_autocomplete_keywords": 'Berta_CNC, Check_points, Default_no_M6, Desktop, Documents, FlatConfig, '
-                                      'FlatPrj, False, '
-                                      'GRBL_11, GRBL_11_no_M6, GRBL_laser, grbl_laser_eleks_drd, GRBL_laser_z, '
-                                      'grblHAL, grblHAL_no_M6, grblHAL_laser, grblHAL_laser_z, '
-                                      'ISEL_CNC, ISEL_ICP_CNC, '
-                                      'Line_xyz, Marlin, Marlin_laser_FAN_pin, '
-                                      'Marlin_laser_Spindle_pin, Marlin_laser_z, NCCAD9, '
-                                      'Marius, My Documents, Paste_1, Paste_GRBL, Paste_Marlin, '
-                                      'default_laser, '
-                                      'Repetier, Roland_MDX_20, Roland_MDX_540,'
-                                      'Toolchange_Manual, Toolchange_Probe_MACH3, True, '
-                                      'Users, all, auto, axis, axisoffset, '
-                                      'box, center_x, center_y, center, columns, combine, connect, contour, default, '
-                                      'depthperpass, dia, diatol, dist, drilled_dias, drillz, dpp, dwelltime, '
-                                      'endxy, endz, extracut_length, f, factor, feedrate, '
-                                      'feedrate_z, gridoffsety, gridx, gridy, has_offset, '
-                                      'holes, hpgl, iso_type, join, '
-                                      'las_min_pwr, las_power, keep_scripts, margin, marlin, method, milled_dias, '
-                                      'minoffset, min_bounds, name, offset, opt_type, order, '
-                                      'outname, overlap, obj_name, '
-                                      'p_coords, passes, postamble, pp, ppname_e, ppname_g, preamble, radius, ref, '
-                                      'rest, '
-                                      'rows, shellvar_, scale_factor, spacing_columns, spacing_rows, spindlespeed, '
-                                      'startz, startxy, toolchange_xy, toolchangez, '
-                                      'tooldia, travelz, use_threads, value, '
-                                      'x, x0, x1, x_dist, y, y0, y1, y_dist, z_cut, '
-                                      'z_move',
+        # only the user's own words: all the other words of the auto-completer are read when the app starts
+        "util_autocomplete_keywords": '',
         "script_autocompleter": True,
         "script_text": "",
         "script_plot": True,

@@ -87,7 +87,7 @@ def tool_data(app, uid, pp, min_power=0):
                 tools_mill_cutz=0.0 if 'laser' in pp else -0.05 * uid, tools_mill_spindlespeed=100 * uid)
     return data
 
-def milling_job(n_tools, pp='default', multigeo=False, min_power=(), from_tcl=False, data=None, per_tool=None,
+def milling_job(n_tools, pp='default', min_power=(), from_tcl=False, data=None, per_tool=None,
                 attrs=None, separate_selection=False, ui=None, travels=None, drop=()):
     """The job of the real Milling code. data / per_tool: tool data of every tool / of the tool uid; attrs: methods
     of the plugin to replace; separate_selection: the selected tools are a copy of the tools of the object, as in the
@@ -110,7 +110,7 @@ def milling_job(n_tools, pp='default', multigeo=False, min_power=(), from_tcl=Fa
     for tool in tools.values():
         for key in drop:
             tool["data"].pop(key, None)
-    source = SimpleNamespace(multigeo=multigeo, tools=tools, solid_geometry=list(PATHS),
+    source = SimpleNamespace(tools=tools, solid_geometry=list(PATHS),
                              obj_options=dict(tools[1]['data'], name='board', xmin=0, ymin=0, xmax=30, ymax=10))
     jobs = []
 
@@ -144,7 +144,7 @@ def tool_marks(gcode, laser=False):
     """How many paths each tool has in the G-code: the plunges to its Cut Z (mill) or the laser on lines with its
     power (laser)."""
     if laser:
-        return Counter(re.findall(r'^M0?3 S(\d+)$', gcode, re.MULTILINE))
+        return Counter(re.findall(r'^M0?3 S(\d+)(?:\.0+)?$', gcode, re.MULTILINE))
     return Counter(re.findall(r'^G0?1 Z(-\d+\.\d+)$', gcode, re.MULTILINE))
 
 def cut_moves(gcode):
@@ -153,68 +153,54 @@ def cut_moves(gcode):
 def expected_marks(tool_numbers, laser=False):
     return Counter({('%d' % (100 * k) if laser else '%.4f' % (-0.05 * k)): N_PATHS for k in tool_numbers})
 
-@pytest.mark.parametrize('pp', ['GRBL_laser'])
+@pytest.mark.parametrize('pp', ['default', 'GRBL_laser'])
 @pytest.mark.parametrize('n_tools', [2])
 def test_the_exported_file_has_every_path_once(n_tools, pp):
-    __, job = milling_job(n_tools, pp)
+    __, job = milling_job(n_tools, pp, from_tcl=True)
     laser = 'laser' in pp
     body = ''.join(tool['gcode'] for tool in job.tools.values())
     for text in (exported(job), job.source_file):
         assert tool_marks(text, laser) == expected_marks(range(1, n_tools + 1), laser)
         assert cut_moves(text) == CUT_MOVES * n_tools
-        # the start code, then the tools in their order, each one once
         assert text.count(body) == 1
-        assert text.index(job.gc_start) < text.index(body)
-    assert job.source_file == job.gc_start + body
-
-@pytest.mark.parametrize('n_tools', [2])
-def test_multi_geometry_job_has_every_path_once(n_tools):
-    # the multi-geometry path makes each tool's G-code apart (geometry_tool_gcode_gen()); not changed
-    __, job = milling_job(n_tools, multigeo=True, from_tcl=True)
-    body = ''.join(tool['gcode'] for tool in job.tools.values())
     for k, tool in job.tools.items():
-        assert tool_marks(tool['gcode']) == expected_marks([k]), k
+        assert tool_marks(tool['gcode'], laser) == expected_marks([k], laser), k
     assert job.source_file == body
-    assert tool_marks(exported(job)) == expected_marks(range(1, n_tools + 1))
-    assert exported(job).count(body) == 1
 
 def xy_cuts(gcode):
     return [(float(x), float(y)) for x, y in re.findall(r'^G0?1 X(-?[\d.]+) Y(-?[\d.]+)', gcode, re.MULTILINE)]
 
-@pytest.mark.parametrize('multigeo', [True])
 @pytest.mark.parametrize('offset', ['abc'])
-def test_custom_offset_without_a_usable_value_is_a_failed_job(multigeo, offset):
-    app, job = milling_job(2, multigeo=multigeo, from_tcl=True,
+def test_custom_offset_without_a_usable_value_is_a_failed_job(offset):
+    app, job = milling_job(2, from_tcl=True,
                            data=dict(tools_mill_offset_type=3, tools_mill_offset_value=offset))
     assert job == 'fail'
     assert not any('CNCjob created' in str(c.args[0]) for c in app.inform.emit.call_args_list)
 
-@pytest.mark.parametrize('multigeo', [False, True])
 @pytest.mark.parametrize('offset_type, offset_value', [(1, None), (3, 0.125)])
-def test_isolation_centerline_marker_gets_no_second_offset(multigeo, offset_type, offset_value):
+def test_isolation_centerline_marker_gets_no_second_offset(offset_type, offset_value):
     # the generated Isolation geometry carries the centerline marker: the job must not offset it again
     isolation = dict(tools_mill_offset_type=offset_type, tools_iso_centerline=True)
     if offset_value is not None:
         isolation['tools_mill_offset_value'] = offset_value
-    __, plain = milling_job(1, multigeo=multigeo, from_tcl=True, data=dict(tools_mill_offset_type=0))
-    __, job = milling_job(1, multigeo=multigeo, from_tcl=True, data=isolation)
+    __, plain = milling_job(1, from_tcl=True, data=dict(tools_mill_offset_type=0))
+    __, job = milling_job(1, from_tcl=True, data=isolation)
     assert job != 'fail'
     assert xy_cuts(job.tools[1]['gcode']) == xy_cuts(plain.tools[1]['gcode'])
 
-@pytest.mark.parametrize('multigeo', [False, True])
 @pytest.mark.parametrize('labels', [{'tools_mill_job_type': 2, 'tools_iso_isotype': 'full'}])
-def test_an_ordinary_tool_keeps_its_offset_despite_isolation_like_labels(multigeo, labels):
+def test_an_ordinary_tool_keeps_its_offset_despite_isolation_like_labels(labels):
     # job type 2 (the form sets it for a V tool) and the generic tools_iso_* copy are not provenance
-    __, offset = milling_job(1, multigeo=multigeo, from_tcl=True,
+    __, offset = milling_job(1, from_tcl=True,
                              data=dict(tools_mill_offset_type=1, **labels))
-    __, plain = milling_job(1, multigeo=multigeo, from_tcl=True, data=dict(tools_mill_offset_type=0))
+    __, plain = milling_job(1, from_tcl=True, data=dict(tools_mill_offset_type=0))
     assert offset != 'fail' and plain != 'fail'
     assert xy_cuts(offset.tools[1]['gcode']) != xy_cuts(plain.tools[1]['gcode'])
 
 @pytest.mark.parametrize('method', [0])
 def test_polishing_paints_the_box_with_margin_and_cuts_it(method):
     # the plugin works on a copy of the tools of the object: the plotted geometry of the job is the painted one
-    __, job = milling_job(1, multigeo=True, from_tcl=True, separate_selection=True,
+    __, job = milling_job(1, from_tcl=True, separate_selection=True,
                           data=dict(tools_mill_job_type=3, tools_mill_polish_method=method, tools_mill_polish_margin=2,
                                     tools_mill_polish_overlap=10, tools_mill_tooldia=0.5))
     xs = [x for x, __ in xy_cuts(job.tools[1]['gcode'])]
@@ -222,25 +208,23 @@ def test_polishing_paints_the_box_with_margin_and_cuts_it(method):
     plotted = job.tools[1]['solid_geometry']
     assert min(g.bounds[0] for g in plotted) < 0 and max(g.bounds[2] for g in plotted) > 30
 
-@pytest.mark.parametrize('multigeo', [False])
-def test_old_tool_without_optimization_or_probe_settings_makes_a_job(multigeo):
+def test_old_tool_without_optimization_or_probe_settings_makes_a_job():
     # Geometry objects of older versions: no optimization in the tool, no probe settings in the object
     drop = ("tools_mill_optimization_type", "tools_mill_z_p_depth", "tools_mill_probe_plate",
             "tools_mill_feedrate_probe",
             "tools_mill_search_time")
-    app, job = milling_job(1, multigeo=multigeo, from_tcl=True, drop=drop)
+    app, job = milling_job(1, from_tcl=True, drop=drop)
     assert job != 'fail'
 
-@pytest.mark.parametrize('multigeo', [False])
-def test_each_tool_has_its_own_spindle_direction(multigeo):
-    __, job = milling_job(2, multigeo=multigeo, from_tcl=True, per_tool={
+def test_each_tool_has_its_own_spindle_direction():
+    __, job = milling_job(2, from_tcl=True, per_tool={
         1: dict(tools_mill_spindledir='CW'), 2: dict(tools_mill_spindledir='CCW')})
     assert 'M03' in job.tools[1]['gcode'] and 'M04' not in job.tools[1]['gcode']
     assert 'M04' in job.tools[2]['gcode'] and 'M03' not in job.tools[2]['gcode']
 
 def test_the_next_tool_starts_its_travel_where_the_previous_one_ended():
     travels = []
-    __, job = milling_job(2, multigeo=True, from_tcl=True, travels=travels,
+    __, job = milling_job(2, from_tcl=True, travels=travels,
                           data=dict(tools_mill_area_exclusion=True))
     # 3 paths for each tool: 3 travels to the start of a path, and 1 to the end position of the last tool
     end_of_tool_1 = job.tools[1]['gcode_parsed'][-1]['geom'].coords[-1]
@@ -299,18 +283,16 @@ def test_excellon_paint_job_clears_the_holes_and_names_the_skipped_tools():
     assert cuts and all(min(abs(x - hx) for hx, __ in HOLES_1) < 1.5 for x, __ in cuts)
     assert '0.4' in messages(app)
 
-@pytest.mark.parametrize('multigeo', [False])
 @pytest.mark.parametrize('optimization, last_cut', [('N', (30.0, 10.0)), ('R', (20.0, 0.0))])
-def test_the_optimization_of_the_tool_orders_its_paths(multigeo, optimization, last_cut):
-    app, job = milling_job(1, multigeo=multigeo, from_tcl=True, data=dict(tools_mill_optimization_type=optimization))
+def test_the_optimization_of_the_tool_orders_its_paths(optimization, last_cut):
+    app, job = milling_job(1, from_tcl=True, data=dict(tools_mill_optimization_type=optimization))
     assert xy_cuts(job.source_file)[-1] == last_cut
     # the application option is not left changed
     assert app.options['tools_mill_optimization_type'] == 'R'
 
-@pytest.mark.parametrize('multigeo', [False, True])
-def test_cut_z_zero_fails_cleanly(multigeo):
+def test_cut_z_zero_fails_cleanly():
     # Issue #40: a Cut Z of 0 with a non-laser preprocessor is a clean failure and no job, not an unpack error
-    app, job = milling_job(2, multigeo=multigeo, from_tcl=True, data=dict(tools_mill_cutz=0.0))
+    app, job = milling_job(2, from_tcl=True, data=dict(tools_mill_cutz=0.0))
     assert job == 'fail'
     messages = ' '.join(str(call.args[0]) for call in app.inform.emit.call_args_list)
     assert 'unpack' not in messages
@@ -332,7 +314,7 @@ class ForbiddenUI:
     def __getattr__(self, name):
         raise AssertionError('Worker/Tcl accessed widget: %s' % name)
 
-def _cnc_harness(multigeo):
+def _cnc_harness():
     options = deepcopy(AppDefaults.factory_defaults)
     data = {key: value for key, value in options.items() if key.startswith('tools_mill_')}
     data.update(tools_mill_tooldia=0.8, tools_mill_offset_type=3,
@@ -341,7 +323,7 @@ def _cnc_harness(multigeo):
     tools = {uid: {'tooldia': 0.8, 'data': deepcopy(data), 'solid_geometry': geometry}
              for uid in (7, 2)}
     source = SimpleNamespace(
-        multigeo=multigeo, tools=tools, solid_geometry=geometry,
+        tools=tools, solid_geometry=geometry,
         obj_options=dict(data, name='board', xmin=0, ymin=0, xmax=1, ymax=1))
     events, queued, created, calls = [], [], [], []
     app = SimpleNamespace(
@@ -369,7 +351,7 @@ def _cnc_harness(multigeo):
 
     def new_object(kind, name, initializer, **kwargs):
         job = SimpleNamespace(kind=kind, obj_options={}, tools={}, gc_start='',
-                              generate_from_geometry_2=generate, geometry_tool_gcode_gen=generate,
+                              geometry_tool_gcode_gen=generate,
                               gcode_parse=lambda **kw: [('parsed', deepcopy(kw))])
         result = initializer(job, app)
         created.append((job, kwargs, result))
@@ -408,43 +390,33 @@ def test_milling_excellon_extracted_paint_matches_per_feature_reference(mill_typ
     assert [g.wkb for g in actual] == [g.wkb for g in expected]
     assert progress[-1] == ' 100%'
 
-@pytest.mark.parametrize('multigeo', [False])
 @pytest.mark.parametrize('offset_type,expected', [(1, -0.4), (2, 0.4)])
 @pytest.mark.parametrize('disable_offset', [False])
-def test_milling_cnc_offset_modes(multigeo, offset_type, expected, disable_offset):
-    milling, _, _, created, calls, _ = _cnc_harness(multigeo)
+def test_milling_cnc_offset_modes(offset_type, expected, disable_offset):
+    milling, _, _, created, calls, _ = _cnc_harness()
     for record in milling.sel_tools.values():
         record['data']['tools_mill_offset_type'] = offset_type
     milling.generate_cnc_job_handler(use_thread=False, disable_offset=disable_offset)
     expected = 0 if disable_offset else expected
     assert all(record['data']['tools_mill_offset_value'] == expected
                for record in created[0][0].tools.values())
-    if not multigeo:
-        assert all(kwargs['offset'] == expected for _, kwargs in calls)
-
-@pytest.mark.parametrize('multigeo', [False, True])
-def test_milling_custom_offset_of_each_tool_is_used(multigeo):
+def test_milling_custom_offset_of_each_tool_is_used():
     # the form shows the offset of the selected row (0.125); tool 2 has a Custom offset of its own
-    milling, _, _, created, calls, _ = _cnc_harness(multigeo)
+    milling, _, _, created, calls, _ = _cnc_harness()
     milling.sel_tools[2]['data']['tools_mill_offset_value'] = -0.2
     milling.generate_cnc_job_handler(use_thread=False)
     job = created[0][0]
     assert job.tools[7]['data']['tools_mill_offset_value'] == 0.125
     assert job.tools[2]['data']['tools_mill_offset_value'] == -0.2
-    if multigeo:
-        # geometry_tool_gcode_gen() reads the offset from the tool data
-        assert milling.sel_tools[2]['data']['tools_mill_offset_value'] == -0.2
-    else:
-        assert [kwargs['offset'] for _, kwargs in calls] == [0.125, -0.2]
+    assert milling.sel_tools[2]['data']['tools_mill_offset_value'] == -0.2
 
-@pytest.mark.parametrize('multigeo', [False, True])
-def test_milling_real_cnc_generation_matches_deferred_submission(qapp, multigeo):
+def test_milling_real_cnc_generation_matches_deferred_submission(qapp):
     from camlib import CNCjob
     from preprocessors.default import default
     from tests.helpers_objects import make_app_0b as make_app  # noqa: F401,E402
     outputs = []
     for deferred in (False, True):
-        milling, _, _, _, _, _ = _cnc_harness(multigeo)
+        milling, _, _, _, _, _ = _cnc_harness()
         app = make_app()
         app.preprocessors['default'] = default()
         app.dec_format = lambda value, decimals: round(value, decimals)
@@ -487,7 +459,11 @@ class GeometryObject:
 
     def __init__(self):
         self.obj_options = {}
-        self.solid_geometry = []
+        self.tools = {1: {'solid_geometry': [], 'data': {}}}
+
+    @property
+    def solid_geometry(self):
+        return [g for tool in self.tools.values() for g in tool['solid_geometry']]
 
 def _excellon_stub(tools, options=None, steps=32):
     """An ExcellonObject stand-in running the real generate_milling_* methods."""
@@ -593,7 +569,7 @@ class MillingHarness_milling_old_tool_data(SimpleNamespace):
     """Run the real controller methods without constructing its application GUI."""
     def __getattr__(self, name):
         method = getattr(ToolMilling, name)
-        return method.__get__(self, type(self))
+        return method.__get__(self, type(self)) if hasattr(method, '__get__') else method
 
 def evo_2023_tool_data():
     data = {k: deepcopy(v) for k, v in MILL_OPTIONS.items() if k not in ADDED_2023_12}
@@ -616,7 +592,7 @@ def flatcam_8_994_cutout_tool(**data_changes):
     data.update(data_changes)
     return {'offset': 'Path', 'offset_value': 0.0, 'tool_type': 'C1', 'tooldia': '1.75', 'type': 'Rough', 'data': data}
 
-def milling_harness(tool, multigeo, **options):
+def milling_harness(tool, **options):
     app = make_app(**options)
     # a plain dict, as in the app: a preprocessor name that it does not have raises a KeyError
     app.preprocessors = {'default': default(), 'GRBL_laser': GRBL_laser(), 'GRBL_11': GRBL_11(),
@@ -627,7 +603,7 @@ def milling_harness(tool, multigeo, **options):
     geometry = [LineString([(0, 0), (10, 0)]), LineString([(0, 5), (10, 5)])]
     tools = {1: dict(tool, solid_geometry=geometry)}
     obj_options = dict(MILL_OPTIONS, name='old_geo', xmin=0, ymin=0, xmax=10, ymax=5)
-    source = SimpleNamespace(kind='geometry', multigeo=multigeo, tools=tools, solid_geometry=geometry,
+    source = SimpleNamespace(kind='geometry', tools=tools, solid_geometry=geometry,
                              obj_options=obj_options)
     jobs = []
 
@@ -643,14 +619,14 @@ def milling_harness(tool, multigeo, **options):
                              new_object=new_object)
     return milling, jobs
 
-def make_cnc_job(tool, multigeo, **options):
+def make_cnc_job(tool, **options):
     """
     The CNC job from the saved tool data alone: from_tcl=True, without the form of the Milling plugin. No user action
     makes it like this: the Tcl 'cncjob' command first writes its arguments (or the application options) into the main
     keys of each tool (cut Z, feed rates, spindle speed, preprocessor...), and the plugin takes the general fields of a
     multi-geometry job from its form (make_plugin_cnc_job()).
     """
-    milling, jobs = milling_harness(tool, multigeo, **options)
+    milling, jobs = milling_harness(tool, **options)
     result = milling.generate_cnc_job_handler(toolchange=False, plot=False, use_thread=False, from_tcl=True)
     assert result is None and len(jobs) == 1
     return jobs[0].source_file, milling
@@ -675,12 +651,12 @@ PLUGIN_FORM = {'offset_entry': 'tools_mill_offset_value', 'toolchange_cb': 'tool
                'strategy_radio': 'tools_mill_area_strategy', 'over_z_entry': 'tools_mill_area_overz',
                'pp_geo_name_cb': 'tools_mill_ppname_g'}
 
-def make_plugin_cnc_job(tool, multigeo, form=None, **options):
+def make_plugin_cnc_job(tool, form=None, **options):
     """
     The CNC job of the Milling plugin (Generate CNCJob): from_tcl=False, with its form. The form shows the application
     values (as when it showed nothing else since the plugin opened), changed by 'form' (option -> value).
     """
-    milling, jobs = milling_harness(tool, multigeo, **options)
+    milling, jobs = milling_harness(tool, **options)
     values = dict(milling.app.options, **(form or {}))
     milling.ui = SimpleNamespace(**{widget: FormField(values[key]) for widget, key in PLUGIN_FORM.items()})
     result = milling.generate_cnc_job_handler(toolchange=False, plot=False, use_thread=False)
@@ -710,14 +686,143 @@ def load_plugin_target(milling):
         'tools_mill_cutz', 'tools_mill_multidepth', 'tools_mill_depthperpass',
         'tools_mill_travelz', 'tools_mill_feedrate', 'tools_mill_feedrate_z', 'tools_mill_spindlespeed')}
     milling.general_form_fields = {key: getattr(milling.ui, widget) for widget, key in PLUGIN_FORM.items()}
+    milling.form_fields.update(milling.general_form_fields)
     milling.ui_disconnect = milling.ui_connect = milling.plot_cb_handler = lambda: None
     milling.build_ui = milling.build_ui_mill
     milling.on_object_changed()
 
-@pytest.mark.parametrize('multigeo, edit_depth', [(False, False), (True, True)])
-def test_legacy_form_displays_the_generated_parameters(multigeo, edit_depth):
+@pytest.mark.parametrize('saved_mode, old_keys', [(False, False), (True, True), (None, True), (None, 'hpgl')])
+@pytest.mark.parametrize('toolchange', [False, True])
+def test_saved_geometry_output_provenance(qapp, saved_mode, old_keys, toolchange):
+    import json
+    from camlib import dict2obj, to_dict
+    from appObjects.GeometryObject import GeometryObject as RealGeometryObject
+
+    milling, jobs = milling_harness(flatcam_8_994_cutout_tool(multidepth=False))
+    app = milling.app
+    with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
+        obj = RealGeometryObject('old_geo', app)
+    saved = obj.to_dict()
+    saved['tools'] = deepcopy(milling.target_obj.tools)
+    saved['tools'][2] = deepcopy(saved['tools'][1])
+    if old_keys == 'hpgl':
+        from appParsers.ParseHPGL2 import HPGL2
+        app.options.update({'geometry_' + key: value for key, value in saved['tools'][1]['data'].items()
+                            if not key.startswith('tools_')})
+        parser = HPGL2(app)
+        parser.parse_lines(['IN;SP1;PA0,0;PD400,0;PU0,200;PD400,200;PU;'
+                            'SP2;PA0,0;PD400,0;PU0,200;PD400,200;PU;'])
+        saved['tools'] = parser.tools
+    if not old_keys:
+        for tool in saved['tools'].values():
+            milling._complete_milling_tool_data({1: tool}, tool_pp_used=True)
+            tool['data'] = {k: v for k, v in tool['data'].items() if k.startswith('tools_')}
+    if saved_mode is not None:
+        saved['multigeo'] = saved_mode
+    saved['obj_options'].update(name='old_geo', xmin=0, ymin=0, xmax=10, ymax=5)
+    obj.from_dict(saved)
+    original_data = deepcopy([tool['data'] for tool in obj.tools.values()])
+
+    def generate(source):
+        milling.target_obj, milling.sel_tools = source, source.tools
+        load_plugin_target(milling)
+        milling.generate_cnc_job_handler(toolchange=toolchange, plot=False, use_thread=False)
+        return jobs[-1].source_file
+
+    # Reload and copy must keep the output contract, not infer it from tool setting names.
+    outputs = []
+    for operation in ('original', 'reload', 'copy'):
+        with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
+            source = RealGeometryObject('old_geo', app)
+        if operation == 'copy':
+            source.copy_from(obj)
+            source.obj_options.update(obj.obj_options)
+        elif operation == 'reload':
+            source.from_dict(json.loads(json.dumps(obj.to_dict(), default=to_dict), object_hook=dict2obj))
+            source.tools = {int(key): tool for key, tool in source.tools.items()}
+        else:
+            source.from_dict(dict(saved, tools=deepcopy(saved['tools']), obj_options=dict(saved['obj_options'])))
+        outputs.append(generate(source))
+    assert outputs[0] == outputs[1] == outputs[2]
+    text = outputs[0]
+    # an old single-geo object makes the same program as any other Geometry: the spindle stops between the
+    # tools only for a tool change
+    assert len(re.findall(r'^M0?5$', text, re.MULTILINE)) == (3 if toolchange else 1)
+    assert [tool['data'] for tool in obj.tools.values()] == original_data
+
+
+def test_old_single_geometry_project_keeps_tools_and_saved_milling_output():
+    from pathlib import Path
+    from appCommon.ProjectFile import load_project_file
+    from camlib import dict2obj
+    from appObjects.GeometryObject import GeometryObject
+
+    golden = Path(__file__).parent / 'data' / 'single_tool_model'
+    milling, jobs = milling_harness(flatcam_8_994_cutout_tool(), **OTHER_OPTIONS)
+    milling.app.version = milling.app.version_date = 'test'
+    with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
+        obj = GeometryObject('old_geo', milling.app)
+    # one object cut from a project that the previous application saved: a single-geo Geometry whose 2 tools (added
+    # with the Milling plugin) each hold the 2 shapes of the file, and each has its own Cut Z
+    saved = load_project_file(str(golden / 'old_single_geo.json'), object_hook=dict2obj)['objs'][0]
+    assert saved['multigeo'] is False and 'solid_geometry' in saved
+    obj.from_dict(saved)
+    obj.tools = {int(key): value for key, value in obj.tools.items()}
+    assert sorted(obj.tools) == [1, 2]
+    assert [obj.tools[uid]['tooldia'] for uid in (1, 2)] == [2.4, 0.5]
+    assert [obj.tools[uid]['data']['tools_mill_cutz'] for uid in (1, 2)] == [-1.0, -1.6]
+    assert all(len(tool['solid_geometry']) == 2 for tool in obj.tools.values())
+    milling.target_obj, milling.sel_tools = obj, obj.tools
+    load_plugin_target(milling)
+    milling.generate_cnc_job_handler(toolchange=False, plot=False, use_thread=False)
+    with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
+        job = CNCJobObject('job', milling.app)
+    job.tools, job.gc_start, job.source_file = jobs[0].tools, jobs[0].gc_start, jobs[0].source_file
+    job.obj_options['type'] = 'Geometry'
+    job.gc_header = job.gcode_header()
+    text = exported(job)
+    expected = (golden / 'old_single_geo.nc').read_text()
+    stable = lambda value: re.sub(r'^\(Created on.*$', '(Created on)', value, flags=re.MULTILINE)
+    assert stable(text) == stable(expected)
+
+def test_selecting_legacy_geometry_reloads_general_fields_and_allows_form_override():
+    milling, jobs = milling_harness(flatcam_8_994_cutout_tool(endz=40.0), **OTHER_OPTIONS)
+    milling.target_obj.tools[2] = dict(flatcam_8_994_cutout_tool(endz=99.0),
+                                      solid_geometry=list(milling.target_obj.solid_geometry))
+    load_plugin_target(milling)
+    assert milling.ui.endz_entry.get_value() == 40.0
+    milling.target_obj.tools[1] = dict(flatcam_8_994_cutout_tool(),
+                                      solid_geometry=list(milling.target_obj.solid_geometry))
+    milling.on_object_changed()
+    assert milling.ui.endz_entry.get_value() == 15.0
+    milling.generate_cnc_job_handler(toolchange=False, plot=False, use_thread=False)
+    assert 'G00 Z15.00' in jobs[-1].source_file
+    milling.ui.endz_entry.set_value(30.0)
+    milling.generate_cnc_job_handler(toolchange=False, plot=False, use_thread=False)
+    assert 'G00 Z30.00' in jobs[-1].source_file
+
+def test_milling_cuts_the_tool_shapes_not_an_object_level_copy():
+    milling, jobs = milling_harness(flatcam_8_994_cutout_tool())
+    milling.target_obj.solid_geometry = [LineString([(90, 90), (100, 90)])]
+    milling.generate_cnc_job_handler(toolchange=False, plot=False, use_thread=False, from_tcl=True)
+    assert jobs
+    assert max(x for x, y in xy_cuts(jobs[0].source_file)) == 10.0
+
+@pytest.mark.parametrize('all_tools', [None, True])
+def test_deleting_the_last_milling_tool_keeps_its_shapes(all_tools):
+    shapes = [LineString([(0, 0), (10, 0)])]
+    tools = {1: {'solid_geometry': shapes, 'data': {}, 'tooldia': 1.0}}
+    milling = MillingHarness(app=SimpleNamespace(inform=Mock()), target_obj=SimpleNamespace(tools=tools),
+                             ui=SimpleNamespace(tools_table_mill_geo=Mock()),
+                             ui_disconnect=Mock(), ui_connect=Mock(), _selected_tool_uids=lambda table: [1])
+    milling._on_tool_delete(all_tools=all_tools)
+    assert list(tools) == [1]
+    assert tools[1]['solid_geometry'] == shapes
+
+@pytest.mark.parametrize('edit_depth', [False, True])
+def test_legacy_form_displays_the_generated_parameters(edit_depth):
     tool = flatcam_8_994_cutout_tool()
-    milling, jobs = milling_harness(tool, multigeo, **OTHER_OPTIONS)
+    milling, jobs = milling_harness(tool, **OTHER_OPTIONS)
 
     load_plugin_target(milling)
 
@@ -745,13 +850,12 @@ def test_legacy_form_displays_the_generated_parameters(multigeo, edit_depth):
     assert jobs[0].pp_geometry_name == milling.ui.pp_geo_name_cb.get_value()
     assert 'Z-0.5000' not in gcode
 
-@pytest.mark.parametrize('multigeo', [False, True])
-def test_milling_plugin_uses_the_saved_depth_passes_and_feed_rates(multigeo):
+def test_milling_plugin_uses_the_saved_depth_passes_and_feed_rates():
     # Generate CNCJob in the Milling plugin, with the 'default' preprocessor in the application options and in the form;
     # the application cut Z, passes, travel Z and feed rates differ from the saved ones
     tool = flatcam_8_994_cutout_tool()
 
-    job, _milling = make_plugin_cnc_job(tool, multigeo, **dict(OTHER_OPTIONS, tools_mill_ppname_g='default'))
+    job, _milling = make_plugin_cnc_job(tool, **dict(OTHER_OPTIONS, tools_mill_ppname_g='default'))
 
     gcode = job.source_file
     assert job.pp_geometry_name == 'default'
@@ -759,10 +863,9 @@ def test_milling_plugin_uses_the_saved_depth_passes_and_feed_rates(multigeo):
     assert 'G01 F120.00' in gcode and 'G01 F60.00' in gcode
     for value in ('Z-0.5000', 'Z-0.3000', 'Z5.0000', 'F300.00', 'F30.00'):
         assert value not in gcode
-    # a multi-geometry job takes the general fields (preprocessor, end Z, toolchange...) from the form, as for every
-    # project; a single-geometry job takes the saved ones
-    assert ('G00 Z25.00' if multigeo else 'G00 Z15.00') in gcode
-    assert tool['data']['tools_mill_endz'] == (OTHER_OPTIONS['tools_mill_endz'] if multigeo else 15.0)
+    # The form wins after selection loads the first tool's saved general fields.
+    assert 'G00 Z25.00' in gcode
+    assert tool['data']['tools_mill_endz'] == OTHER_OPTIONS['tools_mill_endz']
 
 @pytest.mark.parametrize('saved, app_value, expected', [
     ('Seed', 2, 1),
@@ -773,7 +876,7 @@ def test_saved_polish_method(saved, app_value, expected):
     # and FlatCAM Evo save the index
     tool = flatcam_8_994_cutout_tool(polish_method=saved)
 
-    gcode, _milling = make_cnc_job(tool, True, **dict(OTHER_OPTIONS, tools_mill_polish_method=app_value))
+    gcode, _milling = make_cnc_job(tool, **dict(OTHER_OPTIONS, tools_mill_polish_method=app_value))
 
     assert tool['data']['tools_mill_polish_method'] == expected
     assert type(tool['data']['tools_mill_polish_method']) is int
@@ -800,7 +903,7 @@ class QtMilling(QtCore.QObject):
     """The real ToolMilling methods on a QObject: the form's signals reach form_to_storage() with their sender()."""
     def __getattr__(self, name):
         method = getattr(ToolMilling, name)
-        return method.__get__(self, type(self))
+        return method.__get__(self, type(self)) if hasattr(method, '__get__') else method
 
 @pytest.fixture(autouse=True)
 def slot_errors(monkeypatch):
@@ -819,13 +922,13 @@ def saved_tool(**changes):
     data.update(changes)
     return {'tooldia': 1.0, 'solid_geometry': geometry, 'data': data}
 
-def make_object(name, multigeo=True, tool=None, **changes):
+def make_object(name, tool=None, **changes):
     tool = tool or saved_tool(**changes)
     tool.setdefault('solid_geometry', [LineString([(0, 0), (10, 0)])])
-    return SimpleNamespace(kind='geometry', multigeo=multigeo, tools={1: tool}, solid_geometry=tool.get('solid_geometry', []),
+    return SimpleNamespace(kind='geometry', tools={1: tool}, solid_geometry=tool.get('solid_geometry', []),
                            obj_options=dict(tool['data'], name=name, xmin=0, ymin=0, xmax=10, ymax=5))
 
-def plugin(objects, multigeo=True, **options):
+def plugin(objects, **options):
     """
     The Milling plugin with its real form and signals, and several Geometry targets. Selecting a target in the Target
     combo box runs on_object_changed(), as the project tree selection does.
@@ -834,7 +937,7 @@ def plugin(objects, multigeo=True, **options):
     from PyQt6 import QtGui
     from appPlugins.ToolMilling import MillingUI
 
-    harness, jobs = milling_harness(saved_tool(), multigeo, **options)
+    harness, jobs = milling_harness(saved_tool(), **options)
     milling = QtMilling()
     vars(milling).update(vars(harness))
     app = milling.app
@@ -894,7 +997,7 @@ def form_values(milling, keys):
     fields = {**milling.form_fields, **milling.general_form_fields}
     return {key: fields[key].get_value() for key in keys}
 
-def test_multigeo_job_uses_the_settings_of_the_selected_target():
+def test_job_uses_the_settings_of_the_selected_target():
     objects = {'A': make_object('A', **LASER), 'B': make_object('B', **MILL)}
     milling = plugin(objects)
     select(milling, 'A')
@@ -1002,10 +1105,9 @@ def told(milling, level):
     (dict(tools_mill_tooldia=0.0), 'diameter must be above zero'),
     (dict(tools_mill_multidepth=True, tools_mill_depthperpass=0.0), 'Depth per Pass must be above zero'),
 ])
-@pytest.mark.parametrize('multigeo', [True])
-def test_a_tool_that_cannot_make_a_job_blocks_the_job(changes, text, multigeo):
-    objects = {'A': make_object('A', multigeo=multigeo, **changes)}
-    milling = plugin(objects, multigeo=multigeo)
+def test_a_tool_that_cannot_make_a_job_blocks_the_job(changes, text):
+    objects = {'A': make_object('A', **changes)}
+    milling = plugin(objects)
     select(milling, 'A')
     milling.sel_tools.clear()
     milling.sel_tools.update(deepcopy(milling.target_obj.tools))

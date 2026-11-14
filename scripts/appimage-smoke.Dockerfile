@@ -1,4 +1,4 @@
-FROM almalinux:8
+FROM almalinux:9
 
 # Supply a desktop and software OpenGL, but leave Qt's xkbcommon/XCB helpers to the AppImage.
 RUN dnf install -y epel-release \

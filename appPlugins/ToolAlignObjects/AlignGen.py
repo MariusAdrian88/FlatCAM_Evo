@@ -95,7 +95,7 @@ def build_snap_index(obj):
             centers.append((center.x, center.y))
     else:
         tools = getattr(obj, 'tools', None)
-        if getattr(obj, 'multigeo', False) and isinstance(tools, dict):
+        if kind == 'geometry' and isinstance(tools, dict):
             for tool in tools.values():
                 _flatten(tool.get('solid_geometry'), outlines)
         else:

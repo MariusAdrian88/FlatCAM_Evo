@@ -357,14 +357,50 @@ class TestPlotCanvas3d(unittest.TestCase):
         camera.viewbox_mouse_event(self.mouse_event('mouse_wheel', pos=pos, delta=(0, -1)))
         self.assertAlmostEqual(camera.scale_factor, scale)
         np.testing.assert_allclose(camera.center, center, atol=1e-5)
-        # Shift makes the wheel step 10 times finer; some platforms send the Shift wheel as a horizontal delta
-        for delta in ((0, 1), (1, 0)):
-            camera.viewbox_mouse_event(self.mouse_event('mouse_wheel', pos=pos, delta=delta, modifiers=(keys.SHIFT,)))
-            self.assertAlmostEqual(camera.scale_factor / scale, (1 + camera.zoom_factor) ** -3)
-            after = camera._scene_transform.map(point)
-            np.testing.assert_allclose(after[:2] / after[3], pos, atol=1e-5)
-            camera.viewbox_mouse_event(self.mouse_event('mouse_wheel', pos=pos, delta=(0, -1), modifiers=(keys.SHIFT,)))
+        # the fine zoom key (factory Alt+Wheel) makes the wheel step 10 times finer; some platforms send the Alt
+        # wheel as a horizontal delta; another modifier does not zoom
+        from appGUI import shortcuts
+        registry = shortcuts.registry()
+        self.addCleanup(registry.reset, 'app.fine_zoom')
+        for key, mods, other in (('Alt+Wheel', (keys.ALT,), (keys.SHIFT,)),
+                                 ('Ctrl+Shift+Wheel', (keys.CONTROL, keys.SHIFT), (keys.ALT,))):
+            registry.set_key('app.fine_zoom', key)
+            for delta in ((0, 1), (1, 0)):
+                camera.viewbox_mouse_event(self.mouse_event('mouse_wheel', pos=pos, delta=delta, modifiers=mods))
+                self.assertAlmostEqual(camera.scale_factor / scale, (1 + camera.zoom_factor) ** -3)
+                after = camera._scene_transform.map(point)
+                np.testing.assert_allclose(after[:2] / after[3], pos, atol=1e-5)
+                camera.viewbox_mouse_event(self.mouse_event('mouse_wheel', pos=pos, delta=(0, -1), modifiers=mods))
+                self.assertAlmostEqual(camera.scale_factor, scale)
+            camera.viewbox_mouse_event(self.mouse_event('mouse_wheel', pos=pos, delta=(0, 1), modifiers=other))
             self.assertAlmostEqual(camera.scale_factor, scale)
+
+    def test_2d_wheel_zoom_and_the_fine_zoom_key(self):
+        from appGUI import shortcuts
+        registry = shortcuts.registry()
+        self.addCleanup(registry.reset, 'app.fine_zoom')
+        camera = self.make_2d_canvas().view.camera
+        width = camera.rect.width
+
+        def wheel(t, delta, mods=()):
+            with patch('appGUI.VisPyCanvas.time.time', return_value=t):
+                camera.viewbox_mouse_event(self.mouse_event_2d('mouse_wheel', pos=(200, 150), delta=delta,
+                                                               modifiers=mods))
+
+        wheel(10.0, (0, 1))
+        self.assertAlmostEqual(camera.rect.width / width, (1 + camera.zoom_factor) ** -30)
+        wheel(10.1, (0, -1))
+        self.assertAlmostEqual(camera.rect.width, width)
+        for t, (key, mods, other) in enumerate((('Alt+Wheel', (keys.ALT,), (keys.SHIFT,)),
+                                               ('Ctrl+Alt+Wheel', (keys.CONTROL, keys.ALT), (keys.ALT,)))):
+            registry.set_key('app.fine_zoom', key)
+            for step, delta in enumerate(((0, 1), (1, 0))):
+                wheel(20.0 + t + step * 0.2, delta, mods)
+                self.assertAlmostEqual(camera.rect.width / width, (1 + camera.zoom_factor) ** -3)
+                wheel(20.1 + t + step * 0.2, (0, -1), mods)
+                self.assertAlmostEqual(camera.rect.width, width)
+            wheel(20.5 + t, (0, 1), other)
+            self.assertAlmostEqual(camera.rect.width, width)
 
 
     def test_drag_tilts_in_screen_direction_from_any_start(self):

@@ -3444,7 +3444,7 @@ class ImportEditorGrb(QtCore.QObject, DrawTool):
             del cache[key]
         for obj in sources:
             geometry = obj.solid_geometry
-            if obj.kind == 'geometry' and getattr(obj, 'multigeo', False):
+            if obj.kind == 'geometry':
                 geometry = [tool.get('solid_geometry', []) for tool in obj.tools.values()]
             raw = tuple(flatten_shapely_geometry(geometry if geometry is not None else []))
             token = tuple(id(geo) for geo in raw)
@@ -5907,7 +5907,6 @@ class AppGerberEditor(QtCore.QObject):
         source.export_as_regions = export_as_regions
         # the records come from the editor now, not from the file; a Native save numbered them in file order
         source.records_in_order = bool(getattr(edited, 'records_in_order', False))
-        source.multigeo = False
         source.follow = False
         for attr in ('to_attributes', 'attributes', 'file_attributes'):
             if getattr(edited, attr, None):
@@ -6341,7 +6340,6 @@ class AppGerberEditor(QtCore.QObject):
             else:
                 grb_obj.obj_options[k] = deepcopy(v)
 
-        grb_obj.multigeo = False
         grb_obj.follow = False
         grb_obj.units = app_obj.app_units
 

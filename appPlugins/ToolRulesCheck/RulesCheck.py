@@ -467,6 +467,7 @@ class RulesCheck(AppTool):
 
         def init(new_obj, app_obj):
             new_obj.source_file = report
+            new_obj.document_type = 'html'
             new_obj.read_only = True
 
         self.new_object('document', name='Rules_check_results', initialize=init, plot=False)

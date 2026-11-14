@@ -736,9 +736,6 @@ class PaintGen:
             output.tools = finished['output_tools'] if rest else dict(tools)
             for tool in output.tools.values():
                 tool['data']['output_object_name'] = params.output_object_name
-            output.solid_geometry = solid_geometry
-            output.multigeo = True
-            output.multitool = True
             output.obj_options['tools_mill_tooldia'] = '0.0' if rest else str(result['last_diameter'])
             if not self._set_output_bounds(output, solid_geometry) or not self._validate_output_geometry(output):
                 self._failure_reported = True
@@ -769,13 +766,13 @@ class PaintGen:
     def _source_geometry(obj):
         """
         The geometry a selection works on. A Gerber always gives its fused copper (``gerber_copper_for_paint``), a
-        MultiGeo Geometry the geometry of all its tools, other Geometry its solid geometry. Nothing is changed on
+        Geometry the geometry of all its tools. Nothing is changed on
         the object. Can be heavy: call it from the job, not from a GUI slot.
         """
         if obj.kind == 'gerber':
             return gerber_copper_for_paint(obj)
         tools = getattr(obj, 'tools', None) or {}
-        if obj.kind == 'geometry' and getattr(obj, 'multigeo', False) and len(tools) > 1:
+        if obj.kind == 'geometry':
             return [tool['solid_geometry'] for tool in tools.values() if tool.get('solid_geometry')]
         return obj.solid_geometry
 

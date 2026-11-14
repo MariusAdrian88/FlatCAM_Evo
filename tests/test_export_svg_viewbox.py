@@ -38,9 +38,11 @@ def _app_with_geometry(geometry, kind='geometry'):
     app.proc_container = MagicMock()
 
     obj = Geometry(app)
-    obj.kind, obj.multigeo = kind, False          # set by GeometryObject / GerberObject
+    obj.kind = kind
     obj.units = 'MM'
     obj.solid_geometry = geometry
+    if kind == 'geometry':
+        obj.tools = {1: {'solid_geometry': geometry}}
     app.collection = Mock()
     app.collection.get_by_name.return_value = obj
     return app

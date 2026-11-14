@@ -1,6 +1,8 @@
 """Explicit-data isolation geometry algorithms. No application or widget state lives here."""
 
 from typing import Iterable
+from copy import deepcopy
+import logging
 import math
 
 import numpy as np
@@ -10,6 +12,288 @@ from shapely.ops import unary_union
 
 from camlib import flatten_shapely_geometry, milling_orient, polygon_gap_pairs, clip_paths_to_area, \
     pass_covers_area, isolation_leftover_paths, gerber_quad_segs, PassBuffers, grace
+from defaults import AppDefaults
+
+import gettext
+import appTranslation as fcTranslate
+import builtins
+
+fcTranslate.apply_language('strings')
+if '_' not in builtins.__dict__:
+    _ = gettext.gettext
+
+# index of the V-shape in the tool shape combo
+V_SHAPE_INDEX = 5
+
+
+def dec_format(value, decimals):
+    """A float rounded to the decimals (the same as App.dec_format())."""
+    return float('%.*f' % (decimals, float(value)))
+
+
+def iso_default_data(options, defaults=None):
+    """
+    The data of a new Isolation tool: every geometry_* option (prefix stripped) and every tools_* option, then the
+    tool shape, cut depth and V-tip values of the Isolation preferences copied to the Milling keys.
+    A key that is missing in the options takes the value of the defaults, then the factory default.
+
+    :param options:     the application options
+    :param defaults:    the application defaults (None: only the factory defaults)
+    :return:            a new dict
+    """
+    factory = AppDefaults.factory_defaults
+    names = list(options) + [name for name in factory if name not in options]
+    data = {}
+    for option in names:
+        value = options.get(option, defaults.get(option, factory.get(option)) if defaults is not None
+                            else factory.get(option))
+        if option.find('geometry_') == 0:
+            data[option[len('geometry_'):]] = value
+        if option.find('tools_') == 0:
+            data[option] = value
+
+    # transfer some Isolation Plugin values to the Milling Plugin; that works only for adding a default tool
+    for mill_key, iso_key in (('tools_mill_tool_shape', 'tools_iso_tool_shape'), ('tools_mill_cutz', 'tools_iso_cutz'),
+                              ('tools_mill_vtipdia', 'tools_iso_vtipdia'),
+                              ('tools_mill_vtipangle', 'tools_iso_vtipangle')):
+        data[mill_key] = deepcopy(data[iso_key])
+    return data
+
+
+def merge_db_tool(base_data, db_tools, truncated_dia, derive_v_dia=False, decimals=4):
+    """
+    Merges the Tools Database tools found for a diameter into the data of a new tool.
+
+    :param base_data:       the data of a default tool (not changed)
+    :param db_tools:        {id: {'tooldia', 'data'}} as load_tools_database() returns it for the diameter
+    :param truncated_dia:   the diameter that was looked up, already rounded
+    :param derive_v_dia:    the diameter was not given: a V-shape tool takes its effective diameter
+    :param decimals:        decimals of the rounded diameters
+    :return:                (the number of tools found, the merged data, the diameter of the tool); the data and
+                            diameter are meaningful only when exactly 1 tool was found
+    """
+    data = deepcopy(base_data)
+    updated_dia = None
+    for db_tool_val in db_tools.values():
+        db_dia = db_tool_val['tooldia']
+        updated_dia = db_dia if db_dia != truncated_dia else None
+        for key in db_tool_val['data']:
+            if not key.startswith('tools_') or key.startswith(('tools_iso_', 'tools_mill_')):
+                data[key] = deepcopy(db_tool_val['data'][key])
+
+    found = len(db_tools)
+    if found != 1:
+        return found, data, truncated_dia
+    new_dia = deepcopy(updated_dia) if updated_dia is not None else deepcopy(truncated_dia)
+    if derive_v_dia and is_v_shape_data(data):
+        # the final (merged) data decides the diameter
+        final_dia = v_effective_diameter(data)
+        if final_dia is not None and final_dia > 0:
+            new_dia = dec_format(final_dia, decimals)
+            data['tools_iso_tooldia'] = deepcopy(new_dia)
+    return found, data, new_dia
+
+
+def is_v_shape_data(data):
+    """If the data are of a V-shape tool."""
+    return data.get('tools_mill_tool_shape') == V_SHAPE_INDEX
+
+
+def iso_tools(options, diameters, decimals, data=None, defaults=None, warn=None):
+    """
+    Builds the tools storage of an isolation run, as the plugin adds default tools to its table.
+
+    :param options:     the application options (the Isolation preferences are the tool data)
+    :param diameters:   the tool diameters; None or 0 takes the effective diameter of a V-shape tool. A diameter that
+                        is already in the table (after the rounding) is skipped, as the plugin refuses it
+    :param decimals:    decimals of the tool diameters
+    :param data:        values that replace the default data of every tool
+    :param defaults:    the application defaults
+    :param warn:        optional function(message) called when a tool is skipped
+    :return:            {uid: {'tooldia', 'data', 'solid_geometry'}}, the uids from 1; tools_iso_tooldia of the data
+                        is set only for a V-shape tool with a derived diameter
+    :raises ValueError: no usable diameter
+    """
+    base = iso_default_data(options, defaults)
+    if data:
+        base.update(deepcopy(data))
+    tools = {}
+    for dia in diameters:
+        derive_v_dia = dia is None or dia == 0
+        if derive_v_dia:
+            dia = v_effective_diameter(base) if is_v_shape_data(base) else None
+            if dia is None:
+                raise ValueError('The tool diameter is not valid.')
+        truncated = dec_format(dia, decimals)
+        if any(tool['tooldia'] == truncated for tool in tools.values()):
+            if warn:
+                warn('Tool %s is already in the tool table.' % truncated)
+            continue
+        new_data, new_dia = deepcopy(base), truncated
+        if derive_v_dia and is_v_shape_data(new_data):
+            new_data['tools_iso_tooldia'] = deepcopy(truncated)
+        tools[len(tools) + 1] = {'tooldia': new_dia, 'data': new_data, 'solid_geometry': []}
+    return tools
+
+
+def find_db_tool(db_tools, name):
+    """
+    The Tools Database tool with this name (the case and the outer spaces do not count).
+
+    :param db_tools:    {id: {'name', 'tooldia', 'data'}} as load_tools_database() returns them
+    :param name:        the name of the tool
+    :return:            the tool record
+    :raises ValueError: no tool, or several tools, have this name
+    """
+    wanted = str(name).strip().casefold()
+    found = [tool for tool in db_tools.values() if str(tool.get('name', '')).strip().casefold() == wanted]
+    if not found:
+        raise ValueError('No Isolation tool named "%s" in the Tools Database.' % name)
+    if len(found) > 1:
+        raise ValueError('Several Isolation tools are named "%s" in the Tools Database.' % name)
+    return found[0]
+
+
+def iso_db_tool(options, db_tool, decimals, data=None, dia=None, defaults=None):
+    """
+    The tools storage of an isolation run with one Tools Database tool.
+    Priority of the values: data (the given options) > the database tool > the preferences.
+
+    :param options:     the application options (the Isolation preferences)
+    :param db_tool:     the database tool record {'tooldia', 'data'}
+    :param decimals:    decimals of the tool diameter
+    :param data:        values that win over the database tool
+    :param dia:         a diameter that wins over the one of the database tool (positive); a V-shape tool always
+                        takes its effective diameter
+    :param defaults:    the application defaults
+    :return:            {1: {'tooldia', 'data', 'solid_geometry'}}
+    :raises ValueError: the effective diameter of a V-shape tool is not valid
+    """
+    db_dia = dec_format(db_tool['tooldia'], decimals)
+    __, new_data, new_dia = merge_db_tool(iso_default_data(options, defaults), {0: db_tool}, db_dia,
+                                          decimals=decimals)
+    if data:
+        new_data.update(deepcopy(data))
+    if is_v_shape_data(new_data):
+        effective = v_effective_diameter(new_data)
+        if effective is None or effective <= 0:
+            raise ValueError('The effective diameter of the V-shaped tool is not valid.')
+        new_dia = dec_format(effective, decimals)
+        new_data['tools_iso_tooldia'] = deepcopy(new_dia)
+    elif dia is not None:
+        new_dia = dec_format(dia, decimals)
+    return {1: {'tooldia': new_dia, 'data': new_data, 'solid_geometry': []}}
+
+
+def optimal_tooldia(aperture_storage, decimals, abort=None):
+    """
+    The largest tool that isolates all the copper of the apertures.
+
+    :return:    (status, diameter): 'ok', 'too_few' (less than 2 polygons) or 'no_safe' (touching polygons); the
+                diameter is inf if the status is not 'ok'
+    """
+    total_geo = aperture_geometry(aperture_storage, abort=abort)
+    if len(total_geo) <= 1:
+        return 'too_few', np.inf
+    min_dist = round(safe_tooldia(total_geo, decimals), decimals)
+    if min_dist <= 0:
+        return 'no_safe', np.inf
+    return 'ok', min_dist
+
+
+def check_tools(aperture_storage, tool_dias, decimals, abort=None):
+    """
+    If the tools fit in the smallest gap between the copper features.
+
+    :param aperture_storage:    the apertures of the Gerber object (obj.tools)
+    :param tool_dias:           {tool uid: tool diameter}
+    :return:                    (status, safe diameter): 'ok', 'too_few', 'no_safe' or 'incomplete' (a tool is too big
+                                for a complete isolation); the diameter is None if it could not be found
+    """
+    status, min_dist = optimal_tooldia(aperture_storage, decimals, abort=abort)
+    if status != 'ok':
+        return status, None
+    safe = dec_format(float(min_dist), decimals)
+    if any(dia > safe for dia in tool_dias.values()):
+        return 'incomplete', safe
+    return 'ok', safe
+
+
+def validity_message(status):
+    """The message (with its level tag) of a status of optimal_tooldia() / check_tools(); '' for 'ok'."""
+    if status == 'too_few':
+        return '[ERROR_NOTCL] %s' % _("Too few polygons in the Gerber object to determine distances.")
+    if status == 'no_safe':
+        return '[ERROR_NOTCL] %s' % _("Could not find a safe tool diameter.")
+    if status == 'incomplete':
+        return '[WARNING] %s' % _("Incomplete isolation.")
+    return ''
+
+
+def geometry_minus_reference(solid_geometry, reference_geometry):
+    """The copper that is not covered by a reference object (the Reference Object selection)."""
+    return unary_union(solid_geometry).difference(unary_union(reference_geometry))
+
+
+def generate_envelope(iso_obj, offset, invert, geometry=None, env_iso_type=2, nr_passes=0, prog_plot=False,
+                      buffers=None, log=None):
+    """
+    isolation_geometry() gives the polygons with the exteriors clockwise and the holes counter-clockwise: the
+    copper features are on the right of the tool, which is climb milling with a spindle that turns clockwise (M3).
+    invert reverses all the rings, for conventional milling.
+
+    :param iso_obj:         The Gerber object to be isolated
+    :param offset:          Offset distance to be passed to the obj.isolation_geometry() method
+    :param invert:          If to invert the direction of geometry (CW to CCW or reverse)
+    :param geometry:        Shapely Geometry for which to generate envelope
+    :param env_iso_type:    type of isolation, can be 0 = exteriors or 1 = interiors or 2 = both (complete)
+    :param nr_passes:       Number of passes
+    :param prog_plot:       Type of plotting: "normal" or "progressive" (progressive draws on the canvas)
+    :param buffers:         the passes buffered ahead (iso_obj.isolation_buffers()), or None
+    :param log:             object with error() and debug() (None: the logging module)
+    :return:                The buffered geometry, or 'fail'
+    """
+    log = log if log is not None else logging.getLogger(__name__)
+    try:
+        geom_shp = iso_obj.isolation_geometry(offset, geometry=geometry, iso_type=env_iso_type,
+                                              passes=nr_passes, prog_plot=prog_plot, buffers=buffers)
+    except Exception as e:
+        log.error('ToolIsolation.generate_envelope() --> %s' % str(e))
+        return 'fail'
+
+    return orient_envelope(geom_shp, invert, log.debug, log.error)
+
+
+def pad_solids(gerber_obj, geometry=None):
+    """Dark flashes with a point follow, optionally restricted to the selected geometry."""
+    pads = [geo['solid'] for aperture in gerber_obj.tools.values() for geo in aperture['geometry']
+            if geo.get('solid') is not None and isinstance(geo.get('follow'), Point)]
+    if geometry is None or not pads:
+        return pads
+    touched = shapely.STRtree(flatten_shapely_geometry(geometry)).query(
+        np.array(pads, dtype=object), predicate='intersects')[0]
+    return [pads[idx] for idx in sorted(set(touched.tolist()))]
+
+
+def tool_strategy(value):
+    """The strategy of a tool as 'offset' or 'voronoi'; None denotes an old Offset tool."""
+    if value is None:
+        return 'offset'
+    if isinstance(value, int) and not isinstance(value, bool):
+        return ('offset', 'voronoi')[value] if 0 <= value <= 1 else None
+    value = str(value).lower()
+    return value if value in ('offset', 'voronoi') else None
+
+
+def tools_for_run(tools_storage, sel_tools):
+    """Own tool data for a run, without geometry from an earlier run."""
+    return {uid: {key: deepcopy(value) for key, value in tools_storage[uid].items() if key != 'solid_geometry'}
+            for uid in sel_tools}
+
+
+def tools_for_object(run_tools, uids):
+    """Own tool data for each created object."""
+    return {uid: {**run_tools[uid], 'data': deepcopy(run_tools[uid]['data'])} for uid in uids}
 
 
 def pass_offset(tooldia, nr_pass, overlap, negative_dia=None, denominator=2.0000001):

@@ -1,14 +1,14 @@
 """Geometry core of the Subtract plugin: subtract / intersect / xor of an area from Gerber, Geometry and Excellon.
 
 Qt free and application free. The objects are duck-typed: only ``kind`` ('gerber' | 'geometry' | 'excellon'),
-``tools``, ``solid_geometry``, ``multigeo`` and ``obj_options`` (a dict that may hold 'units' and 'name') are read.
+``tools``, ``solid_geometry`` and ``obj_options`` (a dict that may hold 'units' and 'name') are read.
 
 Data facts this module relies on (checked in the parsers):
  - Gerber: tools = {apid: {'type', 'size', 'geometry': [{'solid'|'clear', 'follow'}...]}}. A region lives in aperture
    0 ('REG', size 0.0) and its 'follow' is the exterior ring of the polygon.
  - Excellon: tools[tid] = {'tooldia', 'drills': [Point], 'slots': [(start, stop)], 'solid_geometry': [polys]} where
    the solid_geometry is the drill circles followed by the slot capsules.
- - Geometry: single geo uses ``solid_geometry`` (a geometry or a list), multigeo uses tools[uid]['solid_geometry'].
+ - Geometry: tools[uid]['solid_geometry'] holds the shapes of each tool.
 """
 
 from dataclasses import dataclass, field
@@ -32,7 +32,6 @@ class SubResult:
     tools: dict = field(default_factory=dict)
     solid_geometry: object = None
     follow_geometry: list = field(default_factory=list)
-    multigeo: bool = False
     stats: dict = field(default_factory=dict)
     empty_area: bool = False
 
@@ -182,14 +181,11 @@ def _gerber_area(obj, tools):
 
 
 def _geometry_area(obj, margin, tools):
-    if getattr(obj, 'multigeo', False):
-        wanted = None if tools is None else set(tools)
-        parts = []
-        for uid, tool in (obj.tools or {}).items():
-            if wanted is None or uid in wanted:
-                parts.extend(_flat(tool.get('solid_geometry')))
-    else:
-        parts = _flat(getattr(obj, 'solid_geometry', None))
+    wanted = None if tools is None else set(tools)
+    parts = []
+    for uid, tool in (obj.tools or {}).items():
+        if wanted is None or uid in wanted:
+            parts.extend(_flat(tool.get('solid_geometry')))
     shapes = [g for g in parts if g.geom_type == 'Polygon']
     if margin > 0:
         shapes += [g for g in parts if g.geom_type in ('LineString', 'LinearRing', 'Point')]
@@ -218,7 +214,7 @@ def object_area(obj, margin=0.0, steps=64, tools=None, factor=1.0):
     """
     The area an object covers, as a Polygon / MultiPolygon (possibly empty).
 
-    :param tools:   aperture ids (Gerber) / tool ids (Excellon, multigeo Geometry) to use; None = all
+    :param tools:   aperture ids (Gerber) / tool ids (Excellon, Geometry) to use; None = all
     :param factor:  scales the area about (0, 0) before the margin is applied
     :param margin:  > 0 grows the area (lines of a Geometry only give an area with a margin)
     :param steps:   circle steps of the whole circle; the buffer uses quad_segs = steps // 4
@@ -495,7 +491,7 @@ def compute(target, subtractors, op='subtract', margin=0.0, steps=64, close_path
     """
     Run op on target with the area of the subtractors.
 
-    :param target_tools:    Gerber apertures / Excellon tools / multigeo tools to affect (None = all)
+    :param target_tools:    Gerber apertures / Excellon tools / Geometry tools to affect (None = all)
     :param sub_tools:       {subtractor name: tool ids used for its area}
     :param abort:           callable that raises to cancel; called between tools
     :raises ValueError:     target among the subtractors, no subtractor, bad op or op not valid for the kind
@@ -526,7 +522,7 @@ def compute(target, subtractors, op='subtract', margin=0.0, steps=64, close_path
     if kind == 'gerber':
         tools, solid, follow, stats = gerber_operation(tools_in, getattr(target, 'solid_geometry', None), op_area,
                                                        op_used, target_tools, abort)
-        return SubResult('gerber', tools, solid, follow, False, stats, empty)
+        return SubResult('gerber', tools, solid, follow, stats, empty)
 
     if kind == 'excellon':
         wanted = None if target_tools is None else set(target_tools)
@@ -536,7 +532,7 @@ def compute(target, subtractors, op='subtract', margin=0.0, steps=64, close_path
         tools.update(new_part)
         tools = {k: tools[k] for k in tools_in if k in tools}
         solid = [g for t in tools.values() for g in t.get('solid_geometry', ())]
-        return SubResult('excellon', tools, solid, [], False, stats, empty)
+        return SubResult('excellon', tools, solid, [], stats, empty)
 
     stats = {'kept': 0, 'changed': 0, 'removed': 0, 'added': 0}
 
@@ -544,25 +540,18 @@ def compute(target, subtractors, op='subtract', margin=0.0, steps=64, close_path
         for k in stats:
             stats[k] += st.get(k, 0)
 
-    if getattr(target, 'multigeo', False):
-        wanted = None if target_tools is None else set(target_tools)
-        tools, solid = {}, []
-        for uid, tool in tools_in.items():
-            _check_abort(abort)
-            if wanted is not None and uid not in wanted:
-                tools[uid] = dict(tool)
-            else:
-                geos, st = geometry_operation(tool.get('solid_geometry'), op_area, op_used, close_paths)
-                add(st)
-                tools[uid] = dict(tool, solid_geometry=geos)
-            solid.extend(_flat(tools[uid].get('solid_geometry')))
-        return SubResult('geometry', tools, solid, [], True, stats, empty)
-
-    geos, st = geometry_operation(getattr(target, 'solid_geometry', None), op_area, op_used, close_paths)
-    add(st)
-    # a single-geo Geometry keeps a copy of its solid_geometry in each tool: it must follow the result
-    tools = {uid: dict(tool, solid_geometry=list(geos)) for uid, tool in tools_in.items()}
-    return SubResult('geometry', tools, geos, [], False, stats, empty)
+    wanted = None if target_tools is None else set(target_tools)
+    tools, solid = {}, []
+    for uid, tool in tools_in.items():
+        _check_abort(abort)
+        if wanted is not None and uid not in wanted:
+            tools[uid] = dict(tool)
+        else:
+            geos, st = geometry_operation(tool.get('solid_geometry'), op_area, op_used, close_paths)
+            add(st)
+            tools[uid] = dict(tool, solid_geometry=geos)
+        solid.extend(_flat(tools[uid].get('solid_geometry')))
+    return SubResult('geometry', tools, solid, [], stats, empty)
 
 
 def apply_result(new_obj, result, target):
@@ -578,10 +567,7 @@ def apply_result(new_obj, result, target):
         if key != 'name':
             opts[key] = deepcopy(value)
     new_obj.tools = result.tools
-    new_obj.solid_geometry = result.solid_geometry
+    if result.kind != 'geometry':
+        new_obj.solid_geometry = result.solid_geometry
     if result.kind == 'gerber':
         new_obj.follow_geometry = result.follow_geometry
-    if result.kind == 'geometry':
-        new_obj.multigeo = result.multigeo
-        if result.multigeo:
-            new_obj.multitool = True

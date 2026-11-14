@@ -2,7 +2,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: FlatCAM Evo\n"
-"POT-Creation-Date: 2026-11-13 00:00+0100\n"
+"POT-Creation-Date: 2026-11-13 15:28+0100\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -86,20 +86,20 @@ msgstr ""
 msgid "Export Bookmarks"
 msgstr ""
 
-#: Bookmark.py:302 appGUI/MainGUI.py:756
+#: Bookmark.py:302 appGUI/MainGUI.py:761
 msgid "Bookmarks"
 msgstr ""
 
 #: Bookmark.py:309 Bookmark.py:352 appDatabase.py:2648 appDatabase.py:2678
 #: appEditors/appExcEditor.py:2160 appEditors/appExcEditor.py:2191
-#: appEditors/appGeoEditor.py:2853 appEditors/appGeoEditor.py:7385
-#: appEditors/appGeoEditor.py:7411 appEditors/appGeoEditor.py:7437
+#: appEditors/appGeoEditor.py:2853 appEditors/appGeoEditor.py:7387
+#: appEditors/appGeoEditor.py:7413 appEditors/appGeoEditor.py:7439
 #: appEditors/appGerberEditor.py:6391 appEditors/appTextEditor.py:490
 #: appEditors/geo_plugins/GeoPaintPlugin.py:174
 #: appEditors/geo_plugins/GeoTransformationPlugin.py:221
 #: appEditors/grb_plugins/GrbOperationDialogs.py:81
-#: appEditors/grb_plugins/GrbTransformationPlugin.py:405 appGUI/MainGUI.py:3236
-#: appGUI/MainGUI.py:3354 appGUI/shortcut_actions.py:579
+#: appEditors/grb_plugins/GrbTransformationPlugin.py:405 appGUI/MainGUI.py:3241
+#: appGUI/MainGUI.py:3359 appGUI/shortcut_actions.py:579
 #: appGUI/shortcut_actions.py:735 appGUI/shortcut_actions.py:815
 #: appGUI/shortcut_actions.py:916 appHandlers/appIO.py:906
 #: appHandlers/appIO.py:950 appHandlers/appIO.py:994 appHandlers/appIO.py:1019
@@ -114,16 +114,14 @@ msgstr ""
 #: appHandlers/appIO.py:1955 appHandlers/appIO.py:1994
 #: appHandlers/appIO.py:2115 appHandlers/appIO.py:2162
 #: appHandlers/appIO.py:2577 appHandlers/appIO.py:2613
-#: appHandlers/appIO.py:3751 appHandlers/appIO.py:3808
+#: appHandlers/appIO.py:3752 appHandlers/appIO.py:3803
 #: appHandlers/appObjectOps.py:491 appMain.py:1938 appMain.py:1974
-#: appMain.py:3157 appObjects/CNCJobObject.py:905
-#: appObjects/DocumentObject.py:275 appObjects/ObjectCollection.py:308
-#: appParsers/ParseGerber.py:2989 appParsers/ParseGerber.py:3029
-#: appParsers/ParseGerber.py:3046 appParsers/ParseGerber.py:3063
-#: appPlugins/Common/levelling_core.py:1619
+#: appMain.py:3161 appObjects/CNCJobObject.py:905
+#: appObjects/ObjectCollection.py:308 appParsers/ParseGerber.py:2989
+#: appParsers/ParseGerber.py:3029 appParsers/ParseGerber.py:3046
+#: appParsers/ParseGerber.py:3063 appPlugins/Common/levelling_core.py:1619
 #: appPlugins/ToolCompare/Compare.py:413 appPlugins/ToolCutOut/CutOut.py:1751
-#: appPlugins/ToolDistance/Distance.py:456 appPlugins/ToolFilm/Film.py:281
-#: appPlugins/ToolFilm/Film.py:328 appPlugins/ToolFollow/Follow.py:355
+#: appPlugins/ToolDistance/Distance.py:456 appPlugins/ToolFollow/Follow.py:355
 #: appPlugins/ToolGcodeSender/Sender.py:4659
 #: appPlugins/ToolImage/ImageImportMixin.py:256
 #: appPlugins/ToolInvertGerber/InvertGerber.py:254
@@ -149,8 +147,8 @@ msgstr ""
 #: Bookmark.py:317 appEditors/appTextEditor.py:610 appHandlers/appIO.py:2493
 #: appHandlers/appIO.py:2547 appHandlers/appIO.py:2737
 #: appHandlers/appIO.py:2938 appHandlers/appIO.py:3028
-#: appHandlers/appIO.py:4512 appMain.py:3162 appObjects/CNCJobObject.py:1338
-#: appPlugins/Common/levelling_core.py:1747 appPlugins/ToolFilm/Film.py:490
+#: appHandlers/appIO.py:4507 appMain.py:3166 appObjects/CNCJobObject.py:1338
+#: appPlugins/Common/levelling_core.py:1747
 #: appPlugins/ToolLevelling/Levelling.py:500
 #: appPlugins/ToolSolderPaste/SolderPaste.py:1205
 msgid ""
@@ -205,9 +203,9 @@ msgstr ""
 msgid "Zone added. Click to start adding next zone or right click to finish."
 msgstr ""
 
-#: appCommon/Common.py:405 appEditors/appGeoEditor.py:5881
-#: appEditors/appGeoEditor.py:6008 appEditors/appGeoEditor.py:6104
-#: appEditors/appGeoEditor.py:6316 appEditors/appGerberEditor.py:507
+#: appCommon/Common.py:405 appEditors/appGeoEditor.py:5883
+#: appEditors/appGeoEditor.py:6010 appEditors/appGeoEditor.py:6106
+#: appEditors/appGeoEditor.py:6318 appEditors/appGerberEditor.py:507
 #: appEditors/appGerberEditor.py:1137 appEditors/appGerberEditor.py:1318
 #: appEditors/appGerberEditor.py:1546 appPlugins/ToolFollow/Follow.py:554
 #: appPlugins/ToolIsolation/Isolation.py:3447 appPlugins/ToolNCC/Ncc.py:1951
@@ -317,8 +315,8 @@ msgstr ""
 msgid "General"
 msgstr ""
 
-#: appDatabase.py:145 appDatabase.py:569 appGUI/MainGUI.py:1389
-#: appGUI/MainGUI.py:2665 appGUI/ObjectUI.py:768 appGUI/ObjectUI.py:1044
+#: appDatabase.py:145 appDatabase.py:569 appGUI/MainGUI.py:1394
+#: appGUI/MainGUI.py:2670 appGUI/ObjectUI.py:768 appGUI/ObjectUI.py:1044
 #: appGUI/ToolLibrary.py:14 appGUI/preferences/PreferencesWindow.py:33
 #: appGUI/shortcut_actions.py:160 appPlugins/ToolMilling/Milling.py:304
 #: appPlugins/ToolMilling/Milling.py:306 appPlugins/ToolMilling/Milling.py:325
@@ -326,8 +324,8 @@ msgstr ""
 msgid "Milling"
 msgstr ""
 
-#: appDatabase.py:145 appDatabase.py:569 appGUI/MainGUI.py:1387
-#: appGUI/MainGUI.py:2663 appGUI/ObjectUI.py:760 appGUI/ToolLibrary.py:14
+#: appDatabase.py:145 appDatabase.py:569 appGUI/MainGUI.py:1392
+#: appGUI/MainGUI.py:2668 appGUI/ObjectUI.py:760 appGUI/ToolLibrary.py:14
 #: appGUI/preferences/PreferencesWindow.py:32 appGUI/shortcut_actions.py:151
 #: appPlugins/ToolDrilling/Drilling.py:84
 #: appPlugins/ToolDrilling/Drilling.py:228
@@ -336,8 +334,8 @@ msgid "Drilling"
 msgstr ""
 
 #: appDatabase.py:146 appDatabase.py:149 appDatabase.py:317 appDatabase.py:569
-#: appDatabase.py:900 appEditors/appGCodeEditor.py:211 appGUI/MainGUI.py:1394
-#: appGUI/MainGUI.py:2670 appGUI/ToolLibrary.py:14
+#: appDatabase.py:900 appEditors/appGCodeEditor.py:211 appGUI/MainGUI.py:1399
+#: appGUI/MainGUI.py:2675 appGUI/ToolLibrary.py:14
 #: appGUI/preferences/PreferencesWindow.py:45
 #: appGUI/preferences/tools/ToolsNCCPrefGroupUI.py:163
 #: appGUI/shortcut_actions.py:156 appObjects/CNCJobObject.py:306
@@ -349,23 +347,23 @@ msgstr ""
 
 #: appDatabase.py:146 appDatabase.py:569 appEditors/appGeoEditor.py:128
 #: appEditors/geo_plugins/GeoPaintPlugin.py:269
-#: appEditors/geo_plugins/GeoPaintPlugin.py:384 appGUI/MainGUI.py:876
-#: appGUI/MainGUI.py:1398 appGUI/MainGUI.py:1509 appGUI/MainGUI.py:1969
-#: appGUI/MainGUI.py:2675 appGUI/MainGUI.py:2784 appGUI/ObjectUI.py:1052
+#: appEditors/geo_plugins/GeoPaintPlugin.py:384 appGUI/MainGUI.py:881
+#: appGUI/MainGUI.py:1403 appGUI/MainGUI.py:1514 appGUI/MainGUI.py:1974
+#: appGUI/MainGUI.py:2680 appGUI/MainGUI.py:2789 appGUI/ObjectUI.py:1052
 #: appGUI/ToolLibrary.py:14 appGUI/preferences/PreferencesWindow.py:47
 #: appPlugins/ToolPaint/Paint.py:283 appPlugins/ToolPaint/PaintUI.py:47
 msgid "Paint"
 msgstr ""
 
-#: appDatabase.py:146 appDatabase.py:569 appGUI/MainGUI.py:1396
-#: appGUI/MainGUI.py:2673 appGUI/ObjectUI.py:417 appGUI/ObjectUI.py:1062
+#: appDatabase.py:146 appDatabase.py:569 appGUI/MainGUI.py:1401
+#: appGUI/MainGUI.py:2678 appGUI/ObjectUI.py:417 appGUI/ObjectUI.py:1062
 #: appGUI/ToolLibrary.py:14 appGUI/preferences/PreferencesWindow.py:46
 #: appPlugins/ToolNCC/Ncc.py:264 appPlugins/ToolNCC/NccUI.py:33
 msgid "NCC"
 msgstr ""
 
-#: appDatabase.py:146 appDatabase.py:569 appGUI/MainGUI.py:1406
-#: appGUI/MainGUI.py:2683 appGUI/ObjectUI.py:388 appGUI/ToolLibrary.py:14
+#: appDatabase.py:146 appDatabase.py:569 appGUI/MainGUI.py:1411
+#: appGUI/MainGUI.py:2688 appGUI/ObjectUI.py:388 appGUI/ToolLibrary.py:14
 #: appGUI/preferences/PreferencesWindow.py:34 appGUI/shortcut_actions.py:61
 #: appPlugins/ToolCutOut/CutOut.py:231 appPlugins/ToolCutOut/CutOutUI.py:22
 msgid "Cutout"
@@ -392,10 +390,10 @@ msgid "Polishing"
 msgstr ""
 
 #: appDatabase.py:150 appDatabase.py:316 appEditors/appGeoEditor.py:124
-#: appEditors/appGeoEditor.py:4619 appEditors/appGeoEditor.py:6048
-#: appEditors/appGeoEditor.py:6058 appEditors/appGeoEditor.py:6127
-#: appEditors/appGeoEditor.py:6441 appGUI/MainGUI.py:821 appGUI/MainGUI.py:1498
-#: appGUI/MainGUI.py:1950 appGUI/MainGUI.py:2775
+#: appEditors/appGeoEditor.py:4621 appEditors/appGeoEditor.py:6050
+#: appEditors/appGeoEditor.py:6060 appEditors/appGeoEditor.py:6129
+#: appEditors/appGeoEditor.py:6443 appGUI/MainGUI.py:826 appGUI/MainGUI.py:1503
+#: appGUI/MainGUI.py:1955 appGUI/MainGUI.py:2780
 #: appPlugins/ToolMilling/MillingUI.py:458
 msgid "Path"
 msgstr ""
@@ -410,8 +408,8 @@ msgstr ""
 msgid "Out"
 msgstr ""
 
-#: appDatabase.py:150 appDatabase.py:316 appGUI/MainGUI.py:1105
-#: appGUI/MainGUI.py:1935
+#: appDatabase.py:150 appDatabase.py:316 appGUI/MainGUI.py:1110
+#: appGUI/MainGUI.py:1940
 #: appGUI/preferences/general/GeneralGUIPrefGroupUI.py:118
 #: appHandlers/appPlotManager.py:411 appPlugins/ToolMilling/MillingUI.py:458
 #: appPlugins/ToolMilling/MillingUI.py:466
@@ -492,7 +490,7 @@ msgstr ""
 msgid "Cutout Parameters"
 msgstr ""
 
-#: appDatabase.py:501 appEditors/appGeoEditor.py:4214 appGUI/ObjectUI.py:222
+#: appDatabase.py:501 appEditors/appGeoEditor.py:4216 appGUI/ObjectUI.py:222
 #: appGUI/ObjectUI.py:623 appGUI/ObjectUI.py:913 appGUI/ObjectUI.py:1238
 #: appGUI/ObjectUI.py:1511 appGUI/ObjectUI.py:1574 appGUI/ToolLibrary.py:36
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:394
@@ -1762,16 +1760,16 @@ msgid "Duplicate"
 msgstr ""
 
 #: appDatabase.py:1778 appEditors/appExcEditor.py:2923
-#: appEditors/appGeoEditor.py:1528 appEditors/appGeoEditor.py:4449
+#: appEditors/appGeoEditor.py:1528 appEditors/appGeoEditor.py:4451
 #: appEditors/appGerberEditor.py:4039 appEditors/appGerberEditor.py:9054
 #: appGUI/ApertureLibrary.py:63 appGUI/GUIElements.py:566
 #: appGUI/GUIElements.py:1349 appGUI/GUIElements.py:1597
 #: appGUI/GUIElements.py:2101 appGUI/GUIElements.py:2387
-#: appGUI/GUIElements.py:4941 appGUI/MainGUI.py:561 appGUI/MainGUI.py:860
-#: appGUI/MainGUI.py:919 appGUI/MainGUI.py:1045 appGUI/MainGUI.py:1125
-#: appGUI/MainGUI.py:1329 appGUI/MainGUI.py:1478 appGUI/MainGUI.py:1553
-#: appGUI/MainGUI.py:1621 appGUI/MainGUI.py:2051 appGUI/MainGUI.py:2607
-#: appGUI/MainGUI.py:2755 appGUI/MainGUI.py:2819 appGUI/MainGUI.py:2888
+#: appGUI/GUIElements.py:4941 appGUI/MainGUI.py:566 appGUI/MainGUI.py:865
+#: appGUI/MainGUI.py:924 appGUI/MainGUI.py:1050 appGUI/MainGUI.py:1130
+#: appGUI/MainGUI.py:1334 appGUI/MainGUI.py:1483 appGUI/MainGUI.py:1558
+#: appGUI/MainGUI.py:1626 appGUI/MainGUI.py:2056 appGUI/MainGUI.py:2612
+#: appGUI/MainGUI.py:2760 appGUI/MainGUI.py:2824 appGUI/MainGUI.py:2893
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:414
 #: appGUI/shortcut_actions.py:397 appGUI/shortcut_actions.py:626
 #: appGUI/shortcut_actions.py:775 appHandlers/appObjectOps.py:994
@@ -1787,7 +1785,7 @@ msgstr ""
 msgid "Remove a selection of tools in the Tools Database."
 msgstr ""
 
-#: appDatabase.py:1785 appGUI/MainGUI.py:361 appGUI/MainGUI.py:1129
+#: appDatabase.py:1785 appGUI/MainGUI.py:366 appGUI/MainGUI.py:1134
 #: appGUI/preferences/excellon/ExcellonExpPrefGroupUI.py:21
 #: appGUI/preferences/geometry/GeometryExpPrefGroupUI.py:21
 #: appGUI/preferences/gerber/GerberExpPrefGroupUI.py:21
@@ -1801,8 +1799,8 @@ msgstr ""
 
 #: appDatabase.py:1792 appEditors/appGeoEditor.py:127
 #: appEditors/appGerberEditor.py:3593 appGUI/ImportDialog.py:144
-#: appGUI/MainGUI.py:283 appGUI/MainGUI.py:854 appGUI/MainGUI.py:1548
-#: appGUI/MainGUI.py:1612 appGUI/MainGUI.py:2815
+#: appGUI/MainGUI.py:288 appGUI/MainGUI.py:859 appGUI/MainGUI.py:1553
+#: appGUI/MainGUI.py:1617 appGUI/MainGUI.py:2820
 msgid "Import"
 msgstr ""
 
@@ -1810,9 +1808,9 @@ msgstr ""
 msgid "Load the Tools Database information's from a custom text file."
 msgstr ""
 
-#: appDatabase.py:1799 appGUI/ApertureLibrary.py:64 appGUI/MainGUI.py:229
-#: appGUI/MainGUI.py:1127 appGUI/ObjectUI.py:1457
-#: appGUI/preferences/PreferencesWindow.py:520 appMain.py:2766
+#: appDatabase.py:1799 appGUI/ApertureLibrary.py:64 appGUI/MainGUI.py:234
+#: appGUI/MainGUI.py:1132 appGUI/ObjectUI.py:1457
+#: appGUI/preferences/PreferencesWindow.py:520 appMain.py:2770
 #: appObjects/ObjectCollection.py:661
 msgid "Save"
 msgstr ""
@@ -1845,9 +1843,9 @@ msgstr ""
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:436
 #: appGUI/shortcut_actions.py:879 appGUI/shortcut_actions.py:977
 #: appGUI/shortcut_actions.py:980 appGUI/shortcut_actions.py:988
-#: appHandlers/appIO.py:4143 appHandlers/appLifecycle.py:326
-#: appHandlers/appObjectOps.py:979 appHandlers/appProjects.py:555
-#: appMain.py:2772 appMain.py:3523 appObjects/AppObject.py:87
+#: appHandlers/appIO.py:4138 appHandlers/appLifecycle.py:326
+#: appHandlers/appObjectOps.py:979 appHandlers/appProjects.py:563
+#: appMain.py:2776 appMain.py:3527 appObjects/AppObject.py:87
 #: appPlugins/ToolGcodeSender/Sender.py:4583
 #: appPlugins/ToolGcodeSender/SenderMotion.py:111
 #: appPlugins/ToolImage/ImageImportMixin.py:189
@@ -1868,7 +1866,7 @@ msgstr ""
 #: appEditors/grb_plugins/GrbCopyPlugin.py:459
 #: appEditors/grb_plugins/GrbCopyPlugin.py:468
 #: appEditors/grb_plugins/GrbPadArrayPlugin.py:335
-#: appEditors/grb_plugins/GrbPadArrayPlugin.py:344 appGUI/MainGUI.py:3269
+#: appEditors/grb_plugins/GrbPadArrayPlugin.py:344 appGUI/MainGUI.py:3274
 #: appGUI/ObjectUI.py:158 appGUI/ObjectUI.py:169
 #: appPlugins/ToolAlignObjects/AlignUI.py:332
 #: appPlugins/ToolAlignObjects/AlignUI.py:343
@@ -1888,7 +1886,7 @@ msgstr ""
 #: appPlugins/ToolExtract/ExtractUI.py:438
 #: appPlugins/ToolFiducials/FiducialsUI.py:272
 #: appPlugins/ToolFiducials/FiducialsUI.py:283
-#: appPlugins/ToolFilm/FilmUI.py:429 appPlugins/ToolFilm/FilmUI.py:438
+#: appPlugins/ToolFilm/FilmUI.py:434 appPlugins/ToolFilm/FilmUI.py:443
 #: appPlugins/ToolFollow/FollowUI.py:284 appPlugins/ToolFollow/FollowUI.py:295
 #: appPlugins/ToolGcodeSender/SenderUI.py:782
 #: appPlugins/ToolGcodeSender/SenderUI.py:793
@@ -1946,7 +1944,7 @@ msgstr ""
 #: appPlugins/ToolExtract/ExtractUI.py:440
 #: appPlugins/ToolFiducials/FiducialsUI.py:278
 #: appPlugins/ToolFiducials/FiducialsUI.py:285
-#: appPlugins/ToolFilm/FilmUI.py:433 appPlugins/ToolFilm/FilmUI.py:440
+#: appPlugins/ToolFilm/FilmUI.py:438 appPlugins/ToolFilm/FilmUI.py:445
 #: appPlugins/ToolFollow/FollowUI.py:290 appPlugins/ToolFollow/FollowUI.py:297
 #: appPlugins/ToolGcodeSender/SenderUI.py:788
 #: appPlugins/ToolGcodeSender/SenderUI.py:795
@@ -2024,7 +2022,7 @@ msgid "Delete from DB"
 msgstr ""
 
 #: appDatabase.py:2367 appHandlers/appLifecycle.py:315
-#: appHandlers/appProjects.py:545
+#: appHandlers/appProjects.py:553
 msgid "Save changes"
 msgstr ""
 
@@ -2033,7 +2031,7 @@ msgid "Replace library from file…"
 msgstr ""
 
 #: appDatabase.py:2446 appDatabase.py:2753 appDatabase.py:2963
-#: appDatabase.py:2988 appDatabase.py:3077 appGUI/MainGUI.py:631
+#: appDatabase.py:2988 appDatabase.py:3077 appGUI/MainGUI.py:636
 #: appHandlers/appUIActions.py:39 appHandlers/appUIActions.py:52
 #: appHandlers/appUIActions.py:815 appPlugins/ToolCutOut/CutOut.py:596
 #: appPlugins/ToolIsolation/Isolation.py:3663
@@ -2050,7 +2048,7 @@ msgstr ""
 msgid "Application units changed. Reopen the tool library before adding tools."
 msgstr ""
 
-#: appDatabase.py:2547 appGUI/MainGUI.py:595 appGUI/MainGUI.py:1682
+#: appDatabase.py:2547 appGUI/MainGUI.py:600 appGUI/MainGUI.py:1687
 #: appGUI/preferences/PreferencesWindow.py:347 appGUI/shortcut_actions.py:68
 msgid "Preferences"
 msgstr ""
@@ -2068,7 +2066,7 @@ msgid "Tools Dia"
 msgstr ""
 
 #: appDatabase.py:2547 appEditors/appExcEditor.py:3658
-#: appEditors/appExcEditor.py:3664 appGUI/MainGUI.py:3266
+#: appEditors/appExcEditor.py:3664 appGUI/MainGUI.py:3271
 #: appObjects/GeometryObject.py:732 appPlugins/ToolDrilling/Drilling.py:2073
 #: appPlugins/ToolIsolation/Isolation.py:1863
 #: appPlugins/ToolMilling/Milling.py:2709
@@ -2190,24 +2188,24 @@ msgid ""
 "Do you want to save?"
 msgstr ""
 
-#: appDatabase.py:3106 appGUI/MainGUI.py:2538
+#: appDatabase.py:3106 appGUI/MainGUI.py:2543
 #: appGUI/preferences/PreferencesUIManager.py:1205
 #: appGUI/preferences/PreferencesUIManager.py:1382
 #: appGUI/preferences/PreferencesWindow.py:539
 #: appGUI/preferences/general/GeneralGUIPrefGroupUI.py:560
-#: appHandlers/appLifecycle.py:324 appHandlers/appProjects.py:532
-#: appHandlers/appProjects.py:553 appMain.py:2087 appMain.py:2766
+#: appHandlers/appLifecycle.py:324 appHandlers/appProjects.py:540
+#: appHandlers/appProjects.py:561 appMain.py:2087 appMain.py:2770
 #: appObjects/CNCJobObject.py:893 appPlugins/ToolGcodeSender/Sender.py:4611
 #: appPlugins/ToolPanelize/Panelize.py:608 appTranslation.py:130
 msgid "Yes"
 msgstr ""
 
-#: appDatabase.py:3107 appGUI/MainGUI.py:2539
+#: appDatabase.py:3107 appGUI/MainGUI.py:2544
 #: appGUI/preferences/PreferencesUIManager.py:1383
 #: appGUI/preferences/PreferencesWindow.py:540
 #: appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:300
-#: appHandlers/appLifecycle.py:325 appHandlers/appProjects.py:533
-#: appHandlers/appProjects.py:554 appMain.py:2088 appMain.py:2770
+#: appHandlers/appLifecycle.py:325 appHandlers/appProjects.py:541
+#: appHandlers/appProjects.py:562 appMain.py:2088 appMain.py:2774
 #: appObjects/CNCJobObject.py:894 appPlugins/ToolDrilling/DrillingUI.py:878
 #: appPlugins/ToolGcodeSender/Sender.py:4612
 #: appPlugins/ToolPanelize/Panelize.py:609 appTranslation.py:131
@@ -2220,14 +2218,14 @@ msgstr ""
 
 #: appEditors/appExcEditor.py:70 appEditors/appExcEditor.py:292
 #: appEditors/appExcEditor.py:310 appEditors/appExcEditor.py:5632
-#: appGUI/MainGUI.py:899 appGUI/MainGUI.py:2036
+#: appGUI/MainGUI.py:904 appGUI/MainGUI.py:2041
 msgid "Drill"
 msgstr ""
 
 #: appEditors/appExcEditor.py:70 appEditors/appExcEditor.py:980
 #: appEditors/appExcEditor.py:997 appEditors/appExcEditor.py:5632
-#: appEditors/exc_plugins/ExcSlotArrayPlugin.py:167 appGUI/MainGUI.py:907
-#: appGUI/MainGUI.py:2041
+#: appEditors/exc_plugins/ExcSlotArrayPlugin.py:167 appGUI/MainGUI.py:912
+#: appGUI/MainGUI.py:2046
 msgid "Slot"
 msgstr ""
 
@@ -2256,17 +2254,17 @@ msgstr ""
 #: appEditors/appExcEditor.py:3644 appEditors/appExcEditor.py:4911
 #: appEditors/appExcEditor.py:4918 appEditors/appExcEditor.py:5779
 #: appEditors/appGeoEditor.py:2494 appEditors/appGeoEditor.py:2511
-#: appEditors/appGeoEditor.py:3298 appEditors/appGeoEditor.py:3795
-#: appEditors/appGeoEditor.py:3836 appEditors/appGeoEditor.py:3875
-#: appEditors/appGeoEditor.py:3932 appEditors/appGeoEditor.py:3958
-#: appEditors/appGeoEditor.py:3989 appEditors/appGeoEditor.py:4029
-#: appEditors/appGeoEditor.py:5314 appEditors/appGeoEditor.py:5559
-#: appEditors/appGeoEditor.py:5725 appEditors/appGeoEditor.py:5903
-#: appEditors/appGeoEditor.py:6129 appEditors/appGeoEditor.py:6446
-#: appEditors/appGeoEditor.py:6907 appEditors/appGeoEditor.py:7337
-#: appEditors/appGeoEditor.py:7407 appEditors/appGeoEditor.py:7433
-#: appEditors/appGeoEditor.py:7461 appEditors/appGeoEditor.py:7610
-#: appEditors/appGeoEditor.py:7780 appEditors/appGerberEditor.py:442
+#: appEditors/appGeoEditor.py:3298 appEditors/appGeoEditor.py:3797
+#: appEditors/appGeoEditor.py:3838 appEditors/appGeoEditor.py:3877
+#: appEditors/appGeoEditor.py:3934 appEditors/appGeoEditor.py:3960
+#: appEditors/appGeoEditor.py:3991 appEditors/appGeoEditor.py:4031
+#: appEditors/appGeoEditor.py:5316 appEditors/appGeoEditor.py:5561
+#: appEditors/appGeoEditor.py:5727 appEditors/appGeoEditor.py:5905
+#: appEditors/appGeoEditor.py:6131 appEditors/appGeoEditor.py:6448
+#: appEditors/appGeoEditor.py:6909 appEditors/appGeoEditor.py:7339
+#: appEditors/appGeoEditor.py:7409 appEditors/appGeoEditor.py:7435
+#: appEditors/appGeoEditor.py:7463 appEditors/appGeoEditor.py:7612
+#: appEditors/appGeoEditor.py:7782 appEditors/appGerberEditor.py:442
 #: appEditors/appGerberEditor.py:886 appEditors/appGerberEditor.py:1035
 #: appEditors/appGerberEditor.py:1218 appEditors/appGerberEditor.py:1622
 #: appEditors/appGerberEditor.py:1867 appEditors/appGerberEditor.py:2172
@@ -2315,10 +2313,10 @@ msgstr ""
 #: appEditors/appExcEditor.py:438 appEditors/appExcEditor.py:451
 #: appEditors/appExcEditor.py:1242 appEditors/appExcEditor.py:1255
 #: appEditors/appExcEditor.py:2560 appEditors/appExcEditor.py:2578
-#: appEditors/appGeoEditor.py:5984 appEditors/appGeoEditor.py:5998
-#: appEditors/appGeoEditor.py:6290 appEditors/appGeoEditor.py:6304
-#: appEditors/appGeoEditor.py:6746 appEditors/appGeoEditor.py:6760
-#: appEditors/appGeoEditor.py:7239 appEditors/appGeoEditor.py:7253
+#: appEditors/appGeoEditor.py:5986 appEditors/appGeoEditor.py:6000
+#: appEditors/appGeoEditor.py:6292 appEditors/appGeoEditor.py:6306
+#: appEditors/appGeoEditor.py:6748 appEditors/appGeoEditor.py:6762
+#: appEditors/appGeoEditor.py:7241 appEditors/appGeoEditor.py:7255
 #: appEditors/appGerberEditor.py:486 appEditors/appGerberEditor.py:500
 #: appEditors/appGerberEditor.py:870 appEditors/appGerberEditor.py:1297
 #: appEditors/appGerberEditor.py:1311 appEditors/appGerberEditor.py:1724
@@ -2326,8 +2324,8 @@ msgstr ""
 #: appEditors/geo_plugins/GeoImportImagePlugin.py:134
 #: appEditors/geo_plugins/GeoSimplificationPlugin.py:106
 #: appHandlers/appEdit.py:829 appHandlers/appIO.py:2137
-#: appHandlers/appIO.py:2264 appHandlers/appIO.py:3861
-#: appHandlers/appIO.py:4401 appHandlers/appIO.py:4430
+#: appHandlers/appIO.py:2264 appHandlers/appIO.py:3856
+#: appHandlers/appIO.py:4396 appHandlers/appIO.py:4425
 #: appHandlers/appObjectOps.py:55 appHandlers/appObjectOps.py:87
 #: appHandlers/appObjectOps.py:543 appHandlers/appObjectOps.py:735
 #: appHandlers/appObjectOps.py:997 appHandlers/appPlotManager.py:476
@@ -2344,8 +2342,7 @@ msgstr ""
 #: appPlugins/ToolDblSided/DblSided.py:666
 #: appPlugins/ToolDblSided/DblSided.py:679
 #: appPlugins/ToolDrilling/Drilling.py:2287
-#: appPlugins/ToolFiducials/Fiducials.py:489 appPlugins/ToolFilm/Film.py:440
-#: appPlugins/ToolFilm/Film.py:484 appPlugins/ToolImage/Image.py:183
+#: appPlugins/ToolFiducials/Fiducials.py:489 appPlugins/ToolImage/Image.py:183
 #: appPlugins/ToolImage/Image.py:231
 #: appPlugins/ToolImage/ImageImportMixin.py:131
 #: appPlugins/ToolMarkers/Markers.py:330 appPlugins/ToolMarkers/Markers.py:346
@@ -2372,7 +2369,7 @@ msgid "To add an Drill Array first select a tool in Tool Table"
 msgstr ""
 
 #: appEditors/appExcEditor.py:551 appEditors/appExcEditor.py:568
-#: appGUI/MainGUI.py:896 appGUI/MainGUI.py:2038
+#: appGUI/MainGUI.py:901 appGUI/MainGUI.py:2043
 msgid "Drill Array"
 msgstr ""
 
@@ -2432,7 +2429,7 @@ msgid "To add an Slot Array first select a tool in Tool Table"
 msgstr ""
 
 #: appEditors/appExcEditor.py:1362 appEditors/appExcEditor.py:1378
-#: appGUI/MainGUI.py:904 appGUI/MainGUI.py:2043
+#: appGUI/MainGUI.py:909 appGUI/MainGUI.py:2048
 msgid "Slot Array"
 msgstr ""
 
@@ -2441,7 +2438,7 @@ msgid "Slot array"
 msgstr ""
 
 #: appEditors/appExcEditor.py:1853 appEditors/appExcEditor.py:1865
-#: appEditors/appGeoEditor.py:4473 appEditors/appGerberEditor.py:8893
+#: appEditors/appGeoEditor.py:4475 appEditors/appGerberEditor.py:8893
 #: appEditors/exc_plugins/ExcResizePlugin.py:149
 #: appEditors/exc_plugins/ExcResizePlugin.py:164
 msgid "Resize"
@@ -2462,9 +2459,9 @@ msgid "Cancelled. Nothing selected."
 msgstr ""
 
 #: appEditors/appExcEditor.py:1997 appEditors/appExcEditor.py:2165
-#: appEditors/appExcEditor.py:2565 appEditors/appGeoEditor.py:6492
-#: appEditors/appGeoEditor.py:6535 appEditors/appGeoEditor.py:6826
-#: appEditors/appGeoEditor.py:6869 appEditors/appGerberEditor.py:2615
+#: appEditors/appExcEditor.py:2565 appEditors/appGeoEditor.py:6494
+#: appEditors/appGeoEditor.py:6537 appEditors/appGeoEditor.py:6828
+#: appEditors/appGeoEditor.py:6871 appEditors/appGerberEditor.py:2615
 #: appEditors/exc_plugins/ExcCopyPlugin.py:479
 #: appEditors/exc_plugins/ExcCopyPlugin.py:501
 #: appEditors/exc_plugins/ExcCopyPlugin.py:510
@@ -2491,15 +2488,15 @@ msgid "Nothing selected."
 msgstr ""
 
 #: appEditors/appExcEditor.py:2169 appEditors/appExcEditor.py:2173
-#: appEditors/appGeoEditor.py:125 appEditors/appGeoEditor.py:6831
-#: appEditors/appGeoEditor.py:6835 appGUI/GUIElements.py:552
+#: appEditors/appGeoEditor.py:125 appEditors/appGeoEditor.py:6833
+#: appEditors/appGeoEditor.py:6837 appGUI/GUIElements.py:552
 #: appGUI/GUIElements.py:1335 appGUI/GUIElements.py:1583
 #: appGUI/GUIElements.py:2089 appGUI/GUIElements.py:2377
-#: appGUI/GUIElements.py:4936 appGUI/MainGUI.py:555 appGUI/MainGUI.py:851
-#: appGUI/MainGUI.py:916 appGUI/MainGUI.py:1042 appGUI/MainGUI.py:1123
-#: appGUI/MainGUI.py:1326 appGUI/MainGUI.py:1476 appGUI/MainGUI.py:1546
-#: appGUI/MainGUI.py:1619 appGUI/MainGUI.py:2049 appGUI/MainGUI.py:2604
-#: appGUI/MainGUI.py:2753 appGUI/MainGUI.py:2813 appGUI/MainGUI.py:2886
+#: appGUI/GUIElements.py:4936 appGUI/MainGUI.py:560 appGUI/MainGUI.py:856
+#: appGUI/MainGUI.py:921 appGUI/MainGUI.py:1047 appGUI/MainGUI.py:1128
+#: appGUI/MainGUI.py:1331 appGUI/MainGUI.py:1481 appGUI/MainGUI.py:1551
+#: appGUI/MainGUI.py:1624 appGUI/MainGUI.py:2054 appGUI/MainGUI.py:2609
+#: appGUI/MainGUI.py:2758 appGUI/MainGUI.py:2818 appGUI/MainGUI.py:2891
 #: appGUI/shortcut_actions.py:643 appGUI/shortcut_actions.py:793
 #: appObjects/ExcellonObject.py:653 appPlugins/ToolDrilling/Drilling.py:373
 #: appPlugins/ToolMilling/Milling.py:632 appPlugins/ToolMilling/Milling.py:643
@@ -2507,8 +2504,8 @@ msgstr ""
 msgid "Copy"
 msgstr ""
 
-#: appEditors/appExcEditor.py:2180 appEditors/appGeoEditor.py:6506
-#: appEditors/appGeoEditor.py:6840
+#: appEditors/appExcEditor.py:2180 appEditors/appGeoEditor.py:6508
+#: appEditors/appGeoEditor.py:6842
 msgid "Click on destination point ..."
 msgstr ""
 
@@ -2527,8 +2524,8 @@ msgstr ""
 #: appEditors/appExcEditor.py:2858 appGUI/GUIElements.py:529
 #: appGUI/GUIElements.py:1312 appGUI/GUIElements.py:1560
 #: appGUI/GUIElements.py:2066 appGUI/GUIElements.py:2360
-#: appGUI/GUIElements.py:4919 appGUI/MainGUI.py:463 appGUI/MainGUI.py:470
-#: appGUI/MainGUI.py:3175 appGUI/MainGUI.py:3180 appGUI/shortcut_actions.py:98
+#: appGUI/GUIElements.py:4919 appGUI/MainGUI.py:468 appGUI/MainGUI.py:475
+#: appGUI/MainGUI.py:3180 appGUI/MainGUI.py:3185 appGUI/shortcut_actions.py:98
 #: appGUI/shortcut_actions.py:370 appGUI/shortcut_actions.py:604
 #: appGUI/shortcut_actions.py:760 appHandlers/appHistory.py:724
 msgid "Undo"
@@ -2537,8 +2534,8 @@ msgstr ""
 #: appEditors/appExcEditor.py:2859 appGUI/GUIElements.py:536
 #: appGUI/GUIElements.py:1319 appGUI/GUIElements.py:1567
 #: appGUI/GUIElements.py:2073 appGUI/GUIElements.py:2365
-#: appGUI/GUIElements.py:4924 appGUI/MainGUI.py:466 appGUI/MainGUI.py:471
-#: appGUI/MainGUI.py:3176 appGUI/MainGUI.py:3180 appGUI/shortcut_actions.py:99
+#: appGUI/GUIElements.py:4924 appGUI/MainGUI.py:471 appGUI/MainGUI.py:476
+#: appGUI/MainGUI.py:3181 appGUI/MainGUI.py:3185 appGUI/shortcut_actions.py:99
 #: appGUI/shortcut_actions.py:100 appGUI/shortcut_actions.py:371
 #: appGUI/shortcut_actions.py:372 appGUI/shortcut_actions.py:605
 #: appGUI/shortcut_actions.py:606 appGUI/shortcut_actions.py:761
@@ -2585,9 +2582,9 @@ msgid "Total Slots"
 msgstr ""
 
 #: appEditors/appExcEditor.py:3390 appEditors/appGCodeEditor.py:665
-#: appEditors/appGeoEditor.py:4516 appEditors/appGerberEditor.py:5069
+#: appEditors/appGeoEditor.py:4518 appEditors/appGerberEditor.py:5069
 #: appGUI/preferences/general/GeneralAppPrefGroupUI.py:232
-#: appObjects/CNCJobObject.py:649 appObjects/DocumentObject.py:197
+#: appObjects/CNCJobObject.py:649 appObjects/DocumentObject.py:249
 #: appObjects/ExcellonObject.py:359 appObjects/GeometryObject.py:504
 #: appObjects/GerberObject.py:267 appObjects/ScriptObject.py:199
 #: appPlugins/Common/levelling_core.py:270
@@ -2596,7 +2593,7 @@ msgstr ""
 #: appPlugins/ToolDblSided/DblSidedUI.py:469
 #: appPlugins/ToolDrilling/Drilling.py:802
 #: appPlugins/ToolFiducials/FiducialsUI.py:244
-#: appPlugins/ToolFilm/FilmUI.py:365 appPlugins/ToolFollow/FollowUI.py:262
+#: appPlugins/ToolFilm/FilmUI.py:370 appPlugins/ToolFollow/FollowUI.py:262
 #: appPlugins/ToolIsolation/Isolation.py:714
 #: appPlugins/ToolMarkers/MarkersUI.py:309
 #: appPlugins/ToolMilling/Milling.py:936 appPlugins/ToolNCC/Ncc.py:953
@@ -2608,9 +2605,9 @@ msgid "Beginner"
 msgstr ""
 
 #: appEditors/appExcEditor.py:3401 appEditors/appGCodeEditor.py:678
-#: appEditors/appGeoEditor.py:4530 appEditors/appGerberEditor.py:5082
+#: appEditors/appGeoEditor.py:4532 appEditors/appGerberEditor.py:5082
 #: appGUI/preferences/general/GeneralAppPrefGroupUI.py:233
-#: appObjects/CNCJobObject.py:659 appObjects/DocumentObject.py:206
+#: appObjects/CNCJobObject.py:659 appObjects/DocumentObject.py:258
 #: appObjects/ExcellonObject.py:376 appObjects/GeometryObject.py:513
 #: appObjects/GerberObject.py:282 appObjects/ScriptObject.py:208
 #: appPlugins/Common/levelling_core.py:285
@@ -2619,7 +2616,7 @@ msgstr ""
 #: appPlugins/ToolDblSided/DblSidedUI.py:482
 #: appPlugins/ToolDrilling/Drilling.py:844
 #: appPlugins/ToolFiducials/FiducialsUI.py:257
-#: appPlugins/ToolFilm/FilmUI.py:374 appPlugins/ToolFollow/FollowUI.py:272
+#: appPlugins/ToolFilm/FilmUI.py:379 appPlugins/ToolFollow/FollowUI.py:272
 #: appPlugins/ToolIsolation/Isolation.py:774
 #: appPlugins/ToolMarkers/MarkersUI.py:325
 #: appPlugins/ToolMilling/Milling.py:947 appPlugins/ToolNCC/Ncc.py:993
@@ -2778,7 +2775,7 @@ msgid "Add features"
 msgstr ""
 
 #: appEditors/appExcEditor.py:5388 appEditors/appGeoEditor.py:3367
-#: appEditors/appGeoEditor.py:4190 appEditors/appGerberEditor.py:6783
+#: appEditors/appGeoEditor.py:4192 appEditors/appGerberEditor.py:6783
 #: appEditors/appGerberEditor.py:6787 appEditors/appGerberEditor.py:6845
 #: appGUI/preferences/tools/Tools2sidedPrefGroupUI.py:110
 #: appHandlers/appUIActions.py:1143 appPlugins/ToolDblSided/DblSidedUI.py:176
@@ -2907,13 +2904,13 @@ msgstr ""
 msgid "Convert slots to drills"
 msgstr ""
 
-#: appEditors/appExcEditor.py:5960 appGUI/MainGUI.py:891 appGUI/ObjectUI.py:632
+#: appEditors/appExcEditor.py:5960 appGUI/MainGUI.py:896 appGUI/ObjectUI.py:632
 #: appGUI/shortcut_actions.py:46 appGUI/shortcut_actions.py:60
 msgid "Excellon Editor"
 msgstr ""
 
 #: appEditors/appExcEditor.py:5969 appEditors/appGCodeEditor.py:845
-#: appEditors/appGeoEditor.py:4119 appEditors/appGerberEditor.py:8428
+#: appEditors/appGeoEditor.py:4121 appEditors/appGerberEditor.py:8428
 #: appGUI/ObjectUI.py:71 appPlugins/ToolAlignObjects/AlignUI.py:47
 #: appPlugins/ToolCutOut/CutOutUI.py:51
 #: appPlugins/ToolDblSided/DblSidedUI.py:40
@@ -2940,7 +2937,7 @@ msgstr ""
 msgid "Name:"
 msgstr ""
 
-#: appEditors/appExcEditor.py:5993 appEditors/appGeoEditor.py:4143
+#: appEditors/appExcEditor.py:5993 appEditors/appGeoEditor.py:4145
 #: appEditors/appGerberEditor.py:8447
 msgid "History"
 msgstr ""
@@ -3037,7 +3034,7 @@ msgstr ""
 msgid "Tolerance"
 msgstr ""
 
-#: appEditors/appExcEditor.py:6116 appEditors/appGeoEditor.py:4389
+#: appEditors/appExcEditor.py:6116 appEditors/appGeoEditor.py:4391
 #: appEditors/appGerberEditor.py:8900
 msgid "Inspect"
 msgstr ""
@@ -3047,7 +3044,7 @@ msgid "Feature selection / filters"
 msgstr ""
 
 #: appEditors/appExcEditor.py:6136 appEditors/appExcEditor.py:6171
-#: appEditors/appGeoEditor.py:4214 appEditors/appGerberEditor.py:5427
+#: appEditors/appGeoEditor.py:4216 appEditors/appGerberEditor.py:5427
 #: appEditors/appGerberEditor.py:8489 appEditors/appGerberEditor.py:8558
 #: appEditors/exc_plugins/ExcCopyPlugin.py:205
 #: appEditors/exc_plugins/ExcDrillArrayPlugin.py:183
@@ -3056,12 +3053,13 @@ msgstr ""
 #: appEditors/geo_plugins/GeoRectanglePlugin.py:305
 #: appEditors/grb_plugins/GrbCopyPlugin.py:202
 #: appEditors/grb_plugins/GrbPadArrayPlugin.py:182 appGUI/ApertureLibrary.py:52
-#: appGUI/ObjectUI.py:328 appGUI/ObjectUI.py:1599
+#: appGUI/ObjectUI.py:328 appGUI/ObjectUI.py:1602
 #: appGUI/preferences/tools/Tools2sidedPrefGroupUI.py:57
 #: appGUI/preferences/tools/ToolsCutoutPrefGroupUI.py:184
 #: appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:58
 #: appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:117
 #: appGUI/preferences/tools/ToolsMarkersPrefGroupUI.py:41
+#: appObjects/DocumentObject.py:144 appObjects/DocumentObject.py:295
 #: appPlugins/ToolCopperThieving/CopperThievingUI.py:90
 #: appPlugins/ToolCutOut/CutOutUI.py:96 appPlugins/ToolCutOut/CutOutUI.py:308
 #: appPlugins/ToolDblSided/DblSidedUI.py:279
@@ -3337,24 +3335,24 @@ msgstr ""
 
 #: appEditors/appExcEditor.py:6335 appEditors/appGCodeEditor.py:76
 #: appEditors/appGCodeEditor.py:77 appEditors/appGCodeEditor.py:954
-#: appEditors/appGeoEditor.py:4484 appEditors/appGerberEditor.py:9072
-#: appGUI/MainGUI.py:481 appGUI/MainGUI.py:2055 appMain.py:2756
+#: appEditors/appGeoEditor.py:4486 appEditors/appGerberEditor.py:9072
+#: appGUI/MainGUI.py:486 appGUI/MainGUI.py:2060 appMain.py:2760
 msgid "Exit Editor"
 msgstr ""
 
 #: appEditors/appExcEditor.py:6338 appEditors/appGCodeEditor.py:957
-#: appEditors/appGeoEditor.py:4487 appEditors/appGerberEditor.py:9075
-#: appGUI/MainGUI.py:1320 appGUI/MainGUI.py:2599
+#: appEditors/appGeoEditor.py:4489 appEditors/appGerberEditor.py:9075
+#: appGUI/MainGUI.py:1325 appGUI/MainGUI.py:2604
 msgid "Exit from Editor."
 msgstr ""
 
 #: appEditors/appGCodeEditor.py:78 appGUI/GUIElements.py:4962
-#: appGUI/MainGUI.py:233 appGUI/MainGUI.py:481
+#: appGUI/MainGUI.py:238 appGUI/MainGUI.py:486
 msgid "Ctrl+S"
 msgstr ""
 
 #: appEditors/appGCodeEditor.py:84 appGUI/shortcut_actions.py:66
-#: appMain.py:4281
+#: appMain.py:4285
 msgid "Code Editor"
 msgstr ""
 
@@ -3435,31 +3433,31 @@ msgstr ""
 msgid "Insert the code above at the cursor location."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:123 appEditors/appGeoEditor.py:5061
-#: appEditors/appGeoEditor.py:5304
+#: appEditors/appGeoEditor.py:123 appEditors/appGeoEditor.py:5063
+#: appEditors/appGeoEditor.py:5306
 #: appEditors/geo_plugins/GeoCirclePlugin.py:139
-#: appEditors/geo_plugins/GeoCirclePlugin.py:191 appGUI/MainGUI.py:805
-#: appGUI/MainGUI.py:1490 appGUI/MainGUI.py:1955 appGUI/MainGUI.py:2767
+#: appEditors/geo_plugins/GeoCirclePlugin.py:191 appGUI/MainGUI.py:810
+#: appGUI/MainGUI.py:1495 appGUI/MainGUI.py:1960 appGUI/MainGUI.py:2772
 msgid "Circle"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:123 appEditors/appGeoEditor.py:5558
-#: appGUI/MainGUI.py:809 appGUI/MainGUI.py:1492 appGUI/MainGUI.py:1959
-#: appGUI/MainGUI.py:2769
+#: appEditors/appGeoEditor.py:123 appEditors/appGeoEditor.py:5560
+#: appGUI/MainGUI.py:814 appGUI/MainGUI.py:1497 appGUI/MainGUI.py:1964
+#: appGUI/MainGUI.py:2774
 msgid "Arc"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:123 appEditors/appGeoEditor.py:5581
-#: appEditors/appGeoEditor.py:5716
+#: appEditors/appGeoEditor.py:123 appEditors/appGeoEditor.py:5583
+#: appEditors/appGeoEditor.py:5718
 #: appEditors/geo_plugins/GeoRectanglePlugin.py:176
-#: appEditors/geo_plugins/GeoRectanglePlugin.py:228 appGUI/MainGUI.py:813
-#: appGUI/MainGUI.py:1494 appGUI/MainGUI.py:1952 appGUI/MainGUI.py:2771
+#: appEditors/geo_plugins/GeoRectanglePlugin.py:228 appGUI/MainGUI.py:818
+#: appGUI/MainGUI.py:1499 appGUI/MainGUI.py:1957 appGUI/MainGUI.py:2776
 msgid "Rectangle"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:124 appEditors/appGeoEditor.py:3768
-#: appEditors/appGeoEditor.py:5839 appGUI/MainGUI.py:817 appGUI/MainGUI.py:1500
-#: appGUI/MainGUI.py:1957 appGUI/MainGUI.py:2777
+#: appEditors/appGeoEditor.py:124 appEditors/appGeoEditor.py:3770
+#: appEditors/appGeoEditor.py:5841 appGUI/MainGUI.py:822 appGUI/MainGUI.py:1505
+#: appGUI/MainGUI.py:1962 appGUI/MainGUI.py:2782
 #: appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:626
 #: appGUI/preferences/tools/ToolsFollowPrefGroupUI.py:60
 #: appGUI/preferences/tools/ToolsISOPrefGroupUI.py:384
@@ -3480,29 +3478,29 @@ msgstr ""
 msgid "Split"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:125 appGUI/MainGUI.py:1525 appGUI/MainGUI.py:2800
+#: appEditors/appGeoEditor.py:125 appGUI/MainGUI.py:1530 appGUI/MainGUI.py:2805
 msgid "Explode"
 msgstr ""
 
 #: appEditors/appGeoEditor.py:125 appEditors/appGeoEditor.py:1092
-#: appEditors/appGeoEditor.py:6497 appEditors/appGeoEditor.py:6501
-#: appEditors/grb_plugins/GrbVertices.py:206 appGUI/MainGUI.py:865
-#: appGUI/MainGUI.py:925 appGUI/MainGUI.py:1050 appGUI/MainGUI.py:1482
-#: appGUI/MainGUI.py:1558 appGUI/MainGUI.py:1626 appGUI/MainGUI.py:1991
-#: appGUI/MainGUI.py:2064 appGUI/MainGUI.py:2759 appGUI/MainGUI.py:2825
-#: appGUI/MainGUI.py:2893 appGUI/shortcut_actions.py:65
+#: appEditors/appGeoEditor.py:6499 appEditors/appGeoEditor.py:6503
+#: appEditors/grb_plugins/GrbVertices.py:206 appGUI/MainGUI.py:870
+#: appGUI/MainGUI.py:930 appGUI/MainGUI.py:1055 appGUI/MainGUI.py:1487
+#: appGUI/MainGUI.py:1563 appGUI/MainGUI.py:1631 appGUI/MainGUI.py:1996
+#: appGUI/MainGUI.py:2069 appGUI/MainGUI.py:2764 appGUI/MainGUI.py:2830
+#: appGUI/MainGUI.py:2898 appGUI/shortcut_actions.py:65
 #: appGUI/shortcut_actions.py:657 appGUI/shortcut_actions.py:801
 #: appPlugins/ToolMove/Move.py:39 appPlugins/ToolMove/Move.py:253
 msgid "Move"
 msgstr ""
 
 #: appEditors/appGeoEditor.py:126 appEditors/geo_plugins/GeoTextPlugin.py:244
-#: appEditors/geo_plugins/GeoTextPlugin.py:329 appGUI/MainGUI.py:825
-#: appGUI/MainGUI.py:1503 appGUI/MainGUI.py:1963 appGUI/MainGUI.py:2780
+#: appEditors/geo_plugins/GeoTextPlugin.py:329 appGUI/MainGUI.py:830
+#: appGUI/MainGUI.py:1508 appGUI/MainGUI.py:1968 appGUI/MainGUI.py:2785
 msgid "Text"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:126 appEditors/appGeoEditor.py:7378
+#: appEditors/appGeoEditor.py:126 appEditors/appGeoEditor.py:7380
 #: appEditors/appGerberEditor.py:2342
 #: appEditors/geo_plugins/GeoBufferPlugin.py:74
 #: appEditors/geo_plugins/GeoBufferPlugin.py:288
@@ -3511,10 +3509,10 @@ msgstr ""
 #: appEditors/grb_plugins/GrbBufferPlugin.py:164
 #: appEditors/grb_plugins/GrbBufferPlugin.py:173
 #: appEditors/grb_plugins/GrbTransformationPlugin.py:180
-#: appEditors/grb_plugins/GrbTransformationPlugin.py:705 appGUI/MainGUI.py:868
-#: appGUI/MainGUI.py:969 appGUI/MainGUI.py:1507 appGUI/MainGUI.py:1604
-#: appGUI/MainGUI.py:1967 appGUI/MainGUI.py:2014 appGUI/MainGUI.py:2782
-#: appGUI/MainGUI.py:2871
+#: appEditors/grb_plugins/GrbTransformationPlugin.py:705 appGUI/MainGUI.py:873
+#: appGUI/MainGUI.py:974 appGUI/MainGUI.py:1512 appGUI/MainGUI.py:1609
+#: appGUI/MainGUI.py:1972 appGUI/MainGUI.py:2019 appGUI/MainGUI.py:2787
+#: appGUI/MainGUI.py:2876
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:258
 #: appGUI/shortcut_actions.py:641 appObjects/GerberObject.py:461
 #: appPlugins/ToolIsolation/Isolation.py:1973
@@ -3525,7 +3523,7 @@ msgstr ""
 #: appEditors/appGeoEditor.py:126 appEditors/appGerberEditor.py:2501
 #: appEditors/appGerberEditor.py:7104
 #: appEditors/geo_plugins/GeoSimplificationPlugin.py:290
-#: appEditors/grb_plugins/GrbSimplificationPlugin.py:200 appGUI/MainGUI.py:1505
+#: appEditors/grb_plugins/GrbSimplificationPlugin.py:200 appGUI/MainGUI.py:1510
 #: appGUI/ObjectUI.py:1153
 #: appGUI/preferences/gerber/GerberAdvOptPrefGroupUI.py:77
 #: appGUI/preferences/tools/ToolsISOPrefGroupUI.py:347
@@ -3539,9 +3537,9 @@ msgstr ""
 msgid "Import image"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:127 appGUI/MainGUI.py:982 appGUI/MainGUI.py:1511
-#: appGUI/MainGUI.py:1615 appGUI/MainGUI.py:1971 appGUI/MainGUI.py:2020
-#: appGUI/MainGUI.py:2786 appGUI/MainGUI.py:2882
+#: appEditors/appGeoEditor.py:127 appGUI/MainGUI.py:987 appGUI/MainGUI.py:1516
+#: appGUI/MainGUI.py:1620 appGUI/MainGUI.py:1976 appGUI/MainGUI.py:2025
+#: appGUI/MainGUI.py:2791 appGUI/MainGUI.py:2887
 msgid "Eraser"
 msgstr ""
 
@@ -3608,7 +3606,7 @@ msgstr ""
 msgid "Multi-Polygon"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:674 appEditors/appGeoEditor.py:4618
+#: appEditors/appGeoEditor.py:674 appEditors/appGeoEditor.py:4620
 msgid "Geo Elem"
 msgstr ""
 
@@ -3649,7 +3647,7 @@ msgstr ""
 msgid "The drag would create invalid geometry."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:1077 appEditors/appGeoEditor.py:4344
+#: appEditors/appGeoEditor.py:1077 appEditors/appGeoEditor.py:4346
 #: appEditors/appGerberEditor.py:4006 appEditors/appGerberEditor.py:8699
 #: appEditors/grb_plugins/GrbVertices.py:87
 #: appEditors/grb_plugins/GrbVertices.py:190
@@ -3708,7 +3706,7 @@ msgstr ""
 #: appEditors/text_editor/find_bar.py:82 appGUI/ApertureLibrary.py:64
 #: appGUI/TitleBar.py:291 appGUI/TitleBar.py:346 appGUI/TitleBar.py:347
 #: appGUI/WelcomeDialog.py:209 appGUI/shortcut_actions.py:1003
-#: appHandlers/appIO.py:3951 appHandlers/appUIActions.py:137
+#: appHandlers/appIO.py:3946 appHandlers/appUIActions.py:137
 #: appHandlers/appUIActions.py:385 appHandlers/appUIActions.py:559
 #: appPlugins/ToolGcodeSender/SenderSimulation.py:229
 msgid "Close"
@@ -3898,7 +3896,7 @@ msgstr ""
 msgid "Working"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:1534 appEditors/appGeoEditor.py:4281
+#: appEditors/appGeoEditor.py:1534 appEditors/appGeoEditor.py:4283
 msgid "Change"
 msgstr ""
 
@@ -3907,7 +3905,7 @@ msgid "Geometry operation in progress. Wait for it to finish, then retry."
 msgstr ""
 
 #: appEditors/appGeoEditor.py:1942 appEditors/appGeoEditor.py:2116
-#: appGUI/MainGUI.py:167 appGUI/MainGUI.py:1885 appGUI/WelcomeDialog.py:36
+#: appGUI/MainGUI.py:167 appGUI/MainGUI.py:1890 appGUI/WelcomeDialog.py:36
 #: appGUI/WelcomeDialog.py:66 appGUI/preferences/PreferencesWindow.py:72
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:77
 #: appObjects/ObjectCollection.py:419 appPlugins/ToolAlignObjects/AlignUI.py:75
@@ -3953,11 +3951,11 @@ msgstr ""
 msgid "Grid Snap disabled."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:2853 appEditors/appGeoEditor.py:6392
-#: appEditors/appGeoEditor.py:6489 appEditors/appGeoEditor.py:6528
-#: appEditors/appGeoEditor.py:6823 appEditors/appGeoEditor.py:6862
-#: appEditors/appGeoEditor.py:7385 appEditors/appGeoEditor.py:7411
-#: appEditors/appGeoEditor.py:7437 appEditors/appGerberEditor.py:8307
+#: appEditors/appGeoEditor.py:2853 appEditors/appGeoEditor.py:6394
+#: appEditors/appGeoEditor.py:6491 appEditors/appGeoEditor.py:6530
+#: appEditors/appGeoEditor.py:6825 appEditors/appGeoEditor.py:6864
+#: appEditors/appGeoEditor.py:7387 appEditors/appGeoEditor.py:7413
+#: appEditors/appGeoEditor.py:7439 appEditors/appGerberEditor.py:8307
 #: appEditors/geo_plugins/GeoPaintPlugin.py:174
 #: appEditors/geo_plugins/GeoTransformationPlugin.py:221
 #: appEditors/geo_plugins/GeoTransformationPlugin.py:246
@@ -4032,7 +4030,7 @@ msgstr ""
 msgid "Grid"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:3366 appEditors/appGeoEditor.py:4190
+#: appEditors/appGeoEditor.py:3366 appEditors/appGeoEditor.py:4192
 #: appEditors/appGerberEditor.py:4201 appEditors/appGerberEditor.py:5007
 #: appEditors/appGerberEditor.py:6787 appEditors/appGerberEditor.py:6843
 #: appGUI/preferences/general/GeneralShortcutsGroupUI.py:332
@@ -4059,10 +4057,10 @@ msgid "Compatibility: model units (global_snap_max)"
 msgstr ""
 
 #: appEditors/appGeoEditor.py:3548 appEditors/appGeoEditor.py:3637
-#: appEditors/appGeoEditor.py:3690 appEditors/appGeoEditor.py:3750
-#: appEditors/appGeoEditor.py:3823 appEditors/appGeoEditor.py:3852
-#: appEditors/appGeoEditor.py:3891 appEditors/appGeoEditor.py:3941
-#: appEditors/appGeoEditor.py:3969 appEditors/appGeoEditor.py:4000
+#: appEditors/appGeoEditor.py:3692 appEditors/appGeoEditor.py:3752
+#: appEditors/appGeoEditor.py:3825 appEditors/appGeoEditor.py:3854
+#: appEditors/appGeoEditor.py:3893 appEditors/appGeoEditor.py:3943
+#: appEditors/appGeoEditor.py:3971 appEditors/appGeoEditor.py:4002
 #: appEditors/geo_plugins/GeoBufferPlugin.py:150
 #: appEditors/geo_plugins/GeoBufferPlugin.py:202
 #: appEditors/geo_plugins/GeoBufferPlugin.py:242
@@ -4070,7 +4068,7 @@ msgstr ""
 #: appPlugins/ToolCompare/Compare.py:374 appPlugins/ToolCompare/Compare.py:375
 #: appPlugins/ToolCopperThieving/CopperThieving.py:522
 #: appPlugins/ToolEtchCompensation/EtchCompensation.py:256
-#: appPlugins/ToolExtract/Extract.py:471 appPlugins/ToolFilm/Film.py:435
+#: appPlugins/ToolExtract/Extract.py:471 appPlugins/ToolFilm/Film.py:407
 #: appPlugins/ToolFollow/Follow.py:286
 #: appPlugins/ToolInvertGerber/InvertGerber.py:209
 #: appPlugins/ToolRulesCheck/RulesCheck.py:300 appPlugins/ToolSub/Sub.py:456
@@ -4093,85 +4091,85 @@ msgstr ""
 msgid "A save of the project is running. Wait until it ends."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:3679 appEditors/appGeoEditor.py:3731
+#: appEditors/appGeoEditor.py:3681 appEditors/appGeoEditor.py:3733
 msgid ""
 "Geometry saved, but the DXF source snapshot is stale. The previous source "
 "was kept."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:3683 appEditors/appGeoEditor.py:3734
+#: appEditors/appGeoEditor.py:3685 appEditors/appGeoEditor.py:3736
 msgid "Editor Exit. Geometry object was updated ..."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:3757
+#: appEditors/appGeoEditor.py:3759
 msgid "Select valid paths to polygonize."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:3761
+#: appEditors/appGeoEditor.py:3763
 msgid "Select paths that enclose an area. Nothing was changed."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:3783
+#: appEditors/appGeoEditor.py:3785
 msgid "Polygonize produced invalid geometry. Nothing was changed."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:3807
+#: appEditors/appGeoEditor.py:3809
 msgid "A selection of minimum two items is required."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4112 appGUI/ObjectUI.py:920
+#: appEditors/appGeoEditor.py:4114 appGUI/ObjectUI.py:920
 #: appGUI/shortcut_actions.py:42 appGUI/shortcut_actions.py:58
 msgid "Geometry Editor"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4144
+#: appEditors/appGeoEditor.py:4146
 msgid "The state timeline of the geometry operations."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4146
+#: appEditors/appGeoEditor.py:4148
 msgid "History: select a state to undo or redo geometry operations."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4155
+#: appEditors/appGeoEditor.py:4157
 msgid "Tool dia"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4157
+#: appEditors/appGeoEditor.py:4159
 msgid "Edited tool diameter."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4171 appEditors/appGerberEditor.py:8770
+#: appEditors/appGeoEditor.py:4173 appEditors/appGerberEditor.py:8770
 msgid "Snapping"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4172
+#: appEditors/appGeoEditor.py:4174
 msgid "Extra snap candidates, used when grid snapping is enabled."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4173
+#: appEditors/appGeoEditor.py:4175
 msgid "Midpoint snap"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4174
+#: appEditors/appGeoEditor.py:4176
 msgid "Nearest segment snap"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4175
+#: appEditors/appGeoEditor.py:4177
 msgid "Snap to the midpoint of each straight line/polyline segment."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4176
+#: appEditors/appGeoEditor.py:4178
 msgid ""
 "Snap to the closest point on a straight segment, not its extension.\n"
 "Polygonized curves remain straight segments, not analytic circles or "
 "tangents."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4180
+#: appEditors/appGeoEditor.py:4182
 msgid "Acquisition"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4185
+#: appEditors/appGeoEditor.py:4187
 msgid ""
 "Pixel radius for midpoint/segment snapping. Requires grid snapping "
 "enabled.\n"
@@ -4179,25 +4177,25 @@ msgid ""
 "Corner snapping keeps its existing model-unit distance preference."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4191
+#: appEditors/appGeoEditor.py:4193
 msgid ""
 "Closest candidate wins. Equal distances: corner, midpoint, segment, grid.\n"
 "Equal segment candidates use coordinate order."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4199
+#: appEditors/appGeoEditor.py:4201
 msgid "Geometry Table"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4201
+#: appEditors/appGeoEditor.py:4203
 msgid "The list of geometry elements inside the edited object."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4237 appEditors/appGerberEditor.py:8617
+#: appEditors/appGeoEditor.py:4239 appEditors/appGerberEditor.py:8617
 msgid "Zoom on selection"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4241 appEditors/appGerberEditor.py:8641
+#: appEditors/appGeoEditor.py:4243 appEditors/appGerberEditor.py:8641
 #: appEditors/exc_plugins/ExcDrillArrayPlugin.py:170
 #: appEditors/exc_plugins/ExcSlotArrayPlugin.py:231
 #: appEditors/exc_plugins/ExcSlotPlugin.py:176
@@ -4264,37 +4262,37 @@ msgstr ""
 msgid "Parameters"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4244 appEditors/appGerberEditor.py:8643
+#: appEditors/appGeoEditor.py:4246 appEditors/appGerberEditor.py:8643
 msgid "Geometry parameters."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4258
+#: appEditors/appGeoEditor.py:4260
 msgid "Is Valid"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4265
+#: appEditors/appGeoEditor.py:4267
 msgid "Is Empty"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4272
+#: appEditors/appGeoEditor.py:4274
 msgid "Is Ring"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4279
+#: appEditors/appGeoEditor.py:4281
 msgid "Is CCW"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4284
+#: appEditors/appGeoEditor.py:4286
 msgid ""
 "Change the orientation of the geometric element.\n"
 "Works for LinearRing and Polygons."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4292
+#: appEditors/appGeoEditor.py:4294
 msgid "Is Simple"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4299 appEditors/appGerberEditor.py:4208
+#: appEditors/appGeoEditor.py:4301 appEditors/appGerberEditor.py:4208
 #: appEditors/exc_plugins/ExcSlotArrayPlugin.py:183
 #: appEditors/exc_plugins/ExcSlotPlugin.py:192
 #: appEditors/geo_plugins/GeoRectanglePlugin.py:341
@@ -4308,11 +4306,11 @@ msgstr ""
 msgid "Length"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4301
+#: appEditors/appGeoEditor.py:4303
 msgid "The length of the geometry element."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4313 appEditors/appGerberEditor.py:8687
+#: appEditors/appGeoEditor.py:4315 appEditors/appGerberEditor.py:8687
 #: appEditors/geo_plugins/GeoSimplificationPlugin.py:231
 #: appEditors/grb_plugins/GrbSimplificationPlugin.py:141
 #: appGUI/preferences/cncjob/CNCJobGenPrefGroupUI.py:85
@@ -4326,7 +4324,7 @@ msgstr ""
 msgid "Coordinates"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4314 appEditors/appGeoEditor.py:4318
+#: appEditors/appGeoEditor.py:4316 appEditors/appGeoEditor.py:4320
 #: appEditors/appGerberEditor.py:8689 appEditors/appGerberEditor.py:8695
 #: appEditors/geo_plugins/GeoSimplificationPlugin.py:233
 #: appEditors/geo_plugins/GeoSimplificationPlugin.py:248
@@ -4335,44 +4333,44 @@ msgstr ""
 msgid "The coordinates of the selected geometry element."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4323
+#: appEditors/appGeoEditor.py:4325
 msgid "Last Vertexes"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4325
+#: appEditors/appGeoEditor.py:4327
 msgid "The number of vertex points in the last selected geometry element."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4334
+#: appEditors/appGeoEditor.py:4336
 msgid "Selected Vertexes"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4336
+#: appEditors/appGeoEditor.py:4338
 msgid "The number of vertex points in all selected geometry elements."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4345
+#: appEditors/appGeoEditor.py:4347
 msgid "Numerically move, insert or remove a vertex of one selected contour."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4358
+#: appEditors/appGeoEditor.py:4360
 #: appGUI/preferences/tools/ToolsFollowPrefGroupUI.py:26
 msgid "Paths"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4358
+#: appEditors/appGeoEditor.py:4360
 msgid "Split and join open paths."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4360 appEditors/appGerberEditor.py:8821
+#: appEditors/appGeoEditor.py:4362 appEditors/appGerberEditor.py:8821
 msgid "Split path"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4361
+#: appEditors/appGeoEditor.py:4363
 msgid "Select one open LineString, then click its interior to split it."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4368
+#: appEditors/appGeoEditor.py:4370
 msgid ""
 "Maximum click distance from the path, and excluded distance along the path "
 "from each endpoint.\n"
@@ -4380,19 +4378,19 @@ msgid ""
 "an exact interior click."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4370 appEditors/appGerberEditor.py:8817
+#: appEditors/appGeoEditor.py:4372 appEditors/appGerberEditor.py:8817
 msgid "Split tolerance"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4375 appEditors/appGerberEditor.py:8835
+#: appEditors/appGeoEditor.py:4377 appEditors/appGerberEditor.py:8835
 msgid "Join paths"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4376
+#: appEditors/appGeoEditor.py:4378
 msgid "Join selected open LineStrings. Ambiguous branches are rejected."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4380
+#: appEditors/appGeoEditor.py:4382
 msgid ""
 "Maximum endpoint gap in current units. Zero joins exact endpoints only.\n"
 "Near endpoints get a straight bridge: no vertices move; length increases by "
@@ -4401,109 +4399,109 @@ msgid ""
 "separate."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4383 appEditors/appGerberEditor.py:8831
+#: appEditors/appGeoEditor.py:4385 appEditors/appGerberEditor.py:8831
 msgid "Join tolerance"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4389
+#: appEditors/appGeoEditor.py:4391
 msgid "Read-only diagnostics of the selected geometry."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4391 appEditors/appGerberEditor.py:8914
+#: appEditors/appGeoEditor.py:4393 appEditors/appGerberEditor.py:8914
 msgid "Inspect selected geometry"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4392
+#: appEditors/appGeoEditor.py:4394
 msgid ""
 "Read-only snapshot. Open paths are informational; no repair is performed."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4396
+#: appEditors/appGeoEditor.py:4398
 msgid ""
 "Near endpoint distance in current units, independent of grid and snapping.\n"
 "Zero reports exactly coincident endpoints only. Paths remain open and "
 "unchanged."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4398 appEditors/appGerberEditor.py:8924
+#: appEditors/appGeoEditor.py:4400 appEditors/appGerberEditor.py:8924
 msgid "Endpoint tolerance"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4411 appEditors/appGerberEditor.py:8707
+#: appEditors/appGeoEditor.py:4413 appEditors/appGerberEditor.py:8707
 msgid "Select by Size"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4412
+#: appEditors/appGeoEditor.py:4414
 msgid "Select or delete shapes by area or length."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4413
+#: appEditors/appGeoEditor.py:4415
 msgid "Filter polygons by area"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4415
+#: appEditors/appGeoEditor.py:4417
 msgid ""
 "Applies to Polygon and MultiPolygon shapes (text counts as polygons), area "
 "in current units squared.\n"
 "Limits are inclusive. Points and mixed collections never match."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4422
+#: appEditors/appGeoEditor.py:4424
 msgid "Min area"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4425
+#: appEditors/appGeoEditor.py:4427
 msgid "Max area"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4429
+#: appEditors/appGeoEditor.py:4431
 msgid "Filter paths by length"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4431
+#: appEditors/appGeoEditor.py:4433
 msgid ""
 "Applies to LineString, LinearRing and MultiLineString shapes, length in "
 "current units.\n"
 "Limits are inclusive. Points and mixed collections never match."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4438
+#: appEditors/appGeoEditor.py:4440
 msgid "Min length"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4441
+#: appEditors/appGeoEditor.py:4443
 msgid "Max length"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4445 appEditors/appGerberEditor.py:8756
-#: appGUI/MainGUI.py:989 appGUI/MainGUI.py:1462 appGUI/MainGUI.py:1488
-#: appGUI/MainGUI.py:1564 appGUI/MainGUI.py:2739 appGUI/MainGUI.py:2765
-#: appGUI/MainGUI.py:2831
+#: appEditors/appGeoEditor.py:4447 appEditors/appGerberEditor.py:8756
+#: appGUI/MainGUI.py:994 appGUI/MainGUI.py:1467 appGUI/MainGUI.py:1493
+#: appGUI/MainGUI.py:1569 appGUI/MainGUI.py:2744 appGUI/MainGUI.py:2770
+#: appGUI/MainGUI.py:2836
 msgid "Select"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4447
+#: appEditors/appGeoEditor.py:4449
 msgid ""
 "Select the shapes matching the enabled filters. Searches the selected "
 "shapes if any,\n"
 "else all the shapes. Replaces the current selection."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4451
+#: appEditors/appGeoEditor.py:4453
 msgid ""
 "Delete the shapes matching the enabled filters, as one Undo/Redo step.\n"
 "Searches the selected shapes if any, else all the shapes."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4460 appEditors/appGerberEditor.py:8876
+#: appEditors/appGeoEditor.py:4462 appEditors/appGerberEditor.py:8876
 msgid "Resize Circles"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4461
+#: appEditors/appGeoEditor.py:4463
 msgid "Resize the selected circles to a new diameter."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4467
+#: appEditors/appGeoEditor.py:4469
 msgid ""
 "Diameter to resize the selected circles to. Each circle keeps its own "
 "center.\n"
@@ -4512,91 +4510,91 @@ msgid ""
 "all at the same distance from the center). Other shapes are skipped."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4470
+#: appEditors/appGeoEditor.py:4472
 msgid "New Diameter"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:4475
+#: appEditors/appGeoEditor.py:4477
 msgid "Resize the selected circles to the new diameter, as one Undo/Redo step."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:5007
+#: appEditors/appGeoEditor.py:5009
 msgid ""
 "Select one open LineString before starting Split path. Click its interior; "
 "the split tolerance is in current units."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:5013
+#: appEditors/appGeoEditor.py:5015
 msgid "Select exactly one open LineString and reopen Split path."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:5083 appEditors/appGeoEditor.py:5345
+#: appEditors/appGeoEditor.py:5085 appEditors/appGeoEditor.py:5347
 #: appEditors/appGerberEditor.py:1809 appEditors/appGerberEditor.py:1893
 #: appEditors/appGerberEditor.py:2211
 #: appEditors/geo_plugins/GeoCirclePlugin.py:100
 msgid "Click on Center point ..."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:5113
+#: appEditors/appGeoEditor.py:5115
 msgid ""
 "Click on Center point to add a new circle or Apply to change the selection."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:5118
+#: appEditors/appGeoEditor.py:5120
 msgid "Choose a finite perimeter point different from the center."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:5129 appEditors/appGerberEditor.py:1818
+#: appEditors/appGeoEditor.py:5131 appEditors/appGerberEditor.py:1818
 msgid "Click on Perimeter point to complete ..."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:5132
+#: appEditors/appGeoEditor.py:5134
 msgid "Click on Perimeter point to set axis major ..."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:5141
+#: appEditors/appGeoEditor.py:5143
 msgid "Click on Perimeter point to set axis minor ..."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:5214 appEditors/appGeoEditor.py:5227
+#: appEditors/appGeoEditor.py:5216 appEditors/appGeoEditor.py:5229
 msgid "Click on the center point before entering a radius."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:5274
+#: appEditors/appGeoEditor.py:5276
 #: appEditors/geo_plugins/GeoCirclePlugin.py:121
 msgid "Enter positive finite radii and finite center coordinates and angle."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:5301
+#: appEditors/appGeoEditor.py:5303
 msgid ""
 "Choose a center and a positive finite radius before completing the circle."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:5372 appEditors/appGerberEditor.py:1938
+#: appEditors/appGeoEditor.py:5374 appEditors/appGerberEditor.py:1938
 msgid "Click on Start point ..."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:5374 appEditors/appGerberEditor.py:1940
+#: appEditors/appGeoEditor.py:5376 appEditors/appGerberEditor.py:1940
 msgid "Click on Point3 ..."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:5376 appEditors/appGerberEditor.py:1942
+#: appEditors/appGeoEditor.py:5378 appEditors/appGerberEditor.py:1942
 msgid "Click on Stop point ..."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:5381 appEditors/appGerberEditor.py:1947
+#: appEditors/appGeoEditor.py:5383 appEditors/appGerberEditor.py:1947
 msgid "Click on Stop point to complete ..."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:5383 appEditors/appGerberEditor.py:1949
+#: appEditors/appGeoEditor.py:5385 appEditors/appGerberEditor.py:1949
 msgid "Click on Point2 to complete ..."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:5385 appEditors/appGerberEditor.py:1951
+#: appEditors/appGeoEditor.py:5387 appEditors/appGerberEditor.py:1951
 msgid "Click on Center point to complete ..."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:5397 appEditors/appGerberEditor.py:1982
+#: appEditors/appGeoEditor.py:5399 appEditors/appGerberEditor.py:1982
 #: appEditors/exc_plugins/ExcCopyPlugin.py:237
 #: appEditors/exc_plugins/ExcCopyPlugin.py:419
 #: appEditors/exc_plugins/ExcDrillArrayPlugin.py:224
@@ -4618,190 +4616,190 @@ msgstr ""
 msgid "Direction"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:5411 appEditors/appGerberEditor.py:1996
+#: appEditors/appGeoEditor.py:5413 appEditors/appGerberEditor.py:1996
 msgid "Mode: Start -> Stop -> Center. Click on Start point ..."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:5414 appEditors/appGerberEditor.py:1999
+#: appEditors/appGeoEditor.py:5416 appEditors/appGerberEditor.py:1999
 msgid "Mode: Point1 -> Point3 -> Point2. Click on Point1 ..."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:5417 appEditors/appGerberEditor.py:2002
+#: appEditors/appGeoEditor.py:5419 appEditors/appGerberEditor.py:2002
 msgid "Mode: Center -> Start -> Stop. Click on Center point ..."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:5603 appEditors/appGeoEditor.py:5864
-#: appEditors/appGeoEditor.py:5949
+#: appEditors/appGeoEditor.py:5605 appEditors/appGeoEditor.py:5866
+#: appEditors/appGeoEditor.py:5951
 #: appEditors/geo_plugins/GeoRectanglePlugin.py:104
 msgid "Click on 1st corner ..."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:5633
+#: appEditors/appGeoEditor.py:5635
 msgid ""
 "Click on 1st corner to add a new rectangle or Apply to change the selection."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:5639
+#: appEditors/appGeoEditor.py:5641
 msgid "Choose a finite opposite corner with nonzero length and width."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:5646
+#: appEditors/appGeoEditor.py:5648
 msgid "Click on opposite corner to complete ..."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:5713
+#: appEditors/appGeoEditor.py:5715
 msgid "Choose two finite opposite corners with nonzero length and width."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:5746 appEditors/appGeoEditor.py:5762
+#: appEditors/appGeoEditor.py:5748 appEditors/appGeoEditor.py:5764
 msgid "Click on the first corner point before entering dimensions."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:5799
+#: appEditors/appGeoEditor.py:5801
 msgid "Enter finite nonzero length and width values."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:5803
+#: appEditors/appGeoEditor.py:5805
 msgid "Enter smaller dimensions so the projected coordinates remain finite."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:5810 appEditors/appGeoEditor.py:6007
-#: appEditors/appGeoEditor.py:6315 appEditors/appGerberEditor.py:506
+#: appEditors/appGeoEditor.py:5812 appEditors/appGeoEditor.py:6009
+#: appEditors/appGeoEditor.py:6317 appEditors/appGerberEditor.py:506
 #: appEditors/appGerberEditor.py:1317
 msgid "Projected"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:5811
+#: appEditors/appGeoEditor.py:5813
 msgid "Click to complete ..."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:5947 appEditors/appGeoEditor.py:6235
+#: appEditors/appGeoEditor.py:5949 appEditors/appGeoEditor.py:6237
 #: appEditors/appGerberEditor.py:1265 appEditors/appGerberEditor.py:1681
 msgid "Backtracked one point ..."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:6062 appEditors/appGeoEditor.py:6237
-#: appEditors/appGeoEditor.py:7295 appEditors/appGerberEditor.py:1113
+#: appEditors/appGeoEditor.py:6064 appEditors/appGeoEditor.py:6239
+#: appEditors/appGeoEditor.py:7297 appEditors/appGerberEditor.py:1113
 #: appEditors/appGerberEditor.py:1380
 msgid "Click on 1st point ..."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:6113
+#: appEditors/appGeoEditor.py:6115
 msgid "Choose at least two distinct finite points to complete the path."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:6271
+#: appEditors/appGeoEditor.py:6273
 msgid "Click on the first point before entering a length."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:6277 appEditors/appGeoEditor.py:6741
-#: appEditors/appGeoEditor.py:7234
+#: appEditors/appGeoEditor.py:6279 appEditors/appGeoEditor.py:6743
+#: appEditors/appGeoEditor.py:7236
 msgid "Enter a finite nonzero length."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:6297
+#: appEditors/appGeoEditor.py:6299
 msgid "Move the cursor away from the last point to set a finite direction."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:6307 appEditors/appGeoEditor.py:6763
-#: appEditors/appGeoEditor.py:7256
+#: appEditors/appGeoEditor.py:6309 appEditors/appGeoEditor.py:6765
+#: appEditors/appGeoEditor.py:7258
 msgid "Enter a smaller length so the projected coordinates remain finite."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:6489 appEditors/appGeoEditor.py:6528
-#: appEditors/appGeoEditor.py:6823 appEditors/appGeoEditor.py:6862
+#: appEditors/appGeoEditor.py:6491 appEditors/appGeoEditor.py:6530
+#: appEditors/appGeoEditor.py:6825 appEditors/appGeoEditor.py:6864
 msgid "Select some shapes or cancel."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:6557 appPlugins/ToolMove/Move.py:247
+#: appEditors/appGeoEditor.py:6559 appPlugins/ToolMove/Move.py:247
 msgid "Moving"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:6735 appEditors/appGeoEditor.py:7228
+#: appEditors/appGeoEditor.py:6737 appEditors/appGeoEditor.py:7230
 msgid "Click on a reference point before entering a length."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:6753 appEditors/appGeoEditor.py:7246
+#: appEditors/appGeoEditor.py:6755 appEditors/appGeoEditor.py:7248
 msgid ""
 "Move the cursor away from the reference point to set a finite direction."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:7319
+#: appEditors/appGeoEditor.py:7321
 msgid ""
 "Font not supported. Only Regular, Bold, Italic and BoldItalic are "
 "supported. Error"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:7327
+#: appEditors/appGeoEditor.py:7329
 msgid "No text to add."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:7374
+#: appEditors/appGeoEditor.py:7376
 msgid "Create buffer geometry ..."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:7397 appEditors/appGeoEditor.py:7423
-#: appEditors/appGeoEditor.py:7449 appEditors/geo_plugins/GeoBufferPlugin.py:94
+#: appEditors/appGeoEditor.py:7399 appEditors/appGeoEditor.py:7425
+#: appEditors/appGeoEditor.py:7451 appEditors/geo_plugins/GeoBufferPlugin.py:94
 #: appEditors/geo_plugins/GeoBufferPlugin.py:111
 #: appEditors/geo_plugins/GeoBufferPlugin.py:128
 #: appEditors/grb_plugins/GrbBufferPlugin.py:98
 msgid "Buffer distance value is missing or wrong format. Add it and retry."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:7497
+#: appEditors/appGeoEditor.py:7499
 msgid "Simplify geometry ..."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:7543 appEditors/appGerberEditor.py:3240
+#: appEditors/appGeoEditor.py:7545 appEditors/appGerberEditor.py:3240
 msgid "Select shapes to import them into the edited object."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:7571
+#: appEditors/appGeoEditor.py:7573
 msgid "No shape in selection."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:7581
+#: appEditors/appGeoEditor.py:7583
 msgid "Picked shapes"
 msgstr ""
 
-#: appEditors/appGeoEditor.py:7582
+#: appEditors/appGeoEditor.py:7584
 msgid "Click to pick more, right click or Enter to import."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:7599
+#: appEditors/appGeoEditor.py:7601
 msgid "No shape picked."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:7644
+#: appEditors/appGeoEditor.py:7646
 msgid "Load an image, then place it on the canvas."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:7663
+#: appEditors/appGeoEditor.py:7665
 msgid "Load an image and convert it first."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:7699 appEditors/appGerberEditor.py:2836
+#: appEditors/appGeoEditor.py:7701 appEditors/appGerberEditor.py:2836
 msgid "Select a shape to act as deletion area ..."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:7701 appEditors/appGeoEditor.py:7727
-#: appEditors/appGeoEditor.py:7733 appEditors/appGerberEditor.py:2838
+#: appEditors/appGeoEditor.py:7703 appEditors/appGeoEditor.py:7729
+#: appEditors/appGeoEditor.py:7735 appEditors/appGerberEditor.py:2838
 msgid "Click to pick-up the erase shape..."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:7731 appEditors/appGerberEditor.py:2880
+#: appEditors/appGeoEditor.py:7733 appEditors/appGerberEditor.py:2880
 msgid "Nothing to erase."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:7738 appEditors/appGerberEditor.py:2884
+#: appEditors/appGeoEditor.py:7740 appEditors/appGerberEditor.py:2884
 msgid "Click to erase ..."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:7830
+#: appEditors/appGeoEditor.py:7832
 msgid "Create Paint geometry ..."
 msgstr ""
 
-#: appEditors/appGeoEditor.py:7846 appEditors/appGerberEditor.py:3703
+#: appEditors/appGeoEditor.py:7848 appEditors/appGerberEditor.py:3703
 msgid "Shape transformations ..."
 msgstr ""
 
@@ -4823,14 +4821,14 @@ msgid "You need to preselect a aperture in the Aperture Table that has a size."
 msgstr ""
 
 #: appEditors/appGerberEditor.py:333 appEditors/appGerberEditor.py:362
-#: appGUI/MainGUI.py:946 appGUI/MainGUI.py:1566 appGUI/MainGUI.py:1996
-#: appGUI/MainGUI.py:2833
+#: appGUI/MainGUI.py:951 appGUI/MainGUI.py:1571 appGUI/MainGUI.py:2001
+#: appGUI/MainGUI.py:2838
 msgid "Pad"
 msgstr ""
 
 #: appEditors/appGerberEditor.py:601 appEditors/appGerberEditor.py:618
-#: appGUI/MainGUI.py:949 appGUI/MainGUI.py:1568 appGUI/MainGUI.py:1998
-#: appGUI/MainGUI.py:2835
+#: appGUI/MainGUI.py:954 appGUI/MainGUI.py:1573 appGUI/MainGUI.py:2003
+#: appGUI/MainGUI.py:2840
 msgid "Pad Array"
 msgstr ""
 
@@ -4850,8 +4848,8 @@ msgstr ""
 msgid "Select shape(s) and then click ..."
 msgstr ""
 
-#: appEditors/appGerberEditor.py:1015 appGUI/MainGUI.py:831
-#: appGUI/MainGUI.py:1520 appGUI/MainGUI.py:1977 appGUI/MainGUI.py:2795
+#: appEditors/appGerberEditor.py:1015 appGUI/MainGUI.py:836
+#: appGUI/MainGUI.py:1525 appGUI/MainGUI.py:1982 appGUI/MainGUI.py:2800
 msgid "Polygonize"
 msgstr ""
 
@@ -4859,13 +4857,13 @@ msgstr ""
 msgid "Failed. Nothing selected."
 msgstr ""
 
-#: appEditors/appGerberEditor.py:1103 appGUI/MainGUI.py:955
-#: appGUI/MainGUI.py:1575 appGUI/MainGUI.py:2004 appGUI/MainGUI.py:2842
+#: appEditors/appGerberEditor.py:1103 appGUI/MainGUI.py:960
+#: appGUI/MainGUI.py:1580 appGUI/MainGUI.py:2009 appGUI/MainGUI.py:2847
 msgid "Region"
 msgstr ""
 
-#: appEditors/appGerberEditor.py:1354 appGUI/MainGUI.py:936
-#: appGUI/MainGUI.py:1588 appGUI/MainGUI.py:2855
+#: appEditors/appGerberEditor.py:1354 appGUI/MainGUI.py:941
+#: appGUI/MainGUI.py:1593 appGUI/MainGUI.py:2860
 msgid "Copper Pour"
 msgstr ""
 
@@ -4894,8 +4892,8 @@ msgid "No copper remains inside the outline."
 msgstr ""
 
 #: appEditors/appGerberEditor.py:1468 appEditors/appGerberEditor.py:1485
-#: appGUI/MainGUI.py:952 appGUI/MainGUI.py:1570 appGUI/MainGUI.py:2002
-#: appGUI/MainGUI.py:2837
+#: appGUI/MainGUI.py:957 appGUI/MainGUI.py:1575 appGUI/MainGUI.py:2007
+#: appGUI/MainGUI.py:2842
 msgid "Track"
 msgstr ""
 
@@ -4929,9 +4927,9 @@ msgstr ""
 
 #: appEditors/appGerberEditor.py:2391
 #: appEditors/geo_plugins/GeoSimplificationPlugin.py:206
-#: appEditors/grb_plugins/GrbSimplificationPlugin.py:116 appGUI/MainGUI.py:872
-#: appGUI/MainGUI.py:972 appGUI/MainGUI.py:1606 appGUI/MainGUI.py:1965
-#: appGUI/MainGUI.py:2873 appGUI/ObjectUI.py:1101
+#: appEditors/grb_plugins/GrbSimplificationPlugin.py:116 appGUI/MainGUI.py:877
+#: appGUI/MainGUI.py:977 appGUI/MainGUI.py:1611 appGUI/MainGUI.py:1970
+#: appGUI/MainGUI.py:2878 appGUI/ObjectUI.py:1101
 #: appGUI/preferences/tools/ToolsFollowPrefGroupUI.py:104
 #: appGUI/preferences/tools/ToolsNCCPrefGroupUI.py:395
 #: appGUI/preferences/tools/ToolsPaintPrefGroupUI.py:353
@@ -5122,7 +5120,7 @@ msgstr ""
 #: appEditors/geo_plugins/GeoTextPlugin.py:311
 #: appEditors/grb_plugins/GrbCopyPlugin.py:192
 #: appEditors/grb_plugins/GrbPadArrayPlugin.py:197 appGUI/ApertureLibrary.py:52
-#: appGUI/ObjectUI.py:328 appGUI/ObjectUI.py:1618
+#: appGUI/ObjectUI.py:328 appGUI/ObjectUI.py:1621
 #: appGUI/preferences/general/GeneralAPPSetGroupUI.py:112
 #: appGUI/preferences/general/GeneralAppSettingsGroupUI.py:162
 #: appGUI/preferences/tools/Tools2CThievingPrefGroupUI.py:204
@@ -5143,7 +5141,7 @@ msgstr ""
 msgid "Dim"
 msgstr ""
 
-#: appEditors/appGerberEditor.py:5553 appMain.py:4212
+#: appEditors/appGerberEditor.py:5553 appMain.py:4216
 #: appObjects/CNCJobObject.py:788 appObjects/ScriptObject.py:164
 #: appPlugins/ToolLevelling/Levelling.py:506
 msgid "Loading"
@@ -5163,7 +5161,7 @@ msgstr ""
 
 #: appEditors/appGerberEditor.py:5765 appEditors/appGerberEditor.py:5784
 #: appEditors/appGerberEditor.py:5833 appEditors/appGerberEditor.py:5840
-#: appMain.py:2935
+#: appMain.py:2939
 msgid "The edited content could not be saved. The object is unchanged."
 msgstr ""
 
@@ -5302,8 +5300,8 @@ msgstr ""
 #: appEditors/appGerberEditor.py:8311 appEditors/appGerberEditor.py:8986
 #: appEditors/geo_plugins/GeoTransformationPlugin.py:704
 #: appEditors/grb_plugins/GrbTransformationPlugin.py:193
-#: appEditors/grb_plugins/GrbTransformationPlugin.py:702 appGUI/MainGUI.py:976
-#: appGUI/MainGUI.py:1608 appGUI/MainGUI.py:2016 appGUI/MainGUI.py:2875
+#: appEditors/grb_plugins/GrbTransformationPlugin.py:702 appGUI/MainGUI.py:981
+#: appGUI/MainGUI.py:1613 appGUI/MainGUI.py:2021 appGUI/MainGUI.py:2880
 #: appGUI/ObjectUI.py:121 appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:43
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:172
 #: appGUI/shortcut_actions.py:664 appObjects/AppObjectTemplate.py:1033
@@ -5324,8 +5322,8 @@ msgstr ""
 msgid "Delete marked polygons"
 msgstr ""
 
-#: appEditors/appGerberEditor.py:8421 appGUI/MainGUI.py:930
-#: appGUI/MainGUI.py:1994 appGUI/ObjectUI.py:244 appGUI/shortcut_actions.py:44
+#: appEditors/appGerberEditor.py:8421 appGUI/MainGUI.py:935
+#: appGUI/MainGUI.py:1999 appGUI/ObjectUI.py:244 appGUI/shortcut_actions.py:44
 #: appGUI/shortcut_actions.py:59
 msgid "Gerber Editor"
 msgstr ""
@@ -5334,7 +5332,7 @@ msgstr ""
 msgid "Jump to any retained state of this editing session."
 msgstr ""
 
-#: appEditors/appGerberEditor.py:8469 appGUI/MainGUI.py:1019
+#: appEditors/appGerberEditor.py:8469 appGUI/MainGUI.py:1024
 #: appGUI/ObjectUI.py:293
 #: appGUI/preferences/gerber/GerberEditorPrefGroupUI.py:129
 #: appObjects/AppObjectTemplate.py:1203 appPlugins/ToolFollow/FollowUI.py:78
@@ -5627,8 +5625,8 @@ msgstr ""
 msgid "Material Difference"
 msgstr ""
 
-#: appEditors/appGerberEditor.py:8855 appGUI/MainGUI.py:942
-#: appGUI/MainGUI.py:1599 appGUI/MainGUI.py:2866
+#: appEditors/appGerberEditor.py:8855 appGUI/MainGUI.py:947
+#: appGUI/MainGUI.py:1604 appGUI/MainGUI.py:2871
 msgid "Diff. Keep"
 msgstr ""
 
@@ -5823,9 +5821,8 @@ msgid "Minimap"
 msgstr ""
 
 #: appEditors/appTextEditor.py:474 appEditors/appTextEditor.py:486
-#: appMain.py:4110 appMain.py:4116 appObjects/CNCJobObject.py:742
-#: appObjects/CNCJobObject.py:748 appObjects/DocumentObject.py:268
-#: appObjects/DocumentObject.py:273 appPlugins/Common/levelling_core.py:1719
+#: appMain.py:4114 appMain.py:4120 appObjects/CNCJobObject.py:742
+#: appObjects/CNCJobObject.py:748 appPlugins/Common/levelling_core.py:1719
 #: appPlugins/Common/levelling_core.py:1725
 #: appPlugins/ToolLevelling/Levelling.py:469
 #: appPlugins/ToolLevelling/Levelling.py:475
@@ -5841,12 +5838,12 @@ msgid "No such file or directory"
 msgstr ""
 
 #: appEditors/appTextEditor.py:616 appObjects/CNCJobObject.py:1342
-#: appObjects/DocumentObject.py:291 appPlugins/ToolGcodeSender/Sender.py:5314
+#: appObjects/DocumentObject.py:356 appPlugins/ToolGcodeSender/Sender.py:5314
 msgid "Could not save the file"
 msgstr ""
 
 #: appEditors/appTextEditor.py:628 appObjects/CNCJobObject.py:1298
-#: appObjects/DocumentObject.py:297 appObjects/ScriptObject.py:267
+#: appObjects/DocumentObject.py:363 appObjects/ScriptObject.py:267
 #: appPlugins/ToolSolderPaste/SolderPaste.py:1212
 msgid "Saved to"
 msgstr ""
@@ -5937,8 +5934,7 @@ msgstr ""
 #: appPlugins/ToolEtchCompensation/EtchCompensation.py:87
 #: appPlugins/ToolExtract/Extract.py:137 appPlugins/ToolExtract/Extract.py:146
 #: appPlugins/ToolFiducials/Fiducials.py:88
-#: appPlugins/ToolFiducials/Fiducials.py:97 appPlugins/ToolFilm/Film.py:92
-#: appPlugins/ToolFilm/Film.py:100 appPlugins/ToolFollow/Follow.py:106
+#: appPlugins/ToolFiducials/Fiducials.py:97 appPlugins/ToolFollow/Follow.py:106
 #: appPlugins/ToolFollow/Follow.py:115 appPlugins/ToolGcodeSender/Sender.py:732
 #: appPlugins/ToolGcodeSender/Sender.py:741 appPlugins/ToolImage/Image.py:60
 #: appPlugins/ToolImage/Image.py:69
@@ -6118,7 +6114,7 @@ msgstr ""
 #: appEditors/grb_plugins/GrbPadPlugin.py:161
 #: appEditors/grb_plugins/GrbTrackPlugin.py:161
 #: appEditors/grb_plugins/GrberRegionPlugin.py:160 appGUI/GUIElements.py:5449
-#: appGUI/MainGUI.py:619 appGUI/MainGUI.py:846
+#: appGUI/MainGUI.py:624 appGUI/MainGUI.py:851
 #: appGUI/preferences/excellon/ExcellonEditorPrefGroupUI.py:99
 #: appGUI/preferences/excellon/ExcellonEditorPrefGroupUI.py:210
 #: appGUI/preferences/excellon/ExcellonEditorPrefGroupUI.py:269
@@ -6146,7 +6142,7 @@ msgstr ""
 #: appEditors/grb_plugins/GrbPadPlugin.py:169
 #: appEditors/grb_plugins/GrbTrackPlugin.py:169
 #: appEditors/grb_plugins/GrberRegionPlugin.py:168 appGUI/GUIElements.py:5456
-#: appGUI/MainGUI.py:622
+#: appGUI/MainGUI.py:627
 #: appGUI/preferences/excellon/ExcellonEditorPrefGroupUI.py:100
 #: appGUI/preferences/excellon/ExcellonEditorPrefGroupUI.py:211
 #: appGUI/preferences/excellon/ExcellonEditorPrefGroupUI.py:270
@@ -6619,8 +6615,8 @@ msgstr ""
 msgid "Convert the loaded image and place its paths on the canvas."
 msgstr ""
 
-#: appEditors/geo_plugins/GeoImportImagePlugin.py:68 appGUI/MainGUI.py:857
-#: appGUI/MainGUI.py:1550 appGUI/MainGUI.py:2817
+#: appEditors/geo_plugins/GeoImportImagePlugin.py:68 appGUI/MainGUI.py:862
+#: appGUI/MainGUI.py:1555 appGUI/MainGUI.py:2822
 #: appPlugins/ToolImage/ImageUI.py:308
 msgid "Import Image"
 msgstr ""
@@ -7328,7 +7324,7 @@ msgstr ""
 
 #: appEditors/geo_plugins/GeoTransformationPlugin.py:1065
 #: appEditors/grb_plugins/GrbTransformationPlugin.py:1061
-#: appGUI/MainGUI.py:1333 appGUI/MainGUI.py:2611
+#: appGUI/MainGUI.py:1338 appGUI/MainGUI.py:2616
 #: appGUI/preferences/PreferencesWindow.py:43
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:280
 #: appPlugins/ToolDistance/Distance.py:203
@@ -7450,7 +7446,7 @@ msgid "{n} drawn pads converted to flashes"
 msgstr ""
 
 #: appEditors/grb_plugins/GrbAutoPlugin.py:219
-#: appEditors/grb_plugins/GrbOperationDialogs.py:143 appGUI/MainGUI.py:1035
+#: appEditors/grb_plugins/GrbOperationDialogs.py:143 appGUI/MainGUI.py:1040
 msgid "Teardrops"
 msgstr ""
 
@@ -7696,7 +7692,7 @@ msgid "Geometry changed. Retry the operation."
 msgstr ""
 
 #: appEditors/grb_plugins/GrbOperationDialogs.py:87
-#: appEditors/grb_plugins/GrbSelectionPlugin.py:138 appGUI/MainGUI.py:1001
+#: appEditors/grb_plugins/GrbSelectionPlugin.py:138 appGUI/MainGUI.py:1006
 #: appGUI/preferences/tools/ToolsPanelizePrefGroupUI.py:118
 #: appPlugins/ToolPanelize/PanelizeUI.py:256
 msgid "Step and Repeat"
@@ -7715,7 +7711,7 @@ msgid "There are no apertures."
 msgstr ""
 
 #: appEditors/grb_plugins/GrbOperationDialogs.py:104
-#: appEditors/grb_plugins/GrbSelectionPlugin.py:168 appGUI/MainGUI.py:1003
+#: appEditors/grb_plugins/GrbSelectionPlugin.py:168 appGUI/MainGUI.py:1008
 msgid "Transcode"
 msgstr ""
 
@@ -7724,7 +7720,7 @@ msgid "Move the selection to the aperture"
 msgstr ""
 
 #: appEditors/grb_plugins/GrbOperationDialogs.py:120
-#: appEditors/grb_plugins/GrbSelectionPlugin.py:203 appGUI/MainGUI.py:1005
+#: appEditors/grb_plugins/GrbSelectionPlugin.py:203 appGUI/MainGUI.py:1010
 msgid "Snap to Grid"
 msgstr ""
 
@@ -7736,7 +7732,7 @@ msgstr ""
 msgid "Grid Y"
 msgstr ""
 
-#: appEditors/grb_plugins/GrbOperationDialogs.py:129 appGUI/MainGUI.py:1023
+#: appEditors/grb_plugins/GrbOperationDialogs.py:129 appGUI/MainGUI.py:1028
 msgid "Renumber"
 msgstr ""
 
@@ -7744,7 +7740,7 @@ msgstr ""
 msgid "First aperture code"
 msgstr ""
 
-#: appEditors/grb_plugins/GrbOperationDialogs.py:136 appGUI/MainGUI.py:1033
+#: appEditors/grb_plugins/GrbOperationDialogs.py:136 appGUI/MainGUI.py:1038
 msgid "Drawn Pads to Flashes"
 msgstr ""
 
@@ -7756,7 +7752,7 @@ msgstr ""
 msgid "Width (%)"
 msgstr ""
 
-#: appEditors/grb_plugins/GrbOperationDialogs.py:151 appGUI/MainGUI.py:1037
+#: appEditors/grb_plugins/GrbOperationDialogs.py:151 appGUI/MainGUI.py:1042
 msgid "Snowman Fillets"
 msgstr ""
 
@@ -7916,7 +7912,7 @@ msgstr ""
 msgid "Regions with clear geometry can't be clipped."
 msgstr ""
 
-#: appEditors/grb_plugins/GrbTrackEditPlugin.py:182 appGUI/MainGUI.py:1009
+#: appEditors/grb_plugins/GrbTrackEditPlugin.py:182 appGUI/MainGUI.py:1014
 msgid "Clip"
 msgstr ""
 
@@ -7929,7 +7925,7 @@ msgstr ""
 msgid "Clip and replace with pad"
 msgstr ""
 
-#: appEditors/grb_plugins/GrbTrackEditPlugin.py:253 appGUI/MainGUI.py:1013
+#: appEditors/grb_plugins/GrbTrackEditPlugin.py:253 appGUI/MainGUI.py:1018
 msgid "Stretch"
 msgstr ""
 
@@ -8492,7 +8488,7 @@ msgstr ""
 
 #: appGUI/GUIElements.py:529 appGUI/GUIElements.py:1312
 #: appGUI/GUIElements.py:1560 appGUI/GUIElements.py:2066
-#: appGUI/GUIElements.py:2360 appGUI/GUIElements.py:4919 appGUI/MainGUI.py:463
+#: appGUI/GUIElements.py:2360 appGUI/GUIElements.py:4919 appGUI/MainGUI.py:468
 msgid "Ctrl+Z"
 msgstr ""
 
@@ -8504,7 +8500,7 @@ msgstr ""
 
 #: appGUI/GUIElements.py:545 appGUI/GUIElements.py:1328
 #: appGUI/GUIElements.py:1576 appGUI/GUIElements.py:2082
-#: appGUI/GUIElements.py:2372 appGUI/GUIElements.py:4931 appGUI/MainGUI.py:1985
+#: appGUI/GUIElements.py:2372 appGUI/GUIElements.py:4931 appGUI/MainGUI.py:1990
 #: appGUI/ObjectUI.py:1228 appGUI/preferences/cncjob/CNCJobOptPrefGroupUI.py:62
 msgid "Cut"
 msgstr ""
@@ -8517,7 +8513,7 @@ msgstr ""
 
 #: appGUI/GUIElements.py:552 appGUI/GUIElements.py:1335
 #: appGUI/GUIElements.py:1583 appGUI/GUIElements.py:2089
-#: appGUI/GUIElements.py:2377 appGUI/GUIElements.py:4936 appGUI/MainGUI.py:555
+#: appGUI/GUIElements.py:2377 appGUI/GUIElements.py:4936 appGUI/MainGUI.py:560
 msgid "Ctrl+C"
 msgstr ""
 
@@ -8541,8 +8537,8 @@ msgstr ""
 
 #: appGUI/GUIElements.py:575 appGUI/GUIElements.py:1358
 #: appGUI/GUIElements.py:1606 appGUI/GUIElements.py:2108
-#: appGUI/GUIElements.py:2394 appGUI/GUIElements.py:4948 appGUI/MainGUI.py:589
-#: appGUI/MainGUI.py:726 appGUI/shortcut_actions.py:105
+#: appGUI/GUIElements.py:2394 appGUI/GUIElements.py:4948 appGUI/MainGUI.py:594
+#: appGUI/MainGUI.py:731 appGUI/shortcut_actions.py:105
 #: appGUI/shortcut_actions.py:609 appGUI/shortcut_actions.py:765
 #: appPlugins/ToolIsolation/IsolationUI.py:624
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:237
@@ -8552,7 +8548,7 @@ msgstr ""
 
 #: appGUI/GUIElements.py:575 appGUI/GUIElements.py:1358
 #: appGUI/GUIElements.py:1606 appGUI/GUIElements.py:2108
-#: appGUI/GUIElements.py:2394 appGUI/GUIElements.py:4948 appGUI/MainGUI.py:589
+#: appGUI/GUIElements.py:2394 appGUI/GUIElements.py:4948 appGUI/MainGUI.py:594
 msgid "Ctrl+A"
 msgstr ""
 
@@ -8578,7 +8574,7 @@ msgstr ""
 #: appGUI/GUIElements.py:4878
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:435
 #: appHandlers/appIO.py:1108 appHandlers/appIO.py:1184
-#: appHandlers/appIO.py:1545 appHandlers/appIO.py:4142
+#: appHandlers/appIO.py:1545 appHandlers/appIO.py:4137
 #: appHandlers/appObjectOps.py:978 appHandlers/appUIActions.py:690
 msgid "Ok"
 msgstr ""
@@ -8635,7 +8631,7 @@ msgstr ""
 msgid "Jog the Y axis."
 msgstr ""
 
-#: appGUI/GUIElements.py:5382 appGUI/MainGUI.py:573
+#: appGUI/GUIElements.py:5382 appGUI/MainGUI.py:578
 #: appHandlers/appObjectOps.py:512
 msgid "Move to Origin"
 msgstr ""
@@ -8692,7 +8688,7 @@ msgstr ""
 msgid "Run Script ..."
 msgstr ""
 
-#: appGUI/GUIElements.py:5811 appGUI/MainGUI.py:268
+#: appGUI/GUIElements.py:5811 appGUI/MainGUI.py:273
 msgid ""
 "Will run the opened Tcl Script thus\n"
 "enabling the automation of certain\n"
@@ -8709,8 +8705,8 @@ msgstr ""
 
 #: appGUI/GUIElements.py:5831 appGUI/MainGUI.py:195
 #: appGUI/shortcut_actions.py:116 appHandlers/appIO.py:1011
-#: appHandlers/appIO.py:1014 appHandlers/appIO.py:3981
-#: appHandlers/appIO.py:4217
+#: appHandlers/appIO.py:1014 appHandlers/appIO.py:3976
+#: appHandlers/appIO.py:4212
 msgid "Open Project"
 msgstr ""
 
@@ -8728,7 +8724,7 @@ msgstr ""
 msgid "Open Excellon"
 msgstr ""
 
-#: appGUI/GUIElements.py:5842 appGUI/MainGUI.py:207 appGUI/MainGUI.py:982
+#: appGUI/GUIElements.py:5842 appGUI/MainGUI.py:207 appGUI/MainGUI.py:987
 msgid "Ctrl+E"
 msgstr ""
 
@@ -8737,8 +8733,78 @@ msgstr ""
 msgid "Open G-Code"
 msgstr ""
 
-#: appGUI/GUIElements.py:5857 appGUI/MainGUI.py:449 appGUI/UpdateDialog.py:303
+#: appGUI/GUIElements.py:5857 appGUI/MainGUI.py:454 appGUI/UpdateDialog.py:303
 msgid "Exit"
+msgstr ""
+
+#: appGUI/ImagePreview.py:21
+msgid "Invalid image or screen DPI."
+msgstr ""
+
+#: appGUI/ImagePreview.py:57
+msgid "Fit"
+msgstr ""
+
+#: appGUI/ImagePreview.py:58
+msgid "Physical 100%"
+msgstr ""
+
+#: appGUI/ImagePreview.py:61
+msgid "Zoom in"
+msgstr ""
+
+#: appGUI/ImagePreview.py:62
+msgid "Zoom out"
+msgstr ""
+
+#: appGUI/ImagePreview.py:81
+msgid "Invalid image DPI."
+msgstr ""
+
+#: appGUI/ImagePreview.py:90
+msgid "PNG exceeds the preview working-memory limit."
+msgstr ""
+
+#: appGUI/ImagePreview.py:93
+msgid "Cannot decode PNG preview."
+msgstr ""
+
+#: appGUI/ImagePreview.py:96
+msgid "Cannot allocate PNG preview."
+msgstr ""
+
+#: appGUI/ImagePreview.py:102
+msgid "%d × %d pixels - %g DPI"
+msgstr ""
+
+#: appGUI/ImagePreview.py:121 appPlugins/ToolPDFViewer/PDFViewer.py:228
+msgid "Save..."
+msgstr ""
+
+#: appGUI/ImagePreview.py:128
+msgid "Save PNG"
+msgstr ""
+
+#: appGUI/ImagePreview.py:130
+msgid "PNG Files (*.png)"
+msgstr ""
+
+#: appGUI/ImagePreview.py:138 appObjects/DocumentObject.py:344
+#: appPlugins/ToolFilm/Film.py:609 appPlugins/ToolPDFViewer/PDFViewer.py:248
+msgid "Overwrite file?"
+msgstr ""
+
+#: appGUI/ImagePreview.py:138 appObjects/DocumentObject.py:344
+#: appPlugins/ToolFilm/Film.py:609 appPlugins/ToolPDFViewer/PDFViewer.py:248
+msgid "The file already exists. Replace it?"
+msgstr ""
+
+#: appGUI/ImagePreview.py:144 appGUI/ImagePreview.py:147
+msgid "Cannot save PNG"
+msgstr ""
+
+#: appGUI/ImagePreview.py:150
+msgid "PNG saved"
 msgstr ""
 
 #: appGUI/ImportDialog.py:28
@@ -8807,7 +8873,7 @@ msgid ""
 "vinyl cutters."
 msgstr ""
 
-#: appGUI/ImportDialog.py:57 appGUI/MainGUI.py:1145
+#: appGUI/ImportDialog.py:57 appGUI/MainGUI.py:1150
 #: appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:277
 #: appPlugins/ToolFilm/FilmUI.py:301
 msgid "PDF"
@@ -9005,7 +9071,7 @@ msgstr ""
 msgid "No import matches the search."
 msgstr ""
 
-#: appGUI/MainGUI.py:139 appGUI/MainGUI.py:141 appGUI/MainGUI.py:1872
+#: appGUI/MainGUI.py:139 appGUI/MainGUI.py:141 appGUI/MainGUI.py:1877
 msgid "Toggle Panel"
 msgstr ""
 
@@ -9026,14 +9092,14 @@ msgstr ""
 msgid "Will create a new, blank project"
 msgstr ""
 
-#: appGUI/MainGUI.py:163 appGUI/MainGUI.py:1883 appGUI/WelcomeDialog.py:378
-#: appMain.py:2830 appObjects/AppObject.py:538
+#: appGUI/MainGUI.py:163 appGUI/MainGUI.py:1888 appGUI/WelcomeDialog.py:378
+#: appMain.py:2834 appObjects/AppObject.py:538
 #: appObjects/ObjectCollection.py:630 appPlugins/ToolCompare/CompareUI.py:68
 #: appPlugins/ToolGcodeSender/SenderUI.py:269
 msgid "New"
 msgstr ""
 
-#: appGUI/MainGUI.py:167 appGUI/MainGUI.py:817 appGUI/MainGUI.py:955
+#: appGUI/MainGUI.py:167 appGUI/MainGUI.py:822 appGUI/MainGUI.py:960
 msgid "N"
 msgstr ""
 
@@ -9041,7 +9107,7 @@ msgstr ""
 msgid "Will create a new, empty Geometry Object."
 msgstr ""
 
-#: appGUI/MainGUI.py:172 appGUI/MainGUI.py:1288 appGUI/MainGUI.py:2565
+#: appGUI/MainGUI.py:172 appGUI/MainGUI.py:1293 appGUI/MainGUI.py:2570
 #: appGUI/WelcomeDialog.py:47 appGUI/preferences/PreferencesWindow.py:70
 #: appGUI/preferences/geometry/GeometryExpPrefGroupUI.py:66
 #: appGUI/preferences/tools/ToolsPanelizePrefGroupUI.py:95
@@ -9075,7 +9141,7 @@ msgstr ""
 msgid "Gerber"
 msgstr ""
 
-#: appGUI/MainGUI.py:172 appGUI/MainGUI.py:868 appGUI/MainGUI.py:969
+#: appGUI/MainGUI.py:172 appGUI/MainGUI.py:873 appGUI/MainGUI.py:974
 msgid "B"
 msgstr ""
 
@@ -9083,8 +9149,8 @@ msgstr ""
 msgid "Will create a new, empty Gerber Object."
 msgstr ""
 
-#: appGUI/MainGUI.py:177 appGUI/MainGUI.py:1291 appGUI/MainGUI.py:1889
-#: appGUI/MainGUI.py:2568 appGUI/WelcomeDialog.py:52
+#: appGUI/MainGUI.py:177 appGUI/MainGUI.py:1296 appGUI/MainGUI.py:1894
+#: appGUI/MainGUI.py:2573 appGUI/WelcomeDialog.py:52
 #: appGUI/preferences/PreferencesWindow.py:71
 #: appGUI/preferences/tools/Tools2PunchGerberPrefGroupUI.py:100
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:76
@@ -9124,7 +9190,7 @@ msgstr ""
 msgid "Document"
 msgstr ""
 
-#: appGUI/MainGUI.py:184 appGUI/MainGUI.py:899 appGUI/MainGUI.py:966
+#: appGUI/MainGUI.py:184 appGUI/MainGUI.py:904 appGUI/MainGUI.py:971
 msgid "D"
 msgstr ""
 
@@ -9136,253 +9202,261 @@ msgstr ""
 msgid "Ctrl+O"
 msgstr ""
 
-#: appGUI/MainGUI.py:219
-msgid "Open Config"
+#: appGUI/MainGUI.py:216
+msgid "Open Document..."
+msgstr ""
+
+#: appGUI/MainGUI.py:217
+msgid "Open a PDF, text or HTML file as a project Document."
 msgstr ""
 
 #: appGUI/MainGUI.py:224
+msgid "Open Config"
+msgstr ""
+
+#: appGUI/MainGUI.py:229
 msgid "Recent projects"
 msgstr ""
 
-#: appGUI/MainGUI.py:226 appGUI/WelcomeDialog.py:308
+#: appGUI/MainGUI.py:231 appGUI/WelcomeDialog.py:308
 #: appGUI/WelcomeDialog.py:319
 msgid "Recent files"
 msgstr ""
 
-#: appGUI/MainGUI.py:233 appGUI/ProjectSelector.py:75
+#: appGUI/MainGUI.py:238 appGUI/ProjectSelector.py:75
 #: appGUI/shortcut_actions.py:120
 msgid "Save Project"
 msgstr ""
 
-#: appGUI/MainGUI.py:239 appGUI/shortcut_actions.py:102
+#: appGUI/MainGUI.py:244 appGUI/shortcut_actions.py:102
 msgid "Save Project As"
 msgstr ""
 
-#: appGUI/MainGUI.py:239
+#: appGUI/MainGUI.py:244
 msgid "Ctrl+Shift+S"
 msgstr ""
 
-#: appGUI/MainGUI.py:254
+#: appGUI/MainGUI.py:259
 msgid "Scripting"
 msgstr ""
 
-#: appGUI/MainGUI.py:258 appGUI/MainGUI.py:1377 appGUI/MainGUI.py:2653
+#: appGUI/MainGUI.py:263 appGUI/MainGUI.py:1382 appGUI/MainGUI.py:2658
 msgid "New Script"
 msgstr ""
 
-#: appGUI/MainGUI.py:260 appGUI/MainGUI.py:1379 appGUI/MainGUI.py:2655
+#: appGUI/MainGUI.py:265 appGUI/MainGUI.py:1384 appGUI/MainGUI.py:2660
 msgid "Open Script"
 msgstr ""
 
-#: appGUI/MainGUI.py:263
+#: appGUI/MainGUI.py:268
 msgid "Open Example"
 msgstr ""
 
-#: appGUI/MainGUI.py:266 appGUI/MainGUI.py:1381 appGUI/MainGUI.py:2657
+#: appGUI/MainGUI.py:271 appGUI/MainGUI.py:1386 appGUI/MainGUI.py:2662
 msgid "Run Script"
 msgstr ""
 
-#: appGUI/MainGUI.py:266
+#: appGUI/MainGUI.py:271
 msgid "Shift+S"
 msgstr ""
 
-#: appGUI/MainGUI.py:286
+#: appGUI/MainGUI.py:291
 msgid "SVG as Geometry Object"
 msgstr ""
 
-#: appGUI/MainGUI.py:290
+#: appGUI/MainGUI.py:295
 msgid "SVG as Gerber Object"
 msgstr ""
 
-#: appGUI/MainGUI.py:296
+#: appGUI/MainGUI.py:301
 msgid "DXF as Geometry Object"
 msgstr ""
 
-#: appGUI/MainGUI.py:300
+#: appGUI/MainGUI.py:305
 msgid "DXF as Gerber Object"
 msgstr ""
 
-#: appGUI/MainGUI.py:305
+#: appGUI/MainGUI.py:310
 msgid "HPGL2 as Geometry Object"
 msgstr ""
 
-#: appGUI/MainGUI.py:311
+#: appGUI/MainGUI.py:316
 msgid "Altium PCB (.PcbDoc)"
 msgstr ""
 
-#: appGUI/MainGUI.py:315
+#: appGUI/MainGUI.py:320
 msgid "CircuitStudio / CircuitMaker PCB (.CSPcbDoc)"
 msgstr ""
 
-#: appGUI/MainGUI.py:319
+#: appGUI/MainGUI.py:324
 msgid "Proteus PCB (.pdsprj)"
 msgstr ""
 
-#: appGUI/MainGUI.py:323
+#: appGUI/MainGUI.py:328
 msgid "KiCad PCB (.kicad_pcb)"
 msgstr ""
 
-#: appGUI/MainGUI.py:327
+#: appGUI/MainGUI.py:332
 msgid "Sprint Layout 6 (.lay6)"
 msgstr ""
 
-#: appGUI/MainGUI.py:331
+#: appGUI/MainGUI.py:336
 msgid "Eagle Board (.brd)"
 msgstr ""
 
-#: appGUI/MainGUI.py:335
+#: appGUI/MainGUI.py:340
 msgid "OrCAD/Allegro Board (.brd)"
 msgstr ""
 
-#: appGUI/MainGUI.py:339
+#: appGUI/MainGUI.py:344
 msgid "DipTrace PCB (.dip)"
 msgstr ""
 
-#: appGUI/MainGUI.py:343
+#: appGUI/MainGUI.py:348
 msgid "PADS Layout PCB (.asc, .pcb)"
 msgstr ""
 
-#: appGUI/MainGUI.py:347
+#: appGUI/MainGUI.py:352
 msgid "EasyEDA Pro PCB (.epro, .epro2, .epcb)"
 msgstr ""
 
-#: appGUI/MainGUI.py:351
+#: appGUI/MainGUI.py:356
 msgid "ODB++ Job (.tgz, .zip, folder)"
 msgstr ""
 
-#: appGUI/MainGUI.py:355
+#: appGUI/MainGUI.py:360
 msgid "IPC-2581 Board (.xml, .cvg, .gz, .zip)"
 msgstr ""
 
-#: appGUI/MainGUI.py:366 appHandlers/appIO.py:1194 appHandlers/appIO.py:1199
+#: appGUI/MainGUI.py:371 appHandlers/appIO.py:1194 appHandlers/appIO.py:1199
 #: appPlugins/ToolQRCode/QRCode.py:694
 msgid "Export SVG"
 msgstr ""
 
-#: appGUI/MainGUI.py:371 appHandlers/appIO.py:1556 appHandlers/appIO.py:1561
+#: appGUI/MainGUI.py:376 appHandlers/appIO.py:1556 appHandlers/appIO.py:1561
 msgid "Export DXF"
 msgstr ""
 
-#: appGUI/MainGUI.py:378 appHandlers/appIO.py:1117
+#: appGUI/MainGUI.py:383 appHandlers/appIO.py:1117
 #: appPlugins/ToolQRCode/QRCode.py:690
 msgid "Export PNG"
 msgstr ""
 
-#: appGUI/MainGUI.py:380
+#: appGUI/MainGUI.py:385
 msgid ""
 "Will export an image in PNG format,\n"
 "the saved image will contain the visual \n"
 "information currently in FlatCAM Plot Area."
 msgstr ""
 
-#: appGUI/MainGUI.py:390 appHandlers/appIO.py:1444 appHandlers/appIO.py:1449
+#: appGUI/MainGUI.py:395 appHandlers/appIO.py:1444 appHandlers/appIO.py:1449
 msgid "Export Excellon"
 msgstr ""
 
-#: appGUI/MainGUI.py:392
+#: appGUI/MainGUI.py:397
 msgid ""
 "Will export an Excellon Object as Excellon file,\n"
 "the coordinates format, the file units and zeros\n"
 "are set in Preferences -> Excellon Export."
 msgstr ""
 
-#: appGUI/MainGUI.py:400 appHandlers/appIO.py:1492 appHandlers/appIO.py:1497
+#: appGUI/MainGUI.py:405 appHandlers/appIO.py:1492 appHandlers/appIO.py:1497
 msgid "Export Gerber"
 msgstr ""
 
-#: appGUI/MainGUI.py:402
+#: appGUI/MainGUI.py:407
 msgid ""
 "Will export an Gerber Object as Gerber file,\n"
 "the coordinates format, the file units and zeros\n"
 "are set in Preferences -> Gerber Export."
 msgstr ""
 
-#: appGUI/MainGUI.py:412
+#: appGUI/MainGUI.py:417
 msgid "Backup"
 msgstr ""
 
-#: appGUI/MainGUI.py:417
+#: appGUI/MainGUI.py:422
 msgid "Import Preferences from file"
 msgstr ""
 
-#: appGUI/MainGUI.py:424
+#: appGUI/MainGUI.py:429
 msgid "Export Preferences to file"
 msgstr ""
 
-#: appGUI/MainGUI.py:433 appGUI/preferences/PreferencesUIManager.py:1373
+#: appGUI/MainGUI.py:438 appGUI/preferences/PreferencesUIManager.py:1373
 msgid "Save Preferences"
 msgstr ""
 
-#: appGUI/MainGUI.py:440 appGUI/shortcut_actions.py:118
+#: appGUI/MainGUI.py:445 appGUI/shortcut_actions.py:118
 msgid "Print (PDF)"
 msgstr ""
 
-#: appGUI/MainGUI.py:440
+#: appGUI/MainGUI.py:445
 msgid "Ctrl+P"
 msgstr ""
 
-#: appGUI/MainGUI.py:460 appGUI/MainGUI.py:1121 appGUI/MainGUI.py:2053
-#: appMain.py:2489 appMain.py:2851 appObjects/ObjectCollection.py:662
+#: appGUI/MainGUI.py:465 appGUI/MainGUI.py:1126 appGUI/MainGUI.py:2058
+#: appMain.py:2493 appMain.py:2855 appObjects/ObjectCollection.py:662
 msgid "Edit"
 msgstr ""
 
-#: appGUI/MainGUI.py:466
+#: appGUI/MainGUI.py:471
 msgid "Ctrl+Shift+Z"
 msgstr ""
 
-#: appGUI/MainGUI.py:478
+#: appGUI/MainGUI.py:483
 msgid "Edit Object"
 msgstr ""
 
-#: appGUI/MainGUI.py:478 appGUI/MainGUI.py:834 appGUI/MainGUI.py:963
+#: appGUI/MainGUI.py:483 appGUI/MainGUI.py:839 appGUI/MainGUI.py:968
 msgid "E"
 msgstr ""
 
-#: appGUI/MainGUI.py:494
+#: appGUI/MainGUI.py:499
 msgid "Conversion"
 msgstr ""
 
-#: appGUI/MainGUI.py:498
+#: appGUI/MainGUI.py:503
 msgid "Convert Single to MultiGeo"
 msgstr ""
 
-#: appGUI/MainGUI.py:500
+#: appGUI/MainGUI.py:505
 msgid ""
 "Will convert a Geometry object from single_geometry type\n"
 "to a multi_geometry type."
 msgstr ""
 
-#: appGUI/MainGUI.py:505
+#: appGUI/MainGUI.py:510
 msgid "Convert Multi to SingleGeo"
 msgstr ""
 
-#: appGUI/MainGUI.py:507
+#: appGUI/MainGUI.py:512
 msgid ""
 "Will convert a Geometry object from multi_geometry type\n"
 "to a single_geometry type."
 msgstr ""
 
-#: appGUI/MainGUI.py:514
+#: appGUI/MainGUI.py:519
 msgid "Convert Any to Geo"
 msgstr ""
 
-#: appGUI/MainGUI.py:517
+#: appGUI/MainGUI.py:522
 msgid "Convert Any to Gerber"
 msgstr ""
 
-#: appGUI/MainGUI.py:520
+#: appGUI/MainGUI.py:525
 msgid "Convert Any to Excellon"
 msgstr ""
 
-#: appGUI/MainGUI.py:525
+#: appGUI/MainGUI.py:530
 msgid "Join Objects"
 msgstr ""
 
-#: appGUI/MainGUI.py:528
+#: appGUI/MainGUI.py:533
 msgid "Join Geo/Gerber/Exc -> Geo"
 msgstr ""
 
-#: appGUI/MainGUI.py:530
+#: appGUI/MainGUI.py:535
 msgid ""
 "Merge a selection of objects, which can be of type:\n"
 "- Gerber\n"
@@ -9391,70 +9465,70 @@ msgid ""
 "into a new combo Geometry object."
 msgstr ""
 
-#: appGUI/MainGUI.py:538
+#: appGUI/MainGUI.py:543
 msgid "Join Excellon(s) -> Excellon"
 msgstr ""
 
-#: appGUI/MainGUI.py:540
+#: appGUI/MainGUI.py:545
 msgid "Merge a selection of Excellon objects into a new combo Excellon object."
 msgstr ""
 
-#: appGUI/MainGUI.py:544
+#: appGUI/MainGUI.py:549
 msgid "Join Gerber(s) -> Gerber"
 msgstr ""
 
-#: appGUI/MainGUI.py:546
+#: appGUI/MainGUI.py:551
 msgid "Merge a selection of Gerber objects into a new combo Gerber object."
 msgstr ""
 
-#: appGUI/MainGUI.py:561 appGUI/MainGUI.py:860 appGUI/MainGUI.py:919
-#: appGUI/MainGUI.py:1045
+#: appGUI/MainGUI.py:566 appGUI/MainGUI.py:865 appGUI/MainGUI.py:924
+#: appGUI/MainGUI.py:1050
 msgid "DEL"
 msgstr ""
 
-#: appGUI/MainGUI.py:567 appGUI/MainGUI.py:2060
+#: appGUI/MainGUI.py:572 appGUI/MainGUI.py:2065
 msgid "Num Move"
 msgstr ""
 
-#: appGUI/MainGUI.py:570 appGUI/MainGUI.py:1339 appGUI/MainGUI.py:2617
+#: appGUI/MainGUI.py:575 appGUI/MainGUI.py:1344 appGUI/MainGUI.py:2622
 #: appGUI/shortcut_actions.py:209 appHandlers/appObjectOps.py:418
 msgid "Set Origin"
 msgstr ""
 
-#: appGUI/MainGUI.py:570 appGUI/MainGUI.py:805
+#: appGUI/MainGUI.py:575 appGUI/MainGUI.py:810
 msgid "O"
 msgstr ""
 
-#: appGUI/MainGUI.py:573
+#: appGUI/MainGUI.py:578
 msgid "Shift+O"
 msgstr ""
 
-#: appGUI/MainGUI.py:576 appHandlers/appEdit.py:760 appHandlers/appEdit.py:777
+#: appGUI/MainGUI.py:581 appHandlers/appEdit.py:760 appHandlers/appEdit.py:777
 #: appHandlers/appEdit.py:798
 msgid "Custom Origin"
 msgstr ""
 
-#: appGUI/MainGUI.py:580
+#: appGUI/MainGUI.py:585
 msgid "Jump to Location"
 msgstr ""
 
-#: appGUI/MainGUI.py:580
+#: appGUI/MainGUI.py:585
 msgid "J"
 msgstr ""
 
-#: appGUI/MainGUI.py:583 appGUI/shortcut_actions.py:127
+#: appGUI/MainGUI.py:588 appGUI/shortcut_actions.py:127
 msgid "Locate in Object"
 msgstr ""
 
-#: appGUI/MainGUI.py:583
+#: appGUI/MainGUI.py:588
 msgid "Shift+J"
 msgstr ""
 
-#: appGUI/MainGUI.py:595
+#: appGUI/MainGUI.py:600
 msgid "Shift+P"
 msgstr ""
 
-#: appGUI/MainGUI.py:601 appGUI/preferences/cncjob/CNCJobOptPrefGroupUI.py:22
+#: appGUI/MainGUI.py:606 appGUI/preferences/cncjob/CNCJobOptPrefGroupUI.py:22
 #: appGUI/preferences/excellon/ExcellonOptPrefGroupUI.py:22
 #: appGUI/preferences/geometry/GeometryOptPrefGroupUI.py:22
 #: appGUI/preferences/gerber/GerberOptPrefGroupUI.py:24
@@ -9463,565 +9537,565 @@ msgstr ""
 msgid "Options"
 msgstr ""
 
-#: appGUI/MainGUI.py:604
+#: appGUI/MainGUI.py:609
 msgid "Rotate Selection"
 msgstr ""
 
-#: appGUI/MainGUI.py:604
+#: appGUI/MainGUI.py:609
 msgid "Shift+(R)"
 msgstr ""
 
-#: appGUI/MainGUI.py:610 appGUI/shortcut_actions.py:138
+#: appGUI/MainGUI.py:615 appGUI/shortcut_actions.py:138
 #: appHandlers/appObjectOps.py:294
 msgid "Skew on X axis"
 msgstr ""
 
-#: appGUI/MainGUI.py:610
+#: appGUI/MainGUI.py:615
 msgid "Shift+X"
 msgstr ""
 
-#: appGUI/MainGUI.py:613 appGUI/shortcut_actions.py:139
+#: appGUI/MainGUI.py:618 appGUI/shortcut_actions.py:139
 #: appHandlers/appObjectOps.py:347
 msgid "Skew on Y axis"
 msgstr ""
 
-#: appGUI/MainGUI.py:613
+#: appGUI/MainGUI.py:618
 msgid "Shift+Y"
 msgstr ""
 
-#: appGUI/MainGUI.py:619 appHandlers/appObjectOps.py:179
+#: appGUI/MainGUI.py:624 appHandlers/appObjectOps.py:179
 msgid "Flip on X axis"
 msgstr ""
 
-#: appGUI/MainGUI.py:622 appHandlers/appObjectOps.py:125
+#: appGUI/MainGUI.py:627 appHandlers/appObjectOps.py:125
 msgid "Flip on Y axis"
 msgstr ""
 
-#: appGUI/MainGUI.py:628
+#: appGUI/MainGUI.py:633
 msgid "View source"
 msgstr ""
 
-#: appGUI/MainGUI.py:628
+#: appGUI/MainGUI.py:633
 msgid "Alt+S"
 msgstr ""
 
-#: appGUI/MainGUI.py:631
+#: appGUI/MainGUI.py:636
 msgid "Ctrl+D"
 msgstr ""
 
-#: appGUI/MainGUI.py:637
+#: appGUI/MainGUI.py:642
 msgid "Experimental"
 msgstr ""
 
-#: appGUI/MainGUI.py:641
+#: appGUI/MainGUI.py:646
 msgid "3D Area"
 msgstr ""
 
-#: appGUI/MainGUI.py:648 appGUI/MainGUI.py:1868
+#: appGUI/MainGUI.py:653 appGUI/MainGUI.py:1873
 msgid "View"
 msgstr ""
 
-#: appGUI/MainGUI.py:650
+#: appGUI/MainGUI.py:655
 msgid "Restore Layout"
 msgstr ""
 
-#: appGUI/MainGUI.py:654 appGUI/shortcut_actions.py:141
+#: appGUI/MainGUI.py:659 appGUI/shortcut_actions.py:141
 msgid "Enable all"
 msgstr ""
 
-#: appGUI/MainGUI.py:654
+#: appGUI/MainGUI.py:659
 msgid "Alt+1"
 msgstr ""
 
-#: appGUI/MainGUI.py:657 appGUI/shortcut_actions.py:142
+#: appGUI/MainGUI.py:662 appGUI/shortcut_actions.py:142
 msgid "Disable all"
 msgstr ""
 
-#: appGUI/MainGUI.py:657
+#: appGUI/MainGUI.py:662
 msgid "Alt+2"
 msgstr ""
 
-#: appGUI/MainGUI.py:660
+#: appGUI/MainGUI.py:665
 msgid "Enable non-selected"
 msgstr ""
 
-#: appGUI/MainGUI.py:660
+#: appGUI/MainGUI.py:665
 msgid "Alt+3"
 msgstr ""
 
-#: appGUI/MainGUI.py:663
+#: appGUI/MainGUI.py:668
 msgid "Disable non-selected"
 msgstr ""
 
-#: appGUI/MainGUI.py:663
+#: appGUI/MainGUI.py:668
 msgid "Alt+4"
 msgstr ""
 
-#: appGUI/MainGUI.py:669 appGUI/MainGUI.py:1367 appGUI/MainGUI.py:1875
-#: appGUI/MainGUI.py:2645 appGUI/shortcut_actions.py:217
+#: appGUI/MainGUI.py:674 appGUI/MainGUI.py:1372 appGUI/MainGUI.py:1880
+#: appGUI/MainGUI.py:2650 appGUI/shortcut_actions.py:217
 #: appGUI/shortcut_actions.py:405 appGUI/shortcut_actions.py:668
 #: appGUI/shortcut_actions.py:785
 msgid "Zoom Fit"
 msgstr ""
 
-#: appGUI/MainGUI.py:669
+#: appGUI/MainGUI.py:674
 msgid "V"
 msgstr ""
 
-#: appGUI/MainGUI.py:672 appGUI/MainGUI.py:1363 appGUI/MainGUI.py:2641
+#: appGUI/MainGUI.py:677 appGUI/MainGUI.py:1368 appGUI/MainGUI.py:2646
 #: appGUI/shortcut_actions.py:220 appGUI/shortcut_actions.py:401
 #: appGUI/shortcut_actions.py:632 appGUI/shortcut_actions.py:779
 #: appGUI/shortcut_actions.py:997
 msgid "Zoom In"
 msgstr ""
 
-#: appGUI/MainGUI.py:672
+#: appGUI/MainGUI.py:677
 msgid "="
 msgstr ""
 
-#: appGUI/MainGUI.py:675 appGUI/MainGUI.py:1365 appGUI/MainGUI.py:2643
+#: appGUI/MainGUI.py:680 appGUI/MainGUI.py:1370 appGUI/MainGUI.py:2648
 #: appGUI/shortcut_actions.py:223 appGUI/shortcut_actions.py:400
 #: appGUI/shortcut_actions.py:630 appGUI/shortcut_actions.py:778
 #: appGUI/shortcut_actions.py:998
 msgid "Zoom Out"
 msgstr ""
 
-#: appGUI/MainGUI.py:675
+#: appGUI/MainGUI.py:680
 msgid "-"
 msgstr ""
 
-#: appGUI/MainGUI.py:681
+#: appGUI/MainGUI.py:686
 msgid "Redraw All"
 msgstr ""
 
-#: appGUI/MainGUI.py:681
+#: appGUI/MainGUI.py:686
 msgid "F5"
 msgstr ""
 
-#: appGUI/MainGUI.py:686 appGUI/shortcut_actions.py:125
+#: appGUI/MainGUI.py:691 appGUI/shortcut_actions.py:125
 msgid "Toggle Code Editor"
 msgstr ""
 
-#: appGUI/MainGUI.py:686
+#: appGUI/MainGUI.py:691
 msgid "Shift+E"
 msgstr ""
 
-#: appGUI/MainGUI.py:690
+#: appGUI/MainGUI.py:695
 msgid "Toggle FullScreen"
 msgstr ""
 
-#: appGUI/MainGUI.py:690
+#: appGUI/MainGUI.py:695
 msgid "Alt+F10"
 msgstr ""
 
-#: appGUI/MainGUI.py:693 appGUI/shortcut_actions.py:121
+#: appGUI/MainGUI.py:698 appGUI/shortcut_actions.py:121
 msgid "Toggle Plot Area"
 msgstr ""
 
-#: appGUI/MainGUI.py:693
+#: appGUI/MainGUI.py:698
 msgid "Ctrl+F10"
 msgstr ""
 
-#: appGUI/MainGUI.py:696
+#: appGUI/MainGUI.py:701
 msgid "Toggle Project/Properties/Tool"
 msgstr ""
 
-#: appGUI/MainGUI.py:696
+#: appGUI/MainGUI.py:701
 msgid "`"
 msgstr ""
 
-#: appGUI/MainGUI.py:700
+#: appGUI/MainGUI.py:705
 msgid "Toggle Grid Snap"
 msgstr ""
 
-#: appGUI/MainGUI.py:700
+#: appGUI/MainGUI.py:705
 msgid "G"
 msgstr ""
 
-#: appGUI/MainGUI.py:703 appGUI/shortcut_actions.py:84
+#: appGUI/MainGUI.py:708 appGUI/shortcut_actions.py:84
 msgid "Toggle Grid Lines"
 msgstr ""
 
-#: appGUI/MainGUI.py:703
+#: appGUI/MainGUI.py:708
 msgid "Shift+G"
 msgstr ""
 
-#: appGUI/MainGUI.py:706
+#: appGUI/MainGUI.py:711
 msgid "Toggle Axis"
 msgstr ""
 
-#: appGUI/MainGUI.py:706
+#: appGUI/MainGUI.py:711
 msgid "Shift+A"
 msgstr ""
 
-#: appGUI/MainGUI.py:709
+#: appGUI/MainGUI.py:714
 msgid "Toggle Workspace"
 msgstr ""
 
-#: appGUI/MainGUI.py:709
+#: appGUI/MainGUI.py:714
 msgid "Shift+W"
 msgstr ""
 
-#: appGUI/MainGUI.py:712 appGUI/shortcut_actions.py:86
+#: appGUI/MainGUI.py:717 appGUI/shortcut_actions.py:86
 msgid "Toggle HUD"
 msgstr ""
 
-#: appGUI/MainGUI.py:712
+#: appGUI/MainGUI.py:717
 msgid "Shift+H"
 msgstr ""
 
-#: appGUI/MainGUI.py:717
+#: appGUI/MainGUI.py:722
 msgid "Error Log"
 msgstr ""
 
-#: appGUI/MainGUI.py:722 appPlugins/ToolCompare/CompareUI.py:46
+#: appGUI/MainGUI.py:727 appPlugins/ToolCompare/CompareUI.py:46
 msgid "Objects"
 msgstr ""
 
-#: appGUI/MainGUI.py:729 appPlugins/ToolIsolation/IsolationUI.py:630
+#: appGUI/MainGUI.py:734 appPlugins/ToolIsolation/IsolationUI.py:630
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:240
 msgid "Deselect All"
 msgstr ""
 
-#: appGUI/MainGUI.py:734 appGUI/ObjectUI.py:368 appGUI/ObjectUI.py:750
+#: appGUI/MainGUI.py:739 appGUI/ObjectUI.py:368 appGUI/ObjectUI.py:750
 #: appGUI/ObjectUI.py:1034 appGUI/ObjectUI.py:1424
 #: appGUI/preferences/PreferencesWindow.py:76
 msgid "Plugins"
 msgstr ""
 
-#: appGUI/MainGUI.py:738 appGUI/MainGUI.py:1375 appGUI/MainGUI.py:2651
+#: appGUI/MainGUI.py:743 appGUI/MainGUI.py:1380 appGUI/MainGUI.py:2656
 msgid "Command Line"
 msgstr ""
 
-#: appGUI/MainGUI.py:738 appGUI/MainGUI.py:837 appGUI/MainGUI.py:976
+#: appGUI/MainGUI.py:743 appGUI/MainGUI.py:842 appGUI/MainGUI.py:981
 msgid "S"
 msgstr ""
 
-#: appGUI/MainGUI.py:743
+#: appGUI/MainGUI.py:748
 msgid "Help"
 msgstr ""
 
-#: appGUI/MainGUI.py:746
+#: appGUI/MainGUI.py:751
 msgid "Obsolete Online Help"
 msgstr ""
 
-#: appGUI/MainGUI.py:746
+#: appGUI/MainGUI.py:751
 msgid "F1"
 msgstr ""
 
-#: appGUI/MainGUI.py:749
+#: appGUI/MainGUI.py:754
 msgid "Check for Updates"
 msgstr ""
 
-#: appGUI/MainGUI.py:752
+#: appGUI/MainGUI.py:757
 msgid "Revert to Previous Version"
 msgstr ""
 
-#: appGUI/MainGUI.py:760 appHandlers/appUIActions.py:515
+#: appGUI/MainGUI.py:765 appHandlers/appUIActions.py:515
 #: appHandlers/appUIActions.py:524
 msgid "Bookmarks Manager"
 msgstr ""
 
-#: appGUI/MainGUI.py:765
+#: appGUI/MainGUI.py:770
 msgid "Report a bug"
 msgstr ""
 
-#: appGUI/MainGUI.py:769
+#: appGUI/MainGUI.py:774
 msgid "Excellon Specification"
 msgstr ""
 
-#: appGUI/MainGUI.py:772
+#: appGUI/MainGUI.py:777
 msgid "Gerber Specification"
 msgstr ""
 
-#: appGUI/MainGUI.py:778 appGUI/shortcut_actions.py:179
+#: appGUI/MainGUI.py:783 appGUI/shortcut_actions.py:179
 #: appGUI/shortcut_actions.py:444 appGUI/shortcut_actions.py:671
 #: appGUI/shortcut_actions.py:788
 msgid "Shortcuts List"
 msgstr ""
 
-#: appGUI/MainGUI.py:778
+#: appGUI/MainGUI.py:783
 msgid "F3"
 msgstr ""
 
-#: appGUI/MainGUI.py:781
+#: appGUI/MainGUI.py:786
 msgid "YouTube Channel"
 msgstr ""
 
-#: appGUI/MainGUI.py:781
+#: appGUI/MainGUI.py:786
 msgid "F4"
 msgstr ""
 
-#: appGUI/MainGUI.py:787
+#: appGUI/MainGUI.py:792
 msgid "Donate"
 msgstr ""
 
-#: appGUI/MainGUI.py:791 appHandlers/appUIActions.py:334
+#: appGUI/MainGUI.py:796 appHandlers/appUIActions.py:334
 msgid "How To"
 msgstr ""
 
-#: appGUI/MainGUI.py:795 appGUI/WelcomeDialog.py:357
+#: appGUI/MainGUI.py:800 appGUI/WelcomeDialog.py:357
 #: appHandlers/appUIActions.py:111
 msgid "About"
 msgstr ""
 
-#: appGUI/MainGUI.py:800 appGUI/MainGUI.py:1948
+#: appGUI/MainGUI.py:805 appGUI/MainGUI.py:1953
 msgid "Geo Editor"
 msgstr ""
 
-#: appGUI/MainGUI.py:809 appGUI/MainGUI.py:896 appGUI/MainGUI.py:949
+#: appGUI/MainGUI.py:814 appGUI/MainGUI.py:901 appGUI/MainGUI.py:954
 msgid "A"
 msgstr ""
 
-#: appGUI/MainGUI.py:813 appGUI/MainGUI.py:912
+#: appGUI/MainGUI.py:818 appGUI/MainGUI.py:917
 msgid "R"
 msgstr ""
 
-#: appGUI/MainGUI.py:821 appGUI/MainGUI.py:946 appGUI/ObjectUI.py:1394
+#: appGUI/MainGUI.py:826 appGUI/MainGUI.py:951 appGUI/ObjectUI.py:1394
 #: appGUI/ObjectUI.py:1405
 msgid "P"
 msgstr ""
 
-#: appGUI/MainGUI.py:825 appGUI/MainGUI.py:952
+#: appGUI/MainGUI.py:830 appGUI/MainGUI.py:957
 msgid "T"
 msgstr ""
 
-#: appGUI/MainGUI.py:829 appGUI/MainGUI.py:1515 appGUI/MainGUI.py:1975
-#: appGUI/MainGUI.py:2790 appGUI/preferences/tools/ToolsFollowPrefGroupUI.py:90
+#: appGUI/MainGUI.py:834 appGUI/MainGUI.py:1520 appGUI/MainGUI.py:1980
+#: appGUI/MainGUI.py:2795 appGUI/preferences/tools/ToolsFollowPrefGroupUI.py:90
 #: appPlugins/ToolFollow/FollowUI.py:145
 msgid "Union"
 msgstr ""
 
-#: appGUI/MainGUI.py:829
+#: appGUI/MainGUI.py:834
 msgid "U"
 msgstr ""
 
-#: appGUI/MainGUI.py:834 appGUI/MainGUI.py:1528 appGUI/MainGUI.py:1979
-#: appGUI/MainGUI.py:2803
+#: appGUI/MainGUI.py:839 appGUI/MainGUI.py:1533 appGUI/MainGUI.py:1984
+#: appGUI/MainGUI.py:2808
 msgid "Intersection"
 msgstr ""
 
-#: appGUI/MainGUI.py:837 appGUI/MainGUI.py:1530 appGUI/MainGUI.py:1981
-#: appGUI/MainGUI.py:2805
+#: appGUI/MainGUI.py:842 appGUI/MainGUI.py:1535 appGUI/MainGUI.py:1986
+#: appGUI/MainGUI.py:2810
 msgid "Subtraction"
 msgstr ""
 
-#: appGUI/MainGUI.py:841 appGUI/MainGUI.py:1536 appGUI/MainGUI.py:1983
-#: appGUI/MainGUI.py:2807
+#: appGUI/MainGUI.py:846 appGUI/MainGUI.py:1541 appGUI/MainGUI.py:1988
+#: appGUI/MainGUI.py:2812
 msgid "Alt Subtraction"
 msgstr ""
 
-#: appGUI/MainGUI.py:846 appGUI/MainGUI.py:1544 appGUI/MainGUI.py:2811
+#: appGUI/MainGUI.py:851 appGUI/MainGUI.py:1549 appGUI/MainGUI.py:2816
 msgid "Cut Path"
 msgstr ""
 
-#: appGUI/MainGUI.py:851 appGUI/MainGUI.py:916 appGUI/MainGUI.py:1042
+#: appGUI/MainGUI.py:856 appGUI/MainGUI.py:921 appGUI/MainGUI.py:1047
 msgid "C"
 msgstr ""
 
-#: appGUI/MainGUI.py:865 appGUI/MainGUI.py:925 appGUI/MainGUI.py:1050
+#: appGUI/MainGUI.py:870 appGUI/MainGUI.py:930 appGUI/MainGUI.py:1055
 msgid "M"
 msgstr ""
 
-#: appGUI/MainGUI.py:876
+#: appGUI/MainGUI.py:881
 msgid "I"
 msgstr ""
 
-#: appGUI/MainGUI.py:880 appGUI/MainGUI.py:985 appGUI/MainGUI.py:1555
-#: appGUI/MainGUI.py:1623 appGUI/MainGUI.py:1987 appGUI/MainGUI.py:2024
-#: appGUI/MainGUI.py:2821 appGUI/MainGUI.py:2890
+#: appGUI/MainGUI.py:885 appGUI/MainGUI.py:990 appGUI/MainGUI.py:1560
+#: appGUI/MainGUI.py:1628 appGUI/MainGUI.py:1992 appGUI/MainGUI.py:2029
+#: appGUI/MainGUI.py:2826 appGUI/MainGUI.py:2895
 #: appGUI/preferences/PreferencesWindow.py:38 appGUI/shortcut_actions.py:167
 #: appHandlers/appObjectOps.py:217 appHandlers/appObjectOps.py:277
 #: appHandlers/appObjectOps.py:330
 msgid "Transform"
 msgstr ""
 
-#: appGUI/MainGUI.py:880 appGUI/MainGUI.py:985
+#: appGUI/MainGUI.py:885 appGUI/MainGUI.py:990
 msgid "Alt+R"
 msgstr ""
 
-#: appGUI/MainGUI.py:885 appGUI/shortcut_actions.py:403
+#: appGUI/MainGUI.py:890 appGUI/shortcut_actions.py:403
 #: appGUI/shortcut_actions.py:655 appGUI/shortcut_actions.py:783
 msgid "Toggle Corner Snap"
 msgstr ""
 
-#: appGUI/MainGUI.py:885
+#: appGUI/MainGUI.py:890
 msgid "K"
 msgstr ""
 
-#: appGUI/MainGUI.py:904
+#: appGUI/MainGUI.py:909
 msgid "Q"
 msgstr ""
 
-#: appGUI/MainGUI.py:907
+#: appGUI/MainGUI.py:912
 msgid "W"
 msgstr ""
 
-#: appGUI/MainGUI.py:912 appGUI/MainGUI.py:1472 appGUI/MainGUI.py:2046
-#: appGUI/MainGUI.py:2745 appGUI/shortcut_actions.py:808
+#: appGUI/MainGUI.py:917 appGUI/MainGUI.py:1477 appGUI/MainGUI.py:2051
+#: appGUI/MainGUI.py:2750 appGUI/shortcut_actions.py:808
 msgid "Resize Drill"
 msgstr ""
 
-#: appGUI/MainGUI.py:934 appGUI/MainGUI.py:1584 appGUI/MainGUI.py:2851
+#: appGUI/MainGUI.py:939 appGUI/MainGUI.py:1589 appGUI/MainGUI.py:2856
 msgid "Rect. Reg"
 msgstr ""
 
-#: appGUI/MainGUI.py:938 appGUI/MainGUI.py:1591 appGUI/MainGUI.py:2858
+#: appGUI/MainGUI.py:943 appGUI/MainGUI.py:1596 appGUI/MainGUI.py:2863
 msgid "Text Reg"
 msgstr ""
 
-#: appGUI/MainGUI.py:940 appGUI/MainGUI.py:1595 appGUI/MainGUI.py:2862
+#: appGUI/MainGUI.py:945 appGUI/MainGUI.py:1600 appGUI/MainGUI.py:2867
 msgid "Arc Follow"
 msgstr ""
 
-#: appGUI/MainGUI.py:960 appGUI/MainGUI.py:1577 appGUI/MainGUI.py:2006
-#: appGUI/MainGUI.py:2844
+#: appGUI/MainGUI.py:965 appGUI/MainGUI.py:1582 appGUI/MainGUI.py:2011
+#: appGUI/MainGUI.py:2849
 msgid "Poligonize"
 msgstr ""
 
-#: appGUI/MainGUI.py:960
+#: appGUI/MainGUI.py:965
 msgid "Alt+N"
 msgstr ""
 
-#: appGUI/MainGUI.py:963 appGUI/MainGUI.py:1580 appGUI/MainGUI.py:2008
-#: appGUI/MainGUI.py:2847
+#: appGUI/MainGUI.py:968 appGUI/MainGUI.py:1585 appGUI/MainGUI.py:2013
+#: appGUI/MainGUI.py:2852
 msgid "SemiDisc"
 msgstr ""
 
-#: appGUI/MainGUI.py:966 appGUI/MainGUI.py:1582 appGUI/MainGUI.py:2010
-#: appGUI/MainGUI.py:2849
+#: appGUI/MainGUI.py:971 appGUI/MainGUI.py:1587 appGUI/MainGUI.py:2015
+#: appGUI/MainGUI.py:2854
 msgid "Disc"
 msgstr ""
 
-#: appGUI/MainGUI.py:979 appGUI/MainGUI.py:1610 appGUI/MainGUI.py:2018
-#: appGUI/MainGUI.py:2877
+#: appGUI/MainGUI.py:984 appGUI/MainGUI.py:1615 appGUI/MainGUI.py:2023
+#: appGUI/MainGUI.py:2882
 msgid "Mark Area"
 msgstr ""
 
-#: appGUI/MainGUI.py:979
+#: appGUI/MainGUI.py:984
 msgid "Alt+A"
 msgstr ""
 
-#: appGUI/MainGUI.py:991
+#: appGUI/MainGUI.py:996
 msgid "Invert Selection"
 msgstr ""
 
-#: appGUI/MainGUI.py:993
+#: appGUI/MainGUI.py:998
 msgid "Pads Only"
 msgstr ""
 
-#: appGUI/MainGUI.py:995
+#: appGUI/MainGUI.py:1000
 msgid "Tracks Only"
 msgstr ""
 
-#: appGUI/MainGUI.py:997
+#: appGUI/MainGUI.py:1002
 msgid "Regions Only"
 msgstr ""
 
-#: appGUI/MainGUI.py:999
+#: appGUI/MainGUI.py:1004
 msgid "Select Chain"
 msgstr ""
 
-#: appGUI/MainGUI.py:1007
+#: appGUI/MainGUI.py:1012
 msgid "Track Edit"
 msgstr ""
 
-#: appGUI/MainGUI.py:1011
+#: appGUI/MainGUI.py:1016
 msgid "Clip and Replace with Pad"
 msgstr ""
 
-#: appGUI/MainGUI.py:1015
+#: appGUI/MainGUI.py:1020
 msgid "Insert Elbow"
 msgstr ""
 
-#: appGUI/MainGUI.py:1017
+#: appGUI/MainGUI.py:1022
 msgid "Insert 90° Elbow"
 msgstr ""
 
-#: appGUI/MainGUI.py:1021
+#: appGUI/MainGUI.py:1026
 msgid "Delete Unused"
 msgstr ""
 
-#: appGUI/MainGUI.py:1025
+#: appGUI/MainGUI.py:1030
 msgid "Merge Duplicates"
 msgstr ""
 
-#: appGUI/MainGUI.py:1027
+#: appGUI/MainGUI.py:1032
 msgid "Round Sizes"
 msgstr ""
 
-#: appGUI/MainGUI.py:1029
+#: appGUI/MainGUI.py:1034
 msgid "Select Same Type"
 msgstr ""
 
-#: appGUI/MainGUI.py:1031 appPlugins/ToolCutOut/CutOutUI.py:383
+#: appGUI/MainGUI.py:1036 appPlugins/ToolCutOut/CutOutUI.py:383
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:231
 msgid "Automatic"
 msgstr ""
 
-#: appGUI/MainGUI.py:1067
+#: appGUI/MainGUI.py:1072
 msgid "Enable Plot"
 msgstr ""
 
-#: appGUI/MainGUI.py:1069
+#: appGUI/MainGUI.py:1074
 msgid "Disable Plot"
 msgstr ""
 
-#: appGUI/MainGUI.py:1073 appGUI/MainGUI.py:1903
+#: appGUI/MainGUI.py:1078 appGUI/MainGUI.py:1908
 msgid "Set Color"
 msgstr ""
 
-#: appGUI/MainGUI.py:1076 appGUI/MainGUI.py:1906
+#: appGUI/MainGUI.py:1081 appGUI/MainGUI.py:1911
 #: appHandlers/appPlotManager.py:390
 msgid "Red"
 msgstr ""
 
-#: appGUI/MainGUI.py:1079 appGUI/MainGUI.py:1909
+#: appGUI/MainGUI.py:1084 appGUI/MainGUI.py:1914
 #: appHandlers/appPlotManager.py:392
 msgid "Blue"
 msgstr ""
 
-#: appGUI/MainGUI.py:1082 appGUI/MainGUI.py:1912
+#: appGUI/MainGUI.py:1087 appGUI/MainGUI.py:1917
 #: appHandlers/appPlotManager.py:395
 msgid "Yellow"
 msgstr ""
 
-#: appGUI/MainGUI.py:1085 appGUI/MainGUI.py:1915
+#: appGUI/MainGUI.py:1090 appGUI/MainGUI.py:1920
 #: appHandlers/appPlotManager.py:397
 msgid "Green"
 msgstr ""
 
-#: appGUI/MainGUI.py:1088 appGUI/MainGUI.py:1918
+#: appGUI/MainGUI.py:1093 appGUI/MainGUI.py:1923
 #: appHandlers/appPlotManager.py:399
 msgid "Purple"
 msgstr ""
 
-#: appGUI/MainGUI.py:1091 appGUI/MainGUI.py:1921
+#: appGUI/MainGUI.py:1096 appGUI/MainGUI.py:1926
 #: appHandlers/appPlotManager.py:401
 msgid "Brown"
 msgstr ""
 
-#: appGUI/MainGUI.py:1094 appGUI/MainGUI.py:1924
+#: appGUI/MainGUI.py:1099 appGUI/MainGUI.py:1929
 #: appHandlers/appPlotManager.py:403
 msgid "Indigo"
 msgstr ""
 
-#: appGUI/MainGUI.py:1097 appGUI/MainGUI.py:1927
+#: appGUI/MainGUI.py:1102 appGUI/MainGUI.py:1932
 #: appHandlers/appPlotManager.py:405 appHandlers/appPlotManager.py:481
 msgid "White"
 msgstr ""
 
-#: appGUI/MainGUI.py:1100 appGUI/MainGUI.py:1930
+#: appGUI/MainGUI.py:1105 appGUI/MainGUI.py:1935
 #: appHandlers/appPlotManager.py:407
 msgid "Black"
 msgstr ""
 
-#: appGUI/MainGUI.py:1110 appGUI/MainGUI.py:1940
+#: appGUI/MainGUI.py:1115 appGUI/MainGUI.py:1945
 #: appHandlers/appPlotManager.py:445
 msgid "Opacity"
 msgstr ""
 
-#: appGUI/MainGUI.py:1113 appGUI/MainGUI.py:1943
+#: appGUI/MainGUI.py:1118 appGUI/MainGUI.py:1948
 #: appGUI/preferences/general/GeneralGUIPrefGroupUI.py:117
 #: appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:50
 #: appGUI/preferences/tools/ToolsISOPrefGroupUI.py:65
@@ -10035,196 +10109,197 @@ msgstr ""
 msgid "Default"
 msgstr ""
 
-#: appGUI/MainGUI.py:1118
+#: appGUI/MainGUI.py:1123
 msgid "View Source"
 msgstr ""
 
-#: appGUI/MainGUI.py:1133
+#: appGUI/MainGUI.py:1138
 msgid "DXF"
 msgstr ""
 
-#: appGUI/MainGUI.py:1137 appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:275
+#: appGUI/MainGUI.py:1142 appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:275
 #: appPlugins/ToolFilm/FilmUI.py:299
 msgid "SVG"
 msgstr ""
 
-#: appGUI/MainGUI.py:1141 appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:276
+#: appGUI/MainGUI.py:1146 appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:276
 #: appPlugins/ToolFilm/FilmUI.py:300
 msgid "PNG"
 msgstr ""
 
-#: appGUI/MainGUI.py:1149 appGUI/MainGUI.py:1517 appGUI/MainGUI.py:1572
-#: appGUI/MainGUI.py:2792 appGUI/MainGUI.py:2839
+#: appGUI/MainGUI.py:1154 appGUI/MainGUI.py:1522 appGUI/MainGUI.py:1577
+#: appGUI/MainGUI.py:2797 appGUI/MainGUI.py:2844
 msgid "Join"
 msgstr ""
 
-#: appGUI/MainGUI.py:1151
+#: appGUI/MainGUI.py:1156
 msgid "As Gerber"
 msgstr ""
 
-#: appGUI/MainGUI.py:1153
+#: appGUI/MainGUI.py:1158
 msgid "As Excellon"
 msgstr ""
 
-#: appGUI/MainGUI.py:1155
+#: appGUI/MainGUI.py:1160
 msgid "As Geometry"
 msgstr ""
 
-#: appGUI/MainGUI.py:1159 appGUI/MainGUI.py:1172 appGUI/MainGUI.py:1793
-#: appGUI/MainGUI.py:2066 appHandlers/appUIActions.py:1087 appMain.py:2628
-#: appMain.py:3015
+#: appGUI/MainGUI.py:1164 appGUI/MainGUI.py:1177 appGUI/MainGUI.py:1798
+#: appGUI/MainGUI.py:2071 appHandlers/appUIActions.py:1087 appMain.py:2632
+#: appMain.py:3019
 msgid "Properties"
 msgstr ""
 
-#: appGUI/MainGUI.py:1172 appGUI/MainGUI.py:1777 appGUI/MainGUI.py:1892
+#: appGUI/MainGUI.py:1177 appGUI/MainGUI.py:1782 appGUI/MainGUI.py:1897
 #: appGUI/WelcomeDialog.py:34 appGUI/WelcomeDialog.py:65
 #: appGUI/preferences/general/GeneralShortcutsGroupUI.py:291
-#: appHandlers/appIO.py:2100 appHandlers/appProjects.py:71 appMain.py:2634
-#: appMain.py:3019
+#: appHandlers/appIO.py:2100 appHandlers/appProjects.py:71 appMain.py:2638
+#: appMain.py:3023
 msgid "Project"
 msgstr ""
 
-#: appGUI/MainGUI.py:1191
+#: appGUI/MainGUI.py:1196
 msgid "File Toolbar"
 msgstr ""
 
-#: appGUI/MainGUI.py:1198
+#: appGUI/MainGUI.py:1203
 msgid "Edit Toolbar"
 msgstr ""
 
-#: appGUI/MainGUI.py:1203
+#: appGUI/MainGUI.py:1208
 msgid "View Toolbar"
 msgstr ""
 
-#: appGUI/MainGUI.py:1208
+#: appGUI/MainGUI.py:1213
 msgid "Shell Toolbar"
 msgstr ""
 
-#: appGUI/MainGUI.py:1213
+#: appGUI/MainGUI.py:1218
 msgid "Plugin Toolbar"
 msgstr ""
 
-#: appGUI/MainGUI.py:1224
+#: appGUI/MainGUI.py:1229
 msgid "Excellon Editor Toolbar"
 msgstr ""
 
-#: appGUI/MainGUI.py:1236
+#: appGUI/MainGUI.py:1241
 msgid "Geometry Editor Toolbar"
 msgstr ""
 
-#: appGUI/MainGUI.py:1246
+#: appGUI/MainGUI.py:1251
 msgid "Gerber Editor Toolbar"
 msgstr ""
 
-#: appGUI/MainGUI.py:1257
+#: appGUI/MainGUI.py:1262
 msgid "Delta Coordinates Toolbar"
 msgstr ""
 
-#: appGUI/MainGUI.py:1261
+#: appGUI/MainGUI.py:1266
 msgid "Coordinates Toolbar"
 msgstr ""
 
-#: appGUI/MainGUI.py:1265
+#: appGUI/MainGUI.py:1270
 msgid "Grid Toolbar"
 msgstr ""
 
-#: appGUI/MainGUI.py:1275
+#: appGUI/MainGUI.py:1280
 msgid "Status Toolbar"
 msgstr ""
 
-#: appGUI/MainGUI.py:1289 appGUI/MainGUI.py:2566
+#: appGUI/MainGUI.py:1294 appGUI/MainGUI.py:2571
 msgid "Open a Gerber file."
 msgstr ""
 
-#: appGUI/MainGUI.py:1292 appGUI/MainGUI.py:2569
+#: appGUI/MainGUI.py:1297 appGUI/MainGUI.py:2574
 msgid "Open a Excellon file."
 msgstr ""
 
-#: appGUI/MainGUI.py:1299 appGUI/MainGUI.py:2576 appGUI/ObjectUI.py:1633
+#: appGUI/MainGUI.py:1304 appGUI/MainGUI.py:2581 appGUI/ObjectUI.py:1636
 #: appGUI/preferences/cncjob/CNCJobEditorPrefGroupUI.py:22
 #: appGUI/preferences/excellon/ExcellonEditorPrefGroupUI.py:18
 #: appGUI/preferences/geometry/GeometryEditorPrefGroupUI.py:21
-#: appGUI/preferences/gerber/GerberEditorPrefGroupUI.py:22 appMain.py:2631
-#: appMain.py:3013
+#: appGUI/preferences/gerber/GerberEditorPrefGroupUI.py:22 appMain.py:2635
+#: appMain.py:3017
 msgid "Editor"
 msgstr ""
 
-#: appGUI/MainGUI.py:1304 appGUI/MainGUI.py:2581
+#: appGUI/MainGUI.py:1309 appGUI/MainGUI.py:2586
 msgid "Exit Edit"
 msgstr ""
 
-#: appGUI/MainGUI.py:1327 appGUI/MainGUI.py:2605
+#: appGUI/MainGUI.py:1332 appGUI/MainGUI.py:2610
 msgid "Copy a selection of objects."
 msgstr ""
 
-#: appGUI/MainGUI.py:1330 appGUI/MainGUI.py:2608
+#: appGUI/MainGUI.py:1335 appGUI/MainGUI.py:2613
 msgid "Delete a selection of objects."
 msgstr ""
 
-#: appGUI/MainGUI.py:1334 appGUI/MainGUI.py:2612
+#: appGUI/MainGUI.py:1339 appGUI/MainGUI.py:2617
 msgid "Measure a distance between two or more points."
 msgstr ""
 
-#: appGUI/MainGUI.py:1340 appGUI/MainGUI.py:2618
+#: appGUI/MainGUI.py:1345 appGUI/MainGUI.py:2623
 msgid "Set an origin to a custom location."
 msgstr ""
 
-#: appGUI/MainGUI.py:1349 appGUI/MainGUI.py:2627
+#: appGUI/MainGUI.py:1354 appGUI/MainGUI.py:2632
 msgid "Jump to"
 msgstr ""
 
-#: appGUI/MainGUI.py:1350 appGUI/MainGUI.py:2628
+#: appGUI/MainGUI.py:1355 appGUI/MainGUI.py:2633
 msgid "Move the mouse cursor to a defined position and center into view."
 msgstr ""
 
-#: appGUI/MainGUI.py:1352 appGUI/MainGUI.py:2630
+#: appGUI/MainGUI.py:1357 appGUI/MainGUI.py:2635
 msgid "Locate"
 msgstr ""
 
-#: appGUI/MainGUI.py:1353 appGUI/MainGUI.py:2631
+#: appGUI/MainGUI.py:1358 appGUI/MainGUI.py:2636
 msgid "Locate a predefined position on a selected object."
 msgstr ""
 
-#: appGUI/MainGUI.py:1359 appGUI/MainGUI.py:1879 appGUI/MainGUI.py:2637
+#: appGUI/MainGUI.py:1364 appGUI/MainGUI.py:1884 appGUI/MainGUI.py:2642
 msgid "Replot"
 msgstr ""
 
-#: appGUI/MainGUI.py:1361 appGUI/MainGUI.py:1877 appGUI/MainGUI.py:2639
+#: appGUI/MainGUI.py:1366 appGUI/MainGUI.py:1882 appGUI/MainGUI.py:2644
 msgid "Clear Plot"
 msgstr ""
 
-#: appGUI/MainGUI.py:1400 appGUI/MainGUI.py:2677
+#: appGUI/MainGUI.py:1405 appGUI/MainGUI.py:2682
 msgid "Carve"
 msgstr ""
 
-#: appGUI/MainGUI.py:1401 appGUI/MainGUI.py:2678
+#: appGUI/MainGUI.py:1406 appGUI/MainGUI.py:2683
 msgid "Carve a loaded picture into a material."
 msgstr ""
 
-#: appGUI/MainGUI.py:1408 appGUI/MainGUI.py:2685
+#: appGUI/MainGUI.py:1413 appGUI/MainGUI.py:2690
 #: appGUI/preferences/tools/ToolsCutoutPrefGroupUI.py:118
 #: appPlugins/ToolCutOut/CutOutUI.py:85
 msgid "Panel"
 msgstr ""
 
-#: appGUI/MainGUI.py:1410 appGUI/MainGUI.py:2687 appGUI/ObjectUI.py:403
-#: appGUI/preferences/PreferencesWindow.py:35 appPlugins/ToolFilm/Film.py:118
-#: appPlugins/ToolFilm/FilmUI.py:19
+#: appGUI/MainGUI.py:1415 appGUI/MainGUI.py:2692 appGUI/ObjectUI.py:403
+#: appGUI/preferences/PreferencesWindow.py:35 appPlugins/ToolFilm/Film.py:254
+#: appPlugins/ToolFilm/Film.py:258 appPlugins/ToolFilm/Film.py:534
+#: appPlugins/ToolFilm/Film.py:572 appPlugins/ToolFilm/FilmUI.py:19
 msgid "Film"
 msgstr ""
 
-#: appGUI/MainGUI.py:1412 appGUI/MainGUI.py:2689
+#: appGUI/MainGUI.py:1417 appGUI/MainGUI.py:2694
 #: appGUI/preferences/PreferencesWindow.py:49 appGUI/shortcut_actions.py:53
 #: appPlugins/ToolDblSided/DblSided.py:203
 #: appPlugins/ToolDblSided/DblSidedUI.py:16
 msgid "2-Sided"
 msgstr ""
 
-#: appGUI/MainGUI.py:1417 appGUI/MainGUI.py:2694
+#: appGUI/MainGUI.py:1422 appGUI/MainGUI.py:2699
 msgid "Align"
 msgstr ""
 
-#: appGUI/MainGUI.py:1424 appGUI/MainGUI.py:2701
+#: appGUI/MainGUI.py:1429 appGUI/MainGUI.py:2706
 #: appGUI/preferences/tools/Tools2CThievingPrefGroupUI.py:361
 #: appPlugins/ToolCopperThieving/CopperThieving.py:510
 #: appPlugins/ToolCopperThieving/CopperThieving.py:522
@@ -10233,121 +10308,121 @@ msgstr ""
 msgid "Thieving"
 msgstr ""
 
-#: appGUI/MainGUI.py:1426 appGUI/MainGUI.py:2703
+#: appGUI/MainGUI.py:1431 appGUI/MainGUI.py:2708
 #: appGUI/preferences/PreferencesWindow.py:40 appGUI/shortcut_actions.py:55
 #: appGUI/shortcut_actions.py:149 appPlugins/ToolMarkers/Markers.py:153
 #: appPlugins/ToolMarkers/MarkersUI.py:16
 msgid "Markers"
 msgstr ""
 
-#: appGUI/MainGUI.py:1428
+#: appGUI/MainGUI.py:1433
 msgid "Punch"
 msgstr ""
 
-#: appGUI/MainGUI.py:1430 appGUI/MainGUI.py:2707
+#: appGUI/MainGUI.py:1435 appGUI/MainGUI.py:2712
 #: appGUI/preferences/PreferencesWindow.py:37 appGUI/shortcut_actions.py:150
 #: appPlugins/ToolCalculators/Calculator.py:86
 #: appPlugins/ToolCalculators/CalculatorUI.py:22
 msgid "Calculators"
 msgstr ""
 
-#: appGUI/MainGUI.py:1464 appGUI/MainGUI.py:2741 appGUI/shortcut_actions.py:796
+#: appGUI/MainGUI.py:1469 appGUI/MainGUI.py:2746 appGUI/shortcut_actions.py:796
 msgid "Add Drill"
 msgstr ""
 
-#: appGUI/MainGUI.py:1466 appGUI/MainGUI.py:2743 appGUI/shortcut_actions.py:790
+#: appGUI/MainGUI.py:1471 appGUI/MainGUI.py:2748 appGUI/shortcut_actions.py:790
 msgid "Add Drill Array"
 msgstr ""
 
-#: appGUI/MainGUI.py:1468 appGUI/MainGUI.py:2747 appGUI/shortcut_actions.py:786
+#: appGUI/MainGUI.py:1473 appGUI/MainGUI.py:2752 appGUI/shortcut_actions.py:786
 msgid "Add Slot"
 msgstr ""
 
-#: appGUI/MainGUI.py:1470 appGUI/MainGUI.py:2749 appGUI/shortcut_actions.py:805
+#: appGUI/MainGUI.py:1475 appGUI/MainGUI.py:2754 appGUI/shortcut_actions.py:805
 msgid "Add Slot Array"
 msgstr ""
 
-#: appGUI/MainGUI.py:1518 appGUI/MainGUI.py:2793
+#: appGUI/MainGUI.py:1523 appGUI/MainGUI.py:2798
 msgid ""
 "Join selected lines into polylines. Uses the Join tolerance in Properties."
 msgstr ""
 
-#: appGUI/MainGUI.py:1522 appGUI/MainGUI.py:2797
+#: appGUI/MainGUI.py:1527 appGUI/MainGUI.py:2802
 msgid ""
 "Create polygons from selected closed paths or enclosing segments.\n"
 "Unused open segments are kept. Endpoints must meet exactly."
 msgstr ""
 
-#: appGUI/MainGUI.py:1532
+#: appGUI/MainGUI.py:1537
 msgid ""
 "Polygon Subtraction. First selected is the target.\n"
 "The rest of the selected is subtracted from the first.\n"
 "First selected is replaced by the result."
 msgstr ""
 
-#: appGUI/MainGUI.py:1538
+#: appGUI/MainGUI.py:1543
 msgid ""
 "Alt Subtraction. First selected is the target.\n"
 "The rest of the selected is subtracted from the first.\n"
 "First selected is kept besides the result."
 msgstr ""
 
-#: appGUI/MainGUI.py:1573 appGUI/MainGUI.py:2840
+#: appGUI/MainGUI.py:1578 appGUI/MainGUI.py:2845
 msgid "Join selected connected track sections into one track."
 msgstr ""
 
-#: appGUI/MainGUI.py:1585 appGUI/MainGUI.py:2852
+#: appGUI/MainGUI.py:1590 appGUI/MainGUI.py:2857
 msgid "Rectangular Region"
 msgstr ""
 
-#: appGUI/MainGUI.py:1592 appGUI/MainGUI.py:2859
+#: appGUI/MainGUI.py:1597 appGUI/MainGUI.py:2864
 msgid "Text Region"
 msgstr ""
 
-#: appGUI/MainGUI.py:1596 appGUI/MainGUI.py:2863
+#: appGUI/MainGUI.py:1601 appGUI/MainGUI.py:2868
 msgid "Arc: Circular Follow"
 msgstr ""
 
-#: appGUI/MainGUI.py:1600 appGUI/MainGUI.py:2867
+#: appGUI/MainGUI.py:1605 appGUI/MainGUI.py:2872
 msgid "Difference: Keep Cutters"
 msgstr ""
 
-#: appGUI/MainGUI.py:1636
+#: appGUI/MainGUI.py:1641
 msgid "Snap to grid"
 msgstr ""
 
-#: appGUI/MainGUI.py:1639
+#: appGUI/MainGUI.py:1644
 msgid "Grid X snapping distance"
 msgstr ""
 
-#: appGUI/MainGUI.py:1644
+#: appGUI/MainGUI.py:1649
 msgid ""
 "When active, value on Grid_X\n"
 "is copied to the Grid_Y value."
 msgstr ""
 
-#: appGUI/MainGUI.py:1651
+#: appGUI/MainGUI.py:1656
 msgid "Grid Y snapping distance"
 msgstr ""
 
-#: appGUI/MainGUI.py:1662
+#: appGUI/MainGUI.py:1667
 msgid "Snap to corner"
 msgstr ""
 
-#: appGUI/MainGUI.py:1666 appGUI/preferences/general/GeneralAPPSetGroupUI.py:78
+#: appGUI/MainGUI.py:1671 appGUI/preferences/general/GeneralAPPSetGroupUI.py:78
 #: appGUI/preferences/general/GeneralAppSettingsGroupUI.py:147
 msgid "Max. magnet distance"
 msgstr ""
 
-#: appGUI/MainGUI.py:1676
+#: appGUI/MainGUI.py:1681
 msgid "Toggle the display of axis on canvas"
 msgstr ""
 
-#: appGUI/MainGUI.py:1688
+#: appGUI/MainGUI.py:1693
 msgid "HUD (Heads up display)"
 msgstr ""
 
-#: appGUI/MainGUI.py:1694
+#: appGUI/MainGUI.py:1699
 #: appGUI/preferences/general/GeneralAPPSetGroupUI.py:106
 #: appGUI/preferences/general/GeneralAppSettingsGroupUI.py:157
 msgid ""
@@ -10355,92 +10430,92 @@ msgid ""
 "The purpose is to illustrate the limits for our work."
 msgstr ""
 
-#: appGUI/MainGUI.py:1707
+#: appGUI/MainGUI.py:1712
 msgid ""
 "Relative measurement.\n"
 "Reference is last click position"
 msgstr ""
 
-#: appGUI/MainGUI.py:1711
+#: appGUI/MainGUI.py:1716
 msgid "Polar Coords"
 msgstr ""
 
-#: appGUI/MainGUI.py:1727
+#: appGUI/MainGUI.py:1732
 msgid ""
 "Absolute measurement.\n"
 "Reference is (X=0, Y= 0) position"
 msgstr ""
 
-#: appGUI/MainGUI.py:1734 appGUI/shortcut_actions.py:67
+#: appGUI/MainGUI.py:1739 appGUI/shortcut_actions.py:67
 msgid "TCL Shell"
 msgstr ""
 
-#: appGUI/MainGUI.py:1746
+#: appGUI/MainGUI.py:1751
 msgid "GCode Console"
 msgstr ""
 
-#: appGUI/MainGUI.py:1823 appGUI/MainGUI.py:1831 appGUI/MainGUI.py:3095
-#: appGUI/MainGUI.py:3101
+#: appGUI/MainGUI.py:1828 appGUI/MainGUI.py:1836 appGUI/MainGUI.py:3100
+#: appGUI/MainGUI.py:3106
 #: appGUI/preferences/general/GeneralShortcutsGroupUI.py:289
-#: appHandlers/appIO.py:1803 appMain.py:3022
+#: appHandlers/appIO.py:1803 appMain.py:3026
 msgid "Plot Area"
 msgstr ""
 
-#: appGUI/MainGUI.py:1870
+#: appGUI/MainGUI.py:1875
 msgid "Toggle Visibility"
 msgstr ""
 
-#: appGUI/MainGUI.py:1897
+#: appGUI/MainGUI.py:1902
 msgid "Grids"
 msgstr ""
 
-#: appGUI/MainGUI.py:2034
+#: appGUI/MainGUI.py:2039
 msgid "Exc Editor"
 msgstr ""
 
-#: appGUI/MainGUI.py:2062
+#: appGUI/MainGUI.py:2067
 msgid "Move2Origin"
 msgstr ""
 
-#: appGUI/MainGUI.py:2092
+#: appGUI/MainGUI.py:2097
 #: appGUI/preferences/general/GeneralAppPrefGroupUI.py:45
 msgid "The application dimensional units is millimeter."
 msgstr ""
 
-#: appGUI/MainGUI.py:2151
+#: appGUI/MainGUI.py:2156
 msgid "Lock Toolbars"
 msgstr ""
 
-#: appGUI/MainGUI.py:2158
+#: appGUI/MainGUI.py:2163
 msgid "Show Text"
 msgstr ""
 
-#: appGUI/MainGUI.py:2365 appGUI/MainGUI.py:2377 appHandlers/appIO.py:1810
-#: appHandlers/appIO.py:4229 appMain.py:1396
+#: appGUI/MainGUI.py:2370 appGUI/MainGUI.py:2382 appHandlers/appIO.py:1810
+#: appHandlers/appIO.py:4224 appMain.py:1396
 msgid "New Project - Not saved"
 msgstr ""
 
-#: appGUI/MainGUI.py:2378 appGUI/TitleBar.py:410
+#: appGUI/MainGUI.py:2383 appGUI/TitleBar.py:410
 msgid "Untitled"
 msgstr ""
 
-#: appGUI/MainGUI.py:2413
+#: appGUI/MainGUI.py:2418
 msgid "Detachable Tabs"
 msgstr ""
 
-#: appGUI/MainGUI.py:2518
+#: appGUI/MainGUI.py:2523
 msgid "FlatCAM Preferences Folder opened."
 msgstr ""
 
-#: appGUI/MainGUI.py:2530 appGUI/preferences/PreferencesWindow.py:501
+#: appGUI/MainGUI.py:2535 appGUI/preferences/PreferencesWindow.py:501
 msgid "Clear GUI Settings"
 msgstr ""
 
-#: appGUI/MainGUI.py:2531
+#: appGUI/MainGUI.py:2536
 msgid "Are you sure you want to delete the GUI Settings? \n"
 msgstr ""
 
-#: appGUI/MainGUI.py:2705 appGUI/preferences/PreferencesWindow.py:58
+#: appGUI/MainGUI.py:2710 appGUI/preferences/PreferencesWindow.py:58
 #: appGUI/shortcut_actions.py:155 appPlugins/ToolPunchGerber/PunchGerber.py:57
 #: appPlugins/ToolPunchGerber/PunchGerber.py:210
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:16
@@ -10448,33 +10523,33 @@ msgstr ""
 msgid "Punch Gerber"
 msgstr ""
 
-#: appGUI/MainGUI.py:2879
+#: appGUI/MainGUI.py:2884
 msgid "Import Shape"
 msgstr ""
 
-#: appGUI/MainGUI.py:2914
+#: appGUI/MainGUI.py:2919
 msgid "Key Shortcut List"
 msgstr ""
 
-#: appGUI/MainGUI.py:3254
+#: appGUI/MainGUI.py:3259
 msgid "Go to Line ..."
 msgstr ""
 
-#: appGUI/MainGUI.py:3255 appPlugins/ToolGcodeSender/Sender.py:527
+#: appGUI/MainGUI.py:3260 appPlugins/ToolGcodeSender/Sender.py:527
 msgid "Line"
 msgstr ""
 
-#: appGUI/MainGUI.py:3367
+#: appGUI/MainGUI.py:3372
 msgid ""
 "An updater operation is active. Cancel it or wait for it to finish before "
 "closing FlatCAM."
 msgstr ""
 
-#: appGUI/MainGUI.py:3374 appHandlers/appLifecycle.py:284
+#: appGUI/MainGUI.py:3379 appHandlers/appLifecycle.py:284
 msgid "Saving the project. FlatCAM closes when the save ends."
 msgstr ""
 
-#: appGUI/MainGUI.py:3418
+#: appGUI/MainGUI.py:3423
 msgid "Shortcut Key List"
 msgstr ""
 
@@ -11066,7 +11141,7 @@ msgstr ""
 msgid "Script Object"
 msgstr ""
 
-#: appGUI/ObjectUI.py:1521 appGUI/ObjectUI.py:1664
+#: appGUI/ObjectUI.py:1521 appGUI/ObjectUI.py:1667
 msgid "Auto Completer"
 msgstr ""
 
@@ -11078,35 +11153,35 @@ msgstr ""
 msgid "Document Object"
 msgstr ""
 
-#: appGUI/ObjectUI.py:1590
+#: appGUI/ObjectUI.py:1593
 msgid "Default Font"
 msgstr ""
 
-#: appGUI/ObjectUI.py:1612
+#: appGUI/ObjectUI.py:1615
 msgid "Font of the whole document."
 msgstr ""
 
-#: appGUI/ObjectUI.py:1625
+#: appGUI/ObjectUI.py:1628
 msgid "Font size of the whole document."
 msgstr ""
 
-#: appGUI/ObjectUI.py:1642
+#: appGUI/ObjectUI.py:1645
 msgid "Tab Size"
 msgstr ""
 
-#: appGUI/ObjectUI.py:1644
+#: appGUI/ObjectUI.py:1647
 msgid "Set the tab size. In pixels."
 msgstr ""
 
-#: appGUI/ObjectUI.py:1653
+#: appGUI/ObjectUI.py:1656
 msgid "Selection Color"
 msgstr ""
 
-#: appGUI/ObjectUI.py:1655
+#: appGUI/ObjectUI.py:1658
 msgid "Set the selection color when doing text selection."
 msgstr ""
 
-#: appGUI/ObjectUI.py:1666
+#: appGUI/ObjectUI.py:1669
 msgid "This selects if the auto completer is enabled in the Document Editor."
 msgstr ""
 
@@ -11549,7 +11624,7 @@ msgstr ""
 msgid "Release date"
 msgstr ""
 
-#: appGUI/UpdateDialog.py:226 appMain.py:3359
+#: appGUI/UpdateDialog.py:226 appMain.py:3363
 msgid "Release notes"
 msgstr ""
 
@@ -11871,15 +11946,14 @@ msgstr ""
 #: appGUI/WelcomeDialog.py:792 appHandlers/appIO.py:3107
 #: appHandlers/appIO.py:3172 appHandlers/appIO.py:3274
 #: appHandlers/appIO.py:3325 appHandlers/appIO.py:3405
-#: appHandlers/appIO.py:3707 appHandlers/appIO.py:3768
-#: appHandlers/appIO.py:4045 appPlugins/ToolImage/Image.py:162
+#: appHandlers/appIO.py:3707 appHandlers/appIO.py:3769
+#: appHandlers/appIO.py:4040 appPlugins/ToolImage/Image.py:162
 #: appPlugins/ToolPdf/PdfImport.py:133
 msgid "File no longer available."
 msgstr ""
 
 #: appGUI/WelcomeDialog.py:820 appHandlers/appIO.py:3246
 #: appHandlers/appIO.py:3627 appHandlers/appIO.py:3692
-#: appHandlers/appIO.py:3775
 msgid "Failed to open file"
 msgstr ""
 
@@ -19050,7 +19124,7 @@ msgstr ""
 
 #: appHandlers/appCanvasEvents.py:621 appHandlers/appCanvasEvents.py:628
 #: appHandlers/appCanvasEvents.py:635 appHandlers/appCanvasEvents.py:642
-#: appObjects/ObjectCollection.py:1498
+#: appObjects/ObjectCollection.py:1503
 msgid "selected"
 msgstr ""
 
@@ -19065,11 +19139,10 @@ msgstr ""
 #: appHandlers/appObjectOps.py:274 appHandlers/appObjectOps.py:327
 #: appHandlers/appObjectOps.py:646 appHandlers/appObjectOps.py:997
 #: appHandlers/appObjectOps.py:1119 appHandlers/appUIActions.py:911
-#: appMain.py:2516 appMain.py:2751 appPlugins/ToolDblSided/DblSided.py:577
+#: appMain.py:2520 appMain.py:2755 appPlugins/ToolDblSided/DblSided.py:577
 #: appPlugins/ToolDblSided/DblSided.py:666
-#: appPlugins/ToolExtract/Extract.py:414 appPlugins/ToolFilm/Film.py:213
-#: appPlugins/ToolFilm/Film.py:219 appPlugins/ToolFilm/Film.py:222
-#: appPlugins/ToolMilling/Milling.py:2444 appPlugins/ToolMove/Move.py:215
+#: appPlugins/ToolExtract/Extract.py:414 appPlugins/ToolMilling/Milling.py:2444
+#: appPlugins/ToolMove/Move.py:215
 #: appPlugins/ToolPunchGerber/PunchGerber.py:300
 #: appPlugins/ToolPunchGerber/PunchGerber.py:303
 #: appPlugins/ToolReport/Report.py:91 appPlugins/ToolTransform/Transform.py:187
@@ -19104,7 +19177,7 @@ msgid "A Geometry object was converted to SingleGeo type."
 msgstr ""
 
 #: appHandlers/appEdit.py:534 appHandlers/appEdit.py:674
-#: appObjects/GeometryObject.py:1559
+#: appObjects/GeometryObject.py:1568
 msgid "Certified photo engraving cannot be joined."
 msgstr ""
 
@@ -19333,7 +19406,7 @@ msgstr ""
 
 #: appHandlers/appIO.py:898 appHandlers/appIO.py:942 appHandlers/appIO.py:986
 #: appHandlers/appIO.py:1051 appHandlers/appIO.py:1933
-#: appHandlers/appIO.py:3831 appHandlers/appIO.py:4028
+#: appHandlers/appIO.py:3826 appHandlers/appIO.py:4023
 msgid ""
 "Canvas initialization started.\n"
 "Canvas initialization finished in"
@@ -19433,7 +19506,7 @@ msgstr ""
 msgid "Import DXF"
 msgstr ""
 
-#: appHandlers/appIO.py:1676 appMain.py:2142 appMain.py:2384
+#: appHandlers/appIO.py:1676 appMain.py:2142 appMain.py:2388
 msgid "Cannot reset Tcl while a script is running."
 msgstr ""
 
@@ -19487,31 +19560,31 @@ msgstr ""
 msgid "Failed to execute script"
 msgstr ""
 
-#: appHandlers/appIO.py:1992 appHandlers/appProjects.py:690
+#: appHandlers/appIO.py:1992 appHandlers/appProjects.py:698
 msgid "Overwrite"
 msgstr ""
 
-#: appHandlers/appIO.py:1992 appHandlers/appProjects.py:691
+#: appHandlers/appIO.py:1992 appHandlers/appProjects.py:699
 msgid "The file already exists"
 msgstr ""
 
-#: appHandlers/appIO.py:1993 appHandlers/appProjects.py:692
+#: appHandlers/appIO.py:1993 appHandlers/appProjects.py:700
 msgid "Do you want to overwrite it?"
 msgstr ""
 
-#: appHandlers/appIO.py:2021 appHandlers/appIO.py:4115
-#: appHandlers/appIO.py:4155 appHandlers/appIO.py:4376
+#: appHandlers/appIO.py:2021 appHandlers/appIO.py:4110
+#: appHandlers/appIO.py:4150 appHandlers/appIO.py:4371
 #: appHandlers/appLifecycle.py:276 appHandlers/appLifecycle.py:394
 #: appHandlers/appLifecycle.py:407 appTranslation.py:235
 msgid "Geometry save is running. Wait until it ends."
 msgstr ""
 
-#: appHandlers/appIO.py:2059 appHandlers/appProjects.py:698
+#: appHandlers/appIO.py:2059 appHandlers/appProjects.py:706
 msgid "The project was not saved"
 msgstr ""
 
 #: appHandlers/appIO.py:2103 appHandlers/appIO.py:2109
-#: appHandlers/appProjects.py:572
+#: appHandlers/appProjects.py:580
 msgid "Save Project As ..."
 msgstr ""
 
@@ -19597,7 +19670,7 @@ msgstr ""
 #: appHandlers/appIO.py:3138 appHandlers/appIO.py:3202
 #: appHandlers/appIO.py:3304 appHandlers/appIO.py:3384
 #: appHandlers/appIO.py:3600 appHandlers/appIO.py:3668
-#: appHandlers/appIO.py:3728 appHandlers/appIO.py:3789
+#: appHandlers/appIO.py:3728 appHandlers/appIO.py:3783
 #: appPlugins/ToolImage/Image.py:235 appPlugins/ToolPdf/PdfImport.py:247
 msgid "Opened"
 msgstr ""
@@ -19619,7 +19692,7 @@ msgstr ""
 
 #: appHandlers/appIO.py:3277 appHandlers/appIO.py:3366
 #: appHandlers/appIO.py:3584 appHandlers/appIO.py:3654
-#: appHandlers/appIO.py:3710 appHandlers/appIO.py:3781
+#: appHandlers/appIO.py:3710 appHandlers/appIO.py:3775
 #: tclCommands/TclCommandOpenDXF.py:106
 msgid "Opening"
 msgstr ""
@@ -19709,95 +19782,101 @@ msgstr ""
 msgid "Failed to open TCL Script."
 msgstr ""
 
-#: appHandlers/appIO.py:3746 appHandlers/appIO.py:3748
+#: appHandlers/appIO.py:3739
+msgid ""
+"Documents (*.pdf *.PDF *.txt *.html *.htm *.FlatDoc);;PDF Files (*.pdf "
+"*.PDF);;Text Files (*.txt);;HTML Files (*.html *.htm);;All Files (*.*)"
+msgstr ""
+
+#: appHandlers/appIO.py:3747 appHandlers/appIO.py:3749
 msgid "Open Document"
 msgstr ""
 
-#: appHandlers/appIO.py:3785
+#: appHandlers/appIO.py:3779 appObjects/DocumentObject.py:124
 msgid "Failed to open Document."
 msgstr ""
 
-#: appHandlers/appIO.py:3803 appHandlers/appIO.py:3805
+#: appHandlers/appIO.py:3798 appHandlers/appIO.py:3800
 msgid "Open Geometry"
 msgstr ""
 
-#: appHandlers/appIO.py:3818
+#: appHandlers/appIO.py:3813
 msgid "Unsupported file type"
 msgstr ""
 
-#: appHandlers/appIO.py:3834
+#: appHandlers/appIO.py:3829
 msgid "Opening FlatCAM Config file."
 msgstr ""
 
-#: appHandlers/appIO.py:3934
+#: appHandlers/appIO.py:3929
 msgid "Source files relinked"
 msgstr ""
 
-#: appHandlers/appIO.py:3943
+#: appHandlers/appIO.py:3938
 msgid "These source files were not found"
 msgstr ""
 
-#: appHandlers/appIO.py:3948
+#: appHandlers/appIO.py:3943
 msgid "Missing Source Files"
 msgstr ""
 
-#: appHandlers/appIO.py:3950
+#: appHandlers/appIO.py:3945
 msgid "Locate folder..."
 msgstr ""
 
-#: appHandlers/appIO.py:3956
+#: appHandlers/appIO.py:3951
 msgid "Locate the folder of the source files"
 msgstr ""
 
-#: appHandlers/appIO.py:3978 tclCommands/TclCommandOpenProject.py:88
+#: appHandlers/appIO.py:3973 tclCommands/TclCommandOpenProject.py:88
 msgid "Failed to open project file"
 msgstr ""
 
-#: appHandlers/appIO.py:4004 appHandlers/appIO.py:4005
+#: appHandlers/appIO.py:3999 appHandlers/appIO.py:4000
 msgid "A project is loading. Wait until it ends."
 msgstr ""
 
-#: appHandlers/appIO.py:4025
+#: appHandlers/appIO.py:4020
 msgid "Loading Project ... Please Wait ..."
 msgstr ""
 
-#: appHandlers/appIO.py:4031
+#: appHandlers/appIO.py:4026
 msgid "Opening FlatCAM Project file."
 msgstr ""
 
-#: appHandlers/appIO.py:4036
+#: appHandlers/appIO.py:4031
 msgid "Parsing..."
 msgstr ""
 
-#: appHandlers/appIO.py:4057
+#: appHandlers/appIO.py:4052
 msgid "Invalid project structure"
 msgstr ""
 
-#: appHandlers/appIO.py:4074
+#: appHandlers/appIO.py:4069
 msgid "Unknown error"
 msgstr ""
 
-#: appHandlers/appIO.py:4104
+#: appHandlers/appIO.py:4099
 msgid "The units of the project are now used"
 msgstr ""
 
-#: appHandlers/appIO.py:4121
+#: appHandlers/appIO.py:4116
 msgid "The project was made with a newer app version"
 msgstr ""
 
-#: appHandlers/appIO.py:4122 appHandlers/appIO.py:4151
+#: appHandlers/appIO.py:4117 appHandlers/appIO.py:4146
 msgid "It may not load correctly."
 msgstr ""
 
-#: appHandlers/appIO.py:4125
+#: appHandlers/appIO.py:4120
 msgid "Newer Project"
 msgstr ""
 
-#: appHandlers/appIO.py:4133
+#: appHandlers/appIO.py:4128
 msgid "Legacy Project"
 msgstr ""
 
-#: appHandlers/appIO.py:4134
+#: appHandlers/appIO.py:4129
 msgid ""
 "The project was made with an older app version.\n"
 "It may not load correctly.\n"
@@ -19805,68 +19884,68 @@ msgid ""
 "Do you want to continue?"
 msgstr ""
 
-#: appHandlers/appIO.py:4150
+#: appHandlers/appIO.py:4145
 msgid "The project was made with an older app version."
 msgstr ""
 
-#: appHandlers/appIO.py:4162
+#: appHandlers/appIO.py:4157
 msgid "The units of the project are not valid. They are ignored."
 msgstr ""
 
-#: appHandlers/appIO.py:4210
+#: appHandlers/appIO.py:4205
 msgid "Some objects could not be added."
 msgstr ""
 
-#: appHandlers/appIO.py:4212
+#: appHandlers/appIO.py:4207
 msgid "Loading was cancelled."
 msgstr ""
 
-#: appHandlers/appIO.py:4213
+#: appHandlers/appIO.py:4208
 msgid "Project loaded without some objects"
 msgstr ""
 
-#: appHandlers/appIO.py:4219
+#: appHandlers/appIO.py:4214
 msgid "Project loaded from"
 msgstr ""
 
-#: appHandlers/appIO.py:4324 appObjects/AppObject.py:84
+#: appHandlers/appIO.py:4319 appObjects/AppObject.py:84
 #: appObjects/AppObject.py:169 appObjects/AppObject.py:171
 msgid "Loading..."
 msgstr ""
 
-#: appHandlers/appIO.py:4342
+#: appHandlers/appIO.py:4337
 msgid "The name or the kind of the object is missing."
 msgstr ""
 
-#: appHandlers/appIO.py:4356
+#: appHandlers/appIO.py:4351
 msgid "The object could not be created."
 msgstr ""
 
-#: appHandlers/appIO.py:4384
+#: appHandlers/appIO.py:4379
 msgid "Saving Project ..."
 msgstr ""
 
-#: appHandlers/appIO.py:4425
+#: appHandlers/appIO.py:4420
 msgid "The object is used by another application."
 msgstr ""
 
-#: appHandlers/appIO.py:4435 appHandlers/appIO.py:4452
+#: appHandlers/appIO.py:4430 appHandlers/appIO.py:4447
 msgid "Project saved to"
 msgstr ""
 
-#: appHandlers/appIO.py:4445
+#: appHandlers/appIO.py:4440
 msgid "Failed to parse saved project file"
 msgstr ""
 
-#: appHandlers/appIO.py:4447
+#: appHandlers/appIO.py:4442
 msgid "Retry to save it."
 msgstr ""
 
-#: appHandlers/appIO.py:4469
+#: appHandlers/appIO.py:4464
 msgid "Failed to save the project"
 msgstr ""
 
-#: appHandlers/appIO.py:4496
+#: appHandlers/appIO.py:4491
 msgid "Save cancelled because source file is empty. Try to export the file."
 msgstr ""
 
@@ -19962,9 +20041,9 @@ msgid "CNCJob objects cannot be copied."
 msgstr ""
 
 #: appHandlers/appObjectOps.py:958 appHandlers/appObjectOps.py:1007
-#: appHandlers/appObjectOps.py:1065 appObjects/ObjectCollection.py:1163
-#: appObjects/ObjectCollection.py:1216 appObjects/ObjectCollection.py:1280
-#: appObjects/ObjectCollection.py:1335
+#: appHandlers/appObjectOps.py:1065 appObjects/ObjectCollection.py:1168
+#: appObjects/ObjectCollection.py:1221 appObjects/ObjectCollection.py:1285
+#: appObjects/ObjectCollection.py:1340
 msgid "Stop the running script before deleting objects."
 msgstr ""
 
@@ -20039,23 +20118,23 @@ msgstr ""
 msgid "A task is running. Wait until it ends."
 msgstr ""
 
-#: appHandlers/appProjects.py:550
+#: appHandlers/appProjects.py:558
 msgid "The project has changes"
 msgstr ""
 
-#: appHandlers/appProjects.py:551
+#: appHandlers/appProjects.py:559
 msgid "Do you want to Save the project?"
 msgstr ""
 
-#: appHandlers/appProjects.py:609
+#: appHandlers/appProjects.py:617
 msgid "Project already open"
 msgstr ""
 
-#: appHandlers/appProjects.py:610
+#: appHandlers/appProjects.py:618
 msgid "This project is already open"
 msgstr ""
 
-#: appHandlers/appProjects.py:611
+#: appHandlers/appProjects.py:619
 msgid "Do you want to overwrite it with the version from the file?"
 msgstr ""
 
@@ -20393,27 +20472,27 @@ msgid ""
 "you trust its source."
 msgstr ""
 
-#: appMain.py:2513
+#: appMain.py:2517
 msgid "Regenerate photo engraving instead of editing certified paths."
 msgstr ""
 
-#: appMain.py:2516 appMain.py:2537 appMain.py:2580 appMain.py:2596
-#: appMain.py:2615
+#: appMain.py:2520 appMain.py:2541 appMain.py:2584 appMain.py:2600
+#: appMain.py:2619
 msgid "The Editor could not start."
 msgstr ""
 
-#: appMain.py:2523
+#: appMain.py:2527
 msgid "Select a Geometry, Gerber, Excellon or CNCJob Object to edit."
 msgstr ""
 
-#: appMain.py:2553
+#: appMain.py:2557
 msgid ""
 "Simultaneous editing of tools geometry in a MultiGeo Geometry is not "
 "possible.\n"
 "Edit only one geometry at a time."
 msgstr ""
 
-#: appMain.py:2560 appPlugins/ToolDrilling/Drilling.py:1233
+#: appMain.py:2564 appPlugins/ToolDrilling/Drilling.py:1233
 #: appPlugins/ToolDrilling/Drilling.py:1352
 #: appPlugins/ToolDrilling/Drilling.py:1646
 #: appPlugins/ToolDrilling/Drilling.py:1671
@@ -20427,95 +20506,95 @@ msgstr ""
 msgid "No Tool Selected"
 msgstr ""
 
-#: appMain.py:2655
+#: appMain.py:2659
 msgid "EDITOR Area"
 msgstr ""
 
-#: appMain.py:2658
+#: appMain.py:2662
 msgid "Editor is activated ..."
 msgstr ""
 
-#: appMain.py:2711
+#: appMain.py:2715
 msgid "The copy of the object could not be made."
 msgstr ""
 
-#: appMain.py:2757
+#: appMain.py:2761
 msgid "Do you want to save the changes?"
 msgstr ""
 
-#: appMain.py:2768
+#: appMain.py:2772
 msgid "Save as New"
 msgstr ""
 
-#: appMain.py:2823
+#: appMain.py:2827
 msgid "Object empty after edit."
 msgstr ""
 
-#: appMain.py:2840 appMain.py:2854 appMain.py:2873 appMain.py:2890
+#: appMain.py:2844 appMain.py:2858 appMain.py:2877 appMain.py:2894
 msgid "Editor exited. Editor content saved."
 msgstr ""
 
-#: appMain.py:2894 appMain.py:2978 appMain.py:2996
+#: appMain.py:2898 appMain.py:2982 appMain.py:3000
 msgid "Select a Gerber, Geometry, Excellon or CNCJob Object to update."
 msgstr ""
 
-#: appMain.py:2912
+#: appMain.py:2916
 msgid "is updated, returning to App..."
 msgstr ""
 
-#: appMain.py:2957
+#: appMain.py:2961
 msgid "Editor exited. Editor content was not saved."
 msgstr ""
 
-#: appMain.py:3145 appMain.py:3151
+#: appMain.py:3149 appMain.py:3155
 msgid "Save to file"
 msgstr ""
 
-#: appMain.py:3177
+#: appMain.py:3181
 msgid "Failed to write to file."
 msgstr ""
 
-#: appMain.py:3180
+#: appMain.py:3184
 msgid "Exported file to"
 msgstr ""
 
-#: appMain.py:3223
+#: appMain.py:3227
 msgid "Failed to open recent files file for writing."
 msgstr ""
 
-#: appMain.py:3232
+#: appMain.py:3236
 msgid "Failed to open recent projects file for writing."
 msgstr ""
 
-#: appMain.py:3296
+#: appMain.py:3300
 msgid "Update canceled while closing the tools database."
 msgstr ""
 
-#: appMain.py:3299
+#: appMain.py:3303
 msgid "Please wait for the project save to finish before updating."
 msgstr ""
 
-#: appMain.py:3302
+#: appMain.py:3306
 msgid "Save the current project before updating."
 msgstr ""
 
-#: appMain.py:3345
+#: appMain.py:3349
 msgid "Select completed Windows build"
 msgstr ""
 
-#: appMain.py:3352
+#: appMain.py:3356
 msgid "Select update output directory"
 msgstr ""
 
-#: appMain.py:3360
+#: appMain.py:3364
 msgid "Enter release notes:"
 msgstr ""
 
-#: appMain.py:3371
+#: appMain.py:3375
 msgid "Prepare update files"
 msgstr ""
 
-#: appMain.py:3372
+#: appMain.py:3376
 msgid ""
 "Version: %s\n"
 "Build: %s\n"
@@ -20525,47 +20604,47 @@ msgid ""
 "Create local Digi upload files now?"
 msgstr ""
 
-#: appMain.py:3385
+#: appMain.py:3389
 msgid "Release inputs are incomplete: %s"
 msgstr ""
 
-#: appMain.py:3390
+#: appMain.py:3394
 msgid "Preparing update files..."
 msgstr ""
 
-#: appMain.py:3392
+#: appMain.py:3396
 msgid "Preparing update files"
 msgstr ""
 
-#: appMain.py:3409
+#: appMain.py:3413
 msgid "Release preparation could not be started."
 msgstr ""
 
-#: appMain.py:3449
+#: appMain.py:3453
 msgid "Release preparation failed: %s"
 msgstr ""
 
-#: appMain.py:3454
+#: appMain.py:3458
 msgid "Local Digi upload files are ready:"
 msgstr ""
 
-#: appMain.py:3461
+#: appMain.py:3465
 msgid "No releases have been published yet."
 msgstr ""
 
-#: appMain.py:3463
+#: appMain.py:3467
 msgid "The application is up to date!"
 msgstr ""
 
-#: appMain.py:3509
+#: appMain.py:3513
 msgid "the source archive of the release is checked"
 msgstr ""
 
-#: appMain.py:3511
+#: appMain.py:3515
 msgid "the update archive is checked against its published checksum"
 msgstr ""
 
-#: appMain.py:3514
+#: appMain.py:3518
 msgid ""
 "FlatCAM Evo downloads the new version. The steps are:\n"
 "\n"
@@ -20579,157 +20658,157 @@ msgid ""
 "download and removes the downloaded files."
 msgstr ""
 
-#: appMain.py:3527
+#: appMain.py:3531
 msgid "Downloading the previous version"
 msgstr ""
 
-#: appMain.py:3529
+#: appMain.py:3533
 msgid "Downloading update"
 msgstr ""
 
-#: appMain.py:3552
+#: appMain.py:3556
 msgid "Update download could not be started."
 msgstr ""
 
-#: appMain.py:3652 appPlugins/ToolCompare/Compare.py:431
+#: appMain.py:3656 appPlugins/ToolCompare/Compare.py:431
 #: appPlugins/ToolCompare/CompareUI.py:106
 msgid "Added"
 msgstr ""
 
-#: appMain.py:3652 appPlugins/ToolCompare/Compare.py:430
+#: appMain.py:3656 appPlugins/ToolCompare/Compare.py:430
 #: appPlugins/ToolCompare/CompareUI.py:99
 msgid "Removed"
 msgstr ""
 
-#: appMain.py:3653
+#: appMain.py:3657
 msgid "Optional added"
 msgstr ""
 
-#: appMain.py:3653
+#: appMain.py:3657
 msgid "Optional removed"
 msgstr ""
 
-#: appMain.py:3667
+#: appMain.py:3671
 msgid ""
 "The application requirements changed. Update the Python environment and "
 "restart afterwards; otherwise FlatCAM may fail to start. FlatCAM does not "
 "run pip or change the environment itself."
 msgstr ""
 
-#: appMain.py:3673
+#: appMain.py:3677
 msgid ""
 "Optional packages changed. FlatCAM works without them. To install them, "
 "run: python install_optional.py"
 msgstr ""
 
-#: appMain.py:3686
+#: appMain.py:3690
 msgid "Trust: %s"
 msgstr ""
 
-#: appMain.py:3695
+#: appMain.py:3699
 msgid "Install update"
 msgstr ""
 
-#: appMain.py:3714
+#: appMain.py:3718
 msgid "Update download canceled."
 msgstr ""
 
-#: appMain.py:3727
+#: appMain.py:3731
 msgid "Update download failed; the installation was not changed."
 msgstr ""
 
-#: appMain.py:3735
+#: appMain.py:3739
 msgid "Update was canceled; the installation was not changed."
 msgstr ""
 
-#: appMain.py:3743
+#: appMain.py:3747
 msgid "The updater could not be started."
 msgstr ""
 
-#: appMain.py:3777
+#: appMain.py:3781
 msgid "Revert to %s (%s)"
 msgstr ""
 
-#: appMain.py:3787
+#: appMain.py:3791
 msgid "No usable previous version is available."
 msgstr ""
 
-#: appMain.py:3792
+#: appMain.py:3796
 msgid "Revert application update"
 msgstr ""
 
-#: appMain.py:3793
+#: appMain.py:3797
 msgid ""
 "Revert from %s (%s) to %s (%s)?\n"
 "\n"
 "FlatCAM Evo downloads version %s from GitHub and installs it."
 msgstr ""
 
-#: appMain.py:3918
+#: appMain.py:3922
 msgid "Aborting."
 msgstr ""
 
-#: appMain.py:3918
+#: appMain.py:3922
 msgid "The current task will be gracefully closed as soon as possible..."
 msgstr ""
 
-#: appMain.py:3928
+#: appMain.py:3932
 msgid "The current task was gracefully closed on user request..."
 msgstr ""
 
-#: appMain.py:4197 appMain.py:4201
+#: appMain.py:4201 appMain.py:4205
 msgid "Select an Gerber or Excellon file to view it's source file."
 msgstr ""
 
-#: appMain.py:4207
+#: appMain.py:4211
 msgid "The object has no source file to show"
 msgstr ""
 
-#: appMain.py:4211
+#: appMain.py:4215
 msgid "Viewing the source code of the selected object."
 msgstr ""
 
-#: appMain.py:4227
+#: appMain.py:4231
 msgid "Source Editor"
 msgstr ""
 
-#: appMain.py:4253 appMain.py:4261
+#: appMain.py:4257 appMain.py:4265
 msgid "There is no selected object for which to see it's source file code."
 msgstr ""
 
-#: appMain.py:4270
+#: appMain.py:4274
 msgid "Failed to load the source code for the selected object"
 msgstr ""
 
-#: appMain.py:4364
+#: appMain.py:4368
 msgid "Cannot open image file. Image tool is not available."
 msgstr ""
 
-#: appMain.py:4431
+#: appMain.py:4435
 msgid "Failed to load recent item list."
 msgstr ""
 
-#: appMain.py:4455
+#: appMain.py:4459
 msgid "Recent files list was reset."
 msgstr ""
 
-#: appMain.py:4468
+#: appMain.py:4472
 msgid "Recent projects list was reset."
 msgstr ""
 
-#: appMain.py:4493
+#: appMain.py:4497
 msgid "Clear Recent projects"
 msgstr ""
 
-#: appMain.py:4517
+#: appMain.py:4521
 msgid "Clear Recent files"
 msgstr ""
 
-#: appMain.py:4562
+#: appMain.py:4566
 msgid "Failed checking for the latest version."
 msgstr ""
 
-#: appMain.py:4586
+#: appMain.py:4590
 msgid ""
 "OpenGL canvas initialization failed.\n"
 "Check your graphics drivers and OpenGL support, including remote desktop or "
@@ -20737,19 +20816,19 @@ msgid ""
 "Technical details are available in the application log and error details."
 msgstr ""
 
-#: appMain.py:4591
+#: appMain.py:4595
 msgid "OpenGL initialization failed"
 msgstr ""
 
-#: appMain.py:4759
+#: appMain.py:4763
 msgid "Activate the script's project before running it."
 msgstr ""
 
-#: appMain.py:4762
+#: appMain.py:4766
 msgid "A script is already running."
 msgstr ""
 
-#: appMain.py:4769
+#: appMain.py:4773
 msgid "Timed-out script work is still running; changes are not rolled back."
 msgstr ""
 
@@ -20979,8 +21058,28 @@ msgid ""
 "Make the CNCJob again from the Photo Carve Geometry in the Milling plugin."
 msgstr ""
 
-#: appObjects/DocumentObject.py:189
-msgid "Document Editor"
+#: appObjects/DocumentObject.py:105 appPlugins/ToolPDFViewer/PDFViewerUI.py:216
+msgid "Invalid or unsupported PDF document."
+msgstr ""
+
+#: appObjects/DocumentObject.py:120
+msgid "The file is not a text document."
+msgstr ""
+
+#: appObjects/DocumentObject.py:332 appPlugins/ToolPDFViewer/PDFViewer.py:240
+msgid "PDF Files (*.pdf)"
+msgstr ""
+
+#: appObjects/DocumentObject.py:332
+msgid "HTML Files (*.html *.htm)"
+msgstr ""
+
+#: appObjects/DocumentObject.py:333
+msgid "Text Files (*.txt)"
+msgstr ""
+
+#: appObjects/DocumentObject.py:335
+msgid "Save Document"
 msgstr ""
 
 #: appObjects/ExcellonObject.py:1110 appObjects/ExcellonObject.py:1162
@@ -21201,15 +21300,15 @@ msgstr ""
 msgid "Object renamed from"
 msgstr ""
 
-#: appObjects/ObjectCollection.py:1546
+#: appObjects/ObjectCollection.py:1556
 msgid "Cause of error"
 msgstr ""
 
-#: appObjects/ObjectCollection.py:1599
+#: appObjects/ObjectCollection.py:1609
 msgid "All objects are selected."
 msgstr ""
 
-#: appObjects/ObjectCollection.py:1604
+#: appObjects/ObjectCollection.py:1614
 msgid "Objects selection is cleared."
 msgstr ""
 
@@ -22252,7 +22351,7 @@ msgstr ""
 #: appPlugins/ToolEtchCompensation/EtchCompensationUI.py:219
 #: appPlugins/ToolExtract/ExtractUI.py:313
 #: appPlugins/ToolFiducials/FiducialsUI.py:219
-#: appPlugins/ToolFilm/FilmUI.py:358 appPlugins/ToolFollow/FollowUI.py:220
+#: appPlugins/ToolFilm/FilmUI.py:363 appPlugins/ToolFollow/FollowUI.py:220
 #: appPlugins/ToolGcodeSender/SenderUI.py:751
 #: appPlugins/ToolInvertGerber/InvertGerberUI.py:178
 #: appPlugins/ToolIsolation/IsolationUI.py:788
@@ -22280,7 +22379,7 @@ msgstr ""
 #: appPlugins/ToolEtchCompensation/EtchCompensationUI.py:221
 #: appPlugins/ToolExtract/ExtractUI.py:315
 #: appPlugins/ToolFiducials/FiducialsUI.py:221
-#: appPlugins/ToolFilm/FilmUI.py:360 appPlugins/ToolFollow/FollowUI.py:223
+#: appPlugins/ToolFilm/FilmUI.py:365 appPlugins/ToolFollow/FollowUI.py:223
 #: appPlugins/ToolGcodeSender/SenderUI.py:754
 #: appPlugins/ToolInvertGerber/InvertGerberUI.py:180
 #: appPlugins/ToolIsolation/IsolationUI.py:791
@@ -23802,7 +23901,7 @@ msgid ""
 "inspect."
 msgstr ""
 
-#: appPlugins/ToolDblSided/DblSidedUI.py:430
+#: appPlugins/ToolDblSided/DblSidedUI.py:430 appPlugins/ToolFilm/FilmUI.py:349
 msgid "Generate"
 msgstr ""
 
@@ -24796,62 +24895,82 @@ msgid ""
 "for the copper fiducial."
 msgstr ""
 
-#: appPlugins/ToolFilm/Film.py:213
-msgid "Load an object for Film and retry."
-msgstr ""
-
-#: appPlugins/ToolFilm/Film.py:219
-msgid "Load an object for Box and retry."
-msgstr ""
-
-#: appPlugins/ToolFilm/Film.py:227
+#: appPlugins/ToolFilm/Film.py:404
 msgid "Generating Film ..."
 msgstr ""
 
-#: appPlugins/ToolFilm/Film.py:279
-msgid "Export positive film"
-msgstr ""
-
-#: appPlugins/ToolFilm/Film.py:293
-msgid ""
-"No Excellon object selected. Load an object for punching reference and "
-"retry."
-msgstr ""
-
-#: appPlugins/ToolFilm/Film.py:305
+#: appPlugins/ToolFilm/Film.py:423
 #: appPlugins/ToolPunchGerber/PunchGerber.py:393
 msgid ""
 "Failed. Punch hole size is bigger than some of the apertures in the Gerber "
 "object."
 msgstr ""
 
-#: appPlugins/ToolFilm/Film.py:310
+#: appPlugins/ToolFilm/Film.py:424
 msgid ""
 "Failed. The new object geometry is the same as the one in the source object "
 "geometry..."
 msgstr ""
 
-#: appPlugins/ToolFilm/Film.py:326
-msgid "Export negative film"
+#: appPlugins/ToolFilm/Film.py:426 appPlugins/ToolFilm/Film.py:453
+#: appPlugins/ToolFilm/Film.py:552
+msgid "Film or box geometry is empty."
 msgstr ""
 
-#: appPlugins/ToolFilm/Film.py:402 appPlugins/ToolPanelize/Panelize.py:327
-msgid "No object Box. Using instead"
-msgstr ""
-
-#: appPlugins/ToolFilm/Film.py:409
-msgid "Failed. Invalid PNG DPI value."
-msgstr ""
-
-#: appPlugins/ToolFilm/Film.py:431
-msgid "Film file exported to"
-msgstr ""
-
-#: appPlugins/ToolFilm/Film.py:485
+#: appPlugins/ToolFilm/Film.py:427
 msgid ""
 "The artwork has to intersect the selected page size in order to be "
 "visible.\n"
 "For 'Bounds' page size, it has to intersect the box plus border."
+msgstr ""
+
+#: appPlugins/ToolFilm/Film.py:429
+msgid "Failed. Invalid PNG DPI value."
+msgstr ""
+
+#: appPlugins/ToolFilm/Film.py:430
+msgid "The PNG is too large. Reduce the DPI or the film dimensions."
+msgstr ""
+
+#: appPlugins/ToolFilm/Film.py:431
+msgid "The film cannot be rendered."
+msgstr ""
+
+#: appPlugins/ToolFilm/Film.py:440
+msgid "Select a film source and box object."
+msgstr ""
+
+#: appPlugins/ToolFilm/Film.py:447
+msgid "Select an Excellon punching reference."
+msgstr ""
+
+#: appPlugins/ToolFilm/Film.py:487 appPlugins/ToolFilm/Film.py:529
+#: appPlugins/ToolFilm/Film.py:568
+msgid "Film generation failed"
+msgstr ""
+
+#: appPlugins/ToolFilm/Film.py:508
+msgid "Film preview failed"
+msgstr ""
+
+#: appPlugins/ToolFilm/Film.py:517
+msgid "Film generated. Inspect it, then Save."
+msgstr ""
+
+#: appPlugins/ToolFilm/Film.py:563
+msgid "Select a source other than the generated film object."
+msgstr ""
+
+#: appPlugins/ToolFilm/Film.py:598
+msgid "Save generated film"
+msgstr ""
+
+#: appPlugins/ToolFilm/Film.py:620 appPlugins/ToolFilm/Film.py:623
+msgid "Cannot save film"
+msgstr ""
+
+#: appPlugins/ToolFilm/Film.py:626
+msgid "Film saved"
 msgstr ""
 
 #: appPlugins/ToolFilm/FilmUI.py:57
@@ -24908,19 +25027,26 @@ msgstr ""
 msgid "The value here will control how big is the punch hole in the pads."
 msgstr ""
 
-#: appPlugins/ToolFilm/FilmUI.py:349
-msgid "Save Film"
-msgstr ""
-
-#: appPlugins/ToolFilm/FilmUI.py:352
+#: appPlugins/ToolFilm/FilmUI.py:351
 msgid ""
-"Create a Film for the selected object, within\n"
-"the specified box. Does not create a new \n"
-" FlatCAM object, but directly save it in the\n"
-"selected format."
+"Generate and preview the film without choosing a destination. Save reuses "
+"this result until settings change.\n"
+"SVG creates a Film Geometry; PDF creates a PDF Document. Generate again to "
+"update it in place.\n"
+"Leaving Film keeps the project object; a later session creates a new one."
 msgstr ""
 
-#: appPlugins/ToolFilm/FilmUI.py:424
+#: appPlugins/ToolFilm/FilmUI.py:358
+msgid ""
+"Save the generated film without regenerating it, or generate and save if "
+"needed."
+msgstr ""
+
+#: appPlugins/ToolFilm/FilmUI.py:359
+msgid "Save film"
+msgstr ""
+
+#: appPlugins/ToolFilm/FilmUI.py:429
 msgid ""
 "Using the Pad center does not work on Geometry objects. Only a Gerber "
 "object has pads."
@@ -29637,6 +29763,133 @@ msgstr ""
 msgid "Clear selection"
 msgstr ""
 
+#: appPlugins/ToolPDFViewer/PDFViewer.py:29
+msgid "PDF page exceeds the regional rendering limit."
+msgstr ""
+
+#: appPlugins/ToolPDFViewer/PDFViewer.py:39
+msgid "Cannot render PDF page."
+msgstr ""
+
+#: appPlugins/ToolPDFViewer/PDFViewer.py:45
+msgid "Invalid print scale or page size."
+msgstr ""
+
+#: appPlugins/ToolPDFViewer/PDFViewer.py:78
+msgid "Cannot set printer page layout."
+msgstr ""
+
+#: appPlugins/ToolPDFViewer/PDFViewer.py:82
+msgid "Cannot start printer."
+msgstr ""
+
+#: appPlugins/ToolPDFViewer/PDFViewer.py:84
+msgid "Cannot start next printed page."
+msgstr ""
+
+#: appPlugins/ToolPDFViewer/PDFViewer.py:92
+msgid "Cannot finish printing."
+msgstr ""
+
+#: appPlugins/ToolPDFViewer/PDFViewer.py:95
+msgid "Printing failed or was cancelled."
+msgstr ""
+
+#: appPlugins/ToolPDFViewer/PDFViewer.py:150
+msgid "Cannot open PDF"
+msgstr ""
+
+#: appPlugins/ToolPDFViewer/PDFViewer.py:230
+msgid "Print..."
+msgstr ""
+
+#: appPlugins/ToolPDFViewer/PDFViewer.py:238
+msgid "Save PDF"
+msgstr ""
+
+#: appPlugins/ToolPDFViewer/PDFViewer.py:254
+#: appPlugins/ToolPDFViewer/PDFViewer.py:257
+msgid "Cannot save PDF"
+msgstr ""
+
+#: appPlugins/ToolPDFViewer/PDFViewer.py:260
+msgid "PDF saved"
+msgstr ""
+
+#: appPlugins/ToolPDFViewer/PDFViewer.py:264
+msgid "Actual Size (100%)"
+msgstr ""
+
+#: appPlugins/ToolPDFViewer/PDFViewer.py:264
+msgid "Fit to Page"
+msgstr ""
+
+#: appPlugins/ToolPDFViewer/PDFViewer.py:266
+#: appPlugins/ToolPDFViewer/PDFViewer.py:272
+msgid "Print PDF"
+msgstr ""
+
+#: appPlugins/ToolPDFViewer/PDFViewer.py:266
+msgid "Print scale"
+msgstr ""
+
+#: appPlugins/ToolPDFViewer/PDFViewer.py:286
+msgid "Print clipping"
+msgstr ""
+
+#: appPlugins/ToolPDFViewer/PDFViewer.py:287
+msgid ""
+"The PDF exceeds the paper or printable margins and will be clipped. Actual "
+"Size will not shrink it. Continue?"
+msgstr ""
+
+#: appPlugins/ToolPDFViewer/PDFViewer.py:297
+msgid "Sent to printer"
+msgstr ""
+
+#: appPlugins/ToolPDFViewer/PDFViewerUI.py:146
+msgid "Previous page"
+msgstr ""
+
+#: appPlugins/ToolPDFViewer/PDFViewerUI.py:149
+msgid "Next page"
+msgstr ""
+
+#: appPlugins/ToolPDFViewer/PDFViewerUI.py:151
+msgid "Page"
+msgstr ""
+
+#: appPlugins/ToolPDFViewer/PDFViewerUI.py:155
+msgid "Fit page"
+msgstr ""
+
+#: appPlugins/ToolPDFViewer/PDFViewerUI.py:156
+msgid "Fit width"
+msgstr ""
+
+#: appPlugins/ToolPDFViewer/PDFViewerUI.py:161
+#: appPlugins/ToolPDFViewer/PDFViewerUI.py:178
+msgid "Zoom"
+msgstr ""
+
+#: appPlugins/ToolPDFViewer/PDFViewerUI.py:162
+msgid ""
+"<p>Set the zoom percentage or use these PDF navigation controls.</p><table "
+"cellspacing=\"4\"><tr><th>Control / "
+"gesture</th><th>Action</th></tr><tr><td>Zoom entry / slider</td><td>Set "
+"zoom (5–1000%)</td></tr><tr><td>Ctrl+wheel</td><td>Zoom at "
+"pointer</td></tr><tr><td>Wheel</td><td>Scroll</td></tr><tr><td>Right or "
+"middle drag</td><td>Pan</td></tr><tr><td>Ctrl++ / Ctrl+-</td><td>Zoom in / "
+"out</td></tr><tr><td>Ctrl+0</td><td>Reset to 100%</td></tr><tr><td>Fit page "
+"/ Fit width</td><td>Fit whole page / page "
+"width</td></tr><tr><td>Right-click</td><td>Save / Print "
+"menu</td></tr></table>"
+msgstr ""
+
+#: appPlugins/ToolPDFViewer/PDFViewerUI.py:210
+msgid "Cannot open PDF buffer."
+msgstr ""
+
 #: appPlugins/ToolPaint/Paint.py:1270
 msgid "The selected object is not a Gerber or Geometry object."
 msgstr ""
@@ -29787,6 +30040,10 @@ msgstr ""
 #: appPlugins/ToolPanelize/Panelize.py:109
 #: appPlugins/ToolPanelize/PanelizeUI.py:16
 msgid "Panelization"
+msgstr ""
+
+#: appPlugins/ToolPanelize/Panelize.py:327
+msgid "No object Box. Using instead"
 msgstr ""
 
 #: appPlugins/ToolPanelize/Panelize.py:353
@@ -32800,7 +33057,7 @@ msgstr ""
 msgid "Failed to parse defaults file."
 msgstr ""
 
-#: flatcam.py:291
+#: flatcam.py:294
 msgid ""
 "The open FlatCAM window did not answer. The files open in this new window."
 msgstr ""

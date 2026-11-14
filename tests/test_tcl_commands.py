@@ -35,6 +35,7 @@ from copy import deepcopy
 from appObjects.GeometryObject import GeometryObject
 from tclCommands.TclCommandJoinGeometry import TclCommandJoinGeometry
 from tclCommands.TclCommandJoinGerber import TclCommandJoinGerber
+from tclCommands.TclCommandIsolate import TclCommandIsolate
 
 
 # ==============================================================================================================
@@ -80,7 +81,7 @@ def test_export_gcode_returns_the_text_that_write_gcode_writes(tmp_path):
     from tclCommands.TclCommandWriteGCode import TclCommandWriteGCode
     options = {'cncjob_footer': False, 'cncjob_prepend': '', 'cncjob_append': '', 'cncjob_line_ending': False}
     job = SimpleNamespace(
-        kind='cncjob', app=SimpleNamespace(preprocessors={'default': default()}), multitool=True,
+        kind='cncjob', app=SimpleNamespace(preprocessors={'default': default()}),
         obj_options={'type': 'Geometry', 'name': 'job'}, gc_header='', gc_start='START_CODE\n', gcode='BODY_TOOL_2\n',
         tools={uid: {'data': {'tools_mill_ppname_g': 'default'}, 'gcode': 'BODY_TOOL_%d\n' % uid} for uid in (1, 2)},
         _app_option=lambda key, fallback=None: options.get(key, fallback), gcode_footer=lambda: '')
@@ -155,7 +156,7 @@ def test_alignment_drills_install_tools_before_geometry_creation():
 
 @pytest.mark.parametrize('argv', [('-offset_type', 'sideways')])
 def test_cncjob_rejects_wrong_milling_options(argv):
-    obj = Mock(kind='geometry', multigeo=True, tools={})
+    obj = Mock(kind='geometry', tools={})
     app = factory_app(obj)
     app.milling_tool = Mock()
     cmd = TclCommandCncjob(app)
@@ -171,7 +172,7 @@ def test_split_geometry_populates_root_and_only_the_selected_tool():
     app.app_obj.new_object.side_effect = lambda kind, name, init, **kw: init(output, app)
     TclCommandSplitGeometry(app).execute({'source_name': 'g'}, [])
     assert list(output.tools) == [7]
-    assert output.solid_geometry[0].equals(obj.tools[7]['solid_geometry'][0])
+    assert output.tools[7]['solid_geometry'][0].equals(obj.tools[7]['solid_geometry'][0])
 
 def _ncc_run(args, source_kind='gerber', other=None, options=None):
     objects = {'g': SimpleNamespace(kind=source_kind, decimals=4)}
@@ -219,7 +220,7 @@ def test_cutout_keeps_all_input_components():
     output = SimpleNamespace(obj_options={})
     app.app_obj.new_object.side_effect = lambda kind, name, init, **kw: init(output, app)
     TclCommandCutout(app).execute({'name': 'g', 'dia': 1, 'gaps': 'none'}, [])
-    assert unary_union(output.solid_geometry).bounds == (0, 0, 12, 2)
+    assert unary_union(output.tools[1]['solid_geometry']).bounds == (0, 0, 12, 2)
 
 def test_panelize_factory_failure_is_not_announced_as_done():
     obj = SimpleNamespace(kind='geometry', bounds=lambda: (0, 0, 1, 1))
@@ -267,20 +268,18 @@ def test_paint_crosshatch_rejects_invalid_angles():
             command.execute({'name': 'g', 'method': 'crosshatch', 'angle': angle}, [])
     gen.paint_poly_all.assert_not_called()
 
-def geometry(multigeo):
-    app = Mock(app_units='MM', decimals=4)
-    geo = Geometry(app)
+def geometry():
+    app = make_app()
+    geo = GeometryObject('geo', app)
     geo.kind = 'geometry'
     geo.obj_options = {}
-    geo.multigeo = multigeo
     a, b = LineString([(0, 0), (3, 0)]), LineString([(2, 0), (5, 0)])
-    geo.solid_geometry = [a, b]
     geo.tools = {7: {'solid_geometry': [a], 'data': {'depth': -1}},
                  9: {'solid_geometry': [b], 'data': {'depth': -2}}}
     return geo
 
 def test_path_subtraction_updates_cnc_tools_and_bounds():
-    geo = geometry(True)
+    geo = geometry()
     geo.subtract_polygon(box(-1, -1, 1, 1))
     paths = unary_union([g for tool in geo.tools.values() for g in tool['solid_geometry']])
     assert paths.equals(unary_union(geo.solid_geometry))
@@ -288,8 +287,8 @@ def test_path_subtraction_updates_cnc_tools_and_bounds():
     assert geo.obj_options['xmin'] == 1
     assert geo.tools[9]['data']['depth'] == -2
 
-def test_union_updates_each_tool_without_mixing_multigeometry_depths():
-    geo = geometry(True)
+def test_union_updates_each_tool_without_mixing_depths():
+    geo = geometry()
     geo.tools[7]['solid_geometry'].append(LineString([(1, 0), (4, 0)]))
     geo.union()
     assert sum(g.length for g in geo.tools[7]['solid_geometry']) == 4
@@ -887,16 +886,19 @@ def capture_new_objects(app):
 
 def isolation(app, name):
     created = capture_new_objects(app)
-    make_gerber(app, name='g_' + name).isolate(dia=0.2, overlap=10, iso_type=2, plot=False, passes=2, combine=True,
-                                              outname=name)
+    app.shell = Mock()
+    app.collection.get_by_name = Mock(return_value=make_gerber(app, name='g_' + name))
+    cmd = TclCommandIsolate(app)
+    args, unnamed = cmd.check_args(('g_' + name, '-dia', '0.2', '-overlap', '10', '-iso_type', '2', '-passes', '2',
+                                    '-combine', '1', '-outname', name))
+    assert cmd.execute(args, unnamed) is None
     return created[name]
 
 def single_geo(app, name, geometry):
-    """A SingleGeo object with the tool that GeometryObject.set_ui() gives it: the tool holds the solid geometry."""
+    """A Geometry with shapes in its tool."""
     obj = GeometryObject(name, app)
-    obj.solid_geometry = geometry
     data = {key: value for key, value in app.options.items() if key.startswith('tools_')}
-    obj.tools = {1: {'tooldia': 1.0, 'data': data, 'solid_geometry': obj.solid_geometry}}
+    obj.tools = {1: {'tooldia': 1.0, 'data': data, 'solid_geometry': geometry}}
     return obj
 
 def run_join(app, objs, *argv):
@@ -909,9 +911,35 @@ def run_join(app, objs, *argv):
 def tool_geometry(obj):
     return {uid: sorted(g.wkb_hex for g in parts(tool['solid_geometry'])) for uid, tool in obj.tools.items()}
 
-def test_multigeo_objects_are_joined_as_in_the_gui(app):
+@pytest.mark.parametrize('fuse_tools', [False, True])
+def test_join_keeps_both_tools_when_the_ids_are_the_same(app, fuse_tools):
+    a, b = GeometryObject('a', app), GeometryObject('b', app)
+    for obj, dia, y in ((a, 1.0, 0), (b, 2.0, 1)):
+        obj.tools = {7: {'tooldia': dia, 'data': {'nested': {'depth': -dia}},
+                         'solid_geometry': [LineString([(0, y), (1, y)])]}}
+    app.options['geometry_merge_fuse_tools'] = fuse_tools
+    ret, created = run_join(app, {'a': a, 'b': b}, '-outname', 'joined')
+    assert ret != 'fail'
+    joined = created['joined']
+    assert list(joined.tools) == ([1, 2] if fuse_tools else [7, 8])
+    assert [t['tooldia'] for t in joined.tools.values()] == [1.0, 2.0]
+    assert len(joined.solid_geometry) == 2
+    first, second = joined.tools.values()
+    second['data']['nested']['depth'] = -99
+    first['solid_geometry'].clear()
+    assert b.tools[7]['data']['nested']['depth'] == -2
+    assert len(a.tools[7]['solid_geometry']) == 1
+
+def test_join_of_geometries_without_tools_keeps_one_tool(app):
+    a, b = GeometryObject('a', app), GeometryObject('b', app)
+    a.tools, b.tools = {}, {}
+    app.options['geometry_merge_fuse_tools'] = True
+    ret, created = run_join(app, {'a': a, 'b': b}, '-outname', 'joined')
+    assert ret != 'fail'
+    assert len(created['joined'].tools) == 1
+
+def test_tools_are_joined_as_in_the_gui(app):
     a, b = isolation(app, 'a'), isolation(app, 'b')
-    assert a.multigeo and b.multigeo
     a.tools[1]['data'].update({'name': 'a', 'xmin': 0.0})
     b.tools[1]['data'].update({'name': 'b', 'xmin': 100.0})
 
@@ -920,10 +948,9 @@ def test_multigeo_objects_are_joined_as_in_the_gui(app):
     joined = created['joined']
 
     gui = GeometryObject('gui', app)
-    GeometryObject.merge(geo_list=[a, b], geo_final=gui, multi_geo=True,
+    GeometryObject.merge(geo_list=[a, b], geo_final=gui,
                          fuse_tools=app.options['geometry_merge_fuse_tools'], log=app.log)
 
-    assert joined.multigeo is True
     assert tool_geometry(joined) == tool_geometry(gui)
     # with the default preference the tools of the same diameter and type are fused into 1 tool
     assert app.options['geometry_merge_fuse_tools'] is True
@@ -957,52 +984,23 @@ def test_list_solid_geometry_is_flattened_without_errors(app):
     joined = created['joined']
 
     assert not any(isinstance(g, list) for g in joined.solid_geometry)
-    assert len(joined.solid_geometry) == len(parts(a.solid_geometry)) + len(parts(b.solid_geometry))
+    # a and b have the same shapes: each joined tool mills its own copy
+    assert sum(len(parts(t['solid_geometry'])) for t in joined.tools.values()) == \
+        len(parts(a.solid_geometry)) + len(parts(b.solid_geometry))
     app.log.error.assert_not_called()
 
-def test_singlegeo_objects_stay_singlegeo(app):
-    a = single_geo(app, 'a', box(0, 0, 1, 1))
-    b = single_geo(app, 'b', MultiPolygon([box(2, 0, 3, 1), box(4, 0, 5, 1)]))
-    app.log = Mock()
-
-    ret, created = run_join(app, {'a': a, 'b': b}, '-outname', 'joined')
-    assert ret != 'fail'
-    joined = created['joined']
-
-    expected = [(0.0, 0.0, 1.0, 1.0), (2.0, 0.0, 3.0, 1.0), (4.0, 0.0, 5.0, 1.0)]
-    assert joined.multigeo is False
-    assert sorted(g.bounds for g in joined.solid_geometry) == expected
-    # the 2 tools of the same diameter and type are fused; their geometry is a Polygon and a MultiPolygon
-    assert list(joined.tools) == [1]
-    assert sorted(g.bounds for g in joined.tools[1]['solid_geometry']) == expected
-    app.log.error.assert_not_called()
-
-def test_multigeo_tool_geometry_of_a_cutout_is_joined(app):
+def test_tool_geometry_of_a_cutout_is_joined(app):
     a = isolation(app, 'a')
-    # as the cutout makes it: MultiGeo, the tool geometry is the MultiLineString of the solid geometry
     cut = GeometryObject('cut', app)
-    cut.multigeo = True
-    cut.solid_geometry = MultiLineString([[(0, -2), (5, -2)], [(5, -3), (0, -3)]])
-    cut.tools = {1: {'tooldia': '1.0', 'data': deepcopy(a.tools[1]['data']), 'solid_geometry': cut.solid_geometry}}
+    cut.tools = {1: {'tooldia': '1.0', 'data': deepcopy(a.tools[1]['data']),
+                     'solid_geometry': MultiLineString([[(0, -2), (5, -2)], [(5, -3), (0, -3)]])}}
 
     ret, created = run_join(app, {'a': a, 'cut': cut}, '-outname', 'joined')
     assert ret != 'fail'
     joined = created['joined']
 
-    assert joined.multigeo is True
     lines = {float(tool['tooldia']): len(parts(tool['solid_geometry'])) for tool in joined.tools.values()}
     assert lines == {float(a.tools[1]['tooldia']): len(parts(a.solid_geometry)), 1.0: 2}
-
-def test_multigeo_and_singlegeo_objects_are_not_joined(app):
-    a = isolation(app, 'a')
-    single = GeometryObject('single', app)
-    single.solid_geometry = list(parts(a.solid_geometry))
-    assert a.multigeo and not single.multigeo
-
-    ret, created = run_join(app, {'a': a, 'single': single}, '-outname', 'joined')
-    assert ret == 'fail'
-    assert created == {}
-    app.app_obj.new_object.assert_not_called()
 
 @pytest.mark.parametrize('use_tcl,parameter,values', [
     (True, 'tools_mill_cutz', (-0.05, -1.6)),
@@ -1011,7 +1009,6 @@ def test_multigeo_and_singlegeo_objects_are_not_joined(app):
 def test_fusion_preserves_different_machining_parameters(app, use_tcl, parameter, values):
     a = single_geo(app, 'a', [box(0, 0, 1, 1)])
     b = single_geo(app, 'b', [box(2, 0, 3, 1)])
-    a.multigeo = b.multigeo = True
     a.tools[1]['data'][parameter], b.tools[1]['data'][parameter] = values
 
     if use_tcl:
@@ -1020,37 +1017,11 @@ def test_fusion_preserves_different_machining_parameters(app, use_tcl, parameter
         joined = created['joined']
     else:
         joined = GeometryObject('joined', app)
-        GeometryObject.merge([a, b], joined, multi_geo=True, fuse_tools=True, log=app.log)
+        GeometryObject.merge([a, b], joined, fuse_tools=True, log=app.log)
 
-    assert joined.multigeo is True
     assert len(joined.tools) == 2
     assert [tool['data'][parameter] for tool in joined.tools.values()] == list(values)
     assert tool_geometry(joined) == {1: tool_geometry(a)[1], 2: tool_geometry(b)[1]}
-
-@pytest.mark.parametrize('use_tcl,different_depths', [(True, True), (False, False)],
-                         ids=['tcl-different', 'gui-equal'])
-def test_fusion_preserves_singlegeo_tools_with_empty_geometry(app, use_tcl, different_depths):
-    a = single_geo(app, 'a', [box(0, 0, 1, 1)])
-    b = single_geo(app, 'b', [box(2, 0, 3, 1)])
-    # MultiGeo -> SingleGeo conversion keeps the geometry on the object and clears each tool's geometry.
-    a.tools[1]['solid_geometry'] = []
-    b.tools[1]['solid_geometry'] = []
-    a.tools[1]['data']['tools_mill_cutz'] = -0.05
-    b.tools[1]['data']['tools_mill_cutz'] = -1.6 if different_depths else -0.05
-
-    if use_tcl:
-        ret, created = run_join(app, {'a': a, 'b': b}, '-outname', 'joined')
-        assert ret != 'fail'
-        joined = created['joined']
-    else:
-        joined = GeometryObject('joined', app)
-        GeometryObject.merge([a, b], joined, multi_geo=False, fuse_tools=True, log=app.log)
-
-    assert joined.multigeo is False
-    assert sorted(g.bounds for g in joined.solid_geometry) == [(0.0, 0.0, 1.0, 1.0), (2.0, 0.0, 3.0, 1.0)]
-    assert [tool['data']['tools_mill_cutz'] for tool in joined.tools.values()] == \
-        ([-0.05, -1.6] if different_depths else [-0.05])
-    assert all(tool['solid_geometry'] == [] for tool in joined.tools.values())
 
 def run_join_gerber(app, objs_by_name, *argv):
     """Runs the command. Returns (result, created) where created = {name: GerberObject built by initialize}."""

@@ -113,9 +113,6 @@ class AppSignalConnector(QtCore.QObject):
         self.ui.menuedit_join_exc2exc.triggered.connect(self.app.edit_class.on_edit_join_exc)
         self.ui.menuedit_join_grb2grb.triggered.connect(self.app.edit_class.on_edit_join_grb)
 
-        self.ui.menuedit_convert_sg2mg.triggered.connect(self.app.edit_class.on_convert_singlegeo_to_multigeo)
-        self.ui.menuedit_convert_mg2sg.triggered.connect(self.app.edit_class.on_convert_multigeo_to_singlegeo)
-
         self.ui.menueditdelete.triggered.connect(self.app.on_delete)
 
         self.ui.menueditcopyobject.triggered.connect(self.app.on_copy_command)

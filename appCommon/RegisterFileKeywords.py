@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import ctypes
 from copy import deepcopy
 import os
+from pathlib import Path
 import plistlib
 import re
 import shlex
@@ -22,250 +23,108 @@ if typing.TYPE_CHECKING:
     import appMain
 
 
+def _tcl_command_keywords():
+    """The Tcl command names and the option names, read from the command classes; none if they can not be read."""
+    try:
+        import tclCommands
+        return tclCommands.command_keywords()
+    except Exception:
+        return [], []
+
+
+def _unique(words):
+    """The words without the repeated ones, in their order."""
+    return list(dict.fromkeys(words))
+
+
+_TCL_WORD = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
+
+
+def tcl_language_words(interp):
+    """
+    The words of the Tcl language as the installed Tcl knows them: its commands (the FlatCAM commands and the procs
+    included), its global variables and the math functions of expr.
+
+    :param interp:  the Tcl interpreter of the shell (None: no words)
+    :return:        sorted list of words; empty if the interpreter can not be read
+    """
+    if interp is None:
+        return []
+    try:
+        words = list(interp.splitlist(interp.eval('info commands')))
+        words += list(interp.splitlist(interp.eval('info globals')))
+        words += [name.rsplit('::', 1)[-1]
+                  for name in interp.splitlist(interp.eval('info commands ::tcl::mathfunc::*'))]
+    except Exception:
+        return []
+    # the internal callbacks of tkinter have names that start with digits
+    return sorted({word for word in words if isinstance(word, str) and _TCL_WORD.match(word)})
+
+
+# the boolean values of the Tcl commands
+BOOLEAN_WORDS = ['True', 'False']
+# the file types of the application
+APP_FILE_TYPES = ['FlatPrj', 'FlatConfig', 'FlatScript', 'FlatDoc']
+# environment variables that hold important folders (Windows, Linux, macOS)
+_FOLDER_VARIABLES = ('USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'ProgramFiles', 'ProgramFiles(x86)', 'ProgramData',
+                     'PUBLIC', 'HOME', 'XDG_CONFIG_HOME', 'XDG_DATA_HOME', 'XDG_CACHE_HOME', 'TMPDIR')
+
+
+def _split_words(text):
+    """The words of a comma separated list; a word can have spaces (e.g. Program Files)."""
+    return [word.strip() for word in str(text or '').split(',') if word.strip()]
+
+
+def folder_words(extra_paths=()):
+    """
+    The name of the current user and the names of the important folders of this computer, as this operating system
+    has them: each part of the paths
+    of the home, desktop, documents, downloads, application data, configuration and temporary folders and of the
+    folder environment variables (e.g. Users, AppData, Roaming, Program Files on Windows; home, .config on Linux;
+    Users, Library, Application Support on macOS).
+
+    :param extra_paths: more paths whose parts are added (e.g. the data folder of the application)
+    :return:            sorted list of folder names
+    """
+    paths = list(extra_paths)
+    try:
+        from PyQt6.QtCore import QStandardPaths
+        location = QStandardPaths.StandardLocation
+        for kind in (location.HomeLocation, location.DesktopLocation, location.DocumentsLocation,
+                     location.DownloadLocation, location.PicturesLocation, location.GenericDataLocation,
+                     location.GenericConfigLocation, location.TempLocation):
+            # only the main folder of each kind: the other ones include the folder of the running program
+            paths.append(QStandardPaths.writableLocation(kind))
+    except Exception:
+        pass
+    paths += [os.environ[name] for name in _FOLDER_VARIABLES if os.environ.get(name)]
+    words = set()
+    # the name of the current user (the home folder can have another name, e.g. after an account rename)
+    try:
+        import getpass
+        words.add(getpass.getuser())
+    except Exception:
+        pass
+    for path in paths:
+        for part in Path(path).parts:
+            name = part.strip('\\/')
+            # the drive (C:) and the root (/) are not folder names
+            if name and not name.endswith(':'):
+                words.add(name)
+    return sorted(words)
+
+
 @dataclass
 class KeyWords:
     """
     Holds the keywords recognized by the application
     """
 
-    tcl_commands = [
-        'add_aperture', 'add_circle', 'add_drill', 'add_poly', 'add_polygon', 'add_polyline',
-        'add_rectangle', 'add_rect', 'add_slot',
-        'aligndrill', 'aligndrillgrid', 'bbox', 'buffer', 'clear', 'cncjob', 'cutout',
-        'del', 'drillcncjob', 'export_dxf', 'edxf', 'export_excellon',
-        'export_exc',
-        'export_gcode', 'export_gerber', 'export_svg', 'ext', 'exteriors', 'follow',
-        'geo_union', 'geocutout', 'get_active', 'get_bounds', 'get_names', 'get_path',
-        'get_sys', 'help',
-        'interiors', 'isolate', 'join_excellon',
-        'join_geometry', 'join_gerber', 'list_sys', 'list_pp', 'milld', 'mills', 'milldrills', 'millslots',
-        'mirror', 'ncc',
-        'ncr', 'new', 'new_geometry', 'new_gerber', 'new_excellon', 'non_copper_regions',
-        'offset',
-        'open_dxf', 'open_excellon', 'open_gcode', 'open_gerber', 'open_project', 'open_svg',
-        'options', 'origin',
-        'paint', 'panelize', 'plot_all', 'plot_objects', 'plot_status', 'quit_app',
-        'save', 'save_project',
-        'save_sys', 'scale', 'set_active', 'set_origin', 'set_path', 'set_sys',
-        'skew', 'subtract_poly', 'subtract_rectangle',
-        'version', 'write_gcode'
-    ]
-
-    # those need to be duplicated in self.options["util_autocomplete_keywords"] but within a string
-    default_keywords = [
-        'Berta_CNC', 'Check_points', 'Default_no_M6', 'Desktop', 'Documents', 'FlatConfig', 'FlatPrj',
-        'False', 'GRBL_11', 'GRBL_11_no_M6', 'GRBL_laser', 'grbl_laser_eleks_drd',
-        'GRBL_laser_z', 'grblHAL', 'grblHAL_no_M6', 'grblHAL_laser', 'grblHAL_laser_z', 'ISEL_CNC', 'ISEL_ICP_CNC',
-        'Line_xyz', 'Marlin',
-        'Marlin_laser_FAN_pin', 'Marlin_laser_Spindle_pin', 'Marlin_laser_z', 'NCCAD9', 'Marius', 'My Documents',
-        'Paste_1', 'Paste_GRBL', 'Paste_Marlin', 'default_laser', 'Repetier', 'Roland_MDX_20', 'Roland_MDX_540',
-        'Toolchange_Manual', 'Toolchange_Probe_MACH3',
-        'True', 'Users',
-        'all', 'auto', 'axis',
-        'axisoffset', 'box', 'center_x', 'center_y', 'center', 'columns', 'combine', 'connect',
-        'contour', 'default',
-        'depthperpass', 'dia', 'diatol', 'dist', 'drilled_dias', 'drillz', 'dpp',
-        'dwelltime', 'extracut_length', 'endxy', 'endz', 'f', 'factor', 'feedrate',
-        'feedrate_z', 'gridoffsety', 'gridx', 'gridy',
-        'has_offset', 'holes', 'hpgl', 'iso_type', 'join', 'keep_scripts',
-        'las_min_pwr', 'las_power', 'margin', 'marlin', 'method',
-        'milled_dias', 'minoffset', 'min_bounds', 'name', 'offset', 'opt_type', 'order',
-        'outname', 'overlap', 'obj_name',
-        'p_coords', 'passes', 'postamble', 'pp', 'ppname_e', 'ppname_g',
-        'preamble', 'radius', 'ref', 'rest', 'rows', 'shellvar_', 'scale_factor',
-        'spacing_columns',
-        'spacing_rows', 'spindlespeed', 'startz', 'startxy',
-        'toolchange_xy', 'toolchangez', 'travelz',
-        'tooldia', 'use_threads', 'value',
-        'x', 'x0', 'x1', 'x_dist', 'y', 'y0', 'y1', 'y_dist', 'z_cut', 'z_move'
-    ]
-
-    tcl_keywords = [
-        'after', 'append', 'apply', 'argc', 'argv', 'argv0', 'array', 'attemptckalloc', 'attemptckrealloc',
-        'auto_execok', 'auto_import', 'auto_load', 'auto_mkindex', 'auto_path', 'auto_qualify', 'auto_reset',
-        'bgerror', 'binary', 'break', 'case', 'catch', 'cd', 'chan', 'ckalloc', 'ckfree', 'ckrealloc', 'clock',
-        'close', 'concat', 'continue', 'coroutine', 'dde', 'dict', 'encoding', 'env', 'eof', 'error', 'errorCode',
-        'errorInfo', 'eval', 'exec', 'exit', 'expr', 'fblocked', 'fconfigure', 'fcopy', 'file', 'fileevent',
-        'filename', 'flush', 'for', 'foreach', 'format', 'gets', 'glob', 'global', 'history', 'http', 'if', 'incr',
-        'info', 'interp', 'join', 'lappend', 'lassign', 'lindex', 'linsert', 'list', 'llength', 'load', 'lrange',
-        'lrepeat', 'lreplace', 'lreverse', 'lsearch', 'lset', 'lsort', 'mathfunc', 'mathop', 'memory', 'msgcat',
-        'my', 'namespace', 'next', 'nextto', 'open', 'package', 'parray', 'pid', 'pkg_mkIndex', 'platform',
-        'proc', 'puts', 'pwd', 're_syntax', 'read', 'refchan', 'regexp', 'registry', 'regsub', 'rename', 'return',
-        'safe', 'scan', 'seek', 'self', 'set', 'socket', 'source', 'split', 'string', 'subst', 'switch',
-        'tailcall', 'Tcl', 'Tcl_Access', 'Tcl_AddErrorInfo', 'Tcl_AddObjErrorInfo', 'Tcl_AlertNotifier',
-        'Tcl_Alloc', 'Tcl_AllocHashEntryProc', 'Tcl_AllocStatBuf', 'Tcl_AllowExceptions', 'Tcl_AppendAllObjTypes',
-        'Tcl_AppendElement', 'Tcl_AppendExportList', 'Tcl_AppendFormatToObj', 'Tcl_AppendLimitedToObj',
-        'Tcl_AppendObjToErrorInfo', 'Tcl_AppendObjToObj', 'Tcl_AppendPrintfToObj', 'Tcl_AppendResult',
-        'Tcl_AppendResultVA', 'Tcl_AppendStringsToObj', 'Tcl_AppendStringsToObjVA', 'Tcl_AppendToObj',
-        'Tcl_AppendUnicodeToObj', 'Tcl_AppInit', 'Tcl_AppInitProc', 'Tcl_ArgvInfo', 'Tcl_AsyncCreate',
-        'Tcl_AsyncDelete', 'Tcl_AsyncInvoke', 'Tcl_AsyncMark', 'Tcl_AsyncProc', 'Tcl_AsyncReady',
-        'Tcl_AttemptAlloc', 'Tcl_AttemptRealloc', 'Tcl_AttemptSetObjLength', 'Tcl_BackgroundError',
-        'Tcl_BackgroundException', 'Tcl_Backslash', 'Tcl_BadChannelOption', 'Tcl_CallWhenDeleted', 'Tcl_Canceled',
-        'Tcl_CancelEval', 'Tcl_CancelIdleCall', 'Tcl_ChannelBlockModeProc', 'Tcl_ChannelBuffered',
-        'Tcl_ChannelClose2Proc', 'Tcl_ChannelCloseProc', 'Tcl_ChannelFlushProc', 'Tcl_ChannelGetHandleProc',
-        'Tcl_ChannelGetOptionProc', 'Tcl_ChannelHandlerProc', 'Tcl_ChannelInputProc', 'Tcl_ChannelName',
-        'Tcl_ChannelOutputProc', 'Tcl_ChannelProc', 'Tcl_ChannelSeekProc', 'Tcl_ChannelSetOptionProc',
-        'Tcl_ChannelThreadActionProc', 'Tcl_ChannelTruncateProc', 'Tcl_ChannelType', 'Tcl_ChannelVersion',
-        'Tcl_ChannelWatchProc', 'Tcl_ChannelWideSeekProc', 'Tcl_Chdir', 'Tcl_ClassGetMetadata',
-        'Tcl_ClassSetConstructor', 'Tcl_ClassSetDestructor', 'Tcl_ClassSetMetadata', 'Tcl_ClearChannelHandlers',
-        'Tcl_CloneProc', 'Tcl_Close', 'Tcl_CloseProc', 'Tcl_CmdDeleteProc', 'Tcl_CmdInfo',
-        'Tcl_CmdObjTraceDeleteProc', 'Tcl_CmdObjTraceProc', 'Tcl_CmdProc', 'Tcl_CmdTraceProc',
-        'Tcl_CommandComplete', 'Tcl_CommandTraceInfo', 'Tcl_CommandTraceProc', 'Tcl_CompareHashKeysProc',
-        'Tcl_Concat', 'Tcl_ConcatObj', 'Tcl_ConditionFinalize', 'Tcl_ConditionNotify', 'Tcl_ConditionWait',
-        'Tcl_Config', 'Tcl_ConvertCountedElement', 'Tcl_ConvertElement', 'Tcl_ConvertToType',
-        'Tcl_CopyObjectInstance', 'Tcl_CreateAlias', 'Tcl_CreateAliasObj', 'Tcl_CreateChannel',
-        'Tcl_CreateChannelHandler', 'Tcl_CreateCloseHandler', 'Tcl_CreateCommand', 'Tcl_CreateEncoding',
-        'Tcl_CreateEnsemble', 'Tcl_CreateEventSource', 'Tcl_CreateExitHandler', 'Tcl_CreateFileHandler',
-        'Tcl_CreateHashEntry', 'Tcl_CreateInterp', 'Tcl_CreateMathFunc', 'Tcl_CreateNamespace',
-        'Tcl_CreateObjCommand', 'Tcl_CreateObjTrace', 'Tcl_CreateSlave', 'Tcl_CreateThread',
-        'Tcl_CreateThreadExitHandler', 'Tcl_CreateTimerHandler', 'Tcl_CreateTrace',
-        'Tcl_CutChannel', 'Tcl_DecrRefCount', 'Tcl_DeleteAssocData', 'Tcl_DeleteChannelHandler',
-        'Tcl_DeleteCloseHandler', 'Tcl_DeleteCommand', 'Tcl_DeleteCommandFromToken', 'Tcl_DeleteEvents',
-        'Tcl_DeleteEventSource', 'Tcl_DeleteExitHandler', 'Tcl_DeleteFileHandler', 'Tcl_DeleteHashEntry',
-        'Tcl_DeleteHashTable', 'Tcl_DeleteInterp', 'Tcl_DeleteNamespace', 'Tcl_DeleteThreadExitHandler',
-        'Tcl_DeleteTimerHandler', 'Tcl_DeleteTrace', 'Tcl_DetachChannel', 'Tcl_DetachPids', 'Tcl_DictObjDone',
-        'Tcl_DictObjFirst', 'Tcl_DictObjGet', 'Tcl_DictObjNext', 'Tcl_DictObjPut', 'Tcl_DictObjPutKeyList',
-        'Tcl_DictObjRemove', 'Tcl_DictObjRemoveKeyList', 'Tcl_DictObjSize', 'Tcl_DiscardInterpState',
-        'Tcl_DiscardResult', 'Tcl_DontCallWhenDeleted', 'Tcl_DoOneEvent', 'Tcl_DoWhenIdle',
-        'Tcl_DriverBlockModeProc', 'Tcl_DriverClose2Proc', 'Tcl_DriverCloseProc', 'Tcl_DriverFlushProc',
-        'Tcl_DriverGetHandleProc', 'Tcl_DriverGetOptionProc', 'Tcl_DriverHandlerProc', 'Tcl_DriverInputProc',
-        'Tcl_DriverOutputProc', 'Tcl_DriverSeekProc', 'Tcl_DriverSetOptionProc', 'Tcl_DriverThreadActionProc',
-        'Tcl_DriverTruncateProc', 'Tcl_DriverWatchProc', 'Tcl_DriverWideSeekProc', 'Tcl_DStringAppend',
-        'Tcl_DStringAppendElement', 'Tcl_DStringEndSublist', 'Tcl_DStringFree', 'Tcl_DStringGetResult',
-        'Tcl_DStringInit', 'Tcl_DStringLength', 'Tcl_DStringResult', 'Tcl_DStringSetLength',
-        'Tcl_DStringStartSublist', 'Tcl_DStringTrunc', 'Tcl_DStringValue', 'Tcl_DumpActiveMemory',
-        'Tcl_DupInternalRepProc', 'Tcl_DuplicateObj', 'Tcl_EncodingConvertProc', 'Tcl_EncodingFreeProc',
-        'Tcl_EncodingType', 'tcl_endOfWord', 'Tcl_Eof', 'Tcl_ErrnoId', 'Tcl_ErrnoMsg', 'Tcl_Eval', 'Tcl_EvalEx',
-        'Tcl_EvalFile', 'Tcl_EvalObjEx', 'Tcl_EvalObjv', 'Tcl_EvalTokens', 'Tcl_EvalTokensStandard', 'Tcl_Event',
-        'Tcl_EventCheckProc', 'Tcl_EventDeleteProc', 'Tcl_EventProc', 'Tcl_EventSetupProc', 'Tcl_EventuallyFree',
-        'Tcl_Exit', 'Tcl_ExitProc', 'Tcl_ExitThread', 'Tcl_Export', 'Tcl_ExposeCommand', 'Tcl_ExprBoolean',
-        'Tcl_ExprBooleanObj', 'Tcl_ExprDouble', 'Tcl_ExprDoubleObj', 'Tcl_ExprLong', 'Tcl_ExprLongObj',
-        'Tcl_ExprObj', 'Tcl_ExprString', 'Tcl_ExternalToUtf', 'Tcl_ExternalToUtfDString', 'Tcl_FileProc',
-        'Tcl_Filesystem', 'Tcl_Finalize', 'Tcl_FinalizeNotifier', 'Tcl_FinalizeThread', 'Tcl_FindCommand',
-        'Tcl_FindEnsemble', 'Tcl_FindExecutable', 'Tcl_FindHashEntry', 'tcl_findLibrary', 'Tcl_FindNamespace',
-        'Tcl_FirstHashEntry', 'Tcl_Flush', 'Tcl_ForgetImport', 'Tcl_Format', 'Tcl_FreeHashEntryProc',
-        'Tcl_FreeInternalRepProc', 'Tcl_FreeParse', 'Tcl_FreeProc', 'Tcl_FreeResult',
-        'Tcl_Free·\xa0Tcl_FreeEncoding', 'Tcl_FSAccess', 'Tcl_FSAccessProc', 'Tcl_FSChdir',
-        'Tcl_FSChdirProc', 'Tcl_FSConvertToPathType', 'Tcl_FSCopyDirectory', 'Tcl_FSCopyDirectoryProc',
-        'Tcl_FSCopyFile', 'Tcl_FSCopyFileProc', 'Tcl_FSCreateDirectory', 'Tcl_FSCreateDirectoryProc',
-        'Tcl_FSCreateInternalRepProc', 'Tcl_FSData', 'Tcl_FSDeleteFile', 'Tcl_FSDeleteFileProc',
-        'Tcl_FSDupInternalRepProc', 'Tcl_FSEqualPaths', 'Tcl_FSEvalFile', 'Tcl_FSEvalFileEx',
-        'Tcl_FSFileAttrsGet', 'Tcl_FSFileAttrsGetProc', 'Tcl_FSFileAttrsSet', 'Tcl_FSFileAttrsSetProc',
-        'Tcl_FSFileAttrStrings', 'Tcl_FSFileSystemInfo', 'Tcl_FSFilesystemPathTypeProc',
-        'Tcl_FSFilesystemSeparatorProc', 'Tcl_FSFreeInternalRepProc', 'Tcl_FSGetCwd', 'Tcl_FSGetCwdProc',
-        'Tcl_FSGetFileSystemForPath', 'Tcl_FSGetInternalRep', 'Tcl_FSGetNativePath', 'Tcl_FSGetNormalizedPath',
-        'Tcl_FSGetPathType', 'Tcl_FSGetTranslatedPath', 'Tcl_FSGetTranslatedStringPath',
-        'Tcl_FSInternalToNormalizedProc', 'Tcl_FSJoinPath', 'Tcl_FSJoinToPath', 'Tcl_FSLinkProc',
-        'Tcl_FSLink·\xa0Tcl_FSListVolumes', 'Tcl_FSListVolumesProc', 'Tcl_FSLoadFile', 'Tcl_FSLoadFileProc',
-        'Tcl_FSLstat', 'Tcl_FSLstatProc', 'Tcl_FSMatchInDirectory', 'Tcl_FSMatchInDirectoryProc',
-        'Tcl_FSMountsChanged', 'Tcl_FSNewNativePath', 'Tcl_FSNormalizePathProc', 'Tcl_FSOpenFileChannel',
-        'Tcl_FSOpenFileChannelProc', 'Tcl_FSPathInFilesystemProc', 'Tcl_FSPathSeparator', 'Tcl_FSRegister',
-        'Tcl_FSRemoveDirectory', 'Tcl_FSRemoveDirectoryProc', 'Tcl_FSRenameFile', 'Tcl_FSRenameFileProc',
-        'Tcl_FSSplitPath', 'Tcl_FSStat', 'Tcl_FSStatProc', 'Tcl_FSUnloadFile', 'Tcl_FSUnloadFileProc',
-        'Tcl_FSUnregister', 'Tcl_FSUtime', 'Tcl_FSUtimeProc', 'Tcl_GetAccessTimeFromStat', 'Tcl_GetAlias',
-        'Tcl_GetAliasObj', 'Tcl_GetAssocData', 'Tcl_GetBignumFromObj', 'Tcl_GetBlocksFromStat',
-        'Tcl_GetBlockSizeFromStat', 'Tcl_GetBoolean', 'Tcl_GetBooleanFromObj', 'Tcl_GetByteArrayFromObj',
-        'Tcl_GetChangeTimeFromStat', 'Tcl_GetChannel', 'Tcl_GetChannelBufferSize', 'Tcl_GetChannelError',
-        'Tcl_GetChannelErrorInterp', 'Tcl_GetChannelHandle', 'Tcl_GetChannelInstanceData', 'Tcl_GetChannelMode',
-        'Tcl_GetChannelName', 'Tcl_GetChannelNames', 'Tcl_GetChannelNamesEx', 'Tcl_GetChannelOption',
-        'Tcl_GetChannelThread', 'Tcl_GetChannelType', 'Tcl_GetCharLength', 'Tcl_GetClassAsObject',
-        'Tcl_GetCommandFromObj', 'Tcl_GetCommandFullName', 'Tcl_GetCommandInfo', 'Tcl_GetCommandInfoFromToken',
-        'Tcl_GetCommandName', 'Tcl_GetCurrentNamespace', 'Tcl_GetCurrentThread', 'Tcl_GetCwd',
-        'Tcl_GetDefaultEncodingDir', 'Tcl_GetDeviceTypeFromStat', 'Tcl_GetDouble', 'Tcl_GetDoubleFromObj',
-        'Tcl_GetEncoding', 'Tcl_GetEncodingFromObj', 'Tcl_GetEncodingName', 'Tcl_GetEncodingNameFromEnvironment',
-        'Tcl_GetEncodingNames', 'Tcl_GetEncodingSearchPath', 'Tcl_GetEnsembleFlags', 'Tcl_GetEnsembleMappingDict',
-        'Tcl_GetEnsembleNamespace', 'Tcl_GetEnsembleParameterList', 'Tcl_GetEnsembleSubcommandList',
-        'Tcl_GetEnsembleUnknownHandler', 'Tcl_GetErrno', 'Tcl_GetErrorLine', 'Tcl_GetFSDeviceFromStat',
-        'Tcl_GetFSInodeFromStat', 'Tcl_GetGlobalNamespace', 'Tcl_GetGroupIdFromStat', 'Tcl_GetHashKey',
-        'Tcl_GetHashValue', 'Tcl_GetHostName', 'Tcl_GetIndexFromObj', 'Tcl_GetIndexFromObjStruct', 'Tcl_GetInt',
-        'Tcl_GetInterpPath', 'Tcl_GetIntFromObj', 'Tcl_GetLinkCountFromStat', 'Tcl_GetLongFromObj',
-        'Tcl_GetMaster', 'Tcl_GetMathFuncInfo', 'Tcl_GetModeFromStat', 'Tcl_GetModificationTimeFromStat',
-        'Tcl_GetNameOfExecutable', 'Tcl_GetNamespaceUnknownHandler', 'Tcl_GetObjectAsClass', 'Tcl_GetObjectCommand',
-        'Tcl_GetObjectFromObj', 'Tcl_GetObjectName', 'Tcl_GetObjectNamespace', 'Tcl_GetObjResult', 'Tcl_GetObjType',
-        'Tcl_GetOpenFile', 'Tcl_GetPathType', 'Tcl_GetRange', 'Tcl_GetRegExpFromObj', 'Tcl_GetReturnOptions',
-        'Tcl_Gets', 'Tcl_GetServiceMode', 'Tcl_GetSizeFromStat', 'Tcl_GetSlave', 'Tcl_GetsObj',
-        'Tcl_GetStackedChannel', 'Tcl_GetStartupScript', 'Tcl_GetStdChannel', 'Tcl_GetString',
-        'Tcl_GetStringFromObj', 'Tcl_GetStringResult', 'Tcl_GetThreadData', 'Tcl_GetTime', 'Tcl_GetTopChannel',
-        'Tcl_GetUniChar', 'Tcl_GetUnicode', 'Tcl_GetUnicodeFromObj', 'Tcl_GetUserIdFromStat', 'Tcl_GetVar',
-        'Tcl_GetVar2', 'Tcl_GetVar2Ex', 'Tcl_GetVersion', 'Tcl_GetWideIntFromObj', 'Tcl_GlobalEval',
-        'Tcl_GlobalEvalObj', 'Tcl_GlobTypeData', 'Tcl_HashKeyType', 'Tcl_HashStats', 'Tcl_HideCommand',
-        'Tcl_IdleProc', 'Tcl_Import', 'Tcl_IncrRefCount', 'Tcl_Init', 'Tcl_InitCustomHashTable',
-        'Tcl_InitHashTable', 'Tcl_InitMemory', 'Tcl_InitNotifier', 'Tcl_InitObjHashTable', 'Tcl_InitStubs',
-        'Tcl_InputBlocked', 'Tcl_InputBuffered', 'tcl_interactive', 'Tcl_Interp', 'Tcl_InterpActive',
-        'Tcl_InterpDeleted', 'Tcl_InterpDeleteProc', 'Tcl_InvalidateStringRep', 'Tcl_IsChannelExisting',
-        'Tcl_IsChannelRegistered', 'Tcl_IsChannelShared', 'Tcl_IsEnsemble', 'Tcl_IsSafe', 'Tcl_IsShared',
-        'Tcl_IsStandardChannel', 'Tcl_JoinPath', 'Tcl_JoinThread', 'tcl_library', 'Tcl_LimitAddHandler',
-        'Tcl_LimitCheck', 'Tcl_LimitExceeded', 'Tcl_LimitGetCommands', 'Tcl_LimitGetGranularity',
-        'Tcl_LimitGetTime', 'Tcl_LimitHandlerDeleteProc', 'Tcl_LimitHandlerProc', 'Tcl_LimitReady',
-        'Tcl_LimitRemoveHandler', 'Tcl_LimitSetCommands', 'Tcl_LimitSetGranularity', 'Tcl_LimitSetTime',
-        'Tcl_LimitTypeEnabled', 'Tcl_LimitTypeExceeded', 'Tcl_LimitTypeReset', 'Tcl_LimitTypeSet',
-        'Tcl_LinkVar', 'Tcl_ListMathFuncs', 'Tcl_ListObjAppendElement', 'Tcl_ListObjAppendList',
-        'Tcl_ListObjGetElements', 'Tcl_ListObjIndex', 'Tcl_ListObjLength', 'Tcl_ListObjReplace',
-        'Tcl_LogCommandInfo', 'Tcl_Main', 'Tcl_MainLoopProc', 'Tcl_MakeFileChannel', 'Tcl_MakeSafe',
-        'Tcl_MakeTcpClientChannel', 'Tcl_MathProc', 'TCL_MEM_DEBUG', 'Tcl_Merge', 'Tcl_MethodCallProc',
-        'Tcl_MethodDeclarerClass', 'Tcl_MethodDeclarerObject', 'Tcl_MethodDeleteProc', 'Tcl_MethodIsPublic',
-        'Tcl_MethodIsType', 'Tcl_MethodName', 'Tcl_MethodType', 'Tcl_MutexFinalize', 'Tcl_MutexLock',
-        'Tcl_MutexUnlock', 'Tcl_NamespaceDeleteProc', 'Tcl_NewBignumObj', 'Tcl_NewBooleanObj',
-        'Tcl_NewByteArrayObj', 'Tcl_NewDictObj', 'Tcl_NewDoubleObj', 'Tcl_NewInstanceMethod', 'Tcl_NewIntObj',
-        'Tcl_NewListObj', 'Tcl_NewLongObj', 'Tcl_NewMethod', 'Tcl_NewObj', 'Tcl_NewObjectInstance',
-        'Tcl_NewStringObj', 'Tcl_NewUnicodeObj', 'Tcl_NewWideIntObj', 'Tcl_NextHashEntry', 'tcl_nonwordchars',
-        'Tcl_NotifierProcs', 'Tcl_NotifyChannel', 'Tcl_NRAddCallback', 'Tcl_NRCallObjProc', 'Tcl_NRCmdSwap',
-        'Tcl_NRCreateCommand', 'Tcl_NREvalObj', 'Tcl_NREvalObjv', 'Tcl_NumUtfChars', 'Tcl_Obj', 'Tcl_ObjCmdProc',
-        'Tcl_ObjectContextInvokeNext', 'Tcl_ObjectContextIsFiltering', 'Tcl_ObjectContextMethod',
-        'Tcl_ObjectContextObject', 'Tcl_ObjectContextSkippedArgs', 'Tcl_ObjectDeleted', 'Tcl_ObjectGetMetadata',
-        'Tcl_ObjectGetMethodNameMapper', 'Tcl_ObjectMapMethodNameProc', 'Tcl_ObjectMetadataDeleteProc',
-        'Tcl_ObjectSetMetadata', 'Tcl_ObjectSetMethodNameMapper', 'Tcl_ObjGetVar2', 'Tcl_ObjPrintf',
-        'Tcl_ObjSetVar2', 'Tcl_ObjType', 'Tcl_OpenCommandChannel', 'Tcl_OpenFileChannel', 'Tcl_OpenTcpClient',
-        'Tcl_OpenTcpServer', 'Tcl_OutputBuffered', 'Tcl_PackageInitProc', 'Tcl_PackageUnloadProc', 'Tcl_Panic',
-        'Tcl_PanicProc', 'Tcl_PanicVA', 'Tcl_ParseArgsObjv', 'Tcl_ParseBraces', 'Tcl_ParseCommand', 'Tcl_ParseExpr',
-        'Tcl_ParseQuotedString', 'Tcl_ParseVar', 'Tcl_ParseVarName', 'tcl_patchLevel', 'tcl_pkgPath',
-        'Tcl_PkgPresent', 'Tcl_PkgPresentEx', 'Tcl_PkgProvide', 'Tcl_PkgProvideEx', 'Tcl_PkgRequire',
-        'Tcl_PkgRequireEx', 'Tcl_PkgRequireProc', 'tcl_platform', 'Tcl_PosixError', 'tcl_precision',
-        'Tcl_Preserve', 'Tcl_PrintDouble', 'Tcl_PutEnv', 'Tcl_QueryTimeProc', 'Tcl_QueueEvent', 'tcl_rcFileName',
-        'Tcl_Read', 'Tcl_ReadChars', 'Tcl_ReadRaw', 'Tcl_Realloc', 'Tcl_ReapDetachedProcs', 'Tcl_RecordAndEval',
-        'Tcl_RecordAndEvalObj', 'Tcl_RegExpCompile', 'Tcl_RegExpExec', 'Tcl_RegExpExecObj', 'Tcl_RegExpGetInfo',
-        'Tcl_RegExpIndices', 'Tcl_RegExpInfo', 'Tcl_RegExpMatch', 'Tcl_RegExpMatchObj', 'Tcl_RegExpRange',
-        'Tcl_RegisterChannel', 'Tcl_RegisterConfig', 'Tcl_RegisterObjType', 'Tcl_Release', 'Tcl_ResetResult',
-        'Tcl_RestoreInterpState', 'Tcl_RestoreResult', 'Tcl_SaveInterpState', 'Tcl_SaveResult', 'Tcl_ScaleTimeProc',
-        'Tcl_ScanCountedElement', 'Tcl_ScanElement', 'Tcl_Seek', 'Tcl_ServiceAll', 'Tcl_ServiceEvent',
-        'Tcl_ServiceModeHook', 'Tcl_SetAssocData', 'Tcl_SetBignumObj', 'Tcl_SetBooleanObj',
-        'Tcl_SetByteArrayLength', 'Tcl_SetByteArrayObj', 'Tcl_SetChannelBufferSize', 'Tcl_SetChannelError',
-        'Tcl_SetChannelErrorInterp', 'Tcl_SetChannelOption', 'Tcl_SetCommandInfo', 'Tcl_SetCommandInfoFromToken',
-        'Tcl_SetDefaultEncodingDir', 'Tcl_SetDoubleObj', 'Tcl_SetEncodingSearchPath', 'Tcl_SetEnsembleFlags',
-        'Tcl_SetEnsembleMappingDict', 'Tcl_SetEnsembleParameterList', 'Tcl_SetEnsembleSubcommandList',
-        'Tcl_SetEnsembleUnknownHandler', 'Tcl_SetErrno', 'Tcl_SetErrorCode', 'Tcl_SetErrorCodeVA',
-        'Tcl_SetErrorLine', 'Tcl_SetExitProc', 'Tcl_SetFromAnyProc', 'Tcl_SetHashValue', 'Tcl_SetIntObj',
-        'Tcl_SetListObj', 'Tcl_SetLongObj', 'Tcl_SetMainLoop', 'Tcl_SetMaxBlockTime',
-        'Tcl_SetNamespaceUnknownHandler', 'Tcl_SetNotifier', 'Tcl_SetObjErrorCode', 'Tcl_SetObjLength',
-        'Tcl_SetObjResult', 'Tcl_SetPanicProc', 'Tcl_SetRecursionLimit', 'Tcl_SetResult', 'Tcl_SetReturnOptions',
-        'Tcl_SetServiceMode', 'Tcl_SetStartupScript', 'Tcl_SetStdChannel', 'Tcl_SetStringObj',
-        'Tcl_SetSystemEncoding', 'Tcl_SetTimeProc', 'Tcl_SetTimer', 'Tcl_SetUnicodeObj', 'Tcl_SetVar',
-        'Tcl_SetVar2', 'Tcl_SetVar2Ex', 'Tcl_SetWideIntObj', 'Tcl_SignalId', 'Tcl_SignalMsg', 'Tcl_Sleep',
-        'Tcl_SourceRCFile', 'Tcl_SpliceChannel', 'Tcl_SplitList', 'Tcl_SplitPath', 'Tcl_StackChannel',
-        'Tcl_StandardChannels', 'tcl_startOfNextWord', 'tcl_startOfPreviousWord', 'Tcl_Stat', 'Tcl_StaticPackage',
-        'Tcl_StringCaseMatch', 'Tcl_StringMatch', 'Tcl_SubstObj', 'Tcl_TakeBignumFromObj', 'Tcl_TcpAcceptProc',
-        'Tcl_Tell', 'Tcl_ThreadAlert', 'Tcl_ThreadQueueEvent', 'Tcl_Time', 'Tcl_TimerProc', 'Tcl_Token',
-        'Tcl_TraceCommand', 'tcl_traceCompile', 'tcl_traceEval', 'Tcl_TraceVar', 'Tcl_TraceVar2',
-        'Tcl_TransferResult', 'Tcl_TranslateFileName', 'Tcl_TruncateChannel', 'Tcl_Ungets', 'Tcl_UniChar',
-        'Tcl_UniCharAtIndex', 'Tcl_UniCharCaseMatch', 'Tcl_UniCharIsAlnum', 'Tcl_UniCharIsAlpha',
-        'Tcl_UniCharIsControl', 'Tcl_UniCharIsDigit', 'Tcl_UniCharIsGraph', 'Tcl_UniCharIsLower',
-        'Tcl_UniCharIsPrint', 'Tcl_UniCharIsPunct', 'Tcl_UniCharIsSpace', 'Tcl_UniCharIsUpper',
-        'Tcl_UniCharIsWordChar', 'Tcl_UniCharLen', 'Tcl_UniCharNcasecmp', 'Tcl_UniCharNcmp', 'Tcl_UniCharToLower',
-        'Tcl_UniCharToTitle', 'Tcl_UniCharToUpper', 'Tcl_UniCharToUtf', 'Tcl_UniCharToUtfDString', 'Tcl_UnlinkVar',
-        'Tcl_UnregisterChannel', 'Tcl_UnsetVar', 'Tcl_UnsetVar2', 'Tcl_UnstackChannel', 'Tcl_UntraceCommand',
-        'Tcl_UntraceVar', 'Tcl_UntraceVar2', 'Tcl_UpdateLinkedVar', 'Tcl_UpdateStringProc', 'Tcl_UpVar',
-        'Tcl_UpVar2', 'Tcl_UtfAtIndex', 'Tcl_UtfBackslash', 'Tcl_UtfCharComplete', 'Tcl_UtfFindFirst',
-        'Tcl_UtfFindLast', 'Tcl_UtfNext', 'Tcl_UtfPrev', 'Tcl_UtfToExternal', 'Tcl_UtfToExternalDString',
-        'Tcl_UtfToLower', 'Tcl_UtfToTitle', 'Tcl_UtfToUniChar', 'Tcl_UtfToUniCharDString', 'Tcl_UtfToUpper',
-        'Tcl_ValidateAllMemory', 'Tcl_Value', 'Tcl_VarEval', 'Tcl_VarEvalVA', 'Tcl_VarTraceInfo',
-        'Tcl_VarTraceInfo2', 'Tcl_VarTraceProc', 'tcl_version', 'Tcl_WaitForEvent', 'Tcl_WaitPid',
-        'Tcl_WinTCharToUtf', 'Tcl_WinUtfToTChar', 'tcl_wordBreakAfter', 'tcl_wordBreakBefore', 'tcl_wordchars',
-        'Tcl_Write', 'Tcl_WriteChars', 'Tcl_WriteObj', 'Tcl_WriteRaw', 'Tcl_WrongNumArgs', 'Tcl_ZlibAdler32',
-        'Tcl_ZlibCRC32', 'Tcl_ZlibDeflate', 'Tcl_ZlibInflate', 'Tcl_ZlibStreamChecksum', 'Tcl_ZlibStreamClose',
-        'Tcl_ZlibStreamEof', 'Tcl_ZlibStreamGet', 'Tcl_ZlibStreamGetCommandName', 'Tcl_ZlibStreamInit',
-        'Tcl_ZlibStreamPut', 'tcltest', 'tell', 'throw', 'time', 'tm', 'trace', 'transchan', 'try', 'unknown',
-        'unload', 'unset', 'update', 'uplevel', 'upvar', 'variable', 'vwait', 'while', 'yield', 'yieldto', 'zlib'
-    ]
+    # All the words of the auto-completer are read when the app starts (see RegisterFK): the Tcl language words, the
+    # Tcl commands with their options, the preprocessors, the booleans, the file types and extensions and the folders
+    # of the computer. The Preferences list (self.options["util_autocomplete_keywords"]) is only for the user's own
+    # words, so its default is empty.
+    default_keywords = []
 
 
 @dataclass
@@ -274,10 +133,17 @@ class Extensions:
     Holds the file extensions recognized by the application
     """
 
+    # Protel / Altium: gtl..gko, gm1..gm16 (mechanical), g1..g16 (mid layers), gp1..gp8 (planes), gpt / gpb (pad
+    # masters), gd1 / gg1 (drill drawing and guide); KiCad: gta / gba (adhesive), g2.. (inner layers);
+    # Seeed / JLC: gl2..gl5 (inner layers); Eagle: cmp..mil; OrCAD: top..spb; Allegro: art; Mentor: pho, gdo
     grb_list = [
-        'art', 'bot', 'bsm', 'cmp', 'crc', 'crs', 'dim', 'g4', 'gb0', 'gb1', 'gb2', 'gb3', 'gb5',
-        'gb6', 'gb7', 'gb8', 'gb9', 'gbd', 'gbl', 'gbo', 'gbp', 'gbr', 'gbs', 'gdl', 'gdo', 'ger', 'gko',
-        'gml', 'gm1', 'gm2', 'gm3', 'gme', 'grb', 'gtl', 'gto', 'gtp', 'gts', 'ly15', 'ly2', 'mil', 'outline',
+        'art', 'bot', 'bsm', 'cmp', 'crc', 'crs', 'dim',
+        'g1', 'g2', 'g3', 'g4', 'g5', 'g6', 'g7', 'g8', 'g9', 'g10', 'g11', 'g12', 'g13', 'g14', 'g15', 'g16',
+        'gb0', 'gb1', 'gb2', 'gb3', 'gb4', 'gb5', 'gb6', 'gb7', 'gb8', 'gb9', 'gba', 'gbd', 'gbl', 'gbo', 'gbp',
+        'gbr', 'gbs', 'gd1', 'gdl', 'gdo', 'ger', 'gg1', 'gko', 'gl2', 'gl3', 'gl4', 'gl5',
+        'gm1', 'gm2', 'gm3', 'gm4', 'gm5', 'gm6', 'gm7', 'gm8', 'gm9', 'gm10', 'gm11', 'gm12', 'gm13', 'gm14',
+        'gm15', 'gm16', 'gme', 'gml', 'gp1', 'gp2', 'gp3', 'gp4', 'gp5', 'gp6', 'gp7', 'gp8', 'gpb', 'gpt',
+        'grb', 'gta', 'gtl', 'gto', 'gtp', 'gts', 'ly15', 'ly2', 'mil', 'outline',
         'pho', 'plc', 'pls', 'smb', 'smt', 'sol', 'spb', 'spt', 'ssb', 'sst', 'stc', 'sts', 'top',
         'tsm'
     ]
@@ -285,15 +151,18 @@ class Extensions:
     exc_list = ['drd', 'drl', 'drill', 'exc', 'ncd', 'tap', 'txt', 'xln', 'xnc']
 
     gcode_list = [
-        'cnc', 'din', 'dnc', 'ecs', 'eia', 'fan', 'fgc', 'fnc', 'gc', 'gcd', 'gcode', 'h', 'hnc',
-        'i', 'min', 'mpf', 'mpr', 'nc', 'ncc', 'ncg', 'ngc', 'ncp', 'out', 'ply', 'rol',
+        'cnc', 'din', 'dnc', 'ecs', 'eia', 'fan', 'fgc', 'fnc', 'gc', 'gcd', 'gco', 'gcode', 'h', 'hnc',
+        'i', 'knc', 'min', 'mpf', 'mpr', 'nc', 'ncc', 'ncg', 'ngc', 'ncp', 'out', 'ply', 'rol',
         'sbp', 'tap', 'xpi'
     ]
     svg_list = ['svg']
     dxf_list = ['dxf']
     pdf_list = ['pdf']
+    hpgl_list = ['hgl', 'hpg', 'hpgl', 'plt']
     prj_list = ['flatprj']
     conf_list = ['flatconfig']
+    script_list = ['flatscript', 'tcl', 'txt']
+    doc_list = ['flatdoc', 'htm', 'html', 'pdf', 'txt']
 
 
 # the start of an Excellon file: the header (M48) or a tool definition such as 'T1C0.8' or 'T01F00S00C0.0300'
@@ -328,10 +197,13 @@ class RegisterFK(QtCore.QObject):
                  log: ('appMain.AppLogging', 'appMain.logging'),
                  keywords: KeyWords,
                  extensions: Extensions,
-                 new_version: bool = False):
+                 new_version: bool = False,
+                 preprocessors=None):
         """
-        :param new_version: True at the first start of a new version: the file associations that an earlier
-        version registered get the current icon
+        :param new_version:     True at the first start of a new version: the file associations that an earlier
+                                version registered get the current icon
+        :param preprocessors:   the dictionary of the loaded preprocessors (name -> preprocessor), for the
+                                auto-completer
         """
 
         super().__init__()
@@ -342,8 +214,14 @@ class RegisterFK(QtCore.QObject):
         self.options = options_dict
         self.keywords = keywords
 
-        self.tcl_keywords = self.keywords.tcl_keywords
-        self.tcl_commands_list = self.keywords.tcl_commands
+        # The words are read, never listed by hand: the Tcl language words from the interpreter of the shell, the
+        # command names and their options from the Tcl command classes, the preprocessors as they were loaded
+        self.tcl_keywords = tcl_language_words(getattr(shell, 'tcl', None))
+        self.tcl_commands_list, self.tcl_options_list = _tcl_command_keywords()
+        # the dictionary of the app (the user preprocessors included): the names are read at each rebuild
+        self.preprocessors = preprocessors if preprocessors is not None else {}
+        # the folders of this computer, read once
+        self.folder_names = folder_words()
         self.default_keywords = self.keywords.default_keywords
 
         self.exc_list = extensions.exc_list
@@ -359,8 +237,9 @@ class RegisterFK(QtCore.QObject):
         # the Preferences must not drop them from the auto-completer
         self.object_names = []
 
-        autocomplete_kw_list = self.options.get('util_autocomplete_keywords').replace(' ', '').split(',')
-        self.myKeywords = self.tcl_commands_list + autocomplete_kw_list + self.tcl_keywords
+        # the user's own words, from the Preferences
+        self.user_keywords = _split_words(self.options.get('util_autocomplete_keywords'))
+        self.myKeywords = self._all_keywords()
 
         # initial register of keywords for the shell
         self.register_keywords(self.myKeywords)
@@ -433,16 +312,56 @@ class RegisterFK(QtCore.QObject):
         self.ui.util_pref_form.kw_group.del_btn.clicked.connect(
             lambda: self.del_extension(ext_type='keyword'))
 
+    def _extension_words(self):
+        """The file extensions the app opens: its lists and the file associations of the Preferences."""
+        words = self.grb_list + self.exc_list + self.gcode_list + self.svg_list + self.dxf_list + self.pdf_list
+        for key in ('fa_gerber', 'fa_excellon', 'fa_gcode'):
+            words = words + _split_words(self.options.get(key))
+        # one letter extensions (h, i) would only disturb the typing
+        return [word for word in words if len(word) > 1]
+
+    def _color_words(self):
+        # the object names first, where prepend_keyword() puts them
+        return _unique(self.object_names + self.tcl_commands_list + self.tcl_options_list + list(self.preprocessors) +
+                       BOOLEAN_WORDS + APP_FILE_TYPES + self._extension_words() + self.folder_names +
+                       self.user_keywords + self.tcl_keywords)
+
+    def _preference_names(self):
+        """The names of the preferences, for set_sys and get_sys."""
+        return sorted(key for key in self.options if isinstance(key, str))
+
+    def _all_keywords(self):
+        # the preference names last: they are completed, but they are too many to color in the script editor
+        return _unique(self._color_words() + self._preference_names())
+
+    @property
+    def color_keywords(self):
+        """
+        The words that the script editor colors: the Tcl words, the Tcl commands of the app with their options and
+        the preprocessors, but not the preference names, the file extensions, the folder names and the user name
+        (the auto-completer has them).
+        """
+        tcl_words = set(self.tcl_keywords) | set(self.tcl_commands_list) | set(self.tcl_options_list) | \
+            set(self.preprocessors)
+        plain = set(self._preference_names()) | set(self._extension_words()) | set(self.folder_names)
+        plain -= tcl_words
+        return [word for word in self.myKeywords if word not in plain]
+
     def register_keywords(self, keywords=None):
         if keywords is None:
+            # a new shell (or the first one) has its interpreter now: take the Tcl language words from it
+            words = tcl_language_words(getattr(self.shell, 'tcl', None))
+            if words and words != self.tcl_keywords:
+                self.tcl_keywords = words
+                self.myKeywords = _unique(self._all_keywords() + self.myKeywords)
             self.shell.command_line().set_model_data(self.myKeywords)
             return
         self.myKeywords = keywords
         self.shell.command_line().set_model_data(self.myKeywords)
 
     def rebuild_keywords(self, kw_list):
-        # the object names first, where prepend_keyword() puts them
-        self.register_keywords(self.object_names + self.tcl_commands_list + kw_list + self.tcl_keywords)
+        self.user_keywords = [word for word in kw_list if word]
+        self.register_keywords(self._all_keywords())
 
     def prepend_keyword(self, kw, update=True):
         self.myKeywords.insert(0, kw)
@@ -495,8 +414,8 @@ class RegisterFK(QtCore.QObject):
         :param obj_type: the type of object to be register for.
         Can be: 'gerber', 'excellon', 'gcode', 'project' or 'config'. 'geometry' is not used for the moment.
         :param keep_foreign: True for a registration that the user did not ask for (the first start): a Gerber,
-        Excellon or G-code extension that another program opens (Windows) is not taken and FlatCAM is not made the
-        default program of these extensions (macOS)
+        Excellon or G-code extension that another program opens (Windows) or that the system already maps to another
+        MIME type (Linux) is not taken, and FlatCAM is not made the default program of these extensions (macOS)
 
         :return: None
         """
@@ -507,7 +426,7 @@ class RegisterFK(QtCore.QObject):
         elif sys.platform == 'darwin':
             self._register_macos(obj_type, keep_foreign)
         elif sys.platform.startswith('linux'):
-            self._register_linux(obj_type)
+            self._register_linux(obj_type, keep_foreign)
 
     def on_unregister_files(self, obj_type=None):
         """
@@ -524,28 +443,33 @@ class RegisterFK(QtCore.QObject):
 
     def _register_windows(self, obj_type=None, keep_foreign=False):
         root_path = self._root_path()
+        results = []
 
         if obj_type in (None, 'excellon', 'gcode', 'gerber'):
-            self.register_progid(root_path, 'FlatCAM', 'FlatCAM')
+            results.append(self.register_progid(root_path, 'FlatCAM', 'FlatCAM'))
 
         if obj_type is None or obj_type == 'excellon':
-            self.register_excellon_extension(root_path, keep_foreign)
+            results.append(self.register_excellon_extension(root_path, keep_foreign))
 
         if obj_type is None or obj_type == 'gcode':
-            self.register_gcode_extension(root_path, keep_foreign)
+            results.append(self.register_gcode_extension(root_path, keep_foreign))
 
         if obj_type is None or obj_type == 'gerber':
-            self.register_gerber_extension(root_path, keep_foreign)
+            results.append(self.register_gerber_extension(root_path, keep_foreign))
 
         if obj_type is None or obj_type == 'project':
-            self.register_progid(root_path, 'FlatCAM.Project', _("FlatCAM Project"))
-            self.register_extensions(root_path, self.prj_list, 'FlatCAM.Project')
+            results.append(self.register_progid(root_path, 'FlatCAM.Project', _("FlatCAM Project")))
+            results.append(self.register_extensions(root_path, self.prj_list, 'FlatCAM.Project'))
 
         if obj_type is None or obj_type == 'config':
-            self.register_progid(root_path, 'FlatCAM.Config', _("FlatCAM Config"))
-            self.register_extensions(root_path, self.conf_list, 'FlatCAM.Config')
+            results.append(self.register_progid(root_path, 'FlatCAM.Config', _("FlatCAM Config")))
+            results.append(self.register_extensions(root_path, self.conf_list, 'FlatCAM.Config'))
 
         self.notify_assoc_changed()
+        if all(results):
+            self.inform.emit('[success] %s' % _("Extensions registered."))  # noqa
+        else:
+            self.inform_error(_("Could not write all file associations to the registry."))
 
     def _unregister_windows(self, obj_type=None):
         root_path = self._root_path()
@@ -585,7 +509,9 @@ class RegisterFK(QtCore.QObject):
     }
     LINUX_XML = 'flatcam-evo.xml'
     LINUX_DESKTOP = 'flatcam-evo.desktop'
-    MAC_BUNDLE_ID = 'org.flatcam.evo'
+    LINUX_ICON = 'flatcam-evo'
+    MAC_BUNDLE_ID = 'org.flatcam.evo'  # the id of the release .app
+    MAC_STUB_ID = 'org.flatcam.evo.launcher'  # the stub bundle of a source run has its own id
     MAC_LSREGISTER = ('/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/'
                       'Support/lsregister')
 
@@ -616,8 +542,13 @@ class RegisterFK(QtCore.QObject):
 
     @staticmethod
     def launcher_argv():
-        """The command (list) that starts this installation: the frozen executable, or python + flatcam.py."""
+        """The command (list) that starts this installation: the AppImage file, the frozen executable, or python +
+        flatcam.py."""
         if getattr(sys, 'frozen', False):
+            # an AppImage runs from a temporary mount that is gone after the exit: start the .AppImage file itself
+            image = os.environ.get('APPIMAGE') if sys.platform.startswith('linux') else None
+            if image and os.path.isfile(image):
+                return [os.path.abspath(image)]
             return [os.path.abspath(sys.executable)]
         script = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'flatcam.py')
         return [sys.executable, script]
@@ -657,8 +588,18 @@ class RegisterFK(QtCore.QObject):
         data = os.environ.get('XDG_DATA_HOME') or os.path.join(os.path.expanduser('~'), '.local', 'share')
         mime = os.path.join(data, 'mime')
         apps = os.path.join(data, 'applications')
+        icons = os.path.join(data, 'icons', 'hicolor')
         return {'mime': mime, 'xml': os.path.join(mime, 'packages', self.LINUX_XML),
-                'apps': apps, 'desktop': os.path.join(apps, self.LINUX_DESKTOP)}
+                'apps': apps, 'desktop': os.path.join(apps, self.LINUX_DESKTOP),
+                'icons': icons, 'icon': os.path.join(icons, '256x256', 'apps', self.LINUX_ICON + '.png')}
+
+    def linux_foreign_extension(self, ext):
+        """True if the system MIME database maps the extension to a type that is not ours (and not 'unknown')."""
+        ours = set(self.ASSOC_MIME.values())
+        for mime in QtCore.QMimeDatabase().mimeTypesForFileName('x.' + ext):
+            if mime.name() not in ours and mime.name() != 'application/octet-stream':
+                return True
+        return False
 
     def linux_read_state(self, xml_path):
         """What an earlier registration wrote: {key: [extensions]}."""
@@ -677,6 +618,36 @@ class RegisterFK(QtCore.QObject):
         return state
 
     def linux_write(self, paths, state):
+        previous = {}
+        for key in ('icon', 'xml', 'desktop'):
+            path = paths[key]
+            try:
+                with open(path, 'rb') as fh:
+                    previous[path] = fh.read()
+            except FileNotFoundError:
+                previous[path] = None
+        try:
+            self._linux_write(paths, state)
+        except OSError:
+            # A failed update must not leave a new association or destroy an earlier user file.
+            for path, content in previous.items():
+                if content is None:
+                    try:
+                        os.remove(path)
+                    except FileNotFoundError:
+                        pass
+                elif os.path.isfile(path):
+                    with open(path, 'rb') as fh:
+                        unchanged = fh.read() == content
+                    if not unchanged:
+                        with open(path, 'wb') as fh:
+                            fh.write(content)
+            raise
+
+    def _linux_write(self, paths, state):
+        # Validate/copy the icon before publishing MIME types and their desktop handler.
+        os.makedirs(os.path.dirname(paths['icon']), exist_ok=True)
+        shutil.copyfile(self.png_icon_path(), paths['icon'])
         ns = 'http://www.freedesktop.org/standards/shared-mime-info'
         ET.register_namespace('', ns)
         root = ET.Element('{%s}mime-info' % ns)
@@ -699,7 +670,7 @@ class RegisterFK(QtCore.QObject):
             'GenericName=PCB CAM',
             'Comment=G-code for PCB manufacturing from Gerber and Excellon files',
             'Exec=%s' % exec_line,
-            'Icon=%s' % self.png_icon_path(),
+            'Icon=%s' % self.LINUX_ICON,
             'Terminal=false',
             'StartupNotify=true',
             'Categories=Graphics;Engineering;Electronics;',
@@ -713,15 +684,19 @@ class RegisterFK(QtCore.QObject):
     def linux_refresh(self, paths, default_mimes=()):
         self.run_tool('update-mime-database', paths['mime'])
         self.run_tool('update-desktop-database', paths['apps'])
+        self.run_tool('gtk-update-icon-cache', '-f', '-t', paths['icons'])
         for mime in default_mimes:
             self.run_tool('xdg-mime', 'default', self.LINUX_DESKTOP, mime)
 
-    def _register_linux(self, obj_type=None):
+    def _register_linux(self, obj_type=None, keep_foreign=False):
         paths = self.linux_paths()
         keys = self.assoc_keys(obj_type)
         state = self.linux_read_state(paths['xml'])
         for key in keys:
             exts = self.assoc_exts(key)
+            if keep_foreign and key not in self.ASSOC_UTI:
+                # first start: do not take what the system already opens with another type
+                exts = [e for e in exts if not self.linux_foreign_extension(e)]
             if exts:
                 state[key] = exts
             else:
@@ -738,7 +713,14 @@ class RegisterFK(QtCore.QObject):
         self.inform.emit('[success] %s' % _("Extensions registered."))  # noqa
 
     def linux_remove(self, paths):
-        for path in (paths['xml'], paths['desktop']):
+        owned_icon = False
+        if not os.path.islink(paths['icon']):
+            try:
+                with open(paths['icon'], 'rb') as installed, open(self.png_icon_path(), 'rb') as expected:
+                    owned_icon = installed.read() == expected.read()
+            except OSError:
+                pass
+        for path in (paths['xml'], paths['desktop']) + ((paths['icon'],) if owned_icon else ()):
             try:
                 os.remove(path)
             except FileNotFoundError:
@@ -764,8 +746,31 @@ class RegisterFK(QtCore.QObject):
     def mac_bundle_path(self):
         return os.path.join(os.path.expanduser('~'), 'Applications', 'FlatCAM EVO.app')
 
+    @staticmethod
+    def mac_running_bundle():
+        """The .app folder that this frozen program runs from (the release), or None for a source run."""
+        if not getattr(sys, 'frozen', False):
+            return None
+        exe = os.path.abspath(sys.executable)
+        head, sep, _tail = exe.partition('.app' + os.sep + 'Contents' + os.sep + 'MacOS' + os.sep)
+        return head + '.app' if sep else None
+
     def mac_lsregister(self):
         return self.MAC_LSREGISTER if os.path.isfile(self.MAC_LSREGISTER) else None
+
+    def mac_remove_own_stub(self):
+        """Remove the stub bundle in ~/Applications if FlatCAM wrote it (a bundle of another program is kept)."""
+        stub = self.mac_bundle_path()
+        running = self.mac_running_bundle()
+        if running and os.path.realpath(stub) == os.path.realpath(running):
+            return
+        if os.path.islink(stub) or not os.path.isdir(stub) or self.mac_read_state(
+                os.path.join(stub, 'Contents', 'Info.plist')) is None:
+            return
+        lsregister = self.mac_lsregister()
+        if lsregister:
+            self.run_tool(lsregister, '-u', stub)
+        shutil.rmtree(stub, ignore_errors=True)
 
     def mac_read_state(self, plist_path):
         """{key: [extensions]} from our bundle; None if the bundle belongs to somebody else."""
@@ -773,8 +778,32 @@ class RegisterFK(QtCore.QObject):
             with open(plist_path, 'rb') as fh:
                 info = plistlib.load(fh)
         except (OSError, plistlib.InvalidFileException, ValueError):
-            return {}
-        if info.get('CFBundleIdentifier') != self.MAC_BUNDLE_ID:
+            return None
+        if not isinstance(info, dict):
+            return None
+        if info.get('CFBundleIdentifier') == self.MAC_BUNDLE_ID:
+            contents = os.path.dirname(plist_path)
+            bundle = os.path.dirname(contents)
+            script = os.path.join(contents, 'MacOS', 'flatcam-evo')
+            running = self.mac_running_bundle()
+            if (any(os.path.islink(path) for path in (bundle, contents, plist_path,
+                                                     os.path.dirname(script), script)) or
+                    (running and os.path.realpath(bundle) == os.path.realpath(running)) or
+                    info.get('CFBundleExecutable') != 'flatcam-evo' or
+                    not isinstance(info.get('FlatCAMAssociations'), dict)):
+                return None
+            try:
+                with open(script, encoding='utf-8') as fh:
+                    lines = fh.read().splitlines()
+                argv = shlex.split(lines[1][5:]) if len(lines) == 2 and lines[1].startswith('exec ') else []
+                if (lines[0] != '#!/bin/sh' or len(argv) != 3 or argv[-1] != '$@' or
+                        not os.path.isabs(argv[0]) or not os.path.isabs(argv[1]) or
+                        not os.path.basename(argv[0]).lower().startswith('python') or
+                        os.path.basename(argv[1]) != 'flatcam.py'):
+                    return None
+            except (OSError, UnicodeError, ValueError, IndexError):
+                return None
+        elif info.get('CFBundleIdentifier') != self.MAC_STUB_ID:
             return None
         return {k: list(v) for k, v in info.get('FlatCAMAssociations', {}).items() if k in self.ASSOC_KEYS}
 
@@ -794,7 +823,7 @@ class RegisterFK(QtCore.QObject):
             else:
                 doc['CFBundleTypeExtensions'] = list(state[key])
             doc_types.append(doc)
-        info = {'CFBundleIdentifier': self.MAC_BUNDLE_ID, 'CFBundleName': 'FlatCAM EVO',
+        info = {'CFBundleIdentifier': self.MAC_STUB_ID, 'CFBundleName': 'FlatCAM EVO',
                 'CFBundleDisplayName': 'FlatCAM EVO', 'CFBundleExecutable': 'flatcam-evo',
                 'CFBundlePackageType': 'APPL', 'CFBundleVersion': '1.0', 'CFBundleShortVersionString': '1.0',
                 'NSHighResolutionCapable': True, 'CFBundleDocumentTypes': doc_types,
@@ -807,6 +836,11 @@ class RegisterFK(QtCore.QObject):
 
     def mac_write(self, bundle, state):
         contents = os.path.join(bundle, 'Contents')
+        running = self.mac_running_bundle()
+        if os.path.lexists(bundle) and (os.path.islink(bundle) or
+                (running and os.path.realpath(bundle) == os.path.realpath(running)) or
+                self.mac_read_state(os.path.join(contents, 'Info.plist')) is None):
+            raise OSError(_("%s is not a source launcher bundle.") % bundle)
         os.makedirs(os.path.join(contents, 'MacOS'), exist_ok=True)
 
         base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -820,8 +854,18 @@ class RegisterFK(QtCore.QObject):
                 icon_name = icons[0]
                 break
 
-        with open(os.path.join(contents, 'Info.plist'), 'wb') as fh:
-            plistlib.dump(self.mac_info(state, icon_name), fh)
+        import tempfile
+        temporary = None
+        try:
+            with tempfile.NamedTemporaryFile(dir=contents, delete=False) as fh:
+                temporary = fh.name
+                plistlib.dump(self.mac_info(state, icon_name), fh)
+                fh.flush()
+                os.fsync(fh.fileno())
+            os.replace(temporary, os.path.join(contents, 'Info.plist'))
+        finally:
+            if temporary and os.path.exists(temporary):
+                os.remove(temporary)
 
         script = os.path.join(contents, 'MacOS', 'flatcam-evo')
         with open(script, 'w', encoding='utf-8') as fh:
@@ -829,9 +873,14 @@ class RegisterFK(QtCore.QObject):
         os.chmod(script, 0o755)
 
     def _register_macos(self, obj_type=None, keep_foreign=False):
-        bundle = self.mac_bundle_path()
+        real = self.mac_running_bundle()
+        bundle = real or self.mac_bundle_path()
         keys = self.assoc_keys(obj_type)
-        state = self.mac_read_state(os.path.join(bundle, 'Contents', 'Info.plist'))
+        # the release has its own Info.plist and is never rewritten; a source run writes a stub bundle
+        state = {} if real or not os.path.lexists(bundle) else self.mac_read_state(
+            os.path.join(bundle, 'Contents', 'Info.plist'))
+        if not real and os.path.islink(bundle):
+            state = None
         if state is None:
             self.inform_error(_("%s belongs to another application.") % bundle)
             return
@@ -842,16 +891,19 @@ class RegisterFK(QtCore.QObject):
             else:
                 state.pop(key, None)
         try:
-            if state:
+            if real:
+                # Only the dedicated source launcher can be removed; release bundles are never ours to change.
+                self.mac_remove_own_stub()
+            elif state:
                 self.mac_write(bundle, state)
             else:
-                shutil.rmtree(bundle, ignore_errors=True)
+                self.mac_remove_own_stub()
         except OSError as err:
             self.inform_error(err)
             return
 
         lsregister = self.mac_lsregister()
-        if lsregister and state:
+        if lsregister and (state or real):
             self.run_tool(lsregister, '-f', bundle)
         if shutil.which('duti'):
             for key in keys:
@@ -859,7 +911,7 @@ class RegisterFK(QtCore.QObject):
                     continue
                 targets = [self.ASSOC_UTI[key]] if key in self.ASSOC_UTI else ['.%s' % e for e in state[key]]
                 for target in targets:
-                    self.run_tool('duti', '-s', self.MAC_BUNDLE_ID, target, 'all')
+                    self.run_tool('duti', '-s', self.MAC_BUNDLE_ID if real else self.MAC_STUB_ID, target, 'all')
         else:
             self.inform.emit('[warning] %s' % _(  # noqa
                 'To open these files with FlatCAM by default, select one in Finder and use '
@@ -867,7 +919,16 @@ class RegisterFK(QtCore.QObject):
         self.inform.emit('[success] %s' % _("Extensions registered."))  # noqa
 
     def _unregister_macos(self, obj_type=None):
+        if self.mac_running_bundle():
+            # the release bundle is not ours to change, and duti can not remove a default program
+            self.mac_remove_own_stub()
+            self.inform.emit('[WARNING_NOTCL] %s' % _(  # noqa
+                'The FlatCAM application keeps its file types. To open these files with another program, select '
+                'one in Finder and use "Get Info > Open With" followed by "Change All".'))
+            return
         bundle = self.mac_bundle_path()
+        if os.path.islink(bundle):
+            return
         state = self.mac_read_state(os.path.join(bundle, 'Contents', 'Info.plist'))
         if not state:
             return
@@ -880,9 +941,7 @@ class RegisterFK(QtCore.QObject):
                 if lsregister:
                     self.run_tool(lsregister, '-f', bundle)
             else:
-                if lsregister:
-                    self.run_tool(lsregister, '-u', bundle)
-                shutil.rmtree(bundle)
+                self.mac_remove_own_stub()
         except OSError as err:
             self.inform_error(err)
             return
@@ -934,10 +993,12 @@ class RegisterFK(QtCore.QObject):
 
     def register_progid(self, root_path, progid, friendly_name):
         base = 'Software\\Classes\\' + progid
-        self.set_reg('', root_pth=root_path, new_reg_path_par=base, value=friendly_name)
-        self.set_reg('', root_pth=root_path, new_reg_path_par=base + '\\DefaultIcon', value=self.icon_path() + ',0')
-        self.set_reg('', root_pth=root_path, new_reg_path_par=base + '\\shell\\open\\command',
-                     value=self.launcher_command())
+        results = [self.set_reg('', root_pth=root_path, new_reg_path_par=base, value=friendly_name),
+                   self.set_reg('', root_pth=root_path, new_reg_path_par=base + '\\DefaultIcon',
+                                value=self.icon_path() + ',0'),
+                   self.set_reg('', root_pth=root_path, new_reg_path_par=base + '\\shell\\open\\command',
+                                value=self.launcher_command())]
+        return all(results)
 
     def refresh_windows_icons(self):
         """
@@ -968,9 +1029,11 @@ class RegisterFK(QtCore.QObject):
             self.delete_reg(root_pth=root_path, reg_path=base, key_to_del=sub)
 
     def register_extensions(self, root_path, ext_list, progid):
+        success = True
         for ext in ext_list:
-            self.set_reg('', root_pth=root_path, new_reg_path_par='Software\\Classes\\.%s' % ext, value=progid)
-        self.inform.emit('[success] %s' % _("Extensions registered."))  # noqa
+            success = self.set_reg('', root_pth=root_path, new_reg_path_par='Software\\Classes\\.%s' % ext,
+                                   value=progid) and success
+        return success
 
     def unregister_extensions(self, root_path, ext_list, progid):
         # only the extensions that still point to our progid
@@ -985,6 +1048,7 @@ class RegisterFK(QtCore.QObject):
 
     def register_excellon_extension(self, root_path, keep_foreign=False):
         new_reg_path = 'Software\\Classes\\'
+        success = True
 
         exc_list = \
             self.ui.util_pref_form.fa_excellon_group.exc_list_text.get_value().replace(' ', '').split(',')
@@ -995,7 +1059,7 @@ class RegisterFK(QtCore.QObject):
             if keep_foreign and self.foreign_extension(ext):
                 continue
             new_k = new_reg_path + '.%s' % ext
-            self.set_reg('', root_pth=root_path, new_reg_path_par=new_k, value='FlatCAM')
+            success = self.set_reg('', root_pth=root_path, new_reg_path_par=new_k, value='FlatCAM') and success
 
         # and unregister those that are no longer in the Preferences windows but are in the file, only where they
         # still point to FlatCAM (another program may have the extension now)
@@ -1008,10 +1072,11 @@ class RegisterFK(QtCore.QObject):
         # for ext in exc_list:
         #     new_ext = new_ext + ext + ', '
         # self.options["fa_excellon"] = new_ext
-        self.inform.emit('[success] %s' % _("Extensions registered."))  # noqa
+        return success
 
     def register_gerber_extension(self, root_path, keep_foreign=False):
         new_reg_path = 'Software\\Classes\\'
+        success = True
 
         grb_list = self.ui.util_pref_form.fa_gerber_group.grb_list_text.get_value().replace(' ', '').split(',')
         grb_list = [x for x in grb_list if x != '']
@@ -1021,7 +1086,7 @@ class RegisterFK(QtCore.QObject):
             if keep_foreign and self.foreign_extension(ext):
                 continue
             new_k = new_reg_path + '.%s' % ext
-            self.set_reg('', root_pth=root_path, new_reg_path_par=new_k, value='FlatCAM')
+            success = self.set_reg('', root_pth=root_path, new_reg_path_par=new_k, value='FlatCAM') and success
 
         # and unregister those that are no longer in the Preferences windows but are in the file, only where they
         # still point to FlatCAM (another program may have the extension now)
@@ -1029,10 +1094,11 @@ class RegisterFK(QtCore.QObject):
             if ext not in grb_list and self.get_reg(root_path, new_reg_path + '.%s' % ext) == 'FlatCAM':
                 self.delete_reg(root_pth=root_path, reg_path=new_reg_path, key_to_del='.%s' % ext)
 
-        self.inform.emit('[success] %s' % _("Extensions registered."))  # noqa
+        return success
 
     def register_gcode_extension(self, root_path, keep_foreign=False):
         new_reg_path = 'Software\\Classes\\'
+        success = True
 
         gco_list = self.ui.util_pref_form.fa_gcode_group.gco_list_text.get_value().replace(' ', '').split(',')
         gco_list = [x for x in gco_list if x != '']
@@ -1042,7 +1108,7 @@ class RegisterFK(QtCore.QObject):
             if keep_foreign and self.foreign_extension(ext):
                 continue
             new_k = new_reg_path + '.%s' % ext
-            self.set_reg('', root_pth=root_path, new_reg_path_par=new_k, value='FlatCAM')
+            success = self.set_reg('', root_pth=root_path, new_reg_path_par=new_k, value='FlatCAM') and success
 
         # and unregister those that are no longer in the Preferences windows but are in the file, only where they
         # still point to FlatCAM (another program may have the extension now)
@@ -1050,7 +1116,7 @@ class RegisterFK(QtCore.QObject):
             if ext not in gco_list and self.get_reg(root_path, new_reg_path + '.%s' % ext) == 'FlatCAM':
                 self.delete_reg(root_pth=root_path, reg_path=new_reg_path, key_to_del='.%s' % ext)
 
-        self.inform.emit('[success] %s' % _("Extensions registered."))  # noqa
+        return success
 
     def add_extension(self, ext_type):
         """
@@ -1110,16 +1176,16 @@ class RegisterFK(QtCore.QObject):
         if new_kw == '':
             return
 
-        old_val = self.ui.util_pref_form.kw_group.kw_list_text.get_value().replace(' ', '').split(',')
-        if new_kw in old_val:
+        new_kw = new_kw.strip()
+        old_val = _split_words(self.ui.util_pref_form.kw_group.kw_list_text.get_value())
+        if not new_kw or new_kw in old_val:
             return
         old_val.append(new_kw)
         old_val.sort()
         self.ui.util_pref_form.kw_group.kw_list_text.set_value(', '.join(old_val))
 
         # update the self.myKeywords so the model is updated
-        autocomplete_kw_list = self.ui.util_pref_form.kw_group.kw_list_text.get_value().replace(' ', '').split(',')
-        self.rebuild_keywords(autocomplete_kw_list)
+        self.rebuild_keywords(old_val)
 
     def del_extension(self, ext_type):
         """
@@ -1178,7 +1244,8 @@ class RegisterFK(QtCore.QObject):
         if new_kw == '':
             return
 
-        old_val = self.ui.util_pref_form.kw_group.kw_list_text.get_value().replace(' ', '').split(',')
+        new_kw = new_kw.strip()
+        old_val = _split_words(self.ui.util_pref_form.kw_group.kw_list_text.get_value())
         if new_kw not in old_val:
             return
         old_val.remove(new_kw)
@@ -1186,8 +1253,7 @@ class RegisterFK(QtCore.QObject):
         self.ui.util_pref_form.kw_group.kw_list_text.set_value(', '.join(old_val))
 
         # update the self.myKeywords so the model is updated
-        autocomplete_kw_list = self.ui.util_pref_form.kw_group.kw_list_text.get_value().replace(' ', '').split(',')
-        self.rebuild_keywords(autocomplete_kw_list)
+        self.rebuild_keywords(old_val)
 
     def restore_extensions(self, ext_type):
         """

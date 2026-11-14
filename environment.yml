@@ -15,7 +15,6 @@ dependencies:
 - pillow>=9.1
 - pip
 - pre-commit
-- pyopengl
 - pyserial>=3.4
 - qrcode>=6.1
 - rasterio
@@ -29,5 +28,10 @@ dependencies:
 # the optional packages (OR-Tools, pyclipr) are not listed: a failed pip package stops the environment.
 # After the environment is made, run:  python install_optional.py
 - pip:
-  - pyqt6>=6.1.0
+  # PyOpenGL 3.x reads ctypes.__version__, deprecated in Python 3.15.
+  - pyopengl>=3.1.10; python_version < "3.15"
+  - pyopengl==4.0.0a9; python_version >= "3.15"
+  - PyQt6==6.12.0
+  - PyQt6-Qt6==6.12.0
+  - PyQt6-Pdf==6.140.0
   - vtracer>=0.6.15

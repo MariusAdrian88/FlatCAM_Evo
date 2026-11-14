@@ -100,11 +100,11 @@ from appEditors.vertex_ops import (vertex_grips, ring_after_edit, edit_vertex, c
                                    expand_skeleton)
 
 
-def save_editor(geos, tooldia=0.5, multigeo_tool=None):
+def save_editor(geos, tooldia=0.5, edited_tool=1):
     storage = AppGeoEditor.make_storage()
     storage.replace(inserted=[DrawToolShape(geo) for geo in geos])
     editor = SimpleNamespace(
-        storage=storage, multigeo_tool=multigeo_tool,
+        storage=storage, edited_tool=edited_tool,
         app=SimpleNamespace(proc_container=MagicMock(), inform=Mock()),
         ui=SimpleNamespace(tooldia_entry=SimpleNamespace(get_value=lambda: tooldia)))
     editor.deactivate = Mock()
@@ -112,7 +112,7 @@ def save_editor(geos, tooldia=0.5, multigeo_tool=None):
 
 
 def geometry_object(tooldia=0.5, tools=None):
-    obj = SimpleNamespace(solid_geometry=[LineString([(9, 9), (10, 10)])], tools=tools or {},
+    obj = SimpleNamespace(tools=tools or {1: {'tooldia': tooldia, 'data': {}, 'solid_geometry': []}},
                           obj_options={'tools_mill_tooldia': tooldia}, regenerate_source=Mock(return_value=True))
     obj.bounds = lambda: (0.0, 0.0, 2.0, 1.0)
     return obj
@@ -124,12 +124,12 @@ class TestGeoEditorSave(unittest.TestCase):
         editor = save_editor([a, b])
         obj = geometry_object()
         seen = []
-        editor.deactivate.side_effect = lambda: seen.append(list(obj.solid_geometry))
+        editor.deactivate.side_effect = lambda: seen.append(list(obj.tools[1]['solid_geometry']))
 
         AppGeoEditor.update_editor_geometry(editor, obj)
 
         # the copy is done in the call (no worker thread), then the editor is deactivated 1 time
-        self.assertEqual(obj.solid_geometry, [a, b])
+        self.assertEqual(obj.tools[1]['solid_geometry'], [a, b])
         self.assertEqual(seen, [[a, b]])
         self.assertEqual((obj.obj_options['xmin'], obj.obj_options['ymax']), (0.0, 1.0))
         obj.regenerate_source.assert_called_once_with()
@@ -140,21 +140,81 @@ class TestGeoEditorSave(unittest.TestCase):
         editor = save_editor([multi])
         obj = geometry_object()
         AppGeoEditor.update_editor_geometry(editor, obj)
-        self.assertEqual(len(obj.solid_geometry), 1)
-        self.assertEqual(obj.solid_geometry[0].geom_type, 'LineString')
-        self.assertEqual(len(obj.solid_geometry[0].coords), 3)
+        self.assertEqual(len(obj.tools[1]['solid_geometry']), 1)
+        self.assertEqual(obj.tools[1]['solid_geometry'][0].geom_type, 'LineString')
+        self.assertEqual(len(obj.tools[1]['solid_geometry'][0].coords), 3)
 
 
-    def test_multigeo_tool_gets_the_geometry(self):
+    def test_selected_tool_gets_the_geometry(self):
         a = LineString([(0, 0), (1, 0)])
         tools = {1: {'tooldia': 0.5, 'data': {'tools_mill_tooldia': 0.5}, 'solid_geometry': []}}
-        editor = save_editor([a], tooldia=0.6, multigeo_tool=1)
+        editor = save_editor([a], tooldia=0.6, edited_tool=1)
         obj = geometry_object(tools=tools)
         AppGeoEditor.update_editor_geometry(editor, obj)
         self.assertEqual(tools[1]['solid_geometry'], [a])
         self.assertEqual(tools[1]['tooldia'], 0.6)
         self.assertEqual(tools[1]['data']['tools_mill_tooldia'], 0.6)
-        self.assertIsNone(editor.multigeo_tool)
+        # a second save in the same editor session goes to the same tool
+        AppGeoEditor.update_editor_geometry(editor, obj)
+        self.assertEqual(tools[1]['solid_geometry'], [a])
+
+
+@pytest.mark.parametrize('selected,expected', [(None, 7), (0, 0)])
+def test_editor_load_and_save_affect_only_the_chosen_tool(selected, expected):
+    app, obj = make_geometry()
+    a, b = LineString([(0, 0), (1, 0)]), LineString([(0, 2), (2, 2)])
+    obj.tools = {7: {'tooldia': 0.5, 'data': {}, 'solid_geometry': [a]},
+                 0: {'tooldia': 0.8, 'data': {}, 'solid_geometry': [b]}}
+    original = deepcopy(obj.tools)
+    editor = save_editor([])
+    editor.app = app
+    editor.activate = Mock()
+    editor.set_editor_ui = Mock()
+    editor.select_tool = Mock()
+    editor.flatten = lambda geometry, orient_val: geometry
+    editor.add_shape = lambda shapes, **kw: editor.storage.replace(inserted=shapes)
+    editor.plot_all = Mock()
+    editor.build_ui_sig, editor.load_done = Mock(), Mock()
+    with patch.object(AppGeoEditor, 'submit_worker',
+                      side_effect=lambda _editor, fn, params, **kw: fn(*params)):
+        AppGeoEditor.edit_geometry(editor, obj, edited_tool=selected)
+    assert [shape.geo for shape in editor.storage.get_objects()] == original[expected]['solid_geometry']
+    editor.load_done.emit.assert_called_once_with(original[expected]['tooldia'])
+    replacement = LineString([(10, 10), (12, 10)])
+    editor.storage.replace(removed=list(editor.storage.get_objects()), inserted=[DrawToolShape(replacement)])
+    obj.regenerate_source = Mock(return_value=True)
+    AppGeoEditor.update_editor_geometry(editor, obj)
+    assert obj.tools[expected]['solid_geometry'] == [replacement]
+    other = 0 if expected == 7 else 7
+    assert obj.tools[other] == original[other]
+
+
+def test_editor_save_changes_every_tool_that_shares_the_edited_shapes():
+    """An old single-geo object gave its shapes to every tool: an edit must not leave a tool with the old shapes."""
+    app, obj = make_geometry()
+    a, b = LineString([(0, 0), (1, 0)]), LineString([(0, 2), (2, 2)])
+    obj.tools = {1: {'tooldia': 0.5, 'data': {}, 'solid_geometry': [a]},
+                 2: {'tooldia': 0.8, 'data': {}, 'solid_geometry': [LineString([(0, 0), (1, 0)])]},
+                 3: {'tooldia': 1.0, 'data': {}, 'solid_geometry': [b]}}
+    editor = save_editor([])
+    editor.app = app
+    editor.activate = Mock()
+    editor.set_editor_ui = Mock()
+    editor.select_tool = Mock()
+    editor.flatten = lambda geometry, orient_val: geometry
+    editor.add_shape = lambda shapes, **kw: editor.storage.replace(inserted=shapes)
+    editor.plot_all = Mock()
+    editor.build_ui_sig, editor.load_done = Mock(), Mock()
+    with patch.object(AppGeoEditor, 'submit_worker',
+                      side_effect=lambda _editor, fn, params, **kw: fn(*params)):
+        AppGeoEditor.edit_geometry(editor, obj, edited_tool=1)
+    replacement = LineString([(10, 10), (12, 10)])
+    editor.storage.replace(removed=list(editor.storage.get_objects()), inserted=[DrawToolShape(replacement)])
+    obj.regenerate_source = Mock(return_value=True)
+    AppGeoEditor.update_editor_geometry(editor, obj)
+    assert obj.tools[1]['solid_geometry'] == obj.tools[2]['solid_geometry'] == [replacement]
+    assert obj.tools[2]['tooldia'] == 0.8
+    assert obj.tools[3]['solid_geometry'] == [b]
 
 
 class FakeCollection:
@@ -1176,7 +1236,7 @@ def qt_application_geo_editor_source():
         yield app
 
 
-def make_geometry(units='MM', multigeo=False):
+def make_geometry(units='MM'):
     app = make_app()
     app.app_units = units
     app.options['geometry_dxf_format'] = 'R2010'
@@ -1186,11 +1246,7 @@ def make_geometry(units='MM', multigeo=False):
     polygon = Polygon([(0, 0), (4, 0), (4, 4), (0, 4)],
                       holes=[[(1, 1), (2, 1), (2, 2), (1, 2)]])
     line = LineString([(5, 0), (6, 1)])
-    obj.solid_geometry = [polygon, line]
-    obj.multigeo = multigeo
-    if multigeo:
-        obj.tools = {1: {'tooldia': 0.5, 'data': {'tools_mill_tooldia': 0.5}, 'solid_geometry': [polygon]},
-                     2: {'tooldia': 0.8, 'data': {'custom': 'keep'}, 'solid_geometry': [line]}}
+    obj.tools[1]['solid_geometry'] = [polygon, line]
     return app, obj
 
 
@@ -1265,11 +1321,12 @@ def test_save_exports_in_the_worker_and_completes_on_the_gui_thread(monkeypatch)
 
 
 @pytest.mark.parametrize('units,unit_code', [('MM', 4)])
-@pytest.mark.parametrize('multigeo', [False, True])
-def test_editor_snapshot_project_restore_and_disk_export(tmp_path, units, unit_code, multigeo):
-    app, obj = make_geometry(units, multigeo)
+def test_editor_snapshot_project_restore_and_disk_export(tmp_path, units, unit_code):
+    app, obj = make_geometry(units)
     polygon, line = obj.solid_geometry
-    editor = save_editor([polygon] if multigeo else [polygon, line], multigeo_tool=1 if multigeo else None)
+    obj.tools[1]['solid_geometry'] = [polygon]
+    obj.tools[2] = {'tooldia': 0.8, 'data': {'custom': 'keep'}, 'solid_geometry': [line]}
+    editor = save_editor([polygon], edited_tool=1)
     editor.app = app
     obj.source_file = 'stale'
     seen = []
@@ -1282,10 +1339,8 @@ def test_editor_snapshot_project_restore_and_disk_export(tmp_path, units, unit_c
     assert len(restored) == 1
     again = restored[0]
     assert again.source_file == obj.source_file
-    assert again.multigeo == multigeo
-    if multigeo:
-        assert again.tools[2]['data'] == {'custom': 'keep'}
-        assert again.tools[2]['solid_geometry'][0].equals(line)
+    assert again.tools[2]['data'] == {'custom': 'keep'}
+    assert again.tools[2]['solid_geometry'][0].equals(line)
     snapshot = ezdxf.read(StringIO(again.source_file))
     assert snapshot.units == unit_code
     assert snapshot.header['$MEASUREMENT'] == (1 if units == 'MM' else 0)
@@ -1437,6 +1492,8 @@ def test_export_of_two_objects_writes_one_file_with_both_layers(tmp_path):
 
 
 def source(kind, geometry, plot=True, units='MM', **extra):
+    if kind == 'geometry':
+        extra.setdefault('tools', {1: {'solid_geometry': geometry}})
     return SimpleNamespace(kind=kind, solid_geometry=geometry, obj_options={'plot': plot}, units=units, **extra)
 
 
@@ -1976,7 +2033,7 @@ def test_paint_lines_method_paints_in_the_editor():
 def split_editor(geometry=None):
     editor, original = vertex_editor(geometry if geometry is not None else
                                      LineString([(0, 0), (2, 0), (4, 2)]))
-    editor.multigeo_tool = 7
+    editor.edited_tool = 7
     original.data['tool'] = 7
     editor.apply_path_split = lambda *a, **k: geo.AppGeoEditor.apply_path_split(editor, *a, **k)
     return editor, original
@@ -2002,7 +2059,7 @@ def test_split_conserves_length_direction_metadata_and_replays(point, reverse):
         assert shape.data['tool'] == 7
         assert shape.data['bounds'] == shape.geo.bounds
         assert shape.data is not original.data
-    assert editor.multigeo_tool == 7
+    assert editor.edited_tool == 7
     assert editor._snap_cache is None
     assert set(editor.storage.indexes) == {id(a), id(b)}
     assert editor.storage.nearest(a.geo.coords[0])[1] is a
@@ -2085,7 +2142,7 @@ def join_editor(paths):
         shape.data['tool'] = 7
         editor.storage.insert(shape)
     editor.selected = list(shapes)
-    editor.multigeo_tool = 7
+    editor.edited_tool = 7
     editor.plot_changes()
     editor.apply_path_join = lambda tolerance: geo.AppGeoEditor.apply_path_join(editor, tolerance)
     return editor, shapes
@@ -2103,7 +2160,7 @@ def test_exact_and_near_preserve_vertices_length_metadata_and_replay(reverse, ga
     assert set(a + b) <= set(result.geo.coords)
     assert result.geo.length == pytest.approx(sum(s.geo.length for s in originals) + gap)
     assert result.data['custom'] == originals[0].data['custom']
-    assert result.data['tool'] == editor.multigeo_tool == 7
+    assert result.data['tool'] == editor.edited_tool == 7
     assert result.data['bounds'] == result.geo.bounds
     assert editor._snap_cache is None
     assert set(editor.storage.indexes) == {id(result)}

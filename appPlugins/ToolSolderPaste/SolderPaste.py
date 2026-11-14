@@ -847,11 +847,7 @@ class SolderPaste(AppTool):
 
         def geo_init(geo_obj, app_obj):
             geo_obj.obj_options.update(obj_options)
-            geo_obj.solid_geometry = []
-
             geo_obj.tools = {}
-            geo_obj.multigeo = True
-            geo_obj.multitool = True
             geo_obj.special_group = 'solder_paste_tool'
 
             work_geo = tools_geometry
@@ -1015,8 +1011,6 @@ class SolderPaste(AppTool):
             )
 
             # this turn on the FlatCAMCNCJob plot for multiple tools
-            new_obj.multitool = True
-            new_obj.multigeo = True
             # new_obj object is a CNCJob object made from a Geometry object
             new_obj.tools = cnc_tools(obj.tools, current_tools)
             if not new_obj.tools:
@@ -1070,7 +1064,7 @@ class SolderPaste(AppTool):
             new_obj.used_tools = used_tools
 
             new_obj.gcode = ''.join(total_gcode)
-            new_obj.source_file = StringIO(new_obj.gcode)
+            new_obj.source_file = StringIO(''.join(tool.get('gcode') or '' for tool in new_obj.tools.values()))
 
         if use_thread:
             # To be run in separate thread

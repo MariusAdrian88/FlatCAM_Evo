@@ -60,9 +60,6 @@ class TclCommandPhotoCarve(TclCommand):
                     failure = str(err)
                     return 'fail'
                 geo.tools = built['tools']
-                geo.solid_geometry = built['solid_geometry']
-                geo.multigeo = True
-                geo.multitool = True
                 geo.obj_options['photocarve'] = built['photocarve']
 
             created = self.app.app_obj.new_object('geometry', outname, obj_init, plot=False)

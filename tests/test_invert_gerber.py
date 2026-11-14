@@ -37,8 +37,7 @@ class _Obj:
     def __init__(self, kind, solid, units='MM'):
         self.kind = kind
         self.solid_geometry = solid
-        self.tools = {}
-        self.multigeo = False
+        self.tools = {1: {'solid_geometry': solid}} if kind == 'geometry' else {}
         self.obj_options = {'units': units}
 
 

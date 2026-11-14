@@ -68,10 +68,10 @@ class TclCommandGeoCutout(TclCommandSignaled):
                      "      isolate BCu_margin -dia 3 -overlap 1\n" +
                      "\n" +
                      "      #create exteriors from isolated object\n" +
-                     "      exteriors BCu_margin_iso -outname BCu_margin_iso_exterior\n" +
+                     "      exteriors BCu_margin_iso_combined -outname BCu_margin_iso_exterior\n" +
                      "\n" +
                      "      #delete isolated object if you dond need id anymore\n" +
-                     "      delete BCu_margin_iso\n" +
+                     "      delete BCu_margin_iso_combined\n" +
                      "\n" +
                      "      #finally cut holding gaps\n" +
                      "      geoc BCu_margin_iso_exterior -dia 3 -gapsize 0.6 -gaps 4 -outname cutout_geo\n"]
@@ -223,7 +223,6 @@ class TclCommandGeoCutout(TclCommandSignaled):
             return "fail"
 
         def geo_init(geo_obj, app_obj):
-            geo_obj.multigeo = True
             geo = geo_to_cutout
 
             if gaps_u == 8 or gaps_u == '2LR':
@@ -264,13 +263,12 @@ class TclCommandGeoCutout(TclCommandSignaled):
                                               px + gapsize,
                                               ymax + gapsize)
 
-            geo_obj.solid_geometry = deepcopy(geo)
             geo_obj.obj_options['xmin'] = cutout_obj.obj_options['xmin']
             geo_obj.obj_options['ymin'] = cutout_obj.obj_options['ymin']
             geo_obj.obj_options['xmax'] = cutout_obj.obj_options['xmax']
             geo_obj.obj_options['ymax'] = cutout_obj.obj_options['ymax']
 
-            if not geo_obj.solid_geometry:
+            if not geo:
                 app_obj.log.warning("TclCommandGeoCutout.execute(). No geometry after geo-cutout.")
                 return "fail"
 
@@ -280,7 +278,7 @@ class TclCommandGeoCutout(TclCommandSignaled):
                 1: {
                     'tooldia': dia,
                     'data': default_tool_data,
-                    'solid_geometry': deepcopy(geo_obj.solid_geometry)
+                    'solid_geometry': deepcopy(geo)
                 }
             }
             geo_obj.tools[1]['data']['tools_cutout_tooldia'] = dia

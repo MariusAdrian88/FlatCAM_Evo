@@ -38,6 +38,33 @@ PREPROCESSORS = dict(appPreProcessor.preprocessors)
 
 HEADERLESS = ('ISEL_ICP_CNC', 'Roland_MDX_20', 'Roland_MDX_540')
 
+
+@pytest.mark.parametrize('existing_program', [False, True])
+def test_legacy_cncjob_load_preserves_the_only_saved_program(existing_program):
+    with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
+        job = CNCJobObject('job', make_app())
+    path = LineString([(0, 0), (2, 3)])
+    parsed = [{'geom': path, 'kind': ['C', 'F']}]
+    saved = job.to_dict()
+    if existing_program:
+        saved.update(multitool=False, gcode='', gcode_parsed=[], solid_geometry=[],
+                     tools={1: {'gcode': 'G1 X2 Y3\n', 'gcode_parsed': parsed,
+                                'solid_geometry': [path], 'data': {}, 'tooldia': 0.5}})
+    else:
+        saved.update(gcode='G1 X2 Y3\n', gcode_parsed=parsed, solid_geometry=[path], tools={})
+        saved.pop('multitool', None)
+    job.from_dict(saved)
+    assert job.tools[1]['gcode'] == 'G1 X2 Y3\n'
+    assert job.tools[1]['gcode_parsed'] == parsed
+    assert job.tools[1]['solid_geometry'] == [path]
+
+
+def test_empty_cncjob_bounds_are_zero():
+    job = gcode_job('default')
+    job.tools = {}
+    job.solid_geometry = []
+    assert job.bounds() == (0, 0, 0, 0)
+
 # the key of the preprocessor name inside the tool's options depends on the kind of the source object
 PP_KEY = {'Excellon': 'tools_drill_ppname_e', 'Geometry': 'tools_mill_ppname_g'}
 
@@ -52,7 +79,6 @@ def _job(kind, ppname):
     job = SimpleNamespace(
         app=app,
         obj_options={'type': kind, 'name': 'job'},
-        multitool=True,
         tools={uid: {'data': {PP_KEY[kind]: ppname}, 'gcode': code}
                for uid, code in enumerate(('BODY_TOOL_1\n', 'BODY_TOOL_2\n'), 1)},
         gcode='', gc_start='START_CODE\n', gc_header='HEADER\n',
@@ -64,6 +90,86 @@ def _job(kind, ppname):
 
 def _export(job):
     return CNCJobObject.export_gcode(job, to_file=True).getvalue()
+
+@pytest.mark.parametrize('ppname', ['default', 'Roland_MDX_20'])
+def test_export_reads_the_stored_tool_program_not_the_generator_buffer(ppname):
+    job = _job('Geometry', ppname)
+    job.gcode = 'STALE_GENERATOR_BUFFER\n'
+
+    text = _export(job)
+
+    assert 'BODY_TOOL_1\nBODY_TOOL_2' in text
+    assert 'STALE_GENERATOR_BUFFER' not in text
+
+@pytest.mark.parametrize('ppname', ['default', 'Roland_MDX_20'])
+def test_explicit_export_program_replaces_tool_body_and_keeps_the_envelope(ppname):
+    job = _job('Geometry', ppname)
+    job.gcode_footer = lambda: 'M02'
+    job._app_option = lambda key, fallback=None: {
+        'cncjob_footer': True, 'cncjob_prepend': '', 'cncjob_append': ''}.get(key, fallback)
+    text = CNCJobObject.export_gcode(job, glob_gcode='G1 X123\n', postamble='USER_POSTAMBLE',
+                                    to_file=True).getvalue()
+    assert 'G1 X123' in text
+    assert 'BODY_TOOL_' not in text
+    assert text.index('G1 X123') < text.index('USER_POSTAMBLE') < text.index('M02')
+
+def test_imported_export_uses_an_explicit_program_without_a_generated_envelope():
+    job = _job('Geometry', 'default')
+    job.gcode_imported = True
+    text = CNCJobObject.export_gcode(job, glob_gcode='G1 X123\n', preamble='PRE', postamble='POST',
+                                    to_file=True).getvalue()
+    assert text == 'PRE\nG1 X123\n\nPOST'
+
+@pytest.mark.parametrize('populated', [False, True])
+def test_legacy_multitool_import_load_exports_the_saved_program(populated):
+    job = _ui_job(_ui_app())
+    path = LineString([(2, 3), (8, 9)])
+    parsed = [{'geom': path, 'kind': ['C', 'S']}]
+    data = job.to_dict()
+    program = '(original comment)\nG90\nG1 X8 Y9\nM2\n'
+    data.update(multitool=True, gcode_imported=True, tools={
+        7: {'gcode': 'TOOL PROGRAM\n' if populated else '', 'gcode_parsed': parsed,
+            'solid_geometry': [path], 'data': {}, 'tooldia': 0.5}},
+        used_tools=['7', 999], gcode=program, gcode_parsed=parsed, solid_geometry=[path])
+    job.from_dict(data)
+    text = job.export_gcode(to_file=True, default_snippets=False).getvalue()
+    assert text == ('TOOL PROGRAM\n' if populated else program)
+    assert job.used_tools == [7]
+    job.plot2 = Mock()
+    job.shapes._indexes = []
+    job.plot()
+    assert job.plot2.call_args.kwargs['gcode_parsed'] == parsed
+    job.used_tools = [999, 7]
+    job.plot()
+    assert job.plot2.call_count == 2
+
+def test_loaded_tool_selection_defaults_only_when_missing():
+    job = _ui_job(_ui_app())
+    data = job.to_dict()
+    data['tools'] = {7: {'gcode': 'G1 X1\n', 'gcode_parsed': [], 'solid_geometry': [],
+                         'data': {}, 'tooldia': 0.5}}
+    data.pop('used_tools', None)
+    job.from_dict(data)
+    assert job.used_tools == [7]
+    data['used_tools'] = []
+    job.from_dict(data)
+    assert job.used_tools == []
+
+def test_legacy_single_tool_job_keeps_its_plot_and_bounds_after_reload():
+    job = _ui_job(_ui_app())
+    path = LineString([(2, 3), (8, 9)])
+    parsed = [{'geom': path, 'kind': ['C', 'S']}]
+    data = job.to_dict()
+    data.update(multitool=False, tools={}, used_tools=[], gcode='G1 X8 Y9\n', gcode_parsed=parsed,
+                solid_geometry=[path])
+    job.from_dict(data)
+    job.plot2 = Mock()
+    job.mark_full_plot = Mock()
+
+    job.plot()
+
+    assert job.bounds() == (2, 3, 8, 9)
+    assert job.plot2.call_args.kwargs['gcode_parsed'] == parsed
 
 @pytest.mark.parametrize('kind', ['Excellon'])
 def test_every_preprocessor_keeps_the_code_of_every_tool(kind):
@@ -88,27 +194,25 @@ def test_unknown_preprocessor_of_a_saved_job_exports_with_the_default_one(kind):
     assert 'Gone_Machine' in job.app.inform.emit.call_args[0][0]
 
 @pytest.mark.parametrize('kind', ['Geometry', 'Excellon'])
-@pytest.mark.parametrize('ppname,stored_name,multitool,footer_enabled,expected', [
-    ('LinuxCNC', 'default', True, False, True),
-    ('LinuxCNC', 'default', False, True, True),
-    ('default', 'LinuxCNC', True, False, False),
-    ('default', 'default', False, True, True),
-    ('Roland_MDX_20', 'default', True, False, False),
-    ('Roland_MDX_20', 'default', False, True, True),
+@pytest.mark.parametrize('ppname,stored_name,footer_enabled,expected', [
+    ('LinuxCNC', 'default', False, True),
+    ('LinuxCNC', 'default', True, True),
+    ('default', 'LinuxCNC', False, False),
+    ('default', 'default', True, True),
+    ('Roland_MDX_20', 'default', False, False),
+    ('Roland_MDX_20', 'default', True, True),
 ])
 def test_footer_uses_the_saved_tool_profile_and_follows_the_user_postamble(
-        kind, ppname, stored_name, multitool, footer_enabled, expected):
+        kind, ppname, stored_name, footer_enabled, expected):
     job = _job(kind, ppname)
     job.pp_geometry_name = job.pp_excellon_name = stored_name
-    job.multitool = multitool
-    job.gcode = 'BODY_SINGLE\n'
     app_option = job._app_option
     job._app_option = lambda key, fallback=None: footer_enabled if key == 'cncjob_footer' else app_option(key, fallback)
     job.gcode_footer = CNCJobObject.gcode_footer
 
     text = CNCJobObject.export_gcode(job, postamble='M9\n(APPEND: shutdown)', to_file=True).getvalue()
 
-    body = 'BODY_TOOL_1\nBODY_TOOL_2' if multitool else 'BODY_SINGLE'
+    body = 'BODY_TOOL_1\nBODY_TOOL_2'
     assert body in text and text.index(body) < text.index('M9')
     assert text.count('M02') == int(expected)
     assert text.rstrip().endswith('M02' if expected else '(APPEND: shutdown)')
@@ -198,8 +302,7 @@ def test_sinumerik_complete_file_starts_at_g291_and_ends_after_the_postamble():
     from tests.test_preprocessors import params
 
     job = _job('Geometry', 'Sinumerik')
-    job.multitool = False
-    job.gcode = 'G00 X1.0000 Y2.0000\n'
+    job.tools = {1: dict(job.tools[1], gcode='G00 X1.0000 Y2.0000\n')}
     job.gc_start = PREPROCESSORS['Sinumerik'].start_code(params()) + '\n'
     job.gcode_footer = CNCJobObject.gcode_footer
 
@@ -220,8 +323,7 @@ def test_sinumerik_saved_file_matches_the_export_and_ends_after_the_postamble(tm
     from tests.test_preprocessors import params
 
     job = _job('Geometry', 'Sinumerik')
-    job.multitool = False
-    job.gcode = 'G00 X1.0000 Y2.0000\n'
+    job.tools = {1: dict(job.tools[1], gcode='G00 X1.0000 Y2.0000\n')}
     job.gc_start = PREPROCESSORS['Sinumerik'].start_code(params()) + '\n'
     job.gcode_footer = CNCJobObject.gcode_footer
 
@@ -237,8 +339,7 @@ def test_tinyg_complete_file_ends_with_m02_after_the_postamble():
     from tests.test_preprocessors import params
 
     job = _job('Geometry', 'TinyG')
-    job.multitool = False
-    job.gcode = 'G00 X1.0000 Y2.0000\n'
+    job.tools = {1: dict(job.tools[1], gcode='G00 X1.0000 Y2.0000\n')}
     job.gc_start = PREPROCESSORS['TinyG'].start_code(params()) + '\n'
     job.gcode_footer = CNCJobObject.gcode_footer
 
@@ -257,8 +358,7 @@ def test_buildbotics_complete_file_ends_with_m02_after_the_postamble():
     from tests.test_preprocessors import params
 
     job = _job('Geometry', 'Buildbotics')
-    job.multitool = False
-    job.gcode = 'G00 X1.0000 Y2.0000\nM5\n'
+    job.tools = {1: dict(job.tools[1], gcode='G00 X1.0000 Y2.0000\nM5\n')}
     job.gc_start = PREPROCESSORS['Buildbotics'].start_code(params()) + '\n'
     job.gcode_footer = CNCJobObject.gcode_footer
 
@@ -285,8 +385,7 @@ def test_heidenhain_iso_complete_file_envelope_feeds_and_restarts(units, word, f
                       pp.down_code(p), pp.linear_code(p), pp.up_to_zero_code(p), pp.lift_code(p),
                       pp.spindle_stop_code(p), pp.end_code(p)])
     job = _job('Geometry', 'Heidenhain_ISO')
-    job.multitool = False
-    job.gcode = body + '\n'
+    job.tools = {1: dict(job.tools[1], gcode=body + '\n')}
     job.gc_start = pp.start_code(p) + '\n'
     # the export uses the unit word written into the saved start block, not the settings of the application
     job.units = 'IN' if units == 'MM' else 'MM'
@@ -320,8 +419,7 @@ def test_heidenhain_iso_saved_file_matches_the_stringio_and_keeps_an_explicit_en
     pp = PREPROCESSORS['Heidenhain_ISO']
     p = params(units='IN', feedrate=10.0, z_feedrate=6.0)
     job = _job('Geometry', 'Heidenhain_ISO')
-    job.multitool = False
-    job.gcode = pp.linear_code(p) + '\n'
+    job.tools = {1: dict(job.tools[1], gcode=pp.linear_code(p) + '\n')}
     job.gc_start = pp.start_code(p) + '\n'
     job.gcode_footer = CNCJobObject.gcode_footer
 
@@ -367,16 +465,17 @@ def test_heidenhain_iso_generated_milling_restarts_and_keeps_motion_feeds(units,
     job = gcode_job('Heidenhain_ISO')
     job.units = units
     job.app.options['tools_mill_optimization_type'] = 'R'
-    geo = SimpleNamespace(solid_geometry=[LinearRing([(1, 1), (2, 1), (2, 2), (1, 1)])],
-                          obj_options={'name': 'g'})
-    body, start = job.generate_from_geometry_2(
-        geo, tooldia=0.1, z_cut=-0.2, z_move=2, feedrate=30, feedrate_z=6, feedrate_rapid=100,
-        spindlespeed=10000, toolchange=True, toolchangez=15, toolchangexy='5, 7',
-        multidepth=multidepth, depthpercut=0.1, extracut=extracut, extracut_length=0.1,
-        endz=1, endxy='8, 9', pp_geometry_name='Heidenhain_ISO', is_first=True)
+    tools = milling_tools(
+        [LinearRing([(1, 1), (2, 1), (2, 2), (1, 1)])], tools_mill_ppname_g='Heidenhain_ISO', tools_mill_cutz=-0.2,
+        tools_mill_travelz=2, tools_mill_feedrate=30, tools_mill_feedrate_z=6, tools_mill_feedrate_rapid=100,
+        tools_mill_spindlespeed=10000, tools_mill_toolchangez=15, tools_mill_toolchangexy='5, 7',
+        tools_mill_multidepth=multidepth, tools_mill_depthperpass=0.1, tools_mill_extracut=extracut,
+        tools_mill_extracut_length=0.1, tools_mill_endz=1)
+    body, start = job.geometry_tool_gcode_gen(1, tools, (0, 0), (8, 9), 0.005, is_first=True, is_last=True,
+                                                 toolchange=True)
     exported = _job('Geometry', 'Heidenhain_ISO')
-    exported.multitool = False
-    exported.gcode, exported.gc_start = body, start
+    exported.tools = {1: dict(exported.tools[1], gcode=body)}
+    exported.gc_start = start
     text = _export(exported)
     spindle_on = False
     cuts = 0
@@ -458,7 +557,7 @@ def test_opened_gcode_is_a_native_like_multitool_job_with_the_text_of_the_file(t
 
     app, job = _open_gcode(tmp_path, MILL_FILE)
 
-    assert job.gcode_imported is True and job.multitool is True
+    assert job.gcode_imported is True
     assert job.obj_options['type'] == 'Geometry' and job.obj_options['gcode_units'] == 'MM'
     assert job.used_tools == [1, 2]
     assert MILL_KEYS <= set(job.tools[1])
@@ -553,7 +652,6 @@ def _ui_job(app, init=None):
     with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
         job = CNCJobObject('job', app)
     job.obj_options['type'] = 'Geometry'
-    job.multitool = True
     job.used_tools = [1]
     job.tools = {1: {'tooldia': 0.1, 'data': {'tools_mill_ppname_g': 'default'}, 'gcode': BODY}}
     job.gc_start = 'G21\nG90\n'
@@ -566,6 +664,33 @@ def _save_both_ways(job, folder):
     """Save CNC Code into 'button.nc' and the Tcl write_gcode into 'tcl.nc': their results."""
     return (job.export_gcode_handler(str(folder / 'button.nc'), rename_object=False),
             job.export_gcode(filename=str(folder / 'tcl.nc')))
+
+
+@pytest.mark.parametrize('name', ['old_single_tool_cnc', 'old_imported_cnc'])
+def test_legacy_job_exports_the_same_program_after_reload(name):
+    from pathlib import Path
+    from appCommon.ProjectFile import load_project_file
+    from camlib import dict2obj
+
+    # one job cut from a project that the previous application saved; the expected text is what that application
+    # exported for the same object
+    golden = Path(__file__).parent / 'data' / 'single_tool_model'
+    data = load_project_file(str(golden / (name + '.json')), object_hook=dict2obj)['objs'][0]
+    assert data['gcode'] and data['kind'] == 'cncjob'
+    job = _ui_job(_ui_app())
+    job.from_dict(data)
+    assert [bool(tool['gcode']) for tool in job.tools.values()] == [True]
+    if name == 'old_imported_cnc':
+        job.gcode = ''
+
+    def stable(text):
+        return '\n'.join('(Created on)' if line.startswith('(Created on') else line
+                         for line in text.rstrip('\r\n').splitlines())
+
+    assert stable(job.export_gcode(to_file=True).getvalue()) == stable((golden / (name + '.nc')).read_text())
+    if name == 'old_imported_cnc':
+        job.set_ui(CNCObjectUI(app=job.app))
+        assert stable(job.source_file) == stable((golden / (name + '.nc')).read_text())
 
 def test_a_failed_gcode_save_keeps_the_old_file_and_says_why(tmp_path):
     import errno
@@ -756,8 +881,6 @@ def gcode_job(pp_name, app=None):
     # the start code reads the bounds and the tool diameter (the CNC job tools set them before the G-code is made)
     job.obj_options = {'name': 'job', 'type': 'Geometry', 'xmin': 0, 'ymin': 0, 'xmax': 10, 'ymax': 10,
                        'tool_dia': 0.1}
-    # as CNCJobObject sets it; GRBL_laser_z reads it in its start code
-    job.multigeo = False
     job.coords_decimals = 4
     job.fr_decimals = 2
     job.z_cut = -0.1
@@ -791,15 +914,6 @@ def recording_exclusion(job, areas=()):
 
 def messages(job):
     return [str(call.args[0]) for call in job.app.inform.emit.call_args_list]
-
-def single_path_gcode(job, paths, **changes):
-    job.app.options['tools_mill_optimization_type'] = changes.pop('opt_type', 'R')
-    geo = SimpleNamespace(solid_geometry=paths, obj_options={'name': 'g'})
-    kwargs = dict(tooldia=0.1, z_cut=-0.1, z_move=2.0, feedrate=300.0, feedrate_z=100.0, feedrate_rapid=1000.0,
-                  pp_geometry_name='default', is_first=True, toolchangez=15.0, startz=None, endz=2.0)
-    kwargs.update(changes)
-    result = job.generate_from_geometry_2(geo, **kwargs)
-    return result if result == 'fail' else result[0]
 
 def multi_geo_gcode(paths, pp_name='default', job=None, uid=1, data=None, **kwargs):
     job = job or gcode_job(pp_name)
@@ -843,10 +957,9 @@ class TestMillingGcodeFixes:
             assert job.travel_distance == pytest.approx(26.1)
             assert job.routing_time == pytest.approx(14.05 / 600 + 2.05 / 100 + 10 / 300 + 0.5)
 
-    @pytest.mark.parametrize('multidepth', [True])
-    def test_single_geometry_negative_travel_z_lifts_up(self, multidepth):
-        job = gcode_job('default')
-        gcode = single_path_gcode(job, TWO_LINES, z_move=-2.0, multidepth=multidepth, depthpercut=0.05)
+    def test_negative_travel_z_lifts_up(self):
+        __, gcode = multi_geo_gcode(TWO_LINES, data=dict(
+            tools_mill_travelz=-2.0, tools_mill_multidepth=True, tools_mill_depthperpass=0.05))
         assert 'Z-2.0' not in gcode
         assert 'G00 Z2.0000' in gcode
 
@@ -865,14 +978,9 @@ class TestMillingGcodeFixes:
         assert 'Z-0.1000' in gcode
         assert json.loads(json.dumps(job.to_dict(), default=camlib.to_dict))['z_depthpercut'] == step
 
-    @pytest.mark.parametrize('single', [True, False])
-    def test_multi_depth_job_can_be_saved_and_loaded(self, single, tmp_path):
-        job = gcode_job('default')
-        if single:
-            gcode = single_path_gcode(job, TWO_LINES, z_cut=-2.0, multidepth=True, depthpercut=0.7)
-        else:
-            job, gcode = multi_geo_gcode(TWO_LINES, job=job, data=dict(
-                tools_mill_multidepth=True, tools_mill_depthperpass=0.7, tools_mill_cutz=-2.0))
+    def test_multi_depth_job_can_be_saved_and_loaded(self, tmp_path):
+        job, gcode = multi_geo_gcode(TWO_LINES, data=dict(
+            tools_mill_multidepth=True, tools_mill_depthperpass=0.7, tools_mill_cutz=-2.0))
         assert re.findall(r'G01 Z(-?[\d.]+)', gcode) == ['-0.7000', '-1.4000', '-2.0000'] * 2
         data = {'objs': [job.to_dict()]}
         filename = str(tmp_path / 'multi_depth.FlatPrj')
@@ -925,16 +1033,10 @@ class TestMillingGcodeFixes:
         job, later = multi_geo_gcode([TWO_LINES[0]], uid=1, toolchange=True, is_first=False, data=data)
         assert 'G00 Z15.0000\nG00 X0.0000 Y0.0000\nT1' in later
 
-    @pytest.mark.parametrize('opt_type, single', [('T', False)])
-    def test_paths_with_the_same_start_point_are_all_cut(self, opt_type, single):
+    def test_paths_with_the_same_start_point_are_all_cut(self):
         paths = [LineString([(0, 0), (5, 0)]), LineString([(0, 0), (0, 5)]), LineString([(8, 8), (9, 9)])]
         with patch.object(camlib, 'HAS_ORTOOLS', True):
-            if single:
-                job = gcode_job('default')
-                recording_exclusion(job)
-                gcode = single_path_gcode(job, paths, opt_type=opt_type)
-            else:
-                __, gcode = multi_geo_gcode(paths, data=dict(tools_mill_optimization_type=opt_type))
+            __, gcode = multi_geo_gcode(paths, data=dict(tools_mill_optimization_type='T'))
         for end in ('X5.0000 Y0.0000', 'X0.0000 Y5.0000', 'X9.0000 Y9.0000'):
             assert end in gcode
 
@@ -952,8 +1054,7 @@ def validated_data(paths, diameter=0.1, units='IN'):
         tools_iso_voronoi_units=units, tools_iso_voronoi_tooldia=diameter)
 
 @pytest.mark.parametrize('change', ['edit', 'units', 'diameter', 'bed', 'legacy', 'segment', 'extra-cut'])
-@pytest.mark.parametrize('single', [False, True])
-def test_voronoi_generation_data_cannot_authorize_changed_output(change, single):
+def test_voronoi_generation_data_cannot_authorize_changed_output(change):
     paths = [LineString(NEAR_LINE)]
     data = dict(VALIDATED, tools_iso_voronoi_path_signature=sha256(
         shapely.GeometryCollection(paths).normalize().wkb).hexdigest(),
@@ -976,14 +1077,7 @@ def test_voronoi_generation_data_cannot_authorize_changed_output(change, single)
     else:
         data.pop('tools_iso_voronoi_path_signature')
     data['tools_mill_tooldia'] = diameter
-    if single:
-        geo = SimpleNamespace(solid_geometry=paths, obj_options={'name': 'g'}, tools={1: {'data': data}})
-        result = job.generate_from_geometry_2(
-            geo, tooldia=diameter, pp_geometry_name='default',
-            extracut=data.get('tools_mill_extracut', False),
-            extracut_length=data.get('tools_mill_extracut_length', 0.0))
-    else:
-        __, result = multi_geo_gcode(paths, job=job, data=data)
+    __, result = multi_geo_gcode(paths, job=job, data=data)
     assert result == 'fail'
 
 def test_validated_paths_are_not_simplified_again():
@@ -994,17 +1088,11 @@ def test_validated_paths_are_not_simplified_again():
     __, plain = multi_geo_gcode([LineString(NEAR_LINE)])
     assert 'X5.0000 Y0.0010' not in plain
 
-@pytest.mark.parametrize('single', [False, True])
-def test_voronoi_rejects_output_with_an_uncertified_coordinate_grid(single):
+def test_voronoi_rejects_output_with_an_uncertified_coordinate_grid():
     paths = [LineString(NEAR_LINE)]
     data = validated_data(paths)
     job = gcode_job('Roland_MDX_20')
-    if single:
-        geo = SimpleNamespace(solid_geometry=paths, obj_options={'name': 'g'}, tools={1: {'data': data}})
-        result = job.generate_from_geometry_2(
-            geo, tooldia=0.1, z_cut=-0.05, z_move=2.0, pp_geometry_name='Roland_MDX_20')
-    else:
-        __, result = multi_geo_gcode(paths, pp_name='Roland_MDX_20', job=job, data=data)
+    __, result = multi_geo_gcode(paths, pp_name='Roland_MDX_20', job=job, data=data)
     assert result == 'fail'
 
 @pytest.mark.parametrize('data', [
@@ -1024,18 +1112,6 @@ def test_validated_paths_refuse_a_coarser_output_grid():
     __, result = multi_geo_gcode([LineString([(0, 0), (1, 0)])], job=job, data=dict(VALIDATED))
     assert result == 'fail'
     assert any('coordinate decimals' in str(call.args[0]) for call in job.app.inform.emit.call_args_list)
-
-def test_single_geometry_entry_does_not_simplify_validated_paths():
-    job = gcode_job('default')
-    recording_exclusion(job)
-    job.app.options['tools_mill_optimization_type'] = 'R'
-    geo = SimpleNamespace(solid_geometry=[LineString(NEAR_LINE)], obj_options={'name': 'g'},
-                          tools={1: {'data': validated_data([LineString(NEAR_LINE)])}})
-    result = job.generate_from_geometry_2(
-        geo, tooldia=0.1, tolerance=0.005, z_cut=-0.1, z_move=2.0, feedrate=300.0, feedrate_z=100.0,
-        feedrate_rapid=1000.0, pp_geometry_name='default', tool_no=1, is_first=True)
-    assert result != 'fail'
-    assert 'X5.0000 Y0.0010' in result[0]
 
 # ---------------------------------------------------------------------------------------------------------------------
 # Parse of any G-code (not only the FlatCAM made one): arcs, modal words, G91, comments, many drills, imported jobs

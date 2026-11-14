@@ -1,5 +1,32 @@
 # Format: <test id>  # <reason>   (one per line; blank and # lines are ignored)
 # Tests removed on purpose.
+
+# 2026-11-14: single-tool model migration; coverage retained under the tools-only test IDs.
+tests/test_cncjob_export_gcode.py::test_footer_uses_the_saved_tool_profile_and_follows_the_user_postamble[LinuxCNC-default-False-True-True-Excellon]  # Same footer/postamble assertions in [LinuxCNC-default-True-True-Excellon]; removed multitool parameter.
+tests/test_cncjob_export_gcode.py::test_footer_uses_the_saved_tool_profile_and_follows_the_user_postamble[LinuxCNC-default-False-True-True-Geometry]  # Same footer/postamble assertions in [LinuxCNC-default-True-True-Geometry]; removed multitool parameter.
+tests/test_cncjob_export_gcode.py::test_footer_uses_the_saved_tool_profile_and_follows_the_user_postamble[LinuxCNC-default-True-False-True-Excellon]  # Same footer/postamble assertions in [LinuxCNC-default-False-True-Excellon]; removed multitool parameter.
+tests/test_cncjob_export_gcode.py::test_footer_uses_the_saved_tool_profile_and_follows_the_user_postamble[LinuxCNC-default-True-False-True-Geometry]  # Same footer/postamble assertions in [LinuxCNC-default-False-True-Geometry]; removed multitool parameter.
+tests/test_cncjob_export_gcode.py::test_footer_uses_the_saved_tool_profile_and_follows_the_user_postamble[Roland_MDX_20-default-False-True-True-Excellon]  # Same footer/postamble assertions in [Roland_MDX_20-default-True-True-Excellon]; removed multitool parameter.
+tests/test_cncjob_export_gcode.py::test_footer_uses_the_saved_tool_profile_and_follows_the_user_postamble[Roland_MDX_20-default-False-True-True-Geometry]  # Same footer/postamble assertions in [Roland_MDX_20-default-True-True-Geometry]; removed multitool parameter.
+tests/test_cncjob_export_gcode.py::test_footer_uses_the_saved_tool_profile_and_follows_the_user_postamble[Roland_MDX_20-default-True-False-False-Excellon]  # Same footer/postamble assertions in [Roland_MDX_20-default-False-False-Excellon]; removed multitool parameter.
+tests/test_cncjob_export_gcode.py::test_footer_uses_the_saved_tool_profile_and_follows_the_user_postamble[Roland_MDX_20-default-True-False-False-Geometry]  # Same footer/postamble assertions in [Roland_MDX_20-default-False-False-Geometry]; removed multitool parameter.
+tests/test_cncjob_export_gcode.py::test_footer_uses_the_saved_tool_profile_and_follows_the_user_postamble[default-LinuxCNC-True-False-False-Excellon]  # Same footer/postamble assertions in [default-LinuxCNC-False-False-Excellon]; removed multitool parameter.
+tests/test_cncjob_export_gcode.py::test_footer_uses_the_saved_tool_profile_and_follows_the_user_postamble[default-LinuxCNC-True-False-False-Geometry]  # Same footer/postamble assertions in [default-LinuxCNC-False-False-Geometry]; removed multitool parameter.
+tests/test_cncjob_export_gcode.py::test_footer_uses_the_saved_tool_profile_and_follows_the_user_postamble[default-default-False-True-True-Excellon]  # Same footer/postamble assertions in [default-default-True-True-Excellon]; removed multitool parameter.
+tests/test_cncjob_export_gcode.py::test_footer_uses_the_saved_tool_profile_and_follows_the_user_postamble[default-default-False-True-True-Geometry]  # Same footer/postamble assertions in [default-default-True-True-Geometry]; removed multitool parameter.
+tests/test_compare.py::test_multigeo_change_in_one_tool_only  # Renamed test_change_in_one_tool_only; still checks the changed tool's removed area while preserving the other tool.
+tests/test_compare.py::test_snapshot_flattens_each_input_shape[multigeo-tools]  # Renamed case [tool-shapes]; still checks scalar polygon and line shapes across two tools.
+tests/test_dxf_without_matplotlib.py::test_multigeo_geometry_layers_per_tool_and_single_polygon  # Renamed test_geometry_layers_per_tool_and_single_polygon; per-tool layers and scalar polygon export assertions retained.
+tests/test_gcode_import.py::test_native_offset_moves_absolute_xy_and_nothing_else[False]  # Same test without obsolete multitool parameter; absolute/incremental/machine coordinates and comments remain checked using tools[1].
+tests/test_gcode_import.py::test_native_scale_doubles_arc_offsets_and_non_uniform_scale_linearizes_the_arc[False]  # Same test without obsolete multitool parameter; arc centres, feed and non-uniform linearization remain checked using tools[1].
+tests/test_object_regenerate_source.py::test_geometry_real_dxf_snapshot_and_project_boundary[IN-1-True]  # Replaced by [IN-1]; tools-only snapshot retains inch units, polygon holes, line coordinates and project source assertions.
+tests/test_object_regenerate_source.py::test_geometry_real_dxf_snapshot_and_project_boundary[MM-4-False]  # Replaced by [MM-4]; tools-only snapshot retains metric units, polygon holes, line coordinates and project source assertions.
+tests/test_tcl_laser_power.py::test_cncjob_multigeo_laser_power_from_spindlespeed  # Renamed test_cncjob_tool_laser_power_from_spindlespeed; retained tool 7 power assertion, with real generated S500 coverage in test_cncjob_laser_power[spindlespeed].
+
+# Independent Document format work: renamed/expanded coverage, not obsolete Geometry/CNCJob modes.
+tests/test_object_construction.py::test_document_saves_flatdoc_with_formatting_and_the_toolbar_follows_the_cursor  # Replaced by test_document_saves_html_with_formatting_and_the_toolbar_follows_the_cursor; formatted save/reopen and toolbar assertions retained for HTML output.
+tests/test_object_construction.py::test_document_survives_a_project_save_and_load  # Expanded to the same test's [text], [html] and [pdf] cases; project round-trip coverage retained and extended to copy/type preservation.
+
 tests/test_tools_database.py::EditorChecks::test_atomic_writer_cancels_failed_write_and_commit  # Replaced QSaveFile call-order mocks with JSON export byte preservation and SQLite transaction rollback checks in test_tools_database.py.
 tests/test_collection_update_view.py::TestColorSwatch::test_swatch_click_keeps_selection_and_sends_the_dialog_color  # Split by the swatch click on a selected and on an unselected row in test_collection_update_view.py.
 tests/test_plugin_geometry_bases.py::test_copper_area_selection_uses_world_coordinates_once  # Moved to tests/test_copper_thieving.py with the Copper Thieving audit fixes.

@@ -102,7 +102,7 @@ def apply_matrix_to_object(obj, matrix):
         if not moved_only:
             obj.create_geometry()
     elif kind == 'geometry':
-        Geometry._affine_solid_geometry(obj, matrix, any_iterable=True)
+        obj._affine_solid_geometry(matrix, any_iterable=True)
     else:
         raise HistoryError('%s: %s' % (_("Object type not supported"), obj.kind))
 

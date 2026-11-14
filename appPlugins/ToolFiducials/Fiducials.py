@@ -357,8 +357,6 @@ class ToolFiducials(AppTool):
                 if opt != 'name':
                     grb_obj.obj_options[opt] = deepcopy(g_obj.obj_options[opt])
             grb_obj.obj_options['name'] = outname
-            grb_obj.multitool = False
-            grb_obj.multigeo = False
             grb_obj.follow = deepcopy(g_obj.follow)
             grb_obj.tools = new_apertures
             grb_obj.solid_geometry = solid_geometry

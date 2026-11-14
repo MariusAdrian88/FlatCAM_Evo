@@ -16,6 +16,7 @@ from vispy.scene.cameras.base_camera import BaseCamera
 # from vispy.scene.widgets import Widget as VisPyWidget
 from vispy.color import Color
 from appGUI.VisPyVisuals import GridLines
+from appGUI import shortcuts
 
 import os
 import time
@@ -298,9 +299,13 @@ class Camera(scene.PanZoomCamera):
         BaseCamera.viewbox_mouse_event(self, event)
 
         if event.type == 'mouse_wheel':
-            if not modifiers:
+            # the fine zoom key (factory Alt): 10 times finer steps; some platforms send the wheel with a modifier
+            # (Alt on Windows) as a horizontal delta
+            fine = bool(modifiers) and shortcuts.wheel_matches('app.fine_zoom', modifiers)
+            if not modifiers or fine:
+                step = event.delta[1] if event.delta[1] or not fine else event.delta[0]
                 center = self._scene_transform.imap(event.pos)
-                scale = (1 + self.zoom_factor) ** (-event.delta[1] * 30)
+                scale = (1 + self.zoom_factor) ** (-step * (3 if fine else 30))
                 self.limited_zoom(scale, center)
 
             if self.zoom_callback:

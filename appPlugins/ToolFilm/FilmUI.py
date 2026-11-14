@@ -346,14 +346,21 @@ class FilmUI:
         self.png_dpi_label.hide()
         self.png_dpi_spinner.hide()
         GLay.set_common_column_size([adj_grid, param_grid, obj_grid, export_grid, punch_grid], 0)
-        self.film_object_button = FCButton(_("Save Film"), bold=True)
-        self.film_object_button.setIcon(QtGui.QIcon(self.app.resource_location + '/save_as.png'))
+        self.film_object_button = FCButton(_("Generate"), bold=True)
         self.film_object_button.setToolTip(
-            _("Create a Film for the selected object, within\n"
-              "the specified box. Does not create a new \n "
-              "FlatCAM object, but directly save it in the\n"
-              "selected format."))
-        self.tools_box.addWidget(self.film_object_button)
+            _("Generate and preview the film without choosing a destination. "
+              "Save reuses this result until settings change.\n"
+              "SVG creates a Film Geometry; PDF creates a PDF Document. Generate again to update it in place.\n"
+              "Leaving Film keeps the project object; a later session creates a new one."))
+        generation_row = QtWidgets.QHBoxLayout()
+        generation_row.addWidget(self.film_object_button)
+        self.save_button = QtWidgets.QToolButton()
+        self.save_button.setIcon(QtGui.QIcon(self.app.resource_location + '/save_as.png'))
+        self.save_button.setToolTip(
+            _("Save the generated film without regenerating it, or generate and save if needed."))
+        self.save_button.setAccessibleName(_("Save film"))
+        generation_row.addWidget(self.save_button)
+        self.tools_box.addLayout(generation_row)
         self.layout.addStretch(1)
         self.reset_button = FCButton(_("Reset Tool"), bold=True)
         self.reset_button.setIcon(QtGui.QIcon(self.app.resource_location + '/reset32.png'))

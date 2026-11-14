@@ -208,7 +208,8 @@ class TestImageLoading(unittest.TestCase):
             obj = MagicMock()
             obj.tools, obj.solid_geometry = {}, []
             result = initialize(obj, self.tool.app)
-            seen.append((kind, result, list(obj.solid_geometry)))
+            geometry = obj.tools[1]['solid_geometry'] if kind == 'geometry' else obj.solid_geometry
+            seen.append((kind, result, list(geometry)))
             return obj
 
         self.tool.new_object = new_object

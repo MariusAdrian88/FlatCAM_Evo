@@ -173,6 +173,9 @@ def app_actions():
         Shortcut('app.panelize', _("Panelize PCB"), app, 'Alt+Z', plugin('panelize_tool')),
         Shortcut('app.full_screen', _("Toggle Full Screen"), app, 'Alt+F10',
                  lambda ui, key: ui.on_full_screen_toggled()),
+        # the mouse wheel: the cameras of the 2D and 3D plot areas read the modifiers (shortcuts.wheel_matches())
+        Shortcut('app.fine_zoom', _("Zoom with a 1/10 step (2D and 3D)"), app, 'Alt+Wheel', source=SOURCE_CANVAS,
+                 wheel=True),
         # no modifier
         Shortcut('app.manual', _("Open Online Manual"), app, 'F1', lambda ui, key: webbrowser.open(ui.app.manual_url)),
         Shortcut('app.rename', _("Rename Objects"), app, 'F2', app_rename, source=SOURCE_PROJECT),
@@ -943,6 +946,12 @@ def read_only_actions():
     cursor_data = _("Toggle the cursor data")
     end_selection = _("End the selection")
     return [
+        # the mouse wheel on the plot area (VisPyCanvas.Camera, PlotCanvas.on_mouse_scroll, PlotCanvas3d)
+        Shortcut('app.wheel_zoom', _("Zoom"), 'app', 'Wheel', source=SOURCE_CANVAS),
+        Shortcut('app.wheel_pan_x', _("Pan horizontally by a grid step (2D)"), 'app', 'Shift+Wheel',
+                 source=SOURCE_CANVAS),
+        Shortcut('app.wheel_pan_y', _("Pan vertically by a grid step (2D)"), 'app', 'Ctrl+Wheel', source=SOURCE_CANVAS),
+
         # the drawing tools of the Geometry Editor (appGeoEditor.py, on_key() of the tools)
         Shortcut('geo_drawing.arc_direction', _("Within Add Arc will toogle the ARC direction: CW or CCW"),
                  'geo_drawing', 'D'),
