@@ -211,8 +211,6 @@ class ClearingJob:
             runner.parent_tool = SnapshotSelf(driver.parent_tool, snapshot)
         if spec.circle_steps is not None:
             runner.circle_steps = spec.circle_steps
-        if spec.circle_kind is not None:
-            runner.circle_kind = spec.circle_kind
         runner.decimals = spec.decimals
         return runner
 

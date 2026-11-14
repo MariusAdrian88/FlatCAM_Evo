@@ -51,17 +51,6 @@ def tool_spec(uid, dia, data, prefix, offset_key):
         data=deepcopy_keep_geometry(data))
 
 
-def kernel_steps_of(options, units):
-    """The steps of a full circle for a tool diameter and an object kind, from the frozen options only."""
-    from camlib import object_circle_steps
-    return lambda diameter, kind='geometry': object_circle_steps(options, kind, diameter / 2, units)
-
-
-def constant_steps(steps):
-    """A resolution that does not depend on the tool (the job-wide steps of the NCC rest sweep and cleanup)."""
-    return lambda diameter, kind='geometry': steps
-
-
 def copy_geometry(geometry):
     """A copy of the containers of a geometry (nested lists); the shapely objects are immutable and shared."""
     if isinstance(geometry, (list, tuple)):
@@ -124,26 +113,17 @@ class JobSpec:
     selection: Literal["all", "area", "reference", "click"]
     margin: float
     simplification: float
-    simplify_rule: Literal["covers", "dwithin"]
     plot: bool
     outname: str
     options: Mapping
-    kernel_steps: Callable[[float, str], int]
-    sweep_steps: Callable[[float, str], int]
     areas: list | None = None
-    reference: object | None = None
-    points: list | None = None
     exclusion: BaseGeometry | None = None
-    edge_error: float | None = None
     # --- what the 2 plugins resolve besides the sketch above ---
-    kind: Literal["ncc", "paint"] = "paint"
-    mode: Literal["gui", "tcl"] = "gui"                 # NCC: where the inputs came from (the legacy Tcl inset)
     source: SourceSnapshot | None = None                # the cleared / painted object
     origin: object = None                               # the live source: only the link of the output object
     reference_source: SourceSnapshot | None = None      # NCC reference object
     selection_fn: Callable | None = None                # Paint: the selection that runs inside the job
     geometry: object = None                             # Paint: the selected polygons when no selection_fn
-    boundary: object = None                             # NCC Tcl: the region with the margin
     storage: Mapping = field(default_factory=dict)      # the tool rows the job works on (private copy)
     tool_table: Mapping = field(default_factory=dict)   # NCC GUI: the tool table of the plugin (private copy)
     diameters: tuple = ()
@@ -151,14 +131,11 @@ class JobSpec:
     milling_type: str | None = None
     has_offset: bool = False
     offset: float = 0.0
-    overlap: float | None = None
     method: int | None = None
-    angle: float | None = None
     check_validity: bool = False
     prog_plot: bool = False
     mill_data: Mapping = field(default_factory=dict)
     circle_steps: int | None = None
-    circle_kind: str | None = None
     decimals: int = 4
     units: str = "MM"
     app_units: str = "MM"

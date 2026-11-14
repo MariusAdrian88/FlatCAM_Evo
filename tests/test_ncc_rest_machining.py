@@ -372,7 +372,7 @@ def test_each_tool_clears_at_its_own_crosshatch_angle(mode):
     if 2 in generated:
         assert not {30.0, 120.0} & directions(generated[2]['solid_geometry'])
     # the final cleanup uses the angle of its own (smallest) tool
-    cleaned, __ = NccModel.finish_cleanup(
+    cleaned, __, ___ = NccModel.finish_cleanup(
         tools, generated, {1: area, 2: area}, 'n',
         lambda domain, dia, used, generate, boundary_first: (generate(domain, dia), None),
         real_crosshatch_clear(), lambda: None)
@@ -412,7 +412,7 @@ def test_crosshatch_cleanup_uses_the_same_invalid_angle_fallback_as_clearing():
     generated, domains, *_ = NccModel.generate_tools(
         'normal', tools, tools, [2.0], {1: area}, 'n', 4, 64,
         clear, lambda: None, lambda text: None)
-    cleaned, _ = NccModel.finish_cleanup(
+    cleaned, _, __ = NccModel.finish_cleanup(
         tools, generated, domains, 'n',
         lambda domain, dia, previous, generate, boundary_first: (generate(domain, dia), None),
         clear, lambda: None)
@@ -471,15 +471,23 @@ def test_rest_leaves_stock_for_the_final_cleanup_of_the_smallest_tool():
         seen.append((round(domain.area, 6), dia, boundary_first, [tool['tooldia'] for tool in previous]))
         return [LineString([(5, 5), (6, 5)])], residual
 
-    cleaned, left = NccModel.finish_cleanup(tools, generated, domains, 'out', cleanup, lambda **kw: None,
-                                            lambda: None)
-    assert left is residual
+    cleaned, left, ran = NccModel.finish_cleanup(tools, generated, domains, 'out', cleanup, lambda **kw: None,
+                                                 lambda: None)
+    assert left is residual and ran == 1.0
     assert seen == [(100.0, 1.0, True, [2.0, 1.0])]
     assert list(cleaned) == [1, 2]
     assert cleaned[2]['ncc_cleanup_start'] == 1
     assert cleaned[2]['solid_geometry'] == lines[1.0] + [LineString([(5, 5), (6, 5)])]
     assert cleaned[2]['data']['output_object_name'] == 'out'
     assert 'ncc_cleanup_start' not in cleaned[1]
+
+    # the message of the cleanup: the corner residue of a round tool is silent, a strip that holds a disc warns
+    gen, output = make_gen([1.0])
+    published = {1: {'tooldia': 1.0, 'data': {}, 'solid_geometry': [LineString([(0, 0), (1, 0)])]}}
+    for stock, warns in ((Polygon([(0, 0), (0.05, 0), (0, 0.05)]), False), (box(0, 0, 5, 0.5), True)):
+        gen.app.inform.emit.reset_mock()
+        assert gen._publish_result(output, published, 'n', 1.0, False, stock, 0, None, 1.0, 1.0) != 'fail'
+        assert any('Final cleanup finished' in text for text in messages_of(gen)) is warns
 
 
 @pytest.mark.parametrize('connect, copper, expected', [
@@ -499,9 +507,10 @@ def test_final_cleanup_follows_the_paint_rules(connect, copper, expected):
         seen.append((dia, boundary_first))
         return [LineString([(5, 5), (6, 5)])], Polygon()
 
-    NccModel.finish_cleanup(tools, NccModel.copy_tools(tools), domains, 'out', cleanup, lambda **kw: None,
-                            lambda: None, copper)
+    ran = NccModel.finish_cleanup(tools, NccModel.copy_tools(tools), domains, 'out', cleanup, lambda **kw: None,
+                                  lambda: None, copper)[2]
     assert seen == [expected]
+    assert ran == expected[0]       # the diameter of the tool that ran: the threshold of the message follows it
 
 
 def test_tcl_rest_does_not_send_slivers_to_the_clearing():

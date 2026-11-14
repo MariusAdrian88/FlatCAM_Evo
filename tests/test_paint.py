@@ -464,6 +464,16 @@ class TestPaintPerformance(unittest.TestCase):
                 messages = [call.args[0] for call in worker.app.inform.emit.call_args_list]
                 assert result != 'fail' and output.tools[1]['solid_geometry']
                 assert ('[WARNING_NOTCL] %s' % incomplete_text() in messages) is incomplete
+        # the same with the final cleanup: the message follows the rule of the stock, not any residue
+        for polygon, message in ((board, True), (disc, False)):
+            with self.subTest(final_cleanup=message):
+                worker, params = rest_worker(self.geometry, [1.0], method=0)
+                params.tools_storage[1]['data']['tools_paint_final_cleanup'] = True
+                output = SimpleNamespace(tools={}, obj_options={})
+                result = worker._generate_paint_worker(output, worker.app, params, [1.0], [polygon], None, False)
+                messages = [call.args[0] for call in worker.app.inform.emit.call_args_list]
+                assert result != 'fail'
+                assert any('Final paint finished' in text for text in messages) is message
 
     def test_rest_tool_clears_the_stock_that_is_narrower_than_it(self):
         # The 1.0 tool leaves the corners of the area and strips around the hole; the 0.4 tool crosses the cut area

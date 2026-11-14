@@ -34,9 +34,9 @@ from defaults import AppDefaults
 from appParsers.feature_access import fused_solid
 from appCommon.SafeEval import safe_eval
 from appPlugins.ToolPaint import PaintModel
-from appPlugins.Common.clearing.job import ClearingJob, PAINT
+from appPlugins.Common.clearing.job import ClearingJob, PAINT, stock_is_left
 from appPlugins.Common.clearing.params import (
-    JobSpec, SourceSnapshot, copy_geometry, freeze_options, kernel_steps_of, tool_spec)
+    JobSpec, SourceSnapshot, copy_geometry, freeze_options, tool_spec)
 
 if TYPE_CHECKING:
     from appObjects.GerberObject import GerberObject
@@ -359,7 +359,6 @@ class PaintGen:
         options = freeze_options(self.app)
         units = self.app.units
         app_units = getattr(self.app, 'app_units', units)
-        steps = kernel_steps_of(options, getattr(painted_object, 'units', None) or self.units)
         specs = []
         for diameter in sorted_paint_tools:
             uid = self._find_tool_uid(diameter, params.tools_storage)
@@ -367,9 +366,8 @@ class PaintGen:
                 specs.append(tool_spec(uid, diameter, params.tools_storage[uid]['data'], 'tools_paint_', 'offset'))
         return JobSpec(
             tools=specs, rest=bool(params.rest_machining_choice), order=params.tool_ordering, selection=selection,
-            margin=0.0, simplification=params.simplification_value, simplify_rule='dwithin', plot=plot,
-            outname=params.output_object_name, options=options, kernel_steps=steps, sweep_steps=steps,
-            edge_error=clearing_error(self.app), kind='paint', source=SourceSnapshot.of(painted_object),
+            margin=0.0, simplification=params.simplification_value, plot=plot,
+            outname=params.output_object_name, options=options, source=SourceSnapshot.of(painted_object),
             origin=painted_object, selection_fn=geometry if callable(geometry) else None,
             geometry=None if callable(geometry) else copy_geometry(geometry), storage=params.tools_storage,
             diameters=tuple(sorted_paint_tools), check_validity=check_valid, prog_plot=params.prog_plot,
@@ -626,10 +624,7 @@ class PaintGen:
             if (kind, error) in reported:
                 continue
             reported.add((kind, error))
-            if kind == 'cleanup':
-                self.app.inform.emit('[WARNING_NOTCL] %s' % _(
-                    'Final paint finished. Some areas could not be painted with this tool.'))
-            elif kind == 'skipped':
+            if kind == 'skipped':
                 self.app.inform.emit('[WARNING_NOTCL] %s %s' % (
                     _("A polygon could not be painted with tool diameter ="), error))
             elif kind == 'empty':
@@ -673,6 +668,11 @@ class PaintGen:
                 geometry, result['tools'], result.get('output_tools', result['tools']), params, diameters,
                 getattr(params, 'rest_offset', 0.0) if rest else None, painted_object)
             self._report_warnings(finished['warnings'])
+            # the corner residue of every cleanup stays silent: only the stock that holds a disc counts
+            if finished['residual'] is not None and stock_is_left(
+                    finished['residual'], finished['cleanup_diameter'], False):
+                self.app.inform.emit('[WARNING_NOTCL] %s' % _(
+                    'Final paint finished. Some areas could not be painted with this tool.'))
             tools = finished['tools']
             self._remove_empty_tools(tools)
             if not tools or not finished['paths']:

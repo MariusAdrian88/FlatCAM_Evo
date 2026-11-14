@@ -451,7 +451,7 @@ def generate_tools(mode, tool_settings, tools_storage, diameters, areas, name, d
 def finish_cleanup(tools_storage, generated, domains, name, cleanup_paths, clear_paths, check_abort, copper=None):
     """
     Select the final tool (the Paint rules of engine.final_cleanup) and return safe cleanup geometry, metadata and
-    residuals. cleanup_paths(domain, dia, previous, generate, boundary_first) is residual_cleanup with physical=True.
+    residuals; returns (tools, residual, the diameter of the tool that ran). cleanup_paths(domain, dia, previous, generate, boundary_first) is residual_cleanup with physical=True.
     """
     tools = copy_tools(generated)
     candidates = [(uid, float(tools_storage[uid]['tooldia'])) for uid in domains
@@ -464,6 +464,7 @@ def finish_cleanup(tools_storage, generated, domains, name, cleanup_paths, clear
         if domain.is_empty:
             return None
         state['tool'] = tool
+        state['diameter'] = float(tool['tooldia'])
         data = tool['data']
 
         def generate_paths(pol, dia):
@@ -490,4 +491,4 @@ def finish_cleanup(tools_storage, generated, domains, name, cleanup_paths, clear
 
     residual = engine.final_cleanup(
         candidates, prepare, lambda: tools.values(), cleanup_paths, store, check_abort)
-    return tools, residual
+    return tools, residual, state.get('diameter')

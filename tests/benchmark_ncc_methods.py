@@ -243,7 +243,7 @@ def generate_rest(area, diameters, clear_paths, clearing_error, app=None, copper
         clear_paths, lambda: None, lambda text: None,
         simplify_tol=SIMPLIFICATION, initial_tools={}, clearing_error=clearing_error)
     if final_cleanup:
-        generated, cleanup_residual = NccModel.finish_cleanup(
+        generated, cleanup_residual, __ = NccModel.finish_cleanup(
             table, generated, domains, 'bench',
             lambda domain, dia, previous, generate, boundary_first: camlib.residual_cleanup(
                 app, domain, dia, CIRCLE_STEPS, previous, generate, physical=True, boundary_first=boundary_first),

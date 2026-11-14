@@ -19,9 +19,9 @@ from camlib import grace, residual_cleanup, object_circle_steps, clearing_simpli
 from appParsers.feature_access import fused_solid
 from appCommon.SafeEval import safe_eval
 from appPlugins.ToolNCC import NccModel
-from appPlugins.Common.clearing.job import ClearingJob, NCC_GUI, NCC_TCL
+from appPlugins.Common.clearing.job import ClearingJob, NCC_GUI, NCC_TCL, stock_is_left
 from appPlugins.Common.clearing.params import (
-    JobSpec, SourceSnapshot, copy_geometry, constant_steps, freeze_options, kernel_steps_of, tool_spec)
+    JobSpec, SourceSnapshot, copy_geometry, freeze_options, tool_spec)
 from appObjects.ProjectContext import unique_name
 
 if TYPE_CHECKING:
@@ -492,7 +492,7 @@ class NccGen:
 
     def _cleanup_result(self, tools, generated, domains, name, source=None):
         if not any(tools[uid]['data'].get('tools_ncc_final_cleanup', False) for uid in domains):
-            return generated, None
+            return generated, None, None
         copper = ncc_gerber_copper(source) if source is not None and source.kind == 'gerber' else None
         return NccModel.finish_cleanup(
             tools, generated, domains, name,
@@ -503,7 +503,7 @@ class NccGen:
 
     def final_cleanup(self, output, tools_storage, domains, name, source=None):
         """Compatibility adapter for callers that already own an output object."""
-        tools, residual = NccGen._cleanup_result(self, tools_storage, output.tools, domains, name, source)
+        tools, residual, cleanup_diameter = NccGen._cleanup_result(self, tools_storage, output.tools, domains, name, source)
         if residual is None:
             return
         output.tools = tools
@@ -513,7 +513,7 @@ class NccGen:
                 tools_storage[uid] = tools_storage.pop(uid)
         output.ncc_cleanup_residual = residual
         self.app.poly_not_cleared = not residual.is_empty
-        if not residual.is_empty:
+        if stock_is_left(residual, cleanup_diameter, False):
             self.app.inform.emit('[WARNING_NOTCL] %s' % _(
                 'Final cleanup finished. Some residual copper could not be cleared with this tool.'))
 
@@ -538,7 +538,7 @@ class NccGen:
         )
 
     def _publish_result(self, output, tools, name, last_tool, failed, residual, warning, mill_data=None,
-                        last_diameter=None):
+                        last_diameter=None, cleanup_diameter=None):
         """
         Publish only after generation and cleanup both succeeded. The output object gets its own copies; the tool
         table of the plugin is never written here.
@@ -562,7 +562,7 @@ class NccGen:
         cleaned = residual is not None
         if cleaned:
             output.ncc_cleanup_residual = residual
-            if not residual.is_empty:
+            if stock_is_left(residual, cleanup_diameter, False):
                 self.app.inform.emit('[WARNING_NOTCL] %s' % _(
                     'Final cleanup finished. Some residual copper could not be cleared with this tool.'))
         # the rest stock was measured by the rule of both tools (failed); the cleanup residual replaces it
@@ -631,9 +631,7 @@ class NccGen:
         units = self.app.units
         app_units = getattr(self.app, 'app_units', units)
         return JobSpec(
-            options=options, kernel_steps=kernel_steps_of(options, app_units),
-            sweep_steps=constant_steps(self.circle_steps), simplify_rule='covers', kind='ncc',
-            circle_steps=self.circle_steps, circle_kind=getattr(self, 'circle_kind', None),
+            options=options, circle_steps=self.circle_steps,
             decimals=self.decimals, units=units, app_units=app_units, **fields)
 
     def resolve_gui_job(
@@ -684,7 +682,7 @@ class NccGen:
         exclusion = unary_union(exclusion_areas) if exclusion_areas else None
         name = outname if outname is not None else self.obj_name + '_ncc'
         return self._ncc_spec(
-            freeze_options(self.app), mode='gui', tools=self._tool_specs(tool_settings, diameters), rest=bool(rest),
+            freeze_options(self.app), tools=self._tool_specs(tool_settings, diameters), rest=bool(rest),
             order=order, selection={0: 'all', 1: 'area', 2: 'reference'}.get(clipping_type, 'all'), margin=margin,
             simplification=tolerance, plot=True, outname=name, areas=copy_geometry(areas_to_clear),
             exclusion=exclusion, source=SourceSnapshot.of(cleared_object), origin=cleared_object,
@@ -760,12 +758,13 @@ class NccGen:
             tool_progress=lambda diameter: self._tool_progress(diameter, spec.units))
         if not rest:
             self._warn_unused_tools(tool_settings, diameters, generated)
-        generated, cleanup_residual = self._cleanup_result(
+        generated, cleanup_residual, cleanup_diameter = self._cleanup_result(
             snapshot, generated, domains, name, cleared_object)
         if spec.prog_plot:
             self.temp_shapes.clear(update=True)
         return self._publish_result(output, generated, name, '0.0' if rest else last,
-                                    failed, cleanup_residual, warning, dict(spec.mill_data), last)
+                                    failed, cleanup_residual, warning, dict(spec.mill_data), last,
+                                    cleanup_diameter)
 
     def ncc_handler(
             self,
@@ -903,7 +902,7 @@ class NccGen:
         rows = self._tcl_rows(diameters, list(iso_tooldia or ()), name, bool(plot), **values)
         exclusion = unary_union(exclusion_areas) if exclusion_areas else None
         return self._ncc_spec(
-            freeze_options(self.app), mode='tcl', tools=self._tool_specs(rows, diameters), rest=rest, order=order,
+            freeze_options(self.app), tools=self._tool_specs(rows, diameters), rest=rest, order=order,
             selection={0: 'all', 1: 'area', 2: 'reference'}[select_method], margin=margin,
             simplification=simplify_tol, plot=bool(plot), outname=name, areas=copy_geometry(areas_to_clear_list),
             exclusion=exclusion, source=SourceSnapshot.of(ncc_obj), origin=ncc_obj,
