@@ -18,8 +18,11 @@ from typing import Callable, Optional
 import shapely
 from shapely import MultiPolygon
 
+from shapely.ops import unary_union
+
 from appPlugins.Common.clearing.methods import MethodMap
-from camlib import accepted_error, circle_quad_segs, grace
+from appPlugins.Common.clearing.regions import polygon_parts, swept_area
+from camlib import accepted_error, circle_quad_segs, clearing_margin, error_quad_segs, grace, rest_area
 
 log = logging.getLogger('base')
 
@@ -177,6 +180,7 @@ class ToolRun:
     uid: int
     domain: object
     settings: object = None
+    polygons: object = None     # rest path: the polygons of the first tool, when the domain is not split by explode
 
 
 @dataclass(frozen=True)
@@ -191,6 +195,7 @@ class ToolsResult:
     last: Optional[float] = None
     failed: bool = False
     status: str = 'ok'
+    stock: object = None        # rest path: the stock left after the last tool
 
 
 def run_tools(diameters, resolve: Callable, clear: Callable, store: Callable, check_abort: Callable,
@@ -266,3 +271,175 @@ def run_tools(diameters, resolve: Callable, clear: Callable, store: Callable, ch
             cleared = run.domain.buffer(-offset_a * (1 + legacy_tcl_inset.overlap)).buffer(
                 -diameter / 1.999999).buffer(diameter / 1.999999).buffer(0)
     return out
+
+
+def sweep_segments(diameter, edge_error, steps, to_segs=circle_quad_segs):
+    """
+    The quarter-circle segments of the swept area and of the rest area: their chords stay within the accepted error
+    (the Clearing Error, else the error of the circle steps), so the slivers of the sweep are not stock.
+    to_segs maps the circle steps to segments (NCC: steps // 4, Paint: rounded up).
+    """
+    return error_quad_segs(diameter / 2.0, edge_error) if edge_error else to_segs(steps)
+
+
+def rest_connect_contour(tool_values, form_values, rest_params):
+    """
+    (connect, contour) of a rest tool. rest_params "tool": the values of the tool row (Paint); "form": the rest values
+    of the panel override the row (NCC). Temporary flag: Stage 3 makes it "tool" for both.
+    """
+    return tuple(form_values if rest_params == "form" else tool_values)
+
+
+def rest_sweep(polygon, diameter, settings, process_polygon, simplify, simplification, keep_stock, edge_error=None,
+               quad_segs=16):
+    """Paint one rest polygon: (status, elements, swept); status is ok, skipped or failed."""
+    left, bottom, right, top = polygon.bounds
+    if right - left < diameter or top - bottom < diameter:
+        return 'skipped', [], None
+    check_buff = clearing_margin(polygon, diameter / 2.0, quad_segs)
+    if not check_buff or check_buff.is_empty:
+        return 'skipped', [], None
+    result = process_polygon(polygon, diameter, settings)
+    if result == 'fail':
+        # Not swept, so the polygon stays in the stock handed to the next tool.
+        return 'failed', [], None
+    elements = simplified_inside(result.get_objects(), simplify, simplification, polygon, diameter,
+                                 edge_error, quad_segs) if result else []
+    swept = (swept_area(elements, diameter, sweep_segments(diameter, edge_error, None, lambda __: quad_segs))
+             if keep_stock else None)
+    return 'ok', elements, swept
+
+
+def run_rest_tools(diameters, resolve: Callable, sweep: Callable, store: Callable, check_abort: Callable,
+                   sweep_steps: Callable, edge_error=None, to_segs: Callable = circle_quad_segs,
+                   begin: Optional[Callable] = None, polygon_done: Optional[Callable] = None,
+                   explode: Callable = list, explode_rest: Callable = polygon_parts,
+                   initial_stock: Optional[Callable] = None, advance: Optional[Callable] = None,
+                   on_fail: Optional[Callable] = None, on_error: Optional[Callable] = None):
+    """
+    The rest loop: the tools run from the largest diameter to the smallest and each one clears what the earlier ones
+    left (the stock), reached through the area they cleared already.
+
+    resolve(diameter) -> ToolRun, None (skip the tool) or FAIL (stop the whole run)
+    sweep(polygon, diameter, run, segments, keep_stock) -> (status, elements, swept); status ok, failed, skipped or
+        quiet (skipped and not counted in the progress); segments: the margin segments of the sweep steps
+    store(run, diameter, cleared) is called after every tool that ran
+    sweep_steps(diameter, kind) -> circle steps of the rest area and the swept area (NCC: a job-wide constant)
+    to_segs(steps) -> quarter-circle segments; edge_error: the Clearing Error, None for the error of the steps
+    explode(domain) splits the first domain; explode_rest(rest area) splits the later ones
+    initial_stock(run) -> the stock of the first tool (default: its domain)
+    advance(run, stock, cleared, swept_parts, diameter, keep_stock, index, ordered) -> (stock, stop); the default is
+        the Paint rule: subtract the swept parts, stop after the last tool or when nothing is left
+    on_fail(diameter) after a polygon that failed; on_error(err, diameter) after an exception of sweep (default: raise)
+    """
+    out = ToolsResult()
+    ordered = sorted(diameters, reverse=True)
+    stock = None
+    for index, diameter in enumerate(ordered):
+        has_next_tool = index + 1 < len(ordered)
+        check_abort()
+        out.last = diameter
+        if begin is not None:
+            begin(diameter)
+        run = resolve(diameter)
+        if isinstance(run, str):
+            out.status = FAIL
+            return out
+        if run is None:
+            continue
+        steps = sweep_steps(diameter, 'sweep')
+        if stock is None:
+            stock = initial_stock(run) if initial_stock is not None else run.domain
+            polygons = run.polygons if run.polygons is not None else explode(stock)
+        else:
+            # The tool crosses the area that is cut already to reach the stock.
+            polygons = explode_rest(rest_area(
+                run.domain, stock, diameter, sweep_segments(diameter, edge_error, steps, to_segs), edge_error))
+        cleared, swept_parts = [], []
+        for number, polygon in enumerate(polygons, 1):
+            check_abort()
+            try:
+                status, elements, swept = sweep(polygon, diameter, run, to_segs(steps), has_next_tool)
+            except grace:
+                raise
+            except Exception as err:
+                if on_error is None:
+                    raise
+                on_error(err, diameter)
+                status, elements, swept = 'error', [], None
+            if status == 'quiet':
+                continue
+            if status == 'ok':
+                cleared += elements
+                if swept is not None and not swept.is_empty:
+                    swept_parts.append(swept)
+            elif status == 'failed' and on_fail is not None:
+                on_fail(diameter)
+            if polygon_done is not None:
+                polygon_done(number, len(polygons))
+        check_abort()
+        store(run, diameter, cleared)
+        if advance is not None:
+            stock, stop = advance(run, stock, cleared, swept_parts, diameter, has_next_tool, index, ordered)
+        else:
+            # Stock for the next tool: what the swept area of this tool does not cover of the stock, the polygons
+            # that were not painted (too narrow, failed) included.
+            stop = not has_next_tool
+            if not stop:
+                if swept_parts:
+                    stock = stock.difference(unary_union(swept_parts))
+                stock = unary_union(polygon_parts(stock))
+                stop = stock.is_empty
+        out.stock = stock
+        if stop:
+            break
+    return out
+
+
+@dataclass(frozen=True)
+class CleanupJob:
+    """The cleanup of one tool: the domain, the polygon clearing and whether the tool connects its paths."""
+    domain: object
+    generate: Callable
+    connect: bool = False
+
+
+def final_cleanup(candidates, prepare: Callable, previous: Callable, cleanup: Callable, store: Callable,
+                  check_abort: Callable, cleanup_rules: str = "paint"):
+    """
+    The final cleanup of the residual stock with one of the eligible tools.
+
+    candidates: [(uid, tool diameter)] of the tools that have the cleanup on
+    prepare(uid) -> CleanupJob, or None when the tool has nothing to clean
+    previous() -> the tools already cut (dicts with solid_geometry and tooldia)
+    cleanup(domain, diameter, previous, generate, boundary_first) -> (paths, residual): camlib.residual_cleanup with
+        its steps and the physical flag bound (Paint: physical sweep of the segments, NCC: the job-wide steps)
+    store(uid, paths) is called when the cleanup made paths
+    cleanup_rules, temporary flag. "paint": a tool with diameter <= 0 or without a domain is skipped, the next
+        smallest is tried, and boundary_first = not connect. "ncc": only the smallest tool is tried and the boundary
+        goes first.
+    Returns the residual of the cleanup, None when no cleanup ran.
+    """
+    ordered = sorted(candidates, key=lambda candidate: candidate[1])
+    if cleanup_rules == "ncc":
+        ordered = ordered[:1]
+        if not ordered:
+            return None
+        check_abort()
+        ordered = [candidate for candidate in ordered if candidate[1] > 0]
+    else:
+        ordered = [candidate for candidate in ordered if candidate[1] > 0]
+        if not ordered:
+            return None
+        check_abort()
+    for uid, diameter in ordered:
+        job = prepare(uid)
+        if job is None:
+            continue
+        boundary_first = True if cleanup_rules == "ncc" else not job.connect
+        paths, residual = cleanup(job.domain, diameter, previous(), job.generate, boundary_first)
+        check_abort()
+        if paths:
+            store(uid, paths)
+        return residual
+    return None

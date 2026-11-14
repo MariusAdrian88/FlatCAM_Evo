@@ -16,7 +16,7 @@ from appPlugins.Common.clearing.methods import PAINT_METHODS
 from appPlugins.Common.clearing.regions import (  # noqa: F401  re-export until Stage 7
     buffer_geometry, merge_overlapping, polygon_parts, swept_area)
 from camlib import (AppRTreeStorage, circle_quad_segs, clearing_margin, error_quad_segs,
-                    flatten_shapely_geometry, grace, rest_area)
+                    flatten_shapely_geometry, grace)
 
 log = logging.getLogger('base')
 
@@ -106,22 +106,8 @@ def generate_paint(geometry, tools_storage, diameters, ordering, simplification,
 def rest_sweep(polygon, diameter, settings, process_polygon, simplify, simplification, keep_stock, edge_error=None,
                quad_segs=16):
     """Paint one rest polygon: (status, elements, swept); status is ok, skipped or failed."""
-    left, bottom, right, top = polygon.bounds
-    if right - left < diameter or top - bottom < diameter:
-        return 'skipped', [], None
-    check_buff = clearing_margin(polygon, diameter / 2.0, quad_segs)
-    if not check_buff or check_buff.is_empty:
-        return 'skipped', [], None
-    result = process_polygon(polygon, diameter, settings)
-    if result == 'fail':
-        # Not swept, so the polygon stays in the stock handed to the next tool.
-        return 'failed', [], None
-    elements = simplified_inside(result.get_objects(), simplify, simplification, polygon, diameter,
-                                 edge_error, quad_segs) if result else []
-    swept = swept_area(elements, diameter, sweep_quad_segs(diameter, edge_error, quad_segs)) if keep_stock else None
-    return 'ok', elements, swept
-
-
+    return engine.rest_sweep(polygon, diameter, settings, process_polygon, simplify, simplification, keep_stock,
+                             edge_error, quad_segs)
 
 
 def generate_rest_paint(geometry, tools_storage, diameters, simplification, decimals,
@@ -135,7 +121,6 @@ def generate_rest_paint(geometry, tools_storage, diameters, simplification, deci
     tools = {uid: {**{key: value for key, value in tool.items() if key != 'paint_cleanup_start'},
                    'data': deepcopy(tool.get('data', {})), 'solid_geometry': []}
              for uid, tool in tools_storage.items()}
-    diameters = sorted(diameters, reverse=True)
     find_uid = find_uid or (lambda dia, storage: find_tool_uid(dia, storage, decimals))
     get_params = get_params or tool_params
     buffer = buffer or buffer_geometry
@@ -148,58 +133,40 @@ def generate_rest_paint(geometry, tools_storage, diameters, simplification, deci
     if not polygons:
         return {'tools': tools, 'output_tools': output_tools, 'warnings': [('empty', None)]}
     domain = unary_union(polygons)
-    stock = None
-    for tool_index, diameter in enumerate(diameters):
-        has_next_tool = tool_index + 1 < len(diameters)
-        if check_abort is not None:
-            check_abort()
-        if tool_started is not None:
-            tool_started(diameter)
+    state = {'progress': 0}
+
+    def resolve(diameter):
         uid = find_uid(diameter, tools)
         if uid is None:
-            return 'fail'
-        settings = get_params(uid, tools)
-        quad_segs = tool_quad_segs(steps_at, diameter)
-        if stock is not None:
-            # The tool crosses the area that is cut already to reach the stock.
-            polygons = polygon_parts(rest_area(domain, stock, diameter, sweep_quad_segs(diameter, edge_error, quad_segs),
-                                               edge_error))
-        cleared, swept_parts = [], []
-        old_progress = 0
-        geo_len = len(polygons)
-        for number, polygon in enumerate(polygons, 1):
-            if check_abort is not None:
-                check_abort()
-            try:
-                status, elements, swept = rest_sweep(
-                    polygon, diameter, settings, process_polygon, simplify, simplification, has_next_tool,
-                    edge_error, quad_segs)
-            except grace:
-                raise
-            except Exception as err:
-                warnings.append(('rest', str(err)))
-                status = 'error'
-            if status == 'ok':
-                cleared += elements
-                if swept is not None and not swept.is_empty:
-                    swept_parts.append(swept)
-            elif status == 'failed':
-                warnings.append(('skipped', diameter))
-            if progress is not None:
-                old_progress = progress(number, geo_len, old_progress)
+            return engine.FAIL
+        return engine.ToolRun(uid, domain, get_params(uid, tools), polygons)
+
+    def sweep(polygon, diameter, run, segments, keep_stock):
+        return engine.rest_sweep(polygon, diameter, run.settings, process_polygon, simplify, simplification,
+                                 keep_stock, edge_error, segments)
+
+    def begin(diameter):
+        state['progress'] = 0
+        if tool_started is not None:
+            tool_started(diameter)
+
+    def polygon_done(number, total):
+        if progress is not None:
+            state['progress'] = progress(number, total, state['progress'])
+
+    def store(run, diameter, cleared):
         if cleared:
-            tools[uid]['solid_geometry'] = list(cleared)
-            output_tools[uid] = dict(tools[uid])
-        if not has_next_tool:
-            break
-        # Stock for the next tool: what the swept area of this tool does not cover of the stock (of the domain
-        # for the first tool), the polygons that were not painted (too narrow, failed) included.
-        stock = domain if stock is None else stock
-        if swept_parts:
-            stock = stock.difference(unary_union(swept_parts))
-        stock = unary_union(polygon_parts(stock))
-        if stock.is_empty:
-            break
+            tools[run.uid]['solid_geometry'] = list(cleared)
+            output_tools[run.uid] = dict(tools[run.uid])
+
+    outcome = engine.run_rest_tools(
+        diameters, resolve, sweep, store, check_abort or (lambda: None),
+        lambda diameter, kind: steps_at(diameter) if steps_at is not None else 64, edge_error,
+        begin=begin, polygon_done=polygon_done,
+        on_fail=lambda diameter: warnings.append(('skipped', diameter)),
+        on_error=lambda err, diameter: warnings.append(('rest', str(err))))
+    if outcome.status == engine.FAIL:
+        return 'fail'
     if check_abort is not None:
         check_abort()
     return {'tools': tools, 'output_tools': output_tools, 'warnings': warnings}
@@ -215,50 +182,52 @@ def final_cleanup(geometry, tools_storage, output_tools, diameters, decimals, pr
     get_params = get_params or tool_params
     buffer = buffer or buffer_geometry
     selected = {find_uid(diameter, tools) for diameter in diameters}
-    eligible = [uid for uid, tool in tools.items() if uid in selected and float(tool['tooldia']) > 0
-                and tool['data'].get('tools_paint_final_cleanup', False)]
-    residual = None
+    candidates = [(uid, float(tool['tooldia'])) for uid, tool in tools.items()
+                  if uid in selected and float(tool['tooldia']) > 0
+                  and tool['data'].get('tools_paint_final_cleanup', False)]
     warnings = []
-    if eligible:
-        if check_abort is not None:
-            check_abort()
-        original = unary_union(flatten_shapely_geometry(geometry))
-        for uid in sorted(eligible, key=lambda key: float(tools[key]['tooldia'])):
-            tool = tools[uid]
-            offset = float(tool['data']['tools_paint_offset']) if rest_offset is None else rest_offset
-            # Negative offsets never authorize cutting outside the selection or in its holes.
-            domain = original.intersection(unary_union(buffer(geometry, offset)))
-            if not domain.is_empty:
-                settings = get_params(uid, tools)
+    state = {}
 
-                def generate_paths(polygon, diameter):
-                    try:
-                        result = process_polygon(polygon, diameter, settings)
-                    except grace:
-                        raise
-                    except Exception as err:
-                        # One polygon that cannot be painted is left to the residual.
-                        warnings.append(('normal', str(err)))
-                        return 'fail'
-                    if result == 'fail':
-                        return 'fail'
-                    return list(result.get_objects()) if result else []
+    def prepare(uid):
+        if 'original' not in state:
+            state['original'] = unary_union(flatten_shapely_geometry(geometry))
+        tool = tools[uid]
+        offset = float(tool['data']['tools_paint_offset']) if rest_offset is None else rest_offset
+        # Negative offsets never authorize cutting outside the selection or in its holes.
+        domain = state['original'].intersection(unary_union(buffer(geometry, offset)))
+        if domain.is_empty:
+            return None
+        settings = get_params(uid, tools)
 
-                previous = [entry for entry in output_tools.values() if entry['solid_geometry']]
-                paths, residual = cleanup(domain, float(tool['tooldia']), previous,
-                                          generate_paths, not settings['conn'])
-                if check_abort is not None:
-                    check_abort()
-                if paths:
-                    standard = list(output_tools.get(uid, {}).get('solid_geometry', []))
-                    tool['solid_geometry'] = standard + paths
-                    tool['paint_cleanup_start'] = len(standard)
-                    tools[uid] = tools.pop(uid)
-                    output_tools.pop(uid, None)
-                    output_tools[uid] = dict(tool)
-                if residual is not None and not residual.is_empty:
-                    warnings.append(('cleanup', None))
-                break
+        def generate_paths(polygon, diameter):
+            try:
+                result = process_polygon(polygon, diameter, settings)
+            except grace:
+                raise
+            except Exception as err:
+                # One polygon that cannot be painted is left to the residual.
+                warnings.append(('normal', str(err)))
+                return 'fail'
+            if result == 'fail':
+                return 'fail'
+            return list(result.get_objects()) if result else []
+
+        return engine.CleanupJob(domain, generate_paths, settings['conn'])
+
+    def store(uid, paths):
+        tool = tools[uid]
+        standard = list(output_tools.get(uid, {}).get('solid_geometry', []))
+        tool['solid_geometry'] = standard + paths
+        tool['paint_cleanup_start'] = len(standard)
+        tools[uid] = tools.pop(uid)
+        output_tools.pop(uid, None)
+        output_tools[uid] = dict(tool)
+
+    residual = engine.final_cleanup(
+        candidates, prepare, lambda: [entry for entry in output_tools.values() if entry['solid_geometry']], cleanup,
+        store, check_abort or (lambda: None), cleanup_rules="paint")
+    if residual is not None and not residual.is_empty:
+        warnings.append(('cleanup', None))
     return {'tools': tools, 'output_tools': output_tools, 'residual': residual, 'warnings': warnings,
             'paths': [path for tool in output_tools.values() for path in tool['solid_geometry']]}
 

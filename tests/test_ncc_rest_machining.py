@@ -396,6 +396,34 @@ def test_rest_reports_failure_only_when_copper_free_area_remains():
     assert run(disc, None)[3] is True
 
 
+def test_rest_leaves_stock_for_the_final_cleanup_of_the_smallest_tool():
+    tools = rest_tools(2.0, 1.0)
+    for tool in tools.values():
+        tool['data']['tools_ncc_final_cleanup'] = True
+    area = MultiPolygon([box(0, 0, 10, 10)])
+    # each tool clears a single line: the swept stock leaves material, so the cleanup has work
+    lines = {2.0: [LineString([(2, 2), (8, 2)])], 1.0: [LineString([(1, 8), (9, 8)])]}
+    generated, domains, residual, failed, last = NccModel.generate_tools(
+        'gui_rest', tools, tools, [2.0, 1.0], {1: area, 2: area}, 'n', 4, 32,
+        lambda **kw: lines[round(kw['tooldia'], 4)], lambda: None, lambda text: None)
+    assert failed and not residual.is_empty and sorted(domains) == [1, 2]
+    seen = []
+
+    def cleanup(domain, dia, steps, previous, generate):
+        seen.append((round(domain.area, 6), dia, steps, [tool['tooldia'] for tool in previous]))
+        return [LineString([(5, 5), (6, 5)])], residual
+
+    cleaned, left = NccModel.finish_cleanup(tools, generated, domains, 'out', 32, cleanup, lambda **kw: None,
+                                            lambda: None)
+    assert left is residual
+    assert seen == [(100.0, 1.0, 32, [2.0, 1.0])]
+    assert list(cleaned) == [1, 2]
+    assert cleaned[2]['ncc_cleanup_start'] == 1
+    assert cleaned[2]['solid_geometry'] == lines[1.0] + [LineString([(5, 5), (6, 5)])]
+    assert cleaned[2]['data']['output_object_name'] == 'out'
+    assert 'ncc_cleanup_start' not in cleaned[1]
+
+
 def test_tcl_rest_does_not_send_slivers_to_the_clearing():
     area = MultiPolygon([box(0, 0, 10, 10), box(20, 0, 20.1, 5)])
     seen = []
