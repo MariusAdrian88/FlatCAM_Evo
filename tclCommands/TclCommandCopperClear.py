@@ -266,36 +266,11 @@ class TclCommandCopperClear(TclCommand):
         select = 0 if all_selected else (1 if areas is not None else 2)
         box_obj = self._object_arg(args['box'], 'Reference object') if select == 2 else None
 
-        # per-tool data: the preferences, overridden by the given arguments
-        default_data = self.app.options.copy()
-        default_data.update({"name": outname, "plot": plot, "tooldia": tooldia, "tools_ncc_ref": select,
-                             "seg_x": self._app_option("geometry_seg_x"),
-                             "seg_y": self._app_option("geometry_seg_y")})
-        for key, value in (("tools_ncc_margin", margin), ("tools_ncc_method", method),
-                           ("tools_ncc_connect", connect), ("tools_ncc_contour", contour),
-                           ("tools_ncc_overlap", overlap)):
-            if value is not None:
-                default_data[key] = value
-        if angle is not None:
-            default_data["tools_ncc_crosshatch_angle"] = angle
-        ncc_tools = {}
-        for tool_uid, tool in enumerate(tools, 1):
-            ncc_tools[tool_uid] = {
-                'tooldia':          float('%.*f' % (obj.decimals, tool)),
-                'data':             dict(default_data),
-                'solid_geometry':   []
-            }
-            ncc_tools[tool_uid]['data']['tooldia'] = self.app.dec_format(tool, obj.decimals)
-        # the isolation tools need their own entries, else their isolation paths have no tool to go to
-        clear_dias = {float('%.*f' % (obj.decimals, tool)) for tool in tools}
+        # the tool rows are built by the resolver of the job from these arguments and the preferences
+        clear_dias = {round(tool, obj.decimals) for tool in tools}
         for tool in iso_tooldia or []:
-            dia = float('%.*f' % (obj.decimals, tool))
-            if dia in clear_dias:
+            if round(tool, obj.decimals) in clear_dias:
                 self.raise_tcl_error('A diameter can not be both in -tooldia and in -iso_tooldia: %s' % tool)
-            tool_uid = len(ncc_tools) + 1
-            ncc_tools[tool_uid] = {'tooldia': dia, 'data': dict(default_data), 'solid_geometry': []}
-            ncc_tools[tool_uid]['data'].update({'tooldia': self.app.dec_format(tool, obj.decimals),
-                                                'tools_ncc_operation': 'iso'})
 
         if self.app.ncclear_tool.gen is None:
             self.app.ncclear_tool.gen = NccGen(self.app.ncclear_tool)
@@ -318,7 +293,6 @@ class TclCommandCopperClear(TclCommand):
             connect=connect,
             contour=contour,
             rest=rest,
-            tools_storage=ncc_tools,
             plot=plot,
             run_threaded=False,
             final_cleanup=final_cleanup,

@@ -16,7 +16,6 @@ from dataclasses import dataclass
 from typing import Callable, Optional
 
 import shapely
-from shapely import MultiPolygon
 
 from shapely.ops import unary_union
 
@@ -183,13 +182,6 @@ class ToolRun:
     polygons: object = None     # rest path: the polygons of the first tool, when the domain is not split by explode
 
 
-@dataclass(frozen=True)
-class LegacyTclInset:
-    """The historical Tcl NCC normal mode: each tool clears the domain inset by the diameters still to come."""
-    total: float
-    overlap: float
-
-
 @dataclass
 class ToolsResult:
     last: Optional[float] = None
@@ -201,7 +193,7 @@ class ToolsResult:
 def run_tools(diameters, resolve: Callable, clear: Callable, store: Callable, check_abort: Callable,
               begin: Optional[Callable] = None, polygon_done: Optional[Callable] = None,
               explode: Callable = list, parts: Optional[Callable] = None, on_fail: Optional[Callable] = None,
-              on_error: Optional[Callable] = None, legacy_tcl_inset: Optional[LegacyTclInset] = None):
+              on_error: Optional[Callable] = None):
     """
     The normal (non-rest) loop: each tool clears its complete domain.
 
@@ -212,11 +204,8 @@ def run_tools(diameters, resolve: Callable, clear: Callable, store: Callable, ch
     explode(domain) -> the polygons; parts(polygon) -> the polygons to clear, or None to skip it without progress
     on_fail(diameter) handles a FAIL of clear (default: abort with grace); on_error(err, diameter) handles an
     exception of clear (default: raise)
-    legacy_tcl_inset: the Tcl NCC normal inset and morphological cleared-area estimate (temporary flag)
     """
     out = ToolsResult()
-    offset_a = legacy_tcl_inset.total if legacy_tcl_inset else 0.0
-    cleared = MultiPolygon()
     for diameter in diameters:
         check_abort()
         out.last = diameter
@@ -228,15 +217,7 @@ def run_tools(diameters, resolve: Callable, clear: Callable, store: Callable, ch
             return out
         if run is None:
             continue
-        area = run.domain
-        if legacy_tcl_inset:
-            offset_a -= diameter - 1e-12
-            try:
-                area = run.domain.buffer(-offset_a).difference(cleared)
-            except Exception as err:
-                log.error('NCC normal area difference failed: %s' % str(err))
-                continue
-        polygons = explode(area)
+        polygons = explode(run.domain)
         paths = []
         for number, polygon in enumerate(polygons, 1):
             check_abort()
@@ -267,9 +248,6 @@ def run_tools(diameters, resolve: Callable, clear: Callable, store: Callable, ch
                 polygon_done(number, len(polygons))
         check_abort()
         store(run, diameter, paths)
-        if legacy_tcl_inset and paths:
-            cleared = run.domain.buffer(-offset_a * (1 + legacy_tcl_inset.overlap)).buffer(
-                -diameter / 1.999999).buffer(diameter / 1.999999).buffer(0)
     return out
 
 

@@ -439,20 +439,37 @@ def ncc_case_adaptive(boards, qapp, tmp_path):
     return plugin, ncc_regions(boards['mixed'], 3.0)
 
 
+# the Tcl jobs and the GUI settings that mean the same: the Tcl arguments, and the row of every tool of the GUI table
+TCL_JOBS = {
+    'normal': dict(
+        dias=[0.4, 0.2], margin=0.5, offset=0.03, rest=False,
+        args=dict(margin=0.5, has_offset=True, offset=0.03, select_method=0, overlap=0.3, connect=True, contour=True,
+                  order=1, method=2, rest=False, final_cleanup=True),
+        row=dict(method=2, overlap=30, connect=True, contour=True, offset_choice=True, offset_value=0.03,
+                 final_cleanup=True)),
+    'rest': dict(
+        dias=[0.5, 0.25, 0.2], margin=0.4, offset=0.0, rest=True,
+        args=dict(margin=0.4, select_method=0, overlap=0.35, connect=True, contour=True, method=4, angle=30.0,
+                  rest=True, final_cleanup=True),
+        row=dict(method=4, overlap=35, connect=True, contour=True, crosshatch_angle=30.0, final_cleanup=True)),
+}
+
+
+def ncc_case_tcl(boards, qapp, tmp_path, job):
+    job = TCL_JOBS[job]
+    plugin = Plugin(qapp, tmp_path, 'ncc', boards['crop'], job['dias'])
+    run_ncc_tcl(plugin, job['dias'], **job['args'])
+    return plugin, ncc_regions(boards['crop'], job['margin'], offset=job['offset'])
+
+
 def ncc_case_tcl_normal(boards, qapp, tmp_path):
     """Tcl, normal: 2 diameters, a nonzero offset, the Tcl method, overlap and margin, the final cleanup."""
-    plugin = Plugin(qapp, tmp_path, 'ncc', boards['crop'], [0.4, 0.2])
-    run_ncc_tcl(plugin, '0.4,0.2', margin=0.5, has_offset=True, offset=0.03, select_method=0, overlap=0.3,
-                connect=True, contour=True, order=1, method=2, rest=False, final_cleanup=True)
-    return plugin, ncc_regions(boards['crop'], 0.5, offset=0.03)
+    return ncc_case_tcl(boards, qapp, tmp_path, 'normal')
 
 
 def ncc_case_tcl_rest(boards, qapp, tmp_path):
     """Tcl, rest machining with the Crosshatch angle and the final cleanup (the cleanup markers)."""
-    plugin = Plugin(qapp, tmp_path, 'ncc', boards['crop'], [0.5, 0.25, 0.2])
-    run_ncc_tcl(plugin, [0.5, 0.25, 0.2], margin=0.4, select_method=0, overlap=0.35, connect=True, contour=True,
-                method=4, angle=30.0, rest=True, final_cleanup=True)
-    return plugin, ncc_regions(boards['crop'], 0.4)
+    return ncc_case_tcl(boards, qapp, tmp_path, 'rest')
 
 
 NCC_CASES = {
@@ -596,6 +613,29 @@ def test_clearing_golden(case, boards, qapp, tmp_path):
     finally:
         plugin.close()
     check_golden(case, tools, metrics)
+
+
+@pytest.mark.parametrize('job', list(TCL_JOBS))
+def test_ncc_tcl_gives_the_paths_of_the_gui_for_the_same_inputs(job, boards, qapp, tmp_path):
+    """Tcl and the GUI run one generation path: the same settings give the same tools and paths."""
+    spec = TCL_JOBS[job]
+    plugin, __ = ncc_case_tcl(boards, qapp, tmp_path / 'tcl', job)
+    try:
+        tcl = [(t['dia'], t['paths'], t['markers']) for t in tools_snapshot(plugin.result())]
+    finally:
+        plugin.close()
+    rows = {dia: spec['row'] for dia in spec['dias']}
+    plugin = Plugin(qapp, tmp_path / 'gui', 'ncc', boards['crop'], spec['dias'], tool_data=rows)
+    try:
+        ui = plugin.tool.ui
+        ui.rest_connect_cb.set_value(spec['row']['connect'])
+        ui.rest_contour_cb.set_value(spec['row']['contour'])
+        ui.order_combo.set_value(spec['args'].get('order', 0))
+        run_ncc_click(plugin, rest=spec['rest'], margin=spec['margin'], rest_margin=spec['margin'])
+        gui = [(t['dia'], t['paths'], t['markers']) for t in tools_snapshot(plugin.result())]
+    finally:
+        plugin.close()
+    assert tcl and tcl == gui
 
 
 # ---------------------------------------------------------------------------------------------------------------

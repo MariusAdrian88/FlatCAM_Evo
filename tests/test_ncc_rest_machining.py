@@ -158,7 +158,7 @@ def test_normal_run_publishes_only_the_geometry_of_this_run():
     new = [LineString([(1, 1), (9, 1)])]
     # tool 1 is selected and clears; tool 3 is selected and clears nothing; tool 2 is not selected
     generated, *_ = NccModel.generate_tools(
-        'gui_normal', tools, tools, [1.0, 0.5], {1: area, 3: area}, 'n', 4, 32,
+        'normal', tools, tools, [1.0, 0.5], {1: area, 3: area}, 'n', 4, 32,
         lambda **kw: new if kw['tooldia'] == 1.0 else None, lambda: None, lambda text: None)
     assert list(generated) == [1]
     assert generated[1]['solid_geometry'] == new
@@ -267,7 +267,7 @@ def test_invalid_unused_crosshatch_angle_does_not_break_other_methods():
         assert 'angle' not in kw
         return [LineString([(0, 1), (1, 1)])]
 
-    NccModel.generate_tools('gui_normal', tools, NccModel.copy_tools(tools), [2.0, 1.0], areas, 'n', 4, 32,
+    NccModel.generate_tools('normal', tools, NccModel.copy_tools(tools), [2.0, 1.0], areas, 'n', 4, 32,
                             clear, lambda: None, lambda text: None)
     assert calls == [0, 0]
 
@@ -302,7 +302,7 @@ def test_ncc_crosshatch_method_clears_in_two_directions():
     assert {45.0, 135.0} <= directions(paths)
 
 
-@pytest.mark.parametrize('mode', ['gui_normal', 'gui_rest'])
+@pytest.mark.parametrize('mode', ['normal', 'rest'])
 def test_each_tool_clears_at_its_own_crosshatch_angle(mode):
     tools = crosshatch_table(30.0, 75.0)
     area = MultiPolygon([box(0, 0, 10, 10)])
@@ -352,7 +352,7 @@ def test_crosshatch_cleanup_uses_the_same_invalid_angle_fallback_as_clearing():
             crosshatch=geometry.clear_polygon_crosshatch, angle=kw['angle'])[0]
 
     generated, domains, *_ = NccModel.generate_tools(
-        'gui_normal', tools, tools, [2.0], {1: area}, 'n', 4, 64,
+        'normal', tools, tools, [2.0], {1: area}, 'n', 4, 64,
         clear, lambda: None, lambda text: None)
     cleaned, _ = NccModel.finish_cleanup(
         tools, generated, domains, 'n', 64,
@@ -388,7 +388,7 @@ def test_rest_reports_failure_only_when_copper_free_area_remains():
 
     def run(area, result):
         return NccModel.generate_tools(
-            'gui_rest', tools, tools, [1.0], {1: MultiPolygon([area])}, 'n', 4, 32,
+            'rest', tools, tools, [1.0], {1: MultiPolygon([area])}, 'n', 4, 32,
             lambda **kw: result, lambda: None, lambda text: None)
 
     assert run(disc, [LineString([(0.5, 0.5), (0.5, 0.501)])])[3] is False
@@ -404,7 +404,7 @@ def test_rest_leaves_stock_for_the_final_cleanup_of_the_smallest_tool():
     # each tool clears a single line: the swept stock leaves material, so the cleanup has work
     lines = {2.0: [LineString([(2, 2), (8, 2)])], 1.0: [LineString([(1, 8), (9, 8)])]}
     generated, domains, residual, failed, last = NccModel.generate_tools(
-        'gui_rest', tools, tools, [2.0, 1.0], {1: area, 2: area}, 'n', 4, 32,
+        'rest', tools, tools, [2.0, 1.0], {1: area, 2: area}, 'n', 4, 32,
         lambda **kw: lines[round(kw['tooldia'], 4)], lambda: None, lambda text: None)
     assert failed and not residual.is_empty and sorted(domains) == [1, 2]
     seen = []
@@ -444,7 +444,7 @@ def test_tcl_rest_does_not_send_slivers_to_the_clearing():
 def test_tcl_final_cleanup_reaches_the_tools_and_exclusion_the_area():
     area = MultiPolygon([box(0, 0, 10, 10)])
     gen2, output2 = run_rest(area, [1.0], lambda **kw: [LineString([(1, 1), (9, 1)])], tcl=True, rest=False,
-                             final_cleanup=True, exclusion_areas=[box(0, 0, 5, 10)], real_area=False)
+                             final_cleanup=True, exclusion_areas=[box(0, 0, 5, 10)], real_area=True)
     # the area handed to the clearing is the one without the excluded part
     assert gen2._compute_area_to_clear_handler.called
     final_data = gen2.parent_tool.ncc_tools[1]['data']
@@ -452,6 +452,61 @@ def test_tcl_final_cleanup_reaches_the_tools_and_exclusion_the_area():
     assert output2.tools[1]['data']['tools_ncc_final_cleanup'] is True
     pol = gen2.clear_polygon_worker.call_args.kwargs['pol']
     assert pol.bounds[0] >= 5 - 1e-9
+
+
+class NoWidgets:
+    """The panel of a Tcl run: any read is a defect."""
+
+    def __getattr__(self, name):
+        raise AssertionError('the Tcl job read the widget %s' % name)
+
+
+@pytest.mark.parametrize('rest', [False, True])
+def test_tcl_follows_only_its_arguments_not_the_panel_or_the_tool_table(rest):
+    """The panel says rest, margin 3, other tools and other methods; the Tcl arguments decide."""
+    gen, output = make_gen([1.0], known=[4.0, 2.0])
+    gen.ui = NoWidgets()
+    for row in gen.parent_tool.ncc_tools.values():
+        row['data'].update(tools_ncc_method=2, tools_ncc_overlap=90, tools_ncc_connect=True, tools_ncc_contour=False,
+                           tools_ncc_offset_choice=True, tools_ncc_offset_value=0.7, tools_ncc_final_cleanup=True)
+    table_before = NccModel.copy_tools(gen.parent_tool.ncc_tools)
+    gen.app.app_obj = gen.parent_tool
+    seen = []
+
+    def clear(**kw):
+        seen.append(kw)
+        return [LineString([(1, 5), (9, 5)])]
+
+    gen.clear_polygon_worker = clear
+    source = SimpleNamespace(kind='geometry', solid_geometry=[box(4, 4, 6, 6)])
+    result = gen.clear_copper_tcl(
+        source, None, [box(0, 0, 10, 10)], [1.0], None, 0.5, False, 0.0, 1, 'tcl_out', 0.2, False, True, 0, 0, rest,
+        None, False, False, False)
+    assert result != 'fail'
+    assert seen and all(kw['tooldia'] == 1.0 for kw in seen)
+    for kw in seen:
+        assert (kw['ncc_method'], kw['ncc_overlap'], kw['ncc_connect'], kw['ncc_contour']) == (
+            0, pytest.approx(0.2), False, True)
+    assert list(output.tools) == [1]
+    data = output.tools[1]['data']
+    assert data['tools_ncc_final_cleanup'] is False and data['tools_ncc_offset_choice'] is False
+    assert gen.parent_tool.ncc_tools == table_before
+
+
+def test_tcl_resolver_builds_the_tool_rows_from_the_arguments():
+    gen, __ = make_gen([1.0], known=[9.0], options={'tools_ncc_final_cleanup': True})
+    gen.ui = NoWidgets()
+    source = SimpleNamespace(kind='geometry', solid_geometry=[box(4, 4, 6, 6)])
+    spec = gen.resolve_tcl_job(source, None, None, '0.5,0.25', None, 0.5, None, None, 0, 'out', 0.35, True, False,
+                               'rev', 4, False, None, False, None, None, None, None, 45.0)
+    assert [row['tooldia'] for row in spec.tool_table.values()] == [0.5, 0.25]
+    assert spec.diameters == (0.5, 0.25)
+    for row in spec.tool_table.values():
+        data = row['data']
+        assert (data['tools_ncc_method'], data['tools_ncc_overlap'], data['tools_ncc_connect'],
+                data['tools_ncc_contour'], data['tools_ncc_crosshatch_angle']) == (4, 35.0, True, False, 45.0)
+        assert data['tools_ncc_final_cleanup'] is True      # the option is the fallback of the argument
+    assert 9.0 not in {row['tooldia'] for row in spec.tool_table.values()}
 
 
 # ---------------------------------------------------------------------------------------------------------------

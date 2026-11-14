@@ -193,9 +193,10 @@ def test_ncc_rejects_inconsistent_new_options():
 
 def test_ncc_crosshatch_method_and_angle_reach_the_tool_data():
     kwargs = _ncc_run({'all': None, 'method': 'crosshatch', 'angle': 45.0})
-    tool_data = kwargs['tools_storage'][1]['data']
-    assert tool_data['tools_ncc_method'] == 4
-    assert tool_data['tools_ncc_crosshatch_angle'] == 45.0
+    # the resolver of the job writes them into the tool rows (test_ncc_rest_machining)
+    assert 'tools_storage' not in kwargs
+    assert kwargs['method'] == 4
+    assert kwargs['angle'] == 45.0
 
 def test_ncc_crosshatch_rejects_invalid_angles():
     for angle in (float('nan'), float('inf'), 'invalid'):
@@ -205,7 +206,6 @@ def test_ncc_crosshatch_rejects_invalid_angles():
 def test_ncc_crosshatch_preference_honors_explicit_angle_and_validates_it():
     options = {'tools_ncc_method': 4, 'tools_ncc_crosshatch_angle': 10.0}
     kwargs = _ncc_run({'all': None, 'angle': -45.0}, options=options)
-    assert kwargs['tools_storage'][1]['data']['tools_ncc_crosshatch_angle'] == 135.0
     assert kwargs['angle'] == 135.0
     with pytest.raises(FCShell.TclErrorException):
         _ncc_run({'all': None, 'angle': float('nan')}, options=options)

@@ -14,7 +14,7 @@ import gettext
 import appTranslation as fcTranslate
 import builtins
 
-from camlib import grace, flatten_shapely_geometry, residual_cleanup, object_circle_steps, clearing_simplification, \
+from camlib import grace, residual_cleanup, object_circle_steps, clearing_simplification, \
     project_units, clearing_error, crosshatch_angle
 from appParsers.feature_access import fused_solid
 from appCommon.SafeEval import safe_eval
@@ -612,6 +612,13 @@ class NccGen:
                 specs.append(tool_spec(uid, diameter, tool_settings[uid]['data'], 'tools_ncc_', 'offset_value'))
         return specs
 
+    def _mill_data(self):
+        """The NCC preferences for Cut Z and the V-tip go to the output tools, like in the Isolation plugin."""
+        mill_data = {'tools_mill_cutz': self._option('tools_ncc_cutz'),
+                     'tools_mill_vtipdia': self._option('tools_ncc_tipdia'),
+                     'tools_mill_vtipangle': self._option('tools_ncc_tipangle')}
+        return {key: value for key, value in mill_data.items() if value is not None}
+
     def _ncc_spec(self, options, **fields):
         """The JobSpec of an NCC run: the fields that both resolvers share are filled here."""
         units = self.app.units
@@ -656,11 +663,7 @@ class NccGen:
         milling_type = self.ui.milling_type_radio.get_value() if iso_tooldia_list else None
         prog_plot = self.app.options.get('tools_ncc_plotting', self.app.defaults.get(
             'tools_ncc_plotting', self.app.defaults.factory_defaults.get('tools_ncc_plotting'))) == 'progressive'
-        # the NCC preferences for Cut Z and the V-tip go to the output tools, like in the Isolation plugin
-        mill_data = {'tools_mill_cutz': self._option('tools_ncc_cutz'),
-                     'tools_mill_vtipdia': self._option('tools_ncc_tipdia'),
-                     'tools_mill_vtipangle': self._option('tools_ncc_tipangle')}
-        mill_data = {key: value for key, value in mill_data.items() if value is not None}
+        mill_data = self._mill_data()
         storage = tools_storage if tools_storage is not None else self.ncc_tools
         # the job reads these copies: the table may be rebuilt while it waits or runs
         snapshot = NccModel.copy_tools(storage)
@@ -690,12 +693,7 @@ class NccGen:
         return True, None
 
     def generate_output(self, spec, prepared, output, app_obj):
-        """ClearingJob hook: fill the output object from the spec."""
-        if spec.mode == 'tcl':
-            return self._generate_tcl(spec, output, app_obj)
-        return self._generate_gui(spec, output, app_obj)
-
-    def _generate_gui(self, spec, output, app_obj):
+        """ClearingJob hook: fill the output object from the spec (one path for the GUI and for Tcl)."""
         cleared_object = spec.source
         rest = spec.rest
         name = spec.outname
@@ -741,7 +739,7 @@ class NccGen:
         if areas and all(isinstance(area, str) for area in areas.values()):
             return 'fail'
         generated, domains, residual, failed, last = NccModel.generate_tools(
-            'gui_rest' if rest else 'gui_normal', tool_settings, snapshot, diameters, areas,
+            'rest' if rest else 'normal', tool_settings, snapshot, diameters, areas,
             name, self.decimals, self.circle_steps, self.clear_polygon_worker,
             lambda: NccGen._process_events_and_check_abort(self),
             self.app.proc_container.update_view_text, connect=spec.connect, contour=spec.contour,
@@ -789,6 +787,23 @@ class NccGen:
             return spec
         return ClearingJob(self, NCC_GUI).run(spec, run_threaded)
 
+    def _tcl_rows(self, diameters, iso_diameters, outname, plot, **values):
+        """
+        The tool rows of a Tcl job, built from its arguments: every row holds the options as defaults and the given
+        values on top. The tool table of the plugin is never read.
+        """
+        base = dict(freeze_options(self.app))
+        base.update(values)
+        base.update(name=outname, plot=plot, seg_x=self._option('geometry_seg_x'),
+                    seg_y=self._option('geometry_seg_y'))
+        rows = {}
+        for uid, (dia, operation) in enumerate(
+                [(dia, 'clear') for dia in diameters] + [(dia, 'iso') for dia in iso_diameters], 1):
+            data = dict(base)
+            data.update(tooldia=round(dia, self.decimals), tools_ncc_operation=operation)
+            rows[uid] = {'tooldia': round(dia, self.decimals), 'data': data, 'solid_geometry': []}
+        return rows
+
     def resolve_tcl_job(
             self,
             ncc_obj,
@@ -816,8 +831,9 @@ class NccGen:
             angle=None,
     ):
         """
-        The Tcl resolver: the arguments, with the tools_ncc_* options as fallback, into a JobSpec. In 3.1 it still
-        reads the tool table of the plugin as the rows of the job (Stage 3.2 stops that).
+        The Tcl resolver: the arguments, with the tools_ncc_* options as fallback, into a JobSpec. It never reads a
+        widget or the tool table of the plugin: the tool rows are built here from the arguments. tools_storage is
+        kept for the old callers and ignored.
 
         :return: the JobSpec; 'fail' when the input is wrong
         """
@@ -848,8 +864,6 @@ class NccGen:
         # the strict clearing edge never simplifies, also with an explicit Tcl value
         simplify_tol = clearing_simplification(
             self.app, float(simplification)) if simplification is not None else self._simplification()
-        storage = tools_storage if tools_storage is not None else self.ncc_tools
-        snapshot = NccModel.copy_tools(storage)
         try:
             diameters = [float(safe_eval(dia)) for dia in ncc_tooldia.split(',') if dia != '']
         except AttributeError:
@@ -860,92 +874,33 @@ class NccGen:
             diameters.sort(reverse=True)
         elif order == 1:
             diameters.sort()
-        for value in snapshot.values():
-            if NccModel.in_diameters(value['tooldia'], diameters, self.decimals):
-                value['data']['tools_ncc_final_cleanup'] = final_cleanup
-                if angle is not None:
-                    value['data']['tools_ncc_crosshatch_angle'] = angle
         reference = None if sel_obj is None or sel_obj == 0 else sel_obj
-        if select_method == 0:
-            region = NccModel.entire_object(flatten_shapely_geometry(ncc_obj.solid_geometry))
-            boundary = NccModel.apply_margin(region, None, 0, margin)
-        elif select_method == 1:
-            if areas_to_clear_list is None:
-                return 'fail'
-            boundary = NccModel.apply_margin(
-                NccModel.selection_areas(areas_to_clear_list), None, 1, margin,
-                lambda: NccGen._process_events_and_check_abort(self))
-        elif select_method == 2 and reference is not None and reference.kind in ('geometry', 'gerber'):
-            # Same region as the GUI: for a Gerber reference, the source hull inside the reference hull.
-            region = NccModel.reference_area(ncc_obj.solid_geometry, reference.solid_geometry, reference.kind)
-            boundary = NccModel.apply_margin(
-                region, reference.kind, 2, margin, lambda: NccGen._process_events_and_check_abort(self))
-        else:
+        if select_method not in (0, 1, 2) or (select_method == 1 and areas_to_clear_list is None) or (
+                select_method == 2 and reference is None):
             return 'fail'
         name = outname if outname is not None else self.obj_name + ('_ncc_rm' if rest else '_ncc')
         if milling_type is None and iso_tooldia:
             milling_type = self._option('tools_ncc_milling_type', 'cl')
         if not iso_tooldia:
             milling_type = None
+        values = dict(
+            tools_ncc_method=method, tools_ncc_overlap=round(overlap * 100, 9), tools_ncc_connect=connect,
+            tools_ncc_contour=contour, tools_ncc_offset_choice=has_offset, tools_ncc_offset_value=offset,
+            tools_ncc_final_cleanup=final_cleanup, tools_ncc_rest=rest, tools_ncc_margin=margin,
+            tools_ncc_ref=select_method)
+        if angle is not None:
+            values['tools_ncc_crosshatch_angle'] = angle
+        rows = self._tcl_rows(diameters, list(iso_tooldia or ()), name, bool(plot), **values)
         exclusion = unary_union(exclusion_areas) if exclusion_areas else None
         return self._ncc_spec(
-            freeze_options(self.app), mode='tcl', tools=self._tool_specs(snapshot, diameters), rest=rest, order=order,
+            freeze_options(self.app), mode='tcl', tools=self._tool_specs(rows, diameters), rest=rest, order=order,
             selection={0: 'all', 1: 'area', 2: 'reference'}[select_method], margin=margin,
             simplification=simplify_tol, plot=bool(plot), outname=name, areas=copy_geometry(areas_to_clear_list),
-            exclusion=exclusion, source=SourceSnapshot.of(ncc_obj), origin=ncc_obj, boundary=boundary,
-            storage=snapshot, diameters=tuple(diameters), iso_diameters=tuple(iso_tooldia or ()),
-            milling_type=milling_type, connect=connect, contour=contour, has_offset=has_offset, offset=offset,
-            overlap=overlap, method=method, angle=angle)
-
-    def _generate_tcl(self, spec, output, app_obj):
-        assert output.kind == 'geometry', "Initializer expected a GeometryObject, got %s" % type(output)
-        ncc_obj = spec.source
-        rest = spec.rest
-        name = spec.outname
-        diameters = list(spec.diameters)
-        snapshot = NccModel.copy_tools(spec.storage)
-        iso_tooldia = list(spec.iso_diameters)
-        has_offset = spec.has_offset
-        NccGen._process_events_and_check_abort(self)
-        if ncc_obj.kind == 'gerber':
-            geometry = ncc_gerber_copper(ncc_obj)
-            isolation = iso_tooldia or []
-        elif ncc_obj.kind == 'geometry':
-            geometry = unary_union(ncc_obj.solid_geometry)
-            isolation = []
-        else:
-            return 'fail'
-        if isolation:
-            self.solid_geometry = geometry
-        area, initial, warning, messages = NccModel.prepare_area(
-            geometry, spec.boundary, isolation, snapshot, name, self.decimals,
-            has_offset, spec.offset if has_offset is True else 0.0, spec.margin, spec.milling_type,
-            self.generate_envelope, self._compute_area_to_clear_handler,
-            lambda: NccGen._process_events_and_check_abort(self), spec.exclusion, self.circle_steps)
-        for message in messages:
-            self.app.inform.emit('[WARNING_NOTCL] %s' % message)
-        if isinstance(area, str):
-            self.app.inform.emit('[ERROR_NOTCL] %s' % (
-                _('The area to clear is empty.') if area == 'empty' else
-                _('Could not get the extent of the area to be non copper cleared.')))
-            return 'fail'
-        areas = {uid: area for uid, value in snapshot.items()
-                 if NccModel.in_diameters(value['tooldia'], diameters, self.decimals)}
-        generated, domains, residual, failed, last = NccModel.generate_tools(
-            'tcl_rest' if rest else 'tcl_normal', snapshot, snapshot, diameters, areas,
-            name, self.decimals, self.circle_steps, self.clear_polygon_worker,
-            lambda: NccGen._process_events_and_check_abort(self), self.app.proc_container.update_view_text,
-            connect=spec.connect, contour=spec.contour, overlap=spec.overlap, method=spec.method,
-            simplify_tol=spec.simplification, initial_tools=initial,
-            tool_progress=lambda diameter: self._tool_progress(diameter, spec.app_units),
-            clearing_error=clearing_error(self.app))
-        if not rest:
-            self._warn_unused_tools(snapshot, diameters, generated)
-        generated, cleanup_residual = self._cleanup_result(
-            snapshot, generated, domains, name,
-            dict(tools_ncc_method=spec.method, tools_ncc_overlap=spec.overlap * 100,
-                 tools_ncc_connect=spec.connect, tools_ncc_contour=spec.contour), ncc_obj)
-        return self._publish_result(output, generated, name, last, failed, cleanup_residual, warning)
+            exclusion=exclusion, source=SourceSnapshot.of(ncc_obj), origin=ncc_obj,
+            reference_source=SourceSnapshot.of(reference), storage=NccModel.copy_tools(rows), tool_table=rows,
+            diameters=tuple(diameters), iso_diameters=tuple(iso_tooldia or ()), milling_type=milling_type,
+            connect=connect, contour=contour, has_offset=has_offset, offset=offset, prog_plot=False,
+            mill_data=self._mill_data())
 
     def clear_copper_tcl(
             self,
