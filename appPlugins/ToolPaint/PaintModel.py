@@ -10,9 +10,12 @@ from shapely.geometry import base
 from shapely.ops import linemerge, unary_union
 
 from appCommon import clipper_ops
+from appPlugins.Common.clearing import engine
+from appPlugins.Common.clearing.engine import FillKernels, simplified_inside  # noqa: F401  re-export until Stage 7
+from appPlugins.Common.clearing.methods import PAINT_METHODS
 from appPlugins.Common.clearing.regions import (  # noqa: F401  re-export until Stage 7
     buffer_geometry, merge_overlapping, polygon_parts, swept_area)
-from camlib import (AppRTreeStorage, accepted_error, circle_quad_segs, clearing_margin, error_quad_segs,
+from camlib import (AppRTreeStorage, circle_quad_segs, clearing_margin, error_quad_segs,
                     flatten_shapely_geometry, grace, rest_area)
 
 log = logging.getLogger('base')
@@ -51,47 +54,50 @@ def generate_paint(geometry, tools_storage, diameters, ordering, simplification,
     buffer = buffer or buffer_geometry
     simplify = simplify or simplify_geometry
     warnings = []
-    last_diameter = None
     source = merge_overlapping(geometry)
     buffered = {}
-    for diameter in diameters:
-        last_diameter = diameter
-        if check_abort is not None:
-            check_abort()
-        if tool_started is not None:
-            tool_started(diameter)
+    state = {'progress': 0}
+
+    def resolve(diameter):
         uid = find_uid(diameter, tools)
         if uid is None:
-            return 'fail'
+            return engine.FAIL
         settings = get_params(uid, tools)
         if settings['offset'] not in buffered:
             buffered[settings['offset']] = buffer(source, settings['offset'])
         polygons = buffered[settings['offset']]
         if not polygons:
             warnings.append(('empty', None))
-            continue
-        old_progress = 0
-        cleared = []
-        for number, polygon in enumerate(polygons, 1):
-            if check_abort is not None:
-                check_abort()
-            try:
-                result = process_polygon(polygon, diameter, settings)
-                if result == 'fail':
-                    # One polygon that cannot be painted must not discard the whole job.
-                    warnings.append(('skipped', diameter))
-                    result = None
-                if result:
-                    cleared.extend(simplified_inside(
-                        result.get_objects(), simplify, simplification, polygon, diameter, edge_error,
-                        tool_quad_segs(steps_at, diameter)))
-            except grace:
-                raise
-            except Exception as err:
-                warnings.append(('normal', str(err)))
-            if progress is not None:
-                old_progress = progress(number, len(polygons), old_progress)
-        tools[uid]['solid_geometry'] = [path for path in cleared if path and not path.is_empty]
+            return None
+        return engine.ToolRun(uid, polygons, settings)
+
+    def kernel_steps(diameter, kind):
+        return steps_at(diameter) if steps_at is not None else 64
+
+    def clear(polygon, diameter, run):
+        return engine.clear_polygon(
+            polygon, diameter, lambda: process_polygon(polygon, diameter, run.settings), kernel_steps, 'dwithin',
+            simplification, simplify, edge_error)
+
+    def begin(diameter):
+        state['progress'] = 0
+        if tool_started is not None:
+            tool_started(diameter)
+
+    def polygon_done(number, total):
+        if progress is not None:
+            state['progress'] = progress(number, total, state['progress'])
+
+    def store(run, diameter, paths):
+        tools[run.uid]['solid_geometry'] = [path for path in paths if path and not path.is_empty]
+
+    outcome = engine.run_tools(
+        diameters, resolve, clear, store, check_abort or (lambda: None), begin=begin, polygon_done=polygon_done,
+        on_fail=lambda diameter: warnings.append(('skipped', diameter)),
+        on_error=lambda err, diameter: warnings.append(('normal', str(err))))
+    last_diameter = outcome.last
+    if outcome.status == engine.FAIL:
+        return 'fail'
     if check_abort is not None:
         check_abort()
     return {'tools': tools, 'warnings': warnings, 'last_diameter': last_diameter}
@@ -116,30 +122,7 @@ def rest_sweep(polygon, diameter, settings, process_polygon, simplify, simplific
     return 'ok', elements, swept
 
 
-def simplified_inside(paths, simplify, tolerance, polygon, diameter, edge_error=None, quad_segs=16):
-    """
-    The simplified paths; a simplified path that comes closer to the outline of the polygon than the cutter radius
-    minus the edge error (or that leaves the polygon) is replaced by its original path. The simplification moves a
-    path by up to the tolerance: around a hole of the polygon (copper) the cutter would cut into the copper.
 
-    :param edge_error:  the cut past the outline that the clearing allows (the Clearing Error of the Preferences),
-                        in the units of the geometry; None allows the error of the circle steps of the paths
-    :param quad_segs:   the Shapely segments of a quarter circle of the paths (their circle steps)
-    """
-    paths = list(paths)
-    if tolerance <= 0.0 or not paths:
-        return simplify(paths, tolerance)
-    simple = simplify(paths, tolerance)
-    if len(simple) != len(paths):
-        return simple
-    radius = diameter / 2.0
-    edge_error = accepted_error(edge_error, radius, quad_segs)
-    # The distance of a path to the outline is measured on its segments: no tessellation of the cutter.
-    shapely.prepare(polygon)
-    boundary = polygon.boundary
-    shapely.prepare(boundary)
-    inside = shapely.covers(polygon, simple) & ~shapely.dwithin(boundary, simple, max(radius - edge_error, 0.0))
-    return [new if keep else old for old, new, keep in zip(paths, simple, inside.tolist())]
 
 def generate_rest_paint(geometry, tools_storage, diameters, simplification, decimals,
                         process_polygon, check_abort=None, progress=None, tool_started=None,
@@ -540,42 +523,14 @@ def laser_lines(poly_g, tool_diameter, over, conn, cont, prog_plot, circle_steps
 def paint_polygon(poly_g, tool_diameter, paint_method, over, conn, cont, prog_plot, circle_steps,
                   clear_shrink, clear_seed, clear_lines, apertures=None, geometry_circle_steps=64,
                   fill_lines=None, progress=None, index=None, crosshatch_angle=0.0, clear_crosshatch=None):
-    result = None
-    if paint_method == 3:
-        result = laser_lines(poly_g, tool_diameter, over, conn, cont, prog_plot, circle_steps,
-                             geometry_circle_steps, apertures, clear_seed, clear_lines, fill_lines, index)
-        if result == 'fail':
-            return result
-    elif paint_method == 5:
-        if clear_crosshatch is None:
-            return None
-        try:
-            result = clear_crosshatch(poly_g, tooldia=tool_diameter, steps_per_circle=circle_steps,
-                                      overlap=over, contour=cont, connect=conn, prog_plot=prog_plot,
-                                      angle=crosshatch_angle)
-        except grace:
-            return 'fail'
-        except Exception as err:
-            log.error('ToolPaint.paint_polygon_worker() Crosshatch --> %s' % str(err))
-            result = None
-    else:
-        methods = {0: clear_shrink, 1: clear_seed, 2: clear_lines}
-        sequence = (2, 1, 0) if paint_method == 4 else (paint_method,)
-        for method in sequence:
-            if method not in methods:
-                break
-            if paint_method == 4 and progress is not None:
-                progress(method)
-            try:
-                result = methods[method](poly_g, tooldia=tool_diameter, steps_per_circle=circle_steps,
-                                         overlap=over, contour=cont, connect=conn, prog_plot=prog_plot)
-            except grace:
-                return 'fail'
-            except Exception as err:
-                name = {0: 'Standard', 1: 'Seed', 2: 'Lines'}.get(method, '')
-                log.error('ToolPaint.paint_polygon_worker() %s --> %s' % (name, str(err)))
-                result = None
-                continue
-            if result and result.objects:
-                break
-    return result if result and result.objects else None
+    kernels = FillKernels(shrink=clear_shrink, seed=clear_seed, lines=clear_lines, crosshatch=clear_crosshatch,
+                          fill_lines=fill_lines)
+    order = {'lines': 2, 'seed': 1, 'shrink': 0}
+
+    def kernel_steps(diameter, kind):
+        return geometry_circle_steps if kind == 'geometry' else circle_steps
+
+    return engine.fill_polygon(
+        poly_g, tool_diameter, paint_method, over, conn, cont, prog_plot, kernels, PAINT_METHODS, kernel_steps,
+        angle=crosshatch_angle, on_attempt=(lambda key: progress(order[key])) if progress is not None else None,
+        laser=laser_lines, apertures=apertures, index=index, tag='ToolPaint.paint_polygon_worker')

@@ -13,6 +13,9 @@ from shapely.ops import unary_union
 
 from camlib import (clearing_margin, error_quad_segs, flatten_shapely_geometry, grace, polygon_gap_pairs,
                     rest_area)
+from appPlugins.Common.clearing import engine
+from appPlugins.Common.clearing.engine import FillKernels, quad_segs  # noqa: F401  re-export until Stage 7
+from appPlugins.Common.clearing.methods import NCC_METHODS
 from appPlugins.Common.clearing.regions import (  # noqa: F401  re-export until Stage 7
     apply_margin, complement, offset_geometry, swept_area)
 
@@ -23,11 +26,6 @@ def _(text):
     # translate through the app gettext when it is installed, plain text otherwise (tests, Tcl)
     func = builtins.__dict__.get('_')
     return func(text) if func else text
-
-
-def quad_segs(circle_steps):
-    """Shapely quadrant segments for an app circle step count (steps count the whole circle)."""
-    return max(1, int(circle_steps) // 4)
 
 
 def copy_tool(tool):
@@ -166,54 +164,22 @@ def generate_envelope(geometry, offset, invert, envelope_iso_type, isolation_geo
 def clear_polygon(pol, tooldia, method, overlap, connect, contour, prog_plot, circle_steps,
                   shrink, seed, lines, simplify_tol=0.0, crosshatch=None, angle=0.0):
     """Return paths plus status messages; only Geometry engine callbacks enter this kernel."""
-    cp = None
     messages = []
-    methods = {0: shrink, 1: seed, 2: lines}
-    try:
-        if method in methods:
-            cp = methods[method](pol, tooldia, steps_per_circle=circle_steps, overlap=overlap,
-                                 contour=contour, connect=connect, prog_plot=prog_plot)
-        elif method == 4:
-            if crosshatch is not None:
-                # Simplify only below, where each chord's cutter sweep is checked against the original polygon.
-                cp = crosshatch(pol, tooldia, steps_per_circle=circle_steps, overlap=overlap,
-                                contour=contour, connect=connect, prog_plot=prog_plot,
-                                simplify_tol=0.0, angle=angle)
-        elif method == 3:
-            for engine, message in (
-                    (lines, _('Clearing the polygon with the method: lines.')),
-                    (seed, _('Failed. Clearing the polygon with the method: seed.')),
-                    (shrink, _('Failed. Clearing the polygon with the method: standard.'))):
-                messages.append(message)
-                # Each engine is tried on its own: an exception in one must not skip the next.
-                try:
-                    cp = engine(pol, tooldia, steps_per_circle=circle_steps, overlap=overlap,
-                                contour=contour, connect=connect, prog_plot=prog_plot)
-                except grace:
-                    raise
-                except Exception as err:
-                    log.error("ToolNcc.clear_polygon_worker() Combo --> %s" % str(err))
-                    cp = None
-                    continue
-                if cp and cp.objects:
-                    break
-    except grace:
-        return 'fail', messages
-    except Exception as err:
-        label = {0: 'Standard', 1: 'Seed', 2: 'Lines', 3: 'Combo', 4: 'Crosshatch'}.get(method, '')
-        log.error("ToolNcc.clear_polygon_worker() %s --> %s" % (label, str(err)))
-    if cp and cp.objects:
-        paths = []
-        if simplify_tol > 0.0:
-            shapely.prepare(pol)
-        for path in cp.get_objects():
-            simplified = path.simplify(simplify_tol) if simplify_tol > 0.0 else path
-            # A simplified chord must not let the cutter cross copper.
-            if simplify_tol > 0.0 and not pol.covers(simplified.buffer(tooldia / 2, quad_segs(circle_steps))):
-                simplified = path
-            paths.append(simplified)
-        return paths, messages
-    return None, messages
+    attempts = {'lines': _('Clearing the polygon with the method: lines.'),
+                'seed': _('Failed. Clearing the polygon with the method: seed.'),
+                'shrink': _('Failed. Clearing the polygon with the method: standard.')}
+    kernels = FillKernels(shrink=shrink, seed=seed, lines=lines, crosshatch=crosshatch)
+
+    def kernel_steps(dia, kind):
+        return circle_steps
+
+    paths = engine.clear_polygon(
+        pol, tooldia,
+        lambda: engine.fill_polygon(pol, tooldia, method, overlap, connect, contour, prog_plot, kernels,
+                                    NCC_METHODS, kernel_steps, angle=angle,
+                                    on_attempt=lambda key: messages.append(attempts[key]), tag='ToolNcc'),
+        kernel_steps, 'covers', simplify_tol)
+    return paths, messages
 
 
 def cleanup_domain(geometry, copper=None):
@@ -284,6 +250,90 @@ def prepare_area(geometry, boundary, iso_diameters, tools, name, decimals, has_o
     return area, generated, broken, warnings
 
 
+def _generate_normal(mode, tool_settings, tools_storage, diameters, areas, name, decimals, clear_paths,
+                     check_abort, progress, connect, contour, overlap, method, simplify_tol, prog_plot,
+                     initial_tools, tool_progress):
+    """The normal modes of generate_tools through the shared engine: each tool clears its complete domain."""
+    storage = copy_tools(tools_storage)
+    # Geometry left in the table by an earlier run is not part of this run.
+    for value in storage.values():
+        value['solid_geometry'] = []
+        value.pop('ncc_cleanup_start', None)
+    generated = copy_tools(initial_tools)
+    domains = {}
+    tcl = mode.startswith('tcl')
+    ordered = list(diameters)
+
+    def resolve(diameter):
+        uid = tool_uid(tool_settings, diameter, decimals)
+        if uid is None:
+            return None
+        domain = areas.get(uid, 'fail')
+        if domain == 'fail' or domain is None:
+            return None
+        domains[uid] = domain
+        data = tool_settings[uid]['data']
+        angle = 0.0
+        tool_method = method if tcl else data['tools_ncc_method']
+        if tool_method == 4:
+            try:
+                angle = float(data.get('tools_ncc_crosshatch_angle', 0.0) or 0.0)
+            except (TypeError, ValueError):
+                angle = 0.0
+        settings = dict(overlap=overlap if tcl else float(data['tools_ncc_overlap']) / 100, method=tool_method,
+                        connect=connect if tcl else data['tools_ncc_connect'],
+                        contour=contour if tcl else data['tools_ncc_contour'], angle=angle)
+        return engine.ToolRun(uid, domain, settings)
+
+    def clear(pol, diameter, run):
+        values = run.settings
+        clear_kwargs = dict(
+            pol=pol, tooldia=diameter, ncc_method=values['method'], ncc_overlap=values['overlap'],
+            ncc_connect=values['connect'], ncc_contour=values['contour'], simplify_tol=simplify_tol,
+            prog_plot=prog_plot if not tcl else False)
+        if values['method'] == 4:
+            clear_kwargs['angle'] = values['angle']
+        return clear_paths(**clear_kwargs)
+
+    def parts(polygon):
+        if polygon is None or polygon.is_empty:
+            return None
+        return [pol for pol in flatten_shapely_geometry(polygon.buffer(0))
+                if isinstance(pol, Polygon) and pol.is_valid and not pol.is_empty]
+
+    def store(run, diameter, paths):
+        if not paths:
+            return
+        target_uid = tool_uid(storage, diameter, decimals)
+        if target_uid is not None:
+            value = storage[target_uid]
+            value['solid_geometry'] = flatten_shapely_geometry(paths)
+            value.pop('ncc_cleanup_start', None)
+            if tcl:
+                value['data']['name'] = name
+            else:
+                value['data']['output_object_name'] = name
+            generated[target_uid] = copy_tool(value)
+
+    def begin(diameter):
+        if tool_progress is not None:
+            tool_progress(diameter)
+        progress(' %d%%' % 0)
+
+    # Only tools that exist in the table take part in the remaining-tool inset.
+    inset = None
+    if tcl:
+        inset = engine.LegacyTclInset(
+            sum(dia for dia in ordered if tool_uid(tool_settings, dia, decimals) is not None), overlap)
+    result = engine.run_tools(
+        ordered, resolve, clear, store, check_abort, begin=begin,
+        polygon_done=lambda number, total: progress(' %d%%' % int(number * 100 / total)),
+        explode=flatten_shapely_geometry, parts=parts, legacy_tcl_inset=inset)
+    check_abort()
+    # Only what this run generated (and the isolation tools) is published.
+    return generated, domains, None, result.failed, result.last
+
+
 def generate_tools(mode, tool_settings, tools_storage, diameters, areas, name, decimals, circle_steps,
                    clear_paths, check_abort, progress, connect=False, contour=True, overlap=0.4,
                    method=0, simplify_tol=0.0, prog_plot=False, initial_tools=None, tool_progress=None,
@@ -294,6 +344,10 @@ def generate_tools(mode, tool_settings, tools_storage, diameters, areas, name, d
     historical remaining-tool inset and morphological cleared-area estimate.
     Rest modes subtract actual cutter sweeps (Tcl uses its historical epsilon).
     """
+    if not mode.endswith('rest'):
+        return _generate_normal(mode, tool_settings, tools_storage, diameters, areas, name, decimals, clear_paths,
+                                check_abort, progress, connect, contour, overlap, method, simplify_tol, prog_plot,
+                                initial_tools, tool_progress)
     storage = copy_tools(tools_storage)
     # Geometry left in the table by an earlier run is not part of this run.
     for value in storage.values():
@@ -301,13 +355,10 @@ def generate_tools(mode, tool_settings, tools_storage, diameters, areas, name, d
         value.pop('ncc_cleanup_start', None)
     generated = copy_tools(initial_tools)
     domains = {}
-    rest = mode.endswith('rest')
+    rest = True
     tcl = mode.startswith('tcl')
     ordered = sorted(diameters, reverse=True) if rest else list(diameters)
     residual = None
-    cleared = MultiPolygon()
-    # Only tools that exist in the table take part in the remaining-tool inset.
-    offset_a = sum(dia for dia in ordered if tool_uid(tool_settings, dia, decimals) is not None)
     failed = False
     last = None
     for index, diameter in enumerate(ordered):
@@ -323,24 +374,14 @@ def generate_tools(mode, tool_settings, tools_storage, diameters, areas, name, d
         if domain == 'fail' or domain is None:
             continue
         domains[uid] = domain
-        if rest:
-            if residual is None:
-                residual = domain.buffer(0) if tcl else domain
-                area = residual
-            else:
-                # The tool crosses the area that is cut already to reach the residual.
-                # at the accuracy of the accepted error, as the swept area
-                segments = error_quad_segs(diameter / 2, clearing_error) if clearing_error else quad_segs(circle_steps)
-                area = MultiPolygon(rest_area(domain, residual, diameter, segments, clearing_error))
-        elif tcl:
-            offset_a -= diameter - 1e-12
-            try:
-                area = domain.buffer(-offset_a).difference(cleared)
-            except Exception as err:
-                log.error('NCC normal area difference failed: %s' % str(err))
-                continue
+        if residual is None:
+            residual = domain.buffer(0) if tcl else domain
+            area = residual
         else:
-            area = domain
+            # The tool crosses the area that is cut already to reach the residual.
+            # at the accuracy of the accepted error, as the swept area
+            segments = error_quad_segs(diameter / 2, clearing_error) if clearing_error else quad_segs(circle_steps)
+            area = MultiPolygon(rest_area(domain, residual, diameter, segments, clearing_error))
         data = tool_settings[uid]['data']
         tool_overlap = overlap if tcl else float(data['tools_ncc_overlap']) / 100
         tool_method = method if tcl else data['tools_ncc_method']
@@ -411,9 +452,6 @@ def generate_tools(mode, tool_settings, tools_storage, diameters, areas, name, d
                 residual = residual.difference(swept)
                 residual = MultiPolygon([pol for pol in flatten_shapely_geometry(residual)
                                          if isinstance(pol, Polygon) and pol.is_valid and not pol.is_empty])
-            elif tcl:
-                cleared = domain.buffer(-offset_a * (1 + overlap)).buffer(-diameter / 1.999999).buffer(
-                    diameter / 1.999999).buffer(0)
         if mode == 'gui_rest' and residual is not None and residual.is_empty:
             # Cleanup still needs the original domain of every selected tool.
             for pending in ordered[index + 1:]:
