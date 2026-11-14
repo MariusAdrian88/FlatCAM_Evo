@@ -490,19 +490,20 @@ class NccGen:
             self.app.inform_shell.emit('%s %s' % (_('Polygon could not be cleared. Location:'), str(coords)))
         return paths
 
-    def _cleanup_result(self, tools, generated, domains, name, settings=None, source=None):
+    def _cleanup_result(self, tools, generated, domains, name, source=None):
         if not any(tools[uid]['data'].get('tools_ncc_final_cleanup', False) for uid in domains):
             return generated, None
         copper = ncc_gerber_copper(source) if source is not None and source.kind == 'gerber' else None
         return NccModel.finish_cleanup(
-            tools, generated, domains, name, self.circle_steps,
-            lambda domain, dia, steps, previous, generate: residual_cleanup(
-                self.app, domain, dia, steps, previous, generate),
-            self.clear_polygon_worker, lambda: NccGen._process_events_and_check_abort(self), settings, copper)
+            tools, generated, domains, name,
+            lambda domain, dia, previous, generate, boundary_first: residual_cleanup(
+                self.app, domain, dia, self.circle_steps, previous, generate, physical=True,
+                boundary_first=boundary_first),
+            self.clear_polygon_worker, lambda: NccGen._process_events_and_check_abort(self), copper)
 
-    def final_cleanup(self, output, tools_storage, domains, name, settings=None, source=None):
+    def final_cleanup(self, output, tools_storage, domains, name, source=None):
         """Compatibility adapter for callers that already own an output object."""
-        tools, residual = NccGen._cleanup_result(self, tools_storage, output.tools, domains, name, settings, source)
+        tools, residual = NccGen._cleanup_result(self, tools_storage, output.tools, domains, name, source)
         if residual is None:
             return
         output.tools = tools
@@ -656,8 +657,6 @@ class NccGen:
         order = tool_ordering if tool_ordering is not None else self.ui.order_combo.get_value()
         clipping_type = self.ui.select_method_combo.get_value()
         margin = self.ui.rest_margin_entry.get_value() if rest else self.ui.margin_entry.get_value()
-        connect = self.ui.rest_connect_cb.get_value() if rest else False
-        contour = self.ui.rest_contour_cb.get_value() if rest else True
         has_offset = self.ui.rest_offset_choice_cb.get_value() if rest else False
         offset = self.ui.rest_offset_entry.get_value() if rest else 0.0
         milling_type = self.ui.milling_type_radio.get_value() if iso_tooldia_list else None
@@ -685,7 +684,7 @@ class NccGen:
             exclusion=exclusion, source=SourceSnapshot.of(cleared_object), origin=cleared_object,
             reference_source=SourceSnapshot.of(sel_obj), storage=snapshot, tool_table=tool_settings,
             diameters=tuple(diameters), iso_diameters=tuple(iso_tooldia_list), milling_type=milling_type,
-            connect=connect, contour=contour, has_offset=has_offset, offset=offset, check_validity=check_validity,
+            has_offset=has_offset, offset=offset, check_validity=check_validity,
             prog_plot=prog_plot, mill_data=mill_data)
 
     def prepare_job(self, spec):
@@ -749,9 +748,7 @@ class NccGen:
         if not rest:
             self._warn_unused_tools(tool_settings, diameters, generated)
         generated, cleanup_residual = self._cleanup_result(
-            snapshot, generated, domains, name,
-            dict(tools_ncc_connect=spec.connect, tools_ncc_contour=spec.contour) if rest else None,
-            cleared_object)
+            snapshot, generated, domains, name, cleared_object)
         if spec.prog_plot:
             self.temp_shapes.clear(update=True)
         return self._publish_result(output, generated, name, '0.0' if rest else last,
@@ -899,7 +896,7 @@ class NccGen:
             exclusion=exclusion, source=SourceSnapshot.of(ncc_obj), origin=ncc_obj,
             reference_source=SourceSnapshot.of(reference), storage=NccModel.copy_tools(rows), tool_table=rows,
             diameters=tuple(diameters), iso_diameters=tuple(iso_tooldia or ()), milling_type=milling_type,
-            connect=connect, contour=contour, has_offset=has_offset, offset=offset, prog_plot=False,
+            has_offset=has_offset, offset=offset, prog_plot=False,
             mill_data=self._mill_data())
 
     def clear_copper_tcl(

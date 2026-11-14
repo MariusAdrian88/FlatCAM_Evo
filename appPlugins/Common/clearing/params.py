@@ -149,8 +149,6 @@ class JobSpec:
     diameters: tuple = ()
     iso_diameters: tuple = ()
     milling_type: str | None = None
-    connect: bool = False
-    contour: bool = True
     has_offset: bool = False
     offset: float = 0.0
     overlap: float | None = None

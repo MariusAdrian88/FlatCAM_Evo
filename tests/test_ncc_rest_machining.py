@@ -355,8 +355,8 @@ def test_each_tool_clears_at_its_own_crosshatch_angle(mode):
         assert not {30.0, 120.0} & directions(generated[2]['solid_geometry'])
     # the final cleanup uses the angle of its own (smallest) tool
     cleaned, __ = NccModel.finish_cleanup(
-        tools, generated, {1: area, 2: area}, 'n', 32,
-        lambda domain, dia, steps, used, generate: (generate(domain, dia), None),
+        tools, generated, {1: area, 2: area}, 'n',
+        lambda domain, dia, used, generate, boundary_first: (generate(domain, dia), None),
         real_crosshatch_clear(), lambda: None)
     cleanup = cleaned[2]['solid_geometry'][cleaned[2]['ncc_cleanup_start']:]
     assert {75.0, 165.0} <= directions(cleanup)
@@ -395,8 +395,8 @@ def test_crosshatch_cleanup_uses_the_same_invalid_angle_fallback_as_clearing():
         'normal', tools, tools, [2.0], {1: area}, 'n', 4, 64,
         clear, lambda: None, lambda text: None)
     cleaned, _ = NccModel.finish_cleanup(
-        tools, generated, domains, 'n', 64,
-        lambda domain, dia, steps, previous, generate: (generate(domain, dia), None),
+        tools, generated, domains, 'n',
+        lambda domain, dia, previous, generate, boundary_first: (generate(domain, dia), None),
         clear, lambda: None)
     assert cleaned[1]['solid_geometry']
     assert unary_union(cleaned[1]['solid_geometry']).equals(unary_union(generated[1]['solid_geometry']))
@@ -449,19 +449,41 @@ def test_rest_leaves_stock_for_the_final_cleanup_of_the_smallest_tool():
     assert failed and not residual.is_empty and sorted(domains) == [1, 2]
     seen = []
 
-    def cleanup(domain, dia, steps, previous, generate):
-        seen.append((round(domain.area, 6), dia, steps, [tool['tooldia'] for tool in previous]))
+    def cleanup(domain, dia, previous, generate, boundary_first):
+        seen.append((round(domain.area, 6), dia, boundary_first, [tool['tooldia'] for tool in previous]))
         return [LineString([(5, 5), (6, 5)])], residual
 
-    cleaned, left = NccModel.finish_cleanup(tools, generated, domains, 'out', 32, cleanup, lambda **kw: None,
+    cleaned, left = NccModel.finish_cleanup(tools, generated, domains, 'out', cleanup, lambda **kw: None,
                                             lambda: None)
     assert left is residual
-    assert seen == [(100.0, 1.0, 32, [2.0, 1.0])]
+    assert seen == [(100.0, 1.0, True, [2.0, 1.0])]
     assert list(cleaned) == [1, 2]
     assert cleaned[2]['ncc_cleanup_start'] == 1
     assert cleaned[2]['solid_geometry'] == lines[1.0] + [LineString([(5, 5), (6, 5)])]
     assert cleaned[2]['data']['output_object_name'] == 'out'
     assert 'ncc_cleanup_start' not in cleaned[1]
+
+
+@pytest.mark.parametrize('connect, copper, expected', [
+    (False, None, (1.0, True)),                                # Paint rule: boundary first unless the row connects
+    (True, None, (1.0, False)),
+    (False, box(-1, -1, 3, 3), (2.0, True)),                   # the smallest tool has no domain: the next one runs
+])
+def test_final_cleanup_follows_the_paint_rules(connect, copper, expected):
+    tools = rest_tools(2.0, 1.0)
+    for tool in tools.values():
+        tool['data']['tools_ncc_final_cleanup'] = True
+    tools[2]['data']['tools_ncc_connect'] = connect
+    domains = {1: MultiPolygon([box(0, 0, 10, 10)]), 2: MultiPolygon([box(0, 0, 2, 2)])}
+    seen = []
+
+    def cleanup(domain, dia, previous, generate, boundary_first):
+        seen.append((dia, boundary_first))
+        return [LineString([(5, 5), (6, 5)])], Polygon()
+
+    NccModel.finish_cleanup(tools, NccModel.copy_tools(tools), domains, 'out', cleanup, lambda **kw: None,
+                            lambda: None, copper)
+    assert seen == [expected]
 
 
 def test_tcl_rest_does_not_send_slivers_to_the_clearing():

@@ -225,7 +225,7 @@ def final_cleanup(geometry, tools_storage, output_tools, diameters, decimals, pr
 
     residual = engine.final_cleanup(
         candidates, prepare, lambda: [entry for entry in output_tools.values() if entry['solid_geometry']], cleanup,
-        store, check_abort or (lambda: None), cleanup_rules="paint")
+        store, check_abort or (lambda: None))
     if residual is not None and not residual.is_empty:
         warnings.append(('cleanup', None))
     return {'tools': tools, 'output_tools': output_tools, 'residual': residual, 'warnings': warnings,

@@ -448,9 +448,11 @@ def generate_tools(mode, tool_settings, tools_storage, diameters, areas, name, d
                           prog_plot, initial_tools, tool_progress, clearing_error)
 
 
-def finish_cleanup(tools_storage, generated, domains, name, circle_steps, cleanup_paths, clear_paths,
-                   check_abort, settings=None, copper=None):
-    """Select the final tool and return safe cleanup geometry, metadata and residuals."""
+def finish_cleanup(tools_storage, generated, domains, name, cleanup_paths, clear_paths, check_abort, copper=None):
+    """
+    Select the final tool (the Paint rules of engine.final_cleanup) and return safe cleanup geometry, metadata and
+    residuals. cleanup_paths(domain, dia, previous, generate, boundary_first) is residual_cleanup with physical=True.
+    """
     tools = copy_tools(generated)
     candidates = [(uid, float(tools_storage[uid]['tooldia'])) for uid in domains
                   if tools_storage[uid]['data'].get('tools_ncc_final_cleanup', False)]
@@ -462,7 +464,7 @@ def finish_cleanup(tools_storage, generated, domains, name, circle_steps, cleanu
         if domain.is_empty:
             return None
         state['tool'] = tool
-        data = dict(tool['data'], **(settings or {}))
+        data = tool['data']
 
         def generate_paths(pol, dia):
             method = data.get('tools_ncc_method', 0)
@@ -475,7 +477,7 @@ def finish_cleanup(tools_storage, generated, domains, name, circle_steps, cleanu
                 kwargs['angle'] = data.get('tools_ncc_crosshatch_angle', 0.0)
             return clear_paths(**kwargs)
 
-        return engine.CleanupJob(domain, generate_paths)
+        return engine.CleanupJob(domain, generate_paths, bool(data.get('tools_ncc_connect', False)))
 
     def store(uid, paths):
         tool = state['tool']
@@ -487,9 +489,5 @@ def finish_cleanup(tools_storage, generated, domains, name, circle_steps, cleanu
         tools[uid] = tool
 
     residual = engine.final_cleanup(
-        candidates, prepare, lambda: tools.values(),
-        # the NCC sweep uses the job-wide circle steps; its residual_cleanup keeps the boundary first
-        lambda domain, dia, previous, generate, boundary_first: cleanup_paths(
-            domain, dia, circle_steps, previous, generate),
-        store, check_abort, cleanup_rules="ncc")
+        candidates, prepare, lambda: tools.values(), cleanup_paths, store, check_abort)
     return tools, residual

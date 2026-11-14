@@ -375,7 +375,7 @@ class CleanupJob:
 
 
 def final_cleanup(candidates, prepare: Callable, previous: Callable, cleanup: Callable, store: Callable,
-                  check_abort: Callable, cleanup_rules: str = "paint"):
+                  check_abort: Callable):
     """
     The final cleanup of the residual stock with one of the eligible tools.
 
@@ -383,30 +383,21 @@ def final_cleanup(candidates, prepare: Callable, previous: Callable, cleanup: Ca
     prepare(uid) -> CleanupJob, or None when the tool has nothing to clean
     previous() -> the tools already cut (dicts with solid_geometry and tooldia)
     cleanup(domain, diameter, previous, generate, boundary_first) -> (paths, residual): camlib.residual_cleanup with
-        its steps and the physical flag bound (Paint: physical sweep of the segments, NCC: the job-wide steps)
+        its steps and physical=True bound
     store(uid, paths) is called when the cleanup made paths
-    cleanup_rules, temporary flag. "paint": a tool with diameter <= 0 or without a domain is skipped, the next
-        smallest is tried, and boundary_first = not connect. "ncc": only the smallest tool is tried and the boundary
-        goes first.
+    A tool with diameter <= 0 or without a domain is skipped and the next smallest is tried; boundary_first =
+    not connect.
     Returns the residual of the cleanup, None when no cleanup ran.
     """
-    ordered = sorted(candidates, key=lambda candidate: candidate[1])
-    if cleanup_rules == "ncc":
-        ordered = ordered[:1]
-        if not ordered:
-            return None
-        check_abort()
-        ordered = [candidate for candidate in ordered if candidate[1] > 0]
-    else:
-        ordered = [candidate for candidate in ordered if candidate[1] > 0]
-        if not ordered:
-            return None
-        check_abort()
+    ordered = [candidate for candidate in sorted(candidates, key=lambda candidate: candidate[1]) if candidate[1] > 0]
+    if not ordered:
+        return None
+    check_abort()
     for uid, diameter in ordered:
         job = prepare(uid)
         if job is None:
             continue
-        boundary_first = True if cleanup_rules == "ncc" else not job.connect
+        boundary_first = not job.connect
         paths, residual = cleanup(job.domain, diameter, previous(), job.generate, boundary_first)
         check_abort()
         if paths:
