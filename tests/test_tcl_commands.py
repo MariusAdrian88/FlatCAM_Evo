@@ -1062,3 +1062,11 @@ def test_fails_with_fewer_than_two_objects(app, argv):
     res, created = run_join_gerber(app, {'a': a}, *argv)
     assert res == 'fail' and not created
     app.app_obj.new_object.assert_not_called()
+
+def test_ncc_single_point_selects_the_click_mode():
+    kwargs = _ncc_run({'single': '5.5,2'})
+    assert kwargs['select_method'] == 3
+    assert kwargs['click_points'] == [(5.5, 2.0)]
+    for args in ({'single': '1,1', 'all': None}, {'single': '1,1', 'area': '0,0,1,1'}, {'single': '1'}):
+        with pytest.raises(FCShell.TclErrorException):
+            _ncc_run(args)

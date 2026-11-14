@@ -50,6 +50,7 @@ class TclCommandCopperClear(TclCommand):
         ('ref', str),
         ('box', str),
         ('area', str),
+        ('single', str),
         ('exclude', str),
         ('iso_tooldia', str),
         ('milling_type', str),
@@ -104,6 +105,8 @@ class TclCommandCopperClear(TclCommand):
                     '-all (or -all 1), -box <value> or -area <value>.'),
             ('area', 'Rectangle to clear: "xmin,ymin,xmax,ymax" in application units, no spaces. '
                      'Select exactly one mode: -all, -box <value> or -area <value>.'),
+            ('single', 'Point "x,y" in application units, no spaces. Clears the copper-free region that contains '
+                       'the point. Select exactly one mode: -all, -box <value>, -area <value> or -single <value>.'),
             ('outname', 'Name of the resulting Geometry object. String. No spaces.\n'
                         'Default: <name>_ncc, or <name>_ncc_rm with rest machining.'),
         ]),
@@ -155,8 +158,9 @@ class TclCommandCopperClear(TclCommand):
                 self.raise_tcl_error('Use only one reference object: -box or -ref.')
             args['box'] = args.pop('ref')
         all_selected = 'all' in args and (args['all'] is None or self.parse_bool(args['all']))
-        if int(all_selected) + ('box' in args) + ('area' in args) != 1:
-            self.raise_tcl_error('Expected exactly one of -all, -box <object> or -area <xmin,ymin,xmax,ymax>.')
+        if int(all_selected) + ('box' in args) + ('area' in args) + ('single' in args) != 1:
+            self.raise_tcl_error(
+                'Expected exactly one of -all, -box <object>, -area <xmin,ymin,xmax,ymax> or -single <x,y>.')
 
         obj = self._object_arg(name, 'Expected an existing Gerber or Geometry object')
 
@@ -256,6 +260,16 @@ class TclCommandCopperClear(TclCommand):
                 self.raise_tcl_error('-area expects xmin,ymin,xmax,ymax with xmin < xmax and ymin < ymax.')
             areas = [shapely_box(xmin, ymin, xmax, ymax)]
 
+        click_points = None
+        if 'single' in args:
+            try:
+                x, y = [float(v) for v in str(args['single']).strip('()').split(',')]
+            except ValueError:
+                x = y = math.nan
+            if not (math.isfinite(x) and math.isfinite(y)):
+                self.raise_tcl_error('-single expects x,y like -single 3.2,0.1.')
+            click_points = [(x, y)]
+
         if 'outname' in args:
             outname = args['outname']
         else:
@@ -263,7 +277,7 @@ class TclCommandCopperClear(TclCommand):
             outname = name + ("_ncc_rm" if rest_on else "_ncc")
 
         # 0 itself, 1 area selection, 2 reference object
-        select = 0 if all_selected else (1 if areas is not None else 2)
+        select = 0 if all_selected else (1 if areas is not None else (3 if click_points else 2))
         box_obj = self._object_arg(args['box'], 'Reference object') if select == 2 else None
 
         # the tool rows are built by the resolver of the job from these arguments and the preferences
@@ -299,4 +313,5 @@ class TclCommandCopperClear(TclCommand):
             milling_type=milling_type,
             simplification=simplification,
             exclusion_areas=exclusion_areas,
+            click_points=click_points,
         )

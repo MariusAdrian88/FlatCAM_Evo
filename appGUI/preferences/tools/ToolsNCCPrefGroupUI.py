@@ -342,14 +342,15 @@ class ToolsNCCPrefGroupUI(OptionsGroupUI):
         #                                 compact=None)
         self.select_combo = FCComboBox2()
         self.select_combo.addItems(
-            [_("Itself"), _("Area Selection"), _("Reference Object")]
+            [_("Itself"), _("Area Selection"), _("Reference Object"), _("Polygon Selection")]
         )
         select_label = FCLabel('%s:' % _("Selection"))
         select_label.setToolTip(
             _("Selection of area to be processed.\n"
               "- 'Itself' - the processing extent is based on the object that is processed.\n "
               "- 'Area Selection' - left mouse click to start selection of the area to be processed.\n"
-              "- 'Reference Object' - will process the area specified by another object.")
+              "- 'Reference Object' - will process the area specified by another object.\n"
+              "- 'Polygon Selection' - left click adds / removes a copper-free region, right click to start.")
         )
 
         gen_grid.addWidget(select_label, 2, 0)

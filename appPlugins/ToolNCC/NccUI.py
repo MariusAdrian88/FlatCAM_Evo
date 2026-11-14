@@ -582,7 +582,7 @@ class NccUI:
         # Reference Selection Combo
         self.select_method_combo = FCComboBox2()
         self.select_method_combo.addItems(
-            [_("Itself"), _("Area Selection"), _("Reference Object")]
+            [_("Itself"), _("Area Selection"), _("Reference Object"), _("Polygon Selection")]
         )
         self.select_method_combo.setObjectName("n_selection")
 
@@ -591,7 +591,8 @@ class NccUI:
             _("Selection of area to be processed.\n"
               "- 'Itself' - the processing extent is based on the object that is processed.\n "
               "- 'Area Selection' - left mouse click to start selection of the area to be processed.\n"
-              "- 'Reference Object' - will process the area specified by another object.")
+              "- 'Reference Object' - will process the area specified by another object.\n"
+              "- 'Polygon Selection' - left click adds / removes a copper-free region, right click to start.")
         )
         gen_grid.addWidget(self.select_method_label, 8, 0)
         gen_grid.addWidget(self.select_method_combo, 8, 1)
@@ -785,6 +786,13 @@ class NccUI:
             # disable rest-machining for area painting
             # self.rest_cb.set_value(False)
             # self.rest_cb.setDisabled(True)
+        elif sel_combo == 3:    # polygon selection
+            self.reference_combo.hide()
+            self.reference_type_combo.hide()
+            self.reference_type_label.hide()
+            self.area_shape_label.hide()
+            self.area_shape_radio.hide()
+            self.rest_cb.setDisabled(False)
         else:
             self.reference_combo.show()
             self.reference_type_combo.show()

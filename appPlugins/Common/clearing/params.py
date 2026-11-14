@@ -117,6 +117,7 @@ class JobSpec:
     outname: str
     options: Mapping
     areas: list | None = None
+    points: tuple | None = None                         # NCC click selection: the click points
     exclusion: BaseGeometry | None = None
     # --- what the 2 plugins resolve besides the sketch above ---
     source: SourceSnapshot | None = None                # the cleared / painted object

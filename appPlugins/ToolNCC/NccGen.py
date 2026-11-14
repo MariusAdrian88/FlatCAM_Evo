@@ -7,6 +7,7 @@ import logging
 
 from shapely import Polygon, MultiPolygon
 from shapely.ops import unary_union
+from shapely.geometry import box as shapely_box
 from shapely.geometry.base import BaseGeometry
 from typing import TYPE_CHECKING, Literal, Union
 
@@ -19,6 +20,7 @@ from camlib import grace, residual_cleanup, object_circle_steps, clearing_simpli
 from appParsers.feature_access import fused_solid
 from appCommon.SafeEval import safe_eval
 from appPlugins.ToolNCC import NccModel
+from appPlugins.Common.clearing import regions
 from appPlugins.Common.clearing.job import ClearingJob, NCC_GUI, NCC_TCL, stock_is_left
 from appPlugins.Common.clearing.params import (
     JobSpec, SourceSnapshot, copy_geometry, freeze_options, tool_spec)
@@ -48,6 +50,27 @@ def ncc_gerber_copper(obj, repair_buffer=None):
     if repair_buffer is not None:
         geo = geo.buffer(repair_buffer)
     return geo
+
+
+def click_faces(source):
+    """The copper-free faces of a Gerber / Geometry source: the regions that a click can pick."""
+    if source.kind == 'gerber':
+        copper = ncc_gerber_copper(source)
+    else:
+        copper = unary_union(source.solid_geometry)
+    if copper.is_empty:
+        return []
+    return regions.empty_faces(shapely_box(*copper.bounds), copper)
+
+
+def picked_faces(faces, points):
+    """The distinct faces under the points."""
+    picked = []
+    for point in points or ():
+        face = regions.face_at(faces, point)
+        if face is not None and not any(face.equals(known) for known in picked):
+            picked.append(face)
+    return picked
 
 
 class NccGen:
@@ -186,6 +209,8 @@ class NccGen:
                                  exclusion_areas=exclusion)
         elif self.select_method == 1:   # Area Selection
             self.parent_tool.start_area_selection()
+        elif self.select_method == 3:   # Polygon Selection
+            self.parent_tool.start_click_selection(click_faces(self.ncc_obj))
         elif self.select_method == 2:   # Reference Object
             self.bound_obj_name = self.ui.reference_combo.currentText()
             # Get source object.
@@ -252,9 +277,9 @@ class NccGen:
             self.app.inform.emit('[WARNING_NOTCL] %s' % _(
                 "No Gerber or Geometry object is selected. The object of the combo box is used."))
             return [self.ncc_obj]
-        if self.select_method == 1 and len(selected) > 1:
+        if self.select_method in (1, 3) and len(selected) > 1:
             self.app.inform.emit('[ERROR_NOTCL] %s' % _(
-                "Area Selection works with one object only. Select a single object or turn off All selected objects."))
+                "The selection works with one object only. Select a single object or turn off All selected objects."))
             return None
         # the area selection and the messages work with the first one
         self.ncc_obj = selected[0]
@@ -537,6 +562,18 @@ class NccGen:
             exclusion_areas=self.parent_tool.exclusion_areas(),
         )
 
+    def clear_ncc_click_option(self, points):
+        """Polygon Selection: clear the faces under the clicked points."""
+        self.ncc_handler(
+            cleared_object=self.ncc_obj,
+            clear_tooldia_list=self.ncc_dia_list,
+            iso_tooldia_list=self.iso_dia_list,
+            click_points=points,
+            outname=self.o_name,
+            check_validity=self.check_validity,
+            exclusion_areas=self.parent_tool.exclusion_areas(),
+        )
+
     def _publish_result(self, output, tools, name, last_tool, failed, residual, warning, mill_data=None,
                         last_diameter=None, cleanup_diameter=None):
         """
@@ -646,6 +683,7 @@ class NccGen:
             tools_storage: dict = None,
             check_validity: bool = False,
             exclusion_areas: list[Polygon | MultiPolygon] = None,
+            click_points: list[tuple] = None,
     ):
         """
         The GUI resolver: read the widgets, the tool table and the options into a JobSpec. The run reads only the
@@ -659,7 +697,7 @@ class NccGen:
         tolerance = self._simplification()
         rest = self.ui.rest_cb.get_value()
         order = tool_ordering if tool_ordering is not None else self.ui.order_combo.get_value()
-        clipping_type = self.ui.select_method_combo.get_value()
+        clipping_type = 3 if click_points else self.ui.select_method_combo.get_value()
         margin = self.ui.rest_margin_entry.get_value() if rest else self.ui.margin_entry.get_value()
         has_offset = self.ui.rest_offset_choice_cb.get_value() if rest else False
         offset = self.ui.rest_offset_entry.get_value() if rest else 0.0
@@ -683,7 +721,8 @@ class NccGen:
         name = outname if outname is not None else self.obj_name + '_ncc'
         return self._ncc_spec(
             freeze_options(self.app), tools=self._tool_specs(tool_settings, diameters), rest=bool(rest),
-            order=order, selection={0: 'all', 1: 'area', 2: 'reference'}.get(clipping_type, 'all'), margin=margin,
+            order=order, selection={0: 'all', 1: 'area', 2: 'reference', 3: 'click'}.get(clipping_type, 'all'),
+            margin=margin, points=tuple(tuple(point) for point in click_points or ()) or None,
             simplification=tolerance, plot=True, outname=name, areas=copy_geometry(areas_to_clear),
             exclusion=exclusion, source=SourceSnapshot.of(cleared_object), origin=cleared_object,
             reference_source=SourceSnapshot.of(sel_obj), storage=snapshot, tool_table=tool_settings,
@@ -710,13 +749,20 @@ class NccGen:
         diameters = list(spec.diameters)
         tool_settings = NccModel.copy_tools(spec.tool_table)
         snapshot = NccModel.copy_tools(spec.storage)
-        clipping_type = {'all': 0, 'area': 1, 'reference': 2}[spec.selection]
+        clipping_type = {'all': 0, 'area': 1, 'reference': 2, 'click': 1}[spec.selection]
+        areas = copy_geometry(spec.areas)
         NccGen._process_events_and_check_abort(self)
         if spec.check_validity and self._tools_fit(cleared_object, diameters, list(spec.iso_diameters)):
             return 'fail'
+        if spec.selection == 'click':
+            # the faces come from the snapshot of the run, not from the live object
+            areas = picked_faces(click_faces(cleared_object), spec.points)
+            if not areas:
+                self.app.inform.emit('[ERROR_NOTCL] %s' % _("No area under the clicked points."))
+                return 'fail'
         region, kind = self.compute_clipping_region(
             cleared_object=cleared_object, clipping_object=spec.reference_source,
-            clipping_type=clipping_type, clipping_areas=copy_geometry(spec.areas))
+            clipping_type=clipping_type, clipping_areas=areas)
         if region is None:
             self.app.inform.emit('[ERROR_NOTCL] %s' % _("NCC Tool failed creating bounding box."))
             return 'fail'
@@ -779,6 +825,7 @@ class NccGen:
             run_threaded: bool = True,
             check_validity: bool = False,
             exclusion_areas: list[Polygon | MultiPolygon] = None,
+            click_points: list[tuple] = None,
     ):
         """
         Resolve GUI input into a JobSpec, then run it as a ClearingJob.
@@ -791,7 +838,7 @@ class NccGen:
         self.app.log.debug("Executing the ncc_handler() ...")
         spec = self.resolve_gui_job(
             cleared_object, clear_tooldia_list, iso_tooldia_list, areas_to_clear, sel_obj, outname, tool_ordering,
-            tools_storage, check_validity, exclusion_areas)
+            tools_storage, check_validity, exclusion_areas, click_points)
         if isinstance(spec, str):
             return spec
         return ClearingJob(self, NCC_GUI).run(spec, run_threaded)
@@ -838,6 +885,7 @@ class NccGen:
             simplification=None,
             exclusion_areas=None,
             angle=None,
+            click_points=None,
     ):
         """
         The Tcl resolver: the arguments, with the tools_ncc_* options as fallback, into a JobSpec. It never reads a
@@ -884,8 +932,8 @@ class NccGen:
         elif order == 1:
             diameters.sort()
         reference = None if sel_obj is None or sel_obj == 0 else sel_obj
-        if select_method not in (0, 1, 2) or (select_method == 1 and areas_to_clear_list is None) or (
-                select_method == 2 and reference is None):
+        if select_method not in (0, 1, 2, 3) or (select_method == 1 and areas_to_clear_list is None) or (
+                select_method == 2 and reference is None) or (select_method == 3 and not click_points):
             return 'fail'
         name = outname if outname is not None else self.obj_name + ('_ncc_rm' if rest else '_ncc')
         if milling_type is None and iso_tooldia:
@@ -903,8 +951,8 @@ class NccGen:
         exclusion = unary_union(exclusion_areas) if exclusion_areas else None
         return self._ncc_spec(
             freeze_options(self.app), tools=self._tool_specs(rows, diameters), rest=rest, order=order,
-            selection={0: 'all', 1: 'area', 2: 'reference'}[select_method], margin=margin,
-            simplification=simplify_tol, plot=bool(plot), outname=name, areas=copy_geometry(areas_to_clear_list),
+            selection={0: 'all', 1: 'area', 2: 'reference', 3: 'click'}[select_method], margin=margin,
+            points=tuple(tuple(point) for point in click_points or ()) or None, simplification=simplify_tol, plot=bool(plot), outname=name, areas=copy_geometry(areas_to_clear_list),
             exclusion=exclusion, source=SourceSnapshot.of(ncc_obj), origin=ncc_obj,
             reference_source=SourceSnapshot.of(reference), storage=NccModel.copy_tools(rows), tool_table=rows,
             diameters=tuple(diameters), iso_diameters=tuple(iso_tooldia or ()), milling_type=milling_type,
@@ -937,6 +985,7 @@ class NccGen:
             simplification=None,
             exclusion_areas=None,
             angle=None,
+            click_points=None,
     ):
         """
         Tcl adapter. Synchronous calls finish object creation before returning.
@@ -949,7 +998,7 @@ class NccGen:
         spec = self.resolve_tcl_job(
             ncc_obj, sel_obj, areas_to_clear_list, ncc_tooldia, iso_tooldia, margin, has_offset, offset,
             select_method, outname, overlap, connect, contour, order, method, rest, tools_storage, plot,
-            final_cleanup, milling_type, simplification, exclusion_areas, angle)
+            final_cleanup, milling_type, simplification, exclusion_areas, angle, click_points)
         if isinstance(spec, str):
             return spec
         return ClearingJob(self, NCC_TCL).run(spec, run_threaded)

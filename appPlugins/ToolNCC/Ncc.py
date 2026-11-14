@@ -22,6 +22,7 @@ import logging
 import math
 from copy import copy, deepcopy
 import numpy as np
+import shapely
 
 from shapely import (
     Polygon,
@@ -39,6 +40,7 @@ from camlib import Geometry, grace, flatten_shapely_geometry, object_circle_step
 from appCommon.SafeEval import safe_eval
 from appCommon.ToolDatabase import matching_tools
 from appPlugins.ToolNCC import NccModel
+from appPlugins.Common.clearing import regions
 
 fcTranslate.apply_language('strings')
 if '_' not in builtins.__dict__:
@@ -133,6 +135,13 @@ class ToolNcc(Geometry, AppTool):
 
         # disconnect flags
         self.area_sel_disconnect_flag = False
+        self.click_sel_disconnect_flag = False
+
+        # Polygon Selection: the faces a click can pick, the clicked points, the shapes drawn for them
+        self.click_faces = []
+        self.click_points = []
+        self.click_shapes = {}
+        self.last_click_faces = []
 
         # True while the zones drawn on the canvas are exclusion zones and not the area to clear
         self.exclusion_mode = False
@@ -446,6 +455,20 @@ class ToolNcc(Geometry, AppTool):
             self.app.ui.notebook.setDisabled(False)
             self.area_sel_disconnect_flag = False
 
+        if self.click_sel_disconnect_flag is True:
+            self.app.plotcanvas.graph_event_disconnect('mouse_release', self.on_click_release)
+            self.app.plotcanvas.graph_event_disconnect('key_press', self.on_key_press)
+            if self.grid_status_memory is True:
+                self.app.ui.grid_snap_btn.trigger()
+            self.app.tool_shapes.clear(update=True)
+            self.app.plotcanvas.graph_event_connect('mouse_press', self.app.on_mouse_click_over_plot)
+            self.app.plotcanvas.graph_event_connect('mouse_release', self.app.on_mouse_click_release_over_plot)
+            self.app.ui.notebook.setDisabled(False)
+            self.click_sel_disconnect_flag = False
+        self.click_faces = []
+        self.click_points = []
+        self.click_shapes = {}
+
         self.points = []
         self.poly_drawn = False
         self.first_click = False
@@ -484,6 +507,59 @@ class ToolNcc(Geometry, AppTool):
         self.area_sel_disconnect_flag = True
         # disable the "notebook UI" until finished
         self.app.ui.notebook.setDisabled(True)
+
+    def start_click_selection(self, faces):
+        """
+        Polygon Selection: a left click adds / removes the copper-free face under the cursor, a right click or Enter
+        runs the clearing of the picked faces, Escape cancels. The panel is disabled until then.
+        """
+        self.app.inform.emit('[WARNING_NOTCL] %s' % _("Click a polygon to add or remove it, right click to start."))
+        self.click_faces = list(faces)
+        self.click_points = []
+        self.click_shapes = {}
+        self.app.plotcanvas.graph_event_disconnect('mouse_release', self.app.on_mouse_click_release_over_plot)
+        self.app.plotcanvas.graph_event_disconnect('mouse_press', self.app.on_mouse_click_over_plot)
+        self.app.plotcanvas.graph_event_connect('mouse_release', self.on_click_release)
+        self.app.plotcanvas.graph_event_connect('key_press', self.on_key_press)
+        self.click_sel_disconnect_flag = True
+        self.app.ui.notebook.setDisabled(True)
+
+    def on_click_release(self, event):
+        """Mouse release of the Polygon Selection: left toggles the face under the click, right runs."""
+        if event.button == 1:
+            pos = self.app.plotcanvas.translate_coords((float(event.pos[0]), float(event.pos[1])))
+            face = regions.face_at(self.click_faces, pos)
+            if face is None:
+                self.app.inform.emit(_("No polygon detected under click position."))
+                return
+            known = [point for point in self.click_points if face.contains(shapely.Point(point))]
+            for point in known:
+                self.click_points.remove(point)
+                self.app.tool_shapes.remove(self.click_shapes.pop(point))
+            if known:
+                self.app.inform.emit(_("Removed polygon. Click to add / remove the next one or right click to start."))
+            else:
+                color = self.app.options.get('global_sel_draw_color', '#0000FF') + 'AF'
+                point = (pos[0], pos[1])
+                self.click_points.append(point)
+                self.click_shapes[point] = self.app.tool_shapes.add(
+                    layer=0, shape=face, color=color, face_color=color, visible=True)
+                self.app.inform.emit('%s: %d. %s' % (
+                    _("Added polygon"), len(self.click_points), _("Click to add the next one or right click to start.")))
+            self.app.tool_shapes.redraw()
+        elif event.button == 2 and self.app.event_is_dragging is False:
+            self.finish_click_selection()
+
+    def finish_click_selection(self):
+        """Give the canvas back and clear the picked faces."""
+        points = list(self.click_points)
+        faces = [face for face in self.click_faces if any(face.contains(shapely.Point(p)) for p in points)]
+        self.end_area_selection()
+        if not points:
+            self.app.inform.emit('[WARNING_NOTCL] %s' % _("No area selected."))
+            return
+        self.last_click_faces = faces
+        self.gen.clear_ncc_click_option(points)
 
     def shape_type(self):
         """The shape of the zone being drawn: the exclusion shape in exclusion mode, else the area selection one."""
@@ -561,8 +637,11 @@ class ToolNcc(Geometry, AppTool):
             return
         reference = None
         zones = None
+        click = clipping_type == 3
+        if click:
+            clipping_type = 1       # the faces of the last Polygon Selection are zones
         if clipping_type == 1:
-            zones = list(self.last_zones)
+            zones = list(self.last_click_faces if click else self.last_zones)
             if not zones:
                 self.app.inform.emit('[WARNING_NOTCL] %s' % _(
                     "No area is drawn yet. Click Generate to draw the zones of the Area Selection, "
@@ -2125,6 +2204,9 @@ class ToolNcc(Geometry, AppTool):
         if key == QtCore.Qt.Key.Key_Escape or key == 'Escape':
 
             self.end_area_selection()
+        elif self.click_sel_disconnect_flag and key in (
+                QtCore.Qt.Key.Key_Return, QtCore.Qt.Key.Key_Enter, 'Enter', 'Return'):
+            self.finish_click_selection()
 
     def on_ncc_tool_add_from_db_executed(self, tool):
         """

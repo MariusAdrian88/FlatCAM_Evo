@@ -738,3 +738,108 @@ def test_exclusion_zones_reach_the_handler_in_every_mode(tool):
     assert tool.gen.ncc_handler.call_args.kwargs['exclusion_areas'] is None
 
 
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# Polygon Selection (click)
+# ---------------------------------------------------------------------------------------------------------------
+LEFT_ROOM = box(1, 1, 9.5, 9)
+RIGHT_ROOM = box(10.5, 1, 19, 9)
+
+
+def two_room_board():
+    """Copper: a frame and a bar, so the empty area is 2 separate rooms."""
+    return geometry_object('board', box(0, 0, 20, 1), box(0, 9, 20, 10), box(0, 0, 1, 10), box(19, 0, 20, 10),
+                           box(9.5, 0, 10.5, 10))
+
+
+def capture_outputs(t):
+    outputs = []
+
+    def new_object(kind, name, worker, **kwargs):
+        output = SimpleNamespace(kind='geometry', tools={}, obj_options={}, solid_geometry=[])
+        result = worker(output, t.app)
+        outputs.append(output)
+        return 'fail' if result == 'fail' or result is False else output
+
+    t.new_object = new_object
+    t.app.collection.promise = t.app.collection.remove_promise = lambda name: None
+    t.app.app_obj = SimpleNamespace(new_object=new_object)
+    return outputs
+
+
+def paths_of(output):
+    found = []
+
+    def walk(item):
+        if isinstance(item, (list, tuple)):
+            for sub in item:
+                walk(sub)
+        elif hasattr(item, 'geoms'):
+            for sub in item.geoms:
+                walk(sub)
+        else:
+            found.append(item)
+
+    for tool_data in output.tools.values():
+        walk(tool_data['solid_geometry'])
+    return found
+
+
+def click_event(button, x=0.0, y=0.0):
+    return SimpleNamespace(button=button, pos=(x, y))
+
+
+def click_ncc(t, points):
+    """Generate in the Polygon Selection mode: click the points, then right click to run."""
+    t.app.event_is_dragging = False
+    t.ui.select_method_combo.set_value(3)
+    t.gen.on_ncc_click()
+    for x, y in points:
+        t.on_click_release(click_event(1, x, y))
+    t.on_click_release(click_event(2))
+
+
+def test_empty_faces_are_the_copper_free_regions():
+    from appPlugins.Common.clearing.regions import empty_faces
+    board = unary_union(two_room_board().solid_geometry)
+    faces = empty_faces(box(*board.bounds), board)
+    assert len(faces) == 2
+    assert sorted(round(face.area, 6) for face in faces) == sorted([LEFT_ROOM.area, RIGHT_ROOM.area])
+    assert not unary_union(faces).intersects(board.buffer(-1e-6))
+
+
+def test_click_in_an_empty_region_clears_that_face_only(tool):
+    tool.app.options['tools_ncc_tools'] = '0.4'
+    tool.set_tool_ui()
+    prepare_run(tool, board=two_room_board())
+    outputs = capture_outputs(tool)
+    click_ncc(tool, [(5, 5)])
+    assert tool.ui.select_method_combo.get_value() == 3
+    assert len(outputs) == 1
+    paths = paths_of(outputs[0])
+    assert paths
+    assert all(path.bounds[2] < 9.5 for path in paths)
+    assert unary_union(paths).within(LEFT_ROOM.buffer(1e-6))
+
+    # a second click on the same face removes it: nothing is left to clear
+    outputs.clear()
+    click_ncc(tool, [(5, 5), (6, 6)])
+    assert not outputs
+    assert any('No area' in m for m in messages(tool))
+
+
+def test_tcl_single_point_gives_the_same_paths_as_the_click(tool):
+    tool.app.options['tools_ncc_tools'] = '0.4'
+    tool.set_tool_ui()
+    prepare_run(tool, board=two_room_board())
+    outputs = capture_outputs(tool)
+    click_ncc(tool, [(15, 5)])
+    tcl = tool.gen.clear_copper_tcl(
+        tool.app.collection.objects['board'], ncc_tooldia='0.4', select_method=3, click_points=[(15.0, 5.0)],
+        outname='board_ncc', plot=False, run_threaded=False, margin=tool.ui.margin_entry.get_value())
+    assert tcl != 'fail'
+    assert len(outputs) == 2
+    gui, scripted = (sorted(round(c, 6) for p in paths_of(o) for c in p.bounds) for o in outputs)
+    assert gui and gui == scripted
+    assert all(path.bounds[0] > 10.5 for path in paths_of(outputs[0]))

@@ -124,6 +124,20 @@ def offset_geometry(geometry, has_offset, offset):
     return geometry
 
 
+def empty_faces(extent, copper):
+    """The copper-free faces: the separate regions of the extent that the copper leaves empty."""
+    return polygon_parts(extent.difference(unary_union(polygon_parts(copper))))
+
+
+def face_at(faces, point):
+    """The face that contains the point, or None."""
+    click = shapely.Point(point[0], point[1])
+    for face in faces:
+        if face.contains(click):
+            return face
+    return None
+
+
 def complement(target, boundary=None, check_abort=None, progress=None):
     if isinstance(target, list):
         target = MultiPolygon(target)
