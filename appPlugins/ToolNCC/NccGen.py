@@ -890,6 +890,7 @@ class NccGen:
             exclusion_areas=None,
             angle=None,
             click_points=None,
+            clear_milling=None,
     ):
         """
         The Tcl resolver: the arguments, with the tools_ncc_* options as fallback, into a JobSpec. It never reads a
@@ -922,6 +923,11 @@ class NccGen:
         select_method = int(select_method if select_method is not None else self._option('tools_ncc_ref', 0))
         final_cleanup = bool(final_cleanup if final_cleanup is not None else
                              self._option('tools_ncc_final_cleanup', False))
+        clear_milling = str(clear_milling if clear_milling is not None
+                            else self._option('tools_ncc_clear_milling', 'none')).lower()
+        if clear_milling not in ('none', 'climb', 'conv'):
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _("The clear_milling must be none, climb or conv."))
+            return 'fail'
         # the strict clearing edge never simplifies, also with an explicit Tcl value
         simplify_tol = clearing_simplification(
             self.app, float(simplification)) if simplification is not None else self._simplification()
@@ -948,7 +954,7 @@ class NccGen:
             tools_ncc_method=method, tools_ncc_overlap=round(overlap * 100, 9), tools_ncc_connect=connect,
             tools_ncc_contour=contour, tools_ncc_offset_choice=has_offset, tools_ncc_offset_value=offset,
             tools_ncc_final_cleanup=final_cleanup, tools_ncc_rest=rest, tools_ncc_margin=margin,
-            tools_ncc_ref=select_method)
+            tools_ncc_ref=select_method, tools_ncc_clear_milling=clear_milling)
         if angle is not None:
             values['tools_ncc_crosshatch_angle'] = angle
         rows = self._tcl_rows(diameters, list(iso_tooldia or ()), name, bool(plot), **values)
@@ -990,6 +996,7 @@ class NccGen:
             exclusion_areas=None,
             angle=None,
             click_points=None,
+            clear_milling=None,
     ):
         """
         Tcl adapter. Synchronous calls finish object creation before returning.
@@ -1002,7 +1009,7 @@ class NccGen:
         spec = self.resolve_tcl_job(
             ncc_obj, sel_obj, areas_to_clear_list, ncc_tooldia, iso_tooldia, margin, has_offset, offset,
             select_method, outname, overlap, connect, contour, order, method, rest, tools_storage, plot,
-            final_cleanup, milling_type, simplification, exclusion_areas, angle, click_points)
+            final_cleanup, milling_type, simplification, exclusion_areas, angle, click_points, clear_milling)
         if isinstance(spec, str):
             return spec
         return ClearingJob(self, NCC_TCL).run(spec, run_threaded)

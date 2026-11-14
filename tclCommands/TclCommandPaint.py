@@ -49,6 +49,7 @@ class TclCommandPaint(TclCommand):
         ('rest_offset', float),
         ('simplification', float),
         ('final_cleanup', str),
+        ('clear_milling', str),
 
         ('all', str),
         ('single', str),
@@ -92,6 +93,8 @@ class TclCommandPaint(TclCommand):
                                'Default: the Paint preference (in millimeters, converted to the units of the app).'),
             ('final_cleanup', 'After painting, use the smallest tool to paint the reachable gaps. True (1) or '
                               'False (0). Default: the Paint preference.'),
+            ('clear_milling', 'Cut direction of the painting passes: "none", "climb" or "conv". '
+                              'Default: the Paint preference.'),
             ('all', 'Optional compatibility flag; bare -all is accepted. Its value is ignored, even False. '
                     'All polygons are painted by default unless -single, -ref, -box or -area is used; '
                     '-all overrides none of them.'),
@@ -217,6 +220,11 @@ class TclCommandPaint(TclCommand):
         rest = self._bool_option(args, 'rest', 'tools_paint_rest')
         final_cleanup = self._bool_option(args, 'final_cleanup', 'tools_paint_final_cleanup')
 
+        clear_milling = str(args['clear_milling']).lower() if 'clear_milling' in args else str(
+            self._app_option('tools_paint_clear_milling', 'none')).lower()
+        if clear_milling not in ('none', 'climb', 'conv'):
+            self.raise_tcl_error("-clear_milling must be 'none', 'climb' or 'conv'.")
+
         if 'outname' in args:
             outname = args['outname']
         else:
@@ -258,6 +266,7 @@ class TclCommandPaint(TclCommand):
             "tools_paint_contour":      contour,
             "tools_paint_overlap":      overlap,
             "tools_paint_final_cleanup": final_cleanup,
+            "tools_paint_clear_milling": clear_milling,
             "seg_x": self._app_option("geometry_seg_x"),
             "seg_y": self._app_option("geometry_seg_y")
         })

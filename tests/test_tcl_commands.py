@@ -1070,3 +1070,16 @@ def test_ncc_single_point_selects_the_click_mode():
     for args in ({'single': '1,1', 'all': None}, {'single': '1,1', 'area': '0,0,1,1'}, {'single': '1'}):
         with pytest.raises(FCShell.TclErrorException):
             _ncc_run(args)
+
+def test_ncc_and_paint_clear_milling_reach_the_tool_data_and_reject_bad_values():
+    assert _ncc_run({'all': None, 'clear_milling': 'Climb'})['clear_milling'] == 'climb'
+    assert _ncc_run({'all': None})['clear_milling'] is None      # the option decides in the resolver
+    with pytest.raises(FCShell.TclErrorException):
+        _ncc_run({'all': None, 'clear_milling': 'left'})
+    command, app, gen = paint_command(tools_paint_clear_milling='conv')
+    command.execute({'name': 'g', 'clear_milling': 'climb'}, [])
+    assert gen.paint_poly_all.call_args.kwargs['tools_storage'][1]['data']['tools_paint_clear_milling'] == 'climb'
+    command.execute({'name': 'g'}, [])
+    assert gen.paint_poly_all.call_args.kwargs['tools_storage'][1]['data']['tools_paint_clear_milling'] == 'conv'
+    with pytest.raises(FCShell.TclErrorException):
+        command.execute({'name': 'g', 'clear_milling': 'left'}, [])

@@ -170,6 +170,7 @@ class ToolPaint(Geometry, AppTool):
             "tools_paint_crosshatch_angle": self.ui.crosshatch_angle_entry,
             "tools_paint_connect":    self.ui.connect_cb,
             "tools_paint_contour":   self.ui.contour_cb,
+            "tools_paint_clear_milling": self.ui.clear_dir_radio,
             "tools_paint_final_cleanup": self.ui.final_cleanup_cb,
         }
 
@@ -180,6 +181,7 @@ class ToolPaint(Geometry, AppTool):
             'p_crosshatch_angle': "tools_paint_crosshatch_angle",
             'p_connect':    "tools_paint_connect",
             'p_contour':    "tools_paint_contour",
+            'p_clear_milling': "tools_paint_clear_milling",
             'p_final_cleanup': "tools_paint_final_cleanup",
         }
 
@@ -419,6 +421,7 @@ class ToolPaint(Geometry, AppTool):
             "tools_paint_crosshatch_angle": self.ui.crosshatch_angle_entry,
             "tools_paint_connect":    self.ui.connect_cb,
             "tools_paint_contour":   self.ui.contour_cb,
+            "tools_paint_clear_milling": self.ui.clear_dir_radio,
             "tools_paint_final_cleanup": self.ui.final_cleanup_cb,
         }
 
@@ -513,6 +516,9 @@ class ToolPaint(Geometry, AppTool):
             "tools_paint_connect", app_defaults.get("tools_paint_connect", AppDefaults.factory_defaults.get("tools_paint_connect"))))
         self.ui.contour_cb.set_value(self.app.options.get(
             "tools_paint_contour", app_defaults.get("tools_paint_contour", AppDefaults.factory_defaults.get("tools_paint_contour"))))
+        self.ui.clear_dir_radio.set_value(self.app.options.get(
+            "tools_paint_clear_milling", app_defaults.get("tools_paint_clear_milling", "none")))
+        self.default_data['tools_paint_clear_milling'] = self.ui.clear_dir_radio.get_value()
         self.ui.final_cleanup_cb.set_value(self.app.options.get(
             "tools_paint_final_cleanup", app_defaults.get("tools_paint_final_cleanup", False)))
         self.default_data['tools_paint_final_cleanup'] = self.ui.final_cleanup_cb.get_value()
@@ -793,6 +799,7 @@ class ToolPaint(Geometry, AppTool):
 
     def storage_to_form(self, dict_storage):
         dict_storage.setdefault('tools_paint_final_cleanup', False)
+        dict_storage.setdefault('tools_paint_clear_milling', 'none')
         dict_storage.setdefault('tools_paint_crosshatch_angle', 0.0)
         for k in self.form_fields:
             try:

@@ -552,6 +552,7 @@ class PreferencesUIManager(QtCore.QObject):
             "tools_ncc_contour":         self.ui.plugin_eng_pref_form.tools_ncc_group.ncc_contour_cb,
             "tools_ncc_rest":            self.ui.plugin_eng_pref_form.tools_ncc_group.ncc_rest_cb,
             "tools_ncc_final_cleanup":   self.ui.plugin_eng_pref_form.tools_ncc_group.ncc_final_cleanup_cb,
+            "tools_ncc_clear_milling":   self.ui.plugin_eng_pref_form.tools_ncc_group.clear_dir_radio,
             "tools_ncc_offset_choice":  self.ui.plugin_eng_pref_form.tools_ncc_group.ncc_choice_offset_cb,
             "tools_ncc_offset_value":   self.ui.plugin_eng_pref_form.tools_ncc_group.ncc_offset_spinner,
             "tools_ncc_ref":             self.ui.plugin_eng_pref_form.tools_ncc_group.select_combo,
@@ -602,6 +603,7 @@ class PreferencesUIManager(QtCore.QObject):
             "tools_paint_connect":        self.ui.plugin_eng_pref_form.tools_paint_group.pathconnect_cb,
             "tools_paint_contour":       self.ui.plugin_eng_pref_form.tools_paint_group.contour_cb,
             "tools_paint_final_cleanup": self.ui.plugin_eng_pref_form.tools_paint_group.final_cleanup_cb,
+            "tools_paint_clear_milling": self.ui.plugin_eng_pref_form.tools_paint_group.clear_dir_radio,
             "tools_paint_plotting":     self.ui.plugin_eng_pref_form.tools_paint_group.paint_plotting_radio,
 
             "tools_paint_rest":          self.ui.plugin_eng_pref_form.tools_paint_group.rest_cb,

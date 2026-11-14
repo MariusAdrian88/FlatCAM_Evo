@@ -176,6 +176,7 @@ class ToolNcc(Geometry, AppTool):
             "tools_ncc_crosshatch_angle": self.ui.crosshatch_angle_entry,
             "tools_ncc_connect":        self.ui.connect_cb,
             "tools_ncc_contour":        self.ui.contour_cb,
+            "tools_ncc_clear_milling":  self.ui.clear_dir_radio,
             "tools_ncc_final_cleanup":  self.ui.final_cleanup_cb,
             "tools_ncc_offset_choice":  self.ui.offset_choice_cb,
             "tools_ncc_offset_value":   self.ui.offset_entry,
@@ -191,6 +192,7 @@ class ToolNcc(Geometry, AppTool):
             "n_crosshatch_angle": "tools_ncc_crosshatch_angle",
             "n_connect":        "tools_ncc_connect",
             "n_contour":        "tools_ncc_contour",
+            "n_clear_milling":  "tools_ncc_clear_milling",
             "n_final_cleanup":  "tools_ncc_final_cleanup",
             "n_offset":         "tools_ncc_offset_choice",
             "n_offset_value":   "tools_ncc_offset_value",
@@ -796,6 +798,7 @@ class ToolNcc(Geometry, AppTool):
             "tools_ncc_crosshatch_angle": self.ui.crosshatch_angle_entry,
             "tools_ncc_connect":        self.ui.connect_cb,
             "tools_ncc_contour":        self.ui.contour_cb,
+            "tools_ncc_clear_milling":  self.ui.clear_dir_radio,
             "tools_ncc_final_cleanup":  self.ui.final_cleanup_cb,
             "tools_ncc_offset_choice":  self.ui.offset_choice_cb,
             "tools_ncc_offset_value":   self.ui.offset_entry,
@@ -859,6 +862,8 @@ class ToolNcc(Geometry, AppTool):
         self.ui.contour_cb.set_value(self.app.options.get(
             "tools_ncc_contour",
             app_defaults.get("tools_ncc_contour", AppDefaults.factory_defaults.get("tools_ncc_contour"))))
+        self.ui.clear_dir_radio.set_value(self.app.options.get(
+            "tools_ncc_clear_milling", app_defaults.get("tools_ncc_clear_milling", "none")))
         self.ui.final_cleanup_cb.set_value(self.app.options.get(
             "tools_ncc_final_cleanup", app_defaults.get("tools_ncc_final_cleanup", False)))
         self.ui.offset_choice_cb.set_value(self.app.options.get(
@@ -921,6 +926,7 @@ class ToolNcc(Geometry, AppTool):
         # init the working variables
         self.default_data.clear()
         self.default_data['tools_ncc_final_cleanup'] = self.ui.final_cleanup_cb.get_value()
+        self.default_data['tools_ncc_clear_milling'] = self.ui.clear_dir_radio.get_value()
         kind = 'geometry'
         for option in self.app.options:
             if option.find(kind + "_") == 0:
@@ -1247,6 +1253,7 @@ class ToolNcc(Geometry, AppTool):
 
     def storage_to_form(self, dict_storage):
         dict_storage.setdefault('tools_ncc_final_cleanup', False)
+        dict_storage.setdefault('tools_ncc_clear_milling', 'none')
         dict_storage.setdefault('tools_ncc_crosshatch_angle', 0.0)
         for form_key in self.form_fields:
             for storage_key in dict_storage:

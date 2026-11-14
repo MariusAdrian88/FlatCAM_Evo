@@ -440,6 +440,23 @@ class NccUI:
         )
         par_grid.addWidget(self.contour_cb, 10, 1)
 
+        self.clear_dir_label = FCLabel('%s:' % _('Direction'))
+        self.clear_dir_label.setToolTip(
+            _("Cut direction of the clearing passes, for a spindle turning clockwise (M3):\n"
+            "- Climb: the wall stays on the right of the tool.\n"
+            "- Conventional: the wall stays on the left.\n"
+            "Lines, Crosshatch zig-zag lines and Laser Lines are not oriented.\n"
+            "With a direction the G-code does not reverse paths:\n"
+            "multi-depth open paths retract and return to the start.")
+        )
+        self.clear_dir_radio = RadioSet([{'label': _('None'), 'value': 'none'},
+                                     {'label': _('Climb'), 'value': 'climb'},
+                                     {'label': _('Conv'), 'value': 'conv'}], compact=True)
+        self.clear_dir_radio.setToolTip(self.clear_dir_label.toolTip())
+        self.clear_dir_radio.setObjectName("n_clear_milling")
+        par_grid.addWidget(self.clear_dir_label, 9, 0)
+        par_grid.addWidget(self.clear_dir_radio, 9, 1)
+
         self.final_cleanup_cb = FCCheckBox(_("Final cleanup"))
         self.final_cleanup_cb.setObjectName("n_final_cleanup")
         self.final_cleanup_cb.setToolTip(
@@ -739,6 +756,8 @@ class NccUI:
             self.margin_entry.setEnabled(False)
             self.connect_cb.setEnabled(False)
             self.contour_cb.setEnabled(False)
+            self.clear_dir_label.setEnabled(False)
+            self.clear_dir_radio.setEnabled(False)
             self.final_cleanup_cb.setEnabled(False)
             self.offset_choice_cb.setEnabled(False)
             self.offset_entry.setEnabled(False)
@@ -754,6 +773,8 @@ class NccUI:
             self.margin_entry.setEnabled(True)
             self.connect_cb.setEnabled(True)
             self.contour_cb.setEnabled(True)
+            self.clear_dir_label.setEnabled(True)
+            self.clear_dir_radio.setEnabled(True)
             self.final_cleanup_cb.setEnabled(True)
             self.offset_choice_cb.setEnabled(True)
             self.offset_entry.setEnabled(True)

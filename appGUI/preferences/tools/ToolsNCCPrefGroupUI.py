@@ -277,6 +277,22 @@ class ToolsNCCPrefGroupUI(OptionsGroupUI):
         )
         tool_grid.addWidget(self.ncc_final_cleanup_cb, 7, 0, 1, 2)
 
+        self.clear_dir_label = FCLabel('%s:' % _('Direction'))
+        self.clear_dir_label.setToolTip(
+            _("Cut direction of the clearing passes, for a spindle turning clockwise (M3):\n"
+            "- Climb: the wall stays on the right of the tool.\n"
+            "- Conventional: the wall stays on the left.\n"
+            "Lines, Crosshatch zig-zag lines and Laser Lines are not oriented.\n"
+            "With a direction the G-code does not reverse paths:\n"
+            "multi-depth open paths retract and return to the start.")
+        )
+        self.clear_dir_radio = RadioSet([{'label': _('None'), 'value': 'none'},
+                                     {'label': _('Climb'), 'value': 'climb'},
+                                     {'label': _('Conv'), 'value': 'conv'}], compact=True)
+        self.clear_dir_radio.setToolTip(self.clear_dir_label.toolTip())
+        tool_grid.addWidget(self.clear_dir_label, 11, 0)
+        tool_grid.addWidget(self.clear_dir_radio, 11, 1)
+
         # ## NCC Offset choice
         self.ncc_choice_offset_cb = FCCheckBox('%s' % _("Offset"))
         self.ncc_choice_offset_cb.setToolTip(

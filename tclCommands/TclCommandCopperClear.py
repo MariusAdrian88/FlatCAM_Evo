@@ -55,6 +55,7 @@ class TclCommandCopperClear(TclCommand):
         ('iso_tooldia', str),
         ('milling_type', str),
         ('final_cleanup', str),
+        ('clear_milling', str),
         ('simplification', float),
         ('plot', str),
         ('outname', str),
@@ -94,6 +95,8 @@ class TclCommandCopperClear(TclCommand):
                              'Used only together with -iso_tooldia.'),
             ('final_cleanup', 'Remove the residual copper with the smallest tool after clearing. '
                               'True (1) or False (0)'),
+            ('clear_milling', 'Cut direction of the clearing passes: "none", "climb" or "conv". '
+                              'Default: the NCC preference.'),
             ('simplification', 'Maximum deviation allowed when simplifying the toolpaths, in the units of the '
                                'application. 0 disables it. Float number.'),
             ('exclude', 'Name of a Geometry or Gerber object. Its polygons are never cleared. '
@@ -242,6 +245,12 @@ class TclCommandCopperClear(TclCommand):
             if not iso_tooldia:
                 self.raise_tcl_error('-milling_type is used only together with -iso_tooldia.')
 
+        clear_milling = None
+        if 'clear_milling' in args:
+            clear_milling = str(args['clear_milling']).lower()
+            if clear_milling not in ('none', 'climb', 'conv'):
+                self.raise_tcl_error("-clear_milling must be 'none', 'climb' or 'conv'.")
+
         exclusion_areas = None
         if 'exclude' in args:
             exclude_obj = self._object_arg(args['exclude'], 'Exclusion object')
@@ -311,6 +320,7 @@ class TclCommandCopperClear(TclCommand):
             run_threaded=False,
             final_cleanup=final_cleanup,
             milling_type=milling_type,
+            clear_milling=clear_milling,
             simplification=simplification,
             exclusion_areas=exclusion_areas,
             click_points=click_points,

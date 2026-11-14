@@ -172,6 +172,8 @@ def normalize_tools_database(records, defaults, skipped=None):
             # Old databases must not enable a new cutting operation via current preferences.
             data.setdefault('tools_ncc_final_cleanup', False)
             data.setdefault('tools_paint_final_cleanup', False)
+            data.setdefault('tools_ncc_clear_milling', 'none')
+            data.setdefault('tools_paint_clear_milling', 'none')
             data['tool_target'] = _database_enum(data.get('tool_target'), target_labels, 'data.tool_target')
 
             if 'job' in data:
@@ -1051,6 +1053,23 @@ class ToolsDB2UI:
         )
         self.grid2.addWidget(self.ncc_final_cleanup_cb, 20, 0, 1, 2)
 
+        self.ncc_clear_dir_label = FCLabel('%s:' % _('Direction'))
+        self.ncc_clear_dir_label.setToolTip(
+            _("Cut direction of the clearing passes, for a spindle turning clockwise (M3):\n"
+            "- Climb: the wall stays on the right of the tool.\n"
+            "- Conventional: the wall stays on the left.\n"
+            "Lines, Crosshatch zig-zag lines and Laser Lines are not oriented.\n"
+            "With a direction the G-code does not reverse paths:\n"
+            "multi-depth open paths retract and return to the start.")
+        )
+        self.ncc_clear_dir_radio = RadioSet([{'label': _('None'), 'value': 'none'},
+                                         {'label': _('Climb'), 'value': 'climb'},
+                                         {'label': _('Conv'), 'value': 'conv'}], compact=True)
+        self.ncc_clear_dir_radio.setToolTip(self.ncc_clear_dir_label.toolTip())
+        self.ncc_clear_dir_radio.setObjectName("gdb_n_clear_milling")
+        self.grid2.addWidget(self.ncc_clear_dir_label, 21, 0)
+        self.grid2.addWidget(self.ncc_clear_dir_radio, 21, 1)
+
         # ###########################################################################
         # ############### Paint UI form #############################################
         # ###########################################################################
@@ -1160,6 +1179,23 @@ class ToolsDB2UI:
             "to paint reachable gaps. May overlap previous passes, but keeps the whole\n"
             "tool inside the selected boundary and margins. Default: Off."))
         self.grid3.addWidget(self.paint_final_cleanup_cb, 11, 0, 1, 2)
+
+        self.paint_clear_dir_label = FCLabel('%s:' % _('Direction'))
+        self.paint_clear_dir_label.setToolTip(
+            _("Cut direction of the clearing passes, for a spindle turning clockwise (M3):\n"
+            "- Climb: the wall stays on the right of the tool.\n"
+            "- Conventional: the wall stays on the left.\n"
+            "Lines, Crosshatch zig-zag lines and Laser Lines are not oriented.\n"
+            "With a direction the G-code does not reverse paths:\n"
+            "multi-depth open paths retract and return to the start.")
+        )
+        self.paint_clear_dir_radio = RadioSet([{'label': _('None'), 'value': 'none'},
+                                           {'label': _('Climb'), 'value': 'climb'},
+                                           {'label': _('Conv'), 'value': 'conv'}], compact=True)
+        self.paint_clear_dir_radio.setToolTip(self.paint_clear_dir_label.toolTip())
+        self.paint_clear_dir_radio.setObjectName("gdb_p_clear_milling")
+        self.grid3.addWidget(self.paint_clear_dir_label, 12, 0)
+        self.grid3.addWidget(self.paint_clear_dir_radio, 12, 1)
 
         # ###########################################################################
         # ############### Isolation UI form #########################################
@@ -1949,6 +1985,7 @@ class ToolsDB2(QtWidgets.QWidget):
             "tools_ncc_connect":        self.ui.ncc_connect_cb,
             "tools_ncc_contour":        self.ui.ncc_contour_cb,
             "tools_ncc_final_cleanup":  self.ui.ncc_final_cleanup_cb,
+            "tools_ncc_clear_milling":  self.ui.ncc_clear_dir_radio,
             "tools_ncc_offset_choice":  self.ui.ncc_choice_offset_cb,
             "tools_ncc_offset_value":   self.ui.ncc_offset_spinner,
 
@@ -1960,6 +1997,7 @@ class ToolsDB2(QtWidgets.QWidget):
             "tools_paint_connect":      self.ui.path_connect_cb,
             "tools_paint_contour":      self.ui.paint_contour_cb,
             "tools_paint_final_cleanup": self.ui.paint_final_cleanup_cb,
+            "tools_paint_clear_milling": self.ui.paint_clear_dir_radio,
 
             # Isolation
             "tools_iso_passes":         self.ui.iso_passes_entry,
@@ -2045,6 +2083,7 @@ class ToolsDB2(QtWidgets.QWidget):
             "gdb_n_connect":        "tools_ncc_connect",
             "gdb_n_contour":        "tools_ncc_contour",
             "gdb_n_final_cleanup":  "tools_ncc_final_cleanup",
+            "gdb_n_clear_milling":  "tools_ncc_clear_milling",
             "gdb_n_offset":         "tools_ncc_offset_choice",
             "gdb_n_offset_value":   "tools_ncc_offset_value",
             "gdb_n_milling_type":   "tools_ncc_milling_type",
@@ -2057,6 +2096,7 @@ class ToolsDB2(QtWidgets.QWidget):
             'gdb_p_connect':        "tools_paint_connect",
             'gdb_p_contour':        "tools_paint_contour",
             'gdb_p_final_cleanup':  "tools_paint_final_cleanup",
+            'gdb_p_clear_milling':  "tools_paint_clear_milling",
 
             # Isolation
             "gdb_i_passes":         "tools_iso_passes",

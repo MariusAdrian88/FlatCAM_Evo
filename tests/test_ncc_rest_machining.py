@@ -912,3 +912,31 @@ def test_final_cleanup_rings_have_the_direction_in_the_gcode(direction):
     for ring in rings:
         runs = [run for cut in cuts for run in ring_runs(np.asarray(cut), ring)]
         assert len(runs) == 2 and {turn(run) for run in runs} == {expected(ring)}
+
+
+def test_tcl_resolver_carries_the_clearing_direction_and_fails_on_a_bad_one():
+    gen, __ = make_gen([1.0], known=[], options={'tools_ncc_clear_milling': 'conv'})
+    gen.ui = NoWidgets()
+    source = SimpleNamespace(kind='geometry', solid_geometry=[box(4, 4, 6, 6)])
+    args = (source, None, None, '0.5', None, 0.5, None, None, 0, 'out', 0.35, True, False, 'rev', 0, False, None,
+            False, None, None, None, None, None, None)
+    assert [r['data']['tools_ncc_clear_milling'] for r in gen.resolve_tcl_job(*args).tool_table.values()] == ['conv']
+    spec = gen.resolve_tcl_job(*args, 'climb')
+    assert [r['data']['tools_ncc_clear_milling'] for r in spec.tool_table.values()] == ['climb']
+    assert gen.resolve_tcl_job(*args, 'left') == 'fail'
+
+
+@pytest.mark.parametrize('kind', ['ncc', 'paint'])
+def test_direction_widget_goes_into_the_row_data(qapp, tmp_path, kind):
+    from test_clearing_golden import Plugin
+    plugin = Plugin(qapp, tmp_path, kind, SimpleNamespace(kind='gerber'), [0.5, 0.25])
+    key = 'tools_%s_clear_milling' % kind
+    try:
+        plugin.tool.connect_signals()
+        ui = plugin.tool.ui
+        assert [r['data'][key] for r in plugin.tools.values()] == ['none', 'none']
+        ui.clear_dir_radio.set_value('climb')
+        ui.clear_dir_radio.activated_custom.emit('climb')
+        assert [r['data'][key] for r in plugin.tools.values()] == ['climb', 'climb']
+    finally:
+        plugin.close()

@@ -102,6 +102,23 @@ class EditorChecks(DatabaseCase):
         self.assertFalse(db.ui.iso_voronoi_pads_cb.get_value())
         self.assertEqual([], self.slot_errors)
 
+    def test_clearing_direction_is_saved_loaded_and_defaults_to_none_for_old_records(self):
+        import appDatabase
+        for target, key, radio in ((5, 'tools_ncc_clear_milling', 'ncc_clear_dir_radio'),
+                                   (4, 'tools_paint_clear_milling', 'paint_clear_dir_radio')):
+            with self.subTest(parameter=key):
+                db = self.database({'7': record(target)})
+                db.select_tool('7')
+                self.assertEqual('none', getattr(db.ui, radio).get_value())
+                getattr(db.ui, radio).set_value('conv')
+                getattr(db.ui, radio).activated_custom.emit('conv')
+                self.assertTrue(db.on_save_tools_db())
+                self.assertEqual('conv', appDatabase.load_tools_database(self.path, self.app.options)['7']['data'][key])
+                old = record(target)
+                old['data'].pop(key)
+                self.path.write_text(json.dumps({'7': old}), encoding='utf-8')
+                self.assertEqual('none', appDatabase.load_tools_database(self.path, self.app.options)['7']['data'][key])
+
     def test_legacy_crosshatch_angle_does_not_inherit_the_previous_record_and_is_saved_when_edited(self):
         for target, key, entry in ((5, 'tools_ncc_crosshatch_angle', 'ncc_crosshatch_angle_entry'),
                                    (4, 'tools_paint_crosshatch_angle', 'paint_crosshatch_angle_entry')):
