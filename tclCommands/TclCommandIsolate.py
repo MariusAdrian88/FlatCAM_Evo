@@ -2,6 +2,7 @@ from tclCommands.TclCommand import TclCommandSignaled
 from camlib import boundary_area, grace
 
 from shapely.geometry import Polygon, box
+from shapely.ops import unary_union
 
 import collections
 
@@ -54,6 +55,7 @@ class TclCommandIsolate(TclCommandSignaled):
         ('cutz', float),
         ('simplify', float),
         ('except_obj', str),
+        ('use_zones', str),
         ('rest', str),
         ('forced_rest', str),
         ('ref_obj', str),
@@ -117,8 +119,10 @@ class TclCommandIsolate(TclCommandSignaled):
             ('cutz', 'Cut depth, used with the V-shaped tool to find its effective diameter.'),
             ('simplify', 'Simplification tolerance of the result paths; 0 switches the simplification off. '
                          'Default: the Isolation preferences.'),
-            ('except_obj', 'Name of a Gerber or Geometry object whose area is excluded: the isolation paths '
-                           'are cut off inside it.'),
+            ('except_obj', 'Name of the Keepout object: a Gerber or Geometry object whose area is excluded. '
+                           'The isolation paths are cut off inside it.'),
+            ('use_zones', 'Also apply the exclusion zones of Isolation stored on the isolated object. True (1) or '
+                          'False (0). Default: 0. The zones of NCC and Paint never apply.'),
             ('rest', 'Rest machining: the Gerber is isolated with every tool of the -dia list, the biggest first, '
                      'and the next tool isolates what the previous one could not. One Geometry object with all '
                      'the tools results. Can be True (1) or False (0). Default: the Isolation preference.'),
@@ -277,6 +281,7 @@ class TclCommandIsolate(TclCommandSignaled):
         for key in ('combine', 'clear_leftovers', 'trace_boundary', 'pad_isolation', 'rest', 'forced_rest'):
             if key in args:
                 settings[key] = self._bool(args, key, None)
+        use_zones = self._bool(args, 'use_zones', False)
         db_tool = args.get('db_tool')
         check_valid = self._bool(args, 'check_valid', bool(self._app_option('tools_iso_check_valid', False)))
 
@@ -415,6 +420,9 @@ class TclCommandIsolate(TclCommandSignaled):
         outname = args.get('outname')
         failed = False
         for obj in objects:
+            obj_exclusion = exc_geometry
+            if use_zones and obj.zones_of('isolation'):
+                obj_exclusion = unary_union((exc_geometry or []) + obj.zones_of('isolation'))
             if outname is not None and len(objects) > 1:
                 obj_outname = "%s_%s" % (outname, obj.obj_options['name'])
             else:
@@ -428,7 +436,7 @@ class TclCommandIsolate(TclCommandSignaled):
                 continue
             if IsolationJob.run_headless(
                     self.app, obj, tools, settings=settings, ref_geometry=ref_geometry, limited_area=limited_area,
-                    negative_dia=negative_dia, exc_geometry=exc_geometry, boundary=boundary, outname=obj_outname,
+                    negative_dia=negative_dia, exc_geometry=obj_exclusion, boundary=boundary, outname=obj_outname,
                     plot=False, validation_status=valid) == 'fail':
                 failed = True
         return 'fail' if failed else None

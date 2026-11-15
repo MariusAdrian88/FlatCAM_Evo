@@ -33,6 +33,9 @@ from appDatabase import load_tools_database, tools_database_error_message
 from camlib import deepcopy_keep_geometry, Geometry, grace, flatten_shapely_geometry, polygon_gap_pairs, outline_area, boundary_area, clip_paths_to_area, \
     area_outline_paths, boundary_passes_message, isolation_leftover_paths, milling_orient, pass_covers_area
 from appCommon.SafeEval import safe_eval
+from appPlugins.Common.clearing.selection import AreaSelector
+from appPlugins.Common.clearing.ui_sections import show_exclusion_section
+from appPlugins.Common.clearing.zones import ZonePanel
 from appPlugins.ToolIsolation.IsolationUI import IsoUI
 from appPlugins.ToolIsolation import IsolationGen
 from appPlugins.ToolIsolation.IsolationGen import tools_for_run
@@ -70,6 +73,10 @@ class ToolIsolation(Geometry, AppTool):
         self.add_object_creation_controls()
         self.pluginName = self.ui.pluginName
         self.connect_signals_at_init()
+
+        self.selector = AreaSelector(self)
+        # the exclusion zones of this plugin: the zones of the source objects, shown and edited by the panel
+        self.zones = ZonePanel(self, 'isolation')
 
         # the signals of the app and of the plugin itself: connected once, the UI is rebuilt in set_tool_ui()
         # Custom Signal
@@ -376,6 +383,8 @@ class ToolIsolation(Geometry, AppTool):
             self.end_selection_mode()
         except AttributeError as err:
             self.app.log.debug("ToolIsolation.set_tool_ui() end_selection_mode -> %s" % str(err))
+        # a zone that is still being drawn belongs to the UI that is rebuilt here
+        self.selector.cancel()
 
         self.units = self.app.app_units.upper()
         app_defaults = getattr(self.app, "defaults", None) or AppDefaults.factory_defaults
@@ -612,6 +621,33 @@ class ToolIsolation(Geometry, AppTool):
         # the V-shape parameters are shown when the shape is V
         self.ui_update_v_shape(self.ui.tool_shape_combo.get_value(), update_dia=False)
 
+        self.zones.closed = False
+        self.zones.refresh()
+
+    def zone_sources(self):
+        """The objects to isolate: the selected Gerber objects with "multi objects", else the object of the combo."""
+        if self.ui.multi_objects_cb.get_value():
+            selected = [obj for obj in self.app.collection.get_selected() if getattr(obj, 'kind', None) == 'gerber']
+            if selected:
+                return selected
+        try:
+            obj = self.app.collection.get_by_name(self.ui.object_combo.currentText())
+        except (RuntimeError, AttributeError):
+            return []
+        return [obj] if obj is not None else []
+
+    def on_plugin_cleanup(self):
+        """The plugin is closing: do not leave the canvas in the selection mode, take the zones off the canvas."""
+        self.selector.cancel()
+        self.zones.closed = True
+        self.zones.hide()
+
+    def on_panel_replaced(self):
+        """Another plugin took the place of the panel."""
+        self.selector.cancel()
+        self.zones.closed = True
+        self.zones.hide()
+
     def change_level(self, level):
         """
 
@@ -703,6 +739,8 @@ class ToolIsolation(Geometry, AppTool):
             self.ui.area_shape_label.hide()
             self.ui.area_shape_radio.hide()
 
+            show_exclusion_section(self.ui, False)
+
             # Context Menu section
             self.ui.tools_table.removeContextMenu()
         else:
@@ -752,8 +790,12 @@ class ToolIsolation(Geometry, AppTool):
 
             self.ui.multi_objects_cb.show()
 
+            show_exclusion_section(self.ui, True)
+
             # Context Menu section
             self.ui.tools_table.setupContextMenu()
+
+        self.zones.refresh()
 
     def rebuild_ui(self):
         # read the table tools uid
@@ -884,6 +926,14 @@ class ToolIsolation(Geometry, AppTool):
         self.ui.rest_cb.stateChanged.connect(self.on_rest_machining_check)
         self.ui.iso_order_combo.currentIndexChanged.connect(self.on_order_changed)
 
+        # Exclusion Areas: draw, delete and show the zones of the source objects
+        self.ui.excl_add_button.clicked.connect(self.zones.on_add)
+        self.ui.excl_delete_button.clicked.connect(self.zones.on_delete)
+        self.ui.excl_cb.stateChanged.connect(self.zones.refresh)
+        self.ui.object_combo.currentIndexChanged.connect(self.zones.refresh)
+        self.ui.multi_objects_cb.stateChanged.connect(self.zones.refresh)
+        self.app.proj_selection_changed.connect(self.zones.refresh)
+
     def ui_disconnect(self):
 
         # only our slots are disconnected: the widgets have receivers of their own
@@ -957,6 +1007,19 @@ class ToolIsolation(Geometry, AppTool):
             self.ui.iso_order_combo.currentIndexChanged.disconnect(self.on_order_changed)
         except (TypeError, ValueError, RuntimeError):
             pass
+
+        # Exclusion Areas
+        for signal, slot in (
+                (self.ui.excl_add_button.clicked, self.zones.on_add),
+                (self.ui.excl_delete_button.clicked, self.zones.on_delete),
+                (self.ui.excl_cb.stateChanged, self.zones.refresh),
+                (self.ui.object_combo.currentIndexChanged, self.zones.refresh),
+                (self.ui.multi_objects_cb.stateChanged, self.zones.refresh),
+                (self.app.proj_selection_changed, self.zones.refresh)):
+            try:
+                signal.disconnect(slot)
+            except (TypeError, AttributeError, RuntimeError):
+                pass
 
     def sort_iso_tools(self):
         order = self.ui.iso_order_combo.get_value()
@@ -1989,6 +2052,7 @@ class ToolIsolation(Geometry, AppTool):
             'order': self.ui.iso_order_combo.get_value(),
             'clear_leftovers': self.ui.clear_leftovers_cb.get_value(),
             'exc_name': self.ui.exc_obj_combo.currentText(),
+            'use_zones': self.zones.is_on(),
         }
 
     def isolate_handler(self, isolated_obj, selection, sel_tools, settings, ref_name=None, tools_storage=None):
@@ -2110,9 +2174,17 @@ class ToolIsolation(Geometry, AppTool):
         use_clear_leftovers = args['clear_leftovers'] if 'clear_leftovers' in args else (
             ui.clear_leftovers_cb.get_value() if ui is not None else False)
         # Resolve the exclusion here; generation never reads its combo box.
-        exc_geometry = self._exclusion_geometry(use_iso_except, args.get('exc_name'))
+        if 'use_zones' in args:
+            use_zones = args['use_zones']
+        else:
+            zones_panel = getattr(self, 'zones', None)
+            use_zones = zones_panel.is_on() if zones_panel is not None else False
+        exc_geometry = self._exclusion_geometry(use_iso_except, args.get('exc_name'),
+                                                isolated_obj.zones_of('isolation') if use_zones else [])
         if isinstance(exc_geometry, str):
             return 'fail'
+        # the job subtracts exc_geometry only with iso_except: zones without a Keepout object must apply too
+        use_iso_except = exc_geometry is not None
         # boundary: None or the area (Polygon / MultiPolygon) the isolation is limited to
         boundary = args['boundary'] if 'boundary' in args else self.get_boundary_area()
         if boundary == 'fail':
@@ -2139,29 +2211,32 @@ class ToolIsolation(Geometry, AppTool):
             isolated_obj, sel_tools, tools_storage, geometry=geometry, limited_area=limited_area,
             negative_dia=negative_dia, plot=plot, **args)
 
-    def _exclusion_geometry(self, iso_except, exc_name=None):
+    def _exclusion_geometry(self, iso_except, exc_name=None, zones=()):
         """
-        The geometry of the excluded area, read in the controller before the job starts.
+        The geometry of the excluded area, read in the controller before the job starts: the Keepout object and the
+        exclusion zones of the isolated object.
 
-        :param iso_except:  if the exclusion is on
-        :param exc_name:    the name of the object of the excluded area (None: the one in the combo box)
-        :return:            None if the exclusion is off, the geometry, or 'fail' if the object was not found
+        :param iso_except:  if the Keepout object is on
+        :param exc_name:    the name of the Keepout object (None: the one in the combo box)
+        :param zones:       the exclusion zones of the isolated object that apply
+        :return:            None if nothing is excluded, the geometry, or 'fail' if the Keepout object was not found
                             (an error was reported)
         """
-        if not iso_except:
-            return None
-        if exc_name is None:
-            exc_name = self.ui.exc_obj_combo.currentText()
-        exc_obj = self.app.collection.get_by_name(exc_name)
-        if exc_obj is None:
-            self.app.inform.emit('[ERROR_NOTCL] %s' % _("The object of the excluded area was not found."))
-            return 'fail'
-        return exc_obj.solid_geometry
+        parts = list(zones)
+        if iso_except:
+            if exc_name is None:
+                exc_name = self.ui.exc_obj_combo.currentText()
+            exc_obj = self.app.collection.get_by_name(exc_name)
+            if exc_obj is None:
+                self.app.inform.emit('[ERROR_NOTCL] %s' % _("The Keepout object was not found."))
+                return 'fail'
+            parts.extend(flatten_shapely_geometry(exc_obj.solid_geometry))
+        return unary_union(parts) if parts else None
 
     def voronoi_isolation(self, iso_obj, iso2geo, tools_storage, sel_tools, boundary, spacing=None,
                           use_rest=False, negative_dia=None, iso_except=False, extra_passes=0,
                           clear_leftovers=False, limited_area=None, simp_en=False, simp_tol=0.001, plot=True,
-                          diagnostic_token=None):
+                          diagnostic_token=None, use_zones=None):
         """
         Inter-body Voronoi isolation: one object for each selected tool, one pass, no contour around a single body.
 
@@ -2184,6 +2259,10 @@ class ToolIsolation(Geometry, AppTool):
         :param plot:            if to plot the resulting geometry object
         :return:                'fail' if nothing was isolated (an error was reported), else None
         """
+        if use_zones is None:
+            zones_panel = getattr(self, 'zones', None)
+            use_zones = zones_panel.is_on() if zones_panel is not None else False
+        iso_except = iso_except or bool(iso_obj.zones_of('isolation') if use_zones else [])
         return IsolationJob(self.app, tool=self).voronoi_isolation(
             iso_obj, iso2geo, tools_storage, sel_tools, boundary, spacing=spacing,
             use_rest=use_rest, negative_dia=negative_dia, iso_except=iso_except, extra_passes=extra_passes,
@@ -2192,7 +2271,7 @@ class ToolIsolation(Geometry, AppTool):
 
     def combined_rest(self, iso_obj, iso2geo, tools_storage, lim_area, sel_tools, iso_except=False, forced_rest=False,
                       order=0, negative_dia=None, simp_en=False, simp_tol=0.001, plot=True, boundary=None,
-                      trace_boundary=False, exc_name=None):
+                      trace_boundary=False, exc_name=None, use_zones=None):
         """
         Isolate the provided Gerber object using "rest machining" strategy
 
@@ -2230,17 +2309,22 @@ class ToolIsolation(Geometry, AppTool):
         :type exc_name:         str
         :return:                'fail' if nothing was isolated (an error was reported), else None
         """
-        exc_geometry = self._exclusion_geometry(iso_except, exc_name)
+        if use_zones is None:
+            zones_panel = getattr(self, 'zones', None)
+            use_zones = zones_panel.is_on() if zones_panel is not None else False
+        zones = iso_obj.zones_of('isolation') if use_zones else []
+        exc_geometry = self._exclusion_geometry(iso_except, exc_name, zones)
         if isinstance(exc_geometry, str):
             return 'fail'
         return IsolationJob(self.app, exc_geometry=exc_geometry, tool=self).combined_rest(
-            iso_obj, iso2geo, tools_storage, lim_area, sel_tools, iso_except=iso_except,
+            iso_obj, iso2geo, tools_storage, lim_area, sel_tools, iso_except=exc_geometry is not None,
             forced_rest=forced_rest, order=order, negative_dia=negative_dia, simp_en=simp_en,
             simp_tol=simp_tol, plot=plot, boundary=boundary, trace_boundary=trace_boundary)
 
     def combined_normal(self, iso_obj, iso2geo, tools_storage, lim_area, sel_tools, iso_except, extra_passes=None,
                         negative_dia=None, simp_en=False, simp_tol=0.001, plot=True, prog_plot=None,
-                        clear_leftovers=False, boundary=None, trace_boundary=False, exc_name=None):
+                        clear_leftovers=False, boundary=None, trace_boundary=False, exc_name=None,
+                        use_zones=None):
         """
 
         :param iso_obj:        the isolated Gerber object
@@ -2278,11 +2362,16 @@ class ToolIsolation(Geometry, AppTool):
         :type exc_name:         str
         :return:                'fail' if nothing was isolated (an error was reported), else None
         """
-        exc_geometry = self._exclusion_geometry(iso_except, exc_name)
+        if use_zones is None:
+            zones_panel = getattr(self, 'zones', None)
+            use_zones = zones_panel.is_on() if zones_panel is not None else False
+        zones = iso_obj.zones_of('isolation') if use_zones else []
+        exc_geometry = self._exclusion_geometry(iso_except, exc_name, zones)
         if isinstance(exc_geometry, str):
             return 'fail'
         return IsolationJob(self.app, exc_geometry=exc_geometry, tool=self).combined_normal(
-            iso_obj, iso2geo, tools_storage, lim_area, sel_tools, iso_except, extra_passes=extra_passes,
+            iso_obj, iso2geo, tools_storage, lim_area, sel_tools, exc_geometry is not None,
+            extra_passes=extra_passes,
             negative_dia=negative_dia, simp_en=simp_en, simp_tol=simp_tol, plot=plot, prog_plot=prog_plot,
             clear_leftovers=clear_leftovers, boundary=boundary, trace_boundary=trace_boundary)
 

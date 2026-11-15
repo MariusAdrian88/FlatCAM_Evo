@@ -2199,3 +2199,88 @@ def test_tcl_vbit_diameter_sign_selects_the_real_path_side(app, dia, inside):
         assert paths.bounds[0] > 0
     else:
         assert paths.bounds[0] < 0
+
+
+# ==============================================================================================================
+# test_isolation_zones: Isolation Keepout and its own exclusion zones.
+# ==============================================================================================================
+
+COPPER = box(0, 0, 10, 10)
+CORNER_ZONE = box(-1, -1, 3, 3)
+
+
+def created_paths(created):
+    return [geo for obj in created.values() for geo in obj.solid_geometry]
+
+
+def paths_area_inside(paths, zone):
+    return unary_union(paths).buffer(1e-6).intersection(zone).area
+
+
+@pytest.fixture
+def iso_plugin_with_gerber(app, plugin):
+    gerber = make_gerber(app, name='grb')
+    gerber.solid_geometry = [COPPER]
+    return plugin, gerber
+
+
+def isolation_storage():
+    data = {k: deepcopy(v) for k, v in AppDefaults().defaults.items() if k.startswith('tools_')}
+    data.update(tools_iso_isotype='full', tools_iso_passes=1, tools_iso_overlap=OVERLAP,
+                tools_iso_milling_type='cl')
+    return {1: {'tooldia': DIA, 'data': data, 'solid_geometry': []}}
+
+
+def test_isolation_zones_cut_the_paths_and_ncc_zones_do_not(iso_plugin_with_gerber):
+    tool, grb = iso_plugin_with_gerber
+    tool.change_level('a')
+    grb.exclusion_zones = {'ncc': [CORNER_ZONE]}
+    tool.ui.excl_cb.set_value(True)
+    plain = run_plugin(tool, grb, combine=True)[0]
+    assert paths_area_inside(created_paths(plain), CORNER_ZONE) > 0
+    grb.exclusion_zones = {'isolation': [CORNER_ZONE]}
+    cut = run_plugin(tool, grb, combine=True)[0]
+    assert paths_area_inside(created_paths(cut), CORNER_ZONE) == pytest.approx(0, abs=1e-9)
+    tool.change_level('b')
+    basic = run_plugin(tool, grb, combine=True)[0]
+    assert paths_area_inside(created_paths(basic), CORNER_ZONE) > 0
+
+
+@pytest.mark.parametrize('mode', ['separate', 'combined', 'rest'])
+def test_isolation_zones_apply_without_keepout(iso_plugin_with_gerber, mode):
+    tool, grb = iso_plugin_with_gerber
+    tool.change_level('a')
+    grb.exclusion_zones = {'isolation': [CORNER_ZONE]}
+    tool.ui.excl_cb.set_value(True)
+    tool.ui.except_cb.set_value(False)
+    tool.ui.combine_passes_cb.set_value(mode != 'separate')
+    tool.ui.rest_cb.set_value(mode == 'rest')
+    created = run_plugin(tool, grb, combine=mode != 'separate', rest=mode == 'rest')[0]
+    assert paths_area_inside(created_paths(created), CORNER_ZONE) == pytest.approx(0, abs=1e-9)
+
+
+def test_voronoi_rejects_isolation_zones(iso_plugin_with_gerber):
+    tool, grb = iso_plugin_with_gerber
+    tool.change_level('a')
+    grb.exclusion_zones = {'isolation': [CORNER_ZONE]}
+    tool.ui.excl_cb.set_value(True)
+    tool.ui.except_cb.set_value(False)
+    tool.ui.strategy_combo.set_value('voronoi')
+    tool.app.app_obj.new_object = Mock()
+    result = tool.isolate(grb, [1], isolation_storage(), geometry=grb.solid_geometry, plot=False,
+                          combine=True, iso_except=False, e_passes=0, area_shape='square', rest=False,
+                          sel_type=0, tip_shape='C1', iso_simplification=False, simplification_tol=0.001,
+                          boundary=None, trace_boundary=False, strategy='voronoi')
+    assert result == 'fail'
+
+
+def test_tcl_isolate_use_zones(app):
+    gerber = make_gerber(app, name='g')
+    minx, miny, maxx, maxy = unary_union(gerber.solid_geometry).bounds
+    zone = box(minx - 5, miny - 5, (minx + maxx) / 2, maxy + 5)
+    gerber.exclusion_zones = {'isolation': [zone]}
+    plain = tcl_isolate(app, 'g', '-dia', '0.2', '-outname', 'a', objects={'g': gerber})['a']
+    cut = tcl_isolate(app, 'g', '-dia', '0.2', '-outname', 'b', '-use_zones', '1',
+                      objects={'g': gerber})['b']
+    assert paths_area_inside(plain.solid_geometry, zone) > 0
+    assert paths_area_inside(cut.solid_geometry, zone) == pytest.approx(0, abs=1e-9)

@@ -9,6 +9,7 @@ from PyQt6 import QtWidgets, QtCore, QtGui
 from defaults import AppDefaults
 from appGUI.GUIElements import FCLabel, FCButton, FCFrame, GLay, FCComboBox, FCCheckBox, \
     FCComboBox2, RadioSet, FCDoubleSpinner, FCSpinner, FCTable, OptionalInputSection
+from appPlugins.Common.clearing import ui_sections
 
 import gettext
 import appTranslation as fcTranslate
@@ -532,29 +533,25 @@ class IsoUI:
         gen_grid.addWidget(self.simplify_cb, 6, 0)
         gen_grid.addWidget(self.sim_tol_entry, 6, 1)
 
-        # Exception Areas
-        self.except_cb = FCCheckBox(label=_('Except'))
-        self.except_cb.setToolTip(_("When the isolation geometry is generated,\n"
-                                    "by checking this, the area of the object below\n"
-                                    "will be subtracted from the isolation geometry."))
+        # Keepout
+        self.except_cb = FCCheckBox(label=_('Keepout'))
+        self.except_cb.setToolTip(_("Remove the area of a Gerber or Geometry object from the isolation\n"
+                                    "geometry: the isolation paths are cut off inside it."))
         self.except_cb.setObjectName("i_except")
         gen_grid.addWidget(self.except_cb, 8, 0)
 
-        # Type of object to be excepted
+        # Type of Keepout object
         self.type_excobj_radio = RadioSet([{'label': _("Geometry"), 'value': 'geometry'},
                                            {'label': _("Gerber"), 'value': 'gerber'}])
         self.type_excobj_radio.setToolTip(
-            _("Specify the type of object to be excepted from isolation.\n"
-              "It can be of type: Gerber or Geometry.\n"
-              "What is selected here will dictate the kind\n"
-              "of objects that will populate the 'Object' combobox.")
+            _("The type of the Keepout object: Gerber or Geometry.")
         )
 
         gen_grid.addWidget(self.type_excobj_radio, 8, 1)
 
-        # The object to be excepted
+        # The Keepout object
         self.exc_obj_combo = FCComboBox()
-        self.exc_obj_combo.setToolTip(_("Object whose area will be removed from isolation geometry."))
+        self.exc_obj_combo.setToolTip(_("The Keepout object: its area is removed from the isolation geometry."))
 
         # set the model for the Area Exception comboboxes
         self.exc_obj_combo.setModel(self.app.collection)
@@ -742,7 +739,13 @@ class IsoUI:
         self.boundary_cb.stateChanged.connect(self.on_strategy_changed)
         self.on_strategy_changed()
 
-        GLay.set_common_column_size([tool_grid, new_tool_grid, tool_param_grid, v_grid, gen_grid], 0)
+        # Exclusion Areas (Advanced mode)
+        excl_grid = ui_sections.build_exclusion(
+            self, self.tools_box, check_object_name="i_exclusion",
+            check_tooltip=_("Remove the exclusion zones of the isolated object from the isolation geometry.\n"
+                            "The zones are drawn here and belong to the object; NCC and Paint have their own."))
+
+        GLay.set_common_column_size([tool_grid, new_tool_grid, tool_param_grid, v_grid, gen_grid, excl_grid], 0)
 
         # #############################################################################################################
         # Generate Geometry object
