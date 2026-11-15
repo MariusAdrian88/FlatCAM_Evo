@@ -314,6 +314,7 @@ class NativeGerberObject(GerberObject):
         self.follow_geometry = []
         self.source_file = ''
         self.export_as_regions = False
+        self.exclusion_zones = {}
 
 
 class NativeExcellonObject(ExcellonObject):
