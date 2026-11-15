@@ -6,6 +6,18 @@ Based on FlatCAM:
 
 CHANGELOG for FlatCAM Evo
 
+15.11.2026
+
+Copper Clearing (NCC) and Paint:
+
+- changed: the exclusion zones of NCC and Paint belong to the source object (Gerber or Geometry), not to the plugin: Add area adds zones to the selected object, Delete all removes its zones; with "All selected objects" both act on every selected object; each edit is 1 undo step
+- added: the zones of an object are saved in the project, kept by Copy and Join, and move with the object (move, scale, mirror, rotate, skew, units change, undo of a transform); Panelize does not copy them
+- added: the zones of a source object are on the canvas while the NCC or Paint panel shows it; Reset keeps them; closing the panel or opening another plugin takes them off the canvas
+- added: the NCC / Paint output Geometry keeps a copy of the zones that the job used and always shows them; deleting the output deletes them; a later change of the source zones does not change the output
+- changed: Tcl ncc / paint use the zones stored on the object plus the polygons of -exclude, for that run only (the object is not changed)
+- fixed: NCC warned about uncut areas only for a polygon that failed: a branch narrower than the tool gave no warning; the rest machining warned about the corner residue of a fully cleared area; NCC and Paint now measure the area that no tool cut, with the smallest tool that cut (before, Paint measured only the last tool, so the ascending order gave a false warning)
+- fixed: after a Reset or a new source, the NCC Preview of Polygon Selection drew the regions of the earlier job
+
 14.11.2026
 
 Copper Clearing (NCC) and Paint:

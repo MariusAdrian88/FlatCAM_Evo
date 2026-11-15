@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "POT-Creation-Date: 2022-05-17 14:38+0300\n"
-"PO-Revision-Date: 2026-11-15 00:01+0100\n"
+"PO-Revision-Date: 2026-11-15 07:54+0100\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: zh_CN\n"
@@ -119,7 +119,7 @@ msgstr "书签"
 #: appEditors/appExcEditor.py:2160 appEditors/appExcEditor.py:2191
 #: appEditors/appGeoEditor.py:2854 appEditors/appGeoEditor.py:7376
 #: appEditors/appGeoEditor.py:7402 appEditors/appGeoEditor.py:7428
-#: appEditors/appGerberEditor.py:6389 appEditors/appTextEditor.py:497
+#: appEditors/appGerberEditor.py:6391 appEditors/appTextEditor.py:497
 #: appEditors/geo_plugins/GeoPaintPlugin.py:174
 #: appEditors/geo_plugins/GeoTransformationPlugin.py:221
 #: appEditors/grb_plugins/GrbOperationDialogs.py:81
@@ -141,9 +141,9 @@ msgstr "书签"
 #: appHandlers/appIO.py:2587 appHandlers/appIO.py:3723
 #: appHandlers/appIO.py:3774 appHandlers/appObjectOps.py:491 appMain.py:1939
 #: appMain.py:1975 appMain.py:3147 appObjects/CNCJobObject.py:951
-#: appObjects/ObjectCollection.py:308 appParsers/ParseGerber.py:2987
-#: appParsers/ParseGerber.py:3027 appParsers/ParseGerber.py:3044
-#: appParsers/ParseGerber.py:3061 appPlugins/Common/clearing/job.py:284
+#: appObjects/ObjectCollection.py:308 appParsers/ParseGerber.py:2988
+#: appParsers/ParseGerber.py:3028 appParsers/ParseGerber.py:3045
+#: appParsers/ParseGerber.py:3062 appPlugins/Common/clearing/job.py:289
 #: appPlugins/Common/levelling_core.py:1619
 #: appPlugins/ToolCompare/Compare.py:413 appPlugins/ToolCutOut/CutOut.py:1732
 #: appPlugins/ToolDistance/Distance.py:456 appPlugins/ToolFollow/Follow.py:355
@@ -151,11 +151,11 @@ msgstr "书签"
 #: appPlugins/ToolImage/ImageImportMixin.py:256
 #: appPlugins/ToolInvertGerber/InvertGerber.py:254
 #: appPlugins/ToolMarkers/Markers.py:565 appPlugins/ToolMarkers/Markers.py:623
-#: appPlugins/ToolMove/Move.py:372 appPlugins/ToolNCC/Ncc.py:1135
-#: appPlugins/ToolNCC/Ncc.py:1177 appPlugins/ToolNCC/Ncc.py:1240
-#: appPlugins/ToolNCC/Ncc.py:1393 appPlugins/ToolPaint/Paint.py:715
-#: appPlugins/ToolPaint/Paint.py:758 appPlugins/ToolPaint/Paint.py:815
-#: appPlugins/ToolPaint/Paint.py:1197 appPlugins/ToolPaint/PaintGen.py:919
+#: appPlugins/ToolMove/Move.py:372 appPlugins/ToolNCC/Ncc.py:1151
+#: appPlugins/ToolNCC/Ncc.py:1193 appPlugins/ToolNCC/Ncc.py:1256
+#: appPlugins/ToolNCC/Ncc.py:1409 appPlugins/ToolPaint/Paint.py:716
+#: appPlugins/ToolPaint/Paint.py:759 appPlugins/ToolPaint/Paint.py:816
+#: appPlugins/ToolPaint/Paint.py:1212 appPlugins/ToolPaint/PaintGen.py:929
 #: appPlugins/ToolPanelize/Panelize.py:373
 #: appPlugins/ToolPcbWizard/PcbWizard.py:190
 #: appPlugins/ToolPcbWizard/PcbWizard.py:213
@@ -165,7 +165,7 @@ msgstr "书签"
 #: appPlugins/ToolSolderPaste/SolderPaste.py:910
 #: appPlugins/ToolSolderPaste/SolderPaste.py:968
 #: appPlugins/ToolSolderPaste/SolderPaste.py:1017 appPlugins/ToolSub/Sub.py:518
-#: camlib.py:2947 camlib.py:2953
+#: camlib.py:2958 camlib.py:2964
 msgid "Cancelled."
 msgstr "已取消。"
 
@@ -386,7 +386,7 @@ msgstr "钻孔"
 #: appGUI/preferences/PreferencesWindow.py:45
 #: appGUI/preferences/tools/ToolsNCCPrefGroupUI.py:163
 #: appGUI/shortcut_actions.py:156 appObjects/CNCJobObject.py:356
-#: appObjects/GeometryObject.py:308 appPlugins/ToolIsolation/Isolation.py:251
+#: appObjects/GeometryObject.py:309 appPlugins/ToolIsolation/Isolation.py:251
 #: appPlugins/ToolIsolation/IsolationUI.py:23
 #: appPlugins/ToolMilling/MillingUI.py:570 appPlugins/ToolNCC/NccUI.py:189
 msgid "Isolation"
@@ -417,7 +417,7 @@ msgid "Cutout"
 msgstr "切割"
 
 #: appDatabase.py:148 appDatabase.py:319 appEditors/appGCodeEditor.py:211
-#: appObjects/CNCJobObject.py:356 appObjects/GeometryObject.py:308
+#: appObjects/CNCJobObject.py:356 appObjects/GeometryObject.py:309
 #: appPlugins/ToolMilling/MillingUI.py:570
 #: appPlugins/ToolPhotoCarve/PhotoCarveUI.py:47
 #: appPlugins/ToolPhotoCarve/PhotoCarveUI.py:64
@@ -425,13 +425,13 @@ msgid "Roughing"
 msgstr "粗加工"
 
 #: appDatabase.py:148 appDatabase.py:319 appEditors/appGCodeEditor.py:211
-#: appObjects/CNCJobObject.py:356 appObjects/GeometryObject.py:308
+#: appObjects/CNCJobObject.py:356 appObjects/GeometryObject.py:309
 #: appPlugins/ToolMilling/MillingUI.py:570
 msgid "Finishing"
 msgstr "精加工"
 
 #: appDatabase.py:149 appDatabase.py:319 appEditors/appGCodeEditor.py:211
-#: appObjects/CNCJobObject.py:356 appObjects/GeometryObject.py:308
+#: appObjects/CNCJobObject.py:356 appObjects/GeometryObject.py:309
 #: appPlugins/ToolMilling/MillingUI.py:570
 msgid "Polishing"
 msgstr "抛光"
@@ -561,15 +561,15 @@ msgstr ""
 
 #: appDatabase.py:516 appEditors/appExcEditor.py:4184
 #: appEditors/appExcEditor.py:5631 appEditors/appExcEditor.py:6019
-#: appEditors/appExcEditor.py:6171 appEditors/appGerberEditor.py:8888
+#: appEditors/appExcEditor.py:6171 appEditors/appGerberEditor.py:8890
 #: appEditors/exc_plugins/ExcDrillArrayPlugin.py:120
 #: appEditors/exc_plugins/ExcDrillPlugin.py:126
 #: appEditors/grb_plugins/GrbPadArrayPlugin.py:119
 #: appEditors/grb_plugins/GrbPadPlugin.py:127
 #: appEditors/grb_plugins/GrbTrackPlugin.py:127
 #: appEditors/grb_plugins/GrberRegionPlugin.py:126 appGUI/ObjectUI.py:711
-#: appGUI/ToolLibrary.py:36 appObjects/AppObjectTemplate.py:1435
-#: appObjects/AppObjectTemplate.py:1501
+#: appGUI/ToolLibrary.py:36 appObjects/AppObjectTemplate.py:1534
+#: appObjects/AppObjectTemplate.py:1600
 #: appPlugins/Common/clearing/ui_sections.py:63
 #: appPlugins/ToolDrilling/DrillingUI.py:126
 #: appPlugins/ToolIsolation/IsolationUI.py:113
@@ -605,7 +605,7 @@ msgstr ""
 "刀具公差。\n"
 "如果所需刀具直径在此处规定的公差范围内，将使用该刀具。"
 
-#: appDatabase.py:537 appEditors/appGerberEditor.py:8747
+#: appDatabase.py:537 appEditors/appGerberEditor.py:8749
 msgid "Min"
 msgstr "最小"
 
@@ -613,7 +613,7 @@ msgstr "最小"
 msgid "Set the tool tolerance minimum."
 msgstr "设置刀具公差最小值。"
 
-#: appDatabase.py:551 appEditors/appGerberEditor.py:8750
+#: appDatabase.py:551 appEditors/appGerberEditor.py:8752
 #: appPlugins/ToolAlignObjects/Align.py:641
 msgid "Max"
 msgstr "最大"
@@ -1005,8 +1005,8 @@ msgstr ""
 "如果隔离不成功，非铜清除也将失败。\n"
 "- 清除 -> 常规的非铜清除。"
 
-#: appDatabase.py:901 appEditors/appGerberEditor.py:8908
-#: appEditors/appGerberEditor.py:9059
+#: appDatabase.py:901 appEditors/appGerberEditor.py:8910
+#: appEditors/appGerberEditor.py:9061
 #: appEditors/exc_plugins/ExcCopyPlugin.py:161
 #: appEditors/geo_plugins/GeoCopyPlugin.py:157
 #: appEditors/geo_plugins/GeoPathPlugin.py:165
@@ -1357,7 +1357,7 @@ msgstr ""
 #: appGUI/preferences/tools/ToolsMarkersPrefGroupUI.py:137
 #: appGUI/preferences/tools/ToolsNCCPrefGroupUI.py:297
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:218
-#: appObjects/AppObjectTemplate.py:995 appObjects/AppObjectTemplate.py:1001
+#: appObjects/AppObjectTemplate.py:1094 appObjects/AppObjectTemplate.py:1100
 #: appPlugins/Common/clearing/ui_sections.py:220
 #: appPlugins/Common/clearing/ui_sections.py:224
 #: appPlugins/ToolDblSided/DblSidedUI.py:403
@@ -1452,8 +1452,8 @@ msgstr ""
 
 #: appDatabase.py:1065 appDatabase.py:1192 appEditors/appGeoEditor.py:3367
 #: appEditors/appGeoEditor.py:4181 appEditors/appGerberEditor.py:4201
-#: appEditors/appGerberEditor.py:5007 appEditors/appGerberEditor.py:6785
-#: appEditors/appGerberEditor.py:6841
+#: appEditors/appGerberEditor.py:5007 appEditors/appGerberEditor.py:6787
+#: appEditors/appGerberEditor.py:6843
 #: appGUI/preferences/general/GeneralShortcutsGroupUI.py:335
 #: appGUI/preferences/geometry/GeometryGenPrefGroupUI.py:95
 #: appGUI/preferences/gerber/GerberAdvOptPrefGroupUI.py:64
@@ -1461,9 +1461,9 @@ msgstr ""
 #: appGUI/preferences/tools/Tools2FiducialsPrefGroupUI.py:72
 #: appGUI/preferences/tools/ToolsNCCPrefGroupUI.py:289
 #: appGUI/preferences/tools/ToolsPaintPrefGroupUI.py:265
-#: appObjects/AppObjectTemplate.py:1472 appObjects/AppObjectTemplate.py:1475
-#: appObjects/AppObjectTemplate.py:1478 appObjects/AppObjectTemplate.py:1508
-#: appObjects/AppObjectTemplate.py:1515 appObjects/AppObjectTemplate.py:1518
+#: appObjects/AppObjectTemplate.py:1571 appObjects/AppObjectTemplate.py:1574
+#: appObjects/AppObjectTemplate.py:1577 appObjects/AppObjectTemplate.py:1607
+#: appObjects/AppObjectTemplate.py:1614 appObjects/AppObjectTemplate.py:1617
 #: appPlugins/Common/clearing/ui_sections.py:279
 #: appPlugins/ToolCopperThieving/CopperThievingUI.py:322
 #: appPlugins/ToolFiducials/FiducialsUI.py:151
@@ -2085,7 +2085,7 @@ msgstr ""
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:406
 #: appGUI/preferences/tools/Tools2CThievingPrefGroupUI.py:356
 #: appHandlers/appUIActions.py:1211
-#: appPlugins/Common/clearing/controller_base.py:192
+#: appPlugins/Common/clearing/controller_base.py:200
 #: appPlugins/ToolCopperThieving/CopperThievingUI.py:319
 #: appPlugins/ToolDblSided/DblSidedUI.py:196
 #: appPlugins/ToolGcodeSender/SenderUI.py:277
@@ -2111,7 +2111,7 @@ msgstr "复制"
 
 #: appDatabase.py:1814 appEditors/appExcEditor.py:2923
 #: appEditors/appGeoEditor.py:1528 appEditors/appGeoEditor.py:4440
-#: appEditors/appGerberEditor.py:4039 appEditors/appGerberEditor.py:9052
+#: appEditors/appGerberEditor.py:4039 appEditors/appGerberEditor.py:9054
 #: appGUI/ApertureLibrary.py:63 appGUI/GUIElements.py:566
 #: appGUI/GUIElements.py:1349 appGUI/GUIElements.py:1597
 #: appGUI/GUIElements.py:2101 appGUI/GUIElements.py:2389
@@ -2124,7 +2124,7 @@ msgstr "复制"
 #: appGUI/shortcut_actions.py:400 appGUI/shortcut_actions.py:629
 #: appGUI/shortcut_actions.py:778 appHandlers/appObjectOps.py:994
 #: appHandlers/appUIActions.py:1213
-#: appPlugins/Common/clearing/controller_base.py:199
+#: appPlugins/Common/clearing/controller_base.py:207
 #: appPlugins/ToolDrilling/Drilling.py:377
 #: appPlugins/ToolIsolation/Isolation.py:272
 #: appPlugins/ToolMilling/Milling.py:632 appPlugins/ToolMilling/Milling.py:644
@@ -2201,7 +2201,7 @@ msgstr ""
 #: appGUI/shortcut_actions.py:882 appGUI/shortcut_actions.py:986
 #: appGUI/shortcut_actions.py:989 appGUI/shortcut_actions.py:997
 #: appHandlers/appIO.py:4109 appHandlers/appLifecycle.py:326
-#: appHandlers/appObjectOps.py:979 appHandlers/appProjects.py:563
+#: appHandlers/appObjectOps.py:979 appHandlers/appProjects.py:567
 #: appMain.py:2762 appMain.py:3513 appObjects/AppObject.py:87
 #: appPlugins/ToolGcodeSender/Sender.py:4583
 #: appPlugins/ToolGcodeSender/SenderMotion.py:111
@@ -2276,7 +2276,7 @@ msgstr "取消"
 #: appPlugins/ToolSolderPaste/SolderPasteUI.py:568
 #: appPlugins/ToolSub/SubUI.py:213 appPlugins/ToolSub/SubUI.py:224
 #: appPlugins/ToolTransform/TransformUI.py:526
-#: appPlugins/ToolTransform/TransformUI.py:537 appTool.py:421 appTool.py:432
+#: appPlugins/ToolTransform/TransformUI.py:537 appTool.py:425 appTool.py:436
 msgid "Edited value is out of range"
 msgstr "编辑的值超出范围"
 
@@ -2334,7 +2334,7 @@ msgstr "编辑的值超出范围"
 #: appPlugins/ToolSolderPaste/SolderPasteUI.py:570
 #: appPlugins/ToolSub/SubUI.py:219 appPlugins/ToolSub/SubUI.py:226
 #: appPlugins/ToolTransform/TransformUI.py:532
-#: appPlugins/ToolTransform/TransformUI.py:539 appTool.py:427 appTool.py:434
+#: appPlugins/ToolTransform/TransformUI.py:539 appTool.py:431 appTool.py:438
 msgid "Edited value is within limits."
 msgstr "编辑的值在限制范围内。"
 
@@ -2380,7 +2380,7 @@ msgid "Delete from DB"
 msgstr "从数据库删除"
 
 #: appDatabase.py:2407 appHandlers/appLifecycle.py:315
-#: appHandlers/appProjects.py:553
+#: appHandlers/appProjects.py:557
 msgid "Save changes"
 msgstr "保存更改"
 
@@ -2392,7 +2392,7 @@ msgstr "从文件替换库…"
 #: appDatabase.py:3028 appDatabase.py:3117 appGUI/MainGUI.py:620
 #: appHandlers/appUIActions.py:39 appHandlers/appUIActions.py:52
 #: appHandlers/appUIActions.py:815
-#: appPlugins/Common/clearing/controller_base.py:484
+#: appPlugins/Common/clearing/controller_base.py:496
 #: appPlugins/ToolCutOut/CutOut.py:596
 #: appPlugins/ToolIsolation/Isolation.py:2851
 #: appPlugins/ToolMilling/Milling.py:2622
@@ -2430,9 +2430,9 @@ msgstr "刀具直径"
 #: appPlugins/ToolIsolation/Isolation.py:1771
 #: appPlugins/ToolMilling/Milling.py:2711
 #: appPlugins/ToolMilling/Milling.py:3320
-#: appPlugins/ToolMilling/Milling.py:3686 appPlugins/ToolNCC/Ncc.py:1319
-#: appPlugins/ToolNCC/NccGen.py:252 appPlugins/ToolPaint/Paint.py:855
-#: appPlugins/ToolPaint/PaintGen.py:224 appPlugins/ToolPaint/PaintGen.py:565
+#: appPlugins/ToolMilling/Milling.py:3686 appPlugins/ToolNCC/Ncc.py:1335
+#: appPlugins/ToolNCC/NccGen.py:253 appPlugins/ToolPaint/Paint.py:856
+#: appPlugins/ToolPaint/PaintGen.py:226 appPlugins/ToolPaint/PaintGen.py:573
 #: appPlugins/ToolSolderPaste/SolderPaste.py:604
 #: appPlugins/ToolSolderPaste/SolderPaste.py:676
 msgid "Wrong value format entered, use a number."
@@ -2561,8 +2561,8 @@ msgstr ""
 #: appGUI/preferences/PreferencesUIManager.py:1385
 #: appGUI/preferences/PreferencesWindow.py:539
 #: appGUI/preferences/general/GeneralGUIPrefGroupUI.py:560
-#: appHandlers/appLifecycle.py:324 appHandlers/appProjects.py:540
-#: appHandlers/appProjects.py:561 appMain.py:2088 appMain.py:2756
+#: appHandlers/appLifecycle.py:324 appHandlers/appProjects.py:544
+#: appHandlers/appProjects.py:565 appMain.py:2088 appMain.py:2756
 #: appObjects/CNCJobObject.py:939 appPlugins/ToolGcodeSender/Sender.py:4611
 #: appPlugins/ToolPanelize/Panelize.py:601 appTranslation.py:130
 msgid "Yes"
@@ -2572,8 +2572,8 @@ msgstr "是"
 #: appGUI/preferences/PreferencesUIManager.py:1386
 #: appGUI/preferences/PreferencesWindow.py:540
 #: appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:300
-#: appHandlers/appLifecycle.py:325 appHandlers/appProjects.py:541
-#: appHandlers/appProjects.py:562 appMain.py:2089 appMain.py:2760
+#: appHandlers/appLifecycle.py:325 appHandlers/appProjects.py:545
+#: appHandlers/appProjects.py:566 appMain.py:2089 appMain.py:2760
 #: appObjects/CNCJobObject.py:940 appPlugins/ToolDrilling/DrillingUI.py:878
 #: appPlugins/ToolGcodeSender/Sender.py:4612
 #: appPlugins/ToolPanelize/Panelize.py:602 appTranslation.py:131
@@ -2643,9 +2643,9 @@ msgstr "要添加钻孔，请首先选择一个刀具"
 #: appEditors/appGerberEditor.py:1867 appEditors/appGerberEditor.py:2172
 #: appEditors/appGerberEditor.py:2267 appEditors/appGerberEditor.py:2778
 #: appEditors/appGerberEditor.py:2968 appEditors/appGerberEditor.py:3677
-#: appEditors/appGerberEditor.py:5788 appEditors/appGerberEditor.py:7336
-#: appEditors/appGerberEditor.py:7354 appEditors/appGerberEditor.py:8050
-#: appEditors/appGerberEditor.py:8310 appEditors/appGerberEditor.py:8366
+#: appEditors/appGerberEditor.py:5790 appEditors/appGerberEditor.py:7338
+#: appEditors/appGerberEditor.py:7356 appEditors/appGerberEditor.py:8052
+#: appEditors/appGerberEditor.py:8312 appEditors/appGerberEditor.py:8368
 #: appEditors/geo_plugins/GeoBufferPlugin.py:196
 #: appEditors/geo_plugins/GeoBufferPlugin.py:236
 #: appEditors/geo_plugins/GeoBufferPlugin.py:278
@@ -2660,12 +2660,12 @@ msgstr "要添加钻孔，请首先选择一个刀具"
 #: appEditors/grb_plugins/GrbTransformationPlugin.py:191
 #: appGUI/shortcut_actions.py:559 appGUI/shortcut_actions.py:576
 #: appGUI/shortcut_actions.py:843 appHandlers/appObjectOps.py:630
-#: appHandlers/appObjectOps.py:714 appObjects/GeometryObject.py:718
-#: appObjects/GeometryObject.py:832 appObjects/GeometryObject.py:872
-#: appObjects/GerberObject.py:458 appParsers/ParseGerber.py:2780
-#: appParsers/ParseGerber.py:2829 appParsers/ParseGerber.py:2865
-#: appParsers/ParseGerber.py:2900 appParsers/ParseGerber.py:2923
-#: appPlugins/Common/clearing/job.py:290
+#: appHandlers/appObjectOps.py:714 appObjects/GeometryObject.py:722
+#: appObjects/GeometryObject.py:836 appObjects/GeometryObject.py:877
+#: appObjects/GerberObject.py:461 appParsers/ParseGerber.py:2781
+#: appParsers/ParseGerber.py:2830 appParsers/ParseGerber.py:2866
+#: appParsers/ParseGerber.py:2901 appParsers/ParseGerber.py:2924
+#: appPlugins/Common/clearing/job.py:295
 #: appPlugins/ToolAlignObjects/Align.py:530
 #: appPlugins/ToolAlignObjects/Align.py:686
 #: appPlugins/ToolCutOut/CutOut.py:1042 appPlugins/ToolDistance/Distance.py:413
@@ -2695,14 +2695,14 @@ msgstr "完成。"
 #: appEditors/appGerberEditor.py:1737 appEditors/appGerberEditor.py:4749
 #: appEditors/geo_plugins/GeoImportImagePlugin.py:134
 #: appEditors/geo_plugins/GeoSimplificationPlugin.py:106
-#: appHandlers/appEdit.py:732 appHandlers/appIO.py:2111
+#: appHandlers/appEdit.py:734 appHandlers/appIO.py:2111
 #: appHandlers/appIO.py:2238 appHandlers/appIO.py:3827
 #: appHandlers/appIO.py:4381 appHandlers/appIO.py:4410
 #: appHandlers/appObjectOps.py:55 appHandlers/appObjectOps.py:87
 #: appHandlers/appObjectOps.py:543 appHandlers/appObjectOps.py:735
 #: appHandlers/appObjectOps.py:997 appHandlers/appPlotManager.py:476
 #: appObjects/CNCJobObject.py:970 appPlugins/Common/clearing/job.py:195
-#: appPlugins/Common/clearing/job.py:270 appPlugins/Common/clearing/job.py:286
+#: appPlugins/Common/clearing/job.py:275 appPlugins/Common/clearing/job.py:291
 #: appPlugins/ToolCopperThieving/CopperThieving.py:319
 #: appPlugins/ToolCopperThieving/CopperThieving.py:580
 #: appPlugins/ToolCopperThieving/CopperThieving.py:651
@@ -2723,11 +2723,11 @@ msgstr "完成。"
 #: appPlugins/ToolMarkers/Markers.py:613 appPlugins/ToolMarkers/Markers.py:678
 #: appPlugins/ToolMarkers/Markers.py:687 appPlugins/ToolMarkers/Markers.py:724
 #: appPlugins/ToolMove/Move.py:215 appPlugins/ToolMove/Move.py:339
-#: appPlugins/ToolNCC/NccGen.py:718 appPlugins/ToolPdf/PdfImport.py:138
+#: appPlugins/ToolNCC/NccGen.py:719 appPlugins/ToolPdf/PdfImport.py:138
 #: appPlugins/ToolQRCode/QRCode.py:580
 #: appPlugins/ToolSolderPaste/SolderPaste.py:845
-#: appPlugins/ToolSolderPaste/SolderPaste.py:1140 camlib.py:1303 camlib.py:2827
-#: camlib.py:2855 camlib.py:2884 camlib.py:2957 camlib.py:2965 camlib.py:2970
+#: appPlugins/ToolSolderPaste/SolderPaste.py:1140 camlib.py:1307 camlib.py:2838
+#: camlib.py:2866 camlib.py:2895 camlib.py:2968 camlib.py:2976 camlib.py:2981
 msgid "Failed."
 msgstr "失败。"
 
@@ -2819,7 +2819,7 @@ msgstr "槽阵列"
 
 # auto-review 2026-10-09: corrected
 #: appEditors/appExcEditor.py:1853 appEditors/appExcEditor.py:1865
-#: appEditors/appGeoEditor.py:4464 appEditors/appGerberEditor.py:8891
+#: appEditors/appGeoEditor.py:4464 appEditors/appGerberEditor.py:8893
 #: appEditors/exc_plugins/ExcResizePlugin.py:149
 #: appEditors/exc_plugins/ExcResizePlugin.py:164
 msgid "Resize"
@@ -2912,7 +2912,7 @@ msgstr "圆形阵列无效。"
 #: appGUI/GUIElements.py:4923 appGUI/MainGUI.py:468 appGUI/MainGUI.py:475
 #: appGUI/MainGUI.py:3164 appGUI/MainGUI.py:3169 appGUI/shortcut_actions.py:98
 #: appGUI/shortcut_actions.py:373 appGUI/shortcut_actions.py:607
-#: appGUI/shortcut_actions.py:763 appHandlers/appHistory.py:724
+#: appGUI/shortcut_actions.py:763 appHandlers/appHistory.py:753
 msgid "Undo"
 msgstr "撤销"
 
@@ -2924,7 +2924,7 @@ msgstr "撤销"
 #: appGUI/shortcut_actions.py:100 appGUI/shortcut_actions.py:374
 #: appGUI/shortcut_actions.py:375 appGUI/shortcut_actions.py:608
 #: appGUI/shortcut_actions.py:609 appGUI/shortcut_actions.py:764
-#: appGUI/shortcut_actions.py:765 appHandlers/appHistory.py:724
+#: appGUI/shortcut_actions.py:765 appHandlers/appHistory.py:753
 msgid "Redo"
 msgstr "重做"
 
@@ -2972,8 +2972,8 @@ msgstr "槽总数"
 #: appEditors/appGeoEditor.py:4507 appEditors/appGerberEditor.py:5069
 #: appGUI/preferences/general/GeneralAppPrefGroupUI.py:232
 #: appObjects/CNCJobObject.py:695 appObjects/DocumentObject.py:276
-#: appObjects/ExcellonObject.py:358 appObjects/GeometryObject.py:657
-#: appObjects/GerberObject.py:260 appObjects/ScriptObject.py:199
+#: appObjects/ExcellonObject.py:358 appObjects/GeometryObject.py:661
+#: appObjects/GerberObject.py:263 appObjects/ScriptObject.py:199
 #: appPlugins/Common/levelling_core.py:270
 #: appPlugins/ToolAlignObjects/AlignUI.py:282
 #: appPlugins/ToolCutOut/CutOutUI.py:661
@@ -2983,8 +2983,8 @@ msgstr "槽总数"
 #: appPlugins/ToolFilm/FilmUI.py:372 appPlugins/ToolFollow/FollowUI.py:262
 #: appPlugins/ToolIsolation/Isolation.py:649
 #: appPlugins/ToolMarkers/MarkersUI.py:309
-#: appPlugins/ToolMilling/Milling.py:933 appPlugins/ToolNCC/Ncc.py:634
-#: appPlugins/ToolPaint/Paint.py:456 appPlugins/ToolPanelize/PanelizeUI.py:355
+#: appPlugins/ToolMilling/Milling.py:933 appPlugins/ToolNCC/Ncc.py:650
+#: appPlugins/ToolPaint/Paint.py:457 appPlugins/ToolPanelize/PanelizeUI.py:355
 #: appPlugins/ToolPhotoCarve/PhotoCarve.py:179
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:333
 #: appPlugins/ToolQRCode/QRCodeUI.py:383 appPlugins/ToolSub/Sub.py:206
@@ -2995,8 +2995,8 @@ msgstr "初学者"
 #: appEditors/appGeoEditor.py:4521 appEditors/appGerberEditor.py:5082
 #: appGUI/preferences/general/GeneralAppPrefGroupUI.py:233
 #: appObjects/CNCJobObject.py:705 appObjects/DocumentObject.py:285
-#: appObjects/ExcellonObject.py:375 appObjects/GeometryObject.py:666
-#: appObjects/GerberObject.py:275 appObjects/ScriptObject.py:208
+#: appObjects/ExcellonObject.py:375 appObjects/GeometryObject.py:670
+#: appObjects/GerberObject.py:278 appObjects/ScriptObject.py:208
 #: appPlugins/Common/levelling_core.py:285
 #: appPlugins/ToolAlignObjects/AlignUI.py:282
 #: appPlugins/ToolCutOut/CutOutUI.py:669
@@ -3006,8 +3006,8 @@ msgstr "初学者"
 #: appPlugins/ToolFilm/FilmUI.py:381 appPlugins/ToolFollow/FollowUI.py:272
 #: appPlugins/ToolIsolation/Isolation.py:709
 #: appPlugins/ToolMarkers/MarkersUI.py:325
-#: appPlugins/ToolMilling/Milling.py:944 appPlugins/ToolNCC/Ncc.py:674
-#: appPlugins/ToolPaint/Paint.py:481 appPlugins/ToolPanelize/PanelizeUI.py:365
+#: appPlugins/ToolMilling/Milling.py:944 appPlugins/ToolNCC/Ncc.py:690
+#: appPlugins/ToolPaint/Paint.py:482 appPlugins/ToolPanelize/PanelizeUI.py:365
 #: appPlugins/ToolPhotoCarve/PhotoCarve.py:179
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:338
 #: appPlugins/ToolQRCode/QRCodeUI.py:386 appPlugins/ToolSub/Sub.py:209
@@ -3149,7 +3149,7 @@ msgstr "取消。没有选择任何刀具/钻孔"
 
 # auto-review 2026-10-21: new
 #: appEditors/appExcEditor.py:4742 appEditors/appExcEditor.py:5631
-#: appEditors/appExcEditor.py:6171 appEditors/appGerberEditor.py:8931
+#: appEditors/appExcEditor.py:6171 appEditors/appGerberEditor.py:8933
 msgid "Feature"
 msgstr "要素"
 
@@ -3167,8 +3167,8 @@ msgid "Add features"
 msgstr "添加要素"
 
 #: appEditors/appExcEditor.py:5388 appEditors/appGeoEditor.py:3368
-#: appEditors/appGeoEditor.py:4181 appEditors/appGerberEditor.py:6781
-#: appEditors/appGerberEditor.py:6785 appEditors/appGerberEditor.py:6843
+#: appEditors/appGeoEditor.py:4181 appEditors/appGerberEditor.py:6783
+#: appEditors/appGerberEditor.py:6787 appEditors/appGerberEditor.py:6845
 #: appGUI/preferences/tools/Tools2sidedPrefGroupUI.py:110
 #: appHandlers/appUIActions.py:1143 appPlugins/ToolDblSided/DblSidedUI.py:176
 msgid "Snap"
@@ -3216,7 +3216,7 @@ msgstr "只读快照。钻孔十字标记不是开放轮廓错误。"
 #: appEditors/appExcEditor.py:5623 appEditors/appExcEditor.py:6138
 #: appEditors/appGCodeEditor.py:888 appGUI/ObjectUI.py:711
 #: appGUI/ObjectUI.py:1403 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:620
-#: appObjects/AppObjectTemplate.py:1210
+#: appObjects/AppObjectTemplate.py:1309
 #: appPlugins/ToolDblSided/DblSidedUI.py:365
 #: appPlugins/ToolDrilling/DrillingUI.py:126
 #: appPlugins/ToolMilling/MillingUI.py:156
@@ -3231,7 +3231,7 @@ msgstr "钻孔"
 #: appGUI/ObjectUI.py:1403
 #: appGUI/preferences/excellon/ExcellonEditorPrefGroupUI.py:175
 #: appGUI/preferences/tools/ToolsMillPrefGroupUI.py:621
-#: appObjects/AppObjectTemplate.py:1212
+#: appObjects/AppObjectTemplate.py:1311
 #: appPlugins/ToolDrilling/DrillingUI.py:126
 #: appPlugins/ToolMilling/MillingUI.py:156
 #: appPlugins/ToolMilling/MillingUI.py:415
@@ -3303,7 +3303,7 @@ msgid "Excellon Editor"
 msgstr "Excellon编辑器"
 
 #: appEditors/appExcEditor.py:5969 appEditors/appGCodeEditor.py:845
-#: appEditors/appGeoEditor.py:4110 appEditors/appGerberEditor.py:8426
+#: appEditors/appGeoEditor.py:4110 appEditors/appGerberEditor.py:8428
 #: appGUI/ObjectUI.py:71 appPlugins/ToolAlignObjects/AlignUI.py:47
 #: appPlugins/ToolCutOut/CutOutUI.py:51
 #: appPlugins/ToolDblSided/DblSidedUI.py:40
@@ -3329,12 +3329,12 @@ msgstr ""
 "永久更改在“首选项”菜单中完成。"
 
 #: appEditors/appExcEditor.py:5984 appEditors/appGCodeEditor.py:858
-#: appEditors/appGerberEditor.py:8439
+#: appEditors/appGerberEditor.py:8441
 msgid "Name:"
 msgstr "名称："
 
 #: appEditors/appExcEditor.py:5993 appEditors/appGeoEditor.py:4134
-#: appEditors/appGerberEditor.py:8445
+#: appEditors/appGerberEditor.py:8447
 msgid "History"
 msgstr "历史"
 
@@ -3429,7 +3429,7 @@ msgstr "要素诊断 / 检查"
 msgid "Selected features only"
 msgstr "仅所选要素"
 
-#: appEditors/appExcEditor.py:6107 appEditors/appGerberEditor.py:8727
+#: appEditors/appExcEditor.py:6107 appEditors/appGerberEditor.py:8729
 #: appEditors/geo_plugins/GeoSimplificationPlugin.py:276
 #: appEditors/grb_plugins/GrbOperationDialogs.py:137
 #: appEditors/grb_plugins/GrbSimplificationPlugin.py:186
@@ -3443,7 +3443,7 @@ msgid "Tolerance"
 msgstr "公差"
 
 #: appEditors/appExcEditor.py:6116 appEditors/appGeoEditor.py:4380
-#: appEditors/appGerberEditor.py:8898
+#: appEditors/appGerberEditor.py:8900
 msgid "Inspect"
 msgstr "检查"
 
@@ -3453,7 +3453,7 @@ msgstr "要素选择 / 筛选"
 
 #: appEditors/appExcEditor.py:6136 appEditors/appExcEditor.py:6171
 #: appEditors/appGeoEditor.py:4205 appEditors/appGerberEditor.py:5427
-#: appEditors/appGerberEditor.py:8487 appEditors/appGerberEditor.py:8556
+#: appEditors/appGerberEditor.py:8489 appEditors/appGerberEditor.py:8558
 #: appEditors/exc_plugins/ExcCopyPlugin.py:205
 #: appEditors/exc_plugins/ExcDrillArrayPlugin.py:183
 #: appEditors/exc_plugins/ExcSlotArrayPlugin.py:247
@@ -3534,7 +3534,7 @@ msgstr "删除匹配项"
 #: appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:97
 #: appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:155
 #: appGUI/preferences/tools/ToolsMarkersPrefGroupUI.py:104
-#: appHandlers/appEdit.py:661 appHandlers/appObjectOps.py:654
+#: appHandlers/appEdit.py:663 appHandlers/appObjectOps.py:654
 #: appPlugins/ToolFilm/FilmUI.py:123 appPlugins/ToolFilm/FilmUI.py:167
 #: appPlugins/ToolMarkers/MarkersUI.py:122
 #: appPlugins/ToolPCBViewer/PCBViewerUI.py:34
@@ -3745,13 +3745,13 @@ msgstr "要素捕捉使用项目单位中配置的最大捕捉距离。"
 
 #: appEditors/appExcEditor.py:6335 appEditors/appGCodeEditor.py:76
 #: appEditors/appGCodeEditor.py:77 appEditors/appGCodeEditor.py:954
-#: appEditors/appGeoEditor.py:4475 appEditors/appGerberEditor.py:9070
+#: appEditors/appGeoEditor.py:4475 appEditors/appGerberEditor.py:9072
 #: appGUI/MainGUI.py:486 appGUI/MainGUI.py:2044 appMain.py:2746
 msgid "Exit Editor"
 msgstr "退出编辑器"
 
 #: appEditors/appExcEditor.py:6338 appEditors/appGCodeEditor.py:957
-#: appEditors/appGeoEditor.py:4478 appEditors/appGerberEditor.py:9073
+#: appEditors/appGeoEditor.py:4478 appEditors/appGerberEditor.py:9075
 #: appGUI/MainGUI.py:1309 appGUI/MainGUI.py:2588
 msgid "Exit from Editor."
 msgstr "从编辑器退出。"
@@ -3931,20 +3931,20 @@ msgstr "文本"
 #: appGUI/MainGUI.py:1956 appGUI/MainGUI.py:2003 appGUI/MainGUI.py:2771
 #: appGUI/MainGUI.py:2860
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:258
-#: appGUI/shortcut_actions.py:644 appObjects/GerberObject.py:454
+#: appGUI/shortcut_actions.py:644 appObjects/GerberObject.py:457
 #: appPlugins/ToolIsolation/Isolation.py:1881
 #: appPlugins/ToolTransform/TransformUI.py:28
 msgid "Buffer"
 msgstr "缓冲"
 
 #: appEditors/appGeoEditor.py:126 appEditors/appGerberEditor.py:2501
-#: appEditors/appGerberEditor.py:7102
+#: appEditors/appGerberEditor.py:7104
 #: appEditors/geo_plugins/GeoSimplificationPlugin.py:290
 #: appEditors/grb_plugins/GrbSimplificationPlugin.py:200 appGUI/MainGUI.py:1494
 #: appGUI/ObjectUI.py:1152
 #: appGUI/preferences/gerber/GerberAdvOptPrefGroupUI.py:77
 #: appGUI/preferences/tools/ToolsISOPrefGroupUI.py:347
-#: appObjects/GeometryObject.py:702 appObjects/GeometryObject.py:703
+#: appObjects/GeometryObject.py:706 appObjects/GeometryObject.py:707
 #: appPlugins/ToolFollow/FollowUI.py:119
 #: appPlugins/ToolIsolation/IsolationUI.py:520
 msgid "Simplify"
@@ -4005,7 +4005,7 @@ msgstr "添加形状"
 msgid "Delete selected"
 msgstr "删除所选项"
 
-#: appEditors/appGeoEditor.py:133 appEditors/appGerberEditor.py:8052
+#: appEditors/appGeoEditor.py:133 appEditors/appGerberEditor.py:8054
 msgid "Delete shape"
 msgstr "删除形状"
 
@@ -4072,7 +4072,7 @@ msgid "The drag would create invalid geometry."
 msgstr "此拖动会产生无效几何。"
 
 #: appEditors/appGeoEditor.py:1077 appEditors/appGeoEditor.py:4335
-#: appEditors/appGerberEditor.py:4006 appEditors/appGerberEditor.py:8697
+#: appEditors/appGerberEditor.py:4006 appEditors/appGerberEditor.py:8699
 #: appEditors/grb_plugins/GrbVertices.py:87
 #: appEditors/grb_plugins/GrbVertices.py:190
 msgid "Edit vertices"
@@ -4286,7 +4286,7 @@ msgid "Enable the area or the length filter."
 msgstr "请启用面积或长度筛选。"
 
 #: appEditors/appGeoEditor.py:1437 appEditors/appGeoEditor.py:1445
-#: appEditors/appGerberEditor.py:7074 appEditors/appGerberEditor.py:7082
+#: appEditors/appGerberEditor.py:7076 appEditors/appGerberEditor.py:7084
 msgid "{n} shapes match"
 msgstr "{n} 个形状匹配"
 
@@ -4306,7 +4306,7 @@ msgstr "未选择圆形。"
 msgid "{n} circles resized, {m} shapes skipped"
 msgstr "已调整 {n} 个圆形大小，跳过 {m} 个形状"
 
-#: appEditors/appGeoEditor.py:1501 appEditors/appGerberEditor.py:5869
+#: appEditors/appGeoEditor.py:1501 appEditors/appGerberEditor.py:5871
 #: appPlugins/Common/clearing/job.py:227 appPlugins/Common/clearing/job.py:229
 #: appPlugins/ToolCutOut/CutOut.py:1034 appPlugins/ToolDistance/Distance.py:308
 #: appPlugins/ToolEtchCompensation/EtchCompensation.py:284
@@ -4384,7 +4384,7 @@ msgstr "栅格捕捉已禁用。"
 #: appEditors/appGeoEditor.py:6480 appEditors/appGeoEditor.py:6519
 #: appEditors/appGeoEditor.py:6814 appEditors/appGeoEditor.py:6853
 #: appEditors/appGeoEditor.py:7376 appEditors/appGeoEditor.py:7402
-#: appEditors/appGeoEditor.py:7428 appEditors/appGerberEditor.py:8305
+#: appEditors/appGeoEditor.py:7428 appEditors/appGerberEditor.py:8307
 #: appEditors/geo_plugins/GeoPaintPlugin.py:174
 #: appEditors/geo_plugins/GeoTransformationPlugin.py:221
 #: appEditors/geo_plugins/GeoTransformationPlugin.py:246
@@ -4447,7 +4447,7 @@ msgstr "缓冲会留下空形状。"
 msgid "Corner"
 msgstr "拐角"
 
-#: appEditors/appGeoEditor.py:3366 appEditors/appGerberEditor.py:6841
+#: appEditors/appGeoEditor.py:3366 appEditors/appGerberEditor.py:6843
 msgid "Midpoint"
 msgstr "中点"
 
@@ -4455,14 +4455,14 @@ msgstr "中点"
 msgid "Nearest segment"
 msgstr "最近线段"
 
-#: appEditors/appGeoEditor.py:3367 appEditors/appGerberEditor.py:6842
+#: appEditors/appGeoEditor.py:3367 appEditors/appGerberEditor.py:6844
 #: appGUI/preferences/tools/ToolsLevelPrefGroupUI.py:50
 #: appHandlers/appUIActions.py:1138 appPlugins/Common/levelling_ui.py:194
 msgid "Grid"
 msgstr "栅格"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGeoEditor.py:3370 appEditors/appGerberEditor.py:6845
+#: appEditors/appGeoEditor.py:3370 appEditors/appGerberEditor.py:6847
 msgid "Compatibility: model units (global_snap_max)"
 msgstr "兼容性：模型单位 (global_snap_max)"
 
@@ -4547,7 +4547,7 @@ msgstr "刀具直径"
 msgid "Edited tool diameter."
 msgstr "刀具直径已编辑。"
 
-#: appEditors/appGeoEditor.py:4162 appEditors/appGerberEditor.py:8768
+#: appEditors/appGeoEditor.py:4162 appEditors/appGerberEditor.py:8770
 msgid "Snapping"
 msgstr "捕捉"
 
@@ -4607,11 +4607,11 @@ msgstr "Geometry列表"
 msgid "The list of geometry elements inside the edited object."
 msgstr "编辑对象内的几何元素列表。"
 
-#: appEditors/appGeoEditor.py:4228 appEditors/appGerberEditor.py:8615
+#: appEditors/appGeoEditor.py:4228 appEditors/appGerberEditor.py:8617
 msgid "Zoom on selection"
 msgstr "放大选择"
 
-#: appEditors/appGeoEditor.py:4232 appEditors/appGerberEditor.py:8639
+#: appEditors/appGeoEditor.py:4232 appEditors/appGerberEditor.py:8641
 #: appEditors/exc_plugins/ExcDrillArrayPlugin.py:170
 #: appEditors/exc_plugins/ExcSlotArrayPlugin.py:231
 #: appEditors/exc_plugins/ExcSlotPlugin.py:176
@@ -4678,7 +4678,7 @@ msgstr "放大选择"
 msgid "Parameters"
 msgstr "参数"
 
-#: appEditors/appGeoEditor.py:4235 appEditors/appGerberEditor.py:8641
+#: appEditors/appGeoEditor.py:4235 appEditors/appGerberEditor.py:8643
 msgid "Geometry parameters."
 msgstr "Geometry参数。"
 
@@ -4719,7 +4719,7 @@ msgstr "是简单的"
 #: appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:64
 #: appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:124
 #: appGUI/preferences/tools/ToolsMarkersPrefGroupUI.py:69
-#: appObjects/AppObjectTemplate.py:1596 appPlugins/ToolFilm/FilmUI.py:102
+#: appObjects/AppObjectTemplate.py:1695 appPlugins/ToolFilm/FilmUI.py:102
 #: appPlugins/ToolFilm/FilmUI.py:147 appPlugins/ToolMarkers/MarkersUI.py:93
 #: appPlugins/ToolReport/ReportUI.py:388
 msgid "Length"
@@ -4729,7 +4729,7 @@ msgstr "长度"
 msgid "The length of the geometry element."
 msgstr "几何元素的长度。"
 
-#: appEditors/appGeoEditor.py:4304 appEditors/appGerberEditor.py:8685
+#: appEditors/appGeoEditor.py:4304 appEditors/appGerberEditor.py:8687
 #: appEditors/geo_plugins/GeoSimplificationPlugin.py:231
 #: appEditors/grb_plugins/GrbSimplificationPlugin.py:141
 #: appGUI/preferences/cncjob/CNCJobGenPrefGroupUI.py:85
@@ -4745,7 +4745,7 @@ msgstr "坐标"
 
 # auto-review 2026-10-09: new
 #: appEditors/appGeoEditor.py:4305 appEditors/appGeoEditor.py:4309
-#: appEditors/appGerberEditor.py:8687 appEditors/appGerberEditor.py:8693
+#: appEditors/appGerberEditor.py:8689 appEditors/appGerberEditor.py:8695
 #: appEditors/geo_plugins/GeoSimplificationPlugin.py:233
 #: appEditors/geo_plugins/GeoSimplificationPlugin.py:248
 #: appEditors/grb_plugins/GrbSimplificationPlugin.py:143
@@ -4785,7 +4785,7 @@ msgstr "路径"
 msgid "Split and join open paths."
 msgstr "拆分和连接开放路径。"
 
-#: appEditors/appGeoEditor.py:4351 appEditors/appGerberEditor.py:8819
+#: appEditors/appGeoEditor.py:4351 appEditors/appGerberEditor.py:8821
 msgid "Split path"
 msgstr "拆分路径"
 
@@ -4803,11 +4803,11 @@ msgstr ""
 "点击点与路径的最大距离，以及从每个端点沿路径排除的距离。\n"
 "以当前单位计，与栅格和像素捕捉半径无关。为零时需要精确点击内部。"
 
-#: appEditors/appGeoEditor.py:4361 appEditors/appGerberEditor.py:8815
+#: appEditors/appGeoEditor.py:4361 appEditors/appGerberEditor.py:8817
 msgid "Split tolerance"
 msgstr "拆分容差"
 
-#: appEditors/appGeoEditor.py:4366 appEditors/appGerberEditor.py:8833
+#: appEditors/appGeoEditor.py:4366 appEditors/appGerberEditor.py:8835
 msgid "Join paths"
 msgstr "连接路径"
 
@@ -4827,7 +4827,7 @@ msgstr ""
 "相近端点会得到直线桥接：不移动顶点；长度增加间隙值。\n"
 "每个端点只能有一个候选项。不相交的组件保持独立。"
 
-#: appEditors/appGeoEditor.py:4374 appEditors/appGerberEditor.py:8829
+#: appEditors/appGeoEditor.py:4374 appEditors/appGerberEditor.py:8831
 msgid "Join tolerance"
 msgstr "连接容差"
 
@@ -4835,7 +4835,7 @@ msgstr "连接容差"
 msgid "Read-only diagnostics of the selected geometry."
 msgstr "所选几何的只读诊断。"
 
-#: appEditors/appGeoEditor.py:4382 appEditors/appGerberEditor.py:8912
+#: appEditors/appGeoEditor.py:4382 appEditors/appGerberEditor.py:8914
 msgid "Inspect selected geometry"
 msgstr "检查所选几何"
 
@@ -4853,11 +4853,11 @@ msgstr ""
 "以当前单位计的相近端点距离，与栅格和捕捉无关。\n"
 "为零时仅报告完全重合的端点。路径保持开放且不变。"
 
-#: appEditors/appGeoEditor.py:4389 appEditors/appGerberEditor.py:8922
+#: appEditors/appGeoEditor.py:4389 appEditors/appGerberEditor.py:8924
 msgid "Endpoint tolerance"
 msgstr "端点容差"
 
-#: appEditors/appGeoEditor.py:4402 appEditors/appGerberEditor.py:8705
+#: appEditors/appGeoEditor.py:4402 appEditors/appGerberEditor.py:8707
 msgid "Select by Size"
 msgstr "按尺寸选择"
 
@@ -4907,7 +4907,7 @@ msgstr "最小长度"
 msgid "Max length"
 msgstr "最大长度"
 
-#: appEditors/appGeoEditor.py:4436 appEditors/appGerberEditor.py:8754
+#: appEditors/appGeoEditor.py:4436 appEditors/appGerberEditor.py:8756
 #: appGUI/MainGUI.py:978 appGUI/MainGUI.py:1451 appGUI/MainGUI.py:1477
 #: appGUI/MainGUI.py:1553 appGUI/MainGUI.py:2728 appGUI/MainGUI.py:2754
 #: appGUI/MainGUI.py:2820
@@ -4931,7 +4931,7 @@ msgstr ""
 "删除与已启用筛选条件匹配的形状，作为一个撤销/重做步骤。\n"
 "若有所选形状则在其中搜索，否则在所有形状中搜索。"
 
-#: appEditors/appGeoEditor.py:4451 appEditors/appGerberEditor.py:8874
+#: appEditors/appGeoEditor.py:4451 appEditors/appGerberEditor.py:8876
 msgid "Resize Circles"
 msgstr "调整圆形大小"
 
@@ -5463,7 +5463,7 @@ msgstr "此组件没有所选几何。"
 msgid "Not applicable"
 msgstr "不适用"
 
-#: appEditors/appGerberEditor.py:4207 appEditors/appGerberEditor.py:8652
+#: appEditors/appGerberEditor.py:4207 appEditors/appGerberEditor.py:8654
 msgid "Valid"
 msgstr "有效"
 
@@ -5570,15 +5570,15 @@ msgstr "只能合并相同的光圈。"
 msgid "Oblong dimension editing supports flashes only."
 msgstr "长圆形尺寸编辑仅支持光圈印记。"
 
-#: appEditors/appGerberEditor.py:5427 appEditors/appGerberEditor.py:8487
-#: appEditors/appGerberEditor.py:8528 appGUI/ApertureLibrary.py:52
+#: appEditors/appGerberEditor.py:5427 appEditors/appGerberEditor.py:8489
+#: appEditors/appGerberEditor.py:8530 appGUI/ApertureLibrary.py:52
 #: appGUI/ObjectUI.py:328 appPlugins/ToolExtract/ExtractUI.py:97
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:86
 msgid "Code"
 msgstr "代码"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:5427 appEditors/appGerberEditor.py:8487
+#: appEditors/appGerberEditor.py:5427 appEditors/appGerberEditor.py:8489
 #: appEditors/exc_plugins/ExcCopyPlugin.py:195
 #: appEditors/exc_plugins/ExcDrillArrayPlugin.py:198
 #: appEditors/exc_plugins/ExcSlotArrayPlugin.py:261
@@ -5603,7 +5603,7 @@ msgstr "代码"
 msgid "Size"
 msgstr "大小"
 
-#: appEditors/appGerberEditor.py:5427 appEditors/appGerberEditor.py:8487
+#: appEditors/appGerberEditor.py:5427 appEditors/appGerberEditor.py:8489
 #: appGUI/ObjectUI.py:328
 msgid "Dim"
 msgstr "尺寸"
@@ -5626,18 +5626,18 @@ msgstr "添加几何体已完成。准备GUI"
 msgid "Finished loading the Gerber object into the editor."
 msgstr "已完成将Gerber对象加载到编辑器中。"
 
-#: appEditors/appGerberEditor.py:5765 appEditors/appGerberEditor.py:5784
-#: appEditors/appGerberEditor.py:5833 appEditors/appGerberEditor.py:5840
+#: appEditors/appGerberEditor.py:5765 appEditors/appGerberEditor.py:5786
+#: appEditors/appGerberEditor.py:5835 appEditors/appGerberEditor.py:5842
 #: appMain.py:2925
 msgid "The edited content could not be saved. The object is unchanged."
 msgstr "无法保存编辑的内容。对象未更改。"
 
-#: appEditors/appGerberEditor.py:6350
+#: appEditors/appGerberEditor.py:6352
 msgid ""
 "There are no Aperture definitions in the file. Aborting Gerber creation."
 msgstr "文件中没有光圈定义。正在中止Gerber创建。"
 
-#: appEditors/appGerberEditor.py:6352 appHandlers/appIO.py:3227
+#: appEditors/appGerberEditor.py:6354 appHandlers/appIO.py:3227
 #: appHandlers/appIO.py:3315 appHandlers/appIO.py:3606
 #: appHandlers/appIO.py:3669 appHandlers/appUIActions.py:870
 #: appObjects/AppObject.py:411 appParsers/ParseExcellon.py:386
@@ -5647,207 +5647,207 @@ msgstr "文件中没有光圈定义。正在中止Gerber创建。"
 msgid "An internal error has occurred. See shell.\n"
 msgstr "发生内部错误。详见控制台。\n"
 
-#: appEditors/appGerberEditor.py:6389
+#: appEditors/appGerberEditor.py:6391
 msgid "No aperture is selected."
 msgstr "未选择光圈。"
 
-#: appEditors/appGerberEditor.py:6536
+#: appEditors/appGerberEditor.py:6538
 msgid "Draw shape"
 msgstr "绘制形状"
 
-#: appEditors/appGerberEditor.py:6781 appPlugins/ToolFilm/FilmUI.py:264
+#: appEditors/appGerberEditor.py:6783 appPlugins/ToolFilm/FilmUI.py:264
 msgid "Pad center"
 msgstr "焊盘中心"
 
-#: appEditors/appGerberEditor.py:6841
+#: appEditors/appGerberEditor.py:6843
 msgid "Endpoint / bend"
 msgstr "端点 / 弯折"
 
-#: appEditors/appGerberEditor.py:6842
+#: appEditors/appGerberEditor.py:6844
 msgid "Nearest FOLLOW segment"
 msgstr "最近的 FOLLOW 线段"
 
-#: appEditors/appGerberEditor.py:6921
+#: appEditors/appGerberEditor.py:6923
 msgid ""
 "Dimensions, range bounds and tolerance must be finite and non-negative. "
 "Minimum must not exceed maximum."
 msgstr "尺寸、范围边界和容差必须是有限的非负数。最小值不能超过最大值。"
 
-#: appEditors/appGerberEditor.py:6924
+#: appEditors/appGerberEditor.py:6926
 msgid "Enable at least one size filter."
 msgstr "请至少启用一个尺寸筛选。"
 
-#: appEditors/appGerberEditor.py:7018
+#: appEditors/appGerberEditor.py:7020
 msgid "Select an aperture in the Apertures Table first."
 msgstr "请先在光圈表中选择一个光圈。"
 
-#: appEditors/appGerberEditor.py:7084 appEditors/appGerberEditor.py:8760
+#: appEditors/appGerberEditor.py:7086 appEditors/appGerberEditor.py:8762
 msgid "Delete by Size"
 msgstr "按尺寸删除"
 
-#: appEditors/appGerberEditor.py:7107
+#: appEditors/appGerberEditor.py:7109
 msgid "Failed. Geometry was not changed."
 msgstr "失败。几何未更改。"
 
-#: appEditors/appGerberEditor.py:7110 appEditors/appGerberEditor.py:7115
+#: appEditors/appGerberEditor.py:7112 appEditors/appGerberEditor.py:7117
 msgid "Geometry changed. Retry simplification."
 msgstr "几何已更改。请重试简化。"
 
 # auto-review 2026-10-09: fuzzy corrected
-#: appEditors/appGerberEditor.py:7156
+#: appEditors/appGerberEditor.py:7158
 #| msgid "Name copied to clipboard ..."
 msgid "Add shapes"
 msgstr "添加形状"
 
-#: appEditors/appGerberEditor.py:7245 appHandlers/appCanvasEvents.py:347
+#: appEditors/appGerberEditor.py:7247 appHandlers/appCanvasEvents.py:347
 #: appHandlers/appCanvasEvents.py:369 appObjects/ExcellonObject.py:688
 #: appPlugins/ToolDrilling/Drilling.py:2002
 #: appPlugins/ToolMilling/Milling.py:3602
 msgid "Copied to clipboard."
 msgstr "已复制到剪贴板。"
 
-#: appEditors/appGerberEditor.py:7753
+#: appEditors/appGerberEditor.py:7755
 #: appGUI/preferences/tools/ToolsISOPrefGroupUI.py:419
 #: appGUI/preferences/tools/ToolsNCCPrefGroupUI.py:394
 #: appGUI/preferences/tools/ToolsPaintPrefGroupUI.py:361
 #: appHandlers/appObjectOps.py:385 appObjects/AppObject.py:633
-#: appObjects/AppObjectTemplate.py:743 appObjects/AppObjectTemplate.py:1005
-#: appObjects/AppObjectTemplate.py:1041 appObjects/AppObjectTemplate.py:1059
-#: appObjects/CNCJobObject.py:758 appObjects/GerberObject.py:750
+#: appObjects/AppObjectTemplate.py:836 appObjects/AppObjectTemplate.py:1104
+#: appObjects/AppObjectTemplate.py:1140 appObjects/AppObjectTemplate.py:1158
+#: appObjects/CNCJobObject.py:758 appObjects/GerberObject.py:753
 #: appPlugins/ToolMove/Move.py:170 appPlugins/ToolQRCode/QRCode.py:609
 msgid "Plotting"
 msgstr "绘制"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8030
+#: appEditors/appGerberEditor.py:8032
 msgid "Delete shapes"
 msgstr "删除形状"
 
-#: appEditors/appGerberEditor.py:8036
+#: appEditors/appGerberEditor.py:8038
 msgid "Failed. No aperture geometry is selected."
 msgstr "失败。未选择任何光圈几何图形。"
 
-#: appEditors/appGerberEditor.py:8158
+#: appEditors/appGerberEditor.py:8160
 msgid "Draw regions"
 msgstr "绘制区域"
 
-#: appEditors/appGerberEditor.py:8163
+#: appEditors/appGerberEditor.py:8165
 msgid "Drawing requires valid, finite polygon material."
 msgstr "绘制需要有效且有限的多边形材料。"
 
-#: appEditors/appGerberEditor.py:8185
+#: appEditors/appGerberEditor.py:8187
 msgid "Material regions"
 msgstr "材料区域"
 
-#: appEditors/appGerberEditor.py:8198
+#: appEditors/appGerberEditor.py:8200
 msgid "Select valid polygon material without clear records."
 msgstr "请选择有效的多边形材料，且不含清除极性记录。"
 
-#: appEditors/appGerberEditor.py:8201
+#: appEditors/appGerberEditor.py:8203
 msgid "Select at least two material features."
 msgstr "请至少选择两个材料要素。"
 
-#: appEditors/appGerberEditor.py:8225
+#: appEditors/appGerberEditor.py:8227
 msgid "The operation produced no polygon material. Nothing was changed."
 msgstr "该操作未产生多边形材料。未做任何更改。"
 
-#: appEditors/appGerberEditor.py:8228
+#: appEditors/appGerberEditor.py:8230
 msgid "The operation produced invalid geometry. Nothing was changed."
 msgstr "该操作产生了无效几何。未做任何更改。"
 
-#: appEditors/appGerberEditor.py:8281
+#: appEditors/appGerberEditor.py:8283
 msgid "Scale factor value is missing or wrong format. Add it and retry."
 msgstr "比例因子值缺失或格式错误。添加它并重试。"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8287
+#: appEditors/appGerberEditor.py:8289
 msgid "Scale factor must be finite and positive."
 msgstr "缩放比例必须是有限的正数。"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8294
+#: appEditors/appGerberEditor.py:8296
 msgid "No aperture to scale. Select at least one aperture and try again."
 msgstr "没有可缩放的光圈。请至少选择一个光圈，然后重试。"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8309 appEditors/appGerberEditor.py:8984
+#: appEditors/appGerberEditor.py:8311 appEditors/appGerberEditor.py:8986
 #: appEditors/geo_plugins/GeoTransformationPlugin.py:704
 #: appEditors/grb_plugins/GrbTransformationPlugin.py:193
 #: appEditors/grb_plugins/GrbTransformationPlugin.py:702 appGUI/MainGUI.py:965
 #: appGUI/MainGUI.py:1597 appGUI/MainGUI.py:2005 appGUI/MainGUI.py:2864
 #: appGUI/ObjectUI.py:121 appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:43
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:172
-#: appGUI/shortcut_actions.py:667 appObjects/AppObjectTemplate.py:1033
-#: appObjects/AppObjectTemplate.py:1037 appPlugins/ToolFilm/FilmUI.py:92
+#: appGUI/shortcut_actions.py:667 appObjects/AppObjectTemplate.py:1132
+#: appObjects/AppObjectTemplate.py:1136 appPlugins/ToolFilm/FilmUI.py:92
 #: appPlugins/ToolTransform/TransformUI.py:25
 msgid "Scale"
 msgstr "缩放"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8354
+#: appEditors/appGerberEditor.py:8356
 msgid "Polygons marked."
 msgstr "已标记多边形。"
 
-#: appEditors/appGerberEditor.py:8356
+#: appEditors/appGerberEditor.py:8358
 msgid "No polygons were marked. None fit within the limits."
 msgstr "未标记任何多边形。没有多边形在限制范围内。"
 
-#: appEditors/appGerberEditor.py:8358
+#: appEditors/appGerberEditor.py:8360
 msgid "Delete marked polygons"
 msgstr "删除已标记的多边形"
 
-#: appEditors/appGerberEditor.py:8419 appGUI/MainGUI.py:919
+#: appEditors/appGerberEditor.py:8421 appGUI/MainGUI.py:919
 #: appGUI/MainGUI.py:1983 appGUI/ObjectUI.py:244 appGUI/shortcut_actions.py:44
 #: appGUI/shortcut_actions.py:59
 msgid "Gerber Editor"
 msgstr "Gerber编辑器"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8446
+#: appEditors/appGerberEditor.py:8448
 msgid "Jump to any retained state of this editing session."
 msgstr "跳转到本次编辑会话的任一保留状态。"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8467 appGUI/MainGUI.py:1008
+#: appEditors/appGerberEditor.py:8469 appGUI/MainGUI.py:1008
 #: appGUI/ObjectUI.py:293
 #: appGUI/preferences/gerber/GerberEditorPrefGroupUI.py:129
-#: appObjects/AppObjectTemplate.py:1203 appPlugins/ToolFollow/FollowUI.py:78
+#: appObjects/AppObjectTemplate.py:1302 appPlugins/ToolFollow/FollowUI.py:78
 #: appPlugins/ToolReport/ReportUI.py:98
 msgid "Apertures"
 msgstr "光圈"
 
-#: appEditors/appGerberEditor.py:8469 appGUI/ObjectUI.py:295
+#: appEditors/appGerberEditor.py:8471 appGUI/ObjectUI.py:295
 msgid "Apertures Table for the Gerber Object."
 msgstr "Gerber对象的光圈表。"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8492 appGUI/ObjectUI.py:332
+#: appEditors/appGerberEditor.py:8494 appGUI/ObjectUI.py:332
 msgid "Index"
 msgstr "索引"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8494 appGUI/ObjectUI.py:334
+#: appEditors/appGerberEditor.py:8496 appGUI/ObjectUI.py:334
 #: appPlugins/ToolExtract/ExtractUI.py:102
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:91
 msgid "Aperture Code"
 msgstr "光圈代码"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8496 appGUI/ObjectUI.py:336
+#: appEditors/appGerberEditor.py:8498 appGUI/ObjectUI.py:336
 #: appPlugins/ToolExtract/ExtractUI.py:103
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:92
 msgid "Type of aperture: circular, rectangle, macros etc"
 msgstr "光圈类型：圆形、矩形、宏等"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8498 appGUI/ObjectUI.py:338
+#: appEditors/appGerberEditor.py:8500 appGUI/ObjectUI.py:338
 #: appPlugins/ToolExtract/ExtractUI.py:104
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:93
 msgid "Aperture Size:"
 msgstr "光圈尺寸："
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8500 appGUI/ObjectUI.py:340
+#: appEditors/appGerberEditor.py:8502 appGUI/ObjectUI.py:340
 msgid ""
 "Aperture Dimensions:\n"
 " - (width, height) for R, O type.\n"
@@ -5858,27 +5858,27 @@ msgstr ""
 " - P型：（直径，顶点数）"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8521
+#: appEditors/appGerberEditor.py:8523
 msgid "Add/Delete Aperture"
 msgstr "添加/删除光圈"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8523
+#: appEditors/appGerberEditor.py:8525
 msgid "Add/Delete an aperture in the aperture table"
 msgstr "在光圈表中添加/删除光圈"
 
-#: appEditors/appGerberEditor.py:8529
+#: appEditors/appGerberEditor.py:8531
 #: appGUI/preferences/gerber/GerberEditorPrefGroupUI.py:60
 msgid "Code for the new aperture"
 msgstr "新光圈的代码"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8539
+#: appEditors/appGerberEditor.py:8541
 msgid "Size:"
 msgstr "大小："
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8541
+#: appEditors/appGerberEditor.py:8543
 msgid ""
 "Size for the new aperture.\n"
 "If aperture type is 'R' or 'O' then\n"
@@ -5892,7 +5892,7 @@ msgstr ""
 "按以下公式计算：\n"
 "sqrt(width**2 + height**2)"
 
-#: appEditors/appGerberEditor.py:8558
+#: appEditors/appGerberEditor.py:8560
 msgid ""
 "Select the type of new aperture. Can be:\n"
 "C = circular\n"
@@ -5904,51 +5904,51 @@ msgstr ""
 "R = 矩形\n"
 "O = 长圆形"
 
-#: appEditors/appGerberEditor.py:8571
+#: appEditors/appGerberEditor.py:8573
 msgid "Dims"
 msgstr "尺寸"
 
-#: appEditors/appGerberEditor.py:8573
+#: appEditors/appGerberEditor.py:8575
 msgid "Dimensions for the new aperture: width, then height."
 msgstr "新光圈的尺寸：先宽度，后高度。"
 
-#: appEditors/appGerberEditor.py:8578 appEditors/appGerberEditor.py:8714
+#: appEditors/appGerberEditor.py:8580 appEditors/appGerberEditor.py:8716
 #: appEditors/geo_plugins/GeoRectanglePlugin.py:347
-#: appGUI/ApertureLibrary.py:52 appObjects/AppObjectTemplate.py:1601
+#: appGUI/ApertureLibrary.py:52 appObjects/AppObjectTemplate.py:1700
 #: appPlugins/ToolPhotoCarve/PhotoCarveUI.py:57
 #: appPlugins/ToolReport/ReportUI.py:393
 msgid "Width"
 msgstr "宽度"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8578 appEditors/appGerberEditor.py:8717
+#: appEditors/appGerberEditor.py:8580 appEditors/appGerberEditor.py:8719
 #: appGUI/ApertureLibrary.py:52 appPlugins/Common/levelling_ui.py:80
 msgid "Height"
 msgstr "高度"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8600
+#: appEditors/appGerberEditor.py:8602
 msgid "Add a new aperture to the aperture list."
 msgstr "在光圈列表中添加新光圈。"
 
-#: appEditors/appGerberEditor.py:8609
+#: appEditors/appGerberEditor.py:8611
 msgid "Delete a aperture in the aperture list"
 msgstr "从光圈列表中删除光圈"
 
-#: appEditors/appGerberEditor.py:8618
+#: appEditors/appGerberEditor.py:8620
 msgid "Apertures Database"
 msgstr "光圈数据库"
 
-#: appEditors/appGerberEditor.py:8621
+#: appEditors/appGerberEditor.py:8623
 msgid "Save Selected to Database"
 msgstr "将所选保存到数据库"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8654
+#: appEditors/appGerberEditor.py:8656
 msgid "Show if the selected polygon is valid."
 msgstr "显示所选多边形是否有效。"
 
-#: appEditors/appGerberEditor.py:8661
+#: appEditors/appGerberEditor.py:8663
 #: appGUI/preferences/tools/Tools2CThievingPrefGroupUI.py:89
 #: appGUI/preferences/tools/ToolsCalculatorsPrefGroupUI.py:125
 #: appGUI/preferences/tools/ToolsFollowPrefGroupUI.py:47
@@ -5960,23 +5960,23 @@ msgstr "显示所选多边形是否有效。"
 msgid "Area"
 msgstr "面积"
 
-#: appEditors/appGerberEditor.py:8663
+#: appEditors/appGerberEditor.py:8665
 msgid "Show the area of the selected polygon."
 msgstr "显示选定多边形的面积。"
 
-#: appEditors/appGerberEditor.py:8674
+#: appEditors/appGerberEditor.py:8676
 #: appEditors/geo_plugins/GeoSimplificationPlugin.py:253
 #: appEditors/grb_plugins/GrbSimplificationPlugin.py:163
 msgid "Vertex Points"
 msgstr "顶点"
 
-#: appEditors/appGerberEditor.py:8676
+#: appEditors/appGerberEditor.py:8678
 #: appEditors/geo_plugins/GeoSimplificationPlugin.py:255
 #: appEditors/grb_plugins/GrbSimplificationPlugin.py:165
 msgid "The number of vertex points in the selected geometry element."
 msgstr "选定几何图元中的顶点数。"
 
-#: appEditors/appGerberEditor.py:8698
+#: appEditors/appGerberEditor.py:8700
 msgid ""
 "Numerically move, insert or remove a vertex of one selected region or "
 "track.\n"
@@ -5985,40 +5985,40 @@ msgstr ""
 "以数值方式移动、插入或移除所选一个区域或走线的顶点。\n"
 "区域编辑其实体，走线编辑其 FOLLOW 线。焊盘没有顶点。"
 
-#: appEditors/appGerberEditor.py:8731 appEditors/appGerberEditor.py:8932
+#: appEditors/appGerberEditor.py:8733 appEditors/appGerberEditor.py:8934
 msgid "Solid area"
 msgstr "实体面积"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8732 appEditors/appGerberEditor.py:8932
+#: appEditors/appGerberEditor.py:8734 appEditors/appGerberEditor.py:8934
 msgid "FOLLOW length"
 msgstr "FOLLOW 长度"
 
-#: appEditors/appGerberEditor.py:8740
+#: appEditors/appGerberEditor.py:8742
 #: appEditors/geo_plugins/GeoTransformationPlugin.py:745
 #: appEditors/grb_plugins/GrbTransformationPlugin.py:302
 msgid "Minimum"
 msgstr "最小值"
 
-#: appEditors/appGerberEditor.py:8741
+#: appEditors/appGerberEditor.py:8743
 msgid "Maximum"
 msgstr "最大值"
 
-#: appEditors/appGerberEditor.py:8742
+#: appEditors/appGerberEditor.py:8744
 msgid "Minimum (inclusive)"
 msgstr "最小值（包含）"
 
-#: appEditors/appGerberEditor.py:8743
+#: appEditors/appGerberEditor.py:8745
 msgid "Maximum (inclusive)"
 msgstr "最大值（包含）"
 
-#: appEditors/appGerberEditor.py:8744
+#: appEditors/appGerberEditor.py:8746
 msgid ""
 "Inclusive range. All enabled filters must match. Missing or empty "
 "components don't match."
 msgstr "范围包含端点。所有已启用的筛选条件都必须匹配。缺少或为空的组件不匹配。"
 
-#: appEditors/appGerberEditor.py:8756
+#: appEditors/appGerberEditor.py:8758
 msgid ""
 "Select shapes by their solid bounding-box width and height in current "
 "units.\n"
@@ -6030,60 +6030,60 @@ msgstr ""
 "所有已启用的尺寸都必须在容差范围内匹配（包含边界）。\n"
 "若有所选形状则在其中搜索，否则在所有形状中搜索。替换当前选择。"
 
-#: appEditors/appGerberEditor.py:8759
+#: appEditors/appGerberEditor.py:8761
 msgid ""
 "Solid area and FOLLOW length use inclusive ranges, without dimension "
 "tolerance."
 msgstr "实体面积和FOLLOW长度使用包含端点的范围，不使用尺寸容差。"
 
-#: appEditors/appGerberEditor.py:8761
+#: appEditors/appGerberEditor.py:8763
 msgid ""
 "Delete matching records from the selected subset, or all records if none "
 "are selected. Undo as one operation."
 msgstr "删除所选记录中匹配的项；若未选择，则在所有记录中查找并删除匹配项。可作为一次操作撤销。"
 
-#: appEditors/appGerberEditor.py:8777
+#: appEditors/appGerberEditor.py:8779
 msgid "FOLLOW midpoint snap"
 msgstr "FOLLOW 中点捕捉"
 
-#: appEditors/appGerberEditor.py:8778
+#: appEditors/appGerberEditor.py:8780
 msgid "Nearest FOLLOW segment snap"
 msgstr "最近 FOLLOW 线段捕捉"
 
-#: appEditors/appGerberEditor.py:8783
+#: appEditors/appGerberEditor.py:8785
 msgid ""
 "Acquisition radius in pixels. Falls back to global_snap_max model units if "
 "canvas conversion is unavailable."
 msgstr "捕获半径（像素）。若无法进行画布换算，则回退为模型单位的 global_snap_max。"
 
-#: appEditors/appGerberEditor.py:8784
+#: appEditors/appGerberEditor.py:8786
 msgid "Snap: None"
 msgstr "捕捉：无"
 
-#: appEditors/appGerberEditor.py:8786
+#: appEditors/appGerberEditor.py:8788
 msgid ""
 "Nearest target wins. Ties prefer endpoint/bend, midpoint, segment, then "
 "grid. Corner snapping uses FOLLOW vertices and flash centers, never solid "
 "outlines."
 msgstr "最近的目标优先。等距时依次优先：端点/弯折、中点、线段、栅格。角点捕捉使用FOLLOW顶点和光圈印记中心，不使用实体轮廓。"
 
-#: appEditors/appGerberEditor.py:8789
+#: appEditors/appGerberEditor.py:8791
 msgid "Snap radius"
 msgstr "捕捉半径"
 
-#: appEditors/appGerberEditor.py:8791
+#: appEditors/appGerberEditor.py:8793
 msgid "px"
 msgstr "像素"
 
-#: appEditors/appGerberEditor.py:8797
+#: appEditors/appGerberEditor.py:8799
 msgid "Tracks"
 msgstr "走线"
 
-#: appEditors/appGerberEditor.py:8806
+#: appEditors/appGerberEditor.py:8808
 msgid "Move Track Bend"
 msgstr "移动走线弯折"
 
-#: appEditors/appGerberEditor.py:8808
+#: appEditors/appGerberEditor.py:8810
 msgid ""
 "Drag a FOLLOW bend of a circular-aperture track. Neighboring bends stay "
 "fixed.\n"
@@ -6093,87 +6093,87 @@ msgstr ""
 "拖动圆形光圈走线的 FOLLOW 弯折。相邻弯折保持不动。\n"
 "支持单条路径或两条记录的同光圈连接。圆弧采样点为折线顶点。"
 
-#: appEditors/appGerberEditor.py:8814
+#: appEditors/appGerberEditor.py:8816
 msgid ""
 "Maximum click distance and excluded endpoint distance in current units. "
 "Zero requires an exact interior click."
 msgstr "以当前单位计的最大点击距离和排除的端点距离。为零时需要精确点击内部。"
 
-#: appEditors/appGerberEditor.py:8820
+#: appEditors/appGerberEditor.py:8822
 msgid "Select one open circular-aperture FOLLOW path, then click its interior."
 msgstr "请选择一个开放的圆形光圈 FOLLOW 路径，然后点击其内部。"
 
-#: appEditors/appGerberEditor.py:8828
+#: appEditors/appGerberEditor.py:8830
 msgid ""
 "Endpoint ambiguity search radius in current units. Unlike Geometry, Gerber "
 "does not bridge gaps or move endpoints."
 msgstr "以当前单位计的端点歧义搜索半径。与 Geometry 不同，Gerber 不会桥接间隙或移动端点。"
 
-#: appEditors/appGerberEditor.py:8834
+#: appEditors/appGerberEditor.py:8836
 msgid ""
 "Join compatible same-aperture circular FOLLOW records. Endpoints must "
 "coincide; branches, gaps and material changes are rejected."
 msgstr "连接兼容的同光圈圆形 FOLLOW 记录。端点必须重合；分支、间隙和材料变化都会被拒绝。"
 
-#: appEditors/appGerberEditor.py:8840
+#: appEditors/appGerberEditor.py:8842
 #: appGUI/preferences/gerber/GerberEditorPrefGroupUI.py:129
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:170
 msgid "Regions"
 msgstr "区域"
 
-#: appEditors/appGerberEditor.py:8850
+#: appEditors/appGerberEditor.py:8852
 msgid "Material Union"
 msgstr "材料并集"
 
-#: appEditors/appGerberEditor.py:8851
+#: appEditors/appGerberEditor.py:8853
 msgid "Material Intersection"
 msgstr "材料交集"
 
-#: appEditors/appGerberEditor.py:8852
+#: appEditors/appGerberEditor.py:8854
 msgid "Material Difference"
 msgstr "材料差集"
 
-#: appEditors/appGerberEditor.py:8853 appGUI/MainGUI.py:931
+#: appEditors/appGerberEditor.py:8855 appGUI/MainGUI.py:931
 #: appGUI/MainGUI.py:1588 appGUI/MainGUI.py:2855
 msgid "Diff. Keep"
 msgstr "差集保留"
 
-#: appEditors/appGerberEditor.py:8854
+#: appEditors/appGerberEditor.py:8856
 msgid "Explode Regions"
 msgstr "拆分区域"
 
-#: appEditors/appGerberEditor.py:8856
+#: appEditors/appGerberEditor.py:8858
 msgid ""
 "Replace selected polygon material with explicit regions. Holes are "
 "retained. Difference subtracts the other selections from the first. Keep "
 "Cutters retains them. Clear records are rejected."
 msgstr "用明确的区域替换所选多边形材料。保留孔。差集从第一个选择中减去其他选择。“保留切割器”会保留它们。清除极性记录会被拒绝。"
 
-#: appEditors/appGerberEditor.py:8863
+#: appEditors/appGerberEditor.py:8865
 msgid "Rectangle Region"
 msgstr "矩形区域"
 
-#: appEditors/appGerberEditor.py:8864
+#: appEditors/appGerberEditor.py:8866
 msgid "Text Regions"
 msgstr "文本区域"
 
-#: appEditors/appGerberEditor.py:8867
+#: appEditors/appGerberEditor.py:8869
 msgid ""
 "Draw numeric material as explicit regions, retaining text holes and islands."
 msgstr "按输入的数值绘制独立的材料区域，保留文本中的孔和孤岛。"
 
-#: appEditors/appGerberEditor.py:8887
+#: appEditors/appGerberEditor.py:8889
 msgid ""
 "New diameter of selected plain circular flashes. Tracks and noncircular "
 "features are skipped; shared apertures are not resized."
 msgstr "所选普通圆形光圈印记的新直径。跳过走线和非圆形要素；不调整共享光圈。"
 
-#: appEditors/appGerberEditor.py:8892
+#: appEditors/appGerberEditor.py:8894
 msgid ""
 "Resize selected circular flashes about their own centers, as one undo step."
 msgstr "以各自圆心调整所选圆形光圈印记的大小，可一次撤销。"
 
-#: appEditors/appGerberEditor.py:8908 appGUI/ObjectUI.py:205
+#: appEditors/appGerberEditor.py:8910 appGUI/ObjectUI.py:205
 #: appGUI/ObjectUI.py:605
 #: appGUI/preferences/excellon/ExcellonGenPrefGroupUI.py:51
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:53
@@ -6182,7 +6182,7 @@ msgstr "以各自圆心调整所选圆形光圈印记的大小，可一次撤销
 msgid "Solid"
 msgstr "纯色"
 
-#: appEditors/appGerberEditor.py:8908 appGUI/ObjectUI.py:237
+#: appEditors/appGerberEditor.py:8910 appGUI/ObjectUI.py:237
 #: appGUI/ObjectUI.py:432 appGUI/preferences/PreferencesWindow.py:44
 #: appGUI/shortcut_actions.py:172 appPlugins/ToolFollow/Follow.py:142
 #: appPlugins/ToolFollow/FollowUI.py:16
@@ -6190,19 +6190,19 @@ msgstr "纯色"
 msgid "Follow"
 msgstr "跟随"
 
-#: appEditors/appGerberEditor.py:8920
+#: appEditors/appGerberEditor.py:8922
 msgid "Component"
 msgstr "组件"
 
-#: appEditors/appGerberEditor.py:8931
+#: appEditors/appGerberEditor.py:8933
 msgid "Aperture"
 msgstr "光圈"
 
-#: appEditors/appGerberEditor.py:8931 appPlugins/ToolReport/ReportUI.py:372
+#: appEditors/appGerberEditor.py:8933 appPlugins/ToolReport/ReportUI.py:372
 msgid "Components"
 msgstr "组件"
 
-#: appEditors/appGerberEditor.py:8937
+#: appEditors/appGerberEditor.py:8939
 msgid ""
 "Select individual records for component inspection. Shared records select "
 "all of their aperture owners. Values use current units; area uses squared "
@@ -6210,26 +6210,26 @@ msgid ""
 msgstr "选择单独的记录进行组件检查。共享记录会选择其所有光圈所有者。数值使用当前单位；面积使用平方单位。"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8938
+#: appEditors/appGerberEditor.py:8940
 msgid "Features"
 msgstr "要素"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8956
+#: appEditors/appGerberEditor.py:8958
 msgid "Scale Aperture"
 msgstr "缩放光圈"
 
-#: appEditors/appGerberEditor.py:8958
+#: appEditors/appGerberEditor.py:8960
 msgid "Scale a aperture in the aperture list"
 msgstr "缩放光圈列表中的光圈"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8966
+#: appEditors/appGerberEditor.py:8968
 #: appGUI/preferences/gerber/GerberEditorPrefGroupUI.py:267
 msgid "Scale factor"
 msgstr "比例系数"
 
-#: appEditors/appGerberEditor.py:8968
+#: appEditors/appGerberEditor.py:8970
 msgid ""
 "The factor by which to scale the selected aperture.\n"
 "Values can be between 0.0000 and 999.9999"
@@ -6237,19 +6237,19 @@ msgstr ""
 "用于缩放选定光圈的系数。\n"
 "值可以介于0.0000和999.9999之间"
 
-#: appEditors/appGerberEditor.py:9005
+#: appEditors/appGerberEditor.py:9007
 msgid "Mark polygons"
 msgstr "标记多边形"
 
-#: appEditors/appGerberEditor.py:9007
+#: appEditors/appGerberEditor.py:9009
 msgid "Mark the polygon areas."
 msgstr "标记多边形区域。"
 
-#: appEditors/appGerberEditor.py:9016
+#: appEditors/appGerberEditor.py:9018
 msgid "Area UPPER threshold"
 msgstr "面积上限阈值"
 
-#: appEditors/appGerberEditor.py:9018
+#: appEditors/appGerberEditor.py:9020
 msgid ""
 "The threshold value, all areas less than this are marked.\n"
 "Can have a value between 0.0000 and 10000.0000"
@@ -6257,11 +6257,11 @@ msgstr ""
 "阈值，所有小于此值的区域都将被标记。\n"
 "可以具有介于0.0000和10000.0000之间的值"
 
-#: appEditors/appGerberEditor.py:9029
+#: appEditors/appGerberEditor.py:9031
 msgid "Area LOWER threshold"
 msgstr "面积下限阈值"
 
-#: appEditors/appGerberEditor.py:9031
+#: appEditors/appGerberEditor.py:9033
 msgid ""
 "The threshold value, all areas more than this are marked.\n"
 "Can have a value between 0.0000 and 10000.0000"
@@ -6269,19 +6269,19 @@ msgstr ""
 "阈值，所有大于此值的区域都将被标记。\n"
 "取值范围为0.0000到10000.0000"
 
-#: appEditors/appGerberEditor.py:9045
+#: appEditors/appGerberEditor.py:9047
 msgid "Mark"
 msgstr "标记"
 
-#: appEditors/appGerberEditor.py:9048
+#: appEditors/appGerberEditor.py:9050
 msgid "Mark the polygons that fit within limits."
 msgstr "标记符合限制的多边形。"
 
-#: appEditors/appGerberEditor.py:9055
+#: appEditors/appGerberEditor.py:9057
 msgid "Delete all the marked polygons."
 msgstr "删除所有标记的多边形。"
 
-#: appEditors/appGerberEditor.py:9062
+#: appEditors/appGerberEditor.py:9064
 msgid "Clear all the markings."
 msgstr "清除所有标记。"
 
@@ -6439,8 +6439,8 @@ msgstr "拐角模式5：自由角度..."
 #: appEditors/grb_plugins/GrbTransformationPlugin.py:264
 #: appEditors/grb_plugins/GrberRegionPlugin.py:60
 #: appEditors/grb_plugins/GrberRegionPlugin.py:69
-#: appPlugins/Common/clearing/controller_base.py:141
-#: appPlugins/Common/clearing/controller_base.py:150
+#: appPlugins/Common/clearing/controller_base.py:148
+#: appPlugins/Common/clearing/controller_base.py:157
 #: appPlugins/ToolAlignObjects/Align.py:145
 #: appPlugins/ToolAlignObjects/Align.py:154
 #: appPlugins/ToolCalculators/Calculator.py:57
@@ -7259,9 +7259,9 @@ msgstr "大图像：移动预览仅显示范围；放置时保留所有路径。
 msgid "Paint Tool"
 msgstr "绘图工具"
 
-#: appEditors/geo_plugins/GeoPaintPlugin.py:180 appPlugins/ToolNCC/Ncc.py:1125
-#: appPlugins/ToolNCC/Ncc.py:1218 appPlugins/ToolNCC/Ncc.py:1294
-#: appPlugins/ToolNCC/Ncc.py:1326 appPlugins/ToolNCC/Ncc.py:1373
+#: appEditors/geo_plugins/GeoPaintPlugin.py:180 appPlugins/ToolNCC/Ncc.py:1141
+#: appPlugins/ToolNCC/Ncc.py:1234 appPlugins/ToolNCC/Ncc.py:1310
+#: appPlugins/ToolNCC/Ncc.py:1342 appPlugins/ToolNCC/Ncc.py:1389
 msgid "The tool diameter must be a number greater than zero."
 msgstr "刀具直径必须是大于零的数字。"
 
@@ -7275,7 +7275,7 @@ msgid "Invalid value for"
 msgstr "无效值"
 
 #: appEditors/geo_plugins/GeoPaintPlugin.py:253
-#: appPlugins/ToolMilling/Milling.py:3380 appPlugins/ToolPaint/PaintGen.py:724
+#: appPlugins/ToolMilling/Milling.py:3380 appPlugins/ToolPaint/PaintGen.py:732
 msgid ""
 "Could not do Paint. Try a different combination of parameters. Or a "
 "different method of Paint"
@@ -7586,10 +7586,10 @@ msgstr "Y 轴上的偏移量。"
 
 #: appEditors/geo_plugins/GeoTransformationPlugin.py:552
 #: appGUI/preferences/gerber/GerberAdvOptPrefGroupUI.py:57
-#: appObjects/GerberObject.py:453
+#: appObjects/GerberObject.py:456
 #: appPlugins/ToolCopperThieving/CopperThieving.py:520
 #: appPlugins/ToolIsolation/Isolation.py:1880
-#: appPlugins/ToolTransform/Transform.py:800 camlib.py:1247
+#: appPlugins/ToolTransform/Transform.py:800 camlib.py:1251
 msgid "Buffering"
 msgstr "缓冲"
 
@@ -8743,7 +8743,7 @@ msgstr "翻转"
 #: appEditors/grb_plugins/GrbTransformationPlugin.py:192
 #: appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:103
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:119
-#: appObjects/AppObjectTemplate.py:1056 appPlugins/ToolFilm/FilmUI.py:136
+#: appObjects/AppObjectTemplate.py:1155 appPlugins/ToolFilm/FilmUI.py:136
 msgid "Skew"
 msgstr "倾斜"
 
@@ -10304,8 +10304,8 @@ msgstr "O"
 msgid "Shift+O"
 msgstr "Shift+O"
 
-#: appGUI/MainGUI.py:565 appHandlers/appEdit.py:663 appHandlers/appEdit.py:680
-#: appHandlers/appEdit.py:701
+#: appGUI/MainGUI.py:565 appHandlers/appEdit.py:665 appHandlers/appEdit.py:682
+#: appHandlers/appEdit.py:703
 msgid "Custom Origin"
 msgstr "自定义原点"
 
@@ -10334,7 +10334,7 @@ msgstr "Shift+P"
 #: appGUI/preferences/excellon/ExcellonOptPrefGroupUI.py:22
 #: appGUI/preferences/geometry/GeometryOptPrefGroupUI.py:22
 #: appGUI/preferences/gerber/GerberOptPrefGroupUI.py:24
-#: appObjects/AppObjectTemplate.py:1199 appPlugins/ToolImage/ImageUI.py:188
+#: appObjects/AppObjectTemplate.py:1298 appPlugins/ToolImage/ImageUI.py:188
 #: appPlugins/ToolReport/ReportUI.py:94
 msgid "Options"
 msgstr "选项"
@@ -11942,7 +11942,7 @@ msgstr "创建刀具路径以覆盖多边形的整个区域。"
 msgid "Simplify a geometry by reducing its vertex points number."
 msgstr "通过减少几何体的顶点数来简化几何体。"
 
-#: appGUI/ObjectUI.py:1113 appObjects/AppObjectTemplate.py:1399
+#: appGUI/ObjectUI.py:1113 appObjects/AppObjectTemplate.py:1498
 #: appPlugins/ToolAlignObjects/AlignUI.py:207
 #: appPlugins/ToolDistance/DistanceUI.py:160
 msgid "Points"
@@ -11981,7 +11981,7 @@ msgstr ""
 msgid "Travel"
 msgstr "移动"
 
-#: appGUI/ObjectUI.py:1293 appObjects/AppObjectTemplate.py:1583
+#: appGUI/ObjectUI.py:1293 appObjects/AppObjectTemplate.py:1682
 #: appPlugins/ToolReport/ReportUI.py:352
 msgid "Travelled distance"
 msgstr "总距离"
@@ -13388,7 +13388,7 @@ msgstr ""
 
 #: appGUI/preferences/cncjob/CNCJobGenPrefGroupUI.py:98
 #: appGUI/preferences/tools/ToolsGrblSenderPrefGroupUI.py:82
-#: appObjects/AppObjectTemplate.py:1550
+#: appObjects/AppObjectTemplate.py:1649
 #: appPlugins/ToolGcodeSender/SenderUI.py:369
 #: appPlugins/ToolReport/ReportUI.py:319
 #: appPlugins/ToolSolderPaste/SolderPasteUI.py:275
@@ -15734,7 +15734,7 @@ msgstr ""
 
 #: appGUI/preferences/geometry/GeometryExpPrefGroupUI.py:60
 #: appObjects/ExcellonObject.py:1116
-#: appPlugins/Common/clearing/controller_base.py:339
+#: appPlugins/Common/clearing/controller_base.py:351
 #: appPlugins/ToolDrilling/Drilling.py:1180
 #: appPlugins/ToolDrilling/Drilling.py:1690
 #: appPlugins/ToolDrilling/DrillingUI.py:169
@@ -15742,7 +15742,7 @@ msgstr ""
 #: appPlugins/ToolIsolation/IsolationUI.py:235
 #: appPlugins/ToolMilling/Milling.py:1967
 #: appPlugins/ToolMilling/Milling.py:2044
-#: appPlugins/ToolMilling/MillingUI.py:376 appPlugins/ToolNCC/NccGen.py:1022
+#: appPlugins/ToolMilling/MillingUI.py:376 appPlugins/ToolNCC/NccGen.py:1027
 #: appPlugins/ToolNCC/NccUI.py:165 appPlugins/ToolPaint/PaintUI.py:170
 #: appPlugins/ToolPhotoCarve/PhotoCarveUI.py:46
 msgid "Tool"
@@ -16541,7 +16541,7 @@ msgstr "处理长方形焊盘。"
 #: appGUI/preferences/tools/Tools2ExtractPrefGroupUI.py:231
 #: appGUI/preferences/tools/Tools2PunchGerberPrefGroupUI.py:77
 #: appGUI/preferences/tools/Tools2PunchGerberPrefGroupUI.py:219
-#: appObjects/AppObjectTemplate.py:1216 appPlugins/ToolExtract/ExtractUI.py:82
+#: appObjects/AppObjectTemplate.py:1315 appPlugins/ToolExtract/ExtractUI.py:82
 #: appPlugins/ToolExtract/ExtractUI.py:187
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:80
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:192
@@ -21178,23 +21178,23 @@ msgid "Add a new Tool"
 msgstr "添加新刀具"
 
 #: appGUI/shortcut_actions.py:861 appHandlers/appUIActions.py:661
-#: appPlugins/ToolIsolation/Isolation.py:1295 appPlugins/ToolNCC/Ncc.py:1276
-#: appPlugins/ToolPaint/Paint.py:552
+#: appPlugins/ToolIsolation/Isolation.py:1295 appPlugins/ToolNCC/Ncc.py:1292
+#: appPlugins/ToolPaint/Paint.py:553
 #: appPlugins/ToolSolderPaste/SolderPaste.py:398
 #: appPlugins/ToolSolderPaste/SolderPasteUI.py:109
 msgid "New Tool"
 msgstr "新刀具"
 
 #: appGUI/shortcut_actions.py:861 appHandlers/appUIActions.py:662
-#: appPlugins/ToolIsolation/Isolation.py:1296 appPlugins/ToolNCC/Ncc.py:1277
-#: appPlugins/ToolPaint/Paint.py:553
+#: appPlugins/ToolIsolation/Isolation.py:1296 appPlugins/ToolNCC/Ncc.py:1293
+#: appPlugins/ToolPaint/Paint.py:554
 #: appPlugins/ToolSolderPaste/SolderPaste.py:399
 msgid "Enter a Tool Diameter"
 msgstr "输入刀具直径"
 
 #: appGUI/shortcut_actions.py:871 appHandlers/appUIActions.py:678
-#: appPlugins/ToolIsolation/Isolation.py:1317 appPlugins/ToolNCC/Ncc.py:1301
-#: appPlugins/ToolPaint/Paint.py:566
+#: appPlugins/ToolIsolation/Isolation.py:1317 appPlugins/ToolNCC/Ncc.py:1317
+#: appPlugins/ToolPaint/Paint.py:567
 #: appPlugins/ToolSolderPaste/SolderPaste.py:411
 msgid "Adding Tool cancelled"
 msgstr "已取消添加刀具"
@@ -21340,13 +21340,13 @@ msgstr "首选项中的刀具直径无效。"
 #: appPlugins/ToolPunchGerber/PunchGerber.py:303
 #: appPlugins/ToolReport/Report.py:91 appPlugins/ToolTransform/Transform.py:187
 #: appPlugins/ToolTransform/Transform.py:275
-#: appPlugins/ToolTransform/Transform.py:555 camlib.py:2827 camlib.py:2855
-#: camlib.py:2884 camlib.py:2965
+#: appPlugins/ToolTransform/Transform.py:555 camlib.py:2838 camlib.py:2866
+#: camlib.py:2895 camlib.py:2976
 msgid "No object is selected."
 msgstr "未选择任何对象。"
 
 #: appHandlers/appEdit.py:460 appHandlers/appEdit.py:577
-#: appObjects/GeometryObject.py:1162
+#: appObjects/GeometryObject.py:1167
 msgid "Certified photo engraving cannot be joined."
 msgstr "已认证的照片雕刻不能合并。"
 
@@ -21388,23 +21388,23 @@ msgstr "无法转换且未合并的形状"
 msgid "Failed. Nothing to join."
 msgstr "失败。没有可合并的内容。"
 
-#: appHandlers/appEdit.py:653 appHandlers/appObjectOps.py:502
+#: appHandlers/appEdit.py:655 appHandlers/appObjectOps.py:502
 msgid "Failed. No object(s) selected..."
 msgstr "失败。未选择任何对象..."
 
-#: appHandlers/appEdit.py:657
+#: appHandlers/appEdit.py:659
 msgid "Quadrant 2"
 msgstr "象限 2"
 
-#: appHandlers/appEdit.py:658
+#: appHandlers/appEdit.py:660
 msgid "Quadrant 1"
 msgstr "象限 1"
 
-#: appHandlers/appEdit.py:659
+#: appHandlers/appEdit.py:661
 msgid "Quadrant 3"
 msgstr "象限 3"
 
-#: appHandlers/appEdit.py:660
+#: appHandlers/appEdit.py:662
 msgid "Quadrant 4"
 msgstr "象限 4"
 
@@ -21416,40 +21416,40 @@ msgstr "此转换无法撤销。"
 msgid "Object type not supported"
 msgstr "不支持的对象类型"
 
-#: appHandlers/appHistory.py:693
+#: appHandlers/appHistory.py:722
 msgid "Rename"
 msgstr "重命名"
 
-#: appHandlers/appHistory.py:700
+#: appHandlers/appHistory.py:729
 msgid "Undo / Redo is not available in headless mode."
 msgstr "无界面模式下不可使用撤销 / 重做。"
 
-#: appHandlers/appHistory.py:702
+#: appHandlers/appHistory.py:731
 msgid "Close the editor first. The editor has its own Undo / Redo."
 msgstr "请先关闭编辑器。编辑器有自己的撤销 / 重做功能。"
 
-#: appHandlers/appHistory.py:705
+#: appHandlers/appHistory.py:734
 msgid "Wait for the running task to finish."
 msgstr "请等待正在运行的任务完成。"
 
-#: appHandlers/appHistory.py:751
+#: appHandlers/appHistory.py:780
 msgid "History recovery incomplete; Undo / Redo cleared"
 msgstr "历史恢复不完整；已清除撤销 / 重做记录"
 
-#: appHandlers/appHistory.py:788 appHandlers/appHistory.py:803
-#: appHandlers/appHistory.py:810 appHandlers/appHistory.py:928
+#: appHandlers/appHistory.py:817 appHandlers/appHistory.py:832
+#: appHandlers/appHistory.py:839 appHandlers/appHistory.py:959
 msgid "Another object has this name"
 msgstr "另一个对象已使用此名称"
 
-#: appHandlers/appHistory.py:792 appHandlers/appHistory.py:863
+#: appHandlers/appHistory.py:821 appHandlers/appHistory.py:892
 msgid "The object of this step does not exist anymore."
 msgstr "此步骤对应的对象已不存在。"
 
-#: appHandlers/appHistory.py:880
+#: appHandlers/appHistory.py:909
 msgid "Source regeneration failed"
 msgstr "源重新生成失败"
 
-#: appHandlers/appHistory.py:923
+#: appHandlers/appHistory.py:954
 msgid "The object could not be made again."
 msgstr "无法重新创建该对象。"
 
@@ -21736,16 +21736,16 @@ msgid "Failed to execute script"
 msgstr "脚本执行失败"
 
 # auto-review 2026-10-21: new
-#: appHandlers/appIO.py:1966 appHandlers/appProjects.py:698
+#: appHandlers/appIO.py:1966 appHandlers/appProjects.py:702
 msgid "Overwrite"
 msgstr "覆盖"
 
 # auto-review 2026-10-21: new
-#: appHandlers/appIO.py:1966 appHandlers/appProjects.py:699
+#: appHandlers/appIO.py:1966 appHandlers/appProjects.py:703
 msgid "The file already exists"
 msgstr "文件已存在"
 
-#: appHandlers/appIO.py:1967 appHandlers/appProjects.py:700
+#: appHandlers/appIO.py:1967 appHandlers/appProjects.py:704
 msgid "Do you want to overwrite it?"
 msgstr "是否要覆盖它？"
 
@@ -21757,13 +21757,13 @@ msgstr "是否要覆盖它？"
 msgid "Geometry save is running. Wait until it ends."
 msgstr "几何保存正在进行中。请等待其结束。"
 
-#: appHandlers/appIO.py:2033 appHandlers/appProjects.py:706
+#: appHandlers/appIO.py:2033 appHandlers/appProjects.py:710
 msgid "The project was not saved"
 msgstr "项目未保存"
 
 # auto-review 2026-10-09: fuzzy corrected
 #: appHandlers/appIO.py:2077 appHandlers/appIO.py:2083
-#: appHandlers/appProjects.py:580
+#: appHandlers/appProjects.py:584
 #| msgid "General"
 msgid "Save Project As ..."
 msgstr "项目另存为..."
@@ -22355,26 +22355,26 @@ msgid "A task is running. Wait until it ends."
 msgstr "任务正在运行。请等待其结束。"
 
 # auto-review 2026-10-21: new
-#: appHandlers/appProjects.py:558
+#: appHandlers/appProjects.py:562
 msgid "The project has changes"
 msgstr "项目有更改"
 
 # auto-review 2026-10-21: new
-#: appHandlers/appProjects.py:559
+#: appHandlers/appProjects.py:563
 msgid "Do you want to Save the project?"
 msgstr "是否要保存项目？"
 
 # auto-review 2026-10-21: new
-#: appHandlers/appProjects.py:617
+#: appHandlers/appProjects.py:621
 msgid "Project already open"
 msgstr "项目已打开"
 
 # auto-review 2026-10-21: new
-#: appHandlers/appProjects.py:618
+#: appHandlers/appProjects.py:622
 msgid "This project is already open"
 msgstr "该项目已打开"
 
-#: appHandlers/appProjects.py:619
+#: appHandlers/appProjects.py:623
 msgid "Do you want to overwrite it with the version from the file?"
 msgstr "是否要用文件中的版本覆盖它？"
 
@@ -22539,9 +22539,9 @@ msgstr "FlatCAM 日志已打开。"
 #: appPlugins/ToolIsolation/Isolation.py:1778
 #: appPlugins/ToolMilling/Milling.py:2468
 #: appPlugins/ToolMilling/Milling.py:2552
-#: appPlugins/ToolMilling/Milling.py:2720 appPlugins/ToolPaint/Paint.py:562
-#: appPlugins/ToolPaint/Paint.py:708 appPlugins/ToolPaint/Paint.py:795
-#: appPlugins/ToolPaint/Paint.py:860
+#: appPlugins/ToolMilling/Milling.py:2720 appPlugins/ToolPaint/Paint.py:563
+#: appPlugins/ToolPaint/Paint.py:709 appPlugins/ToolPaint/Paint.py:796
+#: appPlugins/ToolPaint/Paint.py:861
 #: appPlugins/ToolSolderPaste/SolderPaste.py:407
 #: appPlugins/ToolSolderPaste/SolderPaste.py:613
 #| msgid "Tool change Z"
@@ -22567,7 +22567,7 @@ msgid "Plot 3D"
 msgstr "绘制 3D"
 
 #: appHandlers/appUIActions.py:916 appHandlers/appUIActions.py:922
-#: appPlugins/Common/clearing/controller_base.py:458
+#: appPlugins/Common/clearing/controller_base.py:470
 #: appPlugins/ToolCutOut/CutOut.py:545
 #: appPlugins/ToolIsolation/Isolation.py:2769
 msgid "Selected tool can't be used here. Pick another."
@@ -22578,7 +22578,7 @@ msgid "Adding tool from DB is not allowed for this object."
 msgstr "此对象不允许从数据库添加刀具。"
 
 #: appHandlers/appUIActions.py:931
-#: appPlugins/Common/clearing/controller_base.py:465
+#: appPlugins/Common/clearing/controller_base.py:477
 #: appPlugins/ToolIsolation/Isolation.py:2776
 msgid "Tool from DB added in Tool Table."
 msgstr "新刀具从刀具数据库添加到刀具表中。"
@@ -22769,8 +22769,8 @@ msgstr "选择要编辑的Geometry、Gerber、Excellon或CNC任务对象。"
 msgid "Edit only one geometry at a time."
 msgstr "一次只能编辑一个几何。"
 
-#: appMain.py:2558 appPlugins/Common/clearing/controller_base.py:266
-#: appPlugins/Common/clearing/controller_base.py:318
+#: appMain.py:2558 appPlugins/Common/clearing/controller_base.py:278
+#: appPlugins/Common/clearing/controller_base.py:330
 #: appPlugins/ToolDrilling/Drilling.py:1233
 #: appPlugins/ToolDrilling/Drilling.py:1352
 #: appPlugins/ToolDrilling/Drilling.py:1646
@@ -23239,148 +23239,158 @@ msgid ""
 "Tcl Shell)."
 msgstr "键入 >help< 后运行代码，即可获取Tcl命令列表（显示在Tcl控制台中）。"
 
-#: appObjects/AppObjectTemplate.py:977
+#: appObjects/AppObjectTemplate.py:798
+#: appPlugins/Common/clearing/controller_base.py:611
+msgid "Add exclusion zones"
+msgstr "添加禁区"
+
+#: appObjects/AppObjectTemplate.py:802
+#: appPlugins/Common/clearing/controller_base.py:626
+msgid "Clear exclusion zones"
+msgstr "清除禁区"
+
+#: appObjects/AppObjectTemplate.py:1076
 msgid "Name changed from"
 msgstr "名称更改自"
 
 # auto-review 2026-10-09: corrected
-#: appObjects/AppObjectTemplate.py:977 appObjects/ObjectCollection.py:835
+#: appObjects/AppObjectTemplate.py:1076 appObjects/ObjectCollection.py:835
 msgid "to"
 msgstr "到"
 
-#: appObjects/AppObjectTemplate.py:994 tclCommands/TclCommandSetOrigin.py:122
+#: appObjects/AppObjectTemplate.py:1093 tclCommands/TclCommandSetOrigin.py:122
 msgid "Offsetting..."
 msgstr "正在偏移..."
 
-#: appObjects/AppObjectTemplate.py:1016 appObjects/AppObjectTemplate.py:1021
+#: appObjects/AppObjectTemplate.py:1115 appObjects/AppObjectTemplate.py:1120
 msgid "Scaling could not be executed."
 msgstr "无法执行缩放。"
 
 # auto-review 2026-10-09: corrected
-#: appObjects/AppObjectTemplate.py:1025 appObjects/AppObjectTemplate.py:1038
+#: appObjects/AppObjectTemplate.py:1124 appObjects/AppObjectTemplate.py:1137
 msgid "Scale done."
 msgstr "缩放完成。"
 
 # auto-review 2026-10-09: corrected
-#: appObjects/AppObjectTemplate.py:1031
+#: appObjects/AppObjectTemplate.py:1130
 msgid "Scaling..."
 msgstr "正在缩放..."
 
-#: appObjects/AppObjectTemplate.py:1054
+#: appObjects/AppObjectTemplate.py:1153
 msgid "Skewing..."
 msgstr "正在倾斜..."
 
-#: appObjects/AppObjectTemplate.py:1198
+#: appObjects/AppObjectTemplate.py:1297
 #: appPlugins/ToolCalculators/CalculatorUI.py:292
 #: appPlugins/ToolReport/ReportUI.py:92
 msgid "Dimensions"
 msgstr "尺寸"
 
 # auto-review 2026-10-09: corrected
-#: appObjects/AppObjectTemplate.py:1206 appPlugins/ToolReport/ReportUI.py:101
+#: appObjects/AppObjectTemplate.py:1305 appPlugins/ToolReport/ReportUI.py:101
 msgid "Tools"
 msgstr "刀具"
 
-#: appObjects/AppObjectTemplate.py:1221
+#: appObjects/AppObjectTemplate.py:1320
 msgid "Calculating dimensions ... Please wait."
 msgstr "正在计算尺寸...请稍等。"
 
-#: appObjects/AppObjectTemplate.py:1395 appObjects/AppObjectTemplate.py:1403
+#: appObjects/AppObjectTemplate.py:1494 appObjects/AppObjectTemplate.py:1502
 msgid "Polygons"
 msgstr "多边形"
 
-#: appObjects/AppObjectTemplate.py:1397
+#: appObjects/AppObjectTemplate.py:1496
 msgid "LineStrings"
 msgstr "线串"
 
 # auto-review 2026-10-09: corrected
-#: appObjects/AppObjectTemplate.py:1402
+#: appObjects/AppObjectTemplate.py:1501
 msgid "Elements"
 msgstr "元素"
 
 # auto-review 2026-10-09: corrected
-#: appObjects/AppObjectTemplate.py:1440 appObjects/AppObjectTemplate.py:1511
+#: appObjects/AppObjectTemplate.py:1539 appObjects/AppObjectTemplate.py:1610
 #: appPlugins/ToolReport/ReportUI.py:206 appPlugins/ToolReport/ReportUI.py:280
 msgid "Drills number"
 msgstr "钻孔数量"
 
-#: appObjects/AppObjectTemplate.py:1441 appObjects/AppObjectTemplate.py:1513
+#: appObjects/AppObjectTemplate.py:1540 appObjects/AppObjectTemplate.py:1612
 #: appPlugins/ToolReport/ReportUI.py:207 appPlugins/ToolReport/ReportUI.py:282
 msgid "Slots number"
 msgstr "槽数量"
 
-#: appObjects/AppObjectTemplate.py:1443 appPlugins/ToolReport/ReportUI.py:209
+#: appObjects/AppObjectTemplate.py:1542 appPlugins/ToolReport/ReportUI.py:209
 msgid "Drills total number:"
 msgstr "打孔总数："
 
 # auto-review 2026-10-09: corrected
-#: appObjects/AppObjectTemplate.py:1444 appPlugins/ToolReport/ReportUI.py:210
+#: appObjects/AppObjectTemplate.py:1543 appPlugins/ToolReport/ReportUI.py:210
 msgid "Slots total number:"
 msgstr "铣槽总数："
 
 # auto-review 2026-10-09: corrected
-#: appObjects/AppObjectTemplate.py:1472 appObjects/AppObjectTemplate.py:1475
-#: appObjects/AppObjectTemplate.py:1478 appObjects/AppObjectTemplate.py:1508
-#: appObjects/AppObjectTemplate.py:1515 appObjects/AppObjectTemplate.py:1518
+#: appObjects/AppObjectTemplate.py:1571 appObjects/AppObjectTemplate.py:1574
+#: appObjects/AppObjectTemplate.py:1577 appObjects/AppObjectTemplate.py:1607
+#: appObjects/AppObjectTemplate.py:1614 appObjects/AppObjectTemplate.py:1617
 #: appPlugins/ToolReport/ReportUI.py:241 appPlugins/ToolReport/ReportUI.py:244
 #: appPlugins/ToolReport/ReportUI.py:247 appPlugins/ToolReport/ReportUI.py:277
 #: appPlugins/ToolReport/ReportUI.py:284 appPlugins/ToolReport/ReportUI.py:287
 msgid "Present"
 msgstr "有"
 
-#: appObjects/AppObjectTemplate.py:1473 appObjects/AppObjectTemplate.py:1509
+#: appObjects/AppObjectTemplate.py:1572 appObjects/AppObjectTemplate.py:1608
 #: appPlugins/ToolReport/ReportUI.py:242 appPlugins/ToolReport/ReportUI.py:278
 msgid "Solid Geometry"
 msgstr "实体几何"
 
 # auto-review 2026-10-09: corrected
-#: appObjects/AppObjectTemplate.py:1476 appObjects/AppObjectTemplate.py:1516
+#: appObjects/AppObjectTemplate.py:1575 appObjects/AppObjectTemplate.py:1615
 #: appPlugins/ToolReport/ReportUI.py:245 appPlugins/ToolReport/ReportUI.py:285
 msgid "GCode Text"
 msgstr "G代码文本"
 
-#: appObjects/AppObjectTemplate.py:1479 appObjects/AppObjectTemplate.py:1519
+#: appObjects/AppObjectTemplate.py:1578 appObjects/AppObjectTemplate.py:1618
 #: appPlugins/ToolReport/ReportUI.py:248 appPlugins/ToolReport/ReportUI.py:288
 msgid "GCode Geometry"
 msgstr "G代码几何图形"
 
-#: appObjects/AppObjectTemplate.py:1487 appObjects/AppObjectTemplate.py:1562
+#: appObjects/AppObjectTemplate.py:1586 appObjects/AppObjectTemplate.py:1661
 #: appPlugins/ToolReport/ReportUI.py:256 appPlugins/ToolReport/ReportUI.py:331
 msgid "Tool Data"
 msgstr "刀具数据"
 
-#: appObjects/AppObjectTemplate.py:1526 appPlugins/ToolReport/ReportUI.py:295
+#: appObjects/AppObjectTemplate.py:1625 appPlugins/ToolReport/ReportUI.py:295
 msgid "Depth of Cut"
 msgstr "切割深度"
 
 # auto-review 2026-10-09: corrected
-#: appObjects/AppObjectTemplate.py:1538 appPlugins/ToolReport/ReportUI.py:307
+#: appObjects/AppObjectTemplate.py:1637 appPlugins/ToolReport/ReportUI.py:307
 msgid "Clearance Height"
 msgstr "安全高度"
 
 # auto-review 2026-10-09: corrected
-#: appObjects/AppObjectTemplate.py:1576 appPlugins/ToolReport/ReportUI.py:345
+#: appObjects/AppObjectTemplate.py:1675 appPlugins/ToolReport/ReportUI.py:345
 msgid "Routing time"
 msgstr "加工时间"
 
 # auto-review 2026-10-09: corrected
-#: appObjects/AppObjectTemplate.py:1607 appObjects/AppObjectTemplate.py:1615
+#: appObjects/AppObjectTemplate.py:1706 appObjects/AppObjectTemplate.py:1714
 #: appPlugins/ToolReport/ReportUI.py:399 appPlugins/ToolReport/ReportUI.py:407
 msgid "Box Area"
 msgstr "边界框面积"
 
 # auto-review 2026-10-09: corrected
-#: appObjects/AppObjectTemplate.py:1610 appObjects/AppObjectTemplate.py:1618
+#: appObjects/AppObjectTemplate.py:1709 appObjects/AppObjectTemplate.py:1717
 #: appPlugins/ToolReport/ReportUI.py:402 appPlugins/ToolReport/ReportUI.py:410
 msgid "Convex_Hull Area"
 msgstr "凸包面积"
 
-#: appObjects/AppObjectTemplate.py:1625 appObjects/AppObjectTemplate.py:1628
+#: appObjects/AppObjectTemplate.py:1724 appObjects/AppObjectTemplate.py:1727
 #: appPlugins/ToolReport/ReportUI.py:417 appPlugins/ToolReport/ReportUI.py:420
 msgid "Copper Area"
 msgstr "铜面积"
 
-#: appObjects/CNCJobObject.py:52 camlib.py:3010
+#: appObjects/CNCJobObject.py:52 camlib.py:3021
 msgid "Preprocessor not found"
 msgstr "未找到预处理器"
 
@@ -23509,37 +23519,37 @@ msgstr "Excellon 合并：与其他直径重叠或重复的孔"
 msgid "First"
 msgstr "前几个"
 
-#: appObjects/GeometryObject.py:694
+#: appObjects/GeometryObject.py:698
 msgid "Vertex points calculated."
 msgstr "顶点已计算。"
 
 # auto-review 2026-10-09: corrected
-#: appObjects/GeometryObject.py:800 appObjects/GeometryObject.py:836
-#: camlib.py:7627 camlib.py:7686
+#: appObjects/GeometryObject.py:804 appObjects/GeometryObject.py:840
+#: camlib.py:7638 camlib.py:7697
 msgid "Regenerate photo engraving to change its scale or skew."
 msgstr "请重新生成照片雕刻以更改其缩放或倾斜。"
 
-#: appObjects/GeometryObject.py:806 appObjects/GeometryObject.py:815
-#: appParsers/ParseGerber.py:2748 appParsers/ParseGerber.py:2758
+#: appObjects/GeometryObject.py:810 appObjects/GeometryObject.py:819
+#: appParsers/ParseGerber.py:2749 appParsers/ParseGerber.py:2759
 msgid "Scale factor has to be a number: integer or float."
 msgstr "比例系数必须是一个数字：整数或浮点数。"
 
-#: appObjects/GeometryObject.py:854 appParsers/ParseGerber.py:2816
+#: appObjects/GeometryObject.py:858 appParsers/ParseGerber.py:2817
 msgid ""
 "An (x,y) pair of values are needed. Probable you entered only one value in "
 "the Offset field."
 msgstr "需要（x，y）对值。您可能在偏移字段中只输入了一个值。"
 
 # auto-review 2026-10-09: corrected
-#: appObjects/GeometryObject.py:921
+#: appObjects/GeometryObject.py:926
 msgid "Cannot convert geometry units"
 msgstr "无法转换 Geometry 单位"
 
-#: appObjects/GerberObject.py:450 appPlugins/ToolIsolation/Isolation.py:1864
+#: appObjects/GerberObject.py:453 appPlugins/ToolIsolation/Isolation.py:1864
 msgid "Buffering solid geometry"
 msgstr "正在缓冲实体几何图形"
 
-#: appObjects/GerberObject.py:497 appObjects/GerberObject.py:546
+#: appObjects/GerberObject.py:500 appObjects/GerberObject.py:549
 msgid "Operation could not be done."
 msgstr "操作无法完成。"
 
@@ -23651,13 +23661,13 @@ msgstr "Excellon文件中部分行未使用：{ignored}行无法识别，{droppe
 msgid "Excellon buffer by a factor was not done"
 msgstr "未完成 Excellon 按比例缓冲"
 
-#: appParsers/ParseExcellon.py:1714 appParsers/ParseGerber.py:2960
-#: camlib.py:2931
+#: appParsers/ParseExcellon.py:1714 appParsers/ParseGerber.py:2961
+#: camlib.py:2942
 msgid "The factor must be a positive number."
 msgstr "系数必须为正数。"
 
-#: appParsers/ParseExcellon.py:1719 appParsers/ParseGerber.py:2965
-#: camlib.py:2936
+#: appParsers/ParseExcellon.py:1719 appParsers/ParseGerber.py:2966
+#: camlib.py:2947
 msgid "The buffer distance is not a number."
 msgstr "缓冲距离不是数字。"
 
@@ -23773,55 +23783,55 @@ msgid ""
 "Report to developers."
 msgstr "不支持此Gerber格式实现。第 %s 行使用了未定义的光圈。请向开发者报告。"
 
-#: appParsers/ParseGerber.py:2959 appParsers/ParseGerber.py:3050
+#: appParsers/ParseGerber.py:2960 appParsers/ParseGerber.py:3051
 msgid "Gerber buffer by a factor was not done"
 msgstr "按系数进行 Gerber 缓冲未完成"
 
 # auto-review 2026-10-21: new
-#: appParsers/ParseGerber.py:3021
+#: appParsers/ParseGerber.py:3022
 msgid "Gerber buffer failed"
 msgstr "Gerber 缓冲失败"
 
-#: appParsers/ParseGerber.py:3055
+#: appParsers/ParseGerber.py:3056
 msgid "Gerber buffer by a factor failed"
 msgstr "按系数进行 Gerber 缓冲失败"
 
 # auto-review 2026-10-21: new
-#: appParsers/ParseGerber.py:3072
+#: appParsers/ParseGerber.py:3073
 msgid "Gerber Buffer done."
 msgstr "Gerber缓冲完成。"
 
 # auto-review 2026-10-21: new
-#: appParsers/ParseGerber.py:3489
+#: appParsers/ParseGerber.py:3490
 msgid ""
 "the object has clear (negative polarity) features, the polarity can not be "
 "composed again"
 msgstr "该对象包含清除（负极性）特征，无法重新合成极性。"
 
 # auto-review 2026-10-21: new
-#: appParsers/ParseGerber.py:3497
+#: appParsers/ParseGerber.py:3498
 msgid "a feature of the aperture %s has no position to scale about"
 msgstr "光圈 %s 的某个特征没有可供缩放的位置"
 
 # auto-review 2026-10-21: new
-#: appParsers/ParseGerber.py:3501
+#: appParsers/ParseGerber.py:3502
 msgid ""
 "the aperture %s is rectangular and draws a track, which has no defined width"
 msgstr "光圈 %s 为矩形且绘制了走线，而走线没有确定的宽度"
 
 # auto-review 2026-10-21: new
-#: appParsers/ParseGerber.py:3504
+#: appParsers/ParseGerber.py:3505
 msgid ""
 "the aperture %s draws a track and is not circular, a track has no defined "
 "width"
 msgstr "光圈 %s 绘制了走线且不是圆形，走线没有确定的宽度"
 
 # auto-review 2026-10-21: new
-#: appParsers/ParseGerber.py:3511
+#: appParsers/ParseGerber.py:3512
 msgid "a track of the aperture %s was not drawn by the Gerber parser"
 msgstr "光圈 %s 的走线未由 Gerber 解析器绘制"
 
-#: appParsers/ParseGerber.py:3544
+#: appParsers/ParseGerber.py:3545
 msgid "the object has no aperture records to rebuild its geometry from"
 msgstr "该对象没有可用于重建其几何图形的光圈记录"
 
@@ -23857,7 +23867,7 @@ msgid ""
 msgstr "SVG 没有物理尺寸（带单位的宽度/高度或页面尺寸），缩放比例可能不正确。"
 
 # auto-review 2026-10-09: corrected
-#: appPlugins/Common/clearing/controller_base.py:195
+#: appPlugins/Common/clearing/controller_base.py:203
 #: appPlugins/Common/clearing/ui_sections.py:111
 #: appPlugins/ToolIsolation/IsolationUI.py:162
 #: appPlugins/ToolMilling/MillingUI.py:312
@@ -23865,11 +23875,11 @@ msgid "Add from DB"
 msgstr "从数据库添加"
 
 # auto-review 2026-10-09: corrected
-#: appPlugins/Common/clearing/controller_base.py:266
-#: appPlugins/Common/clearing/controller_base.py:271
-#: appPlugins/Common/clearing/controller_base.py:318
-#: appPlugins/Common/clearing/controller_base.py:339
+#: appPlugins/Common/clearing/controller_base.py:278
+#: appPlugins/Common/clearing/controller_base.py:283
+#: appPlugins/Common/clearing/controller_base.py:330
 #: appPlugins/Common/clearing/controller_base.py:351
+#: appPlugins/Common/clearing/controller_base.py:363
 #: appPlugins/ToolDrilling/Drilling.py:1174
 #: appPlugins/ToolDrilling/Drilling.py:1180
 #: appPlugins/ToolDrilling/Drilling.py:1233
@@ -23895,14 +23905,14 @@ msgstr "从数据库添加"
 #: appPlugins/ToolMilling/Milling.py:2033
 #: appPlugins/ToolMilling/Milling.py:2044
 #: appPlugins/ToolMilling/Milling.py:2048
-#: appPlugins/ToolMilling/MillingUI.py:376 appPlugins/ToolNCC/Ncc.py:908
-#: appPlugins/ToolNCC/NccUI.py:165 appPlugins/ToolPaint/Paint.py:676
+#: appPlugins/ToolMilling/MillingUI.py:376 appPlugins/ToolNCC/Ncc.py:924
+#: appPlugins/ToolNCC/NccUI.py:165 appPlugins/ToolPaint/Paint.py:677
 #: appPlugins/ToolPaint/PaintUI.py:170
 msgid "Parameters for"
 msgstr "参数"
 
-#: appPlugins/Common/clearing/controller_base.py:271
-#: appPlugins/Common/clearing/controller_base.py:351
+#: appPlugins/Common/clearing/controller_base.py:283
+#: appPlugins/Common/clearing/controller_base.py:363
 #: appPlugins/ToolDrilling/Drilling.py:1174
 #: appPlugins/ToolDrilling/Drilling.py:1653
 #: appPlugins/ToolDrilling/Drilling.py:1694
@@ -23912,26 +23922,30 @@ msgstr "参数"
 #: appPlugins/ToolMilling/Milling.py:1155
 #: appPlugins/ToolMilling/Milling.py:1272
 #: appPlugins/ToolMilling/Milling.py:1971
-#: appPlugins/ToolMilling/Milling.py:2048 appPlugins/ToolNCC/Ncc.py:908
-#: appPlugins/ToolPaint/Paint.py:676
+#: appPlugins/ToolMilling/Milling.py:2048 appPlugins/ToolNCC/Ncc.py:924
+#: appPlugins/ToolPaint/Paint.py:677
 msgid "Multiple Tools"
 msgstr "多个刀具"
 
 # auto-review 2026-10-09: corrected
-#: appPlugins/Common/clearing/controller_base.py:438
+#: appPlugins/Common/clearing/controller_base.py:450
 #: appPlugins/ToolIsolation/Isolation.py:1847
 #: appPlugins/ToolIsolation/Isolation.py:1854
 #: appPlugins/ToolSolderPaste/SolderPaste.py:741
 msgid "Delete failed. Select a tool to delete."
 msgstr "删除失败。选择要删除的刀具。"
 
-#: appPlugins/Common/clearing/controller_base.py:445
+#: appPlugins/Common/clearing/controller_base.py:457
 #: appPlugins/ToolIsolation/Isolation.py:1858
 #: appPlugins/ToolSolderPaste/SolderPaste.py:746
 msgid "Tools deleted from Tool Table."
 msgstr "已从刀具表中删除刀具。"
 
-#: appPlugins/Common/clearing/controller_base.py:540
+#: appPlugins/Common/clearing/controller_base.py:609
+msgid "There is no object to add the exclusion zones to."
+msgstr "没有可以添加禁区的对象。"
+
+#: appPlugins/Common/clearing/controller_base.py:615
 msgid "Exclusion zones added."
 msgstr "已添加禁区。"
 
@@ -24056,8 +24070,8 @@ msgid "The kind of shape used to draw an exclusion zone."
 msgstr "用于绘制禁区的形状类型。"
 
 #: appPlugins/Common/clearing/ui_sections.py:372
-msgid "The number of exclusion zones drawn."
-msgstr "已绘制禁区的数量。"
+msgid "The number of exclusion zones of the selected object."
+msgstr "所选对象的禁区数量。"
 
 #: appPlugins/Common/clearing/ui_sections.py:372
 msgid "Zones"
@@ -24069,10 +24083,10 @@ msgstr "添加区域"
 
 #: appPlugins/Common/clearing/ui_sections.py:379
 msgid ""
-"Draw exclusion zones on the canvas.\n"
+"Draw exclusion zones on the canvas; they are added to the selected object.\n"
 "Left click to draw, right click or Escape to finish."
 msgstr ""
-"在画布上绘制禁区。\n"
+"在画布上绘制禁区；它们会添加到所选对象。\n"
 "左键单击绘制，右键单击或按 Escape 结束。"
 
 #: appPlugins/Common/clearing/ui_sections.py:382
@@ -24080,8 +24094,8 @@ msgid "Delete all"
 msgstr "全部删除"
 
 #: appPlugins/Common/clearing/ui_sections.py:383
-msgid "Remove all the exclusion zones."
-msgstr "删除所有禁区。"
+msgid "Remove all the exclusion zones of the selected object."
+msgstr "删除所选对象的所有禁区。"
 
 # auto-review 2026-10-21: new
 #: appPlugins/Common/grbl/grbl_client.py:609
@@ -25553,10 +25567,10 @@ msgstr "盗铜工具完成。"
 #: appPlugins/ToolMilling/Milling.py:2079
 #: appPlugins/ToolMilling/Milling.py:2867
 #: appPlugins/ToolMilling/Milling.py:2891
-#: appPlugins/ToolMilling/Milling.py:3059 appPlugins/ToolNCC/Ncc.py:1045
-#: appPlugins/ToolNCC/NccGen.py:174 appPlugins/ToolNCC/NccGen.py:198
-#: appPlugins/ToolNCC/NccGen.py:220 appPlugins/ToolPaint/PaintGen.py:201
-#: appPlugins/ToolPaint/PaintGen.py:1083
+#: appPlugins/ToolMilling/Milling.py:3059 appPlugins/ToolNCC/Ncc.py:1061
+#: appPlugins/ToolNCC/NccGen.py:175 appPlugins/ToolNCC/NccGen.py:199
+#: appPlugins/ToolNCC/NccGen.py:221 appPlugins/ToolPaint/PaintGen.py:203
+#: appPlugins/ToolPaint/PaintGen.py:1093
 #: appPlugins/ToolPanelize/Panelize.py:306
 #: appPlugins/ToolPanelize/Panelize.py:321 appPlugins/ToolSub/Sub.py:409
 #: appPlugins/ToolSub/Sub.py:418 tclCommands/TclCommandBuffer.py:87
@@ -25595,13 +25609,13 @@ msgstr "网格尺寸必须为正值，间距必须为非负值。"
 
 # auto-review 2026-10-09: corrected
 #: appPlugins/ToolCopperThieving/CopperThieving.py:544
-#: appPlugins/ToolNCC/NccGen.py:347 appPlugins/ToolNCC/NccGen.py:390
-#: appPlugins/ToolPaint/PaintGen.py:1137
+#: appPlugins/ToolNCC/NccGen.py:348 appPlugins/ToolNCC/NccGen.py:391
+#: appPlugins/ToolPaint/PaintGen.py:1147
 msgid "No object available."
 msgstr "没有可用的对象。"
 
 #: appPlugins/ToolCopperThieving/CopperThieving.py:545
-#: appPlugins/ToolNCC/NccGen.py:363 appPlugins/ToolNCC/NccGen.py:381
+#: appPlugins/ToolNCC/NccGen.py:364 appPlugins/ToolNCC/NccGen.py:382
 msgid "The reference object type is not supported."
 msgstr "不支持该参考对象类型。"
 
@@ -25760,15 +25774,15 @@ msgstr ""
 
 #: appPlugins/ToolCutOut/CutOut.py:479
 #: appPlugins/ToolIsolation/Isolation.py:1659
-#: appPlugins/ToolMilling/Milling.py:2498 appPlugins/ToolNCC/Ncc.py:1163
-#: appPlugins/ToolPaint/Paint.py:749
+#: appPlugins/ToolMilling/Milling.py:2498 appPlugins/ToolNCC/Ncc.py:1179
+#: appPlugins/ToolPaint/Paint.py:750
 msgid "Tool not in Tools Database. Adding a default tool."
 msgstr "刀具不在刀具数据库中。正在添加默认刀具。"
 
 #: appPlugins/ToolCutOut/CutOut.py:486 appPlugins/ToolDrilling/Drilling.py:1606
 #: appPlugins/ToolIsolation/Isolation.py:1665
-#: appPlugins/ToolMilling/Milling.py:2505 appPlugins/ToolNCC/Ncc.py:1170
-#: appPlugins/ToolPaint/Paint.py:753
+#: appPlugins/ToolMilling/Milling.py:2505 appPlugins/ToolNCC/Ncc.py:1186
+#: appPlugins/ToolPaint/Paint.py:754
 msgid ""
 "Cancelled.\n"
 "Multiple tools for one tool diameter found in Tools Database."
@@ -25844,10 +25858,10 @@ msgstr "任意形状切割操作已完成。"
 #: appPlugins/ToolIsolation/Isolation.py:2546
 #: appPlugins/ToolMilling/Milling.py:2871
 #: appPlugins/ToolMilling/Milling.py:2895
-#: appPlugins/ToolMilling/Milling.py:3063 appPlugins/ToolNCC/Ncc.py:267
-#: appPlugins/ToolNCC/Ncc.py:295 appPlugins/ToolNCC/Ncc.py:1049
-#: appPlugins/ToolNCC/NccGen.py:178 appPlugins/ToolPaint/Paint.py:922
-#: appPlugins/ToolPaint/Paint.py:942 appPlugins/ToolPaint/PaintGen.py:205
+#: appPlugins/ToolMilling/Milling.py:3063 appPlugins/ToolNCC/Ncc.py:282
+#: appPlugins/ToolNCC/Ncc.py:310 appPlugins/ToolNCC/Ncc.py:1065
+#: appPlugins/ToolNCC/NccGen.py:179 appPlugins/ToolPaint/Paint.py:937
+#: appPlugins/ToolPaint/Paint.py:957 appPlugins/ToolPaint/PaintGen.py:207
 #: appPlugins/ToolPanelize/Panelize.py:311 tclCommands/TclCommandBbox.py:71
 #: tclCommands/TclCommandCheckRules.py:92
 #: tclCommands/TclCommandEtchCompensate.py:70
@@ -26327,7 +26341,7 @@ msgstr "无法镜像该对象。"
 msgid "Could not regenerate the mirrored source."
 msgstr "无法重新生成镜像后的源。"
 
-#: appPlugins/ToolDblSided/DblSided.py:620 camlib.py:2825
+#: appPlugins/ToolDblSided/DblSided.py:620 camlib.py:2836
 msgid "Object was mirrored"
 msgstr "对象已镜像"
 
@@ -26901,8 +26915,8 @@ msgstr "钻孔：将参数应用到所有刀具"
 
 #: appPlugins/ToolDrilling/Drilling.py:1867
 #: appPlugins/ToolIsolation/Isolation.py:1286
-#: appPlugins/ToolMilling/Milling.py:2429 appPlugins/ToolNCC/Ncc.py:819
-#: appPlugins/ToolPaint/Paint.py:549
+#: appPlugins/ToolMilling/Milling.py:2429 appPlugins/ToolNCC/Ncc.py:835
+#: appPlugins/ToolPaint/Paint.py:550
 msgid "Current Tool parameters were applied to all tools."
 msgstr "当前刀具参数已应用于所有刀具。"
 
@@ -26930,7 +26944,7 @@ msgstr "只允许选择一行。"
 msgid "Value edited in Exclusion Table."
 msgstr "排除表中的值已编辑。"
 
-#: appPlugins/ToolDrilling/Drilling.py:2205 camlib.py:5319 camlib.py:5446
+#: appPlugins/ToolDrilling/Drilling.py:2205 camlib.py:5330 camlib.py:5457
 msgid "The loaded Excellon file has no drills"
 msgstr "加载的Excellon文件没有钻孔"
 
@@ -26938,7 +26952,7 @@ msgstr "加载的Excellon文件没有钻孔"
 msgid "The selected tools are not in the Excellon object."
 msgstr "所选刀具不在 Excellon 对象中。"
 
-#: appPlugins/ToolDrilling/Drilling.py:2247 camlib.py:5174
+#: appPlugins/ToolDrilling/Drilling.py:2247 camlib.py:5185
 msgid "Creating a list of points to drill..."
 msgstr "正在创建待钻孔的点列表..."
 
@@ -26970,7 +26984,7 @@ msgid ""
 "Spindle speed) are used for all the selected tools."
 msgstr "没有换刀：所有所选刀具均使用刀具 {tool} 的参数（Z向切削、Z向进给速度、主轴转速）。"
 
-#: appPlugins/ToolDrilling/Drilling.py:2312 camlib.py:5259
+#: appPlugins/ToolDrilling/Drilling.py:2312 camlib.py:5270
 msgid ""
 "The spot drilling pass needs a toolchange: it is left out. Enable the "
 "toolchange to use it."
@@ -26982,7 +26996,7 @@ msgstr "定心钻孔走刀需要换刀，已将其省略。请启用换刀以使
 msgid "tool"
 msgstr "刀具"
 
-#: appPlugins/ToolDrilling/Drilling.py:2346 camlib.py:5314
+#: appPlugins/ToolDrilling/Drilling.py:2346 camlib.py:5325
 msgid "Starting G-Code"
 msgstr "开始生成G代码"
 
@@ -26990,7 +27004,7 @@ msgstr "开始生成G代码"
 msgid "Generating CNCJob..."
 msgstr "正在生成CNC任务..."
 
-#: appPlugins/ToolDrilling/Drilling.py:2450 camlib.py:4183 camlib.py:4729
+#: appPlugins/ToolDrilling/Drilling.py:2450 camlib.py:4194 camlib.py:4740
 msgid "The Toolchange X,Y format has to be (x, y)."
 msgstr "换刀X,Y格式必须为（X,Y）。"
 
@@ -27508,8 +27522,8 @@ msgstr "“补偿”将应用于铜的偏移量，以微米和应用程序单位
 #: appPlugins/ToolFollow/FollowUI.py:203
 #: appPlugins/ToolGcodeSender/SenderCameraUI.py:199
 #: appPlugins/ToolGcodeSender/SenderRegistrationUI.py:174
-#: appPlugins/ToolNCC/Ncc.py:329 appPlugins/ToolNCC/NccUI.py:325
-#: appPlugins/ToolPaint/Paint.py:962 appPlugins/ToolPaint/PaintUI.py:286
+#: appPlugins/ToolNCC/Ncc.py:344 appPlugins/ToolNCC/NccUI.py:325
+#: appPlugins/ToolPaint/Paint.py:977 appPlugins/ToolPaint/PaintUI.py:286
 #: appPlugins/ToolPhotoCarve/PhotoCarveUI.py:299
 #: appPlugins/ToolQRCode/QRCodeUI.py:303 appPlugins/ToolSub/SubUI.py:181
 msgid "Preview"
@@ -31724,13 +31738,13 @@ msgstr "刀具列表中没有刀具。"
 #: appPlugins/ToolIsolation/Isolation.py:2516
 #: appPlugins/ToolIsolation/Isolation.py:2679
 #: appPlugins/ToolIsolation/IsolationJob.py:615
-#: appPlugins/ToolNCC/NccGen.py:263 appPlugins/ToolPaint/Paint.py:907
-#: appPlugins/ToolPaint/PaintGen.py:228 appPlugins/ToolPaint/PaintGen.py:569
+#: appPlugins/ToolNCC/NccGen.py:264 appPlugins/ToolPaint/Paint.py:922
+#: appPlugins/ToolPaint/PaintGen.py:230 appPlugins/ToolPaint/PaintGen.py:577
 msgid "There are no tools selected in the Tool Table."
 msgstr "在刀具表中未选择任何刀具。"
 
 #: appPlugins/ToolIsolation/Isolation.py:1477
-#: appPlugins/ToolIsolation/Isolation.py:1532 appPlugins/ToolNCC/Ncc.py:1036
+#: appPlugins/ToolIsolation/Isolation.py:1532 appPlugins/ToolNCC/Ncc.py:1052
 msgid "Checking tools for validity."
 msgstr "正在检查刀具的有效性。"
 
@@ -31750,7 +31764,7 @@ msgid "Tool validation passed."
 msgstr "刀具验证通过。"
 
 #: appPlugins/ToolIsolation/Isolation.py:1522
-#: appPlugins/ToolIsolation/Isolation.py:1549 appPlugins/ToolNCC/Ncc.py:1057
+#: appPlugins/ToolIsolation/Isolation.py:1549 appPlugins/ToolNCC/Ncc.py:1073
 msgid "Checking ..."
 msgstr "检查中……"
 
@@ -31770,13 +31784,13 @@ msgstr ""
 # auto-review 2026-10-09: new
 #: appPlugins/ToolIsolation/Isolation.py:1573
 #: appPlugins/ToolIsolation/Isolation.py:1587
-#: appPlugins/ToolIsolation/IsolationGen.py:227 appPlugins/ToolNCC/Ncc.py:1075
-#: appPlugins/ToolNCC/Ncc.py:1089 appPlugins/ToolNCC/NccModel.py:72
+#: appPlugins/ToolIsolation/IsolationGen.py:227 appPlugins/ToolNCC/Ncc.py:1091
+#: appPlugins/ToolNCC/Ncc.py:1105 appPlugins/ToolNCC/NccModel.py:73
 #: appPlugins/ToolOptimal/Optimal.py:287
 msgid "Could not find a safe tool diameter."
 msgstr "找不到安全的刀具直径。"
 
-#: appPlugins/ToolIsolation/Isolation.py:1580 appPlugins/ToolNCC/Ncc.py:1083
+#: appPlugins/ToolIsolation/Isolation.py:1580 appPlugins/ToolNCC/Ncc.py:1099
 msgid "Optimal tool diameter found"
 msgstr "找到最佳刀具直径"
 
@@ -31786,23 +31800,23 @@ msgstr "已中止。"
 
 # auto-review 2026-10-09: corrected
 #: appPlugins/ToolIsolation/Isolation.py:1695
-#: appPlugins/ToolMilling/Milling.py:2538 appPlugins/ToolNCC/Ncc.py:1202
-#: appPlugins/ToolPaint/Paint.py:787
+#: appPlugins/ToolMilling/Milling.py:2538 appPlugins/ToolNCC/Ncc.py:1218
+#: appPlugins/ToolPaint/Paint.py:788
 msgid "New tool added to Tool Table from Tools Database."
 msgstr "新刀具从刀具数据库添加到刀具表中。"
 
-#: appPlugins/ToolIsolation/Isolation.py:1751 appPlugins/ToolNCC/Ncc.py:1267
-#: appPlugins/ToolPaint/Paint.py:839
+#: appPlugins/ToolIsolation/Isolation.py:1751 appPlugins/ToolNCC/Ncc.py:1283
+#: appPlugins/ToolPaint/Paint.py:840
 msgid "Default tool added to Tool Table."
 msgstr "已将默认刀具添加到刀具表。"
 
-#: appPlugins/ToolIsolation/Isolation.py:1786 appPlugins/ToolNCC/Ncc.py:1357
-#: appPlugins/ToolPaint/Paint.py:870
+#: appPlugins/ToolIsolation/Isolation.py:1786 appPlugins/ToolNCC/Ncc.py:1373
+#: appPlugins/ToolPaint/Paint.py:871
 msgid "Cancelled. New diameter value is already in the Tool Table."
 msgstr "取消。新直径值已在刀具表中。"
 
-#: appPlugins/ToolIsolation/Isolation.py:1793 appPlugins/ToolNCC/Ncc.py:1342
-#: appPlugins/ToolPaint/Paint.py:874
+#: appPlugins/ToolIsolation/Isolation.py:1793 appPlugins/ToolNCC/Ncc.py:1358
+#: appPlugins/ToolPaint/Paint.py:875
 #: appPlugins/ToolSolderPaste/SolderPaste.py:684
 msgid "Tool from Tool Table was edited."
 msgstr "已编辑刀具表中的刀具。"
@@ -31843,15 +31857,15 @@ msgstr "单个多边形的列表为空。终止。"
 msgid "Click the end point of the paint area."
 msgstr "单击绘制区域的端点。"
 
-#: appPlugins/ToolIsolation/Isolation.py:2829 appPlugins/ToolNCC/Ncc.py:1409
-#: appPlugins/ToolPaint/Paint.py:1216
+#: appPlugins/ToolIsolation/Isolation.py:2829 appPlugins/ToolNCC/Ncc.py:1425
+#: appPlugins/ToolPaint/Paint.py:1231
 #: appPlugins/ToolSolderPaste/SolderPaste.py:643
 msgid "New tool added to Tool Table."
 msgstr "新刀具添加到刀具表中。"
 
 # auto-review 2026-10-09: new
 #: appPlugins/ToolIsolation/IsolationGen.py:225
-#: appPlugins/ToolNCC/NccModel.py:68
+#: appPlugins/ToolNCC/NccModel.py:69
 msgid "Too few polygons in the Gerber object to determine distances."
 msgstr "Gerber对象中的多边形太少，无法确定距离。"
 
@@ -31899,7 +31913,7 @@ msgstr "Voronoi策略需要全部铜；不支持区域、多边形和参考选�
 #: appPlugins/ToolIsolation/IsolationJob.py:384
 #: appPlugins/ToolIsolation/IsolationJob.py:639
 #: appPlugins/ToolIsolation/IsolationJob.py:735
-#: appPlugins/ToolNCC/NccModel.py:211
+#: appPlugins/ToolNCC/NccModel.py:212
 msgid "Isolation geometry could not be generated."
 msgstr "无法生成隔离几何体。"
 
@@ -32518,7 +32532,7 @@ msgstr ""
 msgid "Cancelled. Empty file, it has no geometry"
 msgstr "取消。空文件，它没有几何图形"
 
-#: appPlugins/ToolMilling/Milling.py:3374 appPlugins/ToolPaint/PaintGen.py:340
+#: appPlugins/ToolMilling/Milling.py:3374 appPlugins/ToolPaint/PaintGen.py:342
 msgid "Geometry could not be painted completely"
 msgstr "无法完全绘制Geometry"
 
@@ -32672,105 +32686,105 @@ msgstr "移动偏移无效。"
 msgid "A move is already in progress. Wait for it to finish, then retry."
 msgstr "移动进行中，请等待完成后重试。"
 
-#: appPlugins/ToolNCC/Ncc.py:233
+#: appPlugins/ToolNCC/Ncc.py:238
 msgid "The object to be processed is no longer available."
 msgstr "要处理的对象已不存在。"
 
-#: appPlugins/ToolNCC/Ncc.py:284 appPlugins/ToolPaint/Paint.py:932
+#: appPlugins/ToolNCC/Ncc.py:299 appPlugins/ToolPaint/Paint.py:947
 msgid ""
 "No area is drawn yet. Click Generate to draw the zones of the Area "
 "Selection, then use Preview."
 msgstr "尚未绘制区域。单击“生成”以绘制区域选择的区域，然后使用“预览”。"
 
-#: appPlugins/ToolNCC/Ncc.py:322
+#: appPlugins/ToolNCC/Ncc.py:337
 msgid "Computing the area to clear ..."
 msgstr "正在计算要清除的区域 ..."
 
-#: appPlugins/ToolNCC/Ncc.py:353 appPlugins/ToolPaint/Paint.py:967
+#: appPlugins/ToolNCC/Ncc.py:368 appPlugins/ToolPaint/Paint.py:982
 msgid "Aborted. The preview was not computed."
 msgstr "已中止。未计算预览。"
 
-#: appPlugins/ToolNCC/Ncc.py:356 appPlugins/ToolPaint/Paint.py:970
+#: appPlugins/ToolNCC/Ncc.py:371 appPlugins/ToolPaint/Paint.py:985
 msgid "The preview failed."
 msgstr "预览失败。"
 
-#: appPlugins/ToolNCC/Ncc.py:371 appPlugins/ToolNCC/NccGen.py:445
+#: appPlugins/ToolNCC/Ncc.py:386 appPlugins/ToolNCC/NccGen.py:446
 msgid "The area to clear is empty."
 msgstr "要清除的区域为空。"
 
-#: appPlugins/ToolNCC/Ncc.py:381
+#: appPlugins/ToolNCC/Ncc.py:396
 msgid "Preview of the area to clear."
 msgstr "要清除区域的预览。"
 
-#: appPlugins/ToolNCC/Ncc.py:1053
+#: appPlugins/ToolNCC/Ncc.py:1069
 msgid "The optimal tool diameter can be found only for a Gerber object."
 msgstr "只能为 Gerber 对象查找最佳刀具直径。"
 
 # auto-review 2026-10-09: fuzzy corrected
-#: appPlugins/ToolNCC/Ncc.py:1085
+#: appPlugins/ToolNCC/Ncc.py:1101
 #| msgid "Tool added in Tool Table."
 msgid "Aborted. The optimal tool diameter was not computed."
 msgstr "已中止。未计算最佳刀具直径。"
 
-#: appPlugins/ToolNCC/Ncc.py:1135 appPlugins/ToolNCC/Ncc.py:1177
-#: appPlugins/ToolNCC/Ncc.py:1240 appPlugins/ToolNCC/Ncc.py:1393
-#: appPlugins/ToolPaint/Paint.py:715 appPlugins/ToolPaint/Paint.py:758
-#: appPlugins/ToolPaint/Paint.py:815 appPlugins/ToolPaint/Paint.py:1197
+#: appPlugins/ToolNCC/Ncc.py:1151 appPlugins/ToolNCC/Ncc.py:1193
+#: appPlugins/ToolNCC/Ncc.py:1256 appPlugins/ToolNCC/Ncc.py:1409
+#: appPlugins/ToolPaint/Paint.py:716 appPlugins/ToolPaint/Paint.py:759
+#: appPlugins/ToolPaint/Paint.py:816 appPlugins/ToolPaint/Paint.py:1212
 #: appPlugins/ToolSolderPaste/SolderPaste.py:638
 msgid "Tool already in Tool Table."
 msgstr "刀具已在刀具表中。"
 
-#: appPlugins/ToolNCC/NccGen.py:277
+#: appPlugins/ToolNCC/NccGen.py:278
 msgid ""
 "No Gerber or Geometry object is selected. The object of the combo box is "
 "used."
 msgstr "未选择 Gerber 或 Geometry 对象。使用组合框中的对象。"
 
-#: appPlugins/ToolNCC/NccGen.py:281
+#: appPlugins/ToolNCC/NccGen.py:282
 msgid ""
 "The selection works with one object only. Select a single object or turn "
 "off All selected objects."
 msgstr "选择只适用于单个对象。请选择单个对象或关闭“所有选定对象”。"
 
-#: appPlugins/ToolNCC/NccGen.py:377
+#: appPlugins/ToolNCC/NccGen.py:378
 msgid "NCC Tool. Preparing non-copper polygons."
 msgstr "NCC工具。准备非铜多边形。"
 
-#: appPlugins/ToolNCC/NccGen.py:410
+#: appPlugins/ToolNCC/NccGen.py:411
 msgid "NCC Tool. Calculate 'empty' area."
 msgstr "NCC工具。计算“空”区域。"
 
-#: appPlugins/ToolNCC/NccGen.py:428
+#: appPlugins/ToolNCC/NccGen.py:429
 msgid "The selected object is not suitable for copper clearing."
 msgstr "所选对象不适合清除铜。"
 
-#: appPlugins/ToolNCC/NccGen.py:447
+#: appPlugins/ToolNCC/NccGen.py:448
 msgid "Could not get the extent of the area to be non copper cleared."
 msgstr "无法获取要清除的非铜区域的范围。"
 
-#: appPlugins/ToolNCC/NccGen.py:455
+#: appPlugins/ToolNCC/NccGen.py:456
 msgid "NCC Tool. Finished calculation of 'empty' area."
 msgstr "NCC工具。已完成“空”区域的计算。"
 
 # auto-review 2026-10-09: corrected
-#: appPlugins/ToolNCC/NccGen.py:485 appPlugins/ToolNCC/NccGen.py:771
+#: appPlugins/ToolNCC/NccGen.py:486 appPlugins/ToolNCC/NccGen.py:774
 msgid "NCC Tool failed creating bounding box."
 msgstr "NCC工具无法创建边界框。"
 
 # auto-review 2026-10-21: new
-#: appPlugins/ToolNCC/NccGen.py:515
+#: appPlugins/ToolNCC/NccGen.py:516
 msgid "Polygon could not be cleared. Location:"
 msgstr "无法清除多边形。位置："
 
 # auto-review 2026-10-09: corrected
-#: appPlugins/ToolNCC/NccGen.py:542 appPlugins/ToolNCC/NccGen.py:607
+#: appPlugins/ToolNCC/NccGen.py:543 appPlugins/ToolNCC/NccGen.py:608
 msgid ""
 "Final cleanup finished. Some residual copper could not be cleared with this "
 "tool."
 msgstr "最终清理完成。部分残留铜无法用此刀具清除。"
 
 # auto-review 2026-10-09: corrected
-#: appPlugins/ToolNCC/NccGen.py:588
+#: appPlugins/ToolNCC/NccGen.py:589
 msgid ""
 "There is no NCC Geometry in the file.\n"
 "Usually it means that the tool diameter is too big for the painted "
@@ -32781,91 +32795,91 @@ msgstr ""
 "通常这意味着刀具直径对于绘制的几何体来说太大。\n"
 "更改绘制参数，然后重试。"
 
-#: appPlugins/ToolNCC/NccGen.py:617
+#: appPlugins/ToolNCC/NccGen.py:618
 msgid "NCC Tool clear all done but the copper features isolation is broken for"
 msgstr "NCC工具清除完毕，但铜特征的隔离被破坏，涉及"
 
 # auto-review 2026-10-09: corrected
-#: appPlugins/ToolNCC/NccGen.py:618
+#: appPlugins/ToolNCC/NccGen.py:619
 msgid "tools"
 msgstr "刀具"
 
 # auto-review 2026-10-09: corrected
-#: appPlugins/ToolNCC/NccGen.py:620
+#: appPlugins/ToolNCC/NccGen.py:621
 msgid "NCC Tool clear all done."
 msgstr "NCC工具清除完毕。"
 
 # auto-review 2026-10-09: corrected
-#: appPlugins/ToolNCC/NccGen.py:625
+#: appPlugins/ToolNCC/NccGen.py:626
 msgid "NCC Tool clearing with tool diameter"
 msgstr "NCC工具清除，刀具直径"
 
-#: appPlugins/ToolNCC/NccGen.py:625
+#: appPlugins/ToolNCC/NccGen.py:626
 msgid "started."
 msgstr "已开始。"
 
-#: appPlugins/ToolNCC/NccGen.py:633
+#: appPlugins/ToolNCC/NccGen.py:634
 msgid "Check validity is skipped: the source is not a Gerber object."
 msgstr "已跳过检查有效性：源不是 Gerber 对象。"
 
-#: appPlugins/ToolNCC/NccGen.py:639
+#: appPlugins/ToolNCC/NccGen.py:640
 msgid "Check validity is skipped."
 msgstr "已跳过检查有效性。"
 
-#: appPlugins/ToolNCC/NccGen.py:644
+#: appPlugins/ToolNCC/NccGen.py:645
 msgid ""
 "Check validity: the smallest copper gap is %(gap)s%(units)s. Tools too big "
 "for it: %(tools)s. Use smaller tools or turn off Check validity."
 msgstr "检查有效性：最小铜间隙为 %(gap)s%(units)s。过大的刀具：%(tools)s。请使用较小的刀具或关闭“检查有效性”。"
 
-#: appPlugins/ToolNCC/NccGen.py:650
+#: appPlugins/ToolNCC/NccGen.py:651
 msgid ""
 "Check validity: the smallest copper gap is %(gap)s%(units)s. These tools "
 "will not enter all the gaps: %(tools)s."
 msgstr "检查有效性：最小铜间隙为 %(gap)s%(units)s。这些刀具无法进入所有间隙：%(tools)s。"
 
-#: appPlugins/ToolNCC/NccGen.py:765
+#: appPlugins/ToolNCC/NccGen.py:768
 msgid "No area under the clicked points."
 msgstr "单击的点下没有区域。"
 
-#: appPlugins/ToolNCC/NccGen.py:918
+#: appPlugins/ToolNCC/NccGen.py:921
 msgid "The order must be no, fwd or rev."
 msgstr "顺序必须为 no、fwd 或 rev。"
 
-#: appPlugins/ToolNCC/NccGen.py:929
+#: appPlugins/ToolNCC/NccGen.py:932
 msgid "Direction must be none, climb or conv."
 msgstr "方向必须是 none、climb 或 conv。"
 
 # auto-review 2026-10-09: corrected
-#: appPlugins/ToolNCC/NccGen.py:1022
+#: appPlugins/ToolNCC/NccGen.py:1027
 msgid "Could not use the tool for copper clear."
 msgstr "无法使用刀具清除铜。"
 
 # auto-review 2026-10-21: new
-#: appPlugins/ToolNCC/NccGen.py:1023
+#: appPlugins/ToolNCC/NccGen.py:1028
 msgid "with diameter"
 msgstr "直径"
 
-#: appPlugins/ToolNCC/NccGen.py:1032
+#: appPlugins/ToolNCC/NccGen.py:1037
 msgid ""
 "Try to use the Buffering Type = Full in Preferences -> Gerber General. "
 "Reload the Gerber file after this change."
 msgstr "请在首选项 -> Gerber常规中将缓冲类型设为“全部”。更改后请重新加载Gerber文件。"
 
-#: appPlugins/ToolNCC/NccModel.py:167
+#: appPlugins/ToolNCC/NccModel.py:168
 msgid "Clearing the polygon with the method: lines."
 msgstr "使用以下方法清除多边形：直线。"
 
-#: appPlugins/ToolNCC/NccModel.py:168
+#: appPlugins/ToolNCC/NccModel.py:169
 msgid "Failed. Clearing the polygon with the method: seed."
 msgstr "失败。使用以下方法清除多边形：种子。"
 
 # auto-review 2026-10-09: corrected
-#: appPlugins/ToolNCC/NccModel.py:169
+#: appPlugins/ToolNCC/NccModel.py:170
 msgid "Failed. Clearing the polygon with the method: standard."
 msgstr "失败。使用以下方法清除多边形：标准。"
 
-#: appPlugins/ToolNCC/NccModel.py:215
+#: appPlugins/ToolNCC/NccModel.py:216
 msgid ""
 "Isolation geometry is broken. Margin is less than isolation tool diameter."
 msgstr "隔离几何体被破坏。余量小于隔离刀具直径。"
@@ -33413,103 +33427,103 @@ msgstr "无法打开 PDF 缓冲区。"
 msgid "The selected object is not a Gerber or Geometry object."
 msgstr "所选对象不是Gerber或Geometry对象。"
 
-#: appPlugins/ToolPaint/Paint.py:913 appPlugins/ToolPaint/PaintGen.py:188
+#: appPlugins/ToolPaint/Paint.py:928 appPlugins/ToolPaint/PaintGen.py:190
 msgid "Select Geometry or Gerber objects in the Project tab."
 msgstr "请在项目选项卡中选择Geometry或Gerber对象。"
 
-#: appPlugins/ToolPaint/Paint.py:928
+#: appPlugins/ToolPaint/Paint.py:943
 msgid ""
 "No polygon is selected yet. Click Generate to select the polygons, then use "
 "Preview."
 msgstr "尚未选择多边形。请单击“生成”选择多边形，然后使用“预览”。"
 
-#: appPlugins/ToolPaint/Paint.py:955
+#: appPlugins/ToolPaint/Paint.py:970
 msgid "Computing the area to paint ..."
 msgstr "正在计算要绘制的区域 ..."
 
-#: appPlugins/ToolPaint/Paint.py:983
+#: appPlugins/ToolPaint/Paint.py:998
 msgid "The area to paint is empty."
 msgstr "要绘制的区域为空。"
 
-#: appPlugins/ToolPaint/Paint.py:993
+#: appPlugins/ToolPaint/Paint.py:1008
 msgid "Preview of the area to paint."
 msgstr "要绘制区域的预览。"
 
-#: appPlugins/ToolPaint/PaintGen.py:312
+#: appPlugins/ToolPaint/PaintGen.py:314
 msgid "Painting polygon with method: lines."
 msgstr "使用方法绘制多边形：直线。"
 
-#: appPlugins/ToolPaint/PaintGen.py:313
+#: appPlugins/ToolPaint/PaintGen.py:315
 msgid "Failed. Painting polygon with method: seed."
 msgstr "失败。多边形的绘制方法：种子。"
 
-#: appPlugins/ToolPaint/PaintGen.py:314
+#: appPlugins/ToolPaint/PaintGen.py:316
 msgid "Failed. Painting polygon with method: standard."
 msgstr "失败。绘制多边形的方法：标准。"
 
-#: appPlugins/ToolPaint/PaintGen.py:425 appPlugins/ToolPaint/PaintGen.py:926
+#: appPlugins/ToolPaint/PaintGen.py:433 appPlugins/ToolPaint/PaintGen.py:936
 msgid "No polygon found."
 msgstr "没有找到多边形。"
 
-#: appPlugins/ToolPaint/PaintGen.py:503
+#: appPlugins/ToolPaint/PaintGen.py:511
 msgid "Check validity: no tool fits inside the polygons to paint."
 msgstr "检查有效性：没有刀具能放入要绘制的多边形内。"
 
-#: appPlugins/ToolPaint/PaintGen.py:507
+#: appPlugins/ToolPaint/PaintGen.py:515
 msgid ""
 "Check validity: %(count)d polygon(s) are too narrow for all the tools and "
 "will not be painted."
 msgstr "检查有效性：有%(count)d个多边形对所有刀具来说太窄，将不会被绘制。"
 
 # auto-review 2026-10-09: corrected
-#: appPlugins/ToolPaint/PaintGen.py:511
+#: appPlugins/ToolPaint/PaintGen.py:519
 msgid "Check validity: these tools fit inside no polygon: %(tools)s."
 msgstr "检查有效性：这些刀具无法放入任何多边形：%(tools)s。"
 
-#: appPlugins/ToolPaint/PaintGen.py:647
+#: appPlugins/ToolPaint/PaintGen.py:655
 msgid "Paths too close to an exclusion zone were dropped: %d"
 msgstr "过于靠近排除区的路径已丢弃：%d"
 
 # auto-review 2026-10-09: corrected
-#: appPlugins/ToolPaint/PaintGen.py:707
+#: appPlugins/ToolPaint/PaintGen.py:715
 msgid "Painting with tool diameter = "
 msgstr "使用刀具直径 = "
 
 # auto-review 2026-10-21: new
-#: appPlugins/ToolPaint/PaintGen.py:707
+#: appPlugins/ToolPaint/PaintGen.py:715
 msgid "started"
 msgstr "开始绘制"
 
-#: appPlugins/ToolPaint/PaintGen.py:718
+#: appPlugins/ToolPaint/PaintGen.py:726
 msgid "A polygon could not be painted with tool diameter ="
 msgstr "无法使用刀具直径 = 绘制多边形"
 
-#: appPlugins/ToolPaint/PaintGen.py:720 appPlugins/ToolPaint/PaintGen.py:773
+#: appPlugins/ToolPaint/PaintGen.py:728 appPlugins/ToolPaint/PaintGen.py:781
 msgid "There is no geometry to process or the tool diameter is too big."
 msgstr "没有要加工的几何体或刀具直径太大。"
 
-#: appPlugins/ToolPaint/PaintGen.py:763
+#: appPlugins/ToolPaint/PaintGen.py:771
 msgid "Final paint finished. Some areas could not be painted with this tool."
 msgstr "最终绘制完成。部分区域无法用此刀具绘制。"
 
 # auto-review 2026-10-09: corrected
-#: appPlugins/ToolPaint/PaintGen.py:858
+#: appPlugins/ToolPaint/PaintGen.py:868
 msgid "Paint Plugin."
 msgstr "绘图插件"
 
-#: appPlugins/ToolPaint/PaintGen.py:861
+#: appPlugins/ToolPaint/PaintGen.py:871
 msgid "Buffering geometry..."
 msgstr "正在缓冲几何体..."
 
-#: appPlugins/ToolPaint/PaintGen.py:970
+#: appPlugins/ToolPaint/PaintGen.py:980
 msgid "Normal painting polygon task started."
 msgstr "正常绘制多边形任务已启动。"
 
-#: appPlugins/ToolPaint/PaintGen.py:1041
+#: appPlugins/ToolPaint/PaintGen.py:1051
 msgid "Paint all polygons task started."
 msgstr "绘制所有多边形任务已启动。"
 
-#: appPlugins/ToolPaint/PaintGen.py:1190
+#: appPlugins/ToolPaint/PaintGen.py:1200
 msgid "Painting area task started."
 msgstr "绘制区域任务已启动。"
 
@@ -36487,93 +36501,93 @@ msgid "Quit"
 msgstr "退出"
 
 # auto-review 2026-10-09: corrected
-#: camlib.py:814
+#: camlib.py:818
 msgid "self.solid_geometry is neither BaseGeometry or list."
 msgstr "self.solid_geometry既不是BaseGeometry，也不是列表。"
 
 # auto-review 2026-10-09: corrected
-#: camlib.py:1210 camlib.py:1244
+#: camlib.py:1214 camlib.py:1248
 msgid "Pass"
 msgstr "走刀"
 
 # auto-review 2026-10-09: corrected
-#: camlib.py:1256
+#: camlib.py:1260
 msgid "Get Exteriors"
 msgstr "获取外边界"
 
 # auto-review 2026-10-09: new
-#: camlib.py:1259
+#: camlib.py:1263
 msgid "Get Interiors"
 msgstr "获取内边界"
 
 # auto-review 2026-10-09: new
-#: camlib.py:1685 camlib.py:1857 camlib.py:2078 camlib.py:2190 camlib.py:2364
+#: camlib.py:1689 camlib.py:1861 camlib.py:2082 camlib.py:2194 camlib.py:2368
 msgid "Connect: reducing tool lifts. This may take a while, please wait..."
 msgstr "连接：正在减少抬刀次数。这可能需要一段时间，请稍候..."
 
-#: camlib.py:1686 camlib.py:1858 camlib.py:2079 camlib.py:2191 camlib.py:2365
+#: camlib.py:1690 camlib.py:1862 camlib.py:2083 camlib.py:2195 camlib.py:2369
 msgid "Connecting..."
 msgstr "正在连接..."
 
-#: camlib.py:2853
+#: camlib.py:2864
 msgid "Object was rotated"
 msgstr "对象已旋转"
 
-#: camlib.py:2882
+#: camlib.py:2893
 msgid "Object was skewed"
 msgstr "对象已倾斜"
 
-#: camlib.py:2930
+#: camlib.py:2941
 msgid "Geometry buffer by a factor was not done"
 msgstr "未完成 Geometry 按比例缓冲"
 
-#: camlib.py:2963
+#: camlib.py:2974
 msgid "Object was buffered"
 msgstr "对象已缓冲"
 
-#: camlib.py:3010
+#: camlib.py:3021
 msgid "The 'default' preprocessor is used."
 msgstr "使用 'default' 预处理器。"
 
-#: camlib.py:3252
+#: camlib.py:3263
 msgid ""
 "Photo Carve CNCJob converted to other units: its G-code is no longer "
 "certified. Make the CNCJob again from the Photo Carve Geometry in the "
 "Milling plugin."
 msgstr "照片雕刻 CNC任务已转换为其他单位，因而未通过认证。请在铣削插件中根据照片雕刻 Geometry 重新生成 CNC任务。"
 
-#: camlib.py:3383
+#: camlib.py:3394
 msgid ""
 "No usable geometry to cut for the tool with diameter (is the geometry empty "
 "or is the tool offset too large?)"
 msgstr "以下直径的刀具没有可用的切割几何图形（几何图形是否为空，或刀具偏移是否过大？）"
 
-#: camlib.py:3401
+#: camlib.py:3412
 msgid ""
 "A cut path crosses an exclusion area. The exclusion areas change only the "
 "travel moves: the cut goes through the area."
 msgstr "切割路径穿过排除区域。排除区域仅改变移动路径：切割会穿过该区域。"
 
-#: camlib.py:3468
+#: camlib.py:3479
 msgid ""
 "Motion rate unavailable: estimated time uses the configured feedrate where "
 "possible."
 msgstr "运动速率不可用：估算时间尽可能使用已配置的进给速度。"
 
-#: camlib.py:3630
+#: camlib.py:3641
 msgid "Preprocessor error, G-code is missing"
 msgstr "预处理器错误，G代码缺失"
 
-#: camlib.py:3653
+#: camlib.py:3664
 msgid "There is no such parameter"
 msgstr "没有这样的参数"
 
 # auto-review 2026-10-09: corrected
-#: camlib.py:3798
+#: camlib.py:3809
 msgid "Indexing geometry before generating G-Code..."
 msgstr "正在为生成G代码建立几何索引..."
 
-#: camlib.py:3892
+#: camlib.py:3903
 msgid ""
 "The Cut Z parameter has positive value. It is the depth value to drill into "
 "material.\n"
@@ -36584,16 +36598,16 @@ msgstr ""
 "“切削Z”参数具有正值。它是钻入材料的深度值。\n"
 "切削Z参数需要有一个负值，假设它是一个打字错误，因此应用程序会将该值转换为负值。检查生成的CNC代码（G代码等）。"
 
-#: camlib.py:3899
+#: camlib.py:3910
 msgid "The Cut Z parameter is zero. There will be no cut, aborting"
 msgstr "切削Z参数为零。不会有切削，中止"
 
 # auto-review 2026-10-21: new
-#: camlib.py:3915
+#: camlib.py:3926
 msgid "The Cut Z parameter is not a number."
 msgstr "Z向切削参数不是数字。"
 
-#: camlib.py:3932
+#: camlib.py:3943
 msgid ""
 "Laser Min Power is %s: the laser is not turned off between the cuts. The "
 "'laser OFF' lines set this power instead, so the laser can burn along the "
@@ -36603,76 +36617,76 @@ msgstr ""
 "激光最小功率为 %s：切割之间不会关闭激光。“激光关闭”行将改为设置此功率，因此激光可能沿空走路径燃烧，并在作业中断时保持开启。请将最小功率设为 "
 "0，以便在切割之间关闭激光。"
 
-#: camlib.py:3984
+#: camlib.py:3995
 msgid "Peck drilling is on: it replaces the multidepth."
 msgstr "已启用啄式钻孔：它替代多深度。"
 
 # auto-review 2026-10-09: corrected
-#: camlib.py:4214 camlib.py:4709
+#: camlib.py:4225 camlib.py:4720
 msgid "The End X,Y format has to be (x, y)."
 msgstr "结束X,Y格式必须是（X,Y）。"
 
 # auto-review 2026-10-09: corrected
-#: camlib.py:4271 camlib.py:4834 camlib.py:5415 camlib.py:5503
+#: camlib.py:4282 camlib.py:4845 camlib.py:5426 camlib.py:5514
 msgid "Starting G-Code for tool with diameter"
 msgstr "开始生成G代码，刀具直径"
 
-#: camlib.py:4409 camlib.py:5441 camlib.py:5524 camlib.py:6642 camlib.py:6928
-#: camlib.py:7085
+#: camlib.py:4420 camlib.py:5452 camlib.py:5535 camlib.py:6653 camlib.py:6939
+#: camlib.py:7096
 msgid "G91 coordinates not implemented"
 msgstr "G91坐标未实现"
 
-#: camlib.py:4418
+#: camlib.py:4429
 msgid "Finished G-Code generation for tool:"
 msgstr "已完成刀具的G代码生成："
 
-#: camlib.py:4541
+#: camlib.py:4552
 msgid ""
 "Validated Voronoi paths require the default milling preprocessor. Other "
 "output coordinate grids have not been certified."
 msgstr "已验证的Voronoi路径需要默认铣削预处理器。其他输出坐标网格未经认证。"
 
-#: camlib.py:4553
+#: camlib.py:4564
 msgid ""
 "The Voronoi output coordinate decimals are missing or coarser than the "
 "generation grid. Raise the coordinate decimals or regenerate the isolation."
 msgstr "Voronoi输出坐标的小数位数未设置，或精度低于生成网格。请增加坐标小数位数或重新生成隔离路径。"
 
-#: camlib.py:4558
+#: camlib.py:4569
 msgid ""
 "The Voronoi paths were changed or moved (move, scale, rotate, edit), or "
 "their generation data is missing. Regenerate the isolation before making a "
 "CNC job."
 msgstr "Voronoi路径已被更改或移动（移动、缩放、旋转、编辑），或其生成数据缺失。创建CNC任务前请重新生成隔离路径。"
 
-#: camlib.py:4565
+#: camlib.py:4576
 msgid ""
 "The units, the tool diameter or the offset of the Voronoi isolation "
 "changed. Regenerate the isolation with the current settings before making a "
 "CNC job."
 msgstr "Voronoi隔离的单位、刀具直径或偏移已更改。创建CNC任务前请使用当前设置重新生成隔离路径。"
 
-#: camlib.py:4571
+#: camlib.py:4582
 msgid ""
 "Voronoi clearance was checked in geometry coordinates, not with bed "
 "transforms. Disable bed transforms; machine-space clearance validation is "
 "not available."
 msgstr "Voronoi间隙仅在几何坐标中验证，未考虑机床工作台变换。请禁用工作台变换；尚不支持机床坐标中的间隙验证。"
 
-#: camlib.py:4576
+#: camlib.py:4587
 msgid ""
 "Voronoi paths cannot be interpolated after clearance validation. Disable "
 "segmentation and use zero-length Extra Cut or disable Extra Cut."
 msgstr "Voronoi路径在间隙验证后无法插值。禁用分段并使用零长度额外切割或禁用额外切割。"
 
 # auto-review 2026-10-09: corrected
-#: camlib.py:4613
+#: camlib.py:4624
 msgid ""
 "Cut_Z parameter is None or zero. Most likely a bad combinations of other "
 "parameters."
 msgstr "切削Z参数为无或零。很可能是其他参数的错误组合。"
 
-#: camlib.py:4621
+#: camlib.py:4632
 msgid ""
 "The Cut Z parameter has positive value. It is the depth value to cut into "
 "material.\n"
@@ -36683,15 +36697,15 @@ msgstr ""
 "“切削Z”参数具有正值。它是切入材料的深度值。\n"
 "切削Z参数需要有一个负值，假设它是一个打字错误，因此应用程序会将该值转换为负值。检查生成的CNC代码（G代码等）。"
 
-#: camlib.py:4629
+#: camlib.py:4640
 msgid "The Cut Z parameter is zero. There will be no cut, skipping file"
 msgstr "切削Z参数为零。将不会切削，跳过文件"
 
-#: camlib.py:4634
+#: camlib.py:4645
 msgid "Travel Z parameter is None or zero."
 msgstr "移动Z参数为空或零。"
 
-#: camlib.py:4639
+#: camlib.py:4650
 msgid ""
 "The Travel Z parameter has negative value. It is the height value to travel "
 "between cuts.\n"
@@ -36702,21 +36716,21 @@ msgstr ""
 "移动Z参数具有负值。它是在切削区域之间移动的高度值。\n"
 "移动Z参数需要有一个正值，假设它输入错误，那么应用程序会将该值转换为正值。检查生成的CNC代码（G代码等）。"
 
-#: camlib.py:4647
+#: camlib.py:4658
 msgid "The Z Travel parameter is zero. This is dangerous, skipping file"
 msgstr "移动Z参数为零。这很危险，正在跳过文件"
 
 # auto-review 2026-10-09: corrected
-#: camlib.py:4938 camlib.py:5562
+#: camlib.py:4949 camlib.py:5573
 msgid "Finished G-Code generation"
 msgstr "已完成G代码生成"
 
 # auto-review 2026-10-09: corrected
-#: camlib.py:4938 camlib.py:5770
+#: camlib.py:4949 camlib.py:5781
 msgid "paths traced"
 msgstr "条刀路已生成"
 
-#: camlib.py:5027
+#: camlib.py:5038
 msgid ""
 "The Toolchange X,Y field in Edit -> Preferences has to be in the format (x, "
 "y) \n"
@@ -36726,103 +36740,103 @@ msgstr ""
 "但现在只有一个值，而不是两个值。 "
 
 # auto-review 2026-10-09: corrected
-#: camlib.py:5039
+#: camlib.py:5050
 msgid ""
 "The End Move X,Y field in Edit -> Preferences has to be in the format (x, "
 "y) but now there is only one value, not two."
 msgstr "编辑->首选项中的“结束移动X,Y”字段必须采用（X,Y）格式，但现在只有一个值，而不是两个值。"
 
-#: camlib.py:5230
+#: camlib.py:5241
 msgid "Failed. Drill points inside the exclusion zones."
 msgstr "失败。钻孔点位于禁区内。"
 
-#: camlib.py:5357 camlib.py:5386
+#: camlib.py:5368 camlib.py:5397
 msgid "No G-code for the tool"
 msgstr "该刀具没有 G代码"
 
 # auto-review 2026-10-09: corrected
-#: camlib.py:5357
+#: camlib.py:5368
 msgid "it has no holes to drill (check Drill slots if it has only slots)"
 msgstr "它没有需要钻的孔（如果只有槽，请检查“钻槽”）"
 
-#: camlib.py:5671
+#: camlib.py:5682
 msgid "There is no tool data in the SolderPaste geometry."
 msgstr "锡膏几何图形中没有刀具数据。"
 
-#: camlib.py:5770
+#: camlib.py:5781
 msgid "Finished SolderPaste G-Code generation"
 msgstr "完成锡膏G代码生成"
 
-#: camlib.py:6193
+#: camlib.py:6204
 msgid "Parsing GCode file. Number of lines"
 msgstr "正在解析G代码文件。行数"
 
-#: camlib.py:6337
+#: camlib.py:6348
 msgid "Creating Geometry from the parsed GCode file. "
 msgstr "从解析的G代码文件创建Geometry。 "
 
-#: camlib.py:6394
+#: camlib.py:6405
 msgid "Parsing GCode file for tool diameter"
 msgstr "解析刀具直径的G代码文件"
 
-#: camlib.py:6395
+#: camlib.py:6406
 msgid "Number of lines"
 msgstr "行数"
 
 # auto-review 2026-10-09: corrected
-#: camlib.py:6490
+#: camlib.py:6501
 msgid "Creating Geometry from the parsed GCode file for tool diameter"
 msgstr "从解析的G代码文件创建刀具直径的Geometry"
 
-#: camlib.py:7233
+#: camlib.py:7244
 msgid "G91 coordinates not implemented ..."
 msgstr "尚未实现G91坐标..."
 
-#: camlib.py:7510
+#: camlib.py:7521
 msgid ""
 "The machine code of the Roland/HPGL preprocessors is not transformed, only "
 "the plot is. Generate the job again."
 msgstr "Roland/HPGL 预处理器的机器代码未变换，仅绘图被变换。请重新生成任务。"
 
-#: camlib.py:7589
+#: camlib.py:7600
 msgid ""
 "The G-code has macro variables or subprograms: it can not be levelled. "
 "Change the program in the software that made it."
 msgstr "G代码含宏变量或子程序：无法调平。请在生成它的软件中修改。"
 
-#: camlib.py:7592
+#: camlib.py:7603
 msgid ""
 "The G-code has macro variables or subprograms: it can not be moved or "
 "transformed. Change the program in the software that made it."
 msgstr "G代码含宏变量或子程序：无法移动或变换。请在生成它的软件中修改。"
 
-#: camlib.py:8127
+#: camlib.py:8138
 msgid "An open line has no width to erode."
 msgstr "开放线段无宽度可腐蚀。"
 
-#: camlib.py:8131
+#: camlib.py:8142
 msgid "The buffer removed a closed contour."
 msgstr "缓冲区移除了闭合轮廓。"
 
 # auto-review 2026-10-21: new
-#: camlib.py:8150
+#: camlib.py:8161
 msgid "The buffer removed a geometry."
 msgstr "缓冲区移除了一个几何对象。"
 
 # auto-review 2026-10-21: new
-#: camlib.py:9287
+#: camlib.py:9298
 msgid ""
 "No isolation path is inside the boundary. Check that the boundary object is "
 "the outline of this board."
 msgstr "没有隔离路径位于边界内。请检查边界对象是否为此电路板的轮廓。"
 
 # auto-review 2026-10-21: new
-#: camlib.py:9290
+#: camlib.py:9301
 msgid "%d of %d passes, the area inside the boundary is cleared."
 msgstr "%d / %d 次走刀，边界内的区域已清除。"
 
 # auto-review 2026-10-09: corrected
-#: camlib.py:9292
+#: camlib.py:9303
 msgid ""
 "all %d passes made; the area inside the boundary may not be cleared yet "
 "(more passes are needed for it)."
@@ -37200,6 +37214,19 @@ msgstr "减除对象没有面积。"
 #: tclCommands/TclCommandSubtractRectangle.py:62
 msgid "No Geometry name in args. Provide a name and try again."
 msgstr "参数中没有Geometry名称。请提供名称，然后重试。"
+
+#~ msgid "The number of exclusion zones drawn."
+#~ msgstr "已绘制禁区的数量。"
+
+#~ msgid ""
+#~ "Draw exclusion zones on the canvas.\n"
+#~ "Left click to draw, right click or Escape to finish."
+#~ msgstr ""
+#~ "在画布上绘制禁区。\n"
+#~ "左键单击绘制，右键单击或按 Escape 结束。"
+
+#~ msgid "Remove all the exclusion zones."
+#~ msgstr "删除所有禁区。"
 
 # auto-review 2026-10-09: corrected
 #~ msgid "Editing MultiGeo Geometry, tool"

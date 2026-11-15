@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "POT-Creation-Date: 2022-05-17 14:36+0300\n"
-"PO-Revision-Date: 2026-11-15 00:01+0100\n"
+"PO-Revision-Date: 2026-11-15 07:54+0100\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: ro\n"
@@ -117,7 +117,7 @@ msgstr "Semne de carte"
 #: appEditors/appExcEditor.py:2160 appEditors/appExcEditor.py:2191
 #: appEditors/appGeoEditor.py:2854 appEditors/appGeoEditor.py:7376
 #: appEditors/appGeoEditor.py:7402 appEditors/appGeoEditor.py:7428
-#: appEditors/appGerberEditor.py:6389 appEditors/appTextEditor.py:497
+#: appEditors/appGerberEditor.py:6391 appEditors/appTextEditor.py:497
 #: appEditors/geo_plugins/GeoPaintPlugin.py:174
 #: appEditors/geo_plugins/GeoTransformationPlugin.py:221
 #: appEditors/grb_plugins/GrbOperationDialogs.py:81
@@ -139,9 +139,9 @@ msgstr "Semne de carte"
 #: appHandlers/appIO.py:2587 appHandlers/appIO.py:3723
 #: appHandlers/appIO.py:3774 appHandlers/appObjectOps.py:491 appMain.py:1939
 #: appMain.py:1975 appMain.py:3147 appObjects/CNCJobObject.py:951
-#: appObjects/ObjectCollection.py:308 appParsers/ParseGerber.py:2987
-#: appParsers/ParseGerber.py:3027 appParsers/ParseGerber.py:3044
-#: appParsers/ParseGerber.py:3061 appPlugins/Common/clearing/job.py:284
+#: appObjects/ObjectCollection.py:308 appParsers/ParseGerber.py:2988
+#: appParsers/ParseGerber.py:3028 appParsers/ParseGerber.py:3045
+#: appParsers/ParseGerber.py:3062 appPlugins/Common/clearing/job.py:289
 #: appPlugins/Common/levelling_core.py:1619
 #: appPlugins/ToolCompare/Compare.py:413 appPlugins/ToolCutOut/CutOut.py:1732
 #: appPlugins/ToolDistance/Distance.py:456 appPlugins/ToolFollow/Follow.py:355
@@ -149,11 +149,11 @@ msgstr "Semne de carte"
 #: appPlugins/ToolImage/ImageImportMixin.py:256
 #: appPlugins/ToolInvertGerber/InvertGerber.py:254
 #: appPlugins/ToolMarkers/Markers.py:565 appPlugins/ToolMarkers/Markers.py:623
-#: appPlugins/ToolMove/Move.py:372 appPlugins/ToolNCC/Ncc.py:1135
-#: appPlugins/ToolNCC/Ncc.py:1177 appPlugins/ToolNCC/Ncc.py:1240
-#: appPlugins/ToolNCC/Ncc.py:1393 appPlugins/ToolPaint/Paint.py:715
-#: appPlugins/ToolPaint/Paint.py:758 appPlugins/ToolPaint/Paint.py:815
-#: appPlugins/ToolPaint/Paint.py:1197 appPlugins/ToolPaint/PaintGen.py:919
+#: appPlugins/ToolMove/Move.py:372 appPlugins/ToolNCC/Ncc.py:1151
+#: appPlugins/ToolNCC/Ncc.py:1193 appPlugins/ToolNCC/Ncc.py:1256
+#: appPlugins/ToolNCC/Ncc.py:1409 appPlugins/ToolPaint/Paint.py:716
+#: appPlugins/ToolPaint/Paint.py:759 appPlugins/ToolPaint/Paint.py:816
+#: appPlugins/ToolPaint/Paint.py:1212 appPlugins/ToolPaint/PaintGen.py:929
 #: appPlugins/ToolPanelize/Panelize.py:373
 #: appPlugins/ToolPcbWizard/PcbWizard.py:190
 #: appPlugins/ToolPcbWizard/PcbWizard.py:213
@@ -163,7 +163,7 @@ msgstr "Semne de carte"
 #: appPlugins/ToolSolderPaste/SolderPaste.py:910
 #: appPlugins/ToolSolderPaste/SolderPaste.py:968
 #: appPlugins/ToolSolderPaste/SolderPaste.py:1017 appPlugins/ToolSub/Sub.py:518
-#: camlib.py:2947 camlib.py:2953
+#: camlib.py:2958 camlib.py:2964
 msgid "Cancelled."
 msgstr "Anulat."
 
@@ -397,7 +397,7 @@ msgstr "Găurire"
 #: appGUI/preferences/PreferencesWindow.py:45
 #: appGUI/preferences/tools/ToolsNCCPrefGroupUI.py:163
 #: appGUI/shortcut_actions.py:156 appObjects/CNCJobObject.py:356
-#: appObjects/GeometryObject.py:308 appPlugins/ToolIsolation/Isolation.py:251
+#: appObjects/GeometryObject.py:309 appPlugins/ToolIsolation/Isolation.py:251
 #: appPlugins/ToolIsolation/IsolationUI.py:23
 #: appPlugins/ToolMilling/MillingUI.py:570 appPlugins/ToolNCC/NccUI.py:189
 msgid "Isolation"
@@ -429,7 +429,7 @@ msgstr "Decupare"
 
 # auto-review 2026-10-09: corrected
 #: appDatabase.py:148 appDatabase.py:319 appEditors/appGCodeEditor.py:211
-#: appObjects/CNCJobObject.py:356 appObjects/GeometryObject.py:308
+#: appObjects/CNCJobObject.py:356 appObjects/GeometryObject.py:309
 #: appPlugins/ToolMilling/MillingUI.py:570
 #: appPlugins/ToolPhotoCarve/PhotoCarveUI.py:47
 #: appPlugins/ToolPhotoCarve/PhotoCarveUI.py:64
@@ -437,14 +437,14 @@ msgid "Roughing"
 msgstr "Degroșare"
 
 #: appDatabase.py:148 appDatabase.py:319 appEditors/appGCodeEditor.py:211
-#: appObjects/CNCJobObject.py:356 appObjects/GeometryObject.py:308
+#: appObjects/CNCJobObject.py:356 appObjects/GeometryObject.py:309
 #: appPlugins/ToolMilling/MillingUI.py:570
 msgid "Finishing"
 msgstr "Finisare"
 
 # auto-review 2026-10-09: corrected
 #: appDatabase.py:149 appDatabase.py:319 appEditors/appGCodeEditor.py:211
-#: appObjects/CNCJobObject.py:356 appObjects/GeometryObject.py:308
+#: appObjects/CNCJobObject.py:356 appObjects/GeometryObject.py:309
 #: appPlugins/ToolMilling/MillingUI.py:570
 msgid "Polishing"
 msgstr "Lustruire"
@@ -580,15 +580,15 @@ msgstr ""
 
 #: appDatabase.py:516 appEditors/appExcEditor.py:4184
 #: appEditors/appExcEditor.py:5631 appEditors/appExcEditor.py:6019
-#: appEditors/appExcEditor.py:6171 appEditors/appGerberEditor.py:8888
+#: appEditors/appExcEditor.py:6171 appEditors/appGerberEditor.py:8890
 #: appEditors/exc_plugins/ExcDrillArrayPlugin.py:120
 #: appEditors/exc_plugins/ExcDrillPlugin.py:126
 #: appEditors/grb_plugins/GrbPadArrayPlugin.py:119
 #: appEditors/grb_plugins/GrbPadPlugin.py:127
 #: appEditors/grb_plugins/GrbTrackPlugin.py:127
 #: appEditors/grb_plugins/GrberRegionPlugin.py:126 appGUI/ObjectUI.py:711
-#: appGUI/ToolLibrary.py:36 appObjects/AppObjectTemplate.py:1435
-#: appObjects/AppObjectTemplate.py:1501
+#: appGUI/ToolLibrary.py:36 appObjects/AppObjectTemplate.py:1534
+#: appObjects/AppObjectTemplate.py:1600
 #: appPlugins/Common/clearing/ui_sections.py:63
 #: appPlugins/ToolDrilling/DrillingUI.py:126
 #: appPlugins/ToolIsolation/IsolationUI.py:113
@@ -625,7 +625,7 @@ msgstr ""
 "uneltei \n"
 "se încadrează în toleranța specificată aici."
 
-#: appDatabase.py:537 appEditors/appGerberEditor.py:8747
+#: appDatabase.py:537 appEditors/appGerberEditor.py:8749
 msgid "Min"
 msgstr "Min"
 
@@ -634,7 +634,7 @@ msgstr "Min"
 msgid "Set the tool tolerance minimum."
 msgstr "Setați toleranța minimă a uneltei."
 
-#: appDatabase.py:551 appEditors/appGerberEditor.py:8750
+#: appDatabase.py:551 appEditors/appGerberEditor.py:8752
 #: appPlugins/ToolAlignObjects/Align.py:641
 msgid "Max"
 msgstr "Max"
@@ -1024,8 +1024,8 @@ msgstr ""
 "Dacă nu reușește, atunci și curățarea non-cupru va eșua.\n"
 "- Șterge (curățare) -> curățarea non-cupru obișnuită."
 
-#: appDatabase.py:901 appEditors/appGerberEditor.py:8908
-#: appEditors/appGerberEditor.py:9059
+#: appDatabase.py:901 appEditors/appGerberEditor.py:8910
+#: appEditors/appGerberEditor.py:9061
 #: appEditors/exc_plugins/ExcCopyPlugin.py:161
 #: appEditors/geo_plugins/GeoCopyPlugin.py:157
 #: appEditors/geo_plugins/GeoPathPlugin.py:165
@@ -1377,7 +1377,7 @@ msgstr ""
 #: appGUI/preferences/tools/ToolsMarkersPrefGroupUI.py:137
 #: appGUI/preferences/tools/ToolsNCCPrefGroupUI.py:297
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:218
-#: appObjects/AppObjectTemplate.py:995 appObjects/AppObjectTemplate.py:1001
+#: appObjects/AppObjectTemplate.py:1094 appObjects/AppObjectTemplate.py:1100
 #: appPlugins/Common/clearing/ui_sections.py:220
 #: appPlugins/Common/clearing/ui_sections.py:224
 #: appPlugins/ToolDblSided/DblSidedUI.py:403
@@ -1475,8 +1475,8 @@ msgstr ""
 
 #: appDatabase.py:1065 appDatabase.py:1192 appEditors/appGeoEditor.py:3367
 #: appEditors/appGeoEditor.py:4181 appEditors/appGerberEditor.py:4201
-#: appEditors/appGerberEditor.py:5007 appEditors/appGerberEditor.py:6785
-#: appEditors/appGerberEditor.py:6841
+#: appEditors/appGerberEditor.py:5007 appEditors/appGerberEditor.py:6787
+#: appEditors/appGerberEditor.py:6843
 #: appGUI/preferences/general/GeneralShortcutsGroupUI.py:335
 #: appGUI/preferences/geometry/GeometryGenPrefGroupUI.py:95
 #: appGUI/preferences/gerber/GerberAdvOptPrefGroupUI.py:64
@@ -1484,9 +1484,9 @@ msgstr ""
 #: appGUI/preferences/tools/Tools2FiducialsPrefGroupUI.py:72
 #: appGUI/preferences/tools/ToolsNCCPrefGroupUI.py:289
 #: appGUI/preferences/tools/ToolsPaintPrefGroupUI.py:265
-#: appObjects/AppObjectTemplate.py:1472 appObjects/AppObjectTemplate.py:1475
-#: appObjects/AppObjectTemplate.py:1478 appObjects/AppObjectTemplate.py:1508
-#: appObjects/AppObjectTemplate.py:1515 appObjects/AppObjectTemplate.py:1518
+#: appObjects/AppObjectTemplate.py:1571 appObjects/AppObjectTemplate.py:1574
+#: appObjects/AppObjectTemplate.py:1577 appObjects/AppObjectTemplate.py:1607
+#: appObjects/AppObjectTemplate.py:1614 appObjects/AppObjectTemplate.py:1617
 #: appPlugins/Common/clearing/ui_sections.py:279
 #: appPlugins/ToolCopperThieving/CopperThievingUI.py:322
 #: appPlugins/ToolFiducials/FiducialsUI.py:151
@@ -2139,7 +2139,7 @@ msgstr ""
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:406
 #: appGUI/preferences/tools/Tools2CThievingPrefGroupUI.py:356
 #: appHandlers/appUIActions.py:1211
-#: appPlugins/Common/clearing/controller_base.py:192
+#: appPlugins/Common/clearing/controller_base.py:200
 #: appPlugins/ToolCopperThieving/CopperThievingUI.py:319
 #: appPlugins/ToolDblSided/DblSidedUI.py:196
 #: appPlugins/ToolGcodeSender/SenderUI.py:277
@@ -2166,7 +2166,7 @@ msgstr "Duplică"
 
 #: appDatabase.py:1814 appEditors/appExcEditor.py:2923
 #: appEditors/appGeoEditor.py:1528 appEditors/appGeoEditor.py:4440
-#: appEditors/appGerberEditor.py:4039 appEditors/appGerberEditor.py:9052
+#: appEditors/appGerberEditor.py:4039 appEditors/appGerberEditor.py:9054
 #: appGUI/ApertureLibrary.py:63 appGUI/GUIElements.py:566
 #: appGUI/GUIElements.py:1349 appGUI/GUIElements.py:1597
 #: appGUI/GUIElements.py:2101 appGUI/GUIElements.py:2389
@@ -2179,7 +2179,7 @@ msgstr "Duplică"
 #: appGUI/shortcut_actions.py:400 appGUI/shortcut_actions.py:629
 #: appGUI/shortcut_actions.py:778 appHandlers/appObjectOps.py:994
 #: appHandlers/appUIActions.py:1213
-#: appPlugins/Common/clearing/controller_base.py:199
+#: appPlugins/Common/clearing/controller_base.py:207
 #: appPlugins/ToolDrilling/Drilling.py:377
 #: appPlugins/ToolIsolation/Isolation.py:272
 #: appPlugins/ToolMilling/Milling.py:632 appPlugins/ToolMilling/Milling.py:644
@@ -2256,7 +2256,7 @@ msgstr ""
 #: appGUI/shortcut_actions.py:882 appGUI/shortcut_actions.py:986
 #: appGUI/shortcut_actions.py:989 appGUI/shortcut_actions.py:997
 #: appHandlers/appIO.py:4109 appHandlers/appLifecycle.py:326
-#: appHandlers/appObjectOps.py:979 appHandlers/appProjects.py:563
+#: appHandlers/appObjectOps.py:979 appHandlers/appProjects.py:567
 #: appMain.py:2762 appMain.py:3513 appObjects/AppObject.py:87
 #: appPlugins/ToolGcodeSender/Sender.py:4583
 #: appPlugins/ToolGcodeSender/SenderMotion.py:111
@@ -2331,7 +2331,7 @@ msgstr "Anulează"
 #: appPlugins/ToolSolderPaste/SolderPasteUI.py:568
 #: appPlugins/ToolSub/SubUI.py:213 appPlugins/ToolSub/SubUI.py:224
 #: appPlugins/ToolTransform/TransformUI.py:526
-#: appPlugins/ToolTransform/TransformUI.py:537 appTool.py:421 appTool.py:432
+#: appPlugins/ToolTransform/TransformUI.py:537 appTool.py:425 appTool.py:436
 msgid "Edited value is out of range"
 msgstr "Valoarea editată este în afara limitelor"
 
@@ -2389,7 +2389,7 @@ msgstr "Valoarea editată este în afara limitelor"
 #: appPlugins/ToolSolderPaste/SolderPasteUI.py:570
 #: appPlugins/ToolSub/SubUI.py:219 appPlugins/ToolSub/SubUI.py:226
 #: appPlugins/ToolTransform/TransformUI.py:532
-#: appPlugins/ToolTransform/TransformUI.py:539 appTool.py:427 appTool.py:434
+#: appPlugins/ToolTransform/TransformUI.py:539 appTool.py:431 appTool.py:438
 msgid "Edited value is within limits."
 msgstr "Valoarea editată este în limite."
 
@@ -2434,7 +2434,7 @@ msgid "Delete from DB"
 msgstr "Ștergeți din DB Unelte"
 
 #: appDatabase.py:2407 appHandlers/appLifecycle.py:315
-#: appHandlers/appProjects.py:553
+#: appHandlers/appProjects.py:557
 msgid "Save changes"
 msgstr "Salvează modificările"
 
@@ -2446,7 +2446,7 @@ msgstr "Înlocuiește biblioteca din fișier…"
 #: appDatabase.py:3028 appDatabase.py:3117 appGUI/MainGUI.py:620
 #: appHandlers/appUIActions.py:39 appHandlers/appUIActions.py:52
 #: appHandlers/appUIActions.py:815
-#: appPlugins/Common/clearing/controller_base.py:484
+#: appPlugins/Common/clearing/controller_base.py:496
 #: appPlugins/ToolCutOut/CutOut.py:596
 #: appPlugins/ToolIsolation/Isolation.py:2851
 #: appPlugins/ToolMilling/Milling.py:2622
@@ -2488,9 +2488,9 @@ msgstr "Dia Unealtă"
 #: appPlugins/ToolIsolation/Isolation.py:1771
 #: appPlugins/ToolMilling/Milling.py:2711
 #: appPlugins/ToolMilling/Milling.py:3320
-#: appPlugins/ToolMilling/Milling.py:3686 appPlugins/ToolNCC/Ncc.py:1319
-#: appPlugins/ToolNCC/NccGen.py:252 appPlugins/ToolPaint/Paint.py:855
-#: appPlugins/ToolPaint/PaintGen.py:224 appPlugins/ToolPaint/PaintGen.py:565
+#: appPlugins/ToolMilling/Milling.py:3686 appPlugins/ToolNCC/Ncc.py:1335
+#: appPlugins/ToolNCC/NccGen.py:253 appPlugins/ToolPaint/Paint.py:856
+#: appPlugins/ToolPaint/PaintGen.py:226 appPlugins/ToolPaint/PaintGen.py:573
 #: appPlugins/ToolSolderPaste/SolderPaste.py:604
 #: appPlugins/ToolSolderPaste/SolderPaste.py:676
 msgid "Wrong value format entered, use a number."
@@ -2634,8 +2634,8 @@ msgstr ""
 #: appGUI/preferences/PreferencesUIManager.py:1385
 #: appGUI/preferences/PreferencesWindow.py:539
 #: appGUI/preferences/general/GeneralGUIPrefGroupUI.py:560
-#: appHandlers/appLifecycle.py:324 appHandlers/appProjects.py:540
-#: appHandlers/appProjects.py:561 appMain.py:2088 appMain.py:2756
+#: appHandlers/appLifecycle.py:324 appHandlers/appProjects.py:544
+#: appHandlers/appProjects.py:565 appMain.py:2088 appMain.py:2756
 #: appObjects/CNCJobObject.py:939 appPlugins/ToolGcodeSender/Sender.py:4611
 #: appPlugins/ToolPanelize/Panelize.py:601 appTranslation.py:130
 msgid "Yes"
@@ -2645,8 +2645,8 @@ msgstr "Da"
 #: appGUI/preferences/PreferencesUIManager.py:1386
 #: appGUI/preferences/PreferencesWindow.py:540
 #: appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:300
-#: appHandlers/appLifecycle.py:325 appHandlers/appProjects.py:541
-#: appHandlers/appProjects.py:562 appMain.py:2089 appMain.py:2760
+#: appHandlers/appLifecycle.py:325 appHandlers/appProjects.py:545
+#: appHandlers/appProjects.py:566 appMain.py:2089 appMain.py:2760
 #: appObjects/CNCJobObject.py:940 appPlugins/ToolDrilling/DrillingUI.py:878
 #: appPlugins/ToolGcodeSender/Sender.py:4612
 #: appPlugins/ToolPanelize/Panelize.py:602 appTranslation.py:131
@@ -2712,9 +2712,9 @@ msgstr "Pentru a adăuga o gaură, selectați mai întâi o unealtă"
 #: appEditors/appGerberEditor.py:1867 appEditors/appGerberEditor.py:2172
 #: appEditors/appGerberEditor.py:2267 appEditors/appGerberEditor.py:2778
 #: appEditors/appGerberEditor.py:2968 appEditors/appGerberEditor.py:3677
-#: appEditors/appGerberEditor.py:5788 appEditors/appGerberEditor.py:7336
-#: appEditors/appGerberEditor.py:7354 appEditors/appGerberEditor.py:8050
-#: appEditors/appGerberEditor.py:8310 appEditors/appGerberEditor.py:8366
+#: appEditors/appGerberEditor.py:5790 appEditors/appGerberEditor.py:7338
+#: appEditors/appGerberEditor.py:7356 appEditors/appGerberEditor.py:8052
+#: appEditors/appGerberEditor.py:8312 appEditors/appGerberEditor.py:8368
 #: appEditors/geo_plugins/GeoBufferPlugin.py:196
 #: appEditors/geo_plugins/GeoBufferPlugin.py:236
 #: appEditors/geo_plugins/GeoBufferPlugin.py:278
@@ -2729,12 +2729,12 @@ msgstr "Pentru a adăuga o gaură, selectați mai întâi o unealtă"
 #: appEditors/grb_plugins/GrbTransformationPlugin.py:191
 #: appGUI/shortcut_actions.py:559 appGUI/shortcut_actions.py:576
 #: appGUI/shortcut_actions.py:843 appHandlers/appObjectOps.py:630
-#: appHandlers/appObjectOps.py:714 appObjects/GeometryObject.py:718
-#: appObjects/GeometryObject.py:832 appObjects/GeometryObject.py:872
-#: appObjects/GerberObject.py:458 appParsers/ParseGerber.py:2780
-#: appParsers/ParseGerber.py:2829 appParsers/ParseGerber.py:2865
-#: appParsers/ParseGerber.py:2900 appParsers/ParseGerber.py:2923
-#: appPlugins/Common/clearing/job.py:290
+#: appHandlers/appObjectOps.py:714 appObjects/GeometryObject.py:722
+#: appObjects/GeometryObject.py:836 appObjects/GeometryObject.py:877
+#: appObjects/GerberObject.py:461 appParsers/ParseGerber.py:2781
+#: appParsers/ParseGerber.py:2830 appParsers/ParseGerber.py:2866
+#: appParsers/ParseGerber.py:2901 appParsers/ParseGerber.py:2924
+#: appPlugins/Common/clearing/job.py:295
 #: appPlugins/ToolAlignObjects/Align.py:530
 #: appPlugins/ToolAlignObjects/Align.py:686
 #: appPlugins/ToolCutOut/CutOut.py:1042 appPlugins/ToolDistance/Distance.py:413
@@ -2765,14 +2765,14 @@ msgstr "Executat."
 #: appEditors/appGerberEditor.py:1737 appEditors/appGerberEditor.py:4749
 #: appEditors/geo_plugins/GeoImportImagePlugin.py:134
 #: appEditors/geo_plugins/GeoSimplificationPlugin.py:106
-#: appHandlers/appEdit.py:732 appHandlers/appIO.py:2111
+#: appHandlers/appEdit.py:734 appHandlers/appIO.py:2111
 #: appHandlers/appIO.py:2238 appHandlers/appIO.py:3827
 #: appHandlers/appIO.py:4381 appHandlers/appIO.py:4410
 #: appHandlers/appObjectOps.py:55 appHandlers/appObjectOps.py:87
 #: appHandlers/appObjectOps.py:543 appHandlers/appObjectOps.py:735
 #: appHandlers/appObjectOps.py:997 appHandlers/appPlotManager.py:476
 #: appObjects/CNCJobObject.py:970 appPlugins/Common/clearing/job.py:195
-#: appPlugins/Common/clearing/job.py:270 appPlugins/Common/clearing/job.py:286
+#: appPlugins/Common/clearing/job.py:275 appPlugins/Common/clearing/job.py:291
 #: appPlugins/ToolCopperThieving/CopperThieving.py:319
 #: appPlugins/ToolCopperThieving/CopperThieving.py:580
 #: appPlugins/ToolCopperThieving/CopperThieving.py:651
@@ -2793,11 +2793,11 @@ msgstr "Executat."
 #: appPlugins/ToolMarkers/Markers.py:613 appPlugins/ToolMarkers/Markers.py:678
 #: appPlugins/ToolMarkers/Markers.py:687 appPlugins/ToolMarkers/Markers.py:724
 #: appPlugins/ToolMove/Move.py:215 appPlugins/ToolMove/Move.py:339
-#: appPlugins/ToolNCC/NccGen.py:718 appPlugins/ToolPdf/PdfImport.py:138
+#: appPlugins/ToolNCC/NccGen.py:719 appPlugins/ToolPdf/PdfImport.py:138
 #: appPlugins/ToolQRCode/QRCode.py:580
 #: appPlugins/ToolSolderPaste/SolderPaste.py:845
-#: appPlugins/ToolSolderPaste/SolderPaste.py:1140 camlib.py:1303 camlib.py:2827
-#: camlib.py:2855 camlib.py:2884 camlib.py:2957 camlib.py:2965 camlib.py:2970
+#: appPlugins/ToolSolderPaste/SolderPaste.py:1140 camlib.py:1307 camlib.py:2838
+#: camlib.py:2866 camlib.py:2895 camlib.py:2968 camlib.py:2976 camlib.py:2981
 msgid "Failed."
 msgstr "Eșuat."
 
@@ -2887,7 +2887,7 @@ msgid "Slot array"
 msgstr "Matrice de sloturi"
 
 #: appEditors/appExcEditor.py:1853 appEditors/appExcEditor.py:1865
-#: appEditors/appGeoEditor.py:4464 appEditors/appGerberEditor.py:8891
+#: appEditors/appGeoEditor.py:4464 appEditors/appGerberEditor.py:8893
 #: appEditors/exc_plugins/ExcResizePlugin.py:149
 #: appEditors/exc_plugins/ExcResizePlugin.py:164
 msgid "Resize"
@@ -2977,7 +2977,7 @@ msgstr "Matrice circulară invalidă."
 #: appGUI/GUIElements.py:4923 appGUI/MainGUI.py:468 appGUI/MainGUI.py:475
 #: appGUI/MainGUI.py:3164 appGUI/MainGUI.py:3169 appGUI/shortcut_actions.py:98
 #: appGUI/shortcut_actions.py:373 appGUI/shortcut_actions.py:607
-#: appGUI/shortcut_actions.py:763 appHandlers/appHistory.py:724
+#: appGUI/shortcut_actions.py:763 appHandlers/appHistory.py:753
 msgid "Undo"
 msgstr "Revino"
 
@@ -2989,7 +2989,7 @@ msgstr "Revino"
 #: appGUI/shortcut_actions.py:100 appGUI/shortcut_actions.py:374
 #: appGUI/shortcut_actions.py:375 appGUI/shortcut_actions.py:608
 #: appGUI/shortcut_actions.py:609 appGUI/shortcut_actions.py:764
-#: appGUI/shortcut_actions.py:765 appHandlers/appHistory.py:724
+#: appGUI/shortcut_actions.py:765 appHandlers/appHistory.py:753
 msgid "Redo"
 msgstr "Refă"
 
@@ -3035,8 +3035,8 @@ msgstr "Nr. Tot. Sloturi"
 #: appEditors/appGeoEditor.py:4507 appEditors/appGerberEditor.py:5069
 #: appGUI/preferences/general/GeneralAppPrefGroupUI.py:232
 #: appObjects/CNCJobObject.py:695 appObjects/DocumentObject.py:276
-#: appObjects/ExcellonObject.py:358 appObjects/GeometryObject.py:657
-#: appObjects/GerberObject.py:260 appObjects/ScriptObject.py:199
+#: appObjects/ExcellonObject.py:358 appObjects/GeometryObject.py:661
+#: appObjects/GerberObject.py:263 appObjects/ScriptObject.py:199
 #: appPlugins/Common/levelling_core.py:270
 #: appPlugins/ToolAlignObjects/AlignUI.py:282
 #: appPlugins/ToolCutOut/CutOutUI.py:661
@@ -3046,8 +3046,8 @@ msgstr "Nr. Tot. Sloturi"
 #: appPlugins/ToolFilm/FilmUI.py:372 appPlugins/ToolFollow/FollowUI.py:262
 #: appPlugins/ToolIsolation/Isolation.py:649
 #: appPlugins/ToolMarkers/MarkersUI.py:309
-#: appPlugins/ToolMilling/Milling.py:933 appPlugins/ToolNCC/Ncc.py:634
-#: appPlugins/ToolPaint/Paint.py:456 appPlugins/ToolPanelize/PanelizeUI.py:355
+#: appPlugins/ToolMilling/Milling.py:933 appPlugins/ToolNCC/Ncc.py:650
+#: appPlugins/ToolPaint/Paint.py:457 appPlugins/ToolPanelize/PanelizeUI.py:355
 #: appPlugins/ToolPhotoCarve/PhotoCarve.py:179
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:333
 #: appPlugins/ToolQRCode/QRCodeUI.py:383 appPlugins/ToolSub/Sub.py:206
@@ -3058,8 +3058,8 @@ msgstr "Începător"
 #: appEditors/appGeoEditor.py:4521 appEditors/appGerberEditor.py:5082
 #: appGUI/preferences/general/GeneralAppPrefGroupUI.py:233
 #: appObjects/CNCJobObject.py:705 appObjects/DocumentObject.py:285
-#: appObjects/ExcellonObject.py:375 appObjects/GeometryObject.py:666
-#: appObjects/GerberObject.py:275 appObjects/ScriptObject.py:208
+#: appObjects/ExcellonObject.py:375 appObjects/GeometryObject.py:670
+#: appObjects/GerberObject.py:278 appObjects/ScriptObject.py:208
 #: appPlugins/Common/levelling_core.py:285
 #: appPlugins/ToolAlignObjects/AlignUI.py:282
 #: appPlugins/ToolCutOut/CutOutUI.py:669
@@ -3069,8 +3069,8 @@ msgstr "Începător"
 #: appPlugins/ToolFilm/FilmUI.py:381 appPlugins/ToolFollow/FollowUI.py:272
 #: appPlugins/ToolIsolation/Isolation.py:709
 #: appPlugins/ToolMarkers/MarkersUI.py:325
-#: appPlugins/ToolMilling/Milling.py:944 appPlugins/ToolNCC/Ncc.py:674
-#: appPlugins/ToolPaint/Paint.py:481 appPlugins/ToolPanelize/PanelizeUI.py:365
+#: appPlugins/ToolMilling/Milling.py:944 appPlugins/ToolNCC/Ncc.py:690
+#: appPlugins/ToolPaint/Paint.py:482 appPlugins/ToolPanelize/PanelizeUI.py:365
 #: appPlugins/ToolPhotoCarve/PhotoCarve.py:179
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:338
 #: appPlugins/ToolQRCode/QRCodeUI.py:386 appPlugins/ToolSub/Sub.py:209
@@ -3216,7 +3216,7 @@ msgid "Cancelled. There is no Tool/Drill selected"
 msgstr "Anulat. Nu este selectată nicio unealtă sau op. de găurire"
 
 #: appEditors/appExcEditor.py:4742 appEditors/appExcEditor.py:5631
-#: appEditors/appExcEditor.py:6171 appEditors/appGerberEditor.py:8931
+#: appEditors/appExcEditor.py:6171 appEditors/appGerberEditor.py:8933
 msgid "Feature"
 msgstr "Element"
 
@@ -3235,8 +3235,8 @@ msgid "Add features"
 msgstr "Adaugă elemente"
 
 #: appEditors/appExcEditor.py:5388 appEditors/appGeoEditor.py:3368
-#: appEditors/appGeoEditor.py:4181 appEditors/appGerberEditor.py:6781
-#: appEditors/appGerberEditor.py:6785 appEditors/appGerberEditor.py:6843
+#: appEditors/appGeoEditor.py:4181 appEditors/appGerberEditor.py:6783
+#: appEditors/appGerberEditor.py:6787 appEditors/appGerberEditor.py:6845
 #: appGUI/preferences/tools/Tools2sidedPrefGroupUI.py:110
 #: appHandlers/appUIActions.py:1143 appPlugins/ToolDblSided/DblSidedUI.py:176
 msgid "Snap"
@@ -3287,7 +3287,7 @@ msgstr ""
 #: appEditors/appExcEditor.py:5623 appEditors/appExcEditor.py:6138
 #: appEditors/appGCodeEditor.py:888 appGUI/ObjectUI.py:711
 #: appGUI/ObjectUI.py:1403 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:620
-#: appObjects/AppObjectTemplate.py:1210
+#: appObjects/AppObjectTemplate.py:1309
 #: appPlugins/ToolDblSided/DblSidedUI.py:365
 #: appPlugins/ToolDrilling/DrillingUI.py:126
 #: appPlugins/ToolMilling/MillingUI.py:156
@@ -3302,7 +3302,7 @@ msgstr "Găuri"
 #: appGUI/ObjectUI.py:1403
 #: appGUI/preferences/excellon/ExcellonEditorPrefGroupUI.py:175
 #: appGUI/preferences/tools/ToolsMillPrefGroupUI.py:621
-#: appObjects/AppObjectTemplate.py:1212
+#: appObjects/AppObjectTemplate.py:1311
 #: appPlugins/ToolDrilling/DrillingUI.py:126
 #: appPlugins/ToolMilling/MillingUI.py:156
 #: appPlugins/ToolMilling/MillingUI.py:415
@@ -3373,7 +3373,7 @@ msgid "Excellon Editor"
 msgstr "Editor Excellon"
 
 #: appEditors/appExcEditor.py:5969 appEditors/appGCodeEditor.py:845
-#: appEditors/appGeoEditor.py:4110 appEditors/appGerberEditor.py:8426
+#: appEditors/appGeoEditor.py:4110 appEditors/appGerberEditor.py:8428
 #: appGUI/ObjectUI.py:71 appPlugins/ToolAlignObjects/AlignUI.py:47
 #: appPlugins/ToolCutOut/CutOutUI.py:51
 #: appPlugins/ToolDblSided/DblSidedUI.py:40
@@ -3399,12 +3399,12 @@ msgstr ""
 "Modificarea permanentă se face în meniul „Preferințe”."
 
 #: appEditors/appExcEditor.py:5984 appEditors/appGCodeEditor.py:858
-#: appEditors/appGerberEditor.py:8439
+#: appEditors/appGerberEditor.py:8441
 msgid "Name:"
 msgstr "Nume:"
 
 #: appEditors/appExcEditor.py:5993 appEditors/appGeoEditor.py:4134
-#: appEditors/appGerberEditor.py:8445
+#: appEditors/appGerberEditor.py:8447
 msgid "History"
 msgstr "Istoric"
 
@@ -3504,7 +3504,7 @@ msgstr "Diagnostic / inspecție a elementelor"
 msgid "Selected features only"
 msgstr "Doar elementele selectate"
 
-#: appEditors/appExcEditor.py:6107 appEditors/appGerberEditor.py:8727
+#: appEditors/appExcEditor.py:6107 appEditors/appGerberEditor.py:8729
 #: appEditors/geo_plugins/GeoSimplificationPlugin.py:276
 #: appEditors/grb_plugins/GrbOperationDialogs.py:137
 #: appEditors/grb_plugins/GrbSimplificationPlugin.py:186
@@ -3518,7 +3518,7 @@ msgid "Tolerance"
 msgstr "Toleranță"
 
 #: appEditors/appExcEditor.py:6116 appEditors/appGeoEditor.py:4380
-#: appEditors/appGerberEditor.py:8898
+#: appEditors/appGerberEditor.py:8900
 msgid "Inspect"
 msgstr "Inspectează"
 
@@ -3528,7 +3528,7 @@ msgstr "Selecție / filtre elemente"
 
 #: appEditors/appExcEditor.py:6136 appEditors/appExcEditor.py:6171
 #: appEditors/appGeoEditor.py:4205 appEditors/appGerberEditor.py:5427
-#: appEditors/appGerberEditor.py:8487 appEditors/appGerberEditor.py:8556
+#: appEditors/appGerberEditor.py:8489 appEditors/appGerberEditor.py:8558
 #: appEditors/exc_plugins/ExcCopyPlugin.py:205
 #: appEditors/exc_plugins/ExcDrillArrayPlugin.py:183
 #: appEditors/exc_plugins/ExcSlotArrayPlugin.py:247
@@ -3611,7 +3611,7 @@ msgstr "Șterge potrivirile"
 #: appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:97
 #: appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:155
 #: appGUI/preferences/tools/ToolsMarkersPrefGroupUI.py:104
-#: appHandlers/appEdit.py:661 appHandlers/appObjectOps.py:654
+#: appHandlers/appEdit.py:663 appHandlers/appObjectOps.py:654
 #: appPlugins/ToolFilm/FilmUI.py:123 appPlugins/ToolFilm/FilmUI.py:167
 #: appPlugins/ToolMarkers/MarkersUI.py:122
 #: appPlugins/ToolPCBViewer/PCBViewerUI.py:34
@@ -3832,13 +3832,13 @@ msgstr ""
 
 #: appEditors/appExcEditor.py:6335 appEditors/appGCodeEditor.py:76
 #: appEditors/appGCodeEditor.py:77 appEditors/appGCodeEditor.py:954
-#: appEditors/appGeoEditor.py:4475 appEditors/appGerberEditor.py:9070
+#: appEditors/appGeoEditor.py:4475 appEditors/appGerberEditor.py:9072
 #: appGUI/MainGUI.py:486 appGUI/MainGUI.py:2044 appMain.py:2746
 msgid "Exit Editor"
 msgstr "Ieșiți din Editor"
 
 #: appEditors/appExcEditor.py:6338 appEditors/appGCodeEditor.py:957
-#: appEditors/appGeoEditor.py:4478 appEditors/appGerberEditor.py:9073
+#: appEditors/appGeoEditor.py:4478 appEditors/appGerberEditor.py:9075
 #: appGUI/MainGUI.py:1309 appGUI/MainGUI.py:2588
 msgid "Exit from Editor."
 msgstr "Ieșiți din Editor."
@@ -4020,20 +4020,20 @@ msgstr "Text"
 #: appGUI/MainGUI.py:1956 appGUI/MainGUI.py:2003 appGUI/MainGUI.py:2771
 #: appGUI/MainGUI.py:2860
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:258
-#: appGUI/shortcut_actions.py:644 appObjects/GerberObject.py:454
+#: appGUI/shortcut_actions.py:644 appObjects/GerberObject.py:457
 #: appPlugins/ToolIsolation/Isolation.py:1881
 #: appPlugins/ToolTransform/TransformUI.py:28
 msgid "Buffer"
 msgstr "Bufer"
 
 #: appEditors/appGeoEditor.py:126 appEditors/appGerberEditor.py:2501
-#: appEditors/appGerberEditor.py:7102
+#: appEditors/appGerberEditor.py:7104
 #: appEditors/geo_plugins/GeoSimplificationPlugin.py:290
 #: appEditors/grb_plugins/GrbSimplificationPlugin.py:200 appGUI/MainGUI.py:1494
 #: appGUI/ObjectUI.py:1152
 #: appGUI/preferences/gerber/GerberAdvOptPrefGroupUI.py:77
 #: appGUI/preferences/tools/ToolsISOPrefGroupUI.py:347
-#: appObjects/GeometryObject.py:702 appObjects/GeometryObject.py:703
+#: appObjects/GeometryObject.py:706 appObjects/GeometryObject.py:707
 #: appPlugins/ToolFollow/FollowUI.py:119
 #: appPlugins/ToolIsolation/IsolationUI.py:520
 msgid "Simplify"
@@ -4093,7 +4093,7 @@ msgstr "Adaugă formă"
 msgid "Delete selected"
 msgstr "Șterge elementele selectate"
 
-#: appEditors/appGeoEditor.py:133 appEditors/appGerberEditor.py:8052
+#: appEditors/appGeoEditor.py:133 appEditors/appGerberEditor.py:8054
 msgid "Delete shape"
 msgstr "Șterge forma"
 
@@ -4158,7 +4158,7 @@ msgid "The drag would create invalid geometry."
 msgstr "Tragerea ar crea o geometrie invalidă."
 
 #: appEditors/appGeoEditor.py:1077 appEditors/appGeoEditor.py:4335
-#: appEditors/appGerberEditor.py:4006 appEditors/appGerberEditor.py:8697
+#: appEditors/appGerberEditor.py:4006 appEditors/appGerberEditor.py:8699
 #: appEditors/grb_plugins/GrbVertices.py:87
 #: appEditors/grb_plugins/GrbVertices.py:190
 msgid "Edit vertices"
@@ -4400,7 +4400,7 @@ msgid "Enable the area or the length filter."
 msgstr "Activați filtrul de arie sau de lungime."
 
 #: appEditors/appGeoEditor.py:1437 appEditors/appGeoEditor.py:1445
-#: appEditors/appGerberEditor.py:7074 appEditors/appGerberEditor.py:7082
+#: appEditors/appGerberEditor.py:7076 appEditors/appGerberEditor.py:7084
 msgid "{n} shapes match"
 msgstr "{n} forme corespund"
 
@@ -4420,7 +4420,7 @@ msgstr "Niciun cerc selectat."
 msgid "{n} circles resized, {m} shapes skipped"
 msgstr "{n} cercuri redimensionate, {m} forme omise"
 
-#: appEditors/appGeoEditor.py:1501 appEditors/appGerberEditor.py:5869
+#: appEditors/appGeoEditor.py:1501 appEditors/appGerberEditor.py:5871
 #: appPlugins/Common/clearing/job.py:227 appPlugins/Common/clearing/job.py:229
 #: appPlugins/ToolCutOut/CutOut.py:1034 appPlugins/ToolDistance/Distance.py:308
 #: appPlugins/ToolEtchCompensation/EtchCompensation.py:284
@@ -4502,7 +4502,7 @@ msgstr "Captura pe grilă dezactivată."
 #: appEditors/appGeoEditor.py:6480 appEditors/appGeoEditor.py:6519
 #: appEditors/appGeoEditor.py:6814 appEditors/appGeoEditor.py:6853
 #: appEditors/appGeoEditor.py:7376 appEditors/appGeoEditor.py:7402
-#: appEditors/appGeoEditor.py:7428 appEditors/appGerberEditor.py:8305
+#: appEditors/appGeoEditor.py:7428 appEditors/appGerberEditor.py:8307
 #: appEditors/geo_plugins/GeoPaintPlugin.py:174
 #: appEditors/geo_plugins/GeoTransformationPlugin.py:221
 #: appEditors/geo_plugins/GeoTransformationPlugin.py:246
@@ -4564,7 +4564,7 @@ msgstr "Buferul ar lăsa o formă goală."
 msgid "Corner"
 msgstr "Colț"
 
-#: appEditors/appGeoEditor.py:3366 appEditors/appGerberEditor.py:6841
+#: appEditors/appGeoEditor.py:3366 appEditors/appGerberEditor.py:6843
 msgid "Midpoint"
 msgstr "Mijloc"
 
@@ -4572,13 +4572,13 @@ msgstr "Mijloc"
 msgid "Nearest segment"
 msgstr "Segmentul cel mai apropiat"
 
-#: appEditors/appGeoEditor.py:3367 appEditors/appGerberEditor.py:6842
+#: appEditors/appGeoEditor.py:3367 appEditors/appGerberEditor.py:6844
 #: appGUI/preferences/tools/ToolsLevelPrefGroupUI.py:50
 #: appHandlers/appUIActions.py:1138 appPlugins/Common/levelling_ui.py:194
 msgid "Grid"
 msgstr "Grilă"
 
-#: appEditors/appGeoEditor.py:3370 appEditors/appGerberEditor.py:6845
+#: appEditors/appGeoEditor.py:3370 appEditors/appGerberEditor.py:6847
 msgid "Compatibility: model units (global_snap_max)"
 msgstr "Compatibilitate: unități model (global_snap_max)"
 
@@ -4671,7 +4671,7 @@ msgstr "Dia unealtă"
 msgid "Edited tool diameter."
 msgstr "Diametrul uneltei editate."
 
-#: appEditors/appGeoEditor.py:4162 appEditors/appGerberEditor.py:8768
+#: appEditors/appGeoEditor.py:4162 appEditors/appGerberEditor.py:8770
 msgid "Snapping"
 msgstr "Lipire"
 
@@ -4739,11 +4739,11 @@ msgstr "Tabel Geometrie"
 msgid "The list of geometry elements inside the edited object."
 msgstr "Lista elementelor geometrice din interiorul obiectului editat."
 
-#: appEditors/appGeoEditor.py:4228 appEditors/appGerberEditor.py:8615
+#: appEditors/appGeoEditor.py:4228 appEditors/appGerberEditor.py:8617
 msgid "Zoom on selection"
 msgstr "Zoom pe selecție"
 
-#: appEditors/appGeoEditor.py:4232 appEditors/appGerberEditor.py:8639
+#: appEditors/appGeoEditor.py:4232 appEditors/appGerberEditor.py:8641
 #: appEditors/exc_plugins/ExcDrillArrayPlugin.py:170
 #: appEditors/exc_plugins/ExcSlotArrayPlugin.py:231
 #: appEditors/exc_plugins/ExcSlotPlugin.py:176
@@ -4810,7 +4810,7 @@ msgstr "Zoom pe selecție"
 msgid "Parameters"
 msgstr "Parametri"
 
-#: appEditors/appGeoEditor.py:4235 appEditors/appGerberEditor.py:8641
+#: appEditors/appGeoEditor.py:4235 appEditors/appGerberEditor.py:8643
 msgid "Geometry parameters."
 msgstr "Parametri Geometrie."
 
@@ -4850,7 +4850,7 @@ msgstr "Este Simplu"
 #: appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:64
 #: appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:124
 #: appGUI/preferences/tools/ToolsMarkersPrefGroupUI.py:69
-#: appObjects/AppObjectTemplate.py:1596 appPlugins/ToolFilm/FilmUI.py:102
+#: appObjects/AppObjectTemplate.py:1695 appPlugins/ToolFilm/FilmUI.py:102
 #: appPlugins/ToolFilm/FilmUI.py:147 appPlugins/ToolMarkers/MarkersUI.py:93
 #: appPlugins/ToolReport/ReportUI.py:388
 msgid "Length"
@@ -4860,7 +4860,7 @@ msgstr "Lungime"
 msgid "The length of the geometry element."
 msgstr "Lungimea elementului de geometrie."
 
-#: appEditors/appGeoEditor.py:4304 appEditors/appGerberEditor.py:8685
+#: appEditors/appGeoEditor.py:4304 appEditors/appGerberEditor.py:8687
 #: appEditors/geo_plugins/GeoSimplificationPlugin.py:231
 #: appEditors/grb_plugins/GrbSimplificationPlugin.py:141
 #: appGUI/preferences/cncjob/CNCJobGenPrefGroupUI.py:85
@@ -4875,7 +4875,7 @@ msgid "Coordinates"
 msgstr "Coordonate"
 
 #: appEditors/appGeoEditor.py:4305 appEditors/appGeoEditor.py:4309
-#: appEditors/appGerberEditor.py:8687 appEditors/appGerberEditor.py:8693
+#: appEditors/appGerberEditor.py:8689 appEditors/appGerberEditor.py:8695
 #: appEditors/geo_plugins/GeoSimplificationPlugin.py:233
 #: appEditors/geo_plugins/GeoSimplificationPlugin.py:248
 #: appEditors/grb_plugins/GrbSimplificationPlugin.py:143
@@ -4916,7 +4916,7 @@ msgstr "Trasee"
 msgid "Split and join open paths."
 msgstr "Divizează și unește trasee deschise."
 
-#: appEditors/appGeoEditor.py:4351 appEditors/appGerberEditor.py:8819
+#: appEditors/appGeoEditor.py:4351 appEditors/appGerberEditor.py:8821
 msgid "Split path"
 msgstr "Divizează traseul"
 
@@ -4939,11 +4939,11 @@ msgstr ""
 "În unitățile curente, independent de raza de lipire la grilă și pixeli. "
 "Zero necesită un clic interior exact."
 
-#: appEditors/appGeoEditor.py:4361 appEditors/appGerberEditor.py:8815
+#: appEditors/appGeoEditor.py:4361 appEditors/appGerberEditor.py:8817
 msgid "Split tolerance"
 msgstr "Toleranța de divizare"
 
-#: appEditors/appGeoEditor.py:4366 appEditors/appGerberEditor.py:8833
+#: appEditors/appGeoEditor.py:4366 appEditors/appGerberEditor.py:8835
 msgid "Join paths"
 msgstr "Unește traseele"
 
@@ -4966,7 +4966,7 @@ msgstr ""
 "Fiecare capăt trebuie să aibă un singur candidat. Componentele disjuncte "
 "rămân separate."
 
-#: appEditors/appGeoEditor.py:4374 appEditors/appGerberEditor.py:8829
+#: appEditors/appGeoEditor.py:4374 appEditors/appGerberEditor.py:8831
 msgid "Join tolerance"
 msgstr "Toleranța de unire"
 
@@ -4974,7 +4974,7 @@ msgstr "Toleranța de unire"
 msgid "Read-only diagnostics of the selected geometry."
 msgstr "Diagnostic al geometriei selectate, doar pentru citire."
 
-#: appEditors/appGeoEditor.py:4382 appEditors/appGerberEditor.py:8912
+#: appEditors/appGeoEditor.py:4382 appEditors/appGerberEditor.py:8914
 msgid "Inspect selected geometry"
 msgstr "Inspectează geometria selectată"
 
@@ -4996,11 +4996,11 @@ msgstr ""
 "Zero raportează doar capetele exact coincidente. Traseele rămân deschise și "
 "neschimbate."
 
-#: appEditors/appGeoEditor.py:4389 appEditors/appGerberEditor.py:8922
+#: appEditors/appGeoEditor.py:4389 appEditors/appGerberEditor.py:8924
 msgid "Endpoint tolerance"
 msgstr "Toleranța capetelor"
 
-#: appEditors/appGeoEditor.py:4402 appEditors/appGerberEditor.py:8705
+#: appEditors/appGeoEditor.py:4402 appEditors/appGerberEditor.py:8707
 msgid "Select by Size"
 msgstr "Selectare după dimensiune"
 
@@ -5052,7 +5052,7 @@ msgstr "Lungime minimă"
 msgid "Max length"
 msgstr "Lungime maximă"
 
-#: appEditors/appGeoEditor.py:4436 appEditors/appGerberEditor.py:8754
+#: appEditors/appGeoEditor.py:4436 appEditors/appGerberEditor.py:8756
 #: appGUI/MainGUI.py:978 appGUI/MainGUI.py:1451 appGUI/MainGUI.py:1477
 #: appGUI/MainGUI.py:1553 appGUI/MainGUI.py:2728 appGUI/MainGUI.py:2754
 #: appGUI/MainGUI.py:2820
@@ -5078,7 +5078,7 @@ msgstr ""
 "Anulare/Refacere.\n"
 "Caută în formele selectate, dacă există, altfel în toate formele."
 
-#: appEditors/appGeoEditor.py:4451 appEditors/appGerberEditor.py:8874
+#: appEditors/appGeoEditor.py:4451 appEditors/appGerberEditor.py:8876
 msgid "Resize Circles"
 msgstr "Redimensionează cercurile"
 
@@ -5640,7 +5640,7 @@ msgstr "Nicio geometrie selectată pentru această componentă."
 msgid "Not applicable"
 msgstr "Nu se aplică"
 
-#: appEditors/appGerberEditor.py:4207 appEditors/appGerberEditor.py:8652
+#: appEditors/appGerberEditor.py:4207 appEditors/appGerberEditor.py:8654
 msgid "Valid"
 msgstr "Valid"
 
@@ -5757,14 +5757,14 @@ msgstr "Pot fi unite doar aperturi identice."
 msgid "Oblong dimension editing supports flashes only."
 msgstr "Editarea dimensiunii alungite acceptă doar flash-uri."
 
-#: appEditors/appGerberEditor.py:5427 appEditors/appGerberEditor.py:8487
-#: appEditors/appGerberEditor.py:8528 appGUI/ApertureLibrary.py:52
+#: appEditors/appGerberEditor.py:5427 appEditors/appGerberEditor.py:8489
+#: appEditors/appGerberEditor.py:8530 appGUI/ApertureLibrary.py:52
 #: appGUI/ObjectUI.py:328 appPlugins/ToolExtract/ExtractUI.py:97
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:86
 msgid "Code"
 msgstr "Cod"
 
-#: appEditors/appGerberEditor.py:5427 appEditors/appGerberEditor.py:8487
+#: appEditors/appGerberEditor.py:5427 appEditors/appGerberEditor.py:8489
 #: appEditors/exc_plugins/ExcCopyPlugin.py:195
 #: appEditors/exc_plugins/ExcDrillArrayPlugin.py:198
 #: appEditors/exc_plugins/ExcSlotArrayPlugin.py:261
@@ -5789,7 +5789,7 @@ msgstr "Cod"
 msgid "Size"
 msgstr "Dimensiune"
 
-#: appEditors/appGerberEditor.py:5427 appEditors/appGerberEditor.py:8487
+#: appEditors/appGerberEditor.py:5427 appEditors/appGerberEditor.py:8489
 #: appGUI/ObjectUI.py:328
 msgid "Dim"
 msgstr "Dim"
@@ -5814,13 +5814,13 @@ msgstr "Adăugarea geometriei s-a terminat. Se pregătește GUI"
 msgid "Finished loading the Gerber object into the editor."
 msgstr "S-a terminat încărcarea obiectului Gerber în editor."
 
-#: appEditors/appGerberEditor.py:5765 appEditors/appGerberEditor.py:5784
-#: appEditors/appGerberEditor.py:5833 appEditors/appGerberEditor.py:5840
+#: appEditors/appGerberEditor.py:5765 appEditors/appGerberEditor.py:5786
+#: appEditors/appGerberEditor.py:5835 appEditors/appGerberEditor.py:5842
 #: appMain.py:2925
 msgid "The edited content could not be saved. The object is unchanged."
 msgstr "Conținutul editat nu a putut fi salvat. Obiectul nu a fost modificat."
 
-#: appEditors/appGerberEditor.py:6350
+#: appEditors/appGerberEditor.py:6352
 msgid ""
 "There are no Aperture definitions in the file. Aborting Gerber creation."
 msgstr ""
@@ -5828,7 +5828,7 @@ msgstr ""
 "Gerber."
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:6352 appHandlers/appIO.py:3227
+#: appEditors/appGerberEditor.py:6354 appHandlers/appIO.py:3227
 #: appHandlers/appIO.py:3315 appHandlers/appIO.py:3606
 #: appHandlers/appIO.py:3669 appHandlers/appUIActions.py:870
 #: appObjects/AppObject.py:411 appParsers/ParseExcellon.py:386
@@ -5840,27 +5840,27 @@ msgstr ""
 "A apărut o eroare internă. Verifică în TCL Shell pt mai multe detalii.\n"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:6389
+#: appEditors/appGerberEditor.py:6391
 msgid "No aperture is selected."
 msgstr "Nicio apertură nu este selectată."
 
-#: appEditors/appGerberEditor.py:6536
+#: appEditors/appGerberEditor.py:6538
 msgid "Draw shape"
 msgstr "Desenează forma"
 
-#: appEditors/appGerberEditor.py:6781 appPlugins/ToolFilm/FilmUI.py:264
+#: appEditors/appGerberEditor.py:6783 appPlugins/ToolFilm/FilmUI.py:264
 msgid "Pad center"
 msgstr "Centru Pad"
 
-#: appEditors/appGerberEditor.py:6841
+#: appEditors/appGerberEditor.py:6843
 msgid "Endpoint / bend"
 msgstr "Capăt / îndoitură"
 
-#: appEditors/appGerberEditor.py:6842
+#: appEditors/appGerberEditor.py:6844
 msgid "Nearest FOLLOW segment"
 msgstr "Segmentul FOLLOW cel mai apropiat"
 
-#: appEditors/appGerberEditor.py:6921
+#: appEditors/appGerberEditor.py:6923
 msgid ""
 "Dimensions, range bounds and tolerance must be finite and non-negative. "
 "Minimum must not exceed maximum."
@@ -5868,178 +5868,178 @@ msgstr ""
 "Dimensiunile, limitele intervalului și toleranța trebuie să fie finite și "
 "nenegative. Minimul nu poate depăși maximul."
 
-#: appEditors/appGerberEditor.py:6924
+#: appEditors/appGerberEditor.py:6926
 msgid "Enable at least one size filter."
 msgstr "Activați cel puțin un filtru de dimensiune."
 
-#: appEditors/appGerberEditor.py:7018
+#: appEditors/appGerberEditor.py:7020
 msgid "Select an aperture in the Apertures Table first."
 msgstr "Selectează mai întâi o apertură din tabelul de aperturi."
 
-#: appEditors/appGerberEditor.py:7084 appEditors/appGerberEditor.py:8760
+#: appEditors/appGerberEditor.py:7086 appEditors/appGerberEditor.py:8762
 msgid "Delete by Size"
 msgstr "Ștergere după dimensiune"
 
-#: appEditors/appGerberEditor.py:7107
+#: appEditors/appGerberEditor.py:7109
 msgid "Failed. Geometry was not changed."
 msgstr "Eșuat. Geometria nu a fost modificată."
 
-#: appEditors/appGerberEditor.py:7110 appEditors/appGerberEditor.py:7115
+#: appEditors/appGerberEditor.py:7112 appEditors/appGerberEditor.py:7117
 msgid "Geometry changed. Retry simplification."
 msgstr "Geometria s-a modificat. Reîncercați simplificarea."
 
-#: appEditors/appGerberEditor.py:7156
+#: appEditors/appGerberEditor.py:7158
 msgid "Add shapes"
 msgstr "Adaugă forme"
 
-#: appEditors/appGerberEditor.py:7245 appHandlers/appCanvasEvents.py:347
+#: appEditors/appGerberEditor.py:7247 appHandlers/appCanvasEvents.py:347
 #: appHandlers/appCanvasEvents.py:369 appObjects/ExcellonObject.py:688
 #: appPlugins/ToolDrilling/Drilling.py:2002
 #: appPlugins/ToolMilling/Milling.py:3602
 msgid "Copied to clipboard."
 msgstr "Copiat pe Clipboard."
 
-#: appEditors/appGerberEditor.py:7753
+#: appEditors/appGerberEditor.py:7755
 #: appGUI/preferences/tools/ToolsISOPrefGroupUI.py:419
 #: appGUI/preferences/tools/ToolsNCCPrefGroupUI.py:394
 #: appGUI/preferences/tools/ToolsPaintPrefGroupUI.py:361
 #: appHandlers/appObjectOps.py:385 appObjects/AppObject.py:633
-#: appObjects/AppObjectTemplate.py:743 appObjects/AppObjectTemplate.py:1005
-#: appObjects/AppObjectTemplate.py:1041 appObjects/AppObjectTemplate.py:1059
-#: appObjects/CNCJobObject.py:758 appObjects/GerberObject.py:750
+#: appObjects/AppObjectTemplate.py:836 appObjects/AppObjectTemplate.py:1104
+#: appObjects/AppObjectTemplate.py:1140 appObjects/AppObjectTemplate.py:1158
+#: appObjects/CNCJobObject.py:758 appObjects/GerberObject.py:753
 #: appPlugins/ToolMove/Move.py:170 appPlugins/ToolQRCode/QRCode.py:609
 msgid "Plotting"
 msgstr "Se afișează"
 
-#: appEditors/appGerberEditor.py:8030
+#: appEditors/appGerberEditor.py:8032
 msgid "Delete shapes"
 msgstr "Șterge forme"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8036
+#: appEditors/appGerberEditor.py:8038
 msgid "Failed. No aperture geometry is selected."
 msgstr "Eșuat. Nicio geometrie de apertură nu este selectată."
 
-#: appEditors/appGerberEditor.py:8158
+#: appEditors/appGerberEditor.py:8160
 msgid "Draw regions"
 msgstr "Desenează regiuni"
 
-#: appEditors/appGerberEditor.py:8163
+#: appEditors/appGerberEditor.py:8165
 msgid "Drawing requires valid, finite polygon material."
 msgstr "Desenarea necesită material poligonal valid și finit."
 
-#: appEditors/appGerberEditor.py:8185
+#: appEditors/appGerberEditor.py:8187
 msgid "Material regions"
 msgstr "Regiuni de material"
 
-#: appEditors/appGerberEditor.py:8198
+#: appEditors/appGerberEditor.py:8200
 msgid "Select valid polygon material without clear records."
 msgstr "Selectați material poligonal valid, fără înregistrări clear."
 
-#: appEditors/appGerberEditor.py:8201
+#: appEditors/appGerberEditor.py:8203
 msgid "Select at least two material features."
 msgstr "Selectați cel puțin două elemente de material."
 
-#: appEditors/appGerberEditor.py:8225
+#: appEditors/appGerberEditor.py:8227
 msgid "The operation produced no polygon material. Nothing was changed."
 msgstr "Operația nu a produs material poligonal. Nu s-a modificat nimic."
 
-#: appEditors/appGerberEditor.py:8228
+#: appEditors/appGerberEditor.py:8230
 msgid "The operation produced invalid geometry. Nothing was changed."
 msgstr "Operația a produs o geometrie invalidă. Nu s-a modificat nimic."
 
-#: appEditors/appGerberEditor.py:8281
+#: appEditors/appGerberEditor.py:8283
 msgid "Scale factor value is missing or wrong format. Add it and retry."
 msgstr ""
 "Valoarea factorului de scalare lipsește sau are un format greșit. "
 "Introduceți-o și reîncercați.Factorul de scalare lipsește sau are un format "
 "greșit. Introduceți-l și reîncercați."
 
-#: appEditors/appGerberEditor.py:8287
+#: appEditors/appGerberEditor.py:8289
 msgid "Scale factor must be finite and positive."
 msgstr "Factorul de scară trebuie să fie finit și pozitiv."
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8294
+#: appEditors/appGerberEditor.py:8296
 msgid "No aperture to scale. Select at least one aperture and try again."
 msgstr ""
 "Nicio apertură de scalat. Selectați cel puțin o apertură și încercați din "
 "nou.Nicio apertură de scalat. Selectează cel puțin o apertură și încearcă "
 "din nou."
 
-#: appEditors/appGerberEditor.py:8309 appEditors/appGerberEditor.py:8984
+#: appEditors/appGerberEditor.py:8311 appEditors/appGerberEditor.py:8986
 #: appEditors/geo_plugins/GeoTransformationPlugin.py:704
 #: appEditors/grb_plugins/GrbTransformationPlugin.py:193
 #: appEditors/grb_plugins/GrbTransformationPlugin.py:702 appGUI/MainGUI.py:965
 #: appGUI/MainGUI.py:1597 appGUI/MainGUI.py:2005 appGUI/MainGUI.py:2864
 #: appGUI/ObjectUI.py:121 appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:43
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:172
-#: appGUI/shortcut_actions.py:667 appObjects/AppObjectTemplate.py:1033
-#: appObjects/AppObjectTemplate.py:1037 appPlugins/ToolFilm/FilmUI.py:92
+#: appGUI/shortcut_actions.py:667 appObjects/AppObjectTemplate.py:1132
+#: appObjects/AppObjectTemplate.py:1136 appPlugins/ToolFilm/FilmUI.py:92
 #: appPlugins/ToolTransform/TransformUI.py:25
 msgid "Scale"
 msgstr "Scalare"
 
-#: appEditors/appGerberEditor.py:8354
+#: appEditors/appGerberEditor.py:8356
 msgid "Polygons marked."
 msgstr "Poligoanele sunt marcate."
 
-#: appEditors/appGerberEditor.py:8356
+#: appEditors/appGerberEditor.py:8358
 msgid "No polygons were marked. None fit within the limits."
 msgstr "Nu au fost marcate poligoane. Niciunul nu se încadrează în limite."
 
-#: appEditors/appGerberEditor.py:8358
+#: appEditors/appGerberEditor.py:8360
 msgid "Delete marked polygons"
 msgstr "Șterge poligoanele marcate"
 
-#: appEditors/appGerberEditor.py:8419 appGUI/MainGUI.py:919
+#: appEditors/appGerberEditor.py:8421 appGUI/MainGUI.py:919
 #: appGUI/MainGUI.py:1983 appGUI/ObjectUI.py:244 appGUI/shortcut_actions.py:44
 #: appGUI/shortcut_actions.py:59
 msgid "Gerber Editor"
 msgstr "Editor Gerber"
 
-#: appEditors/appGerberEditor.py:8446
+#: appEditors/appGerberEditor.py:8448
 msgid "Jump to any retained state of this editing session."
 msgstr "Treceți la oricare stare păstrată a acestei sesiuni de editare."
 
-#: appEditors/appGerberEditor.py:8467 appGUI/MainGUI.py:1008
+#: appEditors/appGerberEditor.py:8469 appGUI/MainGUI.py:1008
 #: appGUI/ObjectUI.py:293
 #: appGUI/preferences/gerber/GerberEditorPrefGroupUI.py:129
-#: appObjects/AppObjectTemplate.py:1203 appPlugins/ToolFollow/FollowUI.py:78
+#: appObjects/AppObjectTemplate.py:1302 appPlugins/ToolFollow/FollowUI.py:78
 #: appPlugins/ToolReport/ReportUI.py:98
 msgid "Apertures"
 msgstr "Aperturi"
 
-#: appEditors/appGerberEditor.py:8469 appGUI/ObjectUI.py:295
+#: appEditors/appGerberEditor.py:8471 appGUI/ObjectUI.py:295
 msgid "Apertures Table for the Gerber Object."
 msgstr "Tabela de aperturi pt obiectul Gerber."
 
-#: appEditors/appGerberEditor.py:8492 appGUI/ObjectUI.py:332
+#: appEditors/appGerberEditor.py:8494 appGUI/ObjectUI.py:332
 msgid "Index"
 msgstr "Index"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8494 appGUI/ObjectUI.py:334
+#: appEditors/appGerberEditor.py:8496 appGUI/ObjectUI.py:334
 #: appPlugins/ToolExtract/ExtractUI.py:102
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:91
 msgid "Aperture Code"
 msgstr "Codul aperturii"
 
-#: appEditors/appGerberEditor.py:8496 appGUI/ObjectUI.py:336
+#: appEditors/appGerberEditor.py:8498 appGUI/ObjectUI.py:336
 #: appPlugins/ToolExtract/ExtractUI.py:103
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:92
 msgid "Type of aperture: circular, rectangle, macros etc"
 msgstr "Tip de apertură: circulară, dreptunghiulară, macrocomenzi etc."
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8498 appGUI/ObjectUI.py:338
+#: appEditors/appGerberEditor.py:8500 appGUI/ObjectUI.py:338
 #: appPlugins/ToolExtract/ExtractUI.py:104
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:93
 msgid "Aperture Size:"
 msgstr "Dimensiunea aperturii:"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8500 appGUI/ObjectUI.py:340
+#: appEditors/appGerberEditor.py:8502 appGUI/ObjectUI.py:340
 msgid ""
 "Aperture Dimensions:\n"
 " - (width, height) for R, O type.\n"
@@ -6049,26 +6049,26 @@ msgstr ""
 " - (lățime, înălțime) pentru tipurile R, O.\n"
 " - (diametru, nVertices) pentru tipul P"
 
-#: appEditors/appGerberEditor.py:8521
+#: appEditors/appGerberEditor.py:8523
 msgid "Add/Delete Aperture"
 msgstr "Adaugă/Șterge apertură"
 
-#: appEditors/appGerberEditor.py:8523
+#: appEditors/appGerberEditor.py:8525
 msgid "Add/Delete an aperture in the aperture table"
 msgstr "Adaugă/Șterge o apertură din lista de aperturi"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8529
+#: appEditors/appGerberEditor.py:8531
 #: appGUI/preferences/gerber/GerberEditorPrefGroupUI.py:60
 msgid "Code for the new aperture"
 msgstr "Codul pentru noua apertură"
 
-#: appEditors/appGerberEditor.py:8539
+#: appEditors/appGerberEditor.py:8541
 msgid "Size:"
 msgstr "Mărimea:"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8541
+#: appEditors/appGerberEditor.py:8543
 msgid ""
 "Size for the new aperture.\n"
 "If aperture type is 'R' or 'O' then\n"
@@ -6082,7 +6082,7 @@ msgstr ""
 "automat astfel:\n"
 "sqrt(lățime**2 + înălțime**2)"
 
-#: appEditors/appGerberEditor.py:8558
+#: appEditors/appGerberEditor.py:8560
 msgid ""
 "Select the type of new aperture. Can be:\n"
 "C = circular\n"
@@ -6094,49 +6094,49 @@ msgstr ""
 "R = rectangular\n"
 "O = oval"
 
-#: appEditors/appGerberEditor.py:8571
+#: appEditors/appGerberEditor.py:8573
 msgid "Dims"
 msgstr "Dimensiuni"
 
-#: appEditors/appGerberEditor.py:8573
+#: appEditors/appGerberEditor.py:8575
 msgid "Dimensions for the new aperture: width, then height."
 msgstr "Dimensiunile noii aperturi: lățimea, apoi înălțimea."
 
-#: appEditors/appGerberEditor.py:8578 appEditors/appGerberEditor.py:8714
+#: appEditors/appGerberEditor.py:8580 appEditors/appGerberEditor.py:8716
 #: appEditors/geo_plugins/GeoRectanglePlugin.py:347
-#: appGUI/ApertureLibrary.py:52 appObjects/AppObjectTemplate.py:1601
+#: appGUI/ApertureLibrary.py:52 appObjects/AppObjectTemplate.py:1700
 #: appPlugins/ToolPhotoCarve/PhotoCarveUI.py:57
 #: appPlugins/ToolReport/ReportUI.py:393
 msgid "Width"
 msgstr "Lățime"
 
-#: appEditors/appGerberEditor.py:8578 appEditors/appGerberEditor.py:8717
+#: appEditors/appGerberEditor.py:8580 appEditors/appGerberEditor.py:8719
 #: appGUI/ApertureLibrary.py:52 appPlugins/Common/levelling_ui.py:80
 msgid "Height"
 msgstr "Înălțime"
 
-#: appEditors/appGerberEditor.py:8600
+#: appEditors/appGerberEditor.py:8602
 msgid "Add a new aperture to the aperture list."
 msgstr "Adaugă o nouă apertură în lista de aperturi."
 
-#: appEditors/appGerberEditor.py:8609
+#: appEditors/appGerberEditor.py:8611
 msgid "Delete a aperture in the aperture list"
 msgstr "Șterge o apertură din lista de aperturi"
 
-#: appEditors/appGerberEditor.py:8618
+#: appEditors/appGerberEditor.py:8620
 msgid "Apertures Database"
 msgstr "Bază de date aperturi"
 
-#: appEditors/appGerberEditor.py:8621
+#: appEditors/appGerberEditor.py:8623
 msgid "Save Selected to Database"
 msgstr "Salvează selecția în BD"
 
-#: appEditors/appGerberEditor.py:8654
+#: appEditors/appGerberEditor.py:8656
 msgid "Show if the selected polygon is valid."
 msgstr "Arată dacă poligonul selectat este valid."
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8661
+#: appEditors/appGerberEditor.py:8663
 #: appGUI/preferences/tools/Tools2CThievingPrefGroupUI.py:89
 #: appGUI/preferences/tools/ToolsCalculatorsPrefGroupUI.py:125
 #: appGUI/preferences/tools/ToolsFollowPrefGroupUI.py:47
@@ -6149,25 +6149,25 @@ msgid "Area"
 msgstr "Arie"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8663
+#: appEditors/appGerberEditor.py:8665
 msgid "Show the area of the selected polygon."
 msgstr "Afișează aria poligonului selectat."
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8674
+#: appEditors/appGerberEditor.py:8676
 #: appEditors/geo_plugins/GeoSimplificationPlugin.py:253
 #: appEditors/grb_plugins/GrbSimplificationPlugin.py:163
 msgid "Vertex Points"
 msgstr "Vârfuri"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8676
+#: appEditors/appGerberEditor.py:8678
 #: appEditors/geo_plugins/GeoSimplificationPlugin.py:255
 #: appEditors/grb_plugins/GrbSimplificationPlugin.py:165
 msgid "The number of vertex points in the selected geometry element."
 msgstr "Numărul de vârfuri din elementul de geometrie selectat."
 
-#: appEditors/appGerberEditor.py:8698
+#: appEditors/appGerberEditor.py:8700
 msgid ""
 "Numerically move, insert or remove a vertex of one selected region or "
 "track.\n"
@@ -6178,33 +6178,33 @@ msgstr ""
 "O regiune editează solidul său, un traseu linia sa FOLLOW. Pad-urile nu au "
 "vârfuri."
 
-#: appEditors/appGerberEditor.py:8731 appEditors/appGerberEditor.py:8932
+#: appEditors/appGerberEditor.py:8733 appEditors/appGerberEditor.py:8934
 msgid "Solid area"
 msgstr "Arie solidă"
 
-#: appEditors/appGerberEditor.py:8732 appEditors/appGerberEditor.py:8932
+#: appEditors/appGerberEditor.py:8734 appEditors/appGerberEditor.py:8934
 msgid "FOLLOW length"
 msgstr "Lungime FOLLOW"
 
-#: appEditors/appGerberEditor.py:8740
+#: appEditors/appGerberEditor.py:8742
 #: appEditors/geo_plugins/GeoTransformationPlugin.py:745
 #: appEditors/grb_plugins/GrbTransformationPlugin.py:302
 msgid "Minimum"
 msgstr "Minim"
 
-#: appEditors/appGerberEditor.py:8741
+#: appEditors/appGerberEditor.py:8743
 msgid "Maximum"
 msgstr "Maxim"
 
-#: appEditors/appGerberEditor.py:8742
+#: appEditors/appGerberEditor.py:8744
 msgid "Minimum (inclusive)"
 msgstr "Minim (inclusiv)"
 
-#: appEditors/appGerberEditor.py:8743
+#: appEditors/appGerberEditor.py:8745
 msgid "Maximum (inclusive)"
 msgstr "Maxim (inclusiv)"
 
-#: appEditors/appGerberEditor.py:8744
+#: appEditors/appGerberEditor.py:8746
 msgid ""
 "Inclusive range. All enabled filters must match. Missing or empty "
 "components don't match."
@@ -6212,7 +6212,7 @@ msgstr ""
 "Interval inclusiv. Toate filtrele activate trebuie să corespundă. "
 "Componentele lipsă sau goale nu corespund."
 
-#: appEditors/appGerberEditor.py:8756
+#: appEditors/appGerberEditor.py:8758
 msgid ""
 "Select shapes by their solid bounding-box width and height in current "
 "units.\n"
@@ -6227,7 +6227,7 @@ msgstr ""
 "Caută în formele selectate, dacă există, altfel în toate formele. "
 "Înlocuiește selecția curentă."
 
-#: appEditors/appGerberEditor.py:8759
+#: appEditors/appGerberEditor.py:8761
 msgid ""
 "Solid area and FOLLOW length use inclusive ranges, without dimension "
 "tolerance."
@@ -6235,7 +6235,7 @@ msgstr ""
 "Aria solidă și lungimea FOLLOW folosesc intervale inclusive, fără toleranță "
 "dimensională."
 
-#: appEditors/appGerberEditor.py:8761
+#: appEditors/appGerberEditor.py:8763
 msgid ""
 "Delete matching records from the selected subset, or all records if none "
 "are selected. Undo as one operation."
@@ -6244,15 +6244,15 @@ msgstr ""
 "înregistrările, dacă nu este selectat niciunul. Anulare ca o singură "
 "operație."
 
-#: appEditors/appGerberEditor.py:8777
+#: appEditors/appGerberEditor.py:8779
 msgid "FOLLOW midpoint snap"
 msgstr "Lipire la mijlocul FOLLOW"
 
-#: appEditors/appGerberEditor.py:8778
+#: appEditors/appGerberEditor.py:8780
 msgid "Nearest FOLLOW segment snap"
 msgstr "Lipire la segmentul FOLLOW cel mai apropiat"
 
-#: appEditors/appGerberEditor.py:8783
+#: appEditors/appGerberEditor.py:8785
 msgid ""
 "Acquisition radius in pixels. Falls back to global_snap_max model units if "
 "canvas conversion is unavailable."
@@ -6260,11 +6260,11 @@ msgstr ""
 "Raza de captare în pixeli. Revine la unitățile model global_snap_max dacă "
 "conversia canvas-ului nu este disponibilă."
 
-#: appEditors/appGerberEditor.py:8784
+#: appEditors/appGerberEditor.py:8786
 msgid "Snap: None"
 msgstr "Lipire: niciuna"
 
-#: appEditors/appGerberEditor.py:8786
+#: appEditors/appGerberEditor.py:8788
 msgid ""
 "Nearest target wins. Ties prefer endpoint/bend, midpoint, segment, then "
 "grid. Corner snapping uses FOLLOW vertices and flash centers, never solid "
@@ -6275,23 +6275,23 @@ msgstr ""
 "folosește vârfurile FOLLOW și centrele flash-urilor, niciodată contururile "
 "solide."
 
-#: appEditors/appGerberEditor.py:8789
+#: appEditors/appGerberEditor.py:8791
 msgid "Snap radius"
 msgstr "Raza de lipire"
 
-#: appEditors/appGerberEditor.py:8791
+#: appEditors/appGerberEditor.py:8793
 msgid "px"
 msgstr "px"
 
-#: appEditors/appGerberEditor.py:8797
+#: appEditors/appGerberEditor.py:8799
 msgid "Tracks"
 msgstr "Trasee"
 
-#: appEditors/appGerberEditor.py:8806
+#: appEditors/appGerberEditor.py:8808
 msgid "Move Track Bend"
 msgstr "Mută îndoitura traseului"
 
-#: appEditors/appGerberEditor.py:8808
+#: appEditors/appGerberEditor.py:8810
 msgid ""
 "Drag a FOLLOW bend of a circular-aperture track. Neighboring bends stay "
 "fixed.\n"
@@ -6303,7 +6303,7 @@ msgstr ""
 "Acceptă un singur traseu sau o unire de două înregistrări cu aceeași "
 "apertură. Eșantioanele de arc sunt vârfuri de polilinie."
 
-#: appEditors/appGerberEditor.py:8814
+#: appEditors/appGerberEditor.py:8816
 msgid ""
 "Maximum click distance and excluded endpoint distance in current units. "
 "Zero requires an exact interior click."
@@ -6311,14 +6311,14 @@ msgstr ""
 "Distanța maximă de clic și distanța exclusă de la capăt, în unitățile "
 "curente. Zero necesită un clic interior exact."
 
-#: appEditors/appGerberEditor.py:8820
+#: appEditors/appGerberEditor.py:8822
 msgid "Select one open circular-aperture FOLLOW path, then click its interior."
 msgstr ""
 "Selectați un traseu FOLLOW deschis cu apertură circulară, apoi faceți clic "
 "pe interiorul său.Selectați un traseu FOLLOW deschis cu apertură circulară, "
 "apoi faceți clic în interiorul lui."
 
-#: appEditors/appGerberEditor.py:8828
+#: appEditors/appGerberEditor.py:8830
 msgid ""
 "Endpoint ambiguity search radius in current units. Unlike Geometry, Gerber "
 "does not bridge gaps or move endpoints."
@@ -6326,7 +6326,7 @@ msgstr ""
 "Raza de căutare a ambiguității capetelor, în unitățile curente. Spre "
 "deosebire de Geometrie, Gerber nu unește golurile și nu mută capetele."
 
-#: appEditors/appGerberEditor.py:8834
+#: appEditors/appGerberEditor.py:8836
 msgid ""
 "Join compatible same-aperture circular FOLLOW records. Endpoints must "
 "coincide; branches, gaps and material changes are rejected."
@@ -6335,34 +6335,34 @@ msgstr ""
 "Capetele trebuie să coincidă; ramurile, golurile și modificările de "
 "material sunt respinse."
 
-#: appEditors/appGerberEditor.py:8840
+#: appEditors/appGerberEditor.py:8842
 #: appGUI/preferences/gerber/GerberEditorPrefGroupUI.py:129
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:170
 msgid "Regions"
 msgstr "Regiuni"
 
-#: appEditors/appGerberEditor.py:8850
+#: appEditors/appGerberEditor.py:8852
 msgid "Material Union"
 msgstr "Reuniune de material"
 
-#: appEditors/appGerberEditor.py:8851
+#: appEditors/appGerberEditor.py:8853
 msgid "Material Intersection"
 msgstr "Intersecție de material"
 
-#: appEditors/appGerberEditor.py:8852
+#: appEditors/appGerberEditor.py:8854
 msgid "Material Difference"
 msgstr "Diferență de material"
 
-#: appEditors/appGerberEditor.py:8853 appGUI/MainGUI.py:931
+#: appEditors/appGerberEditor.py:8855 appGUI/MainGUI.py:931
 #: appGUI/MainGUI.py:1588 appGUI/MainGUI.py:2855
 msgid "Diff. Keep"
 msgstr "Dif. Păstrează"
 
-#: appEditors/appGerberEditor.py:8854
+#: appEditors/appGerberEditor.py:8856
 msgid "Explode Regions"
 msgstr "Descompune regiunile"
 
-#: appEditors/appGerberEditor.py:8856
+#: appEditors/appGerberEditor.py:8858
 msgid ""
 "Replace selected polygon material with explicit regions. Holes are "
 "retained. Difference subtracts the other selections from the first. Keep "
@@ -6373,22 +6373,22 @@ msgstr ""
 "Opțiunea de păstrare menține formele folosite la scădere. Înregistrările "
 "clear sunt respinse."
 
-#: appEditors/appGerberEditor.py:8863
+#: appEditors/appGerberEditor.py:8865
 msgid "Rectangle Region"
 msgstr "Regiune dreptunghiulară"
 
-#: appEditors/appGerberEditor.py:8864
+#: appEditors/appGerberEditor.py:8866
 msgid "Text Regions"
 msgstr "Regiuni de text"
 
-#: appEditors/appGerberEditor.py:8867
+#: appEditors/appGerberEditor.py:8869
 msgid ""
 "Draw numeric material as explicit regions, retaining text holes and islands."
 msgstr ""
 "Desenează materialul numeric ca regiuni explicite, păstrând găurile și "
 "insulele textului."
 
-#: appEditors/appGerberEditor.py:8887
+#: appEditors/appGerberEditor.py:8889
 msgid ""
 "New diameter of selected plain circular flashes. Tracks and noncircular "
 "features are skipped; shared apertures are not resized."
@@ -6396,14 +6396,14 @@ msgstr ""
 "Diametrul nou al flash-urilor circulare simple selectate. Traseele și "
 "elementele necirculare sunt omise; aperturile comune nu sunt redimensionate."
 
-#: appEditors/appGerberEditor.py:8892
+#: appEditors/appGerberEditor.py:8894
 msgid ""
 "Resize selected circular flashes about their own centers, as one undo step."
 msgstr ""
 "Redimensionează flash-urile circulare selectate în jurul propriilor centre, "
 "ca un singur pas de anulare."
 
-#: appEditors/appGerberEditor.py:8908 appGUI/ObjectUI.py:205
+#: appEditors/appGerberEditor.py:8910 appGUI/ObjectUI.py:205
 #: appGUI/ObjectUI.py:605
 #: appGUI/preferences/excellon/ExcellonGenPrefGroupUI.py:51
 #: appGUI/preferences/gerber/GerberGenPrefGroupUI.py:53
@@ -6413,7 +6413,7 @@ msgid "Solid"
 msgstr "Solid"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8908 appGUI/ObjectUI.py:237
+#: appEditors/appGerberEditor.py:8910 appGUI/ObjectUI.py:237
 #: appGUI/ObjectUI.py:432 appGUI/preferences/PreferencesWindow.py:44
 #: appGUI/shortcut_actions.py:172 appPlugins/ToolFollow/Follow.py:142
 #: appPlugins/ToolFollow/FollowUI.py:16
@@ -6421,19 +6421,19 @@ msgstr "Solid"
 msgid "Follow"
 msgstr "Urmărire"
 
-#: appEditors/appGerberEditor.py:8920
+#: appEditors/appGerberEditor.py:8922
 msgid "Component"
 msgstr "Componentă"
 
-#: appEditors/appGerberEditor.py:8931
+#: appEditors/appGerberEditor.py:8933
 msgid "Aperture"
 msgstr "Apertură"
 
-#: appEditors/appGerberEditor.py:8931 appPlugins/ToolReport/ReportUI.py:372
+#: appEditors/appGerberEditor.py:8933 appPlugins/ToolReport/ReportUI.py:372
 msgid "Components"
 msgstr "Componente"
 
-#: appEditors/appGerberEditor.py:8937
+#: appEditors/appGerberEditor.py:8939
 msgid ""
 "Select individual records for component inspection. Shared records select "
 "all of their aperture owners. Values use current units; area uses squared "
@@ -6443,25 +6443,25 @@ msgstr ""
 "Înregistrările comune selectează toți proprietarii lor de apertură. "
 "Valorile folosesc unitățile curente; aria folosește unități la pătrat."
 
-#: appEditors/appGerberEditor.py:8938
+#: appEditors/appGerberEditor.py:8940
 msgid "Features"
 msgstr "Elemente"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:8956
+#: appEditors/appGerberEditor.py:8958
 msgid "Scale Aperture"
 msgstr "Scalare apertură"
 
-#: appEditors/appGerberEditor.py:8958
+#: appEditors/appGerberEditor.py:8960
 msgid "Scale a aperture in the aperture list"
 msgstr "Scalează o apertură în lista de aperturi"
 
-#: appEditors/appGerberEditor.py:8966
+#: appEditors/appGerberEditor.py:8968
 #: appGUI/preferences/gerber/GerberEditorPrefGroupUI.py:267
 msgid "Scale factor"
 msgstr "Factor Scalare"
 
-#: appEditors/appGerberEditor.py:8968
+#: appEditors/appGerberEditor.py:8970
 msgid ""
 "The factor by which to scale the selected aperture.\n"
 "Values can be between 0.0000 and 999.9999"
@@ -6469,20 +6469,20 @@ msgstr ""
 "Factorul cu care se va face scalarea aperturii selectate.\n"
 "Poate lua valori între: 0.000 și 999.9999"
 
-#: appEditors/appGerberEditor.py:9005
+#: appEditors/appGerberEditor.py:9007
 msgid "Mark polygons"
 msgstr "Marchează poligoanele"
 
-#: appEditors/appGerberEditor.py:9007
+#: appEditors/appGerberEditor.py:9009
 msgid "Mark the polygon areas."
 msgstr "Marchează ariile poligonale."
 
-#: appEditors/appGerberEditor.py:9016
+#: appEditors/appGerberEditor.py:9018
 msgid "Area UPPER threshold"
 msgstr "Pragul de sus pt. arie"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:9018
+#: appEditors/appGerberEditor.py:9020
 msgid ""
 "The threshold value, all areas less than this are marked.\n"
 "Can have a value between 0.0000 and 10000.0000"
@@ -6490,12 +6490,12 @@ msgstr ""
 "Valoare de prag, toate poligoanele cu arii mai mici vor fi marcate.\n"
 "Poate lua valori între 0.0000 și 10000.0000"
 
-#: appEditors/appGerberEditor.py:9029
+#: appEditors/appGerberEditor.py:9031
 msgid "Area LOWER threshold"
 msgstr "Pragul de jos pt. arie"
 
 # auto-review 2026-10-09: corrected
-#: appEditors/appGerberEditor.py:9031
+#: appEditors/appGerberEditor.py:9033
 msgid ""
 "The threshold value, all areas more than this are marked.\n"
 "Can have a value between 0.0000 and 10000.0000"
@@ -6503,19 +6503,19 @@ msgstr ""
 "Valoare de prag, toate poligoanele cu arii mai mari vor fi marcate.\n"
 "Poate lua valori între 0.0000 și 10000.0000"
 
-#: appEditors/appGerberEditor.py:9045
+#: appEditors/appGerberEditor.py:9047
 msgid "Mark"
 msgstr "Marchează"
 
-#: appEditors/appGerberEditor.py:9048
+#: appEditors/appGerberEditor.py:9050
 msgid "Mark the polygons that fit within limits."
 msgstr "Marcați poligoanele care se încadrează în limite."
 
-#: appEditors/appGerberEditor.py:9055
+#: appEditors/appGerberEditor.py:9057
 msgid "Delete all the marked polygons."
 msgstr "Ștergeți toate poligoanele marcate."
 
-#: appEditors/appGerberEditor.py:9062
+#: appEditors/appGerberEditor.py:9064
 msgid "Clear all the markings."
 msgstr "Ștergeți toate marcajele."
 
@@ -6677,8 +6677,8 @@ msgstr "Mod Colț 5: Unghi liber ..."
 #: appEditors/grb_plugins/GrbTransformationPlugin.py:264
 #: appEditors/grb_plugins/GrberRegionPlugin.py:60
 #: appEditors/grb_plugins/GrberRegionPlugin.py:69
-#: appPlugins/Common/clearing/controller_base.py:141
-#: appPlugins/Common/clearing/controller_base.py:150
+#: appPlugins/Common/clearing/controller_base.py:148
+#: appPlugins/Common/clearing/controller_base.py:157
 #: appPlugins/ToolAlignObjects/Align.py:145
 #: appPlugins/ToolAlignObjects/Align.py:154
 #: appPlugins/ToolCalculators/Calculator.py:57
@@ -7482,9 +7482,9 @@ msgstr ""
 msgid "Paint Tool"
 msgstr "Unealta de pictare"
 
-#: appEditors/geo_plugins/GeoPaintPlugin.py:180 appPlugins/ToolNCC/Ncc.py:1125
-#: appPlugins/ToolNCC/Ncc.py:1218 appPlugins/ToolNCC/Ncc.py:1294
-#: appPlugins/ToolNCC/Ncc.py:1326 appPlugins/ToolNCC/Ncc.py:1373
+#: appEditors/geo_plugins/GeoPaintPlugin.py:180 appPlugins/ToolNCC/Ncc.py:1141
+#: appPlugins/ToolNCC/Ncc.py:1234 appPlugins/ToolNCC/Ncc.py:1310
+#: appPlugins/ToolNCC/Ncc.py:1342 appPlugins/ToolNCC/Ncc.py:1389
 msgid "The tool diameter must be a number greater than zero."
 msgstr "Diametrul uneltei trebuie să fie un număr mai mare decât zero."
 
@@ -7501,7 +7501,7 @@ msgstr "Valoare invalidă pentru"
 
 # auto-review 2026-10-09: corrected
 #: appEditors/geo_plugins/GeoPaintPlugin.py:253
-#: appPlugins/ToolMilling/Milling.py:3380 appPlugins/ToolPaint/PaintGen.py:724
+#: appPlugins/ToolMilling/Milling.py:3380 appPlugins/ToolPaint/PaintGen.py:732
 msgid ""
 "Could not do Paint. Try a different combination of parameters. Or a "
 "different method of Paint"
@@ -7809,10 +7809,10 @@ msgstr "Ofset pe axa Y."
 
 #: appEditors/geo_plugins/GeoTransformationPlugin.py:552
 #: appGUI/preferences/gerber/GerberAdvOptPrefGroupUI.py:57
-#: appObjects/GerberObject.py:453
+#: appObjects/GerberObject.py:456
 #: appPlugins/ToolCopperThieving/CopperThieving.py:520
 #: appPlugins/ToolIsolation/Isolation.py:1880
-#: appPlugins/ToolTransform/Transform.py:800 camlib.py:1247
+#: appPlugins/ToolTransform/Transform.py:800 camlib.py:1251
 msgid "Buffering"
 msgstr "Buferare"
 
@@ -9047,7 +9047,7 @@ msgstr "Oglindește"
 #: appEditors/grb_plugins/GrbTransformationPlugin.py:192
 #: appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:103
 #: appGUI/preferences/tools/ToolsTransformPrefGroupUI.py:119
-#: appObjects/AppObjectTemplate.py:1056 appPlugins/ToolFilm/FilmUI.py:136
+#: appObjects/AppObjectTemplate.py:1155 appPlugins/ToolFilm/FilmUI.py:136
 msgid "Skew"
 msgstr "Deformare"
 
@@ -10658,8 +10658,8 @@ msgstr "O"
 msgid "Shift+O"
 msgstr "Shift+O"
 
-#: appGUI/MainGUI.py:565 appHandlers/appEdit.py:663 appHandlers/appEdit.py:680
-#: appHandlers/appEdit.py:701
+#: appGUI/MainGUI.py:565 appHandlers/appEdit.py:665 appHandlers/appEdit.py:682
+#: appHandlers/appEdit.py:703
 msgid "Custom Origin"
 msgstr "Origine personalizată"
 
@@ -10687,7 +10687,7 @@ msgstr "Shift+P"
 #: appGUI/preferences/excellon/ExcellonOptPrefGroupUI.py:22
 #: appGUI/preferences/geometry/GeometryOptPrefGroupUI.py:22
 #: appGUI/preferences/gerber/GerberOptPrefGroupUI.py:24
-#: appObjects/AppObjectTemplate.py:1199 appPlugins/ToolImage/ImageUI.py:188
+#: appObjects/AppObjectTemplate.py:1298 appPlugins/ToolImage/ImageUI.py:188
 #: appPlugins/ToolReport/ReportUI.py:94
 msgid "Options"
 msgstr "Opțiuni"
@@ -12346,7 +12346,7 @@ msgstr ""
 msgid "Simplify a geometry by reducing its vertex points number."
 msgstr "Simplifică o geometrie prin reducerea numărului de vârfuri."
 
-#: appGUI/ObjectUI.py:1113 appObjects/AppObjectTemplate.py:1399
+#: appGUI/ObjectUI.py:1113 appObjects/AppObjectTemplate.py:1498
 #: appPlugins/ToolAlignObjects/AlignUI.py:207
 #: appPlugins/ToolDistance/DistanceUI.py:160
 msgid "Points"
@@ -12388,7 +12388,7 @@ msgstr ""
 msgid "Travel"
 msgstr "Deplasare"
 
-#: appGUI/ObjectUI.py:1293 appObjects/AppObjectTemplate.py:1583
+#: appGUI/ObjectUI.py:1293 appObjects/AppObjectTemplate.py:1682
 #: appPlugins/ToolReport/ReportUI.py:352
 msgid "Travelled distance"
 msgstr "Distanța parcursă"
@@ -13889,7 +13889,7 @@ msgstr ""
 
 #: appGUI/preferences/cncjob/CNCJobGenPrefGroupUI.py:98
 #: appGUI/preferences/tools/ToolsGrblSenderPrefGroupUI.py:82
-#: appObjects/AppObjectTemplate.py:1550
+#: appObjects/AppObjectTemplate.py:1649
 #: appPlugins/ToolGcodeSender/SenderUI.py:369
 #: appPlugins/ToolReport/ReportUI.py:319
 #: appPlugins/ToolSolderPaste/SolderPasteUI.py:275
@@ -16336,7 +16336,7 @@ msgstr ""
 
 #: appGUI/preferences/geometry/GeometryExpPrefGroupUI.py:60
 #: appObjects/ExcellonObject.py:1116
-#: appPlugins/Common/clearing/controller_base.py:339
+#: appPlugins/Common/clearing/controller_base.py:351
 #: appPlugins/ToolDrilling/Drilling.py:1180
 #: appPlugins/ToolDrilling/Drilling.py:1690
 #: appPlugins/ToolDrilling/DrillingUI.py:169
@@ -16344,7 +16344,7 @@ msgstr ""
 #: appPlugins/ToolIsolation/IsolationUI.py:235
 #: appPlugins/ToolMilling/Milling.py:1967
 #: appPlugins/ToolMilling/Milling.py:2044
-#: appPlugins/ToolMilling/MillingUI.py:376 appPlugins/ToolNCC/NccGen.py:1022
+#: appPlugins/ToolMilling/MillingUI.py:376 appPlugins/ToolNCC/NccGen.py:1027
 #: appPlugins/ToolNCC/NccUI.py:165 appPlugins/ToolPaint/PaintUI.py:170
 #: appPlugins/ToolPhotoCarve/PhotoCarveUI.py:46
 msgid "Tool"
@@ -17146,7 +17146,7 @@ msgstr "Procesează paduri Rectangulare."
 #: appGUI/preferences/tools/Tools2ExtractPrefGroupUI.py:231
 #: appGUI/preferences/tools/Tools2PunchGerberPrefGroupUI.py:77
 #: appGUI/preferences/tools/Tools2PunchGerberPrefGroupUI.py:219
-#: appObjects/AppObjectTemplate.py:1216 appPlugins/ToolExtract/ExtractUI.py:82
+#: appObjects/AppObjectTemplate.py:1315 appPlugins/ToolExtract/ExtractUI.py:82
 #: appPlugins/ToolExtract/ExtractUI.py:187
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:80
 #: appPlugins/ToolPunchGerber/PunchGerberUI.py:192
@@ -21928,8 +21928,8 @@ msgstr "Adaugă o unealtă nouă"
 
 # auto-review 2026-10-09: corrected
 #: appGUI/shortcut_actions.py:861 appHandlers/appUIActions.py:661
-#: appPlugins/ToolIsolation/Isolation.py:1295 appPlugins/ToolNCC/Ncc.py:1276
-#: appPlugins/ToolPaint/Paint.py:552
+#: appPlugins/ToolIsolation/Isolation.py:1295 appPlugins/ToolNCC/Ncc.py:1292
+#: appPlugins/ToolPaint/Paint.py:553
 #: appPlugins/ToolSolderPaste/SolderPaste.py:398
 #: appPlugins/ToolSolderPaste/SolderPasteUI.py:109
 msgid "New Tool"
@@ -21937,15 +21937,15 @@ msgstr "Unealtă nouă"
 
 # auto-review 2026-10-09: corrected
 #: appGUI/shortcut_actions.py:861 appHandlers/appUIActions.py:662
-#: appPlugins/ToolIsolation/Isolation.py:1296 appPlugins/ToolNCC/Ncc.py:1277
-#: appPlugins/ToolPaint/Paint.py:553
+#: appPlugins/ToolIsolation/Isolation.py:1296 appPlugins/ToolNCC/Ncc.py:1293
+#: appPlugins/ToolPaint/Paint.py:554
 #: appPlugins/ToolSolderPaste/SolderPaste.py:399
 msgid "Enter a Tool Diameter"
 msgstr "Introduceți un diametru de unealtă"
 
 #: appGUI/shortcut_actions.py:871 appHandlers/appUIActions.py:678
-#: appPlugins/ToolIsolation/Isolation.py:1317 appPlugins/ToolNCC/Ncc.py:1301
-#: appPlugins/ToolPaint/Paint.py:566
+#: appPlugins/ToolIsolation/Isolation.py:1317 appPlugins/ToolNCC/Ncc.py:1317
+#: appPlugins/ToolPaint/Paint.py:567
 #: appPlugins/ToolSolderPaste/SolderPaste.py:411
 msgid "Adding Tool cancelled"
 msgstr "Adăugarea unei unelte anulată"
@@ -22092,13 +22092,13 @@ msgstr "Diametrul sculei din Preferințe nu este valid."
 #: appPlugins/ToolPunchGerber/PunchGerber.py:303
 #: appPlugins/ToolReport/Report.py:91 appPlugins/ToolTransform/Transform.py:187
 #: appPlugins/ToolTransform/Transform.py:275
-#: appPlugins/ToolTransform/Transform.py:555 camlib.py:2827 camlib.py:2855
-#: camlib.py:2884 camlib.py:2965
+#: appPlugins/ToolTransform/Transform.py:555 camlib.py:2838 camlib.py:2866
+#: camlib.py:2895 camlib.py:2976
 msgid "No object is selected."
 msgstr "Niciun obiect nu este selectat."
 
 #: appHandlers/appEdit.py:460 appHandlers/appEdit.py:577
-#: appObjects/GeometryObject.py:1162
+#: appObjects/GeometryObject.py:1167
 msgid "Certified photo engraving cannot be joined."
 msgstr "Gravarea foto certificată nu poate fi îmbinată."
 
@@ -22145,27 +22145,27 @@ msgid "Failed. Nothing to join."
 msgstr "Eșuat. Nimic de unit."
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appEdit.py:653 appHandlers/appObjectOps.py:502
+#: appHandlers/appEdit.py:655 appHandlers/appObjectOps.py:502
 msgid "Failed. No object(s) selected..."
 msgstr "A eșuat. Niciun obiect nu este selectat."
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appEdit.py:657
+#: appHandlers/appEdit.py:659
 msgid "Quadrant 2"
 msgstr "Cadranul 2"
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appEdit.py:658
+#: appHandlers/appEdit.py:660
 msgid "Quadrant 1"
 msgstr "Cadranul 1"
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appEdit.py:659
+#: appHandlers/appEdit.py:661
 msgid "Quadrant 3"
 msgstr "Cadranul 3"
 
 # auto-review 2026-10-09: corrected
-#: appHandlers/appEdit.py:660
+#: appHandlers/appEdit.py:662
 msgid "Quadrant 4"
 msgstr "Cadranul 4"
 
@@ -22177,41 +22177,41 @@ msgstr "Transformarea nu poate fi anulată."
 msgid "Object type not supported"
 msgstr "Tipul de obiect nu este acceptat"
 
-#: appHandlers/appHistory.py:693
+#: appHandlers/appHistory.py:722
 msgid "Rename"
 msgstr "Redenumește"
 
-#: appHandlers/appHistory.py:700
+#: appHandlers/appHistory.py:729
 msgid "Undo / Redo is not available in headless mode."
 msgstr "Anularea / Refacerea nu este disponibilă în modul headless."
 
-#: appHandlers/appHistory.py:702
+#: appHandlers/appHistory.py:731
 msgid "Close the editor first. The editor has its own Undo / Redo."
 msgstr "Închideți mai întâi editorul. Editorul are propria Anulare / Refacere."
 
-#: appHandlers/appHistory.py:705
+#: appHandlers/appHistory.py:734
 msgid "Wait for the running task to finish."
 msgstr "Așteptați finalizarea sarcinii în curs."
 
-#: appHandlers/appHistory.py:751
+#: appHandlers/appHistory.py:780
 msgid "History recovery incomplete; Undo / Redo cleared"
 msgstr ""
 "Recuperarea istoricului este incompletă; Anularea / Refacerea a fost golită"
 
-#: appHandlers/appHistory.py:788 appHandlers/appHistory.py:803
-#: appHandlers/appHistory.py:810 appHandlers/appHistory.py:928
+#: appHandlers/appHistory.py:817 appHandlers/appHistory.py:832
+#: appHandlers/appHistory.py:839 appHandlers/appHistory.py:959
 msgid "Another object has this name"
 msgstr "Un alt obiect are acest nume"
 
-#: appHandlers/appHistory.py:792 appHandlers/appHistory.py:863
+#: appHandlers/appHistory.py:821 appHandlers/appHistory.py:892
 msgid "The object of this step does not exist anymore."
 msgstr "Obiectul acestui pas nu mai există."
 
-#: appHandlers/appHistory.py:880
+#: appHandlers/appHistory.py:909
 msgid "Source regeneration failed"
 msgstr "Regenerarea sursei a eșuat"
 
-#: appHandlers/appHistory.py:923
+#: appHandlers/appHistory.py:954
 msgid "The object could not be made again."
 msgstr "Obiectul nu a putut fi recreat."
 
@@ -22521,17 +22521,17 @@ msgid "Failed to execute script"
 msgstr "Nu s-a putut executa scriptul"
 
 # auto-review 2026-10-21: new
-#: appHandlers/appIO.py:1966 appHandlers/appProjects.py:698
+#: appHandlers/appIO.py:1966 appHandlers/appProjects.py:702
 msgid "Overwrite"
 msgstr "Suprascrie"
 
 # auto-review 2026-10-21: new
-#: appHandlers/appIO.py:1966 appHandlers/appProjects.py:699
+#: appHandlers/appIO.py:1966 appHandlers/appProjects.py:703
 msgid "The file already exists"
 msgstr "Fișierul există deja"
 
 # auto-review 2026-10-21: new
-#: appHandlers/appIO.py:1967 appHandlers/appProjects.py:700
+#: appHandlers/appIO.py:1967 appHandlers/appProjects.py:704
 msgid "Do you want to overwrite it?"
 msgstr "Doriți să îl suprascrieți?"
 
@@ -22543,12 +22543,12 @@ msgid "Geometry save is running. Wait until it ends."
 msgstr "Salvarea geometriei rulează. Așteptați până se termină."
 
 # auto-review 2026-10-21: new
-#: appHandlers/appIO.py:2033 appHandlers/appProjects.py:706
+#: appHandlers/appIO.py:2033 appHandlers/appProjects.py:710
 msgid "The project was not saved"
 msgstr "Proiectul nu a fost salvat"
 
 #: appHandlers/appIO.py:2077 appHandlers/appIO.py:2083
-#: appHandlers/appProjects.py:580
+#: appHandlers/appProjects.py:584
 msgid "Save Project As ..."
 msgstr "Salvează Proiectul ca ..."
 
@@ -23155,27 +23155,27 @@ msgid "A task is running. Wait until it ends."
 msgstr "O sarcină este în curs. Așteptați până se termină."
 
 # auto-review 2026-10-21: new
-#: appHandlers/appProjects.py:558
+#: appHandlers/appProjects.py:562
 msgid "The project has changes"
 msgstr "Proiectul are modificări"
 
 # auto-review 2026-10-21: new
-#: appHandlers/appProjects.py:559
+#: appHandlers/appProjects.py:563
 msgid "Do you want to Save the project?"
 msgstr "Doriți să salvați proiectul?"
 
 # auto-review 2026-10-21: new
-#: appHandlers/appProjects.py:617
+#: appHandlers/appProjects.py:621
 msgid "Project already open"
 msgstr "Proiect deja deschis"
 
 # auto-review 2026-10-21: new
-#: appHandlers/appProjects.py:618
+#: appHandlers/appProjects.py:622
 msgid "This project is already open"
 msgstr "Acest proiect este deja deschis"
 
 # auto-review 2026-10-21: new
-#: appHandlers/appProjects.py:619
+#: appHandlers/appProjects.py:623
 msgid "Do you want to overwrite it with the version from the file?"
 msgstr "Doriți să îl suprascrieți cu versiunea din fișier?"
 
@@ -23342,9 +23342,9 @@ msgstr "Log-ul FlatCAM a fost deschis."
 #: appPlugins/ToolIsolation/Isolation.py:1778
 #: appPlugins/ToolMilling/Milling.py:2468
 #: appPlugins/ToolMilling/Milling.py:2552
-#: appPlugins/ToolMilling/Milling.py:2720 appPlugins/ToolPaint/Paint.py:562
-#: appPlugins/ToolPaint/Paint.py:708 appPlugins/ToolPaint/Paint.py:795
-#: appPlugins/ToolPaint/Paint.py:860
+#: appPlugins/ToolMilling/Milling.py:2720 appPlugins/ToolPaint/Paint.py:563
+#: appPlugins/ToolPaint/Paint.py:709 appPlugins/ToolPaint/Paint.py:796
+#: appPlugins/ToolPaint/Paint.py:861
 #: appPlugins/ToolSolderPaste/SolderPaste.py:407
 #: appPlugins/ToolSolderPaste/SolderPaste.py:613
 msgid "Please enter a tool diameter with non-zero value, in Float format."
@@ -23370,7 +23370,7 @@ msgid "Plot 3D"
 msgstr "Afișare 3D"
 
 #: appHandlers/appUIActions.py:916 appHandlers/appUIActions.py:922
-#: appPlugins/Common/clearing/controller_base.py:458
+#: appPlugins/Common/clearing/controller_base.py:470
 #: appPlugins/ToolCutOut/CutOut.py:545
 #: appPlugins/ToolIsolation/Isolation.py:2769
 msgid "Selected tool can't be used here. Pick another."
@@ -23384,7 +23384,7 @@ msgstr ""
 
 # auto-review 2026-10-09: corrected
 #: appHandlers/appUIActions.py:931
-#: appPlugins/Common/clearing/controller_base.py:465
+#: appPlugins/Common/clearing/controller_base.py:477
 #: appPlugins/ToolIsolation/Isolation.py:2776
 msgid "Tool from DB added in Tool Table."
 msgstr "Unealtă din Baza de date adăugată în Tabela de Unelte."
@@ -23585,8 +23585,8 @@ msgid "Edit only one geometry at a time."
 msgstr "Editați o singură geometrie odată."
 
 # auto-review 2026-10-09: corrected
-#: appMain.py:2558 appPlugins/Common/clearing/controller_base.py:266
-#: appPlugins/Common/clearing/controller_base.py:318
+#: appMain.py:2558 appPlugins/Common/clearing/controller_base.py:278
+#: appPlugins/Common/clearing/controller_base.py:330
 #: appPlugins/ToolDrilling/Drilling.py:1233
 #: appPlugins/ToolDrilling/Drilling.py:1352
 #: appPlugins/ToolDrilling/Drilling.py:1646
@@ -24059,138 +24059,148 @@ msgstr ""
 "Tastați >help< și apoi apăsați >Rulați< pentru o listă de comenzi Tcl "
 "(afișate în Tcl Shell)."
 
-#: appObjects/AppObjectTemplate.py:977
+#: appObjects/AppObjectTemplate.py:798
+#: appPlugins/Common/clearing/controller_base.py:611
+msgid "Add exclusion zones"
+msgstr "Adaugă zone de excludere"
+
+#: appObjects/AppObjectTemplate.py:802
+#: appPlugins/Common/clearing/controller_base.py:626
+msgid "Clear exclusion zones"
+msgstr "Șterge zonele de excludere"
+
+#: appObjects/AppObjectTemplate.py:1076
 msgid "Name changed from"
 msgstr "Nume schimbat din"
 
-#: appObjects/AppObjectTemplate.py:977 appObjects/ObjectCollection.py:835
+#: appObjects/AppObjectTemplate.py:1076 appObjects/ObjectCollection.py:835
 msgid "to"
 msgstr "la"
 
-#: appObjects/AppObjectTemplate.py:994 tclCommands/TclCommandSetOrigin.py:122
+#: appObjects/AppObjectTemplate.py:1093 tclCommands/TclCommandSetOrigin.py:122
 msgid "Offsetting..."
 msgstr "Ofsetare..."
 
-#: appObjects/AppObjectTemplate.py:1016 appObjects/AppObjectTemplate.py:1021
+#: appObjects/AppObjectTemplate.py:1115 appObjects/AppObjectTemplate.py:1120
 msgid "Scaling could not be executed."
 msgstr "Scalarea nu a putut fi executată."
 
-#: appObjects/AppObjectTemplate.py:1025 appObjects/AppObjectTemplate.py:1038
+#: appObjects/AppObjectTemplate.py:1124 appObjects/AppObjectTemplate.py:1137
 msgid "Scale done."
 msgstr "Scalare efectuată."
 
-#: appObjects/AppObjectTemplate.py:1031
+#: appObjects/AppObjectTemplate.py:1130
 msgid "Scaling..."
 msgstr "Scalare..."
 
-#: appObjects/AppObjectTemplate.py:1054
+#: appObjects/AppObjectTemplate.py:1153
 msgid "Skewing..."
 msgstr "Deformare..."
 
-#: appObjects/AppObjectTemplate.py:1198
+#: appObjects/AppObjectTemplate.py:1297
 #: appPlugins/ToolCalculators/CalculatorUI.py:292
 #: appPlugins/ToolReport/ReportUI.py:92
 msgid "Dimensions"
 msgstr "Dimensiuni"
 
-#: appObjects/AppObjectTemplate.py:1206 appPlugins/ToolReport/ReportUI.py:101
+#: appObjects/AppObjectTemplate.py:1305 appPlugins/ToolReport/ReportUI.py:101
 msgid "Tools"
 msgstr "Unelte"
 
-#: appObjects/AppObjectTemplate.py:1221
+#: appObjects/AppObjectTemplate.py:1320
 msgid "Calculating dimensions ... Please wait."
 msgstr "Se calculează dimensiunile ... Așteaptă."
 
-#: appObjects/AppObjectTemplate.py:1395 appObjects/AppObjectTemplate.py:1403
+#: appObjects/AppObjectTemplate.py:1494 appObjects/AppObjectTemplate.py:1502
 msgid "Polygons"
 msgstr "Poligoane"
 
-#: appObjects/AppObjectTemplate.py:1397
+#: appObjects/AppObjectTemplate.py:1496
 msgid "LineStrings"
 msgstr "LineStrings"
 
-#: appObjects/AppObjectTemplate.py:1402
+#: appObjects/AppObjectTemplate.py:1501
 msgid "Elements"
 msgstr "Elemente"
 
-#: appObjects/AppObjectTemplate.py:1440 appObjects/AppObjectTemplate.py:1511
+#: appObjects/AppObjectTemplate.py:1539 appObjects/AppObjectTemplate.py:1610
 #: appPlugins/ToolReport/ReportUI.py:206 appPlugins/ToolReport/ReportUI.py:280
 msgid "Drills number"
 msgstr "Numărul de găuri"
 
-#: appObjects/AppObjectTemplate.py:1441 appObjects/AppObjectTemplate.py:1513
+#: appObjects/AppObjectTemplate.py:1540 appObjects/AppObjectTemplate.py:1612
 #: appPlugins/ToolReport/ReportUI.py:207 appPlugins/ToolReport/ReportUI.py:282
 msgid "Slots number"
 msgstr "Numărul de sloturi"
 
 # auto-review 2026-10-09: corrected
-#: appObjects/AppObjectTemplate.py:1443 appPlugins/ToolReport/ReportUI.py:209
+#: appObjects/AppObjectTemplate.py:1542 appPlugins/ToolReport/ReportUI.py:209
 msgid "Drills total number:"
 msgstr "Număr total de găuri:"
 
-#: appObjects/AppObjectTemplate.py:1444 appPlugins/ToolReport/ReportUI.py:210
+#: appObjects/AppObjectTemplate.py:1543 appPlugins/ToolReport/ReportUI.py:210
 msgid "Slots total number:"
 msgstr "Număr total de sloturi:"
 
-#: appObjects/AppObjectTemplate.py:1472 appObjects/AppObjectTemplate.py:1475
-#: appObjects/AppObjectTemplate.py:1478 appObjects/AppObjectTemplate.py:1508
-#: appObjects/AppObjectTemplate.py:1515 appObjects/AppObjectTemplate.py:1518
+#: appObjects/AppObjectTemplate.py:1571 appObjects/AppObjectTemplate.py:1574
+#: appObjects/AppObjectTemplate.py:1577 appObjects/AppObjectTemplate.py:1607
+#: appObjects/AppObjectTemplate.py:1614 appObjects/AppObjectTemplate.py:1617
 #: appPlugins/ToolReport/ReportUI.py:241 appPlugins/ToolReport/ReportUI.py:244
 #: appPlugins/ToolReport/ReportUI.py:247 appPlugins/ToolReport/ReportUI.py:277
 #: appPlugins/ToolReport/ReportUI.py:284 appPlugins/ToolReport/ReportUI.py:287
 msgid "Present"
 msgstr "Prezent"
 
-#: appObjects/AppObjectTemplate.py:1473 appObjects/AppObjectTemplate.py:1509
+#: appObjects/AppObjectTemplate.py:1572 appObjects/AppObjectTemplate.py:1608
 #: appPlugins/ToolReport/ReportUI.py:242 appPlugins/ToolReport/ReportUI.py:278
 msgid "Solid Geometry"
 msgstr "Geometrie Solidă"
 
-#: appObjects/AppObjectTemplate.py:1476 appObjects/AppObjectTemplate.py:1516
+#: appObjects/AppObjectTemplate.py:1575 appObjects/AppObjectTemplate.py:1615
 #: appPlugins/ToolReport/ReportUI.py:245 appPlugins/ToolReport/ReportUI.py:285
 msgid "GCode Text"
 msgstr "Text GCode"
 
-#: appObjects/AppObjectTemplate.py:1479 appObjects/AppObjectTemplate.py:1519
+#: appObjects/AppObjectTemplate.py:1578 appObjects/AppObjectTemplate.py:1618
 #: appPlugins/ToolReport/ReportUI.py:248 appPlugins/ToolReport/ReportUI.py:288
 msgid "GCode Geometry"
 msgstr "Geometrie GCode"
 
-#: appObjects/AppObjectTemplate.py:1487 appObjects/AppObjectTemplate.py:1562
+#: appObjects/AppObjectTemplate.py:1586 appObjects/AppObjectTemplate.py:1661
 #: appPlugins/ToolReport/ReportUI.py:256 appPlugins/ToolReport/ReportUI.py:331
 msgid "Tool Data"
 msgstr "Date Unealtă"
 
-#: appObjects/AppObjectTemplate.py:1526 appPlugins/ToolReport/ReportUI.py:295
+#: appObjects/AppObjectTemplate.py:1625 appPlugins/ToolReport/ReportUI.py:295
 msgid "Depth of Cut"
 msgstr "Adâncimea de Tăiere"
 
-#: appObjects/AppObjectTemplate.py:1538 appPlugins/ToolReport/ReportUI.py:307
+#: appObjects/AppObjectTemplate.py:1637 appPlugins/ToolReport/ReportUI.py:307
 msgid "Clearance Height"
 msgstr "Înălțime Sigură"
 
-#: appObjects/AppObjectTemplate.py:1576 appPlugins/ToolReport/ReportUI.py:345
+#: appObjects/AppObjectTemplate.py:1675 appPlugins/ToolReport/ReportUI.py:345
 msgid "Routing time"
 msgstr "Timpul de rutare"
 
 # auto-review 2026-10-09: corrected
-#: appObjects/AppObjectTemplate.py:1607 appObjects/AppObjectTemplate.py:1615
+#: appObjects/AppObjectTemplate.py:1706 appObjects/AppObjectTemplate.py:1714
 #: appPlugins/ToolReport/ReportUI.py:399 appPlugins/ToolReport/ReportUI.py:407
 msgid "Box Area"
 msgstr "Aria dreptunghiului de încadrare"
 
 # auto-review 2026-10-09: corrected
-#: appObjects/AppObjectTemplate.py:1610 appObjects/AppObjectTemplate.py:1618
+#: appObjects/AppObjectTemplate.py:1709 appObjects/AppObjectTemplate.py:1717
 #: appPlugins/ToolReport/ReportUI.py:402 appPlugins/ToolReport/ReportUI.py:410
 msgid "Convex_Hull Area"
 msgstr "Aria înfășurătoarei convexe"
 
-#: appObjects/AppObjectTemplate.py:1625 appObjects/AppObjectTemplate.py:1628
+#: appObjects/AppObjectTemplate.py:1724 appObjects/AppObjectTemplate.py:1727
 #: appPlugins/ToolReport/ReportUI.py:417 appPlugins/ToolReport/ReportUI.py:420
 msgid "Copper Area"
 msgstr "Aria de Cupru"
 
-#: appObjects/CNCJobObject.py:52 camlib.py:3010
+#: appObjects/CNCJobObject.py:52 camlib.py:3021
 msgid "Preprocessor not found"
 msgstr "Postprocesorul nu a fost găsit"
 
@@ -24326,22 +24336,22 @@ msgid "First"
 msgstr "Primele"
 
 # auto-review 2026-10-09: corrected
-#: appObjects/GeometryObject.py:694
+#: appObjects/GeometryObject.py:698
 msgid "Vertex points calculated."
 msgstr "Numărul de vârfuri a fost calculat."
 
-#: appObjects/GeometryObject.py:800 appObjects/GeometryObject.py:836
-#: camlib.py:7627 camlib.py:7686
+#: appObjects/GeometryObject.py:804 appObjects/GeometryObject.py:840
+#: camlib.py:7638 camlib.py:7697
 msgid "Regenerate photo engraving to change its scale or skew."
 msgstr "Regenerați gravarea foto pentru a-i schimba scalarea sau deformarea."
 
 # auto-review 2026-10-09: corrected
-#: appObjects/GeometryObject.py:806 appObjects/GeometryObject.py:815
-#: appParsers/ParseGerber.py:2748 appParsers/ParseGerber.py:2758
+#: appObjects/GeometryObject.py:810 appObjects/GeometryObject.py:819
+#: appParsers/ParseGerber.py:2749 appParsers/ParseGerber.py:2759
 msgid "Scale factor has to be a number: integer or float."
 msgstr "Factorul de scalare trebuie să fie un număr: întreg sau real."
 
-#: appObjects/GeometryObject.py:854 appParsers/ParseGerber.py:2816
+#: appObjects/GeometryObject.py:858 appParsers/ParseGerber.py:2817
 msgid ""
 "An (x,y) pair of values are needed. Probable you entered only one value in "
 "the Offset field."
@@ -24349,16 +24359,16 @@ msgstr ""
 "Este necesară o pereche de valori (x,y). Probabil ați introdus o singură "
 "valoare în câmpul Ofset."
 
-#: appObjects/GeometryObject.py:921
+#: appObjects/GeometryObject.py:926
 msgid "Cannot convert geometry units"
 msgstr "Unitățile geometriei nu pot fi convertite"
 
-#: appObjects/GerberObject.py:450 appPlugins/ToolIsolation/Isolation.py:1864
+#: appObjects/GerberObject.py:453 appPlugins/ToolIsolation/Isolation.py:1864
 msgid "Buffering solid geometry"
 msgstr "Buferarea geometriei solide"
 
 # auto-review 2026-10-09: corrected
-#: appObjects/GerberObject.py:497 appObjects/GerberObject.py:546
+#: appObjects/GerberObject.py:500 appObjects/GerberObject.py:549
 msgid "Operation could not be done."
 msgstr "Operația nu a putut fi executată."
 
@@ -24480,13 +24490,13 @@ msgid "Excellon buffer by a factor was not done"
 msgstr "Bufer Excellon cu factor nefăcut"
 
 # auto-review 2026-10-21: new
-#: appParsers/ParseExcellon.py:1714 appParsers/ParseGerber.py:2960
-#: camlib.py:2931
+#: appParsers/ParseExcellon.py:1714 appParsers/ParseGerber.py:2961
+#: camlib.py:2942
 msgid "The factor must be a positive number."
 msgstr "Factorul trebuie să fie un număr pozitiv."
 
-#: appParsers/ParseExcellon.py:1719 appParsers/ParseGerber.py:2965
-#: camlib.py:2936
+#: appParsers/ParseExcellon.py:1719 appParsers/ParseGerber.py:2966
+#: camlib.py:2947
 msgid "The buffer distance is not a number."
 msgstr "Distanța de bufer nu este un număr."
 
@@ -24607,25 +24617,25 @@ msgstr ""
 "linia: %s. Raportați dezvoltatorilor."
 
 # auto-review 2026-10-21: new
-#: appParsers/ParseGerber.py:2959 appParsers/ParseGerber.py:3050
+#: appParsers/ParseGerber.py:2960 appParsers/ParseGerber.py:3051
 msgid "Gerber buffer by a factor was not done"
 msgstr "Bufer Gerber cu un factor nu s-a efectuat"
 
-#: appParsers/ParseGerber.py:3021
+#: appParsers/ParseGerber.py:3022
 msgid "Gerber buffer failed"
 msgstr "Bufer Gerber eșuat"
 
 # auto-review 2026-10-21: new
-#: appParsers/ParseGerber.py:3055
+#: appParsers/ParseGerber.py:3056
 msgid "Gerber buffer by a factor failed"
 msgstr "Bufer Gerber cu un factor a eșuat"
 
-#: appParsers/ParseGerber.py:3072
+#: appParsers/ParseGerber.py:3073
 msgid "Gerber Buffer done."
 msgstr "Buffer Gerber efectuat."
 
 # auto-review 2026-10-21: new
-#: appParsers/ParseGerber.py:3489
+#: appParsers/ParseGerber.py:3490
 msgid ""
 "the object has clear (negative polarity) features, the polarity can not be "
 "composed again"
@@ -24634,13 +24644,13 @@ msgstr ""
 "poate fi compusă"
 
 # auto-review 2026-10-21: new
-#: appParsers/ParseGerber.py:3497
+#: appParsers/ParseGerber.py:3498
 msgid "a feature of the aperture %s has no position to scale about"
 msgstr ""
 "un element al aperturii %s nu are o poziție în jurul căreia să se scaleze"
 
 # auto-review 2026-10-21: new
-#: appParsers/ParseGerber.py:3501
+#: appParsers/ParseGerber.py:3502
 msgid ""
 "the aperture %s is rectangular and draws a track, which has no defined width"
 msgstr ""
@@ -24648,7 +24658,7 @@ msgstr ""
 "definită"
 
 # auto-review 2026-10-21: new
-#: appParsers/ParseGerber.py:3504
+#: appParsers/ParseGerber.py:3505
 msgid ""
 "the aperture %s draws a track and is not circular, a track has no defined "
 "width"
@@ -24657,12 +24667,12 @@ msgstr ""
 "lățime definită"
 
 # auto-review 2026-10-21: new
-#: appParsers/ParseGerber.py:3511
+#: appParsers/ParseGerber.py:3512
 msgid "a track of the aperture %s was not drawn by the Gerber parser"
 msgstr "un traseu al aperturii %s nu a fost desenat de parserul Gerber"
 
 # auto-review 2026-10-21: new
-#: appParsers/ParseGerber.py:3544
+#: appParsers/ParseGerber.py:3545
 msgid "the object has no aperture records to rebuild its geometry from"
 msgstr ""
 "obiectul nu are înregistrări de apertură din care să își reconstruiască "
@@ -24700,18 +24710,18 @@ msgstr ""
 "SVG-ul nu are dimensiune fizică (lățime/înălțime cu unitate sau dimensiune "
 "de pagină), scara poate fi greșită."
 
-#: appPlugins/Common/clearing/controller_base.py:195
+#: appPlugins/Common/clearing/controller_base.py:203
 #: appPlugins/Common/clearing/ui_sections.py:111
 #: appPlugins/ToolIsolation/IsolationUI.py:162
 #: appPlugins/ToolMilling/MillingUI.py:312
 msgid "Add from DB"
 msgstr "Adaugă Unealtă din DB"
 
-#: appPlugins/Common/clearing/controller_base.py:266
-#: appPlugins/Common/clearing/controller_base.py:271
-#: appPlugins/Common/clearing/controller_base.py:318
-#: appPlugins/Common/clearing/controller_base.py:339
+#: appPlugins/Common/clearing/controller_base.py:278
+#: appPlugins/Common/clearing/controller_base.py:283
+#: appPlugins/Common/clearing/controller_base.py:330
 #: appPlugins/Common/clearing/controller_base.py:351
+#: appPlugins/Common/clearing/controller_base.py:363
 #: appPlugins/ToolDrilling/Drilling.py:1174
 #: appPlugins/ToolDrilling/Drilling.py:1180
 #: appPlugins/ToolDrilling/Drilling.py:1233
@@ -24737,14 +24747,14 @@ msgstr "Adaugă Unealtă din DB"
 #: appPlugins/ToolMilling/Milling.py:2033
 #: appPlugins/ToolMilling/Milling.py:2044
 #: appPlugins/ToolMilling/Milling.py:2048
-#: appPlugins/ToolMilling/MillingUI.py:376 appPlugins/ToolNCC/Ncc.py:908
-#: appPlugins/ToolNCC/NccUI.py:165 appPlugins/ToolPaint/Paint.py:676
+#: appPlugins/ToolMilling/MillingUI.py:376 appPlugins/ToolNCC/Ncc.py:924
+#: appPlugins/ToolNCC/NccUI.py:165 appPlugins/ToolPaint/Paint.py:677
 #: appPlugins/ToolPaint/PaintUI.py:170
 msgid "Parameters for"
 msgstr "Parametri pt"
 
-#: appPlugins/Common/clearing/controller_base.py:271
-#: appPlugins/Common/clearing/controller_base.py:351
+#: appPlugins/Common/clearing/controller_base.py:283
+#: appPlugins/Common/clearing/controller_base.py:363
 #: appPlugins/ToolDrilling/Drilling.py:1174
 #: appPlugins/ToolDrilling/Drilling.py:1653
 #: appPlugins/ToolDrilling/Drilling.py:1694
@@ -24754,12 +24764,12 @@ msgstr "Parametri pt"
 #: appPlugins/ToolMilling/Milling.py:1155
 #: appPlugins/ToolMilling/Milling.py:1272
 #: appPlugins/ToolMilling/Milling.py:1971
-#: appPlugins/ToolMilling/Milling.py:2048 appPlugins/ToolNCC/Ncc.py:908
-#: appPlugins/ToolPaint/Paint.py:676
+#: appPlugins/ToolMilling/Milling.py:2048 appPlugins/ToolNCC/Ncc.py:924
+#: appPlugins/ToolPaint/Paint.py:677
 msgid "Multiple Tools"
 msgstr "Unelte multiple"
 
-#: appPlugins/Common/clearing/controller_base.py:438
+#: appPlugins/Common/clearing/controller_base.py:450
 #: appPlugins/ToolIsolation/Isolation.py:1847
 #: appPlugins/ToolIsolation/Isolation.py:1854
 #: appPlugins/ToolSolderPaste/SolderPaste.py:741
@@ -24767,13 +24777,17 @@ msgid "Delete failed. Select a tool to delete."
 msgstr "Ștergere eșuată. Selectează o unealtă pt ștergere."
 
 # auto-review 2026-10-09: corrected
-#: appPlugins/Common/clearing/controller_base.py:445
+#: appPlugins/Common/clearing/controller_base.py:457
 #: appPlugins/ToolIsolation/Isolation.py:1858
 #: appPlugins/ToolSolderPaste/SolderPaste.py:746
 msgid "Tools deleted from Tool Table."
 msgstr "Unelte șterse din Tabela de Unelte."
 
-#: appPlugins/Common/clearing/controller_base.py:540
+#: appPlugins/Common/clearing/controller_base.py:609
+msgid "There is no object to add the exclusion zones to."
+msgstr "Nu există niciun obiect la care să se adauge zonele de excludere."
+
+#: appPlugins/Common/clearing/controller_base.py:615
 msgid "Exclusion zones added."
 msgstr "Zone de excludere adăugate."
 
@@ -24900,8 +24914,8 @@ msgid "The kind of shape used to draw an exclusion zone."
 msgstr "Tipul de formă folosit pentru a desena o zonă de excludere."
 
 #: appPlugins/Common/clearing/ui_sections.py:372
-msgid "The number of exclusion zones drawn."
-msgstr "Numărul de zone de excludere desenate."
+msgid "The number of exclusion zones of the selected object."
+msgstr "Numărul zonelor de excludere ale obiectului selectat."
 
 #: appPlugins/Common/clearing/ui_sections.py:372
 msgid "Zones"
@@ -24913,10 +24927,11 @@ msgstr "Adaugă zonă"
 
 #: appPlugins/Common/clearing/ui_sections.py:379
 msgid ""
-"Draw exclusion zones on the canvas.\n"
+"Draw exclusion zones on the canvas; they are added to the selected object.\n"
 "Left click to draw, right click or Escape to finish."
 msgstr ""
-"Desenează zone de excludere pe canvas.\n"
+"Desenează zone de excludere pe canvas; ele sunt adăugate obiectului "
+"selectat.\n"
 "Clic stânga pentru a desena, clic dreapta sau Escape pentru a termina."
 
 #: appPlugins/Common/clearing/ui_sections.py:382
@@ -24924,8 +24939,8 @@ msgid "Delete all"
 msgstr "Șterge tot"
 
 #: appPlugins/Common/clearing/ui_sections.py:383
-msgid "Remove all the exclusion zones."
-msgstr "Elimină toate zonele de excludere."
+msgid "Remove all the exclusion zones of the selected object."
+msgstr "Elimină toate zonele de excludere ale obiectului selectat."
 
 # auto-review 2026-10-21: new
 #: appPlugins/Common/grbl/grbl_client.py:609
@@ -26500,10 +26515,10 @@ msgstr "Unealta Copper Thieving a terminat."
 #: appPlugins/ToolMilling/Milling.py:2079
 #: appPlugins/ToolMilling/Milling.py:2867
 #: appPlugins/ToolMilling/Milling.py:2891
-#: appPlugins/ToolMilling/Milling.py:3059 appPlugins/ToolNCC/Ncc.py:1045
-#: appPlugins/ToolNCC/NccGen.py:174 appPlugins/ToolNCC/NccGen.py:198
-#: appPlugins/ToolNCC/NccGen.py:220 appPlugins/ToolPaint/PaintGen.py:201
-#: appPlugins/ToolPaint/PaintGen.py:1083
+#: appPlugins/ToolMilling/Milling.py:3059 appPlugins/ToolNCC/Ncc.py:1061
+#: appPlugins/ToolNCC/NccGen.py:175 appPlugins/ToolNCC/NccGen.py:199
+#: appPlugins/ToolNCC/NccGen.py:221 appPlugins/ToolPaint/PaintGen.py:203
+#: appPlugins/ToolPaint/PaintGen.py:1093
 #: appPlugins/ToolPanelize/Panelize.py:306
 #: appPlugins/ToolPanelize/Panelize.py:321 appPlugins/ToolSub/Sub.py:409
 #: appPlugins/ToolSub/Sub.py:418 tclCommands/TclCommandBuffer.py:87
@@ -26549,14 +26564,14 @@ msgstr ""
 
 # auto-review 2026-10-09: corrected
 #: appPlugins/ToolCopperThieving/CopperThieving.py:544
-#: appPlugins/ToolNCC/NccGen.py:347 appPlugins/ToolNCC/NccGen.py:390
-#: appPlugins/ToolPaint/PaintGen.py:1137
+#: appPlugins/ToolNCC/NccGen.py:348 appPlugins/ToolNCC/NccGen.py:391
+#: appPlugins/ToolPaint/PaintGen.py:1147
 msgid "No object available."
 msgstr "Niciun obiect disponibil."
 
 # auto-review 2026-10-09: corrected
 #: appPlugins/ToolCopperThieving/CopperThieving.py:545
-#: appPlugins/ToolNCC/NccGen.py:363 appPlugins/ToolNCC/NccGen.py:381
+#: appPlugins/ToolNCC/NccGen.py:364 appPlugins/ToolNCC/NccGen.py:382
 msgid "The reference object type is not supported."
 msgstr "Tipul de obiect de referință nu este acceptat."
 
@@ -26710,16 +26725,16 @@ msgstr ""
 
 #: appPlugins/ToolCutOut/CutOut.py:479
 #: appPlugins/ToolIsolation/Isolation.py:1659
-#: appPlugins/ToolMilling/Milling.py:2498 appPlugins/ToolNCC/Ncc.py:1163
-#: appPlugins/ToolPaint/Paint.py:749
+#: appPlugins/ToolMilling/Milling.py:2498 appPlugins/ToolNCC/Ncc.py:1179
+#: appPlugins/ToolPaint/Paint.py:750
 msgid "Tool not in Tools Database. Adding a default tool."
 msgstr ""
 "Unealta nu se află în baza de date Unelte. Se adaugă o unealtă implicită."
 
 #: appPlugins/ToolCutOut/CutOut.py:486 appPlugins/ToolDrilling/Drilling.py:1606
 #: appPlugins/ToolIsolation/Isolation.py:1665
-#: appPlugins/ToolMilling/Milling.py:2505 appPlugins/ToolNCC/Ncc.py:1170
-#: appPlugins/ToolPaint/Paint.py:753
+#: appPlugins/ToolMilling/Milling.py:2505 appPlugins/ToolNCC/Ncc.py:1186
+#: appPlugins/ToolPaint/Paint.py:754
 msgid ""
 "Cancelled.\n"
 "Multiple tools for one tool diameter found in Tools Database."
@@ -26804,10 +26819,10 @@ msgstr "Operația de decupare cu formă liberă s-a terminat."
 #: appPlugins/ToolIsolation/Isolation.py:2546
 #: appPlugins/ToolMilling/Milling.py:2871
 #: appPlugins/ToolMilling/Milling.py:2895
-#: appPlugins/ToolMilling/Milling.py:3063 appPlugins/ToolNCC/Ncc.py:267
-#: appPlugins/ToolNCC/Ncc.py:295 appPlugins/ToolNCC/Ncc.py:1049
-#: appPlugins/ToolNCC/NccGen.py:178 appPlugins/ToolPaint/Paint.py:922
-#: appPlugins/ToolPaint/Paint.py:942 appPlugins/ToolPaint/PaintGen.py:205
+#: appPlugins/ToolMilling/Milling.py:3063 appPlugins/ToolNCC/Ncc.py:282
+#: appPlugins/ToolNCC/Ncc.py:310 appPlugins/ToolNCC/Ncc.py:1065
+#: appPlugins/ToolNCC/NccGen.py:179 appPlugins/ToolPaint/Paint.py:937
+#: appPlugins/ToolPaint/Paint.py:957 appPlugins/ToolPaint/PaintGen.py:207
 #: appPlugins/ToolPanelize/Panelize.py:311 tclCommands/TclCommandBbox.py:71
 #: tclCommands/TclCommandCheckRules.py:92
 #: tclCommands/TclCommandEtchCompensate.py:70
@@ -27323,7 +27338,7 @@ msgstr "Obiectul nu a putut fi oglindit."
 msgid "Could not regenerate the mirrored source."
 msgstr "Sursa oglindită nu a putut fi regenerată."
 
-#: appPlugins/ToolDblSided/DblSided.py:620 camlib.py:2825
+#: appPlugins/ToolDblSided/DblSided.py:620 camlib.py:2836
 msgid "Object was mirrored"
 msgstr "Obiectul a fost oglindit"
 
@@ -27963,8 +27978,8 @@ msgstr "Găurire: aplică parametrii tuturor uneltelor"
 
 #: appPlugins/ToolDrilling/Drilling.py:1867
 #: appPlugins/ToolIsolation/Isolation.py:1286
-#: appPlugins/ToolMilling/Milling.py:2429 appPlugins/ToolNCC/Ncc.py:819
-#: appPlugins/ToolPaint/Paint.py:549
+#: appPlugins/ToolMilling/Milling.py:2429 appPlugins/ToolNCC/Ncc.py:835
+#: appPlugins/ToolPaint/Paint.py:550
 msgid "Current Tool parameters were applied to all tools."
 msgstr "Parametrii Uneltei curente sunt aplicați la toate Uneltele."
 
@@ -27992,7 +28007,7 @@ msgid "Value edited in Exclusion Table."
 msgstr "Valoarea a fost editată în Tabela de Excludere."
 
 # auto-review 2026-10-09: corrected
-#: appPlugins/ToolDrilling/Drilling.py:2205 camlib.py:5319 camlib.py:5446
+#: appPlugins/ToolDrilling/Drilling.py:2205 camlib.py:5330 camlib.py:5457
 msgid "The loaded Excellon file has no drills"
 msgstr "Fișierul Excellon încărcat nu are găuri"
 
@@ -28000,7 +28015,7 @@ msgstr "Fișierul Excellon încărcat nu are găuri"
 msgid "The selected tools are not in the Excellon object."
 msgstr "Uneltele selectate nu se află în obiectul Excellon."
 
-#: appPlugins/ToolDrilling/Drilling.py:2247 camlib.py:5174
+#: appPlugins/ToolDrilling/Drilling.py:2247 camlib.py:5185
 msgid "Creating a list of points to drill..."
 msgstr "Crearea unei liste de puncte pentru găurire ..."
 
@@ -28037,7 +28052,7 @@ msgstr ""
 "Nu există schimbare de unealtă: parametrii uneltei {tool} (Z tăiere, Avans "
 "Z, Turație motor) sunt folosiți pentru toate uneltele selectate."
 
-#: appPlugins/ToolDrilling/Drilling.py:2312 camlib.py:5259
+#: appPlugins/ToolDrilling/Drilling.py:2312 camlib.py:5270
 msgid ""
 "The spot drilling pass needs a toolchange: it is left out. Enable the "
 "toolchange to use it."
@@ -28051,7 +28066,7 @@ msgid "tool"
 msgstr "unealtă"
 
 # auto-review 2026-10-09: corrected
-#: appPlugins/ToolDrilling/Drilling.py:2346 camlib.py:5314
+#: appPlugins/ToolDrilling/Drilling.py:2346 camlib.py:5325
 msgid "Starting G-Code"
 msgstr "Se începe generarea G-Code"
 
@@ -28060,7 +28075,7 @@ msgid "Generating CNCJob..."
 msgstr "Se generează CNCJob ..."
 
 # auto-review 2026-10-09: corrected
-#: appPlugins/ToolDrilling/Drilling.py:2450 camlib.py:4183 camlib.py:4729
+#: appPlugins/ToolDrilling/Drilling.py:2450 camlib.py:4194 camlib.py:4740
 msgid "The Toolchange X,Y format has to be (x, y)."
 msgstr "Formatul X,Y pentru schimbul de unealtă trebuie să fie (x, y)."
 
@@ -28609,8 +28624,8 @@ msgstr ""
 #: appPlugins/ToolFollow/FollowUI.py:203
 #: appPlugins/ToolGcodeSender/SenderCameraUI.py:199
 #: appPlugins/ToolGcodeSender/SenderRegistrationUI.py:174
-#: appPlugins/ToolNCC/Ncc.py:329 appPlugins/ToolNCC/NccUI.py:325
-#: appPlugins/ToolPaint/Paint.py:962 appPlugins/ToolPaint/PaintUI.py:286
+#: appPlugins/ToolNCC/Ncc.py:344 appPlugins/ToolNCC/NccUI.py:325
+#: appPlugins/ToolPaint/Paint.py:977 appPlugins/ToolPaint/PaintUI.py:286
 #: appPlugins/ToolPhotoCarve/PhotoCarveUI.py:299
 #: appPlugins/ToolQRCode/QRCodeUI.py:303 appPlugins/ToolSub/SubUI.py:181
 msgid "Preview"
@@ -33175,13 +33190,13 @@ msgstr "Nu există unelte în Tabela de Unelte."
 #: appPlugins/ToolIsolation/Isolation.py:2516
 #: appPlugins/ToolIsolation/Isolation.py:2679
 #: appPlugins/ToolIsolation/IsolationJob.py:615
-#: appPlugins/ToolNCC/NccGen.py:263 appPlugins/ToolPaint/Paint.py:907
-#: appPlugins/ToolPaint/PaintGen.py:228 appPlugins/ToolPaint/PaintGen.py:569
+#: appPlugins/ToolNCC/NccGen.py:264 appPlugins/ToolPaint/Paint.py:922
+#: appPlugins/ToolPaint/PaintGen.py:230 appPlugins/ToolPaint/PaintGen.py:577
 msgid "There are no tools selected in the Tool Table."
 msgstr "Nu există unelte selectate în Tabelul de Unelte."
 
 #: appPlugins/ToolIsolation/Isolation.py:1477
-#: appPlugins/ToolIsolation/Isolation.py:1532 appPlugins/ToolNCC/Ncc.py:1036
+#: appPlugins/ToolIsolation/Isolation.py:1532 appPlugins/ToolNCC/Ncc.py:1052
 msgid "Checking tools for validity."
 msgstr "Se verifică validitatea diametrelor uneltelor."
 
@@ -33201,7 +33216,7 @@ msgid "Tool validation passed."
 msgstr "Validarea uneltelor a reușit."
 
 #: appPlugins/ToolIsolation/Isolation.py:1522
-#: appPlugins/ToolIsolation/Isolation.py:1549 appPlugins/ToolNCC/Ncc.py:1057
+#: appPlugins/ToolIsolation/Isolation.py:1549 appPlugins/ToolNCC/Ncc.py:1073
 msgid "Checking ..."
 msgstr "Se verifică ..."
 
@@ -33221,14 +33236,14 @@ msgstr ""
 # auto-review 2026-10-09: new
 #: appPlugins/ToolIsolation/Isolation.py:1573
 #: appPlugins/ToolIsolation/Isolation.py:1587
-#: appPlugins/ToolIsolation/IsolationGen.py:227 appPlugins/ToolNCC/Ncc.py:1075
-#: appPlugins/ToolNCC/Ncc.py:1089 appPlugins/ToolNCC/NccModel.py:72
+#: appPlugins/ToolIsolation/IsolationGen.py:227 appPlugins/ToolNCC/Ncc.py:1091
+#: appPlugins/ToolNCC/Ncc.py:1105 appPlugins/ToolNCC/NccModel.py:73
 #: appPlugins/ToolOptimal/Optimal.py:287
 msgid "Could not find a safe tool diameter."
 msgstr "Nu s-a putut găsi un diametru de unealtă sigur."
 
 # auto-review 2026-10-09: corrected
-#: appPlugins/ToolIsolation/Isolation.py:1580 appPlugins/ToolNCC/Ncc.py:1083
+#: appPlugins/ToolIsolation/Isolation.py:1580 appPlugins/ToolNCC/Ncc.py:1099
 msgid "Optimal tool diameter found"
 msgstr "S-a găsit diametrul optim al uneltei"
 
@@ -33237,24 +33252,24 @@ msgid "Aborted."
 msgstr "Anulat."
 
 #: appPlugins/ToolIsolation/Isolation.py:1695
-#: appPlugins/ToolMilling/Milling.py:2538 appPlugins/ToolNCC/Ncc.py:1202
-#: appPlugins/ToolPaint/Paint.py:787
+#: appPlugins/ToolMilling/Milling.py:2538 appPlugins/ToolNCC/Ncc.py:1218
+#: appPlugins/ToolPaint/Paint.py:788
 msgid "New tool added to Tool Table from Tools Database."
 msgstr "O nouă unealtă adăugată în Tabelul de Unelte din baza de date Unelte."
 
-#: appPlugins/ToolIsolation/Isolation.py:1751 appPlugins/ToolNCC/Ncc.py:1267
-#: appPlugins/ToolPaint/Paint.py:839
+#: appPlugins/ToolIsolation/Isolation.py:1751 appPlugins/ToolNCC/Ncc.py:1283
+#: appPlugins/ToolPaint/Paint.py:840
 msgid "Default tool added to Tool Table."
 msgstr "Unealta implicită a fost adăugată în Tabelul de Unelte."
 
-#: appPlugins/ToolIsolation/Isolation.py:1786 appPlugins/ToolNCC/Ncc.py:1357
-#: appPlugins/ToolPaint/Paint.py:870
+#: appPlugins/ToolIsolation/Isolation.py:1786 appPlugins/ToolNCC/Ncc.py:1373
+#: appPlugins/ToolPaint/Paint.py:871
 msgid "Cancelled. New diameter value is already in the Tool Table."
 msgstr ""
 "Anulat. Noua valoare pt diametrul uneltei este deja în Tabela de Unelte."
 
-#: appPlugins/ToolIsolation/Isolation.py:1793 appPlugins/ToolNCC/Ncc.py:1342
-#: appPlugins/ToolPaint/Paint.py:874
+#: appPlugins/ToolIsolation/Isolation.py:1793 appPlugins/ToolNCC/Ncc.py:1358
+#: appPlugins/ToolPaint/Paint.py:875
 #: appPlugins/ToolSolderPaste/SolderPaste.py:684
 msgid "Tool from Tool Table was edited."
 msgstr "O unealtă din Tabela de Unelte a fost editată."
@@ -33297,15 +33312,15 @@ msgstr "Lista poligoanelor individuale este goală. Se anulează."
 msgid "Click the end point of the paint area."
 msgstr "Faceți clic pe punctul final al zonei de pictat."
 
-#: appPlugins/ToolIsolation/Isolation.py:2829 appPlugins/ToolNCC/Ncc.py:1409
-#: appPlugins/ToolPaint/Paint.py:1216
+#: appPlugins/ToolIsolation/Isolation.py:2829 appPlugins/ToolNCC/Ncc.py:1425
+#: appPlugins/ToolPaint/Paint.py:1231
 #: appPlugins/ToolSolderPaste/SolderPaste.py:643
 msgid "New tool added to Tool Table."
 msgstr "O unealtă nouă a fost adăugată în tabelul de unelte."
 
 # auto-review 2026-10-09: new
 #: appPlugins/ToolIsolation/IsolationGen.py:225
-#: appPlugins/ToolNCC/NccModel.py:68
+#: appPlugins/ToolNCC/NccModel.py:69
 msgid "Too few polygons in the Gerber object to determine distances."
 msgstr ""
 "Prea puține poligoane în obiectul Gerber pentru a determina distanțele."
@@ -33362,7 +33377,7 @@ msgstr ""
 #: appPlugins/ToolIsolation/IsolationJob.py:384
 #: appPlugins/ToolIsolation/IsolationJob.py:639
 #: appPlugins/ToolIsolation/IsolationJob.py:735
-#: appPlugins/ToolNCC/NccModel.py:211
+#: appPlugins/ToolNCC/NccModel.py:212
 msgid "Isolation geometry could not be generated."
 msgstr "Geometria de izolare nu a fost posibil să fie generată."
 
@@ -34033,7 +34048,7 @@ msgstr ""
 msgid "Cancelled. Empty file, it has no geometry"
 msgstr "Anulat. Fișier gol, nu are geometrie"
 
-#: appPlugins/ToolMilling/Milling.py:3374 appPlugins/ToolPaint/PaintGen.py:340
+#: appPlugins/ToolMilling/Milling.py:3374 appPlugins/ToolPaint/PaintGen.py:342
 msgid "Geometry could not be painted completely"
 msgstr "Geometria nu a fost posibil să fie 'pictată' complet"
 
@@ -34188,11 +34203,11 @@ msgstr "Ofset invalid."
 msgid "A move is already in progress. Wait for it to finish, then retry."
 msgstr "O deplasare e în curs. Așteptați, apoi reîncercați."
 
-#: appPlugins/ToolNCC/Ncc.py:233
+#: appPlugins/ToolNCC/Ncc.py:238
 msgid "The object to be processed is no longer available."
 msgstr "Obiectul de procesat nu mai este disponibil."
 
-#: appPlugins/ToolNCC/Ncc.py:284 appPlugins/ToolPaint/Paint.py:932
+#: appPlugins/ToolNCC/Ncc.py:299 appPlugins/ToolPaint/Paint.py:947
 msgid ""
 "No area is drawn yet. Click Generate to draw the zones of the Area "
 "Selection, then use Preview."
@@ -34200,45 +34215,45 @@ msgstr ""
 "Nicio zonă nu este desenată încă. Apăsați Generează pentru a desena zonele "
 "pentru Selecție zonă, apoi folosiți Previzualizare."
 
-#: appPlugins/ToolNCC/Ncc.py:322
+#: appPlugins/ToolNCC/Ncc.py:337
 msgid "Computing the area to clear ..."
 msgstr "Se calculează zona de curățat ..."
 
-#: appPlugins/ToolNCC/Ncc.py:353 appPlugins/ToolPaint/Paint.py:967
+#: appPlugins/ToolNCC/Ncc.py:368 appPlugins/ToolPaint/Paint.py:982
 msgid "Aborted. The preview was not computed."
 msgstr "Anulat. Previzualizarea nu a fost calculată."
 
-#: appPlugins/ToolNCC/Ncc.py:356 appPlugins/ToolPaint/Paint.py:970
+#: appPlugins/ToolNCC/Ncc.py:371 appPlugins/ToolPaint/Paint.py:985
 msgid "The preview failed."
 msgstr "Previzualizarea a eșuat."
 
-#: appPlugins/ToolNCC/Ncc.py:371 appPlugins/ToolNCC/NccGen.py:445
+#: appPlugins/ToolNCC/Ncc.py:386 appPlugins/ToolNCC/NccGen.py:446
 msgid "The area to clear is empty."
 msgstr "Zona de curățat este goală."
 
-#: appPlugins/ToolNCC/Ncc.py:381
+#: appPlugins/ToolNCC/Ncc.py:396
 msgid "Preview of the area to clear."
 msgstr "Previzualizarea zonei de curățat."
 
-#: appPlugins/ToolNCC/Ncc.py:1053
+#: appPlugins/ToolNCC/Ncc.py:1069
 msgid "The optimal tool diameter can be found only for a Gerber object."
 msgstr ""
 "Diametrul optim al uneltei poate fi găsit doar pentru un obiect Gerber."
 
-#: appPlugins/ToolNCC/Ncc.py:1085
+#: appPlugins/ToolNCC/Ncc.py:1101
 msgid "Aborted. The optimal tool diameter was not computed."
 msgstr "Anulat. Diametrul optim al uneltei nu a fost calculat."
 
 # auto-review 2026-10-09: corrected
-#: appPlugins/ToolNCC/Ncc.py:1135 appPlugins/ToolNCC/Ncc.py:1177
-#: appPlugins/ToolNCC/Ncc.py:1240 appPlugins/ToolNCC/Ncc.py:1393
-#: appPlugins/ToolPaint/Paint.py:715 appPlugins/ToolPaint/Paint.py:758
-#: appPlugins/ToolPaint/Paint.py:815 appPlugins/ToolPaint/Paint.py:1197
+#: appPlugins/ToolNCC/Ncc.py:1151 appPlugins/ToolNCC/Ncc.py:1193
+#: appPlugins/ToolNCC/Ncc.py:1256 appPlugins/ToolNCC/Ncc.py:1409
+#: appPlugins/ToolPaint/Paint.py:716 appPlugins/ToolPaint/Paint.py:759
+#: appPlugins/ToolPaint/Paint.py:816 appPlugins/ToolPaint/Paint.py:1212
 #: appPlugins/ToolSolderPaste/SolderPaste.py:638
 msgid "Tool already in Tool Table."
 msgstr "Unealta este deja în Tabela de Unelte."
 
-#: appPlugins/ToolNCC/NccGen.py:277
+#: appPlugins/ToolNCC/NccGen.py:278
 msgid ""
 "No Gerber or Geometry object is selected. The object of the combo box is "
 "used."
@@ -34246,7 +34261,7 @@ msgstr ""
 "Niciun obiect Gerber sau Geometrie nu este selectat. Se folosește obiectul "
 "din lista derulantă."
 
-#: appPlugins/ToolNCC/NccGen.py:281
+#: appPlugins/ToolNCC/NccGen.py:282
 msgid ""
 "The selection works with one object only. Select a single object or turn "
 "off All selected objects."
@@ -34254,36 +34269,36 @@ msgstr ""
 "Selecția funcționează cu un singur obiect. Selectați un singur obiect sau "
 "dezactivați Toate obiectele selectate."
 
-#: appPlugins/ToolNCC/NccGen.py:377
+#: appPlugins/ToolNCC/NccGen.py:378
 msgid "NCC Tool. Preparing non-copper polygons."
 msgstr "Unealta NCC. Se pregătesc poligoanele non-cupru."
 
-#: appPlugins/ToolNCC/NccGen.py:410
+#: appPlugins/ToolNCC/NccGen.py:411
 msgid "NCC Tool. Calculate 'empty' area."
 msgstr "Unealta NCC. Calculează aria 'goală'."
 
-#: appPlugins/ToolNCC/NccGen.py:428
+#: appPlugins/ToolNCC/NccGen.py:429
 msgid "The selected object is not suitable for copper clearing."
 msgstr "Obiectul selectat nu este potrivit pentru curățarea cuprului."
 
-#: appPlugins/ToolNCC/NccGen.py:447
+#: appPlugins/ToolNCC/NccGen.py:448
 msgid "Could not get the extent of the area to be non copper cleared."
 msgstr "Nu s-a putut determina întinderea zonei de curățat de cupru."
 
-#: appPlugins/ToolNCC/NccGen.py:455
+#: appPlugins/ToolNCC/NccGen.py:456
 msgid "NCC Tool. Finished calculation of 'empty' area."
 msgstr "Unealta NCC. S-a terminat calculul suprafeței 'goale'."
 
-#: appPlugins/ToolNCC/NccGen.py:485 appPlugins/ToolNCC/NccGen.py:771
+#: appPlugins/ToolNCC/NccGen.py:486 appPlugins/ToolNCC/NccGen.py:774
 msgid "NCC Tool failed creating bounding box."
 msgstr "Unealta NCC nu a putut crea caseta de încadrare."
 
-#: appPlugins/ToolNCC/NccGen.py:515
+#: appPlugins/ToolNCC/NccGen.py:516
 msgid "Polygon could not be cleared. Location:"
 msgstr "Poligonul nu a putut fi curățat. Locație:"
 
 # auto-review 2026-10-21: new
-#: appPlugins/ToolNCC/NccGen.py:542 appPlugins/ToolNCC/NccGen.py:607
+#: appPlugins/ToolNCC/NccGen.py:543 appPlugins/ToolNCC/NccGen.py:608
 msgid ""
 "Final cleanup finished. Some residual copper could not be cleared with this "
 "tool."
@@ -34291,7 +34306,7 @@ msgstr ""
 "Curățarea finală s-a încheiat. O parte din cuprul rezidual nu a putut fi "
 "îndepărtată cu această unealtă."
 
-#: appPlugins/ToolNCC/NccGen.py:588
+#: appPlugins/ToolNCC/NccGen.py:589
 msgid ""
 "There is no NCC Geometry in the file.\n"
 "Usually it means that the tool diameter is too big for the painted "
@@ -34304,39 +34319,39 @@ msgstr ""
 "Schimbați parametrii Paint și încercați din nou."
 
 # auto-review 2026-10-09: corrected
-#: appPlugins/ToolNCC/NccGen.py:617
+#: appPlugins/ToolNCC/NccGen.py:618
 msgid "NCC Tool clear all done but the copper features isolation is broken for"
 msgstr ""
 "Unealta NCC: curățarea completă a fost efectuată, dar izolația elementelor "
 "de cupru este întreruptă pentru"
 
-#: appPlugins/ToolNCC/NccGen.py:618
+#: appPlugins/ToolNCC/NccGen.py:619
 msgid "tools"
 msgstr "unelte"
 
 # auto-review 2026-10-09: corrected
-#: appPlugins/ToolNCC/NccGen.py:620
+#: appPlugins/ToolNCC/NccGen.py:621
 msgid "NCC Tool clear all done."
 msgstr "Unealta NCC: curățarea completă a fost efectuată."
 
 # auto-review 2026-10-09: corrected
-#: appPlugins/ToolNCC/NccGen.py:625
+#: appPlugins/ToolNCC/NccGen.py:626
 msgid "NCC Tool clearing with tool diameter"
 msgstr "Unealta NCC: curățarea cu unealta cu diametrul"
 
-#: appPlugins/ToolNCC/NccGen.py:625
+#: appPlugins/ToolNCC/NccGen.py:626
 msgid "started."
 msgstr "a început."
 
-#: appPlugins/ToolNCC/NccGen.py:633
+#: appPlugins/ToolNCC/NccGen.py:634
 msgid "Check validity is skipped: the source is not a Gerber object."
 msgstr "Verificarea corectitudinii este omisă: sursa nu este un obiect Gerber."
 
-#: appPlugins/ToolNCC/NccGen.py:639
+#: appPlugins/ToolNCC/NccGen.py:640
 msgid "Check validity is skipped."
 msgstr "Verificarea corectitudinii este omisă."
 
-#: appPlugins/ToolNCC/NccGen.py:644
+#: appPlugins/ToolNCC/NccGen.py:645
 msgid ""
 "Check validity: the smallest copper gap is %(gap)s%(units)s. Tools too big "
 "for it: %(tools)s. Use smaller tools or turn off Check validity."
@@ -34345,7 +34360,7 @@ msgstr ""
 "%(gap)s%(units)s. Unelte prea mari: %(tools)s. Folosiți unelte mai mici sau "
 "dezactivați Verificați corectitudinea."
 
-#: appPlugins/ToolNCC/NccGen.py:650
+#: appPlugins/ToolNCC/NccGen.py:651
 msgid ""
 "Check validity: the smallest copper gap is %(gap)s%(units)s. These tools "
 "will not enter all the gaps: %(tools)s."
@@ -34353,28 +34368,28 @@ msgstr ""
 "Verificarea corectitudinii: cea mai mică distanță între cupru este "
 "%(gap)s%(units)s. Aceste unelte nu vor intra în toate spațiile: %(tools)s."
 
-#: appPlugins/ToolNCC/NccGen.py:765
+#: appPlugins/ToolNCC/NccGen.py:768
 msgid "No area under the clicked points."
 msgstr "Nicio zonă sub punctele apăsate."
 
-#: appPlugins/ToolNCC/NccGen.py:918
+#: appPlugins/ToolNCC/NccGen.py:921
 msgid "The order must be no, fwd or rev."
 msgstr "Ordinea trebuie să fie no, fwd sau rev."
 
-#: appPlugins/ToolNCC/NccGen.py:929
+#: appPlugins/ToolNCC/NccGen.py:932
 msgid "Direction must be none, climb or conv."
 msgstr "Direcție trebuie să fie none, climb sau conv."
 
-#: appPlugins/ToolNCC/NccGen.py:1022
+#: appPlugins/ToolNCC/NccGen.py:1027
 msgid "Could not use the tool for copper clear."
 msgstr ""
 "Nu s-a putut folosi unealta pentru ca să fie realizată curățarea de cupru."
 
-#: appPlugins/ToolNCC/NccGen.py:1023
+#: appPlugins/ToolNCC/NccGen.py:1028
 msgid "with diameter"
 msgstr "cu diametrul"
 
-#: appPlugins/ToolNCC/NccGen.py:1032
+#: appPlugins/ToolNCC/NccGen.py:1037
 msgid ""
 "Try to use the Buffering Type = Full in Preferences -> Gerber General. "
 "Reload the Gerber file after this change."
@@ -34382,20 +34397,20 @@ msgstr ""
 "Încercați Tip de buferare = Complet în Preferințe -> Gerber General. "
 "Reîncărcați fișierul Gerber după această schimbare."
 
-#: appPlugins/ToolNCC/NccModel.py:167
+#: appPlugins/ToolNCC/NccModel.py:168
 msgid "Clearing the polygon with the method: lines."
 msgstr "Curățarea poligonului cu metoda: linii."
 
-#: appPlugins/ToolNCC/NccModel.py:168
+#: appPlugins/ToolNCC/NccModel.py:169
 msgid "Failed. Clearing the polygon with the method: seed."
 msgstr "A eșuat. Se curăță poligonul cu metoda: punct sursă."
 
-#: appPlugins/ToolNCC/NccModel.py:169
+#: appPlugins/ToolNCC/NccModel.py:170
 msgid "Failed. Clearing the polygon with the method: standard."
 msgstr "A eșuat. Se curăță poligonul cu metoda: standard."
 
 # auto-review 2026-10-09: corrected
-#: appPlugins/ToolNCC/NccModel.py:215
+#: appPlugins/ToolNCC/NccModel.py:216
 msgid ""
 "Isolation geometry is broken. Margin is less than isolation tool diameter."
 msgstr ""
@@ -34984,11 +34999,11 @@ msgstr "Bufferul PDF nu poate fi deschis."
 msgid "The selected object is not a Gerber or Geometry object."
 msgstr "Obiectul selectat nu este un obiect Gerber sau Geometrie."
 
-#: appPlugins/ToolPaint/Paint.py:913 appPlugins/ToolPaint/PaintGen.py:188
+#: appPlugins/ToolPaint/Paint.py:928 appPlugins/ToolPaint/PaintGen.py:190
 msgid "Select Geometry or Gerber objects in the Project tab."
 msgstr "Selectați obiecte Geometrie sau Gerber în fila Proiect."
 
-#: appPlugins/ToolPaint/Paint.py:928
+#: appPlugins/ToolPaint/Paint.py:943
 msgid ""
 "No polygon is selected yet. Click Generate to select the polygons, then use "
 "Preview."
@@ -34996,41 +35011,41 @@ msgstr ""
 "Niciun poligon selectat încă. Faceți clic pe Generează pentru a selecta "
 "poligoanele, apoi folosiți Previzualizare."
 
-#: appPlugins/ToolPaint/Paint.py:955
+#: appPlugins/ToolPaint/Paint.py:970
 msgid "Computing the area to paint ..."
 msgstr "Se calculează zona de pictat ..."
 
-#: appPlugins/ToolPaint/Paint.py:983
+#: appPlugins/ToolPaint/Paint.py:998
 msgid "The area to paint is empty."
 msgstr "Zona de pictat este goală."
 
-#: appPlugins/ToolPaint/Paint.py:993
+#: appPlugins/ToolPaint/Paint.py:1008
 msgid "Preview of the area to paint."
 msgstr "Previzualizarea zonei de pictat."
 
-#: appPlugins/ToolPaint/PaintGen.py:312
+#: appPlugins/ToolPaint/PaintGen.py:314
 msgid "Painting polygon with method: lines."
 msgstr "Se pictează poligonul cu metoda: linii."
 
 # auto-review 2026-10-09: corrected
-#: appPlugins/ToolPaint/PaintGen.py:313
+#: appPlugins/ToolPaint/PaintGen.py:315
 msgid "Failed. Painting polygon with method: seed."
 msgstr "A eșuat. Se pictează poligonul cu metoda: punct sursă."
 
-#: appPlugins/ToolPaint/PaintGen.py:314
+#: appPlugins/ToolPaint/PaintGen.py:316
 msgid "Failed. Painting polygon with method: standard."
 msgstr "A eșuat. Se pictează poligonul cu metoda: standard."
 
-#: appPlugins/ToolPaint/PaintGen.py:425 appPlugins/ToolPaint/PaintGen.py:926
+#: appPlugins/ToolPaint/PaintGen.py:433 appPlugins/ToolPaint/PaintGen.py:936
 msgid "No polygon found."
 msgstr "Nu s-a găsit niciun poligon."
 
-#: appPlugins/ToolPaint/PaintGen.py:503
+#: appPlugins/ToolPaint/PaintGen.py:511
 msgid "Check validity: no tool fits inside the polygons to paint."
 msgstr ""
 "Verificați corectitudinea: nicio sculă nu încape în poligoanele de pictat."
 
-#: appPlugins/ToolPaint/PaintGen.py:507
+#: appPlugins/ToolPaint/PaintGen.py:515
 msgid ""
 "Check validity: %(count)d polygon(s) are too narrow for all the tools and "
 "will not be painted."
@@ -35038,58 +35053,58 @@ msgstr ""
 "Verificați corectitudinea: %(count)d poligon(oane) sunt prea înguste pentru "
 "toate sculele și nu vor fi pictate."
 
-#: appPlugins/ToolPaint/PaintGen.py:511
+#: appPlugins/ToolPaint/PaintGen.py:519
 msgid "Check validity: these tools fit inside no polygon: %(tools)s."
 msgstr ""
 "Verificați corectitudinea: aceste scule nu încap în niciun poligon: "
 "%(tools)s."
 
-#: appPlugins/ToolPaint/PaintGen.py:647
+#: appPlugins/ToolPaint/PaintGen.py:655
 msgid "Paths too close to an exclusion zone were dropped: %d"
 msgstr "Traseele prea aproape de o zonă de excludere au fost eliminate: %d"
 
-#: appPlugins/ToolPaint/PaintGen.py:707
+#: appPlugins/ToolPaint/PaintGen.py:715
 msgid "Painting with tool diameter = "
 msgstr "Se pictează cu o unealtă cu diametrul = "
 
-#: appPlugins/ToolPaint/PaintGen.py:707
+#: appPlugins/ToolPaint/PaintGen.py:715
 msgid "started"
 msgstr "a început"
 
-#: appPlugins/ToolPaint/PaintGen.py:718
+#: appPlugins/ToolPaint/PaintGen.py:726
 msgid "A polygon could not be painted with tool diameter ="
 msgstr "Un poligon nu a putut fi pictat cu diametrul uneltei ="
 
-#: appPlugins/ToolPaint/PaintGen.py:720 appPlugins/ToolPaint/PaintGen.py:773
+#: appPlugins/ToolPaint/PaintGen.py:728 appPlugins/ToolPaint/PaintGen.py:781
 msgid "There is no geometry to process or the tool diameter is too big."
 msgstr "Nu există geometrie de procesat sau diametrul sculei este prea mare."
 
 # auto-review 2026-10-21: new
-#: appPlugins/ToolPaint/PaintGen.py:763
+#: appPlugins/ToolPaint/PaintGen.py:771
 msgid "Final paint finished. Some areas could not be painted with this tool."
 msgstr ""
 "Pictarea finală s-a încheiat. Unele zone nu au putut fi pictate cu această "
 "unealtă."
 
-#: appPlugins/ToolPaint/PaintGen.py:858
+#: appPlugins/ToolPaint/PaintGen.py:868
 msgid "Paint Plugin."
 msgstr "Plugin Pictare."
 
 # auto-review 2026-10-09: corrected
-#: appPlugins/ToolPaint/PaintGen.py:861
+#: appPlugins/ToolPaint/PaintGen.py:871
 msgid "Buffering geometry..."
 msgstr "Buferarea geometriei..."
 
 # auto-review 2026-10-09: corrected
-#: appPlugins/ToolPaint/PaintGen.py:970
+#: appPlugins/ToolPaint/PaintGen.py:980
 msgid "Normal painting polygon task started."
 msgstr "A început pictarea normală a poligonului."
 
-#: appPlugins/ToolPaint/PaintGen.py:1041
+#: appPlugins/ToolPaint/PaintGen.py:1051
 msgid "Paint all polygons task started."
 msgstr "A început pictarea tuturor poligoanelor."
 
-#: appPlugins/ToolPaint/PaintGen.py:1190
+#: appPlugins/ToolPaint/PaintGen.py:1200
 msgid "Painting area task started."
 msgstr "A început pictarea unei zone."
 
@@ -38238,56 +38253,56 @@ msgstr ""
 msgid "Quit"
 msgstr "Ieșire"
 
-#: camlib.py:814
+#: camlib.py:818
 msgid "self.solid_geometry is neither BaseGeometry or list."
 msgstr "self.solid_geometry nu este tip BaseGeometry sau tip listă."
 
 # auto-review 2026-10-09: corrected
-#: camlib.py:1210 camlib.py:1244
+#: camlib.py:1214 camlib.py:1248
 msgid "Pass"
 msgstr "Trecerea"
 
-#: camlib.py:1256
+#: camlib.py:1260
 msgid "Get Exteriors"
 msgstr "Obține contururile exterioare"
 
-#: camlib.py:1259
+#: camlib.py:1263
 msgid "Get Interiors"
 msgstr "Obține contururile interioare"
 
 # auto-review 2026-10-09: new
-#: camlib.py:1685 camlib.py:1857 camlib.py:2078 camlib.py:2190 camlib.py:2364
+#: camlib.py:1689 camlib.py:1861 camlib.py:2082 camlib.py:2194 camlib.py:2368
 msgid "Connect: reducing tool lifts. This may take a while, please wait..."
 msgstr ""
 "Conectare: se reduc ridicările uneltei. Poate dura ceva timp, vă rugăm să "
 "așteptați..."
 
 # auto-review 2026-10-09: new
-#: camlib.py:1686 camlib.py:1858 camlib.py:2079 camlib.py:2191 camlib.py:2365
+#: camlib.py:1690 camlib.py:1862 camlib.py:2083 camlib.py:2195 camlib.py:2369
 msgid "Connecting..."
 msgstr "Se conectează traseele..."
 
-#: camlib.py:2853
+#: camlib.py:2864
 msgid "Object was rotated"
 msgstr "Obiectul a fost rotit"
 
-#: camlib.py:2882
+#: camlib.py:2893
 msgid "Object was skewed"
 msgstr "Obiectul a fost deformat"
 
-#: camlib.py:2930
+#: camlib.py:2941
 msgid "Geometry buffer by a factor was not done"
 msgstr "Bufer Geometrie cu factor nefăcut"
 
-#: camlib.py:2963
+#: camlib.py:2974
 msgid "Object was buffered"
 msgstr "S-a aplicat un bufer obiectului"
 
-#: camlib.py:3010
+#: camlib.py:3021
 msgid "The 'default' preprocessor is used."
 msgstr "Se folosește postprocesorul „default”."
 
-#: camlib.py:3252
+#: camlib.py:3263
 msgid ""
 "Photo Carve CNCJob converted to other units: its G-code is no longer "
 "certified. Make the CNCJob again from the Photo Carve Geometry in the "
@@ -38297,7 +38312,7 @@ msgstr ""
 "este certificat. Creați din nou CNCJob-ul din geometria de gravare foto în "
 "pluginul Frezare."
 
-#: camlib.py:3383
+#: camlib.py:3394
 msgid ""
 "No usable geometry to cut for the tool with diameter (is the geometry empty "
 "or is the tool offset too large?)"
@@ -38305,7 +38320,7 @@ msgstr ""
 "Nu există geometrie utilizabilă de tăiat pentru unealta cu diametrul "
 "(geometria este goală sau decalajul uneltei este prea mare?)"
 
-#: camlib.py:3401
+#: camlib.py:3412
 msgid ""
 "A cut path crosses an exclusion area. The exclusion areas change only the "
 "travel moves: the cut goes through the area."
@@ -38313,7 +38328,7 @@ msgstr ""
 "Un traseu de tăiere traversează o zonă de excludere. Zonele de excludere "
 "modifică doar deplasările: tăierea trece prin zonă."
 
-#: camlib.py:3468
+#: camlib.py:3479
 msgid ""
 "Motion rate unavailable: estimated time uses the configured feedrate where "
 "possible."
@@ -38321,19 +38336,19 @@ msgstr ""
 "Viteza de mișcare nu este disponibilă: durata estimată folosește avansul "
 "configurat, unde este posibil."
 
-#: camlib.py:3630
+#: camlib.py:3641
 msgid "Preprocessor error, G-code is missing"
 msgstr "Eroare a postprocesorului, lipsește G-code"
 
-#: camlib.py:3653
+#: camlib.py:3664
 msgid "There is no such parameter"
 msgstr "Nu exista un asemenea parametru"
 
-#: camlib.py:3798
+#: camlib.py:3809
 msgid "Indexing geometry before generating G-Code..."
 msgstr "Geometria se indexează înainte de a genera G-Code..."
 
-#: camlib.py:3892
+#: camlib.py:3903
 msgid ""
 "The Cut Z parameter has positive value. It is the depth value to drill into "
 "material.\n"
@@ -38347,16 +38362,16 @@ msgstr ""
 "și o convertește în valoare negativă. Verificați codul CNC rezultat (Gcode "
 "etc.)."
 
-#: camlib.py:3899
+#: camlib.py:3910
 msgid "The Cut Z parameter is zero. There will be no cut, aborting"
 msgstr "Parametrul Z tăiere este zero. Nu se va tăia; se anulează"
 
-#: camlib.py:3915
+#: camlib.py:3926
 msgid "The Cut Z parameter is not a number."
 msgstr "Parametrul Z tăiere nu este un număr."
 
 # auto-review 2026-10-21: new
-#: camlib.py:3932
+#: camlib.py:3943
 msgid ""
 "Laser Min Power is %s: the laser is not turned off between the cuts. The "
 "'laser OFF' lines set this power instead, so the laser can burn along the "
@@ -38369,28 +38384,28 @@ msgstr ""
 "lucrarea este întreruptă. Setați Putere minimă la 0 pentru a opri laserul "
 "între tăieri."
 
-#: camlib.py:3984
+#: camlib.py:3995
 msgid "Peck drilling is on: it replaces the multidepth."
 msgstr "Găurirea în pași este activă: înlocuiește multi-adâncimea."
 
-#: camlib.py:4214 camlib.py:4709
+#: camlib.py:4225 camlib.py:4720
 msgid "The End X,Y format has to be (x, y)."
 msgstr "Formatul X,Y final trebuie să fie (x, y)."
 
-#: camlib.py:4271 camlib.py:4834 camlib.py:5415 camlib.py:5503
+#: camlib.py:4282 camlib.py:4845 camlib.py:5426 camlib.py:5514
 msgid "Starting G-Code for tool with diameter"
 msgstr "Pornirea codului G pentru scula cu diametrul"
 
-#: camlib.py:4409 camlib.py:5441 camlib.py:5524 camlib.py:6642 camlib.py:6928
-#: camlib.py:7085
+#: camlib.py:4420 camlib.py:5452 camlib.py:5535 camlib.py:6653 camlib.py:6939
+#: camlib.py:7096
 msgid "G91 coordinates not implemented"
 msgstr "Coordonatele G91 nu au fost implementate"
 
-#: camlib.py:4418
+#: camlib.py:4429
 msgid "Finished G-Code generation for tool:"
 msgstr "Generare G-Code finalizată pentru unealta:"
 
-#: camlib.py:4541
+#: camlib.py:4552
 msgid ""
 "Validated Voronoi paths require the default milling preprocessor. Other "
 "output coordinate grids have not been certified."
@@ -38398,7 +38413,7 @@ msgstr ""
 "Traseele Voronoi validate necesită postprocesorul de frezare implicit. Alte "
 "grile de coordonate de ieșire nu au fost certificate."
 
-#: camlib.py:4553
+#: camlib.py:4564
 msgid ""
 "The Voronoi output coordinate decimals are missing or coarser than the "
 "generation grid. Raise the coordinate decimals or regenerate the isolation."
@@ -38407,7 +38422,7 @@ msgstr ""
 "precise decât grila de generare. Mărește numărul de zecimale sau "
 "regenerează izolarea."
 
-#: camlib.py:4558
+#: camlib.py:4569
 msgid ""
 "The Voronoi paths were changed or moved (move, scale, rotate, edit), or "
 "their generation data is missing. Regenerate the isolation before making a "
@@ -38417,7 +38432,7 @@ msgstr ""
 "editare) sau lipsesc datele de generare. Regenerează izolarea înainte de a "
 "crea o lucrare CNC."
 
-#: camlib.py:4565
+#: camlib.py:4576
 msgid ""
 "The units, the tool diameter or the offset of the Voronoi isolation "
 "changed. Regenerate the isolation with the current settings before making a "
@@ -38426,7 +38441,7 @@ msgstr ""
 "Unitățile, diametrul sculei sau ofsetul izolării Voronoi s-au schimbat. "
 "Regenerează izolarea cu setările curente înainte de a crea o lucrare CNC."
 
-#: camlib.py:4571
+#: camlib.py:4582
 msgid ""
 "Voronoi clearance was checked in geometry coordinates, not with bed "
 "transforms. Disable bed transforms; machine-space clearance validation is "
@@ -38436,7 +38451,7 @@ msgstr ""
 "nu cu transformările mesei. Dezactivează transformările mesei; validarea în "
 "spațiul mașinii nu este disponibilă."
 
-#: camlib.py:4576
+#: camlib.py:4587
 msgid ""
 "Voronoi paths cannot be interpolated after clearance validation. Disable "
 "segmentation and use zero-length Extra Cut or disable Extra Cut."
@@ -38445,7 +38460,7 @@ msgstr ""
 "siguranță. Dezactivează segmentarea și folosește Extra Cut cu lungime zero "
 "sau dezactivează Extra Cut."
 
-#: camlib.py:4613
+#: camlib.py:4624
 msgid ""
 "Cut_Z parameter is None or zero. Most likely a bad combinations of other "
 "parameters."
@@ -38453,7 +38468,7 @@ msgstr ""
 "Parametrul Z tăiere este None sau zero. Probabil există o combinație "
 "greșită de parametri."
 
-#: camlib.py:4621
+#: camlib.py:4632
 msgid ""
 "The Cut Z parameter has positive value. It is the depth value to cut into "
 "material.\n"
@@ -38467,16 +38482,16 @@ msgstr ""
 "și o convertește în valoare negativă. Verificați codul CNC rezultat (Gcode "
 "etc.)."
 
-#: camlib.py:4629
+#: camlib.py:4640
 msgid "The Cut Z parameter is zero. There will be no cut, skipping file"
 msgstr "Parametrul Z tăiere este zero. Nu se va tăia; fișierul este omis"
 
-#: camlib.py:4634
+#: camlib.py:4645
 msgid "Travel Z parameter is None or zero."
 msgstr "Parametrul >Z deplasare< este None sau zero."
 
 # auto-review 2026-10-09: corrected
-#: camlib.py:4639
+#: camlib.py:4650
 msgid ""
 "The Travel Z parameter has negative value. It is the height value to travel "
 "between cuts.\n"
@@ -38490,20 +38505,20 @@ msgstr ""
 "și o convertește în valoare pozitivă. Verificați codul CNC rezultat (Gcode "
 "etc.)."
 
-#: camlib.py:4647
+#: camlib.py:4658
 msgid "The Z Travel parameter is zero. This is dangerous, skipping file"
 msgstr "Parametrul Z deplasare este zero. Este periculos; fișierul este omis"
 
-#: camlib.py:4938 camlib.py:5562
+#: camlib.py:4949 camlib.py:5573
 msgid "Finished G-Code generation"
 msgstr "Generarea G-Code terminată"
 
-#: camlib.py:4938 camlib.py:5770
+#: camlib.py:4949 camlib.py:5781
 msgid "paths traced"
 msgstr "căi trasate"
 
 # auto-review 2026-10-09: corrected
-#: camlib.py:5027
+#: camlib.py:5038
 msgid ""
 "The Toolchange X,Y field in Edit -> Preferences has to be in the format (x, "
 "y) \n"
@@ -38514,7 +38529,7 @@ msgstr ""
 "dar are o singură valoare în loc de două. "
 
 # auto-review 2026-10-09: corrected
-#: camlib.py:5039
+#: camlib.py:5050
 msgid ""
 "The End Move X,Y field in Edit -> Preferences has to be in the format (x, "
 "y) but now there is only one value, not two."
@@ -38522,55 +38537,55 @@ msgstr ""
 "Parametrul >X-Y Ultima mișcare< din Editare -> Preferințe trebuie să fie în "
 "formatul (x, y), dar are o singură valoare în loc de două."
 
-#: camlib.py:5230
+#: camlib.py:5241
 msgid "Failed. Drill points inside the exclusion zones."
 msgstr "A eșuat. Puncte de găurire în zonele de excludere."
 
-#: camlib.py:5357 camlib.py:5386
+#: camlib.py:5368 camlib.py:5397
 msgid "No G-code for the tool"
 msgstr "Niciun G-code pentru unealtă"
 
-#: camlib.py:5357
+#: camlib.py:5368
 msgid "it has no holes to drill (check Drill slots if it has only slots)"
 msgstr ""
 "nu are găuri de găurit (bifați Găurește sloturile dacă are doar sloturi)"
 
-#: camlib.py:5671
+#: camlib.py:5682
 msgid "There is no tool data in the SolderPaste geometry."
 msgstr "Nu există date cu privire la unealtă în Geometria SolderPaste."
 
-#: camlib.py:5770
+#: camlib.py:5781
 msgid "Finished SolderPaste G-Code generation"
 msgstr "Generarea G-Code SolderPaste s-a terminat"
 
-#: camlib.py:6193
+#: camlib.py:6204
 msgid "Parsing GCode file. Number of lines"
 msgstr "Analizând fișierul GCode. Numărul de linii"
 
 # auto-review 2026-10-09: corrected
-#: camlib.py:6337
+#: camlib.py:6348
 msgid "Creating Geometry from the parsed GCode file. "
 msgstr "Se creează un obiect tip Geometrie din fișierul GCode analizat. "
 
-#: camlib.py:6394
+#: camlib.py:6405
 msgid "Parsing GCode file for tool diameter"
 msgstr "Analizarea fișierului GCode pentru unealta cu diametrul"
 
-#: camlib.py:6395
+#: camlib.py:6406
 msgid "Number of lines"
 msgstr "Numărul de linii"
 
 # auto-review 2026-10-09: corrected
-#: camlib.py:6490
+#: camlib.py:6501
 msgid "Creating Geometry from the parsed GCode file for tool diameter"
 msgstr ""
 "Crearea geometriei din fișierul GCode analizat pentru unealta cu diametrul"
 
-#: camlib.py:7233
+#: camlib.py:7244
 msgid "G91 coordinates not implemented ..."
 msgstr "Coordonatele G91 nu au fost implementate ..."
 
-#: camlib.py:7510
+#: camlib.py:7521
 msgid ""
 "The machine code of the Roland/HPGL preprocessors is not transformed, only "
 "the plot is. Generate the job again."
@@ -38578,7 +38593,7 @@ msgstr ""
 "Codul mașinii Roland/HPGL nu e transformat, doar desenul. Regenerați "
 "lucrarea."
 
-#: camlib.py:7589
+#: camlib.py:7600
 msgid ""
 "The G-code has macro variables or subprograms: it can not be levelled. "
 "Change the program in the software that made it."
@@ -38586,7 +38601,7 @@ msgstr ""
 "G-code cu variabile macro sau subprograme: nu poate fi nivelat. "
 "Modificați-l în software-ul care l-a creat."
 
-#: camlib.py:7592
+#: camlib.py:7603
 msgid ""
 "The G-code has macro variables or subprograms: it can not be moved or "
 "transformed. Change the program in the software that made it."
@@ -38594,20 +38609,20 @@ msgstr ""
 "G-code cu variabile macro sau subprograme: nu poate fi mutat sau "
 "transformat. Modificați-l în software-ul care l-a creat."
 
-#: camlib.py:8127
+#: camlib.py:8138
 msgid "An open line has no width to erode."
 msgstr "O linie deschisă nu are lățime pentru eroziune."
 
-#: camlib.py:8131
+#: camlib.py:8142
 msgid "The buffer removed a closed contour."
 msgstr "Bufer-ul a eliminat un contur închis."
 
-#: camlib.py:8150
+#: camlib.py:8161
 msgid "The buffer removed a geometry."
 msgstr "Bufer-ul a eliminat o geometrie."
 
 # auto-review 2026-10-21: new
-#: camlib.py:9287
+#: camlib.py:9298
 msgid ""
 "No isolation path is inside the boundary. Check that the boundary object is "
 "the outline of this board."
@@ -38616,12 +38631,12 @@ msgstr ""
 "că obiectul de delimitare este conturul acestei plăci."
 
 # auto-review 2026-10-21: new
-#: camlib.py:9290
+#: camlib.py:9301
 msgid "%d of %d passes, the area inside the boundary is cleared."
 msgstr "%d din %d treceri, zona din interiorul delimitării este degajată."
 
 # auto-review 2026-10-21: new
-#: camlib.py:9292
+#: camlib.py:9303
 msgid ""
 "all %d passes made; the area inside the boundary may not be cleared yet "
 "(more passes are needed for it)."
@@ -39012,6 +39027,19 @@ msgid "No Geometry name in args. Provide a name and try again."
 msgstr ""
 "Niciun nume de Geometrie în argumente. Furnizați un nume și încercați din "
 "nou."
+
+#~ msgid "The number of exclusion zones drawn."
+#~ msgstr "Numărul de zone de excludere desenate."
+
+#~ msgid ""
+#~ "Draw exclusion zones on the canvas.\n"
+#~ "Left click to draw, right click or Escape to finish."
+#~ msgstr ""
+#~ "Desenează zone de excludere pe canvas.\n"
+#~ "Clic stânga pentru a desena, clic dreapta sau Escape pentru a termina."
+
+#~ msgid "Remove all the exclusion zones."
+#~ msgstr "Elimină toate zonele de excludere."
 
 # auto-review 2026-10-09: corrected
 #~ msgid "Editing MultiGeo Geometry, tool"

@@ -369,7 +369,8 @@ def build_exclusion(ui, tools_box, *, label_tooltip, check_tooltip, check_object
     grid.addWidget(ui.excl_shape_label, 2, 0)
     grid.addWidget(shape, 2, 1)
 
-    _put(ui, 'excl_count_label', FCLabel('%s:' % _("Zones"))).setToolTip(_("The number of exclusion zones of the selected object."))
+    _put(ui, 'excl_count_label', FCLabel('%s:' % _("Zones"))).setToolTip(
+        _("The number of exclusion zones of the selected object."))
     count = _put(ui, 'excl_count_value', FCLabel('0'))
     grid.addWidget(ui.excl_count_label, 4, 0)
     grid.addWidget(count, 4, 1)
