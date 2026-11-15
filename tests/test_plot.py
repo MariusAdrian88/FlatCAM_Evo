@@ -1805,3 +1805,34 @@ def test_zones_can_be_plotted_from_a_worker_thread(zone_gerber):
     worker.start()
     worker.join(10)
     assert len(_zones_drawn(obj)) == 2
+
+
+@pytest.mark.parametrize('blocking', [True, False])
+def test_fit_view_uses_the_bounds_of_a_pending_deferred_redraw(blocking):
+    # Move to Origin fits the view after a threaded move: the deferred redraw of the moved shapes is still pending.
+    import threading
+    from appGUI.PlotCanvas import PlotCanvas
+
+    class Collection:
+        def __init__(self):
+            self.update_lock = threading.Lock()
+            self.box = ((50.0, 150.0), (50.0, 150.0))
+
+        def flush(self):
+            assert not self.update_lock.locked()
+            self.box = ((0.0, 100.0), (0.0, 100.0))
+
+        def bounds(self, axis):
+            return self.box[axis]
+
+        def lock_updates(self):
+            self.update_lock.acquire()
+
+        def unlock_updates(self):
+            self.update_lock.release()
+
+    canvas = SimpleNamespace(shape_collection=Collection(), view=SimpleNamespace(camera=SimpleNamespace(rect=None)))
+    PlotCanvas.fit_view(canvas, blocking=blocking)
+    rect = canvas.view.camera.rect
+    assert (rect.left, rect.bottom, rect.right, rect.top) == pytest.approx((-2.0, -2.0, 102.0, 102.0))
+    assert not canvas.shape_collection.update_lock.locked()

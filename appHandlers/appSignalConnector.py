@@ -179,7 +179,6 @@ class AppSignalConnector(QtCore.QObject):
         revert_update = getattr(self.ui, "menuhelp_revert_update", None)
         if revert_update is not None:
             revert_update.triggered.connect(self.app.on_revert_update)
-        self.ui.menuhelp_donate.triggered.connect(lambda: webbrowser.open(self.app.donate_url))
         self.ui.menuhelp_manual.triggered.connect(lambda: webbrowser.open(self.app.manual_url))
         self.ui.menuhelp_report_bug.triggered.connect(lambda: webbrowser.open(self.app.bug_report_url))
         self.ui.menuhelp_exc_spec.triggered.connect(lambda: webbrowser.open(self.app.excellon_spec_url))

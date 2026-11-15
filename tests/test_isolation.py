@@ -2394,3 +2394,55 @@ def test_tcl_isolate_keepout_and_zones_keep_the_cutter_out(app, as_scalar):
                          for obj in created.values() for g in obj.solid_geometry])
     assert not paths.is_empty
     assert _sweep_of([paths], 0.1).intersection(unary_union([keep, zone])).area == pytest.approx(0, abs=1e-9)
+
+
+@pytest.mark.parametrize('empty', [[], None])
+def test_isolation_empty_keepout_does_not_isolate_the_whole_board(app, plugin, empty):
+    gerber = make_gerber(app, name='g')
+    plugin.change_level('a')
+    plugin.ui.except_cb.set_value(True)
+    plugin.app.collection.get_by_name = Mock(return_value=SimpleNamespace(solid_geometry=empty))
+    created, __ = run_plugin(plugin, gerber, combine=True, passes=1, iso_except=True, exc_name='keep')
+    assert not created
+
+
+def test_tcl_isolate_empty_keepout_is_an_error(app):
+    gerber = make_gerber(app, name='g')
+    objects = {'g': gerber, 'keep': SimpleNamespace(obj_options={'name': 'keep'}, solid_geometry=[], kind='geometry')}
+    with patch.object(TclCommandIsolate, 'raise_tcl_error', side_effect=RuntimeError('tcl error')):
+        with pytest.raises(RuntimeError):
+            tcl_isolate(app, 'g', '-dia', '0.2', '-outname', 'iso', '-except_obj', 'keep', objects=objects)
+    app.app_obj.new_object.assert_not_called()
+
+
+def test_voronoi_tool_with_exclusion_stops_the_run_and_names_the_tool(iso_plugin_with_gerber):
+    tool, grb = iso_plugin_with_gerber
+    tool.change_level('a')
+    grb.exclusion_zones = {'isolation': [CORNER_ZONE]}
+    tool.ui.excl_cb.set_value(True)
+    storage = isolation_storage()
+    storage[2] = deepcopy(storage[1])
+    storage[2]['tooldia'] = 0.1234
+    storage[2]['data']['tools_iso_strategy'] = 'voronoi'
+    tool.app.app_obj.new_object = Mock()
+    result = tool.isolate(grb, [1, 2], storage, geometry=grb.solid_geometry, plot=False,
+                          combine=True, iso_except=False, e_passes=0, area_shape='square', rest=False,
+                          sel_type=0, tip_shape='C1', iso_simplification=False, simplification_tol=0.001,
+                          boundary=None, trace_boundary=False)
+    assert result == 'fail'
+    tool.app.app_obj.new_object.assert_not_called()
+    assert '0.1234' in tool.app.inform.emit.call_args[0][0]
+
+
+def test_isolation_closing_the_panel_takes_the_zones_off(plugin):
+    plugin.app.defaults = Mock()
+    ui = plugin.app.ui
+    ui.splitter.sizes.return_value = [1, 1]
+    ui.notebook.count.return_value = 3
+    ui.notebook.widget.side_effect = lambda i: SimpleNamespace(
+        objectName=lambda: 'plugin_tab' if i == 1 else 'other')
+    ui.plugin_scroll_area.widget.return_value.objectName.return_value = plugin.pluginName
+    ui.notebook.currentWidget.return_value = ui.plugin_tab
+    plugin.zones.closed = False
+    plugin.run()
+    assert plugin.zones.closed

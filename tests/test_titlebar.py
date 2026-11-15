@@ -28,6 +28,9 @@ class TitleWindow(QtWidgets.QMainWindow):
         self.menu = QtWidgets.QMenuBar(self)
         self.file_menu = self.menu.addMenu('File')
         self.open_action = self.file_menu.addAction('Open')
+        self.menufilesaveproject = self.file_menu.addAction('Save Project')
+        self.save_requests = 0
+        self.menufilesaveproject.triggered.connect(self.save_project)
         self.submenu = self.file_menu.addMenu('Recent')
         self.recent_action = self.submenu.addAction('Board')
         self.menu.addMenu('Edit')
@@ -38,6 +41,9 @@ class TitleWindow(QtWidgets.QMainWindow):
         self.setMenuWidget(self.title_bar)
         self.setCentralWidget(QtWidgets.QPushButton('Canvas'))
         self.setWindowTitle('board.FlatPrj')
+
+    def save_project(self):
+        self.save_requests += 1
 
     def closeEvent(self, event):
         self.close_requests += 1
@@ -73,6 +79,14 @@ class TestTitleBar(unittest.TestCase):
         self.qapp.processEvents()
 
     def test_window_created_by_the_splash_keeps_its_saved_geometry(self):
+        QtTest.QTest.mouseClick(self.bar.save_button, QtCore.Qt.MouseButton.LeftButton)
+        self.assertEqual(self.window.save_requests, 1)
+        self.window.menufilesaveproject.setEnabled(False)
+        self.assertFalse(self.bar.save_button.isEnabled())
+        QtTest.QTest.mouseClick(self.bar, QtCore.Qt.MouseButton.RightButton,
+                               pos=QtCore.QPoint(self.bar.width() // 2, self.bar.height() // 2))
+        self.assertTrue(self.bar.system_menu.isVisible())
+        self.bar.system_menu.hide()
         window = TitleWindow()
         self.addCleanup(window.deleteLater)
         self.addCleanup(window.hide)

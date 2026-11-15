@@ -1578,6 +1578,22 @@ def test_move_and_copy_keep_the_to_id_and_undo_restores_it(family):
     assert [shape.geo.get('to') for shape in editor.storage_dict[10]['geometry']] == [3]
 
 
+@pytest.mark.parametrize('select_all, tool_class, expected', [
+    (True, MoveEditorGrb, (1, 0, 0, 1, 0, 5)), (False, MoveEditorGrb, None), (True, CopyEditorGrb, None)])
+def test_move_of_all_shapes_moves_the_exclusion_zones_and_undo_restores_them(select_all, tool_class, expected):
+    from camlib import AFFINE_IDENTITY
+    editor, first, second = scene()
+    editor.selected = [first, second] if select_all else [first]
+    editor.sync_aperture_rows({10, 11} if select_all else {10})
+    tool = tool_class(editor)
+    editor.active_tool = tool
+    tool.origin, tool.destination = (0, 0), (0, 5)
+    tool.make()
+    assert tuple(editor.zone_matrix) == (expected or AFFINE_IDENTITY)
+    assert editor.undo()
+    assert tuple(editor.zone_matrix) == AFFINE_IDENTITY
+
+
 def test_region_union_keeps_the_to_id_only_when_all_the_merged_records_have_it():
     for ids, expected in (((4, 4), 4), ((4, 5), None), ((4, None), None)):
         editor, first, second = scene()

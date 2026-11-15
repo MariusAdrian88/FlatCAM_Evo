@@ -278,19 +278,20 @@ class TitleBar(QtWidgets.QWidget):
             QToolBar#title_toolbar QToolButton { padding: 2px 4px; }
         """)
 
-        self.icon_button = QtWidgets.QToolButton(self)
-        self.icon_button.setIcon(window.windowIcon())
-        self.icon_button.setToolTip(_('Window'))
-        self.icon_button.setAccessibleName(_('Window menu'))
-        self.icon_button.setPopupMode(QtWidgets.QToolButton.ToolButtonPopupMode.InstantPopup)
-        self.system_menu = QtWidgets.QMenu(self.icon_button)
+        self.save_button = QtWidgets.QToolButton(self)
+        self.save_button.setDefaultAction(window.menufilesaveproject)
+        self.save_button.setToolTip(_('Save Project') + ' (Ctrl+S)')
+        self.save_button.setAccessibleName(_('Save Project'))
+        self.system_menu = QtWidgets.QMenu(self)
         self.restore_action = self.system_menu.addAction(_('Restore'), window.showNormal)
         self.minimize_action = self.system_menu.addAction(_('Minimize'), window.showMinimized)
         self.maximize_action = self.system_menu.addAction(_('Maximize'), window.showMaximized)
         self.system_menu.addSeparator()
         self.close_action = self.system_menu.addAction(_('Close'), window.close)
-        self.icon_button.setMenu(self.system_menu)
-        layout.addWidget(self.icon_button)
+        layout.addWidget(self.save_button)
+        self.window_menu_shortcut = QtGui.QShortcut(QtGui.QKeySequence('Alt+Space'), window)
+        self.window_menu_shortcut.activated.connect(
+            lambda: self.system_menu.popup(self.mapToGlobal(QtCore.QPoint(0, self.height()))))
 
         menu.removeAction(notebook_action)
         self.notebook_button = NotebookButton(self)
@@ -346,7 +347,7 @@ class TitleBar(QtWidgets.QWidget):
         self.close_button.setToolTip(_('Close'))
         self.close_button.setAccessibleName(_('Close'))
         self.close_button.clicked.connect(window.close)
-        for button in (self.icon_button, self.notebook_button, *self.history_buttons, self.menu_button,
+        for button in (self.save_button, self.notebook_button, *self.history_buttons, self.menu_button,
                        self.minimize_button, self.maximize_button, self.close_button):
             button.setMinimumSize(30, 26)
             button.setSizePolicy(QtWidgets.QSizePolicy.Policy.Preferred, QtWidgets.QSizePolicy.Policy.Ignored)
@@ -372,7 +373,6 @@ class TitleBar(QtWidgets.QWidget):
             self.resize_handles[edges] = WindowResizeHandle(window, edges, shape)
 
         window.windowTitleChanged.connect(self.update_title)
-        window.windowIconChanged.connect(self.icon_button.setIcon)
         self.resize_timer = QtCore.QTimer(self)
         self.resize_timer.setSingleShot(True)
         self.resize_timer.timeout.connect(self.update_resize_handles)

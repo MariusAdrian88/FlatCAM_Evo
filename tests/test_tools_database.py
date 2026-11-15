@@ -126,6 +126,7 @@ class EditorChecks(DatabaseCase):
         self.assertTrue(db.ui.drill_box.isHidden())
         self.assertEqual(3, db.ui.tool_op_combo.get_value())
         self.assertFalse(db.ui.param_area.widget().isEnabled())
+        self.assertIsNone(db.current_toolid)  # the shown defaults belong to no tool
         self.assertTrue(db.ui.param_area.verticalScrollBar().isEnabled())
         db.ui.filter_combo.setCurrentIndex(db.ui.filter_combo.findData(1))
         self.assertTrue(db.ui.iso_box.isHidden())

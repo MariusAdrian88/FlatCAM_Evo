@@ -390,6 +390,10 @@ class TclCommandIsolate(TclCommandSignaled):
         exc_geometry = None
         if 'except_obj' in args:
             exc_geometry = self._object(args['except_obj'], ('gerber', 'geometry')).solid_geometry
+            if exc_geometry is None or not flatten_shapely_geometry(exc_geometry):
+                # an empty Keepout must not turn into "isolate the whole board" (as in the plugin)
+                self.raise_tcl_error("The Keepout object %s is empty." % args['except_obj'])
+                return "fail"
         ref_geometry = None
         if 'ref_obj' in args:
             ref_geometry = self._object(args['ref_obj'], ('gerber', 'geometry')).solid_geometry

@@ -55,7 +55,10 @@ class ObjectUI(QtWidgets.QWidget):
         layout.addLayout(self.title_box)
 
         # ## Page Title icon
-        pixmap = QtGui.QPixmap(icon_file.replace('assets/resources', self.resource_loc))
+        # the subclasses pass a path that already holds the theme folder; replace only a plain path
+        if 'dark_resources' not in icon_file:
+            icon_file = icon_file.replace('assets/resources', self.resource_loc)
+        pixmap = QtGui.QPixmap(icon_file)
         self.icon = FCLabel()
         self.icon.setPixmap(pixmap)
         self.title_box.addWidget(self.icon, stretch=0)
@@ -1503,9 +1506,22 @@ class ScriptObjectUI(ObjectUI):
                           common=False,
                           app=self.app)
 
+        self.general_label = FCLabel(_("General Information"), color='darkorange', bold=True)
+        self.general_label.setToolTip(_("General data about the object."))
+        self.custom_box.addWidget(self.general_label)
+
+        # #############################################################################################################
+        # General Frame
+        # #############################################################################################################
+        gen_frame = FCFrame()
+        self.custom_box.addWidget(gen_frame)
+
+        gen_grid = GLay(v_spacing=5, h_spacing=3, c_stretch=[1])
+        gen_frame.setLayout(gen_grid)
+
         # ## Object name
         self.name_hlay = QtWidgets.QHBoxLayout()
-        self.custom_box.addLayout(self.name_hlay)
+        gen_grid.addLayout(self.name_hlay, 0, 0)
 
         name_label = FCLabel('%s:' % _("Name"), bold=True)
         self.name_entry = FCEntry()
@@ -1513,17 +1529,24 @@ class ScriptObjectUI(ObjectUI):
         self.name_hlay.addWidget(name_label)
         self.name_hlay.addWidget(self.name_entry)
 
-        h_lay = QtWidgets.QHBoxLayout()
-        h_lay.setAlignment(QtCore.Qt.AlignmentFlag.AlignVCenter)
-        self.custom_box.addLayout(h_lay)
+        # #############################################################################################################
+        # Options Frame
+        # #############################################################################################################
+        self.options_label = FCLabel(_("Options"), color='blue', bold=True)
+        self.custom_box.addWidget(self.options_label)
+
+        opt_frame = FCFrame()
+        self.custom_box.addWidget(opt_frame)
+
+        opt_grid = GLay(v_spacing=5, h_spacing=3)
+        opt_frame.setLayout(opt_grid)
 
         self.autocomplete_cb = FCCheckBox("%s" % _("Auto Completer"))
         self.autocomplete_cb.setToolTip(
             _("This selects if the auto completer is enabled in the Script Editor.")
         )
         self.autocomplete_cb.setStyleSheet("")
-        h_lay.addWidget(self.autocomplete_cb)
-        h_lay.addStretch()
+        opt_grid.addWidget(self.autocomplete_cb, 0, 0)
 
         # Plot CB - this is added only for compatibility; other FlatCAM objects expect it and the mechanism is already
         # established and I don't want to changed it right now

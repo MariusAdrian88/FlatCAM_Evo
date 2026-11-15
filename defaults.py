@@ -149,6 +149,7 @@ class AppDefaults:
         # Persistence
         "global_last_folder": None,
         "global_last_save_folder": None,
+        "global_last_script_folder": None,
 
         # Constants...
         "global_defaults_save_period_ms": 20000,  # Time between default saves.

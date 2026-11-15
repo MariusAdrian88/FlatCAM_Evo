@@ -72,7 +72,7 @@ class ProjectSelector(QtWidgets.QWidget):
         new_action = menu.addAction(QtGui.QIcon(res + '/file16.png'), _("New Project"))
         open_action = menu.addAction(QtGui.QIcon(res + '/folder16.png'), _("Open Project..."))
         import_action = menu.addAction(QtGui.QIcon(res + '/import.png'), _("Import..."))
-        save_action = menu.addAction(QtGui.QIcon(res + '/floppy16.png'), _("Save Project"))
+        save_action = menu.addAction(QtGui.QIcon(res + '/save_as.png'), _("Save Project"))
         rename_action = menu.addAction(QtGui.QIcon(res + '/edit_file16.png'), _("Rename Project..."))
         menu.addSeparator()
         close_action = menu.addAction(QtGui.QIcon(res + '/delete_file16.png'), _("Close Project"))

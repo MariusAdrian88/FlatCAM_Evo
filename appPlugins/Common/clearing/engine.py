@@ -48,14 +48,11 @@ class FillKernels:
 
     @classmethod
     def from_tool(cls, parent_tool):
-        def lazy(name):
-            return lambda *args, **kwargs: getattr(parent_tool, name)(*args, **kwargs)
-
-        return cls(shrink=lazy('clear_polygon_shrink'), seed=lazy('clear_polygon_seed'),
-                   lines=lazy('clear_polygon_lines'),
-                   crosshatch=lazy('clear_polygon_crosshatch') if hasattr(parent_tool, 'clear_polygon_crosshatch')
-                   else None,
-                   fill_lines=getattr(parent_tool, 'fill_with_lines', None))
+        return cls(shrink=lambda *args, **kwargs: parent_tool.clear_polygon_shrink(*args, **kwargs),
+                   seed=lambda *args, **kwargs: parent_tool.clear_polygon_seed(*args, **kwargs),
+                   lines=lambda *args, **kwargs: parent_tool.clear_polygon_lines(*args, **kwargs),
+                   crosshatch=lambda *args, **kwargs: parent_tool.clear_polygon_crosshatch(*args, **kwargs),
+                   fill_lines=parent_tool.fill_with_lines)
 
 
 def fill_polygon(pol, tooldia, method, overlap, connect, contour, prog_plot, kernels, methods: MethodMap,

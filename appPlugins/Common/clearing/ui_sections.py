@@ -355,8 +355,8 @@ def build_exclusion(ui, tools_box, *, check_tooltip, check_object_name=None):
     """
     check = _put(ui, 'excl_cb', FCCheckBox(_("Exclusion Areas")), check_object_name)
     check.setToolTip(check_tooltip)
-    # the look of the section labels (bold, red)
-    check.set_color(QtGui.QColor('red'))
+    # the look of the section labels (bold, tomato red)
+    check.set_color(QtGui.QColor('tomato'))
     check.set_font(bold=True)
     tools_box.addWidget(check)
 
@@ -369,6 +369,7 @@ def build_exclusion(ui, tools_box, *, check_tooltip, check_object_name=None):
         _("The kind of shape used to draw an exclusion zone."))
     shape = _put(ui, 'excl_shape_radio', RadioSet([{'label': _("Square"), 'value': 'square'},
                                                    {'label': _("Polygon"), 'value': 'polygon'}], compact=True))
+    shape.set_value('square')
     grid.addWidget(ui.excl_shape_label, 0, 0)
     grid.addWidget(shape, 0, 1)
 

@@ -13,7 +13,7 @@ from appCommon.ExclusionZones import copy_zones, map_zones
 from appParsers.clipper_fuse import fuse_parts
 
 from camlib import distance, arc, three_point_circle, flatten_shapely_geometry, translate_geometry
-from camlib import deepcopy_keep_geometry, affine_geometry_many, AFFINE_IDENTITY
+from camlib import deepcopy_keep_geometry, affine_geometry_many, AFFINE_IDENTITY, affine_translate_matrix
 from appGUI.GUIElements import *
 from appCommon.ToolDatabase import read_apertures
 from appGUI.ApertureLibrary import open_aperture_library
@@ -2743,6 +2743,13 @@ class MoveEditorGrb(ShapeToolEditorGrb):
         if dx != 0 or dy != 0 or not remove_source:
             selected = self.draw_app.get_selected()
             done_ids = set()
+            history = getattr(self.draw_app, 'history', None)
+            if remove_source and isinstance(history, GerberHistory):
+                # a Move of every shape moves the exclusion zones of the object too, on save
+                selected_ids = {id(shape) for shape in selected}
+                history.track_zones([shape for sel_dia in self.selected_apertures
+                                     for shape in self.draw_app.storage_dict[sel_dia]['geometry']
+                                     if id(shape) in selected_ids], affine_translate_matrix(dx, dy))
             for sel_dia in self.selected_apertures:
                 storage = self.draw_app.storage_dict[sel_dia]['geometry']
                 storage_ids = {id(shape) for shape in storage}

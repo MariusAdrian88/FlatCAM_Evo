@@ -993,3 +993,13 @@ def test_tcl_shell_line_completes_paths_and_keywords(tmp_path):
     finally:
         edit.completer.popup().hide()
         edit.close()
+
+
+def test_choice_combo_unknown_value_never_keeps_the_previous_selection():
+    """A tool with an unknown algorithm must not show (and later save) the algorithm of the previous tool."""
+    from appGUI.GUIElements import FCChoiceComboBox
+    QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    combo = FCChoiceComboBox([{'label': 'Rtree', 'value': 'R'}, {'label': 'Travelling', 'value': 'T'}])
+    combo.set_value('T')
+    combo.set_value('bogus')
+    assert combo.get_value() == 'R'

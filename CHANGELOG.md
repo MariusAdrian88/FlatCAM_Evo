@@ -33,12 +33,21 @@ Copper Clearing (NCC) and Paint:
 - fixed: an error of the measurement of the uncut area after the last tool failed a job whose paths were done; after a final cleanup the uncut-area warning used the last tool, not the cleanup tool; a failed NCC job said "Failed." 2 times
 - fixed: the cutter clearance of the Paint exclusion zones was slow for zones with many vertices (12800 vertices: 3.3 s -> 5 ms)
 - fixed: the NCC progressive plot was cleared from the worker thread
+- fixed: Paint was very slow when an exclusion zone touched many polygons: the union of the whole selection was computed again for each polygon; the zone checks also use prepared geometry
+- fixed: with "All selected objects" the NCC / Paint preview removed the zones of all the selected objects from each source; the preview now uses the zones of each source, as Generate does
+- fixed: a selection in the project tree or a change of the source cleared the NCC / Paint preview, also a preview in progress; the preview now clears only when the zones in force change
+- changed: NCC and Paint read the zones of a source with a direct call; a missing method now gives an error, not a run without the zones
+- changed: the "Exclusion Areas" title is tomato red; the zone shape starts as Square
 
 Isolation:
 
 - changed: the "Except" option is now "Keepout": the area of a Gerber or Geometry object is removed from the isolation paths
 - added: Isolation has its own exclusion areas on the isolated object (Advanced mode): Add area, Delete all, 1 undo step, saved in the project
 - added: Tcl isolate -use_zones 1 applies the exclusion zones of Isolation stored on the object
+- fixed: closing the Isolation tab with a second click on its toolbar button (or Alt+I) left the exclusion zones on the canvas
+- fixed: an empty Keepout object isolated the whole board with no message; Isolation and Tcl isolate now stop with an error
+- changed: a Voronoi tool with an exclusion (Keepout or zones) stops the run before any path is made, and the message names the tool diameter (before: the offset tools did not run either, with only a status bar message)
+- fixed: the exclusion was united and buffered again for each pass of each tool (slow with a large Keepout); a zone drawn 2 times is used once
 
 Tools Database:
 
@@ -53,10 +62,19 @@ User interface:
 - changed: the Optimization Type of the Excellon and Geometry preferences and of the Milling plugin is a drop-down list (1 row in place of 5 radio buttons)
 - changed: Object AutoHide and Object Autoswitch of a plugin panel share 1 row; Isolation "Combine" and "Clear leftovers" share 1 row
 - changed: the Isolation Voronoi spacing and pads controls show only for the Voronoi strategy (before: disabled)
+- fixed: a tool with an unknown Optimization Type showed the value of the previous tool in the drop-down list; the list now shows its first item
+- changed: the title bar has a Save Project button in the place of the window icon; Alt+Space opens the window menu
+- changed: the Save Project menu entries have a new icon
+- changed: the Script object panel has "General Information" and "Options" sections
+- fixed: the title icon of an object panel was not found with the dark theme
+- added: Open Script starts in the folder of the last opened script
+- fixed: a fit of the view that must not block waited for a running canvas update; it now tries again later
+- added: an example G-code file of copper clearing in assets/examples
 
 Levelling and Sender:
 
 - fixed: the probe points stayed on the canvas after the delete of their CNCJob; the delete now clears the probe data of the Levelling or Sender plugin whose target it is
+- fixed: New Project, Close Project and the deletes made by Tcl commands and plugins kept the probe data of a deleted CNCJob; every removal from the project now tells the Levelling and Sender plugins
 
 Geometry and G-code:
 
@@ -68,6 +86,7 @@ Geometry and G-code:
 Gerber editor and Convert:
 
 - fixed: a transform of all the shapes in the Gerber editor did not move the exclusion zones of the object; Convert Gerber <-> Geometry did not keep the zones
+- fixed: a Move of all the shapes in the Gerber editor did not move the exclusion zones of the object (Copy and a Move of some shapes keep them in place)
 
 14.11.2026
 

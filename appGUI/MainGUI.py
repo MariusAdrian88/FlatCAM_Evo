@@ -235,12 +235,12 @@ class MainGUI(QtWidgets.QMainWindow):
 
         # Save Project
         self.menufilesaveproject = QtGui.QAction(
-            QtGui.QIcon(self.app.resource_location + '/floppy16.png'), '%s...\t%s' % (_('Save Project'), _('Ctrl+S')),
+            QtGui.QIcon(self.app.resource_location + '/save_as.png'), '%s...\t%s' % (_('Save Project'), _('Ctrl+S')),
             self)
         self.menufile_save.addAction(self.menufilesaveproject)
 
         # Save Project As ...
-        self.menufilesaveprojectas = QtGui.QAction(QtGui.QIcon(self.app.resource_location + '/floppy16.png'),
+        self.menufilesaveprojectas = QtGui.QAction(QtGui.QIcon(self.app.resource_location + '/save_as.png'),
                                                    '%s...\t%s' % (_('Save Project As'), _('Ctrl+Shift+S')), self)
         self.menufile_save.addAction(self.menufilesaveprojectas)
 
@@ -770,10 +770,6 @@ class MainGUI(QtWidgets.QMainWindow):
             '%s\t%s' % (_('YouTube Channel'), _('F4')))
 
         self.menuhelp.addSeparator()
-
-        self.menuhelp_donate = self.menuhelp.addAction(
-            QtGui.QIcon(self.app.resource_location + '/paypal32.png'),
-            '%s\t%s' % (_('Donate'), ''))
 
         self.menuhelp_readme = self.menuhelp.addAction(
             QtGui.QIcon(self.app.resource_location + '/warning.png'),

@@ -38,6 +38,8 @@ class ZonePanel:
         self.on_changed = on_changed
         # the sources whose zones the panel shows now (the zones are the data of the source objects)
         self._view = []
+        # the zones a run would remove when the preview was last cleared or kept (see update_count)
+        self._in_force = ()
         # True after the panel closed or another plugin replaced it: the signals that stay connected (project
         # selection, combo box, app cleanup) must not show the zones again until the panel opens
         self.closed = False
@@ -57,6 +59,13 @@ class ZonePanel:
     def source_zones(self):
         """The zones of this plugin on the sources of the panel, each distinct zone once."""
         return distinct_zones([zone for obj in self.live_sources() for zone in obj.zones_of(self.plugin)])
+
+    def zones_of_source(self, source):
+        """The zones that limit one source in a run: its own only, each distinct zone once; [] when they do not
+        apply. With "All selected objects" each source is limited by its own zones, not by those of the others."""
+        if not self.is_on():
+            return []
+        return distinct_zones(source.zones_of(self.plugin))
 
     def is_on(self):
         """The zones apply: Advanced mode and the Exclusion Areas check box is set."""
@@ -98,10 +107,16 @@ class ZonePanel:
     def update_count(self, *args):
         """Show the count of the zones of the sources; the zones changed."""
         try:
-            self.tool.ui.excl_count_value.setText(str(len(self.source_zones())))
+            zones = self.source_zones()
+            self.tool.ui.excl_count_value.setText(str(len(zones)))
+            # what a run removes: nothing while the zones do not apply
+            in_force = tuple(zone.wkb for zone in zones) if self.is_on() else ()
         except (RuntimeError, AttributeError):
             return
-        if self.on_changed is not None:
+        # a click in the project tree or a combo box that keeps the zones in force leaves the preview alone
+        changed = in_force != self._in_force
+        self._in_force = in_force
+        if changed and self.on_changed is not None:
             self.on_changed()
 
     def on_drawn(self, zones):

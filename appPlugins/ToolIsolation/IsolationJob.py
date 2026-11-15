@@ -83,6 +83,8 @@ class IsolationJob:
             self._voronoi_diagnostic_token = None
         # the geometry of the excluded area, resolved by the controller (None: no exclusion)
         self._exc_geometry = exc_geometry
+        self._exc_union = None
+        self._exc_expanded = {}
         # the objects of the run: made at once, or (with an outname) queued until the run knows how many there are
         self._outname = None
         self._queue = []
@@ -220,9 +222,14 @@ class IsolationJob:
         """Remove the excluded area from the paths; the cutter of this radius, not only its center, stays out."""
         if self._exc_geometry is None:
             return geo
-        exclusion = unary_union(flatten_shapely_geometry(self._exc_geometry))
+        # the union is made once for the job, the expansion once for each radius
+        if self._exc_union is None:
+            self._exc_union = unary_union(flatten_shapely_geometry(self._exc_geometry))
+        exclusion = self._exc_union
         if radius > 0:
-            exclusion = regions.cutter_expansion(exclusion, radius)
+            if radius not in self._exc_expanded:
+                self._exc_expanded[radius] = regions.cutter_expansion(exclusion, radius)
+            exclusion = self._exc_expanded[radius]
         return IsolationGen.area_subtraction(geo, exclusion)
 
     @staticmethod
@@ -326,6 +333,14 @@ class IsolationJob:
 
         try:
             if voronoi_tools:
+                if use_iso_except:
+                    # say it before anything runs: the offset tools would not run either
+                    names = ', '.join('%s' % run_tools[uid]['tooldia'] for uid in voronoi_tools)
+                    self.app.inform.emit('[ERROR_NOTCL] %s' % (_(
+                        "The tool with the diameter %s uses the Voronoi strategy, which does not support an "
+                        "excluded area (the Keepout object or the exclusion zones). Switch the exclusion off or "
+                        "use the Offset strategy for it.") % names))
+                    return 'fail'
                 if selection_type != 0:
                     self.app.inform.emit('[ERROR_NOTCL] %s' % _(
                         "The Voronoi strategy needs All copper; area, polygon and reference selections are not supported."))

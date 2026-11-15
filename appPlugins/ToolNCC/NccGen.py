@@ -724,8 +724,7 @@ class NccGen:
             diameters.sort()
         # the option of the panel is on: this source is limited by its own zones only (not by the ones of the other
         # sources of an "All selected objects" run)
-        option_on = getattr(self.parent_tool, 'exclusion_areas', None)
-        own = object_zones(cleared_object, 'ncc') if callable(option_on) and option_on() else []
+        own = self.parent_tool.zones.zones_of_source(cleared_object)
         zones = distinct_zones(own + list(exclusion_areas or []))
         exclusion = unary_union(zones) if zones else None
         name = outname if outname is not None else self.obj_name + '_ncc'

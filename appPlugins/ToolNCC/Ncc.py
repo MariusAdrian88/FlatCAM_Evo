@@ -257,11 +257,6 @@ class ToolNcc(Geometry, ClearingToolBase):
                 return selected
         return self.combo_source()
 
-    def exclusion_areas(self):
-        """The exclusion zones to remove from the area to clear, or None when they do not apply or there are none."""
-        zones = self.zones.source_zones() if self.zones.is_on() else []
-        return zones or None
-
     # ------------------------------------------------------------------------------------------------------------
     # the preview of the area to clear
     # ------------------------------------------------------------------------------------------------------------
@@ -327,9 +322,10 @@ class ToolNcc(Geometry, ClearingToolBase):
             offsets = {(False, 0.0)}
 
         params = dict(
-            sources=[(source, gen._circle_steps_for(getattr(source, 'kind', None))) for source in sources],
+            sources=[(source, gen._circle_steps_for(getattr(source, 'kind', None)), self.zones.zones_of_source(source))
+                     for source in sources],
             clipping_type=clipping_type, reference=reference, zones=zones, margin=margin,
-            iso=list(gen.iso_dia_list), offsets=sorted(offsets), tools=tools, exclusion=self.exclusion_areas(),
+            iso=list(gen.iso_dia_list), offsets=sorted(offsets), tools=tools,
             milling_type=self.ui.milling_type_radio.get_value() if gen.iso_dia_list else None,
             token=self._preview_token)
         self.app.inform.emit(_("Computing the area to clear ..."))
@@ -341,11 +337,11 @@ class ToolNcc(Geometry, ClearingToolBase):
         try:
             with self.app.proc_container.new('%s...' % _("Preview")):
                 gen = copy(self.gen)
-                exclusion = unary_union(params['exclusion']) if params['exclusion'] else None
                 areas = []
                 failed = False
-                for source, circle_steps in params['sources']:
+                for source, circle_steps, source_zones in params['sources']:
                     gen.circle_steps = circle_steps
+                    exclusion = unary_union(source_zones) if source_zones else None
                     for has_offset, offset in params['offsets']:
                         # compute_clear_area changes its tools: every pass gets its own copy of the table
                         result, _iso, _broken = gen.compute_clear_area(

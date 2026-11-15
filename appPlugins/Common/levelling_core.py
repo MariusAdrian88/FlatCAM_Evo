@@ -230,6 +230,15 @@ class LevellingCoreMixin:
         except Exception as err:
             self.app.log.debug("%s.on_object_deleted() -> %s" % (type(self).__name__, str(err)))
 
+    def on_all_objects_deleted(self):
+        """The project is emptied (New / Close project): forget all the probe data and the probe shapes."""
+        if getattr(self, 'ui', None) is None:
+            return  # the GCode sender builds its UI at its first run
+        try:
+            self._clear_probe_data()
+        except Exception as err:
+            self.app.log.debug("%s.on_all_objects_deleted() -> %s" % (type(self).__name__, str(err)))
+
     def _height_map_is_complete(self):
         return bool(self.al_voronoi_geo_storage) and all(
             value.get('height') is not None for value in self.al_voronoi_geo_storage.values()

@@ -402,8 +402,8 @@ class ZonePanel:
 
     def zones_in_run(self):
         """The zones a run would remove, as one geometry (None: none)."""
-        found = self.tool.exclusion_areas() if self.kind == 'ncc' else self.tool.clear_exclusions()
-        return None if found is None else unary_union(found)
+        found = self.tool.zones.source_zones() if self.tool.zones.is_on() else []
+        return unary_union(found) if found else None
 
     def close(self):
         self.plugin.close()
@@ -425,7 +425,7 @@ def test_zones_drawn_in_ncc_do_not_apply_to_paint(qapp, tmp_path):
         paint.tool.change_level('a')
         paint.tool.ui.excl_cb.set_value(True)
         assert paint.tool.zones.source_zones() == []
-        assert paint.tool.exclusion_zone_list() == []
+        assert paint.tool.zones.zones_of_source(ncc.a) == []
     finally:
         paint.close()
         ncc.close()
@@ -501,17 +501,57 @@ def test_the_exclusion_option_clears_the_preview(zone_panel):
     store.clear.assert_called()
 
 
+def drawn_preview(panel):
+    """The polygons that the Preview put on the canvas."""
+    store = panel.tool._preview_shapes
+    return [call.args[0] for call in store.add.call_args_list]
+
+
+def test_selecting_in_the_project_keeps_the_preview(zone_panel):
+    panel = zone_panel
+    panel.tool.zones.on_drawn([ZONE_A])
+    panel.tool.ui.select_method_combo.set_value(0)
+    panel.tool.on_preview()
+    store = panel.tool._preview_shapes
+    assert store.add.called
+    store.clear.reset_mock()
+    # a click in the project tree: same zones, same option
+    panel.tool.zones.refresh()
+    panel.app.proj_selection_changed.emit()
+    store.clear.assert_not_called()
+    # other zones in force: the preview is stale
+    panel.a.set_exclusion_zones({panel.kind: [ZONE_B]})
+    panel.tool.zones.refresh()
+    store.clear.assert_called()
+
+
+def test_the_preview_of_all_selected_objects_limits_each_source_by_its_own_zones(zone_panel):
+    panel = zone_panel
+    # NCC clears the gaps, Paint the copper: put each zone over the area that its source would clear
+    if panel.kind == 'ncc':
+        zone_a, zone_b, point_a, point_b = ZONE_A, ZONE_B, Point(3.5, 2), Point(8.5, 2)
+    else:
+        zone_a, zone_b, point_a, point_b = box(-1, -1, 3, 5), box(9.5, -1, 13, 5), Point(1, 2), Point(11, 2)
+    panel.a.set_exclusion_zones({panel.kind: [zone_a]})
+    panel.b.set_exclusion_zones({panel.kind: [zone_b]})
+    panel.multi([panel.a, panel.b])
+    panel.tool.ui.excl_cb.set_value(True)
+    panel.tool.ui.select_method_combo.set_value(0)
+    panel.tool.on_preview()
+    area = unary_union(drawn_preview(panel))
+    # the zone of a is no limit for b, as in Generate: b clears where only a is excluded, and the other way round
+    assert area.intersects(point_a) and area.intersects(point_b)
+
+
 def test_basic_mode_hides_and_ignores_the_exclusion_areas(zone_panel):
     panel = zone_panel
     tool = panel.tool
-    empty = None if panel.kind == 'ncc' else []
-
-    def zones_in_run():
-        return tool.exclusion_areas() if panel.kind == 'ncc' else tool.exclusion_zone_list()
+    empty = None
+    zones_in_run = panel.zones_in_run
 
     tool.zones.on_drawn([ZONE_A])
     tool.ui.excl_cb.set_value(True)
-    assert zones_in_run() == [ZONE_A] and panel.a.zones_wanted()
+    assert zones_in_run().equals(ZONE_A) and panel.a.zones_wanted()
     # a preview made while the zones apply: its shapes are on the canvas
     tool.ui.select_method_combo.set_value(0)
     tool.on_preview()

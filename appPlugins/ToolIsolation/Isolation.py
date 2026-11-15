@@ -35,6 +35,7 @@ from camlib import deepcopy_keep_geometry, Geometry, grace, flatten_shapely_geom
 from appCommon.SafeEval import safe_eval
 from appPlugins.Common.clearing.selection import AreaSelector
 from appPlugins.Common.clearing.ui_sections import show_exclusion_section
+from appCommon.ExclusionZones import distinct_zones
 from appPlugins.Common.clearing.zones import ZonePanel
 from appPlugins.ToolIsolation.IsolationUI import IsoUI
 from appPlugins.ToolIsolation import IsolationGen
@@ -223,6 +224,7 @@ class ToolIsolation(Geometry, AppTool):
                 # focus on Tool Tab
                 self.app.ui.notebook.setCurrentWidget(self.app.ui.plugin_tab)
 
+            closing = False
             try:
                 if self.app.ui.plugin_scroll_area.widget().objectName() == self.pluginName and found_idx:
                     # if the Tool Tab is not focused, focus on it
@@ -231,6 +233,8 @@ class ToolIsolation(Geometry, AppTool):
                         self.app.ui.notebook.setCurrentWidget(self.app.ui.plugin_tab)
                     else:
                         # else remove the Tool Tab
+                        closing = True
+                        self.on_plugin_cleanup()
                         self.app.ui.notebook.setCurrentWidget(self.app.ui.properties_tab)
                         self.app.ui.notebook.removeTab(2)
 
@@ -239,6 +243,9 @@ class ToolIsolation(Geometry, AppTool):
                             self.app.ui.splitter.setSizes([0, 1])
             except AttributeError:
                 pass
+            if closing:
+                # the panel is closed: do not reopen it
+                return
         else:
             if self.app.ui.splitter.sizes()[0] == 0:
                 self.app.ui.splitter.setSizes([1, 1])
@@ -2182,7 +2189,7 @@ class ToolIsolation(Geometry, AppTool):
             zones_panel = getattr(self, 'zones', None)
             use_zones = zones_panel.is_on() if zones_panel is not None else False
         exc_geometry = self._exclusion_geometry(use_iso_except, args.get('exc_name'),
-                                                isolated_obj.zones_of('isolation') if use_zones else [])
+                                                distinct_zones(isolated_obj.zones_of('isolation')) if use_zones else [])
         if isinstance(exc_geometry, str):
             return 'fail'
         # the job subtracts exc_geometry only with iso_except: zones without a Keepout object must apply too
@@ -2232,7 +2239,14 @@ class ToolIsolation(Geometry, AppTool):
             if exc_obj is None:
                 self.app.inform.emit('[ERROR_NOTCL] %s' % _("The Keepout object was not found."))
                 return 'fail'
-            parts.extend(flatten_shapely_geometry(exc_obj.solid_geometry))
+            keepout = flatten_shapely_geometry(exc_obj.solid_geometry) if exc_obj.solid_geometry is not None else []
+            if not keepout:
+                # an empty Keepout must not turn into "isolate the whole board"
+                self.app.inform.emit('[WARNING_NOTCL] %s' % _(
+                    "The Keepout object is empty: nothing was isolated. Switch the Keepout option off or "
+                    "choose another object."))
+                return 'fail'
+            parts.extend(keepout)
         return unary_union(parts) if parts else None
 
     def voronoi_isolation(self, iso_obj, iso2geo, tools_storage, sel_tools, boundary, spacing=None,
@@ -2264,7 +2278,7 @@ class ToolIsolation(Geometry, AppTool):
         if use_zones is None:
             zones_panel = getattr(self, 'zones', None)
             use_zones = zones_panel.is_on() if zones_panel is not None else False
-        iso_except = iso_except or bool(iso_obj.zones_of('isolation') if use_zones else [])
+        iso_except = iso_except or bool(distinct_zones(iso_obj.zones_of('isolation')) if use_zones else [])
         return IsolationJob(self.app, tool=self).voronoi_isolation(
             iso_obj, iso2geo, tools_storage, sel_tools, boundary, spacing=spacing,
             use_rest=use_rest, negative_dia=negative_dia, iso_except=iso_except, extra_passes=extra_passes,
@@ -2314,7 +2328,7 @@ class ToolIsolation(Geometry, AppTool):
         if use_zones is None:
             zones_panel = getattr(self, 'zones', None)
             use_zones = zones_panel.is_on() if zones_panel is not None else False
-        zones = iso_obj.zones_of('isolation') if use_zones else []
+        zones = distinct_zones(iso_obj.zones_of('isolation')) if use_zones else []
         exc_geometry = self._exclusion_geometry(iso_except, exc_name, zones)
         if isinstance(exc_geometry, str):
             return 'fail'
@@ -2367,7 +2381,7 @@ class ToolIsolation(Geometry, AppTool):
         if use_zones is None:
             zones_panel = getattr(self, 'zones', None)
             use_zones = zones_panel.is_on() if zones_panel is not None else False
-        zones = iso_obj.zones_of('isolation') if use_zones else []
+        zones = distinct_zones(iso_obj.zones_of('isolation')) if use_zones else []
         exc_geometry = self._exclusion_geometry(iso_except, exc_name, zones)
         if isinstance(exc_geometry, str):
             return 'fail'

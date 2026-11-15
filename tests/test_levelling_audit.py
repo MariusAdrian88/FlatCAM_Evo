@@ -1050,18 +1050,15 @@ class TestTargetOwnership(unittest.TestCase):
         self.assertEqual(tool._al_generation, 1)
 
     def test_deleting_the_target_clears_probe_shapes(self):
-        from appHandlers.appObjectOps import AppObjectOps
+        from appObjects.ObjectCollection import ObjectCollection
         a, b = self.target('job_a'), self.target('job_b')
         levelling = self._tool('job_a', a, 'job_a', a)
         sender = self._tool('job_b', b, 'job_b', b)
         levelling.probing_shapes = MagicMock()
         sender.probing_shapes = MagicMock()
-        ops = AppObjectOps.__new__(AppObjectOps)
-        ops.app = MagicMock(levelling_tool=levelling, grbl_sender_tool=sender)
-        ops.log = MagicMock()
-        ops.inform = MagicMock()
+        col = SimpleNamespace(app=MagicMock(levelling_tool=levelling, grbl_sender_tool=sender))
 
-        AppObjectOps.delete_objects_now(ops, [a])
+        ObjectCollection._notify_probe_tools(col, a)
 
         self.assertEqual(levelling.al_voronoi_geo_storage, {})
         self.assertIsNone(levelling._al_target_obj)
@@ -1549,3 +1546,37 @@ def test_existing_point_units_cannot_be_reinterpreted(tmp_path, entry):
             tool.import_height_map(str(path))
         assert not tool.al_heights_valid
         assert heights(tool) != {1: 0.3, 2: 0.4}
+
+
+@pytest.mark.parametrize('removal', ['delete_by_name', 'delete_all'])
+@pytest.mark.parametrize('cls', [ToolLevelling, ToolGCodeSender])
+def test_probe_data_is_forgotten_when_the_project_removes_the_target(cls, removal):
+    """New / Close project and delete-by-name must forget the probe map of the removed CNCJob."""
+    from PyQt6 import QtCore
+    from appObjects.ObjectCollection import ObjectCollection, TreeItem
+    from types import SimpleNamespace
+    QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    tool = make_audit_tool(cls=cls, storage={1: {'height': 0.1}}, heights_valid=True)
+    tool.app.resource_location = "."
+    tool.app.options = {"global_project_autohide": False, "global_allow_edit_in_project_tab": False,
+                        "global_proj_item_color_dark": "#FFFFFFFF", "global_proj_item_dis_color_dark": "#808080FF",
+                        "global_proj_item_color_light": "#000000FF", "global_proj_item_dis_color_light": "#808080FF"}
+    tool.app.levelling_tool = tool if cls is ToolLevelling else None
+    tool.app.grbl_sender_tool = tool if cls is ToolGCodeSender else None
+    col = ObjectCollection(tool.app)
+    group = col.group_items['cncjob']
+    gidx = col.index(col.root_item.child_items.index(group), 0, QtCore.QModelIndex())
+    job = SimpleNamespace(kind='cncjob', obj_options={'name': 'job', 'plot': True}, clear=lambda *a: None, delete=lambda: None)
+    other = SimpleNamespace(kind='cncjob', obj_options={'name': 'other', 'plot': True}, clear=lambda *a: None, delete=lambda: None)
+    for obj in (job, other):
+        col.beginInsertRows(gidx, group.child_count(), group.child_count())
+        obj.item = TreeItem([obj.obj_options['name']], col.icons['cncjob'], obj=obj, parent_item=group)
+        col.endInsertRows()
+    tool._al_target_name, tool._al_target_obj = 'job', job
+
+    getattr(col, removal)(*(['other'] if removal == 'delete_by_name' else []))
+    if removal == 'delete_by_name':
+        assert tool._al_target_obj is job and tool.al_heights_valid  # another object: the map stays
+        col.delete_by_name('job')
+    assert tool._al_target_obj is None
+    assert not tool.al_heights_valid and not tool.al_voronoi_geo_storage

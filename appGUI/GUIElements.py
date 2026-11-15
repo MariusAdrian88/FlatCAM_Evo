@@ -2843,7 +2843,8 @@ class FCChoiceComboBox(FCComboBox):
         idx = self.findData(val)
         if idx == -1:
             log.error(str(inspect.stack()[1][3]) + " -> Value given is not part of this combobox: %s" % str(val))
-            return
+            # show the first choice: keeping the previous selection would show the value of another tool / object
+            idx = 0 if self.count() else -1
         self.setCurrentIndex(idx)
 
     def setOptionsDisabled(self, options: list, val: bool) -> None:

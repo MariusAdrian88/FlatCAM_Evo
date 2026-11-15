@@ -1840,7 +1840,9 @@ class appIO(QtCore.QObject):
         else:
             try:
                 filenames, _f = QtWidgets.QFileDialog.getOpenFileNames(
-                    caption=_("Open TCL script"), directory=self.app.get_last_folder(), filter=_filter_)
+                    caption=_("Open TCL script"),
+                    directory=self.app.options.get('global_last_script_folder') or
+                    self.app.defaults.get('global_last_script_folder') or self.app.get_last_folder(), filter=_filter_)
             except TypeError:
                 filenames, _f = QtWidgets.QFileDialog.getOpenFileNames(caption=_("Open TCL script"), filter=_filter_)
 
@@ -3691,6 +3693,9 @@ class appIO(QtCore.QObject):
                     return 'fail'
 
             # Register recent file
+            folder = os.path.dirname(os.path.abspath(filename))
+            self.app.options['global_last_script_folder'] = folder
+            self.app.defaults['global_last_script_folder'] = folder
             self.app.file_opened.emit("script", filename)
 
             # appGUI feedback

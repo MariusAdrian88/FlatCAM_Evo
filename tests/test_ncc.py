@@ -69,7 +69,8 @@ def make_gen(tools, known=None, options=None, units='MM'):
         gen.worker_result = worker(output, app)
         return gen.worker_result
 
-    gen.parent_tool = SimpleNamespace(new_object=new_object, ncc_tools=ncc_tools)
+    gen.parent_tool = SimpleNamespace(new_object=new_object, ncc_tools=ncc_tools,
+                                      zones=SimpleNamespace(zones_of_source=lambda source: []))
     return gen, output
 
 

@@ -2362,6 +2362,8 @@ class ToolsDB2(QtWidgets.QWidget):
         # no tool is shown: the disabled panel shows the defaults of the chosen operation, not the last tool
         data = {key: deepcopy(value) for key, value in self.library_defaults.items()}
         data.update(tool_target=target, tol_min=0.0, tol_max=0.0)
+        # no tool is current: an edit of the shown defaults must not reach the tool that was shown before
+        self.current_toolid = None
         diameter = self.form_fields['tooldia'].get_value()
         if not diameter:
             # an empty library has no last tool: show the first diameter of the Milling preferences

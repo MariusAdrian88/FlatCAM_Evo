@@ -896,13 +896,9 @@ class ToolPaint(Geometry, ClearingToolBase):
                 return selected
         return self.combo_source()
 
-    def exclusion_zone_list(self):
-        """The exclusion zones of the sources as a list, empty when they do not apply or there are none."""
-        return self.zones.source_zones() if self.zones.is_on() else []
-
-    def clear_exclusions(self):
-        """The exclusion zones as one geometry, or None when they are off or there are none."""
-        zones = self.exclusion_zone_list()
+    def source_exclusion(self, source):
+        """The zones that limit one source (its own only, as Generate does) as one geometry, or None."""
+        zones = self.zones.zones_of_source(source)
         return unary_union(zones) if zones else None
 
     # ------------------------------------------------------------------------------------------------------------
@@ -972,7 +968,7 @@ class ToolPaint(Geometry, ClearingToolBase):
 
         params = dict(objects=objects, mode=mode, offsets=sorted(offsets), reference=reference,
                       zones=list(self.last_zones), polygons=list(self.last_polygons),
-                      exclusion=self.clear_exclusions(), token=self._preview_token)
+                      exclusions=[self.source_exclusion(obj) for obj in objects], token=self._preview_token)
         self.app.inform.emit(_("Computing the area to paint ..."))
         self.app.worker_task.emit({'fcn': self.preview_job, 'params': [params]})
 
@@ -983,7 +979,7 @@ class ToolPaint(Geometry, ClearingToolBase):
             with self.app.proc_container.new('%s...' % _("Preview")):
                 area = self.gen.preview_area(
                     params['objects'], params['mode'], params['offsets'], reference=params['reference'],
-                    zones=params['zones'], polygons=params['polygons'], exclusion=params['exclusion'])
+                    zones=params['zones'], polygons=params['polygons'], exclusions=params['exclusions'])
         except grace:
             error = _("Aborted. The preview was not computed.")
         except Exception as e:

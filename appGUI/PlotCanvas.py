@@ -760,7 +760,12 @@ class PlotCanvas(QtCore.QObject, VisPyCanvas):
     def fit_view(self, rect=None, blocking=True):
 
         # the bounds need the buffers of the deferred redraws
-        if not rect and blocking:
+        if not rect:
+            if not blocking:
+                # a non-blocking fit retries later while an update holds the lock; flush() would wait for it
+                if not self.shape_collection.update_lock.acquire(False):
+                    return False
+                self.shape_collection.update_lock.release()
             self.shape_collection.flush()
 
         # Lock updates in other threads

@@ -108,8 +108,12 @@ class GerberHistory:
         """A transform of all the shapes of the editor moves the exclusion zones of the object too, on save."""
         if matrix is None or self.replaying:
             return
-        everything = {shape for aperture in self.editor.storage_dict.values() for shape in aperture.get('geometry', ())}
-        if everything and everything <= set(shapes):
+        apertures = self.editor.storage_dict.values()
+        total = sum(len(aperture.get('geometry', ())) for aperture in apertures)
+        chosen = set(shapes)
+        # cheap count test first; the identity test only when the counts allow "all"
+        if total and len(chosen) >= total and all(shape in chosen for aperture in apertures
+                                                  for shape in aperture.get('geometry', ())):
             self.editor.zone_matrix = affine_compose(matrix, getattr(self.editor, 'zone_matrix', AFFINE_IDENTITY))
 
     def capture(self, apertures, mutable=()):

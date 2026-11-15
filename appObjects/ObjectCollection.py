@@ -617,6 +617,8 @@ class ObjectCollection(QtCore.QAbstractItemModel):
         menu = QtWidgets.QMenu(self.view)
         show_all = menu.addAction(ui.menuprojectenable.icon(), _('Show All'))
         hide_all = menu.addAction(ui.menuprojectdisable.icon(), _('Hide All'))
+        show_all.setVisible(plotted)
+        hide_all.setVisible(plotted)
         show_all.setEnabled(plotted and len(objects) > 0)
         hide_all.setEnabled(plotted and len(objects) > 0)
         show_all.triggered.connect(lambda: self.app.enable_plots(objects))
@@ -624,7 +626,7 @@ class ObjectCollection(QtCore.QAbstractItemModel):
 
         new_action = self.category_new_actions().get(kind)
         open_action = self.category_open_actions().get(kind)
-        if new_action is not None or open_action is not None:
+        if plotted and (new_action is not None or open_action is not None):
             menu.addSeparator()
         if new_action is not None:
             new_icon, new_callable = new_action
@@ -636,6 +638,10 @@ class ObjectCollection(QtCore.QAbstractItemModel):
 
     def on_menu_request(self, pos):
         ui = self.app.ui
+        for action in getattr(self, '_script_menu_actions', ()):
+            ui.menuproject.removeAction(action)
+            action.deleteLater()
+        self._script_menu_actions = []
 
         index = self.view.indexAt(pos)
         if index.isValid():
@@ -691,6 +697,21 @@ class ObjectCollection(QtCore.QAbstractItemModel):
 
             if single is None and all_cncjob:
                 ui.menuprojectsave.setText(_('Batch Save'))
+
+            if single is not None and single.kind == 'script':
+                self._script_menu_actions.append(ui.menuproject.insertSeparator(ui.menuprojectsave))
+                self._script_menu_actions.append(ui.menuproject.insertSeparator(ui.menuprojectexport.menuAction()))
+
+                def run_script():
+                    if single.script_editor_tab is None:
+                        single.build_ui()
+                    single.handle_run_code()
+
+                run_action = QtGui.QAction(QtGui.QIcon(self.app.resource_location + '/run64.png'), _('Run'),
+                                           ui.menuproject)
+                run_action.triggered.connect(run_script)
+                ui.menuproject.insertAction(ui.menuprojectexport.menuAction(), run_action)
+                self._script_menu_actions.append(run_action)
 
         ui.menuproject.popup(self.view.mapToGlobal(pos))
 
@@ -1179,6 +1200,7 @@ class ObjectCollection(QtCore.QAbstractItemModel):
         # self.app.object_status_changed.emit(active.obj, 'delete')
 
         self.close_object_editor(active.obj)
+        self._notify_probe_tools(active.obj)
 
         # update the SHELL auto-completer model data
         name = active.obj.obj_options['name']
@@ -1256,6 +1278,7 @@ class ObjectCollection(QtCore.QAbstractItemModel):
             obj = item.obj
             name = obj.obj_options['name']
             self.close_object_editor(obj)
+            self._notify_probe_tools(obj)
             try:
                 self.app.regFK.remove_keyword(name, update=False)
             except Exception as e:
@@ -1277,6 +1300,20 @@ class ObjectCollection(QtCore.QAbstractItemModel):
             if not self.app.all_objects_list:
                 self.app.ui.splitter.setSizes([0, 1])
 
+    def _notify_probe_tools(self, obj=None):
+        """The Levelling and Sender plugins keep the probe data of their target object: tell them that an object
+        (or, with obj=None, every object) leaves the project."""
+        for attr in ('levelling_tool', 'grbl_sender_tool'):
+            tool = getattr(self.app, attr, None)
+            if obj is None:
+                handler = getattr(tool, 'on_all_objects_deleted', None)
+                args = ()
+            else:
+                handler = getattr(tool, 'on_object_deleted', None)
+                args = (obj,)
+            if callable(handler):
+                handler(*args)
+
     def delete_by_name(self, name, select_project=True, autohide=True):
         """
         :param autohide:    False keeps the notebook visible also if the project gets empty: a plugin that deletes
@@ -1296,6 +1333,7 @@ class ObjectCollection(QtCore.QAbstractItemModel):
         group = deleted.parent_item
 
         self.close_object_editor(deleted.obj)
+        self._notify_probe_tools(deleted.obj)
 
         # update the SHELL auto-completer model data
         name = deleted.obj.obj_options['name']
@@ -1346,6 +1384,7 @@ class ObjectCollection(QtCore.QAbstractItemModel):
             if obj.kind == 'script':
                 self.close_object_editor(obj)
 
+        self._notify_probe_tools()
         self.app.object_status_changed.emit(None, 'delete_all', '')
 
         try:

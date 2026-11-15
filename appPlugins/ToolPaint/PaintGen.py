@@ -94,7 +94,7 @@ def _on_gui_thread():
 
 def _live_state(name):
     """Property reading (and writing) a selection attribute of the controller, so no stale copy is kept."""
-    return property(lambda self: getattr(self.parent_tool, name, None),
+    return property(lambda self: getattr(self.parent_tool, name),
                     lambda self, value: setattr(self.parent_tool, name, value))
 
 
@@ -310,23 +310,23 @@ class PaintGen:
         # exclusion was subtracted, then every center line is clipped to the allowed cutter centers.
         exclusion = getattr(self, '_exclusion', None)
         around = None
-        if exclusion is not None and poly_g.intersects(self._expansion(tool_diameter / 2, obj)):
+        if exclusion is not None and self._expansion(tool_diameter / 2, obj).intersects(poly_g):
             around = poly_g
         if paint_method == 3 and exclusion is not None:
             region = self._selection_around(poly_g)
-            if region.intersects(exclusion):
+            if exclusion.intersects(region):
                 index = PaintModel.RegionIndex(index, region)
                 around = poly_g
 
         result = PaintModel.paint_polygon(
             poly_g, tool_diameter, paint_method, over, conn, cont, prog_plot, circle_steps,
-            getattr(self.parent_tool, 'clear_polygon_shrink', None),
-            getattr(self.parent_tool, 'clear_polygon_seed', None),
-            getattr(self.parent_tool, 'clear_polygon_lines', None),
+            self.parent_tool.clear_polygon_shrink,
+            self.parent_tool.clear_polygon_seed,
+            self.parent_tool.clear_polygon_lines,
             apertures=apertures, geometry_circle_steps=geometry_circle_steps,
-            fill_lines=getattr(self.parent_tool, 'fill_with_lines', None), progress=progress, index=index,
+            fill_lines=self.parent_tool.fill_with_lines, progress=progress, index=index,
             crosshatch_angle=angle,
-            clear_crosshatch=getattr(self.parent_tool, 'clear_polygon_crosshatch', None), direction=direction)
+            clear_crosshatch=self.parent_tool.clear_polygon_crosshatch, direction=direction)
         if result is None:
             self.app.inform.emit('[ERROR_NOTCL] %s' % _('Geometry could not be painted completely'))
         elif around is not None and not isinstance(result, str):
@@ -387,8 +387,7 @@ class PaintGen:
                 specs.append(tool_spec(uid, diameter, params.tools_storage[uid]['data'], 'tools_paint_', 'offset'))
         if extra is GUI_ZONES:
             # the panel option is on: each painted object is limited by its own zones only
-            zones_of = getattr(self.parent_tool, 'exclusion_zone_list', None)
-            zones = object_zones(painted_object, 'paint') if callable(zones_of) and zones_of() else []
+            zones = self.parent_tool.zones.zones_of_source(painted_object)
         else:
             # a script: the ones of its -exclude, and the zones stored on the painted object with -use_zones
             if isinstance(extra, BaseGeometry):
@@ -416,7 +415,10 @@ class PaintGen:
             rest_offset=spec.rest_offset, paint_method_explicit=spec.method_explicit)
         # the exclusion state of this job (one PaintGen copy lives for one job)
         self._exclusion = spec.exclusion
+        if self._exclusion is not None:
+            shapely.prepare(self._exclusion)
         self._pre_selection = {}
+        self._pre_union = {}
         self._pre_tree = None
         self._expansions = {}
         selected = spec.geometry
@@ -606,6 +608,7 @@ class PaintGen:
         if exclusion is None:
             return polygons
         self._pre_selection[offset] = polygons
+        self._pre_union = {}
         self._pre_tree = None
         return regions.physical_domain(polygons, exclusion)
 
@@ -616,6 +619,7 @@ class PaintGen:
         if found is None:
             quad = max(16, self._steps_at(radius, obj) // 4)
             found = self._expansions[key] = regions.cutter_expansion(self._exclusion, radius, quad)
+            shapely.prepare(found)
         return found
 
     def _selection_around(self, piece):
@@ -629,10 +633,15 @@ class PaintGen:
 
     def _physical_selection(self, offset):
         """The selection with the offset, before the exclusion was subtracted (all offsets when it is unknown)."""
+        # one union per offset for the whole job (a polygon that touches a zone asks for it again)
+        cache = self._pre_union
+        if offset in cache:
+            return cache[offset]
         found = self._pre_selection.get(offset)
         if found is None:
             found = [polygon for polygons in self._pre_selection.values() for polygon in polygons]
-        return unary_union(found) if found else None
+        cache[offset] = merged = unary_union(found) if found else None
+        return merged
 
     def _keep_clear(self, paths, radius, obj, domain=None, offset=None):
         """
@@ -879,7 +888,7 @@ class PaintGen:
             target_geo = unary_union(flatten_shapely_geometry(self._source_geometry(obj)))
         return PaintModel.area_intersection(target_geo, areas, self._check_abort)
 
-    def preview_area(self, objects, mode, offsets, reference=None, zones=None, polygons=None, exclusion=None):
+    def preview_area(self, objects, mode, offsets, reference=None, zones=None, polygons=None, exclusions=None):
         """
         The area that Generate would paint: the selected polygons of every object, shrunk by every offset in use,
         merged. Runs in the worker: no toolpaths, no Qt widgets.
@@ -890,23 +899,29 @@ class PaintGen:
         :param reference:   the reference object (mode 3)
         :param zones:       the drawn zones (mode 2)
         :param polygons:    the clicked polygons (mode 1)
+        :param exclusions:  one zone geometry (or None) per object: each object is limited by its own zones only, as
+                            Generate does; the polygons of mode 1 belong to the first object
         :return: the area, or None when nothing is selected
         """
+        areas = None
+        if mode == 2:
+            areas = list(zones or [])
+        elif mode == 3:
+            areas = PaintModel.reference_area(reference.solid_geometry)
+        groups = []         # (selected polygons, exclusion) per object
         if mode == 1:
-            selected = list(polygons or [])
+            groups.append((list(polygons or []), exclusions[0] if exclusions else None))
         else:
-            areas = None
-            if mode == 2:
-                areas = list(zones or [])
-            elif mode == 3:
-                areas = PaintModel.reference_area(reference.solid_geometry)
-            selected = []
-            for obj in objects:
-                selected.extend(self.select_all(obj) if mode == 0 else self.select_in_areas(obj, areas))
+            for index, obj in enumerate(objects):
+                selected = self.select_all(obj) if mode == 0 else self.select_in_areas(obj, areas)
+                groups.append((list(selected), exclusions[index] if exclusions else None))
+        if not any(zone is not None for _selected, zone in groups):
+            groups = [([polygon for selected, _zone in groups for polygon in selected], None)]
         parts = []
-        for offset in offsets:
-            self._check_abort()
-            parts.extend(regions.physical_domain(regions.buffer_geometry(selected, offset), exclusion))
+        for selected, zone in groups:
+            for offset in offsets:
+                self._check_abort()
+                parts.extend(regions.physical_domain(regions.buffer_geometry(selected, offset), zone))
         return unary_union(parts) if parts else None
 
     def _resolve_selection(self, select, run_threaded, obj):
