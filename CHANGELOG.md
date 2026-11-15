@@ -19,6 +19,8 @@ Copper Clearing (NCC) and Paint:
 - fixed: after a Reset or a new source, the NCC Preview of Polygon Selection drew the regions of the earlier job
 - fixed: when another plugin opened in the place of the NCC or Paint panel, the selection mode, the preview and the zones stayed on the canvas; a plugin is now told when another one replaces its panel
 - fixed: closing the NCC or Paint tab with a second click on its toolbar button did not clean up the canvas
+- fixed: after the NCC or Paint panel closed or another plugin replaced it, a new selection in the project (or a toolbar close of the tab) showed the exclusion zones of its source again
+- fixed: a change of "Use exclusion areas" in NCC and Paint did not clear the preview, so the preview showed a region that Generate does not use
 
 14.11.2026
 

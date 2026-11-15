@@ -438,6 +438,15 @@ def test_reset_keeps_the_zones_and_closing_the_panel_hides_them(zone_panel):
     assert panel.a.exclusion_zones == [ZONE_A] and not panel.a.zones_wanted()
 
 
+def stays_hidden(panel):
+    """The signals that stay connected after the panel closed do not show the zones again."""
+    panel.pick('a')                     # a real Qt signal of the combo box
+    hidden = not panel.a.zones_wanted()
+    panel.tool.set_tool_ui()            # the slot of app.cleanup builds a new combo box
+    panel.pick('a')
+    return hidden and not panel.a.zones_wanted()
+
+
 def test_zones_are_hidden_when_another_plugin_replaces_the_panel(zone_panel, qapp, tmp_path):
     panel = zone_panel
     panel.tool.on_exclusion_zones([ZONE_A])
@@ -447,8 +456,30 @@ def test_zones_are_hidden_when_another_plugin_replaces_the_panel(zone_panel, qap
         other.app.ui.plugin_scroll_area.takeWidget.return_value = panel.tool
         AppTool.run(other.tool)
         assert panel.a.exclusion_zones == [ZONE_A] and not panel.a.zones_wanted()
+        assert stays_hidden(panel)
     finally:
         other.close()
+
+
+def test_zones_stay_hidden_after_the_tab_closes(zone_panel):
+    panel = zone_panel
+    panel.tool.on_exclusion_zones([ZONE_A])
+    panel.tool.on_plugin_cleanup()      # the close button of the tab
+    assert stays_hidden(panel)
+
+
+def test_the_exclusion_option_clears_the_preview(zone_panel):
+    panel = zone_panel
+    panel.tool.on_exclusion_zones([ZONE_A])
+    panel.tool.ui.excl_cb.set_value(True)
+    panel.tool.ui.select_method_combo.set_value(0)
+    panel.tool.on_preview()
+    store = panel.tool._preview_shapes
+    assert store is not None and store.add.called
+    store.clear.reset_mock()
+    panel.tool.ui.excl_cb.set_value(False)
+    # the region of the next run changed: the old preview is off the canvas
+    store.clear.assert_called()
 
 
 def test_all_selected_objects_share_one_edit_and_the_run_uses_the_union(zone_panel):

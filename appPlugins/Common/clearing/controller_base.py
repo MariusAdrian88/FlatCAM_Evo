@@ -75,6 +75,9 @@ class ClearingToolBase(AppTool):
 
         # the sources whose zones the panel shows now (the zones are the data of the source objects)
         self._zone_view: list = []
+        # True after the panel closed or another plugin replaced it: the signals that stay connected (project
+        # selection, combo box, app cleanup) must not show the zones again until run() opens the panel
+        self._panel_closed = False
         # the zones of the last Area Selection run: the Preview of that mode uses them
         self.last_zones: list[Polygon] = []
         # the shape collection of the preview, made on the first use
@@ -131,6 +134,7 @@ class ClearingToolBase(AppTool):
         if self.app.plugin_tab_locked is True:
             return
 
+        self._panel_closed = False
         if toggle:
             # if the splitter is hidden, display it
             if self.app.ui.splitter.sizes()[0] == 0:
@@ -173,6 +177,8 @@ class ClearingToolBase(AppTool):
                         # if there are no objects loaded in the app then hide the Notebook widget
                         if not self.app.collection.get_list():
                             self.app.ui.splitter.setSizes([0, 1])
+                        # the tab is closed: do not build the panel again (set_tool_ui() shows the zones)
+                        return
             except AttributeError:
                 pass
         else:
@@ -234,6 +240,8 @@ class ClearingToolBase(AppTool):
             (ui.preview_button.clicked, self.on_preview),
             (ui.excl_add_button.clicked, self.on_add_exclusion),
             (ui.excl_delete_button.clicked, self.on_delete_exclusions),
+            # the exclusion option changes the region of the run: the preview does not show it any more
+            (ui.excl_cb.stateChanged, self.clear_preview),
             (ui.obj_combo.currentIndexChanged, self.on_source_changed),
             (ui.obj_combo.currentIndexChanged, self.refresh_zone_view),
             (ui.select_method_combo.currentIndexChanged, self.refresh_zone_view),
@@ -568,6 +576,8 @@ class ClearingToolBase(AppTool):
 
     def refresh_zone_view(self, *args):
         """Show the zones of the sources of the panel (and only those) on the canvas, and count them."""
+        if self._panel_closed:
+            return
         sources = self.live_zone_sources()
         for obj in self._zone_view:
             if not any(obj is source for source in sources):
@@ -638,9 +648,11 @@ class ClearingToolBase(AppTool):
 
     def on_plugin_cleanup(self):
         """The plugin is closing: do not leave the canvas in the selection mode, take the shapes off the canvas."""
+        self._panel_closed = True
         self.reset_drawn_regions()
 
     def on_panel_replaced(self):
         """Another plugin took the place of the panel."""
+        self._panel_closed = True
         self.reset_drawn_regions()
 
