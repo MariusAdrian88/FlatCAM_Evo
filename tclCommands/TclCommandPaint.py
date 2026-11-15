@@ -3,7 +3,6 @@ from appPlugins.ToolPaint.PaintGen import GUI_ZONES, PaintGen
 from camlib import clearing_simplification, flatten_shapely_geometry
 
 from shapely import Polygon, box
-from shapely.ops import unary_union
 
 import collections
 import math
@@ -107,7 +106,8 @@ class TclCommandPaint(TclCommand):
                               'Climb = the wall on the right with an M3 spindle. The "lines" and "crosshatch" '
                               'scan lines and the "laser_lines" are not oriented.'),
             ('exclude', 'Name of a Geometry or Gerber object. Its polygons are never painted: the cutter keeps '
-                        'its radius away from them (no overlap with the zones). '
+                        'its radius away from them (no overlap with the zones). They are added to the exclusion '
+                        'zones stored on the painted object, for this run only; the object is not changed. '
                         'A Geometry object that has only lines is rejected.'),
             ('all', 'Optional compatibility flag; bare -all is accepted. Its value is ignored, even False. '
                     'All polygons are painted by default unless -single, -ref, -box or -area is used; '
@@ -254,7 +254,7 @@ class TclCommandPaint(TclCommand):
                      if isinstance(poly, Polygon) and not poly.is_empty]
             if not zones:
                 self.raise_tcl_error('The exclusion object has no polygons: %s' % args['exclude'])
-            exclusion = unary_union(zones)
+            exclusion = zones
 
         if 'outname' in args:
             outname = args['outname']
@@ -325,7 +325,7 @@ class TclCommandPaint(TclCommand):
         if self.app.paint_tool.gen is None:
             self.app.paint_tool.gen = PaintGen(self.app.paint_tool)
         gen = self.app.paint_tool.gen
-        # a script never uses the zones drawn in the panel: only its own -exclude
+        # a script never uses the panel option: the zones stored on the object and its own -exclude (this run only)
         gen.exclusion_source = exclusion
         try:
             ret_val = self._paint(gen, select, obj, args, common)

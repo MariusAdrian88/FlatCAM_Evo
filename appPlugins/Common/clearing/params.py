@@ -105,6 +105,23 @@ def freeze_options(app) -> Mapping:
     return MappingProxyType(merged)
 
 
+def object_zones(obj):
+    """The exclusion zones stored on a source object (none for an object that has no zones)."""
+    return list(getattr(obj, 'exclusion_zones', None) or ())
+
+
+def distinct_zones(zones):
+    """The zones without the repeated ones (same outline), in the order of the first appearance."""
+    seen = set()
+    found = []
+    for zone in zones:
+        key = zone.wkb
+        if key not in seen:
+            seen.add(key)
+            found.append(zone)
+    return found
+
+
 @dataclass(frozen=True)
 class JobSpec:
     """
@@ -125,6 +142,7 @@ class JobSpec:
     areas: list | None = None
     points: tuple | None = None                         # NCC click selection: the click points
     exclusion: BaseGeometry | None = None
+    exclusion_zones: tuple = ()                         # the zones that made `exclusion`: the output keeps a copy
     # --- what the 2 plugins resolve besides the sketch above ---
     source: SourceSnapshot | None = None                # the cleared / painted object
     origin: object = None                               # the live source: only the link of the output object

@@ -769,7 +769,7 @@ def excluded_run(qapp, tmp_path, board, tools, exclusion, rest=False, tcl=None):
     plugin = Plugin(qapp, tmp_path, 'paint', board, list(tools), tool_data=tools)
     try:
         if exclusion is not None:
-            plugin.tool.exclusion_list.append(exclusion)
+            board.add_exclusion_zones([exclusion])
             plugin.tool.ui.excl_cb.set_value(True)
         if tcl is None:
             result = plugin.tool.gen.paint_poly_all(
@@ -781,6 +781,7 @@ def excluded_run(qapp, tmp_path, board, tools, exclusion, rest=False, tcl=None):
         return {row['tooldia']: [p for p in row['solid_geometry'] if p is not None and not p.is_empty]
                 for row in plugin.result().tools.values()}
     finally:
+        board.set_exclusion_zones([])       # the board is shared by the tests
         plugin.close()
 
 

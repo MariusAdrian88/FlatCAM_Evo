@@ -177,8 +177,12 @@ class AppTool(QtWidgets.QWidget):
 
         if self.app.plugin_tab_locked is True:
             return
-        # Remove anything else in the appGUI
-        self.app.ui.plugin_scroll_area.takeWidget()
+        # Remove anything else in the appGUI; a plugin that cleans up when another one replaces it is told
+        previous = self.app.ui.plugin_scroll_area.takeWidget()
+        if previous is not None and previous is not self:
+            on_replaced = getattr(previous, 'on_panel_replaced', None)
+            if callable(on_replaced):
+                on_replaced()
 
         # Put ourselves in the appGUI
         self.app.ui.plugin_scroll_area.setWidget(self)

@@ -23,7 +23,8 @@ from appPlugins.ToolNCC import NccModel
 from appPlugins.Common.clearing import regions
 from appPlugins.Common.clearing.job import ClearingJob, NCC_GUI, NCC_TCL, stock_is_left
 from appPlugins.Common.clearing.params import (
-    JobSpec, SourceSnapshot, copy_geometry, freeze_options, tool_spec, tool_direction)
+    JobSpec, SourceSnapshot, copy_geometry, distinct_zones, freeze_options, object_zones, tool_spec,
+    tool_direction)
 from appObjects.ProjectContext import unique_name
 
 if TYPE_CHECKING:
@@ -721,14 +722,16 @@ class NccGen:
             diameters.sort(reverse=True)
         elif order == 1:
             diameters.sort()
-        exclusion = unary_union(exclusion_areas) if exclusion_areas else None
+        zones = distinct_zones(exclusion_areas or [])
+        exclusion = unary_union(zones) if zones else None
         name = outname if outname is not None else self.obj_name + '_ncc'
         return self._ncc_spec(
             freeze_options(self.app), tools=self._tool_specs(tool_settings, diameters), rest=bool(rest),
             order=order, selection={0: 'all', 1: 'area', 2: 'reference', 3: 'click'}.get(clipping_type, 'all'),
             margin=margin, points=tuple(tuple(point) for point in click_points or ()) or None,
             simplification=tolerance, plot=True, outname=name, areas=copy_geometry(areas_to_clear),
-            exclusion=exclusion, source=SourceSnapshot.of(cleared_object), origin=cleared_object,
+            exclusion=exclusion, exclusion_zones=tuple(zones), source=SourceSnapshot.of(cleared_object),
+            origin=cleared_object,
             reference_source=SourceSnapshot.of(sel_obj), storage=snapshot, tool_table=tool_settings,
             diameters=tuple(diameters), iso_diameters=tuple(iso_tooldia_list), milling_type=milling_type,
             has_offset=has_offset, offset=offset, check_validity=check_validity,
@@ -958,12 +961,14 @@ class NccGen:
         if angle is not None:
             values['tools_ncc_crosshatch_angle'] = angle
         rows = self._tcl_rows(diameters, list(iso_tooldia or ()), name, bool(plot), **values)
-        exclusion = unary_union(exclusion_areas) if exclusion_areas else None
+        # a script: the zones stored on the cleared object and the ones of its -exclude, for this run only
+        zones = distinct_zones(object_zones(ncc_obj) + list(exclusion_areas or []))
+        exclusion = unary_union(zones) if zones else None
         return self._ncc_spec(
             freeze_options(self.app), tools=self._tool_specs(rows, diameters), rest=rest, order=order,
             selection={0: 'all', 1: 'area', 2: 'reference', 3: 'click'}[select_method], margin=margin,
             points=tuple(tuple(point) for point in click_points or ()) or None, simplification=simplify_tol, plot=bool(plot), outname=name, areas=copy_geometry(areas_to_clear_list),
-            exclusion=exclusion, source=SourceSnapshot.of(ncc_obj), origin=ncc_obj,
+            exclusion=exclusion, exclusion_zones=tuple(zones), source=SourceSnapshot.of(ncc_obj), origin=ncc_obj,
             reference_source=SourceSnapshot.of(reference), storage=NccModel.copy_tools(rows), tool_table=rows,
             diameters=tuple(diameters), iso_diameters=tuple(iso_tooldia or ()), milling_type=milling_type,
             has_offset=has_offset, offset=offset, prog_plot=False,

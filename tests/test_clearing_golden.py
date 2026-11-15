@@ -341,7 +341,7 @@ def run_ncc_click(plugin, rest=False, margin=0.5, rest_margin=0.5, exclusion=Non
         ui.rest_offset_entry.set_value(rest_offset)
     ui.select_method_combo.set_value(0)
     if exclusion is not None:
-        plugin.tool.exclusion_list.append(exclusion)
+        plugin.source.add_exclusion_zones([exclusion])
         ui.excl_cb.set_value(True)
     plugin.tool.gen.on_ncc_click()
 
@@ -406,6 +406,7 @@ def ncc_case_exclusion(boards, qapp, tmp_path):
     zone = box(1.5, 1.5, 4.5, 4.0)
     plugin = Plugin(qapp, tmp_path, 'ncc', boards['crop'], list(data), tool_data=data)
     run_ncc_click(plugin, margin=0.5, exclusion=zone)
+    boards['crop'].set_exclusion_zones([])      # the board is shared by the cases
     return plugin, ncc_regions(boards['crop'], 0.5, exclusion=zone)
 
 

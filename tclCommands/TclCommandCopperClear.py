@@ -110,8 +110,9 @@ class TclCommandCopperClear(TclCommand):
                               'scan lines are not oriented.'),
             ('simplification', 'Maximum deviation allowed when simplifying the toolpaths, in the units of the '
                                'application. 0 disables it. Float number.'),
-            ('exclude', 'Name of a Geometry or Gerber object. Its polygons are never cleared. '
-                        'A Geometry object that has only lines is rejected.'),
+            ('exclude', 'Name of a Geometry or Gerber object. Its polygons are never cleared. They are added to '
+                        'the exclusion zones stored on the cleared object, for this run only; the object is not '
+                        'changed. A Geometry object that has only lines is rejected.'),
             ('plot', 'Plot the resulting object. True (1) or False (0). Default: 0'),
             ('all', 'Clear the whole object. Bare -all or -all 1 selects this mode; -all 0 does not. '
                     'Select exactly one mode: -all, -box <value> or -area <value>.'),

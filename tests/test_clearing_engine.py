@@ -82,7 +82,7 @@ from PyQt6 import QtGui  # noqa: E402
 from PyQt6.QtCore import QEvent, Qt  # noqa: E402
 from shapely.ops import unary_union  # noqa: E402
 
-from camlib import Geometry  # noqa: E402
+from appObjects.GeometryObject import GeometryObject  # noqa: E402
 from appPlugins.Common.clearing import regions  # noqa: E402
 from appPlugins.ToolNCC.NccGen import click_faces, picked_faces  # noqa: E402
 from test_clearing_golden import Plugin, qapp  # noqa: E402,F401  (the real-plugin harness of the golden tests)
@@ -90,6 +90,16 @@ from test_clearing_golden import Plugin, qapp  # noqa: E402,F401  (the real-plug
 COPPER = [box(0, 0, 2, 4), box(5, 0, 7, 4), box(10, 0, 12, 4)]
 # the points that pick a polygon: NCC picks the copper-free faces (the gaps), Paint the copper polygons
 CLICKS = {'ncc': (3, 8), 'paint': (1, 6)}
+
+
+def zone_source(app, name):
+    """A real Geometry object of the project: it owns its exclusion zones."""
+    obj = GeometryObject(name, app)
+    obj.obj_options.update(name=name, plot=True)
+    obj.tools = {1: {'tooldia': 1.0, 'data': {}, 'solid_geometry': list(COPPER)}}
+    obj.history_uid = name
+    app.collection.objects[name] = obj
+    return obj
 
 
 class FakeCanvas:
@@ -156,9 +166,7 @@ class Canvas:
         self.kind, self.format = kind, EVENT_FORMATS[fmt]
         self.plugin = Plugin(qapp, tmp_path, kind, None, [0.4])
         self.tool, self.app = self.plugin.tool, self.plugin.app
-        self.board = Geometry(app=self.app)
-        self.board.kind, self.board.obj_options, self.board.solid_geometry = 'geometry', {'name': 'board'}, COPPER
-        self.app.collection.objects['board'] = self.board
+        self.board = zone_source(self.app, 'board')
         self.canvas = FakeCanvas(self.app)
         self.app.tool_shapes, self.app.sel_shapes = FakeShapes(), FakeShapes()
         self.app.event_is_dragging = False
@@ -199,8 +207,8 @@ class Canvas:
     def committed(self, mode):
         """The regions that the last selection handed over (and forget them)."""
         if mode == 'exclusion':
-            zones = list(self.tool.exclusion_list)
-            self.tool.exclusion_list.clear()
+            zones = list(self.board.exclusion_zones)
+            self.board.clear_exclusion_zones()
             return zones
         args, kwargs = self.sink.call_args if self.sink.called else ((), {})
         self.sink.reset_mock()
@@ -351,3 +359,161 @@ def test_reset_and_a_new_source_forget_the_regions_that_the_preview_draws(qapp, 
         assert not getattr(tool, clicked) and not tool.last_zones
     finally:
         session.close()
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# the exclusion zones belong to the source object; the panel only shows and edits them
+# ---------------------------------------------------------------------------------------------------------------
+from appHandlers.appHistory import HistoryManager  # noqa: E402
+from appTool import AppTool  # noqa: E402
+
+ZONE_A = box(2.5, 0, 4.5, 4)
+ZONE_B = box(8, 0, 9, 4)
+
+
+class ZonePanel:
+    """A running plugin with 2 real sources (a, b) and a real history; `pick()` is the user's choice in the combo."""
+
+    def __init__(self, qapp, tmp_path, kind):
+        self.kind = kind
+        self.plugin = Plugin(qapp, tmp_path, kind, None, [0.4])
+        self.tool, self.app = self.plugin.tool, self.plugin.app
+        self.app.headless, self.app.call_source = False, 'app'
+        self.app.projects.is_busy.return_value = False
+        self.app.history = HistoryManager(
+            self.app, collection=SimpleNamespace(
+                get_list=lambda: [o for o in self.app.collection.objects.values() if o is not None]))
+        self.a, self.b = zone_source(self.app, 'a'), zone_source(self.app, 'b')
+        self.pick('a')
+
+    def pick(self, name):
+        self.tool.ui.obj_combo.currentText = lambda: name
+        self.tool.ui.obj_combo.currentIndexChanged.emit(0)
+
+    @property
+    def count(self):
+        return self.tool.ui.excl_count_value.text()
+
+    def multi(self, selected):
+        self.app.collection.selected = list(selected)
+        self.tool.multi_objects_widget().set_value(True)
+
+    def zones_in_run(self):
+        """The zones a run would remove, as one geometry (None: none)."""
+        found = self.tool.exclusion_areas() if self.kind == 'ncc' else self.tool.clear_exclusions()
+        return None if found is None else unary_union(found)
+
+    def close(self):
+        self.plugin.close()
+
+
+@pytest.fixture(params=['ncc', 'paint'])
+def zone_panel(request, qapp, tmp_path):
+    panel = ZonePanel(qapp, tmp_path, request.param)
+    yield panel
+    panel.close()
+
+
+def test_zones_are_added_to_and_deleted_from_the_source_of_the_panel(zone_panel):
+    panel = zone_panel
+    panel.tool.on_exclusion_zones([ZONE_A])
+    assert panel.a.exclusion_zones == [ZONE_A] and panel.b.exclusion_zones == []
+    assert panel.count == '1' and panel.a.zones_wanted()
+    # another source: its own zones, its own count; the first one is no longer shown
+    panel.b.set_exclusion_zones([ZONE_B, ZONE_A])
+    panel.pick('b')
+    assert panel.count == '2' and panel.b.zones_wanted() and not panel.a.zones_wanted()
+    panel.tool.on_delete_exclusions()
+    assert panel.b.exclusion_zones == [] and panel.a.exclusion_zones == [ZONE_A] and panel.count == '0'
+
+
+def test_reset_keeps_the_zones_and_closing_the_panel_hides_them(zone_panel):
+    panel = zone_panel
+    panel.tool.on_exclusion_zones([ZONE_A])
+    panel.tool.set_tool_ui()
+    assert panel.a.exclusion_zones == [ZONE_A]
+    panel.pick('a')
+    assert panel.count == '1' and panel.a.zones_wanted()
+    panel.tool.on_plugin_cleanup()
+    assert panel.a.exclusion_zones == [ZONE_A] and not panel.a.zones_wanted()
+
+
+def test_zones_are_hidden_when_another_plugin_replaces_the_panel(zone_panel, qapp, tmp_path):
+    panel = zone_panel
+    panel.tool.on_exclusion_zones([ZONE_A])
+    assert panel.a.zones_wanted()
+    other = Plugin(qapp, tmp_path / 'other', 'paint' if panel.kind == 'ncc' else 'ncc', None, [0.4])
+    try:
+        other.app.ui.plugin_scroll_area.takeWidget.return_value = panel.tool
+        AppTool.run(other.tool)
+        assert panel.a.exclusion_zones == [ZONE_A] and not panel.a.zones_wanted()
+    finally:
+        other.close()
+
+
+def test_all_selected_objects_share_one_edit_and_the_run_uses_the_union(zone_panel):
+    panel = zone_panel
+    panel.multi([panel.a, panel.b])
+    steps = len(panel.app.history.undo_stack)
+    panel.tool.on_exclusion_zones([ZONE_A])
+    assert panel.a.exclusion_zones == [ZONE_A] and panel.b.exclusion_zones == [ZONE_A]
+    assert panel.count == '1' and len(panel.app.history.undo_stack) == steps + 1
+    assert panel.app.history.undo()
+    assert panel.a.exclusion_zones == [] and panel.b.exclusion_zones == []
+    # each source has its own zone: the run removes both
+    panel.a.set_exclusion_zones([ZONE_A])
+    panel.b.set_exclusion_zones([ZONE_B])
+    panel.tool.ui.excl_cb.set_value(True)
+    assert panel.zones_in_run().symmetric_difference(unary_union([ZONE_A, ZONE_B])).area < 1e-9
+    assert panel.count == '2'
+    panel.tool.ui.excl_cb.set_value(False)
+    assert panel.zones_in_run() is None
+    panel.tool.on_delete_exclusions()
+    assert panel.a.exclusion_zones == [] and panel.b.exclusion_zones == []
+
+
+def generate(panel):
+    """Click Generate (the whole object); returns the output object of the run."""
+    panel.tool.ui.select_method_combo.set_value(0)
+    (panel.tool.gen.on_ncc_click if panel.kind == 'ncc' else panel.tool.gen.on_paint_button_click)()
+    return panel.plugin.result()
+
+
+def test_output_keeps_a_copy_of_the_zones_the_run_used(zone_panel):
+    panel = zone_panel
+    panel.tool.on_exclusion_zones([ZONE_A])
+    panel.tool.ui.excl_cb.set_value(True)
+    output = generate(panel)
+    assert output.exclusion_zones == [ZONE_A] and output.zones_always_drawn is True
+    # a later edit of the source does not change what the run used
+    panel.tool.on_exclusion_zones([ZONE_B])
+    assert panel.a.exclusion_zones == [ZONE_A, ZONE_B] and output.exclusion_zones == [ZONE_A]
+
+
+def test_output_has_no_zones_when_the_exclusion_option_is_off(zone_panel):
+    panel = zone_panel
+    panel.tool.on_exclusion_zones([ZONE_A])
+    panel.tool.ui.excl_cb.set_value(False)
+    output = generate(panel)
+    assert output.exclusion_zones == [] and not output.zones_always_drawn
+    assert panel.a.exclusion_zones == [ZONE_A]
+
+
+@pytest.mark.parametrize('kind', ['ncc', 'paint'])
+def test_tcl_run_uses_the_zones_of_the_source_plus_exclude_and_leaves_the_source_alone(qapp, tmp_path, kind):
+    panel = ZonePanel(qapp, tmp_path, kind)
+    try:
+        panel.a.set_exclusion_zones([ZONE_A])
+        panel.tool.ui.excl_cb.set_value(False)      # a script ignores the panel option
+        gen = panel.tool.gen
+        if kind == 'ncc':
+            gen.clear_copper_tcl(panel.a, ncc_tooldia='0.4', outname='a_ncc', plot=False, run_threaded=False,
+                                 exclusion_areas=[ZONE_B])
+        else:
+            gen.exclusion_source = [ZONE_B]
+            gen.paint_poly_all(obj=panel.a, tooldia='0.4', outname='a_paint', plot=False, run_threaded=False)
+        output = panel.plugin.result()
+        assert output.exclusion_zones == [ZONE_A, ZONE_B] and output.zones_always_drawn is True
+        assert panel.a.exclusion_zones == [ZONE_A]
+    finally:
+        panel.close()

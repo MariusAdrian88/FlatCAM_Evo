@@ -246,13 +246,23 @@ class ToolNcc(Geometry, ClearingToolBase):
     def on_ncc_tool_add_from_db_clicked(self):
         return self.on_tool_add_from_db_clicked()
 
+    def zone_sources(self):
+        """The objects to clear: the selected Gerber / Geometry objects with All selected objects, else the combo."""
+        if self.ui.multi_cb.get_value():
+            selected = [obj for obj in self.app.collection.get_selected()
+                        if getattr(obj, 'kind', None) in ('gerber', 'geometry')]
+            if selected:
+                return selected
+        return self.combo_source()
+
     def exclusion_areas(self):
         """The exclusion zones to remove from the area to clear, or None when they are off or there are none."""
         try:
             use = bool(self.ui.excl_cb.get_value())
         except RuntimeError:
             return None
-        return list(self.exclusion_list) if use and self.exclusion_list else None
+        zones = self.source_zones() if use else []
+        return zones or None
 
     # ------------------------------------------------------------------------------------------------------------
     # the preview of the area to clear
@@ -387,7 +397,7 @@ class ToolNcc(Geometry, ClearingToolBase):
 
     def set_tool_ui(self):
         # a Reset or an app cleanup must not leave the canvas handlers of a selection connected; it drops the preview
-        # and the exclusion zones
+        # and the zones from the canvas (they stay with their objects)
         self.reset_drawn_regions()
 
         self.units = self.app.app_units.upper()
@@ -592,6 +602,7 @@ class ToolNcc(Geometry, ClearingToolBase):
 
         self.gen = NccGen(self)
         self.connect_signals()
+        self.refresh_zone_view()
 
     def add_default_tools(self, dias):
         """

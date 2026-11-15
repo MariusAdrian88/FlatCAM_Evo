@@ -240,7 +240,7 @@ class ToolPaint(Geometry, ClearingToolBase):
 
     def set_tool_ui(self):
         app_defaults = getattr(self.app, "defaults", None) or AppDefaults.factory_defaults
-        # a Reset drops the selection, the preview, the exclusion zones and the zones / polygons of the last run
+        # a Reset drops the selection, the preview, the zones from the canvas and the zones / polygons of the last run
         self.reset_drawn_regions()
 
         self.clear_ui(self.layout)
@@ -450,6 +450,7 @@ class ToolPaint(Geometry, ClearingToolBase):
         # #############################################################################
         self.gen = PaintGen(self)
         self.connect_signals()
+        self.refresh_zone_view()
 
     def on_level_changed(self, checked):
         if not checked:
@@ -876,13 +877,27 @@ class ToolPaint(Geometry, ClearingToolBase):
         # rebuilding the table also restores the old diameter in the cell when the edit was rejected
         self.build_ui()
 
-    def clear_exclusions(self):
-        """The exclusion zones as one geometry, or None when they are off or there are none."""
+    def zone_sources(self):
+        """The objects to paint: the selected Geometry / Gerber objects when All selected is on (not in Polygon
+        Selection), else the object of the combo."""
+        if self.ui.multi_objects_cb.get_value() and self.ui.select_method_combo.get_value() in (0, 2, 3):
+            selected = [obj for obj in self.app.collection.get_selected() if obj.kind in ('geometry', 'gerber')]
+            if selected:
+                return selected
+        return self.combo_source()
+
+    def exclusion_zone_list(self):
+        """The exclusion zones of the sources as a list, empty when they are off or there are none."""
         try:
             use = bool(self.ui.excl_cb.get_value())
         except RuntimeError:
-            return None
-        return unary_union(self.exclusion_list) if use and self.exclusion_list else None
+            return []
+        return self.source_zones() if use else []
+
+    def clear_exclusions(self):
+        """The exclusion zones as one geometry, or None when they are off or there are none."""
+        zones = self.exclusion_zone_list()
+        return unary_union(zones) if zones else None
 
     # ------------------------------------------------------------------------------------------------------------
     # the preview of the area to paint

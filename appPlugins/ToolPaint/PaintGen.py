@@ -42,7 +42,8 @@ from appPlugins.ToolPaint import PaintModel
 from appPlugins.Common.clearing import regions
 from appPlugins.Common.clearing.job import ClearingJob, PAINT, stock_is_left
 from appPlugins.Common.clearing.params import (
-    JobSpec, SourceSnapshot, copy_geometry, freeze_options, tool_spec, tool_direction)
+    JobSpec, SourceSnapshot, copy_geometry, distinct_zones, freeze_options, object_zones, tool_spec,
+    tool_direction)
 
 if TYPE_CHECKING:
     from appObjects.GerberObject import GerberObject
@@ -80,7 +81,8 @@ class PaintSelectionError(Exception):
 
 PAINT_PROFILE = replace(PAINT, user_errors=(PaintSelectionError,))
 
-# PaintGen.clear_exclusions: use the zones drawn in the panel (the default); Tcl sets a geometry or None
+# PaintGen.exclusion_source: the zones of the sources of the panel (the default); Tcl sets the polygons of its -exclude
+# (a list of polygons or a geometry) or None: a script uses the zones stored on the painted object plus those
 GUI_ZONES = object()
 
 
@@ -141,7 +143,7 @@ class PaintGen:
         self._gui_call = _MainThreadCall()
 
     # The controller owns this state; read it live (and write through) instead of copying it at construction.
-    # the clear_exclusions of the next job: GUI_ZONES (the zones of the panel), None or a geometry (Tcl). The G-code
+    # the exclusion of the next job: GUI_ZONES (the zones of the panel), None or polygons (Tcl). The G-code
     # travel areas of the application (app.exc_areas) are a different thing.
     exclusion_source = GUI_ZONES
 
@@ -389,16 +391,22 @@ class PaintGen:
             uid = self._find_tool_uid(diameter, params.tools_storage)
             if uid is not None:
                 specs.append(tool_spec(uid, diameter, params.tools_storage[uid]['data'], 'tools_paint_', 'offset'))
-        exclusion = self.exclusion_source
-        if exclusion is GUI_ZONES:
-            zones = getattr(self.parent_tool, 'clear_exclusions', None)
-            exclusion = zones() if callable(zones) else None
-        if not isinstance(exclusion, BaseGeometry) or exclusion.is_empty:
-            exclusion = None
+        extra = self.exclusion_source
+        if extra is GUI_ZONES:
+            zones_of = getattr(self.parent_tool, 'exclusion_zone_list', None)
+            zones = zones_of() if callable(zones_of) else []
+        else:
+            # a script: the zones stored on the painted object and the ones of its -exclude, for this run only
+            if isinstance(extra, BaseGeometry):
+                extra = [poly for poly in flatten_shapely_geometry(extra) if isinstance(poly, Polygon)]
+            zones = object_zones(painted_object) + list(extra or ())
+        zones = [zone for zone in distinct_zones(zones) if not zone.is_empty]
+        exclusion = unary_union(zones) if zones else None
         return JobSpec(
             tools=specs, rest=bool(params.rest_machining_choice), order=params.tool_ordering, selection=selection,
-            margin=0.0, exclusion=exclusion, simplification=params.simplification_value, plot=plot,
-            outname=params.output_object_name, options=options, source=SourceSnapshot.of(painted_object),
+            margin=0.0, exclusion=exclusion, exclusion_zones=tuple(zones),
+            simplification=params.simplification_value, plot=plot, outname=params.output_object_name,
+            options=options, source=SourceSnapshot.of(painted_object),
             origin=painted_object, selection_fn=geometry if callable(geometry) else None,
             geometry=None if callable(geometry) else copy_geometry(geometry), storage=params.tools_storage,
             diameters=tuple(sorted_paint_tools), check_validity=check_valid, prog_plot=params.prog_plot,

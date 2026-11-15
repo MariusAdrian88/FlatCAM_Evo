@@ -244,9 +244,14 @@ class ClearingJob:
                         options['plot'] = spec.plot
                     if profile.link_source:
                         options.update(source=spec.origin, autoselected=False)
-                    ret = factory.new_object(
-                        'geometry', name, lambda out, application: runner.generate_output(
-                            spec, prepared, out, application), **options)
+
+                    def build_output(out, application):
+                        # the one place that gives the output the zones the run used (its own copy)
+                        out.exclusion_zones = list(spec.exclusion_zones)
+                        out.zones_always_drawn = bool(spec.exclusion_zones)
+                        return runner.generate_output(spec, prepared, out, application)
+
+                    ret = factory.new_object('geometry', name, build_output, **options)
                     if ret == 'fail' or ret is False:
                         ret = 'fail'
             except grace:

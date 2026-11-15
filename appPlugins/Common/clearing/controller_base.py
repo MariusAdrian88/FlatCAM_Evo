@@ -6,7 +6,8 @@
 # ##########################################################
 """
 The part of the NCC and Paint controllers that is the same: opening the plugin tab, the tool table (selection, delete,
-refresh, drag and drop), the Tools Database entry, the preview state, the exclusion zones and the canvas selection.
+refresh, drag and drop), the Tools Database entry, the preview state, the exclusion zones (kept by the source objects)
+and the canvas selection.
 
 ``ClearingToolBase`` is a base class (single inheritance, no mixin). A tool sets these hooks:
 
@@ -18,6 +19,7 @@ refresh, drag and drop), the Tools Database entry, the preview state, the exclus
 - ``tab_title()``, ``generate_slot()``, ``type_obj_slot()``, ``multi_objects_widget()``: its texts, slots and widget
 - ``extra_signals()``: the signals that only this tool has (the common ones are in ``signal_table()``)
 - ``on_zones_selected(zones)``: what an Area Selection does with its zones
+- ``zone_sources()``: the source objects whose exclusion zones the panel shows and edits
 - ``on_tool_from_db_inserted(tool)``: adds a Tools Database record to its tool table
 - ``reset_last_regions()``, ``reset_source()``
 """
@@ -36,7 +38,10 @@ import appTranslation as fcTranslate
 
 from appTool import AppTool
 from appGUI.GUIElements import VerticalScrollArea
+from appHandlers.appHistory import history_of
+from appObjects.AppObjectTemplate import FlatCAMObj
 from camlib import deepcopy_keep_geometry
+from appPlugins.Common.clearing.params import distinct_zones, object_zones
 from appPlugins.Common.clearing.selection import AreaSelector
 
 fcTranslate.apply_language('strings')
@@ -68,9 +73,8 @@ class ClearingToolBase(AppTool):
 
         self.selector = AreaSelector(self)
 
-        # the exclusion zones, drawn in their own color for as long as the plugin is open (not saved)
-        self.exclusion_list: list[Polygon] = []
-        self._exclusion_shapes = None
+        # the sources whose zones the panel shows now (the zones are the data of the source objects)
+        self._zone_view: list = []
         # the zones of the last Area Selection run: the Preview of that mode uses them
         self.last_zones: list[Polygon] = []
         # the shape collection of the preview, made on the first use
@@ -106,6 +110,9 @@ class ClearingToolBase(AppTool):
         raise NotImplementedError
 
     def on_tool_from_db_inserted(self, tool):
+        raise NotImplementedError
+
+    def zone_sources(self):
         raise NotImplementedError
 
     def reset_last_regions(self):
@@ -159,6 +166,7 @@ class ClearingToolBase(AppTool):
                         self.app.ui.notebook.setCurrentWidget(self.app.ui.plugin_tab)
                     else:
                         # else remove the Tool Tab
+                        self.on_plugin_cleanup()
                         self.app.ui.notebook.setCurrentWidget(self.app.ui.properties_tab)
                         self.app.ui.notebook.removeTab(2)
 
@@ -219,6 +227,7 @@ class ClearingToolBase(AppTool):
             (ui.search_and_add_btn.clicked, lambda: self.on_tool_add()),
             (ui.addtool_from_db_btn.clicked, self.on_tool_add_from_db_clicked),
             (self.app.proj_selection_changed, self.on_object_selection_changed),
+            (self.app.proj_selection_changed, self.refresh_zone_view),
             (ui.reset_button.clicked, self.set_tool_ui),
             # Cleanup on Graceful exit (CTRL+ALT+X combo key)
             (self.app.cleanup, self.set_tool_ui),
@@ -226,7 +235,10 @@ class ClearingToolBase(AppTool):
             (ui.excl_add_button.clicked, self.on_add_exclusion),
             (ui.excl_delete_button.clicked, self.on_delete_exclusions),
             (ui.obj_combo.currentIndexChanged, self.on_source_changed),
+            (ui.obj_combo.currentIndexChanged, self.refresh_zone_view),
+            (ui.select_method_combo.currentIndexChanged, self.refresh_zone_view),
             (self.multi_objects_widget().stateChanged, self.clear_preview),
+            (self.multi_objects_widget().stateChanged, self.refresh_zone_view),
             (self.preview_done_sig, self.on_preview_done),
         ] + self.extra_signals()
 
@@ -534,9 +546,72 @@ class ClearingToolBase(AppTool):
         """Leave the selection mode without a result: the canvas and the panel are the app's again."""
         self.selector.cancel()
 
+    def combo_source(self):
+        """The object of the combo box as a list; empty if it is not (any more) in the project."""
+        try:
+            obj = self.app.collection.get_by_name(self.ui.obj_combo.currentText())
+        except (RuntimeError, AttributeError):
+            return []
+        return [obj] if obj is not None else []
+
+    def live_zone_sources(self):
+        """The sources of the panel that can own zones and are still in the project."""
+        try:
+            sources = self.zone_sources()
+        except RuntimeError:        # the panel is gone
+            return []
+        return [obj for obj in sources if isinstance(obj, FlatCAMObj) and not obj.deleted]
+
+    def source_zones(self):
+        """The zones of the sources of the panel, each distinct zone once."""
+        return distinct_zones([zone for obj in self.live_zone_sources() for zone in object_zones(obj)])
+
+    def refresh_zone_view(self, *args):
+        """Show the zones of the sources of the panel (and only those) on the canvas, and count them."""
+        sources = self.live_zone_sources()
+        for obj in self._zone_view:
+            if not any(obj is source for source in sources):
+                self._stop_showing(obj)
+        for obj in sources:
+            if not any(obj is shown for shown in self._zone_view):
+                obj.zones_changed.connect(self.update_zone_count)
+        self._zone_view = sources
+        for obj in sources:
+            obj.set_zones_panel_open(True)
+        self.update_zone_count()
+
+    def hide_zone_view(self):
+        """The panel stops showing the zones (the zones stay with their objects)."""
+        for obj in self._zone_view:
+            self._stop_showing(obj)
+        self._zone_view = []
+
+    def _stop_showing(self, obj):
+        try:
+            obj.zones_changed.disconnect(self.update_zone_count)
+        except (TypeError, RuntimeError):
+            pass
+        if not obj.deleted:
+            obj.set_zones_panel_open(False)
+
+    def update_zone_count(self, *args):
+        """Show the count of the zones of the sources; the zones changed, so the preview is stale."""
+        try:
+            self.ui.excl_count_value.setText(str(len(self.source_zones())))
+        except (RuntimeError, AttributeError):
+            return
+        self.clear_preview()
+
     def on_exclusion_zones(self, zones):
-        self.exclusion_list.extend(zones)
-        self.update_exclusions()
+        """Add the zones to every source of the panel: 1 undo step."""
+        sources = self.live_zone_sources()
+        if not sources:
+            self.app.inform.emit('[WARNING_NOTCL] %s' % _("There is no object to add the exclusion zones to."))
+            return
+        with history_of(self.app).group(_("Add exclusion zones")):
+            for obj in sources:
+                obj.add_exclusion_zones(zones)
+        self.refresh_zone_view()
         self.app.inform.emit('[success] %s' % _("Exclusion zones added."))
 
     def on_add_exclusion(self):
@@ -547,31 +622,25 @@ class ClearingToolBase(AppTool):
         self.start_area_selection(exclusion=True)
 
     def on_delete_exclusions(self):
-        self.exclusion_list.clear()
-        self.update_exclusions()
-
-    def update_exclusions(self):
-        """Show the count of the zones and draw them in their own color."""
-        self.ui.excl_count_value.setText(str(len(self.exclusion_list)))
-        self.clear_preview()
-        store = self._shape_store('_exclusion_shapes')
-        if store is None:
-            return
-        store.clear(update=False)
-        for poly in self.exclusion_list:
-            store.add(poly, color='#CC0000FF', face_color='#CC000040', update=False, layer=0, tolerance=None)
-        store.redraw()
+        """Remove all the zones of every source of the panel: 1 undo step."""
+        with history_of(self.app).group(_("Clear exclusion zones")):
+            for obj in self.live_zone_sources():
+                obj.clear_exclusion_zones()
+        self.refresh_zone_view()
 
     def reset_drawn_regions(self):
-        """A Reset or the close of the plugin: no selection, no preview, no exclusion zones, no zones of a last run."""
+        """A Reset or the close of the plugin: no selection, no preview, no zones of a last run, no zones on the
+        canvas (the exclusion zones stay with their objects)."""
         self.selector.cancel()
         self.clear_preview()
         self.reset_last_regions()
-        self.exclusion_list.clear()
-        if self._exclusion_shapes is not None:
-            self._exclusion_shapes.clear(update=True)
+        self.hide_zone_view()
 
     def on_plugin_cleanup(self):
         """The plugin is closing: do not leave the canvas in the selection mode, take the shapes off the canvas."""
+        self.reset_drawn_regions()
+
+    def on_panel_replaced(self):
+        """Another plugin took the place of the panel."""
         self.reset_drawn_regions()
 

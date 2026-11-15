@@ -369,18 +369,18 @@ def build_exclusion(ui, tools_box, *, label_tooltip, check_tooltip, check_object
     grid.addWidget(ui.excl_shape_label, 2, 0)
     grid.addWidget(shape, 2, 1)
 
-    _put(ui, 'excl_count_label', FCLabel('%s:' % _("Zones"))).setToolTip(_("The number of exclusion zones drawn."))
+    _put(ui, 'excl_count_label', FCLabel('%s:' % _("Zones"))).setToolTip(_("The number of exclusion zones of the selected object."))
     count = _put(ui, 'excl_count_value', FCLabel('0'))
     grid.addWidget(ui.excl_count_label, 4, 0)
     grid.addWidget(count, 4, 1)
 
     add = _put(ui, 'excl_add_button', FCButton(_("Add area")))
     add.setToolTip(
-        _("Draw exclusion zones on the canvas.\n"
+        _("Draw exclusion zones on the canvas; they are added to the selected object.\n"
           "Left click to draw, right click or Escape to finish.")
     )
     delete = _put(ui, 'excl_delete_button', FCButton(_("Delete all")))
-    delete.setToolTip(_("Remove all the exclusion zones."))
+    delete.setToolTip(_("Remove all the exclusion zones of the selected object."))
     grid.addWidget(add, 6, 0)
     grid.addWidget(delete, 6, 1)
     return grid

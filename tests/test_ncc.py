@@ -757,10 +757,19 @@ def test_crosshatch_angle_is_read_from_the_preferences(tool):
     assert tool.ui.crosshatch_angle_entry.get_value() == 37.5
 
 
+def zone_board(tool, name, *zones):
+    """A real Geometry object of the project that owns the zones."""
+    from appObjects.GeometryObject import GeometryObject
+    board = GeometryObject(name, tool.app)
+    board.obj_options.update(name=name, plot=True)
+    board.tools = {1: {'tooldia': 1.0, 'data': {}, 'solid_geometry': [box(0, 0, 2, 2)]}}
+    board.set_exclusion_zones(zones)
+    return board
+
+
 def test_exclusion_zones_reach_the_handler_in_every_mode(tool):
-    prepare_run(tool, board=geometry_object('board', box(0, 0, 2, 2)))
     zone = box(5, 5, 6, 6)
-    tool.exclusion_list.append(zone)
+    prepare_run(tool, board=zone_board(tool, 'board', zone))
     tool.ui.excl_cb.set_value(True)
     tool.gen.ncc_handler = Mock()
     for method in (0, 2):
@@ -774,6 +783,16 @@ def test_exclusion_zones_reach_the_handler_in_every_mode(tool):
     assert tool.gen.ncc_handler.call_args.kwargs['exclusion_areas'] is None
 
 
+def test_all_selected_objects_give_every_job_the_zones_of_all_of_them(tool):
+    first, second = box(5, 5, 6, 6), box(7, 7, 8, 8)
+    board, other = zone_board(tool, 'board', first), zone_board(tool, 'other', second)
+    prepare_run(tool, board=board, other=other)
+    tool.app.collection.selected = [board, other]
+    tool.ui.multi_cb.set_value(True)
+    tool.ui.excl_cb.set_value(True)
+    tool.gen.ncc_handler = Mock()
+    tool.gen.on_ncc_click()
+    assert [call.kwargs['exclusion_areas'] for call in tool.gen.ncc_handler.call_args_list] == [[first, second]] * 2
 
 
 # ---------------------------------------------------------------------------------------------------------------
