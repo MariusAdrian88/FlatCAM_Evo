@@ -331,3 +331,23 @@ def test_canvas_click_selection_is_ended_by_enter(qapp, tmp_path, kind, fmt):
         session.assert_idle()
     finally:
         session.close()
+
+
+@pytest.mark.parametrize('forget', ['reset', 'source'])
+@pytest.mark.parametrize('kind', ['ncc', 'paint'])
+def test_reset_and_a_new_source_forget_the_regions_that_the_preview_draws(qapp, tmp_path, kind, forget):
+    session = Canvas(qapp, tmp_path, kind, 'vispy')
+    tool = session.tool
+    clicked = 'last_click_faces' if kind == 'ncc' else 'last_polygons'
+    try:
+        session.start('click')
+        make_selection(session, 'click', 0)
+        session.start('square')
+        make_selection(session, 'square', 0)
+        tool.on_zones_selected([box(1, 1, 3, 3)])
+        assert getattr(tool, clicked) and tool.last_zones
+        tool.reset_drawn_regions() if forget == 'reset' else tool.on_source_changed()
+        # the Preview of Polygon Selection and of Area Selection has no region of the earlier job
+        assert not getattr(tool, clicked) and not tool.last_zones
+    finally:
+        session.close()

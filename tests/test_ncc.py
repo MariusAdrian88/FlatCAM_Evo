@@ -22,7 +22,7 @@ from shapely.ops import unary_union  # noqa: E402
 
 from appMain import App  # noqa: E402
 import camlib  # noqa: E402
-from camlib import rest_area  # noqa: E402
+from camlib import flatten_shapely_geometry, rest_area  # noqa: E402
 from appPlugins.Common.clearing import regions  # noqa: E402
 from appPlugins.ToolNCC import NccModel  # noqa: E402
 from appPlugins.ToolNCC.Ncc import ToolNcc  # noqa: E402
@@ -449,6 +449,47 @@ def test_rest_reports_failure_only_when_copper_free_area_remains():
     assert run(disc, [LineString([(0.5, 0.5), (0.5, 0.501)])])[3] is False
     assert run(box(0, 0, 2, 2), [LineString([(1, 1), (1, 1.001)])])[3] is True
     assert run(disc, None)[3] is True
+
+
+def square_paths(dia, size=4.0):
+    """A ring and parallel lines at half the diameter: they sweep the square up to the corner residue."""
+    r = dia / 2
+    paths = [box(r, r, size - r, size - r).exterior]
+    y = r
+    while y < size - r + 1e-9:
+        paths.append(LineString([(r, y), (size - r, y)]))
+        y += r
+    return paths
+
+
+SQUARE = box(0, 0, 4, 4)
+BRANCH = box(4, 1.75, 6, 2.25)      # 0.5 wide: a 1.0 tool cannot enter it
+
+
+@pytest.mark.parametrize('mode', ['normal', 'rest'])
+def test_incomplete_flag_follows_the_uncut_stock_and_not_the_corner_residue(mode):
+    tools = rest_tools(1.0)
+
+    def failed(area):
+        return NccModel.generate_tools(
+            mode, tools, tools, [1.0], {1: MultiPolygon(flatten_shapely_geometry(area))}, 'n', 4, 32,
+            lambda **kw: square_paths(1.0), lambda: None, lambda text: None)[3]
+
+    # a fully reached square: only the residue of the 4 corners is left
+    assert failed(SQUARE) is False
+    # a branch narrower than the tool stays uncut
+    assert failed(unary_union([SQUARE, BRANCH])) is True
+
+
+def test_normal_run_measures_the_stock_of_all_tools_and_not_only_of_the_last():
+    # ascending order: the small tool clears the narrow branch, the large tool runs last and cannot enter it
+    tools = rest_tools(0.4, 1.0)
+    area = MultiPolygon(flatten_shapely_geometry(unary_union([SQUARE, BRANCH])))
+    small = square_paths(0.4) + [LineString([(3.8, y), (5.8, y)]) for y in (1.95, 2.05)]
+    result = NccModel.generate_tools(
+        'normal', tools, tools, [0.4, 1.0], {1: area, 2: area}, 'n', 4, 32,
+        lambda **kw: small if kw['tooldia'] == 0.4 else square_paths(1.0), lambda: None, lambda text: None)
+    assert result[3] is False
 
 
 def test_rest_leaves_stock_for_the_final_cleanup_of_the_smallest_tool():

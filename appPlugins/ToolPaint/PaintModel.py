@@ -14,7 +14,8 @@ from appPlugins.Common.clearing import engine
 from appPlugins.Common.clearing.params import tool_direction
 from appPlugins.Common.clearing.engine import FillKernels
 from appPlugins.Common.clearing.methods import PAINT_METHODS
-from appPlugins.Common.clearing.regions import buffer_geometry, merge_overlapping, polygon_parts, swept_area
+from appPlugins.Common.clearing.regions import (buffer_geometry, merge_overlapping, polygon_parts, swept_area,
+                                                uncut_stock)
 from camlib import (AppRTreeStorage, circle_quad_segs, clearing_margin, error_quad_segs,
                     flatten_shapely_geometry, grace)
 
@@ -94,6 +95,8 @@ def generate_paint(geometry, tools_storage, diameters, ordering, simplification,
     def store(run, diameter, paths):
         tools[run.uid]['solid_geometry'] = [path for path in paths if path and not path.is_empty]
         state['last'] = (run, diameter, tools[run.uid]['solid_geometry'])
+        if measures_stock is None or measures_stock(run.settings):
+            state.setdefault('cuts', []).append((run.domain, tools[run.uid]['solid_geometry'], diameter))
 
     outcome = engine.run_tools(
         diameters, resolve, clear, store, check_abort or (lambda: None), begin=begin, polygon_done=polygon_done,
@@ -104,13 +107,14 @@ def generate_paint(geometry, tools_storage, diameters, ordering, simplification,
         return 'fail'
     if check_abort is not None:
         check_abort()
-    stock = None
+    stock, stock_diameter = None, None
     if 'last' in state and (measures_stock is None or measures_stock(state['last'][0].settings)):
-        # the stock of the last tool: its own domain without the area that it swept
-        run, diameter, paths = state['last']
-        segments = sweep_quad_segs(diameter, edge_error, tool_quad_segs(steps_at, diameter))
-        stock = unary_union(run.domain).difference(swept_area(paths, diameter, segments))
-    return {'tools': tools, 'warnings': warnings, 'last_diameter': last_diameter, 'stock': stock}
+        # the stock of the run: the domains without the areas that the tools swept (laser lines do not count)
+        stock, stock_diameter = uncut_stock(
+            state.get('cuts', []),
+            lambda diameter: sweep_quad_segs(diameter, edge_error, tool_quad_segs(steps_at, diameter)))
+    return {'tools': tools, 'warnings': warnings, 'last_diameter': last_diameter, 'stock': stock,
+            'stock_diameter': stock_diameter}
 
 
 def rest_sweep(polygon, diameter, settings, process_polygon, simplify, simplification, keep_stock, edge_error=None,

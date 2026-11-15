@@ -92,6 +92,24 @@ def swept_area(paths, diameter, quad_segs=16):
     return shapely.union_all(shapely.buffer(paths, diameter / 2.0, quad_segs=quad_segs))
 
 
+def uncut_stock(cuts, quad_segs_at):
+    """
+    The stock of a run where each tool clears its complete domain: the union of the domains without the union of the
+    areas that the tools swept. A strip that only a small tool reached is cleared, also when a larger tool runs last.
+
+    :param cuts:            list of (domain, paths, diameter), one item for each tool that cut
+    :param quad_segs_at:    callable(diameter) -> the quad_segs of the swept area of that tool
+    :return:                (stock, diameter): the diameter is the smallest one that cut (the corners of that tool
+                            stay as residue); (None, None) when no tool cut
+    """
+    cuts = [(domain, paths, diameter) for domain, paths, diameter in cuts if paths]
+    if not cuts:
+        return None, None
+    domain = shapely.union_all([shapely.union_all(list(flatten_shapely_geometry(item[0]))) for item in cuts])
+    swept = shapely.union_all([swept_area(paths, diameter, quad_segs_at(diameter)) for _d, paths, diameter in cuts])
+    return domain.difference(swept), min(diameter for _d, _p, diameter in cuts)
+
+
 def buffer_geometry(geometry, offset):
     """Buffer every polygon by -offset; a neck or dumbbell that splits in two yields two polygons."""
     buffered = []

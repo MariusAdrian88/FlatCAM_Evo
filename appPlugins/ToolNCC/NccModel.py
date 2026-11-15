@@ -16,7 +16,8 @@ from appPlugins.Common.clearing import engine
 from appPlugins.Common.clearing.engine import FillKernels, quad_segs
 from appPlugins.Common.clearing.methods import NCC_METHODS
 from appPlugins.Common.clearing.params import tool_direction
-from appPlugins.Common.clearing.regions import offset_geometry, swept_area
+from appPlugins.Common.clearing.job import stock_is_left
+from appPlugins.Common.clearing.regions import offset_geometry, swept_area, uncut_stock
 
 log = logging.getLogger('base')
 
@@ -249,9 +250,10 @@ def prepare_area(geometry, boundary, iso_diameters, tools, name, decimals, has_o
     return area, generated, broken, warnings
 
 
-def _generate_normal(tool_settings, tools_storage, diameters, areas, name, decimals, clear_paths,
-                     check_abort, progress, simplify_tol, prog_plot, initial_tools, tool_progress):
+def _generate_normal(tool_settings, tools_storage, diameters, areas, name, decimals, circle_steps, clear_paths,
+                     check_abort, progress, simplify_tol, prog_plot, initial_tools, tool_progress, clearing_error):
     """The normal modes of generate_tools through the shared engine: each tool clears its complete domain."""
+    cuts = []
     storage = copy_tools(tools_storage)
     # Geometry left in the table by an earlier run is not part of this run.
     for value in storage.values():
@@ -310,6 +312,7 @@ def _generate_normal(tool_settings, tools_storage, diameters, areas, name, decim
             value.pop('ncc_cleanup_start', None)
             value['data']['output_object_name'] = name
             generated[target_uid] = copy_tool(value)
+        cuts.append((run.domain, list(paths), diameter))
 
     def begin(diameter):
         if tool_progress is not None:
@@ -321,8 +324,12 @@ def _generate_normal(tool_settings, tools_storage, diameters, areas, name, decim
         polygon_done=lambda number, total: progress(' %d%%' % int(number * 100 / total)),
         explode=flatten_shapely_geometry, parts=parts)
     check_abort()
+    # the stock that no tool swept, measured by the incomplete rule of both tools
+    stock, stock_diameter = uncut_stock(
+        cuts, lambda diameter: engine.sweep_segments(diameter, clearing_error, circle_steps, quad_segs))
+    failed = stock_is_left(stock, stock_diameter, result.failed)
     # Only what this run generated (and the isolation tools) is published.
-    return generated, domains, None, result.failed, result.last
+    return generated, domains, stock, failed, result.last
 
 
 def _generate_rest(tool_settings, tools_storage, diameters, areas, name, decimals, circle_steps, clear_paths,
@@ -431,8 +438,8 @@ def _generate_rest(tool_settings, tools_storage, diameters, areas, name, decimal
         initial_stock=lambda run: run.domain, advance=advance)
     check_abort()
     residual = result.stock
-    # Failed means copper-free area remains that the tools could not clear (slivers under 1% of a tool ignored).
-    failed = residual is None or not residual.buffer(-0.005 * (result.last or 0.0)).is_empty
+    # Failed means copper-free area remains that the tools could not clear: the incomplete rule of both tools
+    failed = stock_is_left(residual, result.last, residual is None)
     # Only what this run generated (and the isolation tools) is published.
     return generated, domains, residual, failed, result.last
 
@@ -447,8 +454,9 @@ def generate_tools(mode, tool_settings, tools_storage, diameters, areas, name, d
     contour of its own row.
     """
     if mode != 'rest':
-        return _generate_normal(tool_settings, tools_storage, diameters, areas, name, decimals, clear_paths,
-                                check_abort, progress, simplify_tol, prog_plot, initial_tools, tool_progress)
+        return _generate_normal(tool_settings, tools_storage, diameters, areas, name, decimals, circle_steps,
+                                clear_paths, check_abort, progress, simplify_tol, prog_plot, initial_tools,
+                                tool_progress, clearing_error)
     return _generate_rest(tool_settings, tools_storage, diameters, areas, name, decimals, circle_steps,
                           clear_paths, check_abort, progress, simplify_tol,
                           prog_plot, initial_tools, tool_progress, clearing_error)

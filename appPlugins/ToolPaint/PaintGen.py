@@ -789,7 +789,9 @@ class PaintGen:
             cleaned = finished['residual'] is not None
             return ClearingJob.finish_output(
                 self, output, app_obj, stock=finished['residual'] if cleaned else result.get('stock'),
-                last_diameter=result.get('last_diameter'), warn=not cleaned)
+                # a normal run measures its stock with the smallest tool that cut
+                last_diameter=result.get('last_diameter') if cleaned else
+                result.get('stock_diameter') or result.get('last_diameter'), warn=not cleaned)
         except grace:
             return 'fail'
         finally:

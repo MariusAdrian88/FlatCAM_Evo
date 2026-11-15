@@ -394,6 +394,26 @@ class TestPaintSimplification(unittest.TestCase):
                     past = max(0.5 - area.boundary.distance(path) for path in result['tools'][1]['solid_geometry'])
                     self.assertLessEqual(past, allowed + 1e-9)
 
+
+def test_normal_run_measures_the_stock_of_all_tools_and_not_only_of_the_last():
+    # ascending order: the 0.4 tool clears the 0.5 wide branch, the 1.0 tool runs last and cannot enter it
+    from test_ncc import square_paths
+
+    area = unary_union([box(0, 0, 4, 4), box(4, 1.75, 6, 2.25)])
+    small = square_paths(0.4) + [LineString([(3.8, y), (5.8, y)]) for y in (1.95, 2.05)]
+    storage = {uid: {'tooldia': dia, 'data': {'tools_paint_overlap': 20, 'tools_paint_connect': False,
+                                              'tools_paint_contour': True, 'tools_paint_offset': 0}}
+               for uid, dia in ((1, 0.4), (2, 1.0))}
+    paths = {0.4: small, 1.0: square_paths(1.0)}
+    result = PaintModel.generate_paint(
+        [area], storage, [1.0, 0.4], 1, 0.0, 4,
+        lambda polygon, diameter, settings: SimpleNamespace(get_objects=lambda: paths[diameter]))
+    assert result['last_diameter'] == 1.0 and all(tool['solid_geometry'] for tool in result['tools'].values())
+    # the measure of PaintGen: no warning, the branch is cleared by the small tool
+    from appPlugins.Common.clearing.job import stock_is_left
+    assert stock_is_left(result['stock'], result.get('stock_diameter') or result['last_diameter']) is False
+
+
 if __name__ == '__main__':
     unittest.main()
 

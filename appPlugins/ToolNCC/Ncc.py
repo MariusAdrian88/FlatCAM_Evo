@@ -219,6 +219,11 @@ class ToolNcc(Geometry, ClearingToolBase):
         self.last_click_faces = faces
         self.gen.clear_ncc_click_option(points)
 
+    def reset_last_regions(self):
+        """The regions of the last run do not apply any more: also the faces of the last Polygon Selection."""
+        self.last_zones = []
+        self.last_click_faces = []
+
     def on_zones_selected(self, zones):
         """The zones of the Area Selection: the Preview of that mode draws them; the source may be gone."""
         self.last_zones = zones
