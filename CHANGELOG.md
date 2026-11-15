@@ -17,6 +17,8 @@ Copper Clearing (NCC) and Paint:
 - changed: Tcl ncc / paint use the zones stored on the object plus the polygons of -exclude, for that run only (the object is not changed)
 - fixed: NCC warned about uncut areas only for a polygon that failed: a branch narrower than the tool gave no warning; the rest machining warned about the corner residue of a fully cleared area; NCC and Paint now measure the area that no tool cut, with the smallest tool that cut (before, Paint measured only the last tool, so the ascending order gave a false warning)
 - fixed: after a Reset or a new source, the NCC Preview of Polygon Selection drew the regions of the earlier job
+- fixed: when another plugin opened in the place of the NCC or Paint panel, the selection mode, the preview and the zones stayed on the canvas; a plugin is now told when another one replaces its panel
+- fixed: closing the NCC or Paint tab with a second click on its toolbar button did not clean up the canvas
 
 14.11.2026
 
