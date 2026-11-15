@@ -96,6 +96,9 @@ Gerber editor and Convert:
 - fixed: a transform of all the shapes in the Gerber editor did not move the exclusion zones of the object; Convert Gerber <-> Geometry did not keep the zones
 - fixed: a Move of all the shapes in the Gerber editor did not move the exclusion zones of the object (Copy and a Move of some shapes keep them in place)
 
+- updated the version string
+- RELEASE 1.09
+
 14.11.2026
 
 Copper Clearing (NCC) and Paint:

@@ -270,8 +270,8 @@ class App(QtCore.QObject):
 
     # ################################### Version and VERSION DATE ##################################################
     # version = "Unstable"
-    version = "1.08"
-    version_date = "2026/11/13"
+    version = "1.09"
+    version_date = "2026/11/15"
     beta = False
 
     # current date now
