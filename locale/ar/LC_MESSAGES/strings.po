@@ -336,7 +336,7 @@ msgstr "سُجِّلت الامتدادات."
 
 #: appCommon/RegisterFileKeywords.py:472
 msgid "Could not write all file associations to the registry."
-msgstr ""
+msgstr "تعذّرت كتابة جميع ارتباطات الملفات في السجل."
 
 # auto-review 2026-11-04: new
 #: appCommon/RegisterFileKeywords.py:520
@@ -366,7 +366,7 @@ msgstr "أُلغي تسجيل الامتدادات."
 
 #: appCommon/RegisterFileKeywords.py:843
 msgid "%s is not a source launcher bundle."
-msgstr ""
+msgstr "%s ليس حزمة تشغيل مصدرية."
 
 # auto-review 2026-11-04: new
 #: appCommon/RegisterFileKeywords.py:885
@@ -388,6 +388,8 @@ msgid ""
 "another program, select one in Finder and use \"Get Info > Open With\" "
 "followed by \"Change All\"."
 msgstr ""
+"يحتفظ تطبيق FlatCAM بأنواع ملفاته. لفتح هذه الملفات باستخدام برنامج آخر، "
+"حدّد أحدها في Finder واستخدم \"Get Info > Open With\" ثم \"Change All\"."
 
 # auto-review 2026-11-04: new
 #: appDatabase.py:145 appDatabase.py:571 appGUI/ToolLibrary.py:14
@@ -1556,6 +1558,12 @@ msgid ""
 "With a direction the G-code does not reverse paths:\n"
 "multi-depth open paths retract and return to the start."
 msgstr ""
+"اتجاه القطع لتمريرات إزالة النحاس، عند دوران المغزل مع عقارب الساعة (M3):\n"
+"- تسلقي: يبقى الجدار على يمين اللقمة.\n"
+"- تقليدي: يبقى الجدار على اليسار.\n"
+"الخطوط وخطوط التعبئة المتقاطعة المتعرجة وخطوط الليزر غير موجهة.\n"
+"عند تحديد اتجاه، لا يعكس G-code المسارات:\n"
+"تتراجع المسارات المفتوحة متعددة الأعماق ثم تعود إلى نقطة البداية."
 
 # auto-review 2026-11-04: new
 #: appDatabase.py:1065 appDatabase.py:1192 appEditors/appGeoEditor.py:3367
@@ -1589,7 +1597,7 @@ msgstr "لا شيء"
 #: appGUI/preferences/tools/ToolsPaintPrefGroupUI.py:267
 #: appPlugins/Common/clearing/ui_sections.py:281
 msgid "Conv"
-msgstr ""
+msgstr "تقليدي"
 
 # auto-review 2026-11-04: new
 #: appDatabase.py:1105 appEditors/geo_plugins/GeoPaintPlugin.py:328
@@ -10684,73 +10692,73 @@ msgstr "خروج"
 
 #: appGUI/ImagePreview.py:21
 msgid "Invalid image or screen DPI."
-msgstr ""
+msgstr "دقة DPI للصورة أو الشاشة غير صالحة."
 
 #: appGUI/ImagePreview.py:57
 msgid "Fit"
-msgstr ""
+msgstr "ملاءمة"
 
 #: appGUI/ImagePreview.py:58
 msgid "Physical 100%"
-msgstr ""
+msgstr "فعلي 100%"
 
 #: appGUI/ImagePreview.py:61
 msgid "Zoom in"
-msgstr ""
+msgstr "تكبير"
 
 #: appGUI/ImagePreview.py:62
 msgid "Zoom out"
-msgstr ""
+msgstr "تصغير"
 
 #: appGUI/ImagePreview.py:81
 msgid "Invalid image DPI."
-msgstr ""
+msgstr "دقة DPI للصورة غير صالحة."
 
 #: appGUI/ImagePreview.py:90
 msgid "PNG exceeds the preview working-memory limit."
-msgstr ""
+msgstr "يتجاوز PNG حد الذاكرة المؤقتة للمعاينة."
 
 #: appGUI/ImagePreview.py:93
 msgid "Cannot decode PNG preview."
-msgstr ""
+msgstr "تعذر فك ترميز معاينة PNG."
 
 #: appGUI/ImagePreview.py:96
 msgid "Cannot allocate PNG preview."
-msgstr ""
+msgstr "تعذر تخصيص ذاكرة لمعاينة PNG."
 
 #: appGUI/ImagePreview.py:102
 msgid "%d × %d pixels - %g DPI"
-msgstr ""
+msgstr "%d × %d بكسل - %g DPI"
 
 #: appGUI/ImagePreview.py:121 appPlugins/ToolPDFViewer/PDFViewer.py:228
 msgid "Save..."
-msgstr ""
+msgstr "حفظ..."
 
 #: appGUI/ImagePreview.py:128
 msgid "Save PNG"
-msgstr ""
+msgstr "حفظ PNG"
 
 #: appGUI/ImagePreview.py:130
 msgid "PNG Files (*.png)"
-msgstr ""
+msgstr "ملفات PNG (*.png)"
 
 #: appGUI/ImagePreview.py:138 appObjects/DocumentObject.py:419
 #: appPlugins/ToolFilm/Film.py:619 appPlugins/ToolPDFViewer/PDFViewer.py:248
 msgid "Overwrite file?"
-msgstr ""
+msgstr "الكتابة فوق الملف؟"
 
 #: appGUI/ImagePreview.py:138 appObjects/DocumentObject.py:419
 #: appPlugins/ToolFilm/Film.py:619 appPlugins/ToolPDFViewer/PDFViewer.py:248
 msgid "The file already exists. Replace it?"
-msgstr ""
+msgstr "الملف موجود بالفعل. هل تريد استبداله؟"
 
 #: appGUI/ImagePreview.py:144 appGUI/ImagePreview.py:147
 msgid "Cannot save PNG"
-msgstr ""
+msgstr "تعذر حفظ PNG"
 
 #: appGUI/ImagePreview.py:150
 msgid "PNG saved"
-msgstr ""
+msgstr "تم حفظ PNG"
 
 # auto-review 2026-11-04: new
 #: appGUI/ImportDialog.py:28
@@ -11256,11 +11264,11 @@ msgstr "Ctrl+O"
 
 #: appGUI/MainGUI.py:216
 msgid "Open Document..."
-msgstr ""
+msgstr "فتح مستند..."
 
 #: appGUI/MainGUI.py:217
 msgid "Open a PDF, text or HTML file as a project Document."
-msgstr ""
+msgstr "افتح ملف PDF أو نصًا أو HTML كمستند FlatCAM للمشروع."
 
 # auto-review 2026-11-04: new
 #: appGUI/MainGUI.py:224
@@ -13489,7 +13497,7 @@ msgstr ""
 
 #: appGUI/ObjectUI.py:1028
 msgid "Enable plot for the selected tool geometry."
-msgstr ""
+msgstr "فعّل رسم هندسة اللقمة المحددة."
 
 # auto-review 2026-11-04: new
 #: appGUI/ObjectUI.py:1046 appPlugins/ToolIsolation/IsolationUI.py:772
@@ -22542,6 +22550,13 @@ msgid ""
 "- 'Polygon Selection' - left click adds / removes a copper-free region, "
 "right click to start."
 msgstr ""
+"تحديد المنطقة المراد معالجتها.\n"
+"- «نفسها» - يعتمد نطاق المعالجة على الكائن الذي تتم معالجته.\n"
+" - «تحديد المنطقة» - انقر بزر الفأرة الأيسر لبدء تحديد المنطقة المراد "
+"معالجتها.\n"
+"- «الكائن المرجعي» - ستتم معالجة المنطقة التي يحددها كائن آخر.\n"
+"- «تحديد المضلع» - يضيف النقر الأيسر أو يزيل منطقة خالية من النحاس، ويبدأ "
+"النقر الأيمن."
 
 # auto-review 2026-11-04: new
 #: appGUI/preferences/tools/ToolsNCCPrefGroupUI.py:414
@@ -23135,7 +23150,7 @@ msgstr ""
 
 #: appGUI/preferences/utilities/AutoCompletePrefGroupUI.py:21
 msgid "Keyword"
-msgstr ""
+msgstr "الكلمة المفتاحية"
 
 # auto-review 2026-11-04: new
 #: appGUI/preferences/utilities/AutoCompletePrefGroupUI.py:22
@@ -23179,7 +23194,7 @@ msgstr "اقترانات ملفات Excellon"
 
 #: appGUI/preferences/utilities/FAFlatPrefGroupUI.py:20
 msgid "File Associations"
-msgstr ""
+msgstr "ارتباطات الملفات"
 
 # auto-review 2026-11-04: new
 #: appGUI/preferences/utilities/FAFlatPrefGroupUI.py:24
@@ -23197,6 +23212,9 @@ msgid ""
 "FlatCAM and the project and configuration files.\n"
 "On Windows they are active after the next logon."
 msgstr ""
+"طبّق ارتباطات الملفات بين\n"
+"FlatCAM وملفات المشروع والإعدادات.\n"
+"في Windows تصبح نشطة بعد تسجيل الدخول التالي."
 
 # auto-review 2026-11-04: new
 #: appGUI/preferences/utilities/FAGcoPrefGroupUI.py:14
@@ -23223,6 +23241,8 @@ msgid ""
 "Remove the file associations written by 'Apply Association'.\n"
 "Associations that now belong to another application are kept."
 msgstr ""
+"أزل ارتباطات الملفات التي كتبها «تطبيق الاقتران».\n"
+"يُحتفظ بالارتباطات التي أصبحت الآن تابعة لتطبيق آخر."
 
 # auto-review 2026-11-04: new
 #: appGUI/preferences/utilities/ListPrefGroupUI.py:81
@@ -23237,6 +23257,9 @@ msgid ""
 "FlatCAM and the files with above extensions.\n"
 "On Windows they are active after the next logon."
 msgstr ""
+"طبّق ارتباطات الملفات بين\n"
+"FlatCAM والملفات ذات الامتدادات أعلاه.\n"
+"في Windows تصبح نشطة بعد تسجيل الدخول التالي."
 
 # auto-review 2026-11-04: new
 #: appGUI/preferences/utilities/ListPrefGroupUI.py:116
@@ -23463,7 +23486,7 @@ msgstr "تبديل ملء الشاشة"
 
 #: appGUI/shortcut_actions.py:177
 msgid "Zoom with a 1/10 step (2D and 3D)"
-msgstr ""
+msgstr "تكبير بخطوة مقدارها 1/10 (ثنائي الأبعاد وثلاثي الأبعاد)"
 
 # auto-review 2026-11-04: new
 #: appGUI/shortcut_actions.py:180
@@ -23896,15 +23919,15 @@ msgstr "إنهاء التحديد"
 #: appGUI/shortcut_actions.py:950 appPlugins/ToolPDFViewer/PDFViewerUI.py:161
 #: appPlugins/ToolPDFViewer/PDFViewerUI.py:178
 msgid "Zoom"
-msgstr ""
+msgstr "التكبير"
 
 #: appGUI/shortcut_actions.py:951
 msgid "Pan horizontally by a grid step (2D)"
-msgstr ""
+msgstr "التحريك أفقيًا بمقدار خطوة شبكة (ثنائي الأبعاد)"
 
 #: appGUI/shortcut_actions.py:953
 msgid "Pan vertically by a grid step (2D)"
-msgstr ""
+msgstr "التحريك رأسيًا بمقدار خطوة شبكة (ثنائي الأبعاد)"
 
 # auto-review 2026-11-04: new
 #: appGUI/shortcut_actions.py:956
@@ -23977,7 +24000,7 @@ msgstr "لصق خاص. يحوّل صيغة مسار Windows إلى الصيغة 
 
 #: appGUI/shortcuts.py:175
 msgid "Wheel"
-msgstr ""
+msgstr "العجلة"
 
 # auto-review 2026-11-04: new
 #: appGUI/shortcuts.py:543
@@ -24013,7 +24036,7 @@ msgstr "محدد"
 
 #: appHandlers/appEdit.py:120
 msgid "The tool diameter in the Preferences is not valid."
-msgstr ""
+msgstr "قطر اللقمة في التفضيلات غير صالح."
 
 # auto-review 2026-11-04: new
 #: appHandlers/appEdit.py:155 appHandlers/appEdit.py:240
@@ -24782,6 +24805,10 @@ msgid ""
 "*.TXT);;HTML Files (*.html *.HTML *.htm *.HTM);;FlatCAM Docs (*.FlatDoc "
 "*.flatdoc *.FLATDOC);;All Files (*.*)"
 msgstr ""
+"مستندات (*.pdf *.PDF *.txt *.TXT *.html *.HTML *.htm *.HTM *.FlatDoc "
+"*.flatdoc *.FLATDOC);;ملفات PDF (*.pdf *.PDF);;ملفات نصية (*.txt "
+"*.TXT);;ملفات HTML (*.html *.HTML *.htm *.HTM);;مستندات FlatCAM (*.FlatDoc "
+"*.flatdoc *.FLATDOC);;كل الملفات (*.*)"
 
 # auto-review 2026-11-04: new
 #: appHandlers/appIO.py:3718 appHandlers/appIO.py:3720
@@ -25669,7 +25696,7 @@ msgstr "حدد كائن هندسة أو Gerber أو Excellon أو مهمة CNC �
 
 #: appMain.py:2550
 msgid "Edit only one geometry at a time."
-msgstr ""
+msgstr "حرّر هندسة واحدة فقط في كل مرة."
 
 # auto-review 2026-11-04: new
 #: appMain.py:2558 appPlugins/Common/clearing/controller_base.py:278
@@ -26178,12 +26205,12 @@ msgstr ""
 #: appObjects/AppObjectTemplate.py:798
 #: appPlugins/Common/clearing/controller_base.py:611
 msgid "Add exclusion zones"
-msgstr ""
+msgstr "إضافة مناطق استبعاد"
 
 #: appObjects/AppObjectTemplate.py:802
 #: appPlugins/Common/clearing/controller_base.py:626
 msgid "Clear exclusion zones"
-msgstr ""
+msgstr "مسح مناطق الاستبعاد"
 
 # auto-review 2026-11-04: new
 #: appObjects/AppObjectTemplate.py:1076
@@ -26409,11 +26436,11 @@ msgstr ""
 
 #: appObjects/DocumentObject.py:124 appPlugins/ToolPDFViewer/PDFViewerUI.py:216
 msgid "Invalid or unsupported PDF document."
-msgstr ""
+msgstr "مستند PDF غير صالح أو غير مدعوم."
 
 #: appObjects/DocumentObject.py:139 appObjects/DocumentObject.py:343
 msgid "The file is not a text document."
-msgstr ""
+msgstr "الملف ليس مستندًا نصيًا."
 
 #: appObjects/DocumentObject.py:192
 msgid ""
@@ -26421,30 +26448,33 @@ msgid ""
 "*.FLATDOC);;Text Files (*.txt *.TXT);;HTML Files (*.html *.HTML *.htm "
 "*.HTM);;FlatCAM Docs (*.FlatDoc *.flatdoc *.FLATDOC);;All Files (*.*)"
 msgstr ""
+"مستندات (*.txt *.TXT *.html *.HTML *.htm *.HTM *.FlatDoc *.flatdoc "
+"*.FLATDOC);;ملفات نصية (*.txt *.TXT);;ملفات HTML (*.html *.HTML *.htm "
+"*.HTM);;مستندات FlatCAM (*.FlatDoc *.flatdoc *.FLATDOC);;كل الملفات (*.*)"
 
 #: appObjects/DocumentObject.py:338
 msgid "A PDF opens with File > Open > Open Document."
-msgstr ""
+msgstr "يُفتح PDF عبر «ملف > فتح > فتح مستند»."
 
 #: appObjects/DocumentObject.py:403
 msgid "Text Files (*.txt)"
-msgstr ""
+msgstr "ملفات نصية (*.txt)"
 
 #: appObjects/DocumentObject.py:403
 msgid "HTML Files (*.html *.htm)"
-msgstr ""
+msgstr "ملفات HTML (*.html *.htm)"
 
 #: appObjects/DocumentObject.py:404
 msgid "FlatCAM Docs (*.FlatDoc)"
-msgstr ""
+msgstr "مستندات FlatCAM (*.FlatDoc)"
 
 #: appObjects/DocumentObject.py:404 appPlugins/ToolPDFViewer/PDFViewer.py:240
 msgid "PDF Files (*.pdf)"
-msgstr ""
+msgstr "ملفات PDF (*.pdf)"
 
 #: appObjects/DocumentObject.py:408
 msgid "Save Document"
-msgstr ""
+msgstr "حفظ المستند"
 
 # auto-review 2026-11-04: new
 #: appObjects/ExcellonObject.py:1109 appObjects/ExcellonObject.py:1164
@@ -26973,7 +27003,7 @@ msgstr "حُذفت اللقم من جدول اللقم."
 
 #: appPlugins/Common/clearing/controller_base.py:609
 msgid "There is no object to add the exclusion zones to."
-msgstr ""
+msgstr "لا يوجد كائن لإضافة مناطق الاستبعاد إليه."
 
 # auto-review 2026-11-04: new
 #: appPlugins/Common/clearing/controller_base.py:615
@@ -26982,11 +27012,11 @@ msgstr "تمت إضافة مناطق الاستبعاد."
 
 #: appPlugins/Common/clearing/job.py:104
 msgid "Some areas were not cleared with these tools."
-msgstr ""
+msgstr "لم تُزل بعض المناطق بهذه اللقم."
 
 #: appPlugins/Common/clearing/selection.py:118
 msgid "Click a polygon to add or remove it, right click to start."
-msgstr ""
+msgstr "انقر مضلعًا لإضافته أو إزالته، ثم انقر بزر الفأرة الأيمن للبدء."
 
 # auto-review 2026-11-04: new
 #: appPlugins/Common/clearing/selection.py:184
@@ -27007,11 +27037,11 @@ msgstr "لم يُكتشف مضلع تحت موضع النقر."
 #: appPlugins/Common/clearing/selection.py:301
 msgid ""
 "Removed polygon. Click to add / remove the next one or right click to start."
-msgstr ""
+msgstr "أُزيل المضلع. انقر لإضافة/إزالة المضلع التالي أو انقر بالزر الأيمن للبدء."
 
 #: appPlugins/Common/clearing/selection.py:310
 msgid "Click to add the next one or right click to start."
-msgstr ""
+msgstr "انقر لإضافة التالي أو انقر بالزر الأيمن للبدء."
 
 # auto-review 2026-11-04: new
 #: appPlugins/Common/clearing/ui_sections.py:127
@@ -27084,6 +27114,9 @@ msgid ""
 "segments to minimize tool lifts.\n"
 "A change applies to all tools in the table."
 msgstr ""
+"ارسم خطوطًا بين\n"
+"المقاطع الناتجة لتقليل رفع اللقمة.\n"
+"ينطبق التغيير على جميع اللقم في الجدول."
 
 #: appPlugins/Common/clearing/ui_sections.py:251
 msgid ""
@@ -27091,6 +27124,9 @@ msgid ""
 "to trim rough edges.\n"
 "A change applies to all tools in the table."
 msgstr ""
+"اقطع حول محيط المضلع\n"
+"لتسوية الحواف الخشنة.\n"
+"ينطبق التغيير على جميع اللقم في الجدول."
 
 # auto-review 2026-11-04: new
 #: appPlugins/Common/clearing/ui_sections.py:361
@@ -27104,7 +27140,7 @@ msgstr "نوع الشكل المستخدم لرسم منطقة استبعاد."
 
 #: appPlugins/Common/clearing/ui_sections.py:372
 msgid "The number of exclusion zones of the selected object."
-msgstr ""
+msgstr "عدد مناطق الاستبعاد للكائن المحدد."
 
 # auto-review 2026-11-04: new
 #: appPlugins/Common/clearing/ui_sections.py:372
@@ -27121,6 +27157,8 @@ msgid ""
 "Draw exclusion zones on the canvas; they are added to the selected object.\n"
 "Left click to draw, right click or Escape to finish."
 msgstr ""
+"ارسم مناطق الاستبعاد على اللوحة؛ ستُضاف إلى الكائن المحدد.\n"
+"انقر بزر الفأرة الأيسر للرسم، أو بزر الفأرة الأيمن أو Escape للإنهاء."
 
 # auto-review 2026-11-04: new
 #: appPlugins/Common/clearing/ui_sections.py:382
@@ -27129,7 +27167,7 @@ msgstr "حذف الكل"
 
 #: appPlugins/Common/clearing/ui_sections.py:383
 msgid "Remove all the exclusion zones of the selected object."
-msgstr ""
+msgstr "أزل جميع مناطق الاستبعاد للكائن المحدد."
 
 # auto-review 2026-11-04: new
 #: appPlugins/Common/grbl/grbl_client.py:609
@@ -31347,7 +31385,7 @@ msgstr "فشل. هندسة الكائن الجديد مطابقة لهندسة �
 #: appPlugins/ToolFilm/Film.py:436 appPlugins/ToolFilm/Film.py:464
 #: appPlugins/ToolFilm/Film.py:563
 msgid "Film or box geometry is empty."
-msgstr ""
+msgstr "هندسة الفيلم أو الصندوق فارغة."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolFilm/Film.py:437
@@ -31366,48 +31404,48 @@ msgstr "فشل. قيمة PNG DPI غير صالحة."
 
 #: appPlugins/ToolFilm/Film.py:440
 msgid "The PNG is too large. Reduce the DPI or the film dimensions."
-msgstr ""
+msgstr "ملف PNG كبير جدًا. خفّض DPI أو أبعاد الفيلم."
 
 #: appPlugins/ToolFilm/Film.py:441
 msgid "The film cannot be rendered."
-msgstr ""
+msgstr "تعذر تصيير الفيلم."
 
 #: appPlugins/ToolFilm/Film.py:450
 msgid "Select a film source and box object."
-msgstr ""
+msgstr "حدّد مصدر الفيلم وكائن الصندوق."
 
 #: appPlugins/ToolFilm/Film.py:457
 msgid "Select an Excellon punching reference."
-msgstr ""
+msgstr "حدّد مرجع تثقيب Excellon."
 
 #: appPlugins/ToolFilm/Film.py:498 appPlugins/ToolFilm/Film.py:540
 #: appPlugins/ToolFilm/Film.py:578
 msgid "Film generation failed"
-msgstr ""
+msgstr "فشل إنشاء الفيلم"
 
 #: appPlugins/ToolFilm/Film.py:519
 msgid "Film preview failed"
-msgstr ""
+msgstr "فشل معاينة الفيلم"
 
 #: appPlugins/ToolFilm/Film.py:528
 msgid "Film generated. Inspect it, then Save."
-msgstr ""
+msgstr "تم إنشاء الفيلم. افحصه ثم احفظه."
 
 #: appPlugins/ToolFilm/Film.py:573
 msgid "Select a source other than the generated film object."
-msgstr ""
+msgstr "حدّد مصدرًا غير كائن الفيلم المُنشأ."
 
 #: appPlugins/ToolFilm/Film.py:608
 msgid "Save generated film"
-msgstr ""
+msgstr "حفظ الفيلم المُنشأ"
 
 #: appPlugins/ToolFilm/Film.py:630 appPlugins/ToolFilm/Film.py:633
 msgid "Cannot save film"
-msgstr ""
+msgstr "تعذر حفظ الفيلم"
 
 #: appPlugins/ToolFilm/Film.py:636
 msgid "Film saved"
-msgstr ""
+msgstr "تم حفظ الفيلم"
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolFilm/FilmUI.py:57
@@ -31497,16 +31535,20 @@ msgid ""
 "update it in place.\n"
 "Leaving Film keeps the project object; a later session creates a new one."
 msgstr ""
+"أنشئ الفيلم وعاينه دون اختيار وجهة. يعيد «حفظ» استخدام هذه النتيجة حتى "
+"تتغير الإعدادات.\n"
+"ينشئ SVG هندسة فيلم؛ وينشئ PDF مستند PDF. أنشئه مجددًا لتحديثه في مكانه.\n"
+"يؤدي مغادرة الفيلم إلى إبقاء كائن المشروع؛ وتنشئ جلسة لاحقة كائنًا جديدًا."
 
 #: appPlugins/ToolFilm/FilmUI.py:360
 msgid ""
 "Save the generated film without regenerating it, or generate and save if "
 "needed."
-msgstr ""
+msgstr "احفظ الفيلم المُنشأ دون إعادة إنشائه، أو أنشئه واحفظه عند الحاجة."
 
 #: appPlugins/ToolFilm/FilmUI.py:361
 msgid "Save film"
-msgstr ""
+msgstr "حفظ الفيلم"
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolFilm/FilmUI.py:431
@@ -35910,7 +35952,7 @@ msgstr "انقر على مضلع لعزله."
 
 #: appPlugins/ToolIsolation/Isolation.py:2157
 msgid "The object of the excluded area was not found."
-msgstr ""
+msgstr "لم يُعثر على كائن المنطقة المستبعدة."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolIsolation/Isolation.py:2498
@@ -36648,7 +36690,7 @@ msgstr "فشل. حدد لقمة لحذفها."
 #: appPlugins/ToolMilling/Milling.py:2815
 #: appPlugins/ToolMilling/Milling.py:2821
 msgid "The object must keep at least one tool."
-msgstr ""
+msgstr "يجب أن يحتفظ الكائن بلقمة واحدة على الأقل."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolMilling/Milling.py:2838
@@ -36760,6 +36802,8 @@ msgid ""
 "Deleting a tool also deletes its geometry data.\n"
 "The checkboxes enable or disable plotting for the corresponding tool."
 msgstr ""
+"يؤدي حذف لقمة إلى حذف بيانات هندستها أيضًا.\n"
+"تمكّن خانات الاختيار أو تعطل رسم اللقمة المقابلة."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolMilling/MillingUI.py:444
@@ -36942,7 +36986,7 @@ msgstr "لم يتم تحديد كائن Gerber أو هندسة. سيُستخدم
 msgid ""
 "The selection works with one object only. Select a single object or turn "
 "off All selected objects."
-msgstr ""
+msgstr "يعمل التحديد مع كائن واحد فقط. حدّد كائنًا واحدًا أو عطّل «كل الكائنات المحددة»."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolNCC/NccGen.py:378
@@ -37054,7 +37098,7 @@ msgstr ""
 
 #: appPlugins/ToolNCC/NccGen.py:768
 msgid "No area under the clicked points."
-msgstr ""
+msgstr "لا توجد منطقة أسفل النقاط التي نُقر عليها."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolNCC/NccGen.py:921
@@ -37063,7 +37107,7 @@ msgstr "يجب أن يكون الترتيب no أو fwd أو rev."
 
 #: appPlugins/ToolNCC/NccGen.py:932
 msgid "Direction must be none, climb or conv."
-msgstr ""
+msgstr "يجب أن يكون الاتجاه none أو climb أو conv."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolNCC/NccGen.py:1027
@@ -37574,107 +37618,108 @@ msgstr "مسح التحديد"
 
 #: appPlugins/ToolPDFViewer/PDFViewer.py:29
 msgid "PDF page exceeds the regional rendering limit."
-msgstr ""
+msgstr "تتجاوز صفحة PDF حد التصيير الإقليمي."
 
 #: appPlugins/ToolPDFViewer/PDFViewer.py:39
 msgid "Cannot render PDF page."
-msgstr ""
+msgstr "تعذر تصيير صفحة PDF."
 
 #: appPlugins/ToolPDFViewer/PDFViewer.py:45
 msgid "Invalid print scale or page size."
-msgstr ""
+msgstr "مقياس الطباعة أو حجم الصفحة غير صالح."
 
 #: appPlugins/ToolPDFViewer/PDFViewer.py:78
 msgid "Cannot set printer page layout."
-msgstr ""
+msgstr "تعذر ضبط تخطيط صفحة الطابعة."
 
 #: appPlugins/ToolPDFViewer/PDFViewer.py:82
 msgid "Cannot start printer."
-msgstr ""
+msgstr "تعذر بدء الطابعة."
 
 #: appPlugins/ToolPDFViewer/PDFViewer.py:84
 msgid "Cannot start next printed page."
-msgstr ""
+msgstr "تعذر بدء صفحة الطباعة التالية."
 
 #: appPlugins/ToolPDFViewer/PDFViewer.py:92
 msgid "Cannot finish printing."
-msgstr ""
+msgstr "تعذر إنهاء الطباعة."
 
 #: appPlugins/ToolPDFViewer/PDFViewer.py:95
 msgid "Printing failed or was cancelled."
-msgstr ""
+msgstr "فشلت الطباعة أو أُلغيت."
 
 #: appPlugins/ToolPDFViewer/PDFViewer.py:150
 msgid "Cannot open PDF"
-msgstr ""
+msgstr "تعذر فتح PDF"
 
 #: appPlugins/ToolPDFViewer/PDFViewer.py:230
 msgid "Print..."
-msgstr ""
+msgstr "طباعة..."
 
 #: appPlugins/ToolPDFViewer/PDFViewer.py:238
 msgid "Save PDF"
-msgstr ""
+msgstr "حفظ PDF"
 
 #: appPlugins/ToolPDFViewer/PDFViewer.py:254
 #: appPlugins/ToolPDFViewer/PDFViewer.py:257
 msgid "Cannot save PDF"
-msgstr ""
+msgstr "تعذر حفظ PDF"
 
 #: appPlugins/ToolPDFViewer/PDFViewer.py:260
 msgid "PDF saved"
-msgstr ""
+msgstr "تم حفظ PDF"
 
 #: appPlugins/ToolPDFViewer/PDFViewer.py:264
 msgid "Actual Size (100%)"
-msgstr ""
+msgstr "الحجم الفعلي (100%)"
 
 #: appPlugins/ToolPDFViewer/PDFViewer.py:264
 msgid "Fit to Page"
-msgstr ""
+msgstr "ملاءمة للصفحة"
 
 #: appPlugins/ToolPDFViewer/PDFViewer.py:266
 #: appPlugins/ToolPDFViewer/PDFViewer.py:272
 msgid "Print PDF"
-msgstr ""
+msgstr "طباعة PDF"
 
 #: appPlugins/ToolPDFViewer/PDFViewer.py:266
 msgid "Print scale"
-msgstr ""
+msgstr "مقياس الطباعة"
 
 #: appPlugins/ToolPDFViewer/PDFViewer.py:286
 msgid "Print clipping"
-msgstr ""
+msgstr "قص الطباعة"
 
 #: appPlugins/ToolPDFViewer/PDFViewer.py:287
 msgid ""
 "The PDF exceeds the paper or printable margins and will be clipped. Actual "
 "Size will not shrink it. Continue?"
-msgstr ""
+msgstr "يتجاوز PDF حدود الورق أو الهوامش القابلة للطباعة، وسيُقص. لن يُصغّر "
+"«الحجم الفعلي» المستند. هل تريد المتابعة؟"
 
 #: appPlugins/ToolPDFViewer/PDFViewer.py:297
 msgid "Sent to printer"
-msgstr ""
+msgstr "أُرسل إلى الطابعة"
 
 #: appPlugins/ToolPDFViewer/PDFViewerUI.py:146
 msgid "Previous page"
-msgstr ""
+msgstr "الصفحة السابقة"
 
 #: appPlugins/ToolPDFViewer/PDFViewerUI.py:149
 msgid "Next page"
-msgstr ""
+msgstr "الصفحة التالية"
 
 #: appPlugins/ToolPDFViewer/PDFViewerUI.py:151
 msgid "Page"
-msgstr ""
+msgstr "الصفحة"
 
 #: appPlugins/ToolPDFViewer/PDFViewerUI.py:155
 msgid "Fit page"
-msgstr ""
+msgstr "ملاءمة الصفحة"
 
 #: appPlugins/ToolPDFViewer/PDFViewerUI.py:156
 msgid "Fit width"
-msgstr ""
+msgstr "ملاءمة العرض"
 
 #: appPlugins/ToolPDFViewer/PDFViewerUI.py:162
 msgid ""
@@ -37689,10 +37734,20 @@ msgid ""
 "width</td></tr><tr><td>Right-click</td><td>Save / Print "
 "menu</td></tr></table>"
 msgstr ""
+"<p>عيّن نسبة التكبير أو استخدم عناصر التحكم هذه للتنقل في PDF.</p><table "
+"cellspacing=\"4\"><tr><th>التحكم / "
+"الإيماءة</th><th>الإجراء</th></tr><tr><td>إدخال التكبير / شريط التمرير</td><td>تعيين "
+"التكبير (5–1000%)</td></tr><tr><td>Ctrl+wheel</td><td>التكبير عند "
+"المؤشر</td></tr><tr><td>Wheel</td><td>التمرير</td></tr><tr><td>السحب بالزر الأيمن أو "
+"الأوسط</td><td>التحريك</td></tr><tr><td>Ctrl++ / Ctrl+-</td><td>تكبير / "
+"تصغير</td></tr><tr><td>Ctrl+0</td><td>إعادة الضبط إلى 100%</td></tr><tr><td>ملاءمة الصفحة "
+"/ ملاءمة العرض</td><td>ملاءمة الصفحة كاملة / عرض الصفحة "
+"الكامل</td></tr><tr><td>النقر بالزر الأيمن</td><td>قائمة الحفظ / الطباعة "
+"</td></tr></table>"
 
 #: appPlugins/ToolPDFViewer/PDFViewerUI.py:210
 msgid "Cannot open PDF buffer."
-msgstr ""
+msgstr "تعذر فتح مخزن PDF المؤقت."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolPaint/Paint.py:218
@@ -37767,7 +37822,7 @@ msgstr "فحص الصلاحية: هذه اللقم لا تتسع داخل أي �
 
 #: appPlugins/ToolPaint/PaintGen.py:655
 msgid "Paths too close to an exclusion zone were dropped: %d"
-msgstr ""
+msgstr "أُسقطت مسارات قريبة جدًا من منطقة استبعاد: %d"
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolPaint/PaintGen.py:715
@@ -37878,13 +37933,15 @@ msgstr ""
 
 #: appPlugins/ToolPaint/PaintUI.py:277
 msgid "Zones drawn on the canvas that are left out of the painting."
-msgstr ""
+msgstr "المناطق المرسومة على اللوحة والمستبعدة من التعبئة."
 
 #: appPlugins/ToolPaint/PaintUI.py:278
 msgid ""
 "When checked, the cutter keeps its radius away from the zones below,\n"
 "for the Generate and the Preview buttons."
 msgstr ""
+"عند تفعيل هذا الخيار، تُبقي القاطعة نصف قطرها بعيدًا عن المناطق أدناه،\n"
+"لأزرار الإنشاء والمعاينة."
 
 # auto-review 2026-11-04: new
 #: appPlugins/ToolPaint/PaintUI.py:288

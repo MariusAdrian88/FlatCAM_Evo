@@ -1,12 +1,9 @@
-# SOME DESCRIPTIVE TITLE.
-# Copyright (C) YEAR ORGANIZATION
-# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
-#
+# Strings of FlatCAM Evo. Made by scripts/i18n_tool.py extract.
 msgid ""
 msgstr ""
-"Project-Id-Version: \n"
-"POT-Creation-Date: 2022-05-11 23:13+0300\n"
-"PO-Revision-Date: 2026-11-15 07:54+0100\n"
+"Project-Id-Version: FlatCAM Evo\n"
+"POT-Creation-Date: 2026-11-15 07:56+0100\n"
+"PO-Revision-Date: 2026-11-15 23:21+0100\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: en\n"
@@ -14,7 +11,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
-"Generated-By: pygettext.py 1.5\n"
+"Generated-By: scripts/i18n_tool.py\n"
 "X-Generator: Poedit 3.0.1\n"
 "X-Poedit-Basepath: ../../..\n"
 "X-Poedit-SearchPath-0: .\n"
@@ -23650,18 +23647,18 @@ msgid "The kind of shape used to draw an exclusion zone."
 msgstr "The kind of shape used to draw an exclusion zone."
 
 #: appPlugins/Common/clearing/ui_sections.py:372
-msgid "The number of exclusion zones of the selected object."
-msgstr "The number of exclusion zones of the selected object."
-
-#: appPlugins/Common/clearing/ui_sections.py:372
 msgid "Zones"
 msgstr "Zones"
 
-#: appPlugins/Common/clearing/ui_sections.py:377
+#: appPlugins/Common/clearing/ui_sections.py:373
+msgid "The number of exclusion zones of the selected object."
+msgstr "The number of exclusion zones of the selected object."
+
+#: appPlugins/Common/clearing/ui_sections.py:378
 msgid "Add area"
 msgstr "Add area"
 
-#: appPlugins/Common/clearing/ui_sections.py:379
+#: appPlugins/Common/clearing/ui_sections.py:380
 msgid ""
 "Draw exclusion zones on the canvas; they are added to the selected object.\n"
 "Left click to draw, right click or Escape to finish."
@@ -23669,11 +23666,11 @@ msgstr ""
 "Draw exclusion zones on the canvas; they are added to the selected object.\n"
 "Left click to draw, right click or Escape to finish."
 
-#: appPlugins/Common/clearing/ui_sections.py:382
+#: appPlugins/Common/clearing/ui_sections.py:383
 msgid "Delete all"
 msgstr "Delete all"
 
-#: appPlugins/Common/clearing/ui_sections.py:383
+#: appPlugins/Common/clearing/ui_sections.py:384
 msgid "Remove all the exclusion zones of the selected object."
 msgstr "Remove all the exclusion zones of the selected object."
 

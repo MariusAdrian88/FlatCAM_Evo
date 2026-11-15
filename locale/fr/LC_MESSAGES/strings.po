@@ -25555,18 +25555,18 @@ msgid "The kind of shape used to draw an exclusion zone."
 msgstr "Le type de forme utilisé pour dessiner une zone d'exclusion."
 
 #: appPlugins/Common/clearing/ui_sections.py:372
-msgid "The number of exclusion zones of the selected object."
-msgstr "Le nombre de zones d'exclusion de l'objet sélectionné."
-
-#: appPlugins/Common/clearing/ui_sections.py:372
 msgid "Zones"
 msgstr "Zones"
 
-#: appPlugins/Common/clearing/ui_sections.py:377
+#: appPlugins/Common/clearing/ui_sections.py:373
+msgid "The number of exclusion zones of the selected object."
+msgstr "Le nombre de zones d'exclusion de l'objet sélectionné."
+
+#: appPlugins/Common/clearing/ui_sections.py:378
 msgid "Add area"
 msgstr "Ajouter une zone"
 
-#: appPlugins/Common/clearing/ui_sections.py:379
+#: appPlugins/Common/clearing/ui_sections.py:380
 msgid ""
 "Draw exclusion zones on the canvas; they are added to the selected object.\n"
 "Left click to draw, right click or Escape to finish."
@@ -25575,11 +25575,11 @@ msgstr ""
 "l'objet sélectionné.\n"
 "Clic gauche pour dessiner, clic droit ou Échap pour terminer."
 
-#: appPlugins/Common/clearing/ui_sections.py:382
+#: appPlugins/Common/clearing/ui_sections.py:383
 msgid "Delete all"
 msgstr "Tout supprimer"
 
-#: appPlugins/Common/clearing/ui_sections.py:383
+#: appPlugins/Common/clearing/ui_sections.py:384
 msgid "Remove all the exclusion zones of the selected object."
 msgstr "Supprimer toutes les zones d'exclusion de l'objet sélectionné."
 

@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "POT-Creation-Date: 2022-05-17 14:37+0300\n"
-"PO-Revision-Date: 2026-11-15 07:54+0100\n"
+"PO-Revision-Date: 2026-11-15 23:18+0100\n"
 "Last-Translator: Carlos Stein <carlos.stein@gmail.com>\n"
 "Language-Team: \n"
 "Language: pt_BR\n"
@@ -24482,18 +24482,18 @@ msgid "The kind of shape used to draw an exclusion zone."
 msgstr "O tipo de formato usado para desenhar uma zona de exclusão."
 
 #: appPlugins/Common/clearing/ui_sections.py:372
-msgid "The number of exclusion zones of the selected object."
-msgstr "O número de zonas de exclusão do objeto selecionado."
-
-#: appPlugins/Common/clearing/ui_sections.py:372
 msgid "Zones"
 msgstr "Zonas"
 
-#: appPlugins/Common/clearing/ui_sections.py:377
+#: appPlugins/Common/clearing/ui_sections.py:373
+msgid "The number of exclusion zones of the selected object."
+msgstr "O número de zonas de exclusão do objeto selecionado."
+
+#: appPlugins/Common/clearing/ui_sections.py:378
 msgid "Add area"
 msgstr "Adicionar área"
 
-#: appPlugins/Common/clearing/ui_sections.py:379
+#: appPlugins/Common/clearing/ui_sections.py:380
 msgid ""
 "Draw exclusion zones on the canvas; they are added to the selected object.\n"
 "Left click to draw, right click or Escape to finish."
@@ -24502,11 +24502,11 @@ msgstr ""
 "selecionado.\n"
 "Clique esquerdo para desenhar, clique direito ou Escape para terminar."
 
-#: appPlugins/Common/clearing/ui_sections.py:382
+#: appPlugins/Common/clearing/ui_sections.py:383
 msgid "Delete all"
 msgstr "Excluir tudo"
 
-#: appPlugins/Common/clearing/ui_sections.py:383
+#: appPlugins/Common/clearing/ui_sections.py:384
 msgid "Remove all the exclusion zones of the selected object."
 msgstr "Remove todas as zonas de exclusão do objeto selecionado."
 

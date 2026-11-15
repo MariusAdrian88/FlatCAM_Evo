@@ -1,8 +1,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: \n"
-"POT-Creation-Date: 2022-05-17 14:36+0300\n"
-"PO-Revision-Date: 2026-11-15 07:54+0100\n"
+"POT-Creation-Date: 2026-11-15 07:56+0100\n"
+"PO-Revision-Date: 2026-11-15 23:16+0100\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: de\n"
@@ -22618,14 +22618,14 @@ msgstr ""
 #: appGUI/shortcut_actions.py:968
 msgid "Within Track & Region Tools will cycle in REVERSE the bend modes"
 msgstr ""
-"In den Werkzeugen Leiterbahn und Region werden die Knickmodi RÜCKWÄRTS "
+"In den Leiterbahn- & Regionswerkzeugen werden die Knickmodi RÜCKWÄRTS "
 "durchlaufen"
 
 # auto-review 2026-10-09: corrected
 #: appGUI/shortcut_actions.py:970
 msgid "Within Track & Region Tools will cycle FORWARD the bend modes"
 msgstr ""
-"In den Werkzeugen Leiterbahn und Region werden die Knickmodi VORWÄRTS "
+"In den Leiterbahn- & Regionswerkzeugen werden die Knickmodi VORWÄRTS "
 "durchlaufen"
 
 #: appGUI/shortcut_actions.py:972 appGUI/shortcut_actions.py:980
@@ -25612,18 +25612,18 @@ msgid "The kind of shape used to draw an exclusion zone."
 msgstr "Die Art der Form, mit der eine Ausschlusszone gezeichnet wird."
 
 #: appPlugins/Common/clearing/ui_sections.py:372
-msgid "The number of exclusion zones of the selected object."
-msgstr "Die Anzahl der Ausschlusszonen des ausgewählten Objekts."
-
-#: appPlugins/Common/clearing/ui_sections.py:372
 msgid "Zones"
 msgstr "Zonen"
 
-#: appPlugins/Common/clearing/ui_sections.py:377
+#: appPlugins/Common/clearing/ui_sections.py:373
+msgid "The number of exclusion zones of the selected object."
+msgstr "Die Anzahl der Ausschlusszonen des ausgewählten Objekts."
+
+#: appPlugins/Common/clearing/ui_sections.py:378
 msgid "Add area"
 msgstr "Bereich hinzufügen"
 
-#: appPlugins/Common/clearing/ui_sections.py:379
+#: appPlugins/Common/clearing/ui_sections.py:380
 msgid ""
 "Draw exclusion zones on the canvas; they are added to the selected object.\n"
 "Left click to draw, right click or Escape to finish."
@@ -25632,11 +25632,11 @@ msgstr ""
 "Objekt hinzugefügt.\n"
 "Linksklick zum Zeichnen, Rechtsklick oder Escape zum Beenden."
 
-#: appPlugins/Common/clearing/ui_sections.py:382
+#: appPlugins/Common/clearing/ui_sections.py:383
 msgid "Delete all"
 msgstr "Alle löschen"
 
-#: appPlugins/Common/clearing/ui_sections.py:383
+#: appPlugins/Common/clearing/ui_sections.py:384
 msgid "Remove all the exclusion zones of the selected object."
 msgstr "Alle Ausschlusszonen des ausgewählten Objekts entfernen."
 
@@ -33800,7 +33800,7 @@ msgid ""
 "B/W means a black & white image. Color means a colored image."
 msgstr ""
 "Wählen Sie eine Methode für die Bildinterpretation.\n"
-"B / W steht für ein Schwarzweißbild. Farbe bedeutet ein farbiges Bild."
+"B / W steht für ein Schwarz-&-Weiß-Bild. Farbe bedeutet ein Farbbild."
 
 #: appPlugins/ToolImage/ImageUI.py:124
 msgid "Level of detail"

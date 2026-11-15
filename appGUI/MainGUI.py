@@ -732,7 +732,7 @@ class MainGUI(QtWidgets.QMainWindow):
         self.menuhelp = self.menu.addMenu(_('Help'))
         self.menuhelp_manual = self.menuhelp.addAction(
             QtGui.QIcon(self.app.resource_location + '/globe16.png'),
-            '%s\t%s' % (_('Obsolete Online Help'), _('F1')))
+            '%s\t%s' % (_('Wiki'), _('F1')))
         self.menuhelp_check_updates = self.menuhelp.addAction(
             QtGui.QIcon(self.app.resource_location + '/refresh16.png'),
             '%s\t%s' % (_('Check for Updates'), ''))

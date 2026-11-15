@@ -21247,11 +21247,11 @@ msgstr "在“绘制路径 / 多边形”中，按此键将依次反向切换拐
 # auto-review 2026-10-09: corrected
 #: appGUI/shortcut_actions.py:968
 msgid "Within Track & Region Tools will cycle in REVERSE the bend modes"
-msgstr "在走线和区域工具中，将反向循环切换折弯模式"
+msgstr "在走线和区域工具中，将&反向循环切换折弯模式"
 
 #: appGUI/shortcut_actions.py:970
 msgid "Within Track & Region Tools will cycle FORWARD the bend modes"
-msgstr "在走线和区域工具中，将正向循环切换折弯模式"
+msgstr "在走线和区域工具中，将&正向循环切换折弯模式"
 
 #: appGUI/shortcut_actions.py:972 appGUI/shortcut_actions.py:980
 msgid "Toggle array direction"
@@ -25107,7 +25107,7 @@ msgstr "镀锡"
 
 #: appPlugins/ToolCalculators/CalculatorUI.py:27
 msgid "Feeds & Speeds"
-msgstr "进给与转速"
+msgstr "进给&转速"
 
 #: appPlugins/ToolCalculators/CalculatorUI.py:58
 msgid "inch"
@@ -31424,7 +31424,7 @@ msgid ""
 "B/W means a black & white image. Color means a colored image."
 msgstr ""
 "选择图像解释的方法。\n"
-"B/W表示黑白图像。Color是指彩色图像。"
+"B/W表示黑&白图像。Color是指彩色图像。"
 
 #: appPlugins/ToolImage/ImageUI.py:124
 msgid "Level of detail"

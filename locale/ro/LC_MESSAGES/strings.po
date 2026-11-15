@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "POT-Creation-Date: 2022-05-17 14:36+0300\n"
-"PO-Revision-Date: 2026-11-15 07:54+0100\n"
+"PO-Revision-Date: 2026-11-15 23:17+0100\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: ro\n"
@@ -230,8 +230,7 @@ msgstr "Faceți clic pe punctul final al zonei."
 #: appPlugins/ToolIsolation/Isolation.py:2664
 msgid "Zone added. Click to start adding next zone or right click to finish."
 msgstr ""
-"Zonă adăugată. Faceți clic pentru a începe adăugarea următoarei zone sau "
-"clic dreapta pentru a finaliza.Zonă adăugată. Faceți clic pentru a adăuga "
+"Zonă adăugată. Faceți clic pentru a adăuga "
 "următoarea zonă sau clic dreapta pentru a termina."
 
 #: appCommon/Common.py:405 appEditors/appGeoEditor.py:5872
@@ -249,8 +248,7 @@ msgstr "Faceți clic pe punctul următor sau clic dreapta pentru a termina ..."
 #: appCommon/Common.py:485
 msgid "Exclusion areas added. Checking overlap with the object geometry ..."
 msgstr ""
-"Zone de excludere adăugate. Se verifică suprapunerea cu geometria "
-"obiectului ...S-au adăugat zone de excludere. Se verifică suprapunerea cu "
+"S-au adăugat zone de excludere. Se verifică suprapunerea cu "
 "geometria obiectului ..."
 
 #: appCommon/Common.py:496
@@ -271,7 +269,7 @@ msgstr "Cu zone de excludere."
 
 #: appCommon/Common.py:534
 msgid "Cancelled. Area exclusion drawing was interrupted."
-msgstr "Anulat. Desenarea Zonei de Excludere a fost întreruptă."
+msgstr "Anulat. Desenarea zonei de excludere a fost întreruptă."
 
 #: appCommon/Common.py:633 appCommon/Common.py:683
 msgid "All exclusion zones deleted."
@@ -621,8 +619,7 @@ msgid ""
 "Tool tolerance. This tool will be used if the desired tool diameter\n"
 "is within the tolerance specified here."
 msgstr ""
-"Toleranța uneltei. Această unealtă va fi utilizată dacă diametrul dorit al "
-"uneltei \n"
+"Toleranța uneltei. Unealta se folosește dacă diametrul dorit\n"
 "se încadrează în toleranța specificată aici."
 
 #: appDatabase.py:537 appEditors/appGerberEditor.py:8749
@@ -881,10 +878,10 @@ msgid ""
 "ensure a complete isolation."
 msgstr ""
 "Tăietură suplimentară.\n"
-"Dacă este bifat, după terminarea izolării, o tăietură suplimentară\n"
-"va fi adăugată acolo unde se întâlnesc începutul și sfârșitul izolării,\n"
-"astfel încât acest punct să fie acoperit de această tăietură suplimentară,\n"
-"pentru a asigura o izolare completă."
+"Dacă bifați, după izolare se adaugă o tăietură\n"
+"la îmbinarea începutului cu sfârșitul traseului,\n"
+"pentru a acoperi acest punct\n"
+"și a asigura izolarea completă."
 
 # auto-review 2026-10-09: corrected
 #: appDatabase.py:770
@@ -902,11 +899,11 @@ msgid ""
 "the extra cut."
 msgstr ""
 "Lungimea tăieturii suplimentare.\n"
-"Dacă este bifat, după terminarea izolării, o tăietură suplimentară\n"
-"va fi adăugată acolo unde se întâlnesc începutul și sfârșitul izolării,\n"
-"astfel încât acest punct să fie acoperit de această tăietură suplimentară,\n"
-"pentru a asigura o izolare completă. Aceasta este lungimea\n"
-"tăieturii suplimentare."
+"Dacă bifați, după izolare se adaugă o tăietură\n"
+"la îmbinarea începutului cu sfârșitul traseului,\n"
+"pentru a acoperi acest punct\n"
+"și a asigura izolarea completă. Valoarea indică\n"
+"lungimea acestei tăieturi."
 
 #: appDatabase.py:793 appGUI/preferences/tools/ToolsMillPrefGroupUI.py:200
 #: appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:167
@@ -920,8 +917,8 @@ msgid ""
 "Feedrate X-Y. Feedrate\n"
 "The speed on XY plane used while cutting into material."
 msgstr ""
-"Avans X-Y. Avans.\n"
-"Viteza în planul XY utilizată la tăierea în material."
+"Avans X-Y.\n"
+"Viteza de tăiere în planul XY."
 
 #: appDatabase.py:807 appDatabase.py:1404
 #: appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:156
@@ -993,8 +990,8 @@ msgid ""
 "the spindle motor to reach its set speed."
 msgstr ""
 "Pauză.\n"
-"Bifați dacă este necesară o întârziere pentru a permite\n"
-"motorului să ajungă la viteza setată."
+"Bifați pentru a aștepta ca arborele\n"
+"să atingă turația setată."
 
 # auto-review 2026-10-09: corrected
 #: appDatabase.py:870 appDatabase.py:1472
@@ -1063,10 +1060,8 @@ msgid ""
 "- conventional / useful when there is no backlash compensation"
 msgstr ""
 "Tipul de frezare:\n"
-"- concordant -> potrivit pentru frezare de precizie și pentru a reduce "
-"uzura uneltei\n"
-"- convențional -> util când nu există compensare a jocului mecanic "
-"('backlash')"
+"- concordant: precizie și uzură redusă a uneltei\n"
+"- convențional: util fără compensarea jocului mecanic"
 
 # auto-review 2026-10-09: corrected
 #: appDatabase.py:917 appDatabase.py:1066 appDatabase.py:1193
@@ -1465,13 +1460,13 @@ msgid ""
 "With a direction the G-code does not reverse paths:\n"
 "multi-depth open paths retract and return to the start."
 msgstr ""
-"Direcția de tăiere a trecerilor de curățare, pentru axul rotit în sens orar "
+"Sensul trecerilor de curățare, pentru arborele rotit în sens orar "
 "(M3):\n"
 "- Concordant: peretele rămâne în dreapta sculei.\n"
 "- Convențional: peretele rămâne în stânga.\n"
-"Liniile, zigzagul Crosshatch și liniile Laser nu au direcție.\n"
-"Cu direcție, G-code nu inversează traseele:\n"
-"cele deschise multi-adâncime se retrag și revin la start."
+"Liniile, liniile în zigzag ale hașurii încrucișate și liniile laser nu sunt orientate.\n"
+"Cu sens impus, codul G nu inversează traseele:\n"
+"pe traseele deschise cu adâncimi succesive, unealta se retrage și revine la început."
 
 #: appDatabase.py:1065 appDatabase.py:1192 appEditors/appGeoEditor.py:3367
 #: appEditors/appGeoEditor.py:4181 appEditors/appGerberEditor.py:4201
@@ -1592,9 +1587,7 @@ msgstr ""
 #: appPlugins/ToolMilling/MillingUI.py:593
 msgid "How much (percentage) of the tool width to overlap each tool pass."
 msgstr ""
-"Cât la sută din lățimea uneltei să se suprapună la fiecare trecere.Cât de "
-"mult (procent) din diametrul uneltei (lățimea de tăiere) se suprapune peste "
-"trecerea anterioară."
+"Procentul din lățimea uneltei suprapus peste trecerea anterioară."
 
 #: appDatabase.py:1257 appGUI/preferences/tools/ToolsISOPrefGroupUI.py:223
 #: appPlugins/ToolIsolation/IsolationUI.py:419
@@ -1614,14 +1607,14 @@ msgid ""
 "isolation can be done only when there is an opening\n"
 "inside of the polygon (e.g polygon is a 'doughnut' shape)."
 msgstr ""
-"Alegeți modul în care se va executa izolarea:\n"
-"- „Complet” -> izolarea completă a poligoanelor din obiect\n"
-"- „Ext” -> se va izola doar la exterior\n"
-"- „Int” -> se va izola doar în interior\n"
-"Izolarea „exterioară” este aproape întotdeauna posibilă\n"
-"(cu unealta potrivită), dar izolarea\n"
-"„interioară” se poate face numai atunci când există o deschidere\n"
-"în interiorul poligonului (de exemplu, poligonul are o formă de „gogoașă”)."
+"Alegeți modul de izolare:\n"
+"- „Complet” -> izolarea completă a poligoanelor\n"
+"- „Ext” -> doar la exterior\n"
+"- „Int” -> doar la interior\n"
+"Izolarea exterioară este aproape întotdeauna posibilă\n"
+"cu unealta potrivită. Izolarea\n"
+"interioară necesită un gol\n"
+"în poligon (de exemplu, un poligon inelar)."
 
 #: appDatabase.py:1268 appGUI/preferences/gerber/GerberAdvOptPrefGroupUI.py:65
 #: appGUI/preferences/tools/ToolsISOPrefGroupUI.py:234
@@ -1812,10 +1805,8 @@ msgid ""
 "Speed of the spindle\n"
 "in RPM (optional)"
 msgstr ""
-"Turația motorului.\n"
-"În RPM (rotații pe minut).\n"
-"Parametru opțional; lăsați câmpul gol\n"
-"pentru a nu-l folosi."
+"Turația arborelui\n"
+"în RPM (opțional)"
 
 #: appDatabase.py:1491 appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:383
 #: appPlugins/ToolDrilling/DrillingUI.py:393
@@ -1879,7 +1870,7 @@ msgstr ""
 "distanța\n"
 "setată la Retragere pas deasupra adâncimii anterioare și continuă cu "
 "avansul de tăiere.\n"
-"Înlocuiește Multi-Pas. Ignorat de preprocesoarele pentru laser."
+"Înlocuiește trecerile multiple. Ignorată de preprocesoarele pentru laser."
 
 #: appDatabase.py:1561
 msgid "Peck depth"
@@ -1907,7 +1898,7 @@ msgstr ""
 #: appGUI/preferences/tools/ToolsMillPrefGroupUI.py:412
 #: appPlugins/ToolDrilling/DrillingUI.py:473
 msgid "Spindle direction"
-msgstr "Sens de rotație motor"
+msgstr "Sens rotație arbore"
 
 #: appDatabase.py:1594
 msgid ""
@@ -1969,7 +1960,7 @@ msgstr ""
 #: appDatabase.py:1619 appGUI/preferences/tools/ToolsDrillPrefGroupUI.py:576
 #: appPlugins/ToolDrilling/DrillingUI.py:499
 msgid "Fast Retract"
-msgstr "Retragere Rapidă"
+msgstr "Retragere rapidă"
 
 #: appDatabase.py:1621
 msgid ""
@@ -2019,7 +2010,7 @@ msgstr ""
 
 #: appDatabase.py:1671
 msgid "Gap type"
-msgstr "Tip Punte"
+msgstr "Tip punte"
 
 #: appDatabase.py:1673 appGUI/preferences/tools/ToolsCutoutPrefGroupUI.py:186
 #: appPlugins/ToolCutOut/CutOutUI.py:310
@@ -2051,7 +2042,7 @@ msgstr ""
 #: appDatabase.py:1711 appGUI/preferences/tools/ToolsCutoutPrefGroupUI.py:225
 #: appPlugins/ToolCutOut/CutOutUI.py:347
 msgid "The drill hole diameter when doing mouse bites."
-msgstr "Diametrul găurilor atunci când faceți Mouse Bites."
+msgstr "Diametrul găurilor pentru punțile perforate (Mouse Bites)."
 
 #: appDatabase.py:1722 appEditors/exc_plugins/ExcCopyPlugin.py:304
 #: appEditors/geo_plugins/GeoCopyPlugin.py:300
@@ -2070,7 +2061,7 @@ msgstr "Spațiere"
 
 #: appDatabase.py:1724 appGUI/preferences/tools/ToolsCutoutPrefGroupUI.py:237
 msgid "The spacing between drill holes when doing mouse bites."
-msgstr "Distanța dintre găuri atunci când faceți Mouse Bites."
+msgstr "Distanța dintre găuri pentru punțile perforate (Mouse Bites)."
 
 #: appDatabase.py:1743 appGUI/preferences/tools/ToolsCutoutPrefGroupUI.py:60
 #: appGUI/preferences/tools/ToolsFilmPrefGroupUI.py:199
@@ -2190,7 +2181,7 @@ msgstr "Șterge"
 # auto-review 2026-10-09: corrected
 #: appDatabase.py:1817
 msgid "Remove a selection of tools in the Tools Database."
-msgstr "Ștergeți o selecție de unelte din baza de date Unelte."
+msgstr "Șterge uneltele selectate din baza de date."
 
 #: appDatabase.py:1821 appGUI/MainGUI.py:366 appGUI/MainGUI.py:1118
 #: appGUI/preferences/excellon/ExcellonExpPrefGroupUI.py:21
@@ -2224,7 +2215,7 @@ msgstr "Salvează"
 
 #: appDatabase.py:1838
 msgid "Save the Tools Database information's."
-msgstr "Salvați informațiile din DB de Unelte."
+msgstr "Salvează baza de date a uneltelor."
 
 #: appDatabase.py:1842
 msgid "Gerber Apertures"
@@ -2461,8 +2452,7 @@ msgstr "S-a încărcat DB Unelte din"
 msgid "Application units changed. Reopen the tool library before adding tools."
 msgstr ""
 "Unitățile aplicației s-au schimbat. Redeschideți biblioteca de unelte "
-"înainte de a adăuga unelte.Unitățile aplicației s-au schimbat. Redeschideți "
-"biblioteca de unelte înainte de a adăuga unelte."
+"înainte de a adăuga unelte."
 
 #: appDatabase.py:2587 appGUI/MainGUI.py:584 appGUI/MainGUI.py:1671
 #: appGUI/preferences/PreferencesWindow.py:347 appGUI/shortcut_actions.py:68
@@ -2479,7 +2469,7 @@ msgstr "Plugin Frezare"
 #: appGUI/preferences/tools/ToolsPaintPrefGroupUI.py:46
 #: appGUI/preferences/tools/ToolsSolderpastePrefGroupUI.py:46
 msgid "Tools Dia"
-msgstr "Dia Unealtă"
+msgstr "Diametre unelte"
 
 # auto-review 2026-10-09: corrected
 #: appDatabase.py:2587 appEditors/appExcEditor.py:3658
@@ -2547,8 +2537,7 @@ msgstr "Exportul a omis %d unelte defecte."
 msgid "Tools library (*.sqlite3 *.FlatDB *.json *.TXT);;All Files (*.*)"
 msgstr ""
 "Biblioteca de unelte (*.sqlite3 *.FlatDB *.json *.TXT);;Toate fișierele "
-"(*.*)Biblioteca de unelte (*.sqlite3 *.FlatDB *.json *.TXT);;Toate "
-"fișierele (*.*)"
+"(*.*)"
 
 #: appDatabase.py:2715
 msgid "Import tools (legacy files use %s)"
@@ -2563,8 +2552,7 @@ msgstr "Nu s-a putut încărca fișierul bazei de date Unelte."
 msgid "Application units changed. Reopen the tool library before saving it."
 msgstr ""
 "Unitățile aplicației s-au schimbat. Redeschideți biblioteca de unelte "
-"înainte de a o salva.Unitățile aplicației s-au schimbat. Redeschideți "
-"biblioteca de unelte înainte de a o salva."
+"înainte de a o salva."
 
 #: appDatabase.py:2790
 msgid "Saved · Units: %s · %s"
@@ -2594,8 +2582,7 @@ msgstr "Baza de date este goală."
 msgid "Application units changed. Reopen the tool library before using it."
 msgstr ""
 "Unitățile aplicației s-au schimbat. Redeschideți biblioteca de unelte "
-"înainte de a o utiliza.Unitățile aplicației s-au schimbat. Redeschideți "
-"biblioteca de unelte înainte de a o folosi."
+"înainte de a o folosi."
 
 #: appDatabase.py:3063
 msgid "Selected tool isn't compatible with this operation."
@@ -2655,7 +2642,7 @@ msgstr "Nu"
 
 #: appDatabase.py:3169
 msgid "Cancelled adding tool from DB."
-msgstr "S-a anulat adăugarea de Unealtă din DB Unelte."
+msgstr "Adăugarea uneltei din baza de date a fost anulată."
 
 #: appEditors/appExcEditor.py:70 appEditors/appExcEditor.py:292
 #: appEditors/appExcEditor.py:310 appEditors/appExcEditor.py:5632
@@ -2809,9 +2796,7 @@ msgstr "Adaugă gaură"
 #: appEditors/appExcEditor.py:538
 msgid "To add an Drill Array first select a tool in Tool Table"
 msgstr ""
-"Pentru a adăuga o matrice de găuri, selectați mai întâi o unealtă din "
-"Tabela de uneltePentru a adăuga o matrice de găuri, selectați mai întâi o "
-"unealtă din tabelul de unelte"
+"Pentru o matrice de găuri, selectați întâi o unealtă din tabelul de unelte"
 
 #: appEditors/appExcEditor.py:551 appEditors/appExcEditor.py:568
 #: appGUI/MainGUI.py:885 appGUI/MainGUI.py:2027
@@ -2856,7 +2841,7 @@ msgstr "Matrice de găuri"
 
 #: appEditors/appExcEditor.py:964
 msgid "To add a slot first select a tool"
-msgstr "Pentru a adăuga un slot mai întâi, selectați o unealtă"
+msgstr "Pentru a adăuga un slot, selectați întâi o unealtă"
 
 #: appEditors/appExcEditor.py:1127
 msgid "Invalid slot length, diameter, angle or position."
@@ -2873,9 +2858,7 @@ msgstr "Adaugă slot"
 #: appEditors/appExcEditor.py:1348
 msgid "To add an Slot Array first select a tool in Tool Table"
 msgstr ""
-"Pentru a adăuga o matrice de sloturi, selectați mai întâi o unealtă din "
-"Tabela de uneltePentru a adăuga o matrice de sloturi, selectați mai întâi o "
-"unealtă din tabelul de unelte"
+"Pentru o matrice de sloturi, selectați întâi o unealtă din tabelul de unelte"
 
 #: appEditors/appExcEditor.py:1362 appEditors/appExcEditor.py:1378
 #: appGUI/MainGUI.py:893 appGUI/MainGUI.py:2032
@@ -2922,7 +2905,7 @@ msgstr "Anulat. Nimic nu este selectat."
 #: appEditors/grb_plugins/GrbCopyPlugin.py:495
 #: appEditors/grb_plugins/GrbCopyPlugin.py:504
 msgid "Click on reference location ..."
-msgstr "Click pe locația de referință ..."
+msgstr "Faceți clic pe punctul de referință ..."
 
 #: appEditors/appExcEditor.py:2019
 msgid "Move features"
@@ -2957,7 +2940,7 @@ msgstr "Copiază"
 #: appEditors/appExcEditor.py:2180 appEditors/appGeoEditor.py:6497
 #: appEditors/appGeoEditor.py:6831
 msgid "Click on destination point ..."
-msgstr "Click pe punctul de Destinație ..."
+msgstr "Faceți clic pe punctul de destinație ..."
 
 #: appEditors/appExcEditor.py:2191
 msgid " Nothing selected."
@@ -3022,14 +3005,14 @@ msgstr "Decalează elementele selectate"
 #: appPlugins/ToolMilling/Milling.py:1353
 #: appPlugins/ToolMilling/MillingUI.py:181
 msgid "Total Drills"
-msgstr "Nr. Tot. Op. Găurire"
+msgstr "Total găuri"
 
 #: appEditors/appExcEditor.py:3292 appObjects/ExcellonObject.py:557
 #: appPlugins/ToolDrilling/Drilling.py:1040
 #: appPlugins/ToolMilling/Milling.py:1380
 #: appPlugins/ToolMilling/MillingUI.py:205
 msgid "Total Slots"
-msgstr "Nr. Tot. Sloturi"
+msgstr "Total sloturi"
 
 #: appEditors/appExcEditor.py:3390 appEditors/appGCodeEditor.py:665
 #: appEditors/appGeoEditor.py:4507 appEditors/appGerberEditor.py:5069
@@ -3163,7 +3146,7 @@ msgstr ""
 
 #: appEditors/appExcEditor.py:3690 appGUI/shortcut_actions.py:869
 msgid "Added new tool with dia"
-msgstr "O nouă unealtă este adăugată cu diametrul"
+msgstr "Unealtă nouă adăugată cu diametrul"
 
 #: appEditors/appExcEditor.py:3708
 msgid "Delete tools"
@@ -3172,7 +3155,7 @@ msgstr "Șterge unelte"
 # auto-review 2026-10-09: corrected
 #: appEditors/appExcEditor.py:3727
 msgid "Select a tool in Tool Table"
-msgstr "Selectează o unealtă în Tabela de Unelte"
+msgstr "Selectați o unealtă din tabelul de unelte"
 
 #: appEditors/appExcEditor.py:3761
 msgid "Deleted tool with diameter"
@@ -3213,7 +3196,7 @@ msgstr "Editarea Excellon a fost terminată."
 # auto-review 2026-10-09: corrected
 #: appEditors/appExcEditor.py:4596
 msgid "Cancelled. There is no Tool/Drill selected"
-msgstr "Anulat. Nu este selectată nicio unealtă sau op. de găurire"
+msgstr "Anulat. Nicio unealtă sau gaură selectată"
 
 #: appEditors/appExcEditor.py:4742 appEditors/appExcEditor.py:5631
 #: appEditors/appExcEditor.py:6171 appEditors/appGerberEditor.py:8933
@@ -3280,9 +3263,7 @@ msgstr "Toleranța trebuie să fie un număr finit, nenegativ."
 #: appEditors/appExcEditor.py:5622
 msgid "Read-only snapshot. Drill crosses are not open-contour errors."
 msgstr ""
-"Instantaneu doar pentru citire. Crucile găurilor nu sunt erori de contur "
-"deschis.Instantaneu doar pentru citire. Crucile găurilor nu sunt erori de "
-"contur deschis."
+"Instantaneu doar pentru citire. Crucile găurilor nu sunt erori de contur deschis."
 
 #: appEditors/appExcEditor.py:5623 appEditors/appExcEditor.py:6138
 #: appEditors/appGCodeEditor.py:888 appGUI/ObjectUI.py:711
@@ -3411,9 +3392,7 @@ msgstr "Istoric"
 #: appEditors/appExcEditor.py:6003
 msgid "Editor-local operation history. Saving uses project history."
 msgstr ""
-"Istoricul operațiilor din editor. Salvarea folosește istoricul "
-"proiectului.Istoricul operațiilor din editor. Salvarea folosește istoricul "
-"proiectului."
+"Istoricul operațiilor din editor. Salvarea folosește istoricul proiectului."
 
 #: appEditors/appExcEditor.py:6007 appGUI/ObjectUI.py:281
 #: appGUI/ObjectUI.py:664 appGUI/ObjectUI.py:952 appGUI/ObjectUI.py:964
@@ -3423,7 +3402,7 @@ msgstr ""
 #: appPlugins/ToolMilling/MillingUI.py:126
 #: appPlugins/ToolSolderPaste/SolderPasteUI.py:75
 msgid "Tools Table"
-msgstr "Tabela Unelte"
+msgstr "Tabel de unelte"
 
 # auto-review 2026-10-09: corrected
 #: appEditors/appExcEditor.py:6009
@@ -3431,8 +3410,8 @@ msgid ""
 "Tools in this Excellon object\n"
 "when are used for drilling."
 msgstr ""
-"Burghie (unelte) în acest obiect Excellon\n"
-"când se face găurire."
+"Uneltele acestui obiect Excellon\n"
+"folosite la găurire."
 
 # auto-review 2026-10-09: corrected
 #: appEditors/appExcEditor.py:6030
@@ -3446,15 +3425,15 @@ msgstr "Convertiți sloturile din uneltele selectate în găuri."
 
 #: appEditors/appExcEditor.py:6044
 msgid "Add/Delete Tool"
-msgstr "Adaugă/Șterge Unealta"
+msgstr "Adaugă/Șterge unealtă"
 
 #: appEditors/appExcEditor.py:6046
 msgid ""
 "Add/Delete a tool to the tool list\n"
 "for this Excellon object."
 msgstr ""
-"Adaugă/Șterge o unealtă la lista de unelte\n"
-"pentru acest obiect Excellon."
+"Adaugă sau șterge o unealtă din lista\n"
+"acestui obiect Excellon."
 
 #: appEditors/appExcEditor.py:6058 appEditors/geo_plugins/GeoPaintPlugin.py:294
 #: appGUI/preferences/tools/ToolsCutoutPrefGroupUI.py:45
@@ -3464,7 +3443,7 @@ msgstr ""
 #: appPlugins/ToolIsolation/IsolationUI.py:166
 #: appPlugins/ToolMilling/MillingUI.py:315 appPlugins/ToolNCC/NccUI.py:148
 msgid "Tool Dia"
-msgstr "Dia Unealtă"
+msgstr "Diam. unealtă"
 
 # auto-review 2026-10-09: corrected
 #: appEditors/appExcEditor.py:6060
@@ -3485,7 +3464,7 @@ msgstr ""
 
 #: appEditors/appExcEditor.py:6081
 msgid "Delete Tool"
-msgstr "Șterge Unealta"
+msgstr "Șterge unealta"
 
 # auto-review 2026-10-09: corrected
 #: appEditors/appExcEditor.py:6084
@@ -3589,8 +3568,7 @@ msgstr "În interval"
 msgid "Optional finite values, comma-separated. Blank disables this filter."
 msgstr ""
 "Valori finite opționale, separate prin virgulă. Lăsați gol pentru a "
-"dezactiva acest filtru.Valori finite opționale, separate prin virgulă. "
-"Lăsați gol pentru a dezactiva acest filtru."
+"dezactiva acest filtru."
 
 #: appEditors/appExcEditor.py:6163 appPlugins/ToolGcodeSender/Sender.py:107
 #: appPlugins/ToolGcodeSender/SenderCameraUI.py:194
@@ -3803,9 +3781,7 @@ msgstr ""
 #: appEditors/appExcEditor.py:6294
 msgid "Overall slot length = endpoint distance + tool dia."
 msgstr ""
-"Lungimea totală a slotului = distanța dintre capete + diametrul "
-"uneltei.Lungimea totală a slotului = distanța dintre capete + diametrul "
-"uneltei."
+"Lungimea totală a slotului = distanța dintre capete + diametrul uneltei."
 
 #: appEditors/appExcEditor.py:6301
 msgid "Excellon snapping"
@@ -3821,7 +3797,7 @@ msgstr "Punctele de mijloc ale sloturilor native"
 
 #: appEditors/appExcEditor.py:6313
 msgid "Nearest slot centerline"
-msgstr "Linia centrală cea mai apropiată"
+msgstr "Cea mai apropiată linie centrală de slot"
 
 #: appEditors/appExcEditor.py:6319
 msgid ""
@@ -3835,13 +3811,13 @@ msgstr ""
 #: appEditors/appGeoEditor.py:4475 appEditors/appGerberEditor.py:9072
 #: appGUI/MainGUI.py:486 appGUI/MainGUI.py:2044 appMain.py:2746
 msgid "Exit Editor"
-msgstr "Ieșiți din Editor"
+msgstr "Ieși din editor"
 
 #: appEditors/appExcEditor.py:6338 appEditors/appGCodeEditor.py:957
 #: appEditors/appGeoEditor.py:4478 appEditors/appGerberEditor.py:9075
 #: appGUI/MainGUI.py:1309 appGUI/MainGUI.py:2588
 msgid "Exit from Editor."
-msgstr "Ieșiți din Editor."
+msgstr "Ieși din editor."
 
 #: appEditors/appGCodeEditor.py:78 appGUI/GUIElements.py:4966
 #: appGUI/MainGUI.py:238 appGUI/MainGUI.py:486
@@ -3851,7 +3827,7 @@ msgstr "Ctrl+S"
 #: appEditors/appGCodeEditor.py:84 appGUI/shortcut_actions.py:66
 #: appMain.py:4271
 msgid "Code Editor"
-msgstr "Editor Cod"
+msgstr "Editor de cod"
 
 #: appEditors/appGCodeEditor.py:179 appEditors/text_editor/find_bar.py:95
 #: appEditors/text_editor/find_bar.py:100 appGUI/GUIElements.py:5611
@@ -3893,7 +3869,7 @@ msgstr "Începutul G-Code"
 
 #: appEditors/appGCodeEditor.py:738 appObjects/CNCJobObject.py:885
 msgid "Loaded Machine Code into Code Editor"
-msgstr "S-a încărcat Codul Mașină în Editorul Cod"
+msgstr "Codul mașină a fost încărcat în editorul de cod"
 
 #: appEditors/appGCodeEditor.py:771 appEditors/appTextEditor.py:432
 msgid "Open file"
@@ -3929,11 +3905,11 @@ msgstr ""
 
 #: appEditors/appGCodeEditor.py:922 appEditors/appGCodeEditor.py:944
 msgid "Insert Code"
-msgstr "Inserați Codul"
+msgstr "Inserează codul"
 
 #: appEditors/appGCodeEditor.py:925 appEditors/appGCodeEditor.py:947
 msgid "Insert the code above at the cursor location."
-msgstr "Introduceți codul de mai sus la locația cursorului."
+msgstr "Inserează codul de mai sus la poziția cursorului."
 
 #: appEditors/appGeoEditor.py:123 appEditors/appGeoEditor.py:5052
 #: appEditors/appGeoEditor.py:5295
@@ -4212,7 +4188,7 @@ msgstr "Index vârf / segment"
 #: appPlugins/ToolGcodeSender/SenderMotion.py:112
 #: appPlugins/ToolGcodeSender/SenderRegistrationUI.py:179
 msgid "Apply"
-msgstr "Aplicați"
+msgstr "Aplică"
 
 #: appEditors/appGeoEditor.py:1100
 #: appEditors/grb_plugins/GrbDrawingPlugin.py:138
@@ -4235,8 +4211,7 @@ msgstr "Selectați exact un LineString deschis pentru divizare."
 msgid "The selected path or editing session changed. Reopen Split path."
 msgstr ""
 "Traseul selectat sau sesiunea de editare s-a schimbat. Redeschideți "
-"Divizează traseul.Traseul selectat sau sesiunea de editare s-au modificat. "
-"Redeschideți Divizare traseu."
+"Divizează traseul."
 
 #: appEditors/appGeoEditor.py:1153
 msgid ""
@@ -4276,8 +4251,7 @@ msgstr "Divizarea trebuie să producă două trasee de lungime nenulă."
 msgid "Join tolerance must be a finite, nonnegative distance in current units."
 msgstr ""
 "Toleranța de unire trebuie să fie o distanță finită, nenegativă, în "
-"unitățile curente.Toleranța de unire trebuie să fie o distanță finită, "
-"nenegativă, în unitățile curente."
+"unitățile curente."
 
 #: appEditors/appGeoEditor.py:1199
 msgid "Select at least two distinct open LineStrings to join."
@@ -4303,9 +4277,7 @@ msgstr "Niciun capăt selectat nu se află în toleranța de unire."
 #: appEditors/appGeoEditor.py:1252
 msgid "Joined paths must have compatible metadata and tool ownership."
 msgstr ""
-"Traseele unite trebuie să aibă metadate și apartenență la unealtă "
-"compatibile.Traseele unite trebuie să aibă metadate și apartenență la "
-"unealtă compatibile."
+"Traseele unite trebuie să aibă metadate compatibile, inclusiv unealta asociată."
 
 #: appEditors/appGeoEditor.py:1265
 msgid "Join would create branching, overlapping or invalid geometry."
@@ -4315,7 +4287,6 @@ msgstr "Unirea ar crea o geometrie ramificată, suprapusă sau invalidă."
 msgid "Joined components would intersect or branch. Refine the selection."
 msgstr ""
 "Componentele unite s-ar intersecta sau s-ar ramifica. Restrângeți "
-"selecția.Componentele unite s-ar intersecta sau s-ar ramifica. Restrângeți "
 "selecția."
 
 #: appEditors/appGeoEditor.py:1283
@@ -4329,9 +4300,7 @@ msgstr ""
 #: appEditors/appGeoEditor.py:1296
 msgid "[WARNING_NOTCL] Endpoint tolerance must be finite and non-negative."
 msgstr ""
-"[WARNING_NOTCL] Toleranța capetelor trebuie să fie finită și "
-"nenegativă.[WARNING_NOTCL] Toleranța capetelor trebuie să fie finită și "
-"nenegativă."
+"[WARNING_NOTCL] Toleranța capetelor trebuie să fie finită și nenegativă."
 
 #: appEditors/appGeoEditor.py:1299
 msgid "[WARNING_NOTCL] Select geometry to inspect."
@@ -4360,9 +4329,7 @@ msgstr "Trasee deschise (informativ)"
 #: appEditors/appGeoEditor.py:1364
 msgid "Selected geometry snapshot; rerun after edits or selection changes."
 msgstr ""
-"Instantaneu al geometriei selectate; rulați din nou după modificări sau "
-"schimbări de selecție.Instantaneu al geometriei selectate; rulați din nou "
-"după modificări sau schimbări ale selecției."
+"Instantaneu al geometriei selectate; rulați din nou după editare sau schimbarea selecției."
 
 #: appEditors/appGeoEditor.py:1371
 msgid "Open endpoints (information): %d"
@@ -4375,9 +4342,7 @@ msgstr "Perechi de capete apropiate: %d"
 #: appEditors/appGeoEditor.py:1384
 msgid "[INFO_NOTCL] Selected geometry diagnostics updated (read-only)."
 msgstr ""
-"[INFO_NOTCL] Diagnosticul geometriei selectate a fost actualizat (doar "
-"citire).[INFO_NOTCL] Diagnosticul geometriei selectate a fost actualizat "
-"(doar citire)."
+"[INFO_NOTCL] Diagnosticul geometriei selectate a fost actualizat (doar citire)."
 
 #: appEditors/appGeoEditor.py:1401 appPlugins/ToolCompare/Compare.py:424
 msgid "area"
@@ -4446,7 +4411,6 @@ msgstr "Schimbă"
 msgid "Geometry operation in progress. Wait for it to finish, then retry."
 msgstr ""
 "Operație de geometrie în curs. Așteptați finalizarea, apoi "
-"reîncercați.Operație de geometrie în curs. Așteptați finalizarea, apoi "
 "reîncercați."
 
 #: appEditors/appGeoEditor.py:1943 appEditors/appGeoEditor.py:2117
@@ -4528,11 +4492,11 @@ msgstr "Nicio formă selectată."
 #: appGUI/shortcut_actions.py:797 appGUI/shortcut_actions.py:800
 #: appGUI/shortcut_actions.py:809
 msgid "Click on target point."
-msgstr "Click pe punctul țintă."
+msgstr "Faceți clic pe punctul țintă."
 
 #: appEditors/appGeoEditor.py:2886
 msgid "Transformation parameters must be finite."
-msgstr "Parametrii trebuie să fie finiți."
+msgstr "Parametrii transformării trebuie să fie finiți."
 
 #: appEditors/appGeoEditor.py:2891
 msgid "Invalid skew angle."
@@ -4649,7 +4613,7 @@ msgstr "Este necesară selectarea a cel puțin două elemente."
 #: appEditors/appGeoEditor.py:4103 appGUI/ObjectUI.py:920
 #: appGUI/shortcut_actions.py:42 appGUI/shortcut_actions.py:58
 msgid "Geometry Editor"
-msgstr "Editor Geometrii"
+msgstr "Editor de geometrie"
 
 #: appEditors/appGeoEditor.py:4135
 msgid "The state timeline of the geometry operations."
@@ -4658,13 +4622,11 @@ msgstr "Cronologia stărilor operațiilor de geometrie."
 #: appEditors/appGeoEditor.py:4137
 msgid "History: select a state to undo or redo geometry operations."
 msgstr ""
-"Istoric: selectați o stare pentru a anula sau reface operațiile de "
-"geometrie.Istoric: selectați o stare pentru a anula sau reface operațiile "
-"de geometrie."
+"Istoric: selectați o stare pentru a anula sau reface operațiile de geometrie."
 
 #: appEditors/appGeoEditor.py:4146
 msgid "Tool dia"
-msgstr "Dia unealtă"
+msgstr "Diam. unealtă"
 
 # auto-review 2026-10-09: corrected
 #: appEditors/appGeoEditor.py:4148
@@ -4679,8 +4641,7 @@ msgstr "Lipire"
 msgid "Extra snap candidates, used when grid snapping is enabled."
 msgstr ""
 "Candidați suplimentari de lipire, folosiți când lipirea la grilă este "
-"activată.Candidați suplimentari de lipire, folosiți când lipirea la grilă "
-"este activată."
+"activată."
 
 #: appEditors/appGeoEditor.py:4164
 msgid "Midpoint snap"
@@ -4816,7 +4777,7 @@ msgstr "Parametri Geometrie."
 
 #: appEditors/appGeoEditor.py:4249
 msgid "Is Valid"
-msgstr "Este Valid"
+msgstr "Este valid"
 
 #: appEditors/appGeoEditor.py:4256
 msgid "Is Empty"
@@ -4824,7 +4785,7 @@ msgstr "Este gol"
 
 #: appEditors/appGeoEditor.py:4263
 msgid "Is Ring"
-msgstr "Este Inel"
+msgstr "Este inel"
 
 #: appEditors/appGeoEditor.py:4270
 msgid "Is CCW"
@@ -4840,7 +4801,7 @@ msgstr ""
 
 #: appEditors/appGeoEditor.py:4283
 msgid "Is Simple"
-msgstr "Este Simplu"
+msgstr "Este simplu"
 
 #: appEditors/appGeoEditor.py:4290 appEditors/appGerberEditor.py:4208
 #: appEditors/exc_plugins/ExcSlotArrayPlugin.py:183
@@ -4924,8 +4885,7 @@ msgstr "Divizează traseul"
 msgid "Select one open LineString, then click its interior to split it."
 msgstr ""
 "Selectați un LineString deschis, apoi faceți clic pe traseu, între capete, "
-"pentru a-l diviza.Selectați un LineString deschis, apoi faceți clic pe "
-"traseu, între capete, pentru a-l diviza."
+"pentru a-l diviza."
 
 #: appEditors/appGeoEditor.py:4359
 msgid ""
@@ -5107,9 +5067,7 @@ msgstr "Diametru nou"
 #: appEditors/appGeoEditor.py:4466
 msgid "Resize the selected circles to the new diameter, as one Undo/Redo step."
 msgstr ""
-"Redimensionează cercurile selectate la diametrul nou, ca un singur pas de "
-"Anulează/Refă.Redimensionează cercurile selectate la diametrul nou, ca un "
-"singur pas de Anulare/Refacere."
+"Redimensionează cercurile selectate la diametrul nou, ca un singur pas de Anulare/Refacere."
 
 #: appEditors/appGeoEditor.py:4998
 msgid ""
@@ -5122,16 +5080,14 @@ msgstr ""
 #: appEditors/appGeoEditor.py:5004
 msgid "Select exactly one open LineString and reopen Split path."
 msgstr ""
-"Selectați exact un LineString deschis și redeschideți Divizează "
-"traseul.Selectați exact un LineString deschis și redeschideți Divizează "
-"traseul."
+"Selectați exact un LineString deschis și redeschideți Divizează traseul."
 
 #: appEditors/appGeoEditor.py:5074 appEditors/appGeoEditor.py:5336
 #: appEditors/appGerberEditor.py:1809 appEditors/appGerberEditor.py:1893
 #: appEditors/appGerberEditor.py:2211
 #: appEditors/geo_plugins/GeoCirclePlugin.py:100
 msgid "Click on Center point ..."
-msgstr "Click pe punctul de Centru ..."
+msgstr "Faceți clic pe centru ..."
 
 #: appEditors/appGeoEditor.py:5104
 msgid ""
@@ -5147,7 +5103,7 @@ msgstr "Alegeți un punct finit de perimetru, diferit de centru."
 # auto-review 2026-10-09: corrected
 #: appEditors/appGeoEditor.py:5120 appEditors/appGerberEditor.py:1818
 msgid "Click on Perimeter point to complete ..."
-msgstr "Click pe un punct aflat pe Circumferință pentru terminare ..."
+msgstr "Faceți clic pe circumferință pentru a termina ..."
 
 # auto-review 2026-10-09: corrected
 #: appEditors/appGeoEditor.py:5123
@@ -5167,9 +5123,7 @@ msgstr "Faceți clic pe punctul central înainte de a introduce o rază."
 #: appEditors/geo_plugins/GeoCirclePlugin.py:121
 msgid "Enter positive finite radii and finite center coordinates and angle."
 msgstr ""
-"Introduceți raze pozitive finite și coordonate finite ale centrului și "
-"unghiului.Introduceți raze pozitive finite, coordonate finite ale centrului "
-"și unghi finit."
+"Introduceți raze pozitive finite, coordonate finite ale centrului și un unghi finit."
 
 #: appEditors/appGeoEditor.py:5292
 msgid ""
@@ -5179,49 +5133,49 @@ msgstr ""
 
 #: appEditors/appGeoEditor.py:5363 appEditors/appGerberEditor.py:1938
 msgid "Click on Start point ..."
-msgstr "Click pe punctul de Start ..."
+msgstr "Faceți clic pe punctul inițial ..."
 
 #: appEditors/appGeoEditor.py:5365 appEditors/appGerberEditor.py:1940
 msgid "Click on Point3 ..."
-msgstr "Click pe Punctul3 ..."
+msgstr "Faceți clic pe punctul 3 ..."
 
 # auto-review 2026-10-09: corrected
 #: appEditors/appGeoEditor.py:5367 appEditors/appGerberEditor.py:1942
 msgid "Click on Stop point ..."
-msgstr "Click pe punctul de Stop ..."
+msgstr "Faceți clic pe punctul final ..."
 
 #: appEditors/appGeoEditor.py:5372 appEditors/appGerberEditor.py:1947
 msgid "Click on Stop point to complete ..."
-msgstr "Click pe punctul de Stop pentru terminare ..."
+msgstr "Faceți clic pe punctul final pentru a termina ..."
 
 #: appEditors/appGeoEditor.py:5374 appEditors/appGerberEditor.py:1949
 msgid "Click on Point2 to complete ..."
-msgstr "Click pe Punctul2 pentru terminare ..."
+msgstr "Faceți clic pe punctul 2 pentru a termina ..."
 
 #: appEditors/appGeoEditor.py:5376 appEditors/appGerberEditor.py:1951
 msgid "Click on Center point to complete ..."
-msgstr "Click pe punctul de Centru pentru terminare ..."
+msgstr "Faceți clic pe centru pentru a termina ..."
 
 #: appEditors/appGeoEditor.py:5402 appEditors/appGerberEditor.py:1996
 msgid "Mode: Start -> Stop -> Center. Click on Start point ..."
-msgstr "Mod: Start -> Stop -> Centru. Click pe punctul de Start ..."
+msgstr "Mod: Început -> Sfârșit -> Centru. Faceți clic pe punctul inițial ..."
 
 # auto-review 2026-10-09: corrected
 #: appEditors/appGeoEditor.py:5405 appEditors/appGerberEditor.py:1999
 msgid "Mode: Point1 -> Point3 -> Point2. Click on Point1 ..."
-msgstr "Mod: Punctul1 -> Punctul3 -> Punctul2. Click pe Punctul1 ..."
+msgstr "Mod: Punctul 1 -> Punctul 3 -> Punctul 2. Faceți clic pe punctul 1 ..."
 
 # auto-review 2026-10-09: corrected
 #: appEditors/appGeoEditor.py:5408 appEditors/appGerberEditor.py:2002
 msgid "Mode: Center -> Start -> Stop. Click on Center point ..."
-msgstr "Mod: Centru -> Start -> Stop. Click pe punctul de Centru ..."
+msgstr "Mod: Centru -> Început -> Sfârșit. Faceți clic pe centru ..."
 
 # auto-review 2026-10-09: corrected
 #: appEditors/appGeoEditor.py:5594 appEditors/appGeoEditor.py:5855
 #: appEditors/appGeoEditor.py:5940
 #: appEditors/geo_plugins/GeoRectanglePlugin.py:104
 msgid "Click on 1st corner ..."
-msgstr "Click pe primul colț ..."
+msgstr "Faceți clic pe primul colț ..."
 
 #: appEditors/appGeoEditor.py:5624
 msgid ""
@@ -5254,8 +5208,7 @@ msgstr "Introduceți valori finite, nenule, pentru lungime și lățime."
 msgid "Enter smaller dimensions so the projected coordinates remain finite."
 msgstr ""
 "Introduceți dimensiuni mai mici, astfel încât coordonatele proiectate să "
-"rămână finite.Introduceți dimensiuni mai mici, astfel încât coordonatele "
-"proiectate să rămână finite."
+"rămână finite."
 
 #: appEditors/appGeoEditor.py:5801 appEditors/appGeoEditor.py:5998
 #: appEditors/appGeoEditor.py:6306 appEditors/appGerberEditor.py:506
@@ -21997,11 +21950,11 @@ msgstr "În Desenează un traseu / poligon, parcurge înapoi modurile de colț"
 
 #: appGUI/shortcut_actions.py:968
 msgid "Within Track & Region Tools will cycle in REVERSE the bend modes"
-msgstr "În uneltele Traseu și Regiune, parcurge înapoi modurile de îndoire"
+msgstr "În uneltele Traseu & Regiune, parcurge înapoi modurile de îndoire"
 
 #: appGUI/shortcut_actions.py:970
 msgid "Within Track & Region Tools will cycle FORWARD the bend modes"
-msgstr "În uneltele Traseu și Regiune, parcurge înainte modurile de îndoire"
+msgstr "În uneltele Traseu & Regiune, parcurge înainte modurile de îndoire"
 
 #: appGUI/shortcut_actions.py:972 appGUI/shortcut_actions.py:980
 msgid "Toggle array direction"
@@ -24914,18 +24867,18 @@ msgid "The kind of shape used to draw an exclusion zone."
 msgstr "Tipul de formă folosit pentru a desena o zonă de excludere."
 
 #: appPlugins/Common/clearing/ui_sections.py:372
-msgid "The number of exclusion zones of the selected object."
-msgstr "Numărul zonelor de excludere ale obiectului selectat."
-
-#: appPlugins/Common/clearing/ui_sections.py:372
 msgid "Zones"
 msgstr "Zone"
 
-#: appPlugins/Common/clearing/ui_sections.py:377
+#: appPlugins/Common/clearing/ui_sections.py:373
+msgid "The number of exclusion zones of the selected object."
+msgstr "Numărul zonelor de excludere ale obiectului selectat."
+
+#: appPlugins/Common/clearing/ui_sections.py:378
 msgid "Add area"
 msgstr "Adaugă zonă"
 
-#: appPlugins/Common/clearing/ui_sections.py:379
+#: appPlugins/Common/clearing/ui_sections.py:380
 msgid ""
 "Draw exclusion zones on the canvas; they are added to the selected object.\n"
 "Left click to draw, right click or Escape to finish."
@@ -24934,11 +24887,11 @@ msgstr ""
 "selectat.\n"
 "Clic stânga pentru a desena, clic dreapta sau Escape pentru a termina."
 
-#: appPlugins/Common/clearing/ui_sections.py:382
+#: appPlugins/Common/clearing/ui_sections.py:383
 msgid "Delete all"
 msgstr "Șterge tot"
 
-#: appPlugins/Common/clearing/ui_sections.py:383
+#: appPlugins/Common/clearing/ui_sections.py:384
 msgid "Remove all the exclusion zones of the selected object."
 msgstr "Elimină toate zonele de excludere ale obiectului selectat."
 
@@ -26036,7 +25989,7 @@ msgstr "Stanare"
 
 #: appPlugins/ToolCalculators/CalculatorUI.py:27
 msgid "Feeds & Speeds"
-msgstr "Avansuri și turații"
+msgstr "Avansuri & turații"
 
 #: appPlugins/ToolCalculators/CalculatorUI.py:58
 msgid "inch"
@@ -32875,7 +32828,7 @@ msgid ""
 "B/W means a black & white image. Color means a colored image."
 msgstr ""
 "Alegeți metoda de interpretare a imaginii.\n"
-"B/W înseamnă alb-negru, iar Color înseamnă imagine color."
+"B/W înseamnă o imagine alb & negru, iar Color înseamnă o imagine color."
 
 #: appPlugins/ToolImage/ImageUI.py:124
 msgid "Level of detail"
@@ -33545,16 +33498,14 @@ msgid ""
 "What is selected here will dictate the kind\n"
 "of objects that will populate the 'Object' combobox."
 msgstr ""
-"Specifica obiectul care va fi exceptat de la izolare.\n"
-"Poate fi de tip: Gerber sau Geometrie.\n"
-"Ce se va selecta aici va controla tipul de \n"
-"obiecte care vor apărea în combobox-ul\n"
-"numit >Obiect<."
+"Specificați tipul obiectului care va fi exceptat de la izolare.\n"
+"Poate fi de tipul: Gerber sau Geometry.\n"
+"Selecția de aici va determina tipul\n"
+"obiectelor care vor popula caseta combinată „Obiect”."
 
 #: appPlugins/ToolIsolation/IsolationUI.py:557
 msgid "Object whose area will be removed from isolation geometry."
-msgstr ""
-"Obiectul a cărui suprafață va fi îndepărtată din geometria tip Izolare."
+msgstr "Obiectul a cărui suprafață va fi eliminată din geometria izolării."
 
 # auto-review 2026-10-09: corrected
 #: appPlugins/ToolIsolation/IsolationUI.py:628
@@ -34510,15 +34461,18 @@ msgstr ""
 
 #: appPlugins/ToolNCC/NccUI.py:316
 msgid "Zones drawn on the canvas that are left out of the copper clearing."
-msgstr "Zone desenate pe canvas care sunt excluse de la curățarea cuprului."
+msgstr ""
+"Zone desenate pe suprafața de lucru care sunt excluse de la curățarea "
+"cuprului."
 
 #: appPlugins/ToolNCC/NccUI.py:317
 msgid ""
 "When checked, the zones below are removed from the area to clear,\n"
 "for the Generate and the Preview buttons."
 msgstr ""
-"Când este bifat, zonele de mai jos sunt scoase din zona de curățat,\n"
-"pentru butoanele Generează și Previzualizare."
+"Când este bifat, zonele de mai jos sunt eliminate din suprafața de "
+"curățat,\n"
+"pentru butoanele Generare și Previzualizare."
 
 #: appPlugins/ToolNCC/NccUI.py:327
 msgid ""
@@ -35167,15 +35121,16 @@ msgstr ""
 
 #: appPlugins/ToolPaint/PaintUI.py:277
 msgid "Zones drawn on the canvas that are left out of the painting."
-msgstr "Zone desenate pe canvas, excluse din pictare."
+msgstr "Zone desenate pe suprafața de lucru care sunt excluse de la pictare."
 
 #: appPlugins/ToolPaint/PaintUI.py:278
 msgid ""
 "When checked, the cutter keeps its radius away from the zones below,\n"
 "for the Generate and the Preview buttons."
 msgstr ""
-"Dacă este bifat, scula păstrează distanța razei față de zonele de mai jos,\n"
-"pentru butoanele Generează și Previzualizare."
+"Când este bifat, freza păstrează o distanță egală cu raza sa față de zonele "
+"de mai jos,\n"
+"pentru butoanele Generare și Previzualizare."
 
 #: appPlugins/ToolPaint/PaintUI.py:288
 msgid ""
@@ -39027,6 +38982,79 @@ msgid "No Geometry name in args. Provide a name and try again."
 msgstr ""
 "Niciun nume de Geometrie în argumente. Furnizați un nume și încercați din "
 "nou."
+
+#~ msgid "Wiki"
+#~ msgstr "Wiki"
+
+#~ msgid "Exclusion Areas"
+#~ msgstr "Zone de excludere"
+
+#~ msgid "The Keepout object was not found."
+#~ msgstr "Obiectul Keepout nu a fost găsit."
+
+#~ msgid ""
+#~ "The Keepout object is empty: nothing was isolated. Switch the Keepout "
+#~ "option off or choose another object."
+#~ msgstr ""
+#~ "Obiectul Keepout este gol: nu s-a izolat nimic. Dezactivați opțiunea "
+#~ "Keepout sau alegeți alt obiect."
+
+#~ msgid ""
+#~ "The tool with the diameter %s uses the Voronoi strategy, which does not "
+#~ "support an excluded area (the Keepout object or the exclusion zones). "
+#~ "Switch the exclusion off or use the Offset strategy for it."
+#~ msgstr ""
+#~ "Unealta cu diametrul %s folosește strategia Voronoi, care nu acceptă o zonă "
+#~ "exclusă (obiectul Keepout sau zonele de excludere). Dezactivați excluderea "
+#~ "sau folosiți pentru aceasta strategia Ofset."
+
+#~ msgid "Keepout"
+#~ msgstr "Keepout"
+
+#~ msgid ""
+#~ "Remove the area of a Gerber or Geometry object from the isolation\n"
+#~ "geometry: the isolation paths are cut off inside it."
+#~ msgstr ""
+#~ "Elimină suprafața unui obiect Gerber sau Geometry din\n"
+#~ "geometria izolării: traseele de izolare sunt întrerupte în interiorul "
+#~ "acesteia."
+
+#~ msgid "The type of the Keepout object: Gerber or Geometry."
+#~ msgstr "Tipul obiectului Keepout: Gerber sau Geometry."
+
+#~ msgid "The Keepout object: its area is removed from the isolation geometry."
+#~ msgstr "Obiectul Keepout: suprafața sa este eliminată din geometria izolării."
+
+#~ msgid ""
+#~ "Remove the exclusion zones of the isolated object from the isolation "
+#~ "geometry.\n"
+#~ "The zones are drawn here and belong to the object; NCC and Paint have their "
+#~ "own."
+#~ msgstr ""
+#~ "Elimină zonele de excludere ale obiectului izolat din geometria izolării.\n"
+#~ "Zonele sunt desenate aici și aparțin obiectului; NCC și Paint au propriile "
+#~ "zone."
+
+#~ msgid ""
+#~ "Zones drawn on the canvas that are left out of the copper clearing.\n"
+#~ "When checked, the zones below are removed from the area to clear,\n"
+#~ "for the Generate and the Preview buttons."
+#~ msgstr ""
+#~ "Zone desenate pe suprafața de lucru care sunt excluse de la curățarea "
+#~ "cuprului.\n"
+#~ "Când este bifat, zonele de mai jos sunt eliminate din suprafața de "
+#~ "curățat,\n"
+#~ "pentru butoanele Generare și Previzualizare."
+
+#~ msgid ""
+#~ "Zones drawn on the canvas that are left out of the painting.\n"
+#~ "When checked, the cutter keeps its radius away from the zones below,\n"
+#~ "for the Generate and the Preview buttons."
+#~ msgstr ""
+#~ "Zone desenate pe suprafața de lucru care sunt excluse de la pictare.\n"
+#~ "Când este bifat, freza păstrează o distanță egală cu raza sa față de zonele "
+#~ "de mai jos,\n"
+#~ "pentru butoanele Generare și Previzualizare."
 
 #~ msgid "The number of exclusion zones drawn."
 #~ msgstr "Numărul de zone de excludere desenate."

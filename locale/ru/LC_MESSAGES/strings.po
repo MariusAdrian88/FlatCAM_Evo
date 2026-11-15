@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "POT-Creation-Date: 2022-05-17 14:37+0300\n"
-"PO-Revision-Date: 2026-11-15 07:54+0100\n"
+"PO-Revision-Date: 2026-11-15 23:16+0100\n"
 "Last-Translator: Andrey Kultyapov <camellan@yandex.ru>\n"
 "Language-Team: \n"
 "Language: ru\n"
@@ -25327,18 +25327,18 @@ msgid "The kind of shape used to draw an exclusion zone."
 msgstr "Тип фигуры для рисования зоны исключения."
 
 #: appPlugins/Common/clearing/ui_sections.py:372
-msgid "The number of exclusion zones of the selected object."
-msgstr "Количество зон исключения выбранного объекта."
-
-#: appPlugins/Common/clearing/ui_sections.py:372
 msgid "Zones"
 msgstr "Зоны"
 
-#: appPlugins/Common/clearing/ui_sections.py:377
+#: appPlugins/Common/clearing/ui_sections.py:373
+msgid "The number of exclusion zones of the selected object."
+msgstr "Количество зон исключения выбранного объекта."
+
+#: appPlugins/Common/clearing/ui_sections.py:378
 msgid "Add area"
 msgstr "Добавить область"
 
-#: appPlugins/Common/clearing/ui_sections.py:379
+#: appPlugins/Common/clearing/ui_sections.py:380
 msgid ""
 "Draw exclusion zones on the canvas; they are added to the selected object.\n"
 "Left click to draw, right click or Escape to finish."
@@ -25346,11 +25346,11 @@ msgstr ""
 "Нарисуйте зоны исключения на холсте; они добавляются к выбранному объекту.\n"
 "Левый щелчок — рисовать, правый щелчок или Escape — завершить."
 
-#: appPlugins/Common/clearing/ui_sections.py:382
+#: appPlugins/Common/clearing/ui_sections.py:383
 msgid "Delete all"
 msgstr "Удалить все"
 
-#: appPlugins/Common/clearing/ui_sections.py:383
+#: appPlugins/Common/clearing/ui_sections.py:384
 msgid "Remove all the exclusion zones of the selected object."
 msgstr "Удалить все зоны исключения выбранного объекта."
 
@@ -39627,6 +39627,75 @@ msgstr "У вычитающих объектов нет области."
 #: tclCommands/TclCommandSubtractRectangle.py:62
 msgid "No Geometry name in args. Provide a name and try again."
 msgstr "Нет имени геометрии в аргументах. Укажите имя и попробуйте снова."
+
+#~ msgid "Wiki"
+#~ msgstr "Вики"
+
+#~ msgid "Exclusion Areas"
+#~ msgstr "Зоны исключения"
+
+#~ msgid "The Keepout object was not found."
+#~ msgstr "Объект Keepout не найден."
+
+#~ msgid ""
+#~ "The Keepout object is empty: nothing was isolated. Switch the Keepout "
+#~ "option off or choose another object."
+#~ msgstr ""
+#~ "Объект Keepout пуст: изоляция не выполнена. Отключите параметр Keepout или "
+#~ "выберите другой объект."
+
+#~ msgid ""
+#~ "The tool with the diameter %s uses the Voronoi strategy, which does not "
+#~ "support an excluded area (the Keepout object or the exclusion zones). "
+#~ "Switch the exclusion off or use the Offset strategy for it."
+#~ msgstr ""
+#~ "Инструмент диаметром %s использует стратегию Voronoi, которая не "
+#~ "поддерживает исключаемую область (объект Keepout или зоны исключения). "
+#~ "Отключите исключение или используйте для него стратегию «Смещение»."
+
+#~ msgid "Keepout"
+#~ msgstr "Keepout"
+
+#~ msgid ""
+#~ "Remove the area of a Gerber or Geometry object from the isolation\n"
+#~ "geometry: the isolation paths are cut off inside it."
+#~ msgstr ""
+#~ "Удаляет область объекта Gerber или Geometry из геометрии изоляции:\n"
+#~ "траектории изоляции обрезаются внутри этой области."
+
+#~ msgid "The type of the Keepout object: Gerber or Geometry."
+#~ msgstr "Тип объекта Keepout: Gerber или Geometry."
+
+#~ msgid "The Keepout object: its area is removed from the isolation geometry."
+#~ msgstr "Объект Keepout: его область удаляется из геометрии изоляции."
+
+#~ msgid ""
+#~ "Remove the exclusion zones of the isolated object from the isolation "
+#~ "geometry.\n"
+#~ "The zones are drawn here and belong to the object; NCC and Paint have their "
+#~ "own."
+#~ msgstr ""
+#~ "Удаляет зоны исключения изолируемого объекта из геометрии изоляции.\n"
+#~ "Зоны рисуются здесь и принадлежат объекту; у NCC и Paint есть собственные "
+#~ "зоны."
+
+#~ msgid ""
+#~ "Zones drawn on the canvas that are left out of the copper clearing.\n"
+#~ "When checked, the zones below are removed from the area to clear,\n"
+#~ "for the Generate and the Preview buttons."
+#~ msgstr ""
+#~ "Зоны, нарисованные на холсте и исключаемые из очистки меди.\n"
+#~ "Если флажок установлен, указанные ниже зоны удаляются из области очистки\n"
+#~ "для кнопок «Создать» и «Предпросмотр»."
+
+#~ msgid ""
+#~ "Zones drawn on the canvas that are left out of the painting.\n"
+#~ "When checked, the cutter keeps its radius away from the zones below,\n"
+#~ "for the Generate and the Preview buttons."
+#~ msgstr ""
+#~ "Зоны, нарисованные на холсте и исключаемые из области рисования.\n"
+#~ "Если флажок установлен, фреза выдерживает расстояние, равное её радиусу,\n"
+#~ "от указанных ниже зон для кнопок «Создать» и «Предпросмотр»."
 
 #~ msgid "The number of exclusion zones drawn."
 #~ msgstr "Количество нарисованных зон исключения."

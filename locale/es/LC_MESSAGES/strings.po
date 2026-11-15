@@ -4,9 +4,9 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: \n"
-"POT-Creation-Date: 2022-05-17 14:36+0300\n"
-"PO-Revision-Date: 2026-11-15 07:54+0100\n"
+"Project-Id-Version: FlatCAM Evo\n"
+"POT-Creation-Date: 2026-11-15 07:56+0100\n"
+"PO-Revision-Date: 2026-11-15 23:22+0100\n"
 "Last-Translator: Marius Stanciu - Google Translate\n"
 "Language-Team: \n"
 "Language: es\n"
@@ -14,7 +14,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
-"Generated-By: pygettext.py 1.5\n"
+"Generated-By: scripts/i18n_tool.py\n"
 "X-Generator: Poedit 3.0.1\n"
 "X-Poedit-Basepath: ../../..\n"
 "X-Poedit-SearchPath-0: .\n"
@@ -22200,14 +22200,14 @@ msgstr ""
 #: appGUI/shortcut_actions.py:968
 msgid "Within Track & Region Tools will cycle in REVERSE the bend modes"
 msgstr ""
-"En las herramientas Pista y Región, recorre en orden INVERSO los modos de "
+"En las herramientas Pista & Región, recorre en orden INVERSO los modos de "
 "esquina"
 
 # auto-review 2026-10-09: corrected
 #: appGUI/shortcut_actions.py:970
 msgid "Within Track & Region Tools will cycle FORWARD the bend modes"
 msgstr ""
-"En las herramientas Pista y Región, recorre HACIA ADELANTE los modos de "
+"En las herramientas Pista & Región, recorre HACIA ADELANTE los modos de "
 "esquina"
 
 #: appGUI/shortcut_actions.py:972 appGUI/shortcut_actions.py:980
@@ -25125,7 +25125,7 @@ msgstr "Usar zonas de exclusión"
 msgid "The kind of shape used to draw an exclusion zone."
 msgstr "El tipo de forma usado para dibujar una zona de exclusión."
 
-#: appPlugins/Common/clearing/ui_sections.py:372
+#: appPlugins/Common/clearing/ui_sections.py:373
 msgid "The number of exclusion zones of the selected object."
 msgstr "El número de zonas de exclusión del objeto seleccionado."
 
@@ -25133,11 +25133,11 @@ msgstr "El número de zonas de exclusión del objeto seleccionado."
 msgid "Zones"
 msgstr "Zonas"
 
-#: appPlugins/Common/clearing/ui_sections.py:377
+#: appPlugins/Common/clearing/ui_sections.py:378
 msgid "Add area"
 msgstr "Añadir área"
 
-#: appPlugins/Common/clearing/ui_sections.py:379
+#: appPlugins/Common/clearing/ui_sections.py:380
 msgid ""
 "Draw exclusion zones on the canvas; they are added to the selected object.\n"
 "Left click to draw, right click or Escape to finish."
@@ -25145,11 +25145,11 @@ msgstr ""
 "Dibuje zonas de exclusión en el lienzo; se añaden al objeto seleccionado.\n"
 "Clic izquierdo para dibujar, clic derecho o Escape para terminar."
 
-#: appPlugins/Common/clearing/ui_sections.py:382
+#: appPlugins/Common/clearing/ui_sections.py:383
 msgid "Delete all"
 msgstr "Eliminar todo"
 
-#: appPlugins/Common/clearing/ui_sections.py:383
+#: appPlugins/Common/clearing/ui_sections.py:384
 msgid "Remove all the exclusion zones of the selected object."
 msgstr "Eliminar todas las zonas de exclusión del objeto seleccionado."
 
@@ -26248,7 +26248,7 @@ msgstr "Estañado"
 
 #: appPlugins/ToolCalculators/CalculatorUI.py:27
 msgid "Feeds & Speeds"
-msgstr "Avances y velocidades"
+msgstr "Avances & velocidades"
 
 #: appPlugins/ToolCalculators/CalculatorUI.py:58
 msgid "inch"
@@ -33116,7 +33116,7 @@ msgid ""
 "B/W means a black & white image. Color means a colored image."
 msgstr ""
 "Elija un método para la interpretación de la imagen.\n"
-"B / N significa una imagen en blanco y negro. Color significa una imagen en "
+"B / N significa una imagen en blanco y &negro. Color significa una imagen en "
 "color."
 
 #: appPlugins/ToolImage/ImageUI.py:124

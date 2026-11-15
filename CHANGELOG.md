@@ -44,6 +44,9 @@ Isolation:
 - changed: the "Except" option is now "Keepout": the area of a Gerber or Geometry object is removed from the isolation paths
 - added: Isolation has its own exclusion areas on the isolated object (Advanced mode): Add area, Delete all, 1 undo step, saved in the project
 - added: Tcl isolate -use_zones 1 applies the exclusion zones of Isolation stored on the object
+- fixed: Keepout and exclusion zones kept only the center of the isolation tool out; the paths now keep the tool radius from them, after the final simplification
+- fixed: Tcl isolate with -use_zones 1 failed when the Keepout geometry was a single polygon instead of a list
+- fixed: Add area, Delete all and the zone preview in Isolation now follow the selection mode; Area and Polygon Selection use the source of the object combo even when the multi-object option is set
 - fixed: closing the Isolation tab with a second click on its toolbar button (or Alt+I) left the exclusion zones on the canvas
 - fixed: an empty Keepout object isolated the whole board with no message; Isolation and Tcl isolate now stop with an error
 - changed: a Voronoi tool with an exclusion (Keepout or zones) stops the run before any path is made, and the message names the tool diameter (before: the offset tools did not run either, with only a status bar message)
@@ -69,7 +72,12 @@ User interface:
 - fixed: the title icon of an object panel was not found with the dark theme
 - added: Open Script starts in the folder of the last opened script
 - fixed: a fit of the view that must not block waited for a running canvas update; it now tries again later
-- added: an example G-code file of copper clearing in assets/examples
+- changed: Help / Wiki (F1) opens the FlatCAM Evo wiki in place of the obsolete online manual
+
+Translations:
+
+- changed: updated translation catalogs and compiled translations for Arabic, German, English, Spanish, Italian, Brazilian Portuguese, Romanian, Russian, Turkish and Chinese; updated the French catalog
+- fixed: corrected duplicated text and wording in the Romanian translations
 
 Levelling and Sender:
 

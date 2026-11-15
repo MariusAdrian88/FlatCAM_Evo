@@ -288,7 +288,7 @@ class App(QtCore.QObject):
     app_url = "http://flatcam.org"
 
     # Manual URL
-    manual_url = "http://flatcam.org/manual/index.html"
+    manual_url = "https://github.com/MariusAdrian88/FlatCAM_Evo/wiki"
     video_url = "https://www.youtube.com/playlist?list=PLVvP2SYRpx-AQgNlfoxw93tXUXon7G94_"
     gerber_spec_url = ("https://www.ucamco.com/files/downloads/file_en/456/"
                        "gerber-layer-format-specification-revision-2022-02_en.pdf?ac97011bf6bce9aaf0b1aac43d84b05f")
