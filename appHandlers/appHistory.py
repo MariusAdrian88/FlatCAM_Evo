@@ -23,6 +23,7 @@ import shapely
 from shapely.geometry.base import BaseGeometry
 
 from appCommon.Common import LoudDict
+from appCommon.ExclusionZones import copy_zones
 from appParsers.ParseExcellon import Excellon
 from appParsers.ParseGerber import (Gerber, update_scale_metadata, update_rotate_metadata,
                                     update_skew_metadata)
@@ -453,11 +454,11 @@ class RenameStep(HistoryStep):
 
 
 class ZonesStep(HistoryStep):
-    """The exclusion zones of objects: the list before and after one edit (add, clear)."""
+    """The zone store (all plugins) before and after one edit (add, clear)."""
 
     def __init__(self, label, items):
         self.label = label
-        self.items = [(uid, list(before), list(after)) for uid, before, after in items]
+        self.items = [(uid, copy_zones(before), copy_zones(after)) for uid, before, after in items]
 
     def uids(self):
         return {uid for uid, _b, _a in self.items}
@@ -713,8 +714,8 @@ class HistoryManager:
             self.push(DeleteStep(label, states))
 
     def record_zones(self, label, obj, before, after):
-        """Call it AFTER the zones of obj changed from the list before to the list after."""
-        if self.is_recording() and not states_equal(list(before), list(after)):
+        """Call it AFTER the zones of obj changed from the store before to the store after."""
+        if self.is_recording() and not states_equal(before, after):
             self.push(ZonesStep(label, [(obj.history_uid, before, after)]))
 
     def record_rename(self, obj, old, new):

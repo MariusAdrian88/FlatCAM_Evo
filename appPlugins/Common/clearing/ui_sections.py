@@ -385,3 +385,8 @@ def build_exclusion(ui, tools_box, *, label_tooltip, check_tooltip, check_object
     grid.addWidget(add, 6, 0)
     grid.addWidget(delete, 6, 1)
     return grid
+
+
+def exclusion_on(ui):
+    """The exclusion zones apply: Advanced mode and the Exclusion Areas check box is set."""
+    return bool(ui.level.isChecked() and ui.excl_cb.get_value())

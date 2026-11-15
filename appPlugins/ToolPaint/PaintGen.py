@@ -388,12 +388,12 @@ class PaintGen:
         if extra is GUI_ZONES:
             # the panel option is on: each painted object is limited by its own zones only
             zones_of = getattr(self.parent_tool, 'exclusion_zone_list', None)
-            zones = object_zones(painted_object) if callable(zones_of) and zones_of() else []
+            zones = object_zones(painted_object, 'paint') if callable(zones_of) and zones_of() else []
         else:
             # a script: the ones of its -exclude, and the zones stored on the painted object with -use_zones
             if isinstance(extra, BaseGeometry):
                 extra = [poly for poly in flatten_shapely_geometry(extra) if isinstance(poly, Polygon)]
-            zones = (object_zones(painted_object) if self.use_object_zones else []) + list(extra or ())
+            zones = (object_zones(painted_object, 'paint') if self.use_object_zones else []) + list(extra or ())
         zones = [zone for zone in distinct_zones(zones) if not zone.is_empty]
         exclusion = unary_union(zones) if zones else None
         return JobSpec(

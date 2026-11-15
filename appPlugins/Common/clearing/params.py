@@ -13,6 +13,8 @@ from typing import Literal
 
 from shapely.geometry.base import BaseGeometry
 
+from appCommon.ExclusionZones import distinct_zones, zones_of
+
 
 @dataclass(frozen=True)
 class ToolSpec:
@@ -105,21 +107,9 @@ def freeze_options(app) -> Mapping:
     return MappingProxyType(merged)
 
 
-def object_zones(obj):
-    """The exclusion zones stored on a source object (none for an object that has no zones)."""
-    return list(getattr(obj, 'exclusion_zones', None) or ())
-
-
-def distinct_zones(zones):
-    """The zones without the repeated ones (same outline), in the order of the first appearance."""
-    seen = set()
-    found = []
-    for zone in zones:
-        key = zone.wkb
-        if key not in seen:
-            seen.add(key)
-            found.append(zone)
-    return found
+def object_zones(obj, plugin):
+    """The exclusion zones of one plugin stored on a source object (none for an object that has no zones)."""
+    return zones_of(getattr(obj, 'exclusion_zones', None), plugin)
 
 
 @dataclass(frozen=True)

@@ -134,14 +134,15 @@ def test_exclusion_zones_survive_save_and_load(tmp_path):
     with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
         geo = GeometryObject('geo', app)
     geo.tools = {1: dict(geo.default_tool(), solid_geometry=[box(0, 0, 1, 1)])}
-    zones = [box(1, 2, 3, 4), box(10, 10, 12, 11)]
+    store = {'isolation': [box(1, 2, 3, 4)], 'ncc': [box(10, 10, 12, 11)], 'paint': [box(5, 5, 6, 6)]}
     for obj in (grb, geo):
-        obj.exclusion_zones = list(zones)
+        obj.exclusion_zones = {key: list(zones) for key, zones in store.items()}
         obj.zones_always_drawn = True
     __, restored = save_and_load(app, [grb, geo], tmp_path)
     assert len(restored) == 2
     for obj in restored:
-        assert [z.wkb for z in obj.exclusion_zones] == [z.wkb for z in zones]
+        assert {k: [z.wkb for z in v] for k, v in obj.exclusion_zones.items()} == \
+               {k: [z.wkb for z in v] for k, v in store.items()}
         assert obj.zones_always_drawn is True
     # a project saved before the zones existed loads with none
     saved = geo.to_dict()
@@ -149,7 +150,14 @@ def test_exclusion_zones_survive_save_and_load(tmp_path):
     with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
         old = GeometryObject('old', app)
     old.from_dict(saved)
-    assert old.exclusion_zones == [] and old.zones_always_drawn is False
+    assert old.exclusion_zones == {} and old.zones_always_drawn is False
+    # a project with the flat list of NCC + Paint: both plugins keep the zones, Isolation has none
+    saved['exclusion_zones'] = [box(1, 2, 3, 4)]
+    with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
+        flat = GeometryObject('flat', app)
+    flat.from_dict(saved)
+    assert sorted(flat.exclusion_zones) == ['ncc', 'paint']
+    assert flat.zones_of('ncc')[0].equals(box(1, 2, 3, 4)) and flat.zones_of('isolation') == []
 
 
 def test_saved_geometry_and_cncjob_hold_the_keys_the_previous_release_reads(tmp_path):
@@ -957,13 +965,16 @@ class TestJoinAs(unittest.TestCase):
 
         shared = box(0, 0, 1, 1)
         grb = obj('gerber', 'grb', solid_geometry=[box(30, 0, 31, 1)], follow_geometry=[], tools={},
-                  exclusion_zones=[shared, box(5, 5, 6, 6)])
-        geo = obj('geometry', 'geo', exclusion_zones=[box(0, 0, 1, 1), box(8, 8, 9, 9)],
+                  exclusion_zones={'ncc': [shared, box(5, 5, 6, 6)], 'paint': [box(20, 20, 21, 21)]})
+        geo = obj('geometry', 'geo', exclusion_zones={'ncc': [box(0, 0, 1, 1), box(8, 8, 9, 9)],
+                                                      'isolation': [box(0, 0, 1, 1)]},
                   tools={1: {'tooldia': 0.5, 'data': {}, 'solid_geometry': [box(10, 0, 11, 1)]}})
         for kind in ('gerber', 'geometry'):
             __, res = self.join(kind, grb, geo)
-            self.assertEqual(sorted(z.bounds for z in res.exclusion_zones),
-                             [(0, 0, 1, 1), (5, 5, 6, 6), (8, 8, 9, 9)])
+            bounds = {key: sorted(z.bounds for z in zones) for key, zones in res.exclusion_zones.items()}
+            self.assertEqual(bounds, {'ncc': [(0, 0, 1, 1), (5, 5, 6, 6), (8, 8, 9, 9)],
+                                      'paint': [(20, 20, 21, 21)],
+                                      'isolation': [(0, 0, 1, 1)]})
 
     def test_as_geometry_keeps_all_tool_shapes(self):
         from shapely.geometry import LineString, Point, box

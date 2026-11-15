@@ -9,6 +9,7 @@ from appHandlers.appHistory import history_of
 from appEditors.grb_plugins.GrbCommon import (gerber_steps, gerber_quad, stored_quad_candidates, DrawToolUtilityShape,
                                                    DrawToolShape, DrawTool, ShapeToolEditorGrb, numeric_aperture_codes)
 from appCommon.clipper_ops import MIN_SHAPES as CLIPPER_MIN_SHAPES, boolean_geometry as clipper_boolean
+from appCommon.ExclusionZones import copy_zones, map_zones
 from appParsers.clipper_fuse import fuse_parts
 
 from camlib import distance, arc, three_point_circle, flatten_shapely_geometry, translate_geometry
@@ -5892,10 +5893,10 @@ class AppGerberEditor(QtCore.QObject):
     @staticmethod
     def moved_zones(source, matrix):
         """The exclusion zones of the source object, moved by the transform of all the shapes of the editor."""
-        zones = list(getattr(source, 'exclusion_zones', None) or ())
-        if zones and tuple(matrix) != AFFINE_IDENTITY:
-            zones = list(affine_geometry_many([zones], matrix)[0])
-        return zones
+        store = copy_zones(getattr(source, 'exclusion_zones', None))
+        if store and tuple(matrix) != AFFINE_IDENTITY:
+            store = map_zones(store, lambda items: affine_geometry_many([items], matrix)[0])
+        return store
 
     @staticmethod
     def apply_edited_gerber(source, edited, zone_matrix=AFFINE_IDENTITY):

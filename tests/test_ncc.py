@@ -763,7 +763,7 @@ def zone_board(tool, name, *zones):
     board = GeometryObject(name, tool.app)
     board.obj_options.update(name=name, plot=True)
     board.tools = {1: {'tooldia': 1.0, 'data': {}, 'solid_geometry': [box(0, 0, 2, 2)]}}
-    board.set_exclusion_zones(zones)
+    board.set_exclusion_zones({'ncc': list(zones)})
     return board
 
 
@@ -773,6 +773,7 @@ def test_exclusion_zones_of_the_source_reach_the_job_in_every_mode(tool, monkeyp
     monkeypatch.setattr(ClearingJob, 'run', lambda self, spec, run_threaded=True: specs.append(spec))
     zone = box(5, 5, 6, 6)
     prepare_run(tool, board=zone_board(tool, 'board', zone))
+    tool.change_level('a')
     tool.ui.excl_cb.set_value(True)
     for method in (0, 2):
         tool.ui.select_method_combo.set_value(method)

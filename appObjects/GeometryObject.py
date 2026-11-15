@@ -23,6 +23,7 @@ from camlib import (voronoi_path_signature, Geometry, flatten_shapely_geometry, 
                     affine_scale_matrix, affine_translate_matrix, merge_zones, deepcopy_keep_geometry, first_tool_dia, list_total_bounds,
                     buffer_geometry_many, scale_geometries_by_center)
 from appCommon.SafeEval import safe_eval
+from appCommon.ExclusionZones import copy_zones
 from defaults import AppDefaults
 
 import shapely
@@ -431,7 +432,7 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
         self.tools = deepcopy_keep_geometry(src.tools)
         self.tooluid = getattr(src, 'tooluid', self.tooluid)
         self.units = getattr(src, 'units', self.units)
-        self.exclusion_zones = list(getattr(src, 'exclusion_zones', ()))
+        self.exclusion_zones = copy_zones(getattr(src, 'exclusion_zones', None))
         self.zones_always_drawn = bool(getattr(src, 'zones_always_drawn', False))
         if 'photocarve' in src.obj_options:
             self.obj_options['photocarve'] = deepcopy(src.obj_options['photocarve'])

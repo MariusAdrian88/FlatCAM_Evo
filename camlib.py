@@ -12,6 +12,7 @@ from PyQt6.QtCore import QThread
 from appCommon.Common import GracefulException as grace
 from appCommon.SafeEval import safe_eval
 from appCommon.PathOrder import order_paths, order_points
+from appCommon.ExclusionZones import map_zones, merge_zone_stores
 from appCommon import RouteSolver, clipper_ops
 
 # from scipy.spatial import KDTree, Delaunay
@@ -656,8 +657,9 @@ class Geometry(object):
 
         self.temp_shapes = self.app.plotcanvas.new_shape_collection(layers=1)
 
-        # Exclusion zones (Shapely Polygons, object coordinates) kept with the object and moved by its transforms
-        self.exclusion_zones = []
+        # Exclusion zones (Shapely Polygons, object coordinates) kept with the object for each plugin that uses them
+        # and moved by its transforms
+        self.exclusion_zones = {}
         self.zones_always_drawn = False
 
         # Attributes to be included in serialization
@@ -2813,7 +2815,7 @@ class Geometry(object):
         """Move the exclusion zones with the geometry. Called once per transform by the low level functions only."""
         zones = getattr(self, 'exclusion_zones', None)
         if zones:
-            self.exclusion_zones = list(affine_geometry_many([list(zones)], matrix)[0])
+            self.exclusion_zones = map_zones(zones, lambda items: affine_geometry_many([items], matrix)[0])
 
     def mirror(self, axis, point):
         """
@@ -9477,9 +9479,8 @@ def simplify_paths(paths, tolerance, app=None):
 
 
 def merge_zones(final, objs):
-    """Give ``final`` the union of the exclusion zones of ``objs`` (nested lists walked), no duplicate by WKB."""
-    seen = {z.wkb for z in getattr(final, 'exclusion_zones', None) or ()}
-    zones = list(getattr(final, 'exclusion_zones', None) or ())
+    """Give ``final`` the union of the exclusion zones of ``objs`` (nested lists walked) for each plugin."""
+    stores = [getattr(final, 'exclusion_zones', None)]
     always = bool(getattr(final, 'zones_always_drawn', False))
 
     def walk(items):
@@ -9489,13 +9490,10 @@ def merge_zones(final, objs):
                 walk(item)
                 continue
             always = always or bool(getattr(item, 'zones_always_drawn', False))
-            for zone in getattr(item, 'exclusion_zones', None) or ():
-                if zone.wkb not in seen:
-                    seen.add(zone.wkb)
-                    zones.append(zone)
+            stores.append(getattr(item, 'exclusion_zones', None))
 
     walk(objs)
-    final.exclusion_zones = zones
+    final.exclusion_zones = merge_zone_stores(stores)
     final.zones_always_drawn = always
 
 

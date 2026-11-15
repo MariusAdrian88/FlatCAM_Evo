@@ -769,7 +769,8 @@ def excluded_run(qapp, tmp_path, board, tools, exclusion, rest=False, tcl=None):
     plugin = Plugin(qapp, tmp_path, 'paint', board, list(tools), tool_data=tools)
     try:
         if exclusion is not None:
-            board.add_exclusion_zones([exclusion])
+            board.add_exclusion_zones('paint', [exclusion])
+            plugin.tool.change_level('a')
             plugin.tool.ui.excl_cb.set_value(True)
         if tcl is None:
             result = plugin.tool.gen.paint_poly_all(
@@ -781,7 +782,7 @@ def excluded_run(qapp, tmp_path, board, tools, exclusion, rest=False, tcl=None):
         return {row['tooldia']: [p for p in row['solid_geometry'] if p is not None and not p.is_empty]
                 for row in plugin.result().tools.values()}
     finally:
-        board.set_exclusion_zones([])       # the board is shared by the tests
+        board.set_exclusion_zones({})       # the board is shared by the tests
         plugin.close()
 
 
@@ -977,18 +978,22 @@ def _zone_source():
     from appObjects.AppObjectTemplate import FlatCAMObj
     obj = MagicMock(spec=FlatCAMObj)
     obj.deleted = False
+    obj.zones_panel_open = False
+    obj.set_zones_panel_open.side_effect = lambda plugin: setattr(obj, 'zones_panel_open', plugin)
     return obj
 
 
 def test_closed_panel_does_not_show_the_zones_again_on_a_project_click(painter):
     obj = _zone_source()
     painter.app.collection.objects['board'] = obj
-    painter.refresh_zone_view()
-    obj.set_zones_panel_open.assert_called_with(True)
+    painter.change_level('a')
+    painter.ui.excl_cb.set_value(True)
+    painter.zones.refresh()
+    obj.set_zones_panel_open.assert_called_with('paint')
     painter.on_plugin_cleanup()
     obj.set_zones_panel_open.assert_called_with(False)
     obj.set_zones_panel_open.reset_mock()
-    painter.refresh_zone_view()             # a click in the project tree
+    painter.zones.refresh()             # a click in the project tree
     obj.set_zones_panel_open.assert_not_called()
 
 
@@ -996,20 +1001,22 @@ def test_a_plugin_panel_replaced_by_any_path_stops_the_zone_view(painter):
     from appTool import AppTool
     obj = _zone_source()
     painter.app.collection.objects['board'] = obj
-    painter.refresh_zone_view()
+    painter.change_level('a')
+    painter.ui.excl_cb.set_value(True)
+    painter.zones.refresh()
     obj.set_zones_panel_open.reset_mock()
     painter.app.ui.plugin_scroll_area.takeWidget.return_value = painter
     AppTool.release_plugin_panel(painter.app)       # editor exit, Distance, project switch ...
     obj.set_zones_panel_open.assert_called_with(False)
     obj.set_zones_panel_open.reset_mock()
-    painter.refresh_zone_view()
+    painter.zones.refresh()
     obj.set_zones_panel_open.assert_not_called()
 
 
 def test_add_area_without_a_source_object_does_not_start_the_selection(painter):
     painter.app.collection.objects.clear()
     painter.ui.obj_combo.currentText = lambda: ''
-    painter.on_add_exclusion()
+    painter.zones.on_add()
     assert not painter.selector.active
 
 

@@ -353,7 +353,7 @@ def zoned_object(kind):
         with patch('appObjects.AppObjectTemplate.ShapeCollection', MagicMock()):
             obj = GeometryObject('geo', app)
         obj.tools = {1: dict(obj.default_tool(), solid_geometry=[marker])}
-    obj.exclusion_zones = [marker]
+    obj.exclusion_zones = {'ncc': [marker]}
     return obj
 
 
@@ -377,13 +377,18 @@ OPS = {
 @pytest.mark.parametrize('op', list(OPS))
 @pytest.mark.parametrize('kind', ['gerber', 'geometry'])
 def test_exclusion_zones_stay_aligned_with_the_copper_after_a_transform(kind, op):
+    from shapely.geometry import box
     obj = zoned_object(kind)
-    before = obj.exclusion_zones[0]
+    obj.exclusion_zones['isolation'] = [box(8, 1, 9, 2)]
+    before = obj.exclusion_zones['ncc'][0]
+    isolation_before = obj.exclusion_zones['isolation'][0]
     OPS[op](obj)
-    assert len(obj.exclusion_zones) == 1
-    zone = obj.exclusion_zones[0]
+    assert len(obj.exclusion_zones['ncc']) == 1 and len(obj.exclusion_zones['isolation']) == 1
+    zone = obj.exclusion_zones['ncc'][0]
     assert not zone.equals(before)
     assert zone.symmetric_difference(copper_of(obj)).area < 1e-9
+    # the zones of the other plugin moved with the same transform
+    assert not obj.exclusion_zones['isolation'][0].equals(isolation_before)
 
 
 @pytest.mark.parametrize('kind', ['gerber', 'geometry'])
@@ -393,7 +398,7 @@ def test_units_conversion_scales_the_exclusion_zones(kind):
     obj.ui = MagicMock()
     obj.ui.geo_tools_table.rowCount.return_value = 0
     obj.convert_units('IN')
-    zone = obj.exclusion_zones[0]
+    zone = obj.exclusion_zones['ncc'][0]
     assert zone.bounds == pytest.approx((2 / 25.4, 3 / 25.4, 6 / 25.4, 5 / 25.4))
     assert zone.symmetric_difference(copper_of(obj)).area < 1e-9
 
@@ -430,7 +435,7 @@ def test_convert_between_gerber_and_geometry_carries_the_exclusion_zones(kind, t
 
     def new_object(new_kind, name, init):
         obj = zoned_object(new_kind)
-        obj.exclusion_zones = []
+        obj.exclusion_zones = {}
         init(obj, src.app)
         made[new_kind] = obj
 
@@ -439,7 +444,7 @@ def test_convert_between_gerber_and_geometry_carries_the_exclusion_zones(kind, t
         collection=SimpleNamespace(get_selected=lambda: [src]),
         build_geometry_tool_table=lambda: ({}, {1: {'tooldia': 0.1, 'data': {}, 'solid_geometry': []}}, [0.1]))
     getattr(appEditor, 'convert_any2geo' if target == 'geometry' else 'convert_any2gerber')(editor)
-    assert [z.wkb for z in made[target].exclusion_zones] == [z.wkb for z in src.exclusion_zones]
+    assert [z.wkb for z in made[target].zones_of('ncc')] == [z.wkb for z in src.zones_of('ncc')]
 
 
 def test_gerber_editor_transform_of_all_shapes_moves_the_exclusion_zones_on_save():
@@ -460,14 +465,14 @@ def test_gerber_editor_transform_of_all_shapes_moves_the_exclusion_zones_on_save
     assert editor.zone_matrix == AFFINE_IDENTITY
     history.track_zones([a, b], affine_translate_matrix(10, 0))
     history.track_zones([b, a], affine_mirror_matrix('Y', (0, 0)))
-    zone_before = source.exclusion_zones[0]
+    zone_before = source.exclusion_zones['ncc'][0]
     AppGerberEditor.apply_edited_gerber(source, edited, editor.zone_matrix)
     # translate by 10, then mirror about x = 0: x -> -(x + 10)
-    assert source.exclusion_zones[0].bounds == pytest.approx((-16, 3, -12, 5))
-    assert not source.exclusion_zones[0].equals(zone_before)
+    assert source.exclusion_zones['ncc'][0].bounds == pytest.approx((-16, 3, -12, 5))
+    assert not source.exclusion_zones['ncc'][0].equals(zone_before)
     unchanged = zoned_object('gerber')
     AppGerberEditor.apply_edited_gerber(unchanged, edited)
-    assert unchanged.exclusion_zones[0].bounds == pytest.approx((2, 3, 6, 5))
+    assert unchanged.exclusion_zones['ncc'][0].bounds == pytest.approx((2, 3, 6, 5))
 
 
 if __name__ == '__main__':

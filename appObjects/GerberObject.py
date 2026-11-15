@@ -18,6 +18,7 @@ from appParsers.gerber_attributes import attribute_changes, merge_to_table, rema
 from appObjects.AppObjectTemplate import FlatCAMObj, OffsetUiMixin, PropertiesPanelMixin, ObjectDeleted
 
 from camlib import flatten_shapely_geometry, deepcopy_keep_geometry, merge_zones
+from appCommon.ExclusionZones import copy_zones
 
 from shapely import MultiLineString, LinearRing, MultiPolygon, Polygon, LineString, Point
 from shapely.ops import unary_union
@@ -164,7 +165,7 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
         self.int_digits = getattr(src, 'int_digits', self.int_digits)
         self.frac_digits = getattr(src, 'frac_digits', self.frac_digits)
         self.units = getattr(src, 'units', self.units)
-        self.exclusion_zones = list(getattr(src, 'exclusion_zones', ()))
+        self.exclusion_zones = copy_zones(getattr(src, 'exclusion_zones', None))
         self.zones_always_drawn = bool(getattr(src, 'zones_always_drawn', False))
 
     def set_ui(self, ui):

@@ -75,6 +75,7 @@ def tool_rows_order(paint_tools, order, decimals):
 class ToolPaint(Geometry, ClearingToolBase):
 
     key_prefix = 'tools_paint'
+    zone_key = 'paint'
     tools_attr = 'paint_tools'
     tool_target = 4
     method_map = PAINT_METHODS
@@ -451,7 +452,7 @@ class ToolPaint(Geometry, ClearingToolBase):
         # #############################################################################
         self.gen = PaintGen(self)
         self.connect_signals()
-        self.refresh_zone_view()
+        self.zones.refresh()
 
     def on_level_changed(self, checked):
         if not checked:
@@ -888,12 +889,8 @@ class ToolPaint(Geometry, ClearingToolBase):
         return self.combo_source()
 
     def exclusion_zone_list(self):
-        """The exclusion zones of the sources as a list, empty when they are off or there are none."""
-        try:
-            use = bool(self.ui.excl_cb.get_value())
-        except RuntimeError:
-            return []
-        return self.source_zones() if use else []
+        """The exclusion zones of the sources as a list, empty when they do not apply or there are none."""
+        return self.zones.source_zones() if self.zones.is_on() else []
 
     def clear_exclusions(self):
         """The exclusion zones as one geometry, or None when they are off or there are none."""

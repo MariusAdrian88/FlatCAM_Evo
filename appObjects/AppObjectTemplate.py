@@ -13,6 +13,7 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 
 from appGUI.ObjectUI import ObjectUI
 from appCommon.Common import LoudDict
+from appCommon.ExclusionZones import all_zones, copy_zones, normalize_zones, with_zones, zones_of
 from camlib import app_option, Geometry, affine_translate_matrix, affine_scale_matrix
 from appHandlers.appObjectOps import history_guard
 from appObjects.ProjectContext import unique_name
@@ -311,6 +312,8 @@ class FlatCAMObj(QtCore.QObject):
                                        "Means that we are loading an old project that don't"
                                        "have all attributes in the latest application version." % str(attr))
                     pass
+        # an old project holds 1 flat list of NCC + Paint zones; a newer one a dict for each plugin
+        self.exclusion_zones = normalize_zones(getattr(self, 'exclusion_zones', None))
         from appCommon.solderpaste import restore_paste_metadata
         restore_paste_metadata(self, d)
 
@@ -736,21 +739,29 @@ class FlatCAMObj(QtCore.QObject):
     ZONE_FACE_COLOR = '#CC000040'
     ZONE_LAYER = 2          # over the copper
 
-    def zones_wanted(self):
-        """True if the zones must be on the canvas now: the object is plotted and a plugin panel or the object asks."""
+    def zones_to_draw(self):
+        """The zones that must be on the canvas now: all of them (the explicit show-all toggle), those of the plugin
+        whose panel shows the object, or none (Basic mode and an unchecked option hide the panel preview)."""
         if self.deleted or not getattr(self, 'exclusion_zones', None):
-            return False
+            return []
         try:
             if not self.obj_options.get('plot'):
-                return False
+                return []
         except Exception:
-            return False
-        return bool(getattr(self, 'zones_always_drawn', False) or getattr(self, 'zones_panel_open', False))
+            return []
+        if getattr(self, 'zones_always_drawn', False):
+            return all_zones(self.exclusion_zones)
+        plugin = getattr(self, 'zones_panel_open', False)
+        return zones_of(self.exclusion_zones, plugin) if plugin else []
+
+    def zones_wanted(self):
+        """True if zones must be on the canvas now."""
+        return bool(self.zones_to_draw())
 
     def plot_zones(self, update=True):
         """
-        Draw the zones again if zones_wanted(), else remove them. Same thread rule as plot(): it runs in the calling
-        thread. It never touches the canvas of an object without zones to draw (headless, Tcl).
+        Draw the zones again if zones_to_draw() has some, else remove them. Same thread rule as plot(): it runs in the
+        calling thread. It never touches the canvas of an object without zones to draw (headless, Tcl).
         """
         group = getattr(self, 'zone_shapes', None)
         if group is None:
@@ -758,12 +769,11 @@ class FlatCAMObj(QtCore.QObject):
         try:
             had_shapes = bool(group._indexes)
             group.clear(False)
-            wanted = self.zones_wanted()
-            if wanted:
-                for zone in self.exclusion_zones:
-                    group.add(shape=zone, color=self.ZONE_COLOR, face_color=self.ZONE_FACE_COLOR, update=False,
-                              layer=self.ZONE_LAYER, tolerance=None)
-            if update and (wanted or had_shapes) and not self.defer_redraw:
+            zones = self.zones_to_draw()
+            for zone in zones:
+                group.add(shape=zone, color=self.ZONE_COLOR, face_color=self.ZONE_FACE_COLOR, update=False,
+                          layer=self.ZONE_LAYER, tolerance=None)
+            if update and (zones or had_shapes) and not self.defer_redraw:
                 group.redraw()
         except Exception as e:
             self.app.log.error("FlatCAMObj.plot_zones() --> %s" % str(e))
@@ -779,32 +789,38 @@ class FlatCAMObj(QtCore.QObject):
         elif group._indexes:
             group.clear(True)
 
-    def set_zones_panel_open(self, flag):
-        """A plugin panel shows (True) or stops showing (False) the zones of this object."""
-        flag = bool(flag)
-        if flag == self.zones_panel_open:
+    def set_zones_panel_open(self, plugin):
+        """The panel of a plugin shows the zones of that plugin (the plugin key), or no panel shows them (False)."""
+        plugin = plugin or False
+        if plugin == self.zones_panel_open:
             return
-        self.zones_panel_open = flag
+        self.zones_panel_open = plugin
         self.plot_zones()
 
-    def set_exclusion_zones(self, zones):
-        """Replace the zone list (no history step; see add_exclusion_zones()), redraw, emit zones_changed."""
-        self.exclusion_zones = list(zones)
+    def zones_of(self, plugin):
+        """The exclusion zones of one plugin (a new list)."""
+        return zones_of(self.exclusion_zones, plugin)
+
+    def set_exclusion_zones(self, store):
+        """Replace the zones of all the plugins (no history step; see add_exclusion_zones()), redraw, emit
+        zones_changed."""
+        self.exclusion_zones = copy_zones(store)
         # the zones are saved with the project
         self.app.should_we_save = True
         self.plot_zones()
         self.zones_changed.emit()
 
-    def add_exclusion_zones(self, zones, label=None):
-        """Add zones (Shapely polygons, object coordinates): 1 undo step. Nothing to add: no step."""
-        self._edit_zones(list(self.exclusion_zones) + list(zones), label or _("Add exclusion zones"))
+    def add_exclusion_zones(self, plugin, zones, label=None):
+        """Add zones of one plugin (Shapely polygons, object coordinates): 1 undo step. Nothing to add: no step."""
+        self._edit_zones(with_zones(self.exclusion_zones, plugin, self.zones_of(plugin) + list(zones)),
+                         label or _("Add exclusion zones"))
 
-    def clear_exclusion_zones(self, label=None):
-        """Remove all the zones: 1 undo step. No zones: no step."""
-        self._edit_zones([], label or _("Clear exclusion zones"))
+    def clear_exclusion_zones(self, plugin, label=None):
+        """Remove all the zones of one plugin: 1 undo step. No zones: no step."""
+        self._edit_zones(with_zones(self.exclusion_zones, plugin, []), label or _("Clear exclusion zones"))
 
     def _edit_zones(self, after, label):
-        before = list(self.exclusion_zones)
+        before = copy_zones(self.exclusion_zones)
         if states_equal(before, after):
             return
         self.set_exclusion_zones(after)

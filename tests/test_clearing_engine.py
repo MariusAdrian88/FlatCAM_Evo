@@ -196,7 +196,7 @@ class Canvas:
         tool = self.tool
         if mode == 'exclusion':
             tool.ui.excl_shape_radio.set_value('square')
-            return tool.on_add_exclusion()
+            return tool.zones.on_add()
         if mode == 'click':
             tool.ui.select_method_combo.set_value(3 if self.kind == 'ncc' else 1)
         else:
@@ -207,8 +207,8 @@ class Canvas:
     def committed(self, mode):
         """The regions that the last selection handed over (and forget them)."""
         if mode == 'exclusion':
-            zones = list(self.board.exclusion_zones)
-            self.board.clear_exclusion_zones()
+            zones = list(self.board.zones_of(self.kind))
+            self.board.clear_exclusion_zones(self.kind)
             return zones
         args, kwargs = self.sink.call_args if self.sink.called else ((), {})
         self.sink.reset_mock()
@@ -384,6 +384,8 @@ class ZonePanel:
             self.app, collection=SimpleNamespace(
                 get_list=lambda: [o for o in self.app.collection.objects.values() if o is not None]))
         self.a, self.b = zone_source(self.app, 'a'), zone_source(self.app, 'b')
+        self.tool.change_level('a')
+        self.tool.ui.excl_cb.set_value(True)
         self.pick('a')
 
     def pick(self, name):
@@ -414,28 +416,45 @@ def zone_panel(request, qapp, tmp_path):
     panel.close()
 
 
+def test_zones_drawn_in_ncc_do_not_apply_to_paint(qapp, tmp_path):
+    ncc = ZonePanel(qapp, tmp_path, 'ncc')
+    paint = Plugin(qapp, tmp_path / 'paint', 'paint', ncc.a, [0.4])
+    try:
+        ncc.tool.zones.on_drawn([ZONE_A])
+        assert ncc.a.zones_of('ncc') == [ZONE_A]
+        paint.tool.change_level('a')
+        paint.tool.ui.excl_cb.set_value(True)
+        assert paint.tool.zones.source_zones() == []
+        assert paint.tool.exclusion_zone_list() == []
+    finally:
+        paint.close()
+        ncc.close()
+
+
 def test_zones_are_added_to_and_deleted_from_the_source_of_the_panel(zone_panel):
     panel = zone_panel
-    panel.tool.on_exclusion_zones([ZONE_A])
-    assert panel.a.exclusion_zones == [ZONE_A] and panel.b.exclusion_zones == []
+    panel.tool.zones.on_drawn([ZONE_A])
+    assert panel.a.zones_of(panel.kind) == [ZONE_A] and panel.b.exclusion_zones == {}
     assert panel.count == '1' and panel.a.zones_wanted()
     # another source: its own zones, its own count; the first one is no longer shown
-    panel.b.set_exclusion_zones([ZONE_B, ZONE_A])
+    panel.b.set_exclusion_zones({panel.kind: [ZONE_B, ZONE_A]})
     panel.pick('b')
     assert panel.count == '2' and panel.b.zones_wanted() and not panel.a.zones_wanted()
-    panel.tool.on_delete_exclusions()
-    assert panel.b.exclusion_zones == [] and panel.a.exclusion_zones == [ZONE_A] and panel.count == '0'
+    panel.tool.zones.on_delete()
+    assert panel.b.exclusion_zones == {} and panel.a.zones_of(panel.kind) == [ZONE_A] and panel.count == '0'
 
 
 def test_reset_keeps_the_zones_and_closing_the_panel_hides_them(zone_panel):
     panel = zone_panel
-    panel.tool.on_exclusion_zones([ZONE_A])
+    panel.tool.zones.on_drawn([ZONE_A])
     panel.tool.set_tool_ui()
-    assert panel.a.exclusion_zones == [ZONE_A]
+    assert panel.a.zones_of(panel.kind) == [ZONE_A]
+    panel.tool.change_level('a')
+    panel.tool.ui.excl_cb.set_value(True)
     panel.pick('a')
     assert panel.count == '1' and panel.a.zones_wanted()
     panel.tool.on_plugin_cleanup()
-    assert panel.a.exclusion_zones == [ZONE_A] and not panel.a.zones_wanted()
+    assert panel.a.zones_of(panel.kind) == [ZONE_A] and not panel.a.zones_wanted()
 
 
 def stays_hidden(panel):
@@ -449,13 +468,13 @@ def stays_hidden(panel):
 
 def test_zones_are_hidden_when_another_plugin_replaces_the_panel(zone_panel, qapp, tmp_path):
     panel = zone_panel
-    panel.tool.on_exclusion_zones([ZONE_A])
+    panel.tool.zones.on_drawn([ZONE_A])
     assert panel.a.zones_wanted()
     other = Plugin(qapp, tmp_path / 'other', 'paint' if panel.kind == 'ncc' else 'ncc', None, [0.4])
     try:
         other.app.ui.plugin_scroll_area.takeWidget.return_value = panel.tool
         AppTool.run(other.tool)
-        assert panel.a.exclusion_zones == [ZONE_A] and not panel.a.zones_wanted()
+        assert panel.a.zones_of(panel.kind) == [ZONE_A] and not panel.a.zones_wanted()
         assert stays_hidden(panel)
     finally:
         other.close()
@@ -463,14 +482,14 @@ def test_zones_are_hidden_when_another_plugin_replaces_the_panel(zone_panel, qap
 
 def test_zones_stay_hidden_after_the_tab_closes(zone_panel):
     panel = zone_panel
-    panel.tool.on_exclusion_zones([ZONE_A])
+    panel.tool.zones.on_drawn([ZONE_A])
     panel.tool.on_plugin_cleanup()      # the close button of the tab
     assert stays_hidden(panel)
 
 
 def test_the_exclusion_option_clears_the_preview(zone_panel):
     panel = zone_panel
-    panel.tool.on_exclusion_zones([ZONE_A])
+    panel.tool.zones.on_drawn([ZONE_A])
     panel.tool.ui.excl_cb.set_value(True)
     panel.tool.ui.select_method_combo.set_value(0)
     panel.tool.on_preview()
@@ -486,21 +505,21 @@ def test_all_selected_objects_share_one_edit_and_the_run_uses_the_union(zone_pan
     panel = zone_panel
     panel.multi([panel.a, panel.b])
     steps = len(panel.app.history.undo_stack)
-    panel.tool.on_exclusion_zones([ZONE_A])
-    assert panel.a.exclusion_zones == [ZONE_A] and panel.b.exclusion_zones == [ZONE_A]
+    panel.tool.zones.on_drawn([ZONE_A])
+    assert panel.a.zones_of(panel.kind) == [ZONE_A] and panel.b.zones_of(panel.kind) == [ZONE_A]
     assert panel.count == '1' and len(panel.app.history.undo_stack) == steps + 1
     assert panel.app.history.undo()
-    assert panel.a.exclusion_zones == [] and panel.b.exclusion_zones == []
+    assert panel.a.exclusion_zones == {} and panel.b.exclusion_zones == {}
     # each source has its own zone: the run removes both
-    panel.a.set_exclusion_zones([ZONE_A])
-    panel.b.set_exclusion_zones([ZONE_B])
+    panel.a.set_exclusion_zones({panel.kind: [ZONE_A]})
+    panel.b.set_exclusion_zones({panel.kind: [ZONE_B]})
     panel.tool.ui.excl_cb.set_value(True)
     assert panel.zones_in_run().symmetric_difference(unary_union([ZONE_A, ZONE_B])).area < 1e-9
     assert panel.count == '2'
     panel.tool.ui.excl_cb.set_value(False)
     assert panel.zones_in_run() is None
-    panel.tool.on_delete_exclusions()
-    assert panel.a.exclusion_zones == [] and panel.b.exclusion_zones == []
+    panel.tool.zones.on_delete()
+    assert panel.a.exclusion_zones == {} and panel.b.exclusion_zones == {}
 
 
 def click(panel):
@@ -529,8 +548,8 @@ def zones_of_spec(spec):
 
 def test_every_source_is_limited_by_its_own_zones_only(zone_panel, monkeypatch):
     panel = zone_panel
-    panel.a.set_exclusion_zones([ZONE_A])
-    panel.b.set_exclusion_zones([ZONE_B])
+    panel.a.set_exclusion_zones({panel.kind: [ZONE_A]})
+    panel.b.set_exclusion_zones({panel.kind: [ZONE_B]})
     panel.multi([panel.a, panel.b])
     panel.tool.ui.excl_cb.set_value(True)
     specs = record_specs(monkeypatch)
@@ -541,7 +560,7 @@ def test_every_source_is_limited_by_its_own_zones_only(zone_panel, monkeypatch):
 
 def test_the_output_keeps_no_zones_and_the_option_off_applies_none(zone_panel, monkeypatch):
     panel = zone_panel
-    panel.tool.on_exclusion_zones([ZONE_A])
+    panel.tool.zones.on_drawn([ZONE_A])
     panel.tool.ui.excl_cb.set_value(False)
     specs = record_specs(monkeypatch)
     click(panel)
@@ -550,14 +569,14 @@ def test_the_output_keeps_no_zones_and_the_option_off_applies_none(zone_panel, m
     monkeypatch.undo()
     output = generate(panel)
     assert not getattr(output, 'exclusion_zones', None) and not getattr(output, 'zones_always_drawn', False)
-    assert panel.a.exclusion_zones == [ZONE_A]
+    assert panel.a.zones_of(panel.kind) == [ZONE_A]
 
 
 @pytest.mark.parametrize('kind', ['ncc', 'paint'])
 def test_tcl_run_ignores_the_zones_of_the_source_unless_use_zones(qapp, tmp_path, monkeypatch, kind):
     panel = ZonePanel(qapp, tmp_path, kind)
     try:
-        panel.a.set_exclusion_zones([ZONE_A])
+        panel.a.set_exclusion_zones({panel.kind: [ZONE_A]})
         panel.tool.ui.excl_cb.set_value(True)       # a script ignores the panel option
         gen = panel.tool.gen
         specs = record_specs(monkeypatch)
@@ -577,7 +596,7 @@ def test_tcl_run_ignores_the_zones_of_the_source_unless_use_zones(qapp, tmp_path
         run(False, [ZONE_B])
         run(True, [ZONE_B])
         assert [zones_of_spec(spec) for spec in specs] == [None, [ZONE_B], [ZONE_A, ZONE_B]]
-        assert panel.a.exclusion_zones == [ZONE_A]
+        assert panel.a.zones_of(panel.kind) == [ZONE_A]
     finally:
         panel.close()
 

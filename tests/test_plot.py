@@ -1733,7 +1733,7 @@ def zone_gerber():
     app.plotcanvas.new_shape_group.side_effect = lambda *a, **k: ShapeGroup(collection)
     obj = make_gerber(app)
     obj.obj_options['plot'] = True
-    obj.exclusion_zones = [box(1, 1, 2, 2), box(5, 5, 7, 6)]
+    obj.exclusion_zones = {'ncc': [box(1, 1, 2, 2), box(5, 5, 7, 6)]}
     obj.collection = collection
     return obj
 
@@ -1753,7 +1753,7 @@ def test_zones_of_a_source_are_drawn_only_while_the_panel_is_open(zone_gerber):
     obj = zone_gerber
     _plot(obj)
     assert _zones_drawn(obj) == []
-    obj.set_zones_panel_open(True)
+    obj.set_zones_panel_open('ncc')
     assert [b for _v, b in _zones_drawn(obj)] == [(1, 1, 2, 2), (5, 5, 7, 6)]
     _plot(obj)                                  # a replot keeps them (and does not double them)
     assert len(_zones_drawn(obj)) == 2

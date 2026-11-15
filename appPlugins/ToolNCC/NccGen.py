@@ -725,7 +725,7 @@ class NccGen:
         # the option of the panel is on: this source is limited by its own zones only (not by the ones of the other
         # sources of an "All selected objects" run)
         option_on = getattr(self.parent_tool, 'exclusion_areas', None)
-        own = object_zones(cleared_object) if callable(option_on) and option_on() else []
+        own = object_zones(cleared_object, 'ncc') if callable(option_on) and option_on() else []
         zones = distinct_zones(own + list(exclusion_areas or []))
         exclusion = unary_union(zones) if zones else None
         name = outname if outname is not None else self.obj_name + '_ncc'
@@ -968,7 +968,7 @@ class NccGen:
             values['tools_ncc_crosshatch_angle'] = angle
         rows = self._tcl_rows(diameters, list(iso_tooldia or ()), name, bool(plot), **values)
         # a script: the ones of its -exclude, and the zones stored on the cleared object with -use_zones
-        zones = distinct_zones((object_zones(ncc_obj) if use_zones else []) + list(exclusion_areas or []))
+        zones = distinct_zones((object_zones(ncc_obj, 'ncc') if use_zones else []) + list(exclusion_areas or []))
         exclusion = unary_union(zones) if zones else None
         return self._ncc_spec(
             freeze_options(self.app), tools=self._tool_specs(rows, diameters), rest=rest, order=order,

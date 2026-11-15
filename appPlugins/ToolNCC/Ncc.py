@@ -62,6 +62,7 @@ def merge_db_tool_data(base, db_data):
 class ToolNcc(Geometry, ClearingToolBase):
 
     key_prefix = 'tools_ncc'
+    zone_key = 'ncc'
     tools_attr = 'ncc_tools'
     tool_target = 5
     method_map = NCC_METHODS
@@ -256,12 +257,8 @@ class ToolNcc(Geometry, ClearingToolBase):
         return self.combo_source()
 
     def exclusion_areas(self):
-        """The exclusion zones to remove from the area to clear, or None when they are off or there are none."""
-        try:
-            use = bool(self.ui.excl_cb.get_value())
-        except RuntimeError:
-            return None
-        zones = self.source_zones() if use else []
+        """The exclusion zones to remove from the area to clear, or None when they do not apply or there are none."""
+        zones = self.zones.source_zones() if self.zones.is_on() else []
         return zones or None
 
     # ------------------------------------------------------------------------------------------------------------
@@ -602,7 +599,7 @@ class ToolNcc(Geometry, ClearingToolBase):
 
         self.gen = NccGen(self)
         self.connect_signals()
-        self.refresh_zone_view()
+        self.zones.refresh()
 
     def add_default_tools(self, dias):
         """

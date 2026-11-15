@@ -318,14 +318,14 @@ def test_zones_follow_a_matrix_step_and_a_delete_undo_restores_them(fc, no_plot)
     grb = _load(fc, 'gerber', 'unify_mixed.gbr', 'g_zone')
     uid = grb.history_uid
     zone = box(1, 1, 3, 2)
-    grb.exclusion_zones = [zone]
+    grb.exclusion_zones = {'ncc': [zone]}
     m = (0.0, -1.0, 1.0, 0.0, 10.0, 4.0)
     apply_matrix_to_object(grb, m)
     fc.history.record_matrix('rot', [(grb, m)])
     moved = affine_transform(zone, m)
-    assert len(grb.exclusion_zones) == 1 and grb.exclusion_zones[0].equals_exact(moved, 1e-9)
-    assert fc.history.undo() and grb.exclusion_zones[0].equals_exact(zone, 1e-9)
-    assert fc.history.redo() and grb.exclusion_zones[0].equals_exact(moved, 1e-9)
+    assert len(grb.zones_of('ncc')) == 1 and grb.zones_of('ncc')[0].equals_exact(moved, 1e-9)
+    assert fc.history.undo() and grb.zones_of('ncc')[0].equals_exact(zone, 1e-9)
+    assert fc.history.redo() and grb.zones_of('ncc')[0].equals_exact(moved, 1e-9)
     # delete, then undo: the rebuilt object has its zones back
     fc.history.record_delete('del', [grb])
     fc.object_ops.delete_objects_now([grb])
@@ -333,30 +333,35 @@ def test_zones_follow_a_matrix_step_and_a_delete_undo_restores_them(fc, no_plot)
     _settle(fc)
     rebuilt = fc.history.find(uid)
     assert rebuilt is not None and rebuilt is not grb
-    assert len(rebuilt.exclusion_zones) == 1 and rebuilt.exclusion_zones[0].equals_exact(moved, 1e-9)
+    assert len(rebuilt.zones_of('ncc')) == 1 and rebuilt.zones_of('ncc')[0].equals_exact(moved, 1e-9)
 
 
 def test_zone_edits_are_undo_steps(fc, no_plot):
     from shapely.geometry import box
     grb = _load(fc, 'gerber', 'unify_mixed.gbr', 'g_zone_edit')
     a, b = box(0, 0, 1, 1), box(4, 4, 6, 5)
+    ZONE_P = box(7, 7, 8, 8)
+    grb.exclusion_zones = {'paint': [ZONE_P]}
     steps = len(fc.history.undo_stack)
     fired = []
     grb.zones_changed.connect(lambda: fired.append(1))
 
-    grb.clear_exclusion_zones()                 # nothing to clear: no step
-    grb.add_exclusion_zones([])                 # nothing to add: no step
+    grb.clear_exclusion_zones('ncc')            # nothing to clear: no step
+    grb.add_exclusion_zones('ncc', [])          # nothing to add: no step
     assert len(fc.history.undo_stack) == steps and not fired
-    grb.add_exclusion_zones([a])
-    grb.add_exclusion_zones([b])
-    assert grb.exclusion_zones == [a, b] and len(fc.history.undo_stack) == steps + 2
+    grb.add_exclusion_zones('ncc', [a])
+    grb.add_exclusion_zones('ncc', [b])
+    assert grb.zones_of('ncc') == [a, b] and len(fc.history.undo_stack) == steps + 2
+    assert grb.zones_of('paint') == [ZONE_P]
 
-    assert fc.history.undo() and grb.exclusion_zones == [a]
-    assert fc.history.redo() and grb.exclusion_zones == [a, b]
+    assert fc.history.undo() and grb.zones_of('ncc') == [a]
+    assert grb.zones_of('paint') == [ZONE_P]
+    assert fc.history.redo() and grb.zones_of('ncc') == [a, b] and grb.zones_of('paint') == [ZONE_P]
     fired.clear()
-    grb.clear_exclusion_zones()
-    assert grb.exclusion_zones == [] and len(fc.history.undo_stack) == steps + 3
-    assert fc.history.undo() and grb.exclusion_zones == [a, b]
+    grb.clear_exclusion_zones('ncc')
+    assert grb.zones_of('ncc') == [] and grb.zones_of('paint') == [ZONE_P]
+    assert len(fc.history.undo_stack) == steps + 3
+    assert fc.history.undo() and grb.zones_of('ncc') == [a, b] and grb.zones_of('paint') == [ZONE_P]
     assert len(fired) == 2                      # the clear and its undo
 
     # delete, undo (rebuild with the same uid), undo the zone edit of the rebuilt object
@@ -365,8 +370,8 @@ def test_zone_edits_are_undo_steps(fc, no_plot):
     assert fc.history.undo()
     _settle(fc)
     rebuilt = fc.history.find(grb.history_uid)
-    assert rebuilt is not grb and rebuilt.exclusion_zones == [a, b]
-    assert fc.history.undo() and rebuilt.exclusion_zones == [a]
+    assert rebuilt is not grb and rebuilt.zones_of('ncc') == [a, b] and rebuilt.zones_of('paint') == [ZONE_P]
+    assert fc.history.undo() and rebuilt.zones_of('ncc') == [a] and rebuilt.zones_of('paint') == [ZONE_P]
 
 
 def test_zone_edits_of_several_objects_are_one_step_in_a_group(fc, no_plot):
@@ -376,13 +381,13 @@ def test_zone_edits_of_several_objects_are_one_step_in_a_group(fc, no_plot):
     zone = box(0, 0, 2, 2)
     steps = len(fc.history.undo_stack)
     with appHistory.history_of(fc).group('Add exclusion zones'):
-        first.add_exclusion_zones([zone])
-        second.add_exclusion_zones([zone])
+        first.add_exclusion_zones('ncc', [zone])
+        second.add_exclusion_zones('ncc', [zone])
     assert len(fc.history.undo_stack) == steps + 1
     assert fc.history.undo()
-    assert first.exclusion_zones == [] and second.exclusion_zones == []
+    assert first.zones_of('ncc') == [] and second.zones_of('ncc') == []
     assert fc.history.redo()
-    assert first.exclusion_zones == [zone] and second.exclusion_zones == [zone]
+    assert first.zones_of('ncc') == [zone] and second.zones_of('ncc') == [zone]
 
 
 def test_create_undo_redo(fc, no_plot):
@@ -2263,10 +2268,10 @@ def test_zone_edit_marks_the_project_as_changed(fc, no_plot):
     from shapely.geometry import box
     grb = _load(fc, 'gerber', 'unify_mixed.gbr', 'g_zone_save')
     fc.should_we_save = False
-    grb.add_exclusion_zones([box(0, 0, 1, 1)])
+    grb.add_exclusion_zones('ncc', [box(0, 0, 1, 1)])
     assert fc.should_we_save is True
     fc.should_we_save = False
-    grb.clear_exclusion_zones()
+    grb.clear_exclusion_zones('ncc')
     assert fc.should_we_save is True
     fc.should_we_save = False
     assert fc.history.undo() and fc.should_we_save is True
