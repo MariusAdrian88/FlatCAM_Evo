@@ -172,6 +172,7 @@ def test_gerber_in_place_build_failure_leaves_the_source_unchanged(app):
 def test_gerber_save_modes_keep_the_native_flashes_of_a_clear_object(app, mode):
     source = make_gerber(app, MIXED_GBR, name='board')
     expected = source.solid_geometry
+    zones = source.exclusion_zones = [box(1, 1, 2, 2)]
     tools = AppGerberEditor.build_edit_tools(source.tools, source.solid_geometry, apertures=True)
     storage = {ap: {**{k: v for k, v in tool.items() if k != 'geometry'},
                     'geometry': [SimpleNamespace(geo=dict(rec)) for rec in tool['geometry']]}
@@ -211,6 +212,7 @@ def test_gerber_save_modes_keep_the_native_flashes_of_a_clear_object(app, mode):
     assert flashes.get(11) and flashes.get(12) and flashes.get(17)
     assert 'ADD11R' in saved.source_file and 'ADD12O' in saved.source_file
     assert_poly_equiv(parsed.solid_geometry, expected, rel=1e-3, abs_tol=1e-2)
+    assert [z.wkb for z in saved.exclusion_zones] == [z.wkb for z in zones]
 
 
 

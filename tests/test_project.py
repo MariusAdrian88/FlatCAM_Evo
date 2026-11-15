@@ -125,6 +125,33 @@ def test_saved_project_has_only_project_options(tmp_path):
     assert all(is_project_key(key) for key in proj['options'])
 
 
+def test_exclusion_zones_survive_save_and_load(tmp_path):
+    from unittest.mock import patch
+    from shapely.geometry import box
+    from appObjects.GeometryObject import GeometryObject
+    app = make_app()
+    grb = make_gerber(app)
+    with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
+        geo = GeometryObject('geo', app)
+    geo.tools = {1: dict(geo.default_tool(), solid_geometry=[box(0, 0, 1, 1)])}
+    zones = [box(1, 2, 3, 4), box(10, 10, 12, 11)]
+    for obj in (grb, geo):
+        obj.exclusion_zones = list(zones)
+        obj.zones_always_drawn = True
+    __, restored = save_and_load(app, [grb, geo], tmp_path)
+    assert len(restored) == 2
+    for obj in restored:
+        assert [z.wkb for z in obj.exclusion_zones] == [z.wkb for z in zones]
+        assert obj.zones_always_drawn is True
+    # a project saved before the zones existed loads with none
+    saved = geo.to_dict()
+    saved.pop('exclusion_zones'), saved.pop('zones_always_drawn')
+    with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
+        old = GeometryObject('old', app)
+    old.from_dict(saved)
+    assert old.exclusion_zones == [] and old.zones_always_drawn is False
+
+
 def test_saved_geometry_and_cncjob_hold_the_keys_the_previous_release_reads(tmp_path):
     # The previous release can not run in this suite: it was checked by hand (it showed an empty Geometry without them).
     from unittest.mock import patch
@@ -924,6 +951,19 @@ class TestJoinAs(unittest.TestCase):
         self.assertTrue(any(ap['type'] == 'REG' for ap in res.tools.values()))
         for x, y in ((0, 0), (2, 2), (2.5, 10), (21, 0.5), (30.5, 0.5)):
             self.assertTrue(res.solid_geometry.contains(Point(x, y)), (x, y))
+
+    def test_join_unions_the_exclusion_zones_without_duplicates(self):
+        from shapely.geometry import box
+
+        shared = box(0, 0, 1, 1)
+        grb = obj('gerber', 'grb', solid_geometry=[box(30, 0, 31, 1)], follow_geometry=[], tools={},
+                  exclusion_zones=[shared, box(5, 5, 6, 6)])
+        geo = obj('geometry', 'geo', exclusion_zones=[box(0, 0, 1, 1), box(8, 8, 9, 9)],
+                  tools={1: {'tooldia': 0.5, 'data': {}, 'solid_geometry': [box(10, 0, 11, 1)]}})
+        for kind in ('gerber', 'geometry'):
+            __, res = self.join(kind, grb, geo)
+            self.assertEqual(sorted(z.bounds for z in res.exclusion_zones),
+                             [(0, 0, 1, 1), (5, 5, 6, 6), (8, 8, 9, 9)])
 
     def test_as_geometry_keeps_all_tool_shapes(self):
         from shapely.geometry import LineString, Point, box

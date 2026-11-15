@@ -17,7 +17,7 @@ from appParsers.ParseGerber import Gerber, drop_placeholder_record_keys
 from appParsers.gerber_attributes import attribute_changes, merge_to_table, remap_to_ids
 from appObjects.AppObjectTemplate import FlatCAMObj, OffsetUiMixin, PropertiesPanelMixin, ObjectDeleted
 
-from camlib import flatten_shapely_geometry, deepcopy_keep_geometry
+from camlib import flatten_shapely_geometry, deepcopy_keep_geometry, merge_zones
 
 from shapely import MultiLineString, LinearRing, MultiPolygon, Polygon, LineString, Point
 from shapely.ops import unary_union
@@ -124,7 +124,8 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
         # Attributes to be included in serialization
         # Always append to it because it carries contents
         # from predecessors.
-        self.ser_attrs = ['obj_options', 'kind', 'fill_color', 'outline_color', 'alpha_level'] + self.ser_attrs
+        self.ser_attrs = ['obj_options', 'kind', 'fill_color', 'outline_color', 'alpha_level',
+                          'exclusion_zones', 'zones_always_drawn'] + self.ser_attrs
 
     def copy_from(self, src):
         """
@@ -163,6 +164,8 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
         self.int_digits = getattr(src, 'int_digits', self.int_digits)
         self.frac_digits = getattr(src, 'frac_digits', self.frac_digits)
         self.units = getattr(src, 'units', self.units)
+        self.exclusion_zones = list(getattr(src, 'exclusion_zones', ()))
+        self.zones_always_drawn = bool(getattr(src, 'zones_always_drawn', False))
 
     def set_ui(self, ui):
         """
@@ -1334,6 +1337,7 @@ class GerberObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Gerber):
 
         grb_final.solid_geometry = unary_union(flatten_shapely_geometry(grb_final.solid_geometry))
         grb_final.follow_geometry = unary_union(flatten_shapely_geometry(grb_final.follow_geometry))
+        merge_zones(grb_final, grb_list)
 
     def _after_transform(self):
         """Hook of every geometry transform below: the aperture table has to be redrawn."""

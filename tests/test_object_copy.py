@@ -186,6 +186,19 @@ def test_copy_equals_source_on_every_attribute(app, kind, path):
 
 
 @pytest.mark.parametrize('kind,path', [pytest.param(k, p, id='%s-%s' % (k, p)) for k, p in COMBOS
+                                       if k in ('gerber', 'geometry')])
+def test_copy_keeps_the_exclusion_zones_in_its_own_list(app, kind, path):
+    source = SOURCES[kind](app)
+    source.exclusion_zones = [box(1, 1, 2, 2), box(5, 5, 6, 7)]
+    source.zones_always_drawn = True
+    clone = run_path(app, source, kind, path)
+    assert [z.wkb for z in clone.exclusion_zones] == [z.wkb for z in source.exclusion_zones]
+    assert clone.zones_always_drawn is True
+    clone.exclusion_zones.append(box(9, 9, 10, 10))
+    assert len(source.exclusion_zones) == 2
+
+
+@pytest.mark.parametrize('kind,path', [pytest.param(k, p, id='%s-%s' % (k, p)) for k, p in COMBOS
                                        if k in ('gerber', 'excellon', 'geometry')])
 def test_copy_is_independent(app, kind, path):
     """Mutate the source deeply, the copy stays; mutate the copy deeply, the source stays."""

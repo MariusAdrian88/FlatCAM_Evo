@@ -312,6 +312,30 @@ def test_delete_undo_rebuilds_same_uid_and_later_steps_work(fc, no_plot):
     assert np.allclose(_bounds(rebuilt), b0)
 
 
+def test_zones_follow_a_matrix_step_and_a_delete_undo_restores_them(fc, no_plot):
+    from shapely.affinity import affine_transform
+    from shapely.geometry import box
+    grb = _load(fc, 'gerber', 'unify_mixed.gbr', 'g_zone')
+    uid = grb.history_uid
+    zone = box(1, 1, 3, 2)
+    grb.exclusion_zones = [zone]
+    m = (0.0, -1.0, 1.0, 0.0, 10.0, 4.0)
+    apply_matrix_to_object(grb, m)
+    fc.history.record_matrix('rot', [(grb, m)])
+    moved = affine_transform(zone, m)
+    assert len(grb.exclusion_zones) == 1 and grb.exclusion_zones[0].equals_exact(moved, 1e-9)
+    assert fc.history.undo() and grb.exclusion_zones[0].equals_exact(zone, 1e-9)
+    assert fc.history.redo() and grb.exclusion_zones[0].equals_exact(moved, 1e-9)
+    # delete, then undo: the rebuilt object has its zones back
+    fc.history.record_delete('del', [grb])
+    fc.object_ops.delete_objects_now([grb])
+    assert fc.history.undo()
+    _settle(fc)
+    rebuilt = fc.history.find(uid)
+    assert rebuilt is not None and rebuilt is not grb
+    assert len(rebuilt.exclusion_zones) == 1 and rebuilt.exclusion_zones[0].equals_exact(moved, 1e-9)
+
+
 def test_create_undo_redo(fc, no_plot):
     count = len(fc.collection.get_list())
     grb = _load(fc, 'gerber', 'unify_mixed.gbr', 'g_create')

@@ -5774,6 +5774,8 @@ class AppGerberEditor(QtCore.QObject):
                     if hasattr(edited, attr):
                         setattr(grb_obj, attr, getattr(edited, attr))
                 AppGerberEditor.apply_edited_gerber(grb_obj, edited)
+                grb_obj.exclusion_zones = list(getattr(source, 'exclusion_zones', ()))
+                grb_obj.zones_always_drawn = bool(getattr(source, 'zones_always_drawn', False))
 
             try:
                 created = self.app.app_obj.new_object('gerber', new_grb_name, obj_init)

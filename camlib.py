@@ -656,6 +656,10 @@ class Geometry(object):
 
         self.temp_shapes = self.app.plotcanvas.new_shape_collection(layers=1)
 
+        # Exclusion zones (Shapely Polygons, object coordinates) kept with the object and moved by its transforms
+        self.exclusion_zones = []
+        self.zones_always_drawn = False
+
         # Attributes to be included in serialization
         self.ser_attrs = ["units", 'solid_geometry', 'follow_geometry', 'tools']
 
@@ -2803,6 +2807,13 @@ class Geometry(object):
     def _affine_solid_geometry(self, matrix, any_iterable=False):
         """Apply an affine matrix, preserving the container shape."""
         self._store_shapes(affine_geometry(self.solid_geometry, matrix, any_iterable))
+        self._affine_zones(matrix)
+
+    def _affine_zones(self, matrix):
+        """Move the exclusion zones with the geometry. Called once per transform by the low level functions only."""
+        zones = getattr(self, 'exclusion_zones', None)
+        if zones:
+            self.exclusion_zones = list(affine_geometry_many([list(zones)], matrix)[0])
 
     def mirror(self, axis, point):
         """
@@ -9441,6 +9452,29 @@ def simplify_paths(paths, tolerance, app=None):
 
     by_id = dict(zip(unique.keys(), simplified))
     return [by_id[id(path)] for path in paths]
+
+
+def merge_zones(final, objs):
+    """Give ``final`` the union of the exclusion zones of ``objs`` (nested lists walked), no duplicate by WKB."""
+    seen = {z.wkb for z in getattr(final, 'exclusion_zones', None) or ()}
+    zones = list(getattr(final, 'exclusion_zones', None) or ())
+    always = bool(getattr(final, 'zones_always_drawn', False))
+
+    def walk(items):
+        nonlocal always
+        for item in items:
+            if isinstance(item, (list, tuple)):
+                walk(item)
+                continue
+            always = always or bool(getattr(item, 'zones_always_drawn', False))
+            for zone in getattr(item, 'exclusion_zones', None) or ():
+                if zone.wkb not in seen:
+                    seen.add(zone.wkb)
+                    zones.append(zone)
+
+    walk(objs)
+    final.exclusion_zones = zones
+    final.zones_always_drawn = always
 
 
 def deepcopy_keep_geometry(obj):

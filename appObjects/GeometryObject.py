@@ -20,7 +20,7 @@ from shapely.affinity import scale, translate
 from shapely.ops import unary_union
 
 from camlib import (voronoi_path_signature, Geometry, flatten_shapely_geometry, translate_geometry, affine_geometry, affine_geometry_many,
-                    affine_scale_matrix, deepcopy_keep_geometry, first_tool_dia, list_total_bounds,
+                    affine_scale_matrix, affine_translate_matrix, merge_zones, deepcopy_keep_geometry, first_tool_dia, list_total_bounds,
                     buffer_geometry_many, scale_geometries_by_center)
 from appCommon.SafeEval import safe_eval
 from defaults import AppDefaults
@@ -198,6 +198,7 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
                                        matrix, any_iterable)
         for key, result in zip(keys, results):
             self.tools[key]['solid_geometry'] = result
+        self._affine_zones(matrix)
 
     def union(self):
         self._per_tool(lambda shapes: [unary_union(self.flatten(shapes))])
@@ -338,7 +339,8 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
         # Always append to it because it carries contents
         # from predecessors.
         self.source_file = ''
-        self.ser_attrs += ['obj_options', 'kind', 'fill_color', 'outline_color', 'alpha_level', 'source_file']
+        self.ser_attrs += ['obj_options', 'kind', 'fill_color', 'outline_color', 'alpha_level', 'source_file',
+                           'exclusion_zones', 'zones_always_drawn']
         self.ser_attrs.remove('solid_geometry')
 
     def to_dict(self):
@@ -415,6 +417,8 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
         self.tools = deepcopy_keep_geometry(src.tools)
         self.tooluid = getattr(src, 'tooluid', self.tooluid)
         self.units = getattr(src, 'units', self.units)
+        self.exclusion_zones = list(getattr(src, 'exclusion_zones', ()))
+        self.zones_always_drawn = bool(getattr(src, 'zones_always_drawn', False))
         if 'photocarve' in src.obj_options:
             self.obj_options['photocarve'] = deepcopy(src.obj_options['photocarve'])
         if hasattr(src, 'source_file'):
@@ -868,6 +872,7 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
                 self.app.proc_container.update_view_text(' %d%%' % disp_number)
                 old_disp_number = disp_number
 
+        self._affine_zones(affine_translate_matrix(dx, dy))
         self.app.proc_container.new_text = ''
         self.app.inform.emit('[success] %s' % _("Done."))
 
@@ -1267,6 +1272,7 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
 
         # every Geometry keeps at least 1 tool, also when the sources had no shapes
         geo_final.tools = final_tools or {1: geo_final.default_tool()}
+        merge_zones(geo_final, geo_list)
 
     @staticmethod
     def get_pts(o):

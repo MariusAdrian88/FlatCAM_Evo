@@ -6,6 +6,8 @@ from contextlib import contextmanager
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from shapely.geometry import Polygon  # noqa: E402
@@ -331,6 +333,69 @@ class TransformUiTest(unittest.TestCase):
                 self.assertTrue(history.redo())
                 self.assertEqual(obj.bounds(), expected)
                 self.assertEqual(obj.obj_options.callback, callback)
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# the exclusion zones of a source follow every transform of its copper, exactly once
+# ---------------------------------------------------------------------------------------------------------------
+
+def zoned_object(kind):
+    """A real Gerber / Geometry object whose copper is 1 box, with an exclusion zone equal to that box."""
+    from shapely.geometry import box
+    from tests.helpers_objects import make_app, make_gerber
+
+    app = make_app()
+    marker = box(2, 3, 6, 5)
+    if kind == 'gerber':
+        obj = make_gerber(app)
+        obj.solid_geometry = [marker]
+    else:
+        with patch('appObjects.AppObjectTemplate.ShapeCollection', MagicMock()):
+            obj = GeometryObject('geo', app)
+        obj.tools = {1: dict(obj.default_tool(), solid_geometry=[marker])}
+    obj.exclusion_zones = [marker]
+    return obj
+
+
+def copper_of(obj):
+    from shapely.ops import unary_union
+    if obj.kind == 'gerber':
+        return unary_union(obj.solid_geometry)
+    return unary_union(obj.tools[1]['solid_geometry'])
+
+
+OPS = {
+    'offset': lambda o: o.offset((3.5, -2.0)),
+    'scale': lambda o: o.scale(2.0, 3.0, (1.0, 1.0)),
+    'mirror_x': lambda o: o.mirror('X', (7.0, 1.0)),
+    'mirror_y': lambda o: o.mirror('Y', (7.0, 1.0)),
+    'rotate': lambda o: o.rotate(33.0, (1.0, 2.0)),
+    'skew': lambda o: o.skew(10.0, 5.0, (0.0, 0.0)),
+}
+
+
+@pytest.mark.parametrize('op', list(OPS))
+@pytest.mark.parametrize('kind', ['gerber', 'geometry'])
+def test_exclusion_zones_stay_aligned_with_the_copper_after_a_transform(kind, op):
+    obj = zoned_object(kind)
+    before = obj.exclusion_zones[0]
+    OPS[op](obj)
+    assert len(obj.exclusion_zones) == 1
+    zone = obj.exclusion_zones[0]
+    assert not zone.equals(before)
+    assert zone.symmetric_difference(copper_of(obj)).area < 1e-9
+
+
+@pytest.mark.parametrize('kind', ['gerber', 'geometry'])
+def test_units_conversion_scales_the_exclusion_zones(kind):
+    obj = zoned_object(kind)
+    obj.units = 'MM'
+    obj.ui = MagicMock()
+    obj.ui.geo_tools_table.rowCount.return_value = 0
+    obj.convert_units('IN')
+    zone = obj.exclusion_zones[0]
+    assert zone.bounds == pytest.approx((2 / 25.4, 3 / 25.4, 6 / 25.4, 5 / 25.4))
+    assert zone.symmetric_difference(copper_of(obj)).area < 1e-9
 
 
 if __name__ == '__main__':

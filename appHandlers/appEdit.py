@@ -7,7 +7,7 @@ from appGUI.GUIElements import DialogBoxChoice
 from appCommon.SafeEval import safe_eval
 from appHandlers.appJoinConvert import JOIN_KINDS, join_sources
 from appHandlers.appObjectOps import _finish_origin_move, history_guard
-from camlib import affine_translate_matrix, deepcopy_keep_geometry
+from camlib import affine_translate_matrix, deepcopy_keep_geometry, merge_zones
 
 from copy import deepcopy
 from shapely import MultiPolygon, Polygon, LinearRing, LineString, Point, unary_union
@@ -615,6 +615,7 @@ class appEditor(QtCore.QObject):
 
             def initialize(new_obj, app):
                 GerberObject.merge(grb_list=sources, grb_final=new_obj, log=app.log)
+                merge_zones(new_obj, objs)
         elif kind == 'excellon':
             name = 'Combo_Excellon'
 
@@ -636,6 +637,7 @@ class appEditor(QtCore.QObject):
                 for tool_data in new_obj.tools.values():
                     if isinstance(tool_data.get('data'), dict):
                         tool_data['data']['name'] = name
+                merge_zones(new_obj, objs)
 
         self.app_obj.new_object(kind, name, initialize)
         self.app.should_we_save = True

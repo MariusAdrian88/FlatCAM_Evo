@@ -2711,6 +2711,7 @@ class Gerber(Geometry):
         self.solid_geometry, self.follow_geometry = result[0], result[1]
         for (geo_el, key), geo in zip(entries, result[2:]):
             geo_el[key] = geo
+        Geometry._affine_zones(self, matrix)
 
     def scale(
         self,
