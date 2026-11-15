@@ -1,5 +1,5 @@
 from tclCommands.TclCommand import TclCommandSignaled
-from camlib import boundary_area, grace
+from camlib import boundary_area, grace, flatten_shapely_geometry
 
 from shapely.geometry import Polygon, box
 from shapely.ops import unary_union
@@ -422,7 +422,8 @@ class TclCommandIsolate(TclCommandSignaled):
         for obj in objects:
             obj_exclusion = exc_geometry
             if use_zones and obj.zones_of('isolation'):
-                obj_exclusion = unary_union((exc_geometry or []) + obj.zones_of('isolation'))
+                keepout = flatten_shapely_geometry(exc_geometry) if exc_geometry is not None else []
+                obj_exclusion = unary_union(keepout + obj.zones_of('isolation'))
             if outname is not None and len(objects) > 1:
                 obj_outname = "%s_%s" % (outname, obj.obj_options['name'])
             else:

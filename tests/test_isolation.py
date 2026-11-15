@@ -2256,7 +2256,48 @@ def test_isolation_zones_apply_without_keepout(iso_plugin_with_gerber, mode):
     tool.ui.combine_passes_cb.set_value(mode != 'separate')
     tool.ui.rest_cb.set_value(mode == 'rest')
     created = run_plugin(tool, grb, combine=mode != 'separate', rest=mode == 'rest')[0]
-    assert paths_area_inside(created_paths(created), CORNER_ZONE) == pytest.approx(0, abs=1e-9)
+    paths = created_paths(created)
+    assert paths_area_inside(paths, CORNER_ZONE) == pytest.approx(0, abs=1e-9)
+    # the whole cutter stays out of the zone, not only the path center line
+    assert _sweep_of(paths, DIA / 2).intersection(CORNER_ZONE).area == pytest.approx(0, abs=1e-9)
+
+
+@pytest.mark.parametrize('mode', ['separate', 'combined', 'rest'])
+@pytest.mark.parametrize('tooldia', [0.2, DIA])
+def test_isolation_keepout_keeps_the_whole_cutter_out(app, plugin, mode, tooldia):
+    gerber = make_gerber(app, name='g')
+    minx, miny, maxx, maxy = unary_union(gerber.solid_geometry).bounds
+    kept = box(minx - 2, miny - 2, minx, maxy + 2)
+    zone = box(maxx, miny - 2, maxx + 2, maxy + 2)
+    gerber.exclusion_zones = {'isolation': [zone]}
+    plugin.change_level('a')
+    plugin.ui.excl_cb.set_value(True)
+    plugin.ui.except_cb.set_value(True)
+    plugin.app.collection.get_by_name = Mock(return_value=SimpleNamespace(solid_geometry=kept))
+    created, __ = run_plugin(plugin, gerber, combine=mode != 'separate', passes=1, rest=mode == 'rest',
+                             iso_except=True, exc_name='keep', tooldia=tooldia)
+    paths = created_paths(created)
+    assert paths
+    # the Keepout and the zones keep the full cutter out, with the radius of this tool
+    sweep = _sweep_of(paths, tooldia / 2)
+    assert sweep.intersection(kept).area == pytest.approx(0, abs=1e-9)
+    assert sweep.intersection(zone).area == pytest.approx(0, abs=1e-9)
+
+
+def test_isolation_simplification_cannot_cut_back_into_the_keepout(app, plugin):
+    # the exclusion is applied after the final simplification, so a simplified chord cannot enter the keepout
+    gerber = make_gerber(app, name='g')
+    minx, miny, maxx, maxy = unary_union(gerber.solid_geometry).bounds
+    kept = box(minx - 2, miny - 2, minx, maxy + 2)
+    plugin.change_level('a')
+    plugin.ui.excl_cb.set_value(True)
+    plugin.ui.except_cb.set_value(True)
+    plugin.app.collection.get_by_name = Mock(return_value=SimpleNamespace(solid_geometry=kept))
+    created, __ = run_plugin(plugin, gerber, combine=True, passes=1, iso_except=True, exc_name='keep',
+                             iso_simplification=True, simplification_tol=0.5)
+    paths = created_paths(created)
+    assert paths
+    assert _sweep_of(paths, DIA / 2).intersection(kept).area == pytest.approx(0, abs=1e-9)
 
 
 def test_voronoi_rejects_isolation_zones(iso_plugin_with_gerber):
@@ -2284,3 +2325,21 @@ def test_tcl_isolate_use_zones(app):
                       objects={'g': gerber})['b']
     assert paths_area_inside(plain.solid_geometry, zone) > 0
     assert paths_area_inside(cut.solid_geometry, zone) == pytest.approx(0, abs=1e-9)
+
+
+@pytest.mark.parametrize('as_scalar', [True, False])
+def test_tcl_isolate_keepout_and_zones_keep_the_cutter_out(app, as_scalar):
+    gerber = make_gerber(app, name='g')
+    minx, miny, maxx, maxy = unary_union(gerber.solid_geometry).bounds
+    keep = box(minx - 2, miny - 2, minx, maxy + 2)
+    zone = box(maxx, miny - 2, maxx + 2, maxy + 2)
+    gerber.exclusion_zones = {'isolation': [zone]}
+    objects = {'g': gerber,
+               'keep': SimpleNamespace(obj_options={'name': 'keep'},
+                                       solid_geometry=keep if as_scalar else [keep], kind='geometry')}
+    created = tcl_isolate(app, 'g', '-dia', '0.2', '-outname', 'iso', '-except_obj', 'keep', '-use_zones', '1',
+                          objects=objects)
+    paths = unary_union([g.boundary if isinstance(g, Polygon) else g
+                         for obj in created.values() for g in obj.solid_geometry])
+    assert not paths.is_empty
+    assert _sweep_of([paths], 0.1).intersection(unary_union([keep, zone])).area == pytest.approx(0, abs=1e-9)

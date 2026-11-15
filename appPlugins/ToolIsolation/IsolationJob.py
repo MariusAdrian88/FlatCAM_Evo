@@ -10,10 +10,12 @@ import math
 
 import shapely
 from shapely import Polygon, MultiPolygon
+from shapely.ops import unary_union
 
 from defaults import AppDefaults
 from camlib import grace, flatten_shapely_geometry, clip_paths_to_area, area_outline_paths, \
     boundary_passes_message, pass_covers_area
+from appPlugins.Common.clearing import regions
 from appPlugins.ToolIsolation import IsolationGen
 
 import gettext
@@ -214,8 +216,14 @@ class IsolationJob:
             if created is not None:
                 created.extend(job.created)
 
-    def area_subtraction(self, geo):
-        return IsolationGen.area_subtraction(geo, self._exc_geometry)
+    def area_subtraction(self, geo, radius=0.0):
+        """Remove the excluded area from the paths; the cutter of this radius, not only its center, stays out."""
+        if self._exc_geometry is None:
+            return geo
+        exclusion = unary_union(flatten_shapely_geometry(self._exc_geometry))
+        if radius > 0:
+            exclusion = regions.cutter_expansion(exclusion, radius)
+        return IsolationGen.area_subtraction(geo, exclusion)
 
     @staticmethod
     def area_intersection(geo, intersection_geo=None):
@@ -416,15 +424,16 @@ class IsolationJob:
                         if use_simplification:
                             iso_geo = [g.simplify(tolerance=simplification_tol) for g in iso_geo if not g.is_empty]
                             iso_geo = clip_paths_to_area(iso_geo, boundary)
-                    if use_iso_except:
-                        self.app.proc_container.update_view_text(' %s' % _("Subtracting Geo"))
-                        iso_geo = self.area_subtraction(iso_geo)
                     if limited_area:
                         self.app.proc_container.update_view_text(' %s' % _("Intersecting Geo"))
                         iso_geo = self.area_intersection(iso_geo, intersection_geo=limited_area)
                     new_solid_geo = flatten_shapely_geometry(
                         iso_geo, simplify_tolerance=simplification_tol if use_simplification and boundary is None
                         else 0.0)
+                    if use_iso_except:
+                        # after the final simplification: it must not move a path back into the keepout
+                        self.app.proc_container.update_view_text(' %s' % _("Subtracting Geo"))
+                        new_solid_geo = self.area_subtraction(new_solid_geo, tool_dia / 2)
                     obj_data = deepcopy(tool_data)
                     obj_data.update({"name": iso_name, "tools_mill_tooldia": float(tool_dia)})
 
@@ -646,14 +655,15 @@ class IsolationJob:
                 if simp_en:
                     solid_geo = [g.simplify(tolerance=simp_tol) for g in solid_geo if not g.is_empty]
                     solid_geo = clip_paths_to_area(solid_geo, boundary)
-            if iso_except:
-                self.app.proc_container.update_view_text(' %s' % _("Subtracting Geo"))
-                solid_geo = self.area_subtraction(solid_geo)
             if lim_area:
                 self.app.proc_container.update_view_text(' %s' % _("Intersecting Geo"))
                 solid_geo = self.area_intersection(solid_geo, intersection_geo=lim_area)
             new_solid_geo = flatten_shapely_geometry(
                 solid_geo, simplify_tolerance=simp_tol if simp_en and boundary is None else 0.0)
+            if iso_except:
+                # after the final simplification: it must not move a path back into the keepout
+                self.app.proc_container.update_view_text(' %s' % _("Subtracting Geo"))
+                new_solid_geo = self.area_subtraction(new_solid_geo, tool_dia / 2)
             tool_data['tools_mill_tooldia'] = float(tool_dia)
             tools_storage[tool] = {
                 'tooldia': float(tool_dia), 'data': tool_data, 'solid_geometry': new_solid_geo
@@ -765,14 +775,15 @@ class IsolationJob:
                 if simp_en:
                     solid_geo = [g.simplify(tolerance=simp_tol) for g in solid_geo if not g.is_empty]
                     solid_geo = clip_paths_to_area(solid_geo, boundary)
-            if iso_except:
-                self.app.proc_container.update_view_text(' %s' % _("Subtracting Geo"))
-                solid_geo = self.area_subtraction(solid_geo)
             if lim_area:
                 self.app.proc_container.update_view_text(' %s' % _("Intersecting Geo"))
                 solid_geo = self.area_intersection(solid_geo, intersection_geo=lim_area)
             new_solid_geo = flatten_shapely_geometry(
                 solid_geo, simplify_tolerance=simp_tol if simp_en and boundary is None else 0.0)
+            if iso_except:
+                # after the final simplification: it must not move a path back into the keepout
+                self.app.proc_container.update_view_text(' %s' % _("Subtracting Geo"))
+                new_solid_geo = self.area_subtraction(new_solid_geo, tool_dia / 2)
             tool_data['tools_mill_tooldia'] = float(tool_dia)
             tools_storage[tool] = {
                 'tooldia': float(tool_dia), 'offset': tool_has_offset,
