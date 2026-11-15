@@ -2224,6 +2224,57 @@ def iso_plugin_with_gerber(app, plugin):
     return plugin, gerber
 
 
+@pytest.mark.parametrize('selection', [1, 2], ids=['area', 'polygon'])
+@pytest.mark.parametrize('action', ['preview', 'add', 'delete'])
+def test_isolation_zone_targets_follow_selection_mode(app, plugin, selection, action):
+    objects = {name: make_gerber(app, name=name) for name in ('a', 'b', 'c')}
+    for index, obj in enumerate(objects.values()):
+        obj.obj_options['plot'] = True
+        obj.exclusion_zones = {'isolation': [box(index * 10, 0, index * 10 + 1, 1)],
+                               'ncc': [CORNER_ZONE], 'paint': [COPPER]}
+    before = {name: deepcopy(obj.exclusion_zones) for name, obj in objects.items()}
+    plugin.app.collection.get_by_name = lambda name: objects.get(name)
+    plugin.app.collection.get_selected = lambda: [objects['a'], objects['b']]
+    # The combo source need not be one of the selected boards.
+    plugin.ui.object_combo.currentText = lambda: 'c'
+    plugin.change_level('a')
+    plugin.ui.select_combo.set_value(0)
+    plugin.ui.multi_objects_cb.set_value(True)
+    plugin.ui.excl_cb.set_value(True)
+    assert plugin.ui.excl_count_value.text() == '2'
+    assert [name for name, obj in objects.items() if obj.zones_to_draw()] == ['a', 'b']
+
+    plugin.ui.select_combo.set_value(selection)
+
+    if action == 'preview':
+        assert plugin.ui.excl_count_value.text() == '1'
+        assert [name for name, obj in objects.items() if obj.zones_to_draw()] == ['c']
+    elif action == 'add':
+        plugin.zones.on_drawn([box(40, 0, 41, 1)])
+        assert len(objects['c'].zones_of('isolation')) == 2
+        assert plugin.ui.excl_count_value.text() == '2'
+    else:
+        plugin.ui.excl_delete_button.click()
+        assert objects['c'].zones_of('isolation') == []
+        assert plugin.ui.excl_count_value.text() == '0'
+    for name, obj in objects.items():
+        assert obj.zones_of('ncc') == before[name]['ncc']
+        assert obj.zones_of('paint') == before[name]['paint']
+        if name != 'c':
+            assert obj.zones_of('isolation') == before[name]['isolation']
+
+    # Returning to All restores selected-board previews and edit targets without toggling the checkbox.
+    plugin.ui.select_combo.set_value(0)
+    assert plugin.ui.excl_count_value.text() == '2'
+    assert [name for name, obj in objects.items() if obj.zones_to_draw()] == ['a', 'b']
+    plugin.zones.on_drawn([box(50, 0, 51, 1)])
+    assert all(len(objects[name].zones_of('isolation')) == 2 for name in ('a', 'b'))
+    c_zones = objects['c'].zones_of('isolation')
+    plugin.ui.excl_delete_button.click()
+    assert all(objects[name].zones_of('isolation') == [] for name in ('a', 'b'))
+    assert objects['c'].zones_of('isolation') == c_zones
+
+
 def isolation_storage():
     data = {k: deepcopy(v) for k, v in AppDefaults().defaults.items() if k.startswith('tools_')}
     data.update(tools_iso_isotype='full', tools_iso_passes=1, tools_iso_overlap=OVERLAP,

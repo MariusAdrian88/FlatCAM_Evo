@@ -626,7 +626,7 @@ class ToolIsolation(Geometry, AppTool):
 
     def zone_sources(self):
         """The objects to isolate: the selected Gerber objects with "multi objects", else the object of the combo."""
-        if self.ui.multi_objects_cb.get_value():
+        if self.ui.select_combo.get_value() in (0, 3) and self.ui.multi_objects_cb.get_value():
             selected = [obj for obj in self.app.collection.get_selected() if getattr(obj, 'kind', None) == 'gerber']
             if selected:
                 return selected
@@ -932,6 +932,7 @@ class ToolIsolation(Geometry, AppTool):
         self.ui.excl_cb.stateChanged.connect(self.zones.refresh)
         self.ui.object_combo.currentIndexChanged.connect(self.zones.refresh)
         self.ui.multi_objects_cb.stateChanged.connect(self.zones.refresh)
+        self.ui.select_combo.currentIndexChanged.connect(self.zones.refresh)
         self.app.proj_selection_changed.connect(self.zones.refresh)
 
     def ui_disconnect(self):
@@ -1015,6 +1016,7 @@ class ToolIsolation(Geometry, AppTool):
                 (self.ui.excl_cb.stateChanged, self.zones.refresh),
                 (self.ui.object_combo.currentIndexChanged, self.zones.refresh),
                 (self.ui.multi_objects_cb.stateChanged, self.zones.refresh),
+                (self.ui.select_combo.currentIndexChanged, self.zones.refresh),
                 (self.app.proj_selection_changed, self.zones.refresh)):
             try:
                 signal.disconnect(slot)
