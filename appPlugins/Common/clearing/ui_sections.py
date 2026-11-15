@@ -348,32 +348,35 @@ def build_validity(ui, grid, row, prefix, *, tooltip):
     grid.addWidget(check, row, 0, 1, 2)
 
 
-def build_exclusion(ui, tools_box, *, label_tooltip, check_tooltip, check_object_name=None):
-    """The 'Exclusion areas' label and frame. Returns the grid of the frame."""
-    _put(ui, 'excl_label', FCLabel('%s' % _("Exclusion areas"), color='red', bold=True)).setToolTip(label_tooltip)
-    tools_box.addWidget(ui.excl_label)
+def build_exclusion(ui, tools_box, *, check_tooltip, check_object_name=None):
+    """
+    The 'Exclusion Areas' section: a check box as its title, then a frame that is visible only while the check box is
+    set. Returns the grid of the frame.
+    """
+    check = _put(ui, 'excl_cb', FCCheckBox(_("Exclusion Areas")), check_object_name)
+    check.setToolTip(check_tooltip)
+    # the look of the section labels (bold, red)
+    check.set_color(QtGui.QColor('red'))
+    check.set_font(bold=True)
+    tools_box.addWidget(check)
 
-    frame = FCFrame()
+    frame = _put(ui, 'excl_frame', FCFrame())
     tools_box.addWidget(frame)
     grid = GLay(v_spacing=5, h_spacing=3)
     frame.setLayout(grid)
-
-    check = _put(ui, 'excl_cb', FCCheckBox(_("Use exclusion areas")), check_object_name)
-    check.setToolTip(check_tooltip)
-    grid.addWidget(check, 0, 0, 1, 2)
 
     _put(ui, 'excl_shape_label', FCLabel('%s:' % _("Shape"))).setToolTip(
         _("The kind of shape used to draw an exclusion zone."))
     shape = _put(ui, 'excl_shape_radio', RadioSet([{'label': _("Square"), 'value': 'square'},
                                                    {'label': _("Polygon"), 'value': 'polygon'}], compact=True))
-    grid.addWidget(ui.excl_shape_label, 2, 0)
-    grid.addWidget(shape, 2, 1)
+    grid.addWidget(ui.excl_shape_label, 0, 0)
+    grid.addWidget(shape, 0, 1)
 
     _put(ui, 'excl_count_label', FCLabel('%s:' % _("Zones"))).setToolTip(
         _("The number of exclusion zones of the selected object."))
     count = _put(ui, 'excl_count_value', FCLabel('0'))
-    grid.addWidget(ui.excl_count_label, 4, 0)
-    grid.addWidget(count, 4, 1)
+    grid.addWidget(ui.excl_count_label, 2, 0)
+    grid.addWidget(count, 2, 1)
 
     add = _put(ui, 'excl_add_button', FCButton(_("Add area")))
     add.setToolTip(
@@ -382,9 +385,18 @@ def build_exclusion(ui, tools_box, *, label_tooltip, check_tooltip, check_object
     )
     delete = _put(ui, 'excl_delete_button', FCButton(_("Delete all")))
     delete.setToolTip(_("Remove all the exclusion zones of the selected object."))
-    grid.addWidget(add, 6, 0)
-    grid.addWidget(delete, 6, 1)
+    grid.addWidget(add, 4, 0)
+    grid.addWidget(delete, 4, 1)
+
+    frame.setVisible(check.get_value())
+    check.stateChanged.connect(lambda *a: show_exclusion_section(ui, not check.isHidden()))
     return grid
+
+
+def show_exclusion_section(ui, advanced):
+    """Advanced: the check box is visible and the frame follows it. Basic: the whole section is hidden."""
+    ui.excl_cb.setVisible(advanced)
+    ui.excl_frame.setVisible(advanced and ui.excl_cb.get_value())
 
 
 def exclusion_on(ui):

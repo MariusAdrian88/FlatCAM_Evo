@@ -313,8 +313,8 @@ class NccUI:
         # #############################################################################################################
         excl_grid = ui_sections.build_exclusion(
             self, self.tools_box, check_object_name="n_exclusion",
-            label_tooltip=_("Zones drawn on the canvas that are left out of the copper clearing."),
-            check_tooltip=_("When checked, the zones below are removed from the area to clear,\n"
+            check_tooltip=_("Zones drawn on the canvas that are left out of the copper clearing.\n"
+                            "When checked, the zones below are removed from the area to clear,\n"
                             "for the Generate and the Preview buttons.")
         )
 

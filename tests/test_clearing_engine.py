@@ -501,6 +501,27 @@ def test_the_exclusion_option_clears_the_preview(zone_panel):
     store.clear.assert_called()
 
 
+def test_basic_mode_hides_and_ignores_the_exclusion_areas(zone_panel):
+    panel = zone_panel
+    tool = panel.tool
+    empty = None if panel.kind == 'ncc' else []
+
+    def zones_in_run():
+        return tool.exclusion_areas() if panel.kind == 'ncc' else tool.exclusion_zone_list()
+
+    tool.zones.on_drawn([ZONE_A])
+    tool.ui.excl_cb.set_value(True)
+    assert zones_in_run() == [ZONE_A]
+    tool.change_level('b')
+    assert tool.ui.excl_cb.isHidden() and tool.ui.excl_frame.isHidden()
+    assert zones_in_run() == empty
+    assert panel.a.zones_of(panel.kind) == [ZONE_A]       # the zones stay on the object
+    tool.change_level('a')
+    assert not tool.ui.excl_cb.isHidden() and not tool.ui.excl_frame.isHidden()
+    tool.ui.excl_cb.set_value(False)
+    assert tool.ui.excl_frame.isHidden() and zones_in_run() == empty
+
+
 def test_all_selected_objects_share_one_edit_and_the_run_uses_the_union(zone_panel):
     panel = zone_panel
     panel.multi([panel.a, panel.b])

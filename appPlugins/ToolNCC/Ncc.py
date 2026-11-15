@@ -35,6 +35,7 @@ from appCommon.ToolDatabase import matching_tools
 from appPlugins.ToolNCC import NccModel
 from appPlugins.Common.clearing.controller_base import ClearingToolBase
 from appPlugins.Common.clearing.methods import NCC_METHODS
+from appPlugins.Common.clearing.ui_sections import show_exclusion_section
 
 fcTranslate.apply_language('strings')
 if '_' not in builtins.__dict__:
@@ -681,6 +682,9 @@ class ToolNcc(Geometry, ClearingToolBase):
             # All param section
             self.ui.apply_param_to_all.hide()
 
+            # Exclusion areas section
+            show_exclusion_section(self.ui, False)
+
             # Context Menu section
             self.ui.tools_table.removeContextMenu()
         else:
@@ -719,8 +723,12 @@ class ToolNcc(Geometry, ClearingToolBase):
             # All param section
             self.ui.apply_param_to_all.show()
 
+            # Exclusion areas section
+            show_exclusion_section(self.ui, True)
+
             # Context Menu section
             self.ui.tools_table.setupContextMenu()
+        self.zones.refresh()
 
     def on_type_obj_index_changed(self, val):
         obj_type = 0 if val == 'gerber' else 2

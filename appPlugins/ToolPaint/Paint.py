@@ -36,6 +36,7 @@ from defaults import AppDefaults
 from appCommon.SafeEval import safe_eval
 from appPlugins.Common.clearing.controller_base import ClearingToolBase, signals_blocked
 from appPlugins.Common.clearing.methods import PAINT_METHODS
+from appPlugins.Common.clearing.ui_sections import show_exclusion_section
 from camlib import (
     deepcopy_keep_geometry,
     Geometry,
@@ -478,6 +479,9 @@ class ToolPaint(Geometry, ClearingToolBase):
             # All param section
             self.ui.apply_param_to_all.hide()
 
+            # Exclusion areas section
+            show_exclusion_section(self.ui, False)
+
             # Context Menu section
             self.ui.tools_table.removeContextMenu()
         else:
@@ -507,8 +511,12 @@ class ToolPaint(Geometry, ClearingToolBase):
             # All param section
             self.ui.apply_param_to_all.show()
 
+            # Exclusion areas section
+            show_exclusion_section(self.ui, True)
+
             # Context Menu section
             self.ui.tools_table.setupContextMenu()
+        self.zones.refresh()
 
     def storage_to_form(self, dict_storage):
         dict_storage.setdefault('tools_paint_final_cleanup', False)

@@ -274,8 +274,8 @@ class PaintUI:
         # #############################################################################################################
         excl_grid = ui_sections.build_exclusion(
             self, self.tools_box,
-            label_tooltip=_("Zones drawn on the canvas that are left out of the painting."),
-            check_tooltip=_("When checked, the cutter keeps its radius away from the zones below,\n"
+            check_tooltip=_("Zones drawn on the canvas that are left out of the painting.\n"
+                            "When checked, the cutter keeps its radius away from the zones below,\n"
                             "for the Generate and the Preview buttons.")
         )
 
