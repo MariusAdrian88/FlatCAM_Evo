@@ -511,13 +511,26 @@ def test_basic_mode_hides_and_ignores_the_exclusion_areas(zone_panel):
 
     tool.zones.on_drawn([ZONE_A])
     tool.ui.excl_cb.set_value(True)
-    assert zones_in_run() == [ZONE_A]
+    assert zones_in_run() == [ZONE_A] and panel.a.zones_wanted()
+    # a preview made while the zones apply: its shapes are on the canvas
+    tool.ui.select_method_combo.set_value(0)
+    tool.on_preview()
+    store = tool._preview_shapes
+    assert store is not None and store.add.called
+    store.clear.reset_mock()
     tool.change_level('b')
     assert tool.ui.excl_cb.isHidden() and tool.ui.excl_frame.isHidden()
     assert zones_in_run() == empty
+    # the stale preview is off the canvas and the panel no longer asks the source to show its zones
+    assert store.clear.called and not panel.a.zones_wanted()
     assert panel.a.zones_of(panel.kind) == [ZONE_A]       # the zones stay on the object
+    # the explicit show-all toggle is not the panel request: it still draws the zones in Basic
+    panel.a.zones_always_drawn = True
+    assert panel.a.zones_wanted()
+    panel.a.zones_always_drawn = False
     tool.change_level('a')
     assert not tool.ui.excl_cb.isHidden() and not tool.ui.excl_frame.isHidden()
+    assert panel.a.zones_wanted()                         # Advanced asks for the zones again
     tool.ui.excl_cb.set_value(False)
     assert tool.ui.excl_frame.isHidden() and zones_in_run() == empty
 
