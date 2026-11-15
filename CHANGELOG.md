@@ -10,6 +10,9 @@ CHANGELOG for FlatCAM Evo
 
 Copper Clearing (NCC) and Paint:
 
+- changed: NCC and Paint each have their own exclusion zones on the source object; zones drawn in NCC do not apply to Paint; a project with the earlier shared zones gives them to both
+- changed: the exclusion areas are an Advanced mode feature; in Beginner mode they are hidden and do not apply (they stay on the object)
+- changed: the "Exclusion Areas" check box is the title of its section; Beginner mode or a clear check box hides the section content and panel preview and disables zone use; the object's explicit show-all toggle (zones_always_drawn) still shows its zones on the canvas
 - changed: the exclusion zones of NCC and Paint belong to the source object (Gerber or Geometry), not to the plugin: Add area adds zones to the selected object, Delete all removes its zones; with "All selected objects" both act on every selected object; each edit is 1 undo step
 - added: the zones of an object are saved in the project, kept by Copy and Join, and move with the object (move, scale, mirror, rotate, skew, units change, undo of a transform); Panelize does not copy them
 - added: the zones of a source object are on the canvas while the NCC or Paint panel shows it; Reset keeps them; closing the panel or opening another plugin takes them off the canvas
@@ -30,6 +33,12 @@ Copper Clearing (NCC) and Paint:
 - fixed: an error of the measurement of the uncut area after the last tool failed a job whose paths were done; after a final cleanup the uncut-area warning used the last tool, not the cleanup tool; a failed NCC job said "Failed." 2 times
 - fixed: the cutter clearance of the Paint exclusion zones was slow for zones with many vertices (12800 vertices: 3.3 s -> 5 ms)
 - fixed: the NCC progressive plot was cleared from the worker thread
+
+Isolation:
+
+- changed: the "Except" option is now "Keepout": the area of a Gerber or Geometry object is removed from the isolation paths
+- added: Isolation has its own exclusion areas on the isolated object (Advanced mode): Add area, Delete all, 1 undo step, saved in the project
+- added: Tcl isolate -use_zones 1 applies the exclusion zones of Isolation stored on the object
 
 Tools Database:
 
