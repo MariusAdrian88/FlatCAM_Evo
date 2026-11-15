@@ -452,6 +452,30 @@ class RenameStep(HistoryStep):
             history.rename(history.find_or_fail(uid), new)
 
 
+class ZonesStep(HistoryStep):
+    """The exclusion zones of objects: the list before and after one edit (add, clear)."""
+
+    def __init__(self, label, items):
+        self.label = label
+        self.items = [(uid, list(before), list(after)) for uid, before, after in items]
+
+    def uids(self):
+        return {uid for uid, _b, _a in self.items}
+
+    def geometry_sizes(self):
+        return retained_sizes(self.items, self.label)
+
+    def undo(self, history):
+        objs = [history.find_or_fail(uid) for uid, _b, _a in self.items]
+        for obj, (_uid, before, _after) in zip(objs, self.items):
+            obj.set_exclusion_zones(before)
+
+    def redo(self, history):
+        objs = [history.find_or_fail(uid) for uid, _b, _a in self.items]
+        for obj, (_uid, _before, after) in zip(objs, self.items):
+            obj.set_exclusion_zones(after)
+
+
 class GroupStep(HistoryStep):
     """More steps as 1 history entry."""
 
@@ -688,6 +712,11 @@ class HistoryManager:
         if states:
             self.push(DeleteStep(label, states))
 
+    def record_zones(self, label, obj, before, after):
+        """Call it AFTER the zones of obj changed from the list before to the list after."""
+        if self.is_recording() and not states_equal(list(before), list(after)):
+            self.push(ZonesStep(label, [(obj.history_uid, before, after)]))
+
     def record_rename(self, obj, old, new):
         if old != new:
             self.push(RenameStep('%s: %s' % (_("Rename"), new), [(obj.history_uid, old, new)]))
@@ -893,6 +922,8 @@ class HistoryManager:
         if 'plot' in options and hasattr(obj, 'shapes'):
             # Replay is synchronous. The visible property queues a worker and blocks the next Redo.
             obj.shapes.visible = options['plot']
+            if hasattr(obj, '_sync_zone_visibility'):
+                obj._sync_zone_visibility(options['plot'])
             if hasattr(obj, 'annotation'):
                 obj.annotation.visible = options['plot']
         if hasattr(obj, 'optionChanged'):
@@ -957,6 +988,9 @@ class NullHistory:
         pass
 
     def record_delete(self, label, objects):
+        pass
+
+    def record_zones(self, label, obj, before, after):
         pass
 
     def record_rename(self, obj, old, new):

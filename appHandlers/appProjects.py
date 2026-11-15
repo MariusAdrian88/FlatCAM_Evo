@@ -433,6 +433,10 @@ class ProjectManager(QtCore.QObject):
                 if caching:
                     obj.shapes.visible = False
                     obj._project_plot_options = deepcopy(dict(obj.obj_options))
+                    # the exclusion zones of the object leave the canvas with its shapes
+                    sync_zones = getattr(obj, '_sync_zone_visibility', None)
+                    if sync_zones is not None:
+                        sync_zones(False)
                 else:
                     obj.clear(update=False)
             except Exception as err:

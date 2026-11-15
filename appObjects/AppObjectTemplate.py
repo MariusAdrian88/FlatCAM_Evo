@@ -8,7 +8,7 @@
 # File modified by: Marius Stanciu                         #
 # ##########################################################
 
-from appHandlers.appHistory import history_of
+from appHandlers.appHistory import history_of, states_equal
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from appGUI.ObjectUI import ObjectUI
@@ -130,6 +130,9 @@ class FlatCAMObj(QtCore.QObject):
     # signal for Properties
     calculations_finished = QtCore.pyqtSignal(float, float, float, float, float, object)
 
+    # emitted when the exclusion zones of the object changed (edit, undo, redo)
+    zones_changed = QtCore.pyqtSignal()
+
     def _app_option(self, key, fallback=None):
         return app_option(self.app, key, fallback)
 
@@ -219,6 +222,12 @@ class FlatCAMObj(QtCore.QObject):
 
         self.shapes = self.app.plotcanvas.new_shape_group()
         self.mark_shapes = self.app.plotcanvas.new_shape_collection(layers=1)
+
+        # the exclusion zones of the object are drawn in this group; it is made here, on the thread that makes the
+        # object, like self.shapes (a group is a list of keys of the main collection, no GL object)
+        self.zone_shapes = self.app.plotcanvas.new_shape_group()
+        # runtime flag: a plugin panel shows the zones of this object (see plot_zones())
+        self.zones_panel_open = False
 
         self.item = None  # Link with project view item
 
@@ -367,6 +376,7 @@ class FlatCAMObj(QtCore.QObject):
         self._plot_fp = None
         self._plot_batches = 0
         self._plot_shapes = None
+        self.plot_zones()
         return True
 
     def reuse_plot_of(self, src, offsets=None):
@@ -663,6 +673,9 @@ class FlatCAMObj(QtCore.QObject):
 
         if not done:
             self.plot(kind=kind) if kind is not None else self.plot()
+        else:
+            # the zones were moved with the geometry; draw them again at the new place
+            self.plot_zones()
         return done
 
     def _transform_annotations(self, matrix, update):
@@ -713,7 +726,87 @@ class FlatCAMObj(QtCore.QObject):
             return False
 
         self.shapes.visible = visible
+        FlatCAMObj._sync_zone_visibility(self, visible)
         return True
+
+    # ------------------------------------------------------------------------------------------------------------
+    # exclusion zones: drawn by the object (a second group of shapes), edited with undo steps
+    # ------------------------------------------------------------------------------------------------------------
+    ZONE_COLOR = '#CC0000FF'
+    ZONE_FACE_COLOR = '#CC000040'
+    ZONE_LAYER = 2          # over the copper
+
+    def zones_wanted(self):
+        """True if the zones must be on the canvas now: the object is plotted and a plugin panel or the object asks."""
+        if self.deleted or not getattr(self, 'exclusion_zones', None):
+            return False
+        try:
+            if not self.obj_options.get('plot'):
+                return False
+        except Exception:
+            return False
+        return bool(getattr(self, 'zones_always_drawn', False) or getattr(self, 'zones_panel_open', False))
+
+    def plot_zones(self, update=True):
+        """
+        Draw the zones again if zones_wanted(), else remove them. Same thread rule as plot(): it runs in the calling
+        thread. It never touches the canvas of an object without zones to draw (headless, Tcl).
+        """
+        group = getattr(self, 'zone_shapes', None)
+        if group is None:
+            return
+        try:
+            had_shapes = bool(group._indexes)
+            group.clear(False)
+            wanted = self.zones_wanted()
+            if wanted:
+                for zone in self.exclusion_zones:
+                    group.add(shape=zone, color=self.ZONE_COLOR, face_color=self.ZONE_FACE_COLOR, update=False,
+                              layer=self.ZONE_LAYER, tolerance=None)
+            if update and (wanted or had_shapes) and not self.defer_redraw:
+                group.redraw()
+        except Exception as e:
+            self.app.log.error("FlatCAMObj.plot_zones() --> %s" % str(e))
+
+    def _sync_zone_visibility(self, visible):
+        # the zones follow the visibility of the shapes of the object: hidden = not on the canvas. Called through the
+        # class by the visibility code, so an object without zones (or a test double) is a no-op.
+        group = getattr(self, 'zone_shapes', None)
+        if group is None:
+            return
+        if visible:
+            FlatCAMObj.plot_zones(self)
+        elif group._indexes:
+            group.clear(True)
+
+    def set_zones_panel_open(self, flag):
+        """A plugin panel shows (True) or stops showing (False) the zones of this object."""
+        flag = bool(flag)
+        if flag == self.zones_panel_open:
+            return
+        self.zones_panel_open = flag
+        self.plot_zones()
+
+    def set_exclusion_zones(self, zones):
+        """Replace the zone list (no history step; see add_exclusion_zones()), redraw, emit zones_changed."""
+        self.exclusion_zones = list(zones)
+        self.plot_zones()
+        self.zones_changed.emit()
+
+    def add_exclusion_zones(self, zones, label=None):
+        """Add zones (Shapely polygons, object coordinates): 1 undo step. Nothing to add: no step."""
+        self._edit_zones(list(self.exclusion_zones) + list(zones), label or _("Add exclusion zones"))
+
+    def clear_exclusion_zones(self, label=None):
+        """Remove all the zones: 1 undo step. No zones: no step."""
+        self._edit_zones([], label or _("Clear exclusion zones"))
+
+    def _edit_zones(self, after, label):
+        before = list(self.exclusion_zones)
+        if states_equal(before, after):
+            return
+        self.set_exclusion_zones(after)
+        history_of(self.app).record_zones(label, self, before, after)
 
     def bring_to_top(self):
         """
@@ -853,6 +946,9 @@ class FlatCAMObj(QtCore.QObject):
             except Exception:
                 pass
 
+            # in the same task: the zones follow the shapes of the object
+            FlatCAMObj._sync_zone_visibility(self, value)
+
         if threaded:
             self.app.worker_task.emit({'fcn': task, 'params': [current_visibility]})
         else:
@@ -860,6 +956,9 @@ class FlatCAMObj(QtCore.QObject):
 
     def clear(self, update=False):
         self.shapes.clear(update)
+        zone_shapes = getattr(self, 'zone_shapes', None)
+        if zone_shapes is not None:
+            zone_shapes.clear(update)
 
         # Not all object types has annotations
         try:

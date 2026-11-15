@@ -336,6 +336,55 @@ def test_zones_follow_a_matrix_step_and_a_delete_undo_restores_them(fc, no_plot)
     assert len(rebuilt.exclusion_zones) == 1 and rebuilt.exclusion_zones[0].equals_exact(moved, 1e-9)
 
 
+def test_zone_edits_are_undo_steps(fc, no_plot):
+    from shapely.geometry import box
+    grb = _load(fc, 'gerber', 'unify_mixed.gbr', 'g_zone_edit')
+    a, b = box(0, 0, 1, 1), box(4, 4, 6, 5)
+    steps = len(fc.history.undo_stack)
+    fired = []
+    grb.zones_changed.connect(lambda: fired.append(1))
+
+    grb.clear_exclusion_zones()                 # nothing to clear: no step
+    grb.add_exclusion_zones([])                 # nothing to add: no step
+    assert len(fc.history.undo_stack) == steps and not fired
+    grb.add_exclusion_zones([a])
+    grb.add_exclusion_zones([b])
+    assert grb.exclusion_zones == [a, b] and len(fc.history.undo_stack) == steps + 2
+
+    assert fc.history.undo() and grb.exclusion_zones == [a]
+    assert fc.history.redo() and grb.exclusion_zones == [a, b]
+    fired.clear()
+    grb.clear_exclusion_zones()
+    assert grb.exclusion_zones == [] and len(fc.history.undo_stack) == steps + 3
+    assert fc.history.undo() and grb.exclusion_zones == [a, b]
+    assert len(fired) == 2                      # the clear and its undo
+
+    # delete, undo (rebuild with the same uid), undo the zone edit of the rebuilt object
+    fc.history.record_delete('del', [grb])
+    fc.object_ops.delete_objects_now([grb])
+    assert fc.history.undo()
+    _settle(fc)
+    rebuilt = fc.history.find(grb.history_uid)
+    assert rebuilt is not grb and rebuilt.exclusion_zones == [a, b]
+    assert fc.history.undo() and rebuilt.exclusion_zones == [a]
+
+
+def test_zone_edits_of_several_objects_are_one_step_in_a_group(fc, no_plot):
+    from shapely.geometry import box
+    first = _load(fc, 'gerber', 'unify_mixed.gbr', 'g_zone_a')
+    second = _load(fc, 'gerber', 'unify_mixed.gbr', 'g_zone_b')
+    zone = box(0, 0, 2, 2)
+    steps = len(fc.history.undo_stack)
+    with appHistory.history_of(fc).group('Add exclusion zones'):
+        first.add_exclusion_zones([zone])
+        second.add_exclusion_zones([zone])
+    assert len(fc.history.undo_stack) == steps + 1
+    assert fc.history.undo()
+    assert first.exclusion_zones == [] and second.exclusion_zones == []
+    assert fc.history.redo()
+    assert first.exclusion_zones == [zone] and second.exclusion_zones == [zone]
+
+
 def test_create_undo_redo(fc, no_plot):
     count = len(fc.collection.get_list())
     grb = _load(fc, 'gerber', 'unify_mixed.gbr', 'g_create')

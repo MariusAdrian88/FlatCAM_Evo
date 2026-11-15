@@ -1713,3 +1713,95 @@ class TestPlotTransformedMany(unittest.TestCase):
         want = [(x + 3.0, y - 2.0) for x, y in positions]
         np.testing.assert_allclose(job.annotation._collection.data[0]['pos'], want)
         np.testing.assert_allclose(job.annotations_dict[0.2]['pos'], want)
+
+
+# ======================================================================
+# exclusion zones drawn by their object
+# ======================================================================
+ZONE_PLOT_OPTS = {"global_graphic_engine_3d_no_mp": True, "global_backface_culling": True}
+
+
+@pytest.fixture
+def zone_gerber():
+    from vispy.gloo.context import FakeCanvas
+    from shapely.geometry import box
+    from appGUI.VisPyVisuals import ShapeCollectionVisual, ShapeGroup
+    from tests.helpers_objects import make_app, make_gerber
+    canvas = FakeCanvas()  # noqa: F841  gloo needs a current canvas
+    app = make_app()
+    collection = ShapeCollectionVisual(linewidth=1, layers=3, pool=None, fcoptions=ZONE_PLOT_OPTS)
+    app.plotcanvas.new_shape_group.side_effect = lambda *a, **k: ShapeGroup(collection)
+    obj = make_gerber(app)
+    obj.obj_options['plot'] = True
+    obj.exclusion_zones = [box(1, 1, 2, 2), box(5, 5, 7, 6)]
+    obj.collection = collection
+    return obj
+
+
+def _zones_drawn(obj):
+    """[(visible, bounds of the drawn outline)] of the zone shapes of the object."""
+    data = obj.zone_shapes._collection.data
+    return [(data[k]['visible'], tuple(np.asarray(data[k]['line_pts']).min(axis=0)[:2].round(6)) +
+             tuple(np.asarray(data[k]['line_pts']).max(axis=0)[:2].round(6))) for k in obj.zone_shapes._indexes]
+
+
+def _plot(obj):
+    obj.plot(color='#112233FF', face_color='#44556677')
+
+
+def test_zones_of_a_source_are_drawn_only_while_the_panel_is_open(zone_gerber):
+    obj = zone_gerber
+    _plot(obj)
+    assert _zones_drawn(obj) == []
+    obj.set_zones_panel_open(True)
+    assert [b for _v, b in _zones_drawn(obj)] == [(1, 1, 2, 2), (5, 5, 7, 6)]
+    _plot(obj)                                  # a replot keeps them (and does not double them)
+    assert len(_zones_drawn(obj)) == 2
+    obj.set_zones_panel_open(False)
+    assert _zones_drawn(obj) == []
+
+
+def test_zones_of_an_output_follow_the_plot_option_and_the_visibility(zone_gerber):
+    from appObjects.AppObjectTemplate import FlatCAMObj
+    obj = zone_gerber
+    obj.zones_always_drawn = True
+    obj.obj_options['plot'] = False
+    _plot(obj)
+    assert _zones_drawn(obj) == []
+    obj.obj_options['plot'] = True
+    _plot(obj)
+    assert len(_zones_drawn(obj)) == 2
+
+    assert obj.show_plotted_shapes(False)
+    assert _zones_drawn(obj) == []
+    assert obj.show_plotted_shapes(True)
+    assert len(_zones_drawn(obj)) == 2
+
+    FlatCAMObj.visible.fset(obj, False, False)  # the visible setter, not threaded
+    assert _zones_drawn(obj) == []
+    FlatCAMObj.visible.fset(obj, True, False)
+    assert len(_zones_drawn(obj)) == 2 and all(v for v, _b in _zones_drawn(obj))
+
+
+def test_zones_are_drawn_where_the_object_moved_and_leave_with_the_object(zone_gerber):
+    obj = zone_gerber
+    obj.zones_always_drawn = True
+    _plot(obj)
+    obj.offset((3.0, -1.0))
+    assert obj.plot_transformed((1.0, 0.0, 0.0, 1.0, 3.0, -1.0))
+    assert [b for _v, b in _zones_drawn(obj)] == [(4, 0, 5, 1), (8, 4, 10, 5)]
+    obj.clear()                                 # the delete / project close path
+    assert _zones_drawn(obj) == []
+    obj.deleted = True
+    obj.plot_zones()
+    assert _zones_drawn(obj) == []
+
+
+def test_zones_can_be_plotted_from_a_worker_thread(zone_gerber):
+    import threading
+    obj = zone_gerber
+    obj.zones_always_drawn = True
+    worker = threading.Thread(target=lambda: _plot(obj))
+    worker.start()
+    worker.join(10)
+    assert len(_zones_drawn(obj)) == 2
