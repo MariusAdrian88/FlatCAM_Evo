@@ -628,6 +628,9 @@ class ClearingToolBase(AppTool):
         """Let the user draw exclusion zones with the area selection mouse handlers (right click or Escape ends)."""
         if self.selector.active:
             return
+        if not self.live_zone_sources():
+            self.app.inform.emit('[WARNING_NOTCL] %s' % _("There is no object to add the exclusion zones to."))
+            return
         self.clear_preview()
         self.start_area_selection(exclusion=True)
 

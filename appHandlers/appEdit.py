@@ -133,6 +133,7 @@ class appEditor(QtCore.QObject):
             new_obj.tools = deepcopy_keep_geometry(tools)
             for k in new_obj.tools:
                 new_obj.tools[k]['solid_geometry'] = deepcopy_keep_geometry(obj.solid_geometry)
+            merge_zones(new_obj, [obj])
 
         def initialize_from_excellon(new_obj, app_obj):
             app_obj.log.debug("Excellon converted to Geometry: %s" % str(obj.obj_options["name"]))
@@ -194,6 +195,7 @@ class appEditor(QtCore.QObject):
 
             obj_init.solid_geometry = deepcopy_keep_geometry(shapes)
             obj_init.tools = deepcopy_keep_geometry(apertures)
+            merge_zones(obj_init, [obj])
 
             if not obj_init.tools:
                 app_obj.log.warning("convert_any2gerber() failed")

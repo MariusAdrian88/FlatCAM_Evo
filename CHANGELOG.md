@@ -13,14 +13,38 @@ Copper Clearing (NCC) and Paint:
 - changed: the exclusion zones of NCC and Paint belong to the source object (Gerber or Geometry), not to the plugin: Add area adds zones to the selected object, Delete all removes its zones; with "All selected objects" both act on every selected object; each edit is 1 undo step
 - added: the zones of an object are saved in the project, kept by Copy and Join, and move with the object (move, scale, mirror, rotate, skew, units change, undo of a transform); Panelize does not copy them
 - added: the zones of a source object are on the canvas while the NCC or Paint panel shows it; Reset keeps them; closing the panel or opening another plugin takes them off the canvas
-- added: the NCC / Paint output Geometry keeps a copy of the zones that the job used and always shows them; deleting the output deletes them; a later change of the source zones does not change the output
-- changed: Tcl ncc / paint use the zones stored on the object plus the polygons of -exclude, for that run only (the object is not changed)
+- changed: the NCC / Paint output Geometry keeps no exclusion zones; the zones stay on the source object
+- changed: with "All selected objects", each source object is limited only by its own zones (before: the zones of all the selected objects limited each of them)
+- changed: Tcl ncc / paint ignore the zones stored on the object, so old scripts give the same paths; -use_zones 1 applies them; the polygons of -exclude always apply, for that run only (the object is not changed)
 - fixed: NCC warned about uncut areas only for a polygon that failed: a branch narrower than the tool gave no warning; the rest machining warned about the corner residue of a fully cleared area; NCC and Paint now measure the area that no tool cut, with the smallest tool that cut (before, Paint measured only the last tool, so the ascending order gave a false warning)
 - fixed: after a Reset or a new source, the NCC Preview of Polygon Selection drew the regions of the earlier job
 - fixed: when another plugin opened in the place of the NCC or Paint panel, the selection mode, the preview and the zones stayed on the canvas; a plugin is now told when another one replaces its panel
 - fixed: closing the NCC or Paint tab with a second click on its toolbar button did not clean up the canvas
 - fixed: after the NCC or Paint panel closed or another plugin replaced it, a new selection in the project (or a toolbar close of the tab) showed the exclusion zones of its source again
 - fixed: a change of "Use exclusion areas" in NCC and Paint did not clear the preview, so the preview showed a region that Generate does not use
+- fixed: a project switch, the Distance plugins or the end of an editor took the NCC / Paint panel away without its cleanup, so the zones stayed on the canvas
+- fixed: an edit of the exclusion zones did not mark the project as changed, so the application closed without the save question and the zones were lost
+- fixed: Polygon Selection also took overlapping polygons that were not clicked
+- fixed: the Paint exclusion shape did not take the Area Shape preference; Add area without a source object let the user draw zones and then discarded them
+- fixed: Tcl paint read the "Check validity" box of the Paint panel
+- fixed: an error of the measurement of the uncut area after the last tool failed a job whose paths were done; after a final cleanup the uncut-area warning used the last tool, not the cleanup tool; a failed NCC job said "Failed." 2 times
+- fixed: the cutter clearance of the Paint exclusion zones was slow for zones with many vertices (12800 vertices: 3.3 s -> 5 ms)
+- fixed: the NCC progressive plot was cleared from the worker thread
+
+Tools Database:
+
+- fixed: the NCC Direction was drawn over the Crosshatch Angle; the Drill "last drill" label covered its checkbox
+
+Geometry and G-code:
+
+- fixed: a Milling tool offset turned the rings of a clearing tool with a Direction clockwise, so Climb was cut conventional
+- fixed: a mirror (or a negative scale) of an NCC / Paint Geometry with a Direction changed Climb into conventional; the paths of such a tool are now reversed by a mirror
+- fixed: Milling with Optimization Type "No" stopped with an error
+- changed: the last lift of a path goes up at the real end point of the path (it used the previous point; visible on Roland preprocessors, whose lift carries X and Y)
+
+Gerber editor and Convert:
+
+- fixed: a transform of all the shapes in the Gerber editor did not move the exclusion zones of the object; Convert Gerber <-> Geometry did not keep the zones
 
 14.11.2026
 

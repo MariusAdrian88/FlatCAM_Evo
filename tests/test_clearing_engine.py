@@ -503,48 +503,146 @@ def test_all_selected_objects_share_one_edit_and_the_run_uses_the_union(zone_pan
     assert panel.a.exclusion_zones == [] and panel.b.exclusion_zones == []
 
 
-def generate(panel):
-    """Click Generate (the whole object); returns the output object of the run."""
+def click(panel):
+    """Click Generate (the whole object)."""
     panel.tool.ui.select_method_combo.set_value(0)
     (panel.tool.gen.on_ncc_click if panel.kind == 'ncc' else panel.tool.gen.on_paint_button_click)()
+
+
+def generate(panel):
+    """Click Generate; returns the output object of the run."""
+    click(panel)
     return panel.plugin.result()
 
 
-def test_output_keeps_a_copy_of_the_zones_the_run_used(zone_panel):
+def record_specs(monkeypatch):
+    """Replace the run of the job: the specs that the resolvers made, in the order of the runs."""
+    from appPlugins.Common.clearing.job import ClearingJob
+    specs = []
+    monkeypatch.setattr(ClearingJob, 'run', lambda self, spec, run_threaded=True: specs.append(spec))
+    return specs
+
+
+def zones_of_spec(spec):
+    return list(spec.exclusion_zones) or None
+
+
+def test_every_source_is_limited_by_its_own_zones_only(zone_panel, monkeypatch):
     panel = zone_panel
-    panel.tool.on_exclusion_zones([ZONE_A])
+    panel.a.set_exclusion_zones([ZONE_A])
+    panel.b.set_exclusion_zones([ZONE_B])
+    panel.multi([panel.a, panel.b])
     panel.tool.ui.excl_cb.set_value(True)
-    output = generate(panel)
-    assert output.exclusion_zones == [ZONE_A] and output.zones_always_drawn is True
-    # a later edit of the source does not change what the run used
-    panel.tool.on_exclusion_zones([ZONE_B])
-    assert panel.a.exclusion_zones == [ZONE_A, ZONE_B] and output.exclusion_zones == [ZONE_A]
+    specs = record_specs(monkeypatch)
+    click(panel)
+    by_source = {spec.origin: zones_of_spec(spec) for spec in specs}
+    assert by_source == {panel.a: [ZONE_A], panel.b: [ZONE_B]}
 
 
-def test_output_has_no_zones_when_the_exclusion_option_is_off(zone_panel):
+def test_the_output_keeps_no_zones_and_the_option_off_applies_none(zone_panel, monkeypatch):
     panel = zone_panel
     panel.tool.on_exclusion_zones([ZONE_A])
     panel.tool.ui.excl_cb.set_value(False)
+    specs = record_specs(monkeypatch)
+    click(panel)
+    assert [spec.exclusion for spec in specs] == [None]
+    panel.tool.ui.excl_cb.set_value(True)
+    monkeypatch.undo()
     output = generate(panel)
-    assert output.exclusion_zones == [] and not output.zones_always_drawn
+    assert not getattr(output, 'exclusion_zones', None) and not getattr(output, 'zones_always_drawn', False)
     assert panel.a.exclusion_zones == [ZONE_A]
 
 
 @pytest.mark.parametrize('kind', ['ncc', 'paint'])
-def test_tcl_run_uses_the_zones_of_the_source_plus_exclude_and_leaves_the_source_alone(qapp, tmp_path, kind):
+def test_tcl_run_ignores_the_zones_of_the_source_unless_use_zones(qapp, tmp_path, monkeypatch, kind):
     panel = ZonePanel(qapp, tmp_path, kind)
     try:
         panel.a.set_exclusion_zones([ZONE_A])
-        panel.tool.ui.excl_cb.set_value(False)      # a script ignores the panel option
+        panel.tool.ui.excl_cb.set_value(True)       # a script ignores the panel option
         gen = panel.tool.gen
-        if kind == 'ncc':
-            gen.clear_copper_tcl(panel.a, ncc_tooldia='0.4', outname='a_ncc', plot=False, run_threaded=False,
-                                 exclusion_areas=[ZONE_B])
-        else:
-            gen.exclusion_source = [ZONE_B]
-            gen.paint_poly_all(obj=panel.a, tooldia='0.4', outname='a_paint', plot=False, run_threaded=False)
-        output = panel.plugin.result()
-        assert output.exclusion_zones == [ZONE_A, ZONE_B] and output.zones_always_drawn is True
+        specs = record_specs(monkeypatch)
+
+        def run(use_zones, exclude):
+            if kind == 'ncc':
+                gen.clear_copper_tcl(panel.a, ncc_tooldia='0.4', outname='a_ncc', plot=False, run_threaded=False,
+                                     exclusion_areas=exclude, use_zones=use_zones)
+            else:
+                gen.exclusion_source, gen.use_object_zones = exclude, use_zones
+                try:
+                    gen.paint_poly_all(obj=panel.a, tooldia='0.4', outname='a_paint', plot=False, run_threaded=False)
+                finally:
+                    gen.exclusion_source, gen.use_object_zones = type(gen).exclusion_source, False
+
+        run(False, None)
+        run(False, [ZONE_B])
+        run(True, [ZONE_B])
+        assert [zones_of_spec(spec) for spec in specs] == [None, [ZONE_B], [ZONE_A, ZONE_B]]
         assert panel.a.exclusion_zones == [ZONE_A]
+    finally:
+        panel.close()
+
+
+def test_cutter_expansion_keeps_the_radius_on_a_sharp_zone_and_is_fast():
+    import time
+    import shapely
+    from shapely import LineString, Polygon
+    from appPlugins.Common.clearing import regions
+    radius = 0.2
+    needle = Polygon([(0, 0), (30, 0.05), (0, 0.1)])
+    expansion = regions.cutter_expansion(needle, radius, 4)
+    outline = expansion.boundary
+    # every point outside the expansion is at least the radius from the zone, also at the tip of the needle
+    points = [outline.interpolate(f, normalized=True) for f in np.linspace(0, 1, 2000)]
+    assert min(needle.distance(point) for point in points) >= radius - 1e-8
+    angle = np.linspace(0, 2 * np.pi, 12800, endpoint=False)
+    big = Polygon(np.column_stack([50 + 40 * np.cos(angle) * (1 + 0.1 * np.sin(40 * angle)), 40 * np.sin(angle)]))
+    start = time.perf_counter()
+    regions.cutter_expansion(big, radius, 16)
+    assert time.perf_counter() - start < 0.1
+    assert shapely.is_valid(expansion)
+
+
+def test_an_unmeasurable_stock_does_not_fail_the_run(monkeypatch):
+    import shapely
+    from shapely import LineString
+    from appPlugins.Common.clearing.job import stock_is_left
+
+    def broken(*args, **kwargs):
+        raise shapely.errors.GEOSException('TopologyException')
+
+    monkeypatch.setattr(regions, 'swept_area', broken)
+    cut = [(box(0, 0, 2, 2), [LineString([(0, 1), (2, 1)])], 0.4)]
+    assert regions.uncut_stock(cut, lambda dia: 8) == (None, None)
+    # no stock to measure: the flag of the run decides
+    assert stock_is_left(None, None, failed=True) is True and stock_is_left(None, None, failed=False) is False
+
+
+def test_a_script_never_reads_the_check_validity_box_of_the_paint_panel(qapp, tmp_path, monkeypatch):
+    panel = ZonePanel(qapp, tmp_path, 'paint')
+    try:
+        specs = record_specs(monkeypatch)
+        panel.tool.ui.valid_cb.set_value(True)
+        gen = panel.tool.gen
+        gen.exclusion_source = None
+        try:
+            gen.paint_poly_all(obj=panel.a, tooldia='0.4', outname='a_paint', plot=False, run_threaded=False)
+        finally:
+            gen.exclusion_source = type(gen).exclusion_source
+        assert specs[0].check_validity is False
+    finally:
+        panel.close()
+
+
+def test_a_crashed_ncc_job_says_failed_once(qapp, tmp_path, monkeypatch):
+    from appPlugins.ToolNCC.NccGen import NccGen
+    panel = ZonePanel(qapp, tmp_path, 'ncc')
+    try:
+        def crash(self, spec):
+            raise RuntimeError('boom')
+
+        monkeypatch.setattr(NccGen, 'prepare_job', crash)
+        click(panel)
+        said = [c.args[0] for c in panel.app.inform.emit.call_args_list if 'Failed' in str(c.args[0])]
+        assert len(said) == 1, said
     finally:
         panel.close()

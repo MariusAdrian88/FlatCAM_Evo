@@ -189,7 +189,12 @@ def generate_rest_paint(geometry, tools_storage, diameters, simplification, deci
         # the last tool leaves the stock it did not sweep (the loop subtracts only what a next tool still needs)
         run, diameter, cleared = state['last']
         segments = sweep_quad_segs(diameter, edge_error, tool_quad_segs(steps_at, diameter))
-        stock = stock.difference(swept_area(cleared, diameter, segments))
+        try:
+            stock = stock.difference(swept_area(cleared, diameter, segments))
+        except (shapely.errors.ShapelyError, ValueError) as err:
+            # the paths are done: an invalid stock only leaves the stock unmeasured, never fails the job
+            log.error("Paint: the stock of the run could not be measured --> %s" % str(err))
+            stock = None
     else:
         stock = None
     return {'tools': tools, 'output_tools': output_tools, 'warnings': warnings, 'stock': stock,

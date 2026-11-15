@@ -87,7 +87,7 @@ class ObjectDistance(AppTool):
             self.app.ui.notebook.setCurrentWidget(self.app.ui.plugin_tab)
 
         # Remove anything else in the appGUI
-        self.app.ui.plugin_scroll_area.takeWidget()
+        self.release_plugin_panel(self.app, keep=self)
 
         # Put oneself in the appGUI
         self.app.ui.plugin_scroll_area.setWidget(self)

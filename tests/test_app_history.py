@@ -2257,3 +2257,16 @@ def test_delete_inactive_keeps_surviving_properties(bulk):
     AppObjectOps.delete_objects_now(holder, [gone, other] if bulk else [gone])
     app.setup_default_properties_tab.assert_not_called()
     assert active in objects
+
+
+def test_zone_edit_marks_the_project_as_changed(fc, no_plot):
+    from shapely.geometry import box
+    grb = _load(fc, 'gerber', 'unify_mixed.gbr', 'g_zone_save')
+    fc.should_we_save = False
+    grb.add_exclusion_zones([box(0, 0, 1, 1)])
+    assert fc.should_we_save is True
+    fc.should_we_save = False
+    grb.clear_exclusion_zones()
+    assert fc.should_we_save is True
+    fc.should_we_save = False
+    assert fc.history.undo() and fc.should_we_save is True

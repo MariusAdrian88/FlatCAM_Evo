@@ -92,6 +92,7 @@ class AreaSelector:
         self.faces = []
         self.tolerance = None
         self.points = []
+        self.picked = {}        # clicked point -> the face it picked
         self.shapes = {}
         self.snap_was_on = False
 
@@ -175,7 +176,7 @@ class AreaSelector:
         commit = self.commit
         if self.mode == CLICK:
             points = list(self.points)
-            faces = [face for face in self.faces if any(face.contains(shapely.Point(p)) for p in points)]
+            faces = [self.picked[p] for p in points]
             result = (points, faces) if points else None
         else:
             result = (list(self.zones),) if self.zones else None
@@ -293,9 +294,10 @@ class AreaSelector:
             if face is None:
                 app.inform.emit(_("No polygon detected under click position."))
                 return
-            known = [point for point in self.points if face.contains(shapely.Point(point))]
+            known = [point for point in self.points if self.picked[point] is face]
             for point in known:
                 self.points.remove(point)
+                self.picked.pop(point)
                 app.tool_shapes.remove(self.shapes.pop(point))
             if known:
                 app.inform.emit(_("Removed polygon. Click to add / remove the next one or right click to start."))
@@ -304,6 +306,7 @@ class AreaSelector:
                 extra = {} if self.tolerance is None else {'tolerance': self.tolerance}
                 point = (pos[0], pos[1])
                 self.points.append(point)
+                self.picked[point] = face
                 self.shapes[point] = app.tool_shapes.add(
                     layer=0, shape=face, color=color, face_color=color, visible=True, **extra)
                 app.inform.emit('%s: %d. %s' % (

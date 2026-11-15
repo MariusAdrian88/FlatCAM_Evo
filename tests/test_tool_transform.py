@@ -398,5 +398,77 @@ def test_units_conversion_scales_the_exclusion_zones(kind):
     assert zone.symmetric_difference(copper_of(obj)).area < 1e-9
 
 
+@pytest.mark.parametrize('op', ['mirror_x', 'mirror_y', 'negative_scale', 'rotate', 'offset'])
+def test_a_transform_keeps_the_cut_direction_of_a_clearing_tool(op):
+    from shapely import LinearRing, LineString
+    obj = zoned_object('geometry')
+    ring = LinearRing([(1, 1), (3, 1), (3, 3), (1, 3)])
+    line = LineString([(0, 0), (5, 0), (5, 2)])
+    obj.tools = {1: dict(obj.default_tool(), solid_geometry=[ring, line], data={'tools_mill_keep_direction': True}),
+                 2: dict(obj.default_tool(), solid_geometry=[ring, line], data={})}
+    ops = dict(OPS, negative_scale=lambda o: o.scale(-1.0, 1.0, (1.0, 1.0)))
+    ops[op](obj)
+    kept, plain = obj.tools[1]['solid_geometry'], obj.tools[2]['solid_geometry']
+    # the ring is cut the same way round relative to the material; a tool without a direction is left as it was
+    assert kept[0].is_ccw == ring.is_ccw
+    assert (plain[0].is_ccw == ring.is_ccw) == (op in ('rotate', 'offset'))
+    assert list(kept[1].coords) == (list(plain[1].coords) if op in ('rotate', 'offset') else list(plain[1].coords)[::-1])
+    if op.startswith('mirror'):
+        # the undo of a mirror is the same mirror: the paths come back as they were
+        ops[op](obj)
+        assert list(obj.tools[1]['solid_geometry'][0].coords) == list(ring.coords)
+        assert list(obj.tools[1]['solid_geometry'][1].coords) == list(line.coords)
+
+
+@pytest.mark.parametrize('kind, target', [('gerber', 'geometry'), ('geometry', 'gerber')])
+def test_convert_between_gerber_and_geometry_carries_the_exclusion_zones(kind, target):
+    from appHandlers.appEdit import appEditor
+    src = zoned_object(kind)
+    src.obj_options['name'] = 'src'
+    src.kind = kind
+    made = {}
+
+    def new_object(new_kind, name, init):
+        obj = zoned_object(new_kind)
+        obj.exclusion_zones = []
+        init(obj, src.app)
+        made[new_kind] = obj
+
+    editor = SimpleNamespace(
+        defaults=MagicMock(), log=MagicMock(), inform=MagicMock(), app_obj=SimpleNamespace(new_object=new_object),
+        collection=SimpleNamespace(get_selected=lambda: [src]),
+        build_geometry_tool_table=lambda: ({}, {1: {'tooldia': 0.1, 'data': {}, 'solid_geometry': []}}, [0.1]))
+    getattr(appEditor, 'convert_any2geo' if target == 'geometry' else 'convert_any2gerber')(editor)
+    assert [z.wkb for z in made[target].exclusion_zones] == [z.wkb for z in src.exclusion_zones]
+
+
+def test_gerber_editor_transform_of_all_shapes_moves_the_exclusion_zones_on_save():
+    from shapely.geometry import box
+    from appEditors.grb_plugins.GrbHistory import GerberHistory
+    from appEditors.appGerberEditor import AppGerberEditor
+    from camlib import AFFINE_IDENTITY, affine_mirror_matrix, affine_translate_matrix
+    from tests.helpers_objects import make_gerber
+
+    source = zoned_object('gerber')
+    edited = make_gerber(source.app)
+    edited.solid_geometry = [box(2, 3, 6, 5)]
+    a, b = object(), object()
+    editor = SimpleNamespace(storage_dict={10: {'geometry': [a, b]}}, zone_matrix=AFFINE_IDENTITY)
+    history = GerberHistory(editor)
+    # a transform of part of the shapes leaves the zones where they are
+    history.track_zones([a], affine_translate_matrix(100, 0))
+    assert editor.zone_matrix == AFFINE_IDENTITY
+    history.track_zones([a, b], affine_translate_matrix(10, 0))
+    history.track_zones([b, a], affine_mirror_matrix('Y', (0, 0)))
+    zone_before = source.exclusion_zones[0]
+    AppGerberEditor.apply_edited_gerber(source, edited, editor.zone_matrix)
+    # translate by 10, then mirror about x = 0: x -> -(x + 10)
+    assert source.exclusion_zones[0].bounds == pytest.approx((-16, 3, -12, 5))
+    assert not source.exclusion_zones[0].equals(zone_before)
+    unchanged = zoned_object('gerber')
+    AppGerberEditor.apply_edited_gerber(unchanged, edited)
+    assert unchanged.exclusion_zones[0].bounds == pytest.approx((2, 3, 6, 5))
+
+
 if __name__ == '__main__':
     unittest.main()

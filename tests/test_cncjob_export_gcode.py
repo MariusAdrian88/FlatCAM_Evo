@@ -1111,6 +1111,26 @@ class TestMillingGcodeFixes:
         assert cuts == [[(0, 0), (5, 0)]] * 3 + [[(10, 0), (6, 0)]] * 3
         assert low_rapids == []
 
+    @pytest.mark.parametrize('offset', [0.1, -0.1])
+    @pytest.mark.parametrize('multidepth', [False, True])
+    @pytest.mark.parametrize('ccw', [True, False])
+    def test_keep_direction_offset_ring_keeps_its_turn(self, offset, multidepth, ccw):
+        coords = [(0, 0), (4, 0), (4, 4), (0, 4)]
+        ring = LinearRing(coords if ccw else coords[::-1])
+        assert ring.is_ccw == ccw
+        __, gcode = multi_geo_gcode([ring], data=dict(
+            tools_mill_keep_direction=True, tools_mill_offset_value=offset, tools_mill_multidepth=multidepth,
+            tools_mill_depthperpass=0.1, tools_mill_cutz=-0.3 if multidepth else -0.05))
+        cuts = gcode_tokens(gcode)[1]
+        assert len(cuts) == (3 if multidepth else 1)
+        for pts in cuts:
+            assert shapely.Polygon(pts).exterior.is_ccw == ccw
+
+    def test_optimization_type_no_generates_gcode(self):
+        __, gcode = multi_geo_gcode(TWO_LINES, data=dict(tools_mill_optimization_type='No'))
+        assert gcode != 'fail'
+        assert gcode_tokens(gcode)[1] == [[(0, 0), (10, 0)], [(10, 1), (20, 1)]]
+
     def test_extra_cut_goes_on_along_the_path_after_the_start_point(self):
         # the isolation ring of a 0.3 x 0.3 mm pad for a 0.1 mm tool, Extra Cut 1.0: before, the tool went from the
         # start point straight to a later vertex (across the corner, into the pad) and walked back

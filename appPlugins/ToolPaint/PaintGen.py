@@ -40,7 +40,7 @@ from appParsers.feature_access import fused_solid
 from appCommon.SafeEval import safe_eval
 from appPlugins.ToolPaint import PaintModel
 from appPlugins.Common.clearing import regions
-from appPlugins.Common.clearing.job import ClearingJob, PAINT, stock_is_left
+from appPlugins.Common.clearing.job import ClearingJob, MainThreadCall as _MainThreadCall, PAINT, stock_is_left
 from appPlugins.Common.clearing.params import (
     JobSpec, SourceSnapshot, copy_geometry, distinct_zones, freeze_options, object_zones, tool_spec,
     tool_direction)
@@ -81,22 +81,10 @@ class PaintSelectionError(Exception):
 
 PAINT_PROFILE = replace(PAINT, user_errors=(PaintSelectionError,))
 
-# PaintGen.exclusion_source: the zones of the sources of the panel (the default); Tcl sets the polygons of its -exclude
-# (a list of polygons or a geometry) or None: a script uses the zones stored on the painted object plus those
+# PaintGen.exclusion_source: the zones of the panel (the default: the zones of the painted object, when the panel option
+# is on); Tcl sets the polygons of its -exclude (a list of polygons or a geometry) or None. A script uses the zones
+# stored on the painted object only when PaintGen.use_object_zones is on (-use_zones).
 GUI_ZONES = object()
-
-
-class _MainThreadCall(QtCore.QObject):
-    """Run a callable on the thread this object lives in (the GUI thread) when it is requested from another."""
-    requested = QtCore.pyqtSignal(object)
-
-    def __init__(self):
-        super().__init__()
-        self.requested.connect(self._run)
-
-    @staticmethod
-    def _run(function):
-        function()
 
 
 def _on_gui_thread():
@@ -146,6 +134,7 @@ class PaintGen:
     # the exclusion of the next job: GUI_ZONES (the zones of the panel), None or polygons (Tcl). The G-code
     # travel areas of the application (app.exc_areas) are a different thing.
     exclusion_source = GUI_ZONES
+    use_object_zones = False        # Tcl: apply the zones stored on the painted object (-use_zones)
 
     paint_tools = _live_state('paint_tools')
     temp_shapes = _live_state('temp_shapes')
@@ -382,7 +371,12 @@ class PaintGen:
         if sorted_paint_tools == 'fail':
             return 'fail'
         sorted_paint_tools = list(sorted_paint_tools)
-        check_valid = bool(self._ui_value('valid_cb', 'tools_paint_check_valid'))
+        extra = self.exclusion_source
+        if extra is GUI_ZONES:
+            check_valid = bool(self._ui_value('valid_cb', 'tools_paint_check_valid'))
+        else:
+            # a script never reads the widget of the panel
+            check_valid = bool(self._option('tools_paint_check_valid'))
         options = freeze_options(self.app)
         units = self.app.units
         app_units = getattr(self.app, 'app_units', units)
@@ -391,15 +385,15 @@ class PaintGen:
             uid = self._find_tool_uid(diameter, params.tools_storage)
             if uid is not None:
                 specs.append(tool_spec(uid, diameter, params.tools_storage[uid]['data'], 'tools_paint_', 'offset'))
-        extra = self.exclusion_source
         if extra is GUI_ZONES:
+            # the panel option is on: each painted object is limited by its own zones only
             zones_of = getattr(self.parent_tool, 'exclusion_zone_list', None)
-            zones = zones_of() if callable(zones_of) else []
+            zones = object_zones(painted_object) if callable(zones_of) and zones_of() else []
         else:
-            # a script: the zones stored on the painted object and the ones of its -exclude, for this run only
+            # a script: the ones of its -exclude, and the zones stored on the painted object with -use_zones
             if isinstance(extra, BaseGeometry):
                 extra = [poly for poly in flatten_shapely_geometry(extra) if isinstance(poly, Polygon)]
-            zones = object_zones(painted_object) + list(extra or ())
+            zones = (object_zones(painted_object) if self.use_object_zones else []) + list(extra or ())
         zones = [zone for zone in distinct_zones(zones) if not zone.is_empty]
         exclusion = unary_union(zones) if zones else None
         return JobSpec(
@@ -650,7 +644,7 @@ class PaintGen:
         tolerance = clearing_error(self.app) or radius * (1 - math.cos(math.pi / (4 * quad)))
         paths, failed = regions.clip_clear(paths, self._exclusion, radius, self._expansion(radius, obj), domain,
                                            min_length=radius * 0.1, physical=self._physical_selection(offset),
-                                           tolerance=tolerance)
+                                           tolerance=tolerance, quad_segs=quad)
         if failed:
             self.app.inform.emit('[WARNING_NOTCL] %s' % (_("Paths too close to an exclusion zone were dropped: %d")
                                                          % failed))
@@ -798,7 +792,8 @@ class PaintGen:
             return ClearingJob.finish_output(
                 self, output, app_obj, stock=finished['residual'] if cleaned else result.get('stock'),
                 # a normal run measures its stock with the smallest tool that cut
-                last_diameter=result.get('last_diameter') if cleaned else
+                # the cleanup is measured with the tool that ran it: the flag agrees with the cleanup warning
+                last_diameter=finished['cleanup_diameter'] if cleaned else
                 result.get('stock_diameter') or result.get('last_diameter'), warn=not cleaned)
         except grace:
             return 'fail'

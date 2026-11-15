@@ -105,9 +105,15 @@ def uncut_stock(cuts, quad_segs_at):
     cuts = [(domain, paths, diameter) for domain, paths, diameter in cuts if paths]
     if not cuts:
         return None, None
-    domain = shapely.union_all([shapely.union_all(list(flatten_shapely_geometry(item[0]))) for item in cuts])
-    swept = shapely.union_all([swept_area(paths, diameter, quad_segs_at(diameter)) for _d, paths, diameter in cuts])
-    return domain.difference(swept), min(diameter for _d, _p, diameter in cuts)
+    try:
+        domain = shapely.union_all([shapely.union_all(list(flatten_shapely_geometry(item[0]))) for item in cuts])
+        swept = shapely.union_all(
+            [swept_area(paths, diameter, quad_segs_at(diameter)) for _d, paths, diameter in cuts])
+        return domain.difference(swept), min(diameter for _d, _p, diameter in cuts)
+    except (shapely.errors.ShapelyError, ValueError) as err:
+        # the paths are done: an invalid domain (a bowtie) only leaves the stock unmeasured, never fails the job
+        log.error("Clearing: the stock of the run could not be measured --> %s" % str(err))
+        return None, None
 
 
 def buffer_geometry(geometry, offset):
@@ -173,27 +179,21 @@ def physical_domain(polygons, exclusion):
 
 # a path nearer than radius - STRICT_TOLERANCE to the original exclusion fails the strict check (float noise only)
 STRICT_TOLERANCE = 1e-9
+BUFFER_GUARD = 0.01     # the simplification of the input of a GEOS buffer: 1 % of the distance
 
 
 def cutter_expansion(exclusion, radius, quad_segs=16):
     """
     The exclusion grown by the cutter radius, on the safe side. A Shapely round buffer has its arc vertices on the
     true circle, so its chords lie inside it and a center line can be outside the buffer and still nearer than the
-    radius. This region is built from the edges (flat rectangles, exact) and from a polygon around each vertex whose
-    inscribed circle has the radius (the vertices lie at radius / cos(pi / (4 * quad_segs)), the correction of the
-    NCC isolation clip). A point outside it is never nearer to the exclusion than the radius minus half the strict
-    tolerance; a straight offset edge at exactly the radius is outside it.
+    radius. One buffer with the radius / cos(pi / (4 * quad_segs)) (the correction of the NCC isolation clip) puts
+    every chord at the radius or beyond. A point outside it is never nearer to the exclusion
+    than the radius minus half the strict tolerance.
     """
     inner = radius - STRICT_TOLERANCE / 2
-    reach = inner / math.cos(math.pi / (4 * quad_segs))
-    parts = [exclusion]
-    for polygon in polygon_parts(exclusion):
-        for ring in [polygon.exterior, *polygon.interiors]:
-            coords = np.asarray(ring.coords)
-            edges = shapely.linestrings(np.stack([coords[:-1], coords[1:]], axis=1))
-            parts.extend(shapely.buffer(edges, inner, quad_segs=quad_segs, cap_style='flat').tolist())
-            parts.extend(shapely.buffer(shapely.points(coords[:-1]), reach, quad_segs=quad_segs).tolist())
-    return shapely.union_all(parts)
+    # GEOS simplifies the input of a buffer by up to 1 % of the distance: the guard covers it
+    reach = inner / math.cos(math.pi / (4 * quad_segs)) * (1 + BUFFER_GUARD) + STRICT_TOLERANCE
+    return exclusion.buffer(reach, quad_segs)
 
 
 def allowed_centers(domain, exclusion, radius, quad_segs=16):
@@ -216,10 +216,10 @@ def _expansion_rings(expansion):
     return rings
 
 
-def _along_ring(rings, end, start, limit):
+def _along_ring(rings, end, start, limit, snap=1e-7):
     """The coordinates along the expansion boundary from end to start (the shorter way), None if not possible."""
     for ring in rings:
-        if ring.distance(end) > 1e-7 or ring.distance(start) > 1e-7:
+        if ring.distance(end) > snap or ring.distance(start) > snap:
             continue
         line = LineString(ring.coords)
         total = line.length
@@ -255,7 +255,40 @@ def _bridge_inside(coords, physical, radius, tolerance):
         physical.boundary, bridge, radius - max(tolerance, STRICT_TOLERANCE))
 
 
-def clip_clear(paths, exclusion, radius, expansion, domain=None, min_length=0.0, physical=None, tolerance=0.0):
+def _cut_outside(path, expansion, rings, physical, radius, tolerance, snap=1e-7):
+    """The path without the part inside the expansion, the pieces joined along its boundary where that is allowed."""
+    pieces = _pieces_in_order(path, path.difference(expansion))
+    joined = pieces[:1]
+    for piece in pieces[1:]:
+        bridge = _along_ring(rings, Point(joined[-1].coords[-1]), Point(piece.coords[0]), 6 * radius, snap)
+        if bridge is None or not _bridge_inside(bridge, physical, radius, tolerance):
+            joined.append(piece)
+        else:
+            joined[-1] = LineString(list(joined[-1].coords) + bridge[1:] + list(piece.coords)[1:])
+    if path.is_closed and pieces:
+        # a closed path is cyclic: the end of the last piece goes to the start of the first one
+        bridge = _along_ring(rings, Point(joined[-1].coords[-1]), Point(joined[0].coords[0]), 6 * radius, snap)
+        if bridge is not None and _bridge_inside(bridge, physical, radius, tolerance):
+            closing = list(joined[-1].coords) + bridge[1:]
+            if len(joined) == 1:
+                joined[0] = LineString(closing)
+            else:
+                joined = [LineString(closing + list(joined[0].coords)[1:])] + joined[1:-1]
+    return joined
+
+
+def _violating_zone(path, exclusion, radius):
+    """The segments of the path that fail the strict check, a hair wider (None: there is none)."""
+    coords = shapely.get_coordinates(path)
+    segments = shapely.linestrings(np.stack([coords[:-1], coords[1:]], axis=1))
+    bad = shapely.dwithin(segments, exclusion, radius - STRICT_TOLERANCE)
+    if not bad.any():
+        return None
+    return shapely.union_all(shapely.buffer(segments[bad], 1e-7, quad_segs=1))
+
+
+def clip_clear(paths, exclusion, radius, expansion, domain=None, min_length=0.0, physical=None, tolerance=0.0,
+               quad_segs=16):
     """
     Keep the cutter out of the exclusion with center lines.
 
@@ -267,6 +300,10 @@ def clip_clear(paths, exclusion, radius, expansion, domain=None, min_length=0.0,
     A piece keeps the order of the coordinates of its path: the cut direction survives. A piece that still fails the
     check is dropped.
 
+    The expansion is conservative by the sag of its arcs, so it also covers a track that runs along a straight edge at
+    exactly the radius. Only the part of it near the segments that fail the strict check is cut out: such a track
+    survives. A cut ends at the track, up to the sag of the expansion away from its boundary: the bridge snaps to it.
+
     With a domain (laser lines) every path is clipped to the allowed cutter centers: the domain minus the expansion.
 
     :return: (paths, failed): the new list in the old order, and the number of pieces dropped by the strict check
@@ -275,6 +312,7 @@ def clip_clear(paths, exclusion, radius, expansion, domain=None, min_length=0.0,
     near = too_close(paths, exclusion, radius) if domain is None else [True] * len(paths)
     allowed = None if domain is None else domain.difference(expansion)
     rings = _expansion_rings(expansion) if domain is None and any(near) else []
+    snap = 2 * radius * (1 / math.cos(math.pi / (4 * quad_segs)) - 1) + 2 * BUFFER_GUARD * radius
     out, failed = [], 0
     for path, hit in zip(paths, near):
         if not hit or not isinstance(path, LineString):
@@ -284,24 +322,15 @@ def clip_clear(paths, exclusion, radius, expansion, domain=None, min_length=0.0,
             pieces = [piece for piece in flatten_shapely_geometry(path.intersection(allowed))
                       if isinstance(piece, LineString) and not piece.is_empty]
         else:
-            pieces = _pieces_in_order(path, path.difference(expansion))
-            joined = pieces[:1]
-            for piece in pieces[1:]:
-                bridge = _along_ring(rings, Point(joined[-1].coords[-1]), Point(piece.coords[0]), 6 * radius)
-                if bridge is None or not _bridge_inside(bridge, physical, radius, tolerance):
-                    joined.append(piece)
-                else:
-                    joined[-1] = LineString(list(joined[-1].coords) + bridge[1:] + list(piece.coords)[1:])
-            if path.is_closed and pieces:
-                # a closed path is cyclic: the end of the last piece goes to the start of the first one
-                bridge = _along_ring(rings, Point(joined[-1].coords[-1]), Point(joined[0].coords[0]), 6 * radius)
-                if bridge is not None and _bridge_inside(bridge, physical, radius, tolerance):
-                    closing = list(joined[-1].coords) + bridge[1:]
-                    if len(joined) == 1:
-                        joined[0] = LineString(closing)
-                    else:
-                        joined = [LineString(closing + list(joined[0].coords)[1:])] + joined[1:-1]
-            pieces = joined
+            zone = _violating_zone(path, exclusion, radius)
+            if zone is None:
+                pieces = [path]
+            else:
+                cutter = expansion.intersection(zone)
+                pieces = _cut_outside(path, cutter, rings, physical, radius, tolerance, snap)
+                if any(too_close([piece for piece in pieces if piece.length > min_length], exclusion, radius)):
+                    # a bridge that touches the radius by float noise: the pieces stay apart instead of being dropped
+                    pieces = _cut_outside(path, cutter, [], physical, radius, tolerance, snap)
         pieces = [piece for piece in pieces if piece.length > min_length]
         bad = too_close(pieces, exclusion, radius)
         failed += sum(bad)

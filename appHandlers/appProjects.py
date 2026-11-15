@@ -4,6 +4,7 @@ import os
 from PyQt6 import QtCore, QtWidgets
 
 from appHandlers.appHistory import HistoryManager
+from appTool import AppTool
 from appObjects.ProjectContext import ProjectContext, unique_name, same_path, name_from_filename, \
     is_valid_name, PROJECT_EXT
 from defaults import project_options, normalize_units
@@ -484,7 +485,7 @@ class ProjectManager(QtCore.QObject):
                 getattr(app, 'app_plugins', None) is not None:
             for plugin in app.app_plugins:
                 plugin.set_project_collection(self.displayed.collection, ctx.collection)
-            widget = app.ui.plugin_scroll_area.takeWidget()
+            widget = AppTool.release_plugin_panel(app)
             if widget is not None:
                 widget.hide()
             index = app.ui.notebook.indexOf(app.ui.plugin_tab)

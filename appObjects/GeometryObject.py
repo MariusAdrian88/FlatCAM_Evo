@@ -50,6 +50,15 @@ _SINGLE_TYPES = frozenset((Point, LineString, LinearRing, Polygon))
 _SHAPE_TYPES = _SINGLE_TYPES | {MultiPoint, MultiLineString, MultiPolygon, GeometryCollection}
 
 
+def _reverse_paths(item):
+    """The same shapes with the coordinate order of every path reversed; lists and tuples stay lists and tuples."""
+    if isinstance(item, (list, tuple)):
+        return type(item)(_reverse_paths(child) for child in item)
+    if isinstance(item, shapely.geometry.base.BaseGeometry):
+        return shapely.reverse(item)
+    return item
+
+
 def _collect_leaves(item, leaves):
     """
     Append the shape leaves of ``item`` (lists and tuples walked recursively, a multi-part shape is 1 leaf) to
@@ -196,7 +205,12 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
         keys = list(self.tools)
         results = affine_geometry_many([self.tools[k].get('solid_geometry', []) for k in keys],
                                        matrix, any_iterable)
+        # a mirror (negative determinant) turns every ring the other way: a tool that keeps its cut direction
+        # (climb / conventional) gets its paths reversed, so the cut stays the same relative to the material
+        flips = matrix[0] * matrix[3] - matrix[1] * matrix[2] < 0
         for key, result in zip(keys, results):
+            if flips and self.tools[key].get('data', {}).get('tools_mill_keep_direction'):
+                result = _reverse_paths(result)
             self.tools[key]['solid_geometry'] = result
         self._affine_zones(matrix)
 

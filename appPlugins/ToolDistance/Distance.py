@@ -203,7 +203,7 @@ class Distance(AppTool):
         self.app.ui.notebook.setTabText(2, _("Distance"))
 
         # Remove anything else in the appGUI
-        self.app.ui.plugin_scroll_area.takeWidget()
+        self.release_plugin_panel(self.app, keep=self)
 
         # Put ourselves in the appGUI
         self.app.ui.plugin_scroll_area.setWidget(self)

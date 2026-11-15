@@ -52,6 +52,7 @@ class TclCommandCopperClear(TclCommand):
         ('area', str),
         ('single', str),
         ('exclude', str),
+        ('use_zones', str),
         ('iso_tooldia', str),
         ('milling_type', str),
         ('final_cleanup', str),
@@ -111,8 +112,11 @@ class TclCommandCopperClear(TclCommand):
             ('simplification', 'Maximum deviation allowed when simplifying the toolpaths, in the units of the '
                                'application. 0 disables it. Float number.'),
             ('exclude', 'Name of a Geometry or Gerber object. Its polygons are never cleared. They are added to '
-                        'the exclusion zones stored on the cleared object, for this run only; the object is not '
+                        'the zones of -use_zones, for this run only; the object is not '
                         'changed. A Geometry object that has only lines is rejected.'),
+            ('use_zones', 'Also apply the exclusion zones stored on the cleared object. True (1) or False (0). '
+                          'Default: 0, so a script gives the same output as before the zones existed. '
+                          '-exclude always applies.'),
             ('plot', 'Plot the resulting object. True (1) or False (0). Default: 0'),
             ('all', 'Clear the whole object. Bare -all or -all 1 selects this mode; -all 0 does not. '
                     'Select exactly one mode: -all, -box <value> or -area <value>.'),
@@ -267,6 +271,7 @@ class TclCommandCopperClear(TclCommand):
             if clear_milling not in ('none', 'climb', 'conv'):
                 self.raise_tcl_error("-clear_milling must be 'none', 'climb' or 'conv'.")
 
+        use_zones = bool(self._bool_arg(args, 'use_zones'))
         exclusion_areas = None
         if 'exclude' in args:
             exclude_obj = self._object_arg(args['exclude'], 'Exclusion object')
@@ -339,5 +344,6 @@ class TclCommandCopperClear(TclCommand):
             clear_milling=clear_milling,
             simplification=simplification,
             exclusion_areas=exclusion_areas,
+            use_zones=use_zones,
             click_points=click_points,
         )

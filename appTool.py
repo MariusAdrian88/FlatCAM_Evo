@@ -173,16 +173,27 @@ class AppTool(QtWidgets.QWidget):
 
         self.menuAction.triggered.connect(lambda: self.run(toggle=True))
 
+    @staticmethod
+    def release_plugin_panel(app, keep=None):
+        """
+        Take the widget out of the Plugin tab. Every path that replaces or empties the panel goes through here: the
+        plugin that owned it (cleans up when another one replaces it) is told with on_panel_replaced().
+
+        :return: the widget that was taken out, or None.
+        """
+        previous = app.ui.plugin_scroll_area.takeWidget()
+        if previous is not None and previous is not keep:
+            on_replaced = getattr(previous, 'on_panel_replaced', None)
+            if callable(on_replaced):
+                on_replaced()
+        return previous
+
     def run(self):
 
         if self.app.plugin_tab_locked is True:
             return
         # Remove anything else in the appGUI; a plugin that cleans up when another one replaces it is told
-        previous = self.app.ui.plugin_scroll_area.takeWidget()
-        if previous is not None and previous is not self:
-            on_replaced = getattr(previous, 'on_panel_replaced', None)
-            if callable(on_replaced):
-                on_replaced()
+        self.release_plugin_panel(self.app, keep=self)
 
         # Put ourselves in the appGUI
         self.app.ui.plugin_scroll_area.setWidget(self)

@@ -767,32 +767,21 @@ def zone_board(tool, name, *zones):
     return board
 
 
-def test_exclusion_zones_reach_the_handler_in_every_mode(tool):
+def test_exclusion_zones_of_the_source_reach_the_job_in_every_mode(tool, monkeypatch):
+    from appPlugins.Common.clearing.job import ClearingJob
+    specs = []
+    monkeypatch.setattr(ClearingJob, 'run', lambda self, spec, run_threaded=True: specs.append(spec))
     zone = box(5, 5, 6, 6)
     prepare_run(tool, board=zone_board(tool, 'board', zone))
     tool.ui.excl_cb.set_value(True)
-    tool.gen.ncc_handler = Mock()
     for method in (0, 2):
         tool.ui.select_method_combo.set_value(method)
         tool.gen.on_ncc_click()
-        assert tool.gen.ncc_handler.call_args.kwargs['exclusion_areas'] == [zone], method
     tool.gen.clear_ncc_area_selection_option([box(0, 0, 3, 3)])
-    assert tool.gen.ncc_handler.call_args.kwargs['exclusion_areas'] == [zone]
+    assert [list(spec.exclusion_zones) for spec in specs] == [[zone]] * 3
     tool.ui.excl_cb.set_value(False)
     tool.gen.on_ncc_click()
-    assert tool.gen.ncc_handler.call_args.kwargs['exclusion_areas'] is None
-
-
-def test_all_selected_objects_give_every_job_the_zones_of_all_of_them(tool):
-    first, second = box(5, 5, 6, 6), box(7, 7, 8, 8)
-    board, other = zone_board(tool, 'board', first), zone_board(tool, 'other', second)
-    prepare_run(tool, board=board, other=other)
-    tool.app.collection.selected = [board, other]
-    tool.ui.multi_cb.set_value(True)
-    tool.ui.excl_cb.set_value(True)
-    tool.gen.ncc_handler = Mock()
-    tool.gen.on_ncc_click()
-    assert [call.kwargs['exclusion_areas'] for call in tool.gen.ncc_handler.call_args_list] == [[first, second]] * 2
+    assert specs[-1].exclusion is None and not specs[-1].exclusion_zones
 
 
 # ---------------------------------------------------------------------------------------------------------------

@@ -967,3 +967,68 @@ def test_paint_tcl_exclude_gives_the_paths_of_the_gui_zone(excl_board, qapp, tmp
 
 if __name__ == '__main__':
     unittest.main()
+
+
+# ==============================================================================================================
+# the zones and the selection of the shared controller (Paint and NCC)
+# ==============================================================================================================
+
+def _zone_source():
+    from appObjects.AppObjectTemplate import FlatCAMObj
+    obj = MagicMock(spec=FlatCAMObj)
+    obj.deleted = False
+    return obj
+
+
+def test_closed_panel_does_not_show_the_zones_again_on_a_project_click(painter):
+    obj = _zone_source()
+    painter.app.collection.objects['board'] = obj
+    painter.refresh_zone_view()
+    obj.set_zones_panel_open.assert_called_with(True)
+    painter.on_plugin_cleanup()
+    obj.set_zones_panel_open.assert_called_with(False)
+    obj.set_zones_panel_open.reset_mock()
+    painter.refresh_zone_view()             # a click in the project tree
+    obj.set_zones_panel_open.assert_not_called()
+
+
+def test_a_plugin_panel_replaced_by_any_path_stops_the_zone_view(painter):
+    from appTool import AppTool
+    obj = _zone_source()
+    painter.app.collection.objects['board'] = obj
+    painter.refresh_zone_view()
+    obj.set_zones_panel_open.reset_mock()
+    painter.app.ui.plugin_scroll_area.takeWidget.return_value = painter
+    AppTool.release_plugin_panel(painter.app)       # editor exit, Distance, project switch ...
+    obj.set_zones_panel_open.assert_called_with(False)
+    obj.set_zones_panel_open.reset_mock()
+    painter.refresh_zone_view()
+    obj.set_zones_panel_open.assert_not_called()
+
+
+def test_add_area_without_a_source_object_does_not_start_the_selection(painter):
+    painter.app.collection.objects.clear()
+    painter.ui.obj_combo.currentText = lambda: ''
+    painter.on_add_exclusion()
+    assert not painter.selector.active
+
+
+def test_paint_area_shape_preference_sets_the_exclusion_shape(painter):
+    painter.app.options["tools_paint_area_shape"] = 'polygon'
+    painter.set_tool_ui()
+    assert painter.ui.excl_shape_radio.get_value() == 'polygon'
+
+
+def test_polygon_selection_keeps_only_the_clicked_polygons():
+    from appPlugins.Common.clearing.selection import AreaSelector, CLICK
+    big, small = box(0, 0, 10, 10), box(2, 2, 4, 4)         # overlapping, not fused
+    app = MagicMock()
+    app.plotcanvas.translate_coords.side_effect = lambda xy: xy
+    app.event_is_dragging = False
+    sel = AreaSelector(MagicMock(app=app))
+    got = []
+    sel.mode, sel.commit, sel.faces = CLICK, lambda points, faces: got.append(faces), [big, small]
+    click = lambda x, y: SimpleNamespace(pos=(x, y), button=1)
+    sel.on_click_release(click(3, 3))       # inside both: the click picks the first one only
+    sel.finish()
+    assert len(got) == 1 and len(got[0]) == 1 and got[0][0] is big

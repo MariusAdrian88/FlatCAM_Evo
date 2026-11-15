@@ -790,6 +790,8 @@ class FlatCAMObj(QtCore.QObject):
     def set_exclusion_zones(self, zones):
         """Replace the zone list (no history step; see add_exclusion_zones()), redraw, emit zones_changed."""
         self.exclusion_zones = list(zones)
+        # the zones are saved with the project
+        self.app.should_we_save = True
         self.plot_zones()
         self.zones_changed.emit()
 

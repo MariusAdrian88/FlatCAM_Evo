@@ -25,6 +25,7 @@ import gettext
 import numpy as np
 from PyQt6 import QtCore, QtWidgets
 from shapely import total_bounds
+from shapely.errors import ShapelyError
 
 import appTranslation as fcTranslate
 from camlib import grace, flatten_shapely_geometry
@@ -100,6 +101,31 @@ class SnapshotSelf:
         object.__setattr__(self, name, value)
 
 
+class MainThreadCall(QtCore.QObject):
+    """Run a callable on the thread this object lives in (the GUI thread) when it is requested from another."""
+    requested = QtCore.pyqtSignal(object)
+
+    def __init__(self):
+        super().__init__()
+        self.requested.connect(self._run)
+
+    @staticmethod
+    def _run(function):
+        function()
+
+
+def clear_temp_shapes(driver):
+    """Clear the progressive plotting shapes of a driver. The canvas belongs to the GUI thread: a worker asks it."""
+    shapes = getattr(driver, 'temp_shapes', None)
+    if shapes is None:
+        return
+    gui_call = getattr(driver, '_gui_call', None)
+    if gui_call is None or on_gui_thread():
+        shapes.clear(update=True)
+    else:
+        gui_call.requested.emit(lambda: shapes.clear(update=True))
+
+
 def incomplete_text():
     return _("Some areas were not cleared with these tools.")
 
@@ -114,7 +140,11 @@ def stock_is_left(stock, last_diameter, failed=False):
     """
     if stock is None:
         return bool(failed)
-    return not stock.buffer(-0.1 * (last_diameter or 0.0)).is_empty
+    try:
+        return not stock.buffer(-0.1 * (last_diameter or 0.0)).is_empty
+    except (ShapelyError, ValueError):
+        # the paths are done: a stock that cannot be measured (invalid geometry) falls back to the failed flag
+        return bool(failed)
 
 
 def set_output_bounds(app, output, solid_geometry):
@@ -246,9 +276,7 @@ class ClearingJob:
                         options.update(source=spec.origin, autoselected=False)
 
                     def build_output(out, application):
-                        # the one place that gives the output the zones the run used (its own copy)
-                        out.exclusion_zones = list(spec.exclusion_zones)
-                        out.zones_always_drawn = bool(spec.exclusion_zones)
+                        # the exclusion zones stay with the source object: the output keeps none
                         return runner.generate_output(spec, prepared, out, application)
 
                     ret = factory.new_object('geometry', name, build_output, **options)
@@ -273,10 +301,12 @@ class ClearingJob:
                     app_instance.log.debug(traceback.format_exc())
                 if profile.exception_inform:
                     app.inform.emit('[ERROR] %s' % _("Failed."))
+                    # said here: the end of the job must not say it again
+                    runner._failure_reported = True
                 ret = 'fail'
             finally:
                 if profile.clear_temp_shapes and spec.prog_plot:
-                    runner.temp_shapes.clear(update=True)
+                    clear_temp_shapes(runner)
                 if proc is not None:
                     proc.done()
                 else:

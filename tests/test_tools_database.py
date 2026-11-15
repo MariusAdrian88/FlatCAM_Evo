@@ -102,6 +102,21 @@ class EditorChecks(DatabaseCase):
         self.assertFalse(db.ui.iso_voronoi_pads_cb.get_value())
         self.assertEqual([], self.slot_errors)
 
+    def test_no_two_widgets_of_a_tool_section_share_a_grid_cell(self):
+        db = self.database({'7': record(5)})
+        grids = {name: grid for name, grid in vars(db.ui).items()
+                 if isinstance(grid, QtWidgets.QGridLayout)}
+        self.assertTrue(grids)
+        for name, grid in grids.items():
+            cells = {}
+            for i in range(grid.count()):
+                item = grid.itemAt(i)
+                row, col, rspan, cspan = grid.getItemPosition(i)
+                for r in range(row, row + rspan):
+                    for c in range(col, col + cspan):
+                        other = cells.setdefault((r, c), item)
+                        self.assertIs(other, item, f'{name}: two items in cell {(r, c)}')
+
     def test_clearing_direction_is_saved_loaded_and_defaults_to_none_for_old_records(self):
         import appDatabase
         for target, key, radio in ((5, 'tools_ncc_clear_milling', 'ncc_clear_dir_radio'),

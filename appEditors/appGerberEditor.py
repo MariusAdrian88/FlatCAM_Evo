@@ -12,7 +12,7 @@ from appCommon.clipper_ops import MIN_SHAPES as CLIPPER_MIN_SHAPES, boolean_geom
 from appParsers.clipper_fuse import fuse_parts
 
 from camlib import distance, arc, three_point_circle, flatten_shapely_geometry, translate_geometry
-from camlib import deepcopy_keep_geometry
+from camlib import deepcopy_keep_geometry, affine_geometry_many, AFFINE_IDENTITY
 from appGUI.GUIElements import *
 from appCommon.ToolDatabase import read_apertures
 from appGUI.ApertureLibrary import open_aperture_library
@@ -3909,6 +3909,8 @@ class AppGerberEditor(QtCore.QObject):
 
         # flag to show if the object was modified
         self.is_modified = False
+        # the affine matrix of the transforms of all the shapes: the exclusion zones of the object follow it on save
+        self.zone_matrix = AFFINE_IDENTITY
         self.history = GerberHistory(self)
         self.edited_obj_name = ""
         self.tool_row = 0
@@ -5429,6 +5431,7 @@ class AppGerberEditor(QtCore.QObject):
 
         # create a reference to the source object
         self.gerber_obj = orig_grb_obj
+        self.zone_matrix = AFFINE_IDENTITY
         self.gerber_obj_options = orig_grb_obj.obj_options
 
         file_units = self.gerber_obj.units if self.gerber_obj.units else 'IN'
@@ -5752,6 +5755,7 @@ class AppGerberEditor(QtCore.QObject):
         history = getattr(self, 'history', None)
         history = history if isinstance(history, GerberHistory) else None
         pending = history.reserve() if history is not None else None
+        zone_matrix = getattr(self, 'zone_matrix', AFFINE_IDENTITY)
 
         def apply_signal_handler(result):
             if history is not None:
@@ -5774,7 +5778,7 @@ class AppGerberEditor(QtCore.QObject):
                     if hasattr(edited, attr):
                         setattr(grb_obj, attr, getattr(edited, attr))
                 AppGerberEditor.apply_edited_gerber(grb_obj, edited)
-                grb_obj.exclusion_zones = list(getattr(source, 'exclusion_zones', ()))
+                grb_obj.exclusion_zones = AppGerberEditor.moved_zones(source, zone_matrix)
                 grb_obj.zones_always_drawn = bool(getattr(source, 'zones_always_drawn', False))
 
             try:
@@ -5822,6 +5826,7 @@ class AppGerberEditor(QtCore.QObject):
         pending = history.reserve() if history is not None else None
         context = AppGerberEditor._save_context(self)
         storage = AppGerberEditor._save_storage(self.storage_dict)
+        zone_matrix = getattr(self, 'zone_matrix', AFFINE_IDENTITY)
 
         def apply_signal_handler(result):
             if history is not None:
@@ -5836,7 +5841,7 @@ class AppGerberEditor(QtCore.QObject):
                                                             "The object is unchanged."))
                 return
             try:
-                AppGerberEditor.apply_edited_gerber(source, result['obj'])
+                AppGerberEditor.apply_edited_gerber(source, result['obj'], zone_matrix)
             except Exception as e:
                 self.app.log.error("AppGerberEditor.update_fcgerber_in_place() --> %s" % str(e))
                 self.app.inform.emit('[ERROR_NOTCL] %s' % _("The edited content could not be saved. "
@@ -5885,7 +5890,15 @@ class AppGerberEditor(QtCore.QObject):
         self.app.custom_signal.emit(result)
 
     @staticmethod
-    def apply_edited_gerber(source, edited):
+    def moved_zones(source, matrix):
+        """The exclusion zones of the source object, moved by the transform of all the shapes of the editor."""
+        zones = list(getattr(source, 'exclusion_zones', None) or ())
+        if zones and tuple(matrix) != AFFINE_IDENTITY:
+            zones = list(affine_geometry_many([zones], matrix)[0])
+        return zones
+
+    @staticmethod
+    def apply_edited_gerber(source, edited, zone_matrix=AFFINE_IDENTITY):
         """
         Put the content of a detached edited Gerber object into the source object. The name, history uid, tree
         position and obj_options of the source stay; the bounds in obj_options are recomputed. All the values are
@@ -5901,6 +5914,7 @@ class AppGerberEditor(QtCore.QObject):
         follow_geometry = edited.follow_geometry
         aperture_macros = edited.aperture_macros
         export_as_regions = edited.export_as_regions
+        zones = AppGerberEditor.moved_zones(source, zone_matrix) if tuple(zone_matrix) != AFFINE_IDENTITY else None
 
         source.tools = tools
         source.solid_geometry = solid_geometry
@@ -5920,6 +5934,8 @@ class AppGerberEditor(QtCore.QObject):
         source.marked_rows = []
         for key, value in zip(('xmin', 'ymin', 'xmax', 'ymax'), bounds):
             source.obj_options[key] = value
+        if zones is not None:
+            source.set_exclusion_zones(zones)
 
     @staticmethod
     def refresh_edited_gerber(source):

@@ -346,6 +346,7 @@ class ToolPaint(Geometry, ClearingToolBase):
         self.ui.area_shape_radio.set_value(self.app.options.get(
             "tools_paint_area_shape",
             app_defaults.get("tools_paint_area_shape", AppDefaults.factory_defaults.get("tools_paint_area_shape"))))
+        self.ui.excl_shape_radio.set_value(self.ui.area_shape_radio.get_value())
         self.ui.connect_cb.set_value(self.app.options.get(
             "tools_paint_connect", app_defaults.get("tools_paint_connect", AppDefaults.factory_defaults.get("tools_paint_connect"))))
         self.ui.contour_cb.set_value(self.app.options.get(

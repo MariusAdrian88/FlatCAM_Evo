@@ -4519,19 +4519,33 @@ class CNCjob(Geometry):
             #         if it.is_ring:
             #             it = Polygon(it)
             #     temp_solid_geometry.append(it.buffer(tool_offset, join_style=2))
+            keep_dir = bool(tool_dict.get('tools_mill_keep_direction', False))
+
+            def keep_turn(source, buffered):
+                # GEOS returns clockwise exteriors: the offset ring keeps the turn of its source ring
+                if not keep_dir or not isinstance(source, Polygon) or buffered.is_empty:
+                    return buffered
+                from shapely.geometry.polygon import orient
+                sign = 1.0 if source.exterior.is_ccw else -1.0
+                if isinstance(buffered, Polygon):
+                    return orient(buffered, sign)
+                if isinstance(buffered, MultiPolygon):
+                    return MultiPolygon([orient(g, sign) for g in buffered.geoms])
+                return buffered
+
             for it in flat_ext_geo:
                 # if the geometry is a closed shape then create a Polygon out of it
                 if isinstance(it, LineString):
                     if it.is_ring:
                         it = Polygon(it)
-                temp_solid_geometry.append(it.buffer(tool_offset, join_style="mitre"))
+                temp_solid_geometry.append(keep_turn(it, it.buffer(tool_offset, join_style="mitre")))
 
             for it in flat_ints_geo:
                 # if the geometry is a closed shape then create a Polygon out of it
                 if isinstance(it, (LineString, LinearRing)):
                     if it.is_ring:
                         it = Polygon(it)
-                temp_solid_geometry.append(it.buffer(-tool_offset, join_style="mitre"))
+                temp_solid_geometry.append(keep_turn(it, it.buffer(-tool_offset, join_style="mitre")))
 
             temp_solid_geometry = self.flatten(temp_solid_geometry, reset=True, pathonly=True)
         else:
@@ -4820,7 +4834,7 @@ class CNCjob(Geometry):
             # it's actually not optimized path but here we build a list of (x,y) coordinates
             # out of the tool
             for geo in temp_solid_geometry:
-                optimized_path.append(geo.coords[0])
+                optimized_path.append((geo.coords[0], geo))
         # #########################################################################################################
         # #########################################################################################################
 
@@ -7806,6 +7820,14 @@ def map_geometry(obj, fn, on_leaf=None, any_iterable=False):
 
 
 AFFINE_IDENTITY = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
+
+
+def affine_compose(second, first):
+    """The matrix of ``first`` followed by ``second`` (both shapely 6-tuples a, b, d, e, xoff, yoff)."""
+    a2, b2, d2, e2, x2, y2 = second
+    a1, b1, d1, e1, x1, y1 = first
+    return (a2 * a1 + b2 * d1, a2 * b1 + b2 * e1, d2 * a1 + e2 * d1, d2 * b1 + e2 * e1,
+            a2 * x1 + b2 * y1 + x2, d2 * x1 + e2 * y1 + y2)
 
 
 def affine_translate_matrix(dx, dy):

@@ -21,7 +21,8 @@ from appParsers.feature_access import fused_solid
 from appCommon.SafeEval import safe_eval
 from appPlugins.ToolNCC import NccModel
 from appPlugins.Common.clearing import regions
-from appPlugins.Common.clearing.job import ClearingJob, NCC_GUI, NCC_TCL, stock_is_left
+from appPlugins.Common.clearing.job import (
+    ClearingJob, MainThreadCall, NCC_GUI, NCC_TCL, clear_temp_shapes, stock_is_left)
 from appPlugins.Common.clearing.params import (
     JobSpec, SourceSnapshot, copy_geometry, distinct_zones, freeze_options, object_zones, tool_spec,
     tool_direction)
@@ -88,6 +89,8 @@ class NccGen:
 
         self.decimals = tool.app.decimals
         self.temp_shapes = tool.temp_shapes
+        # created on the GUI thread: the worker asks it to clear the progressive plotting shapes
+        self._gui_call = MainThreadCall()
 
         self.circle_steps = tool.circle_steps
 
@@ -189,7 +192,6 @@ class NccGen:
         if sources is None:
             return
         names = self.output_names(sources)
-        exclusion = self.parent_tool.exclusion_areas()
         if self.select_method == 0:   # Itself
             self.bound_obj_name = self.ui.obj_combo.currentText()
             # Get source object.
@@ -206,8 +208,7 @@ class NccGen:
                                  iso_tooldia_list=self.iso_dia_list,
                                  outname=name,
                                  tools_storage=self.ncc_tools,
-                                 check_validity=self.check_validity,
-                                 exclusion_areas=exclusion)
+                                 check_validity=self.check_validity)
         elif self.select_method == 1:   # Area Selection
             self.parent_tool.start_area_selection()
         elif self.select_method == 3:   # Polygon Selection
@@ -229,7 +230,6 @@ class NccGen:
                     iso_tooldia_list=self.iso_dia_list,
                     outname=name,
                     check_validity=self.check_validity,
-                    exclusion_areas=exclusion,
                 )
 
     def read_selected_diameters(self):
@@ -560,7 +560,6 @@ class NccGen:
             sel_obj=self.bound_obj,
             outname=self.o_name,
             check_validity=self.check_validity,
-            exclusion_areas=self.parent_tool.exclusion_areas(),
         )
 
     def clear_ncc_click_option(self, points):
@@ -572,7 +571,6 @@ class NccGen:
             click_points=points,
             outname=self.o_name,
             check_validity=self.check_validity,
-            exclusion_areas=self.parent_tool.exclusion_areas(),
         )
 
     def _publish_result(self, output, tools, name, last_tool, failed, residual, warning, mill_data=None,
@@ -609,7 +607,9 @@ class NccGen:
                     'Final cleanup finished. Some residual copper could not be cleared with this tool.'))
         # the rest stock was measured by the rule of both tools (failed); the cleanup residual replaces it
         if ClearingJob.finish_output(self, output, self.app, stock=residual if cleaned else None,
-                                     last_diameter=last_diameter, failed=failed and not cleaned,
+                                     # the cleanup is measured with the tool that ran it
+                                     last_diameter=cleanup_diameter if cleaned and cleanup_diameter else last_diameter,
+                                     failed=failed and not cleaned,
                                      warn=not cleaned) == 'fail':
             self.app.poly_not_cleared = False
             return 'fail'
@@ -722,7 +722,11 @@ class NccGen:
             diameters.sort(reverse=True)
         elif order == 1:
             diameters.sort()
-        zones = distinct_zones(exclusion_areas or [])
+        # the option of the panel is on: this source is limited by its own zones only (not by the ones of the other
+        # sources of an "All selected objects" run)
+        option_on = getattr(self.parent_tool, 'exclusion_areas', None)
+        own = object_zones(cleared_object) if callable(option_on) and option_on() else []
+        zones = distinct_zones(own + list(exclusion_areas or []))
         exclusion = unary_union(zones) if zones else None
         name = outname if outname is not None else self.obj_name + '_ncc'
         return self._ncc_spec(
@@ -814,7 +818,7 @@ class NccGen:
         generated, cleanup_residual, cleanup_diameter = self._cleanup_result(
             snapshot, generated, domains, name, cleared_object)
         if spec.prog_plot:
-            self.temp_shapes.clear(update=True)
+            clear_temp_shapes(self)
         return self._publish_result(output, generated, name, '0.0' if rest else last,
                                     failed, cleanup_residual, warning, dict(spec.mill_data), last,
                                     cleanup_diameter)
@@ -838,7 +842,8 @@ class NccGen:
         Resolve GUI input into a JobSpec, then run it as a ClearingJob.
 
         :param check_validity:      stop before the generation if a tool is too big for the smallest copper gap
-        :param exclusion_areas:     polygons that are removed from the area to clear
+        :param exclusion_areas:     extra polygons that are removed from the area to clear. The zones of the cleared
+                                    object come by themselves when the exclusion option of the panel is on
         """
         # Keep circle accuracy and isolation staging local to this request, not the next GUI job.
         self = copy(self)
@@ -894,6 +899,7 @@ class NccGen:
             angle=None,
             click_points=None,
             clear_milling=None,
+            use_zones=False,
     ):
         """
         The Tcl resolver: the arguments, with the tools_ncc_* options as fallback, into a JobSpec. It never reads a
@@ -961,8 +967,8 @@ class NccGen:
         if angle is not None:
             values['tools_ncc_crosshatch_angle'] = angle
         rows = self._tcl_rows(diameters, list(iso_tooldia or ()), name, bool(plot), **values)
-        # a script: the zones stored on the cleared object and the ones of its -exclude, for this run only
-        zones = distinct_zones(object_zones(ncc_obj) + list(exclusion_areas or []))
+        # a script: the ones of its -exclude, and the zones stored on the cleared object with -use_zones
+        zones = distinct_zones((object_zones(ncc_obj) if use_zones else []) + list(exclusion_areas or []))
         exclusion = unary_union(zones) if zones else None
         return self._ncc_spec(
             freeze_options(self.app), tools=self._tool_specs(rows, diameters), rest=rest, order=order,
@@ -1002,19 +1008,22 @@ class NccGen:
             angle=None,
             click_points=None,
             clear_milling=None,
+            use_zones=False,
     ):
         """
         Tcl adapter. Synchronous calls finish object creation before returning.
 
         Every parameter that is None takes its tools_ncc_* value from the application options.
         overlap is a fraction (0.4), simplification is in the units of the geometry (the option is in millimetres),
-        exclusion_areas is a list of polygons that are removed from the area to clear.
+        exclusion_areas is a list of polygons that are removed from the area to clear. use_zones also applies the
+        exclusion zones stored on the cleared object (a script ignores them by default).
         """
         self = copy(self)
         spec = self.resolve_tcl_job(
             ncc_obj, sel_obj, areas_to_clear_list, ncc_tooldia, iso_tooldia, margin, has_offset, offset,
             select_method, outname, overlap, connect, contour, order, method, rest, tools_storage, plot,
-            final_cleanup, milling_type, simplification, exclusion_areas, angle, click_points, clear_milling)
+            final_cleanup, milling_type, simplification, exclusion_areas, angle, click_points, clear_milling,
+            use_zones)
         if isinstance(spec, str):
             return spec
         return ClearingJob(self, NCC_TCL).run(spec, run_threaded)

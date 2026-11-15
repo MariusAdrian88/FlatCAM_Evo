@@ -11,6 +11,7 @@ from shapely import Point
 import gettext
 
 from appHandlers.appHistory import HistoryManager, geometry_sizes, is_rigid
+from camlib import AFFINE_IDENTITY, affine_compose
 from appEditors.grb_plugins.GrbCommon import DrawToolShape, stored_quad_candidates
 import appTranslation as fcTranslate
 
@@ -100,7 +101,16 @@ class GerberHistory:
         editor = self.editor
         return {'selection': list(editor.selected), 'last': editor.last_aperture_selected,
                 'modified': editor.is_modified, 'regions': bool(getattr(editor, 'loaded_as_regions', False)),
-                'order': tuple(editor.storage_dict), 'aliases': dict(editor.oldapcode_newapcode)}
+                'order': tuple(editor.storage_dict), 'aliases': dict(editor.oldapcode_newapcode),
+                'zone_matrix': getattr(editor, 'zone_matrix', AFFINE_IDENTITY)}
+
+    def track_zones(self, shapes, matrix):
+        """A transform of all the shapes of the editor moves the exclusion zones of the object too, on save."""
+        if matrix is None or self.replaying:
+            return
+        everything = {shape for aperture in self.editor.storage_dict.values() for shape in aperture.get('geometry', ())}
+        if everything and everything <= set(shapes):
+            self.editor.zone_matrix = affine_compose(matrix, getattr(self.editor, 'zone_matrix', AFFINE_IDENTITY))
 
     def capture(self, apertures, mutable=()):
         if not self.depth or self.replaying:
@@ -315,6 +325,7 @@ class GerberHistory:
         editor.is_modified = state['modified']
         editor.loaded_as_regions = state['regions']
         editor.oldapcode_newapcode = dict(state['aliases'])
+        editor.zone_matrix = state.get('zone_matrix', AFFINE_IDENTITY)
         ordered = {key: editor.storage_dict[key] for key in state['order'] if key in editor.storage_dict}
         ordered.update(editor.storage_dict)
         editor.storage_dict.clear()
@@ -445,6 +456,7 @@ class GerberHistory:
                         if any(shape in selected for shape in aperture.get('geometry', ()))]
                 self.capture(keys, shapes)
                 compute(shapes)
+                self.track_zones(shapes, matrix)
                 if matrix is not None and is_rigid(matrix):
                     self.native_shapes.update(shapes)
                     if is_translation(matrix):
@@ -493,6 +505,7 @@ class GerberHistory:
                     keys = [key for key, aperture in self.editor.storage_dict.items()
                             if any(shape in selected for shape in aperture.get('geometry', ()))]
                     self.capture(keys, shapes)
+                    self.track_zones(shapes, result['matrix'])
                     if result['matrix'] is not None and is_rigid(result['matrix']):
                         self.native_shapes.update(shapes)
                         if is_translation(result['matrix']):

@@ -51,6 +51,7 @@ class TclCommandPaint(TclCommand):
         ('final_cleanup', str),
         ('clear_milling', str),
         ('exclude', str),
+        ('use_zones', str),
 
         ('all', str),
         ('single', str),
@@ -69,7 +70,8 @@ class TclCommandPaint(TclCommand):
                 "Defaults to all polygons. Use only one of -single, -ref (or -box) or -area to restrict the "
                 "selection.\n"
                 "The command uses only its own arguments and the tools_paint_* preferences. It does not read the "
-                "Paint panel, its tool table or its exclusion areas.",
+                "Paint panel or its tool table. The exclusion zones stored on the object apply only with "
+                "-use_zones.",
         'args': collections.OrderedDict([
             ('name', 'Name of the source Geometry object. String.'),
             ('tooldia', 'Diameter of the tools to be used. Can be a comma separated list of diameters.\n'
@@ -106,9 +108,12 @@ class TclCommandPaint(TclCommand):
                               'Climb = the wall on the right with an M3 spindle. The "lines" and "crosshatch" '
                               'scan lines and the "laser_lines" are not oriented.'),
             ('exclude', 'Name of a Geometry or Gerber object. Its polygons are never painted: the cutter keeps '
-                        'its radius away from them (no overlap with the zones). They are added to the exclusion '
-                        'zones stored on the painted object, for this run only; the object is not changed. '
+                        'its radius away from them (no overlap with the zones). They are added to the zones '
+                        'of -use_zones, for this run only; the object is not changed. '
                         'A Geometry object that has only lines is rejected.'),
+            ('use_zones', 'Also apply the exclusion zones stored on the painted object. True (1) or False (0). '
+                          'Default: 0, so a script gives the same output as before the zones existed. '
+                          '-exclude always applies.'),
             ('all', 'Optional compatibility flag; bare -all is accepted. Its value is ignored, even False. '
                     'All polygons are painted by default unless -single, -ref, -box or -area is used; '
                     '-all overrides none of them.'),
@@ -241,6 +246,7 @@ class TclCommandPaint(TclCommand):
         if clear_milling not in ('none', 'climb', 'conv'):
             self.raise_tcl_error("-clear_milling must be 'none', 'climb' or 'conv'.")
 
+        use_zones = self._bool_option(args, 'use_zones', None)
         exclusion = None
         if 'exclude' in args:
             try:
@@ -327,10 +333,12 @@ class TclCommandPaint(TclCommand):
         gen = self.app.paint_tool.gen
         # a script never uses the panel option: the zones stored on the object and its own -exclude (this run only)
         gen.exclusion_source = exclusion
+        gen.use_object_zones = use_zones
         try:
             ret_val = self._paint(gen, select, obj, args, common)
         finally:
             gen.exclusion_source = GUI_ZONES
+            gen.use_object_zones = False
 
         if ret_val == 'fail':
             self.raise_tcl_error('Paint failed for %s. See the log for the reason.' % name)
@@ -362,6 +370,8 @@ class TclCommandPaint(TclCommand):
 
     def _bool_option(self, args, key, pref):
         """The boolean option -key or, when it is absent, the application preference."""
+        if key not in args and pref is None:
+            return False
         value = args[key] if key in args else self._app_option(pref)
         try:
             return self.parse_bool(value)

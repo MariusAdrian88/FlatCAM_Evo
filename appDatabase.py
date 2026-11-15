@@ -1067,8 +1067,8 @@ class ToolsDB2UI:
                                          {'label': _('Conv'), 'value': 'conv'}], compact=True)
         self.ncc_clear_dir_radio.setToolTip(self.ncc_clear_dir_label.toolTip())
         self.ncc_clear_dir_radio.setObjectName("gdb_n_clear_milling")
-        self.grid2.addWidget(self.ncc_clear_dir_label, 21, 0)
-        self.grid2.addWidget(self.ncc_clear_dir_radio, 21, 1)
+        self.grid2.addWidget(self.ncc_clear_dir_label, 22, 0)
+        self.grid2.addWidget(self.ncc_clear_dir_radio, 22, 1)
 
         # ###########################################################################
         # ############### Paint UI form #############################################
@@ -1524,7 +1524,7 @@ class ToolsDB2UI:
         self.drill_last_drill_cb = FCCheckBox()
         self.drill_last_drill_cb.setObjectName("gdb_e_drill_last_drill")
 
-        self.grid5.addWidget(self.last_drill_drill_lbl, 30, 0, 1, 2)
+        self.grid5.addWidget(self.last_drill_drill_lbl, 30, 0)
         self.grid5.addWidget(self.drill_last_drill_cb, 30, 1)
 
         separator_line = QtWidgets.QFrame()

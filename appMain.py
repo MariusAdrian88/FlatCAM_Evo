@@ -115,6 +115,7 @@ from appObjects.ObjectCollection import (
 from appHandlers.appProjects import ProjectManager
 from appGUI.ProjectSelector import ProjectSelector
 from appObjects.AppObject import AppObject
+from appTool import AppTool
 from appObjects.ProjectContext import safe_file_name, unique_name
 
 # App Parsing files
@@ -2800,7 +2801,7 @@ class App(QtCore.QObject):
 
                         # restore GUI to the Selected TAB
                         # Remove anything else in the appGUI
-                        self.ui.plugin_scroll_area.takeWidget()
+                        AppTool.release_plugin_panel(self)
 
                         # update the geo object options, so it is including the bounding box values
                         try:
@@ -2855,7 +2856,7 @@ class App(QtCore.QObject):
 
                         # restore GUI to the Selected TAB
                         # Remove anything else in the GUI
-                        self.ui.plugin_scroll_area.takeWidget()
+                        AppTool.release_plugin_panel(self)
 
                         if not save_as_new:
                             # the source was updated before this continuation
@@ -2869,7 +2870,7 @@ class App(QtCore.QObject):
 
                         # restore GUI to the Selected TAB
                         # Remove anything else in the GUI
-                        self.ui.plugin_scroll_area.takeWidget()
+                        AppTool.release_plugin_panel(self)
                         edited_obj.build_ui()
 
                         # close the open tab (once: after the close the indexes of the next tabs are shifted)
