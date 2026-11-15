@@ -973,7 +973,7 @@ def plugin(objects, **options):
         "tools_mill_feedrate_probe": ui.feedrate_probe_entry, "tools_mill_ppname_g": ui.pp_geo_name_cb,
         "tools_mill_area_exclusion": ui.exclusion_cb, "tools_mill_area_shape": ui.area_shape_radio,
         "tools_mill_area_strategy": ui.strategy_radio, "tools_mill_area_overz": ui.over_z_entry,
-        "tools_mill_optimization_type": ui.opt_algorithm_radio, "tools_mill_search_time": ui.opt_time_entry,
+        "tools_mill_optimization_type": ui.opt_algorithm_combo, "tools_mill_search_time": ui.opt_time_entry,
     }
     milling.name2option = {widget.objectName(): key for key, widget in
                            {**milling.form_fields, **milling.general_form_fields}.items() if widget.objectName()}

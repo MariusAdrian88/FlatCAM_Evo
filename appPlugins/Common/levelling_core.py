@@ -218,6 +218,18 @@ class LevellingCoreMixin:
         if callable(update_3d):
             update_3d(self)
 
+    def on_object_deleted(self, obj):
+        """
+        The app deletes an object. If it is the target of the probe points, forget the probe data and clear the
+        probe shapes, so they do not stay on the canvas.
+        """
+        if obj is None or obj is not getattr(self, '_al_target_obj', None):
+            return
+        try:
+            self._clear_probe_data()
+        except Exception as err:
+            self.app.log.debug("%s.on_object_deleted() -> %s" % (type(self).__name__, str(err)))
+
     def _height_map_is_complete(self):
         return bool(self.al_voronoi_geo_storage) and all(
             value.get('height') is not None for value in self.al_voronoi_geo_storage.values()

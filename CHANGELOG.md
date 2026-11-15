@@ -34,6 +34,20 @@ Copper Clearing (NCC) and Paint:
 Tools Database:
 
 - fixed: the NCC Direction was drawn over the Crosshatch Angle; the Drill "last drill" label covered its checkbox
+- fixed: an operation filter with no matching tool showed the sections of the last tool; the disabled panel now shows the defaults of the filtered operation
+- changed: a General tool shows the properties of the filtered operation
+- fixed: a disabled panel also disabled its scroll bars, so the hidden part of the panel could not be seen
+- changed: the fields of all sections start at the same x; the sections keep their height (the free space goes below them); the Climb / Conventional, Isolation Type and Strategy choices are compact
+
+User interface:
+
+- changed: the Optimization Type of the Excellon and Geometry preferences and of the Milling plugin is a drop-down list (1 row in place of 5 radio buttons)
+- changed: Object AutoHide and Object Autoswitch of a plugin panel share 1 row; Isolation "Combine" and "Clear leftovers" share 1 row
+- changed: the Isolation Voronoi spacing and pads controls show only for the Voronoi strategy (before: disabled)
+
+Levelling and Sender:
+
+- fixed: the probe points stayed on the canvas after the delete of their CNCJob; the delete now clears the probe data of the Levelling or Sender plugin whose target it is
 
 Geometry and G-code:
 

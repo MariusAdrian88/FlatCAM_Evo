@@ -1009,7 +1009,14 @@ class AppObjectOps(QtCore.QObject):
         selected = list(objects)
         bulk = len(selected) > 1
         clear_tool_shapes = False
+        # the Levelling and Sender plugins draw the probe shapes of their target object
+        probe_tools = [t for t in (getattr(self.app, 'levelling_tool', None),
+                                   getattr(self.app, 'grbl_sender_tool', None))
+                       if callable(getattr(t, 'on_object_deleted', None))]
         for obj_active in selected:
+            for probe_tool in probe_tools:
+                probe_tool.on_object_deleted(obj_active)
+
             if obj_active.kind == 'gerber':
                 obj_active.mark_shapes_storage.clear()
                 obj_active.mark_shapes.clear(update=not bulk)
@@ -1023,7 +1030,6 @@ class AppObjectOps(QtCore.QObject):
                     del obj_active.text_col
                     obj_active.annotation.clear(update=not bulk)
                     del obj_active.annotation
-                    obj_active.probing_shapes.clear(update=True)
                 except AttributeError as e:
                     self.log.debug(
                         "App.on_delete() --> CNCJob object: %s. %s" % (str(obj_active.obj_options['name']),

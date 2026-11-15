@@ -936,6 +936,10 @@ def test_voronoi_paths_stay_certified_after_a_units_change_but_not_after_an_edit
     assert converted(edit=True)[1] == 'fail'
 
 def test_legacy_isolation_tool_can_save_a_new_strategy_and_spacing(plugin):
+    controls = (plugin.ui.voronoi_spacing_label, plugin.ui.voronoi_spacing_entry,
+                plugin.ui.voronoi_pads_cb)
+    plugin.ui.strategy_combo.set_value('offset')
+    assert all(control.isHidden() for control in controls)
     plugin.iso_tools = {1: {'tooldia': DIA, 'data': {'tools_iso_passes': 1}}}
     plugin.ui_disconnect()
     plugin.ui.tools_table.setRowCount(1)
@@ -944,13 +948,16 @@ def test_legacy_isolation_tool_can_save_a_new_strategy_and_spacing(plugin):
     plugin.ui.tools_table.selectRow(0)
     plugin.ui_connect()
     plugin.ui.strategy_combo.set_value('voronoi')
+    assert all(not control.isHidden() for control in controls)
     plugin.ui.voronoi_spacing_entry.set_value(0.2)
     plugin.ui.voronoi_spacing_entry.returnPressed.emit()
     plugin.ui.voronoi_pads_cb.set_value(True)
     saved = deepcopy(plugin.iso_tools[1]['data'])
     assert (saved['tools_iso_strategy'], saved['tools_iso_voronoi_pads']) == ('voronoi', True)
     plugin.ui.strategy_combo.set_value('offset')
+    assert all(control.isHidden() for control in controls)
     plugin.storage_to_form(saved)
+    assert all(not control.isHidden() for control in controls)
     assert plugin.ui.strategy_combo.get_value() == 'voronoi'
     assert plugin.ui.voronoi_spacing_entry.get_value() == pytest.approx(0.2)
     assert plugin.ui.voronoi_pads_cb.get_value() is True

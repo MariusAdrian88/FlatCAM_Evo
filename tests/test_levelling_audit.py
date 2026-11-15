@@ -1049,6 +1049,28 @@ class TestTargetOwnership(unittest.TestCase):
         self.assertIsNone(tool._al_target_name)
         self.assertEqual(tool._al_generation, 1)
 
+    def test_deleting_the_target_clears_probe_shapes(self):
+        from appHandlers.appObjectOps import AppObjectOps
+        a, b = self.target('job_a'), self.target('job_b')
+        levelling = self._tool('job_a', a, 'job_a', a)
+        sender = self._tool('job_b', b, 'job_b', b)
+        levelling.probing_shapes = MagicMock()
+        sender.probing_shapes = MagicMock()
+        ops = AppObjectOps.__new__(AppObjectOps)
+        ops.app = MagicMock(levelling_tool=levelling, grbl_sender_tool=sender)
+        ops.log = MagicMock()
+        ops.inform = MagicMock()
+
+        AppObjectOps.delete_objects_now(ops, [a])
+
+        self.assertEqual(levelling.al_voronoi_geo_storage, {})
+        self.assertIsNone(levelling._al_target_obj)
+        levelling.probing_shapes.clear.assert_called_with(update=True)
+        # the other tool has a different target: its probe data stays
+        self.assertEqual(len(sender.al_voronoi_geo_storage), 1)
+        self.assertIs(sender._al_target_obj, b)
+        sender.probing_shapes.clear.assert_not_called()
+
 
 class TestPolygonsAndAdd(unittest.TestCase):
 

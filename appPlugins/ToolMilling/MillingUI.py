@@ -7,7 +7,7 @@
 
 from PyQt6 import QtWidgets, QtCore, QtGui
 from appGUI.GUIElements import FCLabel, FCButton, FCFrame, GLay, FCComboBox, FCCheckBox, \
-    FCComboBox2, RadioSet, FCDoubleSpinner, FCSpinner, NumericalEvalTupleEntry, FCTable, \
+    FCComboBox2, RadioSet, FCChoiceComboBox, FCDoubleSpinner, FCSpinner, NumericalEvalTupleEntry, FCTable, \
     OptionalInputSection, OptionalHideInputSection, opposite_direction
 from defaults import AppDefaults
 
@@ -1217,18 +1217,18 @@ class MillingUI:
               "\n"
               "MetaHeuristic and Basic are disabled when OR-Tools is not available.")
         )
-        self.opt_algorithm_radio = RadioSet(
+        self.opt_algorithm_combo = FCChoiceComboBox(
             [
                 {'label': _('Rtree'), 'value': 'R'},
                 {'label': _('MetaHeuristic'), 'value': 'M'},
                 {'label': _('Basic'), 'value': 'B'},
                 {'label': _('TSA'), 'value': 'T'},
                 {'label': _('None'), 'value': 'N'}
-            ], orientation='vertical', compact=True)
-        self.opt_algorithm_radio.setObjectName("mill_opt_type")
+            ])
+        self.opt_algorithm_combo.setObjectName("mill_opt_type")
 
         gen_grid.addWidget(self.opt_algorithm_label, 24, 0)
-        gen_grid.addWidget(self.opt_algorithm_radio, 24, 1)
+        gen_grid.addWidget(self.opt_algorithm_combo, 24, 1)
 
         # OR-Tools search time
         self.opt_time_label = FCLabel('%s:' % _('Search time'))
@@ -1246,9 +1246,9 @@ class MillingUI:
 
         from camlib import HAS_ORTOOLS
         if not HAS_ORTOOLS:
-            self.opt_algorithm_radio.setOptionsDisabled([_('MetaHeuristic'), _('Basic')], True)
+            self.opt_algorithm_combo.setOptionsDisabled([_('MetaHeuristic'), _('Basic')], True)
 
-        for widget in (self.opt_algorithm_label, self.opt_algorithm_radio, self.opt_time_label, self.opt_time_entry):
+        for widget in (self.opt_algorithm_label, self.opt_algorithm_combo, self.opt_time_label, self.opt_time_entry):
             widget.hide()
 
         GLay.set_common_column_size(

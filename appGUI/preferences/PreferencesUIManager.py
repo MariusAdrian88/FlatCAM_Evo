@@ -236,7 +236,7 @@ class PreferencesUIManager(QtCore.QObject):
             "excellon_zeros": self.ui.excellon_pref_form.excellon_gen_group.excellon_zeros_radio,
             "excellon_units": self.ui.excellon_pref_form.excellon_gen_group.excellon_units_radio,
             "excellon_update": self.ui.excellon_pref_form.excellon_gen_group.update_excellon_cb,
-            "excellon_optimization_type": self.ui.excellon_pref_form.excellon_gen_group.excellon_optimization_radio,
+            "excellon_optimization_type": self.ui.excellon_pref_form.excellon_gen_group.excellon_optimization_combo,
             "excellon_search_time": self.ui.excellon_pref_form.excellon_gen_group.optimization_time_entry,
             "excellon_plot_fill": self.ui.excellon_pref_form.excellon_gen_group.fill_color_entry,
             "excellon_plot_line": self.ui.excellon_pref_form.excellon_gen_group.line_color_entry,
@@ -436,7 +436,7 @@ class PreferencesUIManager(QtCore.QObject):
             "tools_mill_polish_method": self.ui.plugin_pref_form.tools_mill_group.polish_method_combo,
 
             # those are still in the Geometry Preferences Form
-            "tools_mill_optimization_type": self.ui.geo_pref_form.geometry_gen_group.opt_algorithm_radio,
+            "tools_mill_optimization_type": self.ui.geo_pref_form.geometry_gen_group.opt_algorithm_combo,
             "tools_mill_search_time": self.ui.geo_pref_form.geometry_gen_group.optimization_time_entry,
 
             # Excellon Milling

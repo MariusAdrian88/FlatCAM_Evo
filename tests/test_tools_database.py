@@ -117,6 +117,31 @@ class EditorChecks(DatabaseCase):
                         other = cells.setdefault((r, c), item)
                         self.assertIs(other, item, f'{name}: two items in cell {(r, c)}')
 
+    def test_operation_filter_without_tools_shows_the_sections_of_that_operation(self):
+        db = self.database({'7': record(1)})
+        db.select_tool('7')
+        db.ui.filter_combo.setCurrentIndex(db.ui.filter_combo.findData(3))
+        self.assertEqual(0, db.proxy.rowCount())
+        self.assertFalse(db.ui.iso_box.isHidden())
+        self.assertTrue(db.ui.drill_box.isHidden())
+        self.assertEqual(3, db.ui.tool_op_combo.get_value())
+        self.assertFalse(db.ui.param_area.widget().isEnabled())
+        self.assertTrue(db.ui.param_area.verticalScrollBar().isEnabled())
+        db.ui.filter_combo.setCurrentIndex(db.ui.filter_combo.findData(1))
+        self.assertTrue(db.ui.iso_box.isHidden())
+        self.assertEqual(1, db.ui.tool_op_combo.get_value())
+        self.assertEqual(1, db.db_tool_dict['7']['data']['tool_target'])
+        self.assertEqual([], self.slot_errors)
+
+    def test_general_tool_shows_the_section_of_the_filtered_operation(self):
+        db = self.database({'7': record(0)})
+        for target, box in ((6, 'cutout_box'), (5, 'ncc_box')):
+            db.ui.filter_combo.setCurrentIndex(db.ui.filter_combo.findData(target))
+            self.assertFalse(getattr(db.ui, box).isHidden())
+        self.assertTrue(db.ui.cutout_box.isHidden())
+        self.assertEqual(0, db.db_tool_dict['7']['data']['tool_target'])
+        self.assertEqual([], self.slot_errors)
+
     def test_clearing_direction_is_saved_loaded_and_defaults_to_none_for_old_records(self):
         import appDatabase
         for target, key, radio in ((5, 'tools_ncc_clear_milling', 'ncc_clear_dir_radio'),
@@ -281,7 +306,7 @@ class EditorChecks(DatabaseCase):
         db = self.database()
         db.select_tool('8')
         self.assertTrue(db.ui.status_label.text())
-        self.assertFalse(db.ui.param_area.isEnabled())
+        self.assertFalse(db.ui.param_area.widget().isEnabled())
         self.assertTrue(db.ui.save_db_btn.isEnabled())
         db.select_tool('7')
         db.ui.name_entry.set_value('kept edit')

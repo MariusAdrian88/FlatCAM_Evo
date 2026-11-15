@@ -2818,6 +2818,46 @@ class FCComboBox2(FCComboBox):
             self.setCurrentIndex(0)
 
 
+class FCChoiceComboBox(FCComboBox):
+    """
+    A combobox with the interface of RadioSet: the choices are dictionaries with a 'label' (shown in the UI)
+    and a 'value' (what get_value() returns). It takes one row where a vertical RadioSet takes one row per choice.
+    """
+    activated_custom = QtCore.pyqtSignal(str)
+
+    def __init__(self, choices, parent=None, callback=None, policy=True):
+        super().__init__(parent=parent, callback=callback, policy=policy)
+        self.choices = [{'label': c['label'], 'value': c['value']} for c in choices]
+        for choice in self.choices:
+            self.addItem(choice['label'], choice['value'])
+        self.currentIndexChanged.connect(self._on_index_changed)
+
+    def _on_index_changed(self, index):
+        if index >= 0:
+            self.activated_custom.emit(str(self.get_value()))
+
+    def get_value(self):
+        return self.currentData()
+
+    def set_value(self, val):
+        idx = self.findData(val)
+        if idx == -1:
+            log.error(str(inspect.stack()[1][3]) + " -> Value given is not part of this combobox: %s" % str(val))
+            return
+        self.setCurrentIndex(idx)
+
+    def setOptionsDisabled(self, options: list, val: bool) -> None:
+        model = self.model()
+        for idx, choice in enumerate(self.choices):
+            if choice['label'] in options:
+                item = model.item(idx)
+                if item is not None:
+                    item.setEnabled(not val)
+
+    def values(self):
+        return [choice['value'] for choice in self.choices]
+
+
 class DialogBoxChoice(QtWidgets.QDialog):
     def __init__(self, choices, title=None, icon=None, default_choice='bl', parent=None):
         """

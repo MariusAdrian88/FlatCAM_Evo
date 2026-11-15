@@ -489,6 +489,8 @@ class ToolsDB2UI:
         for box in (self.tool_description_box, self.milling_box, self.drill_box,
                     self.iso_box, self.paint_box, self.ncc_box, self.cutout_box):
             box.setStyleSheet('')
+            # Fixed height: the stretch inside a box made it share the free space with the stretch below
+            box.setSizePolicy(QtWidgets.QSizePolicy.Policy.Preferred, QtWidgets.QSizePolicy.Policy.Fixed)
             param_hlay.addWidget(box)
         param_hlay.addStretch()
 
@@ -574,7 +576,7 @@ class ToolsDB2UI:
         self.grid_tool.addWidget(self.tool_op_label, 8, 0)
         self.grid_tool.addWidget(self.tool_op_combo, 8, 1)
 
-        self.properties_label = FCLabel(_("Properties for"))
+        self.properties_label = FCLabel('%s:' % _("Properties for"))
         self.properties_combo = QtWidgets.QComboBox()
         for target, name in enumerate(operation_names()[1:], 1):
             self.properties_combo.addItem(name, target)
@@ -915,7 +917,7 @@ class ToolsDB2UI:
         )
 
         self.ncc_milling_type_radio = RadioSet([{'label': _('Climb'), 'value': 'cl'},
-                                                {'label': _('Conventional'), 'value': 'cv'}])
+                                                {'label': _('Conventional'), 'value': 'cv'}], compact=True)
         self.ncc_milling_type_radio.setToolTip(
             _("Milling type:\n"
               "- climb / best for precision milling and to reduce tool usage\n"
@@ -1242,7 +1244,7 @@ class ToolsDB2UI:
         )
 
         self.iso_milling_type_radio = RadioSet([{'label': _('Climb'), 'value': 'cl'},
-                                                {'label': _('Conventional'), 'value': 'cv'}])
+                                                {'label': _('Conventional'), 'value': 'cv'}], compact=True)
         self.iso_milling_type_radio.setToolTip(
             _("Milling type:\n"
               "- climb / best for precision milling and to reduce tool usage\n"
@@ -1267,7 +1269,7 @@ class ToolsDB2UI:
         )
         self.iso_type_radio = RadioSet([{'label': _('Full'), 'value': 'full'},
                                         {'label': _('Ext'), 'value': 'ext'},
-                                        {'label': _('Int'), 'value': 'int'}])
+                                        {'label': _('Int'), 'value': 'int'}], compact=True)
         self.iso_type_radio.setObjectName("gdb_i_iso_type")
 
         self.grid4.addWidget(self.iso_type_label, 8, 0)
@@ -1275,7 +1277,7 @@ class ToolsDB2UI:
 
         strategy_label = FCLabel('%s:' % _('Strategy'))
         self.iso_strategy_combo = RadioSet([{'label': _('Offset'), 'value': 'offset'},
-                                            {'label': _('Voronoi'), 'value': 'voronoi'}])
+                                            {'label': _('Voronoi'), 'value': 'voronoi'}], compact=True)
         self.iso_strategy_combo.setObjectName("gdb_i_strategy")
         self.iso_strategy_combo.setToolTip(_(
             "Voronoi needs a board boundary, All copper, Full isolation and one positive pass.\n"
@@ -2262,6 +2264,17 @@ class ToolsDB2(QtWidgets.QWidget):
                 widget.setSuffix(' %s/min' % units)
             if key.endswith('spindlespeed'):
                 widget.setSuffix(' rpm')
+        # one label column width for all sections: the fields of all sections start at the same x
+        grids = [grid for grid in vars(self.ui).values() if isinstance(grid, QtWidgets.QGridLayout)]
+        label_width = 0
+        for grid in grids:
+            for index in range(grid.count()):
+                widget = grid.itemAt(index).widget()
+                row, column, row_span, column_span = grid.getItemPosition(index)
+                if widget is not None and column == 0 and column_span == 1:
+                    label_width = max(label_width, widget.sizeHint().width())
+        for grid in grids:
+            grid.setColumnMinimumWidth(0, label_width)
         self.update_property_visibility()
 
     def update_property_visibility(self, *args):
@@ -2332,15 +2345,38 @@ class ToolsDB2(QtWidgets.QWidget):
         self._search_timer.stop()
         target = self.context_target if self.context_target is not None else self.ui.filter_combo.currentData()
         self.proxy.set_filters(self.ui.search_entry.text(), target)
+        if target and self.context_target is None:
+            # a General tool matches every filter: show its properties for the filtered operation
+            with QtCore.QSignalBlocker(self.ui.properties_combo):
+                self.ui.properties_combo.setCurrentIndex(self.ui.properties_combo.findData(target))
         selection = self.ui.tree_widget.selectionModel()
-        if not selection.selectedRows() and self.proxy.rowCount():
+        if not self.proxy.rowCount():
+            self._show_target_defaults(target or 0)
+        elif not selection.selectedRows():
             self.select_tool(str(self.proxy.index(0, 0).data()))
+        else:
+            self.on_tool_target_changed()
         self.update_selection_state()
+
+    def _show_target_defaults(self, target):
+        # no tool is shown: the disabled panel shows the defaults of the chosen operation, not the last tool
+        data = {key: deepcopy(value) for key, value in self.library_defaults.items()}
+        data.update(tool_target=target, tol_min=0.0, tol_max=0.0)
+        diameter = self.form_fields['tooldia'].get_value()
+        if not diameter:
+            # an empty library has no last tool: show the first diameter of the Milling preferences
+            try:
+                diameter = float(str(_database_option(self.app, 'tools_mill_tooldia')).split(',')[0])
+            except (TypeError, ValueError):
+                diameter = 0.0
+        self.storage_to_form({'name': '', 'tooldia': diameter, 'data': data})
+        self.on_tool_target_changed(val=target)
 
     def update_selection_state(self, *args):
         selected = self.selected_tool_ids()
         count = len(selected)
-        self.ui.param_area.setEnabled(count == 1 and selected[0] not in self.model.skipped)
+        # disable the form, not the scroll area: a disabled scroll area also disables its scroll bars
+        self.ui.param_area.widget().setEnabled(count == 1 and selected[0] not in self.model.skipped)
         self.ui.copy_entry_btn.setEnabled(count > 0)
         self.ui.remove_entry_btn.setEnabled(count > 0)
         self.ui.add_tool_from_db.setEnabled(count > 0 and self._db_load_valid)

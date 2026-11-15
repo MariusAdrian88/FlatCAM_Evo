@@ -720,7 +720,7 @@ class ToolMilling(Geometry, AppTool):
             "tools_mill_probe_plate": self.ui.probe_plate_entry,
             "tools_mill_feedrate_probe": self.ui.feedrate_probe_entry,
             "tools_mill_ppname_g": self.ui.pp_geo_name_cb,
-            "tools_mill_optimization_type": self.ui.opt_algorithm_radio,
+            "tools_mill_optimization_type": self.ui.opt_algorithm_combo,
             "tools_mill_search_time": self.ui.opt_time_entry,
             "seg_x":    self.ui.seg_x_entry,
             "seg_y":    self.ui.seg_y_entry,
@@ -978,10 +978,10 @@ class ToolMilling(Geometry, AppTool):
 
         # the fields of both targets that Beginner hides
         for widget in (ui.mpass_cb, ui.maxdepth_entry, ui.endmove_xy_label, ui.endxy_entry, ui.exclusion_cb,
-                       ui.opt_algorithm_label, ui.opt_algorithm_radio):
+                       ui.opt_algorithm_label, ui.opt_algorithm_combo):
             widget.setVisible(bool(advanced))
         # the search time is for the OR-Tools algorithms only
-        ortools = bool(advanced) and ui.opt_algorithm_radio.get_value() in ('M', 'B')
+        ortools = bool(advanced) and ui.opt_algorithm_combo.get_value() in ('M', 'B')
         ui.opt_time_label.setVisible(ortools)
         ui.opt_time_entry.setVisible(ortools)
 

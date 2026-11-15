@@ -1,7 +1,7 @@
 
 from PyQt6 import QtGui
 
-from appGUI.GUIElements import FCCheckBox, FCSpinner, FCColorEntry, RadioSet, FCLabel, GLay, FCFrame
+from appGUI.GUIElements import FCCheckBox, FCSpinner, FCColorEntry, FCChoiceComboBox, FCLabel, GLay, FCFrame
 from appGUI.preferences.OptionsGroupUI import OptionsGroupUI
 from appGUI.preferences.CircleStepsRows import CircleStepsRows
 
@@ -86,17 +86,17 @@ class GeometryGenPrefGroupUI(OptionsGroupUI):
               "Some options are disabled when the application works in 32bit mode.")
         )
 
-        self.opt_algorithm_radio = RadioSet(
+        self.opt_algorithm_combo = FCChoiceComboBox(
             [
                 {'label': _('Rtree'), 'value': 'R'},
                 {'label': _('MetaHeuristic'), 'value': 'M'},
                 {'label': _('Basic'), 'value': 'B'},
                 {'label': _('TSA'), 'value': 'T'},
                 {'label': _('None'), 'value': 'N'}
-            ], orientation='vertical', compact=True)
+            ])
 
         opt_grid.addWidget(self.opt_algorithm_label, 0, 0)
-        opt_grid.addWidget(self.opt_algorithm_radio, 0, 1)
+        opt_grid.addWidget(self.opt_algorithm_combo, 0, 1)
 
         self.optimization_time_label = FCLabel('%s:' % _('Duration'))
         self.optimization_time_label.setToolTip(
@@ -159,22 +159,22 @@ class GeometryGenPrefGroupUI(OptionsGroupUI):
 
         current_platform = platform.architecture()[0]
         if current_platform == '64bit':
-            self.opt_algorithm_radio.setOptionsDisabled([_('MetaHeuristic'), _('Basic')], False)
+            self.opt_algorithm_combo.setOptionsDisabled([_('MetaHeuristic'), _('Basic')], False)
             self.optimization_time_label.setDisabled(False)
             self.optimization_time_entry.setDisabled(False)
         else:
-            self.opt_algorithm_radio.setOptionsDisabled([_('MetaHeuristic'), _('Basic')], True)
+            self.opt_algorithm_combo.setOptionsDisabled([_('MetaHeuristic'), _('Basic')], True)
             self.optimization_time_label.setDisabled(True)
             self.optimization_time_entry.setDisabled(True)
 
         # OR-Tools options only if it was imported on a 64-bit Python
         from camlib import HAS_ORTOOLS
         if not HAS_ORTOOLS:
-            self.opt_algorithm_radio.setOptionsDisabled([_('MetaHeuristic'), _('Basic')], True)
+            self.opt_algorithm_combo.setOptionsDisabled([_('MetaHeuristic'), _('Basic')], True)
             self.optimization_time_label.setDisabled(True)
             self.optimization_time_entry.setDisabled(True)
 
-        self.opt_algorithm_radio.activated_custom.connect(self.optimization_selection)
+        self.opt_algorithm_combo.activated_custom.connect(self.optimization_selection)
 
         # Setting plot colors signals
         self.line_color_entry.editingFinished.connect(self.on_line_color_entry)
@@ -187,9 +187,9 @@ class GeometryGenPrefGroupUI(OptionsGroupUI):
             # set Geometry path optimizations algorithm to Rtree if the app is run on a 32bit platform
             # modes 'M' or 'B' are not allowed when the app is running in 32bit platform
             if val in ['M', 'B']:
-                self.opt_algorithm_radio.blockSignals(True)
-                self.opt_algorithm_radio.set_value('R')
-                self.opt_algorithm_radio.blockSignals(False)
+                self.opt_algorithm_combo.blockSignals(True)
+                self.opt_algorithm_combo.set_value('R')
+                self.opt_algorithm_combo.blockSignals(False)
 
         if val in ('M', 'B'):
             self.optimization_time_label.setDisabled(False)

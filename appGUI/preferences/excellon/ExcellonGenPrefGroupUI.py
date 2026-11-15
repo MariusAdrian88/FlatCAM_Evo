@@ -3,8 +3,8 @@ import platform
 
 from PyQt6 import QtWidgets, QtCore, QtGui
 
-from appGUI.GUIElements import FCCheckBox, FCSpinner, RadioSet, FCSliderWithSpinner, FCColorEntry, FCLabel, \
-    GLay, FCFrame, FCButton
+from appGUI.GUIElements import FCCheckBox, FCSpinner, RadioSet, FCChoiceComboBox, FCSliderWithSpinner, FCColorEntry, \
+    FCLabel, GLay, FCFrame, FCButton
 from appGUI.preferences.OptionsGroupUI import OptionsGroupUI
 from appGUI.preferences.CircleStepsRows import CircleStepsRows
 from appDatabase import _database_option
@@ -239,16 +239,16 @@ class ExcellonGenPrefGroupUI(OptionsGroupUI):
               "Some options are disabled when the application works in 32bit mode.")
         )
 
-        self.excellon_optimization_radio = RadioSet(
+        self.excellon_optimization_combo = FCChoiceComboBox(
             [
                 {'label': _('Rtree'), 'value': 'R'},
                 {'label': _('MetaHeuristic'), 'value': 'M'},
                 {'label': _('Basic'), 'value': 'B'},
                 {'label': _('TSA'), 'value': 'T'}
-            ], orientation='vertical', compact=True)
+            ])
 
         opt_grid.addWidget(self.excellon_optimization_label, 0, 0)
-        opt_grid.addWidget(self.excellon_optimization_radio, 0, 1)
+        opt_grid.addWidget(self.excellon_optimization_combo, 0, 1)
 
         self.optimization_time_label = FCLabel('%s:' % _('Duration'))
         self.optimization_time_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignLeft)
@@ -335,18 +335,18 @@ class ExcellonGenPrefGroupUI(OptionsGroupUI):
 
         current_platform = platform.architecture()[0]
         if current_platform == '64bit':
-            self.excellon_optimization_radio.setOptionsDisabled([_('MetaHeuristic'), _('Basic')], False)
+            self.excellon_optimization_combo.setOptionsDisabled([_('MetaHeuristic'), _('Basic')], False)
             self.optimization_time_label.setDisabled(False)
             self.optimization_time_entry.setDisabled(False)
         else:
-            self.excellon_optimization_radio.setOptionsDisabled([_('MetaHeuristic'), _('Basic')], True)
+            self.excellon_optimization_combo.setOptionsDisabled([_('MetaHeuristic'), _('Basic')], True)
             self.optimization_time_label.setDisabled(True)
             self.optimization_time_entry.setDisabled(True)
 
         # OR-Tools options only if it was imported on a 64-bit Python
         from camlib import HAS_ORTOOLS
         if not HAS_ORTOOLS:
-            self.excellon_optimization_radio.setOptionsDisabled([_('MetaHeuristic'), _('Basic')], True)
+            self.excellon_optimization_combo.setOptionsDisabled([_('MetaHeuristic'), _('Basic')], True)
             self.optimization_time_label.setDisabled(True)
             self.optimization_time_entry.setDisabled(True)
 
@@ -365,16 +365,16 @@ class ExcellonGenPrefGroupUI(OptionsGroupUI):
         # call it once to make sure it is updated at startup
         self.on_update_exc_export(state=_database_option(app, "excellon_update"))
 
-        self.excellon_optimization_radio.activated_custom.connect(self.optimization_selection)
+        self.excellon_optimization_combo.activated_custom.connect(self.optimization_selection)
 
     def optimization_selection(self, val):
         if platform.architecture()[0] != '64bit':
             # set Excellon path optimizations algorithm to TSA if the app is run on a 32bit platform
             # modes 'M' or 'B' are not allowed when the app is running in 32bit platform
             if val in ['M', 'B']:
-                self.excellon_optimization_radio.blockSignals(True)
-                self.excellon_optimization_radio.set_value('T')
-                self.excellon_optimization_radio.blockSignals(False)
+                self.excellon_optimization_combo.blockSignals(True)
+                self.excellon_optimization_combo.set_value('T')
+                self.excellon_optimization_combo.blockSignals(False)
 
         if val in ('M', 'B'):
             self.optimization_time_label.setDisabled(False)

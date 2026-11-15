@@ -94,20 +94,25 @@ class AppTool(QtWidgets.QWidget):
             self.layout.insertWidget(index, self.ui.gen_param_label)
             self.layout.insertWidget(index + 1, frame)
 
+        # AutoHide and Autoswitch share one row
+        row_lay = QtWidgets.QHBoxLayout()
+        row_lay.setContentsMargins(0, 0, 0, 0)
         if has_source:
             self.ui.object_autohide_cb = FCCheckBox(_("Object AutoHide"))
             self.ui.object_autohide_cb.setToolTip(
                 _("When checked, once a new object is generated the source object is hidden on canvas."))
             self.ui.object_autohide_cb.toggled.connect(
                 lambda value: setattr(self, 'object_autohide', value))
-            grid.addWidget(self.ui.object_autohide_cb, grid.rowCount(), 0, 1, 2)
+            row_lay.addWidget(self.ui.object_autohide_cb)
 
         self.ui.object_autoswitch_cb = FCCheckBox(_("Object Autoswitch"))
         self.ui.object_autoswitch_cb.setToolTip(
             _("When checked, on new object creation, switch to Properties."))
         self.ui.object_autoswitch_cb.toggled.connect(
             lambda value: setattr(self, 'object_autoswitch', value))
-        grid.addWidget(self.ui.object_autoswitch_cb, grid.rowCount(), 0, 1, 2)
+        row_lay.addWidget(self.ui.object_autoswitch_cb)
+        row_lay.addStretch()
+        grid.addLayout(row_lay, grid.rowCount(), 0, 1, 2)
         self.reset_object_creation_controls()
 
     def reset_object_creation_controls(self):

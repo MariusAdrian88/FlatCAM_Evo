@@ -491,7 +491,7 @@ class IsoUI:
         )
         self.combine_passes_cb.setObjectName("i_combine")
 
-        gen_grid.addWidget(self.combine_passes_cb, 2, 0, 1, 2)
+        gen_grid.addWidget(self.combine_passes_cb, 2, 0)
 
         # Clear the copper left between the passes
         self.clear_leftovers_cb = FCCheckBox(label=_('Clear leftovers'))
@@ -504,7 +504,7 @@ class IsoUI:
         )
         self.clear_leftovers_cb.setObjectName("i_clear_leftovers")
 
-        gen_grid.addWidget(self.clear_leftovers_cb, 3, 0, 1, 2)
+        gen_grid.addWidget(self.clear_leftovers_cb, 2, 1)
 
         # Check Tool validity
         self.valid_cb = FCCheckBox(label=_('Check validity'))
@@ -797,9 +797,9 @@ class IsoUI:
     def on_strategy_changed(self, *args):
         voronoi = self.strategy_combo.get_value() == 'voronoi'
         self.trace_boundary_cb.setEnabled(self.boundary_cb.get_value() and not voronoi)
-        self.voronoi_spacing_entry.setEnabled(voronoi)
-        self.voronoi_spacing_label.setEnabled(voronoi)
-        self.voronoi_pads_cb.setEnabled(voronoi)
+        self.voronoi_spacing_entry.setVisible(voronoi)
+        self.voronoi_spacing_label.setVisible(voronoi)
+        self.voronoi_pads_cb.setVisible(voronoi)
 
     def confirmation_message(self, accepted, minval, maxval):
         if accepted is False:
