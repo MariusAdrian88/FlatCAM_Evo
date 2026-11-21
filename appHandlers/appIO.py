@@ -2589,9 +2589,8 @@ class appIO(QtCore.QObject):
             self.inform.emit('[WARNING_NOTCL] %s' % _("Cancelled."))
             return 'fail'
 
-        # Save the preferences in effect: the content of the preferences file (current_defaults.FlatConfig). The
-        # options have only the project keys and no write(). The form is not read: an export does not apply the edits
-        # that were not saved.
+        # Export the preferences in effect to the selected file. The options have only the project keys and no
+        # write(). The form is not read: an export does not apply edits that were not saved.
         try:
             self.app.defaults.write(filename=filename)
         except Exception:
@@ -4501,7 +4500,7 @@ class appIO(QtCore.QObject):
     def on_file_save_defaults(self):
         """
         Callback for menu item File->Save Defaults. Saves application default options
-        ``self.options`` to current_defaults.FlatConfig.
+        from the preferences manager to the EVO preferences file.
 
         :return: None
         """

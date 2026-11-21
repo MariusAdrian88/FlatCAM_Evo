@@ -305,7 +305,7 @@ def test_saved_startup_choice_survives_preferences_cancel(welcome, tmp_path):
     app.preferencesUiManager = manager
     dialog.next_time.click()
     saved = AppDefaults(beta=False)
-    saved.load(str(tmp_path / 'current_defaults.FlatConfig'), inform=app.inform)
+    saved.load(str(tmp_path / 'current_defaults_evo.FlatConfig'), inform=app.inform)
     assert saved['global_welcome'] is False
     app.defaults.update(app.defaults.current_defaults)  # Preferences > Cancel restores this snapshot.
     assert app.options['global_welcome'] is False

@@ -50,7 +50,7 @@ class TestVersionIndependentPreferences:
         defaults_v1["global_version_check"] = False
         defaults_v1["global_update_url"] = "https://custom.example.com"
 
-        filename = tmp_path / "current_defaults.FlatConfig"
+        filename = tmp_path / AppDefaults.defaults_filename
         defaults_v1.write(str(filename))
 
         defaults_v2 = AppDefaults(beta=False, version="2.0")
@@ -87,6 +87,231 @@ class TestVersionIndependentPreferences:
         assert defaults["tools_sub_keep_target"] is False
         assert defaults["tools_sub_delete_subtractors"] is True
         assert defaults["tools_film_png_dpi"] == 300
+
+
+class TestStartupDefaultsIsolation:
+    @staticmethod
+    def setup_paths(tmp_path, monkeypatch):
+        import logging
+        from appMain import App
+
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv('FLATCAM_DATA_PATH', str(tmp_path))
+        app = SimpleNamespace(headless=True, beta=True, version='2.0', inform=FakeSignal(),
+                              log=logging.getLogger('base'))
+        for name in ('defaults_path', 'factory_defaults_path', 'preprocessors_path', 'tools_database_path',
+                     'recent_files_path', 'recent_projects_path'):
+            setattr(app, name, getattr(App, name).__get__(app))
+        App._setup_paths_and_config(app)
+        return app
+
+    def test_startup_copies_shared_preferences_and_recovers_readonly_factory(self, tmp_path, monkeypatch):
+        legacy = tmp_path / 'current_defaults.FlatConfig'
+        legacy_bytes = b'{"version": "8.994", "units": "IN", "global_version_check": false, "global_worker_number": 0}'
+        legacy.write_bytes(legacy_bytes)
+        (tmp_path / 'current_defaults_2.0.FlatConfig').write_text('{"units": "MM"}')
+        factory = tmp_path / 'factory_defaults.FlatConfig'
+        factory_bytes = b'{ "units": "MM" }\r\n'
+        factory.write_bytes(factory_bytes)
+        factory.chmod(stat.S_IREAD)
+
+        import appDatabase
+        database_units = []
+        monkeypatch.setattr(appDatabase, 'initialize_tools_database',
+                            lambda path, sources, defaults: database_units.append(defaults['units']))
+        self.setup_paths(tmp_path, monkeypatch)
+
+        evo = tmp_path / 'current_defaults_evo.FlatConfig'
+        saved = json.loads(evo.read_text())
+        assert saved['units'] == 'IN'
+        assert saved['global_version_check'] is False
+        assert saved['global_worker_number'] == 0
+        assert 'version' not in saved
+        assert database_units == ['IN']
+        assert legacy.read_bytes() == legacy_bytes
+        assert not factory.exists()
+        assert 'version' not in json.loads((tmp_path / 'factory_defaults_evo.FlatConfig').read_text())
+        backups = list(tmp_path.glob('factory_defaults.FlatConfig.*.bak'))
+        assert [backup.read_bytes() for backup in backups] == [factory_bytes]
+
+        factory.write_bytes(b'{"version": "8.994"}')
+        evo.write_text('{}')
+        self.setup_paths(tmp_path, monkeypatch)
+        assert evo.read_text() == '{}'
+        assert factory.read_bytes() == b'{"version": "8.994"}'
+        assert list(tmp_path.glob('factory_defaults.FlatConfig.*.bak')) == backups
+
+    @pytest.mark.parametrize('failure', ['read', 'publish'])
+    def test_failed_import_leaves_preferences_and_tools_retryable(self, tmp_path, monkeypatch, failure):
+        import builtins
+        import appDatabase
+        import appMain
+        from appGUI.preferences.PreferencesUIManager import PreferencesUIManager
+
+        legacy = tmp_path / 'current_defaults.FlatConfig'
+        legacy_bytes = b'{"units": "IN", "global_version_check": false}'
+        legacy.write_bytes(legacy_bytes)
+        evo = tmp_path / AppDefaults.defaults_filename
+        database_units = []
+        initialize_database = appDatabase.initialize_tools_database
+        open_file = builtins.open
+
+        def initialize(path, sources, defaults):
+            database_units.append(defaults['units'])
+            initialize_database(path, sources, defaults)
+
+        def locked_open(filename, *args, **kwargs):
+            if filename == str(legacy):
+                raise PermissionError('Cannot read legacy preferences')
+            return open_file(filename, *args, **kwargs)
+
+        publish_name = 'rename' if os.name == 'nt' else 'link'
+        publish = getattr(os, publish_name)
+
+        def fail_publish(source, destination):
+            if destination == str(evo):
+                raise PermissionError('Cannot publish migrated preferences')
+            return publish(source, destination)
+
+        def runtime_manager(app):
+            for name in ('_apply_color_scheme', 'apply_dim_text', 'setup_obj_classes'):
+                setattr(app, name, Mock())
+            app.qapp = Mock()
+            appMain.App._setup_defaults_and_preferences(app)
+            return SimpleNamespace(ui=SimpleNamespace(app=app), defaults=app.defaults,
+                                   data_path=app.data_path, inform=app.inform)
+
+        for name in ('AppLifecycle', 'AppLogging', 'create_update_checker'):
+            monkeypatch.setattr(appMain, name, Mock())
+        monkeypatch.setattr(appMain.darkdetect, 'isDark', lambda: False)
+        monkeypatch.setattr(appDatabase, 'initialize_tools_database', initialize)
+        with monkeypatch.context() as blocked:
+            if failure == 'read':
+                blocked.setattr(builtins, 'open', locked_open)
+            else:
+                blocked.setattr(os, publish_name, fail_publish)
+            app = self.setup_paths(tmp_path, monkeypatch)
+            manager = runtime_manager(app)
+            PreferencesUIManager.save_defaults(manager, silent=True)
+            assert not evo.exists()
+            assert not os.path.exists(app.tools_database_path())
+            assert database_units == []
+            assert PreferencesUIManager.save_defaults(manager) is False
+            assert any(message.startswith('[ERROR') for (message,) in app.inform.emissions)
+
+            portable_path = tmp_path / 'portable'
+            portable_path.mkdir()
+            PreferencesUIManager.save_defaults(manager, data_path=str(portable_path))
+            assert (portable_path / evo.name).is_file()
+            assert not evo.exists()
+
+        app = self.setup_paths(tmp_path, monkeypatch)
+        manager = runtime_manager(app)
+        assert app.defaults['units'] == 'IN'
+        assert app.defaults['global_version_check'] is False
+        assert database_units == ['IN']
+        assert os.path.isfile(app.tools_database_path())
+        assert PreferencesUIManager.save_defaults(manager) is None
+        assert json.loads(evo.read_text())['units'] == 'IN'
+        assert legacy.read_bytes() == legacy_bytes
+
+    @pytest.mark.parametrize('source,units', [('clean', 'MM'), ('fallback', 'IN'), ('concurrent', 'IN')])
+    def test_startup_uses_persisted_units_after_import_or_clean_start(self, tmp_path, monkeypatch, source, units):
+        import builtins
+        import appDatabase
+
+        legacy = tmp_path / 'current_defaults.FlatConfig'
+        evo = tmp_path / AppDefaults.defaults_filename
+        if source == 'fallback':
+            legacy.write_text('{"units": "MM"}')
+            (tmp_path / 'current_defaults_2.0.FlatConfig').write_text('{"units": "IN"}')
+            open_file = builtins.open
+
+            def locked_open(filename, *args, **kwargs):
+                if filename == str(legacy):
+                    raise PermissionError('Cannot read legacy preferences')
+                return open_file(filename, *args, **kwargs)
+
+            monkeypatch.setattr(builtins, 'open', locked_open)
+        elif source == 'concurrent':
+            legacy.write_text('{"units": "MM"}')
+            publish_name = 'rename' if os.name == 'nt' else 'link'
+            publish = getattr(os, publish_name)
+
+            def publish_after_competitor(temp_path, destination):
+                if destination == str(evo):
+                    evo.write_text('{"units": "IN"}')
+                publish(temp_path, destination)
+
+            monkeypatch.setattr(os, publish_name, publish_after_competitor)
+
+        database_units = []
+        monkeypatch.setattr(appDatabase, 'initialize_tools_database',
+                            lambda path, sources, defaults: database_units.append(defaults['units']))
+        self.setup_paths(tmp_path, monkeypatch)
+        saved = json.loads(evo.read_text())
+        if source == 'clean':
+            assert saved == {}
+        else:
+            assert saved['units'] == units
+        assert database_units == [units]
+
+    def test_migration_skips_invalid_sources_in_legacy_priority_order(self, tmp_path):
+        (tmp_path / 'current_defaults.FlatConfig').write_text('{}')
+        exact = tmp_path / 'current_defaults_2.0.FlatConfig'
+        exact.write_text('not JSON')
+        os.utime(exact, (3000, 3000))
+        for version, units, mtime in [('1.7', 'MM', 1000), ('1.8', 'MM', 2000), ('1.9', 'IN', 2000)]:
+            candidate = tmp_path / f'current_defaults_{version}.FlatConfig'
+            candidate.write_text(json.dumps({'units': units}))
+            os.utime(candidate, (mtime, mtime))
+        evo = tmp_path / AppDefaults.defaults_filename
+        defaults = AppDefaults(version='2.0')
+        inform = FakeSignal()
+        defaults.migrate_legacy_defaults(str(evo), inform)
+
+        assert json.loads(evo.read_text())['units'] == 'IN'
+        assert exact.read_text() == 'not JSON'
+        assert inform.emissions
+        assert AppDefaults.find_legacy_defaults_file(str(tmp_path), 'evo') == str(exact)
+
+    @pytest.mark.parametrize('content', ['{}', '[]', 'not JSON'])
+    def test_invalid_migration_source_does_not_create_preferences_snapshot(self, tmp_path, content):
+        legacy = tmp_path / 'current_defaults.FlatConfig'
+        legacy.write_text(content)
+        evo = tmp_path / AppDefaults.defaults_filename
+        AppDefaults().migrate_legacy_defaults(str(evo), FakeSignal())
+        assert not evo.exists()
+        assert legacy.read_text() == content
+
+    def test_malformed_evo_preferences_are_not_replaced(self, tmp_path, monkeypatch):
+        (tmp_path / 'current_defaults.FlatConfig').write_text('{"units": "IN"}')
+        evo = tmp_path / 'current_defaults_evo.FlatConfig'
+        evo.write_text('not JSON')
+        self.setup_paths(tmp_path, monkeypatch)
+        assert evo.read_text() == 'not JSON'
+
+    @pytest.mark.parametrize('content', [b'{}', b'[]', b'not JSON'])
+    def test_factory_recovery_leaves_unrecognized_snapshots_alone(self, tmp_path, content):
+        factory = tmp_path / 'factory_defaults.FlatConfig'
+        factory.write_bytes(content)
+        AppDefaults.recover_legacy_factory_defaults(str(tmp_path))
+        assert factory.read_bytes() == content
+        assert list(tmp_path.iterdir()) == [factory]
+
+    def test_failed_migration_publish_does_not_leave_a_partial_preferences_file(self, tmp_path, monkeypatch):
+        legacy = tmp_path / 'current_defaults.FlatConfig'
+        legacy.write_bytes(b'{"units": "IN"}')
+        evo = tmp_path / AppDefaults.defaults_filename
+
+        def fail_publish(*args):
+            raise PermissionError('Cannot publish preferences')
+
+        monkeypatch.setattr(os, 'rename' if os.name == 'nt' else 'link', fail_publish)
+        with pytest.raises(PermissionError):
+            AppDefaults().migrate_legacy_defaults(str(evo))
+        assert legacy.read_bytes() == b'{"units": "IN"}'
+        assert list(tmp_path.iterdir()) == [legacy]
 
 
 class TestPreferencesFileWrite:
@@ -154,26 +379,27 @@ class TestLegacyCompatibility:
         # Should pick 2.0 as most recent
         assert found == str(legacy_20)
 
-    @pytest.mark.parametrize("stable,units", [("{}", "IN")], ids=["empty"])
-    def test_startup_loads_legacy_file_over_empty_stable_file(self, tmp_path, monkeypatch, stable, units):
-        """_setup_paths_and_config() writes an empty stable file ('{}') before the discovery; saved ones still win."""
+    @pytest.mark.parametrize('saved,apply_saved,units', [('{}', True, 'MM'), ('{"units": "IN"}', False, 'MM'),
+                                                        ('{"units": "IN"}', True, 'IN')])
+    def test_startup_applies_only_evo_preferences_when_enabled(self, tmp_path, monkeypatch, saved, apply_saved, units):
         import appMain
 
         (tmp_path / "current_defaults_8.995.FlatConfig").write_text(json.dumps({
             "units": "IN", "global_log_verbose": 1, "global_version_check": False}))
-        (tmp_path / "current_defaults.FlatConfig").write_text(stable)
+        evo = tmp_path / AppDefaults.defaults_filename
+        evo.write_text(saved)
         app = MagicMock()
         app.version = "1.0"
         app.beta = False
         app.data_path = str(tmp_path)
-        app.defaults_path.return_value = str(tmp_path / "current_defaults.FlatConfig")
-        for name in ("AppLifecycle", "AppLogging", "GitHubUpdateChecker", "Pool"):
+        app.defaults_path.return_value = str(evo)
+        for name in ("AppLifecycle", "AppLogging", "create_update_checker", "Pool", "QSettings"):
             monkeypatch.setattr(appMain, name, MagicMock())
         monkeypatch.setattr(appMain.darkdetect, "isDark", lambda: False)
 
-        appMain.App._setup_defaults_and_preferences(app)
+        appMain.App._setup_defaults_and_preferences(app, user_defaults=apply_saved)
         assert app.defaults["units"] == units
-        assert app.defaults["global_version_check"] is (units != "IN")
+        assert app.defaults["global_version_check"] is True
 
 
 class TestExportPreferences:

@@ -270,7 +270,7 @@ class TestTitleBarPreferences(unittest.TestCase):
                     if accept:
                         manager.ui.app.on_app_restart.assert_called_once()
                         saved = AppDefaults(beta=False)
-                        saved.load(os.path.join(path, 'current_defaults.FlatConfig'), inform=MagicMock())
+                        saved.load(os.path.join(path, 'current_defaults_evo.FlatConfig'), inform=MagicMock())
                         self.assertEqual(saved['global_custom_titlebar'], expected)
                     else:
                         manager.ui.app.on_app_restart.assert_not_called()

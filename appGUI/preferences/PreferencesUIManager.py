@@ -1259,9 +1259,10 @@ class PreferencesUIManager(QtCore.QObject):
             self.ui.title_bar.set_hamburger(self._pref('global_hamburger_menu'))
 
         if save_to_file or should_restart is True:
-            self.save_defaults(silent=False)
+            if self.save_defaults(silent=False) is False:
+                return
             # load the defaults so they are updated into the app
-            saved_filename_path = os.path.join(self.data_path, 'current_defaults.FlatConfig')
+            saved_filename_path = os.path.join(self.data_path, AppDefaults.defaults_filename)
             self.defaults.load(filename=saved_filename_path, inform=self.inform)
 
         settgs = QSettings("Open Source", "FlatCAM_EVO")
@@ -1308,27 +1309,30 @@ class PreferencesUIManager(QtCore.QObject):
 
     def save_defaults(self, silent=False, data_path=None, first_time=False):
         """
-        Saves application default options
-        ``self.defaults`` to current_defaults.FlatConfig file.
-        Save the toolbars visibility status to the preferences file (current_defaults.FlatConfig) to be
-        used at the next launch of the application.
+        Saves application default options from ``self.defaults`` to the EVO preferences file.
 
         :param silent:      Whether to display a message in status bar or not; boolean
-        :param data_path:   The path where to save the preferences file (current_defaults.FlatConfig)
-                            When the application is portable it should be a mobile location.
+        :param data_path:   Override the directory for the preferences file, for example in portable mode.
         :param first_time:  Boolean. If True will execute some code when the app is run first time
-        :return:            None
+        :return:            False if writing fails, otherwise None
         """
         self.ui.app.log.debug("App.PreferencesUIManager.save_defaults()")
 
         if data_path is None:
             data_path = self.data_path
 
-        self.defaults.propagate_defaults()
-
         # Save the options to disk
-        filename = os.path.join(data_path, "current_defaults.FlatConfig")
+        filename = os.path.join(data_path, AppDefaults.defaults_filename)
+        blocked_path = self.defaults.blocked_save_path
+        if blocked_path is not None and (os.path.normcase(os.path.realpath(filename)) ==
+                                         os.path.normcase(os.path.realpath(blocked_path))):
+            self.ui.app.log.warning('Preferences save deferred after failed legacy import: %s', filename)
+            if not silent:
+                self.inform.emit('[ERROR_NOTCL] %s' % _(
+                    "Preferences weren't saved because the legacy import failed. Restart to retry the import."))
+            return False
 
+        self.defaults.propagate_defaults()
         try:
             self.defaults.write(filename=filename)
         except Exception as e:

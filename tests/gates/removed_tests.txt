@@ -1,6 +1,9 @@
 # Format: <test id>  # <reason>   (one per line; blank and # lines are ignored)
 # Tests removed on purpose.
 
+# 2026-11-21: EVO defaults isolation (#86); an existing EVO profile must take precedence, including an empty one.
+tests/test_preferences.py::TestLegacyCompatibility::test_startup_loads_legacy_file_over_empty_stable_file[empty]  # Replaced by test_startup_applies_only_evo_preferences_when_enabled and TestStartupDefaultsIsolation; legacy import now runs before the EVO file is created.
+
 # 2026-11-14: single-tool model migration; coverage retained under the tools-only test IDs.
 tests/test_cncjob_export_gcode.py::test_footer_uses_the_saved_tool_profile_and_follows_the_user_postamble[LinuxCNC-default-False-True-True-Excellon]  # Same footer/postamble assertions in [LinuxCNC-default-True-True-Excellon]; removed multitool parameter.
 tests/test_cncjob_export_gcode.py::test_footer_uses_the_saved_tool_profile_and_follows_the_user_postamble[LinuxCNC-default-False-True-True-Geometry]  # Same footer/postamble assertions in [LinuxCNC-default-True-True-Geometry]; removed multitool parameter.

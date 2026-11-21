@@ -6,6 +6,14 @@ Based on FlatCAM:
 
 CHANGELOG for FlatCAM Evo
 
+21.11.2026
+
+Preferences:
+
+- fixed: starting EVO prevented FlatCAM 8.994 from starting because both used the same factory defaults file; EVO now uses current_defaults_evo.FlatConfig and factory_defaults_evo.FlatConfig, including in portable mode (#86)
+- added: when the EVO preferences file is absent, existing preferences are imported once without changing the legacy preferences files; an incompatible legacy factory snapshot is moved to a unique backup so FlatCAM 8.994 can recreate its own
+- fixed: a temporary failure to read or save imported preferences could prevent a later retry; the affected EVO profile isn't saved during that session, and tools database initialization waits until the saved units can be read
+
 15.11.2026
 
 Copper Clearing (NCC) and Paint:

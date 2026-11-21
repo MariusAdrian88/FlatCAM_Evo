@@ -539,7 +539,7 @@ def test_swatch_colors_are_saved_and_used_by_current_and_next_comparison(fc, job
         for kind, rgb in (('removed', '#123456'), ('added', '#abcdef')):
             monkeypatch.setattr(QtWidgets.QColorDialog, 'getColor', lambda *a, rgb=rgb, **kw: QtGui.QColor(rgb))
             QtTest.QTest.mouseClick(getattr(tool.ui, kind + '_swatch'), QtCore.Qt.MouseButton.LeftButton)
-        saved_file = tmp_path / 'current_defaults.FlatConfig'
+        saved_file = tmp_path / 'current_defaults_evo.FlatConfig'
         assert saved_file.exists(), 'Clicking a color swatch must save the selected color'
         saved = json.loads(saved_file.read_text())
         assert saved[keys[0]] == '#123456FF'

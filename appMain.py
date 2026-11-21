@@ -872,35 +872,48 @@ class App(QtCore.QObject):
             os.makedirs(self.preprocessorpaths, exist_ok=True)
             self.log.debug('Created preprocessors folder: ' + self.preprocessorpaths)
 
-        # A stable library survives application upgrades; the legacy JSON stays untouched.
-        db_path = self.tools_database_path()
-        try:
-            from appDatabase import initialize_tools_database
-            migration_defaults = dict(AppDefaults().defaults)
-            if not (os.path.isfile(db_path) and os.path.getsize(db_path)) and os.path.isfile(self.defaults_path()):
-                with open(self.defaults_path(), encoding='utf-8') as stream:
-                    saved_defaults = json.load(stream)
-                if isinstance(saved_defaults, dict):
-                    migration_defaults['units'] = saved_defaults.get('units', 'MM')
-            # This version's library first, then the libraries of older versions, newest first.
-            current_legacy = Path(self.data_path) / ('tools_db_%s.FlatDB' % self.version)
-            older_legacy = sorted((path for path in Path(self.data_path).glob('tools_db_*.FlatDB')
-                                   if path != current_legacy), key=lambda path: path.stat().st_mtime, reverse=True)
-            initialize_tools_database(db_path, [current_legacy] + older_legacy, migration_defaults)
-        except (OSError, TypeError, ValueError) as error:
-            self.log.error('Could not initialize tools database: %s' % str(error))
-
-        # create current_defaults.FlatConfig file if there is none
+        # Import before the tools database reads saved units and before creating a clean-start file.
         def_path = self.defaults_path()
+        self.defaults_import_failed = False
         try:
-            with open(def_path):
-                pass
-        except IOError:
-            self.log.debug('Creating empty current_defaults.FlatConfig')
-            with open(def_path, 'w') as f:
-                json.dump({}, f)
+            if not os.path.lexists(def_path):
+                AppDefaults(version=self.version).migrate_legacy_defaults(def_path)
+        except (OSError, TypeError, ValueError, RecursionError) as error:
+            self.defaults_import_failed = True
+            self.log.error('Could not import legacy preferences for %s: %s. Using temporary defaults; '
+                           'saves to this file and tools database initialization are deferred until restart.',
+                           def_path, error)
+        else:
+            if not os.path.lexists(def_path):
+                try:
+                    with open(def_path, 'x', encoding='utf-8') as stream:
+                        json.dump({}, stream)
+                except FileExistsError:
+                    pass  # Another instance initialized preferences first.
+                except OSError as error:
+                    self.log.error('Could not initialize EVO preferences: %s', error)
 
-        # the factory defaults are written only once at the first launch of the application after installation
+        # A stable library survives application upgrades; the legacy JSON stays untouched.
+        if not self.defaults_import_failed:
+            db_path = self.tools_database_path()
+            try:
+                from appDatabase import initialize_tools_database
+                migration_defaults = dict(AppDefaults().defaults)
+                if not (os.path.isfile(db_path) and os.path.getsize(db_path)) and os.path.isfile(def_path):
+                    with open(def_path, encoding='utf-8') as stream:
+                        saved_defaults = json.load(stream)
+                    if isinstance(saved_defaults, dict):
+                        migration_defaults['units'] = saved_defaults.get('units', 'MM')
+                # This version's library first, then the libraries of older versions, newest first.
+                current_legacy = Path(self.data_path) / ('tools_db_%s.FlatDB' % self.version)
+                older_legacy = sorted((path for path in Path(self.data_path).glob('tools_db_*.FlatDB')
+                                       if path != current_legacy), key=lambda path: path.stat().st_mtime, reverse=True)
+                initialize_tools_database(db_path, [current_legacy] + older_legacy, migration_defaults)
+            except (OSError, TypeError, ValueError) as error:
+                self.log.error('Could not initialize tools database: %s' % str(error))
+
+        AppDefaults.recover_legacy_factory_defaults(self.data_path)
+        # Refresh the EVO factory snapshot only when its contents change.
         AppDefaults.save_factory_defaults(self.factory_defaults_path(), self.version)
 
         # create a recent files json file if there is none
@@ -938,26 +951,10 @@ class App(QtCore.QObject):
         # ################################# DEFAULTS - PREFERENCES STORAGE ###########################################
         self.defaults = AppDefaults(beta=self.beta, version=self.version)
 
-        # current_defaults_path = os.path.join(self.data_path, "current_defaults.FlatConfig")
-        current_defaults_path = self.defaults_path()
-        
-        # ponytail: legacy compatibility - discover versioned files if stable file doesn't exist. _setup_paths_and_config()
-        # writes an empty stable file ('{}') when there is none, so an empty one holds no preferences either
-        nothing_saved = not os.path.isfile(current_defaults_path)
-        if user_defaults and not nothing_saved:
-            try:
-                with open(current_defaults_path, encoding='utf-8') as stream:
-                    nothing_saved = json.load(stream) == {}
-            except (OSError, ValueError):
-                pass
-        if user_defaults and nothing_saved:
-            legacy_path = AppDefaults.find_legacy_defaults_file(self.data_path, str(self.version))
-            if legacy_path:
-                self.log.debug(f'Found legacy defaults file: {legacy_path}')
-                current_defaults_path = legacy_path
-        
-        if user_defaults:
-            self.defaults.load(filename=current_defaults_path, inform=self.inform)
+        if getattr(self, 'defaults_import_failed', False) is True:
+            self.defaults.blocked_save_path = self.defaults_path()
+        elif user_defaults:
+            self.defaults.load(filename=self.defaults_path(), inform=self.inform)
 
         # ######################################## UPDATE THE OPTIONS ###############################################
         # The options store only the project keys. They read and write the application keys in self.defaults.
@@ -2097,10 +2094,10 @@ class App(QtCore.QObject):
         return os.path.join(self.data_path, 'tools.sqlite3')
 
     def defaults_path(self):
-        return os.path.join(self.data_path, 'current_defaults.FlatConfig')
+        return os.path.join(self.data_path, AppDefaults.defaults_filename)
 
     def factory_defaults_path(self):
-        return os.path.join(self.data_path, 'factory_defaults.FlatConfig')
+        return os.path.join(self.data_path, AppDefaults.factory_defaults_filename)
 
     def recent_files_path(self):
         return os.path.join(self.data_path, 'recent.json')

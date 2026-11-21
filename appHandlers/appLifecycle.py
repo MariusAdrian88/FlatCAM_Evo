@@ -18,6 +18,7 @@ from PyQt6 import QtCore
 from appGUI.GUIElements import FCMessageBox
 from appGUI.VisPyVisuals import stop_deferred_updates
 from appCommon.Headless import HeadlessExit
+from defaults import AppDefaults
 
 
 class AppLifecycle(QtCore.QObject):
@@ -416,9 +417,9 @@ class AppLifecycle(QtCore.QObject):
         # WARNING !!! Do not hide UI before saving the state of the UI in the defaults file !!!
         # TODO in the future we need to make a difference between settings that need to be persistent all the time
         self.defaults.update(self.options)
-        self.app.preferencesUiManager.save_defaults(silent=True)
+        saved = self.app.preferencesUiManager.save_defaults(silent=True)
 
-        if silent is False:
+        if silent is False and saved is not False:
             self.log.debug("AppLifecycle.quit_application() --> App Defaults saved.")
 
         # hide the UI so the user experiences a faster shutdown
@@ -574,23 +575,14 @@ class AppLifecycle(QtCore.QObject):
                 data.append('portable=True\n')
             else:
                 data[line_no] = 'portable=True\n'
-            # create the new defaults files
-            # create current_defaults.FlatConfig file if there is none
+            # create the EVO factory defaults file if it does not exist
+            factory_defaults_path = os.path.join(current_data_path, AppDefaults.factory_defaults_filename)
             try:
-                with open(current_data_path + '/current_defaults.FlatConfig'):
+                with open(factory_defaults_path):
                     pass
             except IOError:
-                self.log.debug('Creating empty current_defaults.FlatConfig')
-                with open(current_data_path + '/current_defaults.FlatConfig', 'w') as f:
-                    json.dump({}, f)
-
-            # create factory_defaults.FlatConfig file if there is none
-            try:
-                with open(current_data_path + '/factory_defaults.FlatConfig'):
-                    pass
-            except IOError:
-                self.log.debug('Creating empty factory_defaults.FlatConfig')
-                with open(current_data_path + '/factory_defaults.FlatConfig', 'w') as f:
+                self.log.debug('Creating empty %s', AppDefaults.factory_defaults_filename)
+                with open(factory_defaults_path, 'w') as f:
                     json.dump({}, f)
 
             try:
@@ -609,8 +601,9 @@ class AppLifecycle(QtCore.QObject):
                 with open(current_data_path + '/recent_projects.json', 'w') as fp:
                     json.dump([], fp)
 
-            # save the current defaults to the new defaults file
-            self.app.preferencesUiManager.save_defaults(silent=True, data_path=current_data_path)
+            # Let the manager create the file only if this destination can be saved.
+            if self.app.preferencesUiManager.save_defaults(data_path=current_data_path) is False:
+                return
 
         else:
             if line_no >= len(data):

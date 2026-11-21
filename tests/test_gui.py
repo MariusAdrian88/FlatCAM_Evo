@@ -250,7 +250,7 @@ def test_theme_preferences_confirm_revert_and_save(tmp_path, monkeypatch, qapp, 
     manager.on_save_button(save_to_file=True)
     dialog.exec.assert_called_once()
     saved = AppDefaults(beta=False)
-    saved.load(str(tmp_path / 'current_defaults.FlatConfig'), MagicMock())
+    saved.load(str(tmp_path / 'current_defaults_evo.FlatConfig'), MagicMock())
     assert saved[key] == expected
     manager.deleteLater()
     group.deleteLater()

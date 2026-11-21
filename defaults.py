@@ -115,6 +115,8 @@ def clean_project_options(options):
 
 
 class AppDefaults:
+    defaults_filename = 'current_defaults_evo.FlatConfig'
+    factory_defaults_filename = 'factory_defaults_evo.FlatConfig'
 
     factory_defaults = {
         **{'tools_photocarve_' + key: value for key, value in PHOTOCARVE_DEFAULTS.items()},
@@ -1260,6 +1262,7 @@ class AppDefaults:
         self.defaults.update(deepcopy(self.factory_defaults))
         self.current_defaults = deepcopy(self.factory_defaults)  # copy used for restoring after cancelled prefs changes
         self.old_defaults_found = False
+        self.blocked_save_path: str | None = None
 
         self.defaults.set_change_callback(callback)
 
@@ -1292,7 +1295,7 @@ class AppDefaults:
         return deepcopy(self.factory_defaults.get(key))
 
     # #### Additional Methods #####
-    def write(self, filename: str):
+    def write(self, filename: str, *, overwrite=True):
         """Saves the defaults to a file on disk"""
         # ponytail: strip obsolete 'version' field before saving
         data = dict(self.defaults)
@@ -1309,8 +1312,13 @@ class AppDefaults:
                 tmp_f.write(text)
                 tmp_f.flush()
                 os.fsync(tmp_f.fileno())
-            os.replace(temp_path, filename)
-            temp_path = None  # replace consumed the temp file
+            if not overwrite and os.name != 'nt':
+                # Publish the complete file without replacing another startup's preferences.
+                os.link(temp_path, filename)
+            else:
+                publish = os.replace if overwrite else os.rename  # Windows rename won't overwrite
+                publish(temp_path, filename)
+                temp_path = None
         finally:
             if temp_path is not None:
                 try:
@@ -1318,8 +1326,8 @@ class AppDefaults:
                 except OSError:
                     pass
 
-    @staticmethod
-    def find_legacy_defaults_file(data_path: str, current_version: str) -> str:
+    @classmethod
+    def find_legacy_defaults_file(cls, data_path: str, current_version: str, *, accept=None) -> str | None:
         """
         Find a legacy versioned defaults file for migration.
         
@@ -1329,6 +1337,7 @@ class AppDefaults:
         
         :param data_path: Directory containing defaults files
         :param current_version: Current app version string
+        :param accept: Optional predicate to skip unusable files in priority order
         :return: Path to legacy file or None
         """
         import glob
@@ -1345,7 +1354,10 @@ class AppDefaults:
         version_pattern = re.compile(r'current_defaults_(.+)\.FlatConfig$')
         versioned_files = []
         for f in legacy_files:
-            match = version_pattern.search(f)
+            name = os.path.basename(f)
+            if os.path.normcase(name) == os.path.normcase(cls.defaults_filename):
+                continue
+            match = version_pattern.fullmatch(name)
             if match:
                 version = match.group(1)
                 versioned_files.append((version, f))
@@ -1355,28 +1367,105 @@ class AppDefaults:
         
         # Priority 1: exact current version
         for version, path in versioned_files:
-            if version == current_version:
+            if version == current_version and (accept is None or accept(path)):
                 return path
         
         # Priority 2: most recently modified file, with filename as tiebreaker
         # Use mtime to determine which file was saved most recently
         versioned_files_with_mtime = []
         for version, path in versioned_files:
+            if version == current_version:
+                continue  # Already tried above.
             try:
                 mtime = os.path.getmtime(path)
-                versioned_files_with_mtime.append((mtime, path, version))
+                versioned_files_with_mtime.append((mtime, path))
             except OSError:
                 # If we can't get mtime, skip this file
                 pass
         
-        if not versioned_files_with_mtime:
-            return None
-        
         # Sort by mtime descending, then by filename descending as tiebreaker
-        versioned_files_with_mtime.sort(key=lambda x: (x[0], x[1]), reverse=True)
-        return versioned_files_with_mtime[0][1]
+        for _, path in sorted(versioned_files_with_mtime, reverse=True):
+            if accept is None or accept(path):
+                return path
+        return None
 
-    def load(self, filename: str, inform):
+    def migrate_legacy_defaults(self, filename: str, inform=None):
+        """Import once, leaving legacy preferences untouched. Raise if the import needs to be retried."""
+        if os.path.lexists(filename):
+            return
+
+        read_error = None
+
+        def load_candidate(path):
+            nonlocal read_error
+            try:
+                return self.load(path, inform, migration=True)
+            except OSError as error:
+                if read_error is None:
+                    read_error = error
+                log.warning('Could not read legacy preferences %s: %s', path, error)
+                return False
+
+        data_path = os.path.dirname(filename)
+        source = os.path.join(data_path, 'current_defaults.FlatConfig')
+        if not load_candidate(source):
+            source = self.find_legacy_defaults_file(data_path, str(self.version), accept=load_candidate)
+            if not source:
+                if read_error is not None and not os.path.isfile(filename):
+                    raise read_error
+                return
+
+        try:
+            self.write(filename, overwrite=False)
+        except FileExistsError:
+            if os.path.isfile(filename):
+                return  # Another startup published its preferences first.
+            raise
+        log.debug('Migrated legacy defaults from %s to %s', source, filename)
+
+    @staticmethod
+    def recover_legacy_factory_defaults(data_path: str):
+        """Move the incompatible generated snapshot aside so legacy FlatCAM can recreate it."""
+        legacy_path = os.path.join(data_path, 'factory_defaults.FlatConfig')
+        backup_path = None
+        try:
+            try:
+                with open(legacy_path, 'rb') as stream:
+                    snapshot = json.load(stream)
+                    original = os.fstat(stream.fileno())
+            except FileNotFoundError:
+                return
+            if not isinstance(snapshot, dict) or not snapshot or 'version' in snapshot:
+                return
+
+            # Reserve a unique name, then atomically move the snapshot over our own placeholder.
+            with tempfile.NamedTemporaryFile(dir=data_path, prefix='factory_defaults.FlatConfig.',
+                                             suffix='.bak', delete=False) as backup:
+                backup_path = backup.name
+            if os.stat(legacy_path) != original:
+                log.warning('Legacy factory defaults changed during recovery: %s', legacy_path)
+                return
+            readonly = os.name == 'nt' and not original.st_mode & stat.S_IWRITE
+            if readonly:
+                os.chmod(legacy_path, original.st_mode | stat.S_IWRITE)
+            try:
+                os.replace(legacy_path, backup_path)
+            except OSError:
+                if readonly and os.path.samestat(os.stat(legacy_path), original):
+                    os.chmod(legacy_path, original.st_mode)
+                raise
+            log.info('Moved incompatible legacy factory defaults to %s', backup_path)
+            backup_path = None
+        except (OSError, ValueError, RecursionError) as error:
+            log.warning('Could not recover legacy factory defaults: %s', error)
+        finally:
+            if backup_path is not None:
+                try:
+                    os.remove(backup_path)
+                except OSError as error:
+                    log.warning('Could not remove unused factory backup placeholder: %s', error)
+
+    def load(self, filename: str, inform, *, migration=False):
         """
         Loads the defaults from a file on disk, merging with factory defaults.
 
@@ -1386,23 +1475,30 @@ class AppDefaults:
 
         # Read in the file
         try:
-            f = open(filename)
-            options = f.read()
-            f.close()
-        except IOError:
-            log.error("Could not load defaults file.")
-            inform.emit('[ERROR] %s' % _("Could not load the file."))
-            return
+            with open(filename, encoding='utf-8') as stream:
+                options = stream.read()
+        except (OSError, UnicodeError) as error:
+            if migration and isinstance(error, OSError):
+                if isinstance(error, FileNotFoundError):
+                    return False
+                raise
+            log.error('Could not load defaults file %s: %s', filename, error)
+            if inform is not None:
+                inform.emit('[ERROR] %s' % _("Could not load the file."))
+            return False
 
         # Parse the JSON
         try:
             defaults = json.loads(options)
-        except Exception:
-            log.error(str(sys.exc_info()[0]))
-            inform.emit('[ERROR] %s' % _("Failed to parse defaults file."))
-            return
-        if defaults is None:
-            return
+            if defaults is not None and not isinstance(defaults, dict):
+                raise ValueError('Expected a JSON object')
+        except (ValueError, RecursionError) as error:
+            log.error('Could not parse defaults file %s: %s', filename, error)
+            if inform is not None:
+                inform.emit('[ERROR] %s' % _("Failed to parse defaults file."))
+            return False
+        if defaults is None or (migration and not defaults):
+            return False
 
         # ponytail: strip obsolete 'version' field from loaded data
         defaults.pop('version', None)
@@ -1455,7 +1551,7 @@ class AppDefaults:
 
         self.current_defaults = deepcopy(dict(self.defaults))
 
-        # log.debug("App defaults loaded from: %s" % filename)
+        return True
 
     @staticmethod
     def _is_custom_digi_update_url(url) -> bool:
