@@ -163,6 +163,32 @@ def test_fanuc_subprograms_and_macros():
     assert _cut_bounds(res, 2) == (1.0, 0.0, 3.0, 0.0)
 
 
+def test_flow_guard_tracks_edits_to_effective_job_and_tool_programs():
+    from camlib import CNCjob
+    from tests.helpers_objects import make_app_0b
+
+    job = CNCjob(app=make_app_0b())
+    job.gcode_imported = True
+    plain = 'G1 X10\n'
+    macro = '#1=10\nG1 X#1\n'
+    job.gcode = plain
+    assert job.gcode_flow_blocked('transform') is None
+    job.gcode = macro
+    assert job.gcode_flow_blocked('transform') is not None
+    job.gcode = plain
+    assert job.gcode_flow_blocked('transform') is None
+
+    # Tool programs take precedence and must still be scanned as one stream.
+    job.tools = {1: {'gcode': 'M'}, 2: {'gcode': '98 P1000\n'}}
+    assert job.gcode_flow_blocked('transform') is not None
+    job.tools[2]['gcode'] = '30\n'
+    assert job.gcode_flow_blocked('transform') is None
+    job.gcode = macro
+    assert job.gcode_flow_blocked('transform') is None
+    job.tools.clear()
+    assert job.gcode_flow_blocked('transform') is not None
+
+
 def test_linuxcnc_subprograms_and_parameters():
     text = ("G21 G90 G0 X0 Y0\no100 sub\n  G1 X[#1] Y[#2] F10\n  o100 return [#1+#2]\no100 endsub\n"
             "o100 call [3] [4]\nG1 X[#<_value>] Y0\nM2\n")

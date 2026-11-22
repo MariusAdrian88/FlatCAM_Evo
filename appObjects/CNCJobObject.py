@@ -282,7 +282,12 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
         # an empty multi-tool job can save no tools at all
         d['tools'] = d.get('tools') or {}
         d.pop('multitool', None)
-        super().from_dict(d)
+        # the scan of the program text stays only if the text it was made from is still the text of the job
+        cache = self._program_feature_cache
+        try:
+            super().from_dict(d)
+        finally:
+            self.restore_program_feature_cache(cache)
         keys = {str(uid): uid for uid in self.tools}
         selected = d.get('used_tools')
         self.used_tools = list(self.tools) if selected is None else list(dict.fromkeys(

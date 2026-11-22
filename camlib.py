@@ -3239,7 +3239,7 @@ class CNCjob(Geometry):
         """
         self.app.log.debug("camlib.CNCJob.convert_units()")
 
-        if getattr(self, 'gcode_imported', False):
+        if self.gcode_imported:
             factor = self.convert_units_imported(units)
         else:
             factor = self.convert_units_native(units)
@@ -6149,7 +6149,7 @@ class CNCjob(Geometry):
         :rtype:                 list
         """
 
-        if getattr(self, 'gcode_imported', False):
+        if self.gcode_imported:
             # the G-code of an imported file is any G-code: the import parser reads it
             from appParsers.ParseGCode import parse_gcode
             result = parse_gcode(self.gcode, steps_per_circle=int(self.steps_per_circle),
@@ -7475,6 +7475,7 @@ class CNCjob(Geometry):
         new, warns = transform_gcode(text, (a, b, d, e, xoff * k, yoff * k), decimals, self.steps_per_circle)
         for msg in warns:
             self.app.log.warning("CNCjob transform: %s" % msg)
+        self._program_feature_cache = (), None
         self.gcode = new
 
         blocks = split_tool_blocks(new)
@@ -7494,7 +7495,8 @@ class CNCjob(Geometry):
                 mapping.append(found)
 
         dia = self.tooldia if self.tooldia else 0.4
-        res = parse_gcode(new, self.steps_per_circle, default_tooldia=dia, target_units=self.units)
+        res = parse_gcode(new, self.steps_per_circle, default_tooldia=dia, target_units=self.units,
+                          scan_features=True)
         total = []
         for (_, tool), bi in zip(items, mapping):
             if bi is None:
@@ -7508,6 +7510,9 @@ class CNCjob(Geometry):
                     tool['drills'] = [Point(x, y) for x, y in parsed['drills']]
                 total += parsed['gcode_parsed']
         self.gcode_parsed = total
+        # the parse result fits only if the job's program is the parsed text, in the same order
+        if self.program_text() == new:
+            self.cache_program_features(res['features'])
         self.travel_distance = res['travel_distance']
         if res['bounds']:
             (self.obj_options['xmin'], self.obj_options['ymin'],
@@ -7594,7 +7599,51 @@ class CNCjob(Geometry):
 
     def program_text(self):
         """The text of the stored program: the G-code of every tool, in tool order."""
-        return ''.join(tool.get('gcode') or '' for tool in (self.tools or {}).values()) or (self.gcode or '')
+        return ''.join(self._program_parts())
+
+    def _program_parts(self):
+        return tuple(text for tool in (self.tools or {}).values() if (text := tool.get('gcode'))) or (self.gcode or '',)
+
+    # True for a job opened from imported G-code (set by the G-code import), False for one made by the app
+    gcode_imported = False
+
+    # (the tool texts the scan was made from, the scan): the scan is reused while every text is the same object
+    _program_feature_cache = ((), None)
+
+    @staticmethod
+    def _matching_program_cache(parts, cache):
+        """The cached scan when every part of the program is the object the scan was made from, else None."""
+        cached_parts, features = cache
+        if len(parts) != len(cached_parts) or any(part is not cached for part, cached in zip(parts, cached_parts)):
+            return None
+        return features
+
+    def cache_program_features(self, features):
+        """Keep the parser's result for the exact program just installed on this job."""
+        self._program_feature_cache = self._program_parts(), features
+
+    def current_program_feature_cache(self):
+        """The cache when it still describes the program of this job, else None."""
+        cache = self._program_feature_cache
+        return cache if self._matching_program_cache(self._program_parts(), cache) is not None else None
+
+    def restore_program_feature_cache(self, cache):
+        """Put a cache back (None: no cache); it is kept only when it describes the program of this job now."""
+        if cache is not None and self._matching_program_cache(self._program_parts(), cache) is not None:
+            self._program_feature_cache = cache
+        else:
+            self._program_feature_cache = ((), None)
+
+    def prepare_program_features(self):
+        """The scan of the program text: from the cache, else made now (and kept)."""
+        parts = self._program_parts()
+        features = self._matching_program_cache(parts, self._program_feature_cache)
+        if features is None:
+            from appParsers.ParseGCode import program_features
+
+            features = program_features(''.join(parts))
+            self._program_feature_cache = parts, features
+        return features
 
     def gcode_flow_blocked(self, action):
         """
@@ -7605,11 +7654,9 @@ class CNCjob(Geometry):
         :return:        the error message for the user if the text of the imported job has macros or subprograms,
                         else None
         """
-        if not getattr(self, 'gcode_imported', False):
+        if not self.gcode_imported:
             return None
-        from appParsers.ParseGCode import program_features
-
-        features = program_features(self.program_text())
+        features = self.prepare_program_features()
         if not (features['macros'] or features['subprograms']):
             return None
         if action == 'level':
@@ -7623,7 +7670,7 @@ class CNCjob(Geometry):
 
     def _transform(self, matrix):
         """G-code text and geometry of the job under the affine matrix (a, b, d, e, xoff, yoff)."""
-        if getattr(self, 'gcode_imported', False):
+        if self.gcode_imported:
             blocked = self.gcode_flow_blocked('transform')
             if blocked:
                 # the text and the plot stay as they are, together

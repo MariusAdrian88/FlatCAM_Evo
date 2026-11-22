@@ -715,7 +715,7 @@ class ToolLevelling(LevellingCoreMixin, CNCjob, AppTool):
 
         parsed = parse_gcode(total_gcode, steps_per_circle=new_obj.steps_per_circle,
                              default_tooldia=float(new_obj.obj_options.get('tooldia') or 0.0),
-                             target_units=str(new_obj.units).upper())
+                             target_units=str(new_obj.units).upper(), scan_features=True)
         blocks = list(parsed['tools'].values())
         by_order = len(blocks) == len(texts)
         total_gcode_parsed = []
@@ -730,6 +730,12 @@ class ToolLevelling(LevellingCoreMixin, CNCjob, AppTool):
 
         new_obj.gcode = total_gcode
         new_obj.gcode_parsed = total_gcode_parsed
+        # this runs in the worker thread: scan the new text now, so the next Transform finds it ready
+        # the parse result fits only if the job's program is the parsed text, in the same order
+        if new_obj.program_text() == total_gcode:
+            new_obj.cache_program_features(parsed['features'])
+        else:
+            new_obj.prepare_program_features()
         new_obj.travel_distance = target_obj.travel_distance
         new_obj.routing_time = target_obj.routing_time
         new_obj.create_geometry()

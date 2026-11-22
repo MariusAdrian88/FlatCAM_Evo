@@ -40,6 +40,7 @@ class ToolTransform(AppTool):
         self.ui = TransformUI(layout=self.layout, app=self.app)
         self.pluginName = self.ui.pluginName
         self._transform_busy = False
+        self._buffer_selection_model = None
         self.connect_signals_at_init()
 
     def run(self, toggle=True):
@@ -55,11 +56,35 @@ class ToolTransform(AppTool):
                 break
         tab_existed = found_idx is not None
 
-        if toggle:
-            # if the splitter is hidden, display it
+        if toggle and tab_existed and self.app.ui.plugin_scroll_area.widget() is self and \
+                self.app.ui.notebook.currentWidget() is self.app.ui.plugin_tab:
+            # a collapsed panel opens on Properties, as for the other plugins
             if self.app.ui.splitter.sizes()[0] == 0:
                 self.app.ui.splitter.setSizes([1, 1])
+            self.app.ui.notebook.setCurrentWidget(self.app.ui.properties_tab)
+            self.app.ui.notebook.removeTab(found_idx)
+            if not self.app.collection.get_list():
+                self.app.ui.splitter.setSizes([0, 1])
+            return
 
+        blocked = None
+        for obj in self.app.collection.get_selected():
+            kind = self._object_kind(obj)
+            if kind not in AFFINE_KINDS:
+                continue
+            reason = obj.gcode_flow_blocked('transform') if kind == 'cncjob' else None
+            if not reason:
+                break  # At least one selected object can be transformed.
+            blocked = blocked or reason
+        else:
+            if blocked:
+                self.app.inform.emit(blocked)
+                return
+
+        if self.app.ui.splitter.sizes()[0] == 0:
+            self.app.ui.splitter.setSizes([1, 1])
+
+        if toggle:
             if not tab_existed:
                 try:
                     self.app.ui.notebook.addTab(self.app.ui.plugin_tab, _("Plugin"))
@@ -73,26 +98,6 @@ class ToolTransform(AppTool):
                     self.app.ui.notebook.addTab(self.app.ui.plugin_tab, _("Plugin"))
                 found_idx = self.app.ui.notebook.indexOf(self.app.ui.plugin_tab)
                 self.app.ui.notebook.setCurrentWidget(self.app.ui.plugin_tab)
-
-            try:
-                # only a tab that existed before this run is the tool page to close; a tab just created here must
-                # stay open even when the scroll area still holds this tool's widget from the previous close
-                if tab_existed and self.app.ui.plugin_scroll_area.widget().objectName() == self.pluginName and \
-                        found_idx is not None and found_idx >= 0:
-                    if not self.app.ui.notebook.currentWidget() is self.app.ui.plugin_tab:
-                        self.app.ui.notebook.setCurrentWidget(self.app.ui.plugin_tab)
-                    else:
-                        self.app.ui.notebook.setCurrentWidget(self.app.ui.properties_tab)
-                        self.app.ui.notebook.removeTab(found_idx)
-                        if not self.app.collection.get_list():
-                            self.app.ui.splitter.setSizes([0, 1])
-                        # the tab is gone; do not set up the tool for a page that no longer exists
-                        return
-            except AttributeError:
-                pass
-        else:
-            if self.app.ui.splitter.sizes()[0] == 0:
-                self.app.ui.splitter.setSizes([1, 1])
 
         super().run()
         self.set_tool_ui()
@@ -163,6 +168,36 @@ class ToolTransform(AppTool):
 
         # the visibility of the Point / Object controls follows the restored reference
         self.ui.on_reference_changed(self.ui.ref_combo.currentIndex())
+        self.update_buffer_visibility()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        # The app's project selection signal only reports single selections.
+        view = getattr(self.app.collection, 'view', None)
+        if view is not None and self._buffer_selection_model is None:
+            self._buffer_selection_model = view.selectionModel()
+            self._buffer_selection_model.selectionChanged.connect(self.update_buffer_visibility)
+        self.update_buffer_visibility()
+
+    def hideEvent(self, event):
+        self._disconnect_buffer_selection()
+        super().hideEvent(event)
+
+    def on_panel_replaced(self):
+        self._disconnect_buffer_selection()
+
+    def _disconnect_buffer_selection(self):
+        if self._buffer_selection_model is not None:
+            try:
+                self._buffer_selection_model.selectionChanged.disconnect(self.update_buffer_visibility)
+            except (RuntimeError, TypeError):
+                pass  # The project view may already have been destroyed.
+            self._buffer_selection_model = None
+
+    def update_buffer_visibility(self):
+        selected_kinds = {self._object_kind(obj) for obj in self.app.collection.get_selected()}
+        self.ui.buffer_section.setVisible('cncjob' not in selected_kinds or
+                                          not selected_kinds.isdisjoint(SUPPORTED_KINDS))
 
     def on_type_obj_index_changed(self, index):
         self.ui.object_combo.setRootModelIndex(self.app.collection.index(index, 0, QtCore.QModelIndex()))

@@ -1488,7 +1488,8 @@ def expand_program(text, max_lines=200000, max_loops=10000):
     return out, ex.warnings
 
 
-def parse_gcode(text, steps_per_circle=64, default_tooldia=0.4, feedrate_rapid=None, target_units=None):
+def parse_gcode(text, steps_per_circle=64, default_tooldia=0.4, feedrate_rapid=None, target_units=None,
+                scan_features=False):
     """
     Parse the G-code text of any machine/CAM into per-tool geometry and metadata.
 
@@ -1498,8 +1499,9 @@ def parse_gcode(text, steps_per_circle=64, default_tooldia=0.4, feedrate_rapid=N
                             (in target units)
     :param feedrate_rapid:  rapid feed rate in target units/min; the rapid time is skipped when None
     :param target_units:    'MM' or 'IN': every returned number is converted to it
+    :param scan_features:   always return the program_features() scan (else only when the text needs it)
     :return: dict with units, factor, type, flatcam, preprocessor, tools {1..n: {...}}, bounds,
-             travel_distance, routing_time, warnings, motion_count
+             travel_distance, routing_time, warnings, motion_count, features (None: not scanned)
     """
     lines, words, comments, blocks, macro = _prepare(text)
     meta = _tool_comments(comments, words, blocks)
@@ -1508,10 +1510,10 @@ def parse_gcode(text, steps_per_circle=64, default_tooldia=0.4, feedrate_rapid=N
     preprocessor = (meta['preprocessor'] or '').lower()
     if preprocessor:
         it.dwell_p_scale = 0.001 if 'marlin' in preprocessor or 'repetier' in preprocessor else 1.0
-    flow = False
-    if '#' in text or '[' in text or SUBPROGRAM_RE.search(text.upper()):
-        feats = program_features(text)
-        flow = feats['macros'] or feats['subprograms']
+    quick = '#' in text or '[' in text or SUBPROGRAM_RE.search(text.upper())
+    # the full scan only when the text can have macros / subprograms, or when the caller keeps the result
+    features = program_features(text) if (quick or scan_features) else None
+    flow = bool(quick) and (features['macros'] or features['subprograms'])
     if flow:
         # subprograms and macros: the lines the machine would run, each in the tool block of its call site
         expanded, ewarn = expand_program(text)
@@ -1619,7 +1621,7 @@ def parse_gcode(text, steps_per_circle=64, default_tooldia=0.4, feedrate_rapid=N
         'preprocessor': meta['preprocessor'], 'tools': tools, 'bounds': bounds,
         'travel_distance': sum(a['dist'] for a in it.acc) * factor,
         'routing_time': sum(t['routing_time'] for t in tools.values()),
-        'warnings': it.warnings, 'motion_count': it.motion_count,
+        'warnings': it.warnings, 'motion_count': it.motion_count, 'features': features,
     }
 
 

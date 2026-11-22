@@ -1426,13 +1426,23 @@ class CNCObjectUI(ObjectUI):
         self.tool_lbl = FCLabel('%s' % _("Plugins"), color='indigo', bold=True)
         self.custom_box.addWidget(self.tool_lbl)
 
+        plugins_frame = FCFrame()
+        self.custom_box.addWidget(plugins_frame)
+        plugins_grid = GLay(v_spacing=5, h_spacing=3, c_stretch=[1])
+        plugins_frame.setLayout(plugins_grid)
+
+        self.transformations_button = FCButton(_('Transformations'), bold=True)
+        self.transformations_button.setIcon(QtGui.QIcon(self.app.resource_location + '/transform.png'))
+        self.transformations_button.setToolTip(_("Open the Transformation plugin for the selected objects."))
+        plugins_grid.addWidget(self.transformations_button, 0, 0)
+
         # Levelling Tool - will process the generated GCode using a Height Map generating levelled GCode
         self.autolevel_button = FCButton(_('Levelling'), bold=True)
         self.autolevel_button.setIcon(QtGui.QIcon(self.app.resource_location + '/level32.png'))
         self.autolevel_button.setToolTip(
             _("Generate CNC Code with auto-levelled paths.")
         )
-        self.custom_box.addWidget(self.autolevel_button)
+        plugins_grid.addWidget(self.autolevel_button, 1, 0)
 
         # GRBL Sender - streams the G-code to a GRBL controller, with optional autolevelling
         self.grbl_sender_button = FCButton(_('GCode sender'), bold=True)
@@ -1440,18 +1450,13 @@ class CNCObjectUI(ObjectUI):
         self.grbl_sender_button.setToolTip(
             _("Send the CNC Code to a GRBL controller.")
         )
-        self.custom_box.addWidget(self.grbl_sender_button)
+        plugins_grid.addWidget(self.grbl_sender_button, 2, 0)
         # self.autolevel_button.setDisabled(True)
         # self.autolevel_button.setToolTip("DISABLED. Work in progress!")
 
         # #############################################################################################################
         # ## Export G-Code ##
         # #############################################################################################################
-        separator_line = QtWidgets.QFrame()
-        separator_line.setFrameShape(QtWidgets.QFrame.Shape.HLine)
-        separator_line.setFrameShadow(QtWidgets.QFrame.Shadow.Sunken)
-        self.custom_box.addWidget(separator_line)
-
         g_export_lay = QtWidgets.QHBoxLayout()
         self.custom_box.addLayout(g_export_lay)
 

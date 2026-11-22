@@ -1335,3 +1335,31 @@ def test_long_line_is_segmented_for_autolevelling():
         np.array([(0, 0), (0.25, 0.15), (0.5, 0.3), (0.75, 0.45), (1, 0.6)]))
     assert np.array(job.segment([(0, 0), (0.3, -1.2)])) == pytest.approx(
         np.array([(0, 0), (0.0625, -0.25), (0.125, -0.5), (0.1875, -0.75), (0.24375, -0.975), (0.3, -1.2)]))
+
+
+def test_restoring_imported_program_restores_its_transform_eligibility(tmp_path):
+    from tests.helpers_objects import _headless_qt  # noqa: F401
+    from appHandlers.appHistory import object_state, restore_object_state
+
+    _app, plain = _open_gcode(tmp_path, MILL_FILE, name='plain.nc')
+    _app, blocked = _open_gcode(tmp_path, MILL_FILE + 'M98 P1000\n', name='blocked.nc')
+    blocked_state, plain_state = object_state(blocked), object_state(plain)
+
+    restore_object_state(plain, blocked_state)
+    assert bool(plain.gcode_flow_blocked('transform')) is True
+    restore_object_state(plain, plain_state)
+    assert bool(plain.gcode_flow_blocked('transform')) is False
+    restore_object_state(plain, blocked_state)
+    assert bool(plain.gcode_flow_blocked('transform')) is True
+
+
+def test_program_scan_does_not_make_an_undo_change(tmp_path):
+    from tests.helpers_objects import _headless_qt  # noqa: F401
+    from appHandlers.appHistory import object_state, states_equal
+
+    _app, job = _open_gcode(tmp_path, MILL_FILE, name='plain.nc')
+    job.restore_program_feature_cache(None)  # no scan yet
+    before = object_state(job)
+    job.gcode_flow_blocked('transform')  # fills the program scan cache
+    after = object_state(job)
+    assert states_equal(before, after) is True

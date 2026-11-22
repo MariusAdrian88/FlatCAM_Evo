@@ -333,7 +333,8 @@ class TestGeometryTransforms(unittest.TestCase):
                 job = SimpleNamespace(
                     app=make_app(), gcode_parsed=[{'geom': g, 'kind': ['C', 'F']} for g in geoms],
                     create_geometry=lambda: None, _affine_gcode_parsed=CNCjob._affine_gcode_parsed,
-                    tools={}, gcode='', steps_per_circle=16, xy_toolchange=None, xy_end=None)
+                    tools={}, gcode='', steps_per_circle=16, xy_toolchange=None, xy_end=None,
+                    gcode_imported=False)
                 job.tools = {1: {'gcode_parsed': job.gcode_parsed}}
                 job._fixed_points = lambda j=job: CNCjob._fixed_points(j)
                 job._transform = lambda matrix, j=job: CNCjob._transform(j, matrix)

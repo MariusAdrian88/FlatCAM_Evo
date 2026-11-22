@@ -19,6 +19,7 @@ import camlib  # noqa: E402
 from camlib import Geometry  # noqa: E402
 from appPlugins.ToolTransform import ToolTransform  # noqa: E402
 from appObjects.AppObject import AppObject  # noqa: E402
+from appObjects.CNCJobObject import CNCJobObject  # noqa: E402
 from appObjects.GeometryObject import GeometryObject  # noqa: E402
 from appHandlers.appHistory import HistoryManager  # noqa: E402
 from tests.helpers_objects import make_app_0b  # noqa: E402
@@ -300,6 +301,112 @@ class TransformUiTest(unittest.TestCase):
         app.worker_task = worker or Worker(run=True)
         return self.make_tool_for(app), app, history
 
+
+    def make_plugin_panel(self, app):
+        app.plugin_tab_locked = False
+        ui = app.ui = SimpleNamespace()
+        ui.splitter = QtWidgets.QSplitter()
+        ui.notebook = QtWidgets.QTabWidget(ui.splitter)
+        ui.splitter.addWidget(QtWidgets.QWidget())
+        ui.properties_tab = QtWidgets.QWidget()
+        ui.notebook.addTab(ui.properties_tab, 'Properties')
+        ui.plugin_tab = QtWidgets.QWidget()
+        ui.plugin_tab.setObjectName('plugin_tab')
+        ui.plugin_scroll_area = QtWidgets.QScrollArea()
+        QtWidgets.QVBoxLayout(ui.plugin_tab).addWidget(ui.plugin_scroll_area)
+        self.addCleanup(ui.splitter.close)
+        return ui
+
+    def test_launch_rejects_imported_macros_without_replacing_plugin(self):
+        tool, app, _ = self.make_real_tool([])
+        ui = self.make_plugin_panel(app)
+        ui.notebook.addTab(ui.plugin_tab, 'Other plugin')
+        previous = QtWidgets.QWidget()
+        ui.plugin_scroll_area.setWidget(previous)
+        job = camlib.CNCjob(app=app)
+        job.kind = 'cncjob'
+        job.gcode_imported = True
+        job.gcode = '#1 = 10\nG1 X#1\n'
+        app.collection.objects = [job, SimpleNamespace(kind='document')]
+        sizes = ui.splitter.sizes()
+
+        tool.run()
+
+        self.assertIs(ui.notebook.currentWidget(), ui.properties_tab)
+        self.assertIs(ui.plugin_scroll_area.widget(), previous)
+        self.assertEqual(ui.splitter.sizes(), sizes)
+        message = app.inform.emit.call_args.args[0]
+        self.assertTrue(message.startswith('[ERROR_NOTCL]'))
+        self.assertIn('macro', message.lower())
+
+    def test_launch_hides_entire_buffer_section_only_for_cncjob_selection(self):
+        app, _ = self.make_real_app()
+        app.collection.objects = [SimpleNamespace(kind='cncjob', gcode_flow_blocked=lambda action: None)]
+        ui = self.make_plugin_panel(app)
+        app.collection.view = QtWidgets.QTreeView(ui.splitter)
+        app.collection.view.setModel(app.collection)
+        selection = app.collection.view.selectionModel()
+        app.collection.setRowCount(1)
+        app.collection.setColumnCount(1)
+        ui.splitter.show()
+        tool = ToolTransform(app)
+
+        tool.run()
+
+        def buffer_visibility():
+            self.qapp.processEvents()
+            heading = next(label for label in tool.findChildren(QtWidgets.QLabel)
+                           if tool.ui.bufferName in label.text())
+            return tuple(widget.isVisibleTo(tool) for widget in (
+                heading, tool.ui.buffer_rounded_cb, tool.ui.buffer_entry.parentWidget()))
+
+        self.assertEqual(buffer_visibility(), (False, False, False))
+        app.collection.objects.append(SimpleNamespace(kind='geometry'))
+        selection.select(app.collection.index(0, 0), selection.SelectionFlag.Select)
+        self.assertEqual(buffer_visibility(), (True, True, True))
+        app.collection.objects.pop()
+        selection.clearSelection()
+        self.assertEqual(buffer_visibility(), (False, False, False))
+        tool.run()
+        self.assertEqual(ui.notebook.indexOf(ui.plugin_tab), -1)
+        app.collection.objects.append(SimpleNamespace(kind='geometry'))
+        tool.run()
+        self.assertEqual(buffer_visibility(), (True, True, True))
+
+        tool.release_plugin_panel(app)
+        replacement = QtWidgets.QWidget()
+        ui.plugin_scroll_area.setWidget(replacement)
+        app.collection.objects.pop()
+        selection.select(app.collection.index(0, 0), selection.SelectionFlag.Select)
+        self.assertIs(ui.plugin_scroll_area.widget(), replacement)
+        tool.run()
+        self.assertEqual(buffer_visibility(), (False, False, False))
+
+    def test_launch_with_blocked_job_still_transforms_selected_geometry(self):
+        app, history = self.make_real_app()
+        ui = self.make_plugin_panel(app)
+        with patch('appObjects.AppObjectTemplate.ShapeCollection', MagicMock()):
+            obj = GeometryObject('geometry', app)
+            job = CNCJobObject('job', app)
+        obj.tools[1]['solid_geometry'] = [Polygon([(0, 0), (4, 0), (4, 2), (1, 3)])]
+        obj.plot_transformed = MagicMock(return_value=True)
+        job.gcode_imported = True
+        job.gcode = '#1 = 10\nG1 X#1\n'
+        app.collection.objects = [job, obj]
+        tool = self.make_tool_for(app)
+
+        tool.run()
+
+        self.assertIs(ui.plugin_scroll_area.widget(), tool)
+        tool.ui.ref_combo.set_value('Origin')
+        tool.ui.scalex_entry.set_value(2)
+        tool.ui.scaley_entry.set_value(3)
+        tool.ui.scale_link_cb.set_value(False)
+        tool.on_scalexy()
+        self.assertEqual(obj.bounds(), (0.0, 0.0, 8.0, 9.0))
+        self.assertEqual(job.gcode, '#1 = 10\nG1 X#1\n')
+        self.assertTrue(history.undo())
+        self.assertEqual(obj.bounds(), (0.0, 0.0, 4.0, 3.0))
 
     def test_combined_scale_uses_both_entries_and_is_one_undo_step(self):
         branches = (

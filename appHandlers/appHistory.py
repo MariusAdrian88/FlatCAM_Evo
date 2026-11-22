@@ -159,6 +159,8 @@ HISTORY_EXTRA_ATTRS = {
     'cncjob': ('source_file',),
 }
 EXTRA_KEY = '_history_extra'
+# the G-code scan of an imported CNCJob: derived data, not read by from_dict(), not a user edit
+PROGRAM_CACHE_KEY = '_history_program_cache'
 
 
 def object_state(obj):
@@ -176,6 +178,11 @@ def object_state(obj):
     extra = HISTORY_EXTRA_ATTRS.get(str(obj.kind).lower(), ())
     if extra:
         state[EXTRA_KEY] = {attr: getattr(obj, attr) for attr in extra if hasattr(obj, attr)}
+    if str(obj.kind).lower() == 'cncjob' and obj.gcode_imported:
+        # the scan of the text, so Undo / Redo of an imported job does not scan it again on the GUI thread
+        cache = obj.current_program_feature_cache()
+        if cache is not None:
+            state[PROGRAM_CACHE_KEY] = cache
     return state
 
 
@@ -193,8 +200,12 @@ def restore_object_state(obj, state):
     if isinstance(options, LoudDict):
         options.set_change_callback(lambda key: None)
     try:
-        restored = deepcopy_keep_geometry(state)
+        # the cache holds the text objects of the state: deepcopy of the strings keeps them, a copy of the cache would not
+        program_cache = state.get(PROGRAM_CACHE_KEY)
+        restored = deepcopy_keep_geometry({k: v for k, v in state.items() if k != PROGRAM_CACHE_KEY})
         obj.from_dict(restored)
+        if program_cache is not None:
+            obj.restore_program_feature_cache(program_cache)
         options.clear()
         dict.update(options, restored.get('obj_options', restored.get('options', {})))
         obj.obj_options = options
@@ -242,15 +253,23 @@ def state_size(*states):
 
 def states_equal(left, right):
     """Exact, conservative snapshot equality. Unknown equality must retain the edit."""
+    if isinstance(left, dict) and isinstance(right, dict) and (PROGRAM_CACHE_KEY in left or PROGRAM_CACHE_KEY in right):
+        # the program scan is derived data, not an edit; it is a key of the snapshot root only
+        left = {k: v for k, v in left.items() if k != PROGRAM_CACHE_KEY}
+        right = {k: v for k, v in right.items() if k != PROGRAM_CACHE_KEY}
+    return _values_equal(left, right)
+
+
+def _values_equal(left, right):
     if left is right:
         return True
     if type(left) is not type(right):
         return False
     try:
         if isinstance(left, dict):
-            return left.keys() == right.keys() and all(states_equal(left[k], right[k]) for k in left)
+            return left.keys() == right.keys() and all(_values_equal(left[k], right[k]) for k in left)
         if isinstance(left, (list, tuple)):
-            return len(left) == len(right) and all(states_equal(a, b) for a, b in zip(left, right))
+            return len(left) == len(right) and all(_values_equal(a, b) for a, b in zip(left, right))
         if isinstance(left, np.ndarray):
             return left.dtype == right.dtype and left.shape == right.shape and bool(np.array_equal(left, right))
         if isinstance(left, BaseGeometry):

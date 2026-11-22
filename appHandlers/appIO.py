@@ -3438,7 +3438,7 @@ class appIO(QtCore.QObject):
                 # (the default diameter is used only for the drill rings of an Excellon job)
                 parsed = parse_gcode(gcode, steps_per_circle=job_obj.steps_per_circle,
                                      default_tooldia=drill_tooldia, feedrate_rapid=feedrate_rapid,
-                                     target_units=units)
+                                     target_units=units, scan_features=True)
             except Exception as err:
                 self.log.error("open_gcode() --> %s" % str(err))
                 return fail(_("This is not GCODE"))
@@ -3551,6 +3551,7 @@ class appIO(QtCore.QObject):
             job_obj.gcode = gcode
             job_obj.source_file = gcode
             job_obj.gcode_parsed = total_parsed
+            job_obj.cache_program_features(parsed['features'])
             job_obj.create_geometry()
 
         with self.app.proc_container.new('%s...' % _("Opening")):
@@ -4297,6 +4298,13 @@ class appIO(QtCore.QObject):
                     # some attributes are serialized, so we need to take this into consideration in
                     # CNCJob.set_ui()
                     new_obj.is_loaded_from_project = True
+                    if new_obj.gcode_imported:
+                        # scan the text here (worker thread): the first Transform / Levelling then finds it ready
+                        try:
+                            new_obj.prepare_program_features()
+                        except (TypeError, ValueError) as err:
+                            # a derived scan must not stop the load; the guard scans again when it is needed
+                            self.log.warning("Project load: no G-code scan of %s: %s" % (new_obj.obj_options.get('name'), str(err)))
             # new_object() fills only the options that the project entry does not have
             obj_init.provided_options = entry.get('obj_options', entry.get('options')) or {}
             return obj_init

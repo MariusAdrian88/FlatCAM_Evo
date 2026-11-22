@@ -8,6 +8,13 @@ CHANGELOG for FlatCAM Evo
 
 22.11.2026
 
+Transformation:
+
+- added: CNCJob Properties now has a Transformations button under Plugins; the plugin buttons fill the row, and Save sits directly below the section (#88)
+- fixed: imported CNC jobs with macros or subprograms show a warning before opening Transformations when no selected object can be transformed; other eligible objects in a mixed selection can still be transformed
+- changed: Buffer controls are hidden when the selection includes CNC jobs but no objects that support buffering
+- improved: imported CNC jobs reuse the G-code scan used by Transformations and Levelling instead of rescanning unchanged programs when opening the plugin
+
 Tools Database:
 
 - fixed: EVO missed FlatCAM 8.994's unversioned tools_db.FlatDB on startup; it now imports that library when no usable versioned library is found, without changing the legacy file (#89)

@@ -404,8 +404,13 @@ class TransformUI:
         # #############################################################################################################
         # Buffer Frame
         # #############################################################################################################
+        self.buffer_section = QtWidgets.QWidget()
+        self.layout.addWidget(self.buffer_section)
+        buffer_layout = QtWidgets.QVBoxLayout(self.buffer_section)
+        buffer_layout.setContentsMargins(0, 0, 0, 0)
+        buffer_layout.setSpacing(self.layout.spacing())
         b_t_lay = QtWidgets.QHBoxLayout()
-        self.layout.addLayout(b_t_lay)
+        buffer_layout.addLayout(b_t_lay)
 
         buffer_title_lbl = FCLabel('%s' % self.bufferName, color='indigo', bold=True)
         b_t_lay.addWidget(buffer_title_lbl)
@@ -424,7 +429,7 @@ class TransformUI:
         b_t_lay.addWidget(self.buffer_rounded_cb)
 
         buff_frame = FCFrame()
-        self.layout.addWidget(buff_frame)
+        buffer_layout.addWidget(buff_frame)
 
         buff_grid = GLay(v_spacing=5, h_spacing=3)
         buff_frame.setLayout(buff_grid)
