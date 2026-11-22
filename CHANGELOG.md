@@ -8,6 +8,12 @@ CHANGELOG for FlatCAM Evo
 
 22.11.2026
 
+Translations:
+
+- updated: refreshed the translation template and all 11 language catalogs for the current application strings; each catalog now covers 6,375 active strings
+- improved: translated the new strings and reviewed technical terminology and wording for shorter, clearer labels and tooltips in Arabic, German, Spanish, French, Italian, Brazilian Portuguese, Romanian, Russian, Turkish and Simplified Chinese; updated the English catalog to match the source strings
+- updated: rebuilt all language .mo files; all catalogs have no untranslated or fuzzy entries, placeholder errors or catalog warnings
+
 Geometry 3D Viewer:
 
 - added: Geometry objects have a "3D View" button beside INFO to preview their stored cutting paths with the stored tool diameters on a rectangular board
@@ -61,6 +67,9 @@ Project loading:
 - fixed: opening a FlatCAM 8.994 project could skip CNC jobs with a "'NoneType' object is not iterable" error; legacy milling and drilling tool records now load before tool selection is restored, preserving saved G-code, toolpaths, tool data and drill diameters (#87)
 - fixed: legacy milling CNC jobs were classified as drilling jobs when the project saved an empty drill tool dictionary alongside the milling tools
 - fixed: CNC jobs with null tool records or parsed geometry failed to load; a saved program without tool records is restored as a single-tool job, and an empty job keeps no tools
+
+- updated the version string and the splash images
+- RELEASE 1.10
 
 21.11.2026
 
