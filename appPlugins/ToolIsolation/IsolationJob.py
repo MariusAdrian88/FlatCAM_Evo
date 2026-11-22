@@ -119,7 +119,18 @@ class IsolationJob:
         if self._outname is not None:
             self._queue.append((name, initialize, source, plot))
             return None
-        result = self.new_object("geometry", name, initialize, source=source, plot=plot,
+
+        def initialize_with_source(geo_obj, app_obj):
+            result = initialize(geo_obj, app_obj)
+            obj_options = getattr(geo_obj, 'obj_options', None)
+            if isinstance(obj_options, dict):
+                obj_options['source_operation'] = 'isolation'
+            record_source = getattr(geo_obj, 'record_source', None)
+            if record_source is not None and source is not None:
+                record_source(source)
+            return result
+
+        result = self.new_object("geometry", name, initialize_with_source, source=source, plot=plot,
                                  autoselected=bool(self.validation_status))
         if not (isinstance(result, str) and result == 'fail'):
             self.created.append(result)

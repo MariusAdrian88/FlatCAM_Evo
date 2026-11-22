@@ -209,6 +209,15 @@ def run_isolate(app, gerber, dia=DIA, overlap=OVERLAP, passes=1, iso_type=2, mil
                                            outname=outname, plot=False)
     return created, [c.kwargs['nr_passes'] for c in envelope.call_args_list], result
 
+def test_isolation_output_records_the_source_object(app):
+    gerber = make_gerber(app, name='g')
+    created, __, __ = run_isolate(app, gerber, outname='iso')
+    assert created['iso'].obj_options['source_name'] == 'g'
+    assert created['iso'].get_source_name() == 'g'
+    # the custom output name does not decide the operation
+    assert created['iso'].obj_options['source_operation'] == 'isolation'
+    assert created['iso'].to_dict()['obj_options']['source_operation'] == 'isolation'
+
 def test_combined_passes_stop_at_the_boundary(app):
     gerber = make_gerber(app, name='g')
     board = board_of(gerber)
@@ -221,6 +230,7 @@ def test_combined_passes_stop_at_the_boundary(app):
     assert paths and all(isinstance(p, (LineString, LinearRing)) for p in paths)
     assert length_outside(paths, board) == pytest.approx(0.0)
     assert created['iso'].tools[1]['solid_geometry'] == paths
+    assert created['iso'].obj_options['source_operation'] == 'isolation'
 
 def test_without_a_boundary_all_the_passes_are_made(app):
     gerber = make_gerber(app, name='g')

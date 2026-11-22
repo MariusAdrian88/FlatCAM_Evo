@@ -1030,3 +1030,75 @@ def test_film_object_with_edited_geometry_plots_all_its_shapes():
     assert unary_union([item['shape'] for item in batch]).equals(unary_union(shapes))
 
 
+def test_geometry_provenance_records_a_rename_and_persists_the_source_name():
+    from unittest.mock import patch
+    from tests.helpers_objects import make_app
+
+    with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
+        app = make_app()
+        source = GeometryObject('Copper', app)
+        child = GeometryObject('Iso', app)
+    app.collection.get_list = lambda: [source, child]
+    child.record_source(source)
+    assert child.get_source_name() == 'Copper'
+    assert child.obj_options['source_name'] == 'Copper'
+    # A rename writes obj_options directly (on_name_activate).
+    source.obj_options['name'] = 'Copper renamed'
+    assert child.get_source_name() == 'Copper renamed'
+    saved = child.to_dict()
+    assert saved['obj_options']['source_name'] == 'Copper renamed'
+    assert '_source_ref' not in saved
+    restored = GeometryObject('Iso copy', app)
+    restored.from_dict(saved)
+    assert restored.get_source_name() == 'Copper renamed'
+
+
+def test_geometry_provenance_survives_source_deletion_without_becoming_a_new_object():
+    from unittest.mock import patch
+    from tests.helpers_objects import make_app
+
+    with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
+        app = make_app()
+        source = GeometryObject('Copper', app)
+        child = GeometryObject('Iso', app)
+    child.record_source(source)
+    # deleted from the project but still alive in the undo history: it is no longer a live source
+    source.obj_options['name'] = 'Copper renamed'
+    app.collection.get_list = lambda: [child]
+    assert child.get_source_object() is None
+    assert child.to_dict()['obj_options']['source_name'] == 'Copper renamed'
+    with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
+        replacement = GeometryObject('Copper renamed', app)
+    app.collection.get_list = lambda: [child, replacement]
+    assert child.get_source_object() is None
+    replacement.obj_options['name'] = 'Unrelated rename'
+    assert child.get_source_name() == 'Copper renamed'
+
+
+def test_geometry_provenance_does_not_keep_the_source_alive():
+    import gc
+    import weakref
+    from unittest.mock import patch
+    from tests.helpers_objects import make_app
+
+    with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
+        app = make_app()
+        source = GeometryObject('Copper', app)
+        child = GeometryObject('Iso', app)
+    app.collection.get_list = lambda: [child]
+    child.record_source(source)
+    source_ref = weakref.ref(source)
+    source.obj_options['name'] = 'Copper renamed'
+    del source
+    gc.collect()
+    assert source_ref() is None
+    assert child.get_source_name() == 'Copper renamed'
+
+    with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
+        source = GeometryObject('Other copper', app)
+    app.collection.get_list = lambda: [source]
+    child.record_source(source)
+    child_ref = weakref.ref(child)
+    del child
+    gc.collect()
+    assert child_ref() is None

@@ -436,6 +436,12 @@ class PaintGen:
 
     def generate_output(self, spec, prepared, output, app_obj):
         """ClearingJob hook: fill the output object from the spec."""
+        record_source = getattr(output, 'record_source', None)
+        if record_source is not None and getattr(spec, 'origin', None) is not None:
+            record_source(spec.origin)
+        obj_options = getattr(output, 'obj_options', None)
+        if isinstance(obj_options, dict):
+            obj_options['source_operation'] = 'paint'
         worker = self._generate_rest_paint_worker if spec.rest else self._generate_paint_worker
         return worker(output, app_obj, self._job_params, list(spec.diameters), prepared, spec.source, spec.plot)
 

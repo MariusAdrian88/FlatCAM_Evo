@@ -9,6 +9,85 @@ import shapely
 from shapely import LineString, Point, Polygon, box
 
 
+def test_geometry_preview_rectangular_board_and_stored_tool_widths():
+    from appPlugins.ToolGeometryViewer.GeometryViewerGen import board_mesh, footprints, snapshot, with_remaining_copper
+
+    ring = box(10, 20, 20, 30)
+    line = LineString([(10, 20), (20, 20)])
+    source_obj = SimpleNamespace(units='MM', multigeo=True, bounds=lambda: (10, 20, 20, 30), tools={
+        1: {'tooldia': 2, 'solid_geometry': [[ring], line]},
+        2: {'tooldia': 4, 'solid_geometry': [Point(20, 30), LineString([(0, 0, 0), (0, 0, -2)])]},
+        3: {'tooldia': 2, 'solid_geometry': LineString([(10, 20, 0), (10, 20, -2), (20, 20, -2)])},
+    })
+    bounds, paths = snapshot(source_obj, 'MM')
+    inch_bounds, inch_paths = snapshot(source_obj, 'IN')
+    assert inch_bounds == pytest.approx(np.asarray(bounds) / 25.4)
+    assert footprints(inch_paths)[0].geometry.bounds == pytest.approx(np.asarray((9, 19, 21, 31)) / 25.4)
+    source_obj.tools[2]['tooldia'] = float('nan')
+    with pytest.raises(ValueError):
+        snapshot(source_obj, 'MM')
+    source_obj.tools.clear()
+    with pytest.raises(ValueError):
+        snapshot(source_obj, 'MM')
+    layers = footprints(paths)
+    assert board_mesh(bounds, 2).geometry.equals(box(8, 18, 22, 32))
+    assert board_mesh(bounds, 0).geometry.equals(ring)
+    assert layers[0].geometry.bounds == (9, 19, 21, 31)
+    assert not layers[0].geometry.covers(Point(15, 25))
+    assert layers[1].geometry.bounds == (18, 28, 22, 32)
+    assert layers[2].geometry.bounds == (9, 19, 21, 21)
+    assert layers[2].lines + layers[2].origin == pytest.approx(np.array([[10, 20], [20, 20]]))
+    assert all(len(layer.faces) for layer in layers)
+    copper = with_remaining_copper(board_mesh(bounds, 2), layers[2:], lambda: False).copper
+    assert copper.geometry.bounds == (8, 18, 22, 32)
+    assert copper.geometry.covers(Point(15, 25))
+    assert not copper.geometry.covers(Point(15, 20))
+    # Check the actual rendered triangles also respect the cutout.
+    from shapely.geometry import Polygon
+    triangles = [Polygon(xy + copper.origin) for xy in copper.vertices[copper.faces, :2]]
+    assert any(triangle.covers(Point(15, 25)) for triangle in triangles)
+    assert not any(triangle.covers(Point(15, 20)) for triangle in triangles)
+
+
+def test_geometry_preview_copper_uses_volume_channels_and_walls():
+    from appPlugins.ToolGeometryViewer.GeometryViewerGen import (board_mesh, footprints, snapshot,
+                                                                 with_remaining_copper)
+
+    source_obj = SimpleNamespace(units='MM', multigeo=True, bounds=lambda: (0, 0, 10, 10), tools={
+        1: {'tooldia': 2, 'solid_geometry': [LineString([(2, 5), (8, 5)])]},
+    })
+    bounds, paths = snapshot(source_obj, 'MM')
+    cuts = footprints(paths)
+    board = board_mesh(bounds, 1)
+    copper = with_remaining_copper(board, cuts, lambda: False).copper
+    swept = shapely.union_all([cut.geometry for cut in cuts])
+    # The copper is the remaining material with real holes, not the whole board.
+    assert copper.geometry.symmetric_difference(board.geometry.difference(swept)).area < 1e-8
+    assert not copper.geometry.covers(Point(5, 5))
+    # Channels need a cap plus walls: a flat top surface would only carry z=1.
+    z = copper.vertices[copper.faces, 2]
+    assert np.allclose(np.unique(z), (0, 1))
+    top = copper.faces[np.all(copper.vertices[copper.faces, 2] == 1, axis=1)]
+    bottom = copper.faces[np.all(copper.vertices[copper.faces, 2] == 0, axis=1)]
+    walls = copper.faces[np.any(z == 0, axis=1) & np.any(z == 1, axis=1)]
+    assert len(top) and len(bottom) and len(walls)
+    assert cap_area(copper) == pytest.approx(copper.geometry.area, rel=1e-6)
+
+
+def test_geometry_preview_display_mode_uses_operation_not_name():
+    from appPlugins.ToolGeometryViewer.GeometryViewer import default_display_mode
+
+    source_obj = SimpleNamespace(obj_options={'name': 'isolation'}, tools={
+        1: {'solid_geometry': LineString([(0, 0), (1, 1)]), 'data': {'tools_iso_rest': True}},
+    })
+    assert default_display_mode(source_obj) == 'coverage'
+    source_obj.tools[1]['data']['tools_iso_centerline'] = True
+    assert default_display_mode(source_obj) == 'material'
+    for operation, mode in [('paint', 'coverage'), ('isolation', 'material'), ('ncc', 'material')]:
+        source_obj.obj_options['source_operation'] = operation
+        assert default_display_mode(source_obj) == mode
+
+
 def source(solid=(), follow=(), units='MM'):
     from appPlugins.ToolPCBViewer.PCBViewerGen import Source
     return Source(solid, follow, units)
@@ -159,7 +238,7 @@ def viewer_app():
         for obj in app.collection.objects:
             if obj.kind == kind:
                 root.appendRow(QtGui.QStandardItem(obj.obj_options['name']))
-    app.ui.notebook = QtWidgets.QTabWidget()
+    app.ui.notebook = FCDetachableTab2()
     app.ui.properties_tab = QtWidgets.QWidget()
     app.ui.plugin_tab = QtWidgets.QWidget()
     app.ui.plugin_tab.setObjectName('plugin_tab')
@@ -195,6 +274,382 @@ def viewer_app():
     for widget in (app.ui.notebook, app.ui.splitter, app.ui.plot_tab_area, app.ui):
         widget.deleteLater()
     qapp.processEvents()
+
+
+def test_geometry_preview_follows_owner_membership(viewer_app):
+    import gc
+    import weakref
+    from PyQt6 import QtCore, QtWidgets
+    from appPlugins.ToolGeometryViewer.GeometryViewer import ToolGeometryViewer
+
+    class Geometry:
+        units = 'MM'
+        kind = 'geometry'
+        multigeo = True
+        obj_options = {'name': 'Paths', 'source_operation': 'isolation'}
+        solid_geometry = [LineString([(10, 20), (20, 30)])]
+        tools = {1: {'tooldia': 2, 'solid_geometry': solid_geometry}}
+
+        def bounds(self):
+            return 10, 20, 20, 30
+
+    app, qapp = viewer_app
+    owner, other = Geometry(), Geometry()
+    objects = [owner, other]
+    tree = app.collection.view = QtWidgets.QTreeView()
+    tree.setModel(app.collection)
+    selection = tree.selectionModel()
+    indexes = [app.collection.index(row, 0) for row in range(2)]
+    app.collection.get_selected = lambda: [obj for index, obj in zip(indexes, objects)
+                                           if selection.isSelected(index)]
+    selection.select(indexes[0], QtCore.QItemSelectionModel.SelectionFlag.Select)
+    viewer = ToolGeometryViewer(app)
+    viewer.run(source=owner)
+    qapp.processEvents()
+    assert app.ui.plugin_scroll_area.widget() is viewer
+    assert app.plotcanvas3d.content_bounds is not None
+    canvas = app.plotcanvas3d
+    canvas.view.camera.set_view('top')
+    canvas.fit_view()
+    image = canvas.render()[:, :, :3].astype(int)
+    cy, cx = np.array(image.shape[:2]) // 2
+    r, g, b = image[cy, cx]  # (15, 25), on the cutter path
+    assert g > r > b
+    untouched = cy, cx + image.shape[1] // 8
+    # Flat shading dims the lit copper cap; the tone stays copper and well away from the green substrate.
+    assert np.allclose(image[untouched], (184, 115, 51), atol=20, rtol=0)
+    viewer.ui.centerlines.setChecked(True)
+    assert np.count_nonzero(canvas.render()[:, :, :3] != image) > 100
+    pending = []
+    app.worker_task.disconnect()
+    app.worker_task.connect(pending.append)
+    viewer.ui.centerlines.setChecked(False)
+    viewer.ui.mode.set_value('coverage')
+    coverage = canvas.render()[:, :, :3]
+    assert tuple(coverage[cy, cx]) == (251, 189, 69)
+    assert np.array_equal(coverage[untouched], image[cy, cx])
+    viewer.ui.mode.set_value('material')
+    viewer.ui.color.set_value('#2060E0FF')
+    viewer.ui.copper_color.set_value('#E02080FF')
+    recolored = canvas.render()[:, :, :3]
+    assert np.allclose(recolored[untouched], (224, 32, 128), atol=20, rtol=0)
+    assert recolored[cy, cx, 2] > recolored[cy, cx, 1] > recolored[cy, cx, 0]
+    viewer.ui.copper_color.set_value('#E0208080')
+    assert not np.array_equal(canvas.render()[untouched][:3], recolored[untouched])
+    viewer.ui.opacity.set_value(0)
+    transparent = canvas.render()[:, :, :3]
+    assert tuple(transparent[cy, cx]) == (255, 255, 255)  # canvas background through the cut
+    assert transparent[untouched][0] > transparent[untouched][1]
+    # Oblique and underside views must keep board opacity and copper alpha independent.
+    def dominant(image, channel):
+        values = image.astype(int)
+        others = np.delete(values, channel, axis=2).max(axis=2)
+        return np.count_nonzero(values[:, :, channel] - others > 60)
+
+    viewer.ui.opacity.set_value(255)
+    viewer.ui.copper_color.set_value('#E02080FF')
+    canvas.view.camera.set_view('iso')
+    canvas.fit_view()
+    oblique = canvas.render()[:, :, :3]
+    assert dominant(oblique, 0) > 100
+    assert dominant(oblique, 2) > 100
+    viewer.ui.copper_color.set_value('#E0208000')
+    copper_hidden = canvas.render()[:, :, :3]
+    assert dominant(copper_hidden, 0) < dominant(oblique, 0) // 10
+    assert dominant(copper_hidden, 2) > 100
+    viewer.ui.copper_color.set_value('#E02080FF')
+    viewer.ui.opacity.set_value(0)
+    board_hidden = canvas.render()[:, :, :3]
+    assert dominant(board_hidden, 2) < dominant(oblique, 2) // 10
+    assert dominant(board_hidden, 0) > 100
+    viewer.ui.opacity.set_value(255)
+    canvas.view.camera.set_view('bottom')
+    canvas.fit_view()
+    mirrored = canvas.render()[:, :, :3]
+    assert dominant(mirrored, 2) > 100
+    assert dominant(mirrored, 0) < 100
+    viewer.ui.opacity.set_value(0)
+    underside = canvas.render()[:, :, :3]
+    assert dominant(underside, 0) > 100
+    assert dominant(underside, 2) < 100
+    viewer.ui.opacity.set_value(255)
+    canvas.view.camera.set_view('top')
+    canvas.fit_view()
+    viewer.ui.thickness.set_value(1.5)
+    viewer.ui.opacity.set_value(192)
+    assert not pending
+    assert canvas.content_bounds[0][2] == -1.5
+    viewer.ui.margin.set_value(3)
+    task = pending.pop()
+    previous_bounds = canvas.content_bounds
+    viewer.ui.margin.set_value(4)
+    task['fcn'](*task['params'])
+    qapp.processEvents()
+    viewer.ui.opacity.set_value(160)
+    assert canvas.content_bounds == previous_bounds
+    task = pending.pop()
+    task['fcn'](*task['params'])
+    qapp.processEvents()
+    assert canvas.content_bounds == ((6, 16, -1.5), (24, 34, 0.075))
+    expanded = canvas.render()[:, :, :3]
+    assert expanded[cy, cx, 2] > expanded[cy, cx, 0]
+    assert expanded[untouched][0] > expanded[untouched][1]
+    # A -> B -> A: returning to the displayed margin before B finishes must
+    # leave the accepted preview and restore the ready status.
+    from appTranslation import _
+    viewer.ui.margin.set_value(5)
+    task = pending.pop()
+    assert viewer.ui.status.text() == _('Building Geometry preview…')
+    viewer.ui.margin.set_value(4)
+    task['fcn'](*task['params'])
+    qapp.processEvents()
+    assert viewer.view.root.visible
+    assert canvas.content_bounds == ((6, 16, -1.5), (24, 34, 0.075))
+    assert viewer.ui.status.text() == _('Geometry preview ready')
+    owner.tools = {1: {'tooldia': 2, 'solid_geometry': [LineString([(10, 22), (20, 22)])]}}
+    app.app_obj.object_changed.emit(owner)
+    task = pending.pop()
+    task['fcn'](*task['params'])
+    qapp.processEvents()
+    # The center is no longer swept after an edit at unchanged board bounds.
+    edited = canvas.render()
+    assert edited[cy, cx, 0] > edited[cy, cx, 1]
+    app.worker_task.disconnect()
+    app.worker_task.connect(lambda task: task['fcn'](*task['params']))
+    selection.select(indexes[1], QtCore.QItemSelectionModel.SelectionFlag.Select)
+    assert app.ui.plugin_scroll_area.widget() is viewer
+    notebook, panel = app.ui.notebook, app.ui.plugin_tab
+    notebook.detachTab(notebook.indexOf(panel), QtCore.QPoint())
+    panel_window = next(window for window in notebook.detachedTabs.values() if window.contentWidget is panel)
+    selection.select(indexes[0], QtCore.QItemSelectionModel.SelectionFlag.Deselect)
+    assert app.ui.plugin_scroll_area.widget() is None
+    assert not panel_window.isVisible()
+    assert notebook.indexOf(panel) == -1
+    selection.select(indexes[0], QtCore.QItemSelectionModel.SelectionFlag.Select)
+    assert app.ui.plugin_scroll_area.widget() is None
+    viewer.run(source=owner)
+    canvas = app.plotcanvas3d
+    tabs = app.ui.plot_tab_area
+    plot_page = app.area_3d_tab
+    plot_page.setUpdatesEnabled(False)  # Exercise reparenting without painting into a floating GL window.
+    tabs.detachTab(tabs.indexOf(plot_page), QtCore.QPoint())
+    plot_window = next(window for window in tabs.detachedTabs.values() if window.contentWidget is plot_page)
+    app.on_3d_area()  # another consumer takes over the shared canvas
+    app.object_status_changed.emit(owner, 'delete', 'Paths')
+    assert app.plotcanvas3d is canvas
+    assert app.ui.plugin_scroll_area.widget() is None
+    assert plot_window.isVisible()
+    plot_window.close()  # normal reattach must preserve the handed-off canvas
+    assert tabs.indexOf(plot_page) >= 0
+    viewer.run(source=owner)
+    app.ui.plot_tab_area.closeTab(app.ui.plot_tab_area.indexOf(app.area_3d_tab))
+    qapp.processEvents()
+    assert app.plotcanvas3d is None
+    assert app.ui.plugin_scroll_area.widget() is None
+    # A job already dispatched before delete-all cannot revive either tab.
+    pending.clear()
+    app.worker_task.disconnect()
+    app.worker_task.connect(pending.append)
+    viewer.run(source=owner)
+    assert len(pending) == 1
+    plot_page = app.area_3d_tab
+    plot_page.setUpdatesEnabled(False)
+    tabs.detachTab(tabs.indexOf(plot_page), QtCore.QPoint())
+    plot_window = next(window for window in tabs.detachedTabs.values() if window.contentWidget is plot_page)
+    app.object_status_changed.emit(None, 'delete_all', '')
+    assert app.plotcanvas3d is None
+    assert not plot_window.isVisible()
+    assert tabs.indexOf(plot_page) == -1
+    owner_ref = weakref.ref(owner)
+    objects.clear()
+    del owner
+    gc.collect()
+    assert owner_ref() is None
+    pending[0]['fcn'](*pending[0]['params'])
+    qapp.processEvents()
+    assert app.plotcanvas3d is None
+    assert app.ui.plugin_scroll_area.widget() is None
+
+
+def test_geometry_preview_hides_stale_paths_during_margin_build(viewer_app):
+    from PyQt6 import QtWidgets
+    from appPlugins.ToolGeometryViewer.GeometryViewer import ToolGeometryViewer
+    from appTranslation import _
+
+    class Geometry:
+        units = 'MM'
+        kind = 'geometry'
+        multigeo = True
+        obj_options = {'name': 'Paths', 'source_operation': 'isolation'}
+        tools = {1: {'tooldia': 2, 'solid_geometry': [LineString([(10, 20), (20, 30)])]}}
+
+        def bounds(self):
+            return 10, 20, 20, 30
+
+    app, qapp = viewer_app
+    owner = Geometry()
+    app.collection.objects = [owner]
+    app.collection.get_selected = lambda: [owner]
+    app.collection.view = QtWidgets.QTreeView()
+    app.collection.view.setModel(app.collection)
+    viewer = ToolGeometryViewer(app)
+    pending = []
+    app.worker_task.disconnect()
+    app.worker_task.connect(pending.append)
+    viewer.run(source=owner)
+    task = pending.pop()
+    task['fcn'](*task['params'])
+    qapp.processEvents()
+    assert viewer.view.root.visible
+    # A margin edit rebuilds the board but keeps the accepted copper mesh visible.
+    viewer.ui.margin.set_value(3)
+    margin_task = pending.pop()
+    viewer.refresh()
+    assert viewer.view.root.visible
+    # Changing the stored paths invalidates the displayed copper at once, even
+    # though the margin job is still queued.
+    owner.tools = {1: {'tooldia': 2, 'solid_geometry': [LineString([(10, 22), (20, 22)])]}}
+    app.app_obj.object_changed.emit(owner)
+    assert not viewer.view.root.visible
+    margin_task['fcn'](*margin_task['params'])
+    qapp.processEvents()
+    edited_task = pending.pop()
+    assert viewer.ui.status.text() == _('Building Geometry preview…')
+    edited_task['fcn'](*edited_task['params'])
+    qapp.processEvents()
+    assert viewer.view.root.visible
+    assert viewer.ui.status.text() == _('Geometry preview ready')
+    viewer.close_preview()
+
+
+def test_geometry_preview_zero_area_material_explains_and_coverage_renders(viewer_app):
+    from PyQt6 import QtWidgets
+    from appPlugins.ToolGeometryViewer.GeometryViewer import ToolGeometryViewer
+    from appTranslation import _
+
+    class Geometry:
+        units = 'MM'
+        kind = 'geometry'
+        multigeo = True
+        obj_options = {'name': 'PointPaths', 'source_operation': 'isolation'}
+
+        def __init__(self):
+            self.tools = {1: {'tooldia': 2, 'solid_geometry': [Point(15, 25)]}}
+            self.bounds_value = (15, 25, 15, 25)
+
+        def bounds(self):
+            return self.bounds_value
+
+    app, qapp = viewer_app
+    owner = Geometry()
+    app.collection.objects = [owner]
+    app.collection.get_selected = lambda: [owner]
+    app.collection.view = QtWidgets.QTreeView()
+    app.collection.view.setModel(app.collection)
+    viewer = ToolGeometryViewer(app)
+    pending = []
+    app.worker_task.disconnect()
+    app.worker_task.connect(pending.append)
+    viewer.run(source=owner)
+    viewer.ui.margin.set_value(0)
+    while pending:
+        task = pending.pop()
+        task['fcn'](*task['params'])
+        qapp.processEvents()
+    canvas = app.plotcanvas3d
+    canvas.view.camera.set_view('top')
+    canvas.fit_view()
+    cy, cx = np.array(canvas.render().shape[:2]) // 2
+    assert viewer.ui.mode.get_value() == 'material'
+    assert 'margin' in viewer.ui.status.text().lower()
+    assert 'area' in viewer.ui.status.text().lower()
+    blank = canvas.render()[:, :, :3]
+    assert tuple(blank[cy, cx]) == (255, 255, 255)
+    # The timer, mode and color refresh must not overwrite the explanation.
+    viewer.refresh()
+    viewer.ui.copper_color.set_value('#E02080FF')
+    assert not pending
+    assert 'area' in viewer.ui.status.text().lower()
+    # Coverage shows the stored cutter footprint with no new build.
+    viewer.ui.mode.set_value('coverage')
+    coverage = canvas.render()[:, :, :3]
+    assert tuple(coverage[cy, cx]) == (251, 189, 69)
+    assert viewer.ui.status.text() == _('Geometry preview ready')
+    assert not pending
+    viewer.ui.mode.set_value('material')
+    assert 'area' in viewer.ui.status.text().lower()
+    # Positive-area board with all copper removed is a valid material view.
+    owner.bounds_value = (10, 20, 20, 30)
+    owner.tools = {1: {'tooldia': 2, 'solid_geometry': [
+        LineString([(9, y), (21, y)]) for y in range(20, 31)]}}
+    app.app_obj.object_changed.emit(owner)
+    task = pending.pop()
+    task['fcn'](*task['params'])
+    qapp.processEvents()
+    assert viewer.ui.mode.get_value() == 'material'
+    assert viewer.ui.status.text() == _('Geometry preview ready')
+    assert viewer.view.root.visible
+    board = canvas.render()[:, :, :3]
+    assert board[cy, cx, 1] > board[cy, cx, 0] > board[cy, cx, 2]
+    assert np.allclose(board[cy, cx], (128, 153, 102), atol=12)
+    viewer.close_preview()
+
+
+def test_geometry_preview_copper_thickness_channels_and_units(viewer_app):
+    from PyQt6 import QtWidgets
+    from appPlugins.ToolGeometryViewer.GeometryViewer import ToolGeometryViewer
+
+    class Geometry:
+        units = 'MM'
+        kind = 'geometry'
+        multigeo = True
+        obj_options = {'name': 'Paths', 'source_operation': 'isolation'}
+        tools = {1: {'tooldia': 2, 'solid_geometry': [LineString([(10, 25), (20, 25)])]}}
+
+        def bounds(self):
+            return 10, 20, 20, 30
+
+    app, qapp = viewer_app
+    owner = Geometry()
+    app.collection.objects = [owner]
+    app.collection.get_selected = lambda: [owner]
+    app.collection.view = QtWidgets.QTreeView()
+    app.collection.view.setModel(app.collection)
+    viewer = ToolGeometryViewer(app)
+    viewer.run(source=owner)
+    qapp.processEvents()
+    canvas = app.plotcanvas3d
+    assert viewer.ui.mode.get_value() == 'material'
+    # The copper thickness is a physical micrometre value with a 75 um default.
+    assert viewer.ui.copper_thickness.get_value() == 75
+    assert viewer.ui.copper_thickness.spinner.suffix().strip() == 'µm'
+    assert canvas.content_bounds[1][2] == pytest.approx(0.075)  # 75 um in millimetres
+    viewer.ui.color.set_value('#2060E0FF')
+    canvas.view.camera.set_view('iso')
+    canvas.fit_view()
+    image = canvas.render()[:, :, :3].astype(int)
+    # Raised copper (red) and the exposed channel floor (blue) are both visible at their own depth.
+    red = image[:, :, 0] - np.maximum(image[:, :, 1], image[:, :, 2])
+    blue = image[:, :, 2] - np.maximum(image[:, :, 0], image[:, :, 1])
+    assert np.count_nonzero(red > 40) > 100
+    assert np.count_nonzero(blue > 40) > 100
+    # A thickness edit transforms the cached copper mesh without rebuilding the toolpaths.
+    pending = []
+    app.worker_task.disconnect()
+    app.worker_task.connect(pending.append)
+    viewer.ui.copper_thickness.set_value(600)
+    assert not pending
+    assert canvas.content_bounds[1][2] == pytest.approx(0.6)
+    # Project units scale the physical height; the micrometre control stays in micrometres.
+    app.app_units = 'IN'
+    viewer.refresh()
+    task = pending.pop()
+    task['fcn'](*task['params'])
+    qapp.processEvents()
+    assert viewer.ui.copper_thickness.get_value() == 600
+    assert viewer.ui.copper_thickness.spinner.suffix().strip() == 'µm'
+    assert canvas.content_bounds[1][2] == pytest.approx(0.6 / 25.4)
+    viewer.close_preview()
 
 
 def test_mesh_rendering_and_fit_survive_resize_and_show_both_sides(viewer_app):

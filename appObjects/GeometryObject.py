@@ -32,6 +32,7 @@ import re
 import ezdxf
 import numpy as np
 import traceback
+import weakref
 from copy import deepcopy
 from collections import defaultdict
 from functools import reduce
@@ -354,11 +355,15 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
         # Always append to it because it carries contents
         # from predecessors.
         self.source_file = ''
+        # the live source object, weak: the name is the persisted provenance, the object is only a convenience
+        self._source_ref = None
         self.ser_attrs += ['obj_options', 'kind', 'fill_color', 'outline_color', 'alpha_level', 'source_file',
                            'exclusion_zones', 'zones_always_drawn']
         self.ser_attrs.remove('solid_geometry')
 
     def to_dict(self):
+        # save the current name of a live source, should it have been renamed since the generation
+        self.get_source_name()
         d = super().to_dict()
         # constant for the previous release: it reads the shapes of the tools only when it finds this key True
         d['multigeo'] = True
@@ -439,7 +444,71 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
         if hasattr(src, 'source_file'):
             self.source_file = deepcopy(src.source_file)
 
+    def record_source(self, source):
+        """Remember the object this generated Geometry came from. The name is persisted in obj_options; the live
+        object is held through a weak reference only and is never serialized."""
+        previous = self._source_ref() if self._source_ref is not None else None
+        if isinstance(previous, FlatCAMObj):
+            try:
+                previous.optionChanged.disconnect(self._source_option_changed)
+            except (RuntimeError, TypeError):
+                pass  # The original QObject or its connection may already be gone.
+        if source is None:
+            self._source_ref = None
+            self.obj_options.pop('source_name', None)
+            return
+        name = getattr(source, 'obj_options', None) or {}
+        name = name.get('name', '') or getattr(source, 'name', '')
+        try:
+            self._source_ref = weakref.ref(source)
+        except TypeError:
+            self._source_ref = None
+        if isinstance(source, FlatCAMObj):
+            source.optionChanged.connect(self._source_option_changed)
+        if name:
+            self.obj_options['source_name'] = name
+
+    @QtCore.pyqtSlot(str)
+    def _source_option_changed(self, key):
+        if key == 'name':
+            self.get_source_name()
+
+    def get_source_object(self):
+        """The live source object, if it still exists and is still in the project; else None."""
+        if self._source_ref is None:
+            return None
+        source = self._source_ref()
+        if source is None:
+            return None
+        collection = getattr(self.app, 'collection', None)
+        if collection is None:
+            return source
+        try:
+            objects = collection.get_list()
+        except (AttributeError, TypeError):
+            return source
+        try:
+            return source if any(obj is source for obj in objects) else None
+        except TypeError:
+            return source
+
+    def get_source_name(self):
+        """The descriptive name of the object this Geometry came from, or ''."""
+        source = self._source_ref() if self._source_ref is not None else None
+        if source is not None:
+            options = getattr(source, 'obj_options', None) or {}
+            name = options.get('name', '') or getattr(source, 'name', '')
+            if name:
+                self.obj_options['source_name'] = name
+                return name
+        return self.obj_options.get('source_name', '')
+
+    def on_view_3d(self):
+        self.app.geometry_viewer_tool.run(source=self)
+
     def build_ui(self):
+        from appPlugins.ToolGeometryViewer.GeometryViewerGen import has_geometry
+
         try:
             self.ui_disconnect()
         except RuntimeError:
@@ -447,6 +516,7 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
             self.set_ui(self.ui_type(app=self.app))
 
         FlatCAMObj.build_ui(self)
+        self.ui.view_3d_button.setEnabled(has_geometry(self))
 
         self.units = self.app.app_units
 
@@ -580,6 +650,8 @@ class GeometryObject(OffsetUiMixin, PropertiesPanelMixin, FlatCAMObj, Geometry):
 
         assert isinstance(self.ui, GeometryObjectUI), \
             "Expected a GeometryObjectUI, got %s" % type(self.ui)
+
+        self.ui.view_3d_button.clicked.connect(self.on_view_3d)
 
         self.units = self.app.app_units.upper()
         self.units_found = self.app.app_units

@@ -498,15 +498,24 @@ class TestPaintPerformance(unittest.TestCase):
 
     def test_clearing_direction_reaches_the_rings_the_cleanup_and_the_output_flag(self):
         import numpy as np
+        from unittest.mock import patch
+        from appObjects.GeometryObject import GeometryObject
+        from tests.helpers_objects import make_app
         from test_clearing_engine import AREA, rings, role
         from test_clearing_paths import turn
         for direction, outer in (('climb', 1), ('conv', -1), ('none', None)):
             with self.subTest(direction=direction):
                 worker, params = rest_worker(self.geometry, [1.0], method=0, overlap=0.5)
                 params.tools_storage[1]['data'].update(tools_paint_clear_milling=direction, tools_paint_final_cleanup=True)
-                output = SimpleNamespace(tools={}, obj_options={})
-                self.assertNotEqual(worker._generate_paint_worker(output, worker.app, params, [1.0], [AREA], None, False),
-                                    'fail')
+                with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
+                    output = GeometryObject('Paint output', make_app())
+                source = SimpleNamespace(obj_options={'name': 'Copper'})
+                spec = SimpleNamespace(rest=False, origin=source, source=None, plot=False, diameters=[1.0])
+                worker._job_params = params
+                self.assertNotEqual(worker.generate_output(spec, [AREA], output, worker.app), 'fail')
+                self.assertEqual(output.to_dict()['obj_options']['source_name'], 'Copper')
+                self.assertEqual(output.obj_options['source_operation'], 'paint')
+                self.assertEqual(output.to_dict()['obj_options']['source_operation'], 'paint')
                 data = output.tools[1]['data']
                 self.assertIs(data.get('tools_mill_keep_direction', False), outer is not None)
                 made = [ring for ring in rings(output.tools[1]['solid_geometry']) if role(ring)]

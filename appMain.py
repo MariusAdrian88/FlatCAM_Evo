@@ -2294,6 +2294,7 @@ class App(QtCore.QObject):
                                      pos=self.ui.menu_plugins, before=self.sub_tool.menuAction, separator=True)
 
         self.pcb_viewer_tool = ToolPCBViewer(self)
+        self.geometry_viewer_tool = ToolGeometryViewer(self)
         self.pcb_viewer_tool.install(icon=QtGui.QIcon(self.resource_location + '/3d_area32.png'),
                                      pos=self.ui.menu_plugins, before=self.sub_tool.menuAction, separator=True)
 
@@ -2403,6 +2404,7 @@ class App(QtCore.QObject):
             self.paint_tool,
             self.photocarve_tool,
             self.pcb_viewer_tool,
+            self.geometry_viewer_tool,
             self.isolation_tool,
             self.follow_tool,
             self.drilling_tool,

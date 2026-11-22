@@ -844,6 +844,9 @@ class AppUIActions(QtCore.QObject):
         from appGUI.PlotCanvas3d import PlotCanvas3d
 
         if getattr(self.app, 'plotcanvas3d', None) is not None:
+            release_preview = getattr(self.app.area_3d_tab, 'geometry_preview_release', None)
+            if release_preview is not None:
+                release_preview()
             self.ui.plot_tab_area.setCurrentWidget(self.app.area_3d_tab)
             return
 

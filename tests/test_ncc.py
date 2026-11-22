@@ -36,7 +36,7 @@ TOOL_DATA = {
 }
 
 
-def make_gen(tools, known=None, options=None, units='MM'):
+def make_gen(tools, known=None, options=None, units='MM', output=None):
     gen = NccGen.__new__(NccGen)
     defaults = {'tools_ncc_plotting': 'normal', 'tools_ncc_cutz': -0.1, 'tools_ncc_tools': '(4, 1)'}
     defaults.update(options or {})
@@ -63,7 +63,8 @@ def make_gen(tools, known=None, options=None, units='MM'):
             'rest_contour_cb': True, 'rest_offset_choice_cb': False, 'rest_offset_entry': 0,
         }.items()
     })
-    output = SimpleNamespace(kind='geometry', tools={}, obj_options={})
+    if output is None:
+        output = SimpleNamespace(kind='geometry', tools={}, obj_options={})
 
     def new_object(kind, name, worker, **kwargs):
         gen.worker_result = worker(output, app)
@@ -75,9 +76,9 @@ def make_gen(tools, known=None, options=None, units='MM'):
 
 
 def run_rest(area, tools, clear, tcl=False, source=None, rest=True, known=None, options=None, engines=None,
-             real_area=False, boundary=None, handler_kwargs=None, **tcl_extra):
+             real_area=False, boundary=None, handler_kwargs=None, output=None, **tcl_extra):
     """Run the GUI handler (or the Tcl command) with the area and the clearing replaced by the given ones."""
-    gen, output = make_gen(tools, known, options)
+    gen, output = make_gen(tools, known, options, output=output)
     app = gen.app
     gen.ui.rest_cb = SimpleNamespace(get_value=lambda: rest)
     source = source or SimpleNamespace(kind='geometry', solid_geometry=[box(2, 2, 3, 3)])
@@ -118,10 +119,21 @@ def test_job_without_geometry_removes_the_promise_and_reports_the_failure_once(t
 
 
 def test_published_output_has_bounds_and_an_incomplete_job_warns():
+    from unittest.mock import patch
+    from appObjects.GeometryObject import GeometryObject
     from appPlugins.Common.clearing.job import incomplete_text
+    from tests.helpers_objects import make_app
+
+    with patch('appObjects.AppObjectTemplate.ShapeCollection', Mock()):
+        output = GeometryObject('NCC output', make_app())
+    source = SimpleNamespace(kind='geometry', solid_geometry=[box(2, 2, 3, 3)], obj_options={'name': 'Copper'})
     area = MultiPolygon([box(0, 0, 4, 4)])
-    gen, output = run_rest(area, [1.0], lambda **kw: [LineString([(1, 1), (3, 1)])], rest=True)
+    gen, output = run_rest(area, [1.0], lambda **kw: [LineString([(1, 1), (3, 1)])], rest=True,
+                           source=source, output=output)
     assert (output.obj_options['xmin'], output.obj_options['xmax']) == (1, 3)
+    assert output.to_dict()['obj_options']['source_name'] == 'Copper'
+    assert output.obj_options['source_operation'] == 'ncc'
+    assert output.to_dict()['obj_options']['source_operation'] == 'ncc'
     assert gen.app.poly_not_cleared is True
     assert '[WARNING_NOTCL] %s' % incomplete_text() in messages_of(gen)
 
