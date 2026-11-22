@@ -4218,7 +4218,14 @@ class appIO(QtCore.QObject):
         def make_init(entry, problems):
             def obj_init(new_obj, app_inst):
                 try:
-                    new_obj.from_dict(entry)
+                    # CNCJobObject.from_dict() needs the tool records to restore the selection.
+                    if entry.get('exc_cnc_tools'):
+                        tools = {uid: dict(tool, tooldia=float(uid)) for uid, tool in entry['exc_cnc_tools'].items()}
+                        new_obj.from_dict(dict(entry, tools=tools))
+                    elif entry.get('cnc_tools'):
+                        new_obj.from_dict(dict(entry, tools=entry['cnc_tools']))
+                    else:
+                        new_obj.from_dict(entry)
                 except Exception as except_error:
                     app_inst.log.error('appIO.open_project() --> ' + str(except_error))
                     problems.append(str(except_error))
@@ -4241,19 +4248,9 @@ class appIO(QtCore.QObject):
 
                 # Scripts and Documents have no tools
                 if hasattr(new_obj, 'tools'):
-                    # #########################################################################################
-                    # for older projects loading try to convert the 'apertures' or 'cnc_tools' or
-                    # 'exc_cnc_tools' attributes, if found, to 'tools'
-                    # #########################################################################################
+                    # Older Gerber projects store the tools as apertures.
                     if 'apertures' in entry:
                         new_obj.tools = entry['apertures']
-                    if 'cnc_tools' in entry and entry['cnc_tools']:
-                        new_obj.tools = entry['cnc_tools']
-                    if 'exc_cnc_tools' in entry and entry['exc_cnc_tools']:
-                        new_obj.tools = entry['exc_cnc_tools']
-                        # add a missing key, 'tooldia' used for plotting CNCJob objects
-                        for td in new_obj.tools:
-                            new_obj.tools[td]['tooldia'] = float(td)
 
                     # try to make the keys in the tools dictionary to be integers
                     # JSON serialization makes them strings
@@ -4273,10 +4270,10 @@ class appIO(QtCore.QObject):
 
                 # #############################################################################################
                 # for older loaded projects
-                # ony older CNCJob objects hold those
-                if 'cnc_tools' in entry:
+                # ony older CNCJob objects hold those; they save both keys and leave the unused one empty
+                if entry.get('cnc_tools'):
                     new_obj.obj_options['type'] = 'Geometry'
-                if 'exc_cnc_tools' in entry:
+                if entry.get('exc_cnc_tools'):
                     new_obj.obj_options['type'] = 'Excellon'
                 # #############################################################################################
 
@@ -4284,7 +4281,7 @@ class appIO(QtCore.QObject):
                     # from_dict() already matched the selection to the tools (and converted old jobs)
                     selected = new_obj.used_tools
                     if entry.get('cnc_tools') or entry.get('exc_cnc_tools'):
-                        # The legacy records replaced the tools restored by from_dict().
+                        # Legacy selections can use numeric diameters rather than the original JSON keys.
                         selected = entry.get('used_tools')
 
                     def tool_key(uid):

@@ -243,16 +243,17 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
             tools = {uid: dict(tool) for uid, tool in (d.get('tools') or {1: {}}).items()}
             tool = next(iter(tools.values()))
             tool['gcode'] = d['gcode']
-            tool['gcode_parsed'] = tool.get('gcode_parsed') or d.get('gcode_parsed', [])
-            tool['solid_geometry'] = tool.get('solid_geometry') or d.get('solid_geometry', [])
+            tool['gcode_parsed'] = tool.get('gcode_parsed') or d.get('gcode_parsed') or []
+            tool['solid_geometry'] = tool.get('solid_geometry') or d.get('solid_geometry') or []
             tool.setdefault('data', {})
             tool.setdefault('tooldia', self.obj_options.get('tooldia', 0.0))
             d['tools'] = tools
-        if d.get('multitool') is False or (not d.get('tools') and d.get('multitool') is not True):
+        # a multi-tool job without tools but with a program on the object is a single-tool job
+        if d.get('multitool') is False or (not d.get('tools') and (d.get('multitool') is not True or d.get('gcode'))):
             tools = d.get('tools') or {}
             tool = dict(tools.get(1) or tools.get('1') or next(iter(tools.values()), {}))
             tool['gcode'] = tool.get('gcode') or d.get('gcode', '')
-            tool['gcode_parsed'] = tool.get('gcode_parsed') or d.get('gcode_parsed', [])
+            tool['gcode_parsed'] = tool.get('gcode_parsed') or d.get('gcode_parsed') or []
             tool['solid_geometry'] = (tool.get('solid_geometry') or d.get('solid_geometry') or
                                       [g['geom'] for g in tool['gcode_parsed']])
             saved = d.get('obj_options', d.get('options', {})) or {}
@@ -273,11 +274,13 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
             tools = {uid: dict(tool) for uid, tool in d['tools'].items()}
             tool = next(iter(tools.values()))
             tool['gcode'] = d['gcode']
-            tool['gcode_parsed'] = tool.get('gcode_parsed') or d.get('gcode_parsed', [])
+            tool['gcode_parsed'] = tool.get('gcode_parsed') or d.get('gcode_parsed') or []
             tool['solid_geometry'] = (tool.get('solid_geometry') or d.get('solid_geometry') or
                                       [g['geom'] for g in tool['gcode_parsed']])
             tool.setdefault('data', {})
             d['tools'] = tools
+        # an empty multi-tool job can save no tools at all
+        d['tools'] = d.get('tools') or {}
         d.pop('multitool', None)
         super().from_dict(d)
         keys = {str(uid): uid for uid in self.tools}

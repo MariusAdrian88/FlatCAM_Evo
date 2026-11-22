@@ -665,29 +665,68 @@ class TestProjectLoadCleanup(unittest.TestCase):
         return created
 
     def test_legacy_cnc_tool_aliases_restore_the_tools_that_are_exported_and_plotted(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
         from tests.test_cncjob_export_gcode import _ui_job, _ui_app
         from preprocessors.default import default
 
         path = LineString([(2, 3), (8, 9)])
         parsed = [{'geom': path, 'kind': ['C', 'S']}]
         for alias, key in (('cnc_tools', '7'), ('exc_cnc_tools', '0.8')):
-            with self.subTest(alias=alias):
+            with self.subTest(alias=alias), TemporaryDirectory() as tmp:
+                app = _ui_app()
+                app.preprocessors = {'default': default()}
+                job = _ui_job(app)
+                saved = job.to_dict()
+                # FlatCAM 8.994 saves both aliases and leaves the unused one empty (issue #87)
+                saved.update(cnc_tools={}, exc_cnc_tools={})
+                saved.update(tools=None, multitool=True, used_tools=[key], gcode='G1 X8 Y9\n',
+                             **{alias: {key: {'data': {'tools_mill_feedrate': 42}, 'gcode': 'G1 X8 Y9\n',
+                                              'gcode_parsed': parsed, 'solid_geometry': [path]}}})
+                uid = int(key) if alias == 'cnc_tools' else float(key)
+                if alias == 'cnc_tools':
+                    saved[alias][key]['tooldia'] = 0.8
+                for reopened in (False, True):
+                    if reopened:
+                        filename = str(Path(tmp) / 'upgraded.FlatPrj')
+                        save_project_file(filename, {'objs': [job.to_dict()], 'options': {}, 'version': 9.0},
+                                          default=to_dict)
+                        saved = load_project_file(filename, object_hook=dict2obj)['objs'][0]
+                        job = _ui_job(app)
+                    created = self.restore_objects([saved], object_factory=lambda kind, name: job)
+                    self.assertEqual(len(created), 1)
+                    self.assertEqual(job.used_tools, [uid])
+                    self.assertEqual(job.obj_options['type'], 'Geometry' if alias == 'cnc_tools' else 'Excellon')
+                    self.assertEqual(job.gcode, 'G1 X8 Y9\n')
+                    self.assertEqual(job.tools[uid]['tooldia'], 0.8)
+                    self.assertEqual(job.tools[uid]['data'], {'tools_mill_feedrate': 42})
+                    self.assertEqual(job.tools[uid]['solid_geometry'], [path])
+                    job.plot2 = Mock()
+                    job.mark_full_plot = Mock()
+                    job.plot()
+                    self.assertEqual(job.plot2.call_count, 1)
+                    self.assertEqual(job.plot2.call_args.kwargs['gcode_parsed'], parsed)
+                    self.assertIn('G1 X8 Y9', job.export_gcode(to_file=True).getvalue())
+
+    def test_multitool_job_without_tools_loads(self):
+        from tests.test_cncjob_export_gcode import _ui_job, _ui_app
+        from preprocessors.default import default
+
+        for gcode in ('G1 X8 Y9\n', ''):
+            with self.subTest(gcode=gcode):
                 app = _ui_app()
                 app.preprocessors = {'default': default()}
                 job = _ui_job(app)
                 saved = job.to_dict()
                 saved.pop('used_tools', None)
-                saved.update(tools={}, multitool=True,
-                             **{alias: {key: {'tooldia': 0.8, 'data': {}, 'gcode': 'G1 X8 Y9\n',
-                                             'gcode_parsed': parsed, 'solid_geometry': [path]}}})
+                saved.update(tools=None, multitool=True, cnc_tools={}, exc_cnc_tools={}, gcode=gcode)
                 created = self.restore_objects([saved], object_factory=lambda kind, name: job)
                 self.assertEqual(len(created), 1)
-                job.plot2 = Mock()
-                job.mark_full_plot = Mock()
-                job.plot()
-                self.assertEqual(job.plot2.call_count, 1)
-                self.assertEqual(job.plot2.call_args.kwargs['gcode_parsed'], parsed)
-                self.assertIn('G1 X8 Y9', job.export_gcode(to_file=True).getvalue())
+                if gcode:
+                    self.assertEqual(job.used_tools, [1])
+                    self.assertIn('G1 X8 Y9', job.export_gcode(to_file=True).getvalue())
+                else:
+                    self.assertEqual((job.tools, job.used_tools), ({}, []))
 
     def test_script_and_bad_objects_do_not_stop_the_load(self):
         opened = Mock()

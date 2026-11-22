@@ -6,6 +6,14 @@ Based on FlatCAM:
 
 CHANGELOG for FlatCAM Evo
 
+22.11.2026
+
+Project loading:
+
+- fixed: opening a FlatCAM 8.994 project could skip CNC jobs with a "'NoneType' object is not iterable" error; legacy milling and drilling tool records now load before tool selection is restored, preserving saved G-code, toolpaths, tool data and drill diameters (#87)
+- fixed: legacy milling CNC jobs were classified as drilling jobs when the project saved an empty drill tool dictionary alongside the milling tools
+- fixed: CNC jobs with null tool records or parsed geometry failed to load; a saved program without tool records is restored as a single-tool job, and an empty job keeps no tools
+
 21.11.2026
 
 Preferences:
