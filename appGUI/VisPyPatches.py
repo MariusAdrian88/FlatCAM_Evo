@@ -9,6 +9,7 @@
 import gc
 import logging
 import os
+import sys
 import weakref
 
 from PyQt6 import QtCore
@@ -571,6 +572,48 @@ def _patch_perspective_camera():
     perspective.PerspectiveCamera._update_transform = _update_transform
 
 
+def _patch_linux_gl_context():
+    """Linux only (issues #90 and #91). VisPy's QSurfaceFormat leaves the renderable type at its default, and the Qt
+    Wayland platform can then hand out an OpenGL ES context, where VisPy's GLSL 1.20 shaders do not compile: the
+    format asks for desktop OpenGL. The first canvas logs the context it got (one line "OpenGL context: ...")."""
+    if not sys.platform.startswith('linux'):
+        return
+    from PyQt6 import QtGui
+    from vispy.app.backends import _qt
+    if getattr(_qt._set_config, 'flatcam_patch', False):
+        return
+    original_set_config = _qt._set_config
+    original_initialize = CanvasBackendDesktop.initializeGL
+    probed = []
+
+    def _set_config(c):
+        glformat = original_set_config(c)
+        glformat.setRenderableType(QtGui.QSurfaceFormat.RenderableType.OpenGL)
+        return glformat
+
+    def initializeGL(self):
+        original_initialize(self)
+        if probed:
+            return
+        probed.append(True)
+        try:
+            from vispy.gloo import gl
+            is_es = self.context().isOpenGLES()
+            log.info("OpenGL context: platform %s, GL_VERSION %s, GLSL %s, renderer %s, OpenGL ES %s" % (
+                QtGui.QGuiApplication.platformName(), gl.glGetParameter(gl.GL_VERSION),
+                gl.glGetParameter(gl.GL_SHADING_LANGUAGE_VERSION), gl.glGetParameter(gl.GL_RENDERER), is_es))
+            if is_es:
+                log.warning("The canvas got an OpenGL ES context and may stay black. Start with "
+                            "QT_QPA_PLATFORM=xcb (see issue #91).")
+        except Exception as e:
+            log.warning("OpenGL context: probe failed: %s" % str(e))
+
+    _set_config.flatcam_patch = True
+    initializeGL.flatcam_patch = True
+    _qt._set_config = _set_config
+    CanvasBackendDesktop.initializeGL = initializeGL
+
+
 def apply_patches():
     # Set before QApplication: keep canvas GL resources when tabs move between windows.
     QtCore.QCoreApplication.setAttribute(QtCore.Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
@@ -850,6 +893,7 @@ def apply_patches():
     _patch_update_variables()
     _patch_pixel_scale()
     _patch_perspective_camera()
+    _patch_linux_gl_context()
 
     # Canvas frame probe (development): installed last, so that it wraps the final functions.
     if os.environ.get('FLATCAM_CANVAS_PROF') == '1':

@@ -223,5 +223,49 @@ class TestReleasePackaging(unittest.TestCase):
                             check_release(executable)
 
 
+class TestLinuxRuntime(unittest.TestCase):
+    """Wayland/AppImage start (issues #90, #91)."""
+
+    @staticmethod
+    def _prepare(environ, platform="linux", frozen=False, exe_dir="/nonexistent"):
+        from appCommon.LinuxRuntime import prepare_environment
+
+        prepare_environment(environ, platform, frozen, exe_dir)
+        return environ
+
+    def test_appimage_on_wayland_with_xwayland_uses_xcb(self):
+        wayland = {"APPIMAGE": "/x", "DISPLAY": ":0", "XDG_SESSION_TYPE": "wayland"}
+        self.assertEqual(self._prepare(dict(wayland))["QT_QPA_PLATFORM"], "xcb")
+        self.assertEqual(self._prepare(dict(wayland, QT_QPA_PLATFORM="wayland"))["QT_QPA_PLATFORM"], "wayland")
+        for env in ({"APPIMAGE": "/x", "XDG_SESSION_TYPE": "wayland"},  # no XWayland
+                    {"DISPLAY": ":0", "XDG_SESSION_TYPE": "wayland"},  # not the AppImage
+                    {"APPIMAGE": "/x", "DISPLAY": ":0", "XDG_SESSION_TYPE": "x11"}):
+            self.assertNotIn("QT_QPA_PLATFORM", self._prepare(env))
+        for platform in ("win32", "darwin"):
+            self.assertEqual(self._prepare(dict(wayland), platform=platform), wayland)
+
+    def test_frozen_app_points_xkb_to_bundled_data(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rules = Path(tmp, "lib", "xkb", "rules")
+            rules.mkdir(parents=True)
+            (rules / "evdev").write_text("")
+            env = self._prepare({}, frozen=True, exe_dir=tmp)
+            self.assertEqual(env["XKB_CONFIG_ROOT"], str(Path(tmp, "lib", "xkb")))
+            self.assertEqual(self._prepare({"XKB_CONFIG_ROOT": "/mine"}, frozen=True, exe_dir=tmp)["XKB_CONFIG_ROOT"],
+                             "/mine")
+            self.assertNotIn("XKB_CONFIG_ROOT", self._prepare({}, platform="win32", frozen=True, exe_dir=tmp))
+
+    def test_freeze_stops_without_xkb_data(self):
+        from scripts import freeze_release
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(SystemExit):
+                freeze_release.xkb_data_dir(tmp)
+            rules = Path(tmp, "share", "xkeyboard-config-2", "rules")
+            rules.mkdir(parents=True)
+            (rules / "evdev").write_text("")
+            self.assertEqual(freeze_release.xkb_data_dir(tmp), Path(tmp, "share", "xkeyboard-config-2").resolve())
+
+
 if __name__ == "__main__":
     unittest.main()

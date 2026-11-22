@@ -71,6 +71,18 @@ def mac_document_types(source=ROOT / 'appCommon' / 'RegisterFileKeywords.py'):
     return {'CFBundleDocumentTypes': documents, 'UTExportedTypeDeclarations': exported}
 
 
+def xkb_data_dir(prefix=None):
+    """The xkeyboard-config data of the build env (conda: share/xkeyboard-config-2, else share/X11/xkb), symlinks
+    resolved. The build stops when it has no rules/evdev: an AppImage without it crashes on Wayland (issue #90)."""
+    prefix = Path(prefix or sys.prefix)
+    for name in ('xkeyboard-config-2', 'X11/xkb'):
+        path = Path(os.path.realpath(prefix / 'share' / name))
+        if (path / 'rules' / 'evdev').is_file():
+            return path
+    raise SystemExit('xkeyboard-config data (share/xkeyboard-config-2/rules/evdev) not found in %s: '
+                     'conda install xkeyboard-config' % prefix)
+
+
 def appimage_command():
     """Return a bdist_appimage that passes the AppDir checks of the current appimagetool.
 
@@ -126,6 +138,10 @@ if __name__ == '__main__':
         for name in ('assets', 'resources', 'locale', 'locales', 'preprocessors', 'config')
         if (ROOT / name).is_dir()
     ]
+    if sys.platform == 'linux':
+        # The bundled libxkbcommon has the CI conda prefix compiled in; appCommon/LinuxRuntime.py points
+        # XKB_CONFIG_ROOT to this copy (issue #90).
+        include_files.append((str(xkb_data_dir()), 'lib/xkb'))
     options = {
         'build_exe': {
             'build_exe': 'build/release',

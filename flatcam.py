@@ -228,6 +228,9 @@ if __name__ == '__main__':
         except (AttributeError, OSError):
             pass
 
+    from appCommon.LinuxRuntime import prepare_environment
+    prepare_environment(os.environ, sys.platform, getattr(sys, 'frozen', False), os.path.dirname(sys.executable))
+
     app = QtWidgets.QApplication(sys.argv)
     if App.cmd_line_headless and os.environ.get('FLATCAM_RELEASE_PDF_SMOKE') == '1':
         from appCommon.ReleaseSmoke import pdf_runtime_smoke

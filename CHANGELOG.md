@@ -14,6 +14,31 @@ Transformation:
 - fixed: imported CNC jobs with macros or subprograms show a warning before opening Transformations when no selected object can be transformed; other eligible objects in a mixed selection can still be transformed
 - changed: Buffer controls are hidden when the selection includes CNC jobs but no objects that support buffering
 - improved: imported CNC jobs reuse the G-code scan used by Transformations and Levelling instead of rescanning unchanged programs when opening the plugin
+- added: a Move To section below Offset moves the selection so that a chosen corner or the center of its bounding box lands on a point "X,Y"; one Move is one Undo step; Preferences keep the corner and the point (#88)
+- added: the Tcl command offset takes -to "X,Y" with an optional -ref (tl, tr, bl, br, c); -to together with -x/-y, or -ref without -to, is an error (#88)
+
+Set Origin:
+
+- fixed: a second Set Origin could lose its click because the replot of the first one removed the newer click handler; the handler now disconnects itself after one use
+- added: the Set Origin click snaps to a bounding box corner or center of an object within 10 px, before the grid snap
+
+Plugins:
+
+- fixed: after each New Project or project open, plugin menu entries appeared again (Options > Transform/Report, Edit > Distance/Move, File > Import PDF, Experimental > Levelling); the old entries are now removed when the plugins are reinstalled
+- fixed: the G-code Sender plugin stayed in memory after each plugin reinstall
+- fixed: the App removed the 'default' preprocessor from the shared preprocessor registry of the process; the loader now returns a copy
+
+G-code Sender:
+
+- added: preference "Keep the machine connection on a new project" (on by default); New Project, project open, project switch and Close All keep a connected machine and its running job
+- added: with this preference off, a dialog asks to Keep, Stop and disconnect, or Cancel; closing or replacing the Sender panel never stops a connected machine
+
+Linux AppImage:
+
+- fixed: the AppImage aborted at start on Wayland desktops (GNOME) with "Failed to create XKB keymap"; the AppImage now contains the keyboard data of its libxkbcommon and uses it when XKB_CONFIG_ROOT is not set (#90)
+- fixed: on Wayland with NVIDIA, the Plot Area stayed black with "unsupported version 120" shader errors; the AppImage now starts on XWayland (xcb) when it is available and QT_QPA_PLATFORM is not set; QT_QPA_PLATFORM=wayland keeps native Wayland (#91)
+- added: on Linux the canvas asks Qt for a desktop OpenGL context and logs the Qt platform, OpenGL version, GLSL version and renderer at the first draw; an OpenGL ES context shows a warning with the xcb workaround (#91)
+- added: the release workflow also starts the AppImage in a headless Weston (Wayland) session with a GNOME desktop and checks that the canvas draws
 
 Tools Database:
 
