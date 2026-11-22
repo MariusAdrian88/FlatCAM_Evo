@@ -5,7 +5,7 @@ from appGUI.GUIElements import FCEntry, FCButton, FCDoubleSpinner, FCComboBox, F
 from camlib import to_dict
 from appCommon.SafeEval import safe_eval
 from appCommon.ToolDatabase import read_database, read_library, write_database, matching_tools, OPERATION_PREFIXES, \
-    UnitsMismatchError
+    UnitsMismatchError, read_state
 from appGUI.ToolLibrary import ToolLibraryModel, ToolLibraryFilter, operation_names
 from appGUI.ApertureLibrary import open_aperture_library
 from defaults import AppDefaults
@@ -145,8 +145,10 @@ def normalize_tools_database(records, defaults, skipped=None):
     target_labels = [('General', _('General')), ('Milling', _('Milling')), ('Drilling', _('Drilling')),
                      ('Isolation', _('Isolation')), ('Paint', _('Paint')), ('NCC', _('NCC')), ('Cutout', _('Cutout'))]
     shape_labels = [(label,) for label in ('C1', 'C2', 'C3', 'C4', 'B', 'V', 'L')]
-    job_labels = [('Roughing', _('Roughing')), ('Finishing', _('Finishing')),
-                  ('Isolation', _('Isolation')), ('Polishing', _('Polishing'))]
+    job_labels = [('Roughing', _('Roughing'), 'Rough', _('Rough')),
+                  ('Finishing', _('Finishing'), 'Finish', _('Finish')),
+                  ('Isolation', _('Isolation'), 'Iso', _('Iso')),
+                  ('Polishing', _('Polishing'), 'Polish', _('Polish'))]
     offset_labels = [('Path', _('Path')), ('In', _('In')), ('Out', _('Out')), ('Custom', _('Custom'))]
     gap_labels = [('Bridge', _('Bridge')), ('Thin', _('Thin')), ('M-Bites', _('M-Bites'))]
     order_labels = [('no',), ('fwd',), ('rev',)]
@@ -177,14 +179,48 @@ def normalize_tools_database(records, defaults, skipped=None):
             data['tool_target'] = _database_enum(data.get('tool_target'), target_labels, 'data.tool_target')
 
             if 'job' in data:
-                data['tools_mill_job_type'] = _database_enum(data['job'], job_labels, 'data.job')
+                if 'tools_mill_job_type' not in data:
+                    data['tools_mill_job_type'] = _database_enum(data['job'], job_labels, 'data.job')
+                    log.warning('Tools DB record %s: migrated data.job to data.tools_mill_job_type', tool_id)
                 del data['job']
-                log.warning('Tools DB record %s: migrated data.job to data.tools_mill_job_type', tool_id)
             if 'tools_mill_offset_value' in tool:
-                data['tools_mill_offset_value'] = _finite_database_number(
-                    tool['tools_mill_offset_value'], 'tools_mill_offset_value')
+                if 'tools_mill_offset_value' not in data:
+                    data['tools_mill_offset_value'] = _finite_database_number(
+                        tool['tools_mill_offset_value'], 'tools_mill_offset_value')
+                    log.warning('Tools DB record %s: migrated record tools_mill_offset_value to data', tool_id)
                 del tool['tools_mill_offset_value']
-                log.warning('Tools DB record %s: migrated record tools_mill_offset_value to data', tool_id)
+
+            # 8.994 stored milling parameters without a prefix, even for non-milling targets.
+            for legacy_key in ('cutz', 'multidepth', 'depthperpass', 'vtipdia', 'vtipangle', 'travelz',
+                               'feedrate', 'feedrate_z', 'feedrate_rapid', 'spindlespeed', 'dwell', 'dwelltime',
+                               'extracut', 'extracut_length', 'toolchange', 'toolchangexy', 'toolchangez',
+                               'startz', 'endz', 'endxy', 'search_time', 'spindledir', 'optimization_type',
+                               'feedrate_probe', 'area_exclusion', 'area_shape', 'area_strategy', 'area_overz',
+                               'polish', 'polish_margin', 'polish_overlap', 'polish_method'):
+                if legacy_key in data:
+                    data.setdefault('tools_mill_' + legacy_key, data[legacy_key])
+            for option, legacy_key in (('tools_mill_z_p_depth', 'z_pdepth'),
+                                       ('tools_mill_offset_type', 'offset'),
+                                       ('tools_mill_offset_value', 'offset_value'),
+                                       ('tools_mill_job_type', 'type'),
+                                       ('tools_mill_tool_shape', 'tool_type')):
+                legacy_data = data if legacy_key == 'z_pdepth' else tool
+                if option not in data and legacy_key in legacy_data:
+                    value = legacy_data[legacy_key]
+                    data[option] = value.strip() if isinstance(value, str) else value
+
+            if 'tools_mill_f_plunge' not in data and 'f_plunge' in data:
+                value = data['f_plunge']
+                # 8.994's DB writer cast this checkbox to float.
+                data['tools_mill_f_plunge'] = bool(value) if value in (0, 1) else value
+            if 'tools_mill_ppname_g' not in data and 'ppname_g' in data:
+                name = data['ppname_g']
+                renames = {'grbl_11': 'GRBL_11', 'line_xyz': 'Line_xyz', 'Z_laser': 'GRBL_laser_z'}
+                data['tools_mill_ppname_g'] = renames.get(name, name) if isinstance(name, str) else name
+            if 'tools_mill_laser_on' not in data and isinstance(data.get('spindledir'), str):
+                laser_on = {'cw': 'M03', 'ccw': 'M04'}.get(data['spindledir'].strip().lower())
+                if laser_on is not None:
+                    data['tools_mill_laser_on'] = laser_on
 
             for option, default in default_values.items():
                 if option.startswith(OPERATION_PREFIXES[data['tool_target']]):
@@ -245,26 +281,46 @@ def tools_database_error_message(error):
     return _("Could not load Tools DB file.")
 
 
+def tools_database_migration_revision(filename):
+    """Revision a legacy migration may write over, or None when the library holds the user's data.
+
+    A missing or empty file is a failed start (0). A library that a start without legacy tools left empty
+    (revision 1, no units, no tools) is not the user's work, so a later start retries the migration (1).
+    """
+    path = Path(filename)
+    if not (path.is_file() and path.stat().st_size):
+        return 0
+    try:
+        revision, units, count = read_state(path)
+    except (OSError, ValueError, KeyError) as error:
+        log.error('Tools DB migration check skipped %s: %s', filename, error)
+        return None
+    return 1 if (revision, units, count) == (1, '', 0) else None
+
+
 def initialize_tools_database(filename, legacy_filenames, defaults):
-    """Migrate the first legacy library that holds tools; an empty file is a failed start, not a library."""
-    if Path(filename).exists() and Path(filename).stat().st_size:
+    """Migrate the first legacy library that holds tools into a new or untouched empty library."""
+    expected_revision = tools_database_migration_revision(filename)
+    if expected_revision is None:
         return
     if isinstance(legacy_filenames, (str, Path)):
         legacy_filenames = [legacy_filenames]
+    units = dict(_database_option_items(defaults)).get('units', 'MM')
     records = {}
     for legacy_filename in legacy_filenames:
         if not Path(legacy_filename).is_file():
             continue
         try:
-            records = load_tools_database(legacy_filename, defaults)
+            records = load_tools_database(legacy_filename, defaults, units=units)
         except (OSError, TypeError, ValueError) as error:
             log.error('Tools DB migration skipped %s: %s', legacy_filename, error)
             continue
         if records:
             log.info('Tools DB migrated from %s', legacy_filename)
             break
-    units = dict(_database_option_items(defaults)).get('units', 'MM') if records else None
-    write_tools_database(filename, records, units=units, expected_revision=0)
+    if not records and expected_revision:
+        return  # Keep the untouched empty library, so that a later start can still migrate.
+    write_tools_database(filename, records, units=units if records else None, expected_revision=expected_revision)
 
 
 def load_tools_database(filename, defaults, *, target=None, diameter=None, units=None, skipped=None):
@@ -280,7 +336,7 @@ def load_tools_database(filename, defaults, *, target=None, diameter=None, units
             stored_units = records.get('units')
             if units and stored_units and units.upper() != stored_units:
                 raise UnitsMismatchError(stored_units, units.upper())
-            records = records['tools']
+            records = records.get('tools')  # A missing payload fails the same validation as a non-dict root.
     skipped = {} if skipped is None else skipped
     normalized = normalize_tools_database(records, defaults, skipped=skipped)
     for tool_id, reason in skipped.items():

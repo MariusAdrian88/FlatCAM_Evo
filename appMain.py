@@ -124,6 +124,9 @@ from camlib import to_dict
 # App Pre-processors
 from appPreProcessor import load_preprocessors
 
+# Tools database
+from appDatabase import initialize_tools_database, tools_database_migration_revision
+
 # App appEditors
 from appEditors.appGeoEditor import AppGeoEditor
 from appEditors.appExcEditor import AppExcEditor
@@ -897,18 +900,22 @@ class App(QtCore.QObject):
         if not self.defaults_import_failed:
             db_path = self.tools_database_path()
             try:
-                from appDatabase import initialize_tools_database
-                migration_defaults = dict(AppDefaults().defaults)
-                if not (os.path.isfile(db_path) and os.path.getsize(db_path)) and os.path.isfile(def_path):
-                    with open(def_path, encoding='utf-8') as stream:
-                        saved_defaults = json.load(stream)
-                    if isinstance(saved_defaults, dict):
-                        migration_defaults['units'] = saved_defaults.get('units', 'MM')
-                # This version's library first, then the libraries of older versions, newest first.
-                current_legacy = Path(self.data_path) / ('tools_db_%s.FlatDB' % self.version)
-                older_legacy = sorted((path for path in Path(self.data_path).glob('tools_db_*.FlatDB')
-                                       if path != current_legacy), key=lambda path: path.stat().st_mtime, reverse=True)
-                initialize_tools_database(db_path, [current_legacy] + older_legacy, migration_defaults)
+                # Also retried for the empty library of a start that found no legacy tools (issue #89).
+                if tools_database_migration_revision(db_path) is not None:
+                    migration_defaults = dict(AppDefaults().defaults)
+                    if os.path.isfile(def_path):
+                        with open(def_path, encoding='utf-8') as stream:
+                            saved_defaults = json.load(stream)
+                        if isinstance(saved_defaults, dict):
+                            migration_defaults['units'] = saved_defaults.get('units', 'MM')
+                    # Prefer versioned libraries as before; 8.994 used the unversioned name.
+                    current_legacy = Path(self.data_path) / ('tools_db_%s.FlatDB' % self.version)
+                    older_legacy = sorted((path for path in Path(self.data_path).glob('tools_db_*.FlatDB')
+                                           if path != current_legacy),
+                                          key=lambda path: path.stat().st_mtime, reverse=True)
+                    unversioned_legacy = Path(self.data_path) / 'tools_db.FlatDB'
+                    initialize_tools_database(db_path, [current_legacy] + older_legacy + [unversioned_legacy],
+                                              migration_defaults)
             except (OSError, TypeError, ValueError) as error:
                 self.log.error('Could not initialize tools database: %s' % str(error))
 

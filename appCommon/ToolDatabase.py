@@ -59,6 +59,15 @@ def _metadata(connection, units=None):
     return values
 
 
+def read_state(filename):
+    """Return (revision, stored units, tool count) without loading the tool records."""
+    with _connection(filename) as connection:
+        _check_schema(connection)
+        metadata = _metadata(connection)
+        count = connection.execute('SELECT COUNT(*) FROM tools').fetchone()[0]
+    return int(metadata['revision']), metadata.get('units', ''), count
+
+
 def read_database(filename, target=None, diameter=None, units=None):
     with _connection(filename) as connection:
         _check_schema(connection)

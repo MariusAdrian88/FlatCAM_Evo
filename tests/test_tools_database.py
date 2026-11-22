@@ -18,6 +18,8 @@ sys.path.insert(0, str(ROOT))
 
 from PyQt6 import QtCore, QtWidgets
 from appDatabase import ToolsDB2
+import appDatabase
+from appDatabase import initialize_tools_database, load_tools_database
 from defaults import AppDefaults
 
 
@@ -80,7 +82,6 @@ class DatabaseCase(unittest.TestCase):
 
 class EditorChecks(DatabaseCase):
     def test_isolation_strategy_and_spacing_can_be_edited_saved_and_reset_for_legacy(self):
-        import appDatabase
         db = self.database({'7': record(3)})
         db.select_tool('7')
         db.ui.iso_strategy_combo.set_value('voronoi')
@@ -144,7 +145,6 @@ class EditorChecks(DatabaseCase):
         self.assertEqual([], self.slot_errors)
 
     def test_clearing_direction_is_saved_loaded_and_defaults_to_none_for_old_records(self):
-        import appDatabase
         for target, key, radio in ((5, 'tools_ncc_clear_milling', 'ncc_clear_dir_radio'),
                                    (4, 'tools_paint_clear_milling', 'paint_clear_dir_radio')):
             with self.subTest(parameter=key):
@@ -178,7 +178,6 @@ class EditorChecks(DatabaseCase):
                 self.assertEqual(135.0, db.db_tool_dict['7']['data'][key])
 
     def test_typed_cutting_parameters_with_units_are_saved_without_changing_values(self):
-        import appDatabase
         from PyQt6.QtTest import QTest
         db = self.database({'7': record()})
         db.resize(1100, 800)
@@ -222,6 +221,39 @@ class EditorChecks(DatabaseCase):
             self.assertEqual(expected, saved['7']['data'][key])
         self.assertEqual([], self.slot_errors)
 
+    def test_manual_import_recovers_8994_cutting_parameters(self):
+        from appDatabase import initialize_tools_database, load_tools_database
+
+        legacy = self.path
+        old_tool = {'name': 'V-bit', 'tooldia': 0.8, 'offset': 'Custom', 'offset_value': -0.12,
+                    'type': 'Iso', 'tool_type': 'V', 'data': {
+                        'tool_target': 3, 'cutz': -0.18, 'feedrate': 123, 'vtipdia': 0.1,
+                        'vtipangle': 60, 'multidepth': True, 'depthperpass': 0.06, 'f_plunge': 1.0,
+                        'ppname_g': 'grbl_11', 'tools_iso_passes': 4, 'vendor_note': 'keep'}}
+        mixed = deepcopy(old_tool)
+        mixed['data'].update(tools_mill_feedrate=245, tools_mill_offset_type=0, tools_mill_offset_value=0.0,
+                             tools_mill_job_type=1, tools_mill_tool_shape=2, job='Isolation')
+        source = json.dumps({'7': old_tool, '8': mixed}).encode('utf-8')
+        legacy.write_bytes(source)
+        self.path = legacy.with_suffix('.sqlite3')
+        initialize_tools_database(self.path, [], self.app.options)
+        db = self.database()
+        with patch.object(QtWidgets.QFileDialog, 'getOpenFileName', return_value=(str(legacy), '')):
+            self.assertTrue(db.on_import_tools_db_file())
+        self.assertTrue(db.on_save_tools_db())
+
+        tools = load_tools_database(self.path, self.app.options, target=3, units='MM')
+        expected = {'tools_mill_cutz': -0.18, 'tools_mill_feedrate': 123, 'tools_mill_vtipdia': 0.1,
+                    'tools_mill_vtipangle': 60, 'tools_mill_multidepth': True, 'tools_mill_depthperpass': 0.06,
+                    'tools_mill_f_plunge': True, 'tools_mill_ppname_g': 'GRBL_11', 'tools_mill_tool_shape': 5,
+                    'tools_mill_job_type': 2, 'tools_mill_offset_type': 3, 'tools_mill_offset_value': -0.12,
+                    'tools_iso_passes': 4, 'vendor_note': 'keep'}
+        self.assertEqual(expected, {key: tools['7']['data'][key] for key in expected})
+        expected.update(tools_mill_feedrate=245, tools_mill_offset_type=0, tools_mill_offset_value=0.0,
+                        tools_mill_job_type=1, tools_mill_tool_shape=2)
+        self.assertEqual(expected, {key: tools['8']['data'][key] for key in expected})
+        self.assertEqual(source, legacy.read_bytes())
+
     def test_sqlite_migration_preserves_legacy_and_unknown_fields(self):
         import appDatabase
         source = {'7': record(4), '42': record(2)}
@@ -250,7 +282,6 @@ class EditorChecks(DatabaseCase):
 
     def test_sqlite_rolls_back_failed_save_and_rejects_stale_editor(self):
         import sqlite3
-        import appDatabase
         destination = self.path.with_suffix('.sqlite3')
         source = {'7': record(4)}
         appDatabase.write_tools_database(destination, source, units='MM')
@@ -281,7 +312,6 @@ class EditorChecks(DatabaseCase):
         self.assertEqual('external edit', appDatabase.load_tools_database(destination, self.app.options)['7']['name'])
 
     def test_failed_first_write_leaves_no_file_and_migration_retries(self):
-        import appDatabase
         from appCommon.ToolDatabase import write_database
         destination = self.path.with_suffix('.sqlite3')
         with self.assertRaises(OSError):
@@ -296,7 +326,6 @@ class EditorChecks(DatabaseCase):
 
     def test_editor_skips_bad_record_and_saves_the_rest(self):
         import sqlite3
-        import appDatabase
         destination = self.path.with_suffix('.sqlite3')
         appDatabase.write_tools_database(destination, {'7': record(4), '8': record(2)}, units='MM')
         bad = record(2)
@@ -318,7 +347,6 @@ class EditorChecks(DatabaseCase):
         self.assertEqual(bad, json.loads(stored))
 
     def test_lookup_exact_precedes_tolerance_and_supports_general_tools(self):
-        import appDatabase
         source = {'7': record(4), '8': record(4, 2.5), '9': record(2)}
         source['8']['data'].update(tol_min=2.0, tol_max=3.0)
         self.path.write_text(json.dumps(source), encoding='utf-8')
@@ -336,7 +364,6 @@ class EditorChecks(DatabaseCase):
             self.path, self.app.options, target=4, diameter=2.4)))
 
     def test_normalization_preserves_input_and_repairs_aliases(self):
-        import appDatabase
         normalize = getattr(appDatabase, 'normalize_tools_database', None)
         self.assertTrue(callable(normalize))
         if not callable(normalize):
@@ -344,6 +371,9 @@ class EditorChecks(DatabaseCase):
 
         source = {'7': record(4)}
         source['7']['data']['tool_target'] = 'Paint'
+        # Model a legacy record with aliases instead of the corresponding modern fields.
+        del source['7']['data']['tools_mill_job_type']
+        del source['7']['data']['tools_mill_offset_value']
         source['7']['data']['job'] = 'Finishing'
         source['7']['tools_mill_offset_value'] = 0.75
         source['7']['data']['tools_cutout_gap_type'] = 'mb'
@@ -367,7 +397,6 @@ class EditorChecks(DatabaseCase):
         return applied
 
     def test_records_load_after_a_preferences_apply_changes_the_option_types(self):
-        import appDatabase
         applied = self.preferences_after_apply()
         records = {'1': record(1), '2': record(2), '3': record(3)}  # saved before the Apply
         for tool_id in ('4', '5', '6'):  # saved after the Apply (the tuples are lists in the file)
@@ -389,8 +418,6 @@ class EditorChecks(DatabaseCase):
                 self.assertEqual([10.0, 10.0], loaded['6']['data']['tools_mill_endxy'])
 
     def test_load_accepts_utf8_bom_and_rejects_import_transactionally(self):
-        import appDatabase
-
         valid = {'7': record(4)}
         self.path.write_bytes(b'\xef\xbb\xbf' + json.dumps(valid).encode('utf-8'))
         loaded = appDatabase.load_tools_database(self.path, self.app.options)
@@ -446,7 +473,6 @@ class EditorChecks(DatabaseCase):
         self.assertEqual(diameter, db.ui.dia_entry.get_value())
 
     def test_json_export_preserves_units_and_failed_export_preserves_file(self):
-        import appDatabase
         path = self.path.with_suffix('.json')
         source = {'7': record(4)}
         appDatabase.write_tools_database(path, source, units='MM')

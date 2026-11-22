@@ -8,6 +8,12 @@ CHANGELOG for FlatCAM Evo
 
 22.11.2026
 
+Tools Database:
+
+- fixed: EVO missed FlatCAM 8.994's unversioned tools_db.FlatDB on startup; it now imports that library when no usable versioned library is found, without changing the legacy file (#89)
+- fixed: a previous startup that found no legacy tools left an empty SQLite library that prevented later import; startup now retries for that untouched empty library while preserving saved libraries, including those deliberately emptied by the user
+- fixed: importing 8.994 tools replaced legacy cutting parameters, tool shape, job type, offsets and recognized preprocessor names with current defaults; startup migration and manual import now translate those settings before filling missing values, preserving explicit modern settings
+
 Project loading:
 
 - fixed: opening a FlatCAM 8.994 project could skip CNC jobs with a "'NoneType' object is not iterable" error; legacy milling and drilling tool records now load before tool selection is restored, preserving saved G-code, toolpaths, tool data and drill diameters (#87)

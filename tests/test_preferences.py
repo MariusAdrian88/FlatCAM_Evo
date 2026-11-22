@@ -30,6 +30,8 @@ from PyQt6 import QtWidgets
 import Bookmark as bookmark
 from Bookmark import BookmarkManager
 from defaults import AppDefaults, AppOptions, Excellon, Gerber, Geometry
+import appDatabase
+from appDatabase import initialize_tools_database, load_tools_database, write_tools_database
 
 
 class FakeSignal:
@@ -105,6 +107,41 @@ class TestStartupDefaultsIsolation:
         App._setup_paths_and_config(app)
         return app
 
+    def test_startup_imports_8994_tools_behind_unusable_versioned_files(self, tmp_path, monkeypatch):
+        (tmp_path / 'current_defaults.FlatConfig').write_text('{"version":"8.994","units":"IN"}')
+        # 1.09 missed the 8.994 library and left an empty, unedited one; the next start must still import.
+        self.setup_paths(tmp_path, monkeypatch)
+        legacy = tmp_path / 'tools_db.FlatDB'
+        source = b'{"7":{"name":"End mill","tooldia":0.125,"data":{"tool_target":1,"cutz":-0.03}}}'
+        legacy.write_bytes(source)
+        (tmp_path / 'tools_db_2.0.FlatDB').write_text('{}')
+        (tmp_path / 'tools_db_1.0.FlatDB').write_text('{')
+
+        app = self.setup_paths(tmp_path, monkeypatch)
+        path = app.tools_database_path()
+        defaults = AppDefaults().defaults
+        records = load_tools_database(path, defaults, target=1, units='IN')
+        assert records['7']['tooldia'] == 0.125
+        assert records['7']['data']['tools_mill_cutz'] == -0.03
+        assert legacy.read_bytes() == source
+
+        write_tools_database(path, {}, units='IN')
+        self.setup_paths(tmp_path, monkeypatch)
+        assert load_tools_database(path, defaults) == {}
+
+    def test_startup_skips_invalid_or_wrong_units_tool_exports(self, tmp_path, monkeypatch):
+        legacy = {'7': {'name': 'Inch tool', 'tooldia': 0.125, 'data': {'tool_target': 1}}}
+        (tmp_path / 'current_defaults.FlatConfig').write_text('{"version":"8.994","units":"IN"}')
+        (tmp_path / 'tools_db.FlatDB').write_text(json.dumps(legacy))
+        exported = {'format': 'flatcam-tools', 'version': 1, 'units': 'MM'}
+        (tmp_path / 'tools_db_2.0.FlatDB').write_text(json.dumps({**exported, 'units': 'IN'}))
+        wrong_units = {'8': {'name': 'Metric tool', 'tooldia': 3, 'data': {'tool_target': 1}}}
+        (tmp_path / 'tools_db_1.0.FlatDB').write_text(json.dumps({**exported, 'tools': wrong_units}))
+
+        app = self.setup_paths(tmp_path, monkeypatch)
+        records = load_tools_database(app.tools_database_path(), AppDefaults().defaults, units='IN')
+        assert list(records) == ['7']
+
     def test_startup_copies_shared_preferences_and_recovers_readonly_factory(self, tmp_path, monkeypatch):
         legacy = tmp_path / 'current_defaults.FlatConfig'
         legacy_bytes = b'{"version": "8.994", "units": "IN", "global_version_check": false, "global_worker_number": 0}'
@@ -115,9 +152,8 @@ class TestStartupDefaultsIsolation:
         factory.write_bytes(factory_bytes)
         factory.chmod(stat.S_IREAD)
 
-        import appDatabase
         database_units = []
-        monkeypatch.setattr(appDatabase, 'initialize_tools_database',
+        monkeypatch.setattr('appMain.initialize_tools_database',
                             lambda path, sources, defaults: database_units.append(defaults['units']))
         self.setup_paths(tmp_path, monkeypatch)
 
@@ -144,7 +180,6 @@ class TestStartupDefaultsIsolation:
     @pytest.mark.parametrize('failure', ['read', 'publish'])
     def test_failed_import_leaves_preferences_and_tools_retryable(self, tmp_path, monkeypatch, failure):
         import builtins
-        import appDatabase
         import appMain
         from appGUI.preferences.PreferencesUIManager import PreferencesUIManager
 
@@ -184,7 +219,7 @@ class TestStartupDefaultsIsolation:
         for name in ('AppLifecycle', 'AppLogging', 'create_update_checker'):
             monkeypatch.setattr(appMain, name, Mock())
         monkeypatch.setattr(appMain.darkdetect, 'isDark', lambda: False)
-        monkeypatch.setattr(appDatabase, 'initialize_tools_database', initialize)
+        monkeypatch.setattr('appMain.initialize_tools_database', initialize)
         with monkeypatch.context() as blocked:
             if failure == 'read':
                 blocked.setattr(builtins, 'open', locked_open)
@@ -218,7 +253,6 @@ class TestStartupDefaultsIsolation:
     @pytest.mark.parametrize('source,units', [('clean', 'MM'), ('fallback', 'IN'), ('concurrent', 'IN')])
     def test_startup_uses_persisted_units_after_import_or_clean_start(self, tmp_path, monkeypatch, source, units):
         import builtins
-        import appDatabase
 
         legacy = tmp_path / 'current_defaults.FlatConfig'
         evo = tmp_path / AppDefaults.defaults_filename
@@ -246,7 +280,7 @@ class TestStartupDefaultsIsolation:
             monkeypatch.setattr(os, publish_name, publish_after_competitor)
 
         database_units = []
-        monkeypatch.setattr(appDatabase, 'initialize_tools_database',
+        monkeypatch.setattr('appMain.initialize_tools_database',
                             lambda path, sources, defaults: database_units.append(defaults['units']))
         self.setup_paths(tmp_path, monkeypatch)
         saved = json.loads(evo.read_text())
