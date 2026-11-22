@@ -471,6 +471,7 @@ class PreferencesUIManager(QtCore.QObject):
             "tools_grbl_arc_segment":    self.ui.plugin_eng_pref_form.tools_grbl_group.arc_segment_entry,
             "tools_grbl_seg_len":        self.ui.plugin_eng_pref_form.tools_grbl_group.seg_len_entry,
             "tools_grbl_status_ms":      self.ui.plugin_eng_pref_form.tools_grbl_group.status_ms_entry,
+            "tools_grbl_keep_on_reset":  self.ui.plugin_eng_pref_form.tools_grbl_group.keep_on_reset_cb,
             "tools_grbl_toolchange_plate": self.ui.plugin_eng_pref_form.tools_grbl_group.toolchange_plate_radio,
             "tools_grbl_toolchange_probe_distance":
                 self.ui.plugin_eng_pref_form.tools_grbl_group.toolchange_distance_entry,
@@ -688,6 +689,8 @@ class PreferencesUIManager(QtCore.QObject):
 
             "tools_transform_offset_x": self.ui.plugin_pref_form.tools_transform_group.offx_entry,
             "tools_transform_offset_y": self.ui.plugin_pref_form.tools_transform_group.offy_entry,
+            "tools_transform_moveto_ref": self.ui.plugin_pref_form.tools_transform_group.moveto_ref_combo,
+            "tools_transform_moveto_point": self.ui.plugin_pref_form.tools_transform_group.moveto_point_entry,
 
             "tools_transform_buffer_dis": self.ui.plugin_pref_form.tools_transform_group.buffer_entry,
             "tools_transform_buffer_factor": self.ui.plugin_pref_form.tools_transform_group.buffer_factor_entry,

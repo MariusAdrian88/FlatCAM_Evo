@@ -56,6 +56,18 @@ class AppTool(QtWidgets.QWidget):
             pass
         signal.connect(self.on_object_selection_changed)
 
+    def uninstall(self):
+        """
+        Release what this plugin connected outside of itself. App.remove_tools() calls it for each installed plugin
+        before init_tools() creates the new instances (New Project, project open, Close All). A plugin that
+        connects a lambda that captures self, or registers itself in a global registry, overrides it and calls
+        AppTool.uninstall(self).
+        """
+        try:
+            self.app.proj_selection_changed.disconnect(self.on_object_selection_changed)
+        except (TypeError, RuntimeError, AttributeError):
+            pass  # not connected, or the plugin has no selection slot
+
     def set_project_collection(self, old_collection, collection):
         """Move project selectors without rebuilding the plugin. run() resets the tool's form when opened."""
         if old_collection is collection:
@@ -171,10 +183,12 @@ class AppTool(QtWidgets.QWidget):
 
         # insert the action in the position specified by 'before' and 'pos' kwargs
         pos.insertAction(before, self.menuAction)
+        # App.remove_tools() removes it at the next init_tools(), also from a menu that is not the Plugins menu
+        self.app.plugin_menu_actions.append((pos, self.menuAction))
 
         # if separator parameter is True add a Separator after the newly created Action
         if separator is True:
-            pos.addSeparator()
+            self.app.plugin_menu_actions.append((pos, pos.addSeparator()))
 
         self.menuAction.triggered.connect(lambda: self.run(toggle=True))
 
@@ -193,9 +207,23 @@ class AppTool(QtWidgets.QWidget):
                 on_replaced()
         return previous
 
+    def confirm_panel_release(self, reason):
+        """The panel of this plugin is about to close or be replaced: False cancels the action."""
+        return True
+
+    @staticmethod
+    def confirm_panel_change(app, keep=None, reason='panel'):
+        """Ask the plugin that owns the Plugin tab (a connected GCode sender) before another one replaces it."""
+        panel = app.ui.plugin_scroll_area.widget()
+        if isinstance(panel, AppTool) and panel is not keep:
+            return panel.confirm_panel_release(reason)
+        return True
+
     def run(self):
 
         if self.app.plugin_tab_locked is True:
+            return
+        if not self.confirm_panel_change(self.app, keep=self):
             return
         # Remove anything else in the appGUI; a plugin that cleans up when another one replaces it is told
         self.release_plugin_panel(self.app, keep=self)

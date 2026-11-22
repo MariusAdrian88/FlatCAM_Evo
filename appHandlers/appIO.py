@@ -1658,6 +1658,10 @@ class appIO(QtCore.QObject):
             if self.app.on_editing_finished(cleanup=True) == 'fail':
                 return 'fail'
 
+        # a connected machine: keep it, stop it, or no reset at all (before anything is changed)
+        if self.app.decide_machine_on_reset(ask=cli is None) == 'cancel':
+            return 'fail'
+
         # The reset is now committed. Only this project's history is no longer replayable.
         photocarve = getattr(self.app, 'photocarve_tool', None)
         if photocarve is not None:

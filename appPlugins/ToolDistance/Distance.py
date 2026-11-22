@@ -202,6 +202,9 @@ class Distance(AppTool):
 
         self.app.ui.notebook.setTabText(2, _("Distance"))
 
+        if not self.confirm_panel_change(self.app, keep=self):
+            return
+
         # Remove anything else in the appGUI
         self.release_plugin_panel(self.app, keep=self)
 

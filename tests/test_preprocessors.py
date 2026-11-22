@@ -756,7 +756,11 @@ def test_builtin_preprocessors_load_from_another_working_directory(registry, app
 
     result, _deprecated = load(app)
 
-    assert result is appPreProcessor.preprocessors
+    assert result == appPreProcessor.preprocessors
+    # the application reorders its own dict ('default' first): the registry of the process keeps every name
+    result.pop('default')
+    assert 'default' in appPreProcessor.preprocessors
+    result['default'] = appPreProcessor.preprocessors['default']
     expected = builtin_class_names()
     assert {'default', 'GRBL_11', 'Fanuc', 'Haas', 'GRBL_laser', 'Marlin'} <= expected
     assert sorted(expected - set(result)) == []

@@ -27,6 +27,8 @@ import gettext
 if '_' not in builtins.__dict__:
     _ = gettext.gettext
 
+ORIGIN_SNAP_PX = 10     # screen distance of the Set Origin snap to an object corner or center
+
 
 def history_guard(history, label, obj):
     """
@@ -381,13 +383,18 @@ class AppObjectOps(QtCore.QObject):
         self.app.connect_custom_signal(plotcanvas_fit_view, object)
 
         def origin_replot(_list=None):
+            # 1 replot for 1 Set Origin; the click handler is not touched here: it belongs to the click, and a new
+            # Set Origin started before this replot ends has its own handler
+            try:
+                self.app.replot_signal[list].disconnect(origin_replot)
+            except TypeError:
+                pass
+
             def worker_task():
                 with self.app.proc_container.new('%s...' % _("Plotting")):
                     for obj in self.app.collection.get_list():
                         obj.plot()
                     self.app.custom_signal.emit(None)
-                self.app.plotcanvas.graph_event_disconnect('mouse_release', self.on_set_zero_click)
-                self.app.inhibit_context_menu = False
 
             self.app.worker_task.emit({'fcn': worker_task, 'params': []})
 
@@ -399,6 +406,33 @@ class AppObjectOps(QtCore.QObject):
         except TypeError:
             pass
         self.app.replot_signal[list].connect(origin_replot)
+
+    def origin_snap_point(self, x, y):
+        """
+        The corner or the center of an object bounding box nearest to (x, y), if it is closer than
+        ORIGIN_SNAP_PX screen pixels; else None.
+        """
+        try:
+            tolerance = float(self.app.plotcanvas.pixel_size()) * ORIGIN_SNAP_PX
+        except (TypeError, ValueError):
+            return None
+        if not np.isfinite(tolerance) or tolerance <= 0:
+            return None
+
+        best, best_dist = None, tolerance
+        for obj in self.app.collection.get_list():
+            try:
+                xmin, ymin, xmax, ymax = obj.bounds()
+            except (TypeError, ValueError, AttributeError):
+                continue
+            if not np.all(np.isfinite((xmin, ymin, xmax, ymax))):
+                continue
+            for px, py in ((xmin, ymin), (xmin, ymax), (xmax, ymin), (xmax, ymax),
+                           ((xmin + xmax) / 2.0, (ymin + ymax) / 2.0)):
+                dist = float(np.hypot(px - x, py - y))
+                if dist <= best_dist:
+                    best, best_dist = (px, py), dist
+        return best
 
     def on_set_zero_click(self, event, location=None, noplot=False, use_thread=True):
         """
@@ -465,10 +499,13 @@ class AppObjectOps(QtCore.QObject):
 
             pos_canvas = self.app.plotcanvas.translate_coords(event_pos)
 
-            if self.app.grid_status():
-                pos = self.app.geo_editor.snap(pos_canvas[0], pos_canvas[1])
-            else:
-                pos = pos_canvas
+            # a corner or the center of an object box near the click wins over the grid: the user aims at the board
+            pos = self.origin_snap_point(pos_canvas[0], pos_canvas[1])
+            if pos is None:
+                if self.app.grid_status():
+                    pos = self.app.geo_editor.snap(pos_canvas[0], pos_canvas[1])
+                else:
+                    pos = pos_canvas
 
             x = 0 - pos[0]
             y = 0 - pos[1]
@@ -476,6 +513,7 @@ class AppObjectOps(QtCore.QObject):
             # 1 click sets the origin 1 time: disconnect now, not when the replot ends seconds later (a second click
             # would move all the objects again, possibly at the same time in another worker)
             self.app.plotcanvas.graph_event_disconnect('mouse_release', self.on_set_zero_click)
+            self.app.inhibit_context_menu = False
 
             if use_thread is True:
                 self.app.worker_task.emit({'fcn': worker_task, 'params': [self.app]})

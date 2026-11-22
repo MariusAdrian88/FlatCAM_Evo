@@ -613,13 +613,66 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     def view3d(self, view):
         self.__dict__['_view3d'] = view
 
-    @staticmethod
-    def _on_plugin_destroyed(stop):
+    def uninstall(self):
+        """
+        A new project replaces the plugin: the replaced plugin stops its controller and leaves the machine-stop
+        registry and the application-quit signal, which hold it otherwise.
+        """
+        AppTool.uninstall(self)
         try:
-            stop()
+            self._grbl_shutdown()
         except Exception:
-            log.exception('ToolGcodeSender._on_plugin_destroyed() -> the controller did not stop')
-        MachineSafety.unregister(stop)
+            log.exception('ToolGcodeSender.uninstall() -> the controller did not stop')
+        MachineSafety.unregister(self._grbl_shutdown)
+        qt_app = QtWidgets.QApplication.instance()
+        if qt_app is not None:
+            try:
+                qt_app.aboutToQuit.disconnect(self._close_simulation)
+            except (TypeError, RuntimeError):
+                pass  # never connected
+
+    def machine_connected(self):
+        """True while the controller is connected (idle, or a job runs or is held)."""
+        return self._grbl_port_ready()
+
+    def confirm_panel_release(self, reason):
+        """
+        The panel is about to close or to be replaced ('panel') or the project switches ('project'). A connected
+        machine is kept (the preference or the user) or stopped; the user can cancel the action.
+
+        :return: False if the action must not happen
+        """
+        decision = self.app.decide_machine(reason)
+        self.apply_machine_decision(decision)
+        return decision != 'cancel'
+
+    def apply_machine_decision(self, decision):
+        """
+        The answer of App.decide_machine() before the panel hides: 'stop' stops the machine now. 'keep' needs
+        nothing: the panel hide never stops a connected machine (on_plugin_cleanup()).
+        """
+        if decision == 'stop':
+            self._grbl_shutdown()
+
+    def detach_for_reset(self):
+        """
+        A new project keeps this plugin and its connection. Take the panel out of the Plugin tab before the tab is
+        deleted (it would delete this widget, and its hide would stop the machine); run() shows it again.
+        """
+        self._kept_across_reset = True
+        scroll = self.app.ui.plugin_scroll_area
+        if scroll.widget() is self:
+            scroll.takeWidget()
+            self.hide()
+        button = getattr(self.ui, 'estop_button', None)
+        if button is not None:
+            button.hide()
+            button.setParent(self)      # the footer layout of the deleted tab owned it
+        self._estop_layout = None
+
+    def _close_simulation(self):
+        if self._simulation:
+            self._simulation.close()
 
     def __init__(self, app):
         self.app = app
@@ -651,6 +704,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self._preview_generation = 0
         self._probe_start_op = None
         self._plugin_active = False
+        self._kept_across_reset = False
+        self._bound_collection = None
         # the public launchers run the sender only for the camera calibration workflow
         self._camera_public_mode = False
         self._last_wco = None
@@ -750,6 +805,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                         self.app.ui.notebook.setCurrentWidget(self.app.ui.plugin_tab)
                     else:
                         # else remove the Tool Tab
+                        if not self.confirm_panel_release('panel'):
+                            return
                         self.app.ui.notebook.setCurrentWidget(self.app.ui.properties_tab)
                         self.app.ui.notebook.removeTab(found_idx)
                         self.on_plugin_cleanup()
@@ -764,6 +821,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             if self.app.ui.splitter.sizes()[0] == 0:
                 self.app.ui.splitter.setSizes([1, 1])
 
+        self._kept_across_reset = False
         self._camera_public_mode = True
         # the camera workflow owns no Sender console and needs no CNCJob program preview
         self.hide_console()
@@ -808,6 +866,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         if old_collection is collection:
             return
         super().set_project_collection(old_collection, collection)
+        self._bound_collection = collection
         for name in ('rowsInserted', 'rowsRemoved', 'modelReset'):
             getattr(old_collection, name).disconnect(self._select_available_excellon)
             getattr(collection, name).connect(self._select_available_excellon)
@@ -841,6 +900,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self.preview_ready_sig.connect(self._on_preview_ready)
             self.probe_finished_sig.connect(self._on_probe_finished)
             self.edge_probe_result_sig.connect(self._on_edge_probe_result)
+            self._bound_collection = self.app.collection
             self.app.collection.rowsInserted.connect(self._select_available_excellon)
             self.app.collection.rowsRemoved.connect(self._select_available_excellon)
             self.app.collection.modelReset.connect(self._select_available_excellon)
@@ -849,15 +909,11 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self.app.cleanup.connect(self._grbl_disconnect)
             # the application closes or crashes: stop the motion, the spindle and the outputs, then close the port
             MachineSafety.register(self._grbl_shutdown)
-            # a new project deletes the plugins: the deleted plugin stops its controller and leaves the registry
-            try:
-                self.destroyed.connect(lambda *_args, stop=self._grbl_shutdown: self._on_plugin_destroyed(stop))
-            except RuntimeError:
-                pass  # the Qt part is not initialized (a test double)
+            # a new project calls uninstall(): the replaced plugin stops its controller and leaves the registry
             qt_app = QtWidgets.QApplication.instance()
             if qt_app is not None:
                 MachineSafety.connect_quit(qt_app)
-                qt_app.aboutToQuit.connect(lambda: self._simulation.close() if self._simulation else None)
+                qt_app.aboutToQuit.connect(self._close_simulation)
         if self.ui is None:
             return
         self.ui.level.toggled.connect(self.on_level_changed)
@@ -6102,7 +6158,10 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             except (AttributeError, RuntimeError):
                 pass
         self._camera_stop_preview()
-        self._grbl_shutdown()
+        # a connected machine and its job go on: only an explicit "Stop and disconnect" (apply_machine_decision()),
+        # the plugin uninstall or the application quit stop it, never a panel hide without an answer of the user
+        if not self.machine_connected():
+            self._grbl_shutdown()
         self._plugin_active = False
         self._sync_console_filter()
         self._preview_generation = getattr(self, '_preview_generation', 0) + 1
@@ -6120,6 +6179,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             tabs.closeTab(index)
 
     def _cleanup_3d_if_inactive(self):
+        if self.__dict__.get('_kept_across_reset', False):
+            return      # the panel is closed by a new project only: the connection and the job go on
         ui = self.app.ui
         if ui.plugin_scroll_area.widget() is not self or ui.notebook.indexOf(ui.plugin_tab) < 0:
             self.on_plugin_cleanup()

@@ -376,6 +376,189 @@ class PluginObjectCreationTests(unittest.TestCase):
         self.app.ui.notebook.setCurrentWidget.assert_called_once_with(self.app.ui.properties_tab)
 
 
+class PluginMenuReinstallTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.qt_app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+
+    def test_reinstall_keeps_one_entry_in_a_menu_other_than_plugins(self):
+        from appMain import App
+        app = SimpleNamespace(decimals=4, plugin_menu_actions=[], app_plugins=[], kept_sender=None,
+                              ui=SimpleNamespace(menu_plugins=QtWidgets.QMenu(), menuoptions=QtWidgets.QMenu()))
+        for _round in range(3):     # start + 2 new projects: init_tools() = remove_tools() + install_tools()
+            App.remove_tools(app)
+            plugin = AppTool(app)
+            plugin.pluginName = 'Transform'
+            plugin.install(pos=app.ui.menuoptions, separator=True)
+            AppTool(app).install()
+        options = app.ui.menuoptions.actions()
+        self.assertEqual([act.text() for act in options if not act.isSeparator()], ['Transform'])
+        self.assertEqual(len(options), 2)
+        self.assertEqual(len(app.ui.menu_plugins.actions()), 1)
+
+
+class PluginReinstallReleaseTests(unittest.TestCase):
+    """New Project / open / Close All call init_tools(): the replaced plugins must not stay alive."""
+
+    @classmethod
+    def setUpClass(cls):
+        from appMain import App
+        cls.qt_app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+        cls.app = App(qapp=cls.qt_app, headless=True)
+
+    def test_init_tools_releases_the_replaced_plugins(self):
+        import gc
+        import weakref
+        app = self.app
+        old = [weakref.ref(plugin) for plugin in app.app_plugins]
+        self.assertIsNone(app.init_tools(init_tcl=False))
+        for _round in range(3):
+            self.qt_app.processEvents()
+            gc.collect()
+        # also covers the machine-stop registry: a Sender still registered there would be alive
+        self.assertEqual([ref() for ref in old if ref() is not None], [])
+
+
+class SenderKeptOnResetTests(unittest.TestCase):
+    """A connected GCode sender survives New Project / open / Close All when the preference or the user says so."""
+
+    @classmethod
+    def setUpClass(cls):
+        from appMain import App
+        cls.qt_app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+        cls.app = App(qapp=cls.qt_app, headless=True)
+
+    def setUp(self):
+        from tests.test_levelling_audit import FakeGrbl
+        self.fake = FakeGrbl()
+        sender = self.app.grbl_sender_tool
+        sender.grbl_ser_port = self.fake
+        sender._grbl_connected = True
+        sender._grbl_identity_pending = False       # a stopped machine of an earlier test left it set
+        self.old_ui = sender.ui
+        self.app.options['tools_grbl_keep_on_reset'] = True
+
+    def tearDown(self):
+        sender = self.app.grbl_sender_tool
+        sender.ui = self.old_ui
+        sender._grbl_connected = False
+        sender.grbl_ser_port = None
+        self.app.options['tools_grbl_keep_on_reset'] = True
+
+    def _reset(self):
+        self.assertIsNone(self.app.init_tools(init_tcl=False))
+
+    def test_not_connected_sender_is_replaced(self):
+        old = self.app.grbl_sender_tool
+        old._grbl_connected = False
+        self.assertEqual(self.app.decide_machine_on_reset(), 'replace')
+        self._reset()
+        self.assertIsNot(self.app.grbl_sender_tool, old)
+
+    def test_connected_sender_is_kept_with_preference_on(self):
+        old = self.app.grbl_sender_tool
+        self.assertEqual(self.app.decide_machine_on_reset(), 'keep')
+        self._reset()
+        self.assertIs(self.app.grbl_sender_tool, old)
+        self.assertIn(old, self.app.app_plugins)
+        self.assertTrue(old.machine_connected())
+        self.assertNotIn(b'', self.fake.written)      # no soft reset
+        self.assertEqual(len([a for _m, a in self.app.plugin_menu_actions
+                              if a.text().startswith(old.pluginName)]), 1)
+
+    def test_kept_sender_still_streams(self):
+        old = self.app.grbl_sender_tool
+        self.app.decide_machine_on_reset()
+        self._reset()
+        old.ui = MagicMock()        # the panel is closed in a headless run
+        lines = ['G1 X1.000 Y0.000 F100', 'G1 X2.000 Y0.000 F100']
+        old.job_lines = lines
+        old.job_line_numbers = [1, 2]
+        op = old._grbl_reserve('stream', motion=True)
+        self.assertIsNotNone(op)
+        how = old._grbl_stream_run(op, lines, [1, 2], False, 0.02, None)
+        old._grbl_release(op)
+        self.assertEqual(how, 'finished')
+        self.assertTrue(any(b'X2.000' in item for item in self.fake.written if isinstance(item, bytes)) or
+                        any('X2.000' in str(item) for item in self.fake.written))
+
+    def test_off_cancel_resets_nothing(self):
+        self.app.options['tools_grbl_keep_on_reset'] = False
+        old = self.app.grbl_sender_tool
+        with patch.object(self.app, 'headless', False),                 patch.object(self.app, '_ask_machine_on_reset', return_value='cancel'):
+            self.assertEqual(self.app.decide_machine_on_reset(), 'cancel')
+        self.assertTrue(old.machine_connected())
+        self.assertIs(self.app.grbl_sender_tool, old)
+
+    def test_off_stop_disconnects_and_replaces(self):
+        self.app.options['tools_grbl_keep_on_reset'] = False
+        old = self.app.grbl_sender_tool
+        with patch.object(self.app, 'headless', False),                 patch.object(self.app, '_ask_machine_on_reset', return_value='stop'):
+            self.assertEqual(self.app.decide_machine_on_reset(), 'stop')
+        self._reset()
+        self.assertFalse(old.machine_connected())
+        self.assertIsNot(self.app.grbl_sender_tool, old)
+
+    def test_headless_off_stops_without_a_popup(self):
+        self.app.options['tools_grbl_keep_on_reset'] = False
+        with patch.object(self.app, '_ask_machine_on_reset') as ask:
+            self.assertEqual(self.app.decide_machine_on_reset(), 'stop')
+        ask.assert_not_called()
+
+    def _panel_replaced(self, answer=None):
+        """Another plugin takes the Plugin tab while the Sender shows in it; the Sender hides afterwards."""
+        from appTool import AppTool
+        sender = self.app.grbl_sender_tool
+        sender.ui = MagicMock()         # the panel is not built in a headless run
+        scroll = self.app.ui.plugin_scroll_area
+        scroll.setWidget(sender)
+        try:
+            with patch.object(self.app, 'headless', answer is None), \
+                    patch.object(self.app, '_ask_machine_on_reset', return_value=answer):
+                allowed = AppTool.confirm_panel_change(self.app)
+            if allowed:
+                scroll.takeWidget()
+                sender.on_plugin_cleanup()
+            return allowed
+        finally:
+            scroll.takeWidget()
+
+    def test_replaced_panel_keeps_a_connected_machine(self):
+        sender = self.app.grbl_sender_tool
+        self.assertTrue(self._panel_replaced())
+        self.assertTrue(sender.machine_connected())
+        with patch.object(self.app, 'inform') as inform:
+            op = sender._grbl_reserve('stream', motion=True)     # the job can still run
+        self.assertIsNotNone(op, inform.emit.call_args_list)
+
+    def test_off_cancel_keeps_the_panel_and_the_machine(self):
+        self.app.options['tools_grbl_keep_on_reset'] = False
+        sender = self.app.grbl_sender_tool
+        self.assertFalse(self._panel_replaced('cancel'))
+        self.assertTrue(sender.machine_connected())
+
+    def test_off_stop_stops_the_machine_when_the_panel_goes(self):
+        self.app.options['tools_grbl_keep_on_reset'] = False
+        sender = self.app.grbl_sender_tool
+        self.assertTrue(self._panel_replaced('stop'))
+        self.assertFalse(sender.machine_connected())
+
+    def test_project_switch_with_caching_keeps_a_connected_machine(self):
+        projects = self.app.projects
+        sender = self.app.grbl_sender_tool
+        sender.ui = MagicMock()
+        self.app.options['global_project_caching'] = True
+        other = projects.add_context('Board_B')
+        try:
+            with patch.object(projects, 'activate'), patch.object(projects, 'deactivate'), \
+                    patch.object(projects, 'before_switch'):
+                self.assertTrue(projects.switch(other))
+            sender.on_plugin_cleanup()          # the hide that follows the switch
+            self.assertTrue(sender.machine_connected())
+        finally:
+            self.app.options['global_project_caching'] = False
+
+
 # ======================================================================
 # merged from tests/test_responsive_batch_executor.py
 # ======================================================================
@@ -807,6 +990,9 @@ class ClickCanvas:
     def translate_coords(self, pos):
         return pos
 
+    def pixel_size(self):
+        return 0.1
+
     def click(self, button, pos):
         for name, callback in list(self.handlers):
             if name == 'mouse_release':
@@ -821,15 +1007,62 @@ def test_set_origin_moves_the_objects_once_for_a_double_click(qt_app):
     app.plotcanvas = ClickCanvas()
     tasks = []
     app.worker_task.emit.side_effect = tasks.append
+    layer = Layer_m6(10.0, [], [])
+    app.collection.get_list.return_value = [layer]
     AppObjectOps(app).on_set_origin()
     # the second click comes before the worker task of the first click has run
     app.plotcanvas.click(1, (3.0, 4.0))
     app.plotcanvas.click(1, (3.0, 4.0))
     assert len(tasks) == 1
-    layer = Layer_m6(10.0, [], [])
-    app.collection.get_list.return_value = [layer]
     tasks[0]['fcn'](*tasks[0]['params'])
     assert layer.x == 7.0
+
+
+class ReplotSignal(QtCore.QObject):
+    replot_signal = QtCore.pyqtSignal(list)
+
+
+def test_set_origin_started_again_before_the_replot_ends_still_takes_the_click(qt_app):
+    app = make_app()
+    app.defaults = Mock()
+    signals = ReplotSignal()
+    app.replot_signal = signals.replot_signal
+    app.grid_status.return_value = False
+    app.plotcanvas = ClickCanvas()
+    tasks = []
+    app.worker_task.emit.side_effect = tasks.append
+    layer = Layer_m6(10.0, [], [])
+    app.collection.get_list.return_value = [layer]
+    ops = AppObjectOps(app)
+
+    ops.on_set_origin()
+    app.plotcanvas.click(1, (3.0, 4.0))
+    task = tasks.pop(0)
+    task['fcn'](*task['params'])    # the offset; it queues the replot
+    ops.on_set_origin()             # the user starts Set Origin again before the replot ends
+    task = tasks.pop(0)
+    task['fcn'](*task['params'])    # the replot of the first Set Origin
+    app.plotcanvas.click(1, (1.0, 0.0))
+    assert len(tasks) == 1
+    tasks[0]['fcn'](*tasks[0]['params'])
+    assert layer.x == 6.0
+
+
+def test_set_origin_click_near_an_object_corner_takes_the_exact_corner(qt_app):
+    app = make_app()
+    app.defaults = Mock()
+    app.replot_signal = MagicMock()
+    app.grid_status.return_value = True
+    app.geo_editor.snap.return_value = (12.0, 6.0)
+    app.plotcanvas = ClickCanvas()
+    tasks = []
+    app.worker_task.emit.side_effect = tasks.append
+    layer = Layer_m6(10.0, [], [])    # box (10, 5) - (11, 6)
+    app.collection.get_list.return_value = [layer]
+    AppObjectOps(app).on_set_origin()
+    app.plotcanvas.click(1, (11.3, 6.2))    # 10 px of 0.1 = 1.0 snap distance
+    tasks[0]['fcn'](*tasks[0]['params'])
+    assert layer.x == -1.0
 
 
 # ======================================================================

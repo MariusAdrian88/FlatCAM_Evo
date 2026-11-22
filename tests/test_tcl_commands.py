@@ -812,6 +812,31 @@ class TestTclScale_0B5:
         assert_xy_close(drill_xy(a), [(-2.0, 0.0)])
         assert_xy_close(drill_xy(b), [(6.0, 0.0)])
 
+def _tcl_offset(objs, *argv):
+    app = object_app(None)
+    app.collection.get_by_name.side_effect = lambda n: objs.get(n)
+    cmd = TclCommandOffset(app)
+    args, unnamed = cmd.check_args(tuple(objs) + argv)
+    return cmd.execute(args, unnamed)
+
+class TestTclOffsetMoveTo:
+    def test_to_puts_the_reference_corner_of_all_objects_on_the_point(self):
+        a = make_excellon(default_data={}, tooldia=0.2, drills=((0.0, 0.0),), slots=())
+        b = make_excellon(default_data={}, tooldia=0.2, drills=((4.0, 2.0),), slots=())
+        ax0, ay0, ax1, ay1 = a.bounds()
+        bx0, by0, bx1, by1 = b.bounds()
+        _tcl_offset({'a': a, 'b': b}, '-to', '6,-9', '-ref', 'tr')
+        dx, dy = 6.0 - max(ax1, bx1), -9.0 - max(ay1, by1)
+        assert a.bounds() == pytest.approx((ax0 + dx, ay0 + dy, ax1 + dx, ay1 + dy), abs=1e-9)
+        assert b.bounds() == pytest.approx((bx0 + dx, by0 + dy, bx1 + dx, by1 + dy), abs=1e-9)
+
+    def test_to_is_refused_with_x_or_y(self):
+        a = make_excellon(default_data={}, tooldia=0.2, drills=((0.0, 0.0),), slots=())
+        before = a.bounds()
+        with pytest.raises(FCShell.TclErrorException):
+            _tcl_offset({'a': a}, '-to', '6,-9', '-x', '1')
+        assert a.bounds() == before
+
 @pytest.mark.parametrize('cmd_cls, argv, moved', [
     (TclCommandOffset, ('-x', '10', '-y', '5'), r'G0 X11(\.0*)? Y6'),
     (TclCommandMirror, ('-axis', 'X', '-origin', 'origin'), r'G0 X-1(\.0*)? Y1'),

@@ -49,6 +49,11 @@ class ToolsGrblSenderPrefGroupUI(OptionsGroupUI):
                 (_("Network port"), self.network_port_entry))):
             connection_grid.addWidget(FCLabel('%s:' % label), row, 0)
             connection_grid.addWidget(widget, row, 1)
+        self.keep_on_reset_cb = FCCheckBox(_("Keep the machine connection on a new project"))
+        self.keep_on_reset_cb.setToolTip(
+            _("A new project, a project open or Close All keep a connected machine and its job running.\n"
+              "Off: ask what to do."))
+        connection_grid.addWidget(self.keep_on_reset_cb, 5, 0, 1, 2)
 
         self.grbl_label = FCLabel('%s' % _("Parameters"), bold=True)
         self.grbl_label.setToolTip(

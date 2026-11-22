@@ -441,6 +441,44 @@ class TransformUiTest(unittest.TestCase):
                 self.assertEqual(obj.bounds(), expected)
                 self.assertEqual(obj.obj_options.callback, callback)
 
+    def test_move_to_puts_the_corner_of_all_selected_objects_on_the_point_in_one_undo_step(self):
+        with patch('appObjects.AppObjectTemplate.ShapeCollection', MagicMock()):
+            app, history = self.make_real_app()
+            objs = []
+            for name, shift in (('a', 0.0), ('b', 10.0)):
+                obj = GeometryObject(name, app)
+                obj.tools[1]['solid_geometry'] = [Polygon([(shift, 0), (shift + 4, 0), (shift + 4, 2), (shift + 1, 3)])]
+                obj.plot_transformed = MagicMock(return_value=True)
+                objs.append(obj)
+            before = [o.bounds() for o in objs]
+            app.collection.objects = list(objs)
+            tool = self.make_tool_for(app)
+
+            tool.ui.moveto_ref_combo.set_value('tr')
+            tool.ui.moveto_point_entry.set_value('6, -9')
+            tool.on_moveto()
+
+            dx, dy = 6.0 - 14.0, -9.0 - 3.0
+            for obj, old in zip(objs, before):
+                self.assertEqual(obj.bounds(), (old[0] + dx, old[1] + dy, old[2] + dx, old[3] + dy))
+            self.assertTrue(history.undo())
+            self.assertEqual([o.bounds() for o in objs], before)
+            self.assertFalse(history.undo())
+
+    def test_move_to_with_a_bad_point_moves_nothing(self):
+        with patch('appObjects.AppObjectTemplate.ShapeCollection', MagicMock()):
+            app, history = self.make_real_app()
+            obj = GeometryObject('a', app)
+            obj.tools[1]['solid_geometry'] = [Polygon([(0, 0), (4, 0), (4, 2), (1, 3)])]
+            app.collection.objects = [obj]
+            tool = self.make_tool_for(app)
+
+            tool.ui.moveto_point_entry.set_value('nonsense')
+            tool.on_moveto()
+
+            self.assertEqual(obj.bounds(), (0.0, 0.0, 4.0, 3.0))
+            self.assertFalse(history.can_undo())
+
 
 # ---------------------------------------------------------------------------------------------------------------
 # the exclusion zones of a source follow every transform of its copper, exactly once

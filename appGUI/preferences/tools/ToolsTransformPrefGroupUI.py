@@ -2,8 +2,9 @@
 from PyQt6 import QtWidgets, QtGui
 
 from appGUI.GUIElements import FCDoubleSpinner, FCCheckBox, NumericalEvalTupleEntry, FCComboBox, FCLabel, \
-    GLay, FCFrame
+    GLay, FCFrame, FCChoiceComboBox
 from appGUI.preferences.OptionsGroupUI import OptionsGroupUI
+from appPlugins.ToolTransform.TransformGen import moveto_choices
 
 import gettext
 import appTranslation as fcTranslate
@@ -248,6 +249,35 @@ class ToolsTransformPrefGroupUI(OptionsGroupUI):
         )
         off_grid.addWidget(self.offy_label, 2, 0)
         off_grid.addWidget(self.offy_entry, 2, 1)
+
+        # #############################################################################################################
+        # Move To Frame
+        # #############################################################################################################
+        moveto_title_lbl = FCLabel('%s' % _("Move To"), bold=True)
+        self.layout.addWidget(moveto_title_lbl)
+
+        moveto_frame = FCFrame()
+        self.layout.addWidget(moveto_frame)
+
+        moveto_grid = GLay(v_spacing=5, h_spacing=3)
+        moveto_frame.setLayout(moveto_grid)
+
+        self.moveto_ref_label = FCLabel('%s:' % _("Corner"))
+        self.moveto_ref_label.setToolTip(
+            _("The corner or the center of the combined bounding box of the selected objects\n"
+              "that Move to puts on the point.")
+        )
+        self.moveto_ref_combo = FCChoiceComboBox(moveto_choices())
+        moveto_grid.addWidget(self.moveto_ref_label, 0, 0)
+        moveto_grid.addWidget(self.moveto_ref_combo, 0, 1)
+
+        self.moveto_point_label = FCLabel('%s:' % _("Point"))
+        self.moveto_point_label.setToolTip(
+            _("The point in format X,Y where Move to puts the reference.")
+        )
+        self.moveto_point_entry = NumericalEvalTupleEntry()
+        moveto_grid.addWidget(self.moveto_point_label, 2, 0)
+        moveto_grid.addWidget(self.moveto_point_entry, 2, 1)
 
         # #############################################################################################################
         # Buffer Frame

@@ -743,6 +743,7 @@ class AppDefaults:
         "tools_grbl_arc_segment": 0.5,
         "tools_grbl_seg_len": 1.0,
         "tools_grbl_status_ms": 200,
+        "tools_grbl_keep_on_reset": True,
         "tools_grbl_toolchange_plate": 'disabled',
         # Distances and feed are stored in these units, independently of project/application units.
         "tools_grbl_toolchange_units": 'MM',
@@ -919,6 +920,8 @@ class AppDefaults:
 
         "tools_transform_offset_x": 0.0,
         "tools_transform_offset_y": 0.0,
+        "tools_transform_moveto_ref": 'bl',
+        "tools_transform_moveto_point": "0.0, 0.0",
 
         "tools_transform_buffer_dis": 0.0,
         "tools_transform_buffer_factor": 100.0,

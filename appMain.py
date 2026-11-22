@@ -583,6 +583,10 @@ class App(QtCore.QObject):
         self.milling_tool = None
         self.levelling_tool = None
         self.grbl_sender_tool = None
+        # decide_machine_on_reset() -> init_tools(): the connected Sender goes on in the new project
+        self.keep_sender_on_reset = None
+        self.kept_sender = None
+        self.reset_batch = False        # Close All: all the resets of the batch follow 1 answer
         self.optimal_tool = None
         self.transform_tool = None
         self.report_tool = None
@@ -1352,6 +1356,9 @@ class App(QtCore.QObject):
         # #########################################################################
         self.ui_actions = AppUIActions(app=self)
 
+        # the (menu, action) pairs that AppTool.install() adds; remove_tools() removes them
+        self.plugin_menu_actions = []
+
         # always install tools only after the shell is initialized because the self.inform.emit() depends on shell
         try:
             self.install_tools()
@@ -1581,6 +1588,7 @@ class App(QtCore.QObject):
 
         # signal emitted when a tab is closed in the Plot Area
         self.ui.notebook.tab_closed_signal.connect(self.on_notebook_closed)
+        self.ui.notebook.close_guard = self._confirm_notebook_close
 
         # signal to close the application
         self.close_app_signal.connect(self.kill_app)  # noqa
@@ -2097,6 +2105,60 @@ class App(QtCore.QObject):
         msgbox.exec()
         return msgbox.clickedButton() == bt_yes
 
+    def _ask_machine_on_reset(self, reason='reset'):
+        """The popup of an action with a connected machine: 'keep', 'stop' or 'cancel'."""
+        question = {'reset': _("The new project replaces the plugins."),
+                    'project': _("Switch the project?"),
+                    'panel': _("Close the GCode sender panel?")}[reason]
+        msgbox = QtWidgets.QMessageBox(self.ui)
+        msgbox.setWindowTitle(_("Machine connected"))
+        msgbox.setWindowIcon(QtGui.QIcon(self.resource_location + '/app128.png'))
+        msgbox.setText('<b>%s</b>' % _("A machine is connected to the GCode sender."))
+        msgbox.setInformativeText(question)
+        msgbox.setIcon(QtWidgets.QMessageBox.Icon.Warning)
+        bt_keep = msgbox.addButton(_("Keep connection"), QtWidgets.QMessageBox.ButtonRole.AcceptRole)
+        bt_stop = msgbox.addButton(_("Stop and disconnect"), QtWidgets.QMessageBox.ButtonRole.DestructiveRole)
+        msgbox.addButton(_("Cancel"), QtWidgets.QMessageBox.ButtonRole.RejectRole)
+        msgbox.setDefaultButton(bt_keep)
+        msgbox.exec()
+        clicked = msgbox.clickedButton()
+        return 'keep' if clicked == bt_keep else 'stop' if clicked == bt_stop else 'cancel'
+
+    def _confirm_notebook_close(self, widget):
+        """The close button of the Plugin tab: a connected GCode sender may keep the tab open (Cancel)."""
+        if widget is self.ui.plugin_tab:
+            return AppTool.confirm_panel_change(self)
+        return True
+
+    def decide_machine(self, reason='reset', ask=True):
+        """
+        The one rule for a connected GCode sender when an action would close its panel or replace it: a reset
+        (New Project, open, Close All), a project switch or a closed / replaced panel. A Sender that is not
+        connected is replaced as always. A connected one is kept (the preference) or the user decides. No popup
+        without a GUI user (ask=False, headless): the preference decides.
+
+        :return: 'replace', 'keep', 'stop' or 'cancel' (the caller must not go on)
+        """
+        sender = self.grbl_sender_tool
+        if sender is None or not sender.machine_connected():
+            return 'replace'
+        if self.options.get('tools_grbl_keep_on_reset', True):
+            return 'keep'
+        if ask and not self.headless:
+            return self._ask_machine_on_reset(reason)
+        return 'stop'
+
+    def decide_machine_on_reset(self, ask=True, reason='reset'):
+        """
+        New Project, project open, Close All and the project switch call it before the reset starts; init_tools()
+        uses the answer.
+
+        :return: 'replace', 'keep', 'stop' or 'cancel' (the caller must not reset)
+        """
+        answer = self.decide_machine(reason, ask)
+        self.keep_sender_on_reset = answer == 'keep'
+        return answer
+
     def tools_database_path(self):
         return os.path.join(self.data_path, 'tools.sqlite3')
 
@@ -2254,7 +2316,12 @@ class App(QtCore.QObject):
         self.levelling_tool.install(icon=QtGui.QIcon(self.resource_location + '/level32.png'),
                                     pos=self.ui.menuoptions_experimental, separator=True)
 
-        self.grbl_sender_tool = ToolGCodeSender(self)
+        if self.kept_sender is not None:
+            self.grbl_sender_tool = self.kept_sender
+            self.grbl_sender_tool.menuAction.deleteLater()      # the action that remove_tools() took out
+            self.grbl_sender_tool.set_project_collection(self.grbl_sender_tool._bound_collection, self.collection)
+        else:
+            self.grbl_sender_tool = ToolGCodeSender(self)
         self.grbl_sender_tool.install(icon=QtGui.QIcon(self.resource_location + '/level32.png'),
                                       pos=self.ui.menu_plugins, before=self.sub_tool.menuAction, separator=True)
 
@@ -2371,9 +2438,19 @@ class App(QtCore.QObject):
 
     def remove_tools(self):
         """
-        Will remove all the actions in the Tool menu.
+        Will remove all the actions in the Tool menu and the plugin actions installed in the other menus
+        (Edit, Options, File -> Import ...); without it each init_tools() adds a copy there.
+        The replaced plugins release what they connected outside of themselves (uninstall()), so that the old
+        instances are deleted and no app signal runs in the old and in the new instance.
         :return: None
         """
+        for plugin in self.app_plugins:
+            if plugin is not self.kept_sender:
+                plugin.uninstall()
+        self.app_plugins = []
+        for menu, act in self.plugin_menu_actions:
+            menu.removeAction(act)
+        self.plugin_menu_actions = []
         for act in self.ui.menu_plugins.actions():
             self.ui.menu_plugins.removeAction(act)
 
@@ -2395,6 +2472,15 @@ class App(QtCore.QObject):
             return 'fail'
 
         self.log.debug("init_tools()")
+
+        # a connected machine stays connected when the user (or the preference) says so: the same Sender goes on
+        if self.keep_sender_on_reset is None:
+            self.decide_machine_on_reset(ask=False)     # no caller asked (project switch)
+        self.kept_sender = self.grbl_sender_tool if self.keep_sender_on_reset else None
+        if not self.reset_batch:
+            self.keep_sender_on_reset = None
+        if self.kept_sender is not None:
+            self.kept_sender.detach_for_reset()
 
         # delete the data currently in the Tools Tab and the Tab itself
         found_idx = None

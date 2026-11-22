@@ -334,4 +334,5 @@ def load_preprocessors(app):
                 load_preprocessor_file(file)
             except Exception as e:
                 app.log.error(str(e))
-    return preprocessors
+    # a copy: the App reorders its dict, and the registry of the process must keep every name
+    return dict(preprocessors)

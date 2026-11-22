@@ -86,6 +86,9 @@ class ObjectDistance(AppTool):
             # focus on Tool Tab
             self.app.ui.notebook.setCurrentWidget(self.app.ui.plugin_tab)
 
+        if not self.confirm_panel_change(self.app, keep=self):
+            return
+
         # Remove anything else in the appGUI
         self.release_plugin_panel(self.app, keep=self)
 

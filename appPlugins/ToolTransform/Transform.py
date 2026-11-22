@@ -14,7 +14,8 @@ from appGUI.GUIElements import VerticalScrollArea
 from defaults import AppDefaults
 from appCommon.SafeEval import safe_eval
 from appPlugins.ToolTransform.TransformUI import TransformUI
-from appPlugins.ToolTransform.TransformGen import alt_bounds, bounds_center, SUPPORTED_KINDS, AFFINE_KINDS
+from appPlugins.ToolTransform.TransformGen import (alt_bounds, bounds_center, bounds_reference_point, parse_point,
+                                                    SUPPORTED_KINDS, AFFINE_KINDS)
 
 import logging
 import math
@@ -121,6 +122,7 @@ class ToolTransform(AppTool):
         self.ui.offx_button.clicked.connect(self.on_offx)
         self.ui.offy_button.clicked.connect(self.on_offy)
         self.ui.offsetxy_button.clicked.connect(self.on_offsetxy)
+        self.ui.moveto_button.clicked.connect(self.on_moveto)
         self.ui.flipx_button.clicked.connect(self.on_flipx)
         self.ui.flipy_button.clicked.connect(self.on_flipy)
         self.ui.buffer_button.clicked.connect(self.on_buffer_by_distance)
@@ -159,6 +161,10 @@ class ToolTransform(AppTool):
             "tools_transform_offset_x", app_defaults.get("tools_transform_offset_x", AppDefaults.factory_defaults.get("tools_transform_offset_x"))))
         self.ui.offy_entry.set_value(self.app.options.get(
             "tools_transform_offset_y", app_defaults.get("tools_transform_offset_y", AppDefaults.factory_defaults.get("tools_transform_offset_y"))))
+        self.ui.moveto_ref_combo.set_value(self.app.options.get(
+            "tools_transform_moveto_ref", app_defaults.get("tools_transform_moveto_ref", AppDefaults.factory_defaults.get("tools_transform_moveto_ref"))))
+        self.ui.moveto_point_entry.set_value(self.app.options.get(
+            "tools_transform_moveto_point", app_defaults.get("tools_transform_moveto_point", AppDefaults.factory_defaults.get("tools_transform_moveto_point"))))
         self.ui.buffer_entry.set_value(self.app.options.get(
             "tools_transform_buffer_dis", app_defaults.get("tools_transform_buffer_dis", AppDefaults.factory_defaults.get("tools_transform_buffer_dis"))))
         self.ui.buffer_factor_entry.set_value(self.app.options.get(
@@ -531,6 +537,26 @@ class ToolTransform(AppTool):
         if not objs:
             return
         self._queue(self.on_offsetxy_action, [xvalue, yvalue, objs])
+
+    def on_moveto(self):
+        """Move the selected objects by one vector so that a corner of their combined bounds is on the point."""
+        point = parse_point(self.ui.moveto_point_entry.get_value())
+        if point is None:
+            self.app.inform.emit('[WARNING_NOTCL] %s' % _("Incorrect format for Point value. Needs format X,Y"))
+            return
+        objs = self._selected_objects(AFFINE_KINDS)
+        if not objs:
+            return
+        bounds = alt_bounds(objs, AFFINE_KINDS)
+        if not ToolTransform._is_finite(*bounds):
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _("The selected objects have no geometry."))
+            return
+        ref_x, ref_y = bounds_reference_point(bounds, self.ui.moveto_ref_combo.get_value())
+        dx, dy = point[0] - ref_x, point[1] - ref_y
+        if dx == 0 and dy == 0:
+            self.app.inform.emit('[WARNING_NOTCL] %s' % _("Already at the location."))
+            return
+        self._queue(self.on_offsetxy_action, [dx, dy, objs])
 
     def on_buffer_by_distance(self):
         value = self._entry_number(self.ui.buffer_entry, _("Distance"))

@@ -4226,6 +4226,7 @@ class FCDetachableTab(QtWidgets.QTabWidget):
 
 class FCDetachableTab2(FCDetachableTab):
     tab_closed_signal = QtCore.pyqtSignal(object, int)
+    close_guard = None      # callable(widget) -> bool: False cancels the close of a tab
 
     def __init__(self, protect=None, protect_by_name=None, parent=None):
         super(FCDetachableTab2, self).__init__(protect=protect, protect_by_name=protect_by_name, parent=parent)
@@ -4282,6 +4283,8 @@ class FCDetachableTab2(FCDetachableTab):
         widget = self.widget(currentIndex)
         confirm_close = getattr(widget, 'confirm_close', None)
         if callable(confirm_close) and not confirm_close():
+            return False
+        if self.close_guard is not None and not self.close_guard(widget):
             return False
         tab_name = widget.objectName()
         self.tab_closed_signal.emit(tab_name, currentIndex)

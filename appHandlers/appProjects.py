@@ -202,6 +202,22 @@ class ProjectManager(QtCore.QObject):
             self.inform_busy()
             return False
 
+        if visuals:
+            # a connected GCode sender: keep, stop or cancel the switch (init_tools() and activate() follow the answer)
+            # (New Project, open and Close All asked already: their answer stays in keep_sender_on_reset)
+            app = self.app
+            if app.keep_sender_on_reset is None:
+                decision = app.decide_machine_on_reset(reason='project')
+            elif app.keep_sender_on_reset:
+                decision = 'keep'
+            else:
+                sender = app.grbl_sender_tool
+                decision = 'stop' if sender is not None and sender.machine_connected() else 'replace'
+            if decision == 'cancel':
+                return False
+            if decision != 'replace':
+                self.app.grbl_sender_tool.apply_machine_decision(decision)
+
         self.capture()
         if visuals:
             self.before_switch()
@@ -485,6 +501,7 @@ class ProjectManager(QtCore.QObject):
                 getattr(app, 'app_plugins', None) is not None:
             for plugin in app.app_plugins:
                 plugin.set_project_collection(self.displayed.collection, ctx.collection)
+            app.keep_sender_on_reset = None     # the Sender stays in this path; init_tools() does not run
             widget = AppTool.release_plugin_panel(app)
             if widget is not None:
                 widget.hide()
@@ -675,9 +692,17 @@ class ProjectManager(QtCore.QObject):
         if self.is_busy():
             self.inform_busy()
             return False
-        for ctx in list(self.contexts):
-            if not self.request_close(ctx):
-                return False
+        # one answer for the whole close: every project reset below follows it
+        if self.app.decide_machine_on_reset() == 'cancel':
+            return False
+        self.app.reset_batch = True
+        try:
+            for ctx in list(self.contexts):
+                if not self.request_close(ctx):
+                    return False
+        finally:
+            self.app.reset_batch = False
+            self.app.keep_sender_on_reset = None
         return True
 
     def save_context(self, ctx, visuals=True):

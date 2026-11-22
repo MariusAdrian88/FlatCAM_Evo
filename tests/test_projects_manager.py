@@ -35,7 +35,8 @@ def make_app(collection=None):
         ui=SimpleNamespace(set_ui_title=Mock()),
         proc_container=SimpleNamespace(get_procs_count=Mock(return_value=0)),
         workers=SimpleNamespace(pending_count=Mock(return_value=0)), call_source='app',
-        save_in_progress=False, app_obj=SimpleNamespace(load_batches=set()), plotcanvas=None)
+        save_in_progress=False, app_obj=SimpleNamespace(load_batches=set()), plotcanvas=None,
+        keep_sender_on_reset=None, grbl_sender_tool=None, decide_machine_on_reset=Mock(return_value='replace'))
 
 
 def make_manager(app=None):

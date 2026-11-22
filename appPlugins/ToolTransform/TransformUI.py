@@ -7,7 +7,8 @@
 
 from PyQt6 import QtWidgets, QtCore, QtGui
 from appGUI.GUIElements import FCLabel, FCButton, FCFrame, GLay, FCComboBox, FCCheckBox, \
-    FCDoubleSpinner, NumericalEvalTupleEntry, OptionalInputSection
+    FCDoubleSpinner, NumericalEvalTupleEntry, OptionalInputSection, FCChoiceComboBox
+from appPlugins.ToolTransform.TransformGen import moveto_choices
 
 import gettext
 import appTranslation as fcTranslate
@@ -25,6 +26,7 @@ class TransformUI:
     scaleName = _("Scale")
     flipName = _("Mirror")
     offsetName = _("Offset")
+    movetoName = _("Move To")
     bufferName = _("Buffer")
 
     def __init__(self, layout, app):
@@ -400,6 +402,43 @@ class TransformUI:
               "Offset does not use the reference point."))
         self.offsetxy_button.setMinimumWidth(90)
         off_grid.addWidget(self.offsetxy_button, 4, 0, 1, 3)
+
+        # #############################################################################################################
+        # Move To Frame
+        # #############################################################################################################
+        moveto_title_lbl = FCLabel('%s' % self.movetoName, color='darkcyan', bold=True)
+        self.layout.addWidget(moveto_title_lbl)
+
+        moveto_frame = FCFrame()
+        self.layout.addWidget(moveto_frame)
+
+        moveto_grid = GLay(v_spacing=5, h_spacing=3)
+        moveto_frame.setLayout(moveto_grid)
+
+        self.moveto_ref_label = FCLabel('%s:' % _("Corner"))
+        self.moveto_ref_label.setToolTip(
+            _("The corner or the center of the combined bounding box of the selected objects\n"
+              "that Move puts on the point.")
+        )
+        self.moveto_ref_combo = FCChoiceComboBox(moveto_choices())
+        moveto_grid.addWidget(self.moveto_ref_label, 0, 0)
+        moveto_grid.addWidget(self.moveto_ref_combo, 0, 1)
+
+        self.moveto_point_label = FCLabel('%s:' % _("Point"))
+        self.moveto_point_label.setToolTip(
+            _("The point in format X,Y where Move puts the reference.")
+        )
+        self.moveto_point_entry = NumericalEvalTupleEntry()
+        moveto_grid.addWidget(self.moveto_point_label, 2, 0)
+        moveto_grid.addWidget(self.moveto_point_entry, 2, 1)
+
+        self.moveto_button = FCButton(_("Move"))
+        self.moveto_button.setToolTip(
+            _("All the selected objects move by the same vector, so that the chosen corner\n"
+              "of their combined bounding box is on the point.")
+        )
+        self.moveto_button.setMinimumWidth(90)
+        moveto_grid.addWidget(self.moveto_button, 4, 0, 1, 2)
 
         # #############################################################################################################
         # Buffer Frame
