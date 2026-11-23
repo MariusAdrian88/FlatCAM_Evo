@@ -38,9 +38,15 @@ def add_item(col, kind, name):
     row = group.child_count()
     obj = SimpleNamespace(kind=kind, obj_options={"name": name, "plot": True})
     col.beginInsertRows(group_index, row, row)
-    item = TreeItem([name], col.icons[kind], obj=obj, parent_item=group)
+    item = TreeItem(None, col.icons[kind], obj=obj, parent_item=group)
     col.endInsertRows()
     return obj, item
+
+
+def item_index(col, kind, item):
+    group = col.group_items[kind]
+    parent = col.index(col.root_item.child_items.index(group), 0, QtCore.QModelIndex())
+    return col.index(item.row(), 0, parent)
 
 
 class TestUpdateView(unittest.TestCase):
@@ -66,6 +72,7 @@ class TestUpdateView(unittest.TestCase):
         gerber_group = self.col.group_items["gerber"]
         parent = self.col.index(self.col.root_item.child_items.index(gerber_group), 0, QtCore.QModelIndex())
         idx = self.col.index(1, 0, parent)
+        self.assertEqual(self.col.columnCount(idx), 1)
         view.selectionModel().select(idx, QtCore.QItemSelectionModel.SelectionFlag.ClearAndSelect)
         persistent = QtCore.QPersistentModelIndex(idx)
 
@@ -78,6 +85,62 @@ class TestUpdateView(unittest.TestCase):
         selected = view.selectionModel().selectedIndexes()
         self.assertEqual([s.internalPointer() for s in selected], [self.g2_item])
 
+    def test_deselect_and_clear_refresh_the_properties_tab(self):
+        parent = self.col.index(self.col.root_item.child_items.index(self.col.group_items["gerber"]),
+                                0, QtCore.QModelIndex())
+        first = self.col.index(0, 0, parent)
+        second = self.col.index(1, 0, parent)
+        model = self.col.view.selectionModel()
+        model.select(first, QtCore.QItemSelectionModel.SelectionFlag.ClearAndSelect)
+        model.select(second, QtCore.QItemSelectionModel.SelectionFlag.Select)
+        self.col.app.on_notebook_tab_changed.reset_mock()
+        self.col.app.setup_default_properties_tab.reset_mock()
+        self.col.app.ui.properties_scroll_area.takeWidget.reset_mock()
+
+        # a row leaves a multiple selection: the remaining active object gets the Properties tab
+        model.select(second, QtCore.QItemSelectionModel.SelectionFlag.Deselect)
+        self.assertEqual([i.internalPointer().obj for i in model.selectedIndexes()], [self.g1])
+        self.col.app.on_notebook_tab_changed.assert_called_once()
+
+        # no row is selected: the default Properties tab comes back
+        model.clearSelection()
+        self.col.app.setup_default_properties_tab.assert_called_once()
+        self.col.app.ui.properties_scroll_area.takeWidget.assert_called_once()
+
+
+class TestRenameMarksProjectChanged(unittest.TestCase):
+    def setUp(self):
+        from appHandlers.appHistory import HistoryManager
+        self.col = make_collection()
+        self.obj, self.item = add_item(self.col, "gerber", "old")
+        self.obj.history_uid = "g1"
+        self.index = item_index(self.col, "gerber", self.item)
+        self.col.app.headless = False
+        self.col.app.should_we_save = False
+        self.history = HistoryManager(self.col.app, self.col)
+        self.col.app.history = self.history
+
+    def test_set_data_rename_marks_changed_and_records_the_step(self):
+        self.assertTrue(self.col.setData(self.index, "new", QtCore.Qt.ItemDataRole.EditRole))
+        self.assertEqual(self.obj.obj_options["name"], "new")
+        self.assertEqual(len(self.history.undo_stack), 1)
+        self.assertTrue(self.col.app.should_we_save)
+
+    def test_rejected_renames_keep_the_project_clean(self):
+        self.assertTrue(self.col.setData(self.index, "old", QtCore.Qt.ItemDataRole.EditRole))
+        self.assertTrue(self.col.setData(self.index, "", QtCore.Qt.ItemDataRole.EditRole))
+        self.assertEqual(self.obj.obj_options["name"], "old")
+        self.assertEqual(len(self.history.undo_stack), 0)
+        self.assertFalse(self.col.app.should_we_save)
+
+    def test_rename_object_marks_changed_without_a_history_step(self):
+        self.assertEqual(self.col.rename_object(self.obj, "new"), "new")
+        self.assertEqual(len(self.history.undo_stack), 0)
+        self.assertTrue(self.col.app.should_we_save)
+
+        self.col.app.should_we_save = False
+        self.assertEqual(self.col.rename_object(self.obj, ""), "new")
+        self.assertFalse(self.col.app.should_we_save)
 
 
 @pytest.mark.parametrize("theme,active,plot,swatch", [
@@ -179,6 +242,103 @@ class TestDragReorder(unittest.TestCase):
         # a selection that spans two categories cannot be dragged
         excellon_row = self.col.index(0, 0, excellon)
         self.assertIsNone(self.col.mimeData([self.col.index(0, 0, self._group_index("gerber")), excellon_row]))
+
+
+def _make_stub(plugin_name, active_obj):
+    """Minimal stub mimicking plugin structure for handler testing."""
+    from unittest.mock import MagicMock
+
+    stub = SimpleNamespace()
+    stub.app = MagicMock()
+    stub.app.collection.get_active.return_value = active_obj
+    stub.app.ui.notebook.count.return_value = 1
+    stub.app.ui.notebook.tabText.return_value = plugin_name
+
+    stub.ui = MagicMock()
+    stub.ui.pluginName = plugin_name
+
+    # Mock all possible picker widgets
+    for attr in ['object_combo', 'obj_combo', 'tf_object_combo', 'tf_box_combo',
+                 'type_obj_radio', 'type_obj_combo', 'target_radio',
+                 'tf_type_obj_combo', 'tf_type_box_combo',
+                 'object_type_combo', 'box_type_radio', 'box_combo',
+                 'insert_type_radio', 'obj_insert_combo']:
+        setattr(stub.ui, attr, MagicMock())
+
+    return stub
+
+
+def _empty_qt_selection():
+    """Simulate Qt's empty 'current' for deselection-only events."""
+    from unittest.mock import MagicMock
+    empty = MagicMock()
+    empty.indexes.return_value = []  # This is what causes IndexError in old code
+    return empty
+
+
+@pytest.mark.parametrize("handler_module,handler_class,plugin_name,kind,expected_pickers", [
+    ("appPlugins.ToolDrilling.Drilling", "ToolDrilling", "Drill", "excellon",
+     [("object_combo", "set_value", "test_obj")]),
+    ("appPlugins.ToolMilling.Milling", "ToolMilling", "Mill", "geometry",
+     [("target_radio", "set_value", "geo"), ("object_combo", "set_value", "test_obj")]),
+    ("appPlugins.Common.clearing.controller_base", "ClearingToolBase", "Clearing", "gerber",
+     [("type_obj_radio", "set_value", "gerber"), ("obj_combo", "set_value", "test_obj")]),
+    ("appPlugins.ToolCutOut.CutOut", "CutOut", "CutOut", "geometry",
+     [("type_obj_radio", "set_value", "geo"), ("obj_combo", "set_value", "test_obj")]),
+    ("appPlugins.ToolFilm.Film", "Film", "Film", "gerber",
+     [("tf_type_obj_combo", "set_value", "grb"), ("tf_type_box_combo", "set_value", "grb"),
+      ("tf_object_combo", "set_value", "test_obj"), ("tf_box_combo", "set_value", "test_obj")]),
+    ("appPlugins.Common.levelling_core", "LevellingCoreMixin", "Levelling", "cncjob",
+     [("object_combo", "set_value", "test_obj")]),
+    ("appPlugins.ToolPanelize.Panelize", "Panelize", "Panelize", "excellon",
+     [("type_obj_combo", "set_value", "Excellon"), ("type_box_combo", "set_value", "Excellon"),
+      ("object_combo", "set_value", "test_obj"), ("box_combo", "set_value", "test_obj")]),
+    ("appPlugins.ToolDblSided.DblSided", "DblSidedTool", "DblSided", "gerber",
+     [("object_type_combo", "set_value", 0), ("box_type_radio", "set_value", "grb"),
+      ("object_combo", "set_value", "test_obj")]),
+    ("appPlugins.ToolMarkers.Markers", "ToolMarkers", "Markers", "geometry",
+     [("insert_type_radio", "set_value", "geo"), ("obj_insert_combo", "set_value", "test_obj")]),
+])
+def test_plugin_handler_uses_get_active_not_current(handler_module, handler_class,
+                                                     plugin_name, kind, expected_pickers):
+    """Plugin handlers must use collection.get_active() not current.indexes()[0].
+
+    Scenario: select A, add B, deselect A. Qt delivers empty 'current' for deselection-only.
+    Handlers must read the actual selection via get_active() and update pickers accordingly.
+    """
+    from unittest.mock import MagicMock
+    import importlib
+    import inspect
+
+    mod = importlib.import_module(handler_module)
+    HandlerClass = getattr(mod, handler_class)
+
+    # Build test object
+    test_obj = SimpleNamespace(
+        kind=kind,
+        obj_options={'name': 'test_obj'}
+    )
+
+    # Create stub and call handler
+    stub = _make_stub(plugin_name, test_obj)
+    empty_current = _empty_qt_selection()
+    previous = MagicMock()
+
+    # Call the unbound handler method on the stub
+    handler = getattr(HandlerClass, 'on_object_selection_changed')
+
+    # Check signature: ClearingToolBase only takes (self, current), others take (self, current, previous)
+    sig = inspect.signature(handler)
+    if len(sig.parameters) == 2:  # self, current
+        handler(stub, empty_current)
+    else:  # self, current, previous
+        handler(stub, empty_current, previous)
+
+    # Verify pickers were set correctly
+    for picker_attr, method, expected_value in expected_pickers:
+        picker = getattr(stub.ui, picker_attr)
+        getattr(picker, method).assert_called_with(expected_value)
+
 
 if __name__ == "__main__":
     unittest.main()

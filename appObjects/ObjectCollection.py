@@ -390,7 +390,8 @@ class TreeItem(EventSensitiveListView):
         return len(self.child_items)
 
     def column_count(self):
-        return len(self.item_data)
+        # an object row has no column data: its name comes from the object (data()); the tree is 1 column
+        return len(self.item_data) if self.item_data is not None else 1
 
     def data(self, column):
         return self.item_data[column]
@@ -479,6 +480,8 @@ class ObjectCollection(QtCore.QAbstractItemModel):
 
         # ## Data # ##
         self.checked_indexes = []
+        # True while model rows are removed: an empty selection then comes from the deletion, not from the user
+        self._removing_rows = False
 
         # Names of objects that are expected to become available.
         # For example, when the creation of a new object will run
@@ -840,6 +843,7 @@ class ObjectCollection(QtCore.QAbstractItemModel):
                     # rename the object
                     history_of(self.app).record_rename(obj, old_name, new_name)
                     obj.obj_options["name"] = new_name
+                    self.app.should_we_save = True
 
                     self.app.object_status_changed.emit(obj, 'rename', old_name)
 
@@ -875,6 +879,7 @@ class ObjectCollection(QtCore.QAbstractItemModel):
         if old_name == new_name or new_name == '':
             return old_name
         obj.obj_options['name'] = new_name
+        self.app.should_we_save = True
         self.app.object_status_changed.emit(obj, 'rename', old_name)
         try:
             self.app.regFK.remove_keyword(old_name, update=False)
@@ -1215,11 +1220,15 @@ class ObjectCollection(QtCore.QAbstractItemModel):
         self.app.object_status_changed.emit(active.obj, 'delete', name)
 
         # ############ OBJECT DELETION FROM MODEL STARTS HERE ####################
-        self.beginRemoveRows(self.index(group.row(), 0, QtCore.QModelIndex()), active.row(), active.row())
-        group.remove_child(active)
-        # after deletion of object store the current list of objects into the self.app.all_objects_list
-        self.app.all_objects_list = self.get_list()
-        self.endRemoveRows()
+        self._removing_rows = True
+        try:
+            self.beginRemoveRows(self.index(group.row(), 0, QtCore.QModelIndex()), active.row(), active.row())
+            group.remove_child(active)
+            # after deletion of object store the current list of objects into the self.app.all_objects_list
+            self.app.all_objects_list = self.get_list()
+            self.endRemoveRows()
+        finally:
+            self._removing_rows = False
         # ############ OBJECT DELETION FROM MODEL STOPS HERE ####################
 
         self.app.plotcanvas.redraw()
@@ -1263,9 +1272,13 @@ class ObjectCollection(QtCore.QAbstractItemModel):
             ranges.append((first, last))
             parent = self.index(group.row(), 0, QtCore.QModelIndex())
             for first, last in ranges:
-                self.beginRemoveRows(parent, first, last)
-                del group.child_items[first:last + 1]
-                self.endRemoveRows()
+                self._removing_rows = True
+                try:
+                    self.beginRemoveRows(parent, first, last)
+                    del group.child_items[first:last + 1]
+                    self.endRemoveRows()
+                finally:
+                    self._removing_rows = False
 
         if not items:
             return
@@ -1348,11 +1361,15 @@ class ObjectCollection(QtCore.QAbstractItemModel):
         self.app.object_status_changed.emit(deleted.obj, 'delete', name)
 
         # ############ OBJECT DELETION FROM MODEL STARTS HERE ####################
-        self.beginRemoveRows(self.index(group.row(), 0, QtCore.QModelIndex()), deleted.row(), deleted.row())
-        group.remove_child(deleted)
-        # after deletion of object store the current list of objects into the self.app.all_objects_list
-        self.update_list_signal.emit()
-        self.endRemoveRows()
+        self._removing_rows = True
+        try:
+            self.beginRemoveRows(self.index(group.row(), 0, QtCore.QModelIndex()), deleted.row(), deleted.row())
+            group.remove_child(deleted)
+            # after deletion of object store the current list of objects into the self.app.all_objects_list
+            self.update_list_signal.emit()
+            self.endRemoveRows()
+        finally:
+            self._removing_rows = False
         # ############ OBJECT DELETION FROM MODEL STOPS HERE ####################
 
         self.app.plotcanvas.redraw()
@@ -1400,16 +1417,20 @@ class ObjectCollection(QtCore.QAbstractItemModel):
         except Exception as e:
             self.app.log.error("ObjectCollection.delete_all() --> %s" % str(e))
 
-        self.beginResetModel()
-        self.checked_indexes = []
+        self._removing_rows = True
+        try:
+            self.beginResetModel()
+            self.checked_indexes = []
 
-        for group in self.root_item.child_items:
-            try:
-                group.remove_children()
-            except Exception as e:
-                self.app.log.error("ObjectCollection.delete_all() group %s--> %s" % (str(group), str(e)))
+            for group in self.root_item.child_items:
+                try:
+                    group.remove_children()
+                except Exception as e:
+                    self.app.log.error("ObjectCollection.delete_all() group %s--> %s" % (str(group), str(e)))
 
-        self.endResetModel()
+            self.endResetModel()
+        finally:
+            self._removing_rows = False
 
         self.app.plotcanvas.redraw()
 
@@ -1528,23 +1549,14 @@ class ObjectCollection(QtCore.QAbstractItemModel):
         # log.debug("on_list_selection_change()")
         # log.debug("Current: %s, Previous %s" % (str(current), str(previous)))
 
-        try:
-            indexes = current.indexes()
-            if not indexes:
+        # the resulting selection, not the newly selected rows: a deselection must refresh what is still selected
+        selected = self.get_selected()
+        if not selected:
+            # rows removed from the model leave an empty selection too; the deletion code restores the tab
+            if self._removing_rows:
                 return
-            obj = indexes[0].internalPointer().obj
-            self.item_selected.emit(obj.obj_options['name'])
-
-            status_color = dispatch_attr(obj, 'status_color')
-            if status_color is not None:
-                self.app.inform.emit('[selected]<span style="color:{color};">{name}</span> {tx}'.format(
-                    color=status_color,
-                    name=str(obj.obj_options['name']),
-                    tx=_("selected"))
-                )
-        except IndexError:
             self.item_selected.emit('none')
-            # log.debug("on_list_selection_change(): Index Error (Nothing selected?)")
+            # log.debug("on_list_selection_change(): Nothing selected")
             self.app.inform.emit('')
             try:
                 self.app.ui.properties_scroll_area.takeWidget()
@@ -1553,6 +1565,17 @@ class ObjectCollection(QtCore.QAbstractItemModel):
 
             self.app.setup_default_properties_tab()
             return
+
+        obj = selected[0]
+        self.item_selected.emit(obj.obj_options['name'])
+
+        status_color = dispatch_attr(obj, 'status_color')
+        if status_color is not None:
+            self.app.inform.emit('[selected]<span style="color:{color};">{name}</span> {tx}'.format(
+                color=status_color,
+                name=str(obj.obj_options['name']),
+                tx=_("selected"))
+            )
 
         # make sure that if the Properties Tab is selected then the Object UI is updated (built)
         active_obj = self.get_active()
@@ -1565,7 +1588,7 @@ class ObjectCollection(QtCore.QAbstractItemModel):
 
         # don't emit the signal if there is more than one objects selected
         # this signal is intended to be emitted for a single selection in the collection view
-        if len(self.get_selected()) == 1:
+        if len(selected) == 1:
             self.app.proj_selection_changed.emit(current, previous)
 
     def on_list_click(self, index):

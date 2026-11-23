@@ -162,7 +162,9 @@ class CutOut(AppTool):
 
         if found_idx:
             try:
-                found_obj = current.indexes()[0].internalPointer().obj
+                found_obj = self.app.collection.get_active()
+                if found_obj is None:
+                    return
                 name = found_obj.obj_options['name']
                 kind = found_obj.kind
 

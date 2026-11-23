@@ -6,6 +6,15 @@ Based on FlatCAM:
 
 CHANGELOG for FlatCAM Evo
 
+23.11.2026
+
+Project collection:
+
+- fixed: deselecting objects refreshes Properties for the remaining selection; clearing the selection restores the default Properties tab without interrupting object deletion
+- fixed: object rows report the correct column count when their names come from the objects
+- fixed: renaming an object marks the project as changed so the rename can be saved
+- fixed: plugin object pickers follow the remaining selected object when a multiple selection is reduced to one object
+
 22.11.2026
 
 Translations:

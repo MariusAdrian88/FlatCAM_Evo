@@ -86,8 +86,11 @@ class ToolMarkers(AppTool):
 
         if found_idx:
             try:
-                name = current.indexes()[0].internalPointer().obj.obj_options['name']
-                kind = current.indexes()[0].internalPointer().obj.kind
+                sel_obj = self.app.collection.get_active()
+                if sel_obj is None:
+                    return
+                name = sel_obj.obj_options['name']
+                kind = sel_obj.kind
 
                 if kind in ['gerber', 'geometry']:
                     obj_type = {'gerber': 'grb', 'geometry': 'geo'}[kind]

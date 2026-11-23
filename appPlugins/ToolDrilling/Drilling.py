@@ -1361,7 +1361,9 @@ class ToolDrilling(Geometry, AppTool):
 
         if found_idx:
             try:
-                sel_obj = current.indexes()[0].internalPointer().obj
+                sel_obj = self.app.collection.get_active()
+                if sel_obj is None:
+                    return
                 name = sel_obj.obj_options['name']
                 kind = sel_obj.kind
                 if kind in ['geometry', 'excellon']:
