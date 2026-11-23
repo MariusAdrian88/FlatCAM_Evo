@@ -29,6 +29,7 @@ TRANSLATORS = (
     {'language': 'French', 'authors': [('Michel Maciejewski', '<micmac589@gmail.com>'), ('Olivier Cornet', '')]},
     {'language': 'Italian', 'authors': [('Massimiliano Golfetto', '<golfetto.pcb@gmail.com>')]},
     {'language': 'German', 'authors': [('Marius Stanciu (Google-Tr)', ''), ('Jens Karstedt', ''), ('Detlef Eckardt', '')]},
+    {'language': 'Hungarian', 'authors': [('@bsvdoom', '')]},
     {'language': 'Romanian', 'authors': [('Marius Stanciu', '<marius_adrian@yahoo.com>')]},
     {'language': 'Russian', 'authors': [('Andrey Kultyapov', '<camellan@yandex.ru>')]},
     {'language': 'Spanish', 'authors': [('Marius Stanciu (Google-Tr)', '')]},
