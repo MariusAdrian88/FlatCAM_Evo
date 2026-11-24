@@ -109,6 +109,7 @@ class _MoveAction:
     absolute: bool
     words: dict          # axis index -> value in mm
     feed_mm_min: Optional[float]
+    corner_deviation_mm: Optional[float] = None   # limit for the corner at the END of the move (LinearMove)
 
 
 @dataclass(frozen=True)
@@ -121,6 +122,20 @@ class _PlannedPathAction:
 @dataclass(frozen=True)
 class _ProbeAction(_MoveAction):
     pass
+
+
+class MotionLine(str):
+    """G-code text of one move plus the limit for the corner at its end (``LinearMove.corner_deviation_mm``).
+
+    ``run_gcode`` takes plain text lines; the host G-code engine sends this subclass for the moves of a
+    G61/G64 program so the path control mode reaches the planner. Plain strings keep the junction setting.
+    """
+    corner_deviation_mm: Optional[float]
+
+    def __new__(cls, text: str, corner_deviation_mm: Optional[float] = None):
+        line = super().__new__(cls, text)
+        line.corner_deviation_mm = corner_deviation_mm
+        return line
 
 
 _WORD_RE = re.compile(r'\s*([A-Z])\s*([-+]?(?:\d+\.?\d*|\.\d+))')
@@ -289,6 +304,9 @@ def compile_program(lines: list[str], modal: Optional[_Modal] = None, *, checkpo
         if checkpoint is not None:
             checkpoint()
         modal, acts = _compile_line(line, n, modal)
+        if isinstance(line, MotionLine) and line.corner_deviation_mm is not None:
+            acts = [replace(a, corner_deviation_mm=line.corner_deviation_mm) if type(a) is _MoveAction else a
+                    for a in acts]
         actions.extend((n, a) for a in acts)
     return actions
 
@@ -417,6 +435,11 @@ class _HoldableRecords:
     @property
     def done(self) -> bool:
         return self._s >= self._count
+
+    @property
+    def remaining(self) -> int:
+        """Planned path records not yet taken (a hold stretches the time, not the path)."""
+        return max(0, math.ceil(self._count - self._s))
 
     def take(self, count: int) -> list[tuple[int, ...]]:
         out = []
@@ -549,6 +572,9 @@ class EcutAPI:
         self._on_state_change: Optional[Callable[[State], None]] = None
         self._on_rx: Optional[Callable[[EcutRxFrame], None]] = None
         self._planning_checkpoint: Optional[Callable[[], None]] = None
+        # host-side queue of the running program (see queue_state); written by the worker only
+        self._queue_lock = threading.Lock()
+        self._queue = self._empty_queue()
 
     # ------------------------------------------------------------------
     # Configuration API
@@ -1513,6 +1539,7 @@ class EcutAPI:
                     raise EcutError(f'line {lineno}: {error}') from error
         actions = self._plan_program_actions(actions)
         self._modal = modal
+        self._queue_plan(actions)
         self._set_state(State.RUNNING)
         self._running = True
         try:
@@ -1520,7 +1547,11 @@ class EcutAPI:
                 self._wait_while_paused()
                 if not self._running:
                     break
-                self._run_action(action)
+                self._queue_start(action)
+                try:
+                    self._run_action(action)
+                finally:
+                    self._queue_finish()
                 self._poll()
         except Exception:
             self._running = False
@@ -1537,6 +1568,71 @@ class EcutAPI:
             if self._state in (State.RUNNING, State.PAUSED):
                 self._set_state(State.IDLE)
             self._running = False
+            self._queue_clear()
+
+    @staticmethod
+    def _empty_queue() -> dict:
+        return {'waiting': 0, 'waiting_records': 0, 'unplanned': 0, 'active': 0, 'active_records': 0}
+
+    def queue_state(self) -> dict:
+        """Host-side queue of the running run_gcode call, safe to read from any thread.
+
+        blocks_waiting: motion blocks planned but not started. blocks_active: the block being streamed.
+        records_unsent: planned 1 ms records of those blocks not yet written to the board; None while a
+        block's records are not planned yet (probe-dependent moves). Records already written to the board
+        are not counted: the board reports free FIFO units, not a record count.
+        """
+        with self._queue_lock:
+            queue = dict(self._queue)
+        if self._state not in (State.RUNNING, State.PAUSED):
+            queue = self._empty_queue()
+        known = not queue['unplanned'] and queue['active_records'] is not None
+        return {'blocks_waiting': queue['waiting'], 'blocks_active': queue['active'],
+                'records_unsent': queue['waiting_records'] + queue['active_records'] if known else None}
+
+    @staticmethod
+    def _is_block(action) -> bool:
+        return isinstance(action, (_PlannedPathAction, _MoveAction))
+
+    def _queue_plan(self, actions) -> None:
+        queue = self._empty_queue()
+        for _lineno, action in actions:
+            if isinstance(action, _PlannedPathAction):
+                queue['waiting'] += 1
+                queue['waiting_records'] += len(action.segments)
+            elif isinstance(action, _MoveAction):
+                queue['waiting'] += 1
+                queue['unplanned'] += 1
+        with self._queue_lock:
+            self._queue = queue
+
+    def _queue_start(self, action) -> None:
+        if not self._is_block(action):
+            return
+        planned = isinstance(action, _PlannedPathAction)
+        with self._queue_lock:
+            queue = self._queue
+            queue['waiting'] = max(0, queue['waiting'] - 1)
+            if planned:
+                queue['waiting_records'] = max(0, queue['waiting_records'] - len(action.segments))
+            else:
+                queue['unplanned'] = max(0, queue['unplanned'] - 1)
+            queue['active'] = 1
+            queue['active_records'] = len(action.segments) if planned else None
+
+    def _queue_progress(self, remaining: int) -> None:
+        with self._queue_lock:
+            if self._queue['active']:
+                self._queue['active_records'] = remaining
+
+    def _queue_finish(self) -> None:
+        with self._queue_lock:
+            self._queue['active'] = 0
+            self._queue['active_records'] = 0
+
+    def _queue_clear(self) -> None:
+        with self._queue_lock:
+            self._queue = self._empty_queue()
 
     def run_gcode_file(self, path: str | Path) -> None:
         path = Path(path)
@@ -1999,6 +2095,7 @@ class EcutAPI:
             self._usb.send_motion([encode_motion_record(self._traj_id, tuple(deltas)) for deltas in chunk])
             for deltas in chunk:
                 self._acc.advance(deltas)
+            self._queue_progress(records.remaining)
             packet += 1
             self.poll()
         self._require_motion_allowed()
@@ -2094,7 +2191,7 @@ class EcutAPI:
                 total = virtual.total_deltas(target)
             except (OverflowError, ValueError) as error:
                 raise EcutError(f'line {lineno}: target exceeds the board position range') from error
-            moves.append(LinearMove(tuple(target), action.rapid, action.feed_mm_min))
+            moves.append(LinearMove(tuple(target), action.rapid, action.feed_mm_min, action.corner_deviation_mm))
             virtual.advance(total)
         blocks = plan_linear_path(self._config, tuple(start_steps), moves, feed_override=self._feed_override,
                                   junction_deviation_mm=self._config.junction_deviation_mm,

@@ -31,6 +31,10 @@ class LinearMove:
     target_mm: tuple[Optional[float], ...]
     rapid: bool = False
     feed_mm_min: Optional[float] = None
+    # Corner at the END of this move. None follows the path setting; a positive value can only
+    # tighten it (the smaller one wins); 0 is exact path: stop where the direction changes, pass
+    # straight continuations. A path setting of 0 stops at every block whatever this says.
+    corner_deviation_mm: Optional[float] = None
 
 
 @dataclass(frozen=True)
@@ -108,6 +112,8 @@ class PlannedBlock:
     acceleration_mm_s2: float
     duration_s: float
     segments: Sequence[tuple[int, ...]]
+    # Effective corner deviation at this block's end (see LinearMove); None = the path setting.
+    corner_deviation_mm: Optional[float] = None
 
     def iter_segments(self) -> Iterator[tuple[int, ...]]:
         return iter(self.segments)
@@ -208,6 +214,9 @@ def plan_linear_path(config: EcutBoardConfig, start_steps, moves, *, feed_overri
         if ((move.feed_mm_min is not None and (not _finite(move.feed_mm_min) or move.feed_mm_min <= 0))
                 or (not move.rapid and move.feed_mm_min is None)):
             raise EcutError('Feed must be finite and positive')
+        corner = move.corner_deviation_mm
+        if corner is not None and (not _finite(corner) or corner < 0):
+            raise EcutError('Corner deviation must be finite and nonnegative')
         target = list(current)
         for i, position in enumerate(move.target_mm):
             if position is None:
@@ -236,7 +245,8 @@ def plan_linear_path(config: EcutBoardConfig, start_steps, moves, *, feed_overri
             velocity = min(velocity, move.feed_mm_min * (feed_override / 60.0))
         if not math.isfinite(velocity) or velocity <= 0 or not math.isfinite(acceleration) or not math.isfinite(deceleration):
             raise EcutError('Effective feed or acceleration is outside the finite planning range')
-        geometry.append((current, target, delta, length, unit, velocity, acceleration, deceleration))
+        geometry.append((current, target, delta, length, unit, velocity, acceleration, deceleration,
+                         None if corner is None else min(corner, junction_deviation_mm)))
         current = target
     if not geometry:
         return []
@@ -247,7 +257,8 @@ def plan_linear_path(config: EcutBoardConfig, start_steps, moves, *, feed_overri
         previous, following = geometry[i - 1], geometry[i]
         dot = max(-1.0, min(1.0, sum(a * b for a, b in zip(previous[4], following[4]))))
         cap = min(previous[5], following[5])
-        if junction_deviation_mm == 0 or dot <= -0.999999:
+        deviation = junction_deviation_mm if previous[8] is None else previous[8]
+        if junction_deviation_mm == 0 or dot <= -0.999999 or (deviation == 0 and dot < 0.999999):
             cap = 0.0
         elif dot < 0.999999:
             turn = tuple(b - a for a, b in zip(previous[4], following[4]))
@@ -255,7 +266,7 @@ def plan_linear_path(config: EcutBoardConfig, start_steps, moves, *, feed_overri
             turn_acceleration = min(min(config.axes[j].acceleration_mm_s2, config.axes[j].effective_deceleration_mm_s2) * turn_length / abs(turn[j])
                                     for j in range(6) if turn[j])
             half_angle = math.sqrt(0.5 * (1 + dot))
-            corner_speed = math.sqrt(turn_acceleration * junction_deviation_mm * half_angle / (1 - half_angle))
+            corner_speed = math.sqrt(turn_acceleration * deviation * half_angle / (1 - half_angle))
             cap = min(cap, corner_speed)
         speeds[i] = cap
     for i in _with_checkpoint(range(len(geometry) - 1, 0, -1), checkpoint):
@@ -265,12 +276,12 @@ def plan_linear_path(config: EcutBoardConfig, start_steps, moves, *, feed_overri
         speeds[i + 1] = min(speeds[i + 1], math.hypot(speeds[i], math.sqrt(item[6]) * math.sqrt(2 * item[3])))
 
     blocks = []
-    for i, (start, target, delta, length, unit, nominal, acceleration, deceleration) in _with_checkpoint(enumerate(geometry), checkpoint):
+    for i, (start, target, delta, length, unit, nominal, acceleration, deceleration, corner) in _with_checkpoint(enumerate(geometry), checkpoint):
         profile = _profile(length, speeds[i], speeds[i + 1], nominal, acceleration, deceleration)
         max_step_rate = (max(abs(value) for value in delta) / length) * profile.peak
         count = _record_count(profile.duration, max_step_rate)
         blocks.append(PlannedBlock(start, target, speeds[i], speeds[i + 1], nominal, acceleration,
-                                   count * period_s, _Segments(delta, profile, count, scales)))
+                                   count * period_s, _Segments(delta, profile, count, scales), corner))
     return blocks
 
 
@@ -280,6 +291,7 @@ class _PathSegments(Sequence):
     ends: tuple[float, ...]
     count: int = field()
     scales: tuple[float, ...]
+    limits: tuple[float, ...] = ()  # chord error allowed at each block end; 0 = exact path (no bound)
 
     def __len__(self):
         return self.count
@@ -316,9 +328,12 @@ class _PathSegments(Sequence):
             previous = current
 
     def _corner_error(self, checkpoint=None):
+        """Worst corner chord error as a multiple of that corner's allowed error."""
         worst = 0.0
         for i in _with_checkpoint(range(len(self.blocks) - 1), checkpoint):
             block, boundary = self.blocks[i], self.ends[i]
+            if not self.limits[i]:
+                continue
             index = min(self.count - 1, int(boundary / self.ends[-1] * self.count))
             before = self._position(index)
             after = self._position(index + 1)
@@ -327,7 +342,7 @@ class _PathSegments(Sequence):
             chord_squared = sum(value * value for value in chord)
             fraction = min(1.0, max(0.0, sum(a * b for a, b in zip(chord, offset)) / chord_squared)) if chord_squared else 0.0
             error = math.hypot(*(point - fraction * direction for point, direction in zip(offset, chord)))
-            worst = max(worst, error)
+            worst = max(worst, error / self.limits[i])
         return worst
 
 
@@ -341,6 +356,9 @@ def iter_path_segments(blocks, *, junction_deviation_mm=0.01, checkpoint=None):
     checked before returning; the shared timebase is slowed if needed to keep
     that error within junction deviation. Total record count is available with
     ``len(result)``. This bounds host interpolation, not the motors' response.
+
+    A block's ``corner_deviation_mm`` (from ``LinearMove``) tightens the bound at its own end
+    corner only; 0 leaves that corner unbounded because the plan already stops there.
 
     Zero deviation uses each exact-stop block's individual timebase so every
     corner target is visited exactly. This requires a zero-speed corner plan.
@@ -379,14 +397,16 @@ def iter_path_segments(blocks, *, junction_deviation_mm=0.01, checkpoint=None):
         ends.append(duration)
         max_step_rate = max(max_step_rate, (max(abs(value) for value in block.segments.total) / profile.length) * profile.peak)
     count = _record_count(duration, max_step_rate)
+    limits = tuple(junction_deviation_mm if block.corner_deviation_mm is None
+                   else min(block.corner_deviation_mm, junction_deviation_mm) for block in blocks[:-1])
     while True:
         if checkpoint is not None:
             checkpoint()
-        result = _PathSegments(blocks, tuple(ends), count, scales)
-        error = result._corner_error(checkpoint=checkpoint)
-        if error <= junction_deviation_mm:
+        result = _PathSegments(blocks, tuple(ends), count, scales, limits)
+        ratio = result._corner_error(checkpoint=checkpoint)
+        if ratio <= 1:
             return result
-        count *= max(2, math.ceil(error / junction_deviation_mm))
+        count *= max(2, math.ceil(ratio))
         if count > sys.maxsize:
             raise EcutError('Corner tolerance exceeds the host record-count range')
 

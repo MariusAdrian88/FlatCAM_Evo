@@ -19,7 +19,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .ecut_controller import EcutError, State, _strip_comments, compile_program, encode_config
+from .ecut_controller import EcutError, MotionLine, State, _strip_comments, compile_program, encode_config
 from .ecut_config import EcutBoardConfig, OutputSignal
 from .ecut_planner import LinearMove, check_soft_limit_move, plan_linear_path
 
@@ -45,6 +45,8 @@ class _Parser:
     tool: int = 0
     tool_selected: bool = False
     tlo: float = 0.0
+    path_mode: int = 64  # modal group 13: 61 exact path, 64 blending
+    path_tolerance: float | None = None  # G64 P in mm; None = blend at the junction deviation setting
     g92: list = field(default_factory=lambda: [0.0] * 3)
     position: list = field(default_factory=lambda: [0.0] * 3)
 
@@ -55,7 +57,7 @@ _GROUPS = {
     17: 'plane', 18: 'plane', 19: 'plane',
     20: 'units', 21: 'units', 90: 'distance', 91: 'distance',
     91.1: 'arc_distance', 93: 'feed_mode', 94: 'feed_mode',
-    40: 'cutter', 43.1: 'tlo', 49: 'tlo', 61: 'path',
+    40: 'cutter', 43.1: 'tlo', 49: 'tlo', 61: 'path', 64: 'path',
     54: 'wcs', 55: 'wcs', 56: 'wcs', 57: 'wcs', 58: 'wcs', 59: 'wcs',
     4: 'nonmodal', 10: 'nonmodal', 28: 'nonmodal', 30: 'nonmodal',
     28.1: 'nonmodal', 30.1: 'nonmodal', 53: 'nonmodal',
@@ -612,6 +614,8 @@ class EcutGcodeEngine:
                 setattr(parser, group, int(g))
             elif group == 'wcs':
                 parser.wcs = int(g - 54)
+            elif group == 'path':
+                parser.path_mode, parser.path_tolerance = int(g), None
         scale = 25.4 if parser.units == 20 else 1
         if 'F' in values:
             parser.feed = values['F'] * (scale if parser.feed_mode == 94 else 1)
@@ -684,6 +688,14 @@ class EcutGcodeEngine:
             raise GcodeError(31, 'Unused axis words')
         arc = parser.motion in (2, 3) and not axis_non and 'tlo' not in groups and (
             axes or explicit_motion or any(k in values for k in 'IJKR'))
+        if 64 in gs and 'P' in values:
+            # G64 P<tolerance>: the P word is the tolerance, so it cannot also be a dwell, G10 or arc P.
+            if arc or non in (4, 10):
+                raise GcodeError(24, 'G64 P conflicts with another P word in the block')
+            if not values['P'] > 0:
+                raise GcodeError(4, 'G64 P must be a positive tolerance')
+            parser.path_tolerance = values['P'] * scale
+            consumed.add('P')
         points = []
         if moving or arc:
             if parser.motion == 80:
@@ -693,13 +705,20 @@ class EcutGcodeEngine:
                 raise GcodeError(22, 'A positive F is required for this motion')
             if arc:
                 points, length = self._arc(parser, target, values, scale)
-                consumed.update('IJKR')
+                consumed.update('IJKRP')
             else:
                 points = [target]
                 length = math.dist(parser.position, target)
             feed = parser.feed if parser.feed_mode == 94 else length * parser.feed
-            for point in points:
-                lines.append(self._linear(0 if parser.motion == 0 else 1, point, feed))
+            # Path control: only the end of the programmed move gets the mode's corner limit. G61's 0 would
+            # stop at every chord vertex of an arc, so interior vertices keep the junction setting, or the
+            # G64 P tolerance, which bounds how far the chords may leave the programmed arc.
+            end = None if jog else self.path_deviation_mm(parser)
+            interior = None if parser.path_mode == 61 else end
+            for n, point in enumerate(points, 1):
+                line = self._linear(0 if parser.motion == 0 else 1, point, feed)
+                corner = end if n == len(points) else interior
+                lines.append(line if corner is None else MotionLine(line, corner))
             parser.position = target
         if any(k not in consumed and k not in 'XYZ' for k in values):
             raise GcodeError(36, 'Unused value words')
@@ -818,6 +837,14 @@ class EcutGcodeEngine:
             sweep = (end - begin) % (2 * math.pi)
             if clockwise:
                 sweep -= 2 * math.pi
+        # P = number of turns (LinuxCNC): P1 is the plain arc, each count above 1 adds one full circle.
+        turns = values.get('P', 1)
+        if not turns.is_integer() or turns < 1:
+            raise GcodeError(23, 'Arc P must be a positive integer number of turns')
+        if turns > 1:
+            if turns > 100000:
+                raise GcodeError(14, 'Arc exceeds host segment limit')
+            sweep += (turns - 1) * (-2 * math.pi if clockwise else 2 * math.pi)
         tolerance = self._host[12]
         # At least 8 segments per full circle, whatever the tolerance.
         step = min(math.pi / 4, 2 * math.acos(max(-1, min(1, 1 - tolerance / radius))))
@@ -834,6 +861,19 @@ class EcutGcodeEngine:
             point[linear] += (target[linear] - start[linear]) * fraction
             points.append(target if n == count else point)
         return points, math.hypot(abs(sweep) * radius, target[linear] - start[linear])
+
+    def path_deviation_mm(self, parser=None):
+        """Corner deviation for `LinearMove.corner_deviation_mm` under the active path control mode.
+
+        None: G64 without P, the junction deviation setting applies. 0.0: G61 exact path.
+        Otherwise the G64 P tolerance in mm, never above the junction deviation setting.
+        """
+        parser = parser or self._parser
+        if parser.path_mode == 61:
+            return 0.0
+        if parser.path_tolerance is None:
+            return None
+        return min(parser.path_tolerance, self.api.config.junction_deviation_mm)
 
     def _effective_speed(self, programmed):
         if programmed == 0:

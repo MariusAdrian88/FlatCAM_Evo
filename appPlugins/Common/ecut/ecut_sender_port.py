@@ -218,6 +218,31 @@ class EcutSenderPort:
                     'outputs': int(frame.outputs) & 0xff if frame is not None else 0, 'busy': bool(busy),
                     'homed_axes': list(self._api.homed_axes)}
 
+    def get_queue_state(self):
+        """Host-side queue for the Sender, readable from the GUI thread; O(1), no USB access.
+
+        lines_waiting: complete lines accepted from the Sender, not yet started by the worker.
+        blocks_waiting / blocks_active / records_unsent: motion of the running G-code call (a prepared
+        program runs in batches, so later batches are not counted; 'program' says one is running).
+        board_queued: True/False from a fresh board report (FIFO not empty or motion busy), else None.
+        The board reports free FIFO units, not records, so no count of records on the board exists.
+        """
+        with self._condition:
+            lines = len(self._lines)
+            busy = bool(self._active or self._held or lines or self._pending_tool_change is not None
+                        or self._prepare_request is not None or self._prepared_job is not None
+                        or self._jog_request is not None or self._motion_request is not None
+                        or self._api.state in (State.RUNNING, State.PAUSED))
+            program = self._prepared_job is not None
+            frame = self._status_frame
+            fresh = (self._open and not self._closing and frame is not None and frame.configured
+                     and time.monotonic() - self._status_frame_at <= self.HOLD_STATUS_MAX_AGE)
+            board = bool(frame.motion_busy or frame.fifo_free != 12000) if fresh else None
+            motion = self._api.queue_state()
+        return {'idle': not busy and board is not True, 'lines_waiting': lines, 'program': program,
+                'blocks_waiting': motion['blocks_waiting'], 'blocks_active': motion['blocks_active'],
+                'records_unsent': motion['records_unsent'], 'board_queued': board}
+
     def _request_motion(self, operation, *arguments):
         if threading.current_thread() is self._worker:
             raise serial.SerialException('Motion settings cannot block the E-Cut worker')

@@ -18,6 +18,26 @@ from appPlugins.Common.ecut.ecut_config import (INPUT_SIGNAL_NAMES, OUTPUT_SIGNA
 _ = gettext.gettext
 
 
+def ecut_queue_text(state):
+    """One status line from EcutSenderPort.get_queue_state(); only what the host knows is named."""
+    if state['idle']:
+        return _("Queue: idle")
+    parts = []
+    if state['lines_waiting']:
+        parts.append(_("%d lines waiting") % state['lines_waiting'])
+    if state['blocks_waiting']:
+        parts.append(_("%d blocks waiting") % state['blocks_waiting'])
+    if state['blocks_active']:
+        parts.append(_("%d active") % state['blocks_active'])
+    if state['records_unsent']:
+        parts.append(_("%d records unsent") % state['records_unsent'])
+    if state['program']:
+        parts.append(_("Program running"))
+    if state['board_queued']:
+        parts.append(_("Board busy"))
+    return _("Queue: %s") % (', '.join(parts) if parts else _("busy"))
+
+
 class EcutHardwareTabs(QtWidgets.QWidget):
     changed = QtCore.pyqtSignal()
     output_requested = QtCore.pyqtSignal(int, bool)

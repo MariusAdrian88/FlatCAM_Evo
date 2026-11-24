@@ -1021,3 +1021,171 @@ def test_reference_axes_runs_on_the_worker_and_reports_homed_axes():
             port.reference_axes([5])
     finally:
         port.close()
+
+
+class GatedBoard:
+    """Blocks the first motion packet so a test can read the queue state in the middle of a stream."""
+
+    def __init__(self, api, fifo=12000):
+        from test_ecut_verified import report
+        from appPlugins.Common.ecut import decode_rx_report
+        self.reached = threading.Event()
+        self.proceed = threading.Event()
+        board = api._usb
+        send = board.send_motion
+
+        def gated(records):
+            if not self.reached.is_set():
+                self.reached.set()
+                assert self.proceed.wait(5)
+            return send(records)
+        board.send_motion = gated
+        self.fifo = fifo
+        board.poll = lambda: decode_rx_report(report(tuple(board.positions), fifo=self.fifo))
+
+
+QUEUE_PROGRAM = ['G21', 'G91', 'G1X0.5F600', 'G4P0.001', 'G1Y0.5', 'G4P0.001', 'G1X-0.5']
+
+
+def test_api_queue_state_counts_down_to_idle_and_resets_on_abort():
+    api = make_board_api()
+    gate = GatedBoard(api)
+    api.connect()
+    api.push_config()
+    assert api.queue_state() == {'blocks_waiting': 0, 'blocks_active': 0, 'records_unsent': 0}
+    runner = threading.Thread(target=api.run_gcode, args=(QUEUE_PROGRAM,))
+    runner.start()
+    try:
+        assert gate.reached.wait(2)
+        first = api.queue_state()
+        assert (first['blocks_active'], first['blocks_waiting']) == (1, 2)
+        assert first['records_unsent'] > 0
+        seen = []
+        gate.proceed.set()
+        while runner.is_alive():
+            seen.append(api.queue_state())
+            time.sleep(0.0005)
+        seen.append(api.queue_state())
+        remaining = [s['records_unsent'] for s in seen]
+        assert remaining == sorted(remaining, reverse=True) and remaining[0] <= first['records_unsent']
+        assert api.queue_state() == {'blocks_waiting': 0, 'blocks_active': 0, 'records_unsent': 0}
+    finally:
+        gate.proceed.set()
+        runner.join(5)
+    # abort in the middle: nothing stays queued
+    api = make_board_api()
+    gate = GatedBoard(api)
+    api.connect()
+    api.push_config()
+    runner = threading.Thread(target=api.run_gcode, args=(QUEUE_PROGRAM,))
+    runner.start()
+    try:
+        assert gate.reached.wait(2)
+        assert api.queue_state()['blocks_active'] == 1
+        api.stop()
+        gate.proceed.set()
+        runner.join(5)
+        assert api.queue_state() == {'blocks_waiting': 0, 'blocks_active': 0, 'records_unsent': 0}
+    finally:
+        gate.proceed.set()
+
+
+def test_api_queue_state_is_idle_for_empty_and_refused_programs():
+    api = make_board_api()
+    api.connect()
+    api.push_config()
+    api.run_gcode([])
+    assert api.queue_state()['blocks_waiting'] == 0
+    with pytest.raises(EcutError):
+        api.run_gcode(['G1X1', 'G999'])
+    assert api.queue_state() == {'blocks_waiting': 0, 'blocks_active': 0, 'records_unsent': 0}
+
+
+def _queue_port(fifo=12000):
+    from appPlugins.Common.ecut.ecut_sender_port import EcutSenderPort
+    api = make_board_api()
+    gate = GatedBoard(api, fifo)
+    port = EcutSenderPort(api=api, timeout=0.05)
+    port.readline()
+    wait_for(lambda: not port._startup_pending and not port._active)
+    return port, api, gate
+
+
+def _stream_program(port, lines):
+    from appPlugins.Common.grbl.grbl_client import stream_lines
+    port.prepare_program(lines)
+
+    def write(data):
+        assert port.write(data) == len(data)
+        return 'ok'
+    threading.Thread(target=stream_lines, args=(lines, write, port.readline),
+                     kwargs=dict(rx_size=32, poll_status=True, poll_interval=0.001, stall_timeout=2),
+                     daemon=True).start()
+
+
+def test_port_queue_state_shows_work_then_idle_and_clears_on_soft_reset():
+    port, api, gate = _queue_port()
+    try:
+        assert port.get_queue_state()['idle'] is True
+        _stream_program(port, QUEUE_PROGRAM)
+        assert gate.reached.wait(3)
+        state = port.get_queue_state()
+        assert state['idle'] is False and state['blocks_active'] == 1 and state['records_unsent'] > 0
+        port.write(b'\x18')
+        gate.proceed.set()
+        wait_for(lambda: port.get_queue_state()['idle'], 3)
+        state = port.get_queue_state()
+        assert (state['lines_waiting'], state['blocks_waiting'], state['blocks_active']) == (0, 0, 0)
+        # a second run after the reset counts again
+        gate2 = GatedBoard(api)
+        port.write(b'G91G1X0.5F600\n')
+        assert gate2.reached.wait(3)
+        assert port.get_queue_state()['idle'] is False
+        gate2.proceed.set()
+        wait_for(lambda: port.get_queue_state()['idle'], 3)
+    finally:
+        gate.proceed.set()
+        port.close()
+
+
+def test_port_queue_state_stays_busy_during_feed_hold_and_ends_idle():
+    port, api, gate = _queue_port()
+    try:
+        port.write(b'G91G1X0.5F600\nG1Y0.5F600\n')
+        assert gate.reached.wait(3)
+        port.write(b'!')
+        gate.proceed.set()
+        wait_for(lambda: api.state == State.PAUSED)
+        held = port.get_queue_state()
+        assert held['idle'] is False and held['blocks_active'] == 1
+        port.write(b'~')
+        wait_for(lambda: port.get_queue_state()['idle'], 5)
+    finally:
+        gate.proceed.set()
+        port.close()
+
+
+def test_port_queue_state_queued_lines_and_board_fifo():
+    port, api, gate = _queue_port()
+    gate.fifo = 9000
+    try:
+        port.write(b'G91G1X0.5F600\nG1Y0.5F600\nG1X-0.5\n')
+        assert gate.reached.wait(3)
+        wait_for(lambda: port.get_queue_state()['lines_waiting'] == 2)
+        state = port.get_queue_state()
+        assert state['board_queued'] is True
+        gate.fifo = 12000
+        gate.proceed.set()
+        wait_for(lambda: port.get_queue_state()['lines_waiting'] == 0, 5)
+        wait_for(lambda: port.get_queue_state()['idle'], 5)
+        assert port.get_queue_state()['board_queued'] is False
+    finally:
+        gate.fifo = 12000
+        gate.proceed.set()
+        port.close()
+
+
+def test_port_queue_state_after_close_does_not_raise():
+    port, api, gate = _queue_port()
+    port.close()
+    assert port.get_queue_state()['idle'] is True

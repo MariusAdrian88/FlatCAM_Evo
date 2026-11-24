@@ -1,5 +1,7 @@
 """Host G-code grammar and machine-coordinate translation using the simulated board."""
 import importlib
+import math
+import struct
 import pytest
 from test_ecut_spindle import pwm_api
 
@@ -31,6 +33,8 @@ def test_work_offsets_do_not_reset_raw_counts():
     'M3 S6000 G0 X1 X2', 'M3 S6000 G0 G1 X1 F100',
     'M3 S6000 G38.2 Z-1 F10', 'G0 X1 P4',
     'M3 S6000 G0 X1 Q4', 'M3 S6000 G90.1',
+    'G2 X.1 Y0 R.05 P0 F60', 'G2 X.1 Y0 R.05 P1.5 F60', 'G2 X.1 Y0 R.05 P-1 F60', 'G2 I.05 P1000000000 F60',
+    'G1 X1 P2 F60',
 ])
 def test_invalid_complete_block_has_no_effects(line):
     engine, api = engine_api()
@@ -580,3 +584,159 @@ def test_arc_point_checkpoint_propagates_baseexception_without_live_effects():
     assert engine._program_state() == before_state
     assert api._usb.events == []
 
+
+
+def _arc_points(engine, line):
+    """XYZ end points of the host's 1 ms-path arc segments for one G-code line."""
+    batches = engine.prepare_program([line]).batches
+    points = []
+    for text in (l for batch in batches for l in batch.lines):
+        words = {w[0]: float(w[1:]) for w in text.split() if w[0] in 'XYZ'}
+        points.append((words.get('X', 0.0), words.get('Y', 0.0), words.get('Z', 0.0)))
+    return points
+
+
+@pytest.mark.parametrize('code,sign', [('G3', 1), ('G2', -1)])
+@pytest.mark.parametrize('turns', [1, 3])
+@pytest.mark.parametrize('form', ['center', 'radius'])
+def test_arc_p_word_adds_full_helical_turns(code, sign, turns, form):
+    import math
+    engine, api = engine_api()
+    geometry = 'I.05 J0' if form == 'center' else 'R.05'
+    points = _arc_points(engine, f'{code} X.1 Y0 Z.3 {geometry} P{turns} F600')
+    angles, last = [], math.pi
+    total = 0.0
+    for x, y, z in points:
+        angle = math.atan2(y, x - .05)
+        step = (angle - last + math.pi) % (2 * math.pi) - math.pi
+        total += step
+        last = angle
+        angles.append(total)
+        assert math.hypot(x - .05, y) == pytest.approx(.05, abs=1e-6)
+        assert z == pytest.approx(.3 * abs(total) / (math.pi * (2 * turns - 1)), abs=1e-6)
+    assert total == pytest.approx(sign * math.pi * (2 * turns - 1), abs=1e-6)
+    assert points[-1] == pytest.approx((.1, 0, .3), abs=1e-9)
+    # chord tolerance holds on every turn
+    assert max(abs(b - a) for a, b in zip([0] + angles, angles)) <= 2 * math.acos(1 - .002 / .05) + 1e-9
+
+
+def test_arc_p_word_full_circle_and_other_plane():
+    import math
+    engine, api = engine_api()
+    points = _arc_points(engine, 'G18 G2 I.05 P2 F600')
+    angles = [math.atan2(x - .05, z) for x, y, z in points]  # G18 plane: a=Z, b=X
+    assert sum((b - a + math.pi) % (2 * math.pi) - math.pi for a, b in zip([-math.pi / 2] + angles, angles)) == pytest.approx(-4 * math.pi)
+    assert points[-1] == pytest.approx((0, 0, 0), abs=1e-9)
+
+
+@pytest.mark.parametrize('lines,expected', [
+    (['G64'], None), (['G61'], 0.0), (['G61', 'G64'], None),
+    (['G64 P.005'], .005), (['G64 P.5'], .01),                 # P can only tighten the junction setting
+    (['G20 G64 P.0002'], .00508), (['G20 G64 P.001'], .01),    # P is in the current units
+    (['G64 P.005', 'G64'], None), (['G64 P.005', 'G1 X1 F60'], .005),
+])
+def test_path_control_modes_set_corner_deviation(lines, expected):
+    engine, api = engine_api()
+    assert engine.path_deviation_mm() is None
+    for line in lines:
+        engine.execute_line(line)
+    got = engine.path_deviation_mm()
+    assert got is None if expected is None else got == pytest.approx(expected)
+
+
+def test_path_control_mode_survives_program_end_but_not_reset():
+    engine, api = engine_api()
+    engine.execute_line('G61')
+    engine.execute_line('M30')
+    assert engine.path_deviation_mm() == 0.0
+    engine.reset()
+    assert engine.path_deviation_mm() is None
+
+
+def test_prepared_program_applies_path_mode_only_when_executed():
+    engine, api = engine_api()
+    prepared = engine.prepare_program(['G61', 'G1 X1 F60'])
+    assert engine.path_deviation_mm() is None
+    engine.execute_program(prepared)
+    assert engine.path_deviation_mm() == 0.0
+
+
+@pytest.mark.parametrize('line', [
+    'G64 P0', 'G64 P-.1', 'G61 P.01', 'G61 G64', 'G64 P.01 G4 P1', 'G64 P.01 G2 I.05 F60', 'G64 P.01 G2 I.05 P2 F60',
+    'G61.1', 'G1 X1 F60 P.01',
+])
+def test_invalid_path_control_blocks_have_no_effects(line):
+    engine, api = engine_api()
+    with pytest.raises(Exception):
+        engine.execute_line(line)
+    assert engine.path_deviation_mm() is None
+    assert api._usb.events == []
+
+
+def _record_path(api):
+    """Cumulative positions (counts) after every 1 ms record the board received."""
+    positions = [(0, 0)]
+    for delta in api.sent_deltas:
+        positions.append((positions[-1][0] + delta[0], positions[-1][1] + delta[1]))
+    return positions
+
+
+def _corner_speed(api, corner_mm):
+    """Speed through a programmed corner as a fraction of the fastest record (0 = the path stops there)."""
+    scale = api.config.axes[0].steps_per_mm * api.config.interpolation_factor
+    path = _record_path(api)
+    nearest = min(range(len(path)), key=lambda i: math.dist(path[i], (corner_mm[0] * scale, corner_mm[1] * scale)))
+    speeds = [math.hypot(*delta[:2]) for delta in api.sent_deltas]
+    return max(speeds[max(0, nearest - 1):nearest + 1]) / max(speeds)
+
+
+def _run_prepared(lines):
+    engine, api = engine_api()
+    for axis in api.config.axes[:2]:
+        axis.acceleration_mm_s2 = axis.deceleration_mm_s2 = 1e4
+        axis.max_velocity_mm_s = 200
+    api.config.junction_deviation_mm = .05
+    api.push_config()
+    api.sent_deltas = []
+    send = api._usb.send_motion
+
+    def record(records):
+        api.sent_deltas.extend(struct.unpack_from('>6h', record, 4) for record in records)
+        send(records)
+    api._usb.send_motion = record
+    engine.execute_program(engine.prepare_program(lines))
+    return api
+
+
+SQUARE = ['G1 X1 F6000', 'Y1', 'X0', 'Y0']
+
+
+def test_path_control_mode_sets_speed_through_corners():
+    speed = {}
+    for mode in ('G61', 'G64', 'G64 P.001'):
+        api = _run_prepared([mode] + SQUARE)
+        speed[mode] = [_corner_speed(api, corner) for corner in ((1, 0), (1, 1), (0, 1))]
+    assert max(speed['G61']) < .1                                  # exact path: stops at every corner
+    assert min(speed['G64']) > .3                                   # the junction deviation carries speed
+    assert all(p < g for p, g in zip(speed['G64 P.001'], speed['G64']))   # P tightens it
+    assert min(speed['G64 P.001']) > max(speed['G61'])
+
+
+def test_exact_path_passes_collinear_moves_and_stops_rapid_corners():
+    stopped = _run_prepared(['G61 G1 X1 F6000', 'X2', 'X3'])
+    assert _corner_speed(stopped, (1, 0)) > .9 and _corner_speed(stopped, (2, 0)) > .9
+    api = _run_prepared(['G61 G0 X1', 'Y1', 'X0'])
+    assert max(_corner_speed(api, corner) for corner in ((1, 0), (1, 1))) < .1
+
+
+def test_exact_path_arc_does_not_stop_at_chord_vertices():
+    arc = ['G1 X.5 F3000', 'G2 X.5 Y0 I-.25 J0']
+    exact = len(_record_path(_run_prepared(['G61'] + arc)))
+    free = len(_record_path(_run_prepared(['G64'] + arc)))
+    assert exact < free * 1.2          # a stop at each of the chords would multiply the time
+
+
+def test_path_mode_change_mid_program_affects_only_later_moves():
+    api = _run_prepared(['G61 G1 X1 F6000', 'Y1', 'G64', 'X0', 'Y0'])
+    assert _corner_speed(api, (1, 0)) < .1
+    assert _corner_speed(api, (0, 1)) > .3

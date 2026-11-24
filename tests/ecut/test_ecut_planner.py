@@ -190,7 +190,7 @@ def test_shared_timebase_matches_single_collinear_move(planner):
 def test_shared_timebase_keeps_rounded_corner_chord_within_deviation(planner):
     cfg = config()
     cfg.axes[0].acceleration_mm_s2 = cfg.axes[1].acceleration_mm_s2 = 1e7
-    cfg.axes[0].max_velocity_mm_s = cfg.axes[1].max_velocity_mm_s = 1e5
+    cfg.axes[0].max_velocity_mm_s = cfg.axes[1].max_velocity_mm_s = 1e3
     blocks = planner.plan_linear_path(cfg, (0,) * 6,
                                       [move(planner, x=1.005, rapid=True), move(planner, y=1.005, rapid=True)])
     segments = planner.iter_path_segments(blocks)
@@ -198,11 +198,14 @@ def test_shared_timebase_keeps_rounded_corner_chord_within_deviation(planner):
     for segment in segments:
         positions.append((positions[-1][0] + segment[0], positions[-1][1] + segment[1]))
     waypoint = (201, 0)
+    assert waypoint not in positions            # the corner falls between two records
+    worst = 0
     for start, end in zip(positions, positions[1:]):
         if start[0] < 201 and end[1] > 0:
             dx, dy = end[0] - start[0], end[1] - start[1]
             error = abs(dx * (start[1] - waypoint[1]) - (start[0] - waypoint[0]) * dy) / math.hypot(dx, dy) / 200
-            assert error <= 0.01 + 1e-12
+            worst = max(worst, error)
+    assert 0.005 < worst <= 0.01 + 1e-12
     assert positions[-1] == (201, 201)
     assert all(abs(value) <= 32767 for segment in segments for value in segment)
 
@@ -293,3 +296,53 @@ def test_path_checkpoint_remains_active_after_source_geometry(planner):
 
     with pytest.raises(PlanningCancelled):
         planner.plan_linear_path(config(), (0,) * 6, moves(), checkpoint=checkpoint)
+
+
+def _corner_chord_error(planner, blocks, **kwargs):
+    """Largest distance (mm) of the programmed corner from the 1 ms record chord crossing it."""
+    positions = [(0, 0)]
+    for segment in planner.iter_path_segments(blocks, **kwargs):
+        positions.append((positions[-1][0] + segment[0], positions[-1][1] + segment[1]))
+    corner = blocks[0].target_steps
+    worst = 0.0
+    for start, end in zip(positions, positions[1:]):
+        if start[0] < corner[0] and end[1] > 0:
+            dx, dy = end[0] - start[0], end[1] - start[1]
+            worst = max(worst, abs(dx * (start[1] - corner[1]) - (start[0] - corner[0]) * dy) / math.hypot(dx, dy) / 200)
+    return worst
+
+
+def test_per_move_corner_deviation_sets_corner_speed_and_exact_path(planner):
+    def exit_speed(deviation, second=None, **kw):
+        first = planner.LinearMove((10, None, None, None, None, None), False, 6000, deviation)
+        return planner.plan_linear_path(config(), (0,) * 6, [first, second or move(planner, x=10, y=10)], **kw)[0].exit_speed_mm_s
+    default = exit_speed(None)
+    assert exit_speed(0.0025) == pytest.approx(default / 2)             # speed ~ sqrt(deviation)
+    assert exit_speed(0) == 0                                          # exact path: stop at the corner
+    assert exit_speed(5.0) == pytest.approx(default)                   # never looser than the setting
+    assert exit_speed(0.0025, junction_deviation_mm=0) == 0            # setting 0 stops everywhere
+    collinear = exit_speed(0, move(planner, x=20))                     # exact path does not stop on a straight line
+    assert collinear == pytest.approx(math.sqrt(2000))
+
+
+@pytest.mark.parametrize('bad', [-0.1, math.nan, math.inf, True])
+def test_invalid_per_move_corner_deviation_is_refused(planner, bad):
+    first = planner.LinearMove((10, None, None, None, None, None), False, 6000, bad)
+    with pytest.raises(EcutError):
+        planner.plan_linear_path(config(), (0,) * 6, [first, move(planner, x=10, y=10)])
+
+
+def test_per_move_corner_deviation_bounds_record_chord_error(planner):
+    cfg = config()
+    cfg.axes[0].acceleration_mm_s2 = cfg.axes[1].acceleration_mm_s2 = 1e4
+    cfg.axes[0].max_velocity_mm_s = cfg.axes[1].max_velocity_mm_s = 1e5
+    def run(deviation):
+        first = planner.LinearMove((10.0037, None, None, None, None, None), True, None, deviation)
+        blocks = planner.plan_linear_path(cfg, (0,) * 6, [first, move(planner, x=10.0037, y=7.3, rapid=True)])
+        return _corner_chord_error(planner, blocks), blocks
+    loose, _ = run(None)
+    assert 0.002 < loose <= 0.01 + 1e-12
+    limit = loose / 3
+    tight, blocks = run(limit)
+    assert tight <= limit + 1e-12
+    assert blocks[0].exit_speed_mm_s < run(None)[1][0].exit_speed_mm_s

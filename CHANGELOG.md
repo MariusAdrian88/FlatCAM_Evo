@@ -6,6 +6,19 @@ Based on FlatCAM:
 
 CHANGELOG for FlatCAM Evo
 
+24.11.2026
+
+E-Cut controller:
+
+- added: path control modes G61 (exact path: motion stops where the direction changes, collinear moves pass) and G64 / G64 P<tolerance> (corner deviation limit, in the current units); P can only tighten the junction deviation setting; M2/M30 keep the mode, a soft reset returns to G64; G61.1 is refused
+- added: arcs under G61 stop only at the programmed end point, not at their chord points; under G64 P the tolerance also bounds the arc chord corners
+- added: the P word on G2/G3 sets the number of turns, so one line cuts a multi-turn helix; Z progresses uniformly over all turns; P must be a positive integer
+- fixed: the planner test for the corner chord deviation could not fail; its corner now falls between records
+
+G-code Sender:
+
+- added: for an E-Cut board the status line shows the host queue: lines waiting, motion blocks waiting and active, records not yet sent, a running program and a busy board; "Queue: idle" when nothing is queued
+
 23.11.2026
 
 Project collection:

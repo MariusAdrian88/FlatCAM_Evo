@@ -745,6 +745,30 @@ class TestDockedJogPage(unittest.TestCase):
         self.tool._on_status_report({'state': 'Idle', 'ov': (100, 100, 100)})
         self.assertEqual(self.tool.ui.spindle_button.text(), 'Spindle OFF')
 
+    def test_ecut_queue_is_shown_only_for_an_ecut_port_and_ends_idle(self):
+        class QueuePort(DockJogFake):
+            state = {'idle': False, 'lines_waiting': 2, 'program': False, 'blocks_waiting': 3,
+                     'blocks_active': 1, 'records_unsent': 4500, 'board_queued': True}
+
+            def get_queue_state(self):
+                return dict(self.state)
+
+        self.connect(DockJogFake())
+        self.tool._on_status_report({'state': 'Run'})
+        self.assertNotIn('Queue', self.tool.ui.status_label.text())
+        port = QueuePort()
+        self.connect(port)
+        self.tool._on_status_report({'state': 'Run'})
+        text = self.tool.ui.status_label.text()
+        for number in ('2 lines', '3 blocks', '4500 records'):
+            self.assertIn(number, text)
+        port.state = dict(port.state, idle=True, lines_waiting=0, blocks_waiting=0, blocks_active=0,
+                          records_unsent=0, board_queued=False)
+        self.tool._on_status_report({'state': 'Idle'})
+        text = self.tool.ui.status_label.text()
+        self.assertIn('idle', text)
+        self.assertNotIn('4500', text)
+
     def test_connection_action_explains_pending_and_cancelled_attempt(self):
         self.tool._grbl_connect_attempt = object()
         self.tool._grbl_set_ui_connected(False)

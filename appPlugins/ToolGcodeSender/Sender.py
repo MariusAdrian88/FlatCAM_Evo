@@ -2060,6 +2060,17 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self._ecut_motion_io_timer.stop()
             self._ecut_motion_dialog = self._ecut_motion_port = self._ecut_motion_revision = None
 
+    def _ecut_queue_suffix(self):
+        """Host-side queue of an E-Cut port for the status line; empty for any other controller."""
+        port = self.grbl_ser_port
+        if not callable(getattr(port, 'get_queue_state', None)):
+            return ''
+        from .SenderEcutIO import ecut_queue_text
+        try:
+            return '   ' + ecut_queue_text(port.get_queue_state())
+        except (OSError, ValueError, RuntimeError):
+            return ''
+
     def _close_ecut_motion_settings(self):
         self._ecut_motion_loading = False
         dialog = self.__dict__.get('_ecut_motion_dialog')
@@ -5703,6 +5714,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         if 'spindle_actual' in report:
             # the measured RPM that grblHAL adds to FS when the spindle has an encoder
             text += '   RPM %d' % round(report['spindle_actual'])
+        text += self._ecut_queue_suffix()
         self.ui.status_label.setText(text)
         if 'ov' in report:
             self.ui.ov_values_label.setText('F: %d%%  R: %d%%  S: %d%%' % report['ov'])
