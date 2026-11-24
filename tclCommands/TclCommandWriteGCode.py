@@ -26,7 +26,8 @@ class TclCommandWriteGCode(TclCommandSignaled):
     option_types = collections.OrderedDict([
         ('preamble', str),
         ('postamble', str),
-        ('muted', str)
+        ('muted', str),
+        ('uncorrected_source', str)
     ])
 
     # array of mandatory options for current Tcl command: required = {'name','outname'}
@@ -40,7 +41,10 @@ class TclCommandWriteGCode(TclCommandSignaled):
             ('filename', 'Output filename. Required.'),
             ('preamble', 'Text to append at the beginning.'),
             ('postamble', 'Text to append at the end.'),
-            ('muted', 'It will not put errors in the Shell or status bar. True (1) or False (0)')
+            ('muted', 'It will not put errors in the Shell or status bar. True (1) or False (0)'),
+            ('uncorrected_source', 'Machine profile with a calibration: yes = the G-code of an imported or edited job '
+                                   'is uncorrected, so the profile corrects it; no = write it as it is. Without the '
+                                   'flag such a job is not corrected.')
 
         ]),
         'examples': ["write_gcode name c:\\\\gcode_repo"]
@@ -104,8 +108,22 @@ class TclCommandWriteGCode(TclCommandSignaled):
 
         if obj is None or obj.kind != 'cncjob':
             self.raise_tcl_error('Expected an existing CNCJob object: %s' % obj_name)
+        uncorrected_source = None
+        if 'uncorrected_source' in args:
+            word = str(args['uncorrected_source']).strip().lower()
+            if word in ('yes', 'true', '1'):
+                uncorrected_source = True
+            elif word in ('no', 'false', '0'):
+                uncorrected_source = False
+            else:
+                self.raise_tcl_error('-uncorrected_source expects yes or no, got: %s' % args['uncorrected_source'])
+
         try:
-            return obj.export_gcode(str(filename), str(preamble), str(postamble), from_tcl=True)
+            result = obj.export_gcode(str(filename), str(preamble), str(postamble), from_tcl=True,
+                                      uncorrected_source=uncorrected_source)
+            if result is None and obj.profile_source_note:
+                return obj.profile_source_note
+            return result
         except Exception as e:
             if muted is False:
                 self.raise_tcl_error("Operation failed: %s" % str(e))

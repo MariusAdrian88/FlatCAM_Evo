@@ -287,3 +287,48 @@ def test_optional_hardware_tabs_follow_settings_and_forward_signals(module, snap
         widget.deleteLater()
         QtCore.QCoreApplication.sendPostedEvents(None, QtCore.QEvent.Type.DeferredDelete)
         app.processEvents()
+
+
+def _profile_with_axes():
+    from appCommon.machine_profile.profile import MachineProfile
+    return MachineProfile(name='Bench', axis_velocity_max={'X': 1200.0}, axis_accel_max={'Z': 80.0},
+                          soft_limit_min={'Z': -40.0}, soft_limit_max={'Z': 0.0})
+
+
+def _answer(monkeypatch, button):
+    asked = []
+
+    def question(parent, title, text, *args, **kwargs):
+        asked.append(text)
+        return button
+    monkeypatch.setattr(QtWidgets.QMessageBox, 'question', staticmethod(question))
+    return asked
+
+
+def test_profile_axis_values_reach_the_fields_only_after_the_user_confirms(dialog, monkeypatch):
+    Button = QtWidgets.QMessageBox.StandardButton
+    assert not dialog.profile_button.isEnabled()
+    dialog.set_machine_profile(_profile_with_axes())
+    assert dialog.profile_button.isEnabled()
+    before = deepcopy(dialog.values())
+    asked = _answer(monkeypatch, Button.No)
+    dialog.profile_button.click()
+    assert len(asked) == 1 and 'X' in asked[0] and '1200' in asked[0] and '300' in asked[0]
+    assert dialog.values() == before
+    asked = _answer(monkeypatch, Button.Yes)
+    dialog.profile_button.click()
+    values = dialog.values()['axes']
+    assert values[0]['max_velocity_mm_s'] == 20 and values[1] == before['axes'][1]
+    assert values[2]['acceleration_mm_s2'] == 80
+    assert (values[2]['soft_limit_negative_mm'], values[2]['soft_limit_positive_mm']) == (-40, 0)
+    assert values[2]['soft_limits_enabled'] and not values[0]['soft_limits_enabled']
+    assert dialog.is_dirty()
+
+
+def test_profile_without_ecut_axis_values_changes_nothing_and_asks_nothing(dialog, monkeypatch):
+    from appCommon.machine_profile.profile import MachineProfile
+    asked = _answer(monkeypatch, QtWidgets.QMessageBox.StandardButton.Yes)
+    dialog.set_machine_profile(MachineProfile(name='Bare'))
+    assert not dialog.profile_button.isEnabled()
+    dialog.set_machine_profile(None)
+    assert not dialog.profile_button.isEnabled() and asked == []

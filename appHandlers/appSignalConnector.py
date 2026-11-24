@@ -12,6 +12,8 @@ from PyQt6 import QtCore
 import builtins
 import gettext
 
+from appGUI.machine_profile_ui import setup_profile_selector
+
 if '_' not in builtins.__dict__:
     _ = gettext.gettext
 
@@ -144,6 +146,8 @@ class AppSignalConnector(QtCore.QObject):
         self.ui.menuoptions_tools_db.triggered.connect(
             lambda: self.app.on_tools_database(source='app')
         )
+        self.ui.menuoptions_machine_profiles.triggered.connect(self.app.ui_actions.on_machine_profiles)
+        setup_profile_selector(self.app)
         self.ui.menuoptions_experimental_3D_area.triggered.connect(self.app.on_3d_area)
 
     def connect_menuview_signals(self):

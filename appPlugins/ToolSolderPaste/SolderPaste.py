@@ -20,6 +20,9 @@ import appTranslation as fcTranslate
 import builtins
 
 from appCommon.Common import LoudDict
+from appGUI.machine_profile_ui import lock_plugin_fields, report_gate, show_locked_fields
+from appCommon.machine_profile.facts import active_profile_of, job_provenance, resolve_job_facts
+from appCommon.machine_profile.writer import gate_file_text
 from appCommon.solderpaste import parse_numbers, extract_pads, parameters, PREFIX
 from appPlugins.ToolSolderPaste.SolderPasteUI import SolderUI
 from appPlugins.ToolSolderPaste.SolderPasteGen import pad_geometry, cnc_tools, gcode_header
@@ -35,7 +38,12 @@ if '_' not in builtins.__dict__:
 
 
 class SolderPaste(AppTool):
-    
+    locked_form_keys = {}       # {key: note} of the keys that the active machine profile locks in this form
+    locked_form_values = {}
+
+    def locked_field_maps(self):
+        return (self.form_fields,)
+
     def __init__(self, app):
         AppTool.__init__(self, app)
         self.app = app
@@ -273,6 +281,7 @@ class SolderPaste(AppTool):
             tool['data']['tools_solderpaste_pp'] = self.obj_options['tools_solderpaste_pp']
 
         self.reset_fields()
+        lock_plugin_fields(self)
 
         # SELECT THE CURRENT OBJECT
         obj = self.app.collection.get_active()
@@ -539,12 +548,16 @@ class SolderPaste(AppTool):
         if uid < 0:
             return 
         for key in self.form_fields:
+            if key in self.locked_form_keys:
+                continue
             self.tooltable_tools[uid]['data'].update({
                 key: self.form_fields[key].get_value()
             })
 
         # set General Parameters for all tools; always done last
         for key in self.general_form_fields:
+            if key in self.locked_form_keys:
+                continue
             for uid in self.tooltable_tools:
                 self.tooltable_tools[uid]['data'].update({
                     key: self.general_form_fields[key].get_value()
@@ -562,6 +575,7 @@ class SolderPaste(AppTool):
         )
         for key in self.form_fields:
             self.form_fields[key].set_value(app_option(key))
+        show_locked_fields(self)
 
     def set_form(self, val):
         """
@@ -580,6 +594,7 @@ class SolderPaste(AppTool):
                 self.form_fields[key].set_value(val[key])
             elif key.startswith(PREFIX) and key in AppDefaults.factory_defaults:
                 self.form_fields[key].set_value(AppDefaults.factory_defaults[key])
+        show_locked_fields(self)
 
     def on_tool_add(self, dia=None, muted=None):
         """
@@ -1018,6 +1033,15 @@ class SolderPaste(AppTool):
                 return 'fail'
             new_obj.special_group = 'solder_paste_tool'
 
+            # the machine facts of the active Machine Profile win over the tool data (a job-local copy)
+            profile = active_profile_of(app_obj)
+            for tool in new_obj.tools.values():
+                tool['data'] = resolve_job_facts('solderpaste', tool['data'], profile)
+            machine_profile = job_provenance('solderpaste', profile, app_obj.options.get)
+            if machine_profile:
+                new_obj.obj_options['machine_profile'] = machine_profile
+                new_obj.apply_machine_profile()
+
             new_obj.obj_options['xmin'] = xmin
             new_obj.obj_options['ymin'] = ymin
             new_obj.obj_options['xmax'] = xmax
@@ -1185,6 +1209,18 @@ class SolderPaste(AppTool):
             gcode += obj.tools[tool]['gcode']
         lines = StringIO(gcode)
 
+        profile_folder = app_option("global_machine_profiles_folder") or ''
+        gate = gate_file_text(app_option("global_machine_profile"), profile_folder,
+                              '' if profile_folder else self.app.data_path, gcode, obj.pp_solderpaste_name, obj.units,
+                              correct=True, provenance=obj.obj_options.get('machine_profile'),
+                              uncorrected_source=obj.obj_options.get('uncorrected_source'))
+        report_gate(self.app, gate)
+        if not gate.ok:
+            self.app.inform.emit('[ERROR_NOTCL] %s' % gate.error)
+            return 'fail'
+        if gate.text is not None:
+            lines = StringIO(gate.text)
+
         # ## Write
         if filename is not None:
             try:
@@ -1204,6 +1240,8 @@ class SolderPaste(AppTool):
             self.app.file_opened.emit("gcode", filename)
         self.app.file_saved.emit("gcode", filename)
         self.app.inform.emit('[success] %s: %s' % (_("Saved to"), filename))
+        if gate.note:
+            self.app.inform.emit('[WARNING_NOTCL] %s' % gate.note)
 
     def reset_fields(self):
         self.ui.obj_combo.setRootModelIndex(self.app.collection.index(0, 0, QtCore.QModelIndex()))

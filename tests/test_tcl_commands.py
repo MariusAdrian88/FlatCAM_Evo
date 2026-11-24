@@ -95,6 +95,143 @@ def test_export_gcode_returns_the_text_that_write_gcode_writes(tmp_path):
     assert text == (tmp_path / 'job.nc').read_text()
     assert text.index('START_CODE') < text.index('(PRE)') < text.index('BODY_TOOL_1') < text.index('BODY_TOOL_2')
 
+def _write_gcode_job(options=None):
+    from types import MethodType
+    from appObjects.CNCJobObject import CNCJobObject
+    from preprocessors.default import default
+    options = dict({'cncjob_footer': False, 'cncjob_prepend': '', 'cncjob_append': '', 'cncjob_line_ending': False},
+                   **(options or {}))
+    job = SimpleNamespace(
+        kind='cncjob', app=SimpleNamespace(preprocessors={'default': default()}, data_path='', inform=Mock()),
+        obj_options={'type': 'Geometry', 'name': 'job'}, gc_header='', gc_start='G21\nG90\n', gcode='',
+        units='MM', tools={1: {'data': {'tools_mill_ppname_g': 'default'}, 'gcode': 'G0 Z2\nG0 X1 Y1\nG1 X10 Y1 F200\n'}},
+        edited_source_file='', gcode_imported=False, coords_decimals=4,
+        _app_option=lambda key, fallback=None: options.get(key, fallback), gcode_footer=lambda: '')
+    job.export_gcode = MethodType(CNCJobObject.export_gcode, job)
+    return job
+
+def _calibrated_profile(tmp_path, **extra):
+    from appCommon.machine_profile.profile import MachineProfile, save_profile
+    save_profile(MachineProfile(name='bench', bed_x=300.0, bed_y=300.0, z_travel=50.0, work_offset=(0.0, 0.0, -20.0), calibration={
+        'enabled': True, 'matrix': [[1.0, 0.01], [0.0, 1.0]]}, **extra), str(tmp_path / 'profiles'))
+    return {'global_machine_profile': 'bench', 'global_machine_profiles_folder': str(tmp_path / 'profiles')}
+
+def test_write_gcode_corrects_a_job_with_provenance_and_the_flag_rules_an_unknown_one(tmp_path):
+    from tclCommands.TclCommandWriteGCode import TclCommandWriteGCode
+    options = _calibrated_profile(tmp_path)
+    original = 'G21\nG90\n\nG0 Z2\nG0 X1 Y1\nG1 X10 Y1 F200\n\n'
+    corrected = 'G21\nG90\n\nG0 Z2\nG0 X1.0100 Y1.0000\nG1 X10.0100 Y1.0000 F200\n\n'
+
+    def run(job, name, **args):
+        app = factory_app(job)
+        app.collection.has_promises.return_value = False
+        out = tmp_path / name
+        result = TclCommandWriteGCode(app).execute(dict(args, name='job', filename=str(out)), [])
+        return result, out.read_text()
+
+    known = _write_gcode_job(options)
+    known.obj_options['machine_profile'] = {'name': 'bench', 'hash': 'x', 'facts': {}, 'bed_legacy': False}
+    _, text = run(known, 'known.nc')
+    assert text.splitlines()[0].startswith('(Machine profile: bench, ') and text.splitlines()[0].endswith('XY corrected)')
+    assert text.split('\n', 1)[1] == corrected
+    # a job with a record ignores the flag
+    assert run(known, 'known_no.nc', uncorrected_source='no')[1] == text
+
+    result, text = run(_write_gcode_job(options), 'unknown.nc')
+    assert text == original and result == 'not corrected: the source has unknown provenance'
+    result, text = run(_write_gcode_job(options), 'declared_no.nc', uncorrected_source='no')
+    assert text == original and 'declared as not to correct' in result
+    result, text = run(_write_gcode_job(options), 'declared_yes.nc', uncorrected_source='yes')
+    assert result is None and text.split('\n', 1)[1] == corrected
+
+def test_write_gcode_of_a_job_with_the_legacy_bed_keys_is_refused_and_writes_no_file(tmp_path):
+    from tclCommands.TclCommandWriteGCode import TclCommandWriteGCode
+    job = _write_gcode_job(_calibrated_profile(tmp_path))
+    job.obj_options['machine_profile'] = {'name': 'bench', 'hash': 'x', 'facts': {}, 'bed_legacy': True}
+    app = factory_app(job)
+    app.collection.has_promises.return_value = False
+    with pytest.raises(Exception, match='regenerate the job'):
+        TclCommandWriteGCode(app).execute({'name': 'job', 'filename': str(tmp_path / 'job.nc')}, [])
+    assert not (tmp_path / 'job.nc').exists()
+
+def test_write_gcode_names_the_line_and_word_that_the_correction_refuses(tmp_path):
+    from tclCommands.TclCommandWriteGCode import TclCommandWriteGCode
+    job = _write_gcode_job(_calibrated_profile(tmp_path))
+    job.obj_options['machine_profile'] = {'name': 'bench', 'hash': 'x', 'facts': {}, 'bed_legacy': False}
+    job.tools[1]['gcode'] = 'G0 Z2\nG93\nG1 X10 Y1 F200\n'
+    app = factory_app(job)
+    app.collection.has_promises.return_value = False
+    with pytest.raises(Exception, match=r'line 5, G93'):
+        TclCommandWriteGCode(app).execute({'name': 'job', 'filename': str(tmp_path / 'job.nc')}, [])
+    assert not (tmp_path / 'job.nc').exists()
+
+def test_write_gcode_outside_the_bed_of_the_machine_profile_raises_and_writes_no_file(tmp_path):
+    from appCommon.machine_profile.profile import MachineProfile, save_profile
+    from tclCommands.TclCommandWriteGCode import TclCommandWriteGCode
+    save_profile(MachineProfile(name='bench', bed_x=5.0, bed_y=5.0, z_travel=2.0), str(tmp_path / 'profiles'))
+    job = _write_gcode_job({'global_machine_profile': 'bench',
+                            'global_machine_profiles_folder': str(tmp_path / 'profiles')})
+    app = factory_app(job)
+    app.collection.has_promises.return_value = False
+    command = TclCommandWriteGCode(app)
+    with pytest.raises(Exception, match='Machine profile'):
+        command.execute({'name': 'job', 'filename': str(tmp_path / 'job.nc')}, [])
+    assert not (tmp_path / 'job.nc').exists()
+
+def test_write_gcode_with_no_machine_profile_writes_the_whole_text(tmp_path):
+    # golden: the file holds the start code, the snippets and the tool code, byte for byte
+    from tclCommands.TclCommandWriteGCode import TclCommandWriteGCode
+    app = factory_app(_write_gcode_job())
+    app.collection.has_promises.return_value = False
+    TclCommandWriteGCode(app).execute({'name': 'job', 'filename': str(tmp_path / 'job.nc'),
+                                       'preamble': '(PRE)', 'postamble': '(POST)'}, [])
+    assert (tmp_path / 'job.nc').read_text() == 'G21\nG90\n\n(PRE)\nG0 Z2\nG0 X1 Y1\nG1 X10 Y1 F200\n\n(POST)\n'
+
+def _profile_app(tmp_path, active, job=None, **profile):
+    from appCommon.machine_profile.profile import MachineProfile, save_profile
+    save_profile(MachineProfile(name='bench', **(profile or dict(bed_x=5.0, bed_y=5.0, z_travel=2.0))),
+                 str(tmp_path / 'profiles'))
+    app = factory_app(job)
+    app.collection.has_promises.return_value = False
+    app.data_path = ''
+    app.defaults = {}
+    app.options.update({'global_machine_profile': active, 'global_machine_profiles_folder': str(tmp_path / 'profiles')})
+    return app
+
+def test_list_machine_profiles_shows_none_first_and_marks_the_active_one(tmp_path):
+    from tclCommands.TclCommandListMachineProfiles import TclCommandListMachineProfiles
+    app = _profile_app(tmp_path, 'bench')
+    assert TclCommandListMachineProfiles(app).execute({}, []).splitlines() == ['None', '* bench']
+    app.options['global_machine_profile'] = 'None'
+    assert TclCommandListMachineProfiles(app).execute({}, []).splitlines() == ['* None', 'bench']
+
+def test_set_machine_profile_takes_none_or_a_saved_name_and_refuses_an_unknown_one(tmp_path):
+    from tclCommands.TclCommandSetMachineProfile import TclCommandSetMachineProfile
+    app = _profile_app(tmp_path, 'None')
+    app.headless = True
+    command = TclCommandSetMachineProfile(app)
+    command.execute({'name': 'bench'}, [])
+    assert app.defaults['global_machine_profile'] == app.options['global_machine_profile'] == 'bench'
+    with pytest.raises(Exception, match='nope'):
+        command.execute({'name': 'nope'}, [])
+    assert app.defaults['global_machine_profile'] == 'bench'
+    command.execute({'name': 'None'}, [])
+    assert app.options['global_machine_profile'] == 'None'
+
+def test_check_gcode_reports_the_violations_of_a_job_larger_than_the_bed(tmp_path):
+    from tclCommands.TclCommandCheckGcode import TclCommandCheckGcode
+    app = _profile_app(tmp_path, 'bench', _write_gcode_job({'global_machine_profile': 'bench',
+                                                            'global_machine_profiles_folder': str(tmp_path / 'profiles')}))
+    lines = TclCommandCheckGcode(app).execute({'name': 'job'}, []).splitlines()
+    assert 'violations' in lines[0]
+    assert any(line.startswith('line ') and 'OUT_OF_BED' in line for line in lines)
+    assert not (tmp_path / 'job.nc').exists()
+
+def test_check_gcode_with_no_profile_says_it_did_not_check(tmp_path):
+    from tclCommands.TclCommandCheckGcode import TclCommandCheckGcode
+    app = _profile_app(tmp_path, 'None', _write_gcode_job())
+    assert TclCommandCheckGcode(app).execute({'name': 'job'}, []) == 'Machine profile: None (not checked)'
+
 def test_new_object_commands_propagate_factory_failure():
     from appObjects.AppObject import AppObject
     factory = SimpleNamespace(new_object=Mock(return_value='fail'))

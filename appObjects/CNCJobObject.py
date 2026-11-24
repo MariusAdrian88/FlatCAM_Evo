@@ -27,11 +27,16 @@ import re
 from io import StringIO
 from datetime import datetime as dt
 from copy import deepcopy
-from shapely import affinity, Point
+from shapely import affinity, Point, LineString
 
 from appHandlers.appHistory import history_of
 from appParsers.ParseGCode import safe_comment_text
 from appCommon.SafeEval import safe_eval
+from appCommon.machine_profile.facts import active_profile_of, is_stale, mm_to_app_units
+from appCommon.machine_profile.profile import RESERVED_NAME
+from appCommon.machine_profile.records import ViolationKind
+from appCommon.machine_profile.writer import FileGate, OutputRejected, gate_file_text
+from appGUI.machine_profile_ui import report_gate
 import gettext
 import appTranslation as fcTranslate
 import builtins
@@ -39,6 +44,40 @@ import builtins
 fcTranslate.apply_language('strings')
 if '_' not in builtins.__dict__:
     _ = gettext.gettext
+
+
+def _profile_gate(job, text, uncorrected_source=None):
+    """
+    The Machine Profile check (and the correction) of a G-code file that the job is about to write (a FileGate).
+
+    A job with a `machine_profile` record is corrected by it. An imported or edited job has unknown provenance: it is
+    corrected only when `uncorrected_source` (or the answer stored in the job) is True.
+    """
+    name = job._app_option('global_machine_profile')
+    if not name or name == RESERVED_NAME:
+        return FileGate()
+    key = 'tools_drill_ppname_e' if str(job.obj_options['type']).lower() == 'excellon' else 'tools_mill_ppname_g'
+    dialect = next((tool['data'].get(key) for tool in (job.tools or {}).values() if tool.get('data')), None)
+    folder = job._app_option('global_machine_profiles_folder') or ''
+    unknown = job.edited_source_file or job.gcode_imported
+    provenance = None if unknown else job.obj_options.get('machine_profile')
+    if uncorrected_source is None:
+        uncorrected_source = job.obj_options.get('uncorrected_source')
+    return gate_file_text(name, folder, '' if folder else job.app.data_path, text, dialect, job.units, correct=True,
+                          provenance=provenance, uncorrected_source=uncorrected_source,
+                          decimals=job.coords_decimals)
+
+
+def _ask_uncorrected_source(job):
+    """The GUI asks once whether the G-code of a job of unknown origin is uncorrected; the answer stays in the job."""
+    answer = QtWidgets.QMessageBox.question(
+        None, _("Machine profile"),
+        _("The G-code of this job has an unknown origin (imported or edited), so the machine profile does not know "
+          "whether it is already corrected.\n\nIs it uncorrected G-code, as made for the design? Yes: the profile "
+          "corrects it when the file is written. No: the file is written as it is."),
+        QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
+        QtWidgets.QMessageBox.StandardButton.No)
+    job.obj_options['uncorrected_source'] = answer == QtWidgets.QMessageBox.StandardButton.Yes
 
 
 def _warn_missing_preprocessor(job):
@@ -60,6 +99,10 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
     # Dispatch metadata, read by AppObject, ObjectCollection and appPlotManager instead of kind chains.
     # status_color: color of the object name in the status bar message (None: no message).
     status_color = 'blue'
+    # profile_check: the CheckResult of the last export under a machine profile (red moves in the plot)
+    profile_check = None
+    # profile_source_note: why the last export was not corrected (unknown provenance), None when it was or had no need
+    profile_source_note = None
     # tool_option_prefix: extra application options (with this prefix) copied into obj_options on creation.
     tool_option_prefix = None
     # inherits_mill_options: the tools_mill_* and tools_* options are copied into obj_options on creation.
@@ -817,6 +860,21 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
                 used_extension = filename.rpartition('.')[2]
                 self.update_filters(last_ext=used_extension, filter_string='cncjob_save_filters')
 
+        # the check comes before the rename: a rejected file leaves the object as it is
+        gate = _profile_gate(self, self.source_file) if self.source_file != '' else FileGate()
+        if gate.ask_source and is_gcode is True:
+            _ask_uncorrected_source(self)
+            gate = _profile_gate(self, self.source_file)
+        report_gate(self.app, gate)
+        if not gate.ok:
+            self.app.inform.emit('[ERROR_NOTCL] %s' % gate.error)
+            return 'fail'
+
+        # the profile changed since the job was made: the export goes on, the user is told to regenerate
+        if is_stale(self.obj_options, active_profile_of(self.app)):
+            self.app.inform.emit('[WARNING_NOTCL] %s' % _(
+                'The machine profile changed since this job was made. Regenerate the job to apply it.'))
+
         if rename_object:
             new_name = os.path.split(str(filename))[1].rpartition('.')[0]
             self.on_name_activate(silent=True, new_name=new_name)
@@ -824,13 +882,15 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
         if self.source_file == '':
             return 'fail'
 
-        if self._save_gcode_file(filename, self.source_file) == 'fail':
+        if self._save_gcode_file(filename, self.source_file if gate.text is None else gate.text) == 'fail':
             return 'fail'
 
         if self._app_option("global_open_style") is False:
             self.app.file_opened.emit("gcode", filename)
         self.app.file_saved.emit("gcode", filename)
         self.app.inform.emit('[success] %s: %s' % (_("File saved to"), filename))
+        if gate.note:
+            self.app.inform.emit('[WARNING_NOTCL] %s' % gate.note)
 
     def on_review_code_click(self):
         """
@@ -1121,7 +1181,7 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
             return 'M02'
 
     def export_gcode(self, filename=None, preamble='', postamble='', to_file=False, from_tcl=False, glob_gcode='',
-                     s_code='', default_snippets=True):
+                     s_code='', default_snippets=True, uncorrected_source=None):
         """
         This will save the GCode from the Gcode object to a file on the OS filesystem
 
@@ -1152,7 +1212,7 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
                     text += '\n' + postamble
             else:
                 text = CNCJobObject.imported_text(self, preamble, postamble)
-            return CNCJobObject._write_gcode(self, text, filename, to_file)
+            return CNCJobObject._write_gcode(self, text, filename, to_file, from_tcl, uncorrected_source)
 
         start_code = self.gc_start if s_code == '' else s_code
         pp = None
@@ -1303,15 +1363,26 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
             if isinstance(finalized, str):
                 g = finalized
 
-        return CNCJobObject._write_gcode(self, g, filename, to_file)
+        return CNCJobObject._write_gcode(self, g, filename, to_file, from_tcl, uncorrected_source)
 
-    def _write_gcode(self, g, filename, to_file):
+    def _write_gcode(self, g, filename, to_file, raise_on_reject=False, uncorrected_source=None):
         """The tail of export_gcode(): write the text to the file, or return it as a StringIO."""
         lines = StringIO(g)
 
         # Write
         if filename is not None:
-            if CNCJobObject._save_gcode_file(self, filename, g) == 'fail':
+            gate = _profile_gate(self, g, uncorrected_source)
+            report_gate(self.app, gate)
+            self.profile_check = gate.result
+            self.profile_source_note = gate.source_note
+            if not gate.ok:
+                if raise_on_reject:
+                    raise OutputRejected(gate.error)
+                self.app.inform.emit('[ERROR_NOTCL] %s' % gate.error)
+                return 'fail'
+            if gate.note:
+                self.app.inform.emit('[WARNING_NOTCL] %s' % gate.note)
+            if CNCJobObject._save_gcode_file(self, filename, g if gate.text is None else gate.text) == 'fail':
                 return 'fail'
         elif to_file is False:
             # Just for adding it to the recent files list.
@@ -1605,6 +1676,28 @@ class CNCJobObject(PropertiesPanelMixin, FlatCAMObj, CNCjob):
 
         except (ObjectDeleted, AttributeError):
             self.annotation.clear(update=True)
+
+        self.plot_violation_moves(visible)
+
+    def plot_violation_moves(self, visible):
+        """Draw the moves of the violation records of the last check in red on top of the plot (a profile is active)."""
+        result = self.profile_check
+        if result is None or not visible or active_profile_of(self.app) is None:
+            return
+        batch = []
+        for violation in result.violations:
+            start, end = violation.start_w, violation.end_w
+            if violation.kind is ViolationKind.UNVERIFIED or start is None or end is None:
+                continue
+            if None in start[:2] or None in end[:2]:
+                continue
+            points = [(mm_to_app_units(p[0], self.app.app_units), mm_to_app_units(p[1], self.app.app_units))
+                      for p in (start, end)]
+            batch.append({'shape': LineString(points), 'color': '#ff0000ff'})
+        if batch:
+            self.add_shapes_batch(batch, visible=True)
+            if not self.defer_redraw:
+                self.shapes.redraw()
 
     def on_annotation_change(self, val):
         """

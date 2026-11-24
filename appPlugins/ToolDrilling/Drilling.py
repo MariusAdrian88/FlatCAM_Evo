@@ -16,6 +16,9 @@ from appCommon.ToolDatabase import matching_tools
 from camlib import Geometry, flatten_shapely_geometry, object_quad_segs, deepcopy_keep_geometry
 from appCommon.SafeEval import safe_eval
 from appCommon.Common import ExclusionAreas
+from appCommon.machine_profile.facts import active_profile_of, job_provenance, permanent_areas, profile_facts, \
+    resolve_job_facts
+from appGUI.machine_profile_ui import lock_plugin_fields, show_locked_fields
 from appPlugins.ToolDrilling import DrillingGen
 from appPlugins.ToolDrilling.DrillingUI import DrillingUI
 
@@ -63,6 +66,11 @@ def merge_same_diameter_tools(tools):
 
 class ToolDrilling(Geometry, AppTool):
     build_ui_sig = QtCore.pyqtSignal()
+    locked_form_keys = {}       # {key: note} of the keys that the active machine profile locks in this form
+    locked_form_values = {}
+
+    def locked_field_maps(self):
+        return self.tool_form_fields, self.general_form_fields
 
     def __init__(self, app):
         self.app = app
@@ -634,6 +642,7 @@ class ToolDrilling(Geometry, AppTool):
         except (AttributeError, TypeError):
             pass
         self.ui.object_combo.currentTextChanged.connect(self.on_object_changed)
+        lock_plugin_fields(self)
 
     def _default(self, key):
         """The default of a form field: the object's options, else the App options, else the factory defaults."""
@@ -1718,6 +1727,7 @@ class ToolDrilling(Geometry, AppTool):
                     self._set_field(widget, value)
                 except Exception as e:
                     self.app.log.error("ToolDrilling.storage_to_form() %s --> %s" % (source, str(e)))
+        show_locked_fields(self)
 
         # the preprocessor combo changed by code: show the fields that depend on it
         self.on_pp_changed()
@@ -1771,7 +1781,7 @@ class ToolDrilling(Geometry, AppTool):
         if widget_changed is None:
             return
         option_changed = self.name2option.get(widget_changed.objectName())
-        if option_changed is None:
+        if option_changed is None or option_changed in self.locked_form_keys:
             return
 
         self.ui_disconnect()
@@ -2243,6 +2253,14 @@ class ToolDrilling(Geometry, AppTool):
         # safe values of the hidden options). The tools of the object and the plugin are not changed.
         gen_tools = {t_id: dict(self.excellon_tools[t_id], data=self._effective_tool_data(t_id)) for t_id in sel_tools}
 
+        # the machine facts of the active Machine Profile win over the form and the options (a job-local copy)
+        profile = active_profile_of(self.app)
+        for tool in gen_tools.values():
+            tool['data'] = resolve_job_facts('drill', tool['data'], profile)
+        machine_profile = job_provenance('drill', profile, self.app.options.get)
+        profile_areas = permanent_areas(profile, self.units)
+        pp_name =profile_facts('drill', profile).get('tools_drill_ppname_e', self.ui.pp_excellon_name_cb.get_value())
+
         # #############################################################################################################
         # #### Create Points (Group by tool): a dictionary of shapely Point geo elements grouped by tool number #######
         # #############################################################################################################
@@ -2309,7 +2327,7 @@ class ToolDrilling(Geometry, AppTool):
         # It needs the toolchange (the spot drill is another tool): without it the pass is left out. The laser
         # preprocessors have no tools to change: they ignore it.
         if gen_tools[gen_ids[0]]['data'].get('tools_drill_spot') and \
-                'laser' not in str(self.ui.pp_excellon_name_cb.get_value()).lower():
+                'laser' not in str(pp_name).lower():
             if not has_toolchange:
                 self.app.inform.emit('[WARNING_NOTCL] %s' % _(
                     "The spot drilling pass needs a toolchange: it is left out. Enable the toolchange to use it."))
@@ -2321,7 +2339,7 @@ class ToolDrilling(Geometry, AppTool):
 
         # a value that makes dangerous or wrong G-code refuses the job; without a toolchange only the data of the first
         # tool is used
-        laser = 'laser' in str(self.ui.pp_excellon_name_cb.get_value()).lower()
+        laser = 'laser' in str(pp_name).lower()
         refused = False
         for t_id in (gen_ids if has_toolchange else gen_ids[:1]):
             for message in DrillingGen.tool_setting_problems(gen_tools[t_id]['data'], laser):
@@ -2409,11 +2427,15 @@ class ToolDrilling(Geometry, AppTool):
             # Initialization
             # #########################################################################################################
             # Preprocessor
-            cnc_job_obj.pp_excellon_name = self.ui.pp_excellon_name_cb.get_value()
+            cnc_job_obj.pp_excellon_name = pp_name
             cnc_job_obj.pp_excellon = self.app.preprocessors[cnc_job_obj.pp_excellon_name]
 
+            cnc_job_obj.permanent_areas = profile_areas
             cnc_job_obj.obj_options['type'] = 'Excellon'
-            cnc_job_obj.obj_options['ppname_e'] = obj.pp_excellon_name
+            cnc_job_obj.obj_options['ppname_e'] = pp_name
+            if machine_profile:
+                cnc_job_obj.obj_options['machine_profile'] = machine_profile
+                cnc_job_obj.apply_machine_profile()
 
             cnc_job_obj.obj_options['xmin'] = xmin
             cnc_job_obj.obj_options['ymin'] = ymin

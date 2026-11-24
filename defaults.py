@@ -167,6 +167,9 @@ class AppDefaults:
 
         "global_tcl_path": '',
 
+        "global_machine_profile": "None",
+        "global_machine_profiles_folder": "",  # empty = <app data folder>/machine_profiles
+
         # General APP Preferences
         "units": "MM",
         "units_precision": 4,

@@ -16,6 +16,7 @@ import tclCommands.TclCommandAlignDrillGrid
 import tclCommands.TclCommandBbox
 import tclCommands.TclCommandBounds
 import tclCommands.TclCommandBuffer
+import tclCommands.TclCommandCheckGcode
 import tclCommands.TclCommandCheckRules
 import tclCommands.TclCommandClearShell
 import tclCommands.TclCommandCloseProject
@@ -45,6 +46,7 @@ import tclCommands.TclCommandIsolate
 import tclCommands.TclCommandJoinExcellon
 import tclCommands.TclCommandJoinGeometry
 import tclCommands.TclCommandJoinGerber
+import tclCommands.TclCommandListMachineProfiles
 import tclCommands.TclCommandListSys
 import tclCommands.TclCommandListPP
 import tclCommands.TclCommandListProjects
@@ -78,6 +80,7 @@ import tclCommands.TclCommandScale
 import tclCommands.TclCommandEtchCompensate
 import tclCommands.TclCommandSelectProject
 import tclCommands.TclCommandSetActive
+import tclCommands.TclCommandSetMachineProfile
 import tclCommands.TclCommandSetOrigin
 import tclCommands.TclCommandSetPath
 import tclCommands.TclCommandSetSys

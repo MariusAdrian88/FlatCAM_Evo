@@ -12,6 +12,7 @@ import gettext
 import builtins
 from types import SimpleNamespace
 
+from appCommon.machine_profile.correct import MARKER_RE
 from appPlugins.Common.gcode_arcs import split_arcs
 from appPlugins.Common.gcode_segment import _ModalState, _WORD_RE, _words, _fmt
 
@@ -19,16 +20,21 @@ _COMMENT_PAREN_RE = re.compile(r'\([^)]*\)')
 _ = builtins.__dict__.get('_', gettext.gettext)
 
 
-def clean_lines_numbered(text):
+def clean_lines_numbered(text, keep_markers=False):
     """
     Make the stream lines out of G-code text: remove the comments ('(...)' and
     ';...'), the '%' lines and the empty lines; strip the spaces.
 
     :param text: G-code text.
+    :param keep_markers: keep the machine profile markers '(MP:FIXED BEGIN <role>)' / '(MP:FIXED END)' as lines
+        (the levelling passes them through; the final clean removes them).
     :return: list of (source line number, str). The source line number is 1-based.
     """
     result = []
     for number, raw in enumerate((text or '').splitlines(), start=1):
+        if keep_markers and MARKER_RE.match(raw):
+            result.append((number, raw.strip()))
+            continue
         line = _COMMENT_PAREN_RE.sub('', raw)
         line = line.split(';', 1)[0].strip()
         if not line or line == '%':

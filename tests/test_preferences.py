@@ -920,6 +920,53 @@ class TestPreferencesProjectKeys(unittest.TestCase):
         self.assertEqual(defaults['global_gridx'], 2.5)
 
 
+class LockField(Field):
+    def __init__(self, value=None):
+        super().__init__(value)
+        self.enabled, self.tip = True, 'own tip'
+
+    def setEnabled(self, enabled):
+        self.enabled = enabled
+
+    def setToolTip(self, tip):
+        self.tip = tip
+
+    def toolTip(self):
+        return self.tip
+
+
+class TestPreferencesMachineProfileLock(unittest.TestCase):
+    def _manager(self):
+        manager, defaults, options = make_manager()
+        manager.defaults_form_fields = {'tools_mill_endz': LockField(), 'tools_mill_cutz': LockField()}
+        for storage in (defaults, options):
+            storage['tools_mill_endz'] = 1.0
+            storage['tools_mill_cutz'] = -0.1
+        manager.defaults_write_form()
+        return manager, defaults
+
+    def test_locked_key_shows_profile_value_and_is_not_saved(self):
+        manager, defaults = self._manager()
+        field = manager.defaults_form_fields['tools_mill_endz']
+        manager.set_locked({'tools_mill_endz': 'Set by machine profile "B"'}, {'tools_mill_endz': 9.0})
+        assert field.value == 9.0 and not field.enabled and field.tip == 'Set by machine profile "B"'
+        manager.defaults_form_fields['tools_mill_cutz'].value = -0.5
+        manager.defaults_read_form()
+        assert defaults['tools_mill_endz'] == 1.0 and defaults['tools_mill_cutz'] == -0.5
+        manager.defaults_write_form()       # a reload of the form keeps the profile value
+        assert field.value == 9.0
+
+    def test_unlock_restores_the_stored_value(self):
+        manager, defaults = self._manager()
+        field = manager.defaults_form_fields['tools_mill_endz']
+        manager.set_locked({'tools_mill_endz': 'note'}, {'tools_mill_endz': 9.0})
+        manager.set_locked({})
+        assert field.value == 1.0 and field.enabled and field.tip == 'own tip'
+        field.value = 2.0
+        manager.defaults_read_form()
+        assert defaults['tools_mill_endz'] == 2.0
+
+
 class TestPreferencesColors(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

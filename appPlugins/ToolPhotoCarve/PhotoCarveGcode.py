@@ -72,9 +72,11 @@ def write_tool_gcode(cnc, tool, tools, first_pt, last_pt, tolerance, is_first, i
             emit('M5')
             emit('M4 S0')
         else:
-            emit(p.lift_code(attrs))
             if toolchange:
-                emit(p.toolchange_code(attrs))
+                # the lifts sit inside the fixed sequence of the Machine Profile markers
+                emit(cnc.fixed_sequence('toolchange', block(p.lift_code(attrs)) + block(p.toolchange_code(attrs)) +
+                                        block(p.lift_code(attrs))))
+            else:
                 emit(p.lift_code(attrs))
             emit(p.spindle_code(attrs))
             if cnc.dwell:
@@ -113,7 +115,7 @@ def write_tool_gcode(cnc, tool, tools, first_pt, last_pt, tolerance, is_first, i
             emit('S0')
             emit('M5')
             if is_last:
-                emit(p.end_code(attrs))
+                emit(cnc.fixed_sequence('end', block(p.end_code(attrs))))
         else:
             emit(cnc.mill_tool_end_gcode(p, current, is_last))
         cnc.gcode = ''.join(parts)
@@ -140,6 +142,9 @@ def make_photocarve_cncjob(new_cncjob_obj, app_obj, context):
     used = sorted(tools, key=lambda uid: mark['tools'][str(uid)]['role'] != 'rough')
     cnc.obj_options.update(context['bounds'])
     cnc.obj_options.update(type='Geometry', photocarve=mark)
+    if context.get('machine_profile'):
+        cnc.obj_options['machine_profile'] = context['machine_profile']
+        cnc.apply_machine_profile()
     cnc.units = context['units']
     cnc.seg_x, cnc.seg_y = context['seg_x'], context['seg_y']
     cnc.coords_decimals = context['options']['cncjob_coords_decimals']

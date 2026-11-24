@@ -117,6 +117,47 @@ def test_travel_over_an_exclusion_area_restores_the_travel_z():
     # after the crossing the lift is to the travel Z of the tool again
     assert lifts[lifts.index('G00 Z7.5000') + 1:][0] == 'G00 Z2.0000'
 
+def permanent_drilling_gcode(areas, exclusion_owner=None):
+    """The Drilling G-code of one hole at (10, 0) from (0, 0) with the permanent areas of a machine profile, the job
+    option Area Exclusion off and the real router."""
+    from appCommon.Common import ExclusionAreas
+    app = make_app(excellon_search_time=1)
+    app.exc_areas = ExclusionAreas(SimpleNamespace(app_units='MM', log=Mock()))
+    job = CNCjob(app, pp_excellon_name='default')
+    job.obj_options = {'name': 'job', 'type': 'Excellon', 'xmin': 0, 'xmax': 30, 'ymin': 0, 'ymax': 20}
+    job.coords_decimals = 4
+    job.fr_decimals = 2
+    job.permanent_areas = areas
+    tools = {1: tool_dict(0.8, [(10.0, 0.0)], tools_drill_area_exclusion=False)}
+    job.tools = {1: {'nr_drills': 1}}
+    job.tool = 1
+    return job.excellon_tool_gcode_gen(1, [Point(10.0, 0.0)], tools, (0.0, 0.0), is_first=True, is_last=True,
+                                       opt_type='R', toolchange=False, exclusion_owner=exclusion_owner)[0]
+
+def rapid_ys(gcode):
+    return [float(RAPID_RE.match(line).group(2)) for line in gcode.splitlines() if RAPID_RE.match(line)]
+
+def test_a_permanent_forbid_area_steers_the_drilling_travel_with_the_job_flag_off():
+    from shapely.geometry import box
+    plain = permanent_drilling_gcode([])
+    assert set(rapid_ys(plain)) == {0.0}
+    area = dict(obj_type='profile', shape=box(3, -1, 6, 1), strategy='forbid', overz=None, name='clamp')
+    gcode = permanent_drilling_gcode([area], exclusion_owner='drilling')
+    assert drilled_positions(gcode) == [(10.0, 0.0)]
+    # the travel goes around the area grown by the tool radius (0.4) and 0.1 mm: it passes at |y| >= 1.5, never over Z
+    assert max(abs(y) for y in rapid_ys(gcode)) >= 1.5
+    assert 'G00 Z5.0000' not in gcode.splitlines()
+    over = dict(area, strategy='over', overz=7.5)
+    assert 'G00 Z7.5000' in permanent_drilling_gcode([over]).splitlines()
+
+def test_no_detour_around_a_permanent_forbid_area_stops_the_drilling_job_with_the_area_name():
+    from shapely.geometry import box
+    wall = lambda shape, name: dict(obj_type='profile', shape=shape, strategy='forbid', overz=None, name=name)
+    areas = [wall(box(-3, -3, 3, -2), 'north'), wall(box(-3, 2, 3, 3), 'south'),
+             wall(box(-3, -2, -2, 2), 'west'), wall(box(2, -2, 3, 2), 'east')]
+    with pytest.raises(ValueError, match='east'):
+        permanent_drilling_gcode(areas)
+
 def tcl_run(tools, args=None, options=None, travel_result=None, tool_data=None):
     """Run the Tcl command drillcncjob on an Excellon with these tools ({id: (dia, drills, slots)}); returns
     (app, job, gcode)."""
@@ -149,6 +190,26 @@ def tcl_run(tools, args=None, options=None, travel_result=None, tool_data=None):
     arguments.update(args or {})
     TclCommandDrillcncjob(app).execute(arguments, [])
     return app, job, outcome['ret'], getattr(job, 'source_file', '')
+
+def forbid_profile_options(folder):
+    """The app options that activate a profile with a permanent forbid area at x 3..6, y -1..1."""
+    from appCommon.machine_profile.profile import MachineProfile, save_profile
+    save_profile(MachineProfile(name='bench', bed_x=200.0, bed_y=200.0, exclusions=[
+        {'name': 'clamp', 'polygon': [(3, -1), (6, -1), (6, 1), (3, 1)], 'strategy': 'forbid', 'over_z': None}]),
+        str(folder))
+    return {'global_machine_profile': 'bench', 'global_machine_profiles_folder': str(folder)}
+
+def test_tcl_drillcncjob_routes_around_the_permanent_areas_of_the_active_profile(tmp_path):
+    from appCommon.Common import ExclusionAreas
+    router = ExclusionAreas(SimpleNamespace(app_units='MM', log=Mock()))
+    tools = {1: (0.8, [(10.0, 0.0)], ())}
+    options = dict(tools_drill_toolchange=False)
+    run = lambda **extra: tcl_run(tools, options=dict(options, **extra), travel_result=lambda kw: router.travel_coordinates(**kw))
+    plain = run()[3]
+    assert set(rapid_ys(plain)) == {0.0}
+    around = run(**forbid_profile_options(tmp_path))[3]
+    assert drilled_positions(around) == [(10.0, 0.0)]
+    assert max(abs(y) for y in rapid_ys(around)) >= 1.5
 
 def warnings(app):
     return [str(c.args[0]) for c in app.inform.emit.call_args_list if str(c.args[0]).startswith('[WARNING')]
@@ -237,6 +298,43 @@ def test_plugin_job_gcode_does_not_pile_up_between_jobs(fc, plugin, monkeypatch)
     second, _ = generate(fc, plugin, monkeypatch)
     assert len(drilled_positions(first.gcode)) == 3
     assert second.gcode == first.gcode
+
+def unmarked(code):
+    """The G-code without the Machine Profile marker lines of the fixed sequences."""
+    return ''.join(line for line in code.splitlines(True) if 'MP:FIXED' not in line)
+
+def test_machine_profile_toolchange_and_end_reach_the_tcl_drill_gcode(tmp_path):
+    from appCommon.machine_profile.profile import MachineProfile, save_profile
+    save_profile(MachineProfile(name='bench', toolchange=(12.5, 7.0, 30.0), end=(3.0, 4.0, 40.0)), str(tmp_path))
+    tools = {1: (0.8, [(1.0, 1.0)], ()), 2: (1.0, [(5.0, 5.0)], ())}
+    __, job, ret, code = tcl_run(tools, options=dict(tools_drill_toolchange=True, global_machine_profile='bench',
+                                                     global_machine_profiles_folder=str(tmp_path)))
+    __, plain, __, plain_code = tcl_run(tools, options=dict(tools_drill_toolchange=True))
+    __, by_hand, __, by_hand_code = tcl_run(tools, options=dict(
+        tools_drill_toolchange=True, tools_drill_toolchangexy='12.5, 7.0', tools_drill_toolchangez=30.0,
+        tools_drill_endxy='3.0, 4.0', tools_drill_endz=40.0))
+    assert ret != 'fail'
+    assert 'X12.5000 Y7.0000' in code and 'X3.0000 Y4.0000' in code and 'Z40.0000' in code
+    assert '(MP:FIXED BEGIN toolchange)' in code and '(MP:FIXED BEGIN end)' in code and 'MP:FIXED' not in by_hand_code
+    assert unmarked(code) == by_hand_code != plain_code
+    assert job.obj_options['machine_profile']['name'] == 'bench'
+    assert 'machine_profile' not in plain.obj_options
+
+def test_machine_profile_preprocessor_reaches_the_plugin_drill_gcode(fc, plugin, monkeypatch, tmp_path):
+    from appCommon.machine_profile.profile import MachineProfile, save_profile
+    save_profile(MachineProfile(name='bench', preprocessor_drill='GRBL_11'), str(tmp_path))
+    open_plugin(fc, plugin, 'gen_pp_a', selected=[1], tools_drill_toolchange=False)
+    plugin.ui.pp_excellon_name_cb.set_value('GRBL_11')
+    by_hand, __ = generate(fc, plugin, monkeypatch)
+    open_plugin(fc, plugin, 'gen_pp_b', selected=[1], tools_drill_toolchange=False)
+    plugin.ui.pp_excellon_name_cb.set_value('default')
+    monkeypatch.setitem(fc.options, 'global_machine_profile', 'bench')
+    monkeypatch.setitem(fc.options, 'global_machine_profiles_folder', str(tmp_path))
+    job, __ = generate(fc, plugin, monkeypatch)
+    assert job is not by_hand and unmarked(job.gcode) == by_hand.gcode != ''
+    assert 'MP:FIXED' in job.gcode and 'MP:FIXED' not in by_hand.gcode
+    assert 'machine_profile' not in by_hand.obj_options
+    assert job.obj_options['machine_profile']['name'] == 'bench'
 
 def test_plugin_refuses_drill_points_inside_a_drilling_exclusion_area(fc, plugin, monkeypatch):
     from shapely.geometry import box

@@ -344,6 +344,26 @@ def run_headless(args, cwd, stdin=None, timeout=300):
 EXAMPLE_GERBER = os.path.join(REPO, 'assets', 'examples', 'files', 'test.gbr')
 
 
+def test_headless_write_gcode_of_a_board_larger_than_the_bed_fails_and_writes_no_file(tmp_path):
+    from appCommon.machine_profile.profile import MachineProfile, save_profile
+    save_profile(MachineProfile(name='tiny', bed_x=5.0, bed_y=5.0, z_travel=5.0), str(tmp_path / 'profiles'))
+    shutil.copy(EXAMPLE_GERBER, tmp_path / 'test.gbr')
+    job = ('open_gerber test.gbr -outname board\n'
+           'isolate board -dia 0.2 -outname iso\n'
+           'cncjob iso -dia 0.2 -z_cut -0.1 -z_move 2 -feedrate 100 -outname cnc\n')
+    setup = 'set_sys global_machine_profiles_folder {%s}\n' % (tmp_path / 'profiles').as_posix()
+    (tmp_path / 'tiny.FlatScript').write_text(setup + 'set_machine_profile tiny\n' + job + 'write_gcode cnc out.nc\n')
+    (tmp_path / 'none.FlatScript').write_text(setup + 'set_machine_profile None\n' + job + 'write_gcode cnc none.nc\n')
+    rejected = run_headless(['--shellfile=tiny.FlatScript'], tmp_path)
+    tail = 'exit %s\nSTDOUT: %s\nSTDERR: %s' % (rejected.returncode, rejected.stdout[-1000:], rejected.stderr[-2000:])
+    assert rejected.returncode != 0, tail
+    assert 'Machine profile' in rejected.stderr, tail
+    assert not (tmp_path / 'out.nc').exists()
+    unchecked = run_headless(['--shellfile=none.FlatScript'], tmp_path)
+    assert unchecked.returncode == 0, unchecked.stdout + unchecked.stderr
+    assert (tmp_path / 'none.nc').stat().st_size > 0
+
+
 @pytest.fixture(scope='module')
 def runs(tmp_path_factory):
     """The 3 processes start together (a start takes about 3 seconds): the shell file run saves a project and

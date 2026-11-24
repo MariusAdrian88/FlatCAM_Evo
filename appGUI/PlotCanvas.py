@@ -548,6 +548,34 @@ class PlotCanvas(QtCore.QObject, VisPyCanvas):
         self.fcapp.ui.wplace_label.setStyleSheet("")
         self.fcapp.options['global_workspace'] = False
 
+    def draw_machine_bed(self, rect, dash=None):
+        """
+        Draw the bed of the active machine profile as a dashed outline.
+
+        :param rect:    (xmin, xmax, ymin, ymax) in design coordinates, in the units of the app
+        :param dash:    length of a dash (and of a gap); default 1/60 of the longer side
+        """
+        self.delete_machine_bed()
+        x0, x1, y0, y1 = rect
+        dash = dash or max(x1 - x0, y1 - y0) / 60.0
+        corners = [(x0, y0), (x1, y0), (x1, y1), (x0, y1), (x0, y0)]
+        segments = []
+        for (ax, ay), (bx, by) in zip(corners[:-1], corners[1:]):
+            length = math.hypot(bx - ax, by - ay)
+            count = max(int(length / (2.0 * dash)), 1)
+            for i in range(count):
+                s, e = 2.0 * i * dash / length, min((2.0 * i + 1.0) * dash / length, 1.0)
+                segments.append((ax + (bx - ax) * s, ay + (by - ay) * s))
+                segments.append((ax + (bx - ax) * e, ay + (by - ay) * e))
+        self.machine_bed_line = Line(pos=np.array(segments), connect='segments', color=(0.2, 0.55, 0.85, 0.9),
+                                     antialias=True, method='gl', parent=self.view.scene)
+
+    def delete_machine_bed(self):
+        line = self.__dict__.get('machine_bed_line')
+        if line is not None:
+            line.parent = None
+            self.machine_bed_line = None
+
     # redraw the workspace lines on the plot by re adding them to the parent view.scene
     def restore_workspace(self):
         try:

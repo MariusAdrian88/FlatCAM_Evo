@@ -30,6 +30,40 @@ class PreferencesUIManager(QtCore.QObject):
                         'tools_dist_app_color_light', 'tools_dist_app_color_dark',
                         'tools_dist_editor_color_light', 'tools_dist_editor_color_dark')
 
+    # the keys that the active machine profile sets: {key: note} and {key: profile value}. Replaced, never mutated.
+    locked = {}
+    locked_values = {}
+    _lock_tips = {}
+
+    def set_locked(self, keys_notes: dict, values: dict = None):
+        """
+        Lock the keys that the active machine profile sets: the widget is disabled, shows the profile value and has
+        the note as tooltip, and a Preferences save does not write the key. An empty dict unlocks all keys and shows
+        the stored values again.
+        """
+        previous = self.locked
+        values = values or {}
+        self.locked = dict(keys_notes)
+        self.locked_values = {key: values[key] for key in keys_notes if key in values}
+        tips = dict(self._lock_tips)
+        for key in previous:
+            if key not in self.locked and key in self.defaults_form_fields:
+                widget = self.defaults_form_fields[key]
+                widget.setEnabled(True)
+                widget.setToolTip(tips.pop(key, ''))
+                self.defaults_write_form_field(key)
+        for key, note in self.locked.items():
+            if key not in self.defaults_form_fields:
+                continue
+            widget = self.defaults_form_fields[key]
+            if key not in previous:
+                tips[key] = widget.toolTip()
+            widget.setEnabled(False)
+            widget.setToolTip(note)
+            if key in self.locked_values:
+                widget.set_value(self.locked_values[key])
+        self._lock_tips = tips
+
     def __init__(self, defaults: AppDefaults, data_path: str, ui, inform, options):
         """
         Class that control the Preferences window (appGUI/preferences/PreferencesWindow.py)
@@ -959,6 +993,8 @@ class PreferencesUIManager(QtCore.QObject):
         """
         options = self.ui.app.options
         for option in self.defaults_form_fields:
+            if option in self.locked:
+                continue
             try:
                 value = self.defaults_form_fields[option].get_value()
                 if option in self.alpha_color_keys:
@@ -1008,6 +1044,9 @@ class PreferencesUIManager(QtCore.QObject):
         def_dict = self._source(field) if defaults_dict is None else defaults_dict
 
         try:
+            if field in self.locked_values:
+                self.defaults_form_fields[field].set_value(self.locked_values[field])
+                return
             value = self._pref(field, def_dict)
             if field == 'tools_grbl_toolchange_plate' and value in (None, 'none'):
                 value = 'disabled'

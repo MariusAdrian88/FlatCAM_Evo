@@ -12,6 +12,7 @@ from appGUI.GUIElements import (
     FCLabel, FCButton, FCFrame, GLay, FCComboBox, FCCheckBox, FCJog, FCDoubleSpinner, FCSpinner,
     RadioSet, FCDetachableTab, FCZeroAxes, FCSliderWithDoubleSpinner, FCEntry, RotatedToolButton,
     VerticalScrollArea)
+from appCommon.machine_profile.facts import active_profile_of
 from appPlugins.Common.levelling_ui import build_probe_points_ui
 from appPlugins.ToolGcodeSender.SenderCameraUI import SenderCameraUI, CameraView
 from appPlugins.ToolGcodeSender.SenderRegistrationUI import SenderRegistrationUI
@@ -87,6 +88,11 @@ class GcodeSenderUI:
         # self.level.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignVCenter)
         self.level.setCheckable(True)
         self.title_box.addWidget(self.level)
+
+        # Machine Profiles: shown only while a profile is active
+        self.machine_profile_label = FCLabel(_("Machine profile: not checked"))
+        self.machine_profile_label.setVisible(active_profile_of(self.app) is not None)
+        self.tools_box.addWidget(self.machine_profile_label)
 
         self.obj_combo_label = FCLabel('%s' % _("Source Object"), color='darkorange', bold=True)
         self.obj_combo_label.setToolTip(

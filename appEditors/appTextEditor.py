@@ -11,6 +11,8 @@ from appGUI.GUIElements import FCFileSaveDialog, FCTextAreaExtended, FCButton
 from appEditors.text_editor.code_edit import CodeEdit
 from appEditors.text_editor.find_bar import FindBar
 from appEditors.text_editor.lexers import get_lexer, detect_language
+from appCommon.machine_profile.writer import FileGate, gate_file_text
+from appGUI.machine_profile_ui import correction_on, report_gate
 from appEditors.text_editor.minimap import Minimap
 from appEditors.text_editor.status_bar import EditorStatusBar
 
@@ -454,6 +456,17 @@ class AppTextEditor(QtWidgets.QWidget):
                 self._set_plain_text(self.code_edited)
                 file.close()
 
+    @staticmethod
+    def _ask_uncorrected_source():
+        """True when the user says that the G-code is uncorrected design G-code (the profile then corrects it)."""
+        answer = QtWidgets.QMessageBox.question(
+            None, _("Machine profile"),
+            _("Is this G-code uncorrected design G-code?\n\nYes: it is corrected for the machine when it is saved. "
+              "No: it is saved as it is."),
+            QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
+            QtWidgets.QMessageBox.StandardButton.No)
+        return answer == QtWidgets.QMessageBox.StandardButton.Yes
+
     def handleSaveGCode(self, name=None, filt=None, callback=None):
         self.app.defaults.report_usage("handleSaveGCode()")
 
@@ -499,6 +512,20 @@ class AppTextEditor(QtWidgets.QWidget):
         else:
             try:
                 my_gcode = self.code_editor.toPlainText()
+                gate = FileGate()
+                if owner is None and self.language == 'gcode' and filename.rpartition('.')[2].lower() != 'pdf':
+                    folder = self.app.options.get('global_machine_profiles_folder') or ''
+                    # the text of the editor has no provenance: with the correction on, the user says what it is
+                    uncorrected = self._ask_uncorrected_source() if correction_on(self.app) else None
+                    gate = gate_file_text(self.app.options.get('global_machine_profile'), folder,
+                                          '' if folder else self.app.data_path, my_gcode, None, self.app.app_units,
+                                          correct=True, uncorrected_source=uncorrected)
+                    report_gate(self.app, gate)
+                    if not gate.ok:
+                        self.app.inform.emit('[ERROR_NOTCL] %s' % gate.error)
+                        return 'fail'
+                    if gate.text is not None:
+                        my_gcode = gate.text
                 if owner is not None:
                     owner.on_source_changed()
                     if owner.save_file(filename) == 'fail':
@@ -633,6 +660,8 @@ class AppTextEditor(QtWidgets.QWidget):
             self.app.file_opened.emit('script' if owner is not None else 'cncjob', filename)
         self.app.file_saved.emit('script' if owner is not None else 'cncjob', filename)
         self.app.inform.emit('%s: %s' % (_("Saved to"), str(filename)))
+        if gate.note:
+            self.app.inform.emit('[WARNING_NOTCL] %s' % gate.note)
 
         if callback is not None:
             callback()

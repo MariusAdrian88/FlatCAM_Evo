@@ -8,7 +8,7 @@ import os
 from collections import Counter
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
-from shapely.geometry import LineString, Polygon
+from shapely.geometry import LineString, Polygon, box
 from appObjects.CNCJobObject import CNCJobObject
 from camlib import deepcopy_keep_geometry, Geometry, CNCjob
 from appPlugins.ToolMilling import ToolMilling
@@ -88,17 +88,21 @@ def tool_data(app, uid, pp, min_power=0):
     return data
 
 def milling_job(n_tools, pp='default', min_power=(), from_tcl=False, data=None, per_tool=None,
-                attrs=None, separate_selection=False, ui=None, travels=None, drop=()):
+                attrs=None, separate_selection=False, ui=None, travels=None, drop=(), options=None, pps=(),
+                router=None):
     """The job of the real Milling code. data / per_tool: tool data of every tool / of the tool uid; attrs: methods
     of the plugin to replace; separate_selection: the selected tools are a copy of the tools of the object, as in the
     plugin; travels: receives the start point of every travel. A job that fails comes back as 'fail'."""
     app = make_app()
-    app.preprocessors = {name: preprocessor(name) for name in ('default', pp)}
+    app.preprocessors = {name: preprocessor(name) for name in ('default', pp, *pps)}
+    app.options.update(options or {})
     app.dec_format = lambda value, decimals: round(value, decimals)
 
     def travel_coordinates(**kw):
         if travels is not None:
             travels.append(kw['start_point'])
+        if router is not None:
+            return router(**kw)
         return [(None, kw['end_point'])]
 
     app.exc_areas = SimpleNamespace(exclusion_areas_storage=[], travel_coordinates=travel_coordinates)
@@ -231,6 +235,77 @@ def test_the_next_tool_starts_its_travel_where_the_previous_one_ended():
     assert travels[0] == (0, 0)
     assert travels[3] == pytest.approx(end_of_tool_1)
     assert end_of_tool_1 != (0, 0)
+
+def permanent_milling_gcode(strategy, overz=None, areas=None, job_flag=False):
+    """The Milling G-code of the cut (10, 0) -> (11, 0) from (0, 0), with a permanent area (machine profile) at
+    x 3..6, y -1..1 and the job option Area Exclusion at job_flag; strategy None: no permanent area."""
+    from appCommon.Common import ExclusionAreas
+    from tests.test_cncjob_export_gcode import gcode_job
+    job = gcode_job('default')
+    job.app.exc_areas = ExclusionAreas(SimpleNamespace(app_units='MM', log=Mock()))
+    job.area_exclusion = job_flag
+    job.permanent_areas = areas if areas is not None else (
+        [dict(obj_type='profile', shape=box(3, -1, 6, 1), strategy=strategy, overz=overz, name='clamp')]
+        if strategy else [])
+    return job.linear2gcode(LineString([(10, 0), (11, 0)]), 1.0, old_point=(0, 0))
+
+def exclusion_violations(gcode, strategy, over_z=None):
+    from appCommon.machine_profile.check import check_motion
+    from appCommon.machine_profile.motion import interpret
+    from appCommon.machine_profile.profile import MachineProfile
+    from appCommon.machine_profile.records import Setup, ViolationKind
+    profile = MachineProfile(name='P', bed_x=200.0, bed_y=200.0, exclusions=[
+        {'name': 'clamp', 'polygon': [(3, -1), (6, -1), (6, 1), (3, 1)], 'strategy': strategy, 'over_z': over_z}])
+    setup = Setup(dialect='default', wcs_offsets={'G54': (0.0, 0.0, 0.0)}, active_wcs='G54', g92=(0.0, 0.0, 0.0),
+                  tlo=0.0, start=(0.0, 0.0, 2.0), units='mm', distance_mode='G90', arc_mode='G91.1', plane='G17',
+                  motion_mode='G0')
+    result = check_motion(interpret(gcode, setup), profile)
+    return [v for v in result.violations if v.kind is ViolationKind.EXCLUSION]
+
+def test_a_permanent_forbid_area_steers_the_travel_with_the_job_flag_off():
+    straight = permanent_milling_gcode(None)
+    assert 'G00 X10.0000 Y0.0000' in straight.splitlines()
+    assert exclusion_violations(straight, 'forbid')
+    around = permanent_milling_gcode('forbid')
+    assert around != straight
+    assert not exclusion_violations(around, 'forbid')
+    # a job without permanent areas and with the flag off is the same text as before
+    assert permanent_milling_gcode(None, areas=[]) == straight
+
+def test_a_permanent_over_area_lifts_before_the_entry_and_passes_the_check():
+    gcode = permanent_milling_gcode('over', overz=5.0)
+    lines = gcode.splitlines()
+    assert lines[lines.index('G00 X2.4000 Y0.0000') + 1] == 'G00 Z5.0000'
+    assert not exclusion_violations(gcode, 'over', over_z=5.0)
+
+def test_tcl_cncjob_routes_around_the_permanent_areas_of_the_active_profile(tmp_path):
+    # the Tcl command cncjob makes its job with generate_cnc_job_handler(from_tcl=True)
+    from appCommon.Common import ExclusionAreas
+    from appCommon.machine_profile.profile import MachineProfile, save_profile
+    router = ExclusionAreas(SimpleNamespace(app_units='MM', log=Mock()))
+    save_profile(MachineProfile(name='bench', bed_x=500.0, bed_y=500.0, exclusions=[
+        {'name': 'clamp', 'polygon': [(22, 3), (26, 3), (26, 7), (22, 7)], 'strategy': 'forbid',
+         'over_z': None}]), str(tmp_path))
+    data = dict(tools_mill_area_exclusion=False)
+    __, plain = milling_job(1, from_tcl=True, data=data, router=router.travel_coordinates)
+    __, around = milling_job(1, from_tcl=True, data=data, router=router.travel_coordinates,
+                             options={'global_machine_profile': 'bench',
+                                      'global_machine_profiles_folder': str(tmp_path)})
+    assert plain != 'fail' and around != 'fail'
+    assert [a['name'] for a in around.permanent_areas] == ['clamp'] and not plain.permanent_areas
+    # the travel from the end of the second path (30, 10) to the start of the third (20, 0) crosses the area
+    assert len(xy_rapids(around.tools[1]['gcode'])) > len(xy_rapids(plain.tools[1]['gcode']))
+    assert xy_rapids(around.tools[1]['gcode'])[-1] == xy_rapids(plain.tools[1]['gcode'])[-1]
+
+def xy_rapids(gcode):
+    return [(float(x), float(y)) for x, y in re.findall(r'^G0?0 X(-?[\d.]+) Y(-?[\d.]+)', gcode, re.MULTILINE)]
+
+def test_no_detour_around_a_permanent_forbid_area_stops_the_job_with_the_area_name():
+    wall = lambda shape, name: dict(obj_type='profile', shape=shape, strategy='forbid', overz=None, name=name)
+    areas = [wall(box(-3, -3, 3, -2), 'north'), wall(box(-3, 2, 3, 3), 'south'),
+             wall(box(-3, -2, -2, 2), 'west'), wall(box(2, -2, 3, 2), 'east')]
+    with pytest.raises(ValueError, match='north|south|west|east'):
+        permanent_milling_gcode(None, areas=areas)
 
 HOLES_1, HOLES_2 = [(0.0, 0.0), (10.0, 0.0)], [(20.0, 0.0)]
 
@@ -1178,3 +1253,32 @@ def test_excellon_target_uses_the_excellon_tools_table(qapp_milling_apply_param_
     milling.on_apply_param_to_all_clicked()
     assert feedrates(milling) == [200.0, 200.0]
     assert calls == ['disconnect', 'connect']
+
+def _profile_run(tmp_path, profile=None, **options):
+    from appCommon.machine_profile.profile import save_profile
+    if profile is not None:
+        save_profile(profile, str(tmp_path))
+        options.update(global_machine_profile=profile.name, global_machine_profiles_folder=str(tmp_path))
+    ui = SimpleNamespace(toolchange_cb=SimpleNamespace(get_value=lambda: True))
+    return milling_job(2, ui=ui, options=options, pps=('Marlin',))
+
+def test_machine_profile_toolchange_and_preprocessor_reach_the_milling_gcode(tmp_path):
+    from appCommon.machine_profile.profile import MachineProfile
+    profile = MachineProfile(name='bench', toolchange=(12.5, 7.0, 30.0), preprocessor_mill='Marlin')
+    app, job = _profile_run(tmp_path, profile)
+    __, same_by_hand = _profile_run(tmp_path / 'none', tools_mill_ppname_g='Marlin', tools_mill_toolchangexy='12.5, 7.0',
+                                    tools_mill_toolchangez=30.0)
+    assert 'X12.5000 Y7.0000' in job.source_file
+    # the fixed sequences are marked under a profile, and only then; the code is the same without the marker lines
+    assert '(MP:FIXED BEGIN toolchange)' in job.source_file and 'MP:FIXED' not in same_by_hand.source_file
+    assert ''.join(line for line in job.source_file.splitlines(True) if 'MP:FIXED' not in line) == \
+        same_by_hand.source_file
+    assert job.obj_options['machine_profile']['name'] == 'bench'
+    assert 'machine_profile' not in same_by_hand.obj_options
+    assert app.options['tools_mill_toolchangexy'] != '12.5, 7.0'
+
+def test_machine_profile_none_leaves_the_milling_gcode_and_job_options_unchanged(tmp_path):
+    __, plain = _profile_run(tmp_path)
+    __, named_none = _profile_run(tmp_path, global_machine_profile='None')
+    assert named_none.source_file == plain.source_file
+    assert 'machine_profile' not in named_none.obj_options

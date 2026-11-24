@@ -48,6 +48,7 @@ def make_tool(units='MM', storage=None, heights_valid=True, cls=None):
     tool.app.log = MagicMock()
     tool.app.proc_container = MagicMock()
     tool.app.app_units = units
+    tool.app.options = {}       # no active machine profile
     tool.ui = MagicMock()
     tool.ui.plot_probing_pts_cb.get_value.return_value = False
     tool.units = units
@@ -270,6 +271,133 @@ class TestImportHeightMap(unittest.TestCase):
             if '[ERROR_NOTCL]' in c.args[0]
         ]
         self.assertTrue(error_calls)
+
+
+SHEAR = ((1.0, 0.01), (0.0, 1.0))
+
+
+def calibrated_options(folder, enabled=True, matrix=SHEAR):
+    """Save the machine profile 'Cal' (a shear correction) in `folder`; the app options that make it active."""
+    from appCommon.machine_profile.profile import MachineProfile, save_profile
+    save_profile(MachineProfile(name='Cal', bed_x=300.0, bed_y=300.0, z_travel=40.0, work_offset=(0.0, 0.0, -20.0),
+                                calibration={'matrix': [list(row) for row in matrix], 'enabled': enabled}), folder)
+    return {'global_machine_profile': 'Cal', 'global_machine_profiles_folder': folder,
+            'cncjob_line_ending': False}
+
+
+class TestProbeRoundTripThroughTheCorrection(unittest.TestCase):
+    """The probing program carries the points at C(p); the probe log is mapped back with C^-1 before it is matched."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmpdir.cleanup)
+        self.options = calibrated_options(self.tmpdir.name)
+        from appCommon.machine_profile.facts import active_profile_of
+        from appCommon.machine_profile.output import calibration_hash, map_point
+        self.profile = active_profile_of(SimpleNamespace(options=self.options, data_path=''))
+        self.hash = calibration_hash(self.profile)
+        self.map_point = lambda x, y: map_point(self.profile, x, y)
+        self.grid = [(x, y) for x in (0.0, 5.0, 10.0) for y in (0.0, 5.0, 10.0)]
+
+    def _log(self, rows, header=None):
+        path = os.path.join(self.tmpdir.name, 'probe.txt')
+        header = '(MP:PROBE hash=%s units=mm frame=G54)\n' % self.hash if header is None else header
+        with open(path, 'w') as f:
+            f.write(header)
+            for x, y, z in rows:
+                f.write('%.4f,%.4f,%.4f\n' % (x, y, z))
+        return path
+
+    def _mapped_rows(self, skip=()):
+        rows = [(self.map_point(x, y) + (plane(x, y),)) for x, y in self.grid if (x, y) not in skip]
+        return list(reversed(rows))        # a log is not written in the order of the grid
+
+    def _tool(self, cls=None, options=None):
+        tool = make_tool(storage=make_storage_grid([0.0, 5.0, 10.0], [0.0, 5.0, 10.0]), heights_valid=False, cls=cls)
+        tool.app.options = self.options if options is None else options
+        tool.app.data_path = ''
+        for value in tool.al_voronoi_geo_storage.values():
+            value['height'] = 0.0
+        return tool
+
+    def _errors(self, tool):
+        return [call.args[0] for call in tool.app.inform.emit.call_args_list if '[ERROR_NOTCL]' in call.args[0]]
+
+    def test_each_row_maps_back_to_its_grid_point_and_the_map_keeps_the_calibration(self):
+        tool = self._tool(cls=ToolGCodeSender)
+        tool.import_height_map(self._log(self._mapped_rows()))
+        self.assertTrue(tool.al_heights_valid, self._errors(tool))
+        for value in tool.al_voronoi_geo_storage.values():
+            self.assertAlmostEqual(value['height'], plane(value['point'].x, value['point'].y), places=4)
+        self.assertEqual(tool._al_map_calibration, self.hash)
+
+    def test_a_row_that_matches_no_grid_point_is_refused_and_named(self):
+        tool = self._tool()
+        rows = self._mapped_rows()
+        rows[2] = (500.0, 500.0, 0.1)
+        tool.import_height_map(self._log(rows))
+        self.assertFalse(tool.al_heights_valid)
+        self.assertTrue([e for e in self._errors(tool) if 'line 4' in e], self._errors(tool))
+
+    def test_two_rows_for_one_grid_point_are_refused_and_named(self):
+        tool = self._tool()
+        rows = self._mapped_rows()
+        rows.append(rows[0])
+        tool.import_height_map(self._log(rows))
+        self.assertFalse(tool.al_heights_valid)
+        self.assertTrue([e for e in self._errors(tool) if 'lines 2 and 11' in e], self._errors(tool))
+
+    def test_a_log_without_the_header_is_refused_with_the_correction_on(self):
+        tool = self._tool()
+        tool.import_height_map(self._log(self._mapped_rows(), header=''))
+        self.assertFalse(tool.al_heights_valid)
+        self.assertTrue([e for e in self._errors(tool) if 'MP:PROBE' in e], self._errors(tool))
+
+    def test_a_log_of_another_calibration_or_other_units_is_refused(self):
+        for header in ('(MP:PROBE hash=000000000000 units=mm frame=G54)\n',
+                       '(MP:PROBE hash=%s units=inch frame=G54)\n' % self.hash):
+            with self.subTest(header=header):
+                tool = self._tool()
+                tool.import_height_map(self._log(self._mapped_rows(), header=header))
+                self.assertFalse(tool.al_heights_valid)
+                self.assertTrue(self._errors(tool))
+
+    def test_a_log_without_the_header_is_read_as_before_when_the_correction_is_off(self):
+        tool = self._tool(options=calibrated_options(self.tmpdir.name, enabled=False))
+        rows = [(x, y, plane(x, y)) for x, y in self.grid]
+        tool.import_height_map(self._log(rows, header=''))
+        self.assertTrue(tool.al_heights_valid, self._errors(tool))
+
+    def test_an_ambiguous_row_is_refused(self):
+        from appPlugins.Common.levelling_interp import match_probe_rows
+        points = {'a': (0.0, 0.0), 'b': (10.0, 0.0)}
+        heights, errors = match_probe_rows(points, [(3, 5.0, 0.0, 0.1)], 6.0)
+        self.assertEqual(heights, {})
+        self.assertTrue(errors and 'line 3' in errors[0] and 'more than one' in errors[0])
+        heights, errors = match_probe_rows(points, [(3, 0.1, 0.0, 0.1), (4, 10.0, 0.1, 0.2)], 1.0)
+        self.assertEqual((heights, errors), ({'a': 0.1, 'b': 0.2}, []))
+
+    def test_save_probing_gcode_writes_the_mapped_points_with_the_header(self):
+        from unittest.mock import mock_open
+        for enabled in (True, False):
+            with self.subTest(enabled=enabled):
+                tool = gcode_tool('MACH3')
+                tool.app.options = calibrated_options(self.tmpdir.name, enabled=enabled)
+                tool.app.data_path = ''
+                tool.units = 'MM'
+                tool.al_voronoi_geo_storage = {1: {'point': Point(5.0, 5.0), 'geo': None, 'height': 0.0}}
+                text = tool.probing_gcode(storage=tool.al_voronoi_geo_storage)
+                self.assertEqual('(MP:PROBE hash=%s units=mm frame=G54)' % self.hash in text, enabled)
+                self.assertEqual('X5.05Y5.0' in text, enabled)
+                self.assertEqual('X5.0Y5.0' in text, not enabled)
+                tool.probing_gcode_text = text
+                output = mock_open()
+                with patch('appPlugins.ToolLevelling.FCFileSaveDialog.get_saved_filename',
+                           return_value=('C:/tmp/probe.nc', '')), patch('builtins.open', output):
+                    tool.app.get_last_save_folder.return_value = 'C:/tmp'
+                    self.assertNotEqual(tool.on_save_probing_gcode(), 'fail')
+                written = ''.join(call.args[0] for call in output().write.call_args_list)
+                self.assertEqual(written, text)
 
 
 class FakeNewCNCJob:
@@ -1818,3 +1946,17 @@ def test_imported_gcode_in_inches_is_levelled_once_in_its_own_units(env):
     for m in cuts:
         x, y, z = (float(v) for v in m.groups())
         assert z == pytest.approx(-0.02 + PLANE(x * 25.4, y * 25.4) / 25.4, abs=1e-3)
+
+
+@pytest.mark.parametrize('correction', [True, False])
+def test_save_probing_gcode_writes_with_the_correction_on_or_off(env, tmp_path, correction):
+    from appCommon.machine_profile.profile import MachineProfile, save_profile
+    save_profile(MachineProfile(name='Cal', bed_x=300.0, bed_y=300.0, z_travel=40.0,
+                                work_offset=(0.0, 0.0, -20.0),
+                                calibration={'matrix': [[1.0, 0.01], [0.0, 1.0]], 'enabled': correction}),
+                 str(tmp_path))
+    env.tool.app.options.update({'global_machine_profile': 'Cal', 'global_machine_profiles_folder': str(tmp_path)})
+    env.tool.probing_gcode_text = 'G21\nG90\nG00 Z2.0000\nG00 X1.0000 Y1.0000\nG38.2 Z-1.0000 F50\n'
+    env.tool.on_save_probing_gcode()
+    assert env.save_path.exists()
+    assert not any('corrects XY' in m for m in env.messages())

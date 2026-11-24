@@ -7,6 +7,8 @@ from types import SimpleNamespace
 from shapely.geometry import box
 
 from appPlugins.ToolDrilling import DrillingGen
+from appCommon.machine_profile.facts import active_profile_of, job_provenance, permanent_areas, \
+    resolve_job_facts
 
 import gettext
 import appTranslation as fcTranslate
@@ -383,22 +385,31 @@ class TclCommandDrillcncjob(TclCommandSignaled):
             drillz = args["drillz"] if "drillz" in args and args["drillz"] is not None else \
                 obj.obj_options["tools_drill_cutz"]
 
+            # the machine facts of the active Machine Profile win over the options; an argument of the command wins
+            # over both
+            profile = active_profile_of(self.app)
+            facts = resolve_job_facts('drill', {}, profile)
+            machine_profile = job_provenance('drill', profile, self.app.options.get)
+
+            def fact_option(key):
+                return facts[key] if key in facts else self._app_option(key)
+
             toolchange = self._app_option("tools_drill_toolchange")
             if "toolchangez" in args:
                 toolchange = True
                 if args["toolchangez"] is not None:
                     toolchangez = args["toolchangez"]
                 else:
-                    toolchangez = obj.obj_options["tools_drill_toolchangez"]
+                    toolchangez = facts.get("tools_drill_toolchangez", obj.obj_options["tools_drill_toolchangez"])
             else:
-                toolchangez = float(self._app_option("tools_drill_toolchangez"))
+                toolchangez = float(fact_option("tools_drill_toolchangez"))
 
             if "toolchangexy" in args and args["toolchangexy"]:
                 toolchange = True
                 xy_toolchange = args["toolchangexy"]
             else:
-                if self._app_option("tools_drill_toolchangexy"):
-                    xy_toolchange = str(self._app_option("tools_drill_toolchangexy"))
+                if fact_option("tools_drill_toolchangexy"):
+                    xy_toolchange = str(fact_option("tools_drill_toolchangexy"))
                 else:
                     xy_toolchange = '0, 0'
             if len(self.parse_coords(xy_toolchange)) != 2:
@@ -412,13 +423,13 @@ class TclCommandDrillcncjob(TclCommandSignaled):
                 toolchange = flag("toolchange")
 
             endz = args["endz"] if "endz" in args and args["endz"] is not None else \
-                self._app_option("tools_drill_endz")
+                fact_option("tools_drill_endz")
 
             if "endxy" in args and args["endxy"]:
                 xy_end = args["endxy"]
             else:
-                if self._app_option("tools_drill_endxy"):
-                    xy_end = str(self._app_option("tools_drill_endxy"))
+                if fact_option("tools_drill_endxy"):
+                    xy_end = str(fact_option("tools_drill_endxy"))
                 else:
                     xy_end = '0, 0'
 
@@ -452,9 +463,14 @@ class TclCommandDrillcncjob(TclCommandSignaled):
             cnc_job_obj.used_tools = use_tools
 
             # preprocessor
-            pp_excellon_name = args["pp"] if "pp" in args and args["pp"] else self._app_option("tools_drill_ppname_e")
+            pp_excellon_name = args["pp"] if "pp" in args and args["pp"] else fact_option("tools_drill_ppname_e")
             cnc_job_obj.pp_excellon_name = pp_excellon_name
             cnc_job_obj.obj_options['ppname_e'] = pp_excellon_name
+            if machine_profile:
+                cnc_job_obj.obj_options['machine_profile'] = machine_profile
+                cnc_job_obj.apply_machine_profile()
+            # the permanent exclusion areas of the profile steer the travels (profile None: no areas)
+            cnc_job_obj.permanent_areas = permanent_areas(profile, self.app.app_units)
 
             # The job-wide values: the arguments of the command. A tool that is drilled uses these; without an argument
             # it uses its own value (the tool data of the object). The attributes of the job set below are what is

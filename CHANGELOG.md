@@ -6,6 +6,29 @@ Based on FlatCAM:
 
 CHANGELOG for FlatCAM Evo
 
+25.11.2026
+
+Machine Profiles:
+
+- added: a machine profile holds the facts of one machine: the bed size and the corner of machine zero, the Z travel, the work offset, the tool change and end stations, the probe plate, the default preprocessors, the process limits (feed XY/Z, rapid, spindle RPM range, laser power range, cut depth), the permanent exclusion areas and the XY calibration; each profile is one JSON file in the profiles folder
+- added: the Machine Profiles tab (Options menu, beside the Tools Database) with the General, Bed, Fixed stations, Limits, Check, Exclusions and Calibration pages; the Check page sets Warn or Reject for each rule
+- added: the status bar has a profile selector and a dot that shows the result of the last check; the profile "None" is the default, and with "None" every output is byte-identical to the output before this feature
+- added: an active profile overrides the machine facts of new jobs (tool change and end stations, preprocessor) in Milling, Drilling, Solder Paste, Photo Carve and the Tcl drill job; the stations are machine positions, and the job gets them in the work frame (station minus the work offset); these fields are locked in Preferences and in the plugins, with a note and a link to the profile
+- added: every machine file goes through a final check of the exact output text: the CNCJob save and batch save, Tcl write_gcode, Solder Paste save, Levelling "Save Probing GCode" and the G-code save of the text editor; the check reads the motion in the machine frame and follows G54-G59, G92, G43/G49 and G53
+- added: the check finds moves outside the bed, moves through an exclusion area (the swept path, not only the end points), Z above the travel, and feed, RPM and cut depth above the limits; a move that the check cannot resolve (G28/G30, an unknown start or offset) is "unverified"; the result is "checked", "partially checked" or "violations", and it lists its assumptions
+- added: on Reject the app writes no file and does not rename the object, and Tcl write_gcode returns an error; on Warn the app asks; the violations dialog shows each violation and can show it on the canvas; the CNCJob plot marks the rejected moves in red
+- added: the canvas shows the bed outline and the permanent exclusion areas; a job records the profile name and its hash, and a job made under another profile version shows a "stale" warning on export, with an offer to make it again; the project saves the name and the hash of the active profile
+- added: permanent exclusion areas in the machine frame, drawn on the canvas, with 3 strategies: "around" (the travel goes around the area), "over" (the travel lifts to the over Z before it enters the area) and "forbid" (the travel goes around, and a cut, a drill point or a station inside the area is an error); the permanent areas apply to every job, also when the job has its own exclusion areas off
+- added: the Calibration page is a wizard for the XY skew and scale: it makes an uncorrected test square, takes the 2 sides and the 2 diagonals that the user measures, and calculates the correction; it refuses inputs that do not make a parallelogram, a skew above 2 degrees or a scale outside 0.98..1.02
+- added: with the calibration on, the file outputs get the XY correction: arcs become G01 chords within 0.005 mm after the rounding, the tool change and end sequences keep their machine positions, and the header shows the profile name, the hash and "XY corrected"; a program with a command that the correction does not support (G91, G53, a WCS change, G92, G10, G28/G30, G18/G19, R arcs, a unit change, G93, canned cycles) is refused, with the line of the first such command
+- added: for imported and edited G-code the app asks if the text is uncorrected before it corrects it; Tcl write_gcode takes -uncorrected_source yes|no, and without the flag the text is not corrected
+- added: Tcl commands list_machine_profiles, set_machine_profile and check_gcode
+- added: the Sender reads the live setup from the controller (machine position, work offsets, active WCS, G92 and tool length offset) for GRBL and E-Cut
+- added: the G-code Sender checks the stream, the levelled stream and the start from line against the profile from the live setup; with the calibration on, it streams the corrected program, and the tool change and end stations keep their machine positions; a reject does not start the stream, warnings ask "Stream anyway?"; the Sender label shows the profile and "checked" or "corrected"
+- added: after a manual tool change, the Sender checks the rest of the program again with the new tool length offset before Resume; after $TPW/$TLR it reads the offset from the controller; a reject refuses the Resume and names the line
+- added: with the calibration on, the live probe goes to the corrected point and keeps the height at the design point; "Save Probing GCode" writes the corrected points with a (MP:PROBE ...) header, and the import of the probe log maps the points back and refuses points with no match, 2 matches or a duplicate; a height map made under another calibration is refused; "Save levelled G-code" writes the checked, corrected text
+- added: a profile can hold for each E-Cut axis the velocity cap, the acceleration cap and the soft limits (E-Cut page of the manager); "Apply machine profile values" in the E-Cut motion settings shows the old and new values and fills them in only after a confirmation
+
 24.11.2026
 
 E-Cut controller:

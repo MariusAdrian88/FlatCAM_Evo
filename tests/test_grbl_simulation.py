@@ -300,7 +300,7 @@ class TestSimulationControls(unittest.TestCase):
         self.addCleanup(dialog.close)
         dialog.slider.setValue(100)
         tool.job_lines = ['G1 X0 F600'] * 1000
-        tool.build_stream_job = lambda: True
+        tool.build_stream_job = lambda **kwargs: True
         tool._target = lambda: type('Target', (), {'units': 'MM'})()
         tool._console = MagicMock()
         events = []
@@ -329,7 +329,7 @@ class TestSimulationControls(unittest.TestCase):
         self.assertIsNotNone(dialog)
         self.assertEqual(dialog.slider.value(), 25)
         tool.job_lines = ['G21 G90', 'G1 X0.01 F600']
-        tool.build_stream_job = lambda: True
+        tool.build_stream_job = lambda **kwargs: True
         tool._target = lambda: type('Target', (), {'units': 'MM'})()
         tool._console = MagicMock()
         tool.app.worker_task.emit.side_effect = lambda task: task['fcn'](*task['params'])
@@ -348,7 +348,7 @@ class TestSimulationControls(unittest.TestCase):
         tool.on_simulation()
         dialog = tool._simulation
         tool.job_lines = ['G21 G90', 'G1 X60 F60']
-        tool.build_stream_job = lambda: True
+        tool.build_stream_job = lambda **kwargs: True
         tool._target = lambda: type('Target', (), {'units': 'MM'})()
         tool._start_simulation()
         self.assertTrue(dialog.running)

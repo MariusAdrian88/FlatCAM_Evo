@@ -80,6 +80,79 @@ def nozzle_data(job, paths):
     job.tools = {1: data}
     return data
 
+def save_paste_gcode(tmp_path, **options):
+    """Run the Save button of the plugin on a one-line paste job: the text of the file, or None if no file."""
+    path = tmp_path / 'paste.nc'
+    app = make_app()
+    app.options.update(options)
+    app.version, app.version_date, app.data_path = 'test', 'test', str(tmp_path)
+    app.file_opened, app.file_saved = Mock(), Mock()
+    obj = SimpleNamespace(special_group='solder_paste_tool', obj_options={'type': 'Geometry'}, units='MM',
+                          pp_solderpaste_name='Paste_1', tools={1: {'gcode': 'G90\nG0 Z2\nG0 X1 Y1\nG1 X10 Y1 F100\n'}})
+    app.collection = SimpleNamespace(get_by_name=lambda name: obj)
+    app.get_last_save_folder = lambda: str(tmp_path)
+    plugin = SimpleNamespace(app=app, ui=SimpleNamespace(cnc_obj_combo=SimpleNamespace(currentText=lambda: 'paste')))
+    with patch('appPlugins.ToolSolderPaste.SolderPaste.FCFileSaveDialog.get_saved_filename',
+               return_value=(str(path), '')):
+        SolderPaste.on_save_gcode(plugin)
+    return (path.read_text() if path.exists() else None), app
+
+class SolderPasteSaveTests(unittest.TestCase):
+    def test_save_with_no_machine_profile_writes_the_whole_text(self):
+        # golden: the header of the plugin, then the code of the tool, byte for byte
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as folder:
+            text, app = save_paste_gcode(Path(folder))
+        self.assertTrue(text.endswith('G90\nG0 Z2\nG0 X1 Y1\nG1 X10 Y1 F100\n'))
+        self.assertIn('(Name: paste)\n(Type: G-code from Geometry for Solder Paste dispenser)\n(Units: MM)\n', text)
+        app.file_saved.emit.assert_called_once()
+
+    def test_save_outside_the_bed_of_the_machine_profile_writes_no_file(self):
+        import tempfile
+        from pathlib import Path
+        from appCommon.machine_profile.profile import MachineProfile, save_profile
+        with tempfile.TemporaryDirectory() as folder:
+            save_profile(MachineProfile(name='bench', bed_x=5.0, bed_y=5.0, z_travel=2.0), str(Path(folder) / 'p'))
+            text, app = save_paste_gcode(Path(folder), global_machine_profile='bench',
+                                         global_machine_profiles_folder=str(Path(folder) / 'p'))
+        self.assertIsNone(text)
+        app.file_saved.emit.assert_not_called()
+        self.assertTrue(any('Machine profile' in c.args[0] for c in app.inform.emit.call_args_list))
+
+    def _paste_job(self, **options):
+        tool = make_tool([box(0, 0, 4, 2)])
+        tool.app.options.update(options)
+        SolderPaste.on_create_geo(tool, 'pads', tool.source, use_thread=False)
+        source = tool.objects[0]
+        source.obj_options.update(xmin=0, ymin=0, xmax=4, ymax=2)
+        jobs = []
+
+        def new_job(kind, name, initializer, **kwargs):
+            job = make_job(tool.app)
+            job.kind = 'cncjob'
+            assert initializer(job, tool.app) != 'fail'
+            jobs.append(job)
+
+        tool.new_object = new_job
+        SolderPaste.on_create_gcode(tool, 'paste_cnc', source, use_thread=False)
+        return jobs[0]
+
+    def test_machine_profile_toolchange_and_preprocessor_reach_the_paste_job(self):
+        import tempfile
+        from appCommon.machine_profile.profile import MachineProfile, save_profile
+        with tempfile.TemporaryDirectory() as folder:
+            save_profile(MachineProfile(name='bench', toolchange=(12.5, 7.0, 30.0), preprocessor_solderpaste='Paste_GRBL'),
+                         folder)
+            job = self._paste_job(global_machine_profile='bench', global_machine_profiles_folder=folder)
+        plain = self._paste_job()
+        data = job.tools[1]['data']
+        self.assertEqual((data['tools_solderpaste_xy_toolchange'], data['tools_solderpaste_z_toolchange'],
+                          data['tools_solderpaste_pp']), ('12.5, 7.0', 30.0, 'Paste_GRBL'))
+        self.assertEqual(job.obj_options['machine_profile']['name'], 'bench')
+        self.assertNotIn('machine_profile', plain.obj_options)
+        self.assertEqual(plain.tools[1]['data']['tools_solderpaste_pp'], 'Paste_1')
+
 class SolderPasteTests(unittest.TestCase):
     def test_nozzle_settings_drive_motor_and_dwell(self):
         job = make_job()

@@ -24,6 +24,10 @@ import appTranslation as fcTranslate
 import builtins
 
 from appEditors.appTextEditor import AppTextEditor
+from appCommon.machine_profile.writer import gate_file_text
+from appCommon.machine_profile.facts import active_profile_of
+from appCommon.machine_profile.output import map_point, probe_header
+from appGUI.machine_profile_ui import report_gate
 
 from camlib import CNCjob, deepcopy_keep_geometry
 
@@ -415,10 +419,11 @@ class ToolLevelling(LevellingCoreMixin, CNCjob, AppTool):
 
         coords = []
         al_method = self.ui.al_method_radio.get_value()
+        # with a machine profile that corrects XY the machine is sent to the work points W = C(D)
+        profile = active_profile_of(self.app)
         if al_method == 'v':
             for id_key, value in storage.items():
-                x = value['point'].x
-                y = value['point'].y
+                x, y = map_point(profile, value['point'].x, value['point'].y)
                 coords.append(
                     (
                         self.app.dec_format(x, dec=self.app.decimals),
@@ -427,8 +432,7 @@ class ToolLevelling(LevellingCoreMixin, CNCjob, AppTool):
                 )
         else:
             for pt in storage:
-                x = pt[0]
-                y = pt[1]
+                x, y = map_point(profile, pt[0], pt[1])
                 coords.append(
                     (
                         self.app.dec_format(x, dec=self.app.decimals),
@@ -445,12 +449,14 @@ class ToolLevelling(LevellingCoreMixin, CNCjob, AppTool):
             self.app.log.debug("CNCJobObject.probing_gcode() -> controller not supported")
             return
 
-        return generate_probing_gcode(
+        text = generate_probing_gcode(
             coords=coords, units=self.units, controller=controller,
             travel=pr_travel, depth=pr_depth, feedrate=probe_fr,
             coords_decimals=target_obj.coords_decimals, fr_decimals=target_obj.fr_decimals,
             name=target_obj.obj_options['name'], version=self.app.version,
             version_date=self.app.version_date, time_str=time_str)
+        # the header names the correction, so that the import of the probe log can map the points back
+        return probe_header(profile, self.units) + text
 
     def on_save_probing_gcode(self):
         lines = StringIO(self.probing_gcode_text)
@@ -479,6 +485,16 @@ class ToolLevelling(LevellingCoreMixin, CNCjob, AppTool):
             self.app.inform.emit('[WARNING_NOTCL] %s' % _("Export cancelled ..."))
             return
         else:
+            profile_folder = self.app.options.get('global_machine_profiles_folder') or ''
+            gate = gate_file_text(self.app.options.get('global_machine_profile'), profile_folder,
+                                  '' if profile_folder else self.app.data_path, self.probing_gcode_text, None,
+                                  self.app.app_units)
+            report_gate(self.app, gate)
+            if not gate.ok:
+                self.app.inform.emit('[ERROR_NOTCL] %s' % gate.error)
+                return 'fail'
+            if gate.note:
+                self.app.inform.emit('[WARNING_NOTCL] %s' % gate.note)
             try:
                 force_windows_line_endings = self.app.options.get(
                     'cncjob_line_ending',

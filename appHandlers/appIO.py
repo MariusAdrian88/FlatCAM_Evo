@@ -9,6 +9,7 @@ from appCommon.RegisterFileKeywords import Extensions
 from appObjects.ProjectContext import same_path
 from camlib import dict2obj, ParseError, geometry_wkt_cache, project_json_default, deepcopy_keep_geometry
 from defaults import project_options, clean_project_options, normalize_units
+from appCommon.machine_profile.facts import active_profile_of, project_field, project_mismatch
 from appParsers.ParseHPGL2 import HPGL2
 from appParsers.ParseGerber import Gerber
 from appParsers.gerber_attributes import attribute_changes, file_attribute_lines, format_attribute
@@ -4146,6 +4147,11 @@ class appIO(QtCore.QObject):
         self.app.options.load_project(file_options)
         self._apply_units()
 
+        # the project was made with another machine profile than the active one: tell it
+        mismatch = project_mismatch(proj_dict.get('machine_profile'), active_profile_of(self.app))
+        if mismatch:
+            self.inform.emit('[WARNING_NOTCL] %s' % mismatch)
+
         # The file name is set when all the objects are loaded; until then a Save must not overwrite the file.
         projects = getattr(self.app, 'projects', None)
         if projects is not None:
@@ -4399,6 +4405,10 @@ class appIO(QtCore.QObject):
                 "options":          app_options,
                 "version":          self.app.version
             }
+            # the active Machine Profile (name and hash) beside the options; nothing is written without one
+            machine_profile = project_field(active_profile_of(self.app))
+            if machine_profile:
+                d["machine_profile"] = machine_profile
 
             compressed = self.app.options.get(
                 "global_save_compressed", self.app.defaults.get("global_save_compressed")) is True

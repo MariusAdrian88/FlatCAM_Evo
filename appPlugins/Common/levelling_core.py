@@ -35,7 +35,10 @@ from appGUI.VisPyVisuals import ShapeCollection
 from appGUI.GUIElements import FCFileSaveDialog
 from defaults import AppDefaults
 
+from appCommon.machine_profile.facts import active_profile_of
+from appCommon.machine_profile.output import calibration_hash, correction_matrix, parse_probe_header, unmap_point
 from appPlugins.Common.levelling_interp import (
+    match_probe_rows,
     build_bilinear_grid,
     bilinear_offset,
     bicubic_offset,
@@ -1684,6 +1687,7 @@ class LevellingCoreMixin:
             return
 
         rows = []
+        labels = []
         for line_no, line in enumerate(stream, start=1):
             parsed = parse_height_map_line(line)
             if parsed is None:
@@ -1693,17 +1697,42 @@ class LevellingCoreMixin:
                     )
                 continue
             rows.append(parsed)
+            labels.append(line_no)
 
         if not rows:
             self.app.inform.emit('[ERROR_NOTCL] %s' % _("The height map file has no valid rows."))
             self.al_result_ready_sig.emit(failed)
             return
 
+        # a log of probing under the correction of a machine profile holds the work points C(p): map them back
+        profile = active_profile_of(self.app)
+        header = parse_probe_header(''.join(stream))
+        extra = {}
+        if header is not None or correction_matrix(profile) is not None:
+            problem = self._probe_log_problem(profile, header, context.units)
+            if problem is not None:
+                self.app.inform.emit('[ERROR_NOTCL] %s' % problem)
+                self.al_result_ready_sig.emit(failed)
+                return
+            rows = [unmap_point(profile, x, y) + (z,) for x, y, z in rows]
+            extra = {'calibration': header['hash']}
+
         if not points:
-            self.al_result_ready_sig.emit({'kind': 'import_points', 'context': context, 'points': rows})
+            self.al_result_ready_sig.emit(dict({'kind': 'import_points', 'context': context, 'points': rows}, **extra))
             return
 
         tol = context.tolerance
+        if extra:
+            heights, errors = match_probe_rows(points, [(label,) + row for label, row in zip(labels, rows)], tol)
+            if not errors and set(heights) != set(points):
+                errors = [_("Some probe points have no matching row in the height map file.")]
+            if errors:
+                self.app.inform.emit('[ERROR_NOTCL] %s: %s' % (_("The probe log was not imported"), '; '.join(errors)))
+                self.al_result_ready_sig.emit(failed)
+                return
+            self.al_result_ready_sig.emit(dict({'kind': 'import', 'context': context, 'heights': heights}, **extra))
+            return
+
         heights = {}
         unmatched_rows = 0
         for x, y, z in rows:
@@ -1728,6 +1757,23 @@ class LevellingCoreMixin:
             return
 
         self.al_result_ready_sig.emit({'kind': 'import', 'context': context, 'heights': heights})
+
+    @staticmethod
+    def _probe_log_problem(profile, header, units):
+        """
+        Why a probe log can not be mapped back to the design frame, or None when it can. `header` is the
+        `(MP:PROBE ...)` data of the log (None: the log has none).
+        """
+        if header is None:
+            return _("The probe log has no (MP:PROBE ...) header, and the correction of machine profile %s is on. "
+                     "It can not be mapped back to the design points. Probe again with the Save Probing GCode "
+                     "program of this profile.") % profile.name
+        if header['hash'] != calibration_hash(profile):
+            return _("The probe log was made under another calibration than the active machine profile has. "
+                     "Probe again.")
+        if header['units'] != ('inch' if str(units).upper() == 'IN' else 'mm'):
+            return _("The units of the probe log (%s) are not the units of the project.") % header['units']
+        return None
 
     def on_grbl_heightmap_save(self):
         if not self.al_heights_valid or not self._height_map_is_complete():

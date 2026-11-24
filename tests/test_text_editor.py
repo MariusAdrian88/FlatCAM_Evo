@@ -301,5 +301,52 @@ class TestFolding(FoldCase):
         QtTest.QTest.keyClick(self.edit, Key.Key_Down)
         self.assertTrue(self.edit.textCursor().block().isVisible())
 
+
+class TestSaveUnderMachineProfile(unittest.TestCase):
+    """Saving the G-code of the editor (unknown provenance) under a profile whose calibration is on."""
+
+    TEXT = 'G21\nG90\nG00 Z2.0000\nG00 X10.0000 Y10.0000\nG01 Z-0.1000 F100\nG01 X20.0000 Y10.0000\nG00 Z2.0000\n'
+
+    def save(self, correction, answer):
+        """Save TEXT; returns (the saved text, the number of questions asked)."""
+        import tempfile
+        from unittest.mock import patch
+        from appCommon.machine_profile.profile import MachineProfile, save_profile
+        with tempfile.TemporaryDirectory() as folder:
+            calibration = {'matrix': [[1.0, 0.01], [0.0, 1.0]], 'enabled': correction}
+            save_profile(MachineProfile(name='Cal', bed_x=300.0, bed_y=300.0, z_travel=40.0,
+                                          work_offset=(0.0, 0.0, -20.0), calibration=calibration), folder)
+            app = SimpleNamespace(options={'global_theme': 'default', 'global_machine_profile': 'Cal',
+                                           'global_machine_profiles_folder': folder},
+                                  defaults=Mock(), resource_location='assets/resources',
+                                  regFK=SimpleNamespace(myKeywords=[]), app_units='MM', data_path='',
+                                  inform=Mock(), file_saved=Mock(), file_opened=Mock(), log=Mock())
+            editor = AppTextEditor(app=app, plain_text=True, language='gcode')
+            editor.code_editor.setPlainText(self.TEXT)
+            target = os.path.join(folder, 'out.nc')
+            Yes, No = QtWidgets.QMessageBox.StandardButton.Yes, QtWidgets.QMessageBox.StandardButton.No
+            with patch('appEditors.appTextEditor.FCFileSaveDialog.get_saved_filename', return_value=(target, '')), \
+                    patch.object(QtWidgets.QMessageBox, 'question', return_value=Yes if answer else No) as ask:
+                editor.handleSaveGCode(name='code')
+            self.assertTrue(os.path.exists(target), app.inform.emit.call_args_list)
+            with open(target) as f:
+                return f.read(), ask.call_count
+
+    def test_yes_corrects_xy_and_keeps_z(self):
+        saved, asked = self.save(True, True)
+        self.assertEqual(asked, 1)
+        self.assertIn('G00 X10.1000 Y10.0000', saved)
+        self.assertIn('G01 Z-0.1000', saved)
+        self.assertIn('XY corrected', saved)
+
+    def test_no_saves_the_text_as_it_is(self):
+        saved, asked = self.save(True, False)
+        self.assertEqual((saved, asked), (self.TEXT, 1))
+
+    def test_no_question_without_a_correction(self):
+        saved, asked = self.save(False, True)
+        self.assertEqual((saved, asked), (self.TEXT, 0))
+
+
 if __name__ == '__main__':
     unittest.main()

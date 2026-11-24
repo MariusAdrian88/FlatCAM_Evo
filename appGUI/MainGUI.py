@@ -618,6 +618,8 @@ class MainGUI(QtWidgets.QMainWindow):
         self.menuoptions_tools_db = self.menuoptions.addAction(
             QtGui.QIcon(self.app.resource_location + '/database32.png'),
             '%s\t%s' % (_("Tools Database"), _('Ctrl+D')))
+        self.menuoptions_machine_profiles = self.menuoptions.addAction(
+            QtGui.QIcon(self.app.resource_location + '/database32.png'), _("Machine Profiles"))
         # Separator
         self.menuoptions.addSeparator()
 
@@ -1681,6 +1683,15 @@ class MainGUI(QtWidgets.QMainWindow):
                                      )
         self.wplace_label.setMargin(2)
         self.status_toolbar.addWidget(self.wplace_label)
+        self.status_toolbar.addWidget(FCLabel(" "))
+
+        # the active machine profile: the combo is filled and connected once the app is built
+        self.machine_profile_dot = FCLabel("●", color='grey')
+        self.machine_profile_dot.setToolTip(_("Machine profile: no check yet"))
+        self.status_toolbar.addWidget(self.machine_profile_dot)
+        self.machine_profile_combo = FCComboBox(policy=False)
+        self.machine_profile_combo.setToolTip(_("The active machine profile"))
+        self.status_toolbar.addWidget(self.machine_profile_combo)
         self.status_toolbar.addWidget(FCLabel(" "))
 
         # #######################################################################

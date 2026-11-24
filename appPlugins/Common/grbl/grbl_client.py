@@ -1304,9 +1304,15 @@ class GrblClientMixin:
             self._grbl_failure_locked(op, 'probe_invalid')
             return 'failed'
 
-    def _grbl_probe_run(self, op, context, points, tol, travel_z, depth, probe_fr, units_cmd, probe_timeout):
+    def _grbl_probe_run(self, op, context, points, tol, travel_z, depth, probe_fr, units_cmd, probe_timeout,
+                        commanded=None, calibration=None):
         """
         Probe every point. Runs in a worker thread and reads no widgets.
+
+        `commanded` ({key: (x, y)}) holds the work points that the controller is sent to when the points are the
+        design points of a machine profile with a correction (W = C(D)); the reply is matched to them and the
+        height is stored under the key of the design point. `calibration` is the hash of that correction: the
+        result carries it.
 
         Preconditions before any motion: GRBL is Idle, setting $13 is known,
         the units, G90 and G94 are acknowledged and confirmed by $G.
@@ -1370,14 +1376,15 @@ class GrblClientMixin:
             self.grbl_work_offset = offset
 
             probe_cmd = 'G38.2 Z{0:.4f} F{1:.4f}'.format(depth, probe_fr)
-            for key, (x, y) in points.items():
+            work_points = points if commanded is None else commanded
+            for key, (x, y) in work_points.items():
                 step('G0 Z{0:.4f}'.format(travel_z))
                 step('G0 X{0:.4f} Y{1:.4f}'.format(x, y))
                 # GRBL answers 'ok' to G4 P0 only when all queued moves are done,
                 # so the probe time limit starts when the probe move starts
                 step('G4 P0', timeout=120.0)
                 text = step(probe_cmd, timeout=probe_timeout)
-                height = self._al_check_probe_reply(probe_cmd, text, key, points, tol, offset, scale)
+                height = self._al_check_probe_reply(probe_cmd, text, key, work_points, tol, offset, scale)
                 if precision:
                     fine_feed, retract = precision
                     retract_z = round(height + retract, 4)
@@ -1394,7 +1401,7 @@ class GrblClientMixin:
                     step('G4 P0', timeout=120.0)
                     fine_cmd = 'G38.2 Z{0:.4f} F{1:.4f}'.format(depth, fine_feed)
                     text = step(fine_cmd, timeout=probe_timeout_s(retract_z, depth, fine_feed))
-                    height = self._al_check_probe_reply(fine_cmd, text, key, points, tol, offset, scale)
+                    height = self._al_check_probe_reply(fine_cmd, text, key, work_points, tol, offset, scale)
                     if not depth <= height < retract_z:
                         raise _GrblProbeAbort(fine_cmd, text, 'probe_invalid')
                     check_frame()
@@ -1425,7 +1432,8 @@ class GrblClientMixin:
         self.app.inform.emit('%s' % _("Finished probing. Doing the autolevelling."))
         # the frame of the map: the WCS, the work offset and the report units of GRBL ($13)
         frame = (active_wcs, offset, report_setting == 1.0)
-        self.al_result_ready_sig.emit(dict(evidence, kind='probe', heights=staged, frame=frame))
+        extra = {} if calibration is None else {'calibration': calibration}
+        self.al_result_ready_sig.emit(dict(evidence, kind='probe', heights=staged, frame=frame, **extra))
         return True
 
     def _emit_edge_probe_result(self, result):

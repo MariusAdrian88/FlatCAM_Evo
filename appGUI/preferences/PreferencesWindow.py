@@ -825,7 +825,7 @@ class PreferencesWindow(QtWidgets.QWidget):
     def _write_factory(self, keys):
         factory = self.app.defaults.factory_defaults
         for key in keys:
-            if key in factory:
+            if key in factory and key not in self.manager.locked:
                 self.manager.defaults_write_form_field(key, defaults_dict=factory)
         for key in keys:
             self._show_alpha(key)

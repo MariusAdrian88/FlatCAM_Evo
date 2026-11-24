@@ -665,6 +665,63 @@ def _save_both_ways(job, folder):
     return (job.export_gcode_handler(str(folder / 'button.nc'), rename_object=False),
             job.export_gcode(filename=str(folder / 'tcl.nc')))
 
+def test_export_with_no_machine_profile_writes_the_same_files(tmp_path):
+    # golden: with the profile "None" the saved text is the text of the job, byte for byte
+    job = _ui_job(_ui_app())
+    assert _save_both_ways(job, tmp_path) == (None, None)
+    button, tcl = (tmp_path / 'button.nc').read_text(), (tmp_path / 'tcl.nc').read_text()
+    assert button == job.source_file and '\nG21\nG90\n\n' + BODY + '\n' in button and button.endswith(BODY + '\n')
+    assert tcl == job.export_gcode(to_file=True).getvalue() and BODY in tcl
+    assert sorted(p.name for p in tmp_path.iterdir()) == ['button.nc', 'tcl.nc']
+
+def _use_profile(app, folder, **facts):
+    from appCommon.machine_profile.profile import MachineProfile, save_profile
+    save_profile(MachineProfile(name='bench', **facts), str(folder))
+    app.options.update(global_machine_profile='bench', global_machine_profiles_folder=str(folder))
+
+def test_a_job_outside_the_bed_of_the_machine_profile_is_not_saved_and_not_renamed(tmp_path):
+    app = _ui_app()
+    _use_profile(app, tmp_path / 'profiles', bed_x=5.0, bed_y=5.0, z_travel=2.0)
+    job = _ui_job(app)
+    name = job.obj_options['name']
+    assert job.export_gcode_handler(str(tmp_path / 'renamed.nc')) == 'fail'
+    assert job.export_gcode(filename=str(tmp_path / 'tcl.nc')) == 'fail'
+    assert not (tmp_path / 'renamed.nc').exists() and not (tmp_path / 'tcl.nc').exists()
+    assert job.obj_options['name'] == name
+    assert any('Machine profile' in c.args[0] and c.args[0].startswith('[ERROR')
+               for c in app.inform.emit.call_args_list)
+
+def test_a_job_inside_the_bed_of_the_machine_profile_is_saved(tmp_path):
+    app = _ui_app()
+    _use_profile(app, tmp_path / 'profiles', bed_x=500.0, bed_y=500.0, z_travel=40.0,
+                 work_offset=(0.0, 0.0, -10.0))
+    job = _ui_job(app)
+    assert _save_both_ways(job, tmp_path) == (None, None), app.inform.emit.call_args_list
+    assert (tmp_path / 'button.nc').exists() and (tmp_path / 'tcl.nc').exists()
+
+def test_export_of_a_job_made_with_an_older_machine_profile_warns_and_still_writes(tmp_path):
+    from appCommon.machine_profile.facts import job_provenance
+    from appCommon.machine_profile.profile import MachineProfile
+    app = _ui_app()
+    _use_profile(app, tmp_path / 'profiles', bed_x=500.0, bed_y=500.0, z_travel=40.0, work_offset=(0.0, 0.0, -10.0))
+    job = _ui_job(app)
+    job.obj_options['machine_profile'] = job_provenance('mill', MachineProfile(name='bench'), lambda key: 0)
+    assert job.export_gcode_handler(str(tmp_path / 'stale.nc'), rename_object=False) is None
+    assert (tmp_path / 'stale.nc').exists()
+    assert any('Regenerate' in c.args[0] and c.args[0].startswith('[WARNING')
+               for c in app.inform.emit.call_args_list)
+
+def test_export_of_a_fresh_job_gives_no_regenerate_warning(tmp_path):
+    from appCommon.machine_profile.facts import job_provenance
+    from appCommon.machine_profile.profile import load_profile
+    app = _ui_app()
+    _use_profile(app, tmp_path / 'profiles', bed_x=500.0, bed_y=500.0, z_travel=40.0, work_offset=(0.0, 0.0, -10.0))
+    job = _ui_job(app)
+    profile = load_profile(str(tmp_path / 'profiles' / 'bench.json'))
+    job.obj_options['machine_profile'] = job_provenance('mill', profile, lambda key: 0)
+    job.export_gcode_handler(str(tmp_path / 'fresh.nc'), rename_object=False)
+    assert not any('Regenerate' in c.args[0] for c in app.inform.emit.call_args_list)
+
 
 @pytest.mark.parametrize('name', ['old_single_tool_cnc', 'old_imported_cnc'])
 def test_legacy_job_exports_the_same_program_after_reload(name):

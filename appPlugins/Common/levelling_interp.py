@@ -367,6 +367,34 @@ def match_nearest_point(points, x, y, tol):
     return best_key
 
 
+def match_probe_rows(points, rows, tol):
+    """
+    Match the rows of a probe log (XY already in the design frame) to the grid points, strictly: one row for each
+    point, and a row that is near one point only.
+
+    :param points: dict of {key: (px, py)}.
+    :param rows: list of (label, x, y, z); the label (the line number in the log) names a row in a message.
+    :param tol: the largest distance of a row to its point.
+    :return: ({key: z}, [messages]). The messages name the rows that match no point, match more than one point
+        (ambiguous), or match a point that another row has (duplicate). The heights are valid only without messages.
+    """
+    heights = {}
+    owners = {}
+    errors = []
+    for label, x, y, z in rows:
+        near = [key for key, (px, py) in points.items() if math.hypot(px - x, py - y) <= tol]
+        if not near:
+            errors.append('line %s: no probe point within %.4f of X%.4f Y%.4f' % (label, tol, x, y))
+        elif len(near) > 1:
+            errors.append('line %s: X%.4f Y%.4f is near more than one probe point' % (label, x, y))
+        elif near[0] in owners:
+            errors.append('lines %s and %s: two rows for one probe point' % (owners[near[0]], label))
+        else:
+            owners[near[0]] = label
+            heights[near[0]] = z
+    return heights, errors
+
+
 def match_tolerance(points_xy, cap):
     """
     Compute a tolerance suitable for matching a probed point back to the

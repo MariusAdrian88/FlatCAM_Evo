@@ -198,6 +198,22 @@ def test_save_project_reports_success_and_failure(tmp_path):
     assert io.save_project(str(tmp_path / 'good.FlatPrj'), silent=True) is True
 
 
+def test_project_file_holds_the_machine_profile_name_and_hash_only_with_an_active_profile(tmp_path):
+    from appCommon.ProjectFile import load_project_file
+    from appCommon.machine_profile.profile import MachineProfile, content_hash, save_profile
+    app = make_app()
+    io = appIO(app)
+    app.collection.get_list.return_value = []
+    app.collection.get_active.return_value = None
+    assert io.save_project(str(tmp_path / 'plain.FlatPrj'), silent=True) is True
+    assert 'machine_profile' not in load_project_file(str(tmp_path / 'plain.FlatPrj'))
+    profile = MachineProfile(name='bench', toolchange=(1.0, 2.0, 3.0))
+    save_profile(profile, str(tmp_path / 'profiles'))
+    app.options.update(global_machine_profile='bench', global_machine_profiles_folder=str(tmp_path / 'profiles'))
+    assert io.save_project(str(tmp_path / 'with.FlatPrj'), silent=True) is True
+    assert load_project_file(str(tmp_path / 'with.FlatPrj'))['machine_profile'] == {
+        'name': 'bench', 'hash': content_hash(profile)}
+
 def test_save_project_object_serialization_error_is_a_failure(tmp_path):
     app = make_app()
     io = appIO(app)

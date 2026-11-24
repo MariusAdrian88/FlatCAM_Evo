@@ -79,6 +79,7 @@ class EcutMotionDialog(QtWidgets.QDialog):
         self.resize(760, 650)
         self.setMinimumSize(650, 540)
         self._busy = False
+        self._machine_profile = None
         self._calibration_running = False
         self._loading = True
         self._snapshot = {}
@@ -224,6 +225,14 @@ class EcutMotionDialog(QtWidgets.QDialog):
         self.bed_size_button.clicked.connect(self._set_limits_from_bed)
         group_form.addRow(self.bed_size_button)
         layout.addWidget(group)
+        self.profile_button = FCButton(_('Apply machine profile values'))
+        self.profile_button.setToolTip(_(
+            'Shows the maximum speed, acceleration and soft limits that the active machine profile sets for X, Y and Z, '
+            'next to the current values. After you confirm, the fields are filled; click Apply to save them. '
+            'Values that the profile does not set stay as they are.'))
+        self.profile_button.setEnabled(False)
+        self.profile_button.clicked.connect(self._apply_machine_profile)
+        layout.addWidget(self.profile_button)
         home_group = QtWidgets.QGroupBox(_('Machine home'))
         home_layout = QtWidgets.QVBoxLayout(home_group)
         row = QtWidgets.QHBoxLayout()
@@ -240,6 +249,52 @@ class EcutMotionDialog(QtWidgets.QDialog):
         home_layout.addWidget(self.home_label)
         layout.addWidget(home_group)
         self._update_home()
+
+    def set_machine_profile(self, profile):
+        """The active machine profile (or None). The button is on only if the profile sets an E-Cut axis value."""
+        self._machine_profile = profile
+        self.profile_button.setEnabled(bool(profile is not None and self._profile_updates()))
+
+    def _profile_current(self):
+        return {name: {'axis_velocity_max': fields['max_velocity_mm_s'].value(),
+                       'axis_accel_max': fields['acceleration_mm_s2'].value(),
+                       'soft_limit_min': fields['soft_limit_negative_mm'].value(),
+                       'soft_limit_max': fields['soft_limit_positive_mm'].value()}
+                for name, fields in zip('XYZ', self.motion_fields)}
+
+    def _profile_updates(self):
+        from appCommon.machine_profile.ecut_binding import ecut_axis_updates
+        return ecut_axis_updates(self._machine_profile, self._profile_current())
+
+    def _apply_machine_profile(self):
+        """Fill the fields from the profile after the user confirms the old and new values. Nothing is saved here."""
+        if self._machine_profile is None:
+            return
+        updates = self._profile_updates()
+        if not updates:
+            return
+        current = self._profile_current()
+        names = (('axis_velocity_max', _('Maximum speed (mm/min)')), ('axis_accel_max', _('Acceleration (mm/s²)')),
+                 ('soft_limit_min', _('Minimum machine position (mm)')),
+                 ('soft_limit_max', _('Maximum machine position (mm)')))
+        lines = [_('Machine profile "%s" sets these E-Cut values:') % self._machine_profile.name]
+        for axis, changes in updates.items():
+            for key, label in names:
+                if key in changes:
+                    lines.append('%s  %s: %.6g -> %.6g' % (axis, label, current[axis][key], changes[key]))
+        lines.append(_('The fields are filled. Click Apply to save them in the E-Cut.'))
+        answer = QtWidgets.QMessageBox.question(self, _('Apply machine profile values'), '\n'.join(lines))
+        if answer != QtWidgets.QMessageBox.StandardButton.Yes:
+            return
+        keys = {'axis_velocity_max': 'max_velocity_mm_s', 'axis_accel_max': 'acceleration_mm_s2',
+                'soft_limit_min': 'soft_limit_negative_mm', 'soft_limit_max': 'soft_limit_positive_mm'}
+        for axis, changes in updates.items():
+            fields = self.motion_fields['XYZ'.index(axis)]
+            for key, value in changes.items():
+                fields[keys[key]].setValue(value)
+            if 'soft_limit_min' in changes or 'soft_limit_max' in changes:
+                fields['soft_limits_enabled'].setChecked(True)
+        self.status_label.setText(_('Machine profile values are pending. Click Apply to save them.'))
 
     def _set_limits_from_bed(self):
         sizes = {key: widget.value() for key, widget in self.bed_size.items()}

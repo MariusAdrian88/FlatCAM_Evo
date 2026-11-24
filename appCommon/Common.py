@@ -14,7 +14,7 @@ from PyQt6 import QtCore
 
 from math import sqrt
 
-from shapely import Polygon, Point, LineString, get_coordinates, prepare
+from shapely import Polygon, Point, LineString, MultiPoint, get_coordinates, prepare
 from shapely.ops import unary_union
 from appGUI.VisPyVisuals import ShapeCollection
 
@@ -697,19 +697,24 @@ class ExclusionAreas(QtCore.QObject):
             return self.exclusion_areas_storage
         return [area for area in self.exclusion_areas_storage if area.get('owner') == owner]
 
-    def _travel_cache_for(self, tooldia, owner=None):
+    # the strategies whose grown area is never entered: 'around' (job areas) and 'forbid' (permanent areas)
+    AVOIDED = ('around', 'forbid')
+
+    def _travel_cache_for(self, tooldia, owner=None, permanent_areas=None, job_areas=True):
         """
-        The grown shapes, the union of the 'around' ones and the visibility memo of its vertices, for the current areas
-        (of this owner) and tool diameter. The key holds the shapes themselves (Shapely shapes are immutable), so any
-        add, delete, clear or strategy edit gives a new key and the cache is rebuilt on the next call.
+        The grown shapes, the union of the avoided ones ('around', 'forbid') and the visibility memo of its vertices,
+        for the current areas (of this owner, when job_areas) plus the permanent areas, and the tool diameter. The key
+        holds the shapes themselves (Shapely shapes are immutable), so any add, delete, clear or strategy edit gives a
+        new key and the cache is rebuilt on the next call.
         """
-        areas = self.areas_of(owner)
+        areas = list(self.areas_of(owner)) if job_areas else []
+        areas += list(permanent_areas or [])
         key = (tooldia, owner, self.app.app_units, tuple((id(area['shape']), area['strategy']) for area in areas))
         cache = getattr(self, '_travel_cache', None)
         if cache is not None and cache['key'] == key:
             return cache
         grown = [self.grown_shape(area['shape'], tooldia) for area in areas]
-        around = unary_union([shape for shape, area in zip(grown, areas) if area['strategy'] == 'around'])
+        around = unary_union([shape for shape, area in zip(grown, areas) if area['strategy'] in self.AVOIDED])
         prepare(around)
         for shape in grown:
             prepare(shape)
@@ -749,7 +754,18 @@ class ExclusionAreas(QtCore.QObject):
             return None
         return line_crossing(line, around)
 
-    def travel_coordinates(self, start_point, end_point, tooldia, owner=None, travel_z=None):
+    @staticmethod
+    def _named(message, names):
+        """The message with the names of the (named) areas that cause it."""
+        return '%s (%s)' % (message, ', '.join(names)) if names else message
+
+    def _avoided_names(self, cache, geometry):
+        """The names of the avoided areas (grown) that the geometry meets; the areas without a name are left out."""
+        return [area['name'] for area, grown in zip(cache['areas'], cache['grown'])
+                if area['strategy'] in self.AVOIDED and area.get('name') and grown.intersects(geometry)]
+
+    def travel_coordinates(self, start_point, end_point, tooldia, owner=None, travel_z=None, permanent_areas=None,
+                           job_areas=True):
         """
         WIll create a path the go around the exclusion areas on the shortest path when travelling (at a Z above the
         material).
@@ -764,15 +780,19 @@ class ExclusionAreas(QtCore.QObject):
         :param travel_z:        the travel Z of the job: the tool never goes over an 'over' area below it (an Over Z
                                 lower than the travel Z is replaced by the travel Z); None: the Over Z of the areas
         :type travel_z:         float
+        :param permanent_areas: area records of the machine profile ('around', 'forbid' or 'over', with a name), in
+                                the job frame: they steer the travel in any case
+        :param job_areas:       False: the stored areas are not used, only the permanent areas
         :return:                A list of x,y tuples that describe the avoiding path
         :rtype:                 list
-        :raises ValueError:     when no path around the grown 'around' areas is possible
+        :raises ValueError:     when no path around the grown 'around' and 'forbid' areas is possible; the message
+                                names the areas that have a name
         """
 
         # Travel lines: rapids. Should not pass through Exclusion areas
         travel_line = LineString([start_point, end_point])
 
-        cache = self._travel_cache_for(tooldia, owner)
+        cache = self._travel_cache_for(tooldia, owner, permanent_areas, job_areas)
         areas = cache['areas']
         grown_shapes = cache['grown']
         around = cache['around']
@@ -782,9 +802,10 @@ class ExclusionAreas(QtCore.QObject):
         route = [tuple(start_point), tuple(end_point)]
         if self._crossing_around(cache, travel_line) is not None:
             if around.contains(Point(start_point)) or around.contains(Point(end_point)):
-                raise ValueError(_("Failed. The tool cannot go around an exclusion area: "
-                                   "a travel starts or ends too close to the area. "
-                                   "Use the 'Over' strategy or change the area."))
+                names = self._avoided_names(cache, MultiPoint([start_point, end_point]))
+                raise ValueError(self._named(_("Failed. The tool cannot go around an exclusion area: "
+                                               "a travel starts or ends too close to the area. "
+                                               "Use the 'Over' strategy or change the area."), names))
 
             vertices = list(dict.fromkeys(route + cache['boundary']))
             visible = cache['visible']
@@ -817,7 +838,9 @@ class ExclusionAreas(QtCore.QObject):
                         previous[next_idx] = idx
                         heappush(pending, (next_distance, next_idx))
             if 1 not in visited:
-                raise ValueError(_("Failed. The tool cannot go around the exclusion areas. Change the areas."))
+                names = self._avoided_names(cache, travel_line)
+                raise ValueError(self._named(_("Failed. The tool cannot go around the exclusion areas. "
+                                               "Change the areas."), names))
             route = [vertices[1]]
             idx = 1
             while idx != 0:
@@ -832,7 +855,7 @@ class ExclusionAreas(QtCore.QObject):
         for first, last in zip(route, route[1:]):
             leg = LineString([first, last])
             for area, grown_shape in zip(areas, grown_shapes):
-                if area['strategy'] == 'around' or not grown_shape.intersects(leg):
+                if area['strategy'] in self.AVOIDED or not grown_shape.intersects(leg):
                     continue
                 crossing = line_crossing(leg, grown_shape)
                 if crossing is not None:

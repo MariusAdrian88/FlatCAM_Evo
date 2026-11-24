@@ -30,8 +30,10 @@ from defaults import AppDefaults
 from camlib import Geometry, grace, deepcopy_keep_geometry, object_circle_steps
 from appHandlers.appHistory import history_of, object_state, SnapshotStep, HistoryStep, HistoryError, states_equal, \
     retained_sizes
+from appGUI.machine_profile_ui import lock_plugin_fields, show_locked_fields
 from appPlugins.ToolMilling.MillingUI import MillingUI
 from appPlugins.ToolMilling import MillingGen
+from appCommon.machine_profile.facts import active_profile_of, job_provenance, permanent_areas, resolve_job_facts
 
 fcTranslate.apply_language('strings')
 if '_' not in builtins.__dict__:
@@ -306,6 +308,11 @@ def _history_step(tool, label, data_only=False):
 class ToolMilling(Geometry, AppTool):
     build_ui_sig = QtCore.pyqtSignal()
     launch_job = QtCore.pyqtSignal()
+    locked_form_keys = {}       # {key: note} of the keys that the active machine profile locks in this form
+    locked_form_values = {}
+
+    def locked_field_maps(self):
+        return self.form_fields, self.general_form_fields
 
     def __init__(self, app):
         self.app = app
@@ -797,6 +804,7 @@ class ToolMilling(Geometry, AppTool):
 
         self.disconnect_signals()
         self.connect_signals()
+        lock_plugin_fields(self)
 
         # try to select in the Target combobox the active object
         selected_obj = self.app.collection.get_active()
@@ -2130,6 +2138,7 @@ class ToolMilling(Geometry, AppTool):
                         except Exception:
                             # it may fail for form fields found in the tools tables if there are no rows
                             pass
+        show_locked_fields(self)
 
     def storage_to_form(self, dict_storage):
         """
@@ -2158,6 +2167,7 @@ class ToolMilling(Geometry, AppTool):
                         "ToolMilling.storage_to_form() for key: %s with value: %s--> %s" %
                         (str(storage_key), str(dict_storage[storage_key]), str(e))
                     )
+        show_locked_fields(self)
 
     def form_to_storage(self):
         """A parameter edited by the user: 1 Undo step. The programmatic loads of the form have their signals off."""
@@ -2200,7 +2210,7 @@ class ToolMilling(Geometry, AppTool):
 
         # if the widget objectName is '' then it is a widget that we are not interested into
         option_changed = self.name2option.get(wdg_objname)
-        if option_changed is None:
+        if option_changed is None or option_changed in self.locked_form_keys:
             return
         if self.target_obj.obj_options.get('photocarve') and option_changed in {
                 'tools_mill_tooldia', 'tools_mill_tool_shape', 'tools_mill_vtipdia', 'tools_mill_vtipangle',
@@ -3272,7 +3282,15 @@ class ToolMilling(Geometry, AppTool):
                     overrides[key] = False if key == 'tools_mill_area_exclusion' else deepcopy(
                         self.app.options.get(key, app_defaults.get(key, AppDefaults.factory_defaults.get(key))))
 
+        # the machine facts of the active Machine Profile win over the form and the options (a job-local copy)
+        kind = 'photocarve' if geo_obj.obj_options.get('photocarve') else 'mill'
+        profile = active_profile_of(self.app)
+        overrides = resolve_job_facts(kind, overrides, profile)
+        machine_profile = job_provenance(kind, profile, self.app.options.get)
+
         return {
+            'machine_profile': machine_profile,
+            'permanent_areas': permanent_areas(profile, self.units),
             'geo_obj': geo_obj, 'source_obj': source_obj, 'outname': outname, 'tools_dict': tools_dict,
             'used_tools': list(tools_dict),
             'bounds': {'xmin': xmin, 'ymin': ymin, 'xmax': xmax, 'ymax': ymax},
@@ -3332,6 +3350,10 @@ class ToolMilling(Geometry, AppTool):
         assert new_cncjob_obj.kind == 'cncjob', "Initializer expected a CNCJobObject, got %s" % type(new_cncjob_obj)
         geo_obj, tools_dict = context['geo_obj'], context['tools_dict']
         new_cncjob_obj.obj_options.update(context['bounds'])
+        if context.get('machine_profile'):
+            new_cncjob_obj.obj_options['machine_profile'] = context['machine_profile']
+            new_cncjob_obj.apply_machine_profile()
+        new_cncjob_obj.permanent_areas = context.get('permanent_areas') or []
         new_cncjob_obj.tools.clear()
         new_cncjob_obj.seg_x = context['seg_x']
         new_cncjob_obj.seg_y = context['seg_y']

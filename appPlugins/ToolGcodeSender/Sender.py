@@ -5,6 +5,7 @@
 # License:  MIT Licence                                    #
 # ##########################################################
 
+import dataclasses
 import logging
 import ipaddress
 import math
@@ -26,6 +27,7 @@ from defaults import AppDefaults
 from appGUI.GUIElements import (
     VerticalScrollArea, FCFileSaveDialog, FCMessageBox, RadioSet, FCSpinner)
 from appEditors.text_editor.code_edit import CodeEdit
+from appGUI.machine_profile_ui import report_gate
 from camlib import CNCjob, flatten_shapely_geometry
 
 from appPlugins.Common.levelling_core import LevellingCoreMixin
@@ -40,6 +42,13 @@ from appPlugins.Common.grbl.grbl_client import (
     GrblClientMixin, STATUS_POLL, is_controller_banner, is_grblhal_banner, is_native_jog_banner,
     stream_lines, validate_stream_lines, _GrblProbeAbort)
 from appPlugins.Common.grbl.grbl_protocol import parse_grbl_identity, grbl_capabilities
+from appCommon.machine_profile.correct import CorrectionRefused
+from appCommon.machine_profile.facts import active_profile_of
+from appCommon.machine_profile.output import (
+    calibration_hash, check_probe_moves, correction_matrix, has_reject, map_point, prepare_output,
+    setup_from_controller, setup_from_profile)
+from appCommon.machine_profile.records import CheckStatus, Purpose, ViolationKind
+from appCommon.machine_profile.writer import FileGate, gate_file_text
 from appPlugins.ToolGcodeSender.SenderUI import GcodeSenderUI
 from appPlugins.ToolGcodeSender.SenderSimulation import SimulationDialog, VirtualGrbl
 from appPlugins.ToolGcodeSender.SenderView3d import SenderView3d, TOOL_COLOR
@@ -562,6 +571,8 @@ class _StartRequest:
 
 class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     grbl_port_closed_sig = QtCore.pyqtSignal()
+    # the hash of the correction that the height map was probed under (None: no correction)
+    _al_map_calibration = None
     # (request, {'frame': ...} or {'error': ...}) from the frame worker; emitted after the port is released
     frame_ready_sig = QtCore.pyqtSignal(object, object)
     al_result_ready_sig = QtCore.pyqtSignal(object)
@@ -2008,6 +2019,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 self.app.inform.emit('[WARNING_NOTCL] %s: %s' % (_("Invalid E-Cut settings"), failure))
                 return
             dialog.setAttribute(QtCore.Qt.WidgetAttribute.WA_DeleteOnClose, True)
+            from appCommon.machine_profile.facts import active_profile_of
+            dialog.set_machine_profile(active_profile_of(self.app))
             self._ecut_motion_dialog, self._ecut_motion_port = dialog, port
             self._ecut_motion_revision = result['revision']
             dialog.apply_requested.connect(lambda values: self._ecut_motion_action(dialog, 'save', (values,)))
@@ -4053,7 +4066,12 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
         All safety checks and the write happen in ONE critical section to prevent a worker
         from latching recovery between the check and the write.
+
+        This is the one handler that resumes the stream (the Resume button and the Pause/Resume toggle end here):
+        after a tool change it rechecks the rest of the program with the new TLO under an active machine profile.
         """
+        if not self._tool_change_recheck():
+            return
         with self._grbl_op_lock:
             fence_op = self.__dict__.get('_grbl_tool_fence_op')
             if fence_op is not None and fence_op is self._grbl_op:
@@ -4153,6 +4171,27 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     def on_grbl_autolevel(self):
         self._queue_probe(False)
 
+    def _check_probe_moves(self, op, profile, commanded, travel_z, depth, units):
+        """
+        The check of the moves of a probe run, before any is sent: the work points that the controller is commanded
+        to, from the live state of the controller (or the declared setup of the profile).
+
+        :param op: the reserved probe operation (the live state is read through it).
+        :return: True if the probe may go on (GUI thread; the user was told why when not).
+        """
+        setup = self.live_setup(op, profile, None)
+        if setup is None:
+            setup = setup_from_profile(profile, None, 'inch' if units == 'IN' else 'mm')
+        result = check_probe_moves(profile, setup, commanded, travel_z, depth, units)
+        if has_reject(result):
+            first = next(v for v in result.violations if v.severity == 'reject')
+            message = _('Machine profile "%s": probe not started. Line %d: %s') % (
+                profile.name, first.line, first.message)
+            report_gate(self.app, FileGate(False, message, result=result))
+            self.app.inform.emit('[ERROR_NOTCL] %s' % message)
+            return False
+        return True
+
     def _queue_probe(self, start_after_probe):
         # read every UI value here, in the GUI thread; the worker must not touch widgets
         inputs = self._al_read_probe_inputs()
@@ -4172,6 +4211,21 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             return
         op.precision_inputs = precision
 
+        points = {key: (value['point'].x, value['point'].y) for key, value in self.al_voronoi_geo_storage.items()}
+        # with an active machine profile the controller is commanded to the work points W = C(D) of the grid points
+        # (identity without a correction); the height is stored under the grid point. The moves are checked first:
+        # a refused probe must not retire a valid map
+        profile = active_profile_of(self.app)
+        extra = {}
+        if profile is not None:
+            commanded = {key: map_point(profile, x, y) for key, (x, y) in points.items()}
+            if not self._check_probe_moves(op, profile, list(commanded.values()), travel_z, depth,
+                                           self.app.app_units.upper()):
+                self._grbl_release(op)
+                return
+            if correction_matrix(profile) is not None:
+                extra = {'commanded': commanded, 'calibration': calibration_hash(profile)}
+
         context = self._al_capture_context(replacement=True)
         if context is None:
             self._grbl_release(op)
@@ -4180,7 +4234,6 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self._probe_start_op = op
             self.ui.start_button.setDisabled(True)
 
-        points = {key: (value['point'].x, value['point'].y) for key, value in self.al_voronoi_geo_storage.items()}
         tol = context.tolerance
         units_cmd = 'G20' if context.units == 'IN' else 'G21'
         probe_timeout = probe_timeout_s(travel_z, depth, probe_fr)
@@ -4190,7 +4243,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             try:
                 with self.app.proc_container.new('%s...' % _("Probing")):
                     self._grbl_probe_run(op, context, points, tol, travel_z, depth, probe_fr,
-                                         units_cmd, probe_timeout)
+                                         units_cmd, probe_timeout, **extra)
             finally:
                 self._grbl_release(op)
                 if start_after_probe:
@@ -4439,6 +4492,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self._invalidate_start_requests()
         # the levelled job belongs to the old map; the next Start makes it again
         self.job_map_generation = None
+        # the map belongs to the correction that its points were probed under (a probe log of an imported map
+        # names it in its header); a map of no correction has None
+        self._al_map_calibration = None if result is None else result.get('calibration')
         # bind the map to the GRBL frame of the probe; an imported map has no frame yet
         if result is not None and result.get('kind') == 'probe':
             self._al_map_frame = result.get('frame')
@@ -4467,21 +4523,27 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     def _target(self):
         return self.app.collection.get_by_name(self.ui.object_combo.get_value())
 
-    def build_job(self):
+    def build_job(self, text=None, keep_markers=False):
         """
         Make self.job_lines from the selected CNCJob.
 
+        :param text: the G-code text to make the lines from instead of the source of the CNCJob (the text that the
+            machine profile corrected: the correction runs before the comments are removed).
+        :param keep_markers: keep the '(MP:FIXED ...)' marker lines of a fixed sequence (the levelled job of an
+            active profile: the correction after the levelling needs them).
         :return: True if the job has lines, and each line fits in the GRBL receive buffer.
         """
         target = self._target()
         if not self._is_supported_target(target):
             self.app.inform.emit('[ERROR_NOTCL] %s' % _("Select a CNCJob object."))
             return False
-        text = getattr(target, 'source_file', '') or ''
-        if not text.strip():
+        source = getattr(target, 'source_file', '') or ''
+        if not source.strip():
             self.app.inform.emit('[ERROR_NOTCL] %s' % _("The CNCJob has no G-code. Use Update in the CNCJob UI."))
             return False
-        numbered = SenderGen.clean_lines_numbered(text)
+        if text is None:
+            text = source
+        numbered = SenderGen.clean_lines_numbered(text, keep_markers)
         lines = [line for _number, line in numbered]
         bad_index = validate_stream_lines(lines)
         if bad_index is not None:
@@ -4497,12 +4559,17 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self.job_map_generation = None
         return bool(self.job_lines)
 
-    def build_levelled_job(self):
+    def build_levelled_job(self, op=None, apply_profile=True):
         """
         Make self.job_lines from the selected CNCJob, with the height map applied.
         GUI thread. Steps: clean -> refuse a tool length change -> split long G1
         (only if the job is not segmented) -> level (level_gcode_line also splits
-        the arcs; the strict mode refuses the moves that it can not compensate).
+        the arcs; the strict mode refuses the moves that it can not compensate) -> with an active machine
+        profile: correct the levelled design XY and check the output (the marker lines of the fixed sequences
+        stay through the levelling, so the stations keep their machine position).
+
+        :param op: the reserved stream operation: the check reads the live state of the controller through it.
+        :param apply_profile: False makes the design lines without the profile (the Save levelled G-code gate does it).
 
         The WCS of the levelling is the one of the bound frame (`_al_map_frame`). A map
         that is not bound yet (an imported map) has none: then the first WCS word of the
@@ -4510,7 +4577,17 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
         :return: True if the job has lines.
         """
-        if not self.build_job():
+        profile = active_profile_of(self.app) if apply_profile else None
+        self._stream_setup = None if profile is None else self._stream_setup
+        if apply_profile and self._al_map_calibration != calibration_hash(profile):
+            # the heights belong to the points at C(p) of the correction that was in force at the probe
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                "The correction of the machine profile (the calibration) changed after the height map was made. "
+                "Probe again."))
+            return False
+        # with a profile the marker lines of the fixed sequences go through the levelling (it keeps comments), so
+        # that the correction after it leaves the stations alone
+        if not self.build_job(keep_markers=profile is not None):
             return False
         tlo_index = self._tlo_line(self.job_lines)
         if tlo_index is not None:
@@ -4541,7 +4618,15 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             return False
         for warning in diagnostics:
             self.app.inform.emit(warning)
-        job_lines = [line for line in result['job'].splitlines() if line.strip()]
+        if profile is None:
+            job_lines = [line for line in result['job'].splitlines() if line.strip()]
+        else:
+            prepared = self._prepare_for_stream(result['job'], target, profile, op)
+            if prepared is None:
+                self.job_lines = []
+                self.job_line_numbers = []
+                return False
+            job_lines = [line for _number, line in SenderGen.clean_lines_numbered(prepared)]
         bad_index = validate_stream_lines(job_lines)
         if bad_index is not None:
             self.job_lines = []
@@ -4556,12 +4641,121 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self.job_map_generation = self._al_generation
         return bool(self.job_lines)
 
-    def build_stream_job(self):
-        """The job for Start and Save: levelled if 'Level the G-code' is checked."""
-        if self.ui.autolevel_cb.get_value() is True:
-            return self.build_levelled_job()
-        if not self.build_job():
+    def _profile_setup(self, op, profile, target):
+        """
+        The Setup of the check of a stream: the live state of the controller when the Sender is connected (`op` is
+        the reserved operation), else the declared setup of the profile.
+
+        :return: (Setup, the assumptions that this method adds to the result)
+        """
+        units = 'inch' if str(target.units).upper() in ('IN', 'INCH') else 'mm'
+        dialect = getattr(target, 'pp_geometry_name', None)
+        live = self.live_setup(op, profile, dialect) if op is not None else None
+        self._stream_setup_key = None if live is None else self.live_setup_key
+        if live is None:
+            self._stream_setup = setup_from_profile(profile, dialect, units)
+            return self._stream_setup, []
+        # the controller reports no modal state except the units: the program sets its own, these are the defaults
+        self._stream_setup = dataclasses.replace(
+            live, units=live.units or units, distance_mode=live.distance_mode or 'G90',
+            arc_mode=live.arc_mode or 'G91.1', plane=live.plane or 'G17', motion_mode=live.motion_mode or 'G0')
+        return self._stream_setup, ['modal state assumed: G90, G91.1, G17, G0']
+
+    def _confirm_profile_stream(self, note):
+        """Ask the user if the stream goes on although the check has warnings (GUI thread). :return: True if yes."""
+        return self._ask_profile_question(note, _("Stream anyway?"))
+
+    def _confirm_profile_resume(self, note):
+        """Ask the user if the Resume after a tool change goes on although the recheck has warnings (GUI thread)."""
+        return self._ask_profile_question(note, _("Resume anyway?"))
+
+    def _ask_profile_question(self, note, question):
+        msgbox = FCMessageBox(parent=self.app.ui)
+        title = _("Machine profile")
+        msgbox.setWindowTitle(title)
+        msgbox.setText('<b>%s</b>' % title)
+        msgbox.setInformativeText('%s\n%s' % (note, question))
+        msgbox.setIcon(QtWidgets.QMessageBox.Icon.Warning)
+        bt_yes = msgbox.addButton(_('Yes'), QtWidgets.QMessageBox.ButtonRole.YesRole)
+        bt_no = msgbox.addButton(_('No'), QtWidgets.QMessageBox.ButtonRole.NoRole)
+        msgbox.setDefaultButton(bt_no)
+        msgbox.exec()
+        return msgbox.clickedButton() == bt_yes
+
+    def _accept_check(self, profile, result):
+        """
+        Show the result of a check of the stream in the status bar dot and decide: a reject stops it (the violations
+        dialog opens), warnings or a partial check ask for a confirmation.
+
+        :return: True if the stream may go on.
+        """
+        if has_reject(result):
+            first = next(v for v in result.violations if v.severity == 'reject')
+            message = _('Machine profile "%s": stream not started. Line %d: %s') % (
+                profile.name, first.line, first.message)
+            report_gate(self.app, FileGate(False, message, result=result))
+            self.app.inform.emit('[ERROR_NOTCL] %s' % message)
             return False
+        note = None
+        if result.status is CheckStatus.VIOLATIONS:
+            note = _('Machine profile: %d warnings') % sum(1 for v in result.violations
+                                                           if v.kind is not ViolationKind.UNVERIFIED)
+        elif result.status is CheckStatus.PARTIAL:
+            note = _('Machine profile: partially checked')
+        report_gate(self.app, FileGate(note=note, result=result))
+        if note is None or self._confirm_profile_stream(note):
+            return True
+        self.app.inform.emit('[WARNING_NOTCL] %s' % _("Cancelled."))
+        return False
+
+    def _prepare_for_stream(self, text, target, profile, op, line_map=None):
+        """
+        The design text (or the levelled design text) of a stream, corrected by the profile when its calibration is
+        on and checked as it will be streamed. Runs before the comments are removed (the markers of a fixed sequence
+        are comments).
+
+        :param line_map: optional out-parameter: receives the source line of each line of the corrected text.
+        :return: the text to make the lines from, or None (the user was told why; nothing starts).
+        """
+        setup, assumed = self._profile_setup(op, profile, target)
+        try:
+            out, result = prepare_output(text, Purpose.STREAM, setup, profile, target.coords_decimals,
+                                         line_map=line_map)
+        except CorrectionRefused as refused:
+            message = _('Machine profile "%s": stream not started. Correction refused at line %d, %s: %s') % (
+                profile.name, refused.line, refused.word, refused.reason)
+            report_gate(self.app, FileGate(False, message))
+            self.app.inform.emit('[ERROR_NOTCL] %s' % message)
+            return None
+        result.assumptions.extend(assumed)
+        return out if self._accept_check(profile, result) else None
+
+    def build_stream_job(self, op=None, apply_profile=True):
+        """
+        The job for Start and Save: levelled if 'Level the G-code' is checked. With an active machine profile the
+        design text is corrected and checked first (`op`: the reserved stream operation, for the live state).
+        """
+        if self.ui.autolevel_cb.get_value() is True:
+            return self.build_levelled_job(op, apply_profile)
+        profile = active_profile_of(self.app) if apply_profile else None
+        self._stream_setup = None if profile is None else self._stream_setup
+        text = None
+        line_map = []
+        if profile is not None:
+            target = self._target()
+            source = (getattr(target, 'source_file', '') or '') if self._is_supported_target(target) else ''
+            if source.strip():
+                text = self._prepare_for_stream(source, target, profile, op, line_map)
+                if text is None:
+                    return False
+        if not self.build_job(text):
+            return False
+        if line_map:
+            # the corrected text has other lines than the source: each line maps to the line that it comes from
+            self.job_line_numbers = [line_map[number - 1] if 0 < number <= len(line_map) else number
+                                     for number in self.job_line_numbers]
+        elif text is not None and text != source:
+            self.job_line_numbers = []
         if self.app.options.get("tools_grbl_arc_mode", 'split') == 'split':
             target = self._target()
             new_lines, count, source_index, unsplit = SenderGen.split_arcs(
@@ -4570,12 +4764,13 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             if unsplit:
                 self.app.inform.emit('[ERROR_NOTCL] %s' % (
                     _("This arc can not be split (plane, frame or position not known). Line %d.") %
-                    self.job_line_numbers[unsplit[0]]))
+                    (self.job_line_numbers[unsplit[0]] if self.job_line_numbers else unsplit[0] + 1)))
                 self.job_lines = []
                 self.job_line_numbers = []
                 return False
             self.job_lines = new_lines
-            self.job_line_numbers = [self.job_line_numbers[i] for i in source_index]
+            if self.job_line_numbers:
+                self.job_line_numbers = [self.job_line_numbers[i] for i in source_index]
             if count:
                 self.app.inform.emit('%s: %d' % (_("Arc moves split into line moves"), count))
         return True
@@ -4630,12 +4825,22 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                     return
                 self._queue_probe(True)
             return
-        if not self.build_stream_job():
+        op = None
+        if active_profile_of(self.app) is not None:
+            # the check of the stream reads the live state of the controller: it needs the operation first
+            op = self._grbl_reserve('stream', motion=True)
+            if op is None:
+                return
+        if not self.build_stream_job(op):
+            if op is not None:
+                self._grbl_release(op)
+                self._start_free_button()
             return
         # Sample the persistent check request once per Start, here in the GUI thread.
         check_mode = self.ui.check_mode_cb.get_value() is True
         poll_ms = int(self.app.options.get("tools_grbl_status_ms", 200))
-        op = self._grbl_reserve('stream', motion=True)
+        if op is None:
+            op = self._grbl_reserve('stream', motion=True)
         if op is None:
             return
         self._start_stream_worker(op, list(self.job_lines), list(self.job_line_numbers), check_mode, poll_ms)
@@ -4797,13 +5002,24 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self._start_free_button()
             return
 
-        if not self.build_levelled_job():
-            self._start_free_button()
-            return
-        op = self._grbl_reserve('stream', motion=True)
-        if op is None:
-            self._start_free_button()
-            return
+        if active_profile_of(self.app) is not None:
+            # the check of the stream reads the live state of the controller: it needs the operation first
+            op = self._grbl_reserve('stream', motion=True)
+            if op is None:
+                self._start_free_button()
+                return
+            if not self.build_levelled_job(op):
+                self._grbl_release(op)
+                self._start_free_button()
+                return
+        else:
+            if not self.build_levelled_job():
+                self._start_free_button()
+                return
+            op = self._grbl_reserve('stream', motion=True)
+            if op is None:
+                self._start_free_button()
+                return
         poll_ms = int(self.app.options.get("tools_grbl_status_ms", 200))
         self._start_stream_worker(op, list(self.job_lines), list(self.job_line_numbers), req.check_mode, poll_ms, req)
 
@@ -4847,6 +5063,15 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 self.app.inform.emit('[WARNING_NOTCL] %s' % _(
                     "The program or machine state changed while the dialog was open. Press Start again."))
             return
+        profile = active_profile_of(self.app)
+        if (profile is not None and self._stream_setup_key is not None and
+                self.live_setup_changed(self._stream_setup_key, op, profile, getattr(target, 'pp_geometry_name', None))):
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                "The offsets, the WCS, G92 or the tool length offset of the controller changed after the machine "
+                "profile check. Press Start again."))
+            self._grbl_release(op)
+            self._start_free_button()
+            return
         restart = None
         if start_line != 1:
             try:
@@ -4859,6 +5084,17 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 self._grbl_release(op)
                 self._start_free_button()
                 return
+            if profile is not None:
+                # the lines are the prepared (corrected) program: the preamble and the resumed part are in the
+                # output frame already. Check them as one program from the live position; correct nothing again.
+                setup, assumed = self._profile_setup(op, profile, target)
+                _out, result = prepare_output('\n'.join(preamble + resumed) + '\n', Purpose.STREAM, setup, profile,
+                                              target.coords_decimals, correct=False)
+                result.assumptions.extend(assumed)
+                if not self._accept_check(profile, result):
+                    self._grbl_release(op)
+                    self._start_free_button()
+                    return
             restart = (preamble, start_line - 1, resumed)
             self.app.inform.emit('%s: %d' % (_("Starting from program line"), start_line))
 
@@ -4997,6 +5233,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 return True
             self._grbl_tool_commands.append(command)
             self._grbl_tool_command_busy = True
+            probe = self.__dict__.get('_tool_tlo_probe')
+            if probe is not None and command == '$#':
+                probe['queued'] = True
             return True
 
     def _grbl_stream_run(self, op, lines, numbers, check_mode, poll_interval, req=None, restart=None):
@@ -5024,6 +5263,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self._grbl_tool_change_pending = False
             self._grbl_tool_commands = []
             self._grbl_tool_command_busy = False
+            self._tool_resume = None
+            self._tool_tlo_probe = None
         if (self.__dict__.get('_grbl_caps') or {}).get('probe') is False and any(
                 re.search(r'G\s*38\.[2345](?!\d)', line, re.IGNORECASE) for line in lines):
             self.app.inform.emit('[ERROR_NOTCL] %s' % _("The controller has no probe input. Probing is unavailable."))
@@ -5111,12 +5352,27 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                     self._grbl_abort_stream_locked(op, 'error', str(error))
                 return 'error'
 
+        # the recheck before Resume (machine profile): the progress, the position and the TLO of the open tool change
+        stream_setup = self.__dict__.get('_stream_setup')
+        acked = [0]
+        last_mpos = [None]
+        tlo = [None if stream_setup is None else stream_setup.tlo]
+        last_command = [None]
+
+        def program_line(index):
+            index = start_index + max(0, index - prefix_count)
+            return numbers[index] if 0 <= index < len(numbers) else index + 1
+
         def on_status(line):
             report = parse_grbl_status_report(line)
             with self._grbl_op_lock:
                 if self._grbl_op is not op or op.cancel.is_set() or op.failed or self.grbl_ser_port is not port:
                     return
                 if report is not None:
+                    if 'mpos' in report:
+                        last_mpos[0] = report['mpos']
+                    elif 'wpos' in report and 'wco' in report:
+                        last_mpos[0] = tuple(w + c for w, c in zip(report['wpos'], report['wco']))
                     if report['state'] == 'Tool' or report.get('tool_pending'):
                         if not self._grbl_tool_change_pending:
                             # This callback precedes A3; Resume must wait through the reply fence.
@@ -5132,6 +5388,13 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                     return
                 self._grbl_tool_change_pending = True
                 self._grbl_tool_fence_op = None
+                if stream_setup is not None:
+                    # the M6 line is in flight: every line before it is acknowledged, the rest of the program follows
+                    first = acked[0] + 1
+                    self._tool_resume = {
+                        'text': '\n'.join(program[first:]) + '\n', 'setup': stream_setup, 'tlo': tlo[0],
+                        'mpos': last_mpos[0], 'version': 0,
+                        'numbers': [program_line(first + i) for i in range(len(program) - first)]}
             if not tool_change_ack:
                 self.app.inform.emit('[WARNING_NOTCL] %s' % _(
                     "Tool change is controlled by the controller or adapter. Operator commands are unavailable."))
@@ -5141,20 +5404,47 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
         def tool_command():
             with self._grbl_op_lock:
-                return self._grbl_tool_commands.pop(0) if self._grbl_tool_commands else None
+                command = self._grbl_tool_commands.pop(0) if self._grbl_tool_commands else None
+                last_command[0] = command
+                return command
 
         def tool_command_done(text):
             with self._grbl_op_lock:
                 if self._grbl_op is not op or op.cancel.is_set() or op.failed or self.grbl_ser_port is not port:
                     return
                 self._grbl_tool_command_busy = False
+                probe = self._tool_tlo_probe
+                if probe is not None and last_command[0] == '$#':
+                    probe['done'].set()
+                if text.lower() == 'ok' and self._tool_resume is not None:
+                    command = last_command[0] or ''
+                    new_tlo = re.fullmatch(r'G43\.1\s+Z([+\-]?(?:\d+(?:\.\d*)?|\.\d+))', command, re.IGNORECASE)
+                    if new_tlo is not None:
+                        tlo[0] = float(new_tlo.group(1))
+                    elif command.upper() == 'G49':
+                        tlo[0] = 0.0
+                    elif command.upper() in ('$TPW', '$TLR'):
+                        tlo[0] = None       # the controller measured it: the Sender does not know the value
+                    self._tool_resume['tlo'] = tlo[0]
+                    self._tool_resume['version'] += 1
             if text.lower() != 'ok':
                 self.app.inform.emit('[ERROR_NOTCL] %s' % text)
 
+        def on_stream_line(text):
+            # the reply lines of the `$#` that the recheck before Resume asked for
+            probe = self._tool_tlo_probe
+            if probe is not None and text.startswith('['):
+                probe['lines'].append(text)
+            self.console_line_sig.emit(text)
+
+        def on_progress(done, _total):
+            acked[0] = done
+            self.stream_progress_sig.emit(program_done(done), len(lines))
+
         res = stream_lines(
             program, write, readline, check_mode=check_mode,
-            on_progress=lambda d, t: self.stream_progress_sig.emit(program_done(d), len(lines)),
-            on_line=self.console_line_sig.emit,
+            on_progress=on_progress,
+            on_line=on_stream_line,
             poll_status=True, poll_interval=poll_interval,
             on_status=on_status,
             status_request=self._grbl_realtime_byte(b'?'),
@@ -5165,9 +5455,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             on_tool_command_done=tool_command_done)
         status = res['status']
 
-        def source_number(index):
-            index = start_index + max(0, index - prefix_count)
-            return numbers[index] if 0 <= index < len(numbers) else index + 1
+        source_number = program_line
 
         failed_index = res['errors'][-1][0] if res['errors'] else res['done']
         self._stream_result = {
@@ -5360,9 +5648,28 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self._grbl_start_op('unlock', task)
 
     def on_save_levelled_gcode(self):
-        # always make the job again: the lines of an earlier Start can be old
-        if not self.build_stream_job():
+        # always make the job again: the lines of an earlier Start can be old. The design (levelled) lines come
+        # without the profile: the file gate below corrects and checks them like every file writer
+        if not self.build_stream_job(apply_profile=False):
             return
+        text = '\n'.join(self.job_lines) + '\n'
+        if active_profile_of(self.app) is not None:
+            target = self._target()
+            if self.ui.autolevel_cb.get_value() is not True:
+                # the source keeps the markers of the fixed sequences (the lines of the job have lost them)
+                text = target.source_file
+            gate = gate_file_text(
+                self.app.options.get('global_machine_profile'), self.app.options.get('global_machine_profiles_folder'),
+                self.app.data_path, text, getattr(target, 'pp_geometry_name', None), target.units, correct=True,
+                uncorrected_source=True, decimals=target.coords_decimals)
+            report_gate(self.app, gate)
+            if not gate.ok:
+                self.app.inform.emit('[ERROR_NOTCL] %s' % gate.error)
+                return
+            if gate.note:
+                self.app.inform.emit('[WARNING_NOTCL] %s' % gate.note)
+            if gate.text is not None:
+                text = gate.text
         _filter_ = "G-Code Files (*.nc *.gcode *.cnc *.tap);;All Files (*.*)"
         try:
             filename, _f = FCFileSaveDialog.get_saved_filename(
@@ -5376,7 +5683,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             return
         try:
             with open(filename, 'w') as f:
-                f.write('\n'.join(self.job_lines) + '\n')
+                f.write(text)
         except (FileNotFoundError, PermissionError) as err:
             self.app.inform.emit('[ERROR_NOTCL] %s: %s' % (_("Could not save the file"), str(err)))
             return
@@ -5408,6 +5715,177 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self.view3d.set_accepted(done - 1)
             if self.__dict__.get('_program_paused') is not True:
                 self.view3d.set_selected_line(None)
+
+    # the last live setup key and the $G / $# answers of this connection (see live_setup())
+    live_setup_key = None
+    _live_cache = None
+    _stream_setup_key = None      # the live_setup_key of the state that the check of the stream read
+    _stream_setup = None          # the Setup of that check (None: the stream runs without a machine profile)
+    _tool_resume = None           # the state of the open tool change for the recheck before Resume (see below)
+    _resume_refused_version = None    # the version of _tool_resume that the recheck refused
+    _tool_tlo_probe = None        # the `$#` read of the recheck: {'lines': [...], 'done': Event}, else None
+
+    def _read_tool_tlo(self):
+        """
+        The TLO of the controller after a probed tool change ($TPW / $TLR): `$#` goes through the tool command
+        queue of the stream worker, the one reader of the port (GUI thread; it waits as long as live_setup() does).
+
+        :return: the TLO in the units of the job, or None if the read failed or reports no TLO.
+        """
+        scale = self._report_scale()
+        if scale is None:
+            return None
+        probe = {'lines': [], 'done': threading.Event()}
+        with self._grbl_op_lock:
+            self._tool_tlo_probe = probe
+        try:
+            self._grbl_queue_tool_command('$#')
+            # a refused command (busy, recovery, adapter-owned tool change) gets no reply: do not wait for one
+            if not probe.get('queued') or not probe['done'].wait(5.0):
+                return None
+        finally:
+            with self._grbl_op_lock:
+                self._tool_tlo_probe = None
+        text = '\n'.join(probe['lines'])
+        if '[TLO' not in text:
+            return None
+        try:
+            raw = parse_grbl_offsets(text)['TLO']
+        except (ValueError, KeyError):
+            return None
+        return (raw[2] if isinstance(raw, tuple) else raw) * scale
+
+    def _tool_change_recheck(self):
+        """
+        The recheck before Resume (GUI thread; every route that resumes the stream calls it first). After a tool
+        change, the REMAINING motion of the prepared program is checked again with the TLO that the tool change set,
+        from the position where the machine waits. Nothing is corrected again.
+
+        :return: False if the Resume is refused (the user was told; a reject disables the Resume button).
+        """
+        with self._grbl_op_lock:
+            state = self._tool_resume
+            if (state is None or not self.__dict__.get('_grbl_tool_change_pending') or
+                    self.__dict__.get('_grbl_tool_command_busy') or self._grbl_recovery is not None):
+                return True
+            state = dict(state)
+        profile = active_profile_of(self.app)
+        if profile is None:
+            return True
+        scale = self._report_scale()
+        mpos = state['mpos']
+        start = None if mpos is None or scale is None else tuple(value * scale for value in mpos)
+        if state['tlo'] is None:
+            # $TPW / $TLR: the controller measured the tool length, so the controller tells it
+            state['tlo'] = self._read_tool_tlo()
+        setup = dataclasses.replace(state['setup'], start=start, tlo=state['tlo'])
+        _out, result = prepare_output(state['text'], Purpose.STREAM, setup, profile, correct=False)
+        numbers = state['numbers']
+
+        def source_line(line):
+            return numbers[line - 1] if 0 < line <= len(numbers) else line
+
+        if has_reject(result):
+            first = next(v for v in result.violations if v.severity == 'reject')
+            message = _('Machine profile "%s": resume refused after the tool change. Line %d (%s): %s') % (
+                profile.name, source_line(first.line), first.kind.value, first.message)
+            report_gate(self.app, FileGate(False, message, result=result))
+            self.app.inform.emit('[ERROR_NOTCL] %s' % message)
+            self._resume_refused_version = state['version']
+            self.ui.resume_button.setDisabled(True)
+            return False
+        note = None
+        if result.status is CheckStatus.VIOLATIONS:
+            note = _('Machine profile: %d warnings after the tool change') % sum(
+                1 for v in result.violations if v.kind is not ViolationKind.UNVERIFIED)
+        elif result.status is CheckStatus.PARTIAL:
+            note = _('Machine profile: the rest of the program is partially checked after the tool change')
+        report_gate(self.app, FileGate(note=note, result=result))
+        if note is None or self._confirm_profile_resume(note):
+            return True
+        self.app.inform.emit('[WARNING_NOTCL] %s' % _("Cancelled."))
+        return False
+
+    def live_setup(self, op, profile, dialect=None, refresh=False):
+        """
+        The Setup of the Machine Profile check from the state that the controller reports: MPos of the status
+        report, the stored offsets and G92 / TLO of `$#`, the active WCS and the units of `$G`. GRBL, grblHAL and
+        the E-Cut port (it answers the same reports) are read in the same way. A worker thread that holds `op`.
+        `$G` and `$#` are requested once per connection (`refresh` asks again); an answer that is missing or
+        malformed leaves its items unknown (None).
+
+        :return: the Setup, or None if the Sender is not connected. self.live_setup_key holds the key of the state.
+        """
+        port = self.grbl_ser_port
+        if not self._grbl_connected or port is None:
+            return None
+        cache = self._live_cache
+        if refresh or cache is None or cache[0] is not port:
+            texts = []
+            for command in ('$G', '$#'):
+                text, status = self._grbl_transact(op, command, timeout=5.0, echo=False)
+                texts.append(text if status == 'ok' else None)
+            cache = self._live_cache = (port, texts[0], texts[1])
+        gc_text, offsets_text = cache[1], cache[2]
+
+        units = None
+        if gc_text:
+            for word, name in (('G20', 'inch'), ('G21', 'mm')):
+                if re.search(r'(?<![A-Z0-9.])%s(?![0-9.])' % word, gc_text):
+                    units = name
+        active_wcs = None
+        if gc_text:
+            try:
+                active_wcs = parse_grbl_active_wcs(gc_text)
+            except ValueError:
+                active_wcs = None
+
+        # the positions are in the report units of GRBL ($13); the Setup holds the units of the program
+        inches = self._grbl_report_inches
+        factor = None
+        if inches is not None and units is not None:
+            factor = 1.0 if (units == 'inch') == bool(inches) else (25.4 if inches else 1.0 / 25.4)
+
+        def scaled(value):
+            return None if value is None or factor is None else tuple(v * factor for v in value)
+
+        wcs_offsets = g92 = tlo = None
+        if offsets_text:
+            try:
+                records = parse_grbl_offsets(offsets_text)
+            except ValueError:
+                records = {}
+            found = {k: scaled(v) for k, v in records.items() if re.fullmatch(r'G5[4-9](\.[1-3])?', k)}
+            wcs_offsets = found or None
+            if wcs_offsets is not None and any(v is None for v in wcs_offsets.values()):
+                wcs_offsets = None
+            if '[G92' in offsets_text and 'G92' in records:
+                g92 = scaled(records['G92'])
+            if '[TLO' in offsets_text and 'TLO' in records and factor is not None:
+                raw = records['TLO']
+                tlo = (raw[2] if isinstance(raw, tuple) else raw) * factor
+
+        machine_pos = None
+        report = parse_grbl_status_report(self._grbl_query_status(op))
+        if report is not None:
+            if 'mpos' in report:
+                machine_pos = scaled(report['mpos'])
+            elif 'wpos' in report and 'wco' in report:
+                machine_pos = scaled(tuple(w + c for w, c in zip(report['wpos'], report['wco'])))
+
+        setup = setup_from_controller(profile, dialect, units, machine_pos, wcs_offsets, active_wcs, g92, tlo)
+        self.live_setup_key = (setup.profile_hash,
+                               None if wcs_offsets is None else tuple(sorted(setup.wcs_offsets.items())),
+                               active_wcs, setup.g92, setup.tlo)
+        return setup
+
+    def live_setup_changed(self, old_key, op, profile, dialect=None):
+        """
+        Read the state of the controller again and say if it differs from `old_key` (the profile hash, the stored
+        offsets, the active WCS, G92 and TLO of an earlier live_setup()). A live setup is valid only while this is False.
+        """
+        self.live_setup(op, profile, dialect, refresh=True)
+        return self.live_setup_key != old_key
 
     def _report_scale(self):
         """
@@ -5450,7 +5928,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         if dialog is None or dialog.running or not self._simulation_available():
             return
         autolevel = self.ui.autolevel_cb.get_value() is True
-        if not (self.build_job() if autolevel else self.build_stream_job()):
+        if not (self.build_job() if autolevel else self.build_stream_job(apply_profile=False)):
             return
         lines = list(self.job_lines)
         if not lines:
@@ -5675,7 +6153,13 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 time.monotonic() - report.get('_sender_time', time.monotonic()) > 3.0):
             return
         self._controller_state = report['state'].split(':')[0]
-        was_paused = self.__dict__.get('_program_paused') is True
+        if self._resume_refused_version is not None:
+            # the recheck refused the Resume: the button works again after the next tool command or the end of the tool change
+            state = self._tool_resume
+            if state is None or state['version'] != self._resume_refused_version:
+                self._resume_refused_version = None
+                self.ui.resume_button.setDisabled(False)
+        was_paused =self.__dict__.get('_program_paused') is True
         # a grblHAL manual M6 holds the job in the Tool state, like Hold and Door
         self._program_paused = report['state'].split(':')[0] in ('Hold', 'Door', 'Tool')
         if was_paused and not self._program_paused and report['state'] == 'Run':

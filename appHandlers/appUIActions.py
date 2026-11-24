@@ -837,6 +837,34 @@ class AppUIActions(QtCore.QObject):
         return 'success'
 
     # --------------------------------------------------------------------------
+    # Machine Profiles
+    # --------------------------------------------------------------------------
+
+    def on_machine_profiles(self):
+        """Open the Machine Profiles manager in a Tab in Plot Area; one instance, an open tab is shown again."""
+        plot_area = self.ui.plot_tab_area
+        for idx in range(plot_area.count()):
+            if plot_area.widget(idx).objectName() == "machine_profiles_tab":
+                plot_area.setCurrentIndex(idx)
+                return 'success'
+        for detached_window in list(plot_area.detachedTabs.values()):
+            try:
+                if detached_window.contentWidget.objectName() == "machine_profiles_tab":
+                    detached_window.show()
+                    detached_window.raise_()
+                    detached_window.activateWindow()
+                    return 'success'
+            except (AttributeError, RuntimeError):
+                pass
+
+        from appGUI.machine_profile_manager import MachineProfilesTab
+        tab = MachineProfilesTab(self.app, parent=self.ui if isinstance(self.ui, QtWidgets.QWidget) else None)
+        plot_area.addTab(tab, _("Machine Profiles"))
+        tab.setObjectName("machine_profiles_tab")
+        plot_area.setCurrentWidget(tab)
+        return 'success'
+
+    # --------------------------------------------------------------------------
     # 3D Area
     # --------------------------------------------------------------------------
 
@@ -956,6 +984,9 @@ class AppUIActions(QtCore.QObject):
             self.app.tools_db_tab.ui_disconnect()
             self.app.tools_db_changed_flag = False
             self.app.tools_db_tab.deleteLater()
+        elif tab_obj_name == "machine_profiles_tab":
+            if closed_widget is not None:
+                closed_widget.deleteLater()
         elif tab_obj_name == "text_editor_tab":
             self.app.toggle_codeeditor = False
         elif tab_obj_name == "bookmarks_tab":

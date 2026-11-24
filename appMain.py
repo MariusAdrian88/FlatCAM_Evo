@@ -103,6 +103,7 @@ from defaults import AppOptions
 
 # App Objects
 from appGUI.preferences.PreferencesUIManager import PreferencesUIManager
+from appGUI.machine_profile_ui import apply_machine_profile_locks
 from appObjects.ObjectCollection import (
     ObjectCollection,
     GerberObject,
@@ -1225,6 +1226,7 @@ class App(QtCore.QObject):
         )
 
         self.preferencesUiManager.defaults_write_form()
+        apply_machine_profile_locks(self)
 
         # When the self.options dictionary changes will update the Preferences GUI forms
         self.options.set_change_callback(self.on_defaults_dict_change)

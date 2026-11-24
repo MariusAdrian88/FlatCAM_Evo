@@ -3169,6 +3169,10 @@ class CNCjob(Geometry):
         self._bed_skew_x = self._app_option("cncjob_bed_skew_x")
         self._bed_skew_y = self._app_option("cncjob_bed_skew_y")
 
+        # Machine Profile: True when the job is made under an active profile; the fixed sequences (tool change, end)
+        # are then wrapped in (MP:FIXED BEGIN <role>) ... (MP:FIXED END) lines
+        self.profile_markers = False
+
         # coordinates used by the preprocessors position_code() method; updated when creating gcode
         self.x = 0.0
         self.y = 0.0
@@ -3183,6 +3187,9 @@ class CNCjob(Geometry):
 
         # the milling travels are routed around the exclusion areas (the Area Exclusion option of the tool)
         self.area_exclusion = True
+        # the permanent exclusion areas of the active machine profile (area records in the job frame and units): they
+        # steer the travels also when area_exclusion is off
+        self.permanent_areas = []
         # the warning about a cut through an exclusion area is given once per job
         self.exclusion_cut_warned = False
 
@@ -3424,10 +3431,17 @@ class CNCjob(Geometry):
         :param travel_z:    the travel Z of the move; the tool never goes over an area below it
         :return:            list of [Z or None, (x, y)] as AppExclusionAreas.travel_coordinates()
         """
-        if not self.area_exclusion:
+        if not self.area_exclusion and not self.permanent_areas:
             return [(None, (end_point[0], end_point[1]))]
         return self.app.exc_areas.travel_coordinates(start_point=start_point, end_point=end_point, tooldia=tooldia,
-                                                     travel_z=travel_z)
+                                                     travel_z=travel_z, **self.permanent_travel_args())
+
+    def permanent_travel_args(self):
+        """The keyword arguments of the travel router for the permanent areas of the machine profile; none without them
+        (the router is then called as before)."""
+        if not self.permanent_areas:
+            return {}
+        return {'permanent_areas': self.permanent_areas, 'job_areas': bool(self.area_exclusion)}
 
     def doformat(self, fun, **kwargs):
         attributes = AttrDict()
@@ -3641,6 +3655,23 @@ class CNCjob(Geometry):
             # that is not made): the CNC job fails, with the preprocessor method in the message
             method = getattr(fun, '__qualname__', str(fun))
             raise RuntimeError('%s: %s - %s' % (_("Preprocessor error, G-code is missing"), method, str(err))) from err
+
+    def apply_machine_profile(self):
+        """
+        The job is made under an active Machine Profile: the bed square compensation of the old options is not
+        applied (the calibration of the profile replaces it) and the fixed sequences get markers.
+        """
+        self.profile_markers = True
+        self._bed_offset_x = self._bed_offset_y = 0.0
+        self._bed_skew_x = self._bed_skew_y = 0.0
+
+    def fixed_sequence(self, role, text):
+        """The text of a fixed sequence between its markers, each marker on its own line (profile None: unchanged)."""
+        if not self.profile_markers or not text:
+            return text
+        if not text.endswith('\n'):
+            text += '\n'
+        return '(MP:FIXED BEGIN %s)\n%s(MP:FIXED END)\n' % (role, text)
 
     def parse_custom_toolchange_code(self, data):
         """
@@ -4261,12 +4292,13 @@ class CNCjob(Geometry):
         # do the ToolChange event
         t_gcode += self.doformat(p.z_feedrate_code)
         if toolchange:
-            t_gcode += self.doformat(p.toolchange_code, toolchangexy=(temp_locx, temp_locy))
+            t_gcode += self.fixed_sequence('toolchange',
+                                           self.doformat(p.toolchange_code, toolchangexy=(temp_locx, temp_locy)))
             t_gcode += self.doformat(p.z_feedrate_code)
         else:
             if self.startz is None or 'laser' in self.pp_excellon_name.lower():
                 t_gcode += self.doformat(p.lift_code)
-            t_gcode += self.doformat(p.startz_code)
+            t_gcode += self.fixed_sequence('toolchange', self.doformat(p.startz_code))
 
         if 'laser' not in self.pp_excellon_name.lower():
             # Spindle start
@@ -4315,11 +4347,12 @@ class CNCjob(Geometry):
 
                 locx, locy = point
 
-                if self.area_exclusion:
+                if self.area_exclusion or self.permanent_areas:
                     travels = self.app.exc_areas.travel_coordinates(start_point=(temp_locx, temp_locy),
                                                                     end_point=(locx, locy),
                                                                     tooldia=current_tooldia, owner=exclusion_owner,
-                                                                    travel_z=base_z_move)
+                                                                    travel_z=base_z_move,
+                                                                    **self.permanent_travel_args())
                 else:
                     travels = [(None, (locx, locy))]
                 prev_z = None
@@ -4426,7 +4459,7 @@ class CNCjob(Geometry):
         if is_last:
             t_gcode += self.doformat(p.spindle_stop_code)
             # Move to End position
-            t_gcode += self.doformat(p.end_code, x=0, y=0)
+            t_gcode += self.fixed_sequence('end', self.doformat(p.end_code, x=0, y=0))
 
         self.app.inform.emit('%s %s' % (_("Finished G-Code generation for tool:"), str(tool)))
         self.laser_min_power_warning(t_gcode)
@@ -4875,11 +4908,11 @@ class CNCjob(Geometry):
         # ToolChange code
         t_gcode += self.doformat(p.feedrate_code)  # sets the feed rate
         if toolchange:
-            t_gcode += self.doformat(p.toolchange_code)
+            t_gcode += self.fixed_sequence('toolchange', self.doformat(p.toolchange_code))
         else:
             if self.startz is None or 'laser' in self.pp_geometry_name.lower():
                 t_gcode += self.doformat(p.lift_code, x=0, y=0)
-            t_gcode += self.doformat(p.startz_code, x=0, y=0)
+            t_gcode += self.fixed_sequence('toolchange', self.doformat(p.startz_code, x=0, y=0))
 
         # Spindle start
         if 'laser' not in self.pp_geometry_name.lower():
@@ -4991,7 +5024,7 @@ class CNCjob(Geometry):
                     endx = 0.0
                     endy = 0.0
 
-            t_gcode += self.doformat(p.end_code, x=endx, y=endy)
+            t_gcode += self.fixed_sequence('end', self.doformat(p.end_code, x=endx, y=endy))
         return t_gcode
 
     def tcl_gcode_from_excellon_by_tool(self, exobj, tools="all", order='fwd', is_first=False, overrides=None,
@@ -5318,10 +5351,11 @@ class CNCjob(Geometry):
             if self.toolchange is False:
                 if self.xy_toolchange is not None:
                     start_gcode += self.doformat(p.lift_code, x=self.xy_toolchange[0], y=self.xy_toolchange[1])
-                    start_gcode += self.doformat(p.startz_code, x=self.xy_toolchange[0], y=self.xy_toolchange[1])
+                    start_gcode += self.fixed_sequence(
+                        'toolchange', self.doformat(p.startz_code, x=self.xy_toolchange[0], y=self.xy_toolchange[1]))
                 else:
                     start_gcode += self.doformat(p.lift_code, x=0.0, y=0.0)
-                    start_gcode += self.doformat(p.startz_code, x=0.0, y=0.0)
+                    start_gcode += self.fixed_sequence('toolchange', self.doformat(p.startz_code, x=0.0, y=0.0))
 
         if self.xy_toolchange is not None:
             self.oldx = self.xy_toolchange[0]
@@ -5422,7 +5456,8 @@ class CNCjob(Geometry):
 
                 # Tool change sequence (optional)
                 if self.toolchange:
-                    tool_gcode += self.doformat(p.toolchange_code, toolchangexy=(self.oldx, self.oldy))
+                    tool_gcode += self.fixed_sequence(
+                        'toolchange', self.doformat(p.toolchange_code, toolchangexy=(self.oldx, self.oldy)))
 
                 tool_gcode += self.doformat(p.z_feedrate_code)
 
@@ -5476,7 +5511,7 @@ class CNCjob(Geometry):
             # add to the last tool that has G-code the end_gcode
             end_gcode = self.doformat(p.spindle_stop_code)
             # Move to End position
-            end_gcode += self.doformat(p.end_code, x=0, y=0)
+            end_gcode += self.fixed_sequence('end', self.doformat(p.end_code, x=0, y=0))
             self.tools[last_gcode_tool]['gcode'] += end_gcode
         else:
             # We are not using Toolchange therefore we need to decide which tool properties to use
@@ -5555,7 +5590,7 @@ class CNCjob(Geometry):
 
             # add the end_gcode
             end_gcode = self.doformat(p.spindle_stop_code)
-            end_gcode += self.doformat(p.end_code, x=0, y=0)
+            end_gcode += self.fixed_sequence('end', self.doformat(p.end_code, x=0, y=0))
             self.tools[one_tool]['gcode'] += end_gcode      # noqa
 
         measured_distance = counters['distance']
@@ -5618,7 +5653,8 @@ class CNCjob(Geometry):
             # Tcl drillcncjob has no plugin that draws areas: it uses every stored area (owner None)
             travels = self.app.exc_areas.travel_coordinates(start_point=(self.oldx, self.oldy),
                                                             end_point=(locx, locy),
-                                                            tooldia=tooldia, owner=None, travel_z=base_z_move)
+                                                            tooldia=tooldia, owner=None, travel_z=base_z_move,
+                                                            **self.permanent_travel_args())
             prev_z = None
             for travel in travels:
                 locx = travel[1][0]
@@ -5751,7 +5787,7 @@ class CNCjob(Geometry):
         if is_first:
             gcode.append(self.doformat(p.start_code))
         gcode.append(self.doformat(p.spindle_off_code))
-        gcode.append(self.doformat(p.toolchange_code))
+        gcode.append(self.fixed_sequence('toolchange', self.doformat(p.toolchange_code)))
 
         # ## Iterate over geometry paths getting the nearest each time.
         self.app.log.debug("Starting SolderPaste G-Code...")
@@ -5799,7 +5835,7 @@ class CNCjob(Geometry):
 
         # Finish
         gcode.append(self.doformat(p.lift_code))
-        gcode.append(self.doformat(p.end_code))
+        gcode.append(self.fixed_sequence('end', self.doformat(p.end_code)))
         self.gcode = ''.join(gcode)
 
         return self.gcode
