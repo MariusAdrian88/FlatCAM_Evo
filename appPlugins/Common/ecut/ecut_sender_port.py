@@ -201,6 +201,14 @@ class EcutSenderPort:
             raise ValueError('Manual output requires pin 0..7 and a boolean physical level')
         return self._request_motion('set_manual_output', pin, active, revision)
 
+    def effective_inputs(self):
+        """The input map of the present config (no USB; safe from the GUI thread)."""
+        return self._api.effective_inputs()
+
+    def effective_outputs(self):
+        """The output map of the present config (no USB; safe from the GUI thread)."""
+        return self._api.effective_outputs()
+
     def get_io_state(self):
         """Read the last worker status without accessing USB on the caller thread."""
         with self._condition:
@@ -631,16 +639,19 @@ class EcutSenderPort:
 
     def close(self):
         with self._condition:
+            was_closing = self._closing
             self._closing = True
             self._clear_commands()
             self._condition.notify_all()
         if threading.current_thread() is self._worker:
             return
-        self._worker.join(self.JOIN_TIMEOUT)
+        # a repeated close must not block the GUI thread again for the full timeout
+        self._worker.join(0.01 if was_closing else self.JOIN_TIMEOUT)
         if self._worker.is_alive():
             raise serial.SerialException('E-Cut worker did not stop; reconnection is unsafe')
-        if self._close_error is not None:
-            raise serial.SerialException('E-Cut shutdown failed: %s' % self._close_error) from self._close_error
+        error, self._close_error = self._close_error, None  # reported once
+        if error is not None:
+            raise serial.SerialException('E-Cut shutdown failed: %s' % error) from error
 
     def _emit(self, lines):
         with self._condition:

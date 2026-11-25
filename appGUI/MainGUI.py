@@ -1739,7 +1739,7 @@ class MainGUI(QtWidgets.QMainWindow):
         self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, self.shell_dock)
 
         # ####################### GRBL Console DOCK ##############################
-        self.grbl_console_dock = FCDock(_("GCode Console"), close_callback=self.on_grbl_console_closed)
+        self.grbl_console_dock = FCDock(_("G-code Sender"), close_callback=self.on_grbl_console_closed)
         self.grbl_console_dock.setWindowIcon(QtGui.QIcon(self.app.resource_location + '/app24.png'))
         self.grbl_console_dock.setObjectName('GrblConsole_DockWidget')
         self.grbl_console_dock.setAllowedAreas(QtCore.Qt.DockWidgetArea.AllDockWidgetAreas)

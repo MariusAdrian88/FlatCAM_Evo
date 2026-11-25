@@ -10,11 +10,16 @@ import time
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from PyQt6 import QtCore, QtGui, QtWidgets
+from PyQt6 import QtCore, QtGui, QtWidgets, QtTest
 
 from appPlugins.ToolGcodeSender.Sender import GrblConsole
+import appPlugins.Common.grbl.grbl_client  # noqa: F401
 from tests.grbl_stream_helpers import CheckFake, make_stream_tool, make_levelled_stream_tool, \
     drop_console_event_filters
+from tests.test_levelling_audit import FakeGrbl
+
+# appPlugins/__init__.py shadows the package name with a class, so take the module from sys.modules
+grbl_client_module = sys.modules['appPlugins.Common.grbl.grbl_client']
 
 
 _qapp = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
@@ -52,7 +57,8 @@ class TestGrblConfiguration(unittest.TestCase):
         dock = QtWidgets.QDockWidget()
         self.addCleanup(dock.deleteLater)
         tool.app.ui.grbl_console_dock = dock
-        page = tool._console().configuration
+        tool._console()
+        page = tool.ui.configuration
         tool.app.worker_task.emit.side_effect = lambda task: task['fcn']()
         self.addCleanup(drop_console_event_filters)
         return tool, port, page
@@ -195,17 +201,13 @@ class TestGrblConsole(unittest.TestCase):
     def test_program_and_console_tabs_keep_commands_and_log_separate(self):
         console = self.make_console()
         self.assertEqual([console.tabs.tabText(i) for i in range(console.tabs.count())],
-                         ['Program', 'Console', 'Jog', 'Configuration'])
-        self.assertIs(console.tabs.widget(2), console.jog_page)
+                         ['Program', 'Console'])
         console.set_program(['G21', 'G1 X2'])
         console.append('ok')
         self.assertTrue(console.program_view.isReadOnly())
         self.assertEqual(console.program_view.toPlainText(), 'G21\nG1 X2')
         self.assertEqual(console.log_view.toPlainText(), 'ok')
         self.assertIs(console.program_view.gutter.edit, console.program_view)
-        console.cmd_entry.setText('  $G  ')
-        console.send_btn.click()
-        console.tool.send_console_command.assert_called_once_with('$G')
 
     def test_progress_highlights_acknowledged_line_and_follow_can_be_disabled(self):
         console = self.make_console()
@@ -392,6 +394,7 @@ class TestGrblConsole(unittest.TestCase):
         dock.setWidget(console)
         new_tool.app.ui.grbl_console_dock = dock
         new_tool.ui = None
+        new_tool.sender_io.new_page.return_value = QtWidgets.QWidget()
         # a new project made a new plugin: the console of the dock must work for it, not for the deleted one
         self.assertIs(ToolGCodeSender._console(new_tool), console)
         console.program_line_selected.emit(3)
@@ -711,16 +714,286 @@ class TestDockedJogPage(unittest.TestCase):
     def console(self):
         return self.dock.widget()
 
-    def test_control_jog_opener_always_shows_existing_page(self):
+    def test_dock_is_visible_after_run_and_follows_the_machine_panel_checkbox(self):
+        cb = self.tool.ui.console_cb
+        self.assertTrue(self.dock.isVisible())
+        self.assertTrue(cb.isVisible())
+        cb.set_value(False)
+        self.assertFalse(self.dock.isVisible())
+        cb.set_value(True)
+        self.assertTrue(self.dock.isVisible())
+        self.assertTrue(self.console().jog_block_visible())
+
+    def test_camera_page_is_current_with_the_jog_block_and_the_view(self):
+        console = self.console()
+        ui = self.tool.ui
+        self.assertIs(console.tabs.currentWidget(), ui.camera_page)
+        self.assertTrue(ui.camera_view.isVisible())
+        self.assertTrue(ui.jog_wdg.isVisible())
+        self.assertTrue(console.isAncestorOf(ui.camera_view))
+
+    def test_preview_runs_while_the_camera_pane_is_open_and_stops_with_it(self):
+        console = self.console()
+        with patch.object(self.tool.ui.camera_widget, 'stop_preview') as stop:
+            console.show_page('program')
+            self.dock.hide()
+            _qapp.processEvents()
+            self.assertEqual(stop.call_count, 0)    # the camera shows in its pane, not in the dock page
+            self.tool._camera_stop_preview()
+            self.assertEqual(stop.call_count, 1)
+
+    def test_a_second_set_tool_ui_leaves_one_camera_page(self):
+        with patch('appPlugins.Common.levelling_core.ShapeCollection'):
+            self.tool.set_tool_ui()
+        _qapp.processEvents()
+        console = self.console()
+        self.assertEqual(console.tabs.count(), len([k for k in console._pages]))
+        self.assertEqual([console.tabs.tabText(i) for i in range(console.tabs.count())].count('Camera'), 1)
+        self.assertIs(console.page('camera'), self.tool.ui.camera_page)
+
+    def test_plugin_cleanup_hides_the_dock(self):
+        self.assertTrue(self.dock.isVisible())
+        self.tool.on_plugin_cleanup()
+        self.assertFalse(self.dock.isVisible())
+
+    def test_tab_shortcut_shows_the_block_and_collapses_it(self):
         self.connect(DockJogFake())
-        page = self.tool.ui.jog_page
+        console = self.console()
         self.dock.hide()
         for unused in range(2):
-            self.tool.ui.jog_button.click()
+            self.tool.show_jog_page()
             self.assertTrue(self.dock.isVisible())
-            self.assertIs(self.console().tabs.currentWidget(), page)
+            self.assertTrue(console.jog_block_visible())
         self.tool.toggle_jog_page()
-        self.assertFalse(self.dock.isVisible())
+        self.assertTrue(self.dock.isVisible())
+        self.assertFalse(console.jog_block_visible())
+        self.tool.toggle_jog_page()
+        self.assertTrue(console.jog_block_visible())
+        self.dock.hide()
+        self.tool.toggle_jog_page()
+        self.assertTrue(self.dock.isVisible())
+        self.assertTrue(console.jog_block_visible())
+
+    def test_jog_pad_is_visible_with_the_program_page_current(self):
+        console = self.console()
+        self.tool.show_jog_page()
+        console.show_page('program')
+        _qapp.processEvents()
+        self.assertTrue(self.tool.ui.jog_wdg.isVisible())
+        self.assertTrue(console.jog_block_visible())
+
+    def test_zero_home_and_spindle_sit_in_the_dock_jog_block(self):
+        # the camera workflow of run(): Home stays, zero X/Y/Z/All and the spindle are out
+        ui = self.tool.ui
+        zero = ui.zero_axs_wdg
+        for button in (zero.grbl_zerox_button, zero.grbl_zeroy_button, zero.grbl_zeroz_button,
+                       zero.grbl_zero_all_button, ui.spindle_button):
+            self.assertFalse(button.isVisible(), button)
+        self.assertTrue(zero.grbl_homing_button.isVisible())
+        # the full workflow: all of them inside the dock, with the Program page current
+        self.tool._camera_public_mode = False
+        with patch('appPlugins.Common.levelling_core.ShapeCollection'):
+            self.tool.set_tool_ui()
+        self.tool.show_jog_page()
+        console = self.console()
+        console.show_page('program')
+        _qapp.processEvents()
+        ui = self.tool.ui
+        for widget in (ui.zero_axs_wdg, ui.zero_axs_wdg.grbl_zerox_button, ui.zero_axs_wdg.grbl_homing_button,
+                       ui.spindle_button, ui.spindle_rpm_entry):
+            self.assertTrue(widget.isVisible(), widget)
+            self.assertTrue(console.isAncestorOf(widget), widget)
+
+    def test_collapsed_jog_block_is_remembered_and_stops_continuous_jog(self):
+        from PyQt6 import QtTest
+
+        port = DockJogFake()
+        self.connect(port)
+        self.tool.ui.continuous_jog_cb.setChecked(True)
+        self.tool.show_jog_page()
+        console = self.console()
+        button = self.tool.ui.jog_wdg.jog_right_button
+        QtTest.QTest.mousePress(button, QtCore.Qt.MouseButton.LeftButton)
+        _qapp.processEvents()
+        self.assertEqual(len(port.started), 1)
+        console.jog_collapse_button.click()
+        self.assertEqual(port.stopped, 1)
+        self.assertIsNone(self.tool._continuous_jog)
+        self.assertFalse(self.tool.ui.jog_wdg.isVisible())
+        self.assertTrue(self.tool.app.options['global_grbl_jog_collapsed'])
+        console.jog_collapse_button.click()
+        self.assertTrue(self.tool.ui.jog_wdg.isVisible())
+        self.assertFalse(self.tool.app.options['global_grbl_jog_collapsed'])
+
+    def test_rebuilt_sender_ui_replaces_the_jog_block(self):
+        console = self.console()
+        old_page = self.tool.ui.jog_page
+        self.tool.set_tool_ui()
+        self.tool._console()
+        self.assertIsNot(self.tool.ui.jog_page, old_page)
+        blocks = console.findChildren(QtWidgets.QWidget, 'jog_block_body')[0].children()
+        blocks = [w for w in blocks if isinstance(w, QtWidgets.QWidget)]
+        self.assertEqual(blocks, [self.tool.ui.jog_page])
+
+    def test_job_buttons_stay_visible_when_another_notebook_tab_is_current(self):
+        self.app.ui.notebook.setCurrentIndex(1)     # not the Plugin tab
+        _qapp.processEvents()
+        ui = self.tool.ui
+        self.assertFalse(self.app.ui.plugin_tab.isVisible())
+        # the camera workflow of run() keeps the job row and the progress out; the rest of the header stays
+        for widget in (ui.status_strip, ui.status_label, ui.estop_dock_button):
+            self.assertTrue(widget.isVisible(), widget)
+        for widget in (ui.hold_button, ui.stop_button, ui.progress_bar):
+            self.assertFalse(widget.isVisible(), widget)
+        # the full workflow shows the job row in the dock
+        self.tool._camera_public_mode = False
+        with patch('appPlugins.Common.levelling_core.ShapeCollection'):
+            self.tool.set_tool_ui()
+        _qapp.processEvents()
+        ui = self.tool.ui
+        for widget in (ui.hold_button, ui.stop_button, ui.progress_bar, ui.status_label, ui.estop_dock_button):
+            self.assertTrue(widget.isVisible(), widget)
+
+    def test_rebuilt_sender_ui_replaces_the_dock_header(self):
+        console = self.console()
+        old_header = self.tool.ui.operate_header
+        self.tool.set_tool_ui()
+        _qapp.processEvents()
+        header = self.tool.ui.operate_header
+        self.assertIsNot(header, old_header)
+        self.assertTrue(console.isAncestorOf(header))
+        self.assertTrue(header.isVisible())
+        self.assertFalse(old_header in console.findChildren(QtWidgets.QWidget))
+
+    def full_mode(self):
+        self.tool._camera_public_mode = False
+        with patch('appPlugins.Common.levelling_core.ShapeCollection'):
+            self.tool.set_tool_ui()
+        _qapp.processEvents()
+        return self.console()
+
+    def test_job_page_holds_the_job_controls(self):
+        self.full_mode()
+        ui = self.tool.ui
+        bar = ui.al_toolbar
+        self.assertTrue(bar.isTabEnabled(bar.indexOf(ui.job_tab)))
+        for widget in (ui.object_combo, ui.fit_view_cb, ui.check_mode_cb, ui.autolevel_cb, ui.sim_button,
+                       ui.view3d_button, ui.save_levelled_button):
+            self.assertTrue(ui.job_tab.isAncestorOf(widget))
+
+    def test_probing_page_holds_the_probing_controls_and_the_camera_mode_keeps_only_the_edge_probe(self):
+        ui = self.tool.ui
+        ui.al_toolbar.setCurrentWidget(ui.probing_tab)
+        _qapp.processEvents()
+        self.assertTrue(ui.edge_probe_frame.isVisible())
+        self.assertFalse(ui.heightmap_frame.isVisible())
+        self.assertFalse(ui.probe_points_frame.isVisible())
+        self.full_mode()
+        ui = self.tool.ui
+        ui.al_toolbar.setCurrentWidget(ui.probing_tab)
+        _qapp.processEvents()
+        for widget in (ui.edge_probe_frame, ui.grbl_get_heightmap_button, ui.stop_probing_button,
+                       ui.grbl_save_height_map_button, ui.al_frame, ui.precision_probe_cb):
+            self.assertTrue(ui.probing_tab.isAncestorOf(widget))
+        self.assertTrue(ui.heightmap_frame.isVisible())
+        ui.autolevel_cb.setChecked(True)
+        _qapp.processEvents()
+        self.assertTrue(ui.al_frame.isVisible())
+        self.assertFalse(ui.al_hint_label.isVisible())
+        ui.autolevel_cb.setChecked(False)
+        _qapp.processEvents()
+        self.assertFalse(ui.al_frame.isVisible())
+        self.assertTrue(ui.al_hint_label.isVisible())
+
+    def test_plugin_tab_has_five_pages_and_the_configuration_table_is_not_in_the_dock(self):
+        console = self.full_mode()
+        ui = self.tool.ui
+        bar = ui.al_toolbar
+        pages = [bar.widget(i) for i in range(bar.count())]
+        self.assertEqual(pages, [ui.gr_conn_tab, ui.job_tab, ui.probing_tab, ui.toolchange_tab, ui.config_tab])
+        self.assertIsNone(console.page('configuration'))
+        self.assertTrue(ui.config_tab.isAncestorOf(ui.configuration))
+        for widget in (ui.grbl_parameter_entry, ui.grbl_get_param_button, ui.grbl_report_button):
+            self.assertTrue(ui.config_tab.isAncestorOf(widget))
+        self.assertTrue(ui.gr_conn_tab.isAncestorOf(ui.controller_reset_button))
+        self.tool._grbl_set_ui_connected(False)
+        for page in (ui.probing_tab, ui.toolchange_tab, ui.config_tab):
+            self.assertFalse(bar.isTabEnabled(bar.indexOf(page)))
+        self.connect(DockJogFake())
+        for page in (ui.probing_tab, ui.toolchange_tab, ui.config_tab):
+            self.assertTrue(bar.isTabEnabled(bar.indexOf(page)))
+
+    def test_overrides_page_is_in_the_dock_once(self):
+        console = self.full_mode()
+        self.tool.set_tool_ui()
+        _qapp.processEvents()
+        titles = [console.tabs.tabText(i) for i in range(console.tabs.count())]
+        self.assertEqual(titles.count('Overrides'), 1)
+        self.assertEqual(titles.index('Overrides'), titles.index('IO') + 1)
+        self.assertEqual(titles.index('IO'), titles.index('Console') + 1)
+        page = console.page('overrides')
+        button = next(iter(self.tool.ui.ov_buttons.values()))[0]
+        self.assertTrue(page.isAncestorOf(button))
+        self.assertTrue(page.isAncestorOf(self.tool.ui.ov_values_label))
+
+    def visible_pages(self):
+        ui = self.tool.ui
+        bar = ui.al_toolbar
+        plugin = {name for name in ('gr_conn_tab', 'job_tab', 'probing_tab', 'toolchange_tab', 'config_tab')
+                  if bar.isTabVisible(bar.indexOf(getattr(ui, name)))}
+        console = self.console()
+        dock = {key for key in ('camera', 'program', 'console', 'overrides')
+                if console.tabs.isTabVisible(console.tabs.indexOf(console.page(key)))
+                and console.tabs.isTabEnabled(console.tabs.indexOf(console.page(key)))}
+        return plugin, dock, ui.job_row.isVisible()
+
+    def test_the_mode_table_sets_the_pages_of_the_plugin_tab_and_the_dock(self):
+        every_dock_page = {'camera', 'program', 'console', 'overrides'}
+        every_plugin_page = {'gr_conn_tab', 'job_tab', 'probing_tab', 'toolchange_tab', 'config_tab'}
+        with self.subTest(mode='camera'):
+            self.assertEqual(self.visible_pages(), (every_plugin_page - {'job_tab'},
+                                                    {'camera', 'program'}, False))
+        # the dock is not rebuilt: the full mode must set its pages back
+        self.full_mode()
+        with self.subTest(mode='full'):
+            self.assertEqual(self.visible_pages(), (every_plugin_page, every_dock_page, True))
+
+    def test_new_project_leaves_no_widget_of_the_old_ui_in_the_dock(self):
+        console = self.full_mode()
+        old_ui = self.tool.ui
+        old_parts = [old_ui.operate_header, old_ui.jog_page, old_ui.command_row, old_ui.camera_page,
+                     old_ui.overrides_page, old_ui.estop_dock_button, old_ui.start_button, old_ui.jog_wdg]
+        self.assertTrue(all(console.isAncestorOf(part) for part in old_parts))
+        self.tool.detach_for_reset()
+        _qapp.processEvents()
+        self.assertFalse(self.app.ui.grbl_console_dock.isVisible())
+        for part in old_parts:
+            try:
+                self.assertFalse(console.isAncestorOf(part))
+            except RuntimeError:
+                pass    # already deleted
+        self.assertIsNone(console.page('camera'))
+        # the next UI mounts its own parts
+        self.tool.set_tool_ui()
+        _qapp.processEvents()
+        self.assertTrue(console.isAncestorOf(self.tool.ui.operate_header))
+        self.assertTrue(console.isAncestorOf(self.tool.ui.camera_page))
+
+    def test_the_command_entry_is_the_only_one_and_sits_in_the_console_page(self):
+        console = self.full_mode()
+        self.tool.set_tool_ui()
+        _qapp.processEvents()
+        page = console.page('console')
+        ui = self.tool.ui
+        self.assertTrue(page.isAncestorOf(ui.grbl_command_entry))
+        self.assertTrue(page.isAncestorOf(ui.grbl_send_button))
+        self.assertEqual(len(page.findChildren(QtWidgets.QLineEdit)), 1)
+        # Send runs the typed command through the controller path and clears the entry
+        with patch.object(self.tool, '_grbl_start_op') as start_op:
+            ui.grbl_command_entry.set_value('  $G  ')
+            ui.grbl_send_button.click()
+        start_op.assert_called_once()
+        self.assertEqual(ui.grbl_command_entry.get_value(), '')
 
     def test_disconnected_job_keeps_offline_actions_available(self):
         self.tool._grbl_set_ui_connected(False)
@@ -744,6 +1017,27 @@ class TestDockedJogPage(unittest.TestCase):
         self.assertTrue(self.tool.ui.spindle_button.isChecked())
         self.tool._on_status_report({'state': 'Idle', 'ov': (100, 100, 100)})
         self.assertEqual(self.tool.ui.spindle_button.text(), 'Spindle OFF')
+
+    def test_status_strip_state_alarm_position_and_disconnect(self):
+        self.connect(DockJogFake())
+        strip = self.tool.ui.status_strip
+        self.tool._on_status_report({'state': 'Alarm'})
+        self.assertEqual(strip.state_label.text(), 'Alarm')
+        self.tool._stream_result = {'last_text': 'ALARM:3'}
+        self.tool._on_stream_ended('alarm')
+        self.assertFalse(strip.alarm_frame.isHidden())
+        self.assertIn('ALARM:3', strip.alarm_label.text())
+        self.tool._on_status_report({'state': 'Idle'})
+        self.assertTrue(strip.alarm_frame.isHidden())
+        self.tool._on_status_report({'state': 'Idle', 'wpos': (1.0, 2.5, -0.25)})
+        self.assertEqual([strip.dro_x.text(), strip.dro_y.text(), strip.dro_z.text()],
+                         ['1.000', '2.500', '-0.250'])
+        self.tool._report_scale = lambda: None
+        self.tool._on_status_report({'state': 'Idle', 'wpos': (1.0, 2.5, -0.25)})
+        self.assertEqual([strip.dro_x.text(), strip.dro_y.text(), strip.dro_z.text()], ['---'] * 3)
+        self.tool._grbl_set_ui_connected(False)
+        self.assertEqual(strip.state_label.text(), 'Not connected')
+        self.assertEqual(strip.dro_x.text(), '---')
 
     def test_ecut_queue_is_shown_only_for_an_ecut_port_and_ends_idle(self):
         class QueuePort(DockJogFake):
@@ -804,8 +1098,7 @@ class TestDockedJogPage(unittest.TestCase):
         self.tool.app.worker_task.emit.side_effect = lambda task: task['fcn']()
         self.tool.ui.jog_step_entry.set_value(1.5)
         self.tool.ui.jog_fr_entry.set_value(200)
-        self.console().tabs.setCurrentWidget(self.console().jog_page)
-        self.dock.show()
+        self.tool.show_jog_page()
         QtTest.QTest.mouseClick(self.tool.ui.jog_wdg.jog_right_button,
                                 QtCore.Qt.MouseButton.LeftButton)
         _qapp.processEvents()
@@ -830,8 +1123,7 @@ class TestDockedJogPage(unittest.TestCase):
         self.tool.ui.jog_fr_entry.set_value(120)
         self.tool.ui.jog_step_entry.set_value(1)
         self.tool.ui.continuous_jog_cb.setChecked(True)
-        self.console().tabs.setCurrentWidget(self.console().jog_page)
-        self.dock.show()
+        self.tool.show_jog_page()
         self.window.activateWindow()
         if _qapp.platformName() == 'offscreen':
             # Offscreen has no desktop activation; model the held jog's active application.
@@ -939,15 +1231,15 @@ class TestDockedJogPage(unittest.TestCase):
     def test_native_hold_all_ui_exits_cancel_without_a_later_segment(self):
         from PyQt6 import QtTest
 
-        for exit_name in ('hide', 'switch', 'close', 'focus', 'mode', 'units', 'feed',
+        for exit_name in ('hide', 'collapse', 'close', 'focus', 'mode', 'units', 'feed',
                           'disconnect', 'stop', 'rebuild', 'cleanup', 'reset'):
             with self.subTest(exit=exit_name):
                 port, button = self.native_hold()
                 self.wait_native(lambda: any(d.startswith(b'$J') for d in port.written))
                 if exit_name == 'hide':
                     self.dock.hide()
-                elif exit_name == 'switch':
-                    self.console().tabs.setCurrentIndex(0)
+                elif exit_name == 'collapse':
+                    self.console().collapse_jog()
                 elif exit_name == 'close':
                     self.dock.close()
                 elif exit_name == 'focus':
@@ -1018,12 +1310,17 @@ class TestDockedJogPage(unittest.TestCase):
     def test_continuous_press_release_hide_switch_focus_and_stop_all_brake(self):
         from PyQt6 import QtTest
 
+        # the guard timer (50 ms) may fire inside processEvents; the OS focus of the test run must not decide
+        for focus in (patch.object(QtWidgets.QApplication, 'applicationState',
+                                   return_value=QtCore.Qt.ApplicationState.ApplicationActive),
+                      patch.object(QtWidgets.QWidget, 'isActiveWindow', return_value=True)):
+            focus.start()
+            self.addCleanup(focus.stop)
         port = DockJogFake()
         self.connect(port)
         self.tool.ui.jog_fr_entry.set_value(150)
         self.tool.ui.continuous_jog_cb.setChecked(True)
-        self.console().tabs.setCurrentWidget(self.console().jog_page)
-        self.dock.show()
+        self.tool.show_jog_page()
         button = self.tool.ui.jog_wdg.jog_right_button
 
         def press():
@@ -1058,12 +1355,12 @@ class TestDockedJogPage(unittest.TestCase):
 
         self.dock.show()
         press()
-        self.console().tabs.setCurrentIndex(0)
+        self.console().collapse_jog()
         self.assertEqual(port.stopped, 3)
         self.assertIsNone(self.tool._continuous_jog)
         release_op()
 
-        self.console().tabs.setCurrentWidget(self.console().jog_page)
+        self.console().expand_jog()
         press()
         with patch.object(QtWidgets.QApplication, 'applicationState',
                           return_value=QtCore.Qt.ApplicationState.ApplicationInactive):
@@ -1085,6 +1382,534 @@ class TestDockedJogPage(unittest.TestCase):
         _qapp.processEvents()
         self.assertEqual(port.stopped, 6)
         self.assertIn(b'!', port.written)
+
+
+class TestDockTabWrap(unittest.TestCase):
+    TITLES = {'camera': 'Camera calibration', 'io': 'Inputs and outputs of the machine',
+              'overrides': 'Feed and spindle overrides'}
+
+    def setUp(self):
+        tool = MagicMock()
+        tool.app.options = {}
+        self.console = GrblConsole(tool)
+        self.addCleanup(drop_console_event_filters)
+        self.addCleanup(self.console.deleteLater)
+        self.addCleanup(self.console.close)
+        for key, title in self.TITLES.items():
+            self.console.set_page(key, title, QtWidgets.QWidget())
+        self.console.show()
+        self.strip = self.console._tab_strip
+        self.buttons = self.strip._buttons
+        # the dock cannot get narrower than the strip
+        self.assertGreaterEqual(self.console.minimumSizeHint().width(), self.strip.minimumSizeHint().width())
+        # alone, the strip can be sized freely (the other dock content has its own minimum width)
+        self.strip.setParent(None)
+        self.addCleanup(self.strip.deleteLater)
+        self.strip.show()
+
+    def at(self, width):
+        self.strip.resize(width, self.strip.heightForWidth(width))
+        _qapp.processEvents()
+        self.assertEqual(self.strip.width(), width)
+        return [b for b in self.buttons if b.isVisibleTo(self.strip)]
+
+    @staticmethod
+    def rows(buttons):
+        return sorted({b.y() for b in buttons})
+
+    def assert_inside(self, buttons, width):
+        for b in buttons:
+            self.assertTrue(0 <= b.x() and b.x() + b.width() <= width, (b.text(), b.geometry()))
+        for a in buttons:
+            for b in buttons:
+                if a is not b and a.y() == b.y():
+                    self.assertFalse(a.geometry().intersects(b.geometry()), (a.text(), b.text()))
+
+    def test_wrap_wide_narrow_wide_with_two_rows_at_most(self):
+        wide = self.strip.sizeHint().width()
+        self.assertTrue(self.console.tabs.tabBar().isHidden())
+        self.assertEqual(len(self.rows(self.at(wide))), 1)
+        mid = self.strip.minimumSizeHint().width() + 20
+        self.assertEqual(len(self.rows(self.at(mid))), 2)
+        self.assertEqual(len(self.rows(self.at(wide))), 1)
+        smallest = self.strip.minimumSizeHint().width()
+        shown = self.at(smallest)
+        self.assertLessEqual(len(self.rows(shown)), 2)
+        self.assert_inside(shown, smallest)
+        self.assertLess(smallest, wide)
+
+    def test_hidden_and_disabled_tabs(self):
+        self.console.set_page_visible('camera', False)
+        self.console.set_page_enabled('console', False)
+        shown = self.at(self.strip.sizeHint().width())
+        self.assertEqual(len(shown), len(self.buttons) - 1)
+        index = self.console.tabs.indexOf(self.console.page('console'))
+        self.assertFalse(self.buttons[index].isEnabled())
+        before = self.console.tabs.currentIndex()
+        QtTest.QTest.mouseClick(self.buttons[index], QtCore.Qt.MouseButton.LeftButton)
+        self.assertEqual(self.console.tabs.currentIndex(), before)
+
+    def test_narrow_strip_elides_and_every_tab_stays_clickable(self):
+        wide = self.strip.sizeHint().width()
+        self.assertTrue(all('…' not in b.text() for b in self.at(wide)))
+        smallest = self.strip.minimumSizeHint().width()
+        shown = self.at(smallest)
+        self.assertTrue(any('…' in b.text() for b in shown))
+        self.assertTrue(all(b.toolTip() for b in shown if '…' in b.text()))
+        self.assertEqual(len(shown), self.console.tabs.count())
+        self.assert_inside(shown, smallest)
+        for i, button in enumerate(self.buttons):
+            QtTest.QTest.mouseClick(button, QtCore.Qt.MouseButton.LeftButton)
+            self.assertEqual(self.console.tabs.currentIndex(), i)
+            self.assertTrue(button.isChecked())
+
+
+class TestIOPage(unittest.TestCase):
+    def test_output_click_requests_the_toggled_state_and_input_click_does_nothing(self):
+        from appPlugins.ToolGcodeSender.SenderIOUI import IOPage
+        page = IOPage()
+        self.addCleanup(page.deleteLater)
+        page.set_signals([('limit_x', 'X', 'X limit')], [('flood', 'F', 'Flood'), ('mist', 'M', 'Mist')])
+        page.set_outputs_enabled(True)
+        page.show()
+        page.update({'flood': (True, '', 'readback'), 'mist': (None, 'no report', ''),
+                     'limit_x': (False, '', 'readback')})
+        requests = []
+        page.output_requested.connect(lambda name, wanted: requests.append((name, wanted)))
+        QtTest.QTest.mouseClick(page.outputs['flood'], QtCore.Qt.MouseButton.LeftButton)
+        QtTest.QTest.mouseClick(page.outputs['mist'], QtCore.Qt.MouseButton.LeftButton)
+        QtTest.QTest.mouseClick(page.inputs['limit_x'], QtCore.Qt.MouseButton.LeftButton)
+        self.assertEqual(requests, [('flood', False), ('mist', True)])
+
+
+class MonitorFake(FakeGrbl):
+    """
+    A FakeGrbl for the IO status monitor. Only the real-time status byte `rt_byte` (b'?', or b'\\x80'
+    on a grblHAL with RT-) gets a report; the other byte is ignored. Each report has other inputs.
+    `$H` answers its ok after `home_delay` s. `state`/`extra` set the state and the extra report fields.
+    """
+
+    def __init__(self, rt_byte=b'?', home_delay=0.0, extra='', **kwargs):
+        super().__init__(**kwargs)
+        self.rt_byte = rt_byte
+        self.home_delay = home_delay
+        self.extra = extra
+        self.queries = 0
+        self.home_due = None
+        self.on_ok = None
+
+    def write(self, data):
+        if data in (b'?', b'\x80'):
+            self.written.append(data)
+            if data == self.rt_byte:
+                self.queries += 1
+                self._send('<%s|MPos:0.000,0.000,0.000|Pn:%s%s>' % (
+                    self.state, 'XP' if self.queries % 2 else 'Z', self.extra))
+            return
+        super().write(data)
+
+    def readline(self):
+        if self.home_due is not None and time.monotonic() >= self.home_due:
+            self.home_due = None
+            if self.on_ok is not None:
+                self.on_ok()
+            self._send('ok')
+        if not self.rx:
+            time.sleep(0.005)
+        return super().readline()
+
+    def _answer(self, cmd):
+        if cmd == '$H' and self.home_delay:
+            self.home_due = time.monotonic() + self.home_delay
+            return
+        super()._answer(cmd)
+
+
+class TestIOStatusMonitor(unittest.TestCase):
+    def make(self, **kwargs):
+        fake = MonitorFake(**kwargs)
+        tool = make_stream_tool(fake)
+        tool._plugin_active = True
+        tool._io_monitor_active = True
+        tool.grbl_ser_port.written.clear()
+        return tool, fake
+
+    @staticmethod
+    def reports(tool):
+        return [call.args[0] for call in tool.status_report_sig.emit.call_args_list]
+
+    @staticmethod
+    def wait_idle(tool):
+        deadline = time.monotonic() + 3.0
+        while tool._grbl_op is not None and time.monotonic() < deadline:
+            time.sleep(0.005)
+
+    def read_status(self, tool):
+        op = tool._grbl_reserve('IO status', read_only=True)
+        self.assertIsNotNone(op)
+        try:
+            return tool._grbl_query_status(op, timeout=1.0, observe=True)
+        finally:
+            tool._grbl_release(op)
+
+    def test_alarm_in_recovery_updates_the_inputs_and_home_still_runs(self):
+        tool, fake = self.make(state='Alarm')
+        fake.rx.append(b'<Alarm|MPos:0.000,0.000,0.000>\r\n')
+        tool._grbl_recovery = 'needs_home'
+        tool._grbl_stream_dirty = True
+        generation = tool._grbl_safety_generation
+        for _ in range(3):
+            self.assertTrue(self.read_status(tool).startswith('<Alarm'))
+        self.assertEqual(tool._grbl_recovery, 'needs_home')
+        self.assertEqual(tool._grbl_safety_generation, generation)
+        self.assertEqual([r['pins'] for r in self.reports(tool)], ['XP', 'Z', 'XP'])
+        # the same polls through the timer slot
+        tool._poll_idle_status()
+        self.wait_idle(tool)
+        self.assertEqual(fake.queries, 4)
+        self.assertEqual(tool._grbl_recovery, 'needs_home')
+        # Home is not blocked by the monitor
+        tool._grbl_stream_dirty = False
+        fake.state = 'Home'
+        op = tool._grbl_reserve('home', motion=True, allow_in_recovery=True)
+        self.assertIsNotNone(op)
+        self.assertEqual(tool._grbl_transact(op, '$H')[1], 'ok')
+        tool._grbl_release(op)
+
+    def test_a_new_alarm_without_recovery_is_still_latched(self):
+        tool, fake = self.make(state='Alarm')
+        self.read_status(tool)
+        self.assertEqual(tool._grbl_recovery, 'needs_reset')
+        self.assertEqual(tool._grbl_safety_generation, 1)
+
+    def test_reply_pending_does_not_stop_the_query_but_stops_a_command(self):
+        tool, fake = self.make()
+        tool._grbl_rx_port = fake                       # the port of the earlier command
+        tool._grbl_reply_pending = True
+        self.assertTrue(self.read_status(tool).startswith('<Idle'))
+        self.assertEqual(fake.queries, 1)
+        self.assertTrue(tool._grbl_reply_pending)       # a report is not the acknowledgement
+        tool._grbl_stale_notified = True                # the user was told: no wait for the old reply
+        op = tool._grbl_reserve('command')
+        self.assertEqual(tool._grbl_transact(op, 'G4 P0')[1], 'timeout')
+        tool._grbl_release(op)
+        self.assertNotIn(b'G4 P0\n', fake.written)
+        fake.rx.append(b'ok\r\n')                       # the earlier ok
+        self.read_status(tool)
+        self.assertFalse(tool._grbl_reply_pending)      # consumed once
+        op = tool._grbl_reserve('command')
+        self.assertEqual(tool._grbl_transact(op, 'G4 P0')[1], 'ok')
+        tool._grbl_release(op)
+        self.assertEqual(fake.rx, [])
+
+    def test_external_owner_does_not_stop_the_monitor_and_its_release_is_seen(self):
+        tool, fake = self.make(extra='|MPG:1')
+        self.read_status(tool)
+        self.assertTrue(tool._grbl_mpg_owned)
+        self.assertEqual(self.reports(tool)[-1]['pins'], 'XP')
+        self.assertIsNone(tool._grbl_reserve('command', motion=True))
+        fake.extra = '|MPG:0'
+        self.read_status(tool)
+        self.assertFalse(tool._grbl_mpg_owned)
+        self.assertEqual(len(self.reports(tool)), 2)
+        op = tool._grbl_reserve('command', motion=True)
+        self.assertIsNotNone(op)
+        tool._grbl_release(op)
+
+    def test_reset_pending_refuses_the_monitor_without_a_query(self):
+        tool, fake = self.make()
+        tool._grbl_reset_pending = True
+        tool._poll_idle_status()
+        self.assertEqual(fake.written, [])
+
+    def test_long_home_publishes_inputs_and_the_status_is_not_its_acknowledgement(self):
+        for rt_byte, top_bit in ((b'?', False), (b'\x80', True)):
+            with self.subTest(rt_byte=rt_byte):
+                tool, fake = self.make(rt_byte=rt_byte, home_delay=0.5, state='Home')
+                tool._grbl_top_bit_realtime = top_bit
+                seen = []
+                fake.on_ok = lambda: seen.append(len(self.reports(tool)))
+                op = tool._grbl_reserve('home', motion=True, allow_in_recovery=True)
+                started = time.monotonic()
+                with patch.object(grbl_client_module, 'IO_STATUS_PERIOD', 0.05):
+                    text, status = tool._grbl_transact(op, '$H', timeout=5.0)
+                self.assertEqual(status, 'ok')
+                self.assertGreaterEqual(time.monotonic() - started, 0.45)
+                self.assertGreaterEqual(seen[0], 3)         # the inputs changed before $H ended
+                self.assertEqual(fake.written[0], b'$H\n')
+                self.assertEqual(set(fake.written[1:]), {rt_byte})
+                self.assertNotIn('<', text)
+                self.assertIs(tool._grbl_op, op)            # no other operation, no second reader
+                tool._grbl_release(op)
+
+    def test_transact_without_monitor_sends_no_status_request(self):
+        tool, fake = self.make(home_delay=0.3)
+        tool._io_monitor_active = False
+        op = tool._grbl_reserve('home', motion=True, allow_in_recovery=True)
+        with patch.object(grbl_client_module, 'IO_STATUS_PERIOD', 0.05):
+            self.assertEqual(tool._grbl_transact(op, '$H', timeout=5.0)[1], 'ok')
+        self.assertEqual(fake.written, [b'$H\n'])
+        tool._grbl_release(op)
+
+    def test_guard_reason_writes_nothing(self):
+        tool, fake = self.make()
+        op = tool._grbl_reserve('IO output', motion=True)
+        self.assertEqual(tool._grbl_transact(op, 'M3 S100', guard=lambda: 'Alarm'), ('Alarm', 'error'))
+        self.assertEqual(fake.written, [])
+        self.assertFalse(tool._grbl_reply_pending)
+        self.assertEqual(tool._grbl_transact(op, 'M3 S100', guard=lambda: None)[1], 'ok')
+        self.assertEqual(fake.written, [b'M3 S100\n'])
+        tool._grbl_release(op)
+
+    def test_a_command_waits_at_most_for_one_query_and_the_timer_follows_the_monitor(self):
+        tool, fake = self.make()
+        tool._poll_idle_status()
+        op = tool._grbl_reserve('command', motion=True)
+        self.assertIsNotNone(op)
+        tool._grbl_release(op)
+        self.assertLessEqual(fake.written.count(b'?'), 1)
+        tool._status_poll_timer = MagicMock()
+        tool.set_io_monitor(True)
+        tool._status_poll_timer.setInterval.assert_called_with(500)
+        tool.set_io_monitor(False)
+        tool._status_poll_timer.setInterval.assert_called_with(1000)
+        self.assertFalse(tool._io_monitor_active)
+
+
+class TestIOTab(unittest.TestCase):
+    """The IO tab: discovery, input and accessory states, requests, the output enable rule and the timers."""
+
+    IDENT = ['[VER:1.1h.20190825:]', '[OPT:VM,15,128]']
+
+    def make(self, ident=None, hal=False, **fake_args):
+        from appPlugins.Common.grbl.grbl_protocol import parse_grbl_identity, grbl_capabilities
+        fake = MonitorFake(**fake_args)
+        tool = make_stream_tool(fake)
+        tool._plugin_active = True
+        tool._status_poll_timer = MagicMock()
+        tool.set_io_monitor = MagicMock()
+        tool.ui.spindle_rpm_entry.get_value.return_value = 1000
+        tool._grbl_grblhal = hal
+        tool._grbl_caps = grbl_capabilities(parse_grbl_identity('\n'.join(ident or self.IDENT)))
+        tool.io_discovery_sig = MagicMock()
+        tool.io_result_sig = MagicMock()
+        io = tool.sender_io
+        tool.io_result_sig.emit.side_effect = io.on_result
+        self.clock = [0.0]
+        io.clock = lambda: self.clock[0]
+        io._page_shown = lambda: True
+        self.page = io.new_page()
+        self.addCleanup(self.page.deleteLater)
+        self.addCleanup(lambda: io._timer is not None and io._timer.stop())
+        io.discover(fake)
+        self.discovery_written = list(fake.written)
+        fake.written.clear()
+        return tool, fake, io
+
+    def feed(self, io, text):
+        from appPlugins.Common.grbl.grbl_protocol import parse_grbl_status_report
+        io.on_status_report(parse_grbl_status_report(text))
+
+    @staticmethod
+    def shown(page, name):
+        indicator = page.outputs.get(name) or page.inputs[name]
+        return indicator.state
+
+    def test_unknown_accessory_state_stays_disabled_after_a_global_enable(self):
+        from appPlugins.ToolGcodeSender.SenderIO import ACCESSORY
+        tool, fake, io = self.make()
+        io.refresh()
+        names = [name for name in ACCESSORY if name in self.page.outputs]
+        self.assertTrue(names)
+        self.page.set_outputs_enabled(True)
+        self.page.set_output_supported(names[0], True)
+        for name in names:
+            self.assertFalse(self.page.outputs[name].isEnabled(), name)
+        self.page.set_output_blocked(names[0], '')
+        self.assertTrue(self.page.outputs[names[0]].isEnabled())
+
+    def test_discovery_falls_back_to_plain_i_and_reads_the_pin_report(self):
+        fake = MonitorFake(replies={'$I+': ['error:3'], '$I': self.IDENT + ['ok']})
+        tool = make_stream_tool(fake)
+        tool._grbl_grblhal = False
+        op = tool._grbl_reserve('units')
+        tool._grbl_read_after_connect(op)
+        tool._grbl_release(op)
+        self.assertEqual(fake.commands()[:2], ['$I+', '$I'])
+        self.assertIs(tool._grbl_caps['mist'], True)
+        for hal, setting, expected in ((True, '$10=3', False), (True, '$10=19', True), (False, '$10=3', True)):
+            with self.subTest(hal=hal, setting=setting):
+                fake = MonitorFake(replies={'$$': [setting, '$13=0', 'ok']})
+                tool = make_stream_tool(fake)
+                tool._grbl_grblhal = hal
+                op = tool._grbl_reserve('units')
+                tool._grbl_read_report_units(op)
+                tool._grbl_release(op)
+                self.assertIs(tool.sender_io.pin_report, expected)
+
+    def test_signals_follow_the_capabilities_and_a_new_port_replaces_a_stale_one(self):
+        tool, fake, io = self.make(ident=['[VER:1.1f:]', '[OPT:VD,15,128]', '[SIGNALS:RHSD]', '[AUX IO:0,2,0,0]',
+                                          '[FIRMWARE:grblHAL]'], hal=True)
+        self.assertEqual(list(self.page.inputs), ['X Limit', 'Y Limit', 'Z Limit', 'Probe', 'Door', 'Hold', 'Reset',
+                                                  'Cycle Start'])
+        # D: the direction pin is the enable pin: no CCW; M is absent: no Mist
+        self.assertEqual(list(self.page.outputs), ['Spindle CW', 'Flood', 'Aux 0', 'Aux 1'])
+        before = dict(self.page.outputs)
+        io.discover(MonitorFake())          # not the port of the tool
+        self.assertEqual(self.page.outputs, before)
+        tool._grbl_caps = {'probe': None, 'mist': True, 'spindle_dir': True, 'control_signals': None, 'aux_out': 0}
+        tool._grbl_grblhal = False
+        io.discover(fake)                   # a reconnect with other capabilities rebuilds the page
+        self.assertEqual(list(self.page.outputs), ['Spindle CW', 'Spindle CCW', 'Flood', 'Mist'])
+        tool._grbl_connected = False
+        io.on_disconnect()
+        self.assertEqual((list(self.page.inputs), list(self.page.outputs)), ([], []))
+        self.assertIn('Not connected', self.page.message.text())
+
+    def test_pins_are_evidence_only_when_reported_and_the_feed_goes_stale(self):
+        tool, fake, io = self.make(hal=True)
+        io.pin_report = False
+        self.feed(io, '<Idle|MPos:0.000,0.000,0.000>')
+        self.assertIsNone(self.shown(self.page, 'X Limit'))         # pin reporting off: gray, not red
+        self.assertIn('pin reporting off', self.page.inputs['X Limit'].toolTip())
+        self.feed(io, '<Idle|MPos:0.000,0.000,0.000|Pn:XP>')
+        self.assertEqual([self.shown(self.page, n) for n in ('X Limit', 'Y Limit', 'Probe')], [True, False, True])
+        for second in (0.5, 1.0, 2.0, 2.5):                         # a healthy 500 ms feed never flickers
+            self.clock[0] = second
+            io.tick()
+            self.assertTrue(self.shown(self.page, 'X Limit'))
+        io.aux['Aux 0'] = True
+        self.clock[0] = 2.6                                         # no report for more than 2.5 s
+        io.tick()
+        self.assertIsNone(self.shown(self.page, 'X Limit'))
+        self.assertIsNone(self.shown(self.page, 'Flood'))
+
+    def test_activation_makes_all_unknown_then_the_first_report_with_ov_gives_red_not_gray(self):
+        tool, fake, io = self.make()
+        io.evaluate()
+        tool.set_io_monitor.assert_called_with(True)
+        self.assertIsNone(self.shown(self.page, 'Flood'))
+        self.feed(io, '<Idle|MPos:0.000,0.000,0.000|Pn:X>')          # no Ov: no accessory evidence
+        self.assertIsNone(self.shown(self.page, 'Flood'))
+        self.feed(io, '<Idle|MPos:0.000,0.000,0.000|Pn:X|Ov:100,100,100>')   # GRBL: Ov without A: = all off
+        self.assertEqual([self.shown(self.page, n) for n in ('Spindle CW', 'Flood', 'Mist')], [False] * 3)
+        io._page_shown = lambda: False                                # the dock hides: the monitor stops
+        io.evaluate()
+        tool.set_io_monitor.assert_called_with(False)
+        io._page_shown = lambda: True                                 # and shows again: a new sync starts
+        io.evaluate()
+        tool.set_io_monitor.assert_called_with(True)
+        self.assertIsNone(self.shown(self.page, 'Flood'))
+
+    def test_grblhal_activation_asks_for_a_full_report(self):
+        tool, fake, io = self.make(hal=True)        # the discovery activates the visible IO tab
+        self.assertIn(b'\x87', self.discovery_written)
+
+    def test_coolant_sends_one_toggle_and_an_unconfirmed_change_is_not_retried(self):
+        tool, fake, io = self.make()
+        io.evaluate()
+        self.feed(io, '<Idle|MPos:0.000,0.000,0.000|Ov:100,100,100|A:FM>')
+        self.assertEqual([self.shown(self.page, n) for n in ('Flood', 'Mist')], [True, True])
+        io.on_output_requested('Flood', False)
+        self.assertEqual(fake.written, [b'\xa0'])                      # only the flood toggle
+        io.on_output_requested('Mist', False)                         # 1 request at a time
+        self.assertEqual(fake.written, [b'\xa0'])
+        self.clock[0] = 11.0
+        io.tick()
+        self.assertIsNotNone(io.pending)
+        self.clock[0] = 13.0
+        io.tick()
+        self.assertIsNone(io.pending)
+        self.assertIsNone(self.shown(self.page, 'Flood'))              # gray: not yet confirmed
+        self.assertEqual(fake.written, [b'\xa0'])                      # no retry
+        self.feed(io, '<Idle|MPos:0.000,0.000,0.000|Ov:100,100,100|A:M>')   # a late report still sets the color
+        self.assertIs(self.shown(self.page, 'Flood'), False)
+
+    def test_spindle_ok_is_not_on_and_an_error_keeps_the_output(self):
+        tool, fake, io = self.make()
+        io.evaluate()
+        self.feed(io, '<Idle|MPos:0.000,0.000,0.000|Ov:100,100,100>')
+        fake.replies = {'M3': ['error:9']}
+        io.on_output_requested('Spindle CW', True)
+        self.assertEqual(fake.commands(), ['M3 S1000'])
+        self.assertIsNone(io.pending)
+        self.assertIs(self.shown(self.page, 'Spindle CW'), False)     # unchanged
+        fake.replies = {}
+        io.on_output_requested('Spindle CW', True)                    # a later valid request works
+        self.assertIsNotNone(io.pending)
+        self.assertIs(self.shown(self.page, 'Spindle CW'), False)     # ok is "accepted", not "On"
+        io.on_output_requested('Spindle CW', True)
+        self.assertEqual(fake.commands(), ['M3 S1000', 'M3 S1000'])   # the 2nd click sends nothing
+        self.feed(io, '<Idle|MPos:0.000,0.000,0.000|Ov:100,100,100|A:>')    # M3 S0: the report has no S
+        self.assertIsNone(io.pending)
+        self.assertEqual([self.shown(self.page, n) for n in ('Spindle CW', 'Spindle CCW')], [False, False])
+
+    def test_error_20_marks_the_output_not_supported(self):
+        tool, fake, io = self.make(ident=self.IDENT + ['[FIRMWARE:grblHAL]', '[AUX IO:0,1,0,0]'], hal=True)
+        io.evaluate()
+        self.feed(io, '<Idle|MPos:0.000,0.000,0.000|A:>')
+        fake.replies = {'M64': ['error:20']}
+        io.on_output_requested('Aux 0', True)
+        self.assertFalse(self.page.outputs['Aux 0'].isEnabled())
+        fake.replies = {}
+        io.on_output_requested('Flood', True)                           # the other outputs go on working
+        self.assertIsNotNone(io.pending)
+
+    def test_aux_output_is_commanded_and_cleared_by_a_job_a_reset_an_alarm_and_an_owner(self):
+        tool, fake, io = self.make(ident=self.IDENT + ['[FIRMWARE:grblHAL]', '[AUX IO:0,1,0,0]'], hal=True)
+        for clear in (io.on_job_start, io.clear_commanded,
+                      lambda: self.feed(io, '<Alarm|MPos:0.000,0.000,0.000>'),
+                      lambda: (setattr(tool, '_grbl_mpg_owned', True),
+                               self.feed(io, '<Idle|MPos:0.000,0.000,0.000|MPG:1>'))):
+            io.evaluate()
+            self.feed(io, '<Idle|MPos:0.000,0.000,0.000|A:>')
+            tool._controller_state = 'Idle'
+            tool._grbl_mpg_owned = False
+            io.on_output_requested('Aux 0', True)
+            self.assertEqual(self.page.outputs['Aux 0'].source, 'commanded')
+            self.assertIs(self.shown(self.page, 'Aux 0'), True)
+            clear()
+            self.assertIsNone(self.shown(self.page, 'Aux 0'))
+
+    def test_outputs_are_disabled_and_write_nothing_during_a_job_a_pause_an_alarm_or_recovery(self):
+        def running(tool):
+            tool._grbl_op = SimpleNamespace(name='stream')
+
+        def paused(tool):
+            tool._program_paused = True
+
+        def alarm(tool):
+            tool._controller_state = 'Alarm'
+
+        def recovery(tool):
+            tool._grbl_recovery = 'needs_home'
+
+        for block in (running, paused, alarm, recovery):
+            with self.subTest(block=block.__name__):
+                tool, fake, io = self.make()
+                io.evaluate()
+                self.feed(io, '<Idle|MPos:0.000,0.000,0.000|Ov:100,100,100|A:F>')
+                self.assertTrue(self.page.outputs['Flood'].isEnabled())
+                block(tool)
+                io.refresh()
+                self.assertFalse(self.page.outputs['Flood'].isEnabled())
+                io.on_output_requested('Flood', False)
+                self.assertEqual(fake.written, [])
+
+    def test_a_request_that_became_blocked_before_the_write_writes_nothing(self):
+        tool, fake, io = self.make()
+        io.evaluate()
+        self.feed(io, '<Idle|MPos:0.000,0.000,0.000|Ov:100,100,100>')
+        tasks = []
+        tool._grbl_start_op = lambda name, task, **kwargs: tasks.append(task) or True
+        io.on_output_requested('Spindle CW', True)
+        tool._controller_state = 'Alarm'                              # the Alarm comes before the write
+        op = tool._grbl_reserve('IO output', motion=True)
+        tasks[0](op)
+        tool._grbl_release(op)
+        self.assertEqual(fake.written, [])
+        io.on_disconnect()                                            # a disconnect drops the old request
+        self.assertIsNone(io.pending)
 
 
 if __name__ == '__main__':

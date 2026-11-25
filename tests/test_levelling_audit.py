@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import tempfile
 import threading
+import time
 import unittest
 from types import SimpleNamespace
 from unittest.mock import ANY, MagicMock, patch
@@ -45,6 +46,7 @@ def make_audit_tool(units='MM', storage=None, heights_valid=False, cls=None):
     tool.app.options = {}
     tool.app.inform_shell = MagicMock()
     tool.ui = MagicMock()
+    tool.ui.al_toolbar.indexOf.return_value = -1
     tool.ui.plot_probing_pts_cb.get_value.return_value = False
     tool.ui.avoid_exc_combo.currentIndex.return_value = 0
     tool.ui.avoid_exc_combo.count.return_value = 0
@@ -76,6 +78,7 @@ def make_audit_tool(units='MM', storage=None, heights_valid=False, cls=None):
     tool._al_apply_running = False
     tool._grbl_op_lock = threading.Lock()
     tool._grbl_op = None
+    tool._grbl_unclosed_ports = []
     tool._grbl_recovery = None
     tool._grbl_close_pending = False
     tool._grbl_connected = False
@@ -86,6 +89,9 @@ def make_audit_tool(units='MM', storage=None, heights_valid=False, cls=None):
     tool._grbl_reply_pending = False
     tool._grbl_reset_pending = False
     tool._grbl_stream_dirty = False
+    # the idle poll gave a fresh Idle report
+    tool._controller_state = 'Idle'
+    tool._controller_state_time = time.monotonic()
     tool._al_generation = 0
     tool._al_target_name = None
     tool._al_target_obj = None
@@ -527,7 +533,7 @@ class TestGrblConnect(unittest.TestCase):
         tool = make_audit_tool()
         tool.ui.com_list_combo.currentText.return_value = 'COM3'
         tool.ui.baudrates_list_combo.currentText.return_value = '115200'
-        tool.ui.al_toolbar.count.return_value = 0
+        tool.ui.al_toolbar.indexOf.return_value = -1
         return tool
 
 
@@ -625,6 +631,15 @@ class TestGrblZero(unittest.TestCase):
         run_worker(tool)
         self.assertEqual(fake.commands(), ['$G', 'G10 L20 P2 X0', '?'])
 
+
+    def test_zero_x_in_g59_1(self):
+        fake = FakeGrbl(replies={'$G': ['[GC:G0 G59.1 G17 G21 G90 G94 M5 M9 T0 F0 S0]', 'ok']})
+        tool = make_audit_tool()
+        tool.grbl_ser_port = fake
+        tool._grbl_connected = True
+        tool.on_grbl_zero(axis='x')
+        run_worker(tool)
+        self.assertEqual(fake.commands(), ['$G', 'G10 L20 P7 X0', '?'])
 
     def test_bad_wcs_reply_sends_no_g10(self):
         fake = FakeGrbl(replies={'$G': ['garbage', 'ok']})

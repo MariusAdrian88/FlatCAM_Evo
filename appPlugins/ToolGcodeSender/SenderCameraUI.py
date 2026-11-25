@@ -5,7 +5,7 @@
 # License:  MIT Licence                                    #
 # ##########################################################
 """
-Camera tab of the G-code Sender: device selection, live preview with a fixed
+Camera page (in the dock) of the G-code Sender: device selection, live preview with a fixed
 center crosshair, orientation controls and the calibration buttons.
 
 The buttons only report operator captures; the sender reads the machine
@@ -152,8 +152,8 @@ class SenderCameraUI(QtWidgets.QWidget):
         super().__init__(parent)
         self.app = app
         self.decimals = app.decimals
-        units = str(getattr(app, 'app_units', 'MM') or 'MM').upper()
-        self.units = units if units in ('MM', 'IN') else 'MM'
+        self.units = self._app_units()
+        self._syncing_units = False
         self._devices = []
         self.camera = None
         self.session = None
@@ -174,12 +174,55 @@ class SenderCameraUI(QtWidgets.QWidget):
         self._preview_guard_timer.timeout.connect(self._check_preview)
         self._preview_guard_timer.start()
 
+    def _app_units(self):
+        units = str(self.app.app_units or 'MM').upper()
+        return units if units in ('MM', 'IN') else 'MM'
+
+    def _sync_units(self):
+        """A live project unit change converts the tolerances; the controller always gets application units."""
+        units = self._app_units()
+        if units == self.units or self._syncing_units:
+            return
+        self._syncing_units = True
+        try:
+            scale = 25.4 if units == 'MM' else 1.0 / 25.4
+            max_value = 100.0 if units == 'MM' else 100.0 / 25.4
+            entries = (self.verify_tolerance_entry, self.view_tolerance_entry)
+            values = [entry.get_value() * scale for entry in entries]
+            for entry in entries:
+                entry.blockSignals(True)
+            try:
+                for entry, value in zip(entries, values):
+                    entry.set_range(0.0001, max_value)
+                    entry.set_value(value)
+            finally:
+                for entry in entries:
+                    entry.blockSignals(False)
+            self.units = units
+            self.verify_tolerance_label.setText(_("Repeatability tolerance (%s):") % units)
+            self.view_tolerance_label.setText(_("Viewing Z tolerance (%s):") % units)
+            self.tolerance_changed_sig.emit()
+        finally:
+            self._syncing_units = False
+
+    def _on_capture_spindle(self):
+        self._sync_units()
+        self.capture_spindle_sig.emit()
+
+    def _on_capture_camera(self):
+        self._sync_units()
+        self.capture_camera_sig.emit()
+
+    def _on_verify(self):
+        self._sync_units()
+        self.verify_sig.emit()
+
     def _build_ui(self):
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(2, 2, 2, 2)
         layout.setSpacing(4)
 
-        # device selection, preview and orientation: kept visible above both camera tabs
+        # device selection, preview and orientation: kept visible above the Calibration and Board registration tabs
         self.preview_controls = QtWidgets.QWidget()
         preview_layout = QtWidgets.QVBoxLayout(self.preview_controls)
         preview_layout.setContentsMargins(0, 0, 0, 0)
@@ -298,13 +341,14 @@ class SenderCameraUI(QtWidgets.QWidget):
         self.mirror_cb.toggled.connect(self._on_orientation_changed)
         self.verify_tolerance_entry.valueChanged.connect(self._on_tolerance_changed)
         self.view_tolerance_entry.valueChanged.connect(self._on_tolerance_changed)
-        self.capture_spindle_button.clicked.connect(self.capture_spindle_sig)
-        self.capture_camera_button.clicked.connect(self.capture_camera_sig)
-        self.verify_button.clicked.connect(self.verify_sig)
+        self.capture_spindle_button.clicked.connect(self._on_capture_spindle)
+        self.capture_camera_button.clicked.connect(self._on_capture_camera)
+        self.verify_button.clicked.connect(self._on_verify)
         self.clear_button.clicked.connect(self.clear_sig)
         self.set_calibration_state('none', 'no_calibration', (0.0, 0.0), 0.0, False)
 
     def restore(self, options):
+        self._sync_units()
         self.refresh_cameras(selected=str(options.get('tools_camera_device', '') or ''))
         rotation = _stored_rotation(options)
         mirror = bool(options.get('tools_camera_mirror', False))
@@ -398,8 +442,10 @@ class SenderCameraUI(QtWidgets.QWidget):
         self.capture_spindle_button.setEnabled(ready)
         self.capture_camera_button.setEnabled(ready and preview)
         self.verify_button.setEnabled(ready and preview and self._has_calibration)
+        self.clear_button.setEnabled(self._has_calibration and not self._busy)
 
     def set_calibration_state(self, state, reason, offset, view_z, has_calibration):
+        self._sync_units()
         self._has_calibration = bool(has_calibration)
         decimals = self.decimals
         if not has_calibration:
@@ -437,12 +483,15 @@ class SenderCameraUI(QtWidgets.QWidget):
         return bool(self.mirror_cb.isChecked())
 
     def verify_tolerance(self):
+        self._sync_units()
         return float(self.verify_tolerance_entry.get_value())
 
     def view_tolerance(self):
+        self._sync_units()
         return float(self.view_tolerance_entry.get_value())
 
     def remember_settings(self):
+        self._sync_units()
         self.app.options['tools_camera_device'] = self.current_camera_id()
         self.app.options['tools_camera_rotation'] = self.rotation()
         self.app.options['tools_camera_mirror'] = self.mirror()
@@ -485,7 +534,7 @@ class SenderCameraUI(QtWidgets.QWidget):
         # a frame from a stopped preview or a previous device must not bless the current one
         if self.camera is None or self.session is None:
             return
-        sender = self.sender() if callable(getattr(self, 'sender', None)) else None
+        sender = self.sender()
         if sender is not None and sender is not self._frame_sink:
             return
         if not frame.isValid():

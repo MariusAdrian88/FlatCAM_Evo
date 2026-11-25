@@ -12,6 +12,8 @@ import math
 
 from PyQt6 import QtCore, QtWidgets
 
+from appGUI.GUIElements import FCLabel, FCSpinner, FCComboBox
+
 from appPlugins.Common.ecut.ecut_config import (INPUT_SIGNAL_NAMES, OUTPUT_SIGNAL_NAMES, OutputSignal,
                                                 LABEL_MAX_LENGTH, NATIVE_INPUT_COUNT, NATIVE_OUTPUT_COUNT)
 
@@ -71,7 +73,7 @@ class EcutHardwareTabs(QtWidgets.QWidget):
     def _page(self, title, note, configurable=True):
         page = QtWidgets.QWidget(self)
         layout = QtWidgets.QVBoxLayout(page)
-        label = QtWidgets.QLabel(note)
+        label = FCLabel(note)
         label.setWordWrap(True)
         layout.addWidget(label)
         self.pages.append((title, page))
@@ -96,7 +98,9 @@ class EcutHardwareTabs(QtWidgets.QWidget):
         return widget
 
     def _spin(self, path, minimum, maximum, integer=True):
-        widget = QtWidgets.QSpinBox() if integer else QtWidgets.QDoubleSpinBox()
+        # The float variant stays a Qt spin box: with FCDoubleSpinner (3 decimals, minimum 0) a typed '-7' in the
+        # 0..1e6 range silently became 7 (the Qt box keeps the old value).
+        widget = FCSpinner(policy=False) if integer else QtWidgets.QDoubleSpinBox()
         if not integer:
             widget.setDecimals(3)
         widget.setRange(minimum, maximum)
@@ -105,7 +109,7 @@ class EcutHardwareTabs(QtWidgets.QWidget):
         return widget
 
     def _combo(self, path, options):
-        widget = QtWidgets.QComboBox()
+        widget = FCComboBox(policy=False)
         for text, value in options:
             widget.addItem(text, value)
         widget.currentIndexChanged.connect(lambda index: self._edit(path, widget.itemData(index)))
@@ -127,7 +131,7 @@ class EcutHardwareTabs(QtWidgets.QWidget):
                              % LABEL_MAX_LENGTH)
             field.textChanged.connect(lambda text, path=(key, pin): self._edit(path, self._clean_label(text)))
             row, column = divmod(pin, columns)
-            grid.addWidget(QtWidgets.QLabel('%s%d' % (prefix, pin)), row, column * 2)
+            grid.addWidget(FCLabel('%s%d' % (prefix, pin)), row, column * 2)
             grid.addWidget(field, row, column * 2 + 1)
             fields.append(field)
         layout.addWidget(group)
@@ -157,7 +161,7 @@ class EcutHardwareTabs(QtWidgets.QWidget):
             'use it for a normally closed switch that opens on a limit or broken wire. '
             'Home and limits may share an input. Logical states use applied settings. '
             'Homing and probing cycles remain unavailable.'))
-        self.legacy_estop_note = QtWidgets.QLabel()
+        self.legacy_estop_note = FCLabel()
         self.legacy_estop_note.setWordWrap(True)
         layout.addWidget(self.legacy_estop_note)
         table = self._table(layout, [_('Signal'), _('Enabled'), _('Input'), _('Active level'),
@@ -174,7 +178,7 @@ class EcutHardwareTabs(QtWidgets.QWidget):
             table.setItem(row, 0, QtWidgets.QTableWidgetItem(name))
             for column, key in enumerate(('enabled', 'pin', 'polarity', 'debounce_ms'), 1):
                 table.setCellWidget(row, column, fields[key])
-            fields['port'] = QtWidgets.QLabel()
+            fields['port'] = FCLabel()
             table.setCellWidget(row, 5, fields['port'])
             self.logical_leds[name] = self._indicator()
             table.setCellWidget(row, 6, self.logical_leds[name])
@@ -194,7 +198,7 @@ class EcutHardwareTabs(QtWidgets.QWidget):
             table.insertRow(row)
             table.setItem(row, 0, QtWidgets.QTableWidgetItem(name))
             if name.startswith(('STEP_', 'DIR_')):
-                table.setCellWidget(row, 1, QtWidgets.QLabel(_('Controller profile — see Motor pins')))
+                table.setCellWidget(row, 1, FCLabel(_('Controller profile — see Motor pins')))
                 continue
             path = ('outputs', name)
             fields = dict(enabled=self._check((*path, 'enabled')),
@@ -252,7 +256,7 @@ class EcutHardwareTabs(QtWidgets.QWidget):
         for key, text, minimum, maximum, integer in options:
             self.spindle_fields[key] = self._spin(('spindle', key), minimum, maximum, integer)
             form.addRow(text, self.spindle_fields[key])
-        self.spindle_frequency = QtWidgets.QLabel()
+        self.spindle_frequency = FCLabel()
         form.addRow(_('Frequency profile (fixed)'), self.spindle_frequency)
         layout.addStretch()
 
@@ -261,7 +265,7 @@ class EcutHardwareTabs(QtWidgets.QWidget):
             'Readback only: raw input 1 = switch closed to Vo12V; physical output On = raw 1, sinking. '
             'Clicking an output requests a change. Its On/Off state changes only after controller readback. '
             'Assigned SPINDLE or ENABLE outputs can start equipment when switched manually.'), configurable=False)
-        self.io_status = QtWidgets.QLabel()
+        self.io_status = FCLabel()
         layout.addWidget(self.io_status)
         grid = QtWidgets.QGridLayout()
         layout.addLayout(grid)

@@ -333,6 +333,23 @@ class TestCameraAvailabilityFeedback(unittest.TestCase):
         self.assertEqual(app.options['tools_camera_tolerance_units'], 'IN')
         self.assertAlmostEqual(app.options['tools_camera_verify_tolerance'], 0.05 / 25.4, places=3)
 
+    def test_a_live_unit_change_converts_the_tolerances_for_the_controller(self):
+        from appPlugins.ToolGcodeSender.SenderCameraUI import SenderCameraUI
+
+        app = camera_app(units='MM')
+        with patch('appPlugins.ToolGcodeSender.SenderCameraUI.QMediaDevices.videoInputs', return_value=[]):
+            widget = SenderCameraUI(app)
+        changed = []
+        widget.tolerance_changed_sig.connect(lambda: changed.append(1))
+        self.assertAlmostEqual(widget.verify_tolerance(), 0.05, places=3)
+        app.app_units = 'IN'
+        self.assertAlmostEqual(widget.verify_tolerance(), 0.05 / 25.4, places=3)
+        self.assertAlmostEqual(widget.view_tolerance(), 0.5 / 25.4, places=3)
+        self.assertEqual(len(changed), 1)
+        self.assertIn('(IN)', widget.verify_tolerance_label.text())
+        widget.remember_settings()
+        self.assertEqual(app.options['tools_camera_tolerance_units'], 'IN')
+
     def test_a_malformed_stored_rotation_is_reset_instead_of_crashing(self):
         from appPlugins.ToolGcodeSender.SenderCameraUI import SenderCameraUI
 
@@ -720,6 +737,9 @@ class TestCameraRegistrationWorkflow(unittest.TestCase):
     def test_backspace_requires_confirmation_before_removing_a_pair(self):
         _app, ui, _obj = self.make_ui()
         self.add_two_pairs(ui)
+        ui.refresh_table()
+        ui.pairs_table.clearSelection()
+        last = ui.registration.design[-1]
         event = SimpleNamespace(key='Backspace')
         with patch('appPlugins.ToolGcodeSender.SenderRegistrationUI.QtWidgets.QMessageBox.question',
                    return_value=QtWidgets.QMessageBox.StandardButton.No) as confirm:
@@ -730,6 +750,20 @@ class TestCameraRegistrationWorkflow(unittest.TestCase):
                    return_value=QtWidgets.QMessageBox.StandardButton.Yes):
             ui._on_key_press(event)
         self.assertEqual(len(ui.registration.design), 1)
+        self.assertNotIn(last, ui.registration.design)
+
+    def test_remove_pair_needs_a_selected_row(self):
+        _app, ui, _obj = self.make_ui()
+        self.add_two_pairs(ui)
+        ui.refresh_table()
+        self.assertFalse(ui.remove_pair_button.isEnabled())
+        with patch('appPlugins.ToolGcodeSender.SenderRegistrationUI.QtWidgets.QMessageBox.question',
+                   return_value=QtWidgets.QMessageBox.StandardButton.Yes) as confirm:
+            ui.on_remove_pair()
+            confirm.assert_not_called()
+        self.assertEqual(len(ui.registration.design), 2)
+        ui.pairs_table.selectRow(0)
+        self.assertTrue(ui.remove_pair_button.isEnabled())
 
     @staticmethod
     def observation(x, y, **changes):
@@ -826,6 +860,144 @@ class TestCameraRegistrationWorkflow(unittest.TestCase):
         self.assertEqual(requested, [])
         self.assertIsNone(ui.fit)
         self.assertTrue(ui.use_selected_button.isEnabled())
+
+
+class TestCameraPane(unittest.TestCase):
+    """The camera pane beside the plot: a splitter only while the pane is open."""
+
+    def setUp(self):
+        from appGUI.GUIElements import FCDetachableTab
+        from appPlugins.ToolGcodeSender.SenderCameraPane import CameraPane
+
+        self.host = QtWidgets.QWidget()
+        self.right_lay = QtWidgets.QVBoxLayout(self.host)
+        self.right_lay.addWidget(QtWidgets.QLabel('above'))
+        self.area = FCDetachableTab(protect=False)
+        self.plot_tab = QtWidgets.QWidget()
+        self.plot_tab.setObjectName('plotarea_tab')
+        self.area.addTab(self.plot_tab, 'Plot Area')
+        self.right_lay.addWidget(self.area, 1)
+        self.host.resize(1000, 600)
+        self.host.show()
+        self.page = QtWidgets.QWidget()
+        self.dock_layout = QtWidgets.QVBoxLayout(self.page)
+        self.dock_layout.addWidget(QtWidgets.QLabel('controls'))
+        self.view = QtWidgets.QWidget(self.page)
+        self.dock_layout.addWidget(self.view, 1)
+        self.dock_layout.addWidget(QtWidgets.QLabel('tabs'))
+        self.app = SimpleNamespace(
+            options={}, ui=SimpleNamespace(plot_tab_area=self.area, plot_tab=self.plot_tab, right_lay=self.right_lay))
+        self.stops = []
+        self.pane = CameraPane(self.app, self.view, self.dock_layout, lambda: self.stops.append(True))
+        self.addCleanup(self.cleanup)
+
+    def cleanup(self):
+        self.pane.close()
+        for window in list(self.area.detachedTabs.values()):
+            window.close()
+        self.host.close()
+        self.host.deleteLater()
+        QtWidgets.QApplication.processEvents()
+
+    def test_the_splitter_exists_only_while_the_pane_is_open(self):
+        self.pane.open()
+        splitter = self.pane.splitter
+        self.assertEqual(splitter.count(), 2)
+        self.assertIs(splitter.widget(0), self.area)
+        self.assertIs(self.right_lay.itemAt(1).widget(), splitter)
+        self.assertEqual(self.pane.pane.tabText(0), 'Camera')
+        self.assertIs(self.view.parentWidget(), self.pane.page)
+        self.pane.close()
+        self.assertIsNone(self.pane.splitter)
+        self.assertEqual(self.right_lay.indexOf(self.area), 1)
+        self.assertEqual(self.right_lay.stretch(1), 1)
+        self.assertIs(self.area.parentWidget(), self.host)
+        self.assertEqual(self.dock_layout.indexOf(self.view), 1)
+        self.assertEqual(self.stops, [True])
+
+    def test_two_opens_make_one_pane(self):
+        self.pane.open()
+        first = self.pane.pane
+        self.pane.open()
+        self.assertIs(self.pane.pane, first)
+        self.assertEqual(self.right_lay.count(), 2)
+
+    def test_the_resized_width_is_kept_for_the_next_open(self):
+        self.pane.open()
+        QtWidgets.QApplication.processEvents()
+        self.pane.splitter.setSizes([700, 250])
+        width = self.pane.splitter.sizes()[1]
+        self.assertNotEqual(width, 400)
+        self.pane.close()
+        self.assertEqual(self.app.options['global_camera_pane_width'], width)
+        self.pane.open()
+        QtWidgets.QApplication.processEvents()
+        self.assertAlmostEqual(self.pane.splitter.sizes()[1], width, delta=10)
+
+    def test_a_detached_pane_has_no_splitter_and_returns_into_a_new_one(self):
+        self.pane.open()
+        self.pane.pane.detachTab(0, QtCore.QPoint(50, 50))
+        self.assertIsNone(self.pane.splitter)
+        self.assertEqual(self.right_lay.indexOf(self.area), 1)
+        window = next(iter(self.pane.pane.detachedTabs.values()))
+        self.assertTrue(window.isVisible())
+        self.assertIs(self.view.window(), window)
+        self.assertEqual(self.stops, [])    # the camera keeps running in the window
+        window.close()
+        self.assertIsNotNone(self.pane.splitter)
+        self.assertIs(self.pane.splitter.widget(1), self.pane.pane)
+        self.assertEqual(self.pane.pane.count(), 1)
+
+    def test_closing_the_pane_while_detached_closes_its_window_and_stops_the_camera(self):
+        self.pane.open()
+        self.pane.pane.detachTab(0, QtCore.QPoint(50, 50))
+        window = next(iter(self.pane.pane.detachedTabs.values()))
+        self.pane.close()
+        self.assertFalse(window.isVisible())
+        self.assertIsNone(self.pane.splitter)
+        self.assertEqual(self.dock_layout.indexOf(self.view), 1)
+        self.assertEqual(self.stops, [True])
+
+    def test_the_pane_tab_close_button_closes_the_pane(self):
+        self.pane.open()
+        self.pane.pane.tabCloseRequested.emit(0)
+        self.assertFalse(self.pane.is_open())
+        self.assertEqual(self.stops, [True])
+
+    def test_a_detached_plot_tab_gets_the_splitter_in_its_window(self):
+        self.area.detachTab(0, QtCore.QPoint(80, 80))
+        window = next(iter(self.area.detachedTabs.values()))
+        self.pane.open()
+        self.assertIs(self.pane.splitter.widget(0), self.plot_tab)
+        self.assertIs(window.central_layout.itemAt(0).widget(), self.pane.splitter)
+        self.pane.close()
+        self.assertIs(window.central_layout.itemAt(0).widget(), self.plot_tab)
+        self.pane.open()
+        window.close()      # the plot tab returns: the splitter is made around the tab area
+        self.assertIs(self.pane.splitter.widget(0), self.area)
+        self.assertIs(self.pane.splitter.widget(1), self.pane.pane)
+        self.assertIs(self.plot_tab.parentWidget().parentWidget(), self.area)
+
+    def test_the_registration_pick_works_with_the_pane_open(self):
+        from appPlugins.ToolGcodeSender.SenderRegistrationUI import SenderRegistrationUI
+        from tests.helpers_objects import make_app, make_gerber
+
+        app = make_app()
+        app.plotcanvas = MagicMock()
+        app.on_mouse_click_release_over_plot = MagicMock()
+        app.ui.grid_snap_btn.isChecked.return_value = False
+        obj = make_gerber(app)
+        app.collection.get_selected.return_value = [obj]
+        registration = SenderRegistrationUI(app)
+        registration.on_use_selected()
+        self.pane.open()
+        registration.start_pick()
+        calls = {c.args[0]: c.args[1] for c in app.plotcanvas.graph_event_connect.call_args_list
+                 if c.args[0] in ('mouse_release', 'key_press')}
+        self.assertEqual(calls['mouse_release'], registration._on_canvas_click)
+        app.event_is_dragging = False
+        calls['mouse_release'](SimpleNamespace(button=2, pos=(0, 0)))
+        self.assertFalse(registration._pick_active)
 
 
 if __name__ == '__main__':

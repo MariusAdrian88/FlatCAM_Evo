@@ -115,14 +115,23 @@ class TestGrblSenderConstruct(unittest.TestCase):
         with patch('appPlugins.Common.levelling_core.ShapeCollection'):
             restarted._populate_tool_ui()
         self.assertFalse(restarted.ui.fit_view_cb.isChecked())
-        layout = next(restarted.ui.tools_box.itemAt(i).layout()
-                      for i in range(restarted.ui.tools_box.count())
-                      if restarted.ui.tools_box.itemAt(i).layout() is not None and
-                      restarted.ui.tools_box.itemAt(i).layout().indexOf(restarted.ui.obj_combo_label) >= 0)
-        self.assertIs(layout.itemAt(0).widget(), restarted.ui.obj_combo_label)
-        self.assertIsNotNone(layout.itemAt(1).spacerItem())
-        self.assertIs(layout.itemAt(2).widget(), restarted.ui.fit_view_cb)
-        self.assertIs(layout.itemAt(3).widget(), restarted.ui.console_cb)
+
+    def test_run_choices_survive_a_ui_rebuild(self):
+        """Check mode, levelling, spindle RPM and the edge probe values stay across Reset Tool."""
+        tool = ToolGCodeSender(make_app())
+        with patch('appPlugins.Common.levelling_core.ShapeCollection'):
+            tool.set_tool_ui()
+            self.assertFalse(tool.ui.check_mode_cb.isChecked())
+            tool.ui.check_mode_cb.setChecked(True)
+            tool.ui.autolevel_cb.setChecked(True)
+            tool.ui.spindle_rpm_entry.set_value(12000)
+            tool.ui.edge_probe_distance_entry.set_value(7.5)
+            tool.set_tool_ui()
+        self.assertTrue(tool.ui.check_mode_cb.isChecked())
+        self.assertTrue(tool.ui.autolevel_cb.isChecked())
+        self.assertFalse(tool.ui.al_frame.isHidden())
+        self.assertEqual(tool.ui.spindle_rpm_entry.get_value(), 12000)
+        self.assertEqual(tool.ui.edge_probe_distance_entry.get_value(), 7.5)
 
     def test_camera_starts_only_at_the_first_gui_run(self):
         """Issue #82: Qt Multimedia kept a headless run on Windows from exiting when a camera was connected."""

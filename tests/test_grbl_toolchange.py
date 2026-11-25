@@ -147,7 +147,8 @@ class ToolChangeFake(FakeGrbl):
                        (self.wcs, self.units_word, self.modal_extra), 'ok')
             return
         if cmd.startswith('G10'):
-            if 'P%d' % (int(self.wcs[1:]) - 53) not in cmd.split():
+            p_word = 'P%d' % ({'G59.1': 7, 'G59.2': 8, 'G59.3': 9}.get(self.wcs) or int(self.wcs[1:]) - 53)
+            if p_word not in cmd.split():
                 self._send('error:20')
                 return
             for word in cmd.split():
@@ -541,6 +542,19 @@ class TestToolChangeSender(unittest.TestCase):
         g10 = [command for command in fake.commands() if command.startswith('G10')][0]
         self.assertNotIn('X', g10)
         self.assertNotIn('Y', g10)
+
+    def test_g59_1_apply_writes_p7_and_keeps_the_machine_usable(self):
+        fake = ToolChangeFake(wcs_z=-50, wcs_x=2, wcs_y=3, heights={(0.0, 0.0): -40})
+        fake.wcs = 'G59.1'
+        tool = make_tool(fake, options())
+        tool.on_toolchange_calibrate()
+        fake.start_z = 0.0
+        fake.heights = {(0.0, 0.0): -38}
+        tool.on_toolchange_measure()
+        tool.on_toolchange_apply()
+        self.assertIn('G10 L2 P7 Z-48.0000', fake.commands())
+        self.assertAlmostEqual(fake.wcs_z, -48)
+        self.assertNotEqual(tool._grbl_recovery, 'needs_reset')
 
     def test_nondefault_wcs_is_adjusted_without_selecting_another_frame(self):
         fake = ToolChangeFake(wcs_z=-50, wcs_x=2, wcs_y=3, heights={(0.0, 0.0): -40})

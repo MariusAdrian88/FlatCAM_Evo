@@ -6,6 +6,17 @@ Based on FlatCAM:
 
 CHANGELOG for FlatCAM Evo
 
+26.11.2026
+
+G-code Sender IO and camera:
+
+- added: the IO tab in the Sender dock shows the inputs and outputs of GRBL, grblHAL and E-Cut as small square buttons: green is On, red is Off, gray is unknown (the tooltip gives the reason); inputs are read-only, a click on an output changes it
+- added: the inputs come from the status reports (limits, probe, door, hold, reset, cycle start and the grblHAL signals) and update also in Alarm, in recovery, during Home and while MPG or SD owns the controller; without a fresh report for 2.5 s they go gray
+- added: the outputs are Spindle CW/CCW, Flood, Mist (realtime toggles, one at a time), the grblHAL aux outputs (M64/M65) and the E-Cut outputs; a change shows only after a report or a readback confirms it; outputs are disabled during a job (also paused), in Alarm or E-stop and in recovery
+- added: the Sender asks $I+ and then $I, reads the OPT, SIGNALS and AUX IO lines, and reads $10 to know if grblHAL reports its pins
+- changed: the dock tabs go to a second row when they do not fit on one row (max 2 rows); at the minimum width the labels are shortened, the tooltip has the full text
+- changed: the camera image opens in a pane at the right of the plot (a splitter that exists only while the camera runs); the dock keeps Calibration and Board registration; the pane width is saved; the Camera tab of the pane can be dragged out to its own window and comes back when the window closes; the camera stops when the pane closes
+
 25.11.2026
 
 Machine Profiles:
@@ -39,6 +50,18 @@ Machine Profiles:
 - fixed: every spindle speed is checked on its own line, also a speed between 2 moves or with no move after it; before, M3 S25000, a dwell, then S10000 passed a 12000 RPM limit
 - fixed: an end point inside an exclusion area is found also when Z or the tool size is unknown; the tool center within the margin is inside for every tool size
 - fixed: unknown X and Y no longer hide the Z feed of a pure Z move or the cut depth at the start of a move
+
+G-code Sender UI:
+
+- changed: the Sender divides its controls by use: the Plugin tab prepares the work, the dock at the right ("G-code Sender", before "GCode Console") operates the machine; the dock shows when the Sender opens, and the "Machine panel" checkbox hides or shows it
+- added: the dock has a fixed header that stays visible on every notebook tab: the machine state with a color, the X/Y/Z work position in large digits, the alarm text with Unlock, Start/Hold/Resume/Stop, the progress and a second E-Stop button
+- changed: the jog controls are a fixed block of the dock below the header, with zero X/Y/Z/All, Home and the spindle; the jog stays visible with every page, also the camera page; an arrow (or the Tab key) collapses the block, and a collapse stops a continuous jog
+- changed: the dock pages are Camera (view, calibration, board registration), Program, Console and Overrides; the camera preview starts from the Camera page
+- changed: the Plugin tab has the pages Connect, Job, Probing, Tool change and Configuration, with no long scroll; Probing holds the edge probe, the height map and the probe points; Configuration holds the $$ table and the parameter and report commands
+- removed: the second pause button (Hold and Resume do the same), the second command entry (the Console page has the only one, and it clears after a send) and the "Jog (Tab)" button
+- fixed: a new project removes the widgets of the old Sender from the dock
+- fixed: when the port does not close (an E-Cut worker that does not stop), the Sender shows an error instead of "Port disconnected" and refuses a new connection until the old port closes; a repeated close does not freeze the window, and an old shutdown error is reported once
+- fixed: an E-Cut port that closes late after an outdated connect result shows an error and blocks a new connection until it closes, like any other port that did not stop; Zero and the tool-change Apply work under G59.1, G59.2 and G59.3 (P7 to P9) instead of failing
 
 24.11.2026
 

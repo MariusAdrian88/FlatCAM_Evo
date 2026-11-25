@@ -48,8 +48,9 @@ class SenderRegistrationUI(QtWidgets.QWidget):
         super().__init__(parent)
         self.app = app
         self.decimals = app.decimals
-        units = str(getattr(app, 'app_units', 'MM') or 'MM').upper()
+        units = str(app.app_units or 'MM').upper()
         self.units = units if units in ('MM', 'IN') else 'MM'
+        self._selection_signal = None
         self.registration = CameraRegistration()
         self.registration.decimals = self.decimals
         self.fit = None
@@ -127,7 +128,8 @@ class SenderRegistrationUI(QtWidgets.QWidget):
             "Center the same physical fiducial under the camera crosshair and press.\n"
             "Only a fresh machine position is read: nothing moves."))
         capture_row.addWidget(self.capture_button)
-        self.stop_button = FCButton(_("Stop"))
+        self.stop_button = FCButton(_("Stop / recover"))
+        self.stop_button.setStyleSheet("QPushButton {background-color: red; color: white;}")
         self.stop_button.setToolTip(_(
             "Feed hold / stop the manual positioning motion. The controller then needs Reset and Home."))
         capture_row.addWidget(self.stop_button)
@@ -149,6 +151,8 @@ class SenderRegistrationUI(QtWidgets.QWidget):
 
         pair_row = QtWidgets.QHBoxLayout()
         self.remove_pair_button = FCButton(_("Remove selected pair"))
+        self.remove_pair_button.setToolTip(_(
+            "Remove the pair selected in the table, including the pending design point."))
         pair_row.addWidget(self.remove_pair_button)
         self.restart_button = FCButton(_("Restart"))
         self.restart_button.setToolTip(_("Forget every design/camera pair and the preview."))
@@ -175,6 +179,7 @@ class SenderRegistrationUI(QtWidgets.QWidget):
         self.preview_button.setToolTip(_("Show the rigid transform on the project canvas without changing the objects."))
         action_row.addWidget(self.preview_button)
         self.cancel_button = FCButton(_("Cancel preview"))
+        self.cancel_button.setToolTip(_("Remove the preview from the canvas and stop picking or waiting."))
         action_row.addWidget(self.cancel_button)
         self.apply_button = FCButton(_("Apply"))
         self.apply_button.setToolTip(_(
@@ -192,6 +197,7 @@ class SenderRegistrationUI(QtWidgets.QWidget):
         self.capture_button.clicked.connect(self.on_capture)
         self.stop_button.clicked.connect(self.stop_sig)
         self.remove_pair_button.clicked.connect(self.on_remove_pair)
+        self.pairs_table.itemSelectionChanged.connect(self._update_buttons)
         self.restart_button.clicked.connect(self.on_restart)
         self.tolerance_entry.valueChanged.connect(self._on_tolerance_changed)
         self.preview_button.clicked.connect(self.on_preview)
@@ -221,11 +227,11 @@ class SenderRegistrationUI(QtWidgets.QWidget):
 
     def _disconnect_app_selection(self):
         for signal, slot in (
-                (getattr(self.app, 'proj_selection_changed', None), self._on_selection_changed),
-                (getattr(getattr(self.app, 'app_obj', None), 'object_changed', None), self._on_object_changed),
-                (getattr(getattr(self.app, 'collection', None), 'rowsRemoved', None), self._on_collection_changed),
-                (getattr(getattr(self.app, 'collection', None), 'modelReset', None), self._on_collection_changed),
-                (getattr(self, '_selection_signal', None), self._on_selection_changed)):
+                (self.app.proj_selection_changed, self._on_selection_changed),
+                (self.app.app_obj.object_changed, self._on_object_changed),
+                (self.app.collection.rowsRemoved, self._on_collection_changed),
+                (self.app.collection.modelReset, self._on_collection_changed),
+                (self._selection_signal, self._on_selection_changed)):
             if signal is None:
                 continue
             try:
@@ -259,7 +265,7 @@ class SenderRegistrationUI(QtWidgets.QWidget):
 
     def _sync_units(self):
         """A live project unit change invalidates the picked design points instead of mixing frames."""
-        live = str(getattr(self.app, 'app_units', 'MM') or 'MM').upper()
+        live = str(self.app.app_units or 'MM').upper()
         if live not in ('MM', 'IN') or live == self.units:
             return
         self.units = live
@@ -327,8 +333,7 @@ class SenderRegistrationUI(QtWidgets.QWidget):
         self.capture_button.setEnabled(
             self._connected and idle and objects and self.registration.pending_design is not None)
         self.stop_button.setEnabled(self._connected)
-        self.remove_pair_button.setEnabled(
-            idle and (bool(self.registration.design) or self.registration.pending_design is not None))
+        self.remove_pair_button.setEnabled(idle and bool(self.pairs_table.selectionModel().selectedRows()))
         self.restart_button.setEnabled(
             idle and (bool(self.registration.design) or self.registration.pending_design is not None or
                       self.fit is not None))
@@ -362,8 +367,8 @@ class SenderRegistrationUI(QtWidgets.QWidget):
         self.clear_preview()
         self.objects_list.clear()
         for obj in self.registration.objects:
-            name = getattr(obj, 'obj_options', {}).get('name', '') or getattr(obj, 'kind', '')
-            self.objects_list.addItem('%s (%s)' % (name, str(getattr(obj, 'kind', '')).upper()))
+            name = obj.obj_options.get('name', '') or obj.kind
+            self.objects_list.addItem('%s (%s)' % (name, str(obj.kind).upper()))
         self.object_count_label.setText(_("%d object(s) chosen.") % len(self.registration.objects))
         self.refresh_table()
         ignored = len(selected) - len(self.registration.objects)
@@ -394,7 +399,7 @@ class SenderRegistrationUI(QtWidgets.QWidget):
             live = set(map(id, self.app.collection.get_list()))
         except Exception:
             live = None
-        missing = [obj for obj in self.registration.objects if getattr(obj, 'deleted', False) or
+        missing = [obj for obj in self.registration.objects if obj.deleted or
                    (live is not None and id(obj) not in live)]
         if not missing:
             return
@@ -444,15 +449,29 @@ class SenderRegistrationUI(QtWidgets.QWidget):
             return
         if not self.registration.design and self.registration.pending_design is None:
             return
+        row = self.pairs_table.currentRow()
+        if row < 0 or not self.pairs_table.selectionModel().isRowSelected(row):
+            self._set_message(_("Select a pair in the table first."), error=True)
+            return
+        self._remove_row(row, _("Remove the selected design/camera pair?"))
+
+    def on_remove_last(self):
+        """Undo the last pick: the pending design point if there is one, else the last pair."""
+        if self._busy or self._awaiting is not None:
+            return
+        model = self.registration
+        if model.pending_design is not None:
+            self._remove_row(len(model.design), _("Remove the last design point?"))
+        elif model.design:
+            self._remove_row(len(model.design) - 1, _("Remove the last design/camera pair?"))
+
+    def _remove_row(self, row, question):
         if QtWidgets.QMessageBox.question(
-                self, _("Remove pair"), _("Remove the selected design/camera pair?"),
+                self, _("Remove pair"), question,
                 QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
                 QtWidgets.QMessageBox.StandardButton.No) != QtWidgets.QMessageBox.StandardButton.Yes:
             return
         self._cancel_operation()
-        row = self.pairs_table.currentRow()
-        if row < 0:
-            row = len(self.registration.design) + (1 if self.registration.pending_design else 0) - 1
         self.registration.remove_pair(row)
         self.fit = None
         self.clear_preview()
@@ -596,13 +615,13 @@ class SenderRegistrationUI(QtWidgets.QWidget):
 
     def _on_canvas_click(self, event):
         if event.button == 2:
-            if not getattr(self.app, 'event_is_dragging', False):
+            if not self.app.event_is_dragging:
                 self._stop_pick()
                 self._set_message(_("Pick cancelled."))
             return
         if event.button != 1:
             return
-        if getattr(self.app, 'selection_type', None) is not None:
+        if self.app.selection_type is not None:
             self.app.delete_selection_shape()
             self.app.selection_type = None
             return
@@ -647,13 +666,14 @@ class SenderRegistrationUI(QtWidgets.QWidget):
         self._update_buttons()
 
     def _on_key_press(self, event):
+        # kept: a VisPy event has a `key` attribute, a Qt event a key() method; a Qt key enum has `name`, a VisPy key may be a str
         key = event.key() if callable(getattr(event, 'key', None)) else event.key
         key_name = getattr(key, 'name', key)
         if key == QtCore.Qt.Key.Key_Escape or key_name == 'Escape':
             self._stop_pick()
             self._set_message(_("Pick cancelled."))
         elif key == QtCore.Qt.Key.Key_Backspace or key_name == 'Backspace':
-            self.on_remove_pair()
+            self.on_remove_last()
 
     # ---------------------------------------------------------------------------------------------------------
     # Observation, preview, apply
@@ -761,7 +781,7 @@ class SenderRegistrationUI(QtWidgets.QWidget):
         except Exception:
             live = None
         for obj in self.registration.objects:
-            if obj is None or getattr(obj, 'deleted', False):
+            if obj is None or obj.deleted:
                 return False
             if live is not None and id(obj) not in live:
                 return False
@@ -875,7 +895,7 @@ class SenderRegistrationUI(QtWidgets.QWidget):
     @staticmethod
     def _object_geometries(obj):
         """Every shapely geometry of an object, including its tool paths."""
-        if str(getattr(obj, 'kind', '')).lower() == 'geometry':
+        if str(obj.kind).lower() == 'geometry':
             tools = getattr(obj, 'tools', None)
             if isinstance(tools, dict):
                 out = []

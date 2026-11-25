@@ -104,10 +104,10 @@ class SenderToolChangeUI(QtWidgets.QWidget):
         self.clear_button.setToolTip(_("Discard the fixed plate reference of this session."))
         self.clear_button.clicked.connect(self.clear_sig)
 
-        self.stop_button = FCButton(_("Stop"))
+        self.stop_button = FCButton(_("Stop / recover"))
         self.stop_button.setStyleSheet("QPushButton {background-color: red; color: white;}")
         self.stop_button.setToolTip(
-            _("Stop the running GRBL operation now. Press Reset, then Home, before more motion."))
+            _("Stop the running controller operation now. Press Reset, then Home, before more motion."))
         self.stop_button.clicked.connect(self.stop_sig)
 
         grid.addWidget(self.calibrate_button, 0, 0, 1, 2)

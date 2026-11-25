@@ -684,6 +684,7 @@ class TestInvalidationEvents(unittest.TestCase):
     def test_event_connect(self):
         tool = self.make()[0]
         tool.grbl_ser_port = None
+        tool._grbl_unclosed_ports = []
         tool._grbl_connected = False
         tool._grbl_set_ui_connected = MagicMock()
         tool.ui.com_list_combo.currentText.return_value = 'COM9'

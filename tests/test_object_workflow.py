@@ -510,6 +510,7 @@ class SenderKeptOnResetTests(unittest.TestCase):
         from appTool import AppTool
         sender = self.app.grbl_sender_tool
         sender.ui = MagicMock()         # the panel is not built in a headless run
+        sender.ui.al_toolbar.indexOf.return_value = -1      # the real toolbar answers a tab index, not a mock
         scroll = self.app.ui.plugin_scroll_area
         scroll.setWidget(sender)
         try:

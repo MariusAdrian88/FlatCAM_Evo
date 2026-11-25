@@ -11,7 +11,7 @@ import math
 import gettext
 
 from PyQt6 import QtCore, QtWidgets
-from appGUI.GUIElements import FCLabel, FCButton, FCCheckBox
+from appGUI.GUIElements import FCLabel, FCButton, FCCheckBox, FCSpinner, FCDoubleSpinner, FCComboBox
 
 _ = gettext.gettext
 MAX_STEPS_PER_MM = 2147483647
@@ -109,8 +109,11 @@ class EcutMotionDialog(QtWidgets.QDialog):
         self.calibration_stop_button.clicked.connect(self._request_stop)
         buttons.addWidget(self.calibration_stop_button)
         buttons.addStretch()
+        self.calibration_stop_button.setToolTip(_('Stops the running test move.'))
         self.cancel_button = FCButton(_('Cancel'))
+        self.cancel_button.setToolTip(_('Closes the dialog; pending edits are discarded.'))
         self.apply_button = FCButton(_('Apply'))
+        self.apply_button.setToolTip(_('Saves the settings of all tabs in the E-Cut.'))
         buttons.addWidget(self.cancel_button)
         buttons.addWidget(self.apply_button)
         layout.addLayout(buttons)
@@ -124,12 +127,13 @@ class EcutMotionDialog(QtWidgets.QDialog):
 
     def _spin(self, integer=False, minimum=0.000000001, maximum=1e12):
         if integer:
-            widget = QtWidgets.QSpinBox()
+            widget = FCSpinner(policy=False)
             widget.setRange(int(minimum), int(maximum))
         else:
-            widget = QtWidgets.QDoubleSpinBox()
-            widget.setDecimals(9)
-            widget.setRange(minimum, maximum)
+            # set_precision() before set_range(): the input validator is rebuilt from both (minus sign, 9 decimals).
+            widget = FCDoubleSpinner(policy=False)
+            widget.set_precision(9)
+            widget.set_range(minimum, maximum)
             widget.setSingleStep(1)
         widget.setKeyboardTracking(False)
         widget.valueChanged.connect(self._changed)
@@ -169,6 +173,18 @@ class EcutMotionDialog(QtWidgets.QDialog):
                   ('deceleration_mm_s2', _('Deceleration (mm/s²)')),
                   ('soft_limit_negative_mm', _('Minimum machine position (mm)')),
                   ('soft_limit_positive_mm', _('Maximum machine position (mm)'))]
+        tips = {
+            'steps_per_mm': _('Driver pulses per mm of travel of this axis, a whole number. '
+                              'Saved in the E-Cut when you click Apply.'),
+            'max_velocity_mm_s': _('Highest feed speed the E-Cut plans for this axis, in mm/min. '
+                                   'Saved when you click Apply.'),
+            'acceleration_mm_s2': _('Rate at which this axis speeds up, in mm/s². Saved when you click Apply.'),
+            'deceleration_mm_s2': _('Rate at which this axis slows down, in mm/s². '
+                                    'Not used while \"Use acceleration for deceleration\" is checked.'),
+            'soft_limit_negative_mm': _('Lowest allowed machine position of this axis in mm '
+                                        '(machine coordinates, not the work zero).'),
+            'soft_limit_positive_mm': _('Highest allowed machine position of this axis in mm '
+                                        '(machine coordinates, not the work zero).')}
         for form in self._axis_pages(layout):
             fields = {}
             for key, label in labels:
@@ -178,10 +194,13 @@ class EcutMotionDialog(QtWidgets.QDialog):
                     widget = self._spin(minimum=-1e12)
                 else:
                     widget = self._spin()
+                widget.setToolTip(tips[key])
                 fields[key] = widget
                 form.addRow(label, widget)
                 if key == 'acceleration_mm_s2':
                     checkbox = FCCheckBox(_('Use acceleration for deceleration'))
+                    checkbox.setToolTip(_('The axis slows down at the acceleration rate; '
+                                          'the deceleration field is ignored.'))
                     checkbox.toggled.connect(self._changed)
                     fields['follow_acceleration'] = checkbox
                     form.addRow(checkbox)
@@ -189,6 +208,8 @@ class EcutMotionDialog(QtWidgets.QDialog):
                     fields['follow_acceleration'].toggled.connect(
                         lambda checked, target=widget: target.setEnabled(not checked))
             checkbox = FCCheckBox(_('Enable soft limits'))
+            checkbox.setToolTip(_('Moves outside the minimum and maximum machine positions of this axis '
+                                  'are refused. Saved when you click Apply.'))
             checkbox.toggled.connect(self._changed)
             fields['soft_limits_enabled'] = checkbox
             form.addRow(checkbox)
@@ -198,6 +219,8 @@ class EcutMotionDialog(QtWidgets.QDialog):
     def _build_motion_extras(self, layout):
         form = QtWidgets.QFormLayout()
         layout.addLayout(form)
+        # Kept as the Qt spin box (also for bed_size): with FCDoubleSpinner a typed '-0.5' in a 3-decimal field
+        # with minimum 0 silently became 0.5 (the Qt box gives -0.0 / keeps the old value).
         self.soft_limit_tolerance = QtWidgets.QDoubleSpinBox()
         self.soft_limit_tolerance.setDecimals(3)
         self.soft_limit_tolerance.setRange(0, 1)
@@ -216,6 +239,8 @@ class EcutMotionDialog(QtWidgets.QDialog):
             widget.setDecimals(3)
             widget.setRange(0, 1e6)
             widget.setKeyboardTracking(False)
+            widget.setToolTip(_('Size of the machine travel of this axis in mm. '
+                                '\"Set soft limits from bed size\" uses it to fill the soft limits.'))
             self.bed_size[key] = widget
             group_form.addRow(text, widget)
         self.bed_size_button = FCButton(_('Set soft limits from bed size'))
@@ -355,12 +380,18 @@ class EcutMotionDialog(QtWidgets.QDialog):
         self.interpolation_label = self._note('', layout)
         for axis, form in enumerate(self._axis_pages(layout)):
             fields = {}
-            for key, label in [('steps_per_revolution', _('Full steps per motor revolution (often 200 or 400)')),
-                               ('microsteps', _('Microsteps (driver DIP setting)')),
-                               ('gear_ratio', _('Motor revolutions per screw revolution')),
-                               ('travel_per_revolution_mm', _('Travel per screw revolution (mm)'))]:
+            for key, label, tip in [
+                    ('steps_per_revolution', _('Full steps per motor revolution (often 200 or 400)'),
+                     _('Full steps of the motor for one revolution, without microstepping.')),
+                    ('microsteps', _('Microsteps (driver DIP setting)'),
+                     _('Microstep setting of the driver, as set on its DIP switches. It is not changed by this dialog.')),
+                    ('gear_ratio', _('Motor revolutions per screw revolution'),
+                     _('Motor revolutions needed for one revolution of the screw (1 = direct drive).')),
+                    ('travel_per_revolution_mm', _('Travel per screw revolution (mm)'),
+                     _('Axis travel for one screw revolution (the screw lead), in mm.'))]:
                 widget = self._spin(True, 1, MAX_STEPS_PER_MM) if key in (
                     'steps_per_revolution', 'microsteps') else self._spin()
+                widget.setToolTip(tip)
                 widget.valueChanged.connect(lambda value, index=axis: self._invalidate_motor(index))
                 fields[key] = widget
                 form.addRow(label, widget)
@@ -368,12 +399,16 @@ class EcutMotionDialog(QtWidgets.QDialog):
             formula.setWordWrap(True)
             form.addRow(formula)
             calculate = FCButton(_('Calculate steps/mm'))
+            calculate.setToolTip(_('Calculates steps/mm from the motor values above. '
+                                   'It does not move the machine and saves nothing.'))
             calculate.clicked.connect(lambda checked=False, index=axis: self._calculate_motor(index))
             form.addRow(calculate)
             result = FCLabel('')
             result.setWordWrap(True)
             form.addRow(result)
             use = FCButton(_('Use calculated value'))
+            use.setToolTip(_('Copies the calculated whole steps/mm into the Motion tab. '
+                             'Nothing is saved until you click Apply.'))
             use.clicked.connect(lambda checked=False, index=axis: self._use_motor(index))
             form.addRow(use)
             self.motor_fields.append(fields)
@@ -388,7 +423,8 @@ class EcutMotionDialog(QtWidgets.QDialog):
                      'Calculating and using a value do not move or save anything.'), layout)
         form = QtWidgets.QFormLayout()
         layout.addLayout(form)
-        self.calibration_axis = QtWidgets.QComboBox()
+        self.calibration_axis = FCComboBox(policy=False)
+        self.calibration_axis.setToolTip(_('Axis for the test move and the steps/mm calculation.'))
         self.calibration_axis.addItems(list('XYZA'))
         self.calibration_axis.currentIndexChanged.connect(self._calibration_axis_changed)
         form.addRow(_('Axis'), self.calibration_axis)
@@ -396,14 +432,21 @@ class EcutMotionDialog(QtWidgets.QDialog):
         form.addRow(_('Applied steps/mm'), self.calibration_current)
         self.calibration_distance = self._spin(maximum=10)
         self.calibration_distance.setValue(1)
+        self.calibration_distance.setToolTip(_('Distance the test move commands, at most 10 mm. '
+                                               'It is also used in the steps/mm calculation.'))
         form.addRow(_('Requested travel (mm, maximum 10)'), self.calibration_distance)
-        self.calibration_direction = QtWidgets.QComboBox()
+        self.calibration_direction = FCComboBox(policy=False)
+        self.calibration_direction.setToolTip(_('Direction of the test move.'))
         self.calibration_direction.addItems([_('Forward (+)'), _('Reverse (−)')])
         form.addRow(_('Direction'), self.calibration_direction)
         self.calibration_feed = self._spin()
         self.calibration_feed.setValue(60)
+        self.calibration_feed.setToolTip(_('Feed speed of the test move in mm/min.'))
         form.addRow(_('Test speed (mm/min)'), self.calibration_feed)
         self.calibration_move_button = FCButton(_('Move test distance'))
+        self.calibration_move_button.setToolTip(_(
+            'MOVES THE MACHINE: the selected axis moves by the requested travel with the applied settings. '
+            'Measure the real travel afterwards. Disabled while there are unapplied changes.'))
         self.calibration_move_button.clicked.connect(self._request_calibration)
         form.addRow(self.calibration_move_button)
         self.calibration_warning = FCLabel('')
@@ -411,6 +454,8 @@ class EcutMotionDialog(QtWidgets.QDialog):
         form.addRow(self.calibration_warning)
         self.calibration_measured = self._spin()
         self.calibration_measured.setValue(1)
+        self.calibration_measured.setToolTip(_('Distance the axis really moved in the test move, '
+                                               'measured with a ruler or gauge, in mm.'))
         form.addRow(_('Measured travel (mm)'), self.calibration_measured)
         for widget in (self.calibration_distance, self.calibration_measured):
             widget.valueChanged.connect(self._invalidate_calibration)
@@ -418,12 +463,17 @@ class EcutMotionDialog(QtWidgets.QDialog):
         formula.setWordWrap(True)
         form.addRow(formula)
         self.calibration_calculate_button = FCButton(_('Calculate steps/mm'))
+        self.calibration_calculate_button.setToolTip(_('Calculates the corrected steps/mm from the requested and '
+                                                       'measured travel. It does not move the machine and '
+                                                       'saves nothing.'))
         self.calibration_calculate_button.clicked.connect(self._calculate_calibration)
         form.addRow(self.calibration_calculate_button)
         self.calibration_result = FCLabel('')
         self.calibration_result.setWordWrap(True)
         form.addRow(self.calibration_result)
         self.calibration_use_button = FCButton(_('Use calculated value'))
+        self.calibration_use_button.setToolTip(_('Copies the calculated whole steps/mm into the Motion tab. '
+                                                 'Nothing is saved until you click Apply.'))
         self.calibration_use_button.clicked.connect(self._use_calibration)
         form.addRow(self.calibration_use_button)
         layout.addStretch()

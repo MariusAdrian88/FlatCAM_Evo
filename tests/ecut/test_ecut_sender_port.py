@@ -452,6 +452,44 @@ def test_reset_failure_never_emits_success_banner(connection):
     wait_for(lambda: not port.is_open)
 
 
+def blocked_shutdown_port():
+    """A real port whose worker cannot finish the shutdown until the gate opens."""
+    from appPlugins.Common.ecut.ecut_sender_port import EcutSenderPort
+    api = FakeAPI()
+    gate = threading.Event()
+    api.disconnect = lambda: gate.wait(10)
+    port = EcutSenderPort(api=api, engine=FakeEngine(api))
+    port.JOIN_TIMEOUT = 0.3
+    return port, gate
+
+
+def test_second_close_of_a_stuck_port_is_fast_and_raises():
+    port, gate = blocked_shutdown_port()
+    try:
+        with pytest.raises(serial.SerialException, match='did not stop'):
+            port.close()
+        start = time.monotonic()
+        with pytest.raises(serial.SerialException, match='did not stop'):
+            port.close()
+        assert time.monotonic() - start < port.JOIN_TIMEOUT / 2
+    finally:
+        gate.set()
+        port._worker.join(2)
+    port.close()
+
+
+def test_shutdown_error_is_reported_once():
+    from appPlugins.Common.ecut.ecut_sender_port import EcutSenderPort
+    api = FakeAPI()
+    port = EcutSenderPort(api=api, engine=FakeEngine(api))
+    def fail():
+        raise EcutError('Stop readback failed')
+    api.stop = fail
+    with pytest.raises(serial.SerialException, match='Stop readback failed'):
+        port.close()
+    port.close()  # the dead worker's old error must not block a reconnection forever
+
+
 def test_failed_verified_shutdown_is_reported():
     from appPlugins.Common.ecut.ecut_sender_port import EcutSenderPort
     api = FakeAPI()
@@ -1189,3 +1227,118 @@ def test_port_queue_state_after_close_does_not_raise():
     port, api, gate = _queue_port()
     port.close()
     assert port.get_queue_state()['idle'] is True
+
+
+def _io_config():
+    from appPlugins.Common.ecut.ecut_config import EcutBoardConfig, InputSignal, OutputSignal, SignalPolarity
+    cfg = EcutBoardConfig()
+    cfg.inputs = {'PROBE': InputSignal(True, 3, SignalPolarity.ACTIVE_HIGH, 0),
+                  'DOOR': InputSignal(True, 4, SignalPolarity.ACTIVE_LOW, 0),
+                  'FEED_HOLD': InputSignal(True, 5, SignalPolarity.ACTIVE_HIGH, 0, port=2),
+                  'CYCLE_START': InputSignal(True, 20, SignalPolarity.ACTIVE_HIGH, 0)}
+    cfg.outputs = {'FLOOD': OutputSignal(True, 1, False), 'MIST': OutputSignal(True, 1, False),
+                   'LASER': OutputSignal(True, 2, True), 'STEP_X': OutputSignal(True, 3, False),
+                   'SPINDLE_PWM': OutputSignal(True, 4, False), 'OFF': OutputSignal(False, 5, False),
+                   'HIGH': OutputSignal(True, 9, False)}
+    return cfg
+
+
+def test_ecut_io_decode_inputs_outputs_and_gray_cases():
+    from appPlugins.Common.ecut.ecut_controller import decode_ecut_io, effective_inputs, effective_outputs
+    cfg = _io_config()
+    cfg.safety.estop_input_enabled = True
+    cfg.safety.estop_input_pin = 7
+    ins, outs = effective_inputs(cfg), effective_outputs(cfg)
+    assert [e['names'] for e in outs] == [['FLOOD', 'MIST'], ['LASER']]
+    state = {'fresh': True, 'configured': True, 'inputs': 1 << 3 | 1 << 7, 'outputs': 1 << 1}
+    got = decode_ecut_io(state, ins, outs)
+    assert got['PROBE'] == (True, '')
+    assert got['DOOR'][0] is True          # active low, pin low
+    assert got['ESTOP'][0] is not None    # safety override shows the E-stop
+    assert got['FEED_HOLD'][0] is None and 'port/pin' in got['FEED_HOLD'][1]
+    assert got['CYCLE_START'][0] is None
+    assert got['FLOOD'] == got['MIST'] == (True, '')
+    assert got['LASER'] == (True, '')       # inverted output, pin low
+    assert 'STEP_X' not in got and 'HIGH' not in got
+    for bad in ({**state, 'fresh': False}, {**state, 'configured': False}):
+        assert all(v[0] is None for v in decode_ecut_io(bad, ins, outs).values())
+
+
+def test_io_tab_reads_only_the_cached_state_and_writes_through_the_port_worker():
+    import os
+    import sys
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+    from PyQt6 import QtWidgets
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from appPlugins.Common.ecut.ecut_controller import effective_inputs, effective_outputs
+    from tests.grbl_stream_helpers import make_stream_tool
+    from tests.test_levelling_audit import FakeGrbl
+    QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+
+    cfg = _io_config()
+    cfg.safety.estop_input_enabled = True
+    cfg.safety.estop_input_pin = 7
+
+    class Port(FakeGrbl):
+        @staticmethod
+        def effective_inputs():
+            return effective_inputs(cfg)
+
+        @staticmethod
+        def effective_outputs():
+            return effective_outputs(cfg)
+
+        def __init__(self):
+            super().__init__()
+            self.calls = []
+            self.io = {'fresh': True, 'configured': True, 'connected': True, 'busy': False, 'inputs': 1 << 3 | 1 << 7,
+                       'outputs': 0}
+
+        def get_motion_settings(self):
+            return {'revision': 7}
+
+        save_motion_settings = calibration_move = lambda self, *args: None
+
+        def get_io_state(self):
+            self.calls.append('io')
+            return dict(self.io)
+
+        def set_manual_output(self, pin, active, revision):
+            self.calls.append(('set', pin, active, revision))
+            self.io['outputs'] = self.io['outputs'] | (1 << pin) if active else self.io['outputs'] & ~(1 << pin)
+            return dict(self.io)
+
+    port = Port()
+    tool = make_stream_tool(port)
+    tool._status_poll_timer = MagicMock()
+    tool.io_discovery_sig = MagicMock()
+    tool.ecut_motion_result_sig.emit.side_effect = tool._on_ecut_motion_result
+    io = tool.sender_io
+    io._page_shown = lambda: True
+    page = io.new_page()
+    io.discover(port)
+    try:
+        assert port.calls == []
+        io.tick()
+        assert port.calls == ['io']                              # only the cached state, no other request
+        assert page.inputs['PROBE'].state is True
+        assert page.inputs['DOOR'].state is True                 # active low, pin low
+        assert page.inputs['ESTOP'].state is not None           # the safety E-stop shows
+        assert page.inputs['FEED_HOLD'].state is None            # port 2: not readable
+        assert page.outputs['FLOOD'].state is False and page.outputs['LASER'].state is True
+        assert 'FLOOD / MIST' in page.outputs['FLOOD'].toolTip()
+        io.on_output_requested('LASER', False)                   # inverted: Off is the physical high level
+        assert port.calls[-1] == ('set', 2, True, 7)
+        assert io.pending is None and page.outputs['LASER'].state is False
+        io.on_output_requested('FLOOD', True)
+        assert port.calls[-1] == ('set', 1, True, 7)
+        assert page.outputs['FLOOD'].state is True               # the readback of the write
+        port.io['busy'] = True                                   # a busy board takes no write
+        io.tick()
+        io.on_output_requested('FLOOD', False)
+        assert port.calls[-1] == 'io'
+    finally:
+        page.deleteLater()
+        if io._timer is not None:
+            io._timer.stop()

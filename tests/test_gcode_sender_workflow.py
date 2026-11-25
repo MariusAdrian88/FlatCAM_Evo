@@ -453,8 +453,7 @@ class SenderMachineProfileBlockTest(unittest.TestCase):
         fake.read_hook = operator
         tool.on_start()
 
-    RESUME_ROUTES = (('Resume button', lambda tool: tool._on_resume_button()),
-                     ('Pause/Resume toggle', lambda tool: tool.on_grbl_pause_resume(False)))
+    RESUME_ROUTES = (('Resume button', lambda tool: tool._on_resume_button()),)
 
     def test_tool_change_with_a_tlo_below_the_z_travel_refuses_every_resume_route(self):
         import tempfile

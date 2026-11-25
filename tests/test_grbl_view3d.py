@@ -318,6 +318,7 @@ class ConnectReadsReportUnitsTest(unittest.TestCase):
     def test_connect_finish_reads_13_in_a_non_motion_operation(self):
         fake = FakeGrbl(report_inches=True)
         tool = make_audit_tool()
+        tool.io_discovery_sig = MagicMock()
         tool.app.worker_task.emit.side_effect = lambda task: task['fcn']()
         attempt = object()
         tool.grbl_ser_port = fake

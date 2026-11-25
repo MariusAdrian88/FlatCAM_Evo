@@ -772,7 +772,6 @@ class TestGrblHalController(unittest.TestCase):
                 def try_resume():
                     before = len(fake.written)
                     tool._on_resume_button()
-                    tool.on_grbl_pause_resume(False)
                     premature.extend(fake.written[before:])
 
                 def operator():
@@ -820,14 +819,12 @@ class TestGrblHalController(unittest.TestCase):
                         errors.append(text)
                         # The reader has the error, but its caller hasn't latched recovery yet.
                         tool._on_resume_button()
-                        tool.on_grbl_pause_resume(False)
 
                 def operator():
                     if fake.acknowledged:
                         if tool.__dict__.get('_grbl_tool_change_pending') and not attempted:
                             attempted.append(tool._grbl_queue_tool_command('G49'))
                         tool._on_resume_button()
-                        tool.on_grbl_pause_resume(False)
 
                 fake.read_hook = operator
                 tool.console_line_sig.emit.side_effect = reply
@@ -840,7 +837,7 @@ class TestGrblHalController(unittest.TestCase):
                 self.assertEqual(b'G49\n' in fake.written, command == 'G49')
                 self.assertTrue(errors)
 
-    def test_healthy_hold_resumes_through_both_sender_controls(self):
+    def test_healthy_hold_resumes_twice_through_the_resume_button(self):
         fake = CheckFake()
         tool = make_stream_tool(fake)
         op = tool._grbl_reserve('stream', motion=True)
@@ -850,7 +847,7 @@ class TestGrblHalController(unittest.TestCase):
         tool._on_resume_button()
         tool._grbl_release(op)
         tool._grbl_stream_dirty = False
-        tool.on_grbl_pause_resume(False)
+        tool._on_resume_button()
         self.assertEqual(fake.written, [b'~', b'~'])
 
     def test_rt_minus_uses_the_top_bit_realtime_commands(self):

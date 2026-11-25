@@ -2,6 +2,7 @@
 """Regressions for GRBL recovery, controller resets, map visuals and the outcome gate."""
 import os
 import sys
+import threading
 import time
 import unittest
 from types import SimpleNamespace
@@ -19,13 +20,20 @@ from appPlugins.Common.grbl.grbl_client import stream_lines
 
 class TestResumeBypass(unittest.TestCase):
     def test_emergency_stop_cancels_motion_before_guarded_reset(self):
+        for button_name in ('estop_button', 'estop_dock_button'):
+            with self.subTest(button=button_name):
+                self.check_emergency_stop(button_name)
+
+    def check_emergency_stop(self, button_name):
         tool, fake = self.make_button_tool()
         tool._grbl_set_ui_connected(True)
+        self.assertTrue(tool.ui.estop_button.isEnabled())
+        self.assertTrue(tool.ui.estop_dock_button.isEnabled())
         op = tool._grbl_reserve('probe', motion=True)
         callbacks = []
         with patch('appPlugins.ToolGcodeSender.Sender.QtCore.QTimer.singleShot',
                    side_effect=lambda delay, callback: callbacks.append((delay, callback))):
-            tool.ui.estop_button.click()
+            getattr(tool.ui, button_name).click()
         self.assertTrue(op.cancel.is_set())
         self.assertEqual(fake.written, [b'!'])
         tool.ui.resume_button.click()
@@ -35,6 +43,7 @@ class TestResumeBypass(unittest.TestCase):
         self.assertIn(b'\x18', fake.written)
         tool._grbl_set_ui_connected(False)
         self.assertFalse(tool.ui.estop_button.isEnabled())
+        self.assertFalse(tool.ui.estop_dock_button.isEnabled())
 
     @staticmethod
     def make_button_tool():
@@ -223,6 +232,24 @@ class TestStopResets(unittest.TestCase):
         self.assertIn(b'\x18', fake.written)
         self.assertEqual(tool._grbl_recovery, 'needs_home')
 
+    def test_reported_motion_or_no_fresh_report_never_keeps_the_position(self):
+        # motion that the sender did not start (pendant, SD card, an accepted jog): only the report shows it
+        cases = [(action, 'Run', None) for action in ('on_stream_stop', 'on_emergency_stop', 'on_grbl_reset')]
+        cases.append(('on_grbl_reset', 'Idle', float('-inf')))  # an old Idle report is not evidence
+        for action, state, report_time in cases:
+            with self.subTest(action=action, state=state):
+                tool, fake = self.make_tool()
+                tool._controller_state = state
+                if report_time is not None:
+                    tool._controller_state_time = report_time
+                with patch('appPlugins.ToolGcodeSender.Sender.QtCore.QTimer.singleShot',
+                           side_effect=lambda _ms, fn: fn()) as timer:
+                    getattr(tool, action)()
+                self.assertIn(b'\x18', fake.written)
+                self.assertIsNotNone(tool._grbl_recovery)
+                if action != 'on_grbl_reset':
+                    self.assertEqual(timer.call_args_list[0].args[0], 500)  # time to brake before the reset
+
     def test_reset_button_does_not_take_checked_as_keep_position(self):
         tool, fake = self.make_tool()
         tool.on_grbl_reset()
@@ -373,6 +400,78 @@ class TestDeletedQtObjects(unittest.TestCase):
         tool.grbl_port_closed_sig.emit.side_effect = RuntimeError('wrapped C/C++ object has been deleted')
         self.assertTrue(tool._grbl_close_port())
         self.assertFalse(fake.is_open)
+
+    def test_port_that_did_not_stop_blocks_a_new_connection_until_released(self):
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ecut'))
+        from test_ecut_sender_port import FakeAPI, FakeEngine
+        from appPlugins.Common.ecut.ecut_sender_port import EcutSenderPort
+        import serial
+        api = FakeAPI()
+        gate = threading.Event()
+        api.disconnect = lambda: gate.wait(10)
+        port = EcutSenderPort(api=api, engine=FakeEngine(api))
+        port.JOIN_TIMEOUT = 0.2
+        tool = ToolGCodeSender(make_app())
+        tool.build_ui()
+        tool.grbl_ser_port = port
+        tool._grbl_connected = True
+        try:
+            tool._grbl_disconnect()
+            self.assertIsNone(tool.grbl_ser_port)
+            messages = [call.args[0] for call in tool.app.inform.emit.call_args_list]
+            self.assertTrue(any(m.startswith('[ERROR_NOTCL]') for m in messages))
+            self.assertFalse(any('Port disconnected' in m for m in messages))
+
+            tool.app.inform.emit.reset_mock()
+            with patch('appPlugins.ToolGcodeSender.Sender.serial.serial_for_url',
+                       side_effect=serial.SerialException('no port')) as make_port:
+                tool.on_grbl_connect()
+                make_port.assert_not_called()
+                self.assertIsNone(tool._grbl_connect_attempt)
+                self.assertTrue(tool.app.inform.emit.call_args.args[0].startswith('[ERROR_NOTCL]'))
+
+                gate.set()
+                port._worker.join(2)
+                tool.on_grbl_connect()
+                make_port.assert_called_once()
+        finally:
+            gate.set()
+            port._worker.join(2)
+
+    def test_outdated_connect_result_whose_port_did_not_stop_blocks_a_new_connection(self):
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ecut'))
+        from test_ecut_sender_port import FakeAPI, FakeEngine
+        from appPlugins.Common.ecut.ecut_sender_port import EcutSenderPort
+        import serial
+        api = FakeAPI()
+        gate = threading.Event()
+        api.disconnect = lambda: gate.wait(10)
+        port = EcutSenderPort(api=api, engine=FakeEngine(api))
+        port.JOIN_TIMEOUT = 0.2
+        tool = ToolGCodeSender(make_app())
+        tool.build_ui()
+        try:
+            # the connect result of an attempt that a Disconnect or a new Connect already replaced
+            tool._on_ecut_connect_result(('COM9', object(), port, None))
+            task = tool.app.worker_task.emit.call_args.args[0]
+            task['fcn']()
+            messages = [call.args[0] for call in tool.app.inform.emit.call_args_list]
+            self.assertTrue(any(m.startswith('[ERROR_NOTCL]') for m in messages))
+
+            tool.app.inform.emit.reset_mock()
+            with patch('appPlugins.ToolGcodeSender.Sender.serial.serial_for_url',
+                       side_effect=serial.SerialException('no port')) as make_port:
+                tool.on_grbl_connect()
+                make_port.assert_not_called()
+                self.assertTrue(tool.app.inform.emit.call_args.args[0].startswith('[ERROR_NOTCL]'))
+
+                gate.set()
+                port._worker.join(2)
+                tool.on_grbl_connect()
+                make_port.assert_called_once()
+        finally:
+            gate.set()
+            port._worker.join(2)
 
     def test_stop_all_runs_then_removes_the_stop_of_a_deleted_plugin(self):
         from PyQt6 import QtCore, sip

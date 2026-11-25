@@ -169,6 +169,7 @@ class AppDefaults:
 
         "global_machine_profile": "None",
         "global_machine_profiles_folder": "",  # empty = <app data folder>/machine_profiles
+        "global_grbl_jog_collapsed": False,  # Sender dock: jog block collapsed
 
         # General APP Preferences
         "units": "MM",
@@ -740,7 +741,7 @@ class AppDefaults:
         "tools_grbl_jog_fr": 1500,
         "tools_grbl_travelz": 15.0,
         "tools_grbl_baudrate": '115200',
-        "tools_grbl_console_visible": False,
+        "tools_grbl_console_visible": True,
         "tools_gcode_fit_view": True,
         "tools_grbl_arc_mode": 'split',
         "tools_grbl_arc_segment": 0.5,
@@ -777,6 +778,8 @@ class AppDefaults:
         # board registration acceptance tolerance, with its independent units key
         "tools_camera_alignment_tolerance": 0.1,
         "tools_camera_alignment_tolerance_units": 'MM',
+        # width of the camera pane beside the plot, in pixels (set by the splitter handle)
+        "global_camera_pane_width": 400,
 
         # NCC Plugin
         "tools_ncc_tools": "0.5",

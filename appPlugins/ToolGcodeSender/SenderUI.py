@@ -10,13 +10,14 @@ from PyQt6.QtCore import Qt
 
 from appGUI.GUIElements import (
     FCLabel, FCButton, FCFrame, GLay, FCComboBox, FCCheckBox, FCJog, FCDoubleSpinner, FCSpinner,
-    RadioSet, FCDetachableTab, FCZeroAxes, FCSliderWithDoubleSpinner, FCEntry, RotatedToolButton,
+    RadioSet, FCDetachableTab, FCZeroAxes, FCSliderWithDoubleSpinner, FCEntry,
     VerticalScrollArea)
 from appCommon.machine_profile.facts import active_profile_of
 from appPlugins.Common.levelling_ui import build_probe_points_ui
 from appPlugins.ToolGcodeSender.SenderCameraUI import SenderCameraUI, CameraView
 from appPlugins.ToolGcodeSender.SenderRegistrationUI import SenderRegistrationUI
 from appPlugins.ToolGcodeSender.SenderToolChangeUI import SenderToolChangeUI
+from appPlugins.ToolGcodeSender.SenderStatusUI import SenderStatusStrip
 
 import gettext
 import appTranslation as fcTranslate
@@ -71,7 +72,7 @@ class GcodeSenderUI:
         # ## Title
         title_label = FCLabel("%s" % self.pluginName, size=16, bold=True)
         title_label.setToolTip(
-            _("Send G-code to a GRBL controller.")
+            _("Send G-code to a controller (GRBL, grblHAL or E-Cut).")
         )
 
         self.title_box.addWidget(title_label)
@@ -85,7 +86,6 @@ class GcodeSenderUI:
                 "Permanent change is done in 'Preferences' menu."
             )
         )
-        # self.level.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignVCenter)
         self.level.setCheckable(True)
         self.title_box.addWidget(self.level)
 
@@ -94,95 +94,74 @@ class GcodeSenderUI:
         self.machine_profile_label.setVisible(active_profile_of(self.app) is not None)
         self.tools_box.addWidget(self.machine_profile_label)
 
-        self.obj_combo_label = FCLabel('%s' % _("Source Object"), color='darkorange', bold=True)
-        self.obj_combo_label.setToolTip(
-            _("The CNCJob object to send.")
-        )
-
-        self.console_cb = FCCheckBox(_("Show console"))
-        self.console_cb.setToolTip(_("Show or hide the GCode Console dock."))
+        self.console_cb = FCCheckBox(_("Machine panel"))
+        self.console_cb.setToolTip(
+            _("Show the panel of the machine at the right: state, job buttons, jog, program and console."))
 
         self.fit_view_cb = FCCheckBox(_("Fit View"))
         self.fit_view_cb.setToolTip(_("Fit the GCode bounds in isometric view after loading the source object."))
 
         obj_hlay = QtWidgets.QHBoxLayout()
-        obj_hlay.addWidget(self.obj_combo_label)
         obj_hlay.addStretch()
-        obj_hlay.addWidget(self.fit_view_cb)
         obj_hlay.addWidget(self.console_cb)
         self.tools_box.addLayout(obj_hlay)
 
-        self.source_frame = QtWidgets.QFrame()
-        source_box = QtWidgets.QVBoxLayout(self.source_frame)
-        source_box.setContentsMargins(0, 0, 0, 0)
-        self.tools_box.addWidget(self.source_frame)
-
         # #############################################################################################################
-        # ################################ The object to be Auto-levelled ##############################################
+        # ################################ The CNCJob object to send ###################################################
         # #############################################################################################################
         self.object_combo = FCComboBox()
         self.object_combo.setModel(self.app.collection)
         self.object_combo.setRootModelIndex(self.app.collection.index(3, 0, QtCore.QModelIndex()))
-        # self.object_combo.setCurrentIndex(1)
         self.object_combo.is_last = True
-
-        source_box.addWidget(self.object_combo)
 
         self.al_toolbar = FCDetachableTab(protect=True)
         self.al_toolbar.setTabsClosable(False)
         self.al_toolbar.useOldIndex(True)
         self.al_toolbar.set_detachable(val=False)
-        source_box.addWidget(self.al_toolbar)
+        self.tools_box.addWidget(self.al_toolbar)
 
         # GRBL Connect TAB
         self.gr_conn_tab = QtWidgets.QWidget()
         self.gr_conn_tab.setObjectName("connect_tab")
         self.gr_conn_tab_layout = QtWidgets.QVBoxLayout(self.gr_conn_tab)
         self.gr_conn_tab_layout.setContentsMargins(2, 2, 2, 2)
-        # self.gr_conn_scroll_area = VerticalScrollArea()
-        # self.gr_conn_tab_layout.addWidget(self.gr_conn_scroll_area)
         self.al_toolbar.addTab(self.gr_conn_tab, _("Connect"))
 
-        # GRBL Control TAB
-        self.gr_ctrl_tab = QtWidgets.QWidget()
-        self.gr_ctrl_tab.setObjectName("connect_tab")
-        self.gr_ctrl_tab_layout = QtWidgets.QVBoxLayout(self.gr_ctrl_tab)
-        self.gr_ctrl_tab_layout.setContentsMargins(2, 2, 2, 2)
+        # JOB TAB: the source object and the job controls; usable before the connection
+        self.job_tab = QtWidgets.QWidget()
+        self.job_tab.setObjectName("job_tab")
+        self.job_tab_layout = QtWidgets.QVBoxLayout(self.job_tab)
+        self.job_tab_layout.setContentsMargins(2, 2, 2, 2)
+        self.al_toolbar.addTab(self.job_tab, _("Job"))
 
-        # self.gr_ctrl_scroll_area = VerticalScrollArea()
-        # self.gr_ctrl_tab_layout.addWidget(self.gr_ctrl_scroll_area)
-        self.al_toolbar.addTab(self.gr_ctrl_tab, _("Control"))
+        # PROBING TAB: edge probe, height map and probe points; needs a connection
+        self.probing_tab = QtWidgets.QWidget()
+        self.probing_tab.setObjectName("probing_tab")
+        self.probing_tab_layout = QtWidgets.QVBoxLayout(self.probing_tab)
+        self.probing_tab_layout.setContentsMargins(2, 2, 2, 2)
+        self.al_toolbar.addTab(self.probing_tab, _("Probing"))
+        self.probing_scroll_area = VerticalScrollArea()
+        self.probing_content = QtWidgets.QWidget()
+        self.probing_box = QtWidgets.QVBoxLayout(self.probing_content)
+        self.probing_box.setContentsMargins(0, 0, 0, 0)
+        self.probing_scroll_area.setWidget(self.probing_content)
+        self.probing_tab_layout.addWidget(self.probing_scroll_area)
 
-        # GRBL Sender TAB
-        self.gr_send_tab = QtWidgets.QWidget()
-        self.gr_send_tab.setObjectName("connect_tab")
-        self.gr_send_tab_layout = QtWidgets.QVBoxLayout(self.gr_send_tab)
-        self.gr_send_tab_layout.setContentsMargins(2, 2, 2, 2)
-
-        # self.gr_send_scroll_area = VerticalScrollArea()
-        # self.gr_send_tab_layout.addWidget(self.gr_send_scroll_area)
-        self.al_toolbar.addTab(self.gr_send_tab, _("Sender"))
-
-        # CAMERA TAB
-        self.camera_tab = QtWidgets.QWidget()
-        self.camera_tab.setObjectName("camera_tab")
-        self.camera_tab_layout = QtWidgets.QVBoxLayout(self.camera_tab)
-        self.camera_tab_layout.setContentsMargins(2, 2, 2, 2)
-        self.al_toolbar.addTab(self.camera_tab, _("Camera"))
+        # CAMERA PAGE: mounted in the dock by the Sender (no parent here, like jog_page)
+        self.camera_page = QtWidgets.QWidget()
+        self.camera_page.setObjectName("camera_page")
+        self.camera_page_layout = QtWidgets.QVBoxLayout(self.camera_page)
+        self.camera_page_layout.setContentsMargins(2, 2, 2, 2)
         self.camera_tabs = QtWidgets.QTabWidget()
-        self.camera_view = CameraView(self.camera_tab)
+        self.camera_view = CameraView(self.camera_page)
         self.camera_widget = SenderCameraUI(self.app, self.camera_tabs, view=self.camera_view)
-        self.camera_tab_layout.addWidget(self.camera_widget.preview_controls)
-        self.camera_tab_layout.addWidget(self.camera_view, stretch=1)
-        # no inner scroll area: the plugin panel already scrolls, and a nested one gets only
-        # its minimum height (about 70 px), so the pages under the preview are squeezed.
-        # Without it the pages keep their full height and the preview takes the rest.
-        self.camera_tab_layout.addWidget(self.camera_tabs)
+        self.camera_page_layout.addWidget(self.camera_widget.preview_controls)
+        self.camera_page_layout.addWidget(self.camera_view, stretch=1)
+        self.camera_page_layout.addWidget(self.camera_tabs)
         self.camera_tabs.addTab(self.camera_widget, _("Calibration"))
         self.registration_widget = SenderRegistrationUI(self.app, self.camera_tabs)
         self.camera_tabs.addTab(self.registration_widget, _("Board registration"))
-        # the camera runs only while its tab is shown
-        self.al_toolbar.currentChanged.connect(self._on_toolbar_tab_changed)
+        # the camera view moves into the camera pane beside the plot while the preview runs (SenderCameraPane)
 
         # TOOL CHANGE TAB
         self.toolchange_tab = QtWidgets.QWidget()
@@ -195,11 +174,16 @@ class GcodeSenderUI:
         self.toolchange_scroll_area.setWidget(self.toolchange_widget)
         self.toolchange_tab_layout.addWidget(self.toolchange_scroll_area)
 
-        for idx in range(self.al_toolbar.count()):
-            if self.al_toolbar.tabText(idx) == _("Connect"):
-                self.al_toolbar.tabBar.setTabTextColor(idx, QtGui.QColor('red'))
-            if self.al_toolbar.tabText(idx) in (_("Control"), _("Sender"), _("Tool change")):
-                self.al_toolbar.tabBar.setTabEnabled(idx, False)
+        # CONFIGURATION TAB: the parameter row, the report and the $$ table (the controller adds `configuration`)
+        self.config_tab = QtWidgets.QWidget()
+        self.config_tab.setObjectName("config_tab")
+        self.config_tab_layout = QtWidgets.QVBoxLayout(self.config_tab)
+        self.config_tab_layout.setContentsMargins(2, 2, 2, 2)
+        self.al_toolbar.addTab(self.config_tab, _("Configuration"))
+
+        self.al_toolbar.tabBar.setTabTextColor(self.al_toolbar.indexOf(self.gr_conn_tab), QtGui.QColor('red'))
+        for tab in (self.probing_tab, self.toolchange_tab, self.config_tab):
+            self.al_toolbar.tabBar.setTabEnabled(self.al_toolbar.indexOf(tab), False)
         # #############################################################################################################
 
         # #############################################################################################################
@@ -231,6 +215,7 @@ class GcodeSenderUI:
         self.network_port_entry = FCSpinner()
         self.network_port_entry.set_range(1, 65535)
         self.network_port_entry.set_value(23)
+        self.network_port_entry.setToolTip(_("The TCP port of the grblHAL network connection."))
         grbl_conn_grid.addWidget(self.network_host_label, 3, 0)
         grbl_conn_grid.addWidget(self.network_host_entry, 3, 1, 1, 2)
         grbl_conn_grid.addWidget(self.network_port_label, 5, 0)
@@ -257,7 +242,7 @@ class GcodeSenderUI:
         # BAUDRATES list
         self.baudrates_list_label = FCLabel('%s:' % _("Baud rates"))
         self.baudrates_list_label.setToolTip(
-            _("Lists the available serial ports.")
+            _("Lists the baud rates of the serial connection.")
         )
 
         self.baudrates_list_combo = FCComboBox()
@@ -289,6 +274,7 @@ class GcodeSenderUI:
         grbl_conn_grid.addWidget(self.add_bd_button, 6, 2)
 
         self.del_bd_button = FCButton(_("Delete selected baudrate"))
+        self.del_bd_button.setToolTip(_("Remove the selected baud rate from the list."))
         grbl_conn_grid.addWidget(self.del_bd_button, 8, 0, 1, 3)
 
         ctrl_h_lay = QtWidgets.QHBoxLayout()
@@ -317,25 +303,26 @@ class GcodeSenderUI:
         # #############################################################################################################
         # GRBL JOG
         # #############################################################################################################
-        # The only jog controls; the GCode Console dock mounts this page beside Program and Console.
+        # The only jog controls; the Sender mounts it in the fixed jog block of the dock.
         self.jog_page = QtWidgets.QWidget()
+        # fixed block of the dock: the pad at the left, the settings column at the right, only the height it needs
+        self.jog_page.setSizePolicy(QtWidgets.QSizePolicy.Policy.Preferred, QtWidgets.QSizePolicy.Policy.Maximum)
         self.jog_page_layout = QtWidgets.QVBoxLayout(self.jog_page)
         self.jog_page_layout.setContentsMargins(0, 0, 0, 0)
+        # top: the pad and the settings column; bottom: the zero / home / spindle row
+        jog_top_layout = QtWidgets.QHBoxLayout()
+        jog_top_layout.setContentsMargins(0, 0, 0, 0)
+        self.jog_page_layout.addLayout(jog_top_layout)
 
         self.ctrl_grbl_frame = FCFrame()
-        self.jog_page_layout.addWidget(self.ctrl_grbl_frame)
+        jog_top_layout.addWidget(self.ctrl_grbl_frame)
         grbl_ctrl_grid = GLay(v_spacing=5, h_spacing=3, c_stretch=[0, 1, 0])
         self.ctrl_grbl_frame.setLayout(grbl_ctrl_grid)
 
         self.ctrl_grbl_frame2 = FCFrame()
-        self.jog_page_layout.addWidget(self.ctrl_grbl_frame2)
+        jog_top_layout.addWidget(self.ctrl_grbl_frame2)
         grbl_ctrl2_grid = GLay(v_spacing=5, h_spacing=3)
         self.ctrl_grbl_frame2.setLayout(grbl_ctrl2_grid)
-
-        self.jog_page_layout.addStretch(1)
-
-        jog_title_label = FCLabel(_("Jog"), bold=True)
-        grbl_ctrl_grid.addWidget(jog_title_label, 0, 0)
 
         self.jog_wdg = FCJog(self.app)
         self.jog_wdg.setStyleSheet("""
@@ -345,17 +332,17 @@ class GcodeSenderUI:
                                 border-radius: 5px;
                             }
                             """)
-        grbl_ctrl_grid.addWidget(self.jog_wdg, 1, 0)
+        grbl_ctrl_grid.addWidget(self.jog_wdg, 0, 0)
 
         # STOP
         self.jog_stop_button = FCButton(_("Stop / recover"))
         self.jog_stop_button.setToolTip(
-            _("Stop the running GRBL operation now.\n"
-              "GRBL goes into feed hold; the operation is abandoned. Cannot Resume.\n"
+            _("Stop the running operation now.\n"
+              "The controller goes into feed hold; the operation is abandoned. Cannot Resume.\n"
               "Use Reset on Connect, then Home on Jog, before more motion.")
         )
         self.jog_stop_button.setStyleSheet("QPushButton {background-color: red; color: white;}")
-        grbl_ctrl_grid.addWidget(self.jog_stop_button, 1, 1)
+        grbl_ctrl2_grid.addWidget(self.jog_stop_button, 3, 0, 1, 2)
 
         # JOG Step
         self.jog_step_label = FCLabel('%s:' % _("Step"))
@@ -366,7 +353,10 @@ class GcodeSenderUI:
         self.jog_step_entry = FCSliderWithDoubleSpinner()
         self.jog_step_entry.set_precision(self.decimals)
         self.jog_step_entry.setSingleStep(0.1)
-        self.jog_step_entry.set_range(0, 500)
+        # the smallest value is the smallest step of the precision; the largest depends on the units
+        smallest = 10 ** -self.decimals
+        metric = self.app.app_units.upper() == 'MM'
+        self.jog_step_entry.set_range(smallest, 500 if metric else 20)
 
         grbl_ctrl2_grid.addWidget(self.jog_step_label, 0, 0)
         grbl_ctrl2_grid.addWidget(self.jog_step_entry, 0, 1)
@@ -380,7 +370,7 @@ class GcodeSenderUI:
         self.jog_fr_entry = FCSliderWithDoubleSpinner()
         self.jog_fr_entry.set_precision(self.decimals)
         self.jog_fr_entry.setSingleStep(10)
-        self.jog_fr_entry.set_range(0, 10000)
+        self.jog_fr_entry.set_range(smallest, 10000 if metric else 400)
 
         grbl_ctrl2_grid.addWidget(self.jog_fr_label, 1, 0)
         grbl_ctrl2_grid.addWidget(self.jog_fr_entry, 1, 1)
@@ -397,23 +387,12 @@ class GcodeSenderUI:
         self.ecut_motion_button = FCButton(_("E-Cut settings"))
         self.ecut_motion_button.setToolTip(_("Motion, motor calibration, spindle and input/output settings."))
         self.ecut_motion_button.hide()
-        grbl_ctrl2_grid.addWidget(self.ecut_motion_button, 3, 0, 1, 2)
+        grbl_ctrl2_grid.addWidget(self.ecut_motion_button, 4, 0, 1, 2)
 
         # #############################################################################################################
         # GRBL CONTROL
         # #############################################################################################################
-        self.jog_button = FCButton(_("Jog (Tab)"), bold=True)
-        self.jog_button.setToolTip(_("Show Jog in the console dock. Tab toggles the Jog dock."))
-        self.gr_ctrl_tab_layout.addWidget(self.jog_button)
-
-        self.control_frame = FCFrame()
-        self.gr_ctrl_tab_layout.addWidget(self.control_frame)
-        control_grid = GLay(v_spacing=5, h_spacing=3, c_stretch=[0, 1, 0])
-        self.control_frame.setLayout(control_grid)
-
-        self.zero_title_label = FCLabel(_("Zero Axes"), bold=True)
-        control_grid.addWidget(self.zero_title_label, 0, 0)
-
+        # the zero / home buttons and the spindle controls form the bottom row of the jog block (built below)
         self.zero_axs_wdg = FCZeroAxes(self.app)
         self.zero_axs_wdg.setStyleSheet("""
                             FCZeroAxes
@@ -422,39 +401,13 @@ class GcodeSenderUI:
                                 border-radius: 5px
                             }
                             """)
-        control_grid.addWidget(self.zero_axs_wdg, 1, 0)
-
-        self.pause_resume_button = RotatedToolButton()
-        self.pause_resume_button.setSizePolicy(QtWidgets.QSizePolicy.Policy.Minimum,
-                                               QtWidgets.QSizePolicy.Policy.Expanding)
-        self.pause_resume_button.setText(_("Pause/Resume"))
-        self.pause_resume_button.setCheckable(True)
-        self.pause_resume_button.setStyleSheet("""
-                            RotatedToolButton:checked
-                            {
-                                background-color: red;
-                                color: white;
-                                border: none;
-                            }
-                            """)
-
-        self.pause_frame = QtWidgets.QFrame()
-        self.pause_frame.setContentsMargins(0, 0, 0, 0)
-        self.pause_frame.setSizePolicy(QtWidgets.QSizePolicy.Policy.Ignored, QtWidgets.QSizePolicy.Policy.Expanding)
-        pause_h_lay = QtWidgets.QHBoxLayout()
-        pause_h_lay.setContentsMargins(0, 0, 0, 0)
-
-        pause_h_lay.addWidget(self.pause_resume_button)
-        self.pause_frame.setLayout(pause_h_lay)
-        control_grid.addWidget(self.pause_frame, 1, 1)
 
         # EDGE / CENTRE PROBING
+        self.probing_box.addWidget(FCLabel(_("Edge probe"), bold=True))
         self.edge_probe_frame = FCFrame()
-        self.gr_ctrl_tab_layout.addWidget(self.edge_probe_frame)
+        self.probing_box.addWidget(self.edge_probe_frame)
         edge_grid = GLay(v_spacing=5, h_spacing=3, c_stretch=[0, 1])
         self.edge_probe_frame.setLayout(edge_grid)
-
-        edge_grid.addWidget(FCLabel(_("Edge / centre probing"), bold=True), 0, 0, 1, 2)
 
         edge_grid.addWidget(FCLabel('%s:' % _("Direction")), 1, 0)
         self.edge_probe_axis_radio = RadioSet([
@@ -481,6 +434,7 @@ class GcodeSenderUI:
         self.edge_probe_feed_entry.set_precision(self.decimals)
         self.edge_probe_feed_entry.set_range(0.0001, 910000.0)
         self.edge_probe_feed_entry.set_value(100.0 if self.app.app_units.upper() == 'MM' else 4.0)
+        self.edge_probe_feed_entry.setToolTip(_("The feedrate of the probe move, in current units per minute."))
         edge_grid.addWidget(self.edge_probe_feed_entry, 3, 1)
 
         edge_grid.addWidget(FCLabel('%s:' % _("Pull-off")), 4, 0)
@@ -518,41 +472,44 @@ class GcodeSenderUI:
         self.edge_probe_result_label.setWordWrap(True)
         edge_grid.addWidget(self.edge_probe_result_label, 7, 0, 1, 2)
 
-        self.gr_ctrl_tab_layout.addStretch(1)
+        # the height map group: its title and the buttons hide together in the camera mode
+        self.heightmap_frame = QtWidgets.QWidget()
+        heightmap_box = QtWidgets.QVBoxLayout(self.heightmap_frame)
+        heightmap_box.setContentsMargins(0, 0, 0, 0)
+        heightmap_box.addWidget(FCLabel(_("Height map"), bold=True))
+        self.probing_box.addWidget(self.heightmap_frame)
 
         # #############################################################################################################
         # GRBL SENDER
         # #############################################################################################################
         self.sender_frame = FCFrame()
-        self.gr_send_tab_layout.addWidget(self.sender_frame)
+        self.config_tab_layout.addWidget(self.sender_frame)
 
         grbl_send_grid = GLay(v_spacing=5, h_spacing=3, c_stretch=[1, 0])
         self.sender_frame.setLayout(grbl_send_grid)
 
-        # Send CUSTOM COMMAND
-        self.grbl_command_label = FCLabel('%s:' % _("Send Command"))
-        self.grbl_command_label.setToolTip(
-            _("Send a custom command to GRBL.")
-        )
-        grbl_send_grid.addWidget(self.grbl_command_label, 2, 0, 1, 2)
-
+        # the one command entry: made without a parent, the Sender mounts it under the log of the dock Console page (like jog_page)
+        self.command_row = QtWidgets.QWidget()
+        command_lay = QtWidgets.QHBoxLayout(self.command_row)
+        command_lay.setContentsMargins(0, 0, 0, 0)
         self.grbl_command_entry = FCEntry()
-        self.grbl_command_entry.setPlaceholderText(_("Type GRBL command ..."))
+        self.grbl_command_entry.setPlaceholderText(_("Type a command ..."))
+        self.grbl_command_entry.setToolTip(_("The command to send. Press Enter or Send."))
 
         self.grbl_send_button = QtWidgets.QToolButton()
         self.grbl_send_button.setText(_("Send"))
         self.grbl_send_button.setToolTip(
-            _("Send a custom command to GRBL.")
+            _("Send a custom command to the controller.")
         )
-        grbl_send_grid.addWidget(self.grbl_command_entry, 4, 0)
-        grbl_send_grid.addWidget(self.grbl_send_button, 4, 1)
+        command_lay.addWidget(self.grbl_command_entry, 1)
+        command_lay.addWidget(self.grbl_send_button)
 
         # Get Parameter
         self.grbl_get_param_label = FCLabel('%s:' % _("Get Config parameter"))
         self.grbl_get_param_label.setToolTip(
             _("A GRBL configuration parameter.")
         )
-        grbl_send_grid.addWidget(self.grbl_get_param_label, 6, 0, 1, 2)
+        grbl_send_grid.addWidget(self.grbl_get_param_label, 0, 0, 1, 2)
 
         self.grbl_parameter_entry = FCEntry()
         self.grbl_parameter_entry.setPlaceholderText(_("Type GRBL parameter ..."))
@@ -562,19 +519,18 @@ class GcodeSenderUI:
         self.grbl_get_param_button.setToolTip(
             _("Get the value of a specified GRBL parameter.")
         )
-        grbl_send_grid.addWidget(self.grbl_parameter_entry, 8, 0)
-        grbl_send_grid.addWidget(self.grbl_get_param_button, 8, 1)
-
-        grbl_send_grid.setRowStretch(9, 1)
+        grbl_send_grid.addWidget(self.grbl_parameter_entry, 1, 0)
+        grbl_send_grid.addWidget(self.grbl_get_param_button, 1, 1)
 
         # GET Report
         self.grbl_report_button = FCButton(_("Get Report"))
         self.grbl_report_button.setToolTip(
-            _("Print in shell the GRBL report.")
+            _("Print the controller report in the Console page of the machine panel.")
         )
-        grbl_send_grid.addWidget(self.grbl_report_button, 10, 0, 1, 2)
+        grbl_send_grid.addWidget(self.grbl_report_button, 2, 0, 1, 2)
 
         hm_lay = QtWidgets.QHBoxLayout()
+        heightmap_box.addLayout(hm_lay)
         # GET HEIGHT MAP
         self.grbl_get_heightmap_button = FCButton(_("Probe height map"))
         self.grbl_get_heightmap_button.setToolTip(
@@ -585,8 +541,8 @@ class GcodeSenderUI:
         # STOP
         self.stop_probing_button = FCButton(_("Stop / recover"))
         self.stop_probing_button.setToolTip(
-            _("Stop the running GRBL operation now.\n"
-              "GRBL goes into feed hold; the operation is abandoned. Cannot Resume.\n"
+            _("Stop the running operation now.\n"
+              "The controller goes into feed hold; the operation is abandoned. Cannot Resume.\n"
               "Use Reset on Connect, then Home on Jog, before more motion.")
         )
         self.stop_probing_button.setStyleSheet("QPushButton {background-color: red; color: white;}")
@@ -599,28 +555,32 @@ class GcodeSenderUI:
         )
         hm_lay.addWidget(self.grbl_save_height_map_button, stretch=0, alignment=Qt.AlignmentFlag.AlignRight)
 
-        grbl_send_grid.addLayout(hm_lay, 12, 0, 1, 2)
-
-        self.run_label = FCLabel('%s' % _("Job"), color='green', bold=True)
-        self.tools_box.addWidget(self.run_label)
-        self.run_frame = FCFrame()
-        self.tools_box.addWidget(self.run_frame)
-        run_grid = GLay(v_spacing=5, h_spacing=3)
-        self.run_frame.setLayout(run_grid)
-
         self.start_button = FCButton(_("Start"), bold=True)
-        self.start_button.setToolTip(_("Stream the G-code of the selected CNCJob to GRBL."))
+        self.start_button.setToolTip(_("Stream the G-code of the selected CNCJob to the controller."))
         self.hold_button = FCButton(_("Hold"))
         self.hold_button.setToolTip(_("Feed hold. Resume continues the job."))
         self.resume_button = FCButton(_("Resume"))
+        self.resume_button.setToolTip(_("Resume the job after a feed hold."))
         self.stop_button = FCButton(_("Stop / reset"))
         self.stop_button.setStyleSheet("QPushButton {background-color: red; color: white;}")
         self.stop_button.setToolTip(_("Abort the job: feed hold, then a soft reset. Cannot Resume.\n"
-                                      "Homing may be required. Reset and Home are on Connect and Jog."))
-        run_grid.addWidget(self.start_button, 0, 0)
-        run_grid.addWidget(self.hold_button, 0, 1)
-        run_grid.addWidget(self.resume_button, 0, 2)
-        run_grid.addWidget(self.stop_button, 0, 3)
+                                      "Homing may be required. Reset is on the Connect page, Home in the Jog block of the machine panel."))
+
+        # the header of the dock: made without a parent, the Sender mounts it in the dock (like jog_page)
+        self.operate_header = QtWidgets.QWidget()
+        self.operate_header.setSizePolicy(QtWidgets.QSizePolicy.Policy.Preferred,
+                                          QtWidgets.QSizePolicy.Policy.Maximum)
+        header_box = QtWidgets.QVBoxLayout(self.operate_header)
+        header_box.setContentsMargins(0, 0, 0, 0)
+        self.status_strip = SenderStatusStrip()
+        header_box.addWidget(self.status_strip)
+
+        self.job_row = QtWidgets.QWidget()
+        job_lay = QtWidgets.QHBoxLayout(self.job_row)
+        job_lay.setContentsMargins(0, 0, 0, 0)
+        for button in (self.start_button, self.hold_button, self.resume_button, self.stop_button):
+            job_lay.addWidget(button)
+        header_box.addWidget(self.job_row)
 
         self.unlock_button = FCButton(_("Unlock"))
         self.unlock_button.setToolTip(_("Send $X: clear the alarm lock."))
@@ -630,9 +590,8 @@ class GcodeSenderUI:
         self.check_mode_cb.setToolTip(_("While checked, every Start validates G-code without motion.\n"
                                        "The controller exits check mode after each job; this request stays checked.\n"
                                        "Uncheck it explicitly before cutting."))
-        run_grid.addWidget(self.unlock_button, 1, 0)
-        run_grid.addWidget(self.sim_button, 1, 1)
-        run_grid.addWidget(self.check_mode_cb, 1, 2, 1, 2)
+        # Unlock sits at the right end of the alarm row; Alarm always sets an alarm text, so the row is shown
+        self.status_strip.alarm_row.addWidget(self.unlock_button)
 
         # the button shows the spindle state: it also changes when a command or a job starts or stops the spindle
         self.spindle_button = FCButton(_("Spindle"))
@@ -646,59 +605,70 @@ class GcodeSenderUI:
         self.spindle_rpm_entry.set_value(10000)
         # no suffix: FCSpinner reads only the number from the text, so a ' RPM' suffix gives 0
         self.spindle_rpm_entry.setToolTip(_("The spindle speed for the Spindle button."))
-        run_grid.addWidget(self.spindle_button, 2, 0, 1, 2)
-        # the RPM field and its label share 2 columns: in 1 column the field was too narrow for its digits
-        rpm_lay = QtWidgets.QHBoxLayout()
-        rpm_lay.addWidget(self.spindle_rpm_entry, stretch=1)
-        rpm_lay.addWidget(FCLabel(_("RPM")))
-        run_grid.addLayout(rpm_lay, 2, 2, 1, 2)
+        # bottom row of the jog block: zero X/Y/Z/All + Home, then the spindle button with its RPM
+        zero_spindle_row = QtWidgets.QHBoxLayout()
+        zero_spindle_row.setContentsMargins(0, 0, 0, 0)
+        zero_spindle_row.addWidget(self.zero_axs_wdg)
+        zero_spindle_row.addStretch(1)
+        zero_spindle_row.addWidget(self.spindle_button)
+        zero_spindle_row.addWidget(self.spindle_rpm_entry)
+        self.spindle_rpm_label = FCLabel(_("RPM"))
+        zero_spindle_row.addWidget(self.spindle_rpm_label)
+        self.jog_page_layout.addLayout(zero_spindle_row)
 
         self.progress_bar = QtWidgets.QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
-        run_grid.addWidget(self.progress_bar, 3, 0, 1, 4)
+        header_box.addWidget(self.progress_bar)
         self.status_label = FCLabel(_("Idle"))
-        run_grid.addWidget(self.status_label, 4, 0, 1, 4)
+        self.status_label.setWordWrap(True)
+        header_box.addWidget(self.status_label)
 
         # overrides: name, real-time byte
+        # a page of the dock: made without a parent, the Sender mounts it in the dock (like jog_page)
+        self.overrides_page = QtWidgets.QWidget()
+        ov_grid = QtWidgets.QGridLayout(self.overrides_page)
+        ov_grid.setContentsMargins(0, 0, 0, 0)
         self.ov_label = FCLabel('%s' % _("Overrides"), bold=True)
-        run_grid.addWidget(self.ov_label, 5, 0, 1, 4)
+        ov_grid.addWidget(self.ov_label, 0, 0, 1, 2)
         self.ov_buttons = {}
         ov_rows = [
             (_("Feed"), [('-10', b'\x92'), ('-1', b'\x94'), ('100%', b'\x90'), ('+1', b'\x93'), ('+10', b'\x91')]),
             (_("Rapid"), [('25%', b'\x97'), ('50%', b'\x96'), ('100%', b'\x95')]),
             (_("Spindle"), [('-10', b'\x9b'), ('-1', b'\x9d'), ('100%', b'\x99'), ('+1', b'\x9c'), ('+10', b'\x9a')]),
         ]
-        for row_idx, (name, items) in enumerate(ov_rows, start=6):
-            run_grid.addWidget(FCLabel('%s:' % name), row_idx, 0)
+        for row_idx, (name, items) in enumerate(ov_rows, start=1):
+            ov_grid.addWidget(FCLabel('%s:' % name), row_idx, 0)
             h_lay = QtWidgets.QHBoxLayout()
             for text, byte in items:
                 btn = QtWidgets.QToolButton()
                 btn.setText(text)
                 h_lay.addWidget(btn)
                 self.ov_buttons[(name, text)] = (btn, byte)
-            run_grid.addLayout(h_lay, row_idx, 1, 1, 3)
+            ov_grid.addLayout(h_lay, row_idx, 1)
         self.ov_values_label = FCLabel('F: 100%  R: 100%  S: 100%')
-        run_grid.addWidget(self.ov_values_label, 9, 0, 1, 4)
+        ov_grid.addWidget(self.ov_values_label, 4, 0, 1, 2)
+        ov_grid.setRowStretch(5, 1)
 
         self.save_levelled_button = FCButton(_("Save levelled G-code"))
         self.save_levelled_button.setIcon(QtGui.QIcon(self.app.resource_location + '/save_as.png'))
         self.save_levelled_button.setToolTip(_("Save the G-code that the sender streams, after the levelling."))
-        run_grid.addWidget(self.save_levelled_button, 10, 0, 1, 4)
 
         self.view3d_button = FCButton(_("Show in Plot 3D"))
         self.view3d_button.setToolTip(_("Show the toolpath, the tool and the height map in the Plot 3D tab."))
-        run_grid.addWidget(self.view3d_button, 11, 0, 1, 4)
 
-        self.al_group_label = FCLabel('%s' % _("Autolevelling"), color='blue', bold=True)
-        self.tools_box.addWidget(self.al_group_label)
-        self.autolevel_frame = QtWidgets.QFrame()
-        autolevel_box = QtWidgets.QVBoxLayout(self.autolevel_frame)
+        # the probe points group: its title, a hint while Autolevelling is off, the points and the precision probe
+        self.probe_points_frame = QtWidgets.QWidget()
+        autolevel_box = QtWidgets.QVBoxLayout(self.probe_points_frame)
         autolevel_box.setContentsMargins(0, 0, 0, 0)
-        self.tools_box.addWidget(self.autolevel_frame)
+        autolevel_box.addWidget(FCLabel(_("Probe points"), bold=True))
+        self.al_hint_label = FCLabel(_("Enable Autolevelling in the Job page to set the probe points."))
+        self.al_hint_label.setWordWrap(True)
+        autolevel_box.addWidget(self.al_hint_label)
+        self.probing_box.addWidget(self.probe_points_frame)
+        self.probing_box.addStretch(1)
         self.autolevel_cb = FCCheckBox(_("Level the G-code"))
         self.autolevel_cb.setToolTip(_("Apply the height map to the G-code before streaming."))
-        autolevel_box.addWidget(self.autolevel_cb)
         build_probe_points_ui(self, self.app, autolevel_box)
         self.tool_grid.removeWidget(self.plot_probing_pts_cb)
         self.tool_grid.addWidget(self.plot_probing_pts_cb, 2, 0)
@@ -724,6 +694,8 @@ class GcodeSenderUI:
         self.avoid_exc_combo.hide()
         self.al_frame.setVisible(self.autolevel_cb.isChecked())
         self.autolevel_cb.toggled.connect(self.al_frame.setVisible)
+        self.al_hint_label.setVisible(not self.autolevel_cb.isChecked())
+        self.autolevel_cb.toggled.connect(lambda checked: self.al_hint_label.setVisible(not checked))
 
         self.precision_probe_cb = FCCheckBox(_("Precision probing (two touches)"))
         self.precision_probe_cb.setToolTip(_(
@@ -738,6 +710,7 @@ class GcodeSenderUI:
         self.precision_feed_entry.set_precision(max(self.decimals, 4))
         self.precision_feed_entry.set_range(0.0001, 910000.0)
         self.precision_feed_entry.set_value(10.0 if app.app_units.upper() == 'MM' else 10.0 / 25.4)
+        self.precision_feed_entry.setToolTip(_("The feedrate of the second, fine touch, in current units per minute."))
         self.precision_feed_entry.setEnabled(False)
         precision_grid.addWidget(self.precision_feed_entry, 0, 1)
         precision_grid.addWidget(FCLabel('%s:' % _("Precision retract")), 1, 0)
@@ -751,6 +724,21 @@ class GcodeSenderUI:
         self.precision_retract_entry.setEnabled(False)
         precision_grid.addWidget(self.precision_retract_entry, 1, 1)
 
+        # the Job page, top to bottom
+        self.obj_combo_title = FCLabel('%s' % _("Source Object"), color='darkorange', bold=True)
+        self.obj_combo_title.setToolTip(_("The CNCJob object to send."))
+        self.job_tab_layout.addWidget(self.obj_combo_title)
+        self.job_tab_layout.addWidget(self.object_combo)
+        self.job_tab_layout.addWidget(self.fit_view_cb)
+        self.job_tab_layout.addWidget(self.check_mode_cb)
+        self.job_tab_layout.addWidget(self.autolevel_cb)
+        sim_row = QtWidgets.QHBoxLayout()
+        sim_row.addWidget(self.sim_button)
+        sim_row.addWidget(self.view3d_button)
+        self.job_tab_layout.addLayout(sim_row)
+        self.job_tab_layout.addWidget(self.save_levelled_button)
+        self.job_tab_layout.addStretch(1)
+
         self.tools_box.addStretch(1)
 
         # ## Reset Tool
@@ -762,26 +750,6 @@ class GcodeSenderUI:
         self.tools_box.addWidget(self.reset_button)
 
         GLay.set_common_column_size([self.tool_grid, self.param_grid], 0)
-
-        def toggle_section(collapsed, label, frame, color):
-            frame.setHidden(collapsed)
-            label.color = 'gray' if collapsed else color
-
-        for label, frame in ((self.obj_combo_label, self.source_frame),
-                             (self.run_label, self.run_frame),
-                             (self.al_group_label, self.autolevel_frame)):
-            label.setCursor(Qt.CursorShape.PointingHandCursor)
-            label.clicked.connect(
-                lambda collapsed, label=label, frame=frame, color=label.color:
-                toggle_section(collapsed, label, frame, color)
-            )
-
-    def _on_toolbar_tab_changed(self, index):
-        """Leaving the Camera tab stops the preview; a detached Camera tab stays live in its own window."""
-        if self.al_toolbar.indexOf(self.camera_tab) < 0:
-            return
-        if self.al_toolbar.widget(index) is not self.camera_tab:
-            self.camera_widget.stop_preview()
 
     def confirmation_message(self, accepted, minval, maxval):
         if accepted is False:

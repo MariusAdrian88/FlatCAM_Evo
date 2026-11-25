@@ -73,6 +73,20 @@ def parse_grbl_active_wcs(text):
     return 'G' + match.group(1)
 
 
+_WCS_P_NUMBERS = {'G54': 1, 'G55': 2, 'G56': 3, 'G57': 4, 'G58': 5, 'G59': 6, 'G59.1': 7, 'G59.2': 8, 'G59.3': 9}
+
+
+def grbl_wcs_p_number(wcs):
+    """The G10 P number of a work coordinate system: G54..G59 -> 1..6, G59.1..G59.3 -> 7..9.
+
+    :raises ValueError: for any other name
+    """
+    try:
+        return _WCS_P_NUMBERS[wcs]
+    except KeyError:
+        raise ValueError("Unknown work coordinate system: %s" % (wcs,)) from None
+
+
 def parse_grbl_offsets(text):
     """
     Parse every offset record of the raw ``$#`` command answer.
@@ -346,6 +360,8 @@ _AXS_RE = re.compile(r'^\s*\[AXS:(\d+)(?::([^\]]*))?\]')
 _OPT_RE = re.compile(r'\[OPT:([^\]]*)\]')
 _NEWOPT_RE = re.compile(r'^\s*\[NEWOPT:([^\]]*)\]')
 _FIRMWARE_RE = re.compile(r'^\s*\[FIRMWARE:([^\]]*)\]')
+_SIGNALS_RE = re.compile(r'^\s*\[SIGNALS:([^\]]*)\]')
+_AUX_IO_RE = re.compile(r'^\s*\[AUX IO:([^\]]*)\]')
 
 # the axis letters of the machines that this application drives (XYZ only)
 GRBL_XYZ_AXES = 'XYZ'
@@ -358,15 +374,31 @@ def parse_grbl_identity(text):
     :param text: raw text of the answer, for example '[AXS:3:XYZ]', '[NEWOPT:ENUMS,RT-,TC]',
         '[FIRMWARE:grblHAL]'.
     :return: dict with 'firmware' (str or None), 'axes' (int or None), 'axis_letters' (str or None) and
-        'options' (set of str); None if the answer holds none of these tags.
+        'options' (set of str, the NEWOPT list), 'opt_flags' (set of the legacy OPT letters, for example
+        'V', 'M', 'D'; None without a well-formed OPT line), 'signals' (set of the SIGNALS letters, or None)
+        and 'aux_io' (tuple of 4 ints: digital in, digital out, analog in, analog out; or None); None if the
+        answer holds none of these tags.
     """
     if not text:
         return None
-    identity = {'firmware': None, 'axes': None, 'axis_letters': None, 'options': set()}
+    identity = {'firmware': None, 'axes': None, 'axis_letters': None, 'options': set(),
+                'opt_flags': None, 'signals': None, 'aux_io': None}
     axs_records, opt_records = [], []
     seen = False
     for line in text.splitlines():
         line = line.strip()
+        match = _SIGNALS_RE.match(line)
+        if match:
+            identity['signals'] = {ch for ch in match.group(1) if ch.isalnum()}
+            seen = True
+            continue
+        match = _AUX_IO_RE.match(line)
+        if match:
+            parts = [part.strip() for part in match.group(1).split(',')]
+            if len(parts) == 4 and all(re.fullmatch(r'[0-9]+', part) for part in parts):
+                identity['aux_io'] = tuple(int(part) for part in parts)
+            seen = True
+            continue
         match = _FIRMWARE_RE.match(line)
         if match:
             identity['firmware'] = match.group(1).strip()
@@ -383,6 +415,8 @@ def parse_grbl_identity(text):
             match = _OPT_RE.fullmatch(line)
             parts = [part.strip() for part in match.group(1).split(',')] if match else []
             axes = None
+            if match and identity['opt_flags'] is None:
+                identity['opt_flags'] = {ch for ch in parts[0].upper() if ch.isalpha()}
             if (len(parts) in (4, 5) and all(re.fullmatch(r'[0-9]+', part) for part in parts[1:]) and
                     int(parts[1]) > 0 and int(parts[2]) > 0):
                 axes = int(parts[3]) or None
@@ -416,12 +450,17 @@ def grbl_capabilities(identity):
         report usable AXS or extended OPT), 'manual_tool_change' (bool: M6 waits in the Tool state for the sender),
         'automatic_tool_change' (bool: M6 is transparent to the sender), 'probe' (False if the controller reported no probe input, None
         if it did not report its options) and 'top_bit_realtime' (bool: the printable '?', '!' and '~' are
-        off, use 0x80, 0x82 and 0x81).
+        off, use 0x80, 0x82 and 0x81). The IO fields are True / False / None (unknown): 'mist' (OPT 'M'),
+        'spindle_dir' (False if OPT 'D': the direction pin is the enable pin), 'control_signals' (set of the
+        SIGNALS letters, or None) and 'aux_out' (int, the number of digital outputs, 0 if not reported).
     """
     if not identity:
         return {'grblhal': False, 'xyz_only': None, 'manual_tool_change': False,
-                'automatic_tool_change': False, 'probe': None, 'top_bit_realtime': False}
+                'automatic_tool_change': False, 'probe': None, 'top_bit_realtime': False,
+                'mist': None, 'spindle_dir': None, 'control_signals': None, 'aux_out': 0}
     options = identity['options']
+    flags = identity.get('opt_flags')
+    aux_io = identity.get('aux_io')
     axes, letters = identity['axes'], identity['axis_letters']
     if axes is None:
         xyz_only = None
@@ -434,4 +473,88 @@ def grbl_capabilities(identity):
         'automatic_tool_change': 'ATC' in options or 'ATC=1' in options,
         'probe': False if 'NOPROBE' in options else (True if options else None),
         'top_bit_realtime': 'RT-' in options,
+        'mist': None if flags is None else 'M' in flags,
+        'spindle_dir': None if flags is None else 'D' not in flags,
+        'control_signals': identity.get('signals'),
+        'aux_out': aux_io[1] if aux_io else 0,
     }
+
+
+# Pn letters of GRBL 1.1 and grblHAL -> display name
+_PIN_NAMES = {'X': 'X Limit', 'Y': 'Y Limit', 'Z': 'Z Limit', 'P': 'Probe', 'D': 'Door', 'H': 'Hold',
+              'R': 'Reset', 'S': 'Cycle Start', 'E': 'E-stop'}
+_LIMIT_LETTERS = 'XYZ'
+_CONTROL_ORDER = 'DHRSE'
+_GRBL_CONTROLS = 'DHRS'
+_ACCESSORY_LETTERS = (('S', 'Spindle CW'), ('C', 'Spindle CCW'), ('F', 'Flood'), ('M', 'Mist'))
+PIN_REPORT_OFF_REASON = 'pin reporting off ($10)'
+
+
+def grbl_io_signals(caps):
+    """
+    The ordered input signal names of a controller: X/Y/Z limit, Probe (unless the controller reported none),
+    then the control signals (the SIGNALS letters if reported, else Door, Hold, Reset, Cycle Start).
+    No duplicates.
+
+    :param caps: a dict from grbl_capabilities().
+    """
+    signals = ['%s Limit' % axis for axis in _LIMIT_LETTERS]
+    if caps.get('probe') is not False:
+        signals.append(_PIN_NAMES['P'])
+    reported = caps.get('control_signals')
+    letters = _GRBL_CONTROLS if reported is None else ''.join(
+        ch for ch in _CONTROL_ORDER if ch in {c.upper() for c in reported})
+    for ch in letters:
+        if _PIN_NAMES[ch] not in signals:
+            signals.append(_PIN_NAMES[ch])
+    return signals
+
+
+def _as_report(report_or_line):
+    if isinstance(report_or_line, dict):
+        return report_or_line
+    return parse_grbl_status_report(report_or_line)
+
+
+def decode_grbl_pins(report_or_line, signals, pin_report):
+    """
+    The input states of 1 status report.
+
+    :param report_or_line: a dict from parse_grbl_status_report(), or the report line.
+    :param signals: the names from grbl_io_signals().
+    :param pin_report: True if the controller reports the pins (GRBL 1.1, or grblHAL with $10 bit 4).
+    :return: (states, reason): states maps each name of `signals` to True, False or None (unknown); reason is
+        a str when the states are unknown, else None.
+    """
+    report = _as_report(report_or_line)
+    if report is None:
+        return {name: None for name in signals}, 'no status report'
+    if 'pins' in report:
+        on = {_PIN_NAMES[ch] for ch in report['pins'].upper() if ch in _PIN_NAMES}
+        return {name: name in on for name in signals}, None
+    if pin_report:
+        return {name: False for name in signals}, None
+    return {name: None for name in signals}, PIN_REPORT_OFF_REASON
+
+
+def decode_grbl_accessory(report_or_line, is_grblhal, previous=None):
+    """
+    The accessory output states of 1 status report.
+
+    ``A:`` (also empty) sets all of them. Without it, GRBL reports all off only in a report that has ``Ov:``;
+    otherwise (and always for grblHAL) the previous states stay.
+
+    :param previous: dict name -> True / False / None of the last known states, or None.
+    :return: dict name -> True / False / None for Spindle CW, Spindle CCW, Flood and Mist.
+    """
+    names = [name for _letter, name in _ACCESSORY_LETTERS]
+    result = {name: (previous or {}).get(name) for name in names}
+    report = _as_report(report_or_line)
+    if report is None:
+        return result
+    if 'accessory' in report:
+        letters = report['accessory'].upper()
+        return {name: letter in letters for letter, name in _ACCESSORY_LETTERS}
+    if not is_grblhal and 'ov' in report:
+        return {name: False for name in names}
+    return result

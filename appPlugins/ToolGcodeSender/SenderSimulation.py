@@ -212,6 +212,8 @@ class SimulationDialog(QtWidgets.QDialog):
         self.slider = QtWidgets.QSlider(QtCore.Qt.Orientation.Horizontal)
         self.slider.setRange(0, 100)
         self.slider.setValue(25)
+        self.slider.setToolTip(_("Simulation speed from 0.5× to 100× of real time. "
+                                 "It can be changed while the simulation runs."))
         speed_layout = QtWidgets.QHBoxLayout()
         speed_layout.addWidget(self.slider, 1)
         self.reset_speed_button = QtWidgets.QToolButton()
@@ -229,6 +231,11 @@ class SimulationDialog(QtWidgets.QDialog):
         self.close_button = FCButton(_("Close"))
         for button in (self.start_button, self.stop_button, self.pause_button, self.close_button):
             buttons.addWidget(button)
+        self.start_button.setToolTip(_("Runs the loaded G-code on a virtual controller. "
+                                       "No machine moves and nothing is sent to a serial port."))
+        self.stop_button.setToolTip(_("Stops the running simulation."))
+        self.pause_button.setToolTip(_("Pauses the simulation; click again to resume."))
+        self.close_button.setToolTip(_("Stops the simulation and closes this window."))
         self.stop_button.setEnabled(False)
         self.pause_button.setEnabled(False)
         self.slider.valueChanged.connect(self.change_speed)

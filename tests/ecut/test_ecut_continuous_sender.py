@@ -59,8 +59,7 @@ def connected_sender(continuous=True):
     tool.app.ui.grbl_console_dock = dock
     console = GrblConsole(tool)
     dock.setWidget(console)
-    console.set_jog_page(tool.ui.jog_page)
-    console.tabs.setCurrentWidget(console.jog_page)
+    console.set_jog_block(tool.ui.jog_page)
     dock.isActiveWindow = lambda: tool.isActiveWindow()
     dock.show()
     return tool, port

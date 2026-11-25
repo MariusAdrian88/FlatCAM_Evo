@@ -520,6 +520,61 @@ def encode_config(config: EcutBoardConfig) -> bytes:
     ))
 
 
+def effective_inputs(config: EcutBoardConfig) -> list:
+    """Inputs as the board reads them, with the same rules as encode_config.
+
+    Each entry: name, pin, inverted (active low), readable, reason. The safety E-stop override applies.
+    """
+    names = list(config.inputs)
+    if config.safety.estop_input_enabled and 'ESTOP' not in names:
+        names.append('ESTOP')
+    out = []
+    for name in names:
+        sig = config.inputs.get(name, InputSignal())
+        if name == 'ESTOP' and config.safety.estop_input_enabled:
+            sig = InputSignal(True, config.safety.estop_input_pin, config.safety.estop_polarity, 0)
+        readable = bool(sig.enabled and sig.port == 1 and 0 <= sig.pin <= 15)
+        out.append({'name': name, 'pin': sig.pin, 'inverted': sig.polarity == SignalPolarity.ACTIVE_LOW,
+                    'readable': readable, 'reason': '' if readable else 'not readable (port/pin)'})
+    return out
+
+
+def effective_outputs(config: EcutBoardConfig) -> list:
+    """Digital outputs the board can switch: 1 entry per pin (name, pin, inverted), names merged."""
+    by_pin = {}
+    for name, sig in config.outputs.items():
+        if not sig.enabled or not 0 <= sig.pin <= 7 or name.startswith(('STEP_', 'DIR_', 'SPINDLE_PWM')):
+            continue
+        entry = by_pin.get(sig.pin)
+        if entry is None:
+            by_pin[sig.pin] = {'names': [name], 'pin': sig.pin, 'inverted': bool(sig.inverted)}
+        else:
+            entry['names'].append(name)
+    return list(by_pin.values())
+
+
+def decode_ecut_io(io_state: dict, inputs: list, outputs: list) -> dict:
+    """name -> (True | False | None, reason) from EcutSenderPort.get_io_state()."""
+    stale = not (io_state.get('fresh') and io_state.get('configured'))
+    result = {}
+    for entry in inputs:
+        if not entry['readable']:
+            result[entry['name']] = (None, entry['reason'])
+        elif stale:
+            result[entry['name']] = (None, 'no fresh state')
+        else:
+            high = bool(int(io_state['inputs']) & (1 << entry['pin']))
+            result[entry['name']] = (high != entry['inverted'], '')
+    for entry in outputs:
+        for name in entry['names']:
+            if stale:
+                result[name] = (None, 'no fresh state')
+            else:
+                high = bool(int(io_state['outputs']) & (1 << entry['pin']))
+                result[name] = (high != entry['inverted'], '')
+    return result
+
+
 class EcutAPI:
     """Public API for E-Cut USB motion controller.
 
@@ -746,6 +801,12 @@ class EcutAPI:
     def encode_config(self) -> bytes:
         """Encode the selected RAM initialization configuration without opening USB."""
         return encode_config(self._config)
+
+    def effective_inputs(self, config: Optional[EcutBoardConfig] = None) -> list:
+        return effective_inputs(self._config if config is None else config)
+
+    def effective_outputs(self, config: Optional[EcutBoardConfig] = None) -> list:
+        return effective_outputs(self._config if config is None else config)
 
     def push_config(self) -> None:
         """Initialize RAM, preserve measured counts and deactivate configured outputs."""

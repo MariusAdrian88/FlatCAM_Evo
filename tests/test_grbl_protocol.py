@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import unittest
 
 from appPlugins.Common.grbl.grbl_protocol import (
-    grbl_capabilities, parse_grbl_active_wcs, parse_grbl_identity, parse_grbl_offsets,
+    decode_grbl_accessory, decode_grbl_pins, grbl_capabilities, grbl_io_signals, parse_grbl_active_wcs, parse_grbl_identity, parse_grbl_offsets,
     parse_grbl_status_report, parse_grbl_work_offset, work_position)
 
 
@@ -117,6 +117,64 @@ class TestGrblHalIdentity(unittest.TestCase):
                 self.assertIs(grbl_capabilities(parse_grbl_identity(text))['xyz_only'], False)
         identity = parse_grbl_identity('[OPT:VN,35,128,4,0]\n[AXS:3:XYZ]')
         self.assertEqual((identity['axes'], identity['axis_letters']), (3, 'XYZ'))
+
+
+class TestGrblIo(unittest.TestCase):
+    def caps(self, text):
+        return grbl_capabilities(parse_grbl_identity(text))
+
+    def test_legacy_opt_letters_give_mist_and_spindle_direction(self):
+        caps = self.caps('[OPT:VM,15,128]\nok')
+        self.assertIs(caps['mist'], True)
+        self.assertIs(caps['spindle_dir'], True)
+        caps = self.caps('[OPT:VD,15,128]\nok')
+        self.assertIs(caps['mist'], False)
+        self.assertIs(caps['spindle_dir'], False)
+        caps = self.caps('[NEWOPT:RT+]\n[FIRMWARE:grblHAL]')
+        self.assertIsNone(caps['mist'])
+        self.assertIsNone(caps['spindle_dir'])
+        self.assertIsNone(self.caps('[NEWOPT:RT+]')['control_signals'])
+        self.assertEqual(grbl_capabilities(None)['aux_out'], 0)
+
+    def test_signals_and_aux_io(self):
+        caps = self.caps('[SIGNALS:RHSD]\n[AUX IO:0,4,1,0]\n[FIRMWARE:grblHAL]')
+        self.assertEqual(caps['control_signals'], {'R', 'H', 'S', 'D'})
+        self.assertEqual(caps['aux_out'], 4)
+        self.assertEqual(self.caps('[SIGNALS:P,D]')['control_signals'], {'P', 'D'})
+        self.assertEqual(self.caps('[AUX IO:bad]\n[FIRMWARE:grblHAL]')['aux_out'], 0)
+
+    def test_input_signal_list(self):
+        grbl = grbl_io_signals(self.caps('[OPT:V,15,128]'))
+        self.assertEqual(grbl, ['X Limit', 'Y Limit', 'Z Limit', 'Probe', 'Door', 'Hold', 'Reset', 'Cycle Start'])
+        hal = grbl_io_signals(self.caps('[SIGNALS:RHSD]\n[FIRMWARE:grblHAL]'))
+        self.assertEqual(hal, ['X Limit', 'Y Limit', 'Z Limit', 'Probe', 'Door', 'Hold', 'Reset', 'Cycle Start'])
+        hal = grbl_io_signals(self.caps('[SIGNALS:P,E,X]\n[NEWOPT:NOPROBE]\n[FIRMWARE:grblHAL]'))
+        self.assertEqual(hal, ['X Limit', 'Y Limit', 'Z Limit', 'E-stop'])
+
+    def test_pins_present_absent_and_unreported(self):
+        signals = grbl_io_signals(self.caps('[SIGNALS:RHSD]\n[FIRMWARE:grblHAL]'))
+        states, reason = decode_grbl_pins('<Idle|MPos:0,0,0|Pn:XP>', signals, False)
+        self.assertIsNone(reason)
+        self.assertEqual([n for n, v in states.items() if v], ['X Limit', 'Probe'])
+        self.assertTrue(all(v is False for n, v in states.items() if n not in ('X Limit', 'Probe')))
+        states, reason = decode_grbl_pins('<Idle|MPos:0,0,0>', signals, True)
+        self.assertTrue(all(v is False for v in states.values()))
+        states, reason = decode_grbl_pins('<Idle|MPos:0,0,0>', signals, False)
+        self.assertTrue(all(v is None for v in states.values()))
+        self.assertIn('$10', reason)
+
+    def test_accessory_present_empty_and_absent(self):
+        previous = {'Spindle CW': True, 'Spindle CCW': False, 'Flood': True, 'Mist': None}
+        states = decode_grbl_accessory('<Idle|Ov:100,100,100|A:SF>', False, previous)
+        self.assertEqual(states, {'Spindle CW': True, 'Spindle CCW': False, 'Flood': True, 'Mist': False})
+        states = decode_grbl_accessory('<Idle|A:>', True, previous)
+        self.assertTrue(all(v is False for v in states.values()))
+        # absent: GRBL with Ov: all off, GRBL without Ov: and grblHAL keep
+        self.assertTrue(all(v is False for v in
+                            decode_grbl_accessory('<Idle|Ov:100,100,100>', False, previous).values()))
+        self.assertEqual(decode_grbl_accessory('<Idle|MPos:0,0,0>', False, previous), previous)
+        self.assertEqual(decode_grbl_accessory('<Idle|Ov:100,100,100>', True, previous), previous)
+        self.assertTrue(all(v is None for v in decode_grbl_accessory('<Idle>', False).values()))
 
 
 class TestGrblHalOffsets(unittest.TestCase):

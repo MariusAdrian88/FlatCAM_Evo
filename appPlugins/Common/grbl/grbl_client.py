@@ -86,6 +86,10 @@ CONSOLE_ANSWER = 'Answer:             '
 # the name of the idle status query operation (Sender._poll_idle_status); it is short, so a new
 # operation waits for its end instead of a "busy" message
 STATUS_POLL = 'status poll'
+# the same query while the IO tab monitors the controller (read only, also in recovery)
+IO_STATUS = 'IO status'
+# the seconds between the status requests of the IO monitor
+IO_STATUS_PERIOD = 0.5
 
 
 def spindle_state_of_line(line):
@@ -500,8 +504,13 @@ class GrblClientMixin:
     _start_seq = 0
     # $13 of GRBL: True (the status reports are in inches), False (mm) or None (not known)
     _grbl_report_inches = None
+    # True while the IO tab monitors the controller (set by the Sender, set_io_monitor)
+    _io_monitor_active = False
+    # True until the controller identity of the connect read is known (set by _grbl_init_state)
+    _grbl_identity_pending = False
 
     def _grbl_init_state(self):
+        self._io_monitor_active = False
         self._start_seq = 0
         self._grbl_report_inches = None
         self.grbl_probe_result = ''
@@ -545,6 +554,9 @@ class GrblClientMixin:
         self._grbl_sd_owned = False
 
         self.grbl_ser_port = None
+        # ports whose close() raised: they can still hold the device, so no new connection starts until they close
+        # (a list: a second failed close must not forget the first; guarded by _grbl_op_lock)
+        self._grbl_unclosed_ports = []
 
     @staticmethod
     def on_grbl_list_serial_ports():
@@ -580,7 +592,10 @@ class GrblClientMixin:
             try:
                 port.close()
             except (serial.SerialException, OSError) as err:
-                self.app.log.debug("ToolLevelling._grbl_close_port() -> %s" % str(err))
+                with self._grbl_op_lock:
+                    self._grbl_unclosed_ports.append(port)
+                self.app.log.error("ToolLevelling._grbl_close_port() -> %s" % str(err))
+                self.app.inform.emit('[ERROR_NOTCL] %s: %s' % (_("The port did not close"), str(err)))
         try:
             self.grbl_port_closed_sig.emit()
         except RuntimeError:
@@ -610,7 +625,8 @@ class GrblClientMixin:
             return
 
         self._grbl_close_port()
-        self.app.inform.emit("%s" % _("Port disconnected."))
+        if not self._grbl_unclosed_ports:  # a failed close already told the user
+            self.app.inform.emit("%s" % _("Port disconnected."))
 
     def _grbl_force_close(self):
         """Close the port now, also during an operation (the application ends)."""
@@ -664,7 +680,7 @@ class GrblClientMixin:
                      "in the E-Cut settings.")
         return _("GRBL needs recovery. Press Home.")
 
-    def _grbl_reserve(self, name, motion=False, allow_in_recovery=False):
+    def _grbl_reserve(self, name, motion=False, allow_in_recovery=False, read_only=False):
         """
         Reserve the serial port for 1 operation. Call it in the GUI thread,
         before the worker task is scheduled.
@@ -672,6 +688,9 @@ class GrblClientMixin:
         :param name:              short name of the operation.
         :param motion:            True if the operation can move the machine.
         :param allow_in_recovery: True only for the home cycle, which ends the recovery.
+        :param read_only:         True for the status monitor (never with motion): it is allowed with a
+            dirty stream and in recovery, and an external owner (MPG, SD) does not block it. It is
+            refused without a message while a reset waits for its banner.
         :return: a _GrblOperation, or None (the user was told why).
         """
         if self.__dict__.get('_simulation') is not None:
@@ -684,16 +703,25 @@ class GrblClientMixin:
         # the idle status query takes milliseconds (its answer time limit is 0.5 s)
         with self._grbl_op_lock:
             busy = self._grbl_op
-        if name != STATUS_POLL and busy is not None and busy.name == STATUS_POLL:
+        if name not in (STATUS_POLL, IO_STATUS) and busy is not None and busy.name in (STATUS_POLL, IO_STATUS):
             deadline = time.monotonic() + 0.7
             while self._grbl_op is busy and time.monotonic() < deadline:
                 time.sleep(0.005)
 
         with self._grbl_op_lock:
             if self._grbl_op is not None:
-                self.app.inform.emit('[WARNING_NOTCL] %s: %s. %s' % (
-                    _("GRBL is busy"), self._grbl_op.name, _("Wait, or press Stop.")))
+                if not read_only:
+                    self.app.inform.emit('[WARNING_NOTCL] %s: %s. %s' % (
+                        _("GRBL is busy"), self._grbl_op.name, _("Wait, or press Stop.")))
                 return None
+            if read_only:
+                if self._grbl_reset_pending:
+                    return None
+                op = _GrblOperation(name, False)
+                op.safety_generation = self._grbl_safety_generation
+                op.port = self.grbl_ser_port
+                self._grbl_op = op
+                return op
             if self._grbl_stream_dirty and not (name in ('home', 'reset') and allow_in_recovery):
                 self.app.inform.emit('[ERROR_NOTCL] %s' % _(
                     "GRBL can still have lines of the stopped job. Press Reset, then Home."))
@@ -705,7 +733,7 @@ class GrblClientMixin:
                 return None
             # an unsupported controller configuration (for example more than the X, Y and Z axes) takes no motion
             blocked = self.__dict__.get('_grbl_motion_blocked')
-            if motion and self.__dict__.get('_grbl_identity_pending'):
+            if motion and self._grbl_identity_pending:
                 self.app.inform.emit('[ERROR_NOTCL] %s' % _(
                     "Controller discovery is incomplete. Wait, or reconnect after the external job finishes."))
                 return None
@@ -740,7 +768,8 @@ class GrblClientMixin:
         if close_now:
             self._grbl_close_port()
 
-    def _grbl_start_op(self, name, fn, motion=False, allow_in_recovery=False, own_thread=False):
+    def _grbl_start_op(self, name, fn, motion=False, allow_in_recovery=False, own_thread=False,
+                       read_only=False):
         """
         Reserve the port now (GUI thread) and run fn(op) in a worker thread.
         The port is released when fn ends, also after an exception.
@@ -749,7 +778,7 @@ class GrblClientMixin:
             waits in the queue behind a long job while it holds the port.
         :return: True if the worker task was scheduled.
         """
-        op = self._grbl_reserve(name, motion=motion, allow_in_recovery=allow_in_recovery)
+        op = self._grbl_reserve(name, motion=motion, allow_in_recovery=allow_in_recovery, read_only=read_only)
         if op is None:
             return False
 
@@ -781,9 +810,18 @@ class GrblClientMixin:
                 and self._grbl_port_ready() and self.grbl_ser_port is op.port
                 and (port is None or self.grbl_ser_port is port))
 
-    def _grbl_failure_locked(self, op, status, text=''):
-        """Latch alarm/uncertain motion before attempting hold. Caller holds the lock."""
-        alarm = any(line.lower().startswith('alarm:') or parse_grbl_status_state(line) == 'Alarm'
+    def _grbl_failure_locked(self, op, status, text='', observe=False):
+        """
+        Latch alarm/uncertain motion before attempting hold. Caller holds the lock.
+
+        :param observe: True for the status monitor: an Alarm status report (`<Alarm...>`) while a
+            recovery is already set is known, so it changes neither the recovery nor the safety
+            generation. An `ALARM:n` line, a new Alarm without a recovery, a reset banner and a port
+            failure are handled as always.
+        """
+        known_alarm_state = observe and self._grbl_recovery is not None
+        alarm = any(line.lower().startswith('alarm:')
+                    or (not known_alarm_state and parse_grbl_status_state(line) == 'Alarm')
                     for line in (text or '').splitlines())
         unexpected_reset = status != 'handshake' and any(
             is_controller_banner(line) for line in (text or '').splitlines())
@@ -834,12 +872,16 @@ class GrblClientMixin:
         self._grbl_rx_buffer += chunk or b''
         return None
 
-    def _grbl_prepare_locked(self, op, port):
+    def _grbl_prepare_locked(self, op, port, observe=False):
         """
         Classify buffered async data before writing; old ok is not a new acknowledgement.
 
         A partial line is read to its end (up to 0.5 s) before it is classified. A reply that is
         still pending from an earlier command gets 1 s to arrive; it is consumed, never reused.
+
+        :param observe: True for the status monitor: a known Alarm report is not a new alarm (see
+            _grbl_failure_locked), and a reply that is still pending does not stop the status request
+            (a real-time byte). The pending flag stays set until its ok/error is consumed.
         """
         if self._grbl_rx_port is not port:
             self._grbl_rx_port = port
@@ -858,7 +900,7 @@ class GrblClientMixin:
             lines = self._grbl_rx_buffer.split(b'\n')
             self._grbl_rx_buffer = lines.pop()
             text = '\n'.join(line.decode('utf-8', errors='replace').strip() for line in lines)
-            self._grbl_failure_locked(op, 'error', text)
+            self._grbl_failure_locked(op, 'error', text, observe=observe)
             if op.failed:
                 return text, 'error'
             if any(line.strip().lower() == 'ok' or line.strip().lower().startswith('error:')
@@ -876,7 +918,7 @@ class GrblClientMixin:
                     return text, 'error'
             else:
                 partial_until = None
-                if not self._grbl_reply_pending:
+                if observe or not self._grbl_reply_pending:
                     return '', None
                 if getattr(self, '_grbl_stale_notified', False):
                     self._grbl_failure_locked(op, 'timeout')
@@ -942,6 +984,20 @@ class GrblClientMixin:
             return False
         return True
 
+    def _grbl_publish_status(self, line, op):
+        """
+        The 1 delivery of a status report to the GUI (the signal of the Sender), for every reader
+        that holds the port: the stream, the status queries and the transactions.
+        The ownership of the input stream (MPG, SD) is updated at once, in the reader.
+
+        :return: the parsed report, or None if `line` is not a valid report.
+        """
+        report = parse_grbl_status_report(line)
+        if report is not None:
+            self._grbl_update_ownership(report)
+            self._emit_sender_status(report, op)
+        return report
+
     def _grbl_transact(self, op, command, timeout=10.0, echo=True, guard=None):
         """
         Send 1 line to GRBL for the operation `op`, and read the reply until
@@ -952,6 +1008,13 @@ class GrblClientMixin:
         and residual acknowledgements are consumed before the next write.
         The read uses the port that was written to, never a replacement port.
 
+        While the IO monitor is active, the read loop sends the status request every
+        IO_STATUS_PERIOD s and publishes each status report. A status report is not the reply,
+        it does not clear the pending acknowledgement and it does not extend `timeout`.
+
+        :param guard: callable() run under the operation lock after the buffer preparation and just
+            before the write. It may raise, or return a reason (str): nothing is written then and the
+            result is (reason, 'error').
         :return: (text, status). text: the decoded reply lines joined by '\\n'.
             status: 'ok', 'error', 'timeout', 'cancelled' or 'port_error'.
         """
@@ -968,7 +1031,9 @@ class GrblClientMixin:
                 return text, status
             # Tool measurements must also retire changed settings/requests at the write boundary.
             if guard is not None:
-                guard()
+                reason = guard()
+                if isinstance(reason, str) and reason:
+                    return reason, 'error'
             try:
                 self._grbl_reply_pending = True
                 self._grbl_stale_notified = False
@@ -983,10 +1048,17 @@ class GrblClientMixin:
 
         decoded_lines = []
         deadline = time.monotonic() + timeout
+        next_status = time.monotonic() + IO_STATUS_PERIOD
         while time.monotonic() < deadline:
+            monitor = self._io_monitor_active
             with self._grbl_op_lock:
                 if not self._grbl_active_locked(op, port):
                     return '\n'.join(decoded_lines), 'cancelled'
+                if monitor and time.monotonic() >= next_status:
+                    next_status = time.monotonic() + IO_STATUS_PERIOD
+                    if not self._grbl_write_realtime_locked(b'?'):
+                        self._grbl_failure_locked(op, 'port_error')
+                        return '\n'.join(decoded_lines), 'port_error'
             try:
                 chunk = b'' if b'\n' in self._grbl_rx_buffer else port.readline()
             except (serial.SerialException, OSError) as err:
@@ -999,7 +1071,7 @@ class GrblClientMixin:
                     return '\n'.join(decoded_lines), 'cancelled'
                 self._grbl_rx_buffer += chunk
                 complete = self._grbl_rx_buffer.rsplit(b'\n', 1)[0] if b'\n' in self._grbl_rx_buffer else b''
-                self._grbl_failure_locked(op, 'error', complete.decode('utf-8', errors='replace'))
+                self._grbl_failure_locked(op, 'error', complete.decode('utf-8', errors='replace'), observe=monitor)
                 if op.failed:
                     self._grbl_rx_buffer = self._grbl_rx_buffer.rsplit(b'\n', 1)[-1]
                     return '\n'.join(decoded_lines + [complete.decode('utf-8', errors='replace').strip()]), 'error'
@@ -1007,6 +1079,9 @@ class GrblClientMixin:
                     raw_line, self._grbl_rx_buffer = self._grbl_rx_buffer.split(b'\n', 1)
                     decoded_line = raw_line.decode('utf-8', errors='replace').strip()
                     if not decoded_line:
+                        continue
+                    if decoded_line.startswith('<') and self._grbl_publish_status(decoded_line, op) is not None \
+                            and monitor:
                         continue
                     decoded_lines.append(decoded_line)
                     if echo:
@@ -1017,7 +1092,7 @@ class GrblClientMixin:
                         spindle = spindle_state_of_line(cmd)
                         if spindle is not None:
                             self.spindle_state_sig.emit(spindle)
-                        text, status = self._grbl_prepare_locked(op, port)
+                        text, status = self._grbl_prepare_locked(op, port, observe=monitor)
                         if status is not None:
                             return '\n'.join(decoded_lines + [text]), status
                         return '\n'.join(decoded_lines), 'ok'
@@ -1038,18 +1113,26 @@ class GrblClientMixin:
         sd = report.get('sd', '')
         self._grbl_sd_owned = sd == 'Pending' or ',' in sd
 
-    def _grbl_query_status(self, op, timeout=2.0):
-        """Request a fresh status report, preserving async alarm and cancellation evidence."""
+    def _grbl_query_status(self, op, timeout=2.0, observe=False):
+        """
+        Request a fresh status report, preserving async alarm and cancellation evidence.
+        Each report that is read is published (_grbl_publish_status).
+
+        :param observe: True for the status monitor (see _grbl_failure_locked and _grbl_prepare_locked):
+            a known Alarm does not change the recovery, and an acknowledgement that is still pending
+            from an earlier command does not stop the request. The ok/error of that command is
+            consumed here, once, and clears the pending flag.
+        """
         with self._grbl_op_lock:
             if not self._grbl_active_locked(op) or self._grbl_reset_pending:
                 return None
             port = self.grbl_ser_port
-            text, status = self._grbl_prepare_locked(op, port)
+            text, status = self._grbl_prepare_locked(op, port, observe=observe)
             if status is not None:
                 return None
             try:
                 port.write(self._grbl_realtime_byte(b'?'))
-                if self.__dict__.get('_grbl_identity_pending'):
+                if self._grbl_identity_pending:
                     port.write(b'\x80')
             except (serial.SerialException, OSError) as err:
                 self.app.log.error("ToolLevelling._grbl_query_status() -> %s" % str(err))
@@ -1073,19 +1156,20 @@ class GrblClientMixin:
                 self._grbl_rx_buffer += chunk or b''
                 complete = self._grbl_rx_buffer.rsplit(b'\n', 1)[0] if b'\n' in self._grbl_rx_buffer else b''
                 text = complete.decode('utf-8', errors='replace')
-                self._grbl_failure_locked(op, 'error', text)
+                self._grbl_failure_locked(op, 'error', text, observe=observe)
                 while b'\n' in self._grbl_rx_buffer:
                     raw_line, self._grbl_rx_buffer = self._grbl_rx_buffer.split(b'\n', 1)
                     line = raw_line.decode('utf-8', errors='replace').strip()
+                    if observe and (line.lower() == 'ok' or line.lower().startswith('error:')):
+                        self._grbl_reply_pending = False
                     if line.startswith('<'):
-                        report = parse_grbl_status_report(line)
+                        report = self._grbl_publish_status(line, op)
                         if report is None and op.motion:
                             self.app.inform.emit('[ERROR_NOTCL] %s' % _(
                                 "Invalid controller position report. Only finite XYZ reports are supported; "
                                 "check the controller axis configuration."))
                             return None
                         if report is not None:
-                            self._grbl_update_ownership(report)
                             if op.motion and (self.__dict__.get('_grbl_mpg_owned') or self._grbl_sd_owned):
                                 self.app.inform.emit('[ERROR_NOTCL] %s' % _(
                                     "External SD/MPG execution owns the controller. Release it at its source first."))
@@ -1094,7 +1178,7 @@ class GrblClientMixin:
                         if state is None:
                             self._grbl_failure_locked(op, 'probe_invalid')
                             return None
-                        text, status = self._grbl_prepare_locked(op, port)
+                        text, status = self._grbl_prepare_locked(op, port, observe=observe)
                         if status is not None and state != 'Alarm':
                             return None
                         return line
