@@ -67,6 +67,8 @@ class MotionRecord:
     tool_diameter: Optional[float] = None
     fixed_role: Optional[str] = None        # 'toolchange', 'end', 'probe'; None if not fixed
     unverified_reason: Optional[str] = None
+    # the end in M for each axis, None for an unknown axis (end_m is None as soon as one axis is unknown)
+    end_m_axes: Optional[Tuple[Optional[float], Optional[float], Optional[float]]] = None
 
     @property
     def verified(self) -> bool:

@@ -257,6 +257,93 @@ def test_unverified_record_alone_gives_partial():
     assert result.violations[0].message and not has_reject(result)
 
 
+def test_unknown_start_keeps_the_known_destination_out_of_the_bed():
+    # the path from an unknown start is unverified, but the known end point is outside the bed: reject
+    result, found = _kinds('G00 X110 Y2 Z0\n', _bed_profile(), start=None)
+    assert (ViolationKind.OUT_OF_BED, 1, 'reject') in found and has_reject(result)
+    assert (ViolationKind.UNVERIFIED, 1, 'warn') in found
+    result, found = _kinds('G00 X10 Y2 Z0\n', _bed_profile(), start=None)
+    assert [k for k, _, _ in found] == [ViolationKind.UNVERIFIED] and not has_reject(result)
+
+
+def test_unknown_axes_do_not_hide_a_known_axis_out_of_its_travel():
+    # X is known after G0 X110 (the offset is known), Y and Z stay unknown from the unknown start
+    result, found = _kinds('G00 X110\n', _bed_profile(), start=None)
+    assert (ViolationKind.OUT_OF_BED, 1, 'reject') in found and has_reject(result)
+    result, found = _kinds('G00 Z-50\n', _bed_profile(), start=None)
+    assert (ViolationKind.Z_TRAVEL, 1, 'reject') in found
+    result, found = _kinds('G00 X90\nG00 Z-10\n', _bed_profile(), start=None)
+    assert not has_reject(result)
+
+
+def test_the_feed_of_a_block_is_read_in_the_units_of_that_block():
+    profile = _bed_profile(feed_xy_max=100.0, rule_modes={'feed': 'reject'})
+    # 10 in/min = 254 mm/min
+    result, found = _kinds('G21\nG20 G1 X2.01 F10\n', profile)
+    assert (ViolationKind.FEED, 2, 'reject') in found
+    _, found = _kinds('G21\nG1 X2.01 F10\n', profile)
+    assert [k for k, _, _ in found] == []
+
+
+def test_an_arc_whose_end_is_not_on_its_circle_is_unverified_and_not_corrected():
+    from appCommon.machine_profile.correct import CorrectionRefused
+    profile = _bed_profile(rule_modes={'unverified': 'reject'})
+    # from (50, 20) the center is (60, 20): radius 10 at the start, 20 at the end
+    result, found = _kinds('G00 X50 Y20\nG02 X80 Y20 I10 J0 F100\n', profile)
+    assert (ViolationKind.UNVERIFIED, 2, 'reject') in found and has_reject(result)
+    with pytest.raises(CorrectionRefused, match='not on the arc'):
+        _correct('G00 X50 Y20\nG02 X80 Y20 I10 J0 F100\n')
+    # a valid arc of the same start and center
+    _, found = _kinds('G00 X50 Y20\nG02 X70 Y20 I10 J0 F100\n', profile)
+    assert found == []
+
+
+def test_the_probe_preflight_is_no_cut():
+    from appCommon.machine_profile.output import check_probe_moves
+    profile = _bed_profile(cut_depth_max=1.0, feed_z_max=50.0, rule_modes={'cut_depth': 'reject', 'feed': 'reject'})
+    result = check_probe_moves(profile, _known_setup(), [(10.0, 10.0)], 0.0, -2.0, 'MM', 30.0)
+    assert not has_reject(result)
+    result = check_probe_moves(profile, _known_setup(), [(10.0, 10.0)], 0.0, -2.0, 'MM', 80.0)
+    assert [v.kind for v in result.violations if v.severity == 'reject'] == [ViolationKind.FEED]
+
+
+def test_z_feed_limit_applies_to_the_z_part_of_diagonal_moves_and_probes():
+    profile = _bed_profile(feed_z_max=20.0, rule_modes={'feed': 'reject'})
+    # a 45 degree X/Z move at F100 has a Z feed of 70.7 mm/min
+    result, found = _kinds('G00 X10 Y10 Z0\nG01 X20 Z-10 F100\n', profile)
+    assert (ViolationKind.FEED, 2, 'reject') in found and has_reject(result)
+    # a probe at F200 is a Z feed move
+    result, found = _kinds('G00 X10 Y10 Z0\nG38.2 Z-10 F200\n', profile)
+    assert (ViolationKind.FEED, 2, 'reject') in found
+    # a flat XY move at F100 has no Z part; a slow ramp is below the limit
+    _, found = _kinds('G00 X10 Y10 Z0\nG01 X20 F100\nG01 X120 Z-1 F100\n', _bed_profile(
+        bed_x=200.0, feed_z_max=20.0))
+    assert [k for k, _, _ in found if k is ViolationKind.FEED] == []
+
+
+def test_cut_depth_counts_the_deepest_point_of_the_move():
+    profile = _bed_profile(cut_depth_max=1.0, rule_modes={'cut_depth': 'reject'})
+    result, found = _kinds('G01 X10 Y10 Z-0.5 F100\nG01 X20 Z-0.5\n', profile, start=(10.0, 10.0, -3.0))
+    assert (ViolationKind.CUT_DEPTH, 1, 'reject') in found and has_reject(result)
+    _, found = _kinds('G01 X10 Y10 Z-0.5 F100\n', profile, start=(10.0, 10.0, -0.8))
+    assert found == []
+
+
+def test_a_limit_that_can_not_be_checked_is_unverified_not_checked():
+    # a rapid cap needs the G0 speed of the controller
+    profile = _bed_profile(rapid_max=1000.0, rule_modes={'unverified': 'reject'})
+    result, found = _kinds('G00 X10 Y10\n', profile)
+    assert result.status is not CheckStatus.CHECKED and has_reject(result)
+    result, _found = _kinds('G00 X10 Y10\n', _bed_profile())
+    assert result.status is CheckStatus.CHECKED
+    # a feed move under a feed cap with no modal feed
+    profile = _bed_profile(feed_xy_max=1000.0)
+    result, found = _kinds('G01 X10 Y10\n', profile)
+    assert [k for k, _, _ in found] == [ViolationKind.UNVERIFIED] and result.status is CheckStatus.PARTIAL
+    result, found = _kinds('G01 X10 Y10 F500\n', profile)
+    assert found == [] and result.status is CheckStatus.CHECKED
+
+
 def test_arc_extreme_outside_bed_is_out_of_bed():
     # both ends inside (y = 40), the top of the circle (y = 41.6) is outside the bed (y <= 41)
     text = 'G00 X40 Y40\nG02 X60 Y40 I10 J-30\n'

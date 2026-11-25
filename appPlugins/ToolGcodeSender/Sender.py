@@ -4171,7 +4171,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     def on_grbl_autolevel(self):
         self._queue_probe(False)
 
-    def _check_probe_moves(self, op, profile, commanded, travel_z, depth, units):
+    def _check_probe_moves(self, op, profile, commanded, travel_z, depth, units, feed=None):
         """
         The check of the moves of a probe run, before any is sent: the work points that the controller is commanded
         to, from the live state of the controller (or the declared setup of the profile).
@@ -4182,7 +4182,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         setup = self.live_setup(op, profile, None)
         if setup is None:
             setup = setup_from_profile(profile, None, 'inch' if units == 'IN' else 'mm')
-        result = check_probe_moves(profile, setup, commanded, travel_z, depth, units)
+        result = check_probe_moves(profile, setup, commanded, travel_z, depth, units, feed)
         if has_reject(result):
             first = next(v for v in result.violations if v.severity == 'reject')
             message = _('Machine profile "%s": probe not started. Line %d: %s') % (
@@ -4220,7 +4220,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         if profile is not None:
             commanded = {key: map_point(profile, x, y) for key, (x, y) in points.items()}
             if not self._check_probe_moves(op, profile, list(commanded.values()), travel_z, depth,
-                                           self.app.app_units.upper()):
+                                           self.app.app_units.upper(), probe_fr):
                 self._grbl_release(op)
                 return
             if correction_matrix(profile) is not None:

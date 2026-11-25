@@ -20,7 +20,7 @@ from typing import Dict, List, Optional, Tuple
 
 from appParsers.ParseGCode import COMMENT_RE, WORD_RE
 from appCommon.machine_profile.calibrate import apply_matrix
-from appCommon.machine_profile.motion import interpret
+from appCommon.machine_profile.motion import arc_end_off_circle, interpret
 from appCommon.machine_profile.records import Setup
 
 TWO_PI = 2.0 * math.pi
@@ -325,6 +325,8 @@ class _Corrector:
         r0, r1 = math.hypot(sx - cx, sy - cy), math.hypot(ex - cx, ey - cy)
         if r0 < 1e-9:
             raise CorrectionRefused(block.number, block.mode, 'arc with a zero radius')
+        if arc_end_off_circle(r0 * f, r1 * f):
+            raise CorrectionRefused(block.number, block.mode, 'the end point is not on the arc')
         cw = block.mode == 'G2'
         a0, a1 = math.atan2(sy - cy, sx - cx), math.atan2(ey - cy, ex - cx)
         extent = (a0 - a1) % TWO_PI if cw else (a1 - a0) % TWO_PI

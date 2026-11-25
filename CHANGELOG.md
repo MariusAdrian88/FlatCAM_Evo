@@ -28,6 +28,13 @@ Machine Profiles:
 - added: after a manual tool change, the Sender checks the rest of the program again with the new tool length offset before Resume; after $TPW/$TLR it reads the offset from the controller; a reject refuses the Resume and names the line
 - added: with the calibration on, the live probe goes to the corrected point and keeps the height at the design point; "Save Probing GCode" writes the corrected points with a (MP:PROBE ...) header, and the import of the probe log maps the points back and refuses points with no match, 2 matches or a duplicate; a height map made under another calibration is refused; "Save levelled G-code" writes the checked, corrected text
 - added: a profile can hold for each E-Cut axis the velocity cap, the acceleration cap and the soft limits (E-Cut page of the manager); "Apply machine profile values" in the E-Cut motion settings shows the old and new values and fills them in only after a confirmation
+- fixed: a move from an unknown start, or with an unknown axis, still gets the check of each known axis of its end point (bed, Z travel, exclusion areas, cut depth); before, "unverified" hid a known move out of the bed
+- fixed: the feed limits apply to the XY part and the Z part of each feed move, also diagonal moves, arcs and G38 probes; before, the Z limit applied only to Z-only moves
+- fixed: the cut depth limit uses the deepest end of the move, not only its end point
+- fixed: a rapid cap (the G0 speed is controller data) and a feed move with no known feed under a feed limit give "unverified", never "checked"
+- fixed: the F word is read in the units of its own block (G20 G1 ... F10 is 10 in/min)
+- fixed: an I/J arc whose end point is not on its circle (the GRBL error 33 rule) is unverified, and the XY correction refuses it instead of rewriting it as a valid path
+- fixed: the probe check of the Sender uses the probe feed and does not apply the cut depth limit to the probe
 
 24.11.2026
 

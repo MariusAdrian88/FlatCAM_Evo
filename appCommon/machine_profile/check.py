@@ -13,6 +13,7 @@ No Qt, no app import. Exclusion areas are checked against the swept path buffere
 import math
 from typing import List, Optional, Tuple
 
+from appCommon.machine_profile.motion import PROBES_LABELS
 from appCommon.machine_profile.profile import MachineProfile
 from appCommon.machine_profile.records import CheckResult, MotionRecord, Violation, ViolationKind
 
@@ -33,6 +34,10 @@ def bed_rectangle(profile: MachineProfile) -> Tuple[float, float, float, float]:
     x0, x1 = (-profile.bed_x, 0.0) if corner in ('br', 'tr') else (0.0, profile.bed_x)
     y0, y1 = (-profile.bed_y, 0.0) if corner in ('tl', 'tr') else (0.0, profile.bed_y)
     return x0, x1, y0, y1
+
+
+def _axis_text(value: Optional[float]) -> str:
+    return 'unknown' if value is None else '%.3f' % value
 
 
 def _in_sweep(angle: float, a0: float, extent: float, cw: bool) -> bool:
@@ -95,22 +100,60 @@ def check_motion(records: List[MotionRecord], profile: MachineProfile) -> CheckR
     unknown_reach = EXCLUSION_MARGIN + (max(known_tools) if known_tools else UNKNOWN_TOOL_REACH)
 
     bx0, bx1, by0, by1 = bed_rectangle(profile)
-    for r in records:
-        current[0] = r
-        if not r.verified:
-            add(ViolationKind.UNVERIFIED, r.line, r.unverified_reason)
-            continue
-        if r.start_m is None or r.end_m is None or None in r.start_m or None in r.end_m:
-            add(ViolationKind.UNVERIFIED, r.line, 'machine position unknown')
-            continue
-        xmin, xmax, ymin, ymax, zmin, zmax = swept_bounds(r)
+
+    def check_extent(r, xmin, xmax, ymin, ymax, zmin, zmax, what):
         if xmin < bx0 - EPS or xmax > bx1 + EPS or ymin < by0 - EPS or ymax > by1 + EPS:
             add(ViolationKind.OUT_OF_BED, r.line,
-                'path leaves the bed: X %.3f..%.3f, Y %.3f..%.3f (bed X %.3f..%.3f, Y %.3f..%.3f)' %
-                (xmin, xmax, ymin, ymax, bx0, bx1, by0, by1))
+                '%s leaves the bed: X %.3f..%.3f, Y %.3f..%.3f (bed X %.3f..%.3f, Y %.3f..%.3f)' %
+                (what, xmin, xmax, ymin, ymax, bx0, bx1, by0, by1))
         if profile.z_travel and (zmin < -profile.z_travel - EPS or zmax > EPS):
             add(ViolationKind.Z_TRAVEL, r.line,
                 'Z %.3f..%.3f is outside the travel 0..-%.3f' % (zmin, zmax, profile.z_travel))
+
+    def check_cut_depth(r, z_values):
+        z_values = [z for z in z_values if z is not None]
+        if profile.cut_depth_max is None or r.motion_mode not in FEED_MODES or not z_values:
+            return
+        deepest = min(z_values)
+        if deepest < -profile.cut_depth_max - EPS:
+            add(ViolationKind.CUT_DEPTH, r.line,
+                'cut depth %.3f is below the limit -%.3f' % (deepest, profile.cut_depth_max))
+
+    feed_limited = profile.feed_xy_max is not None or profile.feed_z_max is not None
+    first_rapid = None
+    for r in records:
+        current[0] = r
+        if r.motion_mode == 'G0' and first_rapid is None:
+            first_rapid = r
+        start_known = r.start_m is not None and None not in r.start_m
+        end_known = r.end_m is not None and None not in r.end_m
+        if not r.verified or not start_known or not end_known:
+            # the path is unknown, but a known end point is still checked: an unknown start does not hide it
+            add(ViolationKind.UNVERIFIED, r.line, r.unverified_reason or 'machine position unknown')
+            if not end_known and r.end_m_axes is not None:
+                # each known axis of the end point is checked by itself: an unknown axis does not hide it
+                ex, ey, ez = r.end_m_axes
+                if ((ex is not None and (ex < bx0 - EPS or ex > bx1 + EPS)) or
+                        (ey is not None and (ey < by0 - EPS or ey > by1 + EPS))):
+                    add(ViolationKind.OUT_OF_BED, r.line, 'end point leaves the bed: X %s, Y %s (bed X %.3f..%.3f, '
+                        'Y %.3f..%.3f)' % (_axis_text(ex), _axis_text(ey), bx0, bx1, by0, by1))
+                if profile.z_travel and ez is not None and (ez < -profile.z_travel - EPS or ez > EPS):
+                    add(ViolationKind.Z_TRAVEL, r.line,
+                        'Z %.3f is outside the travel 0..-%.3f' % (ez, profile.z_travel))
+            if end_known:
+                ex, ey, ez = r.end_m
+                check_extent(r, ex, ex, ey, ey, ez, ez, 'end point')
+                for name, polygon, strategy, over_z in areas:
+                    if strategy != 'forbid' and over_z is not None and ez >= over_z - EPS:
+                        continue
+                    if (r.tool_diameter is not None and
+                            Point(ex, ey).distance(polygon) <= r.tool_diameter / 2.0 + EXCLUSION_MARGIN):
+                        add(ViolationKind.EXCLUSION, r.line, 'the end point is in the exclusion area %s' % name,
+                            area=name)
+            check_cut_depth(r, [r.end_w[2]])
+            continue
+        xmin, xmax, ymin, ymax, zmin, zmax = swept_bounds(r)
+        check_extent(r, xmin, xmax, ymin, ymax, zmin, zmax, 'path')
         if areas:
             path = swept_path(r)
             low_z = min(r.start_m[2], r.end_m[2])
@@ -126,24 +169,36 @@ def check_motion(records: List[MotionRecord], profile: MachineProfile) -> CheckR
                 if distance <= (r.tool_diameter or 0.0) / 2.0 + EXCLUSION_MARGIN:
                     add(ViolationKind.EXCLUSION, r.line, 'the tool path enters the exclusion area %s' % name,
                         area=name)
-        if r.motion_mode in FEED_MODES and r.feed is not None:
-            z_only = (math.hypot(r.end_m[0] - r.start_m[0], r.end_m[1] - r.start_m[1]) < EPS
-                      and abs(r.end_m[2] - r.start_m[2]) > EPS and r.arc_center is None)
-            if z_only:
-                if profile.feed_z_max is not None and r.feed > profile.feed_z_max + EPS:
-                    add(ViolationKind.FEED, r.line,
-                        'Z feed %.3f is above the limit %.3f' % (r.feed, profile.feed_z_max))
-            elif profile.feed_xy_max is not None and r.feed > profile.feed_xy_max + EPS:
-                add(ViolationKind.FEED, r.line, 'XY feed %.3f is above the limit %.3f' % (r.feed, profile.feed_xy_max))
+        if feed_limited and (r.motion_mode in FEED_MODES or r.motion_mode in PROBES_LABELS):
+            if r.feed is None:
+                add(ViolationKind.UNVERIFIED, r.line, 'feed unknown: the feed limit is not checked')
+            else:
+                # F is the feed along the path: each axis group moves at its share of it
+                if r.arc_center is not None and r.arc_extent is not None:
+                    radius = math.hypot(r.start_m[0] - r.arc_center[0], r.start_m[1] - r.arc_center[1])
+                    xy_length = radius * r.arc_extent
+                else:
+                    xy_length = math.hypot(r.end_m[0] - r.start_m[0], r.end_m[1] - r.start_m[1])
+                z_length = abs(r.end_m[2] - r.start_m[2])
+                length = math.hypot(xy_length, z_length)
+                if length > EPS:
+                    z_feed = r.feed * z_length / length
+                    xy_feed = r.feed * xy_length / length
+                    if profile.feed_z_max is not None and z_feed > profile.feed_z_max + EPS:
+                        add(ViolationKind.FEED, r.line,
+                            'Z feed %.3f is above the limit %.3f' % (z_feed, profile.feed_z_max))
+                    if profile.feed_xy_max is not None and xy_feed > profile.feed_xy_max + EPS:
+                        add(ViolationKind.FEED, r.line,
+                            'XY feed %.3f is above the limit %.3f' % (xy_feed, profile.feed_xy_max))
         if r.s is not None:
             if profile.rpm_min is not None and r.s < profile.rpm_min - EPS:
                 add(ViolationKind.RPM, r.line, 'S%.0f is below the minimum %.0f' % (r.s, profile.rpm_min))
             elif profile.rpm_max is not None and r.s > profile.rpm_max + EPS:
                 add(ViolationKind.RPM, r.line, 'S%.0f is above the maximum %.0f' % (r.s, profile.rpm_max))
-        if (profile.cut_depth_max is not None and r.motion_mode in FEED_MODES and r.end_w[2] is not None
-                and r.end_w[2] < -profile.cut_depth_max - EPS):
-            add(ViolationKind.CUT_DEPTH, r.line,
-                'cut depth %.3f is below the limit -%.3f' % (r.end_w[2], profile.cut_depth_max))
-    if profile.rapid_max is not None:
-        result.assumptions.append('rapid speed not checked: no controller data')
+        # Z is linear along a line and a helix: the deepest point of the move is one of its 2 ends
+        check_cut_depth(r, [r.start_w[2], r.end_w[2]])
+    if profile.rapid_max is not None and first_rapid is not None:
+        # the G0 speed is a controller setting: a rapid cap can not be checked from the program alone
+        current[0] = first_rapid
+        add(ViolationKind.UNVERIFIED, first_rapid.line, 'rapid speed not checked: no controller data')
     return result

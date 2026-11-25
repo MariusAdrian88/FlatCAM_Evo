@@ -26,7 +26,7 @@ that the whole program is refused and the first unsupported line is named.
 | G0 with XY | yes: `rapid_code` P/default.py:226-229, P/GRBL_11.py:216-217, through `position_code` appPreProcessor.py:121-123 | exact | yes | start known; units and G90 known |
 | G0 Z only | yes: `lift_code` default.py:118-122, GRBL_11.py:118-119; `startz_code` default.py:111-114, GRBL_11.py:112-114; Z lines of `toolchange_code` and `end_moves_code` appPreProcessor.py:172-194 | exact | yes (not changed) | Z is in the frame of the offsets (TLO, G92 known) |
 | G0 with XYZ in one block | no | exact | yes | same as G0 with XY |
-| G0 speed | no word F on G00 (see the programs) | UNVERIFIED unless the profile has a rapid cap | n/a | controller data (`$110`, `$111`, `$112`) |
+| G0 speed | no word F on G00 (see the programs) | not checked without a rapid cap; with a rapid cap 1 UNVERIFIED record (first G0), the G0 speed is controller data | n/a | controller data (`$110`, `$111`, `$112`) |
 | G1 with axes | yes: `linear_code` default.py:231-234 (no F word), GRBL_11.py:219-221 (F on every line); `down_code` default.py:124-127, GRBL_11.py:121-122; `up_to_zero_code` default.py:220-224, GRBL_11.py:213-214 | exact | yes | modal F known from the previous F word |
 | G1 with F only (no axis) | yes: `feedrate_code` default.py:243-245, `z_feedrate_code` :247-249 (GRBL_11.py:228-232) | exact (sets the modal feed, no record) | yes (text kept) | none |
 | G2 / G3 with I J (center) | no | exact (swept arc) | yes: arc to chords, rule in section 8 | plane G17; arc mode G91.1 |

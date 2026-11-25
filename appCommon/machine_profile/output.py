@@ -10,6 +10,7 @@ Machine Profiles: the single entry for an output (stage 1: check only, the text 
 No Qt, no app import.
 """
 
+import dataclasses
 import hashlib
 import json
 import re
@@ -121,16 +122,21 @@ def parse_probe_header(text: str) -> Optional[dict]:
 
 
 def check_probe_moves(profile: MachineProfile, setup: Setup, points, travel_z: float, depth: float,
-                      units: str) -> CheckResult:
+                      units: str, feed: Optional[float] = None) -> CheckResult:
     """
     The check of the moves of a probe run: for each work point the lift to `travel_z`, the rapid to the point and
-    the plunge to `depth` (the probe move itself). The points are the commanded work points (already mapped).
+    the plunge to `depth` at the probe `feed` (the probe move itself). The points are the commanded work points
+    (already mapped). Without a feed, a feed limit of the profile is unverified for the plunge.
     """
     lines = ['G20' if str(units).upper() in ('IN', 'INCH') else 'G21', 'G90']
+    if feed is not None:
+        lines.append('F%.4f' % feed)
     for x, y in points:
         lines += ['G0 Z%.4f' % travel_z, 'G0 X%.4f Y%.4f' % (x, y), 'G1 Z%.4f' % depth]
     lines.append('G0 Z%.4f' % travel_z)
-    _text, result = prepare_output('\n'.join(lines) + '\n', Purpose.CALIBRATION, setup, profile)
+    # the plunge is modelled as G1 (its Z range and its feed are checked), but a probe is no cut: no cut depth limit
+    probe_profile = dataclasses.replace(profile, cut_depth_max=None)
+    _text, result = prepare_output('\n'.join(lines) + '\n', Purpose.CALIBRATION, setup, probe_profile)
     return result
 
 

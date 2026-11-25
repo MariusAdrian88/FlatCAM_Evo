@@ -174,8 +174,6 @@ class _Interpreter:
             for a in unk:
                 ax.pop(a, None)
 
-        if 'F' in vals:
-            s.feed = vals['F'] * s.f if s.f else None
         if 'S' in vals:
             s.s_val = vals['S']
         if 'T' in vals:
@@ -237,6 +235,10 @@ class _Interpreter:
                 s.pending.append('G43 uses the tool table (not verified)')
             else:
                 s.pending.append('word %s is outside the supported set' % _label(x))
+
+        # the F word is in the units of its block: a G20/G21 of the same block applies first
+        if 'F' in vals:
+            s.feed = vals['F'] * s.f if s.f else None
 
         has_arc_words = any(k in vals for k in 'IJKR')
         if consumer is not None:
@@ -437,6 +439,10 @@ class _Interpreter:
         else:
             reasons.append('arc without I J or R')
             return None
+        r0, r1 = math.hypot(sx - cx, sy - cy), math.hypot(ex - cx, ey - cy)
+        if arc_end_off_circle(r0, r1):
+            reasons.append('the end point is not on the arc: radius %.4f at the start, %.4f at the end' % (r0, r1))
+            return None
         a0 = math.atan2(sy - cy, sx - cx)
         a1 = math.atan2(ey - cy, ex - cx)
         extent = (a0 - a1) % TWO_PI if cw else (a1 - a0) % TWO_PI
@@ -464,10 +470,20 @@ class _Interpreter:
             line=number, block=raw.strip(), start_w=tuple(start_w), end_w=tuple(end_w), frame=s.frame(),
             start_m=sm, end_m=em, motion_mode=mode, arc_center=center, arc_direction=direction,
             arc_extent=extent, feed=feed, s=s.s_val if s.spindle else None, tool=s.tool, tool_diameter=s.dia,
-            unverified_reason='; '.join(dict.fromkeys(reasons)) if reasons else None))
+            unverified_reason='; '.join(dict.fromkeys(reasons)) if reasons else None,
+            end_m_axes=None if end_m is None else tuple(end_m)))
 
 
 PROBES_LABELS = frozenset(_label(x) for x in PROBES)
+
+
+def arc_end_off_circle(r0: float, r1: float) -> bool:
+    """
+    True when the end point of an I/J arc is not on its circle (radii in mm), with the rule of GRBL (error 33): the
+    radii differ by more than 0.005 mm and by more than 0.5 mm or 0.1 % of the radius. The controller refuses it.
+    """
+    delta = abs(r1 - r0)
+    return delta > 0.005 and (delta > 0.5 or delta > 0.001 * r0)
 
 
 def interpret(text: str, setup: Setup) -> List[MotionRecord]:
