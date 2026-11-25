@@ -31,6 +31,7 @@ that the whole program is refused and the first unsupported line is named.
 | G1 with F only (no axis) | yes: `feedrate_code` default.py:243-245, `z_feedrate_code` :247-249 (GRBL_11.py:228-232) | exact (sets the modal feed, no record) | yes (text kept) | none |
 | G2 / G3 with I J (center) | no | exact (swept arc) | yes: arc to chords, rule in section 8 | plane G17; arc mode G91.1 |
 | G2 / G3 full circle (no end word) | no | exact (extent 2*pi) | yes | same as above |
+| G2 / G3 with P (turns) | no (E-Cut multi-turn arcs) | exact: each turn after the first adds 2*pi to the extent; a P that is not a whole number >= 1 is UNVERIFIED | yes: chords for every turn, the P word is removed | same as above |
 | G2 / G3 with R | no | approximate (R is rounded text) | refused | R sign rule of the controller |
 | G2 / G3 with K or a G18/G19 plane | no | UNVERIFIED | refused | first release is XY only |
 | G17 | GRBL_11 only: `start_code` GRBL_11.py:107 | exact | yes (text kept) | none |
@@ -60,7 +61,7 @@ that the whole program is refused and the first unsupported line is named.
 | M5 / M05 | yes: `spindle_stop_code` default.py:265-267; `M5` in `toolchange_code` | exact (no motion) | yes (text kept) | none |
 | M6 with T | yes: `toolchange_code` default.py:129-218, GRBL_11.py:124-211 | exact (a tool change record; TLO assumed unchanged) | yes (text kept) | no G43 in the program, so TLO stays as declared |
 | M0 / `(MSG, ...)` | yes: inside `toolchange_code` | no motion; position after the pause is assumed unchanged | yes (text kept) | the operator does not move the machine |
-| S alone, F alone | S: only with M3/M4; F: see G1 with F only | exact | yes (text kept) | none |
+| S alone, F alone | S: only with M3/M4; F: see G1 with F only | exact; every S that the running spindle gets is checked on its own line, also with no move after it | yes (text kept) | none |
 | Laser power | no: the two dialects write RPM, not laser power; laser dialects (`GRBL_laser`, `default_laser`) are outside the first release | UNVERIFIED | refused | none |
 | Tool diameter | not a word; comment `(TOOL DIAMETER: ...)` (default.py start_code, milling) or `(Change to Tool Dia = ...)` (toolchange) | approximate (read from a comment); absent: UNVERIFIED for the fixture envelope | n/a | comment text is correct |
 | Comments `( )` and `;` | yes | no meaning, except the `(MP:...)` markers (section 3) | yes (kept) | one level, no nested `)` |

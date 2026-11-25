@@ -35,6 +35,10 @@ Machine Profiles:
 - fixed: the F word is read in the units of its own block (G20 G1 ... F10 is 10 in/min)
 - fixed: an I/J arc whose end point is not on its circle (the GRBL error 33 rule) is unverified, and the XY correction refuses it instead of rewriting it as a valid path
 - fixed: the probe check of the Sender uses the probe feed and does not apply the cut depth limit to the probe
+- fixed: an arc with a P word (more than 1 turn) is checked with all its turns; before, G2 ... P2 could pass the bed check. The XY correction writes chords for every turn and removes the P word
+- fixed: every spindle speed is checked on its own line, also a speed between 2 moves or with no move after it; before, M3 S25000, a dwell, then S10000 passed a 12000 RPM limit
+- fixed: an end point inside an exclusion area is found also when Z or the tool size is unknown; the tool center within the margin is inside for every tool size
+- fixed: unknown X and Y no longer hide the Z feed of a pure Z move or the cut depth at the start of a move
 
 24.11.2026
 

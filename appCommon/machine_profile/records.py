@@ -69,6 +69,11 @@ class MotionRecord:
     unverified_reason: Optional[str] = None
     # the end in M for each axis, None for an unknown axis (end_m is None as soon as one axis is unknown)
     end_m_axes: Optional[Tuple[Optional[float], Optional[float], Optional[float]]] = None
+    # (line, S) of each speed that the running spindle got since the record before, this block included; the
+    # speed of a block without a move (M3 S25000, a dwell, then S5000) is checked from here
+    s_events: Tuple[Tuple[int, float], ...] = ()
+    # True when the block moves no XY (G0/G1/probe without X and Y words): the XY length is 0 also when XY is unknown
+    no_xy_motion: bool = False
 
     @property
     def verified(self) -> bool:

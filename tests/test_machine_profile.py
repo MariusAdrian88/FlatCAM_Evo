@@ -248,6 +248,11 @@ def test_z_below_travel_and_limits():
     assert (ViolationKind.CUT_DEPTH, 6, 'warn') in found
     assert (ViolationKind.RPM, 8, 'warn') in found
     assert kinds.count(ViolationKind.FEED) == 2
+    # a speed that runs only between 2 moves, and a speed with no move after it
+    _, found = _kinds('G01 X5 F100\nM03 S25000\nG04 P2\nS5000\nG01 X10\n', profile)
+    assert (ViolationKind.RPM, 2, 'warn') in found
+    _, found = _kinds('M03 S25000\nG04 P2\nM05\n', profile)
+    assert (ViolationKind.RPM, 1, 'warn') in found
 
 
 def test_unverified_record_alone_gives_partial():
@@ -264,6 +269,12 @@ def test_unknown_start_keeps_the_known_destination_out_of_the_bed():
     assert (ViolationKind.UNVERIFIED, 1, 'warn') in found
     result, found = _kinds('G00 X10 Y2 Z0\n', _bed_profile(), start=None)
     assert [k for k, _, _ in found] == [ViolationKind.UNVERIFIED] and not has_reject(result)
+    # the tool center ends inside a forbid area: an unknown Z or tool size does not hide it
+    for text in ('G00 X45 Y10\n', '(TOOL DIAMETER: 1.0 mm)\nG00 X45 Y10\n', 'G00 X45 Y10 Z0\n'):
+        _, found = _exclusion_lines(text, _area_profile(), start=None)
+        assert [area for _, area in found] == ['clamp'], text
+    _, found = _exclusion_lines('G00 X45 Y10\n', _area_profile('over', over_z=5.0), start=None)
+    assert found == []
 
 
 def test_unknown_axes_do_not_hide_a_known_axis_out_of_its_travel():
@@ -319,12 +330,18 @@ def test_z_feed_limit_applies_to_the_z_part_of_diagonal_moves_and_probes():
     _, found = _kinds('G00 X10 Y10 Z0\nG01 X20 F100\nG01 X120 Z-1 F100\n', _bed_profile(
         bed_x=200.0, feed_z_max=20.0))
     assert [k for k, _, _ in found if k is ViolationKind.FEED] == []
+    # unknown X and Y do not hide the Z feed of a pure Z move
+    result, found = _kinds('G00 Z0\nG01 Z-10 F200\n', profile, start=None)
+    assert (ViolationKind.FEED, 2, 'reject') in found
 
 
 def test_cut_depth_counts_the_deepest_point_of_the_move():
     profile = _bed_profile(cut_depth_max=1.0, rule_modes={'cut_depth': 'reject'})
     result, found = _kinds('G01 X10 Y10 Z-0.5 F100\nG01 X20 Z-0.5\n', profile, start=(10.0, 10.0, -3.0))
     assert (ViolationKind.CUT_DEPTH, 1, 'reject') in found and has_reject(result)
+    # the same with X and Y unknown
+    result, found = _kinds('G00 Z-3\nG01 Z-0.5 F100\n', profile, start=None)
+    assert (ViolationKind.CUT_DEPTH, 2, 'reject') in found
     _, found = _kinds('G01 X10 Y10 Z-0.5 F100\n', profile, start=(10.0, 10.0, -0.8))
     assert found == []
 
@@ -352,6 +369,16 @@ def test_arc_extreme_outside_bed_is_out_of_bed():
     # with the extreme inside the bed nothing is reported
     _, found = _kinds(text, _bed_profile(bed_y=42.0))
     assert found == []
+    # a quarter arc stays in X 50..60; P2 adds a full turn that reaches X 70
+    text = 'G00 X50 Y20\nG02 X60 Y30 I10 J0 P2 F100\n'
+    profile = _bed_profile(bed_x=65.0)
+    _, found = _kinds(text, profile)
+    assert found == [(ViolationKind.OUT_OF_BED, 2, 'reject')]
+    _, found = _kinds(text.replace(' P2', ''), profile)
+    assert found == []
+    # the correction writes every turn as chords, with no P word
+    out = _correct(text, C=_IDENTITY)
+    assert ' P' not in out and max(_path(out)[0::2]) > 69.9
 
 
 def test_profile_none_returns_identical_text_and_none():

@@ -332,6 +332,11 @@ class _Corrector:
         extent = (a0 - a1) % TWO_PI if cw else (a1 - a0) % TWO_PI
         if math.hypot(ex - sx, ey - sy) < 1e-9:
             extent = TWO_PI
+        turns = v.get('P', 1.0)
+        if turns < 1 or turns != int(turns):
+            raise CorrectionRefused(block.number, 'P%g' % turns, 'arc P word is not a whole number of turns')
+        # P = the number of turns: each turn after the first adds a full circle
+        extent += (int(turns) - 1) * TWO_PI
 
         def q_at(t):
             ang = a0 - t * extent if cw else a0 + t * extent
@@ -398,6 +403,9 @@ class _Corrector:
             at = min(m.start() for m in ij)
             edits.append((at, at, ' '.join(orphans) + ' '))
         edits += [_remove(body, m) for m in ij]
+        if 'P' in words:
+            # the chords hold every turn: a P word on a G01 would be a dwell or an error
+            edits.append(_remove(body, words['P']))
         # last in the list, so that it lands first when another insertion sits at the same position
         if block.gword is not None:
             edits.append((block.gword.start(), block.gword.end(), 'G01'))

@@ -24,6 +24,7 @@ Conventions:
 
 import math
 import re
+from dataclasses import replace
 from typing import Dict, List, Optional, Tuple
 
 from appParsers.ParseGCode import CHANGE_DIA_RE, COMMENT_RE, COMMENT_TEXT_RE, HEADER_DIA_RE, WORD_RE
@@ -38,6 +39,8 @@ KNOWN_LETTERS = 'GMXYZIJKRFSTPLN'
 EXPR_AXIS_RE = re.compile(r'([XYZ])\s*[#\[]')
 CANNED = frozenset((73.0, 74.0, 76.0) + tuple(float(x) for x in range(81, 90)))
 PROBES = frozenset((38.2, 38.3, 38.4, 38.5))
+# the motion mode of the record of a program that sets spindle speeds but has no move
+SPINDLE_ONLY = 'spindle only'
 SUPPORTED = frozenset((0.0, 1.0, 2.0, 3.0, 4.0, 10.0, 17.0, 18.0, 19.0, 20.0, 21.0, 28.0, 30.0, 43.1, 49.0, 53.0,
                        90.0, 91.0, 90.1, 91.1, 92.0, 92.1, 94.0)) | PROBES | frozenset(WCS_IDS)
 
@@ -63,6 +66,7 @@ class _State:
         self.feed: Optional[float] = None
         self.s_val: Optional[float] = None
         self.spindle = False
+        self.s_events: List[Tuple[int, float]] = []
         self.tool: Optional[int] = None
         self.tool_next: Optional[int] = None
         self.dia: Optional[float] = None
@@ -139,6 +143,16 @@ class _Interpreter:
             if not words and not leftover:
                 continue
             self._block(number, raw, words, leftover, code)
+        events = tuple(self.s.s_events)
+        if events:
+            # the speeds after the last move: the last record carries them, or a spindle-only record without a move
+            if self.records:
+                last = self.records[-1]
+                self.records[-1] = replace(last, s_events=last.s_events + events)
+            else:
+                w = tuple(self.s.w)
+                self.records.append(MotionRecord(line=events[0][0], block='', start_w=w, end_w=w,
+                                                 frame=self.s.frame(), motion_mode=SPINDLE_ONLY, s_events=events))
         return self.records
 
     def _comment(self, up: str):
@@ -190,6 +204,8 @@ class _Interpreter:
                 s.spindle = False
             elif mc not in (0, 2, 30):
                 s.pending.append('word M%d is outside the supported set' % mc)
+        if s.spindle and s.s_val is not None and ('S' in vals or any(mc in (3, 4) for mc in mcodes)):
+            s.s_events.append((number, s.s_val))
 
         consumer = None
         motion = None
@@ -380,7 +396,9 @@ class _Interpreter:
                 if a in ax or a in unk:
                     if start_m[a] is None or end_m[a] is None or end_m[a] != start_m[a]:
                         s.m[a] = s.w[a] = None
-        self._emit(number, raw, mode, start_w, end_w, start_m, end_m, reasons, arc)
+        no_xy = mode in ('G0', 'G1') or probe
+        no_xy = no_xy and not ({0, 1} & (set(ax) | set(unk)))
+        self._emit(number, raw, mode, start_w, end_w, start_m, end_m, reasons, arc, no_xy)
 
     def _arc(self, mode, vals, start_m, end_m, reasons):
         s = self.s
@@ -443,16 +461,23 @@ class _Interpreter:
         if arc_end_off_circle(r0, r1):
             reasons.append('the end point is not on the arc: radius %.4f at the start, %.4f at the end' % (r0, r1))
             return None
+        turns = vals.get('P', 1.0)
+        if turns < 1 or turns != int(turns):
+            reasons.append('arc P word is not a whole number of turns')
+            return None
         a0 = math.atan2(sy - cy, sx - cx)
         a1 = math.atan2(ey - cy, ex - cx)
         extent = (a0 - a1) % TWO_PI if cw else (a1 - a0) % TWO_PI
         if coincident:
             extent = TWO_PI
+        # P = the number of turns: each turn after the first adds a full circle
+        extent += (int(turns) - 1) * TWO_PI
         return (cx, cy, start_m[2]), 'cw' if cw else 'ccw', extent
 
     # ------------------------------------------------------------ record
-    def _emit(self, number, raw, mode, start_w, end_w, start_m, end_m, reasons, arc=None):
+    def _emit(self, number, raw, mode, start_w, end_w, start_m, end_m, reasons, arc=None, no_xy=False):
         s = self.s
+        s_events, s.s_events = tuple(s.s_events), []
         reasons = list(reasons) + s.pending + list(s.sticky.values())
         s.pending = []
         sm = _complete(start_m)
@@ -471,7 +496,7 @@ class _Interpreter:
             start_m=sm, end_m=em, motion_mode=mode, arc_center=center, arc_direction=direction,
             arc_extent=extent, feed=feed, s=s.s_val if s.spindle else None, tool=s.tool, tool_diameter=s.dia,
             unverified_reason='; '.join(dict.fromkeys(reasons)) if reasons else None,
-            end_m_axes=None if end_m is None else tuple(end_m)))
+            end_m_axes=None if end_m is None else tuple(end_m), s_events=s_events, no_xy_motion=no_xy))
 
 
 PROBES_LABELS = frozenset(_label(x) for x in PROBES)
