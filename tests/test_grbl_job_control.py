@@ -851,6 +851,38 @@ class TestSenderRestart(unittest.TestCase):
         self.assertEqual(tool._stream_result['done'], len(PROGRAM))
         self.assertEqual(console._acknowledged, len(PROGRAM))
 
+    def restart_with_profile_dialog(self, change_during_dialog):
+        """A restart with a machine profile whose check dialog (stubbed) can change the controller setup."""
+        from types import SimpleNamespace
+        tool, fake = self.make_tool()
+        state = {'key': 'k0'}
+        tool._stream_setup_key = 'k0'
+
+        calls = []
+
+        def present(profile, outcome, store=True):
+            calls.append(outcome)
+            # the 1st is the check of the job, the 2nd the final check of the restart
+            if change_during_dialog and len(calls) == 2:
+                state['key'] = 'k1'
+            return True
+
+        tool._profile_present = present
+        tool._profile_compute = lambda text, *args, **kwargs: SimpleNamespace(
+            setup_key='k0', setup=None, refused=None, out=text, result=None)
+        tool.live_setup_changed = lambda old, op, profile, dialect=None: state['key'] != old
+        with patch('appPlugins.ToolGcodeSender.Sender.active_profile_of', return_value=SimpleNamespace(name='P', rapid_max=1000.0)):
+            tool.on_start()
+        return tool, fake
+
+    def test_restart_refuses_a_setup_that_changed_during_the_final_dialog(self):
+        tool, fake = self.restart_with_profile_dialog(True)
+        self.assertEqual(fake.written, [])
+        self.assertIsNone(tool._grbl_op)
+        self.assertIn('Press Start again', str(tool.app.inform.emit.call_args_list[-1]))
+        tool, fake = self.restart_with_profile_dialog(False)
+        self.assertIn('G0 X1.0000 Y2.0000', fake.commands())
+
     def test_cancel_releases_the_reserved_operation_without_writing(self):
         tool, fake = self.make_tool(None)
         tool.on_start()

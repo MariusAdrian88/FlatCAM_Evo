@@ -1564,7 +1564,11 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             except Exception as failure:
                 error = failure
                 if port is not None:
-                    port.close()
+                    try:
+                        port.close()
+                    except Exception as close_failure:
+                        # the result must still be delivered: a pending connect would block every retry
+                        self.app.log.error("ToolGcodeSender._connect_worker_start() close -> %s" % str(close_failure))
                 if not opened:
                     port = None  # the device was never reached
             try:
@@ -1943,7 +1947,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self._controller_state_time = float('-inf')
         self._program_paused = False
         self._pendant_set(connected=False, state='', alarm='', wpos=None, mpos=None, done=None, total=None,
-                          elapsed=None, remaining=None)
+                          elapsed=None, remaining=None, report_time=None, recovery=None, recovery_text='')
         self._on_spindle_state(False)
         self._camera_new_session('disconnect')
         self._toolchange_new_session('disconnect')
@@ -3832,8 +3836,13 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             # An old worker must not hold a replacement session's operation.
             self._grbl_failure_locked(op, 'probe_invalid')
 
-    def _toolchange_frame(self, op, context, expected=None, position=None, probe_clear=False):
-        """Fresh modal, offset and coherent full XYZ status evidence, never cached WCO."""
+    def _toolchange_frame(self, op, context, expected=None, position=None, probe_clear=False, start=None):
+        """
+        Fresh modal, offset and coherent full XYZ status evidence, never cached WCO.
+
+        :param start: the machine position before the probe; with `position` (the contact) it lets an E-Cut
+            port stand anywhere between the contact and the start on Z
+        """
         step = lambda command: self._toolchange_step(op, context, command)
         report_setting = parse_grbl_setting(step('$$'), 13)
         if report_setting not in (0.0, 1.0):
@@ -3897,8 +3906,18 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         if 'wpos' in report and any(abs(m - w * scale - o) > epsilon for m, w, o in
                                     zip(machine, report['wpos'], offset)):
             raise _GrblProbeAbort('?', '', 'invalid_position')
-        if position is not None and any(abs(a - b) > epsilon for a, b in zip(machine, position)):
-            raise _GrblProbeAbort('?', '', 'invalid_position')
+        if position is not None:
+            if start is not None and self._ecut_settings_capable(self.grbl_ser_port):
+                # E-Cut retracts on its own after the contact: the live position lies from the contact back to
+                # the start on the probed axis (1 count = 0.001 mm), and on the other axes at the contact
+                tolerance = 0.001 / (25.4 if units == 'IN' else 1.0) + 1e-9
+                within = all(abs(a - b) <= tolerance for a, b in zip(machine[:2], position[:2]))
+                low, high = sorted((position[2], start[2]))
+                within = within and low - tolerance <= machine[2] <= high + tolerance
+            else:
+                within = all(abs(a - b) <= epsilon for a, b in zip(machine, position))
+            if not within:
+                raise _GrblProbeAbort('?', '', 'invalid_position')
         if probe_clear and 'P' in report.get('pins', ''):
             raise _GrblProbeAbort('?', '', 'already_triggered')
         return {'wcs': wcs, 'offset': offset, 'machine': machine,
@@ -3961,7 +3980,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 raise _GrblProbeAbort(
                     probe_cmd, text, 'probe_failed' if reason == 'already_triggered' else 'probe_invalid')
 
-            self._toolchange_frame(op, context, expected=frame, position=contact_machine)
+            self._toolchange_frame(op, context, expected=frame, position=contact_machine, start=machine)
             retract_z = min(start_work_z, contact_work[2] + settings.clearance)
             retract_z = math.floor(retract_z * 10000.0) / 10000.0
             # Never lift above the known starting height, even for an oversized clearance.
@@ -4232,19 +4251,26 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             axes += ('A',)
         self.set_work_position({letter: 0.0 for letter in axes})
 
-    def set_work_position(self, values):
+    def set_work_position(self, values, resolve=None):
         """
         Make the current position the given work position in the active WCS (G10 L20).
 
         :param values: {axis letter: position in the display units of the Sender}
+        :param resolve: a function(op) that runs in the reserved operation, after the active WCS is read,
+            and returns the values (or None to write nothing)
         """
         if not self._action_ok('zero'):
             return
         units, decimals = self.units, self.app.decimals
 
         def task(op):
+            nonlocal values
             if self._grbl_read_active_wcs(op) is None:
                 return
+            if resolve is not None:
+                values = resolve(op)
+                if values is None:
+                    return
             # G10 L20 makes the current position the given one in the active work coordinate
             # system (G10 L2 would set the offset to machine 0)
             try:
@@ -4415,6 +4441,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             ui.status_strip.set_state(_("Reset needed"))
         elif situation == 'needs_home':
             ui.status_strip.set_state(_("Home needed"))
+        self._pendant_set(**self._pendant_recovery(situation))
         # the recovery banner is latched: only the end of the recovery hides it
         if self._grbl_recovery is None:
             if self._tool_pause is not None:
@@ -4980,21 +5007,56 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         result = self._edge_result
         if result is None:
             return
-        work = self._last_work
-        if work is None:
-            self.app.inform.emit('[WARNING_NOTCL] %s' % _("The work position is not known."))
-            return
+        radius = self.ui.edge_tool_dia_entry.get_value() / 2.0
+        self.set_work_position({}, resolve=lambda op: self._edge_zero_values(op, result, radius))
+
+    def _edge_zero_values(self, op, result, radius):
+        """
+        The zero values of an edge/centre result, from the machine positions (a worker thread under `op`).
+        The contact is turned into machine coordinates with the offset of its probe, so the active WCS
+        at the click does not matter. None (nothing is written) when the result is not valid any more.
+        """
+        def refuse(reason):
+            self.app.inform.emit('[WARNING_NOTCL] %s: %s' % (_("Set zero refused"), reason))
+
+        if result.get('safety_generation') != op.safety_generation:
+            refuse(_("the controller was stopped or reset after the probing."))
+            return None
+        if (result.get('units') != str(self.units).upper() or
+                result.get('units') != str(self.app.app_units).upper()):
+            refuse(_("the units changed after the probing."))
+            return None
+        text, status = self._grbl_transact(op, '$#', timeout=5.0, echo=False)
+        try:
+            if status != 'ok':
+                raise ValueError(status)
+            g92 = parse_grbl_offsets(text)['G92']
+        except ValueError as err:
+            refuse(_("the offsets could not be read (%s).") % str(err))
+            return None
+        if any(abs(value) > 1e-9 for value in g92):
+            refuse(_("a G92 offset is active."))
+            return None
+        status_text = self._grbl_query_status(op)
+        report = parse_grbl_status_report(status_text)
+        if report is None or parse_grbl_status_state(status_text) != 'Idle' or 'mpos' not in report:
+            refuse(_("the machine position is not known."))
+            return None
+        mpos = report['mpos']
+        _wcs, offset, report_inches = result['frame']
+        scale = grbl_report_scale(result['units'], report_inches)
+
+        def delta(index, work_value):
+            # the machine position of the probe result, in the report units
+            return (mpos[index] - (work_value / scale + offset[index])) * scale
+
         if result['kind'] == 'center':
-            cx, cy = result['center']
-            self.set_work_position({'X': work[0] - cx, 'Y': work[1] - cy})
-            return
+            return {'X': delta(0, result['center'][0]), 'Y': delta(1, result['center'][1])}
         direction = next(iter(result['contacts']))
         axis = direction[0].upper()
         index = 'XY'.index(axis)
-        radius = self.ui.edge_tool_dia_entry.get_value() / 2.0
         # the tool centre stops 1 radius before the surface: in the + direction the surface is beyond the contact
-        surface = result['contact'][index] + (radius if direction.endswith('plus') else -radius)
-        self.set_work_position({axis: work[index] - surface})
+        return {axis: delta(index, result['contact'][index]) - (radius if direction.endswith('plus') else -radius)}
 
     def _on_probe_finished(self, op, context):
         if op is not getattr(self, '_probe_start_op', None):
@@ -5925,6 +5987,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             return
         if resume_from is not None:
             # the Resume rechecked the preamble and the rest of the job with a fresh read of the controller
+            self._clear_tool_pause()
             self._start_stream_launch(op, target, lines, numbers, check_mode, poll_ms, req,
                                       (resume_lines, resume_from, resumed_lines))
             return
@@ -5986,6 +6049,16 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             return
         if not self._start_current(c.op, c.seq, c.generation, c.target, c.source):
             self._start_abandoned(c.op)
+            return
+        # the check dialog was open: read the setup again before the first write
+        if (c.profile is not None and self._stream_setup_key is not None and
+                self.live_setup_changed(self._stream_setup_key, c.op, c.profile,
+                                        getattr(c.target, 'pp_geometry_name', None))):
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _(
+                "The offsets, the WCS, G92 or the tool length offset of the controller changed after the machine "
+                "profile check. Press Start again."))
+            self._grbl_release(c.op)
+            self._start_free_button()
             return
         self.app.inform.emit('%s: %d' % (_("Starting from program line"), c.start_line))
         self._start_stream_launch(c.op, c.target, c.lines, c.numbers, c.check_mode, c.poll_ms, c.req,
@@ -6103,7 +6176,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         if not self._tool_resume_current(c):
             self._grbl_release(c.op)
             return
-        self._clear_tool_pause()
+        # the pause ends in _start_stream_worker, when the checked restart is committed to launch
         self.app.inform.emit(_("Tool change done. Resuming the job."))
         self._start_stream_worker(c.op, c.lines, c.numbers, False, c.poll_ms, resume_from=c.resume.index,
                                   resume_lines=prepared.preamble, resumed_lines=prepared.resumed)
@@ -6853,8 +6926,14 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self._pendant_data.update(values)
 
     def _pendant_snapshot(self):
+        """The state for /state (a server thread): report_age is computed now, from the last accepted report."""
         with self._pendant_lock:
-            return dict(self._pendant_data)
+            data = dict(self._pendant_data)
+        reported = data.pop('report_time', None)
+        data['report_age'] = None if reported is None else max(0.0, self._pendant_now() - reported)
+        # the same limit as the stale look of the position readout
+        data['fresh'] = data['report_age'] is not None and data['report_age'] <= SenderPendant.REPORT_FRESH_S
+        return data
 
     def _pendant_report(self, report):
         """Put a status report into the snapshot."""
@@ -6872,10 +6951,34 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             if state == 'Alarm' and 'substate' in report else ('ALARM' if state == 'Alarm' else ''),
             'wpos': None if work is None or scale is None else list(scale_position(work, scale)),
             'mpos': None if machine is None or scale is None else list(scale_position(machine, scale)),
-            'motion': bool(self.app.options.get('tools_grbl_pendant_motion', False))}
+            'motion': bool(self.app.options.get('tools_grbl_pendant_motion', False)),
+            'report_time': self._pendant_now()}
+        values.update(self._pendant_recovery(self._machine_situation()))
         if ov is not None:
             values.update(feed_ov=ov[0], rapid_ov=ov[1], spindle_ov=ov[2])
         self._pendant_set(**values)
+
+    @staticmethod
+    def _pendant_now():
+        return time.monotonic()
+
+    @staticmethod
+    def _pendant_recovery(situation):
+        """The recovery fields of the snapshot: the texts of the status strip."""
+        if situation == 'needs_reset':
+            return {'recovery': 'reset', 'recovery_text': _("Reset needed")}
+        if situation == 'needs_home':
+            return {'recovery': 'home', 'recovery_text': _("Home needed")}
+        return {'recovery': None, 'recovery_text': ''}
+
+    def _pendant_refused(self, action, reason):
+        """Tell the browser why a request did nothing: last_refusal, a new seq each time (GUI thread)."""
+        if self._pendant is None:
+            return
+        with self._pendant_lock:
+            previous = self._pendant_data.get('last_refusal')
+            self._pendant_data['last_refusal'] = {
+                'action': action, 'reason': str(reason), 'seq': (previous['seq'] if previous else 0) + 1}
 
     def _on_pendant_request(self, action, args, generation):
         """GUI thread: a request of the pendant. The rules of the machine situation decide, like for a button."""
@@ -6886,12 +6989,15 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             return
         if action in SenderPendant.MOTION_ACTIONS and not self.app.options.get('tools_grbl_pendant_motion', False):
             self.app.log.debug('Web pendant: %s dropped, motion is off.' % action)
+            self._pendant_refused(action, _("Pendant motion is off."))
             return
         reason = self.action_allowed(self.PENDANT_ACTIONS[action])
         if reason is not None:
             self.app.log.debug('Web pendant: %s dropped: %s' % (action, reason))
+            self._pendant_refused(action, reason)
             return
         if self.__dict__.get('_kept_across_reset') and action not in ('hold', 'feed_ov', 'stop', 'estop'):
+            self._pendant_refused(action, _("Not available now."))
             return      # the widgets of the old project are deleted: only the handlers without a widget run
         if action == 'hold':
             self._on_hold_button()
@@ -6961,7 +7067,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             'connected': self.machine_connected(), 'state': self._controller_state, 'alarm': '', 'wpos': None,
             'mpos': None, 'units': self.units, 'wcs': self._active_wcs, 'done': None, 'total': None,
             'elapsed': None, 'remaining': None, 'feed_ov': self._feed_override_pct, 'rapid_ov': None,
-            'spindle_ov': None, 'motion': bool(options.get('tools_grbl_pendant_motion', False))}
+            'spindle_ov': None, 'motion': bool(options.get('tools_grbl_pendant_motion', False)),
+            'report_time': None, 'recovery': None, 'recovery_text': '', 'last_refusal': None}
         self._pendant = server
         self._pendant_show()
 

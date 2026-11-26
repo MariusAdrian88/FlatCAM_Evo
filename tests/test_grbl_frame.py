@@ -800,6 +800,31 @@ class TestInvalidationEvents(unittest.TestCase):
             workers[0].join(5.0)
         self.assertEqual(opened_in, [workers[0]])       # the port opens in the worker, not on the GUI thread
 
+    def test_failed_connect_whose_close_raises_still_delivers_the_failure(self):
+        class BrokenFake(CheckFake):
+            def write(self, data):
+                raise sender_module.serial.SerialException('no answer')
+
+            def close(self):
+                raise OSError('close failed')
+
+        tool = self.make()[0]
+        tool.grbl_ser_port = None
+        tool._grbl_unclosed_ports = []
+        tool._grbl_connected = False
+        tool._grbl_set_ui_connected = MagicMock()
+        tool.ui.com_list_combo.currentText.return_value = 'COM9'
+        tool.ui.baudrates_list_combo.currentText.return_value = '115200'
+        tool.connect_result_sig = MagicMock()
+        tool.app.worker_task.emit.side_effect = lambda task: task['fcn']()
+        with patch.object(sender_module.serial, 'serial_for_url', return_value=BrokenFake()) as make_port:
+            tool.on_grbl_connect()
+            self.assertEqual(tool.connect_result_sig.emit.call_count, 1)     # the failure result is delivered
+            tool._on_connect_result(tool.connect_result_sig.emit.call_args.args[0])
+            self.assertIsNone(tool._grbl_connect_attempt)                    # no connect is pending
+            tool.on_grbl_connect()                                           # a retry is accepted
+        self.assertEqual(make_port.call_count, 2)
+
     def test_no_connect_while_an_ecut_port_closes(self):
         tool = self.make()[0]
         ecut_port = MagicMock()                         # prepare_program: an E-Cut port

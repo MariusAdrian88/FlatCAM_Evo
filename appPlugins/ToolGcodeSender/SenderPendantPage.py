@@ -30,6 +30,9 @@ button:active { filter:brightness(1.4); }
 input { width:100%; font-size:18px; padding:8px; border-radius:6px; border:0; }
 #offline { display:none; background:var(--bad); text-align:center; padding:8px; border-radius:8px; margin-bottom:10px; font-weight:bold; }
 .dim { opacity:.6; }
+.grey { color:#8a8f98 !important; }
+#recovery { display:none; background:var(--bad); text-align:center; padding:8px; border-radius:8px; margin-bottom:10px; font-weight:bold; }
+#refusal { display:none; background:var(--warn); color:#000; text-align:center; padding:8px; border-radius:8px; margin-bottom:10px; }
 </style>
 </head>
 <body>
@@ -47,6 +50,8 @@ input { width:100%; font-size:18px; padding:8px; border-radius:6px; border:0; }
   <div class="dim" id="times"></div>
   <div class="dim" id="ovs"></div>
 </div>
+<div id="recovery"></div>
+<div id="refusal"></div>
 <div class="row">
   <button class="hold" data-a="hold">Hold</button>
   <button class="resume" data-a="resume">Resume</button>
@@ -95,9 +100,26 @@ function clock(s) {
   s = Math.round(s);
   return Math.floor(s / 3600) + ':' + ('0' + Math.floor(s / 60) % 60).slice(-2) + ':' + ('0' + s % 60).slice(-2);
 }
+var refusalSeq = null, refusalTimer = null;
 function show(s) {
   $('offline').style.display = 'none';
-  $('state').textContent = s.connected ? (s.state || '-') : 'Not connected';
+  var live = s.connected ? s.fresh === true : true;
+  $('state').textContent = !s.connected ? 'Not connected' : (live ? (s.state || '-') : 'No live status');
+  $('state').className = live ? '' : 'grey';
+  $('pos').className = live ? 'pos' : 'pos grey';
+  $('recovery').textContent = s.recovery_text || '';
+  $('recovery').style.display = s.recovery ? 'block' : 'none';
+  var r = s.last_refusal;
+  if (refusalSeq === null) { refusalSeq = r ? r.seq : 0; }   // an old refusal is not shown again on a page load
+  else if (r) {
+    if (r.seq !== refusalSeq) {
+      refusalSeq = r.seq;
+      $('refusal').textContent = r.action + ': ' + r.reason;
+      $('refusal').style.display = 'block';
+      if (refusalTimer) { clearTimeout(refusalTimer); }
+      refusalTimer = setTimeout(function () { $('refusal').style.display = 'none'; }, 5000);
+    }
+  }
   $('alarm').textContent = s.alarm || '';
   $('machine').textContent = (s.units || '') + (s.wcs ? '  ' + s.wcs : '');
   var w = s.wpos || [], m = s.mpos || [], names = ['X', 'Y', 'Z', 'A'], rows = '';

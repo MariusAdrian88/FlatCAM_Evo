@@ -16,6 +16,7 @@ from urllib.parse import urlsplit, parse_qs
 from appPlugins.ToolGcodeSender.SenderPendantPage import PAGE_HTML
 
 MAX_BODY = 4096
+REPORT_FRESH_S = 3.0        # a report older than this is stale (the stale look of the position readout)
 
 JOG_DIRECTIONS = ('xplus', 'xminus', 'yplus', 'yminus', 'zplus', 'zminus', 'aplus', 'aminus',
                   'xminus_yplus', 'xplus_yplus', 'xminus_yminus', 'xplus_yminus')
@@ -93,10 +94,15 @@ class PendantServer:
             step = data.get('step')
             if data.get('direction') not in JOG_DIRECTIONS:
                 raise _BadRequest('bad direction')
-            if isinstance(step, bool) or not isinstance(step, (int, float)) or not math.isfinite(step) \
-                    or step <= 0 or step > self.max_jog_step():
+            if isinstance(step, bool) or not isinstance(step, (int, float)):
                 raise _BadRequest('bad step')
-            return action, {'direction': data['direction'], 'step': float(step)}
+            try:
+                step = float(step)      # an integer of 400 digits is no float: OverflowError
+            except (OverflowError, ValueError, TypeError):
+                raise _BadRequest('bad step')
+            if not math.isfinite(step) or step <= 0 or step > self.max_jog_step():
+                raise _BadRequest('bad step')
+            return action, {'direction': data['direction'], 'step': step}
         if action == 'zero':
             if data.get('axis') not in AXES:
                 raise _BadRequest('bad axis')

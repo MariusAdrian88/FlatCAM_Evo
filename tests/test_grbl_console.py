@@ -1427,6 +1427,7 @@ class TestDockedJogPage(unittest.TestCase):
         # Stop and E-Stop (the pendant, the status bar button) still reach the controller
         port = self.tool.grbl_ser_port
         self.tool._pendant = MagicMock()
+        self.tool._pendant_data = {}
         self.tool._on_pendant_request('stop', {}, self.tool._pendant_generation)
         self.tool._pendant = None
         self.assertIn(b'!', port.written)
@@ -2209,24 +2210,133 @@ class TestActionRules(unittest.TestCase):
         self.assertEqual([c for c in fake.commands() if c != '?'], ['$G', 'G10 L20 P2 X12.5'])
 
     def test_edge_result_sets_zero(self):
+        frame = ('G54', (0.0, 0.0, 0.0), False)
+        base = {'units': 'MM', 'safety_generation': 0, 'frame': frame}
         cases = [
-            ({'kind': 'edge', 'contacts': {'xplus': (10.0, 0.0, 0.0)}, 'contact': (10.0, 0.0, 0.0)},
+            (dict(base, kind='edge', contacts={'xplus': (10.0, 0.0, 0.0)}, contact=(10.0, 0.0, 0.0)),
              'G10 L20 P1 X-3'),
-            ({'kind': 'edge', 'contacts': {'xminus': (10.0, 0.0, 0.0)}, 'contact': (10.0, 0.0, 0.0)},
+            (dict(base, kind='edge', contacts={'xminus': (10.0, 0.0, 0.0)}, contact=(10.0, 0.0, 0.0)),
              'G10 L20 P1 X-1'),
-            ({'kind': 'center', 'center': (6.0, 1.0)}, 'G10 L20 P1 X2 Y-1'),
+            (dict(base, kind='center', center=(6.0, 1.0)), 'G10 L20 P1 X2 Y-1'),
         ]
         for result, expected in cases:
             with self.subTest(expected=expected):
-                tool, fake = self.make()
-                tool.app.decimals = 4
-                tool.units = 'MM'
-                fake.replies['$G'] = ['[GC:G0 G54 G17 G21 G90 G94 M5 M9 T0 F0 S0]', 'ok']
+                tool, fake = self.zero_tool(result, mpos=(8.0, 0.0, 0.0))
                 tool.ui.edge_tool_dia_entry.get_value.return_value = 2.0
-                tool._last_work = (8.0, 0.0, 0.0)
-                tool._edge_result = result
                 tool.on_edge_set_zero()
-                self.assertEqual([c for c in fake.commands() if c != '?'], ['$G', expected])
+                self.assertEqual(self.zero_writes(fake), [expected])
+
+    def zero_tool(self, result, mpos, wcs='G54', offsets=('0.000,0.000,0.000', '0.000,0.000,0.000')):
+        tool, fake = self.make()
+        tool.app.decimals = 4
+        tool.app.app_units = 'MM'
+        tool.units = 'MM'
+        fake.replies['$G'] = ['[GC:G0 %s G17 G21 G90 G94 M5 M9 T0 F0 S0]' % wcs, 'ok']
+        fake.replies['$#'] = ['[G54:0.000,0.000,0.000]', '[G55:%s]' % offsets[0], '[G92:%s]' % offsets[1],
+                              '[TLO:0.000]', 'ok']
+        fake.replies['?'] = ['<Idle|MPos:%.3f,%.3f,%.3f|FS:0,0>' % mpos]
+        tool.ui.edge_tool_dia_entry.get_value.return_value = 0.0
+        origin = [float(v) for v in offsets[0].split(',')]
+        tool._last_work = tuple(m - o for m, o in zip(mpos, origin))
+        tool._edge_result = result
+        return tool, fake
+
+    @staticmethod
+    def zero_writes(fake):
+        return [c for c in fake.commands() if c.startswith('G10')]
+
+    def test_edge_zero_uses_machine_position_in_changed_wcs(self):
+        # probed at machine X20 in G54 (origin X0); G55 (origin X10) selected; at machine X25 the click makes
+        # the machine X25 the zero of G55's X... the edge at machine X20 is X5 away
+        result = {'units': 'MM', 'safety_generation': 0, 'frame': ('G54', (0.0, 0.0, 0.0), False),
+                  'kind': 'edge', 'contacts': {'xplus': (20.0, 0.0, 0.0)}, 'contact': (20.0, 0.0, 0.0)}
+        tool, fake = self.zero_tool(result, mpos=(25.0, 0.0, 0.0), wcs='G55',
+                                    offsets=('10.000,0.000,0.000', '0.000,0.000,0.000'))
+        tool.on_edge_set_zero()
+        self.assertEqual(self.zero_writes(fake), ['G10 L20 P2 X5'])
+
+    def pendant_state(self, tool):
+        """Start the real pendant server of `tool` on a loopback port; return (call, posted)."""
+        import json
+        import urllib.request
+        tool.app.options.update(tools_grbl_pendant_enabled=True, tools_grbl_pendant_port=0,
+                                tools_grbl_pendant_token='tok', tools_grbl_pendant_motion=True)
+        posted = []
+        tool.pendant_request_sig = MagicMock()
+        tool.pendant_request_sig.emit.side_effect = lambda action, args, generation: posted.append(
+            (action, args, generation))
+        tool._pendant_start()
+        self.addCleanup(tool._pendant_stop)
+        port = tool._pendant.port
+
+        def call(path='/state', body=None):
+            data = None if body is None else json.dumps(body).encode()
+            url = 'http://127.0.0.1:%d%s?t=tok' % (port, path)
+            with urllib.request.urlopen(urllib.request.Request(url, data=data), timeout=5) as reply:
+                return json.loads(reply.read())
+        return call, posted
+
+    def test_pendant_state_ages_and_goes_not_fresh(self):
+        from appPlugins.Common.grbl.grbl_protocol import parse_grbl_status_report
+        tool, fake = self.make()
+        call, posted = self.pendant_state(tool)
+        clock = [0.0]
+        tool._pendant_now = lambda: clock[0]
+        tool._pendant_report(parse_grbl_status_report('<Idle|MPos:1.000,2.000,3.000|FS:0,0>'))
+        state = call()
+        self.assertTrue(state['fresh'])
+        self.assertEqual(state['report_age'], 0.0)
+        clock[0] = 60.5         # 2 query timeouts later: no report came
+        state = call()
+        self.assertFalse(state['fresh'])
+        self.assertGreaterEqual(state['report_age'], 60.0)
+        self.assertNotIn('report_time', state)
+
+    def test_pendant_state_shows_the_recovery_need(self):
+        from appPlugins.Common.grbl.grbl_protocol import parse_grbl_status_report
+        tool, fake = self.make()
+        call, posted = self.pendant_state(tool)
+        self.assertIsNone(call()['recovery'])
+        tool._grbl_recovery = 'needs_reset'     # the E-Stop latch
+        tool._pendant_report(parse_grbl_status_report('<Idle|MPos:0.000,0.000,0.000|FS:0,0>'))
+        state = call()
+        self.assertEqual((state['state'], state['recovery'], state['recovery_text']), ('Idle', 'reset', 'Reset needed'))
+        tool._grbl_recovery = 'needs_home'
+        tool._pendant_report(parse_grbl_status_report('<Idle|MPos:0.000,0.000,0.000|FS:0,0>'))
+        self.assertEqual((call()['recovery'], call()['recovery_text']), ('home', 'Home needed'))
+
+    def test_pendant_refused_request_is_reported_to_the_browser(self):
+        tool, fake = self.make()
+        call, posted = self.pendant_state(tool)
+        self.situation(tool, 'stream_run')
+        self.assertIsNone(call()['last_refusal'])
+        self.assertEqual(call('/cmd', {'action': 'home'}), {'ok': True})
+        action, args, generation = posted.pop()
+        tool._on_pendant_request(action, args, generation)       # the slot, on the GUI thread
+        refusal = call()['last_refusal']
+        self.assertEqual((refusal['action'], refusal['seq']), ('home', 1))
+        self.assertTrue(refusal['reason'])
+        tool._on_pendant_request('home', {}, tool._pendant_generation)
+        self.assertEqual(call()['last_refusal']['seq'], 2)
+        self.assertEqual(fake.written, [])
+
+    def test_pendant_page_marks_a_missing_status(self):
+        from appPlugins.ToolGcodeSender.SenderPendantPage import PAGE_HTML
+        self.assertIn(b'No live status', PAGE_HTML)
+        self.assertIn(b'recovery_text', PAGE_HTML)
+        self.assertIn(b'last_refusal', PAGE_HTML)
+
+    def test_edge_zero_refused_after_reset_or_with_g92(self):
+        result = {'units': 'MM', 'safety_generation': 0, 'frame': ('G54', (0.0, 0.0, 0.0), False),
+                  'kind': 'edge', 'contacts': {'xplus': (20.0, 0.0, 0.0)}, 'contact': (20.0, 0.0, 0.0)}
+        tool, fake = self.zero_tool(dict(result), mpos=(25.0, 0.0, 0.0))
+        tool._grbl_safety_generation += 1       # a Stop, reset or re-home after the probe
+        tool.on_edge_set_zero()
+        self.assertEqual(self.zero_writes(fake), [])
+        tool, fake = self.zero_tool(dict(result), mpos=(25.0, 0.0, 0.0),
+                                    offsets=('0.000,0.000,0.000', '1.000,0.000,0.000'))
+        tool.on_edge_set_zero()
+        self.assertEqual(self.zero_writes(fake), [])
 
     def test_handlers_refuse_without_widgets(self):
         for name in ('probe', 'stream_run', 'needs_reset'):
@@ -2346,6 +2456,7 @@ class TestActionRules(unittest.TestCase):
                     self.situation(tool, situation)
                     allowed = tool.action_allowed(names.get(action, action)) is None
                     tool._pendant = MagicMock()
+                    tool._pendant_data = {}
                     tool._on_pendant_request(action, args, tool._pendant_generation)
                     self.assertEqual(bool(fake.written), allowed)
         # named cases
@@ -2363,6 +2474,7 @@ class TestActionRules(unittest.TestCase):
                 tool.ui.jog_fr_entry.get_value.return_value = 100.0
                 self.situation(tool, situation)
                 tool._pendant = MagicMock()
+                tool._pendant_data = {}
                 tool._on_pendant_request(action, args, tool._pendant_generation)
                 self.assertEqual(bool(fake.written), expected)
                 if situation == 'needs_home' and action == 'home':
@@ -2375,6 +2487,7 @@ class TestActionRules(unittest.TestCase):
         tool.ui.jog_fr_entry.get_value.return_value = 100.0
         self.situation(tool, 'idle')
         tool._pendant = MagicMock()
+        tool._pendant_data = {}
         generation = tool._pendant_generation
         tool._grbl_start_op = MagicMock()
         tool._pendant_stop()        # the operator clears the box while the request waits for the GUI thread
@@ -2960,6 +3073,9 @@ def test_pendant_rules():
         motion[0] = True
         assert call('/cmd', {'action': 'jog', 'direction': 'xplus', 'step': 1e9})[0] == 400
         assert call('/cmd', {'action': 'jog', 'direction': 'up', 'step': 1})[0] == 400
+        assert call('/cmd', {'action': 'jog', 'direction': 'xplus', 'step': 10 ** 400})[0] == 400
+        assert call('/state')[0] == 200         # the server still answers
+        assert posted == []
         assert call('/cmd', {'action': 'jog', 'direction': 'xplus', 'step': 1})[0] == 200
         assert call('/cmd', {'action': 'stop'})[0] == 200
         assert call('/cmd', {'action': 'feed_ov', 'value': '+50'})[0] == 400

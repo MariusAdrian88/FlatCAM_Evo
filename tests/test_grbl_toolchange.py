@@ -598,6 +598,36 @@ class TestToolChangeSender(unittest.TestCase):
         tool.on_toolchange_acknowledge()
         self.assertEqual(tool.toolchange.state(), STATE_READY)
 
+    def measure_after_retract(self, ecut, live):
+        """The measurement of a contact at Z-5 (start Z0) after the controller reported the live position `live`."""
+        fake = ToolChangeFake(wcs_z=0.0, start_z=0.0, heights={(0.0, 0.0): -5.0})
+        tool = make_tool(fake, options(PLATE_REMOVABLE))
+        tool._ecut_settings_capable = lambda port: ecut
+        tool._grbl_caps = {'probe': True}
+        moved = []
+
+        def retract(cmd):
+            # the first position report after the contact: the controller already retracted on its own
+            if cmd == '?' and fake.probe_count == 1 and not moved:
+                moved.append(True)
+                fake.start_z, fake.x = live[2], live[0]
+        fake.command_hook = retract
+        tool.on_toolchange_measure()
+        return tool
+
+    def test_ecut_native_retract_after_the_contact_keeps_the_measurement(self):
+        for live in ((0.0, 0.0, -5.0), (0.0, 0.0, -4.999), (0.0, 0.0, -4.0)):
+            with self.subTest(live=live):
+                tool = self.measure_after_retract(True, live)
+                self.assertIsNotNone(tool.toolchange.measurement)
+                self.assertAlmostEqual(tool.toolchange.measurement['contact_machine_z'], -5.0)
+        for live in ((0.0, 0.0, 0.5), (0.1, 0.0, -5.0)):
+            with self.subTest(refused=live):
+                self.assertIsNone(self.measure_after_retract(True, live).toolchange.measurement)
+        with self.subTest(grbl=True):
+            # stock GRBL keeps the equality: the live position is the contact (within 2 report quanta)
+            self.assertIsNone(self.measure_after_retract(False, (0.0, 0.0, -4.0)).toolchange.measurement)
+
 
 class TestToolChangeWidget(unittest.TestCase):
     """The real Qt buttons, the real signals and the real worker round trip."""
@@ -974,6 +1004,24 @@ class TestHostToolChangePolicy(unittest.TestCase):
         tool._profile_present.assert_called_once()
         self.assertIsNotNone(tool._tool_pause)
         self.assertIsNone(tool._grbl_op)
+
+    def test_resume_refused_by_the_final_setup_read_keeps_the_pause(self):
+        tool, fake = self.start('pause')
+        tool._stream_setup_key = 'k0'
+        tool._profile_compute = MagicMock(return_value=SimpleNamespace(setup_key='k0'))
+        tool._profile_present = MagicMock(return_value=True)
+        tool.live_setup_changed = MagicMock(side_effect=[True, False])
+        with patch('appPlugins.ToolGcodeSender.Sender.active_profile_of',
+                   return_value=SimpleNamespace(name='P', rapid_max=1000.0)):
+            written = self.resume(tool, fake)
+            self.assertNotIn('X30', written)
+            self.assertFalse([c for c in written if c.startswith(('G0', 'G1', 'G21', 'G90'))], written)
+            self.assertIsNotNone(tool._tool_pause)
+            self.assertIsNone(tool._grbl_op)
+            self.assertIsNone(tool.action_allowed('resume'))
+            written = self.resume(tool, fake)
+        self.assertIn('X30', written)
+        self.assertIsNone(tool._tool_pause)
 
     def test_resume_checks_the_offsets_that_the_operator_set_during_the_pause(self):
         import tempfile
