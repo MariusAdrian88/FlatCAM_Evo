@@ -1283,7 +1283,43 @@ class TestDockedJogPage(unittest.TestCase):
                                 QtCore.Qt.MouseButton.LeftButton)
         _qapp.processEvents()
         jogs = [cmd for cmd in port.commands() if cmd.startswith('$J')]
-        self.assertEqual(jogs, ['$J=G91 G21 X1.5 F200.0'])
+        self.assertEqual(jogs, ['$J=G91 G21 X1.5000 F200.0'])
+
+    def test_jog_defaults_in_inch(self):
+        from appPlugins.ToolGcodeSender.Sender import AppDefaults
+        from tests.test_levelling_audit import FakeGrbl
+
+        tool = self.tool
+        tool.units = tool.app.app_units = 'IN'
+        tool.app.decimals = 4
+        tool.ui.jog_step_entry.set_precision(4)  # the dock was built with the decimals of the test app
+        tool.ui.jog_step_entry.slider.set_precision(4)
+        tool.ui.jog_step_entry.set_range(0.0001, 20)
+        tool.app.options.update({'tools_grbl_jog_step': 5, 'tools_grbl_jog_fr': 600, 'tools_grbl_travelz': 15})
+        port = FakeGrbl()
+        self.connect(port)
+        tool.app.worker_task.emit.side_effect = lambda task: task['fcn']()
+        tool._jog_defaults_to_form(AppDefaults.factory_defaults)
+        self.assertAlmostEqual(tool.ui.jog_step_entry.get_value(), 0.1969, places=4)
+        tool.on_grbl_jog('origin')
+        self.assertTrue(any('Z0.5906' in c for c in port.commands()))
+        # a rebuild without an edit keeps the stored value exactly
+        tool._jog_defaults_to_form(AppDefaults.factory_defaults)
+        self.assertEqual(tool.app.options['tools_grbl_jog_step'], 5)
+        tool.ui.jog_step_entry.set_value(0.5)
+        tool.ui.jog_step_entry.spinner.editingFinished.emit()
+        self.assertEqual(tool.app.options['tools_grbl_jog_step'], 12.7)
+        self.assertEqual(tool.app.options['tools_grbl_jog_fr'], 600)
+        # the jog word has no exponent form and a step below the resolution is refused
+        tool.ui.jog_step_entry.set_value(0.0001)
+        tool.on_grbl_jog('xplus')
+        self.assertTrue(any('X0.0001' in c for c in port.commands()))
+        sent = len(port.commands())
+        with patch.object(tool.ui.jog_step_entry, 'get_value', return_value=0.00004):
+            tool.on_grbl_jog('xplus')
+        self.assertEqual(len(port.commands()), sent)
+        self.assertIn('resolution', tool.app.inform.emit.call_args.args[0])
+        self.assertFalse(any('e-' in c.lower() for c in port.commands() if c.startswith('$J')))
 
     def native_hold(self, port=None):
         from PyQt6 import QtTest

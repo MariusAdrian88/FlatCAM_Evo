@@ -344,6 +344,7 @@ class GcodeSenderUI:
 
         self.jog_step_entry = FCSliderWithDoubleSpinner()
         self.jog_step_entry.set_precision(self.decimals)
+        self.jog_step_entry.slider.set_precision(self.decimals)  # else the slider rounds the value to 3 decimals
         self.jog_step_entry.setSingleStep(0.1)
         # the smallest value is the smallest step of the precision; the largest depends on the units
         smallest = 10 ** -self.decimals
@@ -361,6 +362,7 @@ class GcodeSenderUI:
 
         self.jog_fr_entry = FCSliderWithDoubleSpinner()
         self.jog_fr_entry.set_precision(self.decimals)
+        self.jog_fr_entry.slider.set_precision(self.decimals)
         self.jog_fr_entry.setSingleStep(10)
         self.jog_fr_entry.set_range(smallest, 10000 if metric else 400)
 

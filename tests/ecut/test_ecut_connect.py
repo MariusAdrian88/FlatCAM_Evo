@@ -2,6 +2,7 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 import sys
+import threading
 
 import pytest
 
@@ -47,21 +48,40 @@ def test_find_boards_without_hidapi_raises(monkeypatch):
 
 
 def test_connect_refuses_when_no_board_and_keeps_state(tool):
-    with patch('appPlugins.Common.ecut.ecut_protocol.find_boards', return_value=[]):
+    factory = MagicMock()
+    with patch.dict(sys.modules, {'appPlugins.Common.ecut.ecut_sender_port': SimpleNamespace(EcutSenderPort=factory)}), \
+            patch('appPlugins.Common.ecut.ecut_protocol.find_boards', return_value=[]):
         tool.on_grbl_connect()
+        worker_fcn(tool)()
     message = tool.app.inform.emit.call_args.args[0]
     assert message.startswith('[ERROR_NOTCL]') and 'not found' in message
     assert '0483' in message and '5750' in message
     assert tool._grbl_connect_attempt is None and tool.grbl_ser_port is None
-    tool.app.worker_task.emit.assert_not_called()
+    factory.assert_not_called()
 
 
 def test_connect_shows_missing_hidapi(tool):
     with patch('appPlugins.Common.ecut.ecut_protocol.find_boards', side_effect=EcutUsbError('hidapi is not installed')):
         tool.on_grbl_connect()
+        worker_fcn(tool)()
     assert 'hidapi is not installed' in tool.app.inform.emit.call_args.args[0]
     assert tool._grbl_connect_attempt is None
-    tool.app.worker_task.emit.assert_not_called()
+
+
+def test_board_check_runs_off_the_gui_thread(tool):
+    threads = []
+    # the GUI slot must not run on the worker thread (it starts Qt timers): the result is only recorded
+    tool.ecut_connect_result_sig = MagicMock()
+    module = SimpleNamespace(EcutSenderPort=MagicMock())
+    with patch.dict(sys.modules, {'appPlugins.Common.ecut.ecut_sender_port': module}), \
+            patch('appPlugins.Common.ecut.ecut_protocol.find_boards',
+                  side_effect=lambda *a: threads.append(threading.current_thread()) or [{'path': b'p'}]):
+        tool.on_grbl_connect()
+        assert threads == []  # the GUI thread does not enumerate the USB devices
+        runner = threading.Thread(target=worker_fcn(tool))
+        runner.start()
+        runner.join(5)
+    assert threads == [runner]
 
 
 def test_connect_creates_the_port_in_a_worker_and_finishes_on_the_result(tool):

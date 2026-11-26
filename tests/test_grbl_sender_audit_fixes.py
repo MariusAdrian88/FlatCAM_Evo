@@ -443,6 +443,7 @@ class TestDeletedQtObjects(unittest.TestCase):
                 gate.set()
                 port._worker.join(2)
                 tool.on_grbl_connect()
+                tool.app.worker_task.emit.call_args.args[0]['fcn']()  # the connect worker opens the port
                 make_port.assert_called_once()
         finally:
             gate.set()
@@ -478,6 +479,7 @@ class TestDeletedQtObjects(unittest.TestCase):
                 gate.set()
                 port._worker.join(2)
                 tool.on_grbl_connect()
+                tool.app.worker_task.emit.call_args.args[0]['fcn']()  # the connect worker opens the port
                 make_port.assert_called_once()
         finally:
             gate.set()

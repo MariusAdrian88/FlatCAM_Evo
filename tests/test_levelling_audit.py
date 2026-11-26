@@ -90,6 +90,9 @@ def make_audit_tool(units='MM', storage=None, heights_valid=False, cls=None):
     tool.ecut_tool_change_sig = MagicMock()
     tool.ecut_motion_result_sig = MagicMock()
     tool.ecut_connect_result_sig = MagicMock()
+    tool.connect_result_sig = MagicMock()
+    if isinstance(tool, ToolGCodeSender):
+        tool.connect_result_sig.emit.side_effect = tool._on_connect_result
     # publish results at once (in tests the worker runs inline, in the main thread)
     tool.al_result_ready_sig = MagicMock()
     tool.al_result_ready_sig.emit.side_effect = lambda result: tool._on_al_result_ready(result)
@@ -1186,6 +1189,9 @@ def connect(tool, port, callbacks):
             patch('appPlugins.ToolGcodeSender.Sender.QtCore.QTimer.singleShot',
                   side_effect=lambda delay, callback: callbacks.append(callback)):
         tool.on_grbl_connect()
+        ticks = iter(range(10000))  # the 1.0 s read loop of the connect worker runs on a fake clock
+        with patch('appPlugins.ToolGcodeSender.Sender.time.monotonic', side_effect=lambda: next(ticks) * 0.25):
+            tool.app.worker_task.emit.call_args.args[0]['fcn']()
     return opened
 
 
@@ -1194,11 +1200,9 @@ class TestConnectionRed:
         tool = make_audit_tool()
         callbacks = []
         port = ConnectionPort([b'ok\r\n'])
-        connect(tool, port, callbacks)
         port.read_hook = MagicMock(side_effect=OSError('handshake read failed'))
-        callbacks.pop()()
+        connect(tool, port, callbacks)
         connect(tool, ConnectionPort([b'ok\r\n']), callbacks)
-        callbacks.pop()()
         tool._grbl_identity_pending = False
         assert tool._grbl_port_ready()
         assert tool._grbl_reserve('move', motion=True) is None
@@ -1208,7 +1212,6 @@ class TestConnectionRed:
         tool = make_audit_tool()
         callbacks = []
         connect(tool, ConnectionPort([b'ok\r\n', b'ALARM:4\r\n']), callbacks)
-        callbacks[0]()
         assert tool._grbl_recovery is not None
         assert tool._grbl_reserve('probe', motion=True) is None
 
@@ -1236,7 +1239,6 @@ class TestFragmentedHandshake:
         port = ConnectionPort([self.BANNER, b'AL'])
         callbacks = []
         connect(tool, port, callbacks)
-        callbacks[0]()
         assert tool._grbl_rx_buffer == b'AL'
         assert tool._grbl_rx_port is port
         port.handshake = []
@@ -1253,7 +1255,7 @@ class TestNetworkConnection:
         tool.ui.connection_combo.currentData.return_value = 'network'
         tool.ui.network_host_entry.get_value.return_value = ' localhost '
         tool.ui.network_port_entry.get_value.return_value = 23
-        tool.network_connect_result_sig = MagicMock()
+        tool.connect_result_sig = MagicMock()
         return tool
 
 

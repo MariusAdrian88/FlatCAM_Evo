@@ -182,6 +182,10 @@ class _StartRequest:
         self.start_line = None
 
 
+class EcutBoardError(Exception):
+    """The E-Cut board check failed (no board, no hidapi): the text is shown to the user as it is."""
+
+
 class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     grbl_port_closed_sig = QtCore.pyqtSignal()
     # the hash of the correction that the height map was probed under (None: no correction)
@@ -221,7 +225,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     ecut_tool_change_sig = QtCore.pyqtSignal(object, int, object)
     ecut_motion_result_sig = QtCore.pyqtSignal(object)
     ecut_connect_result_sig = QtCore.pyqtSignal(object)
-    network_connect_result_sig = QtCore.pyqtSignal(object)
+    connect_result_sig = QtCore.pyqtSignal(object)
     configuration_result_sig = QtCore.pyqtSignal(object)
     # a fresh status query for a camera capture or observation, from a worker
     camera_capture_sig = QtCore.pyqtSignal(object)
@@ -597,7 +601,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self.ecut_tool_change_sig.connect(self._on_ecut_tool_change)
             self.ecut_motion_result_sig.connect(self._on_ecut_motion_result)
             self.ecut_connect_result_sig.connect(self._on_ecut_connect_result)
-            self.network_connect_result_sig.connect(self._on_network_connect_result)
+            self.connect_result_sig.connect(self._on_connect_result)
             self.configuration_result_sig.connect(self._on_configuration_result)
             self.al_result_ready_sig.connect(self._on_al_result_ready)
             self.build_al_table_sig.connect(self.build_al_table)
@@ -916,12 +920,11 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             "tools_al_avoid_exc_holes_size":    self.ui.avoid_exc_holes_size_entry,
             "tools_al_rows":                    self.ui.al_rows_entry,
             "tools_al_columns":                 self.ui.al_columns_entry,
-            "tools_grbl_jog_step":              self.ui.jog_step_entry,
-            "tools_grbl_jog_fr":                self.ui.jog_fr_entry,
         })
 
         # Fill Form fields
         self.to_form()
+        self._jog_defaults_to_form(app_defaults)
         self.on_grbl_search_ports(muted=True)
         self._restore_baudrate(app_defaults)
         self._restore_connection_settings()
@@ -1071,6 +1074,32 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
     # the mixin methods on_mode_radio() and on_method_radio() call this name
     _is_supported_al_target = _is_supported_target
+
+    def _jog_defaults_to_form(self, app_defaults):
+        """The jog step and feed are stored in mm; the entries show them in the units of the app."""
+        factor = 25.4 if self.units == 'IN' else 1.0
+        for key, entry in (("tools_grbl_jog_step", self.ui.jog_step_entry),
+                           ("tools_grbl_jog_fr", self.ui.jog_fr_entry)):
+            stored = self.app.options.get(
+                key, app_defaults.get(key, AppDefaults.factory_defaults.get(key)))
+            entry.set_value(float(stored) / factor)  # the range of the entry clamps it
+        # the option changes only when the user edits a field, never with the display rounding of a rebuild
+        for entry, slot in ((self.ui.jog_step_entry, self._on_jog_step_edited),
+                            (self.ui.jog_fr_entry, self._on_jog_fr_edited)):
+            try:
+                entry.spinner.editingFinished.disconnect(slot)
+            except (TypeError, RuntimeError):
+                pass
+            entry.spinner.editingFinished.connect(slot)
+
+    def _store_jog_option(self, key, entry):
+        self.app.options[key] = entry.get_value() * (25.4 if self.units == 'IN' else 1.0)
+
+    def _on_jog_step_edited(self):
+        self._store_jog_option("tools_grbl_jog_step", self.ui.jog_step_entry)
+
+    def _on_jog_fr_edited(self):
+        self._store_jog_option("tools_grbl_jog_fr", self.ui.jog_fr_entry)
 
     def to_form(self, storage=None):
         if storage is None:
@@ -1268,22 +1297,6 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 str(err) if transport == 'network' else _("Select a valid baudrate.")))
             return
 
-        if ecut:
-            # check the board before any connection state changes
-            from appPlugins.Common.ecut.ecut_config import EcutBoardConfig
-            from appPlugins.Common.ecut.ecut_protocol import find_boards, EcutUsbError
-            board = EcutBoardConfig()
-            try:
-                found = find_boards(board.vid, board.pid)
-            except EcutUsbError as err:
-                self.app.inform.emit('[ERROR_NOTCL] %s' % str(err))
-                return
-            if not found:
-                self.app.inform.emit('[ERROR_NOTCL] %s' % (
-                    _("E-Cut board not found (USB VID %04X, PID %04X). Connect the board and try again.")
-                    % (board.vid, board.pid)))
-                return
-
         self._save_connection_settings()
         attempt = object()
         with self._grbl_op_lock:
@@ -1301,46 +1314,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         if transport == 'network':
             self._network_connect_start(port_name, attempt)
             return
-
-        port = None
-        try:
-            port = serial.serial_for_url(port_name, baudrate,
-                                        bytesize=serial.EIGHTBITS,
-                                        parity=serial.PARITY_NONE,
-                                        stopbits=serial.STOPBITS_ONE,
-                                        timeout=0.1,
-                                        write_timeout=1.0,
-                                        xonxoff=False,
-                                        rtscts=False,
-                                        do_not_open=True)
-            # Don't reset an already running controller just to discover it.
-            try:
-                port.dtr = False
-                port.rts = False
-            except (OSError, serial.SerialException):
-                pass  # some native USB drivers have no modem control lines
-            port.open()
-            with self._grbl_op_lock:
-                if self._grbl_connect_attempt is not attempt:
-                    port.close()
-                    return
-                self.grbl_ser_port = port
-                self._grbl_rx_port = port
-                self._grbl_rx_buffer = b''
-                self._grbl_reply_pending = False
-
-            # Both requests are non-mutating. Legacy GRBL ignores 0x80; RT- ignores '?'.
-            port.write(b'?')
-            port.write(b'\x80')
-        except (serial.SerialException, OSError, ValueError) as err:
-            if port is not None and self.grbl_ser_port is not port:
-                port.close()
-            self.app.log.error("ToolLevelling.on_grbl_connect() -> %s" % str(err))
-            self._grbl_close_port(attempt=attempt)
-            self.app.inform.emit("[ERROR_NOTCL] %s: %s" % (_("Could not connect to port"), port_name))
-            return
-
-        QtCore.QTimer.singleShot(1000, lambda: self._grbl_connect_finish(port_name, port, attempt))
+        # Both requests of the worker are non-mutating. Legacy GRBL ignores 0x80; RT- ignores '?'.
+        self._serial_connect_start(port_name, baudrate, attempt)
 
     @staticmethod
     def _connection_snapshot(port):
@@ -1348,15 +1323,43 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         return port.read(min(65536, max(1, port.in_waiting)))
 
     def _network_connect_start(self, port_name, attempt):
+        self._connect_worker_start(port_name, attempt, lambda: serial.serial_for_url(
+            port_name, timeout=0.1, write_timeout=1.0, do_not_open=True))
+
+    def _serial_connect_start(self, port_name, baudrate, attempt):
+        def make_port():
+            port = serial.serial_for_url(port_name, baudrate,
+                                         bytesize=serial.EIGHTBITS,
+                                         parity=serial.PARITY_NONE,
+                                         stopbits=serial.STOPBITS_ONE,
+                                         timeout=0.1,
+                                         write_timeout=1.0,
+                                         xonxoff=False,
+                                         rtscts=False,
+                                         do_not_open=True)
+            # Don't reset an already running controller just to discover it.
+            try:
+                port.dtr = False
+                port.rts = False
+            except (OSError, serial.SerialException):
+                pass  # some native USB drivers have no modem control lines
+            return port
+
+        self._connect_worker_start(port_name, attempt, make_port)
+
+    def _connect_worker_start(self, port_name, attempt, make_port):
+        """Open the port, send the wake-up requests and read the answer in a worker, not on the GUI thread."""
         def create_port():
             port = error = None
+            opened = False
             answer = b''
             try:
                 with self._grbl_op_lock:
                     if self._grbl_connect_attempt is not attempt:
                         return
-                port = serial.serial_for_url(port_name, timeout=0.1, write_timeout=1.0, do_not_open=True)
+                port = make_port()
                 port.open()
+                opened = True
                 with self._grbl_op_lock:
                     if self._grbl_connect_attempt is not attempt:
                         port.close()
@@ -1374,15 +1377,17 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 error = failure
                 if port is not None:
                     port.close()
+                if not opened:
+                    port = None  # the device was never reached
             try:
-                self.network_connect_result_sig.emit((port_name, attempt, port, answer, error))
+                self.connect_result_sig.emit((port_name, attempt, port, answer, error))
             except RuntimeError:
                 if port is not None:
                     port.close()  # the plugin was deleted while the worker was connecting
 
         self.app.worker_task.emit({'fcn': create_port, 'params': []})
 
-    def _on_network_connect_result(self, response):
+    def _on_connect_result(self, response):
         port_name, attempt, port, answer, error = response
         with self._grbl_op_lock:
             if self._grbl_connect_attempt is not attempt:
@@ -1394,9 +1399,12 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 self._grbl_rx_port = port
                 self._grbl_rx_buffer = b''
                 self._grbl_reply_pending = False
-                self._network_handshake = (attempt, answer)
+                self._connect_handshake = (attempt, answer)
         if error is not None:
             # The connection worker already closed this failed port; no motion was submitted.
+            if port is not None:
+                with self._grbl_op_lock:  # the wake-up failed after the open: the state of the machine is unknown
+                    self._grbl_failure_locked(None, 'port_error')
             self._grbl_close_port(attempt=attempt)
             self.app.inform.emit('[ERROR_NOTCL] %s: %s' % (_("Could not connect to port"), port_name))
             self._connection_controls()
@@ -1414,7 +1422,18 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         def create_port():
             port = error = None
             try:
+                from appPlugins.Common.ecut.ecut_config import EcutBoardConfig
+                from appPlugins.Common.ecut.ecut_protocol import find_boards, EcutUsbError
                 from appPlugins.Common.ecut.ecut_sender_port import EcutSenderPort
+                board = EcutBoardConfig()
+                try:
+                    found = find_boards(board.vid, board.pid)
+                except EcutUsbError as err:
+                    raise EcutBoardError(str(err)) from err
+                if not found:
+                    raise EcutBoardError(
+                        _("E-Cut board not found (USB VID %04X, PID %04X). Connect the board and try again.")
+                        % (board.vid, board.pid))
                 port = EcutSenderPort(settings_path=settings, timeout=0.1, write_timeout=1.0)
             except Exception as failure:
                 error = failure
@@ -1444,7 +1463,10 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             if self._grbl_connect_attempt is attempt:
                 self.app.log.error("ToolGcodeSender._on_ecut_connect_result() -> %s" % str(error))
                 self._grbl_close_port(attempt=attempt)
-                self.app.inform.emit("[ERROR_NOTCL] %s: %s" % (_("Could not connect to port"), port_name))
+                if isinstance(error, EcutBoardError):
+                    self.app.inform.emit("[ERROR_NOTCL] %s" % str(error))
+                else:
+                    self.app.inform.emit("[ERROR_NOTCL] %s: %s" % (_("Could not connect to port"), port_name))
             return
 
         try:
@@ -1486,7 +1508,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
         error = None
         try:
-            snapshot = self.__dict__.pop('_network_handshake', None)
+            snapshot = self.__dict__.pop('_connect_handshake', None)
             answer = [snapshot[1] if snapshot is not None and snapshot[0] is attempt
                       else self._connection_snapshot(port)]
         except (serial.SerialException, OSError) as err:
@@ -2381,25 +2403,31 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 or not all(math.isfinite(value) and value > 0 for value in (step, feedrate))):
             self.app.inform.emit('[WARNING_NOTCL] %s' % _("Jog requires positive finite step and feed."))
             return
+        decimals = self.app.decimals
+        if float('%.*f' % (decimals, step)) == 0:
+            self.app.inform.emit('[WARNING_NOTCL] %s' % (
+                _("The jog step is below the resolution %s.") % ('%.*f' % (decimals, 10 ** -decimals))))
+            return
         app_defaults = getattr(self.app, "defaults", None) or AppDefaults.factory_defaults
         travelz = float(
             self.app.options.get(
                 "tools_grbl_travelz",
                 app_defaults.get("tools_grbl_travelz", AppDefaults.factory_defaults.get("tools_grbl_travelz")))
-        )
+        ) / (25.4 if units == 'IN' else 1.0)  # stored in mm
         units_cmd = {'IN': 'G20', 'MM': 'G21'}[units]
 
+        step_text = '%.*f' % (decimals, step)
         axis_words = {
-            'xplus': 'X%s' % str(step),
-            'xminus': 'X-%s' % str(step),
-            'yplus': 'Y%s' % str(step),
-            'yminus': 'Y-%s' % str(step),
-            'zplus': 'Z%s' % str(step),
-            'zminus': 'Z-%s' % str(step),
+            'xplus': 'X%s' % step_text,
+            'xminus': 'X-%s' % step_text,
+            'yplus': 'Y%s' % step_text,
+            'yminus': 'Y-%s' % step_text,
+            'zplus': 'Z%s' % step_text,
+            'zminus': 'Z-%s' % step_text,
         }
         if direction == 'origin':
             commands = [
-                "$J=G90 %s Z%s F%s" % (units_cmd, str(travelz), str(feedrate)),
+                "$J=G90 %s Z%s F%s" % (units_cmd, '%.*f' % (decimals, travelz), str(feedrate)),
                 "$J=G90 %s X0.0 Y0.0 F%s" % (units_cmd, str(feedrate)),
             ]
         elif direction in axis_words:

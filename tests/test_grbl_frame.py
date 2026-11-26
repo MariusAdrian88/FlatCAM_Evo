@@ -730,6 +730,35 @@ class TestInvalidationEvents(unittest.TestCase):
             self.check(lambda t: t.on_grbl_connect(), tool)
 
 
+    def test_serial_connect_opens_port_off_gui_thread(self):
+        opened_in = []
+
+        class BlockingFake(CheckFake):
+            def open(self):
+                opened_in.append(threading.current_thread())
+
+        tool = self.make()[0]
+        tool.grbl_ser_port = None
+        tool._grbl_unclosed_ports = []
+        tool._grbl_connected = False
+        tool._grbl_set_ui_connected = MagicMock()
+        tool.ui.com_list_combo.currentText.return_value = 'COM9'
+        tool.ui.baudrates_list_combo.currentText.return_value = '115200'
+        # the GUI slot must not run on the worker thread (it starts Qt timers): the result is only recorded
+        tool.connect_result_sig = MagicMock()
+        workers = []
+
+        def run_in_thread(task):
+            workers.append(threading.Thread(target=task['fcn'], daemon=True))
+            workers[-1].start()
+
+        tool.app.worker_task.emit.side_effect = run_in_thread
+        with patch.object(sender_module.serial, 'serial_for_url', return_value=BlockingFake()):
+            tool.on_grbl_connect()
+            workers[0].join(5.0)
+        self.assertEqual(opened_in, [workers[0]])       # the port opens in the worker, not on the GUI thread
+
+
     def test_event_disconnect_during_an_operation(self):
         tool = self.make()[0]
         op = tool._grbl_reserve('stream', motion=True)
