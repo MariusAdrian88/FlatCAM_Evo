@@ -883,5 +883,41 @@ class TestHostToolChangePreamble(unittest.TestCase):
                          (None, None, None, None, None))
 
 
+class TestHostToolChangePolicy(unittest.TestCase):
+    """The M6 policy of a controller with no tool change (stock GRBL), through the real Start."""
+    PROGRAM = 'G21 G90\nG0 X10 Y10\nG1 Z-1 F300\nG1 X20\nT2 M6\nM0\nX30\n'
+
+    def start(self, policy):
+        from tests.grbl_stream_helpers import make_stream_tool
+        fake = FakeGrbl()
+        tool = make_stream_tool(fake, source=self.PROGRAM)
+        tool.app.options['tools_grbl_m6_policy'] = policy
+        tool.on_start()
+        return tool, fake
+
+    def test_host_tool_change_pauses_and_resumes(self):
+        tool, fake = self.start('pause')
+        commands = [c for c in fake.commands() if c != '?']
+        self.assertEqual(tool.stream_ended_sig.emit.call_args.args[0], 'tool_change')
+        self.assertFalse([c for c in commands if 'M6' in c or c.strip() == 'M0'])
+        self.assertNotIn('X30', commands)
+        self.assertEqual(commands[-1], 'M5')
+        self.assertEqual(commands[-2], 'G1 X20')
+        self.assertEqual(tool._tool_pause.index, 6)
+        self.assertEqual(tool._tool_pause.lines[tool._tool_pause.index], 'X30')
+        self.assertEqual(tool._stream_result['done'], 6)
+        self.assertIn('T2', tool.ui.status_strip.set_recovery.call_args.args[0])
+        self.assertIsNone(tool.action_allowed('jog'))
+
+    def test_m6_policy_skip_and_send(self):
+        for policy, expected in (('skip', ['T2', 'M0']), ('send', ['T2 M6', 'M0'])):
+            with self.subTest(policy=policy):
+                tool, fake = self.start(policy)
+                commands = [c for c in fake.commands() if c != '?']
+                at =commands.index(expected[0])
+                self.assertEqual(commands[at:at + 2], expected)
+                self.assertIsNone(tool._tool_pause)
+
+
 if __name__ == '__main__':
     unittest.main()

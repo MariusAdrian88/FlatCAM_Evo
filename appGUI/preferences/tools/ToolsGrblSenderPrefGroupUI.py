@@ -225,6 +225,25 @@ class ToolsGrblSenderPrefGroupUI(OptionsGroupUI):
         par_grid.addWidget(self.toolchange_plate_label, 16, 0)
         par_grid.addWidget(self.toolchange_plate_radio, 16, 1)
 
+        # M6 on a controller without a tool change
+        self.m6_policy_label = FCLabel('%s:' % _("M6 on GRBL"))
+        self.m6_policy_label.setToolTip(
+            _("What the sender does with an M6 when the controller has no tool change.\n"
+              "Send: write the M6 line.\n"
+              "Skip: remove the M6 word.\n"
+              "Pause: stop the job at the M6; press Resume after the tool change.")
+        )
+        self.m6_policy_radio = RadioSet(
+            [
+                {'label': _('Send'), 'value': 'send'},
+                {'label': _('Skip'), 'value': 'skip'},
+                {'label': _('Pause'), 'value': 'pause'}
+            ])
+        self.m6_policy_radio.setToolTip(self.m6_policy_label.toolTip())
+
+        par_grid.addWidget(self.m6_policy_label, 17, 0)
+        par_grid.addWidget(self.m6_policy_radio, 17, 1)
+
         # Calibrated manual tool change
         self.toolchange_distance_label = FCLabel('%s:' % _("Probe distance"))
         self.toolchange_distance_label.setToolTip(

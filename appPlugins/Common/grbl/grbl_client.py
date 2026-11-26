@@ -184,12 +184,24 @@ class StepGate:
                 self._tokens -= 1
 
 
+def _code_of(line):
+    return re.sub(r'\([^)]*\)', '', line).split(';')[0]
+
+
+def _has_m6_word(line):
+    return re.search(r'(?<![A-Za-z0-9.])M0*6(?![0-9.])', _code_of(line), re.IGNORECASE) is not None
+
+
+def _is_m0_only(line):
+    return re.fullmatch(r'\s*(?:N\d+\s*)?M0{1,2}\s*', _code_of(line), re.IGNORECASE) is not None
+
+
 def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, max_line=GRBL_MAX_LINE, check_mode=False,
                  on_progress=None, on_line=None, poll_status=False, poll_interval=0.2,
                  on_status=None, clock=time.monotonic, stall_timeout=30.0,
                  status_request=b'?', write_control=None, tool_change_ack=False,
                  on_tool_change=None, tool_command=None, on_tool_command_done=None, reply_timeout=5.0,
-                 step_gate=None, on_step_wait=None):
+                 step_gate=None, on_step_wait=None, host_tool_change=False):
     """
     Send `lines` to GRBL with the character-counting protocol: a new line
     is written only while the bytes of the lines in flight (each line + '\\n')
@@ -241,7 +253,10 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, max_line=GRBL_M
         nothing is in flight, an Idle report came after the last acknowledgement and the gate has a token.
         The wait is no stall.
     :param on_step_wait: callable(line index), 1 time per line, when the stream waits for a token.
-    :return: dict: 'status' ('finished', 'error', 'alarm', 'timeout', 'port_error',
+    :param host_tool_change: True (not in check mode): an M6 line is not written. The stream waits until nothing
+        is in flight and an Idle report came after the last acknowledgement (no stall), counts the M6 line and an
+        M0-only line that follows it as done, and returns 'tool_change' with 'index' (the next line).
+    :return: dict: 'status' ('finished', 'tool_change', 'error', 'alarm', 'timeout', 'port_error',
         'cancelled', 'stale', 'line_too_long' or 'unexpected_reset'), 'done' (acknowledged lines),
         'errors' (list of (line index, reply text)), 'last_text' (the last reply line),
         'in_flight' (lines written but not acknowledged) and, for 'line_too_long',
@@ -298,6 +313,20 @@ def stream_lines(lines, write, readline, rx_size=GRBL_RX_BUFFER, max_line=GRBL_M
     while done < total or tool_index is not None or tool_wait or manual_command is not None:
         # write while the next line fits; the Tool state of a manual M6 takes no motion
         while not tool_wait and tool_index is None and manual_command is None and sent < total:
+            if host_tool_change and not check_mode and _has_m6_word(lines[sent]):
+                if in_flight or not idle_since_ack:
+                    last_progress = clock()     # the wait for the machine is no stall
+                    break
+                done += 1
+                if on_progress is not None:
+                    on_progress(done, total)
+                next_index = sent + 1
+                if next_index < total and _is_m0_only(lines[next_index]):
+                    done += 1
+                    next_index += 1
+                    if on_progress is not None:
+                        on_progress(done, total)
+                return result('tool_change', index=next_index)
             changing_tool = tool_change_ack and not check_mode and is_tool_change_line(lines[sent])
             if changing_tool and (in_flight or poll_pending or buf):
                 break  # retire every earlier acknowledgement before sending M6

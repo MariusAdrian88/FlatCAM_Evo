@@ -1821,9 +1821,9 @@ class TestActionRules(unittest.TestCase):
         elif name == 'probe':
             tool._grbl_reserve('probe', motion=True)
         elif name == 'tool_pause':
-            tool._tool_pause = {}
+            tool._tool_pause = SimpleNamespace(tool=2)
         elif name == 'tool_pause_probe':
-            tool._tool_pause = {}
+            tool._tool_pause = SimpleNamespace(tool=2)
             tool._grbl_reserve('probe', motion=True)
         elif name.startswith('stream'):
             tool._grbl_reserve('stream', motion=True)

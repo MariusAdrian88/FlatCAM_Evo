@@ -197,6 +197,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     _al_map_calibration = None
     # the host tool change pause (T1) and the wait at the single block gate (F8): rows of ACTION_RULES
     _tool_pause = None
+    _m6_policy = 'native'       # the policy of the running job: 'native', 'send', 'skip' or 'pause'
     _step_waiting = False
     _step_gate = None       # the StepGate of single block (created by the checkbox slot)
     macro_page = None       # the user buttons page of the dock (SenderMacros.MacroPage)
@@ -1837,6 +1838,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self._on_spindle_state(False)
         self._camera_new_session('disconnect')
         self._toolchange_new_session('disconnect')
+        self._clear_tool_pause()
         self.sender_io.on_disconnect()
         try:
             self._grbl_set_ui_connected(False)
@@ -3412,6 +3414,21 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         except (AttributeError, RuntimeError):
             pass  # the Qt widget was deleted while the application closes
 
+    def _clear_tool_pause(self):
+        """Stop, Reset and disconnect end a host tool change pause (GUI thread): the banner goes too."""
+        if self._tool_pause is None:
+            return
+        self._tool_pause = None
+        if self._grbl_recovery is None:
+            self.ui.status_strip.set_recovery(None)
+
+    def _tool_pause_text(self):
+        """The banner of a host tool change pause."""
+        tool = self._tool_pause.tool
+        if tool is None:
+            return _("Tool change. Change the tool, set Z, then press Resume.")
+        return _("Tool change: T%s. Change the tool, set Z, then press Resume.") % tool
+
     def _toolchange_new_session(self, reason=''):
         """Connect, disconnect, reset or home: a fixed reference and a measurement are old."""
         was_busy = bool(self.__dict__.get('_toolchange_busy', False))
@@ -4201,7 +4218,10 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             ui.status_strip.set_state(_("Home needed"))
         # the recovery banner is latched: only the end of the recovery hides it
         if self._grbl_recovery is None:
-            ui.status_strip.set_recovery(None)
+            if self._tool_pause is not None:
+                ui.status_strip.set_recovery(self._tool_pause_text(), button=False)
+            else:
+                ui.status_strip.set_recovery(None)
         elif self._grbl_recovery == 'needs_home':
             ui.status_strip.set_recovery(_("Reset done. Home the machine."), button=False)
 
@@ -4219,6 +4239,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         """Stop the running operation at once: feed hold, and the machine needs recovery."""
         self._stop_continuous_jog()
         self._toolchange_new_session('stop')
+        self._clear_tool_pause()
         if self.__dict__.get('_simulation') is not None:
             self._simulation.stop()
             return
@@ -4262,6 +4283,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self._last_wco = None
         self._camera_new_session('reset')
         self._toolchange_new_session('reset')
+        self._clear_tool_pause()
         self.sender_io.clear_commanded()
         with self._grbl_op_lock:
             if keep_position is None:
@@ -5271,7 +5293,17 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             arc_segment=float(self.app.options.get("tools_grbl_arc_segment", 0.5)), units=target.units,
             decimals=target.coords_decimals, profile=profile,
             poll_ms=int(self.app.options.get("tools_grbl_status_ms", 200)), seq=seq, generation=generation,
-            rapid_mm_min=self._rapid_mm_min(active_profile_of(self.app)))
+            rapid_mm_min=self._rapid_mm_min(active_profile_of(self.app)), m6_policy=self._effective_m6_policy())
+
+    def _effective_m6_policy(self):
+        """:return: 'send', 'skip' or 'pause' on a controller with no manual or automatic tool change and no
+        E-Cut port, else 'native' (GUI thread)."""
+        caps = self.__dict__.get('_grbl_caps') or {}
+        if (caps.get('manual_tool_change', False) or caps.get('automatic_tool_change', False) or
+                callable(getattr(self.grbl_ser_port, 'prepare_program', None))):
+            return 'native'
+        policy = self.app.options.get("tools_grbl_m6_policy", 'pause')
+        return policy if policy in ('send', 'skip', 'pause') else 'pause'
 
     def _apply_prepared(self, prepared):
         """
@@ -5316,6 +5348,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         if not self._prepared_current(inputs, req):
             self._start_abandoned(op)
             return
+        self._m6_policy = inputs.m6_policy
         self._start_stream_worker(op, self.job_lines, self.job_line_numbers, inputs.check_mode, inputs.poll_ms, req)
 
     def _prepared_current(self, inputs, req):
@@ -6031,7 +6064,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             tool_change_ack=tool_change_ack,
             on_tool_change=on_tool_change, tool_command=tool_command,
             on_tool_command_done=tool_command_done,
-            step_gate=None if callable(prepare_program) else self._step_gate, on_step_wait=self._on_step_wait)
+            step_gate=None if callable(prepare_program) else self._step_gate, on_step_wait=self._on_step_wait,
+            host_tool_change=self._m6_policy == 'pause' and not check_mode)
         self._step_waiting = False
         status = res['status']
 
@@ -6055,6 +6089,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         # the status map of A5.2 step 6
         if status == 'finished':
             return self._grbl_stream_finish(op, res, check_mode)
+        if status == 'tool_change':
+            return self._grbl_tool_change_stop(op, res, program, prefix_count, start_index)
         if status == 'cancelled':
             return 'stopped'
         if status == 'stale':
@@ -6155,6 +6191,32 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 return 'stopped'
             self._grbl_abort_stream_locked(op, status if status in ('timeout', 'port_error') else 'error', text)
         return how
+
+    def _grbl_tool_change_stop(self, op, res, program, prefix_count, start_index):
+        """
+        The stream stopped before an M6 of a controller with no tool change (the worker): stop the spindle and
+        leave the stream epoch clean, as a normal end does. No abort, no recovery latch.
+
+        :return: 'tool_change', or the 'how' of a failure.
+        """
+        m6_index = res['index'] - 1
+        if not SenderGen._has_m6(program[m6_index]):
+            m6_index -= 1       # an M0 line followed the M6 line
+        text, status = self._grbl_transact(op, 'M5')
+        with self._grbl_op_lock:
+            if op.cancel.is_set() or status == 'cancelled':
+                return 'stopped'
+            if status != 'ok':
+                self._grbl_abort_stream_locked(op, status, text)
+                return status
+            if not self._grbl_commit_success_locked(op):
+                return 'stopped'
+        tool = re.search(r'T\s*(\d+)', program[m6_index], re.IGNORECASE)
+        self._stream_result['tool_pause'] = {
+            'index': start_index + res['index'] - prefix_count,
+            'm6_index': start_index + m6_index - prefix_count,
+            'tool': None if tool is None else int(tool.group(1))}
+        return 'tool_change'
 
     def _grbl_stream_finish(self, op, res, check_mode):
         """
@@ -7232,12 +7294,19 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self._unlock_execution_view()
         self._grbl_tool_change_pending = False
         self.sender_io.refresh()
-        if how not in ('finished', 'check_passed'):
+        if how not in ('finished', 'check_passed', 'tool_change'):
             self._invalidate_coordinates()
         self._grbl_tool_commands = []
         self._grbl_tool_command_busy = False
-        self._apply_machine_state()
         result = self._stream_result or {}
+        if how == 'tool_change':
+            pause = result['tool_pause']
+            self._tool_pause = SimpleNamespace(
+                index=pause['index'], m6_index=pause['m6_index'], tool=pause['tool'], lines=self.job_lines,
+                numbers=self.job_line_numbers, check_mode=False,
+                poll_ms=int(self.app.options.get("tools_grbl_status_ms", 200)), target=self._target(),
+                job_start=None)
+        self._apply_machine_state()
         console = self.app.ui.grbl_console_dock.widget()
         if isinstance(console, GrblConsole):
             console.update_progress(result.get('done', 0), result.get('error_indices', []))
@@ -7276,6 +7345,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             if errors:
                 text += ' %s: %s' % (_("Errors on the lines"), ', '.join(str(n) for n in errors[:20]))
             self.app.inform.emit('[ERROR_NOTCL] %s' % text)
+        elif how == 'tool_change':
+            self.app.inform.emit('[WARNING_NOTCL] %s' % self._tool_pause_text())
         elif how == 'rejected':
             # the worker told why; nothing was sent
             pass

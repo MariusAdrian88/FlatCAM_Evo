@@ -993,6 +993,7 @@ class TestGrblHalController(unittest.TestCase):
     def test_m6_waits_for_the_acknowledge_and_a_cycle_start(self):
         fake = ToolChangeFake()
         tool = make_stream_tool(fake, source='G21\nM6\nG1 X1.000 Y1.000\n')
+        tool._grbl_caps = {'manual_tool_change': True}
 
         def operator():
             if (fake.tool_waiting and tool.__dict__.get('_grbl_tool_change_pending') and
@@ -1020,6 +1021,7 @@ class TestGrblHalController(unittest.TestCase):
             with self.subTest(source=source):
                 fake = CheckFake()
                 tool = make_stream_tool(fake, source=source)
+                tool._grbl_caps = {'manual_tool_change': True}
                 tool._on_single_block(True)
                 stage = [0]
 
@@ -1049,6 +1051,7 @@ class TestGrblHalController(unittest.TestCase):
         # (c) a native M6: the tool change runs as with single block off
         fake = ToolChangeFake()
         tool = make_stream_tool(fake, source='G21\nM6\nG1 X1.000 Y1.000\n')
+        tool._grbl_caps = {'manual_tool_change': True}
         tool._on_single_block(True)
         releases = []
 
@@ -1103,6 +1106,7 @@ class TestGrblHalController(unittest.TestCase):
             with self.subTest(fail_second=fail_second):
                 fake = ToolChangeFake()
                 tool = make_stream_tool(fake, source='M6\nM6\nG1 X1\n')
+                tool._grbl_caps = {'manual_tool_change': True}
                 answer = fake._answer
                 premature = []
                 stages = []
@@ -1157,6 +1161,7 @@ class TestGrblHalController(unittest.TestCase):
             with self.subTest(command=command):
                 fake = ToolChangeFake(replies={command: ['error:20']})
                 tool = make_stream_tool(fake, source='M6\nG1 X1\n')
+                tool._grbl_caps = {'manual_tool_change': True}
                 attempted = []
                 errors = []
 

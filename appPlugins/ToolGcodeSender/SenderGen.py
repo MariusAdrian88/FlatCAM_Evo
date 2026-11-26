@@ -123,6 +123,9 @@ def _split_comments(line):
     return re.split(r'(\([^)]*\)|;.*$)', line)
 
 
+_M6_WORD_RE = re.compile(r'(?<![A-Za-z0-9.])M0*6(?![0-9.])', re.IGNORECASE)
+
+
 def _has_m6(line):
     code = ''.join(_split_comments(line)[0::2]).upper()
     return any(k == 'M' and v == 6 for k, v in _words(code))
@@ -375,6 +378,7 @@ class _StartInputs:
     optional_stop: bool = False  # M1 stops the job
     block_delete: bool = True   # the lines that start with '/' are skipped
     rapid_mm_min: float = 3000.0  # the rapid rate for the time estimate
+    m6_policy: str = 'native'   # 'send', 'skip', 'pause' (a controller with no tool change) or 'native'
 
 
 @dataclasses.dataclass
@@ -435,6 +439,10 @@ def prepare_job(inputs, profile_compute, limits=(GRBL_RX_BUFFER, GRBL_MAX_LINE))
             return prepared
         text = outcome.out
     numbered = clean_lines_numbered(text, optional_stop=inputs.optional_stop, block_delete=inputs.block_delete)
+    if inputs.m6_policy == 'skip':
+        # only the M6 word goes: the T word and the rest of the block stay; an empty block is dropped
+        stripped = [(number, ' '.join(_M6_WORD_RE.sub(' ', line).split())) for number, line in numbered]
+        numbered = [(number, line) for number, line in stripped if line]
     lines = [line for _number, line in numbered]
     bad_index = validate_stream_lines(lines, *limits)
     if bad_index is not None:

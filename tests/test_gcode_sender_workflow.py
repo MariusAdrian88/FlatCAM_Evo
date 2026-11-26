@@ -433,6 +433,7 @@ class SenderMachineProfileBlockTest(unittest.TestCase):
         answers to `$#` from then on. A route that returns a thread (the GUI thread of the user, which waits for
         the stream worker) is waited for before the Stop."""
         state = {'queued': False, 'tried': False, 'thread': None}
+        tool._grbl_caps = {**(tool.__dict__.get('_grbl_caps') or {}), 'manual_tool_change': True}   # a native M6
 
         def operator():
             if (not (fake.tool_waiting and tool.__dict__.get('_grbl_tool_change_pending')) or
