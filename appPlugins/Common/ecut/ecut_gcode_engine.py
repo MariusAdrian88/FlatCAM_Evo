@@ -416,6 +416,7 @@ class EcutGcodeEngine:
             if not self.check_mode:
                 self._rapid_override = self._spindle_override = 100
                 self.api.feed_override = 1
+                self.api.rate_limit = 1
         self._save()
         return ['ok']
 
@@ -525,6 +526,7 @@ class EcutGcodeEngine:
         self._program_epoch += 1
         epoch = self._program_epoch
         self._program_running = True
+        self.api.rate_limit = 1
         try:
             for batch in prepared.batches:
                 if self._program_epoch != epoch:
@@ -540,10 +542,12 @@ class EcutGcodeEngine:
                 if batch.ended and not self.check_mode:
                     self._rapid_override = self._spindle_override = 100
                     self.api.feed_override = 1
+                    self.api.rate_limit = 1
                 self._save()
         finally:
             self._active_parser = None
             self._program_running = False
+            self.api.rate_limit = 1
             if not self.check_mode:
                 self._parser.position = self._measured_position()
 
@@ -1117,7 +1121,7 @@ class EcutGcodeEngine:
         kind = 'MPos' if self._host[10] else 'WPos'
         if kind == 'WPos':
             position = [p - o for p, o in zip(position, offset)]
-        override = round(self.api.feed_override * 100)
+        override = round((self.api.rate_limit if self._program_running else self.api.feed_override) * 100)
         speed = getattr(self.api, '_spindle_rpm', 0)
         # the accessory field of the sender protocol: S = spindle CW, C = spindle CCW
         accessory = {'SPINDLE_CW': '|A:S', 'SPINDLE_CCW': '|A:C'}.get(getattr(self.api, '_spindle_direction', None), '')
@@ -1137,6 +1141,7 @@ class EcutGcodeEngine:
         self._check_snapshot = None
         self._rapid_override = self._spindle_override = 100
         self.api.feed_override = 1
+        self.api.rate_limit = 1
         self._parser = _Parser(position=self._measured_position())
         # The G-code Sender detects the adapter by this banner (its banner check).
         return ["E-Cut host adapter 1.0 ['$' for help]"]
@@ -1146,6 +1151,16 @@ class EcutGcodeEngine:
             return [self.status_report()]
         if code == 0x18:
             return self.reset()
+        if self._program_running and 0x90 <= code <= 0x94 and not self.check_mode:
+            if code == 0x90:
+                rate = 1.0
+            else:
+                rate = self.api.rate_limit + {0x91: .1, 0x92: -.1, 0x93: .01, 0x94: -.01}[code]
+            above = rate > 1.0 + 1e-9
+            self.api.rate_limit = rate
+            if above:
+                return ['[MSG:E-Cut: feed override above 100 % is not available during a program]']
+            return []
         if self._program_running and (0x90 <= code <= 0x9e or code in (0xa0, 0xa1)):
             raise GcodeError(20, 'Overrides are unavailable during a prepared program')
         if self.check_mode:

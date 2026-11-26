@@ -87,7 +87,13 @@ class Clock:
         self.module = types.ModuleType('time')
         self.module.__dict__.update(vars(time))
         self.module.monotonic = lambda: self.now
-        self.module.sleep = lambda seconds: setattr(self, 'now', self.now + max(seconds, 0.001))
+        self.waiting = None  # while it returns True the sleep also takes real time: a port thread is working
+        self.module.sleep = self.sleep
+
+    def sleep(self, seconds):
+        if self.waiting is not None and self.waiting():
+            time.sleep(0.001)
+        self.now += max(seconds, 0.001)
 
 
 class StreamBoard(Board):
@@ -101,6 +107,7 @@ class StreamBoard(Board):
         self.queue, self.sent, self.events = [], [], []
         self.busy_until = 0.0
         self.trigger = None
+        self.hold = None  # while it returns True the board runs no record
         self.stream_end = self.stop_at = None
 
     def open(self):
@@ -129,7 +136,7 @@ class StreamBoard(Board):
     def poll(self):
         if self.trigger is not None and self.trigger(self):
             self.trigger = None
-        if self.clock.now >= self.busy_until:
+        if self.clock.now >= self.busy_until and not (self.hold is not None and self.hold()):
             for _ in range(min(1, len(self.queue))):
                 self.positions = [p + d for p, d in zip(self.positions, self.queue.pop(0))]
         busy = bool(self.queue) or self.clock.now < self.busy_until
@@ -176,6 +183,16 @@ def run_stop(monkeypatch, moment):
                 due = board.stream_end is not None and clock.now >= board.stream_end + 1.9
             if due:
                 requested.append(clock.now)
+                # the port's own thread takes the byte; until the program is stopping the board must not
+                # drain, and the fake time must not run out meanwhile (a loaded PC makes that thread slow)
+                if moment in ('records', 'fifo', 'drain'):
+                    taken = []
+
+                    def in_flight():
+                        if api.stop_pending:
+                            taken.append(True)
+                        return not taken
+                    board.hold = clock.waiting = in_flight
                 port.write(b'\x85')
             return due
         board.trigger = fire

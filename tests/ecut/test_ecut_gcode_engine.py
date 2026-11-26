@@ -461,7 +461,7 @@ def test_prepared_job_refuses_realtime_overrides_but_allows_status():
         original(records)
         if not seen:
             seen.append(engine.realtime(ord('?')))
-            for code in (0x91, 0x96, 0x9A, 0xA0):
+            for code in (0x96, 0x9A, 0xA0):
                 with pytest.raises(module.GcodeError):
                     engine.realtime(code)
     api._usb.send_motion = send

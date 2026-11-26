@@ -395,13 +395,17 @@ class _HoldableRecords:
     While held, the actual speed falls by the axis deceleration limit every record until it is 0.
     After release it rises by the acceleration limit until the planned speed. The emitted counts
     are rounded positions on the planned path, so their sum is exactly the path total.
-    Without a hold the planned records pass unchanged.
+    A feed override (rate_limit, 0.1 to 1.0) moves the goal speed to that share of the planned
+    speed, inside the same deceleration (down) and acceleration (up) limits.
+    Without a hold or override the planned records pass unchanged.
     """
 
-    def __init__(self, segments, config: EcutBoardConfig, held: Callable[[], bool]):
+    def __init__(self, segments, config: EcutBoardConfig, held: Callable[[], bool],
+                 rate_limit: Callable[[], float] = lambda: 1.0):
         self._records = iter(segments)
         self._count = len(segments)
         self._held = held
+        self._rate_limit = rate_limit
         self._scales = [abs(axis.steps_per_mm * config.interpolation_factor) for axis in config.axes]
         self._acceleration = [axis.acceleration_mm_s2 for axis in config.axes]
         self._deceleration = [axis.effective_deceleration_mm_s2 for axis in config.axes]
@@ -444,25 +448,30 @@ class _HoldableRecords:
         out = []
         while len(out) < count and not self.done:
             held = self._held()
-            if not held and self._speed is None and type(self._s) is int:
+            limit_rate = self._rate_limit()
+            if not held and limit_rate == 1.0 and self._speed is None and type(self._s) is int:
                 # no hold yet: the planned record, unchanged
                 out.append(self._record)
                 self._emitted = [a + b for a, b in zip(self._emitted, self._record)]
                 self._s += 1
                 self._seek(self._s)
                 continue
-            nominal, limit = self._nominal(self._deceleration if held else self._acceleration)
+            nominal, decel = self._nominal(self._deceleration)
+            accel = self._nominal(self._acceleration)[1]
             if self._speed is None:
                 self._speed = nominal
+            goal = 0.0 if held else nominal * limit_rate
+            if self._speed > goal:
+                target = max(goal, self._speed - decel * 0.001)
+            else:
+                target = min(goal, self._speed + accel * 0.001)
             if held:
-                target = max(0.0, self._speed - limit * 0.001)
                 if nominal > 0 and target <= 0 or nominal == 0:
                     self._speed, self.stopped = 0.0, True
                     break
-                rate = min(1.0, target / nominal)
             else:
                 self.stopped = False
-                rate = 1.0 if nominal == 0 else min(1.0, (self._speed + limit * 0.001) / nominal)
+            rate = 1.0 if nominal == 0 else min(1.0, target / nominal)
             s = min(float(self._count), self._s + rate)
             self._seek(s)
             fraction = s - self._index
@@ -470,6 +479,8 @@ class _HoldableRecords:
             out.append(tuple(p - e for p, e in zip(position, self._emitted)))
             self._emitted, self._s = position, s
             self._speed = rate * nominal
+            if not held and limit_rate == 1.0 and rate == 1.0 and s == int(s):
+                self._s, self._speed = int(s), None  # back at the planned speed on a whole record
         return out
 
 
@@ -627,6 +638,7 @@ class EcutAPI:
         self._last_rx: Optional[EcutRxFrame] = None
         self._running = False
         self._feed_override = 1.0
+        self._rate_limit = 1.0  # live share of the planned speed (0.1 to 1.0) for the streamed records
         self._modal = _Modal(units_mm=self._config.units_mm)
         self._feed_mm_min: Optional[float] = None
         self._on_state_change: Optional[Callable[[State], None]] = None
@@ -2196,6 +2208,16 @@ class EcutAPI:
         self._feed_override = max(safety.min_feedrate_override_pct / 100.0,
                                   min(safety.max_feedrate_override_pct / 100.0, value))
 
+    @property
+    def rate_limit(self) -> float:
+        return self._rate_limit
+
+    @rate_limit.setter
+    def rate_limit(self, value: float) -> None:
+        if not math.isfinite(value):
+            raise ValueError('Rate limit must be finite')
+        self._rate_limit = max(0.1, min(1.0, value))
+
     # ------------------------------------------------------------------
     # Status / diagnostics API
     # ------------------------------------------------------------------
@@ -2344,7 +2366,8 @@ class EcutAPI:
         per_packet = max(1, MAX_MOTION_RECORDS_PER_PACKET)
         in_run = self._running
         self._traj_id = (self._traj_id + 1) & 0xFFFFFF
-        records = _HoldableRecords(segments, self._config, lambda: self._state == State.PAUSED)
+        records = _HoldableRecords(segments, self._config, lambda: self._state == State.PAUSED,
+                                    lambda: self._rate_limit)
         packet = 0
         sent = 0
         first_record_time = None

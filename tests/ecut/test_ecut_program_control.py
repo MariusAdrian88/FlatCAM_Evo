@@ -1,4 +1,5 @@
 """Program controls and real FlatCAM files, using the simulated USB board."""
+import math
 from pathlib import Path
 import time
 from types import SimpleNamespace
@@ -260,6 +261,57 @@ def test_manual_pause_clears_physical_coolant_despite_generic_alias(command):
     api.on_state_change(confirm)
     api.run_gcode([command])
     assert api._usb.outputs == (4 if command == 'M0' else 0)
+
+
+def test_feed_override_ramps_both_ways():
+    from appPlugins.Common.ecut.ecut_controller import _HoldableRecords
+    from test_ecut_feed_hold import make_path, speeds
+    config = EcutBoardConfig()
+    for axis in config.axes:
+        axis.acceleration_mm_s2 = 200.0
+    path = make_path(config, target=(200.0, 100.0))
+    total = [sum(r[i] for r in path) for i in range(6)]
+    rate = [1.0]
+    records = _HoldableRecords(path, config, lambda: False, lambda: rate[0])
+    out = list(records.take(len(path) // 4))
+    planned = speeds(out, config)[-1]
+    limit = 200.0 * math.hypot(2, 1) / 2 * 0.001  # mm/s per record along the path
+    noise = 2 / (config.axes[0].steps_per_mm * config.interpolation_factor) * 1000 * 1000
+
+    def ramp(goal, steps):
+        start = len(out)
+        for _ in range(steps):
+            out.extend(records.take(1))
+        v = speeds(out[start - 1:], config)
+        assert all(abs(b - a) <= limit + noise for a, b in zip(v, v[1:]))
+        assert abs(sum(v[-50:]) / 50 - goal) <= 0.05 * planned
+        return v
+
+    rate[0] = 0.5
+    down = ramp(planned * 0.5, 3000)
+    assert down[-1] < down[0]
+    rate[0] = 1.0
+    up = ramp(planned, 3000)
+    assert up[-1] > up[0]
+    while not records.done:
+        out.extend(records.take(100))
+    assert [sum(r[i] for r in out) for i in range(6)] == total
+
+    from appPlugins.Common.ecut.ecut_gcode_engine import EcutGcodeEngine
+    engine = EcutGcodeEngine(pwm_api())
+    engine._program_running = True
+    assert engine.realtime(0x92) == []
+    assert '|Ov:90,' in engine.status_report()
+    answer = engine.realtime(0x91) + engine.realtime(0x91)
+    assert answer == ['[MSG:E-Cut: feed override above 100 % is not available during a program]']
+    assert '|Ov:100,' in engine.status_report()
+
+    # a reduced rate does not survive the program: the next one starts at the planned speed
+    engine.realtime(0x92)
+    assert engine.api.rate_limit == pytest.approx(0.9)
+    engine._program_running = False
+    engine.execute_program(engine.prepare_program(['G1 X.01 F60']))
+    assert engine.api.rate_limit == 1.0
 
 
 def test_last_move_with_slow_fifo_ends_idle(monkeypatch):
