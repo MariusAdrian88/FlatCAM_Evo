@@ -206,6 +206,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     stream_ended_sig = QtCore.pyqtSignal(str)
     # the result of a $X from the unlock task: True clears the alarm row (GUI slot)
     unlock_result_sig = QtCore.pyqtSignal(bool)
+    # set by a 'port_error' failure (worker thread); the GUI slot closes the port
+    _grbl_port_lost = False
     # a text line for the console, from any thread
     console_line_sig = QtCore.pyqtSignal(str)
     preview_ready_sig = QtCore.pyqtSignal(object)
@@ -735,6 +737,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
         self.ui.console_cb.toggled.connect(self.on_console_toggled)
         self.ui.fit_view_cb.toggled.connect(self.on_fit_view_toggled)
+        self.ui.check_mode_cb.toggled.connect(self._show_check_mode)
+        self._show_check_mode()
         self.ui.start_button.clicked.connect(self.on_start)
         self.ui.hold_button.clicked.connect(self._on_hold_button)
         self.ui.resume_button.clicked.connect(self._on_resume_button)
@@ -1520,6 +1524,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                     self._grbl_reply_pending = False
                     self._grbl_rx_buffer = suffix  # drop the classified part, keep the fragment
                 self._grbl_connected = True
+                self._grbl_port_lost = False
                 # Capability belongs to this handshake's port, never a previous connection.
                 self._native_jog_port = port if any(is_native_jog_banner(text) for text in lines) else None
                 # grblHAL prints its own banner; its capabilities ($I+) belong to this session only
@@ -1655,7 +1660,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self.ui.status_strip.clear()
             self.ui.status_label.setText(_("Idle"))
             self.ui.progress_bar.setValue(0)
-            self.ui.ov_values_label.setText('F: 100%  R: 100%  S: 100%')
+            self.ui.ov_values_label.setText(_('F: %d%%  R: %d%%  S: %d%%') % (100, 100, 100))
             self._unlock_execution_view()
         self.app.ui.sender_estop_button.setVisible(connected)
         self.sender_io.refresh()
@@ -6474,7 +6479,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 code_text('ALARM:' + report['substate'], self._grbl_grblhal) if 'substate' in report else 'ALARM')
         self._apply_machine_state()
         if 'ov' in report:
-            self.ui.ov_values_label.setText('F: %d%%  R: %d%%  S: %d%%' % report['ov'])
+            self.ui.ov_values_label.setText(_('F: %d%%  R: %d%%  S: %d%%') % report['ov'])
             # the accessory field comes with 'Ov'; without it, no accessory is on
             accessory = report.get('accessory', '')
             self._on_spindle_state('S' in accessory or 'C' in accessory)
@@ -6766,6 +6771,12 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     def on_fit_view_toggled(self, checked):
         self.app.options["tools_gcode_fit_view"] = bool(checked)
         self.app.defaults["tools_gcode_fit_view"] = bool(checked)
+
+    def _show_check_mode(self, checked=None):
+        # the header shows that Start only validates
+        checked = self.ui.check_mode_cb.isChecked()
+        self.ui.check_badge.setVisible(checked)
+        self.ui.start_button.setText(_("Start (check)") if checked else _("Start"))
 
     def on_fit_view(self):
         if self.view3d is None or not self.view3d._segments:

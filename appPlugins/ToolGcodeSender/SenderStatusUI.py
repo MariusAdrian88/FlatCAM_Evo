@@ -86,8 +86,9 @@ class SenderStatusStrip(QtWidgets.QWidget):
         else:
             text, color = state, STATE_COLORS.get(state.split(':')[0], GREY)
         self.state_label.setText(text)
-        self.state_label.setStyleSheet(
-            "QLabel {background-color: %s; color: white; font-weight: bold; padding: 2px 8px;}" % color)
+        style = "QLabel {background-color: %s; color: white; font-weight: bold; padding: 2px 8px;}" % color
+        if self.state_label.styleSheet() != style:
+            self.state_label.setStyleSheet(style)
 
     def set_position(self, pos, units):
         if pos is None:

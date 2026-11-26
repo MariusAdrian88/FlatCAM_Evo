@@ -976,6 +976,19 @@ class TestDockedJogPage(unittest.TestCase):
                        ui.view3d_button, ui.save_levelled_button):
             self.assertTrue(ui.job_tab.isAncestorOf(widget))
 
+    def test_check_mode_is_shown_in_the_header(self):
+        self.full_mode()
+        ui = self.tool.ui
+        ui.job_row.show()
+        ui.check_mode_cb.setChecked(True)
+        _qapp.processEvents()
+        self.assertTrue(ui.check_badge.isVisible())
+        self.assertEqual(ui.start_button.text(), "Start (check)")
+        ui.check_mode_cb.setChecked(False)
+        _qapp.processEvents()
+        self.assertFalse(ui.check_badge.isVisible())
+        self.assertEqual(ui.start_button.text(), "Start")
+
     def test_probing_page_holds_the_probing_controls_and_the_camera_mode_keeps_only_the_edge_probe(self):
         ui = self.tool.ui
         ui.al_toolbar.setCurrentWidget(ui.probing_tab)

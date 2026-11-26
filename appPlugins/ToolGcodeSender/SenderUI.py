@@ -572,6 +572,11 @@ class GcodeSenderUI:
         for button in (self.start_button, self.hold_button, self.resume_button, self.stop_button):
             button.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Fixed)
             job_lay.addWidget(button, 1)
+        self.check_badge = FCLabel(_("CHECK"))
+        self.check_badge.setStyleSheet("QLabel { color: orange; font-weight: bold; }")
+        self.check_badge.setToolTip(_("Check mode: Start validates the G-code without motion."))
+        self.check_badge.setVisible(False)
+        job_lay.addWidget(self.check_badge)
         header_box.addWidget(self.job_row)
 
         self.unlock_button = FCButton(_("Unlock"))
@@ -638,7 +643,7 @@ class GcodeSenderUI:
                 h_lay.addWidget(btn)
                 self.ov_buttons[(name, text)] = (btn, byte)
             ov_grid.addLayout(h_lay, row_idx, 1)
-        self.ov_values_label = FCLabel('F: 100%  R: 100%  S: 100%')
+        self.ov_values_label = FCLabel(_('F: %d%%  R: %d%%  S: %d%%') % (100, 100, 100))
         ov_grid.addWidget(self.ov_values_label, 4, 0, 1, 2)
         ov_grid.setRowStretch(5, 1)
 

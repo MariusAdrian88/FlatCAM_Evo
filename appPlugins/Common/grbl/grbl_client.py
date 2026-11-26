@@ -590,6 +590,7 @@ class GrblClientMixin:
             self._grbl_report_inches = None
             self._grbl_connect_attempt = None
             self._grbl_close_pending = False
+            self._grbl_port_lost = False
             if port is not None:
                 self._grbl_rx_port = None
                 self._grbl_rx_buffer = b''
@@ -769,14 +770,23 @@ class GrblClientMixin:
     def _grbl_release(self, op):
         """Free the serial port after the operation `op` ended; close it if a disconnect waits."""
         close_now = False
+        lost = None
         with self._grbl_op_lock:
             if self._grbl_op is op:
                 self._grbl_op = None
                 close_now = self._grbl_close_pending
+            if self._grbl_port_lost:
+                # a flag of an old port is cleared without a close
+                self._grbl_port_lost = False
+                if self.grbl_ser_port is op.port:
+                    lost = op.port
         if op.name not in MONITOR_OPS:
             self.op_changed_sig.emit()
         if close_now:
             self._grbl_close_port()
+        if lost is not None:
+            self._grbl_close_port(port=lost)
+            self.app.inform.emit('[ERROR_NOTCL] %s' % _("Connection lost."))
 
     def _grbl_start_op(self, name, fn, motion=False, allow_in_recovery=False, own_thread=False,
                        read_only=False):
@@ -838,6 +848,8 @@ class GrblClientMixin:
         uncertain = status in ('timeout', 'port_error', 'probe_invalid')
         if op is not None and (self._grbl_op is not op or op.cancel.is_set() or op.failed):
             return
+        if status == 'port_error':
+            self._grbl_port_lost = True
         if alarm or unexpected_reset or status == 'probe_failed' or (uncertain and (op is None or op.motion)):
             self._grbl_recovery = 'needs_reset'
             self._grbl_reset_pending = False

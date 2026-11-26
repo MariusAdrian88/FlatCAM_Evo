@@ -12,6 +12,14 @@ from PyQt6 import QtCore, QtWidgets
 from vispy import scene
 from vispy.color import Colormap
 
+import gettext
+import appTranslation as fcTranslate
+import builtins
+
+fcTranslate.apply_language('strings')
+if '_' not in builtins.__dict__:
+    _ = gettext.gettext
+
 RAPID_COLOR = (0.55, 0.55, 0.55, 0.6)
 CUT_COLOR = (0.10, 0.45, 0.90, 1.0)
 # an arc that the sender streams as an arc and the display could not split: drawn as its chord
@@ -65,17 +73,19 @@ class SenderView3d:
 
         def position(xyz):
             if units not in ('MM', 'IN') or xyz is None or not np.isfinite(xyz).all():
-                return 'unavailable'
+                return _('unavailable')
             return 'X %.3f &nbsp; Y %.3f &nbsp; Z %.3f' % tuple(xyz)
 
-        unit_text = units.lower() if units in ('MM', 'IN') else 'units unknown'
-        self.coordinates.setText(
-            '<span style="font-size:16pt; font-weight:bold">Work (%s): %s</span><br>'
-            'Machine (%s): %s<br>WCS unverified · Machine reference unverified%s<br>'
-            'Homing establishes the machine reference; not necessarily zero at switches.<br>'
-            'Controller coordinates, not independent physical measurement.' % (
-                unit_text, position(work), unit_text, position(machine), ' · stale' if stale else ''))
-        self.coordinates.adjustSize()
+        unit_text = units.lower() if units in ('MM', 'IN') else _('units unknown')
+        text = (
+            '<span style="font-size:16pt; font-weight:bold">' + _('Work (%s): %s') + '</span><br>' +
+            _('Machine (%s): %s') + '<br>' + _('WCS unverified') + ' · ' + _('Machine reference unverified') +
+            '%s<br>' + _('Homing establishes the machine reference; not necessarily zero at switches.') + '<br>' +
+            _('Controller coordinates, not independent physical measurement.')) % (
+                unit_text, position(work), unit_text, position(machine), ' · ' + _('stale') if stale else '')
+        if self.coordinates.text() != text:
+            self.coordinates.setText(text)
+            self.coordinates.adjustSize()
         self.coordinates.show()
         self.coordinates.raise_()
         if work is not None or machine is not None:

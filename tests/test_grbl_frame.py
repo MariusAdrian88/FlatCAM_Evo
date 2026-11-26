@@ -647,6 +647,42 @@ class TestFirstJobWrite(unittest.TestCase):
         self.assertEqual(tool._grbl_recovery, 'needs_reset')
         self.assertTrue(tool._grbl_stream_dirty)
 
+    def test_port_error_disconnects(self):
+        class LostFake(CheckFake):
+            lost = False
+            lose_at_job = False
+
+            def write(self, data):
+                if self.lose_at_job and data[:1] not in (b'$', b'?'):
+                    self.lost = True
+                return super().write(data)
+
+            def readline(self):
+                if self.lost:
+                    raise OSError('device lost')
+                return super().readline()
+
+        # (a) in a stream
+        fake = LostFake()
+        fake.lose_at_job = True
+        tool, _target = make_levelled_stream_tool(fake)
+        tool.on_start()
+        self.assertEqual(ended_how(tool), 'port_error')
+        tool.grbl_port_closed_sig.emit.assert_called_once_with()
+        self.assertIsNone(tool.grbl_ser_port)
+        self.assertFalse(tool._grbl_port_ready())
+
+        # (b) in a status poll (a monitor operation never reaches _on_stream_ended)
+        fake = LostFake()
+        tool = make_stream_tool(fake)
+        fake.lost = True
+        op = tool._grbl_reserve('status_poll')
+        tool._grbl_query_status(op, timeout=0.5)
+        tool._grbl_release(op)
+        tool.grbl_port_closed_sig.emit.assert_called_once_with()
+        self.assertIsNone(tool.grbl_ser_port)
+        self.assertFalse(tool._grbl_port_ready())
+
     def test_not_levelled_write_has_no_request_check(self):
         tool, fake, op, _req = self.make()
         write, _readline = tool._grbl_stream_io(op)
