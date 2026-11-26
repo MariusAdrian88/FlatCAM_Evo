@@ -883,17 +883,44 @@ class TestHostToolChangePreamble(unittest.TestCase):
                          (None, None, None, None, None))
 
 
+class ToolPauseFake(FakeGrbl):
+    """A FakeGrbl whose $G answer, G92 offset and machine position the test sets."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.gc = None
+        self.g92 = (0.0, 0.0, 0.0)
+        self.mpos = (0.0, 0.0, 0.0)
+
+    def _answer(self, cmd):
+        if cmd == '$G' and self.gc is not None:
+            self._send(self.gc, 'ok')
+        elif cmd == '$#':
+            self._send('[G54:0.000,0.000,0.000]', '[G92:%.3f,%.3f,%.3f]' % self.g92, '[TLO:0.000]', 'ok')
+        elif cmd == '?':
+            self._send('<%s|MPos:%.3f,%.3f,%.3f|FS:0,0>' % ((self.state,) + self.mpos))
+        else:
+            super()._answer(cmd)
+
+
 class TestHostToolChangePolicy(unittest.TestCase):
     """The M6 policy of a controller with no tool change (stock GRBL), through the real Start."""
     PROGRAM = 'G21 G90\nG0 X10 Y10\nG1 Z-1 F300\nG1 X20\nT2 M6\nM0\nX30\n'
 
-    def start(self, policy):
+    def start(self, policy, program=None, fake=None):
         from tests.grbl_stream_helpers import make_stream_tool
-        fake = FakeGrbl()
-        tool = make_stream_tool(fake, source=self.PROGRAM)
+        fake = fake or ToolPauseFake()
+        tool = make_stream_tool(fake, source=program or self.PROGRAM)
+        tool.app.collection.get_by_name.return_value.z_move = 5.0
         tool.app.options['tools_grbl_m6_policy'] = policy
         tool.on_start()
         return tool, fake
+
+    def resume(self, tool, fake):
+        """Press Resume; the lines that the port got from it."""
+        before = len(fake.written)
+        tool._on_resume_button()
+        return [c for c in fake.commands()[before:] if c != '?']
 
     def test_host_tool_change_pauses_and_resumes(self):
         tool, fake = self.start('pause')
@@ -908,6 +935,70 @@ class TestHostToolChangePolicy(unittest.TestCase):
         self.assertEqual(tool._stream_result['done'], 6)
         self.assertIn('T2', tool.ui.status_strip.set_recovery.call_args.args[0])
         self.assertIsNone(tool.action_allowed('jog'))
+
+        # the probe and a jog: the controller is in other modes, at another position
+        fake.gc = '[GC:G0 G54 G17 G20 G91 G94 M5 M9 T0 F0 S0]'
+        fake.mpos = (100.0, 100.0, 0.0)
+        written = self.resume(tool, fake)
+        at = written.index('X30')
+        self.assertEqual(written[:2], ['$#', '$$'])
+        steps = ['G21', 'G90', 'G0 Z5.0000', 'G0 X20.0000 Y10.0000', 'G1 Z-1.0000 F300.0000']
+        positions = [written.index(step) for step in steps]
+        self.assertEqual(positions, sorted(positions))
+        self.assertIn('G1', written[positions[-1] + 1:at])
+        self.assertTrue(all(w not in written[:at] for w in ('G1 X20', 'G0 X10 Y10')))
+        self.assertEqual(tool._stream_result['done'], 7)
+        self.assertIsNone(tool._tool_pause)
+
+    def test_resume_rejected_by_the_profile_recheck_writes_nothing(self):
+        tool, fake = self.start('pause')
+        profile = object()
+        tool._profile_compute = MagicMock(return_value=SenderGen._ProfileOutcome(out='', refused=SimpleNamespace()))
+        tool._profile_present = MagicMock(return_value=False)
+        with patch('appPlugins.ToolGcodeSender.Sender.active_profile_of', return_value=profile):
+            written = self.resume(tool, fake)
+        self.assertEqual(written, ['$#'])
+        self.assertIs(tool._profile_compute.call_args.kwargs['correct'], False)
+        tool._profile_present.assert_called_once()
+        self.assertIsNotNone(tool._tool_pause)
+        self.assertIsNone(tool._grbl_op)
+
+    def test_host_tool_change_cases(self):
+        spindle_on = 'G21 G90\nG0 X10 Y10\nM3 S10000\nG1 Z-1 F300\nG1 X20\nT2 M6\nM0\nX30\n'
+        probe = 'G21 G90\nG0 X10 Y10\nG38.2 Z-5 F50\nG1 X20\nT2 M6\nM0\nX30\n'
+        no_feed_mode = '[GC:G0 G54 G17 G21 G90 M5 M9 T0 F0 S0]'
+        for name, program, fake_state, refused in (
+                ('g92_at_resume', None, {}, None),
+                ('spindle_on', spindle_on, {}, None),
+                ('probe_line', probe, {}, 'Line 5'),
+                ('no_feed_mode', None, {'gc': no_feed_mode}, 'feed mode'),
+                ('g92_at_start', None, {'g92': (1.0, 0.0, 0.0)}, 'G92')):
+            with self.subTest(name):
+                fake = ToolPauseFake()
+                for key, value in fake_state.items():
+                    setattr(fake, key, value)
+                tool, fake = self.start('pause', program, fake)
+                if refused is not None:
+                    texts = ' '.join(str(call.args[0]) for call in tool.app.inform.emit.call_args_list)
+                    self.assertIn(refused.lower(), texts.lower())
+                    self.assertIsNone(tool._tool_pause)
+                    self.assertFalse([c for c in fake.commands() if c.startswith(('G0', 'G1', 'M'))])
+                    self.assertIsNone(tool._grbl_op)
+                    self.assertEqual(tool.ui.start_button.setDisabled.call_args.args[0], False)
+                    continue
+                if name == 'g92_at_resume':
+                    fake.g92 = (5.0, 0.0, 0.0)
+                    self.assertEqual(self.resume(tool, fake), ['$#'])
+                    self.assertIn('Clear G92', str(tool.app.inform.emit.call_args.args[0]))
+                    self.assertIsNotNone(tool._tool_pause)
+                    self.assertIsNone(tool._grbl_op)
+                else:
+                    written = self.resume(tool, fake)
+                    at = next(i for i, c in enumerate(written) if c.startswith('M3 S10000'))
+                    self.assertRegex(written[at + 1], r'^G4 P3')
+                    plunge = written.index('G1 Z-1.0000 F300.0000')
+                    self.assertLess(at, plunge)
+                    self.assertLess(plunge, written.index('X30'))
 
     def test_m6_policy_skip_and_send(self):
         for policy, expected in (('skip', ['T2', 'M0']), ('send', ['T2 M6', 'M0'])):

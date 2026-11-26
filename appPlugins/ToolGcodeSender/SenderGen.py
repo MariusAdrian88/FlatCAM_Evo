@@ -405,6 +405,7 @@ class _PreparedJob:
     profile: _ProfileOutcome = None
     split_count: int = 0
     cumulative: list = None     # the running total of the line durations (s), None: no estimate
+    job_start: JobStart = None  # the controller state at the Start (M6 policy 'pause' and an M6 line)
 
 
 @dataclasses.dataclass
@@ -519,6 +520,9 @@ def prepare_levelled_job(inputs, profile_compute, autolevell, tlo_line, limits=(
         if outcome.refused is not None:
             return prepared
         job_lines = [line for _number, line in clean_lines_numbered(outcome.out)]
+    if inputs.m6_policy == 'skip':
+        # only the M6 word goes, as in prepare_job()
+        job_lines = [line for line in (' '.join(_M6_WORD_RE.sub(' ', line).split()) for line in job_lines) if line]
     bad_index = validate_stream_lines(job_lines, *limits)
     if bad_index is not None:
         prepared.error = _("Line %d of the levelled G-code is longer than GRBL accepts. The job was not made.") % \

@@ -31,10 +31,15 @@ class TestParseModal(unittest.TestCase):
         from appPlugins.Common.grbl.grbl_protocol import parse_grbl_modal
         modal = parse_grbl_modal('[GC:G1 G55 G18 G20 G91 G93 M5 M9 T0 F0 S0]')
         self.assertEqual(modal, {'distance_mode': 'G91', 'motion_mode': 'G1', 'plane': 'G18', 'feed_mode': 'G93',
-                                 'arc_mode': None, 'units': 'inch', 'wcs': 'G55'})
+                                 'arc_mode': None, 'units': 'inch', 'wcs': 'G55', 'spindle': 5, 'coolant': (),
+                                 'feed': 0.0, 'speed': 0.0})
         modal = parse_grbl_modal('[GC:G0 G54 G17 G21 G90 G91.1 G94 M5]')
         self.assertEqual((modal['motion_mode'], modal['units'], modal['arc_mode'], modal['feed_mode']),
                          ('G0', 'mm', 'G91.1', 'G94'))
+        self.assertEqual((modal['feed'], modal['speed'], modal['coolant']), (None, None, None))
+        modal = parse_grbl_modal('[GC:G1 G54 G17 G21 G90 G94 M4 M7 M8 T1 F300.5 S12000]')
+        self.assertEqual((modal['spindle'], modal['coolant'], modal['feed'], modal['speed']),
+                         (4, (7, 8), 300.5, 12000.0))
         self.assertEqual(set(parse_grbl_modal('').values()), {None})
 
 

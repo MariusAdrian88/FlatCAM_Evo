@@ -293,7 +293,9 @@ class SenderMachineProfileBlockTest(unittest.TestCase):
             tool = make_levelled_stream_tool(fake, **({} if source is None else {'text': source}))[0]
         else:
             tool = make_stream_tool(fake)
-        tool.app.options.update({'global_machine_profile': 'Cal', 'global_machine_profiles_folder': folder})
+        # these tests are about the correction: the M6 lines go to the controller as they are
+        tool.app.options.update({'global_machine_profile': 'Cal', 'global_machine_profiles_folder': folder,
+                                 'tools_grbl_m6_policy': 'send'})
         if levelled:
             tool._al_map_calibration = calibration_hash(profile)       # the map was probed under this correction
         tool._grbl_report_inches = False        # $13 was read: the positions of the controller are in mm
@@ -546,6 +548,7 @@ class SenderMachineProfileBlockTest(unittest.TestCase):
     def test_no_profile_leaves_the_job_lines_unchanged(self):
         from tests.grbl_stream_helpers import make_stream_tool
         tool = make_stream_tool(FakeGrbl(), source=self.MARKED)
+        tool.app.options['tools_grbl_m6_policy'] = 'send'
         tool._confirm_profile_stream = MagicMock()
         tool.on_start()
         self.assertEqual(tool.job_lines, ['G21', 'G90', 'G0 X10 Y10', 'G0 X0 Y0', 'M6', 'G1 X20 Y10 F100'])

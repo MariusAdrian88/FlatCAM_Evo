@@ -81,7 +81,8 @@ _MODAL_GROUPS = (('distance_mode', ('G90', 'G91')), ('motion_mode', ('G0', 'G1',
 def parse_grbl_modal(gc_text):
     """
     The modal state of a ``$G`` answer: distance_mode, motion_mode, plane, feed_mode, arc_mode, units ('mm' or
-    'inch') and wcs. A word that the controller does not report is None (GRBL reports no arc mode).
+    'inch'), wcs, spindle (3, 4 or 5), coolant (tuple of 7 and 8; () for M9), feed (F) and speed (S). A word that the
+    controller does not report is None (GRBL reports no arc mode).
     """
     words = set()
     for match in re.finditer(r'\[GC:([^\]]*)\]', gc_text or ''):
@@ -94,6 +95,13 @@ def parse_grbl_modal(gc_text):
         modal['wcs'] = parse_grbl_active_wcs(gc_text or '')
     except ValueError:
         modal['wcs'] = None
+    modal['spindle'] = next((n for n in (3, 4, 5) if 'M%d' % n in words), None)
+    coolant = tuple(n for n in (7, 8) if 'M%d' % n in words)
+    modal['coolant'] = coolant if coolant or 'M9' in words else None
+    for key, letter in (('feed', 'F'), ('speed', 'S')):
+        number = next((re.fullmatch(letter + r'(-?\d+\.?\d*|-?\.\d+)', word) for word in sorted(words)
+                       if word.startswith(letter)), None)
+        modal[key] = float(number.group(1)) if number else None
     return modal
 
 

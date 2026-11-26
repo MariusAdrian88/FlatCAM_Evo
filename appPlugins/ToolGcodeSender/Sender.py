@@ -37,7 +37,7 @@ from appPlugins.Common.levelling_core import LevellingCoreMixin
 from appPlugins.Common.grbl.grbl_protocol import (
     parse_grbl_status_state, parse_grbl_setting, parse_grbl_active_wcs, grbl_reply_error, probe_timeout_s,
     parse_grbl_status_report, work_position, grbl_report_scale, grbl_modes_confirmed,
-    parse_grbl_probe_output, parse_grbl_offsets, grbl_wcs_p_number, parse_grbl_modal)
+    parse_grbl_probe_output, parse_grbl_offsets, grbl_wcs_p_number, parse_grbl_modal, parse_grbl_work_offset)
 from appPlugins.Common.gcode_segment import split_long_moves, parse_toolpath, _words, _g_key
 from appPlugins.Common.levelling_interp import build_bilinear_grid
 from appPlugins.ToolGcodeSender import SenderGen, SenderKeys, SenderEstimate, SenderMacros
@@ -197,7 +197,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     _al_map_calibration = None
     # the host tool change pause (T1) and the wait at the single block gate (F8): rows of ACTION_RULES
     _tool_pause = None
-    _m6_policy = 'native'       # the policy of the running job: 'native', 'send', 'skip' or 'pause'
+    _job_start = None           # the JobStart of the running job (policy 'pause'): kept for every pause of the job
+    _m6_policy = 'native'      # the policy of the running job: 'native', 'send', 'skip' or 'pause'
     _step_waiting = False
     _step_gate = None       # the StepGate of single block (created by the checkbox slot)
     macro_page = None       # the user buttons page of the dock (SenderMacros.MacroPage)
@@ -4480,6 +4481,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         """
         if not self._action_ok('resume'):
             return False
+        if self._tool_pause is not None and self._grbl_op is None:
+            return self._resume_tool_pause()
         if not self._tool_change_recheck():
             return False
         with self._grbl_op_lock:
@@ -5187,6 +5190,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     def on_start(self):
         if not self._action_ok('start'):
             return
+        self._clear_tool_pause()
         # the WCO of an earlier session or job is not trusted
         self._last_wco = None
         if getattr(self, '_probe_start_op', None) is not None:
@@ -5250,6 +5254,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         def prepare_task():
             try:
                 prepared = SenderGen.prepare_job(inputs, self._profile_compute, limits)
+                if inputs.m6_policy == 'pause' and prepared.error is None and prepared.lines:
+                    self._prepare_job_start(inputs, prepared)
             except Exception as err:
                 self.app.log.error("ToolGcodeSender.on_start() -> %s" % str(err))
                 prepared = SenderGen._PreparedJob(inputs=inputs, error=_("The Start failed."))
@@ -5258,6 +5264,71 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self.ui.start_button.setDisabled(True)
         self.app.inform.emit(_("Preparing the job"))
         self.app.worker_task.emit({'fcn': prepare_task, 'params': []})
+
+    def _read_g92_active(self, op):
+        """
+        Read `$#` (a worker thread, under `op`).
+
+        :return: (g92_active, offsets_text). g92_active is None if the answer is missing or malformed.
+        """
+        text, status = self._grbl_transact(op, '$#', timeout=5.0, echo=False)
+        if status != 'ok':
+            return None, text
+        try:
+            g92 = parse_grbl_offsets(text)['G92']
+        except ValueError:
+            return None, text
+        return any(abs(value) > 1e-9 for value in g92), text
+
+    def _prepare_job_start(self, inputs, prepared):
+        """
+        The M6 policy 'pause' (a worker thread, under inputs.op): read the controller state at the Start and
+        check that the job can pause at each M6 line and resume. Nothing is written to the controller after the
+        reads. It sets prepared.job_start, or prepared.error (the Start is refused).
+        """
+        lines = prepared.lines
+        if not any(SenderGen._has_m6(line) for line in lines):
+            return
+        op, target = inputs.op, inputs.target
+        refused = _("Could not read the state of the controller. The job was not started.")
+        if self._grbl_read_report_units(op) != 'ok' or self._grbl_report_inches is None:
+            prepared.error = refused
+            return
+        modal_text, status = self._grbl_transact(op, '$G', timeout=5.0, echo=False)
+        modal = parse_grbl_modal(modal_text if status == 'ok' else '')
+        g92_active, offsets_text = self._read_g92_active(op)
+        report = parse_grbl_status_report(self._grbl_query_status(op))
+        if status != 'ok' or g92_active is None or report is None or op.cancel.is_set():
+            prepared.error = refused
+            return
+        if g92_active:
+            prepared.error = _("A G92 offset is active. A tool change pause cannot be resumed. "
+                               "Clear G92 or choose the M6 policy Send or Skip.")
+            return
+        position = work_position(report)
+        if position is None and 'mpos' in report and modal['wcs'] is not None:
+            try:
+                offset = parse_grbl_work_offset(offsets_text, modal['wcs'])
+                position = tuple(m - o for m, o in zip(report['mpos'], offset))
+            except ValueError:
+                position = None
+        if position is None:
+            prepared.error = refused
+            return
+        # the positions and the feed of GRBL are in the report units ($13); the JobStart holds the program units
+        scale = grbl_report_scale(inputs.units, self._grbl_report_inches)
+        feed = None if modal['feed'] is None else modal['feed'] * scale
+        start = SenderGen.JobStart.from_live(tuple(v * scale for v in position), inputs.units, modal, feed=feed,
+                                             spindle=modal['spindle'], speed=modal['speed'],
+                                             coolant=modal['coolant'] or ())
+        numbers = prepared.numbers or list(range(1, len(lines) + 1))
+        reason = SenderGen.check_tool_change_job(
+            lines, numbers, target.z_move, inputs.units, inputs.decimals,
+            float(self.app.options.get("tools_grbl_spindle_dwell", 3.0)), start)
+        if reason is not None:
+            prepared.error = reason
+            return
+        prepared.job_start = start
 
     def _rapid_mm_min(self, profile):
         """The rapid rate (mm/min) for the time estimate (GUI thread)."""
@@ -5349,6 +5420,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self._start_abandoned(op)
             return
         self._m6_policy = inputs.m6_policy
+        self._job_start = prepared.job_start
         self._start_stream_worker(op, self.job_lines, self.job_line_numbers, inputs.check_mode, inputs.poll_ms, req)
 
     def _prepared_current(self, inputs, req):
@@ -5532,6 +5604,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             try:
                 prepared = SenderGen.prepare_levelled_job(inputs, self._profile_compute, self.autolevell_gcode,
                                                           self._tlo_line, limits)
+                if inputs.m6_policy == 'pause' and prepared.error is None and prepared.lines:
+                    self._prepare_job_start(inputs, prepared)
             except Exception as err:
                 self.app.log.error("ToolGcodeSender._on_frame_ready() -> %s" % str(err))
                 prepared = SenderGen._PreparedJob(inputs=inputs, error=str(err))
@@ -5559,8 +5633,13 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         finally:
             dialog.deleteLater()
 
-    def _start_stream_worker(self, op, lines, numbers, check_mode, poll_ms, req=None):
-        """Start the stream worker under the reserved operation `op` (GUI thread). `req`: a levelled Start."""
+    def _start_stream_worker(self, op, lines, numbers, check_mode, poll_ms, req=None, resume_from=None,
+                             resume_lines=None, resumed_lines=None):
+        """
+        Start the stream worker under the reserved operation `op` (GUI thread). `req`: a levelled Start.
+        `resume_from`, `resume_lines`, `resumed_lines`: the Resume of a host tool change (the index of the line
+        to go on with, the preamble and the rest of the job): no start line dialog and no restart preparation.
+        """
         self._console().set_program(lines)
         self.sender_io.on_job_start()
         target = self._target()
@@ -5568,8 +5647,11 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         seq = getattr(self, '_start_seq', 0)
         generation = self._grbl_safety_generation
         self.ui.start_button.setDisabled(True)
-        start_line = (req.start_line if req is not None and req.start_line is not None
-                      else self._choose_start_line(len(lines)))
+        if resume_from is not None:
+            start_line = 1
+        else:
+            start_line = (req.start_line if req is not None and req.start_line is not None
+                          else self._choose_start_line(len(lines)))
         with self._grbl_op_lock:
             current = (self._grbl_active_locked(op) and not op.cancel.is_set() and
                        generation == self._grbl_safety_generation and seq == getattr(self, '_start_seq', 0))
@@ -5582,6 +5664,11 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             if start_line is not None:
                 self.app.inform.emit('[WARNING_NOTCL] %s' % _(
                     "The program or machine state changed while the dialog was open. Press Start again."))
+            return
+        if resume_from is not None:
+            # the Resume rechecked the preamble and the rest of the job; the tool change changed the TLO on purpose
+            self._start_stream_launch(op, target, lines, numbers, check_mode, poll_ms, req,
+                                      (resume_lines, resume_from, resumed_lines))
             return
         profile = active_profile_of(self.app)
         if (profile is not None and self._stream_setup_key is not None and
@@ -5598,7 +5685,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         # the preamble and its check run in a worker; _on_restart_prepared() goes on
         context = SimpleNamespace(op=op, target=target, source=source, seq=seq, generation=generation, lines=lines,
                                   numbers=numbers, check_mode=check_mode, poll_ms=poll_ms, req=req,
-                                  start_line=start_line, profile=profile)
+                                  start_line=start_line, profile=profile, resume=None)
         travel_z = getattr(target, 'z_move', None)
         units, decimals = target.units, target.coords_decimals
         spindle_dwell = float(self.app.options.get("tools_grbl_spindle_dwell", 3.0))
@@ -5624,6 +5711,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     def _on_restart_prepared(self, prepared):
         """Slot of restart_prepared_sig (GUI thread): present the check of the restart, then start the stream."""
         c = prepared.context
+        if c.resume is not None:
+            self._on_tool_resume_prepared(prepared)
+            return
         if not self._start_current(c.op, c.seq, c.generation, c.target, c.source):
             self._start_abandoned(c.op)
             return
@@ -5642,6 +5732,96 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self.app.inform.emit('%s: %d' % (_("Starting from program line"), c.start_line))
         self._start_stream_launch(c.op, c.target, c.lines, c.numbers, c.check_mode, c.poll_ms, c.req,
                                   (prepared.preamble, c.start_line - 1, prepared.resumed))
+
+    def _resume_tool_pause(self):
+        """
+        The Resume button after a host tool change pause (GUI thread): reserve the stream operation and prepare the
+        restart in a worker. _on_tool_resume_prepared() goes on.
+
+        :return: True if the preparation started.
+        """
+        pause = self._tool_pause
+        op = self._grbl_reserve('stream', motion=True)
+        if op is None:
+            return False
+        target = pause.target
+        profile = active_profile_of(self.app)
+        context = SimpleNamespace(op=op, target=target, source=target.source_file, seq=self._start_seq,
+                                  generation=self._grbl_safety_generation, lines=pause.lines,
+                                  numbers=pause.numbers, check_mode=False, poll_ms=pause.poll_ms, req=None,
+                                  start_line=pause.index + 1, profile=profile, resume=pause)
+        spindle_dwell = float(self.app.options.get("tools_grbl_spindle_dwell", 3.0))
+        limits = self._line_limits()
+
+        def resume_task():
+            try:
+                prepared = self._prepare_tool_resume(op, pause, profile, spindle_dwell, limits)
+            except Exception as err:
+                self.app.log.error("ToolGcodeSender._resume_tool_pause() -> %s" % str(err))
+                prepared = SenderGen._PreparedRestart(error=_("The Resume failed."))
+            prepared.context = context
+            self.restart_prepared_sig.emit(prepared)
+
+        self.app.inform.emit(_("Preparing the Resume"))
+        self.app.worker_task.emit({'fcn': resume_task, 'params': []})
+        return True
+
+    def _prepare_tool_resume(self, op, pause, profile, spindle_dwell, limits):
+        """
+        The restart of a host tool change pause (a worker thread, under `op`): G92 must be clear, then the
+        preamble and the rest of the job, and with a machine profile their check from the live position, offsets
+        and TLO.
+
+        :return: SenderGen._PreparedRestart
+        """
+        g92_active, _text = self._read_g92_active(op)
+        if g92_active is None:
+            return SenderGen._PreparedRestart(error=_("Could not read the state of the controller."))
+        if g92_active:
+            return SenderGen._PreparedRestart(error=_(
+                "A G92 offset is active. A tool change pause cannot be resumed. Clear G92, then press Resume."))
+        target = pause.target
+        try:
+            preamble, tail = SenderGen.tool_change_resume(pause.lines, pause.m6_index, pause.index, target.z_move,
+                                                          target.units, target.coords_decimals, spindle_dwell,
+                                                          pause.job_start)
+            if validate_stream_lines(preamble + tail, *limits) is not None:
+                raise ValueError(_("The restart preparation exceeds the GRBL line length limit."))
+        except ValueError as err:
+            return SenderGen._PreparedRestart(error=str(err))
+        outcome = None
+        if profile is not None:
+            # the preamble and the rest of the job are in the output frame already: check them, correct nothing
+            outcome = self._profile_compute('\n'.join(preamble + tail) + '\n', target, profile, op, correct=False)
+        return SenderGen._PreparedRestart(preamble=preamble, resumed=tail, outcome=outcome)
+
+    def _on_tool_resume_prepared(self, prepared):
+        """Slot part of restart_prepared_sig (GUI thread): the Resume is prepared. Present the check, then stream."""
+        c = prepared.context
+        if not self._tool_resume_current(c):
+            self._grbl_release(c.op)
+            if c.op.cancel.is_set():
+                self._stream_result = {}
+                self.stream_ended_sig.emit('stopped')
+            return
+        if prepared.error is not None:
+            self.app.inform.emit('[ERROR_NOTCL] %s' % prepared.error)
+            self._grbl_release(c.op)
+            return
+        if prepared.outcome is not None and not self._profile_present(c.profile, prepared.outcome):
+            self._grbl_release(c.op)
+            return
+        if not self._tool_resume_current(c):
+            self._grbl_release(c.op)
+            return
+        self._clear_tool_pause()
+        self.app.inform.emit(_("Tool change done. Resuming the job."))
+        self._start_stream_worker(c.op, c.lines, c.numbers, False, c.poll_ms, resume_from=c.resume.index,
+                                  resume_lines=prepared.preamble, resumed_lines=prepared.resumed)
+
+    def _tool_resume_current(self, c):
+        """:return: True if the operation, the pause and the program are the ones of the Resume (GUI thread)."""
+        return self._tool_pause is c.resume and self._start_current(c.op, c.seq, c.generation, c.target, c.source)
 
     def _start_current(self, op, seq, generation, target, source):
         """:return: True if the operation, the start sequence, the safety generation and the program are the ones of
@@ -7305,7 +7485,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 index=pause['index'], m6_index=pause['m6_index'], tool=pause['tool'], lines=self.job_lines,
                 numbers=self.job_line_numbers, check_mode=False,
                 poll_ms=int(self.app.options.get("tools_grbl_status_ms", 200)), target=self._target(),
-                job_start=None)
+                job_start=self._job_start)
         self._apply_machine_state()
         console = self.app.ui.grbl_console_dock.widget()
         if isinstance(console, GrblConsole):
