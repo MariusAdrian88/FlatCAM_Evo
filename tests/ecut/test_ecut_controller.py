@@ -106,6 +106,13 @@ def test_config():
     assert EcutBoardConfig.from_dict({}).motion_period_s == 0.001
 
 
+def test_axis_a_is_off_by_default_and_a_saved_value_is_kept():
+    assert [a.enabled for a in EcutBoardConfig().axes] == [True, True, True, False, True, True]
+    config = EcutBoardConfig()
+    config.axes[3].enabled = True
+    assert EcutBoardConfig.from_dict(config.to_dict()).axes[3].enabled
+
+
 def test_step_conversion():
     api = make_api(interpolation=4)  # 32x
     api.configure_axis(0, steps_per_mm=200.0)

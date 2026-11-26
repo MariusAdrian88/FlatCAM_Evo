@@ -52,6 +52,7 @@ def test_control_actions_are_stopped_path_boundaries(barrier):
 
 def test_rotary_axis_words_isolate_their_path():
     api = make_api()
+    api.config.axes[3].enabled = True
     api.run_gcode(['G1 X0.001 F60', 'A0.001', 'X0.002'])
     assert end_stream_count(api) == 3
     assert api.position_steps[:4] == [3, 0, 0, 2]

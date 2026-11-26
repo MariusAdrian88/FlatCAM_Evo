@@ -134,7 +134,8 @@ def test_bed_size_zero_axis_is_skipped(make):
     assert 'Y' in dialog.status_label.text()
 
 
-def test_home_buttons_emit_axis_lists_after_confirmation(make, yes):
+def test_home_buttons_emit_axis_lists_after_confirmation(make, snapshot, yes):
+    snapshot['hardware']['axes'][3]['enabled'] = True
     dialog = make()
     sent = []
     dialog.reference_requested.connect(sent.append)

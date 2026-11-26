@@ -228,7 +228,7 @@ def _compile_line(line: str, lineno: int, modal: _Modal) -> tuple[_Modal, list]:
             idx = _AXIS_LETTERS.index(letter)
             if idx in axis_words:
                 raise bad(letter, raw, 'duplicate')
-            axis_words[idx] = v * scale
+            axis_words[idx] = v * (scale if idx < 3 else 1)    # A B C are degrees: no inch scale
         elif letter == 'F':
             if v <= 0:
                 raise bad(letter, raw, 'invalid')

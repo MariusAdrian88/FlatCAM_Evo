@@ -3,6 +3,7 @@ import importlib
 import math
 import struct
 import pytest
+from appPlugins.Common.grbl.grbl_protocol import grbl_capabilities, parse_grbl_identity
 from test_ecut_spindle import pwm_api
 
 def engine_api():
@@ -740,3 +741,30 @@ def test_path_mode_change_mid_program_affects_only_later_moves():
     api = _run_prepared(['G61 G1 X1 F6000', 'Y1', 'G64', 'X0', 'Y0'])
     assert _corner_speed(api, (1, 0)) < .1
     assert _corner_speed(api, (0, 1)) > .3
+
+
+def test_a_axis_move():
+    engine, api = engine_api()
+    api.config.axes[3].enabled = True
+    api.config.axes[3].steps_per_mm = 100          # steps per degree
+    api.push_config()
+    assert engine.execute_line('G1 X10 A5 F600') == ['ok']
+    factor = api.config.interpolation_factor
+    assert api._usb.positions[0] == round(10 * 800 * factor)
+    assert api._usb.positions[3] == round(5 * 100 * factor)
+    assert '|MPos:10.000,0.000,0.000,5.000|' in engine.status_report()
+    identity = parse_grbl_identity('\n'.join(engine.execute_line('$I')))
+    assert grbl_capabilities(identity)['axes'] == 'XYZA'
+    assert engine.execute_line('$13=1') == ['ok']
+    assert '|MPos:0.394,0.000,0.000,5.000|' in engine.status_report()   # A stays in degrees
+    assert engine.execute_line('$13=0') == ['ok']
+    engine.execute_line('G92 A0')
+    assert '|WCO:0.000,0.000,0.000,5.000|' in engine.status_report()
+    api.config.axes[3].enabled = False
+    api.push_config()
+    with pytest.raises(Exception) as error:
+        engine.execute_line('G1 A6 F600')
+    assert error.value.code == 20
+    assert '|MPos:10.000,0.000,0.000|' in engine.status_report()
+    identity = parse_grbl_identity('\n'.join(engine.execute_line('$I')))
+    assert grbl_capabilities(identity)['axes'] == 'XYZ'

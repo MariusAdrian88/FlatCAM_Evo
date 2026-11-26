@@ -417,7 +417,7 @@ class EcutBoardConfig:
     homing_ratio_pct: int = 50
     spindle_axis_io: list[int] = field(default_factory=lambda: [0, 0, 0, 0, 0, 0, 1])
 
-    axes: list[AxisConfig] = field(default_factory=lambda: [AxisConfig() for _ in range(6)])
+    axes: list[AxisConfig] = field(default_factory=lambda: [AxisConfig(enabled=i != 3) for i in range(6)])  # A is off by default
     homing: list[HomingConfig] = field(default_factory=lambda: [HomingConfig() for _ in range(6)])
 
     inputs: dict[str, InputSignal] = field(default_factory=lambda: {

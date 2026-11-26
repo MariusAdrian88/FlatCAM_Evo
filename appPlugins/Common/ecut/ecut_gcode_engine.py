@@ -47,8 +47,8 @@ class _Parser:
     tlo: float = 0.0
     path_mode: int = 64  # modal group 13: 61 exact path, 64 blending
     path_tolerance: float | None = None  # G64 P in mm; None = blend at the junction deviation setting
-    g92: list = field(default_factory=lambda: [0.0] * 3)
-    position: list = field(default_factory=lambda: [0.0] * 3)
+    g92: list = field(default_factory=lambda: [0.0] * 4)
+    position: list = field(default_factory=lambda: [0.0] * 4)
 
 
 _GROUPS = {
@@ -92,8 +92,8 @@ class EcutGcodeEngine:
         self.api = api
         self.settings_path = Path(settings_path) if settings_path else None
         self._host = {10: 1, 12: .002, 13: 0, 32: 0}
-        self._wcs = [[0.0] * 3 for _ in range(6)]
-        self._stored = [[0.0] * 3 for _ in range(2)]
+        self._wcs = [[0.0] * 4 for _ in range(6)]
+        self._stored = [[0.0] * 4 for _ in range(2)]
         self._startup = ['', '']
         self._native = {}
         self._motor_setup = [dict(steps_per_revolution=200, microsteps=1, gear_ratio=1.0,
@@ -138,9 +138,13 @@ class EcutGcodeEngine:
     def _measured_position(self):
         frame = self.api.last_rx_frame
         if frame is None:
-            return [0.0] * 3
+            return [0.0] * 4
         # the logical position: the board counts without the backlash offset
-        return self.api.logical_position_mm(frame)[:3]
+        return self.api.logical_position_mm(frame)[:4]
+
+    def _axis_count(self):
+        """Axes of the G-code position: X Y Z, and A (degrees) when it is enabled in the config."""
+        return 4 if self.api.config.axes[3].enabled else 3
 
     def _refuse_with_backlash(self):
         if backlash_active(self.api.config):
@@ -150,7 +154,7 @@ class EcutGcodeEngine:
         parser = parser or self._parser
         wcs = self._wcs if wcs is None else wcs
         return [wcs[parser.wcs][i] + parser.g92[i] +
-                (parser.tlo if i == 2 else 0) for i in range(3)]
+                (parser.tlo if i == 2 else 0) for i in range(4)]
 
     def _save(self):
         if self.settings_path and not self.check_mode:
@@ -176,10 +180,13 @@ class EcutGcodeEngine:
                 raise ValueError('invalid tolerance')
             for key, count in [('wcs', 6), ('stored', 2)]:
                 rows = data[key]
-                if len(rows) != count or any(len(row) != 3 or any(
+                if len(rows) != count or any(len(row) not in (3, 4) or any(
                         isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v)
                         for v in row) for row in rows):
                     raise ValueError('invalid coordinates')
+            # files of the 3-axis format carry no A value
+            for key in ('wcs', 'stored'):
+                data[key] = [list(row) + [0.0] * (4 - len(row)) for row in data[key]]
             if len(data['startup']) != 2 or any(not isinstance(v, str) for v in data['startup']):
                 raise ValueError('invalid startup blocks')
             for line in data['startup']:
@@ -602,7 +609,7 @@ class EcutGcodeEngine:
                 groups.add(group)
                 ms.append(int(value))
             else:
-                if letter not in 'FIJKLNPRSTXYZ':
+                if letter not in 'FIJKLNPRSTXYZ' and not (letter == 'A' and self._axis_count() == 4):
                     raise GcodeError(20, f'Unsupported {letter} word')
                 if letter in values:
                     raise GcodeError(25, f'Repeated {letter} word')
@@ -635,7 +642,8 @@ class EcutGcodeEngine:
             parser.speed = values['S']
         if 'T' in values:
             parser.tool, parser.tool_selected = int(values['T']), True
-        axes = {i: values[a] * scale for i, a in enumerate('XYZ') if a in values}
+        # A is in degrees: the G20 inch scale applies to X Y Z only
+        axes = {i: values[a] * (scale if i < 3 else 1) for i, a in enumerate('XYZA') if a in values}
         consumed = set('FNST')
         non = next((g for g in gs if _GROUPS[g] == 'nonmodal'), None)
         explicit_motion = 'motion' in groups
@@ -683,7 +691,7 @@ class EcutGcodeEngine:
                 parser.g92[i] = parser.position[i] - wcs[parser.wcs][i] - (
                     parser.tlo if i == 2 else 0) - value
         elif non == 92.1:
-            parser.g92 = [0.0] * 3
+            parser.g92 = [0.0] * 4
         elif non in (28.1, 30.1):
             if axes:
                 raise GcodeError(31, 'Stored-position command does not accept axes')
@@ -732,7 +740,7 @@ class EcutGcodeEngine:
                 corner = end if n == len(points) else interior
                 lines.append(line if corner is None else MotionLine(line, corner))
             parser.position = target
-        if any(k not in consumed and k not in 'XYZ' for k in values):
+        if any(k not in consumed and k not in 'XYZA' for k in values):
             raise GcodeError(36, 'Unused value words')
         # Validate all targets before a spindle/coolant action can run.
         tolerance = self.api.config.soft_limit_tolerance_mm
@@ -740,7 +748,7 @@ class EcutGcodeEngine:
         for line in lines:
             self._planning_checkpoint()
             wordmap = dict(self._words(line))
-            for i, name in enumerate('XYZ'):
+            for i, name in enumerate('XYZA'[:self._axis_count()]):
                 axis = self.api.config.axes[i]
                 value = wordmap.get(name, parser.position[i])
                 if not axis.enabled and abs(value - self._parser.position[i]) > 1e-9:
@@ -798,15 +806,16 @@ class EcutGcodeEngine:
     def _linear(self, motion, target, feed, start=None):
         if motion == 0 and self._rapid_override != 100:
             start = self._parser.position if start is None else start
-            distance = [abs(target[i] - start[i]) for i in range(3)]
+            distance = [abs(target[i] - start[i]) for i in range(self._axis_count())]
             length = math.sqrt(sum(v*v for v in distance))
             limits = [self.api.config.axes[i].max_velocity_mm_s * length / distance[i]
-                      for i in range(3) if distance[i] > 0]
+                      for i in range(len(distance)) if distance[i] > 0]
             feed = (min(limits) * 60 * self._rapid_override / 100 if limits else 1)
             feed /= max(.1, self.api.feed_override)
             motion = 1
-        coordinates = ' '.join(f'{name}{target[i]:.9f}' for i, name in enumerate('XYZ')
-                               if self.api.config.axes[i].enabled or abs(target[i] - self._parser.position[i]) > 1e-9)
+        coordinates = ' '.join(f'{name}{target[i]:.9f}' for i, name in enumerate('XYZA')
+                               if abs(target[i] - self._parser.position[i]) > 1e-9
+                               or (i < 3 and self.api.config.axes[i].enabled))
         return f'G21 G90 G{motion} {coordinates}' + (f' F{feed:.9f}' if motion else '')
 
     def _arc(self, parser, target, values, scale):
@@ -871,6 +880,7 @@ class EcutGcodeEngine:
             angle = begin + sweep * fraction
             point[a], point[b] = center[0] + radius * math.cos(angle), center[1] + radius * math.sin(angle)
             point[linear] += (target[linear] - start[linear]) * fraction
+            point[3] += (target[3] - start[3]) * fraction
             points.append(target if n == count else point)
         return points, math.hypot(abs(sweep) * radius, target[linear] - start[linear])
 
@@ -921,6 +931,7 @@ class EcutGcodeEngine:
         if text == '$I':
             return ['[VER:1.1h:E-Cut host compatibility]',
                     '[OPT:V,1,128]',
+                    '[AXS:4:XYZA]' if self._axis_count() == 4 else '[AXS:3:XYZ]',
                     '[MSG:Host lookahead for prepared motion batches; prepared-job overrides unavailable]', 'ok']
         if text == '$G':
             p = self._parser
@@ -986,7 +997,7 @@ class EcutGcodeEngine:
             if kind in ('$', '*'):
                 self._host = {10: 1, 12: .002, 13: 0, 32: 0}
             if kind in ('#', '*'):
-                self._wcs, self._stored = [[0.] * 3 for _ in range(6)], [[0.] * 3 for _ in range(2)]
+                self._wcs, self._stored = [[0.] * 4 for _ in range(6)], [[0.] * 4 for _ in range(2)]
             if kind == '*':
                 self._startup = ['', '']
             self._save()
@@ -1107,7 +1118,9 @@ class EcutGcodeEngine:
         return value / 25.4 if self._host[13] else value
 
     def _coordinates(self, values):
-        return ','.join(f'{self._report_value(v):.3f}' for v in values)
+        # A is a rotary axis in degrees: the inch report mode does not scale it
+        return ','.join(f'{v if i == 3 else self._report_value(v):.3f}'
+                        for i, v in enumerate(values[:self._axis_count()]))
 
     def status_report(self, state=None):
         if state is None:
