@@ -740,6 +740,8 @@ class AppDefaults:
         "tools_grbl_jog_step": 5,
         "tools_grbl_jog_fr": 1500,
         "tools_grbl_jog_presets": "0.01, 0.1, 1, 10",
+        "tools_grbl_jog_presets_a": "1, 5, 15, 90",
+        "tools_grbl_jog_fr_a": 1000,
         "tools_grbl_console_history": [],
         "tools_grbl_user_buttons": [],
         "tools_grbl_travelz": 15.0,

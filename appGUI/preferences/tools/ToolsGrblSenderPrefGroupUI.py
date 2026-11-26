@@ -111,6 +111,26 @@ class ToolsGrblSenderPrefGroupUI(OptionsGroupUI):
         par_grid.addWidget(self.jog_fr_label, 2, 0)
         par_grid.addWidget(self.jog_fr_entry, 2, 1)
 
+        # JOG step presets of the rotary A axis
+        self.jog_presets_a_label = FCLabel('%s:' % _("A step presets"))
+        self.jog_presets_a_label.setToolTip(
+            _("Four jog steps of the A axis in degrees, separated by commas.")
+        )
+        self.jog_presets_a_entry = FCEntry()
+        par_grid.addWidget(self.jog_presets_a_label, 3, 0)
+        par_grid.addWidget(self.jog_presets_a_entry, 3, 1)
+
+        # JOG Feedrate of the rotary A axis
+        self.jog_fr_a_label = FCLabel('%s:' % _("A feedrate"))
+        self.jog_fr_a_label.setToolTip(
+            _("Feedrate when jogging the A axis, in degrees per minute.")
+        )
+        self.jog_fr_a_entry = FCDoubleSpinner()
+        self.jog_fr_a_entry.set_precision(self.decimals)
+        self.jog_fr_a_entry.set_range(0, 910000.0000)
+        par_grid.addWidget(self.jog_fr_a_label, 5, 0)
+        par_grid.addWidget(self.jog_fr_a_entry, 5, 1)
+
         # JOG Travel Z
         self.jog_travelz_label = FCLabel('%s:' % _("Travel Z"))
         self.jog_travelz_label.setToolTip(

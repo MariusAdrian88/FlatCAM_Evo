@@ -396,6 +396,43 @@ class GcodeSenderUI:
         self.ecut_motion_button.hide()
         grbl_ctrl2_grid.addWidget(self.ecut_motion_button, 5, 0, 1, 2)
 
+        # the rotary A axis (degrees, degrees/min): shown only for an XYZA controller
+        self.jog_a_presets_wdg = QtWidgets.QWidget()
+        a_presets_layout = QtWidgets.QHBoxLayout(self.jog_a_presets_wdg)
+        a_presets_layout.setContentsMargins(0, 0, 0, 0)
+        a_presets_layout.setSpacing(3)
+        self.jog_a_preset_buttons = []
+        for _idx in range(4):
+            preset_button = QtWidgets.QToolButton()
+            preset_button.setToolTip(_("Set the A jog step."))
+            a_presets_layout.addWidget(preset_button)
+            self.jog_a_preset_buttons.append(preset_button)
+        grbl_ctrl2_grid.addWidget(self.jog_a_presets_wdg, 6, 0, 1, 2)
+
+        self.jog_a_step_label = FCLabel('%s:' % _("A step"))
+        self.jog_a_step_label.setToolTip(_("Each A jog action will turn the A axis by this value, in degrees."))
+        self.jog_a_step_entry = FCSliderWithDoubleSpinner()
+        self.jog_a_step_entry.set_precision(self.decimals)
+        self.jog_a_step_entry.slider.set_precision(self.decimals)
+        self.jog_a_step_entry.setSingleStep(1)
+        self.jog_a_step_entry.set_range(0.001, 360)
+        grbl_ctrl2_grid.addWidget(self.jog_a_step_label, 7, 0)
+        grbl_ctrl2_grid.addWidget(self.jog_a_step_entry, 7, 1)
+
+        self.jog_a_fr_label = FCLabel('%s:' % _("A feedrate"))
+        self.jog_a_fr_label.setToolTip(_("Feedrate when jogging the A axis, in degrees per minute."))
+        self.jog_a_fr_entry = FCSliderWithDoubleSpinner()
+        self.jog_a_fr_entry.set_precision(self.decimals)
+        self.jog_a_fr_entry.slider.set_precision(self.decimals)
+        self.jog_a_fr_entry.setSingleStep(10)
+        self.jog_a_fr_entry.set_range(1, 10000)
+        grbl_ctrl2_grid.addWidget(self.jog_a_fr_label, 8, 0)
+        grbl_ctrl2_grid.addWidget(self.jog_a_fr_entry, 8, 1)
+        self.a_axis_widgets = (self.jog_a_presets_wdg, self.jog_a_step_label, self.jog_a_step_entry,
+                               self.jog_a_fr_label, self.jog_a_fr_entry)
+        for widget in self.a_axis_widgets:
+            widget.hide()
+
         # #############################################################################################################
         # GRBL CONTROL
         # #############################################################################################################

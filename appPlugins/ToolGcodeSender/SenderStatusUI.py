@@ -106,7 +106,7 @@ class DroPanel(QtWidgets.QFrame):
             for labels, values in ((self.work, work), (self.machine, machine)):
                 text = '---'
                 if values is not None and index < len(values) and np.isfinite(values[index]):
-                    text = fmt % values[index]
+                    text = '%.3f°' % values[index] if letter == 'A' else fmt % values[index]  # A: degrees
                 if labels[letter].text() != text:
                     labels[letter].setText(text)
         parts = (state, wcs, str(units).lower() if units else None, _("not homed") if not_homed else None)

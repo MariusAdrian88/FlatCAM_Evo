@@ -72,6 +72,8 @@ def actions():
         sc('jog_y_minus', _("Jog Y-"), 'Down', _jog('yminus')),
         sc('jog_z_plus', _("Jog Z+"), 'PgUp', _jog('zplus')),
         sc('jog_z_minus', _("Jog Z-"), 'PgDown', _jog('zminus')),
+        sc('jog_a_plus', _("Jog A+"), '.', _jog('aplus')),
+        sc('jog_a_minus', _("Jog A-"), ',', _jog('aminus')),
         sc('hold_resume', _("Hold / Resume"), 'Space', _pressed(_hold_resume)),
         sc('stop', _("Stop"), 'Esc', _pressed(lambda tool: tool.on_stream_stop())),
         sc('jog_block', _("Show or hide the jog block"), 'Tab', _pressed(lambda tool: tool.toggle_jog_page())),

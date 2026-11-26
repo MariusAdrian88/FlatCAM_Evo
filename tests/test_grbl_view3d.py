@@ -75,7 +75,7 @@ class SenderView3dTest(unittest.TestCase):
         self.assertEqual(dro.work['X'].text(), '9.000')
         view.set_coordinates((1, 2, 3, 4), (1, 2, 3, 4), 'MM', state='Idle')
         self.assertFalse(dro.work['A'].isHidden())
-        self.assertEqual(dro.work['A'].text(), '4.000')
+        self.assertEqual(dro.work['A'].text(), '4.000°')     # the rotary A is in degrees
         self.assertNotIn('#808080', dro.work['X'].styleSheet())
         view.set_coordinates(None, None, None)
         self.assertTrue(dro.isHidden())

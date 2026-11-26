@@ -1256,6 +1256,45 @@ class TestDockedJogPage(unittest.TestCase):
         self.assertEqual(work[3], 90.0)
         self.assertIn('X 25.400', self.tool.ui.status_label.text())
 
+    def test_a_axis_controls(self):
+        from tests.test_levelling_audit import FakeGrbl
+
+        port = FakeGrbl()
+        self.connect(port)
+        self.tool.app.worker_task.emit.side_effect = lambda task: task['fcn']()
+        ui = self.tool.ui
+        a_widgets = (ui.status_strip.dro.work['A'], ui.jog_wdg.jog_a_plus_button, ui.jog_wdg.jog_a_minus_button,
+                     ui.zero_axs_wdg.grbl_zeroa_button, ui.jog_a_step_entry, ui.jog_a_fr_entry,
+                     ui.jog_a_presets_wdg)
+        self.tool._grbl_caps = {'axes': 'XYZ'}
+        self.tool._grbl_apply_capabilities()
+        self.assertTrue(all(widget.isHidden() for widget in a_widgets))
+        self.tool._grbl_caps = {'axes': 'XYZA'}
+        self.tool._grbl_apply_capabilities()
+        self.assertFalse(any(widget.isHidden() for widget in a_widgets))
+        ui.jog_a_step_entry.set_value(5)
+        ui.jog_a_fr_entry.set_value(1000)
+        for units, word in (('MM', 'G21'), ('IN', 'G20')):
+            self.tool.units = units
+            self.tool.app.app_units = units
+            self.tool.on_grbl_jog('aplus')
+        self.tool.on_grbl_jog('aminus')
+        jogs = [cmd for cmd in port.commands() if cmd.startswith('$J')]
+        self.assertEqual(jogs, ['$J=G91 G21 A5.000 F1000', '$J=G91 G20 A5.000 F1000', '$J=G91 G20 A-5.000 F1000'])
+        self.tool._grbl_set_ui_connected(False)
+        self.assertTrue(all(widget.isHidden() for widget in a_widgets))
+        # the camera mode hides the zero A button; the full mode shows it only for an XYZA controller
+        zero_a = ui.zero_axs_wdg.grbl_zeroa_button
+        for axes, shown in (('XYZ', False), ('XYZA', True)):
+            self.tool._grbl_caps = {'axes': axes}
+            self.tool._grbl_apply_capabilities()
+            self.tool._camera_public_mode = True
+            self.tool._apply_camera_public_mode()
+            self.assertTrue(zero_a.isHidden())
+            self.tool._camera_public_mode = False
+            self.tool._apply_camera_public_mode()
+            self.assertEqual(not zero_a.isHidden(), shown)
+
     def test_abort_banner_stays_until_recovery_ends(self):
         self.connect(DockJogFake())
         strip = self.tool.ui.status_strip

@@ -121,6 +121,9 @@ WIDGET_ACTIONS = {
     'controller_reset_button': 'reset', 'unlock_button': 'unlock',
     'zero_axs_wdg.grbl_homing_button': 'home',
     'jog_step_entry': 'jog', 'jog_fr_entry': 'jog', 'jog_presets_wdg': 'jog',
+    'jog_a_step_entry': 'jog', 'jog_a_fr_entry': 'jog', 'jog_a_presets_wdg': 'jog',
+    'jog_wdg.jog_a_plus_button': 'jog', 'jog_wdg.jog_a_minus_button': 'jog',
+    'zero_axs_wdg.grbl_zeroa_button': 'zero',
     'jog_wdg.jog_up_left_button': 'jog', 'jog_wdg.jog_up_right_button': 'jog',
     'jog_wdg.jog_down_left_button': 'jog', 'jog_wdg.jog_down_right_button': 'jog',
     'zero_axs_wdg.grbl_zerox_button': 'zero', 'zero_axs_wdg.grbl_zeroy_button': 'zero',
@@ -575,7 +578,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     CAMERA_MODE_HIDDEN_WIDGETS = (
         'level', 'job_row', 'progress_bar', 'heightmap_frame', 'probe_points_frame',
         'zero_axs_wdg.grbl_zerox_button', 'zero_axs_wdg.grbl_zeroy_button', 'zero_axs_wdg.grbl_zeroz_button',
-        'zero_axs_wdg.grbl_zero_all_button', 'wcs_combo', 'spindle_button', 'spindle_rpm_entry', 'spindle_rpm_label')
+        'zero_axs_wdg.grbl_zero_all_button', 'zero_axs_wdg.grbl_zeroa_button', 'wcs_combo', 'spindle_button', 'spindle_rpm_entry', 'spindle_rpm_label')
     # pages of the Plugin tab (ui attribute names) that are hidden in al_toolbar
     CAMERA_MODE_HIDDEN_TABS = ('job_tab',)
     # pages of the dock (keys) that are hidden, and that are disabled; the dock is not rebuilt with the UI, so
@@ -606,6 +609,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             ui.zero_axs_wdg.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
             for name in self.CAMERA_MODE_HIDDEN_TABS:
                 ui.al_toolbar.setTabVisible(ui.al_toolbar.indexOf(getattr(ui, name)), False)
+        else:
+            self._apply_a_axis_ui(self._grbl_connected)
         for key in self.CAMERA_MODE_HIDDEN_PAGES:
             console.set_page_visible(key, not camera)
         for key in self.CAMERA_MODE_DISABLED_PAGES:
@@ -719,7 +724,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                                   (self.ui.jog_wdg.jog_right_button, 'xplus'),
                                   (self.ui.jog_wdg.jog_left_button, 'xminus'),
                                   (self.ui.jog_wdg.jog_z_up_button, 'zplus'),
-                                  (self.ui.jog_wdg.jog_z_down_button, 'zminus')):
+                                  (self.ui.jog_wdg.jog_z_down_button, 'zminus'),
+                                  (self.ui.jog_wdg.jog_a_plus_button, 'aplus'),
+                                  (self.ui.jog_wdg.jog_a_minus_button, 'aminus')):
             button.pressed.connect(lambda button=button, direction=direction:
                                    self._on_jog_pressed(button, direction))
             button.released.connect(self._stop_continuous_jog)
@@ -736,11 +743,14 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             button.clicked.connect(lambda checked=False, direction=direction: self.on_grbl_jog(direction=direction))
         for index, button in enumerate(self.ui.jog_preset_buttons):
             button.clicked.connect(lambda checked=False, index=index: self.set_jog_preset(index))
+        for index, button in enumerate(self.ui.jog_a_preset_buttons):
+            button.clicked.connect(lambda checked=False, index=index: self.set_jog_a_preset(index))
 
         # Zero
         self.ui.zero_axs_wdg.grbl_zerox_button.clicked.connect(lambda: self.on_grbl_zero(axis='x'))
         self.ui.zero_axs_wdg.grbl_zeroy_button.clicked.connect(lambda: self.on_grbl_zero(axis='y'))
         self.ui.zero_axs_wdg.grbl_zeroz_button.clicked.connect(lambda: self.on_grbl_zero(axis='z'))
+        self.ui.zero_axs_wdg.grbl_zeroa_button.clicked.connect(lambda: self.on_grbl_zero(axis='a'))
         self.ui.zero_axs_wdg.grbl_zero_all_button.clicked.connect(lambda: self.on_grbl_zero(axis='all'))
         self.ui.zero_axs_wdg.grbl_homing_button.clicked.connect(self.on_grbl_homing)
         self.ui.wcs_combo.activated.connect(self.on_wcs_selected)
@@ -1138,9 +1148,15 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             stored = self.app.options.get(
                 key, app_defaults.get(key, AppDefaults.factory_defaults.get(key)))
             entry.set_value(float(stored) / factor)  # the range of the entry clamps it
+        # the rotary A: degrees and degrees/min, never converted
+        self._update_jog_a_presets()
+        self.ui.jog_a_fr_entry.set_value(float(self.app.options.get(
+            "tools_grbl_jog_fr_a", app_defaults.get("tools_grbl_jog_fr_a", AppDefaults.factory_defaults["tools_grbl_jog_fr_a"]))))
+        self.ui.jog_a_step_entry.set_value(self._jog_a_presets()[1])
         # the option changes only when the user edits a field, never with the display rounding of a rebuild
         for entry, slot in ((self.ui.jog_step_entry, self._on_jog_step_edited),
-                            (self.ui.jog_fr_entry, self._on_jog_fr_edited)):
+                            (self.ui.jog_fr_entry, self._on_jog_fr_edited),
+                            (self.ui.jog_a_fr_entry, self._on_jog_a_fr_edited)):
             try:
                 entry.spinner.editingFinished.disconnect(slot)
             except (TypeError, RuntimeError):
@@ -1168,6 +1184,44 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             if math.isfinite(value) and value > 0:
                 values[place] = value
         return values
+
+    def _on_jog_a_fr_edited(self):
+        self.app.options["tools_grbl_jog_fr_a"] = self.ui.jog_a_fr_entry.get_value()
+
+    def _jog_a_presets(self):
+        """The 4 A step presets in degrees from the option; a bad entry keeps the default of its place."""
+        default = AppDefaults.factory_defaults["tools_grbl_jog_presets_a"]
+        values = [float(v) for v in re.findall(r'\d+(?:\.\d+)?', default)]
+        for place, text in enumerate(str(self.app.options.get("tools_grbl_jog_presets_a", default)).split(',')[:4]):
+            try:
+                value = float(text)
+            except ValueError:
+                continue
+            if math.isfinite(value) and value > 0:
+                values[place] = value
+        return values
+
+    def _update_jog_a_presets(self):
+        for button, value in zip(self.ui.jog_a_preset_buttons, self._jog_a_presets()):
+            button.setText('%g' % round(value, 3))
+
+    def set_jog_a_preset(self, index):
+        """Set the A jog step to preset 'index' (0 to 3), in degrees."""
+        if 0 <= index < 4:
+            self.ui.jog_a_step_entry.set_value(self._jog_a_presets()[index])
+
+    def _apply_a_axis_ui(self, connected=True):
+        """The A widgets exist only on a connected XYZA controller."""
+        has_a = connected and (self._grbl_caps or {}).get('axes') == 'XYZA'
+        ui = self.ui
+        for widget in (ui.jog_wdg.jog_a_plus_button, ui.jog_wdg.jog_a_minus_button,
+                       ui.zero_axs_wdg.grbl_zeroa_button) + tuple(ui.a_axis_widgets):
+            widget.setVisible(has_a)
+        dros = [ui.status_strip.dro]
+        if self.view3d is not None and self.view3d.dro is not None:
+            dros.append(self.view3d.dro)
+        for dro in dros:
+            dro.set_axes('XYZA' if has_a else 'XYZ')
 
     def _update_jog_presets(self):
         factor = 25.4 if self.units == 'IN' else 1.0
@@ -1768,6 +1822,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             blocked = _("This grblHAL controller has axes other than X, Y, Z and A. "
                         "Only XYZ and XYZA machines are supported.")
         self._grbl_motion_blocked = blocked
+        self._apply_a_axis_ui()
         if blocked:
             self.app.inform.emit('[ERROR_NOTCL] %s' % blocked)
         elif caps.get('probe') is False:
@@ -1825,6 +1880,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self.ui.com_connect_button.setStyleSheet("QPushButton {background-color: %s;}" % color)
         # zero and Home sit in the jog block, outside the frames that are enabled above
         self.ui.zero_axs_wdg.setEnabled(connected)
+        self._apply_a_axis_ui(connected)
         self._homed_this_session = False
         if not connected:
             self._active_wcs = None
@@ -2465,8 +2521,12 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         if op is None:
             return
         try:
-            feed = self.ui.jog_fr_entry.get_value() * (25.4 if self.units == 'IN' else 1.0)
-            step = self.ui.jog_step_entry.get_value()
+            if direction[0] == 'a':  # rotary: degrees/min, no inch factor
+                feed = self.ui.jog_a_fr_entry.get_value()
+                step = self.ui.jog_a_step_entry.get_value()
+            else:
+                feed = self.ui.jog_fr_entry.get_value() * (25.4 if self.units == 'IN' else 1.0)
+                step = self.ui.jog_step_entry.get_value()
             if (self.units not in ('MM', 'IN') or getattr(self.app, 'app_units', None) != self.units
                     or not all(math.isfinite(value) and value > 0 for value in (feed, step))):
                 raise ValueError('Invalid jog units, step or feed')
@@ -2474,7 +2534,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             if port is self.__dict__.get('_native_jog_port'):
                 self._start_native_jog(op, button, direction, feed)
                 return
-            port.start_jog('xyz'.index(direction[0]), int(direction.endswith('minus')), feed)
+            port.start_jog('xyza'.index(direction[0]), int(direction.endswith('minus')), feed)
         except (serial.SerialException, OSError, ValueError) as error:
             self._grbl_release(op)
             self.app.inform.emit('[WARNING_NOTCL] %s: %s' % (_("Jog failed"), error))
@@ -2496,13 +2556,15 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
     def _start_native_jog(self, op, button, direction, feed):
         # One 200 ms segment, then confirmed Idle: no planner/serial backlog.
+        fr_entry, step_entry = ((self.ui.jog_a_fr_entry, self.ui.jog_a_step_entry) if direction[0] == 'a'
+                                else (self.ui.jog_fr_entry, self.ui.jog_step_entry))
         state = {'op': op, 'until': time.monotonic() + 0.15, 'stopped': False,
-                 'units': self.units, 'feed': self.ui.jog_fr_entry.get_value(),
-                 'step': self.ui.jog_step_entry.get_value(), 'session': self._start_seq}
+                 'units': self.units, 'feed': fr_entry.get_value(), 'step': step_entry.get_value(),
+                 'entries': (fr_entry, step_entry), 'session': self._start_seq}
         self._native_jog = state
         self._continuous_jog = (op.port, button)
-        self.ui.jog_fr_entry.setEnabled(False)
-        self.ui.jog_step_entry.setEnabled(False)
+        fr_entry.setEnabled(False)
+        step_entry.setEnabled(False)
         self._continuous_jog_timer.start()
         distance = feed * 0.2 / 60.0 * (-1 if direction.endswith('minus') else 1)
         command = '$J=G91 G21 %s%.9f F%.9f' % (direction[0].upper(), distance, feed)
@@ -2589,8 +2651,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                     native['stopped'] = True
                     if self.grbl_ser_port is active[0] and not self._grbl_write_realtime_locked(b'\x85'):
                         self._grbl_failure_locked(native['op'], 'port_error')
-            self.ui.jog_fr_entry.setEnabled(True)
-            self.ui.jog_step_entry.setEnabled(True)
+            for entry in native['entries']:
+                entry.setEnabled(True)
             self._native_jog = None
             return
         active[0].stop_jog()
@@ -2614,8 +2676,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                     self._grbl_op is not native['op'] or native['stopped']
                     or time.monotonic() > native['until']
                     or self.units != native['units']
-                    or self.ui.jog_fr_entry.get_value() != native['feed']
-                    or self.ui.jog_step_entry.get_value() != native['step']))
+                    or native['entries'][0].get_value() != native['feed']
+                    or native['entries'][1].get_value() != native['step']))
                 or (native is None and not port.refresh_jog())):
             self._stop_continuous_jog()
         elif native is not None:
@@ -2672,18 +2734,23 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         if direction is None or not self._action_ok('jog'):
             return
 
-        step = self.ui.jog_step_entry.get_value()
-        feedrate = self.ui.jog_fr_entry.get_value()
+        # A is rotary: its own step (degrees) and feed (degrees/min), never converted for inch
+        is_a = direction in ('aplus', 'aminus')
+        if is_a and (self._grbl_caps or {}).get('axes') != 'XYZA':
+            return
+        step = (self.ui.jog_a_step_entry if is_a else self.ui.jog_step_entry).get_value()
+        feedrate = (self.ui.jog_a_fr_entry if is_a else self.ui.jog_fr_entry).get_value()
         units, port, session = self.units, self.grbl_ser_port, self._start_seq
         if (units not in ('MM', 'IN') or getattr(self.app, 'app_units', None) != units
                 or not all(math.isfinite(value) and value > 0 for value in (step, feedrate))):
             self.app.inform.emit('[WARNING_NOTCL] %s' % _("Jog requires positive finite step and feed."))
             return
-        decimals = self.app.decimals
+        decimals = 3 if is_a else self.app.decimals
         if float('%.*f' % (decimals, step)) == 0:
             self.app.inform.emit('[WARNING_NOTCL] %s' % (
                 _("The jog step is below the resolution %s.") % ('%.*f' % (decimals, 10 ** -decimals))))
             return
+        feed_text = '%g' % feedrate if is_a else str(feedrate)
         app_defaults = getattr(self.app, "defaults", None) or AppDefaults.factory_defaults
         travelz = float(
             self.app.options.get(
@@ -2700,6 +2767,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             'yminus': 'Y-%s' % step_text,
             'zplus': 'Z%s' % step_text,
             'zminus': 'Z-%s' % step_text,
+            'aplus': 'A%s' % step_text,
+            'aminus': 'A-%s' % step_text,
             'xminus_yplus': 'X-%s Y%s' % (step_text, step_text),
             'xplus_yplus': 'X%s Y%s' % (step_text, step_text),
             'xminus_yminus': 'X-%s Y-%s' % (step_text, step_text),
@@ -2711,7 +2780,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 "$J=G90 %s X0.0 Y0.0 F%s" % (units_cmd, str(feedrate)),
             ]
         elif direction in axis_words:
-            commands = ["$J=G91 %s %s F%s" % (units_cmd, axis_words[direction], str(feedrate))]
+            commands = ["$J=G91 %s %s F%s" % (units_cmd, axis_words[direction], feed_text)]
         else:
             return
 
@@ -4109,7 +4178,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self.set_work_position({axis: value})
 
     def on_grbl_zero(self, axis):
-        axes = {'x': ('X',), 'y': ('Y',), 'z': ('Z',)}.get(axis, ('X', 'Y', 'Z'))
+        axes = {'x': ('X',), 'y': ('Y',), 'z': ('Z',), 'a': ('A',)}.get(axis, ('X', 'Y', 'Z'))
+        if axis == 'all' and (self._grbl_caps or {}).get('axes') == 'XYZA':
+            axes += ('A',)
         self.set_work_position({letter: 0.0 for letter in axes})
 
     def set_work_position(self, values):
@@ -4134,7 +4205,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 return
             # the controller reads the words in its own modal units
             factor = {('MM', True): 1 / 25.4, ('IN', False): 25.4}.get((units, self._gc_inches), 1.0)
-            axes = ' '.join('%s%s' % (letter, ('%.*f' % (decimals, value * factor)).rstrip('0').rstrip('.'))
+            # the rotary A is in degrees: never converted
+            axes = ' '.join('%s%s' % (letter, ('%.*f' % (decimals, value * (1.0 if letter == 'A' else factor)))
+                                      .rstrip('0').rstrip('.'))
                             for letter, value in values.items())
             cmd = 'G10 L20 P%d %s' % (p_number, axes)
             text, status = self._grbl_transact(op, cmd, timeout=5.0, echo=False)
@@ -7387,6 +7460,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self.view3d = SenderView3d(canvas)
             if self.view3d.dro is not None:
                 self.view3d.dro.dro_clicked.connect(self.on_dro_clicked)
+                self._apply_a_axis_ui(self._grbl_connected)
             # the sender view starts in the isometric view; later the camera stays as the user turns it
             canvas.view.camera.set_view('iso')
         dialog = self.__dict__.get('_simulation')

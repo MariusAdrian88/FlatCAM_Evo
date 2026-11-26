@@ -5606,6 +5606,18 @@ class FCJog(QtWidgets.QFrame):
         )
         grbl_jog_grid.addWidget(self.jog_z_down_button, 4, 3)
 
+        # JOG A (rotary axis, shown only for an XYZA controller)
+        self.jog_a_plus_button = QtWidgets.QToolButton()
+        self.jog_a_plus_button.setText('A+')
+        self.jog_a_plus_button.setToolTip(_("Jog the A axis."))
+        grbl_jog_grid.addWidget(self.jog_a_plus_button, 2, 4)
+        self.jog_a_minus_button = QtWidgets.QToolButton()
+        self.jog_a_minus_button.setText('A-')
+        self.jog_a_minus_button.setToolTip(_("Jog the A axis."))
+        grbl_jog_grid.addWidget(self.jog_a_minus_button, 4, 4)
+        self.jog_a_plus_button.hide()
+        self.jog_a_minus_button.hide()
+
         # diagonal jogs in the corners of the pad
         for name, row, col, text, tip in (
                 ('jog_up_left_button', 2, 0, '↖', _("Jog X and Y: left and up.")),
@@ -5657,11 +5669,19 @@ class FCZeroAxes(QtWidgets.QFrame):
             _("Zero the CNC Z axes at current position.")
         )
         grbl_zero_grid.addWidget(self.grbl_zeroz_button, 3, 0)
+        # Zero A axis (rotary, shown only for an XYZA controller)
+        self.grbl_zeroa_button = QtWidgets.QToolButton()
+        self.grbl_zeroa_button.setText(_("A"))
+        self.grbl_zeroa_button.setToolTip(
+            _("Zero the CNC A axis at current position.")
+        )
+        grbl_zero_grid.addWidget(self.grbl_zeroa_button, 4, 0)
+        self.grbl_zeroa_button.hide()
         self.grbl_homing_button = QtWidgets.QToolButton()
         self.grbl_homing_button.setText(_("Do Home"))
         self.grbl_homing_button.setToolTip(
             _("Perform a homing cycle on all axis."))
-        grbl_zero_grid.addWidget(self.grbl_homing_button, 4, 0, 1, 2)
+        grbl_zero_grid.addWidget(self.grbl_homing_button, 5, 0, 1, 2)
         # Zeroo all axes
         self.grbl_zero_all_button = QtWidgets.QToolButton()
         self.grbl_zero_all_button.setText(_("All"))
