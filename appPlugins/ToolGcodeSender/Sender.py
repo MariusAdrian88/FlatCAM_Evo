@@ -128,7 +128,7 @@ WIDGET_ACTIONS = {
     'spindle_button': 'spindle',
     'grbl_command_entry': 'console', 'grbl_send_button': 'console',
     'edge_probe_button': 'probe', 'edge_center_button': 'probe',
-    'config_tab': 'config',
+    'config_tab': 'config', 'wcs_combo': 'wcs',
 }
 
 
@@ -198,6 +198,12 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     # the host tool change pause (T1) and the wait at the single block gate (F8): rows of ACTION_RULES
     _tool_pause = None
     _step_waiting = False
+    # the active WCS as the controller reported it ('G54'..'G59', None: not read) and the last work position
+    # shown (display units) for the typed work position
+    _active_wcs = None
+    _last_work = None
+    _gc_inches = False      # the controller's modal units were G20 at the last $G
+    _homed_this_session = False     # a home cycle finished since the connect
     # (request, {'frame': ...} or {'error': ...}) from the frame worker; emitted after the port is released
     frame_ready_sig = QtCore.pyqtSignal(object, object)
     al_result_ready_sig = QtCore.pyqtSignal(object)
@@ -554,7 +560,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     CAMERA_MODE_HIDDEN_WIDGETS = (
         'level', 'job_row', 'progress_bar', 'heightmap_frame', 'probe_points_frame',
         'zero_axs_wdg.grbl_zerox_button', 'zero_axs_wdg.grbl_zeroy_button', 'zero_axs_wdg.grbl_zeroz_button',
-        'zero_axs_wdg.grbl_zero_all_button', 'spindle_button', 'spindle_rpm_entry', 'spindle_rpm_label')
+        'zero_axs_wdg.grbl_zero_all_button', 'wcs_combo', 'spindle_button', 'spindle_rpm_entry', 'spindle_rpm_label')
     # pages of the Plugin tab (ui attribute names) that are hidden in al_toolbar
     CAMERA_MODE_HIDDEN_TABS = ('job_tab',)
     # pages of the dock (keys) that are hidden, and that are disabled; the dock is not rebuilt with the UI, so
@@ -718,6 +724,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self.ui.zero_axs_wdg.grbl_zeroz_button.clicked.connect(lambda: self.on_grbl_zero(axis='z'))
         self.ui.zero_axs_wdg.grbl_zero_all_button.clicked.connect(lambda: self.on_grbl_zero(axis='all'))
         self.ui.zero_axs_wdg.grbl_homing_button.clicked.connect(self.on_grbl_homing)
+        self.ui.wcs_combo.activated.connect(self.on_wcs_selected)
+        self.ui.status_strip.dro.dro_clicked.connect(self.on_dro_clicked)
 
         # Sender
         self.ui.grbl_report_button.clicked.connect(self.on_grbl_report)
@@ -1661,7 +1669,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         text, status = self._grbl_transact(op, '$$', timeout=5.0, echo=False)
         value = parse_grbl_setting(text, 13) if status == 'ok' else None
         self._grbl_report_inches = (value == 1.0) if value in (0.0, 1.0) else None
-        self._grbl_settings = ({number: parse_grbl_setting(text, number) for number in (110, 111)}
+        self._grbl_settings = ({number: parse_grbl_setting(text, number) for number in (22, 110, 111)}
                                if status == 'ok' else None)
         if status == 'ok':
             # GRBL 1.1 always reports the pins; grblHAL does it with $10 bit 4
@@ -1702,7 +1710,10 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                     self._native_jog_port = op.port
                 self._grbl_apply_capabilities()
             self._grbl_identity_pending = False
-        return self._grbl_read_report_units(op)
+        status = self._grbl_read_report_units(op)
+        if status == 'ok':
+            self._grbl_read_active_wcs(op)
+        return status
 
     def _line_limits(self):
         """
@@ -1780,6 +1791,10 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self.ui.com_connect_button.setStyleSheet("QPushButton {background-color: %s;}" % color)
         # zero and Home sit in the jog block, outside the frames that are enabled above
         self.ui.zero_axs_wdg.setEnabled(connected)
+        self._homed_this_session = False
+        if not connected:
+            self._active_wcs = None
+            self._last_work = None
         # Reset Tool rebuilds the UI: not while a port is ready
         self.ui.reset_button.setEnabled(not connected)
         self._apply_machine_state()
@@ -2085,6 +2100,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             status = self._grbl_transact(op, cmd, timeout=30.0)[1]
             if changes_units and status == 'ok':
                 status = self._grbl_read_report_units(op)
+            if status == 'ok' and re.search(r'\bG5[4-9](\.\d)?\b', cmd, re.IGNORECASE):
+                self._grbl_read_active_wcs(op)
             return status == 'ok'
 
         # a typed command can move the machine, so it needs a machine that is not in recovery
@@ -3853,30 +3870,91 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 text += ' ' + _("The active height map was invalidated. Probe it again.")
             self._toolchange_refresh_ui(text)
 
-    def on_grbl_zero(self, axis):
-        if not self._action_ok('zero'):
+    def on_wcs_selected(self, *args):
+        """The WCS combo: send the selected WCS code, then read the active one back ($G)."""
+        if not self._action_ok('wcs'):
             return
-        axes = {'x': 'X0', 'y': 'Y0', 'z': 'Z0'}.get(axis, 'X0 Y0 Z0')
+        wcs = self.ui.wcs_combo.currentText()
 
         def task(op):
-            text, status = self._grbl_transact(op, '$G', timeout=5.0, echo=False)
-            try:
-                if status != 'ok':
-                    raise ValueError(status)
-                active_wcs = parse_grbl_active_wcs(text)
-            except ValueError as err:
-                self.app.inform.emit('[ERROR_NOTCL] %s: %s' % (
-                    _("Could not read the active work coordinate system"), str(err)))
+            text, status = self._grbl_transact(op, wcs, timeout=5.0, echo=False)
+            if status != 'ok':
+                self.app.inform.emit('[ERROR_NOTCL] %s: %s -> %s' % (
+                    _("WCS change failed"), wcs, grbl_reply_error(text) or status))
                 return
+            self._grbl_read_active_wcs(op)
 
-            # G10 L20 makes the current position 0 in the active work coordinate
+        self._grbl_start_op('command', task)
+
+    def _grbl_read_active_wcs(self, op):
+        """
+        Read $G into self._active_wcs. A worker thread under `op`; no widget (the next status report shows it).
+
+        :return: the active WCS ('G54'...) or None if it could not be read.
+        """
+        text, status = self._grbl_transact(op, '$G', timeout=5.0, echo=False)
+        try:
+            if status != 'ok':
+                raise ValueError(status)
+            self._active_wcs = parse_grbl_active_wcs(text)
+        except ValueError as err:
+            self.app.inform.emit('[ERROR_NOTCL] %s: %s' % (
+                _("Could not read the active work coordinate system"), str(err)))
+            return None
+        self._gc_inches = 'G20' in text.replace(']', ' ').split()
+        return self._active_wcs
+
+    def _show_active_wcs(self):
+        """Show self._active_wcs on the combo and the status strip (GUI thread)."""
+        wcs = self._active_wcs
+        self.ui.status_strip.set_wcs(wcs)
+        combo = self.ui.wcs_combo
+        if wcs and combo.currentText() != wcs:
+            combo.blockSignals(True)
+            combo.setCurrentText(wcs)
+            combo.blockSignals(False)
+
+    def on_dro_clicked(self, axis):
+        """A click on a DRO Work value: ask for the work position of that axis."""
+        if not self._action_ok('zero'):
+            return
+        index = 'XYZA'.index(axis)
+        work = self._last_work
+        current = work[index] if work is not None and index < len(work) else 0.0
+        value, ok = QtWidgets.QInputDialog.getDouble(
+            self.app.ui, _("Set work position"), axis, current, -1e6, 1e6, self.app.decimals)
+        if ok:
+            self.set_work_position({axis: value})
+
+    def on_grbl_zero(self, axis):
+        axes = {'x': ('X',), 'y': ('Y',), 'z': ('Z',)}.get(axis, ('X', 'Y', 'Z'))
+        self.set_work_position({letter: 0.0 for letter in axes})
+
+    def set_work_position(self, values):
+        """
+        Make the current position the given work position in the active WCS (G10 L20).
+
+        :param values: {axis letter: position in the display units of the Sender}
+        """
+        if not self._action_ok('zero'):
+            return
+        units, decimals = self.units, self.app.decimals
+
+        def task(op):
+            if self._grbl_read_active_wcs(op) is None:
+                return
+            # G10 L20 makes the current position the given one in the active work coordinate
             # system (G10 L2 would set the offset to machine 0)
             try:
-                p_number = grbl_wcs_p_number(active_wcs)
+                p_number = grbl_wcs_p_number(self._active_wcs)
             except ValueError as err:
                 self.app.inform.emit('[ERROR_NOTCL] %s: %s' % (_("Zero failed"), str(err)))
                 return
-            cmd ='G10 L20 P%d %s' % (p_number, axes)
+            # the controller reads the words in its own modal units
+            factor = {('MM', True): 1 / 25.4, ('IN', False): 25.4}.get((units, self._gc_inches), 1.0)
+            axes = ' '.join('%s%s' % (letter, ('%.*f' % (decimals, value * factor)).rstrip('0').rstrip('.'))
+                            for letter, value in values.items())
+            cmd = 'G10 L20 P%d %s' % (p_number, axes)
             text, status = self._grbl_transact(op, cmd, timeout=5.0, echo=False)
             if status != 'ok':
                 self.app.inform.emit('[ERROR_NOTCL] %s: %s -> %s' % (
@@ -3908,6 +3986,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                     if not self._grbl_active_locked(op) or op.safety_generation != self._grbl_safety_generation:
                         return False
                     self._grbl_recovery = None
+                    self._homed_this_session = True
                     self.app.inform.emit('[success] %s' % _("Home cycle finished."))
                 return
             if 'alarm' in (text or '').lower() or status in ('timeout', 'port_error'):
@@ -5479,6 +5558,12 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 self.app.log.error("ToolGcodeSender.on_start() -> %s" % str(err))
                 how = self._grbl_stream_crashed(op, 'error')
             finally:
+                if how == 'finished':
+                    # the program can change the WCS (G54..G59): read it before the release
+                    try:
+                        self._grbl_read_active_wcs(op)
+                    except Exception as err:
+                        self.app.log.error("ToolGcodeSender.on_start() -> %s" % str(err))
                 # the operation is released after the status map; the GUI hears about it after the release
                 self._grbl_release(op)
                 self.stream_ended_sig.emit(how)
@@ -6635,6 +6720,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self.ui.status_label.setText(text)
         self.ui.status_strip.set_state(report['state'])
         self.ui.status_strip.set_position(pos, strip_units)
+        self._last_work = pos
+        self._show_active_wcs()
         if report['state'].split(':')[0] != 'Alarm':
             self.ui.status_strip.set_alarm(None)
         elif not self.ui.status_strip.alarm_label.text():
@@ -6667,7 +6754,10 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             else:
                 work = tuple(value * scale for value in work) if work is not None else None
                 machine = tuple(value * scale for value in machine) if machine is not None else None
-            self.view3d.set_coordinates(work, machine, units)
+            # $22: bit 0 enables homing (grblHAL uses more bits of the same setting)
+            not_homed = int((self._grbl_settings or {}).get(22) or 0) & 1 == 1 and not self._homed_this_session
+            self.view3d.set_coordinates(work, machine, units, wcs=self._active_wcs, state=report['state'],
+                                        not_homed=not_homed)
         if self.__dict__.get('camera_calibration') is not None and self.camera_calibration.has_calibration:
             self._camera_refresh_ui()
 
@@ -6810,6 +6900,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             return
         if self.view3d is None or self.view3d.canvas is not canvas:
             self.view3d = SenderView3d(canvas)
+            if self.view3d.dro is not None:
+                self.view3d.dro.dro_clicked.connect(self.on_dro_clicked)
             # the sender view starts in the isometric view; later the camera stays as the user turns it
             canvas.view.camera.set_view('iso')
         dialog = self.__dict__.get('_simulation')

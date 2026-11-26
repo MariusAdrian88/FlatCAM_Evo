@@ -35,6 +35,8 @@ def fake_canvas():
     return canvas
 
 
+LIVE_WIDGETS = []
+
 SEGMENTS = [
     (0, (0.0, 0.0, 0.0), (1.0, 0.0, 0.0), True),
     (1, (1.0, 0.0, 0.0), (1.0, 1.0, 0.0), False),
@@ -43,26 +45,40 @@ SEGMENTS = [
 
 
 class SenderView3dTest(unittest.TestCase):
-    def test_coordinates_are_screen_space_and_expire(self):
+    def test_dro_overlay_shows_work_and_machine(self):
         from PyQt6 import QtWidgets, QtCore
+        transparent = QtCore.Qt.WidgetAttribute.WA_TransparentForMouseEvents
         canvas = fake_canvas()
         canvas.native = QtWidgets.QWidget()
+        LIVE_WIDGETS.append(canvas.native)      # a collected parentless widget corrupts the Qt heap later
         view = SenderView3d(canvas)
         self.addCleanup(view.clear)
-        view.set_coordinates((1, 2, 3), (11, 22, 33), 'MM')
-        label = view.coordinates
-        self.assertIs(label.parent(), canvas.native)
-        self.assertTrue(label.testAttribute(QtCore.Qt.WidgetAttribute.WA_TransparentForMouseEvents))
-        self.assertIn('X 1.000', label.text())
-        self.assertIn('X 11.000', label.text())
-        self.assertIn('mm', label.text())
-        self.assertIn('WCS unverified', label.text())
-        point = label.pos()
+        view.set_coordinates((9, 18, 27), (10, 20, 30), 'MM', wcs='G55', state='Idle')
+        dro = view.dro
+        self.assertIs(dro.parent(), canvas.native)
+        self.assertEqual([dro.work[a].text() for a in 'XYZ'], ['9.000', '18.000', '27.000'])
+        self.assertEqual([dro.machine[a].text() for a in 'XYZ'], ['10.000', '20.000', '30.000'])
+        self.assertIn('G55', dro.header.text())
+        self.assertTrue(dro.work['A'].isHidden())
+        # the 3D view keeps its mouse; the Work values take clicks
+        self.assertTrue(dro.header.testAttribute(transparent))
+        self.assertFalse(dro.work['X'].testAttribute(transparent))
+        clicks = []
+        dro.dro_clicked.connect(clicks.append)
+        dro.work['Y'].clicked.emit()
+        self.assertEqual(clicks, ['Y'])
+        point = dro.pos()
         canvas.view.camera.rotate_about(10, 20)
-        self.assertEqual(label.pos(), point)
+        self.assertEqual(dro.pos(), point)
         view._coordinate_timer.timeout.emit()
-        self.assertNotIn('X 1.000', label.text())
-        self.assertIn('stale', label.text())
+        self.assertIn('#808080', dro.work['X'].styleSheet())
+        self.assertEqual(dro.work['X'].text(), '9.000')
+        view.set_coordinates((1, 2, 3, 4), (1, 2, 3, 4), 'MM', state='Idle')
+        self.assertFalse(dro.work['A'].isHidden())
+        self.assertEqual(dro.work['A'].text(), '4.000')
+        self.assertNotIn('#808080', dro.work['X'].styleSheet())
+        view.set_coordinates(None, None, None)
+        self.assertTrue(dro.isHidden())
 
 
     def test_set_toolpath(self):

@@ -5,7 +5,8 @@
 # License:  MIT Licence                                    #
 # ##########################################################
 
-from PyQt6 import QtWidgets, QtGui
+import numpy as np
+from PyQt6 import QtWidgets, QtGui, QtCore
 
 from appGUI.GUIElements import FCButton
 
@@ -26,6 +27,107 @@ STATE_COLORS = {
 GREY = '#808080'
 
 
+class _ValueLabel(QtWidgets.QLabel):
+    """A Work value that takes a click."""
+    clicked = QtCore.pyqtSignal()
+
+    def mousePressEvent(self, event):
+        if event.button() == QtCore.Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(event)
+
+
+class DroPanel(QtWidgets.QFrame):
+    """
+    One row per axis (X, Y, Z and A when it exists): a large Work value and a smaller Machine value, and a
+    header line with the state, the WCS and the units. compact=True: Work values only, no header.
+    """
+    dro_clicked = QtCore.pyqtSignal(str)
+
+    LETTERS = 'XYZA'
+
+    def __init__(self, parent=None, compact=False):
+        super().__init__(parent)
+        self.compact = compact
+        font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.SystemFont.FixedFont)
+        font.setPointSize(16)
+        font.setBold(True)
+        small = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.SystemFont.FixedFont)
+        self.setLayoutDirection(QtCore.Qt.LayoutDirection.LeftToRight)
+        self.letters = {}
+        self.work = {}
+        self.machine = {}
+        self.header = QtWidgets.QLabel()
+        self.header.setAttribute(QtCore.Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.header.setVisible(not compact)
+        if compact:
+            layout = QtWidgets.QHBoxLayout(self)
+            layout.setContentsMargins(0, 0, 0, 0)
+        else:
+            layout = QtWidgets.QGridLayout(self)
+            layout.setContentsMargins(8, 4, 8, 4)
+            layout.setVerticalSpacing(0)
+            layout.addWidget(self.header, 0, 0, 1, 3)
+            self.setStyleSheet('DroPanel {background: rgba(255,255,255,200);} QLabel {color: #202020;}')
+        for row, letter in enumerate(self.LETTERS, start=1):
+            self.letters[letter] = QtWidgets.QLabel(letter)
+            self.work[letter] = _ValueLabel()
+            self.work[letter].setFont(font)
+            self.work[letter].clicked.connect(lambda axis=letter: self.dro_clicked.emit(axis))
+            self.machine[letter] = QtWidgets.QLabel()
+            self.machine[letter].setFont(small)
+            for label in (self.letters[letter], self.machine[letter]):
+                label.setAttribute(QtCore.Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+            if compact:
+                layout.addWidget(self.letters[letter])
+                layout.addWidget(self.work[letter])
+            else:
+                layout.addWidget(self.letters[letter], row, 0)
+                layout.addWidget(self.work[letter], row, 1)
+                layout.addWidget(self.machine[letter], row, 2)
+            self.machine[letter].setVisible(not compact)
+        self.set_axes('XYZ')
+        self.clear()
+
+    def set_axes(self, letters):
+        for letter in self.LETTERS:
+            shown = letter in letters
+            self.letters[letter].setVisible(shown)
+            self.work[letter].setVisible(shown)
+            self.machine[letter].setVisible(shown and not self.compact)
+        if not self.compact:
+            self.adjustSize()
+
+    def set_values(self, work, machine, units, wcs=None, state=None, stale=False, not_homed=False):
+        count = len(work) if work is not None else len(machine) if machine is not None else 3
+        self.set_axes(self.LETTERS[:max(3, min(count, 4))])
+        fmt = '%.4f' if str(units).lower() in ('in', 'inch') else '%.3f'
+        for index, letter in enumerate(self.LETTERS):
+            for labels, values in ((self.work, work), (self.machine, machine)):
+                text = '---'
+                if values is not None and index < len(values) and np.isfinite(values[index]):
+                    text = fmt % values[index]
+                if labels[letter].text() != text:
+                    labels[letter].setText(text)
+        parts = (state, wcs, str(units).lower() if units else None, _("not homed") if not_homed else None)
+        header = ' · '.join(str(part) for part in parts if part)
+        if self.header.text() != header:
+            self.header.setText(header)
+        self.set_stale(stale)
+        if not self.compact:
+            self.adjustSize()
+
+    def set_stale(self, stale):
+        style = 'QLabel {color: %s;}' % GREY if stale else ''
+        for labels in (self.work, self.machine):
+            for label in labels.values():
+                if label.styleSheet() != style:
+                    label.setStyleSheet(style)
+
+    def clear(self):
+        self.set_values(None, None, None)
+
+
 class SenderStatusStrip(QtWidgets.QWidget):
     """Machine state badge, 3 position readouts and the alarm row."""
 
@@ -40,19 +142,12 @@ class SenderStatusStrip(QtWidgets.QWidget):
         self.state_label = QtWidgets.QLabel()
         row.addWidget(self.state_label)
 
-        font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.SystemFont.FixedFont)
-        font.setPointSize(16)
-        font.setBold(True)
-        self.dro_x = QtWidgets.QLabel()
-        self.dro_y = QtWidgets.QLabel()
-        self.dro_z = QtWidgets.QLabel()
-        for axis, dro in (('X', self.dro_x), ('Y', self.dro_y), ('Z', self.dro_z)):
-            dro.setFont(font)
-            letter = QtWidgets.QLabel(axis)
-            row.addWidget(letter)
-            row.addWidget(dro)
+        self.dro = DroPanel(compact=True)
+        row.addWidget(self.dro)
         self.units_label = QtWidgets.QLabel()
         row.addWidget(self.units_label)
+        self.wcs_label = QtWidgets.QLabel()
+        row.addWidget(self.wcs_label)
         row.addStretch()
         layout.addLayout(row)
 
@@ -91,15 +186,11 @@ class SenderStatusStrip(QtWidgets.QWidget):
             self.state_label.setStyleSheet(style)
 
     def set_position(self, pos, units):
-        if pos is None:
-            for dro in (self.dro_x, self.dro_y, self.dro_z):
-                dro.setText('---')
-            self.units_label.setText('')
-            return
-        fmt = '%.4f' if str(units).lower() in ('in', 'inch') else '%.3f'
-        for dro, value in zip((self.dro_x, self.dro_y, self.dro_z), pos):
-            dro.setText(fmt % value)
-        self.units_label.setText(str(units).lower() if units else '')
+        self.dro.set_values(pos, None, units)
+        self.units_label.setText(str(units).lower() if pos is not None and units else '')
+
+    def set_wcs(self, wcs):
+        self.wcs_label.setText(wcs or '')
 
     def set_alarm(self, text):
         self.alarm_label.setText(text or '')
@@ -114,5 +205,6 @@ class SenderStatusStrip(QtWidgets.QWidget):
     def clear(self):
         self.set_state(None)
         self.set_position(None, None)
+        self.set_wcs(None)
         self.set_alarm(None)
         self.set_recovery(None)

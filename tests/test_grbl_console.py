@@ -1210,14 +1210,13 @@ class TestDockedJogPage(unittest.TestCase):
         self.tool._on_status_report({'state': 'Idle'})
         self.assertTrue(strip.alarm_frame.isHidden())
         self.tool._on_status_report({'state': 'Idle', 'wpos': (1.0, 2.5, -0.25)})
-        self.assertEqual([strip.dro_x.text(), strip.dro_y.text(), strip.dro_z.text()],
-                         ['1.000', '2.500', '-0.250'])
+        self.assertEqual([strip.dro.work[a].text() for a in 'XYZ'], ['1.000', '2.500', '-0.250'])
         self.tool._report_scale = lambda: None
         self.tool._on_status_report({'state': 'Idle', 'wpos': (1.0, 2.5, -0.25)})
-        self.assertEqual([strip.dro_x.text(), strip.dro_y.text(), strip.dro_z.text()], ['---'] * 3)
+        self.assertEqual([strip.dro.work[a].text() for a in 'XYZ'], ['---'] * 3)
         self.tool._grbl_set_ui_connected(False)
         self.assertEqual(strip.state_label.text(), 'Not connected')
-        self.assertEqual(strip.dro_x.text(), '---')
+        self.assertEqual(strip.dro.work['X'].text(), '---')
 
     def test_ecut_queue_is_shown_only_for_an_ecut_port_and_ends_idle(self):
         class QueuePort(DockJogFake):
@@ -1863,6 +1862,66 @@ class TestActionRules(unittest.TestCase):
         tool.on_grbl_override(b'\x91')
         self.assertNotIn(b'\x96', b''.join(fake.written))
         self.assertIn(b'\x91', b''.join(fake.written))
+
+    def test_wcs_selector(self):
+        from appGUI.GUIElements import FCComboBox
+        from appPlugins.ToolGcodeSender.SenderStatusUI import SenderStatusStrip
+        tool, fake = self.make()
+        combo = tool.ui.wcs_combo = FCComboBox()
+        combo.addItems(['G54', 'G55', 'G56', 'G57', 'G58', 'G59'])
+        self.addCleanup(combo.deleteLater)
+        strip = tool.ui.status_strip = SenderStatusStrip()
+        self.addCleanup(strip.deleteLater)
+        fake.replies['$G'] = ['[GC:G0 G55 G17 G21 G90 G94 M5 M9 T0 F0 S0]', 'ok']
+        combo.setCurrentText('G55')
+        tool.on_wcs_selected()
+        self.assertEqual(fake.commands()[:2], ['G55', '$G'])
+        tool._on_status_report({'state': 'Idle'})
+        self.assertEqual(strip.wcs_label.text(), 'G55')
+        # the active WCS changed on the controller: the next report shows it
+        tool._active_wcs = 'G57'
+        tool._on_status_report({'state': 'Idle'})
+        self.assertEqual(combo.currentText(), 'G57')
+        self.assertEqual(strip.wcs_label.text(), 'G57')
+        # in a job the combo is disabled and a selection writes nothing
+        self.situation(tool, 'stream_run')
+        tool._apply_machine_state()
+        self.assertFalse(combo.isEnabled())
+        fake.written.clear()
+        combo.setCurrentText('G58')
+        tool.on_wcs_selected()
+        self.assertEqual(fake.written, [])
+
+    def test_overlay_not_homed_and_wcs_after_console_command(self):
+        tool, fake = self.make()
+        tool.view3d = MagicMock()
+        tool.app.options = {}
+        tool._report_scale = lambda: 1.0
+        tool._grbl_settings = {22: 1.0}
+        tool._on_status_report({'state': 'Idle', 'mpos': (1, 2, 3), 'wco': (0, 0, 0)})
+        self.assertTrue(tool.view3d.set_coordinates.call_args.kwargs['not_homed'])
+        tool.on_grbl_homing()
+        tool._on_status_report({'state': 'Idle', 'mpos': (1, 2, 3), 'wco': (0, 0, 0)})
+        self.assertFalse(tool.view3d.set_coordinates.call_args.kwargs['not_homed'])
+        tool._grbl_settings = {22: 0.0}
+        tool._homed_this_session = False
+        tool._on_status_report({'state': 'Idle', 'mpos': (1, 2, 3), 'wco': (0, 0, 0)})
+        self.assertFalse(tool.view3d.set_coordinates.call_args.kwargs['not_homed'])
+        # a console G55 reads the active WCS after it
+        fake.replies['$G'] = ['[GC:G0 G55 G17 G21 G90 G94 M5 M9 T0 F0 S0]', 'ok']
+        fake.written.clear()
+        tool.ui.grbl_command_entry.get_value.return_value = 'G55'
+        tool.on_grbl_send_command()
+        self.assertEqual([c for c in fake.commands() if c != '?'][:2], ['G55', '$G'])
+        self.assertEqual(tool._active_wcs, 'G55')
+
+    def test_set_work_position(self):
+        tool, fake = self.make()
+        tool.app.decimals = 4
+        tool.units = 'MM'
+        fake.replies['$G'] = ['[GC:G0 G55 G17 G21 G90 G94 M5 M9 T0 F0 S0]', 'ok']
+        tool.set_work_position({'X': 12.5})
+        self.assertEqual([c for c in fake.commands() if c != '?'], ['$G', 'G10 L20 P2 X12.5'])
 
     def test_handlers_refuse_without_widgets(self):
         for name in ('probe', 'stream_run', 'needs_reset'):

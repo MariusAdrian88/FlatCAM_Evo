@@ -12,6 +12,8 @@ from PyQt6 import QtCore, QtWidgets
 from vispy import scene
 from vispy.color import Colormap
 
+from appPlugins.ToolGcodeSender.SenderStatusUI import DroPanel
+
 import gettext
 import appTranslation as fcTranslate
 import builtins
@@ -53,41 +55,31 @@ class SenderView3d:
         self._accepted_k = -1
         self.has_selection = False
         native = getattr(canvas, 'native', None)
-        self.coordinates = QtWidgets.QLabel(native) if isinstance(native, QtWidgets.QWidget) else None
+        self.dro = DroPanel(native) if isinstance(native, QtWidgets.QWidget) else None
         self._coordinate_timer = QtCore.QTimer(native)
         self._coordinate_timer.setSingleShot(True)
         self._coordinate_timer.setInterval(3000)
-        self._coordinate_timer.timeout.connect(lambda: self.set_coordinates(None, None, None, stale=True))
-        if self.coordinates is not None:
-            self.coordinates.setAttribute(QtCore.Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-            self.coordinates.setLayoutDirection(QtCore.Qt.LayoutDirection.LeftToRight)
-            self.coordinates.setStyleSheet('QLabel {background: rgba(255,255,255,225); color: #202020; padding: 8px;}')
-            self.coordinates.move(12, 12)
+        # no report for 3 s: the values stay, in the stale look
+        self._coordinate_timer.timeout.connect(lambda: self.dro.set_stale(True) if self.dro is not None else None)
+        if self.dro is not None:
+            self.dro.move(12, 12)
             self.set_coordinates(None, None, None)
 
-    def set_coordinates(self, work, machine, units, stale=False):
-        """Qt child of the viewport: independent of every scene/camera transform."""
+    def set_coordinates(self, work, machine, units, stale=False, wcs=None, state=None, not_homed=False):
+        """
+        The DRO panel is a Qt child of the viewport: independent of every scene/camera transform. It stays
+        visible while a report comes (state is given); with no state and no values it is hidden.
+        """
         self._coordinate_timer.stop()
-        if self.coordinates is None:
+        if self.dro is None:
             return
-
-        def position(xyz):
-            if units not in ('MM', 'IN') or xyz is None or not np.isfinite(xyz).all():
-                return _('unavailable')
-            return 'X %.3f &nbsp; Y %.3f &nbsp; Z %.3f' % tuple(xyz)
-
-        unit_text = units.lower() if units in ('MM', 'IN') else _('units unknown')
-        text = (
-            '<span style="font-size:16pt; font-weight:bold">' + _('Work (%s): %s') + '</span><br>' +
-            _('Machine (%s): %s') + '<br>' + _('WCS unverified') + ' · ' + _('Machine reference unverified') +
-            '%s<br>' + _('Homing establishes the machine reference; not necessarily zero at switches.') + '<br>' +
-            _('Controller coordinates, not independent physical measurement.')) % (
-                unit_text, position(work), unit_text, position(machine), ' · ' + _('stale') if stale else '')
-        if self.coordinates.text() != text:
-            self.coordinates.setText(text)
-            self.coordinates.adjustSize()
-        self.coordinates.show()
-        self.coordinates.raise_()
+        if state is None and work is None and machine is None:
+            self.dro.clear()
+            self.dro.hide()
+            return
+        self.dro.set_values(work, machine, units if units in ('MM', 'IN') else None, wcs, state, stale, not_homed)
+        self.dro.show()
+        self.dro.raise_()
         if work is not None or machine is not None:
             self._coordinate_timer.start()
 
@@ -190,10 +182,10 @@ class SenderView3d:
         """Remove the visuals from the scene. It is safe to call it more than 1 time."""
         self._selection_timer.stop()
         self._coordinate_timer.stop()
-        if self.coordinates is not None:
-            self.coordinates.hide()
-            self.coordinates.deleteLater()
-            self.coordinates = None
+        if self.dro is not None:
+            self.dro.hide()
+            self.dro.deleteLater()
+            self.dro = None
         self.probing_shapes.clear(update=True)
         self.probing_shapes.parent = None
         self.excellon_shapes.clear(update=True)
