@@ -741,6 +741,7 @@ class AppDefaults:
         "tools_grbl_jog_fr": 1500,
         "tools_grbl_jog_presets": "0.01, 0.1, 1, 10",
         "tools_grbl_console_history": [],
+        "tools_grbl_user_buttons": [],
         "tools_grbl_travelz": 15.0,
         "tools_grbl_baudrate": '115200',
         "tools_grbl_console_visible": True,

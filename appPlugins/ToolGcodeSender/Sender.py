@@ -40,7 +40,7 @@ from appPlugins.Common.grbl.grbl_protocol import (
     parse_grbl_probe_output, parse_grbl_offsets, grbl_wcs_p_number)
 from appPlugins.Common.gcode_segment import split_long_moves, parse_toolpath, _words, _g_key
 from appPlugins.Common.levelling_interp import build_bilinear_grid
-from appPlugins.ToolGcodeSender import SenderGen, SenderKeys, SenderEstimate
+from appPlugins.ToolGcodeSender import SenderGen, SenderKeys, SenderEstimate, SenderMacros
 from appPlugins.Common.grbl.grbl_client import (
     GrblClientMixin, STATUS_POLL, IO_STATUS, IO_STATUS_PERIOD, MONITOR_OPS, is_controller_banner, is_grblhal_banner, is_native_jog_banner,
     stream_lines, validate_stream_lines, _GrblProbeAbort, GRBL_RX_BUFFER, GRBL_MAX_LINE)
@@ -198,6 +198,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     # the host tool change pause (T1) and the wait at the single block gate (F8): rows of ACTION_RULES
     _tool_pause = None
     _step_waiting = False
+    macro_page = None       # the user buttons page of the dock (SenderMacros.MacroPage)
     # the active WCS as the controller reported it ('G54'..'G59', None: not read) and the last work position
     # shown (display units) for the typed work position
     _active_wcs = None
@@ -692,6 +693,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         history = self.app.options["tools_grbl_console_history"] = [
             str(command) for command in (self.app.options.get("tools_grbl_console_history") or [])]
         self._command_history = CommandHistory(self.ui.grbl_command_entry, history)
+        # the same: the options keep their own list of the user buttons
+        self.app.options["tools_grbl_user_buttons"] = [
+            dict(button) for button in (self.app.options.get("tools_grbl_user_buttons") or [])]
         self.ui.ecut_motion_button.clicked.connect(self.on_ecut_motion_settings)
 
         # Jog
@@ -2106,6 +2110,41 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
 
         # a typed command can move the machine, so it needs a machine that is not in recovery
         self._grbl_start_op('command', task, motion=True)
+
+    def _macro_profile_gate(self, op, lines):
+        """Hook of the machine profile check of a macro (worker thread, before the first write).
+
+        :return: True if the macro may be sent.
+        """
+        return True
+
+    def run_macro(self, lines):
+        """Send the lines of a user button to the controller, in one operation; stop at the first error."""
+        if not self._action_ok('macro'):
+            return False
+        stream = SenderGen.clean_lines('\n'.join(str(line) for line in lines))
+        if not stream:
+            return False
+        too_long = validate_stream_lines(stream, *self._line_limits())
+        if too_long is not None:
+            self.app.inform.emit('[ERROR_NOTCL] %s: %s' % (_("The line is too long"), stream[too_long]))
+            return False
+        self._invalidate_coordinates()
+
+        def task(op):
+            if not self._macro_profile_gate(op, stream):
+                return False
+            for line in stream:
+                text, status = self._grbl_transact(op, line, timeout=30.0)
+                if status != 'ok':
+                    self.app.inform.emit('[ERROR_NOTCL] %s: %s -> %s' % (
+                        _("The macro stopped"), line, code_text(grbl_reply_error(text), self._grbl_grblhal) or status))
+                    return False
+            if any(re.search(r'\bG5[4-9](\.\d)?\b', line, re.IGNORECASE) for line in stream):
+                self._grbl_read_active_wcs(op)
+            return True
+
+        return self._grbl_start_op('macro', task, motion=True)
 
     def on_spindle_button(self, checked):
         """
@@ -4091,6 +4130,11 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         for path, action in WIDGET_ACTIONS.items():
             widget = operator.attrgetter(path)(ui)
             widget.setEnabled(allowed[action])
+        if self.macro_page is not None:
+            try:
+                self.macro_page.set_run_enabled(allowed['macro'])
+            except RuntimeError:
+                self.macro_page = None
         for button, byte in ui.ov_buttons.values():
             button.setEnabled(allowed['rapid_override' if byte in RAPID_OVERRIDE_BYTES else 'override'])
         # a jog arrow that the operator holds must stay enabled, or its release never arrives
@@ -7188,6 +7232,11 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         if console.page('io') is None:
             console.set_page('io', _("IO"), self.sender_io.new_page())
             self.sender_io.evaluate()
+        macros = console.page('macros')
+        if macros is None or macros.tool is not self:
+            macros = SenderMacros.MacroPage(self)
+            console.set_page('macros', _("Buttons"), macros)
+            self.macro_page = macros
         command_row = getattr(getattr(self, 'ui', None), 'command_row', None)
         if isinstance(command_row, QtWidgets.QWidget):
             console.set_command_row(command_row)

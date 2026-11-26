@@ -1037,8 +1037,9 @@ class TestDockedJogPage(unittest.TestCase):
         _qapp.processEvents()
         titles = [console.tabs.tabText(i) for i in range(console.tabs.count())]
         self.assertEqual(titles.count('Overrides'), 1)
-        self.assertEqual(titles.index('Overrides'), titles.index('IO') + 1)
-        self.assertEqual(titles.index('IO'), titles.index('Console') + 1)
+        self.assertEqual(titles.index('Overrides'), titles.index('IO') + 1, titles)
+        self.assertEqual(titles.index('Buttons'), titles.index('Console') + 1)
+        self.assertEqual(titles.index('IO'), titles.index('Buttons') + 1)
         page = console.page('overrides')
         button = next(iter(self.tool.ui.ov_buttons.values()))[0]
         self.assertTrue(page.isAncestorOf(button))
@@ -1946,6 +1947,16 @@ class TestActionRules(unittest.TestCase):
         self.assertEqual(fake.written, [])
         for action in ('stop', 'estop'):
             self.assertIsNone(tool.action_allowed(action), action)
+
+    def test_macro_runs_lines_in_order_and_stops_on_error(self):
+        tool, fake = self.make()
+        fake.replies['BAD'] = ['error:1']
+        tool.run_macro(['G0 X1', 'BAD', 'G0 X2'])
+        self.assertEqual([c for c in fake.commands() if c != '?'], ['G0 X1', 'BAD'])
+        tool, fake = self.make()
+        self.situation(tool, 'stream_run')
+        tool.run_macro(['G0 X1'])
+        self.assertEqual(fake.written, [])
 
     def test_status_poll_does_not_block_actions(self):
         tool, fake = self.make()

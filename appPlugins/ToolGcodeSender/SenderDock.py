@@ -590,17 +590,18 @@ class GrblConsole(QtWidgets.QWidget):
         """True if the page widget is on the current tab."""
         return widget is not None and self.tabs.currentWidget() is widget and self._page_key(widget) != ''
 
-    PAGE_ORDER = ['camera', 'program', 'console', 'io', 'overrides']
+    PAGE_ORDER = ['camera', 'program', 'console', 'macros', 'io', 'overrides']
 
     def _insert_index(self, key):
         """The tab position of a new page: before the first mounted page that comes later in the fixed order."""
         rank = self.PAGE_ORDER.index(key) if key in self.PAGE_ORDER else len(self.PAGE_ORDER)
+        later = []
         for other in self._pages:
             other_rank = self.PAGE_ORDER.index(other) if other in self.PAGE_ORDER else len(self.PAGE_ORDER)
             index = self.tab_index(other)
             if other != key and other_rank > rank and index >= 0:
-                return index
-        return self.tabs.count()
+                later.append(index)
+        return min(later) if later else self.tabs.count()
 
     def page(self, key):
         return self._pages.get(key)
@@ -667,7 +668,7 @@ class GrblConsole(QtWidgets.QWidget):
             self._command_row.setParent(None)
             self._command_row.deleteLater()
             self._command_row = None
-        for key in ('camera', 'io', 'overrides'):
+        for key in ('camera', 'macros', 'io', 'overrides'):
             widget = self._pages.pop(key, None)
             if widget is not None:
                 index = self.tabs.indexOf(widget)
