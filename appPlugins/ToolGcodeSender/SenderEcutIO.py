@@ -273,6 +273,10 @@ class EcutHardwareTabs(QtWidgets.QWidget):
             self.unverified_fields[key] = self._check(('unverified', key))
             self.unverified_fields[key].setText(text)
             layout.addWidget(self.unverified_fields[key])
+            if key == 'mpg':
+                mpg_note = FCLabel(_('Board-side MPG. Not verified.'))
+                mpg_note.setWordWrap(True)
+                layout.addWidget(mpg_note)
         layout.addStretch()
 
     def _build_live(self):

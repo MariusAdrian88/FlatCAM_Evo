@@ -75,6 +75,18 @@ def sent_deltas(api):
     return out
 
 
+def test_mpg_switch_sends_config():
+    cfg = EcutBoardConfig()
+    cfg.mpg.enabled = True
+    cfg.mpg.port_select = 5
+    with pytest.raises(EcutError, match='MPG'):
+        ecut_controller.encode_config(cfg)
+    cfg.unverified.mpg = True
+    packets = ecut_controller.encode_config(cfg)
+    mpg = next(packets[n:n + 65] for n in range(0, len(packets), 65) if packets[n + 1] == Cmd.MPG_CONFIG)
+    assert struct.unpack_from('>I', mpg, 36)[0] == 5   # wire 35..38: the selected counter index
+
+
 def test_config():
     config = EcutBoardConfig()
     config.axes[0].steps_per_mm = 200.0

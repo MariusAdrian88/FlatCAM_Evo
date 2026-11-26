@@ -476,7 +476,7 @@ class _HoldableRecords:
 def encode_config(config: EcutBoardConfig) -> bytes:
     """Seven initialization reports, encoded from native FUN_100129a0 and its helpers."""
     config.validate()
-    if config.mpg.enabled:
+    if config.mpg.enabled and not config.unverified.mpg:
         raise EcutError('MPG motion dispatch is not yet verified')
     if config.spindle.control == SpindleControl.STEP_DIR:
         raise EcutError('Step/direction spindle drive is not yet verified')
