@@ -274,6 +274,17 @@ class TestToolChangeSender(unittest.TestCase):
         tool.on_toolchange_measure()
         self.assertEqual(fake.commands(), [])
 
+    def test_ecut_with_probe_capability_is_not_refused_by_the_toolchange_probe(self):
+        fake = ToolChangeFake(heights={(0.0, 0.0): -5.0})
+        tool = make_tool(fake, options(PLATE_REMOVABLE))
+        tool._ecut_settings_capable = lambda port: True
+        for caps, refused in (({'probe': True}, False), ({'probe': None}, True)):
+            tool._grbl_caps = caps
+            with patch.object(tool, '_toolchange_message') as message:
+                tool._toolchange_ready()
+            texts = [str(call.args[0]) for call in message.call_args_list]
+            self.assertEqual(any('E-Cut' in text for text in texts), refused, caps)
+
     def test_retract_never_goes_above_the_start_height(self):
         fake = ToolChangeFake(heights={(0.0, 0.0): -0.1})
         tool = make_tool(fake, options(PLATE_REMOVABLE))

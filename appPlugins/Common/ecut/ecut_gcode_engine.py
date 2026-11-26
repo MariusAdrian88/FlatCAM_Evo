@@ -53,7 +53,7 @@ class _Parser:
 
 _GROUPS = {
     0: 'motion', 1: 'motion', 2: 'motion', 3: 'motion', 80: 'motion',
-    38.2: 'motion', 38.3: 'motion', 38.4: 'motion', 38.5: 'motion',
+    31: 'motion', 38.2: 'motion', 38.3: 'motion', 38.4: 'motion', 38.5: 'motion',
     17: 'plane', 18: 'plane', 19: 'plane',
     20: 'units', 21: 'units', 90: 'distance', 91: 'distance',
     91.1: 'arc_distance', 93: 'feed_mode', 94: 'feed_mode',
@@ -102,6 +102,8 @@ class EcutGcodeEngine:
         self._spindle_override = 100
         self.check_mode = False
         self._homing = False
+        self._preparing = False
+        self._probe = None  # machine position of the last probe contact, for $#
         self._check_snapshot = None
         self._parser = _Parser(position=self._measured_position())
         self._active_parser = None
@@ -410,12 +412,17 @@ class EcutGcodeEngine:
         if text.startswith('$'):
             return self._system(text.upper())
         parser, wcs, stored, lines, coolant, ended = self._validated_plan(text)
+        record = []
         if not self.check_mode:
             self._active_parser = parser
             try:
                 self._execute(lines, coolant)
             finally:
                 self._active_parser = None
+            if any(line.startswith('G21 G90 G38.2 ') for line in lines):
+                # the probe retracts after the contact: the machine is not at the programmed target
+                parser.position = self._measured_position()
+                record = [f'[PRB:{self._coordinates(self._probe)}:1]']
         self._parser, self._wcs, self._stored = parser, wcs, stored
         if ended:
             parser.motion, parser.plane, parser.distance, parser.feed_mode = 1, 17, 90, 94
@@ -425,7 +432,7 @@ class EcutGcodeEngine:
                 self.api.feed_override = 1
                 self.api.rate_limit = 1
         self._save()
-        return ['ok']
+        return [*record, 'ok']
 
     def _program_state(self, parser=None, wcs=None, stored=None):
         values = dict((parser or self._parser).__dict__)
@@ -469,6 +476,7 @@ class EcutGcodeEngine:
         virtual._native = copy.deepcopy(self._native)
         virtual.settings_path = None
         virtual.check_mode = True
+        virtual._preparing = True
         batches, normalized, source_indices = [], [], []
         pending, pending_stage, pending_final, pending_signature = [], None, None, None
 
@@ -616,8 +624,13 @@ class EcutGcodeEngine:
                 if letter in 'FNPTS' and value < 0:
                     raise GcodeError(4, f'Negative {letter} value')
                 values[letter] = value
-        if any(g in gs for g in (38.2, 38.3, 38.4, 38.5)):
+        probing = 38.2 in gs or 31 in gs
+        if (any(g in gs for g in (38.3, 38.4, 38.5)) or (probing and not self.api.config.unverified.probing)):
             raise GcodeError(20, 'Probing refused: physical input cycle capture is not verified')
+        if probing and (self._preparing or jog):
+            raise GcodeError(20, 'Probing is not allowed in a prepared file or a jog')
+        if probing and not any(k in values for k in 'XYZ'):
+            raise GcodeError(26, 'Probe requires an axis word')
         if jog and (ms or any(g not in (20, 21, 90, 91, 53) for g in gs)
                     or any(k not in 'FXYZ' for k in values) or 'F' not in values
                     or not any(k in values for k in 'XYZ')):
@@ -630,7 +643,7 @@ class EcutGcodeEngine:
             if group in ('motion', 'plane', 'units', 'distance', 'feed_mode'):
                 if group == 'feed_mode' and g != parser.feed_mode:
                     parser.feed = 0
-                setattr(parser, group, int(g))
+                setattr(parser, group, g if g == 38.2 else int(g))
             elif group == 'wcs':
                 parser.wcs = int(g - 54)
             elif group == 'path':
@@ -740,6 +753,14 @@ class EcutGcodeEngine:
             # G64 P tolerance, which bounds how far the chords may leave the programmed arc.
             end = None if jog else self.path_deviation_mm(parser)
             interior = None if parser.path_mode == 61 else end
+            if parser.motion in (31, 38.2):
+                if len(axes) != 1 or next(iter(axes)) > 2:
+                    raise GcodeError(26 if not axes else 20, 'Probe requires exactly one X, Y or Z word')
+                axis = next(iter(axes))
+                lines.append(f'G21 G90 G38.2 {"XYZ"[axis]}{target[axis]:.9f} F{feed:.9f}')
+                parser.position = target
+                parser.motion = 1  # a probe runs only where the block says so
+                points = []
             for n, point in enumerate(points, 1):
                 line = self._linear(0 if parser.motion == 0 else 1, point, feed)
                 corner = end if n == len(points) else interior
@@ -925,7 +946,11 @@ class EcutGcodeEngine:
         for name, on in coolant:
             self.api.set_output(name, on)
         if lines:
+            probed = any(line.startswith('G21 G90 G38.2 ') for line in lines)
             self.api.run_gcode(lines)
+            if probed:
+                point = self.api.last_probe_result['position_mm']
+                self._probe = list(point[:self._axis_count()])
 
     def _system(self, text):
         if text == '$':
@@ -938,6 +963,7 @@ class EcutGcodeEngine:
         if text == '$I':
             return ['[VER:1.1h:E-Cut host compatibility]',
                     '[OPT:V,1,128]',
+                    '[NEWOPT:PROBE]' if self.api.config.unverified.probing else '[NEWOPT:NOPROBE]',
                     '[AXS:4:XYZA]' if self._axis_count() == 4 else '[AXS:3:XYZ]',
                     '[MSG:Host lookahead for prepared motion batches; prepared-job overrides unavailable]', 'ok']
         if text == '$G':
@@ -950,7 +976,8 @@ class EcutGcodeEngine:
             rows += [f'[G{28+i*2}:{self._coordinates(v)}]' for i, v in enumerate(self._stored)]
             return rows + [f'[G92:{self._coordinates(self._parser.g92)}]',
                            f'[TLO:{self._report_value(self._parser.tlo):.3f}]',
-                           '[MSG:Probe result unavailable; physical cycle not verified]', 'ok']
+                           f'[PRB:{self._coordinates(self._probe or [0.0] * 4)}:{int(self._probe is not None)}]',
+                           'ok']
         if text == '$C':
             if not self.check_mode:
                 self._check_snapshot = copy.deepcopy((self._parser, self._wcs, self._stored))

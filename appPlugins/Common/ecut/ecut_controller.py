@@ -1404,10 +1404,14 @@ class EcutAPI:
                                        'firmware_latched': False}
             completed = True
             return point
-        except Exception:
+        except Exception as error:
             self._last_probe_result = None
             self._lose_backlash([axis])
             self._sensor_error()
+            if self._state != State.ESTOP:
+                # a limit or E-stop input keeps its own alarm code; a failed probe is ALARM:5
+                self._fault_alarm = 5
+                self._fault_reason = 'Probe failed: %s' % error
             raise
         finally:
             self._running = program_running and completed

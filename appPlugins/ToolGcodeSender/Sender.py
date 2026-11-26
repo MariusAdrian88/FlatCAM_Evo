@@ -3704,9 +3704,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         if not self._grbl_port_ready():
             self._toolchange_message(_("Not connected to a controller."), error=True)
             return None
-        if self._ecut_settings_capable(self.grbl_ser_port):
+        if self._ecut_without_probe():
             self._toolchange_message(
-                _("Calibrated tool-change measurement supports stock GRBL only, not E-Cut."), error=True)
+                _("Calibrated tool-change measurement needs an E-Cut with probing switched on."), error=True)
             return None
         if (str(getattr(self, 'units', '')).upper() not in ('MM', 'IN') or
                 str(self.app.app_units).upper() != str(self.units).upper()):
@@ -3730,6 +3730,11 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             self._toolchange_message(_("A tool-change operation is already running."), error=True)
             return None
         return mode, settings
+
+    def _ecut_without_probe(self):
+        """True for an E-Cut port that does not report the probe capability (probing is switched off)."""
+        return (self._ecut_settings_capable(self.grbl_ser_port) and
+                (self.__dict__.get('_grbl_caps') or {}).get('probe') is not True)
 
     def on_toolchange_calibrate(self):
         if self._action_ok('probe'):
@@ -3810,7 +3815,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 context['units'] != str(self.units).upper() or
                 context['units'] != str(self.app.app_units).upper() or
                 not self._toolchange_map_unchanged(context) or
-                self._ecut_settings_capable(self.grbl_ser_port)):
+                self._ecut_without_probe()):
             raise _GrblProbeAbort('', '', 'cancelled')
 
     def _toolchange_step(self, op, context, command, timeout=10.0):

@@ -9,10 +9,11 @@ from test_ecut_verified import report
 
 
 class SensorBoard(IoBoard):
-    def __init__(self, contact=True):
+    def __init__(self, contact=True, contact_at=-128):
         super().__init__()
         self.positions = [0] * 6
         self.contact = contact
+        self.contact_at = contact_at
         self.active = False
     def cmd(self, opcode, params=b''):
         super().cmd(opcode, params)
@@ -28,7 +29,7 @@ class SensorBoard(IoBoard):
             axis = 2 if int(opcode) == 0xae else int.from_bytes(params[32:34], 'big')
             desired = targets[axis]
             if self.contact and desired < self.positions[axis]:
-                self.positions[axis] = -128
+                self.positions[axis] = self.contact_at
                 self.active = True
             else:
                 self.positions[axis] = desired
@@ -477,3 +478,45 @@ def test_home_command_runs_sensor_cycle(monkeypatch):
         port.close()
     assert [x for x in lines if x.startswith(b'ALARM')] == [b'ALARM:9\r\n']
     assert bad.homed_axes == ()
+
+
+def test_g38_reports_contact(monkeypatch):
+    import time
+    from appPlugins.Common.ecut.ecut_gcode_engine import EcutGcodeEngine, GcodeError
+    from appPlugins.Common.ecut.ecut_sender_port import EcutSenderPort
+    api = sensor_api()
+    api._usb.contact_at = -61440          # Z -1.200 mm at 51200 counts/mm
+    api.config.probe.max_travel_mm = 5
+    api.push_config()
+    engine = EcutGcodeEngine(api)
+    assert engine.execute_line('$#')[-2] == '[PRB:0.000,0.000,0.000:0]'
+    assert engine.execute_line('G91 G38.2 Z-2 F6') == ['[PRB:0.000,0.000,-1.200:1]', 'ok']
+    assert '[PRB:0.000,0.000,-1.200:1]' in engine.execute_line('$#')
+    assert api.state == State.IDLE
+    # G31 answers the same way
+    api._usb.contact_at = -30720
+    assert engine.execute_line('G31 Z-1 F6') == ['[PRB:0.000,0.000,-0.600:1]', 'ok']
+    # the switch is off: the refusal stays and nothing moves
+    off = sensor_api()
+    off.config.unverified.probing = False
+    with pytest.raises(GcodeError, match='refused'):
+        EcutGcodeEngine(off).execute_line('G38.2 Z-.004 F6')
+    assert off._usb.positions[2] == 0
+    # no contact: one ALARM:5 line, no ok
+    bad = sensor_api(contact=False)
+    monkeypatch.setattr(bad, 'connect', lambda: True)
+    bad._usb.close = lambda: None
+    port = EcutSenderPort(api=bad, engine=EcutGcodeEngine(bad), timeout=0.03)
+    try:
+        port.write(b'G91 G38.2 Z-.004 F6\n')
+        lines = []
+        deadline = time.monotonic() + 20
+        while not any(x.startswith(b'ALARM') for x in lines) and time.monotonic() < deadline:
+            lines.extend(port.readlines())
+            time.sleep(0.01)
+        time.sleep(0.2)
+        lines.extend(port.readlines())
+    finally:
+        port.close()
+    assert [x for x in lines if x.startswith(b'ALARM')] == [b'ALARM:5\r\n']
+    assert b'ok\r\n' not in lines
