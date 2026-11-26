@@ -93,7 +93,7 @@ SENDER_ACTIONS = (
 # The machine situations in order: the first row that matches is used (see ToolGCodeSender._machine_situation).
 # Row = (situation, allowed actions). Monitor operations (MONITOR_OPS) are no operation for these rules.
 ACTION_RULES = (
-    ('not_connected', ('connect', 'estop')),
+    ('not_connected', ('connect', 'estop', 'edit')),    # an edit of the program does not touch the machine
     ('needs_reset', ('reset', 'stop', 'estop', 'spindle_off')),
     ('needs_home', ('home', 'reset', 'unlock', 'estop', 'spindle_off')),
     ('alarm', ('unlock', 'home', 'reset', 'stop', 'estop', 'console', 'spindle_off')),
@@ -200,7 +200,8 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
     _job_start = None           # the JobStart of the running job (policy 'pause'): kept for every pause of the job
     _m6_policy = 'native'      # the policy of the running job: 'native', 'send', 'skip' or 'pause'
     _step_waiting = False
-    _step_gate = None       # the StepGate of single block (created by the checkbox slot)
+    _edited_program = None  # {'text', 'target', 'base'}: the program applied on the program page (see _job_text)
+    _step_gate = None      # the StepGate of single block (created by the checkbox slot)
     macro_page = None       # the user buttons page of the dock (SenderMacros.MacroPage)
     # the active WCS as the controller reported it ('G54'..'G59', None: not read) and the last work position
     # shown (display units) for the typed work position
@@ -1072,6 +1073,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self._invalidate_start_requests()
         self._preview_generation = getattr(self, '_preview_generation', 0) + 1
         self._probe_start_op = None
+        self._edited_program = None
 
         # the job and its toolpath belong to the old object
         self.job_lines = []
@@ -4274,6 +4276,9 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 self.macro_page = None
         for button, byte in ui.ov_buttons.values():
             button.setEnabled(allowed['rapid_override' if byte in RAPID_OVERRIDE_BYTES else 'override'])
+        console = self.app.ui.grbl_console_dock.widget()
+        if isinstance(console, GrblConsole):
+            console.update_edit_controls()
         # a jog arrow that the operator holds must stay enabled, or its release never arrives
         op = self._grbl_op
         ui.jog_wdg.setEnabled(allowed['jog'] or (op is not None and op.name == 'continuous jog'))
@@ -5010,7 +5015,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         if not self._is_supported_target(target):
             self.app.inform.emit('[ERROR_NOTCL] %s' % _("Select a CNCJob object."))
             return None, None
-        source = getattr(target, 'source_file', '') or ''
+        source = self._job_text(target)
         if not source.strip():
             self.app.inform.emit('[ERROR_NOTCL] %s' % _("The CNCJob has no G-code. Use Update in the CNCJob UI."))
             return None, None
@@ -5286,14 +5291,14 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                     return
                 self._console().set_program(self.job_lines)
                 target = self._target()
-                source = target.source_file
+                source = self._job_text(target)
                 context = self._al_capture_context()
                 generation = self._grbl_safety_generation
                 start_line = self._choose_start_line(len(self.job_lines), beginning_only=True)
                 if start_line is None:
                     return
                 if (not self._al_context_current(context) or generation != self._grbl_safety_generation or
-                        self._target() is not target or target.source_file != source):
+                        self._target() is not target or self._job_text(target) != source):
                     self.app.inform.emit('[WARNING_NOTCL] %s' % _(
                         "The program or machine state changed while the dialog was open. Press Start again."))
                     return
@@ -5707,7 +5712,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         self._console().set_program(lines)
         self.sender_io.on_job_start()
         target = self._target()
-        source = target.source_file
+        source = self._job_text(target)
         seq = getattr(self, '_start_seq', 0)
         generation = self._grbl_safety_generation
         self.ui.start_button.setDisabled(True)
@@ -5719,7 +5724,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         with self._grbl_op_lock:
             current = (self._grbl_active_locked(op) and not op.cancel.is_set() and
                        generation == self._grbl_safety_generation and seq == getattr(self, '_start_seq', 0))
-        if start_line is None or not current or self._target() is not target or target.source_file != source:
+        if start_line is None or not current or self._target() is not target or self._job_text(target) != source:
             self._grbl_release(op)
             self._start_free_button()
             if op.cancel.is_set():
@@ -5810,7 +5815,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             return False
         target = pause.target
         profile = active_profile_of(self.app)
-        context = SimpleNamespace(op=op, target=target, source=target.source_file, seq=self._start_seq,
+        context = SimpleNamespace(op=op, target=target, source=self._job_text(target), seq=self._start_seq,
                                   generation=self._grbl_safety_generation, lines=pause.lines,
                                   numbers=pause.numbers, check_mode=False, poll_ms=pause.poll_ms, req=None,
                                   start_line=pause.index + 1, profile=profile, resume=pause)
@@ -5893,7 +5898,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
         with self._grbl_op_lock:
             current = (self._grbl_active_locked(op) and not op.cancel.is_set() and
                        generation == self._grbl_safety_generation and seq == self._start_seq)
-        return current and self._target() is target and target.source_file == source
+        return current and self._target() is target and self._job_text(target) == source
 
     def _start_abandoned(self, op):
         """A Start is old (Stop, or the program or the machine state changed): free the port and the button."""
@@ -6555,7 +6560,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             target = self._target()
             if self.ui.autolevel_cb.get_value() is not True:
                 # the source keeps the markers of the fixed sequences (the lines of the job have lost them)
-                text = target.source_file
+                text = self._job_text(target)
             gate = gate_file_text(
                 self.app.options.get('global_machine_profile'), self.app.options.get('global_machine_profiles_folder'),
                 self.app.data_path, text, getattr(target, 'pp_geometry_name', None), target.units, correct=True,
@@ -7354,7 +7359,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 canvas.fit_view()
             return
         # Freeze inputs before queuing work. Workers must never read widgets or mutate the stream job.
-        source = getattr(target, 'source_file', '') or ''
+        source = self._job_text(target)
         units, decimals = target.units, target.coords_decimals
         arc_mode = self.app.options.get("tools_grbl_arc_mode", 'split')
         arc_segment = float(self.app.options.get("tools_grbl_arc_segment", 0.5))
@@ -7432,7 +7437,7 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
                 result['view'] is not self.view3d or
                 self.view3d is None or self.view3d.canvas is not getattr(self.app, 'plotcanvas3d', None) or
                 result['map_generation'] != self._al_generation or self._target() is not result['target'] or
-                (getattr(result['target'], 'source_file', '') or '') != result['source']):
+                self._job_text(result['target']) != result['source']):
             return
         if 'error' in result:
             self.view3d.set_toolpath([])
@@ -7669,8 +7674,33 @@ class ToolGCodeSender(LevellingCoreMixin, GrblClientMixin, CNCjob, AppTool):
             return
         if self._grbl_op is not None and self._grbl_op.name == 'stream':
             return
-        text = (getattr(target_obj, 'source_file', '') or '') if self._is_supported_target(target_obj) else ''
-        self._console().set_program([line for _number, line in SenderGen.clean_lines_numbered(text)])
+        edited = self._edited_program
+        if edited is not None and (edited['target'] is not target_obj or
+                                   edited['base'] != (getattr(target_obj, 'source_file', '') or '')):
+            self._edited_program = None
+        text = self._job_text(target_obj) if self._is_supported_target(target_obj) else ''
+        console = self._console()
+        console.set_program([line for _number, line in SenderGen.clean_lines_numbered(text)])
+        console.set_edited(self._edited_program is not None)
+
+    def _job_text(self, target):
+        """:return: the G-code of the target for Start: the text applied on the program page, or its source."""
+        source = getattr(target, 'source_file', '') or ''
+        edited = self._edited_program
+        if edited is not None and edited['target'] is target and edited['base'] == source:
+            return edited['text']
+        return source
+
+    def on_program_applied(self, text):
+        target = self._target()
+        if not self._is_supported_target(target) or self.action_allowed('edit') is not None:
+            return
+        self._edited_program = {'text': text, 'target': target, 'base': getattr(target, 'source_file', '') or ''}
+        self._reload_console_program(target)
+
+    def on_program_reverted(self):
+        self._edited_program = None
+        self._reload_console_program(self._target())
 
     def on_console_toggled(self, checked):
         self.app.options["tools_grbl_console_visible"] = bool(checked)

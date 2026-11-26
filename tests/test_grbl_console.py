@@ -566,6 +566,64 @@ class TestGrblConsole(unittest.TestCase):
                 self.assertEqual(console.tabs.currentIndex(), 1)     # a new program does not change the page
                 self.assertEqual(self.selected_lines(console), [])
 
+    def edit_program(self, console, old, new):
+        console.edit_button.click()
+        console.program_view.setPlainText(console.program_view.toPlainText().replace(old, new))
+        console.apply_button.click()
+
+    def test_edited_program_is_streamed(self):
+        from tests.test_grbl_frame import patch_object_changed
+
+        fake = CheckFake()
+        tool = make_stream_tool(fake, source='G21\nG1 X1 F100\n')
+        patch_object_changed(tool)
+        console = self.attach_console(tool)
+        tool.on_object_changed()
+        target = tool.app.collection.get_by_name.return_value
+
+        def streamed():
+            before = len(fake.commands())
+            tool.on_start()
+            return ' '.join(fake.commands()[before:])
+
+        self.edit_program(console, 'G1 X1', 'G1 X5')
+        self.assertIn('Edited', console.edit_status.text())
+        self.assertEqual(target.source_file, 'G21\nG1 X1 F100\n')           # the object is not changed
+        sent = streamed()
+        self.assertIn('G1 X5', sent)
+        self.assertNotIn('G1 X1', sent)
+        console.revert_button.click()
+        sent = streamed()
+        self.assertIn('G1 X1', sent)
+        self.assertNotIn('G1 X5', sent)
+        # a new G-code of the object drops the edit
+        self.edit_program(console, 'G1 X1', 'G1 X5')
+        target.source_file = 'G21\nG1 X2 F100\n'
+        tool.on_object_changed()
+        sent = streamed()
+        self.assertIn('G1 X2', sent)
+        self.assertNotIn('G1 X5', sent)
+
+    def test_edit_is_refused_during_an_operation(self):
+        tool = make_stream_tool(CheckFake())
+        console = self.attach_console(tool)
+        console.update_edit_controls()
+        self.assertTrue(console.edit_button.isEnabled())
+        op = tool._grbl_reserve('stream', motion=True)
+        self.addCleanup(tool._grbl_release, op)
+        console.update_edit_controls()
+        self.assertFalse(console.edit_button.isEnabled())
+
+    def test_edited_program_is_levelled(self):
+        tool, target = make_levelled_stream_tool(CheckFake())
+        console = self.attach_console(tool)
+        tool._reload_console_program(target)
+        self.edit_program(console, 'G01 X3.0000 Y1.0000', 'G01 X3.0000 Y2.5000')
+        tool.on_start()
+        edited = [line for line in tool.job_lines if 'Y2.5' in line]
+        self.assertTrue(edited)
+        self.assertTrue(all('Z' in line for line in edited))
+
     def test_show_console_selects_program_and_focuses_gcode(self):
         tool = make_stream_tool(CheckFake())
         console = self.attach_console(tool)
@@ -1832,7 +1890,7 @@ class TestActionRules(unittest.TestCase):
             tool._step_waiting = name == 'stream_step'
 
     ROWS = (
-        ('not_connected', ('connect', 'estop')),
+        ('not_connected', ('connect', 'estop', 'edit')),
         ('needs_reset', ('reset', 'stop', 'estop', 'spindle_off')),
         ('braking', ('reset', 'stop', 'estop', 'spindle_off')),
         ('reset_pending', ('reset', 'stop', 'estop', 'spindle_off')),

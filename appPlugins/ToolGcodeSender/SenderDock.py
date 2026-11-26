@@ -393,6 +393,8 @@ class GrblConsole(QtWidgets.QWidget):
 
     program_line_selected = QtCore.pyqtSignal(object)
     page_changed = QtCore.pyqtSignal(str)
+    program_applied = QtCore.pyqtSignal(str)
+    program_reverted = QtCore.pyqtSignal()
     TEXT_MIN_HEIGHT = 150   # a short dock scrolls instead of squashing the Program and Console text
     _program_source = None  # the list of the last set_program(): the same list is not set twice
     PROGRAM_BLOCK = 20000   # lines per GUI call when the program text loads
@@ -464,6 +466,19 @@ class GrblConsole(QtWidgets.QWidget):
         program_header.addWidget(self.program_status, 1)
         program_header.addWidget(self.follow_cb)
         program_lay.addLayout(program_header)
+        edit_row = QtWidgets.QHBoxLayout()
+        self.edit_button = QtWidgets.QPushButton(_("Edit"))
+        self.edit_button.setCheckable(True)
+        self.edit_button.setToolTip(_("Edit the program before Start. The G-code object is not changed."))
+        self.apply_button = QtWidgets.QPushButton(_("Apply"))
+        self.apply_button.setToolTip(_("Use the edited text for the next Start."))
+        self.revert_button = QtWidgets.QPushButton(_("Revert"))
+        self.revert_button.setToolTip(_("Go back to the G-code of the object."))
+        self.edit_status = QtWidgets.QLabel()
+        for widget in (self.edit_button, self.apply_button, self.revert_button):
+            edit_row.addWidget(widget)
+        edit_row.addWidget(self.edit_status, 1)
+        program_lay.addLayout(edit_row)
         self.program_view = CodeEdit(theme=tool.app.options.get('global_theme', 'default'))
         self.program_area = self.program_view
         self.program_view.setReadOnly(True)
@@ -493,6 +508,12 @@ class GrblConsole(QtWidgets.QWidget):
         self._command_row = None
         self.set_page('console', _("Console"), console_tab)
         self.follow_cb.toggled.connect(self._follow_program)
+        self.edit_button.toggled.connect(self._edit_toggled)
+        self.apply_button.clicked.connect(self._apply_clicked)
+        self.revert_button.clicked.connect(self._revert_clicked)
+        self.program_applied.connect(lambda text: self.tool.on_program_applied(text))
+        self.program_reverted.connect(lambda: self.tool.on_program_reverted())
+        self.update_edit_controls()
         self.tabs.currentChanged.connect(self._tab_changed)
         self.jog_collapse_button.toggled.connect(self._jog_collapse_toggled)
         self.program_line_selected.connect(lambda index: self.tool.on_program_line_selected(index))
@@ -894,6 +915,47 @@ class GrblConsole(QtWidgets.QWidget):
         self._program_line = self._program_errors[-1] if self._program_errors else acknowledged
         if self.tool.__dict__.get('_program_paused') is not True:
             self._follow_program(self.follow_cb.isChecked())
+
+    def update_edit_controls(self):
+        """Edit is possible only when the machine rules allow it and no simulation runs; Apply works in edit mode."""
+        simulation = self.tool.__dict__.get('_simulation')
+        allowed = self.tool.action_allowed('edit') is None and not (simulation is not None and simulation.running)
+        if not allowed and self.edit_button.isChecked():
+            self.edit_button.setChecked(False)
+        self.edit_button.setEnabled(allowed)
+        self.apply_button.setEnabled(allowed and self.edit_button.isChecked())
+        self.revert_button.setEnabled(self.tool.__dict__.get('_edited_program') is not None)
+
+    def set_edited(self, edited):
+        self.edit_status.setText(_("Edited program") if edited else '')
+        self.revert_button.setEnabled(edited)
+
+    def _edit_toggled(self, checked):
+        if checked:
+            # the whole program must be in the view before it is edited
+            while self._program_loaded < self._program_count:
+                self._load_next_block(self._program_generation)
+            self.program_view.setReadOnly(False)
+            self.program_view.setUndoRedoEnabled(True)
+            self._progress_selections = []
+            self._highlight_program_selection()
+        else:
+            self.program_view.setReadOnly(True)
+            self.program_view.setUndoRedoEnabled(False)
+            # an edit that is not applied is dropped: show the program again
+            lines = self._program_source
+            self._program_source = None
+            self.set_program(lines if lines is not None else [])
+        self.update_edit_controls()
+
+    def _apply_clicked(self):
+        text = self.program_view.toPlainText()
+        self.edit_button.setChecked(False)
+        self.program_applied.emit(text)
+
+    def _revert_clicked(self):
+        self.edit_button.setChecked(False)
+        self.program_reverted.emit()
 
     def _follow_program(self, checked):
         self._selected_lines.clear()
